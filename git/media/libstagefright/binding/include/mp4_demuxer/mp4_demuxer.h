@@ -37,7 +37,7 @@ enum TrackType { kVideo = 1, kAudio };
 class MP4Demuxer
 {
 public:
-  explicit MP4Demuxer(Stream* aSource);
+  MP4Demuxer(Stream* aSource);
   ~MP4Demuxer();
 
   bool Init();
@@ -59,13 +59,9 @@ public:
   const AudioDecoderConfig& AudioConfig() { return mAudioConfig; }
   const VideoDecoderConfig& VideoConfig() { return mVideoConfig; }
 
-  void UpdateIndex(const nsTArray<mozilla::MediaByteRange>& aByteRanges);
-
   void ConvertByteRangesToTime(
     const nsTArray<mozilla::MediaByteRange>& aByteRanges,
-    nsTArray<Interval<Microseconds>>* aIntervals);
-
-  int64_t GetEvictionOffset(Microseconds aTime);
+    nsTArray<Interval<Microseconds> >* aIntervals);
 
 private:
   AudioDecoderConfig mAudioConfig;
@@ -74,8 +70,6 @@ private:
 
   nsAutoPtr<StageFrightPrivate> mPrivate;
   nsRefPtr<Stream> mSource;
-  nsTArray<mozilla::MediaByteRange> mCachedByteRanges;
-  nsTArray<Interval<Microseconds>> mCachedTimeRanges;
 };
 
 } // namespace mozilla

@@ -16,8 +16,8 @@
 #include "prlog.h"
 
 #ifdef PR_LOGGING
-PRLogModuleInfo* GetAppleMediaLog();
-#define LOG(...) PR_LOG(GetAppleMediaLog(), PR_LOG_DEBUG, (__VA_ARGS__))
+PRLogModuleInfo* GetDemuxerLog();
+#define LOG(...) PR_LOG(GetDemuxerLog(), PR_LOG_DEBUG, (__VA_ARGS__))
 #else
 #define LOG(...)
 #endif
@@ -25,47 +25,39 @@ PRLogModuleInfo* GetAppleMediaLog();
 namespace mozilla {
 
 AppleATDecoder::AppleATDecoder(const mp4_demuxer::AudioDecoderConfig& aConfig,
-                               MediaTaskQueue* aAudioTaskQueue,
+                               MediaTaskQueue* anAudioTaskQueue,
                                MediaDataDecoderCallback* aCallback)
   : mConfig(aConfig)
-  , mTaskQueue(aAudioTaskQueue)
+  , mTaskQueue(anAudioTaskQueue)
   , mCallback(aCallback)
   , mConverter(nullptr)
   , mStream(nullptr)
-  , mCurrentAudioTimestamp(0)
+  , mCurrentAudioFrame(0)
   , mSamplePosition(0)
   , mHaveOutput(false)
-  , mFlushed(false)
 {
   MOZ_COUNT_CTOR(AppleATDecoder);
-  LOG("Creating Apple AudioToolbox Audio decoder");
+  LOG("Creating Apple AudioToolbox AAC decoder");
   LOG("Audio Decoder configuration: %s %d Hz %d channels %d bits per channel",
       mConfig.mime_type,
       mConfig.samples_per_second,
       mConfig.channel_count,
       mConfig.bits_per_sample);
-
-  if (!strcmp(aConfig.mime_type, "audio/mpeg")) {
-    mFileType = kAudioFileMP3Type;
-  } else if (!strcmp(aConfig.mime_type, "audio/mp4a-latm")) {
-    mFileType = kAudioFileAAC_ADTSType;
-  } else {
-    mFileType = 0;
-  }
+  // TODO: Verify aConfig.mime_type.
 }
 
 AppleATDecoder::~AppleATDecoder()
 {
-  MOZ_COUNT_DTOR(AppleATDecoder);
+  MOZ_COUNT_DTOR(AppleATDecoer);
   MOZ_ASSERT(!mConverter);
   MOZ_ASSERT(!mStream);
 }
 
 static void
-_MetadataCallback(void* aDecoder,
+_MetadataCallback(void *aDecoder,
                   AudioFileStreamID aStream,
                   AudioFileStreamPropertyID aProperty,
-                  UInt32* aFlags)
+                  UInt32 *aFlags)
 {
   LOG("AppleATDecoder metadata callback");
   AppleATDecoder* decoder = static_cast<AppleATDecoder*>(aDecoder);
@@ -73,11 +65,10 @@ _MetadataCallback(void* aDecoder,
 }
 
 static void
-_SampleCallback(void* aDecoder,
-                UInt32 aNumBytes,
-                UInt32 aNumPackets,
-                const void* aData,
-                AudioStreamPacketDescription* aPackets)
+_SampleCallback(void *aDecoder,
+                UInt32 aNumBytes, UInt32 aNumPackets,
+                const void *aData,
+                AudioStreamPacketDescription *aPackets)
 {
   LOG("AppleATDecoder sample callback %u bytes %u packets",
       aNumBytes, aNumPackets);
@@ -88,15 +79,12 @@ _SampleCallback(void* aDecoder,
 nsresult
 AppleATDecoder::Init()
 {
-  if (!mFileType) {
-    NS_ERROR("Non recognised format");
-    return NS_ERROR_FAILURE;
-  }
-  LOG("Initializing Apple AudioToolbox Audio decoder");
+  LOG("Initializing Apple AudioToolbox AAC decoder");
+  AudioFileTypeID fileType = kAudioFileAAC_ADTSType;
   OSStatus rv = AudioFileStreamOpen(this,
                                     _MetadataCallback,
                                     _SampleCallback,
-                                    mFileType,
+                                    fileType,
                                     &mStream);
   if (rv) {
     NS_ERROR("Couldn't open AudioFileStream");
@@ -130,15 +118,11 @@ nsresult
 AppleATDecoder::Flush()
 {
   LOG("Flushing AudioToolbox AAC decoder");
-  mTaskQueue->Flush();
   OSStatus rv = AudioConverterReset(mConverter);
   if (rv) {
     LOG("Error %d resetting AudioConverter", rv);
     return NS_ERROR_FAILURE;
   }
-  // Notify our task queue of the coming input discontinuity.
-  mTaskQueue->Dispatch(
-      NS_NewRunnableMethod(this, &AppleATDecoder::SignalFlush));
   return NS_OK;
 }
 
@@ -186,8 +170,8 @@ struct PassthroughUserData {
   AppleATDecoder* mDecoder;
   UInt32 mNumPackets;
   UInt32 mDataSize;
-  const void* mData;
-  AudioStreamPacketDescription* mPacketDesc;
+  const void *mData;
+  AudioStreamPacketDescription *mPacketDesc;
   bool mDone;
 };
 
@@ -197,12 +181,12 @@ const uint32_t kNeedMoreData = 'MOAR';
 
 static OSStatus
 _PassthroughInputDataCallback(AudioConverterRef aAudioConverter,
-                              UInt32* aNumDataPackets /* in/out */,
-                              AudioBufferList* aData /* in/out */,
-                              AudioStreamPacketDescription** aPacketDesc,
-                              void* aUserData)
+                              UInt32 *aNumDataPackets /* in/out */,
+                              AudioBufferList *aData /* in/out */,
+                              AudioStreamPacketDescription **aPacketDesc,
+                              void *aUserData)
 {
-  PassthroughUserData* userData = (PassthroughUserData*)aUserData;
+  PassthroughUserData *userData = (PassthroughUserData *)aUserData;
   if (userData->mDone) {
     // We make sure this callback is run _once_, with all the data we received
     // from |AudioFileStreamParseBytes|. When we return an error, the decoder
@@ -223,7 +207,7 @@ _PassthroughInputDataCallback(AudioConverterRef aAudioConverter,
 
   aData->mBuffers[0].mNumberChannels = userData->mDecoder->mConfig.channel_count;
   aData->mBuffers[0].mDataByteSize = userData->mDataSize;
-  aData->mBuffers[0].mData = const_cast<void*>(userData->mData);
+  aData->mBuffers[0].mData = const_cast<void *>(userData->mData);
 
   return noErr;
 }
@@ -256,7 +240,7 @@ AppleATDecoder::SampleCallback(uint32_t aNumBytes,
 
     AudioBufferList decBuffer;
     decBuffer.mNumberBuffers = 1;
-    decBuffer.mBuffers[0].mNumberChannels = mOutputFormat.mChannelsPerFrame;
+    decBuffer.mBuffers[0].mNumberChannels = mConfig.channel_count;
     decBuffer.mBuffers[0].mDataByteSize = decodedSize;
     decBuffer.mBuffers[0].mData = decoded.get();
 
@@ -287,21 +271,21 @@ AppleATDecoder::SampleCallback(uint32_t aNumBytes,
       break;
     }
 
-    const int rate = mOutputFormat.mSampleRate;
-    const int channels = mOutputFormat.mChannelsPerFrame;
-
-    int64_t time = mCurrentAudioTimestamp;
+    const int rate = mConfig.samples_per_second;
+    int64_t time = FramesToUsecs(mCurrentAudioFrame, rate).value();
     int64_t duration = FramesToUsecs(numFrames, rate).value();
 
     LOG("pushed audio at time %lfs; duration %lfs\n",
         (double)time / USECS_PER_S, (double)duration / USECS_PER_S);
 
-    AudioData* audio = new AudioData(mSamplePosition,
+    AudioData *audio = new AudioData(mSamplePosition,
                                      time, duration, numFrames,
-                                     reinterpret_cast<AudioDataValue*>(decoded.forget()),
-                                     channels, rate);
+                                     reinterpret_cast<AudioDataValue *>(decoded.forget()),
+                                     rate);
     mCallback->Output(audio);
     mHaveOutput = true;
+
+    mCurrentAudioFrame += numFrames;
 
     if (rv == kNeedMoreData) {
       // No error; we just need more data.
@@ -315,53 +299,46 @@ AppleATDecoder::SampleCallback(uint32_t aNumBytes,
 void
 AppleATDecoder::SetupDecoder()
 {
-  AudioStreamBasicDescription inputFormat;
-
-  mHaveOutput = false;
-
-  nsresult rv = AppleUtils::GetRichestDecodableFormat(mStream, inputFormat);
-  if (NS_FAILED(rv)) {
-    mCallback->Error();
-    return;
-  }
+  AudioStreamBasicDescription inputFormat, outputFormat;
+  // Fill in the input format description from the stream.
+  AppleUtils::GetProperty(mStream,
+      kAudioFileStreamProperty_DataFormat, &inputFormat);
 
   // Fill in the output format manually.
-  PodZero(&mOutputFormat);
-  mOutputFormat.mFormatID = kAudioFormatLinearPCM;
-  mOutputFormat.mSampleRate = inputFormat.mSampleRate;
-  mOutputFormat.mChannelsPerFrame = inputFormat.mChannelsPerFrame;
+  PodZero(&outputFormat);
+  outputFormat.mFormatID = kAudioFormatLinearPCM;
+  outputFormat.mSampleRate = inputFormat.mSampleRate;
+  outputFormat.mChannelsPerFrame = inputFormat.mChannelsPerFrame;
 #if defined(MOZ_SAMPLE_TYPE_FLOAT32)
-  mOutputFormat.mBitsPerChannel = 32;
-  mOutputFormat.mFormatFlags =
+  outputFormat.mBitsPerChannel = 32;
+  outputFormat.mFormatFlags =
     kLinearPCMFormatFlagIsFloat |
     0;
 #else
 # error Unknown audio sample type
 #endif
   // Set up the decoder so it gives us one sample per frame
-  mOutputFormat.mFramesPerPacket = 1;
-  mOutputFormat.mBytesPerPacket = mOutputFormat.mBytesPerFrame
-        = mOutputFormat.mChannelsPerFrame * mOutputFormat.mBitsPerChannel / 8;
+  outputFormat.mFramesPerPacket = 1;
+  outputFormat.mBytesPerPacket = outputFormat.mBytesPerFrame
+        = outputFormat.mChannelsPerFrame * outputFormat.mBitsPerChannel / 8;
 
-  OSStatus status =
-    AudioConverterNew(&inputFormat, &mOutputFormat, &mConverter);
-  if (status) {
+  OSStatus rv = AudioConverterNew(&inputFormat, &outputFormat, &mConverter);
+  if (rv) {
     LOG("Error %d constructing AudioConverter", rv);
     mConverter = nullptr;
     mCallback->Error();
   }
+  mHaveOutput = false;
 }
 
 void
 AppleATDecoder::SubmitSample(nsAutoPtr<mp4_demuxer::MP4Sample> aSample)
 {
   mSamplePosition = aSample->byte_offset;
-  mCurrentAudioTimestamp = aSample->composition_timestamp;
-  uint32_t flags = mFlushed ? kAudioFileStreamParseFlag_Discontinuity : 0;
   OSStatus rv = AudioFileStreamParseBytes(mStream,
                                           aSample->size,
                                           aSample->data,
-                                          flags);
+                                          0);
   if (rv != noErr) {
     LOG("Error %d parsing audio data", rv);
     mCallback->Error();
@@ -373,12 +350,6 @@ AppleATDecoder::SubmitSample(nsAutoPtr<mp4_demuxer::MP4Sample> aSample)
   if (!mHaveOutput) {
     mCallback->InputExhausted();
   }
-}
-
-void
-AppleATDecoder::SignalFlush()
-{
-  mFlushed = true;
 }
 
 } // namespace mozilla

@@ -10,13 +10,11 @@
 #include "mozIGeckoMediaPluginService.h"
 #include "nsIObserver.h"
 #include "nsTArray.h"
-#include "mozilla/Attributes.h"
-#include "mozilla/Monitor.h"
+#include "mozilla/Mutex.h"
 #include "nsString.h"
 #include "nsCOMPtr.h"
 #include "nsIThread.h"
 #include "nsThreadUtils.h"
-#include "nsITimer.h"
 
 template <class> struct already_AddRefed;
 
@@ -38,10 +36,6 @@ public:
   NS_DECL_MOZIGECKOMEDIAPLUGINSERVICE
   NS_DECL_NSIOBSERVER
 
-  void AsyncShutdownNeeded(GMPParent* aParent);
-  void AsyncShutdownComplete(GMPParent* aParent);
-  void AbortAsyncShutdown();
-
 private:
   ~GeckoMediaPluginService();
 
@@ -51,16 +45,12 @@ private:
 
   void UnloadPlugins();
   void CrashPlugins();
-  void SetAsyncShutdownComplete();
 
   void LoadFromEnvironment();
   void ProcessPossiblePlugin(nsIFile* aDir);
 
   void AddOnGMPThread(const nsAString& aSearchDir);
   void RemoveOnGMPThread(const nsAString& aSearchDir);
-
-  nsresult SetAsyncShutdownTimeout();
-
 protected:
   friend class GMPParent;
   void ReAddOnGMPThread(nsRefPtr<GMPParent>& aOld);
@@ -90,26 +80,6 @@ private:
   nsCOMPtr<nsIThread> mGMPThread;
   bool mShuttingDown;
   bool mShuttingDownOnGMPThread;
-
-  template<typename T>
-  class MainThreadOnly {
-  public:
-    MOZ_IMPLICIT MainThreadOnly(T aValue)
-      : mValue(aValue)
-    {}
-    operator T&() {
-      MOZ_ASSERT(NS_IsMainThread());
-      return mValue;
-    }
-
-  private:
-    T mValue;
-  };
-
-  MainThreadOnly<bool> mWaitingForPluginsAsyncShutdown;
-
-  nsTArray<nsRefPtr<GMPParent>> mAsyncShutdownPlugins; // GMP Thread only.
-  nsCOMPtr<nsITimer> mAsyncShutdownTimeout; // GMP Thread only.
 };
 
 } // namespace gmp

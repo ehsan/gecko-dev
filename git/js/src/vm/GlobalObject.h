@@ -558,10 +558,8 @@ class GlobalObject : public JSObject
     RegExpStatics *getAlreadyCreatedRegExpStatics() const;
 
     JSObject *getThrowTypeError() const {
-        const Value v = getReservedSlot(THROWTYPEERROR);
-        MOZ_ASSERT(v.isObject(),
-                   "attempting to access [[ThrowTypeError]] too early");
-        return &v.toObject();
+        JS_ASSERT(functionObjectClassesInitialized());
+        return &getSlot(THROWTYPEERROR).toObject();
     }
 
     Value createDataViewForThis() const {
@@ -634,6 +632,8 @@ class GlobalObject : public JSObject
         return &forOfPIC.toObject();
     }
     static JSObject *getOrCreateForOfPICObject(JSContext *cx, Handle<GlobalObject*> global);
+
+    static bool addDebugger(JSContext *cx, Handle<GlobalObject*> global, Debugger *dbg);
 };
 
 template<>

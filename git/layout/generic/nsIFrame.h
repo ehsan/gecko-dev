@@ -33,9 +33,9 @@
 #include "WritingModes.h"
 #include <algorithm>
 #include "nsITheme.h"
+#include "gfx3DMatrix.h"
 #include "nsLayoutUtils.h"
 #include "nsFrameState.h"
-#include "CaretAssociationHint.h"
 
 #ifdef ACCESSIBILITY
 #include "mozilla/a11y/AccTypes.h"
@@ -60,6 +60,7 @@
 
 struct nsHTMLReflowState;
 class nsHTMLReflowCommand;
+class gfxMatrix;
 class nsIAtom;
 class nsPresContext;
 class nsIPresShell;
@@ -407,7 +408,6 @@ public:
   typedef mozilla::layout::FrameChildListIterator ChildListIterator;
   typedef mozilla::layout::FrameChildListArrayIterator ChildListArrayIterator;
   typedef mozilla::gfx::Matrix Matrix;
-  typedef mozilla::gfx::Matrix4x4 Matrix4x4;
   typedef mozilla::Sides Sides;
   typedef mozilla::LogicalSides LogicalSides;
 
@@ -1256,10 +1256,10 @@ public:
     // numerical order, as opposed to wanting the primary and secondary offsets
     int32_t StartOffset() { return std::min(offset, secondaryOffset); }
     int32_t EndOffset() { return std::max(offset, secondaryOffset); }
-    // This value indicates whether the associated content is before or after
+    // This boolean indicates whether the associated content is before or after
     // the offset; the most visible use is to allow the caret to know which line
     // to display on.
-    mozilla::CaretAssociationHint associate;
+    bool associateWithNext;
   };
   enum {
     IGNORE_SELECTION_STYLE = 0x01,
@@ -1658,10 +1658,6 @@ public:
    * separately is so that the 'box-sizing' property can be handled.
    * Thus aMargin includes absolute positioning offsets as well.
    *
-   * @param aWritingMode  The writing mode to use for the returned size
-   *                      (need not match this frame's writing mode).
-   *                      This is also the writing mode of the passed-in
-   *                      LogicalSize parameters.
    * @param aCBSize  The size of the element's containing block.  (Well,
    *                 the |height| component isn't really.)
    * @param aAvailableWidth  The available width for 'auto' widths.
@@ -1685,15 +1681,10 @@ public:
    *                 percentages.
    * @param aFlags   Flags to further customize behavior (definitions above).
    */
-  virtual mozilla::LogicalSize
-  ComputeSize(nsRenderingContext *aRenderingContext,
-              mozilla::WritingMode aWritingMode,
-              const mozilla::LogicalSize& aCBSize,
-              nscoord aAvailableISize,
-              const mozilla::LogicalSize& aMargin,
-              const mozilla::LogicalSize& aBorder,
-              const mozilla::LogicalSize& aPadding,
-              uint32_t aFlags) = 0;
+  virtual nsSize ComputeSize(nsRenderingContext *aRenderingContext,
+                             nsSize aCBSize, nscoord aAvailableWidth,
+                             nsSize aMargin, nsSize aBorder, nsSize aPadding,
+                             uint32_t aFlags) = 0;
 
   /**
    * Compute a tight bounding rectangle for the frame. This is a rectangle
@@ -1985,11 +1976,11 @@ public:
    * document as this frame. If this frame IsTransformed(), then *aOutAncestor
    * will be the parent frame (if not preserve-3d) or the nearest non-transformed
    * ancestor (if preserve-3d).
-   * @return A Matrix4x4 that converts points in this frame's coordinate space
+   * @return A gfxMatrix that converts points in this frame's coordinate space
    *   into points in aOutAncestor's coordinate space.
    */
-  Matrix4x4 GetTransformMatrix(const nsIFrame* aStopAtAncestor,
-                               nsIFrame **aOutAncestor);
+  gfx3DMatrix GetTransformMatrix(const nsIFrame* aStopAtAncestor,
+                                 nsIFrame **aOutAncestor);
 
   /**
    * Bit-flags to pass to IsFrameOfType()
@@ -2762,7 +2753,8 @@ NS_PTR_TO_INT32(frame->Properties().Get(nsIFrame::ParagraphDepthProperty()))
    * incremented during empty transactions.
    */  
   void AddPaintedPresShell(nsIPresShell* shell) { 
-    PaintedPresShellList()->AppendElement(do_GetWeakReference(shell));
+    nsWeakPtr weakShell = do_GetWeakReference(shell);
+    PaintedPresShellList()->AppendElement(weakShell);
   }
   
   /**

@@ -31,7 +31,7 @@ class FontInfoLoadCompleteEvent : public nsRunnable {
 
     NS_DECL_ISUPPORTS_INHERITED
 
-    explicit FontInfoLoadCompleteEvent(FontInfoData *aFontInfo) :
+    FontInfoLoadCompleteEvent(FontInfoData *aFontInfo) :
         mFontInfo(aFontInfo)
     {}
 
@@ -45,7 +45,7 @@ class AsyncFontInfoLoader : public nsRunnable {
 
     NS_DECL_ISUPPORTS_INHERITED
 
-    explicit AsyncFontInfoLoader(FontInfoData *aFontInfo) :
+    AsyncFontInfoLoader(FontInfoData *aFontInfo) :
         mFontInfo(aFontInfo)
     {
         mCompleteEvent = new FontInfoLoadCompleteEvent(aFontInfo);

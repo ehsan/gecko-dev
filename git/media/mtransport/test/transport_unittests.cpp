@@ -334,7 +334,7 @@ class DtlsInspectorInjector : public DtlsRecordInspector {
 // Make a copy of the first instance of a message.
 class DtlsInspectorRecordHandshakeMessage : public DtlsRecordInspector {
  public:
-  explicit DtlsInspectorRecordHandshakeMessage(uint8_t handshake_type)
+  DtlsInspectorRecordHandshakeMessage(uint8_t handshake_type)
       : handshake_type_(handshake_type),
         buffer_() {}
 
@@ -921,8 +921,7 @@ TEST_F(TransportTest, TestConnect) {
   ConnectSocket();
 
   // check that we got the right suite
-  // bug 1052610
-  //ASSERT_EQ(TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256, p1_->cipherSuite());
+  ASSERT_EQ(TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256, p1_->cipherSuite());
 
   // no SRTP on this one
   ASSERT_EQ(0, p1_->srtpCipher());
@@ -933,8 +932,7 @@ TEST_F(TransportTest, TestConnectSrtp) {
   SetDtlsPeer();
   ConnectSocket();
 
-  // bug 1052610
-  //ASSERT_EQ(TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256, p1_->cipherSuite());
+  ASSERT_EQ(TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256, p1_->cipherSuite());
 
   // SRTP is on
   ASSERT_EQ(SRTP_AES128_CM_HMAC_SHA1_80, p1_->srtpCipher());
@@ -1089,8 +1087,7 @@ TEST_F(TransportTest, TestCipherMismatch) {
   ConnectSocketExpectFail();
 }
 
-// TODO(mt@mozilla.com) restore; bug 1052610
-TEST_F(TransportTest, DISABLED_TestCipherMandatoryOnlyGcm) {
+TEST_F(TransportTest, TestCipherMandatoryOnlyGcm) {
   SetDtlsPeer();
   ConfigureOneCipher(p1_, TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256);
   ConnectSocket();

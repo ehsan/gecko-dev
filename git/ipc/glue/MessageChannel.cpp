@@ -15,8 +15,6 @@
 #include "nsISupportsImpl.h"
 #include "nsContentUtils.h"
 
-#include "prprf.h"
-
 // Undo the damage done by mozzconf.h
 #undef compress
 
@@ -195,8 +193,8 @@ namespace {
 
 class MOZ_STACK_CLASS MaybeScriptBlocker {
 public:
-    explicit MaybeScriptBlocker(MessageChannel *aChannel
-                                MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+    MaybeScriptBlocker(MessageChannel *aChannel
+                  MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
         : mBlocked(aChannel->ShouldBlockScripts())
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
@@ -236,10 +234,7 @@ MessageChannel::MessageChannel(MessageListener *aListener)
     mRemoteStackDepthGuess(false),
     mSawInterruptOutMsg(false),
     mAbortOnError(false),
-    mBlockScripts(false),
-    mFlags(REQUIRE_DEFAULT),
-    mPeerPidSet(false),
-    mPeerPid(-1)
+    mBlockScripts(false)
 {
     MOZ_COUNT_CTOR(ipc::MessageChannel);
 
@@ -251,10 +246,6 @@ MessageChannel::MessageChannel(MessageListener *aListener)
     mDequeueOneTask = new RefCountedTask(NewRunnableMethod(
                                                  this,
                                                  &MessageChannel::OnMaybeDequeueOne));
-
-    mOnChannelConnectedTask = new RefCountedTask(NewRunnableMethod(
-        this,
-        &MessageChannel::DispatchOnChannelConnected));
 
 #ifdef OS_WIN
     mEvent = CreateEventW(nullptr, TRUE, FALSE, nullptr);
@@ -317,8 +308,6 @@ MessageChannel::Clear()
     mWorkerLoop = nullptr;
     delete mLink;
     mLink = nullptr;
-
-    mOnChannelConnectedTask->Cancel();
 
     if (mChannelErrorTask) {
         mChannelErrorTask->Cancel();
@@ -1126,7 +1115,7 @@ MessageChannel::DispatchSyncMessage(const Message& aMsg)
     Result rv = mListener->OnMessageReceived(aMsg, reply);
     mDispatchingSyncMessage = false;
 
-    if (!MaybeHandleError(rv, aMsg, "DispatchSyncMessage")) {
+    if (!MaybeHandleError(rv, "DispatchSyncMessage")) {
         delete reply;
         reply = new Message();
         reply->set_sync();
@@ -1184,7 +1173,7 @@ MessageChannel::DispatchUrgentMessage(const Message& aMsg)
     mDispatchingUrgentMessageCount--;
     gDispatchingUrgentMessageCount--;
 
-    if (!MaybeHandleError(rv, aMsg, "DispatchUrgentMessage")) {
+    if (!MaybeHandleError(rv, "DispatchUrgentMessage")) {
         delete reply;
         reply = new Message();
         reply->set_urgent();
@@ -1206,7 +1195,7 @@ MessageChannel::DispatchRPCMessage(const Message& aMsg)
 
     Message *reply = nullptr;
 
-    if (!MaybeHandleError(mListener->OnCallReceived(aMsg, reply), aMsg, "DispatchRPCMessage")) {
+    if (!MaybeHandleError(mListener->OnCallReceived(aMsg, reply), "DispatchRPCMessage")) {
         delete reply;
         reply = new Message();
         reply->set_rpc();
@@ -1230,7 +1219,7 @@ MessageChannel::DispatchAsyncMessage(const Message& aMsg)
         NS_RUNTIMEABORT("unhandled special message!");
     }
 
-    MaybeHandleError(mListener->OnMessageReceived(aMsg), aMsg, "DispatchAsyncMessage");
+    MaybeHandleError(mListener->OnMessageReceived(aMsg), "DispatchAsyncMessage");
 }
 
 void
@@ -1298,7 +1287,7 @@ MessageChannel::DispatchInterruptMessage(const Message& aMsg, size_t stackDepth)
     Result rv = mListener->OnCallReceived(aMsg, reply);
     --mRemoteStackDepthGuess;
 
-    if (!MaybeHandleError(rv, aMsg, "DispatchInterruptMessage")) {
+    if (!MaybeHandleError(rv, "DispatchInterruptMessage")) {
         delete reply;
         reply = new Message();
         reply->set_interrupt();
@@ -1501,19 +1490,19 @@ MessageChannel::SetReplyTimeoutMs(int32_t aTimeoutMs)
 void
 MessageChannel::OnChannelConnected(int32_t peer_id)
 {
-    MOZ_ASSERT(!mPeerPidSet);
-    mPeerPidSet = true;
-    mPeerPid = peer_id;
-    mWorkerLoop->PostTask(FROM_HERE, new DequeueTask(mOnChannelConnectedTask));
+    mWorkerLoop->PostTask(
+        FROM_HERE,
+        NewRunnableMethod(this,
+                          &MessageChannel::DispatchOnChannelConnected,
+                          peer_id));
 }
 
 void
-MessageChannel::DispatchOnChannelConnected()
+MessageChannel::DispatchOnChannelConnected(int32_t peer_pid)
 {
     AssertWorkerThread();
-    MOZ_ASSERT(mPeerPidSet);
     if (mListener)
-        mListener->OnChannelConnected(mPeerPid);
+        mListener->OnChannelConnected(peer_pid);
 }
 
 void
@@ -1558,7 +1547,7 @@ MessageChannel::ReportConnectionError(const char* aChannelName) const
 }
 
 bool
-MessageChannel::MaybeHandleError(Result code, const Message& aMsg, const char* channelName)
+MessageChannel::MaybeHandleError(Result code, const char* channelName)
 {
     if (MsgProcessed == code)
         return true;
@@ -1589,12 +1578,7 @@ MessageChannel::MaybeHandleError(Result code, const Message& aMsg, const char* c
         return false;
     }
 
-    char printedMsg[512];
-    PR_snprintf(printedMsg, sizeof(printedMsg),
-                "(msgtype=0x%lX,name=%s) %s",
-                aMsg.type(), aMsg.name(), errorMsg);
-
-    PrintErrorMessage(mSide, channelName, printedMsg);
+    PrintErrorMessage(mSide, channelName, errorMsg);
 
     mListener->OnProcessingError(code);
 
@@ -1805,13 +1789,13 @@ MessageChannel::DebugAbort(const char* file, int line, const char* cond,
                   reply ? "(reply)" : "");
     // technically we need the mutex for this, but we're dying anyway
     DumpInterruptStack("  ");
-    printf_stderr("  remote Interrupt stack guess: %" PRIuSIZE "\n",
+    printf_stderr("  remote Interrupt stack guess: %lu\n",
                   mRemoteStackDepthGuess);
-    printf_stderr("  deferred stack size: %" PRIuSIZE "\n",
+    printf_stderr("  deferred stack size: %lu\n",
                   mDeferred.size());
-    printf_stderr("  out-of-turn Interrupt replies stack size: %" PRIuSIZE "\n",
+    printf_stderr("  out-of-turn Interrupt replies stack size: %lu\n",
                   mOutOfTurnReplies.size());
-    printf_stderr("  Pending queue size: %" PRIuSIZE ", front to back:\n",
+    printf_stderr("  Pending queue size: %lu, front to back:\n",
                   mPending.size());
 
     MessageQueue pending = mPending;

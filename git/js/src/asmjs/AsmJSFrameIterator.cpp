@@ -271,9 +271,9 @@ js::GenerateAsmJSFunctionPrologue(MacroAssembler &masm, unsigned framePushed,
     // Overflow checks are omitted by CodeGenerator in some cases (leaf
     // functions with small framePushed). Perform overflow-checking after
     // pushing framePushed to catch cases with really large frames.
-    if (labels->overflowThunk) {
+    if (!labels->overflowThunk.empty()) {
         // If framePushed is zero, we don't need a thunk to adjust StackPointer.
-        Label *target = framePushed ? labels->overflowThunk.ptr() : &labels->overflowExit;
+        Label *target = framePushed ? labels->overflowThunk.addr() : &labels->overflowExit;
         masm.branchPtr(Assembler::AboveOrEqual,
                        AsmJSAbsoluteAddress(AsmJSImm_StackLimit),
                        StackPointer,
@@ -330,11 +330,11 @@ js::GenerateAsmJSFunctionEpilogue(MacroAssembler &masm, unsigned framePushed,
     masm.bind(&labels->profilingEpilogue);
     GenerateProfilingEpilogue(masm, framePushed, AsmJSExit::None, &labels->profilingReturn);
 
-    if (labels->overflowThunk && labels->overflowThunk->used()) {
+    if (!labels->overflowThunk.empty() && labels->overflowThunk.ref().used()) {
         // The general throw stub assumes that only sizeof(AsmJSFrame) bytes
         // have been pushed. The overflow check occurs after incrementing by
         // framePushed, so pop that before jumping to the overflow exit.
-        masm.bind(labels->overflowThunk.ptr());
+        masm.bind(labels->overflowThunk.addr());
         masm.addPtr(Imm32(framePushed), StackPointer);
         masm.jump(&labels->overflowExit);
     }
@@ -356,11 +356,11 @@ js::GenerateAsmJSStackOverflowExit(MacroAssembler &masm, Label *overflowExit, La
     masm.storePtr(StackPointer, Address(activation, AsmJSActivation::offsetOfFP()));
 
     // Prepare the stack for calling C++.
-    if (uint32_t d = StackDecrementForCall(ABIStackAlignment, sizeof(AsmJSFrame), ShadowStackSpace))
-        masm.subPtr(Imm32(d), StackPointer);
+    if (unsigned stackDec = StackDecrementForCall(sizeof(AsmJSFrame), ShadowStackSpace))
+        masm.subPtr(Imm32(stackDec), StackPointer);
 
     // No need to restore the stack; the throw stub pops everything.
-    masm.assertStackAlignment(ABIStackAlignment);
+    masm.assertStackAlignment();
     masm.call(AsmJSImmPtr(AsmJSImm_ReportOverRecursed));
     masm.jump(throwLabel);
 }

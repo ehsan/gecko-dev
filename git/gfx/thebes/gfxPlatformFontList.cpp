@@ -511,7 +511,7 @@ gfxPlatformFontList::GetFontList(nsIAtom *aLangGroup,
 }
 
 struct FontFamilyListData {
-    explicit FontFamilyListData(nsTArray<nsRefPtr<gfxFontFamily> >& aFamilyArray) 
+    FontFamilyListData(nsTArray<nsRefPtr<gfxFontFamily> >& aFamilyArray) 
         : mFamilyArray(aFamilyArray)
     {}
 
@@ -729,7 +729,7 @@ gfxPlatformFontList::CheckFamily(gfxFontFamily *aFamily)
 }
 
 gfxFontFamily* 
-gfxPlatformFontList::FindFamily(const nsAString& aFamily, bool aUseSystemFonts)
+gfxPlatformFontList::FindFamily(const nsAString& aFamily)
 {
     nsAutoString key;
     gfxFontFamily *familyEntry;
@@ -741,15 +741,6 @@ gfxPlatformFontList::FindFamily(const nsAString& aFamily, bool aUseSystemFonts)
     if ((familyEntry = mFontFamilies.GetWeak(key))) {
         return CheckFamily(familyEntry);
     }
-
-#if defined(XP_MACOSX)
-    // for system font types allow hidden system fonts to be referenced
-    if (aUseSystemFonts) {
-        if ((familyEntry = mSystemFontFamilies.GetWeak(key)) != nullptr) {
-            return CheckFamily(familyEntry);
-        }
-    }
-#endif
 
     // lookup in other family names list (mostly localized names)
     if ((familyEntry = mOtherFamilyNames.GetWeak(key)) != nullptr) {
@@ -977,7 +968,7 @@ gfxPlatformFontList::LoadFontInfo()
 }
 
 struct LookupMissedFaceNamesData {
-    explicit LookupMissedFaceNamesData(gfxPlatformFontList *aFontList)
+    LookupMissedFaceNamesData(gfxPlatformFontList *aFontList)
         : mFontList(aFontList), mFoundName(false) {}
 
     gfxPlatformFontList *mFontList;
@@ -999,7 +990,7 @@ gfxPlatformFontList::LookupMissedFaceNamesProc(nsStringHashKey *aKey,
 }
 
 struct LookupMissedOtherNamesData {
-    explicit LookupMissedOtherNamesData(gfxPlatformFontList *aFontList)
+    LookupMissedOtherNamesData(gfxPlatformFontList *aFontList)
         : mFontList(aFontList), mFoundName(false) {}
 
     gfxPlatformFontList *mFontList;

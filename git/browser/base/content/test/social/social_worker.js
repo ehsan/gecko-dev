@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-let testPort, sidebarPort, apiPort, updatingManifest=false;
+let testPort, sidebarPort, apiPort;
 
 onconnect = function(e) {
   let port = e.ports[0];
@@ -116,21 +116,12 @@ onconnect = function(e) {
         if (testPort)
           testPort.postMessage({topic:"got-share-data-message", result: event.data.result});
         break;
-      case "manifest-get":
-        apiPort.postMessage({topic: 'social.manifest-get'});
-        break;
       case "worker.update":
-        updatingManifest = true;
         apiPort.postMessage({topic: 'social.manifest-get'});
         break;
       case "social.manifest":
-        if (updatingManifest) {
-          updatingManifest = false;
-          event.data.data.version = 2;
-          apiPort.postMessage({topic: 'social.manifest-set', data: event.data.data});
-        } else if (testPort) {
-          testPort.postMessage({topic:"social.manifest", data: event.data.data});
-        }
+        event.data.data.version = 2;
+        apiPort.postMessage({topic: 'social.manifest-set', data: event.data.data});
         break;
     }
   }

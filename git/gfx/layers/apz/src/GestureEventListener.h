@@ -40,7 +40,7 @@ class GestureEventListener MOZ_FINAL {
 public:
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(GestureEventListener)
 
-  explicit GestureEventListener(AsyncPanZoomController* aAsyncPanZoomController);
+  GestureEventListener(AsyncPanZoomController* aAsyncPanZoomController);
 
   // --------------------------------------------------------------------------
   // These methods must only be called on the controller/UI thread.

@@ -40,7 +40,7 @@
 #error "nsTextFormatter is not available in the standalone glue due to NSPR dependencies."
 #endif
 
-class nsTextFormatter
+class NS_COM_GLUE nsTextFormatter
 {
 public:
 

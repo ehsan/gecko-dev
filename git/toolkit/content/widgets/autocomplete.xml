@@ -5,6 +5,11 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+<!DOCTYPE bindings [
+<!ENTITY % actionsDTD SYSTEM "chrome://global/locale/actions.dtd">
+%actionsDTD;
+]>
+
 <bindings id="autocompleteBindings"
           xmlns="http://www.mozilla.org/xbl"
           xmlns:html="http://www.w3.org/1999/xhtml"
@@ -893,11 +898,8 @@ extends="chrome://global/content/bindings/popup.xml#popup">
       <handler event="popupshowing"><![CDATA[
         // If normalMaxRows wasn't already set by the input, then set it here
         // so that we restore the correct number when the popup is hidden.
-
-        // Null-check this.mInput; see bug 1017914
-        if (this._normalMaxRows < 0 && this.mInput) {
+        if (this._normalMaxRows < 0)
           this._normalMaxRows = this.mInput.maxRows;
-        }
 
         this.mPopupOpen = true;
       ]]></handler>
@@ -914,16 +916,11 @@ extends="chrome://global/content/bindings/popup.xml#popup">
         // Reset the maxRows property to the cached "normal" value, and reset
         // _normalMaxRows so that we can detect whether it was set by the input
         // when the popupshowing handler runs.
-
-        // Null-check this.mInput; see bug 1017914
-        if (this.mInput)
-          this.mInput.maxRows = this._normalMaxRows;
+        this.mInput.maxRows = this._normalMaxRows;
         this._normalMaxRows = -1;
         // If the list was being navigated and then closed, make sure
         // we fire accessible focus event back to textbox
-
-        // Null-check this.mInput; see bug 1017914
-        if (isListActive && this.mInput) {
+        if (isListActive) {
           this.mInput.mIgnoreFocus = true;
           this.mInput._focus();
           this.mInput.mIgnoreFocus = false;
@@ -1083,21 +1080,6 @@ extends="chrome://global/content/bindings/popup.xml#popup">
         </body>
       </method>
 
-      <method name="_getImageURLForResolution">
-        <parameter name="aWin"/>
-        <parameter name="aURL"/>
-        <parameter name="aWidth"/>
-        <parameter name="aHeight"/>
-        <body>
-          <![CDATA[
-          let width  = Math.round(aWidth * aWin.devicePixelRatio);
-          let height = Math.round(aHeight * aWin.devicePixelRatio);
-          return aURL + (aURL.contains("#") ? "&" : "#") +
-                 "-moz-resolution=" + width + "," + height;
-          ]]>
-        </body>
-      </method>
-
       <method name="_appendCurrentResult">
         <body>
           <![CDATA[
@@ -1142,8 +1124,7 @@ extends="chrome://global/content/bindings/popup.xml#popup">
 
             // set these attributes before we set the class
             // so that we can use them from the constructor
-            let iconURI = this._getImageURLForResolution(window, controller.getImageAt(this._currentIndex), 16, 16);
-            item.setAttribute("image", iconURI);
+            item.setAttribute("image", controller.getImageAt(this._currentIndex));
             item.setAttribute("url", url);
             item.setAttribute("title", controller.getCommentAt(this._currentIndex));
             item.setAttribute("type", controller.getStyleAt(this._currentIndex));
@@ -1281,29 +1262,14 @@ extends="chrome://global/content/bindings/popup.xml#popup">
 
             // allow consumers that have extended popups to override
             // the label values for the richlistitems
-            if (panel.createResultLabel) {
-              let types = this.getAttribute("type").split(/\s+/);
-              // We only want one type for createResultLabel, so get the first
-              // that isn't "action".
-              let type = types.find(v => v != "action");
-
-              return panel.createResultLabel(title, url, type);
-            }
+            if (panel.createResultLabel)
+              return panel.createResultLabel(title, url, this.getAttribute("type"));
 
             // aType (ex: "ac-result-type-<aType>") is related to the class of the image,
             // and is not "visible" text so don't use it for the label (for accessibility).
             return title + " " + url;
           ]]>
         </getter>
-      </property>
-
-      <property name="_stringBundle">
-        <getter><![CDATA[
-          if (!this.__stringBundle) {
-            this.__stringBundle = Services.strings.createBundle("chrome://global/locale/autocomplete.properties");
-          }
-          return this.__stringBundle;
-        ]]></getter>
       </property>
 
       <field name="_boundaryCutoff">null</field>
@@ -1464,7 +1430,7 @@ extends="chrome://global/content/bindings/popup.xml#popup">
             let [,action, param] = url.match(/^moz-action:([^,]+),(.*)$/);
             this.setAttribute("actiontype", action);
             url = param;
-            let desc = this._stringBundle.GetStringFromName("switchToTab");
+            let desc = "]]>&action.switchToTab.label;<![CDATA[";
             this._setUpDescription(this._action, desc, true);
 
             // Remove the "action" substring so that the correct style, if any,
@@ -1550,10 +1516,8 @@ extends="chrome://global/content/bindings/popup.xml#popup">
           if (!searchEngine) {
             this._setUpDescription(this._url, url);
           } else {
-            let desc = this._stringBundle.formatStringFromName("searchWithEngine", [searchEngine], 1);
-
             // The search engine name, when present, is not emphasized.
-            this._setUpDescription(this._url, desc, true);
+            this._setUpDescription(this._url, searchEngine, true);
           }
 
           // Set up overflow on a timeout because the contents of the box

@@ -15,8 +15,6 @@
 #include "nsISupports.h"
 #include "nsIURI.h"
 #include "nsIPrincipal.h"
-#include "nsIGlobalObject.h"
-#include "nsPIDOMWindow.h"
 #include "nsWrapperCache.h"
 #include "nsStringGlue.h"
 #include "nsTArray.h"
@@ -28,6 +26,7 @@
 class nsGlobalWindow;
 class nsIPrincipal;
 class nsScriptNameSpaceManager;
+class nsIGlobalObject;
 class nsIMemoryReporterCallback;
 
 #ifndef BAD_TLS_INDEX
@@ -250,7 +249,7 @@ public:
         }
 
         JSString *str = JS_NewExternalString(cx,
-                                             static_cast<char16_t*>(buf->Data()),
+                                             static_cast<jschar*>(buf->Data()),
                                              length, &sDOMStringFinalizer);
         if (!str) {
             return false;
@@ -284,9 +283,9 @@ public:
 private:
     static const JSStringFinalizer sLiteralFinalizer, sDOMStringFinalizer;
 
-    static void FinalizeLiteral(const JSStringFinalizer *fin, char16_t *chars);
+    static void FinalizeLiteral(const JSStringFinalizer *fin, jschar *chars);
 
-    static void FinalizeDOMString(const JSStringFinalizer *fin, char16_t *chars);
+    static void FinalizeDOMString(const JSStringFinalizer *fin, jschar *chars);
 
     XPCStringConvert();         // not implemented
 };
@@ -438,17 +437,25 @@ nsISupports *
 UnwrapReflectorToISupports(JSObject *reflector);
 
 /**
- * Singleton scopes for stuff that really doesn't fit anywhere else.
- *
- * If you find yourself wanting to use these compartments, you're probably doing
+ * In some cases a native object does not really belong to any compartment (XBL,
+ * document created from by XHR of a worker, etc.). But when for some reason we
+ * have to wrap these natives (because of an event for example) instead of just
+ * wrapping them into some random compartment we find on the context stack (like
+ * we did previously) a default compartment is used. This function returns that
+ * compartment's global. It is a singleton on the runtime.
+ * If you find yourself wanting to use this compartment, you're probably doing
  * something wrong. Callers MUST consult with the XPConnect module owner before
  * using this compartment. If you don't, bholley will hunt you down.
  */
 JSObject *
-UnprivilegedJunkScope();
+GetJunkScope();
 
-JSObject *
-PrivilegedJunkScope();
+/**
+ * Returns the native global of the junk scope. See comment of GetJunkScope
+ * about the conditions of using it.
+ */
+nsIGlobalObject *
+GetJunkScopeGlobal();
 
 /**
  * Shared compilation scope for XUL prototype documents and XBL
@@ -456,7 +463,7 @@ PrivilegedJunkScope();
  * it is invisible to the debugger.
  */
 JSObject *
-CompilationScope();
+GetCompilationScope();
 
 /**
  * If |aObj| is a window, returns the associated nsGlobalWindow.
@@ -464,6 +471,13 @@ CompilationScope();
  */
 nsGlobalWindow*
 WindowOrNull(JSObject *aObj);
+
+/*
+ * Returns the dummy global associated with the SafeJSContext. Callers MUST
+ * consult with the XPConnect module owner before using this function.
+ */
+JSObject *
+GetSafeJSContextGlobal();
 
 /**
  * If |aObj| has a window for a global, returns the associated nsGlobalWindow.
@@ -474,13 +488,17 @@ WindowGlobalOrNull(JSObject *aObj);
 
 // Error reporter used when there is no associated DOM window on to which to
 // report errors and warnings.
-//
-// Note - This is temporarily implemented in nsJSEnvironment.cpp.
 void
 SystemErrorReporter(JSContext *cx, const char *message, JSErrorReport *rep);
 
 void
 SimulateActivityCallback(bool aActive);
+
+void
+RecordAdoptedNode(JSCompartment *c);
+
+void
+RecordDonatedNode(JSCompartment *c);
 
 // This function may be used off-main-thread, in which case it is benignly
 // racey.
@@ -492,48 +510,6 @@ SetAddonInterposition(const nsACString &addonId, nsIAddonInterposition *interpos
 
 bool
 ExtraWarningsForSystemJS();
-
-class ErrorReport {
-  public:
-    NS_INLINE_DECL_THREADSAFE_REFCOUNTING(ErrorReport);
-
-    ErrorReport() : mIsChrome(false)
-                  , mLineNumber(0)
-                  , mColumn(0)
-                  , mFlags(0)
-    {}
-
-    void Init(JSErrorReport *aReport, const char *aFallbackMessage,
-              nsIGlobalObject *aGlobal);
-    void InitOnWorkerThread(JSErrorReport *aReport, const char *aFallbackMessage,
-                            bool aIsChrome);
-
-    void LogToConsole();
-
-  private:
-    void InitInternal(JSErrorReport *aReport, const char *aFallbackMessage);
-    bool mIsChrome;
-
-  public:
-    const nsCString Category() {
-        return mIsChrome ? NS_LITERAL_CSTRING("chrome javascript")
-                         : NS_LITERAL_CSTRING("content javascript");
-    }
-
-    nsString mErrorMsg;
-    nsString mFileName;
-    nsString mSourceLine;
-    uint32_t mLineNumber;
-    uint32_t mColumn;
-    uint32_t mFlags;
-
-    // These are both null for ErrorReports initialized on a worker thread.
-    nsCOMPtr<nsIGlobalObject> mGlobal;
-    nsCOMPtr<nsPIDOMWindow> mWindow;
-
-  private:
-    ~ErrorReport() {}
-};
 
 } // namespace xpc
 

@@ -20,8 +20,6 @@
 #include "gc/Marking.h"
 #include "jit/JitCompartment.h"
 #include "js/RootingAPI.h"
-#include "proxy/DeadObjectProxy.h"
-#include "vm/Debugger.h"
 #include "vm/StopIterationObject.h"
 #include "vm/WrapperObject.h"
 
@@ -59,7 +57,7 @@ JSCompartment::JSCompartment(Zone *zone, const JS::CompartmentOptions &options =
     selfHostingScriptSource(nullptr),
     gcIncomingGrayPointers(nullptr),
     gcWeakMapList(nullptr),
-    debugModeBits(0),
+    debugModeBits(runtime_->debugMode ? DebugFromC : 0),
     rngState(0),
     watchpointMap(nullptr),
     scriptCountsMap(nullptr),
@@ -114,7 +112,7 @@ JSCompartment::init(JSContext *cx)
     if (!savedStacks_.init())
         return false;
 
-    return true;
+    return debuggees.init(0);
 }
 
 jit::JitRuntime *
@@ -212,7 +210,7 @@ class WrapperMapRef : public BufferableRef
     }
 };
 
-#ifdef JSGC_HASH_TABLE_CHECKS
+#ifdef JS_GC_ZEAL
 void
 JSCompartment::checkWrapperMapAfterMovingGC()
 {
@@ -223,9 +221,9 @@ JSCompartment::checkWrapperMapAfterMovingGC()
      */
     for (WrapperMap::Enum e(crossCompartmentWrappers); !e.empty(); e.popFront()) {
         CrossCompartmentKey key = e.front().key();
-        CheckGCThingAfterMovingGC(key.debugger);
-        CheckGCThingAfterMovingGC(key.wrapped);
-        CheckGCThingAfterMovingGC(static_cast<Cell *>(e.front().value().get().toGCThing()));
+        JS_ASSERT(!IsInsideNursery(key.debugger));
+        JS_ASSERT(!IsInsideNursery(key.wrapped));
+        JS_ASSERT(!IsInsideNursery(static_cast<Cell *>(e.front().value().get().toGCThing())));
 
         WrapperMap::Ptr ptr = crossCompartmentWrappers.lookup(key);
         JS_ASSERT(ptr.found() && &*ptr == &e.front());
@@ -299,7 +297,7 @@ CopyStringPure(JSContext *cx, JSString *str)
         return NewString<CanGC>(cx, copiedChars.forget(), len);
     }
 
-    ScopedJSFreePtr<char16_t> copiedChars;
+    ScopedJSFreePtr<jschar> copiedChars;
     if (!str->asRope().copyTwoByteCharsZ(cx, copiedChars))
         return nullptr;
 
@@ -574,56 +572,50 @@ void
 JSCompartment::sweep(FreeOp *fop, bool releaseTypes)
 {
     JS_ASSERT(!activeAnalysis);
+
+    /* This function includes itself in PHASE_SWEEP_TABLES. */
+    sweepCrossCompartmentWrappers();
+
     JSRuntime *rt = runtimeFromMainThread();
 
     {
-        gcstats::MaybeAutoPhase ap(rt->gc.stats, !rt->isHeapCompacting(),
-                                   gcstats::PHASE_SWEEP_TABLES_WRAPPER);
-        sweepCrossCompartmentWrappers();
-    }
+        gcstats::AutoPhase ap(rt->gc.stats, gcstats::PHASE_SWEEP_TABLES);
 
-    /* Remove dead references held weakly by the compartment. */
+        /* Remove dead references held weakly by the compartment. */
 
-    sweepBaseShapeTable();
-    sweepInitialShapeTable();
-    {
-        gcstats::MaybeAutoPhase ap(rt->gc.stats, !rt->isHeapCompacting(),
-                                   gcstats::PHASE_SWEEP_TABLES_TYPE_OBJECT);
+        sweepBaseShapeTable();
+        sweepInitialShapeTable();
         sweepNewTypeObjectTable(newTypeObjects);
         sweepNewTypeObjectTable(lazyTypeObjects);
+        sweepCallsiteClones();
+        savedStacks_.sweep(rt);
+
+        if (global_ && IsObjectAboutToBeFinalized(global_.unsafeGet()))
+            global_.set(nullptr);
+
+        if (selfHostingScriptSource &&
+            IsObjectAboutToBeFinalized((JSObject **) selfHostingScriptSource.unsafeGet()))
+        {
+            selfHostingScriptSource.set(nullptr);
+        }
+
+        if (jitCompartment_)
+            jitCompartment_->sweep(fop, this);
+
+        /*
+         * JIT code increments activeUseCount for any RegExpShared used by jit
+         * code for the lifetime of the JIT script. Thus, we must perform
+         * sweeping after clearing jit code.
+         */
+        regExps.sweep(rt);
+
+        if (debugScopes)
+            debugScopes->sweep(rt);
+
+        /* Finalize unreachable (key,value) pairs in all weak maps. */
+        WeakMapBase::sweepCompartment(this);
     }
-    sweepCallsiteClones();
-    savedStacks_.sweep(rt);
 
-    if (global_ && IsObjectAboutToBeFinalized(global_.unsafeGet())) {
-        if (debugMode())
-            Debugger::detachAllDebuggersFromGlobal(fop, global_);
-        global_.set(nullptr);
-    }
-
-    if (selfHostingScriptSource &&
-        IsObjectAboutToBeFinalized((JSObject **) selfHostingScriptSource.unsafeGet()))
-    {
-        selfHostingScriptSource.set(nullptr);
-    }
-
-    if (jitCompartment_)
-        jitCompartment_->sweep(fop, this);
-
-    /*
-     * JIT code increments activeWarmUpCounter for any RegExpShared used by jit
-     * code for the lifetime of the JIT script. Thus, we must perform
-     * sweeping after clearing jit code.
-     */
-    regExps.sweep(rt);
-
-    if (debugScopes)
-        debugScopes->sweep(rt);
-
-    /* Finalize unreachable (key,value) pairs in all weak maps. */
-    WeakMapBase::sweepCompartment(this);
-
-    /* Sweep list of native iterators. */
     NativeIterator *ni = enumerators->next();
     while (ni != enumerators) {
         JSObject *iterObj = ni->iterObj();
@@ -642,6 +634,11 @@ JSCompartment::sweep(FreeOp *fop, bool releaseTypes)
 void
 JSCompartment::sweepCrossCompartmentWrappers()
 {
+    JSRuntime *rt = runtimeFromMainThread();
+
+    gcstats::AutoPhase ap1(rt->gc.stats, gcstats::PHASE_SWEEP_TABLES);
+    gcstats::AutoPhase ap2(rt->gc.stats, gcstats::PHASE_SWEEP_TABLES_WRAPPER);
+
     /* Remove dead wrappers from the table. */
     for (WrapperMap::Enum e(crossCompartmentWrappers); !e.empty(); e.popFront()) {
         CrossCompartmentKey key = e.front().key();
@@ -658,59 +655,6 @@ JSCompartment::sweepCrossCompartmentWrappers()
         }
     }
 }
-
-#ifdef JSGC_COMPACTING
-
-/*
- * Fixup wrappers with moved keys or values.
- */
-void
-JSCompartment::fixupCrossCompartmentWrappers(JSTracer *trc)
-{
-    for (WrapperMap::Enum e(crossCompartmentWrappers); !e.empty(); e.popFront()) {
-        Value val = e.front().value();
-        if (IsForwarded(val)) {
-            val = Forwarded(val);
-            e.front().value().set(val);
-        }
-
-        // CrossCompartmentKey's hash does not depend on the debugger object,
-        // so update it but do not rekey if it changes
-        CrossCompartmentKey key = e.front().key();
-        if (key.debugger)
-            key.debugger = MaybeForwarded(key.debugger);
-        if (key.wrapped && IsForwarded(key.wrapped)) {
-            key.wrapped = Forwarded(key.wrapped);
-            e.rekeyFront(key, key);
-        }
-
-        if (!zone()->isCollecting() && val.isObject()) {
-            // Call the trace hook to update any pointers to relocated things.
-            JSObject *obj = &val.toObject();
-            const Class *clasp = obj->getClass();
-            if (clasp->trace)
-                clasp->trace(trc, obj);
-        }
-    }
-}
-
-void JSCompartment::fixupAfterMovingGC()
-{
-    fixupGlobal();
-    fixupNewTypeObjectTable(newTypeObjects);
-    fixupNewTypeObjectTable(lazyTypeObjects);
-    fixupInitialShapeTable();
-}
-
-void
-JSCompartment::fixupGlobal()
-{
-    GlobalObject *global = *global_.unsafeGet();
-    if (global)
-        global_.set(MaybeForwarded(global));
-}
-
-#endif // JSGC_COMPACTING
 
 void
 JSCompartment::purge()
@@ -841,6 +785,41 @@ JSCompartment::ensureDelazifyScriptsForDebugMode(JSContext *cx)
 }
 
 bool
+JSCompartment::setDebugModeFromC(JSContext *cx, bool b, AutoDebugModeInvalidation &invalidate)
+{
+    bool enabledBefore = debugMode();
+    bool enabledAfter = (debugModeBits & DebugModeFromMask & ~DebugFromC) || b;
+
+    // Enabling debug mode from C (vs of from JS) can only be done when no
+    // scripts from the target compartment are on the stack.
+    //
+    // We do allow disabling debug mode while scripts are on the stack.  In
+    // that case the debug-mode code for those scripts remains, so subsequently
+    // hooks may be called erroneously, even though debug mode is supposedly
+    // off, and we have to live with it.
+    bool onStack = false;
+    if (enabledBefore != enabledAfter) {
+        onStack = hasScriptsOnStack();
+        if (b && onStack) {
+            JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_DEBUG_NOT_IDLE);
+            return false;
+        }
+    }
+
+    debugModeBits = (debugModeBits & ~DebugFromC) | (b ? DebugFromC : 0);
+    JS_ASSERT(debugMode() == enabledAfter);
+    if (enabledBefore != enabledAfter) {
+        // Pass in a nullptr cx to not bother recompiling for JSD1, since
+        // we're still enforcing the idle-stack invariant here.
+        if (!updateJITForDebugMode(nullptr, invalidate))
+            return false;
+        if (!enabledAfter)
+            DebugScopes::onCompartmentLeaveDebugMode(this);
+    }
+    return true;
+}
+
+bool
 JSCompartment::updateJITForDebugMode(JSContext *maybecx, AutoDebugModeInvalidation &invalidate)
 {
     // The AutoDebugModeInvalidation argument makes sure we can't forget to
@@ -851,47 +830,78 @@ JSCompartment::updateJITForDebugMode(JSContext *maybecx, AutoDebugModeInvalidati
 }
 
 bool
-JSCompartment::enterDebugMode(JSContext *cx)
+JSCompartment::addDebuggee(JSContext *cx, js::GlobalObject *global)
 {
     AutoDebugModeInvalidation invalidate(this);
-    return enterDebugMode(cx, invalidate);
+    return addDebuggee(cx, global, invalidate);
 }
 
 bool
-JSCompartment::enterDebugMode(JSContext *cx, AutoDebugModeInvalidation &invalidate)
+JSCompartment::addDebuggee(JSContext *cx,
+                           GlobalObject *globalArg,
+                           AutoDebugModeInvalidation &invalidate)
 {
-    if (!debugMode()) {
-        debugModeBits |= DebugMode;
-        if (!updateJITForDebugMode(cx, invalidate))
-            return false;
+    Rooted<GlobalObject*> global(cx, globalArg);
+
+    bool wasEnabled = debugMode();
+    if (!debuggees.put(global)) {
+        js_ReportOutOfMemory(cx);
+        return false;
     }
+    debugModeBits |= DebugFromJS;
+    if (!wasEnabled && !updateJITForDebugMode(cx, invalidate))
+        return false;
     return true;
 }
 
 bool
-JSCompartment::leaveDebugMode(JSContext *cx)
+JSCompartment::removeDebuggee(JSContext *cx,
+                              js::GlobalObject *global,
+                              js::GlobalObjectSet::Enum *debuggeesEnum)
 {
     AutoDebugModeInvalidation invalidate(this);
-    return leaveDebugMode(cx, invalidate);
+    return removeDebuggee(cx, global, invalidate, debuggeesEnum);
 }
 
 bool
-JSCompartment::leaveDebugMode(JSContext *cx, AutoDebugModeInvalidation &invalidate)
+JSCompartment::removeDebuggee(JSContext *cx,
+                              js::GlobalObject *global,
+                              AutoDebugModeInvalidation &invalidate,
+                              js::GlobalObjectSet::Enum *debuggeesEnum)
 {
-    if (debugMode()) {
-        leaveDebugModeUnderGC();
-        if (!updateJITForDebugMode(cx, invalidate))
-            return false;
-    }
+    bool wasEnabled = debugMode();
+    removeDebuggeeUnderGC(cx->runtime()->defaultFreeOp(), global, invalidate, debuggeesEnum);
+    if (wasEnabled && !debugMode() && !updateJITForDebugMode(cx, invalidate))
+        return false;
     return true;
 }
 
 void
-JSCompartment::leaveDebugModeUnderGC()
+JSCompartment::removeDebuggeeUnderGC(FreeOp *fop,
+                                     js::GlobalObject *global,
+                                     js::GlobalObjectSet::Enum *debuggeesEnum)
 {
-    if (debugMode()) {
-        debugModeBits &= ~DebugMode;
-        DebugScopes::onCompartmentLeaveDebugMode(this);
+    AutoDebugModeInvalidation invalidate(this);
+    removeDebuggeeUnderGC(fop, global, invalidate, debuggeesEnum);
+}
+
+void
+JSCompartment::removeDebuggeeUnderGC(FreeOp *fop,
+                                     js::GlobalObject *global,
+                                     AutoDebugModeInvalidation &invalidate,
+                                     js::GlobalObjectSet::Enum *debuggeesEnum)
+{
+    bool wasEnabled = debugMode();
+    JS_ASSERT(debuggees.has(global));
+    if (debuggeesEnum)
+        debuggeesEnum->removeFront();
+    else
+        debuggees.remove(global);
+
+    if (debuggees.empty()) {
+        debugModeBits &= ~DebugFromJS;
+        if (wasEnabled && !debugMode())
+            DebugScopes::onCompartmentLeaveDebugMode(this);
     }
 }
 
@@ -911,20 +921,22 @@ JSCompartment::addSizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf,
                                       size_t *tiArrayTypeTables,
                                       size_t *tiObjectTypeTables,
                                       size_t *compartmentObject,
-                                      size_t *compartmentTables,
+                                      size_t *shapesCompartmentTables,
                                       size_t *crossCompartmentWrappersArg,
                                       size_t *regexpCompartment,
+                                      size_t *debuggeesSet,
                                       size_t *savedStacksSet)
 {
     *compartmentObject += mallocSizeOf(this);
     types.addSizeOfExcludingThis(mallocSizeOf, tiAllocationSiteTables,
                                  tiArrayTypeTables, tiObjectTypeTables);
-    *compartmentTables += baseShapes.sizeOfExcludingThis(mallocSizeOf)
-                        + initialShapes.sizeOfExcludingThis(mallocSizeOf)
-                        + newTypeObjects.sizeOfExcludingThis(mallocSizeOf)
-                        + lazyTypeObjects.sizeOfExcludingThis(mallocSizeOf);
+    *shapesCompartmentTables += baseShapes.sizeOfExcludingThis(mallocSizeOf)
+                              + initialShapes.sizeOfExcludingThis(mallocSizeOf)
+                              + newTypeObjects.sizeOfExcludingThis(mallocSizeOf)
+                              + lazyTypeObjects.sizeOfExcludingThis(mallocSizeOf);
     *crossCompartmentWrappersArg += crossCompartmentWrappers.sizeOfExcludingThis(mallocSizeOf);
     *regexpCompartment += regExps.sizeOfExcludingThis(mallocSizeOf);
+    *debuggeesSet += debuggees.sizeOfExcludingThis(mallocSizeOf);
     *savedStacksSet += savedStacks_.sizeOfExcludingThis(mallocSizeOf);
 }
 

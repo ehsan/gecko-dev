@@ -27,7 +27,6 @@
 #include "mozilla/layers/Compositor.h"  // for Compositor
 #include "mozilla/layers/CompositorTypes.h"
 #include "mozilla/layers/LayerManagerComposite.h"  // for LayerComposite
-#include "mozilla/layers/LayerMetricsWrapper.h" // for LayerMetricsWrapper
 #include "mozilla/layers/LayersMessages.h"  // for TransformFunction, etc
 #include "nsAString.h"
 #include "nsCSSValue.h"                 // for nsCSSValue::Array, etc
@@ -48,68 +47,40 @@ FILEOrDefault(FILE* aFile)
 
 typedef FrameMetrics::ViewID ViewID;
 const ViewID FrameMetrics::NULL_SCROLL_ID = 0;
-const FrameMetrics FrameMetrics::sNullMetrics;
 
 using namespace mozilla::gfx;
 
 //--------------------------------------------------
 // LayerManager
-FrameMetrics::ViewID
-LayerManager::GetRootScrollableLayerId()
+Layer*
+LayerManager::GetPrimaryScrollableLayer()
 {
   if (!mRoot) {
-    return FrameMetrics::NULL_SCROLL_ID;
-  }
-
-  nsTArray<LayerMetricsWrapper> queue;
-  queue.AppendElement(LayerMetricsWrapper(mRoot));
-  while (queue.Length()) {
-    LayerMetricsWrapper layer = queue[0];
-    queue.RemoveElementAt(0);
-
-    const FrameMetrics& frameMetrics = layer.Metrics();
-    if (frameMetrics.IsScrollable()) {
-      return frameMetrics.GetScrollId();
-    }
-
-    LayerMetricsWrapper child = layer.GetFirstChild();
-    while (child) {
-      queue.AppendElement(child);
-      child = child.GetNextSibling();
-    }
-  }
-
-  return FrameMetrics::NULL_SCROLL_ID;
-}
-
-void
-LayerManager::GetRootScrollableLayers(nsTArray<Layer*>& aArray)
-{
-  if (!mRoot) {
-    return;
-  }
-
-  FrameMetrics::ViewID rootScrollableId = GetRootScrollableLayerId();
-  if (rootScrollableId == FrameMetrics::NULL_SCROLL_ID) {
-    aArray.AppendElement(mRoot);
-    return;
+    return nullptr;
   }
 
   nsTArray<Layer*> queue;
   queue.AppendElement(mRoot);
   while (queue.Length()) {
-    Layer* layer = queue[0];
+    ContainerLayer* containerLayer = queue[0]->AsContainerLayer();
     queue.RemoveElementAt(0);
-
-    if (LayerMetricsWrapper::TopmostScrollableMetrics(layer).GetScrollId() == rootScrollableId) {
-      aArray.AppendElement(layer);
+    if (!containerLayer) {
       continue;
     }
 
-    for (Layer* child = layer->GetFirstChild(); child; child = child->GetNextSibling()) {
+    const FrameMetrics& frameMetrics = containerLayer->GetFrameMetrics();
+    if (frameMetrics.IsScrollable()) {
+      return containerLayer;
+    }
+
+    Layer* child = containerLayer->GetFirstChild();
+    while (child) {
       queue.AppendElement(child);
+      child = child->GetNextSibling();
     }
   }
+
+  return mRoot;
 }
 
 void
@@ -122,16 +93,22 @@ LayerManager::GetScrollableLayers(nsTArray<Layer*>& aArray)
   nsTArray<Layer*> queue;
   queue.AppendElement(mRoot);
   while (!queue.IsEmpty()) {
-    Layer* layer = queue.LastElement();
+    ContainerLayer* containerLayer = queue.LastElement()->AsContainerLayer();
     queue.RemoveElementAt(queue.Length() - 1);
-
-    if (layer->HasScrollableFrameMetrics()) {
-      aArray.AppendElement(layer);
+    if (!containerLayer) {
       continue;
     }
 
-    for (Layer* child = layer->GetFirstChild(); child; child = child->GetNextSibling()) {
+    const FrameMetrics& frameMetrics = containerLayer->GetFrameMetrics();
+    if (frameMetrics.IsScrollable()) {
+      aArray.AppendElement(containerLayer);
+      continue;
+    }
+
+    Layer* child = containerLayer->GetFirstChild();
+    while (child) {
       queue.AppendElement(child);
+      child = child->GetNextSibling();
     }
   }
 }
@@ -195,6 +172,7 @@ Layer::Layer(LayerManager* aManager, void* aImplData) :
   mPrevSibling(nullptr),
   mImplData(aImplData),
   mMaskLayer(nullptr),
+  mScrollHandoffParentId(FrameMetrics::NULL_SCROLL_ID),
   mPostXScale(1.0f),
   mPostYScale(1.0f),
   mOpacity(1.0),
@@ -209,7 +187,8 @@ Layer::Layer(LayerManager* aManager, void* aImplData) :
   mScrollbarTargetId(FrameMetrics::NULL_SCROLL_ID),
   mScrollbarDirection(ScrollDirection::NONE),
   mDebugColorIndex(0),
-  mAnimationGeneration(0)
+  mAnimationGeneration(0),
+  mBackgroundColor(0, 0, 0, 0)
 {}
 
 Layer::~Layer()
@@ -472,28 +451,20 @@ Layer::SetAnimations(const AnimationArray& aAnimations)
 }
 
 void
-Layer::SetAsyncPanZoomController(uint32_t aIndex, AsyncPanZoomController *controller)
+Layer::SetAsyncPanZoomController(AsyncPanZoomController *controller)
 {
-  MOZ_ASSERT(aIndex < GetFrameMetricsCount());
-  mApzcs[aIndex] = controller;
+  mAPZC = controller;
 }
 
 AsyncPanZoomController*
-Layer::GetAsyncPanZoomController(uint32_t aIndex) const
+Layer::GetAsyncPanZoomController() const
 {
-  MOZ_ASSERT(aIndex < GetFrameMetricsCount());
 #ifdef DEBUG
-  if (mApzcs[aIndex]) {
-    MOZ_ASSERT(GetFrameMetrics(aIndex).IsScrollable());
+  if (mAPZC) {
+    MOZ_ASSERT(GetFrameMetrics().IsScrollable());
   }
 #endif
-  return mApzcs[aIndex];
-}
-
-void
-Layer::FrameMetricsChanged()
-{
-  mApzcs.SetLength(GetFrameMetricsCount());
+  return mAPZC;
 }
 
 void
@@ -630,8 +601,8 @@ Layer::MayResample()
          AncestorLayerMayChangeTransform(this);
 }
 
-RenderTargetIntRect
-Layer::CalculateScissorRect(const RenderTargetIntRect& aCurrentScissorRect,
+nsIntRect
+Layer::CalculateScissorRect(const nsIntRect& aCurrentScissorRect,
                             const gfx::Matrix* aWorldTransform)
 {
   ContainerLayer* container = GetParent();
@@ -639,25 +610,24 @@ Layer::CalculateScissorRect(const RenderTargetIntRect& aCurrentScissorRect,
 
   // Establish initial clip rect: it's either the one passed in, or
   // if the parent has an intermediate surface, it's the extents of that surface.
-  RenderTargetIntRect currentClip;
+  nsIntRect currentClip;
   if (container->UseIntermediateSurface()) {
     currentClip.SizeTo(container->GetIntermediateSurfaceRect().Size());
   } else {
     currentClip = aCurrentScissorRect;
   }
 
-  if (!GetEffectiveClipRect()) {
+  const nsIntRect *clipRect = GetEffectiveClipRect();
+  if (!clipRect)
     return currentClip;
-  }
 
-  const RenderTargetIntRect clipRect = RenderTargetPixel::FromUntyped(*GetEffectiveClipRect());
-  if (clipRect.IsEmpty()) {
+  if (clipRect->IsEmpty()) {
     // We might have a non-translation transform in the container so we can't
     // use the code path below.
-    return RenderTargetIntRect(currentClip.TopLeft(), RenderTargetIntSize(0, 0));
+    return nsIntRect(currentClip.TopLeft(), nsIntSize(0, 0));
   }
 
-  RenderTargetIntRect scissor = clipRect;
+  nsIntRect scissor = *clipRect;
   if (!container->UseIntermediateSurface()) {
     gfx::Matrix matrix;
     DebugOnly<bool> is2D = container->GetEffectiveTransform().Is2D(&matrix);
@@ -667,58 +637,25 @@ Layer::CalculateScissorRect(const RenderTargetIntRect& aCurrentScissorRect,
     gfx::Rect r(scissor.x, scissor.y, scissor.width, scissor.height);
     gfxRect trScissor = gfx::ThebesRect(matrix.TransformBounds(r));
     trScissor.Round();
-    nsIntRect tmp;
-    if (!gfxUtils::GfxRectToIntRect(trScissor, &tmp)) {
-      return RenderTargetIntRect(currentClip.TopLeft(), RenderTargetIntSize(0, 0));
+    if (!gfxUtils::GfxRectToIntRect(trScissor, &scissor)) {
+      return nsIntRect(currentClip.TopLeft(), nsIntSize(0, 0));
     }
-    scissor = RenderTargetPixel::FromUntyped(tmp);
 
     // Find the nearest ancestor with an intermediate surface
     do {
       container = container->GetParent();
     } while (container && !container->UseIntermediateSurface());
   }
-
   if (container) {
     scissor.MoveBy(-container->GetIntermediateSurfaceRect().TopLeft());
   } else if (aWorldTransform) {
     gfx::Rect r(scissor.x, scissor.y, scissor.width, scissor.height);
     gfx::Rect trScissor = aWorldTransform->TransformBounds(r);
     trScissor.Round();
-    nsIntRect tmp;
-    if (!gfxUtils::GfxRectToIntRect(ThebesRect(trScissor), &tmp)) {
-      return RenderTargetIntRect(currentClip.TopLeft(), RenderTargetIntSize(0, 0));
-    }
-    scissor = RenderTargetPixel::FromUntyped(tmp);
+    if (!gfxUtils::GfxRectToIntRect(ThebesRect(trScissor), &scissor))
+      return nsIntRect(currentClip.TopLeft(), nsIntSize(0, 0));
   }
   return currentClip.Intersect(scissor);
-}
-
-const FrameMetrics&
-Layer::GetFrameMetrics(uint32_t aIndex) const
-{
-  MOZ_ASSERT(aIndex < GetFrameMetricsCount());
-  return mFrameMetrics[aIndex];
-}
-
-bool
-Layer::HasScrollableFrameMetrics() const
-{
-  for (uint32_t i = 0; i < GetFrameMetricsCount(); i++) {
-    if (GetFrameMetrics(i).IsScrollable()) {
-      return true;
-    }
-  }
-  return false;
-}
-
-bool
-Layer::IsScrollInfoLayer() const
-{
-  // A scrollable container layer with no children
-  return AsContainerLayer()
-      && HasScrollableFrameMetrics()
-      && !GetFirstChild();
 }
 
 const Matrix4x4
@@ -817,16 +754,6 @@ Layer::ComputeEffectiveTransformForMaskLayer(const Matrix4x4& aTransformToSurfac
 #endif
     mMaskLayer->mEffectiveTransform = mMaskLayer->GetTransform() * mMaskLayer->mEffectiveTransform;
   }
-}
-
-RenderTargetRect
-Layer::TransformRectToRenderTarget(const LayerIntRect& aRect)
-{
-  LayerRect rect(aRect);
-  RenderTargetRect quad = RenderTargetRect::FromUnknown(
-    GetEffectiveTransform().TransformBounds(
-      LayerPixel::ToUnknown(rect)));
-  return quad;
 }
 
 ContainerLayer::ContainerLayer(LayerManager* aManager, void* aImplData)
@@ -1378,13 +1305,6 @@ Layer::Dump(std::stringstream& aStream, const char* aPrefix, bool aDumpHtml)
     mask->Dump(aStream, pfx.get(), aDumpHtml);
   }
 
-#ifdef MOZ_DUMP_PAINTING
-  for (size_t i = 0; i < mExtraDumpInfo.Length(); i++) {
-    const nsCString& str = mExtraDumpInfo[i];
-    aStream << aPrefix << "  Info:\n" << str.get();
-  }
-#endif
-
   if (Layer* kid = GetFirstChild()) {
     nsAutoCString pfx(aPrefix);
     pfx += "  ";
@@ -1504,8 +1424,7 @@ Layer::PrintInfo(std::stringstream& aStream, const char* aPrefix)
     aStream << nsPrintfCString(" [hscrollbar=%lld]", GetScrollbarTargetContainerId()).get();
   }
   if (GetIsFixedPosition()) {
-    aStream << nsPrintfCString(" [isFixedPosition anchor=%s margin=%f,%f,%f,%f]",
-                     ToString(mAnchor).c_str(),
+    aStream << nsPrintfCString(" [isFixedPosition anchor=%f,%f margin=%f,%f,%f,%f]", mAnchor.x, mAnchor.y,
                      mMargins.top, mMargins.right, mMargins.bottom, mMargins.left).get();
   }
   if (GetIsStickyPosition()) {
@@ -1519,11 +1438,11 @@ Layer::PrintInfo(std::stringstream& aStream, const char* aPrefix)
   if (mMaskLayer) {
     aStream << nsPrintfCString(" [mMaskLayer=%p]", mMaskLayer.get()).get();
   }
-  for (uint32_t i = 0; i < mFrameMetrics.Length(); i++) {
-    if (!mFrameMetrics[i].IsDefault()) {
-      aStream << nsPrintfCString(" [metrics%d=", i).get();
-      AppendToString(aStream, mFrameMetrics[i], "", "]");
-    }
+  if (!mFrameMetrics.IsDefault()) {
+    AppendToString(aStream, mFrameMetrics, " [metrics=", "]");
+  }
+  if (mScrollHandoffParentId != FrameMetrics::NULL_SCROLL_ID) {
+    aStream << nsPrintfCString(" [scrollParent=%llu]", mScrollHandoffParentId).get();
   }
 }
 
@@ -1967,14 +1886,6 @@ SetAntialiasingFlags(Layer* aLayer, DrawTarget* aTarget)
   permitSubpixelAA &= !(aLayer->GetContentFlags() & Layer::CONTENT_COMPONENT_ALPHA) ||
                       aTarget->GetOpaqueRect().Contains(intTransformedBounds);
   aTarget->SetPermitSubpixelAA(permitSubpixelAA);
-}
-
-nsIntRect
-ToOutsideIntRect(const gfxRect &aRect)
-{
-  gfxRect r = aRect;
-  r.RoundOut();
-  return nsIntRect(r.X(), r.Y(), r.Width(), r.Height());
 }
 
 PRLogModuleInfo* LayerManager::sLog;

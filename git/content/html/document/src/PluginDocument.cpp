@@ -61,9 +61,9 @@ protected:
 class PluginStreamListener : public MediaDocumentStreamListener
 {
 public:
-  explicit PluginStreamListener(PluginDocument* aDoc)
-    : MediaDocumentStreamListener(aDoc)
-    , mPluginDoc(aDoc)
+  PluginStreamListener(PluginDocument* doc)
+    : MediaDocumentStreamListener(doc)
+    , mPluginDoc(doc)
   {}
   NS_IMETHOD OnStartRequest(nsIRequest* request, nsISupports *ctxt);
 private:

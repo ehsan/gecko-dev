@@ -562,7 +562,7 @@ ProcessCallSiteObjOperation(JSContext *cx, RootedObject &cso, RootedObject &raw,
             } else {                                                          \
                 double l, r;                                                  \
                 if (!ToNumber(cx, lhs, &l) || !ToNumber(cx, rhs, &r))         \
-                    return false;                                             \
+                    return false;;                                            \
                 *res = (l OP r);                                              \
             }                                                                 \
         }                                                                     \
@@ -737,8 +737,8 @@ class FastInvokeGuard
 
             if (script_->canIonCompile()) {
                 // This script is not yet hot. Since calling into Ion is much
-                // faster here, bump the warm-up counter a bit to account for this.
-                script_->incWarmUpCounter(5);
+                // faster here, bump the use count a bit to account for this.
+                script_->incUseCount(5);
             }
         }
 

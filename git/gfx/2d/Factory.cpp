@@ -178,16 +178,7 @@ Factory::HasSSE2()
   // cl.exe with -arch:SSE2 (default on x64 compiler)
   return true;
 #elif defined(HAVE_CPU_DETECTION)
-  static enum {
-    UNINITIALIZED,
-    NO_SSE2,
-    HAS_SSE2
-  } sDetectionState = UNINITIALIZED;
-
-  if (sDetectionState == UNINITIALIZED) {
-    sDetectionState = HasCPUIDBit(1u, edx, (1u<<26)) ? HAS_SSE2 : NO_SSE2;
-  }
-  return sDetectionState == HAS_SSE2;
+  return HasCPUIDBit(1u, edx, (1u<<26));
 #else
   return false;
 #endif
@@ -703,7 +694,6 @@ Factory::CreateDataSourceSurface(const IntSize &aSize,
                                  SurfaceFormat aFormat)
 {
   if (!CheckSurfaceSize(aSize)) {
-    gfxWarning() << "CreateDataSourceSurface failed with bad size";
     return nullptr;
   }
 
@@ -712,7 +702,6 @@ Factory::CreateDataSourceSurface(const IntSize &aSize,
     return newSurf.forget();
   }
 
-  gfxWarning() << "CreateDataSourceSurface failed in init";
   return nullptr;
 }
 
@@ -722,7 +711,6 @@ Factory::CreateDataSourceSurfaceWithStride(const IntSize &aSize,
                                            int32_t aStride)
 {
   if (aStride < aSize.width * BytesPerPixel(aFormat)) {
-    gfxWarning() << "CreateDataSourceSurfaceWithStride failed with bad stride";
     return nullptr;
   }
 
@@ -731,7 +719,6 @@ Factory::CreateDataSourceSurfaceWithStride(const IntSize &aSize,
     return newSurf.forget();
   }
 
-  gfxWarning() << "CreateDataSourceSurfaceWithStride failed to initialize";
   return nullptr;
 }
 

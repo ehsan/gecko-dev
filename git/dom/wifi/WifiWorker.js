@@ -397,14 +397,14 @@ var WifiManager = (function() {
 
       // Add additional information to static ip configuration
       // It is used to compatiable with information dhcp callback.
-      info.ipaddr = netHelpers.stringToIP(info.ipaddr_str);
-      info.gateway = netHelpers.stringToIP(info.gateway_str);
-      info.mask_str = netHelpers.ipToString(netHelpers.makeMask(info.maskLength));
+      info.ipaddr = stringToIp(info.ipaddr_str);
+      info.gateway = stringToIp(info.gateway_str);
+      info.mask_str = makeMask(info.maskLength);
 
       // Optional
-      info.dns1 = netHelpers.stringToIP(info.dns1_str);
-      info.dns2 = netHelpers.stringToIP(info.dns2_str);
-      info.proxy = netHelpers.stringToIP(info.proxy_str);
+      info.dns1 = stringToIp("dns1_str" in info ? info.dns1_str : "");
+      info.dns2 = stringToIp("dns2_str" in info ? info.dns2_str : "");
+      info.proxy = stringToIp("proxy_str" in info ? info.proxy_str : "");
 
       staticIpConfig[setNetworkKey] = info;
 
@@ -1113,7 +1113,7 @@ var WifiManager = (function() {
 
         function doStartWifiTethering() {
           cancelWaitForDriverReadyTimer();
-          WifiNetworkInterface.name = libcutils.property_get("wifi.tethering.interface", manager.ifname);
+          WifiNetworkInterface.name = manager.ifname;
           gNetworkManager.setWifiTethering(enabled, WifiNetworkInterface,
                                            configuration, function(result) {
             if (result) {
@@ -1163,45 +1163,20 @@ var WifiManager = (function() {
   manager.reassociate = wifiCommand.reassociate;
 
   var networkConfigurationFields = [
-    {name: "ssid",          type: "string"},
-    {name: "bssid",         type: "string"},
-    {name: "psk",           type: "string"},
-    {name: "wep_key0",      type: "string"},
-    {name: "wep_key1",      type: "string"},
-    {name: "wep_key2",      type: "string"},
-    {name: "wep_key3",      type: "string"},
-    {name: "wep_tx_keyidx", type: "integer"},
-    {name: "priority",      type: "integer"},
-    {name: "key_mgmt",      type: "string"},
-    {name: "scan_ssid",     type: "string"},
-    {name: "disabled",      type: "integer"},
-    {name: "identity",      type: "string"},
-    {name: "password",      type: "string"},
-    {name: "auth_alg",      type: "string"},
-    {name: "phase1",        type: "string"},
-    {name: "phase2",        type: "string"},
-    {name: "eap",           type: "string"},
-    {name: "pin",           type: "string"},
-    {name: "pcsc",          type: "string"},
-    {name: "ca_cert",       type: "string"},
-    {name: "subject_match", type: "string"}
+    "ssid", "bssid", "psk", "wep_key0", "wep_key1", "wep_key2", "wep_key3",
+    "wep_tx_keyidx", "priority", "key_mgmt", "scan_ssid", "disabled",
+    "identity", "password", "auth_alg", "phase1", "phase2", "eap", "pin",
+    "pcsc", "ca_cert", "subject_match"
   ];
 
   manager.getNetworkConfiguration = function(config, callback) {
     var netId = config.netId;
     var done = 0;
     for (var n = 0; n < networkConfigurationFields.length; ++n) {
-      let fieldName = networkConfigurationFields[n].name;
-      let fieldType = networkConfigurationFields[n].type;
+      let fieldName = networkConfigurationFields[n];
       wifiCommand.getNetworkVariable(netId, fieldName, function(value) {
-        if (value !== null) {
-          if (fieldType === "integer") {
-            config[fieldName] = parseInt(value, 10);
-          } else {
-            // value is string type by default.
-            config[fieldName] = value;
-          }
-        }
+        if (value !== null)
+          config[fieldName] = value;
         if (++done == networkConfigurationFields.length)
           callback(config);
       });
@@ -1220,7 +1195,7 @@ var WifiManager = (function() {
     }
 
     for (var n = 0; n < networkConfigurationFields.length; ++n) {
-      let fieldName = networkConfigurationFields[n].name;
+      let fieldName = networkConfigurationFields[n];
       if (!hasValidProperty(fieldName)) {
         ++done;
       } else {
@@ -1299,6 +1274,43 @@ var WifiManager = (function() {
   }
   manager.removeNetwork = function(netId, callback) {
     wifiCommand.removeNetwork(netId, callback);
+  }
+
+  function stringToIp(string) {
+    let ip = 0;
+    let start, end = -1;
+    for (let i = 0; i < 4; i++) {
+      start = end + 1;
+      end = string.indexOf(".", start);
+      if (end == -1) {
+        end = string.length;
+      }
+      let num = parseInt(string.slice(start, end), 10);
+      if (isNaN(num)) {
+        return 0;
+      }
+      ip |= num << (i * 8);
+    }
+    return ip;
+  }
+
+  function swap32(n) {
+    return (((n >> 24) & 0xFF) <<  0) |
+           (((n >> 16) & 0xFF) <<  8) |
+           (((n >>  8) & 0xFF) << 16) |
+           (((n >>  0) & 0xFF) << 24);
+  }
+
+  function ntohl(n) {
+    return swap32(n);
+  }
+
+  function makeMask(len) {
+    let mask = 0;
+    for (let i = 0; i < len; ++i) {
+      mask |= (0x80000000 >> i);
+    }
+    return ntohl(mask);
   }
 
   manager.saveConfig = function(callback) {
@@ -1972,6 +1984,7 @@ function WifiWorker() {
       if (!ok)
         return;
 
+      self.waitForScan(function firstScan() {});
       // The select network command we used in associate() disables others networks.
       // Enable them here to make sure wpa_supplicant helps to connect to known
       // network automatically.
@@ -2543,10 +2556,8 @@ WifiWorker.prototype = {
           continue;
         }
 
-        if (network.hasOwnProperty("priority") &&
-            network.priority > this._highestPriority) {
+        if (network.priority && network.priority > this._highestPriority)
           this._highestPriority = network.priority;
-        }
 
         let networkKey = getNetworkKey(network);
         // Accept latest config of same network(same SSID and same security).
@@ -2924,28 +2935,24 @@ WifiWorker.prototype = {
     // No change.
     if (enabled === WifiManager.enabled) {
       this._sendMessage(message, true, true, msg);
-      return;
     }
 
     // Can't enable wifi while hotspot mode is enabled.
     if (enabled && (this.tetheringSettings[SETTINGS_WIFI_TETHERING_ENABLED] ||
         WifiManager.isWifiTetheringEnabled(WifiManager.tetheringState))) {
       self._sendMessage(message, false, "Can't enable Wifi while hotspot mode is enabled", msg);
-      return;
+    }
+
+    // Reply error to pending requests.
+    if (!enabled) {
+      this._clearPendingRequest();
     }
 
     WifiManager.setWifiEnabled(enabled, function(ok) {
       if (ok === 0 || ok === "no change") {
         self._sendMessage(message, true, true, msg);
-
-        // Reply error to pending requests.
-        if (!enabled) {
-          self._clearPendingRequest();
-        } else {
-          WifiManager.start();
-        }
       } else {
-        self._sendMessage(message, false, "Set wifi enabled failed", msg);
+        self._sendMessage(message, false, "Set power saving mode failed", msg);
       }
     });
   },
@@ -3175,10 +3182,6 @@ WifiWorker.prototype = {
     privnet.priority = ++this._highestPriority;
     if (configured) {
       privnet.netId = configured.netId;
-      // Sync priority back to configured so if priority reaches MAX_PRIORITY,
-      // it can be sorted correctly in _reprioritizeNetworks() because the
-      // function sort network based on priority in configure list.
-      configured.priority = privnet.priority;
       WifiManager.updateNetwork(privnet, (function(ok) {
         if (!ok) {
           this._sendMessage(message, false, "Network is misconfigured", msg);
@@ -3541,7 +3544,8 @@ WifiWorker.prototype = {
         handleError: function(aErrorMessage) {
           self.requestDone();
         }
-      });
+      },
+      "fromInternalSetting");
   },
 
   notifyTetheringOff: function notifyTetheringOff() {
@@ -3561,7 +3565,8 @@ WifiWorker.prototype = {
         handleError: function(aErrorMessage) {
           self.requestDone();
         }
-      });
+      },
+      "fromInternalSetting");
   },
 
   handleWifiEnabled: function(enabled) {
@@ -3637,7 +3642,7 @@ WifiWorker.prototype = {
       let setting = JSON.parse(data);
       // To avoid WifiWorker setting the wifi again, don't need to deal with
       // the "mozsettings-changed" event fired from internal setting.
-      if (setting.isInternalChange) {
+      if (setting.message && setting.message === "fromInternalSetting") {
         return;
       }
 

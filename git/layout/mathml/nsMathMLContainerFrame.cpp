@@ -471,7 +471,6 @@ nsMathMLContainerFrame::FinalizeReflow(nsRenderingContext& aRenderingContext,
   // If placeOrigin is false we should reach Place() with aPlaceOrigin == true
   // through Stretch() eventually.
   if (NS_MATHML_HAS_ERROR(mPresentationData.flags) || NS_FAILED(rv)) {
-    GatherAndStoreOverflow(&aDesiredSize);
     DidReflowChildren(GetFirstPrincipalChild());
     return rv;
   }

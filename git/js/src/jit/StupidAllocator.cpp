@@ -34,7 +34,7 @@ StupidAllocator::registerIndex(AnyRegister reg)
         if (reg == registers[i].reg)
             return i;
     }
-    MOZ_CRASH("Bad register");
+    MOZ_ASSUME_UNREACHABLE("Bad register");
 }
 
 bool
@@ -51,7 +51,8 @@ StupidAllocator::init()
         for (LInstructionIterator ins = block->begin(); ins != block->end(); ins++) {
             for (size_t j = 0; j < ins->numDefs(); j++) {
                 LDefinition *def = ins->getDef(j);
-                virtualRegisters[def->virtualRegister()] = def;
+                if (def->policy() != LDefinition::PASSTHROUGH)
+                    virtualRegisters[def->virtualRegister()] = def;
             }
 
             for (size_t j = 0; j < ins->numTemps(); j++) {
@@ -369,7 +370,8 @@ StupidAllocator::allocateForInstruction(LInstruction *ins)
     }
     for (size_t i = 0; i < ins->numDefs(); i++) {
         LDefinition *def = ins->getDef(i);
-        allocateForDefinition(ins, def);
+        if (def->policy() != LDefinition::PASSTHROUGH)
+            allocateForDefinition(ins, def);
     }
 
     // Allocate for remaining inputs which do not need to be in registers.

@@ -15,7 +15,7 @@ class nsIURI;
 class nsHyphenator
 {
 public:
-  explicit nsHyphenator(nsIURI *aURI);
+  nsHyphenator(nsIURI *aURI);
 
   NS_INLINE_DECL_REFCOUNTING(nsHyphenator)
 

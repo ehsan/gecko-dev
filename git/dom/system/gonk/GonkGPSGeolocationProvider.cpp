@@ -19,7 +19,6 @@
 #include <pthread.h>
 #include <hardware/gps.h>
 
-#include "mozilla/Constants.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Services.h"
 #include "nsContentUtils.h"
@@ -36,10 +35,11 @@
 #ifdef MOZ_B2G_RIL
 #include "nsIDOMIccInfo.h"
 #include "nsIMobileConnectionInfo.h"
-#include "nsIMobileConnectionService.h"
 #include "nsIMobileCellInfo.h"
 #include "nsIRadioInterfaceLayer.h"
 #endif
+
+#define SETTING_DEBUG_ENABLED "geolocation.debugging.enabled"
 
 #ifdef AGPS_TYPE_INVALID
 #define AGPS_HAVE_DUAL_APN
@@ -50,13 +50,9 @@
 using namespace mozilla;
 
 static const int kDefaultPeriod = 1000; // ms
-static bool gDebug_isLoggingEnabled = false;
-static bool gDebug_isGPSLocationIgnored = false;
+static int gGPSDebugging = false;
+
 static const char* kNetworkConnStateChangedTopic = "network-connection-state-changed";
-static const char* kMozSettingsChangedTopic = "mozsettings-changed";
-// Both of these settings can be toggled in the Gaia Developer settings screen.
-static const char* kSettingDebugEnabled = "geolocation.debugging.enabled";
-static const char* kSettingDebugGpsIgnored = "geolocation.debugging.gps-locations-ignored";
 
 // While most methods of GonkGPSGeolocationProvider should only be
 // called from main thread, we deliberately put the Init and ShutdownGPS
@@ -77,10 +73,6 @@ AGpsRilCallbacks GonkGPSGeolocationProvider::mAGPSRILCallbacks;
 void
 GonkGPSGeolocationProvider::LocationCallback(GpsLocation* location)
 {
-  if (gDebug_isGPSLocationIgnored) {
-    return;
-  }
-
   class UpdateLocationEvent : public nsRunnable {
   public:
     UpdateLocationEvent(nsGeoPosition* aPosition)
@@ -89,8 +81,8 @@ GonkGPSGeolocationProvider::LocationCallback(GpsLocation* location)
     NS_IMETHOD Run() {
       nsRefPtr<GonkGPSGeolocationProvider> provider =
         GonkGPSGeolocationProvider::GetSingleton();
+      provider->mLastGPSDerivedLocationTime = PR_Now();
       nsCOMPtr<nsIGeolocationUpdate> callback = provider->mLocationCallback;
-      provider->mLastGPSPosition = mPosition;
       if (callback) {
         callback->Update(mPosition);
       }
@@ -109,14 +101,7 @@ GonkGPSGeolocationProvider::LocationCallback(GpsLocation* location)
                                                         location->accuracy,
                                                         location->bearing,
                                                         location->speed,
-                                                        PR_Now() / PR_USEC_PER_MSEC);
-  // Note above: Can't use location->timestamp as the time from the satellite is a
-  // minimum of 16 secs old (see http://leapsecond.com/java/gpsclock.htm).
-  // All code from this point on expects the gps location to be timestamped with the
-  // current time, most notably: the geolocation service which respects maximumAge
-  // set in the DOM JS.
-
-
+                                                        location->timestamp);
   NS_DispatchToMainThread(new UpdateLocationEvent(somewhere));
 }
 
@@ -133,9 +118,10 @@ GonkGPSGeolocationProvider::SvStatusCallback(GpsSvStatus* sv_info)
 void
 GonkGPSGeolocationProvider::NmeaCallback(GpsUtcTime timestamp, const char* nmea, int length)
 {
-  if (gDebug_isLoggingEnabled) {
-    nsContentUtils::LogMessageToConsole("geo: NMEA: timestamp:\t%lld, length: %d, %s",
-                                        timestamp, length, nmea);
+  if (gGPSDebugging) {
+    nsContentUtils::LogMessageToConsole("NMEA: timestamp:\t%lld", timestamp);
+    nsContentUtils::LogMessageToConsole("NMEA: nmea:     \t%s", nmea);
+    nsContentUtils::LogMessageToConsole("NMEA  length:   \%d", length);
   }
 }
 
@@ -352,8 +338,7 @@ GonkGPSGeolocationProvider::SetAGpsDataConn(nsAString& aApn)
   MOZ_ASSERT(mAGpsInterface);
 
   bool hasUpdateNetworkAvailability = false;
-  if (mAGpsRilInterface &&
-      mAGpsRilInterface->size >= sizeof(AGpsRilInterface) &&
+  if (mAGpsRilInterface->size >= sizeof(AGpsRilInterface) &&
       mAGpsRilInterface->update_network_availability) {
     hasUpdateNetworkAvailability = true;
   }
@@ -441,8 +426,7 @@ GonkGPSGeolocationProvider::RequestSetID(uint32_t flags)
 {
   MOZ_ASSERT(NS_IsMainThread());
 
-  if (!mRadioInterface ||
-      !mAGpsInterface) {
+  if (!mRadioInterface) {
     return;
   }
 
@@ -480,8 +464,7 @@ GonkGPSGeolocationProvider::SetReferenceLocation()
 {
   MOZ_ASSERT(NS_IsMainThread());
 
-  if (!mRadioInterface ||
-      !mAGpsRilInterface) {
+  if (!mRadioInterface) {
     return;
   }
 
@@ -515,18 +498,8 @@ GonkGPSGeolocationProvider::SetReferenceLocation()
         location.u.cellID.mnc = 0;
       }
     }
-
-    nsCOMPtr<nsIMobileConnectionService> service =
-      do_GetService(NS_MOBILE_CONNECTION_SERVICE_CONTRACTID);
-    if (!service) {
-      NS_WARNING("Cannot get MobileConnectionService");
-      return;
-    }
-
     nsCOMPtr<nsIMobileConnectionInfo> voice;
-    // TODO: Bug 878748 - B2G GPS: acquire correct RadioInterface instance in
-    // MultiSIM configuration
-    service->GetVoiceConnectionInfo(0 /* Client Id */, getter_AddRefs(voice));
+    rilCtx->GetVoice(getter_AddRefs(voice));
     if (voice) {
       nsCOMPtr<nsIMobileCellInfo> cell;
       voice->GetCell(getter_AddRefs(cell));
@@ -549,7 +522,9 @@ GonkGPSGeolocationProvider::SetReferenceLocation()
         }
       }
     }
-    mAGpsRilInterface->set_ref_location(&location, sizeof(location));
+    if (mAGpsRilInterface) {
+      mAGpsRilInterface->set_ref_location(&location, sizeof(location));
+    }
   }
 }
 
@@ -560,11 +535,13 @@ GonkGPSGeolocationProvider::InjectLocation(double latitude,
                                            double longitude,
                                            float accuracy)
 {
-  if (gDebug_isLoggingEnabled) {
-    nsContentUtils::LogMessageToConsole("geo: injecting location (%f, %f) accuracy: %f",
-                                        latitude, longitude, accuracy);
+  if (gGPSDebugging) {
+    nsContentUtils::LogMessageToConsole("*** injecting location");
+    nsContentUtils::LogMessageToConsole("*** lat: %f", latitude);
+    nsContentUtils::LogMessageToConsole("*** lon: %f", longitude);
+    nsContentUtils::LogMessageToConsole("*** accuracy: %f", accuracy);
   }
-
+  
   MOZ_ASSERT(NS_IsMainThread());
   if (!mGpsInterface) {
     return;
@@ -721,7 +698,7 @@ GonkGPSGeolocationProvider::NetworkLocationUpdate::Update(nsIDOMGeoPosition *pos
   coords->GetLongitude(&lon);
   coords->GetAccuracy(&acc);
 
-  double delta = -1.0;
+  double delta = MAXFLOAT;
 
   static double sLastMLSPosLat = 0;
   static double sLastMLSPosLon = 0;
@@ -730,20 +707,15 @@ GonkGPSGeolocationProvider::NetworkLocationUpdate::Update(nsIDOMGeoPosition *pos
     // Use spherical law of cosines to calculate difference
     // Not quite as correct as the Haversine but simpler and cheaper
     // Should the following be a utility function? Others might need this calc.
-    const double radsInDeg = M_PI / 180.0;
+    const double radsInDeg = 3.14159265 / 180.0;
     const double rNewLat = lat * radsInDeg;
     const double rNewLon = lon * radsInDeg;
     const double rOldLat = sLastMLSPosLat * radsInDeg;
     const double rOldLon = sLastMLSPosLon * radsInDeg;
     // WGS84 equatorial radius of earth = 6378137m
-    double cosDelta = (sin(rNewLat) * sin(rOldLat)) +
-                      (cos(rNewLat) * cos(rOldLat) * cos(rOldLon - rNewLon));
-    if (cosDelta > 1.0) {
-      cosDelta = 1.0;
-    } else if (cosDelta < -1.0) {
-      cosDelta = -1.0;
-    }
-    delta = acos(cosDelta) * 6378137;
+    delta = acos( (sin(rNewLat) * sin(rOldLat)) +
+                  (cos(rNewLat) * cos(rOldLat) * cos(rOldLon - rNewLon)) )
+                  * 6378137;
   }
 
   sLastMLSPosLat = lat;
@@ -753,40 +725,14 @@ GonkGPSGeolocationProvider::NetworkLocationUpdate::Update(nsIDOMGeoPosition *pos
   // assume the MLS coord is unchanged, and stick with the GPS location
   const double kMinMLSCoordChangeInMeters = 10;
 
-  DOMTimeStamp time_ms = 0;
-  if (provider->mLastGPSPosition) {
-    provider->mLastGPSPosition->GetTimestamp(&time_ms);
-  }
-  const int64_t diff_ms = (PR_Now() / PR_USEC_PER_MSEC) - time_ms;
-
-  // We want to distinguish between the GPS being inactive completely
-  // and temporarily inactive. In the former case, we would use a low
-  // accuracy network location; in the latter, we only want a network
-  // location that appears to updating with movement.
-
-  const bool isGPSFullyInactive = diff_ms > 1000 * 60 * 2; // two mins
-  const bool isGPSTempInactive = diff_ms > 1000 * 10; // 10 secs
-
-  if (provider->mLocationCallback) {
-    if (isGPSFullyInactive ||
-       (isGPSTempInactive && delta > kMinMLSCoordChangeInMeters))
-    {
-      if (gDebug_isLoggingEnabled) {
-        nsContentUtils::LogMessageToConsole("geo: Using MLS, GPS age:%fs, MLS Delta:%fm\n",
-                                            diff_ms / 1000.0, delta);
-      }
-      provider->mLocationCallback->Update(position);
-    } else if (provider->mLastGPSPosition) {
-      if (gDebug_isLoggingEnabled) {
-        nsContentUtils::LogMessageToConsole("geo: Using old GPS age:%fs\n",
-                                            diff_ms / 1000.0);
-      }
-
-      // This is a fallback case so that the GPS provider responds with its last
-      // location rather than waiting for a more recent GPS or network location.
-      // The service decides if the location is too old, not the provider.
-      provider->mLocationCallback->Update(provider->mLastGPSPosition);
-    }
+  // if we haven't seen anything from the GPS device for 10s,
+  // use this network derived location.
+  const int kMaxGPSDelayBeforeConsideringMLS = 10000;
+  int64_t diff = PR_Now() - provider->mLastGPSDerivedLocationTime;
+  if (provider->mLocationCallback && diff > kMaxGPSDelayBeforeConsideringMLS
+      && delta > kMinMLSCoordChangeInMeters)
+  {
+    provider->mLocationCallback->Update(position);
   }
 
   provider->InjectLocation(lat, lon, acc);
@@ -810,18 +756,7 @@ GonkGPSGeolocationProvider::Startup()
 {
   MOZ_ASSERT(NS_IsMainThread());
 
-  RequestSettingValue(kSettingDebugEnabled);
-  RequestSettingValue(kSettingDebugGpsIgnored);
-
-  // Setup an observer to watch changes to the setting.
-  nsCOMPtr<nsIObserverService> observerService = services::GetObserverService();
-  if (observerService) {
-    nsresult rv = observerService->AddObserver(this, kMozSettingsChangedTopic, false);
-    if (NS_FAILED(rv)) {
-      NS_WARNING("geo: Gonk GPS AddObserver failed");
-    }
-  }
-
+  RequestSettingValue(SETTING_DEBUG_ENABLED);
   if (mStarted) {
     return NS_OK;
   }
@@ -843,6 +778,7 @@ GonkGPSGeolocationProvider::Startup()
     }
   }
 
+  mLastGPSDerivedLocationTime = 0;
   mStarted = true;
   return NS_OK;
 }
@@ -869,14 +805,12 @@ GonkGPSGeolocationProvider::Shutdown()
     mNetworkLocationProvider->Shutdown();
     mNetworkLocationProvider = nullptr;
   }
-
+#ifdef MOZ_B2G_RIL
   nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
   if (obs) {
-#ifdef MOZ_B2G_RIL
     obs->RemoveObserver(this, kNetworkConnStateChangedTopic);
-#endif
-    obs->RemoveObserver(this, kMozSettingsChangedTopic);
   }
+#endif
 
   mInitThread->Dispatch(NS_NewRunnableMethod(this, &GonkGPSGeolocationProvider::ShutdownGPS),
                         NS_DISPATCH_NORMAL);
@@ -947,15 +881,15 @@ GonkGPSGeolocationProvider::Observe(nsISupports* aSubject,
       bool roaming = false;
       int gpsNetworkType = ConvertToGpsNetworkType(type);
       if (gpsNetworkType >= 0) {
-        nsCOMPtr<nsIMobileConnectionService> service =
-          do_GetService(NS_MOBILE_CONNECTION_SERVICE_CONTRACTID);
-        if (rilface && service) {
-          nsCOMPtr<nsIMobileConnectionInfo> voice;
-          // TODO: Bug 878748 - B2G GPS: acquire correct RadioInterface instance in
-          // MultiSIM configuration
-          service->GetVoiceConnectionInfo(0 /* Client Id */, getter_AddRefs(voice));
-          if (voice) {
-            voice->GetRoaming(&roaming);
+        if (rilface && mRadioInterface) {
+          nsCOMPtr<nsIRilContext> rilCtx;
+          mRadioInterface->GetRilContext(getter_AddRefs(rilCtx));
+          if (rilCtx) {
+            nsCOMPtr<nsIMobileConnectionInfo> voice;
+            rilCtx->GetVoice(getter_AddRefs(voice));
+            if (voice) {
+              voice->GetRoaming(&roaming);
+            }
           }
         }
         mAGpsRilInterface->update_network_state(
@@ -973,11 +907,6 @@ GonkGPSGeolocationProvider::Observe(nsISupports* aSubject,
     RequestSettingValue("ril.supl.apn");
   }
 #endif
-
-  if (!strcmp(aTopic, kMozSettingsChangedTopic)) {
-    RequestSettingValue(kSettingDebugEnabled);
-    RequestSettingValue(kSettingDebugGpsIgnored);
-  }
 
   return NS_OK;
 }
@@ -1006,14 +935,8 @@ GonkGPSGeolocationProvider::Handle(const nsAString& aName,
     }
   } else
 #endif // MOZ_B2G_RIL
-  if (aName.EqualsASCII(kSettingDebugGpsIgnored)) {
-    gDebug_isGPSLocationIgnored = aResult.isBoolean() ? aResult.toBoolean() : false;
-    if (gDebug_isLoggingEnabled) {
-      nsContentUtils::LogMessageToConsole("geo: Debug: GPS ignored %d\n", gDebug_isGPSLocationIgnored);
-    }
-    return NS_OK;
-  } else if (aName.EqualsASCII(kSettingDebugEnabled)) {
-    gDebug_isLoggingEnabled = aResult.isBoolean() ? aResult.toBoolean() : false;
+  if (aName.EqualsLiteral(SETTING_DEBUG_ENABLED)) {
+    gGPSDebugging = aResult.isBoolean() ? aResult.toBoolean() : false;
     return NS_OK;
   }
   return NS_OK;

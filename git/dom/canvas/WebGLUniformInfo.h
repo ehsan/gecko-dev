@@ -15,7 +15,7 @@ struct WebGLUniformInfo {
     bool isArray;
     ShDataType type;
 
-    explicit WebGLUniformInfo(uint32_t s = 0, bool a = false, ShDataType t = SH_NONE)
+    WebGLUniformInfo(uint32_t s = 0, bool a = false, ShDataType t = SH_NONE)
         : arraySize(s), isArray(a), type(t) {}
 
     int ElementSize() const {

@@ -56,6 +56,10 @@ Result CheckPublicKey(Input subjectPublicKeyInfo);
 Result MapPRErrorCodeToResult(PRErrorCode errorCode);
 PRErrorCode MapResultToPRErrorCode(Result result);
 
+// Returns the stringified name of the given result, e.g. "Result::Success",
+// or nullptr if result is unknown (invalid).
+const char* MapResultToName(Result result);
+
 // The error codes within each module must fit in 16 bits. We want these
 // errors to fit in the same module as the NSS errors but not overlap with
 // any of them. Converting an NSS SEC, NSS SSL, or PSM error to an NS error
@@ -68,8 +72,7 @@ static const PRErrorCode ERROR_LIMIT = ERROR_BASE + 1000;
 
 enum ErrorCode {
   MOZILLA_PKIX_ERROR_KEY_PINNING_FAILURE = ERROR_BASE + 0,
-  MOZILLA_PKIX_ERROR_CA_CERT_USED_AS_END_ENTITY = ERROR_BASE + 1,
-  MOZILLA_PKIX_ERROR_INADEQUATE_KEY_SIZE = ERROR_BASE + 2
+  MOZILLA_PKIX_ERROR_CA_CERT_USED_AS_END_ENTITY = ERROR_BASE + 1
 };
 
 void RegisterErrorTable();

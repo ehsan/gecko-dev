@@ -8,10 +8,6 @@ package org.mozilla.gecko.home;
 import java.util.Date;
 import java.util.EnumSet;
 
-import org.json.JSONException;
-import org.json.JSONObject;
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.GeckoEvent;
 import org.mozilla.gecko.R;
 import org.mozilla.gecko.Telemetry;
 import org.mozilla.gecko.TelemetryContract;
@@ -21,6 +17,7 @@ import org.mozilla.gecko.db.BrowserDB;
 import org.mozilla.gecko.home.HomePager.OnUrlOpenListener;
 import org.mozilla.gecko.util.ThreadUtils;
 
+import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ContentResolver;
 import android.content.Context;
@@ -29,7 +26,6 @@ import android.database.Cursor;
 import android.os.Bundle;
 import android.support.v4.app.LoaderManager.LoaderCallbacks;
 import android.support.v4.content.Loader;
-import android.util.Log;
 import android.util.SparseArray;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -63,6 +59,27 @@ public class HistoryPanel extends HomeFragment {
 
     // Callbacks used for the search and favicon cursor loaders
     private CursorLoaderCallbacks mCursorLoaderCallbacks;
+
+    // On URL open listener
+    private OnUrlOpenListener mUrlOpenListener;
+
+    @Override
+    public void onAttach(Activity activity) {
+        super.onAttach(activity);
+
+        try {
+            mUrlOpenListener = (OnUrlOpenListener) activity;
+        } catch (ClassCastException e) {
+            throw new ClassCastException(activity.toString()
+                    + " must implement HomePager.OnUrlOpenListener");
+        }
+    }
+
+    @Override
+    public void onDetach() {
+        super.onDetach();
+        mUrlOpenListener = null;
+    }
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
@@ -128,16 +145,13 @@ public class HistoryPanel extends HomeFragment {
                     @Override
                     public void onClick(final DialogInterface dialog, final int which) {
                         dialog.dismiss();
-
-                        // Send message to Java to clear history.
-                        final JSONObject json = new JSONObject();
-                        try {
-                            json.put("history", true);
-                        } catch (JSONException e) {
-                            Log.e(LOGTAG, "JSON error", e);
-                        }
-
-                        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Sanitize:ClearData", json.toString()));
+                        ThreadUtils.postToBackgroundThread(new Runnable() {
+                            @Override
+                            public void run() {
+                                final ContentResolver cr = context.getContentResolver();
+                                BrowserDB.clearHistory(cr);
+                            }
+                        });
 
                         Telemetry.sendUIEvent(TelemetryContract.Event.SANITIZE, TelemetryContract.Method.BUTTON, "history");
                     }

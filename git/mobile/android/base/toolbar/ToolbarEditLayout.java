@@ -70,10 +70,6 @@ public class ToolbarEditLayout extends ThemedLinearLayout {
         mEditText.setPrivateMode(isPrivate);
     }
 
-    void setToolbarPrefs(final ToolbarPrefs prefs) {
-        mEditText.setToolbarPrefs(prefs);
-    }
-
     private void showSoftInput() {
         InputMethodManager imm =
                (InputMethodManager) getContext().getSystemService(Context.INPUT_METHOD_SERVICE);

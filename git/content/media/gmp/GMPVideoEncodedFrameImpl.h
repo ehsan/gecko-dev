@@ -35,7 +35,6 @@
 #include "gmp-video-frame.h"
 #include "gmp-video-frame-encoded.h"
 #include "gmp-decryption.h"
-#include "mozilla/UniquePtr.h"
 #include "mozilla/ipc/Shmem.h"
 #include "mp4_demuxer/DecoderData.h"
 
@@ -50,7 +49,7 @@ class GMPVideoEncodedFrameImpl: public GMPVideoEncodedFrame
 {
   friend struct IPC::ParamTraits<mozilla::gmp::GMPVideoEncodedFrameImpl>;
 public:
-  explicit GMPVideoEncodedFrameImpl(GMPVideoHostImpl* aHost);
+  GMPVideoEncodedFrameImpl(GMPVideoHostImpl* aHost);
   GMPVideoEncodedFrameImpl(const GMPVideoEncodedFrameData& aFrameData, GMPVideoHostImpl* aHost);
   virtual ~GMPVideoEncodedFrameImpl();
 
@@ -115,16 +114,6 @@ private:
 };
 
 } // namespace gmp
-
-template<>
-struct DefaultDelete<mozilla::gmp::GMPVideoEncodedFrameImpl>
-{
-  void operator()(mozilla::gmp::GMPVideoEncodedFrameImpl* aFrame) const
-  {
-    aFrame->Destroy();
-  }
-};
-
 } // namespace mozilla
 
 #endif // GMPVideoEncodedFrameImpl_h_

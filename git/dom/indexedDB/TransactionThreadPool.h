@@ -62,7 +62,7 @@ protected:
     NS_DECL_THREADSAFE_ISUPPORTS
     NS_DECL_NSIRUNNABLE
 
-    explicit TransactionQueue(IDBTransaction* aTransaction);
+    TransactionQueue(IDBTransaction* aTransaction);
 
     void Unblock();
 
@@ -84,7 +84,7 @@ protected:
 
   struct TransactionInfo
   {
-    explicit TransactionInfo(IDBTransaction* aTransaction)
+    TransactionInfo(IDBTransaction* aTransaction)
     {
       MOZ_COUNT_CTOR(TransactionInfo);
 

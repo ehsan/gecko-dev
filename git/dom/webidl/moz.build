@@ -22,13 +22,11 @@ WEBIDL_FILES = [
     'AnalyserNode.webidl',
     'Animatable.webidl',
     'Animation.webidl',
-    'AnimationEffect.webidl',
     'AnimationEvent.webidl',
     'AnimationPlayer.webidl',
     'AnimationTimeline.webidl',
     'AppInfo.webidl',
     'AppNotificationServiceOptions.webidl',
-    'Apps.webidl',
     'APZTestData.webidl',
     'ArchiveReader.webidl',
     'ArchiveRequest.webidl',
@@ -99,7 +97,6 @@ WEBIDL_FILES = [
     'DOMException.webidl',
     'DOMImplementation.webidl',
     'DOMMatrix.webidl',
-    'DOMMMIError.webidl',
     'DOMMobileMessageError.webidl',
     'DOMParser.webidl',
     'DOMPoint.webidl',
@@ -225,7 +222,6 @@ WEBIDL_FILES = [
     'IDBRequest.webidl',
     'IDBTransaction.webidl',
     'IDBVersionChangeEvent.webidl',
-    'ImageCapture.webidl',
     'ImageData.webidl',
     'ImageDocument.webidl',
     'InputEvent.webidl',
@@ -263,12 +259,8 @@ WEBIDL_FILES = [
     'MouseScrollEvent.webidl',
     'MozActivity.webidl',
     'MozMmsMessage.webidl',
-    'MozMobileCellInfo.webidl',
-    'MozMobileConnection.webidl',
-    'MozMobileConnectionArray.webidl',
-    'MozMobileConnectionInfo.webidl',
     'MozMobileMessageManager.webidl',
-    'MozMobileNetworkInfo.webidl',
+    'MozNamedAttrMap.webidl',
     'MozPowerManager.webidl',
     'MozSelfSupport.webidl',
     'MozTetheringManager.webidl',
@@ -276,7 +268,6 @@ WEBIDL_FILES = [
     'MozWakeLock.webidl',
     'MutationEvent.webidl',
     'MutationObserver.webidl',
-    'NamedNodeMap.webidl',
     'NativeOSFileInternals.webidl',
     'NetDashboard.webidl',
     'NetworkInformation.webidl',
@@ -309,7 +300,6 @@ WEBIDL_FILES = [
     'Position.webidl',
     'PositionError.webidl',
     'ProcessingInstruction.webidl',
-    'ProfileTimelineMarker.webidl',
     'Promise.webidl',
     'PromiseDebugging.webidl',
     'PushManager.webidl',
@@ -324,8 +314,6 @@ WEBIDL_FILES = [
     'RTCIdentityAssertion.webidl',
     'RTCPeerConnection.webidl',
     'RTCPeerConnectionStatic.webidl',
-    'RTCRtpReceiver.webidl',
-    'RTCRtpSender.webidl',
     'RTCSessionDescription.webidl',
     'RTCStatsReport.webidl',
     'Screen.webidl',
@@ -335,13 +323,11 @@ WEBIDL_FILES = [
     'ServiceWorker.webidl',
     'ServiceWorkerContainer.webidl',
     'ServiceWorkerGlobalScope.webidl',
-    'ServiceWorkerRegistration.webidl',
     'SettingsManager.webidl',
     'ShadowRoot.webidl',
     'SharedWorker.webidl',
     'SharedWorkerGlobalScope.webidl',
     'SimpleGestureEvent.webidl',
-    'SocketCommon.webidl',
     'SourceBuffer.webidl',
     'SourceBufferList.webidl',
     'Storage.webidl',
@@ -477,8 +463,6 @@ WEBIDL_FILES = [
     'TransitionEvent.webidl',
     'TreeColumns.webidl',
     'TreeWalker.webidl',
-    'UDPMessageEvent.webidl',
-    'UDPSocket.webidl',
     'UIEvent.webidl',
     'UndoManager.webidl',
     'URL.webidl',
@@ -568,6 +552,7 @@ WEBIDL_FILES += [
     'PopupBlockedEvent.webidl',
     'ProgressEvent.webidl',
     'RecordErrorEvent.webidl',
+    'SmartCardEvent.webidl',
     'StyleRuleChangeEvent.webidl',
     'StyleSheetApplicableStateChangeEvent.webidl',
     'StyleSheetChangeEvent.webidl',
@@ -576,7 +561,7 @@ WEBIDL_FILES += [
 # We only expose our prefable test interfaces in debug builds, just to be on
 # the safe side.
 if CONFIG['MOZ_DEBUG']:
-    WEBIDL_FILES += ['TestInterfaceJS.webidl', 'TestInterfaceJSDictionaries.webidl']
+    WEBIDL_FILES += ['TestInterfaceJS.webidl']
 
 if CONFIG['MOZ_B2G_BT']:
     if CONFIG['MOZ_B2G_BT_API_V2']:
@@ -598,10 +583,16 @@ if CONFIG['MOZ_B2G_BT']:
 
 if CONFIG['MOZ_B2G_RIL']:
     WEBIDL_FILES += [
+        'DOMMMIError.webidl',
         'IccCardLockError.webidl',
         'MozCellBroadcast.webidl',
         'MozIcc.webidl',
         'MozIccManager.webidl',
+        'MozMobileCellInfo.webidl',
+        'MozMobileConnection.webidl',
+        'MozMobileConnectionArray.webidl',
+        'MozMobileConnectionInfo.webidl',
+        'MozMobileNetworkInfo.webidl',
         'MozVoicemail.webidl',
         'MozVoicemailStatus.webidl'
     ]
@@ -636,6 +627,11 @@ if CONFIG['MOZ_B2G_FM']:
         'FMRadio.webidl',
     ]
 
+if not CONFIG['MOZ_DISABLE_CRYPTOLEGACY']:
+    WEBIDL_FILES += [
+        'CRMFObject.webidl',
+    ]
+
 GENERATED_EVENTS_WEBIDL_FILES = [
     'AutocompleteErrorEvent.webidl',
     'BlobEvent.webidl',
@@ -654,9 +650,7 @@ GENERATED_EVENTS_WEBIDL_FILES = [
     'ErrorEvent.webidl',
     'HashChangeEvent.webidl',
     'IccChangeEvent.webidl',
-    'ImageCaptureErrorEvent.webidl',
     'MediaStreamEvent.webidl',
-    'MediaStreamTrackEvent.webidl',
     'MozApplicationEvent.webidl',
     'MozClirModeEvent.webidl',
     'MozContactChangeEvent.webidl',
@@ -666,7 +660,6 @@ GENERATED_EVENTS_WEBIDL_FILES = [
     'MozMmsEvent.webidl',
     'MozOtaStatusEvent.webidl',
     'MozSettingsEvent.webidl',
-    'MozSettingsTransactionEvent.webidl',
     'MozSmsEvent.webidl',
     'MozStkCommandEvent.webidl',
     'PageTransitionEvent.webidl',
@@ -679,11 +672,11 @@ GENERATED_EVENTS_WEBIDL_FILES = [
     'RTCPeerConnectionIdentityErrorEvent.webidl',
     'RTCPeerConnectionIdentityEvent.webidl',
     'SelectionChangeEvent.webidl',
+    'SmartCardEvent.webidl',
     'StyleRuleChangeEvent.webidl',
     'StyleSheetApplicableStateChangeEvent.webidl',
     'StyleSheetChangeEvent.webidl',
     'TrackEvent.webidl',
-    'UDPMessageEvent.webidl',
     'UserProximityEvent.webidl',
     'USSDReceivedEvent.webidl',
 ]
@@ -732,11 +725,6 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk':
         'MozWifiStatusChangeEvent.webidl',
     ]
 
-if CONFIG['MOZ_NFC']:
-    GENERATED_EVENTS_WEBIDL_FILES += [
-        'MozNFCPeerEvent.webidl',
-    ]
-
 if CONFIG['MOZ_BUILD_APP'] in ['browser', 'xulrunner']:
     WEBIDL_FILES += [
         'BrowserFeedWriter.webidl',
@@ -749,9 +737,9 @@ if CONFIG['MOZ_BUILD_APP'] in ['browser', 'mobile/android', 'xulrunner']:
 
 if CONFIG['MOZ_EME']:
     WEBIDL_FILES += [
-        'MediaEncryptedEvent.webidl',
         'MediaKeyError.webidl',
         'MediaKeyMessageEvent.webidl',
+        'MediaKeyNeededEvent.webidl',
         'MediaKeys.webidl',
         'MediaKeySession.webidl',
     ]

@@ -70,16 +70,12 @@ ToolSidebar.prototype = {
 
     let tab = this._tabbox.tabs.appendItem();
     tab.setAttribute("label", ""); // Avoid showing "undefined" while the tab is loading
-    tab.setAttribute("id", "sidebar-tab-" + id);
 
-    let onIFrameLoaded = (event) => {
-      let doc = event.target;
-      let win = doc.defaultView;
-      tab.setAttribute("label", doc.title);
-
+    let onIFrameLoaded = () => {
+      tab.setAttribute("label", iframe.contentDocument.title);
       iframe.removeEventListener("load", onIFrameLoaded, true);
-      if ("setPanel" in win) {
-        win.setPanel(this._toolPanel, iframe);
+      if ("setPanel" in iframe.contentWindow) {
+        iframe.contentWindow.setPanel(this._toolPanel, iframe);
       }
       this.emit(id + "-ready");
     };
@@ -111,27 +107,6 @@ ToolSidebar.prototype = {
     }
 
     this.emit("new-tab-registered", id);
-  },
-
-  /**
-   * Remove an existing tab.
-   */
-  removeTab: function(id) {
-    let tab = this._tabbox.tabs.querySelector("tab#sidebar-tab-" + id);
-    if (!tab) {
-      return;
-    }
-
-    tab.remove();
-
-    let panel = this.getTab(id);
-    if (panel) {
-      panel.remove();
-    }
-
-    this._tabs.delete(id);
-
-    this.emit("tab-unregistered", id);
   },
 
   /**

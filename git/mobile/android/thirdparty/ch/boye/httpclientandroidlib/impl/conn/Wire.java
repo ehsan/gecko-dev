@@ -1,21 +1,20 @@
 /*
  * ====================================================================
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *  Licensed to the Apache Software Foundation (ASF) under one or more
+ *  contributor license agreements.  See the NOTICE file distributed with
+ *  this work for additional information regarding copyright ownership.
+ *  The ASF licenses this file to You under the Apache License, Version 2.0
+ *  (the "License"); you may not use this file except in compliance with
+ *  the License.  You may obtain a copy of the License at
  *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
  * ====================================================================
  *
  * This software consists of voluntary contributions made by many
@@ -24,19 +23,20 @@
  * <http://www.apache.org/>.
  *
  */
+
 package ch.boye.httpclientandroidlib.impl.conn;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.ByteArrayInputStream;
+
+import ch.boye.httpclientandroidlib.annotation.Immutable;
 
 import ch.boye.httpclientandroidlib.androidextra.HttpClientAndroidLog;
-import ch.boye.httpclientandroidlib.annotation.Immutable;
-import ch.boye.httpclientandroidlib.util.Args;
 
 /**
  * Logs data to the wire LOG.
- * TODO: make package private. Should not be part of the public API.
+ *
  *
  * @since 4.0
  */
@@ -44,23 +44,14 @@ import ch.boye.httpclientandroidlib.util.Args;
 public class Wire {
 
     public HttpClientAndroidLog log;
-    private final String id;
 
-    /**
-     * @since 4.3
-     */
-    public Wire(final HttpClientAndroidLog log, final String id) {
+    public Wire(HttpClientAndroidLog log) {
         this.log = log;
-        this.id = id;
     }
 
-    public Wire(final HttpClientAndroidLog log) {
-        this(log, "");
-    }
-
-    private void wire(final String header, final InputStream instream)
+    private void wire(String header, InputStream instream)
       throws IOException {
-        final StringBuilder buffer = new StringBuilder();
+        StringBuilder buffer = new StringBuilder();
         int ch;
         while ((ch = instream.read()) != -1) {
             if (ch == 13) {
@@ -69,7 +60,7 @@ public class Wire {
                     buffer.append("[\\n]\"");
                     buffer.insert(0, "\"");
                     buffer.insert(0, header);
-                    log.debug(id + " " + buffer.toString());
+                    log.debug(buffer.toString());
                     buffer.setLength(0);
             } else if ((ch < 32) || (ch > 127)) {
                 buffer.append("[0x");
@@ -83,7 +74,7 @@ public class Wire {
             buffer.append('\"');
             buffer.insert(0, '\"');
             buffer.insert(0, header);
-            log.debug(id + " " + buffer.toString());
+            log.debug(buffer.toString());
         }
     }
 
@@ -92,61 +83,79 @@ public class Wire {
         return log.isDebugEnabled();
     }
 
-    public void output(final InputStream outstream)
+    public void output(InputStream outstream)
       throws IOException {
-        Args.notNull(outstream, "Output");
+        if (outstream == null) {
+            throw new IllegalArgumentException("Output may not be null");
+        }
         wire(">> ", outstream);
     }
 
-    public void input(final InputStream instream)
+    public void input(InputStream instream)
       throws IOException {
-        Args.notNull(instream, "Input");
+        if (instream == null) {
+            throw new IllegalArgumentException("Input may not be null");
+        }
         wire("<< ", instream);
     }
 
-    public void output(final byte[] b, final int off, final int len)
+    public void output(byte[] b, int off, int len)
       throws IOException {
-        Args.notNull(b, "Output");
+        if (b == null) {
+            throw new IllegalArgumentException("Output may not be null");
+        }
         wire(">> ", new ByteArrayInputStream(b, off, len));
     }
 
-    public void input(final byte[] b, final int off, final int len)
+    public void input(byte[] b, int off, int len)
       throws IOException {
-        Args.notNull(b, "Input");
+        if (b == null) {
+            throw new IllegalArgumentException("Input may not be null");
+        }
         wire("<< ", new ByteArrayInputStream(b, off, len));
     }
 
-    public void output(final byte[] b)
+    public void output(byte[] b)
       throws IOException {
-        Args.notNull(b, "Output");
+        if (b == null) {
+            throw new IllegalArgumentException("Output may not be null");
+        }
         wire(">> ", new ByteArrayInputStream(b));
     }
 
-    public void input(final byte[] b)
+    public void input(byte[] b)
       throws IOException {
-        Args.notNull(b, "Input");
+        if (b == null) {
+            throw new IllegalArgumentException("Input may not be null");
+        }
         wire("<< ", new ByteArrayInputStream(b));
     }
 
-    public void output(final int b)
+    public void output(int b)
       throws IOException {
         output(new byte[] {(byte) b});
     }
 
-    public void input(final int b)
+    public void input(int b)
       throws IOException {
         input(new byte[] {(byte) b});
     }
 
+    @Deprecated
     public void output(final String s)
       throws IOException {
-        Args.notNull(s, "Output");
+        if (s == null) {
+            throw new IllegalArgumentException("Output may not be null");
+        }
         output(s.getBytes());
     }
 
+    @Deprecated
     public void input(final String s)
       throws IOException {
-        Args.notNull(s, "Input");
+        if (s == null) {
+            throw new IllegalArgumentException("Input may not be null");
+        }
         input(s.getBytes());
     }
 }

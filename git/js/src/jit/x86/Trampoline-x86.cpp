@@ -6,12 +6,13 @@
 
 #include "jscompartment.h"
 
+#include "assembler/assembler/MacroAssembler.h"
 #include "jit/Bailouts.h"
 #include "jit/BaselineJIT.h"
 #include "jit/IonFrames.h"
 #include "jit/IonLinker.h"
+#include "jit/IonSpewer.h"
 #include "jit/JitCompartment.h"
-#include "jit/JitSpewer.h"
 #ifdef JS_ION_PERF
 # include "jit/PerfSpewer.h"
 #endif
@@ -345,7 +346,7 @@ JitRuntime::generateInvalidator(JSContext *cx)
 
     Linker linker(masm);
     JitCode *code = linker.newCode<NoGC>(cx, OTHER_CODE);
-    JitSpew(JitSpew_Invalidate, "   invalidation thunk created at %p", (void *) code->raw());
+    IonSpew(IonSpew_Invalidate, "   invalidation thunk created at %p", (void *) code->raw());
 
 #ifdef JS_ION_PERF
     writePerfSpewerJitCodeProfile(code, "Invalidator");
@@ -365,9 +366,7 @@ JitRuntime::generateArgumentsRectifier(JSContext *cx, ExecutionMode mode, void *
 
     // Load the number of |undefined|s to push into %ecx.
     masm.loadPtr(Address(esp, IonRectifierFrameLayout::offsetOfCalleeToken()), eax);
-    masm.mov(eax, ecx);
-    masm.andl(Imm32(CalleeTokenMask), ecx);
-    masm.movzwl(Operand(ecx, JSFunction::offsetOfNargs()), ecx);
+    masm.movzwl(Operand(eax, JSFunction::offsetOfNargs()), ecx);
     masm.subl(esi, ecx);
 
     // Copy the number of actual arguments.
@@ -424,7 +423,6 @@ JitRuntime::generateArgumentsRectifier(JSContext *cx, ExecutionMode mode, void *
 
     // Call the target function.
     // Note that this assumes the function is JITted.
-    masm.andl(Imm32(CalleeTokenMask), eax);
     masm.loadPtr(Address(eax, JSFunction::offsetOfNativeOrScript()), eax);
     masm.loadBaselineOrIonRaw(eax, eax, mode, nullptr);
     masm.call(eax);
@@ -593,6 +591,7 @@ JitRuntime::generateBailoutHandler(JSContext *cx, ExecutionMode mode)
 JitCode *
 JitRuntime::generateVMWrapper(JSContext *cx, const VMFunction &f)
 {
+    JS_ASSERT(!StackKeptAligned);
     JS_ASSERT(functionWrappers_);
     JS_ASSERT(functionWrappers_->initialized());
     VMWrapperMap::AddPtr p = functionWrappers_->lookupForAdd(&f);
@@ -789,7 +788,13 @@ JitRuntime::generatePreBarrier(JSContext *cx, MIRType type)
     masm.setupUnalignedABICall(2, eax);
     masm.passABIArg(ecx);
     masm.passABIArg(edx);
-    masm.callWithABI(IonMarkFunction(type));
+
+    if (type == MIRType_Value) {
+        masm.callWithABI(JS_FUNC_TO_DATA_PTR(void *, MarkValueFromIon));
+    } else {
+        JS_ASSERT(type == MIRType_Shape);
+        masm.callWithABI(JS_FUNC_TO_DATA_PTR(void *, MarkShapeFromIon));
+    }
 
     masm.PopRegsInMask(save);
     masm.ret();

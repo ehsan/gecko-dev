@@ -372,7 +372,8 @@ CertVerifier::VerifyCert(CERTCertificate* cert, SECCertificateUsage usage,
     case certificateUsageVerifyCA:
     case certificateUsageStatusResponder: {
       // XXX This is a pretty useless way to verify a certificate. It is used
-      // by the certificate viewer UI. Because we don't know what trust bit is
+      // by the implementation of window.crypto.importCertificates and in the
+      // certificate viewer UI. Because we don't know what trust bit is
       // interesting, we just try them all.
       mozilla::pkix::EndEntityOrCA endEntityOrCA;
       mozilla::pkix::KeyUsage keyUsage;
@@ -432,7 +433,6 @@ CertVerifier::VerifySSLServerCert(CERTCertificate* peerCert,
                      /*optional*/ void* pinarg,
                                   const char* hostname,
                                   bool saveIntermediatesInPermanentDatabase,
-                                  Flags flags,
                  /*optional out*/ ScopedCERTCertList* builtChain,
                  /*optional out*/ SECOidTag* evOidPolicy)
 {
@@ -457,8 +457,8 @@ CertVerifier::VerifySSLServerCert(CERTCertificate* peerCert,
   // CreateCertErrorRunnable assumes that CERT_VerifyCertName is only called
   // if VerifyCert succeeded.
   SECStatus rv = VerifyCert(peerCert, certificateUsageSSLServer, time, pinarg,
-                            hostname, flags, stapledOCSPResponse,
-                            &builtChainTemp, evOidPolicy);
+                            hostname, 0, stapledOCSPResponse, &builtChainTemp,
+                            evOidPolicy);
   if (rv != SECSuccess) {
     return rv;
   }

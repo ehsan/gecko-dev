@@ -1,4 +1,4 @@
-// |jit-test| error: ReferenceError
+// |jit-test| debug; error: ReferenceError
 // If uncaughtExceptionHook is absent, the debuggee is terminated.
 
 var g = newGlobal();

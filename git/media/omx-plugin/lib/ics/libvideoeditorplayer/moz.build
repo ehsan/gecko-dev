@@ -10,7 +10,9 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] != 'gonk':
         'libvideoeditorplayer.cpp',
     ]
 
-SharedLibrary('videoeditorplayer')
+LIBRARY_NAME = 'videoeditorplayer'
+
+FORCE_SHARED_LIB = True
 
 # Don't use STL wrappers; this isn't Gecko code
 DISABLE_STL_WRAPPING = True

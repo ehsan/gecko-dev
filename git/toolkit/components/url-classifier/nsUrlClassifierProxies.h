@@ -21,7 +21,7 @@ class UrlClassifierDBServiceWorkerProxy MOZ_FINAL :
   public nsIUrlClassifierDBServiceWorker
 {
 public:
-  explicit UrlClassifierDBServiceWorkerProxy(nsIUrlClassifierDBServiceWorker* aTarget)
+  UrlClassifierDBServiceWorkerProxy(nsIUrlClassifierDBServiceWorker* aTarget)
     : mTarget(aTarget)
   { }
 
@@ -162,7 +162,7 @@ class UrlClassifierLookupCallbackProxy MOZ_FINAL :
   public nsIUrlClassifierLookupCallback
 {
 public:
-  explicit UrlClassifierLookupCallbackProxy(nsIUrlClassifierLookupCallback* aTarget)
+  UrlClassifierLookupCallbackProxy(nsIUrlClassifierLookupCallback* aTarget)
     : mTarget(new nsMainThreadPtrHolder<nsIUrlClassifierLookupCallback>(aTarget))
   { }
 
@@ -194,7 +194,7 @@ private:
 class UrlClassifierCallbackProxy MOZ_FINAL : public nsIUrlClassifierCallback
 {
 public:
-  explicit UrlClassifierCallbackProxy(nsIUrlClassifierCallback* aTarget)
+  UrlClassifierCallbackProxy(nsIUrlClassifierCallback* aTarget)
     : mTarget(new nsMainThreadPtrHolder<nsIUrlClassifierCallback>(aTarget))
   { }
 
@@ -227,7 +227,7 @@ class UrlClassifierUpdateObserverProxy MOZ_FINAL :
   public nsIUrlClassifierUpdateObserver
 {
 public:
-  explicit UrlClassifierUpdateObserverProxy(nsIUrlClassifierUpdateObserver* aTarget)
+  UrlClassifierUpdateObserverProxy(nsIUrlClassifierUpdateObserver* aTarget)
     : mTarget(new nsMainThreadPtrHolder<nsIUrlClassifierUpdateObserver>(aTarget))
   { }
 

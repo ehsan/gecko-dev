@@ -23,9 +23,8 @@ dictionary MediaStreamConstraints {
 
 interface MediaStream {
     // readonly attribute DOMString    id;
-    sequence<AudioStreamTrack> getAudioTracks();
-    sequence<VideoStreamTrack> getVideoTracks();
-    sequence<MediaStreamTrack> getTracks();
+    sequence<AudioStreamTrack> getAudioTracks ();
+    sequence<VideoStreamTrack> getVideoTracks ();
     // MediaStreamTrack           getTrackById (DOMString trackId);
     // void                       addTrack (MediaStreamTrack track);
     // void                       removeTrack (MediaStreamTrack track);

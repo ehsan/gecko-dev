@@ -4,9 +4,6 @@
 
 "use strict";
 
-// input.mozilla.org expects "Firefox for Android" as the product.
-const FEEDBACK_PRODUCT_STRING = "Firefox for Android";
-
 let Cc = Components.classes;
 let Ci = Components.interfaces;
 let Cu = Components.utils;
@@ -51,7 +48,7 @@ function init() {
 	document.getElementById("last-url").value = aData;
   }, "Feedback:LastUrl", false);
 
-  Messaging.sendRequest({ type: "Feedback:LastUrl" });
+  sendMessageToJava({ type: "Feedback:LastUrl" });
 }
 
 function uninit() {
@@ -69,7 +66,7 @@ function updateActiveSection(aSection) {
 }
 
 function openPlayStore() {
-  Messaging.sendRequest({ type: "Feedback:OpenPlayStore" });
+  sendMessageToJava({ type: "Feedback:OpenPlayStore" });
 
   window.close();
 }
@@ -77,7 +74,7 @@ function openPlayStore() {
 function maybeLater() {
   window.close();
 
-  Messaging.sendRequest({ type: "Feedback:MaybeLater" });
+  sendMessageToJava({ type: "Feedback:MaybeLater" });
 }
 
 function sendFeedback(aEvent) {
@@ -100,10 +97,9 @@ function sendFeedback(aEvent) {
   if (!descriptionElement.validity.valid)
 	return;
 
-  let data = {};
-  data["happy"] = false;
-  data["description"] = descriptionElement.value;
-  data["product"] = FEEDBACK_PRODUCT_STRING;
+  let data = new FormData();
+  data.append("description", descriptionElement.value);
+  data.append("_type", 2);
 
   let urlElement = document.getElementById("last-url");
   // Bail if the URL value isn't valid. HTML5 form validation will take care
@@ -113,13 +109,13 @@ function sendFeedback(aEvent) {
 
   // Only send a URL string if the user provided one.
   if (urlElement.value) {
-    data["url"] = urlElement.value;
+	data.append("add_url", true);
+	data.append("url", urlElement.value);
   }
 
   let sysInfo = Cc["@mozilla.org/system-info;1"].getService(Ci.nsIPropertyBag2);
-  data["device"] = sysInfo.get("device");
-  data["manufacturer"] = sysInfo.get("manufacturer");
-  data["source"] = "about:feedback";
+  data.append("device", sysInfo.get("device"));
+  data.append("manufacturer", sysInfo.get("manufacturer"));
 
   let req = new XMLHttpRequest();
   req.addEventListener("error", function() {
@@ -131,8 +127,7 @@ function sendFeedback(aEvent) {
 
   let postURL = Services.urlFormatter.formatURLPref("app.feedback.postURL");
   req.open("POST", postURL, true);
-  req.setRequestHeader("Content-type", "application/json");
-  req.send(JSON.stringify(data));
+  req.send(data);
 
   switchSection("thanks-" + section);
 }

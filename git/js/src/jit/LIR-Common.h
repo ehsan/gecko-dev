@@ -128,40 +128,6 @@ class LMoveGroup : public LInstructionHelper<0, 0, 0>
     }
 };
 
-// Constructs a SIMD value with 4 components (e.g. int32x4, float32x4).
-class LSimdValueX4 : public LInstructionHelper<1, 4, 0>
-{
-  public:
-    LIR_HEADER(SimdValueX4)
-    LSimdValueX4(const LAllocation &x, const LAllocation &y,
-                 const LAllocation &z, const LAllocation &w)
-    {
-        setOperand(0, x);
-        setOperand(1, y);
-        setOperand(2, z);
-        setOperand(3, w);
-    }
-
-    MSimdValueX4 *mir() const {
-        return mir_->toSimdValueX4();
-    }
-};
-
-// Constructs a SIMD value with 4 equal components (e.g. int32x4, float32x4).
-class LSimdSplatX4 : public LInstructionHelper<1, 1, 0>
-{
-  public:
-    LIR_HEADER(SimdSplatX4)
-    explicit LSimdSplatX4(const LAllocation &v)
-    {
-        setOperand(0, v);
-    }
-
-    MSimdSplatX4 *mir() const {
-        return mir_->toSimdSplatX4();
-    }
-};
-
 // Extracts an element from a given SIMD int32x4 lane.
 class LSimdExtractElementI : public LInstructionHelper<1, 1, 0>
 {
@@ -197,133 +163,6 @@ class LSimdExtractElementF : public LInstructionHelper<1, 1, 0>
     }
     SimdLane lane() const {
         return lane_;
-    }
-};
-
-class LSimdSignMaskX4 : public LInstructionHelper<1, 1, 0>
-{
-  public:
-    LIR_HEADER(SimdSignMaskX4);
-
-    explicit LSimdSignMaskX4(const LAllocation &input) {
-        setOperand(0, input);
-    }
-};
-
-// Binary SIMD comparison operation between two SIMD operands
-class LSimdBinaryComp: public LInstructionHelper<1, 2, 0>
-{
-  protected:
-    LSimdBinaryComp() {}
-
-public:
-    const LAllocation *lhs() {
-        return getOperand(0);
-    }
-    const LAllocation *rhs() {
-        return getOperand(1);
-    }
-    MSimdBinaryComp::Operation operation() const {
-        return mir_->toSimdBinaryComp()->operation();
-    }
-    const char *extraName() const {
-        switch (operation()) {
-          case MSimdBinaryComp::greaterThan: return "greaterThan";
-          case MSimdBinaryComp::greaterThanOrEqual: return "greaterThanOrEqual";
-          case MSimdBinaryComp::lessThan: return "lessThan";
-          case MSimdBinaryComp::lessThanOrEqual: return "lessThanOrEqual";
-          case MSimdBinaryComp::equal: return "equal";
-          case MSimdBinaryComp::notEqual: return "notEqual";
-        }
-        MOZ_CRASH("unexpected operation");
-    }
-};
-
-// Binary SIMD comparison operation between two Int32x4 operands
-class LSimdBinaryCompIx4 : public LSimdBinaryComp
-{
-  public:
-    LIR_HEADER(SimdBinaryCompIx4);
-    LSimdBinaryCompIx4() : LSimdBinaryComp() {}
-};
-
-// Binary SIMD comparison operation between two Float32x4 operands
-class LSimdBinaryCompFx4 : public LSimdBinaryComp
-{
-  public:
-    LIR_HEADER(SimdBinaryCompFx4);
-    LSimdBinaryCompFx4() : LSimdBinaryComp() {}
-};
-
-// Binary SIMD arithmetic operation between two SIMD operands
-class LSimdBinaryArith : public LInstructionHelper<1, 2, 0>
-{
-  public:
-    LSimdBinaryArith() {}
-
-    const LAllocation *lhs() {
-        return getOperand(0);
-    }
-    const LAllocation *rhs() {
-        return getOperand(1);
-    }
-    MSimdBinaryArith::Operation operation() const {
-        return mir_->toSimdBinaryArith()->operation();
-    }
-    const char *extraName() const {
-        return MSimdBinaryArith::OperationName(operation());
-    }
-};
-
-// Binary SIMD arithmetic operation between two Int32x4 operands
-class LSimdBinaryArithIx4 : public LSimdBinaryArith
-{
-  public:
-    LIR_HEADER(SimdBinaryArithIx4);
-    LSimdBinaryArithIx4() : LSimdBinaryArith() {}
-};
-
-// Binary SIMD arithmetic operation between two Float32x4 operands
-class LSimdBinaryArithFx4 : public LSimdBinaryArith
-{
-  public:
-    LIR_HEADER(SimdBinaryArithFx4);
-    LSimdBinaryArithFx4() : LSimdBinaryArith() {}
-};
-
-// Binary SIMD bitwise operation between two int32x4 or float32x4 operands
-class LSimdBinaryBitwiseX4 : public LInstructionHelper<1, 2, 0>
-{
-  public:
-    LIR_HEADER(SimdBinaryBitwiseX4);
-    const LAllocation *lhs() {
-        return getOperand(0);
-    }
-    const LAllocation *rhs() {
-        return getOperand(1);
-    }
-    MSimdBinaryBitwise::Operation operation() const {
-        return mir_->toSimdBinaryBitwise()->operation();
-    }
-};
-
-// SIMD selection of lanes from two int32x4 or float32x4 arguments based on a
-// int32x4 argument.
-class LSimdSelect : public LInstructionHelper<1, 3, 0>
-{
-  public:
-    LIR_HEADER(SimdSelect);
-    const LAllocation *mask() {
-        return getOperand(0);
-    }
-    const LAllocation *lhs() {
-        return getOperand(1);
-    }
-    const LAllocation *rhs() {
-        return getOperand(2);
-    }
-    MSimdTernaryBitwise::Operation operation() const {
-        return mir_->toSimdTernaryBitwise()->operation();
     }
 };
 
@@ -414,26 +253,6 @@ class LFloat32 : public LInstructionHelper<1, 0, 0>
     }
 };
 
-// Constant SIMD int32x4
-class LInt32x4 : public LInstructionHelper<1, 0, 0>
-{
-  public:
-    LIR_HEADER(Int32x4);
-
-    explicit LInt32x4() {}
-    const SimdConstant &getValue() const { return mir_->toSimdConstant()->value(); }
-};
-
-// Constant SIMD float32x4
-class LFloat32x4 : public LInstructionHelper<1, 0, 0>
-{
-  public:
-    LIR_HEADER(Float32x4);
-
-    explicit LFloat32x4() {}
-    const SimdConstant &getValue() const { return mir_->toSimdConstant()->value(); }
-};
-
 // A constant Value.
 class LValue : public LInstructionHelper<BOX_PIECES, 0, 0>
 {
@@ -485,12 +304,6 @@ class LCallee : public LInstructionHelper<1, 0, 0>
 {
   public:
     LIR_HEADER(Callee)
-};
-
-class LIsConstructing : public LInstructionHelper<1, 0, 0>
-{
-  public:
-    LIR_HEADER(IsConstructing)
 };
 
 // Base class for control instructions (goto, branch, etc.)
@@ -546,24 +359,6 @@ class LNewArray : public LInstructionHelper<1, 0, 1>
 
     MNewArray *mir() const {
         return mir_->toNewArray();
-    }
-};
-
-class LNewArrayCopyOnWrite : public LInstructionHelper<1, 0, 1>
-{
-  public:
-    LIR_HEADER(NewArrayCopyOnWrite)
-
-    explicit LNewArrayCopyOnWrite(const LDefinition &temp) {
-        setTemp(0, temp);
-    }
-
-    const LDefinition *temp() {
-        return getTemp(0);
-    }
-
-    MNewArrayCopyOnWrite *mir() const {
-        return mir_->toNewArrayCopyOnWrite();
     }
 };
 
@@ -930,10 +725,6 @@ class LCheckOverRecursed : public LInstructionHelper<0, 0, 0>
 
     LCheckOverRecursed()
     { }
-
-    MCheckOverRecursed *mir() const {
-        return mir_->toCheckOverRecursed();
-    }
 };
 
 class LCheckOverRecursedPar : public LInstructionHelper<0, 1, 1>
@@ -952,10 +743,6 @@ class LCheckOverRecursedPar : public LInstructionHelper<0, 1, 1>
 
     const LDefinition *getTempReg() {
         return getTemp(0);
-    }
-
-    MCheckOverRecursedPar *mir() const {
-        return mir_->toCheckOverRecursedPar();
     }
 };
 
@@ -1017,9 +804,6 @@ class LInterruptCheckImplicit : public LInstructionHelper<0, 0, 0>
     void setOolEntry(Label *oolEntry) {
         oolEntry_ = oolEntry;
     }
-    MInterruptCheck *mir() const {
-        return mir_->toInterruptCheck();
-    }
 };
 
 class LInterruptCheckPar : public LInstructionHelper<0, 1, 1>
@@ -1038,9 +822,6 @@ class LInterruptCheckPar : public LInstructionHelper<0, 1, 1>
 
     const LDefinition *getTempReg() {
         return getTemp(0);
-    }
-    MInterruptCheckPar *mir() const {
-        return mir_->toInterruptCheckPar();
     }
 };
 
@@ -2789,20 +2570,6 @@ class LAbsF : public LInstructionHelper<1, 1, 0>
     }
 };
 
-// Count leading zeroes
-class LClzI : public LInstructionHelper<1, 1, 0>
-{
-  public:
-    LIR_HEADER(ClzI)
-    explicit LClzI(const LAllocation &num) {
-        setOperand(0, num);
-    }
-
-    MClz *mir() const {
-        return mir_->toClz();
-    }
-};
-
 // Square root of a double.
 class LSqrtD : public LInstructionHelper<1, 1, 0>
 {
@@ -3000,10 +2767,6 @@ class LAddI : public LBinaryMath<0>
     void setRecoversInput() {
         recoversInput_ = true;
     }
-
-    MAdd *mir() const {
-        return mir_->toAdd();
-    }
 };
 
 // Subtracts two integers, returning an integer value.
@@ -3027,9 +2790,6 @@ class LSubI : public LBinaryMath<0>
     }
     void setRecoversInput() {
         recoversInput_ = true;
-    }
-    MSub *mir() const {
-        return mir_->toSub();
     }
 };
 
@@ -3373,9 +3133,6 @@ class LValueToInt32 : public LInstructionHelper<1, BOX_PIECES, 2>
         JS_ASSERT(mode_ == TRUNCATE);
         return mir_->toTruncateToInt32();
     }
-    MInstruction *mir() const {
-        return mir_->toInstruction();
-    }
 };
 
 // Convert a double to an int32.
@@ -3430,10 +3187,6 @@ class LTruncateDToInt32 : public LInstructionHelper<1, 1, 1>
     const LDefinition *tempFloat() {
         return getTemp(0);
     }
-
-    MTruncateToInt32 *mir() const {
-        return mir_->toTruncateToInt32();
-    }
 };
 
 // Convert a float32 to a truncated int32.
@@ -3451,10 +3204,6 @@ class LTruncateFToInt32 : public LInstructionHelper<1, 1, 1>
 
     const LDefinition *tempFloat() {
         return getTemp(0);
-    }
-
-    MTruncateToInt32 *mir() const {
-        return mir_->toTruncateToInt32();
     }
 };
 
@@ -3513,7 +3262,7 @@ class LValueToString : public LInstructionHelper<1, BOX_PIECES, 1>
   public:
     LIR_HEADER(ValueToString)
 
-    explicit LValueToString(const LDefinition &tempToUnbox)
+    LValueToString(const LDefinition &tempToUnbox)
     {
         setTemp(0, tempToUnbox);
     }
@@ -3899,26 +3648,6 @@ class LMaybeToDoubleElement : public LInstructionHelper<BOX_PIECES, 2, 1>
         return getOperand(1);
     }
     const LDefinition *tempFloat() {
-        return getTemp(0);
-    }
-};
-
-// If necessary, copy the elements in an object so they may be written to.
-class LMaybeCopyElementsForWrite : public LInstructionHelper<0, 1, 1>
-{
-  public:
-    LIR_HEADER(MaybeCopyElementsForWrite)
-
-    explicit LMaybeCopyElementsForWrite(const LAllocation &obj, const LDefinition &temp) {
-        setOperand(0, obj);
-        setTemp(0, temp);
-    }
-
-    const LAllocation *object() {
-        return getOperand(0);
-    }
-
-    const LDefinition *temp() {
         return getTemp(0);
     }
 };
@@ -4535,27 +4264,6 @@ class LArrayConcat : public LCallInstructionHelper<1, 2, 2>
     }
     const LDefinition *temp2() {
         return getTemp(1);
-    }
-};
-
-class LArrayJoin : public LCallInstructionHelper<1, 2, 0>
-{
-  public:
-    LIR_HEADER(ArrayJoin)
-
-    LArrayJoin(const LAllocation &array, const LAllocation &sep) {
-        setOperand(0, array);
-        setOperand(1, sep);
-    }
-
-    const MArrayJoin *mir() const {
-        return mir_->toArrayJoin();
-    }
-    const LAllocation *array() {
-        return getOperand(0);
-    }
-    const LAllocation *separator() {
-        return getOperand(1);
     }
 };
 
@@ -6022,19 +5730,19 @@ class LPhi MOZ_FINAL : public LInstruction
         return 0;
     }
     LDefinition *getTemp(size_t index) {
-        MOZ_CRASH("no temps");
+        MOZ_ASSUME_UNREACHABLE("no temps");
     }
     void setTemp(size_t index, const LDefinition &temp) {
-        MOZ_CRASH("no temps");
+        MOZ_ASSUME_UNREACHABLE("no temps");
     }
     size_t numSuccessors() const {
         return 0;
     }
     MBasicBlock *getSuccessor(size_t i) const {
-        MOZ_CRASH("no successors");
+        MOZ_ASSUME_UNREACHABLE("no successors");
     }
     void setSuccessor(size_t i, MBasicBlock *) {
-        MOZ_CRASH("no successors");
+        MOZ_ASSUME_UNREACHABLE("no successors");
     }
 
     virtual void printInfo(FILE *fp) {
@@ -6355,19 +6063,19 @@ class LAsmJSCall MOZ_FINAL : public LInstruction
         return 0;
     }
     LDefinition *getTemp(size_t index) {
-        MOZ_CRASH("no temps");
+        MOZ_ASSUME_UNREACHABLE("no temps");
     }
     void setTemp(size_t index, const LDefinition &a) {
-        MOZ_CRASH("no temps");
+        MOZ_ASSUME_UNREACHABLE("no temps");
     }
     size_t numSuccessors() const {
         return 0;
     }
     MBasicBlock *getSuccessor(size_t i) const {
-        MOZ_CRASH("no successors");
+        MOZ_ASSUME_UNREACHABLE("no successors");
     }
     void setSuccessor(size_t i, MBasicBlock *) {
-        MOZ_CRASH("no successors");
+        MOZ_ASSUME_UNREACHABLE("no successors");
     }
 };
 

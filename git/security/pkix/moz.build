@@ -12,7 +12,6 @@ SOURCES += [
     'lib/pkixder.cpp',
     'lib/pkixnss.cpp',
     'lib/pkixocsp.cpp',
-    'lib/pkixresult.cpp',
     'lib/pkixtime.cpp',
 ]
 
@@ -38,6 +37,6 @@ if CONFIG['_MSC_VER']:
 
 FAIL_ON_WARNINGS = True
 
-Library('mozillapkix')
+LIBRARY_NAME = 'mozillapkix'
 
 FINAL_LIBRARY = 'xul'

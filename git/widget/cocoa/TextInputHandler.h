@@ -61,19 +61,19 @@ public:
     Clear();
   }
 
-  explicit TISInputSourceWrapper(const char* aID)
+  TISInputSourceWrapper(const char* aID)
   {
     mInputSourceList = nullptr;
     InitByInputSourceID(aID);
   }
 
-  explicit TISInputSourceWrapper(SInt32 aLayoutID)
+  TISInputSourceWrapper(SInt32 aLayoutID)
   {
     mInputSourceList = nullptr;
     InitByLayoutID(aLayoutID);
   }
 
-  explicit TISInputSourceWrapper(TISInputSourceRef aInputSource)
+  TISInputSourceWrapper(TISInputSourceRef aInputSource)
   {
     mInputSourceList = nullptr;
     InitByTISInputSourceRef(aInputSource);
@@ -496,7 +496,7 @@ protected:
       Clear();
     }    
 
-    explicit KeyEventState(NSEvent* aNativeKeyEvent) : mKeyEvent(nullptr)
+    KeyEventState(NSEvent* aNativeKeyEvent) : mKeyEvent(nullptr)
     {
       Clear();
       Set(aNativeKeyEvent);
@@ -555,7 +555,7 @@ protected:
   class AutoKeyEventStateCleaner
   {
   public:
-    explicit AutoKeyEventStateCleaner(TextInputHandlerBase* aHandler) :
+    AutoKeyEventStateCleaner(TextInputHandlerBase* aHandler) :
       mHandler(aHandler)
     {
     }

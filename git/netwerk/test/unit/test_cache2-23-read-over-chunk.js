@@ -22,12 +22,10 @@ function run_test()
   asyncOpenCacheEntry("http://read/", "disk", Ci.nsICacheStorage.OPEN_NORMALLY, LoadContextInfo.default,
     new OpenCallback(NEW|WAITFORWRITE, "", payload, function(entry) {
       var is = entry.openInputStream(0);
-      pumpReadStream(is, function(read) {
-        do_check_eq(read.length, kChunkSize + 10);
-        is.close();
-        do_check_true(read == payload); // not using do_check_eq since logger will fail for the 1/4MB string
-        finish_cache2_test();
-      });
+      do_check_eq(is.available(), kChunkSize + 10);
+      var payloadCheck = read_stream(is, kChunkSize + 10);
+      do_check_true(payloadCheck == payload); // not using do_check_eq since logger will fail for the 1/4MB string
+      finish_cache2_test();
     })
   );
 

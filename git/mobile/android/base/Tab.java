@@ -53,6 +53,7 @@ public class Tab {
     private int mParentId;
     private boolean mExternal;
     private boolean mBookmark;
+    private boolean mReadingListItem;
     private int mFaviconLoadId;
     private String mContentType;
     private boolean mHasTouchListeners;
@@ -258,6 +259,10 @@ public class Tab {
         return mBookmark;
     }
 
+    public boolean isReadingListItem() {
+        return mReadingListItem;
+    }
+
     public boolean isExternal() {
         return mExternal;
     }
@@ -437,7 +442,9 @@ public class Tab {
                     return;
                 }
 
-                mBookmark = BrowserDB.isBookmark(getContentResolver(), url);
+                final int flags = BrowserDB.getItemFlags(getContentResolver(), url);
+                mBookmark = (flags & Bookmarks.FLAG_BOOKMARK) > 0;
+                mReadingListItem = (flags & Bookmarks.FLAG_READING) > 0;
                 Tabs.getInstance().notifyListeners(Tab.this, Tabs.TabEvents.MENU_UPDATED);
             }
         });
@@ -452,7 +459,6 @@ public class Tab {
                     return;
 
                 BrowserDB.addBookmark(getContentResolver(), mTitle, url);
-                Tabs.getInstance().notifyListeners(Tab.this, Tabs.TabEvents.BOOKMARK_ADDED);
             }
         });
     }
@@ -466,7 +472,6 @@ public class Tab {
                     return;
 
                 BrowserDB.removeBookmarksWithURL(getContentResolver(), url);
-                Tabs.getInstance().notifyListeners(Tab.this, Tabs.TabEvents.BOOKMARK_REMOVED);
             }
         });
     }

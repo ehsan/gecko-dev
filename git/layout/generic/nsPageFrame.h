@@ -12,7 +12,7 @@
 class nsSharedPageData;
 
 // Page frame class used by the simple page sequence frame
-class nsPageFrame MOZ_FINAL : public nsContainerFrame {
+class nsPageFrame : public nsContainerFrame {
 
 public:
   NS_DECL_FRAMEARENA_HELPERS
@@ -57,7 +57,7 @@ public:
                          nsPoint aPt);
 
 protected:
-  explicit nsPageFrame(nsStyleContext* aContext);
+  nsPageFrame(nsStyleContext* aContext);
   virtual ~nsPageFrame();
 
   typedef enum {
@@ -101,7 +101,7 @@ class nsPageBreakFrame : public nsLeafFrame
 {
   NS_DECL_FRAMEARENA_HELPERS
 
-  explicit nsPageBreakFrame(nsStyleContext* aContext);
+  nsPageBreakFrame(nsStyleContext* aContext);
   ~nsPageBreakFrame();
 
   virtual void Reflow(nsPresContext*          aPresContext,

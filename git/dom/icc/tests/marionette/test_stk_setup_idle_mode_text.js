@@ -9,14 +9,6 @@ function testSetupIdleModeText(command, expect) {
   is(command.commandQualifier, expect.commandQualifier, expect.name);
   is(command.options.text, expect.text, expect.name);
 
-  let icons = command.options.icons;
-  if (icons) {
-    isIcons(icons, expect.icons, expect.name);
-
-    let iconSelfExplanatory = command.options.iconSelfExplanatory;
-    is(iconSelfExplanatory, expect.iconSelfExplanatory, expect.name);
-  }
-
   runNextTest();
 }
 
@@ -40,23 +32,17 @@ let tests = [
    func: testSetupIdleModeText,
    expect: {name: "setup_idle_mode_text_cmd_4",
             commandQualifier: 0x00,
-            text: "Idle text",
-            iconSelfExplanatory: true,
-            icons: [basicIcon]}},
-  {command: "d0198103012800820281828d0a0449646c6520746578749e020105",
+            text: "Idle text"}},
+  {command: "d0198103012800820281828d0a0449646c6520746578749e020101",
    func: testSetupIdleModeText,
    expect: {name: "setup_idle_mode_text_cmd_5",
             commandQualifier: 0x00,
-            text: "Idle text",
-            iconSelfExplanatory: false,
-            icons: [colorTransparencyIcon]}},
-  {command: "d0198103012800820281828d0a0449646c6520746578749e020007",
+            text: "Idle text"}},
+  {command: "d0198103012800820281828d0a0449646c6520746578749e020002",
    func: testSetupIdleModeText,
    expect: {name: "setup_idle_mode_text_cmd_6",
             commandQualifier: 0x00,
-            text: "Idle text",
-            iconSelfExplanatory: true,
-            icons: [colorIcon, colorTransparencyIcon]}},
+            text: "Idle text"}},
   {command: "d0248103012800820281828d1908041704140420041004120421042204120423041904220415",
    func: testSetupIdleModeText,
    expect: {name: "setup_idle_mode_text_cmd_7",

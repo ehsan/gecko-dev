@@ -10,8 +10,6 @@
 // This file declares the data structures for building a MIRGraph from a
 // JSScript.
 
-#include "mozilla/LinkedList.h"
-
 #include "jit/BytecodeAnalysis.h"
 #include "jit/IonOptimizationLevels.h"
 #include "jit/MIR.h"
@@ -31,9 +29,7 @@ class BaselineFrameInspector;
 BaselineFrameInspector *
 NewBaselineFrameInspector(TempAllocator *temp, BaselineFrame *frame, CompileInfo *info);
 
-class IonBuilder
-  : public MIRGenerator,
-    public mozilla::LinkedListElement<IonBuilder>
+class IonBuilder : public MIRGenerator
 {
     enum ControlStatus {
         ControlStatus_Error,
@@ -347,12 +343,8 @@ class IonBuilder
     MConstant *constant(const Value &v);
     MConstant *constantInt(int32_t i);
 
-    // Improve the type information at tests
-    bool improveTypesAtTest(MDefinition *ins, bool trueBranch, MTest *test);
-    bool improveTypesAtCompare(MCompare *ins, bool trueBranch, MTest *test);
-    // Used to detect triangular structure at test.
-    bool detectAndOrStructure(MPhi *ins, bool *branchIsTrue);
-    bool replaceTypeSet(MDefinition *subject, types::TemporaryTypeSet *type, MTest *test);
+    // Filter the type information at tests
+    bool filterTypesAtTest(MTest *test);
 
     // Add a guard which ensure that the set of type which goes through this
     // generated code correspond to the observed types for the bytecode.
@@ -383,7 +375,6 @@ class IonBuilder
     MDefinition *walkScopeChain(unsigned hops);
 
     MInstruction *addConvertElementsToDoubles(MDefinition *elements);
-    MDefinition *addMaybeCopyElementsForWrite(MDefinition *object);
     MInstruction *addBoundsCheck(MDefinition *index, MDefinition *length);
     MInstruction *addShapeGuard(MDefinition *obj, Shape *const shape, BailoutKind bailoutKind);
 
@@ -407,8 +398,6 @@ class IonBuilder
 
     // jsop_getprop() helpers.
     bool checkIsDefinitelyOptimizedArguments(MDefinition *obj, bool *isOptimizedArgs);
-    bool getPropTryInferredConstant(bool *emitted, MDefinition *obj, PropertyName *name,
-                                    types::TemporaryTypeSet *types);
     bool getPropTryArgumentsLength(bool *emitted, MDefinition *obj);
     bool getPropTryArgumentsCallee(bool *emitted, MDefinition *obj, PropertyName *name);
     bool getPropTryConstant(bool *emitted, MDefinition *obj, PropertyName *name,
@@ -444,9 +433,9 @@ class IonBuilder
                                    bool isDOM);
     bool setPropTryDefiniteSlot(bool *emitted, MDefinition *obj,
                                 PropertyName *name, MDefinition *value,
-                                types::TemporaryTypeSet *objTypes);
+                                bool barrier, types::TemporaryTypeSet *objTypes);
     bool setPropTryInlineAccess(bool *emitted, MDefinition *obj,
-                                PropertyName *name, MDefinition *value,
+                                PropertyName *name, MDefinition *value, bool barrier,
                                 types::TemporaryTypeSet *objTypes);
     bool setPropTryTypedObject(bool *emitted, MDefinition *obj,
                                PropertyName *name, MDefinition *value);
@@ -629,7 +618,6 @@ class IonBuilder
     bool jsop_delprop(PropertyName *name);
     bool jsop_delelem();
     bool jsop_newarray(uint32_t count);
-    bool jsop_newarray_copyonwrite();
     bool jsop_newobject();
     bool jsop_initelem();
     bool jsop_initelem_array();
@@ -687,14 +675,12 @@ class IonBuilder
     InliningStatus inlineArrayPopShift(CallInfo &callInfo, MArrayPopShift::Mode mode);
     InliningStatus inlineArrayPush(CallInfo &callInfo);
     InliningStatus inlineArrayConcat(CallInfo &callInfo);
-    InliningStatus inlineArrayJoin(CallInfo &callInfo);
     InliningStatus inlineArraySplice(CallInfo &callInfo);
 
     // Math natives.
     InliningStatus inlineMathAbs(CallInfo &callInfo);
     InliningStatus inlineMathFloor(CallInfo &callInfo);
     InliningStatus inlineMathCeil(CallInfo &callInfo);
-    InliningStatus inlineMathClz32(CallInfo &callInfo);
     InliningStatus inlineMathRound(CallInfo &callInfo);
     InliningStatus inlineMathSqrt(CallInfo &callInfo);
     InliningStatus inlineMathAtan2(CallInfo &callInfo);
@@ -755,7 +741,6 @@ class IonBuilder
         return inlineHasClasses(callInfo, clasp, nullptr);
     }
     InliningStatus inlineHasClasses(CallInfo &callInfo, const Class *clasp1, const Class *clasp2);
-    InliningStatus inlineIsConstructing(CallInfo &callInfo);
 
     // Testing functions.
     InliningStatus inlineForceSequentialOrInParallelSection(CallInfo &callInfo);
@@ -812,7 +797,8 @@ class IonBuilder
     JSObject *testSingletonProperty(JSObject *obj, PropertyName *name);
     bool testSingletonPropertyTypes(MDefinition *obj, JSObject *singleton, PropertyName *name,
                                     bool *testObject, bool *testString);
-    uint32_t getDefiniteSlot(types::TemporaryTypeSet *types, PropertyName *name);
+    bool getDefiniteSlot(types::TemporaryTypeSet *types, PropertyName *name,
+                         types::HeapTypeSetKey *property);
     bool freezePropTypeSets(types::TemporaryTypeSet *types,
                             JSObject *foundProto, PropertyName *name);
 

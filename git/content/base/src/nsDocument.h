@@ -64,6 +64,7 @@
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/dom/DOMImplementation.h"
 #include "mozilla/dom/StyleSheetList.h"
+#include "nsIDOMTouchEvent.h"
 #include "nsDataHashtable.h"
 #include "mozilla/TimeStamp.h"
 #include "mozilla/Attributes.h"
@@ -121,12 +122,12 @@ class nsIdentifierMapEntry : public nsStringHashKey
 {
 public:
   typedef mozilla::dom::Element Element;
-
-  explicit nsIdentifierMapEntry(const nsAString& aKey) :
+  
+  nsIdentifierMapEntry(const nsAString& aKey) :
     nsStringHashKey(&aKey), mNameContentList(nullptr)
   {
   }
-  explicit nsIdentifierMapEntry(const nsAString* aKey) :
+  nsIdentifierMapEntry(const nsAString *aKey) :
     nsStringHashKey(aKey), mNameContentList(nullptr)
   {
   }
@@ -202,8 +203,8 @@ public:
     typedef const ChangeCallback KeyType;
     typedef const ChangeCallback* KeyTypePointer;
 
-    explicit ChangeCallbackEntry(const ChangeCallback* aKey) :
-      mKey(*aKey) { }
+    ChangeCallbackEntry(const ChangeCallback* key) :
+      mKey(*key) { }
     ChangeCallbackEntry(const ChangeCallbackEntry& toCopy) :
       mKey(toCopy.mKey) { }
 
@@ -251,7 +252,7 @@ public:
     : mNamespaceID(aNamespaceID),
       mAtom(aAtom)
   {}
-  explicit CustomElementHashKey(const CustomElementHashKey* aKey)
+  CustomElementHashKey(const CustomElementHashKey *aKey)
     : mNamespaceID(aKey->mNamespaceID),
       mAtom(aKey->mAtom)
   {}
@@ -325,7 +326,7 @@ private:
 // being created flag.
 struct CustomElementData
 {
-  explicit CustomElementData(nsIAtom* aType);
+  CustomElementData(nsIAtom* aType);
   // Objects in this array are transient and empty after each microtask
   // checkpoint.
   nsTArray<nsAutoPtr<CustomElementCallback>> mCallbackQueue;
@@ -437,7 +438,7 @@ class nsDOMStyleSheetList : public mozilla::dom::StyleSheetList,
                             public nsStubDocumentObserver
 {
 public:
-  explicit nsDOMStyleSheetList(nsIDocument* aDocument);
+  nsDOMStyleSheetList(nsIDocument *aDocument);
 
   NS_DECL_ISUPPORTS_INHERITED
 
@@ -540,7 +541,7 @@ protected:
     ~PendingLoad() {}
 
   public:
-    explicit PendingLoad(nsDocument* aDisplayDocument) :
+    PendingLoad(nsDocument* aDisplayDocument) :
       mDisplayDocument(aDisplayDocument)
     {}
 
@@ -572,7 +573,7 @@ protected:
   {
     ~LoadgroupCallbacks() {}
   public:
-    explicit LoadgroupCallbacks(nsIInterfaceRequestor* aOtherCallbacks)
+    LoadgroupCallbacks(nsIInterfaceRequestor* aOtherCallbacks)
       : mCallbacks(aOtherCallbacks)
     {}
     NS_DECL_ISUPPORTS
@@ -935,12 +936,6 @@ public:
   nsRadioGroupStruct* GetOrCreateRadioGroup(const nsAString& aName);
 
   virtual nsViewportInfo GetViewportInfo(const mozilla::ScreenIntSize& aDisplaySize) MOZ_OVERRIDE;
-
-  /**
-   * Called when an app-theme-changed observer notification is
-   * received by this document.
-   */
-  void OnAppThemeChanged();
 
 private:
   void AddOnDemandBuiltInUASheet(mozilla::CSSStyleSheet* aSheet);
@@ -1411,10 +1406,6 @@ public:
 
   js::ExpandoAndGeneration mExpandoAndGeneration;
 
-#ifdef MOZ_EME
-  bool ContainsEMEContent();
-#endif
-
 protected:
   already_AddRefed<nsIPresShell> doCreateShell(nsPresContext* aContext,
                                                nsViewManager* aViewManager,
@@ -1446,7 +1437,7 @@ protected:
   void VerifyRootContentState();
 #endif
 
-  explicit nsDocument(const char* aContentType);
+  nsDocument(const char* aContentType);
   virtual ~nsDocument();
 
   void EnsureOnloadBlocker();
@@ -1596,12 +1587,6 @@ public:
   bool mAllowRelocking:1;
 
   bool mAsyncFullscreenPending:1;
-
-  // Whether we're observing the "app-theme-changed" observer service
-  // notification.  We need to keep track of this because we might get multiple
-  // OnPageShow notifications in a row without an OnPageHide in between, if
-  // we're getting document.open()/close() called on us.
-  bool mObservingAppThemeChanged:1;
 
   // Keeps track of whether we have a pending
   // 'style-sheet-applicable-state-changed' notification.
@@ -1768,7 +1753,7 @@ public:
 class nsDocumentOnStack
 {
 public:
-  explicit nsDocumentOnStack(nsDocument* aDoc) : mDoc(aDoc)
+  nsDocumentOnStack(nsDocument* aDoc) : mDoc(aDoc)
   {
     mDoc->IncreaseStackRefCnt();
   }

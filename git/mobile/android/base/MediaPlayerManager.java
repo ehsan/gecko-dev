@@ -24,8 +24,19 @@ import android.util.Log;
 import com.google.android.gms.cast.CastMediaControlIntent;
 
 import java.util.HashMap;
-import java.util.Map;
-import java.util.Iterator;
+
+/* Wraper for different MediaRouter types supproted by Android. i.e. Chromecast, Miracast, etc. */
+interface GeckoMediaPlayer {
+    public JSONObject toJSON();
+    public void load(String title, String url, String type, EventCallback callback);
+    public void play(EventCallback callback);
+    public void pause(EventCallback callback);
+    public void stop(EventCallback callback);
+    public void start(EventCallback callback);
+    public void end(EventCallback callback);
+    public void mirror(EventCallback callback);
+    public void message(String message, EventCallback callback);
+}
 
 /* Manages a list of GeckoMediaPlayers methods (i.e. Chromecast/Miracast). Routes messages
  * from Gecko to the correct caster based on the id of the display
@@ -50,7 +61,7 @@ class MediaPlayerManager implements NativeEventListener,
 
     private final Context context;
     private final MediaRouter mediaRouter;
-    private final Map<String, GeckoMediaPlayer> displays = new HashMap<String, GeckoMediaPlayer>();
+    private final HashMap<String, GeckoMediaPlayer> displays = new HashMap<String, GeckoMediaPlayer>();
     private static MediaPlayerManager instance;
 
     @JNITarget
@@ -114,17 +125,9 @@ class MediaPlayerManager implements NativeEventListener,
         if ("MediaPlayer:Get".equals(event)) {
             final JSONObject result = new JSONObject();
             final JSONArray disps = new JSONArray();
-
-            final Iterator<GeckoMediaPlayer> items = displays.values().iterator();
-            while (items.hasNext()) {
-                GeckoMediaPlayer disp = items.next();
+            for (GeckoMediaPlayer disp : displays.values()) {
                 try {
-                    JSONObject json = disp.toJSON();
-                    if (json == null) {
-                        items.remove();
-                    } else {
-                        disps.put(json);
-                    }
+                    disps.put(disp.toJSON());
                 } catch(Exception ex) {
                     // This may happen if the device isn't a real Chromecast,
                     // for example Firefly casting devices.

@@ -17,6 +17,7 @@
 #include "mozilla/dom/ipc/Blob.h"
 #include "mozilla/dom/TabParent.h"
 #include "mozilla/unused.h"
+#include "nsCxPusher.h"
 
 #include "AsyncConnectionHelper.h"
 #include "DatabaseInfo.h"
@@ -1500,7 +1501,8 @@ IndexedDBObjectStoreRequestParent::ConvertBlobActors(
 
     for (uint32_t index = 0; index < length; index++) {
       BlobParent* actor = static_cast<BlobParent*>(aActors[index]);
-      aBlobs.AppendElement(actor->GetBlob());
+      nsCOMPtr<nsIDOMBlob> blob = actor->GetBlob();
+      aBlobs.AppendElement(blob);
     }
   }
 }

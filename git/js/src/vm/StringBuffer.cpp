@@ -28,7 +28,8 @@ ExtractWellSized(ExclusiveContext *cx, Buffer &cb)
     /* For medium/big buffers, avoid wasting more than 1/4 of the memory. */
     JS_ASSERT(capacity >= length);
     if (length > Buffer::sMaxInlineStorage && capacity - length > length / 4) {
-        CharT *tmp = cx->zone()->pod_realloc<CharT>(buf, capacity, length + 1);
+        size_t bytes = sizeof(CharT) * (length + 1);
+        CharT *tmp = (CharT *)cx->realloc_(buf, bytes);
         if (!tmp) {
             js_free(buf);
             return nullptr;
@@ -39,13 +40,13 @@ ExtractWellSized(ExclusiveContext *cx, Buffer &cb)
     return buf;
 }
 
-char16_t *
+jschar *
 StringBuffer::stealChars()
 {
     if (isLatin1() && !inflateChars())
         return nullptr;
 
-    return ExtractWellSized<char16_t>(cx, twoByteChars());
+    return ExtractWellSized<jschar>(cx, twoByteChars());
 }
 
 bool
@@ -87,12 +88,6 @@ FinishStringFlat(ExclusiveContext *cx, StringBuffer &sb, Buffer &cb)
     if (!str)
         return nullptr;
 
-    /*
-     * The allocation was made on a TempAllocPolicy, so account for the string
-     * data on the string's zone.
-     */
-    str->zone()->updateMallocCounter(sizeof(CharT) * len);
-
     buf.forget();
     return str;
 }
@@ -117,14 +112,14 @@ StringBuffer::finishString()
         }
     } else {
         if (JSFatInlineString::twoByteLengthFits(len)) {
-            mozilla::Range<const char16_t> range(twoByteChars().begin(), len);
+            mozilla::Range<const jschar> range(twoByteChars().begin(), len);
             return NewFatInlineString<CanGC>(cx, range);
         }
     }
 
     return isLatin1()
         ? FinishStringFlat<Latin1Char>(cx, *this, latin1Chars())
-        : FinishStringFlat<char16_t>(cx, *this, twoByteChars());
+        : FinishStringFlat<jschar>(cx, *this, twoByteChars());
 }
 
 JSAtom *

@@ -16,7 +16,6 @@
 #include "nsIArray.h"
 #include "nsIDocument.h"
 #include "nsIDocShellTreeItem.h"
-#include "nsIDOMElement.h"
 #include "nsXULAppAPI.h"
 
 using namespace mozilla;

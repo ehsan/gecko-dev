@@ -9,7 +9,7 @@
 #include "asmjs/AsmJSValidate.h"
 #include "jit/BytecodeAnalysis.h"
 #include "jit/Ion.h"
-#include "jit/JitSpewer.h"
+#include "jit/IonSpewer.h"
 #include "jit/MIR.h"
 #include "jit/MIRGenerator.h"
 
@@ -25,7 +25,6 @@ MIRGenerator::MIRGenerator(CompileCompartment *compartment, const JitCompileOpti
     alloc_(alloc),
     graph_(graph),
     abortReason_(AbortReason_NoAbort),
-    abortedNewScriptPropertiesTypes_(*alloc_),
     error_(false),
     pauseBuild_(nullptr),
     cancelBuild_(false),
@@ -33,10 +32,8 @@ MIRGenerator::MIRGenerator(CompileCompartment *compartment, const JitCompileOpti
     performsCall_(false),
     usesSimd_(false),
     usesSimdCached_(false),
-    minAsmJSHeapLength_(0),
+    minAsmJSHeapLength_(AsmJSAllocationGranularity),
     modifiesFrameArguments_(false),
-    instrumentedProfiling_(false),
-    instrumentedProfilingIsCached_(false),
     options(options)
 { }
 
@@ -74,7 +71,7 @@ MIRGenerator::usesSimd()
 bool
 MIRGenerator::abortFmt(const char *message, va_list ap)
 {
-    JitSpewVA(JitSpew_Abort, message, ap);
+    IonSpewVA(IonSpew_Abort, message, ap);
     error_ = true;
     return false;
 }
@@ -87,17 +84,6 @@ MIRGenerator::abort(const char *message, ...)
     abortFmt(message, ap);
     va_end(ap);
     return false;
-}
-
-void
-MIRGenerator::addAbortedNewScriptPropertiesType(types::TypeObject *type)
-{
-    for (size_t i = 0; i < abortedNewScriptPropertiesTypes_.length(); i++) {
-        if (type == abortedNewScriptPropertiesTypes_[i])
-            return;
-    }
-    if (!abortedNewScriptPropertiesTypes_.append(type))
-        CrashAtUnhandlableOOM("addAbortedNewScriptPropertiesType");
 }
 
 void
@@ -162,8 +148,8 @@ MIRGraph::removeBlock(MBasicBlock *block)
         }
     }
 
-    block->discardAllInstructions();
     block->discardAllResumePoints();
+    block->discardAllInstructions();
 
     // Note: phis are disconnected from the rest of the graph, but are not
     // removed entirely. If the block being removed is a loop header then
@@ -260,10 +246,7 @@ MBasicBlock::NewWithResumePoint(MIRGraph &graph, CompileInfo &info,
 {
     MBasicBlock *block = new(graph.alloc()) MBasicBlock(graph, info, site, NORMAL);
 
-    MOZ_ASSERT(!resumePoint->instruction());
-    resumePoint->block()->discardResumePoint(resumePoint, RefType_None);
     resumePoint->block_ = block;
-    block->addResumePoint(resumePoint);
     block->entryResumePoint_ = resumePoint;
 
     if (!block->init())
@@ -354,7 +337,6 @@ MBasicBlock::MBasicBlock(MIRGraph &graph, CompileInfo &info, const BytecodeSite 
     pc_(site.pc()),
     lir_(nullptr),
     entryResumePoint_(nullptr),
-    outerResumePoint_(nullptr),
     successorWithPhis_(nullptr),
     positionInPhiSuccessor_(0),
     loopDepth_(0),
@@ -509,9 +491,6 @@ MBasicBlock::inheritSlots(MBasicBlock *parent)
 bool
 MBasicBlock::initEntrySlots(TempAllocator &alloc)
 {
-    // Remove the previous resume point.
-    discardResumePoint(entryResumePoint_);
-
     // Create a resume point using our initial stack state.
     entryResumePoint_ = MResumePoint::New(alloc, this, pc(), callerResumePoint(),
                                           MResumePoint::ResumeAt);
@@ -559,18 +538,17 @@ MBasicBlock::linkOsrValues(MStart *start)
 
     for (uint32_t i = 0; i < stackDepth(); i++) {
         MDefinition *def = slots_[i];
-        MInstruction *cloneRp = nullptr;
         if (i == info().scopeChainSlot()) {
             if (def->isOsrScopeChain())
-                cloneRp = def->toOsrScopeChain();
+                def->toOsrScopeChain()->setResumePoint(res);
         } else if (i == info().returnValueSlot()) {
             if (def->isOsrReturnValue())
-                cloneRp = def->toOsrReturnValue();
+                def->toOsrReturnValue()->setResumePoint(res);
         } else if (info().hasArguments() && i == info().argsObjSlot()) {
             JS_ASSERT(def->isConstant() || def->isOsrArgumentsObject());
             JS_ASSERT_IF(def->isConstant(), def->toConstant()->value() == UndefinedValue());
             if (def->isOsrArgumentsObject())
-                cloneRp = def->toOsrArgumentsObject();
+                def->toOsrArgumentsObject()->setResumePoint(res);
         } else {
             JS_ASSERT(def->isOsrValue() || def->isGetArgumentsObjectArg() || def->isConstant() ||
                       def->isParameter());
@@ -580,15 +558,12 @@ MBasicBlock::linkOsrValues(MStart *start)
             JS_ASSERT_IF(def->isConstant(), def->toConstant()->value() == UndefinedValue());
 
             if (def->isOsrValue())
-                cloneRp = def->toOsrValue();
+                def->toOsrValue()->setResumePoint(res);
             else if (def->isGetArgumentsObjectArg())
-                cloneRp = def->toGetArgumentsObjectArg();
+                def->toGetArgumentsObjectArg()->setResumePoint(res);
             else if (def->isParameter())
-                cloneRp = def->toParameter();
+                def->toParameter()->setResumePoint(res);
         }
-
-        if (cloneRp)
-            cloneRp->setResumePoint(MResumePoint::Copy(graph().alloc(), res));
     }
 }
 
@@ -770,19 +745,13 @@ MBasicBlock::moveBefore(MInstruction *at, MInstruction *ins)
     ins->setTrackedSite(at->trackedSite());
 }
 
-void
-MBasicBlock::discardResumePoint(MResumePoint *rp, ReferencesType refType /* = RefType_Default */)
+static inline void
+AssertSafelyDiscardable(MDefinition *def)
 {
-    if (refType & RefType_DiscardOperands)
-        rp->discardUses();
 #ifdef DEBUG
-    MResumePointIterator iter = resumePointsBegin();
-    while (*iter != rp) {
-        // We should reach it before reaching the end.
-        MOZ_ASSERT(iter != resumePointsEnd());
-        iter++;
-    }
-    resumePoints_.removeAt(iter);
+    // Instructions captured by resume points cannot be safely discarded, since
+    // they are necessary for interpreter frame reconstruction in case of bailout.
+    JS_ASSERT(!def->hasUses());
 #endif
 }
 
@@ -794,19 +763,28 @@ MBasicBlock::prepareForDiscard(MInstruction *ins, ReferencesType refType /* = Re
     MOZ_ASSERT(ins->block() == this);
 
     MResumePoint *rp = ins->resumePoint();
-    if ((refType & RefType_DiscardResumePoint) && rp)
-        discardResumePoint(rp, refType);
+    if (refType & RefType_DiscardResumePoint && rp) {
+        rp->discardUses();
+        // Resume point are using a forward list only, so we need to iterate
+        // to the location of the resume point in order to remove it.
+        MResumePointIterator iter = resumePointsBegin();
+        while (*iter != rp) {
+            // If the instruction has a resume point, then it should be part
+            // of the basic block list of resume points.
+            MOZ_ASSERT(iter != resumePointsEnd());
+            iter++;
+        }
+        resumePoints_.removeAt(iter);
+    }
 
     // We need to assert that instructions have no uses after removing the their
     // resume points operands as they could be captured by their own resume
     // point.
     MOZ_ASSERT_IF(refType & RefType_AssertNoUses, !ins->hasUses());
 
-    const uint32_t InstructionOperands = RefType_DiscardOperands | RefType_DiscardInstruction;
-    if ((refType & InstructionOperands) == InstructionOperands) {
-        for (size_t i = 0, e = ins->numOperands(); i < e; i++)
-            ins->discardOperand(i);
-    }
+    MOZ_ASSERT(refType & RefType_DiscardOperands);
+    for (size_t i = 0, e = ins->numOperands(); i < e; i++)
+        ins->discardOperand(i);
 
     ins->setDiscarded();
 }
@@ -821,12 +799,12 @@ MBasicBlock::discard(MInstruction *ins)
 void
 MBasicBlock::discardIgnoreOperands(MInstruction *ins)
 {
+    AssertSafelyDiscardable(ins);
 #ifdef DEBUG
     for (size_t i = 0, e = ins->numOperands(); i < e; i++)
         JS_ASSERT(ins->operandDiscarded(i));
 #endif
 
-    prepareForDiscard(ins, RefType_IgnoreOperands);
     instructions_.remove(ins);
 }
 
@@ -868,10 +846,11 @@ void
 MBasicBlock::discardAllInstructionsStartingAt(MInstructionIterator &iter)
 {
     while (iter != end()) {
-        // Discard operands and resume point operands and flag the instruction
-        // as discarded.  Also we do not assert that we have no uses as blocks
-        // might be removed in reverse post order.
-        prepareForDiscard(*iter, RefType_DefaultNoAssert);
+        // We only discard operands and flag the instruction as discarded as the
+        // resume points are exepected to be removed separately.  Also we do not
+        // assert that we have no uses as block might be removed in reverse post
+        // order.
+        prepareForDiscard(*iter, RefType_DiscardOperands);
         iter = instructions_.removeAt(iter);
     }
 }
@@ -896,24 +875,17 @@ MBasicBlock::discardAllPhis()
 void
 MBasicBlock::discardAllResumePoints(bool discardEntry)
 {
-    if (outerResumePoint_) {
-        discardResumePoint(outerResumePoint_);
-        outerResumePoint_ = nullptr;
+    for (MResumePointIterator iter = resumePointsBegin(); iter != resumePointsEnd(); ) {
+        MResumePoint *rp = *iter;
+        if (rp == entryResumePoint() && !discardEntry) {
+            iter++;
+        } else {
+            rp->discardUses();
+            iter = resumePoints_.removeAt(iter);
+        }
     }
-
-    if (discardEntry && entryResumePoint_)
+    if (discardEntry)
         clearEntryResumePoint();
-
-#ifdef DEBUG
-    if (!entryResumePoint()) {
-        MOZ_ASSERT(resumePointsEmpty());
-    } else {
-        MResumePointIterator iter(resumePointsBegin());
-        MOZ_ASSERT(iter != resumePointsEnd());
-        iter++;
-        MOZ_ASSERT(iter == resumePointsEnd());
-    }
-#endif
 }
 
 void
@@ -1217,7 +1189,7 @@ MBasicBlock::getSuccessorIndex(MBasicBlock *block) const
         if (getSuccessor(i) == block)
             return i;
     }
-    MOZ_CRASH("Invalid successor");
+    MOZ_ASSUME_UNREACHABLE("Invalid successor");
 }
 
 void
@@ -1249,7 +1221,7 @@ MBasicBlock::replacePredecessor(MBasicBlock *old, MBasicBlock *split)
         }
     }
 
-    MOZ_CRASH("predecessor was not found");
+    MOZ_ASSUME_UNREACHABLE("predecessor was not found");
 }
 
 void
@@ -1292,7 +1264,7 @@ MBasicBlock::removePredecessor(MBasicBlock *pred)
         return;
     }
 
-    MOZ_CRASH("predecessor was not found");
+    MOZ_ASSUME_UNREACHABLE("predecessor was not found");
 }
 
 void

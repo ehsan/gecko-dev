@@ -46,10 +46,10 @@
     HTTPMultipartUpload* mPost;
 }
 
-- (void)showCrashUI:(const StringTable&)files
+- (void)showCrashUI:(const std::string&)dumpfile
     queryParameters:(const StringTable&)queryParameters
             sendURL:(const std::string&)sendURL;
-- (void)showErrorUI:(const std::string&)message;
+- (void)showErrorUI:(const std::string&)dumpfile;
 - (void)showReportInfo;
 - (void)maybeSubmitReport;
 - (void)closeMeDown:(id)unused;

@@ -25,34 +25,17 @@
 #ifndef mozilla_pkix_test__pkixtestutils_h
 #define mozilla_pkix_test__pkixtestutils_h
 
-#include <ctime>
-#include <stdint.h> // Some Mozilla-supported compilers lack <cstdint>
-#include <string>
+#include <stdint.h>
+#include <stdio.h>
 
+#include "cert.h"
+#include "keyhi.h"
 #include "pkix/enumclass.h"
 #include "pkix/pkixtypes.h"
 #include "pkix/ScopedPtr.h"
-#include "secitem.h"
+#include "seccomon.h"
 
 namespace mozilla { namespace pkix { namespace test {
-
-typedef std::basic_string<uint8_t> ByteString;
-extern const ByteString ENCODING_FAILED;
-
-// XXX: Ideally, we should define this instead:
-//
-//   template <typename T, std::size_t N>
-//   constexpr inline std::size_t
-//   ArrayLength(T (&)[N])
-//   {
-//     return N;
-//   }
-//
-// However, we don't because not all supported compilers support constexpr,
-// and we need to calculate array lengths in static_assert sometimes.
-//
-// XXX: Evaluates its argument twice
-#define MOZILLA_PKIX_ARRAY_LENGTH(x) (sizeof(x) / sizeof((x)[0]))
 
 class TestInput : public Input
 {
@@ -67,6 +50,11 @@ public:
 namespace {
 
 inline void
+fclose_void(FILE* file) {
+  (void) fclose(file);
+}
+
+inline void
 SECITEM_FreeItem_true(SECItem* item)
 {
   SECITEM_FreeItem(item, true);
@@ -74,85 +62,46 @@ SECITEM_FreeItem_true(SECItem* item)
 
 } // unnamed namespace
 
+typedef ScopedPtr<CERTCertificate, CERT_DestroyCertificate> ScopedCERTCertificate;
+typedef ScopedPtr<CERTCertList, CERT_DestroyCertList> ScopedCERTCertList;
+typedef mozilla::pkix::ScopedPtr<FILE, fclose_void> ScopedFILE;
 typedef mozilla::pkix::ScopedPtr<SECItem, SECITEM_FreeItem_true> ScopedSECItem;
+typedef mozilla::pkix::ScopedPtr<SECKEYPublicKey, SECKEY_DestroyPublicKey>
+  ScopedSECKEYPublicKey;
+typedef mozilla::pkix::ScopedPtr<SECKEYPrivateKey, SECKEY_DestroyPrivateKey>
+  ScopedSECKEYPrivateKey;
 
-// python DottedOIDToCode.py --tlv id-kp-OCSPSigning 1.3.6.1.5.5.7.3.9
-static const uint8_t tlv_id_kp_OCSPSigning[] = {
-  0x06, 0x08, 0x2b, 0x06, 0x01, 0x05, 0x05, 0x07, 0x03, 0x09
-};
+FILE* OpenFile(const char* dir, const char* filename, const char* mode);
 
-// python DottedOIDToCode.py --tlv id-kp-serverAuth 1.3.6.1.5.5.7.3.1
-static const uint8_t tlv_id_kp_serverAuth[] = {
-  0x06, 0x08, 0x2b, 0x06, 0x01, 0x05, 0x05, 0x07, 0x03, 0x01
-};
-
-extern const Input sha256WithRSAEncryption;
+extern const PRTime ONE_DAY;
 
 // e.g. YMDHMS(2016, 12, 31, 1, 23, 45) => 2016-12-31:01:23:45 (GMT)
 mozilla::pkix::Time YMDHMS(int16_t year, int16_t month, int16_t day,
                            int16_t hour, int16_t minutes, int16_t seconds);
 
+SECStatus GenerateKeyPair(/*out*/ ScopedSECKEYPublicKey& publicKey,
+                          /*out*/ ScopedSECKEYPrivateKey& privateKey);
 
-ByteString CNToDERName(const char* cn);
-
-class TestKeyPair
-{
-public:
-  virtual ~TestKeyPair() { }
-
-  // The DER encoding of the entire SubjectPublicKeyInfo structure. This is
-  // what is encoded in certificates.
-  const ByteString subjectPublicKeyInfo;
-
-  // The DER encoding of subjectPublicKeyInfo.subjectPublicKey. This is what is
-  // hashed to create CertIDs for OCSP.
-  const ByteString subjectPublicKey;
-
-  virtual Result SignData(const ByteString& tbs,
-                          SignatureAlgorithm signatureAlgorithm,
-                          /*out*/ ByteString& signature) const = 0;
-
-  virtual TestKeyPair* Clone() const = 0;
-protected:
-  TestKeyPair(const ByteString& spki, const ByteString& spk)
-    : subjectPublicKeyInfo(spki)
-    , subjectPublicKey(spk)
-  {
-  }
-
-  TestKeyPair(const TestKeyPair&) /*= delete*/;
-  void operator=(const TestKeyPair&) /*= delete*/;
-};
-
-TestKeyPair* GenerateKeyPair();
-inline void DeleteTestKeyPair(TestKeyPair* keyPair) { delete keyPair; }
-typedef ScopedPtr<TestKeyPair, DeleteTestKeyPair> ScopedTestKeyPair;
-
-ByteString SHA1(const ByteString& toHash);
-
-Result TestCheckPublicKey(Input subjectPublicKeyInfo);
-Result TestVerifySignedData(const SignedDataWithSignature& signedData,
-                            Input subjectPublicKeyInfo);
-Result TestDigestBuf(Input item, /*out*/ uint8_t* digestBuf,
-                     size_t digestBufLen);
+// The result will be owned by the arena
+const SECItem* ASCIIToDERName(PLArenaPool* arena, const char* cn);
 
 // Replace one substring in item with another of the same length, but only if
-// the substring was found exactly once. The "same length" restriction is
-// useful for avoiding invalidating lengths encoded within the item. The
-// "only once" restriction is helpful for avoiding making accidental changes.
+// the substring was found exactly once. The "only once" restriction is helpful
+// for avoiding making multiple changes at once.
 //
 // The string to search for must be 8 or more bytes long so that it is
 // extremely unlikely that there will ever be any false positive matches
 // in digital signatures, keys, hashes, etc.
-Result TamperOnce(/*in/out*/ ByteString& item, const ByteString& from,
-                  const ByteString& to);
+SECStatus TamperOnce(SECItem& item, const uint8_t* from, size_t fromLen,
+                     const uint8_t* to, size_t toLen);
+
+Result InitInputFromSECItem(const SECItem* secItem, /*out*/ Input& input);
 
 ///////////////////////////////////////////////////////////////////////////////
 // Encode Certificates
 
 enum Version { v1 = 0, v2 = 1, v3 = 2 };
 
-// signature is assumed to be the DER encoding of an AlgorithmIdentifer.
 // serialNumber is assumed to be the DER encoding of an INTEGER.
 //
 // If extensions is null, then no extensions will be encoded. Otherwise,
@@ -162,27 +111,37 @@ enum Version { v1 = 0, v2 = 1, v3 = 2 };
 // If issuerPrivateKey is null, then the certificate will be self-signed.
 // Parameter order is based on the order of the attributes of the certificate
 // in RFC 5280.
-ByteString CreateEncodedCertificate(long version, Input signature,
-                                    const ByteString& serialNumber,
-                                    const ByteString& issuerNameDER,
-                                    time_t notBefore, time_t notAfter,
-                                    const ByteString& subjectNameDER,
-                                    /*optional*/ const ByteString* extensions,
-                                    /*optional*/ TestKeyPair* issuerKeyPair,
-                                    SignatureAlgorithm signatureAlgorithm,
-                                    /*out*/ ScopedTestKeyPair& keyPairResult);
+//
+// The return value, if non-null, is owned by the arena in the context and
+// MUST NOT be freed.
+SECItem* CreateEncodedCertificate(PLArenaPool* arena, long version,
+                                  SECOidTag signature,
+                                  const SECItem* serialNumber,
+                                  const SECItem* issuerNameDER,
+                                  PRTime notBefore, PRTime notAfter,
+                                  const SECItem* subjectNameDER,
+                     /*optional*/ SECItem const* const* extensions,
+                     /*optional*/ SECKEYPrivateKey* issuerPrivateKey,
+                                  SECOidTag signatureHashAlg,
+                          /*out*/ ScopedSECKEYPrivateKey& privateKey);
 
-ByteString CreateEncodedSerialNumber(long value);
+SECItem* CreateEncodedSerialNumber(PLArenaPool* arena, long value);
 
 MOZILLA_PKIX_ENUM_CLASS ExtensionCriticality { NotCritical = 0, Critical = 1 };
 
-ByteString CreateEncodedBasicConstraints(bool isCA,
-                                         /*optional*/ long* pathLenConstraint,
-                                         ExtensionCriticality criticality);
+// The return value, if non-null, is owned by the arena and MUST NOT be freed.
+SECItem* CreateEncodedBasicConstraints(PLArenaPool* arena, bool isCA,
+                                       /*optional*/ long* pathLenConstraint,
+                                       ExtensionCriticality criticality);
 
-// Creates a DER-encoded extKeyUsage extension with one EKU OID.
-ByteString CreateEncodedEKUExtension(Input eku,
-                                     ExtensionCriticality criticality);
+// ekus must be non-null and must must point to a SEC_OID_UNKNOWN-terminated
+// array of SECOidTags. If the first item of the array is SEC_OID_UNKNOWN then
+// an empty EKU extension will be encoded.
+//
+// The return value, if non-null, is owned by the arena and MUST NOT be freed.
+SECItem* CreateEncodedEKUExtension(PLArenaPool* arena,
+                                   const SECOidTag* ekus, size_t ekusCount,
+                                   ExtensionCriticality criticality);
 
 ///////////////////////////////////////////////////////////////////////////////
 // Encode OCSP responses
@@ -190,21 +149,33 @@ ByteString CreateEncodedEKUExtension(Input eku,
 class OCSPResponseExtension
 {
 public:
-  ByteString id;
+  SECItem id;
   bool critical;
-  ByteString value;
+  SECItem value;
   OCSPResponseExtension* next;
 };
 
 class OCSPResponseContext
 {
 public:
-  OCSPResponseContext(const CertID& certID, std::time_t time);
+  OCSPResponseContext(PLArenaPool* arena, const CertID& certID, PRTime time);
 
+  PLArenaPool* arena;
   const CertID& certID;
   // TODO(bug 980538): add a way to specify what certificates are included.
 
   // The fields below are in the order that they appear in an OCSP response.
+
+  // By directly using the issuer name & SPKI and signer name & private key,
+  // instead of extracting those things out of CERTCertificate objects, we
+  // avoid poor interactions with the NSS CERTCertificate caches. In
+  // particular, there are some tests in which it is important that we know
+  // that the issuer and/or signer certificates are NOT in the NSS caches
+  // because we ant to make sure that our path building logic will find them
+  // or we want to test what happens when those certificates cannot be found.
+  // This concern doesn't apply to |cert| above because our verification code
+  // for certificate chains and for OCSP responses take the end-entity cert
+  // as a CERTCertificate anyway.
 
   enum OCSPResponseStatus {
     successful = 0,
@@ -219,35 +190,41 @@ public:
   bool skipResponseBytes; // If true, don't include responseBytes
 
   // responderID
-  ByteString signerNameDER; // If set, responderID will use the byName
-                            // form; otherwise responderID will use the
-                            // byKeyHash form.
+  const SECItem* signerNameDER; // If set, responderID will use the byName
+                                // form; otherwise responderID will use the
+                                // byKeyHash form.
 
-  std::time_t producedAt;
+  PRTime producedAt;
 
   OCSPResponseExtension* extensions;
   bool includeEmptyExtensions; // If true, include the extension wrapper
                                // regardless of if there are any actual
                                // extensions.
-  ScopedTestKeyPair signerKeyPair;
+  ScopedSECKEYPrivateKey signerPrivateKey;
   bool badSignature; // If true, alter the signature to fail verification
-  const ByteString* certs; // optional; array terminated by an empty string
+  SECItem const* const* certs; // non-owning pointer to certs to embed
 
   // The following fields are on a per-SingleResponse basis. In the future we
   // may support including multiple SingleResponses per response.
+  SECOidTag certIDHashAlg;
   enum CertStatus {
     good = 0,
     revoked = 1,
     unknown = 2,
   };
   uint8_t certStatus; // CertStatus or an invalid value
-  std::time_t revocationTime; // For certStatus == revoked
-  std::time_t thisUpdate;
-  std::time_t nextUpdate;
+  PRTime revocationTime; // For certStatus == revoked
+  PRTime thisUpdate;
+  PRTime nextUpdate;
   bool includeNextUpdate;
 };
 
-ByteString CreateEncodedOCSPResponse(OCSPResponseContext& context);
+// The return value, if non-null, is owned by the arena in the context
+// and MUST NOT be freed.
+// This function does its best to respect the NSPR error code convention
+// (that is, if it returns null, calling PR_GetError() will return the
+// error of the failed operation). However, this is not guaranteed.
+SECItem* CreateEncodedOCSPResponse(OCSPResponseContext& context);
 
 } } } // namespace mozilla::pkix::test
 

@@ -10,7 +10,16 @@ SOURCES += [
     'nsNetworkManagerListener.cpp',
 ]
 
-XPCOMBinaryComponent('dbusservice')
+LIBRARY_NAME = 'dbusservice'
+
+IS_COMPONENT = True
+
+USE_LIBS += [
+    'mozalloc',
+    'nspr',
+    'xpcomglue_s',
+    'xul',
+]
 
 CXXFLAGS += CONFIG['TK_CFLAGS']
 CXXFLAGS += CONFIG['MOZ_DBUS_GLIB_CFLAGS']

@@ -22,12 +22,9 @@ describe("loop.shared.models", function() {
       requests.push(xhr);
     };
     fakeSessionData = {
-      sessionId:      "sessionId",
-      sessionToken:   "sessionToken",
-      apiKey:         "apiKey",
-      callType:       "callType",
-      websocketToken: 123,
-      callToken:    "callToken"
+      sessionId:    "sessionId",
+      sessionToken: "sessionToken",
+      apiKey:       "apiKey"
     };
     fakeSession = _.extend({
       connect: function () {},
@@ -104,14 +101,13 @@ describe("loop.shared.models", function() {
       describe("#outgoing", function() {
         beforeEach(function() {
           sandbox.stub(conversation, "endSession");
-          sandbox.stub(conversation, "setOutgoingSessionData");
-          sandbox.stub(conversation, "setIncomingSessionData");
+          sandbox.stub(conversation, "setSessionData");
         });
 
-        it("should save the outgoing sessionData", function() {
+        it("should save the sessionData", function() {
           conversation.outgoing(fakeSessionData);
 
-          sinon.assert.calledOnce(conversation.setOutgoingSessionData);
+          sinon.assert.calledOnce(conversation.setSessionData);
         });
 
         it("should trigger a `call:outgoing` event", function(done) {
@@ -143,25 +139,13 @@ describe("loop.shared.models", function() {
       });
 
       describe("#setSessionData", function() {
-        it("should update outgoing conversation session information",
-           function() {
-             conversation.setOutgoingSessionData(fakeSessionData);
+        it("should update conversation session information", function() {
+          conversation.setSessionData(fakeSessionData);
 
-             expect(conversation.get("sessionId")).eql("sessionId");
-             expect(conversation.get("sessionToken")).eql("sessionToken");
-             expect(conversation.get("apiKey")).eql("apiKey");
-           });
-
-        it("should update incoming conversation session information",
-           function() {
-             conversation.setIncomingSessionData(fakeSessionData);
-
-             expect(conversation.get("sessionId")).eql("sessionId");
-             expect(conversation.get("sessionToken")).eql("sessionToken");
-             expect(conversation.get("apiKey")).eql("apiKey");
-             expect(conversation.get("callType")).eql("callType");
-             expect(conversation.get("callToken")).eql("callToken");
-           });
+          expect(conversation.get("sessionId")).eql("sessionId");
+          expect(conversation.get("sessionToken")).eql("sessionToken");
+          expect(conversation.get("apiKey")).eql("apiKey");
+        });
       });
 
       describe("#startSession", function() {
@@ -375,84 +359,6 @@ describe("loop.shared.models", function() {
             sinon.assert.calledOnce(model.stopListening);
           });
       });
-
-      describe("#hasVideoStream", function() {
-        var model;
-
-        beforeEach(function() {
-          model = new sharedModels.ConversationModel(fakeSessionData, {
-            sdk: fakeSDK,
-            pendingCallTimeout: 1000
-          });
-          model.startSession();
-        });
-
-        it("should return true for incoming callType", function() {
-          model.set("callType", "audio-video");
-
-          expect(model.hasVideoStream("incoming")).to.eql(true);
-        });
-
-        it("should return true for outgoing callType", function() {
-          model.set("selectedCallType", "audio-video");
-
-          expect(model.hasVideoStream("outgoing")).to.eql(true);
-        });
-      });
     });
-  });
-
-  describe("NotificationCollection", function() {
-    var collection, notifData, testNotif;
-
-    beforeEach(function() {
-      collection = new sharedModels.NotificationCollection();
-      sandbox.stub(l10n, "get", function(x) {
-        return "translated:" + x;
-      });
-      notifData = {level: "error", message: "plop"};
-      testNotif = new sharedModels.NotificationModel(notifData);
-    });
-
-    describe("#warn", function() {
-      it("should add a warning notification to the stack", function() {
-        collection.warn("watch out");
-
-        expect(collection).to.have.length.of(1);
-        expect(collection.at(0).get("level")).eql("warning");
-        expect(collection.at(0).get("message")).eql("watch out");
-      });
-    });
-
-    describe("#warnL10n", function() {
-      it("should warn using a l10n string id", function() {
-        collection.warnL10n("fakeId");
-
-        expect(collection).to.have.length.of(1);
-        expect(collection.at(0).get("level")).eql("warning");
-        expect(collection.at(0).get("message")).eql("translated:fakeId");
-      });
-    });
-
-    describe("#error", function() {
-      it("should add an error notification to the stack", function() {
-        collection.error("wrong");
-
-        expect(collection).to.have.length.of(1);
-        expect(collection.at(0).get("level")).eql("error");
-        expect(collection.at(0).get("message")).eql("wrong");
-      });
-    });
-
-    describe("#errorL10n", function() {
-      it("should notify an error using a l10n string id", function() {
-        collection.errorL10n("fakeId");
-
-        expect(collection).to.have.length.of(1);
-        expect(collection.at(0).get("level")).eql("error");
-        expect(collection.at(0).get("message")).eql("translated:fakeId");
-      });
-    });
-
   });
 });

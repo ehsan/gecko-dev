@@ -78,6 +78,7 @@ var ecmaGlobals =
     {name: "SIMD", nightly: true},
     "StopIteration",
     "String",
+    "Symbol",
     "SyntaxError",
     {name: "TypedObject", nightly: true},
     "TypeError",
@@ -87,16 +88,9 @@ var ecmaGlobals =
     "Uint8ClampedArray",
     "URIError",
     "WeakMap",
-    "WeakSet",
   ];
 // IMPORTANT: Do not change the list above without review from
 //            a JavaScript Engine peer!
-
-// Symbol is conditionally defined.
-// If it's defined, insert "Symbol" before "SyntaxError".
-if (typeof Symbol === "function") {
-  ecmaGlobals.splice(ecmaGlobals.indexOf("SyntaxError"), 0, "Symbol");
-}
 
 // IMPORTANT: Do not change the list below without review from a DOM peer,
 //            except to remove items from it!
@@ -126,8 +120,6 @@ var interfaceNamesInGlobalScope =
     "AnimationEvent",
 // IMPORTANT: Do not change this list without review from a DOM peer!
     {name: "Animation", pref: "dom.animations-api.core.enabled"},
-// IMPORTANT: Do not change this list without review from a DOM peer!
-    {name: "AnimationEffect", pref: "dom.animations-api.core.enabled"},
 // IMPORTANT: Do not change this list without review from a DOM peer!
     {name: "AnimationPlayer", pref: "dom.animations-api.core.enabled"},
 // IMPORTANT: Do not change this list without review from a DOM peer!
@@ -248,7 +240,7 @@ var interfaceNamesInGlobalScope =
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "CSSFontFaceRule",
 // IMPORTANT: Do not change this list without review from a DOM peer!
-    "CSSFontFeatureValuesRule",
+    {name: "CSSFontFeatureValuesRule", release: false},
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "CSSGroupingRule",
 // IMPORTANT: Do not change this list without review from a DOM peer!
@@ -596,10 +588,6 @@ var interfaceNamesInGlobalScope =
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "Image",
 // IMPORTANT: Do not change this list without review from a DOM peer!
-    {name: "ImageCapture", pref: "dom.imagecapture.enabled"},
-// IMPORTANT: Do not change this list without review from a DOM peer!
-    {name: "ImageCaptureErrorEvent", pref: "dom.imagecapture.enabled"},
-// IMPORTANT: Do not change this list without review from a DOM peer!
     "ImageData",
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "InputEvent",
@@ -632,8 +620,6 @@ var interfaceNamesInGlobalScope =
 // IMPORTANT: Do not change this list without review from a DOM peer!
     {name: "MediaStreamEvent", pref: "media.peerconnection.enabled"},
 // IMPORTANT: Do not change this list without review from a DOM peer!
-    {name: "MediaStreamTrackEvent", pref: "media.peerconnection.enabled"},
-// IMPORTANT: Do not change this list without review from a DOM peer!
     "MediaStreamTrack",
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "MessageEvent",
@@ -644,11 +630,15 @@ var interfaceNamesInGlobalScope =
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "MimeTypeArray",
 // IMPORTANT: Do not change this list without review from a DOM peer!
+    "ModalContentWindow",
+// IMPORTANT: Do not change this list without review from a DOM peer!
     "MouseEvent",
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "MouseScrollEvent",
 // IMPORTANT: Do not change this list without review from a DOM peer!
     {name: "MozActivity", b2g: true},
+// IMPORTANT: Do not change this list without review from a DOM peer!
+    "MozApplicationEvent",
 // IMPORTANT: Do not change this list without review from a DOM peer!
     {name: "MozCellBroadcast", b2g: true, pref: "dom.cellbroadcast.enabled"},
 // IMPORTANT: Do not change this list without review from a DOM peer!
@@ -694,7 +684,13 @@ var interfaceNamesInGlobalScope =
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "MozMobileMessageThread",
 // IMPORTANT: Do not change this list without review from a DOM peer!
+    "MozNamedAttrMap",
+// IMPORTANT: Do not change this list without review from a DOM peer!
     {name: "MozNDEFRecord", b2g: true},
+// IMPORTANT: Do not change this list without review from a DOM peer!
+    {name: "MozNFCPeer", b2g: true},
+// IMPORTANT: Do not change this list without review from a DOM peer!
+    {name: "MozNFCTag", b2g: true},
 // IMPORTANT: Do not change this list without review from a DOM peer!
     {name: "MozOtaStatusEvent", b2g: true, pref: "dom.mobileconnection.enabled"},
 // IMPORTANT: Do not change this list without review from a DOM peer!
@@ -708,9 +704,9 @@ var interfaceNamesInGlobalScope =
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "MozSettingsEvent",
 // IMPORTANT: Do not change this list without review from a DOM peer!
-    {name: "MozSettingsTransactionEvent", permission: "settings-api-read"},
-// IMPORTANT: Do not change this list without review from a DOM peer!
     "MozSmsEvent",
+// IMPORTANT: Do not change this list without review from a DOM peer!
+    "MozSmsFilter",
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "MozSmsMessage",
 // IMPORTANT: Do not change this list without review from a DOM peer!
@@ -751,8 +747,6 @@ var interfaceNamesInGlobalScope =
     "MutationObserver",
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "MutationRecord",
-// IMPORTANT: Do not change this list without review from a DOM peer!
-    "NamedNodeMap",
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "Navigator",
 // IMPORTANT: Do not change this list without review from a DOM peer!
@@ -838,10 +832,6 @@ var interfaceNamesInGlobalScope =
 // IMPORTANT: Do not change this list without review from a DOM peer!
     {name: "RTCPeerConnectionIceEvent", pref: "media.peerconnection.enabled"},
 // IMPORTANT: Do not change this list without review from a DOM peer!
-    {name: "RTCRtpReceiver", pref: "media.peerconnection.enabled"},
-// IMPORTANT: Do not change this list without review from a DOM peer!
-    {name: "RTCRtpSender", pref: "media.peerconnection.enabled"},
-// IMPORTANT: Do not change this list without review from a DOM peer!
     {name: "RTCStatsReport", pref: "media.peerconnection.enabled"},
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "Screen",
@@ -867,6 +857,8 @@ var interfaceNamesInGlobalScope =
     "SimpleGestureEvent",
 // IMPORTANT: Do not change this list without review from a DOM peer!
     {name: "SimpleTest", xbl: false},
+// IMPORTANT: Do not change this list without review from a DOM peer!
+    "SmartCardEvent",
 // IMPORTANT: Do not change this list without review from a DOM peer!
     {name: "SpeechSynthesisEvent", b2g: true},
 // IMPORTANT: Do not change this list without review from a DOM peer!
@@ -1175,10 +1167,6 @@ var interfaceNamesInGlobalScope =
     {name: "TreeSelection", xbl: true},
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "TreeWalker",
-// IMPORTANT: Do not change this list without review from a DOM peer!
-    {name: "UDPMessageEvent", pref: "dom.udpsocket.enabled", permission: "udp-socket"},
-// IMPORTANT: Do not change this list without review from a DOM peer!
-    {name: "UDPSocket", pref: "dom.udpsocket.enabled", permission: "udp-socket"},
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "UIEvent",
 // IMPORTANT: Do not change this list without review from a DOM peer!

@@ -414,14 +414,6 @@ class DynamicWithObject : public NestedScopeObject
     JSObject &withThis() const {
         return getReservedSlot(THIS_SLOT).toObject();
     }
-
-    static inline size_t objectSlot() {
-        return OBJECT_SLOT;
-    }
-
-    static inline size_t thisSlot() {
-        return THIS_SLOT;
-    }
 };
 
 class BlockObject : public NestedScopeObject
@@ -712,9 +704,6 @@ class ScopeIterKey
     JSObject *enclosingScope() const { return cur_; }
     JSObject *&enclosingScope() { return cur_; }
 
-    void updateCur(JSObject *obj) { cur_ = obj; }
-    void updateStaticScope(NestedScopeObject *obj) { staticScope_ = obj; }
-
     /* For use as hash policy */
     typedef ScopeIterKey Lookup;
     static HashNumber hash(ScopeIterKey si);
@@ -740,8 +729,6 @@ class ScopeIterVal
     RelocatablePtrNestedScopeObject staticScope_;
     ScopeIter::Type type_;
     bool hasScopeObject_;
-
-    void sweep();
 
     static void staticAsserts();
 

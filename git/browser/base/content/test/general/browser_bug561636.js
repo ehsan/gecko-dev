@@ -29,22 +29,6 @@ let gObserver = {
   }
 };
 
-function getDocHeader()
-{
-  return "data:text/html,<html><head><meta charset='utf-8'></head><body>" + getEmptyFrame();
-}
- 
-function getDocFooter()
-{
-  return "</body></html>";
-}
- 
-function getEmptyFrame()
-{
-  return "<iframe style='width:100px; height:30px; margin:3px; border:1px solid lightgray;' " +
-         "name='t' srcdoc=\"<html><head><meta charset='utf-8'></head><body>form target</body></html>\"></iframe>";
-}
-
 var testId = -1;
 
 function nextTest()
@@ -70,7 +54,7 @@ var tests = [
  */
 function()
 {
-  let uri = getDocHeader() + "<form target='t' action='data:text/html,'><input><input id='s' type='submit'></form>" + getDocFooter();
+  let uri = "data:text/html,<html><body><iframe name='t'></iframe><form target='t' action='data:text/html,'><input><input id='s' type='submit'></form></body></html>";
   let tab = gBrowser.addTab();
 
   tab.linkedBrowser.addEventListener("load", function(aEvent) {
@@ -98,7 +82,7 @@ function()
  */
 function()
 {
-  let uri = getDocHeader() + "<form target='t' action='data:text/html,'><input required id='i'><input id='s' type='submit'></form>" + getDocFooter();
+  let uri = "data:text/html,<iframe name='t'></iframe><form target='t' action='data:text/html,'><input required id='i'><input id='s' type='submit'></form>";
   let tab = gBrowser.addTab();
 
   gInvalidFormPopup.addEventListener("popupshown", function() {
@@ -118,9 +102,8 @@ function()
 
   tab.linkedBrowser.addEventListener("load", function(aEvent) {
     tab.linkedBrowser.removeEventListener("load", arguments.callee, true);
-    executeSoon(function() {
-      gBrowser.contentDocument.getElementById('s').click();
-    });
+
+    gBrowser.contentDocument.getElementById('s').click();
   }, true);
 
   gBrowser.selectedTab = tab;
@@ -133,7 +116,7 @@ function()
  */
 function()
 {
-  let uri = getDocHeader() + "<form target='t' action='data:text/html,'><input><input id='i' required><input required><input id='s' type='submit'></form>" + getDocFooter();
+  let uri = "data:text/html,<iframe name='t'></iframe><form target='t' action='data:text/html,'><input><input id='i' required><input required><input id='s' type='submit'></form>";
   let tab = gBrowser.addTab();
 
   gInvalidFormPopup.addEventListener("popupshown", function() {
@@ -153,9 +136,8 @@ function()
 
   tab.linkedBrowser.addEventListener("load", function(aEvent) {
     tab.linkedBrowser.removeEventListener("load", arguments.callee, true);
-    executeSoon(function() {
-      gBrowser.contentDocument.getElementById('s').click();
-    });
+
+    gBrowser.contentDocument.getElementById('s').click();
   }, true);
 
   gBrowser.selectedTab = tab;
@@ -168,7 +150,7 @@ function()
  */
 function()
 {
-  let uri = getDocHeader() + "<form target='t' action='data:text/html,'><input id='i' required><input id='s' type='submit'></form>" + getDocFooter();
+  let uri = "data:text/html,<iframe name='t'></iframe><form target='t' action='data:text/html,'><input id='i' required><input id='s' type='submit'></form>";
   let tab = gBrowser.addTab();
 
   gInvalidFormPopup.addEventListener("popupshown", function() {
@@ -194,9 +176,8 @@ function()
 
   tab.linkedBrowser.addEventListener("load", function(aEvent) {
     tab.linkedBrowser.removeEventListener("load", arguments.callee, true);
-    executeSoon(function() {
-      gBrowser.contentDocument.getElementById('s').click();
-    });
+
+    gBrowser.contentDocument.getElementById('s').click();
   }, true);
 
   gBrowser.selectedTab = tab;
@@ -209,7 +190,7 @@ function()
  */
 function()
 {
-  let uri = getDocHeader() + "<form target='t' action='data:text/html,'><input type='email' id='i' required><input id='s' type='submit'></form>" + getDocFooter();
+  let uri = "data:text/html,<iframe name='t'></iframe><form target='t' action='data:text/html,'><input type='email' id='i' required><input id='s' type='submit'></form>";
   let tab = gBrowser.addTab();
 
   gInvalidFormPopup.addEventListener("popupshown", function() {
@@ -235,9 +216,8 @@ function()
 
   tab.linkedBrowser.addEventListener("load", function(aEvent) {
     tab.linkedBrowser.removeEventListener("load", arguments.callee, true);
-    executeSoon(function() {
-      gBrowser.contentDocument.getElementById('s').click();
-    });
+
+    gBrowser.contentDocument.getElementById('s').click();
   }, true);
 
   gBrowser.selectedTab = tab;
@@ -250,7 +230,7 @@ function()
  */
 function()
 {
-  let uri = getDocHeader() + "<form target='t' action='data:text/html,'><input id='i' required><input id='s' type='submit'></form>" + getDocFooter();
+  let uri = "data:text/html,<iframe name='t'></iframe><form target='t' action='data:text/html,'><input id='i' required><input id='s' type='submit'></form>";
   let tab = gBrowser.addTab();
 
   gInvalidFormPopup.addEventListener("popupshown", function() {
@@ -276,9 +256,8 @@ function()
 
   tab.linkedBrowser.addEventListener("load", function(aEvent) {
     tab.linkedBrowser.removeEventListener("load", arguments.callee, true);
-    executeSoon(function() {
-      gBrowser.contentDocument.getElementById('s').click();
-    });
+
+    gBrowser.contentDocument.getElementById('s').click();
   }, true);
 
   gBrowser.selectedTab = tab;
@@ -290,7 +269,7 @@ function()
  */
 function()
 {
-  let uri = getDocHeader() + "<form target='t' action='data:text/html,'><input id='i' required><input id='s' type='submit'></form>" + getDocFooter();
+  let uri = "data:text/html,<iframe name='t'></iframe><form target='t' action='data:text/html,'><input id='i' required><input id='s' type='submit'></form>";
   let tab = gBrowser.addTab();
 
   gInvalidFormPopup.addEventListener("popupshown", function() {
@@ -316,9 +295,8 @@ function()
 
   tab.linkedBrowser.addEventListener("load", function(aEvent) {
     tab.linkedBrowser.removeEventListener("load", arguments.callee, true);
-    executeSoon(function() {
-      gBrowser.contentDocument.getElementById('s').click();
-    });
+
+    gBrowser.contentDocument.getElementById('s').click();
   }, true);
 
   gBrowser.selectedTab = tab;
@@ -330,7 +308,7 @@ function()
  */
 function()
 {
-  let uri = getDocHeader() + "<form target='t' action='data:text/html,'><input id='i' required><input id='s' type='submit'></form>" + getDocFooter();
+  let uri = "data:text/html,<iframe name='t'></iframe><form target='t' action='data:text/html,'><input id='i' required><input id='s' type='submit'></form>";
   let tab = gBrowser.addTab();
 
   gInvalidFormPopup.addEventListener("popupshown", function() {
@@ -358,9 +336,8 @@ function()
 
   tab.linkedBrowser.addEventListener("load", function(aEvent) {
     tab.linkedBrowser.removeEventListener("load", arguments.callee, true);
-    executeSoon(function() {
-      gBrowser.contentDocument.getElementById('s').click();
-    });
+
+    gBrowser.contentDocument.getElementById('s').click();
   }, true);
 
   gBrowser.selectedTab = tab;
@@ -368,24 +345,21 @@ function()
 },
 
 /**
- * In this test, we check that nothing happen if the invalid form is
- * submitted in a background tab.
+ * In this test, we check that nothing happen (no focus nor popup) if the
+ * invalid form is submitted in another tab than the current focused one
+ * (submitted in background).
  */
-
 function()
 {
-  // Observers don't propagate currently across processes. We may add support for this in the
-  // future via the addon compat layer.
-  if (gBrowser.isRemoteBrowser) {
-    nextTest();
-    return;
-  }
-
-  let uri = getDocHeader() + "<form target='t' action='data:text/html,'><input id='i' required><input id='s' type='submit'></form>" + getDocFooter();
+  let uri = "data:text/html,<iframe name='t'></iframe><form target='t' action='data:text/html,'><input id='i' required><input id='s' type='submit'></form>";
   let tab = gBrowser.addTab();
 
   gObserver.notifyInvalidSubmit = function() {
     executeSoon(function() {
+      let doc = tab.linkedBrowser.contentDocument;
+      isnot(doc.activeElement, doc.getElementById('i'),
+            "We should not focus the invalid element when the form is submitted in background");
+
       checkPopupHide();
 
       // Clean-up
@@ -407,9 +381,7 @@ function()
 
       isnot(gBrowser.selectedTab.linkedBrowser, browser,
             "This tab should have been loaded in background");
-      executeSoon(function() {
-        browser.contentDocument.getElementById('s').click();
-      });
+      browser.contentDocument.getElementById('s').click();
     }
   }, true);
 
@@ -421,7 +393,7 @@ function()
  */
 function()
 {
-  let uri = getDocHeader() + "<form target='t' action='data:text/html,'><input x-moz-errormessage='foo' required id='i'><input id='s' type='submit'></form>" + getDocFooter();
+  let uri = "data:text/html,<iframe name='t'></iframe><form target='t' action='data:text/html,'><input x-moz-errormessage='foo' required id='i'><input id='s' type='submit'></form>";
   let tab = gBrowser.addTab();
 
   gInvalidFormPopup.addEventListener("popupshown", function() {
@@ -443,9 +415,8 @@ function()
 
   tab.linkedBrowser.addEventListener("load", function(aEvent) {
     tab.linkedBrowser.removeEventListener("load", arguments.callee, true);
-    executeSoon(function() {
-      gBrowser.contentDocument.getElementById('s').click();
-    });
+
+    gBrowser.contentDocument.getElementById('s').click();
   }, true);
 
   gBrowser.selectedTab = tab;
@@ -457,7 +428,7 @@ function()
  */
 function()
 {
-  let uri = getDocHeader() + "<form target='t' action='data:text/html,'><input type='email' required id='i'><input id='s' type='submit'></form>" + getDocFooter();
+  let uri = "data:text/html,<iframe name='t'></iframe><form target='t' action='data:text/html,'><input type='email' required id='i'><input id='s' type='submit'></form>";
   let tab = gBrowser.addTab();
 
   gInvalidFormPopup.addEventListener("popupshown", function() {
@@ -492,9 +463,8 @@ function()
 
   tab.linkedBrowser.addEventListener("load", function(aEvent) {
     tab.linkedBrowser.removeEventListener("load", arguments.callee, true);
-    executeSoon(function() {
-      gBrowser.contentDocument.getElementById('s').click();
-    });
+
+    gBrowser.contentDocument.getElementById('s').click();
   }, true);
 
   gBrowser.selectedTab = tab;

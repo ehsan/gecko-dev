@@ -30,19 +30,21 @@ public:
   void AddIPDLReference() {
     AddRef();
   }
-  void ReleaseIPDLReference();
+  void ReleaseIPDLReference() {
+    // we don't need an 'mIPCOpen' variable until/unless we add calls that might
+    // try to send IPDL msgs to parent after ReleaseIPDLReference is called
+    // (when IPDL channel torn down).
+    Release();
+  }
 
   // Sends IPDL request to parent
   void StartRequest();
   void CallOnLookupComplete();
 
-protected:
-  friend class CancelDNSRequestEvent;
-  friend class ChildDNSService;
+private:
   virtual ~DNSRequestChild() {}
 
-  virtual bool RecvLookupCompleted(const DNSRequestResponse& reply) MOZ_OVERRIDE;
-  virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE;
+  virtual bool Recv__delete__(const DNSRequestResponse& reply) MOZ_OVERRIDE;
 
   nsCOMPtr<nsIDNSListener>  mListener;
   nsCOMPtr<nsIEventTarget>  mTarget;
@@ -50,7 +52,6 @@ protected:
   nsresult                  mResultStatus;
   nsCString                 mHost;
   uint16_t                  mFlags;
-  bool                      mIPCOpen;
 };
 
 } // namespace net

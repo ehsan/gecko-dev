@@ -12,7 +12,6 @@
 #include "nsAccUtils.h"
 #include "nsCoreUtils.h"
 #include "nsEventShell.h"
-#include "nsFrameSelection.h"
 
 #include "nsIAccessibleTypes.h"
 #include "nsIDOMDocument.h"
@@ -154,12 +153,6 @@ SelectionManager::ProcessTextSelChangeEvent(AccEvent* aEvent)
     return;
 
   Selection* selection = caretCntr->DOMSelection();
-
-  // XXX Sometimes we can't get a selection for caretCntr, in that case assume
-  // event->mSel is correct.
-  if (!selection)
-    selection = event->mSel;
-
   mCaretOffset = caretCntr->DOMPointToOffset(selection->GetFocusNode(),
                                              selection->FocusOffset());
   mAccWithCaret = caretCntr;
@@ -185,7 +178,8 @@ SelectionManager::NotifySelectionChanged(nsIDOMDocument* aDOMDocument,
     logging::SelChange(aSelection, document, aReason);
 #endif
 
-  if (document) {
+  // Don't fire events until document is loaded.
+  if (document && document->IsContentLoaded()) {
     // Selection manager has longer lifetime than any document accessible,
     // so that we are guaranteed that the notification is processed before
     // the selection manager is destroyed.

@@ -381,8 +381,8 @@ public:
       mOffset(aOffset) {}
 
   virtual void Paint(nsRenderingContext *aContext, nsIFrame *aTarget,
-                     const gfxMatrix& aTransform,
-                     const nsIntRect* aDirtyRect) MOZ_OVERRIDE
+                     const nsIntRect* aDirtyRect,
+                     nsIFrame* aTransformRoot) MOZ_OVERRIDE
   {
     BasicLayerManager* basic = static_cast<BasicLayerManager*>(mLayerManager);
     basic->SetTarget(aContext->ThebesContext());
@@ -515,7 +515,7 @@ nsSVGIntegrationUtils::PaintFramesWithEffects(nsRenderingContext* aCtx,
    */
   if (clipPathFrame && isTrivialClip) {
     gfx->Save();
-    clipPathFrame->ApplyClipOrPaintClipMask(aCtx, aFrame, cssPxToDevPxMatrix);
+    clipPathFrame->ClipPaint(aCtx, aFrame, cssPxToDevPxMatrix);
   }
 
   /* Paint the child */
@@ -524,8 +524,7 @@ nsSVGIntegrationUtils::PaintFramesWithEffects(nsRenderingContext* aCtx,
                                        offsetToUserSpace);
 
     nsRegion dirtyRegion = aDirtyRect - offsetToBoundingBox;
-    gfxMatrix tm = nsSVGIntegrationUtils::GetCSSPxToDevPxMatrix(aFrame);
-    nsFilterInstance::PaintFilteredFrame(aFrame, aCtx, tm, &callback, &dirtyRegion);
+    nsFilterInstance::PaintFilteredFrame(aCtx, aFrame, &callback, &dirtyRegion);
   } else {
     gfx->SetMatrix(matrixAutoSaveRestore.Matrix());
     aLayerManager->EndTransaction(FrameLayerBuilder::DrawThebesLayer, aBuilder);
@@ -553,7 +552,7 @@ nsSVGIntegrationUtils::PaintFramesWithEffects(nsRenderingContext* aCtx,
   if (clipPathFrame && !isTrivialClip) {
     gfx->PushGroup(gfxContentType::COLOR_ALPHA);
 
-    nsresult rv = clipPathFrame->ApplyClipOrPaintClipMask(aCtx, aFrame, cssPxToDevPxMatrix);
+    nsresult rv = clipPathFrame->ClipPaint(aCtx, aFrame, cssPxToDevPxMatrix);
     clipMaskSurface = gfx->PopGroup();
 
     if (NS_SUCCEEDED(rv) && clipMaskSurface) {
@@ -643,7 +642,7 @@ PaintFrameCallback::operator()(gfxContext* aContext,
   int32_t appUnitsPerDevPixel = mFrame->PresContext()->AppUnitsPerDevPixel();
   nsPoint offset = GetOffsetToBoundingBox(mFrame);
   gfxPoint devPxOffset = gfxPoint(offset.x, offset.y) / appUnitsPerDevPixel;
-  aContext->Multiply(gfxMatrix::Translation(devPxOffset));
+  aContext->Multiply(gfxMatrix().Translate(devPxOffset));
 
   gfxSize paintServerSize =
     gfxSize(mPaintServerSize.width, mPaintServerSize.height) /
@@ -653,7 +652,8 @@ PaintFrameCallback::operator()(gfxContext* aContext,
   // want it to render with mRenderSize, so we need to set up a scale transform.
   gfxFloat scaleX = mRenderSize.width / paintServerSize.width;
   gfxFloat scaleY = mRenderSize.height / paintServerSize.height;
-  aContext->Multiply(gfxMatrix::Scaling(scaleX, scaleY));
+  gfxMatrix scaleMatrix = gfxMatrix().Scale(scaleX, scaleY);
+  aContext->Multiply(scaleMatrix);
 
   // Draw.
   nsRect dirty(-offset.x, -offset.y,

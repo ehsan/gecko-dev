@@ -286,18 +286,6 @@ class FullParseHandler
         return literal;
     }
 
-    bool addPrototypeMutation(ParseNode *literal, uint32_t begin, ParseNode *expr) {
-        // Object literals with mutated [[Prototype]] are non-constant so that
-        // singleton objects will have Object.prototype as their [[Prototype]].
-        setListFlag(literal, PNX_NONCONST);
-
-        ParseNode *mutation = newUnary(PNK_MUTATEPROTO, JSOP_NOP, begin, expr);
-        if (!mutation)
-            return false;
-        literal->append(mutation);
-        return true;
-    }
-
     bool addPropertyDefinition(ParseNode *literal, ParseNode *name, ParseNode *expr,
                                bool isShorthand = false) {
         JS_ASSERT(literal->isArity(PN_LIST));
@@ -311,7 +299,7 @@ class FullParseHandler
         return true;
     }
 
-    bool addMethodDefinition(ParseNode *literal, ParseNode *name, ParseNode *fn, JSOp op)
+    bool addAccessorPropertyDefinition(ParseNode *literal, ParseNode *name, ParseNode *fn, JSOp op)
     {
         JS_ASSERT(literal->isArity(PN_LIST));
         literal->pn_xflags |= PNX_NONCONST;

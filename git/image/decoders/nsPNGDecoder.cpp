@@ -145,25 +145,28 @@ void nsPNGDecoder::CreateFrame(png_uint_32 x_offset, png_uint_32 y_offset,
   // Our first full frame is automatically created by the image decoding
   // infrastructure. Just use it as long as it matches up.
   MOZ_ASSERT(HasSize());
-  nsIntRect neededRect(x_offset, y_offset, width, height);
-  nsRefPtr<imgFrame> currentFrame = GetCurrentFrame();
-  if (mNumFrames != 0 || !currentFrame->GetRect().IsEqualEdges(neededRect)) {
+  if (mNumFrames != 0 ||
+      !GetCurrentFrame()->GetRect().IsEqualEdges(nsIntRect(x_offset, y_offset, width, height))) {
     NeedNewFrame(mNumFrames, x_offset, y_offset, width, height, format);
   } else if (mNumFrames == 0) {
     // Our preallocated frame matches up, with the possible exception of alpha.
     if (format == gfx::SurfaceFormat::B8G8R8X8) {
-      currentFrame->SetHasNoAlpha();
+      GetCurrentFrame()->SetHasNoAlpha();
     }
   }
 
-  mFrameRect = neededRect;
-  mFrameHasNoAlpha = true;
+  mFrameRect.x = x_offset;
+  mFrameRect.y = y_offset;
+  mFrameRect.width = width;
+  mFrameRect.height = height;
 
   PR_LOG(GetPNGDecoderAccountingLog(), PR_LOG_DEBUG,
          ("PNGDecoderAccounting: nsPNGDecoder::CreateFrame -- created "
           "image frame with %dx%d pixels in container %p",
           width, height,
           &mImage));
+
+  mFrameHasNoAlpha = true;
 
 #ifdef PNG_APNG_SUPPORTED
   if (png_get_valid(mPNG, mInfo, PNG_INFO_acTL)) {
@@ -272,14 +275,8 @@ nsPNGDecoder::InitInternal()
    * by default in the system libpng.  This call also disables it in the
    * system libpng, for decoding speed.  Bug #745202.
    */
-  png_set_check_for_invalid_index(mPNG, 0);
+    png_set_check_for_invalid_index(mPNG, 0);
 #endif
-#endif
-
-#if defined(PNG_SET_OPTION_SUPPORTED) && defined(PNG_sRGB_PROFILE_CHECKS) && \
-            PNG_sRGB_PROFILE_CHECKS >= 0
-  /* Skip checking of sRGB ICC profiles */
-  png_set_option(mPNG, PNG_SKIP_sRGB_CHECK_PROFILE, PNG_OPTION_ON);
 #endif
 
   /* use this as libpng "progressive pointer" (retrieve in callbacks) */

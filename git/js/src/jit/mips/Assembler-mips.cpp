@@ -30,7 +30,6 @@ ABIArgGenerator::ABIArgGenerator()
 ABIArg
 ABIArgGenerator::next(MIRType type)
 {
-    FloatRegister::RegType regType;
     switch (type) {
       case MIRType_Int32:
       case MIRType_Pointer:
@@ -43,16 +42,15 @@ ABIArgGenerator::next(MIRType type)
         break;
       case MIRType_Float32:
       case MIRType_Double:
-        regType = (type == MIRType_Double ? FloatRegister::Double : FloatRegister::Single);
         if (!usedArgSlots_) {
-            current_ = ABIArg(FloatRegister(FloatRegisters::f12, regType));
+            current_ = ABIArg(f12);
             usedArgSlots_ += 2;
             firstArgFloat = true;
         } else if (usedArgSlots_ <= 2) {
             // NOTE: We will use f14 always. This is not compatible with
             // system ABI. We will have to introduce some infrastructure
             // changes if we have to use system ABI here.
-            current_ = ABIArg(FloatRegister(FloatRegisters::f14, regType));
+            current_ = ABIArg(f14);
             usedArgSlots_ = 4;
         } else {
             usedArgSlots_ += usedArgSlots_ % 2;
@@ -61,7 +59,7 @@ ABIArgGenerator::next(MIRType type)
         }
         break;
       default:
-        MOZ_CRASH("Unexpected argument type");
+        MOZ_ASSUME_UNREACHABLE("Unexpected argument type");
     }
     return current_;
 
@@ -91,8 +89,8 @@ js::jit::RT(Register r)
 uint32_t
 js::jit::RT(FloatRegister r)
 {
-    MOZ_ASSERT(r.id() < FloatRegisters::TotalSingle);
-    return r.id() << RTShift;
+    MOZ_ASSERT(r.code() < FloatRegisters::Total);
+    return r.code() << RTShift;
 }
 
 uint32_t
@@ -105,8 +103,8 @@ js::jit::RD(Register r)
 uint32_t
 js::jit::RD(FloatRegister r)
 {
-    MOZ_ASSERT(r.id() < FloatRegisters::TotalSingle);
-    return r.id() << RDShift;
+    MOZ_ASSERT(r.code() < FloatRegisters::Total);
+    return r.code() << RDShift;
 }
 
 uint32_t
@@ -119,8 +117,8 @@ js::jit::SA(uint32_t value)
 uint32_t
 js::jit::SA(FloatRegister r)
 {
-    MOZ_ASSERT(r.id() < FloatRegisters::TotalSingle);
-    return r.id() << SAShift;
+    MOZ_ASSERT(r.code() < FloatRegisters::Total);
+    return r.code() << SAShift;
 }
 
 Register
@@ -163,34 +161,6 @@ jit::PatchJump(CodeLocationJump &jump_, CodeLocationLabel label)
     Assembler::UpdateLuiOriValue(inst1, inst2, (uint32_t)label.raw());
 
     AutoFlushICache::flush(uintptr_t(inst1), 8);
-}
-
-// For more infromation about backedges look at comment in
-// MacroAssemblerMIPSCompat::backedgeJump()
-void
-jit::PatchBackedge(CodeLocationJump &jump, CodeLocationLabel label,
-                   JitRuntime::BackedgeTarget target)
-{
-    uint32_t sourceAddr = (uint32_t)jump.raw();
-    uint32_t targetAddr = (uint32_t)label.raw();
-    InstImm *branch = (InstImm *)jump.raw();
-
-    MOZ_ASSERT(branch->extractOpcode() == (uint32_t(op_beq) >> OpcodeShift));
-
-    if (BOffImm16::IsInRange(targetAddr - sourceAddr)) {
-        branch->setBOffImm16(BOffImm16(targetAddr - sourceAddr));
-    } else {
-        if (target == JitRuntime::BackedgeLoopHeader) {
-            Instruction *lui = &branch[1];
-            Assembler::UpdateLuiOriValue(lui, lui->next(), targetAddr);
-            // Jump to ori. The lui will be executed in delay slot.
-            branch->setBOffImm16(BOffImm16(2 * sizeof(uint32_t)));
-        } else {
-            Instruction *lui = &branch[4];
-            Assembler::UpdateLuiOriValue(lui, lui->next(), targetAddr);
-            branch->setBOffImm16(BOffImm16(4 * sizeof(uint32_t)));
-        }
-    }
 }
 
 void
@@ -283,26 +253,15 @@ Assembler::TraceJumpRelocations(JSTracer *trc, JitCode *code, CompactBufferReade
 }
 
 static void
-TraceOneDataRelocation(JSTracer *trc, Instruction *inst)
-{
-    void *ptr = (void *)Assembler::ExtractLuiOriValue(inst, inst->next());
-    void *prior = ptr;
-
-    // No barrier needed since these are constants.
-    gc::MarkGCThingUnbarriered(trc, reinterpret_cast<void **>(&ptr), "ion-masm-ptr");
-    if (ptr != prior) {
-        Assembler::UpdateLuiOriValue(inst, inst->next(), uint32_t(ptr));
-        AutoFlushICache::flush(uintptr_t(inst), 8);
-    }
-}
-
-static void
 TraceDataRelocations(JSTracer *trc, uint8_t *buffer, CompactBufferReader &reader)
 {
     while (reader.more()) {
         size_t offset = reader.readUnsigned();
         Instruction *inst = (Instruction*)(buffer + offset);
-        TraceOneDataRelocation(trc, inst);
+        void *ptr = (void *)Assembler::ExtractLuiOriValue(inst, inst->next());
+
+        // No barrier needed since these are constants.
+        gc::MarkGCThingUnbarriered(trc, reinterpret_cast<void **>(&ptr), "ion-masm-ptr");
     }
 }
 
@@ -312,7 +271,11 @@ TraceDataRelocations(JSTracer *trc, MIPSBuffer *buffer, CompactBufferReader &rea
     while (reader.more()) {
         BufferOffset bo (reader.readUnsigned());
         MIPSBuffer::AssemblerBufferInstIterator iter(bo, buffer);
-        TraceOneDataRelocation(trc, iter.cur());
+
+        void *ptr = (void *)Assembler::ExtractLuiOriValue(iter.cur(), iter.next());
+
+        // No barrier needed since these are constants.
+        gc::MarkGCThingUnbarriered(trc, reinterpret_cast<void **>(&ptr), "ion-masm-ptr");
     }
 }
 
@@ -423,7 +386,8 @@ Assembler::InvertCondition(Condition cond)
       case NotSigned:
         return Signed;
       default:
-        MOZ_CRASH("unexpected condition");
+        MOZ_ASSUME_UNREACHABLE("unexpected condition");
+        return Equal;
     }
 }
 
@@ -460,7 +424,8 @@ Assembler::InvertCondition(DoubleCondition cond)
       case DoubleLessThanOrEqualOrUnordered:
         return DoubleGreaterThan;
       default:
-        MOZ_CRASH("unexpected condition");
+        MOZ_ASSUME_UNREACHABLE("unexpected condition");
+        return DoubleEqual;
     }
 }
 
@@ -621,13 +586,6 @@ Assembler::as_bal(BOffImm16 off)
     return bo;
 }
 
-BufferOffset
-Assembler::as_b(BOffImm16 off)
-{
-    BufferOffset bo = writeInst(InstImm(op_beq, zero, zero, off).encode());
-    return bo;
-}
-
 InstImm
 Assembler::getBranchCode(JumpOrCall jumpOrCall)
 {
@@ -667,7 +625,7 @@ Assembler::getBranchCode(Register s, Condition c)
       case Assembler::LessThanOrEqual:
         return InstImm(op_blez, s, zero, BOffImm16(0));
       default:
-        MOZ_CRASH("Condition not supported.");
+        MOZ_ASSUME_UNREACHABLE("Condition not supported.");
     }
 }
 
@@ -961,9 +919,9 @@ Assembler::as_movf(Register rd, Register rs, uint16_t cc)
 
 // Bit twiddling.
 BufferOffset
-Assembler::as_clz(Register rd, Register rs)
+Assembler::as_clz(Register rd, Register rs, Register rt)
 {
-    return writeInst(InstReg(op_special2, rs, rs, rd, ff_clz).encode());
+    return writeInst(InstReg(op_special2, rs, rt, rd, ff_clz).encode());
 }
 
 BufferOffset
@@ -1354,19 +1312,10 @@ Assembler::bind(RepatchLabel *label)
         // If the label has a use, then change this use to refer to
         // the bound label;
         BufferOffset b(label->offset());
-        InstImm *inst1 = (InstImm *)editSrc(b);
+        Instruction *inst1 = editSrc(b);
+        Instruction *inst2 = inst1->next();
 
-        // If first instruction is branch, then this is a loop backedge.
-        if (inst1->extractOpcode() == ((uint32_t)op_beq >> OpcodeShift)) {
-            // Backedges are short jumps when bound, but can become long
-            // when patched.
-            uint32_t offset = dest.getOffset() - label->offset();
-            MOZ_ASSERT(BOffImm16::IsInRange(offset));
-            inst1->setBOffImm16(BOffImm16(offset));
-        } else {
-            UpdateLuiOriValue(inst1, inst1->next(), dest.getOffset());
-        }
-
+        UpdateLuiOriValue(inst1, inst2, dest.getOffset());
     }
     label->bind(dest.getOffset());
 }
@@ -1408,6 +1357,7 @@ Assembler::retarget(Label *label, Label *target)
 }
 
 void dbg_break() {}
+static int stopBKPT = -1;
 void
 Assembler::as_break(uint32_t code)
 {
@@ -1565,7 +1515,8 @@ InstImm Assembler::invertBranch(InstImm branch, BOffImm16 skipOffset)
             return branch;
         }
 
-        MOZ_CRASH("Error creating long branch.");
+        MOZ_ASSUME_UNREACHABLE("Error creating long branch.");
+        return branch;
 
       case op_cop1:
         MOZ_ASSERT(branch.extractRS() == rs_bc1 >> RSShift);
@@ -1577,9 +1528,10 @@ InstImm Assembler::invertBranch(InstImm branch, BOffImm16 skipOffset)
         else
             branch.setRT((RTField) ((rt | 0x1) << RTShift));
         return branch;
-      default:
-        MOZ_CRASH("Error creating long branch.");
     }
+
+    MOZ_ASSUME_UNREACHABLE("Error creating long branch.");
+    return branch;
 }
 
 void

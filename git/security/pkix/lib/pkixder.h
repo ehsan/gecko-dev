@@ -64,60 +64,73 @@ enum Tag
   NULLTag = UNIVERSAL | 0x05,
   OIDTag = UNIVERSAL | 0x06,
   ENUMERATED = UNIVERSAL | 0x0a,
-  UTF8String = UNIVERSAL | 0x0c,
   SEQUENCE = UNIVERSAL | CONSTRUCTED | 0x10, // 0x30
-  SET = UNIVERSAL | CONSTRUCTED | 0x11, // 0x31
   UTCTime = UNIVERSAL | 0x17,
   GENERALIZED_TIME = UNIVERSAL | 0x18,
 };
 
 MOZILLA_PKIX_ENUM_CLASS EmptyAllowed { No = 0, Yes = 1 };
 
-Result ReadTagAndGetValue(Reader& input, /*out*/ uint8_t& tag,
-                          /*out*/ Input& value);
-Result End(Reader& input);
+inline Result
+ExpectTagAndLength(Reader& input, uint8_t expectedTag, uint8_t expectedLength)
+{
+  assert((expectedTag & 0x1F) != 0x1F); // high tag number form not allowed
+  assert(expectedLength < 128); // must be a single-byte length
+
+  uint16_t tagAndLength;
+  Result rv = input.Read(tagAndLength);
+  if (rv != Success) {
+    return rv;
+  }
+
+  uint16_t expectedTagAndLength = static_cast<uint16_t>(expectedTag << 8);
+  expectedTagAndLength |= expectedLength;
+
+  if (tagAndLength != expectedTagAndLength) {
+    return Result::ERROR_BAD_DER;
+  }
+
+  return Success;
+}
+
+namespace internal {
+
+Result
+ExpectTagAndGetLength(Reader& input, uint8_t expectedTag, uint16_t& length);
+
+} // namespace internal
+
+inline Result
+ExpectTagAndSkipValue(Reader& input, uint8_t tag)
+{
+  uint16_t length;
+  Result rv = internal::ExpectTagAndGetLength(input, tag, length);
+  if (rv != Success) {
+    return rv;
+  }
+  return input.Skip(length);
+}
 
 inline Result
 ExpectTagAndGetValue(Reader& input, uint8_t tag, /*out*/ Input& value)
 {
-  uint8_t actualTag;
-  Result rv = ReadTagAndGetValue(input, actualTag, value);
+  uint16_t length;
+  Result rv = internal::ExpectTagAndGetLength(input, tag, length);
   if (rv != Success) {
     return rv;
   }
-  if (tag != actualTag) {
-    return Result::ERROR_BAD_DER;
-  }
-  return Success;
+  return input.Skip(length, value);
 }
 
 inline Result
 ExpectTagAndGetValue(Reader& input, uint8_t tag, /*out*/ Reader& value)
 {
-  Input valueInput;
-  Result rv = ExpectTagAndGetValue(input, tag, valueInput);
+  uint16_t length;
+  Result rv = internal::ExpectTagAndGetLength(input, tag, length);
   if (rv != Success) {
     return rv;
   }
-  return value.Init(valueInput);
-}
-
-inline Result
-ExpectTagAndEmptyValue(Reader& input, uint8_t tag)
-{
-  Reader value;
-  Result rv = ExpectTagAndGetValue(input, tag, value);
-  if (rv != Success) {
-    return rv;
-  }
-  return End(value);
-}
-
-inline Result
-ExpectTagAndSkipValue(Reader& input, uint8_t tag)
-{
-  Input ignoredValue;
-  return ExpectTagAndGetValue(input, tag, ignoredValue);
+  return input.Skip(length, value);
 }
 
 // Like ExpectTagAndGetValue, except the output Input will contain the
@@ -126,7 +139,12 @@ inline Result
 ExpectTagAndGetTLV(Reader& input, uint8_t tag, /*out*/ Input& tlv)
 {
   Reader::Mark mark(input.GetMark());
-  Result rv = ExpectTagAndSkipValue(input, tag);
+  uint16_t length;
+  Result rv = internal::ExpectTagAndGetLength(input, tag, length);
+  if (rv != Success) {
+    return rv;
+  }
+  rv = input.Skip(length);
   if (rv != Success) {
     return rv;
   }
@@ -235,13 +253,12 @@ IntegralValue(Reader& input, uint8_t tag, T& value)
   // Conveniently, all the Integers that we actually have to be able to parse
   // are positive and very small. Consequently, this parser is *much* simpler
   // than a general Integer parser would need to be.
-  Reader valueReader;
-  Result rv = ExpectTagAndGetValue(input, tag, valueReader);
+  Result rv = ExpectTagAndLength(input, tag, 1);
   if (rv != Success) {
     return rv;
   }
   uint8_t valueByte;
-  rv = valueReader.Read(valueByte);
+  rv = input.Read(valueByte);
   if (rv != Success) {
     return rv;
   }
@@ -249,7 +266,7 @@ IntegralValue(Reader& input, uint8_t tag, T& value)
     return Result::ERROR_BAD_DER;
   }
   value = valueByte;
-  return End(valueReader);
+  return Success;
 }
 
 } // namespace internal
@@ -260,18 +277,13 @@ BitStringWithNoUnusedBits(Reader& input, /*out*/ Input& value);
 inline Result
 Boolean(Reader& input, /*out*/ bool& value)
 {
-  Reader valueReader;
-  Result rv = ExpectTagAndGetValue(input, BOOLEAN, valueReader);
+  Result rv = ExpectTagAndLength(input, BOOLEAN, 1);
   if (rv != Success) {
     return rv;
   }
 
   uint8_t intValue;
-  rv = valueReader.Read(intValue);
-  if (rv != Success) {
-    return rv;
-  }
-  rv = End(valueReader);
+  rv = input.Read(intValue);
   if (rv != Success) {
     return rv;
   }
@@ -381,7 +393,7 @@ OptionalInteger(Reader& input, long defaultValue, /*out*/ long& value)
 inline Result
 Null(Reader& input)
 {
-  return ExpectTagAndEmptyValue(input, NULLTag);
+  return ExpectTagAndLength(input, NULLTag, 0);
 }
 
 template <uint8_t Len>
@@ -452,7 +464,7 @@ CertificateSerialNumber(Reader& input, /*out*/ Input& value)
 
 // x.509 and OCSP both use this same version numbering scheme, though OCSP
 // only supports v1.
-MOZILLA_PKIX_ENUM_CLASS Version { v1 = 0, v2 = 1, v3 = 2, v4 = 3 };
+MOZILLA_PKIX_ENUM_CLASS Version { v1 = 0, v2 = 1, v3 = 2 };
 
 // X.509 Certificate and OCSP ResponseData both use this
 // "[0] EXPLICIT Version DEFAULT <defaultVersion>" construct, but with
@@ -485,7 +497,6 @@ OptionalVersion(Reader& input, /*out*/ Version& version)
     // XXX(bug 1031093): We shouldn't accept an explicit encoding of v1, but we
     // do here for compatibility reasons.
     case static_cast<uint8_t>(Version::v1): version = Version::v1; break;
-    case static_cast<uint8_t>(Version::v4): version = Version::v4; break;
     default:
       return Result::ERROR_BAD_DER;
   }
@@ -558,7 +569,7 @@ OptionalExtensions(Reader& input, uint8_t tag,
     }
 
     bool understood = false;
-    rv = extensionHandler(extnID, extnValue, critical, understood);
+    rv = extensionHandler(extnID, extnValue, understood);
     if (rv != Success) {
       return rv;
     }

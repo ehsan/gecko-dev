@@ -14,6 +14,7 @@
 #include "nsIScriptContext.h"
 #include "nsPIDOMWindow.h"
 #include "nsJSUtils.h"
+#include "nsCxPusher.h"
 #include "nsIScriptSecurityManager.h"
 #include "xpcprivate.h"
 #include "WorkerPrivate.h"
@@ -125,8 +126,8 @@ CallbackObject::CallSetup::CallSetup(CallbackObject* aCallback,
       return;
     }
 
-    mAutoEntryScript.emplace(globalObject, mIsMainThread, cx);
-    mAutoEntryScript->SetWebIDLCallerPrincipal(webIDLCallerPrincipal);
+    mAutoEntryScript.construct(globalObject, mIsMainThread, cx);
+    mAutoEntryScript.ref().SetWebIDLCallerPrincipal(webIDLCallerPrincipal);
     nsIGlobalObject* incumbent = aCallback->IncumbentGlobalOrNull();
     if (incumbent) {
       // The callback object traces its incumbent JS global, so in general it
@@ -137,7 +138,7 @@ CallbackObject::CallSetup::CallSetup(CallbackObject* aCallback,
       if (!incumbent->GetGlobalJSObject()) {
         return;
       }
-      mAutoIncumbentScript.emplace(incumbent);
+      mAutoIncumbentScript.construct(incumbent);
     }
 
     // Unmark the callable (by invoking Callback() and not the CallbackPreserveColor()
@@ -149,7 +150,7 @@ CallbackObject::CallSetup::CallSetup(CallbackObject* aCallback,
     //
     // We can do this even though we're not in the right compartment yet, because
     // Rooted<> does not care about compartments.
-    mRootedCallable.emplace(cx, aCallback->Callback());
+    mRootedCallable.construct(cx, aCallback->Callback());
   }
 
   // JS-implemented WebIDL is always OK to run, since it runs with Chrome
@@ -171,7 +172,7 @@ CallbackObject::CallSetup::CallSetup(CallbackObject* aCallback,
   // Note that if the callback is a wrapper, this will not be the same
   // compartment that we ended up in with mAutoEntryScript above, because the
   // entry point is based off of the unwrapped callback (realCallback).
-  mAc.emplace(cx, *mRootedCallable);
+  mAc.construct(cx, mRootedCallable.ref());
 
   // And now we're ready to go.
   mCx = cx;
@@ -218,7 +219,7 @@ CallbackObject::CallSetup::~CallSetup()
   // so we end up reporting them while in the compartment of our entry point,
   // not whatever cross-compartment wrappper mCallback might be.
   // Be careful: the JSAutoCompartment might not have been constructed at all!
-  mAc.reset();
+  mAc.destroyIfConstructed();
 
   // Now, if we have a JSContext, report any pending errors on it, unless we
   // were told to re-throw them.
@@ -272,8 +273,8 @@ CallbackObject::CallSetup::~CallSetup()
     }
   }
 
-  mAutoIncumbentScript.reset();
-  mAutoEntryScript.reset();
+  mAutoIncumbentScript.destroyIfConstructed();
+  mAutoEntryScript.destroyIfConstructed();
 
   // It is important that this is the last thing we do, after leaving the
   // compartment and undoing all our entry/incumbent script changes

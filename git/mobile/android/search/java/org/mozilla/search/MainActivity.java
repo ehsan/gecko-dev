@@ -20,7 +20,6 @@ import com.nineoldandroids.animation.Animator;
 import com.nineoldandroids.animation.AnimatorSet;
 import com.nineoldandroids.animation.ObjectAnimator;
 
-import org.mozilla.gecko.LocaleAware;
 import org.mozilla.gecko.Telemetry;
 import org.mozilla.gecko.TelemetryContract;
 import org.mozilla.gecko.db.BrowserContract.SearchHistory;
@@ -33,7 +32,7 @@ import org.mozilla.search.autocomplete.SuggestionsFragment;
  * State management is delegated to child fragments. Fragments communicate
  * with each other by passing messages through this activity.
  */
-public class MainActivity extends LocaleAware.LocaleAwareFragmentActivity implements AcceptsSearchQuery {
+public class MainActivity extends FragmentActivity implements AcceptsSearchQuery {
 
     private static final String KEY_SEARCH_STATE = "search_state";
     private static final String KEY_EDIT_STATE = "edit_state";
@@ -60,9 +59,7 @@ public class MainActivity extends LocaleAware.LocaleAwareFragmentActivity implem
     private View preSearch;
     private View postSearch;
 
-    private View settingsButton;
-
-    private View suggestions;
+    private View suggestionsContainer;
     private SuggestionsFragment suggestionsFragment;
 
     private static final int SUGGESTION_TRANSITION_DURATION = 300;
@@ -112,28 +109,21 @@ public class MainActivity extends LocaleAware.LocaleAwareFragmentActivity implem
                     onSearch(trimmedQuery);
                 }
             }
-
-            @Override
-            public void onFocusChange(boolean hasFocus) {
-                setEditState(hasFocus ? EditState.EDITING : EditState.WAITING);
-            }
         });
 
         preSearch = findViewById(R.id.presearch);
         postSearch = findViewById(R.id.postsearch);
 
-        settingsButton = findViewById(R.id.settings_button);
+        suggestionsContainer = findViewById(R.id.suggestions_container);
+        suggestionsFragment = (SuggestionsFragment) getSupportFragmentManager().findFragmentById(R.id.suggestions);
 
-        // Apply click handler to settings button.
-        settingsButton.setOnClickListener(new View.OnClickListener() {
+        // Dismiss edit mode when the user taps outside of the suggestions.
+        findViewById(R.id.suggestions_container).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                startActivity(new Intent(MainActivity.this, SearchPreferenceActivity.class));
+                setEditState(EditState.WAITING);
             }
         });
-
-        suggestions = findViewById(R.id.suggestions);
-        suggestionsFragment = (SuggestionsFragment) getSupportFragmentManager().findFragmentById(R.id.suggestions);
 
         animationText = (TextView) findViewById(R.id.animation_text);
         animationCard = findViewById(R.id.animation_card);
@@ -154,10 +144,6 @@ public class MainActivity extends LocaleAware.LocaleAwareFragmentActivity implem
                 ((PostSearchFragment) getSupportFragmentManager().findFragmentById(R.id.postsearch))
                         .startSearch(query);
             }
-        } else {
-            // If there isn't a state to restore, the activity will start in the presearch state,
-            // and we should enter editing mode to bring up the keyboard.
-            setEditState(EditState.EDITING);
         }
     }
 
@@ -168,9 +154,8 @@ public class MainActivity extends LocaleAware.LocaleAwareFragmentActivity implem
         editText = null;
         preSearch = null;
         postSearch = null;
-        settingsButton = null;
         suggestionsFragment = null;
-        suggestions = null;
+        suggestionsContainer = null;
         animationText = null;
         animationCard = null;
     }
@@ -192,9 +177,7 @@ public class MainActivity extends LocaleAware.LocaleAwareFragmentActivity implem
         // Reset the activity in the presearch state if it was launched from a new intent.
         setSearchState(SearchState.PRESEARCH);
 
-        // Enter editing mode and reset the query. We must reset the query after entering
-        // edit mode in order for the suggestions to update.
-        setEditState(EditState.EDITING);
+        // Also clear any existing search term.
         editText.setText("");
     }
 
@@ -209,7 +192,7 @@ public class MainActivity extends LocaleAware.LocaleAwareFragmentActivity implem
 
     @Override
     public void onSuggest(String query) {
-        editText.setText(query);
+       editText.setText(query);
     }
 
     @Override
@@ -237,8 +220,8 @@ public class MainActivity extends LocaleAware.LocaleAwareFragmentActivity implem
     /**
      * Animates search suggestion to search bar. This animation has 2 main parts:
      *
-     * 1) Vertically translate query text from suggestion card to search bar.
-     * 2) Expand suggestion card to fill the results view area.
+     *   1) Vertically translate query text from suggestion card to search bar.
+     *   2) Expand suggestion card to fill the results view area.
      *
      * @param query
      * @param suggestionAnimation
@@ -310,10 +293,8 @@ public class MainActivity extends LocaleAware.LocaleAwareFragmentActivity implem
         }
         this.editState = editState;
 
-        updateSettingsButtonVisibility();
-
         editText.setActive(editState == EditState.EDITING);
-        suggestions.setVisibility(editState == EditState.EDITING ? View.VISIBLE : View.INVISIBLE);
+        suggestionsContainer.setVisibility(editState == EditState.EDITING ? View.VISIBLE : View.INVISIBLE);
     }
 
     private void setSearchState(SearchState searchState) {
@@ -322,19 +303,8 @@ public class MainActivity extends LocaleAware.LocaleAwareFragmentActivity implem
         }
         this.searchState = searchState;
 
-        updateSettingsButtonVisibility();
-
         preSearch.setVisibility(searchState == SearchState.PRESEARCH ? View.VISIBLE : View.INVISIBLE);
         postSearch.setVisibility(searchState == SearchState.POSTSEARCH ? View.VISIBLE : View.INVISIBLE);
-    }
-
-    private void updateSettingsButtonVisibility() {
-        // Show button on launch screen when keyboard is down.
-        if (searchState == SearchState.PRESEARCH && editState == EditState.WAITING) {
-            settingsButton.setVisibility(View.VISIBLE);
-        } else {
-            settingsButton.setVisibility(View.INVISIBLE);
-        }
     }
 
     @Override

@@ -22,11 +22,8 @@ typedef void * CalleeToken;
 enum CalleeTokenTag
 {
     CalleeToken_Function = 0x0, // untagged
-    CalleeToken_FunctionConstructing = 0x1,
-    CalleeToken_Script = 0x2
+    CalleeToken_Script = 0x1
 };
-
-static const uintptr_t CalleeTokenMask = ~uintptr_t(0x3);
 
 static inline CalleeTokenTag
 GetCalleeTokenTag(CalleeToken token)
@@ -36,10 +33,9 @@ GetCalleeTokenTag(CalleeToken token)
     return tag;
 }
 static inline CalleeToken
-CalleeToToken(JSFunction *fun, bool constructing)
+CalleeToToken(JSFunction *fun)
 {
-    CalleeTokenTag tag = constructing ? CalleeToken_FunctionConstructing : CalleeToken_Function;
-    return CalleeToken(uintptr_t(fun) | uintptr_t(tag));
+    return CalleeToken(uintptr_t(fun) | uintptr_t(CalleeToken_Function));
 }
 static inline CalleeToken
 CalleeToToken(JSScript *script)
@@ -49,25 +45,19 @@ CalleeToToken(JSScript *script)
 static inline bool
 CalleeTokenIsFunction(CalleeToken token)
 {
-    CalleeTokenTag tag = GetCalleeTokenTag(token);
-    return tag == CalleeToken_Function || tag == CalleeToken_FunctionConstructing;
-}
-static inline bool
-CalleeTokenIsConstructing(CalleeToken token)
-{
-    return GetCalleeTokenTag(token) == CalleeToken_FunctionConstructing;
+    return GetCalleeTokenTag(token) == CalleeToken_Function;
 }
 static inline JSFunction *
 CalleeTokenToFunction(CalleeToken token)
 {
-    MOZ_ASSERT(CalleeTokenIsFunction(token));
-    return (JSFunction *)(uintptr_t(token) & CalleeTokenMask);
+    JS_ASSERT(CalleeTokenIsFunction(token));
+    return (JSFunction *)token;
 }
 static inline JSScript *
 CalleeTokenToScript(CalleeToken token)
 {
     JS_ASSERT(GetCalleeTokenTag(token) == CalleeToken_Script);
-    return (JSScript *)(uintptr_t(token) & CalleeTokenMask);
+    return (JSScript *)(uintptr_t(token) & ~uintptr_t(0x3));
 }
 
 static inline JSScript *
@@ -77,10 +67,9 @@ ScriptFromCalleeToken(CalleeToken token)
       case CalleeToken_Script:
         return CalleeTokenToScript(token);
       case CalleeToken_Function:
-      case CalleeToken_FunctionConstructing:
         return CalleeTokenToFunction(token)->nonLazyScript();
     }
-    MOZ_CRASH("invalid callee token tag");
+    MOZ_ASSUME_UNREACHABLE("invalid callee token tag");
 }
 
 // In between every two frames lies a small header describing both frames. This

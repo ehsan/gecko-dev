@@ -15,7 +15,6 @@ MediaTaskQueue::MediaTaskQueue(TemporaryRef<SharedThreadPool> aPool)
   , mQueueMonitor("MediaTaskQueue::Queue")
   , mIsRunning(false)
   , mIsShutdown(false)
-  , mIsFlushing(false)
 {
   MOZ_COUNT_CTOR(MediaTaskQueue);
 }
@@ -31,17 +30,6 @@ nsresult
 MediaTaskQueue::Dispatch(TemporaryRef<nsIRunnable> aRunnable)
 {
   MonitorAutoLock mon(mQueueMonitor);
-  return DispatchLocked(aRunnable, AbortIfFlushing);
-}
-
-nsresult
-MediaTaskQueue::DispatchLocked(TemporaryRef<nsIRunnable> aRunnable,
-                               DispatchMode aMode)
-{
-  mQueueMonitor.AssertCurrentThreadOwns();
-  if (mIsFlushing && aMode == AbortIfFlushing) {
-    return NS_ERROR_ABORT;
-  }
   if (mIsShutdown) {
     return NS_ERROR_FAILURE;
   }
@@ -62,7 +50,7 @@ MediaTaskQueue::DispatchLocked(TemporaryRef<nsIRunnable> aRunnable,
 
 class MediaTaskQueueSyncRunnable : public nsRunnable {
 public:
-  explicit MediaTaskQueueSyncRunnable(TemporaryRef<nsIRunnable> aRunnable)
+  MediaTaskQueueSyncRunnable(TemporaryRef<nsIRunnable> aRunnable)
     : mRunnable(aRunnable)
     , mMonitor("MediaTaskQueueSyncRunnable")
     , mDone(false)
@@ -125,25 +113,10 @@ MediaTaskQueue::Shutdown()
   AwaitIdleLocked();
 }
 
-nsresult
-MediaTaskQueue::FlushAndDispatch(TemporaryRef<nsIRunnable> aRunnable)
-{
-  MonitorAutoLock mon(mQueueMonitor);
-  AutoSetFlushing autoFlush(this);
-  while (!mTasks.empty()) {
-    mTasks.pop();
-  }
-  nsresult rv = DispatchLocked(aRunnable, IgnoreFlushing);
-  NS_ENSURE_SUCCESS(rv, rv);
-  AwaitIdleLocked();
-  return NS_OK;
-}
-
 void
 MediaTaskQueue::Flush()
 {
   MonitorAutoLock mon(mQueueMonitor);
-  AutoSetFlushing autoFlush(this);
   while (!mTasks.empty()) {
     mTasks.pop();
   }

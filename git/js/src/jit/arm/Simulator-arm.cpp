@@ -1096,7 +1096,7 @@ Simulator::setLastDebuggerInput(char *input)
 void
 Simulator::FlushICache(void *start_addr, size_t size)
 {
-    JitSpewCont(JitSpew_CacheFlush, "[%p %zx]", start_addr, size);
+    IonSpewCont(IonSpew_CacheFlush, "[%p %zx]", start_addr, size);
     if (!Simulator::ICacheCheckingEnabled)
         return;
     SimulatorRuntime *srt = TlsPerThreadData.get()->simulatorRuntime();
@@ -1650,7 +1650,7 @@ Simulator::conditionallyExecute(SimInstruction *instr)
       case Assembler::GT: return !z_flag_ && (n_flag_ == v_flag_);
       case Assembler::LE: return z_flag_ || (n_flag_ != v_flag_);
       case Assembler::AL: return true;
-      default: MOZ_CRASH();
+      default: MOZ_ASSUME_UNREACHABLE();
     }
     return false;
 }
@@ -1765,7 +1765,7 @@ Simulator::getShiftRm(SimInstruction *instr, bool *carry_out)
     if (instr->bit(4) == 0) {
         // By immediate.
         if (shift == ROR && shift_amount == 0) {
-            MOZ_CRASH("NYI");
+            MOZ_ASSUME_UNREACHABLE("NYI");
             return result;
         }
         if ((shift == LSR || shift == ASR) && shift_amount == 0)
@@ -1826,7 +1826,8 @@ Simulator::getShiftRm(SimInstruction *instr, bool *carry_out)
           }
 
           default:
-            MOZ_CRASH();
+            MOZ_ASSUME_UNREACHABLE();
+            break;
         }
     } else {
         // By register.
@@ -1903,7 +1904,8 @@ Simulator::getShiftRm(SimInstruction *instr, bool *carry_out)
           }
 
           default:
-            MOZ_CRASH();
+            MOZ_ASSUME_UNREACHABLE();
+            break;
         }
     }
     return result;
@@ -1947,7 +1949,8 @@ Simulator::processPU(SimInstruction *instr, int num_regs, int reg_size,
         rn_val = *end_address;
         break;
       default:
-        MOZ_CRASH();
+        MOZ_ASSUME_UNREACHABLE();
+        break;
     }
     return rn_val;
 }
@@ -2114,7 +2117,7 @@ Simulator::softwareInterrupt(SimInstruction *instr)
         int32_t saved_lr = get_register(lr);
         intptr_t external = reinterpret_cast<intptr_t>(redirection->nativeFunction());
 
-        bool stack_aligned = (get_register(sp) & (ABIStackAlignment - 1)) == 0;
+        bool stack_aligned = (get_register(sp) & (StackAlignment - 1)) == 0;
         if (!stack_aligned) {
             fprintf(stderr, "Runtime call with unaligned stack!\n");
             MOZ_CRASH();
@@ -2288,7 +2291,7 @@ Simulator::softwareInterrupt(SimInstruction *instr)
             break;
           }
           default:
-            MOZ_CRASH("call");
+            MOZ_ASSUME_UNREACHABLE("call");
         }
 
         if (single_stepping_)
@@ -3332,7 +3335,7 @@ Simulator::decodeTypeVFP(SimInstruction *instr)
             const bool is_vmls = (instr->opc3Value() & 0x1);
 
             if (instr->szValue() != 0x1)
-                MOZ_CRASH("Not used by V8.");
+                MOZ_ASSUME_UNREACHABLE();  // Not used by V8.
 
             const double dd_val = get_double_from_d_register(vd);
             const double dn_val = get_double_from_d_register(vn);
@@ -3739,7 +3742,7 @@ Simulator::decodeVCVTBetweenFloatingPointAndIntegerFrac(SimInstruction *instr)
             set_s_register_from_sinteger(dst, temp);
         }
     } else {
-        MOZ_CRASH();  // Not implemented, fixed to float.
+        MOZ_ASSUME_UNREACHABLE();  // Not implemented, fixed to float.
     }
 }
 
@@ -4255,7 +4258,7 @@ Simulator::call(uint8_t* entry, int argument_count, ...)
     if (argument_count >= 4)
         entry_stack -= (argument_count - 4) * sizeof(int32_t);
 
-    entry_stack &= ~ABIStackAlignment;
+    entry_stack &= ~StackAlignment;
 
     // Store remaining arguments on stack, from low to high memory.
     intptr_t *stack_argument = reinterpret_cast<intptr_t*>(entry_stack);

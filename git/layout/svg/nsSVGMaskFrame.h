@@ -22,7 +22,7 @@ class nsSVGMaskFrame MOZ_FINAL : public nsSVGMaskFrameBase
   friend nsIFrame*
   NS_NewSVGMaskFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 protected:
-  explicit nsSVGMaskFrame(nsStyleContext* aContext)
+  nsSVGMaskFrame(nsStyleContext* aContext)
     : nsSVGMaskFrameBase(aContext)
     , mInUse(false)
   {
@@ -67,13 +67,6 @@ public:
 #endif
 
 private:
-  /**
-   * If the mask element transforms its children due to
-   * maskContentUnits="objectBoundingBox" being set on it, this function
-   * returns the resulting transform.
-   */
-  gfxMatrix GetMaskTransform(nsIFrame* aMaskedFrame);
-
   // A helper class to allow us to paint masks safely. The helper
   // automatically sets and clears the mInUse flag on the mask frame
   // (to prevent nasty reference loops). It's easy to mess this up
@@ -81,8 +74,8 @@ private:
   class MOZ_STACK_CLASS AutoMaskReferencer
   {
   public:
-    explicit AutoMaskReferencer(nsSVGMaskFrame *aFrame
-                                MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+    AutoMaskReferencer(nsSVGMaskFrame *aFrame
+                       MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
        : mFrame(aFrame) {
       MOZ_GUARD_OBJECT_NOTIFIER_INIT;
       NS_ASSERTION(!mFrame->mInUse, "reference loop!");
@@ -96,12 +89,14 @@ private:
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
   };
 
-  gfxMatrix mMatrixForChildren;
+  nsIFrame *mMaskParent;
+  nsAutoPtr<gfxMatrix> mMaskParentMatrix;
   // recursion prevention flag
   bool mInUse;
 
   // nsSVGContainerFrame methods:
-  virtual gfxMatrix GetCanvasTM() MOZ_OVERRIDE;
+  virtual gfxMatrix GetCanvasTM(uint32_t aFor,
+                                nsIFrame* aTransformRoot = nullptr) MOZ_OVERRIDE;
 };
 
 #endif

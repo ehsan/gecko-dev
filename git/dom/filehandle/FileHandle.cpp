@@ -152,7 +152,7 @@ private:
   class AsyncFlusher : public AsyncHelper
   {
   public:
-    explicit AsyncFlusher(nsISupports* aStream)
+    AsyncFlusher(nsISupports* aStream)
     : AsyncHelper(aStream)
     { }
   protected:

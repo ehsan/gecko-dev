@@ -50,7 +50,6 @@ nsresult UnsetExceptionHandler();
 void SetUserAppDataDirectory(nsIFile* aDir);
 void SetProfileDirectory(nsIFile* aDir);
 void UpdateCrashEventsDir();
-void SetMemoryReportFile(nsIFile* aFile);
 
 /**
  * Get the path where crash event files should be written.

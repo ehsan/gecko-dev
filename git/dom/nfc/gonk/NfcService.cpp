@@ -6,13 +6,12 @@
 #include <binder/Parcel.h>
 #include "mozilla/ModuleUtils.h"
 #include "mozilla/ClearOnShutdown.h"
-#include "mozilla/dom/NfcOptionsBinding.h"
 #include "mozilla/dom/ToJSValue.h"
 #include "mozilla/dom/RootedDictionary.h"
 #include "nsAutoPtr.h"
+#include "nsCxPusher.h"
 #include "nsString.h"
 #include "nsXULAppAPI.h"
-#include "NfcGonkMessage.h"
 #include "NfcOptions.h"
 
 #define NS_NFCSERVICE_CID \
@@ -23,10 +22,19 @@ using namespace android;
 using namespace mozilla::dom;
 using namespace mozilla::ipc;
 
-static const nsLiteralString SEOriginString[] = {
-  NS_LITERAL_STRING("SIM"),
-  NS_LITERAL_STRING("eSE"),
-  NS_LITERAL_STRING("ASSD")
+nsLiteralString NfcTechString[] = {
+  NS_LITERAL_STRING("NDEF"),
+  NS_LITERAL_STRING("NDEF_WRITEABLE"),
+  NS_LITERAL_STRING("NDEF_FORMATABLE"),
+  NS_LITERAL_STRING("P2P"),
+  NS_LITERAL_STRING("NFC_A"),
+  NS_LITERAL_STRING("NFC_B"),
+  NS_LITERAL_STRING("NFC_F"),
+  NS_LITERAL_STRING("NFC_V"),
+  NS_LITERAL_STRING("NFC_ISO_DEP"),
+  NS_LITERAL_STRING("MIFARE_CLASSIC"),
+  NS_LITERAL_STRING("MIFARE_ULTRALIGHT"),
+  NS_LITERAL_STRING("BARCODE")
 };
 
 namespace mozilla {
@@ -115,9 +123,8 @@ public:
       }
 
       for (int i = 0; i < length; i++) {
-        NFCTechType tech = static_cast<NFCTechType>(mEvent.mTechList[i]);
-        MOZ_ASSERT(tech < NFCTechType::EndGuard_);
-        *event.mTechList.Value().AppendElement() = tech;
+        nsString& elem = *event.mTechList.Value().AppendElement();
+        elem = NfcTechString[mEvent.mTechList[i]];
       }
     }
 
@@ -130,10 +137,10 @@ public:
 
       for (int i = 0; i < length; i++) {
         NDEFRecordStruct& recordStruct = mEvent.mRecords[i];
-        MozNDEFRecordOptions& record = *event.mRecords.Value().AppendElement();
+        NDEFRecord& record = *event.mRecords.Value().AppendElement();
 
-        record.mTnf = recordStruct.mTnf;
-        MOZ_ASSERT(record.mTnf < TNF::EndGuard_);
+        record.mTnf.Construct();
+        record.mTnf.Value() = recordStruct.mTnf;
 
         if (recordStruct.mType.Length() > 0) {
           record.mType.Construct();
@@ -155,25 +162,6 @@ public:
     COPY_OPT_FIELD(mIsReadOnly, -1)
     COPY_OPT_FIELD(mCanBeMadeReadOnly, -1)
     COPY_OPT_FIELD(mMaxSupportedLength, -1)
-
-    // HCI Event Transaction parameters.
-    if (mEvent.mOriginType != -1) {
-      MOZ_ASSERT(mEvent.mOriginType < SecureElementOrigin::OriginEndGuard);
-
-      event.mOrigin.Construct();
-      event.mOrigin.Value().Assign(SEOriginString[mEvent.mOriginType]);
-      event.mOrigin.Value().AppendInt(mEvent.mOriginIndex, 16 /* radix */);
-    }
-
-    if (mEvent.mAid.Length() > 0) {
-      event.mAid.Construct();
-      event.mAid.Value().Init(Uint8Array::Create(cx, mEvent.mAid.Length(), mEvent.mAid.Elements()));
-    }
-
-    if (mEvent.mPayload.Length() > 0) {
-      event.mPayload.Construct();
-      event.mPayload.Value().Init(Uint8Array::Create(cx, mEvent.mPayload.Length(), mEvent.mPayload.Elements()));
-    }
 
 #undef COPY_FIELD
 #undef COPY_OPT_FIELD
@@ -200,22 +188,26 @@ public:
   {
     assertIsNfcServiceThread();
 
-    while (mData->GetSize()) {
+    size_t size = mData->mSize;
+    size_t offset = 0;
+
+    while (size > 0) {
       EventOptions event;
-      const uint8_t* data = mData->GetData();
-      uint32_t parcelSize = ((data[0] & 0xff) << 24) |
-                            ((data[1] & 0xff) << 16) |
-                            ((data[2] & 0xff) <<  8) |
-                             (data[3] & 0xff);
-      MOZ_ASSERT(parcelSize <= mData->GetSize());
+      const uint8_t* data = mData->mData.get();
+      uint32_t parcelSize = ((data[offset + 0] & 0xff) << 24) |
+                            ((data[offset + 1] & 0xff) << 16) |
+                            ((data[offset + 2] & 0xff) <<  8) |
+                             (data[offset + 3] & 0xff);
+      MOZ_ASSERT(parcelSize <= (mData->mSize - offset));
 
       Parcel parcel;
-      parcel.setData(mData->GetData(), parcelSize + sizeof(parcelSize));
+      parcel.setData(&data[offset], parcelSize + sizeof(int));
       mHandler->Unmarshall(parcel, event);
       nsCOMPtr<nsIRunnable> runnable = new NfcEventDispatcher(event);
       NS_DispatchToMainThread(runnable);
 
-      mData->Consume(parcelSize + sizeof(parcelSize));
+      size -= parcel.dataSize();
+      offset += parcel.dataSize();
     }
 
     return NS_OK;

@@ -26,8 +26,8 @@ class  SVGRootRenderingObserver;
 class  SVGLoadEventListener;
 class  SVGParseCompleteListener;
 
-class VectorImage MOZ_FINAL : public ImageResource,
-                              public nsIStreamListener
+class VectorImage : public ImageResource,
+                    public nsIStreamListener
 {
 public:
   NS_DECL_ISUPPORTS
@@ -78,8 +78,8 @@ public:
   void OnSVGDocumentError();
 
 protected:
-  explicit VectorImage(imgStatusTracker* aStatusTracker = nullptr,
-                       ImageURL* aURI = nullptr);
+  VectorImage(imgStatusTracker* aStatusTracker = nullptr,
+              ImageURL* aURI = nullptr);
   virtual ~VectorImage();
 
   virtual nsresult StartAnimation();

@@ -103,7 +103,7 @@ private:
 class MP3FrameParser
 {
 public:
-  explicit MP3FrameParser(int64_t aLength=-1);
+  MP3FrameParser(int64_t aLength=-1);
 
   bool IsMP3() {
     MutexAutoLock mon(mLock);

@@ -23,7 +23,8 @@ namespace xpc {
 template <typename Base, typename Policy>
 class FilteringWrapper : public Base {
   public:
-    MOZ_CONSTEXPR explicit FilteringWrapper(unsigned flags) : Base(flags) {}
+    FilteringWrapper(unsigned flags);
+    virtual ~FilteringWrapper();
 
     virtual bool getPropertyDescriptor(JSContext *cx, JS::Handle<JSObject*> wrapper,
                                        JS::Handle<jsid> id,
@@ -58,7 +59,8 @@ class FilteringWrapper : public Base {
  */
 class CrossOriginXrayWrapper : public SecurityXrayDOM {
   public:
-    explicit CrossOriginXrayWrapper(unsigned flags);
+    CrossOriginXrayWrapper(unsigned flags);
+    virtual ~CrossOriginXrayWrapper();
 
     virtual bool getPropertyDescriptor(JSContext *cx, JS::Handle<JSObject*> wrapper,
                                        JS::Handle<jsid> id,

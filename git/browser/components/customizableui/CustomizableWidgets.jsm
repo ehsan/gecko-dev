@@ -159,7 +159,6 @@ const CustomizableWidgets = [{
       // Populate our list of history
       const kMaxResults = 15;
       let doc = aEvent.detail.ownerDocument;
-      let win = doc.defaultView;
 
       let options = PlacesUtils.history.getNewQueryOptions();
       options.excludeQueries = true;
@@ -202,10 +201,8 @@ const CustomizableWidgets = [{
               item.addEventListener("click", function (aEvent) {
                 onHistoryVisit(uri, aEvent, item);
               });
-              if (icon) {
-                let iconURL = PlacesUtils.getImageURLForResolution(win, "moz-anno:favicon:" + icon);
-                item.setAttribute("image", iconURL);
-              }
+              if (icon)
+                item.setAttribute("image", "moz-anno:favicon:" + icon);
               fragment.appendChild(item);
             } catch (e) {
               ERROR("Error while showing history subview: " + e);
@@ -738,7 +735,8 @@ const CustomizableWidgets = [{
     maybeDisableMenu: function(aDocument) {
       let window = aDocument.defaultView;
       return !(window.gBrowser &&
-               window.gBrowser.selectedBrowser.mayEnableCharacterEncodingMenu);
+               window.gBrowser.docShell &&
+               window.gBrowser.docShell.mayEnableCharacterEncodingMenu);
     },
     populateList: function(aDocument, aContainerId, aSection) {
       let containerElem = aDocument.getElementById(aContainerId);
@@ -758,7 +756,8 @@ const CustomizableWidgets = [{
       }
     },
     updateCurrentCharset: function(aDocument) {
-      let currentCharset = aDocument.defaultView.gBrowser.selectedBrowser.characterSet;
+      let content = aDocument.defaultView.content;
+      let currentCharset = content && content.document && content.document.characterSet;
       currentCharset = CharsetMenu.foldCharset(currentCharset);
 
       let pinnedContainer = aDocument.getElementById("PanelUI-characterEncodingView-pinned");
@@ -964,7 +963,7 @@ if (Services.prefs.getBoolPref("browser.tabs.remote")) {
     };
   }
 
-  let openRemote = !Services.appinfo.browserTabsRemoteAutostart;
+  let openRemote = !Services.prefs.getBoolPref("browser.tabs.remote.autostart");
   // Like the XUL menuitem counterparts, we hard-code these strings in because
   // this button should never roll into production.
   let buttonLabel = openRemote ? "New e10s Window"

@@ -41,11 +41,6 @@
 #include "nsIDOMNode.h"
 #include "nsLayoutUtils.h"
 #include "nsDisplayList.h"
-#include "nsIContent.h"
-#include "nsIDocument.h"
-#include "FrameLayerBuilder.h"
-#include "nsISelectionController.h"
-#include "nsISelection.h"
 
 #include "imgIContainer.h"
 #include "imgLoader.h"
@@ -85,7 +80,6 @@ using namespace mozilla;
 
 using namespace mozilla::layers;
 using namespace mozilla::dom;
-using namespace mozilla::gfx;
 
 // static icon information
 nsImageFrame::IconLoad* nsImageFrame::gIconLoad = nullptr;
@@ -760,15 +754,10 @@ nsImageFrame::EnsureIntrinsicSizeAndRatio(nsPresContext* aPresContext)
   }
 }
 
-/* virtual */
-LogicalSize
+/* virtual */ nsSize
 nsImageFrame::ComputeSize(nsRenderingContext *aRenderingContext,
-                          WritingMode aWM,
-                          const LogicalSize& aCBSize,
-                          nscoord aAvailableISize,
-                          const LogicalSize& aMargin,
-                          const LogicalSize& aBorder,
-                          const LogicalSize& aPadding,
+                          nsSize aCBSize, nscoord aAvailableWidth,
+                          nsSize aMargin, nsSize aBorder, nsSize aPadding,
                           uint32_t aFlags)
 {
   nsPresContext *presContext = PresContext();
@@ -803,29 +792,16 @@ nsImageFrame::ComputeSize(nsRenderingContext *aRenderingContext,
     }
   }
 
-  return nsLayoutUtils::ComputeSizeWithIntrinsicDimensions(aWM,
+  return nsLayoutUtils::ComputeSizeWithIntrinsicDimensions(
                             aRenderingContext, this,
-                            intrinsicSize, mIntrinsicRatio,
-                            aCBSize,
-                            aMargin,
-                            aBorder,
-                            aPadding);
+                            intrinsicSize, mIntrinsicRatio, aCBSize,
+                            aMargin, aBorder, aPadding);
 }
 
 nsRect 
 nsImageFrame::GetInnerArea() const
 {
   return GetContentRect() - GetPosition();
-}
-
-Element*
-nsImageFrame::GetMapElement() const
-{
-  nsAutoString usemap;
-  if (mContent->GetAttr(kNameSpaceID_None, nsGkAtoms::usemap, usemap)) {
-    return mContent->OwnerDoc()->FindImageMap(usemap);
-  }
-  return nullptr;
 }
 
 // get the offset into the content area of the image where aImg starts if it is a continuation.
@@ -1443,10 +1419,11 @@ nsDisplayImage::ConfigureLayer(ImageLayer *aLayer, const nsIntPoint& aOffset)
 
   const gfxRect destRect = GetDestRect();
 
+  gfx::Matrix transform;
   gfxPoint p = destRect.TopLeft() + aOffset;
-  Matrix transform = Matrix::Translation(p.x, p.y);
-  transform.PreScale(destRect.Width() / imageWidth,
-                     destRect.Height() / imageHeight);
+  transform.Translate(p.x, p.y);
+  transform.Scale(destRect.Width()/imageWidth,
+                  destRect.Height()/imageHeight);
   aLayer->SetBaseTransform(gfx::Matrix4x4::From2D(transform));
 }
 
@@ -1933,9 +1910,9 @@ void
 nsImageFrame::GetDocumentCharacterSet(nsACString& aCharset) const
 {
   if (mContent) {
-    NS_ASSERTION(mContent->GetComposedDoc(),
+    NS_ASSERTION(mContent->GetDocument(),
                  "Frame still alive after content removed from document!");
-    aCharset = mContent->GetComposedDoc()->GetDocumentCharacterSet();
+    aCharset = mContent->GetDocument()->GetDocumentCharacterSet();
   }
 }
 

@@ -5,24 +5,22 @@
 
 /* Copyright © 2013 Deutsche Telekom, Inc. */
 
-enum TNF {
-  "empty",
-  "well-known",
-  "media-type",
-  "absolute-uri",
-  "external",
-  "unknown",
-  "unchanged"
-};
-
-[Constructor(optional MozNDEFRecordOptions options)]
+[Constructor(octet tnf, optional Uint8Array type, optional Uint8Array id, optional Uint8Array payload)]
 interface MozNDEFRecord
 {
   /**
-   * Type Name Field - Specifies the NDEF record type in general.
+   * Type Name Field (3-bits) - Specifies the NDEF record type in general.
+   *   tnf_empty: 0x00
+   *   tnf_well_known: 0x01
+   *   tnf_mime_media: 0x02
+   *   tnf_absolute_uri: 0x03
+   *   tnf_external type: 0x04
+   *   tnf_unknown: 0x05
+   *   tnf_unchanged: 0x06
+   *   tnf_reserved: 0x07
    */
   [Constant]
-  readonly attribute TNF tnf;
+  readonly attribute octet tnf;
 
   /**
    * type - Describes the content of the payload. This can be a mime type.
@@ -42,11 +40,4 @@ interface MozNDEFRecord
    */
   [Constant]
   readonly attribute Uint8Array? payload;
-};
-
-dictionary MozNDEFRecordOptions {
-  TNF tnf = "empty";
-  Uint8Array type;
-  Uint8Array id;
-  Uint8Array payload;
 };

@@ -19,13 +19,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "PluralForm",
 XPCOMUtils.defineLazyModuleGetter(this, "PrivateBrowsingUtils",
                                   "resource://gre/modules/PrivateBrowsingUtils.jsm");
 
-#ifdef MOZ_SERVICES_CLOUDSYNC
-XPCOMUtils.defineLazyModuleGetter(this, "CloudSync",
-                                  "resource://gre/modules/CloudSync.jsm");
-#else
-let CloudSync = null;
-#endif
-
 #ifdef MOZ_SERVICES_SYNC
 XPCOMUtils.defineLazyModuleGetter(this, "Weave",
                                   "resource://services-sync/main.js");
@@ -576,7 +569,7 @@ this.PlacesUIUtils = {
       var uriList = PlacesUtils.toISupportsString(urls.join("|"));
       var args = Cc["@mozilla.org/supports-array;1"].
                   createInstance(Ci.nsISupportsArray);
-      args.AppendElement(uriList);
+      args.AppendElement(uriList);      
       browserWindow = Services.ww.openWindow(aWindow,
                                              "chrome://browser/content/browser.xul",
                                              null, "chrome,dialog=no,all", args);
@@ -1009,24 +1002,54 @@ this.PlacesUIUtils = {
   },
 
   shouldShowTabsFromOtherComputersMenuitem: function() {
-    let weaveOK = Weave.Status.checkSetup() != Weave.CLIENT_NOT_CONFIGURED &&
-                  Weave.Svc.Prefs.get("firstSync", "") != "notReady";
-    let cloudSyncOK = CloudSync && CloudSync.ready && CloudSync().tabsReady && CloudSync().tabs.hasRemoteTabs();
-    return weaveOK || cloudSyncOK;
+    // If Sync isn't configured yet, then don't show the menuitem.
+    return Weave.Status.checkSetup() != Weave.CLIENT_NOT_CONFIGURED &&
+           Weave.Svc.Prefs.get("firstSync", "") != "notReady";
   },
 
   shouldEnableTabsFromOtherComputersMenuitem: function() {
-    let weaveEnabled = Weave.Service.isLoggedIn &&
-                       Weave.Service.engineManager.get("tabs") &&
-                       Weave.Service.engineManager.get("tabs").enabled;
-    let cloudSyncEnabled = CloudSync && CloudSync.ready && CloudSync().tabsReady && CloudSync().tabs.hasRemoteTabs();
-    return weaveEnabled || cloudSyncEnabled;
+    // The tabs engine might never be inited (if services.sync.registerEngines
+    // is modified), so make sure we avoid undefined errors.
+    return Weave.Service.isLoggedIn &&
+           Weave.Service.engineManager.get("tabs") &&
+           Weave.Service.engineManager.get("tabs").enabled;
+  },
+
+  /**
+   * Returns the passed URL with a #moz-resolution fragment
+   * for the specified dimensions and devicePixelRatio.
+   *
+   * @param aWindow
+   *        A window from where we want to get the device
+   *        pixel Ratio
+   *
+   * @param aURL
+   *        The URL where we should add the fragment
+   *
+   * @param aWidth
+   *        The target image width
+   *
+   * @param aHeight
+   *        The target image height
+   *
+   * @return The URL with the fragment at the end
+   */
+  getImageURLForResolution:
+  function PUIU_getImageURLForResolution(aWindow, aURL, aWidth = 16, aHeight = 16) {
+    let width  = Math.round(aWidth * aWindow.devicePixelRatio);
+    let height = Math.round(aHeight * aWindow.devicePixelRatio);
+    return aURL + (aURL.contains("#") ? "&" : "#") +
+           "-moz-resolution=" + width + "," + height;
   },
 };
 
 XPCOMUtils.defineLazyServiceGetter(PlacesUIUtils, "RDF",
                                    "@mozilla.org/rdf/rdf-service;1",
                                    "nsIRDFService");
+
+XPCOMUtils.defineLazyGetter(PlacesUIUtils, "localStore", function() {
+  return PlacesUIUtils.RDF.GetDataSource("rdf:local-store");
+});
 
 XPCOMUtils.defineLazyGetter(PlacesUIUtils, "ellipsis", function() {
   return Services.prefs.getComplexValue("intl.ellipsis",

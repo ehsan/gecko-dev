@@ -72,11 +72,11 @@ public:
 
     void ShutdownMarker();
 
-    size_t SizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf) const;
-
-    // Report the sum of SizeOfIncludingThis() for all wrapped JS in the map.
-    // Each wrapped JS is only in one map.
-    size_t SizeOfWrappedJS(mozilla::MallocSizeOf mallocSizeOf) const;
+    size_t SizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf) {
+        size_t n = mallocSizeOf(this);
+        n += mTable.sizeOfExcludingThis(mallocSizeOf);
+        return n;
+    }
 
 private:
     JSObject2WrappedJSMap() {}
@@ -147,7 +147,7 @@ public:
         PL_DHashTableOperate(mTable, wrapper->GetIdentityObject(), PL_DHASH_REMOVE);
     }
 
-    inline uint32_t Count() { return mTable->EntryCount(); }
+    inline uint32_t Count() {return mTable->entryCount;}
     inline uint32_t Enumerate(PLDHashEnumerator f, void *arg)
         {return PL_DHashTableEnumerate(mTable, f, arg);}
 
@@ -156,7 +156,7 @@ public:
     ~Native2WrappedNativeMap();
 private:
     Native2WrappedNativeMap();    // no implementation
-    explicit Native2WrappedNativeMap(int size);
+    Native2WrappedNativeMap(int size);
 
     static size_t SizeOfEntryExcludingThis(PLDHashEntryHdr *hdr, mozilla::MallocSizeOf mallocSizeOf, void *);
 
@@ -209,14 +209,14 @@ public:
         PL_DHashTableOperate(mTable, &clazz->GetIID(), PL_DHASH_REMOVE);
     }
 
-    inline uint32_t Count() { return mTable->EntryCount(); }
+    inline uint32_t Count() {return mTable->entryCount;}
     inline uint32_t Enumerate(PLDHashEnumerator f, void *arg)
         {return PL_DHashTableEnumerate(mTable, f, arg);}
 
     ~IID2WrappedJSClassMap();
 private:
     IID2WrappedJSClassMap();    // no implementation
-    explicit IID2WrappedJSClassMap(int size);
+    IID2WrappedJSClassMap(int size);
 private:
     PLDHashTable *mTable;
 };
@@ -266,7 +266,7 @@ public:
         PL_DHashTableOperate(mTable, iface->GetIID(), PL_DHASH_REMOVE);
     }
 
-    inline uint32_t Count() { return mTable->EntryCount(); }
+    inline uint32_t Count() {return mTable->entryCount;}
     inline uint32_t Enumerate(PLDHashEnumerator f, void *arg)
         {return PL_DHashTableEnumerate(mTable, f, arg);}
 
@@ -275,7 +275,7 @@ public:
     ~IID2NativeInterfaceMap();
 private:
     IID2NativeInterfaceMap();    // no implementation
-    explicit IID2NativeInterfaceMap(int size);
+    IID2NativeInterfaceMap(int size);
 
     static size_t SizeOfEntryExcludingThis(PLDHashEntryHdr *hdr, mozilla::MallocSizeOf mallocSizeOf, void *);
 
@@ -325,7 +325,7 @@ public:
         PL_DHashTableOperate(mTable, info, PL_DHASH_REMOVE);
     }
 
-    inline uint32_t Count() { return mTable->EntryCount(); }
+    inline uint32_t Count() {return mTable->entryCount;}
     inline uint32_t Enumerate(PLDHashEnumerator f, void *arg)
         {return PL_DHashTableEnumerate(mTable, f, arg);}
 
@@ -338,7 +338,7 @@ public:
     ~ClassInfo2NativeSetMap();
 private:
     ClassInfo2NativeSetMap();    // no implementation
-    explicit ClassInfo2NativeSetMap(int size);
+    ClassInfo2NativeSetMap(int size);
 private:
     PLDHashTable *mTable;
 };
@@ -385,7 +385,7 @@ public:
         PL_DHashTableOperate(mTable, info, PL_DHASH_REMOVE);
     }
 
-    inline uint32_t Count() { return mTable->EntryCount(); }
+    inline uint32_t Count() {return mTable->entryCount;}
     inline uint32_t Enumerate(PLDHashEnumerator f, void *arg)
         {return PL_DHashTableEnumerate(mTable, f, arg);}
 
@@ -394,7 +394,7 @@ public:
     ~ClassInfo2WrappedNativeProtoMap();
 private:
     ClassInfo2WrappedNativeProtoMap();    // no implementation
-    explicit ClassInfo2WrappedNativeProtoMap(int size);
+    ClassInfo2WrappedNativeProtoMap(int size);
 
     static size_t SizeOfEntryExcludingThis(PLDHashEntryHdr *hdr, mozilla::MallocSizeOf mallocSizeOf, void *);
 
@@ -458,7 +458,7 @@ public:
         PL_DHashTableOperate(mTable, &key, PL_DHASH_REMOVE);
     }
 
-    inline uint32_t Count() { return mTable->EntryCount(); }
+    inline uint32_t Count() {return mTable->entryCount;}
     inline uint32_t Enumerate(PLDHashEnumerator f, void *arg)
         {return PL_DHashTableEnumerate(mTable, f, arg);}
 
@@ -467,7 +467,7 @@ public:
     ~NativeSetMap();
 private:
     NativeSetMap();    // no implementation
-    explicit NativeSetMap(int size);
+    NativeSetMap(int size);
 
     static size_t SizeOfEntryExcludingThis(PLDHashEntryHdr *hdr, mozilla::MallocSizeOf mallocSizeOf, void *);
 
@@ -525,14 +525,14 @@ public:
         PL_DHashTableOperate(mTable, &iid, PL_DHASH_REMOVE);
     }
 
-    inline uint32_t Count() { return mTable->EntryCount(); }
+    inline uint32_t Count() {return mTable->entryCount;}
     inline uint32_t Enumerate(PLDHashEnumerator f, void *arg)
         {return PL_DHashTableEnumerate(mTable, f, arg);}
 
     ~IID2ThisTranslatorMap();
 private:
     IID2ThisTranslatorMap();    // no implementation
-    explicit IID2ThisTranslatorMap(int size);
+    IID2ThisTranslatorMap(int size);
 private:
     PLDHashTable *mTable;
 };
@@ -562,14 +562,14 @@ public:
     bool GetNewOrUsed(uint32_t flags, char* name, uint32_t interfacesBitmap,
                       XPCNativeScriptableInfo* si);
 
-    inline uint32_t Count() { return mTable->EntryCount(); }
+    inline uint32_t Count() {return mTable->entryCount;}
     inline uint32_t Enumerate(PLDHashEnumerator f, void *arg)
         {return PL_DHashTableEnumerate(mTable, f, arg);}
 
     ~XPCNativeScriptableSharedMap();
 private:
     XPCNativeScriptableSharedMap();    // no implementation
-    explicit XPCNativeScriptableSharedMap(int size);
+    XPCNativeScriptableSharedMap(int size);
 private:
     PLDHashTable *mTable;
 };
@@ -600,14 +600,14 @@ public:
         PL_DHashTableOperate(mTable, proto, PL_DHASH_REMOVE);
     }
 
-    inline uint32_t Count() { return mTable->EntryCount(); }
+    inline uint32_t Count() {return mTable->entryCount;}
     inline uint32_t Enumerate(PLDHashEnumerator f, void *arg)
         {return PL_DHashTableEnumerate(mTable, f, arg);}
 
     ~XPCWrappedNativeProtoMap();
 private:
     XPCWrappedNativeProtoMap();    // no implementation
-    explicit XPCWrappedNativeProtoMap(int size);
+    XPCWrappedNativeProtoMap(int size);
 private:
     PLDHashTable *mTable;
 };

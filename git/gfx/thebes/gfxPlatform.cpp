@@ -93,14 +93,13 @@ class mozilla::gl::SkiaGLGlue : public GenericAtomicRefCounted {
 #include "nsIGfxInfo.h"
 #include "nsIXULRuntime.h"
 
+#ifdef MOZ_WIDGET_GONK
 namespace mozilla {
 namespace layers {
-#ifdef MOZ_WIDGET_GONK
 void InitGralloc();
+}
+}
 #endif
-void ShutdownTileCache();
-}
-}
 
 using namespace mozilla;
 using namespace mozilla::layers;
@@ -220,7 +219,6 @@ MemoryPressureObserver::Observe(nsISupports *aSubject,
 {
     NS_ASSERTION(strcmp(aTopic, "memory-pressure") == 0, "unexpected event topic");
     Factory::PurgeAllCaches();
-    gfxGradientCache::PurgeAllCaches();
 
     gfxPlatform::GetPlatform()->PurgeSkiaCache();
     return NS_OK;
@@ -444,7 +442,6 @@ gfxPlatform::Shutdown()
     gfxAlphaBoxBlur::ShutdownBlurCache();
     gfxGraphiteShaper::Shutdown();
     gfxPlatformFontList::Shutdown();
-    ShutdownTileCache();
 
     // Free the various non-null transforms and loaded profiles
     ShutdownCMS();
@@ -508,7 +505,8 @@ gfxPlatform::InitLayersIPC()
 
     AsyncTransactionTrackersHolder::Initialize();
 
-    if (XRE_GetProcessType() == GeckoProcessType_Default)
+    if (UsesOffMainThreadCompositing() &&
+        XRE_GetProcessType() == GeckoProcessType_Default)
     {
         mozilla::layers::CompositorParent::StartUp();
 #ifndef MOZ_WIDGET_GONK
@@ -530,7 +528,8 @@ gfxPlatform::ShutdownLayersIPC()
     }
     sLayersIPCIsUp = false;
 
-    if (XRE_GetProcessType() == GeckoProcessType_Default)
+    if (UsesOffMainThreadCompositing() &&
+        XRE_GetProcessType() == GeckoProcessType_Default)
     {
         // This must happen after the shutdown of media and widgets, which
         // are triggered by the NS_XPCOM_SHUTDOWN_OBSERVER_ID notification.
@@ -868,7 +867,7 @@ gfxPlatform::InitializeSkiaCacheLimits()
   #endif
 
 #ifdef USE_SKIA_GPU
-    mSkiaGlue->GetGrContext()->setResourceCacheLimits(cacheItemLimit, cacheSizeLimit);
+    mSkiaGlue->GetGrContext()->setTextureCacheLimits(cacheItemLimit, cacheSizeLimit);
 #endif
   }
 }
@@ -906,9 +905,6 @@ gfxPlatform::PurgeSkiaCache()
       return;
 
   mSkiaGlue->GetGrContext()->freeGpuResources();
-  // GrContext::flush() doesn't call glFlush. Call it here.
-  mSkiaGlue->GetGLContext()->MakeCurrent();
-  mSkiaGlue->GetGLContext()->fFlush();
 #endif
 }
 
@@ -1075,11 +1071,8 @@ gfxPlatform::UseGraphiteShaping()
 }
 
 gfxFontEntry*
-gfxPlatform::MakePlatformFont(const nsAString& aFontName,
-                              uint16_t aWeight,
-                              int16_t aStretch,
-                              bool aItalic,
-                              const uint8_t* aFontData,
+gfxPlatform::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
+                              const uint8_t *aFontData,
                               uint32_t aLength)
 {
     // Default implementation does not handle activating downloaded fonts;
@@ -1944,7 +1937,7 @@ InitLayersAccelerationPrefs()
     MOZ_ASSERT(NS_IsMainThread(), "can only initialize prefs on the main thread");
 
     gfxPrefs::GetSingleton();
-    sPrefBrowserTabsRemoteAutostart = BrowserTabsRemoteAutostart();
+    sPrefBrowserTabsRemoteAutostart = Preferences::GetBool("browser.tabs.remote.autostart", false);
 
 #ifdef XP_WIN
     if (gfxPrefs::LayersAccelerationForceEnabled()) {

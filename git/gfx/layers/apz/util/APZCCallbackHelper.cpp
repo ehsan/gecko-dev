@@ -10,9 +10,6 @@
 #include "nsLayoutUtils.h"
 #include "nsIDOMElement.h"
 #include "nsIInterfaceRequestorUtils.h"
-#include "nsIContent.h"
-#include "nsIDocument.h"
-#include "nsIDOMWindow.h"
 
 namespace mozilla {
 namespace layers {
@@ -86,10 +83,8 @@ ScrollFrameTo(nsIScrollableFrame* aFrame, const CSSPoint& aPoint, bool& aSuccess
   // Also if the scrollable frame got a scroll request from something other than us
   // since the last layers update, then we don't want to push our scroll request
   // because we'll clobber that one, which is bad.
-  bool scrollInProgress = aFrame->IsProcessingAsyncScroll()
-      || (aFrame->LastScrollOrigin() && aFrame->LastScrollOrigin() != nsGkAtoms::apz)
-      || aFrame->LastSmoothScrollOrigin();
-  if (!scrollInProgress) {
+  if (!aFrame->IsProcessingAsyncScroll() &&
+     (!aFrame->OriginOfLastScroll() || aFrame->OriginOfLastScroll() == nsGkAtoms::apz)) {
     aFrame->ScrollToCSSPixelsApproximate(targetScrollPosition, nsGkAtoms::apz);
     geckoScrollPosition = CSSPoint::FromAppUnits(aFrame->GetScrollPosition());
     aSuccessOut = true;
@@ -289,7 +284,7 @@ public:
 
         nsIScrollableFrame* sf = nsLayoutUtils::FindScrollableFrameFor(mScrollId);
         if (sf) {
-            sf->ResetScrollInfoIfGeneration(mScrollGeneration);
+            sf->ResetOriginIfScrollAtGeneration(mScrollGeneration);
         }
 
         return NS_OK;

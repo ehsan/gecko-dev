@@ -553,8 +553,8 @@ jit::EliminateDeadCode(MIRGenerator *mir, MIRGraph &graph)
                 !inst->isControlInstruction())
             {
                 inst = block->discardAt(inst);
-            } else if (!inst->isRecoveredOnBailout() && !inst->isGuard() &&
-                       !inst->hasLiveDefUses() && inst->canRecoverOnBailout())
+            } else if (!inst->isRecoveredOnBailout() && !inst->hasLiveDefUses() &&
+                       inst->canRecoverOnBailout())
             {
                 inst->setRecoveredOnBailout();
                 inst++;
@@ -661,7 +661,7 @@ jit::EliminatePhis(MIRGenerator *mir, MIRGraph &graph,
 
             // If the phi is redundant, remove it here.
             if (MDefinition *redundant = IsPhiRedundant(*iter)) {
-                iter->justReplaceAllUsesWith(redundant);
+                iter->replaceAllUsesWith(redundant);
                 iter = block->discardPhiAt(iter);
                 continue;
             }
@@ -699,7 +699,7 @@ jit::EliminatePhis(MIRGenerator *mir, MIRGraph &graph,
                     }
                 }
             }
-            phi->justReplaceAllUsesWith(redundant);
+            phi->replaceAllUsesWith(redundant);
         } else {
             // Otherwise flag them as used.
             phi->setNotUnused();
@@ -1092,12 +1092,12 @@ TypeAnalyzer::replaceRedundantPhi(MPhi *phi)
         v = MagicValue(JS_OPTIMIZED_OUT);
         break;
       default:
-        MOZ_CRASH("unexpected type");
+        MOZ_ASSUME_UNREACHABLE("unexpected type");
     }
     MConstant *c = MConstant::New(alloc(), v);
     // The instruction pass will insert the box
     block->insertBefore(*(block->begin()), c);
-    phi->justReplaceAllUsesWith(c);
+    phi->replaceAllUsesWith(c);
 }
 
 bool
@@ -1784,22 +1784,10 @@ jit::AssertBasicGraphCoherency(MIRGraph &graph)
         for (size_t i = 0; i < block->numPredecessors(); i++)
             JS_ASSERT(CheckPredecessorImpliesSuccessor(*block, block->getPredecessor(i)));
 
-        if (block->entryResumePoint()) {
-            MOZ_ASSERT(!block->entryResumePoint()->instruction());
-            MOZ_ASSERT(block->entryResumePoint()->block() == *block);
-        }
-        if (block->outerResumePoint()) {
-            MOZ_ASSERT(!block->outerResumePoint()->instruction());
-            MOZ_ASSERT(block->outerResumePoint()->block() == *block);
-        }
         for (MResumePointIterator iter(block->resumePointsBegin()); iter != block->resumePointsEnd(); iter++) {
-            // We cannot yet assert that is there is no instruction then this is
-            // the entry resume point because we are still storing resume points
-            // in the InlinePropertyTable.
-            MOZ_ASSERT_IF(iter->instruction(), iter->instruction()->block() == *block);
             for (uint32_t i = 0, e = iter->numOperands(); i < e; i++) {
-                MOZ_ASSERT(iter->getUseFor(i)->hasProducer());
-                MOZ_ASSERT(CheckOperandImpliesUse(*iter, iter->getOperand(i)));
+                if (iter->getUseFor(i)->hasProducer())
+                    JS_ASSERT(CheckOperandImpliesUse(*iter, iter->getOperand(i)));
             }
         }
         for (MPhiIterator phi(block->phisBegin()); phi != block->phisEnd(); phi++) {
@@ -1817,8 +1805,11 @@ jit::AssertBasicGraphCoherency(MIRGraph &graph)
 
             if (iter->isInstruction()) {
                 if (MResumePoint *resume = iter->toInstruction()->resumePoint()) {
-                    MOZ_ASSERT(resume->instruction() == *iter);
-                    MOZ_ASSERT(resume->block() == *block);
+                    if (MInstruction *ins = resume->instruction())
+                        JS_ASSERT(ins->block() == iter->block());
+
+                    for (uint32_t i = 0, e = resume->numOperands(); i < e; i++)
+                        MOZ_ASSERT(resume->getUseFor(i)->hasProducer());
                 }
             }
 
@@ -2277,16 +2268,6 @@ TryEliminateTypeBarrier(MTypeBarrier *barrier, bool *eliminated)
     return true;
 }
 
-static inline MDefinition *
-PassthroughOperand(MDefinition *def)
-{
-    if (def->isConvertElementsToDoubles())
-        return def->toConvertElementsToDoubles()->elements();
-    if (def->isMaybeCopyElementsForWrite())
-        return def->toMaybeCopyElementsForWrite()->object();
-    return nullptr;
-}
-
 // Eliminate checks which are redundant given each other or other instructions.
 //
 // A type barrier is considered redundant if all missing types have been tested
@@ -2343,12 +2324,11 @@ jit::EliminateRedundantChecks(MIRGraph &graph)
             } else if (iter->isTypeBarrier()) {
                 if (!TryEliminateTypeBarrier(iter->toTypeBarrier(), &eliminated))
                     return false;
-            } else {
-                // Now that code motion passes have finished, replace
-                // instructions which pass through one of their operands
-                // (and perform additional checks) with that operand.
-                if (MDefinition *passthrough = PassthroughOperand(*iter))
-                    iter->replaceAllUsesWith(passthrough);
+            } else if (iter->isConvertElementsToDoubles()) {
+                // Now that code motion passes have finished, replace any
+                // ConvertElementsToDoubles with the actual elements.
+                MConvertElementsToDoubles *ins = iter->toConvertElementsToDoubles();
+                ins->replaceAllUsesWith(ins->elements());
             }
 
             if (eliminated)
@@ -2646,11 +2626,12 @@ AnalyzePoppedThis(JSContext *cx, types::TypeObject *type,
             return true;
         }
 
-        // Add the property to the object, being careful not to update type information.
         DebugOnly<unsigned> slotSpan = baseobj->slotSpan();
-        JS_ASSERT(!baseobj->nativeContainsPure(id));
-        if (!baseobj->addDataProperty(cx, id, baseobj->slotSpan(), JSPROP_ENUMERATE))
+        if (!DefineNativeProperty(cx, baseobj, id, UndefinedHandleValue, nullptr, nullptr,
+                                  JSPROP_ENUMERATE))
+        {
             return false;
+        }
         JS_ASSERT(baseobj->slotSpan() != slotSpan);
         JS_ASSERT(!baseobj->inDictionaryMode());
 
@@ -2726,9 +2707,9 @@ CmpInstructions(const void *a, const void *b)
 }
 
 bool
-jit::AnalyzeNewScriptDefiniteProperties(JSContext *cx, JSFunction *fun,
-                                        types::TypeObject *type, HandleObject baseobj,
-                                        Vector<types::TypeNewScript::Initializer> *initializerList)
+jit::AnalyzeNewScriptProperties(JSContext *cx, JSFunction *fun,
+                                types::TypeObject *type, HandleObject baseobj,
+                                Vector<types::TypeNewScript::Initializer> *initializerList)
 {
     JS_ASSERT(cx->compartment()->activeAnalysis);
 
@@ -2780,6 +2761,8 @@ jit::AnalyzeNewScriptDefiniteProperties(JSContext *cx, JSFunction *fun,
                      DefinitePropertiesAnalysis,
                      script->needsArgsObj(),
                      inlineScriptTree);
+
+    AutoTempAllocatorRooter root(cx, &temp);
 
     const OptimizationInfo *optimizationInfo = js_IonOptimizations.get(Optimization_Normal);
 
@@ -3009,6 +2992,8 @@ jit::AnalyzeArgumentsUsage(JSContext *cx, JSScript *scriptArg)
                      ArgumentsUsageAnalysis,
                      /* needsArgsObj = */ true,
                      inlineScriptTree);
+
+    AutoTempAllocatorRooter root(cx, &temp);
 
     const OptimizationInfo *optimizationInfo = js_IonOptimizations.get(Optimization_Normal);
 

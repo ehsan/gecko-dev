@@ -225,8 +225,6 @@ js::DumpIonScriptCounts(Sprinter *sp, jit::IonScriptCounts *ionCounts)
     for (size_t i = 0; i < ionCounts->numBlocks(); i++) {
         const jit::IonBlockCounts &block = ionCounts->block(i);
         Sprint(sp, "BB #%lu [%05u]", block.id(), block.offset());
-        if (block.description())
-            Sprint(sp, " [inlined %s]", block.description());
         for (size_t j = 0; j < block.numSuccessors(); j++)
             Sprint(sp, " -> #%lu", block.successor(j));
         Sprint(sp, " :: %llu hits\n", block.hitCount());
@@ -414,7 +412,7 @@ class BytecodeParser
 uint32_t
 BytecodeParser::simulateOp(JSOp op, uint32_t offset, uint32_t *offsetStack, uint32_t stackDepth)
 {
-    uint32_t nuses = GetWarmUpCounter(script_, offset);
+    uint32_t nuses = GetUseCount(script_, offset);
     uint32_t ndefs = GetDefCount(script_, offset);
 
     JS_ASSERT(stackDepth >= nuses);
@@ -792,7 +790,7 @@ js_DumpScriptDepth(JSContext *cx, JSScript *scriptArg, jsbytecode *pc)
 }
 
 static char *
-QuoteString(Sprinter *sp, JSString *str, char16_t quote);
+QuoteString(Sprinter *sp, JSString *str, jschar quote);
 
 static bool
 ToDisassemblySource(JSContext *cx, HandleValue v, JSAutoByteString *bytes)
@@ -868,6 +866,7 @@ ToDisassemblySource(JSContext *cx, HandleValue v, JSAutoByteString *bytes)
             JSString *source = obj.as<RegExpObject>().toString(cx);
             if (!source)
                 return false;
+            JS::Anchor<JSString *> anchor(source);
             return bytes->encodeLatin1(cx, source);
         }
     }
@@ -1289,7 +1288,7 @@ const char js_EscapeMap[] = {
 
 template <typename CharT>
 static char *
-QuoteString(Sprinter *sp, const CharT *s, size_t length, char16_t quote)
+QuoteString(Sprinter *sp, const CharT *s, size_t length, jschar quote)
 {
     /* Sample off first for later return value pointer computation. */
     ptrdiff_t offset = sp->getOffset();
@@ -1302,7 +1301,7 @@ QuoteString(Sprinter *sp, const CharT *s, size_t length, char16_t quote)
     /* Loop control variables: end points at end of string sentinel. */
     for (const CharT *t = s; t < end; s = ++t) {
         /* Move t forward from s past un-quote-worthy characters. */
-        char16_t c = *t;
+        jschar c = *t;
         while (c < 127 && isprint(c) && c != quote && c != '\\' && c != '\t') {
             c = *++t;
             if (t == end)
@@ -1354,7 +1353,7 @@ QuoteString(Sprinter *sp, const CharT *s, size_t length, char16_t quote)
 }
 
 static char *
-QuoteString(Sprinter *sp, JSString *str, char16_t quote)
+QuoteString(Sprinter *sp, JSString *str, jschar quote)
 {
     JSLinearString *linear = str->ensureLinear(sp->context);
     if (!linear)
@@ -1367,7 +1366,7 @@ QuoteString(Sprinter *sp, JSString *str, char16_t quote)
 }
 
 JSString *
-js_QuoteString(ExclusiveContext *cx, JSString *str, char16_t quote)
+js_QuoteString(ExclusiveContext *cx, JSString *str, jschar quote)
 {
     Sprinter sprinter(cx);
     if (!sprinter.init())
@@ -1556,8 +1555,7 @@ ExpressionDecompiler::decompilePC(jsbytecode *pc)
       case JSOP_NEWARRAY:
         return write("[]");
       case JSOP_REGEXP:
-      case JSOP_OBJECT:
-      case JSOP_NEWARRAY_COPYONWRITE: {
+      case JSOP_OBJECT: {
         JSObject *obj = (op == JSOP_REGEXP)
                         ? script->getRegExp(GET_UINT32_INDEX(pc))
                         : script->getObject(GET_UINT32_INDEX(pc));
@@ -2082,7 +2080,7 @@ js::GetPCCountScriptSummary(JSContext *cx, size_t index)
 
     /*
      * OOM on buffer appends here will not be caught immediately, but since
-     * StringBuffer uses a TempAllocPolicy will trigger an exception on the
+     * StringBuffer uses a ContextAllocPolicy will trigger an exception on the
      * context if they occur, which we'll catch before returning.
      */
     StringBuffer buf(cx);

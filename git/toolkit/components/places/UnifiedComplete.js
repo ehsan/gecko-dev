@@ -67,7 +67,7 @@ const TITLE_SEARCH_ENGINE_SEPARATOR = " \u00B7\u2013\u00B7 ";
 
 // Telemetry probes.
 const TELEMETRY_1ST_RESULT = "PLACES_AUTOCOMPLETE_1ST_RESULT_TIME_MS";
-const TELEMETRY_6_FIRST_RESULTS = "PLACES_AUTOCOMPLETE_6_FIRST_RESULTS_TIME_MS";
+
 // The default frecency value used when inserting search engine results.
 const FRECENCY_SEARCHENGINES_DEFAULT = 1000;
 
@@ -457,16 +457,14 @@ function getUnfilteredSearchTokens(searchString)
 function stripPrefix(spec)
 {
   ["http://", "https://", "ftp://"].some(scheme => {
-    // Strip protocol if not directly followed by a space
-    if (spec.startsWith(scheme) && spec[scheme.length] != " ") {
+    if (spec.startsWith(scheme)) {
       spec = spec.slice(scheme.length);
       return true;
     }
     return false;
   });
 
-  // Strip www. if not directly followed by a space
-  if (spec.startsWith("www.") && spec[4] != " ") {
+  if (spec.startsWith("www.")) {
     spec = spec.slice(4);
   }
   return spec;
@@ -623,13 +621,13 @@ Search.prototype = {
       this._sleepDeferred.resolve();
       this._sleepDeferred = null;
     }
-    this.pending = false;
+    delete this._pendingQuery;
   },
 
   /**
-   * Whether this search is active.
+   * Whether this search is running.
    */
-  pending: true,
+  get pending() !!this._pendingQuery,
 
   /**
    * Execute the search and populate results.
@@ -637,13 +635,8 @@ Search.prototype = {
    *        The Sqlite connection.
    */
   execute: Task.async(function* (conn) {
-    // A search might be canceled before it starts.
-    if (!this.pending)
-      return;
-
+    this._pendingQuery = true;
     TelemetryStopwatch.start(TELEMETRY_1ST_RESULT);
-    if (this._searchString)
-      TelemetryStopwatch.start(TELEMETRY_6_FIRST_RESULTS);
 
     // Since we call the synchronous parseSubmissionURL function later, we must
     // wait for the initialization of PlacesSearchAutocompleteProvider first.
@@ -665,17 +658,14 @@ Search.prototype = {
                     this._switchToTabQuery,
                     this._searchQuery ];
 
-    let hasKeyword = false;
     if (this._searchTokens.length > 0 &&
         PlacesUtils.bookmarks.getURIForKeyword(this._searchTokens[0])) {
       queries.unshift(this._keywordQuery);
-      hasKeyword = true;
+    } else if (this._searchTokens.length == 1) {
+      yield this._matchSearchEngineUrl();
     }
 
     if (this._shouldAutofill) {
-      if (this._searchTokens.length == 1 && !hasKeyword)
-        yield this._matchSearchEngineUrl();
-
       // Hosts have no "/" in them.
       let lastSlashIndex = this._searchString.lastIndexOf("/");
       // Search only URLs if there's a slash in the search string...
@@ -801,11 +791,6 @@ Search.prototype = {
   },
 
   _addMatch: function (match) {
-    // A search could be canceled between a query start and its completion,
-    // in such a case ensure we won't notify any result for it.
-    if (!this.pending)
-      return;
-
     let notifyResults = false;
 
     if (this._frecencyMatches) {
@@ -846,9 +831,6 @@ Search.prototype = {
                                match.finalCompleteValue);
       notifyResults = true;
     }
-
-    if (this._result.matchCount == 6)
-      TelemetryStopwatch.finish(TELEMETRY_6_FIRST_RESULTS);
 
     if (this._result.matchCount == Prefs.maxRichResults || !this.pending) {
       // We have enough results, so stop running our search.
@@ -935,8 +917,8 @@ Search.prototype = {
     // If actions are enabled and the page is open, add only the switch-to-tab
     // result.  Otherwise, add the normal result.
     let [url, action] = this._enableActions && openPageCount > 0 ?
-                        ["moz-action:switchtab," + escapedURL, "switchtab"] :
-                        [escapedURL, null];
+                        ["moz-action:switchtab," + escapedURL, "action "] :
+                        [escapedURL, ""];
 
     // Always prefer the bookmark title unless it is empty
     let title = bookmarkTitle || historyTitle;
@@ -986,7 +968,7 @@ Search.prototype = {
     }
 
     if (action)
-      match.style = "action " + action;
+      match.style = "action " + match.style;
 
     match.value = url;
     match.comment = title;
@@ -1342,7 +1324,6 @@ UnifiedComplete.prototype = {
    */
   finishSearch: function (notify=false) {
     TelemetryStopwatch.cancel(TELEMETRY_1ST_RESULT);
-    TelemetryStopwatch.cancel(TELEMETRY_6_FIRST_RESULTS);
     // Clear state now to avoid race conditions, see below.
     let search = this._currentSearch;
     delete this._currentSearch;

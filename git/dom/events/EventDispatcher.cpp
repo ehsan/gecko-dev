@@ -71,7 +71,7 @@ private:
 class EventTargetChainItem
 {
 private:
-  explicit EventTargetChainItem(EventTarget* aTarget);
+  EventTargetChainItem(EventTarget* aTarget);
 public:
   EventTargetChainItem()
     : mFlags(0)
@@ -401,6 +401,10 @@ EventDispatcher::Dispatch(nsISupports* aTarget,
                  NS_ERROR_DOM_INVALID_STATE_ERR);
   NS_ASSERTION(!aTargets || !aEvent->message, "Wrong parameters!");
 
+#ifdef NIGHTLY_BUILD
+  MOZ_RELEASE_ASSERT(!mozilla::ipc::ProcessingUrgentMessages());
+#endif
+
   // If we're dispatching an already created DOMEvent object, make
   // sure it is initialized!
   // If aTargets is non-null, the event isn't going to be dispatched.
@@ -521,8 +525,7 @@ EventDispatcher::Dispatch(nsISupports* aTarget,
   }
 
   nsCOMPtr<nsIContent> content = do_QueryInterface(aEvent->originalTarget);
-  bool isInAnon = (content && (content->IsInAnonymousSubtree() ||
-                               content->IsInShadowTree()));
+  bool isInAnon = (content && content->IsInAnonymousSubtree());
 
   aEvent->mFlags.mIsBeingDispatched = true;
 

@@ -310,7 +310,7 @@ CodeGeneratorX86::visitLoadTypedArrayElementStatic(LLoadTypedArrayElementStatic 
     bool isFloat32Load = (vt == Scalar::Float32);
     if (!mir->fallible()) {
         ool = new(alloc()) OutOfLineLoadTypedArrayOutOfBounds(ToAnyRegister(out), isFloat32Load);
-        if (!addOutOfLineCode(ool, ins->mir()))
+        if (!addOutOfLineCode(ool))
             return false;
     }
 
@@ -356,7 +356,7 @@ CodeGeneratorX86::visitAsmJSLoadHeap(LAsmJSLoadHeap *ins)
 
     bool isFloat32Load = vt == Scalar::Float32;
     OutOfLineLoadTypedArrayOutOfBounds *ool = new(alloc()) OutOfLineLoadTypedArrayOutOfBounds(ToAnyRegister(out), isFloat32Load);
-    if (!addOutOfLineCode(ool, mir))
+    if (!addOutOfLineCode(ool))
         return false;
 
     CodeOffsetLabel cmp = masm.cmplWithPatch(ptrReg, Imm32(0));
@@ -462,30 +462,15 @@ CodeGeneratorX86::visitAsmJSLoadGlobalVar(LAsmJSLoadGlobalVar *ins)
 {
     MAsmJSLoadGlobalVar *mir = ins->mir();
     MIRType type = mir->type();
-    JS_ASSERT(IsNumberType(type) || IsSimdType(type));
+    JS_ASSERT(IsNumberType(type));
 
     CodeOffsetLabel label;
-    switch (type) {
-      case MIRType_Int32:
+    if (type == MIRType_Int32)
         label = masm.movlWithPatch(PatchedAbsoluteAddress(), ToRegister(ins->output()));
-        break;
-      case MIRType_Float32:
+    else if (type == MIRType_Float32)
         label = masm.movssWithPatch(PatchedAbsoluteAddress(), ToFloatRegister(ins->output()));
-        break;
-      case MIRType_Double:
+    else
         label = masm.movsdWithPatch(PatchedAbsoluteAddress(), ToFloatRegister(ins->output()));
-        break;
-      // Aligned access: code is aligned on PageSize + there is padding
-      // before the global data section.
-      case MIRType_Int32x4:
-        label = masm.movdqaWithPatch(PatchedAbsoluteAddress(), ToFloatRegister(ins->output()));
-        break;
-      case MIRType_Float32x4:
-        label = masm.movapsWithPatch(PatchedAbsoluteAddress(), ToFloatRegister(ins->output()));
-        break;
-      default:
-        MOZ_CRASH("unexpected type in visitAsmJSLoadGlobalVar");
-    }
     masm.append(AsmJSGlobalAccess(label, mir->globalDataOffset()));
     return true;
 }
@@ -496,30 +481,15 @@ CodeGeneratorX86::visitAsmJSStoreGlobalVar(LAsmJSStoreGlobalVar *ins)
     MAsmJSStoreGlobalVar *mir = ins->mir();
 
     MIRType type = mir->value()->type();
-    JS_ASSERT(IsNumberType(type) || IsSimdType(type));
+    JS_ASSERT(IsNumberType(type));
 
     CodeOffsetLabel label;
-    switch (type) {
-      case MIRType_Int32:
+    if (type == MIRType_Int32)
         label = masm.movlWithPatch(ToRegister(ins->value()), PatchedAbsoluteAddress());
-        break;
-      case MIRType_Float32:
+    else if (type == MIRType_Float32)
         label = masm.movssWithPatch(ToFloatRegister(ins->value()), PatchedAbsoluteAddress());
-        break;
-      case MIRType_Double:
+    else
         label = masm.movsdWithPatch(ToFloatRegister(ins->value()), PatchedAbsoluteAddress());
-        break;
-      // Aligned access: code is aligned on PageSize + there is padding
-      // before the global data section.
-      case MIRType_Int32x4:
-        label = masm.movdqaWithPatch(ToFloatRegister(ins->value()), PatchedAbsoluteAddress());
-        break;
-      case MIRType_Float32x4:
-        label = masm.movapsWithPatch(ToFloatRegister(ins->value()), PatchedAbsoluteAddress());
-        break;
-      default:
-        MOZ_CRASH("unexpected type in visitAsmJSStoreGlobalVar");
-    }
     masm.append(AsmJSGlobalAccess(label, mir->globalDataOffset()));
     return true;
 }
@@ -671,7 +641,7 @@ CodeGeneratorX86::visitTruncateDToInt32(LTruncateDToInt32 *ins)
     Register output = ToRegister(ins->output());
 
     OutOfLineTruncate *ool = new(alloc()) OutOfLineTruncate(ins);
-    if (!addOutOfLineCode(ool, ins->mir()))
+    if (!addOutOfLineCode(ool))
         return false;
 
     masm.branchTruncateDouble(input, output, ool->entry());
@@ -686,7 +656,7 @@ CodeGeneratorX86::visitTruncateFToInt32(LTruncateFToInt32 *ins)
     Register output = ToRegister(ins->output());
 
     OutOfLineTruncateFloat32 *ool = new(alloc()) OutOfLineTruncateFloat32(ins);
-    if (!addOutOfLineCode(ool, ins->mir()))
+    if (!addOutOfLineCode(ool))
         return false;
 
     masm.branchTruncateFloat32(input, output, ool->entry());

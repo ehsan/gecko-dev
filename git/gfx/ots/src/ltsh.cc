@@ -11,11 +11,10 @@
 
 #define TABLE_NAME "LTSH"
 
-#define DROP_THIS_TABLE(...) \
+#define DROP_THIS_TABLE \
   do { \
     delete file->ltsh; \
     file->ltsh = 0; \
-    OTS_FAILURE_MSG_(file, TABLE_NAME ": " __VA_ARGS__); \
     OTS_FAILURE_MSG("Table discarded"); \
   } while (0)
 
@@ -38,12 +37,14 @@ bool ots_ltsh_parse(OpenTypeFile *file, const uint8_t *data, size_t length) {
   }
 
   if (ltsh->version != 0) {
-    DROP_THIS_TABLE("bad version: %u", ltsh->version);
+    OTS_WARNING("bad version: %u", ltsh->version);
+    DROP_THIS_TABLE;
     return true;
   }
 
   if (num_glyphs != file->maxp->num_glyphs) {
-    DROP_THIS_TABLE("bad num_glyphs: %u", num_glyphs);
+    OTS_WARNING("bad num_glyphs: %u", num_glyphs);
+    DROP_THIS_TABLE;
     return true;
   }
 

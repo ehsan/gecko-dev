@@ -31,6 +31,7 @@ ParseContext<ParseHandler>::~ParseContext()
     // die, make |*parserPC| point to this object's parent.
     JS_ASSERT(*parserPC == this);
     *parserPC = this->oldpc;
+    js_delete(funcStmts);
 }
 
 } // namespace frontend

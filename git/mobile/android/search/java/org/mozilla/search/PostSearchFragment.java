@@ -4,41 +4,37 @@
 
 package org.mozilla.search;
 
-import android.app.Activity;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Bundle;
-import android.provider.Settings;
 import android.support.v4.app.Fragment;
 import android.text.TextUtils;
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.view.ViewStub;
 import android.webkit.WebChromeClient;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
-import android.widget.ImageView;
 import android.widget.ProgressBar;
-import android.widget.TextView;
 
 import org.mozilla.gecko.AppConstants;
 import org.mozilla.gecko.Telemetry;
 import org.mozilla.gecko.TelemetryContract;
-import org.mozilla.search.providers.SearchEngine;
-import org.mozilla.search.providers.SearchEngineManager;
 
 public class PostSearchFragment extends Fragment {
 
-    private static final String LOG_TAG = "PostSearchFragment";
+    private static final String LOGTAG = "PostSearchFragment";
+    private static final String ABOUT_BLANK = "about:blank";
 
     private ProgressBar progressBar;
-
-    private SearchEngineManager searchEngineManager;
     private WebView webview;
-    private View errorView;
+
+    private static final String HIDE_BANNER_SCRIPT = "javascript:(function(){var tag=document.createElement('style');" +
+            "tag.type='text/css';document.getElementsByTagName('head')[0].appendChild(tag);tag.innerText='#nav,#header{display:none}'})();";
+
+    public PostSearchFragment() {
+    }
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
@@ -49,8 +45,7 @@ public class PostSearchFragment extends Fragment {
 
         webview = (WebView) mainView.findViewById(R.id.webview);
         webview.setWebChromeClient(new ChromeClient());
-        webview.setWebViewClient(new ResultsWebViewClient());
-
+        webview.setWebViewClient(new LinkInterceptingClient());
         // This is required for our greasemonkey terror script.
         webview.getSettings().setJavaScriptEnabled(true);
 
@@ -66,103 +61,51 @@ public class PostSearchFragment extends Fragment {
         progressBar = null;
     }
 
-    @Override
-    public void onAttach(Activity activity) {
-        super.onAttach(activity);
-        searchEngineManager = new SearchEngineManager(activity);
+    /**
+     * Test if a given URL should be opened in an external browser.
+     * <p>
+     * Search results pages will be shown in the embedded view.  Other pages are
+     * opened in external browsers.
+     *
+     * @param url to test.
+     * @return true if <code>url</code> should be sent to Fennec.
+     */
+    private boolean shouldSendToBrowser(String url) {
+        return !(TextUtils.equals(ABOUT_BLANK, url) || url.contains(Constants.YAHOO_WEB_SEARCH_RESULTS_FILTER));
     }
 
-    @Override
-    public void onDetach() {
-        super.onDetach();
-        searchEngineManager.destroy();
-        searchEngineManager = null;
+    public void startSearch(String query) {
+        setUrl(Constants.YAHOO_WEB_SEARCH_BASE_URL + Uri.encode(query));
     }
 
-    public void startSearch(final String query) {
-        searchEngineManager.getEngine(new SearchEngineManager.SearchEngineCallback() {
-            @Override
-            public void execute(SearchEngine engine) {
-                final String url = engine.resultsUriForQuery(query);
-
-                // Load about:blank to avoid flashing old results.
-                webview.loadUrl(Constants.ABOUT_BLANK);
-                webview.loadUrl(url);
-            }
-        });
+    private void setUrl(String url) {
+        // Only load URLs if they're different than what's already
+        // loaded in the webview.
+        if (!TextUtils.equals(webview.getUrl(), url)) {
+            webview.loadUrl(ABOUT_BLANK);
+            webview.loadUrl(url);
+        }
     }
-
 
     /**
      * A custom WebViewClient that intercepts every page load. This allows
      * us to decide whether to load the url here, or send it to Android
-     * as an intent. It also handles network errors.
+     * as an intent.
      */
-    private class ResultsWebViewClient extends WebViewClient {
-
-        // Whether or not there is a network error.
-        private boolean networkError;
+    private class LinkInterceptingClient extends WebViewClient {
 
         @Override
-        public void onPageStarted(WebView view, final String url, Bitmap favicon) {
-            // Reset the error state.
-            networkError = false;
+        public void onPageStarted(WebView view, String url, Bitmap favicon) {
+            if (shouldSendToBrowser(url)) {
+                view.stopLoading();
 
-            searchEngineManager.getEngine(new SearchEngineManager.SearchEngineCallback() {
-                @Override
-                public void execute(SearchEngine engine) {
-                    // We keep URLs in the webview that are either about:blank or a search engine result page.
-                    if (TextUtils.equals(url, Constants.ABOUT_BLANK) || engine.isSearchResultsPage(url)) {
-                        // Keeping the URL in the webview is a noop.
-                        return;
-                    }
+                Telemetry.sendUIEvent(TelemetryContract.Event.LOAD_URL,
+                        TelemetryContract.Method.CONTENT, "search-result");
 
-                    webview.stopLoading();
-
-                    Telemetry.sendUIEvent(TelemetryContract.Event.LOAD_URL,
-                            TelemetryContract.Method.CONTENT, "search-result");
-
-                    final Intent i = new Intent(Intent.ACTION_VIEW);
-
-                    // This sends the URL directly to fennec, rather than to Android.
-                    i.setClassName(AppConstants.ANDROID_PACKAGE_NAME, AppConstants.BROWSER_INTENT_CLASS_NAME);
-                    i.setData(Uri.parse(url));
-                    startActivity(i);
-                }
-            });
-        }
-
-        @Override
-        public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
-            Log.e(LOG_TAG, "Error loading search results: " + description);
-
-            networkError = true;
-
-            if (errorView == null) {
-                final ViewStub errorViewStub = (ViewStub) getView().findViewById(R.id.error_view_stub);
-                errorView = errorViewStub.inflate();
-
-                ((ImageView) errorView.findViewById(R.id.empty_image)).setImageResource(R.drawable.network_error);
-                ((TextView) errorView.findViewById(R.id.empty_title)).setText(R.string.network_error_title);
-
-                final TextView message = (TextView) errorView.findViewById(R.id.empty_message);
-                message.setText(R.string.network_error_message);
-                message.setTextColor(getResources().getColor(R.color.network_error_link));
-                message.setOnClickListener(new View.OnClickListener() {
-                    @Override
-                    public void onClick(View v) {
-                        startActivity(new Intent(Settings.ACTION_SETTINGS));
-                    }
-                });
-            }
-        }
-
-        @Override
-        public void onPageFinished(WebView view, String url) {
-            // Make sure the error view is hidden if the network error was fixed.
-            if (errorView != null) {
-                errorView.setVisibility(networkError ? View.VISIBLE : View.GONE);
-                webview.setVisibility(networkError ? View.GONE : View.VISIBLE);
+                final Intent i = new Intent(Intent.ACTION_VIEW);
+                i.setClassName(AppConstants.ANDROID_PACKAGE_NAME, AppConstants.BROWSER_INTENT_CLASS_NAME);
+                i.setData(Uri.parse(url));
+                startActivity(i);
             }
         }
     }
@@ -178,14 +121,9 @@ public class PostSearchFragment extends Fragment {
     private class ChromeClient extends WebChromeClient {
 
         @Override
-        public void onReceivedTitle(final WebView view, String title) {
-
-            searchEngineManager.getEngine(new SearchEngineManager.SearchEngineCallback() {
-                @Override
-                public void execute(SearchEngine engine) {
-                    view.loadUrl(engine.getInjectableJs());
-                }
-            });
+        public void onReceivedTitle(WebView view, String title) {
+            super.onReceivedTitle(view, title);
+            view.loadUrl(HIDE_BANNER_SCRIPT);
         }
 
         @Override

@@ -53,7 +53,7 @@ static char *RCSSTRING __UNUSED__ ="$Id: byteorder.c,v 1.2 2007/06/26 22:37:55 a
                     BYTE((n),(y))=tmp
 
 UINT8
-nr_htonll(UINT8 hostlonglong)
+htonll(UINT8 hostlonglong)
 {
     UINT8 netlonglong = hostlonglong;
     UCHAR tmp;
@@ -69,8 +69,8 @@ nr_htonll(UINT8 hostlonglong)
 }
 
 UINT8
-nr_ntohll(UINT8 netlonglong)
+ntohll(UINT8 netlonglong)
 {
-    return nr_htonll(netlonglong);
+    return htonll(netlonglong);
 }
 

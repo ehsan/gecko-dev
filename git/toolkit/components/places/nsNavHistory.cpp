@@ -215,7 +215,7 @@ void GetTagsSqlFragment(int64_t aTagsFolder,
 class UpdateBatchScoper
 {
 public:
-  explicit UpdateBatchScoper(nsNavHistory& aNavHistory) : mNavHistory(aNavHistory)
+  UpdateBatchScoper(nsNavHistory& aNavHistory) : mNavHistory(aNavHistory)
   {
     mNavHistory.BeginUpdateBatch();
   }
@@ -2267,9 +2267,7 @@ nsresult
 nsNavHistory::BeginUpdateBatch()
 {
   if (mBatchLevel++ == 0) {
-    mBatchDBTransaction = new mozStorageTransaction(mDB->MainConn(), false,
-                                                    mozIStorageConnection::TRANSACTION_DEFERRED,
-                                                    true);
+    mBatchDBTransaction = new mozStorageTransaction(mDB->MainConn(), false);
 
     NOTIFY_OBSERVERS(mCanNotify, mCacheObservers, mObservers,
                      nsINavHistoryObserver, OnBeginUpdateBatch());
@@ -2334,9 +2332,7 @@ nsNavHistory::RemovePagesInternal(const nsCString& aPlaceIdsQueryString)
   if (aPlaceIdsQueryString.IsEmpty())
     return NS_OK;
 
-  mozStorageTransaction transaction(mDB->MainConn(), false,
-                                    mozIStorageConnection::TRANSACTION_DEFERRED,
-                                    true);
+  mozStorageTransaction transaction(mDB->MainConn(), false);
 
   // Delete all visits for the specified place ids.
   nsresult rv = mDB->MainConn()->ExecuteSimpleSQL(
@@ -2728,9 +2724,7 @@ nsNavHistory::RemoveVisitsByTimeframe(PRTime aBeginTime, PRTime aEndTime)
   // force a full refresh calling onEndUpdateBatch (will call Refresh())
   UpdateBatchScoper batch(*this); // sends Begin/EndUpdateBatch to observers
 
-  mozStorageTransaction transaction(mDB->MainConn(), false,
-                                    mozIStorageConnection::TRANSACTION_DEFERRED,
-                                    true);
+  mozStorageTransaction transaction(mDB->MainConn(), false);
 
   // Delete all visits within the timeframe.
   nsCOMPtr<mozIStorageStatement> deleteVisitsStmt = mDB->GetStatement(
@@ -3197,7 +3191,7 @@ class ConditionBuilder
 {
 public:
 
-  explicit ConditionBuilder(int32_t aQueryIndex): mQueryIndex(aQueryIndex)
+  ConditionBuilder(int32_t aQueryIndex): mQueryIndex(aQueryIndex)
   { }
 
   ConditionBuilder& Condition(const char* aStr)
@@ -3590,7 +3584,7 @@ const int64_t UNDEFINED_URN_VALUE = -1;
 
 // Create a urn (like
 // urn:places-persist:place:group=0&group=1&sort=1&type=1,,%28local%20files%29)
-// to be used to persist the open state of this container
+// to be used to persist the open state of this container in localstore.rdf
 nsresult
 CreatePlacesPersistURN(nsNavHistoryQueryResultNode *aResultNode, 
                        int64_t aValue, const nsCString& aTitle, nsCString& aURN)

@@ -491,7 +491,6 @@ SECITEM_CompareItem
 SECITEM_CompareItem_Util
 SECITEM_CopyItem
 SECITEM_CopyItem_Util
-SECITEM_DupArray
 SECITEM_DupItem
 SECITEM_DupItem_Util
 SECITEM_FreeItem
@@ -648,7 +647,6 @@ SSL_NumImplementedCiphers DATA
 SSL_OptionSet
 SSL_OptionSetDefault
 SSL_PeerCertificate
-SSL_PeerCertificateChain
 SSL_PeerStapledOCSPResponses
 SSL_ResetHandshake
 SSL_SetCanFalseStartCallback

@@ -31,7 +31,7 @@ class SVGFEConvolveMatrixElement : public SVGFEConvolveMatrixElementBase
   friend nsresult (::NS_NewSVGFEConvolveMatrixElement(nsIContent **aResult,
                                                       already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo));
 protected:
-  explicit SVGFEConvolveMatrixElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
+  SVGFEConvolveMatrixElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
     : SVGFEConvolveMatrixElementBase(aNodeInfo)
   {
   }

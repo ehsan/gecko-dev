@@ -9,7 +9,7 @@
 #include "mozilla/DebugOnly.h"
 
 #include "jit/BitSet.h"
-#include "jit/JitSpewer.h"
+#include "jit/IonSpewer.h"
 
 using namespace js;
 using namespace js::jit;
@@ -84,7 +84,7 @@ LinearScanAllocator::allocateRegisters()
     // Iterate through all intervals in ascending start order.
     CodePosition prevPosition = CodePosition::MIN;
     while ((current = unhandled.dequeue()) != nullptr) {
-        JS_ASSERT(current->getAllocation()->isBogus());
+        JS_ASSERT(current->getAllocation()->isUse());
         JS_ASSERT(current->numRanges() > 0);
 
         if (mir->shouldCancel("LSRA Allocate Registers (main loop)"))
@@ -94,7 +94,7 @@ LinearScanAllocator::allocateRegisters()
         const Requirement *req = current->requirement();
         const Requirement *hint = current->hint();
 
-        JitSpew(JitSpew_RegAlloc, "Processing %d = [%u, %u] (pri=%d)",
+        IonSpew(IonSpew_RegAlloc, "Processing %d = [%u, %u] (pri=%d)",
                 current->hasVreg() ? current->vreg() : 0, current->start().bits(),
                 current->end().bits(), current->requirement()->priority());
 
@@ -148,7 +148,7 @@ LinearScanAllocator::allocateRegisters()
 
         // If we don't really need this in a register, don't allocate one
         if (req->kind() != Requirement::REGISTER && hint->kind() == Requirement::NONE) {
-            JitSpew(JitSpew_RegAlloc, "  Eagerly spilling virtual register %d",
+            IonSpew(IonSpew_RegAlloc, "  Eagerly spilling virtual register %d",
                     current->hasVreg() ? current->vreg() : 0);
             if (!spill())
                 return false;
@@ -156,12 +156,12 @@ LinearScanAllocator::allocateRegisters()
         }
 
         // Try to allocate a free register
-        JitSpew(JitSpew_RegAlloc, " Attempting free register allocation");
+        IonSpew(IonSpew_RegAlloc, " Attempting free register allocation");
         CodePosition bestFreeUntil;
         AnyRegister::Code bestCode = findBestFreeRegister(&bestFreeUntil);
         if (bestCode != AnyRegister::Invalid) {
             AnyRegister best = AnyRegister::FromCode(bestCode);
-            JitSpew(JitSpew_RegAlloc, "  Decided best register was %s", best.name());
+            IonSpew(IonSpew_RegAlloc, "  Decided best register was %s", best.name());
 
             // Split when the register is next needed if necessary
             if (bestFreeUntil < current->end()) {
@@ -174,7 +174,7 @@ LinearScanAllocator::allocateRegisters()
             continue;
         }
 
-        JitSpew(JitSpew_RegAlloc, " Attempting blocked register allocation");
+        IonSpew(IonSpew_RegAlloc, " Attempting blocked register allocation");
 
         // If we absolutely need a register or our next use is closer than the
         // selected blocking register then we spill the blocker. Otherwise, we
@@ -185,7 +185,7 @@ LinearScanAllocator::allocateRegisters()
             (req->kind() == Requirement::REGISTER || hint->pos() < bestNextUsed))
         {
             AnyRegister best = AnyRegister::FromCode(bestCode);
-            JitSpew(JitSpew_RegAlloc, "  Decided best register was %s", best.name());
+            IonSpew(IonSpew_RegAlloc, "  Decided best register was %s", best.name());
 
             if (!splitBlockingIntervals(best))
                 return false;
@@ -195,7 +195,7 @@ LinearScanAllocator::allocateRegisters()
             continue;
         }
 
-        JitSpew(JitSpew_RegAlloc, "  No registers available to spill");
+        IonSpew(IonSpew_RegAlloc, "  No registers available to spill");
         JS_ASSERT(req->kind() == Requirement::NONE);
 
         if (!spill())
@@ -667,7 +667,7 @@ LinearScanAllocator::splitInterval(LiveInterval *interval, CodePosition pos)
     if (!reg->addInterval(newInterval))
         return false;
 
-    JitSpew(JitSpew_RegAlloc, "  Split interval to %u = [%u, %u]/[%u, %u]",
+    IonSpew(IonSpew_RegAlloc, "  Split interval to %u = [%u, %u]/[%u, %u]",
             interval->vreg(), interval->start().bits(),
             interval->end().bits(), newInterval->start().bits(),
             newInterval->end().bits());
@@ -707,7 +707,7 @@ LinearScanAllocator::splitBlockingIntervals(AnyRegister allocatedReg)
         if (i->getAllocation()->isRegister() &&
             i->getAllocation()->toRegister().aliases(allocatedReg))
         {
-            JitSpew(JitSpew_RegAlloc, " Splitting active interval %u = [%u, %u]",
+            IonSpew(IonSpew_RegAlloc, " Splitting active interval %u = [%u, %u]",
                     vregs[i->vreg()].ins()->id(), i->start().bits(), i->end().bits());
 
             JS_ASSERT(i->start() != current->start());
@@ -723,7 +723,7 @@ LinearScanAllocator::splitBlockingIntervals(AnyRegister allocatedReg)
             if (allocatedReg.numAliased() == 1)
                 break;
         } else {
-            JitSpew(JitSpew_RegAlloc, " Not touching active interval %u = [%u, %u]",
+            IonSpew(IonSpew_RegAlloc, " Not touching active interval %u = [%u, %u]",
                     vregs[i->vreg()].ins()->id(), i->start().bits(), i->end().bits());
             i++;
         }
@@ -733,7 +733,7 @@ LinearScanAllocator::splitBlockingIntervals(AnyRegister allocatedReg)
         if (i->getAllocation()->isRegister() &&
             i->getAllocation()->toRegister().aliases(allocatedReg))
         {
-            JitSpew(JitSpew_RegAlloc, " Splitting inactive interval %u = [%u, %u]",
+            IonSpew(IonSpew_RegAlloc, " Splitting inactive interval %u = [%u, %u]",
                     vregs[i->vreg()].ins()->id(), i->start().bits(), i->end().bits());
 
             LiveInterval *it = *i;
@@ -760,7 +760,7 @@ bool
 LinearScanAllocator::assign(LAllocation allocation)
 {
     if (allocation.isRegister())
-        JitSpew(JitSpew_RegAlloc, "Assigning register %s", allocation.toRegister().name());
+        IonSpew(IonSpew_RegAlloc, "Assigning register %s", allocation.toRegister().name());
     current->setAllocation(allocation);
 
     // Split this interval at the next incompatible one
@@ -862,7 +862,7 @@ LinearScanAllocator::allocateSlotFor(const LiveInterval *interval)
 bool
 LinearScanAllocator::spill()
 {
-    JitSpew(JitSpew_RegAlloc, "  Decided to spill current interval");
+    IonSpew(IonSpew_RegAlloc, "  Decided to spill current interval");
 
     // We can't spill bogus intervals
     JS_ASSERT(current->hasVreg());
@@ -870,7 +870,7 @@ LinearScanAllocator::spill()
     LinearScanVirtualRegister *reg = &vregs[current->vreg()];
 
     if (reg->canonicalSpill()) {
-        JitSpew(JitSpew_RegAlloc, "  Allocating canonical spill location");
+        IonSpew(IonSpew_RegAlloc, "  Allocating canonical spill location");
 
         return assign(*reg->canonicalSpill());
     }
@@ -978,7 +978,7 @@ LinearScanAllocator::finishInterval(LiveInterval *interval)
 AnyRegister::Code
 LinearScanAllocator::findBestFreeRegister(CodePosition *freeUntil)
 {
-    JitSpew(JitSpew_RegAlloc, "  Computing freeUntilPos");
+    IonSpew(IonSpew_RegAlloc, "  Computing freeUntilPos");
 
     // Compute free-until positions for all registers
     CodePosition freeUntilPos[AnyRegister::Total];
@@ -994,7 +994,7 @@ LinearScanAllocator::findBestFreeRegister(CodePosition *freeUntil)
         if (alloc->isRegister(needFloat)) {
             AnyRegister reg = alloc->toRegister();
             for (size_t a = 0; a < reg.numAliased(); a++) {
-                JitSpew(JitSpew_RegAlloc, "   Register %s not free", reg.aliased(a).name());
+                IonSpew(IonSpew_RegAlloc, "   Register %s not free", reg.aliased(a).name());
                 freeUntilPos[reg.aliased(a).code()] = CodePosition::MIN;
             }
         }
@@ -1007,7 +1007,7 @@ LinearScanAllocator::findBestFreeRegister(CodePosition *freeUntil)
             for (size_t a = 0; a < reg.numAliased(); a++) {
                 if (pos != CodePosition::MIN && pos < freeUntilPos[reg.aliased(a).code()]) {
                     freeUntilPos[reg.aliased(a).code()] = pos;
-                    JitSpew(JitSpew_RegAlloc, "   Register %s free until %u", reg.aliased(a).name(), pos.bits());
+                    IonSpew(IonSpew_RegAlloc, "   Register %s free until %u", reg.aliased(a).name(), pos.bits());
                 }
             }
         }
@@ -1023,7 +1023,7 @@ LinearScanAllocator::findBestFreeRegister(CodePosition *freeUntil)
                     CodePosition pos = current->intersect(*i);
                     if (pos != CodePosition::MIN && pos < freeUntilPos[areg.code()]) {
                         freeUntilPos[areg.code()] = (pos == current->start()) ? CodePosition::MIN : pos;
-                        JitSpew(JitSpew_RegAlloc, "   Register %s free until %u", areg.name(), pos.bits());
+                        IonSpew(IonSpew_RegAlloc, "   Register %s free until %u", areg.name(), pos.bits());
                     }
                 }
             }
@@ -1108,7 +1108,7 @@ LinearScanAllocator::findBestFreeRegister(CodePosition *freeUntil)
 AnyRegister::Code
 LinearScanAllocator::findBestBlockedRegister(CodePosition *nextUsed)
 {
-    JitSpew(JitSpew_RegAlloc, "  Computing nextUsePos");
+    IonSpew(IonSpew_RegAlloc, "  Computing nextUsePos");
 
     // Compute next-used positions for all registers
     CodePosition nextUsePos[AnyRegister::Total];
@@ -1125,10 +1125,10 @@ LinearScanAllocator::findBestBlockedRegister(CodePosition *nextUsed)
                 AnyRegister reg = fullreg.aliased(a);
                 if (i->start() == current->start()) {
                     nextUsePos[reg.code()] = CodePosition::MIN;
-                    JitSpew(JitSpew_RegAlloc, "   Disqualifying %s due to recency", reg.name());
+                    IonSpew(IonSpew_RegAlloc, "   Disqualifying %s due to recency", reg.name());
                 } else if (nextUsePos[reg.code()] != CodePosition::MIN) {
                     nextUsePos[reg.code()] = i->nextUsePosAfter(current->start());
-                    JitSpew(JitSpew_RegAlloc, "   Register %s next used %u", reg.name(),
+                    IonSpew(IonSpew_RegAlloc, "   Register %s next used %u", reg.name(),
                             nextUsePos[reg.code()].bits());
                 }
             }
@@ -1142,7 +1142,7 @@ LinearScanAllocator::findBestBlockedRegister(CodePosition *nextUsed)
             for (size_t a = 0; a < reg.numAliased(); a++) {
                 if (pos < nextUsePos[reg.aliased(a).code()]) {
                     nextUsePos[reg.aliased(a).code()] = pos;
-                    JitSpew(JitSpew_RegAlloc, "   Register %s next used %u", reg.aliased(a).name(), pos.bits());
+                    IonSpew(IonSpew_RegAlloc, "   Register %s next used %u", reg.aliased(a).name(), pos.bits());
                 }
             }
         }
@@ -1158,7 +1158,7 @@ LinearScanAllocator::findBestBlockedRegister(CodePosition *nextUsed)
                     CodePosition pos = i->intersect(current);
                     if (pos != CodePosition::MIN && pos < nextUsePos[reg.code()]) {
                         nextUsePos[reg.code()] = (pos == current->start()) ? CodePosition::MIN : pos;
-                        JitSpew(JitSpew_RegAlloc, "   Register %s next used %u (fixed)", reg.name(), pos.bits());
+                        IonSpew(IonSpew_RegAlloc, "   Register %s next used %u (fixed)", reg.name(), pos.bits());
                     }
                 }
             }
@@ -1286,7 +1286,7 @@ LinearScanAllocator::validateAllocations()
 bool
 LinearScanAllocator::go()
 {
-    JitSpew(JitSpew_RegAlloc, "Beginning register allocation");
+    IonSpew(IonSpew_RegAlloc, "Beginning register allocation");
 
     if (!buildLivenessInfo())
         return false;
@@ -1294,44 +1294,44 @@ LinearScanAllocator::go()
     if (mir->shouldCancel("LSRA Liveness"))
         return false;
 
-    JitSpew(JitSpew_RegAlloc, "Beginning preliminary register allocation");
+    IonSpew(IonSpew_RegAlloc, "Beginning preliminary register allocation");
     if (!allocateRegisters())
         return false;
-    JitSpew(JitSpew_RegAlloc, "Preliminary register allocation complete");
+    IonSpew(IonSpew_RegAlloc, "Preliminary register allocation complete");
 
     if (mir->shouldCancel("LSRA Preliminary Regalloc"))
         return false;
 
-    if (JitSpewEnabled(JitSpew_RegAlloc)) {
+    if (IonSpewEnabled(IonSpew_RegAlloc)) {
         fprintf(stderr, "Allocations by virtual register:\n");
         dumpVregs();
     }
 
-    JitSpew(JitSpew_RegAlloc, "Beginning control flow resolution");
+    IonSpew(IonSpew_RegAlloc, "Beginning control flow resolution");
     if (!resolveControlFlow())
         return false;
-    JitSpew(JitSpew_RegAlloc, "Control flow resolution complete");
+    IonSpew(IonSpew_RegAlloc, "Control flow resolution complete");
 
     if (mir->shouldCancel("LSRA Control Flow"))
         return false;
 
-    JitSpew(JitSpew_RegAlloc, "Beginning register allocation reification");
+    IonSpew(IonSpew_RegAlloc, "Beginning register allocation reification");
     if (!reifyAllocations())
         return false;
-    JitSpew(JitSpew_RegAlloc, "Register allocation reification complete");
+    IonSpew(IonSpew_RegAlloc, "Register allocation reification complete");
 
     if (mir->shouldCancel("LSRA Reification"))
         return false;
 
-    JitSpew(JitSpew_RegAlloc, "Beginning safepoint population.");
+    IonSpew(IonSpew_RegAlloc, "Beginning safepoint population.");
     if (!populateSafepoints())
         return false;
-    JitSpew(JitSpew_RegAlloc, "Safepoint population complete.");
+    IonSpew(IonSpew_RegAlloc, "Safepoint population complete.");
 
     if (mir->shouldCancel("LSRA Safepoints"))
         return false;
 
-    JitSpew(JitSpew_RegAlloc, "Register allocation complete");
+    IonSpew(IonSpew_RegAlloc, "Register allocation complete");
 
     return true;
 }

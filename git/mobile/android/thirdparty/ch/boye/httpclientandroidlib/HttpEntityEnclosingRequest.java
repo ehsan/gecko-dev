@@ -1,4 +1,5 @@
 /*
+ * $Header: $
  * ====================================================================
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -24,6 +25,7 @@
  * <http://www.apache.org/>.
  *
  */
+
 package ch.boye.httpclientandroidlib;
 
 /**

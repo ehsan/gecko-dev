@@ -34,8 +34,6 @@ pref("general.warnOnAboutConfig", true);
 // maximum number of dated backups to keep at any time
 pref("browser.bookmarks.max_backups",       5);
 
-// Delete HTTP cache v1 data
-pref("browser.cache.auto_delete_cache_version", 0);
 // Preference for switching the cache backend, can be changed freely at runtime
 // 0 - use the old (Darin's) cache
 // 1 - use the new cache back-end (cache v2)
@@ -234,13 +232,10 @@ pref("media.volume_scale", "1.0");
 // Timeout for wakelock release
 pref("media.wakelock_timeout", 2000);
 
-// Whether we should play videos opened in a "video document", i.e. videos
-// opened as top-level documents, as opposed to inside a media element.
-pref("media.play-stand-alone", true);
-
 #ifdef MOZ_WMF
 pref("media.windows-media-foundation.enabled", true);
 pref("media.windows-media-foundation.use-dxva", true);
+pref("media.windows-media-foundation.play-stand-alone", true);
 #endif
 #ifdef MOZ_DIRECTSHOW
 pref("media.directshow.enabled", true);
@@ -248,12 +243,10 @@ pref("media.directshow.enabled", true);
 #ifdef MOZ_FMP4
 pref("media.fragmented-mp4.enabled", true);
 pref("media.fragmented-mp4.ffmpeg.enabled", false);
-#if defined(XP_WIN) && defined(MOZ_WMF) || defined(XP_MACOSX)
 // Denotes that the fragmented MP4 parser can be created by <video> elements.
-pref("media.fragmented-mp4.exposed", true);
-#else
+// This is for testing, since the parser can't yet handle non-fragmented MP4,
+// so it will fail to play most MP4 files.
 pref("media.fragmented-mp4.exposed", false);
-#endif
 // Specifies whether the fragmented MP4 parser uses a test decoder that
 // just outputs blank frames/audio instead of actually decoding. The blank
 // decoder works on all platforms.
@@ -303,16 +296,10 @@ pref("media.peerconnection.enabled", true);
 pref("media.peerconnection.video.enabled", true);
 pref("media.navigator.video.max_fs", 1200); // 640x480 == 1200mb
 pref("media.navigator.video.max_fr", 30);
-pref("media.navigator.video.h264.level", 12); // 0x42E00C - level 1.2
 pref("media.navigator.video.h264.max_br", 700); // 8x10
 pref("media.navigator.video.h264.max_mbps", 11880); // CIF@30fps
 pref("media.peerconnection.video.h264_enabled", false);
 pref("media.getusermedia.aec", 4);
-// Gonk typically captures at QVGA, and so min resolution is QQVGA or
-// 160x120; 100Kbps is plenty for that.
-pref("media.peerconnection.video.min_bitrate", 100);
-pref("media.peerconnection.video.start_bitrate", 220);
-pref("media.peerconnection.video.max_bitrate", 1000);
 #else
 pref("media.navigator.video.default_width",0);  // adaptive default
 pref("media.navigator.video.default_height",0); // adaptive default
@@ -320,18 +307,15 @@ pref("media.peerconnection.enabled", true);
 pref("media.peerconnection.video.enabled", true);
 pref("media.navigator.video.max_fs", 0); // unrestricted
 pref("media.navigator.video.max_fr", 0); // unrestricted
-pref("media.navigator.video.h264.level", 31); // 0x42E01f - level 3.1
 pref("media.navigator.video.h264.max_br", 0);
 pref("media.navigator.video.h264.max_mbps", 0);
 pref("media.peerconnection.video.h264_enabled", false);
 pref("media.getusermedia.aec", 1);
 pref("media.getusermedia.browser.enabled", true);
-// Desktop is typically VGA capture or more; and qm_select will not drop resolution
-// below 1/2 in each dimension (or so), so QVGA (320x200) is the lowest here usually.
+#endif
 pref("media.peerconnection.video.min_bitrate", 200);
 pref("media.peerconnection.video.start_bitrate", 300);
 pref("media.peerconnection.video.max_bitrate", 2000);
-#endif
 pref("media.navigator.permission.disabled", false);
 pref("media.peerconnection.default_iceservers", "[{\"url\": \"stun:stun.services.mozilla.com\"}]");
 pref("media.peerconnection.trickle_ice", true);
@@ -373,20 +357,14 @@ pref("media.getusermedia.playout_delay", 50);
 pref("media.peerconnection.capture_delay", 50);
 pref("media.getusermedia.playout_delay", 50);
 #endif
-#endif
-
-#if !defined(ANDROID)
-pref("media.getusermedia.screensharing.enabled", true);
-#endif
-
-#ifdef RELEASE_BUILD
-pref("media.getusermedia.screensharing.allowed_domains", "");
 #else
- // temporary value, not intended for release - bug 1049087
-pref("media.getusermedia.screensharing.allowed_domains", "mozilla.github.io");
+#ifdef ANDROID
+pref("media.navigator.enabled", true);
 #endif
-// OS/X 10.6 and XP have screen/window sharing off by default due to various issues - Caveat emptor
-pref("media.getusermedia.screensharing.allow_on_old_platforms", false);
+#endif
+
+pref("media.getusermedia.screensharing.enabled", true);
+pref("media.getusermedia.screensharing.allowed_domains", "");
 
 // TextTrack support
 pref("media.webvtt.enabled", true);
@@ -425,9 +403,6 @@ pref("media.audio_data.enabled", false);
 // Whether to use async panning and zooming
 pref("layers.async-pan-zoom.enabled", false);
 
-// Whether to enable containerless async scrolling
-pref("layout.async-containerless-scrolling.enabled", true);
-
 // APZ preferences. For documentation/details on what these prefs do, check 
 // gfx/layers/apz/src/AsyncPanZoomController.cpp.
 pref("apz.allow_checkerboarding", true);
@@ -438,11 +413,8 @@ pref("apz.asyncscroll.timeout", 300);
 // 0 = FREE (No locking at all)
 // 1 = STANDARD (Once locked, remain locked until scrolling ends)
 // 2 = STICKY (Allow lock to be broken, with hysteresis)
-pref("apz.axis_lock.mode", 0);
-pref("apz.axis_lock.lock_angle", "0.5235987");        // PI / 6 (30 degrees)
-pref("apz.axis_lock.breakout_threshold", "0.03125");  // 1/32 inches
-pref("apz.axis_lock.breakout_angle", "0.3926991");    // PI / 8 (22.5 degrees)
-pref("apz.axis_lock.direct_pan_angle", "1.047197");   // PI / 3 (60 degrees)
+pref("apz.axis_lock_mode", 0);
+
 pref("apz.content_response_timeout", 300);
 pref("apz.cross_slide.enabled", false);
 pref("apz.danger_zone_x", 50);
@@ -461,7 +433,8 @@ pref("apz.num_paint_duration_samples", 3);
 pref("apz.overscroll.enabled", false);
 pref("apz.overscroll.fling_friction", "0.02");
 pref("apz.overscroll.fling_stopped_threshold", "0.4");
-pref("apz.overscroll.stretch_factor", "0.5");
+pref("apz.overscroll.clamping", "0.5");
+pref("apz.overscroll.z_effect", "0.2");
 pref("apz.overscroll.snap_back.spring_stiffness", "0.6");
 pref("apz.overscroll.snap_back.spring_friction", "0.1");
 pref("apz.overscroll.snap_back.mass", "1000.0");
@@ -482,14 +455,12 @@ pref("apz.zoom_animation_duration_ms", 250);
 // Layerize scrollable subframes to allow async panning
 pref("apz.subframe.enabled", true);
 pref("apz.fling_repaint_interval", 16);
-pref("apz.smooth_scroll_repaint_interval", 16);
 pref("apz.pan_repaint_interval", 16);
-pref("apz.x_skate_size_multiplier", "2.5");
-pref("apz.y_skate_size_multiplier", "3.5");
+pref("apz.apz.x_skate_size_multiplier", "2.5");
+pref("apz.apz.y_skate_size_multiplier", "3.5");
 #else
 pref("apz.subframe.enabled", false);
 pref("apz.fling_repaint_interval", 75);
-pref("apz.smooth_scroll_repaint_interval", 75);
 pref("apz.pan_repaint_interval", 250);
 pref("apz.x_skate_size_multiplier", "1.5");
 pref("apz.y_skate_size_multiplier", "2.5");
@@ -601,16 +572,14 @@ pref("accessibility.browsewithcaret_shortcut.enabled", true);
 // unless accessibility.tabfocus is set by the user.
 pref("accessibility.tabfocus", 7);
 pref("accessibility.tabfocus_applies_to_xul", false);
+
+// On OS X, we follow the "Click in the scrollbar to:" system preference
+// unless this preference was set manually
+pref("ui.scrollToClick", 0);
+
 #else
 // Only on mac tabfocus is expected to handle UI widgets as well as web content
 pref("accessibility.tabfocus_applies_to_xul", true);
-#endif
-
-// We follow the "Click in the scrollbar to:" system preference on OS X and
-// "gtk-primary-button-warps-slider" property with GTK (since 2.24 / 3.6),
-// unless this preference is explicitly set.
-#if !defined(XP_MACOSX) && !defined(MOZ_WIDGET_GTK)
-pref("ui.scrollToClick", 0);
 #endif
 
 // provide ability to turn on support for canvas focus rings
@@ -910,6 +879,8 @@ pref("dom.sysmsg.enabled", false);
 pref("dom.webapps.useCurrentProfile", false);
 
 pref("dom.cycle_collector.incremental", true);
+
+pref("dom.window_experimental_bindings", true);
 
 // Parsing perf prefs. For now just mimic what the old code did.
 #ifndef XP_WIN
@@ -1968,7 +1939,11 @@ pref("layout.css.dpi", -1);
 pref("layout.css.devPixelsPerPx", "-1.0");
 
 // Is support for CSS Masking features enabled?
+#ifdef RELEASE_BUILD
+pref("layout.css.masking.enabled", false);
+#else
 pref("layout.css.masking.enabled", true);
+#endif
 
 // Is support for mix-blend-mode enabled?
 pref("layout.css.mix-blend-mode.enabled", true);
@@ -2011,13 +1986,25 @@ pref("layout.css.text-align-true-value.enabled", false);
 // Is support for the CSS4 image-orientation property enabled?
 pref("layout.css.image-orientation.enabled", true);
 
+// Is support for CSS3 Fonts features enabled?
+// (includes font-variant-*, font-kerning, font-synthesis
+// and the @font-feature-values rule)
+// Note: with this enabled, font-feature-settings is aliased
+// to -moz-font-feature-settings.  When unprefixing, this should
+// be reversed, -moz-font-feature-settings should alias to
+// font-feature-settings.
+#ifdef RELEASE_BUILD
+pref("layout.css.font-features.enabled", false);
+#else
+pref("layout.css.font-features.enabled", true);
+#endif
+
 // Are sets of prefixed properties supported?
 pref("layout.css.prefixes.border-image", true);
 pref("layout.css.prefixes.transforms", true);
 pref("layout.css.prefixes.transitions", true);
 pref("layout.css.prefixes.animations", true);
 pref("layout.css.prefixes.box-sizing", true);
-pref("layout.css.prefixes.font-features", true);
 
 // Is support for the :scope selector enabled?
 pref("layout.css.scope-pseudo.enabled", true);
@@ -2027,9 +2014,6 @@ pref("layout.css.background-blend-mode.enabled", true);
 
 // Is support for CSS vertical text enabled?
 pref("layout.css.vertical-text.enabled", false);
-
-// Is support for object-fit and object-position enabled?
-pref("layout.css.object-fit-and-position.enabled", false);
 
 // Is -moz-osx-font-smoothing enabled?
 // Only supported in OSX builds
@@ -2119,7 +2103,7 @@ pref("layout.display-list.dump", false);
 // heavily loaded.
 pref("layout.frame_rate.precise", false);
 
-// pref to control whether layout warnings that are hit quite often are enabled
+// pref to control whether layout warnings that are hit quite often are enabled 
 pref("layout.spammy_warnings.enabled", true);
 
 // Is support for the Web Animations API enabled?
@@ -2836,13 +2820,6 @@ pref("intl.tsf.support_imm", true);
 
 // Whether creates native caret for ATOK or not.
 pref("intl.tsf.hack.atok.create_native_caret", true);
-// Whether use composition start position for the result of
-// ITfContextView::GetTextExt() if the specified range is larger than
-// composition start offset.
-// For Free ChangJie 2010
-pref("intl.tsf.hack.free_chang_jie.do_not_return_no_layout_error", true);
-// For Easy Changjei
-pref("intl.tsf.hack.easy_changjei.do_not_return_no_layout_error", true);
 #endif
 
 // See bug 448927, on topmost panel, some IMEs are not usable on Windows.
@@ -3732,7 +3709,7 @@ pref("gl.msaa-level", 2);
 pref("webgl.force-enabled", false);
 pref("webgl.disabled", false);
 pref("webgl.shader_validator", true);
-pref("webgl.disable-angle", false);
+pref("webgl.prefer-native-gl", false);
 pref("webgl.min_capability_mode", false);
 pref("webgl.disable-extensions", false);
 pref("webgl.msaa-force", false);
@@ -3804,6 +3781,10 @@ pref("layers.tile-width", 256);
 pref("layers.tile-height", 256);
 // Max number of layers per container. See Overwrite in mobile prefs.
 pref("layers.max-active", -1);
+// When a layer is moving it will add a scroll graph to measure the smoothness
+// of the movement. NOTE: This pref triggers composites to refresh
+// the graph.
+pref("layers.scroll-graph", false);
 
 // Set the default values, and then override per-platform as needed
 pref("layers.offmainthreadcomposition.enabled", false);
@@ -3830,8 +3811,6 @@ pref("layers.offmainthreadcomposition.enabled", true);
 
 #ifdef XP_MACOSX
 pref("layers.offmainthreadcomposition.enabled", true);
-pref("layers.enable-tiles", true);
-pref("layers.tiled-drawtarget.enabled", true);
 #endif
 
 // ANDROID covers android and b2g
@@ -3961,12 +3940,6 @@ pref("dom.sms.requestStatusReport", true);
 // Numeric default service id for SMS API calls with |serviceId| parameter
 // omitted.
 pref("dom.sms.defaultServiceId", 0);
-// MobileMessage GetMessages/GetThreads read ahead aggressiveness.
-//
-// positive: finite read-ahead entries,
-// 0: don't read ahead unless explicitly requested, (default)
-// negative: read ahead all IDs if possible.
-pref("dom.sms.maxReadAheadEntries", 0);
 
 // WebContacts
 pref("dom.mozContacts.enabled", false);
@@ -3992,9 +3965,6 @@ pref("dom.w3c_touch_events.enabled", 2);
 
 // W3C draft pointer events
 pref("dom.w3c_pointer_events.enabled", false);
-
-// W3C draft ImageCapture API
-pref("dom.imagecapture.enabled", false);
 
 // W3C touch-action css property (related to touch and pointer events)
 pref("layout.css.touch_action.enabled", false);
@@ -4288,6 +4258,3 @@ pref("dom.fetch.enabled", false);
 // platforms; and set to 0 to disable the low-memory check altogether.
 pref("camera.control.low_memory_thresholdMB", 404);
 #endif
-
-// UDPSocket API
-pref("dom.udpsocket.enabled", false);

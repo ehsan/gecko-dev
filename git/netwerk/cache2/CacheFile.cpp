@@ -265,7 +265,7 @@ CacheFile::Init(const nsACString &aKey,
 
     mOpeningFile = true;
     mListener = aCallback;
-    rv = CacheFileIOManager::OpenFile(mKey, flags, this);
+    rv = CacheFileIOManager::OpenFile(mKey, flags, true, this);
     if (NS_FAILED(rv)) {
       mListener = nullptr;
       mOpeningFile = false;
@@ -330,13 +330,6 @@ CacheFile::OnChunkRead(nsresult aResult, CacheFileChunk *aChunk)
 nsresult
 CacheFile::OnChunkWritten(nsresult aResult, CacheFileChunk *aChunk)
 {
-  // In case the chunk was reused, made dirty and released between calls to
-  // CacheFileChunk::Write() and CacheFile::OnChunkWritten(), we must write
-  // the chunk to the disk again. When the chunk is unused and is dirty simply
-  // addref and release (outside the lock) the chunk which ensures that
-  // CacheFile::DeactivateChunk() will be called again.
-  nsRefPtr<CacheFileChunk> deactivateChunkAgain;
-
   CacheFileAutoLock lock(this);
 
   nsresult rv;
@@ -371,14 +364,6 @@ CacheFile::OnChunkWritten(nsresult aResult, CacheFileChunk *aChunk)
     LOG(("CacheFile::OnChunkWritten() - Chunk is still used [this=%p, chunk=%p,"
          " refcnt=%d]", this, aChunk, aChunk->mRefCnt.get()));
 
-    return NS_OK;
-  }
-
-  if (aChunk->IsDirty()) {
-    LOG(("CacheFile::OnChunkWritten() - Unused chunk is dirty. We must go "
-         "through deactivation again. [this=%p, chunk=%p]", this, aChunk));
-
-    deactivateChunkAgain = aChunk;
     return NS_OK;
   }
 
@@ -1609,12 +1594,7 @@ CacheFile::QueueChunkListener(uint32_t aIndex,
   MOZ_ASSERT(aCallback);
 
   ChunkListenerItem *item = new ChunkListenerItem();
-  item->mTarget = CacheFileIOManager::IOTarget();
-  if (!item->mTarget) {
-    LOG(("CacheFile::QueueChunkListener() - Cannot get Cache I/O thread! Using "
-         "main thread for callback."));
-    item->mTarget = do_GetMainThread();
-  }
+  item->mTarget = NS_GetCurrentThread();
   item->mCallback = aCallback;
 
   ChunkListeners *listeners;

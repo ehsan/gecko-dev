@@ -23,20 +23,14 @@
 /*
  * This macro checks if the stack pointer has exceeded a given limit. If
  * |tolerance| is non-zero, it returns true only if the stack pointer has
- * exceeded the limit by more than |tolerance| bytes. The WITH_INTOLERANCE
- * versions use a negative tolerance (i.e., the limit is reduced by
- * |intolerance| bytes).
+ * exceeded the limit by more than |tolerance| bytes.
  */
 #if JS_STACK_GROWTH_DIRECTION > 0
 # define JS_CHECK_STACK_SIZE_WITH_TOLERANCE(limit, sp, tolerance)  \
     ((uintptr_t)(sp) < (limit)+(tolerance))
-# define JS_CHECK_STACK_SIZE_WITH_INTOLERANCE(limit, sp, intolerance)  \
-    ((uintptr_t)(sp) < (limit)-(intolerance))
 #else
 # define JS_CHECK_STACK_SIZE_WITH_TOLERANCE(limit, sp, tolerance)  \
     ((uintptr_t)(sp) > (limit)-(tolerance))
-# define JS_CHECK_STACK_SIZE_WITH_INTOLERANCE(limit, sp, intolerance)  \
-    ((uintptr_t)(sp) > (limit)+(intolerance))
 #endif
 
 #define JS_CHECK_STACK_SIZE(limit, lval) JS_CHECK_STACK_SIZE_WITH_TOLERANCE(limit, lval, 0)
@@ -119,8 +113,7 @@ enum {
     JS_TELEMETRY_GC_INCREMENTAL_DISABLED,
     JS_TELEMETRY_GC_NON_INCREMENTAL,
     JS_TELEMETRY_GC_SCC_SWEEP_TOTAL_MS,
-    JS_TELEMETRY_GC_SCC_SWEEP_MAX_PAUSE_MS,
-    JS_TELEMETRY_DEPRECATED_LANGUAGE_EXTENSIONS_IN_CONTENT
+    JS_TELEMETRY_GC_SCC_SWEEP_MAX_PAUSE_MS
 };
 
 typedef void
@@ -197,7 +190,7 @@ extern JS_FRIEND_API(void)
 js_DumpObject(JSObject *obj);
 
 extern JS_FRIEND_API(void)
-js_DumpChars(const char16_t *s, size_t n);
+js_DumpChars(const jschar *s, size_t n);
 #endif
 
 /*
@@ -262,8 +255,7 @@ namespace js {
         innerObject,                                                    \
         iteratorObject,                                                 \
         isWrappedNative,                                                \
-        js::proxy_WeakmapKeyDelegate,                                   \
-        js::proxy_ObjectMoved                                           \
+        js::proxy_WeakmapKeyDelegate                                    \
     }
 
 #define PROXY_CLASS_WITH_EXT(name, extraSlots, flags, callOp, constructOp, ext)         \
@@ -378,8 +370,6 @@ extern JS_FRIEND_API(bool)
 proxy_Convert(JSContext *cx, JS::HandleObject proxy, JSType hint, JS::MutableHandleValue vp);
 extern JS_FRIEND_API(void)
 proxy_Finalize(FreeOp *fop, JSObject *obj);
-extern JS_FRIEND_API(void)
-proxy_ObjectMoved(JSObject *obj, const JSObject *old);
 extern JS_FRIEND_API(bool)
 proxy_HasInstance(JSContext *cx, JS::HandleObject proxy, JS::MutableHandleValue v, bool *bp);
 extern JS_FRIEND_API(bool)
@@ -416,7 +406,7 @@ class SourceHook {
      * On success, the caller owns the buffer to which |*src| points, and
      * should use JS_free to free it.
      */
-    virtual bool load(JSContext *cx, const char *filename, char16_t **src, size_t *length) = 0;
+    virtual bool load(JSContext *cx, const char *filename, jschar **src, size_t *length) = 0;
 };
 
 /*
@@ -608,9 +598,9 @@ struct String
     uint32_t length;
     union {
         const JS::Latin1Char *nonInlineCharsLatin1;
-        const char16_t *nonInlineCharsTwoByte;
+        const jschar *nonInlineCharsTwoByte;
         JS::Latin1Char inlineStorageLatin1[1];
-        char16_t inlineStorageTwoByte[1];
+        jschar inlineStorageTwoByte[1];
     };
 };
 
@@ -724,6 +714,13 @@ AssertSameCompartment(JSObject *objA, JSObject *objB);
 #else
 inline void AssertSameCompartment(JSObject *objA, JSObject *objB) {}
 #endif
+
+// For legacy consumers only. This whole concept is going away soon.
+JS_FRIEND_API(JSObject *)
+DefaultObjectForContextOrNull(JSContext *cx);
+
+JS_FRIEND_API(void)
+SetDefaultObjectForContext(JSContext *cx, JSObject *obj);
 
 JS_FRIEND_API(void)
 NotifyAnimationActivity(JSObject *obj);
@@ -870,7 +867,7 @@ GetLatin1LinearStringChars(const JS::AutoCheckCannotGC &nogc, JSLinearString *li
     return s->nonInlineCharsLatin1;
 }
 
-MOZ_ALWAYS_INLINE const char16_t *
+MOZ_ALWAYS_INLINE const jschar *
 GetTwoByteLinearStringChars(const JS::AutoCheckCannotGC &nogc, JSLinearString *linear)
 {
     MOZ_ASSERT(!LinearStringHasLatin1Chars(linear));
@@ -900,7 +897,7 @@ GetLatin1AtomChars(const JS::AutoCheckCannotGC &nogc, JSAtom *atom)
     return GetLatin1LinearStringChars(nogc, AtomToLinearString(atom));
 }
 
-MOZ_ALWAYS_INLINE const char16_t *
+MOZ_ALWAYS_INLINE const jschar *
 GetTwoByteAtomChars(const JS::AutoCheckCannotGC &nogc, JSAtom *atom)
 {
     return GetTwoByteLinearStringChars(nogc, AtomToLinearString(atom));
@@ -920,7 +917,7 @@ StringToLinearString(JSContext *cx, JSString *str)
 }
 
 MOZ_ALWAYS_INLINE void
-CopyLinearStringChars(char16_t *dest, JSLinearString *s, size_t len)
+CopyLinearStringChars(jschar *dest, JSLinearString *s, size_t len)
 {
     JS::AutoCheckCannotGC nogc;
     if (LinearStringHasLatin1Chars(s)) {
@@ -928,13 +925,13 @@ CopyLinearStringChars(char16_t *dest, JSLinearString *s, size_t len)
         for (size_t i = 0; i < len; i++)
             dest[i] = src[i];
     } else {
-        const char16_t *src = GetTwoByteLinearStringChars(nogc, s);
+        const jschar *src = GetTwoByteLinearStringChars(nogc, s);
         mozilla::PodCopy(dest, src, len);
     }
 }
 
 inline bool
-CopyStringChars(JSContext *cx, char16_t *dest, JSString *s, size_t len)
+CopyStringChars(JSContext *cx, jschar *dest, JSString *s, size_t len)
 {
     JSLinearString *linear = StringToLinearString(cx, s);
     if (!linear)
@@ -945,7 +942,7 @@ CopyStringChars(JSContext *cx, char16_t *dest, JSString *s, size_t len)
 }
 
 inline void
-CopyFlatStringChars(char16_t *dest, JSFlatString *s, size_t len)
+CopyFlatStringChars(jschar *dest, JSFlatString *s, size_t len)
 {
     CopyLinearStringChars(dest, FlatStringToLinearString(s), len);
 }
@@ -998,7 +995,6 @@ GetNativeStackLimit(JSContext *cx)
  * These macros report a stack overflow and run |onerror| if we are close to
  * using up the C stack. The JS_CHECK_CHROME_RECURSION variant gives us a little
  * extra space so that we can ensure that crucial code is able to run.
- * JS_CHECK_RECURSION_CONSERVATIVE gives us a little less space.
  */
 
 #define JS_CHECK_RECURSION(cx, onerror)                                         \
@@ -1039,18 +1035,6 @@ GetNativeStackLimit(JSContext *cx)
         if (!JS_CHECK_STACK_SIZE_WITH_TOLERANCE(js::GetNativeStackLimit(cx),    \
                                                 &stackDummy_,                   \
                                                 1024 * sizeof(size_t)))         \
-        {                                                                       \
-            js_ReportOverRecursed(cx);                                          \
-            onerror;                                                            \
-        }                                                                       \
-    JS_END_MACRO
-
-#define JS_CHECK_RECURSION_CONSERVATIVE(cx, onerror)                            \
-    JS_BEGIN_MACRO                                                              \
-        int stackDummy_;                                                        \
-        if (!JS_CHECK_STACK_SIZE_WITH_INTOLERANCE(js::GetNativeStackLimit(cx),  \
-                                                  &stackDummy_,                 \
-                                                  1024 * sizeof(size_t)))       \
         {                                                                       \
             js_ReportOverRecursed(cx);                                          \
             onerror;                                                            \
@@ -1266,8 +1250,8 @@ js_DateGetMsecSinceEpoch(JSObject *obj);
  * string and its arguments.
  */
 typedef enum JSErrNum {
-#define MSG_DEF(name, count, exception, format) \
-    name,
+#define MSG_DEF(name, number, count, exception, format) \
+    name = number,
 #include "js.msg"
 #undef MSG_DEF
     JSErr_Limit
@@ -1295,7 +1279,7 @@ class MOZ_STACK_CLASS AutoStableStringChars
     /* Ensure the string is kept alive while we're using its chars. */
     JS::RootedString s_;
     union {
-        const char16_t *twoByteChars_;
+        const jschar *twoByteChars_;
         const JS::Latin1Char *latin1Chars_;
     };
     enum State { Uninitialized, Latin1, TwoByte };
@@ -1303,9 +1287,9 @@ class MOZ_STACK_CLASS AutoStableStringChars
     bool ownsChars_;
 
   public:
-    explicit AutoStableStringChars(JSContext *cx)
+    AutoStableStringChars(JSContext *cx)
       : s_(cx), state_(Uninitialized), ownsChars_(false)
-    {}
+    {};
     ~AutoStableStringChars();
 
     bool init(JSContext *cx, JSString *s);
@@ -1316,7 +1300,7 @@ class MOZ_STACK_CLASS AutoStableStringChars
     bool isLatin1() const { return state_ == Latin1; }
     bool isTwoByte() const { return state_ == TwoByte; }
 
-    const char16_t *twoByteChars() const {
+    const jschar *twoByteChars() const {
         MOZ_ASSERT(state_ == TwoByte);
         return twoByteChars_;
     }
@@ -1327,9 +1311,9 @@ class MOZ_STACK_CLASS AutoStableStringChars
                                                     GetStringLength(s_));
     }
 
-    mozilla::Range<const char16_t> twoByteRange() const {
+    mozilla::Range<const jschar> twoByteRange() const {
         MOZ_ASSERT(state_ == TwoByte);
-        return mozilla::Range<const char16_t>(twoByteChars_,
+        return mozilla::Range<const jschar>(twoByteChars_,
                                             GetStringLength(s_));
     }
 
@@ -1355,7 +1339,7 @@ ErrorReportToString(JSContext *cx, JSErrorReport *reportp);
 
 struct MOZ_STACK_CLASS JS_FRIEND_API(ErrorReport)
 {
-    explicit ErrorReport(JSContext *cx);
+    ErrorReport(JSContext *cx);
     ~ErrorReport();
 
     bool init(JSContext *cx, JS::HandleValue exn);
@@ -1660,7 +1644,7 @@ Get ## Type ## ArrayLengthAndData(JSObject *obj, uint32_t *length, type **data) 
 { \
     JS_ASSERT(GetObjectClass(obj) == detail::Type ## ArrayClassPtr); \
     const JS::Value &slot = GetReservedSlot(obj, detail::TypedArrayLengthSlot); \
-    *length = mozilla::AssertedCast<uint32_t>(slot.toInt32()); \
+    *length = mozilla::SafeCast<uint32_t>(slot.toInt32()); \
     *data = static_cast<type*>(GetObjectPrivate(obj)); \
 }
 
@@ -1744,17 +1728,6 @@ JS_IsArrayBufferObject(JSObject *obj);
  */
 extern JS_FRIEND_API(uint32_t)
 JS_GetArrayBufferByteLength(JSObject *obj);
-
-/*
- * Return true if the arrayBuffer contains any data. This will return false for
- * ArrayBuffer.prototype and neutered ArrayBuffers.
- *
- * |obj| must have passed a JS_IsArrayBufferObject test, or somehow be known
- * that it would pass such a test: it is an ArrayBuffer or a wrapper of an
- * ArrayBuffer, and the unwrapping will succeed.
- */
-extern JS_FRIEND_API(bool)
-JS_ArrayBufferHasData(JSObject *obj);
 
 /*
  * Check whether the obj is ArrayBufferObject and memory mapped. Note that this
@@ -2406,7 +2379,7 @@ JS_FRIEND_API(void)
 Debug_SetActiveJSContext(JSRuntime *rt, JSContext *cx);
 #else
 inline void
-Debug_SetActiveJSContext(JSRuntime *rt, JSContext *cx) {}
+Debug_SetActiveJSContext(JSRuntime *rt, JSContext *cx) {};
 #endif
 
 

@@ -19,7 +19,6 @@ import org.mozilla.gecko.GeckoAppShell;
 import org.mozilla.gecko.GeckoEvent;
 import org.mozilla.gecko.PrefsHelper;
 import org.mozilla.gecko.R;
-import org.mozilla.gecko.SuggestClient;
 import org.mozilla.gecko.Tab;
 import org.mozilla.gecko.Tabs;
 import org.mozilla.gecko.Telemetry;
@@ -128,6 +127,9 @@ public class BrowserSearch extends HomeFragment
     // Autocomplete handler used when filtering results
     private AutocompleteHandler mAutocompleteHandler;
 
+    // On URL open listener
+    private OnUrlOpenListener mUrlOpenListener;
+
     // On search listener
     private OnSearchListener mSearchListener;
 
@@ -167,6 +169,13 @@ public class BrowserSearch extends HomeFragment
         super.onAttach(activity);
 
         try {
+            mUrlOpenListener = (OnUrlOpenListener) activity;
+        } catch (ClassCastException e) {
+            throw new ClassCastException(activity.toString()
+                    + " must implement BrowserSearch.OnUrlOpenListener");
+        }
+
+        try {
             mSearchListener = (OnSearchListener) activity;
         } catch (ClassCastException e) {
             throw new ClassCastException(activity.toString()
@@ -186,6 +195,7 @@ public class BrowserSearch extends HomeFragment
         super.onDetach();
 
         mAutocompleteHandler = null;
+        mUrlOpenListener = null;
         mSearchListener = null;
         mEditSuggestionListener = null;
     }

@@ -18,7 +18,6 @@
 #include "mozilla/Preferences.h"
 #include "qcms.h"
 #include "gfx2DGlue.h"
-#include "gfxPrefs.h"
 
 #include <dlfcn.h>
 
@@ -129,32 +128,21 @@ gfxPlatformMac::CreateFontGroup(const FontFamilyList& aFontFamilyList,
 
 // these will move to gfxPlatform once all platforms support the fontlist
 gfxFontEntry* 
-gfxPlatformMac::LookupLocalFont(const nsAString& aFontName,
-                                uint16_t aWeight,
-                                int16_t aStretch,
-                                bool aItalic)
+gfxPlatformMac::LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
+                                const nsAString& aFontName)
 {
-    return gfxPlatformFontList::PlatformFontList()->LookupLocalFont(aFontName,
-                                                                    aWeight,
-                                                                    aStretch,
-                                                                    aItalic);
+    return gfxPlatformFontList::PlatformFontList()->LookupLocalFont(aProxyEntry, 
+                                                                    aFontName);
 }
 
 gfxFontEntry* 
-gfxPlatformMac::MakePlatformFont(const nsAString& aFontName,
-                                 uint16_t aWeight,
-                                 int16_t aStretch,
-                                 bool aItalic,
-                                 const uint8_t* aFontData,
-                                 uint32_t aLength)
+gfxPlatformMac::MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
+                                 const uint8_t *aFontData, uint32_t aLength)
 {
     // Ownership of aFontData is received here, and passed on to
     // gfxPlatformFontList::MakePlatformFont(), which must ensure the data
     // is released with NS_Free when no longer needed
-    return gfxPlatformFontList::PlatformFontList()->MakePlatformFont(aFontName,
-                                                                     aWeight,
-                                                                     aStretch,
-                                                                     aItalic,
+    return gfxPlatformFontList::PlatformFontList()->MakePlatformFont(aProxyEntry,
                                                                      aFontData,
                                                                      aLength);
 }
@@ -315,11 +303,11 @@ gfxPlatformMac::GetCommonFallbackFonts(const uint32_t aCh,
         case 0x2a:
         case 0x2b:
         case 0x2e:
-            aFontList.AppendElement(kFontHiraginoKakuGothic);
             aFontList.AppendElement(kFontAppleSymbols);
             aFontList.AppendElement(kFontMenlo);
             aFontList.AppendElement(kFontSTIXGeneral);
             aFontList.AppendElement(kFontGeneva);
+            aFontList.AppendElement(kFontHiraginoKakuGothic);
             aFontList.AppendElement(kFontAppleColorEmoji);
             break;
         case 0x2c:
@@ -396,16 +384,6 @@ gfxPlatformMac::UseAcceleratedCanvas()
 {
   // Lion or later is required
   return nsCocoaFeatures::OnLionOrLater() && Preferences::GetBool("gfx.canvas.azure.accelerated", false);
-}
-
-bool
-gfxPlatformMac::UseTiling()
-{
-  if (gfxPrefs::LayersTilesForceEnabled()) {
-    return true;
-  }
-  // Tiling seems to be slow on 10.6 so disable it until we figure it out
-  return nsCocoaFeatures::OnLionOrLater() && gfxPlatform::UseTiling();
 }
 
 void

@@ -7,7 +7,6 @@
 #ifndef mozJSComponentLoader_h
 #define mozJSComponentLoader_h
 
-#include "mozilla/dom/ScriptSettings.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/ModuleLoader.h"
 #include "nsISupports.h"
@@ -15,6 +14,7 @@
 #include "nsIURI.h"
 #include "xpcIJSModuleLoader.h"
 #include "nsClassHashtable.h"
+#include "nsCxPusher.h"
 #include "nsDataHashtable.h"
 #include "jsapi.h"
 
@@ -87,7 +87,7 @@ class mozJSComponentLoader : public mozilla::ModuleLoader,
     class ModuleEntry : public mozilla::Module
     {
     public:
-        explicit ModuleEntry(JSContext* aCx)
+        ModuleEntry(JSContext* aCx)
           : mozilla::Module(), obj(aCx, nullptr), thisObjectKey(aCx, nullptr)
         {
             mVersion = mozilla::Module::kVersion;

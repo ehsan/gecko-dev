@@ -99,10 +99,12 @@ nsPageContentFrame::Reflow(nsPresContext*           aPresContext,
 
   // Return our desired size
   WritingMode wm = aReflowState.GetWritingMode();
-  aDesiredSize.ISize(wm) = aReflowState.ComputedISize();
+  LogicalSize finalSize(wm);
+  finalSize.ISize(wm) = aReflowState.ComputedISize();
   if (aReflowState.ComputedBSize() != NS_UNCONSTRAINEDSIZE) {
-    aDesiredSize.BSize(wm) = aReflowState.ComputedBSize();
+    finalSize.BSize(wm) = aReflowState.ComputedBSize();
   }
+  aDesiredSize.SetSize(wm, finalSize);
   FinishAndStoreOverflow(&aDesiredSize);
 
   NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aDesiredSize);

@@ -42,18 +42,16 @@ public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(ImageData)
 
-  static already_AddRefed<ImageData>
-    Constructor(const GlobalObject& aGlobal,
-                const uint32_t aWidth,
-                const uint32_t aHeight,
-                ErrorResult& aRv);
+  static ImageData* Constructor(const GlobalObject& aGlobal,
+                                const uint32_t aWidth,
+                                const uint32_t aHeight,
+                                ErrorResult& aRv);
 
-  static already_AddRefed<ImageData>
-    Constructor(const GlobalObject& aGlobal,
-                const Uint8ClampedArray& aData,
-                const uint32_t aWidth,
-                const Optional<uint32_t>& aHeight,
-                ErrorResult& aRv);
+  static ImageData* Constructor(const GlobalObject& aGlobal,
+                                const Uint8ClampedArray& aData,
+                                const uint32_t aWidth,
+                                const Optional<uint32_t>& aHeight,
+                                ErrorResult& aRv);
 
   uint32_t Width() const
   {

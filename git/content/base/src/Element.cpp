@@ -586,13 +586,7 @@ Element::GetScrollFrame(nsIFrame **aStyledFrame, bool aFlushLayout)
 }
 
 void
-Element::ScrollIntoView()
-{
-  ScrollIntoView(true, ScrollOptions());
-}
-
-void
-Element::ScrollIntoView(bool aTop, const ScrollOptions &aOptions)
+Element::ScrollIntoView(bool aTop)
 {
   nsIDocument *document = GetCurrentDoc();
   if (!document) {
@@ -608,17 +602,12 @@ Element::ScrollIntoView(bool aTop, const ScrollOptions &aOptions)
   int16_t vpercent = aTop ? nsIPresShell::SCROLL_TOP :
     nsIPresShell::SCROLL_BOTTOM;
 
-  uint32_t flags = nsIPresShell::SCROLL_OVERFLOW_HIDDEN;
-  if (aOptions.mBehavior == ScrollBehavior::Smooth) {
-    flags |= nsIPresShell::SCROLL_SMOOTH;
-  }
-
   presShell->ScrollContentIntoView(this,
                                    nsIPresShell::ScrollAxis(
                                      vpercent,
                                      nsIPresShell::SCROLL_ALWAYS),
                                    nsIPresShell::ScrollAxis(),
-                                   flags);
+                                   nsIPresShell::SCROLL_OVERFLOW_HIDDEN);
 }
 
 bool
@@ -970,8 +959,10 @@ Element::SetAttribute(const nsAString& aName,
     nsCOMPtr<nsIAtom> nameAtom;
     if (IsHTML() && IsInHTMLDocument()) {
       nsAutoString lower;
-      nsContentUtils::ASCIIToLower(aName, lower);
-      nameAtom = do_GetAtom(lower);
+      nsresult rv = nsContentUtils::ASCIIToLower(aName, lower);
+      if (NS_SUCCEEDED(rv)) {
+        nameAtom = do_GetAtom(lower);
+      }
     }
     else {
       nameAtom = do_GetAtom(aName);
@@ -1500,22 +1491,20 @@ Element::UnbindFromTree(bool aDeep, bool aNullParent)
 
   // Unset this since that's what the old code effectively did.
   UnsetFlags(NODE_FORCE_XBL_BINDINGS);
-  bool clearBindingParent = true;
-
+  
 #ifdef MOZ_XUL
   nsXULElement* xulElem = nsXULElement::FromContent(this);
   if (xulElem) {
     xulElem->SetXULBindingParent(nullptr);
-    clearBindingParent = false;
   }
+  else
 #endif
-
-  nsDOMSlots* slots = GetExistingDOMSlots();
-  if (slots) {
-    if (clearBindingParent) {
+  {
+    nsDOMSlots *slots = GetExistingDOMSlots();
+    if (slots) {
       slots->mBindingParent = nullptr;
+      slots->mContainingShadow = nullptr;
     }
-    slots->mContainingShadow = nullptr;
   }
 
   // This has to be here, rather than in nsGenericHTMLElement::UnbindFromTree, 
@@ -1663,7 +1652,7 @@ Element::ShouldBlur(nsIContent *aContent)
 {
   // Determine if the current element is focused, if it is not focused
   // then we should not try to blur
-  nsIDocument* document = aContent->GetComposedDoc();
+  nsIDocument *document = aContent->GetDocument();
   if (!document)
     return false;
 
@@ -3105,50 +3094,6 @@ Element::SetBoolAttr(nsIAtom* aAttr, bool aValue)
   }
 
   return UnsetAttr(kNameSpaceID_None, aAttr, true);
-}
-
-void
-Element::GetEnumAttr(nsIAtom* aAttr,
-                     const char* aDefault,
-                     nsAString& aResult) const
-{
-  GetEnumAttr(aAttr, aDefault, aDefault, aResult);
-}
-
-void
-Element::GetEnumAttr(nsIAtom* aAttr,
-                     const char* aDefaultMissing,
-                     const char* aDefaultInvalid,
-                     nsAString& aResult) const
-{
-  const nsAttrValue* attrVal = mAttrsAndChildren.GetAttr(aAttr);
-
-  aResult.Truncate();
-
-  if (!attrVal) {
-    if (aDefaultMissing) {
-      AppendASCIItoUTF16(nsDependentCString(aDefaultMissing), aResult);
-    } else {
-      SetDOMStringToNull(aResult);
-    }
-  } else {
-    if (attrVal->Type() == nsAttrValue::eEnum) {
-      attrVal->GetEnumString(aResult, true);
-    } else if (aDefaultInvalid) {
-      AppendASCIItoUTF16(nsDependentCString(aDefaultInvalid), aResult);
-    }
-  }
-}
-
-void
-Element::SetOrRemoveNullableStringAttr(nsIAtom* aName, const nsAString& aValue,
-                                       ErrorResult& aError)
-{
-  if (DOMStringIsNull(aValue)) {
-    UnsetAttr(aName, aError);
-  } else {
-    SetAttr(aName, aValue, aError);
-  }
 }
 
 Directionality

@@ -139,14 +139,9 @@ function StructuredLogger(name) {
     };
 
     this.testStatus = function(test, subtest, status, expected="PASS", message=null) {
-        // Bugfix for assertions not passing an assertion name
-        if (subtest === null || subtest === undefined) {
-            subtest = "undefined assertion name";
-        }
-
         var data = {test: test, subtest: subtest, status: status};
 
-        if (message) {
+        if (message !== null) {
             data.message = String(message);
         }
         if (expected != status && status != 'SKIP') {
@@ -243,10 +238,6 @@ function StructuredLogger(name) {
         var allData = {action: action,
                        time: new Date().getTime(),
                        thread: "",
-                       // This is a directive to python to format these messages
-                       // for compatibility with mozharness. This can be removed
-                       // with the MochitestFormatter (see bug 1045525).
-                       js_source: "TestRunner",
                        pid: null,
                        source: this.name};
 
@@ -269,11 +260,6 @@ function StructuredLogger(name) {
             LogController.log(str);
         } else {
             dump('\n' + str + '\n');
-        }
-
-        // Checking for error messages
-        if (message.expected || message.level === "ERROR") {
-            TestRunner.failureHandler();
         }
     };
 
@@ -439,11 +425,8 @@ TestRunner.error = function(msg) {
         TestRunner.structuredLogger.error(msg);
     } else {
         dump(msg + "\n");
-        TestRunner.failureHandler();
     }
-};
 
-TestRunner.failureHandler = function() {
     if (TestRunner.runUntilFailure) {
       TestRunner._haltTests = true;
     }
@@ -486,7 +469,7 @@ TestRunner._makeIframe = function (url, retry) {
             return;
         }
 
-        TestRunner.structuredLogger.info("Error: Unable to restore focus, expect failures and timeouts.");
+        TestRunner.structuredLogger.error("Unable to restore focus, expect failures and timeouts.");
     }
     window.scrollTo(0, $('indicator').offsetTop);
     iframe.src = url;
@@ -707,8 +690,8 @@ TestRunner.testFinished = function(tests) {
         if (TestRunner.currentTestURL != TestRunner.getLoadedTestURL()) {
             TestRunner.structuredLogger.testStatus(TestRunner.currentTestURL,
                                                    TestRunner.getLoadedTestURL(),
-                                                   "FAIL",
-                                                   "PASS",
+                                                   "ERROR",
+                                                   "OK",
                                                    "finished in a non-clean fashion, probably" +
                                                    " because it didn't call SimpleTest.finish()",
                                                    {loaded_test_url: TestRunner.getLoadedTestURL()});
@@ -743,19 +726,6 @@ TestRunner.testFinished = function(tests) {
         } else {
             interstitialURL = "/tests/SimpleTest/iframe-between-tests.html";
         }
-        // check if there were test run after SimpleTest.finish, which should never happen
-        $('testframe').contentWindow.addEventListener('unload', function() {
-           var testwin = $('testframe').contentWindow;
-           if (testwin.SimpleTest && testwin.SimpleTest._tests.length != testwin.SimpleTest.testsLength) {
-             var wrongtestlength = testwin.SimpleTest._tests.length - testwin.SimpleTest.testsLength;
-             var wrongtestname = '';
-             for (var i = 0; i < wrongtestlength; i++) {
-               wrongtestname = testwin.SimpleTest._tests[testwin.SimpleTest.testsLength + i].name;
-               TestRunner.structuredLogger.testStatus(TestRunner.currentTestURL, wrongtestname, 'FAIL', 'PASS', "Result logged after SimpleTest.finish()");
-             }
-             TestRunner.updateUI([{ result: false }]);
-           }
-        } , false);
         TestRunner._makeIframe(interstitialURL, 0);
     }
 

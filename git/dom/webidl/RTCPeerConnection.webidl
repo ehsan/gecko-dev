@@ -55,19 +55,8 @@ dictionary RTCDataChannelInit {
 dictionary RTCOfferOptions {
   long    offerToReceiveVideo;
   long    offerToReceiveAudio;
-  boolean mozDontOfferDataChannel;
-  boolean mozBundleOnly;
-
-  // TODO: Remove old constraint-like RTCOptions support soon (Bug 1064223).
-  DeprecatedRTCOfferOptionsSet mandatory;
-  sequence<DeprecatedRTCOfferOptionsSet> _optional;
-};
-
-dictionary DeprecatedRTCOfferOptionsSet {
-  boolean OfferToReceiveAudio;     // Note the uppercase 'O'
-  boolean OfferToReceiveVideo;     // Note the uppercase 'O'
-  boolean MozDontOfferDataChannel; // Note the uppercase 'M'
-  boolean MozBundleOnly;           // Note the uppercase 'M'
+  boolean MozDontOfferDataChannel;
+  boolean MozBundleOnly;
 };
 
 interface RTCDataChannel;
@@ -116,25 +105,11 @@ interface mozRTCPeerConnection : EventTarget  {
   MediaStream? getStreamById (DOMString streamId);
   void addStream (MediaStream stream);
   void removeStream (MediaStream stream);
-
-  // replaces addStream; fails if already added
-  // because a track can be part of multiple streams, stream parameters
-  // indicate which particular streams should be referenced in signaling
-
-  RTCRtpSender addTrack(MediaStreamTrack track,
-                        MediaStream stream,
-                        MediaStream... moreStreams);
-  void removeTrack(RTCRtpSender sender);
-
-  sequence<RTCRtpSender> getSenders();
-  sequence<RTCRtpReceiver> getReceivers();
-
   void close ();
   attribute EventHandler onnegotiationneeded;
   attribute EventHandler onicecandidate;
   attribute EventHandler onsignalingstatechange;
   attribute EventHandler onaddstream;
-  attribute EventHandler onaddtrack;  // replaces onaddstream; see AddTrackEvent
   attribute EventHandler onremovestream;
   attribute EventHandler oniceconnectionstatechange;
 

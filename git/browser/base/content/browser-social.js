@@ -68,7 +68,7 @@ SocialUI = {
     Services.prefs.addObserver("social.toast-notifications.enabled", this, false);
 
     gBrowser.addEventListener("ActivateSocialFeature", this._activationEventHandler.bind(this), true, true);
-    PanelUI.panel.addEventListener("popupshown", SocialUI.updatePanelState, true);
+    PanelUI.panel.addEventListener("popupshown", SocialUI.updateState, true);
 
     // menupopups that list social providers. we only populate them when shown,
     // and if it has not been done already.
@@ -102,7 +102,7 @@ SocialUI = {
 
     Services.prefs.removeObserver("social.toast-notifications.enabled", this);
 
-    PanelUI.panel.removeEventListener("popupshown", SocialUI.updatePanelState, true);
+    PanelUI.panel.removeEventListener("popupshown", SocialUI.updateState, true);
     document.getElementById("viewSidebarMenu").removeEventListener("popupshowing", SocialSidebar.populateSidebarMenu, true);
     document.getElementById("social-statusarea-popup").removeEventListener("popupshowing", SocialSidebar.populateSidebarMenu, true);
 
@@ -110,53 +110,62 @@ SocialUI = {
   },
 
   observe: function SocialUI_observe(subject, topic, data) {
-    switch (topic) {
-      case "social:provider-enabled":
-        SocialMarks.populateToolbarPalette();
-        SocialStatus.populateToolbarPalette();
-        break;
-      case "social:provider-disabled":
-        SocialMarks.removeProvider(data);
-        SocialStatus.removeProvider(data);
-        SocialSidebar.disableProvider(data);
-        break;
-      case "social:provider-reload":
-        SocialStatus.reloadProvider(data);
-        // if the reloaded provider is our current provider, fall through
-        // to social:providers-changed so the ui will be reset
-        if (!SocialSidebar.provider || SocialSidebar.provider.origin != data)
-          return;
-        // currently only the sidebar and flyout have a selected provider.
-        // sidebar provider has changed (possibly to null), ensure the content
-        // is unloaded and the frames are reset, they will be loaded in
-        // providers-changed below if necessary.
-        SocialSidebar.unloadSidebar();
-        SocialFlyout.unload();
-        // fall through to providers-changed to ensure the reloaded provider
-        // is correctly reflected in any UI and the multi-provider menu
-      case "social:providers-changed":
-        this._providersChanged();
-        break;
-      // Provider-specific notifications
-      case "social:ambient-notification-changed":
-        SocialStatus.updateButton(data);
-        break;
-      case "social:profile-changed":
-        // make sure anything that happens here only affects the provider for
-        // which the profile is changing, and that anything we call actually
-        // needs to change based on profile data.
-        SocialStatus.updateButton(data);
-        break;
-      case "social:frameworker-error":
-        if (this.enabled && SocialSidebar.provider && SocialSidebar.provider.origin == data) {
-          SocialSidebar.setSidebarErrorMessage();
-        }
-        break;
-      case "nsPref:changed":
-        if (data == "social.toast-notifications.enabled") {
-          SocialSidebar.updateToggleNotifications();
-        }
-        break;
+    // Exceptions here sometimes don't get reported properly, report them
+    // manually :(
+    try {
+      switch (topic) {
+        case "social:provider-enabled":
+          SocialMarks.populateToolbarPalette();
+          SocialStatus.populateToolbarPalette();
+          break;
+        case "social:provider-disabled":
+          SocialMarks.removeProvider(data);
+          SocialStatus.removeProvider(data);
+          SocialSidebar.disableProvider(data);
+          break;
+        case "social:provider-reload":
+          SocialStatus.reloadProvider(data);
+          // if the reloaded provider is our current provider, fall through
+          // to social:providers-changed so the ui will be reset
+          if (!SocialSidebar.provider || SocialSidebar.provider.origin != data)
+            return;
+          // currently only the sidebar and flyout have a selected provider.
+          // sidebar provider has changed (possibly to null), ensure the content
+          // is unloaded and the frames are reset, they will be loaded in
+          // providers-changed below if necessary.
+          SocialSidebar.unloadSidebar();
+          SocialFlyout.unload();
+          // fall through to providers-changed to ensure the reloaded provider
+          // is correctly reflected in any UI and the multi-provider menu
+        case "social:providers-changed":
+          this._providersChanged();
+          break;
+
+        // Provider-specific notifications
+        case "social:ambient-notification-changed":
+          SocialStatus.updateButton(data);
+          break;
+        case "social:profile-changed":
+          // make sure anything that happens here only affects the provider for
+          // which the profile is changing, and that anything we call actually
+          // needs to change based on profile data.
+          SocialStatus.updateButton(data);
+          break;
+        case "social:frameworker-error":
+          if (this.enabled && SocialSidebar.provider && SocialSidebar.provider.origin == data) {
+            SocialSidebar.setSidebarErrorMessage();
+          }
+          break;
+
+        case "nsPref:changed":
+          if (data == "social.toast-notifications.enabled") {
+            SocialSidebar.updateToggleNotifications();
+          }
+          break;
+      }
+    } catch (e) {
+      Components.utils.reportError(e + "\n" + e.stack);
+      throw e;
     }
   },
 
@@ -276,14 +285,6 @@ SocialUI = {
     if (this._chromeless || PrivateBrowsingUtils.isWindowPrivate(window))
       return false;
     return Social.providers.length > 0;
-  },
-
-  updatePanelState :function(event) {
-    // we only want to update when the panel is initially opened, not during
-    // multiview changes
-    if (event.target != PanelUI.panel)
-      return;
-    SocialUI.updateState();
   },
 
   // called on tab/urlbar/location changes and after customization. Update
@@ -1273,7 +1274,7 @@ SocialStatus = {
     let origin = aToolbarButton.getAttribute("origin");
     let provider = Social._getProviderFromOrigin(origin);
 
-    PanelFrame.showPopup(window, aToolbarButton, "social", origin,
+    PanelFrame.showPopup(window, PanelUI, aToolbarButton, "social", origin,
                          provider.statusURL, provider.getPageSize("status"),
                          (frame) => {
                           frame.addEventListener("close", this._onclose, true);
@@ -1307,6 +1308,17 @@ SocialStatus = {
  */
 SocialMarks = {
   update: function() {
+    // signal each button to update itself
+    let currentButtons = document.querySelectorAll('toolbarbutton[type="socialmark"]');
+    for (let elt of currentButtons) {
+      // make sure we can call update since the xbl is not completely bound if
+      // the button is in overflow, until the button becomes visible.
+      if (elt.update)
+        elt.update();
+    }
+  },
+
+  updatePanelButtons: function() {
     // querySelectorAll does not work on the menu panel the panel, so we have to
     // do this the hard way.
     let providers = SocialMarks.getProviders();
@@ -1356,7 +1368,7 @@ SocialMarks = {
     for (let cfg of contextMenus) {
       this._populateContextPopup(cfg, providers);
     }
-    this.update();
+    this.updatePanelButtons();
   },
 
   MENU_LIMIT: 3, // adjustable for testing

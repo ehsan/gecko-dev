@@ -23,7 +23,6 @@
 #include "nsIXPConnect.h"
 #include "inIDOMUtils.h"
 #include "nsIPermissionManager.h"
-#include "nsIServiceWorkerManager.h"
 
 using namespace mozilla;
 using namespace mozilla::services;
@@ -60,7 +59,7 @@ using namespace mozilla::services;
 /**
  * Clears service cache, sets gXPCOMShuttingDown
  */
-void
+void 
 mozilla::services::Shutdown()
 {
   gXPCOMShuttingDown = true;

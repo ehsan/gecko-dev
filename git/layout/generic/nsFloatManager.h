@@ -42,7 +42,7 @@ struct nsFlowAreaRect {
 
 class nsFloatManager {
 public:
-  explicit nsFloatManager(nsIPresShell* aPresShell);
+  nsFloatManager(nsIPresShell* aPresShell);
   ~nsFloatManager();
 
   void* operator new(size_t aSize) CPP_THROW_NEW;
@@ -325,7 +325,7 @@ private:
  */
 class nsAutoFloatManager {
 public:
-  explicit nsAutoFloatManager(nsHTMLReflowState& aReflowState)
+  nsAutoFloatManager(nsHTMLReflowState& aReflowState)
     : mReflowState(aReflowState),
       mNew(nullptr),
       mOld(nullptr) {}

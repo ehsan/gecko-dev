@@ -33,7 +33,7 @@ struct StmtInfoPC : public StmtInfoBase {
     explicit StmtInfoPC(ExclusiveContext *cx) : StmtInfoBase(cx), innerBlockScopeDepth(0) {}
 };
 
-typedef HashSet<JSAtom *, DefaultHasher<JSAtom *>, LifoAllocPolicy<Fallible>> FuncStmtSet;
+typedef HashSet<JSAtom *> FuncStmtSet;
 class SharedContext;
 
 typedef Vector<Definition *, 16> DeclVector;
@@ -233,10 +233,10 @@ struct ParseContext : public GenericParseContext
     // Set when parsing a declaration-like destructuring pattern.  This flag
     // causes PrimaryExpr to create PN_NAME parse nodes for variable references
     // which are not hooked into any definition's use chain, added to any tree
-    // context's AtomList, etc. etc.  checkDestructuring will do that work
+    // context's AtomList, etc. etc.  CheckDestructuring will do that work
     // later.
     //
-    // The comments atop checkDestructuring explain the distinction between
+    // The comments atop CheckDestructuring explain the distinction between
     // assignment-like and declaration-like destructuring patterns, and why
     // they need to be treated differently.
     bool            inDeclDestructuring:1;
@@ -350,12 +350,6 @@ class Parser : private JS::AutoGCRooter, public StrictModeGetter
     /* Unexpected end of input, i.e. TOK_EOF not at top-level. */
     bool isUnexpectedEOF_:1;
 
-    /* Used for collecting telemetry on SpiderMonkey's deprecated language extensions. */
-    bool sawDeprecatedForEach:1;
-    bool sawDeprecatedDestructuringForIn:1;
-    bool sawDeprecatedLegacyGenerator:1;
-    bool sawDeprecatedExpressionClosure:1;
-
     typedef typename ParseHandler::Node Node;
     typedef typename ParseHandler::DefinitionNode DefinitionNode;
 
@@ -373,7 +367,7 @@ class Parser : private JS::AutoGCRooter, public StrictModeGetter
                           ...);
 
     Parser(ExclusiveContext *cx, LifoAlloc *alloc, const ReadOnlyCompileOptions &options,
-           const char16_t *chars, size_t length, bool foldConstants,
+           const jschar *chars, size_t length, bool foldConstants,
            Parser<SyntaxParseHandler> *syntaxParser,
            LazyScript *lazyOuterFunction);
     ~Parser();
@@ -475,7 +469,7 @@ class Parser : private JS::AutoGCRooter, public StrictModeGetter
     Node functionBody(FunctionSyntaxKind kind, FunctionBodyType type);
 
     bool functionArgsAndBodyGeneric(Node pn, HandleFunction fun, FunctionType type,
-                                    FunctionSyntaxKind kind);
+                                    FunctionSyntaxKind kind, Directives *newDirectives);
 
     // Determine whether |yield| is a valid name in the current context, or
     // whether it's prohibited due to strictness, JS version, or occurrence
@@ -543,9 +537,6 @@ class Parser : private JS::AutoGCRooter, public StrictModeGetter
     Node primaryExpr(TokenKind tt);
     Node parenExprOrGeneratorComprehension();
     Node exprInParens();
-
-    bool methodDefinition(Node literal, Node propname, FunctionType type, FunctionSyntaxKind kind,
-                          GeneratorKind generatorKind, JSOp Op);
 
     /*
      * Additional JS parsers.
@@ -615,7 +606,7 @@ class Parser : private JS::AutoGCRooter, public StrictModeGetter
     bool isValidForStatementLHS(Node pn1, JSVersion version, bool forDecl, bool forEach,
                                 ParseNodeKind headKind);
     bool checkAndMarkAsIncOperand(Node kid, TokenKind tt, bool preorder);
-    bool checkStrictAssignment(Node lhs);
+    bool checkStrictAssignment(Node lhs, AssignmentFlavor flavor);
     bool checkStrictBinding(PropertyName *name, Node pn);
     bool defineArg(Node funcpn, HandlePropertyName name,
                    bool disallowDuplicateArgs = false, Node *duplicatedArg = nullptr);
@@ -624,14 +615,11 @@ class Parser : private JS::AutoGCRooter, public StrictModeGetter
     Node pushLetScope(Handle<StaticBlockObject*> blockObj, StmtInfoPC *stmt);
     bool noteNameUse(HandlePropertyName name, Node pn);
     Node objectLiteral();
-    Node computedPropertyName(Node literal);
     Node arrayInitializer();
     Node newRegExp();
 
     Node newBindingNode(PropertyName *name, bool functionScope, VarContext varContext = HoistVars);
-    bool checkDestructuring(BindData<ParseHandler> *data, Node left);
-    bool checkDestructuringObject(BindData<ParseHandler> *data, Node objectPattern);
-    bool checkDestructuringArray(BindData<ParseHandler> *data, Node arrayPattern);
+    bool checkDestructuring(BindData<ParseHandler> *data, Node left, bool toplevel = true);
     bool bindDestructuringVar(BindData<ParseHandler> *data, Node pn);
     bool bindDestructuringLHS(Node pn);
     bool makeSetCall(Node pn, unsigned msg);
@@ -666,8 +654,6 @@ class Parser : private JS::AutoGCRooter, public StrictModeGetter
     TokenPos pos() const { return tokenStream.currentToken().pos; }
 
     bool asmJS(Node list);
-
-    void accumulateTelemetry();
 
     friend class LegacyCompExprTransplanter;
     friend struct BindData<ParseHandler>;

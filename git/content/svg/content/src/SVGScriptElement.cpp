@@ -91,19 +91,15 @@ SVGScriptElement::SetType(const nsAString & aType, ErrorResult& rv)
 }
 
 void
-SVGScriptElement::GetCrossOrigin(nsAString & aCrossOrigin)
+SVGScriptElement::GetCrossOrigin(nsAString & aOrigin)
 {
-  // Null for both missing and invalid defaults is ok, since we
-  // always parse to an enum value, so we don't need an invalid
-  // default, and we _want_ the missing default to be null.
-  GetEnumAttr(nsGkAtoms::crossorigin, nullptr, aCrossOrigin);
+  GetAttr(kNameSpaceID_None, nsGkAtoms::crossorigin, aOrigin);
 }
 
 void
-SVGScriptElement::SetCrossOrigin(const nsAString & aCrossOrigin,
-                                 ErrorResult& aError)
+SVGScriptElement::SetCrossOrigin(const nsAString & aOrigin, ErrorResult& rv)
 {
-  SetOrRemoveNullableStringAttr(nsGkAtoms::crossorigin, aCrossOrigin, aError);
+  rv = SetAttr(kNameSpaceID_None, nsGkAtoms::crossorigin, aOrigin, true);
 }
 
 already_AddRefed<SVGAnimatedString>

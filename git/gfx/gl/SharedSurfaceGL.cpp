@@ -5,11 +5,11 @@
 
 #include "SharedSurfaceGL.h"
 
-#include "GLBlitHelper.h"
 #include "GLContext.h"
-#include "GLReadTexImageHelper.h"
-#include "mozilla/gfx/2D.h"
+#include "GLBlitHelper.h"
 #include "ScopedGLHelpers.h"
+#include "mozilla/gfx/2D.h"
+#include "GLReadTexImageHelper.h"
 
 namespace mozilla {
 namespace gl {
@@ -17,25 +17,17 @@ namespace gl {
 using gfx::IntSize;
 using gfx::SurfaceFormat;
 
-/*static*/ UniquePtr<SharedSurface_Basic>
+SharedSurface_Basic*
 SharedSurface_Basic::Create(GLContext* gl,
                             const GLFormats& formats,
                             const IntSize& size,
                             bool hasAlpha)
 {
-    UniquePtr<SharedSurface_Basic> ret;
     gl->MakeCurrent();
-
-    GLContext::ScopedLocalErrorCheck localError(gl);
     GLuint tex = CreateTexture(gl, formats.color_texInternalFormat,
                                formats.color_texFormat,
                                formats.color_texType,
                                size);
-    GLenum err = localError.GetLocalError();
-    if (err) {
-        gl->fDeleteTextures(1, &tex);
-        return Move(ret);
-    }
 
     SurfaceFormat format = SurfaceFormat::B8G8R8X8;
     switch (formats.color_texInternalFormat) {
@@ -53,9 +45,7 @@ SharedSurface_Basic::Create(GLContext* gl,
     default:
         MOZ_CRASH("Unhandled Tex format.");
     }
-
-    ret.reset( new SharedSurface_Basic(gl, size, hasAlpha, format, tex) );
-    return Move(ret);
+    return new SharedSurface_Basic(gl, size, hasAlpha, format, tex);
 }
 
 SharedSurface_Basic::SharedSurface_Basic(GLContext* gl,
@@ -70,7 +60,6 @@ SharedSurface_Basic::SharedSurface_Basic(GLContext* gl,
                     hasAlpha)
     , mTex(tex)
     , mFB(0)
-    , mIsDataCurrent(false)
 {
     mGL->MakeCurrent();
     mGL->fGenFramebuffers(1, &mFB);
@@ -82,16 +71,14 @@ SharedSurface_Basic::SharedSurface_Basic(GLContext* gl,
                               mTex,
                               0);
 
-    DebugOnly<GLenum> status = mGL->fCheckFramebufferStatus(LOCAL_GL_FRAMEBUFFER);
-    MOZ_ASSERT(status == LOCAL_GL_FRAMEBUFFER_COMPLETE);
+    GLenum status = mGL->fCheckFramebufferStatus(LOCAL_GL_FRAMEBUFFER);
+    if (status != LOCAL_GL_FRAMEBUFFER_COMPLETE) {
+        mGL->fDeleteFramebuffers(1, &mFB);
+        mFB = 0;
+    }
 
     int32_t stride = gfx::GetAlignedStride<4>(size.width * BytesPerPixel(format));
     mData = gfx::Factory::CreateDataSourceSurfaceWithStride(size, format, stride);
-    // Leave the extra return for clarity, in case we decide more code should
-    // be added after this check, that should run even if mData is null.
-    if (NS_WARN_IF(!mData)) {
-        return;
-    }
 }
 
 SharedSurface_Basic::~SharedSurface_Basic()
@@ -108,65 +95,14 @@ SharedSurface_Basic::~SharedSurface_Basic()
 void
 SharedSurface_Basic::Fence()
 {
-    // The constructor can fail to get us mData, we should deal with it:
-    if (NS_WARN_IF(!mData)) {
-        return;
-    }
-
     mGL->MakeCurrent();
     ScopedBindFramebuffer autoFB(mGL, mFB);
     ReadPixelsIntoDataSurface(mGL, mData);
-    mIsDataCurrent = true;
 }
 
-bool
-SharedSurface_Basic::WaitSync()
-{
-    MOZ_ASSERT(mIsDataCurrent);
-    return true;
-}
 
-bool
-SharedSurface_Basic::PollSync()
-{
-    MOZ_ASSERT(mIsDataCurrent);
-    return true;
-}
 
-void
-SharedSurface_Basic::Fence_ContentThread_Impl()
-{
-    mIsDataCurrent = false;
-}
-
-bool
-SharedSurface_Basic::WaitSync_ContentThread_Impl()
-{
-    if (!mIsDataCurrent) {
-        mGL->MakeCurrent();
-        ScopedBindFramebuffer autoFB(mGL, mFB);
-        ReadPixelsIntoDataSurface(mGL, mData);
-        mIsDataCurrent = true;
-    }
-    return true;
-}
-
-bool
-SharedSurface_Basic::PollSync_ContentThread_Impl()
-{
-    if (!mIsDataCurrent) {
-        mGL->MakeCurrent();
-        ScopedBindFramebuffer autoFB(mGL, mFB);
-        ReadPixelsIntoDataSurface(mGL, mData);
-        mIsDataCurrent = true;
-    }
-    return true;
-}
-
-////////////////////////////////////////////////////////////////////////
-// SharedSurface_GLTexture
-
-/*static*/ UniquePtr<SharedSurface_GLTexture>
+SharedSurface_GLTexture*
 SharedSurface_GLTexture::Create(GLContext* prodGL,
                                 GLContext* consGL,
                                 const GLFormats& formats,
@@ -183,25 +119,12 @@ SharedSurface_GLTexture::Create(GLContext* prodGL,
 
     bool ownsTex = false;
 
-    UniquePtr<SharedSurface_GLTexture> ret;
-
     if (!tex) {
-      GLContext::ScopedLocalErrorCheck localError(prodGL);
-
       tex = CreateTextureForOffscreen(prodGL, formats, size);
-
-      GLenum err = localError.GetLocalError();
-      if (err) {
-          prodGL->fDeleteTextures(1, &tex);
-          return Move(ret);
-      }
-
       ownsTex = true;
     }
 
-    ret.reset( new SharedSurface_GLTexture(prodGL, consGL, size,
-                                           hasAlpha, tex, ownsTex) );
-    return Move(ret);
+    return new SharedSurface_GLTexture(prodGL, consGL, size, hasAlpha, tex, ownsTex);
 }
 
 SharedSurface_GLTexture::~SharedSurface_GLTexture()

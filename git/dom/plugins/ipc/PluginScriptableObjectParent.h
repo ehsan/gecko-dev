@@ -36,7 +36,7 @@ class PluginScriptableObjectParent : public PPluginScriptableObjectParent
   friend class PluginInstanceParent;
 
 public:
-  explicit PluginScriptableObjectParent(ScriptableObjectType aType);
+  PluginScriptableObjectParent(ScriptableObjectType aType);
   virtual ~PluginScriptableObjectParent();
 
   void

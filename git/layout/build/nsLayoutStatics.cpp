@@ -63,7 +63,6 @@
 #include "DisplayItemClip.h"
 #include "ActiveLayerTracker.h"
 #include "CounterStyleManager.h"
-#include "FrameLayerBuilder.h"
 
 #include "AudioChannelService.h"
 #include "mozilla/dom/DataStoreService.h"
@@ -102,7 +101,7 @@
 #include "FFmpegRuntimeLinker.h"
 #endif
 
-#include "CubebUtils.h"
+#include "AudioStream.h"
 #include "Latency.h"
 #include "WebAudioUtils.h"
 
@@ -216,6 +215,7 @@ nsLayoutStatics::Initialize()
 
   nsMathMLOperators::AddRefTable();
 
+  nsEditProperty::RegisterAtoms();
   nsTextServicesDocument::RegisterAtoms();
 
 #ifdef DEBUG
@@ -262,7 +262,7 @@ nsLayoutStatics::Initialize()
   }
 
   AsyncLatencyLogger::InitializeStatics();
-  CubebUtils::InitLibrary();
+  AudioStream::InitLibrary();
 
   nsContentSink::InitializeStatics();
   nsHtml5Module::InitializeStatics();
@@ -378,7 +378,7 @@ nsLayoutStatics::Shutdown()
   FFmpegRuntimeLinker::Unlink();
 #endif
 
-  CubebUtils::ShutdownLibrary();
+  AudioStream::ShutdownLibrary();
   AsyncLatencyLogger::ShutdownLogger();
   WebAudioUtils::Shutdown();
 

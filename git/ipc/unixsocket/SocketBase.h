@@ -9,6 +9,8 @@
 #ifndef mozilla_ipc_SocketBase_h
 #define mozilla_ipc_SocketBase_h
 
+#include <errno.h>
+#include <unistd.h>
 #include "base/message_loop.h"
 #include "nsAutoPtr.h"
 #include "nsTArray.h"
@@ -29,73 +31,22 @@ namespace ipc {
 class UnixSocketRawData
 {
 public:
-  /* This constructor copies aData of aSize bytes length into the
-   * new instance of |UnixSocketRawData|.
-   */
-  UnixSocketRawData(const void* aData, size_t aSize);
+  // Number of octets in mData.
+  size_t mSize;
+  size_t mCurrentWriteOffset;
+  nsAutoArrayPtr<uint8_t> mData;
 
-  /* This constructor reserves aSize bytes of space. Currently
-   * it's only possible to fill this buffer by calling |Receive|.
+  /**
+   * Constructor for situations where only size is known beforehand
+   * (for example, when being assigned strings)
    */
   UnixSocketRawData(size_t aSize);
 
   /**
-   * Receives data from aFd at the end of the buffer. The returned value
-   * is the number of newly received bytes, or 0 if the peer shut down
-   * its connection, or a negative value on errors.
+   * Constructor for situations where size and data is known
+   * beforehand (for example, when being assigned strings)
    */
-  ssize_t Receive(int aFd);
-
-  /**
-   * Sends data to aFd from the beginning of the buffer. The returned value
-   * is the number of bytes written, or a negative value on error.
-   */
-  ssize_t Send(int aFd);
-
-  const uint8_t* GetData() const
-  {
-    return mData + mOffset;
-  }
-
-  size_t GetSize() const
-  {
-    return mSize;
-  }
-
-  void Consume(size_t aSize)
-  {
-    MOZ_ASSERT(aSize <= mSize);
-
-    mSize -= aSize;
-    mOffset += aSize;
-  }
-
-protected:
-  size_t GetLeadingSpace() const
-  {
-    return mOffset;
-  }
-
-  size_t GetTrailingSpace() const
-  {
-    return mAvailableSpace - (mOffset + mSize);
-  }
-
-  size_t GetAvailableSpace() const
-  {
-    return mAvailableSpace;
-  }
-
-  void* GetTrailingBytes()
-  {
-    return mData + mOffset + mSize;
-  }
-
-private:
-  size_t mSize;
-  size_t mOffset;
-  size_t mAvailableSpace;
-  nsAutoArrayPtr<uint8_t> mData;
+  UnixSocketRawData(const void* aData, size_t aSize);
 };
 
 enum SocketConnectionStatus {
@@ -360,7 +311,7 @@ private:
 //
 
 /* |SocketIOBase| is a base class for Socket I/O classes that
- * perform operations on the I/O thread. It provides methods
+ * perform operations on the I/O thread. It provides methds
  * for the most common read and write scenarios.
  */
 class SocketIOBase
@@ -372,38 +323,46 @@ public:
   bool HasPendingData() const;
 
   template <typename T>
-  ssize_t ReceiveData(int aFd, T* aIO)
+  nsresult ReceiveData(int aFd, T* aIO)
   {
     MOZ_ASSERT(aFd >= 0);
     MOZ_ASSERT(aIO);
 
-    nsAutoPtr<UnixSocketRawData> incoming(
-      new UnixSocketRawData(mMaxReadSize));
+    do {
+      nsAutoPtr<UnixSocketRawData> incoming(
+        new UnixSocketRawData(mMaxReadSize));
 
-    ssize_t res = incoming->Receive(aFd);
-    if (res < 0) {
-      /* an I/O error occured */
-      nsRefPtr<nsRunnable> r = new SocketIORequestClosingRunnable<T>(aIO);
-      NS_DispatchToMainThread(r);
-      return -1;
-    } else if (!res) {
-      /* EOF or peer shut down sending */
-      nsRefPtr<nsRunnable> r = new SocketIORequestClosingRunnable<T>(aIO);
-      NS_DispatchToMainThread(r);
-      return 0;
-    }
+      ssize_t res =
+        TEMP_FAILURE_RETRY(read(aFd, incoming->mData, incoming->mSize));
+
+      if (res < 0) {
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+          return NS_OK; /* no more data available */
+        }
+        /* an error occored */
+        nsRefPtr<nsRunnable> r = new SocketIORequestClosingRunnable<T>(aIO);
+        NS_DispatchToMainThread(r);
+        return NS_ERROR_FAILURE;
+      } else if (!res) {
+        /* EOF or peer shut down sending */
+        nsRefPtr<nsRunnable> r = new SocketIORequestClosingRunnable<T>(aIO);
+        NS_DispatchToMainThread(r);
+        return NS_OK;
+      }
 
 #ifdef MOZ_TASK_TRACER
-    // Make unix socket creation events to be the source events of TaskTracer,
-    // and originate the rest correlation tasks from here.
-    AutoSourceEvent taskTracerEvent(SourceEventType::UNIXSOCKET);
+      // Make unix socket creation events to be the source events of TaskTracer,
+      // and originate the rest correlation tasks from here.
+      AutoSourceEvent taskTracerEvent(SourceEventType::UNIXSOCKET);
 #endif
 
-    nsRefPtr<nsRunnable> r =
-      new SocketIOReceiveRunnable<T>(aIO, incoming.forget());
-    NS_DispatchToMainThread(r);
+      incoming->mSize = res;
+      nsRefPtr<nsRunnable> r =
+        new SocketIOReceiveRunnable<T>(aIO, incoming.forget());
+      NS_DispatchToMainThread(r);
+    } while (true);
 
-    return res;
+    return NS_OK;
   }
 
   template <typename T>
@@ -412,24 +371,38 @@ public:
     MOZ_ASSERT(aFd >= 0);
     MOZ_ASSERT(aIO);
 
-    while (HasPendingData()) {
-      UnixSocketRawData* outgoing = mOutgoingQ.ElementAt(0);
+    do {
+      if (!HasPendingData()) {
+        return NS_OK;
+      }
 
-      ssize_t res = outgoing->Send(aFd);
+      UnixSocketRawData* outgoing = mOutgoingQ.ElementAt(0);
+      MOZ_ASSERT(outgoing->mSize);
+
+      const uint8_t* data = outgoing->mData + outgoing->mCurrentWriteOffset;
+      size_t size = outgoing->mSize - outgoing->mCurrentWriteOffset;
+
+      ssize_t res = TEMP_FAILURE_RETRY(write(aFd, data, size));
+
       if (res < 0) {
-        /* an I/O error occured */
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+          return NS_OK; /* no more data available */
+        }
+        /* an error occored */
         nsRefPtr<nsRunnable> r = new SocketIORequestClosingRunnable<T>(aIO);
         NS_DispatchToMainThread(r);
         return NS_ERROR_FAILURE;
-      } else if (!res && outgoing->GetSize()) {
-        /* I/O is currently blocked; try again later */
-        return NS_OK;
+      } else if (!res) {
+        return NS_OK; /* nothing written */
       }
-      if (!outgoing->GetSize()) {
+
+      outgoing->mCurrentWriteOffset += res;
+
+      if (outgoing->mCurrentWriteOffset == outgoing->mSize) {
         mOutgoingQ.RemoveElementAt(0);
         delete outgoing;
       }
-    }
+    } while (true);
 
     return NS_OK;
   }

@@ -471,7 +471,7 @@ let DocShellCapabilitiesListener = {
  */
 let SessionStorageListener = {
   init: function () {
-    addEventListener("MozStorageChanged", this, true);
+    addEventListener("MozStorageChanged", this);
     Services.obs.addObserver(this, "browser:purge-domain-data", false);
     gFrameTree.addObserver(this);
   },

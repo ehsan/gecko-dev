@@ -59,16 +59,7 @@ LoopUnroller::getReplacementDefinition(MDefinition *def)
     }
 
     DefinitionMap::Ptr p = unrolledDefinitions.lookup(def);
-    if (!p) {
-        // After phi analysis (TypeAnalyzer::replaceRedundantPhi) the resume
-        // point at the start of a block can contain definitions from within
-        // the block itself.
-        JS_ASSERT(def->isConstant());
-
-        MConstant *constant = MConstant::New(alloc, def->toConstant()->value());
-        oldPreheader->insertBefore(*oldPreheader->begin(), constant);
-        return constant;
-    }
+    JS_ASSERT(p);
 
     return p->value();
 }
@@ -121,13 +112,10 @@ LoopUnroller::go(LoopIterationBound *bound)
     // For now we always unroll loops the same number of times.
     static const size_t UnrollCount = 10;
 
-    JitSpew(JitSpew_Unrolling, "Attempting to unroll loop");
+    IonSpew(IonSpew_Unrolling, "Attempting to unroll loop");
 
     header = bound->header;
-
-    // UCE might have determined this isn't actually a loop.
-    if (!header->isLoopHeader())
-        return;
+    JS_ASSERT(header->isLoopHeader());
 
     backedge = header->backedge();
     oldPreheader = header->loopPredecessor();
@@ -163,7 +151,7 @@ LoopUnroller::go(LoopIterationBound *bound)
                 continue;
             if (ins->isTest() || ins->isGoto() || ins->isInterruptCheck())
                 continue;
-            JitSpew(JitSpew_Unrolling, "Aborting: can't clone instruction %s", ins->opName());
+            IonSpew(IonSpew_Unrolling, "Aborting: can't clone instruction %s", ins->opName());
             return;
         }
     }
@@ -191,7 +179,7 @@ LoopUnroller::go(LoopIterationBound *bound)
 
     // OK, we've checked everything, now unroll the loop.
 
-    JitSpew(JitSpew_Unrolling, "Unrolling loop");
+    IonSpew(IonSpew_Unrolling, "Unrolling loop");
 
     // The old preheader will go before the unrolled loop, and the old loop
     // will need a new empty preheader.

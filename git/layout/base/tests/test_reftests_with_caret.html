@@ -143,16 +143,13 @@ var tests = [
     [ 'bug746993-1.html' , 'bug746993-1-ref.html' ] ,
     [ 'bug1007065-1.html' , 'bug1007065-1-ref.html' ] ,
     [ 'bug1007067-1.html' , 'bug1007067-1-ref.html' ] ,
-    [ 'bug1061468.html'   , 'bug1061468-ref.html' ] ,
     function() {SpecialPowers.clearUserPref("touchcaret.enabled");} ,
 ];
 
 if (navigator.appVersion.indexOf("Android") == -1 &&
   SpecialPowers.Services.appinfo.name != "B2G") {
-  tests.push(function() {SpecialPowers.setBoolPref("touchcaret.enabled", false);});
   tests.push([ 'bug512295-1.html' , 'bug512295-1-ref.html' ]);
   tests.push([ 'bug512295-2.html' , 'bug512295-2-ref.html' ]);
-  tests.push(function() {SpecialPowers.clearUserPref("touchcaret.enabled");});
   tests.push(function() {SpecialPowers.setBoolPref("layout.css.overflow-clip-box.enabled", true);});
   tests.push([ 'bug966992-1.html' , 'bug966992-1-ref.html' ]);
   tests.push([ 'bug966992-2.html' , 'bug966992-2-ref.html' ]);

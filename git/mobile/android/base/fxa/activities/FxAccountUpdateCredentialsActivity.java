@@ -160,8 +160,7 @@ public class FxAccountUpdateCredentialsActivity extends FxAccountAbstractSetupAc
         fxAccount.dump();
       }
 
-      setResult(RESULT_OK);
-      finish();
+      redirectToActivity(FxAccountStatusActivity.class);
     }
   }
 

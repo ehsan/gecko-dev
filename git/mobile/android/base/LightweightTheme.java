@@ -35,7 +35,7 @@ public class LightweightTheme implements GeckoEventListener {
     private static final String LOGTAG = "GeckoLightweightTheme";
 
     private final Application mApplication;
-    final Handler mHandler;
+    /* inner-access */ final Handler mHandler;
 
     private Bitmap mBitmap;
     private int mColor;

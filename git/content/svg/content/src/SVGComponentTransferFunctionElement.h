@@ -27,7 +27,7 @@ typedef SVGFEUnstyledElement SVGComponentTransferFunctionElementBase;
 class SVGComponentTransferFunctionElement : public SVGComponentTransferFunctionElementBase
 {
 protected:
-  explicit SVGComponentTransferFunctionElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
+  SVGComponentTransferFunctionElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
     : SVGComponentTransferFunctionElementBase(aNodeInfo)
   {
   }
@@ -94,7 +94,7 @@ class SVGFEFuncRElement : public SVGComponentTransferFunctionElement
   friend nsresult (::NS_NewSVGFEFuncRElement(
     nsIContent** aResult, already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo));
 protected:
-  explicit SVGFEFuncRElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
+  SVGFEFuncRElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
     : SVGComponentTransferFunctionElement(aNodeInfo) {}
 
 public:
@@ -119,7 +119,7 @@ class SVGFEFuncGElement : public SVGComponentTransferFunctionElement
   friend nsresult (::NS_NewSVGFEFuncGElement(
     nsIContent** aResult, already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo));
 protected:
-  explicit SVGFEFuncGElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
+  SVGFEFuncGElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
     : SVGComponentTransferFunctionElement(aNodeInfo) {}
 
 public:
@@ -144,7 +144,7 @@ class SVGFEFuncBElement : public SVGComponentTransferFunctionElement
   friend nsresult (::NS_NewSVGFEFuncBElement(
     nsIContent** aResult, already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo));
 protected:
-  explicit SVGFEFuncBElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
+  SVGFEFuncBElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
     : SVGComponentTransferFunctionElement(aNodeInfo) {}
 
 public:
@@ -169,7 +169,7 @@ class SVGFEFuncAElement : public SVGComponentTransferFunctionElement
   friend nsresult (::NS_NewSVGFEFuncAElement(
     nsIContent** aResult, already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo));
 protected:
-  explicit SVGFEFuncAElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
+  SVGFEFuncAElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
     : SVGComponentTransferFunctionElement(aNodeInfo) {}
 
 public:

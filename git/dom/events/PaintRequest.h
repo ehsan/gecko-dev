@@ -21,7 +21,7 @@ class PaintRequest MOZ_FINAL : public nsIDOMPaintRequest
                              , public nsWrapperCache
 {
 public:
-  explicit PaintRequest(nsIDOMEvent* aParent)
+  PaintRequest(nsIDOMEvent* aParent)
     : mParent(aParent)
   {
     mRequest.mFlags = 0;
@@ -59,7 +59,7 @@ class PaintRequestList MOZ_FINAL : public nsISupports,
                                    public nsWrapperCache
 {
 public:
-  explicit PaintRequestList(nsIDOMEvent *aParent) : mParent(aParent)
+  PaintRequestList(nsIDOMEvent *aParent) : mParent(aParent)
   {
     SetIsDOMBinding();
   }

@@ -28,7 +28,7 @@
 #include "nsIDOMIccInfo.h"
 #include "nsIIccProvider.h"
 #include "nsIMobileConnectionInfo.h"
-#include "nsIMobileConnectionService.h"
+#include "nsIMobileConnectionProvider.h"
 #include "nsIMobileNetworkInfo.h"
 #include "nsITelephonyService.h"
 #include "nsRadioInterfaceLayer.h"
@@ -606,8 +606,8 @@ BluetoothHfpManager::HandleVolumeChanged(const nsAString& aData)
 void
 BluetoothHfpManager::HandleVoiceConnectionChanged(uint32_t aClientId)
 {
-  nsCOMPtr<nsIMobileConnectionService> connection =
-    do_GetService(NS_MOBILE_CONNECTION_SERVICE_CONTRACTID);
+  nsCOMPtr<nsIMobileConnectionProvider> connection =
+    do_GetService(NS_RILCONTENTHELPER_CONTRACTID);
   NS_ENSURE_TRUE_VOID(connection);
 
   nsCOMPtr<nsIMobileConnectionInfo> voiceInfo;
@@ -707,8 +707,7 @@ BluetoothHfpManager::ReceiveSocketData(BluetoothSocket* aSocket,
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(aSocket);
 
-  nsAutoCString msg(reinterpret_cast<const char*>(aMessage->GetData()),
-                    aMessage->GetSize());
+  nsAutoCString msg((const char*)aMessage->mData.get(), aMessage->mSize);
   msg.StripWhitespace();
 
   nsTArray<nsCString> atCommandValues;

@@ -13,8 +13,7 @@
 
 #include "jit/CompactBuffer.h"
 #include "jit/IonCode.h"
-#include "jit/JitCompartment.h"
-#include "jit/JitSpewer.h"
+#include "jit/IonSpewer.h"
 #include "jit/mips/Architecture-mips.h"
 #include "jit/shared/Assembler-shared.h"
 #include "jit/shared/IonAssemblerBuffer.h"
@@ -105,26 +104,18 @@ class ABIArgGenerator
 static MOZ_CONSTEXPR_VAR Register PreBarrierReg = a1;
 
 static MOZ_CONSTEXPR_VAR Register InvalidReg = { Registers::invalid_reg };
-static MOZ_CONSTEXPR_VAR FloatRegister InvalidFloatReg;
+static MOZ_CONSTEXPR_VAR FloatRegister InvalidFloatReg = { FloatRegisters::invalid_freg };
 
 static MOZ_CONSTEXPR_VAR Register JSReturnReg_Type = a3;
 static MOZ_CONSTEXPR_VAR Register JSReturnReg_Data = a2;
 static MOZ_CONSTEXPR_VAR Register StackPointer = sp;
 static MOZ_CONSTEXPR_VAR Register FramePointer = InvalidReg;
 static MOZ_CONSTEXPR_VAR Register ReturnReg = v0;
-static MOZ_CONSTEXPR_VAR FloatRegister ReturnFloat32Reg = { FloatRegisters::f0, FloatRegister::Single };
-static MOZ_CONSTEXPR_VAR FloatRegister ReturnDoubleReg = { FloatRegisters::f0, FloatRegister::Double };
-static MOZ_CONSTEXPR_VAR FloatRegister ReturnSimdReg = InvalidFloatReg;
-static MOZ_CONSTEXPR_VAR FloatRegister ScratchFloat32Reg = { FloatRegisters::f18, FloatRegister::Single };
-static MOZ_CONSTEXPR_VAR FloatRegister ScratchDoubleReg = { FloatRegisters::f18, FloatRegister::Double };
-static MOZ_CONSTEXPR_VAR FloatRegister ScratchSimdReg = InvalidFloatReg;
-static MOZ_CONSTEXPR_VAR FloatRegister SecondScratchFloat32Reg = { FloatRegisters::f16, FloatRegister::Single };
-static MOZ_CONSTEXPR_VAR FloatRegister SecondScratchDoubleReg = { FloatRegisters::f16, FloatRegister::Double };
+static MOZ_CONSTEXPR_VAR FloatRegister ReturnFloatReg = { FloatRegisters::f0 };
+static MOZ_CONSTEXPR_VAR FloatRegister ScratchFloatReg = { FloatRegisters::f18 };
+static MOZ_CONSTEXPR_VAR FloatRegister SecondScratchFloatReg = { FloatRegisters::f16 };
 
-// A bias applied to the GlobalReg to allow the use of instructions with small
-// negative immediate offsets which doubles the range of global data that can be
-// accessed with a single instruction.
-static const int32_t AsmJSGlobalRegBias = 32768;
+static MOZ_CONSTEXPR_VAR FloatRegister NANReg = { FloatRegisters::f30 };
 
 // Registers used in the GenerateFFIIonExit Enable Activation block.
 static MOZ_CONSTEXPR_VAR Register AsmJSIonExitRegCallee = t0;
@@ -141,27 +132,28 @@ static MOZ_CONSTEXPR_VAR Register AsmJSIonExitRegD0 = a0;
 static MOZ_CONSTEXPR_VAR Register AsmJSIonExitRegD1 = a1;
 static MOZ_CONSTEXPR_VAR Register AsmJSIonExitRegD2 = t0;
 
-static MOZ_CONSTEXPR_VAR FloatRegister f0  = { FloatRegisters::f0, FloatRegister::Double };
-static MOZ_CONSTEXPR_VAR FloatRegister f2  = { FloatRegisters::f2, FloatRegister::Double };
-static MOZ_CONSTEXPR_VAR FloatRegister f4  = { FloatRegisters::f4, FloatRegister::Double };
-static MOZ_CONSTEXPR_VAR FloatRegister f6  = { FloatRegisters::f6, FloatRegister::Double };
-static MOZ_CONSTEXPR_VAR FloatRegister f8  = { FloatRegisters::f8, FloatRegister::Double };
-static MOZ_CONSTEXPR_VAR FloatRegister f10 = { FloatRegisters::f10, FloatRegister::Double };
-static MOZ_CONSTEXPR_VAR FloatRegister f12 = { FloatRegisters::f12, FloatRegister::Double };
-static MOZ_CONSTEXPR_VAR FloatRegister f14 = { FloatRegisters::f14, FloatRegister::Double };
-static MOZ_CONSTEXPR_VAR FloatRegister f16 = { FloatRegisters::f16, FloatRegister::Double };
-static MOZ_CONSTEXPR_VAR FloatRegister f18 = { FloatRegisters::f18, FloatRegister::Double };
-static MOZ_CONSTEXPR_VAR FloatRegister f20 = { FloatRegisters::f20, FloatRegister::Double };
-static MOZ_CONSTEXPR_VAR FloatRegister f22 = { FloatRegisters::f22, FloatRegister::Double };
-static MOZ_CONSTEXPR_VAR FloatRegister f24 = { FloatRegisters::f24, FloatRegister::Double };
-static MOZ_CONSTEXPR_VAR FloatRegister f26 = { FloatRegisters::f26, FloatRegister::Double };
-static MOZ_CONSTEXPR_VAR FloatRegister f28 = { FloatRegisters::f28, FloatRegister::Double };
-static MOZ_CONSTEXPR_VAR FloatRegister f30 = { FloatRegisters::f30, FloatRegister::Double };
+static MOZ_CONSTEXPR_VAR FloatRegister f0  = {FloatRegisters::f0};
+static MOZ_CONSTEXPR_VAR FloatRegister f2  = {FloatRegisters::f2};
+static MOZ_CONSTEXPR_VAR FloatRegister f4  = {FloatRegisters::f4};
+static MOZ_CONSTEXPR_VAR FloatRegister f6  = {FloatRegisters::f6};
+static MOZ_CONSTEXPR_VAR FloatRegister f8  = {FloatRegisters::f8};
+static MOZ_CONSTEXPR_VAR FloatRegister f10 = {FloatRegisters::f10};
+static MOZ_CONSTEXPR_VAR FloatRegister f12 = {FloatRegisters::f12};
+static MOZ_CONSTEXPR_VAR FloatRegister f14 = {FloatRegisters::f14};
+static MOZ_CONSTEXPR_VAR FloatRegister f16 = {FloatRegisters::f16};
+static MOZ_CONSTEXPR_VAR FloatRegister f18 = {FloatRegisters::f18};
+static MOZ_CONSTEXPR_VAR FloatRegister f20 = {FloatRegisters::f20};
+static MOZ_CONSTEXPR_VAR FloatRegister f22 = {FloatRegisters::f22};
+static MOZ_CONSTEXPR_VAR FloatRegister f24 = {FloatRegisters::f24};
+static MOZ_CONSTEXPR_VAR FloatRegister f26 = {FloatRegisters::f26};
+static MOZ_CONSTEXPR_VAR FloatRegister f28 = {FloatRegisters::f28};
+static MOZ_CONSTEXPR_VAR FloatRegister f30 = {FloatRegisters::f30};
 
 // MIPS CPUs can only load multibyte data that is "naturally"
 // four-byte-aligned, sp register should be eight-byte-aligned.
-static const uint32_t ABIStackAlignment = 8;
+static const uint32_t StackAlignment = 8;
 static const uint32_t CodeAlignment = 4;
+static const bool StackKeptAligned = true;
 
 // This boolean indicates whether we support SIMD instructions flavoured for
 // this architecture or not. Rather than a method in the LIRGenerator, it is
@@ -171,8 +163,6 @@ static const bool SupportsSimd = false;
 // TODO this is just a filler to prevent a build failure. The MIPS SIMD
 // alignment requirements still need to be explored.
 static const uint32_t SimdStackAlignment = 8;
-
-static const uint32_t AsmJSStackAlignment = SimdStackAlignment;
 
 static const Scale ScalePointer = TimesFour;
 
@@ -241,8 +231,9 @@ static const uint32_t RDMask = ((1 << RDBits) - 1) << RDShift;
 static const uint32_t SAMask = ((1 << SABits) - 1) << SAShift;
 static const uint32_t FunctionMask = ((1 << FunctionBits) - 1) << FunctionShift;
 static const uint32_t RegMask = Registers::Total - 1;
+static const uint32_t StackAlignmentMask = StackAlignment - 1;
 
-static const uint32_t MAX_BREAK_CODE = 1024 - 1;
+static const int32_t MAX_BREAK_CODE = 1024 - 1;
 
 class Instruction;
 class InstReg;
@@ -628,10 +619,6 @@ class Operand
 
 void
 PatchJump(CodeLocationJump &jump_, CodeLocationLabel label);
-
-void
-PatchBackedge(CodeLocationJump &jump_, CodeLocationLabel label, JitRuntime::BackedgeTarget target);
-
 class Assembler;
 typedef js::jit::AssemblerBuffer<1024, Instruction> MIPSBuffer;
 
@@ -824,7 +811,6 @@ class Assembler : public AssemblerShared
 
     // Branch and jump instructions
     BufferOffset as_bal(BOffImm16 off);
-    BufferOffset as_b(BOffImm16 off);
 
     InstImm getBranchCode(JumpOrCall jumpOrCall);
     InstImm getBranchCode(Register s, Register t, Condition c);
@@ -900,7 +886,7 @@ class Assembler : public AssemblerShared
     BufferOffset as_movf(Register rd, Register rs, uint16_t cc = 0);
 
     // Bit twiddling.
-    BufferOffset as_clz(Register rd, Register rs);
+    BufferOffset as_clz(Register rd, Register rs, Register rt = Register::FromCode(0));
     BufferOffset as_ins(Register rt, Register rs, uint16_t pos, uint16_t size);
     BufferOffset as_ext(Register rt, Register rs, uint16_t pos, uint16_t size);
 
@@ -921,11 +907,11 @@ class Assembler : public AssemblerShared
     BufferOffset as_mfc1(Register rt, FloatRegister fs);
 
   protected:
-    // This is used to access the odd register form the pair of single
+    // This is used to access the odd regiter form the pair of single
     // precision registers that make one double register.
     FloatRegister getOddPair(FloatRegister reg) {
-        MOZ_ASSERT(reg.isDouble());
-        return reg.singleOverlay(1);
+        MOZ_ASSERT(reg.code() % 2 == 0);
+        return FloatRegister::FromCode(reg.code() + 1);
     }
 
   public:
@@ -1009,17 +995,6 @@ class Assembler : public AssemblerShared
   public:
     static void TraceJumpRelocations(JSTracer *trc, JitCode *code, CompactBufferReader &reader);
     static void TraceDataRelocations(JSTracer *trc, JitCode *code, CompactBufferReader &reader);
-
-    static bool SupportsFloatingPoint() {
-#if (defined(__mips_hard_float) && !defined(__mips_single_float)) || defined(JS_MIPS_SIMULATOR)
-        return true;
-#else
-        return false;
-#endif
-    }
-    static bool SupportsSimd() {
-        return js::jit::SupportsSimd;
-    }
 
   protected:
     InstImm invertBranch(InstImm branch, BOffImm16 skipOffset);

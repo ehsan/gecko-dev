@@ -157,8 +157,7 @@ TraceWeakMappingChild(JSTracer* aTrc, void** aThingp, JSGCTraceKind aKind)
   }
 
   if (AddToCCKind(aKind)) {
-    tracer->mCb.NoteWeakMapping(tracer->mMap, tracer->mKey,
-                                tracer->mKeyDelegate, thing);
+    tracer->mCb.NoteWeakMapping(tracer->mMap, tracer->mKey, tracer->mKeyDelegate, thing);
     tracer->mTracedAny = true;
   } else {
     JS_TraceChildren(aTrc, thing, aKind);
@@ -306,8 +305,7 @@ struct Closure
 };
 
 static void
-CheckParticipatesInCycleCollection(void* aThing, const char* aName,
-                                   void* aClosure)
+CheckParticipatesInCycleCollection(void* aThing, const char* aName, void* aClosure)
 {
   Closure* closure = static_cast<Closure*>(aClosure);
 
@@ -348,9 +346,9 @@ NS_IMETHODIMP
 JSGCThingParticipant::Traverse(void* aPtr,
                                nsCycleCollectionTraversalCallback& aCb)
 {
-  auto runtime = reinterpret_cast<CycleCollectedJSRuntime*>(
-    reinterpret_cast<char*>(this) - offsetof(CycleCollectedJSRuntime,
-                                             mGCThingCycleCollectorGlobal));
+  CycleCollectedJSRuntime* runtime = reinterpret_cast<CycleCollectedJSRuntime*>
+    (reinterpret_cast<char*>(this) -
+     offsetof(CycleCollectedJSRuntime, mGCThingCycleCollectorGlobal));
 
   runtime->TraverseGCThing(CycleCollectedJSRuntime::TRAVERSE_FULL,
                            aPtr, js::GCThingTraceKind(aPtr), aCb);
@@ -364,9 +362,9 @@ static JSGCThingParticipant sGCThingCycleCollectorGlobal;
 NS_IMETHODIMP
 JSZoneParticipant::Traverse(void* aPtr, nsCycleCollectionTraversalCallback& aCb)
 {
-  auto runtime = reinterpret_cast<CycleCollectedJSRuntime*>(
-    reinterpret_cast<char*>(this) - offsetof(CycleCollectedJSRuntime,
-                                             mJSZoneCycleCollectorGlobal));
+  CycleCollectedJSRuntime* runtime = reinterpret_cast<CycleCollectedJSRuntime*>
+    (reinterpret_cast<char*>(this) -
+     offsetof(CycleCollectedJSRuntime, mJSZoneCycleCollectorGlobal));
 
   MOZ_ASSERT(!aCb.WantAllTraces());
   JS::Zone* zone = static_cast<JS::Zone*>(aPtr);
@@ -491,8 +489,7 @@ CycleCollectedJSRuntime::CycleCollectedJSRuntime(JSRuntime* aParentRuntime,
   JS_SetGrayGCRootsTracer(mJSRuntime, TraceGrayJS, this);
   JS_SetGCCallback(mJSRuntime, GCCallback, this);
   JS::SetOutOfMemoryCallback(mJSRuntime, OutOfMemoryCallback, this);
-  JS::SetLargeAllocationFailureCallback(mJSRuntime,
-                                        LargeAllocationFailureCallback, this);
+  JS::SetLargeAllocationFailureCallback(mJSRuntime, LargeAllocationFailureCallback, this);
   JS_SetContextCallback(mJSRuntime, ContextCallback, this);
   JS_SetDestroyZoneCallback(mJSRuntime, XPCStringConvert::FreeZoneCache);
   JS_SetSweepZoneCallback(mJSRuntime, XPCStringConvert::ClearZoneCache);
@@ -615,8 +612,7 @@ CycleCollectedJSRuntime::NoteGCThingJSChildren(void* aThing,
 }
 
 void
-CycleCollectedJSRuntime::NoteGCThingXPCOMChildren(const js::Class* aClasp,
-                                                  JSObject* aObj,
+CycleCollectedJSRuntime::NoteGCThingXPCOMChildren(const js::Class* aClasp, JSObject* aObj,
                                                   nsCycleCollectionTraversalCallback& aCb) const
 {
   MOZ_ASSERT(aClasp);
@@ -769,7 +765,7 @@ CycleCollectedJSRuntime::GCCallback(JSRuntime* aRuntime,
 }
 
 /* static */ void
-CycleCollectedJSRuntime::OutOfMemoryCallback(JSContext* aContext,
+CycleCollectedJSRuntime::OutOfMemoryCallback(JSContext *aContext,
                                              void* aData)
 {
   CycleCollectedJSRuntime* self = static_cast<CycleCollectedJSRuntime*>(aData);
@@ -1105,8 +1101,7 @@ IncrementalFinalizeRunnable::IncrementalFinalizeRunnable(CycleCollectedJSRuntime
   , mFinalizeFunctionToRun(0)
 {
   this->mSupports.SwapElements(aSupports);
-  DeferredFinalizeFunctionHolder* function =
-    mDeferredFinalizeFunctions.AppendElement();
+  DeferredFinalizeFunctionHolder* function = mDeferredFinalizeFunctions.AppendElement();
   function->run = ReleaseSliceNow;
   function->data = &this->mSupports;
 
@@ -1206,9 +1201,8 @@ CycleCollectedJSRuntime::FinalizeDeferredThings(DeferredFinalizeType aType)
   }
 }
 
-void
-CycleCollectedJSRuntime::AnnotateAndSetOutOfMemory(OOMState* aStatePtr,
-                                                   OOMState aNewState)
+void 
+CycleCollectedJSRuntime::AnnotateAndSetOutOfMemory(OOMState *aStatePtr, OOMState aNewState)
 {
   *aStatePtr = aNewState;
 #ifdef MOZ_CRASHREPORTER

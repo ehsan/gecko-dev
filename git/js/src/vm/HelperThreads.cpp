@@ -157,20 +157,9 @@ js::CancelOffThreadIonCompile(JSCompartment *compartment, JSScript *script)
     for (size_t i = 0; i < finished.length(); i++) {
         jit::IonBuilder *builder = finished[i];
         if (CompiledScriptMatches(compartment, script, builder->script())) {
-            jit::FinishOffThreadBuilder(nullptr, builder);
+            jit::FinishOffThreadBuilder(builder);
             HelperThreadState().remove(finished, &i);
         }
-    }
-
-    /* Cancel lazy linking for pending builders (attached to the ionScript). */
-    jit::IonBuilder* builder = HelperThreadState().ionLazyLinkList().getFirst();
-    while (builder) {
-        jit::IonBuilder *next = builder->getNext();
-        if (CompiledScriptMatches(compartment, script, builder->script())) {
-            builder->script()->setPendingIonBuilder(nullptr, nullptr);
-            jit::FinishOffThreadBuilder(nullptr, builder);
-        }
-        builder = next;
     }
 }
 
@@ -185,7 +174,7 @@ static const JSClass parseTaskGlobalClass = {
 };
 
 ParseTask::ParseTask(ExclusiveContext *cx, JSObject *exclusiveContextGlobal, JSContext *initCx,
-                     const char16_t *chars, size_t length,
+                     const jschar *chars, size_t length,
                      JS::OffThreadCompileCallback callback, void *callbackData)
   : cx(cx), options(initCx), chars(chars), length(length),
     alloc(JSRuntime::TEMP_LIFO_ALLOC_PRIMARY_CHUNK_SIZE),
@@ -294,7 +283,7 @@ js::OffThreadParsingMustWaitForGC(JSRuntime *rt)
 
 bool
 js::StartOffThreadParseScript(JSContext *cx, const ReadOnlyCompileOptions &options,
-                              const char16_t *chars, size_t length,
+                              const jschar *chars, size_t length,
                               JS::OffThreadCompileCallback callback, void *callbackData)
 {
     // Suppress GC so that calls below do not trigger a new incremental GC
@@ -434,11 +423,11 @@ GlobalHelperThreadState::ensureInitialized()
 
     for (size_t i = 0; i < threadCount; i++) {
         HelperThread &helper = threads[i];
-        helper.threadData.emplace(static_cast<JSRuntime *>(nullptr));
+        helper.threadData.construct(static_cast<JSRuntime *>(nullptr));
         helper.thread = PR_CreateThread(PR_USER_THREAD,
                                         HelperThread::ThreadMain, &helper,
                                         PR_PRIORITY_NORMAL, PR_GLOBAL_THREAD, PR_JOINABLE_THREAD, HELPER_STACK_SIZE);
-        if (!helper.thread || !helper.threadData->init())
+        if (!helper.thread || !helper.threadData.ref().init())
             CrashAtUnhandlableOOM("GlobalHelperThreadState::ensureInitialized");
     }
 
@@ -446,20 +435,9 @@ GlobalHelperThreadState::ensureInitialized()
 }
 
 GlobalHelperThreadState::GlobalHelperThreadState()
- : cpuCount(0),
-   threadCount(0),
-   threads(nullptr),
-   asmJSCompilationInProgress(nullptr),
-   helperLock(nullptr),
-#ifdef DEbUG
-   lockOwner(nullptr),
-#endif
-   consumerWakeup(nullptr),
-   producerWakeup(nullptr),
-   pauseWakeup(nullptr),
-   numAsmJSFailedJobs(0),
-   asmJSFailedFunction(nullptr)
 {
+    mozilla::PodZero(this);
+
     cpuCount = GetCPUCount();
     threadCount = ThreadCountForCPUCount(cpuCount);
 
@@ -485,8 +463,6 @@ GlobalHelperThreadState::finish()
     PR_DestroyCondVar(producerWakeup);
     PR_DestroyCondVar(pauseWakeup);
     PR_DestroyLock(helperLock);
-
-    ionLazyLinkList_.clear();
 }
 
 void
@@ -583,9 +559,8 @@ IonBuilderHasHigherPriority(jit::IonBuilder *first, jit::IonBuilder *second)
     if (first->script()->hasIonScript() != second->script()->hasIonScript())
         return !first->script()->hasIonScript();
 
-    // A higher warm-up counter indicates a higher priority.
-    return first->script()->getWarmUpCounter() / first->script()->length() >
-           second->script()->getWarmUpCounter() / second->script()->length();
+    // A higher useCount indicates a higher priority.
+    return first->script()->getUseCount() > second->script()->getUseCount();
 }
 
 bool
@@ -838,7 +813,8 @@ HelperThread::destroy()
         PR_JoinThread(thread);
     }
 
-    threadData.reset();
+    if (!threadData.empty())
+        threadData.destroy();
 }
 
 #ifdef MOZ_NUWA_PROCESS
@@ -876,7 +852,7 @@ HelperThread::handleAsmJSWorkload()
 
     do {
         AutoUnlockHelperThreadState unlock;
-        PerThreadData::AutoEnterRuntime enter(threadData.ptr(), asmData->runtime);
+        PerThreadData::AutoEnterRuntime enter(threadData.addr(), asmData->runtime);
 
         jit::IonContext icx(asmData->mir->compartment->runtime(),
                             asmData->mir->compartment,
@@ -946,7 +922,7 @@ HelperThread::handleIonWorkload()
 
     {
         AutoUnlockHelperThreadState unlock;
-        PerThreadData::AutoEnterRuntime enter(threadData.ptr(),
+        PerThreadData::AutoEnterRuntime enter(threadData.addr(),
                                               ionBuilder->script()->runtimeFromAnyThread());
         jit::IonContext ictx(jit::CompileRuntime::get(rt),
                              jit::CompileCompartment::get(ionBuilder->script()->compartment()),
@@ -1022,7 +998,7 @@ void
 ExclusiveContext::setHelperThread(HelperThread *thread)
 {
     helperThread_ = thread;
-    perThreadData = thread->threadData.ptr();
+    perThreadData = thread->threadData.addr();
 }
 
 frontend::CompileError &
@@ -1055,7 +1031,7 @@ HelperThread::handleParseWorkload()
 
     {
         AutoUnlockHelperThreadState unlock;
-        PerThreadData::AutoEnterRuntime enter(threadData.ptr(),
+        PerThreadData::AutoEnterRuntime enter(threadData.addr(),
                                               parseTask->exclusiveContextGlobal->runtimeFromAnyThread());
         SourceBufferHolder srcBuf(parseTask->chars, parseTask->length,
                                   SourceBufferHolder::NoOwnership);
@@ -1211,7 +1187,7 @@ HelperThread::threadLoop()
     JS::AutoSuppressGCAnalysis nogc;
     AutoLockHelperThreadState lock;
 
-    js::TlsPerThreadData.set(threadData.ptr());
+    js::TlsPerThreadData.set(threadData.addr());
 
     // Compute the thread's stack limit, for over-recursed checks.
     uintptr_t stackLimit = GetNativeStackBase();
@@ -1220,8 +1196,8 @@ HelperThread::threadLoop()
 #else
     stackLimit -= HELPER_STACK_QUOTA;
 #endif
-    for (size_t i = 0; i < ArrayLength(threadData->nativeStackLimit); i++)
-        threadData->nativeStackLimit[i] = stackLimit;
+    for (size_t i = 0; i < ArrayLength(threadData.ref().nativeStackLimit); i++)
+        threadData.ref().nativeStackLimit[i] = stackLimit;
 
     while (true) {
         JS_ASSERT(idle());

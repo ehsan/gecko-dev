@@ -61,7 +61,7 @@ public:
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_ACCESSIBLETEXTRANGE_IMPL_IID)
 
 private:
-  explicit xpcAccessibleTextRange(TextRange&& aRange) :
+  xpcAccessibleTextRange(TextRange&& aRange) :
     mRange(Forward<TextRange>(aRange)) {}
   xpcAccessibleTextRange() {}
 

@@ -10,7 +10,7 @@ interface nsIDOMMozIccInfo : nsISupports
   /**
    * Integrated Circuit Card Type.
    *
-   * Possible values: null(unknown), "sim", "usim", "csim", ruim".
+   * Possible values: "sim", "usim", "ruim".
    */
   readonly attribute DOMString iccType;
 

@@ -81,9 +81,9 @@ play_callback(SLPlayItf caller, void * user_ptr, SLuint32 event)
     case SL_PLAYEVENT_HEADATMARKER:
       pthread_mutex_lock(&stm->mutex);
       assert(stm->draining);
+      stm->draining = 0;
       pthread_mutex_unlock(&stm->mutex);
       stm->state_callback(stm, stm->user_ptr, CUBEB_STATE_DRAINED);
-      (*stm->play)->SetPlayState(stm->play, SL_PLAYSTATE_STOPPED);
       break;
     default:
       break;
@@ -706,17 +706,18 @@ opensl_stream_get_position(cubeb_stream * stm, uint64_t * position)
     return CUBEB_ERROR;
   }
 
+  int64_t compensated_position = samplerate * (msec - mixer_latency) / 1000;
   pthread_mutex_lock(&stm->mutex);
   int64_t maximum_position = stm->written * (int64_t)stm->inputrate / stm->outputrate;
   pthread_mutex_unlock(&stm->mutex);
   assert(maximum_position >= 0);
 
-  if (msec > mixer_latency) {
-    int64_t unadjusted_position = samplerate * (msec - mixer_latency) / 1000;
-    *position = unadjusted_position < maximum_position ?
-                unadjusted_position : maximum_position;
-  } else {
+  if (compensated_position < 0) {
     *position = 0;
+  } else if(compensated_position > maximum_position) {
+    *position = maximum_position;
+  } else {
+    *position = compensated_position;
   }
   return CUBEB_OK;
 }
@@ -744,7 +745,6 @@ opensl_stream_set_volume(cubeb_stream * stm, float volume)
 {
   SLresult res;
   SLmillibel max_level, millibels;
-  float unclamped_millibels;
 
   res = (*stm->volume)->GetMaxVolumeLevel(stm->volume, &max_level);
 
@@ -752,15 +752,12 @@ opensl_stream_set_volume(cubeb_stream * stm, float volume)
     return CUBEB_ERROR;
   }
 
-  /* millibels are 100*dB, so the conversion from the volume's linear amplitude
-   * is 100 * 20 * log(volume). However we clamp the resulting value before
-   * passing it to lroundf() in order to prevent it from silently returning an
-   * erroneous value when the unclamped value exceeds the size of a long. */
-  unclamped_millibels = 100.0f * 20.0f * log10f(fmaxf(volume, 0.0f));
-  unclamped_millibels = fmaxf(unclamped_millibels, SL_MILLIBEL_MIN);
-  unclamped_millibels = fminf(unclamped_millibels, max_level);
+  millibels = SL_MILLIBEL_MIN + (float)(max_level - SL_MILLIBEL_MIN) * volume;
 
-  millibels = lroundf(unclamped_millibels);
+  /* clamp to supported range */
+  if (millibels > max_level) {
+   millibels = max_level;
+  }
 
   res = (*stm->volume)->SetVolumeLevel(stm->volume, millibels);
 

@@ -39,7 +39,6 @@ void
 CDMProxy::Init(PromiseId aPromiseId)
 {
   MOZ_ASSERT(NS_IsMainThread());
-  NS_ENSURE_TRUE_VOID(!mKeys.IsNull());
 
   nsresult rv = mKeys->GetOrigin(mOrigin);
   if (NS_FAILED(rv)) {
@@ -104,17 +103,18 @@ void
 CDMProxy::OnCDMCreated(uint32_t aPromiseId)
 {
   MOZ_ASSERT(NS_IsMainThread());
-  if (mKeys.IsNull()) {
-    return;
+  if (!mKeys.IsNull()) {
+    mKeys->OnCDMCreated(aPromiseId);
+  } else {
+    NS_WARNING("CDMProxy unable to reject promise!");
   }
-  mKeys->OnCDMCreated(aPromiseId);
 }
 
 void
 CDMProxy::CreateSession(dom::SessionType aSessionType,
                         PromiseId aPromiseId,
                         const nsAString& aInitDataType,
-                        nsTArray<uint8_t>& aInitData)
+                        const Uint8Array& aInitData)
 {
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(mGMPThread);
@@ -123,7 +123,7 @@ CDMProxy::CreateSession(dom::SessionType aSessionType,
   data->mSessionType = aSessionType;
   data->mPromiseId = aPromiseId;
   data->mInitDataType = NS_ConvertUTF16toUTF8(aInitDataType);
-  data->mInitData = Move(aInitData);
+  data->mInitData.AppendElements(aInitData.Data(), aInitData.Length());
 
   nsRefPtr<nsIRunnable> task(
     NS_NewRunnableMethodWithArg<nsAutoPtr<CreateSessionData>>(this, &CDMProxy::gmp_CreateSession, data));
@@ -182,14 +182,14 @@ CDMProxy::gmp_LoadSession(nsAutoPtr<SessionOpData> aData)
 
 void
 CDMProxy::SetServerCertificate(PromiseId aPromiseId,
-                               nsTArray<uint8_t>& aCert)
+                               const Uint8Array& aCert)
 {
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(mGMPThread);
 
   nsAutoPtr<SetServerCertificateData> data;
   data->mPromiseId = aPromiseId;
-  data->mCert = Move(aCert);
+  data->mCert.AppendElements(aCert.Data(), aCert.Length());
   nsRefPtr<nsIRunnable> task(
     NS_NewRunnableMethodWithArg<nsAutoPtr<SetServerCertificateData>>(this, &CDMProxy::gmp_SetServerCertificate, data));
   mGMPThread->Dispatch(task, NS_DISPATCH_NORMAL);
@@ -209,7 +209,7 @@ CDMProxy::gmp_SetServerCertificate(nsAutoPtr<SetServerCertificateData> aData)
 void
 CDMProxy::UpdateSession(const nsAString& aSessionId,
                         PromiseId aPromiseId,
-                        nsTArray<uint8_t>& aResponse)
+                        const Uint8Array& aResponse)
 {
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(mGMPThread);
@@ -218,7 +218,7 @@ CDMProxy::UpdateSession(const nsAString& aSessionId,
   nsAutoPtr<UpdateSessionData> data(new UpdateSessionData());
   data->mPromiseId = aPromiseId;
   data->mSessionId = NS_ConvertUTF16toUTF8(aSessionId);
-  data->mResponse = Move(aResponse);
+  data->mResponse.AppendElements(aResponse.Data(), aResponse.Length());
   nsRefPtr<nsIRunnable> task(
     NS_NewRunnableMethodWithArg<nsAutoPtr<UpdateSessionData>>(this, &CDMProxy::gmp_UpdateSession, data));
   mGMPThread->Dispatch(task, NS_DISPATCH_NORMAL);
@@ -311,14 +311,6 @@ void
 CDMProxy::gmp_Shutdown()
 {
   MOZ_ASSERT(IsOnGMPThread());
-
-  // Abort any pending decrypt jobs, to awaken any clients waiting on a job.
-  for (size_t i = 0; i < mDecryptionJobs.Length(); i++) {
-    DecryptJob* job = mDecryptionJobs[i];
-    job->mClient->Decrypted(NS_ERROR_ABORT, nullptr);
-  }
-  mDecryptionJobs.Clear();
-
   if (mCDM) {
     mCDM->Close();
     mCDM = nullptr;
@@ -331,6 +323,8 @@ CDMProxy::RejectPromise(PromiseId aId, nsresult aCode)
   if (NS_IsMainThread()) {
     if (!mKeys.IsNull()) {
       mKeys->RejectPromise(aId, aCode);
+    } else {
+      NS_WARNING("CDMProxy unable to reject promise!");
     }
   } else {
     nsRefPtr<nsIRunnable> task(new RejectPromiseTask(this, aId, aCode));
@@ -367,9 +361,6 @@ CDMProxy::OnResolveNewSessionPromise(uint32_t aPromiseId,
                                      const nsAString& aSessionId)
 {
   MOZ_ASSERT(NS_IsMainThread());
-  if (mKeys.IsNull()) {
-    return;
-  }
   mKeys->OnSessionCreated(aPromiseId, aSessionId);
 }
 
@@ -379,9 +370,6 @@ CDMProxy::OnSessionMessage(const nsAString& aSessionId,
                            const nsAString& aDestinationURL)
 {
   MOZ_ASSERT(NS_IsMainThread());
-  if (mKeys.IsNull()) {
-    return;
-  }
   nsRefPtr<dom::MediaKeySession> session(mKeys->GetSession(aSessionId));
   if (session) {
     session->DispatchKeyMessage(aMessage, aDestinationURL);
@@ -423,9 +411,6 @@ CDMProxy::OnSessionError(const nsAString& aSessionId,
                          const nsAString& aMsg)
 {
   MOZ_ASSERT(NS_IsMainThread());
-  if (mKeys.IsNull()) {
-    return;
-  }
   nsRefPtr<dom::MediaKeySession> session(mKeys->GetSession(aSessionId));
   if (session) {
     session->DispatchKeyError(aSystemCode);
@@ -495,14 +480,11 @@ CDMProxy::gmp_Decrypted(uint32_t aId,
       if (aDecryptedData.Length() != job->mSample->size) {
         NS_WARNING("CDM returned incorrect number of decrypted bytes");
       }
-      if (GMP_SUCCEEDED(aResult)) {
-        PodCopy(job->mSample->data,
-                aDecryptedData.Elements(),
-                std::min<size_t>(aDecryptedData.Length(), job->mSample->size));
-        job->mClient->Decrypted(NS_OK, job->mSample.forget());
-      } else {
-        job->mClient->Decrypted(NS_ERROR_FAILURE, nullptr);
-      }
+      PodCopy(job->mSample->data,
+              aDecryptedData.Elements(),
+              std::min<size_t>(aDecryptedData.Length(), job->mSample->size));
+      nsresult rv = GMP_SUCCEEDED(aResult) ? NS_OK : NS_ERROR_FAILURE;
+      job->mClient->Decrypted(rv, job->mSample.forget());
       mDecryptionJobs.RemoveElementAt(i);
       return;
     } else {

@@ -8,11 +8,10 @@
 #include "mozilla/dom/MediaKeySession.h"
 #include "mozilla/dom/MediaKeyError.h"
 #include "mozilla/dom/MediaKeyMessageEvent.h"
-#include "mozilla/dom/MediaEncryptedEvent.h"
+#include "mozilla/dom/MediaKeyNeededEvent.h"
 #include "nsCycleCollectionParticipant.h"
 #include "mozilla/CDMProxy.h"
 #include "mozilla/AsyncEventDispatcher.h"
-#include "mozilla/Move.h"
 
 namespace mozilla {
 namespace dom {
@@ -96,22 +95,22 @@ MediaKeySession::Closed() const
 }
 
 already_AddRefed<Promise>
-MediaKeySession::Update(const ArrayBufferViewOrArrayBuffer& aResponse, ErrorResult& aRv)
+MediaKeySession::Update(const Uint8Array& aResponse, ErrorResult& aRv)
 {
   nsRefPtr<Promise> promise(mKeys->MakePromise(aRv));
   if (aRv.Failed()) {
     return nullptr;
   }
-  nsTArray<uint8_t> data;
+  aResponse.ComputeLengthAndData();
   if (IsClosed() ||
       !mKeys->GetCDMProxy() ||
-      !CopyArrayBufferViewOrArrayBufferData(aResponse, data)) {
+      !aResponse.Length()) {
     promise->MaybeReject(NS_ERROR_DOM_INVALID_ACCESS_ERR);
     return promise.forget();
   }
   mKeys->GetCDMProxy()->UpdateSession(mSessionId,
                                       mKeys->StorePromise(promise),
-                                      data);
+                                      aResponse);
   return promise.forget();
 }
 
@@ -168,34 +167,6 @@ MediaKeySession::Remove(ErrorResult& aRv)
     return promise.forget();
   }
   mKeys->GetCDMProxy()->RemoveSession(mSessionId, mKeys->StorePromise(promise));
-  return promise.forget();
-}
-
-already_AddRefed<Promise>
-MediaKeySession::GetUsableKeyIds(ErrorResult& aRv)
-{
-  nsRefPtr<Promise> promise(mKeys->MakePromise(aRv));
-  if (aRv.Failed()) {
-    return nullptr;
-  }
-
-  if (IsClosed() || !mKeys->GetCDMProxy()) {
-    promise->MaybeReject(NS_ERROR_DOM_INVALID_STATE_ERR);
-    return promise.forget();
-  }
-
-  nsTArray<CencKeyId> keyIds;
-  {
-    CDMCaps::AutoLock caps(mKeys->GetCDMProxy()->Capabilites());
-    caps.GetUsableKeysForSession(mSessionId, keyIds);
-  }
-
-  nsTArray<TypedArrayCreator<ArrayBuffer>> array;
-  for (size_t i = 0; i < keyIds.Length(); i++) {
-    array.AppendElement(keyIds[i]);
-  }
-  promise->MaybeResolve(array);
-
   return promise.forget();
 }
 

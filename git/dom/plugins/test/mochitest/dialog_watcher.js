@@ -23,8 +23,8 @@ DialogWatcher.prototype.init = function() {
     this.findWindow = user32.declare("FindWindowW",
                                      ctypes.winapi_abi,
                                      ctypes.uintptr_t,
-                                     ctypes.char16_t.ptr,
-                                     ctypes.char16_t.ptr);
+                                     ctypes.jschar.ptr,
+                                     ctypes.jschar.ptr);
   }
   if (!this.winEventProcType) {
     this.winEventProcType = ctypes.FunctionType(ctypes.stdcall_abi,
@@ -94,25 +94,15 @@ DialogWatcher.prototype.init = function() {
                                          ctypes.winapi_abi,
                                          ctypes.int,
                                          ctypes.uintptr_t,
-                                         ctypes.char16_t.ptr,
+                                         ctypes.jschar.ptr,
                                          ctypes.int);
-  }
-  if (!this.messageBox) {
-    // Handy for debugging this code
-    this.messageBox = user32.declare("MessageBoxW",
-                                     ctypes.winapi_abi,
-                                     ctypes.int,
-                                     ctypes.uintptr_t,
-                                     ctypes.char16_t.ptr,
-                                     ctypes.char16_t.ptr,
-                                     ctypes.uint32_t);
   }
 };
 
 DialogWatcher.prototype.getWindowText = function(hwnd) {
-  var bufType = ctypes.ArrayType(ctypes.char16_t);
+  var bufType = ctypes.ArrayType(ctypes.jschar);
   var buffer = new bufType(256);
-
+  
   if (this.getWindowTextW(hwnd, buffer, buffer.length)) {
     return buffer.readString();
   }
@@ -164,15 +154,13 @@ DialogWatcher.prototype.processWindowEvents = function(timeout) {
 
   var waitStatus = WAIT_OBJECT_0;
   var expectingStart = this.onDialogStart && this.hwnd === undefined;
-  var startWaitTime = Date.now();
   while (this.hwnd === undefined || this.onDialogEnd && this.hwnd) {
     waitStatus = this.msgWaitForMultipleObjects(0, null, 0, expectingStart ?
                                                             INFINITE : timeout, 0);
     if (waitStatus == WAIT_OBJECT_0) {
       var msg = new this.msgType;
       this.peekMessage(msg.address(), 0, 0, 0, PM_NOREMOVE);
-    }
-    if (waitStatus == WAIT_TIMEOUT || (Date.now() - startWaitTime) >= timeout) {
+    } else if (waitStatus == WAIT_TIMEOUT) {
       break;
     }
   }
@@ -181,3 +169,4 @@ DialogWatcher.prototype.processWindowEvents = function(timeout) {
   // Returns true if the hook was successful, something was found, and we never timed out
   return this.hwnd !== undefined && waitStatus == WAIT_OBJECT_0;
 };
+

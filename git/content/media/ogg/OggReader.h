@@ -45,10 +45,10 @@ class OggCodecStore
     Monitor mMonitor;
 };
 
-class OggReader MOZ_FINAL : public MediaDecoderReader
+class OggReader : public MediaDecoderReader
 {
 public:
-  explicit OggReader(AbstractMediaDecoder* aDecoder);
+  OggReader(AbstractMediaDecoder* aDecoder);
 
 protected:
   ~OggReader();
@@ -84,13 +84,6 @@ public:
   virtual bool IsMediaSeekable() MOZ_OVERRIDE;
 
 private:
-  // TODO: DEPRECATED. This uses synchronous decoding.
-  // Stores the presentation time of the first frame we'd be able to play if
-  // we started playback at the current position. Returns the first video
-  // frame, if we have video.
-  VideoData* FindStartTime(int64_t& aOutStartTime);
-  AudioData* DecodeToFirstAudioData();
-
   // This monitor should be taken when reading or writing to mIsChained.
   ReentrantMonitor mMonitor;
 
@@ -267,13 +260,6 @@ private:
   // Fills aTracks with the serial numbers of each active stream, for use by
   // various SkeletonState functions.
   void BuildSerialList(nsTArray<uint32_t>& aTracks);
-
-  // Setup target bitstreams for decoding.
-  void SetupTargetTheora(TheoraState* aTheoraState);
-  void SetupTargetVorbis(VorbisState* aVorbisState);
-  void SetupTargetOpus(OpusState* aOpusState);
-  void SetupTargetSkeleton(SkeletonState* aSkeletonState);
-  void SetupMediaTracksInfo(const nsTArray<uint32_t>& aSerials);
 
   OggCodecStore mCodecStore;
 

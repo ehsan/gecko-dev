@@ -467,12 +467,14 @@ HTMLCanvasElement::ToDataURLImpl(JSContext* aCx,
   }
 
   nsAutoString type;
-  nsContentUtils::ASCIIToLower(aMimeType, type);
+  nsresult rv = nsContentUtils::ASCIIToLower(aMimeType, type);
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
 
   nsAutoString params;
   bool usingCustomParseOptions;
-  nsresult rv =
-    ParseParams(aCx, type, aEncoderOptions, params, &usingCustomParseOptions);
+  rv = ParseParams(aCx, type, aEncoderOptions, params, &usingCustomParseOptions);
   if (NS_FAILED(rv)) {
     return rv;
   }
@@ -513,7 +515,10 @@ HTMLCanvasElement::ToBlob(JSContext* aCx,
   }
 
   nsAutoString type;
-  nsContentUtils::ASCIIToLower(aType, type);
+  aRv = nsContentUtils::ASCIIToLower(aType, type);
+  if (aRv.Failed()) {
+    return;
+  }
 
   nsAutoString params;
   bool usingCustomParseOptions;
@@ -541,49 +546,17 @@ HTMLCanvasElement::ToBlob(JSContext* aCx,
     mCurrentContext->GetImageBuffer(&imageBuffer, &format);
   }
 
-  // Encoder callback when encoding is complete.
-  class EncodeCallback : public EncodeCompleteCallback
-  {
-  public:
-    EncodeCallback(nsIGlobalObject* aGlobal, FileCallback* aCallback)
-      : mGlobal(aGlobal)
-      , mFileCallback(aCallback) {}
-
-    // This is called on main thread.
-    nsresult ReceiveBlob(already_AddRefed<DOMFile> aBlob)
-    {
-      nsRefPtr<DOMFile> blob = aBlob;
-      uint64_t size;
-      nsresult rv = blob->GetSize(&size);
-      if (NS_SUCCEEDED(rv)) {
-        AutoJSAPI jsapi;
-        jsapi.Init(mGlobal);
-        JS_updateMallocCounter(jsapi.cx(), size);
-      }
-
-      mozilla::ErrorResult error;
-      mFileCallback->Call(blob, error);
-
-      mGlobal = nullptr;
-      mFileCallback = nullptr;
-
-      return error.ErrorCode();
-    }
-
-    nsCOMPtr<nsIGlobalObject> mGlobal;
-    nsRefPtr<FileCallback> mFileCallback;
-  };
-
   nsCOMPtr<nsIGlobalObject> global = OwnerDoc()->GetScopeObject();
   MOZ_ASSERT(global);
-  nsRefPtr<EncodeCompleteCallback> callback = new EncodeCallback(global, &aCallback);
   aRv = ImageEncoder::ExtractDataAsync(type,
                                        params,
                                        usingCustomParseOptions,
                                        imageBuffer,
                                        format,
                                        GetSize(),
-                                       callback);
+                                       mCurrentContext,
+                                       global,
+                                       aCallback);
 }
 
 already_AddRefed<nsIDOMFile>

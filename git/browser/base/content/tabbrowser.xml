@@ -85,9 +85,6 @@
          Components.classes["@mozilla.org/autocomplete/search;1?name=unifiedcomplete"]
                    .getService(Components.interfaces.mozIPlacesAutoComplete);
       </field>
-      <field name="PlacesUtils" readonly="true">
-        (Components.utils.import("resource://gre/modules/PlacesUtils.jsm", {})).PlacesUtils;
-      </field>
       <field name="mTabBox" readonly="true">
         document.getAnonymousElementByAttribute(this, "anonid", "tabbox");
       </field>
@@ -148,22 +145,6 @@
               break;
           }
           return i;
-        ]]></getter>
-      </property>
-
-      <property name="formValidationAnchor" readonly="true">
-        <getter><![CDATA[
-        if (this.mCurrentTab._formValidationAnchor) {
-          return this.mCurrentTab._formValidationAnchor;
-        }
-        let stack = this.mCurrentBrowser.parentNode;
-        // Create an anchor for the form validation popup
-        const NS_XUL = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
-        let formValidationAnchor = document.createElementNS(NS_XUL, "hbox");
-        formValidationAnchor.className = "form-validation-anchor";
-        formValidationAnchor.hidden = true;
-        stack.appendChild(formValidationAnchor);
-        return this.mCurrentTab._formValidationAnchor = formValidationAnchor;
         ]]></getter>
       </property>
 
@@ -289,7 +270,9 @@
           this.tabContainer._positionPinnedTabs();
           this.tabContainer.adjustTabstrip();
 
-          this.getBrowserForTab(aTab).messageManager.sendAsyncMessage("Browser:AppTab", { isAppTab: true })
+          // Bug 961867 - [e10s] Implement the logic for app tabs
+          if (!gMultiProcessBrowser)
+            this.getBrowserForTab(aTab).docShell.isAppTab = true;
 
           if (aTab.selected)
             this._setCloseKeyState(false);
@@ -313,7 +296,9 @@
           this.tabContainer._positionPinnedTabs();
           this.tabContainer.adjustTabstrip();
 
-          this.getBrowserForTab(aTab).messageManager.sendAsyncMessage("Browser:AppTab", { isAppTab: false })
+          // Bug 961867 - [e10s] Implement the logic for app tabs
+          if (!gMultiProcessBrowser)
+            this.getBrowserForTab(aTab).docShell.isAppTab = false;
 
           if (aTab.selected)
             this._setCloseKeyState(true);
@@ -372,16 +357,6 @@
         </body>
       </method>
 
-      <method name="getBrowserForContentWindow">
-        <parameter name="aWindow"/>
-        <body>
-          <![CDATA[
-            var tab = this._getTabForContentWindow(aWindow);
-            return tab ? tab.linkedBrowser : null;
-          ]]>
-        </body>
-      </method>
-
       <method name="_getTabForContentWindow">
         <parameter name="aWindow"/>
         <body>
@@ -398,9 +373,7 @@
           }
 
           for (let i = 0; i < this.browsers.length; i++) {
-            // NB: We use contentWindowAsCPOW so that this code works both
-            // for remote browsers as well. aWindow may be a CPOW.
-            if (this.browsers[i].contentWindowAsCPOW == aWindow)
+            if (this.browsers[i].contentWindow == aWindow)
               return this.tabs[i];
           }
           return null;
@@ -867,7 +840,9 @@
 
             let sizedIconUrl = browser.mIconURL || "";
             if (sizedIconUrl) {
-              sizedIconUrl = this.PlacesUtils.getImageURLForResolution(window, sizedIconUrl);
+              let size = Math.round(16 * window.devicePixelRatio);
+              sizedIconUrl += (sizedIconUrl.contains("#") ? "&" : "#") +
+                              "-moz-resolution=" + size + "," + size;
             }
             if (sizedIconUrl != aTab.getAttribute("image")) {
               if (sizedIconUrl)
@@ -1238,15 +1213,6 @@
         // can focus the content area right away, since tab switching is synchronous.
         // If we're using remote tabs, we have to wait until after we've finalized
         // switching the tabs.
-
-        if (newTab._skipContentFocus) {
-          // It's possible the tab we're switching to is ready to focus asynchronously,
-          // when we've already focused something else. In that case, this
-          // _skipContentFocus property can be set so that we skip focusing the
-          // content after we switch tabs.
-          delete newTab._skipContentFocus;
-          return;
-        }
 
         let fm = Cc["@mozilla.org/focus-manager;1"].getService(Ci.nsIFocusManager);
         let focusFlags = fm.FLAG_NOSCROLL;
@@ -4534,10 +4500,7 @@
         canvas.mozOpaque = true;
         canvas.width = 160 * scale;
         canvas.height = 90 * scale;
-        if (!gMultiProcessBrowser) {
-          // Bug 863512 - Make page thumbnails work in e10s
-          PageThumbs.captureToCanvas(browser.contentWindow, canvas);
-        }
+        PageThumbs.captureToCanvas(browser.contentWindow, canvas);
         dt.setDragImage(canvas, -16 * scale, -16 * scale);
 
         // _dragData.offsetX/Y give the coordinates that the mouse should be
@@ -5338,8 +5301,7 @@
           let switchPromise = gBrowser._prepareForTabSwitch(toTab, fromTab);
 
           var panel = this._selectedPanel;
-          var newPanel = this.childNodes[val];
-          this._selectedPanel = newPanel;
+          this._selectedPanel = this.childNodes[val];
           if (this._selectedPanel != panel) {
             var event = document.createEvent("Events");
             event.initEvent("select", true, true);
@@ -5349,16 +5311,8 @@
           this._selectedIndex = val;
 
           switchPromise.then(() => {
-            // If we cannot find the tabpanel that we were trying to switch to, then
-            // it must have been removed before our Promise could be resolved. In
-            // that case, we just cancel the tab switch.
-            var updatedTabIndex = Array.indexOf(this.childNodes, newPanel);
-            if (updatedTabIndex == -1) {
-              gBrowser._cancelTabSwitch(toTab);
-            } else {
-              this.setAttribute("selectedIndex", updatedTabIndex);
-              gBrowser._finalizeTabSwitch(toTab, fromTab);
-            }
+            this.setAttribute("selectedIndex", val);
+            gBrowser._finalizeTabSwitch(toTab, fromTab);
           }, () => {
             // If the promise rejected, that means we don't want to actually
             // flip the deck, so we cancel the tab switch.

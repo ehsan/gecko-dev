@@ -9,8 +9,6 @@ module.metadata = {
 
 var { exit, stdout } = require("../system");
 var cfxArgs = require("../test/options");
-var events = require("../system/events");
-const { resolve } = require("../core/promise");
 
 function runTests(findAndRunTests) {
   var harness = require("./harness");
@@ -20,18 +18,14 @@ function runTests(findAndRunTests) {
     var total = tests.passed + tests.failed;
     stdout.write(tests.passed + " of " + total + " tests passed.\n");
 
-    events.emit("sdk:test:results", { data: JSON.stringify(tests) });
-
     if (tests.failed == 0) {
       if (tests.passed === 0)
         stdout.write("No tests were run\n");
-      if (!cfxArgs.keepOpen)
-        exit(0);
+      exit(0);
     } else {
       if (cfxArgs.verbose || cfxArgs.parseable)
         printFailedTests(tests, stdout.write);
-      if (!cfxArgs.keepOpen)
-        exit(1);
+      exit(1);
     }
   };
 
@@ -121,9 +115,7 @@ exports.runTestsFromModule = function runTestsFromModule(module) {
     var { TestRunner } = loader.require("../deprecated/unit-test");
     var runner = new TestRunner();
     runner.startMany({
-      tests: {
-        getNext: () => resolve(tests.shift())
-      },
+      tests: tests,
       stopOnError: cfxArgs.stopOnError,
       onDone: nextIteration
     });

@@ -8,7 +8,6 @@
 
 #include "AsyncEventRunner.h"
 #include "DecoderTraits.h"
-#include "MediaSourceUtils.h"
 #include "SourceBuffer.h"
 #include "SourceBufferList.h"
 #include "mozilla/ErrorResult.h"
@@ -24,7 +23,7 @@
 #include "nsIEventTarget.h"
 #include "nsIRunnable.h"
 #include "nsPIDOMWindow.h"
-#include "nsString.h"
+#include "nsStringGlue.h"
 #include "nsThreadUtils.h"
 #include "prlog.h"
 
@@ -63,19 +62,14 @@ static const unsigned int MAX_SOURCE_BUFFERS = 16;
 namespace mozilla {
 
 static const char* const gMediaSourceTypes[6] = {
-// XXX: Disabled other temporarily on desktop to allow WebM testing.  For now,
-// set the developer-only media.mediasource.ignore_codecs pref to true to test
-// other codecs, and expect things to be broken.
-//
-// Disabled WebM in favour of MP4 on Firefox OS.
-#ifdef MOZ_GONK_MEDIACODEC
-  "video/mp4",
-  "audio/mp4",
-#else
   "video/webm",
   "audio/webm",
-#endif
+// XXX: Disabled other codecs temporarily to allow WebM testing.  For now, set
+// the developer-only media.mediasource.ignore_codecs pref to true to test other
+// codecs, and expect things to be broken.
 #if 0
+  "video/mp4",
+  "audio/mp4",
   "audio/mpeg",
 #endif
   nullptr
@@ -136,9 +130,6 @@ MediaSource::~MediaSource()
 {
   MOZ_ASSERT(NS_IsMainThread());
   MSE_API("MediaSource(%p)::~MediaSource()", this);
-  if (mDecoder) {
-    mDecoder->DetachMediaSource();
-  }
 }
 
 SourceBufferList*
@@ -218,7 +209,7 @@ MediaSource::AddSourceBuffer(const nsAString& aType, ErrorResult& aRv)
     aRv.Throw(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
     return nullptr;
   }
-  nsRefPtr<SourceBuffer> sourceBuffer = new SourceBuffer(this, NS_ConvertUTF16toUTF8(mimeType));
+  nsRefPtr<SourceBuffer> sourceBuffer = SourceBuffer::Create(this, NS_ConvertUTF16toUTF8(mimeType));
   if (!sourceBuffer) {
     aRv.Throw(NS_ERROR_FAILURE); // XXX need a better error here
     return nullptr;
@@ -274,7 +265,6 @@ MediaSource::EndOfStream(const Optional<MediaSourceEndOfStreamError>& aError, Er
 
   SetReadyState(MediaSourceReadyState::Ended);
   mSourceBuffers->Ended();
-  mDecoder->Ended();
   if (!aError.WasPassed()) {
     DurationChange(mSourceBuffers->GetHighestBufferedEndTime(), aRv);
     if (aRv.Failed()) {
@@ -319,7 +309,6 @@ MediaSource::Attach(MediaSourceDecoder* aDecoder)
   if (mReadyState != MediaSourceReadyState::Closed) {
     return false;
   }
-  MOZ_ASSERT(!mDecoder);
   mDecoder = aDecoder;
   mDecoder->AttachMediaSource(this);
   SetReadyState(MediaSourceReadyState::Open);
@@ -331,64 +320,50 @@ MediaSource::Detach()
 {
   MOZ_ASSERT(NS_IsMainThread());
   MSE_DEBUG("MediaSource(%p)::Detach() mDecoder=%p owner=%p",
-            this, mDecoder.get(), mDecoder ? mDecoder->GetOwner() : nullptr);
-  if (!mDecoder) {
-    MOZ_ASSERT(mReadyState == MediaSourceReadyState::Closed);
-    MOZ_ASSERT(mActiveSourceBuffers->IsEmpty() && mSourceBuffers->IsEmpty());
-    return;
-  }
+            this, mDecoder.get(), mDecoder->GetOwner());
+  MOZ_ASSERT(mDecoder);
   mDecoder->DetachMediaSource();
   mDecoder = nullptr;
-  mFirstSourceBufferInitialization = false;
-  SetReadyState(MediaSourceReadyState::Closed);
   mDuration = UnspecifiedNaN<double>();
-  if (mActiveSourceBuffers) {
-    mActiveSourceBuffers->Clear();
-  }
-  if (mSourceBuffers) {
-    mSourceBuffers->Clear();
-  }
+  mActiveSourceBuffers->Clear();
+  mSourceBuffers->Clear();
+  SetReadyState(MediaSourceReadyState::Closed);
 }
 
 void
 MediaSource::GetBuffered(TimeRanges* aBuffered)
 {
-  MOZ_ASSERT(aBuffered->Length() == 0);
   if (mActiveSourceBuffers->IsEmpty()) {
     return;
   }
 
-  double highestEndTime = 0;
-
-  nsTArray<nsRefPtr<TimeRanges>> activeRanges;
+  nsTArray<nsRefPtr<TimeRanges>> ranges;
   for (uint32_t i = 0; i < mActiveSourceBuffers->Length(); ++i) {
     bool found;
     SourceBuffer* sourceBuffer = mActiveSourceBuffers->IndexedGetter(i, found);
 
     ErrorResult dummy;
-    *activeRanges.AppendElement() = sourceBuffer->GetBuffered(dummy);
-
-    highestEndTime = std::max(highestEndTime, activeRanges.LastElement()->GetEndTime());
+    *ranges.AppendElement() = sourceBuffer->GetBuffered(dummy);
   }
 
-  TimeRanges* intersectionRanges = aBuffered;
-  intersectionRanges->Add(0, highestEndTime);
+  double highestEndTime = mActiveSourceBuffers->GetHighestBufferedEndTime();
+  if (highestEndTime <= 0) {
+    return;
+  }
 
-  for (uint32_t i = 0; i < activeRanges.Length(); ++i) {
-    TimeRanges* sourceRanges = activeRanges[i];
+  MOZ_ASSERT(aBuffered->Length() == 0);
+  aBuffered->Add(0, highestEndTime);
 
+  for (uint32_t i = 0; i < ranges.Length(); ++i) {
     if (mReadyState == MediaSourceReadyState::Ended) {
-      // Set the end time on the last range to highestEndTime by adding a
-      // new range spanning the current end time to highestEndTime, which
-      // Normalize() will then merge with the old last range.
-      sourceRanges->Add(sourceRanges->GetEndTime(), highestEndTime);
-      sourceRanges->Normalize();
+      ranges[i]->Add(ranges[i]->GetEndTime(), highestEndTime);
     }
 
-    intersectionRanges->Intersection(sourceRanges);
+    aBuffered->Intersection(ranges[i]);
   }
 
-  MSE_DEBUG("MediaSource(%p)::GetBuffered ranges=%s", this, DumpTimeRanges(intersectionRanges).get());
+  MSE_DEBUG("MediaSource(%p)::GetBuffered start=%f end=%f length=%u",
+            this, aBuffered->GetStartTime(), aBuffered->GetEndTime(), aBuffered->Length());
 }
 
 MediaSource::MediaSource(nsPIDOMWindow* aWindow)
@@ -396,7 +371,7 @@ MediaSource::MediaSource(nsPIDOMWindow* aWindow)
   , mDuration(UnspecifiedNaN<double>())
   , mDecoder(nullptr)
   , mReadyState(MediaSourceReadyState::Closed)
-  , mFirstSourceBufferInitialization(false)
+  , mWaitForDataMonitor("MediaSource.WaitForData.Monitor")
 {
   MOZ_ASSERT(NS_IsMainThread());
   mSourceBuffers = new SourceBufferList(this);
@@ -485,26 +460,19 @@ MediaSource::NotifyEvicted(double aStart, double aEnd)
 }
 
 void
-MediaSource::QueueInitializationEvent()
+MediaSource::WaitForData()
 {
-  MOZ_ASSERT(NS_IsMainThread());
-  if (!mFirstSourceBufferInitialization) {
-    mFirstSourceBufferInitialization = true;
-  }
-  MSE_DEBUG("MediaSource(%p)::QueueInitializationEvent()", this);
-  nsRefPtr<nsIRunnable> task =
-    NS_NewRunnableMethod(this, &MediaSource::InitializationEvent);
-  NS_DispatchToMainThread(task);
+  MSE_DEBUG("MediaSource(%p)::WaitForData()", this);
+  MonitorAutoLock mon(mWaitForDataMonitor);
+  mon.Wait();
 }
 
 void
-MediaSource::InitializationEvent()
+MediaSource::NotifyGotData()
 {
-  MOZ_ASSERT(NS_IsMainThread());
-  MSE_DEBUG("MediaSource(%p)::InitializationEvent()", this);
-  if (mDecoder) {
-    mDecoder->PrepareReaderInitialization();
-  }
+  MSE_DEBUG("MediaSource(%p)::NotifyGotData()", this);
+  MonitorAutoLock mon(mWaitForDataMonitor);
+  mon.NotifyAll();
 }
 
 nsPIDOMWindow*

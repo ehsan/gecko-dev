@@ -15,7 +15,7 @@ namespace dom {
 class WindowNamedPropertiesHandler : public BaseDOMProxyHandler
 {
 public:
-  MOZ_CONSTEXPR WindowNamedPropertiesHandler()
+  WindowNamedPropertiesHandler()
     : BaseDOMProxyHandler(nullptr, /* hasPrototype = */ true)
   {
   }

@@ -258,7 +258,7 @@ template<class ActorType, class Traits=ProtectedActorTraits<ActorType> >
 class ProtectedActor
 {
 public:
-  explicit ProtectedActor(ActorType* aActor) : mActor(aActor)
+  ProtectedActor(ActorType* aActor) : mActor(aActor)
   {
     if (!Traits::Nullable()) {
       NS_ASSERTION(mActor, "This should never be null!");

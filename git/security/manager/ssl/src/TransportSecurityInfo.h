@@ -7,18 +7,16 @@
 #ifndef _MOZILLA_PSM_TRANSPORTSECURITYINFO_H
 #define _MOZILLA_PSM_TRANSPORTSECURITYINFO_H
 
-#include "ScopedNSSTypes.h"
 #include "certt.h"
 #include "mozilla/Mutex.h"
 #include "mozilla/RefPtr.h"
-#include "nsDataHashtable.h"
-#include "nsIAssociatedContentSecurity.h"
 #include "nsIInterfaceRequestor.h"
-#include "nsISSLStatusProvider.h"
 #include "nsITransportSecurityInfo.h"
-#include "nsNSSShutDown.h"
 #include "nsSSLStatus.h"
-#include "pkix/pkixtypes.h"
+#include "nsISSLStatusProvider.h"
+#include "nsIAssociatedContentSecurity.h"
+#include "nsNSSShutDown.h"
+#include "nsDataHashtable.h"
 
 namespace mozilla { namespace psm {
 
@@ -76,8 +74,6 @@ public:
   nsSSLStatus* SSLStatus() { return mSSLStatus; }
   void SetStatusErrorBits(nsIX509Cert & cert, uint32_t collected_errors);
 
-  nsresult SetFailedCertChain(ScopedCERTCertList& certList);
-
 private:
   mutable ::mozilla::Mutex mMutex;
 
@@ -103,9 +99,6 @@ private:
 
   /* SSL Status */
   mozilla::RefPtr<nsSSLStatus> mSSLStatus;
-
-  /* Peer cert chain for failed connections (for error reporting) */
-  nsCOMPtr<nsIX509CertList> mFailedCertChain;
 
   virtual void virtualDestroyNSSReference();
   void destructorSafeDestroyNSSReference();

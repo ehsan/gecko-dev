@@ -17,21 +17,27 @@ sys.path.insert(0, here)
 from automationutils import processLeakLog
 from runtests import Mochitest
 from runtests import MochitestUtilsMixin
+from runtests import MessageLogger
+from runtests import MochitestFormatter
 from mochitest_options import B2GOptions, MochitestOptions
 from marionette import Marionette
 from mozprofile import Profile, Preferences
-from mozlog import structured
 import mozinfo
+from mozlog.structured.handlers import StreamHandler
+from mozlog.structured.structuredlog import StructuredLogger
+
+log = StructuredLogger('Mochitest')
+stream_handler = StreamHandler(stream=sys.stdout, formatter=MochitestFormatter())
+log.add_handler(stream_handler)
 
 class B2GMochitest(MochitestUtilsMixin):
     marionette = None
 
     def __init__(self, marionette_args,
-                       logger_options,
                        out_of_process=True,
                        profile_data_dir=None,
                        locations=os.path.join(here, 'server-locations.txt')):
-        super(B2GMochitest, self).__init__(logger_options)
+        super(B2GMochitest, self).__init__()
         self.marionette_args = marionette_args
         self.out_of_process = out_of_process
         self.locations_file = locations
@@ -40,6 +46,9 @@ class B2GMochitest(MochitestUtilsMixin):
         self.test_script = os.path.join(here, 'b2g_start_script.js')
         self.test_script_args = [self.out_of_process]
         self.product = 'b2g'
+
+        # structured logging
+        self.message_logger = MessageLogger(logger=log)
 
         if profile_data_dir:
             self.preferences = [os.path.join(profile_data_dir, f)
@@ -127,7 +136,7 @@ class B2GMochitest(MochitestUtilsMixin):
                     options.timeout = 300
             timeout = options.timeout + 30.0
 
-        self.log.info("runtestsb2g.py | Running tests: start.")
+        log.info("runtestsb2g.py | Running tests: start.")
         status = 0
         try:
             def on_output(line):
@@ -158,9 +167,9 @@ class B2GMochitest(MochitestUtilsMixin):
             # empty env.
             self.browserEnv = self.buildBrowserEnv(options, env={})
 
-            # B2G emulator debug tests still make external connections, so don't
-            # pass MOZ_DISABLE_NONLOCAL_CONNECTIONS to them for now (bug 1039019).
-            if mozinfo.info['debug'] and 'MOZ_DISABLE_NONLOCAL_CONNECTIONS' in self.browserEnv:
+            # XXXkhuey MOZ_DISABLE_NONLOCAL_CONNECTIONS is busted on b2g, so make
+            # sure we don't pass it through (bug 1039019).
+            if 'MOZ_DISABLE_NONLOCAL_CONNECTIONS' in self.browserEnv:
                 del self.browserEnv['MOZ_DISABLE_NONLOCAL_CONNECTIONS']
             self.runner.env.update(self.browserEnv)
 
@@ -204,18 +213,18 @@ class B2GMochitest(MochitestUtilsMixin):
 
             processLeakLog(local_leak_file.name, options.leakThreshold)
         except KeyboardInterrupt:
-            self.log.info("runtests.py | Received keyboard interrupt.\n");
+            log.info("runtests.py | Received keyboard interrupt.\n");
             status = -1
         except:
             traceback.print_exc()
-            self.log.error("Automation Error: Received unexpected exception while running application\n")
+            log.error("Automation Error: Received unexpected exception while running application\n")
             if hasattr(self, 'runner'):
                 self.runner.check_for_crashes()
             status = 1
 
         self.stopServers()
 
-        self.log.info("runtestsb2g.py | Running tests: end.")
+        log.info("runtestsb2g.py | Running tests: end.")
 
         if manifest is not None:
             self.cleanup(manifest, options)
@@ -229,9 +238,9 @@ class B2GMochitest(MochitestUtilsMixin):
 class B2GDeviceMochitest(B2GMochitest, Mochitest):
     remote_log = None
 
-    def __init__(self, marionette_args, logger_options, profile_data_dir,
+    def __init__(self, marionette_args, profile_data_dir,
                  local_binary_dir, remote_test_root=None, remote_log_file=None):
-        B2GMochitest.__init__(self, marionette_args, logger_options, out_of_process=True, profile_data_dir=profile_data_dir)
+        B2GMochitest.__init__(self, marionette_args, out_of_process=True, profile_data_dir=profile_data_dir)
         self.local_log = None
         self.local_binary_dir = local_binary_dir
 
@@ -285,9 +294,9 @@ class B2GDeviceMochitest(B2GMochitest, Mochitest):
 
 class B2GDesktopMochitest(B2GMochitest, Mochitest):
 
-    def __init__(self, marionette_args, logger_options, profile_data_dir):
-        B2GMochitest.__init__(self, marionette_args, logger_options, out_of_process=False, profile_data_dir=profile_data_dir)
-        Mochitest.__init__(self, logger_options)
+    def __init__(self, marionette_args, profile_data_dir):
+        B2GMochitest.__init__(self, marionette_args, out_of_process=False, profile_data_dir=profile_data_dir)
+        Mochitest.__init__(self)
         self.certdbNew = True
 
     def runMarionetteScript(self, marionette, test_script, test_script_args):
@@ -354,8 +363,8 @@ def run_remote_mochitests(parser, options):
         print "ERROR: Invalid options specified, use --help for a list of valid options"
         sys.exit(1)
 
-    mochitest = B2GDeviceMochitest(marionette_args, options, options.profile_data_dir,
-                                   options.xrePath, remote_log_file=options.remoteLogFile)
+    mochitest = B2GDeviceMochitest(marionette_args, options.profile_data_dir, options.xrePath,
+                                   remote_log_file=options.remoteLogFile)
 
     options = parser.verifyOptions(options, mochitest)
     if (options == None):
@@ -386,13 +395,13 @@ def run_desktop_mochitests(parser, options):
         host, port = options.marionette.split(':')
         marionette_args['host'] = host
         marionette_args['port'] = int(port)
+    mochitest = B2GDesktopMochitest(marionette_args, options.profile_data_dir)
 
     # add a -bin suffix if b2g-bin exists, but just b2g was specified
     if options.app[-4:] != '-bin':
         if os.path.isfile("%s-bin" % options.app):
             options.app = "%s-bin" % options.app
 
-    mochitest = B2GDesktopMochitest(marionette_args, options, options.profile_data_dir)
     options = MochitestOptions.verifyOptions(parser, options, mochitest)
     if options == None:
         sys.exit(1)
@@ -409,7 +418,6 @@ def run_desktop_mochitests(parser, options):
 
 def main():
     parser = B2GOptions()
-    structured.commandline.add_logging_group(parser)
     options, args = parser.parse_args()
 
     if options.desktop:

@@ -648,8 +648,8 @@ static Maybe<PersistentRootedValue> sScriptedInterruptCallback;
 static bool
 XPCShellInterruptCallback(JSContext *cx)
 {
-    MOZ_ASSERT(sScriptedInterruptCallback);
-    RootedValue callback(cx, *sScriptedInterruptCallback);
+    MOZ_ASSERT(!sScriptedInterruptCallback.empty());
+    RootedValue callback(cx, sScriptedInterruptCallback.ref());
 
     // If no interrupt callback was set by script, no-op.
     if (callback.isUndefined())
@@ -671,7 +671,7 @@ XPCShellInterruptCallback(JSContext *cx)
 static bool
 SetInterruptCallback(JSContext *cx, unsigned argc, jsval *vp)
 {
-    MOZ_ASSERT(sScriptedInterruptCallback);
+    MOZ_ASSERT(!sScriptedInterruptCallback.empty());
 
     // Sanity-check args.
     JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
@@ -682,7 +682,7 @@ SetInterruptCallback(JSContext *cx, unsigned argc, jsval *vp)
 
     // Allow callers to remove the interrupt callback by passing undefined.
     if (args[0].isUndefined()) {
-        *sScriptedInterruptCallback = UndefinedValue();
+        sScriptedInterruptCallback.ref() = UndefinedValue();
         return true;
     }
 
@@ -692,7 +692,7 @@ SetInterruptCallback(JSContext *cx, unsigned argc, jsval *vp)
         return false;
     }
 
-    *sScriptedInterruptCallback = args[0];
+    sScriptedInterruptCallback.ref() = args[0];
 
     return true;
 }
@@ -960,9 +960,9 @@ ProcessFile(JSContext *cx, JS::Handle<JSObject*> obj, const char *filename, FILE
                 ok = JS_ExecuteScript(cx, obj, script, &result);
                 if (ok && result != JSVAL_VOID) {
                     /* Suppress error reports from JS::ToString(). */
-                    older = JS_SetErrorReporter(JS_GetRuntime(cx), nullptr);
+                    older = JS_SetErrorReporter(cx, nullptr);
                     str = ToString(cx, result);
-                    JS_SetErrorReporter(JS_GetRuntime(cx), older);
+                    JS_SetErrorReporter(cx, older);
                     JSAutoByteString bytes;
                     if (str && bytes.encodeLatin1(cx, str))
                         fprintf(gOutFile, "%s\n", bytes.ptr());
@@ -1266,6 +1266,14 @@ XPCShellErrorReporter(JSContext *cx, const char *message, JSErrorReport *rep)
 }
 
 static bool
+ContextCallback(JSContext *cx, unsigned contextOp)
+{
+    if (contextOp == JSCONTEXT_NEW)
+        JS_SetErrorReporter(cx, XPCShellErrorReporter);
+    return true;
+}
+
+static bool
 GetCurrentWorkingDirectory(nsAString& workingDirectory)
 {
 #if !defined(XP_WIN) && !defined(XP_UNIX)
@@ -1446,13 +1454,13 @@ XRE_XPCShellMain(int argc, char **argv, char **envp)
             return 1;
         }
 
+        rtsvc->RegisterContextCallback(ContextCallback);
+
         // Override the default XPConnect interrupt callback. We could store the
         // old one and restore it before shutting down, but there's not really a
         // reason to bother.
-        sScriptedInterruptCallback.emplace(rt, UndefinedValue());
+        sScriptedInterruptCallback.construct(rt, UndefinedValue());
         JS_SetInterruptCallback(rt, XPCShellInterruptCallback);
-
-        JS_SetErrorReporter(rt, XPCShellErrorReporter);
 
         dom::AutoJSAPI jsapi;
         jsapi.Init();
@@ -1582,7 +1590,7 @@ XRE_XPCShellMain(int argc, char **argv, char **envp)
     rv = NS_ShutdownXPCOM( nullptr );
     MOZ_ASSERT(NS_SUCCEEDED(rv), "NS_ShutdownXPCOM failed");
 
-    sScriptedInterruptCallback.reset();
+    sScriptedInterruptCallback.destroyIfConstructed();
 
 #ifdef TEST_CALL_ON_WRAPPED_JS_AFTER_SHUTDOWN
     // test of late call and release (see above)

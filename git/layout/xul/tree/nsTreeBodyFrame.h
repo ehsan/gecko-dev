@@ -24,6 +24,7 @@
 #include "nsScrollbarFrame.h"
 #include "nsThreadUtils.h"
 #include "mozilla/LookAndFeel.h"
+#include "nsIScrollbarOwner.h"
 
 class nsOverflowChecker;
 class nsTreeImageListener;
@@ -51,6 +52,7 @@ class nsTreeBodyFrame MOZ_FINAL
   , public nsICSSPseudoComparator
   , public nsIScrollbarMediator
   , public nsIReflowCallback
+  , public nsIScrollbarOwner
 {
 public:
   typedef mozilla::layout::ScrollbarActivity ScrollbarActivity;
@@ -132,20 +134,15 @@ public:
   virtual bool PseudoMatches(nsCSSSelector* aSelector) MOZ_OVERRIDE;
 
   // nsIScrollbarMediator
-  virtual void ScrollByPage(nsScrollbarFrame* aScrollbar, int32_t aDirection) MOZ_OVERRIDE;
-  virtual void ScrollByWhole(nsScrollbarFrame* aScrollbar, int32_t aDirection) MOZ_OVERRIDE;
-  virtual void ScrollByLine(nsScrollbarFrame* aScrollbar, int32_t aDirection) MOZ_OVERRIDE;
-  virtual void RepeatButtonScroll(nsScrollbarFrame* aScrollbar) MOZ_OVERRIDE;
-  virtual void ThumbMoved(nsScrollbarFrame* aScrollbar,
-                          nscoord aOldPos,
-                          nscoord aNewPos) MOZ_OVERRIDE;
-  virtual void VisibilityChanged(bool aVisible) MOZ_OVERRIDE { Invalidate(); }
+  NS_IMETHOD PositionChanged(nsScrollbarFrame* aScrollbar, int32_t aOldIndex, int32_t& aNewIndex) MOZ_OVERRIDE;
+  NS_IMETHOD ScrollbarButtonPressed(nsScrollbarFrame* aScrollbar, int32_t aOldIndex, int32_t aNewIndex) MOZ_OVERRIDE;
+  NS_IMETHOD VisibilityChanged(bool aVisible) MOZ_OVERRIDE { Invalidate(); return NS_OK; }
+
+  // nsIScrollbarOwner
   virtual nsIFrame* GetScrollbarBox(bool aVertical) MOZ_OVERRIDE {
     ScrollParts parts = GetScrollParts();
     return aVertical ? parts.mVScrollbar : parts.mHScrollbar;
   }
-  virtual void ScrollbarActivityStarted() const MOZ_OVERRIDE;
-  virtual void ScrollbarActivityStopped() const MOZ_OVERRIDE;
 
   // Overridden from nsIFrame to cache our pres context.
   virtual void Init(nsIContent*       aContent,
@@ -458,7 +455,7 @@ protected:
   class ScrollEvent : public nsRunnable {
   public:
     NS_DECL_NSIRUNNABLE
-    explicit ScrollEvent(nsTreeBodyFrame *aInner) : mInner(aInner) {}
+    ScrollEvent(nsTreeBodyFrame *aInner) : mInner(aInner) {}
     void Revoke() { mInner = nullptr; }
   private:
     nsTreeBodyFrame* mInner;
@@ -466,6 +463,9 @@ protected:
 
   void PostScrollEvent();
   void FireScrollEvent();
+
+  virtual void ScrollbarActivityStarted() const MOZ_OVERRIDE;
+  virtual void ScrollbarActivityStopped() const MOZ_OVERRIDE;
 
   /**
    * Clear the pointer to this frame for all nsTreeImageListeners that were

@@ -17,7 +17,7 @@ class DataSourceSurfaceWrapper : public DataSourceSurface
 {
 public:
   MOZ_DECLARE_REFCOUNTED_VIRTUAL_TYPENAME(DataSourceSurfaceWrapper)
-  explicit DataSourceSurfaceWrapper(DataSourceSurface *aSurface)
+  DataSourceSurfaceWrapper(DataSourceSurface *aSurface)
    : mSurface(aSurface)
   {}
 

@@ -854,8 +854,6 @@ nsXBLPrototypeBinding::Read(nsIObjectInputStream* aStream,
   mInheritStyle = (aFlags & XBLBinding_Serialize_InheritStyle) ? true : false;
   mChromeOnlyContent =
     (aFlags & XBLBinding_Serialize_ChromeOnlyContent) ? true : false;
-  mBindToUntrustedContent =
-    (aFlags & XBLBinding_Serialize_BindToUntrustedContent) ? true : false;
 
   // nsXBLContentSink::ConstructBinding doesn't create a binding with an empty
   // id, so we don't here either.
@@ -911,7 +909,8 @@ nsXBLPrototypeBinding::Read(nsIObjectInputStream* aStream,
   }
 
   AutoSafeJSContext cx;
-  JS::Rooted<JSObject*> compilationGlobal(cx, xpc::CompilationScope());
+  JS::Rooted<JSObject*> compilationGlobal(cx, xpc::GetCompilationScope());
+  NS_ENSURE_TRUE(compilationGlobal, NS_ERROR_UNEXPECTED);
   JSAutoCompartment ac(cx, compilationGlobal);
 
   bool isFirstBinding = aFlags & XBLBinding_Serialize_IsFirstBinding;
@@ -1063,7 +1062,8 @@ nsXBLPrototypeBinding::Write(nsIObjectOutputStream* aStream)
   // computed on demand.
 
   AutoSafeJSContext cx;
-  JS::Rooted<JSObject*> compilationGlobal(cx, xpc::CompilationScope());
+  JS::Rooted<JSObject*> compilationGlobal(cx, xpc::GetCompilationScope());
+  NS_ENSURE_TRUE(compilationGlobal, NS_ERROR_UNEXPECTED);
   JSAutoCompartment ac(cx, compilationGlobal);
 
   uint8_t flags = mInheritStyle ? XBLBinding_Serialize_InheritStyle : 0;
@@ -1075,10 +1075,6 @@ nsXBLPrototypeBinding::Write(nsIObjectOutputStream* aStream)
 
   if (mChromeOnlyContent) {
     flags |= XBLBinding_Serialize_ChromeOnlyContent;
-  }
-
-  if (mBindToUntrustedContent) {
-    flags |= XBLBinding_Serialize_BindToUntrustedContent;
   }
 
   nsresult rv = aStream->Write8(flags);

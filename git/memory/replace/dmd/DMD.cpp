@@ -102,16 +102,6 @@ public:
     return p;
   }
 
-  template <typename T>
-  static T* pod_malloc(size_t aNumElems)
-  {
-    if (aNumElems & mozilla::tl::MulOverflowMask<sizeof(T)>::value)
-      return nullptr;
-    void* p = gMallocTable->malloc(aNumElems * sizeof(T));
-    ExitOnFailure(p);
-    return (T*)p;
-  }
-
   static void* calloc_(size_t aSize)
   {
     void* p = gMallocTable->calloc(1, aSize);
@@ -136,12 +126,9 @@ public:
   }
 
   // This realloc_ is required for this to be a JS container AllocPolicy.
-  template <typename T>
-  static T* pod_realloc(T* aPtr, size_t aOldSize, size_t aNewSize)
+  static void* realloc_(void* aPtr, size_t aOldSize, size_t aNewSize)
   {
-    if (aNewSize & mozilla::tl::MulOverflowMask<sizeof(T)>::value)
-      return nullptr;
-    return (T*)InfallibleAllocPolicy::realloc_((void *)aPtr, aNewSize * sizeof(T));
+    return InfallibleAllocPolicy::realloc_(aPtr, aNewSize);
   }
 
   static void* memalign_(size_t aAlignment, size_t aSize)
@@ -195,7 +182,7 @@ MallocSizeOf(const void* aPtr)
   return gMallocTable->malloc_usable_size(const_cast<void*>(aPtr));
 }
 
-MOZ_EXPORT void
+static void
 StatusMsg(const char* aFmt, ...)
 {
   va_list ap;
@@ -330,7 +317,7 @@ class Options
                       long aMin, long aMax, long* aN);
 
 public:
-  explicit Options(const char* aDMDEnvVar);
+  Options(const char* aDMDEnvVar);
 
   const char* DMDEnvVar() const { return mDMDEnvVar; }
 
@@ -567,7 +554,7 @@ class AutoBlockIntercepts
   DISALLOW_COPY_AND_ASSIGN(AutoBlockIntercepts);
 
 public:
-  explicit AutoBlockIntercepts(Thread* aT)
+  AutoBlockIntercepts(Thread* aT)
     : mT(aT)
   {
     mT->BlockIntercepts();
@@ -660,8 +647,7 @@ struct DescribeCodeAddressLock
   static bool IsLocked() { return gStateLock->IsLocked(); }
 };
 
-typedef CodeAddressService<StringTable, StringAlloc, DescribeCodeAddressLock>
-  CodeAddressService;
+typedef CodeAddressService<StringTable, StringAlloc, Writer, DescribeCodeAddressLock> CodeAddressService;
 
 //---------------------------------------------------------------------------
 // Stack traces
@@ -747,11 +733,8 @@ StackTrace::Print(const Writer& aWriter, CodeAddressService* aLocService) const
     return;
   }
 
-  static const size_t buflen = 1024;
-  char buf[buflen];
   for (uint32_t i = 0; i < mLength; i++) {
-    aLocService->GetLocation(Pc(i), buf, buflen);
-    aWriter.Write("    %s\n", buf);
+    aLocService->WriteLocation(aWriter, Pc(i));
   }
 }
 
@@ -1257,7 +1240,7 @@ protected:
   const StackTrace* const mReportStackTrace2; // nullptr if not 2x-reported
 
 public:
-  explicit RecordKey(const Block& aB)
+  RecordKey(const Block& aB)
     : mAllocStackTrace(aB.AllocStackTrace()),
       mReportStackTrace1(aB.ReportStackTrace1()),
       mReportStackTrace2(aB.ReportStackTrace2())
@@ -1745,7 +1728,7 @@ PrintSortedRecords(const Writer& aWriter, CodeAddressService* aLocService,
   StatusMsg("  printing %s heap block record array...\n", astr);
   size_t cumulativeUsableSize = 0;
 
-  // Limit the number of records printed, because fix_linux_stack.py is too
+  // Limit the number of records printed, because fix-linux-stack.pl is too
   // damn slow.  Note that we don't break out of this loop because we need to
   // keep adding to |cumulativeUsableSize|.
   uint32_t numRecords = recordArray.length();
@@ -1864,7 +1847,7 @@ public:
     size_t mUsableSize;
     size_t mNumBlocks;
 
-    explicit RecordKindData(size_t aN)
+    RecordKindData(size_t aN)
       : mUsableSize(0), mNumBlocks(0)
     {
       mRecordTable.init(aN);
@@ -2065,7 +2048,7 @@ AnalyzeImpl(Analyzer *aAnalyzer, const Writer& aWriter)
     RecordKey key(b);
     RecordTable::AddPtr p = table->lookupForAdd(key);
     if (!p) {
-      Record tr(key);
+      Record tr(b);
       (void)table->add(p, tr);
     }
     p->Add(b);

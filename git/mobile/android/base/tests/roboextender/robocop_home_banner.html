@@ -21,21 +21,21 @@ function addMessage() {
   messageId = Home.banner.add({
     text: TEXT,
     onclick: function() {
-      Messaging.sendRequest({ type: "TestHomeBanner:MessageClicked" });
+      sendMessageToJava({ type: "TestHomeBanner:MessageClicked" });
     },
     onshown: function() {
-      Messaging.sendRequest({ type: "TestHomeBanner:MessageShown" });
+      sendMessageToJava({ type: "TestHomeBanner:MessageShown" });
     },
     ondismiss: function() {
-      Messaging.sendRequest({ type: "TestHomeBanner:MessageDismissed" });
+      sendMessageToJava({ type: "TestHomeBanner:MessageDismissed" });
     }
   });
-  Messaging.sendRequest({ type: "TestHomeBanner:MessageAdded" });
+  sendMessageToJava({ type: "TestHomeBanner:MessageAdded" });
 }
 
 function removeMessage() {
   Home.banner.remove(messageId);
-  Messaging.sendRequest({ type: "TestHomeBanner:MessageRemoved" });
+  sendMessageToJava({ type: "TestHomeBanner:MessageRemoved" });
 }
 
     </script>

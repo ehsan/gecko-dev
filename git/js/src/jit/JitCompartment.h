@@ -56,7 +56,6 @@ typedef void (*EnterJitCode)(void *code, unsigned argc, Value *argv, Interpreter
                              size_t numStackValues, Value *vp);
 
 class IonBuilder;
-class JitcodeGlobalTable;
 
 // ICStubSpace is an abstraction for allocation policy and storage for stub data.
 // There are two kinds of stubs: optimized stubs and fallback stubs (the latter
@@ -187,14 +186,10 @@ class JitRuntime
     // Thunk that calls the GC pre barrier.
     JitCode *valuePreBarrier_;
     JitCode *shapePreBarrier_;
-    JitCode *typeObjectPreBarrier_;
 
     // Thunk to call malloc/free.
     JitCode *mallocStub_;
     JitCode *freeStub_;
-
-    // Thunk called to finish compilation of an IonScript.
-    JitCode *lazyLinkStub_;
 
     // Thunk used by the debugger for breakpoint and step mode.
     JitCode *debugTrapHandler_;
@@ -237,11 +232,7 @@ class JitRuntime
     // their callee.
     js::Value ionReturnOverride_;
 
-    // Global table of jitcode native address => bytecode address mappings.
-    JitcodeGlobalTable *jitcodeGlobalTable_;
-
   private:
-    JitCode *generateLazyLinkStub(JSContext *cx);
     JitCode *generateExceptionTailStub(JSContext *cx);
     JitCode *generateBailoutTailStub(JSContext *cx);
     JitCode *generateEnterJIT(JSContext *cx, EnterJitType type);
@@ -318,7 +309,7 @@ class JitRuntime
         switch (mode) {
           case SequentialExecution: return bailoutHandler_;
           case ParallelExecution:   return parallelBailoutHandler_;
-          default:                  MOZ_CRASH("No such execution mode");
+          default:                  MOZ_ASSUME_UNREACHABLE("No such execution mode");
         }
     }
 
@@ -336,7 +327,7 @@ class JitRuntime
         switch (mode) {
           case SequentialExecution: return argumentsRectifier_;
           case ParallelExecution:   return parallelArgumentsRectifier_;
-          default:                  MOZ_CRASH("No such execution mode");
+          default:                  MOZ_ASSUME_UNREACHABLE("No such execution mode");
         }
     }
 
@@ -356,13 +347,12 @@ class JitRuntime
         return enterBaselineJIT_->as<EnterJitCode>();
     }
 
-    JitCode *preBarrier(MIRType type) const {
-        switch (type) {
-          case MIRType_Value: return valuePreBarrier_;
-          case MIRType_Shape: return shapePreBarrier_;
-          case MIRType_TypeObject: return typeObjectPreBarrier_;
-          default: MOZ_CRASH();
-        }
+    JitCode *valuePreBarrier() const {
+        return valuePreBarrier_;
+    }
+
+    JitCode *shapePreBarrier() const {
+        return shapePreBarrier_;
     }
 
     JitCode *mallocStub() const {
@@ -371,10 +361,6 @@ class JitRuntime
 
     JitCode *freeStub() const {
         return freeStub_;
-    }
-
-    JitCode *lazyLinkStub() const {
-        return lazyLinkStub_;
     }
 
     bool ensureForkJoinGetSliceStubExists(JSContext *cx);
@@ -394,23 +380,6 @@ class JitRuntime
         JS_ASSERT(!hasIonReturnOverride());
         JS_ASSERT(!v.isMagic());
         ionReturnOverride_ = v;
-    }
-
-    bool hasJitcodeGlobalTable() const {
-        return jitcodeGlobalTable_ != nullptr;
-    }
-
-    JitcodeGlobalTable *getJitcodeGlobalTable() {
-        JS_ASSERT(hasJitcodeGlobalTable());
-        return jitcodeGlobalTable_;
-    }
-
-    bool isNativeToBytecodeMapEnabled(JSRuntime *rt) {
-#ifdef DEBUG
-        return true;
-#else // DEBUG
-        return rt->spsProfiler.enabled();
-#endif // DEBUG
     }
 };
 
@@ -518,7 +487,7 @@ class JitCompartment
         switch (mode) {
           case SequentialExecution: return stringConcatStub_;
           case ParallelExecution:   return parallelStringConcatStub_;
-          default:                  MOZ_CRASH("No such execution mode");
+          default:                  MOZ_ASSUME_UNREACHABLE("No such execution mode");
         }
     }
 };

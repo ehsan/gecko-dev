@@ -481,7 +481,7 @@ GLXLibrary::AfterGLXCall()
         if (sErrorEvent.mError.error_code) {
             char buffer[2048];
             XGetErrorText(DefaultXDisplay(), sErrorEvent.mError.error_code, buffer, sizeof(buffer));
-            printf_stderr("X ERROR: %s (%i) - Request: %i.%i, Serial: %lu",
+            printf_stderr("X ERROR: %s (%i) - Request: %i.%i, Serial: %i",
                           buffer,
                           sErrorEvent.mError.error_code,
                           sErrorEvent.mError.request_code,
@@ -1213,21 +1213,13 @@ DONE_CREATING_PIXMAP:
 }
 
 already_AddRefed<GLContext>
-GLContextProviderGLX::CreateHeadless()
-{
-    gfxIntSize dummySize = gfxIntSize(16, 16);
-    nsRefPtr<GLContext> glContext = CreateOffscreenPixmapContext(dummySize);
-    if (!glContext)
-        return nullptr;
-
-    return glContext.forget();
-}
-
-already_AddRefed<GLContext>
 GLContextProviderGLX::CreateOffscreen(const gfxIntSize& size,
                                       const SurfaceCaps& caps)
 {
-    nsRefPtr<GLContext> glContext = CreateHeadless();
+    gfxIntSize dummySize = gfxIntSize(16, 16);
+    nsRefPtr<GLContextGLX> glContext =
+        CreateOffscreenPixmapContext(dummySize);
+
     if (!glContext)
         return nullptr;
 

@@ -100,10 +100,6 @@ prefpane {
 
 /* General Pane */
 
-#isNotDefaultLabel {
-  font-weight: bold;
-}
-
 #downloadFolder {
   -moz-margin-start: 0;
 }
@@ -129,12 +125,6 @@ prefpane {
   background-color: #FBFBFB;
   overflow-y: auto;
   height: 500px;
-}
-
-#handlersView > listheader {
-  -moz-appearance: none;
-  border: 0;
-  padding: 0;
 }
 
 #typeColumn,
@@ -177,7 +167,7 @@ prefpane {
 #typeColumn > .treecol-sortdirection[sortDirection=descending],
 #actionColumn > .treecol-sortdirection[sortDirection=descending] {
   -moz-appearance: none;
-  list-style-image: url("chrome://global/skin/in-content/sorter.png");
+  list-style-image: url("chrome://browser/skin/in-content/sorter.png");
 }
 
 #typeColumn > .treecol-sortdirection[sortDirection=descending],
@@ -192,7 +182,7 @@ prefpane {
   #actionColumn > .treecol-sortdirection[sortDirection=descending] {
     width: 12px;
     height: 8px;
-    list-style-image: url("chrome://global/skin/in-content/sorter@2x.png");
+    list-style-image: url("chrome://browser/skin/in-content/sorter@2x.png");
   }
 }
 
@@ -250,8 +240,7 @@ description > html|a {
 #weavePrefsDeck > vbox > description,
 #weavePrefsDeck > vbox > #pairDevice > label,
 #weavePrefsDeck > #needsUpdate > hbox > #loginError,
-#weavePrefsDeck > #hasFxaAccount > hbox:not(#tosPP-normal) > label,
-#weavePrefsDeck > #hasFxaAccount > hbox:not(#tosPP-small) > label {
+#weavePrefsDeck > #hasFxaAccount > hbox:not(#tosPP) > label {
   /* no margin-start for elements at the begin of a line */
   -moz-margin-start: 0;
 }
@@ -319,6 +308,11 @@ description > html|a {
   /* Default dialog dimensions */
   height: 30em;
   width: 66ch;
+}
+
+/* needs to be removed with bug 1035625 */
+:-moz-any(dialog, window, prefwindow) resizer {
+  display: none;
 }
 
 tree:not(#rejectsTree) {

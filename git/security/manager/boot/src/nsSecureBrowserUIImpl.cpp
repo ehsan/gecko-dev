@@ -97,7 +97,7 @@ static const PLDHashTableOps gMapOps = {
 #ifdef DEBUG
 class nsAutoAtomic {
   public:
-    explicit nsAutoAtomic(Atomic<int32_t> &i)
+    nsAutoAtomic(Atomic<int32_t> &i)
     :mI(i) {
       mI++;
     }
@@ -404,7 +404,7 @@ nsSecureBrowserUIImpl::Notify(nsIDOMHTMLFormElement* aDOMForm,
   
   nsCOMPtr<nsIContent> formNode = do_QueryInterface(aDOMForm);
 
-  nsCOMPtr<nsIDocument> document = formNode->GetComposedDoc();
+  nsCOMPtr<nsIDocument> document = formNode->GetDocument();
   if (!document) return NS_OK;
 
   nsIPrincipal *principal = formNode->NodePrincipal();
@@ -1645,7 +1645,7 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIINTERFACEREQUESTOR
 
-  explicit nsUIContext(nsIDOMWindow *window);
+  nsUIContext(nsIDOMWindow *window);
 
 protected:
   virtual ~nsUIContext();

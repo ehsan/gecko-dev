@@ -6,10 +6,10 @@
 #if !defined(MediaOmxReader_h_)
 #define MediaOmxReader_h_
 
-#include "MediaOmxCommonReader.h"
 #include "MediaResource.h"
 #include "MediaDecoderReader.h"
 #include "nsRect.h"
+#include "mozilla/dom/AudioChannelBinding.h"
 #include <ui/GraphicBuffer.h>
 #include <stagefright/MediaSource.h>
 
@@ -26,7 +26,7 @@ namespace dom {
 
 class AbstractMediaDecoder;
 
-class MediaOmxReader : public MediaOmxCommonReader
+class MediaOmxReader : public MediaDecoderReader
 {
   nsCString mType;
   bool mHasVideo;
@@ -36,6 +36,8 @@ class MediaOmxReader : public MediaOmxCommonReader
   int64_t mVideoSeekTimeUs;
   int64_t mAudioSeekTimeUs;
   int32_t mSkipCount;
+  dom::AudioChannel mAudioChannel;
+  android::sp<android::MediaSource> mAudioOffloadTrack;
 
 protected:
   android::sp<android::OmxDecoder> mOmxDecoder;
@@ -88,9 +90,22 @@ public:
 
   virtual void Shutdown() MOZ_OVERRIDE;
 
-  void ReleaseDecoder();
+  void SetAudioChannel(dom::AudioChannel aAudioChannel) {
+    mAudioChannel = aAudioChannel;
+  }
 
-  android::sp<android::MediaSource> GetAudioOffloadTrack();
+  android::sp<android::MediaSource> GetAudioOffloadTrack() {
+    return mAudioOffloadTrack;
+  }
+
+#ifdef MOZ_AUDIO_OFFLOAD
+  // Check whether it is possible to offload current audio track. This access
+  // canOffloadStream() from libStageFright Utils.cpp, which is not there in
+  // ANDROID_VERSION < 19
+  void CheckAudioOffload();
+#endif
+
+  void ReleaseDecoder();
 };
 
 } // namespace mozilla

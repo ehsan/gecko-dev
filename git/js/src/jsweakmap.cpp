@@ -68,13 +68,6 @@ WeakMapBase::unmarkCompartment(JSCompartment *c)
         m->marked = false;
 }
 
-void
-WeakMapBase::markAll(JSCompartment *c, JSTracer *tracer)
-{
-    for (WeakMapBase *m = c->gcWeakMapList; m; m = m->next)
-        m->markIteratively(tracer);
-}
-
 bool
 WeakMapBase::markCompartmentIteratively(JSCompartment *c, JSTracer *tracer)
 {
@@ -368,7 +361,7 @@ WeakMapPostWriteBarrier(JSRuntime *rt, ObjectValueMap *weakMap, JSObject *key)
 #endif
 }
 
-static MOZ_ALWAYS_INLINE bool
+MOZ_ALWAYS_INLINE bool
 SetWeakMapEntryInternal(JSContext *cx, Handle<WeakMapObject*> mapObj,
                         HandleObject key, HandleValue value)
 {

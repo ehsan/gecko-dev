@@ -263,8 +263,6 @@ invoked as part of a command line for post-processing raw log files.
 .. autoclass:: MachFormatter
   :members:
 
-.. automodule:: mozlog.structured.formatters.tbplformatter
-
 .. autoclass:: TbplFormatter
   :members:
 

@@ -269,10 +269,6 @@ nsNativeThemeGTK::GetGtkWidgetAndState(uint8_t aWidgetType, nsIFrame* aFrame,
 
           aState->curpos = CheckIntAttr(tmpFrame, nsGkAtoms::curpos, 0);
           aState->maxpos = CheckIntAttr(tmpFrame, nsGkAtoms::maxpos, 100);
-
-          if (CheckBooleanAttr(aFrame, nsGkAtoms::active)) {
-            aState->active = TRUE;
-          }
         }
 
         if (aWidgetType == NS_THEME_SCROLLBAR_BUTTON_UP ||
@@ -940,18 +936,14 @@ nsNativeThemeGTK::GetWidgetBorder(nsDeviceContext* aContext, nsIFrame* aFrame,
     // but don't reserve any space for it.
     break;
   case NS_THEME_TAB:
-    {
-      GtkThemeWidgetType gtkWidgetType;
-      gint flags;
-
-      if (!GetGtkWidgetAndState(aWidgetType, aFrame, gtkWidgetType, nullptr,
-                                &flags))
-        return NS_OK;
-
-      moz_gtk_get_tab_border(&aResult->left, &aResult->top,
-                             &aResult->right, &aResult->bottom, direction,
-                             (GtkTabFlags)flags);
-    }
+    // Top tabs have no bottom border, bottom tabs have no top border
+    moz_gtk_get_widget_border(MOZ_GTK_TAB, &aResult->left, &aResult->top,
+                              &aResult->right, &aResult->bottom, direction,
+                              FALSE);
+    if (IsBottomTab(aFrame))
+        aResult->top = 0;
+    else
+        aResult->bottom = 0;
     break;
   case NS_THEME_MENUITEM:
   case NS_THEME_CHECKMENUITEM:
@@ -1311,13 +1303,6 @@ nsNativeThemeGTK::WidgetStateChanged(nsIFrame* aFrame, uint8_t aWidgetType,
       aWidgetType == NS_THEME_WINDOW ||
       aWidgetType == NS_THEME_DIALOG) {
     *aShouldRepaint = false;
-    return NS_OK;
-  }
-
-  if ((aWidgetType == NS_THEME_SCROLLBAR_THUMB_VERTICAL ||
-       aWidgetType == NS_THEME_SCROLLBAR_THUMB_HORIZONTAL) &&
-       aAttribute == nsGkAtoms::active) {
-    *aShouldRepaint = true;
     return NS_OK;
   }
 

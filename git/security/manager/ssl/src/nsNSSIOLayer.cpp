@@ -198,13 +198,6 @@ nsNSSSocketInfo::GetSSLVersionUsed(int16_t* aSSLVersionUsed)
 }
 
 NS_IMETHODIMP
-nsNSSSocketInfo::GetSSLVersionOffered(int16_t* aSSLVersionOffered)
-{
-  *aSSLVersionOffered = mTLSVersionRange.max;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 nsNSSSocketInfo::GetMACAlgorithmUsed(int16_t* aMac)
 {
   *aMac = mMACAlgorithmUsed;
@@ -432,35 +425,9 @@ nsNSSSocketInfo::JoinConnection(const nsACString& npnProtocol,
     return NS_OK;
   }
 
-  // Attempt to verify the joinee's certificate using the joining hostname.
-  // This ensures that any hostname-specific verification logic (e.g. key
-  // pinning) is satisfied by the joinee's certificate chain.
-  // This verification only uses local information; since we're on the network
-  // thread, we would be blocking on ourselves if we attempted any network i/o.
-  // TODO(bug 1056935): The certificate chain built by this verification may be
-  // different than the certificate chain originally built during the joined
-  // connection's TLS handshake. Consequently, we may report a wrong and/or
-  // misleading certificate chain for HTTP transactions coalesced onto this
-  // connection. This may become problematic in the future. For example,
-  // if/when we begin relying on intermediate certificates being stored in the
-  // securityInfo of a cached HTTPS response, that cached certificate chain may
-  // actually be the wrong chain. We should consider having JoinConnection
-  // return the certificate chain built here, so that the calling Necko code
-  // can associate the correct certificate chain with the HTTP transactions it
-  // is trying to join onto this connection.
-  RefPtr<SharedCertVerifier> certVerifier(GetDefaultCertVerifier());
-  if (!certVerifier) {
-    return NS_OK;
-  }
-  nsAutoCString hostnameFlat(PromiseFlatCString(hostname));
-  CertVerifier::Flags flags = CertVerifier::FLAG_LOCAL_ONLY;
-  SECStatus rv = certVerifier->VerifySSLServerCert(nssCert, nullptr,
-                                                   mozilla::pkix::Now(),
-                                                   nullptr, hostnameFlat.get(),
-                                                   false, flags, nullptr,
-                                                   nullptr);
-  if (rv != SECSuccess) {
-    return NS_OK;
+  if (CERT_VerifyCertName(nssCert, PromiseFlatCString(hostname).get()) !=
+      SECSuccess) {
+      return NS_OK;
   }
 
   // All tests pass - this is joinable
@@ -558,7 +525,7 @@ nsNSSSocketInfo::SetFileDescPtr(PRFileDesc* aFilePtr)
 class PreviousCertRunnable : public SyncRunnableBase
 {
 public:
-  explicit PreviousCertRunnable(nsIInterfaceRequestor* callbacks)
+  PreviousCertRunnable(nsIInterfaceRequestor* callbacks)
     : mCallbacks(callbacks)
   {
   }
@@ -638,7 +605,7 @@ nsNSSSocketInfo::SetCertVerificationResult(PRErrorCode errorCode,
 
   if (mPlaintextBytesRead && !errorCode) {
     Telemetry::Accumulate(Telemetry::SSL_BYTES_BEFORE_CERT_CALLBACK,
-                          AssertedCast<uint32_t>(mPlaintextBytesRead));
+                          SafeCast<uint32_t>(mPlaintextBytesRead));
   }
 
   mCertVerificationState = after_cert_verification;
@@ -1441,7 +1408,7 @@ class PrefObserver : public nsIObserver {
 public:
   NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIOBSERVER
-  explicit PrefObserver(nsSSLIOLayerHelpers* aOwner) : mOwner(aOwner) {}
+  PrefObserver(nsSSLIOLayerHelpers* aOwner) : mOwner(aOwner) {}
 
 protected:
   virtual ~PrefObserver() {}
@@ -1800,16 +1767,16 @@ nsGetUserCertChoice(SSM_UserCertChoice* certChoice)
 {
   char* mode = nullptr;
   nsresult ret;
-
+  
   NS_ENSURE_ARG_POINTER(certChoice);
-
+  
   nsCOMPtr<nsIPrefBranch> pref = do_GetService(NS_PREFSERVICE_CONTRACTID);
-
+  
   ret = pref->GetCharPref("security.default_personal_cert", &mode);
   if (NS_FAILED(ret)) {
     goto loser;
   }
-
+  
   if (PL_strcmp(mode, "Select Automatically") == 0) {
     *certChoice = AUTO;
   } else if (PL_strcmp(mode, "Ask Every Time") == 0) {
@@ -2394,8 +2361,6 @@ nsSSLIOLayerSetOptions(PRFileDesc* fd, bool forSTARTTLS,
     return NS_ERROR_FAILURE;
   }
 
- uint16_t maxEnabledVersion = range.max;
-
   infoObject->SharedState().IOLayerHelpers()
     .adjustForTLSIntolerance(infoObject->GetHostName(), infoObject->GetPort(),
                              range);
@@ -2408,16 +2373,6 @@ nsSSLIOLayerSetOptions(PRFileDesc* fd, bool forSTARTTLS,
     return NS_ERROR_FAILURE;
   }
   infoObject->SetTLSVersionRange(range);
-
-  // when adjustForTLSIntolerance tweaks the maximum version downward,
-  // we tell the server using this SCSV so they can detect a downgrade attack
-  if (range.max < maxEnabledVersion) {
-    PR_LOG(gPIPNSSLog, PR_LOG_DEBUG,
-           ("[%p] nsSSLIOLayerSetOptions: enabling TLS_FALLBACK_SCSV\n", fd));
-    if (SECSuccess != SSL_OptionSet(fd, SSL_ENABLE_FALLBACK_SCSV, true)) {
-      return NS_ERROR_FAILURE;
-    }
-  }
 
   bool enabled = infoObject->SharedState().IsOCSPStaplingEnabled();
   if (SECSuccess != SSL_OptionSet(fd, SSL_ENABLE_OCSP_STAPLING, enabled)) {

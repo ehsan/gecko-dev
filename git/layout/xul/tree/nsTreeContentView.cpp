@@ -16,7 +16,6 @@
 #include "nsTreeBodyFrame.h"
 #include "mozilla/dom/Element.h"
 #include "nsServiceManagerUtils.h"
-#include "nsIDocument.h"
 
 using namespace mozilla;
 
@@ -488,7 +487,7 @@ nsTreeContentView::SetTree(nsITreeBoxObject* aTree)
     NS_ENSURE_STATE(mRoot);
 
     // Add ourselves to document's observers.
-    nsIDocument* document = mRoot->GetComposedDoc();
+    nsIDocument* document = mRoot->GetDocument();
     if (document) {
       document->AddObserver(this);
       mDocument = document;

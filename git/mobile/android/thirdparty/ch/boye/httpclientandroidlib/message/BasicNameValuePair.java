@@ -30,8 +30,7 @@ package ch.boye.httpclientandroidlib.message;
 import java.io.Serializable;
 
 import ch.boye.httpclientandroidlib.NameValuePair;
-import ch.boye.httpclientandroidlib.annotation.Immutable;
-import ch.boye.httpclientandroidlib.util.Args;
+import ch.boye.httpclientandroidlib.util.CharArrayBuffer;
 import ch.boye.httpclientandroidlib.util.LangUtils;
 
 /**
@@ -39,7 +38,6 @@ import ch.boye.httpclientandroidlib.util.LangUtils;
  *
  * @since 4.0
  */
-@Immutable
 public class BasicNameValuePair implements NameValuePair, Cloneable, Serializable {
 
     private static final long serialVersionUID = -6437800749411518984L;
@@ -55,7 +53,10 @@ public class BasicNameValuePair implements NameValuePair, Cloneable, Serializabl
      */
     public BasicNameValuePair(final String name, final String value) {
         super();
-        this.name = Args.notNull(name, "Name");
+        if (name == null) {
+            throw new IllegalArgumentException("Name may not be null");
+        }
+        this.name = name;
         this.value = value;
     }
 
@@ -67,35 +68,32 @@ public class BasicNameValuePair implements NameValuePair, Cloneable, Serializabl
         return this.value;
     }
 
-    @Override
     public String toString() {
         // don't call complex default formatting for a simple toString
 
         if (this.value == null) {
             return name;
+        } else {
+            int len = this.name.length() + 1 + this.value.length();
+            CharArrayBuffer buffer = new CharArrayBuffer(len);
+            buffer.append(this.name);
+            buffer.append("=");
+            buffer.append(this.value);
+            return buffer.toString();
         }
-        final int len = this.name.length() + 1 + this.value.length();
-        final StringBuilder buffer = new StringBuilder(len);
-        buffer.append(this.name);
-        buffer.append("=");
-        buffer.append(this.value);
-        return buffer.toString();
     }
 
-    @Override
     public boolean equals(final Object object) {
-        if (this == object) {
-            return true;
-        }
+        if (this == object) return true;
         if (object instanceof NameValuePair) {
-            final BasicNameValuePair that = (BasicNameValuePair) object;
+            BasicNameValuePair that = (BasicNameValuePair) object;
             return this.name.equals(that.name)
                   && LangUtils.equals(this.value, that.value);
+        } else {
+            return false;
         }
-        return false;
     }
 
-    @Override
     public int hashCode() {
         int hash = LangUtils.HASH_SEED;
         hash = LangUtils.hashCode(hash, this.name);
@@ -103,7 +101,6 @@ public class BasicNameValuePair implements NameValuePair, Cloneable, Serializabl
         return hash;
     }
 
-    @Override
     public Object clone() throws CloneNotSupportedException {
         return super.clone();
     }

@@ -67,7 +67,6 @@ class CodeGenerator : public CodeGeneratorSpecific
     bool visitCloneLiteral(LCloneLiteral *lir);
     bool visitParameter(LParameter *lir);
     bool visitCallee(LCallee *lir);
-    bool visitIsConstructing(LIsConstructing *lir);
     bool visitStart(LStart *lir);
     bool visitReturn(LReturn *ret);
     bool visitDefVar(LDefVar *lir);
@@ -116,7 +115,6 @@ class CodeGenerator : public CodeGeneratorSpecific
     bool visitElements(LElements *lir);
     bool visitConvertElementsToDoubles(LConvertElementsToDoubles *lir);
     bool visitMaybeToDoubleElement(LMaybeToDoubleElement *lir);
-    bool visitMaybeCopyElementsForWrite(LMaybeCopyElementsForWrite *lir);
     bool visitGuardObjectIdentity(LGuardObjectIdentity *guard);
     bool visitGuardShapePolymorphic(LGuardShapePolymorphic *lir);
     bool visitTypeBarrierV(LTypeBarrierV *lir);
@@ -146,7 +144,6 @@ class CodeGenerator : public CodeGeneratorSpecific
     bool visitNewArrayCallVM(LNewArray *lir);
     bool visitNewArray(LNewArray *lir);
     bool visitOutOfLineNewArray(OutOfLineNewArray *ool);
-    bool visitNewArrayCopyOnWrite(LNewArrayCopyOnWrite *lir);
     bool visitNewObjectVMCall(LNewObject *lir);
     bool visitNewObject(LNewObject *lir);
     bool visitOutOfLineNewObject(OutOfLineNewObject *ool);
@@ -254,7 +251,6 @@ class CodeGenerator : public CodeGeneratorSpecific
     bool visitArrayPushV(LArrayPushV *lir);
     bool visitArrayPushT(LArrayPushT *lir);
     bool visitArrayConcat(LArrayConcat *lir);
-    bool visitArrayJoin(LArrayJoin *lir);
     bool visitLoadTypedArrayElement(LLoadTypedArrayElement *lir);
     bool visitLoadTypedArrayElementHole(LLoadTypedArrayElementHole *lir);
     bool visitStoreTypedArrayElement(LStoreTypedArrayElement *lir);

@@ -10,6 +10,7 @@
 #include "nsIWebProgress.h"
 #include "nsCURILoader.h"
 #include "nsICachingChannel.h"
+#include "nsICacheVisitor.h"
 #include "nsIHttpChannel.h"
 #include "nsIURL.h"
 #include "nsISimpleEnumerator.h"
@@ -73,7 +74,7 @@ class nsPrefetchQueueEnumerator MOZ_FINAL : public nsISimpleEnumerator
 public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSISIMPLEENUMERATOR
-    explicit nsPrefetchQueueEnumerator(nsPrefetchService *aService);
+    nsPrefetchQueueEnumerator(nsPrefetchService *aService);
 
 private:
     ~nsPrefetchQueueEnumerator();

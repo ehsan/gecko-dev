@@ -10,7 +10,7 @@
 
 #include "jsprf.h"
 
-#include "jit/JitSpewer.h"
+#include "jit/IonSpewer.h"
 #include "jit/MIR.h"
 #include "jit/MIRGenerator.h"
 
@@ -201,7 +201,7 @@ LRecoverInfo::New(MIRGenerator *gen, MResumePoint *mir)
     if (!recoverInfo || !recoverInfo->init(mir))
         return nullptr;
 
-    JitSpew(JitSpew_Snapshots, "Generating LIR recover info %p from MIR (%p)",
+    IonSpew(IonSpew_Snapshots, "Generating LIR recover info %p from MIR (%p)",
             (void *)recoverInfo, (void *)mir);
 
     return recoverInfo;
@@ -293,7 +293,7 @@ LSnapshot::New(MIRGenerator *gen, LRecoverInfo *recover, BailoutKind kind)
     if (!snapshot || !snapshot->init(gen))
         return nullptr;
 
-    JitSpew(JitSpew_Snapshots, "Generating LIR snapshot %p from recover (%p)",
+    IonSpew(IonSpew_Snapshots, "Generating LIR snapshot %p from recover (%p)",
             (void *)snapshot, (void *)recover);
 
     return snapshot;
@@ -362,13 +362,17 @@ PrintDefinition(char *buf, size_t size, const LDefinition &def)
     char *cursor = buf;
     char *end = buf + size;
 
-    cursor += JS_snprintf(cursor, end - cursor, "v%u", def.virtualRegister());
+    if (def.virtualRegister())
+        cursor += JS_snprintf(cursor, end - cursor, "v%u", def.virtualRegister());
+
     cursor += JS_snprintf(cursor, end - cursor, "<%s>", TypeChars[def.type()]);
 
     if (def.policy() == LDefinition::FIXED)
         cursor += JS_snprintf(cursor, end - cursor, ":%s", def.output()->toString());
     else if (def.policy() == LDefinition::MUST_REUSE_INPUT)
         cursor += JS_snprintf(cursor, end - cursor, ":tied(%u)", def.getReusedInput());
+    else if (def.policy() == LDefinition::PASSTHROUGH)
+        cursor += JS_snprintf(cursor, end - cursor, ":-");
 }
 
 const char *
@@ -376,10 +380,6 @@ LDefinition::toString() const
 {
     // Not reentrant!
     static char buf[40];
-
-    if (isBogusTemp())
-        return "bogus";
-
     PrintDefinition(buf, sizeof(buf), *this);
     return buf;
 }
@@ -408,7 +408,7 @@ PrintUse(char *buf, size_t size, const LUse *use)
         JS_snprintf(buf, size, "v%d:**", use->virtualRegister());
         break;
       default:
-        MOZ_CRASH("invalid use policy");
+        MOZ_ASSUME_UNREACHABLE("invalid use policy");
     }
 }
 
@@ -417,9 +417,6 @@ LAllocation::toString() const
 {
     // Not reentrant!
     static char buf[40];
-
-    if (isBogus())
-        return "bogus";
 
     switch (kind()) {
       case LAllocation::CONSTANT_VALUE:
@@ -441,7 +438,7 @@ LAllocation::toString() const
         PrintUse(buf, sizeof(buf), toUse());
         return buf;
       default:
-        MOZ_CRASH("what?");
+        MOZ_ASSUME_UNREACHABLE("what?");
     }
 }
 #endif // DEBUG
@@ -475,12 +472,12 @@ LInstruction::assignSnapshot(LSnapshot *snapshot)
     snapshot_ = snapshot;
 
 #ifdef DEBUG
-    if (JitSpewEnabled(JitSpew_Snapshots)) {
-        JitSpewHeader(JitSpew_Snapshots);
-        fprintf(JitSpewFile, "Assigning snapshot %p to instruction %p (",
+    if (IonSpewEnabled(IonSpew_Snapshots)) {
+        IonSpewHeader(IonSpew_Snapshots);
+        fprintf(IonSpewFile, "Assigning snapshot %p to instruction %p (",
                 (void *)snapshot, (void *)this);
-        printName(JitSpewFile);
-        fprintf(JitSpewFile, ")\n");
+        printName(IonSpewFile);
+        fprintf(IonSpewFile, ")\n");
     }
 #endif
 }

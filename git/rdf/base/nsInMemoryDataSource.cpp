@@ -87,7 +87,7 @@ public:
               nsIRDFResource* aProperty,
               nsIRDFNode* aTarget,
               bool aTruthValue);
-    explicit Assertion(nsIRDFResource* aSource);     // PLDHashTable assertion variant
+    Assertion(nsIRDFResource* aSource);     // PLDHashTable assertion variant
 
 private:
     ~Assertion();
@@ -159,7 +159,7 @@ Assertion::Assertion(nsIRDFResource* aSource)
       mRefCnt(0),
       mHashEntry(true)
 {
-    MOZ_COUNT_CTOR(Assertion);
+    MOZ_COUNT_CTOR(RDF_Assertion);
 
     NS_ADDREF(mSource);
 
@@ -176,7 +176,7 @@ Assertion::Assertion(nsIRDFResource* aSource,
       mRefCnt(0),
       mHashEntry(false)
 {
-    MOZ_COUNT_CTOR(Assertion);
+    MOZ_COUNT_CTOR(RDF_Assertion);
 
     u.as.mProperty = aProperty;
     u.as.mTarget = aTarget;
@@ -199,7 +199,7 @@ Assertion::~Assertion()
         u.hash.mPropertyHash = nullptr;
     }
 
-    MOZ_COUNT_DTOR(Assertion);
+    MOZ_COUNT_DTOR(RDF_Assertion);
 #ifdef DEBUG_REFS
     --gInstanceCount;
     fprintf(stdout, "%d - RDF: Assertion\n", gInstanceCount);
@@ -285,7 +285,7 @@ protected:
                    nsIRDFResource* property,
                    nsIRDFNode* target);
 
-    explicit InMemoryDataSource(nsISupports* aOuter);
+    InMemoryDataSource(nsISupports* aOuter);
     virtual ~InMemoryDataSource();
     nsresult Init();
 
@@ -1316,7 +1316,7 @@ InMemoryDataSource::LockedUnassert(nsIRDFResource* aSource,
             }
             else {
                 // If this second-level hash empties out, clean it up.
-                if (!root->u.hash.mPropertyHash->EntryCount()) {
+                if (!root->u.hash.mPropertyHash->entryCount) {
                     root->Release();
                     SetForwardArcs(aSource, nullptr);
                 }
@@ -1661,7 +1661,7 @@ NS_IMETHODIMP
 InMemoryDataSource::GetAllResources(nsISimpleEnumerator** aResult)
 {
     nsCOMArray<nsIRDFNode> nodes;
-    nodes.SetCapacity(mForwardArcs.EntryCount());
+    nodes.SetCapacity(mForwardArcs.entryCount);
 
     // Enumerate all of our entries into an nsCOMArray
     PL_DHashTableEnumerate(&mForwardArcs, ResourceEnumerator, &nodes);
@@ -1920,7 +1920,7 @@ InMemoryDataSource::SweepForwardArcsEntries(PLDHashTable* aTable,
                                SweepForwardArcsEntries, info);
 
         // If the sub-hash is now empty, clean it up.
-        if (!as->u.hash.mPropertyHash->EntryCount()) {
+        if (!as->u.hash.mPropertyHash->entryCount) {
             as->Release();
             result = PL_DHASH_REMOVE;
         }
@@ -1998,7 +1998,7 @@ InMemoryDataSource::SweepForwardArcsEntries(PLDHashTable* aTable,
 class VisitorClosure
 {
 public:
-    explicit VisitorClosure(rdfITripleVisitor* aVisitor) :
+    VisitorClosure(rdfITripleVisitor* aVisitor) :
         mVisitor(aVisitor),
         mRv(NS_OK)
     {}

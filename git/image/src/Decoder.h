@@ -17,12 +17,23 @@
 namespace mozilla {
 
 namespace image {
+class Decoder;
+}
+
+template<>
+struct HasDangerousPublicDestructor<image::Decoder>
+{
+  static const bool value = true;
+};
+
+namespace image {
 
 class Decoder
 {
 public:
 
-  explicit Decoder(RasterImage& aImage);
+  Decoder(RasterImage& aImage);
+  virtual ~Decoder();
 
   /**
    * Initialize an image decoder. Decoders may not be re-initialized.
@@ -160,14 +171,9 @@ public:
   // status code from that attempt. Clears mNewFrameData.
   virtual nsresult AllocateFrame();
 
-  already_AddRefed<imgFrame> GetCurrentFrame() const
-  {
-    nsRefPtr<imgFrame> frame = mCurrentFrame;
-    return frame.forget();
-  }
+  imgFrame* GetCurrentFrame() const { return mCurrentFrame; }
 
 protected:
-  virtual ~Decoder();
 
   /*
    * Internal hooks. Decoder implementations may override these and
@@ -224,7 +230,7 @@ protected:
    *
    */
   RasterImage &mImage;
-  nsRefPtr<imgFrame> mCurrentFrame;
+  imgFrame* mCurrentFrame;
   RefPtr<imgDecoderObserver> mObserver;
   ImageMetadata mImageMetadata;
 

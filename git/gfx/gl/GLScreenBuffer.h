@@ -21,7 +21,6 @@
 #include "GLDefs.h"
 #include "mozilla/gfx/2D.h"
 #include "mozilla/gfx/Point.h"
-#include "mozilla/UniquePtr.h"
 
 namespace mozilla {
 namespace gl {
@@ -39,7 +38,7 @@ public:
                        const SurfaceCaps& caps,
                        const GLFormats& formats,
                        const gfx::IntSize& size,
-                       UniquePtr<DrawBuffer>* out_buffer);
+                       DrawBuffer** out_buffer);
 
 protected:
     GLContext* const mGL;
@@ -73,10 +72,10 @@ class ReadBuffer
 {
 public:
     // Infallible, always non-null.
-    static UniquePtr<ReadBuffer> Create(GLContext* gl,
-                                        const SurfaceCaps& caps,
-                                        const GLFormats& formats,
-                                        SharedSurface* surf);
+    static ReadBuffer* Create(GLContext* gl,
+                              const SurfaceCaps& caps,
+                              const GLFormats& formats,
+                              SharedSurface* surf);
 
 protected:
     GLContext* const mGL;
@@ -119,20 +118,20 @@ class GLScreenBuffer
 {
 public:
     // Infallible.
-    static UniquePtr<GLScreenBuffer> Create(GLContext* gl,
-                                            const gfx::IntSize& size,
-                                            const SurfaceCaps& caps);
+    static GLScreenBuffer* Create(GLContext* gl,
+                                  const gfx::IntSize& size,
+                                  const SurfaceCaps& caps);
 
 protected:
-    GLContext* const mGL; // Owns us.
+    GLContext* const mGL;         // Owns us.
 public:
     const SurfaceCaps mCaps;
 protected:
-    UniquePtr<SurfaceFactory> mFactory;
+    SurfaceFactory* mFactory;  // Owned by us.
     RefPtr<SurfaceStream> mStream;
 
-    UniquePtr<DrawBuffer> mDraw;
-    UniquePtr<ReadBuffer> mRead;
+    DrawBuffer* mDraw;            // Owned by us.
+    ReadBuffer* mRead;            // Owned by us.
 
     bool mNeedsBlit;
 
@@ -149,11 +148,11 @@ protected:
 
     GLScreenBuffer(GLContext* gl,
                    const SurfaceCaps& caps,
-                   UniquePtr<SurfaceFactory> factory,
-                   const RefPtr<SurfaceStream>& stream)
+                   SurfaceFactory* factory,
+                   SurfaceStream* stream)
         : mGL(gl)
         , mCaps(caps)
-        , mFactory(Move(factory))
+        , mFactory(factory)
         , mStream(stream)
         , mDraw(nullptr)
         , mRead(nullptr)
@@ -176,7 +175,7 @@ public:
     }
 
     SurfaceFactory* Factory() const {
-        return mFactory.get();
+        return mFactory;
     }
 
     SharedSurface* SharedSurf() const {
@@ -236,8 +235,7 @@ public:
      * Once you pass newFactory into Morph, newFactory will be owned by
      * GLScreenBuffer, so `forget` any references to it that still exist.
      */
-    void Morph(UniquePtr<SurfaceFactory> newFactory,
-               SurfaceStreamType streamType);
+    void Morph(SurfaceFactory* newFactory, SurfaceStreamType streamType);
 
 protected:
     // Returns false on error or inability to resize.
@@ -251,10 +249,10 @@ public:
     void Readback(SharedSurface* src, gfx::DataSourceSurface* dest);
 
 protected:
-    bool Attach(SharedSurface* surf, const gfx::IntSize& size);
+    bool Attach(SharedSurface* surface, const gfx::IntSize& size);
 
-    bool CreateDraw(const gfx::IntSize& size, UniquePtr<DrawBuffer>* out_buffer);
-    UniquePtr<ReadBuffer> CreateRead(SharedSurface* surf);
+    bool CreateDraw(const gfx::IntSize& size, DrawBuffer** out_buffer);
+    ReadBuffer* CreateRead(SharedSurface* surf);
 
 public:
     /* `fb` in these functions is the framebuffer the GLContext is hoping to

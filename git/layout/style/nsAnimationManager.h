@@ -26,7 +26,7 @@ struct AnimationEventInfo {
   mozilla::InternalAnimationEvent mEvent;
 
   AnimationEventInfo(mozilla::dom::Element *aElement,
-                     const nsSubstring& aAnimationName,
+                     const nsString& aAnimationName,
                      uint32_t aMessage, mozilla::TimeDuration aElapsedTime,
                      const nsAString& aPseudoElement)
     : mElement(aElement), mEvent(true, aMessage)
@@ -52,7 +52,7 @@ class nsAnimationManager MOZ_FINAL
   : public mozilla::css::CommonAnimationManager
 {
 public:
-  explicit nsAnimationManager(nsPresContext *aPresContext)
+  nsAnimationManager(nsPresContext *aPresContext)
     : mozilla::css::CommonAnimationManager(aPresContext)
     , mObservingRefreshDriver(false)
   {

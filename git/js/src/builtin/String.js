@@ -94,11 +94,9 @@ function StringIteratorNext() {
     var S = UnsafeGetReservedSlot(this, STRING_ITERATOR_SLOT_ITERATED_OBJECT);
     var index = UnsafeGetReservedSlot(this, STRING_ITERATOR_SLOT_NEXT_INDEX);
     var size = S.length;
-    var result = { value: undefined, done: false };
 
     if (index >= size) {
-        result.done = true;
-        return result;
+        return { value: undefined, done: true };
     }
 
     var charCount = 1;
@@ -111,9 +109,9 @@ function StringIteratorNext() {
     }
 
     UnsafeSetReservedSlot(this, STRING_ITERATOR_SLOT_NEXT_INDEX, index + charCount);
-    result.value = callFunction(std_String_substring, S, index, index + charCount);
+    var value = callFunction(std_String_substring, S, index, index + charCount);
 
-    return result;
+    return { value: value, done: false };
 }
 
 /**
@@ -148,8 +146,8 @@ function String_localeCompare(that) {
     return intl_CompareStrings(collator, S, That);
 }
 
-// ES6 draft rev27 (2014/08/24) 21.1.2.2 String.fromCodePoint(...codePoints)
-function String_static_fromCodePoint(codePoints) {
+/* ES6 Draft September 5, 2013 21.1.2.2 */
+function String_static_fromCodePoint() {
     // Step 1. is not relevant
     // Step 2.
     var length = arguments.length;
@@ -165,7 +163,7 @@ function String_static_fromCodePoint(codePoints) {
         var nextCP = ToNumber(next);
 
         // Step 5d.
-        if (nextCP !== ToInteger(nextCP) || Number_isNaN(nextCP))
+        if (nextCP !== ToInteger(nextCP) || std_isNaN(nextCP))
             ThrowError(JSMSG_NOT_A_CODEPOINT, ToString(nextCP));
 
         // Step 5e.

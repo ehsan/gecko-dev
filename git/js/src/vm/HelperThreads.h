@@ -47,7 +47,6 @@ class GlobalHelperThreadState
     typedef Vector<ParseTask*, 0, SystemAllocPolicy> ParseTaskVector;
     typedef Vector<SourceCompressionTask*, 0, SystemAllocPolicy> SourceCompressionTaskVector;
     typedef Vector<GCHelperState *, 0, SystemAllocPolicy> GCHelperStateVector;
-    typedef mozilla::LinkedList<jit::IonBuilder> IonBuilderList;
 
     // List of available threads, or null if the thread state has not been initialized.
     HelperThread *threads;
@@ -57,9 +56,6 @@ class GlobalHelperThreadState
 
     // Ion compilation worklist and finished jobs.
     IonBuilderVector ionWorklist_, ionFinishedList_;
-
-    // List of IonBuilders using lazy linking pending to get linked.
-    IonBuilderList ionLazyLinkList_;
 
     // AsmJS worklist and finished jobs.
     //
@@ -140,10 +136,6 @@ class GlobalHelperThreadState
     IonBuilderVector &ionFinishedList() {
         JS_ASSERT(isLocked());
         return ionFinishedList_;
-    }
-    IonBuilderList &ionLazyLinkList() {
-        JS_ASSERT(isLocked());
-        return ionLazyLinkList_;
     }
 
     AsmJSParallelTaskVector &asmJSWorklist() {
@@ -358,7 +350,7 @@ CancelOffThreadParses(JSRuntime *runtime);
  */
 bool
 StartOffThreadParseScript(JSContext *cx, const ReadOnlyCompileOptions &options,
-                          const char16_t *chars, size_t length,
+                          const jschar *chars, size_t length,
                           JS::OffThreadCompileCallback callback, void *callbackData);
 
 /*
@@ -431,7 +423,7 @@ struct ParseTask
 {
     ExclusiveContext *cx;
     OwningCompileOptions options;
-    const char16_t *chars;
+    const jschar *chars;
     size_t length;
     LifoAlloc alloc;
 
@@ -461,7 +453,7 @@ struct ParseTask
     bool overRecursed;
 
     ParseTask(ExclusiveContext *cx, JSObject *exclusiveContextGlobal,
-              JSContext *initCx, const char16_t *chars, size_t length,
+              JSContext *initCx, const jschar *chars, size_t length,
               JS::OffThreadCompileCallback callback, void *callbackData);
     bool init(JSContext *cx, const ReadOnlyCompileOptions &options);
 

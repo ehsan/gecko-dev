@@ -51,7 +51,7 @@ CanvasLayerD3D10::Initialize(const Data& aData)
         SurfaceStream::ChooseGLStreamType(SurfaceStream::MainThread,
                                           screen->PreserveBuffer());
 
-    UniquePtr<SurfaceFactory> factory = nullptr;
+    SurfaceFactory* factory = nullptr;
     if (!gfxPrefs::WebGLForceLayersReadback()) {
       if (mGLContext->IsANGLE()) {
         factory = SurfaceFactory_ANGLEShareHandle::Create(mGLContext,
@@ -60,7 +60,7 @@ CanvasLayerD3D10::Initialize(const Data& aData)
     }
 
     if (factory) {
-      screen->Morph(Move(factory), streamType);
+      screen->Morph(factory, streamType);
     }
   } else if (aData.mDrawTarget) {
     mDrawTarget = aData.mDrawTarget;

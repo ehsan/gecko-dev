@@ -21,7 +21,6 @@
 #include "nsIScriptError.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsIScriptSecurityManager.h"
-#include "nsPerformance.h"
 #include "nsPIDOMWindow.h"
 #include "nsITextToSubURI.h"
 #include "nsIThreadInternal.h"
@@ -35,7 +34,6 @@
 #include "js/OldDebugAPI.h"
 #include "js/MemoryMetrics.h"
 #include "mozilla/Assertions.h"
-#include "mozilla/Attributes.h"
 #include "mozilla/ContentEvents.h"
 #include "mozilla/EventDispatcher.h"
 #include "mozilla/Likely.h"
@@ -55,6 +53,7 @@
 #include "mozilla/Preferences.h"
 #include "nsAlgorithm.h"
 #include "nsContentUtils.h"
+#include "nsCxPusher.h"
 #include "nsError.h"
 #include "nsDOMJSUtils.h"
 #include "nsHostObjectProtocolHandler.h"
@@ -224,7 +223,7 @@ struct WindowAction
   nsPIDOMWindow* mWindow;
   bool mDefaultAction;
 
-  MOZ_IMPLICIT WindowAction(nsPIDOMWindow* aWindow)
+  WindowAction(nsPIDOMWindow* aWindow)
   : mWindow(aWindow), mDefaultAction(true)
   { }
 
@@ -774,7 +773,7 @@ class TopLevelWorkerFinishedRunnable MOZ_FINAL : public nsRunnable
   WorkerPrivate* mFinishedWorker;
 
 public:
-  explicit TopLevelWorkerFinishedRunnable(WorkerPrivate* aFinishedWorker)
+  TopLevelWorkerFinishedRunnable(WorkerPrivate* aFinishedWorker)
   : mFinishedWorker(aFinishedWorker)
   {
     aFinishedWorker->AssertIsOnWorkerThread();
@@ -848,7 +847,7 @@ private:
 class CompileScriptRunnable MOZ_FINAL : public WorkerRunnable
 {
 public:
-  explicit CompileScriptRunnable(WorkerPrivate* aWorkerPrivate)
+  CompileScriptRunnable(WorkerPrivate* aWorkerPrivate)
   : WorkerRunnable(aWorkerPrivate, WorkerThreadModifyBusyCount)
   { }
 
@@ -875,7 +874,7 @@ private:
 class CloseEventRunnable MOZ_FINAL : public WorkerRunnable
 {
 public:
-  explicit CloseEventRunnable(WorkerPrivate* aWorkerPrivate)
+  CloseEventRunnable(WorkerPrivate* aWorkerPrivate)
   : WorkerRunnable(aWorkerPrivate, WorkerThreadUnchangedBusyCount)
   { }
 
@@ -1092,7 +1091,7 @@ private:
 class CloseRunnable MOZ_FINAL : public WorkerControlRunnable
 {
 public:
-  explicit CloseRunnable(WorkerPrivate* aWorkerPrivate)
+  CloseRunnable(WorkerPrivate* aWorkerPrivate)
   : WorkerControlRunnable(aWorkerPrivate, ParentThreadUnchangedBusyCount)
   { }
 
@@ -1109,7 +1108,7 @@ private:
 class SuspendRunnable MOZ_FINAL : public WorkerControlRunnable
 {
 public:
-  explicit SuspendRunnable(WorkerPrivate* aWorkerPrivate)
+  SuspendRunnable(WorkerPrivate* aWorkerPrivate)
   : WorkerControlRunnable(aWorkerPrivate, WorkerThreadUnchangedBusyCount)
   { }
 
@@ -1124,7 +1123,7 @@ private:
 class ResumeRunnable MOZ_FINAL : public WorkerControlRunnable
 {
 public:
-  explicit ResumeRunnable(WorkerPrivate* aWorkerPrivate)
+  ResumeRunnable(WorkerPrivate* aWorkerPrivate)
   : WorkerControlRunnable(aWorkerPrivate, WorkerThreadUnchangedBusyCount)
   { }
 
@@ -1281,12 +1280,16 @@ private:
   virtual bool
   WorkerRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate) MOZ_OVERRIDE
   {
+    // Don't fire this event if the JS object has been disconnected from the
+    // private object.
+    if (!aWorkerPrivate->IsAcceptingEvents()) {
+      return true;
+    }
+
     JS::Rooted<JSObject*> target(aCx, aWorkerPrivate->GetWrapper());
 
     uint64_t innerWindowId;
     bool fireAtScope = true;
-
-    bool workerIsAcceptingEvents = aWorkerPrivate->IsAcceptingEvents();
 
     WorkerPrivate* parent = aWorkerPrivate->GetParent();
     if (parent) {
@@ -1315,19 +1318,9 @@ private:
         return true;
       }
 
-      // The innerWindowId is only required if we are going to ReportError
-      // below, which is gated on this condition. The inner window correctness
-      // check is only going to succeed when the worker is accepting events.
-      if (workerIsAcceptingEvents) {
-        aWorkerPrivate->AssertInnerWindowIsCorrect();
-        innerWindowId = aWorkerPrivate->GetInnerWindowId();
-      }
-    }
+      aWorkerPrivate->AssertInnerWindowIsCorrect();
 
-    // Don't fire this event if the JS object has been disconnected from the
-    // private object.
-    if (!workerIsAcceptingEvents) {
-      return true;
+      innerWindowId = aWorkerPrivate->GetInnerWindowId();
     }
 
     return ReportError(aCx, parent, fireAtScope, aWorkerPrivate, mMessage,
@@ -1339,7 +1332,7 @@ private:
 class TimerRunnable MOZ_FINAL : public WorkerRunnable
 {
 public:
-  explicit TimerRunnable(WorkerPrivate* aWorkerPrivate)
+  TimerRunnable(WorkerPrivate* aWorkerPrivate)
   : WorkerRunnable(aWorkerPrivate, WorkerThreadUnchangedBusyCount)
   { }
 
@@ -1432,7 +1425,7 @@ class KillCloseEventRunnable MOZ_FINAL : public WorkerRunnable
   class KillScriptRunnable MOZ_FINAL : public WorkerControlRunnable
   {
   public:
-    explicit KillScriptRunnable(WorkerPrivate* aWorkerPrivate)
+    KillScriptRunnable(WorkerPrivate* aWorkerPrivate)
     : WorkerControlRunnable(aWorkerPrivate, WorkerThreadUnchangedBusyCount)
     { }
 
@@ -1460,7 +1453,7 @@ class KillCloseEventRunnable MOZ_FINAL : public WorkerRunnable
   };
 
 public:
-  explicit KillCloseEventRunnable(WorkerPrivate* aWorkerPrivate)
+  KillCloseEventRunnable(WorkerPrivate* aWorkerPrivate)
   : WorkerRunnable(aWorkerPrivate, WorkerThreadUnchangedBusyCount)
   { }
 
@@ -1566,25 +1559,6 @@ public:
   WorkerRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate) MOZ_OVERRIDE
   {
     aWorkerPrivate->UpdatePreferenceInternal(aCx, mPref, mValue);
-    return true;
-  }
-};
-
-class UpdateLanguagesRunnable MOZ_FINAL : public WorkerRunnable
-{
-  nsTArray<nsString> mLanguages;
-
-public:
-  UpdateLanguagesRunnable(WorkerPrivate* aWorkerPrivate,
-                          const nsTArray<nsString>& aLanguages)
-    : WorkerRunnable(aWorkerPrivate, WorkerThreadModifyBusyCount),
-      mLanguages(aLanguages)
-  { }
-
-  virtual bool
-  WorkerRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate) MOZ_OVERRIDE
-  {
-    aWorkerPrivate->UpdateLanguagesInternal(aCx, mLanguages);
     return true;
   }
 };
@@ -1716,7 +1690,7 @@ class WorkerJSRuntimeStats : public JS::RuntimeStats
   const nsACString& mRtPath;
 
 public:
-  explicit WorkerJSRuntimeStats(const nsACString& aRtPath)
+  WorkerJSRuntimeStats(const nsACString& aRtPath)
   : JS::RuntimeStats(JsWorkerMallocSizeOf), mRtPath(aRtPath)
   { }
 
@@ -1898,7 +1872,7 @@ class WorkerPrivateParent<Derived>::EventTarget MOZ_FINAL
   nsCOMPtr<nsIEventTarget> mNestedEventTarget;
 
 public:
-  explicit EventTarget(WorkerPrivate* aWorkerPrivate)
+  EventTarget(WorkerPrivate* aWorkerPrivate)
   : mMutex("WorkerPrivateParent::EventTarget::mMutex"),
     mWorkerPrivate(aWorkerPrivate), mWeakNestedEventTarget(nullptr)
   {
@@ -1989,7 +1963,7 @@ class WorkerPrivate::MemoryReporter MOZ_FINAL : public nsIMemoryReporter
   bool mAlreadyMappedToAddon;
 
 public:
-  explicit MemoryReporter(WorkerPrivate* aWorkerPrivate)
+  MemoryReporter(WorkerPrivate* aWorkerPrivate)
   : mMutex(aWorkerPrivate->mMutex), mWorkerPrivate(aWorkerPrivate),
     mAlreadyMappedToAddon(false)
   {
@@ -2154,22 +2128,11 @@ WorkerPrivateParent<Derived>::WorkerPrivateParent(
     aParent->AssertIsOnWorkerThread();
 
     aParent->CopyJSSettings(mJSSettings);
-
-    MOZ_ASSERT(IsDedicatedWorker());
-    mNowBaseTimeStamp = aParent->NowBaseTimeStamp();
   }
   else {
     AssertIsOnMainThread();
 
     RuntimeService::GetDefaultJSSettings(mJSSettings);
-
-    if (IsDedicatedWorker() && mLoadInfo.mWindow &&
-        mLoadInfo.mWindow->GetPerformance()) {
-      mNowBaseTimeStamp = mLoadInfo.mWindow->GetPerformance()->GetDOMTiming()->
-        GetNavigationStartTimeStamp();
-    } else {
-      mNowBaseTimeStamp = CreationTimeStamp();
-    }
   }
 }
 
@@ -2440,7 +2403,7 @@ WorkerPrivateParent<Derived>::Suspend(JSContext* aCx, nsPIDOMWindow* aWindow)
       nsPIDOMWindow* mWindow;
       bool mAllSuspended;
 
-      explicit Closure(nsPIDOMWindow* aWindow)
+      Closure(nsPIDOMWindow* aWindow)
       : mWindow(aWindow), mAllSuspended(true)
       {
         AssertIsOnMainThread();
@@ -2524,7 +2487,7 @@ WorkerPrivateParent<Derived>::Resume(JSContext* aCx, nsPIDOMWindow* aWindow)
       nsPIDOMWindow* mWindow;
       bool mAnyRunning;
 
-      explicit Closure(nsPIDOMWindow* aWindow)
+      Closure(nsPIDOMWindow* aWindow)
       : mWindow(aWindow), mAnyRunning(false)
       {
         AssertIsOnMainThread();
@@ -2918,21 +2881,6 @@ WorkerPrivateParent<Derived>::UpdatePreference(JSContext* aCx, WorkerPreference 
 
 template <class Derived>
 void
-WorkerPrivateParent<Derived>::UpdateLanguages(JSContext* aCx,
-                                              const nsTArray<nsString>& aLanguages)
-{
-  AssertIsOnParentThread();
-
-  nsRefPtr<UpdateLanguagesRunnable> runnable =
-    new UpdateLanguagesRunnable(ParentAsWorkerPrivate(), aLanguages);
-  if (!runnable->Dispatch(aCx)) {
-    NS_WARNING("Failed to update worker languages!");
-    JS_ClearPendingException(aCx);
-  }
-}
-
-template <class Derived>
-void
 WorkerPrivateParent<Derived>::UpdateJSWorkerMemoryParameter(JSContext* aCx,
                                                             JSGCParamKey aKey,
                                                             uint32_t aValue)
@@ -3290,7 +3238,7 @@ WorkerPrivateParent<Derived>::CloseSharedWorkersForWindow(
     nsPIDOMWindow* mWindow;
     nsAutoTArray<nsRefPtr<SharedWorker>, 10> mSharedWorkers;
 
-    explicit Closure(nsPIDOMWindow* aWindow)
+    Closure(nsPIDOMWindow* aWindow)
     : mWindow(aWindow)
     {
       AssertIsOnMainThread();
@@ -3416,7 +3364,7 @@ WorkerPrivateParent<Derived>::SetBaseURI(nsIURI* aBaseURI)
     mLocationInfo.mHost.Assign(mLocationInfo.mHostname);
   }
 
-  nsContentUtils::GetUTFOrigin(aBaseURI, mLocationInfo.mOrigin);
+  nsContentUtils::GetUTFNonNullOrigin(aBaseURI, mLocationInfo.mOrigin);
 }
 
 template <class Derived>
@@ -3682,17 +3630,17 @@ WorkerPrivate::Constructor(JSContext* aCx,
 
   Maybe<LoadInfo> stackLoadInfo;
   if (!aLoadInfo) {
-    stackLoadInfo.emplace();
+    stackLoadInfo.construct();
 
     nsresult rv = GetLoadInfo(aCx, nullptr, parent, aScriptURL,
-                              aIsChromeWorker, stackLoadInfo.ptr());
+                              aIsChromeWorker, stackLoadInfo.addr());
     if (NS_FAILED(rv)) {
       scriptloader::ReportLoadError(aCx, aScriptURL, rv, !parent);
       aRv.Throw(rv);
       return nullptr;
     }
 
-    aLoadInfo = stackLoadInfo.ptr();
+    aLoadInfo = stackLoadInfo.addr();
   }
 
   // NB: This has to be done before creating the WorkerPrivate, because it will
@@ -3897,12 +3845,6 @@ WorkerPrivate::GetLoadInfo(JSContext* aCx, nsPIDOMWindow* aWindow,
       NS_ENSURE_SUCCESS(rv, rv);
 
       loadInfo.mXHRParamsAllowed = perm == nsIPermissionManager::ALLOW_ACTION;
-
-      uint16_t appStatus = loadInfo.mPrincipal->GetAppStatus();
-      loadInfo.mIsInPrivilegedApp =
-        (appStatus == nsIPrincipal::APP_STATUS_CERTIFIED ||
-         appStatus == nsIPrincipal::APP_STATUS_PRIVILEGED);
-      loadInfo.mIsInCertifiedApp = (appStatus == nsIPrincipal::APP_STATUS_CERTIFIED);
     } else {
       // Not a window
       MOZ_ASSERT(isChrome);
@@ -3997,8 +3939,10 @@ WorkerPrivate::DoRunLoop(JSContext* aCx)
   for (;;) {
     // Workers lazily create a global object in CompileScriptRunnable. We need
     // to enter the global's compartment as soon as it has been created.
-    if (!workerCompartment && GlobalScope()) {
-      workerCompartment.emplace(aCx, GlobalScope()->GetGlobalJSObject());
+    if (workerCompartment.empty()) {
+      if (JSObject* global = js::DefaultObjectForContextOrNull(aCx)) {
+        workerCompartment.construct(aCx, global);
+      }
     }
 
     Status currentStatus;
@@ -4084,7 +4028,7 @@ WorkerPrivate::DoRunLoop(JSContext* aCx)
 
     if (NS_HasPendingEvents(mThread)) {
       // Now *might* be a good time to GC. Let the JS engine make the decision.
-      if (workerCompartment) {
+      if (!workerCompartment.empty()) {
         JS_MaybeGC(aCx);
       }
     }
@@ -5564,23 +5508,6 @@ WorkerPrivate::UpdateRuntimeOptionsInternal(
 
   for (uint32_t index = 0; index < mChildWorkers.Length(); index++) {
     mChildWorkers[index]->UpdateRuntimeOptions(aCx, aRuntimeOptions);
-  }
-}
-
-void
-WorkerPrivate::UpdateLanguagesInternal(JSContext* aCx,
-                                       const nsTArray<nsString>& aLanguages)
-{
-  WorkerGlobalScope* globalScope = GlobalScope();
-  if (globalScope) {
-    nsRefPtr<WorkerNavigator> nav = globalScope->GetExistingNavigator();
-    if (nav) {
-      nav->SetLanguages(aLanguages);
-    }
-  }
-
-  for (uint32_t index = 0; index < mChildWorkers.Length(); index++) {
-    mChildWorkers[index]->UpdateLanguages(aCx, aLanguages);
   }
 }
 

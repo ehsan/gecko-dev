@@ -81,9 +81,6 @@ let SEC_ERROR_CERT_SIGNATURE_ALGORITHM_DISABLED = (SEC_ERROR_BASE + 176);
 let SSL_ERROR_BASE = Ci.nsINSSErrorsService.NSS_SSL_ERROR_BASE;
 let SSL_ERROR_BAD_CERT_DOMAIN = (SSL_ERROR_BASE + 12);
 
-let MOZILLA_PKIX_ERROR_BASE = Ci.nsINSSErrorsService.MOZILLA_PKIX_ERROR_BASE;
-let MOZILLA_PKIX_ERROR_CA_CERT_USED_AS_END_ENTITY = (MOZILLA_PKIX_ERROR_BASE + 1);
-
 function getErrorClass(errorCode) {
   let NSPRCode = -1 * NS_ERROR_GET_CODE(errorCode);
 
@@ -95,7 +92,6 @@ function getErrorClass(errorCode) {
     case SSL_ERROR_BAD_CERT_DOMAIN:
     case SEC_ERROR_EXPIRED_CERTIFICATE:
     case SEC_ERROR_CERT_SIGNATURE_ALGORITHM_DISABLED:
-    case MOZILLA_PKIX_ERROR_CA_CERT_USED_AS_END_ENTITY:
       return Ci.nsINSSErrorsService.ERROR_CLASS_BAD_CERT;
     default:
       return Ci.nsINSSErrorsService.ERROR_CLASS_SSL_PROTOCOL;
@@ -196,11 +192,6 @@ BrowserElementChild.prototype = {
                      /* useCapture = */ true,
                      /* wantsUntrusted = */ false);
 
-    addEventListener('MozScrolledAreaChanged',
-                     this._mozScrollAreaChanged.bind(this),
-                     /* useCapture = */ true,
-                     /* wantsUntrusted = */ false);
-
     addEventListener('DOMMetaAdded',
                      this._metaChangedHandler.bind(this),
                      /* useCapture = */ true,
@@ -241,7 +232,6 @@ BrowserElementChild.prototype = {
     let mmCalls = {
       "purge-history": this._recvPurgeHistory,
       "get-screenshot": this._recvGetScreenshot,
-      "get-contentdimensions": this._recvGetContentDimensions,
       "set-visible": this._recvSetVisible,
       "get-visible": this._recvVisible,
       "send-mouse-event": this._recvSendMouseEvent,
@@ -626,12 +616,18 @@ BrowserElementChild.prototype = {
   },
 
   _selectionChangeHandler: function(e) {
-    e.stopPropagation();
-    let boundingClientRect = e.boundingClientRect;
-    if (!boundingClientRect) {
+    let isMouseUp = e.reason & Ci.nsISelectionListener.MOUSEUP_REASON;
+    let isSelectAll = e.reason & Ci.nsISelectionListener.SELECTALL_REASON;
+    // When selectall happened, gecko will first collapse the range then
+    // select all. So we will receive two selection change events with
+    // SELECTALL_REASON. We filter first event by check the length of
+    // selectedText.
+    if (!(isMouseUp || (isSelectAll && e.selectedText.length > 0))) {
       return;
     }
 
+    e.stopPropagation();
+    let boundingClientRect = e.boundingClientRect;
     let zoomFactor = content.screen.width / content.innerWidth;
 
     let detail = {
@@ -650,19 +646,17 @@ BrowserElementChild.prototype = {
         canPaste: this._isCommandEnabled("paste"),
       },
       zoomFactor: zoomFactor,
-      reasons: e.reasons,
-      isCollapsed: (e.selectedText.length == 0),
     };
 
-    // Get correct geometry information if we have nested iframe.
+    // Get correct geometry information if we have nested <iframe mozbrowser>
     let currentWindow = e.target.defaultView;
-    while (currentWindow.top != currentWindow) {
-      let currentRect = currentWindow.frameElement.getBoundingClientRect();
+    while (currentWindow.realFrameElement) {
+      let currentRect = currentWindow.realFrameElement.getBoundingClientRect();
       detail.rect.top += currentRect.top;
       detail.rect.bottom += currentRect.top;
       detail.rect.left += currentRect.left;
       detail.rect.right += currentRect.left;
-      currentWindow = currentWindow.parent;
+      currentWindow = currentWindow.realFrameElement.ownerDocument.defaultView;
     }
 
     sendAsyncMsg("selectionchange", detail);
@@ -878,29 +872,6 @@ BrowserElementChild.prototype = {
     // anyway.
     Cc['@mozilla.org/message-loop;1'].getService(Ci.nsIMessageLoop).postIdleTask(
       takeScreenshotClosure, maxDelayMS);
-  },
-
-  _recvGetContentDimensions: function(data) {
-    debug("Received getContentDimensions message: (" + data.json.id + ")");
-    sendAsyncMsg('got-contentdimensions', {
-      id: data.json.id,
-      successRv: this._getContentDimensions()
-    });
-  },
-
-  _mozScrollAreaChanged: function(e) {
-    let dimensions = this._getContentDimensions();
-    sendAsyncMsg('scrollareachanged', {
-      width: dimensions.width,
-      height: dimensions.height
-    });
-  },
-
-  _getContentDimensions: function() {
-    return {
-      width: content.document.body.scrollWidth,
-      height: content.document.body.scrollHeight
-    }
   },
 
   /**

@@ -22,7 +22,8 @@ Interpose(JSContext *cx, JS::HandleObject target, const nsIID *iid, JS::HandleId
 template<typename Base>
 class AddonWrapper : public Base {
   public:
-    explicit MOZ_CONSTEXPR AddonWrapper(unsigned flags) : Base(flags) { }
+    AddonWrapper(unsigned flags);
+    virtual ~AddonWrapper();
 
     virtual bool getPropertyDescriptor(JSContext *cx, JS::Handle<JSObject*> wrapper,
                                        JS::Handle<jsid> id,
@@ -40,7 +41,7 @@ class AddonWrapper : public Base {
                                 JS::MutableHandle<JSPropertyDescriptor> desc) const MOZ_OVERRIDE;
     virtual bool delete_(JSContext *cx, JS::HandleObject proxy, JS::HandleId id, bool *bp) const MOZ_OVERRIDE;
 
-    static const AddonWrapper singleton;
+    static AddonWrapper singleton;
 };
 
 } // namespace xpc

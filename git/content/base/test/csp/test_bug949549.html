@@ -54,12 +54,10 @@
   }
 
   function cleanup() {
-    SpecialPowers.autoConfirmAppUninstall(function () {
-      let req = navigator.mozApps.mgmt.uninstall(app);
-      req.onsuccess = function () {
-        SimpleTest.finish();
-      };
-    });
+    let req = navigator.mozApps.mgmt.uninstall(app);
+    req.onsuccess = function () {
+      SimpleTest.finish();
+    };
   }
 
   setupTest();

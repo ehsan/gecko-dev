@@ -5,7 +5,7 @@ function f() {
         return x;
     };
     Object.defineProperty(o, "f", {get:g});
-    var [x] = [];
+    var [x] = 0;
     x = {};
     2 + o.f;
     print(x);

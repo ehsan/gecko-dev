@@ -44,7 +44,7 @@ class nsSVGContainerFrame : public nsSVGContainerFrameBase
   friend nsIFrame* NS_NewSVGContainerFrame(nsIPresShell* aPresShell,
                                            nsStyleContext* aContext);
 protected:
-  explicit nsSVGContainerFrame(nsStyleContext* aContext)
+  nsSVGContainerFrame(nsStyleContext* aContext)
     : nsSVGContainerFrameBase(aContext)
   {
     AddStateBits(NS_FRAME_SVG_LAYOUT);
@@ -56,7 +56,8 @@ public:
   NS_DECL_FRAMEARENA_HELPERS
 
   // Returns the transform to our gfxContext (to device pixels, not CSS px)
-  virtual gfxMatrix GetCanvasTM() {
+  virtual gfxMatrix GetCanvasTM(uint32_t aFor,
+                                nsIFrame* aTransformRoot = nullptr) {
     return gfxMatrix();
   }
 
@@ -115,7 +116,7 @@ class nsSVGDisplayContainerFrame : public nsSVGContainerFrame,
                                    public nsISVGChildFrame
 {
 protected:
-  explicit nsSVGDisplayContainerFrame(nsStyleContext* aContext)
+  nsSVGDisplayContainerFrame(nsStyleContext* aContext)
     : nsSVGContainerFrame(aContext)
   {
      AddStateBits(NS_FRAME_MAY_BE_TRANSFORMED);
@@ -145,8 +146,8 @@ public:
 
   // nsISVGChildFrame interface:
   virtual nsresult PaintSVG(nsRenderingContext* aContext,
-                            const gfxMatrix& aTransform,
-                            const nsIntRect *aDirtyRect = nullptr) MOZ_OVERRIDE;
+                            const nsIntRect *aDirtyRect,
+                            nsIFrame* aTransformRoot = nullptr) MOZ_OVERRIDE;
   virtual nsIFrame* GetFrameForPoint(const gfxPoint& aPoint) MOZ_OVERRIDE;
   virtual nsRect GetCoveredRegion() MOZ_OVERRIDE;
   virtual void ReflowSVG() MOZ_OVERRIDE;

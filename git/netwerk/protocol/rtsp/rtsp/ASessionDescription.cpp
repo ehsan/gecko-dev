@@ -331,13 +331,7 @@ bool ASessionDescription::parseNTPRange(
 
     *npt2 = strtof(s, &end);
 
-    if (end == s) {
-        // No end time available. It means to play until the end of the clip.
-        return true;
-    }
-
-    if (*end != '\0') {
-        // Malformed format in NTP description.
+    if (end == s || *end != '\0') {
         return false;
     }
 

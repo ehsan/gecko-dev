@@ -5,9 +5,8 @@
 
 #include "SharedSurface.h"
 
-#include "GLBlitHelper.h"
 #include "GLContext.h"
-#include "nsThreadUtils.h"
+#include "GLBlitHelper.h"
 #include "ScopedGLHelpers.h"
 #include "SharedSurfaceGL.h"
 
@@ -30,15 +29,15 @@ SharedSurface::ProdCopy(SharedSurface* src, SharedSurface* dest,
         dest->mAttachType == AttachmentType::Screen)
     {
         // Here, we actually need to blit through a temp surface, so let's make one.
-        UniquePtr<SharedSurface_GLTexture> tempSurf;
+        nsAutoPtr<SharedSurface_GLTexture> tempSurf;
         tempSurf = SharedSurface_GLTexture::Create(gl,
                                                    gl,
                                                    factory->mFormats,
                                                    src->mSize,
                                                    factory->mCaps.alpha);
 
-        ProdCopy(src, tempSurf.get(), factory);
-        ProdCopy(tempSurf.get(), dest, factory);
+        ProdCopy(src, tempSurf, factory);
+        ProdCopy(tempSurf, dest, factory);
         return;
     }
 
@@ -196,24 +195,6 @@ SharedSurface::ProdCopy(SharedSurface* src, SharedSurface* dest,
 ////////////////////////////////////////////////////////////////////////
 // SharedSurface
 
-
-SharedSurface::SharedSurface(SharedSurfaceType type,
-                             AttachmentType attachType,
-                             GLContext* gl,
-                             const gfx::IntSize& size,
-                             bool hasAlpha)
-    : mType(type)
-    , mAttachType(attachType)
-    , mGL(gl)
-    , mSize(size)
-    , mHasAlpha(hasAlpha)
-    , mIsLocked(false)
-#ifdef DEBUG
-    , mOwningThread(NS_GetCurrentThread())
-#endif
-{
-}
-
 void
 SharedSurface::LockProd()
 {
@@ -236,29 +217,6 @@ SharedSurface::UnlockProd()
     mGL->UnlockSurface(this);
     mIsLocked = false;
 }
-
-void
-SharedSurface::Fence_ContentThread()
-{
-    MOZ_ASSERT(NS_GetCurrentThread() == mOwningThread);
-    Fence_ContentThread_Impl();
-}
-
-bool
-SharedSurface::WaitSync_ContentThread()
-{
-    MOZ_ASSERT(NS_GetCurrentThread() == mOwningThread);
-    return WaitSync_ContentThread_Impl();
-}
-
-bool
-SharedSurface::PollSync_ContentThread()
-{
-    MOZ_ASSERT(NS_GetCurrentThread() == mOwningThread);
-    return PollSync_ContentThread_Impl();
-}
-
-
 
 ////////////////////////////////////////////////////////////////////////
 // SurfaceFactory
@@ -310,37 +268,47 @@ SurfaceFactory::SurfaceFactory(GLContext* gl,
 
 SurfaceFactory::~SurfaceFactory()
 {
-    while (!mScraps.Empty()) {
-        mScraps.Pop();
+    while (!mScraps.empty()) {
+        SharedSurface* cur = mScraps.front();
+        mScraps.pop();
+
+        delete cur;
     }
 }
 
-UniquePtr<SharedSurface>
+SharedSurface*
 SurfaceFactory::NewSharedSurface(const gfx::IntSize& size)
 {
     // Attempt to reuse an old surface.
-    while (!mScraps.Empty()) {
-        UniquePtr<SharedSurface> cur = mScraps.Pop();
-
+    while (!mScraps.empty()) {
+        SharedSurface* cur = mScraps.front();
+        mScraps.pop();
         if (cur->mSize == size)
-            return Move(cur);
+            return cur;
 
-        // Let `cur` be destroyed as it falls out of scope, if it wasn't
-        // moved.
+        // Destroy old surfaces of the wrong size.
+        delete cur;
     }
 
-    return CreateShared(size);
+    SharedSurface* ret = CreateShared(size);
+
+    return ret;
 }
 
 // Auto-deletes surfs of the wrong type.
 void
-SurfaceFactory::Recycle(UniquePtr<SharedSurface> surf)
+SurfaceFactory::Recycle(SharedSurface*& surf)
 {
-    MOZ_ASSERT(surf);
+    if (!surf)
+        return;
 
     if (surf->mType == mType) {
-        mScraps.Push(Move(surf));
+        mScraps.push(surf);
+    } else {
+        delete surf;
     }
+
+    surf = nullptr;
 }
 
 } /* namespace gfx */

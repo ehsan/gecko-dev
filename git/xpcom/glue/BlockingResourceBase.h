@@ -16,18 +16,9 @@
 #include "nsISupportsImpl.h"
 
 #ifdef DEBUG
-
-// NB: Comment this out to enable callstack tracking.
-#define MOZ_CALLSTACK_DISABLED
-
 #include "prinit.h"
 
 #include "nsStringGlue.h"
-
-#ifndef MOZ_CALLSTACK_DISABLED
-#include "nsTArray.h"
-#endif
-
 #include "nsXPCOM.h"
 #endif
 
@@ -46,7 +37,7 @@ template <class T> class DeadlockDetector;
  * Base class of resources that might block clients trying to acquire them.
  * Does debugging and deadlock detection in DEBUG builds.
  **/
-class BlockingResourceBase
+class NS_COM_GLUE BlockingResourceBase
 {
 public:
   // Needs to be kept in sync with kResourceTypeNames.
@@ -97,12 +88,6 @@ public:
   typedef DeadlockDetector<BlockingResourceBase> DDT;
 
 protected:
-#ifdef MOZ_CALLSTACK_DISABLED
-  typedef bool AcquisitionState;
-#else
-  typedef nsAutoTArray<void*, 24> AcquisitionState;
-#endif
-
   /**
    * BlockingResourceBase
    * Initialize this blocking resource.  Also hooks the resource into
@@ -199,7 +184,7 @@ protected:
    *
    * *NOT* thread safe.  Requires ownership of underlying resource.
    */
-  AcquisitionState GetAcquisitionState()
+  bool GetAcquisitionState()
   {
     return mAcquired;
   }
@@ -210,39 +195,9 @@ protected:
    *
    * *NOT* thread safe.  Requires ownership of underlying resource.
    */
-  void SetAcquisitionState(const AcquisitionState& aAcquisitionState)
+  void SetAcquisitionState(bool aAcquisitionState)
   {
     mAcquired = aAcquisitionState;
-  }
-
-  /**
-   * ClearAcquisitionState
-   * Indicate this resource is not acquired.
-   *
-   * *NOT* thread safe.  Requires ownership of underlying resource.
-   */
-  void ClearAcquisitionState()
-  {
-#ifdef MOZ_CALLSTACK_DISABLED
-    mAcquired = false;
-#else
-    mAcquired.Clear();
-#endif
-  }
-
-  /**
-   * IsAcquired
-   * Indicates if this resource is acquired.
-   *
-   * *NOT* thread safe.  Requires ownership of underlying resource.
-   */
-  bool IsAcquired() const
-  {
-#ifdef MOZ_CALLSTACK_DISABLED
-    return mAcquired;
-#else
-    return !mAcquired.IsEmpty();
-#endif
   }
 
   /**
@@ -272,15 +227,7 @@ private:
    * mAcquired
    * Indicates if this resource is currently acquired.
    */
-  AcquisitionState mAcquired;
-
-#ifndef MOZ_CALLSTACK_DISABLED
-  /**
-   * mFirstSeen
-   * Inidicates where this resource was first acquired.
-   */
-  AcquisitionState mFirstSeen;
-#endif
+  bool mAcquired;
 
   /**
    * sCallOnce
@@ -318,9 +265,6 @@ private:
    * *NOT* thread safe.
    */
   static void Shutdown();
-
-  static void StackWalkCallback(void* aPc, void* aSp, void* aClosure);
-  static void GetStackTrace(AcquisitionState& aState);
 
 #  ifdef MOZILLA_INTERNAL_API
   // so it can call BlockingResourceBase::Shutdown()

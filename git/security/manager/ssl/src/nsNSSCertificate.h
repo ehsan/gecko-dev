@@ -25,11 +25,11 @@ class nsAutoString;
 class nsINSSComponent;
 class nsIASN1Sequence;
 
-class nsNSSCertificate MOZ_FINAL : public nsIX509Cert,
-                                   public nsIIdentityInfo,
-                                   public nsISerializable,
-                                   public nsIClassInfo,
-                                   public nsNSSShutDownObject
+class nsNSSCertificate : public nsIX509Cert,
+                         public nsIIdentityInfo,
+                         public nsISerializable,
+                         public nsIClassInfo,
+                         public nsNSSShutDownObject
 {
 public:
   NS_DECL_THREADSAFE_ISUPPORTS
@@ -40,7 +40,7 @@ public:
 
   friend class nsNSSCertificateFakeTransport;
 
-  explicit nsNSSCertificate(CERTCertificate* cert, SECOidTag* evOidPolicy = nullptr);
+  nsNSSCertificate(CERTCertificate* cert, SECOidTag* evOidPolicy = nullptr);
   nsNSSCertificate();
   nsresult FormatUIStrings(const nsAutoString& nickname,
                            nsAutoString& nickWithSerial,
@@ -82,13 +82,11 @@ SECStatus ConstructCERTCertListFromReversedDERArray(
 } // namespcae mozilla
 
 class nsNSSCertList: public nsIX509CertList,
-                     public nsISerializable,
                      public nsNSSShutDownObject
 {
 public:
   NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIX509CERTLIST
-  NS_DECL_NSISERIALIZABLE
 
   // certList is adopted
   nsNSSCertList(mozilla::ScopedCERTCertList& certList,

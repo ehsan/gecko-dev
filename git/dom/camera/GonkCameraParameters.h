@@ -123,8 +123,6 @@ protected:
     void get(const char* aKey, int& aRet)         { aRet = getInt(aKey); }
     void get(const char* aKey, bool& aRet)        { aRet = strcmp(get(aKey), FALSE); }
 
-    void remove(const char* aKey)                 { android::CameraParameters::remove(aKey); }
-
     static const char* GetTextKey(uint32_t aKey);
   };
 
@@ -168,13 +166,6 @@ protected:
   GetImpl(const char* aKey, T& aValue)
   {
     mParams.get(aKey, aValue);
-    return NS_OK;
-  }
-
-  nsresult
-  ClearImpl(const char* aKey)
-  {
-    mParams.remove(aKey);
     return NS_OK;
   }
 

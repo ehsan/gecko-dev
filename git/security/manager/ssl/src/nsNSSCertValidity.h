@@ -16,7 +16,7 @@ public:
   NS_DECL_NSIX509CERTVALIDITY
 
   nsX509CertValidity();
-  explicit nsX509CertValidity(CERTCertificate *cert);
+  nsX509CertValidity(CERTCertificate *cert);
 
 protected:
   virtual ~nsX509CertValidity();

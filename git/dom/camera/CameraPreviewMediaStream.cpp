@@ -19,13 +19,6 @@ using namespace mozilla::dom;
 
 namespace mozilla {
 
-void
-FakeMediaStreamGraph::DispatchToMainThreadAfterStreamStateUpdate(already_AddRefed<nsIRunnable> aRunnable)
-{
-  nsRefPtr<nsIRunnable> task = aRunnable;
-  NS_DispatchToMainThread(task);
-}
-
 CameraPreviewMediaStream::CameraPreviewMediaStream(DOMMediaStream* aWrapper)
   : MediaStream(aWrapper)
   , mMutex("mozilla::camera::CameraPreviewMediaStream")
@@ -34,7 +27,6 @@ CameraPreviewMediaStream::CameraPreviewMediaStream(DOMMediaStream* aWrapper)
   , mRateLimit(false)
 {
   SetGraphImpl(MediaStreamGraph::GetInstance());
-  mFakeMediaStreamGraph = new FakeMediaStreamGraph();
   mIsConsumed = false;
 }
 
@@ -63,10 +55,11 @@ CameraPreviewMediaStream::AddVideoOutput(VideoFrameContainer* aContainer)
   if (mVideoOutputs.Length() > 1) {
     return;
   }
+  MediaStreamGraph* gm = MediaStreamGraph::GetInstance();
   mIsConsumed = true;
   for (uint32_t j = 0; j < mListeners.Length(); ++j) {
     MediaStreamListener* l = mListeners[j];
-    l->NotifyConsumptionChanged(mFakeMediaStreamGraph, MediaStreamListener::CONSUMED);
+    l->NotifyConsumptionChanged(gm, MediaStreamListener::CONSUMED);
   }
 }
 
@@ -79,10 +72,11 @@ CameraPreviewMediaStream::RemoveVideoOutput(VideoFrameContainer* aContainer)
   if (!mVideoOutputs.IsEmpty()) {
     return;
   }
+  MediaStreamGraph* gm = MediaStreamGraph::GetInstance();
   mIsConsumed = false;
   for (uint32_t j = 0; j < mListeners.Length(); ++j) {
     MediaStreamListener* l = mListeners[j];
-    l->NotifyConsumptionChanged(mFakeMediaStreamGraph, MediaStreamListener::NOT_CONSUMED);
+    l->NotifyConsumptionChanged(gm, MediaStreamListener::NOT_CONSUMED);
   }
 }
 
@@ -96,9 +90,9 @@ CameraPreviewMediaStream::AddListener(MediaStreamListener* aListener)
 {
   MutexAutoLock lock(mMutex);
 
+  MediaStreamGraph* gm = MediaStreamGraph::GetInstance();
   MediaStreamListener* listener = *mListeners.AppendElement() = aListener;
-  listener->NotifyBlockingChanged(mFakeMediaStreamGraph, MediaStreamListener::UNBLOCKED);
-  listener->NotifyHasCurrentData(mFakeMediaStreamGraph);
+  listener->NotifyBlockingChanged(gm, MediaStreamListener::UNBLOCKED);
 }
 
 void
@@ -106,9 +100,10 @@ CameraPreviewMediaStream::RemoveListener(MediaStreamListener* aListener)
 {
   MutexAutoLock lock(mMutex);
 
+  MediaStreamGraph* gm = MediaStreamGraph::GetInstance();
   nsRefPtr<MediaStreamListener> listener(aListener);
   mListeners.RemoveElement(aListener);
-  listener->NotifyEvent(mFakeMediaStreamGraph, MediaStreamListener::EVENT_REMOVED);
+  listener->NotifyEvent(gm, MediaStreamListener::EVENT_REMOVED);
 }
 
 void

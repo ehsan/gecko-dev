@@ -23,11 +23,11 @@ class SharedSurface_Gralloc
     : public SharedSurface
 {
 public:
-    static UniquePtr<SharedSurface_Gralloc> Create(GLContext* prodGL,
-                                                   const GLFormats& formats,
-                                                   const gfx::IntSize& size,
-                                                   bool hasAlpha,
-                                                   layers::ISurfaceAllocator* allocator);
+    static SharedSurface_Gralloc* Create(GLContext* prodGL,
+                                         const GLFormats& formats,
+                                         const gfx::IntSize& size,
+                                         bool hasAlpha,
+                                         layers::ISurfaceAllocator* allocator);
 
     static SharedSurface_Gralloc* Cast(SharedSurface* surf) {
         MOZ_ASSERT(surf->mType == SharedSurfaceType::Gralloc);
@@ -84,15 +84,12 @@ public:
                            const SurfaceCaps& caps,
                            layers::ISurfaceAllocator* allocator = nullptr);
 
-    virtual UniquePtr<SharedSurface> CreateShared(const gfx::IntSize& size) MOZ_OVERRIDE {
+    virtual SharedSurface* CreateShared(const gfx::IntSize& size) MOZ_OVERRIDE {
         bool hasAlpha = mReadCaps.alpha;
-
-        UniquePtr<SharedSurface> ret;
-        if (mAllocator) {
-            ret = SharedSurface_Gralloc::Create(mGL, mFormats, size,
-                                                hasAlpha, mAllocator);
+        if (!mAllocator) {
+            return nullptr;
         }
-        return Move(ret);
+        return SharedSurface_Gralloc::Create(mGL, mFormats, size, hasAlpha, mAllocator);
     }
 };
 

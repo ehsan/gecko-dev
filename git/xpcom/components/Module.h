@@ -21,7 +21,7 @@ namespace mozilla {
  */
 struct Module
 {
-  static const unsigned int kVersion = 35;
+  static const unsigned int kVersion = 34;
 
   struct CIDEntry;
 
@@ -127,8 +127,6 @@ struct Module
 #      define NSMODULE_SECTION __attribute__((section(".kPStaticModules"), visibility("protected")))
 #    elif defined(__MACH__)
 #      define NSMODULE_SECTION __attribute__((section("__DATA, .kPStaticModules"), visibility("default")))
-#    elif defined (_WIN32)
-#      define NSMODULE_SECTION __attribute__((section(".kPStaticModules"), dllexport))
 #    endif
 #  endif
 #  if !defined(NSMODULE_SECTION)

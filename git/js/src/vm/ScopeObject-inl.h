@@ -19,21 +19,13 @@ ScopeObject::setAliasedVar(JSContext *cx, ScopeCoordinate sc, PropertyName *name
     JS_ASSERT(is<CallObject>() || is<ClonedBlockObject>());
     JS_STATIC_ASSERT(CallObject::RESERVED_SLOTS == BlockObject::RESERVED_SLOTS);
 
-    // name may be null if we don't need to track side effects on the object.
-    JS_ASSERT_IF(hasSingletonType(), name);
+    setSlot(sc.slot(), v);
 
-    if (hasSingletonType()) {
+    // name may be null if we don't need to track side effects on the object.
+    if (hasSingletonType() && !hasLazyType()) {
         JS_ASSERT(name);
         types::AddTypePropertyId(cx, this, NameToId(name), v);
-
-        // Keep track of properties which have ever been overwritten.
-        if (!getSlot(sc.slot()).isUndefined()) {
-            Shape *shape = nativeLookup(cx, name);
-            shape->setOverwritten();
-        }
     }
-
-    setSlot(sc.slot(), v);
 }
 
 inline void

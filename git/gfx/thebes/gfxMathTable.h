@@ -29,7 +29,7 @@ public:
      * that are passed in, and will hb_blob_destroy() them when finished;
      * the caller should -not- destroy this reference.
      */
-    explicit gfxMathTable(hb_blob_t* aMathTable);
+    gfxMathTable(hb_blob_t* aMathTable);
 
     /**
      * Releases our reference to the MATH table and cleans up everything else.

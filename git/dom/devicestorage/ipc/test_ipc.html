@@ -49,21 +49,18 @@
       let message = SpecialPowers.wrap(data).data.msg;
 
       if (validStructuredMessage(message)) {
+        if (message.test === undefined || message.message === undefined) {
+          return;
+        }
+
         switch (message.action) {
           case "test_status":
           case "test_end":
-            let test_tokens = message.test.split("/");
-            let test_name = test_tokens[test_tokens.length - 1];
-            if (message.subtest) {
-                test_name += " | " + message.subtest;
-            }
-            ok(message.expected === undefined, test_name, message.message);
-            break;
-          case "log":
-            info(message.message);
+            ok(message.expected === undefined, message.test, message.message);
             break;
           default:
-            // nothing
+            let details = message.test + " | " + message.message;
+            info(details);
         }
       }
     }
@@ -137,8 +134,8 @@
       let href =  window.location.href;
       href = href.substring(0, href.lastIndexOf('/'));
       href = href.substring(0, href.lastIndexOf('/'));
-      let manifest = "tests/dom/devicestorage/ipc/ipc.json";
-      iframe.src = href + "/test?consoleLevel=INFO&testManifest=" + manifest;
+      iframe.src = href + "/test?consoleLevel=INFO";
+
       document.body.appendChild(iframe);
     }
 

@@ -37,10 +37,6 @@ public class SearchEnginePreference extends CustomListPreference {
 
     private FaviconView mFaviconView;
 
-    // Search engine identifier specified by the gecko search service. This will be "other"
-    // for engines that are not shipped with the app.
-    private String mIdentifier;
-
     public SearchEnginePreference(Context context, SearchPreferenceCategory parentCategory) {
         super(context, parentCategory);
     }
@@ -117,14 +113,7 @@ public class SearchEnginePreference extends CustomListPreference {
                 Log.w(LOGTAG, "Selected index out of range.");
                 break;
         }
-    }
-
-    /**
-     * @return Identifier of built-in search engine, or "other" if engine is not built-in.
-     */
-    public String getIdentifier() {
-        return mIdentifier;
-    }
+     }
 
     /**
      * Configure this Preference object from the Gecko search engine JSON object.
@@ -132,13 +121,6 @@ public class SearchEnginePreference extends CustomListPreference {
      * @throws JSONException If the JSONObject is invalid.
      */
     public void setSearchEngineFromJSON(JSONObject geckoEngineJSON) throws JSONException {
-        mIdentifier = geckoEngineJSON.getString("identifier");
-
-        // A null JS value gets converted into a string.
-        if (mIdentifier.equals("null")) {
-            mIdentifier = "other";
-        }
-
         final String engineName = geckoEngineJSON.getString("name");
         final SpannableString titleSpannable = new SpannableString(engineName);
 

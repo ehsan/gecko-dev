@@ -140,7 +140,7 @@ class AsmJSProfilingFrameIterator
 
   public:
     AsmJSProfilingFrameIterator() : codeRange_(nullptr) {}
-    explicit AsmJSProfilingFrameIterator(const AsmJSActivation &activation);
+    AsmJSProfilingFrameIterator(const AsmJSActivation &activation);
     AsmJSProfilingFrameIterator(const AsmJSActivation &activation,
                                 const JS::ProfilingFrameIterator::RegisterState &state);
     void operator++();
@@ -169,6 +169,7 @@ GenerateAsmJSExitPrologue(jit::MacroAssembler &masm, unsigned framePushed, AsmJS
 void
 GenerateAsmJSExitEpilogue(jit::MacroAssembler &masm, unsigned framePushed, AsmJSExit::Reason reason,
                           jit::Label *profilingReturn);
+
 
 } // namespace js
 

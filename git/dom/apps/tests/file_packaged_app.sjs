@@ -28,7 +28,6 @@ function handleRequest(request, response) {
   var allowCancel = "allowCancel" in query;
   var getPackage = "getPackage" in query;
   var alreadyDeferred = Number(getState("alreadyDeferred"));
-  var role = query.role || "";
 
   if (allowCancel && getPackage && !alreadyDeferred) {
     // Only do this for the actual package delivery.
@@ -64,7 +63,7 @@ function handleRequest(request, response) {
       if (version != "0") {
         var manifestTemplate = gBasePath + gMiniManifestTemplate;
         var manifest = makeResource(manifestTemplate, version, packagePath,
-                                    packageSize, appName, devName, devUrl, role);
+                                    packageSize, appName, devName, devUrl);
         addZipEntry(zipWriter, manifest, "manifest.webapp");
       }
 
@@ -123,7 +122,7 @@ function handleRequest(request, response) {
     }
     packagePath = "wrongPackagePath" in query ? "" : packagePath;
     var manifest = makeResource(template, version, packagePath, packageSize,
-                                appName, devName, devUrl, role);
+                                appName, devName, devUrl);
     response.write(manifest);
     return;
   }
@@ -179,14 +178,13 @@ function readFile(path, fromTmp) {
 }
 
 function makeResource(templatePath, version, packagePath, packageSize,
-                      appName, developerName, developerUrl, role) {
+                      appName, developerName, developerUrl) {
   var res = readFile(templatePath, false)
             .replace(/VERSIONTOKEN/g, version)
             .replace(/PACKAGEPATHTOKEN/g, packagePath)
             .replace(/PACKAGESIZETOKEN/g, packageSize)
             .replace(/NAMETOKEN/g, appName)
             .replace(/DEVELOPERTOKEN/g, developerName)
-            .replace(/DEVELOPERURLTOKEN/g, developerUrl)
-            .replace(/ROLETOKEN/g, role);
+            .replace(/DEVELOPERURLTOKEN/g, developerUrl);
   return res;
 }

@@ -25,8 +25,6 @@
 #include "nsDisplayList.h"
 #include <algorithm>
 
-using namespace mozilla;
-
 //
 // NS_NewLeafBoxFrame
 //
@@ -170,19 +168,14 @@ nsLeafBoxFrame::GetIntrinsicISize()
   return 0;
 }
 
-LogicalSize
+nsSize
 nsLeafBoxFrame::ComputeAutoSize(nsRenderingContext *aRenderingContext,
-                                WritingMode aWM,
-                                const LogicalSize& aCBSize,
-                                nscoord aAvailableISize,
-                                const LogicalSize& aMargin,
-                                const LogicalSize& aBorder,
-                                const LogicalSize& aPadding,
-                                bool aShrinkWrap)
+                                nsSize aCBSize, nscoord aAvailableWidth,
+                                nsSize aMargin, nsSize aBorder,
+                                nsSize aPadding, bool aShrinkWrap)
 {
   // Important: NOT calling our direct superclass here!
-  return nsFrame::ComputeAutoSize(aRenderingContext, aWM,
-                                  aCBSize, aAvailableISize,
+  return nsFrame::ComputeAutoSize(aRenderingContext, aCBSize, aAvailableWidth,
                                   aMargin, aBorder, aPadding, aShrinkWrap);
 }
 

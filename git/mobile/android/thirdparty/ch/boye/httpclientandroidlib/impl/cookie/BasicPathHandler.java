@@ -27,14 +27,13 @@
 package ch.boye.httpclientandroidlib.impl.cookie;
 
 import ch.boye.httpclientandroidlib.annotation.Immutable;
+
 import ch.boye.httpclientandroidlib.cookie.Cookie;
 import ch.boye.httpclientandroidlib.cookie.CookieAttributeHandler;
 import ch.boye.httpclientandroidlib.cookie.CookieOrigin;
 import ch.boye.httpclientandroidlib.cookie.CookieRestrictionViolationException;
 import ch.boye.httpclientandroidlib.cookie.MalformedCookieException;
 import ch.boye.httpclientandroidlib.cookie.SetCookie;
-import ch.boye.httpclientandroidlib.util.Args;
-import ch.boye.httpclientandroidlib.util.TextUtils;
 
 /**
  *
@@ -47,10 +46,15 @@ public class BasicPathHandler implements CookieAttributeHandler {
         super();
     }
 
-    public void parse(
-            final SetCookie cookie, final String value) throws MalformedCookieException {
-        Args.notNull(cookie, "Cookie");
-        cookie.setPath(!TextUtils.isBlank(value) ? value : "/");
+    public void parse(final SetCookie cookie, String value)
+            throws MalformedCookieException {
+        if (cookie == null) {
+            throw new IllegalArgumentException("Cookie may not be null");
+        }
+        if (value == null || value.trim().length() == 0) {
+            value = "/";
+        }
+        cookie.setPath(value);
     }
 
     public void validate(final Cookie cookie, final CookieOrigin origin)
@@ -63,9 +67,13 @@ public class BasicPathHandler implements CookieAttributeHandler {
     }
 
     public boolean match(final Cookie cookie, final CookieOrigin origin) {
-        Args.notNull(cookie, "Cookie");
-        Args.notNull(origin, "Cookie origin");
-        final String targetpath = origin.getPath();
+        if (cookie == null) {
+            throw new IllegalArgumentException("Cookie may not be null");
+        }
+        if (origin == null) {
+            throw new IllegalArgumentException("Cookie origin may not be null");
+        }
+        String targetpath = origin.getPath();
         String topmostPath = cookie.getPath();
         if (topmostPath == null) {
             topmostPath = "/";

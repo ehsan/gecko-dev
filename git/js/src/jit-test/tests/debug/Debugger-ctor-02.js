@@ -1,4 +1,8 @@
+// |jit-test| debug
 // Test creating a Debugger in a sandbox, debugging the initial global.
+//
+// This requires debug mode to already be on in the initial global, since it's
+// always on the stack in the shell. Hence the |jit-test| tag.
 
 load(libdir + 'asserts.js');
 

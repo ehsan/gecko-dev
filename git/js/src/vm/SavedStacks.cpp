@@ -7,12 +7,9 @@
 
 #include "vm/SavedStacks.h"
 
-#include "mozilla/Attributes.h"
-
 #include "jsapi.h"
 #include "jscompartment.h"
 #include "jsfriendapi.h"
-#include "jshashutil.h"
 #include "jsnum.h"
 
 #include "gc/Marking.h"
@@ -78,7 +75,7 @@ class SavedFrame::AutoLookupRooter : public JS::CustomAutoRooter
 class SavedFrame::HandleLookup
 {
   public:
-    MOZ_IMPLICIT HandleLookup(SavedFrame::AutoLookupRooter &lookup) : ref(lookup) { }
+    HandleLookup(SavedFrame::AutoLookupRooter &lookup) : ref(lookup) { }
     SavedFrame::Lookup *operator->() { return &ref.get(); }
     operator const SavedFrame::Lookup&() const { return ref; }
   private:
@@ -565,7 +562,7 @@ SavedStacks::insertFrames(JSContext *cx, FrameIter &iter, MutableHandleSavedFram
 SavedFrame *
 SavedStacks::getOrCreateSavedFrame(JSContext *cx, SavedFrame::HandleLookup lookup)
 {
-    DependentAddPtr<SavedFrame::Set> p(cx, frames, lookup);
+    SavedFrame::Set::AddPtr p = frames.lookupForAdd(lookup);
     if (p)
         return *p;
 
@@ -573,7 +570,7 @@ SavedStacks::getOrCreateSavedFrame(JSContext *cx, SavedFrame::HandleLookup looku
     if (!frame)
         return nullptr;
 
-    if (!p.add(cx, frames, lookup, frame))
+    if (!frames.relookupOrAdd(p, lookup, frame))
         return nullptr;
 
     return frame;

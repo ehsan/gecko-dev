@@ -12,9 +12,15 @@
 #include "nsAutoRef.h"
 #include "GMPParent.h"
 #include "mozilla/gmp/GMPTypes.h"
-#include "nsThread.h"
 #include "nsThreadUtils.h"
 #include "runnable_utils.h"
+
+template <>
+class nsAutoRefTraits<GMPVideoi420Frame> : public nsPointerRefTraits<GMPVideoi420Frame>
+{
+public:
+  static void Release(GMPVideoi420Frame* aFrame) { aFrame->Destroy(); }
+};
 
 namespace mozilla {
 
@@ -66,9 +72,7 @@ GMPVideoEncoderParent::GMPVideoEncoderParent(GMPParent *aPlugin)
 
 GMPVideoEncoderParent::~GMPVideoEncoderParent()
 {
-  if (mEncodedThread) {
-    mEncodedThread->Shutdown();
-  }
+  mEncodedThread->Shutdown();
 }
 
 GMPVideoHostImpl&
@@ -124,10 +128,12 @@ GMPVideoEncoderParent::InitEncode(const GMPVideoCodec& aCodecSettings,
 }
 
 GMPErr
-GMPVideoEncoderParent::Encode(UniquePtr<GMPVideoi420Frame> aInputFrame,
+GMPVideoEncoderParent::Encode(GMPVideoi420Frame* aInputFrame,
                               const nsTArray<uint8_t>& aCodecSpecificInfo,
                               const nsTArray<GMPVideoFrameType>& aFrameTypes)
 {
+  nsAutoRef<GMPVideoi420Frame> frameRef(aInputFrame);
+
   if (!mIsOpen) {
     NS_WARNING("Trying to use an dead GMP video encoder");
     return GMPGenericErr;
@@ -135,8 +141,7 @@ GMPVideoEncoderParent::Encode(UniquePtr<GMPVideoi420Frame> aInputFrame,
 
   MOZ_ASSERT(mPlugin->GMPThread() == NS_GetCurrentThread());
 
-  UniquePtr<GMPVideoi420FrameImpl> inputFrameImpl(
-    static_cast<GMPVideoi420FrameImpl*>(aInputFrame.release()));
+  auto inputFrameImpl = static_cast<GMPVideoi420FrameImpl*>(aInputFrame);
 
   // Very rough kill-switch if the plugin stops processing.  If it's merely
   // hung and continues, we'll come back to life eventually.
@@ -233,12 +238,6 @@ GMPVideoEncoderParent::Shutdown()
   }
 }
 
-static void
-ShutdownEncodedThread(nsCOMPtr<nsIThread>& aThread)
-{
-  aThread->Shutdown();
-}
-
 // Note: Keep this sync'd up with Shutdown
 void
 GMPVideoEncoderParent::ActorDestroy(ActorDestroyReason aWhy)
@@ -249,15 +248,6 @@ GMPVideoEncoderParent::ActorDestroy(ActorDestroyReason aWhy)
     // May call Close() (and Shutdown()) immediately or with a delay
     mCallback->Terminated();
     mCallback = nullptr;
-  }
-  // Must be shut down before VideoEncoderDestroyed(), since this can recurse
-  // the GMPThread event loop.  See bug 1049501
-  if (mEncodedThread) {
-    // Can't get it to allow me to use WrapRunnable with a nsCOMPtr<nsIThread>()
-    NS_DispatchToMainThread(
-      WrapRunnableNM<decltype(&ShutdownEncodedThread),
-                     nsCOMPtr<nsIThread> >(&ShutdownEncodedThread, mEncodedThread));
-    mEncodedThread = nullptr;
   }
   if (mPlugin) {
     // Ignore any return code. It is OK for this to fail without killing the process.

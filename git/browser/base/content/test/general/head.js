@@ -7,26 +7,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "Task",
 XPCOMUtils.defineLazyModuleGetter(this, "PlacesUtils",
   "resource://gre/modules/PlacesUtils.jsm");
 
-function closeAllNotifications () {
-  let notificationBox = document.getElementById("global-notificationbox");
-
-  if (!notificationBox || !notificationBox.currentNotification) {
-    return Promise.resolve();
-  }
-
-  let deferred = Promise.defer();
-  for (let notification of notificationBox.allNotifications) {
-    waitForNotificationClose(notification, function () {
-      if (notificationBox.allNotifications.length === 0) {
-        deferred.resolve();
-      }
-    });
-    notification.close();
-  }
-
-  return deferred.promise;
-}
-
 function whenDelayedStartupFinished(aWindow, aCallback) {
   Services.obs.addObserver(function observer(aSubject, aTopic) {
     if (aWindow == aSubject) {
@@ -100,25 +80,6 @@ function waitForCondition(condition, nextTest, errorMsg) {
     tries++;
   }, 100);
   var moveOn = function() { clearInterval(interval); nextTest(); };
-}
-
-function promiseWaitForCondition(aConditionFn) {
-  let deferred = Promise.defer();
-  waitForCondition(aConditionFn, deferred.resolve, "Condition didn't pass.");
-  return deferred.promise;
-}
-
-function promiseWaitForEvent(object, eventName, capturing = false) {
-  return new Promise((resolve) => {
-    function listener(event) {
-      info("Saw " + eventName);
-      object.removeEventListener(eventName, listener, capturing);
-      resolve(event);
-    }
-
-    info("Waiting for " + eventName);
-    object.addEventListener(eventName, listener, capturing);
-  });
 }
 
 function getTestPlugin(aName) {
@@ -407,67 +368,26 @@ function promiseClearHistory() {
  *        The URL of the document that is expected to load.
  * @return promise
  */
-function waitForDocLoadAndStopIt(aExpectedURL, aBrowser=gBrowser.selectedBrowser) {
-  function content_script() {
-    let { interfaces: Ci, utils: Cu } = Components;
-    Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
-    let wp = docShell.QueryInterface(Ci.nsIWebProgress);
-
-    let progressListener = {
-      onStateChange: function (webProgress, req, flags, status) {
-        dump("waitForDocLoadAndStopIt: onStateChange " + flags.toString(16) + ": " + req.name + "\n");
-        let docStart = Ci.nsIWebProgressListener.STATE_IS_DOCUMENT |
-                       Ci.nsIWebProgressListener.STATE_START;
-        if (((flags & docStart) == docStart) && webProgress.isTopLevel) {
-          dump("waitForDocLoadAndStopIt: Document start: " +
-               req.QueryInterface(Ci.nsIChannel).URI.spec + "\n");
-          req.cancel(Components.results.NS_ERROR_FAILURE);
-          wp.removeProgressListener(progressListener);
-          sendAsyncMessage("Test:WaitForDocLoadAndStopIt", { uri: req.originalURI.spec });
-        }
-      },
-      QueryInterface: XPCOMUtils.generateQI(["nsISupportsWeakReference"])
-    };
-    wp.addProgressListener(progressListener, wp.NOTIFY_ALL);
-  }
-
-  return new Promise((resolve, reject) => {
-    function complete({ data }) {
-      is(data.uri, aExpectedURL, "waitForDocLoadAndStopIt: The expected URL was loaded");
-      mm.removeMessageListener("Test:WaitForDocLoadAndStopIt", complete);
-      resolve();
-    }
-
-    let mm = aBrowser.messageManager;
-    mm.loadFrameScript("data:,(" + content_script.toString() + ")();", true);
-    mm.addMessageListener("Test:WaitForDocLoadAndStopIt", complete);
-    info("waitForDocLoadAndStopIt: Waiting for URL: " + aExpectedURL);
-  });
-}
-
-/**
- * Waits for the next load to complete in the current browser.
- *
- * @return promise
- */
-function waitForDocLoadComplete(aBrowser=gBrowser) {
+function waitForDocLoadAndStopIt(aExpectedURL, aBrowser=gBrowser) {
   let deferred = Promise.defer();
   let progressListener = {
     onStateChange: function (webProgress, req, flags, status) {
-      let docStart = Ci.nsIWebProgressListener.STATE_IS_NETWORK |
-                     Ci.nsIWebProgressListener.STATE_STOP;
-      info("Saw state " + flags.toString(16));
-      if ((flags & docStart) == docStart) {
+      info("waitForDocLoadAndStopIt: onStateChange: " + req.name);
+      let docStart = Ci.nsIWebProgressListener.STATE_IS_DOCUMENT |
+                     Ci.nsIWebProgressListener.STATE_START;
+      if ((flags & docStart) && webProgress.isTopLevel) {
+        info("waitForDocLoadAndStopIt: Document start: " +
+             req.QueryInterface(Ci.nsIChannel).URI.spec);
+        is(req.originalURI.spec, aExpectedURL,
+           "waitForDocLoadAndStopIt: The expected URL was loaded");
+        req.cancel(Components.results.NS_ERROR_FAILURE);
         aBrowser.removeProgressListener(progressListener);
-        info("Browser loaded");
         deferred.resolve();
       }
     },
-    QueryInterface: XPCOMUtils.generateQI([Ci.nsIWebProgressListener,
-                                           Ci.nsISupportsWeakReference])
   };
   aBrowser.addProgressListener(progressListener);
-  info("Waiting for browser load");
+  info("waitForDocLoadAndStopIt: Waiting for URL: " + aExpectedURL);
   return deferred.promise;
 }
 
@@ -625,43 +545,6 @@ function promiseTabLoadEvent(tab, url, eventType="load")
 
 function assertWebRTCIndicatorStatus(expected) {
   let ui = Cu.import("resource:///modules/webrtcUI.jsm", {}).webrtcUI;
-  let expectedState = expected ? "visible" : "hidden";
-  let msg = "WebRTC indicator " + expectedState;
-  is(ui.showGlobalIndicator, !!expected, msg);
-
-  let expectVideo = false, expectAudio = false, expectScreen = false;
-  if (expected) {
-    if (expected.video)
-      expectVideo = true;
-    if (expected.audio)
-      expectAudio = true;
-    if (expected.screen)
-      expectScreen = true;
-  }
-  is(ui.showCameraIndicator, expectVideo, "camera global indicator as expected");
-  is(ui.showMicrophoneIndicator, expectAudio, "microphone global indicator as expected");
-  is(ui.showScreenSharingIndicator, expectScreen, "screen global indicator as expected");
-
-  let windows = Services.wm.getEnumerator("navigator:browser");
-  while (windows.hasMoreElements()) {
-    let win = windows.getNext();
-    let menu = win.document.getElementById("tabSharingMenu");
-    is(menu && !menu.hidden, !!expected, "WebRTC menu should be " + expectedState);
-  }
-
-  if (!("nsISystemStatusBar" in Ci)) {
-    let indicator = Services.wm.getEnumerator("Browser:WebRTCGlobalIndicator");
-    let hasWindow = indicator.hasMoreElements();
-    is(hasWindow, !!expected, "popup " + msg);
-    if (hasWindow) {
-      let docElt = indicator.getNext().document.documentElement;
-      for (let item of ["video", "audio", "screen"]) {
-        let expectedValue = (expected && expected[item]) ? "true" : "";
-        is(docElt.getAttribute("sharing" + item), expectedValue,
-           item + " global indicator attribute as expected");
-      }
-
-      ok(!indicator.hasMoreElements(), "only one global indicator window");
-    }
-  }
+  let msg = "WebRTC indicator " + (expected ? "visible" : "hidden");
+  is(ui.showGlobalIndicator, expected, msg);
 }

@@ -17,6 +17,7 @@
 #include "nsIScriptContext.h"
 #include "nsDOMJSUtils.h"
 #include "nsJSUtils.h"
+#include "nsCxPusher.h"
 #include "nsIDocument.h"
 #include "nsIJSRuntimeService.h"
 #include "nsIXPConnect.h"
@@ -101,8 +102,8 @@ NPObjectIsOutOfProcessProxy(NPObject *obj)
 class AutoJSExceptionReporter
 {
 public:
-  explicit AutoJSExceptionReporter(JSContext* aCx)
-    : mCx(aCx)
+  AutoJSExceptionReporter(JSContext *cx)
+    : mCx(cx)
   {
   }
 
@@ -274,7 +275,7 @@ OnWrapperDestroyed()
     }
 
     if (sNPObjWrappers.ops) {
-      MOZ_ASSERT(sNPObjWrappers.EntryCount() == 0);
+      MOZ_ASSERT(sNPObjWrappers.entryCount == 0);
 
       // No more wrappers, and our hash was initialized. Finish the
       // hash to prevent leaking it.
@@ -1763,14 +1764,14 @@ nsNPObjWrapper::GetNewOrUsed(NPP npp, JSContext *cx, NPObject *npobj)
   entry->mNPObj = npobj;
   entry->mNpp = npp;
 
-  uint32_t generation = sNPObjWrappers.Generation();
+  uint32_t generation = sNPObjWrappers.generation;
 
   // No existing JSObject, create one.
 
   JS::Rooted<JSObject*> obj(cx, ::JS_NewObject(cx, &sNPObjectJSWrapperClass, JS::NullPtr(),
                                                JS::NullPtr()));
 
-  if (generation != sNPObjWrappers.Generation()) {
+  if (generation != sNPObjWrappers.generation) {
       // Reload entry if the JS_NewObject call caused a GC and reallocated
       // the table (see bug 445229). This is guaranteed to succeed.
 

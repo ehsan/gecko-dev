@@ -6,8 +6,6 @@ const promise = require("projecteditor/helpers/promise");
 var { registerPlugin, Plugin } = require("projecteditor/plugins/core");
 const { AppProjectEditor } = require("./app-project-editor");
 const OPTION_URL = "chrome://browser/skin/devtools/tool-options.svg";
-const {Services} = Cu.import("resource://gre/modules/Services.jsm");
-const Strings = Services.strings.createBundle("chrome://browser/locale/devtools/webide.properties");
 
 var AppManagerRenderer = Class({
   extends: Plugin,
@@ -61,13 +59,10 @@ var AppManagerRenderer = Class({
     let name = appManagerOpts.name || resource.basename;
     let url = appManagerOpts.iconUrl || "icon-sample.png";
     let status = appManagerOpts.validationStatus || "unknown";
-    let tooltip = Strings.formatStringFromName("status_tooltip",
-      [Strings.GetStringFromName("status_" + status)], 1);
 
     nameLabel.textContent = name;
     image.setAttribute("src", url);
     statusElement.setAttribute("status", status);
-    statusElement.setAttribute("tooltiptext", tooltip);
 
     return true;
   }

@@ -68,14 +68,7 @@ public:
     MOZ_ASSERT(cairo_status(mCtx) || dt->GetTransform() == GetTransform());
   }
 
-  ~AutoPrepareForDrawing()
-  {
-    cairo_restore(mCtx);
-    cairo_status_t status = cairo_status(mCtx);
-    if (status) {
-      gfxWarning() << "DrawTargetCairo context in error state: " << cairo_status_to_string(status) << "(" << status << ")";
-    }
-  }
+  ~AutoPrepareForDrawing() { cairo_restore(mCtx); }
 
 private:
 #ifdef DEBUG
@@ -251,13 +244,13 @@ GetCairoSurfaceForSourceSurface(SourceSurface *aSurface, bool aExistingOnly = fa
 class AutoClearDeviceOffset
 {
 public:
-  explicit AutoClearDeviceOffset(SourceSurface* aSurface)
+  AutoClearDeviceOffset(SourceSurface* aSurface)
     : mSurface(nullptr)
   {
     Init(aSurface);
   }
 
-  explicit AutoClearDeviceOffset(const Pattern& aPattern)
+  AutoClearDeviceOffset(const Pattern& aPattern)
     : mSurface(nullptr)
   {
     if (aPattern.GetType() == PatternType::SURFACE) {
@@ -1276,7 +1269,7 @@ DrawTargetCairo::CreateSourceSurfaceFromNativeSurface(const NativeSurface &aSurf
 TemporaryRef<DrawTarget>
 DrawTargetCairo::CreateSimilarDrawTarget(const IntSize &aSize, SurfaceFormat aFormat) const
 {
-  cairo_surface_t* similar = cairo_surface_create_similar(mSurface,
+  cairo_surface_t* similar = cairo_surface_create_similar(cairo_get_target(mContext),
                                                           GfxFormatToCairoContent(aFormat),
                                                           aSize.width, aSize.height);
 
@@ -1296,13 +1289,6 @@ DrawTargetCairo::InitAlreadyReferenced(cairo_surface_t* aSurface, const IntSize&
   mSurface = aSurface;
   mSize = aSize;
   mFormat = aFormat ? *aFormat : CairoContentToGfxFormat(cairo_surface_get_content(aSurface));
-
-  // Cairo image surface have a bug where they will allocate a mask surface (for clipping)
-  // the size of the clip extents, and don't take the surface extents into account.
-  // Add a manual clip to the surface extents to prevent this.
-  cairo_new_path(mContext);
-  cairo_rectangle(mContext, 0, 0, mSize.width, mSize.height);
-  cairo_clip(mContext);
 
   if (mFormat == SurfaceFormat::B8G8R8A8 ||
       mFormat == SurfaceFormat::R8G8B8A8) {

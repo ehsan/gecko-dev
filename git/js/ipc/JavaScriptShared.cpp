@@ -41,12 +41,14 @@ IdToObjectMap::trace(JSTracer *trc)
 }
 
 void
-IdToObjectMap::sweep()
+IdToObjectMap::finalize(JSFreeOp *fop)
 {
     for (Table::Enum e(table_); !e.empty(); e.popFront()) {
         DebugOnly<JSObject *> prior = e.front().value().get();
         if (JS_IsAboutToBeFinalized(&e.front().value()))
             e.removeFront();
+        else
+            MOZ_ASSERT(e.front().value() == prior);
     }
 }
 
@@ -95,14 +97,14 @@ ObjectToIdMap::init()
 }
 
 void
-ObjectToIdMap::sweep()
+ObjectToIdMap::finalize(JSFreeOp *fop)
 {
     for (Table::Enum e(*table_); !e.empty(); e.popFront()) {
         JSObject *obj = e.front().key();
         if (JS_IsAboutToBeFinalizedUnbarriered(&obj))
             e.removeFront();
-        else if (obj != e.front().key())
-            e.rekeyFront(obj);
+        else
+            MOZ_ASSERT(obj == e.front().key());
     }
 }
 
@@ -154,16 +156,10 @@ JavaScriptShared::JavaScriptShared(JSRuntime *rt)
 {
     if (!sLoggingInitialized) {
         sLoggingInitialized = true;
-
-        if (PR_GetEnv("MOZ_CPOW_LOG")) {
-            sLoggingEnabled = true;
-            sStackLoggingEnabled = true;
-        } else {
-            Preferences::AddBoolVarCache(&sLoggingEnabled,
-                                         "dom.ipc.cpows.log.enabled", false);
-            Preferences::AddBoolVarCache(&sStackLoggingEnabled,
-                                         "dom.ipc.cpows.log.stack", false);
-        }
+        Preferences::AddBoolVarCache(&sLoggingEnabled,
+                                     "dom.ipc.cpows.log.enabled", false);
+        Preferences::AddBoolVarCache(&sStackLoggingEnabled,
+                                     "dom.ipc.cpows.log.stack", false);
     }
 }
 
@@ -398,10 +394,8 @@ JavaScriptShared::findObjectById(JSContext *cx, uint32_t objId)
         }
     }
 
-    // If there's no TabChildGlobal, we use the junk scope. In the parent we use
-    // the unprivileged junk scope to prevent security vulnerabilities. In the
-    // child we use the privileged junk scope.
-    JSAutoCompartment ac(cx, defaultScope());
+    // If there's no TabChildGlobal, we use the junk scope.
+    JSAutoCompartment ac(cx, xpc::GetJunkScope());
     if (!JS_WrapObject(cx, &obj))
         return nullptr;
     return obj;
@@ -593,9 +587,4 @@ JavaScriptShared::Wrap(JSContext *cx, HandleObject aObj, InfallibleTArray<CpowEn
 
     return true;
 }
-void JavaScriptShared::fixupAfterMovingGC()
-{
-    objects_.sweep();
-    cpows_.sweep();
-    objectIds_.sweep();
-}
+

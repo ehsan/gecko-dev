@@ -9,8 +9,6 @@
 #include "mozilla/DebugOnly.h"
 
 #include "jit/IonLinker.h"
-
-#include "jit/JitcodeMap.h"
 #include "jit/PerfSpewer.h"
 
 #include "jit/IonFrames-inl.h"
@@ -18,8 +16,6 @@
 
 using namespace js;
 using namespace js::jit;
-
-using mozilla::DebugOnly;
 
 struct DebugModeOSREntry
 {
@@ -89,10 +85,10 @@ struct DebugModeOSREntry
     }
 
     bool needsRecompileInfo() const {
-        return frameKind == ICEntry::Kind_CallVM ||
-               frameKind == ICEntry::Kind_DebugTrap ||
-               frameKind == ICEntry::Kind_DebugPrologue ||
-               frameKind == ICEntry::Kind_DebugEpilogue;
+        return (frameKind == ICEntry::Kind_CallVM ||
+                frameKind == ICEntry::Kind_DebugTrap ||
+                frameKind == ICEntry::Kind_DebugPrologue ||
+                frameKind == ICEntry::Kind_DebugEpilogue);
     }
 
     bool recompiled() const {
@@ -135,7 +131,7 @@ class UniqueScriptOSREntryIter
     size_t index_;
 
   public:
-    explicit UniqueScriptOSREntryIter(const DebugModeOSREntryVector &entries)
+    UniqueScriptOSREntryIter(const DebugModeOSREntryVector &entries)
       : entries_(entries),
         index_(0)
     { }
@@ -255,7 +251,7 @@ ICEntryKindToString(ICEntry::Kind kind)
       case ICEntry::Kind_DebugEpilogue:
         return "debug epilogue";
       default:
-        MOZ_CRASH("bad ICEntry kind");
+        MOZ_ASSUME_UNREACHABLE("bad ICEntry kind");
     }
 }
 
@@ -263,7 +259,7 @@ static void
 SpewPatchBaselineFrame(uint8_t *oldReturnAddress, uint8_t *newReturnAddress,
                        JSScript *script, ICEntry::Kind frameKind, jsbytecode *pc)
 {
-    JitSpew(JitSpew_BaselineDebugModeOSR,
+    IonSpew(IonSpew_BaselineDebugModeOSR,
             "Patch return %p -> %p on BaselineJS frame (%s:%d) from %s at %s",
             oldReturnAddress, newReturnAddress, script->filename(), script->lineno(),
             ICEntryKindToString(frameKind), js_CodeName[(JSOp)*pc]);
@@ -272,7 +268,7 @@ SpewPatchBaselineFrame(uint8_t *oldReturnAddress, uint8_t *newReturnAddress,
 static void
 SpewPatchStubFrame(ICStub *oldStub, ICStub *newStub)
 {
-    JitSpew(JitSpew_BaselineDebugModeOSR,
+    IonSpew(IonSpew_BaselineDebugModeOSR,
             "Patch   stub %p -> %p on BaselineStub frame (%s)",
             oldStub, newStub, ICStub::KindString(newStub->kind()));
 }
@@ -312,7 +308,7 @@ PatchBaselineFramesForDebugMode(JSContext *cx, const JitActivationIterator &acti
 
     IonCommonFrameLayout *prev = nullptr;
     size_t entryIndex = *start;
-    DebugOnly<bool> expectedDebugMode = cx->compartment()->debugMode();
+    bool expectedDebugMode = cx->compartment()->debugMode();
 
     for (JitFrameIterator iter(activation); !iter.done(); ++iter) {
         DebugModeOSREntry &entry = entries[entryIndex];
@@ -503,7 +499,7 @@ RecompileBaselineScriptForDebugMode(JSContext *cx, JSScript *script)
     if (oldBaselineScript->debugMode() == expectedDebugMode)
         return true;
 
-    JitSpew(JitSpew_BaselineDebugModeOSR, "Recompiling (%s:%d) for debug mode %s",
+    IonSpew(IonSpew_BaselineDebugModeOSR, "Recompiling (%s:%d) for debug mode %s",
             script->filename(), script->lineno(), expectedDebugMode ? "ON" : "OFF");
 
     CancelOffThreadIonCompile(cx->compartment(), script);
@@ -614,7 +610,7 @@ CloneOldBaselineStub(JSContext *cx, DebugModeOSREntryVector &entries, size_t ent
 #undef CASE_KIND
 
       default:
-        MOZ_CRASH("Bad stub kind");
+        MOZ_ASSUME_UNREACHABLE("Bad stub kind");
     }
 
     if (!entry.newStub)
@@ -660,13 +656,8 @@ jit::RecompileOnStackBaselineScriptsForDebugMode(JSContext *cx, JSCompartment *c
 #ifdef JSGC_GENERATIONAL
     // Scripts can entrain nursery things. See note in js::ReleaseAllJITCode.
     if (!entries.empty())
-        cx->runtime()->gc.evictNursery();
+        MinorGC(cx->runtime(), JS::gcreason::EVICT_NURSERY);
 #endif
-
-    // When the profiler is enabled, we need to suppress sampling from here until
-    // the end of the function, since the basline jit scripts are in a state of
-    // flux.
-    AutoSuppressProfilerSampling suppressProfilerSampling(cx);
 
     // Try to recompile all the scripts. If we encounter an error, we need to
     // roll back as if none of the compilations happened, so that we don't
@@ -716,7 +707,7 @@ BaselineDebugModeOSRInfo::popValueInto(PCMappingSlotInfo::SlotLocation loc, Valu
       case PCMappingSlotInfo::SlotIgnore:
         break;
       default:
-        MOZ_CRASH("Bad slot location");
+        MOZ_ASSUME_UNREACHABLE("Bad slot location");
     }
 
     stackAdjust++;
@@ -807,9 +798,9 @@ JitRuntime::getBaselineDebugModeOSRHandlerAddress(JSContext *cx, bool popFrameRe
 {
     if (!getBaselineDebugModeOSRHandler(cx))
         return nullptr;
-    return popFrameReg
-           ? baselineDebugModeOSRHandler_->raw()
-           : baselineDebugModeOSRHandlerNoFrameRegPopAddr_;
+    return (popFrameReg
+            ? baselineDebugModeOSRHandler_->raw()
+            : baselineDebugModeOSRHandlerNoFrameRegPopAddr_);
 }
 
 JitCode *

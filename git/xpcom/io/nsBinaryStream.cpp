@@ -826,7 +826,7 @@ nsBinaryInputStream::ReadByteArray(uint32_t aLength, uint8_t** aResult)
 NS_IMETHODIMP
 nsBinaryInputStream::ReadArrayBuffer(uint32_t aLength,
                                      JS::Handle<JS::Value> aBuffer,
-                                     JSContext* aCx, uint32_t* aReadLength)
+                                     JSContext* aCx, uint32_t *rLength)
 {
   if (!aBuffer.isObject()) {
     return NS_ERROR_FAILURE;
@@ -850,7 +850,7 @@ nsBinaryInputStream::ReadArrayBuffer(uint32_t aLength,
   UniquePtr<char[]> buf = MakeUnique<char[]>(bufSize);
 
   uint32_t remaining = aLength;
-  *aReadLength = 0;
+  *rLength = 0;
   do {
     // Read data into temporary buffer.
     uint32_t bytesRead;
@@ -870,7 +870,7 @@ nsBinaryInputStream::ReadArrayBuffer(uint32_t aLength,
       return NS_ERROR_FAILURE;
     }
 
-    *aReadLength += bytesRead;
+    *rLength += bytesRead;
     PodCopy(data, buf.get(), bytesRead);
 
     remaining -= bytesRead;

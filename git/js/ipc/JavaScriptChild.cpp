@@ -12,6 +12,7 @@
 #include "nsContentUtils.h"
 #include "xpcprivate.h"
 #include "jsfriendapi.h"
+#include "nsCxPusher.h"
 #include "AccessCheck.h"
 
 using namespace JS;
@@ -20,30 +21,37 @@ using namespace mozilla::jsipc;
 
 using mozilla::AutoSafeJSContext;
 
+#ifdef NIGHTLY_BUILD
+static void
+UrgentMessageCheck(JSContext *cx, HandleScript script)
+{
+    // We're only allowed to enter chrome JS code while processing urgent
+    // messages.
+    if (ipc::ProcessingUrgentMessages())
+        MOZ_RELEASE_ASSERT(xpc::AccessCheck::isChrome(js::GetContextCompartment(cx)));
+}
+#endif
+
 static void
 FinalizeChild(JSFreeOp *fop, JSFinalizeStatus status, bool isCompartment, void *data)
 {
     if (status == JSFINALIZE_GROUP_START) {
-        static_cast<JavaScriptChild *>(data)->finalize();
+        static_cast<JavaScriptChild *>(data)->finalize(fop);
     }
-}
-
-static void
-FixupChildAfterMovingGC(JSRuntime *rt, void *data)
-{
-    static_cast<JavaScriptChild *>(data)->fixupAfterMovingGC();
 }
 
 JavaScriptChild::JavaScriptChild(JSRuntime *rt)
   : JavaScriptShared(rt),
     JavaScriptBase<PJavaScriptChild>(rt)
 {
+#ifdef NIGHTLY_BUILD
+    js::SetAssertOnScriptEntryHook(rt, UrgentMessageCheck);
+#endif
 }
 
 JavaScriptChild::~JavaScriptChild()
 {
     JS_RemoveFinalizeCallback(rt_, FinalizeChild);
-    JS_RemoveMovingGCCallback(rt_, FixupChildAfterMovingGC);
 }
 
 bool
@@ -55,19 +63,12 @@ JavaScriptChild::init()
         return false;
 
     JS_AddFinalizeCallback(rt_, FinalizeChild, this);
-    JS_AddMovingGCCallback(rt_, FixupChildAfterMovingGC, this);
     return true;
 }
 
 void
-JavaScriptChild::finalize()
+JavaScriptChild::finalize(JSFreeOp *fop)
 {
-    objects_.sweep();
-    objectIds_.sweep();
-}
-
-JSObject *
-JavaScriptChild::defaultScope()
-{
-    return xpc::PrivilegedJunkScope();
+    objects_.finalize(fop);
+    objectIds_.finalize(fop);
 }

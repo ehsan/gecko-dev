@@ -9,7 +9,6 @@
 #include "jsfun.h"
 #include "jsobj.h"
 
-#include "proxy/Proxy.h"
 #include "vm/ProxyObject.h"
 
 using namespace js;

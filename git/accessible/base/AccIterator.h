@@ -52,7 +52,7 @@ private:
 
   struct IteratorState
   {
-    explicit IteratorState(Accessible* aParent, IteratorState* mParentState = nullptr);
+    IteratorState(Accessible* aParent, IteratorState* mParentState = nullptr);
 
     Accessible* mParent;
     int32_t mIndex;
@@ -254,7 +254,7 @@ private:
 class SingleAccIterator : public AccIterable
 {
 public:
-  explicit SingleAccIterator(Accessible* aTarget): mAcc(aTarget) { }
+  SingleAccIterator(Accessible* aTarget): mAcc(aTarget) { }
   virtual ~SingleAccIterator() { }
 
   virtual Accessible* Next();
@@ -274,7 +274,7 @@ private:
 class ItemIterator : public AccIterable
 {
 public:
-  explicit ItemIterator(Accessible* aItemContainer) :
+  ItemIterator(Accessible* aItemContainer) :
     mContainer(aItemContainer), mAnchor(nullptr) { }
   virtual ~ItemIterator() { }
 

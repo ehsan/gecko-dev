@@ -79,7 +79,7 @@ class SharedMutex
   class RefCountedMutex MOZ_FINAL : public Mutex
   {
   public:
-    explicit RefCountedMutex(const char* aName)
+    RefCountedMutex(const char* aName)
     : Mutex(aName)
     { }
 
@@ -93,7 +93,7 @@ class SharedMutex
   nsRefPtr<RefCountedMutex> mMutex;
 
 public:
-  explicit SharedMutex(const char* aName)
+  SharedMutex(const char* aName)
   : mMutex(new RefCountedMutex(aName))
   { }
 
@@ -243,7 +243,6 @@ private:
   bool mMainThreadObjectsForgotten;
   WorkerType mWorkerType;
   TimeStamp mCreationTimeStamp;
-  TimeStamp mNowBaseTimeStamp;
 
 protected:
   // The worker is owned by its thread, which is represented here.  This is set
@@ -398,9 +397,6 @@ public:
                        const JS::RuntimeOptions& aRuntimeOptions);
 
   void
-  UpdateLanguages(JSContext* aCx, const nsTArray<nsString>& aLanguages);
-
-  void
   UpdatePreference(JSContext* aCx, WorkerPreference aPref, bool aValue);
 
   void
@@ -517,11 +513,6 @@ public:
   TimeStamp CreationTimeStamp() const
   {
     return mCreationTimeStamp;
-  }
-
-  TimeStamp NowBaseTimeStamp() const
-  {
-    return mNowBaseTimeStamp;
   }
 
   nsIPrincipal*
@@ -755,7 +746,7 @@ class WorkerPrivate : public WorkerPrivateParent<WorkerPrivate>
 
   struct SyncLoopInfo
   {
-    explicit SyncLoopInfo(EventTarget* aEventTarget);
+    SyncLoopInfo(EventTarget* aEventTarget);
 
     nsRefPtr<EventTarget> mEventTarget;
     bool mCompleted;
@@ -937,9 +928,6 @@ public:
 
   void
   UpdateRuntimeOptionsInternal(JSContext* aCx, const JS::RuntimeOptions& aRuntimeOptions);
-
-  void
-  UpdateLanguagesInternal(JSContext* aCx, const nsTArray<nsString>& aLanguages);
 
   void
   UpdatePreferenceInternal(JSContext* aCx, WorkerPreference aPref, bool aValue);
@@ -1244,7 +1232,7 @@ class AutoSyncLoopHolder
   uint32_t mIndex;
 
 public:
-  explicit AutoSyncLoopHolder(WorkerPrivate* aWorkerPrivate)
+  AutoSyncLoopHolder(WorkerPrivate* aWorkerPrivate)
   : mWorkerPrivate(aWorkerPrivate)
   , mTarget(aWorkerPrivate->CreateNewSyncLoop())
   , mIndex(aWorkerPrivate->mSyncLoopStack.Length() - 1)

@@ -51,8 +51,8 @@ namespace dom {
 class CallDispatchConnectionCloseEvents: public nsRunnable
 {
 public:
-  explicit CallDispatchConnectionCloseEvents(WebSocket* aWebSocket)
-    : mWebSocket(aWebSocket)
+CallDispatchConnectionCloseEvents(WebSocket* aWebSocket)
+  : mWebSocket(aWebSocket)
   {}
 
   NS_IMETHOD Run()
@@ -686,7 +686,7 @@ WebSocket::Init(JSContext* aCx,
     // Confirmed we are opening plain ws:// and want to prevent this from a
     // secure context (e.g. https). Check the principal's uri to determine if
     // we were loaded from https.
-    nsCOMPtr<nsIGlobalObject> globalObject(GetEntryGlobal());
+    nsCOMPtr<nsIGlobalObject> globalObject(BrokenGetEntryGlobal());
     if (globalObject) {
       nsCOMPtr<nsIPrincipal> principal(globalObject->PrincipalOrNull());
       if (principal) {
@@ -754,7 +754,7 @@ WebSocket::Init(JSContext* aCx,
 class nsAutoCloseWS
 {
 public:
-  explicit nsAutoCloseWS(WebSocket* aWebSocket)
+  nsAutoCloseWS(WebSocket* aWebSocket)
     : mWebSocket(aWebSocket)
   {}
 

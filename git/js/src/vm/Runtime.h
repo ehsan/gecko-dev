@@ -381,24 +381,16 @@ struct RegExpTestCache
  */
 class FreeOp : public JSFreeOp
 {
-    Vector<void *, 0, SystemAllocPolicy> freeLaterList;
-
   public:
     static FreeOp *get(JSFreeOp *fop) {
         return static_cast<FreeOp *>(fop);
     }
 
-    explicit FreeOp(JSRuntime *rt)
+    FreeOp(JSRuntime *rt)
       : JSFreeOp(rt)
     {}
 
-    ~FreeOp() {
-        for (size_t i = 0; i < freeLaterList.length(); i++)
-            free_(freeLaterList[i]);
-    }
-
     inline void free_(void *p);
-    inline void freeLater(void *p);
 
     template <class T>
     inline void delete_(T *p) {
@@ -567,12 +559,6 @@ class PerThreadData : public PerThreadDataFriendFields
      */
     js::Activation *activation_;
 
-    /*
-     * Points to the most recent profiling activation running on the
-     * thread.  Protected by rt->interruptLock.
-     */
-    js::Activation * volatile profilingActivation_;
-
     /* See AsmJSActivation comment. Protected by rt->interruptLock. */
     js::AsmJSActivation * volatile asmJSActivationStack_;
 
@@ -593,10 +579,6 @@ class PerThreadData : public PerThreadDataFriendFields
     }
     static unsigned offsetOfActivation() {
         return offsetof(PerThreadData, activation_);
-    }
-
-    js::Activation *profilingActivation() const {
-        return profilingActivation_;
     }
 
     js::AsmJSActivation *asmJSActivationStack() const {
@@ -955,14 +937,13 @@ struct JSRuntime : public JS::shadow::Runtime,
     /* Garbage collector state, used by jsgc.c. */
     js::gc::GCRuntime   gc;
 
-    /* Garbage collector state has been sucessfully initialized. */
+    /* Garbase collector state has been sucessfully initialized. */
     bool                gcInitialized;
 
     bool isHeapBusy() { return gc.isHeapBusy(); }
     bool isHeapMajorCollecting() { return gc.isHeapMajorCollecting(); }
     bool isHeapMinorCollecting() { return gc.isHeapMinorCollecting(); }
     bool isHeapCollecting() { return gc.isHeapCollecting(); }
-    bool isHeapCompacting() { return gc.isHeapCompacting(); }
 
     bool isFJMinorCollecting() { return gc.isFJMinorCollecting(); }
 
@@ -1014,26 +995,14 @@ struct JSRuntime : public JS::shadow::Runtime,
     js::AssertOnScriptEntryHook assertOnScriptEntryHook_;
 #endif
 
+    /* If true, new compartments are initially in debug mode. */
+    bool                debugMode;
+
     /* SPS profiling metadata */
     js::SPSProfiler     spsProfiler;
 
     /* If true, new scripts must be created with PC counter information. */
     bool                profilingScripts;
-
-    /* Whether sampling should be enabled or not. */
-  private:
-    bool                suppressProfilerSampling;
-
-  public:
-    bool isProfilerSamplingEnabled() const {
-        return !suppressProfilerSampling;
-    }
-    void disableProfilerSampling() {
-        suppressProfilerSampling = true;
-    }
-    void enableProfilerSampling() {
-        suppressProfilerSampling = false;
-    }
 
     /* Had an out-of-memory error which did not populate an exception. */
     bool                hadOutOfMemory;
@@ -1094,9 +1063,6 @@ struct JSRuntime : public JS::shadow::Runtime,
 
     /* Call this to accumulate telemetry data. */
     JSAccumulateTelemetryDataCallback telemetryCallback;
-
-    /* Optional error reporter. */
-    JSErrorReporter     errorReporter;
 
     /* AsmJSCache callbacks are runtime-wide. */
     JS::AsmJSCacheOps asmJSCacheOps;
@@ -1274,7 +1240,6 @@ struct JSRuntime : public JS::shadow::Runtime,
     }
 
     bool                jitSupportsFloatingPoint;
-    bool                jitSupportsSimd;
 
     // Used to reset stack limit after a signaled interrupt (i.e. jitStackLimit_ = -1)
     // has been noticed by Ion/Baseline.
@@ -1301,7 +1266,7 @@ struct JSRuntime : public JS::shadow::Runtime,
         return liveRuntimesCount > 0;
     }
 
-    explicit JSRuntime(JSRuntime *parentRuntime);
+    JSRuntime(JSRuntime *parentRuntime);
     ~JSRuntime();
 
     bool init(uint32_t maxbytes, uint32_t maxNurseryBytes);
@@ -1404,28 +1369,18 @@ struct JSRuntime : public JS::shadow::Runtime,
 
     static const unsigned LARGE_ALLOCATION = 25 * 1024 * 1024;
 
-    template <typename T>
-    T *pod_callocCanGC(size_t numElems) {
-        T *p = pod_calloc<T>(numElems);
+    void *callocCanGC(size_t bytes) {
+        void *p = (void *)pod_calloc<uint8_t>(bytes);
         if (MOZ_LIKELY(!!p))
             return p;
-        if (numElems & mozilla::tl::MulOverflowMask<sizeof(T)>::value) {
-            reportAllocationOverflow();
-            return nullptr;
-        }
-        return (T *)onOutOfMemoryCanGC(reinterpret_cast<void *>(1), numElems * sizeof(T));
+        return onOutOfMemoryCanGC(reinterpret_cast<void *>(1), bytes);
     }
 
-    template <typename T>
-    T *pod_reallocCanGC(T *p, size_t oldSize, size_t newSize) {
-        T *p2 = pod_realloc<T>(p, oldSize, newSize);
+    void *reallocCanGC(void *p, size_t bytes) {
+        void *p2 = realloc_(p, bytes);
         if (MOZ_LIKELY(!!p2))
             return p2;
-        if (newSize & mozilla::tl::MulOverflowMask<sizeof(T)>::value) {
-            reportAllocationOverflow();
-            return nullptr;
-        }
-        return (T *)onOutOfMemoryCanGC(p, newSize * sizeof(T));
+        return onOutOfMemoryCanGC(p, bytes);
     }
 };
 
@@ -1490,17 +1445,6 @@ inline void
 FreeOp::free_(void *p)
 {
     js_free(p);
-}
-
-inline void
-FreeOp::freeLater(void *p)
-{
-    // FreeOps other than the defaultFreeOp() are constructed on the stack,
-    // and won't hold onto the pointers to free indefinitely.
-    JS_ASSERT(this != runtime()->defaultFreeOp());
-
-    if (!freeLaterList.append(p))
-        CrashAtUnhandlableOOM("FreeOp::freeLater");
 }
 
 class AutoLockGC
@@ -1599,7 +1543,7 @@ PerThreadData::runtimeFromMainThread()
 inline JSRuntime *
 PerThreadData::runtimeIfOnOwnerThread()
 {
-    return (runtime_ && CurrentThreadCanAccessRuntime(runtime_)) ? runtime_ : nullptr;
+    return CurrentThreadCanAccessRuntime(runtime_) ? runtime_ : nullptr;
 }
 
 inline bool
@@ -1689,7 +1633,7 @@ SetValueRangeToNull(Value *vec, size_t len)
 }
 
 /*
- * Allocation policy that uses JSRuntime::pod_malloc and friends, so that
+ * Allocation policy that uses JSRuntime::malloc_ and friends, so that
  * memory pressure is properly accounted for. This is suitable for
  * long-lived objects owned by the JSRuntime.
  *
@@ -1705,22 +1649,14 @@ class RuntimeAllocPolicy
 
   public:
     MOZ_IMPLICIT RuntimeAllocPolicy(JSRuntime *rt) : runtime(rt) {}
-
-    template <typename T>
-    T *pod_malloc(size_t numElems) {
-        return runtime->pod_malloc<T>(numElems);
-    }
+    void *malloc_(size_t bytes) { return runtime->malloc_(bytes); }
 
     template <typename T>
     T *pod_calloc(size_t numElems) {
         return runtime->pod_calloc<T>(numElems);
     }
 
-    template <typename T>
-    T *pod_realloc(T *p, size_t oldSize, size_t newSize) {
-        return runtime->pod_realloc<T>(p, oldSize, newSize);
-    }
-
+    void *realloc_(void *p, size_t bytes) { return runtime->realloc_(p, bytes); }
     void free_(void *p) { js_free(p); }
     void reportAllocOverflow() const {}
 };
@@ -1732,7 +1668,7 @@ extern const JSSecurityCallbacks NullSecurityCallbacks;
 class AutoEnterIonCompilation
 {
   public:
-    explicit AutoEnterIonCompilation(MOZ_GUARD_OBJECT_NOTIFIER_ONLY_PARAM) {
+    AutoEnterIonCompilation(MOZ_GUARD_OBJECT_NOTIFIER_ONLY_PARAM) {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
 
 #ifdef DEBUG

@@ -10,11 +10,11 @@ var TestUtils = React.addons.TestUtils;
 describe("loop.panel", function() {
   "use strict";
 
-  var sandbox, notifications, fakeXHR, requests = [];
+  var sandbox, notifier, fakeXHR, requests = [];
 
   function createTestRouter(fakeDocument) {
     return new loop.panel.PanelRouter({
-      notifications: notifications,
+      notifier: notifier,
       document: fakeDocument
     });
   }
@@ -27,7 +27,14 @@ describe("loop.panel", function() {
     fakeXHR.xhr.onCreate = function (xhr) {
       requests.push(xhr);
     };
-    notifications = new loop.shared.models.NotificationCollection();
+    notifier = {
+      clear: sandbox.spy(),
+      notify: sandbox.spy(),
+      warn: sandbox.spy(),
+      warnL10n: sandbox.spy(),
+      error: sandbox.spy(),
+      errorL10n: sandbox.spy()
+    };
 
     navigator.mozLoop = {
       doNotDisturb: true,
@@ -42,8 +49,7 @@ describe("loop.panel", function() {
       },
       setLoopCharPref: sandbox.stub(),
       getLoopCharPref: sandbox.stub().returns("unseen"),
-      copyString: sandbox.stub(),
-      noteCallUrlExpiry: sinon.spy()
+      copyString: sandbox.stub()
     };
 
     document.mozL10n.initialize(navigator.mozLoop);
@@ -56,15 +62,15 @@ describe("loop.panel", function() {
 
   describe("loop.panel.PanelRouter", function() {
     describe("#constructor", function() {
-      it("should require a notifications collection", function() {
+      it("should require a notifier", function() {
         expect(function() {
           new loop.panel.PanelRouter();
-        }).to.Throw(Error, /missing required notifications/);
+        }).to.Throw(Error, /missing required notifier/);
       });
 
       it("should require a document", function() {
         expect(function() {
-          new loop.panel.PanelRouter({notifications: notifications});
+          new loop.panel.PanelRouter({notifier: notifier});
         }).to.Throw(Error, /missing required document/);
       });
     });
@@ -94,10 +100,9 @@ describe("loop.panel", function() {
 
       describe("#reset", function() {
         it("should clear all pending notifications", function() {
-          sandbox.stub(notifications, "reset");
           router.reset();
 
-          sinon.assert.calledOnce(notifications.reset);
+          sinon.assert.calledOnce(notifier.clear);
         });
 
         it("should load the home view", function() {
@@ -207,93 +212,9 @@ describe("loop.panel", function() {
       };
 
       view = TestUtils.renderIntoDocument(loop.panel.PanelView({
-        notifications: notifications,
+        notifier: notifier,
         client: fakeClient
       }));
-    });
-
-    describe("AuthLink", function() {
-      it("should trigger the FxA sign in/up process when clicking the link",
-        function() {
-          navigator.mozLoop.loggedInToFxA = false;
-          navigator.mozLoop.logInToFxA = sandbox.stub();
-
-          TestUtils.Simulate.click(
-            view.getDOMNode().querySelector(".signin-link a"));
-
-          sinon.assert.calledOnce(navigator.mozLoop.logInToFxA);
-        });
-      });
-
-    describe("SettingsDropdown", function() {
-      var view;
-
-      beforeEach(function() {
-        navigator.mozLoop.logInToFxA = sandbox.stub();
-        navigator.mozLoop.logOutFromFxA = sandbox.stub();
-      });
-
-      it("should show a signin entry when user is not authenticated",
-        function() {
-          navigator.mozLoop.loggedInToFxA = false;
-
-          var view = TestUtils.renderIntoDocument(loop.panel.SettingsDropdown());
-
-          expect(view.getDOMNode().querySelectorAll(".icon-signout"))
-            .to.have.length.of(0);
-          expect(view.getDOMNode().querySelectorAll(".icon-signin"))
-            .to.have.length.of(1);
-        });
-
-      it("should show a signout entry when user is authenticated", function() {
-        navigator.mozLoop.loggedInToFxA = true;
-
-        var view = TestUtils.renderIntoDocument(loop.panel.SettingsDropdown());
-
-        expect(view.getDOMNode().querySelectorAll(".icon-signout"))
-          .to.have.length.of(1);
-        expect(view.getDOMNode().querySelectorAll(".icon-signin"))
-          .to.have.length.of(0);
-      });
-
-      it("should show an account entry when user is authenticated", function() {
-        navigator.mozLoop.loggedInToFxA = true;
-
-        var view = TestUtils.renderIntoDocument(loop.panel.SettingsDropdown());
-
-        expect(view.getDOMNode().querySelectorAll(".icon-account"))
-          .to.have.length.of(1);
-      });
-
-      it("should hide any account entry when user is not authenticated",
-        function() {
-          navigator.mozLoop.loggedInToFxA = false;
-
-          var view = TestUtils.renderIntoDocument(loop.panel.SettingsDropdown());
-
-          expect(view.getDOMNode().querySelectorAll(".icon-account"))
-            .to.have.length.of(0);
-        });
-
-      it("should sign in the user on click when unauthenticated", function() {
-        navigator.mozLoop.loggedInToFxA = false;
-        var view = TestUtils.renderIntoDocument(loop.panel.SettingsDropdown());
-
-        TestUtils.Simulate.click(
-          view.getDOMNode().querySelector(".icon-signin"));
-
-        sinon.assert.calledOnce(navigator.mozLoop.logInToFxA);
-      });
-
-      it("should sign out the user on click when authenticated", function() {
-        navigator.mozLoop.loggedInToFxA = true;
-        var view = TestUtils.renderIntoDocument(loop.panel.SettingsDropdown());
-
-        TestUtils.Simulate.click(
-          view.getDOMNode().querySelector(".icon-signout"));
-
-        sinon.assert.calledOnce(navigator.mozLoop.logOutFromFxA);
-      });
     });
 
     describe("#render", function() {
@@ -301,6 +222,7 @@ describe("loop.panel", function() {
         TestUtils.findRenderedComponentWithType(view, loop.panel.ToSView);
       });
     });
+
   });
 
   describe("loop.panel.CallUrlResult", function() {
@@ -318,9 +240,8 @@ describe("loop.panel", function() {
         }
       };
 
-      sandbox.stub(notifications, "reset");
       view = TestUtils.renderIntoDocument(loop.panel.CallUrlResult({
-        notifications: notifications,
+        notifier: notifier,
         client: fakeClient
       }));
     });
@@ -332,9 +253,9 @@ describe("loop.panel", function() {
           getStrings: function(key) {
             var text;
 
-            if (key === "share_email_subject3")
+            if (key === "share_email_subject2")
               text = "email-subject";
-            else if (key === "share_email_body3")
+            else if (key === "share_email_body")
               text = "{{callUrl}}";
 
             return JSON.stringify({textContent: text});
@@ -345,7 +266,7 @@ describe("loop.panel", function() {
       it("should make a request to requestCallUrl", function() {
         sandbox.stub(fakeClient, "requestCallUrl");
         var view = TestUtils.renderIntoDocument(loop.panel.CallUrlResult({
-          notifications: notifications,
+          notifier: notifier,
           client: fakeClient
         }));
 
@@ -358,7 +279,7 @@ describe("loop.panel", function() {
         // Cancel requestCallUrl effect to keep the state pending
         fakeClient.requestCallUrl = sandbox.stub();
         var view = TestUtils.renderIntoDocument(loop.panel.CallUrlResult({
-          notifications: notifications,
+          notifier: notifier,
           client: fakeClient
         }));
 
@@ -382,14 +303,14 @@ describe("loop.panel", function() {
       });
 
       it("should reset all pending notifications", function() {
-        sinon.assert.calledOnce(view.props.notifications.reset);
+        sinon.assert.calledOnce(view.props.notifier.clear);
       });
 
       it("should display a share button for email", function() {
         fakeClient.requestCallUrl = sandbox.stub();
         var mailto = 'mailto:?subject=email-subject&body=http://example.com';
         var view = TestUtils.renderIntoDocument(loop.panel.CallUrlResult({
-          notifications: notifications,
+          notifier: notifier,
           client: fakeClient
         }));
         view.setState({pending: false, callUrl: "http://example.com"});
@@ -402,14 +323,13 @@ describe("loop.panel", function() {
       it("should feature a copy button capable of copying the call url when clicked", function() {
         fakeClient.requestCallUrl = sandbox.stub();
         var view = TestUtils.renderIntoDocument(loop.panel.CallUrlResult({
-          notifications: notifications,
+          notifier: notifier,
           client: fakeClient
         }));
         view.setState({
           pending: false,
           copied: false,
-          callUrl: "http://example.com",
-          callUrlExpiry: 6000
+          callUrl: "http://example.com"
         });
 
         TestUtils.Simulate.click(view.getDOMNode().querySelector(".btn-copy"));
@@ -419,86 +339,49 @@ describe("loop.panel", function() {
           view.state.callUrl);
       });
 
-      it("should note the call url expiry when the url is copied via button",
-        function() {
-          var view = TestUtils.renderIntoDocument(loop.panel.CallUrlResult({
-            notifications: notifications,
-            client: fakeClient
-          }));
-          view.setState({
-            pending: false,
-            copied: false,
-            callUrl: "http://example.com",
-            callUrlExpiry: 6000
-          });
-
-          TestUtils.Simulate.click(view.getDOMNode().querySelector(".btn-copy"));
-
-          sinon.assert.calledOnce(navigator.mozLoop.noteCallUrlExpiry);
-          sinon.assert.calledWithExactly(navigator.mozLoop.noteCallUrlExpiry,
-            6000);
-        });
-
-      it("should note the call url expiry when the url is emailed",
-        function() {
-          var view = TestUtils.renderIntoDocument(loop.panel.CallUrlResult({
-            notifications: notifications,
-            client: fakeClient
-          }));
-          view.setState({
-            pending: false,
-            copied: false,
-            callUrl: "http://example.com",
-            callUrlExpiry: 6000
-          });
-
-          view.getDOMNode().querySelector(".btn-email").dataset.mailto = "#";
-          TestUtils.Simulate.click(view.getDOMNode().querySelector(".btn-email"));
-
-          sinon.assert.calledOnce(navigator.mozLoop.noteCallUrlExpiry);
-          sinon.assert.calledWithExactly(navigator.mozLoop.noteCallUrlExpiry,
-            6000);
-        });
-
-      it("should note the call url expiry when the url is copied manually",
-        function() {
-          var view = TestUtils.renderIntoDocument(loop.panel.CallUrlResult({
-            notifications: notifications,
-            client: fakeClient
-          }));
-          view.setState({
-            pending: false,
-            copied: false,
-            callUrl: "http://example.com",
-            callUrlExpiry: 6000
-          });
-
-          var urlField = view.getDOMNode().querySelector("input[type='url']");
-          TestUtils.Simulate.copy(urlField);
-
-          sinon.assert.calledOnce(navigator.mozLoop.noteCallUrlExpiry);
-          sinon.assert.calledWithExactly(navigator.mozLoop.noteCallUrlExpiry,
-            6000);
-        });
-
       it("should notify the user when the operation failed", function() {
         fakeClient.requestCallUrl = function(_, cb) {
           cb("fake error");
         };
-        sandbox.stub(notifications, "errorL10n");
         var view = TestUtils.renderIntoDocument(loop.panel.CallUrlResult({
-          notifications: notifications,
+          notifier: notifier,
           client: fakeClient
         }));
 
-        sinon.assert.calledOnce(notifications.errorL10n);
-        sinon.assert.calledWithExactly(notifications.errorL10n,
+        sinon.assert.calledOnce(notifier.errorL10n);
+        sinon.assert.calledWithExactly(notifier.errorL10n,
                                        "unable_retrieve_url");
+      });
+
+      it("should set 'loopToken' with the callUrl token", function() {
+        sinon.assert.calledOnce(navigator.mozLoop.setLoopCharPref);
+        sinon.assert.calledWithExactly(navigator.mozLoop.setLoopCharPref,
+                                       "loopToken", "fakeToken");
       });
     });
   });
 
   describe('loop.panel.ToSView', function() {
+
+    it("should set the value of the loop.seenToS preference to 'seen'",
+      function() {
+        TestUtils.renderIntoDocument(loop.panel.ToSView());
+
+        sinon.assert.calledOnce(navigator.mozLoop.setLoopCharPref);
+        sinon.assert.calledWithExactly(navigator.mozLoop.setLoopCharPref,
+          'seenToS', 'seen');
+      });
+
+    it("should not set the value of loop.seenToS when it's already set",
+      function() {
+        navigator.mozLoop.getLoopCharPref = function() {
+          return "seen";
+        };
+
+        TestUtils.renderIntoDocument(loop.panel.ToSView());
+
+        sinon.assert.notCalled(navigator.mozLoop.setLoopCharPref);
+      });
 
     it("should render when the value of loop.seenToS is not set", function() {
       var view = TestUtils.renderIntoDocument(loop.panel.ToSView());

@@ -192,9 +192,4 @@ public class CollectionKeys {
       return false;
     }
   }
-
-  @Override
-  public int hashCode() {
-    return super.hashCode();
-  }
 }

@@ -9,7 +9,6 @@
 #include "mozilla/gfx/Matrix.h"         // for Matrix4x4
 #include "mozilla/layers/Compositor.h"  // for Compositor
 #include "mozilla/layers/Effects.h"     // for TexturedEffect, Effect, etc
-#include "mozilla/layers/LayerMetricsWrapper.h" // for LayerMetricsWrapper
 #include "mozilla/layers/TextureHostOGL.h"  // for TextureHostOGL
 #include "nsAString.h"
 #include "nsDebug.h"                    // for NS_WARNING
@@ -148,21 +147,14 @@ TiledLayerBufferComposite::ValidateTile(TileHost aTile,
 #endif
 
   MOZ_ASSERT(aTile.mTextureHost->GetFlags() & TextureFlags::IMMEDIATE_UPLOAD);
-
-#ifdef MOZ_GFX_OPTIMIZE_MOBILE
-  MOZ_ASSERT(!aTile.mTextureHostOnWhite);
   // We possibly upload the entire texture contents here. This is a purposeful
   // decision, as sub-image upload can often be slow and/or unreliable, but
   // we may want to reevaluate this in the future.
   // For !HasInternalBuffer() textures, this is likely a no-op.
   aTile.mTextureHost->Updated(nullptr);
-#else
-  nsIntRegion tileUpdated = aDirtyRect.MovedBy(-aTileOrigin);
-  aTile.mTextureHost->Updated(&tileUpdated);
   if (aTile.mTextureHostOnWhite) {
-    aTile.mTextureHostOnWhite->Updated(&tileUpdated);
+    aTile.mTextureHostOnWhite->Updated(nullptr);
   }
-#endif
 
 #ifdef GFX_TILEDLAYER_PREF_WARNINGS
   if (PR_IntervalNow() - start > 1) {
@@ -367,9 +359,9 @@ TiledContentHost::Composite(EffectChain& aEffectChain,
   if (aOpacity == 1.0f && gfxPrefs::LowPrecisionOpacity() < 1.0f) {
     // Background colors are only stored on scrollable layers. Grab
     // the one from the nearest scrollable ancestor layer.
-    for (LayerMetricsWrapper ancestor(GetLayer(), LayerMetricsWrapper::StartAt::BOTTOM); ancestor; ancestor = ancestor.GetParent()) {
-      if (ancestor.Metrics().IsScrollable()) {
-        backgroundColor = ancestor.Metrics().GetBackgroundColor();
+    for (Layer* ancestor = GetLayer(); ancestor; ancestor = ancestor->GetParent()) {
+      if (ancestor->GetFrameMetrics().IsScrollable()) {
+        backgroundColor = ancestor->GetBackgroundColor();
         break;
       }
     }
@@ -379,16 +371,16 @@ TiledContentHost::Composite(EffectChain& aEffectChain,
         ? gfxPrefs::LowPrecisionOpacity() : 1.0f;
 
   nsIntRegion tmpRegion;
-  const nsIntRegion* renderRegion = aVisibleRegion;
-#ifndef MOZ_GFX_OPTIMIZE_MOBILE
+  const nsIntRegion* renderRegion;
   if (PaintWillResample()) {
     // If we're resampling, then the texture image will contain exactly the
     // entire visible region's bounds, and we should draw it all in one quad
     // to avoid unexpected aliasing.
     tmpRegion = aVisibleRegion->GetBounds();
     renderRegion = &tmpRegion;
+  } else {
+    renderRegion = aVisibleRegion;
   }
-#endif
 
   // Render the low and high precision buffers.
   RenderLayerBuffer(mLowPrecisionTiledBuffer,
@@ -432,11 +424,10 @@ TiledContentHost::RenderTile(const TileHost& aTile,
   }
 
   nsIntRect screenBounds = aScreenRegion.GetBounds();
-  Rect layerQuad(screenBounds.x, screenBounds.y, screenBounds.width, screenBounds.height);
-  RenderTargetRect quad = RenderTargetRect::FromUnknown(aTransform.TransformBounds(layerQuad));
+  Rect quad(screenBounds.x, screenBounds.y, screenBounds.width, screenBounds.height);
+  quad = aTransform.TransformBounds(quad);
 
-  if (!quad.Intersects(mCompositor->ClipRectInLayersCoordinates(mLayer,
-      RenderTargetIntRect(aClipRect.x, aClipRect.y, aClipRect.width, aClipRect.height)))) {
+  if (!quad.Intersects(mCompositor->ClipRectInLayersCoordinates(aClipRect))) {
     return;
   }
 

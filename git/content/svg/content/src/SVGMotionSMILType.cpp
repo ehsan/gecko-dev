@@ -465,8 +465,8 @@ SVGMotionSMILType::CreateMatrix(const nsSMILValue& aSMILVal)
                                  arr[i].mRotateType,
                                  rotateAngle, point);
     }
-    matrix.PreTranslate(point.x, point.y);
-    matrix.PreRotate(rotateAngle);
+    matrix.Translate(point.x, point.y);
+    matrix = gfx::Matrix::Rotation(rotateAngle) * matrix;
   }
   return matrix;
 }

@@ -57,6 +57,7 @@
 .search-go-button {
   padding: 1px;
   list-style-image: url(moz-icon://stock/gtk-find?size=menu);
+  cursor: pointer;
 }
 
 menuitem[cmd="cmd_clearhistory"] {

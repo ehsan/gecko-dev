@@ -264,7 +264,7 @@ private:
   friend class nsDownload;
 };
 
-class nsDownload MOZ_FINAL : public nsIDownload
+class nsDownload : public nsIDownload
 {
 public:
   NS_DECL_NSIWEBPROGRESSLISTENER

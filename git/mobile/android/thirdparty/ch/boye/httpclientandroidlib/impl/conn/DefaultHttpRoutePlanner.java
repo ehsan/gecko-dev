@@ -30,18 +30,19 @@ package ch.boye.httpclientandroidlib.impl.conn;
 
 import java.net.InetAddress;
 
+import ch.boye.httpclientandroidlib.annotation.ThreadSafe;
+
 import ch.boye.httpclientandroidlib.HttpException;
 import ch.boye.httpclientandroidlib.HttpHost;
 import ch.boye.httpclientandroidlib.HttpRequest;
-import ch.boye.httpclientandroidlib.annotation.ThreadSafe;
-import ch.boye.httpclientandroidlib.conn.params.ConnRouteParams;
+import ch.boye.httpclientandroidlib.protocol.HttpContext;
+
 import ch.boye.httpclientandroidlib.conn.routing.HttpRoute;
 import ch.boye.httpclientandroidlib.conn.routing.HttpRoutePlanner;
 import ch.boye.httpclientandroidlib.conn.scheme.Scheme;
 import ch.boye.httpclientandroidlib.conn.scheme.SchemeRegistry;
-import ch.boye.httpclientandroidlib.protocol.HttpContext;
-import ch.boye.httpclientandroidlib.util.Args;
-import ch.boye.httpclientandroidlib.util.Asserts;
+
+import ch.boye.httpclientandroidlib.conn.params.ConnRouteParams;
 
 /**
  * Default implementation of an {@link HttpRoutePlanner}. This implementation
@@ -58,11 +59,8 @@ import ch.boye.httpclientandroidlib.util.Asserts;
  * </ul>
  *
  * @since 4.0
- *
- * @deprecated (4.3) use {@link DefaultRoutePlanner}
  */
 @ThreadSafe
-@Deprecated
 public class DefaultHttpRoutePlanner implements HttpRoutePlanner {
 
     /** The scheme registry. */
@@ -73,29 +71,37 @@ public class DefaultHttpRoutePlanner implements HttpRoutePlanner {
      *
      * @param schreg    the scheme registry
      */
-    public DefaultHttpRoutePlanner(final SchemeRegistry schreg) {
-        Args.notNull(schreg, "Scheme registry");
+    public DefaultHttpRoutePlanner(SchemeRegistry schreg) {
+        if (schreg == null) {
+            throw new IllegalArgumentException
+                ("SchemeRegistry must not be null.");
+        }
         schemeRegistry = schreg;
     }
 
-    public HttpRoute determineRoute(final HttpHost target,
-                                    final HttpRequest request,
-                                    final HttpContext context)
+    public HttpRoute determineRoute(HttpHost target,
+                                    HttpRequest request,
+                                    HttpContext context)
         throws HttpException {
 
-        Args.notNull(request, "HTTP request");
+        if (request == null) {
+            throw new IllegalStateException
+                ("Request must not be null.");
+        }
 
         // If we have a forced route, we can do without a target.
         HttpRoute route =
             ConnRouteParams.getForcedRoute(request.getParams());
-        if (route != null) {
+        if (route != null)
             return route;
-        }
 
         // If we get here, there is no forced route.
         // So we need a target to compute a route.
 
-        Asserts.notNull(target, "Target host");
+        if (target == null) {
+            throw new IllegalStateException
+                ("Target host must not be null.");
+        }
 
         final InetAddress local =
             ConnRouteParams.getLocalAddress(request.getParams());
@@ -104,8 +110,8 @@ public class DefaultHttpRoutePlanner implements HttpRoutePlanner {
 
         final Scheme schm;
         try {
-            schm = this.schemeRegistry.getScheme(target.getSchemeName());
-        } catch (final IllegalStateException ex) {
+            schm = schemeRegistry.getScheme(target.getSchemeName());
+        } catch (IllegalStateException ex) {
             throw new HttpException(ex.getMessage());
         }
         // as it is typically used for TLS/SSL, we assume that

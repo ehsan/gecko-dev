@@ -78,6 +78,7 @@ EXPORTS.mozilla += [
     'Mutex.h',
     'Observer.h',
     'ReentrantMonitor.h',
+    'unused.h',
 ]
 
 EXPORTS.mozilla.threads += [
@@ -94,7 +95,7 @@ UNIFIED_SOURCES += [
     'nsStringAPI.cpp',
 ]
 
-Library('xpcomglue_s')
+LIBRARY_NAME = 'xpcomglue_s'
 
 SDK_LIBRARY = True
 

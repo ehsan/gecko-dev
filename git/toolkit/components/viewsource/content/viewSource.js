@@ -323,7 +323,7 @@ function ViewSourceReload()
 // Strips the |view-source:| for internalSave()
 function ViewSourceSavePage()
 {
-  internalSave(window.content.location.href.replace(/^view-source:/i, ""),
+  internalSave(window.content.location.href.substring(12), 
                null, null, null, null, null, "SaveLinkTitle",
                null, null, window.content.document, null, gPageLoader);
 }

@@ -21,7 +21,6 @@ SharedTextureClientOGL::SharedTextureClientOGL(TextureFlags aFlags)
   : TextureClient(aFlags)
   , mHandle(0)
   , mInverted(false)
-  , mIsLocked(false)
 {
   // SharedTextureClient is always owned externally.
   mFlags |= TextureFlags::DEALLOCATE_CLIENT;

@@ -30,7 +30,7 @@ class RecorderProfileManager;
 class CameraControlImpl : public ICameraControl
 {
 public:
-  explicit CameraControlImpl(uint32_t aCameraId);
+  CameraControlImpl(uint32_t aCameraId);
   virtual void AddListener(CameraControlListener* aListener) MOZ_OVERRIDE;
   virtual void RemoveListener(CameraControlListener* aListener) MOZ_OVERRIDE;
 

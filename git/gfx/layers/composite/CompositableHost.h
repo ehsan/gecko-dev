@@ -19,7 +19,6 @@
 #include "mozilla/layers/CompositorTypes.h"  // for TextureInfo, etc
 #include "mozilla/layers/Effects.h"     // for Texture Effect
 #include "mozilla/layers/LayersTypes.h"  // for LayerRenderState, etc
-#include "mozilla/layers/LayersMessages.h"
 #include "mozilla/layers/TextureHost.h" // for TextureHost
 #include "mozilla/mozalloc.h"           // for operator delete
 #include "nsCOMPtr.h"                   // for already_AddRefed
@@ -89,7 +88,7 @@ protected:
 
 public:
   NS_INLINE_DECL_REFCOUNTING(CompositableHost)
-  explicit CompositableHost(const TextureInfo& aTextureInfo);
+  CompositableHost(const TextureInfo& aTextureInfo);
 
   static TemporaryRef<CompositableHost> Create(const TextureInfo& aTextureInfo);
 
@@ -256,7 +255,6 @@ public:
   virtual void UseTextureHost(TextureHost* aTexture);
   virtual void UseComponentAlphaTextures(TextureHost* aTextureOnBlack,
                                          TextureHost* aTextureOnWhite);
-  virtual void UseOverlaySource(OverlaySource aOverlay) { }
 
   virtual void RemoveTextureHost(TextureHost* aTexture);
 
@@ -306,7 +304,7 @@ protected:
 class AutoLockCompositableHost MOZ_FINAL
 {
 public:
-  explicit AutoLockCompositableHost(CompositableHost* aHost)
+  AutoLockCompositableHost(CompositableHost* aHost)
     : mHost(aHost)
   {
     mSucceeded = mHost->Lock();

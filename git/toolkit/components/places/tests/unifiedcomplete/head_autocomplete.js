@@ -27,7 +27,6 @@ function* cleanup() {
   Services.prefs.clearUserPref("browser.urlbar.autocomplete.enabled");
   Services.prefs.clearUserPref("browser.urlbar.autoFill");
   Services.prefs.clearUserPref("browser.urlbar.autoFill.typed");
-  Services.prefs.clearUserPref("browser.urlbar.autoFill.searchEngines");
   remove_all_bookmarks();
   yield promiseClearHistory();
 }
@@ -128,16 +127,12 @@ function* check_autocomplete(test) {
     deferred.resolve();
   }
 
-  let expectedSearches = 1;
-  if (test.incompleteSearch) {
-    controller.startSearch(test.incompleteSearch);
-    expectedSearches++;
-  }
   do_log_info("Searching for: '" + test.search + "'");
   controller.startSearch(test.search);
   yield deferred.promise;
 
-  Assert.equal(numSearchesStarted, expectedSearches, "All searches started");
+  // We should be running only one query.
+  Assert.equal(numSearchesStarted, 1, "Only one search started");
 
   // Check to see the expected uris and titles match up (in any order)
   if (test.matches) {

@@ -422,9 +422,8 @@ nsSimpleUnicharStreamFactory::CreateInstanceFromString(const nsAString& aString,
 }
 
 NS_IMETHODIMP
-nsSimpleUnicharStreamFactory::CreateInstanceFromUTF8Stream(
-    nsIInputStream* aStreamToWrap,
-    nsIUnicharInputStream** aResult)
+nsSimpleUnicharStreamFactory::CreateInstanceFromUTF8Stream(nsIInputStream* aStreamToWrap,
+                                                           nsIUnicharInputStream** aResult)
 {
   *aResult = nullptr;
 

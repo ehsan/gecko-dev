@@ -75,7 +75,8 @@ class CodeGeneratorMIPS : public CodeGeneratorShared
               return bailoutCmp32(c, lhs.toReg(), rhs, snapshot);
         if (lhs.getTag() == Operand::MEM)
               return bailoutCmp32(c, lhs.toAddress(), rhs, snapshot);
-        MOZ_CRASH("Invalid operand tag.");
+        MOZ_ASSUME_UNREACHABLE("Invalid operand tag.");
+        return false;
     }
     template<typename T>
     bool bailoutTest32(Assembler::Condition c, Register lhs, T rhs, LSnapshot *snapshot) {
@@ -120,7 +121,7 @@ class CodeGeneratorMIPS : public CodeGeneratorShared
             Label skip;
 
             masm.ma_b(lhs, rhs, &skip, Assembler::InvertCondition(cond), ShortJump);
-            backedge = masm.backedgeJump(&rejoin);
+            backedge = masm.jumpWithPatch(&rejoin);
             masm.bind(&rejoin);
             masm.bind(&skip);
 
@@ -181,8 +182,6 @@ class CodeGeneratorMIPS : public CodeGeneratorShared
     virtual bool visitPowHalfD(LPowHalfD *ins);
     virtual bool visitShiftI(LShiftI *ins);
     virtual bool visitUrshD(LUrshD *ins);
-
-    virtual bool visitClzI(LClzI *ins);
 
     virtual bool visitTestIAndBranch(LTestIAndBranch *test);
     virtual bool visitCompare(LCompare *comp);
@@ -265,21 +264,6 @@ class CodeGeneratorMIPS : public CodeGeneratorShared
     bool visitEffectiveAddress(LEffectiveAddress *ins);
     bool visitUDiv(LUDiv *ins);
     bool visitUMod(LUMod *ins);
-
-  public:
-    // Unimplemented SIMD instructions
-    bool visitSimdValueX4(LSimdValueX4 *lir) { MOZ_CRASH("NYI"); }
-    bool visitSimdSplatX4(LSimdSplatX4 *lir) { MOZ_CRASH("NYI"); }
-    bool visitInt32x4(LInt32x4 *ins) { MOZ_CRASH("NYI"); }
-    bool visitFloat32x4(LFloat32x4 *ins) { MOZ_CRASH("NYI"); }
-    bool visitSimdExtractElementI(LSimdExtractElementI *ins) { MOZ_CRASH("NYI"); }
-    bool visitSimdExtractElementF(LSimdExtractElementF *ins) { MOZ_CRASH("NYI"); }
-    bool visitSimdSignMaskX4(LSimdSignMaskX4 *ins) { MOZ_CRASH("NYI"); }
-    bool visitSimdBinaryCompIx4(LSimdBinaryCompIx4 *lir) { MOZ_CRASH("NYI"); }
-    bool visitSimdBinaryCompFx4(LSimdBinaryCompFx4 *lir) { MOZ_CRASH("NYI"); }
-    bool visitSimdBinaryArithIx4(LSimdBinaryArithIx4 *lir) { MOZ_CRASH("NYI"); }
-    bool visitSimdBinaryArithFx4(LSimdBinaryArithFx4 *lir) { MOZ_CRASH("NYI"); }
-    bool visitSimdBinaryBitwiseX4(LSimdBinaryBitwiseX4 *lir) { MOZ_CRASH("NYI"); }
 };
 
 typedef CodeGeneratorMIPS CodeGeneratorSpecific;

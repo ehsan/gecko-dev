@@ -117,9 +117,9 @@ static char* CFStringRefToUTF8Buffer(CFStringRef cfString)
 
 class AutoCFTypeObject {
 public:
-  explicit AutoCFTypeObject(CFTypeRef aObject)
+  AutoCFTypeObject(CFTypeRef object)
   {
-    mObject = aObject;
+    mObject = object;
   }
   ~AutoCFTypeObject()
   {

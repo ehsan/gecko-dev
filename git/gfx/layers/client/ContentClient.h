@@ -83,7 +83,7 @@ public:
    */
   static TemporaryRef<ContentClient> CreateContentClient(CompositableForwarder* aFwd);
 
-  explicit ContentClient(CompositableForwarder* aForwarder)
+  ContentClient(CompositableForwarder* aForwarder)
   : CompositableClient(aForwarder)
   {}
   virtual ~ContentClient()
@@ -113,7 +113,7 @@ public:
 class ContentClientRemote : public ContentClient
 {
 public:
-  explicit ContentClientRemote(CompositableForwarder* aForwarder)
+  ContentClientRemote(CompositableForwarder* aForwarder)
     : ContentClient(aForwarder)
   {}
 
@@ -123,8 +123,8 @@ public:
 };
 
 // thin wrapper around RotatedContentBuffer, for on-mtc
-class ContentClientBasic MOZ_FINAL : public ContentClient
-                                   , protected RotatedContentBuffer
+class ContentClientBasic : public ContentClient
+                         , protected RotatedContentBuffer
 {
 public:
   ContentClientBasic();
@@ -190,7 +190,7 @@ class ContentClientRemoteBuffer : public ContentClientRemote
   using RotatedContentBuffer::BufferRect;
   using RotatedContentBuffer::BufferRotation;
 public:
-  explicit ContentClientRemoteBuffer(CompositableForwarder* aForwarder)
+  ContentClientRemoteBuffer(CompositableForwarder* aForwarder)
     : ContentClientRemote(aForwarder)
     , RotatedContentBuffer(ContainsVisibleBounds)
     , mIsNewBuffer(false)
@@ -315,7 +315,7 @@ protected:
 class ContentClientDoubleBuffered : public ContentClientRemoteBuffer
 {
 public:
-  explicit ContentClientDoubleBuffered(CompositableForwarder* aFwd)
+  ContentClientDoubleBuffered(CompositableForwarder* aFwd)
     : ContentClientRemoteBuffer(aFwd)
   {
     mTextureInfo.mCompositableType = CompositableType::CONTENT_DOUBLE;
@@ -374,7 +374,7 @@ private:
 class ContentClientSingleBuffered : public ContentClientRemoteBuffer
 {
 public:
-  explicit ContentClientSingleBuffered(CompositableForwarder* aFwd)
+  ContentClientSingleBuffered(CompositableForwarder* aFwd)
     : ContentClientRemoteBuffer(aFwd)
   {
     mTextureInfo.mCompositableType = CompositableType::CONTENT_SINGLE;
@@ -394,7 +394,7 @@ class ContentClientIncremental : public ContentClientRemote
                                , public BorrowDrawTarget
 {
 public:
-  explicit ContentClientIncremental(CompositableForwarder* aFwd)
+  ContentClientIncremental(CompositableForwarder* aFwd)
     : ContentClientRemote(aFwd)
     , mContentType(gfxContentType::COLOR_ALPHA)
     , mHasBuffer(false)

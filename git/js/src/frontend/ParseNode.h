@@ -145,7 +145,6 @@ class UpvarCookie
     F(FORHEAD) \
     F(ARGSBODY) \
     F(SPREAD) \
-    F(MUTATEPROTO) \
     \
     /* Unary operators. */ \
     F(TYPEOF) \
@@ -832,13 +831,7 @@ class ParseNode
 #endif
     ;
 
-    enum AllowConstantObjects {
-        DontAllowObjects = 0,
-        DontAllowNestedObjects,
-        AllowObjects
-    };
-
-    bool getConstantValue(ExclusiveContext *cx, AllowConstantObjects allowObjects, MutableHandleValue vp);
+    bool getConstantValue(ExclusiveContext *cx, MutableHandleValue vp);
     inline bool isConstant();
 
     template <class NodeType>
@@ -1281,7 +1274,7 @@ struct CallSiteNode : public ListNode {
     }
 
     bool getRawArrayValue(ExclusiveContext *cx, MutableHandleValue vp) {
-        return pn_head->getConstantValue(cx, AllowObjects, vp);
+        return pn_head->getConstantValue(cx, vp);
     }
 };
 
@@ -1521,7 +1514,7 @@ enum ParseReportKind
     ParseStrictError
 };
 
-enum FunctionSyntaxKind { Expression, Statement, Arrow, Method };
+enum FunctionSyntaxKind { Expression, Statement, Arrow };
 
 static inline ParseNode *
 FunctionArgsList(ParseNode *fn, unsigned *numFormals)

@@ -20,7 +20,7 @@ class nsTableFrame;
 class FixedTableLayoutStrategy : public nsITableLayoutStrategy
 {
 public:
-    explicit FixedTableLayoutStrategy(nsTableFrame *aTableFrame);
+    FixedTableLayoutStrategy(nsTableFrame *aTableFrame);
     virtual ~FixedTableLayoutStrategy();
 
     // nsITableLayoutStrategy implementation

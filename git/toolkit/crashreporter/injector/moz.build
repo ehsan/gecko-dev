@@ -8,9 +8,11 @@ SOURCES += [
     'injector.cpp',
 ]
 
-SharedLibrary('breakpadinjector')
+LIBRARY_NAME = 'breakpadinjector'
 
 include('/ipc/chromium/chromium-config.mozbuild')
+
+FORCE_SHARED_LIB = True
 
 LOCAL_INCLUDES += [
     '/toolkit/crashreporter/google-breakpad/src',

@@ -71,8 +71,8 @@ static float GetSampleRateForAudioContext(bool aIsOffline, float aSampleRate)
   if (aIsOffline) {
     return aSampleRate;
   } else {
-    CubebUtils::InitPreferredSampleRate();
-    return static_cast<float>(CubebUtils::PreferredSampleRate());
+    AudioStream::InitPreferredSampleRate();
+    return static_cast<float>(AudioStream::PreferredSampleRate());
   }
 }
 
@@ -464,7 +464,7 @@ AudioContext::DecodeAudioData(const ArrayBuffer& aBuffer,
                           &aSuccessCallback, failureCallback));
   mDecoder.AsyncDecodeMedia(contentType.get(), data, length, *job);
   // Transfer the ownership to mDecodeJobs
-  mDecodeJobs.AppendElement(job.forget());
+  mDecodeJobs.AppendElement(job);
 }
 
 void
@@ -518,7 +518,7 @@ AudioContext::UpdatePannerSource()
 uint32_t
 AudioContext::MaxChannelCount() const
 {
-  return mIsOffline ? mNumberOfChannels : CubebUtils::MaxNumberOfChannels();
+  return mIsOffline ? mNumberOfChannels : AudioStream::MaxNumberOfChannels();
 }
 
 MediaStreamGraph*
@@ -540,8 +540,8 @@ double
 AudioContext::CurrentTime() const
 {
   MediaStream* stream = Destination()->Stream();
-  return StreamTimeToDOMTime(stream->
-                             StreamTimeToSeconds(stream->GetCurrentTime()));
+  return stream->StreamTimeToSeconds(stream->GetCurrentTime()) +
+      ExtraCurrentTime();
 }
 
 void

@@ -6,13 +6,12 @@
 #define NfcOptions_h
 
 #include "mozilla/dom/NfcOptionsBinding.h"
-#include "mozilla/dom/MozNDEFRecordBinding.h"
 
 namespace mozilla {
 
 struct NDEFRecordStruct
 {
-  dom::TNF mTnf;
+  uint8_t mTnf;
   nsTArray<uint8_t> mType;
   nsTArray<uint8_t> mId;
   nsTArray<uint8_t> mPayload;
@@ -41,28 +40,28 @@ struct CommandOptions
       return;
     }
 
-    mozilla::dom::Sequence<mozilla::dom::MozNDEFRecordOptions> const & currentValue = aOther.mRecords.InternalValue();
+    mozilla::dom::Sequence<mozilla::dom::NDEFRecord> const & currentValue = aOther.mRecords.InternalValue();
     int count = currentValue.Length();
-    for (int32_t i = 0; i < count; i++) {
+    for (uint32_t i = 0; i < count; i++) {
       NDEFRecordStruct record;
-      record.mTnf = currentValue[i].mTnf;
+      record.mTnf = currentValue[i].mTnf.Value();
 
       if (currentValue[i].mType.WasPassed()) {
-        const dom::Uint8Array& type = currentValue[i].mType.Value();
-        type.ComputeLengthAndData();
-        record.mType.AppendElements(type.Data(), type.Length());
+        currentValue[i].mType.Value().ComputeLengthAndData();
+        record.mType.AppendElements(currentValue[i].mType.Value().Data(),
+                                    currentValue[i].mType.Value().Length());
       }
 
       if (currentValue[i].mId.WasPassed()) {
-        const dom::Uint8Array& id = currentValue[i].mId.Value();
-        id.ComputeLengthAndData();
-        record.mId.AppendElements(id.Data(), id.Length());
+        currentValue[i].mId.Value().ComputeLengthAndData();
+        record.mId.AppendElements(currentValue[i].mId.Value().Data(),
+                                  currentValue[i].mId.Value().Length());
       }
 
       if (currentValue[i].mPayload.WasPassed()) {
-        const dom::Uint8Array& payload = currentValue[i].mPayload.Value();
-        payload.ComputeLengthAndData();
-        record.mPayload.AppendElements(payload.Data(), payload.Length());
+        currentValue[i].mPayload.Value().ComputeLengthAndData();
+        record.mPayload.AppendElements(currentValue[i].mPayload.Value().Data(),
+                                       currentValue[i].mPayload.Value().Length());
       }
 
       mRecords.AppendElement(record);
@@ -84,8 +83,7 @@ struct EventOptions
 {
   EventOptions()
     : mType(EmptyString()), mStatus(-1), mSessionId(-1), mRequestId(EmptyString()), mMajorVersion(-1), mMinorVersion(-1),
-      mIsReadOnly(-1), mCanBeMadeReadOnly(-1), mMaxSupportedLength(-1), mPowerLevel(-1),
-      mOriginType(-1), mOriginIndex(-1)
+      mIsReadOnly(-1), mCanBeMadeReadOnly(-1), mMaxSupportedLength(-1), mPowerLevel(-1)
   {}
 
   nsString mType;
@@ -100,11 +98,6 @@ struct EventOptions
   int32_t mCanBeMadeReadOnly;
   int32_t mMaxSupportedLength;
   int32_t mPowerLevel;
-
-  int32_t mOriginType;
-  int32_t mOriginIndex;
-  nsTArray<uint8_t> mAid;
-  nsTArray<uint8_t> mPayload;
 };
 
 } // namespace mozilla

@@ -30,9 +30,7 @@ package ch.boye.httpclientandroidlib.impl.io;
 import java.io.IOException;
 import java.io.OutputStream;
 
-import ch.boye.httpclientandroidlib.annotation.NotThreadSafe;
 import ch.boye.httpclientandroidlib.io.SessionOutputBuffer;
-import ch.boye.httpclientandroidlib.util.Args;
 
 /**
  * Output stream that writes data without any transformation. The end of
@@ -46,7 +44,6 @@ import ch.boye.httpclientandroidlib.util.Args;
  *
  * @since 4.0
  */
-@NotThreadSafe
 public class IdentityOutputStream extends OutputStream {
 
     /**
@@ -59,7 +56,10 @@ public class IdentityOutputStream extends OutputStream {
 
     public IdentityOutputStream(final SessionOutputBuffer out) {
         super();
-        this.out = Args.notNull(out, "Session output buffer");
+        if (out == null) {
+            throw new IllegalArgumentException("Session output buffer may not be null");
+        }
+        this.out = out;
     }
 
     /**
@@ -67,7 +67,6 @@ public class IdentityOutputStream extends OutputStream {
      *
      * @throws IOException If an I/O problem occurs.
      */
-    @Override
     public void close() throws IOException {
         if (!this.closed) {
             this.closed = true;
@@ -75,26 +74,22 @@ public class IdentityOutputStream extends OutputStream {
         }
     }
 
-    @Override
     public void flush() throws IOException {
         this.out.flush();
     }
 
-    @Override
-    public void write(final byte[] b, final int off, final int len) throws IOException {
+    public void write(byte[] b, int off, int len) throws IOException {
         if (this.closed) {
             throw new IOException("Attempted write to closed stream.");
         }
         this.out.write(b, off, len);
     }
 
-    @Override
-    public void write(final byte[] b) throws IOException {
+    public void write(byte[] b) throws IOException {
         write(b, 0, b.length);
     }
 
-    @Override
-    public void write(final int b) throws IOException {
+    public void write(int b) throws IOException {
         if (this.closed) {
             throw new IOException("Attempted write to closed stream.");
         }

@@ -315,7 +315,7 @@ NewInitArray(JSContext *cx, uint32_t count, types::TypeObject *typeArg)
     NewObjectKind newKind = !type ? SingletonObject : GenericObject;
     if (type && type->shouldPreTenure())
         newKind = TenuredObject;
-    RootedObject obj(cx, NewDenseFullyAllocatedArray(cx, count, nullptr, newKind));
+    RootedObject obj(cx, NewDenseAllocatedArray(cx, count, nullptr, newKind));
     if (!obj)
         return nullptr;
 
@@ -402,21 +402,6 @@ ArrayPushDense(JSContext *cx, HandleObject obj, HandleValue v, uint32_t *length)
 {
     JS_ASSERT(obj->is<ArrayObject>());
 
-    if (MOZ_LIKELY(obj->as<ArrayObject>().lengthIsWritable())) {
-        uint32_t idx = obj->as<ArrayObject>().length();
-        JSObject::EnsureDenseResult result = obj->ensureDenseElements(cx, idx, 1);
-        if (result == JSObject::ED_FAILED)
-            return false;
-
-        if (result == JSObject::ED_OK) {
-            obj->setDenseElement(idx, v);
-            MOZ_ASSERT(idx < INT32_MAX);
-            *length = idx + 1;
-            obj->as<ArrayObject>().setLengthInt32(*length);
-            return true;
-        }
-    }
-
     JS::AutoValueArray<3> argv(cx);
     argv[0].setUndefined();
     argv[1].setObject(*obj);
@@ -472,48 +457,10 @@ ArrayConcatDense(JSContext *cx, HandleObject obj1, HandleObject obj2, HandleObje
     return &argv[0].toObject();
 }
 
-JSString *
-ArrayJoin(JSContext *cx, HandleObject array, HandleString sep)
-{
-    // The annotations in this function follow the first steps of join
-    // specified in ES5.
-
-    // Step 1
-    RootedObject obj(cx, array);
-    if (!obj)
-        return nullptr;
-
-    AutoCycleDetector detector(cx, obj);
-    if (!detector.init())
-        return nullptr;
-
-    if (detector.foundCycle())
-        return nullptr;
-
-    // Steps 2 and 3
-    uint32_t length;
-    if (!GetLengthProperty(cx, obj, &length))
-        return nullptr;
-
-    // Steps 4 and 5
-    RootedLinearString sepstr(cx);
-    if (sep) {
-        sepstr = sep->ensureLinear(cx);
-        if (!sepstr)
-            return nullptr;
-    } else {
-        sepstr = cx->names().comma;
-    }
-
-    // Step 6 to 11
-    return js::ArrayJoin<false>(cx, obj, sepstr, length);
-}
-
-
 bool
 CharCodeAt(JSContext *cx, HandleString str, int32_t index, uint32_t *code)
 {
-    char16_t c;
+    jschar c;
     if (!str->getChar(cx, index, &c))
         return false;
     *code = c;
@@ -523,7 +470,7 @@ CharCodeAt(JSContext *cx, HandleString str, int32_t index, uint32_t *code)
 JSFlatString *
 StringFromCharCode(JSContext *cx, int32_t code)
 {
-    char16_t c = char16_t(code);
+    jschar c = jschar(code);
 
     if (StaticStrings::hasUnit(c))
         return cx->staticStrings().getUnit(c);
@@ -747,8 +694,8 @@ FilterArgumentsOrEval(JSContext *cx, JSString *str)
     if (!linear)
         return false;
 
-    static const char16_t arguments[] = {'a', 'r', 'g', 'u', 'm', 'e', 'n', 't', 's'};
-    static const char16_t eval[] = {'e', 'v', 'a', 'l'};
+    static const jschar arguments[] = {'a', 'r', 'g', 'u', 'm', 'e', 'n', 't', 's'};
+    static const jschar eval[] = {'e', 'v', 'a', 'l'};
 
     return !StringHasPattern(linear, arguments, mozilla::ArrayLength(arguments)) &&
         !StringHasPattern(linear, eval, mozilla::ArrayLength(eval));
@@ -813,7 +760,7 @@ DebugPrologue(JSContext *cx, BaselineFrame *frame, jsbytecode *pc, bool *mustRet
         return false;
 
       default:
-        MOZ_CRASH("Invalid trap status");
+        MOZ_ASSUME_UNREACHABLE("Invalid trap status");
     }
 }
 
@@ -965,7 +912,7 @@ HandleDebugTrap(JSContext *cx, BaselineFrame *frame, uint8_t *retAddr, bool *mus
         return false;
 
       default:
-        MOZ_CRASH("Invalid trap status");
+        MOZ_ASSUME_UNREACHABLE("Invalid trap status");
     }
 
     return true;
@@ -996,7 +943,7 @@ OnDebuggerStatement(JSContext *cx, BaselineFrame *frame, jsbytecode *pc, bool *m
         return false;
 
       default:
-        MOZ_CRASH("Invalid trap status");
+        MOZ_ASSUME_UNREACHABLE("Invalid trap status");
     }
 }
 
@@ -1237,24 +1184,6 @@ TypedObjectProto(JSObject *obj)
     JS_ASSERT(obj->is<TypedObject>());
     TypedObject &typedObj = obj->as<TypedObject>();
     return &typedObj.typedProto();
-}
-
-void
-MarkValueFromIon(JSRuntime *rt, Value *vp)
-{
-    gc::MarkValueUnbarriered(&rt->gc.marker, vp, "write barrier");
-}
-
-void
-MarkShapeFromIon(JSRuntime *rt, Shape **shapep)
-{
-    gc::MarkShapeUnbarriered(&rt->gc.marker, shapep, "write barrier");
-}
-
-void
-MarkTypeObjectFromIon(JSRuntime *rt, types::TypeObject **typep)
-{
-    gc::MarkTypeObjectUnbarriered(&rt->gc.marker, typep, "write barrier");
 }
 
 } // namespace jit

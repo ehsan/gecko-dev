@@ -38,7 +38,7 @@ class mozIStorageStatementCallback;
 class UnassociatedIconHashKey : public nsURIHashKey
 {
 public:
-  explicit UnassociatedIconHashKey(const nsIURI* aURI)
+  UnassociatedIconHashKey(const nsIURI* aURI)
   : nsURIHashKey(aURI)
   {
   }

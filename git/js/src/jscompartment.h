@@ -231,9 +231,10 @@ struct JSCompartment
                                 size_t *tiArrayTypeTables,
                                 size_t *tiObjectTypeTables,
                                 size_t *compartmentObject,
-                                size_t *compartmentTables,
+                                size_t *shapesCompartmentTables,
                                 size_t *crossCompartmentWrappers,
                                 size_t *regexpCompartment,
+                                size_t *debuggeesSet,
                                 size_t *savedStacksSet);
 
     /*
@@ -253,9 +254,8 @@ struct JSCompartment
     js::types::TypeObjectWithNewScriptSet newTypeObjects;
     js::types::TypeObjectWithNewScriptSet lazyTypeObjects;
     void sweepNewTypeObjectTable(js::types::TypeObjectWithNewScriptSet &table);
-#ifdef JSGC_HASH_TABLE_CHECKS
-    void checkTypeObjectTablesAfterMovingGC();
-    void checkTypeObjectTableAfterMovingGC(js::types::TypeObjectWithNewScriptSet &table);
+#if defined(JSGC_GENERATIONAL) && defined(JS_GC_ZEAL)
+    void checkNewTypeObjectTableAfterMovingGC();
     void checkInitialShapesTableAfterMovingGC();
     void checkWrapperMapAfterMovingGC();
 #endif
@@ -294,11 +294,14 @@ struct JSCompartment
 
   private:
     enum {
-        DebugMode = 1 << 0,
-        DebugNeedDelazification = 1 << 1
+        DebugFromC = 1 << 0,
+        DebugFromJS = 1 << 1,
+        DebugNeedDelazification = 1 << 2
     };
 
-    unsigned                     debugModeBits;
+    static const unsigned DebugModeFromMask = DebugFromC | DebugFromJS;
+
+    unsigned                     debugModeBits;  // see debugMode() below
 
   public:
     JSCompartment(JS::Zone *zone, const JS::CompartmentOptions &options);
@@ -320,14 +323,6 @@ struct JSCompartment
     bool wrap(JSContext *cx, js::StrictPropertyOp *op);
     bool wrap(JSContext *cx, JS::MutableHandle<js::PropertyDescriptor> desc);
     bool wrap(JSContext *cx, JS::MutableHandle<js::PropDesc> desc);
-
-    template<typename T> bool wrap(JSContext *cx, JS::AutoVectorRooter<T> &vec) {
-        for (size_t i = 0; i < vec.length(); ++i) {
-            if (!wrap(cx, vec[i]))
-                return false;
-        }
-        return true;
-    };
 
     bool putWrapper(JSContext *cx, const js::CrossCompartmentKey& wrapped, const js::Value& wrapper);
 
@@ -351,14 +346,6 @@ struct JSCompartment
     void purge();
     void clearTables();
 
-#ifdef JSGC_COMPACTING
-    void fixupInitialShapeTable();
-    void fixupNewTypeObjectTable(js::types::TypeObjectWithNewScriptSet &table);
-    void fixupCrossCompartmentWrappers(JSTracer *trc);
-    void fixupAfterMovingGC();
-    void fixupGlobal();
-#endif
-
     bool hasObjectMetadataCallback() const { return objectMetadataCallback; }
     void setObjectMetadataCallback(js::ObjectMetadataCallback callback);
     void forgetObjectMetadataCallback() {
@@ -378,23 +365,30 @@ struct JSCompartment
     uint64_t rngState;
 
   private:
+    /*
+     * Weak reference to each global in this compartment that is a debuggee.
+     * Each global has its own list of debuggers.
+     */
+    js::GlobalObjectSet              debuggees;
+
+  private:
     JSCompartment *thisForCtor() { return this; }
 
-    // Only called from {enter,leave}DebugMode.
-    bool updateJITForDebugMode(JSContext *maybecx, js::AutoDebugModeInvalidation &invalidate);
-
   public:
-    // True if this compartment's global is a debuggee of some Debugger
-    // object.
+    /*
+     * There are dueling APIs for debug mode. It can be enabled or disabled via
+     * JS_SetDebugModeForCompartment. It is automatically enabled and disabled
+     * by Debugger objects. Therefore debugModeBits has the DebugFromC bit set
+     * if the C API wants debug mode and the DebugFromJS bit set if debuggees
+     * is non-empty.
+     *
+     * When toggling on, DebugNeedDelazification is set to signal that
+     * Debugger methods which depend on seeing all scripts (like findScripts)
+     * need to delazify the scripts in the compartment first.
+     */
     bool debugMode() const {
-        return !!(debugModeBits & DebugMode);
+        return !!(debugModeBits & DebugModeFromMask);
     }
-
-    bool enterDebugMode(JSContext *cx);
-    bool enterDebugMode(JSContext *cx, js::AutoDebugModeInvalidation &invalidate);
-    bool leaveDebugMode(JSContext *cx);
-    bool leaveDebugMode(JSContext *cx, js::AutoDebugModeInvalidation &invalidate);
-    void leaveDebugModeUnderGC();
 
     /* True if any scripts from this compartment are on the JS stack. */
     bool hasScriptsOnStack();
@@ -412,6 +406,29 @@ struct JSCompartment
      * scripts.
      */
     bool ensureDelazifyScriptsForDebugMode(JSContext *cx);
+
+  private:
+
+    /* This is called only when debugMode() has just toggled. */
+    bool updateJITForDebugMode(JSContext *maybecx, js::AutoDebugModeInvalidation &invalidate);
+
+  public:
+    js::GlobalObjectSet &getDebuggees() { return debuggees; }
+    bool addDebuggee(JSContext *cx, js::GlobalObject *global);
+    bool addDebuggee(JSContext *cx, js::GlobalObject *global,
+                     js::AutoDebugModeInvalidation &invalidate);
+    bool removeDebuggee(JSContext *cx, js::GlobalObject *global,
+                        js::GlobalObjectSet::Enum *debuggeesEnum = nullptr);
+    bool removeDebuggee(JSContext *cx, js::GlobalObject *global,
+                        js::AutoDebugModeInvalidation &invalidate,
+                        js::GlobalObjectSet::Enum *debuggeesEnum = nullptr);
+    void removeDebuggeeUnderGC(js::FreeOp *fop, js::GlobalObject *global,
+                               js::GlobalObjectSet::Enum *debuggeesEnum = nullptr);
+    void removeDebuggeeUnderGC(js::FreeOp *fop, js::GlobalObject *global,
+                               js::AutoDebugModeInvalidation &invalidate,
+                               js::GlobalObjectSet::Enum *debuggeesEnum = nullptr);
+    bool setDebugModeFromC(JSContext *cx, bool b,
+                           js::AutoDebugModeInvalidation &invalidate);
 
     void clearBreakpointsIn(js::FreeOp *fop, js::Debugger *dbg, JS::HandleObject handler);
 

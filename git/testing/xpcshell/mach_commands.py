@@ -68,7 +68,7 @@ class XPCShellRunner(MozbuildObject):
     def run_test(self, test_paths, interactive=False,
                  keep_going=False, sequential=False, shuffle=False,
                  debugger=None, debuggerArgs=None, debuggerInteractive=None,
-                 rerun_failures=False, test_objects=None, verbose=False,
+                 rerun_failures=False, test_objects=None,
                  # ignore parameters from other platforms' options
                  **kwargs):
         """Runs an individual xpcshell test."""
@@ -85,8 +85,7 @@ class XPCShellRunner(MozbuildObject):
                            keep_going=keep_going, shuffle=shuffle, sequential=sequential,
                            debugger=debugger, debuggerArgs=debuggerArgs,
                            debuggerInteractive=debuggerInteractive,
-                           rerun_failures=rerun_failures,
-                           verbose=verbose)
+                           rerun_failures=rerun_failures)
             return
         elif test_paths:
             test_paths = [self._wrap_path_argument(p).relpath() for p in test_paths]
@@ -117,7 +116,6 @@ class XPCShellRunner(MozbuildObject):
             'debuggerInteractive': debuggerInteractive,
             'rerun_failures': rerun_failures,
             'manifest': manifest,
-            'verbose': verbose,
         }
 
         return self._run_xpcshell_harness(**args)
@@ -126,7 +124,7 @@ class XPCShellRunner(MozbuildObject):
                               test_path=None, shuffle=False, interactive=False,
                               keep_going=False, sequential=False,
                               debugger=None, debuggerArgs=None, debuggerInteractive=None,
-                              rerun_failures=False, verbose=False):
+                              rerun_failures=False):
 
         # Obtain a reference to the xpcshell test runner.
         import runxpcshelltests
@@ -142,10 +140,8 @@ class XPCShellRunner(MozbuildObject):
         modules_dir = os.path.join(self.topobjdir, '_tests', 'modules')
         # We want output from the test to be written immediately if we are only
         # running a single test.
-        verbose_output = (test_path is not None or
-                          (manifest and len(manifest.test_paths())==1) or
-                          verbose)
-
+        verbose_output = test_path is not None or (manifest and len(manifest.test_paths())==1)
+        
         # We need to attach the '.exe' extension on Windows for the debugger to
         # work properly.
         xpcsExecutable = 'xpcshell'
@@ -424,8 +420,6 @@ class MachCommands(MachCommandBase):
     @CommandArgument('test_paths', default='all', nargs='*', metavar='TEST',
         help='Test to run. Can be specified as a single JS file, a directory, '
              'or omitted. If omitted, the entire test suite is executed.')
-    @CommandArgument('--verbose', '-v', action='store_true',
-        help='Provide full output from each test process.')
     @CommandArgument("--debugger", default=None, metavar='DEBUGGER',
                      help = "Run xpcshell under the given debugger.")
     @CommandArgument("--debugger-args", default=None, metavar='ARGS', type=str,

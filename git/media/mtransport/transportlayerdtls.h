@@ -30,7 +30,7 @@ struct Packet;
 
 class TransportLayerNSPRAdapter {
  public:
-  explicit TransportLayerNSPRAdapter(TransportLayer *output) :
+  TransportLayerNSPRAdapter(TransportLayer *output) :
   output_(output),
   input_() {}
 

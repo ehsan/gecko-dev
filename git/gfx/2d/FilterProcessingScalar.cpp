@@ -6,7 +6,6 @@
 #define FILTER_PROCESSING_SCALAR
 
 #include "FilterProcessingSIMD-inl.h"
-#include "Logging.h"
 
 namespace mozilla {
 namespace gfx {
@@ -36,7 +35,7 @@ ApplyBlending_Scalar(DataSourceSurface* aInput1, DataSourceSurface* aInput2)
   IntSize size = aInput1->GetSize();
   RefPtr<DataSourceSurface> target =
     Factory::CreateDataSourceSurface(size, SurfaceFormat::B8G8R8A8);
-  if (MOZ2D_WARN_IF(!target)) {
+  if (!target) {
     return nullptr;
   }
 

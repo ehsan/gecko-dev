@@ -28,11 +28,11 @@ using JS::ubi::Node;
 using JS::ubi::TracerConcrete;
 
 // All operations on null ubi::Nodes crash.
-const char16_t *Concrete<void>::typeName() const          { MOZ_CRASH("null ubi::Node"); }
-size_t Concrete<void>::size() const                       { MOZ_CRASH("null ubi::Node"); }
-EdgeRange *Concrete<void>::edges(JSContext *, bool) const { MOZ_CRASH("null ubi::Node"); }
-JS::Zone *Concrete<void>::zone() const                    { MOZ_CRASH("null ubi::Node"); }
-JSCompartment *Concrete<void>::compartment() const        { MOZ_CRASH("null ubi::Node"); }
+const jschar *Concrete<void>::typeName() const      { MOZ_CRASH("null ubi::Node"); }
+size_t Concrete<void>::size() const                 { MOZ_CRASH("null ubi::Node"); }
+EdgeRange *Concrete<void>::edges(JSContext *) const { MOZ_CRASH("null ubi::Node"); }
+JS::Zone *Concrete<void>::zone() const              { MOZ_CRASH("null ubi::Node"); }
+JSCompartment *Concrete<void>::compartment() const  { MOZ_CRASH("null ubi::Node"); }
 
 Node::Node(JSGCTraceKind kind, void *ptr)
 {
@@ -99,12 +99,12 @@ class SimpleEdge : public Edge {
     SimpleEdge() : Edge() { }
 
     // Construct an initialized SimpleEdge, taking ownership of |name|.
-    SimpleEdge(char16_t *name, const Node &referent) {
+    SimpleEdge(jschar *name, const Node &referent) {
         this->name = name;
         this->referent = referent;
     }
     ~SimpleEdge() {
-        js_free(const_cast<char16_t *>(name));
+        js_free(const_cast<jschar *>(name));
     }
 
     // Move construction and assignment.
@@ -132,9 +132,6 @@ class SimpleEdgeVectorTracer : public JSTracer {
     // The vector to which we add SimpleEdges.
     SimpleEdgeVector *vec;
 
-    // True if we should populate the edge's names.
-    bool wantNames;
-
     static void staticCallback(JSTracer *trc, void **thingp, JSGCTraceKind kind) {
         static_cast<SimpleEdgeVectorTracer *>(trc)->callback(thingp, kind);
     }
@@ -143,30 +140,27 @@ class SimpleEdgeVectorTracer : public JSTracer {
         if (!okay)
             return;
 
-        char16_t *name16 = nullptr;
-        if (wantNames) {
-            // Ask the tracer to compute an edge name for us.
-            char buffer[1024];
-            const char *name = getTracingEdgeName(buffer, sizeof(buffer));
+        // Ask the tracer to compute an edge name for us.
+        char buffer[1024];
+        const char *name = getTracingEdgeName(buffer, sizeof(buffer));
 
-            // Convert the name to char16_t characters.
-            name16 = js_pod_malloc<char16_t>(strlen(name) + 1);
-            if (!name16) {
-                okay = false;
-                return;
-            }
-
-            size_t i;
-            for (i = 0; name[i]; i++)
-                name16[i] = name[i];
-            name16[i] = '\0';
+        // Convert the name to jschars.
+        jschar *jsname = js_pod_malloc<jschar>(strlen(name) + 1);
+        if (!jsname) {
+            okay = false;
+            return;
         }
+
+        size_t i;
+        for (i = 0; name[i]; i++)
+            jsname[i] = name[i];
+        jsname[i] = '\0';
 
         // The simplest code is correct! The temporary SimpleEdge takes
         // ownership of name; if the append succeeds, the vector element
         // then takes ownership; if the append fails, then the temporary
         // retains it, and its destructor will free it.
-        if (!vec->append(mozilla::Move(SimpleEdge(name16, Node(kind, *thingp))))) {
+        if (!vec->append(mozilla::Move(SimpleEdge(jsname, Node(kind, *thingp))))) {
             okay = false;
             return;
         }
@@ -176,12 +170,9 @@ class SimpleEdgeVectorTracer : public JSTracer {
     // True if no errors (OOM, say) have yet occurred.
     bool okay;
 
-    SimpleEdgeVectorTracer(JSContext *cx, SimpleEdgeVector *vec, bool wantNames)
-      : JSTracer(JS_GetRuntime(cx), staticCallback),
-        vec(vec),
-        wantNames(wantNames),
-        okay(true)
-    { }
+    SimpleEdgeVectorTracer(JSContext *cx, SimpleEdgeVector *vec)
+        : JSTracer(JS_GetRuntime(cx), staticCallback), vec(vec), okay(true) {
+    }
 };
 
 
@@ -196,10 +187,10 @@ class SimpleEdgeRange : public EdgeRange {
     }
 
   public:
-    explicit SimpleEdgeRange(JSContext *cx) : edges(cx), i(0) { }
+    SimpleEdgeRange(JSContext *cx) : edges(cx), i(0) { }
 
-    bool init(JSContext *cx, void *thing, JSGCTraceKind kind, bool wantNames = true) {
-        SimpleEdgeVectorTracer tracer(cx, &edges, wantNames);
+    bool init(JSContext *cx, void *thing, JSGCTraceKind kind) {
+        SimpleEdgeVectorTracer tracer(cx, &edges);
         JS_TraceChildren(&tracer, thing, kind);
         settle();
         return tracer.okay;
@@ -211,32 +202,32 @@ class SimpleEdgeRange : public EdgeRange {
 
 template<typename Referent>
 EdgeRange *
-TracerConcrete<Referent>::edges(JSContext *cx, bool wantNames) const {
+TracerConcrete<Referent>::edges(JSContext *cx) const {
     js::ScopedJSDeletePtr<SimpleEdgeRange> r(js_new<SimpleEdgeRange>(cx));
     if (!r)
         return nullptr;
 
-    if (!r->init(cx, ptr, ::js::gc::MapTypeToTraceKind<Referent>::kind, wantNames))
+    if (!r->init(cx, ptr, ::js::gc::MapTypeToTraceKind<Referent>::kind))
         return nullptr;
 
     return r.forget();
 }
 
-template<> const char16_t TracerConcrete<JSObject>::concreteTypeName[] =
+template<> const jschar TracerConcrete<JSObject>::concreteTypeName[] =
     MOZ_UTF16("JSObject");
-template<> const char16_t TracerConcrete<JSString>::concreteTypeName[] =
+template<> const jschar TracerConcrete<JSString>::concreteTypeName[] =
     MOZ_UTF16("JSString");
-template<> const char16_t TracerConcrete<JS::Symbol>::concreteTypeName[] =
+template<> const jschar TracerConcrete<JS::Symbol>::concreteTypeName[] =
     MOZ_UTF16("JS::Symbol");
-template<> const char16_t TracerConcrete<JSScript>::concreteTypeName[] =
+template<> const jschar TracerConcrete<JSScript>::concreteTypeName[] =
     MOZ_UTF16("JSScript");
-template<> const char16_t TracerConcrete<js::LazyScript>::concreteTypeName[] =
+template<> const jschar TracerConcrete<js::LazyScript>::concreteTypeName[] =
     MOZ_UTF16("js::LazyScript");
-template<> const char16_t TracerConcrete<js::jit::JitCode>::concreteTypeName[] =
+template<> const jschar TracerConcrete<js::jit::JitCode>::concreteTypeName[] =
     MOZ_UTF16("js::jit::JitCode");
-template<> const char16_t TracerConcrete<js::Shape>::concreteTypeName[] =
+template<> const jschar TracerConcrete<js::Shape>::concreteTypeName[] =
     MOZ_UTF16("js::Shape");
-template<> const char16_t TracerConcrete<js::BaseShape>::concreteTypeName[] =
+template<> const jschar TracerConcrete<js::BaseShape>::concreteTypeName[] =
     MOZ_UTF16("js::BaseShape");
-template<> const char16_t TracerConcrete<js::types::TypeObject>::concreteTypeName[] =
+template<> const jschar TracerConcrete<js::types::TypeObject>::concreteTypeName[] =
     MOZ_UTF16("js::types::TypeObject");

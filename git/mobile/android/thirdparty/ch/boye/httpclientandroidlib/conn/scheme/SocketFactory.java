@@ -41,7 +41,7 @@ import ch.boye.httpclientandroidlib.params.HttpParams;
  *
  * @since 4.0
  *
- * @deprecated (4.1)  use {@link SchemeSocketFactory}
+ * @deprecated use {@link SchemeSocketFactory}
  */
 @Deprecated
 public interface SocketFactory {

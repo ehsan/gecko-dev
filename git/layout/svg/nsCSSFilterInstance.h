@@ -9,11 +9,7 @@
 #include "FilterSupport.h"
 #include "gfxMatrix.h"
 #include "gfxRect.h"
-#include "mozilla/gfx/Point.h"
-#include "mozilla/gfx/Types.h"
-#include "nsColor.h"
 
-class nsIFrame;
 struct nsStyleFilter;
 template<class T> class nsTArray;
 
@@ -24,11 +20,8 @@ template<class T> class nsTArray;
  */
 class nsCSSFilterInstance
 {
-  typedef mozilla::gfx::Color Color;
   typedef mozilla::gfx::FilterPrimitiveDescription FilterPrimitiveDescription;
-  typedef mozilla::gfx::IntPoint IntPoint;
   typedef mozilla::gfx::PrimitiveType PrimitiveType;
-  typedef mozilla::gfx::Size Size;
 
 public:
   /**
@@ -41,7 +34,6 @@ public:
    *   the filtered element's frame space in CSS pixels to filter space.
    */
   nsCSSFilterInstance(const nsStyleFilter& aFilter,
-                      nsIFrame *aTargetFrame,
                       const nsIntRect& mTargetBBoxInFilterSpace,
                       const gfxMatrix& aFrameSpaceInCSSPxToFilterSpaceTransform);
 
@@ -63,15 +55,6 @@ private:
    * Sets aDescr's attributes using the style info in mFilter.
    */
   nsresult SetAttributesForBlur(FilterPrimitiveDescription& aDescr);
-  nsresult SetAttributesForBrightness(FilterPrimitiveDescription& aDescr);
-  nsresult SetAttributesForContrast(FilterPrimitiveDescription& aDescr);
-  nsresult SetAttributesForDropShadow(FilterPrimitiveDescription& aDescr);
-  nsresult SetAttributesForGrayscale(FilterPrimitiveDescription& aDescr);
-  nsresult SetAttributesForHueRotate(FilterPrimitiveDescription& aDescr);
-  nsresult SetAttributesForInvert(FilterPrimitiveDescription& aDescr);
-  nsresult SetAttributesForOpacity(FilterPrimitiveDescription& aDescr);
-  nsresult SetAttributesForSaturate(FilterPrimitiveDescription& aDescr);
-  nsresult SetAttributesForSepia(FilterPrimitiveDescription& aDescr);
 
   /**
    * Returns the index of the last result in the aPrimitiveDescrs, which we'll
@@ -89,32 +72,9 @@ private:
                  const nsTArray<FilterPrimitiveDescription>& aPrimitiveDescrs);
 
   /**
-   * Converts an nscolor to a Color, suitable for use as a
-   * FilterPrimitiveDescription attribute.
-   */
-  Color ToAttributeColor(nscolor aColor);
-
-  /**
-   * Converts a blur radius in frame space to filter space.
-   */
-  Size BlurRadiusToFilterSpace(nscoord aRadiusInFrameSpace);
-
-  /**
-   * Converts a point defined by a pair of nscoord x, y coordinates from frame
-   * space to filter space.
-   */
-  IntPoint OffsetToFilterSpace(nscoord aXOffsetInFrameSpace,
-                               nscoord aYOffsetInFrameSpace);
-
-  /**
    * The CSS filter originally from the style system.
    */
   const nsStyleFilter& mFilter;
-
-  /**
-   * The frame for the element that is currently being filtered.
-   */
-  nsIFrame* mTargetFrame;
 
   /**
    * The bounding box of the element being filtered, in filter space. Used for

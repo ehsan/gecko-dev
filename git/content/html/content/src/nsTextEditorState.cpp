@@ -45,7 +45,6 @@
 #include "mozilla/dom/ScriptSettings.h"
 #include "mozilla/dom/HTMLInputElement.h"
 #include "nsNumberControlFrame.h"
-#include "nsFrameSelection.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -55,7 +54,7 @@ static NS_DEFINE_CID(kTextEditorCID, NS_TEXTEDITOR_CID);
 class MOZ_STACK_CLASS ValueSetter
 {
 public:
-  explicit ValueSetter(nsIEditor* aEditor)
+  ValueSetter(nsIEditor* aEditor)
     : mEditor(aEditor)
   {
     MOZ_ASSERT(aEditor);
@@ -185,7 +184,7 @@ SuppressEventHandlers(nsPresContext* aPresContext)
 class nsAnonDivObserver MOZ_FINAL : public nsStubMutationObserver
 {
 public:
-  explicit nsAnonDivObserver(nsTextEditorState* aTextEditorState)
+  nsAnonDivObserver(nsTextEditorState* aTextEditorState)
   : mTextEditorState(aTextEditorState) {}
   NS_DECL_ISUPPORTS
   NS_DECL_NSIMUTATIONOBSERVER_CHARACTERDATACHANGED
@@ -418,8 +417,10 @@ nsTextInputSelectionImpl::GetCaretVisible(bool *_retval)
   {
     nsRefPtr<nsCaret> caret = shell->GetCaret();
     if (caret) {
-      *_retval = caret->IsVisible();
-      return NS_OK;
+      nsISelection* domSel = mFrameSelection->
+        GetSelection(nsISelectionController::SELECTION_NORMAL);
+      if (domSel)
+        return caret->GetCaretVisible(_retval);
     }
   }
   return NS_ERROR_FAILURE;
@@ -545,7 +546,7 @@ nsTextInputSelectionImpl::CompleteMove(bool aForward, bool aExtend)
 
   // make the caret be either at the very beginning (0) or the very end
   int32_t offset = 0;
-  CaretAssociationHint hint = CARET_ASSOCIATE_BEFORE;
+  nsFrameSelection::HINT hint = nsFrameSelection::HINTLEFT;
   if (aForward)
   {
     offset = parentDIV->GetChildCount();
@@ -560,7 +561,7 @@ nsTextInputSelectionImpl::CompleteMove(bool aForward, bool aExtend)
       if (child->Tag() == nsGkAtoms::br)
       {
         --offset;
-        hint = CARET_ASSOCIATE_AFTER; // for Bug 106855
+        hint = nsFrameSelection::HINTRIGHT; // for Bug 106855
       }
     }
   }
@@ -1517,16 +1518,6 @@ nsTextEditorState::UnbindFromFrame(nsTextControlFrame* aFrame)
   // If it was, however, it should be unbounded from the same frame.
   NS_ASSERTION(!aFrame || aFrame == mBoundFrame, "Unbinding from the wrong frame");
   NS_ENSURE_TRUE_VOID(!aFrame || aFrame == mBoundFrame);
-
-  // If the editor is modified but nsIEditorObserver::EditAction() hasn't been
-  // called yet, we need to notify it here because editor may be destroyed
-  // before EditAction() is called if selection listener causes flushing layout.
-  bool isInEditAction = false;
-  if (mTextListener && mEditor && mEditorInitialized &&
-      NS_SUCCEEDED(mEditor->GetIsInEditAction(&isInEditAction)) &&
-      isInEditAction) {
-    mTextListener->EditAction();
-  }
 
   // We need to start storing the value outside of the editor if we're not
   // going to use it anymore, so retrieve it for now.

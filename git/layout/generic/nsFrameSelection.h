@@ -12,13 +12,10 @@
 #include "nsIFrame.h"
 #include "nsIContent.h"
 #include "nsISelectionController.h"
-#include "nsISelectionListener.h"
 #include "nsITableCellLayout.h"
 #include "nsIDOMElement.h"
-#include "WordMovementType.h"
-#include "CaretAssociationHint.h"
+#include "nsRange.h"
 
-class nsRange;
 class nsTableOuterFrame;
 
 // IID for the nsFrameSelection interface
@@ -53,6 +50,8 @@ struct SelectionDetails
 class nsIPresShell;
 class nsIScrollableFrame;
 
+enum EWordMovementType { eStartWord, eEndWord, eDefaultBehavior };
+
 /** PeekOffsetStruct is used to group various arguments (both input and output)
  *  that are passed to nsFrame::PeekOffset(). See below for the description of
  *  individual arguments.
@@ -67,7 +66,22 @@ struct MOZ_STACK_CLASS nsPeekOffsetStruct
                      bool aScrollViewStop,
                      bool aIsKeyboardSelect,
                      bool aVisual,
-                     mozilla::EWordMovementType aWordMovementType = mozilla::eDefaultBehavior);
+                     EWordMovementType aWordMovementType = eDefaultBehavior)
+    : mAmount(aAmount)
+    , mDirection(aDirection)
+    , mStartOffset(aStartOffset)
+    , mDesiredX(aDesiredX)
+    , mWordMovementType(aWordMovementType)
+    , mJumpLines(aJumpLines)
+    , mScrollViewStop(aScrollViewStop)
+    , mIsKeyboardSelect(aIsKeyboardSelect)
+    , mVisual(aVisual)
+    , mResultContent()
+    , mResultFrame(nullptr)
+    , mContentOffset(0)
+    , mAttachForward(false)
+  {
+  }
 
   // Note: Most arguments (input and output) are only used with certain values
   // of mAmount. These values are indicated for each argument below.
@@ -103,7 +117,7 @@ struct MOZ_STACK_CLASS nsPeekOffsetStruct
   //                    or to use the default beahvior, which is a combination of 
   //                    direction and the platform-based pref
   //                    "layout.word_select.eat_space_to_next_word"
-  mozilla::EWordMovementType mWordMovementType;
+  EWordMovementType mWordMovementType;
 
   // mJumpLines: Whether to allow jumping across line boundaries.
   //             Used with: eSelectCharacter, eSelectWord.
@@ -138,7 +152,7 @@ struct MOZ_STACK_CLASS nsPeekOffsetStruct
   //                 false means "the end of the frame logically before the caret", 
   //                 true means "the beginning of the frame logically after the caret".
   //                 Used with: eSelectLine, eSelectBeginLine, eSelectEndLine.
-  mozilla::CaretAssociationHint mAttach;
+  bool mAttachForward;
 };
 
 struct nsPrevNextBidiLevels
@@ -174,8 +188,7 @@ class nsIScrollableFrame;
 
 class nsFrameSelection MOZ_FINAL {
 public:
-  typedef mozilla::CaretAssociationHint CaretAssociateHint;
-
+  enum HINT { HINTLEFT = 0, HINTRIGHT = 1};  //end of this line or beginning of next
   /*interfaces for addref and release and queryinterface*/
   
   NS_INLINE_DECL_CYCLE_COLLECTING_NATIVE_REFCOUNTING(nsFrameSelection)
@@ -207,7 +220,7 @@ public:
                        uint32_t aContentEndOffset,
                        bool aContinueSelection,
                        bool aMultipleSelection,
-                       CaretAssociateHint aHint);
+                       bool aHint);
 
   /** HandleDrag extends the selection to contain the frame closest to aPoint.
    *  @param aPresContext is the context to use when figuring out what frame contains the point.
@@ -374,10 +387,10 @@ public:
    * @param aOffset offset into above node.
    * @param aReturnOffset will contain offset into frame.
    */
-  virtual nsIFrame* GetFrameForNodeOffset(nsIContent*        aNode,
-                                          int32_t            aOffset,
-                                          CaretAssociateHint aHint,
-                                          int32_t*           aReturnOffset) const;
+  virtual nsIFrame* GetFrameForNodeOffset(nsIContent *aNode,
+                                          int32_t     aOffset,
+                                          HINT        aHint,
+                                          int32_t    *aReturnOffset) const;
 
   /**
    * Scrolling then moving caret placement code in common to text areas and 
@@ -396,8 +409,8 @@ public:
                       bool aExtend,
                       nsIScrollableFrame* aScrollableFrame);
 
-  void SetHint(CaretAssociateHint aHintRight) { mHint = aHintRight; }
-  CaretAssociateHint GetHint() const { return mHint; }
+  void SetHint(HINT aHintRight) { mHint = aHintRight; }
+  HINT GetHint() const { return mHint; }
 
   /** SetCaretBidiLevel sets the caret bidi level
    *  @param aLevel the caret bidi level
@@ -584,15 +597,15 @@ public:
   void DisconnectFromPresShell();
   nsresult ClearNormalSelection();
 
-  static CaretAssociateHint GetHintForPosition(nsIContent* aContent, int32_t aOffset);
+  static HINT GetHintForPosition(nsIContent* aContent, int32_t aOffset);
 
 private:
-  ~nsFrameSelection();
+  ~nsFrameSelection() {}
 
   nsresult TakeFocus(nsIContent *aNewFocus,
                      uint32_t aContentOffset,
                      uint32_t aContentEndOffset,
-                     CaretAssociateHint aHint,
+                     HINT aHint,
                      bool aContinueSelection,
                      bool aMultipleSelection);
 
@@ -600,11 +613,11 @@ private:
                          nsIContent *aNode,
                          uint32_t aContentOffset,
                          uint32_t aKeycode,
-                         CaretAssociateHint aHint);
+                         HINT aHint);
   void BidiLevelFromClick(nsIContent *aNewFocus, uint32_t aContentOffset);
   nsPrevNextBidiLevels GetPrevNextBidiLevels(nsIContent *aNode,
                                              uint32_t aContentOffset,
-                                             CaretAssociateHint aHint,
+                                             HINT aHint,
                                              bool aJumpLines) const;
 
   bool AdjustForMaintainedSelection(nsIContent *aContent, int32_t aOffset);
@@ -614,17 +627,8 @@ private:
   int16_t PopReason()
   {
     int16_t retval = mSelectionChangeReason;
-    mSelectionChangeReason = nsISelectionListener::NO_REASON;
+    mSelectionChangeReason = 0;
     return retval;
-  }
-  bool IsUserSelectionReason() const
-  {
-    return (mSelectionChangeReason &
-            (nsISelectionListener::DRAG_REASON |
-             nsISelectionListener::MOUSEDOWN_REASON |
-             nsISelectionListener::MOUSEUP_REASON |
-             nsISelectionListener::KEYPRESS_REASON)) !=
-           nsISelectionListener::NO_REASON;
   }
 
   friend class mozilla::dom::Selection;
@@ -706,7 +710,7 @@ private:
   int16_t mSelectionChangeReason; // reason for notifications of selection changing
   int16_t mDisplaySelection; //for visual display purposes.
 
-  CaretAssociateHint mHint;   //hint to tell if the selection is at the end of this line or beginning of next
+  HINT  mHint;   //hint to tell if the selection is at the end of this line or beginning of next
   uint8_t mCaretBidiLevel;
 
   int32_t mDesiredX;

@@ -6,9 +6,6 @@
 
 // Check stylesheets on HMTL and XUL document
 
-// FIXME: this test opens the devtools for nothing, it should be changed into a
-// toolkit/devtools/server/tests/mochitest/test_css-logic-...something...html test
-
 const TEST_URI_HTML = TEST_URL_ROOT + "doc_content_stylesheet.html";
 const TEST_URI_XUL = TEST_URL_ROOT + "doc_content_stylesheet.xul";
 const XUL_URI = Cc["@mozilla.org/network/io-service;1"]
@@ -18,16 +15,18 @@ const XUL_PRINCIPAL = Components.classes["@mozilla.org/scriptsecuritymanager;1"]
                         .getService(Ci.nsIScriptSecurityManager)
                         .getNoAppCodebasePrincipal(XUL_URI);
 
+let {CssLogic} = devtools.require("devtools/styleinspector/css-logic");
+
 let test = asyncTest(function*() {
   info("Checking stylesheets on HTML document");
   yield addTab(TEST_URI_HTML);
   let target = getNode("#target");
 
   let {toolbox, inspector, view} = yield openRuleView();
-  yield selectNode("#target", inspector);
+  yield selectNode(target, inspector);
 
   info("Checking stylesheets");
-  yield checkSheets(target);
+  checkSheets(target);
 
   info("Checking stylesheets on XUL document");
   info("Allowing XUL content");
@@ -36,9 +35,9 @@ let test = asyncTest(function*() {
 
   let {toolbox, inspector, view} = yield openRuleView();
   let target = getNode("#target");
-  yield selectNode("#target", inspector);
+  yield selectNode(target, inspector);
 
-  yield checkSheets(target);
+  checkSheets(target);
   info("Disallowing XUL content");
   disallowXUL();
 });
@@ -53,15 +52,21 @@ function disallowXUL() {
     .addFromPrincipal(XUL_PRINCIPAL, 'allowXULXBL', Ci.nsIPermissionManager.DENY_ACTION);
 }
 
-function* checkSheets(target) {
-  let sheets = yield executeInContent("Test:GetStyleSheetsInfoForNode", {}, {target});
+function checkSheets(target) {
+  let domUtils = Cc["@mozilla.org/inspector/dom-utils;1"]
+      .getService(Ci.inIDOMUtils);
+  let domRules = domUtils.getCSSStyleRules(target);
 
-  for (let sheet of sheets) {
+  for (let i = 0, n = domRules.Count(); i < n; i++) {
+    let domRule = domRules.GetElementAt(i);
+    let sheet = domRule.parentStyleSheet;
+    let isContentSheet = CssLogic.isContentStylesheet(sheet);
+
     if (!sheet.href ||
         /doc_content_stylesheet_/.test(sheet.href)) {
-      ok(sheet.isContentSheet, sheet.href + " identified as content stylesheet");
+      ok(isContentSheet, sheet.href + " identified as content stylesheet");
     } else {
-      ok(!sheet.isContentSheet, sheet.href + " identified as non-content stylesheet");
+      ok(!isContentSheet, sheet.href + " identified as non-content stylesheet");
     }
   }
 }

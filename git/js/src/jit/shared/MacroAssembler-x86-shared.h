@@ -195,7 +195,7 @@ class MacroAssemblerX86Shared : public Assembler
     }
     void atomic_cmpxchg32(Register src, const Operand &addr, Register dest) {
         // %eax must be explicitly provided for calling clarity.
-        MOZ_ASSERT(dest.code() == X86Registers::eax);
+        MOZ_ASSERT(dest.code() == JSC::X86Registers::eax);
         lock_cmpxchg32(src, addr);
     }
 
@@ -402,7 +402,7 @@ class MacroAssemblerX86Shared : public Assembler
             loadDouble(src.toBaseIndex(), dest);
             break;
           default:
-            MOZ_CRASH("unexpected operand kind");
+            MOZ_ASSUME_UNREACHABLE("unexpected operand kind");
         }
     }
     void storeDouble(FloatRegister src, const Address &dest) {
@@ -420,7 +420,7 @@ class MacroAssemblerX86Shared : public Assembler
             storeDouble(src, dest.toBaseIndex());
             break;
           default:
-            MOZ_CRASH("unexpected operand kind");
+            MOZ_ASSUME_UNREACHABLE("unexpected operand kind");
         }
     }
     void moveDouble(FloatRegister src, FloatRegister dest) {
@@ -467,26 +467,8 @@ class MacroAssemblerX86Shared : public Assembler
         cvtsd2ss(src, dest);
     }
 
-    void bitwiseAndX4(const Operand &src, FloatRegister dest) {
-        // TODO Using the "ps" variant for all types incurs a domain crossing
-        // penalty for integer types and double.
-        andps(src, dest);
-    }
-    void bitwiseAndNotX4(const Operand &src, FloatRegister dest) {
-        andnps(src, dest);
-    }
-    void bitwiseOrX4(const Operand &src, FloatRegister dest) {
-        orps(src, dest);
-    }
-    void bitwiseXorX4(const Operand &src, FloatRegister dest) {
-        xorps(src, dest);
-    }
-
     void loadAlignedInt32x4(const Address &src, FloatRegister dest) {
         movdqa(Operand(src), dest);
-    }
-    void loadAlignedInt32x4(const Operand &src, FloatRegister dest) {
-        movdqa(src, dest);
     }
     void storeAlignedInt32x4(FloatRegister src, const Address &dest) {
         movdqa(src, Operand(dest));
@@ -500,24 +482,9 @@ class MacroAssemblerX86Shared : public Assembler
     void storeUnalignedInt32x4(FloatRegister src, const Address &dest) {
         movdqu(src, Operand(dest));
     }
-    void packedEqualInt32x4(const Operand &src, FloatRegister dest) {
-        pcmpeqd(src, dest);
-    }
-    void packedGreaterThanInt32x4(const Operand &src, FloatRegister dest) {
-        pcmpgtd(src, dest);
-    }
-    void packedAddInt32(const Operand &src, FloatRegister dest) {
-        paddd(src, dest);
-    }
-    void packedSubInt32(const Operand &src, FloatRegister dest) {
-        psubd(src, dest);
-    }
 
     void loadAlignedFloat32x4(const Address &src, FloatRegister dest) {
         movaps(Operand(src), dest);
-    }
-    void loadAlignedFloat32x4(const Operand &src, FloatRegister dest) {
-        movaps(src, dest);
     }
     void storeAlignedFloat32x4(FloatRegister src, const Address &dest) {
         movaps(src, Operand(dest));
@@ -531,18 +498,7 @@ class MacroAssemblerX86Shared : public Assembler
     void storeUnalignedFloat32x4(FloatRegister src, const Address &dest) {
         movups(src, Operand(dest));
     }
-    void packedAddFloat32(const Operand &src, FloatRegister dest) {
-        addps(src, dest);
-    }
-    void packedSubFloat32(const Operand &src, FloatRegister dest) {
-        subps(src, dest);
-    }
-    void packedMulFloat32(const Operand &src, FloatRegister dest) {
-        mulps(src, dest);
-    }
-    void packedDivFloat32(const Operand &src, FloatRegister dest) {
-        divps(src, dest);
-    }
+
     static uint32_t ComputeShuffleMask(SimdLane x, SimdLane y = LaneX,
                                        SimdLane z = LaneX, SimdLane w = LaneX)
     {
@@ -606,7 +562,7 @@ class MacroAssemblerX86Shared : public Assembler
             loadFloat32(src.toBaseIndex(), dest);
             break;
           default:
-            MOZ_CRASH("unexpected operand kind");
+            MOZ_ASSUME_UNREACHABLE("unexpected operand kind");
         }
     }
     void storeFloat32(FloatRegister src, const Address &dest) {
@@ -624,7 +580,7 @@ class MacroAssemblerX86Shared : public Assembler
             storeFloat32(src, dest.toBaseIndex());
             break;
           default:
-            MOZ_CRASH("unexpected operand kind");
+            MOZ_ASSUME_UNREACHABLE("unexpected operand kind");
         }
     }
     void moveFloat32(FloatRegister src, FloatRegister dest) {
@@ -703,30 +659,6 @@ class MacroAssemblerX86Shared : public Assembler
 
         // See comment above
         if (u == 0) {
-            xorps(dest, dest);
-            return true;
-        }
-        return false;
-    }
-
-    bool maybeInlineInt32x4(const SimdConstant &v, const FloatRegister &dest) {
-        static const SimdConstant zero = SimdConstant::CreateX4(0, 0, 0, 0);
-        static const SimdConstant minusOne = SimdConstant::CreateX4(-1, -1, -1, -1);
-        if (v == zero) {
-            pxor(dest, dest);
-            return true;
-        }
-        if (v == minusOne) {
-            pcmpeqw(dest, dest);
-            return true;
-        }
-        return false;
-    }
-    bool maybeInlineFloat32x4(const SimdConstant &v, const FloatRegister &dest) {
-        static const SimdConstant zero = SimdConstant::CreateX4(0.f, 0.f, 0.f, 0.f);
-        if (v == zero) {
-            // This won't get inlined if the SimdConstant v contains -0 in any
-            // lane, as operator== here does a memcmp.
             xorps(dest, dest);
             return true;
         }

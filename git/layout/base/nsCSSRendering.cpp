@@ -619,7 +619,7 @@ nsCSSRendering::PaintBorderWithStyleBorder(nsPresContext* aPresContext,
                                            nsStyleContext* aStyleContext,
                                            Sides aSkipSides)
 {
-  PrintAsStringNewline("++ PaintBorder");
+  SN("++ PaintBorder");
 
   // Check to see if we have an appearance defined.  If so, we let the theme
   // renderer draw the border.  DO not get the data from aForFrame, since the passed in style context
@@ -663,7 +663,7 @@ nsCSSRendering::PaintBorderWithStyleBorder(nsPresContext* aPresContext,
   ::GetRadii(aForFrame, aStyleBorder, aBorderArea, joinedBorderArea, &bgRadii);
 
 
-  PrintAsFormatString(" joinedBorderArea: %d %d %d %d\n", joinedBorderArea.x, joinedBorderArea.y,
+  SF(" joinedBorderArea: %d %d %d %d\n", joinedBorderArea.x, joinedBorderArea.y,
      joinedBorderArea.width, joinedBorderArea.height);
 
   // start drawing
@@ -716,8 +716,8 @@ nsCSSRendering::PaintBorderWithStyleBorder(nsPresContext* aPresContext,
       borderColors[i] = ourColor->mColor;
   }
 
-  PrintAsFormatString(" borderStyles: %d %d %d %d\n", borderStyles[0], borderStyles[1], borderStyles[2], borderStyles[3]);
-  //PrintAsFormatString ("bgRadii: %f %f %f %f\n", bgRadii[0], bgRadii[1], bgRadii[2], bgRadii[3]);
+  SF(" borderStyles: %d %d %d %d\n", borderStyles[0], borderStyles[1], borderStyles[2], borderStyles[3]);
+  //SF ("bgRadii: %f %f %f %f\n", bgRadii[0], bgRadii[1], bgRadii[2], bgRadii[3]);
 
 #if 0
   // this will draw a transparent red backround underneath the border area
@@ -741,7 +741,7 @@ nsCSSRendering::PaintBorderWithStyleBorder(nsPresContext* aPresContext,
 
   ctx->Restore();
 
-  PrintAsStringNewline();
+  SN();
 }
 
 static nsRect
@@ -879,7 +879,7 @@ nsCSSRendering::PaintOutline(nsPresContext* aPresContext,
 
   ctx->Restore();
 
-  PrintAsStringNewline();
+  SN();
 }
 
 void
@@ -932,7 +932,7 @@ nsCSSRendering::PaintFocus(nsPresContext* aPresContext,
 
   ctx->Restore();
 
-  PrintAsStringNewline();
+  SN();
 }
 
 // Thebes Border Rendering Code End
@@ -1694,7 +1694,7 @@ nsCSSRendering::GetBackgroundClip(const nsStyleBackground::Layer& aLayer,
       NS_STYLE_BG_CLIP_MOZ_ALMOST_PADDING : NS_STYLE_BG_CLIP_PADDING;
   }
 
-  aClipState->mBGClipArea = clipBorderArea;
+  aClipState->mBGClipArea = aBorderArea;
   aClipState->mHasAdditionalBGClipArea = false;
   aClipState->mCustomClip = false;
 

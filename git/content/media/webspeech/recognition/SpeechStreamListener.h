@@ -21,7 +21,7 @@ class SpeechRecognition;
 class SpeechStreamListener : public MediaStreamListener
 {
 public:
-  explicit SpeechStreamListener(SpeechRecognition* aRecognition);
+  SpeechStreamListener(SpeechRecognition* aRecognition);
   ~SpeechStreamListener();
 
   void NotifyQueuedTrackChanges(MediaStreamGraph* aGraph, TrackID aID,

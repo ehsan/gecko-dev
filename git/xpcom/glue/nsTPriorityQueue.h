@@ -31,7 +31,7 @@ public:
    * Constructor to allow a specific instance of a comparator object to be
    * used.
    */
-  explicit nsTPriorityQueue(const Compare& aComp) : mCompare(aComp) {}
+  nsTPriorityQueue(const Compare& aComp) : mCompare(aComp) {}
 
   /**
    * Copy constructor

@@ -81,47 +81,17 @@ this.ContentSearch = {
   // them immediately, which would result in non-FIFO responses due to the
   // asynchrononicity added by converting image data URIs to ArrayBuffers.
   _eventQueue: [],
-  _currentEventPromise: null,
+  _currentEvent: null,
 
   // This is used to handle search suggestions.  It maps xul:browsers to objects
   // { controller, previousFormHistoryResult }.  See _onMessageGetSuggestions.
   _suggestionMap: new WeakMap(),
-
-  // Resolved when we finish shutting down.
-  _destroyedPromise: null,
 
   init: function () {
     Cc["@mozilla.org/globalmessagemanager;1"].
       getService(Ci.nsIMessageListenerManager).
       addMessageListener(INBOUND_MESSAGE, this);
     Services.obs.addObserver(this, "browser-search-engine-modified", false);
-    Services.obs.addObserver(this, "shutdown-leaks-before-check", false);
-  },
-
-  destroy: function () {
-    if (this._destroyedPromise) {
-      return this._destroyedPromise;
-    }
-
-    Cc["@mozilla.org/globalmessagemanager;1"].
-      getService(Ci.nsIMessageListenerManager).
-      removeMessageListener(INBOUND_MESSAGE, this);
-    Services.obs.removeObserver(this, "browser-search-engine-modified");
-    Services.obs.removeObserver(this, "shutdown-leaks-before-check");
-
-    this._eventQueue.length = 0;
-    return this._destroyedPromise = Promise.resolve(this._currentEventPromise);
-  },
-
-  /**
-   * Focuses the search input in the page with the given message manager.
-   * @param  messageManager
-   *         The MessageManager object of the selected browser.
-   */
-  focusInput: function (messageManager) {
-    messageManager.sendAsyncMessage(OUTBOUND_MESSAGE, {
-      type: "FocusInput"
-    });
   },
 
   receiveMessage: function (msg) {
@@ -157,31 +127,25 @@ this.ContentSearch = {
       });
       this._processEventQueue();
       break;
-    case "shutdown-leaks-before-check":
-      subj.wrappedJSObject.client.addBlocker(
-        "ContentSearch: Wait until the service is destroyed", () => this.destroy());
-      break;
     }
   },
 
-  _processEventQueue: function () {
-    if (this._currentEventPromise || !this._eventQueue.length) {
+  _processEventQueue: Task.async(function* () {
+    if (this._currentEvent || !this._eventQueue.length) {
       return;
     }
-
-    let event = this._eventQueue.shift();
-
-    return this._currentEventPromise = Task.spawn(function* () {
-      try {
-        yield this["_on" + event.type](event.data);
-      } catch (err) {
-        Cu.reportError(err);
-      } finally {
-        this._currentEventPromise = null;
-        this._processEventQueue();
-      }
-    }.bind(this));
-  },
+    this._currentEvent = this._eventQueue.shift();
+    try {
+      yield this["_on" + this._currentEvent.type](this._currentEvent.data);
+    }
+    catch (err) {
+      Cu.reportError(err);
+    }
+    finally {
+      this._currentEvent = null;
+      this._processEventQueue();
+    }
+  }),
 
   _onMessage: Task.async(function* (msg) {
     let methodName = "_onMessage" + msg.data.type;
@@ -206,7 +170,7 @@ this.ContentSearch = {
     ]);
     let browserWin = msg.target.ownerDocument.defaultView;
     let engine = Services.search.getEngineByName(data.engineName);
-    browserWin.BrowserSearch.recordSearchInHealthReport(engine, data.whence, data.selection);
+    browserWin.BrowserSearch.recordSearchInHealthReport(engine, data.whence);
     let submission = engine.getSubmission(data.searchString, "", data.whence);
     browserWin.loadURI(submission.uri.spec, null, submission.postData);
     return Promise.resolve();

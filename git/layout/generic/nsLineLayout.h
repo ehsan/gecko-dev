@@ -316,20 +316,6 @@ public:
    */
   nscoord GetCurrentFrameInlineDistanceFromBlock();
 
-  /**
-   * Move the inline position where the next frame will be reflowed forward by
-   * aAmount.
-   */
-  void AdvanceICoord(nscoord aAmount);
-  /**
-   * Returns the writing mode for the root span.
-   */
-  mozilla::WritingMode GetWritingMode();
-  /**
-   * Returns the inline position where the next frame will be reflowed.
-   */
-  nscoord GetCurrentICoord();
-
 protected:
   // This state is constant for a given block frame doing line layout
   nsFloatManager* mFloatManager;
@@ -357,7 +343,7 @@ protected:
   friend struct PerFrameData;
   struct PerFrameData
   {
-    explicit PerFrameData(mozilla::WritingMode aWritingMode)
+    PerFrameData(mozilla::WritingMode aWritingMode)
       : mBounds(aWritingMode)
       , mMargin(aWritingMode)
       , mBorderPadding(aWritingMode)

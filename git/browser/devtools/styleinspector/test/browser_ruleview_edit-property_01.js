@@ -22,7 +22,7 @@ let PAGE_CONTENT = [
 ].join("\n");
 
 let test = asyncTest(function*() {
-  let tab = yield addTab("data:text/html;charset=utf-8,test rule view user changes");
+  yield addTab("data:text/html;charset=utf-8,test rule view user changes");
 
   info("Creating the test document");
   content.document.body.innerHTML = PAGE_CONTENT;
@@ -33,11 +33,11 @@ let test = asyncTest(function*() {
   info("Selecting the test element");
   yield selectNode("#testid", inspector);
 
-  yield testEditProperty(view, "border-color", "red", tab.linkedBrowser);
-  yield testEditProperty(view, "background-image", TEST_URL, tab.linkedBrowser);
+  yield testEditProperty(view, "border-color", "red");
+  yield testEditProperty(view, "background-image", TEST_URL);
 });
 
-function* testEditProperty(view, name, value, browser) {
+function* testEditProperty(view, name, value) {
   info("Test editing existing property name/value fields");
 
   let idRuleEditor = getRuleViewRuleEditor(view, 1);
@@ -72,13 +72,7 @@ function* testEditProperty(view, name, value, browser) {
   yield onBlur;
   yield onModifications;
 
-  is(propEditor.isValid(), true, value + " is a valid entry");
-
-  info("Checking that the style property was changed on the content page");
-  let propValue = yield executeInContent("Test:GetRulePropertyValue", {
-    styleSheetIndex: 0,
-    ruleIndex: 0,
-    name
-  });
+  let propValue = idRuleEditor.rule.domRule._rawStyle().getPropertyValue(name);
   is(propValue, value, name + " should have been set.");
+  is(propEditor.isValid(), true, value + " should be a valid entry");
 }

@@ -178,14 +178,13 @@ JSObject* TableTicker::ToJSObject(JSContext *aCx)
     JSStreamWriter b(ss);
     StreamJSObject(b);
     NS_ConvertUTF8toUTF16 js_string(nsDependentCString(ss.str().c_str()));
-    JS_ParseJSON(aCx, static_cast<const char16_t*>(js_string.get()),
-                 js_string.Length(), &val);
+    JS_ParseJSON(aCx, static_cast<const jschar*>(js_string.get()), js_string.Length(), &val);
   }
   return &val.toObject();
 }
 
 struct SubprocessClosure {
-  explicit SubprocessClosure(JSStreamWriter *aWriter)
+  SubprocessClosure(JSStreamWriter *aWriter)
     : mWriter(aWriter)
   {}
 

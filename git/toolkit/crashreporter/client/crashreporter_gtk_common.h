@@ -26,7 +26,7 @@ extern GThread* gSendThreadID;
 
 extern bool gInitialized;
 extern bool gDidTrySend;
-extern StringTable gFiles;
+extern std::string gDumpFile;
 extern StringTable gQueryParameters;
 extern std::string gHttpProxy;
 extern std::string gAuth;

@@ -379,10 +379,10 @@ class MacroAssemblerMIPSCompat : public MacroAssemblerMIPS
         mov(ImmWord(uintptr_t(imm.value)), dest);
     }
     void mov(Register src, Address dest) {
-        MOZ_CRASH("NYI-IC");
+        MOZ_ASSUME_UNREACHABLE("NYI-IC");
     }
     void mov(Address src, Register dest) {
-        MOZ_CRASH("NYI-IC");
+        MOZ_ASSUME_UNREACHABLE("NYI-IC");
     }
 
     void call(const Register reg) {
@@ -757,7 +757,6 @@ protected:
 public:
     void moveValue(const Value &val, Register type, Register data);
 
-    CodeOffsetJump backedgeJump(RepatchLabel *label);
     CodeOffsetJump jumpWithPatch(RepatchLabel *label);
 
     template <typename T>
@@ -998,7 +997,7 @@ public:
             ma_addTestOverflow(dest, dest, src, overflow);
             break;
           default:
-            MOZ_CRASH("NYI");
+            MOZ_ASSUME_UNREACHABLE("NYI");
         }
     }
     template <typename T>
@@ -1013,7 +1012,7 @@ public:
             ma_b(dest, dest, overflow, cond);
             break;
           default:
-            MOZ_CRASH("NYI");
+            MOZ_ASSUME_UNREACHABLE("NYI");
         }
     }
 
@@ -1066,16 +1065,6 @@ public:
     void loadPtr(AsmJSAbsoluteAddress address, Register dest);
 
     void loadPrivate(const Address &address, Register dest);
-
-    void loadAlignedInt32x4(const Address &addr, FloatRegister dest) { MOZ_CRASH("NYI"); }
-    void storeAlignedInt32x4(FloatRegister src, Address addr) { MOZ_CRASH("NYI"); }
-    void loadUnalignedInt32x4(const Address &addr, FloatRegister dest) { MOZ_CRASH("NYI"); }
-    void storeUnalignedInt32x4(FloatRegister src, Address addr) { MOZ_CRASH("NYI"); }
-
-    void loadAlignedFloat32x4(const Address &addr, FloatRegister dest) { MOZ_CRASH("NYI"); }
-    void storeAlignedFloat32x4(FloatRegister src, Address addr) { MOZ_CRASH("NYI"); }
-    void loadUnalignedFloat32x4(const Address &addr, FloatRegister dest) { MOZ_CRASH("NYI"); }
-    void storeUnalignedFloat32x4(FloatRegister src, Address addr) { MOZ_CRASH("NYI"); }
 
     void loadDouble(const Address &addr, FloatRegister dest);
     void loadDouble(const BaseIndex &src, FloatRegister dest);
@@ -1293,7 +1282,7 @@ public:
 #endif
 
     void loadAsmJSActivation(Register dest) {
-        loadPtr(Address(GlobalReg, AsmJSActivationGlobalDataOffset - AsmJSGlobalRegBias), dest);
+        loadPtr(Address(GlobalReg, AsmJSActivationGlobalDataOffset), dest);
     }
 };
 

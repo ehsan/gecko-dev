@@ -1,5 +1,4 @@
-var global = newGlobal();
-var dbg = new global.Debugger(this);
+// |jit-test| debug
 
 function g() {
     var x = 100;

@@ -93,7 +93,7 @@ DrawBlur(gfxContext* aDestinationCtx,
 
     Matrix oldTransform = dest->GetTransform();
     Matrix newTransform = oldTransform;
-    newTransform.PreTranslate(aTopLeft.x, aTopLeft.y);
+    newTransform.Translate(aTopLeft.x, aTopLeft.y);
 
     // Avoid a semi-expensive clip operation if we can, otherwise
     // clip to the dirty rect
@@ -171,7 +171,7 @@ struct BlurCacheKey : public PLDHashEntryHdr {
     , mBackend(aBackend)
   { }
 
-  explicit BlurCacheKey(const BlurCacheKey* aOther)
+  BlurCacheKey(const BlurCacheKey* aOther)
     : mRect(aOther->mRect)
     , mBlurRadius(aOther->mBlurRadius)
     , mSkipRect(aOther->mSkipRect)

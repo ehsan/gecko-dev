@@ -37,10 +37,7 @@ import ch.boye.httpclientandroidlib.HttpResponseInterceptor;
  * for {@link HttpProcessor processing}.
  *
  * @since 4.0
- *
- * @deprecated (4.3)
  */
-@Deprecated
 public interface HttpResponseInterceptorList {
 
     /**
@@ -86,7 +83,7 @@ public interface HttpResponseInterceptorList {
      *
      * @param clazz  the class of the instances to be removed.
      */
-    void removeResponseInterceptorByClass(Class<? extends HttpResponseInterceptor> clazz);
+    void removeResponseInterceptorByClass(Class clazz);
 
     /**
      * Sets the response interceptors in this list.
@@ -97,7 +94,7 @@ public interface HttpResponseInterceptorList {
      *
      * @param list the list of response interceptors
      */
-    void setInterceptors(List<?> list);
+    void setInterceptors(List list);
 
 }
 

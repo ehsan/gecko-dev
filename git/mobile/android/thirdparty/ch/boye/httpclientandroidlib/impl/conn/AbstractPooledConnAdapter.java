@@ -1,21 +1,20 @@
 /*
  * ====================================================================
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *  Licensed to the Apache Software Foundation (ASF) under one or more
+ *  contributor license agreements.  See the NOTICE file distributed with
+ *  this work for additional information regarding copyright ownership.
+ *  The ASF licenses this file to You under the Apache License, Version 2.0
+ *  (the "License"); you may not use this file except in compliance with
+ *  the License.  You may obtain a copy of the License at
  *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
  * ====================================================================
  *
  * This software consists of voluntary contributions made by many
@@ -24,16 +23,17 @@
  * <http://www.apache.org/>.
  *
  */
+
 package ch.boye.httpclientandroidlib.impl.conn;
 
 import java.io.IOException;
 
 import ch.boye.httpclientandroidlib.HttpHost;
-import ch.boye.httpclientandroidlib.conn.ClientConnectionManager;
-import ch.boye.httpclientandroidlib.conn.OperatedClientConnection;
-import ch.boye.httpclientandroidlib.conn.routing.HttpRoute;
 import ch.boye.httpclientandroidlib.params.HttpParams;
 import ch.boye.httpclientandroidlib.protocol.HttpContext;
+import ch.boye.httpclientandroidlib.conn.routing.HttpRoute;
+import ch.boye.httpclientandroidlib.conn.ClientConnectionManager;
+import ch.boye.httpclientandroidlib.conn.OperatedClientConnection;
 
 /**
  * Abstract adapter from pool {@link AbstractPoolEntry entries} to
@@ -46,10 +46,7 @@ import ch.boye.httpclientandroidlib.protocol.HttpContext;
  * respective method of the wrapped connection.
  *
  * @since 4.0
- *
- * @deprecated (4.2)  do not use
  */
-@Deprecated
 public abstract class AbstractPooledConnAdapter extends AbstractClientConnAdapter {
 
     /** The wrapped pool entry. */
@@ -61,24 +58,17 @@ public abstract class AbstractPooledConnAdapter extends AbstractClientConnAdapte
      * @param manager   the connection manager
      * @param entry     the pool entry for the connection being wrapped
      */
-    protected AbstractPooledConnAdapter(final ClientConnectionManager manager,
-                                        final AbstractPoolEntry entry) {
+    protected AbstractPooledConnAdapter(ClientConnectionManager manager,
+                                        AbstractPoolEntry entry) {
         super(manager, entry.connection);
         this.poolEntry = entry;
-    }
-
-    public String getId() {
-        return null;
     }
 
     /**
      * Obtains the pool entry.
      *
      * @return  the pool entry, or <code>null</code> if detached
-     *
-     * @deprecated (4.0.1)
      */
-    @Deprecated
     protected AbstractPoolEntry getPoolEntry() {
         return this.poolEntry;
     }
@@ -98,7 +88,7 @@ public abstract class AbstractPooledConnAdapter extends AbstractClientConnAdapte
     }
 
     /**
-     * @deprecated (4.1)  use {@link #assertValid(AbstractPoolEntry)}
+     * @deprecated use {@link #assertValid(AbstractPoolEntry)}
      */
     @Deprecated
     protected final void assertAttached() {
@@ -118,72 +108,70 @@ public abstract class AbstractPooledConnAdapter extends AbstractClientConnAdapte
     }
 
     public HttpRoute getRoute() {
-        final AbstractPoolEntry entry = getPoolEntry();
+        AbstractPoolEntry entry = getPoolEntry();
         assertValid(entry);
         return (entry.tracker == null) ? null : entry.tracker.toRoute();
     }
 
-    public void open(final HttpRoute route,
-                     final HttpContext context, final HttpParams params)
+    public void open(HttpRoute route,
+                     HttpContext context, HttpParams params)
         throws IOException {
-        final AbstractPoolEntry entry = getPoolEntry();
+        AbstractPoolEntry entry = getPoolEntry();
         assertValid(entry);
         entry.open(route, context, params);
     }
 
-    public void tunnelTarget(final boolean secure, final HttpParams params)
+    public void tunnelTarget(boolean secure, HttpParams params)
         throws IOException {
-        final AbstractPoolEntry entry = getPoolEntry();
+        AbstractPoolEntry entry = getPoolEntry();
         assertValid(entry);
         entry.tunnelTarget(secure, params);
     }
 
-    public void tunnelProxy(final HttpHost next, final boolean secure, final HttpParams params)
+    public void tunnelProxy(HttpHost next, boolean secure, HttpParams params)
         throws IOException {
-        final AbstractPoolEntry entry = getPoolEntry();
+        AbstractPoolEntry entry = getPoolEntry();
         assertValid(entry);
         entry.tunnelProxy(next, secure, params);
     }
 
-    public void layerProtocol(final HttpContext context, final HttpParams params)
+    public void layerProtocol(HttpContext context, HttpParams params)
         throws IOException {
-        final AbstractPoolEntry entry = getPoolEntry();
+        AbstractPoolEntry entry = getPoolEntry();
         assertValid(entry);
         entry.layerProtocol(context, params);
     }
 
     public void close() throws IOException {
-        final AbstractPoolEntry entry = getPoolEntry();
-        if (entry != null) {
+        AbstractPoolEntry entry = getPoolEntry();
+        if (entry != null)
             entry.shutdownEntry();
-        }
 
-        final OperatedClientConnection conn = getWrappedConnection();
+        OperatedClientConnection conn = getWrappedConnection();
         if (conn != null) {
             conn.close();
         }
     }
 
     public void shutdown() throws IOException {
-        final AbstractPoolEntry entry = getPoolEntry();
-        if (entry != null) {
+        AbstractPoolEntry entry = getPoolEntry();
+        if (entry != null)
             entry.shutdownEntry();
-        }
 
-        final OperatedClientConnection conn = getWrappedConnection();
+        OperatedClientConnection conn = getWrappedConnection();
         if (conn != null) {
             conn.shutdown();
         }
     }
 
     public Object getState() {
-        final AbstractPoolEntry entry = getPoolEntry();
+        AbstractPoolEntry entry = getPoolEntry();
         assertValid(entry);
         return entry.getState();
     }
 
     public void setState(final Object state) {
-        final AbstractPoolEntry entry = getPoolEntry();
+        AbstractPoolEntry entry = getPoolEntry();
         assertValid(entry);
         entry.setState(state);
     }

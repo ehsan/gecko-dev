@@ -12,6 +12,7 @@
 #include <math.h>
 
 #include "prprf.h"
+#include "nsCxPusher.h"
 #include "DecoderTraits.h"
 #include "harfbuzz/hb.h"
 #include "imgICache.h"
@@ -214,7 +215,9 @@ nsILineBreaker *nsContentUtils::sLineBreaker;
 nsIWordBreaker *nsContentUtils::sWordBreaker;
 nsIBidiKeyboard *nsContentUtils::sBidiKeyboard = nullptr;
 uint32_t nsContentUtils::sScriptBlockerCount = 0;
+#ifdef DEBUG
 uint32_t nsContentUtils::sDOMNodeRemovedSuppressCount = 0;
+#endif
 uint32_t nsContentUtils::sMicroTaskLevel = 0;
 nsTArray< nsCOMPtr<nsIRunnable> >* nsContentUtils::sBlockedScriptRunners = nullptr;
 uint32_t nsContentUtils::sRunnersCountAtFirstBlocker = 0;
@@ -354,7 +357,7 @@ NS_IMPL_ISUPPORTS(DOMEventListenerManagersHashReporter, nsIMemoryReporter)
 class EventListenerManagerMapEntry : public PLDHashEntryHdr
 {
 public:
-  explicit EventListenerManagerMapEntry(const void* aKey)
+  EventListenerManagerMapEntry(const void *aKey)
     : mKey(aKey)
   {
   }
@@ -1292,7 +1295,7 @@ struct NormalizeNewlinesCharTraits {
     typedef typename OutputIterator::value_type value_type;
 
   public:
-    explicit NormalizeNewlinesCharTraits(OutputIterator& aIterator) : mIterator(aIterator) { }
+    NormalizeNewlinesCharTraits(OutputIterator& aIterator) : mIterator(aIterator) { }
     void writechar(typename OutputIterator::value_type aChar) {
       *mIterator++ = aChar;
     }
@@ -1307,7 +1310,7 @@ struct NormalizeNewlinesCharTraits<CharT*> {
     typedef CharT value_type;
 
   public:
-    explicit NormalizeNewlinesCharTraits(CharT* aCharPtr) : mCharPtr(aCharPtr) { }
+    NormalizeNewlinesCharTraits(CharT* aCharPtr) : mCharPtr(aCharPtr) { }
     void writechar(CharT aChar) {
       *mCharPtr++ = aChar;
     }
@@ -1323,8 +1326,8 @@ class CopyNormalizeNewlines
     typedef typename OutputIterator::value_type value_type;
 
   public:
-    explicit CopyNormalizeNewlines(OutputIterator* aDestination,
-                                   bool aLastCharCR = false) :
+    CopyNormalizeNewlines(OutputIterator* aDestination,
+                          bool aLastCharCR=false) :
       mLastCharCR(aLastCharCR),
       mDestination(aDestination),
       mWritten(0)
@@ -1781,7 +1784,7 @@ nsContentUtils::Shutdown()
   sUserDefinedEvents = nullptr;
 
   if (sEventListenerManagersHash.ops) {
-    NS_ASSERTION(sEventListenerManagersHash.EntryCount() == 0,
+    NS_ASSERTION(sEventListenerManagersHash.entryCount == 0,
                  "Event listener manager hash not empty at shutdown!");
 
     // See comment above.
@@ -1793,7 +1796,7 @@ nsContentUtils::Shutdown()
     // it could leave dangling references in DOMClassInfo's preserved
     // wrapper table.
 
-    if (sEventListenerManagersHash.EntryCount() == 0) {
+    if (sEventListenerManagersHash.entryCount == 0) {
       PL_DHashTableFinish(&sEventListenerManagersHash);
       sEventListenerManagersHash.ops = nullptr;
     }
@@ -1936,6 +1939,34 @@ nsContentUtils::InProlog(nsINode *aNode)
   return !root || doc->IndexOf(aNode) < doc->IndexOf(root);
 }
 
+//static
+void
+nsContentUtils::TraceSafeJSContext(JSTracer* aTrc)
+{
+  JSContext* cx = GetSafeJSContext();
+  if (!cx) {
+    return;
+  }
+  if (JSObject* global = js::DefaultObjectForContextOrNull(cx)) {
+    JS::AssertGCThingMustBeTenured(global);
+    JS_CallUnbarrieredObjectTracer(aTrc, &global, "safe context");
+    MOZ_ASSERT(global == js::DefaultObjectForContextOrNull(cx));
+  }
+}
+
+nsPIDOMWindow *
+nsContentUtils::GetWindowFromCaller()
+{
+  JSContext *cx = GetCurrentJSContext();
+  if (cx) {
+    nsCOMPtr<nsPIDOMWindow> win =
+      do_QueryInterface(nsJSUtils::GetDynamicScriptGlobal(cx));
+    return win;
+  }
+
+  return nullptr;
+}
+
 nsIDocument*
 nsContentUtils::GetDocumentFromCaller()
 {
@@ -1948,6 +1979,24 @@ nsContentUtils::GetDocumentFromCaller()
   }
 
   return win->GetExtantDoc();
+}
+
+nsIDocument*
+nsContentUtils::GetDocumentFromContext()
+{
+  JSContext *cx = GetCurrentJSContext();
+  if (cx) {
+    nsIScriptGlobalObject *sgo = nsJSUtils::GetDynamicScriptGlobal(cx);
+
+    if (sgo) {
+      nsCOMPtr<nsPIDOMWindow> pwin = do_QueryInterface(sgo);
+      if (pwin) {
+        return pwin->GetExtantDoc();
+      }
+    }
+  }
+
+  return nullptr;
 }
 
 bool
@@ -2082,13 +2131,6 @@ nsContentUtils::ContentIsCrossDocDescendantOf(nsINode* aPossibleDescendant,
   do {
     if (aPossibleDescendant == aPossibleAncestor)
       return true;
-
-    // Step over shadow root to the host node.
-    ShadowRoot* shadowRoot = ShadowRoot::FromNode(aPossibleDescendant);
-    if (shadowRoot) {
-      aPossibleDescendant = shadowRoot->GetHost();
-    }
-
     aPossibleDescendant = GetCrossDocParentNode(aPossibleDescendant);
   } while (aPossibleDescendant);
 
@@ -2591,7 +2633,6 @@ nsContentUtils::GenerateStateKey(nsIContent* aContent,
 nsIPrincipal*
 nsContentUtils::SubjectPrincipal()
 {
-  MOZ_ASSERT(IsInitialized());
   JSContext* cx = GetCurrentJSContext();
   if (!cx) {
     return GetSystemPrincipal();
@@ -3879,27 +3920,30 @@ nsContentUtils::MaybeFireNodeRemoved(nsINode* aChild, nsINode* aParent,
   NS_PRECONDITION(aChild->GetParentNode() == aParent, "Wrong parent");
   NS_PRECONDITION(aChild->OwnerDoc() == aOwnerDoc, "Wrong owner-doc");
 
+  // This checks that IsSafeToRunScript is true since we don't want to fire
+  // events when that is false. We can't rely on EventDispatcher to assert
+  // this in this situation since most of the time there are no mutation
+  // event listeners, in which case we won't even attempt to dispatch events.
+  // However this also allows for two exceptions. First off, we don't assert
+  // if the mutation happens to native anonymous content since we never fire
+  // mutation events on such content anyway.
+  // Second, we don't assert if sDOMNodeRemovedSuppressCount is true since
+  // that is a know case when we'd normally fire a mutation event, but can't
+  // make that safe and so we suppress it at this time. Ideally this should
+  // go away eventually.
+  NS_ASSERTION((aChild->IsNodeOfType(nsINode::eCONTENT) &&
+               static_cast<nsIContent*>(aChild)->
+                 IsInNativeAnonymousSubtree()) ||
+               IsSafeToRunScript() ||
+               sDOMNodeRemovedSuppressCount,
+               "Want to fire DOMNodeRemoved event, but it's not safe");
+
   // Having an explicit check here since it's an easy mistake to fall into,
   // and there might be existing code with problems. We'd rather be safe
   // than fire DOMNodeRemoved in all corner cases. We also rely on it for
   // nsAutoScriptBlockerSuppressNodeRemoved.
   if (!IsSafeToRunScript()) {
-    // This checks that IsSafeToRunScript is true since we don't want to fire
-    // events when that is false. We can't rely on EventDispatcher to assert
-    // this in this situation since most of the time there are no mutation
-    // event listeners, in which case we won't even attempt to dispatch events.
-    // However this also allows for two exceptions. First off, we don't assert
-    // if the mutation happens to native anonymous content since we never fire
-    // mutation events on such content anyway.
-    // Second, we don't assert if sDOMNodeRemovedSuppressCount is true since
-    // that is a know case when we'd normally fire a mutation event, but can't
-    // make that safe and so we suppress it at this time. Ideally this should
-    // go away eventually.
-    if (!(aChild->IsContent() && aChild->AsContent()->IsInNativeAnonymousSubtree()) &&
-        !sDOMNodeRemovedSuppressCount) {
-      NS_ERROR("Want to fire DOMNodeRemoved event, but it's not safe");
-      WarnScriptWasIgnored(aOwnerDoc);
-    }
+    WarnScriptWasIgnored(aOwnerDoc);
     return;
   }
 
@@ -4546,12 +4590,12 @@ nsContentUtils::IsInSameAnonymousTree(const nsINode* aNode,
 
 class AnonymousContentDestroyer : public nsRunnable {
 public:
-  explicit AnonymousContentDestroyer(nsCOMPtr<nsIContent>* aContent) {
+  AnonymousContentDestroyer(nsCOMPtr<nsIContent>* aContent) {
     mContent.swap(*aContent);
     mParent = mContent->GetParent();
     mDoc = mContent->OwnerDoc();
   }
-  explicit AnonymousContentDestroyer(nsCOMPtr<Element>* aElement) {
+  AnonymousContentDestroyer(nsCOMPtr<Element>* aElement) {
     mContent = aElement->forget();
     mParent = mContent->GetParent();
     mDoc = mContent->OwnerDoc();
@@ -4654,7 +4698,6 @@ nsContentUtils::CheckSecurityBeforeLoad(nsIURI* aURIToLoad,
 bool
 nsContentUtils::IsSystemPrincipal(nsIPrincipal* aPrincipal)
 {
-  MOZ_ASSERT(IsInitialized());
   return aPrincipal == sSystemPrincipal;
 }
 
@@ -4668,7 +4711,6 @@ nsContentUtils::IsExpandedPrincipal(nsIPrincipal* aPrincipal)
 nsIPrincipal*
 nsContentUtils::GetSystemPrincipal()
 {
-  MOZ_ASSERT(IsInitialized());
   return sSystemPrincipal;
 }
 
@@ -5480,7 +5522,6 @@ JSContext *
 nsContentUtils::GetCurrentJSContext()
 {
   MOZ_ASSERT(NS_IsMainThread());
-  MOZ_ASSERT(IsInitialized());
   return sXPConnect->GetCurrentJSContext();
 }
 
@@ -5489,7 +5530,6 @@ JSContext *
 nsContentUtils::GetSafeJSContext()
 {
   MOZ_ASSERT(NS_IsMainThread());
-  MOZ_ASSERT(IsInitialized());
   return sXPConnect->GetSafeJSContext();
 }
 
@@ -5497,7 +5537,6 @@ nsContentUtils::GetSafeJSContext()
 JSContext *
 nsContentUtils::GetDefaultJSContextForThread()
 {
-  MOZ_ASSERT(IsInitialized());
   if (MOZ_LIKELY(NS_IsMainThread())) {
     return GetSafeJSContext();
   } else {
@@ -5509,7 +5548,6 @@ nsContentUtils::GetDefaultJSContextForThread()
 JSContext *
 nsContentUtils::GetCurrentJSContextForThread()
 {
-  MOZ_ASSERT(IsInitialized());
   if (MOZ_LIKELY(NS_IsMainThread())) {
     return GetCurrentJSContext();
   } else {
@@ -5518,13 +5556,14 @@ nsContentUtils::GetCurrentJSContextForThread()
 }
 
 /* static */
-void
+nsresult
 nsContentUtils::ASCIIToLower(nsAString& aStr)
 {
   char16_t* iter = aStr.BeginWriting();
   char16_t* end = aStr.EndWriting();
-  MOZ_ASSERT(iter && end);
-
+  if (MOZ_UNLIKELY(!iter || !end)) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
   while (iter != end) {
     char16_t c = *iter;
     if (c >= 'A' && c <= 'Z') {
@@ -5532,38 +5571,43 @@ nsContentUtils::ASCIIToLower(nsAString& aStr)
     }
     ++iter;
   }
+  return NS_OK;
 }
 
 /* static */
-void
+nsresult
 nsContentUtils::ASCIIToLower(const nsAString& aSource, nsAString& aDest)
 {
   uint32_t len = aSource.Length();
   aDest.SetLength(len);
-  MOZ_ASSERT(aDest.Length() == len);
-
-  char16_t* dest = aDest.BeginWriting();
-  MOZ_ASSERT(dest);
-
-  const char16_t* iter = aSource.BeginReading();
-  const char16_t* end = aSource.EndReading();
-  while (iter != end) {
-    char16_t c = *iter;
-    *dest = (c >= 'A' && c <= 'Z') ?
-       c + ('a' - 'A') : c;
-    ++iter;
-    ++dest;
+  if (aDest.Length() == len) {
+    char16_t* dest = aDest.BeginWriting();
+    if (MOZ_UNLIKELY(!dest)) {
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
+    const char16_t* iter = aSource.BeginReading();
+    const char16_t* end = aSource.EndReading();
+    while (iter != end) {
+      char16_t c = *iter;
+      *dest = (c >= 'A' && c <= 'Z') ?
+         c + ('a' - 'A') : c;
+      ++iter;
+      ++dest;
+    }
+    return NS_OK;
   }
+  return NS_ERROR_OUT_OF_MEMORY;
 }
 
 /* static */
-void
+nsresult
 nsContentUtils::ASCIIToUpper(nsAString& aStr)
 {
   char16_t* iter = aStr.BeginWriting();
   char16_t* end = aStr.EndWriting();
-  MOZ_ASSERT(iter && end);
-
+  if (MOZ_UNLIKELY(!iter || !end)) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
   while (iter != end) {
     char16_t c = *iter;
     if (c >= 'a' && c <= 'z') {
@@ -5571,28 +5615,32 @@ nsContentUtils::ASCIIToUpper(nsAString& aStr)
     }
     ++iter;
   }
+  return NS_OK;
 }
 
 /* static */
-void
+nsresult
 nsContentUtils::ASCIIToUpper(const nsAString& aSource, nsAString& aDest)
 {
   uint32_t len = aSource.Length();
   aDest.SetLength(len);
-  MOZ_ASSERT(aDest.Length() == len);
-
-  char16_t* dest = aDest.BeginWriting();
-  MOZ_ASSERT(dest);
-
-  const char16_t* iter = aSource.BeginReading();
-  const char16_t* end = aSource.EndReading();
-  while (iter != end) {
-    char16_t c = *iter;
-    *dest = (c >= 'a' && c <= 'z') ?
-      c + ('A' - 'a') : c;
-    ++iter;
-    ++dest;
+  if (aDest.Length() == len) {
+    char16_t* dest = aDest.BeginWriting();
+    if (MOZ_UNLIKELY(!dest)) {
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
+    const char16_t* iter = aSource.BeginReading();
+    const char16_t* end = aSource.EndReading();
+    while (iter != end) {
+      char16_t c = *iter;
+      *dest = (c >= 'a' && c <= 'z') ?
+         c + ('A' - 'a') : c;
+      ++iter;
+      ++dest;
+    }
+    return NS_OK;
   }
+  return NS_ERROR_OUT_OF_MEMORY;
 }
 
 /* static */
@@ -5670,7 +5718,7 @@ nsContentUtils::CheckSameOrigin(nsIChannel *aOldChannel, nsIChannel *aNewChannel
 
   nsCOMPtr<nsIPrincipal> oldPrincipal;
   nsContentUtils::GetSecurityManager()->
-    GetChannelResultPrincipal(aOldChannel, getter_AddRefs(oldPrincipal));
+    GetChannelPrincipal(aOldChannel, getter_AddRefs(oldPrincipal));
 
   nsCOMPtr<nsIURI> newURI;
   aNewChannel->GetURI(getter_AddRefs(newURI));
@@ -5828,6 +5876,19 @@ nsContentUtils::GetUTFOrigin(nsIURI* aURI, nsString& aOrigin)
   }
   
   return NS_OK;
+}
+
+/* static */
+void
+nsContentUtils::GetUTFNonNullOrigin(nsIURI* aURI, nsString& aOrigin)
+{
+  aOrigin.Truncate();
+
+  nsString origin;
+  nsresult rv = GetUTFOrigin(aURI, origin);
+  if (NS_SUCCEEDED(rv) && !origin.EqualsLiteral("null")) {
+    aOrigin.Assign(origin);
+  }
 }
 
 /* static */
@@ -6396,11 +6457,10 @@ nsContentUtils::IsPatternMatching(nsAString& aValue, nsAString& aPattern,
   NS_ASSERTION(aDocument, "aDocument should be a valid pointer (not null)");
 
   AutoJSAPI jsapi;
-  jsapi.Init();
+  if (NS_WARN_IF(!jsapi.Init(aDocument->GetWindow()))) {
+    return true;
+  }
   JSContext* cx = jsapi.cx();
-  // We can use the junk scope here, because we're just using it for
-  // regexp evaluation, not actual script execution.
-  JSAutoCompartment ac(cx, xpc::UnprivilegedJunkScope());
 
   // The pattern has to match the entire value.
   aPattern.Insert(NS_LITERAL_STRING("^(?:"), 0);
@@ -6408,7 +6468,7 @@ nsContentUtils::IsPatternMatching(nsAString& aValue, nsAString& aPattern,
 
   JS::Rooted<JSObject*> re(cx,
     JS_NewUCRegExpObjectNoStatics(cx,
-                                  static_cast<char16_t*>(aPattern.BeginWriting()),
+                                  static_cast<jschar*>(aPattern.BeginWriting()),
                                   aPattern.Length(), 0));
   if (!re) {
     JS_ClearPendingException(cx);
@@ -6418,7 +6478,7 @@ nsContentUtils::IsPatternMatching(nsAString& aValue, nsAString& aPattern,
   JS::Rooted<JS::Value> rval(cx, JS::NullValue());
   size_t idx = 0;
   if (!JS_ExecuteRegExpNoStatics(cx, re,
-                                 static_cast<char16_t*>(aValue.BeginWriting()),
+                                 static_cast<jschar*>(aValue.BeginWriting()),
                                  aValue.Length(), &idx, true, &rval)) {
     JS_ClearPendingException(cx);
     return true;

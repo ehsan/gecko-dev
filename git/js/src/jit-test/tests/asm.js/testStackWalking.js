@@ -17,10 +17,9 @@ function dumpStack()
     stack = new Error().stack
 }
 
-setJitCompilerOption("ion.warmup.trigger", 10);
-setJitCompilerOption("baseline.warmup.trigger", 0);
+setJitCompilerOption("ion.usecount.trigger", 10);
+setJitCompilerOption("baseline.usecount.trigger", 0);
 setJitCompilerOption("offthread-compilation.enable", 0);
-setCachingEnabled(true);
 
 var callFFI = asmCompile('global', 'ffis', USE_ASM + "var ffi=ffis.ffi; function f() { return ffi()|0 } return f");
 

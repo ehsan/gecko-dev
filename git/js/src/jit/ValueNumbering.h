@@ -72,18 +72,10 @@ class ValueNumberer
     bool updateAliasAnalysis_;        // Do we care about AliasAnalysis?
     bool dependenciesBroken_;         // Have we broken AliasAnalysis?
 
-    enum UseRemovedOption {
-        DontSetUseRemoved,
-        SetUseRemoved
-    };
-
     bool deleteDefsRecursively(MDefinition *def);
-    bool discardPhiOperands(MPhi *phi, const MBasicBlock *phiBlock,
-                            UseRemovedOption useRemovedOption = SetUseRemoved);
-    bool discardInsOperands(MInstruction *ins,
-                            UseRemovedOption useRemovedOption = SetUseRemoved);
-    bool deleteDef(MDefinition *def,
-                   UseRemovedOption useRemovedOption = SetUseRemoved);
+    bool discardPhiOperands(MPhi *phi, const MBasicBlock *phiBlock);
+    bool discardInsOperands(MInstruction *ins);
+    bool deleteDef(MDefinition *def);
     bool processDeadDefs();
 
     bool removePredecessor(MBasicBlock *block, MBasicBlock *pred);

@@ -55,13 +55,18 @@ GetBuildConfiguration(JSContext *cx, unsigned argc, jsval *vp)
     if (!info)
         return false;
 
-    if (!JS_SetProperty(cx, info, "rooting-analysis", FalseHandleValue))
+    RootedValue value(cx, BooleanValue(false));
+    if (!JS_SetProperty(cx, info, "rooting-analysis", value))
         return false;
 
-    if (!JS_SetProperty(cx, info, "exact-rooting", TrueHandleValue))
+#ifdef JSGC_USE_EXACT_ROOTING
+    value = BooleanValue(true);
+#else
+    value = BooleanValue(false);
+#endif
+    if (!JS_SetProperty(cx, info, "exact-rooting", value))
         return false;
 
-    RootedValue value(cx);
 #ifdef DEBUG
     value = BooleanValue(true);
 #else
@@ -263,7 +268,7 @@ MinorGC(JSContext *cx, unsigned argc, jsval *vp)
     if (args.get(0) == BooleanValue(true))
         cx->runtime()->gc.storeBuffer.setAboutToOverflow();
 
-    cx->minorGC(gcreason::API);
+    MinorGC(cx, gcreason::API);
 #endif
     args.rval().setUndefined();
     return true;
@@ -514,7 +519,7 @@ SelectForGC(JSContext *cx, unsigned argc, Value *vp)
      * to be in the set, so evict the nursery before adding items.
      */
     JSRuntime *rt = cx->runtime();
-    rt->gc.evictNursery();
+    MinorGC(rt, JS::gcreason::EVICT_NURSERY);
 
     for (unsigned i = 0; i < args.length(); i++) {
         if (args[i].isObject()) {
@@ -623,7 +628,7 @@ GCSlice(JSContext *cx, unsigned argc, Value *vp)
         limit = false;
     }
 
-    cx->runtime()->gc.gcDebugSlice(limit, budget);
+    GCDebugSlice(cx->runtime(), limit, budget);
     args.rval().setUndefined();
     return true;
 }
@@ -1590,15 +1595,10 @@ static bool
 HelperThreadCount(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-#ifdef JS_MORE_DETERMINISTIC
-    // Always return 0 to get consistent output with and without --no-threads.
-    args.rval().setInt32(0);
-#else
     if (CanUseExtraThreads())
         args.rval().setInt32(HelperThreadState().threadCount);
     else
         args.rval().setInt32(0);
-#endif
     return true;
 }
 
@@ -1648,59 +1648,6 @@ DumpObject(JSContext *cx, unsigned argc, jsval *vp)
 #endif
 
 static bool
-DumpBacktrace(JSContext *cx, unsigned argc, jsval *vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-    js_DumpBacktrace(cx);
-    args.rval().setUndefined();
-    return true;
-}
-
-static bool
-GetBacktrace(JSContext *cx, unsigned argc, jsval *vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-
-    bool showArgs = false;
-    bool showLocals = false;
-    bool showThisProps = false;
-
-    if (args.length() > 1) {
-        RootedObject callee(cx, &args.callee());
-        ReportUsageError(cx, callee, "Too many arguments");
-        return false;
-    }
-
-    if (args.length() == 1) {
-        RootedObject cfg(cx, ToObject(cx, args[0]));
-        if (!cfg)
-            return false;
-        RootedValue v(cx);
-
-        if (!JS_GetProperty(cx, cfg, "args", &v))
-            return false;
-        showArgs = ToBoolean(v);
-
-        if (!JS_GetProperty(cx, cfg, "locals", &v))
-            return false;
-        showLocals = ToBoolean(v);
-
-        if (!JS_GetProperty(cx, cfg, "thisprops", &v))
-            return false;
-        showThisProps = ToBoolean(v);
-    }
-
-    char *buf = JS::FormatStackDump(cx, nullptr, showArgs, showLocals, showThisProps);
-    RootedString str(cx);
-    if (!(str = JS_NewStringCopyZ(cx, buf)))
-        return false;
-    JS_smprintf_free(buf);
-
-    args.rval().setString(str);
-    return true;
-}
-
-static bool
 ReportOutOfMemory(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
@@ -1722,7 +1669,7 @@ ReportLargeAllocationFailure(JSContext *cx, unsigned argc, jsval *vp)
 
 namespace heaptools {
 
-typedef UniquePtr<char16_t[], JS::FreePolicy> EdgeName;
+typedef UniquePtr<jschar[], JS::FreePolicy> EdgeName;
 
 // An edge to a node from its predecessor in a path through the graph.
 class BackEdge {
@@ -1899,7 +1846,7 @@ FindPath(JSContext *cx, unsigned argc, jsval *vp)
     //
     //   { node: undefined, edge: <string> }
     size_t length = nodes.length();
-    RootedObject result(cx, NewDenseFullyAllocatedArray(cx, length));
+    RootedObject result(cx, NewDenseAllocatedArray(cx, length));
     if (!result)
         return false;
     result->ensureDenseInitializedLength(cx, 0, length);
@@ -1946,9 +1893,9 @@ EvalReturningScope(JSContext *cx, unsigned argc, jsval *vp)
     if (!strChars.initTwoByte(cx, str))
         return false;
 
-    mozilla::Range<const char16_t> chars = strChars.twoByteRange();
+    mozilla::Range<const jschar> chars = strChars.twoByteRange();
     size_t srclen = chars.length();
-    const char16_t *src = chars.start().get();
+    const jschar *src = chars.start().get();
 
     JS::AutoFilename filename;
     unsigned lineno;
@@ -1971,19 +1918,6 @@ EvalReturningScope(JSContext *cx, unsigned argc, jsval *vp)
         return false;
 
     args.rval().setObject(*scope);
-    return true;
-}
-
-static bool
-IsSimdAvailable(JSContext *cx, unsigned argc, Value *vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-#ifdef JS_CODEGEN_NONE
-    bool available = false;
-#else
-    bool available = cx->jitSupportsSimd();
-#endif
-    args.rval().set(BooleanValue(available));
     return true;
 }
 
@@ -2075,7 +2009,6 @@ static const JSFunctionSpecWithHelp TestingFunctions[] = {
 "   11: Verify post write barriers between instructions\n"
 "   12: Verify post write barriers between paints\n"
 "   13: Check internal hashtables on minor GC\n"
-"   14: Always compact arenas after GC\n"
 "  Period specifies that collection happens every n allocations.\n"),
 
     JS_FN_HELP("schedulegc", ScheduleGC, 1, 0,
@@ -2169,10 +2102,6 @@ static const JSFunctionSpecWithHelp TestingFunctions[] = {
 "isAsmJSCompilationAvailable",
 "  Returns whether asm.js compilation is currently available or whether it is disabled\n"
 "  (e.g., by the debugger)."),
-
-    JS_FN_HELP("isSimdAvailable", IsSimdAvailable, 0, 0,
-"isSimdAvailable",
-"  Returns true if SIMD extensions are supported on this platform."),
 
     JS_FN_HELP("getJitCompilerOptions", GetJitCompilerOptions, 0, 0,
 "getCompilerOptions()",
@@ -2294,18 +2223,6 @@ static const JSFunctionSpecWithHelp TestingFunctions[] = {
     JS_FN_HELP("evalReturningScope", EvalReturningScope, 1, 0,
 "evalReturningScope(scriptStr)",
 "  Evaluate the script in a new scope and return the scope."),
-
-    JS_FN_HELP("backtrace", DumpBacktrace, 1, 0,
-"backtrace()",
-"  Dump out a brief backtrace."),
-
-    JS_FN_HELP("getBacktrace", GetBacktrace, 1, 0,
-"getBacktrace([options])",
-"  Return the current stack as a string. Takes an optional options object,\n"
-"  which may contain any or all of the boolean properties\n"
-"    options.args - show arguments to each function\n"
-"    options.locals - show local variables in each frame\n"
-"    options.thisprops - show the properties of the 'this' object of each frame\n"),
 
     JS_FS_HELP_END
 };

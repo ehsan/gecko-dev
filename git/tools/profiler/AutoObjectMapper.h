@@ -23,7 +23,7 @@ public:
   // call Map() to attempt the mapping.  There is no corresponding
   // Unmap() since the unmapping is done in the destructor.  Failure
   // messages are sent to |aLog|.
-  explicit AutoObjectMapperPOSIX(void(*aLog)(const char*));
+  AutoObjectMapperPOSIX(void(*aLog)(const char*));
 
   // Unmap the file on destruction of this object.
   ~AutoObjectMapperPOSIX();

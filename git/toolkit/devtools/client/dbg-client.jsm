@@ -225,7 +225,6 @@ const UnsolicitedNotifications = {
   "reflowActivity": "reflowActivity",
   "addonListChanged": "addonListChanged",
   "tabNavigated": "tabNavigated",
-  "frameUpdate": "frameUpdate",
   "pageError": "pageError",
   "documentLoad": "documentLoad",
   "enteredFrame": "enteredFrame",
@@ -421,11 +420,7 @@ DebuggerClient.prototype = {
         this._transport = null;
         return;
       }
-      if (client.detach) {
-        client.detach(detachClients);
-        return;
-      }
-      detachClients();
+      client.detach(detachClients);
     };
     detachClients();
   },
@@ -1013,8 +1008,12 @@ DebuggerClient.prototype = {
     }
     if (client.events.length > 0 && typeof(client.emit) != "function") {
       throw new Error("DebuggerServer.registerClient expects " +
-                      "a client instance with non-empty `events` array to" +
+                      "client instances with non-empty `events` array to" +
                       "have an `emit` function.");
+    }
+    if (typeof(client.detach) != "function") {
+      throw new Error("DebuggerServer.registerClient expects " +
+                      "a client instance with a `detach` function.");
     }
     if (this._clients.has(actorID)) {
       throw new Error("DebuggerServer.registerClient already registered " +
@@ -1792,13 +1791,7 @@ ThreadClient.prototype = {
         aOnResponse(aResponse);
         return;
       }
-
-      const { type, why } = aResponse;
-      const cleanUp = type == "paused" && why.type == "interrupted"
-        ? () => this.resume()
-        : noop;
-
-      doSetBreakpoint(cleanUp);
+      doSetBreakpoint(this.resume.bind(this));
     });
   },
 

@@ -22,15 +22,12 @@ Cu.import("resource://gre/modules/Promise.jsm");
 Cu.import("resource://gre/modules/Task.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "Notifications", "resource://gre/modules/Notifications.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "Messaging", "resource://gre/modules/Messaging.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "sendMessageToJava", "resource://gre/modules/Messaging.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "PluralForm", "resource://gre/modules/PluralForm.jsm");
 
 XPCOMUtils.defineLazyGetter(this, "Strings", function() {
   return Services.strings.createBundle("chrome://browser/locale/webapp.properties");
 });
-
-XPCOMUtils.defineLazyServiceGetter(this, "ParentalControls",
-  "@mozilla.org/parental-controls-service;1", "nsIParentalControlsService");
 
 /**
  * Get the formatted plural form of a string.  Escapes semicolons in arguments
@@ -92,26 +89,7 @@ this.WebappManager = {
   },
 
   _installApk: function(aMessage, aMessageManager) { return Task.spawn((function*() {
-    if (!ParentalControls.isAllowed(ParentalControls.INSTALL_APPS)) {
-      aMessage.error = Strings.GetStringFromName("webappsDisabled"),
-      aMessageManager.sendAsyncMessage("Webapps:Install:Return:KO", aMessage);
-      return;
-    }
-
     let filePath;
-
-
-    let appName = aMessage.app.manifest ? aMessage.app.manifest.name
-                                        : aMessage.app.updateManifest.name;
-
-    let downloadingNotification = this._notify({
-      title: Strings.GetStringFromName("retrievingTitle"),
-      message: Strings.formatStringFromName("retrievingMessage", [appName], 1),
-      icon: "drawable://alert_download_animation",
-      // TODO: make this a determinate progress indicator once we can determine
-      // the sizes of the APKs and observe their progress - bug 970210.
-      progress: NaN,
-    });
 
     try {
       filePath = yield this._downloadApk(aMessage.app.manifestURL);
@@ -120,18 +98,18 @@ this.WebappManager = {
       aMessageManager.sendAsyncMessage("Webapps:Install:Return:KO", aMessage);
       debug("error downloading APK: " + ex);
       return;
-    } finally {
-      downloadingNotification.cancel();
     }
 
-    Messaging.sendRequestForResult({
+    sendMessageToJava({
       type: "Webapps:InstallApk",
       filePath: filePath,
       data: aMessage,
-    }).catch(function (error) {
-      aMessage.error = error;
-      aMessageManager.sendAsyncMessage("Webapps:Install:Return:KO", aMessage);
-      debug("error downloading APK: " + error);
+    }, (data, error) => {
+      if (!!error) {
+        aMessage.error = error;
+        aMessageManager.sendAsyncMessage("Webapps:Install:Return:KO", aMessage);
+        debug("error downloading APK: " + error);
+      }
     });
   }).bind(this)); },
 
@@ -174,7 +152,6 @@ this.WebappManager = {
       }
     }
 
-
     // Trigger the download.
     worker.postMessage({ url: generatorUrl.spec, path: file.path });
 
@@ -210,23 +187,22 @@ this.WebappManager = {
 
   _postInstall: function(aProfilePath, aNewManifest, aOrigin, aApkPackageName, aManifestURL) {
     // aOrigin may now point to the app: url that hosts this app.
-    Messaging.sendRequest({
+    sendMessageToJava({
       type: "Webapps:Postinstall",
       apkPackageName: aApkPackageName,
       origin: aOrigin,
     });
-  },
 
-  askUninstall: function(aData) {
-    // Android does not currently support automatic uninstalling of apps.
-    // See bug 1019054.
-    DOMApplicationRegistry.denyUninstall(aData, "NOT_SUPPORTED");
+    let file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsILocalFile);
+    file.initWithPath(aProfilePath);
+    let localeManifest = new ManifestHelper(aNewManifest, aOrigin, aManifestUrl);
+    this.writeDefaultPrefs(file, localeManifest);
   },
 
   launch: function({ apkPackageName }) {
     debug("launch: " + apkPackageName);
 
-    Messaging.sendRequest({
+    sendMessageToJava({
       type: "Webapps:Launch",
       packageName: apkPackageName,
     });
@@ -253,7 +229,7 @@ this.WebappManager = {
     let apkVersions = yield this._getAPKVersions([ app.apkPackageName ]);
     if (app.apkPackageName in apkVersions) {
       debug("APK is installed; requesting uninstallation");
-      Messaging.sendRequest({
+      sendMessageToJava({
         type: "Webapps:UninstallApk",
         apkPackageName: app.apkPackageName,
       });
@@ -472,10 +448,14 @@ this.WebappManager = {
   }).bind(this)); },
 
   _getAPKVersions: function(packageNames) {
-    return Messaging.sendRequestForResult({
+    let deferred = Promise.defer();
+
+    sendMessageToJava({
       type: "Webapps:GetApkVersions",
       packageNames: packageNames 
-    }).then(data => data.versions);
+    }, data => deferred.resolve(data.versions));
+
+    return deferred.promise;
   },
 
   _getInstalledApps: function() {
@@ -536,7 +516,7 @@ this.WebappManager = {
       message: getFormattedPluralForm("retrievingUpdateMessage", [downloadingNames], aApps.length),
       icon: "drawable://alert_download_animation",
       // TODO: make this a determinate progress indicator once we can determine
-      // the sizes of the APKs and observe their progress - bug 970210.
+      // the sizes of the APKs and observe their progress.
       progress: NaN,
     });
 
@@ -593,14 +573,16 @@ this.WebappManager = {
           // TODO: figure out why Webapps:InstallApk needs the "from" property.
           from: apk.app.installOrigin,
         };
-        Messaging.sendRequestForResult({
+        sendMessageToJava({
           type: "Webapps:InstallApk",
           filePath: apk.filePath,
           data: msg,
-        }).catch((error) => {
-          // There's no page to report back to so drop the error.
-          // TODO: we should notify the user about this failure.
-          debug("APK install failed : " + error);
+        }, (data, error) => {
+          if (!!error) {
+            // There's no page to report back to so drop the error.
+            // TODO: we should notify the user about this failure.
+            debug("APK install failed : " + returnError);
+          }
         });
       }
     } else {
@@ -656,7 +638,8 @@ this.WebappManager = {
         let app = DOMApplicationRegistry.webapps[id];
         if (aData.apkPackageNames.indexOf(app.apkPackageName) > -1) {
           debug("attempting to uninstall " + app.name);
-          DOMApplicationRegistry.uninstall(app.manifestURL).then(
+          DOMApplicationRegistry.uninstall(
+            app.manifestURL,
             function() {
               debug("success uninstalling " + app.name);
             },
@@ -668,4 +651,33 @@ this.WebappManager = {
       }
     });
   },
+
+  writeDefaultPrefs: function(aProfile, aManifest) {
+      // build any app specific default prefs
+      let prefs = [];
+      if (aManifest.orientation) {
+        let orientation = aManifest.orientation;
+        if (Array.isArray(orientation)) {
+          orientation = orientation.join(",");
+        }
+        prefs.push({ name: "app.orientation.default", value: orientation });
+      }
+
+      // write them into the app profile
+      let defaultPrefsFile = aProfile.clone();
+      defaultPrefsFile.append(this.DEFAULT_PREFS_FILENAME);
+      this._writeData(defaultPrefsFile, prefs);
+  },
+
+  _writeData: function(aFile, aPrefs) {
+    if (aPrefs.length > 0) {
+      let array = new TextEncoder().encode(JSON.stringify(aPrefs));
+      OS.File.writeAtomic(aFile.path, array, { tmpPath: aFile.path + ".tmp" }).then(null, function onError(reason) {
+        debug("Error writing default prefs: " + reason);
+      });
+    }
+  },
+
+  DEFAULT_PREFS_FILENAME: "default-prefs.js",
+
 };

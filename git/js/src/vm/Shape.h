@@ -26,7 +26,6 @@
 #include "gc/Marking.h"
 #include "gc/Rooting.h"
 #include "js/HashTable.h"
-#include "js/MemoryMetrics.h"
 #include "js/RootingAPI.h"
 #include "vm/PropDesc.h"
 
@@ -191,11 +190,6 @@ struct ShapeTable {
     bool            init(ThreadSafeContext *cx, Shape *lastProp);
     bool            change(int log2Delta, ThreadSafeContext *cx);
     Shape           **search(jsid id, bool adding);
-
-#ifdef JSGC_COMPACTING
-    /* Update entries whose shapes have been moved */
-    void            fixupAfterMovingGC();
-#endif
 };
 
 /*
@@ -511,10 +505,6 @@ class BaseShape : public gc::BarrieredCell<BaseShape>
             gc::MarkObject(trc, &metadata, "metadata");
     }
 
-#ifdef JSGC_COMPACTING
-    void fixupAfterMovingGC();
-#endif
-
   private:
     static void staticAsserts() {
         JS_STATIC_ASSERT(offsetof(BaseShape, clasp_) == offsetof(js::shadow::BaseShape, clasp_));
@@ -560,7 +550,7 @@ BaseShape::baseUnowned()
 }
 
 /* Entries for the per-compartment baseShapes set of unowned base shapes. */
-struct StackBaseShape : public DefaultHasher<ReadBarrieredUnownedBaseShape>
+struct StackBaseShape
 {
     typedef const StackBaseShape *Lookup;
 
@@ -739,17 +729,12 @@ class Shape : public gc::BarrieredCell<Shape>
     ShapeTable &table() const { return base()->table(); }
 
     void addSizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf,
-                                JS::ClassInfo *info) const
-    {
-        if (hasTable()) {
-            if (inDictionary())
-                info->shapesMallocHeapDictTables += table().sizeOfIncludingThis(mallocSizeOf);
-            else
-                info->shapesMallocHeapTreeTables += table().sizeOfIncludingThis(mallocSizeOf);
-        }
+                                size_t *propTableSize, size_t *kidsSize) const {
+        if (hasTable())
+            *propTableSize += table().sizeOfIncludingThis(mallocSizeOf);
 
         if (!inDictionary() && kids.isHash())
-            info->shapesMallocHeapTreeKids += kids.toHash()->sizeOfIncludingThis(mallocSizeOf);
+            *kidsSize += kids.toHash()->sizeOfIncludingThis(mallocSizeOf);
     }
 
     bool isNative() const {
@@ -823,13 +808,7 @@ class Shape : public gc::BarrieredCell<Shape>
         /* Property stored in per-object dictionary, not shared property tree. */
         IN_DICTIONARY   = 0x02,
 
-        /*
-         * Slotful property was stored to more than once. This is used as a
-         * hint for type inference.
-         */
-        OVERWRITTEN     = 0x04,
-
-        UNUSED_BITS     = 0x38
+        UNUSED_BITS     = 0x3C
     };
 
     /* Get a shape identical to this one, without parent/kids information. */
@@ -886,13 +865,6 @@ class Shape : public gc::BarrieredCell<Shape>
         return (hasSetterValue() && base()->setterObj)
                ? ObjectValue(*base()->setterObj)
                : UndefinedValue();
-    }
-
-    void setOverwritten() {
-        flags |= OVERWRITTEN;
-    }
-    bool hadOverwrite() const {
-        return flags & OVERWRITTEN;
     }
 
     void update(PropertyOp getter, StrictPropertyOp setter, uint8_t attrs);
@@ -1056,19 +1028,10 @@ class Shape : public gc::BarrieredCell<Shape>
     inline Shape *search(ExclusiveContext *cx, jsid id);
     inline Shape *searchLinear(jsid id);
 
-#ifdef JSGC_COMPACTING
-    void fixupAfterMovingGC();
-#endif
-
     /* For JIT usage */
     static inline size_t offsetOfBase() { return offsetof(Shape, base_); }
 
   private:
-#ifdef JSGC_COMPACTING
-    void fixupDictionaryShapeAfterMovingGC();
-    void fixupShapeTreeAfterMovingGC();
-#endif
-
     static void staticAsserts() {
         JS_STATIC_ASSERT(offsetof(Shape, base_) == offsetof(js::shadow::Shape, base));
         JS_STATIC_ASSERT(offsetof(Shape, slotInfo) == offsetof(js::shadow::Shape, slotInfo));
@@ -1451,5 +1414,10 @@ IsImplicitDenseOrTypedArrayElement(Shape *prop)
 #pragma warning(pop)
 #pragma warning(pop)
 #endif
+
+namespace JS {
+template<> class AnchorPermitted<js::Shape *> { };
+template<> class AnchorPermitted<const js::Shape *> { };
+}
 
 #endif /* vm_Shape_h */

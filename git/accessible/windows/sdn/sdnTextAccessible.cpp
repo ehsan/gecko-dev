@@ -15,7 +15,6 @@
 #include "nsFontMetrics.h"
 #include "nsPresContext.h"
 #include "nsLayoutUtils.h"
-#include "nsRange.h"
 #include "gfxFont.h"
 #include "nsIAccessibleTypes.h"
 #include "mozilla/gfx/2D.h"

@@ -180,12 +180,8 @@ CodeGeneratorARM::bailoutIf(Assembler::Condition condition, LSnapshot *snapshot)
     // We could not use a jump table, either because all bailout IDs were
     // reserved, or a jump table is not optimal for this frame size or
     // platform. Whatever, we will generate a lazy bailout.
-    InlineScriptTree *tree = snapshot->mir()->block()->trackedTree();
     OutOfLineBailout *ool = new(alloc()) OutOfLineBailout(snapshot, masm.framePushed());
-
-    // All bailout code is associated with the bytecodeSite of the block we are
-    // bailing out from.
-    if (!addOutOfLineCode(ool, BytecodeSite(tree, tree->script()->code())))
+    if (!addOutOfLineCode(ool))
         return false;
 
     masm.ma_b(ool->entry(), condition);
@@ -210,13 +206,10 @@ CodeGeneratorARM::bailoutFrom(Label *label, LSnapshot *snapshot)
                  frameClass_.frameSize() == masm.framePushed());
 
     // On ARM we don't use a bailout table.
-    InlineScriptTree *tree = snapshot->mir()->block()->trackedTree();
     OutOfLineBailout *ool = new(alloc()) OutOfLineBailout(snapshot, masm.framePushed());
-
-    // All bailout code is associated with the bytecodeSite of the block we are
-    // bailing out from.
-    if (!addOutOfLineCode(ool, BytecodeSite(tree, tree->script()->code())))
+    if (!addOutOfLineCode(ool)) {
         return false;
+    }
 
     masm.retarget(label, ool->entry());
 
@@ -875,7 +868,7 @@ CodeGeneratorARM::visitBitOpI(LBitOpI *ins)
             masm.ma_and(ToRegister(rhs), ToRegister(lhs), ToRegister(dest));
         break;
       default:
-        MOZ_CRASH("unexpected binary opcode");
+        MOZ_ASSUME_UNREACHABLE("unexpected binary opcode");
     }
 
     return true;
@@ -917,7 +910,7 @@ CodeGeneratorARM::visitShiftI(LShiftI *ins)
             }
             break;
           default:
-            MOZ_CRASH("Unexpected shift op");
+            MOZ_ASSUME_UNREACHABLE("Unexpected shift op");
         }
     } else {
         // The shift amounts should be AND'ed into the 0-31 range since arm
@@ -942,7 +935,7 @@ CodeGeneratorARM::visitShiftI(LShiftI *ins)
             }
             break;
           default:
-            MOZ_CRASH("Unexpected shift op");
+            MOZ_ASSUME_UNREACHABLE("Unexpected shift op");
         }
     }
 
@@ -970,16 +963,6 @@ CodeGeneratorARM::visitUrshD(LUrshD *ins)
     }
 
     masm.convertUInt32ToDouble(temp, out);
-    return true;
-}
-
-bool
-CodeGeneratorARM::visitClzI(LClzI *ins)
-{
-    Register input = ToRegister(ins->input());
-    Register output = ToRegister(ins->output());
-
-    masm.ma_clz(input, output);
     return true;
 }
 
@@ -1121,7 +1104,7 @@ CodeGeneratorARM::emitTableSwitchDispatch(MTableSwitch *mir, Register index, Reg
         if (!ool->addCodeLabel(cl))
             return false;
     }
-    if (!addOutOfLineCode(ool, mir))
+    if (!addOutOfLineCode(ool))
         return false;
 
     return true;
@@ -1148,7 +1131,7 @@ CodeGeneratorARM::visitMathD(LMathD *math)
         masm.ma_vdiv(ToFloatRegister(src1), ToFloatRegister(src2), ToFloatRegister(output));
         break;
       default:
-        MOZ_CRASH("unexpected opcode");
+        MOZ_ASSUME_UNREACHABLE("unexpected opcode");
     }
     return true;
 }
@@ -1174,7 +1157,7 @@ CodeGeneratorARM::visitMathF(LMathF *math)
         masm.ma_vdiv_f32(ToFloatRegister(src1), ToFloatRegister(src2), ToFloatRegister(output));
         break;
       default:
-        MOZ_CRASH("unexpected opcode");
+        MOZ_ASSUME_UNREACHABLE("unexpected opcode");
     }
     return true;
 }
@@ -1270,15 +1253,13 @@ CodeGeneratorARM::emitRoundDouble(FloatRegister src, Register dest, Label *fail)
 bool
 CodeGeneratorARM::visitTruncateDToInt32(LTruncateDToInt32 *ins)
 {
-    return emitTruncateDouble(ToFloatRegister(ins->input()), ToRegister(ins->output()),
-                              ins->mir());
+    return emitTruncateDouble(ToFloatRegister(ins->input()), ToRegister(ins->output()));
 }
 
 bool
 CodeGeneratorARM::visitTruncateFToInt32(LTruncateFToInt32 *ins)
 {
-    return emitTruncateFloat32(ToFloatRegister(ins->input()), ToRegister(ins->output()),
-                               ins->mir());
+    return emitTruncateFloat32(ToFloatRegister(ins->input()), ToRegister(ins->output()));
 }
 
 static const uint32_t FrameSizes[] = { 128, 256, 512, 1024 };
@@ -1763,16 +1744,27 @@ DispatchIonCache::initializeAddCacheState(LInstruction *ins, AddCacheState *addS
     addState->dispatchScratch = ScratchRegister;
 }
 
+template <class U>
+Register
+getBase(U *mir)
+{
+    switch (mir->base()) {
+      case U::Heap: return HeapReg;
+      case U::Global: return GlobalReg;
+    }
+    return InvalidReg;
+}
+
 bool
 CodeGeneratorARM::visitLoadTypedArrayElementStatic(LLoadTypedArrayElementStatic *ins)
 {
-    MOZ_CRASH("NYI");
+    MOZ_ASSUME_UNREACHABLE("NYI");
 }
 
 bool
 CodeGeneratorARM::visitStoreTypedArrayElementStatic(LStoreTypedArrayElementStatic *ins)
 {
-    MOZ_CRASH("NYI");
+    MOZ_ASSUME_UNREACHABLE("NYI");
 }
 
 bool
@@ -1791,7 +1783,7 @@ CodeGeneratorARM::visitAsmJSLoadHeap(LAsmJSLoadHeap *ins)
       case Scalar::Uint32:  isSigned = true;  size = 32; break;
       case Scalar::Float64: isFloat = true;   size = 64; break;
       case Scalar::Float32: isFloat = true;   size = 32; break;
-      default: MOZ_CRASH("unexpected array type");
+      default: MOZ_ASSUME_UNREACHABLE("unexpected array type");
     }
 
     const LAllocation *ptr = ins->ptr();
@@ -1834,12 +1826,10 @@ CodeGeneratorARM::visitAsmJSLoadHeap(LAsmJSLoadHeap *ins)
         FloatRegister dst = ToFloatRegister(ins->output());
         VFPRegister vd(dst);
         if (size == 32) {
-            masm.ma_vldr(Operand(GlobalReg, AsmJSNaN32GlobalDataOffset - AsmJSGlobalRegBias),
-                         vd.singleOverlay(), Assembler::AboveOrEqual);
+            masm.convertDoubleToFloat32(NANReg, dst, Assembler::AboveOrEqual);
             masm.ma_vldr(vd.singleOverlay(), HeapReg, ptrReg, 0, Assembler::Below);
         } else {
-            masm.ma_vldr(Operand(GlobalReg, AsmJSNaN64GlobalDataOffset - AsmJSGlobalRegBias),
-                         vd, Assembler::AboveOrEqual);
+            masm.ma_vmov(NANReg, dst, Assembler::AboveOrEqual);
             masm.ma_vldr(vd, HeapReg, ptrReg, 0, Assembler::Below);
         }
     } else {
@@ -1867,7 +1857,7 @@ CodeGeneratorARM::visitAsmJSStoreHeap(LAsmJSStoreHeap *ins)
       case Scalar::Uint32:  isSigned = true;  size = 32; break;
       case Scalar::Float64: isFloat  = true;  size = 64; break;
       case Scalar::Float32: isFloat = true;   size = 32; break;
-      default: MOZ_CRASH("unexpected array type");
+      default: MOZ_ASSUME_UNREACHABLE("unexpected array type");
     }
     const LAllocation *ptr = ins->ptr();
     if (ptr->isConstant()) {
@@ -2059,7 +2049,7 @@ bool
 CodeGeneratorARM::visitAsmJSLoadGlobalVar(LAsmJSLoadGlobalVar *ins)
 {
     const MAsmJSLoadGlobalVar *mir = ins->mir();
-    unsigned addr = mir->globalDataOffset() - AsmJSGlobalRegBias;
+    unsigned addr = mir->globalDataOffset();
     if (mir->type() == MIRType_Int32) {
         masm.ma_dtr(IsLoad, GlobalReg, Imm32(addr), ToRegister(ins->output()));
     } else if (mir->type() == MIRType_Float32) {
@@ -2078,7 +2068,7 @@ CodeGeneratorARM::visitAsmJSStoreGlobalVar(LAsmJSStoreGlobalVar *ins)
 
     MIRType type = mir->value()->type();
     JS_ASSERT(IsNumberType(type));
-    unsigned addr = mir->globalDataOffset() - AsmJSGlobalRegBias;
+    unsigned addr = mir->globalDataOffset();
     if (mir->value()->type() == MIRType_Int32) {
         masm.ma_dtr(IsStore, GlobalReg, Imm32(addr), ToRegister(ins->value()));
     } else if (mir->value()->type() == MIRType_Float32) {
@@ -2099,7 +2089,7 @@ CodeGeneratorARM::visitAsmJSLoadFuncPtr(LAsmJSLoadFuncPtr *ins)
     Register tmp = ToRegister(ins->temp());
     Register out = ToRegister(ins->output());
     unsigned addr = mir->globalDataOffset();
-    masm.ma_mov(Imm32(addr - AsmJSGlobalRegBias), tmp);
+    masm.ma_mov(Imm32(addr), tmp);
     masm.as_add(tmp, tmp, lsl(index, 2));
     masm.ma_ldr(DTRAddr(GlobalReg, DtrRegImmShift(tmp, LSL, 0)), out);
 
@@ -2111,8 +2101,7 @@ CodeGeneratorARM::visitAsmJSLoadFFIFunc(LAsmJSLoadFFIFunc *ins)
 {
     const MAsmJSLoadFFIFunc *mir = ins->mir();
 
-    masm.ma_ldr(Operand(GlobalReg, mir->globalDataOffset() - AsmJSGlobalRegBias),
-                ToRegister(ins->output()));
+    masm.ma_ldr(Operand(GlobalReg, mir->globalDataOffset()), ToRegister(ins->output()));
 
     return true;
 }
@@ -2144,11 +2133,11 @@ CodeGeneratorARM::visitNegF(LNegF *ins)
 bool
 CodeGeneratorARM::visitForkJoinGetSlice(LForkJoinGetSlice *ins)
 {
-    MOZ_CRASH("NYI");
+    MOZ_ASSUME_UNREACHABLE("NYI");
 }
 
 JitCode *
 JitRuntime::generateForkJoinGetSliceStub(JSContext *cx)
 {
-    MOZ_CRASH("NYI");
+    MOZ_ASSUME_UNREACHABLE("NYI");
 }

@@ -758,36 +758,6 @@ ActivePluginsMeasurement.prototype = Object.freeze({
   },
 });
 
-function ActiveGMPluginsMeasurement() {
-  Metrics.Measurement.call(this);
-
-  this._serializers = {};
-  this._serializers[this.SERIALIZE_JSON] = {
-    singular: this._serializeJSONSingular.bind(this),
-  };
-}
-
-ActiveGMPluginsMeasurement.prototype = Object.freeze({
-  __proto__: Metrics.Measurement.prototype,
-
-  name: "gm-plugins",
-  version: 1,
-
-  fields: {
-    "gm-plugins": LAST_TEXT_FIELD,
-  },
-
-  _serializeJSONSingular: function (data) {
-    if (!data.has("gm-plugins")) {
-      this._log.warn("Don't have GM plugins info. Weird.");
-      return null;
-    }
-
-    let result = JSON.parse(data.get("gm-plugins")[1]);
-    result._v = this.version;
-    return result;
-  },
-});
 
 function AddonCountsMeasurement() {
   Metrics.Measurement.call(this);
@@ -864,7 +834,6 @@ AddonsProvider.prototype = Object.freeze({
   measurementTypes: [
     ActiveAddonsMeasurement,
     ActivePluginsMeasurement,
-    ActiveGMPluginsMeasurement,
     AddonCountsMeasurement1,
     AddonCountsMeasurement,
   ],
@@ -896,16 +865,14 @@ AddonsProvider.prototype = Object.freeze({
   _collectAndStoreAddons: function () {
     let deferred = Promise.defer();
 
-    AddonManager.getAllAddons(function onAllAddons(allAddons) {
+    AddonManager.getAllAddons(function onAllAddons(addons) {
       let data;
       let addonsField;
       let pluginsField;
-      let gmPluginsField;
       try {
-        data = this._createDataStructure(allAddons);
+        data = this._createDataStructure(addons);
         addonsField = JSON.stringify(data.addons);
         pluginsField = JSON.stringify(data.plugins);
-        gmPluginsField = JSON.stringify(data.gmPlugins);
       } catch (ex) {
         this._log.warn("Exception when populating add-ons data structure: " +
                        CommonUtils.exceptionStr(ex));
@@ -916,7 +883,6 @@ AddonsProvider.prototype = Object.freeze({
       let now = new Date();
       let addons = this.getMeasurement("addons", 2);
       let plugins = this.getMeasurement("plugins", 1);
-      let gmPlugins = this.getMeasurement("gm-plugins", 1);
       let counts = this.getMeasurement(AddonCountsMeasurement.prototype.name,
                                        AddonCountsMeasurement.prototype.version);
 
@@ -935,15 +901,7 @@ AddonsProvider.prototype = Object.freeze({
         return addons.setLastText("addons", addonsField).then(
           function onSuccess() {
             return plugins.setLastText("plugins", pluginsField).then(
-              function onSuccess() {
-                return gmPlugins.setLastText("gm-plugins", gmPluginsField).then(
-                  function onSuccess() {
-                    deferred.resolve();
-                  },
-                  function onError(error) {
-                    deferred.reject(error);
-                  });
-              },
+              function onSuccess() { deferred.resolve(); },
               function onError(error) { deferred.reject(error); }
             );
           },
@@ -980,7 +938,6 @@ AddonsProvider.prototype = Object.freeze({
     let data = {
       addons: {},
       plugins: {},
-      gmPlugins: {},
       counts: {}
     };
 
@@ -988,16 +945,8 @@ AddonsProvider.prototype = Object.freeze({
       let type = addon.type;
 
       // We count plugins separately below.
-      if (addon.type == "plugin") {
-        if (addon.gmPlugin) {
-          data.gmPlugins[addon.id] = {
-            version: addon.version,
-            userDisabled: addon.userDisabled,
-            applyBackgroundUpdates: addon.applyBackgroundUpdates,
-          };
-        }
+      if (addon.type == "plugin")
         continue;
-      }
 
       data.counts[type] = (data.counts[type] || 0) + 1;
 
@@ -1195,32 +1144,6 @@ CrashesProvider.prototype = Object.freeze({
   _populateCrashCounts: function () {
     this._log.info("Grabbing crash counts from crash manager.");
     let crashCounts = yield this._manager.getCrashCountsByDay();
-
-    // TODO: CrashManager no longer stores submissions as crashes, but we still
-    // want to send the submission data to FHR. As a temporary workaround, we
-    // populate |crashCounts| with the submission data to match past behaviour.
-    // See bug 1056160.
-    let crashes = yield this._manager.getCrashes();
-    for (let crash of crashes) {
-      for (let [submissionID, submission] of crash.submissions) {
-        if (!submission.responseDate) {
-          continue;
-        }
-
-        let day = Metrics.dateToDays(submission.responseDate);
-        if (!crashCounts.has(day)) {
-          crashCounts.set(day, new Map());
-        }
-
-        let succeeded =
-          submission.result == this._manager.SUBMISSION_RESULT_OK;
-        let type = crash.type + "-submission-" + (succeeded ? "succeeded" :
-                                                              "failed");
-
-        let count = (crashCounts.get(day).get(type) || 0) + 1;
-        crashCounts.get(day).set(type, count);
-      }
-    }
 
     let m = this.getMeasurement("crashes", 5);
     let fields = DailyCrashesMeasurement5.prototype.fields;

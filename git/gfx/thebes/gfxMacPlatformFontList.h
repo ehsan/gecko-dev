@@ -33,7 +33,7 @@ public:
     // for use with data fonts
     MacOSFontEntry(const nsAString& aPostscriptName, CGFontRef aFontRef,
                    uint16_t aWeight, uint16_t aStretch, uint32_t aItalicStyle,
-                   bool aIsDataUserFont, bool aIsLocal);
+                   bool aIsUserFont, bool aIsLocal);
 
     virtual ~MacOSFontEntry() {
         ::CGFontRelease(mFontRef);
@@ -81,17 +81,11 @@ public:
 
     virtual bool GetStandardFamilyName(const nsAString& aFontName, nsAString& aFamilyName);
 
-    virtual gfxFontEntry* LookupLocalFont(const nsAString& aFontName,
-                                          uint16_t aWeight,
-                                          int16_t aStretch,
-                                          bool aItalic);
+    virtual gfxFontEntry* LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
+                                          const nsAString& aFontName);
     
-    virtual gfxFontEntry* MakePlatformFont(const nsAString& aFontName,
-                                           uint16_t aWeight,
-                                           int16_t aStretch,
-                                           bool aItalic,
-                                           const uint8_t* aFontData,
-                                           uint32_t aLength);
+    virtual gfxFontEntry* MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
+                                           const uint8_t *aFontData, uint32_t aLength);
 
     void ClearPrefFonts() { mPrefFonts.Clear(); }
 

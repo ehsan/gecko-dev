@@ -145,7 +145,9 @@ D3D9SurfaceImage::GetAsSourceSurface()
 
   HRESULT hr;
   RefPtr<gfx::DataSourceSurface> surface = gfx::Factory::CreateDataSourceSurface(mSize, gfx::SurfaceFormat::B8G8R8X8);
-  if (NS_WARN_IF(!surface)) {
+
+  if (!surface) {
+    NS_WARNING("Failed to created SourceSurface for D3D9SurfaceImage.");
     return nullptr;
   }
 

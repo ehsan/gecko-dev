@@ -7,7 +7,8 @@
 #define GFX_3DMATRIX_H
 
 #include <gfxTypes.h>
-#include "mozilla/gfx/Point.h"
+#include <gfxPoint3D.h>
+#include <gfxPointH3D.h>
 #include <gfxQuad.h>
 
 class gfxMatrix;
@@ -29,34 +30,11 @@ class gfxMatrix;
  */
 class gfx3DMatrix
 {
-  typedef mozilla::gfx::Point3D Point3D;
-  typedef mozilla::gfx::Point4D Point4D;
 public:
   /**
    * Create matrix.
    */
   gfx3DMatrix(void);
-
-  friend std::ostream& operator<<(std::ostream& stream, const gfx3DMatrix& m) {
-    if (m.IsIdentity()) {
-      return stream << "[ I ]";
-    }
-
-    if (m.Is2D()) {
-      return stream << "["
-             << m._11 << " " << m._12 << "; "
-             << m._21 << " " << m._22 << "; "
-             << m._41 << " " << m._42
-             << "]";
-    }
-
-    return stream << "["
-           << m._11 << " " << m._12 << " " << m._13 << " " << m._14 << "; "
-           << m._21 << " " << m._22 << " " << m._23 << " " << m._24 << "; "
-           << m._31 << " " << m._32 << " " << m._33 << " " << m._34 << "; "
-           << m._41 << " " << m._42 << " " << m._43 << " " << m._44
-           << "]";
-  }
 
   /**
    * Matrix multiplication.
@@ -64,15 +42,15 @@ public:
   gfx3DMatrix operator*(const gfx3DMatrix &aMatrix) const;
   gfx3DMatrix& operator*=(const gfx3DMatrix &aMatrix);
 
-  Point4D& operator[](int aIndex)
+  gfxPointH3D& operator[](int aIndex)
   {
       NS_ABORT_IF_FALSE(aIndex >= 0 && aIndex <= 3, "Invalid matrix array index");
-      return *reinterpret_cast<Point4D*>((&_11)+4*aIndex);
+      return *reinterpret_cast<gfxPointH3D*>((&_11)+4*aIndex);
   }
-  const Point4D& operator[](int aIndex) const
+  const gfxPointH3D& operator[](int aIndex) const
   {
       NS_ABORT_IF_FALSE(aIndex >= 0 && aIndex <= 3, "Invalid matrix array index");
-      return *reinterpret_cast<const Point4D*>((&_11)+4*aIndex);
+      return *reinterpret_cast<const gfxPointH3D*>((&_11)+4*aIndex);
   }
 
   /**
@@ -146,7 +124,7 @@ public:
    * |  0        0        1         0 |
    * |  aPoint.x aPoint.y aPoint.z  1 |
    */
-  void Translate(const Point3D& aPoint);
+  void Translate(const gfxPoint3D& aPoint);
 
   /** 
    * Skew the matrix.
@@ -158,6 +136,10 @@ public:
    * | 0           0           0 1 |
    */
   void SkewXY(double aXSkew, double aYSkew);
+  
+  void SkewXY(double aSkew);
+  void SkewXZ(double aSkew);
+  void SkewYZ(double aSkew);
 
   /**
    * Scale the matrix
@@ -241,7 +223,7 @@ public:
    * This is functionally equivalent to:
    * matrix * gfx3DMatrix::Translation(aPoint)
    */
-  void TranslatePost(const Point3D& aPoint);
+  void TranslatePost(const gfxPoint3D& aPoint);
 
   void ScalePost(float aX, float aY, float aZ);
 
@@ -255,7 +237,7 @@ public:
    * @param aOrigin The origin to translate to
    * @return The modified matrix
    */
-  void ChangeBasis(const Point3D& aOrigin);
+  void ChangeBasis(const gfxPoint3D& aOrigin);
 
   /**
    * Transforms a point according to this matrix.
@@ -273,14 +255,16 @@ public:
   /** 
    * Transforms a 3D vector according to this matrix.
    */
-  Point3D Transform3D(const Point3D& point) const;
-  Point4D Transform4D(const Point4D& aPoint) const;
+  gfxPoint3D Transform3D(const gfxPoint3D& point) const;
+  gfxPointH3D Transform4D(const gfxPointH3D& aPoint) const;
+  gfxPointH3D TransposeTransform4D(const gfxPointH3D& aPoint) const;
 
   /**
    * Given a point (x,y) find a value for z such that (x,y,z,1) transforms
    * into (x',y',0,w') and returns the latter.
    */
-  Point4D ProjectPoint(const gfxPoint& aPoint) const;
+  gfxPointH3D ProjectPoint(const gfxPoint& aPoint) const;
+  gfxRect ProjectRectBounds(const gfxRect& aRect) const;
 
   /**
    * Inverts this matrix, if possible. Otherwise, the matrix is left
@@ -294,11 +278,31 @@ public:
       return *this;
   }
 
+  gfx3DMatrix& Normalize();
+
+  gfxPointH3D TransposedVector(int aIndex) const
+  {
+      NS_ABORT_IF_FALSE(aIndex >= 0 && aIndex <= 3, "Invalid matrix array index");
+      return gfxPointH3D(*((&_11)+aIndex), *((&_21)+aIndex), *((&_31)+aIndex), *((&_41)+aIndex));
+  }
+
+  void SetTransposedVector(int aIndex, gfxPointH3D &aVector)
+  {
+      NS_ABORT_IF_FALSE(aIndex >= 0 && aIndex <= 3, "Invalid matrix array index");
+      *((&_11)+aIndex) = aVector.x;
+      *((&_21)+aIndex) = aVector.y;
+      *((&_31)+aIndex) = aVector.z;
+      *((&_41)+aIndex) = aVector.w;
+  }
+
+  gfx3DMatrix& Transpose();
+  gfx3DMatrix Transposed() const;
+
   /**
    * Returns a unit vector that is perpendicular to the plane formed
    * by transform the screen plane (z=0) by this matrix.
    */
-  Point3D GetNormalVector() const;
+  gfxPoint3D GetNormalVector() const;
 
   /**
    * Returns true if a plane transformed by this matrix will
@@ -319,7 +323,7 @@ public:
    * \param aZ Translation on Z-axis.
    */
   static gfx3DMatrix Translation(float aX, float aY, float aZ);
-  static gfx3DMatrix Translation(const Point3D& aPoint);
+  static gfx3DMatrix Translation(const gfxPoint3D& aPoint);
 
   /**
    * Create a scale matrix. Scales uniformly along all axes.

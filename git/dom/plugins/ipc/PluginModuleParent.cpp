@@ -34,7 +34,6 @@
 
 #ifdef XP_WIN
 #include "PluginHangUIParent.h"
-#include "mozilla/GuardObjects.h"
 #include "mozilla/widget/AudioSession.h"
 #endif
 
@@ -103,11 +102,6 @@ PluginModuleParent::LoadModule(const char* aFilePath)
     }
     parent->Open(parent->mSubprocess->GetChannel(),
                  parent->mSubprocess->GetChildProcessHandle());
-
-    // Request Windows message deferral behavior on our channel. This
-    // applies to the top level and all sub plugin protocols since they
-    // all share the same channel.
-    parent->GetIPCChannel()->SetChannelFlags(MessageChannel::REQUIRE_DEFERRED_MESSAGE_PROTECTION);
 
     TimeoutChanged(CHILD_TIMEOUT_PREF, parent);
 
@@ -1218,26 +1212,6 @@ PluginModuleParent::NP_Initialize(NPNetscapeFuncs* bFuncs, NPPluginFuncs* pFuncs
     return NS_OK;
 }
 #else
-#if defined(XP_WIN)
-class MOZ_STACK_CLASS SetForegroundLocker
-{
-public:
-    SetForegroundLocker(MOZ_GUARD_OBJECT_NOTIFIER_ONLY_PARAM)
-    {
-        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-        ::LockSetForegroundWindow(LSFW_LOCK);
-    }
-
-    ~SetForegroundLocker()
-    {
-        ::LockSetForegroundWindow(LSFW_UNLOCK);
-    }
-
-private:
-    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
-};
-#endif
-
 nsresult
 PluginModuleParent::NP_Initialize(NPNetscapeFuncs* bFuncs, NPError* error)
 {
@@ -1253,11 +1227,6 @@ PluginModuleParent::NP_Initialize(NPNetscapeFuncs* bFuncs, NPError* error)
     uint32_t flags = 0;
 #ifdef XP_WIN
     flags |= kAllowAsyncDrawing;
-
-    // Bug 768802: We need to call LockSetForegroundWindow before calling
-    // NP_Initialize to prevent our window from losing focus when the
-    // plugin starts.
-    SetForegroundLocker fgLock;
 #endif
 
     if (!CallNP_Initialize(flags, error)) {

@@ -23,7 +23,7 @@ class MDefinition;
 class MInstruction;
 class LOsiPoint;
 
-class LIRGeneratorShared : public MDefinitionVisitor
+class LIRGeneratorShared : public MDefinitionVisitorDefaultNYI
 {
   protected:
     MIRGenerator *gen;
@@ -152,6 +152,10 @@ class LIRGeneratorShared : public MDefinitionVisitor
     // Rather than defining a new virtual register, sets |ins| to have the same
     // virtual register as |as|.
     inline bool redefine(MDefinition *ins, MDefinition *as);
+
+    // Defines an IR's output as the same as another IR. This is similar to
+    // redefine(), but used when creating new LIR.
+    inline bool defineAs(LInstruction *outLir, MDefinition *outMir, MDefinition *inMir);
 
     TempAllocator &alloc() const {
         return graph.alloc();

@@ -10,7 +10,6 @@
 #include <stagefright/foundation/ABuffer.h>
 #include <stagefright/foundation/ADebug.h>
 #include <stagefright/MetaData.h>
-#include "stagefright/MediaErrors.h"
 
 #define LOG_TAG "MediaCodecProxy"
 #include <android/log.h>
@@ -429,19 +428,13 @@ status_t MediaCodecProxy::Input(const uint8_t* aData, uint32_t aDataSize,
     ALOG("dequeueInputBuffer returned %d", err);
     return err;
   }
+  const sp<ABuffer> &dstBuffer = mInputBuffers.itemAt(index);
 
-  if (aData) {
-    const sp<ABuffer> &dstBuffer = mInputBuffers.itemAt(index);
+  CHECK_LE(aDataSize, dstBuffer->capacity());
+  dstBuffer->setRange(0, aDataSize);
 
-    CHECK_LE(aDataSize, dstBuffer->capacity());
-    dstBuffer->setRange(0, aDataSize);
-
-    memcpy(dstBuffer->data(), aData, aDataSize);
-    err = queueInputBuffer(index, 0, dstBuffer->size(), aTimestampUsecs, aflags);
-  } else {
-    err = queueInputBuffer(index, 0, 0, 0ll, MediaCodec::BUFFER_FLAG_EOS);
-  }
-
+  memcpy(dstBuffer->data(), aData, aDataSize);
+  err = queueInputBuffer(index, 0, dstBuffer->size(), aTimestampUsecs, aflags);
   if (err != OK) {
     ALOG("queueInputBuffer returned %d", err);
     return err;
@@ -480,9 +473,6 @@ status_t MediaCodecProxy::Output(MediaBuffer** aBuffer, int64_t aTimeoutUs)
   metaData->setInt64(kKeyTime, timeUs);
   buffer->set_range(buffer->range_offset(), size);
   *aBuffer = buffer;
-  if (flags & MediaCodec::BUFFER_FLAG_EOS) {
-    return ERROR_END_OF_STREAM;
-  }
   return err;
 }
 

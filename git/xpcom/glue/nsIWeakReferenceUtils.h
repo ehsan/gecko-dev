@@ -30,7 +30,7 @@ CallQueryReferent(T* aSource, DestinationType** aDestination)
 }
 
 
-class nsQueryReferent : public nsCOMPtr_helper
+class NS_COM_GLUE nsQueryReferent : public nsCOMPtr_helper
 {
 public:
   nsQueryReferent(nsIWeakReference* aWeakPtr, nsresult* aError)
@@ -56,8 +56,8 @@ do_QueryReferent(nsIWeakReference* aRawPtr, nsresult* aError = 0)
 /**
  * Deprecated, use |do_GetWeakReference| instead.
  */
-extern nsIWeakReference* NS_GetWeakReference(nsISupports*,
-                                             nsresult* aResult = 0);
+extern NS_COM_GLUE nsIWeakReference* NS_GetWeakReference(nsISupports*,
+                                                         nsresult* aResult = 0);
 
 /**
  * |do_GetWeakReference| is a convenience function that bundles up all the work needed

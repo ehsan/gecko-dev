@@ -623,8 +623,8 @@ RESTResponse.prototype = {
                       CommonUtils.exceptionStr(ex));
       return null;
     }
-    Object.defineProperty(this, "status", {value: status});
-    return status;
+    delete this.status;
+    return this.status = status;
   },
 
   /**
@@ -639,8 +639,8 @@ RESTResponse.prototype = {
                       CommonUtils.exceptionStr(ex));
       return null;
     }
-    Object.defineProperty(this, "statusText", {value: statusText});
-    return statusText;
+    delete this.statusText;
+    return this.statusText = statusText;
   },
 
   /**
@@ -655,8 +655,8 @@ RESTResponse.prototype = {
                       CommonUtils.exceptionStr(ex));
       return null;
     }
-    Object.defineProperty(this, "success", {value: success});
-    return success;
+    delete this.success;
+    return this.success = success;
   },
 
   /**
@@ -676,8 +676,8 @@ RESTResponse.prototype = {
       return null;
     }
 
-    Object.defineProperty(this, "headers", {value: headers});
-    return headers;
+    delete this.headers;
+    return this.headers = headers;
   },
 
   /**
@@ -723,3 +723,4 @@ TokenAuthenticatedRESTRequest.prototype = {
     );
   },
 };
+

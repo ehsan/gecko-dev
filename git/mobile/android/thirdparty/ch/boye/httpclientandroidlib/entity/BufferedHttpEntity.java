@@ -33,8 +33,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 
 import ch.boye.httpclientandroidlib.HttpEntity;
-import ch.boye.httpclientandroidlib.annotation.NotThreadSafe;
-import ch.boye.httpclientandroidlib.util.Args;
 import ch.boye.httpclientandroidlib.util.EntityUtils;
 
 /**
@@ -46,7 +44,6 @@ import ch.boye.httpclientandroidlib.util.EntityUtils;
  *
  * @since 4.0
  */
-@NotThreadSafe
 public class BufferedHttpEntity extends HttpEntityWrapper {
 
     private final byte[] buffer;
@@ -66,21 +63,19 @@ public class BufferedHttpEntity extends HttpEntityWrapper {
         }
     }
 
-    @Override
     public long getContentLength() {
         if (this.buffer != null) {
             return this.buffer.length;
         } else {
-            return super.getContentLength();
+            return wrappedEntity.getContentLength();
         }
     }
 
-    @Override
     public InputStream getContent() throws IOException {
         if (this.buffer != null) {
             return new ByteArrayInputStream(this.buffer);
         } else {
-            return super.getContent();
+            return wrappedEntity.getContent();
         }
     }
 
@@ -89,9 +84,8 @@ public class BufferedHttpEntity extends HttpEntityWrapper {
      *
      * @return  <code>false</code>
      */
-    @Override
     public boolean isChunked() {
-        return (buffer == null) && super.isChunked();
+        return (buffer == null) && wrappedEntity.isChunked();
     }
 
     /**
@@ -99,27 +93,26 @@ public class BufferedHttpEntity extends HttpEntityWrapper {
      *
      * @return  <code>true</code>
      */
-    @Override
     public boolean isRepeatable() {
         return true;
     }
 
 
-    @Override
     public void writeTo(final OutputStream outstream) throws IOException {
-        Args.notNull(outstream, "Output stream");
+        if (outstream == null) {
+            throw new IllegalArgumentException("Output stream may not be null");
+        }
         if (this.buffer != null) {
             outstream.write(this.buffer);
         } else {
-            super.writeTo(outstream);
+            wrappedEntity.writeTo(outstream);
         }
     }
 
 
     // non-javadoc, see interface HttpEntity
-    @Override
     public boolean isStreaming() {
-        return (buffer == null) && super.isStreaming();
+        return (buffer == null) && wrappedEntity.isStreaming();
     }
 
 } // class BufferedHttpEntity

@@ -69,7 +69,7 @@ public:
     gfxImageSurface(const gfxIntSize& aSize, gfxImageFormat aFormat,
                     long aStride, int32_t aMinimalAllocation, bool aClear);
 
-    explicit gfxImageSurface(cairo_surface_t *csurf);
+    gfxImageSurface(cairo_surface_t *csurf);
 
     virtual ~gfxImageSurface();
 

@@ -11,12 +11,17 @@ describe("loop.conversation", function() {
 
   var ConversationRouter = loop.conversation.ConversationRouter,
       sandbox,
-      notifications;
+      notifier;
 
   beforeEach(function() {
     sandbox = sinon.sandbox.create();
-    sandbox.useFakeTimers();
-    notifications = new loop.shared.models.NotificationCollection();
+    notifier = {
+      notify: sandbox.spy(),
+      warn: sandbox.spy(),
+      warnL10n: sandbox.spy(),
+      error: sandbox.spy(),
+      errorL10n: sandbox.spy()
+    };
 
     navigator.mozLoop = {
       doNotDisturb: true,
@@ -31,8 +36,6 @@ describe("loop.conversation", function() {
       },
       setLoopCharPref: sandbox.stub(),
       getLoopCharPref: sandbox.stub(),
-      getLoopBoolPref: sandbox.stub(),
-      getCallData: sandbox.stub(),
       startAlerting: function() {},
       stopAlerting: function() {},
       ensureRegistered: function() {},
@@ -67,6 +70,8 @@ describe("loop.conversation", function() {
       sandbox.stub(loop.conversation.ConversationRouter.prototype,
         "initialize");
       sandbox.stub(loop.shared.models.ConversationModel.prototype,
+        "initialize");
+      sandbox.stub(loop.shared.views.NotificationListView.prototype,
         "initialize");
 
       sandbox.stub(Backbone.history, "start");
@@ -113,8 +118,8 @@ describe("loop.conversation", function() {
         sdk: {},
         pendingCallTimeout: 1000,
       });
-      sandbox.spy(conversation, "setIncomingSessionData");
-      sandbox.stub(conversation, "setOutgoingSessionData");
+      sandbox.stub(client, "requestCallsInfo");
+      sandbox.stub(conversation, "setSessionData");
     });
 
     describe("Routes", function() {
@@ -124,7 +129,7 @@ describe("loop.conversation", function() {
         router = new ConversationRouter({
           client: client,
           conversation: conversation,
-          notifications: notifications
+          notifier: notifier
         });
         sandbox.stub(router, "loadView");
         sandbox.stub(conversation, "incoming");
@@ -157,168 +162,75 @@ describe("loop.conversation", function() {
           sinon.assert.calledOnce(navigator.mozLoop.startAlerting);
         });
 
-        it("should call getCallData on navigator.mozLoop",
+        it("should set the loopVersion on the conversation model", function() {
+          router.incoming("fakeVersion");
+
+          expect(conversation.get("loopVersion")).to.equal("fakeVersion");
+        });
+
+        it("should call requestCallsInfo on the client",
           function() {
             router.incoming(42);
 
-            sinon.assert.calledOnce(navigator.mozLoop.getCallData);
-            sinon.assert.calledWith(navigator.mozLoop.getCallData, 42);
+            sinon.assert.calledOnce(client.requestCallsInfo);
+            sinon.assert.calledWith(client.requestCallsInfo, 42);
           });
 
-        describe("getCallData successful", function() {
-          var fakeSessionData, resolvePromise, rejectPromise;
+        it("should display an error if requestCallsInfo returns an error",
+          function(){
+            client.requestCallsInfo.callsArgWith(1, "failed");
+
+            router.incoming(42);
+
+            sinon.assert.calledOnce(notifier.errorL10n);
+          });
+
+        describe("requestCallsInfo successful", function() {
+          var fakeSessionData;
 
           beforeEach(function() {
             fakeSessionData  = {
-              sessionId:      "sessionId",
-              sessionToken:   "sessionToken",
-              apiKey:         "apiKey",
-              callType:       "callType",
-              callId:         "Hello",
-              progressURL:    "http://progress.example.com",
-              websocketToken: 123
+              sessionId:    "sessionId",
+              sessionToken: "sessionToken",
+              apiKey:       "apiKey"
             };
 
-            sandbox.stub(router, "_setupWebSocketAndCallView");
-
-            navigator.mozLoop.getCallData.returns(fakeSessionData);
+            client.requestCallsInfo.callsArgWith(1, null, [fakeSessionData]);
           });
 
           it("should store the session data", function() {
-            router.incoming("fakeVersion");
+            router.incoming(42);
 
-            sinon.assert.calledOnce(conversation.setIncomingSessionData);
-            sinon.assert.calledWithExactly(conversation.setIncomingSessionData,
+            sinon.assert.calledOnce(conversation.setSessionData);
+            sinon.assert.calledWithExactly(conversation.setSessionData,
                                            fakeSessionData);
           });
 
-          it("should call #_setupWebSocketAndCallView", function() {
-
+          it("should display the incoming call view", function() {
             router.incoming("fakeVersion");
 
-            sinon.assert.calledOnce(router._setupWebSocketAndCallView);
-            sinon.assert.calledWithExactly(router._setupWebSocketAndCallView);
-          });
-        });
-
-        describe("#_setupWebSocketAndCallView", function() {
-          beforeEach(function() {
-            conversation.setIncomingSessionData({
-              sessionId:      "sessionId",
-              sessionToken:   "sessionToken",
-              apiKey:         "apiKey",
-              callType:       "callType",
-              callId:         "Hello",
-              progressURL:    "http://progress.example.com",
-              websocketToken: 123
-            });
-          });
-
-          describe("Websocket connection successful", function() {
-            var promise;
-
-            beforeEach(function() {
-              sandbox.stub(loop, "CallConnectionWebSocket").returns({
-                promiseConnect: function() {
-                  promise = new Promise(function(resolve, reject) {
-                    resolve();
-                  });
-                  return promise;
-                }
-              });
-            });
-
-            it("should create a CallConnectionWebSocket", function(done) {
-              router._setupWebSocketAndCallView();
-
-              promise.then(function () {
-                sinon.assert.calledOnce(loop.CallConnectionWebSocket);
-                sinon.assert.calledWithExactly(loop.CallConnectionWebSocket, {
-                  callId: "Hello",
-                  url: "http://progress.example.com",
-                  // The websocket token is converted to a hex string.
-                  websocketToken: "7b"
-                });
-                done();
-              });
-            });
-
-            it("should create the view with video.enabled=false", function(done) {
-              sandbox.stub(conversation, "get").withArgs("callType").returns("audio");
-
-              router._setupWebSocketAndCallView();
-
-              promise.then(function () {
-                sinon.assert.called(conversation.get);
-                sinon.assert.calledOnce(loop.conversation.IncomingCallView);
-                sinon.assert.calledWithExactly(loop.conversation.IncomingCallView,
-                                               {model: conversation,
-                                               video: {enabled: false}});
-                done();
-              });
-            });
-          });
-
-          describe("Websocket connection failed", function() {
-            var promise;
-
-            beforeEach(function() {
-              sandbox.stub(loop, "CallConnectionWebSocket").returns({
-                promiseConnect: function() {
-                  promise = new Promise(function(resolve, reject) {
-                    reject();
-                  });
-                  return promise;
-                }
-              });
-            });
-
-            it("should display an error", function(done) {
-              sandbox.stub(notifications, "errorL10n");
-              router._setupWebSocketAndCallView();
-
-              promise.then(function() {
-              }, function () {
-                sinon.assert.calledOnce(router._notifications.errorL10n);
-                sinon.assert.calledWithExactly(router._notifications.errorL10n,
-                  "cannot_start_call_session_not_ready");
-                done();
-              });
-            });
+            sinon.assert.calledOnce(loop.conversation.IncomingCallView);
+            sinon.assert.calledWithExactly(loop.conversation.IncomingCallView,
+                                           {model: conversation});
+            sinon.assert.calledOnce(router.loadReactComponent);
+            sinon.assert.calledWith(router.loadReactComponent,
+              sinon.match(function(value) {
+                return TestUtils.isDescriptorOfType(value,
+                  loop.conversation.IncomingCallView);
+              }));
           });
         });
       });
 
       describe("#accept", function() {
-        beforeEach(function() {
-          conversation.setIncomingSessionData({
-            sessionId:      "sessionId",
-            sessionToken:   "sessionToken",
-            apiKey:         "apiKey",
-            callType:       "callType",
-            callId:         "Hello",
-            progressURL:    "http://progress.example.com",
-            websocketToken: 123
-          });
-          router._setupWebSocketAndCallView();
-
-          sandbox.stub(router._websocket, "accept");
-          sandbox.stub(navigator.mozLoop, "stopAlerting");
-        });
-
         it("should initiate the conversation", function() {
           router.accept();
 
           sinon.assert.calledOnce(conversation.incoming);
         });
 
-        it("should notify the websocket of the user acceptance", function() {
-          router.accept();
-
-          sinon.assert.calledOnce(router._websocket.accept);
-        });
-
         it("should stop alerting", function() {
+          sandbox.stub(navigator.mozLoop, "stopAlerting");
           router.accept();
 
           sinon.assert.calledOnce(navigator.mozLoop.stopAlerting);
@@ -352,11 +264,10 @@ describe("loop.conversation", function() {
 
         it("should notify the user when session is not set",
           function() {
-            sandbox.stub(notifications, "errorL10n");
             router.conversation();
 
-            sinon.assert.calledOnce(router._notifications.errorL10n);
-            sinon.assert.calledWithExactly(router._notifications.errorL10n,
+            sinon.assert.calledOnce(router._notifier.errorL10n);
+            sinon.assert.calledWithExactly(router._notifier.errorL10n,
               "cannot_start_call_session_not_ready");
         });
       });
@@ -364,14 +275,10 @@ describe("loop.conversation", function() {
       describe("#decline", function() {
         beforeEach(function() {
           sandbox.stub(window, "close");
-          router._websocket = {
-            decline: sandbox.spy()
-          };
         });
 
         it("should close the window", function() {
           router.decline();
-          sandbox.clock.tick(1);
 
           sinon.assert.calledOnce(window.close);
         });
@@ -422,13 +329,6 @@ describe("loop.conversation", function() {
       });
 
       describe("#blocked", function() {
-        beforeEach(function() {
-          router._websocket = {
-            decline: sandbox.spy()
-          };
-          sandbox.stub(window, "close");
-        });
-
         it("should call mozLoop.stopAlerting", function() {
           sandbox.stub(navigator.mozLoop, "stopAlerting");
           router.declineAndBlock();
@@ -437,23 +337,10 @@ describe("loop.conversation", function() {
         });
 
         it("should call delete call", function() {
-          sandbox.stub(conversation, "get").withArgs("callToken")
-                                           .returns("fakeToken");
-          var deleteCallUrl = sandbox.stub(loop.Client.prototype,
-                                           "deleteCallUrl");
+          var deleteCallUrl = sandbox.stub(loop.Client.prototype, "deleteCallUrl");
           router.declineAndBlock();
 
           sinon.assert.calledOnce(deleteCallUrl);
-          sinon.assert.calledWithExactly(deleteCallUrl, "fakeToken",
-                                                        sinon.match.func);
-        });
-
-        it("should get callToken from conversation model", function() {
-          sandbox.stub(conversation, "get");
-          router.declineAndBlock();
-
-          sinon.assert.calledOnce(conversation.get);
-          sinon.assert.calledWithExactly(conversation.get, "callToken");
         });
 
         it("should trigger error handling in case of error", function() {
@@ -472,9 +359,8 @@ describe("loop.conversation", function() {
         });
 
         it("should close the window", function() {
+          sandbox.stub(window, "close");
           router.declineAndBlock();
-
-          sandbox.clock.tick(1);
 
           sinon.assert.calledOnce(window.close);
         });
@@ -496,7 +382,7 @@ describe("loop.conversation", function() {
         router = new loop.conversation.ConversationRouter({
           client: client,
           conversation: conversation,
-          notifications: notifications
+          notifier: notifier
         });
       });
 
@@ -532,49 +418,6 @@ describe("loop.conversation", function() {
           sinon.assert.calledOnce(router.navigate);
           sinon.assert.calledWith(router.navigate, "call/feedback");
         });
-
-      describe("Published and Subscribed Streams", function() {
-        beforeEach(function() {
-          router._websocket = {
-            mediaUp: sinon.spy()
-          };
-          router.incoming("fakeVersion");
-        });
-
-        describe("publishStream", function() {
-          it("should not notify the websocket if only one stream is up",
-            function() {
-              conversation.set("publishedStream", true);
-
-              sinon.assert.notCalled(router._websocket.mediaUp);
-            });
-
-          it("should notify the websocket that media is up if both streams" +
-             "are connected", function() {
-              conversation.set("subscribedStream", true);
-              conversation.set("publishedStream", true);
-
-              sinon.assert.calledOnce(router._websocket.mediaUp);
-            });
-        });
-
-        describe("subscribedStream", function() {
-          it("should not notify the websocket if only one stream is up",
-            function() {
-              conversation.set("subscribedStream", true);
-
-              sinon.assert.notCalled(router._websocket.mediaUp);
-            });
-
-          it("should notify the websocket that media is up if both streams" +
-             "are connected", function() {
-              conversation.set("publishedStream", true);
-              conversation.set("subscribedStream", true);
-
-              sinon.assert.calledOnce(router._websocket.mediaUp);
-            });
-        });
-      });
     });
   });
 
@@ -591,48 +434,14 @@ describe("loop.conversation", function() {
     });
 
     describe("click event on .btn-accept", function() {
-      it("should trigger an 'accept' conversation model event", function () {
+      it("should trigger an 'accept' conversation model event", function() {
         var buttonAccept = view.getDOMNode().querySelector(".btn-accept");
-        model.trigger.withArgs("accept");
-        TestUtils.Simulate.click(buttonAccept);
-
-        /* Setting a model property triggers 2 events */
-        sinon.assert.calledOnce(model.trigger.withArgs("accept"));
-      });
-
-      it("should set selectedCallType to audio-video", function () {
-        var buttonAccept = view.getDOMNode().querySelector(".btn-accept");
-        sandbox.stub(model, "set");
 
         TestUtils.Simulate.click(buttonAccept);
 
-        sinon.assert.calledOnce(model.set);
-        sinon.assert.calledWithExactly(model.set, "selectedCallType",
-          "audio-video");
-      });
-    });
-
-    describe("click event on .call-audio-only", function() {
-
-      it("should trigger an 'accept' conversation model event", function () {
-        var buttonAccept = view.getDOMNode().querySelector(".call-audio-only");
-        model.trigger.withArgs("accept");
-        TestUtils.Simulate.click(buttonAccept);
-
-        /* Setting a model property triggers 2 events */
-        sinon.assert.calledOnce(model.trigger.withArgs("accept"));
-      });
-
-
-      it("should set selectedCallType to audio", function() {
-        var buttonAccept = view.getDOMNode().querySelector(".call-audio-only");
-        sandbox.stub(model, "set");
-
-        TestUtils.Simulate.click(buttonAccept);
-
-        sinon.assert.calledOnce(model.set);
-        sinon.assert.calledWithExactly(model.set, "selectedCallType", "audio");
-      });
+        sinon.assert.calledOnce(model.trigger);
+        sinon.assert.calledWith(model.trigger, "accept");
+        });
     });
 
     describe("click event on .btn-decline", function() {

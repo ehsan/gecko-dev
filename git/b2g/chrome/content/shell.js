@@ -5,7 +5,7 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 Cu.import('resource://gre/modules/ContactService.jsm');
-Cu.import('resource://gre/modules/SettingsRequestManager.jsm');
+Cu.import('resource://gre/modules/SettingsChangeNotifier.jsm');
 Cu.import('resource://gre/modules/DataStoreChangeNotifier.jsm');
 Cu.import('resource://gre/modules/AlarmService.jsm');
 Cu.import('resource://gre/modules/ActivitiesService.jsm');
@@ -50,6 +50,21 @@ XPCOMUtils.defineLazyServiceGetter(this, 'gSystemMessenger',
 XPCOMUtils.defineLazyServiceGetter(Services, 'fm',
                                    '@mozilla.org/focus-manager;1',
                                    'nsIFocusManager');
+
+XPCOMUtils.defineLazyGetter(this, 'DebuggerServer', function() {
+  Cu.import('resource://gre/modules/devtools/dbg-server.jsm');
+  return DebuggerServer;
+});
+
+XPCOMUtils.defineLazyGetter(this, 'devtools', function() {
+  const { devtools } =
+    Cu.import('resource://gre/modules/devtools/Loader.jsm', {});
+  return devtools;
+});
+
+XPCOMUtils.defineLazyGetter(this, 'discovery', function() {
+  return devtools.require('devtools/toolkit/discovery/discovery');
+});
 
 XPCOMUtils.defineLazyGetter(this, "ppmm", function() {
   return Cc["@mozilla.org/parentprocessmessagemanager;1"]
@@ -507,8 +522,8 @@ var shell = {
         // based on tab's coordinate. So get the actual offsets between shell and evt.target.
         let elt = evt.target;
         let win = elt.ownerDocument.defaultView;
-        let offsetX = win.mozInnerScreenX - window.mozInnerScreenX;
-        let offsetY = win.mozInnerScreenY - window.mozInnerScreenY;
+        let offsetX = win.mozInnerScreenX;
+        let offsetY = win.mozInnerScreenY;
 
         let rect = elt.getBoundingClientRect();
         offsetX += rect.left;
@@ -707,8 +722,6 @@ var CustomEventManager = {
     switch(detail.type) {
       case 'webapps-install-granted':
       case 'webapps-install-denied':
-      case 'webapps-uninstall-granted':
-      case 'webapps-uninstall-denied':
         WebappsHelper.handleEvent(detail);
         break;
       case 'select-choicechange':
@@ -716,6 +729,9 @@ var CustomEventManager = {
         break;
       case 'system-message-listener-ready':
         Services.obs.notifyObservers(null, 'system-message-listener-ready', null);
+        break;
+      case 'remote-debugger-prompt':
+        RemoteDebugger.handleEvent(detail);
         break;
       case 'captive-portal-login-cancel':
         CaptivePortalLoginHelper.handleEvent(detail);
@@ -751,7 +767,6 @@ var WebappsHelper = {
   init: function webapps_init() {
     Services.obs.addObserver(this, "webapps-launch", false);
     Services.obs.addObserver(this, "webapps-ask-install", false);
-    Services.obs.addObserver(this, "webapps-ask-uninstall", false);
     Services.obs.addObserver(this, "webapps-close", false);
   },
 
@@ -774,20 +789,12 @@ var WebappsHelper = {
       case "webapps-install-denied":
         DOMApplicationRegistry.denyInstall(installer);
         break;
-      case "webapps-uninstall-granted":
-        DOMApplicationRegistry.confirmUninstall(installer);
-        break;
-      case "webapps-uninstall-denied":
-        DOMApplicationRegistry.denyUninstall(installer);
-        break;
     }
   },
 
   observe: function webapps_observe(subject, topic, data) {
     let json = JSON.parse(data);
     json.mm = subject;
-
-    let id;
 
     switch(topic) {
       case "webapps-launch":
@@ -806,17 +813,9 @@ var WebappsHelper = {
         });
         break;
       case "webapps-ask-install":
-        id = this.registerInstaller(json);
+        let id = this.registerInstaller(json);
         shell.sendChromeEvent({
           type: "webapps-ask-install",
-          id: id,
-          app: json.app
-        });
-        break;
-      case "webapps-ask-uninstall":
-        id = this.registerInstaller(json);
-        shell.sendChromeEvent({
-          type: "webapps-ask-uninstall",
           id: id,
           app: json.app
         });
@@ -861,6 +860,172 @@ let IndexedDBPromptHelper = {
   }
 }
 
+let RemoteDebugger = {
+  _promptDone: false,
+  _promptAnswer: false,
+
+  prompt: function debugger_prompt() {
+    this._promptDone = false;
+
+    shell.sendChromeEvent({
+      "type": "remote-debugger-prompt"
+    });
+
+    while(!this._promptDone) {
+      Services.tm.currentThread.processNextEvent(true);
+    }
+
+    return this._promptAnswer;
+  },
+
+  handleEvent: function debugger_handleEvent(detail) {
+    this._promptAnswer = detail.value;
+    this._promptDone = true;
+  },
+
+  initServer: function() {
+    if (DebuggerServer.initialized) {
+      return;
+    }
+
+    // Ask for remote connections.
+    DebuggerServer.init(this.prompt.bind(this));
+
+    // /!\ Be careful when adding a new actor, especially global actors.
+    // Any new global actor will be exposed and returned by the root actor.
+
+    // Add Firefox-specific actors, but prevent tab actors to be loaded in
+    // the parent process, unless we enable certified apps debugging.
+    let restrictPrivileges = Services.prefs.getBoolPref("devtools.debugger.forbid-certified-apps");
+    DebuggerServer.addBrowserActors("navigator:browser", restrictPrivileges);
+
+    /**
+     * Construct a root actor appropriate for use in a server running in B2G.
+     * The returned root actor respects the factories registered with
+     * DebuggerServer.addGlobalActor only if certified apps debugging is on,
+     * otherwise we used an explicit limited list of global actors
+     *
+     * * @param connection DebuggerServerConnection
+     *        The conection to the client.
+     */
+    DebuggerServer.createRootActor = function createRootActor(connection)
+    {
+      let { Promise: promise } = Cu.import("resource://gre/modules/Promise.jsm", {});
+      let parameters = {
+        // We do not expose browser tab actors yet,
+        // but we still have to define tabList.getList(),
+        // otherwise, client won't be able to fetch global actors
+        // from listTabs request!
+        tabList: {
+          getList: function() {
+            return promise.resolve([]);
+          }
+        },
+        // Use an explicit global actor list to prevent exposing
+        // unexpected actors
+        globalActorFactories: restrictPrivileges ? {
+          webappsActor: DebuggerServer.globalActorFactories.webappsActor,
+          deviceActor: DebuggerServer.globalActorFactories.deviceActor,
+        } : DebuggerServer.globalActorFactories
+      };
+      let { RootActor } = devtools.require("devtools/server/actors/root");
+      let root = new RootActor(connection, parameters);
+      root.applicationType = "operating-system";
+      return root;
+    };
+
+#ifdef MOZ_WIDGET_GONK
+    DebuggerServer.on("connectionchange", function() {
+      AdbController.updateState();
+    });
+#endif
+  }
+};
+
+let USBRemoteDebugger = {
+
+  get isDebugging() {
+    if (!this._listener) {
+      return false;
+    }
+
+    return DebuggerServer._connections &&
+           Object.keys(DebuggerServer._connections).length > 0;
+  },
+
+  start: function() {
+    if (this._listener) {
+      return;
+    }
+
+    RemoteDebugger.initServer();
+
+    let portOrPath =
+      Services.prefs.getCharPref("devtools.debugger.unix-domain-socket") ||
+      "/data/local/debugger-socket";
+
+    try {
+      debug("Starting USB debugger on " + portOrPath);
+      this._listener = DebuggerServer.openListener(portOrPath);
+      // Temporary event, until bug 942756 lands and offers a way to know
+      // when the server is up and running.
+      Services.obs.notifyObservers(null, 'debugger-server-started', null);
+    } catch (e) {
+      debug('Unable to start USB debugger server: ' + e);
+    }
+  },
+
+  stop: function() {
+    if (!this._listener) {
+      return;
+    }
+
+    try {
+      this._listener.close();
+      this._listener = null;
+    } catch (e) {
+      debug('Unable to stop USB debugger server: ' + e);
+    }
+  }
+
+};
+
+let WiFiRemoteDebugger = {
+
+  start: function() {
+    if (this._listener) {
+      return;
+    }
+
+    RemoteDebugger.initServer();
+
+    try {
+      debug("Starting WiFi debugger");
+      this._listener = DebuggerServer.openListener(-1);
+      let port = this._listener.port;
+      debug("Started WiFi debugger on " + port);
+      discovery.addService("devtools", { port: port });
+    } catch (e) {
+      debug('Unable to start WiFi debugger server: ' + e);
+    }
+  },
+
+  stop: function() {
+    if (!this._listener) {
+      return;
+    }
+
+    try {
+      discovery.removeService("devtools");
+      this._listener.close();
+      this._listener = null;
+    } catch (e) {
+      debug('Unable to stop WiFi debugger server: ' + e);
+    }
+  }
+
+};
+
 let KeyboardHelper = {
   handleEvent: function keyboard_handleEvent(detail) {
     Keyboard.setLayouts(detail.layouts);
@@ -881,15 +1046,11 @@ window.addEventListener('ContentStart', function ss_onContentStart() {
     try {
       var canvas = document.createElementNS('http://www.w3.org/1999/xhtml',
                                             'canvas');
-      var docRect = document.body.getBoundingClientRect();
-      var width = docRect.width;
-      var height = docRect.height;
-
-      // Convert width and height from CSS pixels (potentially fractional)
-      // to device pixels (integer).
+      var width = window.innerWidth;
+      var height = window.innerHeight;
       var scale = window.devicePixelRatio;
-      canvas.setAttribute('width', Math.round(width * scale));
-      canvas.setAttribute('height', Math.round(height * scale));
+      canvas.setAttribute('width', width * scale);
+      canvas.setAttribute('height', height * scale);
 
       var context = canvas.getContext('2d');
       var flags =
@@ -1224,7 +1385,8 @@ const kTransferContractId = "@mozilla.org/transfer;1";
 
 // Override Toolkit's nsITransfer implementation with the one from the
 // JavaScript API for downloads.  This will eventually be removed when
-// nsIDownloadManager will not be available anymore (bug 851471).
+// nsIDownloadManager will not be available anymore (bug 851471).  The
+// old code in this module will be removed in bug 899110.
 Components.manager.QueryInterface(Ci.nsIComponentRegistrar)
                   .registerFactory(kTransferCid, "",
                                    kTransferContractId, null);

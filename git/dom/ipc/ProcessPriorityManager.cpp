@@ -232,7 +232,7 @@ class ParticularProcessPriorityManager MOZ_FINAL
 {
   ~ParticularProcessPriorityManager();
 public:
-  explicit ParticularProcessPriorityManager(ContentParent* aContentParent);
+  ParticularProcessPriorityManager(ContentParent* aContentParent);
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSIOBSERVER
@@ -995,7 +995,7 @@ ParticularProcessPriorityManager::ComputePriority()
     return PROCESS_PRIORITY_BACKGROUND_PERCEIVABLE;
   }
 
-  AudioChannelService* service = AudioChannelService::GetOrCreateAudioChannelService();
+  AudioChannelService* service = AudioChannelService::GetAudioChannelService();
   if (service->ProcessContentOrNormalChannelIsActive(ChildID())) {
     return PROCESS_PRIORITY_BACKGROUND_PERCEIVABLE;
   }
@@ -1040,17 +1040,17 @@ ParticularProcessPriorityManager::SetPriorityNow(ProcessPriority aPriority,
                                                  ProcessCPUPriority aCPUPriority,
                                                  uint32_t aBackgroundLRU)
 {
+  if (aPriority == PROCESS_PRIORITY_UNKNOWN) {
+    MOZ_ASSERT(false);
+    return;
+  }
+
 #ifdef MOZ_NUWA_PROCESS
   // Do not attempt to change the priority of the Nuwa process
   if (mContentParent->IsNuwaProcess()) {
     return;
   }
 #endif
-
-  if (aPriority == PROCESS_PRIORITY_UNKNOWN) {
-    MOZ_ASSERT(false);
-    return;
-  }
 
   if (aBackgroundLRU > 0 &&
       aPriority == PROCESS_PRIORITY_BACKGROUND &&

@@ -9,22 +9,11 @@
 #include "AccessibleWrap.h"
 #include "nsIAccessibleTypes.h"
 #include "xpcAccessibleHyperText.h"
-#include "nsDirection.h"
-#include "WordMovementType.h"
-#include "nsIFrame.h"
 
+#include "nsFrameSelection.h"
 #include "nsISelectionController.h"
 
-class nsFrameSelection;
-class nsRange;
-class nsIWidget;
-
 namespace mozilla {
-
-namespace dom {
-class Selection;
-}
-
 namespace a11y {
 
 class TextRange;

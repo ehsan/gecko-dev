@@ -36,34 +36,34 @@ public:
   /**
    * Constructor for plain files
    */
-  explicit FileLocation(nsIFile* aFile);
+  explicit FileLocation(nsIFile *file);
 
   /**
    * Constructors for path within an archive. The archive can be given either
    * as nsIFile or nsZipArchive.
    */
-  FileLocation(nsIFile* aZip, const char* aPath);
+  FileLocation(nsIFile *zip, const char *path);
 
-  FileLocation(nsZipArchive* aZip, const char* aPath);
+  FileLocation(nsZipArchive *zip, const char *path);
 
   /**
    * Creates a new file location relative to another one.
    */
-  FileLocation(const FileLocation& aFile, const char* aPath = nullptr);
+  FileLocation(const FileLocation &file, const char *path = nullptr);
 
   /**
    * Initialization functions corresponding to constructors
    */
-  void Init(nsIFile* aFile);
+  void Init(nsIFile *file);
 
-  void Init(nsIFile* aZip, const char* aPath);
+  void Init(nsIFile *zip, const char *path);
 
-  void Init(nsZipArchive* aZip, const char* aPath);
+  void Init(nsZipArchive *zip, const char *path);
 
   /**
    * Returns an URI string corresponding to the file location
    */
-  void GetURIString(nsACString& aResult) const;
+  void GetURIString(nsACString &result) const;
 
   /**
    * Returns the base file of the location, where base file is defined as:
@@ -76,23 +76,32 @@ public:
   /**
    * Returns whether the "base file" (see GetBaseFile) is an archive
    */
-  bool IsZip() const { return !mPath.IsEmpty(); }
+  bool IsZip() const
+  {
+    return !mPath.IsEmpty();
+  }
 
   /**
    * Returns the path within the archive, when within an archive
    */
-  void GetPath(nsACString& aResult) const { aResult = mPath; }
+  void GetPath(nsACString &result) const
+  {
+    result = mPath;
+  }
 
   /**
    * Boolean value corresponding to whether the file location is initialized
    * or not.
    */
-  operator bool() const { return mBaseFile || mBaseZip; }
+  operator bool() const
+  {
+    return mBaseFile || mBaseZip;
+  }
 
   /**
    * Returns whether another FileLocation points to the same resource
    */
-  bool Equals(const FileLocation& aFile) const;
+  bool Equals(const FileLocation &file) const;
 
   /**
    * Data associated with a FileLocation.
@@ -103,15 +112,15 @@ public:
     /**
      * Returns the data size
      */
-    nsresult GetSize(uint32_t* aResult);
+    nsresult GetSize(uint32_t *result);
 
     /**
      * Copies the data in the given buffer
      */
-    nsresult Copy(char* aBuf, uint32_t aLen);
+    nsresult Copy(char *buf, uint32_t len);
   protected:
     friend class FileLocation;
-    nsZipItem* mItem;
+    nsZipItem *mItem;
     nsRefPtr<nsZipArchive> mZip;
     mozilla::AutoFDClose mFd;
   };
@@ -120,7 +129,7 @@ public:
    * Returns the data associated with the resource pointed at by the file
    * location.
    */
-  nsresult GetData(Data& aData);
+  nsresult GetData(Data &data);
 private:
   nsCOMPtr<nsIFile> mBaseFile;
   nsRefPtr<nsZipArchive> mBaseZip;

@@ -186,9 +186,8 @@ AccVCChangeEvent::
   AccVCChangeEvent(Accessible* aAccessible,
                    nsIAccessible* aOldAccessible,
                    int32_t aOldStart, int32_t aOldEnd,
-                   int16_t aReason, EIsFromUserInput aIsFromUserInput) :
-    AccEvent(::nsIAccessibleEvent::EVENT_VIRTUALCURSOR_CHANGED, aAccessible,
-             aIsFromUserInput),
+                   int16_t aReason) :
+    AccEvent(::nsIAccessibleEvent::EVENT_VIRTUALCURSOR_CHANGED, aAccessible),
     mOldAccessible(aOldAccessible), mOldStart(aOldStart), mOldEnd(aOldEnd),
     mReason(aReason)
 {
@@ -248,14 +247,6 @@ a11y::MakeXPCEvent(AccEvent* aEvent)
                                                  vcc->OldStartOffset(),
                                                  vcc->OldEndOffset(),
                                                  vcc->Reason());
-    return xpEvent.forget();
-  }
-
-  if (eventGroup & (1 << AccEvent::eObjectAttrChangedEvent)) {
-    AccObjectAttrChangedEvent* oac = downcast_accEvent(aEvent);
-    xpEvent = new xpcAccObjectAttributeChangedEvent(type, acc, doc, domNode,
-                                                    fromUser,
-                                                    oac->GetAttribute());
     return xpEvent.forget();
   }
 

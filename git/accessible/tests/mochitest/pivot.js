@@ -75,12 +75,11 @@ var ObjectTraversalRule =
 /**
  * A checker for virtual cursor changed events.
  */
-function VCChangedChecker(aDocAcc, aIdOrNameOrAcc, aTextOffsets, aPivotMoveMethod,
-                          aIsFromUserInput)
+function VCChangedChecker(aDocAcc, aIdOrNameOrAcc, aTextOffsets, aPivotMoveMethod)
 {
   this.__proto__ = new invokerChecker(EVENT_VIRTUALCURSOR_CHANGED, aDocAcc);
 
-  this.match = function VCChangedChecker_match(aEvent)
+  this.match = function VCChangedChecker_check(aEvent)
   {
     var event = null;
     try {
@@ -114,9 +113,6 @@ function VCChangedChecker(aDocAcc, aIdOrNameOrAcc, aTextOffsets, aPivotMoveMetho
     SimpleTest.ok(idMatches || nameMatches || accMatches, "id or name matches",
                   "expecting " + aIdOrNameOrAcc + ", got '" +
                   prettyName(position));
-
-    SimpleTest.is(aEvent.isFromUserInput, aIsFromUserInput,
-                  "Expected user input is " + aIsFromUserInput + '\n');
 
     if (aTextOffsets) {
       SimpleTest.is(aDocAcc.virtualCursor.startOffset, aTextOffsets[0],
@@ -194,7 +190,7 @@ function setVCRangeInvoker(aDocAcc, aTextAccessible, aTextOffsets)
   };
 
   this.eventSeq = [
-    new VCChangedChecker(aDocAcc, aTextAccessible, aTextOffsets, "setTextRange", true)
+    new VCChangedChecker(aDocAcc, aTextAccessible, aTextOffsets, "setTextRange")
   ];
 }
 
@@ -207,11 +203,8 @@ function setVCRangeInvoker(aDocAcc, aTextAccessible, aTextOffsets)
  * @param aIdOrNameOrAcc   [in] id, accessible or accessible name to expect
  *                         virtual cursor to land on after performing move method.
  *                         false if no move is expected.
- * @param aIsFromUserInput [in] set user input flag when invoking method, and
- *                         expect it in the event.
  */
-function setVCPosInvoker(aDocAcc, aPivotMoveMethod, aRule, aIdOrNameOrAcc,
-                         aIsFromUserInput)
+function setVCPosInvoker(aDocAcc, aPivotMoveMethod, aRule, aIdOrNameOrAcc)
 {
   var expectMove = (aIdOrNameOrAcc != false);
   this.invoke = function virtualCursorChangedInvoker_invoke()
@@ -219,20 +212,7 @@ function setVCPosInvoker(aDocAcc, aPivotMoveMethod, aRule, aIdOrNameOrAcc,
     VCChangedChecker.
       storePreviousPosAndOffset(aDocAcc.virtualCursor);
     if (aPivotMoveMethod && aRule) {
-      var moved = false;
-      switch (aPivotMoveMethod) {
-        case 'moveFirst':
-        case 'moveLast':
-          moved = aDocAcc.virtualCursor[aPivotMoveMethod](aRule,
-            aIsFromUserInput === undefined ? true : aIsFromUserInput);
-          break;
-        case 'moveNext':
-        case 'movePrevious':
-          moved = aDocAcc.virtualCursor[aPivotMoveMethod](aRule,
-            aDocAcc.virtualCursor.position, false,
-            aIsFromUserInput === undefined ? true : aIsFromUserInput);
-          break;
-      }
+      var moved = aDocAcc.virtualCursor[aPivotMoveMethod](aRule);
       SimpleTest.is(!!moved, !!expectMove,
                     "moved pivot with " + aPivotMoveMethod +
                     " to " + aIdOrNameOrAcc);
@@ -248,8 +228,7 @@ function setVCPosInvoker(aDocAcc, aPivotMoveMethod, aRule, aIdOrNameOrAcc,
 
   if (expectMove) {
     this.eventSeq = [
-      new VCChangedChecker(aDocAcc, aIdOrNameOrAcc, null, aPivotMoveMethod,
-        aIsFromUserInput === undefined ? !!aPivotMoveMethod : aIsFromUserInput)
+      new VCChangedChecker(aDocAcc, aIdOrNameOrAcc, null, aPivotMoveMethod)
     ];
   } else {
     this.eventSeq = [];
@@ -270,19 +249,15 @@ function setVCPosInvoker(aDocAcc, aPivotMoveMethod, aRule, aIdOrNameOrAcc,
  * @param aIdOrNameOrAcc   [in] id, accessible or accessible name to expect
  *                         virtual cursor to land on after performing move method.
  *                         false if no move is expected.
- * @param aIsFromUserInput [in] set user input flag when invoking method, and
- *                         expect it in the event.
  */
-function setVCTextInvoker(aDocAcc, aPivotMoveMethod, aBoundary, aTextOffsets,
-                          aIdOrNameOrAcc, aIsFromUserInput)
+function setVCTextInvoker(aDocAcc, aPivotMoveMethod, aBoundary, aTextOffsets, aIdOrNameOrAcc)
 {
   var expectMove = (aIdOrNameOrAcc != false);
   this.invoke = function virtualCursorChangedInvoker_invoke()
   {
     VCChangedChecker.storePreviousPosAndOffset(aDocAcc.virtualCursor);
     SimpleTest.info(aDocAcc.virtualCursor.position);
-    var moved = aDocAcc.virtualCursor[aPivotMoveMethod](aBoundary,
-      aIsFromUserInput === undefined ? true : false);
+    var moved = aDocAcc.virtualCursor[aPivotMoveMethod](aBoundary);
     SimpleTest.is(!!moved, !!expectMove,
                   "moved pivot by text with " + aPivotMoveMethod +
                   " to " + aIdOrNameOrAcc);
@@ -297,8 +272,7 @@ function setVCTextInvoker(aDocAcc, aPivotMoveMethod, aBoundary, aTextOffsets,
 
   if (expectMove) {
     this.eventSeq = [
-      new VCChangedChecker(aDocAcc, aIdOrNameOrAcc, aTextOffsets, aPivotMoveMethod,
-        aIsFromUserInput === undefined ? true : aIsFromUserInput)
+      new VCChangedChecker(aDocAcc, aIdOrNameOrAcc, aTextOffsets, aPivotMoveMethod)
     ];
   } else {
     this.eventSeq = [];
@@ -343,7 +317,7 @@ function moveVCCoordInvoker(aDocAcc, aX, aY, aIgnoreNoMatch,
 
   if (expectMove) {
     this.eventSeq = [
-      new VCChangedChecker(aDocAcc, aIdOrNameOrAcc, null, 'moveToPoint', true)
+      new VCChangedChecker(aDocAcc, aIdOrNameOrAcc, null, 'moveToPoint')
     ];
   } else {
     this.eventSeq = [];
@@ -433,8 +407,7 @@ function queueTraversalSequence(aQueue, aDocAcc, aRule, aModalRoot, aSequence)
   // No further more matches for given rule, expect no virtual cursor changes.
   aQueue.push(new setVCPosInvoker(aDocAcc, "moveNext", aRule, false));
 
-  // set isFromUserInput to false, just to test..
-  aQueue.push(new setVCPosInvoker(aDocAcc, "moveFirst", aRule, aSequence[0], false));
+  aQueue.push(new setVCPosInvoker(aDocAcc, "moveFirst", aRule, aSequence[0]));
 
   // No previous more matches for given rule, expect no virtual cursor changes.
   aQueue.push(new setVCPosInvoker(aDocAcc, "movePrevious", aRule, false));

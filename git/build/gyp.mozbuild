@@ -51,7 +51,7 @@ gyp_vars = {
     # codec enable/disables:
     'include_g711': 1,
     'include_opus': 1,
-    'include_g722': 1,
+    'include_g722': 0,
     'include_ilbc': 0,
     'include_isac': 0,
     'include_pcm16b': 1,
@@ -109,7 +109,7 @@ if CONFIG['ARM_ARCH']:
         # detection, so we have to set armv7=0 for non-Android target
         gyp_vars['armv7'] = 0
     # For libyuv
-    gyp_vars['arm_version'] = int(CONFIG['ARM_ARCH'])
+    gyp_vars['arm_version'] = CONFIG['ARM_ARCH']
 
 # Don't try to compile ssse3/sse4.1 code if toolchain doesn't support
 if CONFIG['INTEL_ARCHITECTURE']:

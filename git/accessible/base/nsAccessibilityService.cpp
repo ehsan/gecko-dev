@@ -972,10 +972,10 @@ nsAccessibilityService::GetOrCreateAccessible(nsINode* aNode,
 
       // If table has strong ARIA role then all table descendants shouldn't
       // expose their native roles.
-      if (!roleMapEntry && newAcc && aContext->HasStrongARIARole()) {
+      if (!roleMapEntry && newAcc) {
         if (frame->AccessibleType() == eHTMLTableRowType) {
           nsRoleMapEntry* contextRoleMap = aContext->ARIARoleMap();
-          if (!contextRoleMap->IsOfType(eTable))
+          if (contextRoleMap && !(contextRoleMap->IsOfType(eTable)))
             roleMapEntry = &aria::gEmptyRoleMap;
 
         } else if (frame->AccessibleType() == eHTMLTableCellType &&
@@ -987,7 +987,7 @@ nsAccessibilityService::GetOrCreateAccessible(nsINode* aNode,
                    content->Tag() == nsGkAtoms::dd ||
                    frame->AccessibleType() == eHTMLLiType) {
           nsRoleMapEntry* contextRoleMap = aContext->ARIARoleMap();
-          if (!contextRoleMap->IsOfType(eList))
+          if (contextRoleMap && !(contextRoleMap->IsOfType(eList)))
             roleMapEntry = &aria::gEmptyRoleMap;
         }
       }
@@ -1289,7 +1289,7 @@ nsAccessibilityService::CreateAccessibleByType(nsIContent* aContent,
   } else if (role.EqualsLiteral("xul:progressmeter")) {
     accessible = new XULProgressMeterAccessible(aContent, aDoc);
 
-  } else if (role.EqualsLiteral("xul:statusbar")) {
+  } else if (role.EqualsLiteral("xulstatusbar")) {
     accessible = new XULStatusBarAccessible(aContent, aDoc);
 
   } else if (role.EqualsLiteral("xul:scale")) {

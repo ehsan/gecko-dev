@@ -170,8 +170,6 @@ this.BrowserUITelemetry = {
   init: function() {
     UITelemetry.addSimpleMeasureFunction("toolbars",
                                          this.getToolbarMeasures.bind(this));
-    UITelemetry.addSimpleMeasureFunction("contextmenu",
-                                         this.getContextMenuInfo.bind(this));
     // Ensure that UITour.jsm remains lazy-loaded, yet always registers its
     // simple measure function with UITelemetry.
     UITelemetry.addSimpleMeasureFunction("UITour",
@@ -179,7 +177,6 @@ this.BrowserUITelemetry = {
 
     Services.obs.addObserver(this, "sessionstore-windows-restored", false);
     Services.obs.addObserver(this, "browser-delayed-startup-finished", false);
-    Services.obs.addObserver(this, "autocomplete-did-enter-text", false);
     CustomizableUI.addListener(this);
   },
 
@@ -190,13 +187,6 @@ this.BrowserUITelemetry = {
         break;
       case "browser-delayed-startup-finished":
         this._registerWindow(aSubject);
-        break;
-      case "autocomplete-did-enter-text":
-        let input = aSubject.QueryInterface(Ci.nsIAutoCompleteInput);
-        if (input && input.id == "urlbar" && !input.inPrivateContext &&
-            input.popup.selectedIndex != -1) {
-          this._logAwesomeBarSearchResult(input.textValue);
-        }
         break;
     }
   },
@@ -230,13 +220,11 @@ this.BrowserUITelemetry = {
    *
    * @param aKeys the Array of keys to chain Objects together with.
    * @param aEndWith the value to assign to the last key.
-   * @param aRoot the root object onto which we create/get the object chain
-   *              designated by aKeys.
    * @returns a reference to the second last object in the chain -
    *          so in our example, that'd be "b".
    */
-  _ensureObjectChain: function(aKeys, aEndWith, aRoot) {
-    let current = aRoot;
+  _ensureObjectChain: function(aKeys, aEndWith) {
+    let current = this._countableEvents;
     let parent = null;
     aKeys.unshift(this._bucket);
     for (let [i, key] of Iterator(aKeys)) {
@@ -254,8 +242,8 @@ this.BrowserUITelemetry = {
   },
 
   _countableEvents: {},
-  _countEvent: function(aKeyArray, root=this._countableEvents) {
-    let countObject = this._ensureObjectChain(aKeyArray, 0, root);
+  _countEvent: function(aKeyArray) {
+    let countObject = this._ensureObjectChain(aKeyArray, 0);
     let lastItemKey = aKeyArray[aKeyArray.length - 1];
     countObject[lastItemKey]++;
   },
@@ -562,24 +550,10 @@ this.BrowserUITelemetry = {
     this._countEvent(["customize", aEventType]);
   },
 
-  countSearchEvent: function(source, query, selection) {
+  countSearchEvent: function(source, query) {
     this._countEvent(["search", source]);
     if ((/^[a-zA-Z]+:[^\/\\]/).test(query)) {
       this._countEvent(["search", "urlbar-keyword"]);
-    }
-    if (selection) {
-      this._countEvent(["search", "selection", source, selection.index, selection.kind]);
-    }
-  },
-
-  _logAwesomeBarSearchResult: function (url) {
-    let spec = Services.search.parseSubmissionURL(url);
-    if (spec.engine) {
-      let matchedEngine = "default";
-      if (spec.engine.name !== Services.search.currentEngine.name) {
-        matchedEngine = "other";
-      }
-      this.countSearchEvent("autocomplete-" + matchedEngine);
     }
   },
 
@@ -611,54 +585,6 @@ this.BrowserUITelemetry = {
       });
       delete durationMap.customization;
     }
-  },
-
-  _contextMenuItemWhitelist: new Set([
-    "close-without-interaction", // for closing the menu without clicking it.
-    "custom-page-item", // The ID we use for page-provided items
-    "unknown", // The bucket for stuff with no id.
-    // Everything we know of so far (which will exclude add-on items):
-    "navigation", "back", "forward", "reload", "stop", "bookmarkpage",
-    "spell-no-suggestions", "spell-add-to-dictionary",
-    "spell-undo-add-to-dictionary", "openlinkincurrent", "openlinkintab",
-    "openlink", "openlinkprivate", "bookmarklink", "sharelink", "savelink",
-    "marklinkMenu", "copyemail", "copylink", "media-play", "media-pause",
-    "media-mute", "media-unmute", "media-playbackrate",
-    "media-playbackrate-050x", "media-playbackrate-100x",
-    "media-playbackrate-150x", "media-playbackrate-200x",
-    "media-showcontrols", "media-hidecontrols", "video-showstats",
-    "video-hidestats", "video-fullscreen", "leave-dom-fullscreen",
-    "reloadimage", "viewimage", "viewvideo", "copyimage-contents", "copyimage",
-    "copyvideourl", "copyaudiourl", "saveimage", "shareimage", "sendimage",
-    "setDesktopBackground", "viewimageinfo", "viewimagedesc", "savevideo",
-    "sharevideo", "saveaudio", "video-saveimage", "sendvideo", "sendaudio",
-    "ctp-play", "ctp-hide", "sharepage", "savepage", "markpageMenu",
-    "viewbgimage", "undo", "cut", "copy", "paste", "delete", "selectall",
-    "keywordfield", "searchselect", "shareselect", "frame", "showonlythisframe",
-    "openframeintab", "openframe", "reloadframe", "bookmarkframe", "saveframe",
-    "printframe", "viewframesource", "viewframeinfo",
-    "viewpartialsource-selection", "viewpartialsource-mathml",
-    "viewsource", "viewinfo", "spell-check-enabled",
-    "spell-add-dictionaries-main", "spell-dictionaries",
-    "spell-dictionaries-menu", "spell-add-dictionaries",
-    "bidi-text-direction-toggle", "bidi-page-direction-toggle", "inspect",
-  ]),
-
-  _contextMenuInteractions: {},
-
-  registerContextMenuInteraction: function(keys, itemID) {
-    if (itemID) {
-      if (!this._contextMenuItemWhitelist.has(itemID)) {
-        itemID = "other-item";
-      }
-      keys.push(itemID);
-    }
-
-    this._countEvent(keys, this._contextMenuInteractions);
-  },
-
-  getContextMenuInfo: function() {
-    return this._contextMenuInteractions;
   },
 
   _bucket: BUCKET_DEFAULT,

@@ -6,10 +6,6 @@ SOURCES += [
     'StaticXULComponentsEnd.cpp',
 ]
 
-# Don't let LTO reorder StaticXULComponentsStart.o.
-if '-flto' in CONFIG['OS_CXXFLAGS']:
-    SOURCES['StaticXULComponentsEnd.cpp'].flags += ['-fno-lto']
-
-Library('StaticXULComponentsEnd')
+LIBRARY_NAME = 'StaticXULComponentsEnd'
 
 DEFINES['MOZILLA_INTERNAL_API'] = True

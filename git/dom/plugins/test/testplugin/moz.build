@@ -6,7 +6,7 @@
 
 DIRS += ['secondplugin', 'javaplugin']
 
-SharedLibrary('nptest')
+LIBRARY_NAME = 'nptest'
 
 FAIL_ON_WARNINGS = not CONFIG['_MSC_VER']
 

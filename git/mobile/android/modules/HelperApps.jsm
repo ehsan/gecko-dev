@@ -11,7 +11,7 @@ Cu.import("resource://gre/modules/Services.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Prompt",
                                   "resource://gre/modules/Prompt.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "Messaging",
+XPCOMUtils.defineLazyModuleGetter(this, "sendMessageToJava",
                                   "resource://gre/modules/Messaging.jsm");
 
 XPCOMUtils.defineLazyGetter(this, "ContentAreaUtils", function() {
@@ -144,7 +144,7 @@ var HelperApps =  {
         return [];
       return parseData(data);
     } else {
-      Messaging.sendRequestForResult(msg).then(function(data) {
+      sendMessageToJava(msg, function(data) {
         callback(parseData(data));
       });
     }
@@ -152,7 +152,7 @@ var HelperApps =  {
 
   launchUri: function launchUri(uri) {
     let msg = this._getMessage("Intent:Open", uri);
-    Messaging.sendRequest(msg);
+    sendMessageToJava(msg);
   },
 
   _parseApps: function _parseApps(appInfo) {
@@ -193,20 +193,22 @@ var HelperApps =  {
             className: app.activityName
         });
 
-        Messaging.sendRequestForResult(msg).then(callback);
+        sendMessageToJava(msg, function(data) {
+            callback(data);
+        });
     } else {
         let msg = this._getMessage("Intent:Open", uri, {
             packageName: app.packageName,
             className: app.activityName
         });
 
-        Messaging.sendRequest(msg);
+        sendMessageToJava(msg);
     }
   },
 
   _sendMessageSync: function(msg) {
     let res = null;
-    Messaging.sendRequestForResult(msg).then(function(data) {
+    sendMessageToJava(msg, function(data) {
       res = data;
     });
 

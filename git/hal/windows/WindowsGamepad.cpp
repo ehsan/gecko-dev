@@ -50,8 +50,6 @@ const uint32_t kDevicesChangedStableDelay = 200;
 // poll it periodically. 50ms is arbitrarily chosen.
 const uint32_t kXInputPollInterval = 50;
 
-const UINT kRawInputError = (UINT)-1;
-
 #ifndef XUSER_MAX_COUNT
 #define XUSER_MAX_COUNT 4
 #endif
@@ -180,7 +178,7 @@ bool
 GetPreparsedData(HANDLE handle, nsTArray<uint8_t>& data)
 {
   UINT size;
-  if (GetRawInputDeviceInfo(handle, RIDI_PREPARSEDDATA, nullptr, &size) == kRawInputError) {
+  if (GetRawInputDeviceInfo(handle, RIDI_PREPARSEDDATA, nullptr, &size) < 0) {
     return false;
   }
   data.SetLength(size);
@@ -420,13 +418,13 @@ WindowsGamepadService::ScanForRawInputDevices()
 
   UINT numDevices;
   if (GetRawInputDeviceList(nullptr, &numDevices, sizeof(RAWINPUTDEVICELIST))
-      == kRawInputError) {
+      == -1) {
     return;
   }
   nsTArray<RAWINPUTDEVICELIST> devices(numDevices);
   devices.SetLength(numDevices);
   if (GetRawInputDeviceList(devices.Elements(), &numDevices,
-                            sizeof(RAWINPUTDEVICELIST)) == kRawInputError) {
+                            sizeof(RAWINPUTDEVICELIST)) == -1) {
     return;
   }
 
@@ -633,7 +631,7 @@ WindowsGamepadService::GetRawGamepad(HANDLE handle)
 
   RID_DEVICE_INFO rdi = {};
   UINT size = rdi.cbSize = sizeof(RID_DEVICE_INFO);
-  if (GetRawInputDeviceInfo(handle, RIDI_DEVICEINFO, &rdi, &size) == kRawInputError) {
+  if (GetRawInputDeviceInfo(handle, RIDI_DEVICEINFO, &rdi, &size) < 0) {
     return false;
   }
   // Ensure that this is a device we care about
@@ -644,13 +642,14 @@ WindowsGamepadService::GetRawGamepad(HANDLE handle)
   Gamepad gamepad = {};
 
   // Device name is a mostly-opaque string.
-  if (GetRawInputDeviceInfo(handle, RIDI_DEVICENAME, nullptr, &size) == kRawInputError) {
+  if (GetRawInputDeviceInfo(handle, RIDI_DEVICENAME, nullptr, &size) < 0) {
     return false;
   }
 
   nsTArray<wchar_t> devname(size);
   devname.SetLength(size);
-  if (GetRawInputDeviceInfo(handle, RIDI_DEVICENAME, devname.Elements(), &size) == kRawInputError) {
+  if (GetRawInputDeviceInfo(handle, RIDI_DEVICENAME, devname.Elements(), &size)
+      <= 0) {
     return false;
   }
 
@@ -668,7 +667,7 @@ WindowsGamepadService::GetRawGamepad(HANDLE handle)
   size = sizeof(name);
   nsTArray<char> gamepad_name;
   HANDLE hid_handle = CreateFile(devname.Elements(), GENERIC_READ | GENERIC_WRITE,
-    FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL);
+    FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, NULL, NULL);
   if (hid_handle) {
     if (mHID.mHidD_GetProductString(hid_handle, &name, size)) {
       int bytes = WideCharToMultiByte(CP_UTF8, 0, name, -1, nullptr, 0, nullptr,
@@ -787,7 +786,7 @@ WindowsGamepadService::HandleRawInput(HRAWINPUT handle)
   nsTArray<uint8_t> data(size);
   data.SetLength(size);
   if (GetRawInputData(handle, RID_INPUT, data.Elements(), &size,
-                      sizeof(RAWINPUTHEADER)) == kRawInputError) {
+                      sizeof(RAWINPUTHEADER)) < 0) {
     return false;
   }
   PRAWINPUT raw = reinterpret_cast<PRAWINPUT>(data.Elements());

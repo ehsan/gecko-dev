@@ -90,7 +90,7 @@ namespace JS {
     D(REFRESH_FRAME)                            \
     D(FULL_GC_TIMER)                            \
     D(SHUTDOWN_CC)                              \
-    D(FINISH_LARGE_EVALUATE)
+    D(FINISH_LARGE_EVALUTE)
 
 namespace gcreason {
 
@@ -250,8 +250,8 @@ struct JS_FRIEND_API(GCDescription) {
     explicit GCDescription(bool isCompartment)
       : isCompartment_(isCompartment) {}
 
-    char16_t *formatMessage(JSRuntime *rt) const;
-    char16_t *formatJSON(JSRuntime *rt, uint64_t timestamp) const;
+    jschar *formatMessage(JSRuntime *rt) const;
+    jschar *formatJSON(JSRuntime *rt, uint64_t timestamp) const;
 };
 
 typedef void

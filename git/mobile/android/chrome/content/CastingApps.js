@@ -4,9 +4,6 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 "use strict";
 
-XPCOMUtils.defineLazyModuleGetter(this, "PageActions",
-                                  "resource://gre/modules/PageActions.jsm");
-
 // Define service targets. We should consider moving these to their respective
 // JSM files, but we left them here to allow for better lazy JSM loading.
 var rokuTarget = {
@@ -62,7 +59,7 @@ var CastingApps = {
     SimpleServiceDiscovery.search(120 * 1000);
 
     this._castMenuId = NativeWindow.contextmenus.add(
-      Strings.browser.GetStringFromName("contextmenu.sendToDevice"),
+      Strings.browser.GetStringFromName("contextmenu.castToScreen"),
       this.filterCast,
       this.handleContextMenu.bind(this)
     );
@@ -407,7 +404,7 @@ var CastingApps = {
     // Remove any exising pageaction first, in case state changes or we don't have
     // a castable video
     if (this.pageAction.id) {
-      PageActions.remove(this.pageAction.id);
+      NativeWindow.pageactions.remove(this.pageAction.id);
       delete this.pageAction.id;
     }
 
@@ -428,15 +425,15 @@ var CastingApps = {
     // 2. The video is allowed to be cast and is currently playing
     // Both states have the same action: Show the cast page action
     if (aVideo.mozIsCasting) {
-      this.pageAction.id = PageActions.add({
-        title: Strings.browser.GetStringFromName("contextmenu.sendToDevice"),
+      this.pageAction.id = NativeWindow.pageactions.add({
+        title: Strings.browser.GetStringFromName("contextmenu.castToScreen"),
         icon: "drawable://casting_active",
         clickCallback: this.pageAction.click,
         important: true
       });
     } else if (aVideo.mozAllowCasting) {
-      this.pageAction.id = PageActions.add({
-        title: Strings.browser.GetStringFromName("contextmenu.sendToDevice"),
+      this.pageAction.id = NativeWindow.pageactions.add({
+        title: Strings.browser.GetStringFromName("contextmenu.castToScreen"),
         icon: "drawable://casting",
         clickCallback: this.pageAction.click,
         important: true
@@ -458,12 +455,8 @@ var CastingApps = {
       }
     });
 
-    if (items.length == 0) {
-      return;
-    }
-
     let prompt = new Prompt({
-      title: Strings.browser.GetStringFromName("casting.sendToDevice")
+      title: Strings.browser.GetStringFromName("casting.prompt")
     }).setSingleChoiceItems(items).show(function(data) {
       let selected = data.button;
       let service = selected == -1 ? null : filteredServices[selected];
@@ -542,11 +535,8 @@ var CastingApps = {
     }
 
     this.session.remoteMedia.shutdown();
-    this._shutdown();
-  },
-
-  _shutdown: function() {
     this.session.app.stop();
+
     let video = this.session.videoRef.get();
     if (video) {
       this._sendEventToVideo(video, { active: false });
@@ -563,7 +553,7 @@ var CastingApps = {
     }
 
     aRemoteMedia.load(this.session.data);
-    Messaging.sendRequest({ type: "Casting:Started", device: this.session.service.friendlyName });
+    sendMessageToJava({ type: "Casting:Started", device: this.session.service.friendlyName });
 
     let video = this.session.videoRef.get();
     if (video) {
@@ -573,8 +563,7 @@ var CastingApps = {
   },
 
   onRemoteMediaStop: function(aRemoteMedia) {
-    Messaging.sendRequest({ type: "Casting:Stopped" });
-    this._shutdown();
+    sendMessageToJava({ type: "Casting:Stopped" });
   },
 
   onRemoteMediaStatus: function(aRemoteMedia) {

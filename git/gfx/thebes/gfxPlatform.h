@@ -31,6 +31,7 @@ class gfxFontGroup;
 struct gfxFontStyle;
 class gfxUserFontSet;
 class gfxFontEntry;
+class gfxProxyFontEntry;
 class gfxPlatformFontList;
 class gfxTextRun;
 class nsIURI;
@@ -251,8 +252,6 @@ public:
     virtual bool UseAcceleratedSkiaCanvas();
     virtual void InitializeSkiaCacheLimits();
 
-    virtual bool UseTiling() { return gfxPrefs::LayersTilesEnabled(); }
-
     void GetAzureBackendInfo(mozilla::widget::InfoObject &aObj) {
       aObj.DefineProperty("AzureCanvasBackend", GetBackendName(mPreferredCanvasBackend));
       aObj.DefineProperty("AzureSkiaAccelerated", UseAcceleratedSkiaCanvas());
@@ -319,10 +318,8 @@ public:
      * Ownership of the returned gfxFontEntry is passed to the caller,
      * who must either AddRef() or delete.
      */
-    virtual gfxFontEntry* LookupLocalFont(const nsAString& aFontName,
-                                          uint16_t aWeight,
-                                          int16_t aStretch,
-                                          bool aItalic)
+    virtual gfxFontEntry* LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
+                                          const nsAString& aFontName)
     { return nullptr; }
 
     /**
@@ -333,11 +330,8 @@ public:
      * Ownership of the returned gfxFontEntry is passed to the caller,
      * who must either AddRef() or delete.
      */
-    virtual gfxFontEntry* MakePlatformFont(const nsAString& aFontName,
-                                           uint16_t aWeight,
-                                           int16_t aStretch,
-                                           bool aItalic,
-                                           const uint8_t* aFontData,
+    virtual gfxFontEntry* MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
+                                           const uint8_t *aFontData,
                                            uint32_t aLength);
 
     /**

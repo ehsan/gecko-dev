@@ -34,7 +34,7 @@ function checkBounds(element, x, y, w, h)
   ++test;
 }
 
-function checkWidth(element, w)
+function checkWidth(element, x, y, w, h)
 {
   var bbox = element.getBBox();
   var name = element.nodeName;
@@ -56,7 +56,6 @@ function run1()
     var s = doc.getElementById("s");
     var first = doc.getElementById("first");
     var second = doc.getElementById("second");
-    var third = doc.getElementById("third");
   
     /* test for an exact match */
     second.setAttribute("systemLanguage", "en-gb");
@@ -64,11 +63,11 @@ function run1()
   
     /* test for a close match i.e. the same language prefix */
     second.setAttribute("systemLanguage", "en-us");
-    checkWidth(s, 50);
+    checkWidth(s, 75, 100, 50, 50);
 
     /* test that we pick the first match */
     first.setAttribute("systemLanguage", "it");
-    checkWidth(s, 70);
+    checkWidth(s, 75, 100, 70, 70);
 
     /* this time with reordering */
     first.setAttribute("systemLanguage", "fr");
@@ -76,33 +75,20 @@ function run1()
 
     /* test for an exact match */
     second.setAttribute("systemLanguage", "en-gb");
-    checkWidth(s, 50);
+    checkWidth(s, 75, 100, 50, 50);
 
     /* test for a close match i.e. the same language prefix */
     second.setAttribute("systemLanguage", "en-us");
-    checkWidth(s, 50);
+    checkWidth(s, 75, 100, 50, 50);
 
     /* test that we pick the best match */
     second.setAttribute("systemLanguage", "it");
-    checkWidth(s, 50);
-
-    /* test that we use the default if nothing matches */
-    second.setAttribute("systemLanguage", "fr");
-    checkWidth(s, 80);
-    
-    /* test we still ignore non-matches */
-    second.removeAttribute("systemLanguage");
-    third.setAttribute("systemLanguage", "fr");
-    checkWidth(s, 50);
-
-    /* check what happens if nothing matches */
-    second.setAttribute("systemLanguage", "fr");
-    checkWidth(s, 0);
+    checkWidth(s, 75, 100, 50, 50);
 
     /* test that we pick the best match */
     first.setAttribute("systemLanguage", "en");
     second.setAttribute("systemLanguage", "en-gb");
-    checkWidth(s, 50);
+    checkWidth(s, 75, 100, 50, 50);
 
   } finally {
     SimpleTest.finish();

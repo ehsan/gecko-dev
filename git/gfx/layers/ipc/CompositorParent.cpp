@@ -242,9 +242,7 @@ CompositorParent::CompositorParent(nsIWidget* aWidget,
   mRootLayerTreeID = AllocateLayerTreeId();
   sIndirectLayerTrees[mRootLayerTreeID].mParent = this;
 
-  if (gfxPrefs::AsyncPanZoomEnabled()) {
-    mApzcTreeManager = new APZCTreeManager();
-  }
+  mApzcTreeManager = new APZCTreeManager();
 }
 
 bool
@@ -279,10 +277,8 @@ CompositorParent::Destroy()
   mCompositor = nullptr;
 
   mCompositionManager = nullptr;
-  if (mApzcTreeManager) {
-    mApzcTreeManager->ClearTree();
-    mApzcTreeManager = nullptr;
-  }
+  mApzcTreeManager->ClearTree();
+  mApzcTreeManager = nullptr;
   sIndirectLayerTrees.erase(mRootLayerTreeID);
 }
 

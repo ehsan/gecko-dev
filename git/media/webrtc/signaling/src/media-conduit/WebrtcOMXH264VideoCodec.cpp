@@ -23,7 +23,6 @@ using namespace android;
 // WebRTC
 #include "common_video/interface/texture_video_frame.h"
 #include "video_engine/include/vie_external_codec.h"
-#include "runnable_utils.h"
 
 // Gecko
 #include "GonkNativeWindow.h"
@@ -105,12 +104,6 @@ struct EncodedFrame
   int64_t mRenderTimeMs;
 };
 
-static void
-ShutdownThread(nsCOMPtr<nsIThread>& aThread)
-{
-  aThread->Shutdown();
-}
-
 // Base runnable class to repeatly pull OMX output buffers in seperate thread.
 // How to use:
 // - implementing DrainOutput() to get output. Remember to return false to tell
@@ -144,9 +137,7 @@ public:
     if (mThread != nullptr) {
       MonitorAutoUnlock unlock(mMonitor);
       CODEC_LOGD("OMXOutputDrain thread shutdown");
-      NS_DispatchToMainThread(
-        WrapRunnableNM<decltype(&ShutdownThread),
-                       nsCOMPtr<nsIThread> >(&ShutdownThread, mThread));
+      mThread->Shutdown();
       mThread = nullptr;
     }
     CODEC_LOGD("OMXOutputDrain stopped");
@@ -220,30 +211,6 @@ private:
   bool mEnding;
 };
 
-// Assumption: SPS is first paramset or is not present
-static bool IsParamSets(uint8_t* aData, size_t aSize)
-{
-  MOZ_ASSERT(aData && aSize > sizeof(kNALStartCode));
-  return (aData[sizeof(kNALStartCode)] & 0x1f) == kNALTypeSPS;
-}
-
-// get the length of any pre-pended SPS/PPS's
-static size_t ParamSetLength(uint8_t* aData, size_t aSize)
-{
-  const uint8_t* data = aData;
-  size_t size = aSize;
-  const uint8_t* nalStart = nullptr;
-  size_t nalSize = 0;
-  while (getNextNALUnit(&data, &size, &nalStart, &nalSize, true) == OK) {
-    if ((*nalStart & 0x1f) != kNALTypeSPS &&
-        (*nalStart & 0x1f) != kNALTypePPS) {
-      MOZ_ASSERT(nalStart - sizeof(kNALStartCode) >= aData);
-      return (nalStart - sizeof(kNALStartCode)) - aData; // SPS/PPS/iframe
-    }
-  }
-  return aSize; // it's only SPS/PPS
-}
-
 // H.264 decoder using stagefright.
 // It implements gonk native window callback to receive buffers from
 // MediaCodec::RenderOutputBufferAndRelease().
@@ -258,7 +225,6 @@ public:
     , mStarted(false)
     , mDecodedFrameLock("WebRTC decoded frame lock")
     , mCallback(aCallback)
-    , mEnding(false)
   {
     // Create binder thread pool required by stagefright.
     android::ProcessState::self()->startThreadPool();
@@ -272,7 +238,6 @@ public:
 
   virtual ~WebrtcOMXDecoder()
   {
-    CODEC_LOGD("WebrtcOMXH264VideoDecoder:%p OMX destructor", this);
     if (mStarted) {
       Stop();
     }
@@ -320,7 +285,6 @@ public:
       mNativeWindow->setNewFrameCallback(this);
       // XXX remove buffer changes after a better solution lands - bug 1009420
       sp<GonkBufferQueue> bq = mNativeWindow->getBufferQueue();
-      bq->setSynchronousMode(false);
       // More spare buffers to avoid OMX decoder waiting for native window
       bq->setMaxAcquiredBufferCount(WEBRTC_OMX_H264_MIN_DECODE_BUFFERS);
       surface = new Surface(bq);
@@ -453,10 +417,6 @@ public:
       {
         // Store info of this frame. OnNewFrame() will need the timestamp later.
         MutexAutoLock lock(mDecodedFrameLock);
-        if (mEnding) {
-          mCodec->releaseOutputBuffer(index);
-          return err;
-        }
         mDecodedFrames.push(frame);
       }
       // Ask codec to queue buffer back to native window. OnNewFrame() will be
@@ -476,10 +436,7 @@ public:
   void OnNewFrame() MOZ_OVERRIDE
   {
     RefPtr<layers::TextureClient> buffer = mNativeWindow->getCurrentBuffer();
-    if (!buffer) {
-      CODEC_LOGE("Decoder NewFrame: Get null buffer");
-      return;
-    }
+    MOZ_ASSERT(buffer != nullptr);
 
     layers::GrallocImage::GrallocData grallocData;
     grallocData.mPicSize = buffer->GetSize();
@@ -543,10 +500,6 @@ private:
       return OK;
     }
 
-    {
-      MutexAutoLock lock(mDecodedFrameLock);
-      mEnding = false;
-    }
     status_t err = mCodec->start();
     if (err == OK) {
       mStarted = true;
@@ -568,14 +521,12 @@ private:
     // Drop all 'pending to render' frames.
     {
       MutexAutoLock lock(mDecodedFrameLock);
-      mEnding = true;
       while (!mDecodedFrames.empty()) {
         mDecodedFrames.pop();
       }
     }
 
     if (mOutputDrain != nullptr) {
-      CODEC_LOGD("decoder's OutputDrain stopping");
       mOutputDrain->Stop();
       mOutputDrain = nullptr;
     }
@@ -589,6 +540,7 @@ private:
       MOZ_ASSERT(false);
     }
     CODEC_LOGD("OMXOutputDrain decoder stopped");
+
     return err;
   }
 
@@ -605,9 +557,8 @@ private:
   RefPtr<OutputDrain> mOutputDrain;
   webrtc::DecodedImageCallback* mCallback;
 
-  Mutex mDecodedFrameLock; // To protect mDecodedFrames and mEnding
+  Mutex mDecodedFrameLock; // To protect mDecodedFrames.
   std::queue<EncodedFrame> mDecodedFrames;
-  bool mEnding;
 };
 
 class EncOutputDrain : public OMXOutputDrain
@@ -643,17 +594,12 @@ protected:
 
     // Conversion to us rounds down, so we need to round up for us->90KHz
     uint32_t target_timestamp = (timeUs * 90ll + 999) / 1000; // us -> 90KHz
-    // 8x10 v2.0 encoder doesn't set this reliably:
-    //bool isParamSets = (flags & MediaCodec::BUFFER_FLAG_CODECCONFIG);
-    // Assume that SPS/PPS will be at the start of any buffer
-    // Assume PPS will not be in a separate buffer - SPS/PPS or SPS/PPS/iframe
-    bool isParamSets = IsParamSets(output.Elements(), output.Length());
+    bool isParamSets = (flags & MediaCodec::BUFFER_FLAG_CODECCONFIG);
     bool isIFrame = (flags & MediaCodec::BUFFER_FLAG_SYNCFRAME);
     CODEC_LOGD("OMX: encoded frame (%d): time %lld (%u), flags x%x",
                output.Length(), timeUs, target_timestamp, flags);
     // Should not be parameter sets and I-frame at the same time.
-    // Except that it is possible, apparently, after an encoder re-config (bug 1063883)
-    // MOZ_ASSERT(!(isParamSets && isIFrame));
+    MOZ_ASSERT(!(isParamSets && isIFrame));
 
     if (mCallback) {
       // Implementation here assumes encoder output to be a buffer containing
@@ -702,18 +648,15 @@ protected:
                  encoded._length, encoded._encodedWidth, encoded._encodedHeight,
                  isParamSets, isIFrame, encoded._timeStamp, encoded.capture_time_ms_);
       // Prepend SPS/PPS to I-frames unless they were sent last time.
-      SendEncodedDataToCallback(encoded, isIFrame && !mIsPrevFrameParamSets && !isParamSets);
+      SendEncodedDataToCallback(encoded, isIFrame && !mIsPrevFrameParamSets);
       // This will be true only for the frame following a paramset block!  So if we're
-      // working with a correct encoder that generates SPS/PPS then iframe always, we
-      // won't try to insert.  (also, don't set if we get SPS/PPS/iframe in one buffer)
-      mIsPrevFrameParamSets = isParamSets && !isIFrame;
+      // working with a correct encoder that generates SPS/PPS/IDR always, we
+      // won't try to insert.
+      mIsPrevFrameParamSets = isParamSets;
       if (isParamSets) {
         // copy off the param sets for inserting later
         mParamSets.Clear();
-        // since we may have SPS/PPS or SPS/PPS/iframe
-        size_t length = ParamSetLength(encoded._buffer, encoded._length);
-        MOZ_ASSERT(length > 0);
-        mParamSets.AppendElements(encoded._buffer, length);
+        mParamSets.AppendElements(encoded._buffer, encoded._length);
       }
     }
 
@@ -732,7 +675,7 @@ private:
 
     if (aPrependParamSets) {
       // Insert current parameter sets in front of the input encoded data.
-      MOZ_ASSERT(mParamSets.Length() > sizeof(kNALStartCode)); // Start code + ...
+      MOZ_ASSERT(mParamSets.Length() > 4); // Start code + ...
       nalu._length = mParamSets.Length();
       nalu._buffer = mParamSets.Elements();
       // Break into NALUs and send.
@@ -1164,7 +1107,7 @@ WebrtcOMXH264VideoDecoder::Release()
 {
   CODEC_LOGD("WebrtcOMXH264VideoDecoder:%p will be released", this);
 
-  mOMX = nullptr; // calls Stop()
+  mOMX = nullptr;
   mReservation->ReleaseOMXCodec();
 
   return WEBRTC_VIDEO_CODEC_OK;

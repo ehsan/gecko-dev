@@ -131,10 +131,8 @@ PackagedTestHelper.setSteps([
     SpecialPowers.addPermission("webapps-manage", true, document);
     SpecialPowers.addPermission("browser", true, document);
     SpecialPowers.autoConfirmAppInstall(() =>
-      SpecialPowers.autoConfirmAppUninstall(() =>
-        SpecialPowers.pushPrefEnv({set: [["dom.mozBrowserFramesEnabled",
-                                          true]]},
-                                  PackagedTestHelper.next)));
+      SpecialPowers.pushPrefEnv({set: [["dom.mozBrowserFramesEnabled", true]]},
+                                PackagedTestHelper.next));
   },
   function() {
     info("== TEST == Marketplace packaged app from https://marketplace.firefox.com/");

@@ -66,7 +66,7 @@ GonkBufferQueue::GonkBufferQueue(bool allowSynchronousMode,
     mMaxAcquiredBufferCount(1),
     mDefaultMaxBufferCount(2),
     mOverrideMaxBufferCount(0),
-    mSynchronousMode(true),
+    mSynchronousMode(true), // GonkBufferQueue always works in sync mode.
     mAllowSynchronousMode(allowSynchronousMode),
     mConnectedApi(NO_CONNECTED_API),
     mAbandoned(false),
@@ -455,19 +455,7 @@ status_t GonkBufferQueue::dequeueBuffer(int *outBuf, sp<Fence>* outFence,
 }
 
 status_t GonkBufferQueue::setSynchronousMode(bool enabled) {
-    ST_LOGV("setSynchronousMode: enabled=%d", enabled);
-    Mutex::Autolock lock(mMutex);
-
-    if (mAbandoned) {
-        ST_LOGE("setSynchronousMode: BufferQueue has been abandoned!");
-        return NO_INIT;
-    }
-
-    if (mSynchronousMode != enabled) {
-        mSynchronousMode = enabled;
-        mDequeueCondition.broadcast();
-    }
-    return OK;
+    return NO_ERROR;
 }
 
 status_t GonkBufferQueue::queueBuffer(int buf,
@@ -529,10 +517,19 @@ status_t GonkBufferQueue::queueBuffer(int buf,
         if (mSynchronousMode) {
             // In synchronous mode we queue all buffers in a FIFO.
             mQueue.push_back(buf);
+
+            // Synchronous mode always signals that an additional frame should
+            // be consumed.
+            listener = mConsumerListener;
         } else {
             // In asynchronous mode we only keep the most recent buffer.
             if (mQueue.empty()) {
                 mQueue.push_back(buf);
+
+                // Asynchronous mode only signals that a frame should be
+                // consumed if no previous frame was pending. If a frame were
+                // pending then the consumer would have already been notified.
+                listener = mConsumerListener;
             } else {
                 Fifo::iterator front(mQueue.begin());
                 // buffer currently queued is freed
@@ -541,9 +538,6 @@ status_t GonkBufferQueue::queueBuffer(int buf,
                 *front = buf;
             }
         }
-        // always signals that an additional frame should be consumed
-        // to handle max acquired buffer count reached case.
-        listener = mConsumerListener;
 
         mSlots[buf].mTimestamp = timestamp;
         mSlots[buf].mCrop = crop;

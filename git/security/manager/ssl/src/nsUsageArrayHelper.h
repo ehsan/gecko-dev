@@ -13,7 +13,7 @@
 class nsUsageArrayHelper
 {
 public:
-  explicit nsUsageArrayHelper(CERTCertificate *aCert);
+  nsUsageArrayHelper(CERTCertificate *aCert);
 
   nsresult GetUsagesArray(const char *suffix,
                bool localOnly,

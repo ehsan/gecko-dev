@@ -10,7 +10,6 @@
 #include "mozilla/Assertions.h"
 #include "nsTArrayForwardDeclare.h"
 #include "mozilla/Move.h"
-#include "mozilla/Maybe.h"
 
 class nsCycleCollectionTraversalCallback;
 
@@ -22,66 +21,73 @@ template <typename T>
 struct Nullable
 {
 private:
-  Maybe<T> mValue;
+  // mIsNull MUST COME FIRST because otherwise the casting in our array
+  // conversion operators would shift where it is found in the struct.
+  bool mIsNull;
+  T mValue;
 
 public:
   Nullable()
-    : mValue()
+    : mIsNull(true)
   {}
 
   explicit Nullable(T aValue)
-    : mValue()
-  {
-    mValue.emplace(aValue);
-  }
+    : mIsNull(false)
+    , mValue(aValue)
+  {}
 
   explicit Nullable(Nullable<T>&& aOther)
-    : mValue(mozilla::Move(aOther.mValue))
+    : mIsNull(aOther.mIsNull)
+    , mValue(mozilla::Move(aOther.mValue))
   {}
 
   Nullable(const Nullable<T>& aOther)
-    : mValue(aOther.mValue)
+    : mIsNull(aOther.mIsNull)
+    , mValue(aOther.mValue)
   {}
 
   void operator=(const Nullable<T>& aOther)
   {
+    mIsNull = aOther.mIsNull;
     mValue = aOther.mValue;
   }
 
   void SetValue(T aValue) {
-    mValue.reset();
-    mValue.emplace(aValue);
+    mValue = aValue;
+    mIsNull = false;
   }
 
   // For cases when |T| is some type with nontrivial copy behavior, we may want
   // to get a reference to our internal copy of T and work with it directly
   // instead of relying on the copying version of SetValue().
   T& SetValue() {
-    if (mValue.isNothing()) {
-      mValue.emplace();
-    }
-    return mValue.ref();
+    mIsNull = false;
+    return mValue;
   }
 
   void SetNull() {
-    mValue.reset();
+    mIsNull = true;
   }
 
   const T& Value() const {
-    return mValue.ref();
+    MOZ_ASSERT(!mIsNull);
+    return mValue;
   }
 
   T& Value() {
-    return mValue.ref();
+    MOZ_ASSERT(!mIsNull);
+    return mValue;
   }
 
   bool IsNull() const {
-    return mValue.isNothing();
+    return mIsNull;
   }
 
   bool Equals(const Nullable<T>& aOtherNullable) const
   {
-    return mValue == aOtherNullable.mValue;
+    return (mIsNull && aOtherNullable.mIsNull) ||
+           (!mIsNull && !aOtherNullable.mIsNull &&
+            mValue == aOtherNullable.mValue);
   }
 
   bool operator==(const Nullable<T>& aOtherNullable) const
@@ -92,6 +98,23 @@ public:
   bool operator!=(const Nullable<T>& aOtherNullable) const
   {
     return !Equals(aOtherNullable);
+  }
+
+  // Make it possible to use a const Nullable of an array type with other
+  // array types.
+  template<typename U>
+  operator const Nullable< nsTArray<U> >&() const {
+    // Make sure that T is ok to reinterpret to nsTArray<U>
+    const nsTArray<U>& arr = mValue;
+    (void)arr;
+    return *reinterpret_cast<const Nullable< nsTArray<U> >*>(this);
+  }
+  template<typename U>
+  operator const Nullable< FallibleTArray<U> >&() const {
+    // Make sure that T is ok to reinterpret to FallibleTArray<U>
+    const FallibleTArray<U>& arr = mValue;
+    (void)arr;
+    return *reinterpret_cast<const Nullable< FallibleTArray<U> >*>(this);
   }
 };
 

@@ -1,3 +1,4 @@
+// |jit-test| debug
 // Forced return from a generator frame.
 
 var g = newGlobal();

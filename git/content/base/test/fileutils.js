@@ -23,7 +23,7 @@ function testFile(file, contents, test) {
   // Load file using URL.createObjectURL and XMLHttpRequest
   var xhr = new XMLHttpRequest;
   xhr.open("GET", URL.createObjectURL(file));
-  xhr.onload = getXHRLoadHandler(contents, contents.length,
+  xhr.onload = getXHRLoadHandler(contents, contents.length, false,
                                  "XMLHttpRequest load of " + test);
   xhr.overrideMimeType('text/plain; charset=x-user-defined');
   xhr.send();
@@ -59,7 +59,7 @@ function testFile(file, contents, test) {
        "request content-length in XMLHttpRequest send of " + test);
   };
   xhr.addEventListener("load",
-                       getXHRLoadHandler(contents, contents.length,
+                       getXHRLoadHandler(contents, contents.length, true,
                                          "XMLHttpRequest send of " + test),
                        false);
   xhr.overrideMimeType('text/plain; charset=x-user-defined');
@@ -88,12 +88,18 @@ function getFileReaderLoadHandler(expectedResult, expectedLength, testName) {
   }
 }
 
-function getXHRLoadHandler(expectedResult, expectedLength, testName) {
+function getXHRLoadHandler(expectedResult, expectedLength, statusWorking, testName) {
   return function (event) {
     is(event.target.readyState, 4,
        "[XHR] readyState in test " + testName);
-    is(event.target.status, 200,
-       "[XHR] no error in test " + testName);
+    if (statusWorking) {
+      is(event.target.status, 200,
+         "[XHR] no error in test " + testName);
+    }
+    else {
+      todo_is(event.target.status, 200,
+              "[XHR] no error in test " + testName);
+    }
     // Do not use |is(convertXHRBinary(event.target.responseText), expectedResult, "...");| that may output raw binary data.
     var convertedData = convertXHRBinary(event.target.responseText);
     is(convertedData.length, expectedResult.length,

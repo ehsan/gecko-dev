@@ -31,7 +31,7 @@ struct ReferencePtr
     : mLongPtr(0)
   {}
 
-  MOZ_IMPLICIT ReferencePtr(const void* aLongPtr)
+  ReferencePtr(const void* aLongPtr)
     : mLongPtr(uint64_t(aLongPtr))
   {}
 
@@ -203,7 +203,7 @@ public:
 protected:
   friend class DrawEventRecorderPrivate;
 
-  MOZ_IMPLICIT RecordedEvent(int32_t aType) : mType(aType)
+  RecordedEvent(int32_t aType) : mType(aType)
   {}
 
   int32_t mType;
@@ -255,12 +255,12 @@ public:
 private:
   friend class RecordedEvent;
 
-  MOZ_IMPLICIT RecordedDrawTargetCreation(std::istream &aStream);
+  RecordedDrawTargetCreation(std::istream &aStream);
 };
 
 class RecordedDrawTargetDestruction : public RecordedEvent {
 public:
-  MOZ_IMPLICIT RecordedDrawTargetDestruction(ReferencePtr aRefPtr)
+  RecordedDrawTargetDestruction(ReferencePtr aRefPtr)
     : RecordedEvent(DRAWTARGETDESTRUCTION), mRefPtr(aRefPtr)
   {}
 
@@ -278,7 +278,7 @@ public:
 private:
   friend class RecordedEvent;
 
-  MOZ_IMPLICIT RecordedDrawTargetDestruction(std::istream &aStream);
+  RecordedDrawTargetDestruction(std::istream &aStream);
 };
 
 class RecordedFillRect : public RecordedDrawingEvent {
@@ -298,7 +298,7 @@ public:
 private:
   friend class RecordedEvent;
 
-  MOZ_IMPLICIT RecordedFillRect(std::istream &aStream);
+  RecordedFillRect(std::istream &aStream);
 
   Rect mRect;
   PatternStorage mPattern;
@@ -324,7 +324,7 @@ public:
 private:
   friend class RecordedEvent;
 
-  MOZ_IMPLICIT RecordedStrokeRect(std::istream &aStream);
+  RecordedStrokeRect(std::istream &aStream);
 
   Rect mRect;
   PatternStorage mPattern;
@@ -352,7 +352,7 @@ public:
 private:
   friend class RecordedEvent;
 
-  MOZ_IMPLICIT RecordedStrokeLine(std::istream &aStream);
+  RecordedStrokeLine(std::istream &aStream);
 
   Point mBegin;
   Point mEnd;
@@ -378,7 +378,7 @@ public:
 private:
   friend class RecordedEvent;
 
-  MOZ_IMPLICIT RecordedFill(std::istream &aStream);
+  RecordedFill(std::istream &aStream);
 
   ReferencePtr mPath;
   PatternStorage mPattern;
@@ -407,7 +407,7 @@ public:
 private:
   friend class RecordedEvent;
 
-  MOZ_IMPLICIT RecordedFillGlyphs(std::istream &aStream);
+  RecordedFillGlyphs(std::istream &aStream);
 
   ReferencePtr mScaledFont;
   PatternStorage mPattern;
@@ -434,7 +434,7 @@ public:
 private:
   friend class RecordedEvent;
 
-  MOZ_IMPLICIT RecordedMask(std::istream &aStream);
+  RecordedMask(std::istream &aStream);
 
   PatternStorage mSource;
   PatternStorage mMask;
@@ -460,7 +460,7 @@ public:
 private:
   friend class RecordedEvent;
 
-  MOZ_IMPLICIT RecordedStroke(std::istream &aStream);
+  RecordedStroke(std::istream &aStream);
 
   ReferencePtr mPath;
   PatternStorage mPattern;
@@ -484,7 +484,7 @@ public:
 private:
   friend class RecordedEvent;
 
-  MOZ_IMPLICIT RecordedClearRect(std::istream &aStream);
+  RecordedClearRect(std::istream &aStream);
 
   Rect mRect;
 };
@@ -507,7 +507,7 @@ public:
 private:
   friend class RecordedEvent;
 
-  MOZ_IMPLICIT RecordedCopySurface(std::istream &aStream);
+  RecordedCopySurface(std::istream &aStream);
 
   ReferencePtr mSourceSurface;
   IntRect mSourceRect;
@@ -530,7 +530,7 @@ public:
 private:
   friend class RecordedEvent;
 
-  MOZ_IMPLICIT RecordedPushClip(std::istream &aStream);
+  RecordedPushClip(std::istream &aStream);
 
   ReferencePtr mPath;
 };
@@ -551,14 +551,14 @@ public:
 private:
   friend class RecordedEvent;
 
-  MOZ_IMPLICIT RecordedPushClipRect(std::istream &aStream);
+  RecordedPushClipRect(std::istream &aStream);
 
   Rect mRect;
 };
 
 class RecordedPopClip : public RecordedDrawingEvent {
 public:
-  MOZ_IMPLICIT RecordedPopClip(DrawTarget *aDT)
+  RecordedPopClip(DrawTarget *aDT)
     : RecordedDrawingEvent(POPCLIP, aDT)
   {}
 
@@ -571,7 +571,7 @@ public:
 private:
   friend class RecordedEvent;
 
-  MOZ_IMPLICIT RecordedPopClip(std::istream &aStream);
+  RecordedPopClip(std::istream &aStream);
 };
 
 class RecordedSetTransform : public RecordedDrawingEvent {
@@ -590,7 +590,7 @@ public:
 private:
   friend class RecordedEvent;
 
-   MOZ_IMPLICIT RecordedSetTransform(std::istream &aStream);
+  RecordedSetTransform(std::istream &aStream);
 
   Matrix mTransform;
 };
@@ -614,7 +614,7 @@ public:
 private:
   friend class RecordedEvent;
 
-   MOZ_IMPLICIT RecordedDrawSurface(std::istream &aStream);
+  RecordedDrawSurface(std::istream &aStream);
 
   ReferencePtr mRefSource;
   Rect mDest;
@@ -642,7 +642,7 @@ public:
 private:
   friend class RecordedEvent;
 
-  MOZ_IMPLICIT RecordedDrawSurfaceWithShadow(std::istream &aStream);
+  RecordedDrawSurfaceWithShadow(std::istream &aStream);
 
   ReferencePtr mRefSource;
   Point mDest;
@@ -672,7 +672,7 @@ public:
 private:
   friend class RecordedEvent;
 
-  MOZ_IMPLICIT RecordedDrawFilter(std::istream &aStream);
+  RecordedDrawFilter(std::istream &aStream);
 
   ReferencePtr mNode;
   Rect mSourceRect;
@@ -682,7 +682,7 @@ private:
 
 class RecordedPathCreation : public RecordedEvent {
 public:
-  MOZ_IMPLICIT RecordedPathCreation(PathRecording *aPath);
+  RecordedPathCreation(PathRecording *aPath);
   ~RecordedPathCreation();
   
   virtual void PlayEvent(Translator *aTranslator) const;
@@ -699,12 +699,12 @@ private:
   FillRule mFillRule;
   std::vector<PathOp> mPathOps;
 
-  MOZ_IMPLICIT RecordedPathCreation(std::istream &aStream);
+  RecordedPathCreation(std::istream &aStream);
 };
 
 class RecordedPathDestruction : public RecordedEvent {
 public:
-  MOZ_IMPLICIT RecordedPathDestruction(PathRecording *aPath)
+  RecordedPathDestruction(PathRecording *aPath)
     : RecordedEvent(PATHDESTRUCTION), mRefPtr(aPath)
   {
   }
@@ -721,7 +721,7 @@ private:
 
   ReferencePtr mRefPtr;
 
-  MOZ_IMPLICIT RecordedPathDestruction(std::istream &aStream);
+  RecordedPathDestruction(std::istream &aStream);
 };
 
 class RecordedSourceSurfaceCreation : public RecordedEvent {
@@ -752,12 +752,12 @@ private:
   SurfaceFormat mFormat;
   bool mDataOwned;
 
-  MOZ_IMPLICIT RecordedSourceSurfaceCreation(std::istream &aStream);
+  RecordedSourceSurfaceCreation(std::istream &aStream);
 };
 
 class RecordedSourceSurfaceDestruction : public RecordedEvent {
 public:
-  MOZ_IMPLICIT RecordedSourceSurfaceDestruction(ReferencePtr aRefPtr)
+  RecordedSourceSurfaceDestruction(ReferencePtr aRefPtr)
     : RecordedEvent(SOURCESURFACEDESTRUCTION), mRefPtr(aRefPtr)
   {
   }
@@ -774,7 +774,7 @@ private:
 
   ReferencePtr mRefPtr;
 
-  MOZ_IMPLICIT RecordedSourceSurfaceDestruction(std::istream &aStream);
+  RecordedSourceSurfaceDestruction(std::istream &aStream);
 };
 
 class RecordedFilterNodeCreation : public RecordedEvent {
@@ -799,12 +799,12 @@ private:
   ReferencePtr mRefPtr;
   FilterType mType;
 
-  MOZ_IMPLICIT RecordedFilterNodeCreation(std::istream &aStream);
+  RecordedFilterNodeCreation(std::istream &aStream);
 };
 
 class RecordedFilterNodeDestruction : public RecordedEvent {
 public:
-  MOZ_IMPLICIT RecordedFilterNodeDestruction(ReferencePtr aRefPtr)
+  RecordedFilterNodeDestruction(ReferencePtr aRefPtr)
     : RecordedEvent(FILTERNODEDESTRUCTION), mRefPtr(aRefPtr)
   {
   }
@@ -821,7 +821,7 @@ private:
 
   ReferencePtr mRefPtr;
 
-  MOZ_IMPLICIT RecordedFilterNodeDestruction(std::istream &aStream);
+  RecordedFilterNodeDestruction(std::istream &aStream);
 };
 
 class RecordedGradientStopsCreation : public RecordedEvent {
@@ -851,12 +851,12 @@ private:
   ExtendMode mExtendMode;
   bool mDataOwned;
 
-  MOZ_IMPLICIT RecordedGradientStopsCreation(std::istream &aStream);
+  RecordedGradientStopsCreation(std::istream &aStream);
 };
 
 class RecordedGradientStopsDestruction : public RecordedEvent {
 public:
-  MOZ_IMPLICIT RecordedGradientStopsDestruction(ReferencePtr aRefPtr)
+  RecordedGradientStopsDestruction(ReferencePtr aRefPtr)
     : RecordedEvent(GRADIENTSTOPSDESTRUCTION), mRefPtr(aRefPtr)
   {
   }
@@ -873,7 +873,7 @@ private:
 
   ReferencePtr mRefPtr;
 
-  MOZ_IMPLICIT RecordedGradientStopsDestruction(std::istream &aStream);
+  RecordedGradientStopsDestruction(std::istream &aStream);
 };
 
 class RecordedSnapshot : public RecordedEvent {
@@ -896,7 +896,7 @@ private:
   ReferencePtr mRefPtr;
   ReferencePtr mDT;
 
-  MOZ_IMPLICIT RecordedSnapshot(std::istream &aStream);
+  RecordedSnapshot(std::istream &aStream);
 };
 
 class RecordedScaledFontCreation : public RecordedEvent {
@@ -933,12 +933,12 @@ private:
   Float mGlyphSize;
   uint32_t mIndex;
 
-  MOZ_IMPLICIT RecordedScaledFontCreation(std::istream &aStream);
+  RecordedScaledFontCreation(std::istream &aStream);
 };
 
 class RecordedScaledFontDestruction : public RecordedEvent {
 public:
-  MOZ_IMPLICIT RecordedScaledFontDestruction(ReferencePtr aRefPtr)
+  RecordedScaledFontDestruction(ReferencePtr aRefPtr)
     : RecordedEvent(SCALEDFONTDESTRUCTION), mRefPtr(aRefPtr)
   {
   }
@@ -955,7 +955,7 @@ private:
 
   ReferencePtr mRefPtr;
 
-  MOZ_IMPLICIT RecordedScaledFontDestruction(std::istream &aStream);
+  RecordedScaledFontDestruction(std::istream &aStream);
 };
 
 class RecordedMaskSurface : public RecordedDrawingEvent {
@@ -977,7 +977,7 @@ public:
 private:
   friend class RecordedEvent;
 
-  MOZ_IMPLICIT RecordedMaskSurface(std::istream &aStream);
+  RecordedMaskSurface(std::istream &aStream);
 
   PatternStorage mPattern;
   ReferencePtr mRefMask;
@@ -1036,7 +1036,7 @@ private:
   ArgType mArgType;
   std::vector<uint8_t> mPayload;
 
-  MOZ_IMPLICIT RecordedFilterNodeSetAttribute(std::istream &aStream);
+  RecordedFilterNodeSetAttribute(std::istream &aStream);
 };
 
 class RecordedFilterNodeSetInput : public RecordedEvent
@@ -1070,7 +1070,7 @@ private:
   ReferencePtr mInputFilter;
   ReferencePtr mInputSurface;
 
-  MOZ_IMPLICIT RecordedFilterNodeSetInput(std::istream &aStream);
+  RecordedFilterNodeSetInput(std::istream &aStream);
 };
 
 }

@@ -37,6 +37,9 @@ XPCOMUtils.defineLazyGetter(this, "gEncoder",
                               return new TextEncoder();
                             });
 
+const PERMS_FILE      = 0644;
+const PERMS_DIRECTORY = 0755;
+
 const MODE_RDONLY   = 0x01;
 const MODE_WRONLY   = 0x02;
 const MODE_CREATE   = 0x08;
@@ -658,7 +661,7 @@ function getSanitizedFile(aName) {
   var fileName = sanitizeName(aName) + ".xml";
   var file = getDir(NS_APP_USER_SEARCH_DIR);
   file.append(fileName);
-  file.createUnique(Ci.nsIFile.NORMAL_FILE_TYPE, FileUtils.PERMS_FILE);
+  file.createUnique(Ci.nsIFile.NORMAL_FILE_TYPE, PERMS_FILE);
   return file;
 }
 
@@ -1127,8 +1130,6 @@ Engine.prototype = {
   _iconUpdateURL: null,
   /* Deferred serialization task. */
   _lazySerializeTask: null,
-  /* The extension ID if added by an extension. */
-  _extensionID: null,
 
   /**
    * Retrieves the data from the engine's file. If the engine's dataType is
@@ -1143,7 +1144,7 @@ Engine.prototype = {
     var fileInStream = Cc["@mozilla.org/network/file-input-stream;1"].
                        createInstance(Ci.nsIFileInputStream);
 
-    fileInStream.init(this._file, MODE_RDONLY, FileUtils.PERMS_FILE, false);
+    fileInStream.init(this._file, MODE_RDONLY, PERMS_FILE, false);
 
     if (this._dataType == SEARCH_DATA_XML) {
       var domParser = Cc["@mozilla.org/xmlextras/domparser;1"].
@@ -1675,7 +1676,7 @@ Engine.prototype = {
    */
   _initFromMetadata: function SRCH_ENG_initMetaData(aName, aIconURL, aAlias,
                                                     aDescription, aMethod,
-                                                    aTemplate, aExtensionID) {
+                                                    aTemplate) {
     ENSURE_WARN(!this._readOnly,
                 "Can't call _initFromMetaData on a readonly engine!",
                 Cr.NS_ERROR_FAILURE);
@@ -1686,7 +1687,6 @@ Engine.prototype = {
     this.alias = aAlias;
     this._description = aDescription;
     this._setIcon(aIconURL, true);
-    this._extensionID = aExtensionID;
 
     this._serializeToFile();
   },
@@ -1864,9 +1864,6 @@ Engine.prototype = {
         case "IconUpdateUrl":
           this._iconUpdateURL = child.textContent;
           break;
-        case "ExtensionID":
-          this._extensionID = child.textContent;
-          breakk;
       }
     }
     if (!this.name || (this._urls.length == 0))
@@ -2211,9 +2208,6 @@ Engine.prototype = {
       this._readOnly = false;
     this._iconURI = makeURI(aJson._iconURL);
     this._iconMapObj = aJson._iconMapObj;
-    if (aJson.extensionID) {
-      this._extensionID = aJson.extensionID;
-    }
     for (let i = 0; i < aJson._urls.length; ++i) {
       let url = aJson._urls[i];
       let engineURL = new EngineURL(url.type || URLTYPE_SEARCH_HTML,
@@ -2265,9 +2259,6 @@ Engine.prototype = {
       json._dataType = this._dataType;
     if (!this._readOnly || !aFilter)
       json._readOnly = this._readOnly;
-    if (this._extensionID) {
-      json.extensionID = this._extensionID;
-    }
 
     return json;
   },
@@ -2313,10 +2304,6 @@ Engine.prototype = {
     appendTextNode(MOZSEARCH_NS_10, "IconUpdateUrl", this._iconUpdateURL);
     appendTextNode(MOZSEARCH_NS_10, "SearchForm", this._searchForm);
 
-    if (this._extensionID) {
-      appendTextNode(MOZSEARCH_NS_10, "ExtensionID", this._extensionID);
-    }
-
     for (var i = 0; i < this._urls.length; ++i)
       this._urls[i]._serializeToElement(doc, docElem);
     docElem.appendChild(doc.createTextNode("\n"));
@@ -2352,7 +2339,7 @@ Engine.prototype = {
     // if this somehow fails.
     var doc = this._serializeToElement();
 
-    fos.init(file, (MODE_WRONLY | MODE_TRUNCATE), FileUtils.PERMS_FILE, 0);
+    fos.init(file, (MODE_WRONLY | MODE_TRUNCATE), PERMS_FILE, 0);
 
     try {
       var serializer = Cc["@mozilla.org/xmlextras/xmlserializer;1"].
@@ -2842,11 +2829,9 @@ Submission.prototype = {
 }
 
 // nsISearchParseSubmissionResult
-function ParseSubmissionResult(aEngine, aTerms, aTermsOffset, aTermsLength) {
+function ParseSubmissionResult(aEngine, aTerms) {
   this._engine = aEngine;
   this._terms = aTerms;
-  this._termsOffset = aTermsOffset;
-  this._termsLength = aTermsLength;
 }
 ParseSubmissionResult.prototype = {
   get engine() {
@@ -2855,17 +2840,11 @@ ParseSubmissionResult.prototype = {
   get terms() {
     return this._terms;
   },
-  get termsOffset() {
-    return this._termsOffset;
-  },
-  get termsLength() {
-    return this._termsLength;
-  },
   QueryInterface: XPCOMUtils.generateQI([Ci.nsISearchParseSubmissionResult]),
 }
 
 const gEmptyParseSubmissionResult =
-      Object.freeze(new ParseSubmissionResult(null, "", -1, 0));
+      Object.freeze(new ParseSubmissionResult(null, ""));
 
 function executeSoon(func) {
   Services.tm.mainThread.dispatch(func, Ci.nsIThread.DISPATCH_NORMAL);
@@ -3304,7 +3283,7 @@ SearchService.prototype = {
     let json = Cc["@mozilla.org/dom/json;1"].createInstance(Ci.nsIJSON);
 
     try {
-      stream.init(aFile, MODE_RDONLY, FileUtils.PERMS_FILE, 0);
+      stream.init(aFile, MODE_RDONLY, PERMS_FILE, 0);
       return json.decodeFromStream(stream, stream.available());
     } catch (ex) {
       LOG("_readCacheFile: Error reading cache file: " + ex);
@@ -3977,7 +3956,7 @@ SearchService.prototype = {
 
   addEngineWithDetails: function SRCH_SVC_addEWD(aName, aIconURL, aAlias,
                                                  aDescription, aMethod,
-                                                 aTemplate, aExtensionID) {
+                                                 aTemplate) {
     this._ensureInitialized();
     if (!aName)
       FAIL("Invalid name passed to addEngineWithDetails!");
@@ -3990,7 +3969,7 @@ SearchService.prototype = {
 
     var engine = new Engine(getSanitizedFile(aName), SEARCH_DATA_XML, false);
     engine._initFromMetadata(aName, aIconURL, aAlias, aDescription,
-                             aMethod, aTemplate, aExtensionID);
+                             aMethod, aTemplate);
     this._addEngineToStore(engine);
   },
 
@@ -4364,29 +4343,12 @@ SearchService.prototype = {
       return gEmptyParseSubmissionResult;
     }
 
-    let length = 0;
-    let offset = aURL.indexOf("?") + 1;
-    let query = aURL.slice(offset);
-    // Iterate a second time over the original input string to determine the
-    // correct search term offset and length in the original encoding.
-    for (let param of query.split("&")) {
-      let equalPos = param.indexOf("=");
-      if (equalPos != -1 &&
-          param.substr(0, equalPos) == mapEntry.termsParameterName) {
-        // This is the parameter we are looking for.
-        offset += equalPos + 1;
-        length = param.length - equalPos - 1;
-        break;
-      }
-      offset += param.length + 1;
-    }
-
     // Decode the terms using the charset defined in the search engine.
     let terms;
     try {
       terms = gTextToSubURI.UnEscapeAndConvert(
                                        mapEntry.engine.queryCharset,
-                                       encodedTerms.replace("+", " ", "g"));
+                                       encodedTerms.replace("+", " "));
     } catch (ex) {
       // Decoding errors will cause this match to be ignored.
       LOG("Parameter decoding failed. Charset: " +
@@ -4395,7 +4357,7 @@ SearchService.prototype = {
     }
 
     LOG("Match found. Terms: " + terms);
-    return new ParseSubmissionResult(mapEntry.engine, terms, offset, length);
+    return new ParseSubmissionResult(mapEntry.engine, terms);
   },
 
   // nsIObserver
@@ -4451,7 +4413,7 @@ SearchService.prototype = {
     // Therefore, we need to walk our engine-list, looking for expired engines
     var currentTime = Date.now();
     LOG("currentTime: " + currentTime);
-    for each (let engine in this._engines) {
+    for each (engine in this._engines) {
       engine = engine.wrappedJSObject;
       if (!engine._hasUpdates)
         continue;

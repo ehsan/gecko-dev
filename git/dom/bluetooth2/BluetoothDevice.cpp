@@ -27,7 +27,7 @@ NS_INTERFACE_MAP_END_INHERITING(DOMEventTargetHelper)
 NS_IMPL_ADDREF_INHERITED(BluetoothDevice, DOMEventTargetHelper)
 NS_IMPL_RELEASE_INHERITED(BluetoothDevice, DOMEventTargetHelper)
 
-class FetchUuidsTask MOZ_FINAL : public BluetoothReplyRunnable
+class FetchUuidsTask : public BluetoothReplyRunnable
 {
 public:
   FetchUuidsTask(Promise* aPromise,

@@ -77,10 +77,6 @@ SVGTests::GetBestLanguagePreferenceRank(const nsSubstring& aAcceptLangs) const
 {
   const nsDefaultStringComparator defaultComparator;
 
-  if (!mStringListAttributes[LANGUAGE].IsExplicitlySet()) {
-    return -2;
-  }
-
   int32_t lowestRank = -1;
 
   for (uint32_t i = 0; i < mStringListAttributes[LANGUAGE].Length(); i++) {

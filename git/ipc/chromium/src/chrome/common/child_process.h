@@ -21,7 +21,7 @@ class ChildProcess {
  public:
   // Child processes should have an object that derives from this class.  The
   // constructor will return once ChildThread has started.
-  explicit ChildProcess(ChildThread* child_thread);
+  ChildProcess(ChildThread* child_thread);
   virtual ~ChildProcess();
 
   // Getter for this process' main thread.

@@ -85,7 +85,7 @@ static const int kLineTerminatorRangeCount = ArrayLength(kLineTerminatorRanges);
 static const unsigned kMaxOneByteCharCode = 0xff;
 static const int kMaxUtf16CodeUnit = 0xffff;
 
-static char16_t
+static jschar
 MaximumCharacter(bool ascii)
 {
     return ascii ? kMaxOneByteCharCode : kMaxUtf16CodeUnit;
@@ -112,7 +112,7 @@ AddClassNegated(const int *elmv,
     JS_ASSERT(elmv[elmc] == 0x10000);
     JS_ASSERT(elmv[0] != 0x0000);
     JS_ASSERT(elmv[elmc-1] != kMaxUtf16CodeUnit);
-    char16_t last = 0x0000;
+    jschar last = 0x0000;
     for (int i = 0; i < elmc; i += 2) {
         JS_ASSERT(last <= elmv[i] - 1);
         JS_ASSERT(elmv[i] < elmv[i + 1]);
@@ -123,7 +123,7 @@ AddClassNegated(const int *elmv,
 }
 
 void
-CharacterRange::AddClassEscape(LifoAlloc *alloc, char16_t type,
+CharacterRange::AddClassEscape(LifoAlloc *alloc, jschar type,
 			       CharacterRangeVector *ranges)
 {
     switch (type) {
@@ -186,52 +186,39 @@ RangesContainLatin1Equivalents(const CharacterRangeVector &ranges)
 static const size_t kEcma262UnCanonicalizeMaxWidth = 4;
 
 // Returns the number of characters in the equivalence class, omitting those
-// that cannot occur in the source string if it is a one byte string.
+// that cannot occur in the source string because it is ASCII.
 static int
-GetCaseIndependentLetters(char16_t character,
+GetCaseIndependentLetters(jschar character,
                           bool ascii_subject,
-                          char16_t *letters)
+                          jschar *letters)
 {
-    const char16_t choices[] = {
-        character,
-        unicode::ToLowerCase(character),
-        unicode::ToUpperCase(character)
-    };
+    jschar lower = unicode::ToLowerCase(character);
+    jschar upper = unicode::ToUpperCase(character);
 
-    size_t count = 0;
-    for (size_t i = 0; i < ArrayLength(choices); i++) {
-        char16_t c = choices[i];
+    // The standard requires that non-ASCII characters cannot have ASCII
+    // character codes in their equivalence class.
+    if (ascii_subject && character > kMaxOneByteCharCode)
+        return 0;
 
-        // The standard requires that non-ASCII characters cannot have ASCII
-        // character codes in their equivalence class, even though this
-        // situation occurs multiple times in the unicode tables.
-        static const unsigned kMaxAsciiCharCode = 127;
-        if (character > kMaxAsciiCharCode && c <= kMaxAsciiCharCode)
-            continue;
+    letters[0] = character;
 
-        // Skip characters that can't appear in one byte strings.
-        if (ascii_subject && c > kMaxOneByteCharCode)
-            continue;
-
-        // Watch for duplicates.
-        bool found = false;
-        for (size_t j = 0; j < count; j++) {
-            if (letters[j] == c) {
-                found = true;
-                break;
-            }
+    if (lower != character) {
+        letters[1] = lower;
+        if (upper != character && upper != lower) {
+            letters[2] = upper;
+            return 3;
         }
-        if (found)
-            continue;
-
-        letters[count++] = c;
+        return 2;
     }
-
-    return count;
+    if (upper != character) {
+        letters[1] = upper;
+        return 2;
+    }
+    return 1;
 }
 
-static char16_t
-ConvertNonLatin1ToLatin1(char16_t c)
+static jschar
+ConvertNonLatin1ToLatin1(jschar c)
 {
     JS_ASSERT(c > kMaxOneByteCharCode);
     switch (c) {
@@ -250,8 +237,8 @@ ConvertNonLatin1ToLatin1(char16_t c)
 void
 CharacterRange::AddCaseEquivalents(bool is_ascii, CharacterRangeVector *ranges)
 {
-    char16_t bottom = from();
-    char16_t top = to();
+    jschar bottom = from();
+    jschar top = to();
 
     if (is_ascii && !RangeContainsLatin1Equivalents(*this)) {
         if (bottom > kMaxOneByteCharCode)
@@ -260,12 +247,12 @@ CharacterRange::AddCaseEquivalents(bool is_ascii, CharacterRangeVector *ranges)
             top = kMaxOneByteCharCode;
     }
 
-    for (char16_t c = bottom;; c++) {
-        char16_t chars[kEcma262UnCanonicalizeMaxWidth];
+    for (jschar c = bottom;; c++) {
+        jschar chars[kEcma262UnCanonicalizeMaxWidth];
         size_t length = GetCaseIndependentLetters(c, is_ascii, chars);
 
         for (size_t i = 0; i < length; i++) {
-            char16_t other = chars[i];
+            jschar other = chars[i];
             if (other == c)
                 continue;
 
@@ -418,8 +405,8 @@ InsertRangeInCanonicalList(CharacterRangeVector &list,
     // list[0..count] for the result. Returns the number of resulting
     // canonicalized ranges. Inserting a range may collapse existing ranges into
     // fewer ranges, so the return value can be anything in the range 1..count+1.
-    char16_t from = insert.from();
-    char16_t to = insert.to();
+    jschar from = insert.from();
+    jschar to = insert.to();
     int start_pos = 0;
     int end_pos = count;
     for (int i = count - 1; i >= 0; i--) {
@@ -526,21 +513,6 @@ class VisitMarker
     NodeInfo* info_;
 };
 
-bool
-SeqRegExpNode::FillInBMInfo(int offset,
-                            int budget,
-                            BoyerMooreLookahead* bm,
-                            bool not_at_start)
-{
-    if (!bm->CheckOverRecursed())
-        return false;
-    if (!on_success_->FillInBMInfo(offset, budget - 1, bm, not_at_start))
-        return false;
-    if (offset == 0)
-        set_bm_info(not_at_start, bm);
-    return true;
-}
-
 RegExpNode *
 SeqRegExpNode::FilterASCII(int depth, bool ignore_case)
 {
@@ -581,24 +553,17 @@ ActionNode::EatsAtLeast(int still_to_find, int budget, bool not_at_start)
                                      not_at_start);
 }
 
-bool
+void
 ActionNode::FillInBMInfo(int offset,
                          int budget,
                          BoyerMooreLookahead* bm,
                          bool not_at_start)
 {
-    if (!bm->CheckOverRecursed())
-        return false;
-
-    if (action_type_ == BEGIN_SUBMATCH) {
+    if (action_type_ == BEGIN_SUBMATCH)
         bm->SetRest(offset);
-    } else if (action_type_ != POSITIVE_SUBMATCH_SUCCESS) {
-        if (!on_success()->FillInBMInfo(offset, budget - 1, bm, not_at_start))
-            return false;
-    }
+    else if (action_type_ != POSITIVE_SUBMATCH_SUCCESS)
+        on_success()->FillInBMInfo(offset, budget - 1, bm, not_at_start);
     SaveBMInfo(bm, not_at_start, offset);
-
-    return true;
 }
 
 /* static */ ActionNode *
@@ -725,7 +690,7 @@ TextNode::FilterASCII(int depth, bool ignore_case)
 
                 // Here, we need to check for characters whose upper and lower cases
                 // are outside the Latin-1 range.
-                char16_t converted = ConvertNonLatin1ToLatin1(c);
+                jschar converted = ConvertNonLatin1ToLatin1(c);
                 if (converted == 0) {
                     // Character is outside Latin-1 completely
                     return set_replacement(nullptr);
@@ -825,20 +790,15 @@ AssertionNode::EatsAtLeast(int still_to_find, int budget, bool not_at_start)
     return on_success()->EatsAtLeast(still_to_find, budget - 1, not_at_start);
 }
 
-bool
+void
 AssertionNode::FillInBMInfo(int offset, int budget, BoyerMooreLookahead* bm, bool not_at_start)
 {
-    if (!bm->CheckOverRecursed())
-        return false;
-
     // Match the behaviour of EatsAtLeast on this node.
     if (assertion_type() == AT_START && not_at_start)
-        return true;
+        return;
 
-    if (!on_success()->FillInBMInfo(offset, budget - 1, bm, not_at_start))
-        return false;
+    on_success()->FillInBMInfo(offset, budget - 1, bm, not_at_start);
     SaveBMInfo(bm, not_at_start, offset);
-    return true;
 }
 
 // -------------------------------------------------------------------
@@ -852,14 +812,13 @@ BackReferenceNode::EatsAtLeast(int still_to_find, int budget, bool not_at_start)
     return on_success()->EatsAtLeast(still_to_find, budget - 1, not_at_start);
 }
 
-bool
+void
 BackReferenceNode::FillInBMInfo(int offset, int budget, BoyerMooreLookahead* bm, bool not_at_start)
 {
     // Working out the set of characters that a backreference can match is too
     // hard, so we just say that any character can match.
     bm->SetRest(offset);
     SaveBMInfo(bm, not_at_start, offset);
-    return true;
 }
 
 // -------------------------------------------------------------------
@@ -923,15 +882,12 @@ ChoiceNode::GetQuickCheckDetails(QuickCheckDetails* details,
     }
 }
 
-bool
+void
 ChoiceNode::FillInBMInfo(int offset,
                          int budget,
                          BoyerMooreLookahead* bm,
                          bool not_at_start)
 {
-    if (!bm->CheckOverRecursed())
-        return false;
-
     const GuardedAlternativeVector &alts = alternatives();
     budget = (budget - 1) / alts.length();
     for (size_t i = 0; i < alts.length(); i++) {
@@ -939,13 +895,11 @@ ChoiceNode::FillInBMInfo(int offset,
         if (alt.guards() != nullptr && alt.guards()->length() != 0) {
             bm->SetRest(offset);  // Give up trying to fill in info.
             SaveBMInfo(bm, not_at_start, offset);
-            return true;
+            return;
         }
-        if (!alt.node()->FillInBMInfo(offset, budget, bm, not_at_start))
-            return false;
+        alt.node()->FillInBMInfo(offset, budget, bm, not_at_start);
     }
     SaveBMInfo(bm, not_at_start, offset);
-    return true;
 }
 
 RegExpNode*
@@ -1007,22 +961,6 @@ ChoiceNode::FilterASCII(int depth, bool ignore_case)
 
 // -------------------------------------------------------------------
 // NegativeLookaheadChoiceNode
-
-bool
-NegativeLookaheadChoiceNode::FillInBMInfo(int offset,
-                                          int budget,
-                                          BoyerMooreLookahead* bm,
-                                          bool not_at_start)
-{
-    if (!bm->CheckOverRecursed())
-        return false;
-
-    if (!alternatives()[1].node()->FillInBMInfo(offset, budget - 1, bm, not_at_start))
-        return false;
-    if (offset == 0)
-        set_bm_info(not_at_start, bm);
-    return true;
-}
 
 int
 NegativeLookaheadChoiceNode::EatsAtLeast(int still_to_find, int budget, bool not_at_start)
@@ -1133,7 +1071,7 @@ LoopChoiceNode::GetQuickCheckDetails(QuickCheckDetails* details,
                                             not_at_start);
 }
 
-bool
+void
 LoopChoiceNode::FillInBMInfo(int offset,
                              int budget,
                              BoyerMooreLookahead* bm,
@@ -1142,12 +1080,10 @@ LoopChoiceNode::FillInBMInfo(int offset,
     if (body_can_be_zero_length_ || budget <= 0) {
         bm->SetRest(offset);
         SaveBMInfo(bm, not_at_start, offset);
-        return true;
+        return;
     }
-    if (!ChoiceNode::FillInBMInfo(offset, budget - 1, bm, not_at_start))
-        return false;
+    ChoiceNode::FillInBMInfo(offset, budget - 1, bm, not_at_start);
     SaveBMInfo(bm, not_at_start, offset);
-    return true;
 }
 
 RegExpNode *
@@ -1492,7 +1428,7 @@ class FrequencyCollator
 class irregexp::RegExpCompiler
 {
   public:
-    RegExpCompiler(JSContext *cx, LifoAlloc *alloc, int capture_count, bool ignore_case, bool is_ascii);
+    RegExpCompiler(LifoAlloc *alloc, int capture_count, bool ignore_case, bool is_ascii);
 
     int AllocateRegister() {
         if (next_register_ >= RegExpMacroAssembler::kMaxRegister) {
@@ -1535,7 +1471,6 @@ class irregexp::RegExpCompiler
         current_expansion_factor_ = value;
     }
 
-    JSContext *cx() const { return cx_; }
     LifoAlloc *alloc() const { return alloc_; }
 
     static const int kNoRegister = -1;
@@ -1551,7 +1486,6 @@ class irregexp::RegExpCompiler
     bool reg_exp_too_big_;
     int current_expansion_factor_;
     FrequencyCollator frequency_collator_;
-    JSContext *cx_;
     LifoAlloc *alloc_;
 };
 
@@ -1569,7 +1503,7 @@ class RecursionCheck
 
 // Attempts to compile the regexp using an Irregexp code generator.  Returns
 // a fixed array or a null handle depending on whether it succeeded.
-RegExpCompiler::RegExpCompiler(JSContext *cx, LifoAlloc *alloc, int capture_count, bool ignore_case, bool ascii)
+RegExpCompiler::RegExpCompiler(LifoAlloc *alloc, int capture_count, bool ignore_case, bool ascii)
   : next_register_(2 * (capture_count + 1)),
     recursion_depth_(0),
     ignore_case_(ignore_case),
@@ -1577,7 +1511,6 @@ RegExpCompiler::RegExpCompiler(JSContext *cx, LifoAlloc *alloc, int capture_coun
     reg_exp_too_big_(false),
     current_expansion_factor_(1),
     frequency_collator_(),
-    cx_(cx),
     alloc_(alloc)
 {
     accept_ = alloc->newInfallible<EndNode>(alloc, EndNode::ACCEPT);
@@ -1654,7 +1587,7 @@ irregexp::CompilePattern(JSContext *cx, RegExpShared *shared, RegExpCompileData 
     }
 
     LifoAlloc &alloc = cx->tempLifoAlloc();
-    RegExpCompiler compiler(cx, &alloc, data->capture_count, ignore_case, is_ascii);
+    RegExpCompiler compiler(&alloc, data->capture_count, ignore_case, is_ascii);
 
     // Sample some characters from the middle of the string.
     if (sample->hasLatin1Chars()) {
@@ -1726,14 +1659,14 @@ irregexp::CompilePattern(JSContext *cx, RegExpShared *shared, RegExpCompileData 
     if (IsNativeRegExpEnabled(cx)) {
         NativeRegExpMacroAssembler::Mode mode =
             is_ascii ? NativeRegExpMacroAssembler::ASCII
-                     : NativeRegExpMacroAssembler::CHAR16;
+                     : NativeRegExpMacroAssembler::JSCHAR;
 
-        ctx.emplace(cx, (jit::TempAllocator *) nullptr);
-        native_assembler.emplace(&alloc, shared, cx->runtime(), mode, (data->capture_count + 1) * 2);
-        assembler = native_assembler.ptr();
+        ctx.construct(cx, (jit::TempAllocator *) nullptr);
+        native_assembler.construct(&alloc, shared, cx->runtime(), mode, (data->capture_count + 1) * 2);
+        assembler = native_assembler.addr();
     } else {
-        interpreted_assembler.emplace(&alloc, shared, (data->capture_count + 1) * 2);
-        assembler = interpreted_assembler.ptr();
+        interpreted_assembler.construct(&alloc, shared, (data->capture_count + 1) * 2);
+        assembler = interpreted_assembler.addr();
     }
 
     // Inserted here, instead of in Assembler, because it depends on information
@@ -1778,7 +1711,7 @@ irregexp::ExecuteCode(JSContext *cx, jit::JitCode *codeBlock, const Latin1Char *
                       size_t length, MatchPairs *matches);
 
 template RegExpRunStatus
-irregexp::ExecuteCode(JSContext *cx, jit::JitCode *codeBlock, const char16_t *chars, size_t start,
+irregexp::ExecuteCode(JSContext *cx, jit::JitCode *codeBlock, const jschar *chars, size_t start,
                       size_t length, MatchPairs *matches);
 
 // -------------------------------------------------------------------
@@ -2405,13 +2338,6 @@ BoyerMooreLookahead::EmitSkipInstructions(RegExpMacroAssembler* masm)
     masm->JumpOrBacktrack(&again);
     masm->Bind(&cont);
 
-    return true;
-}
-
-bool
-BoyerMooreLookahead::CheckOverRecursed()
-{
-    JS_CHECK_RECURSION(compiler()->cx(), compiler()->SetRegExpTooBig(); return false);
     return true;
 }
 
@@ -3217,8 +3143,8 @@ GenerateBranches(RegExpMacroAssembler* masm,
                  RangeBoundaryVector &ranges,
                  int start_index,
                  int end_index,
-                 char16_t min_char,
-                 char16_t max_char,
+                 jschar min_char,
+                 jschar max_char,
                  jit::Label* fall_through,
                  jit::Label* even_label,
                  jit::Label* odd_label)
@@ -3472,7 +3398,7 @@ EmitCharClass(LifoAlloc *alloc,
 }
 
 typedef bool EmitCharacterFunction(RegExpCompiler* compiler,
-                                   char16_t c,
+                                   jschar c,
                                    jit::Label* on_failure,
                                    int cp_offset,
                                    bool check,
@@ -3480,7 +3406,7 @@ typedef bool EmitCharacterFunction(RegExpCompiler* compiler,
 
 static inline bool
 EmitSimpleCharacter(RegExpCompiler* compiler,
-                    char16_t c,
+                    jschar c,
                     jit::Label* on_failure,
                     int cp_offset,
                     bool check,
@@ -3500,7 +3426,7 @@ EmitSimpleCharacter(RegExpCompiler* compiler,
 // independent matches.
 static inline bool
 EmitAtomNonLetter(RegExpCompiler* compiler,
-                  char16_t c,
+                  jschar c,
                   jit::Label* on_failure,
                   int cp_offset,
                   bool check,
@@ -3508,7 +3434,7 @@ EmitAtomNonLetter(RegExpCompiler* compiler,
 {
     RegExpMacroAssembler* macro_assembler = compiler->macro_assembler();
     bool ascii = compiler->ascii();
-    char16_t chars[kEcma262UnCanonicalizeMaxWidth];
+    jschar chars[kEcma262UnCanonicalizeMaxWidth];
     int length = GetCaseIndependentLetters(c, ascii, chars);
     if (length < 1) {
         // This can't match.  Must be an ASCII subject and a non-ASCII character.
@@ -3534,35 +3460,35 @@ EmitAtomNonLetter(RegExpCompiler* compiler,
 static bool
 ShortCutEmitCharacterPair(RegExpMacroAssembler* macro_assembler,
                           bool ascii,
-                          char16_t c1,
-                          char16_t c2,
+                          jschar c1,
+                          jschar c2,
                           jit::Label* on_failure)
 {
-    char16_t char_mask = MaximumCharacter(ascii);
+    jschar char_mask = MaximumCharacter(ascii);
 
     JS_ASSERT(c1 != c2);
     if (c1 > c2) {
-        char16_t tmp = c1;
+        jschar tmp = c1;
         c1 = c2;
         c2 = tmp;
     }
 
-    char16_t exor = c1 ^ c2;
+    jschar exor = c1 ^ c2;
     // Check whether exor has only one bit set.
     if (((exor - 1) & exor) == 0) {
         // If c1 and c2 differ only by one bit.
-        char16_t mask = char_mask ^ exor;
+        jschar mask = char_mask ^ exor;
         macro_assembler->CheckNotCharacterAfterAnd(c1, mask, on_failure);
         return true;
     }
 
-    char16_t diff = c2 - c1;
+    jschar diff = c2 - c1;
     if (((diff - 1) & diff) == 0 && c1 >= diff) {
         // If the characters differ by 2^n but don't differ by one bit then
         // subtract the difference from the found character, then do the or
         // trick.  We avoid the theoretical case where negative numbers are
         // involved in order to simplify code generation.
-        char16_t mask = char_mask ^ diff;
+        jschar mask = char_mask ^ diff;
         macro_assembler->CheckNotCharacterAfterMinusAnd(c1 - diff,
                                                         diff,
                                                         mask,
@@ -3576,7 +3502,7 @@ ShortCutEmitCharacterPair(RegExpMacroAssembler* macro_assembler,
 // matches.
 static inline bool
 EmitAtomLetter(RegExpCompiler* compiler,
-               char16_t c,
+               jschar c,
                jit::Label* on_failure,
                int cp_offset,
                bool check,
@@ -3584,7 +3510,7 @@ EmitAtomLetter(RegExpCompiler* compiler,
 {
     RegExpMacroAssembler* macro_assembler = compiler->macro_assembler();
     bool ascii = compiler->ascii();
-    char16_t chars[kEcma262UnCanonicalizeMaxWidth];
+    jschar chars[kEcma262UnCanonicalizeMaxWidth];
     int length = GetCaseIndependentLetters(c, ascii, chars);
     if (length <= 1) return false;
     // We may not need to check against the end of the input string
@@ -4562,17 +4488,14 @@ RegExpNode::EmitQuickCheck(RegExpCompiler* compiler,
     return true;
 }
 
-bool
+void
 TextNode::FillInBMInfo(int initial_offset,
                        int budget,
                        BoyerMooreLookahead* bm,
                        bool not_at_start)
 {
-    if (!bm->CheckOverRecursed())
-        return false;
-
     if (initial_offset >= bm->length())
-        return true;
+        return;
 
     int offset = initial_offset;
     int max_char = bm->max_char();
@@ -4580,7 +4503,7 @@ TextNode::FillInBMInfo(int initial_offset,
         if (offset >= bm->length()) {
             if (initial_offset == 0)
                 set_bm_info(not_at_start, bm);
-            return true;
+            return;
         }
         TextElement text = elements()[i];
         if (text.text_type() == TextElement::ATOM) {
@@ -4589,11 +4512,11 @@ TextNode::FillInBMInfo(int initial_offset,
                 if (offset >= bm->length()) {
                     if (initial_offset == 0)
                         set_bm_info(not_at_start, bm);
-                    return true;
+                    return;
                 }
-                char16_t character = atom->data()[j];
+                jschar character = atom->data()[j];
                 if (bm->compiler()->ignore_case()) {
-                    char16_t chars[kEcma262UnCanonicalizeMaxWidth];
+                    jschar chars[kEcma262UnCanonicalizeMaxWidth];
                     int length = GetCaseIndependentLetters(character,
                                                            bm->max_char() == kMaxOneByteCharCode,
                                                            chars);
@@ -4623,16 +4546,14 @@ TextNode::FillInBMInfo(int initial_offset,
     }
     if (offset >= bm->length()) {
         if (initial_offset == 0) set_bm_info(not_at_start, bm);
-        return true;
+        return;
     }
-    if (!on_success()->FillInBMInfo(offset,
-                                    budget - 1,
-                                    bm,
-                                    true))   // Not at start after a text node.
-        return false;
+    on_success()->FillInBMInfo(offset,
+                               budget - 1,
+                               bm,
+                               true);  // Not at start after a text node.
     if (initial_offset == 0)
         set_bm_info(not_at_start, bm);
-    return true;
 }
 
 // -------------------------------------------------------------------
@@ -4675,7 +4596,7 @@ TextNode::GetQuickCheckDetails(QuickCheckDetails* details,
             for (size_t i = 0; i < (size_t) characters && i < quarks.length(); i++) {
                 QuickCheckDetails::Position* pos =
                     details->positions(characters_filled_in);
-                char16_t c = quarks[i];
+                jschar c = quarks[i];
                 if (c > char_mask) {
                     // If we expect a non-ASCII character from an ASCII string,
                     // there is no way we can match. Not even case independent
@@ -4686,7 +4607,7 @@ TextNode::GetQuickCheckDetails(QuickCheckDetails* details,
                     return;
                 }
                 if (compiler->ignore_case()) {
-                    char16_t chars[kEcma262UnCanonicalizeMaxWidth];
+                    jschar chars[kEcma262UnCanonicalizeMaxWidth];
                     size_t length = GetCaseIndependentLetters(c, compiler->ascii(), chars);
                     JS_ASSERT(length != 0);  // Can only happen if c > char_mask (see above).
                     if (length == 1) {
@@ -4752,8 +4673,8 @@ TextNode::GetQuickCheckDetails(QuickCheckDetails* details,
                     }
                 }
                 CharacterRange range = ranges[first_range];
-                char16_t from = range.from();
-                char16_t to = range.to();
+                jschar from = range.from();
+                jschar to = range.to();
                 if (to > char_mask) {
                     to = char_mask;
                 }
@@ -4768,8 +4689,8 @@ TextNode::GetQuickCheckDetails(QuickCheckDetails* details,
                 uint32_t bits = (from & common_bits);
                 for (size_t i = first_range + 1; i < ranges.length(); i++) {
                     CharacterRange range = ranges[i];
-                    char16_t from = range.from();
-                    char16_t to = range.to();
+                    jschar from = range.from();
+                    jschar to = range.to();
                     if (from > char_mask) continue;
                     if (to > char_mask) to = char_mask;
                     // Here we are combining more ranges into the mask and compare
@@ -4880,7 +4801,7 @@ void QuickCheckDetails::Merge(QuickCheckDetails* other, int from_index)
         pos->mask &= other_pos->mask;
         pos->value &= pos->mask;
         other_pos->value &= pos->mask;
-        char16_t differing_bits = (pos->value ^ other_pos->value);
+        jschar differing_bits = (pos->value ^ other_pos->value);
         pos->mask &= ~differing_bits;
         pos->value &= pos->mask;
     }

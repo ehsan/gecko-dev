@@ -58,7 +58,6 @@ gfxPattern::gfxPattern(SourceSurface *aSurface, const Matrix &aTransform)
   , mSourceSurface(aSurface)
   , mTransform(aTransform)
   , mExtend(EXTEND_NONE)
-  , mFilter(mozilla::gfx::Filter::GOOD)
 {
 }
 
@@ -224,7 +223,7 @@ gfxPattern::GetPattern(DrawTarget *aTarget, Matrix *aPatternTransform)
 
         double x, y;
         cairo_surface_get_device_offset(surf, &x, &y);
-        newMat.PreTranslate(-x, -y);
+        newMat.Translate(-x, -y);
         mGfxPattern = new (mSurfacePattern.addr())
           SurfacePattern(mSourceSurface, ToExtendMode(extend), newMat, ToFilter(filter));
         return mGfxPattern;

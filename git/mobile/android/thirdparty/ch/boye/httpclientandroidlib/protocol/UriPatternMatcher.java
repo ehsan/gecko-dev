@@ -28,11 +28,8 @@
 package ch.boye.httpclientandroidlib.protocol;
 
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
-
-import ch.boye.httpclientandroidlib.annotation.GuardedBy;
-import ch.boye.httpclientandroidlib.annotation.ThreadSafe;
-import ch.boye.httpclientandroidlib.util.Args;
 
 /**
  * Maintains a map of objects keyed by a request URI pattern.
@@ -49,15 +46,16 @@ import ch.boye.httpclientandroidlib.util.Args;
  *
  * @since 4.0
  */
-@ThreadSafe
-public class UriPatternMatcher<T> {
+public class UriPatternMatcher {
 
-    @GuardedBy("this")
-    private final Map<String, T> map;
+    /**
+     * TODO: Replace with ConcurrentHashMap
+     */
+    private final Map map;
 
     public UriPatternMatcher() {
         super();
-        this.map = new HashMap<String, T>();
+        this.map = new HashMap();
     }
 
     /**
@@ -66,8 +64,10 @@ public class UriPatternMatcher<T> {
      * @param pattern the pattern to register the handler for.
      * @param obj the object.
      */
-    public synchronized void register(final String pattern, final T obj) {
-        Args.notNull(pattern, "URI request pattern");
+    public synchronized void register(final String pattern, final Object obj) {
+        if (pattern == null) {
+            throw new IllegalArgumentException("URI request pattern may not be null");
+        }
         this.map.put(pattern, obj);
     }
 
@@ -84,48 +84,52 @@ public class UriPatternMatcher<T> {
     }
 
     /**
-     * @deprecated (4.1) do not use
+     * @deprecated use {@link #setObjects(Map)}
      */
-    @Deprecated
-    public synchronized void setHandlers(final Map<String, T> map) {
-        Args.notNull(map, "Map of handlers");
+    public synchronized void setHandlers(final Map map) {
+        if (map == null) {
+            throw new IllegalArgumentException("Map of handlers may not be null");
+        }
         this.map.clear();
         this.map.putAll(map);
     }
 
     /**
-     * @deprecated (4.1) do not use
+     * Sets objects from the given map.
+     * @param map the map containing objects keyed by their URI patterns.
      */
-    @Deprecated
-    public synchronized void setObjects(final Map<String, T> map) {
-        Args.notNull(map, "Map of handlers");
+    public synchronized void setObjects(final Map map) {
+        if (map == null) {
+            throw new IllegalArgumentException("Map of handlers may not be null");
+        }
         this.map.clear();
         this.map.putAll(map);
     }
 
     /**
-     * @deprecated (4.1) do not use
-     */
-    @Deprecated
-    public synchronized Map<String, T> getObjects() {
-        return this.map;
-    }
-
-    /**
-     * Looks up an object matching the given request path.
+     * Looks up an object matching the given request URI.
      *
-     * @param path the request path
+     * @param requestURI the request URI
      * @return object or <code>null</code> if no match is found.
      */
-    public synchronized T lookup(final String path) {
-        Args.notNull(path, "Request path");
+    public synchronized Object lookup(String requestURI) {
+        if (requestURI == null) {
+            throw new IllegalArgumentException("Request URI may not be null");
+        }
+        //Strip away the query part part if found
+        int index = requestURI.indexOf("?");
+        if (index != -1) {
+            requestURI = requestURI.substring(0, index);
+        }
+
         // direct match?
-        T obj = this.map.get(path);
+        Object obj = this.map.get(requestURI);
         if (obj == null) {
             // pattern match?
             String bestMatch = null;
-            for (final String pattern : this.map.keySet()) {
-                if (matchUriRequestPattern(pattern, path)) {
+            for (Iterator it = this.map.keySet().iterator(); it.hasNext();) {
+                String pattern = (String) it.next();
+                if (matchUriRequestPattern(pattern, requestURI)) {
                     // we have a match. is it any better?
                     if (bestMatch == null
                             || (bestMatch.length() < pattern.length())
@@ -140,26 +144,21 @@ public class UriPatternMatcher<T> {
     }
 
     /**
-     * Tests if the given request path matches the given pattern.
+     * Tests if the given request URI matches the given pattern.
      *
      * @param pattern the pattern
-     * @param path the request path
+     * @param requestUri the request URI
      * @return <code>true</code> if the request URI matches the pattern,
      *   <code>false</code> otherwise.
      */
-    protected boolean matchUriRequestPattern(final String pattern, final String path) {
+    protected boolean matchUriRequestPattern(final String pattern, final String requestUri) {
         if (pattern.equals("*")) {
             return true;
         } else {
             return
-            (pattern.endsWith("*") && path.startsWith(pattern.substring(0, pattern.length() - 1))) ||
-            (pattern.startsWith("*") && path.endsWith(pattern.substring(1, pattern.length())));
+            (pattern.endsWith("*") && requestUri.startsWith(pattern.substring(0, pattern.length() - 1))) ||
+            (pattern.startsWith("*") && requestUri.endsWith(pattern.substring(1, pattern.length())));
         }
-    }
-
-    @Override
-    public String toString() {
-        return this.map.toString();
     }
 
 }

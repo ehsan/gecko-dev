@@ -49,16 +49,12 @@ private:
   MediaDataDecoderCallback* mCallback;
   AudioConverterRef mConverter;
   AudioFileStreamID mStream;
-  Microseconds mCurrentAudioTimestamp;
+  uint64_t mCurrentAudioFrame;
   int64_t mSamplePosition;
   bool mHaveOutput;
-  bool mFlushed;
-  AudioStreamBasicDescription mOutputFormat;
-  AudioFileTypeID mFileType;
 
   void SetupDecoder();
   void SubmitSample(nsAutoPtr<mp4_demuxer::MP4Sample> aSample);
-  void SignalFlush();
 };
 
 } // namespace mozilla

@@ -199,7 +199,6 @@ let SessionFileInternal = {
 
   read: Task.async(function* () {
     let result;
-    let noFilesFound = true;
     // Attempt to load by order of priority from the various backups
     for (let key of this.Paths.loadOrder) {
       let corrupted = false;
@@ -226,7 +225,6 @@ let SessionFileInternal = {
         corrupted = true;
       } finally {
         if (exists) {
-          noFilesFound = false;
           Telemetry.getHistogramById("FX_SESSION_RESTORE_CORRUPT_FILE").
             add(corrupted);
         }
@@ -240,8 +238,6 @@ let SessionFileInternal = {
         parsed: null
       };
     }
-
-    result.noFilesFound = noFilesFound;
 
     // Initialize the worker to let it handle backups and also
     // as a workaround for bug 964531.

@@ -9,25 +9,29 @@
  */
 
 enum NFCTechType {
-  "NDEF",
-  "NDEF_WRITABLE",
-  "NDEF_FORMATABLE",
-  "P2P",
   "NFC_A",
   "NFC_B",
+  "NFC_ISO_DEP",
   "NFC_F",
   "NFC_V",
-  "NFC_ISO_DEP",
+  "NDEF",
+  "NDEF_FORMATABLE",
   "MIFARE_CLASSIC",
   "MIFARE_ULTRALIGHT",
-  "NFC_BARCODE"
+  "NFC_BARCODE",
+  "P2P",
+  "UNKNOWN_TECH"
 };
 
-[JSImplementation="@mozilla.org/nfc/NFCTag;1", AvailableIn="CertifiedApps"]
+[JSImplementation="@mozilla.org/nfc/NFCTag;1"]
 interface MozNFCTag {
+  DOMRequest getDetailsNDEF();
   DOMRequest readNDEF();
   DOMRequest writeNDEF(sequence<MozNDEFRecord> records);
   DOMRequest makeReadOnlyNDEF();
+
+  DOMRequest connect(NFCTechType techType);
+  DOMRequest close();
 };
 
 // Mozilla Only

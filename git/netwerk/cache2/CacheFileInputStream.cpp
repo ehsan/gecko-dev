@@ -539,14 +539,8 @@ CacheFileInputStream::NotifyListener()
 
   MOZ_ASSERT(mCallback);
 
-  if (!mCallbackTarget) {
-    mCallbackTarget = CacheFileIOManager::IOTarget();
-    if (!mCallbackTarget) {
-      LOG(("CacheFileInputStream::NotifyListener() - Cannot get Cache I/O "
-           "thread! Using main thread for callback."));
-      mCallbackTarget = do_GetMainThread();
-    }
-  }
+  if (!mCallbackTarget)
+    mCallbackTarget = NS_GetCurrentThread();
 
   nsCOMPtr<nsIInputStreamCallback> asyncCallback =
     NS_NewInputStreamReadyEvent(mCallback, mCallbackTarget);

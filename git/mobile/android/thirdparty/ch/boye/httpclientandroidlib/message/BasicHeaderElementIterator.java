@@ -34,8 +34,6 @@ import ch.boye.httpclientandroidlib.Header;
 import ch.boye.httpclientandroidlib.HeaderElement;
 import ch.boye.httpclientandroidlib.HeaderElementIterator;
 import ch.boye.httpclientandroidlib.HeaderIterator;
-import ch.boye.httpclientandroidlib.annotation.NotThreadSafe;
-import ch.boye.httpclientandroidlib.util.Args;
 import ch.boye.httpclientandroidlib.util.CharArrayBuffer;
 
 /**
@@ -43,7 +41,6 @@ import ch.boye.httpclientandroidlib.util.CharArrayBuffer;
  *
  * @since 4.0
  */
-@NotThreadSafe
 public class BasicHeaderElementIterator implements HeaderElementIterator {
 
     private final HeaderIterator headerIt;
@@ -59,13 +56,19 @@ public class BasicHeaderElementIterator implements HeaderElementIterator {
     public BasicHeaderElementIterator(
             final HeaderIterator headerIterator,
             final HeaderValueParser parser) {
-        this.headerIt = Args.notNull(headerIterator, "Header iterator");
-        this.parser = Args.notNull(parser, "Parser");
+        if (headerIterator == null) {
+            throw new IllegalArgumentException("Header iterator may not be null");
+        }
+        if (parser == null) {
+            throw new IllegalArgumentException("Parser may not be null");
+        }
+        this.headerIt = headerIterator;
+        this.parser = parser;
     }
 
 
     public BasicHeaderElementIterator(final HeaderIterator headerIterator) {
-        this(headerIterator, BasicHeaderValueParser.INSTANCE);
+        this(headerIterator, BasicHeaderValueParser.DEFAULT);
     }
 
 
@@ -73,14 +76,14 @@ public class BasicHeaderElementIterator implements HeaderElementIterator {
         this.cursor = null;
         this.buffer = null;
         while (this.headerIt.hasNext()) {
-            final Header h = this.headerIt.nextHeader();
+            Header h = this.headerIt.nextHeader();
             if (h instanceof FormattedHeader) {
                 this.buffer = ((FormattedHeader) h).getBuffer();
                 this.cursor = new ParserCursor(0, this.buffer.length());
                 this.cursor.updatePos(((FormattedHeader) h).getValuePos());
                 break;
             } else {
-                final String value = h.getValue();
+                String value = h.getValue();
                 if (value != null) {
                     this.buffer = new CharArrayBuffer(value.length());
                     this.buffer.append(value);
@@ -102,7 +105,7 @@ public class BasicHeaderElementIterator implements HeaderElementIterator {
             if (this.cursor != null) {
                 // loop while there is data in the buffer
                 while (!this.cursor.atEnd()) {
-                    final HeaderElement e = this.parser.parseHeaderElement(this.buffer, this.cursor);
+                    HeaderElement e = this.parser.parseHeaderElement(this.buffer, this.cursor);
                     if (!(e.getName().length() == 0 && e.getValue() == null)) {
                         // Found something
                         this.currentElement = e;
@@ -135,7 +138,7 @@ public class BasicHeaderElementIterator implements HeaderElementIterator {
             throw new NoSuchElementException("No more header elements available");
         }
 
-        final HeaderElement element = this.currentElement;
+        HeaderElement element = this.currentElement;
         this.currentElement = null;
         return element;
     }

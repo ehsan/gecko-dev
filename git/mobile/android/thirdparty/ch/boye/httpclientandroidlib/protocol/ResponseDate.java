@@ -33,8 +33,6 @@ import ch.boye.httpclientandroidlib.HttpException;
 import ch.boye.httpclientandroidlib.HttpResponse;
 import ch.boye.httpclientandroidlib.HttpResponseInterceptor;
 import ch.boye.httpclientandroidlib.HttpStatus;
-import ch.boye.httpclientandroidlib.annotation.ThreadSafe;
-import ch.boye.httpclientandroidlib.util.Args;
 
 /**
  * ResponseDate is responsible for adding <code>Date<c/ode> header to the
@@ -43,7 +41,6 @@ import ch.boye.httpclientandroidlib.util.Args;
  *
  * @since 4.0
  */
-@ThreadSafe
 public class ResponseDate implements HttpResponseInterceptor {
 
     private static final HttpDateGenerator DATE_GENERATOR = new HttpDateGenerator();
@@ -54,11 +51,14 @@ public class ResponseDate implements HttpResponseInterceptor {
 
     public void process(final HttpResponse response, final HttpContext context)
             throws HttpException, IOException {
-        Args.notNull(response, "HTTP response");
-        final int status = response.getStatusLine().getStatusCode();
+        if (response == null) {
+            throw new IllegalArgumentException
+                ("HTTP response may not be null.");
+        }
+        int status = response.getStatusLine().getStatusCode();
         if ((status >= HttpStatus.SC_OK) &&
             !response.containsHeader(HTTP.DATE_HEADER)) {
-            final String httpdate = DATE_GENERATOR.getCurrentDate();
+            String httpdate = DATE_GENERATOR.getCurrentDate();
             response.setHeader(HTTP.DATE_HEADER, httpdate);
         }
     }

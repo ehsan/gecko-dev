@@ -168,7 +168,3 @@ RESOURCE_FILES += [
     'TopLevelImageDocument.css',
     'TopLevelVideoDocument.css',
 ]
-
-if CONFIG['GNU_CC']:
-    CFLAGS += ['-Wshadow']
-    CXXFLAGS += ['-Wshadow']

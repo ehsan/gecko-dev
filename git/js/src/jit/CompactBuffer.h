@@ -43,6 +43,7 @@ class CompactBufferReader
             if (!(byte & 1))
                 return val;
         }
+        MOZ_ASSUME_UNREACHABLE("unreachable");
     }
 
   public:
@@ -66,11 +67,6 @@ class CompactBufferReader
         uint32_t b0 = readByte();
         uint32_t b1 = readByte();
         return b0 | (b1 << 8);
-    }
-    uint32_t readNativeEndianUint32_t() {
-        // Must be at 4-byte boundary
-        JS_ASSERT(uintptr_t(buffer_) % sizeof(uint32_t) == 0);
-        return *reinterpret_cast<const uint32_t *>(buffer_);
     }
     uint32_t readUnsigned() {
         return readVariableLength();
@@ -96,10 +92,6 @@ class CompactBufferReader
         buffer_ = start + offset;
         MOZ_ASSERT(start < end_);
         MOZ_ASSERT(buffer_ < end_);
-    }
-
-    const uint8_t *currentPosition() const {
-        return buffer_;
     }
 };
 
@@ -147,15 +139,6 @@ class CompactBufferWriter
     void writeFixedUint16_t(uint16_t value) {
         writeByte(value & 0xFF);
         writeByte(value >> 8);
-    }
-    void writeNativeEndianUint32_t(uint32_t value) {
-        // Must be at 4-byte boundary
-        JS_ASSERT(length() % sizeof(uint32_t) == 0);
-        writeFixedUint32_t(0);
-        if (oom())
-            return;
-        uint8_t *endPtr = buffer() + length();
-        reinterpret_cast<uint32_t *>(endPtr)[-1] = value;
     }
     size_t length() const {
         return buffer_.length();

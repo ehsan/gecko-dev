@@ -30,6 +30,7 @@
 #include "jswrapper.h"
 
 #include "asmjs/AsmJSSignalHandlers.h"
+#include "assembler/assembler/MacroAssembler.h"
 #include "jit/arm/Simulator-arm.h"
 #include "jit/JitCompartment.h"
 #include "jit/mips/Simulator-mips.h"
@@ -78,7 +79,6 @@ PerThreadData::PerThreadData(JSRuntime *runtime)
     traceLogger(nullptr),
 #endif
     activation_(nullptr),
-    profilingActivation_(nullptr),
     asmJSActivationStack_(nullptr),
     autoFlushICache_(nullptr),
 #if defined(JS_ARM_SIMULATOR) || defined(JS_MIPS_SIMULATOR)
@@ -175,9 +175,9 @@ JSRuntime::JSRuntime(JSRuntime *parentRuntime)
 #ifdef NIGHTLY_BUILD
     assertOnScriptEntryHook_(nullptr),
 #endif
+    debugMode(false),
     spsProfiler(thisFromCtor()),
     profilingScripts(false),
-    suppressProfilerSampling(false),
     hadOutOfMemory(false),
     haveCreatedContext(false),
     data(nullptr),
@@ -190,7 +190,6 @@ JSRuntime::JSRuntime(JSRuntime *parentRuntime)
     destroyPrincipals(nullptr),
     structuredCloneCallbacks(nullptr),
     telemetryCallback(nullptr),
-    errorReporter(nullptr),
     propertyRemovals(0),
 #if !EXPOSE_INTL_API
     thousandsSeparator(0),
@@ -211,7 +210,6 @@ JSRuntime::JSRuntime(JSRuntime *parentRuntime)
     wrapObjectCallbacks(&DefaultWrapObjectCallbacks),
     preserveWrapperCallback(nullptr),
     jitSupportsFloatingPoint(false),
-    jitSupportsSimd(false),
     ionPcScriptCache(nullptr),
     threadPool(this),
     defaultJSContextCallback(nullptr),
@@ -232,6 +230,20 @@ JSRuntime::JSRuntime(JSRuntime *parentRuntime)
 
     PodArrayZero(nativeStackQuota);
     PodZero(&asmJSCacheOps);
+}
+
+static bool
+JitSupportsFloatingPoint()
+{
+    if (!JSC::MacroAssembler::supportsFloatingPoint())
+        return false;
+
+#if WTF_ARM_ARCH_VERSION == 6
+    if (!js::jit::HasVFP())
+        return false;
+#endif
+
+    return true;
 }
 
 static bool
@@ -315,8 +327,7 @@ JSRuntime::init(uint32_t maxbytes, uint32_t maxNurseryBytes)
 
     nativeStackBase = GetNativeStackBase();
 
-    jitSupportsFloatingPoint = js::jit::JitSupportsFloatingPoint();
-    jitSupportsSimd = js::jit::JitSupportsSimd();
+    jitSupportsFloatingPoint = JitSupportsFloatingPoint();
 
     signalHandlersInstalled_ = EnsureAsmJSSignalHandlersInstalled(this);
     canUseSignalHandlers_ = signalHandlersInstalled_ && !SignalBasedTriggersDisabled();
@@ -364,7 +375,7 @@ JSRuntime::~JSRuntime()
         profilingScripts = false;
 
         JS::PrepareForFullGC(this);
-        gc.gc(GC_NORMAL, JS::gcreason::DESTROY_RUNTIME);
+        GC(this, GC_NORMAL, JS::gcreason::DESTROY_RUNTIME);
     }
 
     /*

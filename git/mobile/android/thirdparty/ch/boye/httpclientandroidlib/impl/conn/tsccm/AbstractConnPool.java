@@ -1,21 +1,20 @@
 /*
  * ====================================================================
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *  Licensed to the Apache Software Foundation (ASF) under one or more
+ *  contributor license agreements.  See the NOTICE file distributed with
+ *  this work for additional information regarding copyright ownership.
+ *  The ASF licenses this file to You under the Apache License, Version 2.0
+ *  (the "License"); you may not use this file except in compliance with
+ *  the License.  You may obtain a copy of the License at
  *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
  * ====================================================================
  *
  * This software consists of voluntary contributions made by many
@@ -24,26 +23,27 @@
  * <http://www.apache.org/>.
  *
  */
+
 package ch.boye.httpclientandroidlib.impl.conn.tsccm;
 
 import java.io.IOException;
 import java.lang.ref.Reference;
 import java.lang.ref.ReferenceQueue;
+import java.util.Set;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
+import ch.boye.httpclientandroidlib.annotation.GuardedBy;
+
 import ch.boye.httpclientandroidlib.androidextra.HttpClientAndroidLog;
 /* LogFactory removed by HttpClient for Android script. */
-import ch.boye.httpclientandroidlib.annotation.GuardedBy;
 import ch.boye.httpclientandroidlib.conn.ConnectionPoolTimeoutException;
 import ch.boye.httpclientandroidlib.conn.OperatedClientConnection;
 import ch.boye.httpclientandroidlib.conn.routing.HttpRoute;
 import ch.boye.httpclientandroidlib.impl.conn.IdleConnectionHandler;
-import ch.boye.httpclientandroidlib.util.Args;
 
 /**
  * An abstract connection pool.
@@ -53,11 +53,10 @@ import ch.boye.httpclientandroidlib.util.Args;
  * Don't use <code>synchronized</code> for that purpose!
  *
  * @since 4.0
- *
- * @deprecated (4.2) use {@link ch.boye.httpclientandroidlib.pool.AbstractConnPool}
  */
+
 @Deprecated
-public abstract class AbstractConnPool {
+public abstract class AbstractConnPool implements RefQueueHandler {
 
     public HttpClientAndroidLog log;
 
@@ -115,10 +114,10 @@ public abstract class AbstractConnPool {
      */
     public final
         BasicPoolEntry getEntry(
-                final HttpRoute route,
-                final Object state,
-                final long timeout,
-                final TimeUnit tunit)
+                HttpRoute route,
+                Object state,
+                long timeout,
+                TimeUnit tunit)
                     throws ConnectionPoolTimeoutException, InterruptedException {
         return requestPoolEntry(route, state).getPoolEntry(timeout, tunit);
     }
@@ -145,7 +144,7 @@ public abstract class AbstractConnPool {
     public abstract void freeEntry(BasicPoolEntry entry, boolean reusable, long validDuration, TimeUnit timeUnit)
         ;
 
-    public void handleReference(final Reference<?> ref) {
+    public void handleReference(Reference<?> ref) {
     }
 
     protected abstract void handleLostEntry(HttpRoute route);
@@ -157,10 +156,12 @@ public abstract class AbstractConnPool {
      *                  in order to be closed now
      * @param tunit     the unit for the <code>idletime</code>
      */
-    public void closeIdleConnections(final long idletime, final TimeUnit tunit) {
+    public void closeIdleConnections(long idletime, TimeUnit tunit) {
 
         // idletime can be 0 or negative, no problem there
-        Args.notNull(tunit, "Time unit");
+        if (tunit == null) {
+            throw new IllegalArgumentException("Time unit must not be null.");
+        }
 
         poolLock.lock();
         try {
@@ -194,14 +195,13 @@ public abstract class AbstractConnPool {
         poolLock.lock();
         try {
 
-            if (isShutDown) {
+            if (isShutDown)
                 return;
-            }
 
             // close all connections that are issued to an application
-            final Iterator<BasicPoolEntry> iter = leasedConnections.iterator();
+            Iterator<BasicPoolEntry> iter = leasedConnections.iterator();
             while (iter.hasNext()) {
-                final BasicPoolEntry entry = iter.next();
+                BasicPoolEntry entry = iter.next();
                 iter.remove();
                 closeConnection(entry.getConnection());
             }
@@ -224,7 +224,7 @@ public abstract class AbstractConnPool {
         if (conn != null) {
             try {
                 conn.close();
-            } catch (final IOException ex) {
+            } catch (IOException ex) {
                 log.debug("I/O error closing connection", ex);
             }
         }

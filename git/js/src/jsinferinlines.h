@@ -165,7 +165,7 @@ PrimitiveTypeFlag(JSValueType type)
       case JSVAL_TYPE_MAGIC:
         return TYPE_FLAG_LAZYARGS;
       default:
-        MOZ_CRASH("Bad JSValueType");
+        MOZ_ASSUME_UNREACHABLE("Bad type");
     }
 }
 
@@ -190,7 +190,7 @@ TypeFlagPrimitive(TypeFlags flags)
       case TYPE_FLAG_LAZYARGS:
         return JSVAL_TYPE_MAGIC;
       default:
-        MOZ_CRASH("Bad TypeFlags");
+        MOZ_ASSUME_UNREACHABLE("Bad type");
     }
 }
 
@@ -359,7 +359,7 @@ GetClassForProtoKey(JSProtoKey key)
         return &DataViewObject::class_;
 
       default:
-        MOZ_CRASH("Bad proto key");
+        MOZ_ASSUME_UNREACHABLE("Bad proto key");
     }
 }
 
@@ -445,20 +445,6 @@ CanHaveEmptyPropertyTypesForOwnProperty(JSObject *obj)
     // objects may be empty for 'own' properties if the global property still
     // has its initial undefined value.
     return obj->is<GlobalObject>();
-}
-
-inline bool
-PropertyHasBeenMarkedNonConstant(JSObject *obj, jsid id)
-{
-    // Non-constant properties are only relevant for singleton objects.
-    if (!obj->hasSingletonType())
-        return true;
-
-    // EnsureTrackPropertyTypes must have been called on this object.
-    if (obj->type()->unknownProperties())
-        return true;
-    HeapTypeSet *types = obj->type()->maybeGetProperty(IdToTypeId(id));
-    return types->nonConstantProperty();
 }
 
 inline bool
@@ -709,9 +695,10 @@ TypeScript::InitObject(JSContext *cx, JSScript *script, jsbytecode *pc, JSProtoK
 {
     JS_ASSERT(!UseNewTypeForInitializer(script, pc, kind));
 
+    /* :XXX: Limit script->length so we don't need to check the offset up front? */
     uint32_t offset = script->pcToOffset(pc);
 
-    if (offset >= AllocationSiteKey::OFFSET_LIMIT)
+    if (!script->compileAndGo() || offset >= AllocationSiteKey::OFFSET_LIMIT)
         return GetTypeNewObject(cx, kind);
 
     AllocationSiteKey key;
@@ -1121,16 +1108,6 @@ HeapTypeSet::setNonWritableProperty(ExclusiveContext *cx)
     newPropertyState(cx);
 }
 
-inline void
-HeapTypeSet::setNonConstantProperty(ExclusiveContext *cx)
-{
-    if (flags & TYPE_FLAG_NON_CONSTANT_PROPERTY)
-        return;
-
-    flags |= TYPE_FLAG_NON_CONSTANT_PROPERTY;
-    newPropertyState(cx);
-}
-
 inline unsigned
 TypeSet::getObjectCount() const
 {
@@ -1307,8 +1284,10 @@ TypeNewScript::writeBarrierPre(TypeNewScript *newScript)
         return;
 
     JS::Zone *zone = newScript->fun->zoneFromAnyThread();
-    if (zone->needsIncrementalBarrier())
-        newScript->trace(zone->barrierTracer());
+    if (zone->needsIncrementalBarrier()) {
+        MarkObject(zone->barrierTracer(), &newScript->fun, "write barrier");
+        MarkObject(zone->barrierTracer(), &newScript->templateObject, "write barrier");
+    }
 #endif
 }
 
@@ -1343,5 +1322,9 @@ struct GCMethods<types::Type>
 };
 
 } // namespace js
+
+namespace JS {
+template<> class AnchorPermitted<js::types::TypeObject *> { };
+}  // namespace JS
 
 #endif /* jsinferinlines_h */

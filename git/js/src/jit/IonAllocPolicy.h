@@ -23,9 +23,13 @@ class TempAllocator
 {
     LifoAllocScope lifoScope_;
 
+    // Linked list of GCThings rooted by this allocator.
+    CompilerRootNode *rootList_;
+
   public:
     explicit TempAllocator(LifoAlloc *lifoAlloc)
-      : lifoScope_(lifoAlloc)
+      : lifoScope_(lifoAlloc),
+        rootList_(nullptr)
     { }
 
     void *allocateInfallible(size_t bytes)
@@ -57,11 +61,35 @@ class TempAllocator
         return &lifoScope_.alloc();
     }
 
+    CompilerRootNode *&rootList()
+    {
+        return rootList_;
+    }
+
     bool ensureBallast() {
         // Most infallible Ion allocations are small, so we use a ballast of
         // ~16K for now.
         return lifoScope_.alloc().ensureUnusedApproximate(16 * 1024);
     }
+};
+
+// Stack allocated rooter for all roots associated with a TempAllocator
+class AutoTempAllocatorRooter : private JS::AutoGCRooter
+{
+  public:
+    explicit AutoTempAllocatorRooter(JSContext *cx, TempAllocator *temp
+                                     MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+      : JS::AutoGCRooter(cx, IONALLOC), temp(temp)
+    {
+        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+    }
+
+    friend void JS::AutoGCRooter::trace(JSTracer *trc);
+    void trace(JSTracer *trc);
+
+  private:
+    TempAllocator *temp;
+    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
 class IonAllocPolicy
@@ -72,26 +100,23 @@ class IonAllocPolicy
     MOZ_IMPLICIT IonAllocPolicy(TempAllocator &alloc)
       : alloc_(alloc)
     {}
-    template <typename T>
-    T *pod_malloc(size_t numElems) {
-        if (numElems & mozilla::tl::MulOverflowMask<sizeof(T)>::value)
-            return nullptr;
-        return static_cast<T *>(alloc_.allocate(numElems * sizeof(T)));
+    void *malloc_(size_t bytes) {
+        return alloc_.allocate(bytes);
     }
     template <typename T>
     T *pod_calloc(size_t numElems) {
-        T *p = pod_malloc<T>(numElems);
+        if (numElems & mozilla::tl::MulOverflowMask<sizeof(T)>::value)
+            return nullptr;
+        T *p = (T *)alloc_.allocate(numElems * sizeof(T));
         if (p)
             memset(p, 0, numElems * sizeof(T));
         return p;
     }
-    template <typename T>
-    T *pod_realloc(T *p, size_t oldSize, size_t newSize) {
-        T *n = pod_malloc<T>(newSize);
+    void *realloc_(void *p, size_t oldBytes, size_t bytes) {
+        void *n = malloc_(bytes);
         if (!n)
             return n;
-        MOZ_ASSERT(!(oldSize & mozilla::tl::MulOverflowMask<sizeof(T)>::value));
-        memcpy(n, p, Min(oldSize * sizeof(T), newSize * sizeof(T)));
+        memcpy(n, p, Min(oldBytes, bytes));
         return n;
     }
     void free_(void *p) {
@@ -100,16 +125,22 @@ class IonAllocPolicy
     }
 };
 
+// Deprecated. Don't use this. Will be removed after everything has been
+// converted to IonAllocPolicy.
 class OldIonAllocPolicy
 {
   public:
     OldIonAllocPolicy()
     {}
-    template <typename T>
-    T *pod_malloc(size_t numElems) {
-        if (numElems & mozilla::tl::MulOverflowMask<sizeof(T)>::value)
-            return nullptr;
-        return static_cast<T *>(GetIonContext()->temp->allocate(numElems * sizeof(T)));
+    void *malloc_(size_t bytes) {
+        return GetIonContext()->temp->allocate(bytes);
+    }
+    void *realloc_(void *p, size_t oldBytes, size_t bytes) {
+        void *n = malloc_(bytes);
+        if (!n)
+            return n;
+        memcpy(n, p, Min(oldBytes, bytes));
+        return n;
     }
     void free_(void *p) {
     }

@@ -68,11 +68,10 @@ struct nsExternalDOMClassInfoData : public nsDOMClassInfoData
 #define MARK_EXTERNAL(_ptr) (nsIClassInfo*)(uintptr_t(_ptr) | 0x1)
 #define IS_EXTERNAL(_ptr) (uintptr_t(_ptr) & 0x1)
 
-class nsWindowSH;
 
 class nsDOMClassInfo : public nsXPCClassInfo
 {
-  friend class nsWindowSH;
+  friend class nsHTMLDocumentSH;
 
 protected:
   virtual ~nsDOMClassInfo();
@@ -97,7 +96,6 @@ public:
 
   static nsIClassInfo* GetClassInfoInstance(nsDOMClassInfoData* aData);
 
-  static nsresult Init();
   static void ShutDown();
 
   static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
@@ -129,6 +127,10 @@ public:
   {
     return sXPConnect;
   }
+  static nsIScriptSecurityManager *ScriptSecurityManager()
+  {
+    return sSecMan;
+  }
 
 protected:
   friend nsIClassInfo* NS_GetDOMClassInfoInstance(nsDOMClassInfoID aID);
@@ -144,12 +146,14 @@ protected:
     return mData->mInterfacesBitmap;
   }
 
+  static nsresult Init();
   static nsresult RegisterClassProtos(int32_t aDOMClassInfoID);
   static nsresult RegisterExternalClasses();
   nsresult ResolveConstructor(JSContext *cx, JSObject *obj,
                               JSObject **objp);
 
   static nsIXPConnect *sXPConnect;
+  static nsIScriptSecurityManager *sSecMan;
 
   // nsIXPCScriptable code
   static nsresult DefineStaticJSVals(JSContext *cx);
@@ -157,7 +161,10 @@ protected:
   static bool sIsInitialized;
 
 public:
+  static jsid sLocation_id;
   static jsid sConstructor_id;
+  static jsid sTop_id;
+  static jsid sDocument_id;
   static jsid sWrappedJSObject_id;
 };
 
@@ -228,20 +235,46 @@ public:
   }
 };
 
-// A place to hang some static methods that we should really consider
-// moving to be nsGlobalWindow member methods.  See bug 1062418.
-class nsWindowSH
+// Window scriptable helper
+
+class nsWindowSH : public nsDOMGenericSH
 {
 protected:
+  explicit nsWindowSH(nsDOMClassInfoData *aData) : nsDOMGenericSH(aData)
+  {
+  }
+
+  virtual ~nsWindowSH()
+  {
+  }
+
   static nsresult GlobalResolve(nsGlobalWindow *aWin, JSContext *cx,
                                 JS::Handle<JSObject*> obj, JS::Handle<jsid> id,
                                 JS::MutableHandle<JSPropertyDescriptor> desc);
 
   friend class nsGlobalWindow;
 public:
+  NS_IMETHOD PreCreate(nsISupports *nativeObj, JSContext *cx,
+                       JSObject *globalObj, JSObject **parentObj) MOZ_OVERRIDE;
+  NS_IMETHOD PostCreatePrototype(JSContext * cx, JSObject * proto) MOZ_OVERRIDE;
+  NS_IMETHOD PostCreate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
+                        JSObject *obj) MOZ_OVERRIDE;
+  NS_IMETHOD Enumerate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
+                       JSObject *obj, bool *_retval) MOZ_OVERRIDE;
+  NS_IMETHOD NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
+                        JSObject *obj, jsid id, JSObject **objp,
+                        bool *_retval) MOZ_OVERRIDE;
+  NS_IMETHOD OuterObject(nsIXPConnectWrappedNative *wrapper, JSContext * cx,
+                         JSObject * obj, JSObject * *_retval) MOZ_OVERRIDE;
+
   static bool NameStructEnabled(JSContext* aCx, nsGlobalWindow *aWin,
                                 const nsAString& aName,
                                 const nsGlobalNameStruct& aNameStruct);
+
+  static nsIClassInfo *doCreate(nsDOMClassInfoData* aData)
+  {
+    return new nsWindowSH(aData);
+  }
 };
 
 

@@ -28,7 +28,6 @@
 #include "nsTArrayForwardDeclare.h"
 #include "Units.h"
 #include "mozilla/dom/AutocompleteInfoBinding.h"
-#include "mozilla/dom/ScriptSettings.h"
 
 #if defined(XP_WIN)
 // Undefine LoadImage to prevent naming conflict with Windows.
@@ -214,8 +213,7 @@ public:
     const nsINode* aPossibleDescendant, const nsINode* aPossibleAncestor);
 
   /**
-   * Similar to ContentIsDescendantOf except it crosses document boundaries,
-   * also crosses ShadowRoot boundaries from ShadowRoot to its host.
+   * Similar to ContentIsDescendantOf except it crosses document boundaries.
    */
   static bool ContentIsCrossDocDescendantOf(nsINode* aPossibleDescendant,
                                               nsINode* aPossibleAncestor);
@@ -406,6 +404,15 @@ public:
   static bool CanCallerAccess(nsPIDOMWindow* aWindow);
 
   /**
+   * Get the window through the JS context that's currently on the stack.
+   * If there's no JS context currently on the stack, returns null.
+   */
+  static nsPIDOMWindow *GetWindowFromCaller();
+
+  /**
+   * The two GetDocumentFrom* functions below allow a caller to get at a
+   * document that is relevant to the currently executing script.
+   *
    * GetDocumentFromCaller gets its document by looking at the last called
    * function and finding the document that the function itself relates to.
    * For example, consider two windows A and B in the same origin. B has a
@@ -413,9 +420,27 @@ public:
    * If a script in window A were to call B's function, GetDocumentFromCaller
    * would find that function (in B) and return B's document.
    *
+   * GetDocumentFromContext gets its document by looking at the currently
+   * executing context's global object and returning its document. Thus,
+   * given the example above, GetDocumentFromCaller would see that the
+   * currently executing script was in window A, and return A's document.
+   */
+  /**
+   * Get the document from the currently executing function. This will return
+   * the document that the currently executing function is in/from.
+   *
    * @return The document or null if no JS Context.
    */
   static nsIDocument* GetDocumentFromCaller();
+
+  /**
+   * Get the document through the JS context that's currently on the stack.
+   * If there's no JS context currently on the stack it will return null.
+   * This will return the document of the calling script.
+   *
+   * @return The document or null if no JS context
+   */
+  static nsIDocument* GetDocumentFromContext();
 
   // Check if a node is in the document prolog, i.e. before the document
   // element.
@@ -1553,16 +1578,16 @@ public:
    * @return NS_OK on success, or NS_ERROR_OUT_OF_MEMORY if making the string
    * writable needs to allocate memory and that allocation fails.
    */
-  static void ASCIIToLower(nsAString& aStr);
-  static void ASCIIToLower(const nsAString& aSource, nsAString& aDest);
+  static nsresult ASCIIToLower(nsAString& aStr);
+  static nsresult ASCIIToLower(const nsAString& aSource, nsAString& aDest);
 
   /**
    * Convert ASCII a-z to A-Z.
    * @return NS_OK on success, or NS_ERROR_OUT_OF_MEMORY if making the string
    * writable needs to allocate memory and that allocation fails.
    */
-  static void ASCIIToUpper(nsAString& aStr);
-  static void ASCIIToUpper(const nsAString& aSource, nsAString& aDest);
+  static nsresult ASCIIToUpper(nsAString& aStr);
+  static nsresult ASCIIToUpper(const nsAString& aSource, nsAString& aDest);
 
   /**
    * Return whether aStr contains an ASCII uppercase character.
@@ -1572,6 +1597,10 @@ public:
   // Returns NS_OK for same origin, error (NS_ERROR_DOM_BAD_URI) if not.
   static nsresult CheckSameOrigin(nsIChannel *aOldChannel, nsIChannel *aNewChannel);
   static nsIInterfaceRequestor* GetSameOriginChecker();
+
+  // Trace the safe JS context.
+  static void TraceSafeJSContext(JSTracer* aTrc);
+
 
   /**
    * Get the Origin of the passed in nsIPrincipal or nsIURI. If the passed in
@@ -1592,6 +1621,7 @@ public:
   static nsresult GetUTFOrigin(nsIPrincipal* aPrincipal,
                                nsString& aOrigin);
   static nsresult GetUTFOrigin(nsIURI* aURI, nsString& aOrigin);
+  static void GetUTFNonNullOrigin(nsIURI* aURI, nsString& aOrigin);
 
   /**
    * This method creates and dispatches "command" event, which implements
@@ -2248,7 +2278,9 @@ private:
 
   static bool sInitialized;
   static uint32_t sScriptBlockerCount;
+#ifdef DEBUG
   static uint32_t sDOMNodeRemovedSuppressCount;
+#endif
   static uint32_t sMicroTaskLevel;
   // Not an nsCOMArray because removing elements from those is slower
   static nsTArray< nsCOMPtr<nsIRunnable> >* sBlockedScriptRunners;
@@ -2305,10 +2337,14 @@ class MOZ_STACK_CLASS nsAutoScriptBlockerSuppressNodeRemoved :
                           public nsAutoScriptBlocker {
 public:
   nsAutoScriptBlockerSuppressNodeRemoved() {
+#ifdef DEBUG
     ++nsContentUtils::sDOMNodeRemovedSuppressCount;
+#endif
   }
   ~nsAutoScriptBlockerSuppressNodeRemoved() {
+#ifdef DEBUG
     --nsContentUtils::sDOMNodeRemovedSuppressCount;
+#endif
   }
 };
 

@@ -1248,10 +1248,6 @@ CssRuleView.prototype = {
    * returns null of the node isn't anything we care about
    */
   getNodeInfo: function(node) {
-    if (!node) {
-      return null;
-    }
-
     let type, value;
     let classes = node.classList;
     let prop = getParentTextProperty(node);
@@ -1295,7 +1291,10 @@ CssRuleView.prototype = {
       return null;
     }
 
-    return {type, value};
+    return {
+      type: type,
+      value: value
+    };
   },
 
   /**
@@ -1419,7 +1418,7 @@ CssRuleView.prototype = {
         this.element.appendChild(editor.element);
       } else {
         for (let rule of rules) {
-          if (rule.domRule.type === ELEMENT_STYLE) {
+          if (rule.selectorText === "element") {
             let referenceElement = rule.editor.element.nextSibling;
             this.element.insertBefore(editor.element, referenceElement);
             break;

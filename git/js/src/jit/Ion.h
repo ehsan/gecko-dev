@@ -32,7 +32,6 @@ enum MethodStatus
 enum AbortReason {
     AbortReason_Alloc,
     AbortReason_Inlining,
-    AbortReason_NewScriptProperties,
     AbortReason_Disable,
     AbortReason_Error,
     AbortReason_NoAbort
@@ -84,9 +83,10 @@ void SetIonContext(IonContext *ctx);
 bool CanIonCompileScript(JSContext *cx, JSScript *script, bool osr);
 
 MethodStatus CanEnterAtBranch(JSContext *cx, JSScript *script,
-                              BaselineFrame *frame, jsbytecode *pc);
+                              BaselineFrame *frame, jsbytecode *pc, bool isConstructing);
 MethodStatus CanEnter(JSContext *cx, RunState &state);
-MethodStatus CompileFunctionForBaseline(JSContext *cx, HandleScript script, BaselineFrame *frame);
+MethodStatus CompileFunctionForBaseline(JSContext *cx, HandleScript script, BaselineFrame *frame,
+                                        bool isConstructing);
 MethodStatus CanEnterUsingFastInvoke(JSContext *cx, HandleScript script, uint32_t numActualArgs);
 
 MethodStatus CanEnterInParallel(JSContext *cx, HandleScript script);
@@ -135,6 +135,9 @@ bool Invalidate(JSContext *cx, JSScript *script, ExecutionMode mode, bool resetU
 bool Invalidate(JSContext *cx, JSScript *script, bool resetUses = true,
                 bool cancelOffThread = true);
 
+void MarkValueFromIon(JSRuntime *rt, Value *vp);
+void MarkShapeFromIon(JSRuntime *rt, Shape **shapep);
+
 void ToggleBarriers(JS::Zone *zone, bool needs);
 
 class IonBuilder;
@@ -148,10 +151,8 @@ CodeGenerator *GenerateCode(MIRGenerator *mir, LIRGraph *lir);
 CodeGenerator *CompileBackEnd(MIRGenerator *mir);
 
 void AttachFinishedCompilations(JSContext *cx);
-void FinishOffThreadBuilder(JSContext *cx, IonBuilder *builder);
+void FinishOffThreadBuilder(IonBuilder *builder);
 void StopAllOffThreadCompilations(JSCompartment *comp);
-
-uint8_t *LazyLinkTopActivation(JSContext *cx);
 
 static inline bool
 IsIonEnabled(JSContext *cx)
@@ -174,15 +175,9 @@ IsIonInlinablePC(jsbytecode *pc) {
 }
 
 inline bool
-TooManyActualArguments(unsigned nargs)
+TooManyArguments(unsigned nargs)
 {
-    return nargs > js_JitOptions.maxStackArgs;
-}
-
-inline bool
-TooManyFormalArguments(unsigned nargs)
-{
-    return nargs >= SNAPSHOT_MAX_NARGS || TooManyActualArguments(nargs);
+    return nargs >= SNAPSHOT_MAX_NARGS || nargs > js_JitOptions.maxStackArgs;
 }
 
 inline size_t
@@ -207,9 +202,6 @@ void RequestInterruptForIonCode(JSRuntime *rt, JSRuntime::InterruptMode mode);
 bool RematerializeAllFrames(JSContext *cx, JSCompartment *comp);
 bool UpdateForDebugMode(JSContext *maybecx, JSCompartment *comp,
                         AutoDebugModeInvalidation &invalidate);
-
-bool JitSupportsFloatingPoint();
-bool JitSupportsSimd();
 
 } // namespace jit
 } // namespace js

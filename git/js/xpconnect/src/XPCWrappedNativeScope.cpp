@@ -14,7 +14,6 @@
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/Preferences.h"
 #include "nsIAddonInterposition.h"
-#include "nsIXULRuntime.h"
 
 #include "mozilla/dom/BindingUtils.h"
 
@@ -53,11 +52,13 @@ RemoteXULForbidsXBLScope(nsIPrincipal *aPrincipal, HandleObject aGlobal)
 {
   MOZ_ASSERT(aPrincipal);
 
-  // Certain singleton sandoxes are created very early in startup - too early
-  // to call into AllowXULXBLForPrincipal. We never create XBL scopes for
-  // sandboxes anway, and certainly not for these singleton scopes. So we just
-  // short-circuit here.
-  if (IsSandbox(aGlobal))
+  // The SafeJSContext is lazily created, and tends to be created at really
+  // weird times, at least for xpcshell (often very early in startup or late
+  // in shutdown). Its scope isn't system principal, so if we proceeded we'd
+  // end up calling into AllowXULXBLForPrincipal, which depends on all kinds
+  // of persistent storage and permission machinery that may or not be running.
+  // We know the answer to the question here, so just short-circuit.
+  if (JS_GetClass(aGlobal) == &SafeJSContextGlobalClass)
       return false;
 
   // AllowXULXBLForPrincipal will return true for system principal, but we
@@ -121,7 +122,9 @@ XPCWrappedNativeScope::XPCWrappedNativeScope(JSContext *cx,
     mUseContentXBLScope = mAllowContentXBLScope;
     if (mUseContentXBLScope) {
       const js::Class *clasp = js::GetObjectClass(mGlobalJSObject);
-      mUseContentXBLScope = !strcmp(clasp->name, "Window");
+      mUseContentXBLScope = !strcmp(clasp->name, "Window") ||
+                            !strcmp(clasp->name, "ChromeWindow") ||
+                            !strcmp(clasp->name, "ModalContentWindow");
     }
     if (mUseContentXBLScope) {
       mUseContentXBLScope = principal && !nsContentUtils::IsSystemPrincipal(principal);
@@ -208,7 +211,7 @@ CompartmentPerAddon()
 
     if (!initialized) {
         pref = Preferences::GetBool("dom.compartment_per_addon", false) ||
-               BrowserTabsRemoteAutostart();
+               Preferences::GetBool("browser.tabs.remote.autostart", false);
         initialized = true;
     }
 

@@ -57,23 +57,23 @@ class LAllocation : public TempObject
 {
     uintptr_t bits_;
 
-    // 3 bits gives us enough for an interesting set of Kinds and also fits
-    // within the alignment bits of pointers to Value, which are always
-    // 8-byte aligned.
+    static const uintptr_t TAG_BIT = 1;
+    static const uintptr_t TAG_SHIFT = 0;
+    static const uintptr_t TAG_MASK = 1 << TAG_SHIFT;
     static const uintptr_t KIND_BITS = 3;
-    static const uintptr_t KIND_SHIFT = 0;
+    static const uintptr_t KIND_SHIFT = TAG_SHIFT + TAG_BIT;
     static const uintptr_t KIND_MASK = (1 << KIND_BITS) - 1;
 
   protected:
-    static const uintptr_t DATA_BITS = (sizeof(uint32_t) * 8) - KIND_BITS;
+    static const uintptr_t DATA_BITS = (sizeof(uint32_t) * 8) - KIND_BITS - TAG_BIT;
     static const uintptr_t DATA_SHIFT = KIND_SHIFT + KIND_BITS;
     static const uintptr_t DATA_MASK = (1 << DATA_BITS) - 1;
 
   public:
     enum Kind {
+        USE,            // Use of a virtual register, with physical allocation policy.
         CONSTANT_VALUE, // Constant js::Value.
         CONSTANT_INDEX, // Constant arbitrary index.
-        USE,            // Use of a virtual register, with physical allocation policy.
         GPR,            // General purpose register.
         FPU,            // Floating-point register.
         STACK_SLOT,     // Stack slot.
@@ -81,16 +81,20 @@ class LAllocation : public TempObject
     };
 
   protected:
-    uint32_t data() const {
-        return uint32_t(bits_) >> DATA_SHIFT;
+    bool isTagged() const {
+        return !!(bits_ & TAG_MASK);
     }
-    void setData(uint32_t data) {
-        JS_ASSERT(data <= DATA_MASK);
+
+    int32_t data() const {
+        return int32_t(bits_) >> DATA_SHIFT;
+    }
+    void setData(int32_t data) {
+        JS_ASSERT(int32_t(data) <= int32_t(DATA_MASK));
         bits_ &= ~(DATA_MASK << DATA_SHIFT);
         bits_ |= (data << DATA_SHIFT);
     }
     void setKindAndData(Kind kind, uint32_t data) {
-        JS_ASSERT(data <= DATA_MASK);
+        JS_ASSERT(int32_t(data) <= int32_t(DATA_MASK));
         bits_ = (uint32_t(kind) << KIND_SHIFT) | data << DATA_SHIFT;
     }
 
@@ -103,9 +107,7 @@ class LAllocation : public TempObject
 
   public:
     LAllocation() : bits_(0)
-    {
-        JS_ASSERT(isBogus());
-    }
+    { }
 
     static LAllocation *New(TempAllocator &alloc) {
         return new(alloc) LAllocation();
@@ -115,22 +117,20 @@ class LAllocation : public TempObject
         return new(alloc) LAllocation(other);
     }
 
-    // The value pointer must be rooted in MIR and have its low bits cleared.
+    // The value pointer must be rooted in MIR and have its low bit cleared.
     explicit LAllocation(const Value *vp) {
-        JS_ASSERT(vp);
         bits_ = uintptr_t(vp);
-        JS_ASSERT((bits_ & (KIND_MASK << KIND_SHIFT)) == 0);
-        bits_ |= CONSTANT_VALUE << KIND_SHIFT;
+        JS_ASSERT(!isTagged());
+        bits_ |= TAG_MASK;
     }
     inline explicit LAllocation(AnyRegister reg);
 
     Kind kind() const {
+        if (isTagged())
+            return CONSTANT_VALUE;
         return (Kind)((bits_ >> KIND_SHIFT) & KIND_MASK);
     }
 
-    bool isBogus() const {
-        return bits_ == 0;
-    }
     bool isUse() const {
         return kind() == USE;
     }
@@ -175,7 +175,7 @@ class LAllocation : public TempObject
 
     const Value *toConstant() const {
         JS_ASSERT(isConstantValue());
-        return reinterpret_cast<const Value *>(bits_ & ~(KIND_MASK << KIND_SHIFT));
+        return reinterpret_cast<const Value *>(bits_ & ~TAG_MASK);
     }
 
     bool operator ==(const LAllocation &other) const {
@@ -285,7 +285,6 @@ class LUse : public LAllocation
     }
     uint32_t virtualRegister() const {
         uint32_t index = (data() >> VREG_SHIFT) & VREG_MASK;
-        JS_ASSERT(index != 0);
         return index;
     }
     uint32_t registerCode() const {
@@ -334,6 +333,11 @@ class LConstantIndex : public LAllocation
     { }
 
   public:
+    // Used as a placeholder for inputs that can be ignored.
+    static LConstantIndex Bogus() {
+        return LConstantIndex(0);
+    }
+
     static LConstantIndex FromIndex(uint32_t index) {
         return LConstantIndex(index);
     }
@@ -400,6 +404,9 @@ class LDefinition
     // unless the policy specifies that an input can be re-used and that input
     // is a stack slot.
     enum Policy {
+        // A random register of an appropriate class will be assigned.
+        REGISTER,
+
         // The policy is predetermined by the LAllocation attached to this
         // definition. The allocation may be:
         //   * A register, which may not appear as any fixed temporary.
@@ -408,12 +415,15 @@ class LDefinition
         // Register allocation will not modify a fixed allocation.
         FIXED,
 
-        // A random register of an appropriate class will be assigned.
-        REGISTER,
-
         // One definition per instruction must re-use the first input
         // allocation, which (for now) must be a register.
-        MUST_REUSE_INPUT
+        MUST_REUSE_INPUT,
+
+        // This definition's virtual register is the same as another; this is
+        // for instructions which consume a register and silently define it as
+        // the same register. It is not legal to use this if doing so would
+        // change the type of the virtual register.
+        PASSTHROUGH
     };
 
     enum Type {
@@ -463,12 +473,10 @@ class LDefinition
     }
 
     LDefinition() : bits_(0)
-    {
-        JS_ASSERT(isBogusTemp());
-    }
+    { }
 
     static LDefinition BogusTemp() {
-        return LDefinition();
+        return LDefinition(GENERAL, LConstantIndex::Bogus());
     }
 
     Policy policy() const {
@@ -482,7 +490,7 @@ class LDefinition
     }
     bool isCompatibleReg(const AnyRegister &r) const {
         if (isFloatReg() && r.isFloat()) {
-#if defined(JS_CODEGEN_ARM) || defined(JS_CODEGEN_MIPS)
+#if defined(JS_CODEGEN_ARM)
             if (type() == FLOAT32)
                 return r.fpu().isSingle();
             return r.fpu().isDouble();
@@ -493,7 +501,7 @@ class LDefinition
         return !isFloatReg() && !r.isFloat();
     }
     bool isCompatibleDef(const LDefinition &other) const {
-#if defined(JS_CODEGEN_ARM) || defined(JS_CODEGEN_MIPS)
+#ifdef JS_CODEGEN_ARM
         if (isFloatReg() && other.isFloatReg())
             return type() == other.type();
         return !isFloatReg() && !other.isFloatReg();
@@ -506,9 +514,7 @@ class LDefinition
         return type() == FLOAT32 || type() == DOUBLE || isSimdType();
     }
     uint32_t virtualRegister() const {
-        uint32_t index = (bits_ >> VREG_SHIFT) & VREG_MASK;
-        JS_ASSERT(index != 0);
-        return index;
+        return (bits_ >> VREG_SHIFT) & VREG_MASK;
     }
     LAllocation *output() {
         return &output_;
@@ -520,7 +526,7 @@ class LDefinition
         return policy() == FIXED;
     }
     bool isBogusTemp() const {
-        return isFixed() && output()->isBogus();
+        return isFixed() && output()->isConstantIndex();
     }
     void setVirtualRegister(uint32_t index) {
         JS_ASSERT(index < VREG_MASK);
@@ -574,7 +580,7 @@ class LDefinition
           case MIRType_Float32x4:
             return LDefinition::FLOAT32X4;
           default:
-            MOZ_CRASH("unexpected type");
+            MOZ_ASSUME_UNREACHABLE("unexpected type");
         }
     }
 
@@ -754,7 +760,7 @@ class LInstructionVisitor
     {}
 
   public:
-#define VISIT_INS(op) virtual bool visit##op(L##op *) { MOZ_CRASH("NYI: " #op); }
+#define VISIT_INS(op) virtual bool visit##op(L##op *) { MOZ_ASSUME_UNREACHABLE("NYI: " #op); }
     LIR_OPCODE_LIST(VISIT_INS)
 #undef VISIT_INS
 };
@@ -1586,10 +1592,10 @@ class LIRGraph
     // platform stack alignment requirement, and so that it's a multiple of
     // the number of slots per Value.
     uint32_t paddedLocalSlotCount() const {
-        // Round to ABIStackAlignment, but also round to at least sizeof(Value)
-        // in case that's greater, because StackOffsetOfPassedArg rounds
-        // argument slots to 8-byte boundaries.
-        size_t Alignment = Max(size_t(ABIStackAlignment), sizeof(Value));
+        // Round to StackAlignment, but also round to at least sizeof(Value) in
+        // case that's greater, because StackOffsetOfPassedArg rounds argument
+        // slots to 8-byte boundaries.
+        size_t Alignment = Max(size_t(StackAlignment), sizeof(Value));
         return AlignBytes(localSlotCount(), Alignment);
     }
     size_t paddedLocalSlotsSize() const {

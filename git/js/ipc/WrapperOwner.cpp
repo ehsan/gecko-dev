@@ -45,11 +45,14 @@ WrapperOwner::idOf(JSObject *obj)
     return objId;
 }
 
+int sCPOWProxyHandler;
+
 class CPOWProxyHandler : public BaseProxyHandler
 {
   public:
-    MOZ_CONSTEXPR CPOWProxyHandler()
-      : BaseProxyHandler(&family) {}
+    CPOWProxyHandler()
+      : BaseProxyHandler(&sCPOWProxyHandler) {}
+    virtual ~CPOWProxyHandler() {}
 
     virtual bool finalizeInBackground(Value priv) const MOZ_OVERRIDE {
         return false;
@@ -83,11 +86,9 @@ class CPOWProxyHandler : public BaseProxyHandler
     virtual const char* className(JSContext *cx, HandleObject proxy) const MOZ_OVERRIDE;
     virtual void finalize(JSFreeOp *fop, JSObject *proxy) const MOZ_OVERRIDE;
 
-    static const char family;
     static const CPOWProxyHandler singleton;
 };
 
-const char CPOWProxyHandler::family = 0;
 const CPOWProxyHandler CPOWProxyHandler::singleton;
 
 #define FORWARD(call, args)                                             \
@@ -678,7 +679,7 @@ IsCPOW(JSObject *obj)
 bool
 IsWrappedCPOW(JSObject *obj)
 {
-    JSObject *unwrapped = js::UncheckedUnwrap(obj, true);
+    JSObject *unwrapped = js::CheckedUnwrap(obj, true);
     if (!unwrapped)
         return false;
     return IsCPOW(unwrapped);
@@ -774,7 +775,7 @@ WrapperOwner::toObjectVariant(JSContext *cx, JSObject *objArg, ObjectVariant *ob
     // wrappers, then the wrapper might be GCed while the target remained alive.
     // Whenever operating on an object that comes from the table, we wrap it
     // in findObjectById.
-    obj = js::UncheckedUnwrap(obj, false);
+    obj = js::CheckedUnwrap(obj, false);
     if (obj && IsCPOW(obj) && OwnerOf(obj) == this) {
         *objVarp = LocalObject(idOf(obj));
         return true;

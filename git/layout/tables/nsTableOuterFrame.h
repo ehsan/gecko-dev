@@ -22,15 +22,10 @@ public:
   // nsIFrame
   virtual nsIAtom* GetType() const MOZ_OVERRIDE;
 
-  virtual mozilla::LogicalSize
-  ComputeAutoSize(nsRenderingContext *aRenderingContext,
-                  mozilla::WritingMode aWritingMode,
-                  const mozilla::LogicalSize& aCBSize,
-                  nscoord aAvailableISize,
-                  const mozilla::LogicalSize& aMargin,
-                  const mozilla::LogicalSize& aBorder,
-                  const mozilla::LogicalSize& aPadding,
-                  bool aShrinkWrap) MOZ_OVERRIDE;
+  virtual nsSize ComputeAutoSize(nsRenderingContext *aRenderingContext,
+                                 nsSize aCBSize, nscoord aAvailableWidth,
+                                 nsSize aMargin, nsSize aBorder,
+                                 nsSize aPadding, bool aShrinkWrap) MOZ_OVERRIDE;
 
   virtual nsIFrame* GetParentStyleContextFrame() const MOZ_OVERRIDE;
 
@@ -43,7 +38,7 @@ public:
 #endif
 
 protected:
-  explicit nsTableCaptionFrame(nsStyleContext*  aContext);
+  nsTableCaptionFrame(nsStyleContext*  aContext);
   virtual ~nsTableCaptionFrame();
 };
 
@@ -106,16 +101,10 @@ public:
 
   virtual nscoord GetMinISize(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
   virtual nscoord GetPrefISize(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
-
-  virtual mozilla::LogicalSize
-  ComputeAutoSize(nsRenderingContext *aRenderingContext,
-                  mozilla::WritingMode aWritingMode,
-                  const mozilla::LogicalSize& aCBSize,
-                  nscoord aAvailableISize,
-                  const mozilla::LogicalSize& aMargin,
-                  const mozilla::LogicalSize& aBorder,
-                  const mozilla::LogicalSize& aPadding,
-                  bool aShrinkWrap) MOZ_OVERRIDE;
+  virtual nsSize ComputeAutoSize(nsRenderingContext *aRenderingContext,
+                                 nsSize aCBSize, nscoord aAvailableWidth,
+                                 nsSize aMargin, nsSize aBorder,
+                                 nsSize aPadding, bool aShrinkWrap) MOZ_OVERRIDE;
 
   /** process a reflow command for the table.
     * This involves reflowing the caption and the inner table.
@@ -218,7 +207,7 @@ public:
 protected:
 
 
-  explicit nsTableOuterFrame(nsStyleContext* aContext);
+  nsTableOuterFrame(nsStyleContext* aContext);
   virtual ~nsTableOuterFrame();
 
   void InitChildReflowState(nsPresContext&    aPresContext,                     

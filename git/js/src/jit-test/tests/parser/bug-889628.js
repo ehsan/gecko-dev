@@ -1,5 +1,4 @@
 // Destructuring assignment to eval or arguments in destructuring is a SyntaxError
-// in strict mode
 
 load(libdir + "asserts.js");
 
@@ -12,8 +11,13 @@ var patterns = [
     "{x:y, z:_}",
     "{0:_}",
     "{_}",
-    "[..._]"
+    //"[..._]"
 ];
+
+// If the assertion below fails, congratulations! It means you have added
+// spread operator support to destructuring assignment. Simply uncomment the
+// "[..._]" case above. Then delete this comment and assertion.
+assertThrowsInstanceOf(() => Function("[...x] = [1]"), ReferenceError);
 
 for (var pattern of patterns) {
     var stmt = pattern + " = obj";
@@ -27,7 +31,8 @@ for (var pattern of patterns) {
     // ...but not if you replace _ with one of these two names.
     for (var name of ["eval", "arguments"]) {
         var s = stmt.replace("_", name);
-        Function(s);
-        assertThrowsInstanceOf(() => Function("'use strict'; " + s), SyntaxError);
+        assertThrowsInstanceOf(() => Function(s), SyntaxError);
+        assertThrowsInstanceOf(() => eval(s), SyntaxError);
+        assertThrowsInstanceOf(() => eval("'use strict'; " + s), SyntaxError);
     }
 }

@@ -97,7 +97,7 @@ private:
   };
 
 public:
-  explicit gfxShmSharedReadLock(ISurfaceAllocator* aAllocator);
+  gfxShmSharedReadLock(ISurfaceAllocator* aAllocator);
 
 protected:
   ~gfxShmSharedReadLock();
@@ -222,15 +222,10 @@ struct TileClient
   * data to the tile. This may flip the front-buffer to the back-buffer if
   * the front-buffer is still locked by the host, or does not have an
   * internal buffer (and so will always be locked).
-  *
-  * If getting the back buffer required copying pixels from the front buffer
-  * then the copied region is stored in aAddPaintedRegion so the host side
-  * knows to upload it.
   */
   TextureClient* GetBackBuffer(const nsIntRegion& aDirtyRegion,
                                gfxContentType aContent, SurfaceMode aMode,
                                bool *aCreatedTextureClient,
-                               nsIntRegion& aAddPaintedRegion,
                                bool aCanRerasterizeValidRegion,
                                RefPtr<TextureClient>* aTextureClientOnWhite);
 
@@ -268,11 +263,8 @@ struct TileClient
   nsExpirationState mExpirationState;
 
 private:
-  // Copies dirty pixels from the front buffer into the back buffer,
-  // and records the copied region in aAddPaintedRegion.
   void ValidateBackBufferFromFront(const nsIntRegion &aDirtyRegion,
-                                   bool aCanRerasterizeValidRegion,
-                                   nsIntRegion& aAddPaintedRegion);
+                                   bool aCanRerasterizeValidRegion);
 };
 
 /**
@@ -354,7 +346,7 @@ public:
    * is useful for slow-to-render pages when the display-port starts lagging
    * behind enough that continuing to draw it is wasted effort.
    */
-  bool UpdateFromCompositorFrameMetrics(const LayerMetricsWrapper& aLayer,
+  bool UpdateFromCompositorFrameMetrics(Layer* aLayer,
                                         bool aHasPendingNewThebesContent,
                                         bool aLowPrecision,
                                         ViewTransform& aViewTransform);
@@ -462,10 +454,6 @@ private:
   CSSToParentLayerScale mFrameResolution;
   gfxContentType mLastPaintContentType;
   SurfaceMode mLastPaintSurfaceMode;
-
-  // The region that will be made valid during Update(). Once Update() is
-  // completed then this is identical to mValidRegion.
-  nsIntRegion mNewValidRegion;
 
   // The DrawTarget we use when UseSinglePaintBuffer() above is true.
   RefPtr<gfx::DrawTarget>       mSinglePaintDrawTarget;

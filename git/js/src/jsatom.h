@@ -88,7 +88,7 @@ struct AtomHasher
     {
         union {
             const JS::Latin1Char *latin1Chars;
-            const char16_t *twoByteChars;
+            const jschar *twoByteChars;
         };
         bool isLatin1;
         size_t length;
@@ -97,7 +97,7 @@ struct AtomHasher
 
         HashNumber hash;
 
-        Lookup(const char16_t *chars, size_t length)
+        Lookup(const jschar *chars, size_t length)
           : twoByteChars(chars), isLatin1(false), length(length), atom(nullptr)
         {
             hash = mozilla::HashString(chars, length);

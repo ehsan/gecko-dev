@@ -311,7 +311,7 @@ def print_command(out, args):
             print >>out, "".join(["    " + l for l in file.readlines()])
     out.flush()
 
-def main(args, proc_callback=None):
+def main():
     parser = OptionParser()
     parser.add_option("--extract", action="store_true", dest="extract",
         help="when a library has no descriptor file, extract it first, when possible")
@@ -322,7 +322,7 @@ def main(args, proc_callback=None):
     parser.add_option("--symbol-order", dest="symbol_order", metavar="FILE",
         help="use the given list of symbols to order symbols in the resulting binary when using with a linker")
 
-    (options, args) = parser.parse_args(args)
+    (options, args) = parser.parse_args()
 
     with ExpandArgsMore(args) as args:
         if options.extract:
@@ -336,8 +336,6 @@ def main(args, proc_callback=None):
             print_command(sys.stderr, args)
         try:
             proc = subprocess.Popen(args, stdout = subprocess.PIPE, stderr = subprocess.STDOUT)
-            if proc_callback:
-                proc_callback(proc)
         except Exception, e:
             print >>sys.stderr, 'error: Launching', args, ':', e
             raise e
@@ -347,8 +345,7 @@ def main(args, proc_callback=None):
         sys.stderr.write(stdout)
         sys.stderr.flush()
         if proc.returncode:
-            return proc.returncode
-        return 0
+            exit(proc.returncode)
 
 if __name__ == '__main__':
-    exit(main(sys.argv[1:]))
+    main()

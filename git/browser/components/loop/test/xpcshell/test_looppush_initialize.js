@@ -54,8 +54,6 @@
   });
 
   function run_test() {
-    setupFakeLoopServer();
-
     Services.prefs.setCharPref("services.push.serverURL", kServerPushUrl);
     Services.prefs.setIntPref("loop.retry_delay.start", 10); // 10 ms
     Services.prefs.setIntPref("loop.retry_delay.limit", 20); // 20 ms

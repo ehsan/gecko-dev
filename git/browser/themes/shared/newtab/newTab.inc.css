@@ -9,13 +9,10 @@
 }
 
 /* SCROLLBOX */
-#newtab-scrollbox:not([page-disabled]) {
-  color: rgb(0,0,0);
-  background-color: #f9f9f9;
-}
-
+#newtab-scrollbox:not([page-disabled]),
 #newtab-scrollbox:not([page-disabled]) #newtab-margin-bottom {
-  background: inherit;
+  color: rgb(0,0,0);
+  background-image: url(chrome://browser/skin/newtab/texture.png);
 }
 
 /* UNDO */
@@ -62,14 +59,12 @@
 }
 
 /* CUSTOMIZE */
-#newtab-customize-button,
-.newtab-customize {
+#newtab-customize-button {
   background-color: transparent;
   background-image: -moz-image-rect(url(chrome://browser/skin/newtab/controls.svg), 0, 32, 32, 0);
-  background-size: 28px;
   border: none;
-  height: 28px;
-  width: 28px;
+  height: 32px;
+  width: 32px;
 }
 
 #newtab-customize-button:-moz-any(:hover, :active, [active]) {
@@ -79,12 +74,12 @@
 /* CELLS */
 .newtab-cell {
   background-color: rgba(255,255,255,.2);
-  border-radius: 8px;
+  border-radius: 12px;
 }
 
 .newtab-cell:empty {
   outline: 2px dashed #c1c1c1;
-  -moz-outline-radius: 8px;
+  -moz-outline-radius: 12px;
 }
 
 /* SITES */
@@ -97,8 +92,8 @@
 
 .newtab-cell:not([ignorehover]) > .newtab-site:hover,
 .newtab-site[dragged] {
-  border: 2px solid white;
-  box-shadow: 0 0 6px 2px #4cb1ff;
+  border: 2px solid #4a90e2;
+  box-shadow: 0 0 10px 3px #4cb1ff;
   margin: -2px;
 }
 
@@ -109,7 +104,7 @@
 
 /* LINKS */
 .newtab-link {
-  border-radius: 6px;
+  border-radius: 10px;
 }
 
 /* THUMBNAILS */
@@ -136,7 +131,7 @@
 
 /* Use a pseudo-element to overlay a gradient on the thumbnail */
 .newtab-site[type=history]:not(:hover) .newtab-thumbnail:first-child::after {
-  background-image: linear-gradient(0deg, rgba(251, 251, 251, 0.8), rgba(251, 251, 251, 0) 33%);
+  background-image: linear-gradient(0deg, rgba(251, 251, 251, 0.8), rgba(251, 251, 251, 0) 50%);
   border-radius: inherit;
   bottom: 0;
   content: "";
@@ -149,7 +144,7 @@
 
 /* TITLES */
 .newtab-title {
-  color: #737373;
+  color: #9b9b9b;
 }
 
 .newtab-site:hover .newtab-title {
@@ -161,13 +156,16 @@
   font-weight: bold;
 }
 
+.newtab-site[type=sponsored] .newtab-title {
+  -moz-padding-end: 24px;
+}
+
 /* CONTROLS */
 .newtab-control {
   background-color: transparent;
-  background-size: 24px;
   border: none;
-  height: 24px;
-  width: 24px;
+  height: 32px;
+  width: 32px;
 }
 
 .newtab-control-pin,
@@ -177,12 +175,12 @@
 
 .newtab-control-pin:hover,
 .newtab-site[pinned] .newtab-control-pin:hover {
-  background-image: -moz-image-rect(url(chrome://browser/skin/newtab/controls.svg), 0, 160, 32, 128);
+  background-image: -moz-image-rect(url(chrome://browser/skin/newtab/controls.svg), 0, 128, 32, 96);
 }
 
 .newtab-control-pin:hover:active,
 .newtab-site[pinned] .newtab-control-pin {
-  background-image: -moz-image-rect(url(chrome://browser/skin/newtab/controls.svg), 0, 128, 32, 96);
+  background-image: -moz-image-rect(url(chrome://browser/skin/newtab/controls.svg), 0, 160, 32, 128);
 }
 
 .newtab-control-block {
@@ -195,4 +193,26 @@
 
 .newtab-control-block:hover:active {
   background-image: -moz-image-rect(url(chrome://browser/skin/newtab/controls.svg), 0, 256, 32, 224);
+}
+
+.newtab-control-sponsored {
+  width: 24px;
+  height: 24px;
+  background-image: url(chrome://browser/skin/newtab/controls.png);
+  background-position: -249px -1px;
+}
+
+@media (min-resolution: 2dppx) {
+  .newtab-control-sponsored {
+    background-image: url(chrome://browser/skin/newtab/controls@2x.png);
+    background-size: 296px;
+  }
+}
+
+.newtab-control-sponsored:hover {
+  background-position: -265px -1px;
+}
+
+.newtab-control-sponsored[panelShown] {
+  background-position: -281px -1px;
 }

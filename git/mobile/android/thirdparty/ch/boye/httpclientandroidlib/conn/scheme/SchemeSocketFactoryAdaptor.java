@@ -36,9 +36,6 @@ import java.net.UnknownHostException;
 import ch.boye.httpclientandroidlib.conn.ConnectTimeoutException;
 import ch.boye.httpclientandroidlib.params.HttpParams;
 
-/**
- * @deprecated (4.1) do not use
- */
 @Deprecated
 class SchemeSocketFactoryAdaptor implements SchemeSocketFactory {
 
@@ -54,8 +51,8 @@ class SchemeSocketFactoryAdaptor implements SchemeSocketFactory {
             final InetSocketAddress remoteAddress,
             final InetSocketAddress localAddress,
             final HttpParams params) throws IOException, UnknownHostException, ConnectTimeoutException {
-        final String host = remoteAddress.getHostName();
-        final int port = remoteAddress.getPort();
+        String host = remoteAddress.getHostName();
+        int port = remoteAddress.getPort();
         InetAddress local = null;
         int localPort = 0;
         if (localAddress != null) {
@@ -79,12 +76,8 @@ class SchemeSocketFactoryAdaptor implements SchemeSocketFactory {
 
     @Override
     public boolean equals(final Object obj) {
-        if (obj == null) {
-            return false;
-        }
-        if (this == obj) {
-            return true;
-        }
+        if (obj == null) return false;
+        if (this == obj) return true;
         if (obj instanceof SchemeSocketFactoryAdaptor) {
             return this.factory.equals(((SchemeSocketFactoryAdaptor)obj).factory);
         } else {

@@ -7,6 +7,7 @@
 #include "GeckoChildProcessHost.h"
 
 #include "base/command_line.h"
+#include "base/path_service.h"
 #include "base/string_util.h"
 #include "chrome/common/chrome_switches.h"
 #include "chrome/common/process_watcher.h"
@@ -34,11 +35,6 @@
 #ifdef XP_WIN
 #include "nsIWinTaskbar.h"
 #define NS_TASKBAR_CONTRACTID "@mozilla.org/windows-taskbar;1"
-
-#if defined(MOZ_CONTENT_SANDBOX)
-#include "mozilla/Preferences.h"
-#include "mozilla/warnonlysandbox/warnOnlySandbox.h"
-#endif
 #endif
 
 #include "nsTArray.h"
@@ -95,10 +91,6 @@ GeckoChildProcessHost::GeckoChildProcessHost(GeckoProcessType aProcessType,
     mMonitor("mozilla.ipc.GeckChildProcessHost.mMonitor"),
     mProcessState(CREATING_CHANNEL),
     mDelegate(nullptr),
-#if defined(MOZ_CONTENT_SANDBOX) && defined(XP_WIN)
-    mEnableContentSandbox(false),
-    mWarnOnlyContentSandbox(false),
-#endif
     mChildProcessHandle(0)
 #if defined(MOZ_WIDGET_COCOA)
   , mChildTask(MACH_PORT_NULL)
@@ -134,7 +126,7 @@ GeckoChildProcessHost::GetPathToBinary(FilePath& exePath)
   if (ShouldHaveDirectoryService()) {
     MOZ_ASSERT(gGREPath);
 #ifdef OS_WIN
-    exePath = FilePath(char16ptr_t(gGREPath));
+    exePath = FilePath(gGREPath);
 #else
     nsCString path;
     NS_CopyUnicodeToNative(nsDependentString(gGREPath), path);
@@ -162,7 +154,7 @@ GeckoChildProcessHost::GetPathToBinary(FilePath& exePath)
 #ifdef MOZ_WIDGET_COCOA
 class AutoCFTypeObject {
 public:
-  explicit AutoCFTypeObject(CFTypeRef object)
+  AutoCFTypeObject(CFTypeRef object)
   {
     mObject = object;
   }
@@ -259,20 +251,6 @@ GeckoChildProcessHost::PrepareLaunch()
   if (mProcessType == GeckoProcessType_Plugin) {
     InitWindowsGroupID();
   }
-
-#if defined(MOZ_CONTENT_SANDBOX)
-  // We need to get the pref here as the process is launched off main thread.
-  if (mProcessType == GeckoProcessType_Content) {
-    nsAdoptingString contentSandboxPref =
-      Preferences::GetString("browser.tabs.remote.sandbox");
-    if (contentSandboxPref.EqualsLiteral("on")) {
-      mEnableContentSandbox = true;
-    } else if (contentSandboxPref.EqualsLiteral("warn")) {
-      mEnableContentSandbox = true;
-      mWarnOnlyContentSandbox = true;
-    }
-  }
-#endif
 #endif
 }
 
@@ -734,7 +712,7 @@ GeckoChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aExt
   MachPortSender parent_sender(child_message.GetTranslatedPort(1));
 
   MachSendMessage parent_message(/* id= */0);
-  if (!parent_message.AddDescriptor(MachMsgPortDescriptor(bootstrap_port))) {
+  if (!parent_message.AddDescriptor(bootstrap_port)) {
     CHROMIUM_LOG(ERROR) << "parent AddDescriptor(" << bootstrap_port << ") failed.";
     return false;
   }
@@ -783,11 +761,8 @@ GeckoChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aExt
   switch (mProcessType) {
     case GeckoProcessType_Content:
 #if defined(MOZ_CONTENT_SANDBOX)
-      if (!mEnableContentSandbox) {
-        break;
-      }
       if (!PR_GetEnv("MOZ_DISABLE_CONTENT_SANDBOX")) {
-        mSandboxBroker.SetSecurityLevelForContentProcess(mWarnOnlyContentSandbox);
+        mSandboxBroker.SetSecurityLevelForContentProcess();
         cmdLine.AppendLooseValue(UTF8ToWide("-sandbox"));
         shouldSandboxCurrentProcess = true;
       }
@@ -806,31 +781,18 @@ GeckoChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aExt
       // shouldSandboxCurrentProcess = true;
       break;
     case GeckoProcessType_GMPlugin:
-#ifdef MOZ_SANDBOX
       if (!PR_GetEnv("MOZ_DISABLE_GMP_SANDBOX")) {
         mSandboxBroker.SetSecurityLevelForGMPlugin();
         cmdLine.AppendLooseValue(UTF8ToWide("-sandbox"));
         shouldSandboxCurrentProcess = true;
       }
-#endif
       break;
     case GeckoProcessType_Default:
     default:
       MOZ_CRASH("Bad process type in GeckoChildProcessHost");
       break;
   };
-
-#ifdef MOZ_SANDBOX
-  if (shouldSandboxCurrentProcess) {
-    for (auto it = mAllowedFilesRead.begin();
-         it != mAllowedFilesRead.end();
-         ++it) {
-      mSandboxBroker.AllowReadFile(it->c_str());
-    }
-  }
 #endif
-
-#endif // XP_WIN
 
   // Add the application directory path (-appdir path)
   AddAppDirToCommandLine(cmdLine);
@@ -853,7 +815,7 @@ GeckoChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aExt
   // Process type
   cmdLine.AppendLooseValue(UTF8ToWide(childProcessType));
 
-#if defined(XP_WIN) && defined(MOZ_SANDBOX)
+#if defined(XP_WIN)
   if (shouldSandboxCurrentProcess) {
     mSandboxBroker.LaunchApp(cmdLine.program().c_str(),
                              cmdLine.command_line_string().c_str(),

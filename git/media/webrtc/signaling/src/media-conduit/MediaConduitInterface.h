@@ -54,7 +54,7 @@ public:
 class ImageHandle
 {
 public:
-  explicit ImageHandle(layers::Image* image) : mImage(image) {}
+  ImageHandle(layers::Image* image) : mImage(image) {}
 
   const RefPtr<layers::Image>& GetImage() const { return mImage; }
 

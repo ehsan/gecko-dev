@@ -34,6 +34,12 @@ AttachNewConstructorObject(JSContext *aCx, JS::HandleObject aGlobalObject);
 // objects).
 namespace XPCWrapper {
 
+inline bool
+IsSecurityWrapper(JSObject *wrapper)
+{
+  return js::IsWrapper(wrapper);
+}
+
 JSObject *
 UnsafeUnwrapSecurityWrapper(JSObject *obj);
 

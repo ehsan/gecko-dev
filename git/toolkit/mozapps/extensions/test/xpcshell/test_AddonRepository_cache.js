@@ -401,6 +401,27 @@ const WITH_EXTENSION_CACHE = [{
   sourceURI:              NetUtil.newURI(ADDON_FILES[2]).spec
 }];
 
+
+/*
+ * Trigger an AddonManager background update check
+ *
+ * @return Promise{null}
+ *         Resolves when the background update notification is received
+ */
+function trigger_background_update() {
+  return new Promise((resolve, reject) => {
+    Services.obs.addObserver({
+      observe: function(aSubject, aTopic, aData) {
+        do_print("Observed " + aTopic);
+        Services.obs.removeObserver(this, "addons-background-update-complete");
+        resolve();
+      }
+    }, "addons-background-update-complete", false);
+
+    gInternalManager.notify(null);
+  });
+}
+
 let gDBFile = gProfD.clone();
 gDBFile.append(FILE_DATABASE);
 
@@ -654,7 +675,7 @@ add_task(function* run_test_13() {
   do_check_true(gDBFile.exists());
   Services.prefs.setCharPref(PREF_GETADDONS_BYIDS_PERFORMANCE, GETADDONS_EMPTY);
 
-  yield AddonManagerInternal.backgroundUpdateCheck();
+  yield trigger_background_update();
   // Database should have been deleted
   do_check_false(gDBFile.exists());
 
@@ -667,7 +688,7 @@ add_task(function* run_test_13() {
 add_task(function* run_test_14() {
   Services.prefs.setBoolPref(PREF_GETADDONS_CACHE_ENABLED, true);
 
-  yield AddonManagerInternal.backgroundUpdateCheck();
+  yield trigger_background_update();
   yield AddonRepository.flush();
   do_check_true(gDBFile.exists());
 
@@ -680,7 +701,7 @@ add_task(function* run_test_14() {
 add_task(function* run_test_15() {
   Services.prefs.setCharPref(PREF_GETADDONS_BYIDS_PERFORMANCE, GETADDONS_RESULTS);
 
-  yield AddonManagerInternal.backgroundUpdateCheck();
+  yield trigger_background_update();
   let aAddons = yield promiseAddonsByIDs(ADDON_IDS);
   check_results(aAddons, WITH_CACHE);
 });
@@ -699,7 +720,7 @@ add_task(function* run_test_16() {
 add_task(function* run_test_17() {
   Services.prefs.setCharPref(PREF_GETADDONS_CACHE_TYPES, "foo,bar,extension,baz");
 
-  yield AddonManagerInternal.backgroundUpdateCheck();
+  yield trigger_background_update();
   let aAddons = yield promiseAddonsByIDs(ADDON_IDS);
   check_results(aAddons, WITH_EXTENSION_CACHE);
 });

@@ -12,7 +12,6 @@
 #include <ctype.h>
 #include <map>
 #include <bitset>
-#include <queue>
 
 #ifdef DEBUG
 #include <string.h>
@@ -506,6 +505,7 @@ private:
 // -----------------------------------------------------------------------------
 // Robustness handling
 public:
+
     bool HasRobustness() const {
         return mHasRobustness;
     }
@@ -516,13 +516,17 @@ public:
      */
     virtual bool SupportsRobustness() const = 0;
 
+
 private:
     bool mHasRobustness;
+
 
 // -----------------------------------------------------------------------------
 // Error handling
 public:
-    static const char* GLErrorToString(GLenum aError) {
+
+    static const char* GLErrorToString(GLenum aError)
+    {
         switch (aError) {
             case LOCAL_GL_INVALID_ENUM:
                 return "GL_INVALID_ENUM";
@@ -545,10 +549,12 @@ public:
         }
     }
 
+
     /** \returns the first GL error, and guarantees that all GL error flags are cleared,
      * i.e. that a subsequent GetError call will return NO_ERROR
      */
-    GLenum GetAndClearError() {
+    GLenum GetAndClearError()
+    {
         // the first error is what we want to return
         GLenum error = fGetError();
 
@@ -560,99 +566,30 @@ public:
         return error;
     }
 
-private:
-    GLenum raw_fGetError() {
+
+    /*** In GL debug mode, we completely override glGetError ***/
+
+    GLenum fGetError()
+    {
+#ifdef DEBUG
+        // debug mode ends up eating the error in AFTER_GL_CALL
+        if (DebugMode()) {
+            GLenum err = mGLError;
+            mGLError = LOCAL_GL_NO_ERROR;
+            return err;
+        }
+#endif // DEBUG
+
         return mSymbols.fGetError();
     }
 
-    std::queue<GLenum> mGLErrorQueue;
 
-public:
-    GLenum fGetError() {
-        if (!mGLErrorQueue.empty()) {
-            GLenum err = mGLErrorQueue.front();
-            mGLErrorQueue.pop();
-            return err;
-        }
-
-        return GetUnpushedError();
-    }
-
-private:
-    GLenum GetUnpushedError() {
-        return raw_fGetError();
-    }
-
-    void ClearUnpushedErrors() {
-        while (GetUnpushedError()) {
-            // Discard errors.
-        }
-    }
-
-    GLenum GetAndClearUnpushedErrors() {
-        GLenum err = GetUnpushedError();
-        if (err) {
-            ClearUnpushedErrors();
-        }
-        return err;
-    }
-
-    void PushError(GLenum err) {
-        mGLErrorQueue.push(err);
-    }
-
-    void GetAndPushAllErrors() {
-        while (true) {
-            GLenum err = GetUnpushedError();
-            if (!err)
-                break;
-
-            PushError(err);
-        }
-    }
-
-    ////////////////////////////////////
-    // Use this safer option.
-private:
 #ifdef DEBUG
-    bool mIsInLocalErrorCheck;
-#endif
-
-public:
-    class ScopedLocalErrorCheck {
-        GLContext* const mGL;
-        bool mHasBeenChecked;
-
-    public:
-        explicit ScopedLocalErrorCheck(GLContext* gl)
-            : mGL(gl)
-            , mHasBeenChecked(false)
-        {
-#ifdef DEBUG
-            MOZ_ASSERT(!mGL->mIsInLocalErrorCheck);
-            mGL->mIsInLocalErrorCheck = true;
-#endif
-            mGL->GetAndPushAllErrors();
-        }
-
-        GLenum GetLocalError() {
-#ifdef DEBUG
-            MOZ_ASSERT(mGL->mIsInLocalErrorCheck);
-            mGL->mIsInLocalErrorCheck = false;
-#endif
-
-            MOZ_ASSERT(!mHasBeenChecked);
-            mHasBeenChecked = true;
-
-            return mGL->GetAndClearUnpushedErrors();
-        }
-
-        ~ScopedLocalErrorCheck() {
-            MOZ_ASSERT(mHasBeenChecked);
-        }
-    };
-
 private:
+
+    GLenum mGLError;
+#endif // DEBUG
+
     static void GLAPIENTRY StaticDebugCallback(GLenum source,
                                                GLenum type,
                                                GLuint id,
@@ -687,7 +624,8 @@ private:
 # endif
 #endif
 
-    void BeforeGLCall(const char* glFunction) {
+    void BeforeGLCall(const char* glFunction)
+    {
         MOZ_ASSERT(IsCurrent());
         if (DebugMode()) {
             GLContext *currentGLContext = nullptr;
@@ -705,23 +643,21 @@ private:
         }
     }
 
-    void AfterGLCall(const char* glFunction) {
+    void AfterGLCall(const char* glFunction)
+    {
         if (DebugMode()) {
             // calling fFinish() immediately after every GL call makes sure that if this GL command crashes,
             // the stack trace will actually point to it. Otherwise, OpenGL being an asynchronous API, stack traces
             // tend to be meaningless
             mSymbols.fFinish();
-            GLenum err = GetUnpushedError();
-            PushError(err);
-
+            mGLError = mSymbols.fGetError();
             if (DebugMode() & DebugTrace)
-                printf_stderr("[gl:%p] < %s [0x%04x]\n", this, glFunction, err);
-
-            if (err != LOCAL_GL_NO_ERROR) {
+                printf_stderr("[gl:%p] < %s [0x%04x]\n", this, glFunction, mGLError);
+            if (mGLError != LOCAL_GL_NO_ERROR) {
                 printf_stderr("GL ERROR: %s generated GL error %s(0x%04x)\n",
                               glFunction,
-                              GLErrorToString(err),
-                              err);
+                              GLErrorToString(mGLError),
+                              mGLError);
                 if (DebugMode() & DebugAbortOnError)
                     NS_ABORT();
             }
@@ -782,10 +718,8 @@ private:
     // if it's bound.
     void AfterGLDrawCall()
     {
-        if (mScreen) {
+        if (mScreen)
             mScreen->AfterDrawCall();
-        }
-        mHeavyGLCallsSinceLastFlush = true;
     }
 
     // Do whatever setup is necessary to read from our offscreen FBO, if it's
@@ -906,7 +840,6 @@ private:
         BEFORE_GL_CALL;
         mSymbols.fBufferData(target, size, data, usage);
         AFTER_GL_CALL;
-        mHeavyGLCallsSinceLastFlush = true;
     }
 
 public:
@@ -929,7 +862,6 @@ public:
         BEFORE_GL_CALL;
         mSymbols.fBufferSubData(target, offset, size, data);
         AFTER_GL_CALL;
-        mHeavyGLCallsSinceLastFlush = true;
     }
 
 private:
@@ -975,7 +907,6 @@ public:
         BEFORE_GL_CALL;
         mSymbols.fCompressedTexImage2D(target, level, internalformat, width, height, border, imageSize, pixels);
         AFTER_GL_CALL;
-        mHeavyGLCallsSinceLastFlush = true;
     }
 
     void fCompressedTexSubImage2D(GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLsizei imageSize, const GLvoid *pixels) {
@@ -983,7 +914,6 @@ public:
         BEFORE_GL_CALL;
         mSymbols.fCompressedTexSubImage2D(target, level, xoffset, yoffset, width, height, format, imageSize, pixels);
         AFTER_GL_CALL;
-        mHeavyGLCallsSinceLastFlush = true;
     }
 
     void fCopyTexImage2D(GLenum target, GLint level, GLenum internalformat, GLint x, GLint y, GLsizei width, GLsizei height, GLint border) {
@@ -1133,14 +1063,12 @@ public:
         BEFORE_GL_CALL;
         mSymbols.fFinish();
         AFTER_GL_CALL;
-        mHeavyGLCallsSinceLastFlush = false;
     }
 
     void fFlush() {
         BEFORE_GL_CALL;
         mSymbols.fFlush();
         AFTER_GL_CALL;
-        mHeavyGLCallsSinceLastFlush = false;
     }
 
     void fFrontFace(GLenum face) {
@@ -1532,7 +1460,6 @@ private:
         BEFORE_GL_CALL;
         mSymbols.fReadPixels(x, y, width, height, format, type, pixels);
         AFTER_GL_CALL;
-        mHeavyGLCallsSinceLastFlush = true;
     }
 
 public:
@@ -1635,7 +1562,6 @@ private:
         BEFORE_GL_CALL;
         mSymbols.fTexImage2D(target, level, internalformat, width, height, border, format, type, pixels);
         AFTER_GL_CALL;
-        mHeavyGLCallsSinceLastFlush = true;
     }
 
 public:
@@ -1656,7 +1582,6 @@ public:
         BEFORE_GL_CALL;
         mSymbols.fTexSubImage2D(target, level, xoffset, yoffset, width, height, format, type, pixels);
         AFTER_GL_CALL;
-        mHeavyGLCallsSinceLastFlush = true;
     }
 
     void fUniform1f(GLint location, GLfloat v0) {
@@ -2274,7 +2199,6 @@ public:
         ASSERT_SYMBOL_PRESENT(fEGLImageTargetTexture2D);
         mSymbols.fEGLImageTargetTexture2D(target, image);
         AFTER_GL_CALL;
-        mHeavyGLCallsSinceLastFlush = true;
     }
 
     void fEGLImageTargetRenderbufferStorage(GLenum target, GLeglImage image)
@@ -2643,9 +2567,9 @@ public:
 // -----------------------------------------------------------------------------
 // Constructor
 protected:
-    explicit GLContext(const SurfaceCaps& caps,
-                       GLContext* sharedContext = nullptr,
-                       bool isOffscreen = false);
+    GLContext(const SurfaceCaps& caps,
+              GLContext* sharedContext = nullptr,
+              bool isOffscreen = false);
 
 
 // -----------------------------------------------------------------------------
@@ -2653,9 +2577,6 @@ protected:
 public:
     virtual ~GLContext();
 
-    // Mark this context as destroyed.  This will nullptr out all
-    // the GL function pointers!
-    void MarkDestroyed();
 
 // -----------------------------------------------------------------------------
 // Everything that isn't standard GL APIs
@@ -2697,6 +2618,10 @@ public:
     virtual bool SetupLookupFunction() = 0;
 
     virtual void ReleaseSurface() {}
+
+    // Mark this context as destroyed.  This will nullptr out all
+    // the GL function pointers!
+    void MarkDestroyed();
 
     bool IsDestroyed() {
         // MarkDestroyed will mark all these as null.
@@ -2995,7 +2920,7 @@ public:
 
 protected:
     friend class GLScreenBuffer;
-    UniquePtr<GLScreenBuffer> mScreen;
+    GLScreenBuffer* mScreen;
 
     void DestroyScreenBuffer();
 
@@ -3021,7 +2946,7 @@ public:
     }
 
     GLScreenBuffer* Screen() const {
-        return mScreen.get();
+        return mScreen;
     }
 
     bool PublishFrame();
@@ -3060,7 +2985,6 @@ protected:
     GLint mMaxCubeMapTextureSize;
     GLint mMaxTextureImageSize;
     GLint mMaxRenderbufferSize;
-    GLint mMaxViewportDims[2];
     GLsizei mMaxSamples;
     bool mNeedsTextureSizeChecks;
     bool mWorkAroundDriverBugs;
@@ -3160,13 +3084,6 @@ public:
     nsTArray<NamedResource> mTrackedBuffers;
     nsTArray<NamedResource> mTrackedQueries;
 #endif
-
-
-protected:
-    bool mHeavyGLCallsSinceLastFlush;
-
-public:
-    void FlushIfHeavyGLCallsSinceLastFlush();
 };
 
 bool DoesStringMatch(const char* aString, const char *aWantedString);

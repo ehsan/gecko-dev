@@ -32,6 +32,8 @@ public:
   static void Initialize();
 
 #ifdef MOZ_DMD
+  // Write a DMD report.
+  static nsresult DumpDMD(const nsAString& aIdentifier);
   // Open an appropriately named file for a DMD report.  If DMD is
   // disabled, return a null FILE* instead.
   static nsresult OpenDMDFile(const nsAString& aIdentifier, int aPid,

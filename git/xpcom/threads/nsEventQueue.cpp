@@ -85,10 +85,10 @@ nsEventQueue::GetEvent(bool aMayWait, nsIRunnable** aResult)
 }
 
 void
-nsEventQueue::PutEvent(nsIRunnable* aRunnable)
+nsEventQueue::PutEvent(nsIRunnable *runnable)
 {
   // Avoid calling AddRef+Release while holding our monitor.
-  nsRefPtr<nsIRunnable> event(aRunnable);
+  nsRefPtr<nsIRunnable> event(runnable);
 
   if (ChaosMode::isActive()) {
     // With probability 0.5, yield so other threads have a chance to
@@ -108,7 +108,7 @@ nsEventQueue::PutEvent(nsIRunnable* aRunnable)
     mOffsetHead = 0;
     mOffsetTail = 0;
   } else if (mOffsetTail == EVENTS_PER_PAGE) {
-    Page* page = NewPage();
+    Page *page = NewPage();
     MOZ_ASSERT(page);
 
     mTail->mNext = page;
@@ -118,6 +118,6 @@ nsEventQueue::PutEvent(nsIRunnable* aRunnable)
 
   event.swap(mTail->mEvents[mOffsetTail]);
   ++mOffsetTail;
-  LOG(("EVENTQ(%p): notify\n", this));
+  LOG(("EVENTQ(%p): notify\n", this)); 
   mon.NotifyAll();
 }

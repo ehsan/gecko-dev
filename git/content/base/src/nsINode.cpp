@@ -1997,17 +1997,17 @@ nsINode::ReplaceOrInsertBefore(bool aReplace, nsINode* aNewChild,
     // into the DOM.
     uint32_t count = newContent->GetChildCount();
 
-    fragChildren.emplace();
+    fragChildren.construct();
 
     // Copy the children into a separate array to avoid having to deal with
     // mutations to the fragment later on here.
-    fragChildren->SetCapacity(count);
+    fragChildren.ref().SetCapacity(count);
     for (nsIContent* child = newContent->GetFirstChild();
          child;
          child = child->GetNextSibling()) {
       NS_ASSERTION(child->GetCurrentDoc() == nullptr,
                    "How did we get a child with a current doc?");
-      fragChildren->AppendElement(child);
+      fragChildren.ref().AppendElement(child);
     }
 
     // Hold a strong ref to nodeToInsertBefore across the removals
@@ -2040,7 +2040,7 @@ nsINode::ReplaceOrInsertBefore(bool aReplace, nsINode* aNewChild,
 
       // Verify that all the things in fragChildren have no parent.
       for (uint32_t i = 0; i < count; ++i) {
-        if (fragChildren->ElementAt(i)->GetParentNode()) {
+        if (fragChildren.ref().ElementAt(i)->GetParentNode()) {
           aError.Throw(NS_ERROR_DOM_HIERARCHY_REQUEST_ERR);
           return nullptr;
         }
@@ -2071,7 +2071,7 @@ nsINode::ReplaceOrInsertBefore(bool aReplace, nsINode* aNewChild,
       if (IsNodeOfType(nsINode::eDOCUMENT)) {
         bool sawElement = false;
         for (uint32_t i = 0; i < count; ++i) {
-          nsIContent* child = fragChildren->ElementAt(i);
+          nsIContent* child = fragChildren.ref().ElementAt(i);
           if (child->IsElement()) {
             if (sawElement) {
               // No good
@@ -2159,7 +2159,7 @@ nsINode::ReplaceOrInsertBefore(bool aReplace, nsINode* aNewChild,
       mutationBatch->SetNextSibling(GetChildAt(insPos));
     }
 
-    uint32_t count = fragChildren->Length();
+    uint32_t count = fragChildren.ref().Length();
     if (!count) {
       return result;
     }
@@ -2167,14 +2167,14 @@ nsINode::ReplaceOrInsertBefore(bool aReplace, nsINode* aNewChild,
     bool appending =
       !IsNodeOfType(eDOCUMENT) && uint32_t(insPos) == GetChildCount();
     int32_t firstInsPos = insPos;
-    nsIContent* firstInsertedContent = fragChildren->ElementAt(0);
+    nsIContent* firstInsertedContent = fragChildren.ref().ElementAt(0);
 
     // Iterate through the fragment's children, and insert them in the new
     // parent
     for (uint32_t i = 0; i < count; ++i, ++insPos) {
       // XXXbz how come no reparenting here?  That seems odd...
       // Insert the child.
-      aError = InsertChildAt(fragChildren->ElementAt(i), insPos,
+      aError = InsertChildAt(fragChildren.ref().ElementAt(i), insPos,
                              !appending);
       if (aError.Failed()) {
         // Make sure to notify on any children that we did succeed to insert
@@ -2201,7 +2201,7 @@ nsINode::ReplaceOrInsertBefore(bool aReplace, nsINode* aNewChild,
       // Optimize for the case when there are no listeners
       if (nsContentUtils::
             HasMutationListeners(doc, NS_EVENT_BITS_MUTATION_NODEINSERTED)) {
-        Element::FireNodeInserted(doc, this, *fragChildren);
+        Element::FireNodeInserted(doc, this, fragChildren.ref());
       }
     }
   }
@@ -2303,7 +2303,7 @@ nsINode::GetBoundMutationObservers(nsTArray<nsRefPtr<nsDOMMutationObserver> >& a
       nsCOMPtr<nsDOMMutationObserver> mo = do_QueryInterface(objects->ObjectAt(i));
       if (mo) {
         MOZ_ASSERT(!aResult.Contains(mo));
-        aResult.AppendElement(mo.forget());
+        aResult.AppendElement(mo);
       }
     }
   }

@@ -16,8 +16,6 @@
 #include "RestyleTracker.h"
 #include "nsPresContext.h"
 #include "nsRefreshDriver.h"
-#include "nsRefPtrHashtable.h"
-#include "nsCSSPseudoElements.h"
 
 class nsIFrame;
 class nsStyleChangeList;
@@ -37,14 +35,12 @@ public:
 
   typedef mozilla::dom::Element Element;
 
-  explicit RestyleManager(nsPresContext* aPresContext);
+  RestyleManager(nsPresContext* aPresContext);
 
 private:
   // Private destructor, to discourage deletion outside of Release():
   ~RestyleManager()
   {
-    MOZ_ASSERT(!mReframingStyleContexts,
-               "temporary member should be nulled out before destruction");
   }
 
 public:
@@ -101,12 +97,6 @@ public:
    */
   nsresult ReparentStyleContext(nsIFrame* aFrame);
 
-private:
-  void ComputeAndProcessStyleChange(nsIFrame* aFrame,
-                                    nsChangeHint aMinChange,
-                                    RestyleTracker& aRestyleTracker,
-                                    nsRestyleHint aRestyleHint);
-
   /**
    * Re-resolve the style contexts for a frame tree, building
    * aChangeList based on the resulting style changes, plus aMinChange
@@ -118,8 +108,6 @@ private:
                           nsChangeHint aMinChange,
                           RestyleTracker& aRestyleTracker,
                           nsRestyleHint aRestyleHint);
-
-public:
 
 #ifdef DEBUG
   /**
@@ -134,79 +122,6 @@ public:
   // If the caller wants that to happen synchronously, it needs to handle that
   // itself.
   nsresult ProcessRestyledFrames(nsStyleChangeList& aRestyleArray);
-
-  /**
-   * In order to start CSS transitions on elements that are being
-   * reframed, we need to stash their style contexts somewhere during
-   * the reframing process.
-   *
-   * In all cases, the content node in the hash table is the real
-   * content node, not the anonymous content node we create for ::before
-   * or ::after.  The content node passed to the Get and Put methods is,
-   * however, the content node to be associate with the frame's style
-   * context.
-   */
-  typedef nsRefPtrHashtable<nsRefPtrHashKey<nsIContent>, nsStyleContext>
-            ReframingStyleContextTable;
-  class ReframingStyleContexts {
-  public:
-    void Put(nsIContent* aContent, nsStyleContext* aStyleContext) {
-      MOZ_ASSERT(aContent);
-      nsCSSPseudoElements::Type pseudoType = aStyleContext->GetPseudoType();
-      if (pseudoType == nsCSSPseudoElements::ePseudo_NotPseudoElement) {
-        mElementContexts.Put(aContent, aStyleContext);
-      } else if (pseudoType == nsCSSPseudoElements::ePseudo_before) {
-        MOZ_ASSERT(aContent->Tag() == nsGkAtoms::mozgeneratedcontentbefore);
-        mBeforePseudoContexts.Put(aContent->GetParent(), aStyleContext);
-      } else if (pseudoType == nsCSSPseudoElements::ePseudo_after) {
-        MOZ_ASSERT(aContent->Tag() == nsGkAtoms::mozgeneratedcontentafter);
-        mAfterPseudoContexts.Put(aContent->GetParent(), aStyleContext);
-      }
-    }
-
-    nsStyleContext* Get(nsIContent* aContent,
-                        nsCSSPseudoElements::Type aPseudoType) {
-      MOZ_ASSERT(aContent);
-      if (aPseudoType == nsCSSPseudoElements::ePseudo_NotPseudoElement) {
-        return mElementContexts.GetWeak(aContent);
-      }
-      if (aPseudoType == nsCSSPseudoElements::ePseudo_before) {
-        MOZ_ASSERT(aContent->Tag() == nsGkAtoms::mozgeneratedcontentbefore);
-        return mBeforePseudoContexts.GetWeak(aContent->GetParent());
-      }
-      if (aPseudoType == nsCSSPseudoElements::ePseudo_after) {
-        MOZ_ASSERT(aContent->Tag() == nsGkAtoms::mozgeneratedcontentafter);
-        return mAfterPseudoContexts.GetWeak(aContent->GetParent());
-      }
-      MOZ_ASSERT(false, "unexpected aPseudoType");
-      return nullptr;
-    }
-  private:
-    ReframingStyleContextTable mElementContexts;
-    ReframingStyleContextTable mBeforePseudoContexts;
-    ReframingStyleContextTable mAfterPseudoContexts;
-  };
-
-  /**
-   * Return the current ReframingStyleContexts struct, or null if we're
-   * not currently in a restyling operation.
-   */
-  ReframingStyleContexts* GetReframingStyleContexts() {
-    return mReframingStyleContexts;
-  }
-
-  /**
-   * Try starting a transition for an element or a ::before or ::after
-   * pseudo-element, given an old and new style context.  This may
-   * change the new style context if a transition is started.
-   *
-   * For the pseudo-elements, aContent must be the anonymous content
-   * that we're creating for that pseudo-element, not the real element.
-   */
-  static void
-  TryStartingTransition(nsPresContext* aPresContext, nsIContent* aContent,
-                        nsStyleContext* aOldStyleContext,
-                        nsRefPtr<nsStyleContext>* aNewStyleContext /* inout */);
 
 private:
   void RestyleForEmptyChange(Element* aContainer);
@@ -389,8 +304,6 @@ private:
   // Used to keep the layer and animation manager in sync.
   uint64_t mAnimationGeneration;
 
-  ReframingStyleContexts* mReframingStyleContexts;
-
   RestyleTracker mPendingRestyles;
   RestyleTracker mPendingAnimationRestyles;
 };
@@ -452,29 +365,10 @@ public:
   nsChangeHint HintsHandledForFrame() { return mHintsHandled; }
 
 private:
-  // Enum for the result of RestyleSelf, which indicates whether the
-  // restyle procedure should continue to the children, and how.
-  //
-  // These values must be ordered so that later values imply that all
-  // the work of the earlier values is also done.
-  enum RestyleResult {
-
-    // do not restyle children
-    eRestyleResult_Stop = 1,
-
-    // continue restyling children
-    eRestyleResult_Continue,
-
-    // continue restyling children with eRestyle_ForceDescendants set
-    eRestyleResult_ContinueAndForceDescendants
-  };
-
   /**
    * First half of Restyle().
    */
-  RestyleResult RestyleSelf(nsIFrame* aSelf,
-                            nsRestyleHint aRestyleHint,
-                            uint32_t* aSwappedStructs);
+  void RestyleSelf(nsIFrame* aSelf, nsRestyleHint aRestyleHint);
 
   /**
    * Restyle the children of this frame (and, in turn, their children).
@@ -484,22 +378,18 @@ private:
   void RestyleChildren(nsRestyleHint aChildRestyleHint);
 
   /**
-   * Helpers for RestyleSelf().
+   * Helper for RestyleSelf().
    */
   void CaptureChange(nsStyleContext* aOldContext,
                      nsStyleContext* aNewContext,
-                     nsChangeHint aChangeToAssume,
-                     uint32_t* aEqualStructs);
-  RestyleResult ComputeRestyleResultFromFrame(nsIFrame* aSelf);
-  RestyleResult ComputeRestyleResultFromNewContext(nsIFrame* aSelf,
-                                                   nsStyleContext* aNewContext);
+                     nsChangeHint aChangeToAssume);
 
   /**
    * Helpers for RestyleChildren().
    */
   void RestyleUndisplayedChildren(nsRestyleHint aChildRestyleHint);
-  void MaybeReframeForBeforePseudo();
-  void MaybeReframeForAfterPseudo(nsIFrame* aFrame);
+  void RestyleBeforePseudo();
+  void RestyleAfterPseudo(nsIFrame* aFrame);
   void RestyleContentChildren(nsIFrame* aParent,
                               nsRestyleHint aChildRestyleHint);
   void InitializeAccessibilityNotifications();

@@ -38,7 +38,7 @@ bool IsGeometricProperty(nsCSSProperty aProperty);
 class CommonAnimationManager : public nsIStyleRuleProcessor,
                                public nsARefreshObserver {
 public:
-  explicit CommonAnimationManager(nsPresContext *aPresContext);
+  CommonAnimationManager(nsPresContext *aPresContext);
 
   // nsISupports
   NS_DECL_ISUPPORTS
@@ -230,16 +230,6 @@ struct AnimationPlayerCollection : public PRCList
            mElementProperty == nsGkAtoms::transitionsProperty;
   }
 
-  bool IsForBeforePseudo() const {
-    return mElementProperty == nsGkAtoms::animationsOfBeforeProperty ||
-           mElementProperty == nsGkAtoms::transitionsOfBeforeProperty;
-  }
-
-  bool IsForAfterPseudo() const {
-    return mElementProperty == nsGkAtoms::animationsOfAfterProperty ||
-           mElementProperty == nsGkAtoms::transitionsOfAfterProperty;
-  }
-
   bool IsForTransitions() const {
     return mElementProperty == nsGkAtoms::transitionsProperty ||
            mElementProperty == nsGkAtoms::transitionsOfBeforeProperty ||
@@ -256,20 +246,17 @@ struct AnimationPlayerCollection : public PRCList
   {
     if (IsForElement()) {
       return EmptyString();
-    } else if (IsForBeforePseudo()) {
+    } else if (mElementProperty == nsGkAtoms::animationsOfBeforeProperty ||
+               mElementProperty == nsGkAtoms::transitionsOfBeforeProperty) {
       return NS_LITERAL_STRING("::before");
     } else {
       return NS_LITERAL_STRING("::after");
     }
   }
 
-  mozilla::dom::Element* GetElementToRestyle() const;
-
   void PostRestyleForAnimation(nsPresContext *aPresContext) {
-    mozilla::dom::Element* element = GetElementToRestyle();
-    if (element) {
-      aPresContext->PresShell()->RestyleForAnimation(element, eRestyle_Self);
-    }
+    nsRestyleHint styleHint = IsForElement() ? eRestyle_Self : eRestyle_Subtree;
+    aPresContext->PresShell()->RestyleForAnimation(mElement, styleHint);
   }
 
   static void LogAsyncAnimationFailure(nsCString& aMessage,

@@ -26,14 +26,15 @@
 /**
  * Set name of the target thread.  This operation is asynchronous.
  */
-extern void NS_SetThreadName(nsIThread* aThread, const nsACString& aName);
+extern NS_COM_GLUE void NS_SetThreadName(nsIThread* aThread,
+                                         const nsACString& aName);
 
 /**
  * Static length version of the above function checking length of the
  * name at compile time.
  */
 template<size_t LEN>
-inline void
+inline NS_COM_GLUE void
 NS_SetThreadName(nsIThread* aThread, const char (&aName)[LEN])
 {
   static_assert(LEN <= 16,
@@ -54,7 +55,7 @@ NS_SetThreadName(nsIThread* aThread, const char (&aName)[LEN])
  * @returns NS_ERROR_INVALID_ARG
  *   Indicates that the given name is not unique.
  */
-extern NS_METHOD
+extern NS_COM_GLUE NS_METHOD
 NS_NewThread(nsIThread** aResult,
              nsIRunnable* aInitialEvent = nullptr,
              uint32_t aStackSize = nsIThreadManager::DEFAULT_STACK_SIZE);
@@ -92,7 +93,7 @@ NS_NewNamedThread(const char (&aName)[LEN],
  * @param aResult
  *   The resulting nsIThread object.
  */
-extern NS_METHOD NS_GetCurrentThread(nsIThread** aResult);
+extern NS_COM_GLUE NS_METHOD NS_GetCurrentThread(nsIThread** aResult);
 
 /**
  * Dispatch the given event to the current thread.
@@ -103,7 +104,7 @@ extern NS_METHOD NS_GetCurrentThread(nsIThread** aResult);
  * @returns NS_ERROR_INVALID_ARG
  *   If event is null.
  */
-extern NS_METHOD NS_DispatchToCurrentThread(nsIRunnable* aEvent);
+extern NS_COM_GLUE NS_METHOD NS_DispatchToCurrentThread(nsIRunnable* aEvent);
 
 /**
  * Dispatch the given event to the main thread.
@@ -116,7 +117,7 @@ extern NS_METHOD NS_DispatchToCurrentThread(nsIRunnable* aEvent);
  * @returns NS_ERROR_INVALID_ARG
  *   If event is null.
  */
-extern NS_METHOD
+extern NS_COM_GLUE NS_METHOD
 NS_DispatchToMainThread(nsIRunnable* aEvent,
                         uint32_t aDispatchFlags = NS_DISPATCH_NORMAL);
 
@@ -136,7 +137,7 @@ NS_DispatchToMainThread(nsIRunnable* aEvent,
  *   value is simply used to determine whether or not to process another event.
  *   Pass PR_INTERVAL_NO_TIMEOUT to specify no timeout.
  */
-extern NS_METHOD
+extern NS_COM_GLUE NS_METHOD
 NS_ProcessPendingEvents(nsIThread* aThread,
                         PRIntervalTime aTimeout = PR_INTERVAL_NO_TIMEOUT);
 #endif
@@ -155,7 +156,7 @@ NS_ProcessPendingEvents(nsIThread* aThread,
  *   A boolean value that if "true" indicates that there are pending events
  *   in the current thread's event queue.
  */
-extern bool NS_HasPendingEvents(nsIThread* aThread = nullptr);
+extern NS_COM_GLUE bool NS_HasPendingEvents(nsIThread* aThread = nullptr);
 
 /**
  * Shortcut for nsIThread::ProcessNextEvent.
@@ -174,8 +175,8 @@ extern bool NS_HasPendingEvents(nsIThread* aThread = nullptr);
  *   A boolean value that if "true" indicates that an event from the current
  *   thread's event queue was processed.
  */
-extern bool NS_ProcessNextEvent(nsIThread* aThread = nullptr,
-                                bool aMayWait = true);
+extern NS_COM_GLUE bool NS_ProcessNextEvent(nsIThread* aThread = nullptr,
+                                            bool aMayWait = true);
 
 //-----------------------------------------------------------------------------
 // Helpers that work with nsCOMPtr:
@@ -203,15 +204,18 @@ do_GetMainThread()
 // you want to use this pointer from some other thread, then you will need to
 // AddRef it.  Otherwise, you should only consider this pointer valid from code
 // running on the current thread.
-extern nsIThread* NS_GetCurrentThread();
+extern NS_COM_GLUE nsIThread* NS_GetCurrentThread();
 #endif
 
 //-----------------------------------------------------------------------------
 
 #ifndef XPCOM_GLUE_AVOID_NSPR
 
+#undef  IMETHOD_VISIBILITY
+#define IMETHOD_VISIBILITY NS_COM_GLUE
+
 // This class is designed to be subclassed.
-class nsRunnable : public nsIRunnable
+class NS_COM_GLUE nsRunnable : public nsIRunnable
 {
 public:
   NS_DECL_THREADSAFE_ISUPPORTS
@@ -224,7 +228,7 @@ protected:
 };
 
 // This class is designed to be subclassed.
-class nsCancelableRunnable : public nsICancelableRunnable
+class NS_COM_GLUE nsCancelableRunnable : public nsICancelableRunnable
 {
 public:
   NS_DECL_THREADSAFE_ISUPPORTS
@@ -236,6 +240,9 @@ public:
 protected:
   virtual ~nsCancelableRunnable() {}
 };
+
+#undef  IMETHOD_VISIBILITY
+#define IMETHOD_VISIBILITY
 
 // An event that can be used to call a method on a class.  The class type must
 // support reference counting. This event supports Revoke for use
@@ -287,11 +294,7 @@ template<class ClassType, bool Owning>
 struct nsRunnableMethodReceiver<ClassType, void, Owning>
 {
   ClassType* mObj;
-  explicit nsRunnableMethodReceiver(ClassType* aObj)
-    : mObj(aObj)
-  {
-    NS_IF_ADDREF(mObj);
-  }
+  explicit nsRunnableMethodReceiver(ClassType* aObj) : mObj(aObj) { NS_IF_ADDREF(mObj); }
   ~nsRunnableMethodReceiver() { Revoke(); }
   void Revoke() { NS_IF_RELEASE(mObj); }
 };

@@ -198,7 +198,7 @@ var SelectionHandler = {
       }
 
       case "TextSelection:Get":
-        Messaging.sendRequest({
+        sendMessageToJava({
           type: "TextSelection:Data",
           requestId: aData,
           text: this._getSelectedText()
@@ -212,7 +212,7 @@ var SelectionHandler = {
   _startDraggingHandles: function sh_startDraggingHandles() {
     if (!this._draggingHandles) {
       this._draggingHandles = true;
-      Messaging.sendRequest({ type: "TextSelection:DraggingHandle", dragging: true });
+      sendMessageToJava({ type: "TextSelection:DraggingHandle", dragging: true });
     }
   },
 
@@ -221,7 +221,7 @@ var SelectionHandler = {
   _stopDraggingHandles: function sh_stopDraggingHandles() {
     if (this._draggingHandles) {
       this._draggingHandles = false;
-      Messaging.sendRequest({ type: "TextSelection:DraggingHandle", dragging: false });
+      sendMessageToJava({ type: "TextSelection:DraggingHandle", dragging: false });
     }
   },
 
@@ -341,7 +341,7 @@ var SelectionHandler = {
 
     // Determine position and show handles, open actionbar
     this._positionHandles(positions);
-    Messaging.sendRequest({
+    sendMessageToJava({
       type: "TextSelection:ShowHandles",
       handles: [this.HANDLE_TYPE_START, this.HANDLE_TYPE_END]
     });
@@ -546,7 +546,7 @@ var SelectionHandler = {
 
     actions.sort((a, b) => b.order - a.order);
 
-    Messaging.sendRequest({
+    sendMessageToJava({
       type: "TextSelection:Update",
       actions: actions
     });
@@ -652,10 +652,6 @@ var SelectionHandler = {
       },
       selector: {
         matches: function() {
-          if (!ParentalControls.isAllowed(ParentalControls.SHARE)) {
-            return false;
-          }
-
           return SelectionHandler.isSelectionActive();
         }
       }
@@ -706,7 +702,7 @@ var SelectionHandler = {
   attachCaret: function sh_attachCaret(aElement) {
     // Ensure it isn't disabled, isn't handled by Android native dialog, and is editable text element
     if (aElement.disabled || InputWidgetHelper.hasInputWidget(aElement) || !this.isElementEditableText(aElement)) {
-      return false;
+      return;
     }
 
     this._initTargetInfo(aElement, this.TYPE_CURSOR);
@@ -721,13 +717,11 @@ var SelectionHandler = {
 
     // Determine position and show caret, open actionbar
     this._positionHandles();
-    Messaging.sendRequest({
+    sendMessageToJava({
       type: "TextSelection:ShowHandles",
       handles: [this.HANDLE_TYPE_MIDDLE]
     });
     this._updateMenu();
-
-    return true;
   },
 
   // Target initialization for both TYPE_CURSOR and TYPE_SELECTION
@@ -801,8 +795,8 @@ var SelectionHandler = {
   },
 
   isElementEditableText: function (aElement) {
-    return (((aElement instanceof HTMLInputElement && aElement.mozIsTextField(false)) ||
-            (aElement instanceof HTMLTextAreaElement)) && !aElement.readOnly);
+    return ((aElement instanceof HTMLInputElement && aElement.mozIsTextField(false)) ||
+            (aElement instanceof HTMLTextAreaElement));
   },
 
   /*
@@ -935,7 +929,7 @@ var SelectionHandler = {
   shareSelection: function sh_shareSelection() {
     let selectedText = this._getSelectedText();
     if (selectedText.length) {
-      Messaging.sendRequest({
+      sendMessageToJava({
         type: "Share:Text",
         text: selectedText
       });
@@ -1004,7 +998,7 @@ var SelectionHandler = {
   _deactivate: function sh_deactivate() {
     this._stopDraggingHandles();
     // Hide handle/caret, close actionbar
-    Messaging.sendRequest({ type: "TextSelection:HideHandles" });
+    sendMessageToJava({ type: "TextSelection:HideHandles" });
 
     this._removeObservers();
 
@@ -1160,7 +1154,7 @@ var SelectionHandler = {
     if (!positions) {
       positions = this._getHandlePositions(this._getScrollPos());
     }
-    Messaging.sendRequest({
+    sendMessageToJava({
       type: "TextSelection:PositionHandles",
       positions: positions,
       rtl: this._isRTL

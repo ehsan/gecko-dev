@@ -31,7 +31,7 @@ class nsMathMLContainerFrame : public nsContainerFrame,
                                public nsMathMLFrame {
   friend class nsMathMLmfencedFrame;
 public:
-  explicit nsMathMLContainerFrame(nsStyleContext* aContext) : nsContainerFrame(aContext) {}
+  nsMathMLContainerFrame(nsStyleContext* aContext) : nsContainerFrame(aContext) {}
 
   NS_DECL_QUERYFRAME_TARGET(nsMathMLContainerFrame)
   NS_DECL_QUERYFRAME
@@ -472,7 +472,7 @@ public:
   }
 
 protected:
-  explicit nsMathMLmathBlockFrame(nsStyleContext* aContext) : nsBlockFrame(aContext) {
+  nsMathMLmathBlockFrame(nsStyleContext* aContext) : nsBlockFrame(aContext) {
     // We should always have a float manager.  Not that things can really try
     // to float out of us anyway, but we need one for line layout.
     AddStateBits(NS_BLOCK_FLOAT_MGR);
@@ -548,7 +548,7 @@ public:
   }
 
 protected:
-  explicit nsMathMLmathInlineFrame(nsStyleContext* aContext) : nsInlineFrame(aContext) {}
+  nsMathMLmathInlineFrame(nsStyleContext* aContext) : nsInlineFrame(aContext) {}
   virtual ~nsMathMLmathInlineFrame() {}
 };
 

@@ -170,17 +170,17 @@ class ForkJoinOperation
         // version of this entry
         bool calleesEnqueued;
 
-        // Last record warmUpCounter; updated after warmup
+        // Last record useCount; updated after warmup
         // iterations;
-        uint32_t warmUpCounter;
+        uint32_t useCount;
 
         // Number of continuous "stalls" --- meaning warmups
-        // where warmUpCounter did not increase.
+        // where useCount did not increase.
         uint32_t stallCount;
 
         void reset() {
             calleesEnqueued = false;
-            warmUpCounter = 0;
+            useCount = 0;
             stallCount = 0;
         }
     };
@@ -355,7 +355,7 @@ ForkJoinActivation::ForkJoinActivation(JSContext *cx)
         JS::FinishIncrementalGC(cx->runtime(), JS::gcreason::API);
     }
 
-    cx->runtime()->gc.evictNursery();
+    MinorGC(cx->runtime(), JS::gcreason::API);
 
     cx->runtime()->gc.waitBackgroundSweepEnd();
 
@@ -649,21 +649,21 @@ ForkJoinOperation::compileForParallelExecution(ExecutionStatus *status)
             // will not be able to compile very well.  In such cases,
             // we continue to run baseline iterations until either (1)
             // the potential callee *has* a baseline script or (2) the
-            // potential callee's warm-up counter stops increasing,
+            // potential callee's use count stops increasing,
             // indicating that they are not in fact a callee.
             if (!script->hasBaselineScript()) {
-                uint32_t previousWarmUpCounter = worklistData_[i].warmUpCounter;
-                uint32_t currentWarmUpCounter = script->getWarmUpCounter();
-                if (previousWarmUpCounter < currentWarmUpCounter) {
-                    worklistData_[i].warmUpCounter = currentWarmUpCounter;
+                uint32_t previousUseCount = worklistData_[i].useCount;
+                uint32_t currentUseCount = script->getUseCount();
+                if (previousUseCount < currentUseCount) {
+                    worklistData_[i].useCount = currentUseCount;
                     worklistData_[i].stallCount = 0;
                     gatheringTypeInformation = true;
 
                     Spew(SpewCompile,
                          "Script %p:%s:%d has no baseline script, "
-                         "but warm-up counter grew from %d to %d",
+                         "but use count grew from %d to %d",
                          script.get(), script->filename(), script->lineno(),
-                         previousWarmUpCounter, currentWarmUpCounter);
+                         previousUseCount, currentUseCount);
                 } else {
                     uint32_t stallCount = ++worklistData_[i].stallCount;
                     if (stallCount < stallThreshold) {
@@ -672,9 +672,9 @@ ForkJoinOperation::compileForParallelExecution(ExecutionStatus *status)
 
                     Spew(SpewCompile,
                          "Script %p:%s:%d has no baseline script, "
-                         "and warm-up counter has %u stalls at %d",
+                         "and use count has %u stalls at %d",
                          script.get(), script->filename(), script->lineno(),
-                         stallCount, previousWarmUpCounter);
+                         stallCount, previousUseCount);
                 }
                 continue;
             }
@@ -737,14 +737,14 @@ ForkJoinOperation::compileForParallelExecution(ExecutionStatus *status)
         }
 
         // If there is compilation occurring in a helper thread, then
-        // run a warm-up iterations in the main thread while we wait.
-        // There is a chance that this warm-up will finish all the work
+        // run a warmup iterations in the main thread while we wait.
+        // There is a chance that this warmup will finish all the work
         // we have to do, so we should stop then, unless we are in
         // compile mode, in which case we'll continue to block.
         //
         // Note that even in compile mode, we can't block *forever*:
         // - OMTC compiles will finish;
-        // - no work is being done, so warm-up counters on not-yet-baselined
+        // - no work is being done, so use counts on not-yet-baselined
         //   scripts will not increase.
         if (offMainThreadCompilationsInProgress || gatheringTypeInformation) {
             bool stopIfComplete = (mode_ != ForkJoinModeCompile);
@@ -1351,7 +1351,7 @@ class ParallelIonInvoke
         JitCode *code = ion->method();
         jitcode_ = code->raw();
         enter_ = rt->jitRuntime()->enterIon();
-        calleeToken_ = CalleeToToken(callee, /* constructing = */ false);
+        calleeToken_ = CalleeToToken(callee);
     }
 
     bool invoke(ForkJoinContext *cx) {
@@ -1492,11 +1492,10 @@ ForkJoinShared::transferArenasToCompartmentAndProcessGCRequests()
 
     if (gcRequested_) {
         Spew(SpewGC, "Triggering garbage collection in SpiderMonkey heap");
-        gc::GCRuntime &gc = cx_->runtime()->gc;
         if (!gcZone_)
-            gc.triggerGC(gcReason_);
+            TriggerGC(cx_->runtime(), gcReason_);
         else
-            gc.triggerZoneGC(gcZone_, gcReason_);
+            TriggerZoneGC(gcZone_, gcReason_);
         gcRequested_ = false;
         gcZone_ = nullptr;
     }
@@ -2284,7 +2283,7 @@ js::ParallelTestsShouldPass(JSContext *cx)
     return IsIonEnabled(cx) &&
            IsBaselineEnabled(cx) &&
            !js_JitOptions.eagerCompilation &&
-           js_JitOptions.baselineWarmUpThreshold != 0 &&
+           js_JitOptions.baselineUsesBeforeCompile != 0 &&
            cx->runtime()->gcZeal() == 0;
 }
 

@@ -21,9 +21,7 @@ namespace gmp {
 class GMPTimerParent : public PGMPTimerParent {
 public:
   NS_INLINE_DECL_REFCOUNTING(GMPTimerParent)
-  explicit GMPTimerParent(nsIThread* aGMPThread);
-
-  void Shutdown();
+  GMPTimerParent(nsIThread* aGMPThread);
 
 protected:
   virtual bool RecvSetTimer(const uint32_t& aTimerId,
@@ -55,8 +53,6 @@ private:
   nsTHashtable<nsPtrHashKey<Context>> mTimers;
 
   nsCOMPtr<nsIThread> mGMPThread;
-
-  bool mIsOpen;
 };
 
 } // namespace gmp

@@ -194,7 +194,7 @@ class URLLoadInfo : public nsISupports
 
 public:
 
-  explicit URLLoadInfo(const char* aUrl);
+  URLLoadInfo(const char* aUrl);
 
   // ISupports interface...
   NS_DECL_THREADSAFE_ISUPPORTS

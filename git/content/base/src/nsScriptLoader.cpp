@@ -33,6 +33,7 @@
 #include "nsIDOMHTMLScriptElement.h"
 #include "nsIDocShell.h"
 #include "nsContentUtils.h"
+#include "nsCxPusher.h"
 #include "nsUnicharUtils.h"
 #include "nsAutoPtr.h"
 #include "nsIXPConnect.h"
@@ -53,6 +54,7 @@
 
 #include "mozilla/CORSMode.h"
 #include "mozilla/Attributes.h"
+#include "mozilla/Telemetry.h"
 #include "mozilla/unused.h"
 
 #ifdef PR_LOGGING
@@ -109,7 +111,7 @@ public:
   bool mIsInline;         // Is the script inline or loaded?
   bool mHasSourceMapURL;  // Does the HTTP header have a source map url?
   nsString mSourceMapURL; // Holds source map url for loaded scripts
-  char16_t* mScriptTextBuf; // Holds script text for non-inline scripts. Don't
+  jschar* mScriptTextBuf;   // Holds script text for non-inline scripts. Don't
   size_t mScriptTextLength; // use nsString so we can give ownership to jsapi.
   uint32_t mJSVersion;
   nsCOMPtr<nsIURI> mURI;
@@ -544,6 +546,43 @@ CSPAllowsInlineScript(nsIScriptElement *aElement, nsIDocument *aDocument)
   return true;
 }
 
+static void
+AccumulateJavaScriptVersionTelemetry(nsIScriptElement* aElement,
+                                     JSVersion aVersion)
+{
+  uint32_t minorVersion;
+  switch (aVersion) {
+    case JSVERSION_DEFAULT: minorVersion = 5; break;
+    case JSVERSION_1_6:     minorVersion = 6; break;
+    case JSVERSION_1_7:     minorVersion = 7; break;
+    case JSVERSION_1_8:     minorVersion = 8; break;
+    default:                MOZ_ASSERT_UNREACHABLE("Unexpected JSVersion");
+    case JSVERSION_UNKNOWN: minorVersion = 0; break;
+  }
+
+  // Only report SpiderMonkey's nonstandard JS versions: 1.6, 1.7, and 1.8.
+  if (minorVersion < 6) {
+    return;
+  }
+
+  nsCOMPtr<nsIURI> scriptURI = aElement->GetScriptURI();
+  if (!scriptURI) {
+    return;
+  }
+
+  // We only care about web content, not chrome or add-on JS versions.
+  bool chrome = false;
+  scriptURI->SchemeIs("chrome", &chrome);
+  if (!chrome) {
+    scriptURI->SchemeIs("resource", &chrome);
+  }
+  if (chrome) {
+    return;
+  }
+
+  Telemetry::Accumulate(Telemetry::JS_MINOR_VERSION, minorVersion);
+}
+
 bool
 nsScriptLoader::ProcessScriptElement(nsIScriptElement *aElement)
 {
@@ -572,6 +611,7 @@ nsScriptLoader::ProcessScriptElement(nsIScriptElement *aElement)
   aElement->GetScriptType(type);
   if (!type.IsEmpty()) {
     NS_ENSURE_TRUE(ParseTypeAttribute(type, &version), false);
+    AccumulateJavaScriptVersionTelemetry(aElement, version);
   } else {
     // no 'type=' element
     // "language" is a deprecated attribute of HTML, so we check it only for
@@ -898,7 +938,7 @@ nsScriptLoader::ProcessRequest(nsScriptLoadRequest* aRequest, void **aOffThreadT
 
   NS_ENSURE_ARG(aRequest);
   nsAutoString textData;
-  const char16_t* scriptBuf = nullptr;
+  const jschar* scriptBuf = nullptr;
   size_t scriptLength = 0;
   JS::SourceBufferHolder::Ownership giveScriptOwnership =
     JS::SourceBufferHolder::NoOwnership;
@@ -1122,8 +1162,8 @@ nsScriptLoader::EvaluateScript(nsScriptLoadRequest* aRequest,
       // execution currentScript of the master should refer to this
       // script. So let's update the mCurrentScript of the ScriptLoader
       // of the master document too.
-      masterScriptUpdater.emplace(master->ScriptLoader(),
-                                  aRequest->mElement);
+      masterScriptUpdater.construct(master->ScriptLoader(),
+                                    aRequest->mElement);
     }
 
     JS::CompileOptions options(entryScript.cx());
@@ -1278,7 +1318,7 @@ DetectByteOrderMark(const unsigned char* aBytes, int32_t aLen, nsCString& oChars
 nsScriptLoader::ConvertToUTF16(nsIChannel* aChannel, const uint8_t* aData,
                                uint32_t aLength, const nsAString& aHintCharset,
                                nsIDocument* aDocument,
-                               char16_t*& aBufOut, size_t& aLengthOut)
+                               jschar*& aBufOut, size_t& aLengthOut)
 {
   if (!aLength) {
     aBufOut = nullptr;
@@ -1335,7 +1375,7 @@ nsScriptLoader::ConvertToUTF16(nsIChannel* aChannel, const uint8_t* aData,
                                  aLength, &unicodeLength);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  aBufOut = static_cast<char16_t*>(js_malloc(unicodeLength * sizeof(char16_t)));
+  aBufOut = static_cast<jschar*>(js_malloc(unicodeLength * sizeof(jschar)));
   if (!aBufOut) {
     aLengthOut = 0;
     return NS_ERROR_OUT_OF_MEMORY;
@@ -1461,7 +1501,7 @@ nsScriptLoader::PrepareLoadedRequest(nsScriptLoadRequest* aRequest,
   // principal as the origin principal
   if (aRequest->mCORSMode == CORS_NONE) {
     rv = nsContentUtils::GetSecurityManager()->
-      GetChannelResultPrincipal(channel, getter_AddRefs(aRequest->mOriginPrincipal));
+      GetChannelPrincipal(channel, getter_AddRefs(aRequest->mOriginPrincipal));
     NS_ENSURE_SUCCESS(rv, rv);
   }
 

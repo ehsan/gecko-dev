@@ -22,7 +22,7 @@ StaticRefPtr<SpeakerManagerServiceChild> gSpeakerManagerServiceChild;
 
 // static
 SpeakerManagerService*
-SpeakerManagerServiceChild::GetOrCreateSpeakerManagerService()
+SpeakerManagerServiceChild::GetSpeakerManagerService()
 {
   MOZ_ASSERT(NS_IsMainThread());
 
@@ -33,18 +33,9 @@ SpeakerManagerServiceChild::GetOrCreateSpeakerManagerService()
 
   // Create new instance, register, return
   nsRefPtr<SpeakerManagerServiceChild> service = new SpeakerManagerServiceChild();
+  NS_ENSURE_TRUE(service, nullptr);
 
   gSpeakerManagerServiceChild = service;
-
-  return gSpeakerManagerServiceChild;
-}
-
-// static
-SpeakerManagerService*
-SpeakerManagerServiceChild::GetSpeakerManagerService()
-{
-  MOZ_ASSERT(NS_IsMainThread());
-
   return gSpeakerManagerServiceChild;
 }
 
@@ -96,7 +87,7 @@ SpeakerManagerServiceChild::SetAudioChannelActive(bool aIsActive)
 SpeakerManagerServiceChild::SpeakerManagerServiceChild()
 {
   MOZ_ASSERT(NS_IsMainThread());
-  AudioChannelService* audioChannelService = AudioChannelService::GetOrCreateAudioChannelService();
+  AudioChannelService* audioChannelService = AudioChannelService::GetAudioChannelService();
   if (audioChannelService) {
     audioChannelService->RegisterSpeakerManager(this);
   }
@@ -105,7 +96,7 @@ SpeakerManagerServiceChild::SpeakerManagerServiceChild()
 
 SpeakerManagerServiceChild::~SpeakerManagerServiceChild()
 {
-  AudioChannelService* audioChannelService = AudioChannelService::GetOrCreateAudioChannelService();
+  AudioChannelService* audioChannelService = AudioChannelService::GetAudioChannelService();
   if (audioChannelService) {
     audioChannelService->UnregisterSpeakerManager(this);
   }

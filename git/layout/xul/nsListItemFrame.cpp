@@ -5,14 +5,12 @@
 
 #include "nsListItemFrame.h"
 
-#include <algorithm>
-
 #include "nsCOMPtr.h"
 #include "nsNameSpaceManager.h"
 #include "nsGkAtoms.h"
 #include "nsDisplayList.h"
 #include "nsBoxLayout.h"
-#include "nsIContent.h"
+#include <algorithm>
 
 nsListItemFrame::nsListItemFrame(nsIPresShell* aPresShell,
                                  nsStyleContext* aContext,

@@ -14,7 +14,6 @@
 #include "nsIEditor.h"
 #include "nsIPersistentProperties2.h"
 #include "nsIPlaintextEditor.h"
-#include "nsFrameSelection.h"
 
 namespace mozilla {
 namespace a11y {
@@ -144,7 +143,7 @@ HyperTextAccessible::IsCaretAtEndOfLine() const
 {
   nsRefPtr<nsFrameSelection> frameSelection = FrameSelection();
   return frameSelection &&
-    frameSelection->GetHint() == CARET_ASSOCIATE_BEFORE;
+    frameSelection->GetHint() == nsFrameSelection::HINTLEFT;
 }
 
 inline already_AddRefed<nsFrameSelection>

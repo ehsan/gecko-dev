@@ -29,12 +29,6 @@ class nsPluginDOMContextMenuListener;
 class nsObjectFrame;
 class nsDisplayListBuilder;
 
-namespace mozilla {
-namespace dom {
-struct MozPluginParameter;
-}
-}
-
 #ifdef MOZ_X11
 class gfxXlibSurface;
 #ifdef MOZ_WIDGET_QT
@@ -44,10 +38,10 @@ class gfxXlibSurface;
 #endif
 #endif
 
-class nsPluginInstanceOwner MOZ_FINAL : public nsIPluginInstanceOwner,
-                                        public nsIDOMEventListener,
-                                        public nsIPrivacyTransitionObserver,
-                                        public nsSupportsWeakReference
+class nsPluginInstanceOwner : public nsIPluginInstanceOwner,
+                              public nsIDOMEventListener,
+                              public nsIPrivacyTransitionObserver,
+                              public nsSupportsWeakReference
 {
 public:
   nsPluginInstanceOwner();
@@ -78,8 +72,50 @@ public:
    */
   NS_IMETHOD GetTagType(nsPluginTagType *aResult);
 
-  void GetParameters(nsTArray<mozilla::dom::MozPluginParameter>& parameters);
-  void GetAttributes(nsTArray<mozilla::dom::MozPluginParameter>& attributes);
+  /**
+   * Get a ptr to the paired list of parameter names and values,
+   * returns the length of the array.
+   *
+   * Each name or value is a null-terminated string.
+   */
+  NS_IMETHOD GetParameters(uint16_t& aCount,
+                           const char*const*& aNames,
+                           const char*const*& aValues);
+
+  /**
+   * Get the value for the named parameter.  Returns null
+   * if the parameter was not set.
+   *
+   * @param aName   - name of the parameter
+   * @param aResult - parameter value
+   * @result        - NS_OK if this operation was successful
+   */
+  NS_IMETHOD GetParameter(const char* aName, const char* *aResult);
+
+  /**
+   * QueryInterface on nsIPluginInstancePeer to get this.
+   *
+   * (Corresponds to NPP_New's argc, argn, and argv arguments.)
+   * Get a ptr to the paired list of attribute names and values,
+   * returns the length of the array.
+   *
+   * Each name or value is a null-terminated string.
+   */
+  NS_IMETHOD GetAttributes(uint16_t& aCount,
+                           const char*const*& aNames,
+                           const char*const*& aValues);
+
+
+  /**
+   * Gets the value for the named attribute.
+   *
+   * @param aName   - the name of the attribute to find
+   * @param aResult - the resulting attribute
+   * @result - NS_OK if this operation was successful, NS_ERROR_FAILURE if
+   * this operation failed. result is set to NULL if the attribute is not found
+   * else to the found value.
+   */
+  NS_IMETHOD GetAttribute(const char* aName, const char* *aResult);
 
   /**
    * Returns the DOM element corresponding to the tag which references
@@ -264,7 +300,8 @@ private:
     return NS_SUCCEEDED(mInstance->GetImageSize(&size)) &&
     size == nsIntSize(mPluginWindow->width, mPluginWindow->height);
   }
-
+  
+  void FixUpURLS(const nsString &name, nsAString &value);
 #ifdef MOZ_WIDGET_ANDROID
   mozilla::LayoutDeviceRect GetPluginRect();
   bool AddPluginView(const mozilla::LayoutDeviceRect& aRect = mozilla::LayoutDeviceRect(0, 0, 0, 0));
@@ -310,6 +347,11 @@ private:
   bool                        mPluginWindowVisible;
   bool                        mPluginDocumentActiveState;
 
+  uint16_t          mNumCachedAttrs;
+  uint16_t          mNumCachedParams;
+  char              **mCachedAttrParamNames;
+  char              **mCachedAttrParamValues;
+  
 #ifdef XP_MACOSX
   NPEventModel mEventModel;
   // This is a hack! UseAsyncRendering() can incorrectly return false
@@ -328,7 +370,9 @@ private:
   nsresult DispatchFocusToPlugin(nsIDOMEvent* aFocusEvent);
 
   int mLastMouseDownButtonType;
-
+  
+  nsresult EnsureCachedAttrParamArrays();
+  
 #ifdef MOZ_X11
   class Renderer
 #if defined(MOZ_WIDGET_QT)

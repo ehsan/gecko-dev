@@ -25,7 +25,6 @@
 #include "builtin/SIMD.h"
 #include "builtin/SymbolObject.h"
 #include "builtin/TypedObject.h"
-#include "builtin/WeakSetObject.h"
 #include "vm/HelperThreads.h"
 #include "vm/PIC.h"
 #include "vm/RegExpStatics.h"
@@ -416,6 +415,25 @@ GlobalObject::getOrCreateDebuggers(JSContext *cx, Handle<GlobalObject*> global)
     obj->setPrivate(debuggers);
     global->setReservedSlot(DEBUGGERS, ObjectValue(*obj));
     return debuggers;
+}
+
+/* static */ bool
+GlobalObject::addDebugger(JSContext *cx, Handle<GlobalObject*> global, Debugger *dbg)
+{
+    DebuggerVector *debuggers = getOrCreateDebuggers(cx, global);
+    if (!debuggers)
+        return false;
+#ifdef DEBUG
+    for (Debugger **p = debuggers->begin(); p != debuggers->end(); p++)
+        JS_ASSERT(*p != dbg);
+#endif
+    if (debuggers->empty() && !global->compartment()->addDebuggee(cx, global))
+        return false;
+    if (!debuggers->append(dbg)) {
+        (void) global->compartment()->removeDebuggee(cx, global);
+        return false;
+    }
+    return true;
 }
 
 /* static */ JSObject *

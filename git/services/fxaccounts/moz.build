@@ -13,7 +13,6 @@ EXTRA_JS_MODULES += [
   'FxAccountsClient.jsm',
   'FxAccountsCommon.js',
   'FxAccountsOAuthClient.jsm',
-  'FxAccountsProfileClient.jsm',
 ]
 
 EXTRA_PP_JS_MODULES += [

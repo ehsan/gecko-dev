@@ -54,7 +54,9 @@ void
 AppendToString(std::stringstream& aStream, const mozilla::gfx::PointTyped<T>& p,
                const char* pfx="", const char* sfx="")
 {
-  aStream << pfx << p << sfx;
+  aStream << pfx;
+  aStream << nsPrintfCString("(x=%f, y=%f)", p.x, p.y).get();
+  aStream << sfx;
 }
 
 void
@@ -135,10 +137,6 @@ AppendToString(std::stringstream& aStream, const mozilla::gfx::IntSizeTyped<T>& 
 
 void
 AppendToString(std::stringstream& aStream, const mozilla::gfx::Matrix4x4& m,
-               const char* pfx="", const char* sfx="");
-
-void
-AppendToString(std::stringstream& aStream, const mozilla::gfx::Matrix5x4& m,
                const char* pfx="", const char* sfx="");
 
 void

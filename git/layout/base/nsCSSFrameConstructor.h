@@ -763,7 +763,7 @@ private:
 
     class Iterator {
     public:
-      explicit Iterator(FrameConstructionItemList& list) :
+      Iterator(FrameConstructionItemList& list) :
         mCurrent(PR_NEXT_LINK(&list.mItems)),
         mEnd(&list.mItems),
         mList(list)
@@ -1425,7 +1425,7 @@ private:
   //  Calls BeginBuildingScrollFrame, InitAndRestoreFrame, and then FinishBuildingScrollFrame.
   // @param aNewFrame the created scrollframe --- output only
   // @param aParentFrame the geometric parent that the scrollframe will have.
-  void
+  nsresult
   BuildScrollFrame(nsFrameConstructorState& aState,
                    nsIContent*              aContent,
                    nsStyleContext*          aContentStyle,

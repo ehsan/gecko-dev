@@ -9,8 +9,6 @@
 
 #include "mozilla/Attributes.h"
 
-#include "jsarray.h"
-
 #include "jit/Snapshots.h"
 
 struct JSContext;
@@ -47,9 +45,7 @@ namespace jit {
     _(Sqrt)                                     \
     _(Atan2)                                    \
     _(StringSplit)                              \
-    _(RegExpExec)                               \
     _(RegExpTest)                               \
-    _(RegExpReplace)                            \
     _(NewObject)                                \
     _(NewArray)                                 \
     _(NewDerivedTypedObject)                    \
@@ -465,18 +461,6 @@ class RStringSplit MOZ_FINAL : public RInstruction
     bool recover(JSContext *cx, SnapshotIterator &iter) const;
 };
 
-class RRegExpExec MOZ_FINAL : public RInstruction
-{
-  public:
-    RINSTRUCTION_HEADER_(RegExpExec)
-
-    virtual uint32_t numOperands() const {
-        return 2;
-    }
-
-    bool recover(JSContext *cx, SnapshotIterator &iter) const;
-};
-
 class RRegExpTest MOZ_FINAL : public RInstruction
 {
   public:
@@ -484,18 +468,6 @@ class RRegExpTest MOZ_FINAL : public RInstruction
 
     virtual uint32_t numOperands() const {
         return 2;
-    }
-
-    bool recover(JSContext *cx, SnapshotIterator &iter) const;
-};
-
-class RRegExpReplace MOZ_FINAL : public RInstruction
-{
-  public:
-    RINSTRUCTION_HEADER_(RegExpReplace)
-
-    virtual uint32_t numOperands() const {
-        return 3;
     }
 
     bool recover(JSContext *cx, SnapshotIterator &iter) const;
@@ -520,7 +492,7 @@ class RNewArray MOZ_FINAL : public RInstruction
 {
   private:
     uint32_t count_;
-    AllocatingBehaviour allocatingBehaviour_;
+    bool isAllocating_;
 
   public:
     RINSTRUCTION_HEADER_(NewArray)

@@ -35,7 +35,7 @@ class AutoJSAPI;
 // Script loader implementation
 //////////////////////////////////////////////////////////////
 
-class nsScriptLoader MOZ_FINAL : public nsIStreamLoaderObserver
+class nsScriptLoader : public nsIStreamLoaderObserver
 {
   class MOZ_STACK_CLASS AutoCurrentScriptUpdater
   {
@@ -60,7 +60,7 @@ class nsScriptLoader MOZ_FINAL : public nsIStreamLoaderObserver
   friend class AutoCurrentScriptUpdater;
 
 public:
-  explicit nsScriptLoader(nsIDocument* aDocument);
+  nsScriptLoader(nsIDocument* aDocument);
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSISTREAMLOADEROBSERVER
@@ -170,17 +170,17 @@ public:
    *                     attribute). May be the empty string.
    * @param aDocument    Document which the data is loaded for. Must not be
    *                     null.
-   * @param aBufOut      [out] char16_t array allocated by ConvertToUTF16 and
+   * @param aBufOut      [out] jschar array allocated by ConvertToUTF16 and
    *                     containing data converted to unicode.  Caller must
    *                     js_free() this data when no longer needed.
    * @param aLengthOut   [out] Length of array returned in aBufOut in number
-   *                     of char16_t code units.
+   *                     of jschars.
    */
   static nsresult ConvertToUTF16(nsIChannel* aChannel, const uint8_t* aData,
                                  uint32_t aLength,
                                  const nsAString& aHintCharset,
                                  nsIDocument* aDocument,
-                                 char16_t*& aBufOut, size_t& aLengthOut);
+                                 jschar*& aBufOut, size_t& aLengthOut);
 
   /**
    * Processes any pending requests that are ready for processing.
@@ -372,7 +372,7 @@ private:
 class nsAutoScriptLoaderDisabler
 {
 public:
-  explicit nsAutoScriptLoaderDisabler(nsIDocument* aDoc)
+  nsAutoScriptLoaderDisabler(nsIDocument* aDoc)
   {
     mLoader = aDoc->ScriptLoader();
     mWasEnabled = mLoader->GetEnabled();

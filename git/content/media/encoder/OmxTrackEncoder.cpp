@@ -143,7 +143,8 @@ OmxVideoTrackEncoder::GetEncodedTrack(EncodedFrameContainer& aData)
       videoData->SetFrameType((outFlags & OMXCodecWrapper::BUFFER_SYNC_FRAME) ?
                               EncodedFrame::AVC_I_FRAME : EncodedFrame::AVC_P_FRAME);
     }
-    videoData->SwapInFrameData(buffer);
+    rv = videoData->SwapInFrameData(buffer);
+    NS_ENSURE_SUCCESS(rv, rv);
     videoData->SetTimeStamp(outTimeStampUs);
     aData.AppendEncodedFrame(videoData);
   }
@@ -186,7 +187,8 @@ OmxAudioTrackEncoder::AppendEncodedFrames(EncodedFrameContainer& aContainer)
       MOZ_ASSERT(false, "audio codec not supported");
     }
     audiodata->SetTimeStamp(outTimeUs);
-    audiodata->SwapInFrameData(frameData);
+    rv = audiodata->SwapInFrameData(frameData);
+    NS_ENSURE_SUCCESS(rv, rv);
     aContainer.AppendEncodedFrame(audiodata);
   }
 

@@ -75,7 +75,7 @@ public:
   }
 
 protected:
-  explicit nsMathMLmoFrame(nsStyleContext* aContext) : nsMathMLTokenFrame(aContext) {}
+  nsMathMLmoFrame(nsStyleContext* aContext) : nsMathMLTokenFrame(aContext) {}
   virtual ~nsMathMLmoFrame();
   
   nsMathMLChar     mMathMLChar; // Here is the MathMLChar that will deal with the operator.

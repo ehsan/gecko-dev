@@ -23,6 +23,7 @@
 
 #ifdef MOZ_WIDGET_GONK
 #include "nsJSUtils.h"
+#include "nsCxPusher.h"
 #include "nsIAudioManager.h"
 #include "SpeakerManagerService.h"
 #define NS_AUDIOMANAGER_CONTRACTID "@mozilla.org/telephony/audiomanager;1"
@@ -58,20 +59,6 @@ AudioChannelService::GetAudioChannelService()
     return AudioChannelServiceChild::GetAudioChannelService();
   }
 
-  return gAudioChannelService;
-
-}
-
-// static
-AudioChannelService*
-AudioChannelService::GetOrCreateAudioChannelService()
-{
-  MOZ_ASSERT(NS_IsMainThread());
-
-  if (XRE_GetProcessType() != GeckoProcessType_Default) {
-    return AudioChannelServiceChild::GetOrCreateAudioChannelService();
-  }
-
   // If we already exist, exit early
   if (gAudioChannelService) {
     return gAudioChannelService;
@@ -79,7 +66,7 @@ AudioChannelService::GetOrCreateAudioChannelService()
 
   // Create new instance, register, return
   nsRefPtr<AudioChannelService> service = new AudioChannelService();
-  MOZ_ASSERT(service);
+  NS_ENSURE_TRUE(service, nullptr);
 
   gAudioChannelService = service;
   return gAudioChannelService;
@@ -661,7 +648,7 @@ AudioChannelService::NotifyEnumerator(AudioChannelAgent* aAgent,
 class NotifyRunnable : public nsRunnable
 {
 public:
-  explicit NotifyRunnable(AudioChannelService* aService)
+  NotifyRunnable(AudioChannelService* aService)
     : mService(aService)
   {}
 
@@ -905,7 +892,7 @@ AudioChannelService::GetInternalType(AudioChannel aChannel,
 
 struct RefreshAgentsVolumeData
 {
-  explicit RefreshAgentsVolumeData(nsPIDOMWindow* aWindow)
+  RefreshAgentsVolumeData(nsPIDOMWindow* aWindow)
     : mWindow(aWindow)
   {}
 
@@ -946,7 +933,7 @@ AudioChannelService::RefreshAgentsVolume(nsPIDOMWindow* aWindow)
 
 struct CountWindowData
 {
-  explicit CountWindowData(nsIDOMWindow* aWindow)
+  CountWindowData(nsIDOMWindow* aWindow)
     : mWindow(aWindow)
     , mCount(0)
   {}

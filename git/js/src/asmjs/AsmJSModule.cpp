@@ -107,7 +107,7 @@ AsmJSModule::AsmJSModule(ScriptSource *scriptSource, uint32_t srcStart, uint32_t
     mozilla::PodZero(&pod);
     pod.funcPtrTableAndExitBytes_ = SIZE_MAX;
     pod.functionBytes_ = UINT32_MAX;
-    pod.minHeapLength_ = RoundUpToNextValidAsmJSHeapLength(0);
+    pod.minHeapLength_ = AsmJSAllocationGranularity;
     pod.strict_ = strict;
     pod.usesSignalHandlers_ = canUseSignalHandlers;
 
@@ -121,11 +121,18 @@ AsmJSModule::~AsmJSModule()
     if (code_) {
         for (unsigned i = 0; i < numExits(); i++) {
             AsmJSModule::ExitDatum &exitDatum = exitIndexToGlobalDatum(i);
-            if (!exitDatum.ionScript)
+            if (!exitDatum.fun)
+                continue;
+
+            if (!exitDatum.fun->hasScript())
+                continue;
+
+            JSScript *script = exitDatum.fun->nonLazyScript();
+            if (!script->hasIonScript())
                 continue;
 
             jit::DependentAsmJSModuleExit exit(this, i);
-            exitDatum.ionScript->removeDependentAsmJSModule(exit);
+            script->ionScript()->removeDependentAsmJSModule(exit);
         }
 
         DeallocateExecutableMemory(code_, pod.totalBytes_);
@@ -296,8 +303,8 @@ AsmJSModule::finish(ExclusiveContext *cx, TokenStream &tokenStream, MacroAssembl
 
     // The global data section sits immediately after the executable (and
     // other) data allocated by the MacroAssembler, so ensure it is
-    // SIMD-aligned.
-    pod.codeBytes_ = AlignBytes(masm.bytesNeeded(), SimdStackAlignment);
+    // double-aligned.
+    pod.codeBytes_ = AlignBytes(masm.bytesNeeded(), sizeof(double));
 
     // The entire region is allocated via mmap/VirtualAlloc which requires
     // units of pages.
@@ -511,11 +518,11 @@ TryEnablingIon(JSContext *cx, AsmJSModule &module, HandleFunction fun, uint32_t 
     if (fun->nargs() > size_t(argc))
         return true;
 
-    // Normally the types should correspond, since we just ran with those types,
+    // Normally the types should corresond, since we just ran with those types,
     // but there are reports this is asserting. Therefore doing it as a check, instead of DEBUG only.
     if (!types::TypeScript::ThisTypes(script)->hasType(types::Type::UndefinedType()))
         return true;
-    for (uint32_t i = 0; i < fun->nargs(); i++) {
+    for(uint32_t i = 0; i < fun->nargs(); i++) {
         types::StackTypeSet *typeset = types::TypeScript::ArgTypes(script, i);
         types::Type type = types::Type::DoubleType();
         if (!argv[i].isDouble())
@@ -529,9 +536,7 @@ TryEnablingIon(JSContext *cx, AsmJSModule &module, HandleFunction fun, uint32_t 
     if (!ionScript->addDependentAsmJSModule(cx, DependentAsmJSModuleExit(&module, exitIndex)))
         return false;
 
-    AsmJSModule::ExitDatum &exitDatum = module.exitIndexToGlobalDatum(exitIndex);
-    exitDatum.exit = module.ionExitTrampoline(module.exit(exitIndex));
-    exitDatum.ionScript = ionScript;
+    module.exitIndexToGlobalDatum(exitIndex).exit = module.ionExitTrampoline(module.exit(exitIndex));
     return true;
 }
 
@@ -732,10 +737,8 @@ AsmJSModule::staticallyLink(ExclusiveContext *cx)
     // Initialize global data segment
 
     for (size_t i = 0; i < exits_.length(); i++) {
-        AsmJSModule::ExitDatum &exitDatum = exitIndexToGlobalDatum(i);
-        exitDatum.exit = interpExitTrampoline(exits_[i]);
-        exitDatum.fun = nullptr;
-        exitDatum.ionScript = nullptr;
+        exitIndexToGlobalDatum(i).exit = interpExitTrampoline(exits_[i]);
+        exitIndexToGlobalDatum(i).fun = nullptr;
     }
 
     JS_ASSERT(isStaticallyLinked());
@@ -757,11 +760,11 @@ AsmJSModule::initHeap(Handle<ArrayBufferObject*> heap, JSContext *cx)
     for (unsigned i = 0; i < heapAccesses_.length(); i++) {
         const jit::AsmJSHeapAccess &access = heapAccesses_[i];
         if (access.hasLengthCheck())
-            X86Assembler::setPointer(access.patchLengthAt(code_), heapLength);
+            JSC::X86Assembler::setPointer(access.patchLengthAt(code_), heapLength);
         void *addr = access.patchOffsetAt(code_);
-        uint32_t disp = reinterpret_cast<uint32_t>(X86Assembler::getPointer(addr));
+        uint32_t disp = reinterpret_cast<uint32_t>(JSC::X86Assembler::getPointer(addr));
         JS_ASSERT(disp <= INT32_MAX);
-        X86Assembler::setPointer(addr, (void *)(heapOffset + disp));
+        JSC::X86Assembler::setPointer(addr, (void *)(heapOffset + disp));
     }
 #elif defined(JS_CODEGEN_X64)
     int32_t heapLength = int32_t(intptr_t(heap->byteLength()));
@@ -774,7 +777,7 @@ AsmJSModule::initHeap(Handle<ArrayBufferObject*> heap, JSContext *cx)
     for (size_t i = 0; i < heapAccesses_.length(); i++) {
         const jit::AsmJSHeapAccess &access = heapAccesses_[i];
         if (access.hasLengthCheck())
-            X86Assembler::setInt32(access.patchLengthAt(code_), heapLength);
+            JSC::X86Assembler::setInt32(access.patchLengthAt(code_), heapLength);
     }
 #elif defined(JS_CODEGEN_ARM) || defined(JS_CODEGEN_MIPS)
     uint32_t heapLength = heap->byteLength();
@@ -822,9 +825,9 @@ AsmJSModule::restoreToInitialState(uint8_t *prevCode, ArrayBufferObject *maybePr
         for (unsigned i = 0; i < heapAccesses_.length(); i++) {
             const jit::AsmJSHeapAccess &access = heapAccesses_[i];
             void *addr = access.patchOffsetAt(code_);
-            uint8_t *ptr = reinterpret_cast<uint8_t*>(X86Assembler::getPointer(addr));
+            uint8_t *ptr = reinterpret_cast<uint8_t*>(JSC::X86Assembler::getPointer(addr));
             JS_ASSERT(ptr >= ptrBase);
-            X86Assembler::setPointer(addr, (void *)(ptr - ptrBase));
+            JSC::X86Assembler::setPointer(addr, (void *)(ptr - ptrBase));
         }
 #endif
     }
@@ -913,7 +916,7 @@ SerializedNameSize(PropertyName *name)
 {
     size_t s = sizeof(uint32_t);
     if (name)
-        s += name->length() * (name->hasLatin1Chars() ? sizeof(Latin1Char) : sizeof(char16_t));
+        s += name->length() * (name->hasLatin1Chars() ? sizeof(Latin1Char) : sizeof(jschar));
     return s;
 }
 
@@ -936,7 +939,7 @@ SerializeName(uint8_t *cursor, PropertyName *name)
         if (name->hasLatin1Chars())
             cursor = WriteBytes(cursor, name->latin1Chars(nogc), length * sizeof(Latin1Char));
         else
-            cursor = WriteBytes(cursor, name->twoByteChars(nogc), length * sizeof(char16_t));
+            cursor = WriteBytes(cursor, name->twoByteChars(nogc), length * sizeof(jschar));
     } else {
         cursor = WriteScalar<uint32_t>(cursor, 0);
     }
@@ -988,7 +991,7 @@ DeserializeName(ExclusiveContext *cx, const uint8_t *cursor, PropertyName **name
     bool latin1 = lengthAndEncoding & 0x1;
     return latin1
            ? DeserializeChars<Latin1Char>(cx, cursor, length, name)
-           : DeserializeChars<char16_t>(cx, cursor, length, name);
+           : DeserializeChars<jschar>(cx, cursor, length, name);
 }
 
 const uint8_t *
@@ -1598,7 +1601,7 @@ AsmJSModule::setProfilingEnabled(bool enabled, JSContext *cx)
 
         uint8_t *callerRetAddr = code_ + cs.returnAddressOffset();
 #if defined(JS_CODEGEN_X86) || defined(JS_CODEGEN_X64)
-        void *callee = X86Assembler::getRel32Target(callerRetAddr);
+        void *callee = JSC::X86Assembler::getRel32Target(callerRetAddr);
 #elif defined(JS_CODEGEN_ARM)
         uint8_t *caller = callerRetAddr - 4;
         Instruction *callerInsn = reinterpret_cast<Instruction*>(caller);
@@ -1626,7 +1629,7 @@ AsmJSModule::setProfilingEnabled(bool enabled, JSContext *cx)
         uint8_t *newCallee = enabled ? profilingEntry : entry;
 
 #if defined(JS_CODEGEN_X86) || defined(JS_CODEGEN_X64)
-        X86Assembler::setRel32(callerRetAddr, newCallee);
+        JSC::X86Assembler::setRel32(callerRetAddr, newCallee);
 #elif defined(JS_CODEGEN_ARM)
         new (caller) InstBLImm(BOffImm(newCallee - caller), Assembler::Always);
 #elif defined(JS_CODEGEN_MIPS)
@@ -1800,19 +1803,19 @@ GetCPUID(uint32_t *cpuId)
     };
 
 #if defined(JS_CODEGEN_X86)
-    MOZ_ASSERT(uint32_t(CPUInfo::GetSSEVersion()) <= (UINT32_MAX >> ARCH_BITS));
-    *cpuId = X86 | (uint32_t(CPUInfo::GetSSEVersion()) << ARCH_BITS);
+    JS_ASSERT(uint32_t(JSC::MacroAssembler::getSSEState()) <= (UINT32_MAX >> ARCH_BITS));
+    *cpuId = X86 | (JSC::MacroAssembler::getSSEState() << ARCH_BITS);
     return true;
 #elif defined(JS_CODEGEN_X64)
-    MOZ_ASSERT(uint32_t(CPUInfo::GetSSEVersion()) <= (UINT32_MAX >> ARCH_BITS));
-    *cpuId = X64 | (uint32_t(CPUInfo::GetSSEVersion()) << ARCH_BITS);
+    JS_ASSERT(uint32_t(JSC::MacroAssembler::getSSEState()) <= (UINT32_MAX >> ARCH_BITS));
+    *cpuId = X64 | (JSC::MacroAssembler::getSSEState() << ARCH_BITS);
     return true;
 #elif defined(JS_CODEGEN_ARM)
-    MOZ_ASSERT(GetARMFlags() <= (UINT32_MAX >> ARCH_BITS));
+    JS_ASSERT(GetARMFlags() <= (UINT32_MAX >> ARCH_BITS));
     *cpuId = ARM | (GetARMFlags() << ARCH_BITS);
     return true;
 #elif defined(JS_CODEGEN_MIPS)
-    MOZ_ASSERT(GetMIPSFlags() <= (UINT32_MAX >> ARCH_BITS));
+    JS_ASSERT(GetMIPSFlags() <= (UINT32_MAX >> ARCH_BITS));
     *cpuId = MIPS | (GetMIPSFlags() << ARCH_BITS);
     return true;
 #else
@@ -1910,7 +1913,7 @@ class ModuleCharsForStore : ModuleChars
     bool init(AsmJSParser &parser) {
         JS_ASSERT(beginOffset(parser) < endOffset(parser));
 
-        uncompressedSize_ = (endOffset(parser) - beginOffset(parser)) * sizeof(char16_t);
+        uncompressedSize_ = (endOffset(parser) - beginOffset(parser)) * sizeof(jschar);
         size_t maxCompressedSize = LZ4::maxCompressedSize(uncompressedSize_);
         if (maxCompressedSize < uncompressedSize_)
             return false;
@@ -1918,7 +1921,7 @@ class ModuleCharsForStore : ModuleChars
         if (!compressedBuffer_.resize(maxCompressedSize))
             return false;
 
-        const char16_t *chars = parser.tokenStream.rawBase() + beginOffset(parser);
+        const jschar *chars = parser.tokenStream.rawBase() + beginOffset(parser);
         const char *source = reinterpret_cast<const char*>(chars);
         size_t compressedSize = LZ4::compress(source, uncompressedSize_, compressedBuffer_.begin());
         if (!compressedSize || compressedSize > UINT32_MAX)
@@ -1972,7 +1975,7 @@ class ModuleCharsForStore : ModuleChars
 
 class ModuleCharsForLookup : ModuleChars
 {
-    Vector<char16_t, 0, SystemAllocPolicy> chars_;
+    Vector<jschar, 0, SystemAllocPolicy> chars_;
 
   public:
     const uint8_t *deserialize(ExclusiveContext *cx, const uint8_t *cursor) {
@@ -1982,7 +1985,7 @@ class ModuleCharsForLookup : ModuleChars
         uint32_t compressedSize;
         cursor = ReadScalar<uint32_t>(cursor, &compressedSize);
 
-        if (!chars_.resize(uncompressedSize / sizeof(char16_t)))
+        if (!chars_.resize(uncompressedSize / sizeof(jschar)))
             return nullptr;
 
         const char *source = reinterpret_cast<const char*>(cursor);
@@ -2000,8 +2003,8 @@ class ModuleCharsForLookup : ModuleChars
     }
 
     bool match(AsmJSParser &parser) const {
-        const char16_t *parseBegin = parser.tokenStream.rawBase() + beginOffset(parser);
-        const char16_t *parseLimit = parser.tokenStream.rawLimit();
+        const jschar *parseBegin = parser.tokenStream.rawBase() + beginOffset(parser);
+        const jschar *parseLimit = parser.tokenStream.rawLimit();
         JS_ASSERT(parseLimit >= parseBegin);
         if (uint32_t(parseLimit - parseBegin) < chars_.length())
             return false;
@@ -2077,8 +2080,8 @@ js::StoreAsmJSModuleInCache(AsmJSParser &parser,
     if (!open)
         return false;
 
-    const char16_t *begin = parser.tokenStream.rawBase() + ModuleChars::beginOffset(parser);
-    const char16_t *end = parser.tokenStream.rawBase() + ModuleChars::endOffset(parser);
+    const jschar *begin = parser.tokenStream.rawBase() + ModuleChars::beginOffset(parser);
+    const jschar *end = parser.tokenStream.rawBase() + ModuleChars::endOffset(parser);
     bool installed = parser.options().installedFile;
 
     ScopedCacheEntryOpenedForWrite entry(cx, serializedSize);
@@ -2129,8 +2132,8 @@ js::LookupAsmJSModuleInCache(ExclusiveContext *cx,
     if (!open)
         return true;
 
-    const char16_t *begin = parser.tokenStream.rawBase() + ModuleChars::beginOffset(parser);
-    const char16_t *limit = parser.tokenStream.rawLimit();
+    const jschar *begin = parser.tokenStream.rawBase() + ModuleChars::beginOffset(parser);
+    const jschar *limit = parser.tokenStream.rawLimit();
 
     ScopedCacheEntryOpenedForRead entry(cx);
     if (!open(cx->global(), begin, limit, &entry.serializedSize, &entry.memory, &entry.handle))

@@ -24,7 +24,7 @@ class RasterImage;
 class nsPNGDecoder : public Decoder
 {
 public:
-  explicit nsPNGDecoder(RasterImage &aImage);
+  nsPNGDecoder(RasterImage &aImage);
   virtual ~nsPNGDecoder();
 
   virtual void InitInternal();

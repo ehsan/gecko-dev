@@ -139,11 +139,11 @@ public:
   virtual void ResetConnectionState() = 0;
 
 #ifdef MOZ_EME
-  // Dispatches a "encrypted" event to the HTMLMediaElement, with the
+  // Dispatches a "needkey" event to the HTMLMediaElement, with the
   // provided init data.
   // Main thread only.
-  virtual void DispatchEncrypted(const nsTArray<uint8_t>& aInitData,
-                                 const nsAString& aInitDataType) = 0;
+  virtual void DispatchNeedKey(const nsTArray<uint8_t>& aInitData,
+                               const nsAString& aInitDataType) = 0;
 #endif
 };
 

@@ -35,7 +35,7 @@ class WebGLTexture MOZ_FINAL
     , public WebGLFramebufferAttachable
 {
 public:
-    explicit WebGLTexture(WebGLContext* aContext);
+    WebGLTexture(WebGLContext *context);
 
     void Delete();
 

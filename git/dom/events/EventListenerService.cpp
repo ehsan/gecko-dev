@@ -10,6 +10,7 @@
 #include "mozilla/JSEventHandler.h"
 #include "mozilla/Maybe.h"
 #include "nsCOMArray.h"
+#include "nsCxPusher.h"
 #include "nsDOMClassInfoID.h"
 #include "nsIXPConnect.h"
 #include "nsJSUtils.h"
@@ -89,7 +90,7 @@ EventListenerInfo::GetJSVal(JSContext* aCx,
     if (!object) {
       return false;
     }
-    aAc.emplace(aCx, object);
+    aAc.construct(aCx, object);
     aJSVal.setObject(*object);
     return true;
   }
@@ -99,7 +100,7 @@ EventListenerInfo::GetJSVal(JSContext* aCx,
     JS::Handle<JSObject*> handler =
       jsHandler->GetTypedEventHandler().Ptr()->Callable();
     if (handler) {
-      aAc.emplace(aCx, handler);
+      aAc.construct(aCx, handler);
       aJSVal.setObject(*handler);
       return true;
     }

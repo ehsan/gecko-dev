@@ -33,7 +33,7 @@ struct ElementPropertyTransition : public dom::Animation
 {
   ElementPropertyTransition(nsIDocument* aDocument,
                             const AnimationTiming &aTiming)
-    : dom::Animation(aDocument, aTiming, EmptyString()) { }
+    : dom::Animation(aDocument, aTiming) { }
 
   virtual ElementPropertyTransition* AsTransition() { return this; }
   virtual const ElementPropertyTransition* AsTransition() const { return this; }
@@ -67,7 +67,7 @@ class nsTransitionManager MOZ_FINAL
   : public mozilla::css::CommonAnimationManager
 {
 public:
-  explicit nsTransitionManager(nsPresContext *aPresContext)
+  nsTransitionManager(nsPresContext *aPresContext)
     : mozilla::css::CommonAnimationManager(aPresContext)
     , mInAnimationOnlyStyleUpdate(false)
   {

@@ -26,8 +26,8 @@ public:
    *                       into account when painting an SVG glyph
    */
   virtual void Paint(nsRenderingContext *aContext, nsIFrame *aTarget,
-                     const gfxMatrix& aTransform,
-                     const nsIntRect *aDirtyRect) = 0;
+                     const nsIntRect *aDirtyRect,
+                     nsIFrame* aTransformRoot) = 0;
 };
 
 #endif

@@ -81,7 +81,7 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIDOMEVENTLISTENER
 
-  explicit StartRecordingHelper(nsDOMCameraControl* aDOMCameraControl)
+  StartRecordingHelper(nsDOMCameraControl* aDOMCameraControl)
     : mDOMCameraControl(aDOMCameraControl)
   {
     MOZ_COUNT_CTOR(StartRecordingHelper);
@@ -398,27 +398,11 @@ nsDOMCameraControl::SetIsoMode(const nsAString& aIsoMode, ErrorResult& aRv)
 }
 
 double
-nsDOMCameraControl::GetPictureQuality(ErrorResult& aRv)
-{
-  MOZ_ASSERT(mCameraControl);
-
-  double quality;
-  aRv = mCameraControl->Get(CAMERA_PARAM_PICTURE_QUALITY, quality);
-  return quality;
-}
-void
-nsDOMCameraControl::SetPictureQuality(double aQuality, ErrorResult& aRv)
-{
-  MOZ_ASSERT(mCameraControl);
-  aRv = mCameraControl->Set(CAMERA_PARAM_PICTURE_QUALITY, aQuality);
-}
-
-double
 nsDOMCameraControl::GetZoom(ErrorResult& aRv)
 {
   MOZ_ASSERT(mCameraControl);
 
-  double zoom = 1.0;
+  double zoom;
   aRv = mCameraControl->Get(CAMERA_PARAM_ZOOM, zoom);
   return zoom;
 }

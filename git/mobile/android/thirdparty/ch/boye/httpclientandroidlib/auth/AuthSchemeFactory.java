@@ -33,10 +33,7 @@ import ch.boye.httpclientandroidlib.params.HttpParams;
  * Factory for {@link AuthScheme} implementations.
  *
  * @since 4.0
- *
- * @deprecated (4.3) use {@link AuthSchemeProvider}
  */
-@Deprecated
 public interface AuthSchemeFactory {
 
     /**

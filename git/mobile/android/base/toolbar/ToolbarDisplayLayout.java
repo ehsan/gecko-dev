@@ -97,7 +97,7 @@ public class ToolbarDisplayLayout extends ThemedLinearLayout
 
     private ThemedTextView mTitle;
     private int mTitlePadding;
-    private ToolbarPrefs mPrefs;
+    private ToolbarTitlePrefs mTitlePrefs;
     private OnTitleChangeListener mTitleChangeListener;
 
     private ImageButton mSiteSecurity;
@@ -164,6 +164,7 @@ public class ToolbarDisplayLayout extends ThemedLinearLayout
     @Override
     public void onAttachedToWindow() {
         mIsAttached = true;
+        mTitlePrefs = new ToolbarTitlePrefs();
 
         Button.OnClickListener faviconListener = new Button.OnClickListener() {
             @Override
@@ -217,6 +218,7 @@ public class ToolbarDisplayLayout extends ThemedLinearLayout
     @Override
     public void onDetachedFromWindow() {
         mIsAttached = false;
+        mTitlePrefs.close();
     }
 
     @Override
@@ -253,10 +255,6 @@ public class ToolbarDisplayLayout extends ThemedLinearLayout
         mStop.setNextFocusDownId(nextId);
         mSiteSecurity.setNextFocusDownId(nextId);
         mPageActionLayout.setNextFocusDownId(nextId);
-    }
-
-    void setToolbarPrefs(final ToolbarPrefs prefs) {
-        mPrefs = prefs;
     }
 
     void updateFromTab(Tab tab, EnumSet<UpdateFlags> flags) {
@@ -323,13 +321,13 @@ public class ToolbarDisplayLayout extends ThemedLinearLayout
         }
 
         // If the pref to show the URL isn't set, just use the tab's display title.
-        if (!mPrefs.shouldShowUrl() || url == null) {
+        if (!mTitlePrefs.shouldShowUrl() || url == null) {
             setTitle(tab.getDisplayTitle());
             return;
         }
 
         CharSequence title = url;
-        if (mPrefs.shouldTrimUrls()) {
+        if (mTitlePrefs.shouldTrimUrls()) {
             title = StringUtils.stripCommonSubdomains(StringUtils.stripScheme(url));
         }
 

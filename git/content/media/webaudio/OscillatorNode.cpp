@@ -30,7 +30,7 @@ class DCBlocker
 {
 public:
   // These are sane defauts when the initial mPhase is zero
-  explicit DCBlocker(float aLastInput = 0.0f,
+  DCBlocker(float aLastInput = 0.0f,
             float aLastOutput = 0.0f,
             float aPole = 0.995)
     :mLastInput(aLastInput),

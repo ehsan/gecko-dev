@@ -33,24 +33,13 @@ let gSearch = {
     if (event) {
       event.preventDefault();
     }
-    let searchText = this._nodes.text;
-    let searchStr = searchText.value;
+    let searchStr = this._nodes.text.value;
     if (this.currentEngineName && searchStr.length) {
-
-      let eventData = {
+      this._send("Search", {
         engineName: this.currentEngineName,
         searchString: searchStr,
         whence: "newtab",
-      }
-
-      if (searchText.hasAttribute("selection-index")) {
-        eventData.selection = {
-          index: searchText.getAttribute("selection-index"),
-          kind: searchText.getAttribute("selection-kind")
-        };
-      }
-
-      this._send("Search", eventData);
+      });
     }
     this._suggestionController.addInputValueToFormHistory();
   },
@@ -85,10 +74,6 @@ let gSearch = {
       this._nodes.panel.hidePopup();
       this._setCurrentEngine(engineName);
     }
-  },
-
-  onFocusInput: function () {
-    this._nodes.text.focus();
   },
 
   _nodeIDSuffixes: [

@@ -87,11 +87,10 @@ void
 js::TraceCycleDetectionSet(JSTracer *trc, js::ObjectSet &set)
 {
     for (js::ObjectSet::Enum e(set); !e.empty(); e.popFront()) {
-        JSObject *key = e.front();
-        trc->setTracingLocation((void *)&e.front());
-        MarkObjectRoot(trc, &key, "cycle detector table entry");
-        if (key != e.front())
-            e.rekeyFront(key);
+        JSObject *prior = e.front();
+        MarkObjectRoot(trc, const_cast<JSObject **>(&e.front()), "cycle detector table entry");
+        if (prior != e.front())
+            e.rekeyFront(e.front());
     }
 }
 
@@ -101,13 +100,9 @@ JSCompartment::sweepCallsiteClones()
     if (callsiteClones.initialized()) {
         for (CallsiteCloneTable::Enum e(callsiteClones); !e.empty(); e.popFront()) {
             CallsiteCloneKey key = e.front().key();
-            if (IsObjectAboutToBeFinalized(&key.original) || IsScriptAboutToBeFinalized(&key.script) ||
-                IsObjectAboutToBeFinalized(e.front().value().unsafeGet()))
-            {
+            JSFunction *fun = e.front().value();
+            if (!IsScriptMarked(&key.script) || !IsObjectMarked(&fun))
                 e.removeFront();
-            } else if (key != e.front().key()) {
-                e.rekeyFront(key);
-            }
         }
     }
 }
@@ -141,10 +136,6 @@ js::CloneFunctionAtCallsite(JSContext *cx, HandleFunction fun, HandleScript scri
 {
     if (JSFunction *clone = ExistingCloneFunctionAtCallsite(cx->compartment()->callsiteClones, fun, script, pc))
         return clone;
-
-    MOZ_ASSERT(fun->isSelfHostedBuiltin(),
-               "only self-hosted builtin functions may be cloned at call sites, and "
-               "Function.prototype.caller relies on this");
 
     RootedObject parent(cx, fun->environment());
     JSFunction *clone = CloneFunctionObject(cx, fun, parent);
@@ -260,14 +251,14 @@ js::DestroyContext(JSContext *cx, DestroyContextMode mode)
     if (mode == DCM_FORCE_GC) {
         JS_ASSERT(!rt->isHeapBusy());
         JS::PrepareForFullGC(rt);
-        rt->gc.gc(GC_NORMAL, JS::gcreason::DESTROY_CONTEXT);
+        GC(rt, GC_NORMAL, JS::gcreason::DESTROY_CONTEXT);
     }
     js_delete_poison(cx);
 }
 
 void
 ContextFriendFields::checkNoGCRooters() {
-#ifdef DEBUG
+#if defined(JSGC_USE_EXACT_ROOTING) && defined(DEBUG)
     for (int i = 0; i < THING_ROOT_LIMIT; ++i)
         JS_ASSERT(thingGCRooters[i] == nullptr);
 #endif
@@ -387,7 +378,7 @@ js_ReportOutOfMemory(ThreadSafeContext *cxArg)
     PopulateReportBlame(cx, &report);
 
     /* Report the error. */
-    if (JSErrorReporter onError = cx->runtime()->errorReporter) {
+    if (JSErrorReporter onError = cx->errorReporter) {
         AutoSuppressGC suppressGC(cx);
         onError(cx, msg, &report);
     }
@@ -490,7 +481,7 @@ bool
 js_ReportErrorVA(JSContext *cx, unsigned flags, const char *format, va_list ap)
 {
     char *message;
-    char16_t *ucmessage;
+    jschar *ucmessage;
     size_t messagelen;
     JSErrorReport report;
     bool warning;
@@ -537,6 +528,8 @@ js::ReportUsageError(JSContext *cx, HandleObject callee, const char *msg)
         JS_ReportError(cx, "%s", msg);
     } else {
         JSString *str = usage.toString();
+        JS::Anchor<JSString *> a_str(str);
+
         if (!str->ensureFlat(cx))
             return;
         AutoStableStringChars chars(cx);
@@ -668,7 +661,7 @@ js_ExpandErrorArguments(ExclusiveContext *cx, JSErrorCallback callback,
             if (messageArgsPassed) {
                 JS_ASSERT(!reportp->messageArgs[argCount]);
             } else {
-                reportp->messageArgs = cx->pod_malloc<const char16_t*>(argCount + 1);
+                reportp->messageArgs = cx->pod_malloc<const jschar*>(argCount + 1);
                 if (!reportp->messageArgs)
                     return false;
                 /* nullptr-terminate for easy copying. */
@@ -684,7 +677,7 @@ js_ExpandErrorArguments(ExclusiveContext *cx, JSErrorCallback callback,
                     if (!reportp->messageArgs[i])
                         goto error;
                 } else {
-                    reportp->messageArgs[i] = va_arg(ap, char16_t *);
+                    reportp->messageArgs[i] = va_arg(ap, jschar *);
                 }
                 argLengths[i] = js_strlen(reportp->messageArgs[i]);
                 totalArgsLength += argLengths[i];
@@ -696,7 +689,7 @@ js_ExpandErrorArguments(ExclusiveContext *cx, JSErrorCallback callback,
          */
         if (argCount > 0) {
             if (efs->format) {
-                char16_t *buffer, *fmt, *out;
+                jschar *buffer, *fmt, *out;
                 int expandedArgs = 0;
                 size_t expandedLength;
                 size_t len = strlen(efs->format);
@@ -712,7 +705,7 @@ js_ExpandErrorArguments(ExclusiveContext *cx, JSErrorCallback callback,
                 * Note - the above calculation assumes that each argument
                 * is used once and only once in the expansion !!!
                 */
-                reportp->ucmessage = out = cx->pod_malloc<char16_t>(expandedLength + 1);
+                reportp->ucmessage = out = cx->pod_malloc<jschar>(expandedLength + 1);
                 if (!out) {
                     js_free(buffer);
                     goto error;
@@ -735,9 +728,9 @@ js_ExpandErrorArguments(ExclusiveContext *cx, JSErrorCallback callback,
                 JS_ASSERT(expandedArgs == argCount);
                 *out = 0;
                 js_free(buffer);
-                size_t msgLen = PointerRangeSize(static_cast<const char16_t *>(reportp->ucmessage),
-                                                 static_cast<const char16_t *>(out));
-                mozilla::Range<const char16_t> ucmsg(reportp->ucmessage, msgLen);
+                size_t msgLen = PointerRangeSize(static_cast<const jschar *>(reportp->ucmessage),
+                                                 static_cast<const jschar *>(out));
+                mozilla::Range<const jschar> ucmsg(reportp->ucmessage, msgLen);
                 *messagep = JS::LossyTwoByteCharsToNewLatin1CharsZ(cx, ucmsg).c_str();
                 if (!*messagep)
                     goto error;
@@ -841,7 +834,7 @@ js_ReportErrorNumberVA(JSContext *cx, unsigned flags, JSErrorCallback callback,
 bool
 js_ReportErrorNumberUCArray(JSContext *cx, unsigned flags, JSErrorCallback callback,
                             void *userRef, const unsigned errorNumber,
-                            const char16_t **args)
+                            const jschar **args)
 {
     if (checkReportFlags(cx, &flags))
         return true;
@@ -875,7 +868,7 @@ js::CallErrorReporter(JSContext *cx, const char *message, JSErrorReport *reportp
     JS_ASSERT(message);
     JS_ASSERT(reportp);
 
-    if (JSErrorReporter onError = cx->runtime()->errorReporter)
+    if (JSErrorReporter onError = cx->errorReporter)
         onError(cx, message, reportp);
 }
 
@@ -962,7 +955,7 @@ js_ReportValueErrorFlags(JSContext *cx, unsigned flags, const unsigned errorNumb
 }
 
 const JSErrorFormatString js_ErrorFormatString[JSErr_Limit] = {
-#define MSG_DEF(name, count, exception, format) \
+#define MSG_DEF(name, number, count, exception, format) \
     { format, count, exception } ,
 #include "js.msg"
 #undef MSG_DEF
@@ -993,7 +986,7 @@ js::InvokeInterruptCallback(JSContext *cx)
     // callbacks.
     rt->resetJitStackLimit();
 
-    cx->gcIfNeeded();
+    js::gc::GCIfNeeded(cx);
 
     rt->interruptPar = false;
 
@@ -1040,7 +1033,7 @@ js::InvokeInterruptCallback(JSContext *cx)
     JSString *stack = ComputeStackString(cx);
     JSFlatString *flat = stack ? stack->ensureFlat(cx) : nullptr;
 
-    const char16_t *chars;
+    const jschar *chars;
     AutoStableStringChars stableChars(cx);
     if (flat && stableChars.initTwoByte(cx, flat))
         chars = stableChars.twoByteRange().start().get();
@@ -1105,7 +1098,9 @@ JSContext::JSContext(JSRuntime *rt)
     resolvingList(nullptr),
     generatingError(false),
     savedFrameChains_(),
+    defaultCompartmentObject_(nullptr),
     cycleDetectorSet(MOZ_THIS_IN_INITIALIZER_LIST()),
+    errorReporter(nullptr),
     data(nullptr),
     data2(nullptr),
     outstandingRequests(0),
@@ -1163,6 +1158,12 @@ JSContext::leaveGenerator(JSGenerator *gen)
     gen->prevGenerator = nullptr;
 }
 
+
+bool
+JSContext::runningWithTrustedPrincipals() const
+{
+    return !compartment() || compartment()->principals == runtime()->trustedPrincipals();
+}
 
 bool
 JSContext::saveFrameChain()
@@ -1300,6 +1301,8 @@ JSContext::mark(JSTracer *trc)
     /* Stack frames and slots are traced by StackSpace::mark. */
 
     /* Mark other roots-by-definition in the JSContext. */
+    if (defaultCompartmentObject_)
+        MarkObjectRoot(trc, &defaultCompartmentObject_, "default compartment object");
     if (isExceptionPending())
         MarkValueRoot(trc, &unwrappedException_, "unwrapped exception");
 

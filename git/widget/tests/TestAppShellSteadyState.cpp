@@ -40,7 +40,7 @@ class ExitAppShellRunnable : public nsRunnable
   nsCOMPtr<nsIAppShell> mAppShell;
 
 public:
-  explicit ExitAppShellRunnable(nsIAppShell* aAppShell)
+  ExitAppShellRunnable(nsIAppShell* aAppShell)
   : mAppShell(aAppShell)
   { }
 
@@ -70,7 +70,7 @@ class CheckStableStateRunnable : public nsRunnable
   bool mShouldHaveRun;
 
 public:
-  explicit CheckStableStateRunnable(bool aShouldHaveRun)
+  CheckStableStateRunnable(bool aShouldHaveRun)
   : mShouldHaveRun(aShouldHaveRun)
   { }
 
@@ -93,7 +93,7 @@ protected:
   nsCOMPtr<nsIAppShell> mAppShell;
 
 public:
-  explicit ScheduleStableStateRunnable(nsIAppShell* aAppShell)
+  ScheduleStableStateRunnable(nsIAppShell* aAppShell)
   : CheckStableStateRunnable(false), mAppShell(aAppShell)
   { }
 
@@ -117,7 +117,7 @@ class NextTestRunnable : public nsRunnable
   nsCOMPtr<nsIAppShell> mAppShell;
 
 public:
-  explicit NextTestRunnable(nsIAppShell* aAppShell)
+  NextTestRunnable(nsIAppShell* aAppShell)
   : mAppShell(aAppShell)
   { }
 
@@ -127,7 +127,7 @@ public:
 class ScheduleNestedStableStateRunnable : public ScheduleStableStateRunnable
 {
 public:
-  explicit ScheduleNestedStableStateRunnable(nsIAppShell* aAppShell)
+  ScheduleNestedStableStateRunnable(nsIAppShell* aAppShell)
   : ScheduleStableStateRunnable(aAppShell)
   { }
 
@@ -171,7 +171,7 @@ class EventListener MOZ_FINAL : public nsIDOMEventListener
 public:
   NS_DECL_ISUPPORTS
 
-  explicit EventListener(nsIAppShell* aAppShell)
+  EventListener(nsIAppShell* aAppShell)
   : mAppShell(aAppShell)
   { }
 

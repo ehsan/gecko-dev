@@ -48,16 +48,11 @@ public:
   // AnimationPlayer methods
   Animation* GetSource() const { return mSource; }
   AnimationTimeline* Timeline() const { return mTimeline; }
-  Nullable<double> GetStartTime() const;
-  Nullable<double> GetCurrentTime() const;
-  bool IsRunningOnCompositor() const { return mIsRunningOnCompositor; }
+  double StartTime() const;
+  double CurrentTime() const;
 
   void SetSource(Animation* aSource);
   void Tick();
-
-  const nsString& Name() const {
-    return mSource ? mSource->Name() : EmptyString();
-  }
 
   bool IsPaused() const {
     return mPlayState == NS_STYLE_ANIMATION_PLAY_STATE_PAUSED;
@@ -67,12 +62,30 @@ public:
   bool IsCurrent() const;
 
   // Return the duration since the start time of the player, taking into
-  // account the pause state.  May be negative or null.
-  Nullable<TimeDuration> GetCurrentTimeDuration() const;
+  // account the pause state.  May be negative.
+  // Returns a null value if the timeline associated with this object has a
+  // current timestamp that is null or if the start time of this object is
+  // null.
+  Nullable<TimeDuration> GetCurrentTimeDuration() const {
+    const TimeStamp& timelineTime = mTimeline->GetCurrentTimeStamp();
+    // FIXME: In order to support arbitrary timelines we will need to fix
+    // the pause logic to handle the timeline time going backwards.
+    MOZ_ASSERT(timelineTime.IsNull() || !IsPaused() ||
+               timelineTime >= mPauseStart,
+               "if paused, any non-null value of aTime must be at least"
+               " mPauseStart");
 
+    Nullable<TimeDuration> result; // Initializes to null
+    if (!timelineTime.IsNull() && !mStartTime.IsNull()) {
+      result.SetValue((IsPaused() ? mPauseStart : timelineTime) - mStartTime);
+    }
+    return result;
+  }
+
+  nsString mName;
   // The beginning of the delay period.
-  Nullable<TimeDuration> mStartTime;
-  Nullable<TimeDuration> mHoldTime;
+  TimeStamp mStartTime;
+  TimeStamp mPauseStart;
   uint8_t mPlayState;
   bool mIsRunningOnCompositor;
 

@@ -1,21 +1,20 @@
 /*
  * ====================================================================
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
  *
- *   http://www.apache.org/licenses/LICENSE-2.0
+ *  Licensed to the Apache Software Foundation (ASF) under one or more
+ *  contributor license agreements.  See the NOTICE file distributed with
+ *  this work for additional information regarding copyright ownership.
+ *  The ASF licenses this file to You under the Apache License, Version 2.0
+ *  (the "License"); you may not use this file except in compliance with
+ *  the License.  You may obtain a copy of the License at
  *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing, software
+ *  distributed under the License is distributed on an "AS IS" BASIS,
+ *  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *  See the License for the specific language governing permissions and
+ *  limitations under the License.
  * ====================================================================
  *
  * This software consists of voluntary contributions made by many
@@ -24,13 +23,18 @@
  * <http://www.apache.org/>.
  *
  */
+
 package ch.boye.httpclientandroidlib.impl.conn.tsccm;
 
-import java.lang.ref.ReferenceQueue;
+
 import java.lang.ref.WeakReference;
+import java.lang.ref.ReferenceQueue;
+
+import ch.boye.httpclientandroidlib.annotation.Immutable;
 
 import ch.boye.httpclientandroidlib.conn.routing.HttpRoute;
-import ch.boye.httpclientandroidlib.util.Args;
+
+
 
 /**
  * A weak reference to a {@link BasicPoolEntry BasicPoolEntry}.
@@ -38,10 +42,8 @@ import ch.boye.httpclientandroidlib.util.Args;
  * can be reclaimed if it is lost to garbage collection.
  *
  * @since 4.0
- *
- * @deprecated (4.2)  do not use
  */
-@Deprecated
+@Immutable
 public class BasicPoolEntryRef extends WeakReference<BasicPoolEntry> {
 
     /** The planned route of the entry. */
@@ -54,10 +56,13 @@ public class BasicPoolEntryRef extends WeakReference<BasicPoolEntry> {
      * @param entry   the pool entry, must not be <code>null</code>
      * @param queue   the reference queue, or <code>null</code>
      */
-    public BasicPoolEntryRef(final BasicPoolEntry entry,
-                             final ReferenceQueue<Object> queue) {
+    public BasicPoolEntryRef(BasicPoolEntry entry,
+                             ReferenceQueue<Object> queue) {
         super(entry, queue);
-        Args.notNull(entry, "Pool entry");
+        if (entry == null) {
+            throw new IllegalArgumentException
+                ("Pool entry must not be null.");
+        }
         route = entry.getPlannedRoute();
     }
 

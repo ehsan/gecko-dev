@@ -11,7 +11,7 @@ let gSubDialog = {
   _box: null,
   _injectedStyleSheets: ["chrome://mozapps/content/preferences/preferences.css",
                          "chrome://browser/skin/preferences/preferences.css",
-                         "chrome://global/skin/in-content/common.css",
+                         "chrome://browser/skin/in-content/common.css",
                          "chrome://browser/skin/preferences/in-content/preferences.css"],
 
   init: function() {
@@ -62,16 +62,15 @@ let gSubDialog = {
   },
 
   open: function(aURL, aFeatures = null, aParams = null, aClosingCallback = null) {
-    let features = (!!aFeatures ? aFeatures + "," : "") + "resizable,dialog=no,centerscreen";
+    let features = aFeatures || "modal,centerscreen,resizable=no";
     let dialog = window.openDialog(aURL, "dialogFrame", features, aParams);
     if (aClosingCallback) {
       this._closingCallback = aClosingCallback.bind(dialog);
     }
-    features = features.replace(/,/g, "&");
     let featureParams = new URLSearchParams(features.toLowerCase());
     this._box.setAttribute("resizable", featureParams.has("resizable") &&
                                         featureParams.get("resizable") != "no" &&
-                                        featureParams.get("resizable") != "0");
+                                        featureParams.get("resizable") != 0);
     return dialog;
   },
 

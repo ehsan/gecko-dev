@@ -17,7 +17,6 @@ USING_WORKERS_NAMESPACE
 ServiceWorker::ServiceWorker(nsPIDOMWindow* aWindow,
                              SharedWorker* aSharedWorker)
   : DOMEventTargetHelper(aWindow),
-    mState(ServiceWorkerState::Installing),
     mSharedWorker(aSharedWorker)
 {
   AssertIsOnMainThread();

@@ -141,7 +141,7 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
         VERTICAL
     }
 
-    ListAdapter mAdapter;
+    /* inner-access */ ListAdapter mAdapter;
 
     private boolean mIsVertical;
 
@@ -159,13 +159,13 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 
     final boolean[] mIsScrap = new boolean[1];
 
-    boolean mDataChanged;
-    int mItemCount;
-    int mOldItemCount;
-    boolean mHasStableIds;
+    /* inner-access */ boolean mDataChanged;
+    /* inner-access */ int mItemCount;
+    /* inner-access */ int mOldItemCount;
+    /* inner-access */ boolean mHasStableIds;
     private boolean mAreAllItemsSelectable;
 
-    int mFirstPosition;
+    /* inner-access */ int mFirstPosition;
     private int mSpecificStart;
 
     private SavedState mPendingSync;
@@ -181,8 +181,8 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 
     private final ArrowScrollFocusResult mArrowScrollFocusResult;
 
-    int mMotionPosition;
-    Runnable mTouchModeReset;
+    /* inner-access */ int mMotionPosition;
+    /* inner-access */ Runnable mTouchModeReset;
     private Rect mTouchFrame;
     private CheckForTap mPendingCheckForTap;
     private CheckForLongPress mPendingCheckForLongPress;
@@ -192,7 +192,7 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 
     private boolean mIsChildViewEnabled;
 
-    Drawable mSelector;
+    /* inner-access */ Drawable mSelector;
     private boolean mDrawSelectorOnTop;
     private int mSelectorPosition;
     private final Rect mSelectorRect;
@@ -205,17 +205,17 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 
     private SelectionNotifier mSelectionNotifier;
 
-    boolean mNeedSync;
+    /* inner-access */ boolean mNeedSync;
     private int mSyncMode;
     private int mSyncPosition;
     private long mSyncRowId;
     private long mSyncHeight;
     private int mSelectedStart;
 
-    int mNextSelectedPosition;
-    long mNextSelectedRowId;
-    int mSelectedPosition;
-    long mSelectedRowId;
+    /* inner-access */ int mNextSelectedPosition;
+    /* inner-access */ long mNextSelectedRowId;
+    /* inner-access */ int mSelectedPosition;
+    /* inner-access */ long mSelectedRowId;
     private int mOldSelectedPosition;
     private long mOldSelectedRowId;
 
@@ -226,8 +226,8 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
 
     private ContextMenuInfo mContextMenuInfo;
 
-    int mLayoutMode;
-    int mTouchMode;
+    /* inner-access */ int mLayoutMode;
+    /* inner-access */ int mTouchMode;
     private int mLastTouchMode;
     private VelocityTracker mVelocityTracker;
     private final Scroller mScroller;
@@ -2959,7 +2959,7 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
         removeCallbacks(mPendingCheckForTap);
     }
 
-    void triggerCheckForLongPress() {
+    /* inner-access */ void triggerCheckForLongPress() {
         if (mPendingCheckForLongPress == null) {
             mPendingCheckForLongPress = new CheckForLongPress();
         }
@@ -3232,7 +3232,7 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
         return (hasFocus() && !isInTouchMode()) || touchModeDrawsInPressedState();
     }
 
-    void positionSelector(int position, View selected) {
+    /* inner-access */ void positionSelector(int position, View selected) {
         if (position != INVALID_POSITION) {
             mSelectorPosition = position;
         }
@@ -3402,7 +3402,7 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
         }
     }
 
-    void fireOnSelected() {
+    /* inner-access */ void fireOnSelected() {
         OnItemSelectedListener listener = getOnItemSelectedListener();
         if (listener == null) {
             return;
@@ -3418,7 +3418,7 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
         }
     }
 
-    void performAccessibilityActionsOnSelected() {
+    /* inner-access */ void performAccessibilityActionsOnSelected() {
         final int position = getSelectedItemPosition();
         if (position >= 0) {
             // We fire selection events here not in View
@@ -3771,7 +3771,7 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
         }
     }
 
-    void layoutChildren() {
+    /* inner-access */ void layoutChildren() {
         if (getWidth() == 0 || getHeight() == 0) {
             return;
         }
@@ -5293,7 +5293,7 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
         invalidate();
     }
 
-    void rememberSyncState() {
+    /* inner-access */ void rememberSyncState() {
         if (getChildCount() == 0) {
             return;
         }
@@ -5402,7 +5402,7 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
         return super.performItemClick(view, position, id);
     }
 
-    boolean performLongPress(final View child,
+    /* inner-access */ boolean performLongPress(final View child,
             final int longPressPosition, final long longPressId) {
         // CHOICE_MODE_MULTIPLE_MODAL takes over long press.
         boolean handled = false;
@@ -5653,7 +5653,7 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
     }
 
     class RecycleBin {
-        RecyclerListener mRecyclerListener;
+        /* inner-access */ RecyclerListener mRecyclerListener;
         private int mFirstActivePosition;
         private View[] mActiveViews = new View[0];
         private ArrayList<View>[] mScrapViews;
@@ -5987,7 +5987,7 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
         super.setFocusableInTouchMode(focusable && !empty);
     }
 
-    void checkFocus() {
+    /* inner-access */ void checkFocus() {
         final ListAdapter adapter = getAdapter();
         final boolean focusable = (adapter != null && adapter.getCount() > 0);
 
@@ -6331,7 +6331,7 @@ public class TwoWayView extends AdapterView<ListAdapter> implements
     }
 
     private static class ArrowScrollFocusResult {
-        int mSelectedPosition;
+        /* inner-access */ int mSelectedPosition;
         private int mAmountToScroll;
 
         /**

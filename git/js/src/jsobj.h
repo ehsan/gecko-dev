@@ -27,7 +27,7 @@
 #include "vm/Xdr.h"
 
 namespace JS {
-struct ClassInfo;
+struct ObjectsExtraSizes;
 }
 
 namespace js {
@@ -225,11 +225,8 @@ class JSObject : public js::ObjectImpl
     static bool setLastProperty(js::ThreadSafeContext *cx,
                                 JS::HandleObject obj, js::HandleShape shape);
 
-    // As for setLastProperty(), but allows the number of fixed slots to
-    // change. This can only be used when fixed slots are being erased from the
-    // object, and only when the object will not require dynamic slots to cover
-    // the new properties.
-    void setLastPropertyShrinkFixedSlots(js::Shape *shape);
+    /* As above, but does not change the slot span. */
+    inline void setLastPropertyInfallible(js::Shape *shape);
 
     /*
      * Make a non-array object with the specified initial state. This method
@@ -248,29 +245,6 @@ class JSObject : public js::ObjectImpl
                                                js::HandleShape shape,
                                                js::HandleTypeObject type,
                                                uint32_t length);
-
-    /* Make an array object with the specified initial state and elements. */
-    static inline js::ArrayObject *createArray(js::ExclusiveContext *cx,
-                                               js::gc::InitialHeap heap,
-                                               js::HandleShape shape,
-                                               js::HandleTypeObject type,
-                                               js::HeapSlot *elements);
-
-    /* Make an copy-on-write array object which shares the elements of an existing object. */
-    static inline js::ArrayObject *createCopyOnWriteArray(js::ExclusiveContext *cx,
-                                                          js::gc::InitialHeap heap,
-                                                          js::HandleShape shape,
-                                                          js::HandleObject sharedElementsOwner);
-
-  private:
-    // Helper for the above two methods.
-    static inline JSObject *
-    createArrayInternal(js::ExclusiveContext *cx, js::gc::AllocKind kind, js::gc::InitialHeap heap,
-                        js::HandleShape shape, js::HandleTypeObject type);
-
-    static inline js::ArrayObject *finishCreateArray(JSObject *obj,
-                                                     js::HandleShape shape);
-  public:
 
     /*
      * Remove the last property of an object, provided that it is safe to do so
@@ -365,7 +339,7 @@ class JSObject : public js::ObjectImpl
         return lastProperty()->hasTable();
     }
 
-    void addSizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf, JS::ClassInfo *info);
+    void addSizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf, JS::ObjectsExtraSizes *sizes);
 
     bool hasIdempotentProtoChain() const;
 
@@ -416,7 +390,6 @@ class JSObject : public js::ObjectImpl
 
     void prepareElementRangeForOverwrite(size_t start, size_t end) {
         JS_ASSERT(end <= getDenseInitializedLength());
-        JS_ASSERT(!denseElementsAreCopyOnWrite());
         for (size_t i = start; i < end; i++)
             elements[i].js::HeapSlot::~HeapSlot();
     }
@@ -430,10 +403,9 @@ class JSObject : public js::ObjectImpl
         return setSlot(slot, value);
     }
 
-    inline bool nativeSetSlotIfHasType(js::Shape *shape, const js::Value &value,
-                                       bool overwriting = true);
+    inline bool nativeSetSlotIfHasType(js::Shape *shape, const js::Value &value);
     inline void nativeSetSlotWithType(js::ExclusiveContext *cx, js::Shape *shape,
-                                      const js::Value &value, bool overwriting = true);
+                                      const js::Value &value);
 
     inline const js::Value &getReservedSlot(uint32_t index) const {
         JS_ASSERT(index < JSSLOT_FREE(getClass()));
@@ -625,7 +597,6 @@ class JSObject : public js::ObjectImpl
 
     /* Accessors for elements. */
     bool ensureElements(js::ThreadSafeContext *cx, uint32_t capacity) {
-        JS_ASSERT(!denseElementsAreCopyOnWrite());
         if (capacity > getDenseCapacity())
             return growElements(cx, capacity);
         return true;
@@ -646,14 +617,6 @@ class JSObject : public js::ObjectImpl
         return getElementsHeader()->capacity;
     }
 
-    static bool CopyElementsForWrite(js::ThreadSafeContext *cx, JSObject *obj);
-
-    bool maybeCopyElementsForWrite(js::ThreadSafeContext *cx) {
-        if (denseElementsAreCopyOnWrite())
-            return CopyElementsForWrite(cx, this);
-        return true;
-    }
-
   private:
     inline void ensureDenseInitializedLengthNoPackedCheck(js::ThreadSafeContext *cx,
                                                           uint32_t index, uint32_t extra);
@@ -662,7 +625,6 @@ class JSObject : public js::ObjectImpl
     void setDenseInitializedLength(uint32_t length) {
         JS_ASSERT(isNative());
         JS_ASSERT(length <= getDenseCapacity());
-        JS_ASSERT(!denseElementsAreCopyOnWrite());
         prepareElementRangeForOverwrite(length, getElementsHeader()->initializedLength);
         getElementsHeader()->initializedLength = length;
     }
@@ -673,13 +635,11 @@ class JSObject : public js::ObjectImpl
                                                                uint32_t index, uint32_t extra);
     void setDenseElement(uint32_t index, const js::Value &val) {
         JS_ASSERT(isNative() && index < getDenseInitializedLength());
-        JS_ASSERT(!denseElementsAreCopyOnWrite());
         elements[index].set(this, js::HeapSlot::Element, index, val);
     }
 
     void initDenseElement(uint32_t index, const js::Value &val) {
         JS_ASSERT(isNative() && index < getDenseInitializedLength());
-        JS_ASSERT(!denseElementsAreCopyOnWrite());
         elements[index].init(this, js::HeapSlot::Element, index, val);
     }
 
@@ -703,7 +663,6 @@ class JSObject : public js::ObjectImpl
 
     void copyDenseElements(uint32_t dstStart, const js::Value *src, uint32_t count) {
         JS_ASSERT(dstStart + count <= getDenseCapacity());
-        JS_ASSERT(!denseElementsAreCopyOnWrite());
         JSRuntime *rt = runtimeFromMainThread();
         if (JS::IsIncrementalBarrierNeeded(rt)) {
             JS::Zone *zone = this->zone();
@@ -717,7 +676,6 @@ class JSObject : public js::ObjectImpl
 
     void initDenseElements(uint32_t dstStart, const js::Value *src, uint32_t count) {
         JS_ASSERT(dstStart + count <= getDenseCapacity());
-        JS_ASSERT(!denseElementsAreCopyOnWrite());
         memcpy(&elements[dstStart], src, count * sizeof(js::HeapSlot));
         DenseRangeWriteBarrierPost(runtimeFromMainThread(), this, dstStart, count);
     }
@@ -727,7 +685,6 @@ class JSObject : public js::ObjectImpl
     void moveDenseElements(uint32_t dstStart, uint32_t srcStart, uint32_t count) {
         JS_ASSERT(dstStart + count <= getDenseCapacity());
         JS_ASSERT(srcStart + count <= getDenseInitializedLength());
-        JS_ASSERT(!denseElementsAreCopyOnWrite());
 
         /*
          * Using memmove here would skip write barriers. Also, we need to consider
@@ -766,7 +723,6 @@ class JSObject : public js::ObjectImpl
 
         JS_ASSERT(dstStart + count <= getDenseCapacity());
         JS_ASSERT(srcStart + count <= getDenseCapacity());
-        JS_ASSERT(!denseElementsAreCopyOnWrite());
 
         memmove(elements + dstStart, elements + srcStart, count * sizeof(js::Value));
         DenseRangeWriteBarrierPost(runtimeFromMainThread(), this, dstStart, count);
@@ -779,13 +735,6 @@ class JSObject : public js::ObjectImpl
 
     inline void setShouldConvertDoubleElements();
     inline void clearShouldConvertDoubleElements();
-
-    bool denseElementsAreCopyOnWrite() {
-        JS_ASSERT(isNative());
-        return getElementsHeader()->isCopyOnWrite();
-    }
-
-    void fixupAfterMovingGC();
 
     /* Packed information for this object's elements. */
     inline bool writeToIndexWouldMarkNotPacked(uint32_t index);

@@ -9,7 +9,6 @@
 
 #include "nsTArray.h"
 #include "mozilla/MemoryReporting.h"
-#include "mozilla/Move.h"
 #include "gfxTypes.h"
 #include "imgFrame.h"
 
@@ -33,19 +32,19 @@ public:
   {}
 
   FrameDataPair()
-    : mFrameData(nullptr)
-  {}
-
-  FrameDataPair(const FrameDataPair& aOther)
-    : mFrame(aOther.mFrame)
+    : mFrame(nullptr)
     , mFrameData(nullptr)
   {}
 
-  FrameDataPair(FrameDataPair&& aOther)
-    : mFrame(Move(aOther.mFrame))
-    , mFrameData(aOther.mFrameData)
+  FrameDataPair(FrameDataPair& other)
   {
-    aOther.mFrameData = nullptr;
+    mFrame = other.mFrame;
+    mFrameData = other.mFrameData;
+
+    // since mFrame is an nsAutoPtr, the assignment operator above actually
+    // nulls out other.mFrame. In order to fully assume ownership over the
+    // frame, we also null out the other's mFrameData.
+    other.mFrameData = nullptr;
   }
 
   ~FrameDataPair()
@@ -53,24 +52,6 @@ public:
     if (mFrameData) {
       mFrame->UnlockImageData();
     }
-  }
-
-  FrameDataPair& operator=(const FrameDataPair& aOther)
-  {
-    if (&aOther != this) {
-      mFrame = aOther.mFrame;
-      mFrameData = nullptr;
-    }
-    return *this;
-  }
-
-  FrameDataPair& operator=(FrameDataPair&& aOther)
-  {
-    MOZ_ASSERT(&aOther != this, "Moving to self");
-    mFrame = Move(aOther.mFrame);
-    mFrameData = aOther.mFrameData;
-    aOther.mFrameData = nullptr;
-    return *this;
   }
 
   // Lock the frame and store its mFrameData. The frame will be unlocked (and
@@ -90,14 +71,15 @@ public:
 
   // Null out this FrameDataPair and return its frame. You must ensure the
   // frame will be deleted separately.
-  already_AddRefed<imgFrame> Forget()
+  imgFrame* Forget()
   {
     if (mFrameData) {
       mFrame->UnlockImageData();
     }
 
+    imgFrame* frame = mFrame.forget();
     mFrameData = nullptr;
-    return mFrame.forget();
+    return frame;
   }
 
   bool HasFrameData() const
@@ -113,10 +95,9 @@ public:
     return mFrameData;
   }
 
-  already_AddRefed<imgFrame> GetFrame() const
+  imgFrame* GetFrame() const
   {
-    nsRefPtr<imgFrame> frame = mFrame;
-    return frame.forget();
+    return mFrame;
   }
 
   // Resets this FrameDataPair to work with a different frame. Takes ownership
@@ -131,9 +112,14 @@ public:
     mFrameData = nullptr;
   }
 
+  operator imgFrame*() const
+  {
+    return GetFrame();
+  }
+
   imgFrame* operator->() const
   {
-    return mFrame.get();
+    return GetFrame();
   }
 
   bool operator==(imgFrame* other) const
@@ -141,13 +127,8 @@ public:
     return mFrame == other;
   }
 
-  operator bool() const
-  {
-    return mFrame != nullptr;
-  }
-
 private:
-  nsRefPtr<imgFrame> mFrame;
+  nsAutoPtr<imgFrame> mFrame;
   uint8_t* mFrameData;
 };
 
@@ -182,7 +163,7 @@ public:
    * Swap aFrame with the frame at sequence framenum, and return that frame.
    * You take ownership over the frame returned.
    */
-  already_AddRefed<imgFrame> SwapFrame(uint32_t framenum, imgFrame* aFrame);
+  imgFrame* SwapFrame(uint32_t framenum, imgFrame* aFrame);
 
   /**
    * Remove (and delete) all frames.

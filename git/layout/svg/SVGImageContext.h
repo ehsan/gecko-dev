@@ -6,47 +6,28 @@
 #ifndef MOZILLA_SVGCONTEXT_H_
 #define MOZILLA_SVGCONTEXT_H_
 
-#include "mozilla/Maybe.h"
 #include "SVGPreserveAspectRatio.h"
 
 namespace mozilla {
 
 // SVG image-specific rendering context. For imgIContainer::Draw.
-// Used to pass information such as
-//  - viewport information from CSS, and
-//  - overridden attributes from an SVG <image> element
-// to the image's internal SVG document when it's drawn.
+// Used to pass information about overridden attributes from an SVG <image>
+// element to the image's internal SVG document when it's drawn.
 class SVGImageContext
 {
 public:
-  SVGImageContext()
-    : mGlobalOpacity(1.0)
+  SVGImageContext() { }
+
+  SVGImageContext(SVGPreserveAspectRatio aPreserveAspectRatio)
+    : mPreserveAspectRatio(aPreserveAspectRatio)
   { }
 
-  SVGImageContext(nsIntSize aViewportSize,
-                  Maybe<SVGPreserveAspectRatio> aPreserveAspectRatio,
-                  gfxFloat aOpacity = 1.0)
-    : mViewportSize(aViewportSize)
-    , mPreserveAspectRatio(aPreserveAspectRatio)
-    , mGlobalOpacity(aOpacity)
-  { }
-
-  const nsIntSize& GetViewportSize() const {
-    return mViewportSize;
-  }
-
-  const Maybe<SVGPreserveAspectRatio>& GetPreserveAspectRatio() const {
+  const SVGPreserveAspectRatio& GetPreserveAspectRatio() const {
     return mPreserveAspectRatio;
   }
 
-  gfxFloat GetGlobalOpacity() const {
-    return mGlobalOpacity;
-  }
-
   bool operator==(const SVGImageContext& aOther) const {
-    return mViewportSize == aOther.mViewportSize &&
-           mPreserveAspectRatio == aOther.mPreserveAspectRatio &&
-           mGlobalOpacity == aOther.mGlobalOpacity;
+    return mPreserveAspectRatio == aOther.mPreserveAspectRatio;
   }
 
   bool operator!=(const SVGImageContext& aOther) const {
@@ -54,20 +35,11 @@ public:
   }
 
   uint32_t Hash() const {
-    return HashGeneric(mViewportSize.width,
-                       mViewportSize.height,
-                       mPreserveAspectRatio.map(HashPAR).valueOr(0),
-                       HashBytes(&mGlobalOpacity, sizeof(gfxFloat)));
+    return mPreserveAspectRatio.Hash();
   }
 
 private:
-  static uint32_t HashPAR(const SVGPreserveAspectRatio& aPAR) {
-    return aPAR.Hash();
-  }
-
-  nsIntSize                     mViewportSize;
-  Maybe<SVGPreserveAspectRatio> mPreserveAspectRatio;
-  gfxFloat                      mGlobalOpacity;
+  SVGPreserveAspectRatio mPreserveAspectRatio;
 };
 
 } // namespace mozilla

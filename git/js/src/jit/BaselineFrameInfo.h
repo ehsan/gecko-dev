@@ -269,7 +269,7 @@ class FrameInfo
     Address addressOfThis() const {
         return Address(BaselineFrameReg, BaselineFrame::offsetOfThis());
     }
-    Address addressOfCalleeToken() const {
+    Address addressOfCallee() const {
         return Address(BaselineFrameReg, BaselineFrame::offsetOfCalleeToken());
     }
     Address addressOfScopeChain() const {

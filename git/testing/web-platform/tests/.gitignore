@@ -1,9 +1,0 @@
-node_modules
-scratch
-*.py[co]
-*.sw[po]
-*~
-*#
-\#*
-config.json
-MANIFEST.json

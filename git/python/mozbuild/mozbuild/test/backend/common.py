@@ -34,9 +34,7 @@ CONFIGS = defaultdict(lambda: {
     'substs': [],
 }, {
     'android_eclipse': {
-        'defines': [
-            ('MOZ_ANDROID_MIN_SDK_VERSION', '9'),
-        ],
+        'defines': [],
         'non_global_defines': [],
         'substs': [
             ('ANDROID_TARGET_SDK', '16'),

@@ -82,11 +82,12 @@ public:
    */
   static TemporaryRef<CompositingRenderTargetOGL>
   RenderTargetForWindow(CompositorOGL* aCompositor,
+                        const gfx::IntPoint& aOrigin,
                         const gfx::IntSize& aSize,
                         const gfx::Matrix& aTransform)
   {
     RefPtr<CompositingRenderTargetOGL> result
-      = new CompositingRenderTargetOGL(aCompositor, gfx::IntPoint(0, 0), 0, 0);
+      = new CompositingRenderTargetOGL(aCompositor, aOrigin, 0, 0);
     result->mTransform = aTransform;
     result->mInitParams = InitParams(aSize, 0, INIT_MODE_NONE);
     result->mInitParams.mStatus = InitParams::INITIALIZED;
@@ -136,7 +137,9 @@ public:
   }
   gfx::IntSize GetSize() const MOZ_OVERRIDE
   {
-    return mInitParams.mSize;
+    // XXX - Bug 900770
+    MOZ_ASSERT(false, "CompositingRenderTargetOGL should not be used as a TextureSource");
+    return gfx::IntSize(0, 0);
   }
 
   gfx::SurfaceFormat GetFormat() const MOZ_OVERRIDE

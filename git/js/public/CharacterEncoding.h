@@ -118,27 +118,27 @@ class UTF8CharsZ : public mozilla::RangedPtr<unsigned char>
  * manually interpreting UTF-16 extension characters embedded in the JS
  * string.
  */
-class TwoByteChars : public mozilla::Range<char16_t>
+class TwoByteChars : public mozilla::Range<jschar>
 {
-    typedef mozilla::Range<char16_t> Base;
+    typedef mozilla::Range<jschar> Base;
 
   public:
     TwoByteChars() : Base() {}
-    TwoByteChars(char16_t *aChars, size_t aLength) : Base(aChars, aLength) {}
-    TwoByteChars(const char16_t *aChars, size_t aLength) : Base(const_cast<char16_t *>(aChars), aLength) {}
+    TwoByteChars(jschar *aChars, size_t aLength) : Base(aChars, aLength) {}
+    TwoByteChars(const jschar *aChars, size_t aLength) : Base(const_cast<jschar *>(aChars), aLength) {}
 };
 
 /*
  * A TwoByteChars, but \0 terminated for compatibility with JSFlatString.
  */
-class TwoByteCharsZ : public mozilla::RangedPtr<char16_t>
+class TwoByteCharsZ : public mozilla::RangedPtr<jschar>
 {
-    typedef mozilla::RangedPtr<char16_t> Base;
+    typedef mozilla::RangedPtr<jschar> Base;
 
   public:
     TwoByteCharsZ() : Base(nullptr, 0) {}
 
-    TwoByteCharsZ(char16_t *chars, size_t length)
+    TwoByteCharsZ(jschar *chars, size_t length)
       : Base(chars, length)
     {
         MOZ_ASSERT(chars[length] == '\0');
@@ -147,23 +147,24 @@ class TwoByteCharsZ : public mozilla::RangedPtr<char16_t>
     using Base::operator=;
 };
 
-typedef mozilla::RangedPtr<const char16_t> ConstCharPtr;
+typedef mozilla::RangedPtr<const jschar> ConstCharPtr;
 
 /*
  * Like TwoByteChars, but the chars are const.
  */
-class ConstTwoByteChars : public mozilla::RangedPtr<const char16_t>
+class ConstTwoByteChars : public mozilla::RangedPtr<const jschar>
 {
   public:
     ConstTwoByteChars(const ConstTwoByteChars &s) : ConstCharPtr(s) {}
-    MOZ_IMPLICIT ConstTwoByteChars(const mozilla::RangedPtr<const char16_t> &s) : ConstCharPtr(s) {}
-    ConstTwoByteChars(const char16_t *s, size_t len) : ConstCharPtr(s, len) {}
-    ConstTwoByteChars(const char16_t *pos, const char16_t *start, size_t len)
+    MOZ_IMPLICIT ConstTwoByteChars(const mozilla::RangedPtr<const jschar> &s) : ConstCharPtr(s) {}
+    ConstTwoByteChars(const jschar *s, size_t len) : ConstCharPtr(s, len) {}
+    ConstTwoByteChars(const jschar *pos, const jschar *start, size_t len)
       : ConstCharPtr(pos, start, len)
     {}
 
     using ConstCharPtr::operator=;
 };
+
 
 /*
  * Convert a 2-byte character sequence to "ISO-Latin-1". This works by
@@ -177,7 +178,7 @@ class ConstTwoByteChars : public mozilla::RangedPtr<const char16_t>
  */
 extern Latin1CharsZ
 LossyTwoByteCharsToNewLatin1CharsZ(js::ThreadSafeContext *cx,
-                                   const mozilla::Range<const char16_t> tbchars);
+                                   const mozilla::Range<const jschar> tbchars);
 
 template <typename CharT>
 extern UTF8CharsZ
@@ -187,7 +188,7 @@ uint32_t
 Utf8ToOneUcs4Char(const uint8_t *utf8Buffer, int utf8Length);
 
 /*
- * Inflate bytes in UTF-8 encoding to char16_t.
+ * Inflate bytes in UTF-8 encoding to jschars.
  * - On error, returns an empty TwoByteCharsZ.
  * - On success, returns a malloc'd TwoByteCharsZ, and updates |outlen| to hold
  *   its length;  the length value excludes the trailing null.

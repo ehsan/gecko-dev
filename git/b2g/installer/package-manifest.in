@@ -293,11 +293,9 @@
 @BINPATH@/components/spellchecker.xpt
 @BINPATH@/components/storage.xpt
 @BINPATH@/components/telemetry.xpt
-@BINPATH@/components/toolkit_filewatcher.xpt
 @BINPATH@/components/toolkit_finalizationwitness.xpt
 @BINPATH@/components/toolkit_formautofill.xpt
 @BINPATH@/components/toolkit_osfile.xpt
-@BINPATH@/components/toolkit_xulstore.xpt
 @BINPATH@/components/toolkitprofile.xpt
 #ifdef MOZ_ENABLE_XREMOTE
 @BINPATH@/components/toolkitremote.xpt
@@ -442,8 +440,6 @@
 @BINPATH@/components/RILContentHelper.js
 @BINPATH@/components/TelephonyService.js
 @BINPATH@/components/TelephonyService.manifest
-@BINPATH@/components/MobileConnectionGonkService.js
-@BINPATH@/components/MobileConnectionGonkService.manifest
 #endif // MOZ_WIDGET_GONK && MOZ_B2G_RIL
 
 #ifndef MOZ_WIDGET_GONK
@@ -454,7 +450,6 @@
 @BINPATH@/components/amWebInstallListener.js
 @BINPATH@/components/nsBlocklistService.js
 @BINPATH@/components/OopCommandLine.js
-@BINPATH@/components/CommandLine.js
 #endif
 
 #ifdef MOZ_UPDATER
@@ -545,8 +540,6 @@
 #endif
 @BINPATH@/components/TelemetryStartup.js
 @BINPATH@/components/TelemetryStartup.manifest
-@BINPATH@/components/XULStore.js
-@BINPATH@/components/XULStore.manifest
 @BINPATH@/components/Webapps.js
 @BINPATH@/components/Webapps.manifest
 @BINPATH@/components/AppsService.js
@@ -567,8 +560,6 @@
 @BINPATH@/components/SystemMessageInternal.js
 @BINPATH@/components/SystemMessageManager.js
 @BINPATH@/components/SystemMessageManager.manifest
-@BINPATH@/components/HCIEventTransactionSystemMessage.manifest
-@BINPATH@/components/HCIEventTransactionSystemMessageConfigurator.js
 
 @BINPATH@/components/Activities.manifest
 @BINPATH@/components/ActivityProxy.js
@@ -666,6 +657,9 @@
 ; [Layout Engine Resources]
 ; Style Sheets, Graphics and other Resources used by the layout engine.
 @BINPATH@/res/EditorOverride.css
+@BINPATH@/res/caret_left.svg
+@BINPATH@/res/caret_middle.svg
+@BINPATH@/res/caret_right.svg
 @BINPATH@/res/contenteditable.css
 @BINPATH@/res/designmode.css
 @BINPATH@/res/ImageDocument.css
@@ -689,18 +683,6 @@
 @BINPATH@/res/table-remove-row-active.gif
 @BINPATH@/res/table-remove-row-hover.gif
 @BINPATH@/res/table-remove-row.gif
-@BINPATH@/res/text_caret.png
-@BINPATH@/res/text_caret@1.5x.png
-@BINPATH@/res/text_caret@2.25x.png
-@BINPATH@/res/text_caret@2x.png
-@BINPATH@/res/text_caret_tilt_left.png
-@BINPATH@/res/text_caret_tilt_left@1.5x.png
-@BINPATH@/res/text_caret_tilt_left@2.25x.png
-@BINPATH@/res/text_caret_tilt_left@2x.png
-@BINPATH@/res/text_caret_tilt_right.png
-@BINPATH@/res/text_caret_tilt_right@1.5x.png
-@BINPATH@/res/text_caret_tilt_right@2.25x.png
-@BINPATH@/res/text_caret_tilt_right@2x.png
 @BINPATH@/res/grabber.gif
 #ifdef XP_MACOSX
 @BINPATH@/res/cursors/*
@@ -748,12 +730,8 @@
 @BINPATH@/chrome/pippki.manifest
 
 ; For process sandboxing
-#if defined(MOZ_SANDBOX)
 #if defined(XP_WIN)
 @BINPATH@/@DLL_PREFIX@sandboxbroker@DLL_SUFFIX@
-#elif defined(XP_LINUX)
-@BINPATH@/@DLL_PREFIX@mozsandbox@DLL_SUFFIX@
-#endif
 #endif
 
 ; for Solaris SPARC
@@ -841,7 +819,6 @@ bin/components/@DLL_PREFIX@nkgnomevfs@DLL_SUFFIX@
 @BINPATH@/components/DownloadsUI.js
 @BINPATH@/components/InterAppCommUIGlue.js
 @BINPATH@/components/SystemMessageGlue.js
-@BINPATH@/components/B2GAppMigrator.js
 
 #ifndef MOZ_WIDGET_GONK
 @BINPATH@/components/SimulatorScreen.js

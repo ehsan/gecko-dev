@@ -32,23 +32,19 @@ import java.util.Locale;
 import ch.boye.httpclientandroidlib.HttpResponse;
 import ch.boye.httpclientandroidlib.HttpResponseFactory;
 import ch.boye.httpclientandroidlib.ProtocolVersion;
-import ch.boye.httpclientandroidlib.ReasonPhraseCatalog;
 import ch.boye.httpclientandroidlib.StatusLine;
-import ch.boye.httpclientandroidlib.annotation.Immutable;
 import ch.boye.httpclientandroidlib.message.BasicHttpResponse;
 import ch.boye.httpclientandroidlib.message.BasicStatusLine;
 import ch.boye.httpclientandroidlib.protocol.HttpContext;
-import ch.boye.httpclientandroidlib.util.Args;
+import ch.boye.httpclientandroidlib.ReasonPhraseCatalog;
+import ch.boye.httpclientandroidlib.impl.EnglishReasonPhraseCatalog;
 
 /**
  * Default factory for creating {@link HttpResponse} objects.
  *
  * @since 4.0
  */
-@Immutable
 public class DefaultHttpResponseFactory implements HttpResponseFactory {
-
-    public static final DefaultHttpResponseFactory INSTANCE = new DefaultHttpResponseFactory();
 
     /** The catalog for looking up reason phrases. */
     protected final ReasonPhraseCatalog reasonCatalog;
@@ -59,8 +55,12 @@ public class DefaultHttpResponseFactory implements HttpResponseFactory {
      *
      * @param catalog   the catalog of reason phrases
      */
-    public DefaultHttpResponseFactory(final ReasonPhraseCatalog catalog) {
-        this.reasonCatalog = Args.notNull(catalog, "Reason phrase catalog");
+    public DefaultHttpResponseFactory(ReasonPhraseCatalog catalog) {
+        if (catalog == null) {
+            throw new IllegalArgumentException
+                ("Reason phrase catalog must not be null.");
+        }
+        this.reasonCatalog = catalog;
     }
 
     /**
@@ -73,25 +73,29 @@ public class DefaultHttpResponseFactory implements HttpResponseFactory {
 
 
     // non-javadoc, see interface HttpResponseFactory
-    public HttpResponse newHttpResponse(
-            final ProtocolVersion ver,
-            final int status,
-            final HttpContext context) {
-        Args.notNull(ver, "HTTP version");
-        final Locale loc = determineLocale(context);
-        final String reason   = this.reasonCatalog.getReason(status, loc);
-        final StatusLine statusline = new BasicStatusLine(ver, status, reason);
-        return new BasicHttpResponse(statusline, this.reasonCatalog, loc);
+    public HttpResponse newHttpResponse(final ProtocolVersion ver,
+                                        final int status,
+                                        HttpContext context) {
+        if (ver == null) {
+            throw new IllegalArgumentException("HTTP version may not be null");
+        }
+        final Locale loc      = determineLocale(context);
+        final String reason   = reasonCatalog.getReason(status, loc);
+        StatusLine statusline = new BasicStatusLine(ver, status, reason);
+        return new BasicHttpResponse(statusline, reasonCatalog, loc);
     }
 
 
     // non-javadoc, see interface HttpResponseFactory
-    public HttpResponse newHttpResponse(
-            final StatusLine statusline,
-            final HttpContext context) {
-        Args.notNull(statusline, "Status line");
-        return new BasicHttpResponse(statusline, this.reasonCatalog, determineLocale(context));
+    public HttpResponse newHttpResponse(final StatusLine statusline,
+                                        HttpContext context) {
+        if (statusline == null) {
+            throw new IllegalArgumentException("Status line may not be null");
+        }
+        final Locale loc = determineLocale(context);
+        return new BasicHttpResponse(statusline, reasonCatalog, loc);
     }
+
 
     /**
      * Determines the locale of the response.
@@ -102,8 +106,7 @@ public class DefaultHttpResponseFactory implements HttpResponseFactory {
      *
      * @return  the locale for the response, never <code>null</code>
      */
-    protected Locale determineLocale(final HttpContext context) {
+    protected Locale determineLocale(HttpContext context) {
         return Locale.getDefault();
     }
-
 }

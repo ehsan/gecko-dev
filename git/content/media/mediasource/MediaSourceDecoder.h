@@ -7,20 +7,24 @@
 #ifndef MOZILLA_MEDIASOURCEDECODER_H_
 #define MOZILLA_MEDIASOURCEDECODER_H_
 
+#include "MediaCache.h"
+#include "MediaDecoder.h"
 #include "mozilla/Attributes.h"
+#include "mozilla/ReentrantMonitor.h"
 #include "nsCOMPtr.h"
 #include "nsError.h"
-#include "MediaDecoder.h"
+#include "nsStringGlue.h"
+#include "nsTArray.h"
 
 class nsIStreamListener;
 
 namespace mozilla {
 
 class MediaResource;
+class MediaDecoderReader;
 class MediaDecoderStateMachine;
+class SubBufferDecoder;
 class MediaSourceReader;
-class SourceBufferDecoder;
-class TrackBuffer;
 
 namespace dom {
 
@@ -32,43 +36,27 @@ class MediaSource;
 class MediaSourceDecoder : public MediaDecoder
 {
 public:
-  explicit MediaSourceDecoder(dom::HTMLMediaElement* aElement);
+  MediaSourceDecoder(dom::HTMLMediaElement* aElement);
 
   virtual MediaDecoder* Clone() MOZ_OVERRIDE;
   virtual MediaDecoderStateMachine* CreateStateMachine() MOZ_OVERRIDE;
   virtual nsresult Load(nsIStreamListener**, MediaDecoder*) MOZ_OVERRIDE;
   virtual nsresult GetSeekable(dom::TimeRanges* aSeekable) MOZ_OVERRIDE;
 
-  virtual void Shutdown() MOZ_OVERRIDE;
-
   static already_AddRefed<MediaResource> CreateResource();
 
   void AttachMediaSource(dom::MediaSource* aMediaSource);
   void DetachMediaSource();
 
-  already_AddRefed<SourceBufferDecoder> CreateSubDecoder(const nsACString& aType);
-  void AddTrackBuffer(TrackBuffer* aTrackBuffer);
-  void RemoveTrackBuffer(TrackBuffer* aTrackBuffer);
-  void OnTrackBufferConfigured(TrackBuffer* aTrackBuffer, const MediaInfo& aInfo);
+  already_AddRefed<SubBufferDecoder> CreateSubDecoder(const nsACString& aType);
 
-  void Ended();
-
-  void SetMediaSourceDuration(double aDuration);
-
-  // Called whenever a TrackBuffer has new data appended or a new decoder
-  // initializes.  Safe to call from any thread.
-  void NotifyTimeRangesChanged();
-
-  // Indicates the point in time at which the reader should consider
-  // registered TrackBuffers essential for initialization.
-  void PrepareReaderInitialization();
+  nsresult EnqueueDecoderInitialization();
 
 private:
   // The owning MediaSource holds a strong reference to this decoder, and
   // calls Attach/DetachMediaSource on this decoder to set and clear
   // mMediaSource.
   dom::MediaSource* mMediaSource;
-  nsRefPtr<MediaSourceReader> mReader;
 };
 
 } // namespace mozilla

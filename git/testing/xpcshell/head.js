@@ -1073,7 +1073,7 @@ function do_get_profile() {
           prop == "ProfLDS" || prop == "TmpD") {
         return file.clone();
       }
-      return null;
+      throw Components.results.NS_ERROR_FAILURE;
     },
     QueryInterface: function(iid) {
       if (iid.equals(Components.interfaces.nsIDirectoryServiceProvider) ||
@@ -1349,6 +1349,6 @@ try {
     let prefs = Components.classes["@mozilla.org/preferences-service;1"]
       .getService(Components.interfaces.nsIPrefBranch);
 
-    prefs.setCharPref("media.gmp-manager.url.override", "http://%(server)s/dummy-gmp-manager.xml");
+    prefs.setCharPref("media.gmp-manager.url.override", "http://%(server)s/dummy.xml");
   }
 } catch (e) { }

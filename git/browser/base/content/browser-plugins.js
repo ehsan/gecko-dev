@@ -504,7 +504,8 @@ var gPluginHandler = {
         keyVals.PluginContentURL = plugin.ownerDocument.URL;
     }
 
-    this.CrashSubmit.submit(pluginDumpID, { recordSubmission: true,
+    let pluginProcessType = Services.crashmanager.PROCESS_TYPE_PLUGIN;
+    this.CrashSubmit.submit(pluginDumpID, { processType: pluginProcessType,
                                             extraExtraKeyVals: keyVals });
     if (browserDumpID)
       this.CrashSubmit.submit(browserDumpID);
@@ -1222,15 +1223,13 @@ var gPluginHandler = {
       let observer = {
         QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver,
                                                Ci.nsISupportsWeakReference]),
-        observe : (subject, topic, data) => {
+        observe : function(subject, topic, data) {
           let propertyBag = subject;
           if (!(propertyBag instanceof Ci.nsIPropertyBag2))
             return;
           // Ignore notifications for other crashes.
           if (propertyBag.get("minidumpID") != pluginDumpID)
             return;
-
-          let statusDiv = this.getPluginUI(plugin, "submitStatus");
           statusDiv.setAttribute("status", data);
         },
 

@@ -14,18 +14,12 @@ function ObjectStaticAssign(target, firstSource) {
     // Step 4.
     var i = 1;
     do {
-        // Step 5.a-b, plus an unspecified flourish to skip null/undefined, so
-        // any site depending on agreed-upon (but not-yet-drafted) semantics
-        // from TC39 meeting minutes will work. (Yes, implausibly, such a site
-        // exists. See bug 1054426.)
+        // Step 5.a-b.
         var nextSource = arguments[i];
-        if (nextSource === null || nextSource === undefined)
-            continue;
-
         var from = ToObject(nextSource);
 
         // Step 5.c-d.
-        var keysArray = OwnPropertyKeys(from);
+        var keysArray = std_Object_getOwnPropertyNames(from);
 
         // Steps 5.e-f.
         var len = keysArray.length;
@@ -64,7 +58,8 @@ function ObjectStaticAssign(target, firstSource) {
         // Step 5.k.
         if (pendingException !== MISSING)
             throw pendingException;
-    } while (++i < arguments.length);
+        i++;
+    } while (i < arguments.length);
 
     // Step 6.
     return to;

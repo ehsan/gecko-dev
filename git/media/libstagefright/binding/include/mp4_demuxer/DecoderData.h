@@ -92,6 +92,7 @@ public:
   {
   }
 
+  int64_t duration;
   uint32_t channel_count;
   uint32_t bits_per_sample;
   uint32_t samples_per_second;
@@ -137,7 +138,6 @@ public:
 
   stagefright::MediaBuffer* mMediaBuffer;
 
-  Microseconds decode_timestamp;
   Microseconds composition_timestamp;
   Microseconds duration;
   int64_t byte_offset;

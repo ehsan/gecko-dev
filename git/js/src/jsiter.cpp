@@ -381,7 +381,7 @@ js::VectorToIdArray(JSContext *cx, AutoIdVector &props, JSIdArray **idap)
     size_t len = props.length();
     size_t idsz = len * sizeof(jsid);
     size_t sz = (sizeof(JSIdArray) - sizeof(jsid)) + idsz;
-    JSIdArray *ida = reinterpret_cast<JSIdArray *>(cx->zone()->pod_malloc<uint8_t>(sz));
+    JSIdArray *ida = static_cast<JSIdArray *>(cx->malloc_(sz));
     if (!ida)
         return false;
 
@@ -499,12 +499,14 @@ NativeIterator *
 NativeIterator::allocateIterator(JSContext *cx, uint32_t slength, const AutoIdVector &props)
 {
     size_t plength = props.length();
-    NativeIterator *ni = cx->zone()->pod_malloc_with_extra<NativeIterator, void *>(plength + slength);
+    NativeIterator *ni = (NativeIterator *)
+        cx->malloc_(sizeof(NativeIterator)
+                    + plength * sizeof(JSString *)
+                    + slength * sizeof(Shape *));
     if (!ni)
         return nullptr;
-
     AutoValueVector strings(cx);
-    ni->props_array = ni->props_cursor = reinterpret_cast<HeapPtrFlatString *>(ni + 1);
+    ni->props_array = ni->props_cursor = (HeapPtrFlatString *) (ni + 1);
     ni->props_end = ni->props_array + plength;
     if (plength) {
         for (size_t i = 0; i < plength; i++) {
@@ -522,7 +524,7 @@ NativeIterator::allocateIterator(JSContext *cx, uint32_t slength, const AutoIdVe
 NativeIterator *
 NativeIterator::allocateSentinel(JSContext *cx)
 {
-    NativeIterator *ni = js_pod_malloc<NativeIterator>();
+    NativeIterator *ni = (NativeIterator *)js_malloc(sizeof(NativeIterator));
     if (!ni)
         return nullptr;
 
@@ -1569,8 +1571,6 @@ FinalizeGenerator(FreeOp *fop, JSObject *obj)
 static void
 MarkGeneratorFrame(JSTracer *trc, JSGenerator *gen)
 {
-    gen->obj = MaybeForwarded(gen->obj.get());
-    MarkObject(trc, &gen->obj, "Generator Object");
     MarkValueRange(trc,
                    HeapValueify(gen->fp->generatorArgsSnapshotBegin()),
                    HeapValueify(gen->fp->generatorArgsSnapshotEnd()),
@@ -1720,6 +1720,12 @@ const Class StarGeneratorObject::class_ = {
     nullptr,                 /* hasInstance */
     nullptr,                 /* construct   */
     TraceGenerator<StarGeneratorObject>,
+    JS_NULL_CLASS_SPEC,
+    {
+        nullptr,             /* outerObject    */
+        nullptr,             /* innerObject    */
+        iterator_iteratorObject,
+    }
 };
 
 /*
@@ -1768,15 +1774,22 @@ js_NewGenerator(JSContext *cx, const InterpreterRegs &stackRegs)
     Value *stackvp = stackfp->generatorArgsSnapshotBegin();
     unsigned vplen = stackfp->generatorArgsSnapshotEnd() - stackvp;
 
-    static_assert(sizeof(InterpreterFrame) % sizeof(HeapValue) == 0,
-                  "The Values stored after InterpreterFrame must be aligned.");
-    unsigned nvals = vplen + VALUES_PER_STACK_FRAME + stackfp->script()->nslots();
-    JSGenerator *gen = obj->pod_calloc_with_extra<JSGenerator, HeapValue>(nvals);
+    /* Compute JSGenerator size. */
+    unsigned nbytes = sizeof(JSGenerator) +
+                   (-1 + /* one Value included in JSGenerator */
+                    vplen +
+                    VALUES_PER_STACK_FRAME +
+                    stackfp->script()->nslots()) * sizeof(HeapValue);
+
+    JS_ASSERT(nbytes % sizeof(Value) == 0);
+    JS_STATIC_ASSERT(sizeof(InterpreterFrame) % sizeof(HeapValue) == 0);
+
+    JSGenerator *gen = (JSGenerator *) obj->zone()->pod_calloc<uint8_t>(nbytes);
     if (!gen)
         return nullptr;
 
     /* Cut up floatingStack space. */
-    HeapValue *genvp = gen->stackSnapshot();
+    HeapValue *genvp = gen->stackSnapshot;
     SetValueRangeToUndefined((Value *)genvp, vplen);
 
     InterpreterFrame *genfp = reinterpret_cast<InterpreterFrame *>(genvp + vplen);

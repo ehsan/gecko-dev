@@ -672,7 +672,7 @@ struct nsAbsoluteItems : nsFrameItems {
   // containing block for absolutely positioned elements
   nsContainerFrame* containingBlock;
 
-  explicit nsAbsoluteItems(nsContainerFrame* aContainingBlock);
+  nsAbsoluteItems(nsContainerFrame* aContainingBlock);
 #ifdef DEBUG
   // XXXbz Does this need a debug-only assignment operator that nulls out the
   // childList in the nsAbsoluteItems we're copying?  Introducing a difference
@@ -1772,10 +1772,6 @@ nsCSSFrameConstructor::CreateGeneratedContentItem(nsFrameConstructorState& aStat
                                                   nsCSSPseudoElements::Type aPseudoElement,
                                                   FrameConstructionItemList& aItems)
 {
-  MOZ_ASSERT(aPseudoElement == nsCSSPseudoElements::ePseudo_before ||
-             aPseudoElement == nsCSSPseudoElements::ePseudo_after,
-             "unexpected aPseudoElement");
-
   // XXXbz is this ever true?
   if (!aParentContent->IsElement()) {
     NS_ERROR("Bogus generated content parent");
@@ -1793,13 +1789,10 @@ nsCSSFrameConstructor::CreateGeneratedContentItem(nsFrameConstructorState& aStat
                                       aState.mTreeMatchContext);
   if (!pseudoStyleContext)
     return;
-
-  bool isBefore = aPseudoElement == nsCSSPseudoElements::ePseudo_before;
-
   // |ProbePseudoStyleFor| checked the 'display' property and the
   // |ContentCount()| of the 'content' property for us.
   nsRefPtr<NodeInfo> nodeInfo;
-  nsIAtom* elemName = isBefore ?
+  nsIAtom* elemName = aPseudoElement == nsCSSPseudoElements::ePseudo_before ?
     nsGkAtoms::mozgeneratedcontentbefore : nsGkAtoms::mozgeneratedcontentafter;
   nodeInfo = mDocument->NodeInfoManager()->GetNodeInfo(elemName, nullptr,
                                                        kNameSpaceID_None,
@@ -1819,18 +1812,6 @@ nsCSSFrameConstructor::CreateGeneratedContentItem(nsFrameConstructorState& aStat
   if (NS_FAILED(rv)) {
     container->UnbindFromTree();
     return;
-  }
-
-  RestyleManager::ReframingStyleContexts* rsc =
-    RestyleManager()->GetReframingStyleContexts();
-  if (rsc) {
-    nsStyleContext* oldStyleContext = rsc->Get(container, aPseudoElement);
-    if (oldStyleContext) {
-      RestyleManager::TryStartingTransition(aState.mPresContext,
-                                            container,
-                                            oldStyleContext,
-                                            &pseudoStyleContext);
-    }
   }
 
   uint32_t contentCount = pseudoStyleContext->StyleContent()->ContentCount();
@@ -2427,9 +2408,6 @@ nsCSSFrameConstructor::ConstructDocElementFrame(Element*                 aDocEle
   aDocElement->UnsetFlags(ELEMENT_ALL_RESTYLE_FLAGS);
 
   // --------- CREATE AREA OR BOX FRAME -------
-  // FIXME: Should this use ResolveStyleContext?  (The calls in this
-  // function are the only case in nsCSSFrameConstructor where we don't
-  // do so for the construction of a style context for an element.)
   nsRefPtr<nsStyleContext> styleContext;
   styleContext = mPresShell->StyleSet()->ResolveStyleFor(aDocElement,
                                                          nullptr);
@@ -2462,10 +2440,6 @@ nsCSSFrameConstructor::ConstructDocElementFrame(Element*                 aDocEle
     }
 
     if (resolveStyle) {
-      // FIXME: Should this use ResolveStyleContext?  (The calls in this
-      // function are the only case in nsCSSFrameConstructor where we
-      // don't do so for the construction of a style context for an
-      // element.)
       styleContext = mPresShell->StyleSet()->ResolveStyleFor(aDocElement,
                                                              nullptr);
       display = styleContext->StyleDisplay();
@@ -4470,7 +4444,7 @@ nsCSSFrameConstructor::FinishBuildingScrollFrame(nsContainerFrame* aScrollFrame,
  *                  If this is not null, we'll just use it
  * @param aScrolledContentStyle the style that was resolved for the scrolled frame. (returned)
  */
-void
+nsresult
 nsCSSFrameConstructor::BuildScrollFrame(nsFrameConstructorState& aState,
                                         nsIContent*              aContent,
                                         nsStyleContext*          aContentStyle,
@@ -4478,15 +4452,16 @@ nsCSSFrameConstructor::BuildScrollFrame(nsFrameConstructorState& aState,
                                         nsContainerFrame*        aParentFrame,
                                         nsContainerFrame*&       aNewFrame)
 {
-  nsRefPtr<nsStyleContext> scrolledContentStyle =
-    BeginBuildingScrollFrame(aState, aContent, aContentStyle, aParentFrame,
-                             nsCSSAnonBoxes::scrolledContent,
-                             false, aNewFrame);
+    nsRefPtr<nsStyleContext> scrolledContentStyle =
+      BeginBuildingScrollFrame(aState, aContent, aContentStyle, aParentFrame,
+                               nsCSSAnonBoxes::scrolledContent,
+                               false, aNewFrame);
 
-  aScrolledFrame->SetStyleContextWithoutNotification(scrolledContentStyle);
-  InitAndRestoreFrame(aState, aContent, aNewFrame, aScrolledFrame);
+    aScrolledFrame->SetStyleContextWithoutNotification(scrolledContentStyle);
+    InitAndRestoreFrame(aState, aContent, aNewFrame, aScrolledFrame);
 
-  FinishBuildingScrollFrame(aNewFrame, aScrolledFrame);
+    FinishBuildingScrollFrame(aNewFrame, aScrolledFrame);
+    return NS_OK;
 }
 
 const nsCSSFrameConstructor::FrameConstructionData*
@@ -4552,22 +4527,6 @@ nsCSSFrameConstructor::FindDisplayData(const nsStyleDisplay* aDisplay,
     return &sNonScrollableBlockData;
   }
 
-  // If this is for a <body> node and we've propagated the scroll-frame to the
-  // viewport, we need to make sure not to add another layer of scrollbars, so
-  // we use a different FCData struct without FCDATA_MAY_NEED_SCROLLFRAME.
-  if (propagatedScrollToViewport && aDisplay->IsScrollableOverflow()) {
-    if (aDisplay->mDisplay == NS_STYLE_DISPLAY_FLEX) {
-      static const FrameConstructionData sNonScrollableFlexData =
-        FCDATA_DECL(0, NS_NewFlexContainerFrame);
-      return &sNonScrollableFlexData;
-    }
-    if (aDisplay->mDisplay == NS_STYLE_DISPLAY_GRID) {
-      static const FrameConstructionData sNonScrollableGridData =
-        FCDATA_DECL(0, NS_NewGridContainerFrame);
-      return &sNonScrollableGridData;
-    }
-  }
-
   static const FrameConstructionDataByInt sDisplayData[] = {
     // To keep the hash table small don't add inline frames (they're
     // typically things like FONT and B), because we can quickly
@@ -4588,16 +4547,13 @@ nsCSSFrameConstructor::FindDisplayData(const nsStyleDisplay* aDisplay,
       FCDATA_DECL(FCDATA_IS_LINE_PARTICIPANT,
                   NS_NewRubyFrame) },
     { NS_STYLE_DISPLAY_RUBY_BASE,
-      FCDATA_DECL(FCDATA_IS_LINE_PARTICIPANT |
-                  FCDATA_DESIRED_PARENT_TYPE_TO_BITS(eTypeRubyBaseContainer),
+      FCDATA_DECL(FCDATA_DESIRED_PARENT_TYPE_TO_BITS(eTypeRubyBaseContainer),
                   NS_NewRubyBaseFrame) },
     { NS_STYLE_DISPLAY_RUBY_BASE_CONTAINER,
-      FCDATA_DECL(FCDATA_IS_LINE_PARTICIPANT |
-                  FCDATA_DESIRED_PARENT_TYPE_TO_BITS(eTypeRuby),
+      FCDATA_DECL(FCDATA_DESIRED_PARENT_TYPE_TO_BITS(eTypeRuby),
                   NS_NewRubyBaseContainerFrame) },
     { NS_STYLE_DISPLAY_RUBY_TEXT,
-      FCDATA_DECL(FCDATA_IS_LINE_PARTICIPANT |
-                  FCDATA_DESIRED_PARENT_TYPE_TO_BITS(eTypeRubyTextContainer),
+      FCDATA_DECL(FCDATA_DESIRED_PARENT_TYPE_TO_BITS(eTypeRubyTextContainer),
                   NS_NewRubyTextFrame) },
     { NS_STYLE_DISPLAY_RUBY_TEXT_CONTAINER,
       FCDATA_DECL(FCDATA_DESIRED_PARENT_TYPE_TO_BITS(eTypeRuby),
@@ -4789,36 +4745,21 @@ nsCSSFrameConstructor::ResolveStyleContext(nsStyleContext* aParentStyleContext,
   nsStyleSet *styleSet = mPresShell->StyleSet();
   aContent->OwnerDoc()->FlushPendingLinkUpdates();
 
-  nsRefPtr<nsStyleContext> result;
   if (aContent->IsElement()) {
     if (aState) {
-      result = styleSet->ResolveStyleFor(aContent->AsElement(),
-                                         aParentStyleContext,
-                                         aState->mTreeMatchContext);
-    } else {
-      result = styleSet->ResolveStyleFor(aContent->AsElement(),
-                                         aParentStyleContext);
+      return styleSet->ResolveStyleFor(aContent->AsElement(),
+                                       aParentStyleContext,
+                                       aState->mTreeMatchContext);
     }
-  } else {
-    NS_ASSERTION(aContent->IsNodeOfType(nsINode::eTEXT),
-                 "shouldn't waste time creating style contexts for "
-                 "comments and processing instructions");
-    result = styleSet->ResolveStyleForNonElement(aParentStyleContext);
+    return styleSet->ResolveStyleFor(aContent->AsElement(), aParentStyleContext);
+
   }
 
-  RestyleManager::ReframingStyleContexts* rsc =
-    RestyleManager()->GetReframingStyleContexts();
-  if (rsc) {
-    nsStyleContext* oldStyleContext =
-      rsc->Get(aContent, nsCSSPseudoElements::ePseudo_NotPseudoElement);
-    if (oldStyleContext) {
-      RestyleManager::TryStartingTransition(mPresShell->GetPresContext(),
-                                            aContent,
-                                            oldStyleContext, &result);
-    }
-  }
+  NS_ASSERTION(aContent->IsNodeOfType(nsINode::eTEXT),
+               "shouldn't waste time creating style contexts for "
+               "comments and processing instructions");
 
-  return result.forget();
+  return styleSet->ResolveStyleForNonElement(aParentStyleContext);
 }
 
 // MathML Mod - RBS
@@ -6687,7 +6628,7 @@ nsCSSFrameConstructor::GetRangeInsertionPoint(nsIContent* aContainer,
   bool hasInsertion = false;
   if (!multiple) {
     // XXXbz XBL2/sXBL issue
-    nsIDocument* document = aStartChild->GetComposedDoc();
+    nsIDocument* document = aStartChild->GetDocument();
     // XXXbz how would |document| be null here?
     if (document && aStartChild->GetXBLInsertionParent()) {
       hasInsertion = true;
@@ -9114,15 +9055,13 @@ nsCSSFrameConstructor::sPseudoParentData[eParentTypeCount] = {
   },
   { // Ruby Base
     FCDATA_DECL(FCDATA_USE_CHILD_ITEMS | 
-                FCDATA_IS_LINE_PARTICIPANT |
                 FCDATA_DESIRED_PARENT_TYPE_TO_BITS(eTypeRubyBaseContainer) |
                 FCDATA_SKIP_FRAMESET,
                 NS_NewRubyBaseFrame),
     &nsCSSAnonBoxes::rubyBase
   },
   { // Ruby Base Container
-    FCDATA_DECL(FCDATA_USE_CHILD_ITEMS |
-                FCDATA_IS_LINE_PARTICIPANT |
+    FCDATA_DECL(FCDATA_USE_CHILD_ITEMS | 
                 FCDATA_DESIRED_PARENT_TYPE_TO_BITS(eTypeRuby) |
                 FCDATA_SKIP_FRAMESET,
                 NS_NewRubyBaseContainerFrame),
@@ -9130,7 +9069,6 @@ nsCSSFrameConstructor::sPseudoParentData[eParentTypeCount] = {
   },
   { // Ruby Text
     FCDATA_DECL(FCDATA_USE_CHILD_ITEMS |
-                FCDATA_IS_LINE_PARTICIPANT |
                 FCDATA_DESIRED_PARENT_TYPE_TO_BITS(eTypeRubyTextContainer) |
                 FCDATA_SKIP_FRAMESET,
                 NS_NewRubyTextFrame),
@@ -10549,15 +10487,12 @@ nsCSSFrameConstructor::RemoveFirstLetterFrames(nsPresContext* aPresContext,
       break;
     }
     else if (IsInlineFrame(kid)) {
-      nsContainerFrame* kidAsContainerFrame = do_QueryFrame(kid);
-      if (kidAsContainerFrame) {
-        // Look inside child inline frame for the letter frame.
-        RemoveFirstLetterFrames(aPresContext, aPresShell,
-                                kidAsContainerFrame,
-                                aBlockFrame, aStopLooking);
-        if (*aStopLooking) {
-          break;
-        }
+      // Look inside child inline frame for the letter frame
+      RemoveFirstLetterFrames(aPresContext, aPresShell,
+                              static_cast<nsContainerFrame*>(kid),
+                              aBlockFrame, aStopLooking);
+      if (*aStopLooking) {
+        break;
       }
     }
     prevSibling = kid;

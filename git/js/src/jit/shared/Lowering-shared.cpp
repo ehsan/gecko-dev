@@ -136,10 +136,10 @@ LIRGeneratorShared::buildSnapshot(LInstruction *ins, MResumePoint *rp, BailoutKi
         // constants, including known types, we record a dummy placeholder,
         // since we can recover the same information, much cleaner, from MIR.
         if (ins->isConstant() || ins->isUnused()) {
-            *type = LAllocation();
-            *payload = LAllocation();
+            *type = LConstantIndex::Bogus();
+            *payload = LConstantIndex::Bogus();
         } else if (ins->type() != MIRType_Value) {
-            *type = LAllocation();
+            *type = LConstantIndex::Bogus();
             *payload = use(ins, LUse(LUse::KEEPALIVE));
         } else {
             *type = useType(ins, LUse::KEEPALIVE);
@@ -187,7 +187,7 @@ LIRGeneratorShared::buildSnapshot(LInstruction *ins, MResumePoint *rp, BailoutKi
         LAllocation *a = snapshot->getEntry(index++);
 
         if (def->isUnused()) {
-            *a = LAllocation();
+            *a = LConstantIndex::Bogus();
             continue;
         }
 

@@ -11,11 +11,10 @@
 #include "jsobj.h"
 #include "jsstr.h"
 
-#include "builtin/RegExp.h"
 #include "builtin/TypedObject.h"
 
+#include "jit/IonSpewer.h"
 #include "jit/JitFrameIterator.h"
-#include "jit/JitSpewer.h"
 #include "jit/MIR.h"
 #include "jit/MIRGraph.h"
 #include "jit/VMFunctions.h"
@@ -29,7 +28,8 @@ using namespace js::jit;
 bool
 MNode::writeRecoverData(CompactBufferWriter &writer) const
 {
-    MOZ_CRASH("This instruction is not serializable");
+    MOZ_ASSUME_UNREACHABLE("This instruction is not serializable");
+    return false;
 }
 
 void
@@ -49,7 +49,8 @@ RInstruction::readRecoverData(CompactBufferReader &reader, RInstructionStorage *
 
       case Recover_Invalid:
       default:
-        MOZ_CRASH("Bad decoding of the previous instruction?");
+        MOZ_ASSUME_UNREACHABLE("Bad decoding of the previous instruction?");
+        break;
     }
 }
 
@@ -115,11 +116,11 @@ MResumePoint::writeRecoverData(CompactBufferWriter &writer) const
     uint32_t formalArgs = CountArgSlots(script, fun);
     uint32_t nallocs = formalArgs + script->nfixed() + exprStack;
 
-    JitSpew(JitSpew_Snapshots, "Starting frame; implicit %u, formals %u, fixed %u, exprs %u",
+    IonSpew(IonSpew_Snapshots, "Starting frame; implicit %u, formals %u, fixed %u, exprs %u",
             implicit, formalArgs - implicit, script->nfixed(), exprStack);
 
     uint32_t pcoff = script->pcToOffset(pc());
-    JitSpew(JitSpew_Snapshots, "Writing pc offset %u, nslots %u", pcoff, nallocs);
+    IonSpew(IonSpew_Snapshots, "Writing pc offset %u, nslots %u", pcoff, nallocs);
     writer.writeUnsigned(pcoff);
     writer.writeUnsigned(nallocs);
     return true;
@@ -129,14 +130,14 @@ RResumePoint::RResumePoint(CompactBufferReader &reader)
 {
     pcOffset_ = reader.readUnsigned();
     numOperands_ = reader.readUnsigned();
-    JitSpew(JitSpew_Snapshots, "Read RResumePoint (pc offset %u, nslots %u)",
+    IonSpew(IonSpew_Snapshots, "Read RResumePoint (pc offset %u, nslots %u)",
             pcOffset_, numOperands_);
 }
 
 bool
 RResumePoint::recover(JSContext *cx, SnapshotIterator &iter) const
 {
-    MOZ_CRASH("This instruction is not recoverable.");
+    MOZ_ASSUME_UNREACHABLE("This instruction is not recoverable.");
 }
 
 bool
@@ -850,7 +851,8 @@ MMathFunction::writeRecoverData(CompactBufferWriter &writer) const
         writer.writeUnsigned(uint32_t(RInstruction::Recover_Round));
         return true;
       default:
-        MOZ_CRASH("Unknown math function.");
+        MOZ_ASSUME_UNREACHABLE("Unknown math function.");
+        return false;
     }
 }
 
@@ -883,29 +885,6 @@ RStringSplit::recover(JSContext *cx, SnapshotIterator &iter) const
     return true;
 }
 
-bool MRegExpExec::writeRecoverData(CompactBufferWriter &writer) const
-{
-    MOZ_ASSERT(canRecoverOnBailout());
-    writer.writeUnsigned(uint32_t(RInstruction::Recover_RegExpExec));
-    return true;
-}
-
-RRegExpExec::RRegExpExec(CompactBufferReader &reader)
-{}
-
-bool RRegExpExec::recover(JSContext *cx, SnapshotIterator &iter) const{
-    RootedObject regexp(cx, &iter.read().toObject());
-    RootedString input(cx, iter.read().toString());
-
-    RootedValue result(cx);
-
-    if(!regexp_exec_raw(cx, regexp, input, &result))
-        return false;
-
-    iter.storeInstructionResult(result);
-    return true;
-}
-
 bool
 MRegExpTest::writeRecoverData(CompactBufferWriter &writer) const
 {
@@ -929,32 +908,6 @@ RRegExpTest::recover(JSContext *cx, SnapshotIterator &iter) const
 
     RootedValue result(cx);
     result.setBoolean(resultBool);
-    iter.storeInstructionResult(result);
-    return true;
-}
-
-bool
-MRegExpReplace::writeRecoverData(CompactBufferWriter &writer) const
-{
-    MOZ_ASSERT(canRecoverOnBailout());
-    writer.writeUnsigned(uint32_t(RInstruction::Recover_RegExpReplace));
-    return true;
-}
-
-RRegExpReplace::RRegExpReplace(CompactBufferReader &reader)
-{ }
-
-bool
-RRegExpReplace::recover(JSContext *cx, SnapshotIterator &iter) const
-{
-    RootedString string(cx, iter.read().toString());
-    RootedObject regexp(cx, &iter.read().toObject());
-    RootedString repl(cx, iter.read().toString());
-    RootedValue result(cx);
-
-    if (!js::str_replace_regexp_raw(cx, string, regexp, repl, &result))
-        return false;
-
     iter.storeInstructionResult(result);
     return true;
 }
@@ -1004,14 +957,14 @@ MNewArray::writeRecoverData(CompactBufferWriter &writer) const
     MOZ_ASSERT(canRecoverOnBailout());
     writer.writeUnsigned(uint32_t(RInstruction::Recover_NewArray));
     writer.writeUnsigned(count());
-    writer.writeByte(uint8_t(allocatingBehaviour()));
+    writer.writeByte(isAllocating());
     return true;
 }
 
 RNewArray::RNewArray(CompactBufferReader &reader)
 {
     count_ = reader.readUnsigned();
-    allocatingBehaviour_ = AllocatingBehaviour(reader.readByte());
+    isAllocating_ = reader.readByte();
 }
 
 bool
@@ -1021,15 +974,11 @@ RNewArray::recover(JSContext *cx, SnapshotIterator &iter) const
     RootedValue result(cx);
     RootedTypeObject type(cx);
 
-    // Use AutoEnterAnalysis to avoid invoking the object metadata callback
-    // while bailing out, which could try to walk the stack.
-    types::AutoEnterAnalysis enter(cx);
-
     // See CodeGenerator::visitNewArrayCallVM
     if (!templateObject->hasSingletonType())
         type = templateObject->type();
 
-    JSObject *resultObject = NewDenseArray(cx, count_, type, allocatingBehaviour_);
+    JSObject *resultObject = NewDenseArray(cx, count_, type, isAllocating_);
     if (!resultObject)
         return false;
 

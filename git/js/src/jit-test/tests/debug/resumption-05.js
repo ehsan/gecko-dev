@@ -1,3 +1,4 @@
+// |jit-test| debug
 // null resumption value means terminate the debuggee
 
 var g = newGlobal();

@@ -27,71 +27,7 @@ class ContainerLayerComposite : public ContainerLayer,
   template<class ContainerT>
   friend void ContainerPrepare(ContainerT* aContainer,
                                LayerManagerComposite* aManager,
-                               const RenderTargetIntRect& aClipRect);
-  template<class ContainerT>
-  friend void ContainerRender(ContainerT* aContainer,
-                              LayerManagerComposite* aManager,
-                              const RenderTargetIntRect& aClipRect);
-  template<class ContainerT>
-  friend void RenderLayers(ContainerT* aContainer,
-                           LayerManagerComposite* aManager,
-                           const RenderTargetIntRect& aClipRect);
-  template<class ContainerT>
-  friend void RenderIntermediate(ContainerT* aContainer,
-                   LayerManagerComposite* aManager,
-                   const nsIntRect& aClipRect,
-                   RefPtr<CompositingRenderTarget> surface);
-  template<class ContainerT>
-  friend RefPtr<CompositingRenderTarget>
-  CreateTemporaryTargetAndCopyFromBackground(ContainerT* aContainer,
-                                             LayerManagerComposite* aManager,
-                                             const RenderTargetIntRect& aClipRect);
-  template<class ContainerT>
-  friend RefPtr<CompositingRenderTarget>
-  CreateTemporaryTarget(ContainerT* aContainer,
-                        LayerManagerComposite* aManager,
-                        const RenderTargetIntRect& aClipRect);
-
-public:
-  explicit ContainerLayerComposite(LayerManagerComposite *aManager);
-
-protected:
-  ~ContainerLayerComposite();
-
-public:
-  // LayerComposite Implementation
-  virtual Layer* GetLayer() MOZ_OVERRIDE { return this; }
-
-  virtual void Destroy() MOZ_OVERRIDE;
-
-  LayerComposite* GetFirstChildComposite();
-
-  virtual void RenderLayer(const nsIntRect& aClipRect) MOZ_OVERRIDE;
-  virtual void Prepare(const RenderTargetIntRect& aClipRect) MOZ_OVERRIDE;
-
-  virtual void ComputeEffectiveTransforms(const gfx::Matrix4x4& aTransformToSurface) MOZ_OVERRIDE
-  {
-    DefaultComputeEffectiveTransforms(aTransformToSurface);
-  }
-
-  virtual void CleanupResources() MOZ_OVERRIDE;
-
-  virtual LayerComposite* AsLayerComposite() MOZ_OVERRIDE { return this; }
-
-  // container layers don't use a compositable
-  CompositableHost* GetCompositableHost() MOZ_OVERRIDE { return nullptr; }
-
-  virtual const char* Name() const MOZ_OVERRIDE { return "ContainerLayerComposite"; }
-  UniquePtr<PreparedData> mPrepared;
-};
-
-class RefLayerComposite : public RefLayer,
-                          public LayerComposite
-{
-  template<class ContainerT>
-  friend void ContainerPrepare(ContainerT* aContainer,
-                               LayerManagerComposite* aManager,
-                               const RenderTargetIntRect& aClipRect);
+                               const nsIntRect& aClipRect);
   template<class ContainerT>
   friend void ContainerRender(ContainerT* aContainer,
                               LayerManagerComposite* aManager,
@@ -117,7 +53,71 @@ class RefLayerComposite : public RefLayer,
                         const nsIntRect& aClipRect);
 
 public:
-  explicit RefLayerComposite(LayerManagerComposite *aManager);
+  ContainerLayerComposite(LayerManagerComposite *aManager);
+
+protected:
+  ~ContainerLayerComposite();
+
+public:
+  // LayerComposite Implementation
+  virtual Layer* GetLayer() MOZ_OVERRIDE { return this; }
+
+  virtual void Destroy() MOZ_OVERRIDE;
+
+  LayerComposite* GetFirstChildComposite();
+
+  virtual void RenderLayer(const nsIntRect& aClipRect) MOZ_OVERRIDE;
+  virtual void Prepare(const nsIntRect& aClipRect) MOZ_OVERRIDE;
+
+  virtual void ComputeEffectiveTransforms(const gfx::Matrix4x4& aTransformToSurface) MOZ_OVERRIDE
+  {
+    DefaultComputeEffectiveTransforms(aTransformToSurface);
+  }
+
+  virtual void CleanupResources() MOZ_OVERRIDE;
+
+  virtual LayerComposite* AsLayerComposite() MOZ_OVERRIDE { return this; }
+
+  // container layers don't use a compositable
+  CompositableHost* GetCompositableHost() MOZ_OVERRIDE { return nullptr; }
+
+  virtual const char* Name() const MOZ_OVERRIDE { return "ContainerLayerComposite"; }
+  UniquePtr<PreparedData> mPrepared;
+};
+
+class RefLayerComposite : public RefLayer,
+                          public LayerComposite
+{
+  template<class ContainerT>
+  friend void ContainerPrepare(ContainerT* aContainer,
+                               LayerManagerComposite* aManager,
+                               const nsIntRect& aClipRect);
+  template<class ContainerT>
+  friend void ContainerRender(ContainerT* aContainer,
+                              LayerManagerComposite* aManager,
+                              const nsIntRect& aClipRect);
+  template<class ContainerT>
+  friend void RenderLayers(ContainerT* aContainer,
+                           LayerManagerComposite* aManager,
+                           const nsIntRect& aClipRect);
+  template<class ContainerT>
+  friend void RenderIntermediate(ContainerT* aContainer,
+                   LayerManagerComposite* aManager,
+                   const nsIntRect& aClipRect,
+                   RefPtr<CompositingRenderTarget> surface);
+  template<class ContainerT>
+  friend RefPtr<CompositingRenderTarget>
+  CreateTemporaryTargetAndCopyFromBackground(ContainerT* aContainer,
+                                             LayerManagerComposite* aManager,
+                                             const nsIntRect& aClipRect);
+  template<class ContainerT>
+  friend RefPtr<CompositingRenderTarget>
+  CreateTemporaryTarget(ContainerT* aContainer,
+                        LayerManagerComposite* aManager,
+                        const nsIntRect& aClipRect);
+
+public:
+  RefLayerComposite(LayerManagerComposite *aManager);
 
 protected:
   ~RefLayerComposite();
@@ -131,7 +131,7 @@ public:
   LayerComposite* GetFirstChildComposite();
 
   virtual void RenderLayer(const nsIntRect& aClipRect) MOZ_OVERRIDE;
-  virtual void Prepare(const RenderTargetIntRect& aClipRect) MOZ_OVERRIDE;
+  virtual void Prepare(const nsIntRect& aClipRect) MOZ_OVERRIDE;
 
   virtual void ComputeEffectiveTransforms(const gfx::Matrix4x4& aTransformToSurface) MOZ_OVERRIDE
   {

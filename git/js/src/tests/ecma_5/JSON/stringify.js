@@ -1,3 +1,5 @@
+// Ported from dom/src/json/test/unit/test_wrappers.js
+
 function assertStringify(v, expect)
 {
   assertEq(JSON.stringify(v), expect);

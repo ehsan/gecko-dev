@@ -28,19 +28,15 @@ interface PeerConnectionObserver
   void onGetStatsSuccess(optional RTCStatsReportInternal report);
   void onGetStatsError(unsigned long name, DOMString message);
 
-  /* replaceTrack callbacks */
-  void onReplaceTrackSuccess();
-  void onReplaceTrackError(unsigned long name, DOMString message);
-
   /* Data channel callbacks */
   void notifyDataChannel(DataChannel channel);
 
   /* Notification of one of several types of state changed */
   void onStateChange(PCObserverStateType state);
 
-  /* Changes to MediaStreamTracks */
+  /* Changes to MediaStreams */
   void onAddStream(MediaStream stream);
   void onRemoveStream();
-  void onAddTrack(MediaStreamTrack track);
+  void onAddTrack();
   void onRemoveTrack();
 };

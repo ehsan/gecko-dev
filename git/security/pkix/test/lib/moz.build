@@ -21,11 +21,10 @@
 # limitations under the License.
 
 SOURCES += [
-    'pkixtestnss.cpp',
     'pkixtestutil.cpp',
 ]
 
-Library('pkixtestutil')
+LIBRARY_NAME = 'pkixtestutil'
 
 LOCAL_INCLUDES += [
     '../../include',

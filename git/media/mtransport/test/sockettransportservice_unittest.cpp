@@ -78,7 +78,7 @@ class SocketTransportServiceTest : public ::testing::Test {
 // Received an event.
 class EventReceived : public nsRunnable {
 public:
-  explicit EventReceived(SocketTransportServiceTest *test) :
+  EventReceived(SocketTransportServiceTest *test) :
       test_(test) {}
 
   NS_IMETHOD Run() {
@@ -93,7 +93,7 @@ public:
 // Register our listener on the socket
 class RegisterEvent : public nsRunnable {
 public:
-  explicit RegisterEvent(SocketTransportServiceTest *test) :
+  RegisterEvent(SocketTransportServiceTest *test) :
       test_(test) {}
 
   NS_IMETHOD Run() {
@@ -107,7 +107,7 @@ public:
 
 class SocketHandler : public nsASocketHandler {
  public:
-  explicit SocketHandler(SocketTransportServiceTest *test) : test_(test) {
+  SocketHandler(SocketTransportServiceTest *test) : test_(test) {
   }
 
   void OnSocketReady(PRFileDesc *fd, int16_t outflags) {

@@ -33,7 +33,7 @@ class ImageLoader MOZ_FINAL : public imgINotificationObserver,
 public:
   typedef mozilla::css::ImageValue Image;
 
-  explicit ImageLoader(nsIDocument* aDocument)
+  ImageLoader(nsIDocument* aDocument)
   : mDocument(aDocument),
     mInClone(false)
   {
@@ -59,10 +59,7 @@ public:
 
   void SetAnimationMode(uint16_t aMode);
 
-  // The prescontext for this ImageLoader's document. We need it to be passed
-  // in because this can be called during presentation destruction after the
-  // presshell pointer on the document has been cleared.
-  void ClearFrames(nsPresContext* aPresContext);
+  void ClearFrames();
 
   void LoadImage(nsIURI* aURI, nsIPrincipal* aPrincipal, nsIURI* aReferrer,
                  Image* aCSSValue);
@@ -95,10 +92,6 @@ private:
   static PLDHashOperator
   SetAnimationModeEnumerator(nsISupports* aKey, FrameSet* aValue,
                              void* aClosure);
-
-  static PLDHashOperator
-  DeregisterRequestEnumerator(nsISupports* aKey, FrameSet* aValue,
-                              void* aClosure);
 
   nsresult OnStartContainer(imgIRequest *aRequest, imgIContainer* aImage);
   nsresult OnStopFrame(imgIRequest *aRequest);

@@ -71,7 +71,7 @@ public:
   virtual nsresult         Shutdown();
 
 protected:
-                           explicit nsProfileDirServiceProvider(bool aNotifyObservers = true);
+                           nsProfileDirServiceProvider(bool aNotifyObservers = true);
    virtual                 ~nsProfileDirServiceProvider();
 
   nsresult                 Initialize();

@@ -22,10 +22,14 @@
  * limitations under the License.
  */
 
+#include "nss.h"
 #include "nssgtest.h"
 #include "pkix/pkix.h"
+#include "pkix/pkixnss.h"
 #include "pkixgtest.h"
 #include "pkixtestutil.h"
+#include "prinit.h"
+#include "secerr.h"
 
 using namespace mozilla::pkix;
 using namespace mozilla::pkix::test;
@@ -73,18 +77,19 @@ public:
   virtual Result VerifySignedData(const SignedDataWithSignature& signedData,
                                   Input subjectPublicKeyInfo)
   {
-    return TestVerifySignedData(signedData, subjectPublicKeyInfo);
+    return ::mozilla::pkix::VerifySignedData(signedData, subjectPublicKeyInfo,
+                                             nullptr);
   }
 
   virtual Result DigestBuf(Input item, /*out*/ uint8_t *digestBuf,
                            size_t digestBufLen)
   {
-    return TestDigestBuf(item, digestBuf, digestBufLen);
+    return ::mozilla::pkix::DigestBuf(item, digestBuf, digestBufLen);
   }
 
   virtual Result CheckPublicKey(Input subjectPublicKeyInfo)
   {
-    return TestCheckPublicKey(subjectPublicKeyInfo);
+    return ::mozilla::pkix::CheckPublicKey(subjectPublicKeyInfo);
   }
 
 private:
@@ -93,7 +98,7 @@ private:
 };
 
 namespace {
-char const* const rootName = "Test CA 1";
+char const* const rootName = "CN=Test CA 1";
 void deleteCertID(CertID* certID) { delete certID; }
 } // unnamed namespace
 
@@ -102,15 +107,23 @@ class pkixocsp_VerifyEncodedResponse : public NSSTest
 public:
   static bool SetUpTestCaseInner()
   {
-    rootKeyPair = GenerateKeyPair();
-    return rootKeyPair.get() != nullptr;
+    ScopedSECKEYPublicKey rootPublicKey;
+    if (GenerateKeyPair(rootPublicKey, rootPrivateKey) != SECSuccess) {
+      return false;
+    }
+    rootSPKI = SECKEY_EncodeDERSubjectPublicKeyInfo(rootPublicKey.get());
+    if (!rootSPKI) {
+      return false;
+    }
+
+    return true;
   }
 
   static void SetUpTestCase()
   {
     NSSTest::SetUpTestCase();
     if (!SetUpTestCaseInner()) {
-      abort();
+      PR_Abort();
     }
   }
 
@@ -118,51 +131,44 @@ public:
   {
     NSSTest::SetUp();
 
-    rootNameDER = CNToDERName(rootName);
-    if (rootNameDER == ENCODING_FAILED) {
-      abort();
-    }
-    Input rootNameDERInput;
-    if (rootNameDERInput.Init(rootNameDER.data(), rootNameDER.length())
-          != Success) {
-      abort();
+    Input rootNameDER;
+    // The result of ASCIIToDERName is owned by the arena
+    if (InitInputFromSECItem(ASCIIToDERName(arena.get(), rootName),
+                             rootNameDER) != Success) {
+      PR_Abort();
     }
 
-    serialNumberDER = CreateEncodedSerialNumber(++rootIssuedCount);
-    if (serialNumberDER == ENCODING_FAILED) {
-      abort();
-    }
-    Input serialNumberDERInput;
-    if (serialNumberDERInput.Init(serialNumberDER.data(),
-                                  serialNumberDER.length()) != Success) {
-      abort();
+    Input serialNumberDER;
+    // The result of CreateEncodedSerialNumber is owned by the arena
+    if (InitInputFromSECItem(
+          CreateEncodedSerialNumber(arena.get(), ++rootIssuedCount),
+          serialNumberDER) != Success) {
+      PR_Abort();
     }
 
     Input rootSPKIDER;
-    if (rootSPKIDER.Init(rootKeyPair->subjectPublicKeyInfo.data(),
-                         rootKeyPair->subjectPublicKeyInfo.length())
-          != Success) {
-      abort();
+    if (InitInputFromSECItem(rootSPKI.get(), rootSPKIDER) != Success) {
+      PR_Abort();
     }
-    endEntityCertID = new (std::nothrow) CertID(rootNameDERInput, rootSPKIDER,
-                                                serialNumberDERInput);
+    endEntityCertID = new (std::nothrow) CertID(rootNameDER, rootSPKIDER,
+                                                serialNumberDER);
     if (!endEntityCertID) {
-      abort();
+      PR_Abort();
     }
   }
 
-  static ScopedTestKeyPair rootKeyPair;
+  static ScopedSECKEYPrivateKey rootPrivateKey;
+  static ScopedSECItem rootSPKI;
   static long rootIssuedCount;
-  OCSPTestTrustDomain trustDomain;
 
-  // endEntityCertID references rootKeyPair, rootNameDER, and serialNumberDER.
-  ByteString rootNameDER;
-  ByteString serialNumberDER;
-  // endEntityCertID references rootKeyPair, rootNameDER, and serialNumberDER.
+  OCSPTestTrustDomain trustDomain;
+  // endEntityCertID references items owned by arena and rootSPKI.
   ScopedPtr<CertID, deleteCertID> endEntityCertID;
 };
 
-/*static*/ ScopedTestKeyPair pkixocsp_VerifyEncodedResponse::rootKeyPair;
+/*static*/ ScopedSECKEYPrivateKey
+              pkixocsp_VerifyEncodedResponse::rootPrivateKey;
+/*static*/ ScopedSECItem pkixocsp_VerifyEncodedResponse::rootSPKI;
 /*static*/ long pkixocsp_VerifyEncodedResponse::rootIssuedCount = 0;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -192,27 +198,33 @@ class pkixocsp_VerifyEncodedResponse_WithoutResponseBytes
   , public ::testing::WithParamInterface<WithoutResponseBytes>
 {
 protected:
-  ByteString CreateEncodedOCSPErrorResponse(uint8_t status)
+  // The result is owned by the arena
+  Input CreateEncodedOCSPErrorResponse(uint8_t status)
   {
     static const Input EMPTY;
-    OCSPResponseContext context(CertID(EMPTY, EMPTY, EMPTY),
-                                oneDayBeforeNow);
+    OCSPResponseContext context(arena.get(),
+                                CertID(EMPTY, EMPTY, EMPTY),
+                                pr_oneDayBeforeNow);
     context.responseStatus = status;
     context.skipResponseBytes = true;
-    return CreateEncodedOCSPResponse(context);
+    SECItem* response = CreateEncodedOCSPResponse(context);
+    EXPECT_TRUE(response);
+    // The result will be an empty Input on failure, but it doesn't
+    // matter because the test is going to fail anyway.
+    Input result;
+    EXPECT_EQ(Success, result.Init(response->data, response->len));
+    return result;
   }
 };
 
 TEST_P(pkixocsp_VerifyEncodedResponse_WithoutResponseBytes, CorrectErrorCode)
 {
-  ByteString
-    responseString(CreateEncodedOCSPErrorResponse(GetParam().responseStatus));
-  Input response;
-  ASSERT_EQ(Success,
-            response.Init(responseString.data(), responseString.length()));
+  Input
+    response(CreateEncodedOCSPErrorResponse(GetParam().responseStatus));
+
   bool expired;
   ASSERT_EQ(GetParam().expectedError,
-            VerifyEncodedOCSPResponse(trustDomain, *endEntityCertID, Now(),
+            VerifyEncodedOCSPResponse(trustDomain, *endEntityCertID, now,
                                       END_ENTITY_MAX_LIFETIME_IN_DAYS,
                                       response, expired));
 }
@@ -245,66 +257,64 @@ public:
     pkixocsp_VerifyEncodedResponse::SetUpTestCase();
   }
 
-  ByteString CreateEncodedOCSPSuccessfulResponse(
+  // The result is owned by the arena
+  Input CreateEncodedOCSPSuccessfulResponse(
                     OCSPResponseContext::CertStatus certStatus,
                     const CertID& certID,
                     /*optional*/ const char* signerName,
-                    const TestKeyPair& signerKeyPair,
-                    time_t producedAt, time_t thisUpdate,
-                    /*optional*/ const time_t* nextUpdate,
-                    /*optional*/ const ByteString* certs = nullptr)
+                    const ScopedSECKEYPrivateKey& signerPrivateKey,
+                    PRTime producedAt, PRTime thisUpdate,
+                    /*optional*/ const PRTime* nextUpdate,
+                    /*optional*/ SECItem const* const* certs = nullptr)
   {
-    OCSPResponseContext context(certID, producedAt);
+    OCSPResponseContext context(arena.get(), certID, producedAt);
     if (signerName) {
-      context.signerNameDER = CNToDERName(signerName);
-      EXPECT_NE(ENCODING_FAILED, context.signerNameDER);
+      context.signerNameDER = ASCIIToDERName(arena.get(), signerName);
+      EXPECT_TRUE(context.signerNameDER);
     }
-    context.signerKeyPair = signerKeyPair.Clone();
-    EXPECT_TRUE(context.signerKeyPair);
+    context.signerPrivateKey = SECKEY_CopyPrivateKey(signerPrivateKey.get());
+    EXPECT_TRUE(context.signerPrivateKey);
     context.responseStatus = OCSPResponseContext::successful;
     context.producedAt = producedAt;
     context.certs = certs;
 
+    context.certIDHashAlg = SEC_OID_SHA1;
     context.certStatus = certStatus;
     context.thisUpdate = thisUpdate;
     context.nextUpdate = nextUpdate ? *nextUpdate : 0;
     context.includeNextUpdate = nextUpdate != nullptr;
 
-    return CreateEncodedOCSPResponse(context);
+    SECItem* response = CreateEncodedOCSPResponse(context);
+    EXPECT_TRUE(response);
+    Input result;
+    EXPECT_EQ(Success, result.Init(response->data, response->len));
+    return result;
   }
 };
 
 TEST_F(pkixocsp_VerifyEncodedResponse_successful, good_byKey)
 {
-  ByteString responseString(
-               CreateEncodedOCSPSuccessfulResponse(
+  Input response(CreateEncodedOCSPSuccessfulResponse(
                          OCSPResponseContext::good, *endEntityCertID, byKey,
-                         *rootKeyPair, oneDayBeforeNow,
-                         oneDayBeforeNow, &oneDayAfterNow));
-  Input response;
-  ASSERT_EQ(Success,
-            response.Init(responseString.data(), responseString.length()));
+                         rootPrivateKey, pr_oneDayBeforeNow,
+                         pr_oneDayBeforeNow, &pr_oneDayAfterNow));
   bool expired;
   ASSERT_EQ(Success,
             VerifyEncodedOCSPResponse(trustDomain, *endEntityCertID,
-                                      Now(), END_ENTITY_MAX_LIFETIME_IN_DAYS,
+                                      now, END_ENTITY_MAX_LIFETIME_IN_DAYS,
                                       response, expired));
   ASSERT_FALSE(expired);
 }
 
 TEST_F(pkixocsp_VerifyEncodedResponse_successful, good_byName)
 {
-  ByteString responseString(
-               CreateEncodedOCSPSuccessfulResponse(
+  Input response(CreateEncodedOCSPSuccessfulResponse(
                          OCSPResponseContext::good, *endEntityCertID, rootName,
-                         *rootKeyPair, oneDayBeforeNow,
-                         oneDayBeforeNow, &oneDayAfterNow));
-  Input response;
-  ASSERT_EQ(Success,
-            response.Init(responseString.data(), responseString.length()));
+                         rootPrivateKey, pr_oneDayBeforeNow,
+                         pr_oneDayBeforeNow, &pr_oneDayAfterNow));
   bool expired;
   ASSERT_EQ(Success,
-            VerifyEncodedOCSPResponse(trustDomain, *endEntityCertID, Now(),
+            VerifyEncodedOCSPResponse(trustDomain, *endEntityCertID, now,
                                       END_ENTITY_MAX_LIFETIME_IN_DAYS,
                                       response, expired));
   ASSERT_FALSE(expired);
@@ -312,17 +322,13 @@ TEST_F(pkixocsp_VerifyEncodedResponse_successful, good_byName)
 
 TEST_F(pkixocsp_VerifyEncodedResponse_successful, good_byKey_without_nextUpdate)
 {
-  ByteString responseString(
-               CreateEncodedOCSPSuccessfulResponse(
+  Input response(CreateEncodedOCSPSuccessfulResponse(
                          OCSPResponseContext::good, *endEntityCertID, byKey,
-                         *rootKeyPair, oneDayBeforeNow,
-                         oneDayBeforeNow, nullptr));
-  Input response;
-  ASSERT_EQ(Success,
-            response.Init(responseString.data(), responseString.length()));
+                         rootPrivateKey, pr_oneDayBeforeNow,
+                         pr_oneDayBeforeNow, nullptr));
   bool expired;
   ASSERT_EQ(Success,
-            VerifyEncodedOCSPResponse(trustDomain, *endEntityCertID, Now(),
+            VerifyEncodedOCSPResponse(trustDomain, *endEntityCertID, now,
                                       END_ENTITY_MAX_LIFETIME_IN_DAYS,
                                       response, expired));
   ASSERT_FALSE(expired);
@@ -330,17 +336,13 @@ TEST_F(pkixocsp_VerifyEncodedResponse_successful, good_byKey_without_nextUpdate)
 
 TEST_F(pkixocsp_VerifyEncodedResponse_successful, revoked)
 {
-  ByteString responseString(
-               CreateEncodedOCSPSuccessfulResponse(
+  Input response(CreateEncodedOCSPSuccessfulResponse(
                          OCSPResponseContext::revoked, *endEntityCertID, byKey,
-                         *rootKeyPair, oneDayBeforeNow,
-                         oneDayBeforeNow, &oneDayAfterNow));
-  Input response;
-  ASSERT_EQ(Success,
-            response.Init(responseString.data(), responseString.length()));
+                         rootPrivateKey, pr_oneDayBeforeNow,
+                         pr_oneDayBeforeNow, &pr_oneDayAfterNow));
   bool expired;
   ASSERT_EQ(Result::ERROR_REVOKED_CERTIFICATE,
-            VerifyEncodedOCSPResponse(trustDomain, *endEntityCertID, Now(),
+            VerifyEncodedOCSPResponse(trustDomain, *endEntityCertID, now,
                                       END_ENTITY_MAX_LIFETIME_IN_DAYS,
                                       response, expired));
   ASSERT_FALSE(expired);
@@ -348,17 +350,13 @@ TEST_F(pkixocsp_VerifyEncodedResponse_successful, revoked)
 
 TEST_F(pkixocsp_VerifyEncodedResponse_successful, unknown)
 {
-  ByteString responseString(
-               CreateEncodedOCSPSuccessfulResponse(
+  Input response(CreateEncodedOCSPSuccessfulResponse(
                          OCSPResponseContext::unknown, *endEntityCertID, byKey,
-                         *rootKeyPair, oneDayBeforeNow,
-                         oneDayBeforeNow, &oneDayAfterNow));
-  Input response;
-  ASSERT_EQ(Success,
-            response.Init(responseString.data(), responseString.length()));
+                         rootPrivateKey, pr_oneDayBeforeNow,
+                         pr_oneDayBeforeNow, &pr_oneDayAfterNow));
   bool expired;
   ASSERT_EQ(Result::ERROR_OCSP_UNKNOWN_CERT,
-            VerifyEncodedOCSPResponse(trustDomain, *endEntityCertID, Now(),
+            VerifyEncodedOCSPResponse(trustDomain, *endEntityCertID, now,
                                       END_ENTITY_MAX_LIFETIME_IN_DAYS,
                                       response, expired));
   ASSERT_FALSE(expired);
@@ -385,95 +383,90 @@ protected:
   // id-kp-OCSPSigning EKU. If signerEKU is SEC_OID_UNKNOWN then it will not
   // have any EKU extension. Otherwise, the certificate will have the given
   // EKU.
-  ByteString CreateEncodedIndirectOCSPSuccessfulResponse(
-               const char* certSubjectName,
-               OCSPResponseContext::CertStatus certStatus,
-               const char* signerName,
-               /*optional*/ const Input* signerEKUDER = &OCSPSigningEKUDER,
-               /*optional, out*/ ByteString* signerDEROut = nullptr)
+  //
+  // signerDEROut is owned by the arena
+  Input CreateEncodedIndirectOCSPSuccessfulResponse(
+              const char* certSubjectName,
+              OCSPResponseContext::CertStatus certStatus,
+              const char* signerName,
+              SECOidTag signerEKU = SEC_OID_OCSP_RESPONDER,
+              /*optional, out*/ Input* signerDEROut = nullptr)
   {
     assert(certSubjectName);
 
-    const ByteString extensions[] = {
-      signerEKUDER
-        ? CreateEncodedEKUExtension(*signerEKUDER,
+    const SECItem* extensions[] = {
+      signerEKU != SEC_OID_UNKNOWN
+        ? CreateEncodedEKUExtension(arena.get(), &signerEKU, 1,
                                     ExtensionCriticality::NotCritical)
-        : ByteString(),
-      ByteString()
+        : nullptr,
+      nullptr
     };
-    ScopedTestKeyPair signerKeyPair;
-    ByteString signerDER(CreateEncodedCertificate(
-                           ++rootIssuedCount, rootName,
-                           oneDayBeforeNow, oneDayAfterNow, certSubjectName,
-                           signerEKUDER ? extensions : nullptr,
-                           rootKeyPair.get(), signerKeyPair));
-    EXPECT_NE(ENCODING_FAILED, signerDER);
+    ScopedSECKEYPrivateKey signerPrivateKey;
+    SECItem* signerDER(CreateEncodedCertificate(
+                          arena.get(), ++rootIssuedCount, rootName,
+                          pr_oneDayBeforeNow, pr_oneDayAfterNow,
+                          certSubjectName,
+                          signerEKU != SEC_OID_UNKNOWN ? extensions : nullptr,
+                          rootPrivateKey.get(), signerPrivateKey));
+    EXPECT_TRUE(signerDER);
     if (signerDEROut) {
-      *signerDEROut = signerDER;
+      EXPECT_EQ(Success,
+                signerDEROut->Init(signerDER->data, signerDER->len));
     }
 
-    ByteString signerNameDER;
+    const SECItem* signerNameDER = nullptr;
     if (signerName) {
-      signerNameDER = CNToDERName(signerName);
-      EXPECT_NE(ENCODING_FAILED, signerNameDER);
+      signerNameDER = ASCIIToDERName(arena.get(), signerName);
+      EXPECT_TRUE(signerNameDER);
     }
-    ByteString certs[] = { signerDER, ByteString() };
+    SECItem const* const certs[] = { signerDER, nullptr };
     return CreateEncodedOCSPSuccessfulResponse(certStatus, *endEntityCertID,
-                                               signerName, *signerKeyPair,
-                                               oneDayBeforeNow,
-                                               oneDayBeforeNow,
-                                               &oneDayAfterNow, certs);
+                                               signerName, signerPrivateKey,
+                                               pr_oneDayBeforeNow,
+                                               pr_oneDayBeforeNow,
+                                               &pr_oneDayAfterNow, certs);
   }
 
-  static ByteString CreateEncodedCertificate(uint32_t serialNumber,
-                                             const char* issuer,
-                                             time_t notBefore,
-                                             time_t notAfter,
-                                             const char* subject,
-                                /*optional*/ const ByteString* extensions,
-                                /*optional*/ TestKeyPair* signerKeyPair,
-                                     /*out*/ ScopedTestKeyPair& keyPair)
+  static SECItem* CreateEncodedCertificate(PLArenaPool* arena,
+                                           uint32_t serialNumber,
+                                           const char* issuer,
+                                           PRTime notBefore,
+                                           PRTime notAfter,
+                                           const char* subject,
+                              /*optional*/ SECItem const* const* extensions,
+                              /*optional*/ SECKEYPrivateKey* signerKey,
+                                   /*out*/ ScopedSECKEYPrivateKey& privateKey)
   {
-    ByteString serialNumberDER(CreateEncodedSerialNumber(serialNumber));
-    if (serialNumberDER == ENCODING_FAILED) {
-      return ENCODING_FAILED;
+    const SECItem* serialNumberDER(CreateEncodedSerialNumber(arena,
+                                                             serialNumber));
+    if (!serialNumberDER) {
+      return nullptr;
     }
-    ByteString issuerDER(CNToDERName(issuer));
-    if (issuerDER == ENCODING_FAILED) {
-      return ENCODING_FAILED;
+    const SECItem* issuerDER(ASCIIToDERName(arena, issuer));
+    if (!issuerDER) {
+      return nullptr;
     }
-    ByteString subjectDER(CNToDERName(subject));
-    if (subjectDER == ENCODING_FAILED) {
-      return ENCODING_FAILED;
+    const SECItem* subjectDER(ASCIIToDERName(arena, subject));
+    if (!subjectDER) {
+      return nullptr;
     }
     return ::mozilla::pkix::test::CreateEncodedCertificate(
-                                    v3,
-                                    sha256WithRSAEncryption,
+                                    arena, v3,
+                                    SEC_OID_PKCS1_SHA256_WITH_RSA_ENCRYPTION,
                                     serialNumberDER, issuerDER, notBefore,
                                     notAfter, subjectDER, extensions,
-                                    signerKeyPair,
-                                    SignatureAlgorithm::rsa_pkcs1_with_sha256,
-                                    keyPair);
+                                    signerKey, SEC_OID_SHA256, privateKey);
   }
-
-  static const Input OCSPSigningEKUDER;
 };
-
-/*static*/ const Input pkixocsp_VerifyEncodedResponse_DelegatedResponder::
-  OCSPSigningEKUDER(tlv_id_kp_OCSPSigning);
 
 TEST_F(pkixocsp_VerifyEncodedResponse_DelegatedResponder, good_byKey)
 {
-  ByteString responseString(
-               CreateEncodedIndirectOCSPSuccessfulResponse(
-                         "good_indirect_byKey", OCSPResponseContext::good,
+  Input response(CreateEncodedIndirectOCSPSuccessfulResponse(
+                         "CN=good_indirect_byKey", OCSPResponseContext::good,
                          byKey));
-  Input response;
-  ASSERT_EQ(Success,
-            response.Init(responseString.data(), responseString.length()));
   bool expired;
   ASSERT_EQ(Success,
-            VerifyEncodedOCSPResponse(trustDomain, *endEntityCertID, Now(),
+            VerifyEncodedOCSPResponse(trustDomain, *endEntityCertID, now,
                                       END_ENTITY_MAX_LIFETIME_IN_DAYS,
                                       response, expired));
   ASSERT_FALSE(expired);
@@ -481,16 +474,12 @@ TEST_F(pkixocsp_VerifyEncodedResponse_DelegatedResponder, good_byKey)
 
 TEST_F(pkixocsp_VerifyEncodedResponse_DelegatedResponder, good_byName)
 {
-  ByteString responseString(
-               CreateEncodedIndirectOCSPSuccessfulResponse(
-                         "good_indirect_byName", OCSPResponseContext::good,
-                         "good_indirect_byName"));
-  Input response;
-  ASSERT_EQ(Success,
-            response.Init(responseString.data(), responseString.length()));
+  Input response(CreateEncodedIndirectOCSPSuccessfulResponse(
+                         "CN=good_indirect_byName", OCSPResponseContext::good,
+                         "CN=good_indirect_byName"));
   bool expired;
   ASSERT_EQ(Success,
-            VerifyEncodedOCSPResponse(trustDomain, *endEntityCertID, Now(),
+            VerifyEncodedOCSPResponse(trustDomain, *endEntityCertID, now,
                                       END_ENTITY_MAX_LIFETIME_IN_DAYS,
                                       response, expired));
   ASSERT_FALSE(expired);
@@ -499,20 +488,17 @@ TEST_F(pkixocsp_VerifyEncodedResponse_DelegatedResponder, good_byName)
 TEST_F(pkixocsp_VerifyEncodedResponse_DelegatedResponder,
        good_byKey_missing_signer)
 {
-  ScopedTestKeyPair missingSignerKeyPair(GenerateKeyPair());
-  ASSERT_TRUE(missingSignerKeyPair);
-
-  ByteString responseString(
-               CreateEncodedOCSPSuccessfulResponse(
+  ScopedSECKEYPublicKey missingSignerPublicKey;
+  ScopedSECKEYPrivateKey missingSignerPrivateKey;
+  ASSERT_SECSuccess(GenerateKeyPair(missingSignerPublicKey,
+                                    missingSignerPrivateKey));
+  Input response(CreateEncodedOCSPSuccessfulResponse(
                          OCSPResponseContext::good, *endEntityCertID, byKey,
-                         *missingSignerKeyPair, oneDayBeforeNow,
-                         oneDayBeforeNow, nullptr));
-  Input response;
-  ASSERT_EQ(Success,
-            response.Init(responseString.data(), responseString.length()));
+                         missingSignerPrivateKey, pr_oneDayBeforeNow,
+                         pr_oneDayBeforeNow, nullptr));
   bool expired;
   ASSERT_EQ(Result::ERROR_OCSP_INVALID_SIGNING_CERT,
-            VerifyEncodedOCSPResponse(trustDomain, *endEntityCertID, Now(),
+            VerifyEncodedOCSPResponse(trustDomain, *endEntityCertID, now,
                                       END_ENTITY_MAX_LIFETIME_IN_DAYS,
                                       response, expired));
   ASSERT_FALSE(expired);
@@ -521,19 +507,17 @@ TEST_F(pkixocsp_VerifyEncodedResponse_DelegatedResponder,
 TEST_F(pkixocsp_VerifyEncodedResponse_DelegatedResponder,
        good_byName_missing_signer)
 {
-  ScopedTestKeyPair missingSignerKeyPair(GenerateKeyPair());
-  ASSERT_TRUE(missingSignerKeyPair);
-  ByteString responseString(
-               CreateEncodedOCSPSuccessfulResponse(
+  ScopedSECKEYPublicKey missingSignerPublicKey;
+  ScopedSECKEYPrivateKey missingSignerPrivateKey;
+  ASSERT_SECSuccess(GenerateKeyPair(missingSignerPublicKey,
+                                    missingSignerPrivateKey));
+  Input response(CreateEncodedOCSPSuccessfulResponse(
                          OCSPResponseContext::good, *endEntityCertID,
-                         "missing", *missingSignerKeyPair,
-                         oneDayBeforeNow, oneDayBeforeNow, nullptr));
-  Input response;
-  ASSERT_EQ(Success,
-            response.Init(responseString.data(), responseString.length()));
+                         "CN=missing", missingSignerPrivateKey,
+                         pr_oneDayBeforeNow, pr_oneDayBeforeNow, nullptr));
   bool expired;
   ASSERT_EQ(Result::ERROR_OCSP_INVALID_SIGNING_CERT,
-            VerifyEncodedOCSPResponse(trustDomain, *endEntityCertID, Now(),
+            VerifyEncodedOCSPResponse(trustDomain, *endEntityCertID, now,
                                       END_ENTITY_MAX_LIFETIME_IN_DAYS,
                                       response, expired));
   ASSERT_FALSE(expired);
@@ -541,70 +525,64 @@ TEST_F(pkixocsp_VerifyEncodedResponse_DelegatedResponder,
 
 TEST_F(pkixocsp_VerifyEncodedResponse_DelegatedResponder, good_expired)
 {
-  static const char* signerName = "good_indirect_expired";
+  static const SECOidTag signerEKU = SEC_OID_OCSP_RESPONDER;
+  static const char* signerName = "CN=good_indirect_expired";
 
-  const ByteString extensions[] = {
-    CreateEncodedEKUExtension(OCSPSigningEKUDER,
+  const SECItem* extensions[] = {
+    CreateEncodedEKUExtension(arena.get(), &signerEKU, 1,
                               ExtensionCriticality::NotCritical),
-    ByteString()
+    nullptr
   };
+  ScopedSECKEYPrivateKey signerPrivateKey;
+  SECItem* signerDER(CreateEncodedCertificate(arena.get(), ++rootIssuedCount,
+                                              rootName,
+                                              pr_now - (10 * ONE_DAY),
+                                              pr_now - (2 * ONE_DAY),
+                                              signerName, extensions,
+                                              rootPrivateKey.get(),
+                                              signerPrivateKey));
+  ASSERT_TRUE(signerDER);
 
-  ScopedTestKeyPair signerKeyPair;
-  ByteString signerDER(CreateEncodedCertificate(
-                          ++rootIssuedCount, rootName,
-                          now - (10 * Time::ONE_DAY_IN_SECONDS),
-                          now - (2 * Time::ONE_DAY_IN_SECONDS),
-                          signerName, extensions, rootKeyPair.get(),
-                          signerKeyPair));
-  ASSERT_NE(ENCODING_FAILED, signerDER);
-
-  ByteString certs[] = { signerDER, ByteString() };
-  ByteString responseString(
-               CreateEncodedOCSPSuccessfulResponse(
+  SECItem const* const certs[] = { signerDER, nullptr };
+  Input response(CreateEncodedOCSPSuccessfulResponse(
                          OCSPResponseContext::good, *endEntityCertID,
-                         signerName, *signerKeyPair, oneDayBeforeNow,
-                         oneDayBeforeNow, &oneDayAfterNow, certs));
-  Input response;
-  ASSERT_EQ(Success,
-            response.Init(responseString.data(), responseString.length()));
+                         signerName, signerPrivateKey, pr_oneDayBeforeNow,
+                         pr_oneDayBeforeNow, &pr_oneDayAfterNow, certs));
   bool expired;
   ASSERT_EQ(Result::ERROR_OCSP_INVALID_SIGNING_CERT,
-            VerifyEncodedOCSPResponse(trustDomain, *endEntityCertID, Now(),
+            VerifyEncodedOCSPResponse(trustDomain, *endEntityCertID, now,
                                       END_ENTITY_MAX_LIFETIME_IN_DAYS,
                                       response, expired));
 }
 
 TEST_F(pkixocsp_VerifyEncodedResponse_DelegatedResponder, good_future)
 {
-  static const char* signerName = "good_indirect_future";
+  static const SECOidTag signerEKU = SEC_OID_OCSP_RESPONDER;
+  static const char* signerName = "CN=good_indirect_future";
 
-  const ByteString extensions[] = {
-    CreateEncodedEKUExtension(OCSPSigningEKUDER,
+  const SECItem* extensions[] = {
+    CreateEncodedEKUExtension(arena.get(), &signerEKU, 1,
                               ExtensionCriticality::NotCritical),
-    ByteString()
+    nullptr
   };
+  ScopedSECKEYPrivateKey signerPrivateKey;
+  SECItem* signerDER(CreateEncodedCertificate(arena.get(), ++rootIssuedCount,
+                                              rootName,
+                                              pr_now + (2 * ONE_DAY),
+                                              pr_now + (10 * ONE_DAY),
+                                              signerName, extensions,
+                                              rootPrivateKey.get(),
+                                              signerPrivateKey));
+  ASSERT_TRUE(signerDER);
 
-  ScopedTestKeyPair signerKeyPair;
-  ByteString signerDER(CreateEncodedCertificate(
-                         ++rootIssuedCount, rootName,
-                         now + (2 * Time::ONE_DAY_IN_SECONDS),
-                         now + (10 * Time::ONE_DAY_IN_SECONDS),
-                         signerName, extensions, rootKeyPair.get(),
-                         signerKeyPair));
-  ASSERT_NE(ENCODING_FAILED, signerDER);
-
-  ByteString certs[] = { signerDER, ByteString() };
-  ByteString responseString(
-               CreateEncodedOCSPSuccessfulResponse(
+  SECItem const* const certs[] = { signerDER, nullptr };
+  Input response(CreateEncodedOCSPSuccessfulResponse(
                          OCSPResponseContext::good, *endEntityCertID,
-                         signerName, *signerKeyPair, oneDayBeforeNow,
-                         oneDayBeforeNow, &oneDayAfterNow, certs));
-  Input response;
-  ASSERT_EQ(Success,
-            response.Init(responseString.data(), responseString.length()));
+                         signerName, signerPrivateKey, pr_oneDayBeforeNow,
+                         pr_oneDayBeforeNow, &pr_oneDayAfterNow, certs));
   bool expired;
   ASSERT_EQ(Result::ERROR_OCSP_INVALID_SIGNING_CERT,
-            VerifyEncodedOCSPResponse(trustDomain, *endEntityCertID, Now(),
+            VerifyEncodedOCSPResponse(trustDomain, *endEntityCertID, now,
                                       END_ENTITY_MAX_LIFETIME_IN_DAYS,
                                       response, expired));
   ASSERT_FALSE(expired);
@@ -612,36 +590,27 @@ TEST_F(pkixocsp_VerifyEncodedResponse_DelegatedResponder, good_future)
 
 TEST_F(pkixocsp_VerifyEncodedResponse_DelegatedResponder, good_no_eku)
 {
-  ByteString responseString(
-               CreateEncodedIndirectOCSPSuccessfulResponse(
-                         "good_indirect_wrong_eku",
-                         OCSPResponseContext::good, byKey, nullptr));
-  Input response;
-  ASSERT_EQ(Success,
-            response.Init(responseString.data(), responseString.length()));
+  Input response(CreateEncodedIndirectOCSPSuccessfulResponse(
+                         "CN=good_indirect_wrong_eku",
+                         OCSPResponseContext::good, byKey, SEC_OID_UNKNOWN));
   bool expired;
   ASSERT_EQ(Result::ERROR_OCSP_INVALID_SIGNING_CERT,
-            VerifyEncodedOCSPResponse(trustDomain, *endEntityCertID, Now(),
+            VerifyEncodedOCSPResponse(trustDomain, *endEntityCertID, now,
                                       END_ENTITY_MAX_LIFETIME_IN_DAYS,
                                       response, expired));
   ASSERT_FALSE(expired);
 }
 
-static const Input serverAuthEKUDER(tlv_id_kp_serverAuth);
-
 TEST_F(pkixocsp_VerifyEncodedResponse_DelegatedResponder,
        good_indirect_wrong_eku)
 {
-  ByteString responseString(
-               CreateEncodedIndirectOCSPSuccessfulResponse(
-                        "good_indirect_wrong_eku",
-                        OCSPResponseContext::good, byKey, &serverAuthEKUDER));
-  Input response;
-  ASSERT_EQ(Success,
-            response.Init(responseString.data(), responseString.length()));
+  Input response(CreateEncodedIndirectOCSPSuccessfulResponse(
+                        "CN=good_indirect_wrong_eku",
+                        OCSPResponseContext::good, byKey,
+                        SEC_OID_EXT_KEY_USAGE_SERVER_AUTH));
   bool expired;
   ASSERT_EQ(Result::ERROR_OCSP_INVALID_SIGNING_CERT,
-            VerifyEncodedOCSPResponse(trustDomain, *endEntityCertID, Now(),
+            VerifyEncodedOCSPResponse(trustDomain, *endEntityCertID, now,
                                       END_ENTITY_MAX_LIFETIME_IN_DAYS,
                                       response, expired));
   ASSERT_FALSE(expired);
@@ -650,62 +619,64 @@ TEST_F(pkixocsp_VerifyEncodedResponse_DelegatedResponder,
 // Test that signature of OCSP response signer cert is verified
 TEST_F(pkixocsp_VerifyEncodedResponse_DelegatedResponder, good_tampered_eku)
 {
-  ByteString tamperedResponse(
-               CreateEncodedIndirectOCSPSuccessfulResponse(
-                         "good_indirect_tampered_eku",
-                         OCSPResponseContext::good, byKey, &serverAuthEKUDER));
-  ASSERT_EQ(Success,
-            TamperOnce(tamperedResponse,
-                       ByteString(tlv_id_kp_serverAuth,
-                                  sizeof(tlv_id_kp_serverAuth)),
-                       ByteString(tlv_id_kp_OCSPSigning,
-                                  sizeof(tlv_id_kp_OCSPSigning))));
-  Input tamperedResponseInput;
-  ASSERT_EQ(Success, tamperedResponseInput.Init(tamperedResponse.data(),
-                                                tamperedResponse.length()));
+  Input response(CreateEncodedIndirectOCSPSuccessfulResponse(
+                         "CN=good_indirect_tampered_eku",
+                         OCSPResponseContext::good, byKey,
+                         SEC_OID_EXT_KEY_USAGE_SERVER_AUTH));
+
+#define EKU_PREFIX \
+  0x06, 8, /* OBJECT IDENTIFIER, 8 bytes */ \
+  0x2B, 6, 1, 5, 5, 7, /* id-pkix */ \
+  0x03 /* id-kp */
+  static const uint8_t EKU_SERVER_AUTH[] = { EKU_PREFIX, 0x01 }; // serverAuth
+  static const uint8_t EKU_OCSP_SIGNER[] = { EKU_PREFIX, 0x09 }; // OCSPSigning
+#undef EKU_PREFIX
+  SECItem responseSECItem = UnsafeMapInputToSECItem(response);
+  ASSERT_SECSuccess(TamperOnce(responseSECItem,
+                               EKU_SERVER_AUTH, PR_ARRAY_SIZE(EKU_SERVER_AUTH),
+                               EKU_OCSP_SIGNER, PR_ARRAY_SIZE(EKU_OCSP_SIGNER)));
+
   bool expired;
   ASSERT_EQ(Result::ERROR_OCSP_INVALID_SIGNING_CERT,
-            VerifyEncodedOCSPResponse(trustDomain, *endEntityCertID, Now(),
+            VerifyEncodedOCSPResponse(trustDomain, *endEntityCertID, now,
                                       END_ENTITY_MAX_LIFETIME_IN_DAYS,
-                                      tamperedResponseInput, expired));
+                                      response, expired));
   ASSERT_FALSE(expired);
 }
 
 TEST_F(pkixocsp_VerifyEncodedResponse_DelegatedResponder, good_unknown_issuer)
 {
-  static const char* subCAName = "good_indirect_unknown_issuer sub-CA";
-  static const char* signerName = "good_indirect_unknown_issuer OCSP signer";
+  static const char* subCAName = "CN=good_indirect_unknown_issuer sub-CA";
+  static const char* signerName = "CN=good_indirect_unknown_issuer OCSP signer";
 
   // unknown issuer
-  ScopedTestKeyPair unknownKeyPair(GenerateKeyPair());
-  ASSERT_TRUE(unknownKeyPair);
+  ScopedSECKEYPublicKey unknownPublicKey;
+  ScopedSECKEYPrivateKey unknownPrivateKey;
+  ASSERT_SECSuccess(GenerateKeyPair(unknownPublicKey, unknownPrivateKey));
 
   // Delegated responder cert signed by unknown issuer
-  const ByteString extensions[] = {
-    CreateEncodedEKUExtension(OCSPSigningEKUDER,
+  static const SECOidTag signerEKU = SEC_OID_OCSP_RESPONDER;
+  const SECItem* extensions[] = {
+    CreateEncodedEKUExtension(arena.get(), &signerEKU, 1,
                               ExtensionCriticality::NotCritical),
-    ByteString()
+    nullptr
   };
-  ScopedTestKeyPair signerKeyPair;
-  ByteString signerDER(CreateEncodedCertificate(
-                         1, subCAName, oneDayBeforeNow, oneDayAfterNow,
-                         signerName, extensions, unknownKeyPair.get(),
-                         signerKeyPair));
-  ASSERT_NE(ENCODING_FAILED, signerDER);
+  ScopedSECKEYPrivateKey signerPrivateKey;
+  SECItem* signerDER(CreateEncodedCertificate(arena.get(), 1,
+                        subCAName, pr_oneDayBeforeNow, pr_oneDayAfterNow,
+                        signerName, extensions, unknownPrivateKey.get(),
+                        signerPrivateKey));
+  ASSERT_TRUE(signerDER);
 
   // OCSP response signed by that delegated responder
-  ByteString certs[] = { signerDER, ByteString() };
-  ByteString responseString(
-               CreateEncodedOCSPSuccessfulResponse(
+  SECItem const* const certs[] = { signerDER, nullptr };
+  Input response(CreateEncodedOCSPSuccessfulResponse(
                          OCSPResponseContext::good, *endEntityCertID,
-                         signerName, *signerKeyPair, oneDayBeforeNow,
-                         oneDayBeforeNow, &oneDayAfterNow, certs));
-  Input response;
-  ASSERT_EQ(Success,
-            response.Init(responseString.data(), responseString.length()));
+                         signerName, signerPrivateKey, pr_oneDayBeforeNow,
+                         pr_oneDayBeforeNow, &pr_oneDayAfterNow, certs));
   bool expired;
   ASSERT_EQ(Result::ERROR_OCSP_INVALID_SIGNING_CERT,
-            VerifyEncodedOCSPResponse(trustDomain, *endEntityCertID, Now(),
+            VerifyEncodedOCSPResponse(trustDomain, *endEntityCertID, now,
                                       END_ENTITY_MAX_LIFETIME_IN_DAYS,
                                       response, expired));
   ASSERT_FALSE(expired);
@@ -717,49 +688,50 @@ TEST_F(pkixocsp_VerifyEncodedResponse_DelegatedResponder, good_unknown_issuer)
 TEST_F(pkixocsp_VerifyEncodedResponse_DelegatedResponder,
        good_indirect_subca_1_first)
 {
-  static const char* subCAName = "good_indirect_subca_1_first sub-CA";
-  static const char* signerName = "good_indirect_subca_1_first OCSP signer";
+  static const char* subCAName = "CN=good_indirect_subca_1_first sub-CA";
+  static const char* signerName = "CN=good_indirect_subca_1_first OCSP signer";
 
   // sub-CA of root (root is the direct issuer of endEntity)
-  const ByteString subCAExtensions[] = {
-    CreateEncodedBasicConstraints(true, 0, ExtensionCriticality::NotCritical),
-    ByteString()
+  const SECItem* subCAExtensions[] = {
+    CreateEncodedBasicConstraints(arena.get(), true, 0,
+                                  ExtensionCriticality::NotCritical),
+    nullptr
   };
-  ScopedTestKeyPair subCAKeyPair;
-  ByteString subCADER(CreateEncodedCertificate(
-                        ++rootIssuedCount, rootName,
-                        oneDayBeforeNow, oneDayAfterNow,
-                        subCAName, subCAExtensions, rootKeyPair.get(),
-                        subCAKeyPair));
-  ASSERT_NE(ENCODING_FAILED, subCADER);
+  ScopedSECKEYPrivateKey subCAPrivateKey;
+  SECItem* subCADER(CreateEncodedCertificate(arena.get(), ++rootIssuedCount,
+                                             rootName,
+                                             pr_oneDayBeforeNow, pr_oneDayAfterNow,
+                                             subCAName, subCAExtensions,
+                                             rootPrivateKey.get(),
+                                             subCAPrivateKey));
+  ASSERT_TRUE(subCADER);
 
   // Delegated responder cert signed by that sub-CA
-  const ByteString extensions[] = {
-    CreateEncodedEKUExtension(OCSPSigningEKUDER,
+  static const SECOidTag signerEKU = SEC_OID_OCSP_RESPONDER;
+  const SECItem* extensions[] = {
+    CreateEncodedEKUExtension(arena.get(), &signerEKU, 1,
                               ExtensionCriticality::NotCritical),
-    ByteString(),
+    nullptr
   };
-  ScopedTestKeyPair signerKeyPair;
-  ByteString signerDER(CreateEncodedCertificate(
-                         1, subCAName, oneDayBeforeNow, oneDayAfterNow,
-                         signerName, extensions, subCAKeyPair.get(),
-                         signerKeyPair));
-  ASSERT_NE(ENCODING_FAILED, signerDER);
+  ScopedSECKEYPrivateKey signerPrivateKey;
+  SECItem* signerDER(CreateEncodedCertificate(arena.get(), 1, subCAName,
+                                              pr_oneDayBeforeNow,
+                                              pr_oneDayAfterNow,
+                                              signerName, extensions,
+                                              subCAPrivateKey.get(),
+                                              signerPrivateKey));
+  ASSERT_TRUE(signerDER);
 
   // OCSP response signed by the delegated responder issued by the sub-CA
   // that is trying to impersonate the root.
-  ByteString certs[] = { subCADER, signerDER, ByteString() };
-  ByteString responseString(
-               CreateEncodedOCSPSuccessfulResponse(
+  SECItem const* const certs[] = { subCADER, signerDER, nullptr };
+  Input response(CreateEncodedOCSPSuccessfulResponse(
                          OCSPResponseContext::good, *endEntityCertID,
-                         signerName, *signerKeyPair, oneDayBeforeNow,
-                         oneDayBeforeNow, &oneDayAfterNow, certs));
-  Input response;
-  ASSERT_EQ(Success,
-            response.Init(responseString.data(), responseString.length()));
+                         signerName, signerPrivateKey, pr_oneDayBeforeNow,
+                         pr_oneDayBeforeNow, &pr_oneDayAfterNow, certs));
   bool expired;
   ASSERT_EQ(Result::ERROR_OCSP_INVALID_SIGNING_CERT,
-            VerifyEncodedOCSPResponse(trustDomain, *endEntityCertID, Now(),
+            VerifyEncodedOCSPResponse(trustDomain, *endEntityCertID, now,
                                       END_ENTITY_MAX_LIFETIME_IN_DAYS,
                                       response, expired));
   ASSERT_FALSE(expired);
@@ -771,49 +743,51 @@ TEST_F(pkixocsp_VerifyEncodedResponse_DelegatedResponder,
 TEST_F(pkixocsp_VerifyEncodedResponse_DelegatedResponder,
        good_indirect_subca_1_second)
 {
-  static const char* subCAName = "good_indirect_subca_1_second sub-CA";
-  static const char* signerName = "good_indirect_subca_1_second OCSP signer";
+  static const char* subCAName = "CN=good_indirect_subca_1_second sub-CA";
+  static const char* signerName = "CN=good_indirect_subca_1_second OCSP signer";
 
   // sub-CA of root (root is the direct issuer of endEntity)
-  const ByteString subCAExtensions[] = {
-    CreateEncodedBasicConstraints(true, 0, ExtensionCriticality::NotCritical),
-    ByteString()
+  const SECItem* subCAExtensions[] = {
+    CreateEncodedBasicConstraints(arena.get(), true, 0,
+                                  ExtensionCriticality::NotCritical),
+    nullptr
   };
-  ScopedTestKeyPair subCAKeyPair;
-  ByteString subCADER(CreateEncodedCertificate(++rootIssuedCount, rootName,
-                                               oneDayBeforeNow, oneDayAfterNow,
-                                               subCAName, subCAExtensions,
-                                               rootKeyPair.get(),
-                                               subCAKeyPair));
-  ASSERT_NE(ENCODING_FAILED, subCADER);
+  ScopedSECKEYPrivateKey subCAPrivateKey;
+  SECItem* subCADER(CreateEncodedCertificate(arena.get(), ++rootIssuedCount,
+                                             rootName,
+                                             pr_oneDayBeforeNow,
+                                             pr_oneDayAfterNow,
+                                             subCAName, subCAExtensions,
+                                             rootPrivateKey.get(),
+                                             subCAPrivateKey));
+  ASSERT_TRUE(subCADER);
 
   // Delegated responder cert signed by that sub-CA
-  const ByteString extensions[] = {
-    CreateEncodedEKUExtension(OCSPSigningEKUDER,
+  static const SECOidTag signerEKU = SEC_OID_OCSP_RESPONDER;
+  const SECItem* extensions[] = {
+    CreateEncodedEKUExtension(arena.get(), &signerEKU, 1,
                               ExtensionCriticality::NotCritical),
-    ByteString()
+    nullptr
   };
-  ScopedTestKeyPair signerKeyPair;
-  ByteString signerDER(CreateEncodedCertificate(
-                         1, subCAName, oneDayBeforeNow, oneDayAfterNow,
-                         signerName, extensions, subCAKeyPair.get(),
-                         signerKeyPair));
-  ASSERT_NE(ENCODING_FAILED, signerDER);
+  ScopedSECKEYPrivateKey signerPrivateKey;
+  SECItem* signerDER(CreateEncodedCertificate(arena.get(), 1, subCAName,
+                                              pr_oneDayBeforeNow,
+                                              pr_oneDayAfterNow,
+                                              signerName, extensions,
+                                              subCAPrivateKey.get(),
+                                              signerPrivateKey));
+  ASSERT_TRUE(signerDER);
 
   // OCSP response signed by the delegated responder issued by the sub-CA
   // that is trying to impersonate the root.
-  ByteString certs[] = { signerDER, subCADER, ByteString() };
-  ByteString responseString(
-                 CreateEncodedOCSPSuccessfulResponse(
+  SECItem const* const certs[] = { signerDER, subCADER, nullptr };
+  Input response(CreateEncodedOCSPSuccessfulResponse(
                          OCSPResponseContext::good, *endEntityCertID,
-                         signerName, *signerKeyPair, oneDayBeforeNow,
-                         oneDayBeforeNow, &oneDayAfterNow, certs));
-  Input response;
-  ASSERT_EQ(Success,
-            response.Init(responseString.data(), responseString.length()));
+                         signerName, signerPrivateKey, pr_oneDayBeforeNow,
+                         pr_oneDayBeforeNow, &pr_oneDayAfterNow, certs));
   bool expired;
   ASSERT_EQ(Result::ERROR_OCSP_INVALID_SIGNING_CERT,
-            VerifyEncodedOCSPResponse(trustDomain, *endEntityCertID, Now(),
+            VerifyEncodedOCSPResponse(trustDomain, *endEntityCertID, now,
                                       END_ENTITY_MAX_LIFETIME_IN_DAYS,
                                       response, expired));
   ASSERT_FALSE(expired);
@@ -826,19 +800,17 @@ public:
   {
     pkixocsp_VerifyEncodedResponse_DelegatedResponder::SetUp();
 
-    responseString =
+    Input
+      createdResponse(
         CreateEncodedIndirectOCSPSuccessfulResponse(
-          "OCSPGetCertTrustTest Signer", OCSPResponseContext::good,
-          byKey, &OCSPSigningEKUDER, &signerCertDER);
-    if (responseString == ENCODING_FAILED) {
-      abort();
+          "CN=OCSPGetCertTrustTest Signer", OCSPResponseContext::good,
+          byKey, SEC_OID_OCSP_RESPONDER, &signerCertDER));
+    if (response.Init(createdResponse) != Success) {
+      PR_Abort();
     }
-    if (response.Init(responseString.data(), responseString.length())
-          != Success) {
-      abort();
-    }
-    if (signerCertDER.length() == 0) {
-      abort();
+
+    if (response.GetLength() == 0 || signerCertDER.GetLength() == 0) {
+      PR_Abort();
     }
   }
 
@@ -850,9 +822,9 @@ public:
     {
     }
 
-    bool SetCertTrust(const ByteString& certDER, TrustLevel certTrustLevel)
+    bool SetCertTrust(Input certDER, TrustLevel certTrustLevel)
     {
-      this->certDER = certDER;
+      EXPECT_EQ(Success, this->certDER.Init(certDER));
       this->certTrustLevel = certTrustLevel;
       return true;
     }
@@ -863,22 +835,19 @@ public:
                                 /*out*/ TrustLevel& trustLevel)
     {
       EXPECT_EQ(endEntityOrCA, EndEntityOrCA::MustBeEndEntity);
-      EXPECT_FALSE(certDER.empty());
-      Input certDERInput;
-      EXPECT_EQ(Success, certDERInput.Init(certDER.data(), certDER.length()));
-      EXPECT_TRUE(InputsAreEqual(certDERInput, candidateCert));
+      EXPECT_NE(0, certDER.GetLength());
+      EXPECT_TRUE(InputsAreEqual(certDER, candidateCert));
       trustLevel = certTrustLevel;
       return Success;
     }
 
-    ByteString certDER;
+    Input certDER;
     TrustLevel certTrustLevel;
   };
 
   TrustDomain trustDomain;
-  ByteString signerCertDER;
-  ByteString responseString;
-  Input response; // references data in responseString
+  Input signerCertDER; // owned by arena
+  Input response; // owned by arena
 };
 
 TEST_F(pkixocsp_VerifyEncodedResponse_GetCertTrust, InheritTrust)
@@ -887,7 +856,7 @@ TEST_F(pkixocsp_VerifyEncodedResponse_GetCertTrust, InheritTrust)
                                        TrustLevel::InheritsTrust));
   bool expired;
   ASSERT_EQ(Success,
-            VerifyEncodedOCSPResponse(trustDomain, *endEntityCertID, Now(),
+            VerifyEncodedOCSPResponse(trustDomain, *endEntityCertID, now,
                                       END_ENTITY_MAX_LIFETIME_IN_DAYS,
                                       response, expired));
   ASSERT_FALSE(expired);
@@ -899,7 +868,7 @@ TEST_F(pkixocsp_VerifyEncodedResponse_GetCertTrust, TrustAnchor)
                                        TrustLevel::TrustAnchor));
   bool expired;
   ASSERT_EQ(Success,
-            VerifyEncodedOCSPResponse(trustDomain, *endEntityCertID, Now(),
+            VerifyEncodedOCSPResponse(trustDomain, *endEntityCertID, now,
                                       END_ENTITY_MAX_LIFETIME_IN_DAYS,
                                       response, expired));
   ASSERT_FALSE(expired);
@@ -909,12 +878,9 @@ TEST_F(pkixocsp_VerifyEncodedResponse_GetCertTrust, ActivelyDistrusted)
 {
   ASSERT_TRUE(trustDomain.SetCertTrust(signerCertDER,
                                        TrustLevel::ActivelyDistrusted));
-  Input response;
-  ASSERT_EQ(Success,
-            response.Init(responseString.data(), responseString.length()));
   bool expired;
   ASSERT_EQ(Result::ERROR_OCSP_INVALID_SIGNING_CERT,
-            VerifyEncodedOCSPResponse(trustDomain, *endEntityCertID, Now(),
+            VerifyEncodedOCSPResponse(trustDomain, *endEntityCertID, now,
                                       END_ENTITY_MAX_LIFETIME_IN_DAYS,
                                       response, expired));
   ASSERT_FALSE(expired);

@@ -38,8 +38,6 @@ class IMEContentObserver MOZ_FINAL : public nsISelectionListener
                                    , public nsSupportsWeakReference
                                    , public nsIEditorObserver
 {
-  friend class AsyncMergeableNotificationsFlusher;
-
 public:
   IMEContentObserver();
 
@@ -59,9 +57,6 @@ public:
 
   // nsIScrollObserver
   virtual void ScrollPositionChanged() MOZ_OVERRIDE;
-
-  bool OnMouseButtonEvent(nsPresContext* aPresContext,
-                          WidgetMouseEvent* aMouseEvent);
 
   void Init(nsIWidget* aWidget, nsPresContext* aPresContext,
             nsIContent* aContent);
@@ -220,10 +215,10 @@ private:
   uint32_t mPreAttrChangeLength;
   int64_t mPreCharacterDataChangeLength;
 
+  bool mIsEditorInTransaction;
   bool mIsSelectionChangeEventPending;
   bool mSelectionChangeCausedOnlyByComposition;
   bool mIsPositionChangeEventPending;
-  bool mIsFlushingPendingNotifications;
 };
 
 } // namespace mozilla

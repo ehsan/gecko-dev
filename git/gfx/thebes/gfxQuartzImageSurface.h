@@ -13,8 +13,8 @@ class gfxImageSurface;
 
 class gfxQuartzImageSurface : public gfxASurface {
 public:
-    explicit gfxQuartzImageSurface(gfxImageSurface *imageSurface);
-    explicit gfxQuartzImageSurface(cairo_surface_t *csurf);
+    gfxQuartzImageSurface(gfxImageSurface *imageSurface);
+    gfxQuartzImageSurface(cairo_surface_t *csurf);
 
     virtual ~gfxQuartzImageSurface();
 

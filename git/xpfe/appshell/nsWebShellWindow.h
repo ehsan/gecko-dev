@@ -23,12 +23,12 @@ namespace mozilla {
 class WebShellWindowTimerCallback;
 } // namespace mozilla
 
-class nsWebShellWindow MOZ_FINAL : public nsXULWindow,
-                                   public nsIWebProgressListener,
-                                   public nsIWidgetListener
+class nsWebShellWindow : public nsXULWindow,
+                         public nsIWebProgressListener,
+                         public nsIWidgetListener
 {
 public:
-  explicit nsWebShellWindow(uint32_t aChromeFlags);
+  nsWebShellWindow(uint32_t aChromeFlags);
 
   // nsISupports interface...
   NS_DECL_ISUPPORTS_INHERITED

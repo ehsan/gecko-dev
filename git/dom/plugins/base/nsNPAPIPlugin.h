@@ -10,7 +10,8 @@
 #include "npfunctions.h"
 #include "nsPluginHost.h"
 
-#include "mozilla/dom/ScriptSettings.h"
+#include "nsCxPusher.h"
+
 #include "mozilla/PluginLibrary.h"
 
 #if defined(XP_WIN)
@@ -380,13 +381,13 @@ class MOZ_STACK_CLASS NPPAutoPusher : public NPPStack,
                                       protected PluginDestructionGuard
 {
 public:
-  explicit NPPAutoPusher(NPP aNpp)
-    : PluginDestructionGuard(aNpp),
+  NPPAutoPusher(NPP npp)
+    : PluginDestructionGuard(npp),
       mOldNPP(sCurrentNPP)
   {
-    NS_ASSERTION(aNpp, "Uh, null aNpp passed to NPPAutoPusher!");
+    NS_ASSERTION(npp, "Uh, null npp passed to NPPAutoPusher!");
 
-    sCurrentNPP = aNpp;
+    sCurrentNPP = npp;
   }
 
   ~NPPAutoPusher()

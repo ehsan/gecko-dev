@@ -59,7 +59,7 @@ public:
 #endif
 
 protected:
-  explicit BRFrame(nsStyleContext* aContext) : nsFrame(aContext) {}
+  BRFrame(nsStyleContext* aContext) : nsFrame(aContext) {}
   virtual ~BRFrame();
 
   nscoord mAscent;
@@ -208,7 +208,7 @@ nsIFrame::ContentOffsets BRFrame::CalcContentOffsetsFromFramePoint(nsPoint aPoin
   if (offsets.content) {
     offsets.offset = offsets.content->IndexOf(mContent);
     offsets.secondaryOffset = offsets.offset;
-    offsets.associate = CARET_ASSOCIATE_AFTER;
+    offsets.associateWithNext = true;
   }
   return offsets;
 }

@@ -13,8 +13,6 @@
 #include "mozilla/dom/BindingDeclarations.h"
 #include "mozilla/dom/URLSearchParams.h"
 
-class nsIPrincipal;
-
 namespace mozilla {
 namespace dom {
 struct objectURLOptions;
@@ -49,10 +47,10 @@ public:
 
   // Methods for WebIDL
 
-  static already_AddRefed<URL>
+  static URL*
   Constructor(const GlobalObject& aGlobal, const nsAString& aUrl,
               URL& aBase, ErrorResult& aRv);
-  static already_AddRefed<URL>
+  static URL*
   Constructor(const GlobalObject& aGlobal, const nsAString& aUrl,
               const nsAString& aBase, ErrorResult& aRv);
 

@@ -26,27 +26,14 @@ __all__ = [
   "getDebuggerInfo",
   "DEBUGGER_INFO",
   "replaceBackSlashes",
+  "wrapCommand",
   'KeyValueParseError',
   'parseKeyValue',
   'systemMemory',
   'environment',
   'dumpScreen',
-  "ShutdownLeaks",
-  "setAutomationLog",
+  "ShutdownLeaks"
   ]
-
-log = logging.getLogger()
-def resetGlobalLog():
-  while log.handlers:
-    log.removeHandler(log.handlers[0])
-  handler = logging.StreamHandler(sys.stdout)
-  log.setLevel(logging.INFO)
-  log.addHandler(handler)
-resetGlobalLog()
-
-def setAutomationLog(alt_logger):
-  global log
-  log = alt_logger
 
 # Map of debugging programs to information about them, like default arguments
 # and whether or not they are interactive.
@@ -157,6 +144,8 @@ class ZipFileReader(object):
 
     for name in self._zipfile.namelist():
       self._extractname(name, path)
+
+log = logging.getLogger()
 
 def isURL(thing):
   """Return True if |thing| looks like a URL."""
@@ -366,13 +355,8 @@ def processSingleLeakFile(leakLogFileName, processType, leakThreshold):
 
   # totalBytesLeaked was seen and is non-zero.
   if totalBytesLeaked > leakThreshold:
-    if processType and processType == "tab":
-      # For now, ignore tab process leaks. See bug 1051230.
-      log.info("WARNING | leakcheck | ignoring leaks in tab process")
-      prefix = "WARNING"
-    else:
-      # Fail the run if we're over the threshold (which defaults to 0)
-      prefix = "TEST-UNEXPECTED-FAIL"
+    # Fail the run if we're over the threshold (which defaults to 0)
+    prefix = "TEST-UNEXPECTED-FAIL"
   else:
     prefix = "WARNING"
   # Create a comma delimited string of the first N leaked objects found,
@@ -417,6 +401,19 @@ def processLeakLog(leakLogFile, leakThreshold = 0):
 
 def replaceBackSlashes(input):
   return input.replace('\\', '/')
+
+def wrapCommand(cmd):
+  """
+  If running on OS X 10.5 or older, wrap |cmd| so that it will
+  be executed as an i386 binary, in case it's a 32-bit/64-bit universal
+  binary.
+  """
+  if platform.system() == "Darwin" and \
+     hasattr(platform, 'mac_ver') and \
+     platform.mac_ver()[0][:4] < '10.6':
+    return ["arch", "-arch", "i386"] + cmd
+  # otherwise just execute the command normally
+  return cmd
 
 class KeyValueParseError(Exception):
   """error when parsing strings of serialized key-values"""
@@ -512,9 +509,9 @@ def environment(xrePath, env=None, crashreporter=True, debugger=False, dmdPath=N
       llvmsym = os.path.join(xrePath, "llvm-symbolizer")
       if os.path.isfile(llvmsym):
         env["ASAN_SYMBOLIZER_PATH"] = llvmsym
-        log.info("INFO | runtests.py | ASan using symbolizer at %s" % llvmsym)
+        log.info("INFO | runtests.py | ASan using symbolizer at %s", llvmsym)
       else:
-        log.info("TEST-UNEXPECTED-FAIL | runtests.py | Failed to find ASan symbolizer at %s" % llvmsym)
+        log.info("TEST-UNEXPECTED-FAIL | runtests.py | Failed to find ASan symbolizer at %s", llvmsym)
 
       totalMemory = systemMemory()
 
@@ -547,7 +544,7 @@ def environment(xrePath, env=None, crashreporter=True, debugger=False, dmdPath=N
         env['ASAN_OPTIONS'] = ':'.join(asanOptions)
 
     except OSError,err:
-      log.info("Failed determine available memory, disabling ASan low-memory configuration: %s" % err.strerror)
+      log.info("Failed determine available memory, disabling ASan low-memory configuration: %s", err.strerror)
     except:
       log.info("Failed determine available memory, disabling ASan low-memory configuration")
     else:
@@ -583,7 +580,7 @@ def dumpScreen(utilityPath):
     returncode = subprocess.call(utility + [imgfilename])
     printstatus(returncode, utilityname)
   except OSError, err:
-    log.info("Failed to start %s for screenshot: %s" %
+    log.info("Failed to start %s for screenshot: %s",
              utility[0], err.strerror)
     return
 
@@ -609,8 +606,6 @@ class ShutdownLeaks(object):
           self._logWindow(line)
         elif line[2:10] == "DOCSHELL":
           self._logDocShell(line)
-        elif line.startswith("TEST-START | Shutdown"):
-          self.seenShutdown = True
     elif message['action'] == 'test_start':
       fileName = message['test'].replace("chrome://mochitests/content/browser/", "")
       self.currentTest = {"fileName": fileName, "windows": set(), "docShells": set()}
@@ -619,11 +614,10 @@ class ShutdownLeaks(object):
       if self.currentTest and (self.currentTest["windows"] or self.currentTest["docShells"]):
         self.tests.append(self.currentTest)
       self.currentTest = None
+    elif message['action'] == 'suite_end':
+      self.seenShutdown = True
 
   def process(self):
-    if not self.seenShutdown:
-      self.logger("TEST-UNEXPECTED-FAIL | ShutdownLeaks | process() called before end of test suite")
-
     for test in self._parseLeakingTests():
       for url, count in self._zipLeakedWindows(test["leakedWindows"]):
         self.logger("TEST-UNEXPECTED-FAIL | %s | leaked %d window(s) until shutdown [url = %s]" % (test["fileName"], count, url))

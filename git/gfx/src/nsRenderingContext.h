@@ -11,6 +11,7 @@
 #include "gfxContext.h"                 // for gfxContext
 #include "mozilla/Assertions.h"         // for MOZ_ASSERT_HELPER2
 #include "mozilla/gfx/2D.h"
+#include "mozilla/gfx/UserData.h"       // for UserData, UserDataKey
 #include "nsAutoPtr.h"                  // for nsRefPtr
 #include "nsBoundingMetrics.h"          // for nsBoundingMetrics
 #include "nsColor.h"                    // for nscolor
@@ -34,6 +35,8 @@ typedef enum {
 
 class nsRenderingContext MOZ_FINAL
 {
+    typedef mozilla::gfx::UserData UserData;
+    typedef mozilla::gfx::UserDataKey UserDataKey;
     typedef mozilla::gfx::DrawTarget DrawTarget;
 
 public:
@@ -88,6 +91,8 @@ public:
     void FillEllipse(const nsRect& aRect);
     void FillEllipse(nscoord aX, nscoord aY, nscoord aWidth, nscoord aHeight);
 
+    void InvertRect(const nsRect& aRect);
+
     // Text
 
     void SetFont(nsFontMetrics *aFontMetrics);
@@ -111,6 +116,16 @@ public:
     void DrawString(const char16_t *aString, uint32_t aLength,
                     nscoord aX, nscoord aY);
 
+    void AddUserData(UserDataKey *key, void *userData, void (*destroy)(void*)) {
+      mUserData.Add(key, userData, destroy);
+    }
+    void *GetUserData(UserDataKey *key) {
+      return mUserData.Get(key);
+    }
+    void *RemoveUserData(UserDataKey *key) {
+      return mUserData.Remove(key);
+    }
+
 private:
     // Private destructor, to discourage deletion outside of Release():
     ~nsRenderingContext()
@@ -124,6 +139,8 @@ private:
     nsRefPtr<nsFontMetrics> mFontMetrics;
 
     double mP2A; // cached app units per device pixel value
+
+    UserData mUserData;
 };
 
 #endif  // NSRENDERINGCONTEXT__H__

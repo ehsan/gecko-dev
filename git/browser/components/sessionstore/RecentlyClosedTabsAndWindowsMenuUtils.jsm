@@ -13,7 +13,6 @@ var Cu = Components.utils;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource://gre/modules/PlacesUtils.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "PluralForm",
                                   "resource://gre/modules/PluralForm.jsm");
@@ -46,7 +45,7 @@ this.RecentlyClosedTabsAndWindowsMenuUtils = {
         let element = doc.createElementNS(kNSXUL, aTagName);
         element.setAttribute("label", closedTabs[i].title);
         if (closedTabs[i].image) {
-          setImage(aWindow, closedTabs[i], element);
+          setImage(closedTabs[i], element);
         }
         element.setAttribute("value", i);
         if (aTagName == "menuitem") {
@@ -118,7 +117,7 @@ this.RecentlyClosedTabsAndWindowsMenuUtils = {
         item.setAttribute("label", menuLabel);
         let selectedTab = undoItem.tabs[undoItem.selected - 1];
         if (selectedTab.image) {
-          setImage(aWindow, selectedTab, item);
+          setImage(selectedTab, item);
         }
         if (aTagName == "menuitem") {
           item.setAttribute("class", "menuitem-iconic bookmark-item menuitem-with-favicon");
@@ -168,11 +167,10 @@ this.RecentlyClosedTabsAndWindowsMenuUtils = {
   },
 };
 
-function setImage(aWindow, aItem, aElement) {
-  let iconURL = PlacesUtils.getImageURLForResolution(aWindow, aItem.image);
+function setImage(aItem, aElement) {
+  let iconURL = aItem.image;
   // don't initiate a connection just to fetch a favicon (see bug 467828)
   if (/^https?:/.test(iconURL))
     iconURL = "moz-anno:favicon:" + iconURL;
-
   aElement.setAttribute("image", iconURL);
 }

@@ -1,5 +1,3 @@
-setCachingEnabled(true);
-
 (function() {
 /*
  * NO ARGUMENT

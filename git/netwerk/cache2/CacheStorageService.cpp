@@ -109,8 +109,7 @@ NS_IMPL_ISUPPORTS(CacheStorageService,
 CacheStorageService* CacheStorageService::sSelf = nullptr;
 
 CacheStorageService::CacheStorageService()
-: mLock("CacheStorageService.mLock")
-, mForcedValidEntriesLock("CacheStorageService.mForcedValidEntriesLock")
+: mLock("CacheStorageService")
 , mShutdown(false)
 , mDiskPool(MemoryPool::DISK)
 , mMemoryPool(MemoryPool::MEMORY)
@@ -155,11 +154,6 @@ void CacheStorageService::Shutdown()
 void CacheStorageService::ShutdownBackground()
 {
   MOZ_ASSERT(IsOnManagementThread());
-
-  // Cancel purge timer to avoid leaking.
-  if (mPurgeTimer) {
-    mPurgeTimer->Cancel();
-  }
 
   Pool(false).mFrecencyArray.Clear();
   Pool(false).mExpirationArray.Clear();
@@ -600,7 +594,6 @@ NS_IMETHODIMP CleaupCacheDirectoriesRunnable::Run()
   }
 #if defined(MOZ_WIDGET_ANDROID)
   if (mCache2Profileless) {
-    nsDeleteDir::RemoveOldTrashes(mCache2Profileless);
     // Always delete the profileless cache on Android
     nsDeleteDir::DeleteDir(mCache2Profileless, true, 30000);
   }
@@ -970,7 +963,7 @@ CacheStorageService::RemoveEntry(CacheEntry* aEntry, bool aOnlyUnreferenced)
       return false;
     }
 
-    if (!aEntry->IsUsingDisk() && IsForcedValidEntry(entryKey)) {
+    if (!aEntry->IsUsingDisk() && IsForcedValidEntryInternal(entryKey)) {
       LOG(("  forced valid, not removing"));
       return false;
     }
@@ -1041,12 +1034,19 @@ CacheStorageService::RecordMemoryOnlyEntry(CacheEntry* aEntry,
   }
 }
 
-// Checks if a cache entry is forced valid (will be loaded directly from cache
-// without further validation) - see nsICacheEntry.idl for further details
+// Acquires the mutex lock for CacheStorageService and calls through to
+// IsForcedValidInternal (bug 1044233)
 bool CacheStorageService::IsForcedValidEntry(nsACString &aCacheEntryKey)
 {
-  mozilla::MutexAutoLock lock(mForcedValidEntriesLock);
+  mozilla::MutexAutoLock lock(mLock);
 
+  return IsForcedValidEntryInternal(aCacheEntryKey);
+}
+
+// Checks if a cache entry is forced valid (will be loaded directly from cache
+// without further validation) - see nsICacheEntry.idl for further details
+bool CacheStorageService::IsForcedValidEntryInternal(nsACString &aCacheEntryKey)
+{
   TimeStamp validUntil;
 
   if (!mForcedValidEntries.Get(aCacheEntryKey, &validUntil)) {
@@ -1072,7 +1072,7 @@ bool CacheStorageService::IsForcedValidEntry(nsACString &aCacheEntryKey)
 void CacheStorageService::ForceEntryValidFor(nsACString &aCacheEntryKey,
                                              uint32_t aSecondsToTheFuture)
 {
-  mozilla::MutexAutoLock lock(mForcedValidEntriesLock);
+  mozilla::MutexAutoLock lock(mLock);
 
   TimeStamp now = TimeStamp::NowLoRes();
   ForcedValidEntriesPrune(now);
@@ -1494,11 +1494,9 @@ CacheStorageService::CheckStorageEntry(CacheStorage const* aStorage,
 namespace { // anon
 
 class CacheEntryDoomByKeyCallback : public CacheFileIOListener
-                                  , public nsIRunnable
 {
 public:
   NS_DECL_THREADSAFE_ISUPPORTS
-  NS_DECL_NSIRUNNABLE
 
   explicit CacheEntryDoomByKeyCallback(nsICacheEntryDoomCallback* aCallback)
     : mCallback(aCallback) { }
@@ -1514,7 +1512,6 @@ private:
   NS_IMETHOD OnFileRenamed(CacheFileHandle *aHandle, nsresult aResult) { return NS_OK; }
 
   nsCOMPtr<nsICacheEntryDoomCallback> mCallback;
-  nsresult mResult;
 };
 
 CacheEntryDoomByKeyCallback::~CacheEntryDoomByKeyCallback()
@@ -1529,23 +1526,11 @@ NS_IMETHODIMP CacheEntryDoomByKeyCallback::OnFileDoomed(CacheFileHandle *aHandle
   if (!mCallback)
     return NS_OK;
 
-  mResult = aResult;
-  if (NS_IsMainThread()) {
-    Run();
-  } else {
-    NS_DispatchToMainThread(this);
-  }
-
+  mCallback->OnCacheEntryDoomed(aResult);
   return NS_OK;
 }
 
-NS_IMETHODIMP CacheEntryDoomByKeyCallback::Run()
-{
-  mCallback->OnCacheEntryDoomed(mResult);
-  return NS_OK;
-}
-
-NS_IMPL_ISUPPORTS(CacheEntryDoomByKeyCallback, CacheFileIOListener, nsIRunnable);
+NS_IMPL_ISUPPORTS(CacheEntryDoomByKeyCallback, CacheFileIOListener);
 
 } // anon
 
@@ -1617,22 +1602,8 @@ CacheStorageService::DoomStorageEntry(CacheStorage const* aStorage,
     return NS_OK;
   }
 
-  class Callback : public nsRunnable
-  {
-  public:
-    explicit Callback(nsICacheEntryDoomCallback* aCallback) : mCallback(aCallback) { }
-    NS_IMETHODIMP Run()
-    {
-      mCallback->OnCacheEntryDoomed(NS_ERROR_NOT_AVAILABLE);
-      return NS_OK;
-    }
-    nsCOMPtr<nsICacheEntryDoomCallback> mCallback;
-  };
-
-  if (aCallback) {
-    nsRefPtr<nsRunnable> callback = new Callback(aCallback);
-    return NS_DispatchToMainThread(callback);
-  }
+  if (aCallback)
+    aCallback->OnCacheEntryDoomed(NS_ERROR_NOT_AVAILABLE);
 
   return NS_OK;
 }
@@ -1728,7 +1699,7 @@ CacheStorageService::DoomStorageEntries(nsCSubstring const& aContextKey,
 
   if (aCallback) {
     nsRefPtr<nsRunnable> callback = new Callback(aCallback);
-    return NS_DispatchToMainThread(callback);
+    return NS_DispatchToCurrentThread(callback);
   }
 
   return NS_OK;

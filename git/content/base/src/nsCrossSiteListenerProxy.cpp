@@ -124,7 +124,7 @@ public:
 
   struct CacheEntry : public LinkedListElement<CacheEntry>
   {
-    explicit CacheEntry(nsCString& aKey)
+    CacheEntry(nsCString& aKey)
       : mKey(aKey)
     {
       MOZ_COUNT_CTOR(nsPreflightCache::CacheEntry);
@@ -682,15 +682,13 @@ nsCORSListenerProxy::AsyncOnChannelRedirect(nsIChannel *aOldChannel,
 
     if (mHasBeenCrossSite) {
       // Once we've been cross-site, cross-origin redirects reset our source
-      // origin. Note that we need to call GetChannelURIPrincipal() because
-      // we are looking for the principal that is actually being loaded and not
-      // the principal that initiated the load.
+      // origin.
       nsCOMPtr<nsIPrincipal> oldChannelPrincipal;
       nsContentUtils::GetSecurityManager()->
-        GetChannelURIPrincipal(aOldChannel, getter_AddRefs(oldChannelPrincipal));
+        GetChannelPrincipal(aOldChannel, getter_AddRefs(oldChannelPrincipal));
       nsCOMPtr<nsIPrincipal> newChannelPrincipal;
       nsContentUtils::GetSecurityManager()->
-        GetChannelURIPrincipal(aNewChannel, getter_AddRefs(newChannelPrincipal));
+        GetChannelPrincipal(aNewChannel, getter_AddRefs(newChannelPrincipal));
       if (!oldChannelPrincipal || !newChannelPrincipal) {
         rv = NS_ERROR_OUT_OF_MEMORY;
       }

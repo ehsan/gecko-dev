@@ -132,7 +132,7 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsXULElementTearoff,
                                            nsIDOMElementCSSInlineStyle)
 
-  explicit nsXULElementTearoff(nsXULElement* aElement)
+  nsXULElementTearoff(nsXULElement *aElement)
     : mElement(aElement)
   {
   }
@@ -808,7 +808,7 @@ IsInFeedSubscribeLine(nsXULElement* aElement)
 class XULInContentErrorReporter : public nsRunnable
 {
 public:
-  explicit XULInContentErrorReporter(nsIDocument* aDocument) : mDocument(aDocument) {}
+  XULInContentErrorReporter(nsIDocument* aDocument) : mDocument(aDocument) {}
 
   NS_IMETHOD Run()
   {
@@ -828,7 +828,6 @@ nsXULElement::BindToTree(nsIDocument* aDocument,
 {
   if (!aBindingParent &&
       aDocument &&
-      !aDocument->IsLoadedAsInteractiveData() &&
       !aDocument->AllowXULXBL() &&
       !aDocument->HasWarnedAbout(nsIDocument::eImportXULIntoContent)) {
     nsContentUtils::AddScriptRunner(new XULInContentErrorReporter(aDocument));
@@ -1984,7 +1983,7 @@ nsXULElement::SetDrawsTitle(bool aState)
 class MarginSetter : public nsRunnable
 {
 public:
-    explicit MarginSetter(nsIWidget* aWidget) :
+    MarginSetter(nsIWidget* aWidget) :
         mWidget(aWidget), mMargin(-1, -1, -1, -1)
     {}
     MarginSetter(nsIWidget *aWidget, const nsIntMargin& aMargin) :
@@ -2532,7 +2531,7 @@ nsXULPrototypeScript::Serialize(nsIObjectOutputStream* aStream,
 {
     NS_ENSURE_TRUE(aProtoDoc, NS_ERROR_UNEXPECTED);
     AutoSafeJSContext cx;
-    JS::Rooted<JSObject*> global(cx, xpc::CompilationScope());
+    JS::Rooted<JSObject*> global(cx, xpc::GetCompilationScope());
     NS_ENSURE_TRUE(global, NS_ERROR_UNEXPECTED);
     JSAutoCompartment ac(cx, global);
 
@@ -2554,7 +2553,8 @@ nsXULPrototypeScript::Serialize(nsIObjectOutputStream* aStream,
     // been set.
     JS::Handle<JSScript*> script =
         JS::Handle<JSScript*>::fromMarkedLocation(mScriptObject.address());
-    MOZ_ASSERT(xpc::CompilationScope() == JS::CurrentGlobalOrNull(cx));
+    // Note - Inverting the order of these operands is a rooting hazard.
+    MOZ_ASSERT(xpc::GetCompilationScope() == JS::CurrentGlobalOrNull(cx));
     return nsContentUtils::XPConnect()->WriteScript(aStream, cx,
                                                     xpc_UnmarkGrayScript(script));
 }
@@ -2621,7 +2621,7 @@ nsXULPrototypeScript::Deserialize(nsIObjectInputStream* aStream,
     aStream->Read32(&mLangVersion);
 
     AutoSafeJSContext cx;
-    JS::Rooted<JSObject*> global(cx, xpc::CompilationScope());
+    JS::Rooted<JSObject*> global(cx, xpc::GetCompilationScope());
     NS_ENSURE_TRUE(global, NS_ERROR_UNEXPECTED);
     JSAutoCompartment ac(cx, global);
 
@@ -2731,7 +2731,7 @@ NotifyOffThreadScriptCompletedRunnable::Run()
     JSScript *script;
     {
         AutoSafeJSContext cx;
-        JSAutoCompartment ac(cx, xpc::CompilationScope());
+        JSAutoCompartment ac(cx, xpc::GetCompilationScope());
         script = JS::FinishOffThreadScript(cx, JS_GetRuntime(cx), mToken);
     }
 
@@ -2757,8 +2757,9 @@ nsXULPrototypeScript::Compile(JS::SourceBufferHolder& aSrcBuf,
                               nsIOffThreadScriptReceiver *aOffThreadReceiver /* = nullptr */)
 {
     // We'll compile the script in the compilation scope.
+    NS_ENSURE_TRUE(xpc::GetCompilationScope(), NS_ERROR_UNEXPECTED);
     AutoSafeJSContext cx;
-    JSAutoCompartment ac(cx, xpc::CompilationScope());
+    JSAutoCompartment ac(cx, xpc::GetCompilationScope());
 
     nsAutoCString urlspec;
     nsContentUtils::GetWrapperSafeScriptFilename(aDocument, aURI, urlspec);

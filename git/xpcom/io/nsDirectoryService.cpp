@@ -77,8 +77,7 @@ nsDirectoryService::GetCurrentProcessDirectory(nsIFile** aFile)
 
   if (dirService) {
     nsCOMPtr <nsIFile> aLocalFile;
-    dirService->Get(NS_XPCOM_INIT_CURRENT_PROCESS_DIR, NS_GET_IID(nsIFile),
-                    getter_AddRefs(aLocalFile));
+    dirService->Get(NS_XPCOM_INIT_CURRENT_PROCESS_DIR, NS_GET_IID(nsIFile), getter_AddRefs(aLocalFile));
     if (aLocalFile) {
       *aFile = aLocalFile;
       NS_ADDREF(*aFile);
@@ -87,9 +86,8 @@ nsDirectoryService::GetCurrentProcessDirectory(nsIFile** aFile)
   }
 
   nsLocalFile* localFile = new nsLocalFile;
-  if (!localFile) {
+  if (localFile == nullptr)
     return NS_ERROR_OUT_OF_MEMORY;
-  }
   NS_ADDREF(localFile);
 
 #ifdef XP_WIN
@@ -476,8 +474,7 @@ nsDirectoryService::RegisterCategoryProviders()
     strings->GetNext(entry);
 
     nsXPIDLCString contractID;
-    catman->GetCategoryEntry(XPCOM_DIRECTORY_PROVIDER_CATEGORY, entry.get(),
-                             getter_Copies(contractID));
+    catman->GetCategoryEntry(XPCOM_DIRECTORY_PROVIDER_CATEGORY, entry.get(), getter_Copies(contractID));
 
     if (contractID) {
       nsCOMPtr<nsIDirectoryServiceProvider> provider = do_GetService(contractID.get());

@@ -44,29 +44,8 @@ DNSRequestParent::DoAsyncResolve(const nsACString &hostname, uint32_t flags)
   }
 
   if (NS_FAILED(rv) && !mIPCClosed) {
-    mIPCClosed = true;
-    unused << SendLookupCompleted(DNSRequestResponse(rv));
+    unused << Send__delete__(this, DNSRequestResponse(rv));
   }
-}
-
-bool
-DNSRequestParent::RecvCancelDNSRequest(const nsCString& hostName,
-                                       const uint32_t& flags,
-                                       const nsresult& reason)
-{
-  nsresult rv;
-  nsCOMPtr<nsIDNSService> dns = do_GetService(NS_DNSSERVICE_CONTRACTID, &rv);
-  if (NS_SUCCEEDED(rv)) {
-    rv = dns->CancelAsyncResolve(hostName, flags, this, reason);
-  }
-  return true;
-}
-
-bool
-DNSRequestParent::Recv__delete__()
-{
-  mIPCClosed = true;
-  return true;
 }
 
 void
@@ -113,12 +92,11 @@ DNSRequestParent::OnLookupComplete(nsICancelable *request,
       array.AppendElement(addr);
     }
 
-    unused << SendLookupCompleted(DNSRequestResponse(DNSRecord(cname, array)));
+    unused << Send__delete__(this, DNSRequestResponse(DNSRecord(cname, array)));
   } else {
-    unused << SendLookupCompleted(DNSRequestResponse(status));
+    unused << Send__delete__(this, DNSRequestResponse(status));
   }
 
-  mIPCClosed = true;
   return NS_OK;
 }
 

@@ -349,7 +349,7 @@ public:
                  (*p >= 0x61 && *p <= 0x7A)) {
         mValue.Append(*p);
       } else {
-        mValue.AppendPrintf("%%%.2X", *p);
+        mValue.AppendPrintf("%%%X", *p);
       }
 
       ++p;

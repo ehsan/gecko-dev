@@ -18,7 +18,6 @@
 #include "RestyleManager.h"
 #include "nsDisplayList.h"
 #include "mozilla/Likely.h"
-#include "SVGTextFrame.h"
 
 #ifdef DEBUG
 #undef NOISY_PUSHING
@@ -224,19 +223,14 @@ nsInlineFrame::AddInlinePrefISize(nsRenderingContext *aRenderingContext,
   DoInlineIntrinsicISize(aRenderingContext, aData, nsLayoutUtils::PREF_ISIZE);
 }
 
-/* virtual */
-LogicalSize
+/* virtual */ nsSize
 nsInlineFrame::ComputeSize(nsRenderingContext *aRenderingContext,
-                           WritingMode aWM,
-                           const LogicalSize& aCBSize,
-                           nscoord aAvailableISize,
-                           const LogicalSize& aMargin,
-                           const LogicalSize& aBorder,
-                           const LogicalSize& aPadding,
+                           nsSize aCBSize, nscoord aAvailableWidth,
+                           nsSize aMargin, nsSize aBorder, nsSize aPadding,
                            uint32_t aFlags)
 {
   // Inlines and text don't compute size before reflow.
-  return LogicalSize(aWM, NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE);
+  return nsSize(NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE);
 }
 
 nsRect
@@ -425,28 +419,6 @@ nsInlineFrame::Reflow(nsPresContext*          aPresContext,
   // overflow-rect state for us.
 
   NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aMetrics);
-}
-
-nsresult 
-nsInlineFrame::AttributeChanged(int32_t aNameSpaceID,
-                                nsIAtom* aAttribute,
-                                int32_t aModType)
-{
-  nsresult rv =
-    nsInlineFrameBase::AttributeChanged(aNameSpaceID, aAttribute, aModType);
-
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
-
-  if (IsSVGText()) {
-    SVGTextFrame* f = static_cast<SVGTextFrame*>(
-      nsLayoutUtils::GetClosestFrameOfType(this, nsGkAtoms::svgTextFrame));
-    f->HandleAttributeChangeInDescendant(mContent->AsElement(),
-                                         aNameSpaceID, aAttribute);
-  }
-
-  return NS_OK;
 }
 
 bool
@@ -733,8 +705,32 @@ nsInlineFrame::ReflowFrames(nsPresContext* aPresContext,
     aMetrics.ISize(lineWM) += framePadding.IEnd(frameWM);
   }
 
-  nsLayoutUtils::SetBSizeFromFontMetrics(this, aMetrics, aReflowState,
-                                         framePadding, lineWM, frameWM);
+  nsRefPtr<nsFontMetrics> fm;
+  float inflation = nsLayoutUtils::FontSizeInflationFor(this);
+  nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm), inflation);
+  aReflowState.rendContext->SetFont(fm);
+
+  if (fm) {
+    // Compute final height of the frame.
+    //
+    // Do things the standard css2 way -- though it's hard to find it
+    // in the css2 spec! It's actually found in the css1 spec section
+    // 4.4 (you will have to read between the lines to really see
+    // it).
+    //
+    // The height of our box is the sum of our font size plus the top
+    // and bottom border and padding. The height of children do not
+    // affect our height.
+    aMetrics.SetBlockStartAscent(fm->MaxAscent());
+    aMetrics.BSize(lineWM) = fm->MaxHeight();
+  } else {
+    NS_WARNING("Cannot get font metrics - defaulting sizes to 0");
+    aMetrics.SetBlockStartAscent(aMetrics.BSize(lineWM) = 0);
+  }
+  aMetrics.SetBlockStartAscent(aMetrics.BlockStartAscent() +
+                               framePadding.BStart(frameWM));
+  aMetrics.BSize(lineWM) +=
+    aReflowState.ComputedLogicalBorderPadding().BStartEnd(frameWM);
 
   // For now our overflow area is zero. The real value will be
   // computed in |nsLineLayout::RelativePositionFrames|.

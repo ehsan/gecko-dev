@@ -28,7 +28,6 @@ namespace jit {
 class MacroAssembler;
 class CodeOffsetLabel;
 class PatchableBackedge;
-class IonBuilder;
 
 class JitCode : public gc::BarrieredCell<JitCode>
 {
@@ -45,8 +44,6 @@ class JitCode : public gc::BarrieredCell<JitCode>
     uint8_t kind_ : 3;                // jit::CodeKind, for the memory reporters.
     bool invalidated_ : 1;            // Whether the code object has been invalidated.
                                       // This is necessary to prevent GC tracing.
-    bool hasBytecodeMap_ : 1;         // Whether the code object has been registered with
-                                      // native=>bytecode mapping tables.
 
 #if JS_BITS_PER_WORD == 32
     // Ensure JitCode is gc::Cell aligned.
@@ -69,8 +66,7 @@ class JitCode : public gc::BarrieredCell<JitCode>
         preBarrierTableBytes_(0),
         headerSize_(headerSize),
         kind_(kind),
-        invalidated_(false),
-        hasBytecodeMap_(false)
+        invalidated_(false)
     {
         MOZ_ASSERT(CodeKind(kind_) == kind);
         MOZ_ASSERT(headerSize_ == headerSize);
@@ -93,9 +89,6 @@ class JitCode : public gc::BarrieredCell<JitCode>
     uint8_t *raw() const {
         return code_;
     }
-    uint8_t *rawEnd() const {
-        return code_ + insnSize_;
-    }
     size_t instructionsSize() const {
         return insnSize_;
     }
@@ -103,10 +96,6 @@ class JitCode : public gc::BarrieredCell<JitCode>
     void finalize(FreeOp *fop);
     void setInvalidated() {
         invalidated_ = true;
-    }
-
-    void setHasBytecodeMap() {
-        hasBytecodeMap_ = true;
     }
 
     void togglePreBarriers(bool enabled);
@@ -300,8 +289,6 @@ struct IonScript
     // that contain an optimized call directly into this IonScript.
     Vector<DependentAsmJSModuleExit> *dependentAsmJSModules;
 
-    IonBuilder *pendingBuilder_;
-
   private:
     inline uint8_t *bottomBuffer() {
         return reinterpret_cast<uint8_t *>(this);
@@ -311,15 +298,6 @@ struct IonScript
     }
 
   public:
-
-    // SHOULD ONLY BE CALLED FROM JSScript
-    void setPendingBuilderPrivate(IonBuilder *builder) {
-        pendingBuilder_ = builder;
-    }
-    IonBuilder *pendingBuilder() const {
-        return pendingBuilder_;
-    }
-
     SnapshotOffset *bailoutTable() {
         return (SnapshotOffset *) &bottomBuffer()[bailoutTable_];
     }
@@ -654,9 +632,6 @@ struct IonBlockCounts
     // was generated from.
     uint32_t offset_;
 
-    // File and line of the inner script this block was generated from.
-    char *description_;
-
     // ids for successors of this block.
     uint32_t numSuccessors_;
     uint32_t *successors_;
@@ -669,10 +644,9 @@ struct IonBlockCounts
 
   public:
 
-    bool init(uint32_t id, uint32_t offset, char *description, uint32_t numSuccessors) {
+    bool init(uint32_t id, uint32_t offset, uint32_t numSuccessors) {
         id_ = id;
         offset_ = offset;
-        description_ = description;
         numSuccessors_ = numSuccessors;
         if (numSuccessors) {
             successors_ = js_pod_calloc<uint32_t>(numSuccessors);
@@ -683,7 +657,6 @@ struct IonBlockCounts
     }
 
     void destroy() {
-        js_free(description_);
         js_free(successors_);
         js_free(code_);
     }
@@ -694,10 +667,6 @@ struct IonBlockCounts
 
     uint32_t offset() const {
         return offset_;
-    }
-
-    const char *description() const {
-        return description_;
     }
 
     size_t numSuccessors() const {

@@ -124,13 +124,13 @@ class gcstats::StatisticsSerializer
         needComma_ = true;
     }
 
-    char16_t *finishJSString() {
+    jschar *finishJSString() {
         char *buf = finishCString();
         if (!buf)
             return nullptr;
 
         size_t nchars = strlen(buf);
-        char16_t *out = js_pod_malloc<char16_t>(nchars + 1);
+        jschar *out = js_pod_malloc<jschar>(nchars + 1);
         if (!out) {
             oom_ = true;
             js_free(buf);
@@ -307,10 +307,6 @@ static const PhaseInfo phases[] = {
     { PHASE_SWEEP_SCRIPT, "Sweep Script", PHASE_SWEEP },
     { PHASE_SWEEP_SHAPE, "Sweep Shape", PHASE_SWEEP },
     { PHASE_SWEEP_JITCODE, "Sweep JIT code", PHASE_SWEEP },
-    { PHASE_COMPACT, "Compact", PHASE_NO_PARENT },
-    { PHASE_COMPACT_MOVE, "Compact Move", PHASE_COMPACT },
-    { PHASE_COMPACT_UPDATE, "Compact Update", PHASE_COMPACT, },
-    { PHASE_COMPACT_UPDATE_GRAY, "Compact Update Gray", PHASE_COMPACT_UPDATE, },
     { PHASE_FINALIZE_END, "Finalize End Callback", PHASE_SWEEP },
     { PHASE_DESTROY, "Deallocate", PHASE_SWEEP },
     { PHASE_GC_END, "End Callback", PHASE_NO_PARENT },
@@ -424,7 +420,7 @@ Statistics::formatData(StatisticsSerializer &ss, uint64_t timestamp)
     return !ss.isOOM();
 }
 
-char16_t *
+jschar *
 Statistics::formatMessage()
 {
     StatisticsSerializer ss(StatisticsSerializer::AsText);
@@ -432,7 +428,7 @@ Statistics::formatMessage()
     return ss.finishJSString();
 }
 
-char16_t *
+jschar *
 Statistics::formatJSON(uint64_t timestamp)
 {
     StatisticsSerializer ss(StatisticsSerializer::AsJSON);

@@ -58,6 +58,7 @@
 #include "nsInputStreamPump.h"
 #include "nsURLHelper.h"
 #include "nsISocketTransport.h"
+#include "nsICacheSession.h"
 #include "nsIStreamConverterService.h"
 #include "nsISiteSecurityService.h"
 #include "nsCRT.h"
@@ -863,8 +864,11 @@ nsHttpChannel::CallOnStartRequest()
         }
     }
 
-    bool unknownDecoderStarted = false;
-    if (mResponseHead && mResponseHead->ContentType().IsEmpty()) {
+    bool shouldSniff = mResponseHead && (mResponseHead->ContentType().IsEmpty() ||
+        ((mResponseHead->ContentType().EqualsLiteral(APPLICATION_OCTET_STREAM) &&
+        (mLoadFlags & LOAD_TREAT_APPLICATION_OCTET_STREAM_AS_UNKNOWN))));
+
+    if (shouldSniff) {
         MOZ_ASSERT(mConnectionInfo, "Should have connection info here");
         if (!mContentTypeHint.IsEmpty())
             mResponseHead->SetContentType(mContentTypeHint);
@@ -873,6 +877,10 @@ nsHttpChannel::CallOnStartRequest()
             mResponseHead->SetContentType(NS_LITERAL_CSTRING(TEXT_PLAIN));
         else {
             // Uh-oh.  We had better find out what type we are!
+
+            // XXX This does not work with content-encodings...  but
+            // neither does applying the conversion from the URILoader
+
             nsCOMPtr<nsIStreamConverterService> serv;
             rv = gHttpHandler->
                 GetStreamConverterService(getter_AddRefs(serv));
@@ -886,7 +894,6 @@ nsHttpChannel::CallOnStartRequest()
                                             getter_AddRefs(converter));
                 if (NS_SUCCEEDED(rv)) {
                     mListener = converter;
-                    unknownDecoderStarted = true;
                 }
             }
         }
@@ -917,20 +924,9 @@ nsHttpChannel::CallOnStartRequest()
         NS_WARNING("OnStartRequest skipped because of null listener");
     }
 
-    // Install stream converter if required.
-    // If we use unknownDecoder, stream converters will be installed later (in
-    // nsUnknownDecoder) after OnStartRequest is called for the real listener.
-    if (!unknownDecoderStarted) {
-      nsCOMPtr<nsIStreamListener> listener;
-      nsISupports *ctxt = mListenerContext;
-      rv = DoApplyContentConversions(mListener, getter_AddRefs(listener), ctxt);
-      if (NS_FAILED(rv)) {
-        return rv;
-      }
-      if (listener) {
-        mListener = listener;
-      }
-    }
+    // install stream converter if required
+    rv = ApplyContentConversions();
+    if (NS_FAILED(rv)) return rv;
 
     rv = EnsureAssocReq();
     if (NS_FAILED(rv))
@@ -3650,11 +3646,6 @@ nsHttpChannel::CloseCacheEntry(bool doomOnFailure)
     if (doom) {
         LOG(("  dooming cache entry!!"));
         mCacheEntry->AsyncDoom(nullptr);
-    } else {
-      // Store updated security info, makes cached EV status race less likely
-      // (see bug 1040086)
-      if (mSecurityInfo)
-          mCacheEntry->SetSecurityInfo(mSecurityInfo);
     }
 
     mCachedResponseHead = nullptr;

@@ -12,6 +12,7 @@
 
 #include "nsCOMPtr.h"
 #include "nsIColorPicker.h"
+#include "nsString.h"
 #include "nsThreadUtils.h"
 
 class nsIWidget;
@@ -20,21 +21,16 @@ class AsyncColorChooser :
   public nsRunnable
 {
 public:
-  AsyncColorChooser(COLORREF aInitialColor,
+  AsyncColorChooser(const nsAString& aInitialColor,
                     nsIWidget* aParentWidget,
                     nsIColorPickerShownCallback* aCallback);
   NS_IMETHOD Run() MOZ_OVERRIDE;
 
 private:
-  void Update(COLORREF aColor);
-
-  static UINT_PTR CALLBACK HookProc(HWND aDialog, UINT aMsg,
-                                    WPARAM aWParam, LPARAM aLParam);
-
-  COLORREF mInitialColor;
-  COLORREF mColor;
+  nsString mInitialColor;
   nsCOMPtr<nsIWidget> mParentWidget;
   nsCOMPtr<nsIColorPickerShownCallback> mCallback;
+  nsString mColor;
 };
 
 class nsColorPicker :
@@ -51,8 +47,8 @@ public:
                   const nsAString& aInitialColor);
   NS_IMETHOD Open(nsIColorPickerShownCallback* aCallback);
 
-private:
-  COLORREF mInitialColor;
+protected:
+  nsString mInitialColor;
   nsCOMPtr<nsIWidget> mParentWidget;
 };
 

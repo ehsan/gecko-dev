@@ -17,7 +17,7 @@ XPCOMUtils.defineLazyServiceGetter(this, "CrashReporter",
 
 XPCOMUtils.defineLazyModuleGetter(this, "Task", "resource://gre/modules/Task.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "OS", "resource://gre/modules/osfile.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "Messaging", "resource://gre/modules/Messaging.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "sendMessageToJava", "resource://gre/modules/Messaging.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "PrivateBrowsingUtils", "resource://gre/modules/PrivateBrowsingUtils.jsm");
 
 function dump(a) {
@@ -117,9 +117,6 @@ SessionStore.prototype = {
         }
 
         Services.obs.notifyObservers(null, "sessionstore-state-purge-complete", "");
-        if (this._notifyClosedTabs) {
-          this._sendClosedTabsToJava(Services.wm.getMostRecentWindow("navigator:browser"));
-        }
         break;
       case "timer-callback":
         // Timer call back for delayed saving
@@ -144,7 +141,7 @@ SessionStore.prototype = {
               }
 
               // Let Java know we're done restoring tabs so tabs added after this can be animated
-              Messaging.sendRequest({
+              sendMessageToJava({
                 type: "Session:RestoreEnd"
               });
             }.bind(this)
@@ -454,9 +451,9 @@ SessionStore.prototype = {
 
     // If we have private data, send it to Java; otherwise, send null to
     // indicate that there is no private data
-    Messaging.sendRequest({
+    sendMessageToJava({
       type: "PrivateBrowsing:Data",
-      session: (privateData.windows.length > 0 && privateData.windows[0].tabs.length > 0) ? JSON.stringify(privateData) : null
+      session: (privateData.windows[0].tabs.length > 0) ? JSON.stringify(privateData) : null
     });
 
     this._lastSaveTime = Date.now();
@@ -795,12 +792,14 @@ SessionStore.prototype = {
     try {
       state = JSON.parse(aData);
     } catch (e) {
-      throw "Invalid session JSON: " + aData;
+      Cu.reportError("SessionStore: invalid session JSON");
+      return false;
     }
 
     // To do a restore, we must have at least one window with one tab
     if (!state || state.windows.length == 0 || !state.windows[0].tabs || state.windows[0].tabs.length == 0) {
-      throw "Invalid session JSON: " + aData;
+      Cu.reportError("SessionStore: no tabs to restore");
+      return false;
     }
 
     let window = Services.wm.getMostRecentWindow("navigator:browser");
@@ -848,6 +847,8 @@ SessionStore.prototype = {
 
       tab.browser.__SS_extdata = tabData.extData;
     }
+
+    return true;
   },
 
   getClosedTabCount: function ss_getClosedTabCount(aWindow) {
@@ -943,7 +944,7 @@ SessionStore.prototype = {
         };
       });
 
-    Messaging.sendRequest({
+    sendMessageToJava({
       type: "ClosedTabs:Data",
       tabs: tabs
     });
@@ -972,8 +973,20 @@ SessionStore.prototype = {
       throw (Components.returnCode = Cr.NS_ERROR_INVALID_ARG);
   },
 
-  restoreLastSession: Task.async(function* (aSessionString) {
-    let notifyMessage = "";
+  restoreLastSession: function ss_restoreLastSession(aSessionString) {
+    let self = this;
+
+    function restoreWindow(data) {
+      if (!self._restoreWindow(data)) {
+        throw "Could not restore window";
+      }
+
+      notifyObservers();
+    }
+
+    function notifyObservers(aMessage) {
+      Services.obs.notifyObservers(null, "sessionstore-windows-restored", aMessage || "");
+    }
 
     try {
       // Normally, we'll receive the session string from Java, but there are
@@ -981,37 +994,27 @@ SessionStore.prototype = {
       // browser.sessionstore.resume_session_once is true). In these cases, the
       // session will be read from sessionstore.bak (which is also used for
       // "tabs from last time").
-      let data = aSessionString;
-
-      if (data == null) {
-        let bytes = yield OS.File.read(this._sessionFileBackup.path);
-        data = JSON.parse(new TextDecoder().decode(bytes) || "");
-      }
-
-      this._restoreWindow(data);
-    } catch (e) {
-      if (e instanceof OS.File.Error) {
-        Cu.reportError("SessionStore: " + e.message);
+      if (aSessionString == null) {
+        Task.spawn(function() {
+          let bytes = yield OS.File.read(this._sessionFileBackup.path);
+          let data = JSON.parse(new TextDecoder().decode(bytes) || "");
+          restoreWindow(data);
+        }.bind(this)).then(null, function onError(reason) {
+          if (reason instanceof OS.File.Error && reason.becauseNoSuchFile) {
+            Cu.reportError("Session file doesn't exist");
+          } else {
+            Cu.reportError("SessionStore: " + reason.message);
+          }
+          notifyObservers("fail");
+        });
       } else {
-        Cu.reportError("SessionStore: " + e);
+        restoreWindow(aSessionString);
       }
-
-      notifyMessage = "fail";
+    } catch (e) {
+      Cu.reportError("SessionStore: " + e);
+      notifyObservers("fail");
     }
-
-    Services.obs.notifyObservers(null, "sessionstore-windows-restored", notifyMessage);
-  }),
-
-  removeWindow: function ss_removeWindow(aWindow) {
-    if (!aWindow || !aWindow.__SSID || !this._windows[aWindow.__SSID])
-      return;
-
-    delete this._windows[aWindow.__SSID];
-    delete aWindow.__SSID;
-
-    this.saveState();
   }
-
 };
 
 this.NSGetFactory = XPCOMUtils.generateNSGetFactory([SessionStore]);

@@ -44,7 +44,7 @@ NS_INTERFACE_MAP_END
 class MOZ_STACK_CLASS AutoChangeStringListNotifier
 {
 public:
-  explicit AutoChangeStringListNotifier(DOMSVGStringList* aStringList MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+  AutoChangeStringListNotifier(DOMSVGStringList* aStringList MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
     : mStringList(aStringList)
   {
     MOZ_GUARD_OBJECT_NOTIFIER_INIT;

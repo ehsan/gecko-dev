@@ -31,7 +31,6 @@ gfxSurfaceDrawable::Draw(gfxContext* aContext,
                          const gfxRect& aFillRect,
                          bool aRepeat,
                          const GraphicsFilter& aFilter,
-                         gfxFloat aOpacity,
                          const gfxMatrix& aTransform)
 {
     ExtendMode extend = ExtendMode::CLAMP;
@@ -51,8 +50,7 @@ gfxSurfaceDrawable::Draw(gfxContext* aContext,
 
     if (aContext->CurrentOperator() == gfxContext::OPERATOR_CLEAR) {
         dt->ClearRect(fillRect);
-    } else if (aContext->CurrentOperator() == gfxContext::OPERATOR_SOURCE &&
-               aOpacity == 1.0) {
+    } else if (aContext->CurrentOperator() == gfxContext::OPERATOR_SOURCE) {
         // Emulate cairo operator source which is bound by mask!
         dt->ClearRect(fillRect);
         dt->FillRect(fillRect, pattern);
@@ -62,7 +60,7 @@ gfxSurfaceDrawable::Draw(gfxContext* aContext,
             aContext->CurrentAntialiasMode() == gfxContext::MODE_ALIASED ?
                 AntialiasMode::NONE :
                 AntialiasMode::SUBPIXEL;
-        dt->FillRect(fillRect, pattern, DrawOptions(aOpacity, op, aaMode));
+        dt->FillRect(fillRect, pattern, DrawOptions(1.0f, op, aaMode));
     }
     return true;
 }
@@ -98,16 +96,15 @@ gfxCallbackDrawable::Draw(gfxContext* aContext,
                           const gfxRect& aFillRect,
                           bool aRepeat,
                           const GraphicsFilter& aFilter,
-                          gfxFloat aOpacity,
                           const gfxMatrix& aTransform)
 {
-    if ((aRepeat || aOpacity != 1.0) && !mSurfaceDrawable) {
+    if (aRepeat && !mSurfaceDrawable) {
         mSurfaceDrawable = MakeSurfaceDrawable(aFilter);
     }
 
     if (mSurfaceDrawable)
         return mSurfaceDrawable->Draw(aContext, aFillRect, aRepeat, aFilter,
-                                      aOpacity, aTransform);
+                                      aTransform);
 
     if (mCallback)
         return (*mCallback)(aContext, aFillRect, aFilter, aTransform);
@@ -128,7 +125,7 @@ gfxPatternDrawable::~gfxPatternDrawable()
 
 class DrawingCallbackFromDrawable : public gfxDrawingCallback {
 public:
-    explicit DrawingCallbackFromDrawable(gfxDrawable* aDrawable)
+    DrawingCallbackFromDrawable(gfxDrawable* aDrawable)
      : mDrawable(aDrawable) {
         NS_ASSERTION(aDrawable, "aDrawable is null!");
     }
@@ -140,7 +137,7 @@ public:
                               const GraphicsFilter& aFilter,
                               const gfxMatrix& aTransform = gfxMatrix())
     {
-        return mDrawable->Draw(aContext, aFillRect, false, aFilter, 1.0,
+        return mDrawable->Draw(aContext, aFillRect, false, aFilter,
                                aTransform);
     }
 private:
@@ -162,7 +159,6 @@ gfxPatternDrawable::Draw(gfxContext* aContext,
                          const gfxRect& aFillRect,
                          bool aRepeat,
                          const GraphicsFilter& aFilter,
-                         gfxFloat aOpacity,
                          const gfxMatrix& aTransform)
 {
     if (!mPattern)
@@ -178,7 +174,7 @@ gfxPatternDrawable::Draw(gfxContext* aContext,
         // will happen through this Draw() method with aRepeat = false.
         nsRefPtr<gfxCallbackDrawable> callbackDrawable = MakeCallbackDrawable();
         return callbackDrawable->Draw(aContext, aFillRect, true, aFilter,
-                                      aOpacity, aTransform);
+                                      aTransform);
     }
 
     aContext->NewPath();
@@ -186,7 +182,7 @@ gfxPatternDrawable::Draw(gfxContext* aContext,
     mPattern->SetMatrix(aTransform * oldMatrix);
     aContext->SetPattern(mPattern);
     aContext->Rectangle(aFillRect);
-    aContext->FillWithOpacity(aOpacity);
+    aContext->Fill();
     mPattern->SetMatrix(oldMatrix);
     return true;
 }

@@ -41,7 +41,7 @@ public:
   // Whether an error was received.
   static bool sError;
 
-  explicit UnownedCallback(mozIStorageConnection* aDBConn)
+  UnownedCallback(mozIStorageConnection* aDBConn)
   : mDBConn(aDBConn)
   , mCompleted(false)
   {

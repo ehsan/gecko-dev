@@ -6,7 +6,6 @@
 #define INTERVAL_H_
 
 #include "nsTArray.h"
-#include <algorithm>
 
 namespace mp4_demuxer
 {
@@ -38,18 +37,6 @@ struct Interval
     return start == aOther.start && end == aOther.end;
   }
   bool operator!=(const Interval& aOther) const { return !(*this == aOther); }
-  bool IsNull() const
-  {
-    return end == start;
-  }
-  Interval Extents(const Interval& aOther) const
-  {
-    if (IsNull()) {
-      return aOther;
-    }
-    return Interval(std::min(start, aOther.start),
-                    std::max(end, aOther.end));
-  }
 
   T start;
   T end;
@@ -74,7 +61,7 @@ struct Interval
     }
     MOZ_ASSERT(aNormalized->IsEmpty());
 
-    nsTArray<Interval<T>> sorted;
+    nsTArray<Interval<T> > sorted;
     sorted = aIntervals;
     sorted.Sort(Compare());
 
@@ -94,9 +81,9 @@ struct Interval
     aNormalized->AppendElement(current);
   }
 
-  static void Intersection(const nsTArray<Interval<T>>& a0,
-                           const nsTArray<Interval<T>>& a1,
-                           nsTArray<Interval<T>>* aIntersection)
+  static void Intersection(const nsTArray<Interval<T> >& a0,
+                           const nsTArray<Interval<T> >& a1,
+                           nsTArray<Interval<T> >* aIntersection)
   {
     MOZ_ASSERT(IsNormalized(a0));
     MOZ_ASSERT(IsNormalized(a1));
@@ -119,7 +106,7 @@ struct Interval
     }
   }
 
-  static bool IsNormalized(const nsTArray<Interval<T>>& aIntervals)
+  static bool IsNormalized(const nsTArray<Interval<T> >& aIntervals)
   {
     for (size_t i = 1; i < aIntervals.Length(); i++) {
       if (aIntervals[i - 1].end >= aIntervals[i].start) {

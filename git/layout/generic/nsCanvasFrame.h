@@ -25,12 +25,12 @@ class nsRenderingContext;
  * It only supports having a single child frame which must be an area
  * frame
  */
-class nsCanvasFrame MOZ_FINAL : public nsContainerFrame,
-                                public nsIScrollPositionListener,
-                                public nsIAnonymousContentCreator
+class nsCanvasFrame : public nsContainerFrame,
+                      public nsIScrollPositionListener,
+                      public nsIAnonymousContentCreator
 {
 public:
-  explicit nsCanvasFrame(nsStyleContext* aContext)
+  nsCanvasFrame(nsStyleContext* aContext)
   : nsContainerFrame(aContext),
     mDoPaintFocus(false),
     mAddedScrollPositionListener(false) {}

@@ -15,7 +15,7 @@ class gfxImageSurface;
  */
 class gfxReusableImageSurfaceWrapper : public gfxReusableSurfaceWrapper {
 public:
-  explicit gfxReusableImageSurfaceWrapper(gfxImageSurface* aSurface);
+  gfxReusableImageSurfaceWrapper(gfxImageSurface* aSurface);
 protected:
   ~gfxReusableImageSurfaceWrapper();
 

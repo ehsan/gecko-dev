@@ -63,8 +63,6 @@ public class Tabs implements GeckoEventListener {
 
     private static final long PERSIST_TABS_AFTER_MILLISECONDS = 1000 * 5;
 
-    public static final int INVALID_TAB_ID = -1;
-
     private static AtomicInteger sTabId = new AtomicInteger(0);
     private volatile boolean mInitialTabsAdded;
 
@@ -597,9 +595,7 @@ public class Tabs implements GeckoEventListener {
         READER_ENABLED,
         DESKTOP_MODE_CHANGE,
         VIEWPORT_CHANGE,
-        RECORDING_CHANGE,
-        BOOKMARK_ADDED,
-        BOOKMARK_REMOVED
+        RECORDING_CHANGE
     }
 
     public void notifyListeners(Tab tab, TabEvents msg) {
@@ -833,20 +829,12 @@ public class Tabs implements GeckoEventListener {
         }
 
         // TODO: surely we could just fetch *any* cached icon?
-        if (AboutPages.isBuiltinIconPage(url)) {
+        if (AboutPages.isDefaultIconPage(url)) {
             Log.d(LOGTAG, "Setting about: tab favicon inline.");
             added.updateFavicon(getAboutPageFavicon(url));
         }
 
         return added;
-    }
-
-    public Tab addTab() {
-        return loadUrl(AboutPages.HOME, Tabs.LOADURL_NEW_TAB);
-    }
-
-    public Tab addPrivateTab() {
-        return loadUrl(AboutPages.PRIVATEBROWSING, Tabs.LOADURL_NEW_TAB | Tabs.LOADURL_PRIVATE);
     }
 
     /**

@@ -20,11 +20,10 @@ class SharedSurface_ANGLEShareHandle
     : public SharedSurface
 {
 public:
-    static UniquePtr<SharedSurface_ANGLEShareHandle> Create(GLContext* gl,
-                                                            EGLContext context,
-                                                            EGLConfig config,
-                                                            const gfx::IntSize& size,
-                                                            bool hasAlpha);
+    static SharedSurface_ANGLEShareHandle* Create(GLContext* gl,
+                                                  EGLContext context, EGLConfig config,
+                                                  const gfx::IntSize& size,
+                                                  bool hasAlpha);
 
     static SharedSurface_ANGLEShareHandle* Cast(SharedSurface* surf) {
         MOZ_ASSERT(surf->mType == SharedSurfaceType::EGLSurfaceANGLE);
@@ -37,7 +36,6 @@ protected:
     const EGLContext mContext;
     const EGLSurface mPBuffer;
     const HANDLE mShareHandle;
-    const GLuint mFence;
 
     SharedSurface_ANGLEShareHandle(GLContext* gl,
                                    GLLibraryEGL* egl,
@@ -45,8 +43,17 @@ protected:
                                    bool hasAlpha,
                                    EGLContext context,
                                    EGLSurface pbuffer,
-                                   HANDLE shareHandle,
-                                   GLuint fence);
+                                   HANDLE shareHandle)
+        : SharedSurface(SharedSurfaceType::EGLSurfaceANGLE,
+                        AttachmentType::Screen,
+                        gl,
+                        size,
+                        hasAlpha)
+        , mEGL(egl)
+        , mContext(context)
+        , mPBuffer(pbuffer)
+        , mShareHandle(shareHandle)
+    {}
 
     EGLDisplay Display();
 
@@ -57,12 +64,8 @@ public:
     virtual void UnlockProdImpl() MOZ_OVERRIDE;
 
     virtual void Fence() MOZ_OVERRIDE;
-    virtual bool WaitSync() MOZ_OVERRIDE;
-    virtual bool PollSync() MOZ_OVERRIDE;
-
-    virtual void Fence_ContentThread_Impl() MOZ_OVERRIDE;
-    virtual bool WaitSync_ContentThread_Impl() MOZ_OVERRIDE;
-    virtual bool PollSync_ContentThread_Impl() MOZ_OVERRIDE;
+    virtual bool WaitSync() MOZ_OVERRIDE { return true; } // Fence is glFinish.
+    virtual bool PollSync() MOZ_OVERRIDE { return true; }
 
     // Implementation-specific functions below:
     HANDLE GetShareHandle() {
@@ -82,15 +85,15 @@ protected:
     EGLConfig mConfig;
 
 public:
-    static UniquePtr<SurfaceFactory_ANGLEShareHandle> Create(GLContext* gl,
-                                                             const SurfaceCaps& caps);
+    static SurfaceFactory_ANGLEShareHandle* Create(GLContext* gl,
+                                                   const SurfaceCaps& caps);
 
 protected:
     SurfaceFactory_ANGLEShareHandle(GLContext* gl,
                                     GLLibraryEGL* egl,
                                     const SurfaceCaps& caps);
 
-    virtual UniquePtr<SharedSurface> CreateShared(const gfx::IntSize& size) MOZ_OVERRIDE {
+    virtual SharedSurface* CreateShared(const gfx::IntSize& size) MOZ_OVERRIDE {
         bool hasAlpha = mReadCaps.alpha;
         return SharedSurface_ANGLEShareHandle::Create(mProdGL,
                                                       mContext, mConfig,

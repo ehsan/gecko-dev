@@ -161,10 +161,9 @@ function loadCallgraph(file)
     }
 
     for (var gcName of [ 'void js::gc::GCRuntime::collect(uint8, int64, uint32, uint32)',
-                         'void js::gc::GCRuntime::minorGC(uint32)',
-                         'void js::gc::GCRuntime::minorGC(uint32)' ])
+                         'void js::MinorGC(JSRuntime*, uint32)' ])
     {
-        assert(gcName in mangledName, "GC function not found: " + gcName);
+        assert(gcName in mangledName);
         addGCFunction(mangledName[gcName], "GC");
     }
 

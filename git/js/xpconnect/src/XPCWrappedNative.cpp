@@ -15,6 +15,7 @@
 #include "XrayWrapper.h"
 
 #include "nsContentUtils.h"
+#include "nsCxPusher.h"
 
 #include <stdint.h>
 #include "mozilla/Likely.h"
@@ -365,7 +366,7 @@ XPCWrappedNative::GetNewOrUsed(xpcObjectHelper& helper,
         MOZ_ASSERT(!xpc::WrapperFactory::IsXrayWrapper(parent),
                    "Xray wrapper being used to parent XPCWrappedNative?");
 
-        ac.emplace(static_cast<JSContext*>(cx), parent);
+        ac.construct(static_cast<JSContext*>(cx), parent);
 
         if (parent != plannedParent) {
             XPCWrappedNativeScope* betterScope = ObjectScope(parent);
@@ -396,7 +397,7 @@ XPCWrappedNative::GetNewOrUsed(xpcObjectHelper& helper,
             return NS_OK;
         }
     } else {
-        ac.emplace(static_cast<JSContext*>(cx), parent);
+        ac.construct(static_cast<JSContext*>(cx), parent);
     }
 
     AutoMarkingWrappedNativeProtoPtr proto(cx);
@@ -1073,10 +1074,9 @@ XPCWrappedNative::ReparentWrapperIfFound(XPCWrappedNativeScope* aOldScope,
                                          nsISupports* aCOMObj)
 {
     // Check if we're near the stack limit before we get anywhere near the
-    // transplanting code. We use a conservative check since we'll use a little
-    // more space before we actually hit the critical "can't fail" path.
+    // transplanting code.
     AutoJSContext cx;
-    JS_CHECK_RECURSION_CONSERVATIVE(cx, return NS_ERROR_FAILURE);
+    JS_CHECK_RECURSION(cx, return NS_ERROR_FAILURE);
 
     XPCNativeInterface* iface = XPCNativeInterface::GetISupports();
     if (!iface)
@@ -1657,7 +1657,7 @@ class MOZ_STACK_CLASS CallMethodHelper
 
 public:
 
-    explicit CallMethodHelper(XPCCallContext& ccx)
+    CallMethodHelper(XPCCallContext& ccx)
         : mCallContext(ccx)
         , mInvokeResult(NS_ERROR_UNEXPECTED)
         , mIFaceInfo(ccx.GetInterface()->GetInterfaceInfo())

@@ -16,9 +16,13 @@ if CONFIG['OS_ARCH'] != 'Darwin':
     if not CONFIG['MOZ_JSDOWNLOADS']:
         XPCSHELL_TESTS_MANIFESTS += ['unit_ipc/xpcshell.ini']
 
-SimplePrograms([
+SIMPLE_PROGRAMS = [
     'WriteArgument',
-])
+]
+
+SOURCES += [
+    '%s.cpp' % s for s in SIMPLE_PROGRAMS
+]
 
 USE_LIBS += [
     'nspr',

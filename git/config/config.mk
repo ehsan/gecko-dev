@@ -255,6 +255,19 @@ endif
 #
 _ENABLE_PIC=1
 
+# Determine if module being compiled is destined
+# to be merged into libxul
+
+ifneq (,$(filter xul xul-%,$(FINAL_LIBRARY) $(LIBRARY_NAME)))
+  LIBXUL_LIBRARY := 1
+endif
+
+ifdef LIBXUL_LIBRARY
+ifdef IS_COMPONENT
+$(error IS_COMPONENT is set, but is not compatible with LIBXUL_LIBRARY)
+endif
+endif
+
 # PGO on MSVC is opt-in
 ifdef _MSC_VER
 ifndef MSVC_ENABLE_PGO
@@ -303,6 +316,22 @@ ifdef _MSC_VER
 OS_LDFLAGS += $(DELAYLOAD_LDFLAGS)
 endif # _MSC_VER
 
+ifneq (,$(LIBXUL_LIBRARY))
+DEFINES += -DMOZILLA_INTERNAL_API
+endif
+
+# Force XPCOM/widget/gfx methods to be _declspec(dllexport) when we're
+# building libxul libraries
+ifdef LIBXUL_LIBRARY
+DEFINES += \
+	  -DIMPL_LIBXUL \
+		$(NULL)
+
+ifndef JS_SHARED_LIBRARY
+DEFINES += -DSTATIC_EXPORTABLE_JS_API
+endif
+endif
+
 MAKE_JARS_FLAGS = \
 	-t $(topsrcdir) \
 	-f $(MOZ_CHROME_FILE_FORMAT) \
@@ -330,25 +359,19 @@ JAVA_GEN_DIR  = _javagen
 JAVA_DIST_DIR = $(DEPTH)/$(JAVA_GEN_DIR)
 JAVA_IFACES_PKG_NAME = org/mozilla/interfaces
 
+OS_INCLUDES += $(MOZ_JPEG_CFLAGS) $(MOZ_PNG_CFLAGS) $(MOZ_ZLIB_CFLAGS) $(MOZ_PIXMAN_CFLAGS)
+
+# NSPR_CFLAGS and NSS_CFLAGS must appear ahead of OS_INCLUDES to avoid Linux
+# builds wrongly picking up system NSPR/NSS header files.
 INCLUDES = \
   -I$(srcdir) \
   -I. \
   $(LOCAL_INCLUDES) \
   -I$(DIST)/include \
-  $(NULL)
-
-ifndef IS_GYP_DIR
-# NSPR_CFLAGS and NSS_CFLAGS must appear ahead of the other flags to avoid Linux
-# builds wrongly picking up system NSPR/NSS header files.
-OS_INCLUDES := \
   $(if $(LIBXUL_SDK),-I$(LIBXUL_SDK)/include) \
   $(NSPR_CFLAGS) $(NSS_CFLAGS) \
-  $(MOZ_JPEG_CFLAGS) \
-  $(MOZ_PNG_CFLAGS) \
-  $(MOZ_ZLIB_CFLAGS) \
-  $(MOZ_PIXMAN_CFLAGS) \
+  $(OS_INCLUDES) \
   $(NULL)
-endif
 
 include $(topsrcdir)/config/static-checking-config.mk
 
@@ -460,8 +483,8 @@ OS_COMPILE_CMMFLAGS += -fobjc-abi-version=2 -fobjc-legacy-dispatch
 endif
 endif
 
-COMPILE_CFLAGS	= $(VISIBILITY_FLAGS) $(DEFINES) $(INCLUDES) $(OS_INCLUDES) $(DSO_CFLAGS) $(DSO_PIC_CFLAGS) $(RTL_FLAGS) $(OS_CPPFLAGS) $(OS_COMPILE_CFLAGS) $(CFLAGS) $(MOZBUILD_CFLAGS) $(EXTRA_COMPILE_FLAGS)
-COMPILE_CXXFLAGS = $(if $(DISABLE_STL_WRAPPING),,$(STL_FLAGS)) $(VISIBILITY_FLAGS) $(DEFINES) $(INCLUDES) $(OS_INCLUDES) $(DSO_CFLAGS) $(DSO_PIC_CFLAGS) $(RTL_FLAGS) $(OS_CPPFLAGS) $(OS_COMPILE_CXXFLAGS) $(CXXFLAGS) $(MOZBUILD_CXXFLAGS) $(EXTRA_COMPILE_FLAGS)
+COMPILE_CFLAGS	= $(VISIBILITY_FLAGS) $(DEFINES) $(INCLUDES) $(DSO_CFLAGS) $(DSO_PIC_CFLAGS) $(RTL_FLAGS) $(OS_CPPFLAGS) $(OS_COMPILE_CFLAGS) $(CFLAGS) $(MOZBUILD_CFLAGS) $(EXTRA_COMPILE_FLAGS)
+COMPILE_CXXFLAGS = $(if $(DISABLE_STL_WRAPPING),,$(STL_FLAGS)) $(VISIBILITY_FLAGS) $(DEFINES) $(INCLUDES) $(DSO_CFLAGS) $(DSO_PIC_CFLAGS) $(RTL_FLAGS) $(OS_CPPFLAGS) $(OS_COMPILE_CXXFLAGS) $(CXXFLAGS) $(MOZBUILD_CXXFLAGS) $(EXTRA_COMPILE_FLAGS)
 COMPILE_CMFLAGS = $(OS_COMPILE_CMFLAGS) $(MOZBUILD_CMFLAGS) $(EXTRA_COMPILE_FLAGS)
 COMPILE_CMMFLAGS = $(OS_COMPILE_CMMFLAGS) $(MOZBUILD_CMMFLAGS) $(EXTRA_COMPILE_FLAGS)
 ASFLAGS += $(EXTRA_ASSEMBLER_FLAGS)
@@ -500,18 +523,25 @@ endif
 endif
 
 # Set link flags according to whether we want a console.
-ifeq ($(OS_ARCH),WINNT)
 ifdef MOZ_WINCONSOLE
 ifeq ($(MOZ_WINCONSOLE),1)
-WIN32_EXE_LDFLAGS	+= $(WIN32_CONSOLE_EXE_LDFLAGS)
-else # MOZ_WINCONSOLE
-WIN32_EXE_LDFLAGS	+= $(WIN32_GUI_EXE_LDFLAGS)
-endif
+ifeq ($(OS_ARCH),WINNT)
+ifdef GNU_CC
+WIN32_EXE_LDFLAGS	+= -mconsole
 else
-# For setting subsystem version
-WIN32_EXE_LDFLAGS	+= $(WIN32_CONSOLE_EXE_LDFLAGS)
+WIN32_EXE_LDFLAGS	+= -SUBSYSTEM:CONSOLE
 endif
-endif # WINNT
+endif
+else # MOZ_WINCONSOLE
+ifeq ($(OS_ARCH),WINNT)
+ifdef GNU_CC
+WIN32_EXE_LDFLAGS	+= -mwindows
+else
+WIN32_EXE_LDFLAGS	+= -SUBSYSTEM:WINDOWS
+endif
+endif
+endif
+endif
 
 ifdef _MSC_VER
 ifeq ($(CPU_ARCH),x86_64)
@@ -726,6 +756,23 @@ export CL_INCLUDES_PREFIX
 export NONASCII
 
 DEFINES += -DNO_NSPR_10_SUPPORT
+
+ifdef IS_GYP_DIR
+LOCAL_INCLUDES += \
+  -I$(topsrcdir)/ipc/chromium/src \
+  -I$(topsrcdir)/ipc/glue \
+  -I$(DEPTH)/ipc/ipdl/_ipdlheaders \
+  $(NULL)
+
+ifeq (WINNT,$(OS_TARGET))
+# These get set via VC project file settings for normal GYP builds.
+DEFINES += -DUNICODE -D_UNICODE
+endif
+
+DISABLE_STL_WRAPPING := 1
+# Skip most Mozilla-specific include locations.
+INCLUDES = -I. $(LOCAL_INCLUDES) -I$(DEPTH)/dist/include
+endif
 
 # Freeze the values specified by moz.build to catch them if they fail.
 $(foreach var,$(_MOZBUILD_EXTERNAL_VARIABLES) $(_DEPRECATED_VARIABLES),$(eval $(var)_FROZEN := '$($(var))'))

@@ -13,24 +13,25 @@
 #include "nsIFactory.h"
 
 
-nsresult CallCreateInstance(const nsCID& aClass, nsISupports* aDelegate,
-                            const nsIID& aIID, void** aResult);
+NS_COM_GLUE nsresult CallCreateInstance(const nsCID& aClass,
+                                        nsISupports* aDelegate,
+                                        const nsIID& aIID, void** aResult);
 
-nsresult CallCreateInstance(const char* aContractID, nsISupports* aDelegate,
-                            const nsIID& aIID, void** aResult);
+NS_COM_GLUE nsresult CallCreateInstance(const char* aContractID,
+                                        nsISupports* aDelegate,
+                                        const nsIID& aIID, void** aResult);
 
-nsresult CallGetClassObject(const nsCID& aClass, const nsIID& aIID,
-                            void** aResult);
+NS_COM_GLUE nsresult CallGetClassObject(const nsCID& aClass, const nsIID& aIID,
+                                        void** aResult);
 
-nsresult CallGetClassObject(const char* aContractID, const nsIID& aIID,
-                            void** aResult);
+NS_COM_GLUE nsresult CallGetClassObject(const char* aContractID,
+                                        const nsIID& aIID, void** aResult);
 
 
-class nsCreateInstanceByCID : public nsCOMPtr_helper
+class NS_COM_GLUE nsCreateInstanceByCID : public nsCOMPtr_helper
 {
 public:
-  nsCreateInstanceByCID(const nsCID& aCID, nsISupports* aOuter,
-                        nsresult* aErrorPtr)
+  nsCreateInstanceByCID(const nsCID& aCID, nsISupports* aOuter, nsresult* aErrorPtr)
     : mCID(aCID)
     , mOuter(aOuter)
     , mErrorPtr(aErrorPtr)
@@ -45,7 +46,7 @@ private:
   nsresult*       mErrorPtr;
 };
 
-class nsCreateInstanceByContractID : public nsCOMPtr_helper
+class NS_COM_GLUE nsCreateInstanceByContractID : public nsCOMPtr_helper
 {
 public:
   nsCreateInstanceByContractID(const char* aContractID, nsISupports* aOuter,
@@ -64,7 +65,7 @@ private:
   nsresult*     mErrorPtr;
 };
 
-class nsCreateInstanceFromFactory : public nsCOMPtr_helper
+class NS_COM_GLUE nsCreateInstanceFromFactory : public nsCOMPtr_helper
 {
 public:
   nsCreateInstanceFromFactory(nsIFactory* aFactory, nsISupports* aOuter,
@@ -123,7 +124,7 @@ do_CreateInstance(nsIFactory* aFactory, nsISupports* aOuter,
 }
 
 
-class nsGetClassObjectByCID : public nsCOMPtr_helper
+class NS_COM_GLUE nsGetClassObjectByCID : public nsCOMPtr_helper
 {
 public:
   nsGetClassObjectByCID(const nsCID& aCID, nsresult* aErrorPtr)
@@ -139,7 +140,7 @@ private:
   nsresult*       mErrorPtr;
 };
 
-class nsGetClassObjectByContractID : public nsCOMPtr_helper
+class NS_COM_GLUE nsGetClassObjectByContractID : public nsCOMPtr_helper
 {
 public:
   nsGetClassObjectByContractID(const char* aContractID, nsresult* aErrorPtr)

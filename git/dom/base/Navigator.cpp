@@ -377,11 +377,9 @@ Navigator::GetAppName(nsAString& aAppName)
  *
  * An empty array will be returned if there is no valid languages.
  */
-/* static */ void
+void
 Navigator::GetAcceptLanguages(nsTArray<nsString>& aLanguages)
 {
-  MOZ_ASSERT(NS_IsMainThread());
-
   // E.g. "de-de, en-us,en".
   const nsAdoptingString& acceptLang =
     Preferences::GetLocalizedString("intl.accept_languages");
@@ -440,7 +438,7 @@ Navigator::GetLanguage(nsAString& aLanguage)
     aLanguage.Truncate();
   }
 
-  return NS_OK;
+    return NS_OK;
 }
 
 void
@@ -1967,16 +1965,16 @@ Navigator::GetMozCameras(ErrorResult& aRv)
   return mCameraManager;
 }
 
-already_AddRefed<ServiceWorkerContainer>
+already_AddRefed<workers::ServiceWorkerContainer>
 Navigator::ServiceWorker()
 {
   MOZ_ASSERT(mWindow);
 
   if (!mServiceWorkerContainer) {
-    mServiceWorkerContainer = new ServiceWorkerContainer(mWindow);
+    mServiceWorkerContainer = new workers::ServiceWorkerContainer(mWindow);
   }
 
-  nsRefPtr<ServiceWorkerContainer> ref = mServiceWorkerContainer;
+  nsRefPtr<workers::ServiceWorkerContainer> ref = mServiceWorkerContainer;
   return ref.forget();
 }
 
@@ -2111,8 +2109,8 @@ Navigator::DoNewResolve(JSContext* aCx, JS::Handle<JSObject*> aObject,
       }
 
       if (name.EqualsLiteral("mozSettings")) {
-        bool hasPermission = CheckPermission("settings-api-read") ||
-          CheckPermission("settings-api-write");
+        bool hasPermission = CheckPermission("settings-read") ||
+                             CheckPermission("settings-write");
         if (!hasPermission) {
           FillPropertyDescriptor(aDesc, aObject, JS::NullValue(), false);
           return true;
@@ -2313,7 +2311,12 @@ Navigator::HasNFCSupport(JSContext* /* unused */, JSObject* aGlobal)
 
   // Do not support NFC if NFC content helper does not exist.
   nsCOMPtr<nsISupports> contentHelper = do_GetService("@mozilla.org/nfc/content-helper;1");
-  return !!contentHelper;
+  if (!contentHelper) {
+    return false;
+  }
+
+  return win && (CheckPermission(win, "nfc-read") ||
+                 CheckPermission(win, "nfc-write"));
 }
 #endif // MOZ_NFC
 
@@ -2364,7 +2367,7 @@ class HasDataStoreSupportRunnable MOZ_FINAL
 public:
   bool mResult;
 
-  explicit HasDataStoreSupportRunnable(workers::WorkerPrivate* aWorkerPrivate)
+  HasDataStoreSupportRunnable(workers::WorkerPrivate* aWorkerPrivate)
     : workers::WorkerMainThreadRunnable(aWorkerPrivate)
     , mResult(false)
   {

@@ -41,7 +41,7 @@
 #include "mozilla/layers/GrallocTextureClient.h"
 #endif
 
-#ifdef MOZ_WIDGET_ANDROID
+#ifdef MOZ_ANDROID_OMTC
 #  include "gfxReusableImageSurfaceWrapper.h"
 #else
 #  include "gfxReusableSharedImageSurfaceWrapper.h"
@@ -291,8 +291,7 @@ TextureClient::CreateForDrawing(ISurfaceAllocator* aAllocator,
   }
 
   if (!texture && aFormat == SurfaceFormat::B8G8R8X8 &&
-      aAllocator->IsSameProcess() &&
-      aMoz2DBackend == gfx::BackendType::CAIRO) {
+      aAllocator->IsSameProcess()) {
     texture = new DIBTextureClient(aFormat, aTextureFlags);
   }
 
@@ -690,7 +689,6 @@ BufferTextureClient::BorrowDrawTarget()
   MOZ_ASSERT(mLocked, "BorrowDrawTarget should be called on locked textures only");
 
   if (mDrawTarget) {
-    mDrawTarget->SetTransform(Matrix());
     return mDrawTarget;
   }
 
@@ -740,6 +738,7 @@ BufferTextureClient::Unlock()
   }
 
   mDrawTarget->Flush();
+  mDrawTarget = nullptr;
 }
 
 bool

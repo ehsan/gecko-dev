@@ -40,7 +40,7 @@ class nsSVGPathGeometryFrame : public nsSVGPathGeometryFrameBase,
   friend class nsDisplaySVGPathGeometry;
 
 protected:
-  explicit nsSVGPathGeometryFrame(nsStyleContext* aContext)
+  nsSVGPathGeometryFrame(nsStyleContext* aContext)
     : nsSVGPathGeometryFrameBase(aContext)
   {
      AddStateBits(NS_FRAME_SVG_LAYOUT | NS_FRAME_MAY_BE_TRANSFORMED);
@@ -89,12 +89,13 @@ public:
                                 const nsDisplayListSet& aLists) MOZ_OVERRIDE;
 
   // nsSVGPathGeometryFrame methods
-  gfxMatrix GetCanvasTM();
+  gfxMatrix GetCanvasTM(uint32_t aFor,
+                        nsIFrame* aTransformRoot = nullptr);
 protected:
   // nsISVGChildFrame interface:
   virtual nsresult PaintSVG(nsRenderingContext *aContext,
-                            const gfxMatrix& aTransform,
-                            const nsIntRect* aDirtyRect = nullptr) MOZ_OVERRIDE;
+                            const nsIntRect *aDirtyRect,
+                            nsIFrame* aTransformRoot = nullptr) MOZ_OVERRIDE;
   virtual nsIFrame* GetFrameForPoint(const gfxPoint& aPoint) MOZ_OVERRIDE;
   virtual nsRect GetCoveredRegion() MOZ_OVERRIDE;
   virtual void ReflowSVG() MOZ_OVERRIDE;
@@ -114,13 +115,8 @@ protected:
 private:
   enum { eRenderFill = 1, eRenderStroke = 2 };
   void Render(nsRenderingContext *aContext, uint32_t aRenderComponents,
-              const gfxMatrix& aTransform);
-
-  /**
-   * @param aMatrix The transform that must be multiplied onto aContext to
-   *   establish this frame's SVG user space.
-   */
-  void PaintMarkers(nsRenderingContext *aContext, const gfxMatrix& aMatrix);
+              nsIFrame* aTransformRoot);
+  void PaintMarkers(nsRenderingContext *aContext);
 
   struct MarkerProperties {
     nsSVGMarkerProperty* mMarkerStart;

@@ -188,7 +188,7 @@ static void DumpPrintObjectsTreeLayout(nsPrintObject * aPO,nsDeviceContext * aDC
 class nsScriptSuppressor
 {
 public:
-  explicit nsScriptSuppressor(nsPrintEngine* aPrintEngine)
+  nsScriptSuppressor(nsPrintEngine* aPrintEngine)
   : mPrintEngine(aPrintEngine), mSuppressed(false) {}
 
   ~nsScriptSuppressor() { Unsuppress(); }
@@ -1326,7 +1326,7 @@ nsPrintEngine::MapContentForPO(nsPrintObject*   aPO,
 {
   NS_PRECONDITION(aPO && aContent, "Null argument");
 
-  nsIDocument* doc = aContent->GetComposedDoc();
+  nsIDocument* doc = aContent->GetDocument();
 
   NS_ASSERTION(doc, "Content without a document from a document tree?");
 
@@ -3601,7 +3601,7 @@ nsPrintEngine::Observe(nsISupports *aSubject, const char *aTopic, const char16_t
 //---------------------------------------------------------------
 class nsPrintCompletionEvent : public nsRunnable {
 public:
-  explicit nsPrintCompletionEvent(nsIDocumentViewerPrint *docViewerPrint)
+  nsPrintCompletionEvent(nsIDocumentViewerPrint *docViewerPrint)
     : mDocViewerPrint(docViewerPrint) {
     NS_ASSERTION(mDocViewerPrint, "mDocViewerPrint is null.");
   }

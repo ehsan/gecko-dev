@@ -232,7 +232,7 @@ static const JSFunctionSpec gGlobalFun[] = {
 class MOZ_STACK_CLASS JSCLContextHelper
 {
 public:
-    explicit JSCLContextHelper(JSContext* aCx);
+    JSCLContextHelper(JSContext* aCx);
     ~JSCLContextHelper();
 
     void reportErrorAfterPop(char *buf);
@@ -312,7 +312,7 @@ mozJSComponentLoader::mozJSComponentLoader()
 
 class MOZ_STACK_CLASS ComponentLoaderInfo {
   public:
-    explicit ComponentLoaderInfo(const nsACString& aLocation) : mLocation(aLocation) {}
+    ComponentLoaderInfo(const nsACString& aLocation) : mLocation(aLocation) {}
 
     nsIIOService* IOService() { MOZ_ASSERT(mIOService); return mIOService; }
     nsresult EnsureIOService() {
@@ -341,11 +341,11 @@ class MOZ_STACK_CLASS ComponentLoaderInfo {
         return mScriptChannel->GetURI(getter_AddRefs(mResolvedURI));
     }
 
-    nsAutoCString& Key() { return *mKey; }
+    nsAutoCString& Key() { return mKey.ref(); }
     nsresult EnsureKey() {
         ENSURE_DEPS(ResolvedURI);
-        mKey.emplace();
-        return mResolvedURI->GetSpec(*mKey);
+        mKey.construct();
+        return mResolvedURI->GetSpec(mKey.ref());
     }
 
   private:
@@ -1113,7 +1113,7 @@ mozJSComponentLoader::Import(const nsACString& registryLocation,
 
     Maybe<JSAutoCompartment> ac;
     if (targetObject) {
-        ac.emplace(cx, targetObject);
+        ac.construct(cx, targetObject);
     }
 
     RootedObject global(cx);

@@ -24,17 +24,6 @@ const kUAID = "f47ac11b-58ca-4372-9567-0e02b2c3d479";
 // Fake loop server
 var loopServer;
 
-// Ensure loop is always enabled for tests
-Services.prefs.setBoolPref("loop.enabled", true);
-
-function hawkGetCallsRequest() {
-  let response = {body: JSON.stringify({calls: [{callId: 4444333221, websocketToken: "0deadbeef0"}]})},
-      // Call the first non-null then(resolve) function attached to the fakePromise.
-      fakePromise = {then: (resolve) => {return resolve ? resolve(response) : fakePromise;},
-                     catch: () => {return fakePromise;}};
-  return fakePromise;
-}
-
 function setupFakeLoopServer() {
   loopServer = new HttpServer();
   loopServer.start(-1);

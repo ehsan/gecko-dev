@@ -8,7 +8,7 @@
  * Copyright © 2013 Deutsche Telekom, Inc.
  */
 
-[JSImplementation="@mozilla.org/nfc/NFCPeer;1", AvailableIn="CertifiedApps"]
+[JSImplementation="@mozilla.org/nfc/NFCPeer;1"]
 interface MozNFCPeer {
   [Throws]
   DOMRequest sendNDEF(sequence<MozNDEFRecord> records);

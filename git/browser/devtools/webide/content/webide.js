@@ -100,13 +100,6 @@ let UI = {
     window.removeEventListener("message", this.onMessage);
   },
 
-  canWindowClose: function() {
-    if (this.projecteditor) {
-      return this.projecteditor.confirmUnsaved();
-    }
-    return true;
-  },
-
   onfocus: function() {
     // Because we can't track the activity in the folder project,
     // we need to validate the project regularly. Let's assume that
@@ -114,8 +107,7 @@ let UI = {
     // not focused.
     if (AppManager.selectedProject &&
         AppManager.selectedProject.type != "mainProcess" &&
-        AppManager.selectedProject.type != "runtimeApp" &&
-        AppManager.selectedProject.type != "tab") {
+        AppManager.selectedProject.type != "runtimeApp") {
       AppManager.validateProject(AppManager.selectedProject);
     }
   },
@@ -139,7 +131,6 @@ let UI = {
         break;
       case "project-is-not-running":
       case "project-is-running":
-      case "list-tabs-response":
         this.updateCommands();
         break;
       case "runtime":
@@ -248,11 +239,8 @@ let UI = {
       this.unbusy();
     }, (e) => {
       this.cancelBusyTimeout();
-      let operationCanceled = e && e.canceled;
-      if (!operationCanceled) {
-        UI.reportError("error_operationFail", operationDescription);
-        console.error(e);
-      }
+      UI.reportError("error_operationFail", operationDescription);
+      console.error(e);
       this.unbusy();
     });
     return promise;
@@ -563,10 +551,11 @@ let UI = {
 
       // If connected and a project is selected
       if (AppManager.selectedProject.type == "runtimeApp") {
-        playCmd.removeAttribute("disabled");
-      } else if (AppManager.selectedProject.type == "tab") {
-        playCmd.removeAttribute("disabled");
-        stopCmd.setAttribute("disabled", "true");
+        if (isProjectRunning) {
+          playCmd.setAttribute("disabled", "true");
+        } else {
+          playCmd.removeAttribute("disabled");
+        }
       } else if (AppManager.selectedProject.type == "mainProcess") {
         playCmd.setAttribute("disabled", "true");
         stopCmd.setAttribute("disabled", "true");
@@ -597,18 +586,16 @@ let UI = {
 
     let runtimePanelButton = document.querySelector("#runtime-panel-button");
     if (AppManager.connection.status == Connection.Status.CONNECTED) {
-      if (AppManager.deviceFront) {
-        detailsCmd.removeAttribute("disabled");
-        permissionsCmd.removeAttribute("disabled");
-        screenshotCmd.removeAttribute("disabled");
-      }
+      screenshotCmd.removeAttribute("disabled");
+      permissionsCmd.removeAttribute("disabled");
       disconnectCmd.removeAttribute("disabled");
+      detailsCmd.removeAttribute("disabled");
       runtimePanelButton.setAttribute("active", "true");
     } else {
-      detailsCmd.setAttribute("disabled", "true");
-      permissionsCmd.setAttribute("disabled", "true");
       screenshotCmd.setAttribute("disabled", "true");
+      permissionsCmd.setAttribute("disabled", "true");
       disconnectCmd.setAttribute("disabled", "true");
+      detailsCmd.setAttribute("disabled", "true");
       runtimePanelButton.removeAttribute("active");
     }
 
@@ -678,9 +665,7 @@ let UI = {
 
 let Cmds = {
   quit: function() {
-    if (UI.canWindowClose()) {
-      window.close();
-    }
+    window.close();
   },
 
   /**
@@ -829,13 +814,7 @@ let Cmds = {
 
 
     let runtimeappsHeaderNode = document.querySelector("#panel-header-runtimeapps");
-    let sortedApps = AppManager.webAppsStore.object.all;
-    sortedApps = sortedApps.sort((a, b) => {
-      return a.name > b.name;
-    });
-    let mainProcess = AppManager.isMainProcessDebuggable();
-    if (AppManager.connection.status == Connection.Status.CONNECTED &&
-        (sortedApps.length > 0 || mainProcess)) {
+    if (AppManager.connection.status == Connection.Status.CONNECTED) {
       runtimeappsHeaderNode.removeAttribute("hidden");
     } else {
       runtimeappsHeaderNode.setAttribute("hidden", "true");
@@ -846,7 +825,7 @@ let Cmds = {
       runtimeAppsNode.firstChild.remove();
     }
 
-    if (mainProcess) {
+    if (AppManager.isMainProcessDebuggable()) {
       let panelItemNode = document.createElement("toolbarbutton");
       panelItemNode.className = "panel-item";
       panelItemNode.setAttribute("label", Strings.GetStringFromName("mainProcess_label"));
@@ -862,6 +841,10 @@ let Cmds = {
       }, true);
     }
 
+    let sortedApps = AppManager.webAppsStore.object.all;
+    sortedApps = sortedApps.sort((a, b) => {
+      return a.name > b.name;
+    });
     for (let i = 0; i < sortedApps.length; i++) {
       let app = sortedApps[i];
       let panelItemNode = document.createElement("toolbarbutton");
@@ -880,61 +863,7 @@ let Cmds = {
       }, true);
     }
 
-    // Build the tab list right now, so it's fast...
-    this._buildProjectPanelTabs();
-
-    // But re-list them and rebuild, in case any tabs navigated since the last
-    // time they were listed.
-    AppManager.listTabs().then(() => {
-      this._buildProjectPanelTabs();
-    });
-
     return deferred.promise;
-  },
-
-  _buildProjectPanelTabs: function() {
-    let tabs = AppManager.tabStore.tabs;
-    let tabsHeaderNode = document.querySelector("#panel-header-tabs");
-    if (AppManager.connection.status == Connection.Status.CONNECTED &&
-        tabs.length > 0) {
-      tabsHeaderNode.removeAttribute("hidden");
-    } else {
-      tabsHeaderNode.setAttribute("hidden", "true");
-    }
-
-    let tabsNode = document.querySelector("#project-panel-tabs");
-    while (tabsNode.hasChildNodes()) {
-      tabsNode.firstChild.remove();
-    }
-
-    for (let i = 0; i < tabs.length; i++) {
-      let tab = tabs[i];
-      let url = new URL(tab.url);
-      // Wanted to use nsIFaviconService here, but it only works for visited
-      // tabs, so that's no help for any remote tabs.  Maybe some favicon wizard
-      // knows how to get high-res favicons easily, or we could offer actor
-      // support for this (bug 1061654).
-      tab.favicon = url.origin + "/favicon.ico";
-      tab.name = tab.title || Strings.GetStringFromName("project_tab_loading");
-      if (url.protocol.startsWith("http")) {
-        tab.name = url.hostname + ": " + tab.name;
-      }
-      let panelItemNode = document.createElement("toolbarbutton");
-      panelItemNode.className = "panel-item";
-      panelItemNode.setAttribute("label", tab.name);
-      panelItemNode.setAttribute("image", tab.favicon);
-      tabsNode.appendChild(panelItemNode);
-      panelItemNode.addEventListener("click", () => {
-        UI.hidePanels();
-        AppManager.selectedProject = {
-          type: "tab",
-          app: tab,
-          icon: tab.favicon,
-          location: tab.url,
-          name: tab.name
-        };
-      }, true);
-    }
   },
 
   showRuntimePanel: function() {
@@ -987,8 +916,6 @@ let Cmds = {
         return UI.busyUntil(AppManager.installAndRunProject(), "installing and running app");
       case "runtimeApp":
         return UI.busyUntil(AppManager.runRuntimeApp(), "running app");
-      case "tab":
-        return UI.busyUntil(AppManager.reloadTab(), "reloading tab");
     }
     return promise.reject();
   },

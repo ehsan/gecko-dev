@@ -14,6 +14,7 @@
 #include "js/OldDebugAPI.h"
 #include "js/StructuredClone.h"
 #include "nsContentUtils.h"
+#include "nsCxPusher.h"
 #include "nsGlobalWindow.h"
 #include "nsIScriptContext.h"
 #include "nsIScriptObjectPrincipal.h"
@@ -21,7 +22,6 @@
 #include "nsIURI.h"
 #include "nsJSUtils.h"
 #include "nsNetUtil.h"
-#include "nsNullPrincipal.h"
 #include "nsPrincipal.h"
 #include "nsXMLHttpRequest.h"
 #include "WrapperFactory.h"
@@ -37,7 +37,6 @@
 #include "mozilla/dom/TextDecoderBinding.h"
 #include "mozilla/dom/TextEncoderBinding.h"
 #include "mozilla/dom/URLBinding.h"
-#include "mozilla/dom/URLSearchParamsBinding.h"
 
 using namespace mozilla;
 using namespace JS;
@@ -314,13 +313,9 @@ sandbox_finalize(JSFreeOp *fop, JSObject *obj)
 {
     nsIScriptObjectPrincipal *sop =
         static_cast<nsIScriptObjectPrincipal *>(xpc_GetJSPrivate(obj));
-    if (!sop) {
-        // sop can be null if CreateSandboxObject fails in the middle.
-        return;
-    }
-
+    MOZ_ASSERT(sop);
     static_cast<SandboxPrivate *>(sop)->ForgetGlobalObject();
-    NS_RELEASE(sop);
+    NS_IF_RELEASE(sop);
     DestroyProtoAndIfaceCache(obj);
 }
 
@@ -359,7 +354,7 @@ writeToProto_getProperty(JSContext *cx, JS::HandleObject obj, JS::HandleId id,
 
 struct AutoSkipPropertyMirroring
 {
-    explicit AutoSkipPropertyMirroring(CompartmentPrivate *priv) : priv(priv) {
+    AutoSkipPropertyMirroring(CompartmentPrivate *priv) : priv(priv) {
         MOZ_ASSERT(!priv->skipWriteToGlobalPrototype);
         priv->skipWriteToGlobalPrototype = true;
     }
@@ -748,8 +743,6 @@ xpc::GlobalProperties::Parse(JSContext *cx, JS::HandleObject obj)
             TextDecoder = true;
         } else if (!strcmp(name.ptr(), "URL")) {
             URL = true;
-        } else if (!strcmp(name.ptr(), "URLSearchParams")) {
-            URLSearchParams = true;
         } else if (!strcmp(name.ptr(), "atob")) {
             atob = true;
         } else if (!strcmp(name.ptr(), "btoa")) {
@@ -791,10 +784,6 @@ xpc::GlobalProperties::Define(JSContext *cx, JS::HandleObject obj)
         !dom::URLBinding::GetConstructorObject(cx, obj))
         return false;
 
-    if (URLSearchParams &&
-        !dom::URLSearchParamsBinding::GetConstructorObject(cx, obj))
-        return false;
-
     if (atob &&
         !JS_DefineFunction(cx, obj, "atob", Atob, 1, 0))
         return false;
@@ -818,13 +807,19 @@ xpc::CreateSandboxObject(JSContext *cx, MutableHandleValue vp, nsISupports *prin
         if (sop) {
             principal = sop->GetPrincipal();
         } else {
-            nsRefPtr<nsNullPrincipal> nullPrin = new nsNullPrincipal();
-            rv = nullPrin->Init();
-            NS_ENSURE_SUCCESS(rv, rv);
-            principal = nullPrin;
+            principal = do_CreateInstance("@mozilla.org/nullprincipal;1", &rv);
+            MOZ_ASSERT(NS_FAILED(rv) || principal, "Bad return from do_CreateInstance");
+
+            if (!principal || NS_FAILED(rv)) {
+                if (NS_SUCCEEDED(rv)) {
+                    rv = NS_ERROR_FAILURE;
+                }
+
+                return rv;
+            }
         }
+        MOZ_ASSERT(principal);
     }
-    MOZ_ASSERT(principal);
 
     JS::CompartmentOptions compartmentOptions;
     if (options.sameZoneAs)
@@ -910,7 +905,7 @@ xpc::CreateSandboxObject(JSContext *cx, MutableHandleValue vp, nsISupports *prin
         // Don't try to mirror the properties that are set below.
         AutoSkipPropertyMirroring askip(CompartmentPrivate::Get(sandbox));
 
-        bool allowComponents = principal == nsXPConnect::SystemPrincipal() ||
+        bool allowComponents = nsContentUtils::IsSystemPrincipal(principal) ||
                                nsContentUtils::IsExpandedPrincipal(principal);
         if (options.wantComponents && allowComponents &&
             !ObjectScope(sandbox)->AttachComponentsObject(cx))
@@ -937,10 +932,8 @@ xpc::CreateSandboxObject(JSContext *cx, MutableHandleValue vp, nsISupports *prin
             return NS_ERROR_XPC_UNEXPECTED;
     }
 
-    // We handle the case where the context isn't in a compartment for the
-    // benefit of InitSingletonScopes.
     vp.setObject(*sandbox);
-    if (js::GetContextCompartment(cx) && !JS_WrapValue(cx, vp))
+    if (!JS_WrapValue(cx, vp))
         return NS_ERROR_UNEXPECTED;
 
     // Set the location information for the new global, so that tools like

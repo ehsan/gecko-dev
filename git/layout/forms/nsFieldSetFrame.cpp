@@ -305,28 +305,15 @@ nsFieldSetFrame::GetPrefISize(nsRenderingContext* aRenderingContext)
   return result;
 }
 
-/* virtual */
-LogicalSize
+/* virtual */ nsSize
 nsFieldSetFrame::ComputeSize(nsRenderingContext *aRenderingContext,
-                             WritingMode aWM,
-                             const LogicalSize& aCBSize,
-                             nscoord aAvailableISize,
-                             const LogicalSize& aMargin,
-                             const LogicalSize& aBorder,
-                             const LogicalSize& aPadding,
+                             nsSize aCBSize, nscoord aAvailableWidth,
+                             nsSize aMargin, nsSize aBorder, nsSize aPadding,
                              uint32_t aFlags)
 {
-  LogicalSize result =
-    nsContainerFrame::ComputeSize(aRenderingContext, aWM,
-                                  aCBSize, aAvailableISize,
+  nsSize result =
+    nsContainerFrame::ComputeSize(aRenderingContext, aCBSize, aAvailableWidth,
                                   aMargin, aBorder, aPadding, aFlags);
-
-  // XXX The code below doesn't make sense if the caller's writing mode
-  // is orthogonal to this frame's. Not sure yet what should happen then;
-  // for now, just bail out.
-  if (aWM.IsVertical() != GetWritingMode().IsVertical()) {
-    return result;
-  }
 
   // Fieldsets never shrink below their min width.
 
@@ -334,10 +321,9 @@ nsFieldSetFrame::ComputeSize(nsRenderingContext *aRenderingContext,
   // wrapping inside of us should not apply font size inflation.
   AutoMaybeDisableFontInflation an(this);
 
-  nscoord minISize = GetMinISize(aRenderingContext);
-  if (minISize > result.ISize(aWM)) {
-    result.ISize(aWM) = minISize;
-  }
+  nscoord minWidth = GetMinISize(aRenderingContext);
+  if (minWidth > result.width)
+    result.width = minWidth;
 
   return result;
 }
@@ -409,13 +395,13 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
   // reflow the legend only if needed
   Maybe<nsHTMLReflowState> legendReflowState;
   if (legend) {
-    legendReflowState.emplace(aPresContext, aReflowState, legend,
+    legendReflowState.construct(aPresContext, aReflowState, legend,
                                 legendAvailSize);
   }
   if (reflowLegend) {
     nsHTMLReflowMetrics legendDesiredSize(aReflowState);
 
-    ReflowChild(legend, aPresContext, legendDesiredSize, *legendReflowState,
+    ReflowChild(legend, aPresContext, legendDesiredSize, legendReflowState.ref(),
                 0, 0, NS_FRAME_NO_MOVE_FRAME, aStatus);
 #ifdef NOISY_REFLOW
     printf("  returned (%d, %d)\n",
@@ -444,7 +430,7 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
     }
 
     FinishReflowChild(legend, aPresContext, legendDesiredSize,
-                      legendReflowState.ptr(), 0, 0, NS_FRAME_NO_MOVE_FRAME);    
+                      &legendReflowState.ref(), 0, 0, NS_FRAME_NO_MOVE_FRAME);    
   } else if (!legend) {
     mLegendRect.SetEmpty();
     mLegendSpace = 0;
@@ -543,7 +529,7 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
     nsRect actualLegendRect(mLegendRect);
     actualLegendRect.Deflate(legendMargin);
     nsPoint actualLegendPos(actualLegendRect.TopLeft());
-    legendReflowState->ApplyRelativePositioning(&actualLegendPos);
+    legendReflowState.ref().ApplyRelativePositioning(&actualLegendPos);
     legend->SetPosition(actualLegendPos);
     nsContainerFrame::PositionFrameView(legend);
     nsContainerFrame::PositionChildViews(legend);

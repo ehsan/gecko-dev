@@ -12,7 +12,6 @@
 // Interface headers
 #include "imgLoader.h"
 #include "nsIContent.h"
-#include "nsIContentInlines.h"
 #include "nsIDocShell.h"
 #include "nsIDocument.h"
 #include "nsIDOMCustomEvent.h"
@@ -49,6 +48,7 @@
 #include "nsCURILoader.h"
 #include "nsContentPolicyUtils.h"
 #include "nsContentUtils.h"
+#include "nsCxPusher.h"
 #include "nsDocShellCID.h"
 #include "nsGkAtoms.h"
 #include "nsThreadUtils.h"
@@ -83,7 +83,6 @@
 #include "mozilla/EventDispatcher.h"
 #include "mozilla/EventStates.h"
 #include "mozilla/Telemetry.h"
-#include "mozilla/dom/HTMLObjectElementBinding.h"
 
 #ifdef XP_WIN
 // Thanks so much, Microsoft! :(
@@ -129,7 +128,7 @@ InActiveDocument(nsIContent *aContent)
 
 class nsAsyncInstantiateEvent : public nsRunnable {
 public:
-  explicit nsAsyncInstantiateEvent(nsObjectLoadingContent* aContent)
+  nsAsyncInstantiateEvent(nsObjectLoadingContent *aContent)
   : mContent(aContent) {}
 
   ~nsAsyncInstantiateEvent() {}
@@ -162,7 +161,7 @@ nsAsyncInstantiateEvent::Run()
 // without re-instantiating it.
 class CheckPluginStopEvent : public nsRunnable {
 public:
-  explicit CheckPluginStopEvent(nsObjectLoadingContent* aContent)
+  CheckPluginStopEvent(nsObjectLoadingContent *aContent)
   : mContent(aContent) {}
 
   ~CheckPluginStopEvent() {}
@@ -322,7 +321,7 @@ nsPluginCrashedEvent::Run()
   LOG(("OBJLC [%p]: Firing plugin crashed event\n",
        mContent.get()));
 
-  nsCOMPtr<nsIDocument> doc = mContent->GetComposedDoc();
+  nsCOMPtr<nsIDocument> doc = mContent->GetDocument();
   if (!doc) {
     NS_WARNING("Couldn't get document for PluginCrashed event!");
     return NS_OK;
@@ -459,7 +458,7 @@ nsStopPluginRunnable::Run()
 // Sets a object's mInstantiating bit to false when destroyed
 class AutoSetInstantiatingToFalse {
 public:
-  explicit AutoSetInstantiatingToFalse(nsObjectLoadingContent* aContent)
+  AutoSetInstantiatingToFalse(nsObjectLoadingContent *aContent)
     : mContent(aContent) {}
   ~AutoSetInstantiatingToFalse() { mContent->mInstantiating = false; }
 private:
@@ -469,7 +468,7 @@ private:
 // Sets a object's mInstantiating bit to false when destroyed
 class AutoSetLoadingToFalse {
 public:
-  explicit AutoSetLoadingToFalse(nsObjectLoadingContent* aContent)
+  AutoSetLoadingToFalse(nsObjectLoadingContent *aContent)
     : mContent(aContent) {}
   ~AutoSetLoadingToFalse() { mContent->mIsLoading = false; }
 private:
@@ -918,177 +917,6 @@ nsObjectLoadingContent::InstantiatePluginInstance(bool aIsLoading)
 }
 
 void
-nsObjectLoadingContent::GetPluginAttributes(nsTArray<MozPluginParameter>& aAttributes)
-{
-  aAttributes = mCachedAttributes;
-}
-
-void
-nsObjectLoadingContent::GetPluginParameters(nsTArray<MozPluginParameter>& aParameters)
-{
-  aParameters = mCachedParameters;
-}
-
-void
-nsObjectLoadingContent::GetNestedParams(nsTArray<MozPluginParameter>& aParams,
-                                        bool aIgnoreCodebase)
-{
-  nsCOMPtr<nsIDOMElement> domElement =
-    do_QueryInterface(static_cast<nsIObjectLoadingContent*>(this));
-
-  nsCOMPtr<nsIDOMHTMLCollection> allParams;
-  NS_NAMED_LITERAL_STRING(xhtml_ns, "http://www.w3.org/1999/xhtml");
-  domElement->GetElementsByTagNameNS(xhtml_ns,
-        NS_LITERAL_STRING("param"), getter_AddRefs(allParams));
-
-  if (!allParams)
-    return;
-
-  uint32_t numAllParams;
-  allParams->GetLength(&numAllParams);
-  for (uint32_t i = 0; i < numAllParams; i++) {
-    nsCOMPtr<nsIDOMNode> pNode;
-    allParams->Item(i, getter_AddRefs(pNode));
-    nsCOMPtr<nsIDOMElement> element = do_QueryInterface(pNode);
-
-    if (!element)
-      continue;
-
-    nsAutoString name;
-    element->GetAttribute(NS_LITERAL_STRING("name"), name);
-
-    if (name.IsEmpty())
-      continue;
-
-    nsCOMPtr<nsIDOMNode> parent;
-    nsCOMPtr<nsIDOMHTMLObjectElement> domObject;
-    nsCOMPtr<nsIDOMHTMLAppletElement> domApplet;
-    pNode->GetParentNode(getter_AddRefs(parent));
-    while (!(domObject || domApplet) && parent) {
-      domObject = do_QueryInterface(parent);
-      domApplet = do_QueryInterface(parent);
-      nsCOMPtr<nsIDOMNode> temp;
-      parent->GetParentNode(getter_AddRefs(temp));
-      parent = temp;
-    }
-
-    if (domApplet) {
-      parent = do_QueryInterface(domApplet);
-    } else if (domObject) {
-      parent = do_QueryInterface(domObject);
-    } else {
-      continue;
-    }
-
-    nsCOMPtr<nsIDOMNode> domNode = do_QueryInterface(domElement);
-    if (parent == domNode) {
-      MozPluginParameter param;
-      element->GetAttribute(NS_LITERAL_STRING("name"), param.mName);
-      element->GetAttribute(NS_LITERAL_STRING("value"), param.mValue);
-
-      param.mName.Trim(" \n\r\t\b", true, true, false);
-      param.mValue.Trim(" \n\r\t\b", true, true, false);
-
-      // ignore codebase param if it was already added in the attributes array.
-      if (aIgnoreCodebase && param.mName.EqualsIgnoreCase("codebase")) {
-        continue;
-      }
-
-      aParams.AppendElement(param);
-    }
-  }
-}
-
-void
-nsObjectLoadingContent::BuildParametersArray()
-{
-  if (mCachedAttributes.Length() || mCachedParameters.Length()) {
-    MOZ_ASSERT(false, "Parameters array should be empty.");
-    return;
-  }
-
-  nsCOMPtr<nsIContent> content =
-    do_QueryInterface(static_cast<nsIImageLoadingContent*>(this));
-
-  int32_t start = 0, end = content->GetAttrCount(), step = 1;
-  // HTML attributes are stored in reverse order.
-  if (content->IsHTML() && content->IsInHTMLDocument()) {
-    start = end - 1;
-    end = -1;
-    step = -1;
-  }
-
-  for (int32_t i = start; i != end; i += step) {
-    MozPluginParameter param;
-    const nsAttrName* attrName = content->GetAttrNameAt(i);
-    nsIAtom* atom = attrName->LocalName();
-    content->GetAttr(attrName->NamespaceID(), atom, param.mValue);
-    atom->ToString(param.mName);
-    mCachedAttributes.AppendElement(param);
-  }
-
-  bool isJava = nsPluginHost::IsJavaMIMEType(mContentType.get());
-
-  nsCString codebase;
-  if (isJava) {
-      mBaseURI->GetSpec(codebase);
-  }
-
-  nsAdoptingCString wmodeOverride = Preferences::GetCString("plugins.force.wmode");
-#if defined(XP_WIN) || defined(XP_LINUX)
-  // Bug 923745 (/Bug 1061995) - Until we support windowed mode plugins in
-  // content processes, force flash to use a windowless rendering mode. This
-  // hack should go away when bug 923746 lands. (OS X plugins always use some
-  // native widgets, so unfortunately this does not help there)
-  if (wmodeOverride.IsEmpty() &&
-      XRE_GetProcessType() == GeckoProcessType_Content) {
-    wmodeOverride.AssignLiteral("transparent");
-  }
-#endif
-
-  for (uint32_t i = 0; i < mCachedAttributes.Length(); i++) {
-    if (!wmodeOverride.IsEmpty() && mCachedAttributes[i].mName.EqualsIgnoreCase("wmode")) {
-      CopyASCIItoUTF16(wmodeOverride, mCachedAttributes[i].mValue);
-      wmodeOverride.Truncate();
-    } else if (!codebase.IsEmpty() && mCachedAttributes[i].mName.EqualsIgnoreCase("codebase")) {
-      CopyASCIItoUTF16(codebase, mCachedAttributes[i].mValue);
-      codebase.Truncate();
-    }
-  }
-
-  if (!wmodeOverride.IsEmpty()) {
-    MozPluginParameter param;
-    param.mName = NS_LITERAL_STRING("wmode");
-    CopyASCIItoUTF16(wmodeOverride, param.mValue);
-    mCachedAttributes.AppendElement(param);
-  }
-
-  if (!codebase.IsEmpty()) {
-    MozPluginParameter param;
-    param.mName = NS_LITERAL_STRING("codebase");
-    CopyASCIItoUTF16(codebase, param.mValue);
-    mCachedAttributes.AppendElement(param);
-  }
-
-  // Some plugins were never written to understand the "data" attribute of the OBJECT tag.
-  // Real and WMP will not play unless they find a "src" attribute, see bug 152334.
-  // Nav 4.x would simply replace the "data" with "src". Because some plugins correctly
-  // look for "data", lets instead copy the "data" attribute and add another entry
-  // to the bottom of the array if there isn't already a "src" specified.
-  if (content->Tag() == nsGkAtoms::object &&
-      !content->HasAttr(kNameSpaceID_None, nsGkAtoms::src)) {
-    MozPluginParameter param;
-    content->GetAttr(kNameSpaceID_None, nsGkAtoms::data, param.mValue);
-    if (!param.mValue.IsEmpty()) {
-      param.mName = NS_LITERAL_STRING("SRC");
-      mCachedAttributes.AppendElement(param);
-    }
-  }
-
-  GetNestedParams(mCachedParameters, isJava);
-}
-
-void
 nsObjectLoadingContent::NotifyOwnerDocumentActivityChanged()
 {
   // XXX(johns): We cannot touch plugins or run arbitrary script from this call,
@@ -1351,7 +1179,7 @@ public:
   NS_FORWARD_NSIREQUESTOBSERVER (static_cast<nsObjectLoadingContent *>
                                  (mContent.get())->)
 
-  explicit ObjectInterfaceRequestorShim(nsIObjectLoadingContent* aContent)
+  ObjectInterfaceRequestorShim(nsIObjectLoadingContent* aContent)
     : mContent(aContent)
   {}
 
@@ -1675,15 +1503,59 @@ nsObjectLoadingContent::UpdateObjectParameters(bool aJavaURI)
 
 
   // Java wants the codebase attribute even if it occurs in <param> tags
+  // XXX(johns): This duplicates a chunk of code from nsInstanceOwner, see
+  //             bug 853995
   if (isJava) {
     // Find all <param> tags that are nested beneath us, but not beneath another
     // object/applet tag.
-    nsTArray<MozPluginParameter> params;
-    GetNestedParams(params, false);
-    for (uint32_t i = 0; i < params.Length(); i++) {
-      if (params[i].mName.EqualsIgnoreCase("codebase")) {
-        hasCodebase = true;
-        codebaseStr = params[i].mValue;
+    nsCOMArray<nsIDOMElement> ourParams;
+    nsCOMPtr<nsIDOMElement> mydomElement = do_QueryInterface(thisContent);
+
+    nsCOMPtr<nsIDOMHTMLCollection> allParams;
+    NS_NAMED_LITERAL_STRING(xhtml_ns, "http://www.w3.org/1999/xhtml");
+    mydomElement->GetElementsByTagNameNS(xhtml_ns, NS_LITERAL_STRING("param"),
+                                         getter_AddRefs(allParams));
+    if (allParams) {
+      uint32_t numAllParams;
+      allParams->GetLength(&numAllParams);
+      for (uint32_t i = 0; i < numAllParams; i++) {
+        nsCOMPtr<nsIDOMNode> pnode;
+        allParams->Item(i, getter_AddRefs(pnode));
+        nsCOMPtr<nsIDOMElement> domelement = do_QueryInterface(pnode);
+        if (domelement) {
+          nsAutoString name;
+          domelement->GetAttribute(NS_LITERAL_STRING("name"), name);
+          name.Trim(" \n\r\t\b", true, true, false);
+          if (name.EqualsIgnoreCase("codebase")) {
+            // Find the first plugin element parent
+            nsCOMPtr<nsIDOMNode> parent;
+            nsCOMPtr<nsIDOMHTMLObjectElement> domobject;
+            nsCOMPtr<nsIDOMHTMLAppletElement> domapplet;
+            pnode->GetParentNode(getter_AddRefs(parent));
+            while (!(domobject || domapplet) && parent) {
+              domobject = do_QueryInterface(parent);
+              domapplet = do_QueryInterface(parent);
+              nsCOMPtr<nsIDOMNode> temp;
+              parent->GetParentNode(getter_AddRefs(temp));
+              parent = temp;
+            }
+            if (domapplet || domobject) {
+              if (domapplet) {
+                parent = do_QueryInterface(domapplet);
+              }
+              else {
+                parent = do_QueryInterface(domobject);
+              }
+              nsCOMPtr<nsIDOMNode> mydomNode = do_QueryInterface(mydomElement);
+              if (parent == mydomNode) {
+                hasCodebase = true;
+                domelement->GetAttribute(NS_LITERAL_STRING("value"),
+                                         codebaseStr);
+                codebaseStr.Trim(" \n\r\t\b", true, true, false);
+              }
+            }
+          }
+        }
       }
     }
   }
@@ -2250,12 +2122,6 @@ nsObjectLoadingContent::LoadObject(bool aNotify,
   /// Attempt to load new type
   ///
 
-
-  // Cache the current attributes and parameters.
-  if (mType == eType_Plugin || mType == eType_Null) {
-    BuildParametersArray();
-  }
-
   // We don't set mFinalListener until OnStartRequest has been called, to
   // prevent re-entry ugliness with CloseChannel()
   nsCOMPtr<nsIStreamListener> finalListener;
@@ -2611,9 +2477,6 @@ nsObjectLoadingContent::UnloadObject(bool aResetState)
     TeardownProtoChain();
     mIsStopping = false;
   }
-
-  mCachedAttributes.Clear();
-  mCachedParameters.Clear();
 
   // This call should be last as it may re-enter
   StopPluginInstance();

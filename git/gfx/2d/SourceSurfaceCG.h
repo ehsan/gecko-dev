@@ -16,14 +16,6 @@ namespace mozilla {
 namespace gfx {
 
 CGImageRef
-CreateCGImage(CGDataProviderReleaseDataCallback aCallback,
-              void *aInfo,
-              const void *aData,
-              const IntSize &aSize,
-              int32_t aStride,
-              SurfaceFormat aFormat);
-
-CGImageRef
 CreateCGImage(void *aInfo,
               const void *aData,
               const IntSize &aSize,
@@ -37,7 +29,7 @@ class SourceSurfaceCG : public SourceSurface
 public:
   MOZ_DECLARE_REFCOUNTED_VIRTUAL_TYPENAME(SourceSurfaceCG)
   SourceSurfaceCG() {}
-  explicit SourceSurfaceCG(CGImageRef aImage) : mImage(aImage) {}
+  SourceSurfaceCG(CGImageRef aImage) : mImage(aImage) {}
   ~SourceSurfaceCG();
 
   virtual SurfaceType GetType() const { return SurfaceType::COREGRAPHICS_IMAGE; }
@@ -66,7 +58,7 @@ class DataSourceSurfaceCG : public DataSourceSurface
 public:
   MOZ_DECLARE_REFCOUNTED_VIRTUAL_TYPENAME(DataSourceSurfaceCG)
   DataSourceSurfaceCG() {}
-  explicit DataSourceSurfaceCG(CGImageRef aImage);
+  DataSourceSurfaceCG(CGImageRef aImage);
   ~DataSourceSurfaceCG();
 
   virtual SurfaceType GetType() const { return SurfaceType::DATA; }
@@ -108,7 +100,7 @@ class SourceSurfaceCGBitmapContext : public SourceSurfaceCGContext
 {
 public:
   MOZ_DECLARE_REFCOUNTED_VIRTUAL_TYPENAME(DataSourceSurfaceCGBitmapContext)
-  explicit SourceSurfaceCGBitmapContext(DrawTargetCG *);
+  SourceSurfaceCGBitmapContext(DrawTargetCG *);
   ~SourceSurfaceCGBitmapContext();
 
   virtual SurfaceType GetType() const { return SurfaceType::COREGRAPHICS_CGCONTEXT; }
@@ -164,7 +156,7 @@ class SourceSurfaceCGIOSurfaceContext : public SourceSurfaceCGContext
 {
 public:
   MOZ_DECLARE_REFCOUNTED_VIRTUAL_TYPENAME(DataSourceSurfaceCGIOSurfaceContext)
-  explicit SourceSurfaceCGIOSurfaceContext(DrawTargetCG *);
+  SourceSurfaceCGIOSurfaceContext(DrawTargetCG *);
   ~SourceSurfaceCGIOSurfaceContext();
 
   virtual SurfaceType GetType() const { return SurfaceType::COREGRAPHICS_CGCONTEXT; }

@@ -229,7 +229,7 @@ js::ObjectToSource(JSContext *cx, HandleObject obj)
                 ? !IsIdentifier(JSID_TO_ATOM(id))
                 : JSID_TO_INT(id) < 0)
             {
-                idstr = js_QuoteString(cx, idstr, char16_t('\''));
+                idstr = js_QuoteString(cx, idstr, jschar('\''));
                 if (!idstr)
                     return nullptr;
             }
@@ -380,8 +380,8 @@ obj_toLocaleString(JSContext *cx, unsigned argc, Value *vp)
     return obj->callMethod(cx, id, 0, nullptr, args.rval());
 }
 
-bool
-js::obj_valueOf(JSContext *cx, unsigned argc, Value *vp)
+static bool
+obj_valueOf(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     RootedObject obj(cx, ToObject(cx, args.thisv()));
@@ -913,11 +913,9 @@ js::IdToStringOrSymbol(JSContext *cx, HandleId id, MutableHandleValue result)
     return true;
 }
 
-namespace js {
-
 /* ES6 draft rev 25 (2014 May 22) 19.1.2.8.1 */
-bool
-GetOwnPropertyKeys(JSContext *cx, const JS::CallArgs &args, unsigned flags)
+static bool
+GetOwnPropertyKeys(JSContext *cx, const CallArgs &args, unsigned flags, const char *fnname)
 {
     // steps 1-2
     RootedObject obj(cx, ToObject(cx, args.get(0)));
@@ -949,13 +947,12 @@ GetOwnPropertyKeys(JSContext *cx, const JS::CallArgs &args, unsigned flags)
     return true;
 }
 
-} // namespace js
-
 static bool
 obj_getOwnPropertyNames(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    return GetOwnPropertyKeys(cx, args, JSITER_OWNONLY | JSITER_HIDDEN);
+    return GetOwnPropertyKeys(cx, args, JSITER_OWNONLY | JSITER_HIDDEN,
+                              "Object.getOwnPropertyNames");
 }
 
 /* ES6 draft rev 25 (2014 May 22) 19.1.2.8 */
@@ -964,7 +961,8 @@ obj_getOwnPropertySymbols(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
     return GetOwnPropertyKeys(cx, args,
-                              JSITER_OWNONLY | JSITER_HIDDEN | JSITER_SYMBOLS | JSITER_SYMBOLSONLY);
+                              JSITER_OWNONLY | JSITER_HIDDEN | JSITER_SYMBOLS | JSITER_SYMBOLSONLY,
+                              "Object.getOwnPropertySymbols");
 }
 
 /* ES5 15.2.3.6: Object.defineProperty(O, P, Attributes) */
@@ -1015,21 +1013,17 @@ obj_defineProperties(JSContext *cx, unsigned argc, Value *vp)
     return DefineProperties(cx, obj, props);
 }
 
-// ES6 draft rev27 (2014/08/24) 19.1.2.11 Object.isExtensible(O)
 static bool
 obj_isExtensible(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
+    RootedObject obj(cx);
+    if (!GetFirstArgumentAsObject(cx, args, "Object.isExtensible", &obj))
+        return false;
 
-    // step 1
-    bool extensible = false;
-
-    // step 2
-    if (args.get(0).isObject()) {
-        RootedObject obj(cx, &args.get(0).toObject());
-        if (!JSObject::isExtensible(cx, obj, &extensible))
-            return false;
-    }
+    bool extensible;
+    if (!JSObject::isExtensible(cx, obj, &extensible))
+        return false;
     args.rval().setBoolean(extensible);
     return true;
 }

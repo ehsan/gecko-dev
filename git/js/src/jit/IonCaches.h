@@ -47,7 +47,7 @@ class IonCacheVisitor
   public:
 #define VISIT_INS(op)                                               \
     virtual bool visit##op##IC(CodeGenerator *codegen) {            \
-        MOZ_CRASH("NYI: " #op "IC");                                \
+        MOZ_ASSUME_UNREACHABLE("NYI: " #op "IC");                   \
     }
 
     IONCACHE_KIND_LIST(VISIT_INS)
@@ -212,9 +212,6 @@ class IonCache
         JS_ASSERT(pc != nullptr);
         profilerLeavePc_ = pc;
     }
-
-    // Get the address at which IC rejoins the mainline jitcode.
-    virtual void *rejoinAddress() = 0;
 
     virtual void emitInitialJump(MacroAssembler &masm, AddCacheState &addState) = 0;
     virtual void bindInitialJump(MacroAssembler &masm, AddCacheState &addState) = 0;
@@ -401,10 +398,6 @@ class RepatchIonCache : public IonCache
 
     // Update the labels once the code is finalized.
     void updateBaseAddress(JitCode *code, MacroAssembler &masm);
-
-    virtual void *rejoinAddress() MOZ_OVERRIDE {
-        return rejoinLabel().raw();
-    }
 };
 
 //
@@ -503,10 +496,6 @@ class DispatchIonCache : public IonCache
 
     // Fix up the first stub pointer once the code is finalized.
     void updateBaseAddress(JitCode *code, MacroAssembler &masm);
-
-    virtual void *rejoinAddress() MOZ_OVERRIDE {
-        return rejoinLabel_.raw();
-    }
 };
 
 // Define the cache kind and pre-declare data structures used for calling inline
@@ -735,8 +724,7 @@ class SetPropertyIC : public RepatchIonCache
                           void *returnAddr);
 
     bool attachAddSlot(JSContext *cx, HandleScript outerScript, IonScript *ion,
-                       HandleObject obj, HandleShape oldShape, HandleTypeObject oldType,
-                       bool checkTypeset);
+                       HandleObject obj, HandleShape oldShape, bool checkTypeset);
 
     bool attachGenericProxy(JSContext *cx, HandleScript outerScript, IonScript *ion,
                             void *returnAddr);
@@ -1252,8 +1240,8 @@ class SetPropertyParIC : public ParallelIonCache
 
     bool attachSetSlot(LockedJSContext &cx, IonScript *ion, HandleObject obj, HandleShape shape,
                        bool checkTypeset);
-    bool attachAddSlot(LockedJSContext &cx, IonScript *ion, HandleObject obj,
-                       HandleShape oldShape, HandleTypeObject oldType, bool checkTypeset);
+    bool attachAddSlot(LockedJSContext &cx, IonScript *ion, HandleObject obj, HandleShape oldShape,
+                       bool checkTypeset);
 
     static bool update(ForkJoinContext *cx, size_t cacheIndex, HandleObject obj,
                        HandleValue value);

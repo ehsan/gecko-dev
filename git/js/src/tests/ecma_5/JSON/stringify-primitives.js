@@ -1,3 +1,5 @@
+// Ported from dom/src/json/test/unit/test_encode_primitives.js
+
 // sanity
 var x = JSON.stringify({});
 assertEq(x, "{}");

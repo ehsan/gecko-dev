@@ -235,8 +235,6 @@ private:
   mozilla::dom::CSSValue* DoGetMinHeight();
   mozilla::dom::CSSValue* DoGetMinWidth();
   mozilla::dom::CSSValue* DoGetMixBlendMode();
-  mozilla::dom::CSSValue* DoGetObjectFit();
-  mozilla::dom::CSSValue* DoGetObjectPosition();
   mozilla::dom::CSSValue* DoGetLeft();
   mozilla::dom::CSSValue* DoGetTop();
   mozilla::dom::CSSValue* DoGetRight();
@@ -521,16 +519,9 @@ private:
   mozilla::dom::CSSValue* DoGetCustomProperty(const nsAString& aPropertyName);
 
   nsDOMCSSValueList* GetROCSSValueList(bool aCommaDelimited);
-
-  /* Helper functions */
   void SetToRGBAColor(nsROCSSPrimitiveValue* aValue, nscolor aColor);
   void SetValueToStyleImage(const nsStyleImage& aStyleImage,
                             nsROCSSPrimitiveValue* aValue);
-  void SetValueToPositionCoord(
-    const nsStyleBackground::Position::PositionCoord& aCoord,
-    nsROCSSPrimitiveValue* aValue);
-  void SetValueToPosition(const nsStyleBackground::Position& aPosition,
-                          nsDOMCSSValueList* aValueList);
 
   /**
    * A method to get a percentage base for a percentage value.  Returns true

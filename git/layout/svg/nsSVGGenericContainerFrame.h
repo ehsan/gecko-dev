@@ -25,7 +25,7 @@ class nsSVGGenericContainerFrame : public nsSVGGenericContainerFrameBase
   friend nsIFrame*
   NS_NewSVGGenericContainerFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 protected:
-  explicit nsSVGGenericContainerFrame(nsStyleContext* aContext) : nsSVGGenericContainerFrameBase(aContext) {}
+  nsSVGGenericContainerFrame(nsStyleContext* aContext) : nsSVGGenericContainerFrameBase(aContext) {}
   
 public:
   NS_DECL_FRAMEARENA_HELPERS
@@ -49,7 +49,8 @@ public:
 #endif
 
   // nsSVGContainerFrame methods:
-  virtual gfxMatrix GetCanvasTM() MOZ_OVERRIDE;
+  virtual gfxMatrix GetCanvasTM(uint32_t aFor,
+                                nsIFrame* aTransformRoot = nullptr) MOZ_OVERRIDE;
 };
 
 #endif // __NS_SVGGENERICCONTAINERFRAME_H__

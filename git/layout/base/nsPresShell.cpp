@@ -35,7 +35,6 @@
 #include "mozilla/MouseEvents.h"
 #include "mozilla/TextEvents.h"
 #include "mozilla/TouchEvents.h"
-#include "mozilla/UniquePtr.h"
 #include <algorithm>
 
 #ifdef XP_WIN
@@ -120,7 +119,6 @@
 #include "nsSVGEffects.h"
 #include "SVGFragmentIdentifier.h"
 #include "nsArenaMemoryStats.h"
-#include "nsFrameSelection.h"
 
 #include "nsPerformance.h"
 #include "nsRefreshDriver.h"
@@ -284,7 +282,7 @@ static const char kGrandTotalsStr[] = "Grand Totals";
 // Counting Class
 class ReflowCounter {
 public:
-  explicit ReflowCounter(ReflowCountMgr * aMgr = nullptr);
+  ReflowCounter(ReflowCountMgr * aMgr = nullptr);
   ~ReflowCounter();
 
   void ClearTotals();
@@ -315,7 +313,7 @@ protected:
 // Counting Class
 class IndiReflowCounter {
 public:
-  explicit IndiReflowCounter(ReflowCountMgr * aMgr = nullptr)
+  IndiReflowCounter(ReflowCountMgr * aMgr = nullptr)
     : mFrame(nullptr),
       mCount(0),
       mMgr(aMgr),
@@ -440,7 +438,7 @@ struct nsCallbackEventRequest
 class nsAutoCauseReflowNotifier
 {
 public:
-  explicit nsAutoCauseReflowNotifier(PresShell* aShell)
+  nsAutoCauseReflowNotifier(PresShell* aShell)
     : mShell(aShell)
   {
     mShell->WillCauseReflow();
@@ -463,7 +461,7 @@ public:
 class MOZ_STACK_CLASS nsPresShellEventCB : public EventDispatchingCallback
 {
 public:
-  explicit nsPresShellEventCB(PresShell* aPresShell) : mPresShell(aPresShell) {}
+  nsPresShellEventCB(PresShell* aPresShell) : mPresShell(aPresShell) {}
 
   virtual void HandleEvent(EventChainPostVisitor& aVisitor) MOZ_OVERRIDE
   {
@@ -513,7 +511,7 @@ public:
 class nsBeforeFirstPaintDispatcher : public nsRunnable
 {
 public:
-  explicit nsBeforeFirstPaintDispatcher(nsIDocument* aDocument)
+  nsBeforeFirstPaintDispatcher(nsIDocument* aDocument)
   : mDocument(aDocument) {}
 
   // Fires the "before-first-paint" event so that interested parties (right now, the
@@ -750,7 +748,7 @@ PresShell::PresShell()
   mIsThemeSupportDisabled = false;
   mIsActive = true;
   // FIXME/bug 735029: find a better solution to this problem
-#ifdef MOZ_WIDGET_ANDROID
+#ifdef MOZ_ANDROID_OMTC
   // The java pan/zoom code uses this to mean approximately "request a
   // reset of pan/zoom state" which doesn't necessarily correspond
   // with the first paint of content.
@@ -1836,6 +1834,9 @@ PresShell::Initialize(nscoord aWidth, nscoord aHeight)
   }
 #endif
 
+  if (mCaret)
+    mCaret->EraseCaret();
+
   // XXX Do a full invalidate at the beginning so that invalidates along
   // the way don't have region accumulation issues?
 
@@ -2134,7 +2135,7 @@ PresShell::SetIgnoreFrameDestruction(bool aIgnore)
   if (mDocument) {
     // We need to tell the ImageLoader to drop all its references to frames
     // because they're about to go away and it won't get notifications of that.
-    mDocument->StyleImageLoader()->ClearFrames(mPresContext);
+    mDocument->StyleImageLoader()->ClearFrames();
   }
   mIgnoreFrameDestruction = aIgnore;
 }
@@ -2208,6 +2209,13 @@ already_AddRefed<SelectionCarets> PresShell::GetSelectionCarets() const
   return selectionCaret.forget();
 }
 
+void PresShell::MaybeInvalidateCaretPosition()
+{
+  if (mCaret) {
+    mCaret->InvalidateOutsideCaret();
+  }
+}
+
 void PresShell::SetCaret(nsCaret *aNewCaret)
 {
   mCaret = aNewCaret;
@@ -2234,7 +2242,7 @@ NS_IMETHODIMP PresShell::SetCaretEnabled(bool aInEnable)
 
     MOZ_ASSERT(mCaret || mTouchCaret);
     if (mCaret) {
-      mCaret->SetVisible(mCaretEnabled);
+      mCaret->SetCaretVisible(mCaretEnabled);
     }
     if (mTouchCaret) {
       mTouchCaret->SyncVisibilityWithCaret();
@@ -2269,7 +2277,8 @@ NS_IMETHODIMP PresShell::GetCaretVisible(bool *aOutIsVisible)
 {
   *aOutIsVisible = false;
   if (mCaret) {
-    *aOutIsVisible = mCaret->IsVisible();
+    nsresult rv = mCaret->GetCaretVisible(aOutIsVisible);
+    NS_ENSURE_SUCCESS(rv,rv);
   }
   return NS_OK;
 }
@@ -2431,8 +2440,7 @@ PresShell::CompleteMove(bool aForward, bool aExtend)
   nsIFrame::CaretPosition pos =
     frame->GetExtremeCaretPosition(!aForward);
   mSelection->HandleClick(pos.mResultContent, pos.mContentOffset,
-                          pos.mContentOffset, aExtend, false,
-                          aForward ? CARET_ASSOCIATE_AFTER : CARET_ASSOCIATE_BEFORE);
+                          pos.mContentOffset, aExtend, false, aForward);
   if (limiter) {
     // HandleClick resets ancestorLimiter, so set it again.
     mSelection->SetAncestorLimiter(limiter);
@@ -2652,19 +2660,6 @@ PresShell::RestoreRootScrollPosition()
   nsIScrollableFrame* scrollableFrame = GetRootScrollFrameAsScrollable();
   if (scrollableFrame) {
     scrollableFrame->ScrollToRestoredPosition();
-  }
-}
-
-void
-PresShell::MaybeReleaseCapturingContent()
-{
-  nsRefPtr<nsFrameSelection> frameSelection = FrameSelection();
-  if (frameSelection) {
-    frameSelection->SetDragState(false);
-  }
-  if (gCaptureInfo.mContent &&
-      gCaptureInfo.mContent->OwnerDoc() == mDocument) {
-    SetCapturingContent(nullptr, 0);
   }
 }
 
@@ -3524,11 +3519,7 @@ static void ScrollToShowRect(nsIFrame*                aFrame,
   // If we don't need to scroll, then don't try since it might cancel
   // a current smooth scroll operation.
   if (needToScroll) {
-    nsIScrollableFrame::ScrollMode scrollMode = nsIScrollableFrame::INSTANT;
-    if (gfxPrefs::ScrollBehaviorEnabled() && aFlags & nsIPresShell::SCROLL_SMOOTH) {
-      scrollMode = nsIScrollableFrame::SMOOTH_MSD;
-    }
-    aFrameAsScrollable->ScrollTo(scrollPt, scrollMode, &allowedRange);
+    aFrameAsScrollable->ScrollTo(scrollPt, nsIScrollableFrame::INSTANT, &allowedRange);
   }
 }
 
@@ -3747,7 +3738,7 @@ PresShell::GetRectVisibility(nsIFrame* aFrame,
 class PaintTimerCallBack MOZ_FINAL : public nsITimerCallback
 {
 public:
-  explicit PaintTimerCallBack(PresShell* aShell) : mShell(aShell) {}
+  PaintTimerCallBack(PresShell* aShell) : mShell(aShell) {}
 
   NS_DECL_ISUPPORTS
 
@@ -3938,6 +3929,9 @@ PresShell::UnsuppressAndInvalidate()
     // let's assume that outline on a root frame is not supported
     rootFrame->InvalidateFrame();
 
+    if (mCaretEnabled && mCaret) {
+      mCaret->CheckCaretDrawingState();
+    }
     if (mTouchCaret) {
       mTouchCaret->UpdatePositionIfNeeded();
     }
@@ -4294,6 +4288,29 @@ PresShell::FlushPendingNotifications(mozilla::ChangesToFlush aFlush)
 }
 
 void
+PresShell::CharacterDataWillChange(nsIDocument *aDocument,
+                                   nsIContent*  aContent,
+                                   CharacterDataChangeInfo* aInfo)
+{
+  NS_PRECONDITION(!mIsDocumentGone, "Unexpected CharacterDataChanged");
+  NS_PRECONDITION(aDocument == mDocument, "Unexpected aDocument");
+
+  if (mCaret) {
+    // Invalidate the caret's current location before we call into the frame
+    // constructor. It is important to do this now, and not wait until the
+    // resulting reflow, because this call causes continuation frames of the
+    // text frame the caret is in to forget what part of the content they
+    // refer to, making it hard for them to return the correct continuation
+    // frame to the caret.
+    //
+    // It's also important to do this before the content actually changes, since
+    // in bidi text the caret needs to look at the content to determine its
+    // position and shape.
+    mCaret->InvalidateOutsideCaret();
+  }
+}
+
+void
 PresShell::CharacterDataChanged(nsIDocument *aDocument,
                                 nsIContent*  aContent,
                                 CharacterDataChangeInfo* aInfo)
@@ -4486,6 +4503,11 @@ PresShell::ContentRemoved(nsIDocument *aDocument,
 {
   NS_PRECONDITION(!mIsDocumentGone, "Unexpected ContentRemoved");
   NS_PRECONDITION(aDocument == mDocument, "Unexpected aDocument");
+
+  // Make sure that the caret doesn't leave a turd where the child used to be.
+  if (mCaret) {
+    mCaret->InvalidateOutsideCaret();
+  }
 
   // Notify the ESM that the content has been removed, so that
   // it can clean up any state related to the content.
@@ -5005,14 +5027,16 @@ PresShell::CreateRangePaintInfo(nsIDOMRange* aRange,
 
   info = new RangePaintInfo(range, ancestorFrame);
 
+  nsRect ancestorRect = ancestorFrame->GetVisualOverflowRect();
+
   // get a display list containing the range
   info->mBuilder.SetIncludeAllOutOfFlows();
   if (aForPrimarySelection) {
     info->mBuilder.SetSelectedFramesOnly();
   }
-  info->mBuilder.EnterPresShell(ancestorFrame);
+  info->mBuilder.EnterPresShell(ancestorFrame, ancestorRect);
   ancestorFrame->BuildDisplayListForStackingContext(&info->mBuilder,
-      ancestorFrame->GetVisualOverflowRect(), &info->mList);
+                                                    ancestorRect, &info->mList);
 
 #ifdef DEBUG
   if (gDumpRangePaintList) {
@@ -5023,7 +5047,7 @@ PresShell::CreateRangePaintInfo(nsIDOMRange* aRange,
 
   nsRect rangeRect = ClipListToRange(&info->mBuilder, &info->mList, range);
 
-  info->mBuilder.LeavePresShell(ancestorFrame);
+  info->mBuilder.LeavePresShell(ancestorFrame, ancestorRect);
 
 #ifdef DEBUG
   if (gDumpRangePaintList) {
@@ -6072,10 +6096,10 @@ public:
     nsDisplayList list;
     nsAutoTArray<nsIFrame*, 100> outFrames;
     nsDisplayItem::HitTestState hitTestState;
-    builder.EnterPresShell(mFrame);
     nsRect bounds = mShell->GetPresContext()->GetVisibleArea();
+    builder.EnterPresShell(mFrame, bounds);
     mFrame->BuildDisplayListForStackingContext(&builder, bounds, &list);
-    builder.LeavePresShell(mFrame);
+    builder.LeavePresShell(mFrame, bounds);
     list.HitTest(&builder, bounds, &hitTestState, &outFrames);
     list.DeleteAll();
     for (int32_t i = outFrames.Length() - 1; i >= 0; --i) {
@@ -6160,10 +6184,9 @@ PresShell::Paint(nsView*        aViewToPaint,
       bool computeInvalidRect = computeInvalidFunc ||
                                 (layerManager->GetBackendType() == LayersBackend::LAYERS_BASIC);
 
-      UniquePtr<LayerProperties> props;
-      if (computeInvalidRect) {
-        props = Move(LayerProperties::CloneFrom(layerManager->GetRoot()));
-      }
+      nsAutoPtr<LayerProperties> props(computeInvalidRect ?
+                                         LayerProperties::CloneFrom(layerManager->GetRoot()) :
+                                         nullptr);
 
       MaybeSetupTransactionIdAllocator(layerManager, aViewToPaint);
 
@@ -6836,29 +6859,24 @@ PresShell::HandleEvent(nsIFrame* aFrame,
                                        retargetEventDoc->GetShell() :
                                        nullptr;
 
-    // Bug 1057256: Touch caret should handle the event before selection carets.
-    // Otherwise, a long tap on touch caret will be incorrectly handled by
-    // selection carets which makes moving touch caret failed.
-    nsRefPtr<TouchCaret> touchCaret = presShell ?
-                                      presShell->GetTouchCaret() :
-                                      nullptr;
-    if (touchCaret) {
-      *aEventStatus = touchCaret->HandleEvent(aEvent);
-      if (*aEventStatus == nsEventStatus_eConsumeNoDefault) {
-        // If the event is consumed by the touch caret, cancel APZC panning by
-        // setting mMultipleActionsPrevented.
-        aEvent->mFlags.mMultipleActionsPrevented = true;
-        return NS_OK;
-      }
-    }
-
     nsRefPtr<SelectionCarets> selectionCaret = presShell ?
                                                presShell->GetSelectionCarets() :
                                                nullptr;
     if (selectionCaret) {
       *aEventStatus = selectionCaret->HandleEvent(aEvent);
       if (*aEventStatus == nsEventStatus_eConsumeNoDefault) {
-        // If the event is consumed by the selection carets, cancel APZC panning by
+        // If the event is consumed by the touch caret, Cancel APZC panning by
+        // setting mMultipleActionsPrevented.
+        aEvent->mFlags.mMultipleActionsPrevented = true;
+        return NS_OK;
+      }
+    }
+
+    nsRefPtr<TouchCaret> touchCaret = presShell ? presShell->GetTouchCaret() : nullptr;
+    if (touchCaret) {
+      *aEventStatus = touchCaret->HandleEvent(aEvent);
+      if (*aEventStatus == nsEventStatus_eConsumeNoDefault) {
+        // If the event is consumed by the touch caret, cancel APZC panning by
         // setting mMultipleActionsPrevented.
         aEvent->mFlags.mMultipleActionsPrevented = true;
         return NS_OK;
@@ -6913,8 +6931,7 @@ PresShell::HandleEvent(nsIFrame* aFrame,
       // document that is being captured.
       retargetEventDoc = capturingContent->GetCrossShadowCurrentDoc();
 #ifdef ANDROID
-    } else if (aEvent->mClass == eTouchEventClass ||
-              (aEvent->AsMouseEvent() && aEvent->AsMouseEvent()->inputSource == nsIDOMMouseEvent::MOZ_SOURCE_TOUCH)) {
+    } else if (aEvent->mClass == eTouchEventClass) {
       retargetEventDoc = GetTouchEventTargetDocument();
 #endif
     }
@@ -7583,7 +7600,6 @@ PresShell::HandleEventInternal(WidgetEvent* aEvent, nsEventStatus* aStatus)
         isHandlingUserInput = true;
         break;
       case NS_TOUCH_START: {
-        isHandlingUserInput = true;
         WidgetTouchEvent* touchEvent = aEvent->AsTouchEvent();
         // if there is only one touch in this touchstart event, assume that it is
         // the start of a new touch session and evict any old touches in the
@@ -7608,10 +7624,8 @@ PresShell::HandleEventInternal(WidgetEvent* aEvent, nsEventStatus* aStatus)
         }
         break;
       }
-      case NS_TOUCH_END:
-        isHandlingUserInput = true;
-        // Fall through to touchcancel code
-      case NS_TOUCH_CANCEL: {
+      case NS_TOUCH_CANCEL:
+      case NS_TOUCH_END: {
         // Remove the changed touches
         // need to make sure we only remove touches that are ending here
         WidgetTouchEvent* touchEvent = aEvent->AsTouchEvent();
@@ -8082,13 +8096,14 @@ PresShell::PrepareToUseCaretPosition(nsIWidget* aEventWidget, nsIntPoint& aTarge
   nsRefPtr<nsCaret> caret = GetCaret();
   NS_ENSURE_TRUE(caret, false);
 
-  bool caretVisible = caret->IsVisible();
-  if (!caretVisible)
+  bool caretVisible = false;
+  rv = caret->GetCaretVisible(&caretVisible);
+  if (NS_FAILED(rv) || ! caretVisible)
     return false;
 
   // caret selection, this is a temporary weak reference, so no refcounting is
   // needed
-  nsISelection* domSelection = caret->GetSelection();
+  nsISelection* domSelection = caret->GetCaretDOMSelection();
   NS_ENSURE_TRUE(domSelection, false);
 
   // since the match could be an anonymous textnode inside a
@@ -8155,7 +8170,7 @@ PresShell::PrepareToUseCaretPosition(nsIWidget* aEventWidget, nsIntPoint& aTarge
 
   // get caret position relative to the closest view
   nsRect caretCoords;
-  nsIFrame* caretFrame = caret->GetGeometry(&caretCoords);
+  nsIFrame* caretFrame = caret->GetGeometry(domSelection, &caretCoords);
   if (!caretFrame)
     return false;
   nsPoint viewOffset;
@@ -8618,6 +8633,12 @@ PresShell::DidCauseReflow()
 void
 PresShell::WillDoReflow()
 {
+  // We just reflowed, tell the caret that its frame might have moved.
+  // XXXbz that comment makes no sense
+  if (mCaret) {
+    mCaret->InvalidateOutsideCaret();
+  }
+
   mPresContext->FlushUserFontSet();
 
   mPresContext->FlushCounterStyles();
@@ -8642,6 +8663,13 @@ PresShell::DidDoReflow(bool aInterruptible, bool aWasInterrupted)
 
   if (sSynthMouseMove) {
     SynthesizeMouseMove(false);
+  }
+
+  if (mCaret) {
+    // Update the caret's position now to account for any changes created by
+    // the reflow.
+    mCaret->InvalidateOutsideCaret();
+    mCaret->UpdateCaretPosition();
   }
 
   if (mTouchCaret) {
@@ -8744,11 +8772,6 @@ PresShell::DoReflow(nsIFrame* target, bool aInterruptible)
   PROFILER_LABEL_PRINTF("PresShell", "DoReflow",
     js::ProfileEntry::Category::GRAPHICS, "(%s)", docURL.get());
 
-  nsDocShell* docShell = static_cast<nsDocShell*>(GetPresContext()->GetDocShell());
-  if (docShell) {
-    docShell->AddProfileTimelineMarker("Reflow", TRACING_INTERVAL_START);
-  }
-
   if (mReflowContinueTimer) {
     mReflowContinueTimer->Cancel();
     mReflowContinueTimer = nullptr;
@@ -8783,7 +8806,6 @@ PresShell::DoReflow(nsIFrame* target, bool aInterruptible)
   LogicalSize reflowSize(wm, size.ISize(wm), NS_UNCONSTRAINEDSIZE);
   nsHTMLReflowState reflowState(mPresContext, target, rcx, reflowSize,
                                 nsHTMLReflowState::CALLER_WILL_INIT);
-  reflowState.mOrthogonalLimit = size.BSize(wm);
 
   if (rootFrame == target) {
     reflowState.Init(mPresContext);
@@ -8912,9 +8934,6 @@ PresShell::DoReflow(nsIFrame* target, bool aInterruptible)
   }
 #endif
 
-  if (docShell) {
-    docShell->AddProfileTimelineMarker("Reflow", TRACING_INTERVAL_END);
-  }
   return !interrupted;
 }
 
@@ -9965,7 +9984,7 @@ void ReflowCountMgr::PaintCount(const char*     aName,
     if (counter != nullptr && counter->mName.EqualsASCII(aName)) {
       aRenderingContext->PushState();
       aRenderingContext->Translate(aOffset);
-      nsFont font(eFamily_serif, NS_FONT_STYLE_NORMAL,
+      nsFont font(eFamily_serif, NS_FONT_STYLE_NORMAL, NS_FONT_VARIANT_NORMAL,
                   NS_FONT_WEIGHT_NORMAL, NS_FONT_STRETCH_NORMAL, 0,
                   nsPresContext::CSSPixelsToAppUnits(11));
 

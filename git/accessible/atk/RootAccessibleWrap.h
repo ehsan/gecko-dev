@@ -23,7 +23,7 @@ typedef RootAccessible RootAccessibleWrap;
 class GtkWindowAccessible MOZ_FINAL : public DummyAccessible
 {
 public:
-  explicit GtkWindowAccessible(AtkObject* aAccessible);
+  GtkWindowAccessible(AtkObject* aAccessible);
   virtual ~GtkWindowAccessible();
 };
 

@@ -31,6 +31,7 @@
 
 #include "jsalloc.h"
 
+#include "assembler/wtf/Platform.h"
 #include "jit/arm/Simulator-arm.h"
 #include "jit/mips/Simulator-mips.h"
 #include "js/HashTable.h"
@@ -126,7 +127,7 @@ public:
             MOZ_ASSERT(m_otherCodeBytes < m_allocation.size);
             break;
           default:
-            MOZ_CRASH("bad code kind");
+            MOZ_ASSUME_UNREACHABLE("bad code kind");
         }
 
         release();
@@ -161,7 +162,7 @@ private:
           case BASELINE_CODE: m_baselineCodeBytes += n;        break;
           case REGEXP_CODE:   m_regexpCodeBytes   += n;        break;
           case OTHER_CODE:    m_otherCodeBytes    += n;        break;
-          default:            MOZ_CRASH("bad code kind");
+          default:            MOZ_ASSUME_UNREACHABLE("bad code kind");
         }
         return result;
     }
@@ -401,10 +402,8 @@ public:
 #elif defined(JS_CODEGEN_MIPS)
     static void cacheFlush(void* code, size_t size)
     {
-#define GCC_VERSION (__GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__)
-
-#if defined(__GNUC__) && (GCC_VERSION >= 40300)
-#if (__mips_isa_rev == 2) && (GCC_VERSION < 40403)
+#if WTF_COMPILER_GCC && (GCC_VERSION >= 40300)
+#if WTF_MIPS_ISA_REV(2) && (GCC_VERSION < 40403)
         int lineSize;
         asm("rdhwr %0, $1" : "=r" (lineSize));
         //
@@ -425,10 +424,10 @@ public:
 #else
         _flush_cache(reinterpret_cast<char*>(code), size, BCACHE);
 #endif
-
-#undef GCC_VERSION
     }
-#elif defined(JS_CODEGEN_ARM) && (defined(__linux__) || defined(ANDROID)) && defined(__GNUC__)
+#elif WTF_CPU_ARM_TRADITIONAL && WTF_OS_LINUX && WTF_COMPILER_RVCT
+    static __asm void cacheFlush(void* code, size_t size);
+#elif WTF_CPU_ARM_TRADITIONAL && (WTF_OS_LINUX || WTF_OS_ANDROID) && WTF_COMPILER_GCC
     static void cacheFlush(void* code, size_t size)
     {
         asm volatile (

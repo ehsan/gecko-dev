@@ -17,6 +17,7 @@
 #include "mozilla/Preferences.h"
 #include "nsCharSeparatedTokenizer.h"
 #include "nsContentUtils.h"
+#include "nsCxPusher.h"
 #include "nsNetUtil.h"
 #include "nsServiceManagerUtils.h"
 #include "nsThreadUtils.h"
@@ -39,7 +40,7 @@ public:
   NS_DECL_ISUPPORTS
   NS_FORWARD_SAFE_NSITELEPHONYLISTENER(mTelephony)
 
-  explicit Listener(Telephony* aTelephony)
+  Listener(Telephony* aTelephony)
     : mTelephony(aTelephony)
   {
     MOZ_ASSERT(mTelephony);
@@ -58,14 +59,17 @@ class Telephony::Callback : public nsITelephonyCallback
   nsRefPtr<Telephony> mTelephony;
   nsRefPtr<Promise> mPromise;
   uint32_t mServiceId;
+  nsString mNumber;
 
   virtual ~Callback() {}
 
 public:
   NS_DECL_ISUPPORTS
 
-  Callback(Telephony* aTelephony, Promise* aPromise, uint32_t aServiceId)
-    : mTelephony(aTelephony), mPromise(aPromise), mServiceId(aServiceId)
+  Callback(Telephony* aTelephony, Promise* aPromise, uint32_t aServiceId,
+           const nsAString& aNumber)
+    : mTelephony(aTelephony), mPromise(aPromise), mServiceId(aServiceId),
+      mNumber(aNumber)
   {
     MOZ_ASSERT(mTelephony);
   }
@@ -78,9 +82,9 @@ public:
   }
 
   NS_IMETHODIMP
-  NotifyDialSuccess(uint32_t aCallIndex, const nsAString& aNumber)
+  NotifyDialSuccess(uint32_t aCallIndex)
   {
-    nsRefPtr<TelephonyCallId> id = mTelephony->CreateCallId(aNumber);
+    nsRefPtr<TelephonyCallId> id = mTelephony->CreateCallId(mNumber);
     nsRefPtr<TelephonyCall> call =
       mTelephony->CreateCall(id, mServiceId, aCallIndex,
                              nsITelephonyService::CALL_STATE_DIALING);
@@ -263,7 +267,7 @@ Telephony::DialInternal(uint32_t aServiceId, const nsAString& aNumber,
   }
 
   nsCOMPtr<nsITelephonyCallback> callback =
-    new Callback(this, promise, aServiceId);
+    new Callback(this, promise, aServiceId, aNumber);
   nsresult rv = mService->Dial(aServiceId, aNumber, aEmergency, callback);
   if (NS_FAILED(rv)) {
     promise->MaybeReject(NS_ERROR_DOM_INVALID_STATE_ERR);
@@ -366,8 +370,6 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(Telephony,
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(Telephony)
-  // Telephony does not expose nsITelephonyListener.  mListener is the exposed
-  // nsITelephonyListener and forwards the calls it receives to us.
 NS_INTERFACE_MAP_END_INHERITING(DOMEventTargetHelper)
 
 NS_IMPL_ADDREF_INHERITED(Telephony, DOMEventTargetHelper)
@@ -574,21 +576,6 @@ NS_IMETHODIMP
 Telephony::EnumerateCallStateComplete()
 {
   MOZ_ASSERT(!mEnumerated);
-
-  // Set conference state.
-  if (mGroup->CallsArray().Length() >= 2) {
-    const nsTArray<nsRefPtr<TelephonyCall> > &calls = mGroup->CallsArray();
-
-    uint16_t callState = calls[0]->CallState();
-    for (uint32_t i = 1; i < calls.Length(); i++) {
-      if (calls[i]->CallState() != callState) {
-        callState = nsITelephonyService::CALL_STATE_UNKNOWN;
-        break;
-      }
-    }
-
-    mGroup->ChangeState(callState);
-  }
 
   mEnumerated = true;
 

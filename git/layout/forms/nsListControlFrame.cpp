@@ -62,7 +62,7 @@ DOMTimeStamp nsListControlFrame::gLastKeyTime = 0;
 class nsListEventListener MOZ_FINAL : public nsIDOMEventListener
 {
 public:
-  explicit nsListEventListener(nsListControlFrame *aFrame)
+  nsListEventListener(nsListControlFrame *aFrame)
     : mFrame(aFrame) { }
 
   void SetFrame(nsListControlFrame *aFrame) { mFrame = aFrame; }
@@ -1078,7 +1078,7 @@ nsListControlFrame::GetCurrentOption()
     GetSelectedIndex() : mEndSelectionIndex;
 
   if (focusedIndex != kNothingSelected) {
-    return GetOption(AssertedCast<uint32_t>(focusedIndex));
+    return GetOption(SafeCast<uint32_t>(focusedIndex));
   }
 
   // There is no selected item. Return the first non-disabled item.
@@ -1906,7 +1906,7 @@ nsListControlFrame::ScrollToIndex(int32_t aIndex)
     ScrollTo(nsPoint(0, 0), nsIScrollableFrame::INSTANT);
   } else {
     nsRefPtr<dom::HTMLOptionElement> option =
-      GetOption(AssertedCast<uint32_t>(aIndex));
+      GetOption(SafeCast<uint32_t>(aIndex));
     if (option) {
       ScrollToFrame(*option);
     }

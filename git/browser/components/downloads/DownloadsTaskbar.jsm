@@ -157,7 +157,7 @@ this.DownloadsTaskbar = {
 
   onSummaryChanged: function ()
   {
-    // If the last browser window has been closed, we have no indicator any more.
+    // If the last browser window has been closed, we have no indicator anymore.
     if (!this._taskbarProgress) {
       return;
     }

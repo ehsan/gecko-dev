@@ -55,7 +55,12 @@ RemoteOpenFileParent::OpenSendCloseDelete()
   // Sending a potentially invalid file descriptor is just fine.
   unused << Send__delete__(this, fileDescriptor);
 
-  // Current process's file descriptor is closed by FileDescriptor destructor.
+  if (fileDescriptor.IsValid()) {
+    // close file now that other process has it open, else we'll leak fds in the
+    // parent process.
+    close(fileDescriptor.PlatformHandle());
+  }
+
 #endif // OS_TYPE
 
   return true;

@@ -43,7 +43,6 @@ SOURCES += [
     'GonkGPSGeolocationProvider.cpp',
     'MozMtpDatabase.cpp',
     'MozMtpServer.cpp',
-    'MozMtpStorage.cpp',
     'NetworkUtils.cpp',
     'NetworkWorker.cpp',
     'nsVolume.cpp',
@@ -103,7 +102,7 @@ include('/ipc/chromium/chromium-config.mozbuild')
 LOCAL_INCLUDES += [
     '/dom/base',
     '/dom/bluetooth',
-    '/dom/geolocation',
+    '/dom/src/geolocation',
     '/dom/wifi',
 ]
 

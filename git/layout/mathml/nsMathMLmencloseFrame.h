@@ -89,7 +89,7 @@ public:
   }
 
 protected:
-  explicit nsMathMLmencloseFrame(nsStyleContext* aContext);
+  nsMathMLmencloseFrame(nsStyleContext* aContext);
   virtual ~nsMathMLmencloseFrame();
 
   nsresult PlaceInternal(nsRenderingContext& aRenderingContext,

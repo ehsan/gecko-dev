@@ -47,6 +47,7 @@ protected:
 
   uint32_t  mCurrentCommandID;  // unique command id (per menu-bar) to
                                 // give to next item that asks
+  nsIDocument* mDocument;       // pointer to document
 
   // stores observers for content change notification
   nsDataHashtable<nsPtrHashKey<nsIContent>, nsChangeObserver *> mContentToObserverTable;

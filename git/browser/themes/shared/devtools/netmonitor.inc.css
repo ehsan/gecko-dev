@@ -320,10 +320,7 @@ label.requests-menu-status-code {
 .requests-menu-subitem.requests-menu-waterfall {
   -moz-padding-start: 0px;
   -moz-padding-end: 4px;
-  /* Background created on a <canvas> in js. */
-  /* @see browser/devtools/netmonitor/netmonitor-view.js */
-  background-image: -moz-element(#waterfall-background);
-  background-repeat: repeat-y;
+  background-repeat: repeat-y; /* Background created on a <canvas> in js. */
   background-position: -1px center;
 }
 

@@ -782,7 +782,7 @@ MacroAssemblerARM::ma_cmn(Register src1, Register src2, Condition c)
 void
 MacroAssemblerARM::ma_cmn(Register src1, Operand op, Condition c)
 {
-    MOZ_CRASH("Feature NYI");
+    MOZ_ASSUME_UNREACHABLE("Feature NYI");
 }
 
 // Compare (src - src2).
@@ -816,7 +816,7 @@ MacroAssemblerARM::ma_cmp(Register src1, Operand op, Condition c)
         as_cmp(src1, O2Reg(ScratchRegister), c);
         break;
       default:
-        MOZ_CRASH("trying to compare FP and integer registers");
+        MOZ_ASSUME_UNREACHABLE("trying to compare FP and integer registers");
     }
 }
 void
@@ -889,7 +889,7 @@ MacroAssemblerARM::ma_check_mul(Register src1, Register src2, Register dest, Con
         return NotEqual;
     }
 
-    MOZ_CRASH("Condition NYI");
+    MOZ_ASSUME_UNREACHABLE("Condition NYI");
 }
 
 Assembler::Condition
@@ -907,7 +907,7 @@ MacroAssemblerARM::ma_check_mul(Register src1, Imm32 imm, Register dest, Conditi
         return NotEqual;
     }
 
-    MOZ_CRASH("Condition NYI");
+    MOZ_ASSUME_UNREACHABLE("Condition NYI");
 }
 
 void
@@ -1004,12 +1004,7 @@ MacroAssemblerARM::ma_udiv(Register num, Register div, Register dest, Condition 
 {
     as_udiv(dest, num, div, cond);
 }
-// Miscelanous instructions
-void
-MacroAssemblerARM::ma_clz(Register src, Register dest, Condition cond)
-{
-    as_clz(dest, src, cond);
-}
+
 // Memory.
 // Shortcut for when we know we're transferring 32 bits of data.
 void
@@ -1023,7 +1018,7 @@ void
 MacroAssemblerARM::ma_dtr(LoadStore ls, Register rn, Register rm, Register rt,
                           Index mode, Assembler::Condition cc)
 {
-    MOZ_CRASH("Feature NYI");
+    MOZ_ASSUME_UNREACHABLE("Feature NYI");
 }
 
 void
@@ -1365,7 +1360,7 @@ MacroAssemblerARM::ma_b(void *target, Relocation::Kind reloc, Assembler::Conditi
         as_Imm32Pool(pc, trg, c);
         break;
       default:
-        MOZ_CRASH("Other methods of generating tracable jumps NYI");
+        MOZ_ASSUME_UNREACHABLE("Other methods of generating tracable jumps NYI");
     }
 }
 
@@ -1880,7 +1875,7 @@ MacroAssemblerARMCompat::freeStack(Register amount)
 void
 MacroAssembler::PushRegsInMask(RegisterSet set, FloatRegisterSet simdSet)
 {
-    JS_ASSERT(!SupportsSimd() && simdSet.size() == 0);
+    JS_ASSERT(!SupportsSimd && simdSet.size() == 0);
     int32_t diffF = set.fpus().getPushSizeInBytes();
     int32_t diffG = set.gprs().size() * sizeof(intptr_t);
 
@@ -1909,7 +1904,7 @@ MacroAssembler::PushRegsInMask(RegisterSet set, FloatRegisterSet simdSet)
 void
 MacroAssembler::PopRegsInMaskIgnore(RegisterSet set, RegisterSet ignore, FloatRegisterSet simdSet)
 {
-    JS_ASSERT(!SupportsSimd() && simdSet.size() == 0);
+    JS_ASSERT(!SupportsSimd && simdSet.size() == 0);
     int32_t diffG = set.gprs().size() * sizeof(intptr_t);
     int32_t diffF = set.fpus().getPushSizeInBytes();
     const int32_t reservedG = diffG;
@@ -3510,7 +3505,7 @@ MacroAssemblerARMCompat::loadValue(Address src, ValueOperand val)
                 mode = IB;
                 break;
               default:
-                MOZ_CRASH("Bogus Offset for LoadValue as DTM");
+                MOZ_ASSUME_UNREACHABLE("Bogus Offset for LoadValue as DTM");
             }
             startDataTransferM(IsLoad, Register::FromCode(srcOp.base()), mode);
             transferReg(val.payloadReg());
@@ -3580,7 +3575,7 @@ MacroAssemblerARMCompat::storePayload(Register src, Operand dest)
         ma_str(src, ToPayload(dest));
         return;
     }
-    MOZ_CRASH("why do we do all of these things?");
+    MOZ_ASSUME_UNREACHABLE("why do we do all of these things?");
 
 }
 
@@ -3630,7 +3625,7 @@ MacroAssemblerARMCompat::storeTypeTag(ImmTag tag, Operand dest) {
         return;
     }
 
-    MOZ_CRASH("why do we do all of these things?");
+    MOZ_ASSUME_UNREACHABLE("why do we do all of these things?");
 
 }
 
@@ -3778,7 +3773,7 @@ MacroAssemblerARMCompat::setupUnalignedABICall(uint32_t args, Register scratch)
     ma_mov(sp, scratch);
 
     // Force sp to be aligned.
-    ma_and(Imm32(~(ABIStackAlignment - 1)), sp, sp);
+    ma_and(Imm32(~(StackAlignment - 1)), sp, sp);
     ma_push(scratch);
 }
 
@@ -3850,7 +3845,7 @@ MacroAssemblerARMCompat::passHardFpABIArg(const MoveOperand &from, MoveOp::Type 
         break;
       }
       default:
-        MOZ_CRASH("Unexpected argument type");
+        MOZ_ASSUME_UNREACHABLE("Unexpected argument type");
     }
 
     enoughMemory_ = moveResolver_.addMove(from, to, type);
@@ -3880,7 +3875,7 @@ MacroAssemblerARMCompat::passSoftFpABIArg(const MoveOperand &from, MoveOp::Type 
         passedArgTypes_ = (passedArgTypes_ << ArgType_Shift) | ArgType_General;
         break;
       default:
-        MOZ_CRASH("Unexpected argument type");
+        MOZ_ASSUME_UNREACHABLE("Unexpected argument type");
     }
 
     Register destReg;
@@ -3937,7 +3932,7 @@ MacroAssemblerARMCompat::passABIArg(FloatRegister freg, MoveOp::Type type)
 void MacroAssemblerARMCompat::checkStackAlignment()
 {
 #ifdef DEBUG
-    ma_tst(sp, Imm32(ABIStackAlignment - 1));
+    ma_tst(sp, Imm32(StackAlignment - 1));
     breakpoint(NonZero);
 #endif
 }
@@ -3956,11 +3951,11 @@ MacroAssemblerARMCompat::callWithABIPre(uint32_t *stackAdjust, bool callFromAsmJ
 
     if (!dynamicAlignment_) {
         *stackAdjust += ComputeByteAlignment(framePushed_ + *stackAdjust + alignmentAtPrologue,
-                                             ABIStackAlignment);
+                                             StackAlignment);
     } else {
         // sizeof(intptr_t) accounts for the saved stack pointer pushed by
         // setupUnalignedABICall.
-        *stackAdjust += ComputeByteAlignment(*stackAdjust + sizeof(intptr_t), ABIStackAlignment);
+        *stackAdjust += ComputeByteAlignment(*stackAdjust + sizeof(intptr_t), StackAlignment);
     }
 
     reserveStack(*stackAdjust);
@@ -4038,7 +4033,7 @@ MacroAssemblerARMCompat::callWithABIPost(uint32_t stackAdjust, MoveOp::Type resu
         break;
 
       default:
-        MOZ_CRASH("unexpected callWithABI result");
+        MOZ_ASSUME_UNREACHABLE("unexpected callWithABI result");
     }
 
     freeStack(stackAdjust);
@@ -4078,7 +4073,7 @@ AssertValidABIFunctionType(uint32_t passedArgTypes)
       case Args_Int_IntDouble:
         break;
       default:
-        MOZ_CRASH("Unexpected type");
+        MOZ_ASSUME_UNREACHABLE("Unexpected type");
     }
 }
 #endif
@@ -4093,7 +4088,7 @@ MacroAssemblerARMCompat::callWithABI(void *fun, MoveOp::Type result)
       case MoveOp::GENERAL: passedArgTypes_ |= ArgType_General; break;
       case MoveOp::DOUBLE:  passedArgTypes_ |= ArgType_Double;  break;
       case MoveOp::FLOAT32: passedArgTypes_ |= ArgType_Float32; break;
-      default: MOZ_CRASH("Invalid return type");
+      default: MOZ_ASSUME_UNREACHABLE("Invalid return type");
     }
 #ifdef DEBUG
     AssertValidABIFunctionType(passedArgTypes_);
@@ -4465,9 +4460,15 @@ MacroAssemblerARMCompat::round(FloatRegister input, Register output, Label *bail
     // Do a compare based on the original value, then do most other things based
     // on the shifted value.
     ma_vcmpz(input);
+    // Adding 0.5 is technically incorrect!
+    // We want to add 0.5 to negative numbers, and 0.49999999999999999 to
+    // positive numbers.
+    ma_vimm(0.5, ScratchDoubleReg);
     // Since we already know the sign bit, flip all numbers to be positive,
     // stored in tmp.
     ma_vabs(input, tmp);
+    // Add 0.5, storing the result into tmp.
+    ma_vadd(ScratchDoubleReg, tmp, tmp);
     as_vmrs(pc);
     ma_b(&handleZero, Assembler::Equal);
     ma_b(&handleNeg, Assembler::Signed);
@@ -4478,13 +4479,6 @@ MacroAssemblerARMCompat::round(FloatRegister input, Register output, Label *bail
     // it is known to be > 0.0, explicitly convert to a larger range, then a
     // value that rounds to INT_MAX is explicitly different from an argument
     // that clamps to INT_MAX.
-
-    // Add the biggest number less than 0.5 (not 0.5, because adding that to
-    // the biggest number less than 0.5 would undesirably round up to 1), and
-    // store the result into tmp.
-    ma_vimm(GetBiggestNumberLessThan(0.5), ScratchDoubleReg);
-    ma_vadd(ScratchDoubleReg, tmp, tmp);
-
     ma_vcvt_F64_U32(tmp, ScratchDoubleReg.uintOverlay());
     ma_vxfer(VFPRegister(ScratchDoubleReg).uintOverlay(), output);
     ma_mov(output, output, SetCond);
@@ -4502,11 +4496,6 @@ MacroAssemblerARMCompat::round(FloatRegister input, Register output, Label *bail
     bind(&handleNeg);
     // Negative case, negate, then start dancing. This number may be positive,
     // since we added 0.5.
-
-    // Add 0.5 to negative numbers, store the result into tmp
-    ma_vimm(0.5, ScratchDoubleReg);
-    ma_vadd(ScratchDoubleReg, tmp, tmp);
-
     ma_vcvt_F64_U32(tmp, ScratchDoubleReg.uintOverlay());
     ma_vxfer(VFPRegister(ScratchDoubleReg).uintOverlay(), output);
 
@@ -4538,9 +4527,15 @@ MacroAssemblerARMCompat::roundf(FloatRegister input, Register output, Label *bai
     // Do a compare based on the original value, then do most other things based
     // on the shifted value.
     ma_vcmpz_f32(input);
+    // Adding 0.5 is technically incorrect!
+    // We want to add 0.5 to negative numbers, and 0.49999999999999999 to
+    // positive numbers.
+    ma_vimm_f32(0.5f, ScratchFloat32Reg);
     // Since we already know the sign bit, flip all numbers to be positive,
     // stored in tmp.
     ma_vabs_f32(input, tmp);
+    // Add 0.5, storing the result into tmp.
+    ma_vadd_f32(ScratchFloat32Reg, tmp, tmp);
     as_vmrs(pc);
     ma_b(&handleZero, Assembler::Equal);
     ma_b(&handleNeg, Assembler::Signed);
@@ -4551,13 +4546,6 @@ MacroAssemblerARMCompat::roundf(FloatRegister input, Register output, Label *bai
     // it is known to be > 0.0, explicitly convert to a larger range, then a
     // value that rounds to INT_MAX is explicitly different from an argument
     // that clamps to INT_MAX.
-
-    // Add the biggest number less than 0.5f (not 0.5f, because adding that to
-    // the biggest number less than 0.5f would undesirably round up to 1), and
-    // store the result into tmp.
-    ma_vimm_f32(GetBiggestNumberLessThan(0.5f), ScratchFloat32Reg);
-    ma_vadd_f32(ScratchFloat32Reg, tmp, tmp);
-
     ma_vcvt_F32_U32(tmp, ScratchFloat32Reg.uintOverlay());
     ma_vxfer(VFPRegister(ScratchFloat32Reg).uintOverlay(), output);
     ma_mov(output, output, SetCond);
@@ -4573,11 +4561,6 @@ MacroAssemblerARMCompat::roundf(FloatRegister input, Register output, Label *bai
     ma_b(&fin);
 
     bind(&handleNeg);
-
-    // Add 0.5 to negative numbers, storing the result into tmp.
-    ma_vimm_f32(0.5f, ScratchFloat32Reg);
-    ma_vadd_f32(ScratchFloat32Reg, tmp, tmp);
-
     // Negative case, negate, then start dancing. This number may be positive,
     // since we added 0.5.
     ma_vcvt_F32_U32(tmp, ScratchFloat32Reg.uintOverlay());

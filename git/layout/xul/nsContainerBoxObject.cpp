@@ -65,7 +65,8 @@ NS_IMETHODIMP nsContainerBoxObject::GetDocShell(nsIDocShell** aResult)
   // No nsSubDocumentFrame available for mContent, try if there's a mapping
   // between mContent's document to mContent's subdocument.
 
-  nsIDocument *doc = mContent->GetComposedDoc();
+  // XXXbz sXBL/XBL2 issue -- ownerDocument or currentDocument?
+  nsIDocument *doc = mContent->GetDocument();
 
   if (!doc) {
     return NS_OK;

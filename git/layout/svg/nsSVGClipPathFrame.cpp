@@ -28,9 +28,9 @@ NS_NewSVGClipPathFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 NS_IMPL_FRAMEARENA_HELPERS(nsSVGClipPathFrame)
 
 nsresult
-nsSVGClipPathFrame::ApplyClipOrPaintClipMask(nsRenderingContext* aContext,
-                                             nsIFrame* aClippedFrame,
-                                             const gfxMatrix& aMatrix)
+nsSVGClipPathFrame::ClipPaint(nsRenderingContext* aContext,
+                              nsIFrame* aParent,
+                              const gfxMatrix &aMatrix)
 {
   // If the flag is set when we get here, it means this clipPath frame
   // has already been used painting the current clip, and the document
@@ -41,7 +41,12 @@ nsSVGClipPathFrame::ApplyClipOrPaintClipMask(nsRenderingContext* aContext,
   }
   AutoClipPathReferencer clipRef(this);
 
-  mMatrixForChildren = GetClipPathTransform(aClippedFrame) * aMatrix;
+  mClipParent = aParent;
+  if (mClipParentMatrix) {
+    *mClipParentMatrix = aMatrix;
+  } else {
+    mClipParentMatrix = new gfxMatrix(aMatrix);
+  }
 
   gfxContext *gfx = aContext->ThebesContext();
 
@@ -56,20 +61,9 @@ nsSVGClipPathFrame::ApplyClipOrPaintClipMask(nsRenderingContext* aContext,
       // We have no children - the spec says clip away everything:
       gfx->Rectangle(gfxRect());
     } else {
-      nsIFrame* child = do_QueryFrame(singleClipPathChild);
-      nsIContent* childContent = child->GetContent();
-      if (childContent->IsSVG()) {
-        singleClipPathChild->NotifySVGChanged(
-                               nsISVGChildFrame::TRANSFORM_CHANGED);
-        gfxMatrix toChildsUserSpace =
-          static_cast<const nsSVGElement*>(childContent)->
-            PrependLocalTransformsTo(mMatrixForChildren,
-                                     nsSVGElement::eUserSpaceToParent);
-        singleClipPathChild->PaintSVG(aContext, toChildsUserSpace);
-      } else {
-        // else, again, clip everything away
-        gfx->Rectangle(gfxRect());
-      }
+      singleClipPathChild->NotifySVGChanged(
+                             nsISVGChildFrame::TRANSFORM_CHANGED);
+      singleClipPathChild->PaintSVG(aContext, nullptr);
     }
     gfx->Clip();
     gfx->NewPath();
@@ -89,7 +83,7 @@ nsSVGClipPathFrame::ApplyClipOrPaintClipMask(nsRenderingContext* aContext,
     referencedClipIsTrivial = clipPathFrame->IsTrivial();
     gfx->Save();
     if (referencedClipIsTrivial) {
-      clipPathFrame->ApplyClipOrPaintClipMask(aContext, aClippedFrame, aMatrix);
+      clipPathFrame->ClipPaint(aContext, aParent, aMatrix);
     } else {
       gfx->PushGroup(gfxContentType::ALPHA);
     }
@@ -115,22 +109,13 @@ nsSVGClipPathFrame::ApplyClipOrPaintClipMask(nsRenderingContext* aContext,
         isTrivial = clipPathFrame->IsTrivial();
         gfx->Save();
         if (isTrivial) {
-          clipPathFrame->ApplyClipOrPaintClipMask(aContext, aClippedFrame, aMatrix);
+          clipPathFrame->ClipPaint(aContext, aParent, aMatrix);
         } else {
           gfx->PushGroup(gfxContentType::ALPHA);
         }
       }
 
-      gfxMatrix toChildsUserSpace = mMatrixForChildren;
-      nsIFrame* child = do_QueryFrame(SVGFrame);
-      nsIContent* childContent = child->GetContent();
-      if (childContent->IsSVG()) {
-        toChildsUserSpace =
-          static_cast<const nsSVGElement*>(childContent)->
-            PrependLocalTransformsTo(mMatrixForChildren,
-                                     nsSVGElement::eUserSpaceToParent);
-      }
-      SVGFrame->PaintSVG(aContext, toChildsUserSpace);
+      SVGFrame->PaintSVG(aContext, nullptr);
 
       if (clipPathFrame) {
         if (!isTrivial) {
@@ -139,7 +124,7 @@ nsSVGClipPathFrame::ApplyClipOrPaintClipMask(nsRenderingContext* aContext,
           nsRefPtr<gfxPattern> clipMaskSurface;
           gfx->PushGroup(gfxContentType::ALPHA);
 
-          clipPathFrame->ApplyClipOrPaintClipMask(aContext, aClippedFrame, aMatrix);
+          clipPathFrame->ClipPaint(aContext, aParent, aMatrix);
           clipMaskSurface = gfx->PopGroup();
 
           if (clipMaskSurface) {
@@ -158,7 +143,7 @@ nsSVGClipPathFrame::ApplyClipOrPaintClipMask(nsRenderingContext* aContext,
       nsRefPtr<gfxPattern> clipMaskSurface;
       gfx->PushGroup(gfxContentType::ALPHA);
 
-      clipPathFrame->ApplyClipOrPaintClipMask(aContext, aClippedFrame, aMatrix);
+      clipPathFrame->ClipPaint(aContext, aParent, aMatrix);
       clipMaskSurface = gfx->PopGroup();
 
       if (clipMaskSurface) {
@@ -338,9 +323,17 @@ nsSVGClipPathFrame::GetType() const
 }
 
 gfxMatrix
-nsSVGClipPathFrame::GetCanvasTM()
+nsSVGClipPathFrame::GetCanvasTM(uint32_t aFor, nsIFrame* aTransformRoot)
 {
-  return mMatrixForChildren;
+  SVGClipPathElement *content = static_cast<SVGClipPathElement*>(mContent);
+
+  gfxMatrix tm =
+    content->PrependLocalTransformsTo(mClipParentMatrix ?
+                                      *mClipParentMatrix : gfxMatrix());
+
+  return nsSVGUtils::AdjustMatrixForUnits(tm,
+                                          &content->mEnumAttributes[SVGClipPathElement::CLIPPATHUNITS],
+                                          mClipParent);
 }
 
 gfxMatrix

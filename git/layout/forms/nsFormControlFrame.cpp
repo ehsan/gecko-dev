@@ -4,14 +4,12 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsFormControlFrame.h"
-
 #include "nsGkAtoms.h"
 #include "nsLayoutUtils.h"
 #include "nsIDOMHTMLInputElement.h"
 #include "mozilla/EventStateManager.h"
 #include "mozilla/LookAndFeel.h"
 #include "nsDeviceContext.h"
-#include "nsIContent.h"
 
 using namespace mozilla;
 

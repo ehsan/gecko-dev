@@ -17,7 +17,7 @@ namespace CSF
     private:
         cc_callserver_ref_t callserverinfo_ref;
 
-        explicit CC_SIPCCCallServerInfo (cc_callserver_ref_t aCallServerInfo);
+        CC_SIPCCCallServerInfo (cc_callserver_ref_t aCallServerInfo);
 
         CSF_DECLARE_WRAP(CC_SIPCCCallServerInfo, cc_callserver_ref_t);
 

@@ -16,7 +16,7 @@ class XMLHttpRequestUpload MOZ_FINAL : public nsXHREventTarget
 {
   nsRefPtr<XMLHttpRequest> mXHR;
 
-  explicit XMLHttpRequestUpload(XMLHttpRequest* aXHR);
+  XMLHttpRequestUpload(XMLHttpRequest* aXHR);
 
   ~XMLHttpRequestUpload();
 

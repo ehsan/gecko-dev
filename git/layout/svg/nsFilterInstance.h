@@ -47,7 +47,6 @@ class nsFilterInstance
   typedef mozilla::gfx::SourceSurface SourceSurface;
   typedef mozilla::gfx::DrawTarget DrawTarget;
   typedef mozilla::gfx::FilterPrimitiveDescription FilterPrimitiveDescription;
-  typedef mozilla::gfx::FilterDescription FilterDescription;
 
 public:
   /**
@@ -56,11 +55,11 @@ public:
    *   frame space (i.e. relative to its origin, the top-left corner of its
    *   border box).
    */
-  static nsresult PaintFilteredFrame(nsIFrame *aFilteredFrame,
-                                     nsRenderingContext *aContext,
-                                     const gfxMatrix& aTransform,
+  static nsresult PaintFilteredFrame(nsRenderingContext *aContext,
+                                     nsIFrame *aFilteredFrame,
                                      nsSVGFilterPaintCallback *aPaintCallback,
-                                     const nsRegion* aDirtyArea);
+                                     const nsRegion* aDirtyArea,
+                                     nsIFrame* aTransformRoot = nullptr);
 
   /**
    * Returns the post-filter area that could be dirtied when the given
@@ -96,8 +95,6 @@ public:
    * @param aTargetFrame The frame of the filtered element under consideration.
    * @param aPaintCallback [optional] The callback that Render() should use to
    *   paint. Only required if you will call Render().
-   * @param aPaintTransform The transform to apply to convert to
-   *   aTargetFrame's SVG user space. Only used when painting.
    * @param aPostFilterDirtyRegion [optional] The post-filter area
    *   that has to be repainted, in app units. Only required if you will
    *   call ComputeSourceNeededRect() or Render().
@@ -108,14 +105,15 @@ public:
    *   visual overflow rect for the target element.
    * @param aOverrideBBox [optional] Use a different SVG bbox for the target
    *   element.
+   * @param aTransformRoot [optional] The transform root frame for painting.
    */
   nsFilterInstance(nsIFrame *aTargetFrame,
                    nsSVGFilterPaintCallback *aPaintCallback,
-                   const gfxMatrix& aPaintTransform,
                    const nsRegion *aPostFilterDirtyRegion = nullptr,
                    const nsRegion *aPreFilterDirtyRegion = nullptr,
                    const nsRect *aOverridePreFilterVisualOverflowRect = nullptr,
-                   const gfxRect *aOverrideBBox = nullptr);
+                   const gfxRect *aOverrideBBox = nullptr,
+                   nsIFrame* aTransformRoot = nullptr);
 
   /**
    * Returns true if the filter instance was created successfully.
@@ -137,7 +135,7 @@ public:
    * been specified before calling this method by passing it as the
    * aPreFilterDirtyRegion argument to the nsFilterInstance constructor.
    */
-  nsRegion ComputePostFilterDirtyRegion();
+  nsresult ComputePostFilterDirtyRegion(nsRegion* aPostFilterDirtyRegion);
 
   /**
    * Sets the aPostFilterExtents outparam to the post-filter bounds in frame
@@ -146,7 +144,7 @@ public:
    * area is dirtied, because some filter primitives can generate output
    * without any input.
    */
-  nsRect ComputePostFilterExtents();
+  nsresult ComputePostFilterExtents(nsRect* aPostFilterExtents);
 
   /**
    * Sets the aDirty outparam to the pre-filter bounds in frame space of the
@@ -155,7 +153,7 @@ public:
    * specified before calling this method by passing it as the aPostFilterDirtyRegion
    * argument to the nsFilterInstance constructor.
    */
-  nsRect ComputeSourceNeededRect();
+  nsresult ComputeSourceNeededRect(nsRect* aDirty);
 
 
   /**
@@ -265,66 +263,61 @@ private:
   /**
    * The frame for the element that is currently being filtered.
    */
-  nsIFrame* mTargetFrame;
+  nsIFrame*               mTargetFrame;
 
   nsSVGFilterPaintCallback* mPaintCallback;
 
   /**
    * The SVG bbox of the element that is being filtered, in user space.
    */
-  gfxRect mTargetBBox;
+  gfxRect                 mTargetBBox;
 
   /**
    * The SVG bbox of the element that is being filtered, in filter space.
    */
-  nsIntRect mTargetBBoxInFilterSpace;
+  nsIntRect               mTargetBBoxInFilterSpace;
 
   /**
    * The transform from filter space to outer-<svg> device space.
    */
-  gfxMatrix mFilterSpaceToDeviceSpaceTransform;
+  gfxMatrix               mFilterSpaceToDeviceSpaceTransform;
 
   /**
    * Transform rects between filter space and frame space in CSS pixels.
    */
-  gfxMatrix mFilterSpaceToFrameSpaceInCSSPxTransform;
-  gfxMatrix mFrameSpaceInCSSPxToFilterSpaceTransform;
+  gfxMatrix               mFilterSpaceToFrameSpaceInCSSPxTransform;
+  gfxMatrix               mFrameSpaceInCSSPxToFilterSpaceTransform;
 
   /**
    * The scale factors between user space and filter space.
    */
-  gfxSize mUserSpaceToFilterSpaceScale;
-  gfxSize mFilterSpaceToUserSpaceScale;
+  gfxSize                 mUserSpaceToFilterSpaceScale;
+  gfxSize                 mFilterSpaceToUserSpaceScale;
 
   /**
    * Pre-filter paint bounds of the element that is being filtered, in filter
    * space.
    */
-  nsIntRect mTargetBounds;
+  nsIntRect               mTargetBounds;
 
   /**
    * The dirty area that needs to be repainted, in filter space.
    */
-  nsIntRegion mPostFilterDirtyRegion;
+  nsIntRegion             mPostFilterDirtyRegion;
 
   /**
    * The pre-filter area of the filtered element that changed, in filter space.
    */
-  nsIntRegion mPreFilterDirtyRegion;
+  nsIntRegion             mPreFilterDirtyRegion;
 
-  SourceInfo mSourceGraphic;
-  SourceInfo mFillPaint;
-  SourceInfo mStrokePaint;
-
-  /**
-   * The transform to the SVG user space of mTargetFrame.
-   */
-  gfxMatrix               mPaintTransform;
-
+  SourceInfo              mSourceGraphic;
+  SourceInfo              mFillPaint;
+  SourceInfo              mStrokePaint;
+  nsIFrame*               mTransformRoot;
   nsTArray<mozilla::RefPtr<SourceSurface>> mInputImages;
   nsTArray<FilterPrimitiveDescription> mPrimitiveDescriptions;
-  FilterDescription mFilterDescription;
-  bool mInitialized;
+  int32_t                 mAppUnitsPerCSSPx;
+  bool                    mInitialized;
 };
 
 #endif

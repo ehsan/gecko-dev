@@ -419,14 +419,14 @@ static bool isInEmulator()
 
 bool OmxDecoder::AllocateMediaResources()
 {
-  if ((mVideoTrack != nullptr) && (mVideoSource == nullptr)) {
-    // OMXClient::connect() always returns OK and abort's fatally if
-    // it can't connect.
-    OMXClient client;
-    DebugOnly<status_t> err = client.connect();
-    NS_ASSERTION(err == OK, "Failed to connect to OMX in mediaserver.");
-    sp<IOMX> omx = client.interface();
+  // OMXClient::connect() always returns OK and abort's fatally if
+  // it can't connect.
+  OMXClient client;
+  DebugOnly<status_t> err = client.connect();
+  NS_ASSERTION(err == OK, "Failed to connect to OMX in mediaserver.");
+  sp<IOMX> omx = client.interface();
 
+  if ((mVideoTrack != nullptr) && (mVideoSource == nullptr)) {
     mNativeWindow = new GonkNativeWindow();
 #if defined(MOZ_WIDGET_GONK) && ANDROID_VERSION >= 17
     mNativeWindowClient = new GonkNativeWindowClient(mNativeWindow->getBufferQueue());
@@ -468,13 +468,6 @@ bool OmxDecoder::AllocateMediaResources()
   }
 
   if ((mAudioTrack != nullptr) && (mAudioSource == nullptr)) {
-    // OMXClient::connect() always returns OK and abort's fatally if
-    // it can't connect.
-    OMXClient client;
-    DebugOnly<status_t> err = client.connect();
-    NS_ASSERTION(err == OK, "Failed to connect to OMX in mediaserver.");
-    sp<IOMX> omx = client.interface();
-
     const char *audioMime = nullptr;
     sp<MetaData> meta = mAudioTrack->getFormat();
     if (!meta->findCString(kKeyMIMEType, &audioMime)) {
@@ -775,8 +768,6 @@ bool OmxDecoder::ReadVideo(VideoFrame *aFrame, int64_t aTimeUs,
     int32_t unreadable;
     int32_t keyFrame;
 
-    size_t length = mVideoBuffer->range_length();
-
     if (!mVideoBuffer->meta_data()->findInt64(kKeyTime, &timeUs) ) {
       NS_WARNING("OMX decoder did not return frame time");
       return false;
@@ -819,8 +810,9 @@ bool OmxDecoder::ReadVideo(VideoFrame *aFrame, int64_t aTimeUs,
       // Release to hold video buffer in OmxDecoder more.
       // MediaBuffer's ref count is changed from 2 to 1.
       ReleaseVideoBuffer();
-    } else if (length > 0) {
+    } else if (mVideoBuffer->range_length() > 0) {
       char *data = static_cast<char *>(mVideoBuffer->data()) + mVideoBuffer->range_offset();
+      size_t length = mVideoBuffer->range_length();
 
       if (unreadable) {
         LOG(PR_LOG_DEBUG, "video frame is unreadable");
@@ -830,8 +822,8 @@ bool OmxDecoder::ReadVideo(VideoFrame *aFrame, int64_t aTimeUs,
         return false;
       }
     }
-    // Check if this frame is valid or not. If not, skip it.
-    if ((aKeyframeSkip && timeUs < aTimeUs) || length == 0) {
+
+    if (aKeyframeSkip && timeUs < aTimeUs) {
       aFrame->mShouldSkip = true;
     }
   }

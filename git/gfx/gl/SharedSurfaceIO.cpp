@@ -13,19 +13,14 @@
 namespace mozilla {
 namespace gl {
 
-/*static*/ UniquePtr<SharedSurface_IOSurface>
-SharedSurface_IOSurface::Create(const RefPtr<MacIOSurface>& ioSurf,
-                                GLContext* gl,
-                                bool hasAlpha)
+/* static */ SharedSurface_IOSurface*
+SharedSurface_IOSurface::Create(MacIOSurface* surface, GLContext* gl, bool hasAlpha)
 {
-    MOZ_ASSERT(ioSurf);
+    MOZ_ASSERT(surface);
     MOZ_ASSERT(gl);
 
-    gfx::IntSize size(ioSurf->GetWidth(), ioSurf->GetHeight());
-
-    typedef SharedSurface_IOSurface ptrT;
-    UniquePtr<ptrT> ret( new ptrT(ioSurf, gl, size, hasAlpha) );
-    return Move(ret);
+    gfx::IntSize size(surface->GetWidth(), surface->GetHeight());
+    return new SharedSurface_IOSurface(surface, gl, size, hasAlpha);
 }
 
 void
@@ -92,7 +87,7 @@ BackTextureWithIOSurf(GLContext* gl, GLuint tex, MacIOSurface* ioSurf)
     ioSurf->CGLTexImageIOSurface2D(cgl);
 }
 
-SharedSurface_IOSurface::SharedSurface_IOSurface(const RefPtr<MacIOSurface>& ioSurf,
+SharedSurface_IOSurface::SharedSurface_IOSurface(MacIOSurface* surface,
                                                  GLContext* gl,
                                                  const gfx::IntSize& size,
                                                  bool hasAlpha)
@@ -101,14 +96,14 @@ SharedSurface_IOSurface::SharedSurface_IOSurface(const RefPtr<MacIOSurface>& ioS
                   gl,
                   size,
                   hasAlpha)
-  , mIOSurf(ioSurf)
+  , mSurface(surface)
   , mCurConsGL(nullptr)
   , mConsTex(0)
 {
     gl->MakeCurrent();
     mProdTex = 0;
     gl->fGenTextures(1, &mProdTex);
-    BackTextureWithIOSurf(gl, mProdTex, mIOSurf);
+    BackTextureWithIOSurf(gl, mProdTex, surface);
 }
 
 GLuint
@@ -123,7 +118,7 @@ SharedSurface_IOSurface::ConsTexture(GLContext* consGL)
         consGL->MakeCurrent();
         mConsTex = 0;
         consGL->fGenTextures(1, &mConsTex);
-        BackTextureWithIOSurf(consGL, mConsTex, mIOSurf);
+        BackTextureWithIOSurf(consGL, mConsTex, mSurface);
     }
 
     return mConsTex;
@@ -139,22 +134,17 @@ SharedSurface_IOSurface::~SharedSurface_IOSurface()
     }
 }
 
-////////////////////////////////////////////////////////////////////////
-// SurfaceFactory_IOSurface
 
-/*static*/ UniquePtr<SurfaceFactory_IOSurface>
+/*static*/ SurfaceFactory_IOSurface*
 SurfaceFactory_IOSurface::Create(GLContext* gl,
                                  const SurfaceCaps& caps)
 {
     gfx::IntSize maxDims(MacIOSurface::GetMaxWidth(),
                          MacIOSurface::GetMaxHeight());
-
-    typedef SurfaceFactory_IOSurface ptrT;
-    UniquePtr<ptrT> ret( new ptrT(gl, caps, maxDims) );
-    return Move(ret);
+    return new SurfaceFactory_IOSurface(gl, caps, maxDims);
 }
 
-UniquePtr<SharedSurface>
+SharedSurface*
 SurfaceFactory_IOSurface::CreateShared(const gfx::IntSize& size)
 {
     if (size.width > mMaxDims.width ||
@@ -164,16 +154,15 @@ SurfaceFactory_IOSurface::CreateShared(const gfx::IntSize& size)
     }
 
     bool hasAlpha = mReadCaps.alpha;
-    RefPtr<MacIOSurface> ioSurf;
-    ioSurf = MacIOSurface::CreateIOSurface(size.width, size.height, 1.0,
-                                           hasAlpha);
+    RefPtr<MacIOSurface> surf =
+        MacIOSurface::CreateIOSurface(size.width, size.height, 1.0, hasAlpha);
 
-    if (!ioSurf) {
+    if (!surf) {
         NS_WARNING("Failed to create MacIOSurface.");
         return nullptr;
     }
 
-    return SharedSurface_IOSurface::Create(ioSurf, mGL, hasAlpha);
+    return SharedSurface_IOSurface::Create(surf, mGL, hasAlpha);
 }
 
 }

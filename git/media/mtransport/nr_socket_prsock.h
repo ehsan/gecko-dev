@@ -58,7 +58,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "nsXPCOM.h"
 #include "nsIEventTarget.h"
 #include "nsIUDPSocketChild.h"
-#include "nsProxyRelease.h"
 
 #include "databuffer.h"
 #include "m_cpp_utils.h"
@@ -203,7 +202,7 @@ public:
   NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIUDPSOCKETINTERNAL
 
-  explicit NrSocketIpc(const nsCOMPtr<nsIEventTarget> &main_thread);
+  NrSocketIpc(const nsCOMPtr<nsIEventTarget> &main_thread);
 
   // Implementations of the NrSocketBase APIs
   virtual int create(nr_transport_addr *addr);
@@ -234,7 +233,7 @@ private:
   NrSocketIpcState state_;
   std::queue<RefPtr<nr_udp_message> > received_msgs_;
 
-  nsMainThreadPtrHandle<nsIUDPSocketChild> socket_child_;
+  nsCOMPtr<nsIUDPSocketChild> socket_child_;
   nsCOMPtr<nsIEventTarget> sts_thread_;
   const nsCOMPtr<nsIEventTarget> main_thread_;
   ReentrantMonitor monitor_;

@@ -69,6 +69,7 @@ public:
   ogg_packet* PopFront() { return static_cast<ogg_packet*>(nsDeque::PopFront()); }
   ogg_packet* PeekFront() { return static_cast<ogg_packet*>(nsDeque::PeekFront()); }
   void PushFront(ogg_packet* aPacket) { nsDeque::PushFront(aPacket); }
+  void PushBack(ogg_packet* aPacket) { nsDeque::PushFront(aPacket); }
   void Erase() { nsDeque::Erase(); }
 };
 
@@ -213,7 +214,7 @@ protected:
 
 class VorbisState : public OggCodecState {
 public:
-  explicit VorbisState(ogg_page* aBosPage);
+  VorbisState(ogg_page* aBosPage);
   virtual ~VorbisState();
 
   CodecType GetType() { return TYPE_VORBIS; }
@@ -286,7 +287,7 @@ int TheoraVersion(th_info* info,
 
 class TheoraState : public OggCodecState {
 public:
-  explicit TheoraState(ogg_page* aBosPage);
+  TheoraState(ogg_page* aBosPage);
   virtual ~TheoraState();
 
   CodecType GetType() { return TYPE_THEORA; }
@@ -325,7 +326,7 @@ private:
 class OpusState : public OggCodecState {
 #ifdef MOZ_OPUS
 public:
-  explicit OpusState(ogg_page* aBosPage);
+  OpusState(ogg_page* aBosPage);
   virtual ~OpusState();
 
   CodecType GetType() { return TYPE_OPUS; }
@@ -382,35 +383,10 @@ private:
 // version numbers.
 #define SKELETON_VERSION(major, minor) (((major)<<16)|(minor))
 
-enum EMsgHeaderType {
-  eContentType,
-  eRole,
-  eName,
-  eLanguage,
-  eTitle,
-  eDisplayHint,
-  eAltitude,
-  eTrackOrder,
-  eTrackDependencies
-};
-
-typedef struct {
-  const char* mPatternToRecognize;
-  EMsgHeaderType mMsgHeaderType;
-} FieldPatternType;
-
-// Stores the message information for different logical bitstream.
-typedef struct {
-  nsClassHashtable<nsUint32HashKey, nsCString> mValuesStore;
-} MessageField;
-
 class SkeletonState : public OggCodecState {
 public:
-  explicit SkeletonState(ogg_page* aBosPage);
+  SkeletonState(ogg_page* aBosPage);
   ~SkeletonState();
-
-  nsClassHashtable<nsUint32HashKey, MessageField> mMsgFieldStore;
-
   CodecType GetType() { return TYPE_SKELETON; }
   bool DecodeHeader(ogg_packet* aPacket);
   int64_t Time(int64_t granulepos) { return -1; }
@@ -479,8 +455,6 @@ private:
 
   // Decodes an index packet. Returns false on failure.
   bool DecodeIndex(ogg_packet* aPacket);
-  // Decodes an fisbone packet. Returns false on failure.
-  bool DecodeFisbone(ogg_packet* aPacket);
 
   // Gets the keypoint you must seek to in order to get the keyframe required
   // to render the stream at time aTarget on stream with serial aSerialno.

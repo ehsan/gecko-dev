@@ -312,8 +312,7 @@ class ChildImpl MOZ_FINAL : public BackgroundChildImpl
   class ShutdownObserver;
   class CreateActorRunnable;
   class ParentCreateCallback;
-  class AlreadyCreatedCallbackRunnable;
-  class FailedCreateCallbackRunnable;
+  class CreateCallbackRunnable;
   class OpenChildProcessActorRunnable;
   class OpenMainProcessActorRunnable;
 
@@ -327,7 +326,7 @@ class ChildImpl MOZ_FINAL : public BackgroundChildImpl
 
   struct ThreadLocalInfo
   {
-    explicit ThreadLocalInfo(nsIIPCBackgroundChildCreateCallback* aCallback)
+    ThreadLocalInfo(nsIIPCBackgroundChildCreateCallback* aCallback)
     {
       mCallbacks.AppendElement(aCallback);
     }
@@ -464,9 +463,6 @@ private:
   // Only called by IPDL.
   virtual void
   ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE;
-
-  static already_AddRefed<nsIIPCBackgroundChildCreateCallback>
-  GetNextCallback();
 };
 
 // -----------------------------------------------------------------------------
@@ -498,7 +494,7 @@ class ParentImpl::RequestMessageLoopRunnable MOZ_FINAL :
   MessageLoop* mMessageLoop;
 
 public:
-  explicit RequestMessageLoopRunnable(nsIThread* aTargetThread)
+  RequestMessageLoopRunnable(nsIThread* aTargetThread)
   : mTargetThread(aTargetThread), mMessageLoop(nullptr)
   {
     AssertIsInMainProcess();
@@ -538,7 +534,7 @@ class ParentImpl::ForceCloseBackgroundActorsRunnable MOZ_FINAL : public nsRunnab
   nsTArray<ParentImpl*>* mActorArray;
 
 public:
-  explicit ForceCloseBackgroundActorsRunnable(nsTArray<ParentImpl*>* aActorArray)
+  ForceCloseBackgroundActorsRunnable(nsTArray<ParentImpl*>* aActorArray)
   : mActorArray(aActorArray)
   {
     AssertIsInMainProcess();
@@ -560,7 +556,7 @@ class ParentImpl::CreateCallbackRunnable MOZ_FINAL : public nsRunnable
   nsRefPtr<CreateCallback> mCallback;
 
 public:
-  explicit CreateCallbackRunnable(CreateCallback* aCallback)
+  CreateCallbackRunnable(CreateCallback* aCallback)
   : mCallback(aCallback)
   {
     AssertIsInMainProcess();
@@ -674,7 +670,7 @@ class ChildImpl::ParentCreateCallback MOZ_FINAL :
   nsCOMPtr<nsIEventTarget> mEventTarget;
 
 public:
-  explicit ParentCreateCallback(nsIEventTarget* aEventTarget)
+  ParentCreateCallback(nsIEventTarget* aEventTarget)
   : mEventTarget(aEventTarget)
   {
     AssertIsInMainProcess();
@@ -694,46 +690,39 @@ private:
   Failure() MOZ_OVERRIDE;
 };
 
-// Must be cancelable in order to dispatch on active worker threads
-class ChildImpl::AlreadyCreatedCallbackRunnable MOZ_FINAL :
-  public nsCancelableRunnable
+class ChildImpl::CreateCallbackRunnable : public nsRunnable
 {
-public:
-  AlreadyCreatedCallbackRunnable()
-  {
-    // May be created on any thread!
-  }
-
-  NS_DECL_ISUPPORTS_INHERITED
-
 protected:
-  virtual ~AlreadyCreatedCallbackRunnable()
-  { }
-
-  NS_DECL_NSIRUNNABLE
-  NS_DECL_NSICANCELABLERUNNABLE
-};
-
-class ChildImpl::FailedCreateCallbackRunnable MOZ_FINAL : public nsRunnable
-{
-public:
-  FailedCreateCallbackRunnable()
-  {
-    // May be created on any thread!
-  }
-
-  NS_DECL_ISUPPORTS_INHERITED
-
-protected:
-  virtual ~FailedCreateCallbackRunnable()
-  { }
-
-  NS_DECL_NSIRUNNABLE
-};
-
-class ChildImpl::OpenChildProcessActorRunnable MOZ_FINAL : public nsRunnable
-{
   nsRefPtr<ChildImpl> mActor;
+
+public:
+  CreateCallbackRunnable(already_AddRefed<ChildImpl>&& aActor)
+  : mActor(aActor)
+  {
+    // May be created on any thread!
+
+    MOZ_ASSERT(mActor);
+  }
+
+  CreateCallbackRunnable()
+  {
+    // May be created on any thread!
+  }
+
+  NS_DECL_ISUPPORTS_INHERITED
+
+protected:
+  virtual ~CreateCallbackRunnable();
+
+  static already_AddRefed<nsIIPCBackgroundChildCreateCallback>
+  GetNextCallback();
+
+  NS_DECL_NSIRUNNABLE
+};
+
+class ChildImpl::OpenChildProcessActorRunnable MOZ_FINAL :
+  public ChildImpl::CreateCallbackRunnable
+{
   nsAutoPtr<Transport> mTransport;
   ProcessHandle mProcessHandle;
 
@@ -741,11 +730,10 @@ public:
   OpenChildProcessActorRunnable(already_AddRefed<ChildImpl>&& aActor,
                                 Transport* aTransport,
                                 ProcessHandle aProcessHandle)
-  : mActor(aActor), mTransport(aTransport),
+  : CreateCallbackRunnable(Move(aActor)), mTransport(aTransport),
     mProcessHandle(aProcessHandle)
   {
     AssertIsOnMainThread();
-    MOZ_ASSERT(mActor);
     MOZ_ASSERT(aTransport);
   }
 
@@ -763,9 +751,9 @@ private:
   NS_DECL_NSIRUNNABLE
 };
 
-class ChildImpl::OpenMainProcessActorRunnable MOZ_FINAL : public nsRunnable
+class ChildImpl::OpenMainProcessActorRunnable MOZ_FINAL :
+  public ChildImpl::CreateCallbackRunnable
 {
-  nsRefPtr<ChildImpl> mActor;
   nsRefPtr<ParentImpl> mParentActor;
   MessageLoop* mParentMessageLoop;
 
@@ -773,7 +761,7 @@ public:
   OpenMainProcessActorRunnable(already_AddRefed<ChildImpl>&& aChildActor,
                                already_AddRefed<ParentImpl> aParentActor,
                                MessageLoop* aParentMessageLoop)
-  : mActor(aChildActor), mParentActor(aParentActor),
+  : CreateCallbackRunnable(Move(aChildActor)), mParentActor(aParentActor),
     mParentMessageLoop(aParentMessageLoop)
   {
     AssertIsOnMainThread();
@@ -1660,9 +1648,9 @@ ChildImpl::GetOrCreateForCurrentThread(
   }
 
   if (threadLocalInfo->mActor) {
-    // Runnable will use GetForCurrentThread() to retrieve actor again.  This
-    // allows us to avoid addref'ing on the wrong thread.
-    nsCOMPtr<nsIRunnable> runnable = new AlreadyCreatedCallbackRunnable();
+    nsRefPtr<ChildImpl> actor = threadLocalInfo->mActor;
+
+    nsCOMPtr<nsIRunnable> runnable = new CreateCallbackRunnable(actor.forget());
     MOZ_ALWAYS_TRUE(NS_SUCCEEDED(NS_DispatchToCurrentThread(runnable)));
 
     return true;
@@ -1671,7 +1659,7 @@ ChildImpl::GetOrCreateForCurrentThread(
   if (!created) {
     // We have already started the sequence for opening the actor so there's
     // nothing else we need to do here. This callback will be called after the
-    // first callback in the schedule runnable.
+    // first callback in CreateCallbackRunnable::Run().
     return true;
   }
 
@@ -1741,9 +1729,17 @@ ChildImpl::GetThreadLocalForCurrentThread()
   return threadLocalInfo->mConsumerThreadLocal;
 }
 
+ChildImpl::CreateCallbackRunnable::~CreateCallbackRunnable()
+{
+  if (mActor) {
+    CRASH_IN_CHILD_PROCESS("Leaking actor!");
+    unused << mActor.forget();
+  }
+}
+
 // static
 already_AddRefed<nsIIPCBackgroundChildCreateCallback>
-ChildImpl::GetNextCallback()
+ChildImpl::CreateCallbackRunnable::GetNextCallback()
 {
   // May run on any thread!
 
@@ -1763,64 +1759,32 @@ ChildImpl::GetNextCallback()
   return callback.forget();
 }
 
-NS_IMPL_ISUPPORTS_INHERITED0(ChildImpl::AlreadyCreatedCallbackRunnable,
-                             nsCancelableRunnable)
+NS_IMPL_ISUPPORTS_INHERITED0(ChildImpl::CreateCallbackRunnable, nsRunnable)
 
 NS_IMETHODIMP
-ChildImpl::AlreadyCreatedCallbackRunnable::Run()
+ChildImpl::CreateCallbackRunnable::Run()
 {
   // May run on any thread!
 
-  // Report the current actor back in the callback.
-  PBackgroundChild* actor = ChildImpl::GetForCurrentThread();
+  nsRefPtr<ChildImpl> actor;
+  mActor.swap(actor);
 
-  // If the current actor is null, do not create a new actor here.  This likely
-  // means we are in the process of cleaning up a worker thread and do not want
-  // a new actor created.  Unfortunately we cannot report back to the callback
-  // because the thread local is gone at this point.  Instead simply do nothing
-  // and return.
-  if (NS_WARN_IF(!actor)) {
-    return NS_OK;
-  }
-
-  nsCOMPtr<nsIIPCBackgroundChildCreateCallback> callback =
-    ChildImpl::GetNextCallback();
+  nsCOMPtr<nsIIPCBackgroundChildCreateCallback> callback = GetNextCallback();
   while (callback) {
-    callback->ActorCreated(actor);
-    callback = ChildImpl::GetNextCallback();
-  }
+    if (actor) {
+      callback->ActorCreated(actor);
+    } else {
+      callback->ActorFailed();
+    }
 
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-ChildImpl::AlreadyCreatedCallbackRunnable::Cancel()
-{
-  // These are IPC infrastructure objects and need to run unconditionally.
-  Run();
-  return NS_OK;
-}
-
-NS_IMPL_ISUPPORTS_INHERITED0(ChildImpl::FailedCreateCallbackRunnable,
-                             nsRunnable);
-
-NS_IMETHODIMP
-ChildImpl::FailedCreateCallbackRunnable::Run()
-{
-  // May run on any thread!
-
-  nsCOMPtr<nsIIPCBackgroundChildCreateCallback> callback =
-    ChildImpl::GetNextCallback();
-  while (callback) {
-    callback->ActorFailed();
-    callback = ChildImpl::GetNextCallback();
+    callback = GetNextCallback();
   }
 
   return NS_OK;
 }
 
 NS_IMPL_ISUPPORTS_INHERITED0(ChildImpl::OpenChildProcessActorRunnable,
-                             nsRunnable);
+                             ChildImpl::CreateCallbackRunnable)
 
 NS_IMETHODIMP
 ChildImpl::OpenChildProcessActorRunnable::Run()
@@ -1831,8 +1795,7 @@ ChildImpl::OpenChildProcessActorRunnable::Run()
   MOZ_ASSERT(mActor);
   MOZ_ASSERT(mTransport);
 
-  nsCOMPtr<nsIIPCBackgroundChildCreateCallback> callback =
-    ChildImpl::GetNextCallback();
+  nsCOMPtr<nsIIPCBackgroundChildCreateCallback> callback = GetNextCallback();
   MOZ_ASSERT(callback,
              "There should be at least one callback when first creating the "
              "actor!");
@@ -1846,7 +1809,7 @@ ChildImpl::OpenChildProcessActorRunnable::Run()
 
     while (callback) {
       callback->ActorFailed();
-      callback = ChildImpl::GetNextCallback();
+      callback = GetNextCallback();
     }
 
     return NS_OK;
@@ -1866,14 +1829,14 @@ ChildImpl::OpenChildProcessActorRunnable::Run()
 
   while (callback) {
     callback->ActorCreated(actor);
-    callback = ChildImpl::GetNextCallback();
+    callback = GetNextCallback();
   }
 
   return NS_OK;
 }
 
 NS_IMPL_ISUPPORTS_INHERITED0(ChildImpl::OpenMainProcessActorRunnable,
-                             nsRunnable);
+                             ChildImpl::CreateCallbackRunnable)
 
 NS_IMETHODIMP
 ChildImpl::OpenMainProcessActorRunnable::Run()
@@ -1885,8 +1848,7 @@ ChildImpl::OpenMainProcessActorRunnable::Run()
   MOZ_ASSERT(mParentActor);
   MOZ_ASSERT(mParentMessageLoop);
 
-  nsCOMPtr<nsIIPCBackgroundChildCreateCallback> callback =
-    ChildImpl::GetNextCallback();
+  nsCOMPtr<nsIIPCBackgroundChildCreateCallback> callback = GetNextCallback();
   MOZ_ASSERT(callback,
              "There should be at least one callback when first creating the "
              "actor!");
@@ -1907,7 +1869,7 @@ ChildImpl::OpenMainProcessActorRunnable::Run()
 
     while (callback) {
       callback->ActorFailed();
-      callback = ChildImpl::GetNextCallback();
+      callback = GetNextCallback();
     }
 
     return NS_OK;
@@ -1929,7 +1891,7 @@ ChildImpl::OpenMainProcessActorRunnable::Run()
 
   while (callback) {
     callback->ActorCreated(childActor);
-    callback = ChildImpl::GetNextCallback();
+    callback = GetNextCallback();
   }
 
   return NS_OK;
@@ -2038,7 +2000,7 @@ ChildImpl::DispatchFailureCallback(nsIEventTarget* aEventTarget)
 {
   MOZ_ASSERT(aEventTarget);
 
-  nsCOMPtr<nsIRunnable> callbackRunnable = new FailedCreateCallbackRunnable();
+  nsCOMPtr<nsIRunnable> callbackRunnable = new CreateCallbackRunnable();
   if (NS_FAILED(aEventTarget->Dispatch(callbackRunnable, NS_DISPATCH_NORMAL))) {
     NS_WARNING("Failed to dispatch CreateCallbackRunnable!");
   }

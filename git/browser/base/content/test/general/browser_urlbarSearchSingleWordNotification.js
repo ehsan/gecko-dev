@@ -15,10 +15,8 @@ function promiseNotificationForTab(aBrowser, value, expected, tab=aBrowser.selec
   let deferred = Promise.defer();
   let notificationBox = aBrowser.getNotificationBox(tab.linkedBrowser);
   if (expected) {
-    info("Waiting for " + value + " notification");
     let checkForNotification = function() {
       if (notificationBox.getNotificationWithValue(value)) {
-        info("Saw the notification");
         notificationObserver.disconnect();
         notificationObserver = null;
         deferred.resolve();
@@ -50,13 +48,12 @@ function* runURLBarSearchTest(valueToOpen, expectSearch, expectNotification, aWi
     expectedURI = Services.search.defaultEngine.getSubmission(valueToOpen, null, "keyword").uri.spec;
   }
   aWindow.gURLBar.focus();
-  let docLoadPromise = waitForDocLoadAndStopIt(expectedURI, aWindow.gBrowser.selectedBrowser);
+  let docLoadPromise = waitForDocLoadAndStopIt(expectedURI, aWindow.gBrowser);
   EventUtils.synthesizeKey("VK_RETURN", {}, aWindow);
 
-  yield Promise.all([
-    docLoadPromise,
-    promiseNotificationForTab(aWindow.gBrowser, "keyword-uri-fixup", expectNotification)
-  ]);
+  yield docLoadPromise;
+
+  yield promiseNotificationForTab(aWindow.gBrowser, "keyword-uri-fixup", expectNotification);
 }
 
 add_task(function* test_navigate_full_domain() {
@@ -65,24 +62,10 @@ add_task(function* test_navigate_full_domain() {
   gBrowser.removeTab(tab);
 });
 
-add_task(function* test_navigate_numbers() {
-  let tab = gBrowser.selectedTab = gBrowser.addTab();
-  yield* runURLBarSearchTest("1234", true, false);
-  gBrowser.removeTab(tab);
-});
-
 function get_test_function_for_localhost_with_hostname(hostName, isPrivate) {
   return function* test_navigate_single_host() {
     const pref = "browser.fixup.domainwhitelist.localhost";
-    let win;
-    if (isPrivate) {
-      win = yield promiseOpenAndLoadWindow({private: true}, true);
-      let deferredOpenFocus = Promise.defer();
-      waitForFocus(deferredOpenFocus.resolve, win);
-      yield deferredOpenFocus.promise;
-    } else {
-      win = window;
-    }
+    let win = isPrivate ? yield promiseOpenAndLoadWindow({private: true}, true) : window;
     let browser = win.gBrowser;
     let tab = browser.selectedTab = browser.addTab();
 
@@ -91,7 +74,7 @@ function get_test_function_for_localhost_with_hostname(hostName, isPrivate) {
 
     let notificationBox = browser.getNotificationBox(tab.linkedBrowser);
     let notification = notificationBox.getNotificationWithValue("keyword-uri-fixup");
-    let docLoadPromise = waitForDocLoadAndStopIt("http://" + hostName + "/", tab.linkedBrowser);
+    let docLoadPromise = waitForDocLoadAndStopIt("http://" + hostName + "/", browser);
     notification.querySelector(".notification-button-default").click();
 
     // check pref value
@@ -107,10 +90,8 @@ function get_test_function_for_localhost_with_hostname(hostName, isPrivate) {
     yield* runURLBarSearchTest(hostName, isPrivate, isPrivate, win);
     browser.removeTab(tab);
     if (isPrivate) {
-      info("Waiting for private window to close");
       yield promiseWindowClosed(win);
       let deferredFocus = Promise.defer();
-      info("Waiting for focus");
       waitForFocus(deferredFocus.resolve, window);
       yield deferredFocus.promise;
     }

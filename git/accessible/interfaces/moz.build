@@ -18,7 +18,6 @@ XPIDL_SOURCES += [
     'nsIAccessibleHyperLink.idl',
     'nsIAccessibleHyperText.idl',
     'nsIAccessibleImage.idl',
-    'nsIAccessibleObjectAttributeChangedEvent.idl',
     'nsIAccessiblePivot.idl',
     'nsIAccessibleRelation.idl',
     'nsIAccessibleRetrieval.idl',

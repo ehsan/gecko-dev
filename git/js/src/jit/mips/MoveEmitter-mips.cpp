@@ -10,7 +10,7 @@ using namespace js;
 using namespace js::jit;
 
 MoveEmitterMIPS::MoveEmitterMIPS(MacroAssemblerMIPSCompat &masm)
-  : inCycle_(0),
+  : inCycle_(false),
     masm(masm),
     pushedAtCycle_(-1),
     pushedAtSpill_(-1),
@@ -23,9 +23,9 @@ MoveEmitterMIPS::MoveEmitterMIPS(MacroAssemblerMIPSCompat &masm)
 void
 MoveEmitterMIPS::emit(const MoveResolver &moves)
 {
-    if (moves.numCycles()) {
+    if (moves.hasCycles()) {
         // Reserve stack for cycle resolution
-        masm.reserveStack(moves.numCycles() * sizeof(double));
+        masm.reserveStack(sizeof(double));
         pushedAtCycle_ = masm.framePushed();
     }
 
@@ -39,11 +39,11 @@ MoveEmitterMIPS::~MoveEmitterMIPS()
 }
 
 Address
-MoveEmitterMIPS::cycleSlot(uint32_t slot, uint32_t subslot) const
+MoveEmitterMIPS::cycleSlot() const
 {
-    int32_t offset = masm.framePushed() - pushedAtCycle_;
+    int offset = masm.framePushed() - pushedAtCycle_;
     MOZ_ASSERT(Imm16::IsInSignedRange(offset));
-    return Address(StackPointer, offset + slot * sizeof(double) + subslot);
+    return Address(StackPointer, offset);
 }
 
 int32_t
@@ -72,8 +72,7 @@ MoveEmitterMIPS::tempReg()
 }
 
 void
-MoveEmitterMIPS::breakCycle(const MoveOperand &from, const MoveOperand &to,
-                            MoveOp::Type type, uint32_t slotId)
+MoveEmitterMIPS::breakCycle(const MoveOperand &from, const MoveOperand &to, MoveOp::Type type)
 {
     // There is some pattern:
     //   (A -> B)
@@ -84,23 +83,20 @@ MoveEmitterMIPS::breakCycle(const MoveOperand &from, const MoveOperand &to,
     switch (type) {
       case MoveOp::FLOAT32:
         if (to.isMemory()) {
-            FloatRegister temp = ScratchFloat32Reg;
+            FloatRegister temp = ScratchFloatReg;
             masm.loadFloat32(getAdjustedAddress(to), temp);
-            // Since it is uncertain if the load will be aligned or not
-            // just fill both of them with the same value.
-            masm.storeFloat32(temp, cycleSlot(slotId, 0));
-            masm.storeFloat32(temp, cycleSlot(slotId, 4));
+            masm.storeFloat32(temp, cycleSlot());
         } else {
-            masm.storeFloat32(to.floatReg(), cycleSlot(slotId, 0));
+            masm.storeFloat32(to.floatReg(), cycleSlot());
         }
         break;
       case MoveOp::DOUBLE:
         if (to.isMemory()) {
-            FloatRegister temp = ScratchDoubleReg;
+            FloatRegister temp = ScratchFloatReg;
             masm.loadDouble(getAdjustedAddress(to), temp);
-            masm.storeDouble(temp, cycleSlot(slotId, 0));
+            masm.storeDouble(temp, cycleSlot());
         } else {
-            masm.storeDouble(to.floatReg(), cycleSlot(slotId, 0));
+            masm.storeDouble(to.floatReg(), cycleSlot());
         }
         break;
       case MoveOp::INT32:
@@ -109,21 +105,20 @@ MoveEmitterMIPS::breakCycle(const MoveOperand &from, const MoveOperand &to,
         if (to.isMemory()) {
             Register temp = tempReg();
             masm.loadPtr(getAdjustedAddress(to), temp);
-            masm.storePtr(temp, cycleSlot(0, 0));
+            masm.storePtr(temp, cycleSlot());
         } else {
             // Second scratch register should not be moved by MoveEmitter.
             MOZ_ASSERT(to.reg() != spilledReg_);
-            masm.storePtr(to.reg(), cycleSlot(0, 0));
+            masm.storePtr(to.reg(), cycleSlot());
         }
         break;
       default:
-        MOZ_CRASH("Unexpected move type");
+        MOZ_ASSUME_UNREACHABLE("Unexpected move type");
     }
 }
 
 void
-MoveEmitterMIPS::completeCycle(const MoveOperand &from, const MoveOperand &to,
-                               MoveOp::Type type, uint32_t slotId)
+MoveEmitterMIPS::completeCycle(const MoveOperand &from, const MoveOperand &to, MoveOp::Type type)
 {
     // There is some pattern:
     //   (A -> B)
@@ -134,41 +129,37 @@ MoveEmitterMIPS::completeCycle(const MoveOperand &from, const MoveOperand &to,
     switch (type) {
       case MoveOp::FLOAT32:
         if (to.isMemory()) {
-            FloatRegister temp = ScratchFloat32Reg;
-            masm.loadFloat32(cycleSlot(slotId, 0), temp);
+            FloatRegister temp = ScratchFloatReg;
+            masm.loadFloat32(cycleSlot(), temp);
             masm.storeFloat32(temp, getAdjustedAddress(to));
         } else {
-            uint32_t offset = 0;
-            if (from.floatReg().numAlignedAliased() == 1)
-                offset = sizeof(float);
-            masm.loadFloat32(cycleSlot(slotId, offset), to.floatReg());
+            masm.loadFloat32(cycleSlot(), to.floatReg());
         }
         break;
       case MoveOp::DOUBLE:
         if (to.isMemory()) {
-            FloatRegister temp = ScratchDoubleReg;
-            masm.loadDouble(cycleSlot(slotId, 0), temp);
+            FloatRegister temp = ScratchFloatReg;
+            masm.loadDouble(cycleSlot(), temp);
             masm.storeDouble(temp, getAdjustedAddress(to));
         } else {
-            masm.loadDouble(cycleSlot(slotId, 0), to.floatReg());
+            masm.loadDouble(cycleSlot(), to.floatReg());
         }
         break;
       case MoveOp::INT32:
         MOZ_ASSERT(sizeof(uintptr_t) == sizeof(int32_t));
       case MoveOp::GENERAL:
-        MOZ_ASSERT(slotId == 0);
         if (to.isMemory()) {
             Register temp = tempReg();
-            masm.loadPtr(cycleSlot(0, 0), temp);
+            masm.loadPtr(cycleSlot(), temp);
             masm.storePtr(temp, getAdjustedAddress(to));
         } else {
             // Second scratch register should not be moved by MoveEmitter.
             MOZ_ASSERT(to.reg() != spilledReg_);
-            masm.loadPtr(cycleSlot(0, 0), to.reg());
+            masm.loadPtr(cycleSlot(), to.reg());
         }
         break;
       default:
-        MOZ_CRASH("Unexpected move type");
+        MOZ_ASSUME_UNREACHABLE("Unexpected move type");
     }
 }
 
@@ -184,7 +175,7 @@ MoveEmitterMIPS::emitMove(const MoveOperand &from, const MoveOperand &to)
         else if (to.isMemory())
             masm.storePtr(from.reg(), getAdjustedAddress(to));
         else
-            MOZ_CRASH("Invalid emitMove arguments.");
+            MOZ_ASSUME_UNREACHABLE("Invalid emitMove arguments.");
     } else if (from.isMemory()) {
         if (to.isGeneralReg()) {
             masm.loadPtr(getAdjustedAddress(from), to.reg());
@@ -192,7 +183,7 @@ MoveEmitterMIPS::emitMove(const MoveOperand &from, const MoveOperand &to)
             masm.loadPtr(getAdjustedAddress(from), tempReg());
             masm.storePtr(tempReg(), getAdjustedAddress(to));
         } else {
-            MOZ_CRASH("Invalid emitMove arguments.");
+            MOZ_ASSUME_UNREACHABLE("Invalid emitMove arguments.");
         }
     } else if (from.isEffectiveAddress()) {
         if (to.isGeneralReg()) {
@@ -201,19 +192,19 @@ MoveEmitterMIPS::emitMove(const MoveOperand &from, const MoveOperand &to)
             masm.computeEffectiveAddress(getAdjustedAddress(from), tempReg());
             masm.storePtr(tempReg(), getAdjustedAddress(to));
         } else {
-            MOZ_CRASH("Invalid emitMove arguments.");
+            MOZ_ASSUME_UNREACHABLE("Invalid emitMove arguments.");
         }
     } else {
-        MOZ_CRASH("Invalid emitMove arguments.");
+        MOZ_ASSUME_UNREACHABLE("Invalid emitMove arguments.");
     }
 }
 
 void
 MoveEmitterMIPS::emitFloat32Move(const MoveOperand &from, const MoveOperand &to)
 {
-    // Ensure that we can use ScratchFloat32Reg in memory move.
-    MOZ_ASSERT_IF(from.isFloatReg(), from.floatReg() != ScratchFloat32Reg);
-    MOZ_ASSERT_IF(to.isFloatReg(), to.floatReg() != ScratchFloat32Reg);
+    // Ensure that we can use ScratchFloatReg in memory move.
+    MOZ_ASSERT_IF(from.isFloatReg(), from.floatReg() != ScratchFloatReg);
+    MOZ_ASSERT_IF(to.isFloatReg(), to.floatReg() != ScratchFloatReg);
 
     if (from.isFloatReg()) {
         if (to.isFloatReg()) {
@@ -237,17 +228,17 @@ MoveEmitterMIPS::emitFloat32Move(const MoveOperand &from, const MoveOperand &to)
     } else {
         MOZ_ASSERT(from.isMemory());
         MOZ_ASSERT(to.isMemory());
-        masm.loadFloat32(getAdjustedAddress(from), ScratchFloat32Reg);
-        masm.storeFloat32(ScratchFloat32Reg, getAdjustedAddress(to));
+        masm.loadFloat32(getAdjustedAddress(from), ScratchFloatReg);
+        masm.storeFloat32(ScratchFloatReg, getAdjustedAddress(to));
     }
 }
 
 void
 MoveEmitterMIPS::emitDoubleMove(const MoveOperand &from, const MoveOperand &to)
 {
-    // Ensure that we can use ScratchDoubleReg in memory move.
-    MOZ_ASSERT_IF(from.isFloatReg(), from.floatReg() != ScratchDoubleReg);
-    MOZ_ASSERT_IF(to.isFloatReg(), to.floatReg() != ScratchDoubleReg);
+    // Ensure that we can use ScratchFloatReg in memory move.
+    MOZ_ASSERT_IF(from.isFloatReg(), from.floatReg() != ScratchFloatReg);
+    MOZ_ASSERT_IF(to.isFloatReg(), to.floatReg() != ScratchFloatReg);
 
     if (from.isFloatReg()) {
         if (to.isFloatReg()) {
@@ -261,7 +252,7 @@ MoveEmitterMIPS::emitDoubleMove(const MoveOperand &from, const MoveOperand &to)
             else if(to.reg() == a3)
                 masm.moveFromDoubleHi(from.floatReg(), a3);
             else
-                MOZ_CRASH("Invalid emitDoubleMove arguments.");
+                MOZ_ASSUME_UNREACHABLE("Invalid emitDoubleMove arguments.");
         } else {
             MOZ_ASSERT(to.isMemory());
             masm.storeDouble(from.floatReg(), getAdjustedAddress(to));
@@ -279,12 +270,12 @@ MoveEmitterMIPS::emitDoubleMove(const MoveOperand &from, const MoveOperand &to)
         else if(to.reg() == a3)
             masm.loadPtr(Address(from.base(), getAdjustedOffset(from) + sizeof(uint32_t)), a3);
         else
-            MOZ_CRASH("Invalid emitDoubleMove arguments.");
+            MOZ_ASSUME_UNREACHABLE("Invalid emitDoubleMove arguments.");
     } else {
         MOZ_ASSERT(from.isMemory());
         MOZ_ASSERT(to.isMemory());
-        masm.loadDouble(getAdjustedAddress(from), ScratchDoubleReg);
-        masm.storeDouble(ScratchDoubleReg, getAdjustedAddress(to));
+        masm.loadDouble(getAdjustedAddress(from), ScratchFloatReg);
+        masm.storeDouble(ScratchFloatReg, getAdjustedAddress(to));
     }
 }
 
@@ -294,25 +285,17 @@ MoveEmitterMIPS::emit(const MoveOp &move)
     const MoveOperand &from = move.from();
     const MoveOperand &to = move.to();
 
-    if (move.isCycleEnd() && move.isCycleBegin()) {
-        // A fun consequence of aliased registers is you can have multiple
-        // cycles at once, and one can end exactly where another begins.
-        breakCycle(from, to, move.endCycleType(), move.cycleBeginSlot());
-        completeCycle(from, to, move.type(), move.cycleEndSlot());
-        return;
-    }
-
     if (move.isCycleEnd()) {
         MOZ_ASSERT(inCycle_);
-        completeCycle(from, to, move.type(), move.cycleEndSlot());
-        MOZ_ASSERT(inCycle_ > 0);
-        inCycle_--;
+        completeCycle(from, to, move.type());
+        inCycle_ = false;
         return;
     }
 
     if (move.isCycleBegin()) {
-        breakCycle(from, to, move.endCycleType(), move.cycleBeginSlot());
-        inCycle_++;
+        MOZ_ASSERT(!inCycle_);
+        breakCycle(from, to, move.endCycleType());
+        inCycle_ = true;
     }
 
     switch (move.type()) {
@@ -328,14 +311,14 @@ MoveEmitterMIPS::emit(const MoveOp &move)
         emitMove(from, to);
         break;
       default:
-        MOZ_CRASH("Unexpected move type");
+        MOZ_ASSUME_UNREACHABLE("Unexpected move type");
     }
 }
 
 void
 MoveEmitterMIPS::assertDone()
 {
-    MOZ_ASSERT(inCycle_ == 0);
+    MOZ_ASSERT(!inCycle_);
 }
 
 void

@@ -63,6 +63,21 @@ nsJSUtils::GetStaticScriptContext(JSObject* aObj)
   return nativeGlobal->GetScriptContext();
 }
 
+nsIScriptGlobalObject *
+nsJSUtils::GetDynamicScriptGlobal(JSContext* aContext)
+{
+  nsIScriptContext *scriptCX = GetDynamicScriptContext(aContext);
+  if (!scriptCX)
+    return nullptr;
+  return scriptCX->GetGlobalObject();
+}
+
+nsIScriptContext *
+nsJSUtils::GetDynamicScriptContext(JSContext *aContext)
+{
+  return GetScriptContextFromJSContext(aContext);
+}
+
 uint64_t
 nsJSUtils::GetCurrentlyRunningCodeInnerWindowID(JSContext *aContext)
 {
@@ -103,12 +118,13 @@ nsJSUtils::ReportPendingException(JSContext *aContext)
       // otherwise default global) of aContext, so use that here.
       nsIScriptContext* scx = GetScriptContextFromJSContext(aContext);
       JS::Rooted<JSObject*> scope(aContext);
-      scope = scx ? scx->GetWindowProxy() : nullptr;
+      scope = scx ? scx->GetWindowProxy()
+                  : js::DefaultObjectForContextOrNull(aContext);
       if (!scope) {
         // The SafeJSContext has no default object associated with it.
         MOZ_ASSERT(NS_IsMainThread());
         MOZ_ASSERT(aContext == nsContentUtils::GetSafeJSContext());
-        scope = xpc::UnprivilegedJunkScope(); // Usage approved by bholley
+        scope = xpc::GetSafeJSContextGlobal();
       }
       JSAutoCompartment ac(aContext, scope);
       JS_ReportPendingException(aContext);
@@ -211,7 +227,7 @@ nsJSUtils::EvaluateString(JSContext* aCx,
   if (!aEvaluateOptions.reportUncaught) {
     // We need to prevent AutoLastFrameCheck from reporting and clearing
     // any pending exceptions.
-    dontReport.emplace(aCx);
+    dontReport.construct(aCx);
   }
 
   // Scope the JSAutoCompartment so that we can later wrap the return value
@@ -318,5 +334,8 @@ JSObject* GetDefaultScopeFromJSContext(JSContext *cx)
   // the cx, so in those cases we need to fetch it via the scx
   // instead.
   nsIScriptContext *scx = GetScriptContextFromJSContext(cx);
-  return  scx ? scx->GetWindowProxy() : nullptr;
+  if (scx) {
+    return scx->GetWindowProxy();
+  }
+  return js::DefaultObjectForContextOrNull(cx);
 }

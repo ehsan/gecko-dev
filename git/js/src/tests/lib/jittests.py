@@ -137,7 +137,7 @@ class Test:
                         except ValueError:
                             print("warning: couldn't parse thread-count %s" % value)
                     else:
-                        print('%s: warning: unrecognized |jit-test| attribute %s' % (path, part))
+                        print('warning: unrecognized |jit-test| attribute %s' % part)
                 else:
                     if name == 'slow':
                         test.slow = True
@@ -151,6 +151,8 @@ class Test:
                         test.valgrind = options.valgrind
                     elif name == 'tz-pacific':
                         test.tz_pacific = True
+                    elif name == 'debug':
+                        test.jitflags.append('--debugjit')
                     elif name == 'ion-eager':
                         test.jitflags.append('--ion-eager')
                     elif name == 'no-ion':
@@ -158,7 +160,7 @@ class Test:
                     elif name == 'dump-bytecode':
                         test.jitflags.append('--dump-bytecode')
                     else:
-                        print('%s: warning: unrecognized |jit-test| attribute %s' % (path, part))
+                        print('warning: unrecognized |jit-test| attribute %s' % part)
 
         if options.valgrind_all:
             test.valgrind = True
@@ -672,7 +674,7 @@ def get_remote_results(tests, device, prefix, options):
 def push_libs(options, device):
     # This saves considerable time in pushing unnecessary libraries
     # to the device but needs to be updated if the dependencies change.
-    required_libs = ['libnss3.so', 'libmozglue.so', 'libnspr4.so', 'libplc4.so', 'libplds4.so']
+    required_libs = ['libnss3.so', 'libmozglue.so']
 
     for file in os.listdir(options.local_lib):
         if file in required_libs:

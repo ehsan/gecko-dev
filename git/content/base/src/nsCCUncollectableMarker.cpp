@@ -484,4 +484,7 @@ mozilla::dom::TraceBlackJS(JSTracer* aTrc, uint32_t aGCNumber, bool aIsShutdownG
   if (windowsById) {
     windowsById->Enumerate(TraceActiveWindowGlobal, &closure);
   }
+
+  // Mark the safe context black
+  nsContentUtils::TraceSafeJSContext(aTrc);
 }

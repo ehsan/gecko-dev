@@ -790,9 +790,9 @@ nsLineLayout::ReflowFrame(nsIFrame* aFrame,
     // For now, set the available block-size to unconstrained always.
     LogicalSize availSize = mBlockReflowState->ComputedSize(frameWM);
     availSize.BSize(frameWM) = NS_UNCONSTRAINEDSIZE;
-    reflowStateHolder.emplace(mPresContext, *psd->mReflowState,
-                              aFrame, availSize);
-    nsHTMLReflowState& reflowState = *reflowStateHolder;
+    reflowStateHolder.construct(mPresContext, *psd->mReflowState,
+                                aFrame, availSize);
+    nsHTMLReflowState& reflowState = reflowStateHolder.ref();
     reflowState.mLineLayout = this;
     reflowState.mFlags.mIsTopOfPage = mIsTopOfPage;
     if (reflowState.ComputedWidth() == NS_UNCONSTRAINEDSIZE)
@@ -852,7 +852,8 @@ nsLineLayout::ReflowFrame(nsIFrame* aFrame,
                                  &savedOptionalBreakPriority);
 
   if (!isText) {
-    aFrame->Reflow(mPresContext, metrics, *reflowStateHolder, aReflowStatus);
+    aFrame->Reflow(mPresContext, metrics, reflowStateHolder.ref(),
+                   aReflowStatus);
   } else {
     static_cast<nsTextFrame*>(aFrame)->
       ReflowText(*this, availableSpaceOnLine, psd->mReflowState->rendContext,
@@ -973,7 +974,7 @@ nsLineLayout::ReflowFrame(nsIFrame* aFrame,
 
   // Tell the frame that we're done reflowing it
   aFrame->DidReflow(mPresContext,
-                    isText ? nullptr : reflowStateHolder.ptr(),
+                    isText ? nullptr : reflowStateHolder.addr(),
                     nsDidReflowStatus::FINISHED);
 
   if (aMetrics) {
@@ -1009,7 +1010,7 @@ nsLineLayout::ReflowFrame(nsIFrame* aFrame,
     // return now.
     bool optionalBreakAfterFits;
     NS_ASSERTION(isText ||
-                 !reflowStateHolder->IsFloating(),
+                 !reflowStateHolder.ref().IsFloating(),
                  "How'd we get a floated inline frame? "
                  "The frame ctor should've dealt with this.");
     if (CanPlaceFrame(pfd, notSafeToBreak, continuingTextRun,
@@ -2733,22 +2734,4 @@ nsLineLayout::RelativePositionFrames(PerSpanData* psd, nsOverflowAreas& aOverflo
     frame->FinishAndStoreOverflow(overflowAreas, frame->GetSize());
   }
   aOverflowAreas = overflowAreas;
-}
-
-void
-nsLineLayout::AdvanceICoord(nscoord aAmount)
-{
-  mCurrentSpan->mICoord += aAmount;
-}
-
-WritingMode
-nsLineLayout::GetWritingMode()
-{
-  return mRootSpan->mWritingMode;
-}
-
-nscoord
-nsLineLayout::GetCurrentICoord()
-{
-  return mCurrentSpan->mICoord;
 }

@@ -13,7 +13,7 @@
 
 class gfxHarfBuzzShaper : public gfxFontShaper {
 public:
-    explicit gfxHarfBuzzShaper(gfxFont *aFont);
+    gfxHarfBuzzShaper(gfxFont *aFont);
     virtual ~gfxHarfBuzzShaper();
 
     /*

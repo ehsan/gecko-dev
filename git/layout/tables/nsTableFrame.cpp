@@ -1545,38 +1545,24 @@ nsTableFrame::IntrinsicISizeOffsets(nsRenderingContext* aRenderingContext)
   return result;
 }
 
-/* virtual */
-LogicalSize
+/* virtual */ nsSize
 nsTableFrame::ComputeSize(nsRenderingContext *aRenderingContext,
-                          WritingMode aWM,
-                          const LogicalSize& aCBSize,
-                          nscoord aAvailableISize,
-                          const LogicalSize& aMargin,
-                          const LogicalSize& aBorder,
-                          const LogicalSize& aPadding,
+                          nsSize aCBSize, nscoord aAvailableWidth,
+                          nsSize aMargin, nsSize aBorder, nsSize aPadding,
                           uint32_t aFlags)
 {
-  LogicalSize result =
-    nsContainerFrame::ComputeSize(aRenderingContext, aWM,
-                                  aCBSize, aAvailableISize,
+  nsSize result =
+    nsContainerFrame::ComputeSize(aRenderingContext, aCBSize, aAvailableWidth,
                                   aMargin, aBorder, aPadding, aFlags);
-
-  // XXX The code below doesn't make sense if the caller's writing mode
-  // is orthogonal to this frame's. Not sure yet what should happen then;
-  // for now, just bail out.
-  if (aWM.IsVertical() != GetWritingMode().IsVertical()) {
-    return result;
-  }
 
   // If we're a container for font size inflation, then shrink
   // wrapping inside of us should not apply font size inflation.
   AutoMaybeDisableFontInflation an(this);
 
-  // Tables never shrink below their min inline-size.
-  nscoord minISize = GetMinISize(aRenderingContext);
-  if (minISize > result.ISize(aWM)) {
-    result.ISize(aWM) = minISize;
-  }
+  // Tables never shrink below their min width.
+  nscoord minWidth = GetMinISize(aRenderingContext);
+  if (minWidth > result.width)
+    result.width = minWidth;
 
   return result;
 }
@@ -1612,22 +1598,17 @@ nsTableFrame::TableShrinkWidthToFit(nsRenderingContext *aRenderingContext,
   return result;
 }
 
-/* virtual */
-LogicalSize
+/* virtual */ nsSize
 nsTableFrame::ComputeAutoSize(nsRenderingContext *aRenderingContext,
-                              WritingMode aWM,
-                              const LogicalSize& aCBSize,
-                              nscoord aAvailableISize,
-                              const LogicalSize& aMargin,
-                              const LogicalSize& aBorder,
-                              const LogicalSize& aPadding,
+                              nsSize aCBSize, nscoord aAvailableWidth,
+                              nsSize aMargin, nsSize aBorder, nsSize aPadding,
                               bool aShrinkWrap)
 {
   // Tables always shrink-wrap.
-  nscoord cbBased = aAvailableISize - aMargin.ISize(aWM) - aBorder.ISize(aWM) -
-                    aPadding.ISize(aWM);
-  return LogicalSize(aWM, TableShrinkWidthToFit(aRenderingContext, cbBased),
-                     NS_UNCONSTRAINEDSIZE);
+  nscoord cbBased = aAvailableWidth - aMargin.width - aBorder.width -
+                    aPadding.width;
+  return nsSize(TableShrinkWidthToFit(aRenderingContext, cbBased),
+                NS_UNCONSTRAINEDSIZE);
 }
 
 // Return true if aParentReflowState.frame or any of its ancestors within
@@ -4077,7 +4058,7 @@ class BCMapCellIterator;
  ****************************************************************/
 struct BCMapCellInfo
 {
-  explicit BCMapCellInfo(nsTableFrame* aTableFrame);
+  BCMapCellInfo(nsTableFrame* aTableFrame);
   void ResetCellInfo();
   void SetInfo(nsTableRowFrame*   aNewRow,
                int32_t            aColIndex,
@@ -4737,7 +4718,7 @@ GetColorAndStyle(const nsIFrame*  aFrame,
 
 class nsDelayedCalcBCBorders : public nsRunnable {
 public:
-  explicit nsDelayedCalcBCBorders(nsIFrame* aFrame) :
+  nsDelayedCalcBCBorders(nsIFrame* aFrame) :
     mFrame(aFrame) {}
 
   NS_IMETHOD Run() MOZ_OVERRIDE {
@@ -6236,7 +6217,7 @@ class BCPaintBorderIterator
 public:
 
 
-  explicit BCPaintBorderIterator(nsTableFrame* aTable);
+  BCPaintBorderIterator(nsTableFrame* aTable);
   ~BCPaintBorderIterator() { if (mVerInfo) {
                               delete [] mVerInfo;
                            }}

@@ -21,7 +21,7 @@ class nsFileControlFrame : public nsBlockFrame,
                            public nsIAnonymousContentCreator
 {
 public:
-  explicit nsFileControlFrame(nsStyleContext* aContext);
+  nsFileControlFrame(nsStyleContext* aContext);
 
   virtual void Init(nsIContent*       aContent,
                     nsContainerFrame* aParent,
@@ -74,7 +74,7 @@ protected:
   public:
     NS_DECL_ISUPPORTS
 
-    explicit MouseListener(nsFileControlFrame* aFrame)
+    MouseListener(nsFileControlFrame* aFrame)
      : mFrame(aFrame)
     {}
 
@@ -93,7 +93,7 @@ protected:
   class SyncDisabledStateEvent : public nsRunnable
   {
   public:
-    explicit SyncDisabledStateEvent(nsFileControlFrame* aFrame)
+    SyncDisabledStateEvent(nsFileControlFrame* aFrame)
       : mFrame(aFrame)
     {}
 
@@ -111,7 +111,7 @@ protected:
 
   class DnDListener: public MouseListener {
   public:
-    explicit DnDListener(nsFileControlFrame* aFrame)
+    DnDListener(nsFileControlFrame* aFrame)
       : MouseListener(aFrame)
     {}
 

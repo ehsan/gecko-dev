@@ -14,6 +14,7 @@
 #include "nsIURI.h"
 #include "nsIHttpChannel.h"
 #include "nsIDocument.h"
+#include "nsIContent.h"
 #include "nsIStreamListener.h"
 #include "nsWeakReference.h"
 #include "nsIChannelEventSink.h"
@@ -179,16 +180,16 @@ class nsXMLHttpRequestXPCOMifier;
 
 // Make sure that any non-DOM interfaces added here are also added to
 // nsXMLHttpRequestXPCOMifier.
-class nsXMLHttpRequest MOZ_FINAL : public nsXHREventTarget,
-                                   public nsIXMLHttpRequest,
-                                   public nsIJSXMLHttpRequest,
-                                   public nsIStreamListener,
-                                   public nsIChannelEventSink,
-                                   public nsIProgressEventSink,
-                                   public nsIInterfaceRequestor,
-                                   public nsSupportsWeakReference,
-                                   public nsITimerCallback,
-                                   public nsISizeOfEventTarget
+class nsXMLHttpRequest : public nsXHREventTarget,
+                         public nsIXMLHttpRequest,
+                         public nsIJSXMLHttpRequest,
+                         public nsIStreamListener,
+                         public nsIChannelEventSink,
+                         public nsIProgressEventSink,
+                         public nsIInterfaceRequestor,
+                         public nsSupportsWeakReference,
+                         public nsITimerCallback,
+                         public nsISizeOfEventTarget
 {
   friend class nsXHRParseEndListener;
   friend class nsXMLHttpRequestXPCOMifier;

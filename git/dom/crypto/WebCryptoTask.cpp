@@ -110,7 +110,7 @@ enum TelemetryAlgorithm {
 class ClearException
 {
 public:
-  explicit ClearException(JSContext* aCx)
+  ClearException(JSContext* aCx)
     : mCx(aCx)
   {}
 
@@ -379,8 +379,8 @@ WebCryptoTask::CallCallback(nsresult rv)
 class FailureTask : public WebCryptoTask
 {
 public:
-  explicit FailureTask(nsresult aRv) {
-    mEarlyRv = aRv;
+  FailureTask(nsresult rv) {
+    mEarlyRv = rv;
   }
 };
 
@@ -2964,6 +2964,7 @@ WebCryptoTask::CreateUnwrapKeyTask(JSContext* aCx,
   }
 
   return new FailureTask(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
+
 }
 
 } // namespace dom

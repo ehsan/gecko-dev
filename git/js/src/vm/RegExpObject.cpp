@@ -279,7 +279,7 @@ const Class RegExpObject::class_ = {
 };
 
 RegExpObject *
-RegExpObject::create(ExclusiveContext *cx, RegExpStatics *res, const char16_t *chars, size_t length,
+RegExpObject::create(ExclusiveContext *cx, RegExpStatics *res, const jschar *chars, size_t length,
                      RegExpFlag flags, TokenStream *tokenStream, LifoAlloc &alloc)
 {
     RegExpFlag staticsFlags = res->getFlags();
@@ -287,7 +287,7 @@ RegExpObject::create(ExclusiveContext *cx, RegExpStatics *res, const char16_t *c
 }
 
 RegExpObject *
-RegExpObject::createNoStatics(ExclusiveContext *cx, const char16_t *chars, size_t length, RegExpFlag flags,
+RegExpObject::createNoStatics(ExclusiveContext *cx, const jschar *chars, size_t length, RegExpFlag flags,
                               TokenStream *tokenStream, LifoAlloc &alloc)
 {
     RootedAtom source(cx, AtomizeChars(cx, chars, length));
@@ -304,11 +304,11 @@ RegExpObject::createNoStatics(ExclusiveContext *cx, HandleAtom source, RegExpFla
     Maybe<CompileOptions> dummyOptions;
     Maybe<TokenStream> dummyTokenStream;
     if (!tokenStream) {
-        dummyOptions.emplace(cx->asJSContext());
-        dummyTokenStream.emplace(cx, *dummyOptions,
-                                   (const char16_t *) nullptr, 0,
+        dummyOptions.construct(cx->asJSContext());
+        dummyTokenStream.construct(cx, dummyOptions.ref(),
+                                   (const jschar *) nullptr, 0,
                                    (frontend::StrictModeGetter *) nullptr);
-        tokenStream = dummyTokenStream.ptr();
+        tokenStream = dummyTokenStream.addr();
     }
 
     if (!irregexp::ParsePatternSyntax(*tokenStream, alloc, source))
@@ -603,7 +603,7 @@ RegExpShared::execute(JSContext *cx, HandleLinearString input, size_t *lastIndex
             const Latin1Char *chars = inputChars.latin1Range().start().get() + charsOffset;
             result = irregexp::InterpretCode(cx, byteCode, chars, start, length, &matches);
         } else {
-            const char16_t *chars = inputChars.twoByteRange().start().get() + charsOffset;
+            const jschar *chars = inputChars.twoByteRange().start().get() + charsOffset;
             result = irregexp::InterpretCode(cx, byteCode, chars, start, length, &matches);
         }
 
@@ -624,7 +624,7 @@ RegExpShared::execute(JSContext *cx, HandleLinearString input, size_t *lastIndex
                 const Latin1Char *chars = input->latin1Chars(nogc) + charsOffset;
                 result = irregexp::ExecuteCode(cx, jitCodeLatin1, chars, start, length, &matches);
             } else {
-                const char16_t *chars = input->twoByteChars(nogc) + charsOffset;
+                const jschar *chars = input->twoByteChars(nogc) + charsOffset;
                 result = irregexp::ExecuteCode(cx, jitCodeTwoByte, chars, start, length, &matches);
             }
         }
@@ -708,12 +708,6 @@ RegExpCompartment::createMatchResultTemplateObject(JSContext *cx)
     if (!templateObject)
         return matchResultTemplateObject_; // = nullptr
 
-    // Create a new type for the template.
-    Rooted<TaggedProto> proto(cx, templateObject->getTaggedProto());
-    types::TypeObject *type =
-        cx->compartment()->types.newTypeObject(cx, templateObject->getClass(), proto);
-    templateObject->setType(type);
-
     /* Set dummy index property */
     RootedValue index(cx, Int32Value(0));
     if (!baseops::DefineProperty(cx, templateObject, cx->names().index, index,
@@ -732,10 +726,6 @@ RegExpCompartment::createMatchResultTemplateObject(JSContext *cx)
               shape->previous()->propidRef() == NameToId(cx->names().index));
     JS_ASSERT(shape->slot() == 1 &&
               shape->propidRef() == NameToId(cx->names().input));
-
-    // Make sure type information reflects the indexed properties which might
-    // be added.
-    types::AddTypePropertyId(cx, templateObject, JSID_VOID, types::Type::StringType());
 
     matchResultTemplateObject_.set(templateObject);
 
@@ -864,7 +854,7 @@ HandleRegExpFlag(RegExpFlag flag, RegExpFlag *flags)
 
 template <typename CharT>
 static size_t
-ParseRegExpFlags(const CharT *chars, size_t length, RegExpFlag *flagsOut, char16_t *lastParsedOut)
+ParseRegExpFlags(const CharT *chars, size_t length, RegExpFlag *flagsOut, jschar *lastParsedOut)
 {
     *flagsOut = RegExpFlag(0);
 
@@ -905,7 +895,7 @@ js::ParseRegExpFlags(JSContext *cx, JSString *flagStr, RegExpFlag *flagsOut)
     size_t len = linear->length();
 
     bool ok;
-    char16_t lastParsed;
+    jschar lastParsed;
     if (linear->hasLatin1Chars()) {
         AutoCheckCannotGC nogc;
         ok = ::ParseRegExpFlags(linear->latin1Chars(nogc), len, flagsOut, &lastParsed);

@@ -74,6 +74,17 @@ let StyleSheetsActor = protocol.ActorClass({
     protocol.Actor.prototype.initialize.call(this, null);
 
     this.parentActor = tabActor;
+
+    // keep a map of sheets-to-actors so we don't create two actors for one sheet
+    this._sheets = new Map();
+  },
+
+  /**
+   * Destroy the current StyleSheetsActor instance.
+   */
+  destroy: function()
+  {
+    this._sheets.clear();
   },
 
   /**
@@ -145,7 +156,7 @@ let StyleSheetsActor = protocol.ActorClass({
     return Task.spawn(function() {
       let actors = [];
       for (let i = 0; i < styleSheets.length; i++) {
-        let actor = this.parentActor.createStyleSheetActor(styleSheets[i]);
+        let actor = this._createStyleSheetActor(styleSheets[i]);
         actors.push(actor);
 
         // Get all sheets, including imported ones
@@ -177,7 +188,7 @@ let StyleSheetsActor = protocol.ActorClass({
           if (!rule.styleSheet) {
             continue;
           }
-          let actor = this.parentActor.createStyleSheetActor(rule.styleSheet);
+          let actor = this._createStyleSheetActor(rule.styleSheet);
           imported.push(actor);
 
           // recurse imports in this stylesheet as well
@@ -194,6 +205,36 @@ let StyleSheetsActor = protocol.ActorClass({
     }.bind(this));
   },
 
+  /**
+   * Create a new actor for a style sheet, if it hasn't already been created.
+   *
+   * @param  {DOMStyleSheet} styleSheet
+   *         The style sheet to create an actor for.
+   * @return {StyleSheetActor}
+   *         The actor for this style sheet
+   */
+  _createStyleSheetActor: function(styleSheet)
+  {
+    if (this._sheets.has(styleSheet)) {
+      return this._sheets.get(styleSheet);
+    }
+    let actor = new StyleSheetActor(styleSheet, this);
+
+    this.manage(actor);
+    this._sheets.set(styleSheet, actor);
+
+    return actor;
+  },
+
+  /**
+   * Clear all the current stylesheet actors in map.
+   */
+  _clearStyleSheetActors: function() {
+    for (let actor in this._sheets) {
+      this.unmanage(this._sheets[actor]);
+    }
+    this._sheets.clear();
+  },
 
   /**
    * Create a new style sheet in the document with the given text.
@@ -214,7 +255,7 @@ let StyleSheetsActor = protocol.ActorClass({
     }
     parent.appendChild(style);
 
-    let actor = this.parentActor.createStyleSheetActor(style.sheet);
+    let actor = this._createStyleSheetActor(style.sheet);
     return actor;
   }, {
     request: { text: Arg(0, "string") },
@@ -282,8 +323,6 @@ let MediaRuleActor = protocol.ActorClass({
     if (this.mql) {
       this.mql.removeListener(this._matchesChange);
     }
-
-    protocol.Actor.prototype.destroy.call(this);
   },
 
   form: function(detail) {
@@ -381,7 +420,15 @@ let StyleSheetActor = protocol.ActorClass({
    */
   get document() this.window.document,
 
-  get ownerNode() this.rawSheet.ownerNode,
+  /**
+   * Browser for the target.
+   */
+  get browser() {
+    if (this.parentActor.parentActor) {
+      return this.parentActor.parentActor.browser;
+    }
+    return null;
+  },
 
   /**
    * URL of underlying stylesheet.
@@ -441,7 +488,8 @@ let StyleSheetActor = protocol.ActorClass({
       return promise.resolve(rules);
     }
 
-    if (!this.ownerNode) {
+    let ownerNode = this.rawSheet.ownerNode;
+    if (!ownerNode) {
       return promise.resolve([]);
     }
 
@@ -452,12 +500,12 @@ let StyleSheetActor = protocol.ActorClass({
     let deferred = promise.defer();
 
     let onSheetLoaded = (event) => {
-      this.ownerNode.removeEventListener("load", onSheetLoaded, false);
+      ownerNode.removeEventListener("load", onSheetLoaded, false);
 
       deferred.resolve(this.rawSheet.cssRules);
     };
 
-    this.ownerNode.addEventListener("load", onSheetLoaded, false);
+    ownerNode.addEventListener("load", onSheetLoaded, false);
 
     // cache so we don't add many listeners if this is called multiple times.
     this._cssRules = deferred.promise;
@@ -478,12 +526,13 @@ let StyleSheetActor = protocol.ActorClass({
     }
 
     let docHref;
-    if (this.ownerNode) {
-      if (this.ownerNode instanceof Ci.nsIDOMHTMLDocument) {
-        docHref = this.ownerNode.location.href;
+    let ownerNode = this.rawSheet.ownerNode;
+    if (ownerNode) {
+      if (ownerNode instanceof Ci.nsIDOMHTMLDocument) {
+        docHref = ownerNode.location.href;
       }
-      else if (this.ownerNode.ownerDocument && this.ownerNode.ownerDocument.location) {
-        docHref = this.ownerNode.ownerDocument.location.href;
+      else if (ownerNode.ownerDocument && ownerNode.ownerDocument.location) {
+        docHref = ownerNode.ownerDocument.location.href;
       }
     }
 
@@ -562,7 +611,7 @@ let StyleSheetActor = protocol.ActorClass({
 
     if (!this.href) {
       // this is an inline <style> sheet
-      let content = this.ownerNode.textContent;
+      let content = this.rawSheet.ownerNode.textContent;
       this.text = content;
       return promise.resolve(content);
     }
@@ -719,7 +768,6 @@ let StyleSheetActor = protocol.ActorClass({
         return sourceMap.originalPositionFor({ line: line, column: column });
       }
       return {
-        fromSourceMap: false,
         source: this.href,
         line: line,
         column: column
@@ -950,6 +998,7 @@ var StyleSheetFront = protocol.FrontClass(StyleSheetActor, {
 
   destroy: function() {
     events.off(this, "property-change", this._onPropertyChange);
+
     protocol.Front.prototype.destroy.call(this);
   },
 

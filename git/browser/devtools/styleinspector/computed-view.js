@@ -286,7 +286,8 @@ CssHtmlTree.prototype = {
   /**
    * Update the highlighted element. The CssHtmlTree panel will show the style
    * information for the given element.
-   * @param {NodeFront} aElement The highlighted node to get styles for.
+   * @param {nsIDOMElement} aElement The highlighted node to get styles for.
+   *
    * @returns a promise that will be resolved when highlighting is complete.
    */
   highlight: function(aElement) {
@@ -324,83 +325,38 @@ CssHtmlTree.prototype = {
    * returns null of the node isn't anything we care about
    */
   getNodeInfo: function(node) {
-    if (!node) {
-      return null;
-    }
-
+    let type, value;
     let classes = node.classList;
 
-    // Check if the node isn't a selector first since this doesn't require
-    // walking the DOM
-    if (classes.contains("matched") ||
-        classes.contains("bestmatch") ||
-        classes.contains("parentmatch")) {
-      let selectorText = "";
-      for (let child of node.childNodes) {
-        if (child.nodeType === node.TEXT_NODE) {
-          selectorText += child.textContent;
-        }
+    if (classes.contains("property-name") ||
+        classes.contains("property-value") ||
+        (classes.contains("theme-link") && !classes.contains("link"))) {
+      // Go up to the common parent to find the property and value
+      let parent = node.parentNode;
+      while (!parent.classList.contains("property-view")) {
+        parent = parent.parentNode;
       }
-      return {
-        type: overlays.VIEW_NODE_SELECTOR_TYPE,
-        value: selectorText.trim()
-      }
-    }
-
-    // Walk up the nodes to find out where node is
-    let propertyView;
-    let propertyContent;
-    let parent = node;
-    while (parent.parentNode) {
-      if (parent.classList.contains("property-view")) {
-        propertyView = parent;
-        break;
-      }
-      if (parent.classList.contains("property-content")) {
-        propertyContent = parent;
-        break;
-      }
-      parent = parent.parentNode;
-    }
-    if (!propertyView && !propertyContent) {
-      return null;
-    }
-
-    let value, type;
-
-    // Get the property and value for a node that's a property name or value
-    let isHref = classes.contains("theme-link") && !classes.contains("link");
-    if (propertyView && (classes.contains("property-name") ||
-                         classes.contains("property-value") ||
-                         isHref)) {
       value = {
         property: parent.querySelector(".property-name").textContent,
         value: parent.querySelector(".property-value").textContent
       };
     }
-    if (propertyContent && (classes.contains("other-property-value") ||
-                            isHref)) {
-      let view = propertyContent.previousSibling;
-      value = {
-        property: view.querySelector(".property-name").textContent,
-        value: node.textContent
-      };
-    }
 
-    // Get the type
     if (classes.contains("property-name")) {
       type = overlays.VIEW_NODE_PROPERTY_TYPE;
-    } else if (classes.contains("property-value") ||
-               classes.contains("other-property-value")) {
+    } else if (classes.contains("property-value")) {
       type = overlays.VIEW_NODE_VALUE_TYPE;
-    } else if (isHref) {
+    } else if (classes.contains("theme-link")) {
       type = overlays.VIEW_NODE_IMAGE_URL_TYPE;
       value.url = node.href;
     } else {
       return null;
     }
 
-    return {type, value};
+    return {
+      type: type,
+      value: value
+    };
   },
 
   _createPropertyViews: function()
@@ -452,10 +408,6 @@ CssHtmlTree.prototype = {
       return promise.resolve();
     }
 
-    // Capture the current viewed element to return from the promise handler
-    // early if it changed
-    let viewedElement = this.viewedElement;
-
     return promise.all([
       this._createPropertyViews(),
       this.pageStyle.getComputed(this.viewedElement, {
@@ -464,10 +416,6 @@ CssHtmlTree.prototype = {
         markMatched: true
       })
     ]).then(([createViews, computed]) => {
-      if (viewedElement !== this.viewedElement) {
-        return;
-      }
-
       this._matchedProperties = new Set;
       for (let name in computed) {
         if (computed[name].matched) {
@@ -1469,16 +1417,19 @@ SelectorView.prototype = {
       return;
     }
 
-    let location = promise.resolve(rule.location);
-    if (Services.prefs.getBoolPref(PREF_ORIG_SOURCES)) {
+    let location = promise.resolve({
+      href: rule.href,
+      line: rule.line
+    });
+    if (rule.href && Services.prefs.getBoolPref(PREF_ORIG_SOURCES)) {
       location = rule.getOriginalLocation();
     }
-    location.then(({source, href, line, column}) => {
+
+    location.then(({href, line}) => {
       let target = inspector.target;
       if (ToolDefinitions.styleEditor.isTargetSupported(target)) {
         gDevTools.showToolbox(target, "styleeditor").then(function(toolbox) {
-          let sheet = source || href;
-          toolbox.getCurrentPanel().selectStyleSheet(sheet, line, column);
+          toolbox.getCurrentPanel().selectStyleSheet(href, line);
         });
       }
     });

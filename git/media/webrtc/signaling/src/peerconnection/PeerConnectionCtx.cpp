@@ -18,6 +18,7 @@
 #include "PeerConnectionImpl.h"
 #include "PeerConnectionCtx.h"
 #include "runnable_utils.h"
+#include "cpr_socket.h"
 #include "debug-psipcc-types.h"
 #include "prcvar.h"
 
@@ -35,8 +36,17 @@
 #include "nsIObserver.h"
 #include "mozilla/Services.h"
 #include "StaticPtr.h"
+extern "C" {
+#include "../sipcc/core/common/thread_monitor.h"
+}
 
 static const char* logTag = "PeerConnectionCtx";
+
+extern "C" {
+extern PRCondVar *ccAppReadyToStartCond;
+extern PRLock *ccAppReadyToStartLock;
+extern char ccAppReadyToStart;
+}
 
 namespace mozilla {
 
@@ -159,14 +169,34 @@ PeerConnectionCtx* PeerConnectionCtx::gInstance;
 nsIThread* PeerConnectionCtx::gMainThread;
 StaticRefPtr<PeerConnectionCtxShutdown> PeerConnectionCtx::gPeerConnectionCtxShutdown;
 
+// Since we have a pointer to main-thread, help make it safe for lower-level
+// SIPCC threads to use SyncRunnable without deadlocking, by exposing main's
+// dispatcher and waiter functions. See sipcc/core/common/thread_monitor.c.
+
+static void thread_ended_dispatcher(thread_ended_funct func, thread_monitor_id_t id)
+{
+  nsresult rv = PeerConnectionCtx::gMainThread->Dispatch(WrapRunnableNM(func, id),
+                                                         NS_DISPATCH_NORMAL);
+  if (NS_FAILED(rv)) {
+    CSFLogError( logTag, "%s(): Could not dispatch to main thread", __FUNCTION__);
+  }
+}
+
+static void join_waiter() {
+  NS_ProcessPendingEvents(PeerConnectionCtx::gMainThread);
+}
+
 nsresult PeerConnectionCtx::InitializeGlobal(nsIThread *mainThread,
   nsIEventTarget* stsThread) {
   if (!gMainThread) {
     gMainThread = mainThread;
     CSF::VcmSIPCCBinding::setMainThread(gMainThread);
+    init_thread_monitor(&thread_ended_dispatcher, &join_waiter);
   } else {
     MOZ_ASSERT(gMainThread == mainThread);
   }
+
+  CSF::VcmSIPCCBinding::setSTSThread(stsThread);
 
   nsresult res;
 
@@ -250,7 +280,7 @@ FreeOnMain_m(nsAutoPtr<RTCStatsQueries> aQueryList) {
 static void
 EverySecondTelemetryCallback_s(nsAutoPtr<RTCStatsQueries> aQueryList) {
   using namespace Telemetry;
-
+ 
   if(!PeerConnectionCtx::isActive()) {
     return;
   }
@@ -361,8 +391,6 @@ PeerConnectionCtx::EverySecondTelemetryCallback_m(nsITimer* timer, void *closure
 #endif
 
 nsresult PeerConnectionCtx::Initialize() {
-  initGMP();
-
   mCCM = CSF::CallControlManager::create();
 
   NS_ENSURE_TRUE(mCCM.get(), NS_ERROR_FAILURE);
@@ -373,7 +401,7 @@ nsresult PeerConnectionCtx::Initialize() {
   codecMask |= VCM_CODEC_RESOURCE_G711;
   codecMask |= VCM_CODEC_RESOURCE_OPUS;
   //codecMask |= VCM_CODEC_RESOURCE_LINEAR;
-  codecMask |= VCM_CODEC_RESOURCE_G722;
+  //codecMask |= VCM_CODEC_RESOURCE_G722;
   //codecMask |= VCM_CODEC_RESOURCE_iLBC;
   //codecMask |= VCM_CODEC_RESOURCE_iSAC;
   mCCM->setAudioCodecs(codecMask);
@@ -386,11 +414,9 @@ nsresult PeerConnectionCtx::Initialize() {
   //codecMask |= VCM_CODEC_RESOURCE_H263;
 
 #ifdef MOZILLA_INTERNAL_API
-#ifdef MOZ_WEBRTC_OMX
   if (Preferences::GetBool("media.peerconnection.video.h264_enabled")) {
     codecMask |= VCM_CODEC_RESOURCE_H264;
   }
-#endif
 #else
   // Outside MOZILLA_INTERNAL_API ensures H.264 available in unit tests
   codecMask |= VCM_CODEC_RESOURCE_H264;
@@ -399,14 +425,31 @@ nsresult PeerConnectionCtx::Initialize() {
   codecMask |= VCM_CODEC_RESOURCE_VP8;
   //codecMask |= VCM_CODEC_RESOURCE_I420;
   mCCM->setVideoCodecs(codecMask);
-  mCCM->addCCObserver(this);
-  ChangeSipccState(dom::PCImplSipccState::Starting);
+
+  ccAppReadyToStartLock = PR_NewLock();
+  if (!ccAppReadyToStartLock) {
+    return NS_ERROR_FAILURE;
+  }
+
+  ccAppReadyToStartCond = PR_NewCondVar(ccAppReadyToStartLock);
+  if (!ccAppReadyToStartCond) {
+    return NS_ERROR_FAILURE;
+  }
 
   if (!mCCM->startSDPMode())
     return NS_ERROR_FAILURE;
 
   mDevice = mCCM->getActiveDevice();
+  mCCM->addCCObserver(this);
   NS_ENSURE_TRUE(mDevice.get(), NS_ERROR_FAILURE);
+  ChangeSipccState(dom::PCImplSipccState::Starting);
+
+  // Now that everything is set up, we let the CCApp thread
+  // know that it's okay to start processing messages.
+  PR_Lock(ccAppReadyToStartLock);
+  ccAppReadyToStart = 1;
+  PR_NotifyAllCondVar(ccAppReadyToStartCond);
+  PR_Unlock(ccAppReadyToStartLock);
 
 #ifdef MOZILLA_INTERNAL_API
   mConnectionCounter = 0;
@@ -422,48 +465,8 @@ nsresult PeerConnectionCtx::Initialize() {
   return NS_OK;
 }
 
-static void GMPReady_m() {
-  if (PeerConnectionCtx::isActive()) {
-    PeerConnectionCtx::GetInstance()->onGMPReady();
-  }
-};
-
-static void GMPReady() {
-  PeerConnectionCtx::gMainThread->Dispatch(WrapRunnableNM(&GMPReady_m),
-                                           NS_DISPATCH_NORMAL);
-};
-
-void PeerConnectionCtx::initGMP()
-{
-  mGMPService = do_GetService("@mozilla.org/gecko-media-plugin-service;1");
-
-  if (!mGMPService) {
-    CSFLogError(logTag, "%s failed to get the gecko-media-plugin-service",
-                __FUNCTION__);
-    return;
-  }
-
-  nsCOMPtr<nsIThread> thread;
-  nsresult rv = mGMPService->GetThread(getter_AddRefs(thread));
-
-  if (NS_FAILED(rv)) {
-    mGMPService = nullptr;
-    CSFLogError(logTag,
-                "%s failed to get the gecko-media-plugin thread, err=%u",
-                __FUNCTION__,
-                static_cast<unsigned>(rv));
-    return;
-  }
-
-  // presumes that all GMP dir scans have been queued for the GMPThread
-  thread->Dispatch(WrapRunnableNM(&GMPReady), NS_DISPATCH_NORMAL);
-}
-
 nsresult PeerConnectionCtx::Cleanup() {
   CSFLogDebug(logTag, "%s", __FUNCTION__);
-
-  mQueuedJSEPOperations.Clear();
-  mGMPService = nullptr;
 
   mCCM->destroy();
   mCCM->removeCCObserver(this);
@@ -482,18 +485,6 @@ PeerConnectionCtx::~PeerConnectionCtx() {
 
 CSF::CC_CallPtr PeerConnectionCtx::createCall() {
   return mDevice->createCall();
-}
-
-void PeerConnectionCtx::queueJSEPOperation(nsRefPtr<nsIRunnable> aOperation) {
-  mQueuedJSEPOperations.AppendElement(aOperation);
-}
-
-void PeerConnectionCtx::onGMPReady() {
-  mGMPReady = true;
-  for (size_t i = 0; i < mQueuedJSEPOperations.Length(); ++i) {
-    mQueuedJSEPOperations[i]->Run();
-  }
-  mQueuedJSEPOperations.Clear();
 }
 
 void PeerConnectionCtx::onDeviceEvent(ccapi_device_event_e aDeviceEvent,
@@ -525,6 +516,42 @@ void PeerConnectionCtx::onDeviceEvent(ccapi_device_event_e aDeviceEvent,
       CSFLogDebug(logTag, "%s: Ignoring event: %s\n",__FUNCTION__,
                   device_event_getname(aDeviceEvent));
   }
+}
+
+static void onCallEvent_m(nsAutoPtr<std::string> peerconnection,
+                          ccapi_call_event_e aCallEvent,
+                          CSF::CC_CallInfoPtr aInfo);
+
+void PeerConnectionCtx::onCallEvent(ccapi_call_event_e aCallEvent,
+                                    CSF::CC_CallPtr aCall,
+                                    CSF::CC_CallInfoPtr aInfo) {
+  // This is called on a SIPCC thread.
+  //
+  // We cannot use SyncRunnable to main thread, as that would deadlock on
+  // shutdown. Instead, we dispatch asynchronously. We copy getPeerConnection(),
+  // a "weak ref" to the PC, which is safe in shutdown, and CC_CallInfoPtr (an
+  // nsRefPtr) is thread-safe and keeps aInfo alive.
+  nsAutoPtr<std::string> pcDuped(new std::string(aCall->getPeerConnection()));
+
+  // DISPATCH_NORMAL with duped string
+  nsresult rv = gMainThread->Dispatch(WrapRunnableNM(&onCallEvent_m, pcDuped,
+                                                     aCallEvent, aInfo),
+                                      NS_DISPATCH_NORMAL);
+  if (NS_FAILED(rv)) {
+    CSFLogError( logTag, "%s(): Could not dispatch to main thread", __FUNCTION__);
+  }
+}
+
+// Demux the call event to the right PeerConnection
+static void onCallEvent_m(nsAutoPtr<std::string> peerconnection,
+                          ccapi_call_event_e aCallEvent,
+                          CSF::CC_CallInfoPtr aInfo) {
+  CSFLogDebug(logTag, "onCallEvent()");
+  PeerConnectionWrapper pc(peerconnection->c_str());
+  if (!pc.impl())  // This must be an event on a dead PC. Ignore
+    return;
+  CSFLogDebug(logTag, "Calling PC");
+  pc.impl()->onCallEvent(OnCallEventArgs(aCallEvent, aInfo));
 }
 
 }  // namespace sipcc

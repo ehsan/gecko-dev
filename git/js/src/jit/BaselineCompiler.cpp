@@ -12,8 +12,7 @@
 #include "jit/FixedList.h"
 #include "jit/IonAnalysis.h"
 #include "jit/IonLinker.h"
-#include "jit/JitcodeMap.h"
-#include "jit/JitSpewer.h"
+#include "jit/IonSpewer.h"
 #ifdef JS_ION_PERF
 # include "jit/PerfSpewer.h"
 #endif
@@ -71,10 +70,10 @@ BaselineCompiler::addPCMappingEntry(bool addIndexEntry)
 MethodStatus
 BaselineCompiler::compile()
 {
-    JitSpew(JitSpew_BaselineScripts, "Baseline compiling script %s:%d (%p)",
+    IonSpew(IonSpew_BaselineScripts, "Baseline compiling script %s:%d (%p)",
             script->filename(), script->lineno(), script);
 
-    JitSpew(JitSpew_Codegen, "# Emitting baseline code for script %s:%d",
+    IonSpew(IonSpew_Codegen, "# Emitting baseline code for script %s:%d",
             script->filename(), script->lineno());
 
     TraceLogger *logger = TraceLoggerForMainThread(cx->runtime());
@@ -178,7 +177,7 @@ BaselineCompiler::compile()
     // Note: There is an extra entry in the bytecode type map for the search hint, see below.
     size_t bytecodeTypeMapEntries = script->nTypeSets() + 1;
 
-    BaselineScript *baselineScript = BaselineScript::New(script, prologueOffset_.offset(),
+    BaselineScript *baselineScript = BaselineScript::New(cx, prologueOffset_.offset(),
                                                          epilogueOffset_.offset(),
                                                          spsPushToggleOffset_.offset(),
                                                          postDebugPrologueOffset_.offset(),
@@ -192,7 +191,7 @@ BaselineCompiler::compile()
     baselineScript->setMethod(code);
     baselineScript->setTemplateScope(templateScope);
 
-    JitSpew(JitSpew_BaselineScripts, "Created BaselineScript %p (raw %p) for %s:%d",
+    IonSpew(IonSpew_BaselineScripts, "Created BaselineScript %p (raw %p) for %s:%d",
             (void *) baselineScript, (void *) code->raw(),
             script->filename(), script->lineno());
 
@@ -244,21 +243,6 @@ BaselineCompiler::compile()
 
     if (script->compartment()->debugMode())
         baselineScript->setDebugMode();
-
-    // Register a native => bytecode mapping entry for this script if needed.
-    if (cx->runtime()->jitRuntime()->isNativeToBytecodeMapEnabled(cx->runtime())) {
-        JitSpew(JitSpew_Profiling, "Added JitcodeGlobalEntry for baseline script %s:%d (%p)",
-                    script->filename(), script->lineno(), baselineScript);
-        JitcodeGlobalEntry::BaselineEntry entry;
-        entry.init(code->raw(), code->raw() + code->instructionsSize(), script);
-
-        JitcodeGlobalTable *globalTable = cx->runtime()->jitRuntime()->getJitcodeGlobalTable();
-        if (!globalTable->addEntry(entry))
-            return Method_Error;
-
-        // Mark the jitcode as having a bytecode map.
-        code->setHasBytecodeMap();
-    }
 
     script->setBaselineScript(cx, baselineScript);
 
@@ -379,7 +363,7 @@ BaselineCompiler::emitPrologue()
     if (!emitDebugPrologue())
         return false;
 
-    if (!emitWarmUpCounterIncrement())
+    if (!emitUseCountIncrement())
         return false;
 
     if (!emitArgumentTypeChecks())
@@ -593,7 +577,7 @@ BaselineCompiler::initScopeChain()
         // chain slot is properly initialized if the call triggers GC.
         Register callee = R0.scratchReg();
         Register scope = R1.scratchReg();
-        masm.loadFunctionFromCalleeToken(frame.addressOfCalleeToken(), callee);
+        masm.loadPtr(frame.addressOfCallee(), callee);
         masm.loadPtr(Address(callee, JSFunction::offsetOfEnvironment()), scope);
         masm.storePtr(scope, frame.addressOfScopeChain());
 
@@ -647,9 +631,9 @@ BaselineCompiler::emitInterruptCheck()
 }
 
 bool
-BaselineCompiler::emitWarmUpCounterIncrement(bool allowOsr)
+BaselineCompiler::emitUseCountIncrement(bool allowOsr)
 {
-    // Emit no warm-up counter increments or bailouts if Ion is not
+    // Emit no use count increments or bailouts if Ion is not
     // enabled, or if the script will never be Ion-compileable
 
     if (!ionCompileable_ && !ionOSRCompileable_)
@@ -657,15 +641,15 @@ BaselineCompiler::emitWarmUpCounterIncrement(bool allowOsr)
 
     Register scriptReg = R2.scratchReg();
     Register countReg = R0.scratchReg();
-    Address warmUpCounterAddr(scriptReg, JSScript::offsetOfWarmUpCounter());
+    Address useCountAddr(scriptReg, JSScript::offsetOfUseCount());
 
     masm.movePtr(ImmGCPtr(script), scriptReg);
-    masm.load32(warmUpCounterAddr, countReg);
+    masm.load32(useCountAddr, countReg);
     masm.add32(Imm32(1), countReg);
-    masm.store32(countReg, warmUpCounterAddr);
+    masm.store32(countReg, useCountAddr);
 
-    // If this is a loop inside a catch or finally block, increment the warmup
-    // counter but don't attempt OSR (Ion only compiles the try block).
+    // If this is a loop inside a catch or finally block, increment the use
+    // count but don't attempt OSR (Ion only compiles the try block).
     if (analysis_.info(pc).loopEntryInCatchOrFinally) {
         JS_ASSERT(JSOp(*pc) == JSOP_LOOPENTRY);
         return true;
@@ -680,15 +664,15 @@ BaselineCompiler::emitWarmUpCounterIncrement(bool allowOsr)
     Label skipCall;
 
     const OptimizationInfo *info = js_IonOptimizations.get(js_IonOptimizations.firstLevel());
-    uint32_t warmUpThreshold = info->compilerWarmUpThreshold(script, pc);
-    masm.branch32(Assembler::LessThan, countReg, Imm32(warmUpThreshold), &skipCall);
+    uint32_t minUses = info->usesBeforeCompile(script, pc);
+    masm.branch32(Assembler::LessThan, countReg, Imm32(minUses), &skipCall);
 
     masm.branchPtr(Assembler::Equal,
                    Address(scriptReg, JSScript::offsetOfIonScript()),
                    ImmPtr(ION_COMPILING_SCRIPT), &skipCall);
 
     // Call IC.
-    ICWarmUpCounter_Fallback::Compiler stubCompiler(cx);
+    ICUseCount_Fallback::Compiler stubCompiler(cx);
     if (!emitNonOpIC(stubCompiler.getStub(&stubSpace_)))
         return false;
 
@@ -789,7 +773,7 @@ BaselineCompiler::emitBody()
 
     while (true) {
         JSOp op = JSOp(*pc);
-        JitSpew(JitSpew_BaselineOp, "Compiling op @ %d: %s",
+        IonSpew(IonSpew_BaselineOp, "Compiling op @ %d: %s",
                 int(script->pcToOffset(pc)), js_CodeName[op]);
 
         BytecodeInfo *info = analysis_.maybeInfo(pc);
@@ -840,7 +824,7 @@ BaselineCompiler::emitBody()
 
         switch (op) {
           default:
-            JitSpew(JitSpew_BaselineAbort, "Unhandled op: %s", js_CodeName[op]);
+            IonSpew(IonSpew_BaselineAbort, "Unhandled op: %s", js_CodeName[op]);
             return Method_CantCompile;
 
 #define EMIT_OP(OP)                            \
@@ -1105,7 +1089,7 @@ bool
 BaselineCompiler::emit_JSOP_LOOPENTRY()
 {
     frame.syncStack(0);
-    return emitWarmUpCounterIncrement(LoopEntryCanIonOsr(pc));
+    return emitUseCountIncrement(LoopEntryCanIonOsr(pc));
 }
 
 bool
@@ -1145,7 +1129,7 @@ BaselineCompiler::emit_JSOP_THIS()
         // extended slot.
         frame.syncStack(0);
         Register scratch = R0.scratchReg();
-        masm.loadFunctionFromCalleeToken(frame.addressOfCalleeToken(), scratch);
+        masm.loadPtr(frame.addressOfCallee(), scratch);
         masm.loadValue(Address(scratch, FunctionExtended::offsetOfArrowThisSlot()), R0);
         frame.push(R0);
         return true;
@@ -1394,7 +1378,7 @@ BaselineCompiler::storeValue(const StackValue *source, const Address &dest,
         masm.storeValue(scratch, dest);
         break;
       default:
-        MOZ_CRASH("Invalid kind");
+        MOZ_ASSUME_UNREACHABLE("Invalid kind");
     }
 }
 
@@ -1645,32 +1629,6 @@ BaselineCompiler::emit_JSOP_NEWARRAY()
     if (!emitOpIC(stubCompiler.getStub(&stubSpace_)))
         return false;
 
-    frame.push(R0);
-    return true;
-}
-
-typedef JSObject *(*NewArrayCopyOnWriteFn)(JSContext *, HandleObject, gc::InitialHeap);
-const VMFunction jit::NewArrayCopyOnWriteInfo =
-    FunctionInfo<NewArrayCopyOnWriteFn>(js::NewDenseCopyOnWriteArray);
-
-bool
-BaselineCompiler::emit_JSOP_NEWARRAY_COPYONWRITE()
-{
-    RootedScript scriptRoot(cx, script);
-    JSObject *obj = types::GetOrFixupCopyOnWriteObject(cx, scriptRoot, pc);
-    if (!obj)
-        return false;
-
-    prepareVMCall();
-
-    pushArg(Imm32(gc::DefaultHeap));
-    pushArg(ImmGCPtr(obj));
-
-    if (!callVM(NewArrayCopyOnWriteInfo))
-        return false;
-
-    // Box and push return value.
-    masm.tagValue(JSVAL_TYPE_OBJECT, ReturnReg, R0);
     frame.push(R0);
     return true;
 }
@@ -3065,7 +3023,7 @@ BaselineCompiler::emit_JSOP_CALLEE()
 {
     JS_ASSERT(function());
     frame.syncStack(0);
-    masm.loadFunctionFromCalleeToken(frame.addressOfCalleeToken(), R0.scratchReg());
+    masm.loadPtr(frame.addressOfCallee(), R0.scratchReg());
     masm.tagValue(JSVAL_TYPE_OBJECT, R0.scratchReg(), R0);
     frame.push(R0);
     return true;

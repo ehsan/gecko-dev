@@ -5,7 +5,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "MediaCodecDecoder.h"
-
 #include "MediaCodecReader.h"
 #include "MediaDecoderStateMachine.h"
 
@@ -17,16 +16,10 @@ MediaCodecDecoder::Clone()
   return new MediaCodecDecoder();
 }
 
-MediaOmxCommonReader*
-MediaCodecDecoder::CreateReader()
-{
-  return new MediaCodecReader(this);
-}
-
 MediaDecoderStateMachine*
-MediaCodecDecoder::CreateStateMachine(MediaOmxCommonReader* aReader)
+MediaCodecDecoder::CreateStateMachine()
 {
-  return new MediaDecoderStateMachine(this, aReader);
+  return new MediaDecoderStateMachine(this, new MediaCodecReader(this));
 }
 
 } // namespace mozilla

@@ -21,7 +21,6 @@
 #include "prmjtime.h"
 
 #include "builtin/TestingFunctions.h"
-#include "proxy/DeadObjectProxy.h"
 #include "vm/WrapperObject.h"
 
 #include "jsobjinlines.h"
@@ -47,7 +46,9 @@ PerThreadDataFriendFields::PerThreadDataFriendFields()
     for (int i=0; i<StackKindCount; i++)
         nativeStackLimit[i] = UINTPTR_MAX;
 #endif
+#if defined(JSGC_USE_EXACT_ROOTING)
     PodArrayZero(thingGCRooters);
+#endif
 }
 
 JS_FRIEND_API(void)
@@ -196,25 +197,25 @@ JS::SkipZoneForGC(Zone *zone)
 JS_FRIEND_API(void)
 JS::GCForReason(JSRuntime *rt, gcreason::Reason reason)
 {
-    rt->gc.gc(GC_NORMAL, reason);
+    GC(rt, GC_NORMAL, reason);
 }
 
 JS_FRIEND_API(void)
 JS::ShrinkingGC(JSRuntime *rt, gcreason::Reason reason)
 {
-    rt->gc.gc(GC_SHRINK, reason);
+    GC(rt, GC_SHRINK, reason);
 }
 
 JS_FRIEND_API(void)
 JS::IncrementalGC(JSRuntime *rt, gcreason::Reason reason, int64_t millis)
 {
-    rt->gc.gcSlice(GC_NORMAL, reason, millis);
+    GCSlice(rt, GC_NORMAL, reason, millis);
 }
 
 JS_FRIEND_API(void)
 JS::FinishIncrementalGC(JSRuntime *rt, gcreason::Reason reason)
 {
-    rt->gc.gcFinalSlice(GC_NORMAL, reason);
+    GCFinalSlice(rt, GC_NORMAL, reason);
 }
 
 JS_FRIEND_API(JSPrincipals *)
@@ -415,6 +416,20 @@ js::AssertSameCompartment(JSObject *objA, JSObject *objB)
 }
 #endif
 
+JS_FRIEND_API(JSObject *)
+js::DefaultObjectForContextOrNull(JSContext *cx)
+{
+    if (cx->options().noDefaultCompartmentObject())
+        return nullptr;
+    return cx->maybeDefaultCompartmentObject();
+}
+
+JS_FRIEND_API(void)
+js::SetDefaultObjectForContext(JSContext *cx, JSObject *obj)
+{
+    cx->setDefaultCompartmentObject(obj);
+}
+
 JS_FRIEND_API(void)
 js::NotifyAnimationActivity(JSObject *obj)
 {
@@ -596,7 +611,11 @@ JS_GetCustomIteratorCount(JSContext *cx)
 JS_FRIEND_API(bool)
 JS_IsDeadWrapper(JSObject *obj)
 {
-    return IsDeadProxyObject(obj);
+    if (!obj->is<ProxyObject>()) {
+        return false;
+    }
+
+    return obj->as<ProxyObject>().handler()->family() == &DeadObjectProxy::sDeadObjectFamily;
 }
 
 void
@@ -683,9 +702,9 @@ js_DumpAtom(JSAtom *atom)
 }
 
 JS_FRIEND_API(void)
-js_DumpChars(const char16_t *s, size_t n)
+js_DumpChars(const jschar *s, size_t n)
 {
-    fprintf(stderr, "char16_t * (%p) = ", (void *) s);
+    fprintf(stderr, "jschar * (%p) = ", (void *) s);
     JSString::dumpChars(s, n);
     fputc('\n', stderr);
 }
@@ -791,7 +810,7 @@ js::DumpHeapComplete(JSRuntime *rt, FILE *fp, js::DumpHeapNurseryBehaviour nurse
 {
 #ifdef JSGC_GENERATIONAL
     if (nurseryBehaviour == js::CollectNurseryBeforeDump)
-        rt->gc.evictNursery(JS::gcreason::API);
+        MinorGC(rt, JS::gcreason::API);
 #endif
 
     DumpHeapTracer dtrc(fp, rt, DumpHeapVisitRoot, TraceWeakMapKeysValues);
@@ -846,13 +865,13 @@ JS::WasIncrementalGC(JSRuntime *rt)
     return rt->gc.isIncrementalGc();
 }
 
-char16_t *
+jschar *
 GCDescription::formatMessage(JSRuntime *rt) const
 {
     return rt->gc.stats.formatMessage();
 }
 
-char16_t *
+jschar *
 GCDescription::formatJSON(JSRuntime *rt, uint64_t timestamp) const
 {
     return rt->gc.stats.formatJSON(timestamp);
@@ -1189,11 +1208,6 @@ JS_PUBLIC_API(bool)
 js::IsInRequest(JSContext *cx)
 {
     return !!cx->runtime()->requestDepth;
-}
-
-bool
-js::HasObjectMovedOp(JSObject *obj) {
-    return !!GetObjectClass(obj)->ext.objectMovedOp;
 }
 #endif
 

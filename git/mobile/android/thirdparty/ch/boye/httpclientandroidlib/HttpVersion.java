@@ -29,8 +29,6 @@ package ch.boye.httpclientandroidlib;
 
 import java.io.Serializable;
 
-import ch.boye.httpclientandroidlib.annotation.Immutable;
-
 /**
  * Represents an HTTP version. HTTP uses a "major.minor" numbering
  * scheme to indicate versions of the protocol.
@@ -44,7 +42,6 @@ import ch.boye.httpclientandroidlib.annotation.Immutable;
  *
  * @since 4.0
  */
-@Immutable
 public final class HttpVersion extends ProtocolVersion
     implements Serializable {
 
@@ -71,7 +68,7 @@ public final class HttpVersion extends ProtocolVersion
      *
      * @throws IllegalArgumentException if either major or minor version number is negative
      */
-    public HttpVersion(final int major, final int minor) {
+    public HttpVersion(int major, int minor) {
         super(HTTP, major, minor);
     }
 
@@ -84,8 +81,7 @@ public final class HttpVersion extends ProtocolVersion
      *
      * @return  an instance of {@link HttpVersion} with the argument version
      */
-    @Override
-    public ProtocolVersion forVersion(final int major, final int minor) {
+    public ProtocolVersion forVersion(int major, int minor) {
 
         if ((major == this.major) && (minor == this.minor)) {
             return this;

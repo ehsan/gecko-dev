@@ -6,7 +6,7 @@
 
 var loop = loop || {};
 loop.shared = loop.shared || {};
-loop.shared.models = (function(l10n) {
+loop.shared.models = (function() {
   "use strict";
 
   /**
@@ -14,29 +14,17 @@ loop.shared.models = (function(l10n) {
    */
   var ConversationModel = Backbone.Model.extend({
     defaults: {
-      connected:    false,         // Session connected flag
-      ongoing:      false,         // Ongoing call flag
-      callerId:     undefined,     // Loop caller id
-      loopToken:    undefined,     // Loop conversation token
-      loopCallId:   undefined,     // LoopService id for incoming session
-      sessionId:    undefined,     // OT session id
-      sessionToken: undefined,     // OT session token
-      apiKey:       undefined,     // OT api key
-      callId:       undefined,     // The callId on the server
-      progressURL:  undefined,     // The websocket url to use for progress
-      websocketToken: undefined,   // The token to use for websocket auth, this is
-                                   // stored as a hex string which is what the server
-                                   // requires.
-      callType:     undefined,     // The type of incoming call selected by
-                                   // other peer ("audio" or "audio-video")
-      selectedCallType: undefined, // The selected type for the call that was
-                                   // initiated ("audio" or "audio-video")
-      callToken:    undefined,     // Incoming call token.
-                                   // Used for blocking a call url
-      subscribedStream: false,     // Used to indicate that a stream has been
-                                   // subscribed to
-      publishedStream: false       // Used to indicate that a stream has been
-                                   // published
+      connected:    false,     // Session connected flag
+      ongoing:      false,     // Ongoing call flag
+      callerId:     undefined, // Loop caller id
+      loopToken:    undefined, // Loop conversation token
+      loopVersion:  undefined, // Loop version for /calls/ information. This
+                               // is the version received from the push
+                               // notification and is used by the server to
+                               // determine the pending calls
+      sessionId:    undefined, // OT session id
+      sessionToken: undefined, // OT session token
+      apiKey:       undefined  // OT api key
     },
 
     /**
@@ -126,7 +114,7 @@ loop.shared.models = (function(l10n) {
       this._pendingCallTimer = setTimeout(
         handleOutgoingCallTimeout.bind(this), this.pendingCallTimeout);
 
-      this.setOutgoingSessionData(sessionData);
+      this.setSessionData(sessionData);
       this.trigger("call:outgoing");
     },
 
@@ -141,38 +129,15 @@ loop.shared.models = (function(l10n) {
 
     /**
      * Sets session information.
-     * Session data received by creating an outgoing call.
      *
      * @param {Object} sessionData Conversation session information.
      */
-    setOutgoingSessionData: function(sessionData) {
+    setSessionData: function(sessionData) {
       // Explicit property assignment to prevent later "surprises"
       this.set({
-        sessionId:      sessionData.sessionId,
-        sessionToken:   sessionData.sessionToken,
-        apiKey:         sessionData.apiKey,
-        callId:         sessionData.callId,
-        progressURL:    sessionData.progressURL,
-        websocketToken: sessionData.websocketToken.toString(16)
-      });
-    },
-
-    /**
-     * Sets session information about the incoming call.
-     *
-     * @param {Object} sessionData Conversation session information.
-     */
-    setIncomingSessionData: function(sessionData) {
-      // Explicit property assignment to prevent later "surprises"
-      this.set({
-        sessionId:      sessionData.sessionId,
-        sessionToken:   sessionData.sessionToken,
-        apiKey:         sessionData.apiKey,
-        callId:         sessionData.callId,
-        progressURL:    sessionData.progressURL,
-        websocketToken: sessionData.websocketToken.toString(16),
-        callType:       sessionData.callType || "audio-video",
-        callToken:      sessionData.callToken
+        sessionId:    sessionData.sessionId,
+        sessionToken: sessionData.sessionToken,
+        apiKey:       sessionData.apiKey
       });
     },
 
@@ -202,55 +167,6 @@ loop.shared.models = (function(l10n) {
       this.session.disconnect();
       this.set("ongoing", false)
           .once("session:ended", this.stopListening, this);
-    },
-
-    /**
-     * Helper function to determine if video stream is available for the
-     * incoming or outgoing call
-     *
-     * @param {string} callType Incoming or outgoing call
-     */
-    hasVideoStream: function(callType) {
-      if (callType === "incoming") {
-        return this.get("callType") === "audio-video";
-      }
-      if (callType === "outgoing") {
-        return this.get("selectedCallType") === "audio-video";
-      }
-      return undefined;
-    },
-
-    /**
-     * Publishes a local stream.
-     *
-     * @param {Publisher} publisher The publisher object to publish
-     *                              to the session.
-     */
-    publish: function(publisher) {
-      this.session.publish(publisher);
-      this.set("publishedStream", true);
-    },
-
-    /**
-     * Subscribes to a remote stream.
-     *
-     * @param {Stream} stream The remote stream to subscribe to.
-     * @param {DOMElement} element The element to display the stream in.
-     * @param {Object} config The display properties to set on the stream as
-     *                        documented in:
-     * https://tokbox.com/opentok/libraries/client/js/reference/Session.html#subscribe
-     */
-    subscribe: function(stream, element, config) {
-      this.session.subscribe(stream, element, config);
-      this.set("subscribedStream", true);
-    },
-
-    /**
-     * Returns true if a stream has been published and a stream has been
-     * subscribed to.
-     */
-    streamsConnected: function() {
-      return this.get("publishedStream") && this.get("subscribedStream");
     },
 
     /**
@@ -372,43 +288,7 @@ loop.shared.models = (function(l10n) {
    * Notification collection
    */
   var NotificationCollection = Backbone.Collection.extend({
-    model: NotificationModel,
-
-    /**
-     * Adds a warning notification to the stack and renders it.
-     *
-     * @return {String} message
-     */
-    warn: function(message) {
-      this.add({level: "warning", message: message});
-    },
-
-    /**
-     * Adds a l10n warning notification to the stack and renders it.
-     *
-     * @param  {String} messageId L10n message id
-     */
-    warnL10n: function(messageId) {
-      this.warn(l10n.get(messageId));
-    },
-
-    /**
-     * Adds an error notification to the stack and renders it.
-     *
-     * @return {String} message
-     */
-    error: function(message) {
-      this.add({level: "error", message: message});
-    },
-
-    /**
-     * Adds a l10n rror notification to the stack and renders it.
-     *
-     * @param  {String} messageId L10n message id
-     */
-    errorL10n: function(messageId) {
-      this.error(l10n.get(messageId));
-    }
+    model: NotificationModel
   });
 
   return {
@@ -416,4 +296,4 @@ loop.shared.models = (function(l10n) {
     NotificationCollection: NotificationCollection,
     NotificationModel: NotificationModel
   };
-})(navigator.mozL10n || document.mozL10n);
+})();

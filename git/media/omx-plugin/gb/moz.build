@@ -8,9 +8,12 @@ SOURCES += [
     'OmxPlugin236.cpp',
 ]
 
-SharedLibrary('omxplugingb')
+LIBRARY_NAME = 'omxplugingb'
+
+FORCE_SHARED_LIB = True
 
 LOCAL_INCLUDES += [
+    '../../../content/media/plugins',
     '../include/gb',
     '../include/gb/media/stagefright/openmax',
 ]

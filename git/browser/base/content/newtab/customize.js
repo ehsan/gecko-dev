@@ -11,7 +11,6 @@ let gCustomize = {
     "classic",
     "enhanced",
     "panel",
-    "what",
   ],
 
   _nodes: {},
@@ -33,32 +32,17 @@ let gCustomize = {
       gAllPages.enabled = true;
       gAllPages.enhanced = true;
     });
-    this._nodes.what.addEventListener("click", e => {
-      gIntro.showPanel();
-    });
 
     this.updateSelected();
   },
 
   showPanel: function() {
-    let nodes = this._nodes;
-    let {button, panel} = nodes;
-    if (button.hasAttribute("active")) {
-      return Promise.resolve(nodes);
-    }
-
+    let {button, panel} = this._nodes;
     panel.openPopup(button);
     button.setAttribute("active", true);
     panel.addEventListener("popuphidden", function onHidden() {
       panel.removeEventListener("popuphidden", onHidden);
       button.removeAttribute("active");
-    });
-
-    return new Promise(resolve => {
-      panel.addEventListener("popupshown", function onShown() {
-        panel.removeEventListener("popupshown", onShown);
-        resolve(nodes);
-      });
     });
   },
 

@@ -68,12 +68,8 @@ function* testEditProperty(inspector, ruleView) {
   yield onBlur;
   yield idRuleEditor.rule._applyingModifications;
 
-  let newValue = yield executeInContent("Test:GetRulePropertyValue", {
-    styleSheetIndex: 0,
-    ruleIndex: 0,
-    name: "border-color"
-  });
-  is(newValue, "red", "border-color should have been set.");
+  is(idRuleEditor.rule.style._rawStyle().getPropertyValue("border-color"), "red",
+     "border-color should have been set.");
 
   info("Entering property name \"color\" followed by a colon to focus the value");
   let onFocus = once(idRuleEditor.element, "focus", true);
@@ -107,24 +103,14 @@ function* testDisableProperty(inspector, ruleView) {
   info("Disabling a property");
   propEditor.enable.click();
   yield idRuleEditor.rule._applyingModifications;
-
-  let newValue = yield executeInContent("Test:GetRulePropertyValue", {
-    styleSheetIndex: 0,
-    ruleIndex: 0,
-    name: "border-color"
-  });
-  is(newValue, "", "Border-color should have been unset.");
+  is(idRuleEditor.rule.style._rawStyle().getPropertyValue("border-color"), "",
+    "Border-color should have been unset.");
 
   info("Enabling the property again");
   propEditor.enable.click();
   yield idRuleEditor.rule._applyingModifications;
-
-  let newValue = yield executeInContent("Test:GetRulePropertyValue", {
-    styleSheetIndex: 0,
-    ruleIndex: 0,
-    name: "border-color"
-  });
-  is(newValue, "red", "Border-color should have been reset.");
+  is(idRuleEditor.rule.style._rawStyle().getPropertyValue("border-color"), "red",
+    "Border-color should have been reset.");
 }
 
 function* testPropertyStillMarkedDirty(inspector, ruleView) {

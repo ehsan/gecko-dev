@@ -10,24 +10,12 @@ const { classes: Cc, interfaces: Ci, utils: Cu } = Components;
 // https://github.com/mozilla-services/loop-server/blob/45787d34108e2f0d87d74d4ddf4ff0dbab23501c/loop/errno.json#L6
 const INVALID_AUTH_TOKEN = 110;
 
-// Ticket numbers are 24 bits in length.
-// The highest valid ticket number is 16777214 (2^24 - 2), so that a "now
-// serving" number of 2^24 - 1 is greater than it.
-const MAX_SOFT_START_TICKET_NUMBER = 16777214;
-
-const LOOP_SESSION_TYPE = {
-  GUEST: 1,
-  FXA: 2,
-};
-
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Promise.jsm");
 Cu.import("resource://gre/modules/osfile.jsm", this);
-Cu.import("resource://gre/modules/Task.jsm");
-Cu.import("resource://gre/modules/FxAccountsOAuthClient.jsm");
 
-this.EXPORTED_SYMBOLS = ["MozLoopService", "LOOP_SESSION_TYPE"];
+this.EXPORTED_SYMBOLS = ["MozLoopService"];
 
 XPCOMUtils.defineLazyModuleGetter(this, "console",
   "resource://gre/modules/devtools/Console.jsm");
@@ -59,11 +47,6 @@ XPCOMUtils.defineLazyServiceGetter(this, "uuidgen",
                                    "@mozilla.org/uuid-generator;1",
                                    "nsIUUIDGenerator");
 
-XPCOMUtils.defineLazyServiceGetter(this, "gDNSService",
-                                   "@mozilla.org/network/dns-service;1",
-                                   "nsIDNSService");
-
-
 // The current deferred for the registration process. This is set if in progress
 // or the registration was successful. This is null if a registration attempt was
 // unsuccessful.
@@ -73,10 +56,6 @@ let gHawkClient = null;
 let gRegisteredLoopServer = false;
 let gLocalizedStrings =  null;
 let gInitializeTimer = null;
-let gFxAOAuthClientPromise = null;
-let gFxAOAuthClient = null;
-let gFxAOAuthTokenData = null;
-let gErrors = new Map();
 
 /**
  * Internal helper methods and state
@@ -86,8 +65,6 @@ let gErrors = new Map();
  * and register with the Loop server.
  */
 let MozLoopServiceInternal = {
-  callsData: {data: undefined},
-
   // The uri of the Loop server.
   get loopServerUri() Services.prefs.getCharPref("loop.server"),
 
@@ -153,30 +130,6 @@ let MozLoopServiceInternal = {
    */
   set doNotDisturb(aFlag) {
     Services.prefs.setBoolPref("loop.do_not_disturb", Boolean(aFlag));
-    this.notifyStatusChanged();
-  },
-
-  notifyStatusChanged: function() {
-    Services.obs.notifyObservers(null, "loop-status-changed", null);
-  },
-
-  /**
-   * @param {String} errorType a key to identify the type of error. Only one
-   *                           error of a type will be saved at a time.
-   * @param {Object} error     an object describing the error in the format from Hawk errors
-   */
-  setError: function(errorType, error) {
-    gErrors.set(errorType, error);
-    this.notifyStatusChanged();
-  },
-
-  clearError: function(errorType) {
-    gErrors.delete(errorType);
-    this.notifyStatusChanged();
-  },
-
-  get errors() {
-    return gErrors;
   },
 
   /**
@@ -209,8 +162,6 @@ let MozLoopServiceInternal = {
   /**
    * Performs a hawk based request to the loop server.
    *
-   * @param {LOOP_SESSION_TYPE} sessionType The type of session to use for the request.
-   *                                        This is one of the LOOP_SESSION_TYPE members.
    * @param {String} path The path to make the request to.
    * @param {String} method The request method, e.g. 'POST', 'GET'.
    * @param {Object} payloadObj An object which is converted to JSON and
@@ -221,14 +172,14 @@ let MozLoopServiceInternal = {
    *        as JSON and contains an 'error' property, the promise will be
    *        rejected with this JSON-parsed response.
    */
-  hawkRequest: function(sessionType, path, method, payloadObj) {
+  hawkRequest: function(path, method, payloadObj) {
     if (!gHawkClient) {
       gHawkClient = new HawkClient(this.loopServerUri);
     }
 
     let sessionToken;
     try {
-      sessionToken = Services.prefs.getCharPref(this.getSessionTokenPrefName(sessionType));
+      sessionToken = Services.prefs.getCharPref("loop.hawk-session-token");
     } catch (x) {
       // It is ok for this not to exist, we'll default to sending no-creds
     }
@@ -240,43 +191,22 @@ let MozLoopServiceInternal = {
                                           2 * 32, true);
     }
 
-    return gHawkClient.request(path, method, credentials, payloadObj).catch(error => {
-      console.error("Loop hawkRequest error:", error);
-      throw error;
-    });
-  },
-
-  getSessionTokenPrefName: function(sessionType) {
-    let suffix;
-    switch (sessionType) {
-      case LOOP_SESSION_TYPE.GUEST:
-        suffix = "";
-        break;
-      case LOOP_SESSION_TYPE.FXA:
-        suffix = ".fxa";
-        break;
-      default:
-        throw new Error("Unknown LOOP_SESSION_TYPE");
-        break;
-    }
-    return "loop.hawk-session-token" + suffix;
+    return gHawkClient.request(path, method, credentials, payloadObj);
   },
 
   /**
    * Used to store a session token from a request if it exists in the headers.
    *
-   * @param {LOOP_SESSION_TYPE} sessionType The type of session to use for the request.
-   *                                        One of the LOOP_SESSION_TYPE members.
    * @param {Object} headers The request headers, which may include a
    *                         "hawk-session-token" to be saved.
    * @return true on success or no token, false on failure.
    */
-  storeSessionToken: function(sessionType, headers) {
+  storeSessionToken: function(headers) {
     let sessionToken = headers["hawk-session-token"];
     if (sessionToken) {
       // XXX should do more validation here
       if (sessionToken.length === 64) {
-        Services.prefs.setCharPref(this.getSessionTokenPrefName(sessionType), sessionToken);
+        Services.prefs.setCharPref("loop.hawk-session-token", sessionToken);
       } else {
         // XXX Bubble the precise details up to the UI somehow (bug 1013248).
         console.warn("Loop server sent an invalid session token");
@@ -301,39 +231,27 @@ let MozLoopServiceInternal = {
       return;
     }
 
-    this.registerWithLoopServer(LOOP_SESSION_TYPE.GUEST, pushUrl).then(() => {
-      // storeSessionToken could have rejected and nulled the promise if the token was malformed.
-      if (!gRegisteredDeferred) {
-        return;
-      }
-      gRegisteredDeferred.resolve();
-      // No need to clear the promise here, everything was good, so we don't need
-      // to re-register.
-    }, (error) => {
-      Cu.reportError("Failed to register with Loop server: " + error.errno);
-      gRegisteredDeferred.reject(error.errno);
-      gRegisteredDeferred = null;
-    });
+    this.registerWithLoopServer(pushUrl);
   },
 
   /**
-   * Registers with the Loop server either as a guest or a FxA user.
+   * Registers with the Loop server.
    *
-   * @param {LOOP_SESSION_TYPE} sessionType The type of session e.g. guest or FxA
    * @param {String} pushUrl The push url given by the push server.
-   * @param {Boolean} [retry=true] Whether to retry if authentication fails.
-   * @return {Promise}
+   * @param {Boolean} noRetry Optional, don't retry if authentication fails.
    */
-  registerWithLoopServer: function(sessionType, pushUrl, retry = true) {
-    return this.hawkRequest(sessionType, "/registration", "POST", { simplePushURL: pushUrl})
+  registerWithLoopServer: function(pushUrl, noRetry) {
+    this.hawkRequest("/registration", "POST", { simplePushURL: pushUrl})
       .then((response) => {
         // If this failed we got an invalid token. storeSessionToken rejects
         // the gRegisteredDeferred promise for us, so here we just need to
         // early return.
-        if (!this.storeSessionToken(sessionType, response.headers))
+        if (!this.storeSessionToken(response.headers))
           return;
 
-        this.clearError("registration");
+        gRegisteredDeferred.resolve();
+        // No need to clear the promise here, everything was good, so we don't need
+        // to re-register.
       }, (error) => {
         // There's other errors than invalid auth token, but we should only do the reset
         // as a last resort.
@@ -345,16 +263,15 @@ let MozLoopServiceInternal = {
           }
 
           // Authorization failed, invalid token, we need to try again with a new token.
-          Services.prefs.clearUserPref(this.getSessionTokenPrefName(sessionType));
-          if (retry) {
-            return this.registerWithLoopServer(sessionType, pushUrl, false);
-          }
+          Services.prefs.clearUserPref("loop.hawk-session-token");
+          this.registerWithLoopServer(pushUrl, true);
+          return;
         }
 
         // XXX Bubble the precise details up to the UI somehow (bug 1013248).
         Cu.reportError("Failed to register with the loop server. error: " + error);
-        this.setError("registration", error);
-        throw error;
+        gRegisteredDeferred.reject(error.errno);
+        gRegisteredDeferred = null;
       }
     );
   },
@@ -370,28 +287,9 @@ let MozLoopServiceInternal = {
       return;
     }
 
-    // We set this here as it is assumed that once the user receives an incoming
-    // call, they'll have had enough time to see the terms of service. See
-    // bug 1046039 for background.
-    Services.prefs.setCharPref("loop.seenToS", "seen");
-
-    /* Request the information on the new call(s) associated with this version. */
-    this.hawkRequest(LOOP_SESSION_TYPE.GUEST,
-      "/calls?version=" + version, "GET").then(response => {
-      try {
-        let respData = JSON.parse(response.body);
-        if (respData.calls && respData.calls[0]) {
-          this.callsData.data = respData.calls[0];
-          this.openChatWindow(null,
-            this.localizedStrings["incoming_call_title2"].textContent,
-            "about:loopconversation#incoming/" + version);
-        } else {
-          console.warn("Error: missing calls[] in response");
-        }
-      } catch (err) {
-        console.warn("Error parsing calls info", err);
-      }
-    });
+    this.openChatWindow(null,
+                        this.localizedStrings["incoming_call_title"].textContent,
+                        "about:loopconversation#incoming/" + version);
   },
 
   /**
@@ -516,8 +414,6 @@ let MozLoopServiceInternal = {
         return;
       }
 
-      chatbox.setAttribute("dark", true);
-
       chatbox.addEventListener("DOMContentLoaded", function loaded(event) {
         if (event.target != chatbox.contentDocument) {
           return;
@@ -553,113 +449,7 @@ let MozLoopServiceInternal = {
     };
 
     Chat.open(contentWindow, origin, title, url, undefined, undefined, callback);
-  },
-
-  /**
-   * Fetch Firefox Accounts (FxA) OAuth parameters from the Loop Server.
-   *
-   * @return {Promise} resolved with the body of the hawk request for OAuth parameters.
-   */
-  promiseFxAOAuthParameters: function() {
-    return this.hawkRequest(LOOP_SESSION_TYPE.FXA, "/fxa-oauth/params", "POST").then(response => {
-      return JSON.parse(response.body);
-    });
-  },
-
-  /**
-   * Get the OAuth client constructed with Loop OAauth parameters.
-   *
-   * @return {Promise}
-   */
-  promiseFxAOAuthClient: Task.async(function* () {
-    // We must make sure to have only a single client otherwise they will have different states and
-    // multiple channels. This would happen if the user clicks the Login button more than once.
-    if (gFxAOAuthClientPromise) {
-      return gFxAOAuthClientPromise;
-    }
-
-    gFxAOAuthClientPromise = this.promiseFxAOAuthParameters().then(
-      parameters => {
-        try {
-          gFxAOAuthClient = new FxAccountsOAuthClient({
-            parameters: parameters,
-          });
-        } catch (ex) {
-          gFxAOAuthClientPromise = null;
-          throw ex;
-        }
-        return gFxAOAuthClient;
-      },
-      error => {
-        gFxAOAuthClientPromise = null;
-        throw error;
-      }
-    );
-
-    return gFxAOAuthClientPromise;
-  }),
-
-  /**
-   * Get the OAuth client and do the authorization web flow to get an OAuth code.
-   *
-   * @return {Promise}
-   */
-  promiseFxAOAuthAuthorization: function() {
-    let deferred = Promise.defer();
-    this.promiseFxAOAuthClient().then(
-      client => {
-        client.onComplete = this._fxAOAuthComplete.bind(this, deferred);
-        client.launchWebFlow();
-      },
-      error => {
-        console.error(error);
-        deferred.reject(error);
-      }
-    );
-    return deferred.promise;
-  },
-
-  /**
-   * Get the OAuth token using the OAuth code and state.
-   *
-   * The caller should approperiately handle 4xx errors (which should lead to a logout)
-   * and 5xx or connectivity issues with messaging to try again later.
-   *
-   * @param {String} code
-   * @param {String} state
-   *
-   * @return {Promise} resolving with OAuth token data.
-   */
-  promiseFxAOAuthToken: function(code, state) {
-    if (!code || !state) {
-      throw new Error("promiseFxAOAuthToken: code and state are required.");
-    }
-
-    let payload = {
-      code: code,
-      state: state,
-    };
-    return this.hawkRequest(LOOP_SESSION_TYPE.FXA, "/fxa-oauth/token", "POST", payload).then(response => {
-      return JSON.parse(response.body);
-    });
-  },
-
-  /**
-   * Called once gFxAOAuthClient fires onComplete.
-   *
-   * @param {Deferred} deferred used to resolve or reject the gFxAOAuthClientPromise
-   * @param {Object} result (with code and state)
-   */
-  _fxAOAuthComplete: function(deferred, result) {
-    gFxAOAuthClientPromise = null;
-
-    // Note: The state was already verified in FxAccountsOAuthClient.
-    if (result) {
-      deferred.resolve(result);
-    } else {
-      deferred.reject("Invalid token data");
-    }
-  },
+  }
 };
 Object.freeze(MozLoopServiceInternal);
 
@@ -679,8 +469,6 @@ let gInitializeTimerFunc = () => {
  * Public API
  */
 this.MozLoopService = {
-  _DNSService: gDNSService,
-
   set initializeTimerFunc(value) {
     gInitializeTimerFunc = value;
   },
@@ -691,8 +479,7 @@ this.MozLoopService = {
    */
   initialize: function() {
     // Don't do anything if loop is not enabled.
-    if (!Services.prefs.getBoolPref("loop.enabled") ||
-        Services.prefs.getBoolPref("loop.throttled")) {
+    if (!Services.prefs.getBoolPref("loop.enabled")) {
       return;
     }
 
@@ -701,105 +488,6 @@ this.MozLoopService = {
       gInitializeTimerFunc();
     }
   },
-
-  /**
-   * If we're operating the service in "soft start" mode, and this browser
-   * isn't already activated, check whether it's time for it to become active.
-   * If so, activate the loop service.
-   *
-   * @param {Object} buttonNode DOM node representing the Loop button -- if we
-   *                            change from inactive to active, we need this
-   *                            in order to unhide the Loop button.
-   * @param {Function} doneCb   [optional] Callback that is called when the
-   *                            check has completed.
-   */
-  checkSoftStart(buttonNode, doneCb) {
-    if (!Services.prefs.getBoolPref("loop.throttled")) {
-      if (typeof(doneCb) == "function") {
-        doneCb(new Error("Throttling is not active"));
-      }
-      return;
-    }
-
-    if (Services.io.offline) {
-      if (typeof(doneCb) == "function") {
-        doneCb(new Error("Cannot check soft-start value: browser is offline"));
-      }
-      return;
-    }
-
-    let ticket = Services.prefs.getIntPref("loop.soft_start_ticket_number");
-    if (!ticket || ticket > MAX_SOFT_START_TICKET_NUMBER || ticket < 0) {
-      // Ticket value isn't valid (probably isn't set up yet) -- pick a random
-      // number from 1 to MAX_SOFT_START_TICKET_NUMBER, inclusive, and write it
-      // into prefs.
-      ticket = Math.floor(Math.random() * MAX_SOFT_START_TICKET_NUMBER) + 1;
-      // Floating point numbers can be imprecise, so we need to deal with
-      // the case that Math.random() effectively rounds to 1.0
-      if (ticket > MAX_SOFT_START_TICKET_NUMBER) {
-        ticket = MAX_SOFT_START_TICKET_NUMBER;
-      }
-      Services.prefs.setIntPref("loop.soft_start_ticket_number", ticket);
-    }
-
-    let onLookupComplete = (request, record, status) => {
-      // We don't bother checking errors -- if the DNS query fails,
-      // we just don't activate this time around. We'll check again on
-      // next startup.
-      if (!Components.isSuccessCode(status)) {
-        if (typeof(doneCb) == "function") {
-          doneCb(new Error("Error in DNS Lookup: " + status));
-        }
-        return;
-      }
-
-      let address = record.getNextAddrAsString().split(".");
-      if (address.length != 4) {
-        if (typeof(doneCb) == "function") {
-          doneCb(new Error("Invalid IP address"));
-        }
-        return;
-      }
-
-      if (address[0] != 127) {
-        if (typeof(doneCb) == "function") {
-          doneCb(new Error("Throttling IP address is not on localhost subnet"));
-        }
-        return
-      }
-
-      // Can't use bitwise operations here because JS treats all bitwise
-      // operations as 32-bit *signed* integers.
-      let now_serving = ((parseInt(address[1]) * 0x10000) +
-                         (parseInt(address[2]) * 0x100) +
-                         parseInt(address[3]));
-
-      if (now_serving > ticket) {
-        // Hot diggity! It's our turn! Activate the service.
-        console.log("MozLoopService: Activating Loop via soft-start");
-        Services.prefs.setBoolPref("loop.throttled", false);
-        buttonNode.hidden = false;
-        this.initialize();
-      }
-      if (typeof(doneCb) == "function") {
-        doneCb(null);
-      }
-    };
-
-    // We use DNS to propagate the slow-start value, since it has well-known
-    // scaling properties. Ideally, this would use something more semantic,
-    // like a TXT record; but we don't support TXT in our DNS resolution (see
-    // Bug 14328), so we instead treat the lowest 24 bits of the IP address
-    // corresponding to our "slow start DNS name" as a 24-bit integer. To
-    // ensure that these addresses aren't routable, the highest 8 bits must
-    // be "127" (reserved for localhost).
-    let host = Services.prefs.getCharPref("loop.soft_start_hostname");
-    let task = this._DNSService.asyncResolve(host,
-                                             this._DNSService.RESOLVE_DISABLE_IPV6,
-                                             onLookupComplete,
-                                             Services.tm.mainThread);
-  },
-
 
   /**
    * Starts registration of Loop with the push server, and then will register
@@ -814,10 +502,6 @@ this.MozLoopService = {
     // Don't do anything if loop is not enabled.
     if (!Services.prefs.getBoolPref("loop.enabled")) {
       throw new Error("Loop is not enabled");
-    }
-
-    if (Services.prefs.getBoolPref("loop.throttled")) {
-      throw new Error("Loop is disabled by the soft-start mechanism");
     }
 
     return MozLoopServiceInternal.promiseRegisteredWithServers(mockPushHandler);
@@ -875,10 +559,6 @@ this.MozLoopService = {
     MozLoopServiceInternal.doNotDisturb = aFlag;
   },
 
-  get errors() {
-    return MozLoopServiceInternal.errors;
-  },
-
   /**
    * Returns the current locale
    *
@@ -891,19 +571,6 @@ this.MozLoopService = {
     } catch (ex) {
       return "en-US";
     }
-  },
-
-  /**
-   * Returns the callData for a specific callDataId
-   *
-   * The data was retrieved from the LoopServer via a GET/calls/<version> request
-   * triggered by an incoming message from the LoopPushServer.
-   *
-   * @param {int} loopCallId
-   * @return {callData} The callData or undefined if error.
-   */
-  getCallData: function(loopCallId) {
-    return MozLoopServiceInternal.callsData.data;
   },
 
   /**
@@ -947,66 +614,8 @@ this.MozLoopService = {
   },
 
   /**
-   * Return any preference under "loop." that's coercible to a character
-   * preference.
-   *
-   * @param {String} prefName The name of the pref without the preceding
-   * "loop."
-   *
-   * Any errors thrown by the Mozilla pref API are logged to the console
-   * and cause null to be returned. This includes the case of the preference
-   * not being found.
-   *
-   * @return {String} on success, null on error
-   */
-  getLoopBoolPref: function(prefName) {
-    try {
-      return Services.prefs.getBoolPref("loop." + prefName);
-    } catch (ex) {
-      console.log("getLoopBoolPref had trouble getting " + prefName +
-        "; exception: " + ex);
-      return null;
-    }
-  },
-
-  /**
-   * Start the FxA login flow using the OAuth client and params from the Loop server.
-   *
-   * The caller should be prepared to handle rejections related to network, server or login errors.
-   *
-   * @return {Promise} that resolves when the FxA login flow is complete.
-   */
-  logInToFxA: function() {
-    if (gFxAOAuthTokenData) {
-      return Promise.resolve(gFxAOAuthTokenData);
-    }
-
-    return MozLoopServiceInternal.promiseFxAOAuthAuthorization().then(response => {
-      return MozLoopServiceInternal.promiseFxAOAuthToken(response.code, response.state);
-    }).then(tokenData => {
-      gFxAOAuthTokenData = tokenData;
-      return tokenData;
-    }).then(tokenData => {
-      return gRegisteredDeferred.promise.then(Task.async(function*() {
-        if (gPushHandler.pushUrl) {
-          yield MozLoopServiceInternal.registerWithLoopServer(LOOP_SESSION_TYPE.FXA, gPushHandler.pushUrl);
-        } else {
-          throw new Error("No pushUrl for FxA registration");
-        }
-        return gFxAOAuthTokenData;
-      }));
-    },
-    error => {
-      gFxAOAuthTokenData = null;
-      throw error;
-    });
-  },
-
-  /**
    * Performs a hawk based request to the loop server.
    *
-   * @param {LOOP_SESSION_TYPE} sessionType The type of session to use for the request.
-   *                                        One of the LOOP_SESSION_TYPE members.
    * @param {String} path The path to make the request to.
    * @param {String} method The request method, e.g. 'POST', 'GET'.
    * @param {Object} payloadObj An object which is converted to JSON and
@@ -1017,8 +626,8 @@ this.MozLoopService = {
    *        as JSON and contains an 'error' property, the promise will be
    *        rejected with this JSON-parsed response.
    */
-  hawkRequest: function(sessionType, path, method, payloadObj) {
-    return MozLoopServiceInternal.hawkRequest(sessionType, path, method, payloadObj);
+  hawkRequest: function(path, method, payloadObj) {
+    return MozLoopServiceInternal.hawkRequest(path, method, payloadObj);
   },
 };
 Object.freeze(this.MozLoopService);

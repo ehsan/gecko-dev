@@ -41,6 +41,7 @@
 #include "nsIStreamConverterService.h"
 #include "nsICachingChannel.h"
 #include "nsContentUtils.h"
+#include "nsCxPusher.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsIContentPolicy.h"
 #include "nsContentPolicyUtils.h"
@@ -149,7 +150,7 @@ NS_IMPL_ISUPPORTS(nsXHRParseEndListener, nsIDOMEventListener)
 class nsResumeTimeoutsEvent : public nsRunnable
 {
 public:
-  explicit nsResumeTimeoutsEvent(nsPIDOMWindow* aWindow) : mWindow(aWindow) {}
+  nsResumeTimeoutsEvent(nsPIDOMWindow* aWindow) : mWindow(aWindow) {}
 
   NS_IMETHOD Run()
   {
@@ -352,7 +353,9 @@ nsXMLHttpRequest::Init()
   // Instead of grabbing some random global from the context stack,
   // let's use the default one (junk scope) for now.
   // We should move away from this Init...
-  Construct(subjectPrincipal, xpc::GetNativeForGlobal(xpc::PrivilegedJunkScope()));
+  nsCOMPtr<nsIGlobalObject> global = xpc::GetJunkScopeGlobal();
+  NS_ENSURE_TRUE(global, NS_ERROR_FAILURE);
+  Construct(subjectPrincipal, global);
   return NS_OK;
 }
 
@@ -766,7 +769,7 @@ nsXMLHttpRequest::CreateResponseParsedJSON(JSContext* aCx)
   // The Unicode converter has already zapped the BOM if there was one
   JS::Rooted<JS::Value> value(aCx);
   if (!JS_ParseJSON(aCx,
-                    static_cast<const char16_t*>(mResponseText.get()), mResponseText.Length(),
+                    static_cast<const jschar*>(mResponseText.get()), mResponseText.Length(),
                     &value)) {
     return NS_ERROR_FAILURE;
   }
@@ -1111,7 +1114,8 @@ nsXMLHttpRequest::Status()
     return 0;
   }
 
-  uint16_t readyState = ReadyState();
+  uint16_t readyState;
+  GetReadyState(&readyState);
   if (readyState == UNSENT || readyState == OPENED) {
     return 0;
   }
@@ -1135,8 +1139,14 @@ nsXMLHttpRequest::Status()
 
   nsCOMPtr<nsIHttpChannel> httpChannel = GetCurrentHttpChannel();
   if (!httpChannel) {
-    // Pretend like we got a 200 response, since our load was successful
-    return 200;
+
+    // Let's simulate the http protocol for jar/app requests:
+    nsCOMPtr<nsIJARChannel> jarChannel = GetCurrentJARChannel();
+    if (jarChannel) {
+      return 200; // Ok
+    }
+
+    return 0;
   }
 
   uint32_t status;
@@ -1152,8 +1162,13 @@ IMPL_CSTRING_GETTER(GetStatusText)
 void
 nsXMLHttpRequest::GetStatusText(nsCString& aStatusText)
 {
-  // Return an empty status text on all error loads.
+  nsCOMPtr<nsIHttpChannel> httpChannel = GetCurrentHttpChannel();
+
   aStatusText.Truncate();
+
+  if (!httpChannel) {
+    return;
+  }
 
   // Make sure we don't leak status information from denied cross-site
   // requests.
@@ -1161,25 +1176,18 @@ nsXMLHttpRequest::GetStatusText(nsCString& aStatusText)
     return;
   }
 
+
   // Check the current XHR state to see if it is valid to obtain the statusText
   // value.  This check is to prevent the status text for redirects from being
   // available before all the redirects have been followed and HTTP headers have
   // been received.
-  uint16_t readyState = ReadyState();
-  if (readyState == UNSENT || readyState == OPENED) {
-    return;
-  }
-
-  if (mErrorLoad) {
-    return;
-  }
-
-  nsCOMPtr<nsIHttpChannel> httpChannel = GetCurrentHttpChannel();
-  if (httpChannel) {
+  uint16_t readyState;
+  GetReadyState(&readyState);
+  if (readyState != OPENED && readyState != UNSENT) {
     httpChannel->GetResponseStatusText(aStatusText);
-  } else {
-    aStatusText.AssignLiteral("OK");
   }
+
+
 }
 
 void
@@ -3410,7 +3418,7 @@ nsXMLHttpRequest::ChangeState(uint32_t aState, bool aBroadcast)
 class AsyncVerifyRedirectCallbackForwarder MOZ_FINAL : public nsIAsyncVerifyRedirectCallback
 {
 public:
-  explicit AsyncVerifyRedirectCallbackForwarder(nsXMLHttpRequest* xhr)
+  AsyncVerifyRedirectCallbackForwarder(nsXMLHttpRequest *xhr)
     : mXHR(xhr)
   {
   }
@@ -3966,13 +3974,9 @@ ArrayBufferBuilder::setCapacity(uint32_t aNewCap)
 {
   MOZ_ASSERT(!mMapPtr);
 
-  uint8_t *newdata = (uint8_t *) realloc(mDataPtr, aNewCap);
+  uint8_t *newdata = (uint8_t *) JS_ReallocateArrayBufferContents(nullptr, aNewCap, mDataPtr, mCapacity);
   if (!newdata) {
     return false;
-  }
-
-  if (aNewCap > mCapacity) {
-    memset(newdata + mCapacity, 0, aNewCap - mCapacity);
   }
 
   mDataPtr = newdata;
@@ -4074,8 +4078,8 @@ ArrayBufferBuilder::mapToFileInPackage(const nsCString& aFile,
     return rv;
   }
   nsZipItem* zipItem = zip->GetItem(aFile.get());
-  if (!zipItem) {
-    return NS_ERROR_FILE_TARGET_DOES_NOT_EXIST;
+  if (NS_FAILED(rv)) {
+    return rv;
   }
 
   // If file was added to the package as stored(uncompressed), map to the

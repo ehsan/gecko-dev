@@ -745,8 +745,8 @@ nsXULPopupManager::ShowPopupWithAnchorAlign(nsIContent* aPopup,
 }
 
 static void
-CheckCaretDrawingState()
-{
+CheckCaretDrawingState() {
+
   // There is 1 caret per document, we need to find the focused
   // document and erase its caret.
   nsIFocusManager* fm = nsFocusManager::GetFocusManager();
@@ -770,7 +770,7 @@ CheckCaretDrawingState()
     nsRefPtr<nsCaret> caret = presShell->GetCaret();
     if (!caret)
       return;
-    caret->SchedulePaint();
+    caret->CheckCaretDrawingState();
   }
 }
 
@@ -1752,11 +1752,11 @@ nsXULPopupManager::UpdateKeyboardListeners()
   nsMenuChainItem* item = GetTopVisibleMenu();
   if (item) {
     if (!item->IgnoreKeys())
-      newTarget = item->Content()->GetComposedDoc();
+      newTarget = item->Content()->GetDocument();
     isForMenu = item->PopupType() == ePopupTypeMenu;
   }
   else if (mActiveMenuBar) {
-    newTarget = mActiveMenuBar->GetContent()->GetComposedDoc();
+    newTarget = mActiveMenuBar->GetContent()->GetDocument();
     isForMenu = true;
   }
 

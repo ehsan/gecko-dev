@@ -8,31 +8,10 @@
 #include "mozilla/unused.h"
 
 namespace mozilla {
-
-#ifdef LOG
-#undef LOG
-#endif
-
-#ifdef PR_LOGGING
-extern PRLogModuleInfo* GetGMPLog();
-
-#define LOGD(msg) PR_LOG(GetGMPLog(), PR_LOG_DEBUG, msg)
-#define LOG(level, msg) PR_LOG(GetGMPLog(), (level), msg)
-#else
-#define LOGD(msg)
-#define LOG(level, msg)
-#endif
-
-#ifdef __CLASS__
-#undef __CLASS__
-#endif
-#define __CLASS__ "GMPParent"
-
 namespace gmp {
 
 GMPTimerParent::GMPTimerParent(nsIThread* aGMPThread)
   : mGMPThread(aGMPThread)
-  , mIsOpen(true)
 {
 }
 
@@ -40,13 +19,7 @@ bool
 GMPTimerParent::RecvSetTimer(const uint32_t& aTimerId,
                              const uint32_t& aTimeoutMs)
 {
-  LOGD(("%s::%s: %p mIsOpen=%d", __CLASS__, __FUNCTION__, this, mIsOpen));
-
   MOZ_ASSERT(mGMPThread == NS_GetCurrentThread());
-
-  if (!mIsOpen) {
-    return true;
-  }
 
   nsresult rv;
   nsAutoPtr<Context> ctx(new Context());
@@ -69,17 +42,6 @@ GMPTimerParent::RecvSetTimer(const uint32_t& aTimerId,
   return true;
 }
 
-void
-GMPTimerParent::Shutdown()
-{
-  LOGD(("%s::%s: %p mIsOpen=%d", __CLASS__, __FUNCTION__, this, mIsOpen));
-
-  MOZ_ASSERT(mGMPThread == NS_GetCurrentThread());
-  mTimers.EnumerateEntries(GMPTimerParent::CancelTimers, nullptr);
-  mTimers.Clear();
-  mIsOpen = false;
-}
-
 /*static */
 PLDHashOperator
 GMPTimerParent::CancelTimers(nsPtrHashKey<Context>* aContext, void* aClosure)
@@ -93,9 +55,9 @@ GMPTimerParent::CancelTimers(nsPtrHashKey<Context>* aContext, void* aClosure)
 void
 GMPTimerParent::ActorDestroy(ActorDestroyReason aWhy)
 {
-  LOGD(("%s::%s: %p mIsOpen=%d", __CLASS__, __FUNCTION__, this, mIsOpen));
-
-  Shutdown();
+  MOZ_ASSERT(mGMPThread == NS_GetCurrentThread());
+  mTimers.EnumerateEntries(GMPTimerParent::CancelTimers, nullptr);
+  mTimers.Clear();
 }
 
 /* static */
@@ -113,12 +75,7 @@ GMPTimerParent::GMPTimerExpired(nsITimer *aTimer, void *aClosure)
 void
 GMPTimerParent::TimerExpired(Context* aContext)
 {
-  LOGD(("%s::%s: %p mIsOpen=%d", __CLASS__, __FUNCTION__, this, mIsOpen));
   MOZ_ASSERT(mGMPThread == NS_GetCurrentThread());
-
-  if (!mIsOpen) {
-    return;
-  }
 
   uint32_t id = aContext->mId;
   mTimers.RemoveEntry(aContext);

@@ -4,6 +4,5 @@
   "launch_path": "/tests/dom/apps/tests/file_app.sjs?apptype=hosted",
   "icons": {
     "128": "ICONTOKEN"
-  },
-  "role": "ROLE"
+  }
 }

@@ -15,6 +15,7 @@ namespace jit {
 
 // Longer scripts can only be compiled off thread, as these compilations
 // can be expensive and stall the main thread for too long.
+static const uint32_t MAX_OFF_THREAD_SCRIPT_SIZE = 100 * 1000;
 static const uint32_t MAX_MAIN_THREAD_SCRIPT_SIZE = 2 * 1000;
 static const uint32_t MAX_MAIN_THREAD_LOCALS_AND_ARGS = 256;
 
@@ -43,25 +44,25 @@ struct JitOptions
     bool disableUce;
     bool disableEaa;
     bool eagerCompilation;
-    bool forceDefaultIonWarmUpThreshold;
-    uint32_t forcedDefaultIonWarmUpThreshold;
+    bool forceDefaultIonUsesBeforeCompile;
+    uint32_t forcedDefaultIonUsesBeforeCompile;
     bool forceRegisterAllocator;
     IonRegisterAllocator forcedRegisterAllocator;
     bool limitScriptSize;
     bool osr;
-    uint32_t baselineWarmUpThreshold;
+    uint32_t baselineUsesBeforeCompile;
     uint32_t exceptionBailoutThreshold;
     uint32_t frequentBailoutThreshold;
     uint32_t maxStackArgs;
     uint32_t osrPcMismatchesBeforeRecompile;
     uint32_t smallFunctionMaxBytecodeLength_;
-    uint32_t compilerWarmUpThresholdPar;
+    uint32_t usesBeforeCompilePar;
 
     JitOptions();
     bool isSmallFunction(JSScript *script) const;
     void setEagerCompilation();
-    void setCompilerWarmUpThreshold(uint32_t warmUpCounter);
-    void resetCompilerWarmUpThreshold();
+    void setUsesBeforeCompile(uint32_t useCount);
+    void resetUsesBeforeCompile();
 };
 
 extern JitOptions js_JitOptions;

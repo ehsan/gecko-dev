@@ -41,8 +41,8 @@ class ClientTiledThebesLayer : public ThebesLayer,
   typedef ThebesLayer Base;
 
 public:
-  explicit ClientTiledThebesLayer(ClientLayerManager* const aManager,
-                                  ClientLayerManager::ThebesLayerCreationHint aCreationHint = LayerManager::NONE);
+  ClientTiledThebesLayer(ClientLayerManager* const aManager,
+                         ClientLayerManager::ThebesLayerCreationHint aCreationHint = LayerManager::NONE);
 
 protected:
   ~ClientTiledThebesLayer();
@@ -77,8 +77,8 @@ public:
    * scroll and have a displayport. The parameters are out-params
    * which hold the return values; the values passed in may be null.
    */
-  void GetAncestorLayers(LayerMetricsWrapper* aOutScrollAncestor,
-                         LayerMetricsWrapper* aOutDisplayPortAncestor);
+  void GetAncestorLayers(Layer** aOutScrollAncestor,
+                         Layer** aOutDisplayPortAncestor);
 
 private:
   ClientLayerManager* ClientManager()

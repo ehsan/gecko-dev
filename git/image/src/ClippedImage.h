@@ -42,11 +42,13 @@ public:
   NS_IMETHOD GetImageContainer(layers::LayerManager* aManager,
                                layers::ImageContainer** _retval) MOZ_OVERRIDE;
   NS_IMETHOD Draw(gfxContext* aContext,
-                  const nsIntSize& aSize,
-                  const ImageRegion& aRegion,
-                  uint32_t aWhichFrame,
                   GraphicsFilter aFilter,
-                  const Maybe<SVGImageContext>& aSVGContext,
+                  const gfxMatrix& aUserSpaceToImageSpace,
+                  const gfxRect& aFill,
+                  const nsIntRect& aSubimage,
+                  const nsIntSize& aViewportSize,
+                  const SVGImageContext* aSVGContext,
+                  uint32_t aWhichFrame,
                   uint32_t aFlags) MOZ_OVERRIDE;
   NS_IMETHOD RequestDiscard() MOZ_OVERRIDE;
   NS_IMETHOD_(Orientation) GetOrientation() MOZ_OVERRIDE;
@@ -63,17 +65,25 @@ protected:
 
 private:
   TemporaryRef<SourceSurface>
-    GetFrameInternal(const nsIntSize& aSize,
-                     const Maybe<SVGImageContext>& aSVGContext,
+    GetFrameInternal(const nsIntSize& aViewportSize,
+                     const SVGImageContext* aSVGContext,
                      uint32_t aWhichFrame,
                      uint32_t aFlags);
   bool ShouldClip();
+  bool MustCreateSurface(gfxContext* aContext,
+                         const gfxMatrix& aTransform,
+                         const gfxRect& aSourceRect,
+                         const nsIntRect& aSubimage,
+                         const uint32_t aFlags) const;
+  gfxFloat ClampFactor(const gfxFloat aToClamp, const int aReference) const;
   nsresult DrawSingleTile(gfxContext* aContext,
-                          const nsIntSize& aSize,
-                          const ImageRegion& aRegion,
-                          uint32_t aWhichFrame,
                           GraphicsFilter aFilter,
-                          const Maybe<SVGImageContext>& aSVGContext,
+                          const gfxMatrix& aUserSpaceToImageSpace,
+                          const gfxRect& aFill,
+                          const nsIntRect& aSubimage,
+                          const nsIntSize& aViewportSize,
+                          const SVGImageContext* aSVGContext,
+                          uint32_t aWhichFrame,
                           uint32_t aFlags);
 
   // If we are forced to draw a temporary surface, we cache it here.

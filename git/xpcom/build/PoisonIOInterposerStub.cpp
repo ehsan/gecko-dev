@@ -8,9 +8,9 @@
 
 extern "C" {
 
-void MozillaRegisterDebugFD(int aFd) {}
-void MozillaRegisterDebugFILE(FILE* aFile) {}
-void MozillaUnRegisterDebugFD(int aFd) {}
-void MozillaUnRegisterDebugFILE(FILE* aFile) {}
+  void MozillaRegisterDebugFD(int fd) {}
+  void MozillaRegisterDebugFILE(FILE *f) {}
+  void MozillaUnRegisterDebugFD(int fd) {}
+  void MozillaUnRegisterDebugFILE(FILE *f) {}
 
-}  // extern "C"
+}

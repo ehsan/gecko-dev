@@ -25,20 +25,18 @@ this.webrtcUI = {
     Services.obs.addObserver(handleRequest, "getUserMedia:request", false);
     Services.obs.addObserver(updateIndicators, "recording-device-events", false);
     Services.obs.addObserver(removeBrowserSpecificIndicator, "recording-window-ended", false);
-    Services.obs.addObserver(maybeAddMenuIndicator, "browser-delayed-startup-finished", false);
   },
 
   uninit: function () {
     Services.obs.removeObserver(handleRequest, "getUserMedia:request");
     Services.obs.removeObserver(updateIndicators, "recording-device-events");
     Services.obs.removeObserver(removeBrowserSpecificIndicator, "recording-window-ended");
-    Services.obs.removeObserver(maybeAddMenuIndicator, "browser-delayed-startup-finished");
   },
 
   showGlobalIndicator: false,
   showCameraIndicator: false,
   showMicrophoneIndicator: false,
-  showScreenSharingIndicator: "", // either "Application", "Screen" or "Window"
+  showScreenSharingIndicator: "", // either "Screen" or "Window"
 
   // The boolean parameters indicate which streams should be included in the result.
   getActiveStreams: function(aCamera, aMicrophone, aScreen) {
@@ -48,20 +46,12 @@ this.webrtcUI = {
     for (let i = 0; i < count; i++) {
       let contentWindow = contentWindowSupportsArray.GetElementAt(i);
 
-      let info = {
-        Camera: {},
-        Microphone: {},
-        Window: {},
-        Screen: {},
-        Application: {}
-      };
-      MediaManagerService.mediaCaptureWindowState(contentWindow, info.Camera,
-                                                  info.Microphone, info.Screen,
-                                                  info.Window, info.Application);
-      if (!(aCamera && info.Camera.value ||
-            aMicrophone && info.Microphone.value ||
-            aScreen && (info.Screen.value || info.Window.value ||
-                        info.Application.value)))
+      let camera = {}, microphone = {}, screen = {}, window = {};
+      MediaManagerService.mediaCaptureWindowState(contentWindow, camera,
+                                                  microphone, screen, window);
+      if (!(aCamera && camera.value ||
+            aMicrophone && microphone.value ||
+            aScreen && (screen.value || window.value)))
         continue;
 
       let browser = getBrowserForWindow(contentWindow);
@@ -71,8 +61,7 @@ this.webrtcUI = {
       activeStreams.push({
         uri: contentWindow.location.href,
         tab: tab,
-        browser: browser,
-        types: info
+        browser: browser
       });
     }
     return activeStreams;
@@ -89,19 +78,6 @@ this.webrtcUI = {
     let PopupNotifications = browserWindow.PopupNotifications;
     let notif = PopupNotifications.getNotification("webRTC-sharing" + aType,
                                                    aActiveStream.browser);
-#ifdef XP_MACOSX
-    if (!Services.focus.activeWindow) {
-      browserWindow.addEventListener("activate", function onActivate() {
-        browserWindow.removeEventListener("activate", onActivate);
-        Services.tm.mainThread.dispatch(function() {
-          notif.reshow();
-        }, Ci.nsIThread.DISPATCH_NORMAL);
-      });
-      Cc["@mozilla.org/widget/macdocksupport;1"].getService(Ci.nsIMacDockSupport)
-        .activateApplication(true);
-      return;
-    }
-#endif
     notif.reshow();
   },
 
@@ -331,48 +307,36 @@ function prompt(aContentWindow, aCallID, aAudio, aVideo, aDevices, aSecure) {
         while (menupopup.lastChild)
           menupopup.removeChild(menupopup.lastChild);
 
-        let type = devices[0].mediaSource;
-        let typeName = type.charAt(0).toUpperCase() + type.substr(1);
-
-        let label = chromeDoc.getElementById("webRTC-selectWindow-label");
-        let stringId = "getUserMedia.select" + typeName;
-        label.setAttribute("value",
-                           stringBundle.getString(stringId + ".label"));
-        label.setAttribute("accesskey",
-                           stringBundle.getString(stringId + ".accesskey"));
-
-        // "No <type>" is the default because we can't pick a
+        // "No Window or Screen" is the default because we can't pick a
         // 'default' window to share.
         addDeviceToList(menupopup,
-                        stringBundle.getString("getUserMedia.no" + typeName + ".label"),
+                        stringBundle.getString("getUserMedia.noWindowOrScreen.label"),
                         "-1");
-        menupopup.appendChild(chromeDoc.createElement("menuseparator"));
 
-        // Build the list of 'devices'.
+        // Then add the 'Entire screen' item if mozGetUserMediaDevices returned it.
         for (let i = 0; i < devices.length; ++i) {
-          let name;
-          // Screen has a special treatment because we currently only support
-          // sharing the primary screen and want to display a localized string.
-          if (type == "screen") {
-            name = stringBundle.getString("getUserMedia.shareEntireScreen.label");
+          if (devices[i].mediaSource == "screen") {
+            menupopup.appendChild(chromeDoc.createElement("menuseparator"));
+            addDeviceToList(menupopup,
+                            stringBundle.getString("getUserMedia.shareEntireScreen.label"),
+                            i, "Screen");
+            break;
           }
-          else {
-            name = devices[i].name;
-            if (type == "application") {
-              // The application names returned by the platform are of the form:
-              // <window count>\x1e<application name>
-              let sepIndex = name.indexOf("\x1e");
-              let count = name.slice(0, sepIndex);
-              let stringId = "getUserMedia.shareApplicationWindowCount.label";
-              name = PluralForm.get(parseInt(count), stringBundle.getString(stringId))
-                               .replace("#1", name.slice(sepIndex + 1))
-                               .replace("#2", count);
-            }
-          }
-          addDeviceToList(menupopup, name, i, typeName);
         }
 
-        // Always re-select the "No <type>" item.
+        // Finally add all the window names.
+        let separatorNeeded = true;
+        for (let i = 0; i < devices.length; ++i) {
+          if (devices[i].mediaSource == "window") {
+            if (separatorNeeded) {
+              menupopup.appendChild(chromeDoc.createElement("menuseparator"));
+              separatorNeeded = false;
+            }
+            addDeviceToList(menupopup, devices[i].name, i, "Window");
+          }
+        }
+
+        // Always re-select the "No Window or Screen" item.
         chromeDoc.getElementById("webRTC-selectWindow-menulist").removeAttribute("value");
         chromeDoc.getElementById("webRTC-all-windows-shared").hidden = true;
       }
@@ -474,7 +438,7 @@ function getGlobalIndicator() {
       let type = this.getAttribute("type");
       if (type == "Camera" || type == "Microphone")
         type = "Devices";
-      else if (type == "Window" || type == "Application")
+      else if (type == "Window")
         type = "Screen";
       webrtcUI.showSharingDoorhanger(aEvent.target.stream, type);
     },
@@ -588,112 +552,6 @@ function getGlobalIndicator() {
 #endif
 }
 
-function onTabSharingMenuPopupShowing(e) {
-  let streams = webrtcUI.getActiveStreams(true, true, true);
-  for (let streamInfo of streams) {
-    let stringName = "getUserMedia.sharingMenu";
-    let types = streamInfo.types;
-    if (types.Camera.value)
-      stringName += "Camera";
-    if (types.Microphone.value)
-      stringName += "Microphone";
-    if (types.Screen.value)
-      stringName += "Screen";
-    else if (types.Application.value)
-      stringName += "Application";
-    else if (types.Window.value)
-      stringName += "Window";
-
-    let doc = e.target.ownerDocument;
-    let bundle = doc.defaultView.gNavigatorBundle;
-
-    let origin;
-    let uri;
-    let href = streamInfo.uri;
-    try {
-      uri = Services.io.newURI(href, null, null);
-      origin = uri.asciiHost;
-    } catch (ex) {};
-    if (!origin) {
-      if (uri && uri.scheme == "about") {
-        // For about URIs, just use the full spec, without any #hash parts
-        origin = uri.specIgnoringRef;
-      } else {
-        // This is unfortunate, but we should display *something*...
-        origin = bundle.getString("getUserMedia.sharingMenuUnknownHost");
-      }
-    }
-
-    let menuitem = doc.createElement("menuitem");
-    menuitem.setAttribute("label", bundle.getFormattedString(stringName, [origin]));
-    menuitem.stream = streamInfo;
-
-    // We can only open 1 doorhanger at a time. Guessing that users would be
-    // most eager to control screen/window/app sharing, and only then
-    // camera/microphone sharing, in that (decreasing) order of priority.
-    let doorhangerType;
-    if ((/Screen|Window|Application/).test(stringName)) {
-      doorhangerType = "Screen";
-    } else {
-      doorhangerType = "Devices";
-    }
-    menuitem.setAttribute("doorhangertype", doorhangerType);
-    menuitem.addEventListener("command", onTabSharingMenuPopupCommand);
-    e.target.appendChild(menuitem);
-  }
-}
-
-function onTabSharingMenuPopupHiding(e) {
-  while (this.lastChild)
-    this.lastChild.remove();
-}
-
-function onTabSharingMenuPopupCommand(e) {
-  let type = e.target.getAttribute("doorhangertype");
-  webrtcUI.showSharingDoorhanger(e.target.stream, type);
-}
-
-function showOrCreateMenuForWindow(aWindow) {
-  let document = aWindow.document;
-  let menu = document.getElementById("tabSharingMenu");
-  if (!menu) {
-    let stringBundle = aWindow.gNavigatorBundle;
-    menu = document.createElement("menu");
-    menu.id = "tabSharingMenu";
-    let labelStringId = "getUserMedia.sharingMenu.label";
-    menu.setAttribute("label", stringBundle.getString(labelStringId));
-#ifdef XP_MACOSX
-    let container = document.getElementById("windowPopup");
-    let insertionPoint = document.getElementById("sep-window-list");
-    let separator = document.createElement("menuseparator");
-    separator.id = "tabSharingSeparator";
-    container.insertBefore(separator, insertionPoint);
-#else
-    let accesskeyStringId = "getUserMedia.sharingMenu.accesskey";
-    menu.setAttribute("accesskey", stringBundle.getString(accesskeyStringId));
-    let container = document.getElementById("main-menubar");
-    let insertionPoint = document.getElementById("helpMenu");
-#endif
-    let popup = document.createElement("menupopup");
-    popup.id = "tabSharingMenuPopup";
-    popup.addEventListener("popupshowing", onTabSharingMenuPopupShowing);
-    popup.addEventListener("popuphiding", onTabSharingMenuPopupHiding);
-    menu.appendChild(popup);
-    container.insertBefore(menu, insertionPoint);
-  } else {
-    menu.hidden = false;
-#ifdef XP_MACOSX
-    document.getElementById("tabSharingSeparator").hidden = false;
-#endif
-  }
-}
-
-function maybeAddMenuIndicator(window) {
-  if (webrtcUI.showGlobalIndicator) {
-    showOrCreateMenuForWindow(window);
-  }
-}
-
 var gIndicatorWindow = null;
 
 function updateIndicators() {
@@ -707,41 +565,19 @@ function updateIndicators() {
 
   for (let i = 0; i < count; ++i) {
     let contentWindow = contentWindowSupportsArray.GetElementAt(i);
-    let camera = {}, microphone = {}, screen = {}, window = {}, app = {};
+    let camera = {}, microphone = {}, screen = {}, window = {};
     MediaManagerService.mediaCaptureWindowState(contentWindow, camera,
-                                                microphone, screen, window, app);
+                                                microphone, screen, window);
     if (camera.value)
       webrtcUI.showCameraIndicator = true;
     if (microphone.value)
       webrtcUI.showMicrophoneIndicator = true;
     if (screen.value)
       webrtcUI.showScreenSharingIndicator = "Screen";
-    else if (window.value && webrtcUI.showScreenSharingIndicator != "Screen")
+    else if (window.value && !webrtcUI.showScreenSharingIndicator)
       webrtcUI.showScreenSharingIndicator = "Window";
-    else if (app.value && !webrtcUI.showScreenSharingIndicator)
-      webrtcUI.showScreenSharingIndicator = "Application";
 
-    updateBrowserSpecificIndicator(getBrowserForWindow(contentWindow));
-  }
-
-  let browserWindowEnum = Services.wm.getEnumerator("navigator:browser");
-  while (browserWindowEnum.hasMoreElements()) {
-    let chromeWin = browserWindowEnum.getNext();
-    if (webrtcUI.showGlobalIndicator) {
-      showOrCreateMenuForWindow(chromeWin);
-    } else {
-      let doc = chromeWin.document;
-      let existingMenu = doc.getElementById("tabSharingMenu");
-      if (existingMenu) {
-        existingMenu.hidden = true;
-      }
-#ifdef XP_MACOSX
-      let separator = doc.getElementById("tabSharingSeparator");
-      if (separator) {
-        separator.hidden = true;
-      }
-#endif
-    }
+    showBrowserSpecificIndicator(getBrowserForWindow(contentWindow));
   }
 
   if (webrtcUI.showGlobalIndicator) {
@@ -755,11 +591,10 @@ function updateIndicators() {
   }
 }
 
-function updateBrowserSpecificIndicator(aBrowser) {
-  let camera = {}, microphone = {}, screen = {}, window = {}, app = {};
+function showBrowserSpecificIndicator(aBrowser) {
+  let camera = {}, microphone = {}, screen = {}, window = {};
   MediaManagerService.mediaCaptureWindowState(aBrowser.contentWindow,
-                                              camera, microphone, screen,
-                                              window, app);
+                                              camera, microphone, screen, window);
   let captureState;
   if (camera.value && microphone.value) {
     captureState = "CameraAndMicrophone";
@@ -767,6 +602,9 @@ function updateBrowserSpecificIndicator(aBrowser) {
     captureState = "Camera";
   } else if (microphone.value) {
     captureState = "Microphone";
+  } else if (!screen.value && !window.value) {
+    Cu.reportError("showBrowserSpecificIndicator: got neither video nor audio access");
+    return;
   }
 
   let chromeWin = aBrowser.ownerDocument.defaultView;
@@ -796,6 +634,14 @@ function updateBrowserSpecificIndicator(aBrowser) {
         perms.remove(uri.host, "microphone");
 
       Services.obs.notifyObservers(null, "getUserMedia:revoke", windowId);
+
+      // Performing an action from a notification removes it, but if the page
+      // uses screensharing and a device, we may have another notification to remove.
+      let outerWindowID = Services.wm.getCurrentInnerWindowWithId(windowId)
+                                     .QueryInterface(Ci.nsIInterfaceRequestor)
+                                     .getInterface(Ci.nsIDOMWindowUtils)
+                                     .outerWindowID;
+      removeBrowserSpecificIndicator(null, null, outerWindowID);
     }
   }];
   let options = {
@@ -817,15 +663,10 @@ function updateBrowserSpecificIndicator(aBrowser) {
     chromeWin.PopupNotifications.show(aBrowser, "webRTC-sharingDevices", message,
                                       anchorId, mainAction, secondaryActions, options);
   }
-  else {
-    removeBrowserNotification(aBrowser,"webRTC-sharingDevices");
-  }
 
   // Now handle the screen sharing indicator.
-  if (!screen.value && !window.value && !app.value) {
-    removeBrowserNotification(aBrowser,"webRTC-sharingScreen");
+  if (!screen.value && !window.value)
     return;
-  }
 
   options = {
     hideNotNow: true,
@@ -838,38 +679,23 @@ function updateBrowserSpecificIndicator(aBrowser) {
       return aTopic == "swapping";
     }
   };
-  secondaryActions = [{
-    label: stringBundle.getString("getUserMedia.stopSharing.label"),
-    accessKey: stringBundle.getString("getUserMedia.stopSharing.accesskey"),
-    callback: function () {
-      Services.obs.notifyObservers(null, "getUserMedia:revoke", "screen:" + windowId);
-    }
-  }];
   // If we are sharing both a window and the screen, show 'Screen'.
-  let stringId = "getUserMedia.sharing";
-  if (screen.value)
-    stringId += "Screen";
-  else if (app.value)
-    stringId += "Application";
-  else
-    stringId += "Window";
+  let stringId = "getUserMedia.sharing" + (screen.value ? "Screen" : "Window") + ".message";
   chromeWin.PopupNotifications.show(aBrowser, "webRTC-sharingScreen",
-                                    stringBundle.getString(stringId + ".message"),
+                                    stringBundle.getString(stringId),
                                     "webRTC-sharingScreen-notification-icon",
                                     mainAction, secondaryActions, options);
 }
 
-function removeBrowserNotification(aBrowser, aNotificationId) {
-  let win = aBrowser.ownerDocument.defaultView;
-  let notification =
-    win.PopupNotifications.getNotification(aNotificationId, aBrowser);
-  if (notification)
-    win.PopupNotifications.remove(notification);
-}
-
 function removeBrowserSpecificIndicator(aSubject, aTopic, aData) {
   let browser = getBrowserForWindowId(aData);
-  // If the tab has already been closed, ignore the notification.
-  if (browser.contentWindow)
-    updateBrowserSpecificIndicator(browser);
+  let PopupNotifications = browser.ownerDocument.defaultView.PopupNotifications;
+  if (!PopupNotifications)
+    return;
+
+  for (let notifId of ["webRTC-sharingDevices", "webRTC-sharingScreen"]) {
+    let notification = PopupNotifications.getNotification(notifId, browser);
+    if (notification)
+      PopupNotifications.remove(notification);
+  }
 }

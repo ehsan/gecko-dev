@@ -39,18 +39,13 @@ public:
                     const gfxFontStyle *aStyle,
                     gfxUserFontSet *aUserFontSet);
 
-    virtual gfxFontEntry* LookupLocalFont(const nsAString& aFontName,
-                                          uint16_t aWeight,
-                                          int16_t aStretch,
-                                          bool aItalic);
+    virtual gfxFontEntry* LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
+                                          const nsAString& aFontName);
 
     virtual gfxPlatformFontList* CreatePlatformFontList();
 
-    virtual gfxFontEntry* MakePlatformFont(const nsAString& aFontName,
-                                           uint16_t aWeight,
-                                           int16_t aStretch,
-                                           bool aItalic,
-                                           const uint8_t* aFontData,
+    virtual gfxFontEntry* MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
+                                           const uint8_t *aFontData,
                                            uint32_t aLength);
 
     bool IsFontFormatSupported(nsIURI *aFontURI, uint32_t aFormatFlags);
@@ -65,8 +60,6 @@ public:
                                         nsTArray<const char*>& aFontList);
 
     bool UseAcceleratedCanvas();
-
-    virtual bool UseTiling() MOZ_OVERRIDE;
 
     // lower threshold on font anti-aliasing
     uint32_t GetAntiAliasingThreshold() { return mFontAntiAliasingThreshold; }

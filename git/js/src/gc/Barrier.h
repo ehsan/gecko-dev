@@ -169,7 +169,6 @@ class BaseShape;
 class DebugScopeObject;
 class GlobalObject;
 class LazyScript;
-class NestedScopeObject;
 class Nursery;
 class ObjectImpl;
 class PropertyName;
@@ -218,7 +217,6 @@ template <> struct MapTypeToTraceKind<JSObject>         { static const JSGCTrace
 template <> struct MapTypeToTraceKind<JSScript>         { static const JSGCTraceKind kind = JSTRACE_SCRIPT; };
 template <> struct MapTypeToTraceKind<JSString>         { static const JSGCTraceKind kind = JSTRACE_STRING; };
 template <> struct MapTypeToTraceKind<LazyScript>       { static const JSGCTraceKind kind = JSTRACE_LAZY_SCRIPT; };
-template <> struct MapTypeToTraceKind<NestedScopeObject>{ static const JSGCTraceKind kind = JSTRACE_OBJECT; };
 template <> struct MapTypeToTraceKind<ObjectImpl>       { static const JSGCTraceKind kind = JSTRACE_OBJECT; };
 template <> struct MapTypeToTraceKind<PropertyName>     { static const JSGCTraceKind kind = JSTRACE_STRING; };
 template <> struct MapTypeToTraceKind<SavedFrame>       { static const JSGCTraceKind kind = JSTRACE_OBJECT; };
@@ -304,29 +302,6 @@ class BarrieredCell : public gc::Cell
     static void writeBarrierPost(T *thing, void *cellp) {}
     static void writeBarrierPostRelocate(T *thing, void *cellp) {}
     static void writeBarrierPostRemove(T *thing, void *cellp) {}
-
-    template <typename S>
-    S *pod_malloc(size_t numElems) {
-        return zone()->template pod_malloc<S>(numElems);
-    }
-    template <typename S>
-    S *pod_calloc(size_t numElems) {
-        return zone()->template pod_calloc<S>(numElems);
-    }
-    template <typename S>
-    S *pod_realloc(S *prior, size_t oldSize, size_t newSize) {
-        return zone()->template pod_realloc<S>(prior, oldSize, newSize);
-    }
-
-    template <typename S, typename U>
-    S *pod_malloc_with_extra(size_t numExtra) {
-        return zone()->template pod_malloc_with_extra<S, U>(numExtra);
-    }
-
-    template <typename S, typename U>
-    S *pod_calloc_with_extra(size_t numExtra) {
-        return zone()->template pod_calloc_with_extra<S, U>(numExtra);
-    }
 };
 
 } // namespace gc
@@ -881,7 +856,7 @@ class JitCode;
 }
 namespace types {
 struct TypeObject;
-class TypeNewScript;
+struct TypeNewScript;
 }
 
 typedef PreBarriered<JSObject*> PreBarrieredObject;
@@ -1030,34 +1005,14 @@ class HeapSlotArray
 {
     HeapSlot *array;
 
-    // Whether writes may be performed to the slots in this array. This helps
-    // to control how object elements which may be copy on write are used.
-#ifdef DEBUG
-    bool allowWrite_;
-#endif
-
   public:
-    explicit HeapSlotArray(HeapSlot *array, bool allowWrite)
-      : array(array)
-#ifdef DEBUG
-      , allowWrite_(allowWrite)
-#endif
-    {}
+    explicit HeapSlotArray(HeapSlot *array) : array(array) {}
 
     operator const Value *() const { return Valueify(array); }
-    operator HeapSlot *() const { JS_ASSERT(allowWrite()); return array; }
+    operator HeapSlot *() const { return array; }
 
-    HeapSlotArray operator +(int offset) const { return HeapSlotArray(array + offset, allowWrite()); }
-    HeapSlotArray operator +(uint32_t offset) const { return HeapSlotArray(array + offset, allowWrite()); }
-
-  private:
-    bool allowWrite() const {
-#ifdef DEBUG
-        return allowWrite_;
-#else
-        return true;
-#endif
-    }
+    HeapSlotArray operator +(int offset) const { return HeapSlotArray(array + offset); }
+    HeapSlotArray operator +(uint32_t offset) const { return HeapSlotArray(array + offset); }
 };
 
 /*

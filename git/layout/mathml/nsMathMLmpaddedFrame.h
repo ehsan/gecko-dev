@@ -45,7 +45,7 @@ public:
   }
 
 protected:
-  explicit nsMathMLmpaddedFrame(nsStyleContext* aContext) : nsMathMLContainerFrame(aContext) {}
+  nsMathMLmpaddedFrame(nsStyleContext* aContext) : nsMathMLContainerFrame(aContext) {}
   virtual ~nsMathMLmpaddedFrame();
   
   virtual nsresult

@@ -2059,7 +2059,7 @@ void nsDisplayXULEventRedirector::HitTest(nsDisplayListBuilder* aBuilder,
 class nsXULEventRedirectorWrapper : public nsDisplayWrapper
 {
 public:
-  explicit nsXULEventRedirectorWrapper(nsIFrame* aTargetFrame)
+  nsXULEventRedirectorWrapper(nsIFrame* aTargetFrame)
       : mTargetFrame(aTargetFrame) {}
   virtual nsDisplayItem* WrapList(nsDisplayListBuilder* aBuilder,
                                   nsIFrame* aFrame,

@@ -82,8 +82,6 @@ public:
   already_AddRefed<dom::CameraCapabilities> Capabilities();
   void GetIsoMode(nsString& aMode, ErrorResult& aRv);
   void SetIsoMode(const nsAString& aMode, ErrorResult& aRv);
-  double GetPictureQuality(ErrorResult& aRv);
-  void SetPictureQuality(double aQuality, ErrorResult& aRv);
 
   // Unsolicited event handlers.
   dom::CameraShutterCallback* GetOnShutter();
@@ -145,7 +143,7 @@ protected:
     NS_INLINE_DECL_REFCOUNTING(DOMCameraConfiguration)
 
     DOMCameraConfiguration();
-    explicit DOMCameraConfiguration(const dom::CameraConfiguration& aConfiguration);
+    DOMCameraConfiguration(const dom::CameraConfiguration& aConfiguration);
 
     // Additional configuration options that aren't exposed to the DOM
     uint32_t mMaxFocusAreas;

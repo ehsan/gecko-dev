@@ -283,14 +283,6 @@ public:
     return mWritingMode != aOther.mWritingMode;
   }
 
-  /**
-   * Check whether two modes are orthogonal to each other.
-   */
-  bool IsOrthogonalTo(const WritingMode& aOther) const
-  {
-    return IsVertical() != aOther.IsVertical();
-  }
-
 private:
   friend class LogicalPoint;
   friend class LogicalSize;
@@ -639,7 +631,7 @@ public:
   }
 
   /**
-   * Writable references to the logical and physical dimensions
+   * Writable references to the logical dimensions
    */
   nscoord& ISize(WritingMode aWritingMode) // inline-size
   {
@@ -652,15 +644,26 @@ public:
     return mSize.height;
   }
 
-  nscoord& Width(WritingMode aWritingMode)
+  /**
+   * Setters for the physical dimensions
+   */
+  void SetWidth(WritingMode aWritingMode, nscoord aWidth)
   {
     CHECK_WRITING_MODE(aWritingMode);
-    return aWritingMode.IsVertical() ? BSize() : ISize();
+    if (aWritingMode.IsVertical()) {
+      BSize() = aWidth;
+    } else {
+      ISize() = aWidth;
+    }
   }
-  nscoord& Height(WritingMode aWritingMode)
+  void SetHeight(WritingMode aWritingMode, nscoord aHeight)
   {
     CHECK_WRITING_MODE(aWritingMode);
-    return aWritingMode.IsVertical() ? ISize() : BSize();
+    if (aWritingMode.IsVertical()) {
+      ISize() = aHeight;
+    } else {
+      BSize() = aHeight;
+    }
   }
 
   /**
@@ -691,34 +694,6 @@ public:
   bool operator!=(const LogicalSize& aOther) const
   {
     return mWritingMode != aOther.mWritingMode || mSize != aOther.mSize;
-  }
-
-  LogicalSize operator+(const LogicalSize& aOther) const
-  {
-    CHECK_WRITING_MODE(aOther.GetWritingMode());
-    return LogicalSize(mWritingMode, ISize() + aOther.ISize(),
-                                     BSize() + aOther.BSize());
-  }
-  LogicalSize& operator+=(const LogicalSize& aOther)
-  {
-    CHECK_WRITING_MODE(aOther.GetWritingMode());
-    ISize() += aOther.ISize();
-    BSize() += aOther.BSize();
-    return *this;
-  }
-
-  LogicalSize operator-(const LogicalSize& aOther) const
-  {
-    CHECK_WRITING_MODE(aOther.GetWritingMode());
-    return LogicalSize(mWritingMode, ISize() - aOther.ISize(),
-                                     BSize() - aOther.BSize());
-  }
-  LogicalSize& operator-=(const LogicalSize& aOther)
-  {
-    CHECK_WRITING_MODE(aOther.GetWritingMode());
-    ISize() -= aOther.ISize();
-    BSize() -= aOther.BSize();
-    return *this;
   }
 
 private:
@@ -861,16 +836,6 @@ public:
   {
     CHECK_WRITING_MODE(aWritingMode);
     return mMargin.TopBottom();
-  }
-
-  /**
-   * Return a LogicalSize representing the total size of the inline-
-   * and block-dimension margins.
-   */
-  LogicalSize Size(WritingMode aWritingMode) const
-  {
-    CHECK_WRITING_MODE(aWritingMode);
-    return LogicalSize(aWritingMode, IStartEnd(), BStartEnd());
   }
 
   /**

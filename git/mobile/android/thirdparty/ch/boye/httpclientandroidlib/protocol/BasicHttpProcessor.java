@@ -37,8 +37,6 @@ import ch.boye.httpclientandroidlib.HttpRequest;
 import ch.boye.httpclientandroidlib.HttpRequestInterceptor;
 import ch.boye.httpclientandroidlib.HttpResponse;
 import ch.boye.httpclientandroidlib.HttpResponseInterceptor;
-import ch.boye.httpclientandroidlib.annotation.NotThreadSafe;
-import ch.boye.httpclientandroidlib.util.Args;
 
 /**
  * Default implementation of {@link HttpProcessor}.
@@ -47,17 +45,14 @@ import ch.boye.httpclientandroidlib.util.Args;
  * synchronized and therefore this class may be thread-unsafe.
  *
  * @since 4.0
- *
- * @deprecated (4.3)
  */
-@NotThreadSafe
-@Deprecated
+//@NotThreadSafe // Lists are not synchronized
 public final class BasicHttpProcessor implements
     HttpProcessor, HttpRequestInterceptorList, HttpResponseInterceptorList, Cloneable {
 
     // Don't allow direct access, as nulls are not allowed
-    protected final List<HttpRequestInterceptor> requestInterceptors = new ArrayList<HttpRequestInterceptor>();
-    protected final List<HttpResponseInterceptor> responseInterceptors = new ArrayList<HttpResponseInterceptor>();
+    protected final List requestInterceptors = new ArrayList();
+    protected final List responseInterceptors = new ArrayList();
 
     public void addRequestInterceptor(final HttpRequestInterceptor itcp) {
         if (itcp == null) {
@@ -67,7 +62,7 @@ public final class BasicHttpProcessor implements
     }
 
     public void addRequestInterceptor(
-            final HttpRequestInterceptor itcp, final int index) {
+            final HttpRequestInterceptor itcp, int index) {
         if (itcp == null) {
             return;
         }
@@ -75,27 +70,27 @@ public final class BasicHttpProcessor implements
     }
 
     public void addResponseInterceptor(
-            final HttpResponseInterceptor itcp, final int index) {
+            final HttpResponseInterceptor itcp, int index) {
         if (itcp == null) {
             return;
         }
         this.responseInterceptors.add(index, itcp);
     }
 
-    public void removeRequestInterceptorByClass(final Class<? extends HttpRequestInterceptor> clazz) {
-        for (final Iterator<HttpRequestInterceptor> it = this.requestInterceptors.iterator();
+    public void removeRequestInterceptorByClass(final Class clazz) {
+        for (Iterator it = this.requestInterceptors.iterator();
              it.hasNext(); ) {
-            final Object request = it.next();
+            Object request = it.next();
             if (request.getClass().equals(clazz)) {
                 it.remove();
             }
         }
     }
 
-    public void removeResponseInterceptorByClass(final Class<? extends HttpResponseInterceptor> clazz) {
-        for (final Iterator<HttpResponseInterceptor> it = this.responseInterceptors.iterator();
+    public void removeResponseInterceptorByClass(final Class clazz) {
+        for (Iterator it = this.responseInterceptors.iterator();
              it.hasNext(); ) {
-            final Object request = it.next();
+            Object request = it.next();
             if (request.getClass().equals(clazz)) {
                 it.remove();
             }
@@ -106,7 +101,7 @@ public final class BasicHttpProcessor implements
         addRequestInterceptor(interceptor);
     }
 
-     public final void addInterceptor(final HttpRequestInterceptor interceptor, final int index) {
+     public final void addInterceptor(final HttpRequestInterceptor interceptor, int index) {
         addRequestInterceptor(interceptor, index);
     }
 
@@ -114,11 +109,10 @@ public final class BasicHttpProcessor implements
         return this.requestInterceptors.size();
     }
 
-    public HttpRequestInterceptor getRequestInterceptor(final int index) {
-        if ((index < 0) || (index >= this.requestInterceptors.size())) {
+    public HttpRequestInterceptor getRequestInterceptor(int index) {
+        if ((index < 0) || (index >= this.requestInterceptors.size()))
             return null;
-        }
-        return this.requestInterceptors.get(index);
+        return (HttpRequestInterceptor) this.requestInterceptors.get(index);
     }
 
     public void clearRequestInterceptors() {
@@ -136,7 +130,7 @@ public final class BasicHttpProcessor implements
         addResponseInterceptor(interceptor);
     }
 
-    public final void addInterceptor(final HttpResponseInterceptor interceptor, final int index) {
+    public final void addInterceptor(final HttpResponseInterceptor interceptor, int index) {
         addResponseInterceptor(interceptor, index);
     }
 
@@ -144,11 +138,10 @@ public final class BasicHttpProcessor implements
         return this.responseInterceptors.size();
     }
 
-    public HttpResponseInterceptor getResponseInterceptor(final int index) {
-        if ((index < 0) || (index >= this.responseInterceptors.size())) {
+    public HttpResponseInterceptor getResponseInterceptor(int index) {
+        if ((index < 0) || (index >= this.responseInterceptors.size()))
             return null;
-        }
-        return this.responseInterceptors.get(index);
+        return (HttpResponseInterceptor) this.responseInterceptors.get(index);
     }
 
     public void clearResponseInterceptors() {
@@ -172,16 +165,19 @@ public final class BasicHttpProcessor implements
      * @param list      the list of request and response interceptors
      *                  from which to initialize
      */
-    public void setInterceptors(final List<?> list) {
-        Args.notNull(list, "Inteceptor list");
+    public void setInterceptors(final List list) {
+        if (list == null) {
+            throw new IllegalArgumentException("List must not be null.");
+        }
         this.requestInterceptors.clear();
         this.responseInterceptors.clear();
-        for (final Object obj : list) {
+        for (int i = 0; i < list.size(); i++) {
+            Object obj = list.get(i);
             if (obj instanceof HttpRequestInterceptor) {
-                addInterceptor((HttpRequestInterceptor) obj);
+                addInterceptor((HttpRequestInterceptor)obj);
             }
             if (obj instanceof HttpResponseInterceptor) {
-                addInterceptor((HttpResponseInterceptor) obj);
+                addInterceptor((HttpResponseInterceptor)obj);
             }
         }
     }
@@ -198,7 +194,9 @@ public final class BasicHttpProcessor implements
             final HttpRequest request,
             final HttpContext context)
             throws IOException, HttpException {
-        for (final HttpRequestInterceptor interceptor : this.requestInterceptors) {
+        for (int i = 0; i < this.requestInterceptors.size(); i++) {
+            HttpRequestInterceptor interceptor =
+                (HttpRequestInterceptor) this.requestInterceptors.get(i);
             interceptor.process(request, context);
         }
     }
@@ -207,7 +205,9 @@ public final class BasicHttpProcessor implements
             final HttpResponse response,
             final HttpContext context)
             throws IOException, HttpException {
-        for (final HttpResponseInterceptor interceptor : this.responseInterceptors) {
+        for (int i = 0; i < this.responseInterceptors.size(); i++) {
+            HttpResponseInterceptor interceptor =
+                (HttpResponseInterceptor) this.responseInterceptors.get(i);
             interceptor.process(response, context);
         }
     }
@@ -231,14 +231,13 @@ public final class BasicHttpProcessor implements
      * @return new instance of the BasicHttpProcessor
      */
     public BasicHttpProcessor copy() {
-        final BasicHttpProcessor clone = new BasicHttpProcessor();
+        BasicHttpProcessor clone = new BasicHttpProcessor();
         copyInterceptors(clone);
         return clone;
     }
 
-    @Override
     public Object clone() throws CloneNotSupportedException {
-        final BasicHttpProcessor clone = (BasicHttpProcessor) super.clone();
+        BasicHttpProcessor clone = (BasicHttpProcessor) super.clone();
         copyInterceptors(clone);
         return clone;
     }

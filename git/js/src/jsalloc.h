@@ -25,11 +25,9 @@ struct ContextFriendFields;
 class SystemAllocPolicy
 {
   public:
-    template <typename T> T *pod_malloc(size_t numElems) { return js_pod_malloc<T>(numElems); }
+    void *malloc_(size_t bytes) { return js_malloc(bytes); }
     template <typename T> T *pod_calloc(size_t numElems) { return js_pod_calloc<T>(numElems); }
-    template <typename T> T *pod_realloc(T *p, size_t oldSize, size_t newSize) {
-        return js_pod_realloc<T>(p, oldSize, newSize);
-    }
+    void *realloc_(void *p, size_t oldBytes, size_t bytes) { return js_realloc(p, bytes); }
     void free_(void *p) { js_free(p); }
     void reportAllocOverflow() const {}
 };
@@ -57,11 +55,10 @@ class TempAllocPolicy
     MOZ_IMPLICIT TempAllocPolicy(JSContext *cx) : cx_((ContextFriendFields *) cx) {} // :(
     MOZ_IMPLICIT TempAllocPolicy(ContextFriendFields *cx) : cx_(cx) {}
 
-    template <typename T>
-    T *pod_malloc(size_t numElems) {
-        T *p = js_pod_malloc<T>(numElems);
+    void *malloc_(size_t bytes) {
+        void *p = js_malloc(bytes);
         if (MOZ_UNLIKELY(!p))
-            p = static_cast<T *>(onOutOfMemory(nullptr, numElems * sizeof(T)));
+            p = onOutOfMemory(nullptr, bytes);
         return p;
     }
 
@@ -69,15 +66,14 @@ class TempAllocPolicy
     T *pod_calloc(size_t numElems) {
         T *p = js_pod_calloc<T>(numElems);
         if (MOZ_UNLIKELY(!p))
-            p = static_cast<T *>(onOutOfMemory(reinterpret_cast<void *>(1), numElems * sizeof(T)));
+            p = (T *)onOutOfMemory(reinterpret_cast<void *>(1), numElems * sizeof(T));
         return p;
     }
 
-    template <typename T>
-    T *pod_realloc(T *prior, size_t oldSize, size_t newSize) {
-        T *p2 = js_pod_realloc<T>(prior, oldSize, newSize);
+    void *realloc_(void *p, size_t oldBytes, size_t bytes) {
+        void *p2 = js_realloc(p, bytes);
         if (MOZ_UNLIKELY(!p2))
-            p2 = static_cast<T *>(onOutOfMemory(p2, newSize * sizeof(T)));
+            p2 = onOutOfMemory(p2, bytes);
         return p2;
     }
 

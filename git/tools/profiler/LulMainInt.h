@@ -223,7 +223,7 @@ public:
   // so let's use mSummaryMinAddr == 1 and mSummaryMaxAddr == 0 to denote
   // this case.
 
-  explicit SecMap(void(*aLog)(const char*));
+  SecMap(void(*aLog)(const char*));
   ~SecMap();
 
   // Binary search mRuleSets to find one that brackets |ia|, or nullptr

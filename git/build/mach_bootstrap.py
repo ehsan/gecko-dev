@@ -43,8 +43,6 @@ SEARCH_PATHS = [
     'xpcom/idl-parser',
     'testing',
     'testing/xpcshell',
-    'testing/web-platform',
-    'testing/web-platform/harness',
     'testing/marionette/client',
     'testing/marionette/client/marionette',
     'testing/marionette/transport',
@@ -76,13 +74,11 @@ MACH_MODULES = [
     'python/mozboot/mozboot/mach_commands.py',
     'python/mozbuild/mozbuild/mach_commands.py',
     'python/mozbuild/mozbuild/frontend/mach_commands.py',
-    'services/common/tests/mach_commands.py',
     'testing/mach_commands.py',
     'testing/marionette/mach_commands.py',
     'testing/mochitest/mach_commands.py',
     'testing/xpcshell/mach_commands.py',
     'testing/talos/mach_commands.py',
-    'testing/web-platform/mach_commands.py',
     'testing/xpcshell/mach_commands.py',
     'tools/docs/mach_commands.py',
     'tools/mercurial/mach_commands.py',
@@ -123,7 +119,7 @@ CATEGORIES = {
     },
     'disabled': {
         'short': 'Disabled',
-        'long': 'The disabled commands are hidden by default. Use -v to display them. These commands are unavailable for your current context, run "mach <command>" to see why.',
+        'long': 'These commands are unavailable for your current context, run "mach <command>" to see why.',
         'priority': 0,
     }
 }

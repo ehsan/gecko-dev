@@ -133,10 +133,7 @@ PlatformDecoderModule::Create()
 #endif
 #ifdef MOZ_FFMPEG
   if (sFFmpegDecoderEnabled) {
-    nsAutoPtr<PlatformDecoderModule> m(FFmpegRuntimeLinker::CreateDecoderModule());
-    if (m) {
-      return m.forget();
-    }
+    return FFmpegRuntimeLinker::CreateDecoderModule();
   }
 #endif
 #ifdef MOZ_APPLEMEDIA
@@ -151,12 +148,6 @@ PlatformDecoderModule::Create()
   }
 #endif
   return nullptr;
-}
-
-bool
-PlatformDecoderModule::SupportsAudioMimeType(const char* aMimeType)
-{
-  return !strcmp(aMimeType, "audio/mp4a-latm");
 }
 
 } // namespace mozilla

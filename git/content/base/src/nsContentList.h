@@ -27,7 +27,6 @@
 #include "nsWrapperCache.h"
 #include "nsHashKeys.h"
 #include "mozilla/HashFunctions.h"
-#include "mozilla/dom/NameSpaceConstants.h"
 
 namespace mozilla {
 namespace dom {
@@ -117,8 +116,8 @@ protected:
 class nsSimpleContentList : public nsBaseContentList
 {
 public:
-  explicit nsSimpleContentList(nsINode* aRoot) : nsBaseContentList(),
-                                                 mRoot(aRoot)
+  nsSimpleContentList(nsINode *aRoot) : nsBaseContentList(),
+                                        mRoot(aRoot)
   {
   }
 

@@ -51,11 +51,9 @@ function test() {
       is(req.originalURI.spec, gCurrTest.searchURL, "search URL was loaded");
       info("Actual URI: " + req.URI.spec);
 
-      req.cancel(Components.results.NS_ERROR_FAILURE);
-
       executeSoon(nextTest);
     }
-  };
+  }
   gBrowser.addProgressListener(listener);
 
   registerCleanupFunction(function () {

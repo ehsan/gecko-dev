@@ -98,7 +98,7 @@ struct TabWidth {
 };
 
 struct TabWidthStore {
-  explicit TabWidthStore(int32_t aValidForContentOffset)
+  TabWidthStore(int32_t aValidForContentOffset)
     : mLimit(0)
     , mValidForContentOffset(aValidForContentOffset)
   { }
@@ -276,7 +276,7 @@ struct TextRunUserData {
  */
 class nsTextPaintStyle {
 public:
-  explicit nsTextPaintStyle(nsTextFrame* aFrame);
+  nsTextPaintStyle(nsTextFrame* aFrame);
 
   void SetResolveColors(bool aResolveColors) {
     NS_ASSERTION(mFrame->IsSVGText() || aResolveColors,
@@ -1026,8 +1026,7 @@ private:
 static nsIFrame*
 FindLineContainer(nsIFrame* aFrame)
 {
-  while (aFrame && (aFrame->IsFrameOfType(nsIFrame::eLineParticipant) ||
-                    aFrame->CanContinueTextRun())) {
+  while (aFrame && aFrame->CanContinueTextRun()) {
     aFrame = aFrame->GetParent();
   }
   return aFrame;
@@ -1132,16 +1131,6 @@ CanTextCrossFrameBoundary(nsIFrame* aFrame, nsIAtom* aType)
       result.mScanSiblings = true;
       result.mTextRunCanCrossFrameBoundary = true;
       result.mLineBreakerCanCrossFrameBoundary = true;
-    } else if (aFrame->GetType() == nsGkAtoms::rubyTextFrame ||
-               aFrame->GetType() == nsGkAtoms::rubyTextContainerFrame) {
-      result.mFrameToScan = aFrame->GetFirstPrincipalChild();
-      result.mOverflowFrameToScan =
-        aFrame->GetFirstChild(nsIFrame::kOverflowList);
-      NS_WARN_IF_FALSE(!result.mOverflowFrameToScan,
-                       "Scanning overflow inline frames is something we should avoid");
-      result.mScanSiblings = true;
-      result.mTextRunCanCrossFrameBoundary = false;
-      result.mLineBreakerCanCrossFrameBoundary = false;
     } else {
       result.mFrameToScan = nullptr;
       result.mOverflowFrameToScan = nullptr;
@@ -1255,7 +1244,6 @@ BuildTextRuns(gfxContext* aContext, nsTextFrame* aForFrame,
   } else {
     NS_ASSERTION(!aForFrame ||
                  (aLineContainer == FindLineContainer(aForFrame) ||
-                  aLineContainer->GetType() == nsGkAtoms::rubyTextContainerFrame ||
                   (aLineContainer->GetType() == nsGkAtoms::letterFrame &&
                    aLineContainer->IsFloating())),
                  "Wrong line container hint");
@@ -1910,9 +1898,7 @@ BuildTextRunsScanner::BuildTextRunForFrames(void* aTextBuffer)
     fontStyle = f->StyleFont();
     nsIFrame* parent = mLineContainer->GetParent();
     if (NS_MATHML_MATHVARIANT_NONE != fontStyle->mMathVariant) {
-      if (NS_MATHML_MATHVARIANT_NORMAL != fontStyle->mMathVariant) {
-        anyMathMLStyling = true;
-      }
+      anyMathMLStyling = true;
     } else if (mLineContainer->GetStateBits() & NS_FRAME_IS_IN_SINGLE_CHAR_MI) {
       textFlags |= nsTextFrameUtils::TEXT_IS_SINGLE_CHAR_MI;
       anyMathMLStyling = true;
@@ -2970,22 +2956,17 @@ static void FindClusterStart(gfxTextRun* aTextRun, int32_t aOriginalStart,
 }
 
 /**
- * Finds the offset of the last character of the cluster containing aPos.
- * If aAllowSplitLigature is false, we also check for a ligature-group
- * start.
+ * Finds the offset of the last character of the cluster containing aPos
  */
 static void FindClusterEnd(gfxTextRun* aTextRun, int32_t aOriginalEnd,
-                           gfxSkipCharsIterator* aPos,
-                           bool aAllowSplitLigature = true)
+                           gfxSkipCharsIterator* aPos)
 {
   NS_PRECONDITION(aPos->GetOriginalOffset() < aOriginalEnd,
                   "character outside string");
   aPos->AdvanceOriginal(1);
   while (aPos->GetOriginalOffset() < aOriginalEnd) {
     if (aPos->IsOriginalCharSkipped() ||
-        (aTextRun->IsClusterStart(aPos->GetSkippedOffset()) &&
-         (aAllowSplitLigature ||
-          aTextRun->IsLigatureGroupStart(aPos->GetSkippedOffset())))) {
+        aTextRun->IsClusterStart(aPos->GetSkippedOffset())) {
       break;
     }
     aPos->AdvanceOriginal(1);
@@ -3984,7 +3965,7 @@ public:
   { return NS_ERROR_NOT_IMPLEMENTED; } // Call on a primary text frame only
 
 protected:
-  explicit nsContinuingTextFrame(nsStyleContext* aContext) : nsTextFrame(aContext) {}
+  nsContinuingTextFrame(nsStyleContext* aContext) : nsTextFrame(aContext) {}
   nsIFrame* mPrevContinuation;
 };
 
@@ -4570,20 +4551,8 @@ nsDisplayText::Paint(nsDisplayListBuilder* aBuilder,
   extraVisible.Inflate(appUnitsPerDevPixel, appUnitsPerDevPixel);
   nsTextFrame* f = static_cast<nsTextFrame*>(mFrame);
 
-  gfxContext* ctx = aCtx->ThebesContext();
-  gfxContextAutoDisableSubpixelAntialiasing disable(ctx,
+  gfxContextAutoDisableSubpixelAntialiasing disable(aCtx->ThebesContext(),
                                                     mDisableSubpixelAA);
-  gfxContextAutoSaveRestore save(ctx);
-
-  gfxRect pixelVisible =
-    nsLayoutUtils::RectToGfxRect(extraVisible, appUnitsPerDevPixel);
-  pixelVisible.Inflate(2);
-  pixelVisible.RoundOut();
-
-  ctx->NewPath();
-  ctx->Rectangle(pixelVisible);
-  ctx->Clip();
-
   NS_ASSERTION(mLeftEdge >= 0, "illegal left edge");
   NS_ASSERTION(mRightEdge >= 0, "illegal right edge");
   f->PaintText(aCtx, ToReferenceFrame(), extraVisible, *this);
@@ -4598,15 +4567,6 @@ nsTextFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     return;
   
   DO_GLOBAL_REFLOW_COUNT_DSP("nsTextFrame");
-
-  if (NS_GET_A(StyleColor()->mColor) == 0 &&
-      !IsSVGText() && !IsSelected() && !StyleText()->HasTextShadow()) {
-    TextDecorations textDecs;
-    GetTextDecorations(PresContext(), eResolvedColors, textDecs);
-    if (!textDecs.HasDecorationLines()) {
-      return;
-    }
-  }
 
   aLists.Content()->AppendNewToTop(
     new (aBuilder) nsDisplayText(aBuilder, this));
@@ -6322,8 +6282,7 @@ nsTextFrame::GetCharacterOffsetAtFramePointInternal(nsPoint aPoint,
 
   offsets.content = GetContent();
   offsets.offset = offsets.secondaryOffset = selectedOffset;
-  offsets.associate =
-    mContentOffset == offsets.offset ? CARET_ASSOCIATE_AFTER : CARET_ASSOCIATE_BEFORE;
+  offsets.associateWithNext = mContentOffset == offsets.offset;
   return offsets;
 }
 
@@ -6982,68 +6941,8 @@ FindFirstLetterRange(const nsTextFragment* aFrag,
   }
 
   // consume another cluster (the actual first letter)
-
-  // For complex scripts such as Indic and SEAsian, where first-letter
-  // should extend to entire orthographic "syllable" clusters, we don't
-  // want to allow this to split a ligature.
-  bool allowSplitLigature;
-
-  switch (unicode::GetScriptCode(aFrag->CharAt(aOffset + i))) {
-    default:
-      allowSplitLigature = true;
-      break;
-
-    // For now, lacking any definitive specification of when to apply this
-    // behavior, we'll base the decision on the HarfBuzz shaping engine
-    // used for each script: those that are handled by the Indic, Tibetan,
-    // Myanmar and SEAsian shapers will apply the "don't split ligatures"
-    // rule.
-
-    // Indic
-    case MOZ_SCRIPT_BENGALI:
-    case MOZ_SCRIPT_DEVANAGARI:
-    case MOZ_SCRIPT_GUJARATI:
-    case MOZ_SCRIPT_GURMUKHI:
-    case MOZ_SCRIPT_KANNADA:
-    case MOZ_SCRIPT_MALAYALAM:
-    case MOZ_SCRIPT_ORIYA:
-    case MOZ_SCRIPT_TAMIL:
-    case MOZ_SCRIPT_TELUGU:
-    case MOZ_SCRIPT_SINHALA:
-    case MOZ_SCRIPT_BALINESE:
-    case MOZ_SCRIPT_LEPCHA:
-    case MOZ_SCRIPT_REJANG:
-    case MOZ_SCRIPT_SUNDANESE:
-    case MOZ_SCRIPT_JAVANESE:
-    case MOZ_SCRIPT_KAITHI:
-    case MOZ_SCRIPT_MEETEI_MAYEK:
-    case MOZ_SCRIPT_CHAKMA:
-    case MOZ_SCRIPT_SHARADA:
-    case MOZ_SCRIPT_TAKRI:
-    case MOZ_SCRIPT_KHMER:
-
-    // Tibetan
-    case MOZ_SCRIPT_TIBETAN:
-
-    // Myanmar
-    case MOZ_SCRIPT_MYANMAR:
-
-    // Other SEAsian
-    case MOZ_SCRIPT_BUGINESE:
-    case MOZ_SCRIPT_NEW_TAI_LUE:
-    case MOZ_SCRIPT_CHAM:
-    case MOZ_SCRIPT_TAI_THAM:
-
-    // What about Thai/Lao - any special handling needed?
-    // Should we special-case Arabic lam-alef?
-
-      allowSplitLigature = false;
-      break;
-  }
-
   iter.SetOriginalOffset(aOffset + i);
-  FindClusterEnd(aTextRun, endOffset, &iter, allowSplitLigature);
-
+  FindClusterEnd(aTextRun, endOffset, &iter);
   i = iter.GetOriginalOffset() - aOffset;
   if (i + 1 == length)
     return true;
@@ -7423,19 +7322,14 @@ nsTextFrame::AddInlinePrefISize(nsRenderingContext *aRenderingContext,
   }
 }
 
-/* virtual */
-LogicalSize
+/* virtual */ nsSize
 nsTextFrame::ComputeSize(nsRenderingContext *aRenderingContext,
-                         WritingMode aWM,
-                         const LogicalSize& aCBSize,
-                         nscoord aAvailableISize,
-                         const LogicalSize& aMargin,
-                         const LogicalSize& aBorder,
-                         const LogicalSize& aPadding,
+                         nsSize aCBSize, nscoord aAvailableWidth,
+                         nsSize aMargin, nsSize aBorder, nsSize aPadding,
                          uint32_t aFlags)
 {
   // Inlines and text don't compute size before reflow.
-  return LogicalSize(aWM, NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE);
+  return nsSize(NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE);
 }
 
 static nsRect

@@ -22,7 +22,6 @@ from mozbuild.frontend.data import (
     ReaderSummary,
     Resources,
     SimpleProgram,
-    StaticLibrary,
     TestManifest,
     VariablePassthru,
 )
@@ -90,8 +89,8 @@ class TestEmitterBasic(unittest.TestCase):
             self.assertIsInstance(o, DirectoryTraversal)
             self.assertEqual(o.test_dirs, [])
             self.assertEqual(len(o.tier_dirs), 0)
-            self.assertTrue(os.path.isabs(o.context_main_path))
-            self.assertEqual(len(o.context_all_paths), 1)
+            self.assertTrue(os.path.isabs(o.sandbox_main_path))
+            self.assertEqual(len(o.sandbox_all_paths), 1)
 
         reldirs = [o.relativedir for o in objs]
         self.assertEqual(reldirs, ['', 'foo', 'foo/biz', 'bar'])
@@ -221,7 +220,7 @@ class TestEmitterBasic(unittest.TestCase):
         reader = self.reader('resources')
         objs = self.read_topsrcdir(reader)
 
-        expected_defines = dict(reader.config.defines)
+        expected_defines = reader.config.defines
         expected_defines.update({
             'FOO': True,
             'BAR': 'BAZ',
@@ -575,29 +574,6 @@ class TestEmitterBasic(unittest.TestCase):
             reader = self.reader('xpidl-module-no-sources')
             self.read_topsrcdir(reader)
 
-    def test_missing_local_includes(self):
-        """LOCAL_INCLUDES containing non-existent directories should be rejected."""
-        with self.assertRaisesRegexp(SandboxValidationError, 'Path specified in '
-            'LOCAL_INCLUDES does not exist'):
-            reader = self.reader('missing-local-includes')
-            self.read_topsrcdir(reader)
-
-    def test_library_defines(self):
-        """Test that LIBRARY_DEFINES is propagated properly."""
-        reader = self.reader('library-defines')
-        objs = self.read_topsrcdir(reader)
-
-        libraries = [o for o in objs if isinstance(o,StaticLibrary)]
-        expected = {
-            'liba': '-DIN_LIBA',
-            'libb': '-DIN_LIBA -DIN_LIBB',
-            'libc': '-DIN_LIBA -DIN_LIBB',
-            'libd': ''
-        }
-        defines = {}
-        for lib in libraries:
-            defines[lib.basename] = ' '.join(lib.defines.get_defines())
-        self.assertEqual(expected, defines)
 
 if __name__ == '__main__':
     main()

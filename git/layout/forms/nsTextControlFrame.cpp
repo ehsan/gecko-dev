@@ -436,18 +436,13 @@ nsTextControlFrame::GetMinISize(nsRenderingContext* aRenderingContext)
   return result;
 }
 
-LogicalSize
+nsSize
 nsTextControlFrame::ComputeAutoSize(nsRenderingContext *aRenderingContext,
-                                    WritingMode aWM,
-                                    const LogicalSize& aCBSize,
-                                    nscoord aAvailableISize,
-                                    const LogicalSize& aMargin,
-                                    const LogicalSize& aBorder,
-                                    const LogicalSize& aPadding,
-                                    bool aShrinkWrap)
+                                    nsSize aCBSize, nscoord aAvailableWidth,
+                                    nsSize aMargin, nsSize aBorder,
+                                    nsSize aPadding, bool aShrinkWrap)
 {
   float inflation = nsLayoutUtils::FontSizeInflationFor(this);
-  // XXX CalcIntrinsicSize needs to be updated to use a LogicalSize
   nsSize autoSize;
   nsresult rv = CalcIntrinsicSize(aRenderingContext, autoSize, inflation);
   if (NS_FAILED(rv)) {
@@ -457,19 +452,18 @@ nsTextControlFrame::ComputeAutoSize(nsRenderingContext *aRenderingContext,
 #ifdef DEBUG
   // Note: Ancestor ComputeAutoSize only computes a width if we're auto-width
   else if (StylePosition()->mWidth.GetUnit() == eStyleUnit_Auto) {
-    LogicalSize ancestorAutoSize =
-      nsContainerFrame::ComputeAutoSize(aRenderingContext, aWM,
-                                        aCBSize, aAvailableISize,
+    nsSize ancestorAutoSize =
+      nsContainerFrame::ComputeAutoSize(aRenderingContext,
+                                        aCBSize, aAvailableWidth,
                                         aMargin, aBorder,
                                         aPadding, aShrinkWrap);
     // Disabled when there's inflation; see comment in GetPrefSize.
-    NS_ASSERTION(inflation != 1.0f ||
-                 ancestorAutoSize.Width(aWM) == autoSize.width,
+    NS_ASSERTION(inflation != 1.0f || ancestorAutoSize.width == autoSize.width,
                  "Incorrect size computed by ComputeAutoSize?");
   }
 #endif
 
-  return LogicalSize(aWM, autoSize);
+  return autoSize;
 }
 
 void
@@ -638,7 +632,7 @@ void nsTextControlFrame::SetFocus(bool aOn, bool aRepaint)
   if (!caret) return;
 
   // Scroll the current selection into view
-  nsISelection *caretSelection = caret->GetSelection();
+  nsISelection *caretSelection = caret->GetCaretDOMSelection();
   const bool isFocusedRightNow = ourSel == caretSelection;
   if (!isFocusedRightNow) {
     // Don't scroll the current selection if we've been focused using the mouse.
@@ -660,7 +654,7 @@ void nsTextControlFrame::SetFocus(bool aOn, bool aRepaint)
   }
 
   // tell the caret to use our selection
-  caret->SetSelection(ourSel);
+  caret->SetCaretDOMSelection(ourSel);
 
   // mutual-exclusion: the selection is either controlled by the
   // document or by the text input/area. Clear any selection in the

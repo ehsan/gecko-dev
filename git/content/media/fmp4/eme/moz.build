@@ -5,19 +5,23 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 EXPORTS += [
-    'EMEAudioDecoder.h',
+    'EMEAACDecoder.h',
     'EMEDecoderModule.h',
     'EMEH264Decoder.h',
 ]
 
 UNIFIED_SOURCES += [
-    'EMEAudioDecoder.cpp',
+    'EMEAACDecoder.cpp',
     'EMEDecoderModule.cpp',
     'EMEH264Decoder.cpp',
 ]
 
 include('/ipc/chromium/chromium-config.mozbuild')
 
+LOCAL_INCLUDES += [
+    '../base',
+]
+  
 FINAL_LIBRARY = 'xul'
 
 FAIL_ON_WARNINGS = True

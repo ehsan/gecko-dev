@@ -33,7 +33,6 @@ const console = require("resource://gre/modules/devtools/Console.jsm").console;
 
 const LOAD_ERROR = "error-load";
 const STYLE_EDITOR_TEMPLATE = "stylesheet";
-const SELECTOR_HIGHLIGHTER_TYPE = "SelectorHighlighter";
 const PREF_MEDIA_SIDEBAR = "devtools.styleeditor.showMediaSidebar";
 const PREF_SIDEBAR_WIDTH = "devtools.styleeditor.mediaSidebarWidth";
 const PREF_NAV_WIDTH = "devtools.styleeditor.navSidebarWidth";
@@ -112,24 +111,18 @@ StyleEditorUI.prototype = {
   },
 
   /**
-   * Initiates the style editor ui creation, the inspector front to get
-   * reference to the walker and the selector highlighter if available
+   * Initiates the style editor ui creation and the inspector front to get
+   * reference to the walker.
    */
   initialize: function() {
-    return Task.spawn(function*() {
-      let toolbox = gDevTools.getToolbox(this._target);
-      yield toolbox.initInspector();
+    let toolbox = gDevTools.getToolbox(this._target);
+    return toolbox.initInspector().then(() => {
       this._walker = toolbox.walker;
-
-      let hUtils = toolbox.highlighterUtils;
-      if (hUtils.hasCustomHighlighter(SELECTOR_HIGHLIGHTER_TYPE)) {
-        this._highlighter =
-          yield hUtils.getHighlighterByType(SELECTOR_HIGHLIGHTER_TYPE);
-      }
-    }.bind(this)).then(() => {
+    }).then(() => {
       this.createUI();
       this._debuggee.getStyleSheets().then((styleSheets) => {
-        this._resetStyleSheetList(styleSheets); 
+        this._resetStyleSheetList(styleSheets);
+
         this._target.on("will-navigate", this._clear);
         this._target.on("navigate", this._onNewDocument);
       });
@@ -299,8 +292,8 @@ StyleEditorUI.prototype = {
       file = savedFile;
     }
 
-    let editor = new StyleSheetEditor(styleSheet, this._window, file, isNew,
-                                      this._walker, this._highlighter);
+    let editor =
+      new StyleSheetEditor(styleSheet, this._window, file, isNew, this._walker);
 
     editor.on("property-change", this._summaryChange.bind(this, editor));
     editor.on("media-rules-changed", this._updateMediaList.bind(this, editor));
@@ -500,7 +493,8 @@ StyleEditorUI.prototype = {
           this._selectEditor(editor);
         }
 
-        if (this._isEditorToSelect(editor)) {
+        if (this._styleSheetToSelect
+            && this._styleSheetToSelect.stylesheet == editor.styleSheet.href) {
           this.switchToSelectedSheet();
         }
 
@@ -565,40 +559,23 @@ StyleEditorUI.prototype = {
    *         Promise that will resolve when the editor is selected.
    */
   switchToSelectedSheet: function() {
-    let toSelect = this._styleSheetToSelect;
+    let sheet = this._styleSheetToSelect;
+    let isHref = sheet.stylesheet === null || typeof sheet.stylesheet == "string";
 
     for (let editor of this.editors) {
-      if (this._isEditorToSelect(editor)) {
+      if ((isHref && editor.styleSheet.href == sheet.stylesheet) ||
+          sheet.stylesheet == editor.styleSheet) {
         // The _styleSheetBoundToSelect will always hold the latest pending
         // requested style sheet (with line and column) which is not yet
         // selected by the source editor. Only after we select that particular
         // editor and go the required line and column, it will become null.
         this._styleSheetBoundToSelect = this._styleSheetToSelect;
         this._styleSheetToSelect = null;
-        return this._selectEditor(editor, toSelect.line, toSelect.col);
+        return this._selectEditor(editor, sheet.line, sheet.col);
       }
     }
 
     return promise.resolve();
-  },
-
-  /**
-   * Returns whether a given editor is the current editor to be selected. Tests
-   * based on href or underlying stylesheet.
-   *
-   * @param {StyleSheetEditor} editor
-   *        The editor to test.
-   */
-  _isEditorToSelect: function(editor) {
-    let toSelect = this._styleSheetToSelect;
-    if (!toSelect) {
-      return false;
-    }
-    let isHref = toSelect.stylesheet === null ||
-                 typeof toSelect.stylesheet == "string";
-
-    return (isHref && editor.styleSheet.href == toSelect.stylesheet) ||
-           (toSelect.stylesheet == editor.styleSheet);
   },
 
   /**
@@ -843,11 +820,6 @@ StyleEditorUI.prototype = {
   },
 
   destroy: function() {
-    if (this._highlighter) {
-      this._highlighter.finalize();
-      this._highlighter = null;
-    }
-
     this._clearStyleSheetEditors();
 
     let sidebar = this._panelDoc.querySelector(".splitview-controller");

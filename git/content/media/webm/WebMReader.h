@@ -57,8 +57,8 @@ private:
 
 // Thread and type safe wrapper around nsDeque.
 class PacketQueueDeallocator : public nsDequeFunctor {
-  virtual void* operator() (void* aObject) {
-    delete static_cast<NesteggPacketHolder*>(aObject);
+  virtual void* operator() (void* anObject) {
+    delete static_cast<NesteggPacketHolder*>(anObject);
     return nullptr;
   }
 };
@@ -104,7 +104,7 @@ class WebMPacketQueue : private nsDeque {
 class WebMReader : public MediaDecoderReader
 {
 public:
-  explicit WebMReader(AbstractMediaDecoder* aDecoder);
+  WebMReader(AbstractMediaDecoder* aDecoder);
 
 protected:
   ~WebMReader();
@@ -223,10 +223,6 @@ private:
 
   // Number of microseconds that must be discarded from the start of the Stream.
   uint64_t mCodecDelay;
-
-  // Calculate the frame duration from the last decodeable frame using the
-  // previous frame's timestamp.  In NS.
-  uint64_t mLastVideoFrameTime;
 
   // Parser state and computed offset-time mappings.  Shared by multiple
   // readers when decoder has been cloned.  Main thread only.

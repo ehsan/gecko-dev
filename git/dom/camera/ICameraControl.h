@@ -33,7 +33,6 @@ enum {
   CAMERA_PARAM_PICTURE_ROTATION,
   CAMERA_PARAM_PICTURE_LOCATION,
   CAMERA_PARAM_PICTURE_DATETIME,
-  CAMERA_PARAM_PICTURE_QUALITY,
   CAMERA_PARAM_EFFECT,
   CAMERA_PARAM_WHITEBALANCE,
   CAMERA_PARAM_SCENEMODE,
@@ -240,7 +239,7 @@ protected:
 class ICameraControlParameterSetAutoEnter
 {
 public:
-  explicit ICameraControlParameterSetAutoEnter(ICameraControl* aCameraControl)
+  ICameraControlParameterSetAutoEnter(ICameraControl* aCameraControl)
     : mCameraControl(aCameraControl)
   {
     mCameraControl->BeginBatchParameterSet();

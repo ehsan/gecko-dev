@@ -18,14 +18,13 @@
 #include "nsContainerFrame.h"
 #include "nsPoint.h"
 #include "nsRect.h"
+#include "nsCaret.h"
 #include "plarena.h"
-#include "Layers.h"
 #include "nsRegion.h"
+#include "FrameLayerBuilder.h"
+#include "nsLayoutUtils.h"
 #include "nsDisplayListInvalidation.h"
 #include "DisplayListClipState.h"
-#include "LayerState.h"
-#include "FrameMetrics.h"
-#include "mozilla/UniquePtr.h"
 
 #include <stdint.h>
 
@@ -37,16 +36,14 @@ class nsRenderingContext;
 class nsDisplayTableItem;
 class nsISelection;
 class nsDisplayLayerEventRegions;
-class nsCaret;
 
 namespace mozilla {
-class FrameLayerBuilder;
 namespace layers {
 class Layer;
 class ImageLayer;
 class ImageContainer;
-} //namespace
-} //namespace
+} //namepsace
+} //namepsace
 
 // A set of blend modes, that never includes OP_OVER (since it's
 // considered the default, rather than a specific blend mode).
@@ -356,20 +353,15 @@ public:
     return CurrentPresShellState()->mCaretFrame;
   }
   /**
-   * Get the rectangle we're supposed to draw the caret into.
-   */
-  const nsRect& GetCaretRect() {
-    return CurrentPresShellState()->mCaretRect;
-  }
-  /**
    * Get the caret associated with the current presshell.
    */
   nsCaret* GetCaret();
   /**
    * Notify the display list builder that we're entering a presshell.
-   * aReferenceFrame should be a frame in the new presshell.
+   * aReferenceFrame should be a frame in the new presshell and aDirtyRect
+   * should be the current dirty rect in aReferenceFrame's coordinate space.
    */
-  void EnterPresShell(nsIFrame* aReferenceFrame);
+  void EnterPresShell(nsIFrame* aReferenceFrame, const nsRect& aDirtyRect);
   /**
    * For print-preview documents, we sometimes need to build display items for
    * the same frames multiple times in the same presentation, with different
@@ -381,7 +373,7 @@ public:
   /**
    * Notify the display list builder that we're leaving a presshell.
    */
-  void LeavePresShell(nsIFrame* aReferenceFrame);
+  void LeavePresShell(nsIFrame* aReferenceFrame, const nsRect& aDirtyRect);
 
   /**
    * Returns true if we're currently building a display list that's
@@ -680,7 +672,9 @@ public:
       mGlassDisplayItem = aItem;
     }
   }
-  bool NeedToForceTransparentSurfaceForItem(nsDisplayItem* aItem);
+  bool NeedToForceTransparentSurfaceForItem(nsDisplayItem* aItem) {
+    return aItem == mGlassDisplayItem;
+  }
 
   void SetContainsPluginItem() { mContainsPluginItem = true; }
   bool ContainsPluginItem() { return mContainsPluginItem; }
@@ -708,7 +702,7 @@ private:
   struct PresShellState {
     nsIPresShell* mPresShell;
     nsIFrame*     mCaretFrame;
-    nsRect        mCaretRect;
+    nsRect        mPrevDirtyRect;
     uint32_t      mFirstFrameMarkedForDisplay;
     bool          mIsBackgroundOnly;
   };
@@ -806,7 +800,6 @@ class nsDisplayItem : public nsDisplayItemLink {
 public:
   typedef mozilla::ContainerLayerParameters ContainerLayerParameters;
   typedef mozilla::DisplayItemClip DisplayItemClip;
-  typedef mozilla::layers::FrameMetrics FrameMetrics;
   typedef mozilla::layers::FrameMetrics::ViewID ViewID;
   typedef mozilla::layers::Layer Layer;
   typedef mozilla::layers::LayerManager LayerManager;
@@ -839,7 +832,11 @@ public:
 #include "nsDisplayItemTypes.h"
 
   struct HitTestState {
-    explicit HitTestState() {}
+    typedef nsTArray<ViewID> ShadowArray;
+
+    explicit HitTestState(ShadowArray* aShadows = nullptr)
+      : mShadows(aShadows) {
+    }
 
     ~HitTestState() {
       NS_ASSERTION(mItemBuffer.Length() == 0,
@@ -847,6 +844,11 @@ public:
     }
 
     nsAutoTArray<nsDisplayItem*, 100> mItemBuffer;
+
+    // It is sometimes useful to hit test for frames that are not in this
+    // process. Display items may append IDs into this array if it is
+    // non-null.
+    ShadowArray* mShadows;
   };
 
   /**
@@ -1053,9 +1055,6 @@ public:
    * to the nearest viewport.
    */
   virtual bool ShouldFixToViewport(LayerManager* aManager)
-  { return false; }
-
-  virtual bool ClearsBackground()
   { return false; }
 
   /**
@@ -1951,17 +1950,26 @@ protected:
 
 class nsDisplayCaret : public nsDisplayItem {
 public:
-  nsDisplayCaret(nsDisplayListBuilder* aBuilder, nsIFrame* aCaretFrame);
+  nsDisplayCaret(nsDisplayListBuilder* aBuilder, nsIFrame* aCaretFrame,
+                 nsCaret *aCaret)
+    : nsDisplayItem(aBuilder, aCaretFrame), mCaret(aCaret) {
+    MOZ_COUNT_CTOR(nsDisplayCaret);
+  }
 #ifdef NS_BUILD_REFCNT_LOGGING
-  virtual ~nsDisplayCaret();
+  virtual ~nsDisplayCaret() {
+    MOZ_COUNT_DTOR(nsDisplayCaret);
+  }
 #endif
 
-  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap) MOZ_OVERRIDE;
+  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap) MOZ_OVERRIDE {
+    *aSnap = false;
+    // The caret returns a rect in the coordinates of mFrame.
+    return mCaret->GetCaretRect() + ToReferenceFrame();
+  }
   virtual void Paint(nsDisplayListBuilder* aBuilder, nsRenderingContext* aCtx) MOZ_OVERRIDE;
   NS_DISPLAY_DECL_NAME("Caret", TYPE_CARET)
 protected:
   nsRefPtr<nsCaret> mCaret;
-  nsRect mBounds;
 };
 
 /**
@@ -2149,7 +2157,20 @@ public:
   static nsRegion GetInsideClipRegion(nsDisplayItem* aItem, nsPresContext* aPresContext, uint8_t aClip,
                                       const nsRect& aRect, bool* aSnap);
 
-  virtual bool ShouldFixToViewport(LayerManager* aManager) MOZ_OVERRIDE;
+  virtual bool ShouldFixToViewport(LayerManager* aManager) MOZ_OVERRIDE
+  {
+    // APZ doesn't (yet) know how to scroll the visible region for these type of
+    // items, so don't layerize them if it's enabled.
+    if (nsLayoutUtils::UsesAsyncScrolling() ||
+        (aManager && aManager->ShouldAvoidComponentAlphaLayers())) {
+      return false;
+    }
+
+    // Put background-attachment:fixed background images in their own
+    // compositing layer, unless we have APZ enabled
+    return mBackgroundStyle->mLayers[mLayer].mAttachment == NS_STYLE_BG_ATTACHMENT_FIXED &&
+           !mBackgroundStyle->mLayers[mLayer].mImage.IsEmpty();
+  }
 
 protected:
   typedef class mozilla::layers::ImageContainer ImageContainer;
@@ -2290,54 +2311,10 @@ protected:
   gfxRGBA mColor;
 };
 
-class nsDisplayClearBackground : public nsDisplayItem
-{
-public:
-  nsDisplayClearBackground(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame)
-    : nsDisplayItem(aBuilder, aFrame)
-  { }
-
-  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap) MOZ_OVERRIDE
-  {
-    *aSnap = true;
-    return nsRect(ToReferenceFrame(), Frame()->GetSize());
-  }
-
-  virtual nsRegion GetOpaqueRegion(nsDisplayListBuilder* aBuilder,
-                                   bool* aSnap) MOZ_OVERRIDE {
-    *aSnap = false;
-    return GetBounds(aBuilder, aSnap);
-  }
-
-  virtual bool IsUniform(nsDisplayListBuilder* aBuilder, nscolor* aColor) MOZ_OVERRIDE
-  {
-    *aColor = NS_RGBA(0, 0, 0, 0);
-    return true;
-  }
-
-  virtual bool ClearsBackground() MOZ_OVERRIDE
-  {
-    return true;
-  }
-
-  virtual LayerState GetLayerState(nsDisplayListBuilder* aBuilder,
-                                   LayerManager* aManager,
-                                   const ContainerLayerParameters& aParameters) MOZ_OVERRIDE
-  {
-    return mozilla::LAYER_ACTIVE_FORCE;
-  }
-
-  virtual already_AddRefed<Layer> BuildLayer(nsDisplayListBuilder* aBuilder,
-                                             LayerManager* aManager,
-                                             const ContainerLayerParameters& aContainerParameters) MOZ_OVERRIDE;
-
-  NS_DISPLAY_DECL_NAME("ClearBackground", TYPE_CLEAR_BACKGROUND)
-};
-
 /**
  * The standard display item to paint the outer CSS box-shadows of a frame.
  */
-class nsDisplayBoxShadowOuter MOZ_FINAL : public nsDisplayItem {
+class nsDisplayBoxShadowOuter : public nsDisplayItem {
 public:
   nsDisplayBoxShadowOuter(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame)
     : nsDisplayItem(aBuilder, aFrame)
@@ -2886,10 +2863,6 @@ public:
   virtual nsRegion GetOpaqueRegion(nsDisplayListBuilder* aBuilder, bool* aSnap) MOZ_OVERRIDE;
 
   NS_DISPLAY_DECL_NAME("SubDocument", TYPE_SUBDOCUMENT)
-
-  mozilla::UniquePtr<FrameMetrics> ComputeFrameMetrics(Layer* aLayer,
-                                                       const ContainerLayerParameters& aContainerParameters);
-
 protected:
   ViewID mScrollParentId;
 };
@@ -3016,6 +2989,8 @@ public:
   // after merging, all the nsDisplayScrollLayers should flatten away.
   intptr_t GetScrollLayerCount();
 
+  static bool IsConstructingScrollLayerForScrolledFrame(const nsIFrame* aScrolledFrame);
+
   virtual nsIFrame* GetScrollFrame() { return mScrollFrame; }
   virtual nsIFrame* GetScrolledFrame() { return mScrolledFrame; }
 
@@ -3024,19 +2999,6 @@ public:
 #endif
 
   bool IsDisplayPortOpaque() { return mDisplayPortContentsOpaque; }
-
-  static FrameMetrics ComputeFrameMetrics(nsIFrame* aForFrame,
-                                          nsIFrame* aScrollFrame,
-                                          const nsIFrame* aReferenceFrame,
-                                          Layer* aLayer,
-                                          ViewID aScrollParentId,
-                                          const nsRect& aViewport,
-                                          bool aForceNullScrollId,
-                                          bool aIsRoot,
-                                          const ContainerLayerParameters& aContainerParameters);
-
-  mozilla::UniquePtr<FrameMetrics> ComputeFrameMetrics(Layer* aLayer,
-                                                       const ContainerLayerParameters& aContainerParameters);
 
 protected:
   nsRect GetScrolledContentRectToDraw(nsDisplayListBuilder* aBuilder,
@@ -3166,17 +3128,13 @@ public:
   virtual already_AddRefed<Layer> BuildLayer(nsDisplayListBuilder* aBuilder,
                                              LayerManager* aManager,
                                              const ContainerLayerParameters& aContainerParameters) MOZ_OVERRIDE;
-
-  gfxRect BBoxInUserSpace() const;
-  gfxPoint UserSpaceOffset() const;
-
-  virtual nsDisplayItemGeometry* AllocateGeometry(nsDisplayListBuilder* aBuilder) MOZ_OVERRIDE
-  {
-    return new nsDisplaySVGEffectsGeometry(this, aBuilder);
-  }
+  
   virtual void ComputeInvalidationRegion(nsDisplayListBuilder* aBuilder,
                                          const nsDisplayItemGeometry* aGeometry,
-                                         nsRegion* aInvalidRegion) MOZ_OVERRIDE;
+                                         nsRegion* aInvalidRegion) MOZ_OVERRIDE
+  {
+    // We don't need to compute an invalidation region since we have LayerTreeInvalidation
+  }
 
   void PaintAsLayer(nsDisplayListBuilder* aBuilder,
                     nsRenderingContext* aCtx,
@@ -3207,7 +3165,6 @@ private:
 class nsDisplayTransform: public nsDisplayItem
 {
   typedef mozilla::gfx::Matrix4x4 Matrix4x4;
-  typedef mozilla::gfx::Point3D Point3D;
 public:
   /**
    * Returns a matrix (in pixels) for the current frame. The matrix should be relative to
@@ -3339,12 +3296,12 @@ public:
   bool UntransformVisibleRect(nsDisplayListBuilder* aBuilder,
                               nsRect* aOutRect);
 
-  static Point3D GetDeltaToTransformOrigin(const nsIFrame* aFrame,
-                                           float aAppUnitsPerPixel,
-                                           const nsRect* aBoundsOverride);
+  static gfxPoint3D GetDeltaToTransformOrigin(const nsIFrame* aFrame,
+                                              float aAppUnitsPerPixel,
+                                              const nsRect* aBoundsOverride);
 
-  static Point3D GetDeltaToPerspectiveOrigin(const nsIFrame* aFrame,
-                                             float aAppUnitsPerPixel);
+  static gfxPoint3D GetDeltaToPerspectiveOrigin(const nsIFrame* aFrame,
+                                                float aAppUnitsPerPixel);
 
   /**
    * Returns the bounds of a frame as defined for resolving percentage
@@ -3368,8 +3325,8 @@ public:
                              float aAppUnitsPerPixel,
                              const nsRect* aBoundsOverride);
     FrameTransformProperties(nsCSSValueSharedList* aTransformList,
-                             const Point3D& aToTransformOrigin,
-                             const Point3D& aToPerspectiveOrigin,
+                             const gfxPoint3D& aToTransformOrigin,
+                             const gfxPoint3D& aToPerspectiveOrigin,
                              nscoord aChildPerspective)
       : mFrame(nullptr)
       , mTransformList(aTransformList)
@@ -3380,8 +3337,8 @@ public:
 
     const nsIFrame* mFrame;
     nsRefPtr<nsCSSValueSharedList> mTransformList;
-    const Point3D mToTransformOrigin;
-    const Point3D mToPerspectiveOrigin;
+    const gfxPoint3D mToTransformOrigin;
+    const gfxPoint3D mToPerspectiveOrigin;
     nscoord mChildPerspective;
   };
 

@@ -111,10 +111,9 @@ gfxCharacterMap::NotifyReleased()
 
 gfxFontEntry::gfxFontEntry() :
     mItalic(false), mFixedPitch(false),
-    mIsValid(true),
+    mIsProxy(false), mIsValid(true),
     mIsBadUnderlineFont(false),
-    mIsUserFontContainer(false),
-    mIsDataUserFont(false),
+    mIsUserFont(false),
     mIsLocalUserFont(false),
     mStandardFace(false),
     mSymbolFont(false),
@@ -147,10 +146,8 @@ gfxFontEntry::gfxFontEntry() :
 
 gfxFontEntry::gfxFontEntry(const nsAString& aName, bool aIsStandardFace) :
     mName(aName), mItalic(false), mFixedPitch(false),
-    mIsValid(true),
-    mIsBadUnderlineFont(false),
-    mIsUserFontContainer(false),
-    mIsDataUserFont(false),
+    mIsProxy(false), mIsValid(true),
+    mIsBadUnderlineFont(false), mIsUserFont(false),
     mIsLocalUserFont(false), mStandardFace(aIsStandardFace),
     mSymbolFont(false),
     mIgnoreGDEF(false),
@@ -199,7 +196,7 @@ gfxFontEntry::~gfxFontEntry()
 
     // For downloaded fonts, we need to tell the user font cache that this
     // entry is being deleted.
-    if (mIsDataUserFont) {
+    if (!mIsProxy && IsUserFont() && !IsLocalUserFont()) {
         gfxUserFontSet::UserFontCache::ForgetFont(this);
     }
 
@@ -558,7 +555,7 @@ gfxFontEntry::TryGetColorGlyphs()
 class gfxFontEntry::FontTableBlobData {
 public:
     // Adopts the content of aBuffer.
-    explicit FontTableBlobData(FallibleTArray<uint8_t>& aBuffer)
+    FontTableBlobData(FallibleTArray<uint8_t>& aBuffer)
         : mHashtable(nullptr), mHashKey(0)
     {
         MOZ_COUNT_CTOR(FontTableBlobData);
@@ -1333,27 +1330,6 @@ gfxFontFamily::CheckForSimpleFamily()
     mIsSimpleFamily = true;
 }
 
-#ifdef DEBUG
-bool
-gfxFontFamily::ContainsFace(gfxFontEntry* aFontEntry) {
-    uint32_t i, numFonts = mAvailableFonts.Length();
-    for (i = 0; i < numFonts; i++) {
-        if (mAvailableFonts[i] == aFontEntry) {
-            return true;
-        }
-        // userfonts contain the actual real font entry
-        if (mAvailableFonts[i]->mIsUserFontContainer) {
-            gfxUserFontEntry* ufe =
-                static_cast<gfxUserFontEntry*>(mAvailableFonts[i].get());
-            if (ufe->GetPlatformFontEntry() == aFontEntry) {
-                return true;
-            }
-        }
-    }
-    return false;
-}
-#endif
-
 static inline uint32_t
 StyleDistance(gfxFontEntry *aFontEntry,
               bool anItalic, int16_t aStretch)
@@ -1821,7 +1797,7 @@ gfxFontFamily::ReadAllCMAPs(FontInfoData *aFontInfoData)
     for (i = 0; i < numFonts; i++) {
         gfxFontEntry *fe = mAvailableFonts[i];
         // don't try to load cmaps for downloadable fonts not yet loaded
-        if (!fe || fe->mIsUserFontContainer) {
+        if (!fe || fe->mIsProxy) {
             continue;
         }
         fe->ReadCMAP(aFontInfoData);
@@ -3409,26 +3385,9 @@ gfxFont::DrawGlyphs(gfxShapedText            *aShapedText,
                             gfxFloat height = GetMetrics().maxAscent;
                             gfxRect glyphRect(pt.x, pt.y - height,
                                               advanceDevUnits, height);
-
-                            // If there's a fake-italic skew in effect as part
-                            // of the drawTarget's transform, we need to remove
-                            // this before drawing the hexbox. (Bug 983985)
-                            Matrix oldMat;
-                            if (aFontParams.passedInvMatrix) {
-                                oldMat = aRunParams.dt->GetTransform();
-                                aRunParams.dt->SetTransform(
-                                    *aFontParams.passedInvMatrix * oldMat);
-                            }
-
                             gfxFontMissingGlyphs::DrawMissingGlyph(
                                 aRunParams.context, glyphRect, details->mGlyphID,
                                 aShapedText->GetAppUnitsPerDevUnit());
-
-                            // Restore the matrix, if we modified it before
-                            // drawing the hexbox.
-                            if (aFontParams.passedInvMatrix) {
-                                aRunParams.dt->SetTransform(oldMat);
-                            }
                         }
                     } else {
                         gfxPoint glyphXY(*aPt);
@@ -5062,13 +5021,8 @@ gfxFontGroup::FindPlatformFont(const nsAString& aName,
             family = mUserFontSet->LookupFamily(aName);
             if (family) {
                 bool waitForUserFont = false;
-                gfxUserFontEntry* userFontEntry = nullptr;
-                userFontEntry = mUserFontSet->FindUserFontEntry(family, mStyle,
-                                                                needsBold,
-                                                                waitForUserFont);
-                if (userFontEntry) {
-                    fe = userFontEntry->GetPlatformFontEntry();
-                }
+                fe = mUserFontSet->FindFontEntry(family, mStyle,
+                                                 needsBold, waitForUserFont);
                 if (!fe && waitForUserFont) {
                     mSkipDrawing = true;
                 }
@@ -5078,8 +5032,8 @@ gfxFontGroup::FindPlatformFont(const nsAString& aName,
 
     // Not known in the user font set ==> check system fonts
     if (!family) {
-        gfxPlatformFontList* fontList = gfxPlatformFontList::PlatformFontList();
-        family = fontList->FindFamily(aName, mStyle.systemFont);
+        gfxPlatformFontList *fontList = gfxPlatformFontList::PlatformFontList();
+        family = fontList->FindFamily(aName);
         if (family) {
             fe = family->FindFontForStyle(mStyle, needsBold);
         }
@@ -6178,7 +6132,7 @@ gfxFontGroup::UpdateFontList()
 }
 
 struct PrefFontCallbackData {
-    explicit PrefFontCallbackData(nsTArray<nsRefPtr<gfxFontFamily> >& aFamiliesArray)
+    PrefFontCallbackData(nsTArray<nsRefPtr<gfxFontFamily> >& aFamiliesArray)
         : mPrefFamilies(aFamiliesArray)
     {}
 
@@ -7055,7 +7009,7 @@ HasNonOpaqueColor(gfxContext *aContext, gfxRGBA& aCurrentColor)
 
 // helper class for double-buffering drawing with non-opaque color
 struct BufferAlphaColor {
-    explicit BufferAlphaColor(gfxContext *aContext)
+    BufferAlphaColor(gfxContext *aContext)
         : mContext(aContext)
     {
 

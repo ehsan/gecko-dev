@@ -22,7 +22,6 @@
 #include "nsIFrameInlines.h"
 #include "mozilla/ArrayUtils.h"
 #include "mozilla/Likely.h"
-#include "nsISelection.h"
 
 namespace mozilla {
 namespace css {
@@ -30,7 +29,7 @@ namespace css {
 class LazyReferenceRenderingContextGetterFromFrame MOZ_FINAL :
     public gfxFontGroup::LazyReferenceContextGetter {
 public:
-  explicit LazyReferenceRenderingContextGetterFromFrame(nsIFrame* aFrame)
+  LazyReferenceRenderingContextGetterFromFrame(nsIFrame* aFrame)
     : mFrame(aFrame) {}
   virtual already_AddRefed<gfxContext> GetRefContext() MOZ_OVERRIDE
   {
@@ -690,8 +689,9 @@ TextOverflow::CanHaveTextOverflow(nsDisplayListBuilder* aBuilder,
 
   // Inhibit the markers if a descendant content owns the caret.
   nsRefPtr<nsCaret> caret = aBlockFrame->PresContext()->PresShell()->GetCaret();
-  if (caret && caret->IsVisible()) {
-    nsCOMPtr<nsISelection> domSelection = caret->GetSelection();
+  bool visible = false;
+  if (caret && NS_SUCCEEDED(caret->GetCaretVisible(&visible)) && visible) {
+    nsCOMPtr<nsISelection> domSelection = caret->GetCaretDOMSelection();
     if (domSelection) {
       nsCOMPtr<nsIDOMNode> node;
       domSelection->GetFocusNode(getter_AddRefs(node));

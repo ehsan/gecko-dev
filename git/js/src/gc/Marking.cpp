@@ -164,10 +164,6 @@ CheckMarkedThing(JSTracer *trc, T **thingp)
     T *thing = *thingp;
     JS_ASSERT(*thingp);
 
-#ifdef JSGC_COMPACTING
-    thing = MaybeForwarded(thing);
-#endif
-
 # ifdef JSGC_FJGENERATIONAL
     /*
      * The code below (runtimeFromMainThread(), etc) makes assumptions
@@ -181,10 +177,6 @@ CheckMarkedThing(JSTracer *trc, T **thingp)
     /* This function uses data that's not available in the nursery. */
     if (IsInsideNursery(thing))
         return;
-
-#ifdef JSGC_COMPACTING
-    JS_ASSERT_IF(!MovingTracer::IsMovingTracer(trc), !IsForwarded(*thingp));
-#endif
 
     /*
      * Permanent atoms are not associated with this runtime, but will be ignored
@@ -450,10 +442,6 @@ IsMarked(T **thingp)
     Zone *zone = (*thingp)->tenuredZone();
     if (!zone->isCollecting() || zone->isGCFinished())
         return true;
-#ifdef JSGC_COMPACTING
-    if (zone->isGCCompacting() && IsForwarded(*thingp))
-        *thingp = Forwarded(*thingp);
-#endif
     return (*thingp)->isMarked();
 }
 
@@ -492,27 +480,19 @@ IsAboutToBeFinalized(T **thingp)
     }
 #endif  // JSGC_GENERATIONAL
 
-    Zone *zone = thing->tenuredZone();
-    if (zone->isGCSweeping()) {
-        /*
-         * We should return false for things that have been allocated during
-         * incremental sweeping, but this possibility doesn't occur at the moment
-         * because this function is only called at the very start of the sweeping a
-         * compartment group and during minor gc. Rather than do the extra check,
-         * we just assert that it's not necessary.
-         */
-        JS_ASSERT_IF(!rt->isHeapMinorCollecting(), !thing->arenaHeader()->allocatedDuringIncremental);
-
-        return !thing->isMarked();
-    }
-#ifdef JSGC_COMPACTING
-    else if (zone->isGCCompacting() && IsForwarded(thing)) {
-        *thingp = Forwarded(thing);
+    if (!thing->tenuredZone()->isGCSweeping())
         return false;
-    }
-#endif
 
-    return false;
+    /*
+     * We should return false for things that have been allocated during
+     * incremental sweeping, but this possibility doesn't occur at the moment
+     * because this function is only called at the very start of the sweeping a
+     * compartment group and during minor gc. Rather than do the extra check,
+     * we just assert that it's not necessary.
+     */
+    JS_ASSERT_IF(!rt->isHeapMinorCollecting(), !thing->arenaHeader()->allocatedDuringIncremental);
+
+    return !thing->isMarked();
 }
 
 template <typename T>
@@ -520,32 +500,21 @@ T *
 UpdateIfRelocated(JSRuntime *rt, T **thingp)
 {
     JS_ASSERT(thingp);
-    if (!*thingp)
-        return nullptr;
-
 #ifdef JSGC_GENERATIONAL
-
 #ifdef JSGC_FJGENERATIONAL
-    if (rt->isFJMinorCollecting()) {
+    if (*thingp && rt->isFJMinorCollecting()) {
         ForkJoinContext *ctx = ForkJoinContext::current();
         ForkJoinNursery &nursery = ctx->nursery();
         if (nursery.isInsideFromspace(*thingp))
             nursery.getForwardedPointer(thingp);
-        return *thingp;
     }
+    else
 #endif
-
-    if (rt->isHeapMinorCollecting() && IsInsideNursery(*thingp)) {
-        rt->gc.nursery.getForwardedPointer(thingp);
-        return *thingp;
+    {
+        if (*thingp && rt->isHeapMinorCollecting() && IsInsideNursery(*thingp))
+            rt->gc.nursery.getForwardedPointer(thingp);
     }
 #endif  // JSGC_GENERATIONAL
-
-#ifdef JSGC_COMPACTING
-    Zone *zone = (*thingp)->tenuredZone();
-    if (zone->isGCCompacting() && IsForwarded(*thingp))
-        *thingp = Forwarded(*thingp);
-#endif
     return *thingp;
 }
 
@@ -633,7 +602,6 @@ DeclMarkerImpl(Object, DebugScopeObject)
 DeclMarkerImpl(Object, GlobalObject)
 DeclMarkerImpl(Object, JSObject)
 DeclMarkerImpl(Object, JSFunction)
-DeclMarkerImpl(Object, NestedScopeObject)
 DeclMarkerImpl(Object, ObjectImpl)
 DeclMarkerImpl(Object, SavedFrame)
 DeclMarkerImpl(Object, ScopeObject)
@@ -1437,8 +1405,10 @@ ScanTypeObject(GCMarker *gcmarker, types::TypeObject *type)
     if (type->singleton() && !type->lazy())
         PushMarkStack(gcmarker, type->singleton());
 
-    if (type->newScript())
-        type->newScript()->trace(gcmarker);
+    if (type->newScript()) {
+        PushMarkStack(gcmarker, type->newScript()->fun);
+        PushMarkStack(gcmarker, type->newScript()->templateObject);
+    }
 
     if (type->interpretedFunction)
         PushMarkStack(gcmarker, type->interpretedFunction);
@@ -1460,8 +1430,10 @@ gc::MarkChildren(JSTracer *trc, types::TypeObject *type)
     if (type->singleton() && !type->lazy())
         MarkObject(trc, &type->singletonRaw(), "type_singleton");
 
-    if (type->newScript())
-        type->newScript()->trace(trc);
+    if (type->newScript()) {
+        MarkObject(trc, &type->newScript()->fun, "type_new_function");
+        MarkObject(trc, &type->newScript()->templateObject, "type_new_template");
+    }
 
     if (type->interpretedFunction)
         MarkObject(trc, &type->interpretedFunction, "type_function");
@@ -1753,24 +1725,13 @@ GCMarker::processMarkStackTop(SliceBudget &budget)
 
         unsigned nslots = obj->slotSpan();
 
-        do {
-            if (obj->hasEmptyElements())
-                break;
-
-            if (obj->denseElementsAreCopyOnWrite()) {
-                JSObject *owner = obj->getElementsHeader()->ownerObject();
-                if (owner != obj) {
-                    PushMarkStack(this, owner);
-                    break;
-                }
-            }
-
-            vp = obj->getDenseElementsAllowCopyOnWrite();
+        if (!obj->hasEmptyElements()) {
+            vp = obj->getDenseElements();
             end = vp + obj->getDenseInitializedLength();
             if (!nslots)
                 goto scan_value_array;
             pushValueArray(obj, vp, end);
-        } while (false);
+        }
 
         vp = obj->fixedSlots();
         if (obj->slots) {
@@ -1873,14 +1834,6 @@ js::TraceChildren(JSTracer *trc, void *thing, JSGCTraceKind kind)
     }
 }
 
-#ifdef DEBUG
-static void
-AssertNonGrayGCThing(JSTracer *trc, void **thingp, JSGCTraceKind kind)
-{
-    MOZ_ASSERT(!JS::GCThingIsMarkedGray(*thingp));
-}
-#endif
-
 static void
 UnmarkGrayGCThing(void *thing)
 {
@@ -1964,19 +1917,14 @@ UnmarkGrayChildren(JSTracer *trc, void **thingp, JSGCTraceKind kind)
         return;
     }
 
-#ifdef DEBUG
-    if (gc::IsInsideNursery(static_cast<gc::Cell *>(thing))) {
-        JSTracer nongray(trc->runtime(), AssertNonGrayGCThing);
-        JS_TraceChildren(&nongray, thing, kind);
-    }
-#endif
-
-    if (!JS::GCThingIsMarkedGray(thing))
-        return;
-
     UnmarkGrayTracer *tracer = static_cast<UnmarkGrayTracer *>(trc);
-    UnmarkGrayGCThing(thing);
-    tracer->unmarkedAny = true;
+    if (!IsInsideNursery(static_cast<Cell *>(thing))) {
+        if (!JS::GCThingIsMarkedGray(thing))
+            return;
+
+        UnmarkGrayGCThing(thing);
+        tracer->unmarkedAny = true;
+    }
 
     /*
      * Trace children of |thing|. If |thing| and its parent are both shapes,

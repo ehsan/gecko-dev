@@ -116,7 +116,7 @@ using namespace mozilla::dom;
 class nsAutoFocusEvent : public nsRunnable
 {
 public:
-  explicit nsAutoFocusEvent(nsGenericHTMLFormElement* aElement) : mElement(aElement) {}
+  nsAutoFocusEvent(nsGenericHTMLFormElement* aElement) : mElement(aElement) {}
 
   NS_IMETHOD Run() {
     nsFocusManager* fm = nsFocusManager::GetFocusManager();
@@ -172,7 +172,7 @@ class nsGenericHTMLElementTearoff : public nsIDOMElementCSSInlineStyle
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
 
-  explicit nsGenericHTMLElementTearoff(nsGenericHTMLElement* aElement)
+  nsGenericHTMLElementTearoff(nsGenericHTMLElement *aElement)
     : mElement(aElement)
   {
   }
@@ -291,8 +291,7 @@ static const nsAttrValue::EnumTable kDirTable[] = {
 void
 nsGenericHTMLElement::GetAccessKeyLabel(nsString& aLabel)
 {
-  //XXXsmaug We shouldn't need PresContext for this.
-  nsPresContext *presContext = GetPresContext(eForComposedDoc);
+  nsPresContext *presContext = GetPresContext();
 
   if (presContext) {
     nsAutoString suffix;
@@ -347,7 +346,7 @@ nsGenericHTMLElement::GetOffsetRect(CSSIntRect& aRect)
   }
 
   nsIContent* offsetParent = nullptr;
-  Element* docElement = GetComposedDoc()->GetRootElement();
+  Element* docElement = GetCurrentDoc()->GetRootElement();
   nsIContent* content = frame->GetContent();
 
   if (content && (content->IsHTML(nsGkAtoms::body) || content == docElement)) {
@@ -398,7 +397,7 @@ nsGenericHTMLElement::GetOffsetRect(CSSIntRect& aRect)
       // parent chain. We want the offset parent in this case to be
       // the body, so we just get the body element from the document.
 
-      nsCOMPtr<nsIDOMHTMLDocument> html_doc(do_QueryInterface(GetComposedDoc()));
+      nsCOMPtr<nsIDOMHTMLDocument> html_doc(do_QueryInterface(GetCurrentDoc()));
 
       if (html_doc) {
         offsetParent = static_cast<nsHTMLDocument*>(html_doc.get())->GetBody();
@@ -1112,12 +1111,12 @@ nsGenericHTMLElement::GetFormControlFrame(bool aFlushFrames)
   return nullptr;
 }
 
+// XXX This creates a dependency between content and frames
 nsPresContext*
-nsGenericHTMLElement::GetPresContext(PresContextFor aFor)
+nsGenericHTMLElement::GetPresContext()
 {
   // Get the document
-  nsIDocument* doc = (aFor == eForComposedDoc) ?
-    GetComposedDoc() : GetUncomposedDoc();
+  nsIDocument* doc = GetDocument();
   if (doc) {
     // Get presentation shell.
     nsIPresShell *presShell = doc->GetShell();
@@ -1764,6 +1763,37 @@ nsGenericHTMLElement::GetURIListAttr(nsIAtom* aAttr, nsAString& aResult)
   }
 
   return NS_OK;
+}
+
+void
+nsGenericHTMLElement::GetEnumAttr(nsIAtom* aAttr,
+                                  const char* aDefault,
+                                  nsAString& aResult) const
+{
+  GetEnumAttr(aAttr, aDefault, aDefault, aResult);
+}
+
+void
+nsGenericHTMLElement::GetEnumAttr(nsIAtom* aAttr,
+                                  const char* aDefaultMissing,
+                                  const char* aDefaultInvalid,
+                                  nsAString& aResult) const
+{
+  const nsAttrValue* attrVal = mAttrsAndChildren.GetAttr(aAttr);
+
+  aResult.Truncate();
+
+  if (!attrVal) {
+    if (aDefaultMissing) {
+      AppendASCIItoUTF16(nsDependentCString(aDefaultMissing), aResult);
+    }
+  } else {
+    if (attrVal->Type() == nsAttrValue::eEnum) {
+      attrVal->GetEnumString(aResult, true);
+    } else if (aDefaultInvalid) {
+      AppendASCIItoUTF16(nsDependentCString(aDefaultInvalid), aResult);
+    }
+  }
 }
 
 HTMLMenuElement*
@@ -2679,7 +2709,7 @@ nsGenericHTMLElement::RegUnRegAccessKey(bool aDoReg)
   }
 
   // We have an access key, so get the ESM from the pres context.
-  nsPresContext* presContext = GetPresContext(eForUncomposedDoc);
+  nsPresContext *presContext = GetPresContext();
 
   if (presContext) {
     EventStateManager* esm = presContext->EventStateManager();
@@ -2697,7 +2727,7 @@ void
 nsGenericHTMLElement::PerformAccesskey(bool aKeyCausesActivation,
                                        bool aIsTrustedEvent)
 {
-  nsPresContext* presContext = GetPresContext(eForUncomposedDoc);
+  nsPresContext *presContext = GetPresContext();
   if (!presContext)
     return;
 
@@ -2911,7 +2941,7 @@ nsGenericHTMLFormElementWithState::GenerateStateKey()
     return NS_OK;
   }
 
-  nsIDocument* doc = GetUncomposedDoc();
+  nsIDocument* doc = GetDocument();
   if (!doc) {
     return NS_OK;
   }
@@ -2959,7 +2989,7 @@ nsGenericHTMLFormElementWithState::GetPrimaryPresState()
 already_AddRefed<nsILayoutHistoryState>
 nsGenericHTMLFormElementWithState::GetLayoutHistory(bool aRead)
 {
-  nsCOMPtr<nsIDocument> doc = GetUncomposedDoc();
+  nsCOMPtr<nsIDocument> doc = GetDocument();
   if (!doc) {
     return nullptr;
   }

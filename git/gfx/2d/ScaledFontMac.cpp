@@ -161,7 +161,7 @@ int maxPow2LessThan(int a)
 
 struct writeBuf
 {
-    explicit writeBuf(int size)
+    writeBuf(int size)
     {
         this->data = new unsigned char [size];
         this->offset = 0;

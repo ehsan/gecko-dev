@@ -456,7 +456,7 @@ TransactionThreadPool::AbortTransactionsForDatabase(IDBDatabase* aDatabase)
 
 struct MOZ_STACK_CLASS TransactionSearchInfo
 {
-  explicit TransactionSearchInfo(nsIOfflineStorage* aDatabase)
+  TransactionSearchInfo(nsIOfflineStorage* aDatabase)
     : db(aDatabase), found(false)
   {
   }

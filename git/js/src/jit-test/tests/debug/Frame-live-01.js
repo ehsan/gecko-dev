@@ -1,3 +1,4 @@
+// |jit-test| debug
 // Debugger.Frame.prototype.live is true for frames on the stack and false for
 // frames that have returned
 
