@@ -118,7 +118,7 @@ let Wrap = {
       let ret;
       let args = Array.prototype.slice.call(arguments);
 
-      ret = this.lock();
+      let ret = this.lock();
       if (!ret)
         throw "Could not acquire lock";
 
