@@ -544,10 +544,10 @@ js::ReportUsageError(JSContext *cx, HandleObject callee, const char *msg)
     if (!JS_LookupProperty(cx, callee, "usage", &usage))
         return;
 
-    if (usage.isUndefined()) {
+    if (JSVAL_IS_VOID(usage)) {
         JS_ReportError(cx, "%s", msg);
     } else {
-        JSString *str = usage.toString();
+        JSString *str = JSVAL_TO_STRING(usage);
         JS::Anchor<JSString *> a_str(str);
         const jschar *chars = JS_GetStringCharsZ(cx, str);
         if (!chars)

@@ -161,11 +161,11 @@ MIRGraph::forkJoinContext()
 
 MBasicBlock *
 MBasicBlock::New(MIRGraph &graph, BytecodeAnalysis *analysis, CompileInfo &info,
-                 MBasicBlock *pred, const BytecodeSite &site, Kind kind)
+                 MBasicBlock *pred, jsbytecode *entryPc, Kind kind)
 {
-    JS_ASSERT(site.pc() != nullptr);
+    JS_ASSERT(entryPc != nullptr);
 
-    MBasicBlock *block = new(graph.alloc()) MBasicBlock(graph, info, site, kind);
+    MBasicBlock *block = new(graph.alloc()) MBasicBlock(graph, info, entryPc, kind);
     if (!block->init())
         return nullptr;
 
@@ -177,9 +177,9 @@ MBasicBlock::New(MIRGraph &graph, BytecodeAnalysis *analysis, CompileInfo &info,
 
 MBasicBlock *
 MBasicBlock::NewPopN(MIRGraph &graph, CompileInfo &info,
-                     MBasicBlock *pred, const BytecodeSite &site, Kind kind, uint32_t popped)
+                     MBasicBlock *pred, jsbytecode *entryPc, Kind kind, uint32_t popped)
 {
-    MBasicBlock *block = new(graph.alloc()) MBasicBlock(graph, info, site, kind);
+    MBasicBlock *block = new(graph.alloc()) MBasicBlock(graph, info, entryPc, kind);
     if (!block->init())
         return nullptr;
 
@@ -191,10 +191,10 @@ MBasicBlock::NewPopN(MIRGraph &graph, CompileInfo &info,
 
 MBasicBlock *
 MBasicBlock::NewWithResumePoint(MIRGraph &graph, CompileInfo &info,
-                                MBasicBlock *pred, const BytecodeSite &site,
+                                MBasicBlock *pred, jsbytecode *entryPc,
                                 MResumePoint *resumePoint)
 {
-    MBasicBlock *block = new(graph.alloc()) MBasicBlock(graph, info, site, NORMAL);
+    MBasicBlock *block = new(graph.alloc()) MBasicBlock(graph, info, entryPc, NORMAL);
 
     resumePoint->block_ = block;
     block->entryResumePoint_ = resumePoint;
@@ -210,12 +210,12 @@ MBasicBlock::NewWithResumePoint(MIRGraph &graph, CompileInfo &info,
 
 MBasicBlock *
 MBasicBlock::NewPendingLoopHeader(MIRGraph &graph, CompileInfo &info,
-                                  MBasicBlock *pred, const BytecodeSite &site,
+                                  MBasicBlock *pred, jsbytecode *entryPc,
                                   unsigned stackPhiCount)
 {
-    JS_ASSERT(site.pc() != nullptr);
+    JS_ASSERT(entryPc != nullptr);
 
-    MBasicBlock *block = new(graph.alloc()) MBasicBlock(graph, info, site, PENDING_LOOP_HEADER);
+    MBasicBlock *block = new(graph.alloc()) MBasicBlock(graph, info, entryPc, PENDING_LOOP_HEADER);
     if (!block->init())
         return nullptr;
 
@@ -229,17 +229,16 @@ MBasicBlock *
 MBasicBlock::NewSplitEdge(MIRGraph &graph, CompileInfo &info, MBasicBlock *pred)
 {
     return pred->pc()
-           ? MBasicBlock::New(graph, nullptr, info, pred,
-                              BytecodeSite(pred->trackedTree(), pred->pc()), SPLIT_EDGE)
+           ? MBasicBlock::New(graph, nullptr, info, pred, pred->pc(), SPLIT_EDGE)
            : MBasicBlock::NewAsmJS(graph, info, pred, SPLIT_EDGE);
 }
 
 MBasicBlock *
 MBasicBlock::NewAbortPar(MIRGraph &graph, CompileInfo &info,
-                         MBasicBlock *pred, const BytecodeSite &site,
+                         MBasicBlock *pred, jsbytecode *entryPc,
                          MResumePoint *resumePoint)
 {
-    MBasicBlock *block = new(graph.alloc()) MBasicBlock(graph, info, site, NORMAL);
+    MBasicBlock *block = new(graph.alloc()) MBasicBlock(graph, info, entryPc, NORMAL);
 
     resumePoint->block_ = block;
     block->entryResumePoint_ = resumePoint;
@@ -257,7 +256,7 @@ MBasicBlock::NewAbortPar(MIRGraph &graph, CompileInfo &info,
 MBasicBlock *
 MBasicBlock::NewAsmJS(MIRGraph &graph, CompileInfo &info, MBasicBlock *pred, Kind kind)
 {
-    MBasicBlock *block = new(graph.alloc()) MBasicBlock(graph, info, BytecodeSite(), kind);
+    MBasicBlock *block = new(graph.alloc()) MBasicBlock(graph, info, /* entryPC = */ nullptr, kind);
     if (!block->init())
         return nullptr;
 
@@ -295,14 +294,14 @@ MBasicBlock::NewAsmJS(MIRGraph &graph, CompileInfo &info, MBasicBlock *pred, Kin
     return block;
 }
 
-MBasicBlock::MBasicBlock(MIRGraph &graph, CompileInfo &info, const BytecodeSite &site, Kind kind)
+MBasicBlock::MBasicBlock(MIRGraph &graph, CompileInfo &info, jsbytecode *pc, Kind kind)
   : unreachable_(false),
     graph_(graph),
     info_(info),
     predecessors_(graph.alloc()),
     stackPosition_(info_.firstStackSlot()),
     lastIns_(nullptr),
-    pc_(site.pc()),
+    pc_(pc),
     lir_(nullptr),
     start_(nullptr),
     entryResumePoint_(nullptr),
@@ -314,7 +313,7 @@ MBasicBlock::MBasicBlock(MIRGraph &graph, CompileInfo &info, const BytecodeSite 
     immediatelyDominated_(graph.alloc()),
     immediateDominator_(nullptr),
     numDominated_(0),
-    trackedSite_(site)
+    trackedPc_(pc)
 #if defined (JS_ION_PERF)
     , lineno_(0u),
     columnIndex_(0u)
@@ -820,7 +819,7 @@ MBasicBlock::insertBefore(MInstruction *at, MInstruction *ins)
     ins->setBlock(this);
     graph().allocDefinitionId(ins);
     instructions_.insertBefore(at, ins);
-    ins->setTrackedSite(at->trackedSite());
+    ins->setTrackedPc(at->trackedPc());
 }
 
 void
@@ -830,7 +829,7 @@ MBasicBlock::insertAfter(MInstruction *at, MInstruction *ins)
     ins->setBlock(this);
     graph().allocDefinitionId(ins);
     instructions_.insertAfter(at, ins);
-    ins->setTrackedSite(at->trackedSite());
+    ins->setTrackedPc(at->trackedPc());
 }
 
 void
@@ -840,7 +839,7 @@ MBasicBlock::add(MInstruction *ins)
     ins->setBlock(this);
     graph().allocDefinitionId(ins);
     instructions_.pushBack(ins);
-    ins->setTrackedSite(trackedSite_);
+    ins->setTrackedPc(trackedPc_);
 }
 
 void

@@ -359,26 +359,33 @@ class JitCompartment
     friend class JitActivation;
 
     // Map ICStub keys to ICStub shared code objects.
-    typedef WeakValueCache<uint32_t, ReadBarrieredJitCode> ICStubCodeMap;
+    typedef WeakValueCache<uint32_t, ReadBarriered<JitCode> > ICStubCodeMap;
     ICStubCodeMap *stubCodes_;
 
     // Keep track of offset into various baseline stubs' code at return
     // point from called script.
-    void *baselineCallReturnAddr_;
-    void *baselineGetPropReturnAddr_;
-    void *baselineSetPropReturnAddr_;
+    void *baselineCallReturnFromIonAddr_;
+    void *baselineGetPropReturnFromIonAddr_;
+    void *baselineSetPropReturnFromIonAddr_;
+
+    // Same as above, but is used for return from a baseline stub. This is
+    // used for recompiles of on-stack baseline scripts (e.g., for debug
+    // mode).
+    void *baselineCallReturnFromStubAddr_;
+    void *baselineGetPropReturnFromStubAddr_;
+    void *baselineSetPropReturnFromStubAddr_;
 
     // Stub to concatenate two strings inline. Note that it can't be
     // stored in JitRuntime because masm.newGCString bakes in zone-specific
     // pointers. This has to be a weak pointer to avoid keeping the whole
     // compartment alive.
-    ReadBarrieredJitCode stringConcatStub_;
-    ReadBarrieredJitCode parallelStringConcatStub_;
+    ReadBarriered<JitCode> stringConcatStub_;
+    ReadBarriered<JitCode> parallelStringConcatStub_;
 
     // Set of JSScripts invoked by ForkJoin (i.e. the entry script). These
     // scripts are marked if their respective parallel IonScripts' age is less
     // than a certain amount. See IonScript::parallelAge_.
-    typedef HashSet<PreBarrieredScript> ScriptSet;
+    typedef HashSet<EncapsulatedPtrScript> ScriptSet;
     ScriptSet *activeParallelEntryScripts_;
 
     JitCode *generateStringConcatStub(JSContext *cx, ExecutionMode mode);
@@ -398,29 +405,54 @@ class JitCompartment
         ICStubCodeMap::AddPtr p = stubCodes_->lookupForAdd(key);
         return stubCodes_->add(p, key, stubCode.get());
     }
-    void initBaselineCallReturnAddr(void *addr) {
-        JS_ASSERT(baselineCallReturnAddr_ == nullptr);
-        baselineCallReturnAddr_ = addr;
+    void initBaselineCallReturnFromIonAddr(void *addr) {
+        JS_ASSERT(baselineCallReturnFromIonAddr_ == nullptr);
+        baselineCallReturnFromIonAddr_ = addr;
     }
-    void *baselineCallReturnAddr() {
-        JS_ASSERT(baselineCallReturnAddr_ != nullptr);
-        return baselineCallReturnAddr_;
+    void *baselineCallReturnFromIonAddr() {
+        JS_ASSERT(baselineCallReturnFromIonAddr_ != nullptr);
+        return baselineCallReturnFromIonAddr_;
     }
-    void initBaselineGetPropReturnAddr(void *addr) {
-        JS_ASSERT(baselineGetPropReturnAddr_ == nullptr);
-        baselineGetPropReturnAddr_ = addr;
+    void initBaselineGetPropReturnFromIonAddr(void *addr) {
+        JS_ASSERT(baselineGetPropReturnFromIonAddr_ == nullptr);
+        baselineGetPropReturnFromIonAddr_ = addr;
     }
-    void *baselineGetPropReturnAddr() {
-        JS_ASSERT(baselineGetPropReturnAddr_ != nullptr);
-        return baselineGetPropReturnAddr_;
+    void *baselineGetPropReturnFromIonAddr() {
+        JS_ASSERT(baselineGetPropReturnFromIonAddr_ != nullptr);
+        return baselineGetPropReturnFromIonAddr_;
     }
-    void initBaselineSetPropReturnAddr(void *addr) {
-        JS_ASSERT(baselineSetPropReturnAddr_ == nullptr);
-        baselineSetPropReturnAddr_ = addr;
+    void initBaselineSetPropReturnFromIonAddr(void *addr) {
+        JS_ASSERT(baselineSetPropReturnFromIonAddr_ == nullptr);
+        baselineSetPropReturnFromIonAddr_ = addr;
     }
-    void *baselineSetPropReturnAddr() {
-        JS_ASSERT(baselineSetPropReturnAddr_ != nullptr);
-        return baselineSetPropReturnAddr_;
+    void *baselineSetPropReturnFromIonAddr() {
+        JS_ASSERT(baselineSetPropReturnFromIonAddr_ != nullptr);
+        return baselineSetPropReturnFromIonAddr_;
+    }
+
+    void initBaselineCallReturnFromStubAddr(void *addr) {
+        MOZ_ASSERT(baselineCallReturnFromStubAddr_ == nullptr);
+        baselineCallReturnFromStubAddr_ = addr;;
+    }
+    void *baselineCallReturnFromStubAddr() {
+        JS_ASSERT(baselineCallReturnFromStubAddr_ != nullptr);
+        return baselineCallReturnFromStubAddr_;
+    }
+    void initBaselineGetPropReturnFromStubAddr(void *addr) {
+        JS_ASSERT(baselineGetPropReturnFromStubAddr_ == nullptr);
+        baselineGetPropReturnFromStubAddr_ = addr;
+    }
+    void *baselineGetPropReturnFromStubAddr() {
+        JS_ASSERT(baselineGetPropReturnFromStubAddr_ != nullptr);
+        return baselineGetPropReturnFromStubAddr_;
+    }
+    void initBaselineSetPropReturnFromStubAddr(void *addr) {
+        JS_ASSERT(baselineSetPropReturnFromStubAddr_ == nullptr);
+        baselineSetPropReturnFromStubAddr_ = addr;
+    }
+    void *baselineSetPropReturnFromStubAddr() {
+        JS_ASSERT(baselineSetPropReturnFromStubAddr_ != nullptr);
+        return baselineSetPropReturnFromStubAddr_;
     }
 
     bool notifyOfActiveParallelEntryScript(JSContext *cx, HandleScript script);

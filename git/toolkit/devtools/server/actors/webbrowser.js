@@ -9,7 +9,6 @@
 let { Ci, Cu } = require("chrome");
 let Services = require("Services");
 let { createExtraActors, appendExtraActors } = require("devtools/server/actors/common");
-let { RootActor } = require("devtools/server/actors/root");
 let { AddonThreadActor, ThreadActor } = require("devtools/server/actors/script");
 let DevToolsUtils = require("devtools/toolkit/DevToolsUtils");
 

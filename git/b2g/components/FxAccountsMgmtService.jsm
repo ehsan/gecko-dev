@@ -86,11 +86,6 @@ this.FxAccountsMgmtService = {
     if (!data) {
       return;
     }
-    // Backwards compatibility: handle accountId coming from Gaia
-    if (data.accountId && typeof(data.email === "undefined")) {
-      data.email = data.accountId;
-      delete data.accountId;
-    }
 
     switch(data.method) {
       case "getAccounts":
@@ -115,7 +110,7 @@ this.FxAccountsMgmtService = {
         ).then(null, Components.utils.reportError);
         break;
       case "queryAccount":
-        FxAccountsManager.queryAccount(data.email).then(
+        FxAccountsManager.queryAccount(data.accountId).then(
           result => {
             self._onFulfill(msg.id, result);
           },
@@ -127,7 +122,7 @@ this.FxAccountsMgmtService = {
       case "signIn":
       case "signUp":
       case "refreshAuthentication":
-        FxAccountsManager[data.method](data.email, data.password).then(
+        FxAccountsManager[data.method](data.accountId, data.password).then(
           user => {
             self._onFulfill(msg.id, user);
           },

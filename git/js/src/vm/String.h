@@ -925,6 +925,8 @@ NameToId(PropertyName *name)
     return NON_INTEGER_ATOM_TO_JSID(name);
 }
 
+typedef HeapPtr<JSAtom> HeapPtrAtom;
+
 class AutoNameVector : public AutoVectorRooter<PropertyName *>
 {
     typedef AutoVectorRooter<PropertyName *> BaseType;

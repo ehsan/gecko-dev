@@ -61,7 +61,7 @@ struct CallsiteCloneKey {
 };
 
 typedef HashMap<CallsiteCloneKey,
-                ReadBarrieredFunction,
+                ReadBarriered<JSFunction>,
                 CallsiteCloneKey,
                 SystemAllocPolicy> CallsiteCloneTable;
 

@@ -1111,7 +1111,7 @@ JS_TransplantObject(JSContext *cx, HandleObject origobj, HandleObject target)
         // There might already be a wrapper for the original object in
         // the new compartment. If there is, we use its identity and swap
         // in the contents of |target|.
-        newIdentity = &p->value().get().toObject();
+        newIdentity = &p->value().toObject();
 
         // When we remove origv from the wrapper map, its wrapper, newIdentity,
         // must immediately cease to be a cross-compartment wrapper. Neuter it.
@@ -5983,7 +5983,7 @@ JS_SaveExceptionState(JSContext *cx)
     if (state) {
         state->throwing =
             JS_GetPendingException(cx, MutableHandleValue::fromMarkedLocation(&state->exception));
-        if (state->throwing && state->exception.isGCThing())
+        if (state->throwing && JSVAL_IS_GCTHING(state->exception))
             AddValueRoot(cx, &state->exception, "JSExceptionState.exception");
     }
     return state;
@@ -6009,7 +6009,7 @@ JS_DropExceptionState(JSContext *cx, JSExceptionState *state)
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
     if (state) {
-        if (state->throwing && state->exception.isGCThing()) {
+        if (state->throwing && JSVAL_IS_GCTHING(state->exception)) {
             assertSameCompartment(cx, state->exception);
             RemoveRoot(cx->runtime(), &state->exception);
         }
