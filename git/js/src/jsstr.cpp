@@ -104,7 +104,7 @@ MinimizeDependentStrings(JSString *str, int level, JSString **basep)
             } while (base->isDependent());
         }
         length = str->dependentLength();
-        str->initDependent(base, start, length);
+        str->reinitDependent(base, start, length);
     }
     *basep = base;
     return start;
@@ -187,7 +187,7 @@ js_ConcatStrings(JSContext *cx, JSString *left, JSString *right)
 
         /* Morph left into a dependent string if we realloc'd its buffer. */
         if (ldep) {
-            ldep->initDependent(str, 0, ln);
+            ldep->reinitDependent(str, 0, ln);
 #ifdef DEBUG
             {
                 JSRuntime *rt = cx->runtime;
@@ -219,7 +219,7 @@ js_UndependString(JSContext *cx, JSString *str)
 
         js_strncpy(s, str->dependentChars(), n);
         s[n] = 0;
-        str->initFlat(s, n);
+        str->reinitFlat(s, n);
 
 #ifdef DEBUG
         {
@@ -1095,71 +1095,6 @@ js_BoyerMooreHorspool(const jschar *text, jsuint textlen,
     return -1;
 }
 
-namespace {
-
-struct MemCmp {
-    typedef jsuint Extent;
-    static JS_ALWAYS_INLINE Extent computeExtent(const jschar *, jsuint patlen) {
-        return (patlen - 1) * sizeof(jschar);
-    }
-    static JS_ALWAYS_INLINE bool match(const jschar *p, const jschar *t, Extent extent) {
-        return memcmp(p, t, extent) == 0;
-    }
-};
-
-struct ManualCmp {
-    typedef const jschar *Extent;
-    static JS_ALWAYS_INLINE Extent computeExtent(const jschar *pat, jsuint patlen) {
-        return pat + patlen;
-    }
-    static JS_ALWAYS_INLINE bool match(const jschar *p, const jschar *t, Extent extent) {
-        for (; p != extent; ++p, ++t) {
-            if (*p != *t)
-                return false;
-        }
-        return true;
-    }
-};
-
-}
-
-template <class InnerMatch>
-static jsint
-Duff(const jschar *text, jsuint textlen, const jschar *pat, jsuint patlen)
-{
-    JS_ASSERT(patlen > 1 && textlen > 0);
-    const jschar *textend = text + textlen - (patlen - 1);
-    const jschar p0 = *pat;
-    const jschar *const patNext = pat + 1;
-    const typename InnerMatch::Extent extent = InnerMatch::computeExtent(pat, patlen);
-    uint8 fixup;
-
-    const jschar *t = text;
-    switch ((textend - t) & 7) {
-        do {
-          case 0: if (*t++ == p0) { fixup = 8; goto match; }
-          case 7: if (*t++ == p0) { fixup = 7; goto match; }
-          case 6: if (*t++ == p0) { fixup = 6; goto match; }
-          case 5: if (*t++ == p0) { fixup = 5; goto match; }
-          case 4: if (*t++ == p0) { fixup = 4; goto match; }
-          case 3: if (*t++ == p0) { fixup = 3; goto match; }
-          case 2: if (*t++ == p0) { fixup = 2; goto match; }
-          case 1: if (*t++ == p0) { fixup = 1; goto match; }
-            continue;
-            do {
-                if (*t++ == p0) {
-                  match:
-                    if (!InnerMatch::match(patNext, t, extent))
-                        goto failed_match;
-                    return t - text - 1;
-                }
-              failed_match:;
-            } while (--fixup > 0);
-        } while(t != textend);
-    }
-    return -1;
-}
-
 static JS_ALWAYS_INLINE jsint
 StringMatch(const jschar *text, jsuint textlen,
             const jschar *pat, jsuint patlen)
@@ -1203,18 +1138,50 @@ StringMatch(const jschar *text, jsuint textlen,
             return index;
     }
 
+    const jschar *textend = text + textlen - (patlen - 1);
+    const jschar *patend = pat + patlen;
+    const jschar p0 = *pat;
+    const jschar *patNext = pat + 1;
+    uint8 fixup;
+
+#if __APPLE__ && __GNUC__ && __i386__
     /*
-     * For big patterns with large potential overlap we want the SIMD-optimized
-     * speed of memcmp. For small patterns, a simple loop is faster.
-     *
-     * FIXME: Linux memcmp performance is sad and the manual loop is faster.
+     * It is critical that |t| is kept in a register. The version of gcc we use
+     * to build on 32-bit Mac does not realize this. See bug 526173.
      */
-    return
-#if !defined(__linux__)
-           patlen > 128 ? Duff<MemCmp>(text, textlen, pat, patlen)
-                        :
+    register const jschar *t asm("esi") = text;
+#else
+    const jschar *t = text;
 #endif
-                          Duff<ManualCmp>(text, textlen, pat, patlen);
+
+    /* Credit: Duff */
+    switch ((textend - text) & 7) {
+        do {
+          case 0: if (*t++ == p0) { fixup = 8; goto match; }
+          case 7: if (*t++ == p0) { fixup = 7; goto match; }
+          case 6: if (*t++ == p0) { fixup = 6; goto match; }
+          case 5: if (*t++ == p0) { fixup = 5; goto match; }
+          case 4: if (*t++ == p0) { fixup = 4; goto match; }
+          case 3: if (*t++ == p0) { fixup = 3; goto match; }
+          case 2: if (*t++ == p0) { fixup = 2; goto match; }
+          case 1: if (*t++ == p0) { fixup = 1; goto match; }
+            continue;
+            do {
+                if (*t++ == p0) {
+                  match:
+                    for (const jschar *p1 = patNext, *t1 = t;
+                         p1 != patend;
+                         ++p1, ++t1) {
+                        if (*p1 != *t1)
+                            goto failed_match;
+                    }
+                    return t - text - 1;
+                }
+              failed_match:;
+            } while (--fixup > 0);
+        } while(t != textend);
+    }
+    return -1;
 }
 
 static JSBool
@@ -3048,6 +3015,66 @@ static JSFunctionSpec string_static_methods[] = {
     JS_FS_END
 };
 
+static JSHashNumber
+js_hash_string_pointer(const void *key)
+{
+    return (JSHashNumber)JS_PTR_TO_UINT32(key) >> JSVAL_TAGBITS;
+}
+
+JSBool
+js_InitRuntimeStringState(JSContext *cx)
+{
+    JSRuntime *rt;
+
+    rt = cx->runtime;
+    rt->emptyString = ATOM_TO_STRING(rt->atomState.emptyAtom);
+    return JS_TRUE;
+}
+
+JSBool
+js_InitDeflatedStringCache(JSRuntime *rt)
+{
+    JSHashTable *cache;
+
+    /* Initialize string cache */
+    JS_ASSERT(!rt->deflatedStringCache);
+    cache = JS_NewHashTable(8, js_hash_string_pointer,
+                            JS_CompareValues, JS_CompareValues,
+                            NULL, NULL);
+    if (!cache)
+        return JS_FALSE;
+    rt->deflatedStringCache = cache;
+
+#ifdef JS_THREADSAFE
+    JS_ASSERT(!rt->deflatedStringCacheLock);
+    rt->deflatedStringCacheLock = JS_NEW_LOCK();
+    if (!rt->deflatedStringCacheLock)
+        return JS_FALSE;
+#endif
+    return JS_TRUE;
+}
+
+void
+js_FinishRuntimeStringState(JSContext *cx)
+{
+    cx->runtime->emptyString = NULL;
+}
+
+void
+js_FinishDeflatedStringCache(JSRuntime *rt)
+{
+    if (rt->deflatedStringCache) {
+        JS_HashTableDestroy(rt->deflatedStringCache);
+        rt->deflatedStringCache = NULL;
+    }
+#ifdef JS_THREADSAFE
+    if (rt->deflatedStringCacheLock) {
+        JS_DESTROY_LOCK(rt->deflatedStringCacheLock);
+        rt->deflatedStringCacheLock = NULL;
+    }
+#endif
+}
+
 JSObject *
 js_InitStringClass(JSContext *cx, JSObject *obj)
 {
@@ -3235,6 +3262,26 @@ js_NewStringCopyZ(JSContext *cx, const jschar *s)
     if (!str)
         cx->free(news);
     return str;
+}
+
+void
+js_PurgeDeflatedStringCache(JSRuntime *rt, JSString *str)
+{
+    JSHashNumber hash;
+    JSHashEntry *he, **hep;
+
+    hash = js_hash_string_pointer(str);
+    JS_ACQUIRE_LOCK(rt->deflatedStringCacheLock);
+    hep = JS_HashTableRawLookup(rt->deflatedStringCache, hash, str);
+    he = *hep;
+    if (he) {
+#ifdef DEBUG
+        rt->deflatedStringCacheBytes -= str->length();
+#endif
+        js_free(he->value);
+        JS_HashTableRawRemove(rt->deflatedStringCache, hep, he);
+    }
+    JS_RELEASE_LOCK(rt->deflatedStringCacheLock);
 }
 
 JS_FRIEND_API(const char *)
@@ -3747,161 +3794,42 @@ bufferTooSmall:
     return JS_FALSE;
 }
 
-namespace js {
-
-DeflatedStringCache::DeflatedStringCache()
+JSBool
+js_SetStringBytes(JSContext *cx, JSString *str, char *bytes, size_t length)
 {
-#ifdef JS_THREADSAFE
-    lock = NULL;
+    JSRuntime *rt;
+    JSHashTable *cache;
+    JSBool ok;
+    JSHashNumber hash;
+    JSHashEntry **hep;
+
+    rt = cx->runtime;
+    JS_ACQUIRE_LOCK(rt->deflatedStringCacheLock);
+
+    cache = rt->deflatedStringCache;
+    hash = js_hash_string_pointer(str);
+    hep = JS_HashTableRawLookup(cache, hash, str);
+    JS_ASSERT(*hep == NULL);
+    ok = JS_HashTableRawAdd(cache, hep, hash, str, bytes) != NULL;
+    if (ok) {
+        str->setDeflated();
+#ifdef DEBUG
+        rt->deflatedStringCacheBytes += length;
 #endif
-}
-
-bool
-DeflatedStringCache::init()
-{
-#ifdef JS_THREADSAFE
-    JS_ASSERT(!lock);
-    lock = JS_NEW_LOCK();
-    if (!lock)
-        return false;
-#endif
-
-    /*
-     * Make room for 2K deflated strings that a typical browser session
-     * creates.
-     */
-    return map.init(2048);
-}
-
-DeflatedStringCache::~DeflatedStringCache()
-{
-#ifdef JS_THREADSAFE
-    if (lock)
-        JS_DESTROY_LOCK(lock);
-#endif
-}
-
-void
-DeflatedStringCache::sweep(JSContext *cx)
-{
-    /*
-     * We must take a lock even during the GC as JS_GetStringBytes() can be
-     * called outside the request.
-     */
-    JS_ACQUIRE_LOCK(lock);
-
-    for (Map::Enum e(map); !e.empty(); e.popFront()) {
-        JSString *str = e.front().key;
-        if (js_IsAboutToBeFinalized(str)) {
-            char *bytes = e.front().value;
-            e.removeFront();
-
-            /*
-             * We cannot use cx->free here as bytes may come from the
-             * embedding that calls JS_NewString(cx, bytes, length). Those
-             * bytes may not be allocated via js_malloc and may not have
-             * space for the background free list.
-             */
-            js_free(bytes);
-        }
     }
 
-    JS_RELEASE_LOCK(lock);
-}
-
-void
-DeflatedStringCache::remove(JSString *str)
-{
-    JS_ACQUIRE_LOCK(lock);
-
-    Map::Ptr p = map.lookup(str);
-    if (p) {
-        js_free(p->value);
-        map.remove(p);
-    }
-
-    JS_RELEASE_LOCK(lock);
-}
-
-bool
-DeflatedStringCache::setBytes(JSContext *cx, JSString *str, char *bytes)
-{
-    JS_ACQUIRE_LOCK(lock);
-
-    Map::AddPtr p = map.lookupForAdd(str);
-    JS_ASSERT(!p);
-    bool ok = map.add(p, str, bytes);
-
-    JS_RELEASE_LOCK(lock);
-
-    if (!ok)
-        js_ReportOutOfMemory(cx);
+    JS_RELEASE_LOCK(rt->deflatedStringCacheLock);
     return ok;
 }
-
-char *
-DeflatedStringCache::getBytes(JSContext *cx, JSString *str)
-{
-    JS_ACQUIRE_LOCK(lock);
-
-    char *bytes;
-    do {
-        Map::AddPtr p = map.lookupForAdd(str);
-        if (p) {
-            bytes = p->value;
-            break;
-        }
-#ifdef JS_THREADSAFE
-        unsigned generation = map.generation();
-        JS_RELEASE_LOCK(lock);
-#endif
-        bytes = js_DeflateString(cx, str->chars(), str->length());
-        if (!bytes)
-            return NULL;
-#ifdef JS_THREADSAFE
-        JS_ACQUIRE_LOCK(lock);
-        if (generation != map.generation()) {
-            p = map.lookupForAdd(str);
-            if (p) {
-                /* Some other thread has asked for str bytes .*/
-                if (cx)
-                    cx->free(bytes);
-                else
-                    js_free(bytes);
-                bytes = p->value;
-                break;
-            }
-        }
-#endif
-        if (!map.add(p, str, bytes)) {
-            JS_RELEASE_LOCK(lock);
-            if (cx) {
-                cx->free(bytes);
-                js_ReportOutOfMemory(cx);
-            } else {
-                js_free(bytes);
-            }
-            return NULL;
-        }
-    } while (false);
-
-    JS_ASSERT(bytes);
-
-    /* Try to catch failure to JS_ShutDown between runtime epochs. */
-    JS_ASSERT_IF(!js_CStringsAreUTF8 && *bytes != (char) str->chars()[0],
-                 *bytes == '\0' && str->empty());
-
-    JS_RELEASE_LOCK(lock);
-    return bytes;
-}
-
-} /* namespace js */
 
 const char *
 js_GetStringBytes(JSContext *cx, JSString *str)
 {
     JSRuntime *rt;
+    JSHashTable *cache;
     char *bytes;
+    JSHashNumber hash;
+    JSHashEntry *he, **hep;
 
     if (JSString::isUnitString(str)) {
 #ifdef IS_LITTLE_ENDIAN
@@ -3931,7 +3859,50 @@ js_GetStringBytes(JSContext *cx, JSString *str)
         rt = js_GetGCStringRuntime(str);
     }
 
-    return rt->deflatedStringCache->getBytes(cx, str);
+#ifdef JS_THREADSAFE
+    if (!rt->deflatedStringCacheLock) {
+        /*
+         * Called from last GC (see js_DestroyContext), after runtime string
+         * state has been finalized.  We have no choice but to leak here.
+         */
+        return js_DeflateString(NULL, str->chars(), str->length());
+    }
+#endif
+
+    JS_ACQUIRE_LOCK(rt->deflatedStringCacheLock);
+
+    cache = rt->deflatedStringCache;
+    hash = js_hash_string_pointer(str);
+    hep = JS_HashTableRawLookup(cache, hash, str);
+    he = *hep;
+    if (he) {
+        bytes = (char *) he->value;
+
+        /* Try to catch failure to JS_ShutDown between runtime epochs. */
+        if (!js_CStringsAreUTF8) {
+            JS_ASSERT_IF(*bytes != (char) str->chars()[0],
+                         *bytes == '\0' && str->empty());
+        }
+    } else {
+        bytes = js_DeflateString(cx, str->chars(), str->length());
+        if (bytes) {
+            if (JS_HashTableRawAdd(cache, hep, hash, str, bytes)) {
+#ifdef DEBUG
+                rt->deflatedStringCacheBytes += str->length();
+#endif
+                str->setDeflated();
+            } else {
+                if (cx)
+                    cx->free(bytes);
+                else
+                    js_free(bytes);
+                bytes = NULL;
+            }
+        }
+    }
+
+    JS_RELEASE_LOCK(rt->deflatedStringCacheLock);
+    return bytes;
 }
 
 /*
