@@ -2399,8 +2399,7 @@ ServerHandler.prototype =
 
     var start, end;
     if (metadata._httpVersion.atLeast(nsHttpVersion.HTTP_1_1) &&
-        metadata.hasHeader("Range") &&
-        this._getTypeFromFile(file) !== SJS_TYPE)
+        metadata.hasHeader("Range"))
     {
       var rangeMatch = metadata.getHeader("Range").match(/^bytes=(\d+)?-(\d+)?$/);
       if (!rangeMatch)

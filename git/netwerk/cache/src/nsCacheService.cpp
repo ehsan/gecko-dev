@@ -947,6 +947,12 @@ NS_IMETHODIMP nsCacheService::EvictEntries(nsCacheStoragePolicy storagePolicy)
     return  EvictEntriesForClient(nsnull, storagePolicy);
 }
 
+NS_IMETHODIMP nsCacheService::CreateTemporaryClientID(nsCacheStoragePolicy storagePolicy,
+                                                      nsACString &clientID)
+{
+    return NS_ERROR_NOT_IMPLEMENTED;
+}
+
 /**
  * Internal Methods
  */

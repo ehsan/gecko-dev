@@ -146,19 +146,10 @@ nsCocoaWindow::~nsCocoaWindow()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  // Notify the children that we're gone.  Popup windows (e.g. tooltips) can
-  // have nsChildView children.  'kid' is an nsChildView object if and only if
-  // its 'type' is 'eWindowType_child'.
+  // notify the children that we're gone
   for (nsIWidget* kid = mFirstChild; kid; kid = kid->GetNextSibling()) {
-    nsWindowType kidType;
-    kid->GetWindowType(kidType);
-    if (kidType == eWindowType_child) {
-      nsChildView* childView = static_cast<nsChildView*>(kid);
-      childView->ResetParent();
-    } else {
-      nsCocoaWindow* childWindow = static_cast<nsCocoaWindow*>(kid);
-      childWindow->mParent = nsnull;
-    }
+    nsCocoaWindow* childWindow = static_cast<nsCocoaWindow*>(kid);
+    childWindow->mParent = nsnull;
   }
 
   if (mWindow) {

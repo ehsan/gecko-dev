@@ -75,7 +75,7 @@ nsSVGPathGeometryFrame::AttributeChanged(PRInt32         aNameSpaceID,
 {
   if (aNameSpaceID == kNameSpaceID_None &&
       (static_cast<nsSVGPathGeometryElement*>
-                  (mContent)->AttributeDefinesGeometry(aAttribute) ||
+                  (mContent)->IsDependentAttribute(aAttribute) ||
        aAttribute == nsGkAtoms::transform))
     nsSVGUtils::UpdateGraphic(this);
 
@@ -435,10 +435,28 @@ nsSVGPathGeometryFrame::Render(nsSVGRenderState *aContext)
 
   PRUint16 renderMode = aContext->GetRenderMode();
 
-  /* save/restore the state so we don't screw up the xform */
+  /* save/pop the state so we don't screw up the xform */
   gfx->Save();
 
   GeneratePath(gfx);
+
+  if (renderMode != nsSVGRenderState::NORMAL) {
+    gfx->Restore();
+
+    if (GetClipRule() == NS_STYLE_FILL_RULE_EVENODD)
+      gfx->SetFillRule(gfxContext::FILL_RULE_EVEN_ODD);
+    else
+      gfx->SetFillRule(gfxContext::FILL_RULE_WINDING);
+
+    if (renderMode == nsSVGRenderState::CLIP_MASK) {
+      gfx->SetAntialiasMode(gfxContext::MODE_ALIASED);
+      gfx->SetColor(gfxRGBA(1.0f, 1.0f, 1.0f, 1.0f));
+      gfx->Fill();
+      gfx->NewPath();
+    }
+
+    return;
+  }
 
   switch (GetStyleSVG()->mShapeRendering) {
   case NS_STYLE_SHAPE_RENDERING_OPTIMIZESPEED:
@@ -448,22 +466,6 @@ nsSVGPathGeometryFrame::Render(nsSVGRenderState *aContext)
   default:
     gfx->SetAntialiasMode(gfxContext::MODE_COVERAGE);
     break;
-  }
-
-  if (renderMode != nsSVGRenderState::NORMAL) {
-    if (GetClipRule() == NS_STYLE_FILL_RULE_EVENODD)
-      gfx->SetFillRule(gfxContext::FILL_RULE_EVEN_ODD);
-    else
-      gfx->SetFillRule(gfxContext::FILL_RULE_WINDING);
-
-    if (renderMode == nsSVGRenderState::CLIP_MASK) {
-      gfx->SetColor(gfxRGBA(1.0f, 1.0f, 1.0f, 1.0f));
-      gfx->Fill();
-      gfx->NewPath();
-    }
-    gfx->Restore();
-
-    return;
   }
 
   if (SetupCairoFill(gfx)) {

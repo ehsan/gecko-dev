@@ -48,7 +48,6 @@
 #include "nsIDOMSVGPoint.h"
 #include "nsSVGUtils.h"
 #include "nsDOMError.h"
-#include "nsIDOMSVGRect.h"
 
 //----------------------------------------------------------------------
 // nsISupports methods
@@ -97,8 +96,14 @@ NS_IMETHODIMP nsSVGGraphicElement::GetBBox(nsIDOMSVGRect **_retval)
   nsISVGChildFrame* svgframe = do_QueryFrame(frame);
   NS_ASSERTION(svgframe, "wrong frame type");
   if (svgframe) {
-    *_retval = nsSVGUtils::GetBBox(frame).get();
-    return NS_OK;
+    svgframe->SetMatrixPropagation(PR_FALSE);
+    svgframe->NotifySVGChanged(nsISVGChildFrame::SUPPRESS_INVALIDATION |
+                               nsISVGChildFrame::TRANSFORM_CHANGED);
+    nsresult rv = svgframe->GetBBox(_retval);
+    svgframe->SetMatrixPropagation(PR_TRUE);
+    svgframe->NotifySVGChanged(nsISVGChildFrame::SUPPRESS_INVALIDATION |
+                               nsISVGChildFrame::TRANSFORM_CHANGED);
+    return rv;
   }
   return NS_ERROR_FAILURE;
 }

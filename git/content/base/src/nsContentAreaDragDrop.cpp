@@ -1420,8 +1420,7 @@ nsTransferableFactory::SerializeNodeOrSelection(nsIDOMWindow* inWindow,
   NS_ENSURE_TRUE(domDoc, NS_ERROR_FAILURE);
 
   PRUint32 flags = nsIDocumentEncoder::OutputAbsoluteLinks |
-                   nsIDocumentEncoder::OutputEncodeHTMLEntities |
-                   nsIDocumentEncoder::OutputRaw;
+                   nsIDocumentEncoder::OutputEncodeHTMLEntities;
   nsCOMPtr<nsIDOMRange> range;
   nsCOMPtr<nsISelection> selection;
   nsCOMPtr<nsIDOMNode> node = do_QueryInterface(inNode);

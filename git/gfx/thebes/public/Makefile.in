@@ -45,9 +45,7 @@ EXPORTS	+=	gfxWindowsPlatform.h \
 EXPORTS +=	gfxPDFSurface.h
 
 ifdef WINCE
-EXPORTS +=	gfxFT2Fonts.h \
-		gfxDDrawSurface.h \
-		$(NULL)
+EXPORTS +=	gfxFT2Fonts.h 
 else
 EXPORTS +=	gfxWindowsFonts.h 
 endif

@@ -83,8 +83,7 @@ public:
         SurfaceTypeOS2,
         SurfaceTypeWin32Printing,
         SurfaceTypeQuartzImage,
-        SurfaceTypeQPainter,
-        SurfaceTypeDDraw
+        SurfaceTypeQPainter
     } gfxSurfaceType;
 
     typedef enum {

@@ -79,7 +79,6 @@ struct nsStyleFont;
 class nsSVGEnum;
 class nsISVGChildFrame;
 class nsSVGGeometryFrame;
-class nsSVGDisplayContainerFrame;
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -256,13 +255,6 @@ public:
    */
   static nsresult GetNearestViewportElement(nsIContent *aContent,
                                             nsIDOMSVGElement * *aNearestViewportElement);
-
-  /**
-   * Gets the nearest nsSVGInnerSVGFrame or nsSVGOuterSVGFrame frame. aFrame
-   * must be an SVG frame. If aFrame is of type nsGkAtoms::svgOuterSVGFrame,
-   * returns nsnull.
-   */
-  static nsSVGDisplayContainerFrame* GetNearestSVGViewport(nsIFrame *aFrame);
 
   /*
    * Get the farthest viewport element
