@@ -430,7 +430,7 @@ public:
         mCallbackState = Complete;
         return;
       default:
-        MOZ_ASSERT_UNREACHABLE("Can't advance past Complete!");
+        MOZ_ASSUME_UNREACHABLE("Can't advance past Complete!");
     }
   }
 

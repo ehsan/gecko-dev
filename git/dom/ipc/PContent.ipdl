@@ -317,6 +317,8 @@ both:
 
     async PBlob(BlobConstructorParams params);
 
+    async PJavaScript();
+
     PFileDescriptorSet(FileDescriptor fd);
 
 child:
@@ -422,8 +424,6 @@ parent:
         returns (uint64_t id, bool isForApp, bool isForBrowser);
     sync GetXPCOMProcessAttributes()
         returns (bool isOffline);
-
-    async PJavaScript();
 
     PDeviceStorageRequest(DeviceStorageParams params);
 

@@ -31,14 +31,14 @@ AudioNodeExternalInputStream::TrackMapEntry::~TrackMapEntry()
   }
 }
 
-size_t
+uint32_t
 AudioNodeExternalInputStream::GetTrackMapEntry(const StreamBuffer::Track& aTrack,
                                                GraphTime aFrom)
 {
   AudioSegment* segment = aTrack.Get<AudioSegment>();
 
   // Check the map for an existing entry corresponding to the input track.
-  for (size_t i = 0; i < mTrackMap.Length(); ++i) {
+  for (uint32_t i = 0; i < mTrackMap.Length(); ++i) {
     TrackMapEntry* map = &mTrackMap[i];
     if (map->mTrackID == aTrack.GetID()) {
       return i;
@@ -58,7 +58,7 @@ AudioNodeExternalInputStream::GetTrackMapEntry(const StreamBuffer::Track& aTrack
   // Create a speex resampler with the same sample rate and number of channels
   // as the track.
   SpeexResamplerState* resampler = nullptr;
-  size_t channelCount = std::min((*ci).mChannelData.Length(),
+  uint32_t channelCount = std::min((*ci).mChannelData.Length(),
                                    WebAudioUtils::MaxChannelCount);
   if (aTrack.GetRate() != mSampleRate) {
     resampler = speex_resampler_init(channelCount,
@@ -340,7 +340,7 @@ AudioNodeExternalInputStream::ProcessInput(GraphTime aFrom, GraphTime aTo,
        !tracks.IsEnded(); tracks.Next()) {
     const StreamBuffer::Track& inputTrack = *tracks;
     // Create a TrackMapEntry if necessary.
-    size_t trackMapIndex = GetTrackMapEntry(inputTrack, aFrom);
+    uint32_t trackMapIndex = GetTrackMapEntry(inputTrack, aFrom);
     // Maybe there's nothing in this track yet. If so, ignore it. (While the
     // track is only playing silence, we may not be able to determine the
     // correct number of channels to start resampling.)

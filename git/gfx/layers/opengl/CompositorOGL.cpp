@@ -44,7 +44,6 @@
 #include "ScopedGLHelpers.h"
 #include "GLReadTexImageHelper.h"
 #include "TiledLayerBuffer.h"           // for TiledLayerComposer
-#include "HeapCopyOfStackArray.h"
 
 #if MOZ_ANDROID_OMTC
 #include "TexturePoolOGL.h"
@@ -373,11 +372,7 @@ CompositorOGL::Initialize()
     /* Then quad texcoords */
     0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f,
   };
-  HeapCopyOfStackArray<GLfloat> verticesOnHeap(vertices);
-  mGLContext->fBufferData(LOCAL_GL_ARRAY_BUFFER,
-                          verticesOnHeap.ByteLength(),
-                          verticesOnHeap.Data(),
-                          LOCAL_GL_STATIC_DRAW);
+  mGLContext->fBufferData(LOCAL_GL_ARRAY_BUFFER, sizeof(vertices), vertices, LOCAL_GL_STATIC_DRAW);
   mGLContext->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, 0);
 
   nsCOMPtr<nsIConsoleService>

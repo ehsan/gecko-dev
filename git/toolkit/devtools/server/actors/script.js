@@ -4547,8 +4547,6 @@ EnvironmentActor.prototype = {
       let arg = {};
 
       let value = this.obj.getVariable(name);
-      // The slot is optimized out.
-      // FIXME: Need actual UI, bug 941287.
       if (value && value.optimizedOut) {
         continue;
       }
@@ -4585,11 +4583,18 @@ EnvironmentActor.prototype = {
         continue;
       }
 
-      let value = this.obj.getVariable(name);
-      // The slot is optimized out or arguments on a dead scope.
-      // FIXME: Need actual UI, bug 941287.
-      if (value && (value.optimizedOut || value.missingArguments)) {
-        continue;
+      let value;
+      try {
+        value = this.obj.getVariable(name);
+        if (value && value.optimizedOut) {
+          continue;
+        }
+      } catch (e) {
+        // Avoid "Debugger scope is not live" errors for |arguments|, introduced
+        // in bug 746601.
+        if (name != "arguments") {
+          throw e;
+        }
       }
 
       // TODO: this part should be removed in favor of the commented-out part

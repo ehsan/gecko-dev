@@ -341,8 +341,6 @@ class MochitestRunner(MozbuildObject):
             manifest.tests.extend(tests)
 
             options.manifestFile = manifest
-            if len(test_paths) == 1 and len(tests) == 1:
-                options.testPath = test_paths[0]
 
         if rerun_failures:
             options.testManifest = failure_file_path

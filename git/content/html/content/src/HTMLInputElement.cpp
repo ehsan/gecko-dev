@@ -2518,7 +2518,7 @@ HTMLInputElement::GetDisplayFileName(nsAString& aValue) const
     }
   } else {
     nsString count;
-    count.AppendInt(int(mFiles.Length()));
+    count.AppendInt(mFiles.Length());
 
     const char16_t* params[] = { count.get() };
     nsContentUtils::FormatLocalizedString(nsContentUtils::eFORMS_PROPERTIES,

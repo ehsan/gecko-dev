@@ -147,7 +147,6 @@
     macro(of, of, "of") \
     macro(offset, offset, "offset") \
     macro(optimizedOut, optimizedOut, "optimizedOut") \
-    macro(missingArguments, missingArguments, "missingArguments") \
     macro(outOfMemory, outOfMemory, "out of memory") \
     macro(parseFloat, parseFloat, "parseFloat") \
     macro(parseInt, parseInt, "parseInt") \
