@@ -543,13 +543,14 @@ js_CompileScript(JSContext *cx, JSObject *scopeChain, JSStackFrame *callerFrame,
     cg.treeContext.u.scopeChain = scopeChain;
     cg.staticDepth = TCF_GET_STATIC_DEPTH(tcflags);
 
-    if ((tcflags & TCF_COMPILE_N_GO) && callerFrame && callerFrame->fun) {
+    if (callerFrame && (tcflags & TCF_COMPILE_N_GO)) {
         /*
          * An eval script in a caller frame needs to have its enclosing function
          * captured in case it uses an upvar reference, and someone wishes to
          * decompile it while running.
          */
-        JSParsedObjectBox *pob = js_NewParsedObjectBox(cx, &pc, callerFrame->callee);
+        JSParsedObjectBox *pob;
+        pob = js_NewParsedObjectBox(cx, &pc, FUN_OBJECT(callerFrame->fun));
         pob->emitLink = cg.objectList.lastPob;
         cg.objectList.lastPob = pob;
         cg.objectList.length++;
@@ -4627,12 +4628,16 @@ MemberExpr(JSContext *cx, JSTokenStream *ts, JSTreeContext *tc,
             if (!pn2)
                 return NULL;
 
-            /* Pick JSOP_EVAL and flag tc as heavyweight if eval(...). */
             pn2->pn_op = JSOP_CALL;
             if (pn->pn_op == JSOP_NAME &&
                 pn->pn_atom == cx->runtime->atomState.evalAtom) {
+                /* Pick JSOP_EVAL and flag tc as heavyweight if eval(...). */
                 pn2->pn_op = JSOP_EVAL;
                 tc->flags |= TCF_FUN_HEAVYWEIGHT;
+            } else if (pn->pn_op == JSOP_GETPROP &&
+                       pn->pn_atom == cx->runtime->atomState.applyAtom) {
+                /* Pick JSOP_APPLY if apply(...). */
+                pn2->pn_op = JSOP_APPLY;
             }
 
             PN_INIT_LIST_1(pn2, pn);
