@@ -174,20 +174,22 @@ nsInlineFrame::PeekOffsetCharacter(bool aForward, int32_t* aOffset,
   return false;
 }
 
-void
+NS_IMETHODIMP
 nsInlineFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                 const nsRect&           aDirtyRect,
                                 const nsDisplayListSet& aLists)
 {
-  BuildDisplayListForInline(aBuilder, aDirtyRect, aLists);
+  nsresult rv = BuildDisplayListForInline(aBuilder, aDirtyRect, aLists);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // The sole purpose of this is to trigger display of the selection
   // window for Named Anchors, which don't have any children and
   // normally don't have any size, but in Editor we use CSS to display
   // an image to represent this "hidden" element.
   if (!mFrames.FirstChild()) {
-    DisplaySelectionOverlay(aBuilder, aLists.Content());
+    rv = DisplaySelectionOverlay(aBuilder, aLists.Content());
   }
+  return rv;
 }
 
 //////////////////////////////////////////////////////////////////////
@@ -221,7 +223,7 @@ nsRect
 nsInlineFrame::ComputeTightBounds(gfxContext* aContext) const
 {
   // be conservative
-  if (StyleContext()->HasTextDecorationLines()) {
+  if (GetStyleContext()->HasTextDecorationLines()) {
     return GetVisualOverflowRect();
   }
   return ComputeSimpleTightBounds(aContext);
@@ -1053,20 +1055,22 @@ nsFirstLineFrame::Reflow(nsPresContext* aPresContext,
     if (mStyleContext == first->mStyleContext) {
       // Fixup our style context and our children. First get the
       // proper parent context.
-      nsStyleContext* parentContext = first->GetParent()->StyleContext();
-      // Create a new style context that is a child of the parent
-      // style context thus removing the :first-line style. This way
-      // we behave as if an anonymous (unstyled) span was the child
-      // of the parent frame.
-      nsRefPtr<nsStyleContext> newSC;
-      newSC = aPresContext->StyleSet()->
-        ResolveAnonymousBoxStyle(nsCSSAnonBoxes::mozLineFrame, parentContext);
-      if (newSC) {
-        // Switch to the new style context.
-        SetStyleContext(newSC);
+      nsStyleContext* parentContext = first->GetParent()->GetStyleContext();
+      if (parentContext) {
+        // Create a new style context that is a child of the parent
+        // style context thus removing the :first-line style. This way
+        // we behave as if an anonymous (unstyled) span was the child
+        // of the parent frame.
+        nsRefPtr<nsStyleContext> newSC;
+        newSC = aPresContext->StyleSet()->
+          ResolveAnonymousBoxStyle(nsCSSAnonBoxes::mozLineFrame, parentContext);
+        if (newSC) {
+          // Switch to the new style context.
+          SetStyleContext(newSC);
 
-        // Re-resolve all children
-        ReparentChildListStyle(aPresContext, mFrames, this);
+          // Re-resolve all children
+          ReparentChildListStyle(aPresContext, mFrames, this);
+        }
       }
     }
   }

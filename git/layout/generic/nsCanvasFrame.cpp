@@ -282,11 +282,13 @@ public:
   NS_DISPLAY_DECL_NAME("CanvasFocus", TYPE_CANVAS_FOCUS)
 };
 
-void
+NS_IMETHODIMP
 nsCanvasFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                 const nsRect&           aDirtyRect,
                                 const nsDisplayListSet& aLists)
 {
+  nsresult rv;
+
   if (GetPrevInFlow()) {
     DisplayOverflowContainers(aBuilder, aDirtyRect, aLists);
   }
@@ -310,13 +312,12 @@ nsCanvasFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
         new (aBuilder) nsDisplayCanvasBackgroundColor(aBuilder, this));
   
     if (isThemed) {
-      aLists.BorderBackground()->AppendNewToTop(
+      return aLists.BorderBackground()->AppendNewToTop(
         new (aBuilder) nsDisplayCanvasBackgroundImage(aBuilder, this, 0, isThemed, nullptr));
-      return;
     }
 
     if (!bg) {
-      return;
+      return NS_OK;
     }
 
     // Create separate items for each background layer.
@@ -324,16 +325,18 @@ nsCanvasFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
       if (bg->mLayers[i].mImage.IsEmpty()) {
         continue;
       }
-      aLists.BorderBackground()->AppendNewToTop(
-        new (aBuilder) nsDisplayCanvasBackgroundImage(aBuilder, this, i,
-                                                      isThemed, bg));
+      rv = aLists.BorderBackground()->AppendNewToTop(
+          new (aBuilder) nsDisplayCanvasBackgroundImage(aBuilder, this, i,
+                                                        isThemed, bg));
+      NS_ENSURE_SUCCESS(rv, rv);
     }
   }
 
   nsIFrame* kid;
   for (kid = GetFirstPrincipalChild(); kid; kid = kid->GetNextSibling()) {
     // Put our child into its own pseudo-stack.
-    BuildDisplayListForChild(aBuilder, kid, aDirtyRect, aLists);
+    rv = BuildDisplayListForChild(aBuilder, kid, aDirtyRect, aLists);
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
 #ifdef DEBUG_CANVAS_FOCUS
@@ -356,13 +359,13 @@ nsCanvasFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 #endif
 
   if (!mDoPaintFocus)
-    return;
+    return NS_OK;
   // Only paint the focus if we're visible
   if (!GetStyleVisibility()->IsVisible())
-    return;
+    return NS_OK;
   
-  aLists.Outlines()->AppendNewToTop(new (aBuilder)
-    nsDisplayCanvasFocus(aBuilder, this));
+  return aLists.Outlines()->AppendNewToTop(new (aBuilder)
+      nsDisplayCanvasFocus(aBuilder, this));
 }
 
 void
@@ -381,7 +384,9 @@ nsCanvasFrame::PaintFocus(nsRenderingContext& aRenderingContext, nsPoint aPt)
  // XXX use the root frame foreground color, but should we find BODY frame
  // for HTML documents?
   nsIFrame* root = mFrames.FirstChild();
-  const nsStyleColor* color = root ? root->GetStyleColor() : GetStyleColor();
+  const nsStyleColor* color =
+    root ? root->GetStyleContext()->GetStyleColor() :
+           mStyleContext->GetStyleColor();
   if (!color) {
     NS_ERROR("current color cannot be found");
     return;

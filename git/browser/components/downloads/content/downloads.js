@@ -121,9 +121,7 @@ const DownloadsPanel = {
    */
   initialize: function DP_initialize(aCallback)
   {
-    DownloadsCommon.log("Attempting to initialize DownloadsPanel for a window.");
     if (this._state != this.kStateUninitialized) {
-      DownloadsCommon.log("DownloadsPanel is already initialized.");
       DownloadsOverlayLoader.ensureOverlayLoaded(this.kDownloadsOverlay,
                                                  aCallback);
       return;
@@ -139,16 +137,11 @@ const DownloadsPanel = {
 
     // Now that data loading has eventually started, load the required XUL
     // elements and initialize our views.
-    DownloadsCommon.log("Ensuring DownloadsPanel overlay loaded.");
     DownloadsOverlayLoader.ensureOverlayLoaded(this.kDownloadsOverlay,
                                                function DP_I_callback() {
       DownloadsViewController.initialize();
-      DownloadsCommon.log("Attaching DownloadsView...");
       DownloadsCommon.getData(window).addView(DownloadsView);
-      DownloadsCommon.log("DownloadsView attached - the panel for this window",
-                          "should now see download items come in.");
       DownloadsPanel._attachEventListeners();
-      DownloadsCommon.log("DownloadsPanel initialized.");
       aCallback();
     });
   },
@@ -160,9 +153,7 @@ const DownloadsPanel = {
    */
   terminate: function DP_terminate()
   {
-    DownloadsCommon.log("Attempting to terminate DownloadsPanel for a window.");
     if (this._state == this.kStateUninitialized) {
-      DownloadsCommon.log("DownloadsPanel was never initialized. Nothing to do.");
       return;
     }
 
@@ -178,7 +169,6 @@ const DownloadsPanel = {
     this._state = this.kStateUninitialized;
 
     DownloadsSummary.active = false;
-    DownloadsCommon.log("DownloadsPanel terminated.");
   },
 
   //////////////////////////////////////////////////////////////////////////////
@@ -201,10 +191,7 @@ const DownloadsPanel = {
    */
   showPanel: function DP_showPanel()
   {
-    DownloadsCommon.log("Opening the downloads panel.");
-
     if (this.isPanelShowing) {
-      DownloadsCommon.log("Panel is already showing - focusing instead.");
       this._focusPanel();
       return;
     }
@@ -217,7 +204,6 @@ const DownloadsPanel = {
       setTimeout(function () DownloadsPanel._openPopupIfDataReady(), 0);
     }.bind(this));
 
-    DownloadsCommon.log("Waiting for the downloads panel to appear.");
     this._state = this.kStateWaitingData;
   },
 
@@ -227,10 +213,7 @@ const DownloadsPanel = {
    */
   hidePanel: function DP_hidePanel()
   {
-    DownloadsCommon.log("Closing the downloads panel.");
-
     if (!this.isPanelShowing) {
-      DownloadsCommon.log("Downloads panel is not showing - nothing to do.");
       return;
     }
 
@@ -240,7 +223,6 @@ const DownloadsPanel = {
     // was open, then the onPopupHidden event handler has already updated the
     // current state, otherwise we must update the state ourselves.
     this._state = this.kStateHidden;
-    DownloadsCommon.log("Downloads panel is now closed.");
   },
 
   /**
@@ -316,7 +298,6 @@ const DownloadsPanel = {
       return;
     }
 
-    DownloadsCommon.log("Downloads panel has shown.");
     this._state = this.kStateShown;
 
     // Since at most one popup is open at any given time, we can set globally.
@@ -337,8 +318,6 @@ const DownloadsPanel = {
     if (aEvent.target != aEvent.currentTarget) {
       return;
     }
-
-    DownloadsCommon.log("Downloads panel has hidden.");
 
     // Removes the keyfocus attribute so that we stop handling keyboard
     // navigation.
@@ -362,7 +341,6 @@ const DownloadsPanel = {
    */
   showDownloadsHistory: function DP_showDownloadsHistory()
   {
-    DownloadsCommon.log("Showing download history.");
     // Hide the panel before showing another window, otherwise focus will return
     // to the browser window when the panel closes automatically.
     this.hidePanel();
@@ -467,8 +445,6 @@ const DownloadsPanel = {
       return;
     }
 
-    DownloadsCommon.log("Received a paste event.");
-
     let trans = Cc["@mozilla.org/widget/transferable;1"]
                   .createInstance(Ci.nsITransferable);
     trans.init(null);
@@ -488,7 +464,6 @@ const DownloadsPanel = {
       }
 
       let uri = NetUtil.newURI(url);
-      DownloadsCommon.log("Pasted URL seems valid. Starting download.");
       saveURL(uri.spec, name || uri.spec, null, true, true,
               undefined, document);
     } catch (ex) {}
@@ -550,13 +525,9 @@ const DownloadsPanel = {
       }
 
       if (aAnchor) {
-        DownloadsCommon.log("Opening downloads panel popup.");
         this.panel.openPopup(aAnchor, "bottomcenter topright", 0, 0, false,
                              null);
       } else {
-        DownloadsCommon.error("We can't find the anchor! Failure case - opening",
-                              "downloads panel on TabsToolbar. We should never",
-                              "get here!");
         Components.utils.reportError(
           "Downloads button cannot be found");
       }
@@ -626,7 +597,6 @@ const DownloadsOverlayLoader = {
     }
 
     this._overlayLoading = true;
-    DownloadsCommon.log("Loading overlay ", aOverlay);
     document.loadOverlay(aOverlay, DOL_EOL_loadCallback.bind(this));
   },
 
@@ -693,16 +663,12 @@ const DownloadsView = {
    */
   _itemCountChanged: function DV_itemCountChanged()
   {
-    DownloadsCommon.log("The downloads item count has changed - we are tracking",
-                        this._dataItems.length, "downloads in total.");
     let count = this._dataItems.length;
     let hiddenCount = count - this.kItemCountLimit;
 
     if (count > 0) {
-      DownloadsCommon.log("Setting the panel's hasdownloads attribute to true.");
       DownloadsPanel.panel.setAttribute("hasdownloads", "true");
     } else {
-      DownloadsCommon.log("Removing the panel's hasdownloads attribute.");
       DownloadsPanel.panel.removeAttribute("hasdownloads");
     }
 
@@ -738,7 +704,6 @@ const DownloadsView = {
    */
   onDataLoadStarting: function DV_onDataLoadStarting()
   {
-    DownloadsCommon.log("onDataLoadStarting called for DownloadsView.");
     this.loading = true;
   },
 
@@ -747,8 +712,6 @@ const DownloadsView = {
    */
   onDataLoadCompleted: function DV_onDataLoadCompleted()
   {
-    DownloadsCommon.log("onDataLoadCompleted called for DownloadsView.");
-
     this.loading = false;
 
     // We suppressed item count change notifications during the batch load, at
@@ -767,9 +730,6 @@ const DownloadsView = {
    */
   onDataInvalidated: function DV_onDataInvalidated()
   {
-    DownloadsCommon.log("Downloads data has been invalidated. Cleaning up",
-                        "DownloadsView.");
-
     DownloadsPanel.terminate();
 
     // Clear the list by replacing with a shallow copy.
@@ -795,9 +755,6 @@ const DownloadsView = {
    */
   onDataItemAdded: function DV_onDataItemAdded(aDataItem, aNewest)
   {
-    DownloadsCommon.log("A new download data item was added - aNewest =",
-                        aNewest);
-
     if (aNewest) {
       this._dataItems.unshift(aDataItem);
     } else {
@@ -833,8 +790,6 @@ const DownloadsView = {
    */
   onDataItemRemoved: function DV_onDataItemRemoved(aDataItem)
   {
-    DownloadsCommon.log("A download data item was removed.");
-
     let itemIndex = this._dataItems.indexOf(aDataItem);
     this._dataItems.splice(itemIndex, 1);
 
@@ -882,9 +837,6 @@ const DownloadsView = {
    */
   _addViewItem: function DV_addViewItem(aDataItem, aNewest)
   {
-    DownloadsCommon.log("Adding a new DownloadsViewItem to the downloads list.",
-                        "aNewest =", aNewest);
-
     let element = document.createElement("richlistitem");
     let viewItem = new DownloadsViewItem(aDataItem, element);
     this._viewItems[aDataItem.downloadGuid] = viewItem;
@@ -900,7 +852,6 @@ const DownloadsView = {
    */
   _removeViewItem: function DV_removeViewItem(aDataItem)
   {
-    DownloadsCommon.log("Removing a DownloadsViewItem from the downloads list.");
     let element = this.getViewItem(aDataItem)._element;
     let previousSelectedIndex = this.richListBox.selectedIndex;
     this.richListBox.removeChild(element);

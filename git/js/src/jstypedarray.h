@@ -146,7 +146,6 @@ class ArrayBufferObject : public JSObject
     void addView(RawObject view);
 
     bool allocateSlots(JSContext *cx, uint32_t size, uint8_t *contents = NULL);
-    void changeContents(ObjectElements *newHeader);
 
     /*
      * Ensure that the data is not stored inline. Used when handing back a

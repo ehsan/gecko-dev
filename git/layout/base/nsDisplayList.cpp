@@ -297,7 +297,7 @@ AddAnimationsForProperty(nsIFrame* aFrame, nsCSSProperty aProperty,
                          AnimationData& aData)
 {
   NS_ASSERTION(aLayer->AsContainerLayer(), "Should only animate ContainerLayer");
-  nsStyleContext* styleContext = aFrame->StyleContext();
+  nsStyleContext* styleContext = aFrame->GetStyleContext();
   nsPresContext* presContext = aFrame->PresContext();
   nsRect bounds = nsDisplayTransform::GetFrameBoundsForTransform(aFrame);
   // all data passed directly to the compositor should be in css pixels
@@ -387,7 +387,7 @@ AddAnimationsAndTransitionsToLayer(Layer* aLayer, nsDisplayListBuilder* aBuilder
     gfxPoint3D offsetToPerspectiveOrigin =
       nsDisplayTransform::GetDeltaToMozPerspectiveOrigin(frame, scale);
     nscoord perspective = 0.0;
-    nsStyleContext* parentStyleContext = frame->StyleContext()->GetParent();
+    nsStyleContext* parentStyleContext = frame->GetStyleContext()->GetParent();
     if (parentStyleContext) {
       const nsStyleDisplay* disp = parentStyleContext->GetStyleDisplay();
       if (disp && disp->mChildPerspective.GetUnit() == eStyleUnit_Coord) {
@@ -1617,7 +1617,10 @@ nsDisplayBackgroundImage::AppendBackgroundItemsToTop(nsDisplayListBuilder* aBuil
   if (isThemed) {
     nsDisplayBackgroundImage* bgItem =
       new (aBuilder) nsDisplayBackgroundImage(aBuilder, aFrame, 0, isThemed, nullptr);
-    aList->AppendNewToTop(bgItem);
+    nsresult rv = aList->AppendNewToTop(bgItem);
+    if (rv != NS_OK) {
+      return rv;
+    }
     if (aBackground) {
       *aBackground = bgItem;
     }
@@ -1637,7 +1640,10 @@ nsDisplayBackgroundImage::AppendBackgroundItemsToTop(nsDisplayListBuilder* aBuil
     }
     nsDisplayBackgroundImage* bgItem =
       new (aBuilder) nsDisplayBackgroundImage(aBuilder, aFrame, i, isThemed, bg);
-    aList->AppendNewToTop(bgItem);
+    nsresult rv = aList->AppendNewToTop(bgItem);
+    if (rv != NS_OK) {
+      return rv;
+    }
     if (!backgroundSet) {
       *aBackground = bgItem;
       backgroundSet = true;
@@ -2283,7 +2289,7 @@ nsDisplayOutline::Paint(nsDisplayListBuilder* aBuilder,
   nsCSSRendering::PaintOutline(mFrame->PresContext(), *aCtx, mFrame,
                                mVisibleRect,
                                nsRect(offset, mFrame->GetSize()),
-                               mFrame->StyleContext());
+                               mFrame->GetStyleContext());
 }
 
 bool
@@ -2387,7 +2393,7 @@ nsDisplayBorder::Paint(nsDisplayListBuilder* aBuilder,
   nsCSSRendering::PaintBorder(mFrame->PresContext(), *aCtx, mFrame,
                               mVisibleRect,
                               nsRect(offset, mFrame->GetSize()),
-                              mFrame->StyleContext(),
+                              mFrame->GetStyleContext(),
                               mFrame->GetSkipSides());
 }
 
@@ -3710,7 +3716,7 @@ nsDisplayTransform::FrameTransformProperties::FrameTransformProperties(const nsI
   , mChildPerspective(0)
 {
   const nsStyleDisplay* parentDisp = nullptr;
-  nsStyleContext* parentStyleContext = aFrame->StyleContext()->GetParent();
+  nsStyleContext* parentStyleContext = aFrame->GetStyleContext()->GetParent();
   if (parentStyleContext) {
     parentDisp = parentStyleContext->GetStyleDisplay();
   }
@@ -3787,7 +3793,7 @@ nsDisplayTransform::GetResultingTransformMatrixInternal(const FrameTransformProp
   /* Transformed frames always have a transform, or are preserving 3d (and might still have perspective!) */
   if (aProperties.mTransformList) {
     result = nsStyleTransformMatrix::ReadTransforms(aProperties.mTransformList,
-                                                    frame ? frame->StyleContext() : nullptr,
+                                                    frame ? frame->GetStyleContext() : nullptr,
                                                     frame ? frame->PresContext() : nullptr,
                                                     dummy, bounds, aAppUnitsPerPixel);
   } else if (hasSVGTransforms) {

@@ -20,7 +20,7 @@ class AbstractMediaDecoder;
 class MediaOmxReader : public MediaDecoderReader
 {
   nsCString mType;
-  android::sp<android::OmxDecoder> mOmxDecoder;
+  android::OmxDecoder *mOmxDecoder;
   bool mHasVideo;
   bool mHasAudio;
   nsIntRect mPicture;

@@ -1366,19 +1366,20 @@ nsImageFrame::PaintImage(nsRenderingContext& aRenderingContext, nsPoint aPt,
   }
 }
 
-void
+NS_IMETHODIMP
 nsImageFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                const nsRect&           aDirtyRect,
                                const nsDisplayListSet& aLists)
 {
   if (!IsVisibleForPainting(aBuilder))
-    return;
+    return NS_OK;
 
   // REVIEW: We don't need any special logic here for deciding which layer
   // to put the background in ... it goes in aLists.BorderBackground() and
   // then if we have a block parent, it will put our background in the right
   // place.
-  DisplayBorderBackgroundOutline(aBuilder, aLists);
+  nsresult rv = DisplayBorderBackgroundOutline(aBuilder, aLists);
+  NS_ENSURE_SUCCESS(rv, rv);
   // REVIEW: Checking mRect.IsEmpty() makes no sense to me, so I removed it.
   // It can't have been protecting us against bad situations with zero-size
   // images since adding a border would make the rect non-empty.
@@ -1416,12 +1417,14 @@ nsImageFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     if (!imageOK || !haveSize) {
       // No image yet, or image load failed. Draw the alt-text and an icon
       // indicating the status
-      replacedContent.AppendNewToTop(new (aBuilder)
-        nsDisplayAltFeedback(aBuilder, this));
+      rv = replacedContent.AppendNewToTop(new (aBuilder)
+          nsDisplayAltFeedback(aBuilder, this));
+      NS_ENSURE_SUCCESS(rv, rv);
     }
     else {
-      replacedContent.AppendNewToTop(new (aBuilder)
-        nsDisplayImage(aBuilder, this, imgCon));
+      rv = replacedContent.AppendNewToTop(new (aBuilder)
+          nsDisplayImage(aBuilder, this, imgCon));
+      NS_ENSURE_SUCCESS(rv, rv);
 
       // If we were previously displaying an icon, we're not anymore
       if (mDisplayingIcon) {
@@ -1432,20 +1435,24 @@ nsImageFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
         
 #ifdef DEBUG
       if (GetShowFrameBorders() && GetImageMap()) {
-        aLists.Outlines()->AppendNewToTop(new (aBuilder)
-          nsDisplayGeneric(aBuilder, this, PaintDebugImageMap, "DebugImageMap",
-                           nsDisplayItem::TYPE_DEBUG_IMAGE_MAP));
+        rv = aLists.Outlines()->AppendNewToTop(new (aBuilder)
+            nsDisplayGeneric(aBuilder, this, PaintDebugImageMap, "DebugImageMap",
+                             nsDisplayItem::TYPE_DEBUG_IMAGE_MAP));
+        NS_ENSURE_SUCCESS(rv, rv);
       }
 #endif
     }
   }
 
   if (ShouldDisplaySelection()) {
-    DisplaySelectionOverlay(aBuilder, &replacedContent,
-                            nsISelectionDisplay::DISPLAY_IMAGES);
+    rv = DisplaySelectionOverlay(aBuilder, &replacedContent,
+                                 nsISelectionDisplay::DISPLAY_IMAGES);
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
   WrapReplacedContentForBorderRadius(aBuilder, &replacedContent, aLists);
+
+  return NS_OK;
 }
 
 bool
@@ -1697,7 +1704,7 @@ nsImageFrame::GetCursor(const nsPoint& aPoint,
       // specified will inherit the style from the image.
       nsRefPtr<nsStyleContext> areaStyle = 
         PresContext()->PresShell()->StyleSet()->
-          ResolveStyleFor(area->AsElement(), StyleContext());
+          ResolveStyleFor(area->AsElement(), GetStyleContext());
       if (areaStyle) {
         FillCursorInformationFromStyle(areaStyle->GetStyleUserInterface(),
                                        aCursor);
@@ -2020,7 +2027,7 @@ IsInAutoWidthTableCellForQuirk(nsIFrame *aFrame)
     return false;
   // Check if the parent of the closest nsBlockFrame has auto width.
   nsBlockFrame *ancestor = nsLayoutUtils::FindNearestBlockAncestor(aFrame);
-  if (ancestor->StyleContext()->GetPseudo() == nsCSSAnonBoxes::cellContent) {
+  if (ancestor->GetStyleContext()->GetPseudo() == nsCSSAnonBoxes::cellContent) {
     // Assume direct parent is a table cell frame.
     nsFrame *grandAncestor = static_cast<nsFrame*>(ancestor->GetParent());
     return grandAncestor &&

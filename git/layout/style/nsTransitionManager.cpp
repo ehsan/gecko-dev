@@ -216,13 +216,13 @@ static void ReparentBeforeAndAfter(dom::Element* aElement,
 {
   if (nsIFrame* before = nsLayoutUtils::GetBeforeFrame(aPrimaryFrame)) {
     nsRefPtr<nsStyleContext> beforeStyle =
-      aStyleSet->ReparentStyleContext(before->StyleContext(),
+      aStyleSet->ReparentStyleContext(before->GetStyleContext(),
                                      aNewStyle, aElement);
     before->SetStyleContextWithoutNotification(beforeStyle);
   }
   if (nsIFrame* after = nsLayoutUtils::GetBeforeFrame(aPrimaryFrame)) {
     nsRefPtr<nsStyleContext> afterStyle =
-      aStyleSet->ReparentStyleContext(after->StyleContext(),
+      aStyleSet->ReparentStyleContext(after->GetStyleContext(),
                                      aNewStyle, aElement);
     after->SetStyleContextWithoutNotification(afterStyle);
   }
@@ -264,7 +264,7 @@ nsTransitionManager::UpdateThrottledStyle(dom::Element* aElement,
     return nullptr;
   }
 
-  nsStyleContext* oldStyle = primaryFrame->StyleContext();
+  nsStyleContext* oldStyle = primaryFrame->GetStyleContext();
   nsRuleNode* ruleNode = oldStyle->GetRuleNode();
   nsTArray<nsStyleSet::RuleAndLevel> rules;
   do {
@@ -355,7 +355,7 @@ nsTransitionManager::UpdateThrottledStylesForSubtree(nsIContent* aContent,
       return;
     }
 
-    newStyle = styleSet->ReparentStyleContext(primaryFrame->StyleContext(),
+    newStyle = styleSet->ReparentStyleContext(primaryFrame->GetStyleContext(),
                                               aParentStyle, element);
     primaryFrame->SetStyleContextWithoutNotification(newStyle);
     ReparentBeforeAndAfter(element, primaryFrame, newStyle, styleSet);
@@ -425,7 +425,7 @@ nsTransitionManager::UpdateAllThrottledStyles()
     if (element &&
         (primaryFrame = element->GetPrimaryFrame())) {
       UpdateThrottledStylesForSubtree(element,
-        primaryFrame->StyleContext()->GetParent(), changeList);
+        primaryFrame->GetStyleContext()->GetParent(), changeList);
     }
   }
 

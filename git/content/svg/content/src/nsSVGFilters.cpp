@@ -2761,7 +2761,7 @@ nsSVGFEFloodElement::Filter(nsSVGFilterInstance *instance,
 {
   nsIFrame* frame = GetPrimaryFrame();
   if (!frame) return NS_ERROR_FAILURE;
-  nsStyleContext* style = frame->StyleContext();
+  nsStyleContext* style = frame->GetStyleContext();
 
   nscolor floodColor = style->GetStyleSVGReset()->mFloodColor;
   float floodOpacity = style->GetStyleSVGReset()->mFloodOpacity;
@@ -4992,7 +4992,7 @@ nsSVGFELightingElement::Filter(nsSVGFilterInstance *instance,
 
   nsIFrame* frame = GetPrimaryFrame();
   if (!frame) return NS_ERROR_FAILURE;
-  nsStyleContext* style = frame->StyleContext();
+  nsStyleContext* style = frame->GetStyleContext();
 
   nscolor lightColor = style->GetStyleSVGReset()->mLightingColor;
 

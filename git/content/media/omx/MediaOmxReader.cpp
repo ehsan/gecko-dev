@@ -24,6 +24,7 @@ namespace mozilla {
 
 MediaOmxReader::MediaOmxReader(AbstractMediaDecoder *aDecoder) :
   MediaDecoderReader(aDecoder),
+  mOmxDecoder(nullptr),
   mHasVideo(false),
   mHasAudio(false),
   mVideoSeekTimeUs(-1),
@@ -50,7 +51,7 @@ nsresult MediaOmxReader::ReadMetadata(VideoInfo* aInfo,
 
   *aTags = nullptr;
 
-  if (!mOmxDecoder.get()) {
+  if (!mOmxDecoder) {
     mOmxDecoder = new OmxDecoder(mDecoder->GetResource(), mDecoder);
     mOmxDecoder->Init();
   }
@@ -116,7 +117,10 @@ nsresult MediaOmxReader::ResetDecode()
     delete mLastVideoFrame;
     mLastVideoFrame = nullptr;
   }
-  mOmxDecoder.clear();
+  if (mOmxDecoder) {
+    delete mOmxDecoder;
+    mOmxDecoder = nullptr;
+  }
   return NS_OK;
 }
 
@@ -330,7 +334,7 @@ static uint64_t BytesToTime(int64_t offset, uint64_t length, uint64_t durationUs
 
 nsresult MediaOmxReader::GetBuffered(nsTimeRanges* aBuffered, int64_t aStartTime)
 {
-  if (!mOmxDecoder.get())
+  if (!mOmxDecoder)
     return NS_OK;
 
   MediaResource* stream = mOmxDecoder->GetResource();

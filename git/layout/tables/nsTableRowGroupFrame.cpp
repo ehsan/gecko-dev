@@ -156,7 +156,7 @@ nsDisplayTableRowGroupBackground::Paint(nsDisplayListBuilder* aBuilder,
 }
 
 // Handle the child-traversal part of DisplayGenericTablePart
-static void
+static nsresult
 DisplayRows(nsDisplayListBuilder* aBuilder, nsFrame* aFrame,
             const nsRect& aDirtyRect, const nsDisplayListSet& aLists)
 {
@@ -178,22 +178,27 @@ DisplayRows(nsDisplayListBuilder* aBuilder, nsFrame* aFrame,
     while (kid) {
       if (kid->GetRect().y - overflowAbove >= aDirtyRect.YMost())
         break;
-      f->BuildDisplayListForChild(aBuilder, kid, aDirtyRect, aLists);
+      nsresult rv = f->BuildDisplayListForChild(aBuilder, kid, aDirtyRect, aLists);
+      NS_ENSURE_SUCCESS(rv, rv);
       kid = kid->GetNextSibling();
     }
-    return;
+    return NS_OK;
   }
   
   // No cursor. Traverse children the hard way and build a cursor while we're at it
   nsTableRowGroupFrame::FrameCursorData* cursor = f->SetupRowCursor();
   kid = f->GetFirstPrincipalChild();
   while (kid) {
-    f->BuildDisplayListForChild(aBuilder, kid, aDirtyRect, aLists);
+    nsresult rv = f->BuildDisplayListForChild(aBuilder, kid, aDirtyRect, aLists);
+    if (NS_FAILED(rv)) {
+      f->ClearRowCursor();
+      return rv;
+    }
     
     if (cursor) {
       if (!cursor->AppendFrame(kid)) {
         f->ClearRowCursor();
-        return;
+        return NS_ERROR_OUT_OF_MEMORY;
       }
     }
   
@@ -202,9 +207,11 @@ DisplayRows(nsDisplayListBuilder* aBuilder, nsFrame* aFrame,
   if (cursor) {
     cursor->FinishBuildingCursor();
   }
+
+  return NS_OK;
 }
 
-void
+NS_IMETHODIMP
 nsTableRowGroupFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                        const nsRect&           aDirtyRect,
                                        const nsDisplayListSet& aLists)
@@ -217,11 +224,12 @@ nsTableRowGroupFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
       // visible or not. Visibility decisions are delegated to the
       // table background painter.
       item = new (aBuilder) nsDisplayTableRowGroupBackground(aBuilder, this);
-      aLists.BorderBackground()->AppendNewToTop(item);
+      nsresult rv = aLists.BorderBackground()->AppendNewToTop(item);
+      NS_ENSURE_SUCCESS(rv, rv);
     }
   }  
-  nsTableFrame::DisplayGenericTablePart(aBuilder, this, aDirtyRect,
-                                        aLists, item, DisplayRows);
+  return nsTableFrame::DisplayGenericTablePart(aBuilder, this, aDirtyRect,
+                                               aLists, item, DisplayRows);
 }
 
 int
@@ -1340,7 +1348,7 @@ nsTableRowGroupFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
      
   nsTableFrame* tableFrame = nsTableFrame::GetTableFrame(this);
   if (tableFrame->IsBorderCollapse() &&
-      tableFrame->BCRecalcNeeded(aOldStyleContext, StyleContext())) {
+      tableFrame->BCRecalcNeeded(aOldStyleContext, GetStyleContext())) {
     nsIntRect damageArea(0, GetStartRowIndex(), tableFrame->GetColCount(),
                          GetRowCount());
     tableFrame->AddBCDamageArea(damageArea);

@@ -477,7 +477,7 @@ GetContentForComparison(const nsIFrame* aFrame)
   MOZ_ASSERT(aFrame->IsFlexItem(), "only intended for flex items");
 
   while (true) {
-    nsIAtom* pseudoTag = aFrame->StyleContext()->GetPseudo();
+    nsIAtom* pseudoTag = aFrame->GetStyleContext()->GetPseudo();
 
     // If aFrame isn't an anonymous container, then it'll do.
     if (!pseudoTag ||                                 // No pseudotag.
@@ -805,7 +805,7 @@ FlexItem::FlexItem(nsIFrame* aChildFrame,
   // Resolve "align-self: auto" to parent's "align-items" value.
   if (mAlignSelf == NS_STYLE_ALIGN_SELF_AUTO) {
     mAlignSelf =
-      mFrame->StyleContext()->GetParent()->GetStylePosition()->mAlignItems;
+      mFrame->GetStyleContext()->GetParent()->GetStylePosition()->mAlignItems;
   }
 
   // If the flex item's inline axis is the same as the cross axis, then
@@ -1073,7 +1073,7 @@ GetDisplayFlagsForFlexItem(nsIFrame* aFrame)
   return 0;
 }
 
-void
+NS_IMETHODIMP
 nsFlexContainerFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                        const nsRect&           aDirtyRect,
                                        const nsDisplayListSet& aLists)
@@ -1081,15 +1081,19 @@ nsFlexContainerFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   MOZ_ASSERT(nsLayoutUtils::IsFrameListSorted<IsOrderLEQWithDOMFallback>(mFrames),
              "Frame list should've been sorted in reflow");
 
-  DisplayBorderBackgroundOutline(aBuilder, aLists);
+  nsresult rv = DisplayBorderBackgroundOutline(aBuilder, aLists);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   // Our children are all block-level, so their borders/backgrounds all go on
   // the BlockBorderBackgrounds list.
   nsDisplayListSet childLists(aLists, aLists.BlockBorderBackgrounds());
   for (nsFrameList::Enumerator e(mFrames); !e.AtEnd(); e.Next()) {
-    BuildDisplayListForChild(aBuilder, e.get(), aDirtyRect, childLists,
-                             GetDisplayFlagsForFlexItem(e.get()));
+    rv = BuildDisplayListForChild(aBuilder, e.get(), aDirtyRect, childLists,
+                                  GetDisplayFlagsForFlexItem(e.get()));
+    NS_ENSURE_SUCCESS(rv, rv);
   }
+
+  return NS_OK;
 }
 
 #ifdef DEBUG
@@ -1123,7 +1127,7 @@ nsFlexContainerFrame::SanityCheckAnonymousFlexItems() const
     MOZ_ASSERT(!FrameWantsToBeInAnonymousFlexItem(child),
                "frame wants to be inside an anonymous flex item, "
                "but it isn't");
-    if (child->StyleContext()->GetPseudo() ==
+    if (child->GetStyleContext()->GetPseudo() ==
         nsCSSAnonBoxes::anonymousFlexItem) {
       MOZ_ASSERT(!prevChildWasAnonFlexItem,
                  "two anon flex items in a row (shouldn't happen)");

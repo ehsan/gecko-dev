@@ -1888,7 +1888,7 @@ nsPresContext::InvalidateIsChromeCacheExternal()
 nsPresContext::HasAuthorSpecifiedRules(nsIFrame *aFrame, uint32_t ruleTypeMask) const
 {
   return
-    nsRuleNode::HasAuthorSpecifiedRules(aFrame->StyleContext(),
+    nsRuleNode::HasAuthorSpecifiedRules(aFrame->GetStyleContext(),
                                         ruleTypeMask,
                                         UseDocumentColors());
 }

@@ -109,23 +109,23 @@ nsDisplayXULTreeColSplitterTarget::HitTest(nsDisplayListBuilder* aBuilder, const
 
 }
 
-void
+nsresult
 nsTreeColFrame::BuildDisplayListForChildren(nsDisplayListBuilder*   aBuilder,
                                             const nsRect&           aDirtyRect,
                                             const nsDisplayListSet& aLists)
 {
-  if (!aBuilder->IsForEventDelivery()) {
-    nsBoxFrame::BuildDisplayListForChildren(aBuilder, aDirtyRect, aLists);
-    return;
-  }
+  if (!aBuilder->IsForEventDelivery())
+    return nsBoxFrame::BuildDisplayListForChildren(aBuilder, aDirtyRect, aLists);
   
   nsDisplayListCollection set;
-  nsBoxFrame::BuildDisplayListForChildren(aBuilder, aDirtyRect, set);
+  nsresult rv = nsBoxFrame::BuildDisplayListForChildren(aBuilder, aDirtyRect, set);
+  NS_ENSURE_SUCCESS(rv, rv);
   
-  WrapListsInRedirector(aBuilder, set, aLists);
+  rv = WrapListsInRedirector(aBuilder, set, aLists);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  aLists.Content()->AppendNewToTop(new (aBuilder)
-    nsDisplayXULTreeColSplitterTarget(aBuilder, this));
+  return aLists.Content()->AppendNewToTop(new (aBuilder)
+      nsDisplayXULTreeColSplitterTarget(aBuilder, this));
 }
 
 NS_IMETHODIMP

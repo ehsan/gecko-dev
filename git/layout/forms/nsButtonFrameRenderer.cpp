@@ -181,16 +181,17 @@ nsButtonFrameRenderer::DisplayButton(nsDisplayListBuilder* aBuilder,
                                      nsDisplayList* aForeground)
 {
   if (mFrame->GetStyleBorder()->mBoxShadow) {
-    aBackground->AppendNewToTop(new (aBuilder)
-      nsDisplayButtonBoxShadowOuter(aBuilder, this));
+    nsresult rv = aBackground->AppendNewToTop(new (aBuilder)
+        nsDisplayButtonBoxShadowOuter(aBuilder, this));
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  aBackground->AppendNewToTop(new (aBuilder)
-    nsDisplayButtonBorderBackground(aBuilder, this));
+  nsresult rv = aBackground->AppendNewToTop(new (aBuilder)
+      nsDisplayButtonBorderBackground(aBuilder, this));
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  aForeground->AppendNewToTop(new (aBuilder)
-    nsDisplayButtonForeground(aBuilder, this));
-  return NS_OK;
+  return aForeground->AppendNewToTop(new (aBuilder)
+      nsDisplayButtonForeground(aBuilder, this));
 }
 
 void
@@ -240,7 +241,7 @@ nsButtonFrameRenderer::PaintBorderAndBackground(nsPresContext* aPresContext,
   nsRect buttonRect;
   GetButtonRect(aRect, buttonRect);
 
-  nsStyleContext* context = mFrame->StyleContext();
+  nsStyleContext* context = mFrame->GetStyleContext();
 
   nsCSSRendering::PaintBackground(aPresContext, aRenderingContext, mFrame,
                                   aDirtyRect, buttonRect, aBGFlags);
@@ -342,7 +343,7 @@ void
 nsButtonFrameRenderer::ReResolveStyles(nsPresContext* aPresContext)
 {
   // get all the styles
-  nsStyleContext* context = mFrame->StyleContext();
+  nsStyleContext* context = mFrame->GetStyleContext();
   nsStyleSet *styleSet = aPresContext->StyleSet();
 
   // style for the inner such as a dotted line (Windows)

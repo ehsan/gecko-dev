@@ -35,11 +35,9 @@ using namespace mozilla;
 namespace mozilla {
 namespace layers {
 
-VideoGraphicBuffer::VideoGraphicBuffer(const android::wp<android::OmxDecoder> aOmxDecoder,
-                                       android::MediaBuffer *aBuffer,
+VideoGraphicBuffer::VideoGraphicBuffer(android::MediaBuffer *aBuffer,
                                        SurfaceDescriptor *aDescriptor)
   : GraphicBufferLocked(*aDescriptor),
-    mOmxDecoder(aOmxDecoder),
     mMediaBuffer(aBuffer)
 {
   mMediaBuffer->add_ref();
@@ -55,16 +53,10 @@ VideoGraphicBuffer::~VideoGraphicBuffer()
 void
 VideoGraphicBuffer::Unlock()
 {
-  android::sp<android::OmxDecoder> omxDecoder = mOmxDecoder.promote();
-  if (omxDecoder.get()) {
-    omxDecoder->ReleaseVideoBuffer(mMediaBuffer);
-  } else {
-    NS_WARNING("OmxDecoder is not present");
-    if (mMediaBuffer) {
-      mMediaBuffer->release();
-    }
+  if (mMediaBuffer) {
+    mMediaBuffer->release();
+    mMediaBuffer = nullptr;
   }
-  mMediaBuffer = nullptr;
 }
 
 }
@@ -140,7 +132,6 @@ OmxDecoder::OmxDecoder(MediaResource *aResource,
   mDurationUs(-1),
   mVideoBuffer(nullptr),
   mAudioBuffer(nullptr),
-  mIsVideoSeeking(false),
   mAudioMetadataRead(false)
 {
 }
@@ -488,18 +479,9 @@ bool OmxDecoder::ReadVideo(VideoFrame *aFrame, int64_t aTimeUs,
   status_t err;
 
   if (aDoSeek) {
-    {
-      Mutex::Autolock autoLock(mSeekLock);
-      mIsVideoSeeking = true;
-    }
     MediaSource::ReadOptions options;
     options.setSeekTo(aTimeUs, MediaSource::ReadOptions::SEEK_PREVIOUS_SYNC);
     err = mVideoSource->read(&mVideoBuffer, &options);
-    {
-      Mutex::Autolock autoLock(mSeekLock);
-      mIsVideoSeeking = false;
-      ReleaseAllPendingVideoBuffersLocked();
-    }
   } else {
     err = mVideoSource->read(&mVideoBuffer);
   }
@@ -529,7 +511,7 @@ bool OmxDecoder::ReadVideo(VideoFrame *aFrame, int64_t aTimeUs,
     }
 
     if (descriptor) {
-      aFrame->mGraphicBuffer = new mozilla::layers::VideoGraphicBuffer(this, mVideoBuffer, descriptor);
+      aFrame->mGraphicBuffer = new mozilla::layers::VideoGraphicBuffer(mVideoBuffer, descriptor);
       aFrame->mRotation = mVideoRotation;
       aFrame->mTimeUs = timeUs;
       aFrame->mEndTimeUs = timeUs + durationUs;
@@ -627,30 +609,4 @@ bool OmxDecoder::ReadAudio(AudioFrame *aFrame, int64_t aSeekTimeUs)
   }
 
   return true;
-}
-
-bool OmxDecoder::ReleaseVideoBuffer(MediaBuffer *aBuffer)
-{
-  Mutex::Autolock autoLock(mSeekLock);
-
-  if (!aBuffer) {
-    return false;
-  }
-
-  if (mIsVideoSeeking == true) {
-    mPendingVideoBuffers.push(aBuffer);
-  } else {
-    aBuffer->release();
-  }
-  return true;
-}
-
-void OmxDecoder::ReleaseAllPendingVideoBuffersLocked()
-{
-  int size = mPendingVideoBuffers.size();
-  for (int i = 0; i < size; i++) {
-    MediaBuffer *buffer = mPendingVideoBuffers[i];
-    buffer->release();
-  }
-  mPendingVideoBuffers.clear();
 }

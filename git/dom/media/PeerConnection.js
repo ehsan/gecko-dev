@@ -239,7 +239,13 @@ function PeerConnection() {
 PeerConnection.prototype = {
   classID: PC_CID,
 
-  classInfo: Cu.getDOMClassInfo("RTCPeerConnection"),
+  classInfo: XPCOMUtils.generateCI({classID: PC_CID,
+                                    contractID: PC_CONTRACT,
+                                    classDescription: "PeerConnection",
+                                    interfaces: [
+                                      Ci.nsIDOMRTCPeerConnection
+                                    ],
+                                    flags: Ci.nsIClassInfo.DOM_OBJECT}),
 
   QueryInterface: XPCOMUtils.generateQI([
     Ci.nsIDOMRTCPeerConnection,

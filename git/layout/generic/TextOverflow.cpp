@@ -83,7 +83,7 @@ IsHorizontalOverflowVisible(nsIFrame* aFrame)
                   "expected a block frame");
 
   nsIFrame* f = aFrame;
-  while (f && f->StyleContext()->GetPseudo()) {
+  while (f && f->GetStyleContext()->GetPseudo()) {
     f = f->GetParent();
   }
   return !f || f->GetStyleDisplay()->mOverflowX == NS_STYLE_OVERFLOW_VISIBLE;
@@ -235,7 +235,7 @@ TextOverflow::Init(nsDisplayListBuilder*   aBuilder,
   mAdjustForPixelSnapping = false;
 #ifdef MOZ_XUL
   if (!mScrollableFrame) {
-    nsIAtom* pseudoType = aBlockFrame->StyleContext()->GetPseudo();
+    nsIAtom* pseudoType = aBlockFrame->GetStyleContext()->GetPseudo();
     if (pseudoType == nsCSSAnonBoxes::mozXULAnonymousBlock) {
       mScrollableFrame =
         nsLayoutUtils::GetScrollableFrameFor(aBlockFrame->GetParent());

@@ -121,12 +121,7 @@ class HTMLTableAccessible : public AccessibleWrap,
                             public TableAccessible
 {
 public:
-  HTMLTableAccessible(nsIContent* aContent, DocAccessible* aDoc) :
-    AccessibleWrap(aContent, aDoc), xpcAccessibleTable(this)
-  {
-    mType = eHTMLTableType;
-    mGenericTypes |= eTable;
-  }
+  HTMLTableAccessible(nsIContent* aContent, DocAccessible* aDoc);
 
   NS_DECL_ISUPPORTS_INHERITED
 

@@ -421,5 +421,4 @@ DOMCI_CLASS(MozTimeManager)
 
 #ifdef MOZ_WEBRTC
 DOMCI_CLASS(DataChannel)
-DOMCI_CLASS(RTCPeerConnection)
 #endif
