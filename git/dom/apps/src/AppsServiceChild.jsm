@@ -335,19 +335,6 @@ this.DOMApplicationRegistry = {
     }
   },
 
-  getAll: function(aCallback) {
-    debug("getAll()\n");
-    if (!aCallback || typeof aCallback !== "function") {
-      return;
-    }
-
-    let res = [];
-    for (let id in this.webapps) {
-      res.push(this.webapps[id]);
-    }
-    aCallback(res);
-  },
-
   /**
    * nsIAppsService API
    */

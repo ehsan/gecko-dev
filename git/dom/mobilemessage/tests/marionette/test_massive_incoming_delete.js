@@ -208,7 +208,7 @@ tasks.push(function cleanUp() {
 
   manager.onreceived = null;
   SpecialPowers.removePermission("sms", document);
-  SpecialPowers.clearUserPref("dom.sms.enabled");
+  SpecialPowers.setBoolPref("dom.sms.enabled", false);
   log("Finish!!!");
   finish();
 });

@@ -130,7 +130,7 @@ function verifySmsDeleted(smsId) {
 function cleanUp() {
   manager.onreceived = null;
   SpecialPowers.removePermission("sms", document);
-  SpecialPowers.clearUserPref("dom.sms.enabled");
+  SpecialPowers.setBoolPref("dom.sms.enabled", false);
   finish();
 }
 

@@ -167,7 +167,7 @@ this.DOMApplicationRegistry = {
     this.messages = ["Webapps:Install", "Webapps:Uninstall",
                      "Webapps:GetSelf", "Webapps:CheckInstalled",
                      "Webapps:GetInstalled", "Webapps:GetNotInstalled",
-                     "Webapps:Launch",
+                     "Webapps:Launch", "Webapps:GetAll",
                      "Webapps:InstallPackage",
                      "Webapps:GetList", "Webapps:RegisterForMessages",
                      "Webapps:UnregisterForMessages",
@@ -1106,8 +1106,9 @@ this.DOMApplicationRegistry = {
     Services.prefs.setBoolPref("dom.mozApps.used", true);
 
     // We need to check permissions for calls coming from mozApps.mgmt.
-    // These are: getNotInstalled(), applyDownload() and uninstall().
-    if (["Webapps:GetNotInstalled",
+    // These are: getAll(), getNotInstalled(), applyDownload() and uninstall().
+    if (["Webapps:GetAll",
+         "Webapps:GetNotInstalled",
          "Webapps:ApplyDownload",
          "Webapps:Uninstall"].indexOf(aMessage.name) != -1) {
       if (!aMessage.target.assertPermission("webapps-manage")) {
@@ -1191,6 +1192,9 @@ this.DOMApplicationRegistry = {
           break;
         case "Webapps:GetNotInstalled":
           this.getNotInstalled(msg, mm);
+          break;
+        case "Webapps:GetAll":
+          this.doGetAll(msg, mm);
           break;
         case "Webapps:InstallPackage": {
 #ifdef MOZ_WIDGET_ANDROID
@@ -3706,7 +3710,7 @@ this.DOMApplicationRegistry = {
 
     this._saveApps().then(() => {
       this.broadcastMessage("Webapps:Uninstall:Broadcast:Return:OK", appClone);
-      this.broadcastMessage("Webapps:RemoveApp", { id: id });
+      // Catch exception on callback call to ensure notifying observers after
       try {
         if (aOnSuccess) {
           aOnSuccess();
@@ -3715,6 +3719,7 @@ this.DOMApplicationRegistry = {
         Cu.reportError("DOMApplicationRegistry: Exception on app uninstall: " +
                        ex + "\n" + ex.stack);
       }
+      this.broadcastMessage("Webapps:RemoveApp", { id: id });
     });
   },
 
@@ -3808,6 +3813,17 @@ this.DOMApplicationRegistry = {
       for (let i = 0; i < aResult.length; i++)
         aData.apps[i].manifest = aResult[i].manifest;
       aMm.sendAsyncMessage("Webapps:GetNotInstalled:Return:OK", aData);
+    });
+  },
+
+  doGetAll: function(aData, aMm) {
+    // We can't do this until the registry is ready.
+    debug("doGetAll");
+    this.registryReady.then(() => {
+      this.getAll(function (apps) {
+        aData.apps = apps;
+        aMm.sendAsyncMessage("Webapps:GetAll:Return:OK", aData);
+      });
     });
   },
 

@@ -699,7 +699,9 @@ WebappsApplication.prototype = {
   * mozIDOMApplicationMgmt object
   */
 function WebappsApplicationMgmt(aWindow) {
-  this.initDOMRequestHelper(aWindow, ["Webapps:Uninstall:Return:OK",
+  this.initDOMRequestHelper(aWindow, ["Webapps:GetAll:Return:OK",
+                                      "Webapps:GetAll:Return:KO",
+                                      "Webapps:Uninstall:Return:OK",
                                       "Webapps:Uninstall:Broadcast:Return:OK",
                                       "Webapps:Uninstall:Return:KO",
                                       "Webapps:Install:Return:OK",
@@ -756,12 +758,8 @@ WebappsApplicationMgmt.prototype = {
 
   getAll: function() {
     let request = this.createRequest();
-    let window = this._window;
-    DOMApplicationRegistry.getAll((aApps) => {
-      Services.DOMRequest.fireSuccessAsync(request,
-                                           convertAppsArray(aApps, window));
-    });
-
+    cpmm.sendAsyncMessage("Webapps:GetAll", { oid: this._id,
+                                              requestID: this.getRequestId(request) });
     return request;
   },
 
@@ -799,6 +797,12 @@ WebappsApplicationMgmt.prototype = {
       return;
     }
     switch (aMessage.name) {
+      case "Webapps:GetAll:Return:OK":
+        Services.DOMRequest.fireSuccess(req, convertAppsArray(msg.apps, this._window));
+        break;
+      case "Webapps:GetAll:Return:KO":
+        Services.DOMRequest.fireError(req, "DENIED");
+        break;
       case "Webapps:GetNotInstalled:Return:OK":
         Services.DOMRequest.fireSuccess(req, convertAppsArray(msg.apps, this._window));
         break;
