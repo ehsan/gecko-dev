@@ -7,12 +7,9 @@
 #include "nsString.h"
 #include "nsIURI.h"
 #include "nsIFile.h"
-#include "nsIObserverService.h"
-#include "nsISupportsPrimitives.h"
 #include "nsDirectoryServiceDefs.h"
 
 #include "mozilla/Preferences.h"
-#include "mozilla/Services.h"
 
 #define PREF_BDM_ADDTORECENTDOCS "browser.download.manager.addToRecentDocs"
 
@@ -72,9 +69,7 @@ static void gio_set_metadata_done(GObject *source_obj, GAsyncResult *res, gpoint
 nsresult DownloadPlatform::DownloadDone(nsIURI* aSource, nsIFile* aTarget,
                                         const nsACString& aContentType, bool aIsPrivate)
 {
-#if defined(XP_WIN) || defined(XP_MACOSX) || defined(MOZ_WIDGET_ANDROID) \
- || defined(MOZ_WIDGET_GTK) || defined(MOZ_WIDGET_GONK)
-
+#if defined(XP_WIN) || defined(XP_MACOSX) || defined(MOZ_WIDGET_ANDROID) || defined(MOZ_WIDGET_GTK)
   nsAutoString path;
   if (aTarget && NS_SUCCEEDED(aTarget->GetPath(path))) {
 #if defined(XP_WIN) || defined(MOZ_WIDGET_GTK) || defined(MOZ_WIDGET_ANDROID)
@@ -125,18 +120,6 @@ nsresult DownloadPlatform::DownloadDone(nsIURI* aSource, nsIFile* aTarget,
                                            observedObject, nullptr, TRUE);
     ::CFRelease(observedObject);
 #endif
-    if (mozilla::Preferences::GetBool("device.storage.enabled", true)) {
-      // Tell DeviceStorage that a new file may have been added.
-      nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
-      nsCOMPtr<nsISupportsString> pathString
-        = do_CreateInstance(NS_SUPPORTS_STRING_CONTRACTID);
-      if (obs && pathString) {
-        if (NS_SUCCEEDED(pathString->SetData(path))) {
-          (void)obs->NotifyObservers(pathString, "download-watcher-notify",
-                                     MOZ_UTF16("modified"));
-        }
-      }
-    }
   }
 
 #ifdef XP_WIN

@@ -4,8 +4,6 @@
 var expect = chai.expect;
 
 describe("loop.conversationViews", function () {
-  "use strict";
-
   var sandbox, oldTitle, view, dispatcher, contact;
 
   var CALL_STATES = loop.store.CALL_STATES;

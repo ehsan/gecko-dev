@@ -231,9 +231,9 @@ File::CreateTemporaryFileBlob(nsISupports* aParent, PRFileDesc* aFD,
 }
 
 /* static */ already_AddRefed<File>
-File::CreateFromFile(nsISupports* aParent, nsIFile* aFile, bool aTemporary)
+File::CreateFromFile(nsISupports* aParent, nsIFile* aFile)
 {
-  nsRefPtr<File> file = new File(aParent, new FileImplFile(aFile, aTemporary));
+  nsRefPtr<File> file = new File(aParent, new FileImplFile(aFile));
   return file.forget();
 }
 

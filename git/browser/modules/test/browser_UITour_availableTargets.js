@@ -14,13 +14,6 @@ function test() {
   UITourTest();
 }
 
-function searchEngineTargets() {
-  let engines = Services.search.getVisibleEngines();
-  return ["searchEngine-" + engine.identifier
-          for (engine of engines)
-          if (engine.identifier)];
-}
-
 let tests = [
   function test_availableTargets(done) {
     gContentAPI.getConfiguration("availableTargets", (data) => {
@@ -40,7 +33,7 @@ let tests = [
         "search",
         "searchProvider",
         "urlbar",
-      ].concat(searchEngineTargets()));
+      ]);
       ok(UITour.availableTargetsCache.has(window),
          "Targets should now be cached");
       done();
@@ -67,7 +60,7 @@ let tests = [
         "search",
         "searchProvider",
         "urlbar",
-      ].concat(searchEngineTargets()));
+      ]);
       ok(UITour.availableTargetsCache.has(window),
          "Targets should now be cached again");
       CustomizableUI.reset();

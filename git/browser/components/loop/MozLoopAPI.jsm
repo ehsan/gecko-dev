@@ -10,11 +10,8 @@ Cu.import("resource://services-common/utils.js");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource:///modules/loop/MozLoopService.jsm");
+Cu.import("resource:///modules/loop/LoopContacts.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "LoopContacts",
-                                        "resource:///modules/loop/LoopContacts.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "LoopStorage",
-                                        "resource:///modules/loop/LoopStorage.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "hookWindowCloseForPanelClose",
                                         "resource://gre/modules/MozSocialAPI.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "PluralForm",
@@ -43,17 +40,7 @@ this.EXPORTED_SYMBOLS = ["injectLoopAPI"];
 const cloneErrorObject = function(error, targetWindow) {
   let obj = new targetWindow.Error();
   for (let prop of Object.getOwnPropertyNames(error)) {
-    let value = error[prop];
-    if (typeof value != "string" && typeof value != "number") {
-      value = String(value);
-    }
-
-    Object.defineProperty(Cu.waiveXrays(obj), prop, {
-      configurable: false,
-      enumerable: true,
-      value: value,
-      writable: false
-    });
+    obj[prop] = String(error[prop]);
   }
   return obj;
 };
@@ -233,12 +220,6 @@ function injectLoopAPI(targetWindow) {
       get: function() {
         if (contactsAPI) {
           return contactsAPI;
-        }
-
-        // Make a database switch when a userProfile is active already.
-        let profile = MozLoopService.userProfile;
-        if (profile) {
-          LoopStorage.switchDatabase(profile.uid);
         }
         return contactsAPI = injectObjectAPI(LoopContacts, targetWindow);
       }

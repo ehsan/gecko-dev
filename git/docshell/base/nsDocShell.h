@@ -21,7 +21,6 @@
 #include "mozilla/WeakPtr.h"
 #include "mozilla/TimeStamp.h"
 #include "GeckoProfiler.h"
-#include "ProfilerMarkers.h"
 
 // Helper Classes
 #include "nsCOMPtr.h"
@@ -960,17 +959,11 @@ private:
         , mPayload(aPayload)
         , mTime(aTime)
       {}
-
-      ~InternalProfileTimelineMarker()
-      {
-        delete mPayload;
-      }
-
       const char* mName;
       ProfilerMarkerTracing* mPayload;
       float mTime;
     };
-    nsTArray<InternalProfileTimelineMarker*> mProfileTimelineMarkers;
+    nsTArray<nsAutoPtr<InternalProfileTimelineMarker>> mProfileTimelineMarkers;
 
     // Get the elapsed time (in millis) since the profile timeline recording
     // started

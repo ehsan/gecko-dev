@@ -67,9 +67,7 @@ function init() {
   }
 
   let sumoLink = Services.urlFormatter.formatURLPref("app.support.baseURL");
-  document.getElementById("help-section").addEventListener("click", function() {
-    window.open(sumoLink, "_blank");
-  }, false);
+  document.getElementById("sumo-link").href = sumoLink;
 
   window.addEventListener("popstate", function (aEvent) {
 	updateActiveSection(aEvent.state ? aEvent.state.section : "intro")
@@ -146,15 +144,6 @@ function sendFeedback(aEvent) {
   data["version"] = Services.appinfo.version;
   data["locale"] = Services.locale.getSystemLocale().getCategory("NSILOCALE_CTYPE");
   data["channel"] = UpdateChannel.get();
-
-  // Source field is added only when Fennec prompts the user.
-  let getParam = window.location.href.split("?");
-  if (getParam.length > 1) {
-    let urlParam = new URLSearchParams(getParam[1]);
-    if(urlParam.get("source")) {
-      data["source"] = urlParam.get("source");
-    }
-  }
 
   let req = new XMLHttpRequest();
   req.addEventListener("error", function() {
