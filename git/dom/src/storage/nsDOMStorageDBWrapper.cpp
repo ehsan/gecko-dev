@@ -118,18 +118,17 @@ nsDOMStorageDBWrapper::SetKey(nsDOMStorage* aStorage,
                               const nsAString& aValue,
                               PRBool aSecure,
                               PRInt32 aQuota,
-                              PRBool aExcludeOfflineFromUsage,
                               PRInt32 *aNewUsage)
 {
   if (nsDOMStorageManager::gStorageManager->InPrivateBrowsingMode())
     return mPrivateBrowsingDB.SetKey(aStorage, aKey, aValue, aSecure,
-                                          aQuota, aExcludeOfflineFromUsage, aNewUsage);
+                                          aQuota, aNewUsage);
   if (aStorage->SessionOnly())
     return mSessionOnlyDB.SetKey(aStorage, aKey, aValue, aSecure,
-                                      aQuota, aExcludeOfflineFromUsage, aNewUsage);
+                                      aQuota, aNewUsage);
 
   return mPersistentDB.SetKey(aStorage, aKey, aValue, aSecure,
-                                   aQuota, aExcludeOfflineFromUsage, aNewUsage);
+                                   aQuota, aNewUsage);
 }
 
 nsresult
@@ -148,15 +147,14 @@ nsDOMStorageDBWrapper::SetSecure(nsDOMStorage* aStorage,
 nsresult
 nsDOMStorageDBWrapper::RemoveKey(nsDOMStorage* aStorage,
                                  const nsAString& aKey,
-                                 PRBool aExcludeOfflineFromUsage,
                                  PRInt32 aKeyUsage)
 {
   if (nsDOMStorageManager::gStorageManager->InPrivateBrowsingMode())
-    return mPrivateBrowsingDB.RemoveKey(aStorage, aKey, aExcludeOfflineFromUsage, aKeyUsage);
+    return mPrivateBrowsingDB.RemoveKey(aStorage, aKey, aKeyUsage);
   if (aStorage->SessionOnly())
-    return mSessionOnlyDB.RemoveKey(aStorage, aKey, aExcludeOfflineFromUsage, aKeyUsage);
+    return mSessionOnlyDB.RemoveKey(aStorage, aKey, aKeyUsage);
 
-  return mPersistentDB.RemoveKey(aStorage, aKey, aExcludeOfflineFromUsage, aKeyUsage);
+  return mPersistentDB.RemoveKey(aStorage, aKey, aKeyUsage);
 }
 
 nsresult
@@ -246,15 +244,14 @@ nsDOMStorageDBWrapper::RemoveAll()
 }
 
 nsresult
-nsDOMStorageDBWrapper::GetUsage(nsDOMStorage* aStorage,
-                                PRBool aExcludeOfflineFromUsage, PRInt32 *aUsage)
+nsDOMStorageDBWrapper::GetUsage(nsDOMStorage* aStorage, PRInt32 *aUsage)
 {
   if (nsDOMStorageManager::gStorageManager->InPrivateBrowsingMode())
-    return mPrivateBrowsingDB.GetUsage(aStorage, aExcludeOfflineFromUsage, aUsage);
+    return mPrivateBrowsingDB.GetUsage(aStorage, aUsage);
   if (aStorage->SessionOnly())
-    return mSessionOnlyDB.GetUsage(aStorage, aExcludeOfflineFromUsage, aUsage);
+    return mSessionOnlyDB.GetUsage(aStorage, aUsage);
 
-  return mPersistentDB.GetUsage(aStorage, aExcludeOfflineFromUsage, aUsage);
+  return mPersistentDB.GetUsage(aStorage, aUsage);
 }
 
 nsresult
@@ -332,50 +329,33 @@ nsDOMStorageDBWrapper::CreateDomainScopeDBKey(const nsACString& aAsciiDomain,
 nsresult
 nsDOMStorageDBWrapper::CreateQuotaDomainDBKey(const nsACString& aAsciiDomain,
                                               PRBool aIncludeSubDomains,
-                                              PRBool aEffectiveTLDplus1Only,
                                               nsACString& aKey)
 {
   nsresult rv;
 
-  nsCAutoString subdomainsDBKey;
-  if (aEffectiveTLDplus1Only) {
-    nsCOMPtr<nsIEffectiveTLDService> eTLDService(do_GetService(
-      NS_EFFECTIVETLDSERVICE_CONTRACTID, &rv));
-    NS_ENSURE_SUCCESS(rv, rv);
+  nsCOMPtr<nsIEffectiveTLDService> eTLDService(do_GetService(
+    NS_EFFECTIVETLDSERVICE_CONTRACTID, &rv));
+  NS_ENSURE_SUCCESS(rv, rv);
 
-    nsCOMPtr<nsIURI> uri;
-    rv = NS_NewURI(getter_AddRefs(uri), NS_LITERAL_CSTRING("http://") + aAsciiDomain);
-    NS_ENSURE_SUCCESS(rv, rv);
+  nsCOMPtr<nsIURI> uri;
+  rv = NS_NewURI(getter_AddRefs(uri), NS_LITERAL_CSTRING("http://") + aAsciiDomain);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-    nsCAutoString eTLDplusOne;
-    rv = eTLDService->GetBaseDomain(uri, 0, eTLDplusOne);
-    if (NS_ERROR_INSUFFICIENT_DOMAIN_LEVELS == rv) {
-      // XXX bug 357323 - what to do for localhost/file exactly?
-      eTLDplusOne = aAsciiDomain;
-      rv = NS_OK;
-    }
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    CreateDomainScopeDBKey(eTLDplusOne, subdomainsDBKey);
+  nsCAutoString eTLDplusOne;
+  rv = eTLDService->GetBaseDomain(uri, 0, eTLDplusOne);
+  if (NS_ERROR_INSUFFICIENT_DOMAIN_LEVELS == rv) {
+    // XXX bug 357323 - what to do for localhost/file exactly?
+    eTLDplusOne = aAsciiDomain;
+    rv = NS_OK;
   }
-  else
-    CreateDomainScopeDBKey(aAsciiDomain, subdomainsDBKey);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCAutoString subdomainsDBKey;
+  CreateDomainScopeDBKey(eTLDplusOne, subdomainsDBKey);
 
   if (!aIncludeSubDomains)
     subdomainsDBKey.AppendLiteral(":");
 
   aKey.Assign(subdomainsDBKey);
-  return NS_OK;
-}
-
-nsresult
-nsDOMStorageDBWrapper::GetDomainFromScopeKey(const nsACString& aScope,
-                                         nsACString& aDomain)
-{
-  nsCAutoString reverseDomain, scope;
-  scope = aScope;
-  scope.Left(reverseDomain, scope.FindChar(':')-1);
-
-  ReverseString(reverseDomain, aDomain);
   return NS_OK;
 }
