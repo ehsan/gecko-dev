@@ -183,15 +183,17 @@ NS_QUERYFRAME_HEAD(nsImageFrame)
 NS_QUERYFRAME_TAIL_INHERITING(ImageFrameSuper)
 
 #ifdef ACCESSIBILITY
-NS_IMETHODIMP nsImageFrame::GetAccessible(nsIAccessible** aAccessible)
+already_AddRefed<nsAccessible>
+nsImageFrame::CreateAccessible()
 {
   nsCOMPtr<nsIAccessibilityService> accService = do_GetService("@mozilla.org/accessibilityService;1");
 
   if (accService) {
-    return accService->CreateHTMLImageAccessible(static_cast<nsIFrame*>(this), aAccessible);
+    return accService->CreateHTMLImageAccessible(mContent,
+                                                 PresContext()->PresShell());
   }
 
-  return NS_ERROR_FAILURE;
+  return nsnull;
 }
 #endif
 
@@ -1139,7 +1141,7 @@ public:
   }
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsIRenderingContext* aCtx);
-  NS_DISPLAY_DECL_NAME("Image")
+  NS_DISPLAY_DECL_NAME("Image", TYPE_IMAGE)
 private:
   nsCOMPtr<imgIContainer> mImage;
 };
@@ -1233,7 +1235,8 @@ nsImageFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
       // No image yet, or image load failed. Draw the alt-text and an icon
       // indicating the status
       rv = aLists.Content()->AppendNewToTop(new (aBuilder)
-          nsDisplayGeneric(this, PaintAltFeedback, "AltFeedback"));
+          nsDisplayGeneric(this, PaintAltFeedback, "AltFeedback",
+                           nsDisplayItem::TYPE_ALT_FEEDBACK));
       NS_ENSURE_SUCCESS(rv, rv);
     }
     else {
@@ -1251,7 +1254,8 @@ nsImageFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 #ifdef DEBUG
       if (GetShowFrameBorders() && GetImageMap(PresContext())) {
         rv = aLists.Outlines()->AppendNewToTop(new (aBuilder)
-            nsDisplayGeneric(this, PaintDebugImageMap, "DebugImageMap"));
+            nsDisplayGeneric(this, PaintDebugImageMap, "DebugImageMap",
+                             nsDisplayItem::TYPE_DEBUG_IMAGE_MAP));
         NS_ENSURE_SUCCESS(rv, rv);
       }
 #endif

@@ -121,6 +121,7 @@
 #include "nsBlockFrame.h"
 #include "nsDisplayList.h"
 #include "nsIObjectLoadingContent.h"
+#include "nsExpirationTracker.h"
 #ifdef MOZ_SVG
 #include "nsSVGIntegrationUtils.h"
 #include "nsSVGEffects.h"
@@ -836,7 +837,7 @@ public:
 
   virtual void Paint(nsDisplayListBuilder* aBuilder,
                      nsIRenderingContext* aCtx);
-  NS_DISPLAY_DECL_NAME("SelectionOverlay")
+  NS_DISPLAY_DECL_NAME("SelectionOverlay", TYPE_SELECTION_OVERLAY)
 private:
   PRInt16 mSelectionValue;
 };
@@ -1232,13 +1233,15 @@ DisplayDebugBorders(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame,
   // REVIEW: From nsContainerFrame::PaintChild
   if (nsFrame::GetShowFrameBorders() && !aFrame->GetRect().IsEmpty()) {
     aLists.Outlines()->AppendNewToTop(new (aBuilder)
-        nsDisplayGeneric(aFrame, PaintDebugBorder, "DebugBorder"));
+        nsDisplayGeneric(aFrame, PaintDebugBorder, "DebugBorder",
+                         nsDisplayItem::TYPE_DEBUG_BORDER));
   }
   // Draw a border around the current event target
   if (nsFrame::GetShowEventTargetFrameBorder() &&
       aFrame->PresContext()->PresShell()->GetDrawEventTargetFrame() == aFrame) {
     aLists.Outlines()->AppendNewToTop(new (aBuilder)
-        nsDisplayGeneric(aFrame, PaintEventTargetBorder, "EventTargetBorder"));
+        nsDisplayGeneric(aFrame, PaintEventTargetBorder, "EventTargetBorder",
+                         nsDisplayItem::TYPE_EVENT_TARGET_BORDER));
   }
 }
 #endif
@@ -1467,9 +1470,14 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
       dirty.Empty();
     }
     pseudoStackingContext = PR_TRUE;
+  } else if (aBuilder->GetSelectedFramesOnly() &&
+             aChild->IsLeaf() &&
+             !(aChild->GetStateBits() & NS_FRAME_SELECTED_CONTENT)) {
+    return NS_OK;
   }
 
-  if (aBuilder->GetPaintAllFrames()) {
+  if (aBuilder->GetSelectedFramesOnly() &&
+      (aChild->GetStateBits() & NS_FRAME_OUT_OF_FLOW)) {
     dirty = aChild->GetOverflowRect();
   } else if (!(aChild->GetStateBits() & NS_FRAME_FORCE_DISPLAY_LIST_DESCEND_INTO)) {
     // No need to descend into aChild to catch placeholders for visible
@@ -3644,13 +3652,13 @@ nsIFrame::AreAncestorViewsVisible() const
 }
 
 nsIWidget*
-nsIFrame::GetWindow() const
+nsIFrame::GetNearestWidget() const
 {
   return GetClosestView()->GetNearestWidget(nsnull);
 }
 
 nsIWidget*
-nsIFrame::GetWindowOffset(nsPoint& aOffset) const
+nsIFrame::GetNearestWidget(nsPoint& aOffset) const
 {
   nsPoint offsetToView;
   nsPoint offsetToWidget;
@@ -3670,6 +3678,101 @@ PRBool
 nsIFrame::IsLeaf() const
 {
   return PR_TRUE;
+}
+
+void
+nsIFrame::InvalidateLayer(const nsRect& aDamageRect, PRUint32 aDisplayItemKey)
+{
+  NS_ASSERTION(aDisplayItemKey > 0, "Need a key");
+
+  if (!FrameLayerBuilder::HasDedicatedLayer(this, aDisplayItemKey)) {
+    Invalidate(aDamageRect);
+    return;
+  }
+
+  InvalidateWithFlags(aDamageRect, INVALIDATE_NO_THEBES_LAYERS);
+}
+
+class LayerActivity {
+public:
+  LayerActivity(nsIFrame* aFrame) : mFrame(aFrame) {}
+  ~LayerActivity();
+  nsExpirationState* GetExpirationState() { return &mState; }
+
+  nsIFrame* mFrame;
+  nsExpirationState mState;
+};
+
+class LayerActivityTracker : public nsExpirationTracker<LayerActivity,4> {
+public:
+  // 75-100ms is a good timeout period. We use 4 generations of 25ms each.
+  enum { GENERATION_MS = 100 };
+  LayerActivityTracker()
+    : nsExpirationTracker<LayerActivity,4>(GENERATION_MS) {}
+  ~LayerActivityTracker() {
+    AgeAllGenerations();
+  }
+
+  virtual void NotifyExpired(LayerActivity* aObject);
+};
+
+static LayerActivityTracker* gLayerActivityTracker = nsnull;
+
+LayerActivity::~LayerActivity()
+{
+  if (mFrame) {
+    NS_ASSERTION(gLayerActivityTracker, "Should still have a tracker");
+    gLayerActivityTracker->RemoveObject(this);
+  }
+}
+
+static void DestroyLayerActivity(void* aPropertyValue)
+{
+  delete static_cast<LayerActivity*>(aPropertyValue);
+}
+
+NS_DECLARE_FRAME_PROPERTY(LayerActivityProperty, DestroyLayerActivity)
+
+void
+LayerActivityTracker::NotifyExpired(LayerActivity* aObject)
+{
+  RemoveObject(aObject);
+
+  nsIFrame* f = aObject->mFrame;
+  aObject->mFrame = nsnull;
+  f->Properties().Delete(LayerActivityProperty());
+  f->InvalidateOverflowRect();
+}
+
+void
+nsIFrame::MarkLayersActive()
+{
+  FrameProperties properties = Properties();
+  LayerActivity* layerActivity =
+    static_cast<LayerActivity*>(properties.Get(LayerActivityProperty()));
+  if (layerActivity) {
+    gLayerActivityTracker->MarkUsed(layerActivity);
+  } else {
+    if (!gLayerActivityTracker) {
+      gLayerActivityTracker = new LayerActivityTracker();
+    }
+    layerActivity = new LayerActivity(this);
+    gLayerActivityTracker->AddObject(layerActivity);
+    properties.Set(LayerActivityProperty(), layerActivity);
+  }
+}
+
+PRBool
+nsIFrame::AreLayersMarkedActive()
+{
+  return Properties().Get(LayerActivityProperty()) != nsnull;
+}
+
+/* static */ void
+nsFrame::ShutdownLayerActivityTimer()
+{
+  delete gLayerActivityTracker;
+  gLayerActivityTracker = nsnull;
 }
 
 void
@@ -3721,6 +3824,20 @@ nsIFrame::InvalidateInternalAfterResize(const nsRect& aDamageRect, nscoord aX,
    *
    * See bug #452496 for more details.
    */
+  if ((mState & NS_FRAME_HAS_CONTAINER_LAYER) &&
+      !(aFlags & INVALIDATE_NO_THEBES_LAYERS)) {
+    // XXX for now I'm going to assume this is in the local coordinate space
+    // This only matters for frames with transforms and retained layers,
+    // which can't happen right now since transforms trigger fallback
+    // rendering and the display items that trigger layers are nested inside
+    // the nsDisplayTransform
+    // XXX need to set INVALIDATE_NO_THEBES_LAYERS for certain kinds of
+    // invalidation, e.g. video update, 'opacity' change
+    FrameLayerBuilder::InvalidateThebesLayerContents(this,
+        aDamageRect + nsPoint(aX, aY));
+    // Don't need to invalidate any more Thebes layers
+    aFlags |= INVALIDATE_NO_THEBES_LAYERS;
+  }
   if ((mState & NS_FRAME_MAY_BE_TRANSFORMED_OR_HAVE_RENDERING_OBSERVERS) &&
       GetStyleDisplay()->HasTransform()) {
     nsRect newDamageRect;
@@ -3835,14 +3952,56 @@ nsIFrame::InvalidateOverflowRect()
   Invalidate(GetOverflowRectRelativeToSelf());
 }
 
+NS_DECLARE_FRAME_PROPERTY(DeferInvalidatesProperty, nsIFrame::DestroyRegion)
+
 void
 nsIFrame::InvalidateRoot(const nsRect& aDamageRect, PRUint32 aFlags)
 {
+  NS_ASSERTION(nsLayoutUtils::GetDisplayRootFrame(this) == this,
+               "Can only call this on display roots");
+
+  if ((mState & NS_FRAME_HAS_CONTAINER_LAYER) &&
+      !(aFlags & INVALIDATE_NO_THEBES_LAYERS)) {
+    FrameLayerBuilder::InvalidateThebesLayerContents(this, aDamageRect);
+  }
+
   PRUint32 flags =
     (aFlags & INVALIDATE_IMMEDIATE) ? NS_VMREFRESH_IMMEDIATE : NS_VMREFRESH_NO_SYNC;
+
+  nsRect rect = aDamageRect;
+  nsRegion* excludeRegion = static_cast<nsRegion*>
+    (Properties().Get(DeferInvalidatesProperty()));
+  if (excludeRegion) {
+    flags = NS_VMREFRESH_DEFERRED;
+
+    if (aFlags & INVALIDATE_EXCLUDE_CURRENT_PAINT) {
+      nsRegion r;
+      r.Sub(rect, *excludeRegion);
+      if (r.IsEmpty())
+        return;
+      rect = r.GetBounds();
+    }
+  }
+
   nsIView* view = GetView();
   NS_ASSERTION(view, "This can only be called on frames with views");
-  view->GetViewManager()->UpdateView(view, aDamageRect, flags);
+  view->GetViewManager()->UpdateView(view, rect, flags);
+}
+
+void
+nsIFrame::BeginDeferringInvalidatesForDisplayRoot(const nsRegion& aExcludeRegion)
+{
+  NS_ASSERTION(nsLayoutUtils::GetDisplayRootFrame(this) == this,
+               "Can only call this on display roots");
+  Properties().Set(DeferInvalidatesProperty(), new nsRegion(aExcludeRegion));
+}
+
+void
+nsIFrame::EndDeferringInvalidatesForDisplayRoot()
+{
+  NS_ASSERTION(nsLayoutUtils::GetDisplayRootFrame(this) == this,
+               "Can only call this on display roots");
+  Properties().Delete(DeferInvalidatesProperty());
 }
 
 /**
@@ -5514,10 +5673,10 @@ nsFrame::ChildIsDirty(nsIFrame* aChild)
 
 
 #ifdef ACCESSIBILITY
-NS_IMETHODIMP
-nsFrame::GetAccessible(nsIAccessible** aAccessible)
+already_AddRefed<nsAccessible>
+nsFrame::CreateAccessible()
 {
-  return NS_ERROR_NOT_IMPLEMENTED;
+  return nsnull;
 }
 #endif
 

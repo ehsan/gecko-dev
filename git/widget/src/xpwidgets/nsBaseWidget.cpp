@@ -129,6 +129,11 @@ nsBaseWidget::nsBaseWidget()
 //-------------------------------------------------------------------------
 nsBaseWidget::~nsBaseWidget()
 {
+  if (mLayerManager &&
+      mLayerManager->GetBackendType() == LayerManager::LAYERS_BASIC) {
+    static_cast<BasicLayerManager*>(mLayerManager.get())->ClearRetainerWidget();
+  }
+
 #ifdef NOISY_WIDGET_LEAKS
   gNumWidgets--;
   printf("WIDGETS- = %d\n", gNumWidgets);
@@ -677,7 +682,8 @@ NS_IMETHODIMP nsBaseWidget::MakeFullScreen(PRBool aFullScreen)
 }
 
 nsBaseWidget::AutoLayerManagerSetup::AutoLayerManagerSetup(
-    nsBaseWidget* aWidget, gfxContext* aTarget)
+    nsBaseWidget* aWidget, gfxContext* aTarget,
+    BasicLayerManager::BufferMode aDoubleBuffering)
   : mWidget(aWidget)
 {
   BasicLayerManager* manager =
@@ -685,7 +691,7 @@ nsBaseWidget::AutoLayerManagerSetup::AutoLayerManagerSetup(
   if (manager) {
     NS_ASSERTION(manager->GetBackendType() == LayerManager::LAYERS_BASIC,
       "AutoLayerManagerSetup instantiated for non-basic layer backend!");
-    manager->SetDefaultTarget(aTarget);
+    manager->SetDefaultTarget(aTarget, aDoubleBuffering);
   }
 }
 
@@ -696,7 +702,7 @@ nsBaseWidget::AutoLayerManagerSetup::~AutoLayerManagerSetup()
   if (manager) {
     NS_ASSERTION(manager->GetBackendType() == LayerManager::LAYERS_BASIC,
       "AutoLayerManagerSetup instantiated for non-basic layer backend!");
-    manager->SetDefaultTarget(nsnull);
+    manager->SetDefaultTarget(nsnull, BasicLayerManager::BUFFER_NONE);
   }
 }
 
@@ -726,7 +732,7 @@ LayerManager* nsBaseWidget::GetLayerManager()
       }
     }
     if (!mLayerManager) {
-      mLayerManager = new BasicLayerManager(nsnull);
+      mLayerManager = new BasicLayerManager(this);
     }
   }
   return mLayerManager;

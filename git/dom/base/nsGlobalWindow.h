@@ -101,7 +101,7 @@
 #include "nsPIDOMEventTarget.h"
 #include "nsIArray.h"
 #include "nsIContent.h"
-#include "nsIIndexedDatabaseRequest.h"
+#include "nsIIDBFactory.h"
 #include "nsFrameMessageManager.h"
 
 #define DEFAULT_HOME_PAGE "www.mozilla.org"
@@ -250,6 +250,10 @@ public:
   // nsIScriptGlobalObject
   virtual nsIScriptContext *GetContext();
   virtual JSObject *GetGlobalJSObject();
+  JSObject *FastGetGlobalJSObject()
+  {
+    return mJSObject;
+  }
 
   virtual nsresult EnsureScriptEnvironment(PRUint32 aLangID);
 
@@ -388,12 +392,13 @@ public:
 
   nsIScriptContext *GetScriptContextInternal(PRUint32 aLangID)
   {
-    NS_ASSERTION(NS_STID_VALID(aLangID), "Invalid language");
+    NS_ASSERTION(aLangID == nsIProgrammingLanguage::JAVASCRIPT,
+                 "We don't support this language ID");
     if (mOuterWindow) {
-      return GetOuterWindowInternal()->mScriptContexts[NS_STID_INDEX(aLangID)];
+      return GetOuterWindowInternal()->mContext;
     }
 
-    return mScriptContexts[NS_STID_INDEX(aLangID)];
+    return mContext;
   }
 
   nsGlobalWindow *GetOuterWindowInternal()
@@ -777,8 +782,6 @@ protected:
   nsString                      mStatus;
   nsString                      mDefaultStatus;
   // index 0->language_id 1, so index MAX-1 == language_id MAX
-  nsCOMPtr<nsIScriptContext>    mScriptContexts[NS_STID_ARRAY_UBOUND];
-  void *                        mScriptGlobals[NS_STID_ARRAY_UBOUND];
   nsGlobalWindowObserver*       mObserver;
 
   nsCOMPtr<nsIDOMCrypto>        mCrypto;
@@ -786,7 +789,7 @@ protected:
   nsCOMPtr<nsIDOMStorage>      mLocalStorage;
   nsCOMPtr<nsIDOMStorage>      mSessionStorage;
 
-  nsCOMPtr<nsISupports>         mInnerWindowHolders[NS_STID_ARRAY_UBOUND];
+  nsCOMPtr<nsIXPConnectJSObjectHolder> mInnerWindowHolder;
   nsCOMPtr<nsIPrincipal> mOpenerScriptPrincipal; // strong; used to determine
                                                  // whether to clear scope
 
@@ -830,7 +833,7 @@ protected:
 
   nsCOMPtr<nsIDocument> mSuspendedDoc;
 
-  nsCOMPtr<nsIIndexedDatabaseRequest> mIndexedDB;
+  nsCOMPtr<nsIIDBFactory> mIndexedDB;
 
   // A unique (as long as our 64-bit counter doesn't roll over) id for
   // this window.

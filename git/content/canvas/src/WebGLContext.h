@@ -60,6 +60,8 @@
 #include "GLContext.h"
 #include "Layers.h"
 
+#include "CheckedInt.h"
+
 #define UNPACK_FLIP_Y_WEBGL            0x9240
 #define UNPACK_PREMULTIPLY_ALPHA_WEBGL 0x9241
 #define CONTEXT_LOST_WEBGL             0x9242
@@ -283,6 +285,14 @@ public:
                               nsIInputStream **aStream);
     NS_IMETHOD GetThebesSurface(gfxASurface **surface);
     NS_IMETHOD SetIsOpaque(PRBool b) { return NS_OK; };
+    NS_IMETHOD SetIsIPC(PRBool b) { return NS_ERROR_NOT_IMPLEMENTED; }
+    NS_IMETHOD Redraw(const gfxRect&) { return NS_ERROR_NOT_IMPLEMENTED; }
+    NS_IMETHOD Swap(mozilla::ipc::Shmem& aBack,
+                    PRInt32 x, PRInt32 y, PRInt32 w, PRInt32 h)
+                    { return NS_ERROR_NOT_IMPLEMENTED; }
+    NS_IMETHOD Swap(PRUint32 nativeID,
+                    PRInt32 x, PRInt32 y, PRInt32 w, PRInt32 h)
+                    { return NS_ERROR_NOT_IMPLEMENTED; }
 
     nsresult SynthesizeGLError(WebGLenum err);
     nsresult SynthesizeGLError(WebGLenum err, const char *fmt, ...);
@@ -290,13 +300,17 @@ public:
     nsresult ErrorInvalidEnum(const char *fmt = 0, ...);
     nsresult ErrorInvalidOperation(const char *fmt = 0, ...);
     nsresult ErrorInvalidValue(const char *fmt = 0, ...);
+    nsresult ErrorInvalidEnumInfo(const char *info) {
+        return ErrorInvalidEnum("%s: invalid enum value", info);
+    }
 
-    already_AddRefed<CanvasLayer> GetCanvasLayer(LayerManager *manager);
+    already_AddRefed<CanvasLayer> GetCanvasLayer(CanvasLayer *aOldLayer,
+                                                 LayerManager *aManager);
     void MarkContextClean() { }
 
     // a number that increments every time we have an event that causes
     // all context resources to be lost.
-    PRUint32 Generation() { return mGeneration; }
+    PRUint32 Generation() { return mGeneration.value(); }
 protected:
     nsCOMPtr<nsIDOMHTMLCanvasElement> mCanvasElement;
     nsHTMLCanvasElement *HTMLCanvasElement() {
@@ -306,20 +320,43 @@ protected:
     nsRefPtr<gl::GLContext> gl;
 
     PRInt32 mWidth, mHeight;
-    PRUint32 mGeneration;
+    CheckedUint32 mGeneration;
 
-    PRBool mInvalidated;
+    PRPackedBool mInvalidated;
+    PRPackedBool mResetLayer;
 
     WebGLuint mActiveTexture;
     WebGLenum mSynthesizedGLError;
 
+    // whether shader validation is supported
+    PRBool mShaderValidation;
+
+    // some GL constants
+    PRUint32 mGLMaxVertexAttribs;
+    PRUint32 mGLMaxTextureUnits;
+    PRUint32 mGLMaxTextureSize;
+    PRUint32 mGLMaxCubeMapTextureSize;
+    PRUint32 mGLMaxTextureImageUnits;
+    PRUint32 mGLMaxVertexTextureImageUnits;
+    PRUint32 mGLMaxVaryingVectors;
+    PRUint32 mGLMaxFragmentUniformVectors;
+    PRUint32 mGLMaxVertexUniformVectors;
+
     PRBool SafeToCreateCanvas3DContext(nsHTMLCanvasElement *canvasElement);
     PRBool InitAndValidateGL();
     PRBool ValidateBuffers(PRUint32 count);
-    static PRBool ValidateCapabilityEnum(WebGLenum cap);
-    static PRBool ValidateBlendEquationEnum(WebGLuint cap);
-    static PRBool ValidateBlendFuncDstEnum(WebGLuint mode);
-    static PRBool ValidateBlendFuncSrcEnum(WebGLuint mode);
+    PRBool ValidateCapabilityEnum(WebGLenum cap, const char *info);
+    PRBool ValidateBlendEquationEnum(WebGLuint cap, const char *info);
+    PRBool ValidateBlendFuncDstEnum(WebGLuint mode, const char *info);
+    PRBool ValidateBlendFuncSrcEnum(WebGLuint mode, const char *info);
+    PRBool ValidateTextureTargetEnum(WebGLenum target, const char *info);
+    PRBool ValidateComparisonEnum(WebGLenum target, const char *info);
+    PRBool ValidateStencilOpEnum(WebGLenum action, const char *info);
+    PRBool ValidateFaceEnum(WebGLenum target, const char *info);
+    PRBool ValidateBufferUsageEnum(WebGLenum target, const char *info);
+    PRBool ValidateTexFormatAndType(WebGLenum format, WebGLenum type,
+                                      PRUint32 *texelSize, const char *info);
+
     void Invalidate();
 
     void MakeContextCurrent() { gl->MakeCurrent(); }
@@ -633,7 +670,8 @@ public:
 
     WebGLShader(WebGLContext *context, WebGLuint name, WebGLenum stype) :
         WebGLContextBoundObject(context),
-        mName(name), mDeleted(PR_FALSE), mType(stype)
+        mName(name), mDeleted(PR_FALSE), mType(stype),
+        mNeedsTranslation(true)
     { }
 
     void Delete() {
@@ -647,12 +685,36 @@ public:
     WebGLuint GLName() { return mName; }
     WebGLenum ShaderType() { return mType; }
 
+    void SetSource(const nsCString& src) {
+        // XXX do some quick gzip here maybe -- getting this will be very rare
+        mSource.Assign(src);
+    }
+
+    const nsCString& Source() const { return mSource; }
+
+    void SetNeedsTranslation() { mNeedsTranslation = true; }
+    bool NeedsTranslation() const { return mNeedsTranslation; }
+
+    void SetTranslationSuccess() {
+        mTranslationLog.SetIsVoid(PR_TRUE);
+        mNeedsTranslation = false;
+    }
+
+    void SetTranslationFailure(const nsCString& msg) {
+        mTranslationLog.Assign(msg);
+    }
+
+    const nsCString& TranslationLog() const { return mTranslationLog; }
+
     NS_DECL_ISUPPORTS
     NS_DECL_NSIWEBGLSHADER
 protected:
     WebGLuint mName;
     PRBool mDeleted;
     WebGLenum mType;
+    nsCString mSource;
+    nsCString mTranslationLog;
+    bool mNeedsTranslation;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(WebGLShader, WEBGLSHADER_PRIVATE_IID)
@@ -687,7 +749,7 @@ public:
     WebGLuint GLName() { return mName; }
     const nsTArray<WebGLShader*>& AttachedShaders() const { return mAttachedShaders; }
     PRBool LinkStatus() { return mLinkStatus; }
-    GLuint Generation() const { return mGeneration; }
+    PRUint32 Generation() const { return mGeneration.value(); }
     void SetLinkStatus(PRBool val) { mLinkStatus = val; }
 
     PRBool ContainsShader(WebGLShader *shader) {
@@ -724,10 +786,9 @@ public:
 
     PRBool NextGeneration()
     {
-        GLuint nextGeneration = mGeneration + 1;
-        if (nextGeneration == 0)
+        if (!(mGeneration+1).valid())
             return PR_FALSE; // must exit without changing mGeneration
-        mGeneration = nextGeneration;
+        ++mGeneration;
         mMapUniformLocations.Clear();
         return PR_TRUE;
     }
@@ -752,7 +813,7 @@ protected:
     PRPackedBool mLinkStatus;
     nsTArray<WebGLShader*> mAttachedShaders;
     nsRefPtrHashtable<nsUint32HashKey, WebGLUniformLocation> mMapUniformLocations;
-    GLuint mGeneration;
+    CheckedUint32 mGeneration;
     GLint mUniformMaxNameLength;
     GLint mAttribMaxNameLength;
     GLint mUniformCount;
@@ -846,7 +907,7 @@ public:
 
     WebGLProgram *Program() const { return mProgram; }
     GLint Location() const { return mLocation; }
-    GLuint ProgramGeneration() const { return mProgramGeneration; }
+    PRUint32 ProgramGeneration() const { return mProgramGeneration; }
 
     // needed for our generic helpers to check nsIxxx parameters, see GetConcreteObject.
     PRBool Deleted() { return PR_FALSE; }
@@ -855,7 +916,7 @@ public:
     NS_DECL_NSIWEBGLUNIFORMLOCATION
 protected:
     WebGLObjectRefPtr<WebGLProgram> mProgram;
-    GLuint mProgramGeneration;
+    PRUint32 mProgramGeneration;
     GLint mLocation;
 };
 
