@@ -1,6 +1,4 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * vim: sw=2 ts=2 sts=2 expandtab
- * ***** BEGIN LICENSE BLOCK *****
+/* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -16,12 +14,15 @@
  * The Original Code is mozilla.org code.
  *
  * The Initial Developer of the Original Code is
- * Mozilla Corporation
+ * Mozilla Corporation.
  * Portions created by the Initial Developer are Copyright (C) 2008
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Shawn Wilsher <me@shawnwilsher.com> (Original Author)
+ *   William Price <bugzilla@mob.rice.edu>
+ *   Steven Garrity <steven@silverorange.com>
+ *   Henrik Skupin  <mozilla@hskupin.info>
+ *   Johnathan Nightingale <johnath@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -37,41 +38,22 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef __mozStorageResultSet_h__
-#define __mozStorageResultSet_h__
+/* Logical CSS rules belong here, but presentation & theming rules
+   should live in the CSS of the appropriate theme */
 
-#include "mozIStorageResultSet.h"
-#include "nsCOMArray.h"
-class mozIStorageRow;
+#technicalContentText {
+  overflow: auto;
+  white-space: pre-wrap;
+}
 
-class mozStorageResultSet : public mozIStorageResultSet
-{
-public:
-  NS_DECL_ISUPPORTS
-  NS_DECL_MOZISTORAGERESULTSET
+#technicalContent > h2, #expertContent > h2 {
+  cursor: pointer;
+  padding-left: 20px;
+  position: relative;
+  left: -20px;
+}
 
-  mozStorageResultSet();
-  ~mozStorageResultSet();
-
-  /**
-   * Adds a tuple to this result set.
-   */
-  nsresult add(mozIStorageRow *aTuple);
-
-  /**
-   * @returns the number of rows this result set holds.
-   */
-  PRInt32 rows() const { return mData.Count(); }
-
-private:
-  /**
-   * Stores the current index of the active result set.
-   */
-  PRInt32 mCurrentIndex;
-  /**
-   * Stores the tuples.
-   */
-  nsCOMArray<mozIStorageRow> mData;
-};
-
-#endif // __mozStorageResultSet_h__
+div[collapsed] > p,
+div[collapsed] > div {
+  display: none;
+}

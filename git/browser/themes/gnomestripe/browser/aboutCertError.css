@@ -1,6 +1,4 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * vim: sw=2 ts=2 sts=2 expandtab
- * ***** BEGIN LICENSE BLOCK *****
+/* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -16,12 +14,15 @@
  * The Original Code is mozilla.org code.
  *
  * The Initial Developer of the Original Code is
- * Mozilla Corporation
+ * Mozilla Corporation.
  * Portions created by the Initial Developer are Copyright (C) 2008
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Shawn Wilsher <me@shawnwilsher.com> (Original Author)
+ *   William Price <bugzilla@mob.rice.edu>
+ *   Steven Garrity <steven@silverorange.com>
+ *   Henrik Skupin  <mozilla@hskupin.info>
+ *   Johnathan Nightingale <johnath@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -37,41 +38,58 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef __mozStorageResultSet_h__
-#define __mozStorageResultSet_h__
 
-#include "mozIStorageResultSet.h"
-#include "nsCOMArray.h"
-class mozIStorageRow;
+html {
+  background: -moz-Dialog;
+}
 
-class mozStorageResultSet : public mozIStorageResultSet
-{
-public:
-  NS_DECL_ISUPPORTS
-  NS_DECL_MOZISTORAGERESULTSET
+body {
+  margin: 0;
+  padding: 0 1em;
+  color: -moz-FieldText;
+  font: message-box;
+}
 
-  mozStorageResultSet();
-  ~mozStorageResultSet();
+h1 {
+  margin: 0 0 .6em 0;
+  border-bottom: 1px solid ThreeDLightShadow;
+  font-size: 160%;
+}
 
-  /**
-   * Adds a tuple to this result set.
-   */
-  nsresult add(mozIStorageRow *aTuple);
+h2 {
+  font-size: 130%;
+}
 
-  /**
-   * @returns the number of rows this result set holds.
-   */
-  PRInt32 rows() const { return mData.Count(); }
+#errorPageContainer {
+  position: relative;
+  min-width: 13em;
+  max-width: 52em;
+  margin: 4em auto;
+  border: 1px solid #FFBD09; /* pale yellow extracted from yellow passport icon */
+  -moz-border-radius: 10px;
+  padding: 3em;
+  -moz-padding-start: 30px;
+  background: url("chrome://global/skin/icons/sslWarning.png") left 0 no-repeat -moz-Field;
+  -moz-background-origin: content;
+}
 
-private:
-  /**
-   * Stores the current index of the active result set.
-   */
-  PRInt32 mCurrentIndex;
-  /**
-   * Stores the tuples.
-   */
-  nsCOMArray<mozIStorageRow> mData;
-};
+body[dir="rtl"] #errorPageContainer {
+  background-position: right 0;
+}
 
-#endif // __mozStorageResultSet_h__
+#errorTitle {
+  -moz-margin-start: 80px;
+}
+
+#errorLongContent {
+  -moz-margin-start: 80px;
+}
+
+#technicalContent > h2, #expertContent > h2 {
+  background : url("chrome://browser/skin/section_expanded.png") left 0 no-repeat;
+}
+
+#technicalContent[collapsed] > h2,
+#expertContent[collapsed] > h2{
+  background-image: url("chrome://browser/skin/section_collapsed.png");
+}

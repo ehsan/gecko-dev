@@ -1,6 +1,4 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * vim: sw=2 ts=2 sts=2 expandtab
- * ***** BEGIN LICENSE BLOCK *****
+/* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -13,15 +11,16 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is mozilla.org code.
+ * The Original Code is about:robots
  *
- * The Initial Developer of the Original Code is
- * Mozilla Corporation
+ * The Initial Developer of the Original Code is Mozilla Foundation.
  * Portions created by the Initial Developer are Copyright (C) 2008
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Shawn Wilsher <me@shawnwilsher.com> (Original Author)
+ *   Ryan Flint <rflint@mozilla.com>
+ *   Justin Dolske <dolske@mozilla.com>
+ *   Johnathan Nightingale <johnath@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -36,42 +35,41 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
+const Cc = Components.classes;
+const Ci = Components.interfaces;
 
-#ifndef __mozStorageResultSet_h__
-#define __mozStorageResultSet_h__
+Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 
-#include "mozIStorageResultSet.h"
-#include "nsCOMArray.h"
-class mozIStorageRow;
+function AboutCertError() {}
+AboutCertError.prototype = {
+  classDescription: "About Cert Error",
+  contractID: "@mozilla.org/network/protocol/about;1?what=certerror",
+  classID: Components.ID("{78d2286f-de9d-47ac-9c26-e8675aedf3be}"),
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIAboutModule]),
+ 
+  getURIFlags: function(aURI) {
+    return (Ci.nsIAboutModule.ALLOW_SCRIPT |
+            Ci.nsIAboutModule.URI_SAFE_FOR_UNTRUSTED_CONTENT);
+  },
 
-class mozStorageResultSet : public mozIStorageResultSet
-{
-public:
-  NS_DECL_ISUPPORTS
-  NS_DECL_MOZISTORAGERESULTSET
+  newChannel: function(aURI) {
+    var ios = Cc["@mozilla.org/network/io-service;1"].
+              getService(Ci.nsIIOService);
 
-  mozStorageResultSet();
-  ~mozStorageResultSet();
+    var secMan = Cc["@mozilla.org/scriptsecuritymanager;1"].
+                 getService(Ci.nsIScriptSecurityManager);
 
-  /**
-   * Adds a tuple to this result set.
-   */
-  nsresult add(mozIStorageRow *aTuple);
+    var channel = ios.newChannel("chrome://browser/content/certerror/aboutCertError.xhtml",
+                                 null, null);
+    var principal = secMan.getCodebasePrincipal(aURI);
 
-  /**
-   * @returns the number of rows this result set holds.
-   */
-  PRInt32 rows() const { return mData.Count(); }
+    channel.originalURI = aURI;
+    channel.owner = principal;
 
-private:
-  /**
-   * Stores the current index of the active result set.
-   */
-  PRInt32 mCurrentIndex;
-  /**
-   * Stores the tuples.
-   */
-  nsCOMArray<mozIStorageRow> mData;
+    return channel;
+  }
 };
 
-#endif // __mozStorageResultSet_h__
+function NSGetModule(compMgr, fileSpec) {
+  return XPCOMUtils.generateModule([AboutCertError]);
+}
