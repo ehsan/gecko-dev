@@ -146,6 +146,18 @@ body {
 .group .expander {
 }
 
+/*
+.group {
+  cursor: move;
+  overflow: hidden;
+}
+
+.group-content {
+  border: 1px inset rgba(0,0,0,.3);
+  background-color: white;
+  -moz-box-shadow: inset 2px 2px 12px rgba(0,0,0,.15);        
+}
+*/
 
 // -----------------------------------------------------
 // Other
