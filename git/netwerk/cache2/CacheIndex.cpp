@@ -171,14 +171,14 @@ public:
     , mCanceled(false)
   {}
 
-  virtual ~FileOpenHelper() {}
-
   void Cancel() {
     mIndex->AssertOwnsLock();
     mCanceled = true;
   }
 
 private:
+  virtual ~FileOpenHelper() {}
+
   NS_IMETHOD OnFileOpened(CacheFileHandle *aHandle, nsresult aResult);
   NS_IMETHOD OnDataWritten(CacheFileHandle *aHandle, const char *aBuf,
                            nsresult aResult) {
@@ -2283,7 +2283,7 @@ CacheIndex::ProcessJournalEntry(CacheIndexEntry *aEntry, void* aClosure)
 {
   CacheIndex *index = static_cast<CacheIndex *>(aClosure);
 
-  LOG(("CacheFile::ProcessJournalEntry() [hash=%08x%08x%08x%08x%08x]",
+  LOG(("CacheIndex::ProcessJournalEntry() [hash=%08x%08x%08x%08x%08x]",
        LOGSHA1(aEntry->Hash())));
 
   CacheIndexEntry *entry = index->mIndex.GetEntry(*aEntry->Hash());

@@ -86,6 +86,9 @@
 #include "nsPrintfCString.h"
 #include "ActiveLayerTracker.h"
 
+#include "nsITheme.h"
+#include "nsThemeConstants.h"
+
 using namespace mozilla;
 using namespace mozilla::css;
 using namespace mozilla::dom;
@@ -949,52 +952,51 @@ nsIFrame::GetUsedPadding() const
   return padding;
 }
 
-int
+nsIFrame::Sides
 nsIFrame::GetSkipSides(const nsHTMLReflowState* aReflowState) const
 {
   if (MOZ_UNLIKELY(StyleBorder()->mBoxDecorationBreak ==
                      NS_STYLE_BOX_DECORATION_BREAK_CLONE)) {
-    return 0;
+    return Sides();
   }
 
   // Convert the logical skip sides to physical sides using the frame's
   // writing mode
   WritingMode writingMode = GetWritingMode();
-  int logicalSkip = GetLogicalSkipSides(aReflowState);
-  int skip = 0;
+  LogicalSides logicalSkip = GetLogicalSkipSides(aReflowState);
+  Sides skip;
 
-  if (logicalSkip & LOGICAL_SIDE_B_START) {
+  if (logicalSkip.BStart()) {
     if (writingMode.IsVertical()) {
-      skip |= 1 << (writingMode.IsVerticalLR() ? NS_SIDE_LEFT : NS_SIDE_RIGHT);
+      skip |= writingMode.IsVerticalLR() ? eSideBitsLeft : eSideBitsRight;
     } else {
-      skip |= 1 << NS_SIDE_TOP;
+      skip |= eSideBitsTop;
     }
   }
 
-  if (logicalSkip & LOGICAL_SIDE_B_END) {
+  if (logicalSkip.BEnd()) {
     if (writingMode.IsVertical()) {
-      skip |= 1 << (writingMode.IsVerticalLR() ? NS_SIDE_RIGHT : NS_SIDE_LEFT);
+      skip |= writingMode.IsVerticalLR() ? eSideBitsRight : eSideBitsLeft;
     } else {
-      skip |= 1 << NS_SIDE_BOTTOM;
+      skip |= eSideBitsBottom;
     }
   }
 
-  if (logicalSkip & LOGICAL_SIDE_I_START) {
+  if (logicalSkip.IStart()) {
     if (writingMode.IsVertical()) {
-      skip |= 1 << NS_SIDE_TOP;
+      skip |= eSideBitsTop;
     } else {
-      skip |= 1 << (writingMode.IsBidiLTR() ? NS_SIDE_LEFT : NS_SIDE_RIGHT);
+      skip |= writingMode.IsBidiLTR() ? eSideBitsLeft : eSideBitsRight;
     }
   }
 
-  if (logicalSkip & LOGICAL_SIDE_I_END) {
+  if (logicalSkip.IEnd()) {
     if (writingMode.IsVertical()) {
-      skip |= 1 << NS_SIDE_BOTTOM;
+      skip |= eSideBitsBottom;
     } else {
-      skip |= 1 << (writingMode.IsBidiLTR() ? NS_SIDE_RIGHT : NS_SIDE_LEFT);
+      skip |= writingMode.IsBidiLTR() ? eSideBitsRight : eSideBitsLeft;
     }
   }
-
   return skip;
 }
 
@@ -1140,7 +1142,7 @@ bool
 nsIFrame::ComputeBorderRadii(const nsStyleCorners& aBorderRadius,
                              const nsSize& aFrameSize,
                              const nsSize& aBorderArea,
-                             int aSkipSides,
+                             Sides aSkipSides,
                              nscoord aRadii[8])
 {
   // Percentages are relative to whichever side they're on.
@@ -1161,28 +1163,28 @@ nsIFrame::ComputeBorderRadii(const nsStyleCorners& aBorderRadius,
     }
   }
 
-  if (aSkipSides & (1 << NS_SIDE_TOP)) {
+  if (aSkipSides.Top()) {
     aRadii[NS_CORNER_TOP_LEFT_X] = 0;
     aRadii[NS_CORNER_TOP_LEFT_Y] = 0;
     aRadii[NS_CORNER_TOP_RIGHT_X] = 0;
     aRadii[NS_CORNER_TOP_RIGHT_Y] = 0;
   }
 
-  if (aSkipSides & (1 << NS_SIDE_RIGHT)) {
+  if (aSkipSides.Right()) {
     aRadii[NS_CORNER_TOP_RIGHT_X] = 0;
     aRadii[NS_CORNER_TOP_RIGHT_Y] = 0;
     aRadii[NS_CORNER_BOTTOM_RIGHT_X] = 0;
     aRadii[NS_CORNER_BOTTOM_RIGHT_Y] = 0;
   }
 
-  if (aSkipSides & (1 << NS_SIDE_BOTTOM)) {
+  if (aSkipSides.Bottom()) {
     aRadii[NS_CORNER_BOTTOM_RIGHT_X] = 0;
     aRadii[NS_CORNER_BOTTOM_RIGHT_Y] = 0;
     aRadii[NS_CORNER_BOTTOM_LEFT_X] = 0;
     aRadii[NS_CORNER_BOTTOM_LEFT_Y] = 0;
   }
 
-  if (aSkipSides & (1 << NS_SIDE_LEFT)) {
+  if (aSkipSides.Left()) {
     aRadii[NS_CORNER_BOTTOM_LEFT_X] = 0;
     aRadii[NS_CORNER_BOTTOM_LEFT_Y] = 0;
     aRadii[NS_CORNER_TOP_LEFT_X] = 0;
@@ -1243,7 +1245,7 @@ nsIFrame::OutsetBorderRadii(nscoord aRadii[8], const nsMargin &aOffsets)
 
 /* virtual */ bool
 nsIFrame::GetBorderRadii(const nsSize& aFrameSize, const nsSize& aBorderArea,
-                         int aSkipSides, nscoord aRadii[8]) const
+                         Sides aSkipSides, nscoord aRadii[8]) const
 {
   if (IsThemed()) {
     // When we're themed, the native theme code draws the border and
@@ -1311,13 +1313,14 @@ nsFrame::SetAdditionalStyleContext(int32_t aIndex,
 }
 
 nscoord
-nsFrame::GetBaseline() const
+nsFrame::GetLogicalBaseline(WritingMode aWritingMode) const
 {
   NS_ASSERTION(!NS_SUBTREE_DIRTY(this),
                "frame must not be dirty");
   // Default to the bottom margin edge, per CSS2.1's definition of the
   // 'baseline' value of 'vertical-align'.
-  return mRect.height + GetUsedMargin().bottom;
+  return BSize(aWritingMode) +
+         GetLogicalUsedMargin(aWritingMode).BEnd(aWritingMode);
 }
 
 const nsFrameList&
@@ -1734,7 +1737,9 @@ DisplayDebugBorders(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame,
 #endif
 
 static nsresult
-WrapPreserve3DListInternal(nsIFrame* aFrame, nsDisplayListBuilder *aBuilder, nsDisplayList *aList, nsDisplayList *aOutput, uint32_t& aIndex, nsDisplayList* aTemp)
+WrapPreserve3DListInternal(nsIFrame* aFrame, nsDisplayListBuilder *aBuilder,
+                           nsDisplayList *aList, nsDisplayList *aOutput,
+                           uint32_t& aIndex, nsDisplayList* aTemp)
 {
   if (aIndex > nsDisplayTransform::INDEX_MAX) {
     return NS_OK;
@@ -1753,7 +1758,8 @@ WrapPreserve3DListInternal(nsIFrame* aFrame, nsDisplayListBuilder *aBuilder, nsD
       switch (item->GetType()) {
         case nsDisplayItem::TYPE_TRANSFORM: {
           if (!aTemp->IsEmpty()) {
-            aOutput->AppendToTop(new (aBuilder) nsDisplayTransform(aBuilder, aFrame, aTemp, aIndex++));
+            aOutput->AppendToTop(new (aBuilder) nsDisplayTransform(aBuilder,
+                aFrame, aTemp, aTemp->GetVisibleRect(), aIndex++));
           }
           // Override item's clipping with our current clip state (if any). Since we're
           // bubbling up a preserve-3d transformed child to a preserve-3d parent,
@@ -1775,7 +1781,8 @@ WrapPreserve3DListInternal(nsIFrame* aFrame, nsDisplayListBuilder *aBuilder, nsD
         }
         case nsDisplayItem::TYPE_OPACITY: {
           if (!aTemp->IsEmpty()) {
-            aOutput->AppendToTop(new (aBuilder) nsDisplayTransform(aBuilder, aFrame, aTemp, aIndex++));
+            aOutput->AppendToTop(new (aBuilder) nsDisplayTransform(aBuilder,
+                aFrame, aTemp, aTemp->GetVisibleRect(), aIndex++));
           }
           nsDisplayOpacity *opacity = static_cast<nsDisplayOpacity*>(item);
           nsDisplayList output;
@@ -1785,7 +1792,8 @@ WrapPreserve3DListInternal(nsIFrame* aFrame, nsDisplayListBuilder *aBuilder, nsD
           rv = WrapPreserve3DListInternal(aFrame, aBuilder,
               opacity->GetChildren(), &output, aIndex, aTemp);
           if (!aTemp->IsEmpty()) {
-            output.AppendToTop(new (aBuilder) nsDisplayTransform(aBuilder, aFrame, aTemp, aIndex++));
+            output.AppendToTop(new (aBuilder) nsDisplayTransform(aBuilder,
+                aFrame, aTemp, aTemp->GetVisibleRect(), aIndex++));
           }
           opacity->GetChildren()->AppendToTop(&output);
           opacity->UpdateBounds(aBuilder);
@@ -1795,10 +1803,12 @@ WrapPreserve3DListInternal(nsIFrame* aFrame, nsDisplayListBuilder *aBuilder, nsD
         default: {
           if (childFrame->StyleDisplay()->BackfaceIsHidden()) {
             if (!aTemp->IsEmpty()) {
-              aOutput->AppendToTop(new (aBuilder) nsDisplayTransform(aBuilder, aFrame, aTemp, aIndex++));
+              aOutput->AppendToTop(new (aBuilder) nsDisplayTransform(aBuilder,
+                  aFrame, aTemp, aTemp->GetVisibleRect(), aIndex++));
             }
 
-            aOutput->AppendToTop(new (aBuilder) nsDisplayTransform(aBuilder, childFrame, item, aIndex++));
+            aOutput->AppendToTop(new (aBuilder) nsDisplayTransform(aBuilder,
+                childFrame, item, item->GetVisibleRect(), aIndex++));
           } else {
             aTemp->AppendToTop(item);
           }
@@ -1823,15 +1833,18 @@ IsScrollFrameActive(nsIScrollableFrame* aScrollableFrame)
 }
 
 static nsresult
-WrapPreserve3DList(nsIFrame* aFrame, nsDisplayListBuilder* aBuilder, nsDisplayList *aList)
+WrapPreserve3DList(nsIFrame* aFrame, nsDisplayListBuilder* aBuilder,
+                   nsDisplayList *aList)
 {
   uint32_t index = 0;
   nsDisplayList temp;
   nsDisplayList output;
-  nsresult rv = WrapPreserve3DListInternal(aFrame, aBuilder, aList, &output, index, &temp);
+  nsresult rv = WrapPreserve3DListInternal(aFrame, aBuilder, aList, &output,
+      index, &temp);
 
   if (!temp.IsEmpty()) {
-    output.AppendToTop(new (aBuilder) nsDisplayTransform(aBuilder, aFrame, &temp, index++));
+    output.AppendToTop(new (aBuilder) nsDisplayTransform(aBuilder, aFrame,
+        &temp, temp.GetVisibleRect(), index++));
   }
 
   aList->AppendToTop(&output);
@@ -1904,6 +1917,8 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
   AutoSaveRestoreBlendMode autoRestoreBlendMode(*aBuilder);
   aBuilder->SetContainsBlendModes(BlendModeSet());
  
+  nsPoint offsetToReferenceFrame = aBuilder->ToReferenceFrame(this);
+
   if (isTransformed) {
     const nsRect overflow = GetVisualOverflowRectRelativeToSelf();
     if (aBuilder->IsForPainting() &&
@@ -1914,11 +1929,10 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
         return;
       }
 
-      nsPoint offset = aBuilder->ToReferenceFrame(this);
-      dirtyRect += offset;
-
+      dirtyRect += offsetToReferenceFrame;
       nsRect untransformedDirtyRect;
-      if (nsDisplayTransform::UntransformRect(dirtyRect, overflow, this, offset, &untransformedDirtyRect)) {
+      if (nsDisplayTransform::UntransformRect(dirtyRect, overflow, this,
+            offsetToReferenceFrame, &untransformedDirtyRect)) {
         dirtyRect = untransformedDirtyRect;
       } else {
         NS_WARNING("Unable to untransform dirty rect!");
@@ -1937,6 +1951,8 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
                         nsLayoutUtils::SCROLLABLE_SAME_DOC |
                         nsLayoutUtils::SCROLLABLE_INCLUDE_HIDDEN));
 
+  nsDisplayListBuilder::AutoBuildingDisplayList
+    buildingDisplayList(aBuilder, this, dirtyRect, true);
   DisplayListClipState::AutoSaveRestore clipState(aBuilder);
 
   if (isTransformed || useOpacity || useBlendMode || usingSVGEffects || useStickyPosition) {
@@ -1949,8 +1965,7 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
   }
 
   nsDisplayListCollection set;
-  {    
-    nsDisplayListBuilder::AutoBuildingDisplayList rootSetter(aBuilder, true);
+  {
     DisplayListClipState::AutoSaveRestore nestedClipState(aBuilder);
     nsDisplayListBuilder::AutoInTransformSetter
       inTransformSetter(aBuilder, inTransform);
@@ -1991,7 +2006,7 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
     set.PositionedDescendants()->DeleteAll();
     set.Outlines()->DeleteAll();
   }
-  
+
   // This z-order sort also sorts secondarily by content order. We need to do
   // this so that boxes produced by the same element are placed together
   // in the sort. Consider a position:relative inline element that breaks
@@ -1999,7 +2014,7 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
   // children should be z-ordered after all the boxes for the position:relative
   // element itself.
   set.PositionedDescendants()->SortByZOrder(aBuilder, GetContent());
-  
+
   nsDisplayList resultList;
   // Now follow the rules of http://www.w3.org/TR/CSS21/zindex.html
   // 1,2: backgrounds and borders
@@ -2069,8 +2084,8 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
         new (aBuilder) nsDisplayStickyPosition(aBuilder, this, &resultList));
   }
 
-  /* If we're going to apply a transformation and don't have preserve-3d set, wrap 
-   * everything in an nsDisplayTransform. If there's nothing in the list, don't add 
+  /* If we're going to apply a transformation and don't have preserve-3d set, wrap
+   * everything in an nsDisplayTransform. If there's nothing in the list, don't add
    * anything.
    *
    * For the preserve-3d case we want to individually wrap every child in the list with
@@ -2083,12 +2098,15 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
   if (isTransformed && !resultList.IsEmpty()) {
     // Restore clip state now so nsDisplayTransform is clipped properly.
     clipState.Restore();
+    // Revert to the dirtyrect coming in from the parent, without our transform
+    // taken into account.
+    buildingDisplayList.SetDirtyRect(aDirtyRect + offsetToReferenceFrame);
 
     if (Preserves3DChildren()) {
       WrapPreserve3DList(this, aBuilder, &resultList);
     } else {
       resultList.AppendNewToTop(
-        new (aBuilder) nsDisplayTransform(aBuilder, this, &resultList));
+        new (aBuilder) nsDisplayTransform(aBuilder, this, &resultList, dirtyRect));
     }
   }
 
@@ -2282,15 +2300,8 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
   NS_ASSERTION(!isStackingContext || pseudoStackingContext,
                "Stacking contexts must also be pseudo-stacking-contexts");
 
-  bool isInFixedPos = aBuilder->IsInFixedPos() ||
-                        (isPositioned &&
-                         disp->mPosition == NS_STYLE_POSITION_FIXED &&
-                         nsLayoutUtils::IsReallyFixedPos(child));
-  nsDisplayListBuilder::AutoInFixedPosSetter
-    buildingInFixedPos(aBuilder, isInFixedPos);
-
   nsDisplayListBuilder::AutoBuildingDisplayList
-    buildingForChild(aBuilder, child, pseudoStackingContext);
+    buildingForChild(aBuilder, child, dirty, pseudoStackingContext);
   DisplayListClipState::AutoClipMultiple clipState(aBuilder);
   CheckForTouchEventHandler(aBuilder, child);
 
@@ -4139,7 +4150,7 @@ nsFrame::ComputeSize(nsRenderingContext *aRenderingContext,
     bool canOverride = true;
     nsPresContext *presContext = PresContext();
     presContext->GetTheme()->
-      GetMinimumWidgetSize(aRenderingContext, this, disp->mAppearance,
+      GetMinimumWidgetSize(presContext, this, disp->mAppearance,
                            &widget, &canOverride);
 
     nsSize size;
@@ -4958,10 +4969,10 @@ nsIFrame::TryUpdateTransformOnly(Layer** aLayerResult)
  static const gfx::Float kError = 0.0001f;
   if (!transform3d.Is2D(&transform) ||
       !layer->GetBaseTransform().Is2D(&previousTransform) ||
-      !gfx::FuzzyEqual(transform.xx, previousTransform._11, kError) ||
-      !gfx::FuzzyEqual(transform.yy, previousTransform._22, kError) ||
-      !gfx::FuzzyEqual(transform.xy, previousTransform._21, kError) ||
-      !gfx::FuzzyEqual(transform.yx, previousTransform._12, kError)) {
+      !gfx::FuzzyEqual(transform._11, previousTransform._11, kError) ||
+      !gfx::FuzzyEqual(transform._22, previousTransform._22, kError) ||
+      !gfx::FuzzyEqual(transform._21, previousTransform._21, kError) ||
+      !gfx::FuzzyEqual(transform._12, previousTransform._12, kError)) {
     return false;
   }
   gfx::Matrix4x4 matrix;
@@ -5225,6 +5236,12 @@ nsIFrame::GetScrollableOverflowRectRelativeToParent() const
 }
 
 nsRect
+nsIFrame::GetVisualOverflowRectRelativeToParent() const
+{
+  return GetVisualOverflowRect() + mRect.TopLeft();
+}
+
+nsRect
 nsIFrame::GetScrollableOverflowRectRelativeToSelf() const
 {
   if (IsTransformed()) {
@@ -5313,7 +5330,7 @@ nsFrame::IsFrameTreeTooDeep(const nsHTMLReflowState& aReflowState,
     ClearOverflowRects();
     aMetrics.Width() = 0;
     aMetrics.Height() = 0;
-    aMetrics.SetTopAscent(0);
+    aMetrics.SetBlockStartAscent(0);
     aMetrics.mCarriedOutBottomMargin.Zero();
     aMetrics.mOverflowAreas.Clear();
 
@@ -7087,14 +7104,15 @@ ComputeAndIncludeOutlineArea(nsIFrame* aFrame, nsOverflowAreas& aOverflowAreas,
                              const nsSize& aNewSize)
 {
   const nsStyleOutline* outline = aFrame->StyleOutline();
-  if (outline->GetOutlineStyle() == NS_STYLE_BORDER_STYLE_NONE) {
+  const uint8_t outlineStyle = outline->GetOutlineStyle();
+  if (outlineStyle == NS_STYLE_BORDER_STYLE_NONE) {
     return;
   }
 
   nscoord width;
   DebugOnly<bool> result = outline->GetOutlineWidth(width);
   NS_ASSERTION(result, "GetOutlineWidth had no cached outline width");
-  if (width <= 0) {
+  if (width <= 0 && outlineStyle != NS_STYLE_BORDER_STYLE_AUTO) {
     return;
   }
 
@@ -7148,19 +7166,33 @@ ComputeAndIncludeOutlineArea(nsIFrame* aFrame, nsOverflowAreas& aOverflowAreas,
     }
   }
 
+  // Keep this code in sync with GetOutlineInnerRect in nsCSSRendering.cpp.
   aFrame->Properties().Set(nsIFrame::OutlineInnerRectProperty(),
                            new nsRect(innerRect));
-
-  nscoord offset = outline->mOutlineOffset;
-  nscoord inflateBy = std::max(width + offset, 0);
-
-  // Keep this code (and the storing of properties just above) in
-  // sync with GetOutlineInnerRect in nsCSSRendering.cpp.
+  const nscoord offset = outline->mOutlineOffset;
   nsRect outerRect(innerRect);
-  outerRect.Inflate(inflateBy, inflateBy);
+  bool useOutlineAuto = false;
+  if (nsLayoutUtils::IsOutlineStyleAutoEnabled()) {
+    useOutlineAuto = outlineStyle == NS_STYLE_BORDER_STYLE_AUTO;
+    if (MOZ_UNLIKELY(useOutlineAuto)) {
+      nsPresContext* presContext = aFrame->PresContext();
+      nsITheme* theme = presContext->GetTheme();
+      if (theme && theme->ThemeSupportsWidget(presContext, aFrame,
+                                              NS_THEME_FOCUS_OUTLINE)) {
+        outerRect.Inflate(offset);
+        theme->GetWidgetOverflow(presContext->DeviceContext(), aFrame,
+                                 NS_THEME_FOCUS_OUTLINE, &outerRect);
+      } else {
+        useOutlineAuto = false;
+      }
+    }
+  }
+  if (MOZ_LIKELY(!useOutlineAuto)) {
+    outerRect.Inflate(width + offset);
+  }
 
   nsRect& vo = aOverflowAreas.VisualOverflow();
-  vo.UnionRectEdges(vo, outerRect);
+  vo.UnionRectEdges(vo, innerRect.Union(outerRect));
 }
 
 bool
@@ -7899,11 +7931,13 @@ nsFrame::RefreshSizeCache(nsBoxLayoutState& aState)
 
     metrics->mBlockPrefSize.height = metrics->mBlockMinSize.height;
 
-    if (desiredSize.TopAscent() == nsHTMLReflowMetrics::ASK_FOR_BASELINE) {
-      if (!nsLayoutUtils::GetFirstLineBaseline(this, &metrics->mBlockAscent))
-        metrics->mBlockAscent = GetBaseline();
+    if (desiredSize.BlockStartAscent() ==
+        nsHTMLReflowMetrics::ASK_FOR_BASELINE) {
+      if (!nsLayoutUtils::GetFirstLineBaseline(wm, this,
+                                               &metrics->mBlockAscent))
+        metrics->mBlockAscent = GetLogicalBaseline(wm);
     } else {
-      metrics->mBlockAscent = desiredSize.TopAscent();
+      metrics->mBlockAscent = desiredSize.BlockStartAscent();
     }
 
 #ifdef DEBUG_adaptor
@@ -8178,7 +8212,7 @@ nsFrame::BoxReflow(nsBoxLayoutState&        aState,
          needsReflow = true;
       }
   }
-                             
+
   // ok now reflow the child into the spacers calculated space
   if (needsReflow) {
 
@@ -8329,15 +8363,17 @@ nsFrame::BoxReflow(nsBoxLayoutState&        aState,
     if (IsCollapsed()) {
       metrics->mAscent = 0;
     } else {
-      if (aDesiredSize.TopAscent() == nsHTMLReflowMetrics::ASK_FOR_BASELINE) {
-        if (!nsLayoutUtils::GetFirstLineBaseline(this, &metrics->mAscent))
-          metrics->mAscent = GetBaseline();
+      if (aDesiredSize.BlockStartAscent() ==
+          nsHTMLReflowMetrics::ASK_FOR_BASELINE) {
+        WritingMode wm = aDesiredSize.GetWritingMode();
+        if (!nsLayoutUtils::GetFirstLineBaseline(wm, this, &metrics->mAscent))
+          metrics->mAscent = GetLogicalBaseline(wm);
       } else
-        metrics->mAscent = aDesiredSize.TopAscent();
+        metrics->mAscent = aDesiredSize.BlockStartAscent();
     }
 
   } else {
-    aDesiredSize.SetTopAscent(metrics->mBlockAscent);
+    aDesiredSize.SetBlockStartAscent(metrics->mBlockAscent);
   }
 
 #ifdef DEBUG_REFLOW

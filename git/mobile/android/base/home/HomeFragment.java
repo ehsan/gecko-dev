@@ -5,6 +5,8 @@
 
 package org.mozilla.gecko.home;
 
+import org.json.JSONException;
+import org.json.JSONObject;
 import org.mozilla.gecko.EditBookmarkDialog;
 import org.mozilla.gecko.GeckoApp;
 import org.mozilla.gecko.GeckoAppShell;
@@ -44,7 +46,7 @@ import android.widget.Toast;
 
 /**
  * HomeFragment is an empty fragment that can be added to the HomePager.
- * Subclasses can add their own views. 
+ * Subclasses can add their own views.
  */
 abstract class HomeFragment extends Fragment {
     // Log Tag.
@@ -96,7 +98,7 @@ abstract class HomeFragment extends Fragment {
 
         menu.setHeaderTitle(info.getDisplayTitle());
 
-        // Hide ununsed menu items.
+        // Hide unused menu items.
         menu.findItem(R.id.top_sites_edit).setVisible(false);
         menu.findItem(R.id.top_sites_pin).setVisible(false);
         menu.findItem(R.id.top_sites_unpin).setVisible(false);
@@ -112,10 +114,9 @@ abstract class HomeFragment extends Fragment {
             menu.findItem(R.id.home_remove).setVisible(false);
         }
 
-        menu.findItem(R.id.home_share).setVisible(!GeckoProfile.get(getActivity()).inGuestMode());
-
-        final boolean canOpenInReader = (info.display == Combined.DISPLAY_READER);
-        menu.findItem(R.id.home_open_in_reader).setVisible(canOpenInReader);
+        if (!StringUtils.isShareableUrl(info.url) || GeckoProfile.get(getActivity()).inGuestMode()) {
+            menu.findItem(R.id.home_share).setVisible(false);
+        }
     }
 
     @Override
@@ -193,25 +194,32 @@ abstract class HomeFragment extends Fragment {
             // Some pinned site items have "user-entered" urls. URLs entered in the PinSiteDialog are wrapped in
             // a special URI until we can get a valid URL. If the url is a user-entered url, decode the URL before loading it.
             final Tab newTab = Tabs.getInstance().loadUrl(StringUtils.decodeUserEnteredUrl(url), flags);
+            final int newTabId = newTab.getId(); // We don't want to hold a reference to the Tab.
+
             final String message = isPrivate ?
                     getResources().getString(R.string.new_private_tab_opened) :
                     getResources().getString(R.string.new_tab_opened);
-            // Bug 1023407: ButtonToasts interact badly with touch events, blocking interaction with
-            // the rest of the system until the ButtonToast expires or is otherwise dismissed (Bug
-            // 1019735). Until this is fixed, we'll just use regular system Toasts.
-            Toast.makeText(context, message, Toast.LENGTH_SHORT).show();
+            final String buttonMessage = getResources().getString(R.string.switch_button_message);
+            final GeckoApp geckoApp = (GeckoApp) context;
+            geckoApp.getButtonToast().show(false,
+                    message,
+                    buttonMessage,
+                    R.drawable.switch_button_icon,
+                    new ButtonToast.ToastListener() {
+                        @Override
+                        public void onButtonClicked() {
+                            Tabs.getInstance().selectTab(newTabId);
+                        }
+
+                        @Override
+                        public void onToastHidden(ButtonToast.ReasonHidden reason) { }
+                    });
             return true;
         }
 
         if (itemId == R.id.home_edit_bookmark) {
             // UI Dialog associates to the activity context, not the applications'.
             new EditBookmarkDialog(context).show(info.url);
-            return true;
-        }
-
-        if (itemId == R.id.home_open_in_reader) {
-            final String url = ReaderModeUtils.getAboutReaderForUrl(info.url);
-            Tabs.getInstance().loadUrl(url, Tabs.LOADURL_NONE);
             return true;
         }
 
@@ -313,7 +321,16 @@ abstract class HomeFragment extends Fragment {
             BrowserDB.removeHistoryEntry(cr, mUrl);
 
             BrowserDB.removeReadingListItemWithURL(cr, mUrl);
-            GeckoEvent e = GeckoEvent.createBroadcastEvent("Reader:Remove", mUrl);
+
+            final JSONObject json = new JSONObject();
+            try {
+                json.put("url", mUrl);
+                json.put("notify", false);
+            } catch (JSONException e) {
+                Log.e(LOGTAG, "error building JSON arguments");
+            }
+
+            GeckoEvent e = GeckoEvent.createBroadcastEvent("Reader:Remove", json.toString());
             GeckoAppShell.sendEventToGecko(e);
 
             return null;

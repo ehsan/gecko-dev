@@ -58,6 +58,30 @@ mozilla::RefPtr<VideoSessionConduit> VideoSessionConduit::Create(VideoSessionCon
   return obj;
 }
 
+WebrtcVideoConduit::WebrtcVideoConduit():
+  mOtherDirection(nullptr),
+  mShutDown(false),
+  mVideoEngine(nullptr),
+  mTransport(nullptr),
+  mRenderer(nullptr),
+  mPtrExtCapture(nullptr),
+  mEngineTransmitting(false),
+  mEngineReceiving(false),
+  mChannel(-1),
+  mCapId(-1),
+  mCurSendCodecConfig(nullptr),
+  mSendingWidth(0),
+  mSendingHeight(0),
+  mReceivingWidth(640),
+  mReceivingHeight(480),
+  mVideoLatencyTestEnable(false),
+  mVideoLatencyAvg(0),
+  mMinBitrate(200),
+  mStartBitrate(300),
+  mMaxBitrate(2000)
+{
+}
+
 WebrtcVideoConduit::~WebrtcVideoConduit()
 {
   NS_ASSERTION(NS_IsMainThread(), "Only call on main thread");
@@ -988,6 +1012,7 @@ WebrtcVideoConduit::SetExternalSendCodec(VideoCodecConfig* config,
                                               config->mType,
                                               static_cast<WebrtcVideoEncoder*>(encoder),
                                               false)) {
+    mExternalSendCodecHandle = encoder;
     mExternalSendCodec = new VideoCodecConfig(*config);
     return kMediaConduitNoError;
   }
@@ -1000,6 +1025,7 @@ WebrtcVideoConduit::SetExternalRecvCodec(VideoCodecConfig* config,
   if (!mPtrExtCodec->RegisterExternalReceiveCodec(mChannel,
                                                   config->mType,
                                                   static_cast<WebrtcVideoDecoder*>(decoder))) {
+    mExternalRecvCodecHandle = decoder;
     mExternalRecvCodec = new VideoCodecConfig(*config);
     return kMediaConduitNoError;
   }
@@ -1262,6 +1288,9 @@ WebrtcVideoConduit::CodecConfigToWebRTCCodec(const VideoCodecConfig* codecInfo,
   } else if (codecInfo->mName == "I420") {
     cinst.codecType = webrtc::kVideoCodecI420;
     PL_strncpyz(cinst.plName, "I420", sizeof(cinst.plName));
+  } else {
+    cinst.codecType = webrtc::kVideoCodecUnknown;
+    PL_strncpyz(cinst.plName, "Unknown", sizeof(cinst.plName));
   }
 
   // width/height will be overridden on the first frame; they must be 'sane' for
@@ -1407,6 +1436,17 @@ uint64_t
 WebrtcVideoConduit::MozVideoLatencyAvg()
 {
   return mVideoLatencyAvg / sRoundingPadding;
+}
+
+uint64_t
+WebrtcVideoConduit::CodecPluginID()
+{
+  if (mExternalSendCodecHandle) {
+    return mExternalSendCodecHandle->PluginID();
+  } else if (mExternalRecvCodecHandle) {
+    return mExternalRecvCodecHandle->PluginID();
+  }
+  return 0;
 }
 
 }// end namespace

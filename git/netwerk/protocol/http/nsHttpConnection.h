@@ -43,6 +43,8 @@ class nsHttpConnection : public nsAHttpSegmentReader
                        , public nsIInterfaceRequestor
                        , public NudgeTunnelCallback
 {
+    virtual ~nsHttpConnection();
+
 public:
     NS_DECL_THREADSAFE_ISUPPORTS
     NS_DECL_NSAHTTPSEGMENTREADER
@@ -54,7 +56,6 @@ public:
     NS_DECL_NUDGETUNNELCALLBACK
 
     nsHttpConnection();
-    virtual ~nsHttpConnection();
 
     // Initialize the connection:
     //  info        - specifies the connection parameters.
@@ -198,6 +199,9 @@ public:
                                       nsACString &result);
     void    SetupSecondaryTLS();
     void    SetInSpdyTunnel(bool arg);
+
+    // Returns true if the socket peer has a private (RFC1918-like) address.
+    bool    PeerHasPrivateIP();
 
 private:
     // Value (set in mTCPKeepaliveConfig) indicates which set of prefs to use.

@@ -336,7 +336,7 @@ nsImageBoxFrame::PaintImage(nsRenderingContext& aRenderingContext,
 
   if (imgCon) {
     bool hasSubRect = !mUseSrcAttr && (mSubRect.width > 0 || mSubRect.height > 0);
-    nsLayoutUtils::DrawSingleImage(&aRenderingContext, imgCon,
+    nsLayoutUtils::DrawSingleImage(&aRenderingContext, PresContext(), imgCon,
         nsLayoutUtils::GetGraphicsFilterForFrame(this),
         rect, dirty, nullptr, aFlags, hasSubRect ? &mSubRect : nullptr);
   }
@@ -406,8 +406,6 @@ nsDisplayXULImage::ConfigureLayer(ImageLayer* aLayer, const nsIntPoint& aOffset)
   transform.Scale(destRect.Width()/imageWidth,
                   destRect.Height()/imageHeight);
   aLayer->SetBaseTransform(gfx::Matrix4x4::From2D(transform));
-
-  aLayer->SetVisibleRegion(nsIntRect(0, 0, imageWidth, imageHeight));
 }
 
 already_AddRefed<ImageContainer>

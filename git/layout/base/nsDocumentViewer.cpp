@@ -21,7 +21,6 @@
 #include "nsPresContext.h"
 #include "nsIPresShell.h"
 #include "nsStyleSet.h"
-#include "nsCSSStyleSheet.h"
 #include "nsIFrame.h"
 #include "nsIWritablePropertyBag2.h"
 #include "nsSubDocumentFrame.h"
@@ -49,6 +48,7 @@
 #include "nsNetUtil.h"
 #include "nsIContentViewerEdit.h"
 #include "nsIContentViewerFile.h"
+#include "mozilla/CSSStyleSheet.h"
 #include "mozilla/css/Loader.h"
 #include "nsIMarkupDocumentViewer.h"
 #include "nsIInterfaceRequestor.h"
@@ -180,11 +180,11 @@ public:
                        {
                        }
 
-  virtual              ~nsDocViewerSelectionListener() {}
-
   nsresult             Init(nsDocumentViewer *aDocViewer);
 
 protected:
+
+  virtual              ~nsDocViewerSelectionListener() {}
 
   nsDocumentViewer*  mDocViewer;
   bool                 mGotSelectionState;
@@ -201,14 +201,16 @@ public:
   /** default constructor
    */
   nsDocViewerFocusListener();
-  /** default destructor
-   */
-  virtual ~nsDocViewerFocusListener();
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSIDOMEVENTLISTENER
 
   nsresult             Init(nsDocumentViewer *aDocViewer);
+
+protected:
+  /** default destructor
+   */
+  virtual ~nsDocViewerFocusListener();
 
 private:
     nsDocumentViewer*  mDocViewer;
@@ -1375,6 +1377,7 @@ AttachContainerRecurse(nsIDocShell* aShell)
   nsCOMPtr<nsIContentViewer> viewer;
   aShell->GetContentViewer(getter_AddRefs(viewer));
   if (viewer) {
+    viewer->SetIsHidden(false);
     nsIDocument* doc = viewer->GetDocument();
     if (doc) {
       doc->SetContainer(static_cast<nsDocShell*>(aShell));
@@ -2215,7 +2218,7 @@ nsDocumentViewer::CreateStyleSet(nsIDocument* aDocument,
   }
 
   // Handle the user sheets.
-  nsCSSStyleSheet* sheet = nullptr;
+  CSSStyleSheet* sheet = nullptr;
   if (nsContentUtils::IsInChromeDocshell(aDocument)) {
     sheet = nsLayoutStylesheetCache::UserChromeSheet();
   }
@@ -2233,7 +2236,7 @@ nsDocumentViewer::CreateStyleSet(nsIDocument* aDocument,
   nsCOMPtr<nsIDocShell> ds(mContainer);
   nsCOMPtr<nsIDOMEventTarget> chromeHandler;
   nsCOMPtr<nsIURI> uri;
-  nsRefPtr<nsCSSStyleSheet> csssheet;
+  nsRefPtr<CSSStyleSheet> csssheet;
 
   if (ds) {
     ds->GetChromeEventHandler(getter_AddRefs(chromeHandler));
@@ -2302,8 +2305,8 @@ nsDocumentViewer::CreateStyleSet(nsIDocument* aDocument,
 
     // Make sure to clone the quirk sheet so that it can be usefully
     // enabled/disabled as needed.
-    nsRefPtr<nsCSSStyleSheet> quirkClone;
-    nsCSSStyleSheet* quirkSheet;
+    nsRefPtr<CSSStyleSheet> quirkClone;
+    CSSStyleSheet* quirkSheet;
     if (!nsLayoutStylesheetCache::UASheet() ||
         !(quirkSheet = nsLayoutStylesheetCache::QuirkSheet()) ||
         !(quirkClone = quirkSheet->Clone(nullptr, nullptr, nullptr, nullptr)) ||
@@ -2329,6 +2332,11 @@ nsDocumentViewer::CreateStyleSet(nsIDocument* aDocument,
     if (sheet) {
       // Load the minimal XUL rules for scrollbars and a few other XUL things
       // that non-XUL (typically HTML) documents commonly use.
+      styleSet->PrependStyleSheet(nsStyleSet::eAgentSheet, sheet);
+    }
+
+    sheet = nsLayoutStylesheetCache::CounterStylesSheet();
+    if (sheet) {
       styleSet->PrependStyleSheet(nsStyleSet::eAgentSheet, sheet);
     }
 
@@ -4407,6 +4415,13 @@ NS_IMETHODIMP
 nsDocumentViewer::GetIsHidden(bool *aHidden)
 {
   *aHidden = mHidden;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDocumentViewer::SetIsHidden(bool aHidden)
+{
+  mHidden = aHidden;
   return NS_OK;
 }
 

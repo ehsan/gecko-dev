@@ -444,13 +444,6 @@ nsSubDocumentFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     haveDisplayPort ||
     presContext->IsRootContentDocument() || (sf && sf->IsScrollingActive());
 
-  // Don't let in fixed pos propagate down to child documents. This makes
-  // it a little less effective but doesn't regress an important case of a
-  // child document being in a fixed pos element where we would do no occlusion
-  // at all if we let it propagate down.
-  nsDisplayListBuilder::AutoInFixedPosSetter
-    buildingInFixedPos(aBuilder, false);
-
   nsDisplayList childItems;
 
   {
@@ -464,10 +457,11 @@ nsSubDocumentFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     }
 
     if (subdocRootFrame) {
+      nsIFrame* rootScrollFrame = presShell->GetRootScrollFrame();
       nsDisplayListBuilder::AutoCurrentScrollParentIdSetter idSetter(
           aBuilder,
-          ignoreViewportScrolling && subdocRootFrame->GetContent()
-              ? nsLayoutUtils::FindOrCreateIDFor(subdocRootFrame->GetContent())
+          ignoreViewportScrolling && rootScrollFrame && rootScrollFrame->GetContent()
+              ? nsLayoutUtils::FindOrCreateIDFor(rootScrollFrame->GetContent())
               : aBuilder->GetCurrentScrollParentId());
 
       aBuilder->SetAncestorHasTouchEventHandler(false);
@@ -1004,7 +998,7 @@ BeginSwapDocShellsForDocument(nsIDocument* aDocument, void*)
       ::DestroyDisplayItemDataForFrames(rootFrame);
     }
   }
-  aDocument->EnumerateFreezableElements(
+  aDocument->EnumerateActivityObservers(
     nsObjectFrame::BeginSwapDocShells, nullptr);
   aDocument->EnumerateSubDocuments(BeginSwapDocShellsForDocument, nullptr);
   return true;
@@ -1101,7 +1095,7 @@ EndSwapDocShellsForDocument(nsIDocument* aDocument, void*)
     }
   }
 
-  aDocument->EnumerateFreezableElements(
+  aDocument->EnumerateActivityObservers(
     nsObjectFrame::EndSwapDocShells, nullptr);
   aDocument->EnumerateSubDocuments(EndSwapDocShellsForDocument, nullptr);
   return true;

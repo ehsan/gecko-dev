@@ -351,27 +351,10 @@ AlreadyShutdownError.prototype.constructor = AlreadyShutdownError;
  */
 
 Experiments.Experiments = function (policy=new Experiments.Policy()) {
-  let log = Log.repository.getLoggerWithMessagePrefix(
-      "Browser.Experiments.Experiments",
-      "Experiments #" + gExperimentsCounter++ + "::");
-
-  // At the time of this writing, Experiments.jsm has severe
-  // crashes. For forensics purposes, keep the last few log
-  // messages in memory and upload them in case of crash.
-  this._forensicsLogs = [];
-  this._forensicsLogs.length = 3;
-  this._log = Object.create(log);
-  this._log.log = (level, string, params) => {
-    this._forensicsLogs.shift();
-    this._forensicsLogs.push(level + ": " + string);
-    log.log(level, string, params);
-  };
-
+  this._log = Log.repository.getLoggerWithMessagePrefix(
+    "Browser.Experiments.Experiments",
+    "Experiments #" + gExperimentsCounter++ + "::");
   this._log.trace("constructor");
-
-  // Capture the latest error, for forensics purposes.
-  this._latestError = null;
-
 
   this._policy = policy;
 
@@ -422,9 +405,7 @@ Experiments.Experiments.prototype = {
 
     gPrefsTelemetry.observe(PREF_TELEMETRY_ENABLED, this._telemetryStatusChanged, this);
 
-    AddonManager.shutdown.addBlocker("Experiments.jsm shutdown",
-                                     this.uninit.bind(this),
-                                     this._getState.bind(this));
+    AddonManager.shutdown.addBlocker("Experiments.jsm shutdown", this.uninit.bind(this));
 
     this._registerWithAddonManager();
 
@@ -438,7 +419,6 @@ Experiments.Experiments.prototype = {
       },
       (e) => {
         this._log.error("_loadFromCache caught error: " + e);
-        this._latestError = e;
         throw e;
       }
     );
@@ -482,43 +462,11 @@ Experiments.Experiments.prototype = {
         yield this._mainTask;
       } catch (e if e instanceof AlreadyShutdownError) {
         // We error out of tasks after shutdown via that exception.
-      } catch (e) {
-        this._latestError = e;
-        throw e;
       }
     }
 
     this._log.info("Completed uninitialization.");
   }),
-
-  // Return state information, for debugging purposes.
-  _getState: function() {
-    let state = {
-      isShutdown: this._shutdown,
-      isEnabled: gExperimentsEnabled,
-      isRefresh: this._refresh,
-      isDirty: this._dirty,
-      isFirstEvaluate: this._firstEvaluate,
-      hasLoadTask: !!this._loadTask,
-      hasMainTask: !!this._mainTask,
-      hasTimer: !!this._hasTimer,
-      hasAddonProvider: !!gAddonProvider,
-      latestLogs: this._forensicsLogs,
-      experiments: this._experiments.keys(),
-      terminateReason: this._terminateReason,
-    };
-    if (this._latestError) {
-      if (typeof this._latestError == "object") {
-        state.latestError = {
-          message: this._latestError.message,
-          stack: this._latestError.stack
-        };
-      } else {
-        state.latestError = "" + this._latestError;
-      }
-    }
-    return state;
-  },
 
   _registerWithAddonManager: function (previousExperimentsProvider) {
     this._log.trace("Registering instance with Addon Manager.");
@@ -545,19 +493,12 @@ Experiments.Experiments.prototype = {
 
   _unregisterWithAddonManager: function () {
     this._log.trace("Unregistering instance with Addon Manager.");
-
-    this._log.trace("Removing install listener from add-on manager.");
     AddonManager.removeInstallListener(this);
-    this._log.trace("Removing addon listener from add-on manager.");
     AddonManager.removeAddonListener(this);
-
     if (gAddonProvider) {
-      this._log.trace("Unregistering previous experiment add-on provider.");
       AddonManagerPrivate.unregisterProvider(gAddonProvider);
       gAddonProvider = null;
     }
-
-    this._log.trace("Finished unregistering with addon manager.");
   },
 
   /*
@@ -1645,7 +1586,7 @@ Experiments.ExperimentEntry.prototype = {
       { name: "endTime",
         condition: () => now < data.endTime },
       { name: "maxStartTime",
-        condition: () => !data.maxStartTime || now <= data.maxStartTime },
+        condition: () => this._startDate || !data.maxStartTime || now <= data.maxStartTime },
       { name: "maxActiveSeconds",
         condition: () => !this._startDate || now <= (startSec + maxActive) },
       { name: "appName",
@@ -1702,7 +1643,7 @@ Experiments.ExperimentEntry.prototype = {
         wantComponents: false,
       };
 
-      let sandbox = Cu.Sandbox(nullprincipal);
+      let sandbox = Cu.Sandbox(nullprincipal, options);
       try {
         Cu.evalInSandbox(jsfilter, sandbox);
       } catch (e) {

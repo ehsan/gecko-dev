@@ -35,13 +35,14 @@ namespace net {
         // 25 was spdy/4a2
         // 26 was http/2-draft08 and http/2-draft07 (they were the same)
         // 27 was http/2-draft09, h2-10, and h2-11
-        HTTP2_VERSION_DRAFT12 = 28
+        // 28 was http/2-draft12
+        HTTP2_VERSION_DRAFT13 = 29
     };
 
 typedef uint8_t nsHttpVersion;
 
-#define NS_HTTP2_DRAFT_VERSION HTTP2_VERSION_DRAFT12
-#define NS_HTTP2_DRAFT_TOKEN "h2-12"
+#define NS_HTTP2_DRAFT_VERSION HTTP2_VERSION_DRAFT13
+#define NS_HTTP2_DRAFT_TOKEN "h2-13"
 
 //-----------------------------------------------------------------------------
 // http connection capabilities
@@ -81,6 +82,9 @@ typedef uint8_t nsHttpVersion;
 // These flags allow a transaction to use TLS false start with
 // weaker security profiles based on past history
 #define NS_HTTP_ALLOW_RSA_FALSESTART (1<<9)
+
+// Allows a transaction to use a connection to a private, RFC1918-like address.
+#define NS_HTTP_ALLOW_PRIVATE_IP_ADDRESSES (1<<10)
 
 //-----------------------------------------------------------------------------
 // some default values

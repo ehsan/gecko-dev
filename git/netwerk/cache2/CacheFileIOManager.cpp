@@ -538,11 +538,13 @@ public:
     MOZ_COUNT_CTOR(ShutdownEvent);
   }
 
+protected:
   ~ShutdownEvent()
   {
     MOZ_COUNT_DTOR(ShutdownEvent);
   }
 
+public:
   NS_IMETHOD Run()
   {
     MutexAutoLock lock(*mLock);
@@ -582,11 +584,13 @@ public:
     MOZ_EVENT_TRACER_WAIT(static_cast<nsIRunnable*>(this), "net::cache::open-background");
   }
 
+protected:
   ~OpenFileEvent()
   {
     MOZ_COUNT_DTOR(OpenFileEvent);
   }
 
+public:
   NS_IMETHOD Run()
   {
     if (mResultOnAnyThread || mTarget) {
@@ -674,11 +678,13 @@ public:
     MOZ_EVENT_TRACER_WAIT(static_cast<nsIRunnable*>(this), "net::cache::read-background");
   }
 
+protected:
   ~ReadEvent()
   {
     MOZ_COUNT_DTOR(ReadEvent);
   }
 
+public:
   NS_IMETHOD Run()
   {
     if (mResultOnAnyThread || mTarget) {
@@ -739,6 +745,7 @@ public:
     MOZ_EVENT_TRACER_WAIT(static_cast<nsIRunnable*>(this), "net::cache::write-background");
   }
 
+protected:
   ~WriteEvent()
   {
     MOZ_COUNT_DTOR(WriteEvent);
@@ -748,6 +755,7 @@ public:
     }
   }
 
+public:
   NS_IMETHOD Run()
   {
     if (mTarget) {
@@ -803,11 +811,13 @@ public:
     MOZ_EVENT_TRACER_WAIT(static_cast<nsIRunnable*>(this), "net::cache::doom-background");
   }
 
+protected:
   ~DoomFileEvent()
   {
     MOZ_COUNT_DTOR(DoomFileEvent);
   }
 
+public:
   NS_IMETHOD Run()
   {
     if (mTarget) {
@@ -858,11 +868,13 @@ public:
     MOZ_ASSERT(mTarget);
   }
 
+protected:
   ~DoomFileByKeyEvent()
   {
     MOZ_COUNT_DTOR(DoomFileByKeyEvent);
   }
 
+public:
   NS_IMETHOD Run()
   {
     if (mTarget) {
@@ -900,11 +912,13 @@ public:
     MOZ_COUNT_CTOR(ReleaseNSPRHandleEvent);
   }
 
+protected:
   ~ReleaseNSPRHandleEvent()
   {
     MOZ_COUNT_DTOR(ReleaseNSPRHandleEvent);
   }
 
+public:
   NS_IMETHOD Run()
   {
     if (mHandle->mFD && !mHandle->IsClosed()) {
@@ -932,11 +946,13 @@ public:
     mTarget = static_cast<nsIEventTarget*>(NS_GetCurrentThread());
   }
 
+protected:
   ~TruncateSeekSetEOFEvent()
   {
     MOZ_COUNT_DTOR(TruncateSeekSetEOFEvent);
   }
 
+public:
   NS_IMETHOD Run()
   {
     if (mTarget) {
@@ -980,11 +996,13 @@ public:
     mTarget = static_cast<nsIEventTarget*>(NS_GetCurrentThread());
   }
 
+protected:
   ~RenameFileEvent()
   {
     MOZ_COUNT_DTOR(RenameFileEvent);
   }
 
+public:
   NS_IMETHOD Run()
   {
     if (mTarget) {
@@ -1026,11 +1044,13 @@ public:
     MOZ_COUNT_CTOR(InitIndexEntryEvent);
   }
 
+protected:
   ~InitIndexEntryEvent()
   {
     MOZ_COUNT_DTOR(InitIndexEntryEvent);
   }
 
+public:
   NS_IMETHOD Run()
   {
     if (mHandle->IsClosed() || mHandle->IsDoomed()) {
@@ -1075,11 +1095,13 @@ public:
     }
   }
 
+protected:
   ~UpdateIndexEntryEvent()
   {
     MOZ_COUNT_DTOR(UpdateIndexEntryEvent);
   }
 
+public:
   NS_IMETHOD Run()
   {
     if (mHandle->IsClosed() || mHandle->IsDoomed()) {
@@ -1979,6 +2001,23 @@ CacheFileIOManager::WriteInternal(CacheFileHandle *aHandle, int64_t aOffset,
     return NS_ERROR_NOT_AVAILABLE;
   }
 
+  // Check whether this write would cause critical low disk space.
+  if (aHandle->mFileSize < aOffset + aCount) {
+    int64_t freeSpace = -1;
+    rv = mCacheDirectory->GetDiskSpaceAvailable(&freeSpace);
+    if (NS_WARN_IF(NS_FAILED(rv))) {
+      LOG(("CacheFileIOManager::WriteInternal() - GetDiskSpaceAvailable() "
+           "failed! [rv=0x%08x]", rv));
+    } else {
+      uint32_t limit = CacheObserver::DiskFreeSpaceHardLimit();
+      if (freeSpace - aOffset - aCount + aHandle->mFileSize < limit) {
+        LOG(("CacheFileIOManager::WriteInternal() - Low free space, refusing "
+             "to write! [freeSpace=%lld, limit=%u]", freeSpace, limit));
+        return NS_ERROR_FILE_DISK_FULL;
+      }
+    }
+  }
+
   // Write invalidates the entry by default
   aHandle->mInvalid = true;
 
@@ -2554,16 +2593,31 @@ CacheFileIOManager::EvictIfOverLimitInternal()
     return NS_OK;
   }
 
-  UpdateSmartCacheSize();
+  int64_t freeSpace;
+  rv = mCacheDirectory->GetDiskSpaceAvailable(&freeSpace);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    freeSpace = -1;
+
+    // Do not change smart size.
+    LOG(("CacheFileIOManager::EvictIfOverLimitInternal() - "
+         "GetDiskSpaceAvailable() failed! [rv=0x%08x]", rv));
+  } else {
+    UpdateSmartCacheSize(freeSpace);
+  }
 
   uint32_t cacheUsage;
   rv = CacheIndex::GetCacheSize(&cacheUsage);
   NS_ENSURE_SUCCESS(rv, rv);
 
   uint32_t cacheLimit = CacheObserver::DiskCacheCapacity() >> 10;
-  if (cacheUsage <= cacheLimit) {
-    LOG(("CacheFileIOManager::EvictIfOverLimitInternal() - Cache size under "
-         "limit. [cacheSize=%u, limit=%u]", cacheUsage, cacheLimit));
+  uint32_t freeSpaceLimit = CacheObserver::DiskFreeSpaceSoftLimit();
+
+  if (cacheUsage <= cacheLimit &&
+      (freeSpace == -1 || freeSpace >= freeSpaceLimit)) {
+    LOG(("CacheFileIOManager::EvictIfOverLimitInternal() - Cache size and free "
+         "space in limits. [cacheSize=%ukB, cacheSizeLimit=%ukB, "
+         "freeSpace=%lld, freeSpaceLimit=%u]", cacheUsage, cacheLimit,
+         freeSpace, freeSpaceLimit));
     return NS_OK;
   }
 
@@ -2602,22 +2656,38 @@ CacheFileIOManager::OverLimitEvictionInternal()
     return NS_ERROR_NOT_INITIALIZED;
   }
 
-  UpdateSmartCacheSize();
-
   while (true) {
+    int64_t freeSpace = -1;
+    rv = mCacheDirectory->GetDiskSpaceAvailable(&freeSpace);
+    if (NS_WARN_IF(NS_FAILED(rv))) {
+      // Do not change smart size.
+      LOG(("CacheFileIOManager::EvictIfOverLimitInternal() - "
+           "GetDiskSpaceAvailable() failed! [rv=0x%08x]", rv));
+    } else {
+      UpdateSmartCacheSize(freeSpace);
+    }
+
     uint32_t cacheUsage;
     rv = CacheIndex::GetCacheSize(&cacheUsage);
     NS_ENSURE_SUCCESS(rv, rv);
 
     uint32_t cacheLimit = CacheObserver::DiskCacheCapacity() >> 10;
-    if (cacheUsage <= cacheLimit) {
-      LOG(("CacheFileIOManager::OverLimitEvictionInternal() - Cache size under "
+    uint32_t freeSpaceLimit = CacheObserver::DiskFreeSpaceSoftLimit();
+
+    if (cacheUsage > cacheLimit) {
+      LOG(("CacheFileIOManager::OverLimitEvictionInternal() - Cache size over "
            "limit. [cacheSize=%u, limit=%u]", cacheUsage, cacheLimit));
+    } else if (freeSpace != 1 && freeSpace < freeSpaceLimit) {
+      LOG(("CacheFileIOManager::OverLimitEvictionInternal() - Free space under "
+           "limit. [freeSpace=%lld, freeSpaceLimit=%u]", freeSpace,
+           freeSpaceLimit));
+    } else {
+      LOG(("CacheFileIOManager::OverLimitEvictionInternal() - Cache size and "
+           "free space in limits. [cacheSize=%ukB, cacheSizeLimit=%ukB, "
+           "freeSpace=%lld, freeSpaceLimit=%u]", cacheUsage, cacheLimit,
+           freeSpace, freeSpaceLimit));
       return NS_OK;
     }
-
-    LOG(("CacheFileIOManager::OverLimitEvictionInternal() - Cache size over "
-         "limit. [cacheSize=%u, limit=%u]", cacheUsage, cacheLimit));
 
     if (CacheIOThread::YieldAndRerun()) {
       LOG(("CacheFileIOManager::OverLimitEvictionInternal() - Breaking loop "
@@ -3771,7 +3841,7 @@ SmartCacheSize(const uint32_t availKB)
 }
 
 nsresult
-CacheFileIOManager::UpdateSmartCacheSize()
+CacheFileIOManager::UpdateSmartCacheSize(int64_t aFreeSpace)
 {
   MOZ_ASSERT(mIOThread->IsCurrentThread());
 
@@ -3808,18 +3878,9 @@ CacheFileIOManager::UpdateSmartCacheSize()
     return rv;
   }
 
-  int64_t avail;
-  rv = mCacheDirectory->GetDiskSpaceAvailable(&avail);
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    // Do not change smart size.
-    LOG(("CacheFileIOManager::UpdateSmartCacheSize() - GetDiskSpaceAvailable() "
-         "failed! [rv=0x%08x]", rv));
-    return rv;
-  }
-
   mLastSmartSizeTime = TimeStamp::NowLoRes();
 
-  uint32_t smartSize = SmartCacheSize(static_cast<uint32_t>(avail / 1024) +
+  uint32_t smartSize = SmartCacheSize(static_cast<uint32_t>(aFreeSpace / 1024) +
                                       cacheUsage);
 
   if (smartSize == (CacheObserver::DiskCacheCapacity() >> 10)) {

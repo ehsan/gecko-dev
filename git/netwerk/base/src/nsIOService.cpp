@@ -149,6 +149,15 @@ nsIOService::nsIOService()
     , mChannelEventSinks(NS_CHANNEL_EVENT_SINK_CATEGORY)
     , mAutoDialEnabled(false)
 {
+    // XXX May need to remove this once Bug 939319 and associated bugs for
+    // NS_NETWORK_LINK_DATA_CHANGED are complete on all supported platforms.
+
+    // Subfields of unions cannot be targeted in an initializer list
+    mNetworkLinkSelfAddr.raw.family = PR_AF_UNSPEC;
+
+    // Right now, the network link ID is just 64bits of pseudo-randonmess.
+    mNetworkLinkID = NS_Get32BitsOfPseudoRandom();
+    mNetworkLinkID = (mNetworkLinkID << 32) | NS_Get32BitsOfPseudoRandom();
 }
 
 nsresult
@@ -1084,6 +1093,38 @@ nsIOService::GetManageOfflineStatus(bool* aManage) {
     return NS_OK;
 }
 
+uint64_t
+nsIOService::GetNetworkLinkID() const
+{
+    return mNetworkLinkID;
+}
+
+NS_IMETHODIMP
+nsIOService::GetNetworkLinkID(nsACString &aNetworkLinkID)
+{
+    char temp[21];
+    PR_snprintf(temp, sizeof(temp), "%llu", mNetworkLinkID);
+    aNetworkLinkID.Append(temp);
+
+    return NS_OK;
+}
+
+// XXX Remove this once Bug 939319 and associated bugs for
+// NS_NETWORK_LINK_DATA_CHANGED are complete on all supported platforms.
+// Right now, the network link ID is just 64bits of pseudo-randonmess.
+void
+nsIOService::UpdateNetworkLinkID(const mozilla::net::NetAddr aCurrentSelfAddr)
+{
+    if (IsLoopBackAddress(&aCurrentSelfAddr) ||
+        mNetworkLinkSelfAddr.EqualsIP(aCurrentSelfAddr)) {
+        return;
+    }
+    mNetworkLinkSelfAddr = aCurrentSelfAddr;
+
+    mNetworkLinkID = NS_Get32BitsOfPseudoRandom();
+    mNetworkLinkID = (mNetworkLinkID << 32) | NS_Get32BitsOfPseudoRandom();
+}
+
 nsresult
 nsIOService::TrackNetworkLinkStatusForOffline()
 {
@@ -1179,6 +1220,8 @@ nsIOService::ExtractCharsetFromContentType(const nsACString &aTypeHeader,
 // nsISpeculativeConnect
 class IOServiceProxyCallback MOZ_FINAL : public nsIProtocolProxyCallback
 {
+    ~IOServiceProxyCallback() {}
+
 public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSIPROTOCOLPROXYCALLBACK

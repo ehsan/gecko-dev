@@ -1,4 +1,4 @@
-# -*- Mode: javascript; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+# -*- indent-tabs-mode: nil; js-indent-level: 2 -*-
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
@@ -23,7 +23,7 @@ let WebrtcIndicator = {
 
   fillPopup: function (aPopup) {
     this._menuitemData = new WeakMap;
-    for (let streamData of this.UIModule.activeStreams) {
+    for (let streamData of this.UIModule.getActiveStreams(true, true, true)) {
       let pageURI = Services.io.newURI(streamData.uri, null, null);
       let menuitem = document.createElement("menuitem");
       menuitem.setAttribute("class", "menuitem-iconic");
@@ -59,7 +59,12 @@ let WebrtcIndicator = {
       streamData.browser.focus();
     }
     browserWindow.focus();
-    PopupNotifications.getNotification("webRTC-sharingDevices",
-                                       streamData.browser).reshow();
+    let notif = PopupNotifications.getNotification("webRTC-sharingDevices",
+                                                   streamData.browser);
+    if (!notif) {
+      notif = PopupNotifications.getNotification("webRTC-sharingScreen",
+                                                 streamData.browser);
+    }
+    notif.reshow();
   }
 }

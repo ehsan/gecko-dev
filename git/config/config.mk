@@ -54,6 +54,7 @@ _MOZBUILD_EXTERNAL_VARIABLES := \
   JAR_MANIFEST \
   JAVA_JAR_TARGETS \
   JS_MODULES_PATH \
+  LD_VERSION_SCRIPT \
   LIBRARY_NAME \
   MODULE \
   MSVC_ENABLE_PGO \
@@ -63,6 +64,7 @@ _MOZBUILD_EXTERNAL_VARIABLES := \
   RESOURCE_FILES \
   SDK_HEADERS \
   SIMPLE_PROGRAMS \
+  SONAME \
   TEST_DIRS \
   TIERS \
   TOOL_DIRS \
@@ -72,6 +74,7 @@ _MOZBUILD_EXTERNAL_VARIABLES := \
 
 _DEPRECATED_VARIABLES := \
   ANDROID_RESFILES \
+  EXPORT_LIBRARY \
   LIBXUL_LIBRARY \
   MOCHITEST_A11Y_FILES \
   MOCHITEST_BROWSER_FILES \
@@ -82,6 +85,8 @@ _DEPRECATED_VARIABLES := \
   MOCHITEST_METRO_FILES \
   MOCHITEST_ROBOCOP_FILES \
   SHORT_LIBNAME \
+  TESTING_JS_MODULES \
+  TESTING_JS_MODULE_DIR \
   $(NULL)
 
 ifndef EXTERNALLY_MANAGED_MAKE_FILE
@@ -145,6 +150,7 @@ CHECK_VARS := \
  XPI_PKGNAME \
  INSTALL_EXTENSION_ID \
  SHARED_LIBRARY_NAME \
+ SONAME \
  STATIC_LIBRARY_NAME \
  $(NULL)
 
@@ -193,21 +199,6 @@ endif
 CONFIG_TOOLS	= $(MOZ_BUILD_ROOT)/config
 AUTOCONF_TOOLS	= $(topsrcdir)/build/autoconf
 
-# Disable MOZ_PSEUDO_DERECURSE when it contains no-pymake and we're running
-# pymake. This can be removed when no-pymake is removed from the default in
-# build/autoconf/compiler-opts.m4.
-ifdef .PYMAKE
-comma = ,
-ifneq (,$(filter no-pymake,$(subst $(comma), ,$(MOZ_PSEUDO_DERECURSE))))
-MOZ_PSEUDO_DERECURSE :=
-endif
-endif
-
-# Disable MOZ_PSEUDO_DERECURSE on PGO builds until it's fixed.
-ifneq (,$(MOZ_PROFILE_USE)$(MOZ_PROFILE_GENERATE))
-MOZ_PSEUDO_DERECURSE :=
-endif
-
 #
 # Strip off the excessively long version numbers on these platforms,
 # but save the version to allow multiple versions of the same base
@@ -236,10 +227,6 @@ CXX := $(CXX_WRAPPER) $(CXX)
 MKDIR ?= mkdir
 SLEEP ?= sleep
 TOUCH ?= touch
-
-ifdef .PYMAKE
-PYCOMMANDPATH += $(PYTHON_SITE_PACKAGES)
-endif
 
 PYTHON_PATH = $(PYTHON) $(topsrcdir)/config/pythonpath.py
 
@@ -294,7 +281,7 @@ else # ! MOZ_DEBUG
 ifdef MOZ_DEBUG_SYMBOLS
 OS_CXXFLAGS += -UDEBUG -DNDEBUG
 OS_CFLAGS += -UDEBUG -DNDEBUG
-ifdef HAVE_64BIT_OS
+ifdef HAVE_64BIT_BUILD
 OS_LDFLAGS += -DEBUG -OPT:REF,ICF
 else
 OS_LDFLAGS += -DEBUG -OPT:REF
@@ -307,7 +294,7 @@ endif
 #
 ifneq (,$(NS_TRACE_MALLOC)$(MOZ_DMD))
 MOZ_OPTIMIZE_FLAGS=-Zi -Od -UDEBUG -DNDEBUG
-ifdef HAVE_64BIT_OS
+ifdef HAVE_64BIT_BUILD
 OS_LDFLAGS = -DEBUG -OPT:REF,ICF
 else
 OS_LDFLAGS = -DEBUG -OPT:REF
@@ -359,7 +346,6 @@ endif
 
 ifdef XPI_NAME
 ifdef IS_COMPONENT
-EXPORT_LIBRARY=
 FORCE_STATIC_LIB=
 FORCE_SHARED_LIB=1
 endif
@@ -607,17 +593,6 @@ endif
 #
 # Override defaults
 
-# We need to know where to find the libraries we
-# put on the link line for binaries, and should
-# we link statically or dynamic?  Assuming dynamic for now.
-
-ifneq (WINNT_,$(OS_ARCH)_$(GNU_CC))
-LIBS_DIR	= -L$(DIST)/bin -L$(DIST)/lib
-ifdef LIBXUL_SDK
-LIBS_DIR	+= -L$(LIBXUL_SDK)/bin -L$(LIBXUL_SDK)/lib
-endif
-endif
-
 # Default location of include files
 ifndef LIBXUL_SDK
 IDL_PARSER_DIR = $(topsrcdir)/xpcom/idl-parser
@@ -719,9 +694,6 @@ endif # NSINSTALL_BIN
 
 ifeq (,$(CROSS_COMPILE)$(filter-out WINNT, $(OS_ARCH)))
 INSTALL = $(NSINSTALL) -t
-ifdef .PYMAKE
-install_cmd = $(NSINSTALL_NATIVECMD) -t $(1)
-endif # .PYMAKE
 
 else
 
@@ -838,6 +810,7 @@ endif
 define CHECK_BINARY
 $(call CHECK_STDCXX,$(1))
 $(call CHECK_TEXTREL,$(1))
+$(call LOCAL_CHECKS,$(1))
 endef
 
 # autoconf.mk sets OBJ_SUFFIX to an error to avoid use before including
@@ -886,6 +859,9 @@ export NONASCII
 
 ifdef MOZ_GTK2_CFLAGS
 MOZ_GTK2_CFLAGS := -I$(topsrcdir)/widget/gtk/compat $(MOZ_GTK2_CFLAGS)
+endif
+ifdef MOZ_GTK3_CFLAGS
+MOZ_GTK3_CFLAGS := -I$(topsrcdir)/widget/gtk/compat-gtk3 $(MOZ_GTK3_CFLAGS)
 endif
 
 DEFINES += -DNO_NSPR_10_SUPPORT

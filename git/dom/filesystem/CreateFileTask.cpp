@@ -27,7 +27,8 @@ CreateFileTask::CreateFileTask(FileSystemBase* aFileSystem,
                                const nsAString& aPath,
                                nsIDOMBlob* aBlobData,
                                InfallibleTArray<uint8_t>& aArrayData,
-                               bool replace)
+                               bool replace,
+                               ErrorResult& aRv)
   : FileSystemTaskBase(aFileSystem)
   , mTargetRealPath(aPath)
   , mBlobData(aBlobData)
@@ -46,7 +47,7 @@ CreateFileTask::CreateFileTask(FileSystemBase* aFileSystem,
   if (!globalObject) {
     return;
   }
-  mPromise = new Promise(globalObject);
+  mPromise = Promise::Create(globalObject, aRv);
 }
 
 CreateFileTask::CreateFileTask(FileSystemBase* aFileSystem,
@@ -119,7 +120,8 @@ FileSystemResponseValue
 CreateFileTask::GetSuccessRequestResult() const
 {
   MOZ_ASSERT(NS_IsMainThread(), "Only call on main thread!");
-  BlobParent* actor = GetBlobParent(mTargetFile);
+  nsRefPtr<DOMFile> file = new DOMFile(mTargetFileImpl);
+  BlobParent* actor = GetBlobParent(file);
   if (!actor) {
     return FileSystemErrorResponse(NS_ERROR_DOM_FILESYSTEM_UNKNOWN_ERR);
   }
@@ -135,7 +137,7 @@ CreateFileTask::SetSuccessRequestResult(const FileSystemResponseValue& aValue)
   FileSystemFileResponse r = aValue;
   BlobChild* actor = static_cast<BlobChild*>(r.blobChild());
   nsCOMPtr<nsIDOMBlob> blob = actor->GetBlob();
-  mTargetFile = do_QueryInterface(blob);
+  mTargetFileImpl = static_cast<DOMFile*>(blob.get())->Impl();
 }
 
 nsresult
@@ -252,7 +254,7 @@ CreateFileTask::Work()
       return NS_ERROR_FAILURE;
     }
 
-    mTargetFile = new nsDOMFileFile(file);
+    mTargetFileImpl = new DOMFileImplFile(file);
     return NS_OK;
   }
 
@@ -271,7 +273,7 @@ CreateFileTask::Work()
     return NS_ERROR_DOM_FILESYSTEM_UNKNOWN_ERR;
   }
 
-  mTargetFile = new nsDOMFileFile(file);
+  mTargetFileImpl = new DOMFileImplFile(file);
   return NS_OK;
 }
 
@@ -292,7 +294,8 @@ CreateFileTask::HandlerCallback()
     return;
   }
 
-  mPromise->MaybeResolve(mTargetFile);
+  nsCOMPtr<nsIDOMFile> file = new DOMFile(mTargetFileImpl);
+  mPromise->MaybeResolve(file);
   mPromise = nullptr;
 }
 

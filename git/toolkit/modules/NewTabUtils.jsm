@@ -281,10 +281,6 @@ let AllPages = {
     }
   },
 
-  get updateScheduledForHiddenPages() {
-    return !!this._scheduleUpdateTimeout;
-  },
-
   /**
    * Implements the nsIObserver interface to get notified when the preference
    * value changes or when a new copy of a page thumbnail is available.
@@ -577,9 +573,7 @@ let PlacesProvider = {
               title: title,
               frecency: frecency,
               lastVisitDate: lastVisitDate,
-              bgColor: "transparent",
               type: "history",
-              imageURI: null,
             });
           }
         }
@@ -654,6 +648,7 @@ let PlacesProvider = {
         url: aURI.spec,
         frecency: aNewFrecency,
         lastVisitDate: aLastVisitDate,
+        type: "history",
       });
     }
   },

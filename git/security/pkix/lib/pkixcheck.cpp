@@ -22,10 +22,10 @@
  * limitations under the License.
  */
 
-#include <limits>
-
+#include "cert.h"
 #include "pkix/bind.h"
 #include "pkix/pkix.h"
+#include "pkix/ScopedPtr.h"
 #include "pkixcheck.h"
 #include "pkixder.h"
 #include "pkixutil.h"
@@ -33,16 +33,29 @@
 namespace mozilla { namespace pkix {
 
 Result
-CheckTimes(const CERTCertificate* cert, PRTime time)
+CheckValidity(const SECItem& encodedValidity, PRTime time)
 {
-  PR_ASSERT(cert);
-
-  SECCertTimeValidity validity = CERT_CheckCertValidTimes(cert, time, false);
-  if (validity != secCertTimeValid) {
+  Input validity;
+  if (validity.Init(encodedValidity.data, encodedValidity.len) != Success) {
+    return Fail(RecoverableError, SEC_ERROR_EXPIRED_CERTIFICATE);
+  }
+  PRTime notBefore;
+  if (der::TimeChoice(validity, notBefore) != Success) {
+    return Fail(RecoverableError, SEC_ERROR_EXPIRED_CERTIFICATE);
+  }
+  if (time < notBefore) {
     return Fail(RecoverableError, SEC_ERROR_EXPIRED_CERTIFICATE);
   }
 
-  return Success;
+  PRTime notAfter;
+  if (der::TimeChoice(validity, notAfter) != Success) {
+    return Fail(RecoverableError, SEC_ERROR_EXPIRED_CERTIFICATE);
+  }
+  if (time > notAfter) {
+    return Fail(RecoverableError, SEC_ERROR_EXPIRED_CERTIFICATE);
+  }
+
+  return der::End(validity);
 }
 
 // 4.2.1.3. Key Usage (id-ce-keyUsage)
@@ -74,17 +87,17 @@ CheckKeyUsage(EndEntityOrCA endEntityOrCA, const SECItem* encodedKeyUsage,
     return Success;
   }
 
-  der::Input input;
-  if (input.Init(encodedKeyUsage->data, encodedKeyUsage->len) != der::Success) {
+  Input input;
+  if (input.Init(encodedKeyUsage->data, encodedKeyUsage->len) != Success) {
     return Fail(RecoverableError, SEC_ERROR_INADEQUATE_KEY_USAGE);
   }
-  der::Input value;
-  if (der::ExpectTagAndGetValue(input, der::BIT_STRING, value) != der::Success) {
+  Input value;
+  if (der::ExpectTagAndGetValue(input, der::BIT_STRING, value) != Success) {
     return Fail(RecoverableError, SEC_ERROR_INADEQUATE_KEY_USAGE);
   }
 
   uint8_t numberOfPaddingBits;
-  if (value.Read(numberOfPaddingBits) != der::Success) {
+  if (value.Read(numberOfPaddingBits) != Success) {
     return Fail(RecoverableError, SEC_ERROR_INADEQUATE_KEY_USAGE);
   }
   if (numberOfPaddingBits > 7) {
@@ -92,7 +105,7 @@ CheckKeyUsage(EndEntityOrCA endEntityOrCA, const SECItem* encodedKeyUsage,
   }
 
   uint8_t bits;
-  if (value.Read(bits) != der::Success) {
+  if (value.Read(bits) != Success) {
     // Reject empty bit masks.
     return Fail(RecoverableError, SEC_ERROR_INADEQUATE_KEY_USAGE);
   }
@@ -151,7 +164,7 @@ CheckKeyUsage(EndEntityOrCA endEntityOrCA, const SECItem* encodedKeyUsage,
 
   // The padding applies to the last byte, so skip to the last byte.
   while (!value.AtEnd()) {
-    if (value.Read(bits) != der::Success) {
+    if (value.Read(bits) != Success) {
       return Fail(RecoverableError, SEC_ERROR_INADEQUATE_KEY_USAGE);
     }
   }
@@ -189,8 +202,8 @@ bool CertPolicyId::IsAnyPolicy() const
 //         policyIdentifier   CertPolicyId,
 //         policyQualifiers   SEQUENCE SIZE (1..MAX) OF
 //                                 PolicyQualifierInfo OPTIONAL }
-inline der::Result
-CheckPolicyInformation(der::Input& input, EndEntityOrCA endEntityOrCA,
+inline Result
+CheckPolicyInformation(Input& input, EndEntityOrCA endEntityOrCA,
                        const CertPolicyId& requiredPolicy,
                        /*in/out*/ bool& found)
 {
@@ -213,7 +226,7 @@ CheckPolicyInformation(der::Input& input, EndEntityOrCA endEntityOrCA,
   // Skip unmatched OID and/or policyQualifiers
   input.SkipToEnd();
 
-  return der::Success;
+  return Success;
 }
 
 // certificatePolicies ::= SEQUENCE SIZE (1..MAX) OF PolicyInformation
@@ -258,17 +271,17 @@ CheckCertificatePolicies(EndEntityOrCA endEntityOrCA,
 
   bool found = false;
 
-  der::Input input;
+  Input input;
   if (input.Init(encodedCertificatePolicies->data,
-                 encodedCertificatePolicies->len) != der::Success) {
+                 encodedCertificatePolicies->len) != Success) {
     return Fail(RecoverableError, SEC_ERROR_POLICY_VALIDATION_FAILED);
   }
   if (der::NestedOf(input, der::SEQUENCE, der::SEQUENCE, der::EmptyAllowed::No,
                     bind(CheckPolicyInformation, _1, endEntityOrCA,
-                         requiredPolicy, ref(found))) != der::Success) {
+                         requiredPolicy, ref(found))) != Success) {
     return Fail(RecoverableError, SEC_ERROR_POLICY_VALIDATION_FAILED);
   }
-  if (der::End(input) != der::Success) {
+  if (der::End(input) != Success) {
     return Fail(RecoverableError, SEC_ERROR_POLICY_VALIDATION_FAILED);
   }
   if (!found) {
@@ -283,8 +296,8 @@ static const long UNLIMITED_PATH_LEN = -1; // must be less than zero
 //  BasicConstraints ::= SEQUENCE {
 //          cA                      BOOLEAN DEFAULT FALSE,
 //          pathLenConstraint       INTEGER (0..MAX) OPTIONAL }
-static der::Result
-DecodeBasicConstraints(der::Input& input, /*out*/ bool& isCA,
+static Result
+DecodeBasicConstraints(Input& input, /*out*/ bool& isCA,
                        /*out*/ long& pathLenConstraint)
 {
   // TODO(bug 989518): cA is by default false. According to DER, default
@@ -293,19 +306,19 @@ DecodeBasicConstraints(der::Input& input, /*out*/ bool& isCA,
   // has issued many certificates with this improper encoding, so we can't
   // enforce this yet (hence passing true for allowInvalidExplicitEncoding
   // to der::OptionalBoolean).
-  if (der::OptionalBoolean(input, true, isCA) != der::Success) {
-    return der::Fail(SEC_ERROR_EXTENSION_VALUE_INVALID);
+  if (der::OptionalBoolean(input, true, isCA) != Success) {
+    return Fail(SEC_ERROR_EXTENSION_VALUE_INVALID);
   }
 
   // TODO(bug 985025): If isCA is false, pathLenConstraint MUST NOT
   // be included (as per RFC 5280 section 4.2.1.9), but for compatibility
   // reasons, we don't check this for now.
-  if (OptionalInteger(input, UNLIMITED_PATH_LEN, pathLenConstraint)
-        != der::Success) {
-    return der::Fail(SEC_ERROR_EXTENSION_VALUE_INVALID);
+  if (der::OptionalInteger(input, UNLIMITED_PATH_LEN, pathLenConstraint)
+        != Success) {
+    return Fail(SEC_ERROR_EXTENSION_VALUE_INVALID);
   }
 
-  return der::Success;
+  return Success;
 }
 
 // RFC5280 4.2.1.9. Basic Constraints (id-ce-basicConstraints)
@@ -319,17 +332,17 @@ CheckBasicConstraints(EndEntityOrCA endEntityOrCA,
   long pathLenConstraint = UNLIMITED_PATH_LEN;
 
   if (encodedBasicConstraints) {
-    der::Input input;
+    Input input;
     if (input.Init(encodedBasicConstraints->data,
-                   encodedBasicConstraints->len) != der::Success) {
+                   encodedBasicConstraints->len) != Success) {
       return Fail(RecoverableError, SEC_ERROR_EXTENSION_VALUE_INVALID);
     }
     if (der::Nested(input, der::SEQUENCE,
                     bind(DecodeBasicConstraints, _1, ref(isCA),
-                         ref(pathLenConstraint))) != der::Success) {
+                         ref(pathLenConstraint))) != Success) {
       return Fail(RecoverableError, SEC_ERROR_EXTENSION_VALUE_INVALID);
     }
-    if (der::End(input) != der::Success) {
+    if (der::End(input) != Success) {
       return Fail(RecoverableError, SEC_ERROR_EXTENSION_VALUE_INVALID);
     }
   } else {
@@ -383,123 +396,56 @@ CheckBasicConstraints(EndEntityOrCA endEntityOrCA,
   return Success;
 }
 
-Result
-BackCert::GetConstrainedNames(/*out*/ const CERTGeneralName** result)
-{
-  if (!constrainedNames) {
-    if (!GetArena()) {
-      return FatalError;
-    }
+// 4.2.1.10. Name Constraints
 
-    constrainedNames =
-      CERT_GetConstrainedCertificateNames(GetNSSCert(), arena.get(),
-                                          includeCN == IncludeCN::Yes);
-    if (!constrainedNames) {
-      return MapSECStatus(SECFailure);
-    }
-  }
-
-  *result = constrainedNames;
-  return Success;
+inline void
+PORT_FreeArena_false(PLArenaPool* arena) {
+  // PL_FreeArenaPool can't be used because it doesn't actually free the
+  // memory, which doesn't work well with memory analysis tools
+  return PORT_FreeArena(arena, PR_FALSE);
 }
 
-// 4.2.1.10. Name Constraints
 Result
-CheckNameConstraints(BackCert& cert)
+CheckNameConstraints(const SECItem& encodedNameConstraints,
+                     const BackCert& firstChild,
+                     KeyPurposeId requiredEKUIfPresent)
 {
-  static const char constraintFranceGov[] =
-                                     "\x30\x5D" /* sequence len 93*/
-                                     "\xA0\x5B" /* element len 91 */
-                                     "\x30\x05" /* sequence len 5 */
-                                     "\x82\x03" /* entry len 3 */
-                                     ".fr"
-                                     "\x30\x05\x82\x03" /* sequence len 5, entry len 3 */
-                                     ".gp"
-                                     "\x30\x05\x82\x03"
-                                     ".gf"
-                                     "\x30\x05\x82\x03"
-                                     ".mq"
-                                     "\x30\x05\x82\x03"
-                                     ".re"
-                                     "\x30\x05\x82\x03"
-                                     ".yt"
-                                     "\x30\x05\x82\x03"
-                                     ".pm"
-                                     "\x30\x05\x82\x03"
-                                     ".bl"
-                                     "\x30\x05\x82\x03"
-                                     ".mf"
-                                     "\x30\x05\x82\x03"
-                                     ".wf"
-                                     "\x30\x05\x82\x03"
-                                     ".pf"
-                                     "\x30\x05\x82\x03"
-                                     ".nc"
-                                     "\x30\x05\x82\x03"
-                                     ".tf";
-
-  /* The stringified value for the subject is:
-     E=igca@sgdn.pm.gouv.fr,CN=IGC/A,OU=DCSSI,O=PM/SGDN,L=Paris,ST=France,C=FR
-   */
-  static const char rawANSSISubject[] =
-                                 "\x30\x81\x85\x31\x0B\x30\x09\x06\x03\x55\x04"
-                                 "\x06\x13\x02\x46\x52\x31\x0F\x30\x0D\x06\x03"
-                                 "\x55\x04\x08\x13\x06\x46\x72\x61\x6E\x63\x65"
-                                 "\x31\x0E\x30\x0C\x06\x03\x55\x04\x07\x13\x05"
-                                 "\x50\x61\x72\x69\x73\x31\x10\x30\x0E\x06\x03"
-                                 "\x55\x04\x0A\x13\x07\x50\x4D\x2F\x53\x47\x44"
-                                 "\x4E\x31\x0E\x30\x0C\x06\x03\x55\x04\x0B\x13"
-                                 "\x05\x44\x43\x53\x53\x49\x31\x0E\x30\x0C\x06"
-                                 "\x03\x55\x04\x03\x13\x05\x49\x47\x43\x2F\x41"
-                                 "\x31\x23\x30\x21\x06\x09\x2A\x86\x48\x86\xF7"
-                                 "\x0D\x01\x09\x01\x16\x14\x69\x67\x63\x61\x40"
-                                 "\x73\x67\x64\x6E\x2E\x70\x6D\x2E\x67\x6F\x75"
-                                 "\x76\x2E\x66\x72";
-
-  const SECItem ANSSI_SUBJECT = {
-    siBuffer,
-    reinterpret_cast<uint8_t *>(const_cast<char *>(rawANSSISubject)),
-    sizeof(rawANSSISubject) - 1
-  };
-
-  const SECItem PERMIT_FRANCE_GOV_NC = {
-    siBuffer,
-    reinterpret_cast<uint8_t *>(const_cast<char *>(constraintFranceGov)),
-    sizeof(constraintFranceGov) - 1
-  };
-
-  const SECItem* nameConstraintsToUse = cert.encodedNameConstraints;
-
-  if (!nameConstraintsToUse) {
-    if (SECITEM_ItemsAreEqual(&cert.GetSubject(), &ANSSI_SUBJECT)) {
-      nameConstraintsToUse = &PERMIT_FRANCE_GOV_NC;
-    } else {
-      return Success;
-    }
-  }
-
-  PLArenaPool* arena = cert.GetArena();
+  ScopedPtr<PLArenaPool, PORT_FreeArena_false>
+    arena(PORT_NewArena(DER_DEFAULT_CHUNKSIZE));
   if (!arena) {
-    return FatalError;
+    return MapSECStatus(SECFailure);
   }
 
   // Owned by arena
   const CERTNameConstraints* constraints =
-    CERT_DecodeNameConstraintsExtension(arena, nameConstraintsToUse);
+    CERT_DecodeNameConstraintsExtension(arena.get(), &encodedNameConstraints);
   if (!constraints) {
     return MapSECStatus(SECFailure);
   }
 
-  for (BackCert* prev = cert.childCert; prev; prev = prev->childCert) {
-    const CERTGeneralName* names = nullptr;
-    Result rv = prev->GetConstrainedNames(&names);
-    if (rv != Success) {
-      return rv;
+  for (const BackCert* child = &firstChild; child; child = child->childCert) {
+    ScopedPtr<CERTCertificate, CERT_DestroyCertificate>
+      nssCert(CERT_NewTempCertificate(CERT_GetDefaultCertDB(),
+                                      const_cast<SECItem*>(&child->GetDER()),
+                                      nullptr, false, true));
+    if (!nssCert) {
+      return MapSECStatus(SECFailure);
     }
-    PORT_Assert(names);
+
+    bool includeCN = child->endEntityOrCA == EndEntityOrCA::MustBeEndEntity &&
+                     requiredEKUIfPresent == KeyPurposeId::id_kp_serverAuth;
+    // owned by arena
+    const CERTGeneralName*
+      names(CERT_GetConstrainedCertificateNames(nssCert.get(), arena.get(),
+                                                includeCN));
+    if (!names) {
+      return MapSECStatus(SECFailure);
+    }
+
     CERTGeneralName* currentName = const_cast<CERTGeneralName*>(names);
     do {
-      if (CERT_CheckNameSpace(arena, constraints, currentName) != SECSuccess) {
+      if (CERT_CheckNameSpace(arena.get(), constraints, currentName)
+            != SECSuccess) {
         // XXX: It seems like CERT_CheckNameSpace doesn't always call
         // PR_SetError when it fails. We set the error code here, though this
         // may be papering over some fatal errors. NSS's
@@ -515,8 +461,8 @@ CheckNameConstraints(BackCert& cert)
 
 // 4.2.1.12. Extended Key Usage (id-ce-extKeyUsage)
 
-static der::Result
-MatchEKU(der::Input& value, KeyPurposeId requiredEKU,
+static Result
+MatchEKU(Input& value, KeyPurposeId requiredEKU,
          EndEntityOrCA endEntityOrCA, /*in/out*/ bool& found,
          /*in/out*/ bool& foundOCSPSigning)
 {
@@ -576,11 +522,11 @@ MatchEKU(der::Input& value, KeyPurposeId requiredEKU,
 
       case KeyPurposeId::anyExtendedKeyUsage:
         PR_NOT_REACHED("anyExtendedKeyUsage should start with found==true");
-        return der::Fail(SEC_ERROR_LIBRARY_FAILURE);
+        return Fail(SEC_ERROR_LIBRARY_FAILURE);
 
       default:
         PR_NOT_REACHED("unrecognized EKU");
-        return der::Fail(SEC_ERROR_LIBRARY_FAILURE);
+        return Fail(SEC_ERROR_LIBRARY_FAILURE);
     }
   }
 
@@ -595,7 +541,7 @@ MatchEKU(der::Input& value, KeyPurposeId requiredEKU,
 
   value.SkipToEnd(); // ignore unmatched OIDs.
 
-  return der::Success;
+  return Success;
 }
 
 Result
@@ -613,18 +559,18 @@ CheckExtendedKeyUsage(EndEntityOrCA endEntityOrCA,
   if (encodedExtendedKeyUsage) {
     bool found = requiredEKU == KeyPurposeId::anyExtendedKeyUsage;
 
-    der::Input input;
+    Input input;
     if (input.Init(encodedExtendedKeyUsage->data,
-                   encodedExtendedKeyUsage->len) != der::Success) {
+                   encodedExtendedKeyUsage->len) != Success) {
       return Fail(RecoverableError, SEC_ERROR_INADEQUATE_CERT_TYPE);
     }
     if (der::NestedOf(input, der::SEQUENCE, der::OIDTag, der::EmptyAllowed::No,
                       bind(MatchEKU, _1, requiredEKU, endEntityOrCA,
                            ref(found), ref(foundOCSPSigning)))
-          != der::Success) {
+          != Success) {
       return Fail(RecoverableError, SEC_ERROR_INADEQUATE_CERT_TYPE);
     }
-    if (der::End(input) != der::Success) {
+    if (der::End(input) != Success) {
       return Fail(RecoverableError, SEC_ERROR_INADEQUATE_CERT_TYPE);
     }
 
@@ -672,9 +618,8 @@ CheckExtendedKeyUsage(EndEntityOrCA endEntityOrCA,
 
 Result
 CheckIssuerIndependentProperties(TrustDomain& trustDomain,
-                                 BackCert& cert,
+                                 const BackCert& cert,
                                  PRTime time,
-                                 EndEntityOrCA endEntityOrCA,
                                  KeyUsage requiredKeyUsageIfPresent,
                                  KeyPurposeId requiredEKUIfPresent,
                                  const CertPolicyId& requiredPolicy,
@@ -682,6 +627,8 @@ CheckIssuerIndependentProperties(TrustDomain& trustDomain,
                 /*optional out*/ TrustLevel* trustLevelOut)
 {
   Result rv;
+
+  const EndEntityOrCA endEntityOrCA = cert.endEntityOrCA;
 
   TrustLevel trustLevel;
   rv = MapSECStatus(trustDomain.GetCertTrust(endEntityOrCA, requiredPolicy,
@@ -702,28 +649,20 @@ CheckIssuerIndependentProperties(TrustDomain& trustDomain,
     *trustLevelOut = trustLevel;
   }
 
-  // XXX: Good enough for now. There could be an illegal explicit version
-  // number or one we don't support, but we can safely treat those all as v3
-  // for now since processing of v3 certificates is strictly more strict than
-  // processing of v1 certificates.
-  der::Version version = (!cert.GetNSSCert()->version.data &&
-                          !cert.GetNSSCert()->version.len) ? der::Version::v1
-                                                           : der::Version::v3;
-
   // 4.2.1.1. Authority Key Identifier is ignored (see bug 965136).
 
   // 4.2.1.2. Subject Key Identifier is ignored (see bug 965136).
 
   // 4.2.1.3. Key Usage
-  rv = CheckKeyUsage(endEntityOrCA, cert.encodedKeyUsage,
+  rv = CheckKeyUsage(endEntityOrCA, cert.GetKeyUsage(),
                      requiredKeyUsageIfPresent);
   if (rv != Success) {
     return rv;
   }
 
   // 4.2.1.4. Certificate Policies
-  rv = CheckCertificatePolicies(endEntityOrCA, cert.encodedCertificatePolicies,
-                                cert.encodedInhibitAnyPolicy, trustLevel,
+  rv = CheckCertificatePolicies(endEntityOrCA, cert.GetCertificatePolicies(),
+                                cert.GetInhibitAnyPolicy(), trustLevel,
                                 requiredPolicy);
   if (rv != Success) {
     return rv;
@@ -741,8 +680,8 @@ CheckIssuerIndependentProperties(TrustDomain& trustDomain,
   //          checking.
 
   // 4.2.1.9. Basic Constraints.
-  rv = CheckBasicConstraints(endEntityOrCA, cert.encodedBasicConstraints,
-                             version, trustLevel, subCACount);
+  rv = CheckBasicConstraints(endEntityOrCA, cert.GetBasicConstraints(),
+                             cert.GetVersion(), trustLevel, subCACount);
   if (rv != Success) {
     return rv;
   }
@@ -753,7 +692,7 @@ CheckIssuerIndependentProperties(TrustDomain& trustDomain,
   //           documentation about policy enforcement in pkix.h.
 
   // 4.2.1.12. Extended Key Usage
-  rv = CheckExtendedKeyUsage(endEntityOrCA, cert.encodedExtendedKeyUsage,
+  rv = CheckExtendedKeyUsage(endEntityOrCA, cert.GetExtKeyUsage(),
                              requiredEKUIfPresent);
   if (rv != Success) {
     return rv;
@@ -768,7 +707,7 @@ CheckIssuerIndependentProperties(TrustDomain& trustDomain,
 
   // IMPORTANT: This check must come after the other checks in order for error
   // ranking to work correctly.
-  rv = CheckTimes(cert.GetNSSCert(), time);
+  rv = CheckValidity(cert.GetValidity(), time);
   if (rv != Success) {
     return rv;
   }

@@ -1,6 +1,6 @@
 import argparse
+import optparse
 import os
-import time
 import unittest
 import StringIO
 import json
@@ -10,6 +10,7 @@ from mozlog.structured import (
     reader,
     structuredlog,
     stdadapter,
+    handlers,
 )
 
 
@@ -85,6 +86,26 @@ class TestStructuredLog(BaseStructuredTest):
     def test_status_2(self):
         self.assertRaises(ValueError, self.logger.test_status, "test1", "subtest name", "XXXUNKNOWNXXX")
 
+    def test_status_extra(self):
+        self.logger.test_status("test1", "subtest name", "FAIL", expected="PASS", extra={"data": 42})
+        self.assert_log_equals({"action": "test_status",
+                                "subtest": "subtest name",
+                                "status": "FAIL",
+                                "expected": "PASS",
+                                "test": "test1",
+                                "extra": {"data":42}
+                            })
+
+    def test_status_stack(self):
+        self.logger.test_status("test1", "subtest name", "FAIL", expected="PASS", stack="many\nlines\nof\nstack")
+        self.assert_log_equals({"action": "test_status",
+                                "subtest": "subtest name",
+                                "status": "FAIL",
+                                "expected": "PASS",
+                                "test": "test1",
+                                "stack": "many\nlines\nof\nstack"
+                            })
+
     def test_end(self):
         self.logger.test_end("test1", "fail", message="Test message")
         self.assert_log_equals({"action": "test_end",
@@ -102,6 +123,14 @@ class TestStructuredLog(BaseStructuredTest):
 
     def test_end_2(self):
         self.assertRaises(ValueError, self.logger.test_end, "test1", "XXXUNKNOWNXXX")
+
+    def test_end_stack(self):
+        self.logger.test_end("test1", "PASS", expected="PASS", stack="many\nlines\nof\nstack")
+        self.assert_log_equals({"action": "test_end",
+                                "status": "PASS",
+                                "test": "test1",
+                                "stack": "many\nlines\nof\nstack"
+                            })
 
     def test_process(self):
         self.logger.process_output(1234, "test output")
@@ -194,6 +223,14 @@ class TestCommandline(unittest.TestCase):
         args = parser.parse_args(["--log-raw=-"])
         logger = commandline.setup_logging("test", args, {})
         self.assertEqual(len(logger.handlers), 1)
+
+    def test_setup_logging_optparse(self):
+        parser = optparse.OptionParser()
+        commandline.add_logging_group(parser)
+        args, _ = parser.parse_args(["--log-raw=-"])
+        logger = commandline.setup_logging("test_optparse", args, {})
+        self.assertEqual(len(logger.handlers), 1)
+        self.assertIsInstance(logger.handlers[0], handlers.StreamHandler)
 
 class TestReader(unittest.TestCase):
     def to_file_like(self, obj):

@@ -839,6 +839,12 @@ nsObjectFrame::PaintPrintPlugin(nsIFrame* aFrame, nsRenderingContext* aCtx,
   static_cast<nsObjectFrame*>(aFrame)->PrintPlugin(*aCtx, aDirtyRect);
 }
 
+/**
+ * nsDisplayPluginReadback creates an active ReadbackLayer. The ReadbackLayer
+ * obtains from the compositor the contents of the window underneath
+ * the ReadbackLayer, which we then use as an opaque buffer for plugins to
+ * asynchronously draw onto.
+ */
 class nsDisplayPluginReadback : public nsDisplayItem {
 public:
   nsDisplayPluginReadback(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame)
@@ -854,9 +860,6 @@ public:
 
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder,
                            bool* aSnap) MOZ_OVERRIDE;
-  virtual bool ComputeVisibility(nsDisplayListBuilder* aBuilder,
-                                   nsRegion* aVisibleRegion,
-                                   const nsRect& aAllowVisibleRegionExpansion) MOZ_OVERRIDE;
 
   NS_DISPLAY_DECL_NAME("PluginReadback", TYPE_PLUGIN_READBACK)
 
@@ -889,25 +892,6 @@ nsDisplayPluginReadback::GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap)
   return GetDisplayItemBounds(aBuilder, this, mFrame);
 }
 
-bool
-nsDisplayPluginReadback::ComputeVisibility(nsDisplayListBuilder* aBuilder,
-                                           nsRegion* aVisibleRegion,
-                                           const nsRect& aAllowVisibleRegionExpansion)
-{
-  if (!nsDisplayItem::ComputeVisibility(aBuilder, aVisibleRegion,
-                                        aAllowVisibleRegionExpansion))
-    return false;
-
-  nsRect expand;
-  bool snap;
-  expand.IntersectRect(aAllowVisibleRegionExpansion, GetBounds(aBuilder, &snap));
-  // *Add* our bounds to the visible region so that stuff underneath us is
-  // likely to be made visible, so we can use it for a background! This is
-  // a bit crazy since we normally only subtract from the visible region.
-  aVisibleRegion->Or(*aVisibleRegion, expand);
-  return true;
-}
-
 #ifdef MOZ_WIDGET_ANDROID
 
 class nsDisplayPluginVideo : public nsDisplayItem {
@@ -925,9 +909,6 @@ public:
 
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder,
                            bool* aSnap) MOZ_OVERRIDE;
-  virtual bool ComputeVisibility(nsDisplayListBuilder* aBuilder,
-                                   nsRegion* aVisibleRegion,
-                                   const nsRect& aAllowVisibleRegionExpansion) MOZ_OVERRIDE;
 
   NS_DISPLAY_DECL_NAME("PluginVideo", TYPE_PLUGIN_VIDEO)
 
@@ -958,15 +939,6 @@ nsDisplayPluginVideo::GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap)
   return GetDisplayItemBounds(aBuilder, this, mFrame);
 }
 
-bool
-nsDisplayPluginVideo::ComputeVisibility(nsDisplayListBuilder* aBuilder,
-                                           nsRegion* aVisibleRegion,
-                                           const nsRect& aAllowVisibleRegionExpansion)
-{
-  return nsDisplayItem::ComputeVisibility(aBuilder, aVisibleRegion,
-                                          aAllowVisibleRegionExpansion);
-}
-
 #endif
 
 nsRect
@@ -987,8 +959,7 @@ nsDisplayPlugin::Paint(nsDisplayListBuilder* aBuilder,
 
 bool
 nsDisplayPlugin::ComputeVisibility(nsDisplayListBuilder* aBuilder,
-                                   nsRegion* aVisibleRegion,
-                                   const nsRect& aAllowVisibleRegionExpansion)
+                                   nsRegion* aVisibleRegion)
 {
   if (aBuilder->IsForPluginGeometry()) {
     nsObjectFrame* f = static_cast<nsObjectFrame*>(mFrame);
@@ -1027,8 +998,7 @@ nsDisplayPlugin::ComputeVisibility(nsDisplayListBuilder* aBuilder,
     }
   }
 
-  return nsDisplayItem::ComputeVisibility(aBuilder, aVisibleRegion,
-                                          aAllowVisibleRegionExpansion);
+  return nsDisplayItem::ComputeVisibility(aBuilder, aVisibleRegion);
 }
 
 nsRegion
@@ -1612,7 +1582,6 @@ nsObjectFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
   transform.Translate(p.x, p.y);
 
   layer->SetBaseTransform(Matrix4x4::From2D(transform));
-  layer->SetVisibleRegion(ThebesIntRect(IntRect(IntPoint(0, 0), size)));
   return layer.forget();
 }
 
@@ -1989,13 +1958,17 @@ nsObjectFrame::GetNextObjectFrame(nsPresContext* aPresContext, nsIFrame* aRoot)
 }
 
 /*static*/ void
-nsObjectFrame::BeginSwapDocShells(nsIContent* aContent, void*)
+nsObjectFrame::BeginSwapDocShells(nsISupports* aSupports, void*)
 {
-  NS_PRECONDITION(aContent, "");
+  NS_PRECONDITION(aSupports, "");
+  nsCOMPtr<nsIContent> content(do_QueryInterface(aSupports));
+  if (!content) {
+    return;
+  }
 
   // This function is called from a document content enumerator so we need
   // to filter out the nsObjectFrames and ignore the rest.
-  nsIObjectFrame* obj = do_QueryFrame(aContent->GetPrimaryFrame());
+  nsIObjectFrame* obj = do_QueryFrame(content->GetPrimaryFrame());
   if (!obj)
     return;
 
@@ -2006,13 +1979,17 @@ nsObjectFrame::BeginSwapDocShells(nsIContent* aContent, void*)
 }
 
 /*static*/ void
-nsObjectFrame::EndSwapDocShells(nsIContent* aContent, void*)
+nsObjectFrame::EndSwapDocShells(nsISupports* aSupports, void*)
 {
-  NS_PRECONDITION(aContent, "");
+  NS_PRECONDITION(aSupports, "");
+  nsCOMPtr<nsIContent> content(do_QueryInterface(aSupports));
+  if (!content) {
+    return;
+  }
 
   // This function is called from a document content enumerator so we need
   // to filter out the nsObjectFrames and ignore the rest.
-  nsIObjectFrame* obj = do_QueryFrame(aContent->GetPrimaryFrame());
+  nsIObjectFrame* obj = do_QueryFrame(content->GetPrimaryFrame());
   if (!obj)
     return;
 

@@ -488,6 +488,7 @@ PeerConnectionImpl::PeerConnectionImpl(const GlobalObject* aGlobal)
   , mDtlsConnected(false)
   , mWindow(nullptr)
   , mIdentity(nullptr)
+  , mPrivacyRequested(false)
   , mSTSThread(nullptr)
   , mMedia(nullptr)
   , mNumAudioStreams(0)
@@ -1082,7 +1083,7 @@ PeerConnectionImpl::CreateDataChannel(const nsAString& aLabel,
 
   if (!mHaveDataStream) {
     // XXX stream_id of 0 might confuse things...
-    mInternal->mCall->addStream(0, 2, DATA, 0);
+    mInternal->mCall->addStream(0, 2, DATA);
     mHaveDataStream = true;
   }
   nsIDOMDataChannel *retval;
@@ -1169,14 +1170,14 @@ PeerConnectionImpl::NotifyDataChannel(already_AddRefed<DataChannel> aChannel)
 }
 
 NS_IMETHODIMP
-PeerConnectionImpl::CreateOffer(const MediaConstraintsInternal& aConstraints)
+PeerConnectionImpl::CreateOffer(const RTCOfferOptions& aOptions)
 {
-  return CreateOffer(MediaConstraintsExternal (aConstraints));
+  return CreateOffer(SipccOfferOptions(aOptions));
 }
 
 // Used by unit tests and the IDL CreateOffer.
 NS_IMETHODIMP
-PeerConnectionImpl::CreateOffer(const MediaConstraintsExternal& aConstraints)
+PeerConnectionImpl::CreateOffer(const SipccOfferOptions& aOptions)
 {
   PC_AUTO_ENTER_API_CALL(true);
 
@@ -1184,20 +1185,14 @@ PeerConnectionImpl::CreateOffer(const MediaConstraintsExternal& aConstraints)
   mTimeCard = nullptr;
   STAMP_TIMECARD(tc, "Create Offer");
 
-  cc_media_constraints_t* cc_constraints = aConstraints.build();
-  NS_ENSURE_TRUE(cc_constraints, NS_ERROR_UNEXPECTED);
-  mInternal->mCall->createOffer(cc_constraints, tc);
+  cc_media_options_t* cc_options = aOptions.build();
+  NS_ENSURE_TRUE(cc_options, NS_ERROR_UNEXPECTED);
+  mInternal->mCall->createOffer(cc_options, tc);
   return NS_OK;
 }
 
 NS_IMETHODIMP
-PeerConnectionImpl::CreateAnswer(const MediaConstraintsInternal& aConstraints)
-{
-  return CreateAnswer(MediaConstraintsExternal (aConstraints));
-}
-
-NS_IMETHODIMP
-PeerConnectionImpl::CreateAnswer(const MediaConstraintsExternal& aConstraints)
+PeerConnectionImpl::CreateAnswer()
 {
   PC_AUTO_ENTER_API_CALL(true);
 
@@ -1205,9 +1200,7 @@ PeerConnectionImpl::CreateAnswer(const MediaConstraintsExternal& aConstraints)
   mTimeCard = nullptr;
   STAMP_TIMECARD(tc, "Create Answer");
 
-  cc_media_constraints_t* cc_constraints = aConstraints.build();
-  NS_ENSURE_TRUE(cc_constraints, NS_ERROR_UNEXPECTED);
-  mInternal->mCall->createAnswer(cc_constraints, tc);
+  mInternal->mCall->createAnswer(tc);
   return NS_OK;
 }
 
@@ -1226,13 +1219,7 @@ PeerConnectionImpl::SetLocalDescription(int32_t aAction, const char* aSDP)
   STAMP_TIMECARD(tc, "Set Local Description");
 
 #ifdef MOZILLA_INTERNAL_API
-  nsIDocument* doc = GetWindow()->GetExtantDoc();
-  bool isolated = true;
-  if (doc) {
-    isolated = mMedia->AnyLocalStreamIsolated(doc->NodePrincipal());
-  } else {
-    CSFLogInfo(logTag, "%s - no document, failing safe", __FUNCTION__);
-  }
+  bool isolated = mMedia->AnyLocalStreamHasPeerIdentity();
   mPrivacyRequested = mPrivacyRequested || isolated;
 #endif
 
@@ -1431,15 +1418,7 @@ PeerConnectionImpl::PrincipalChanged(DOMMediaStream* aMediaStream) {
 #endif
 
 nsresult
-PeerConnectionImpl::AddStream(DOMMediaStream &aMediaStream,
-                              const MediaConstraintsInternal& aConstraints)
-{
-  return AddStream(aMediaStream, MediaConstraintsExternal(aConstraints));
-}
-
-nsresult
-PeerConnectionImpl::AddStream(DOMMediaStream &aMediaStream,
-                              const MediaConstraintsExternal& aConstraints)
+PeerConnectionImpl::AddStream(DOMMediaStream &aMediaStream)
 {
   PC_AUTO_ENTER_API_CALL(true);
 
@@ -1475,16 +1454,12 @@ PeerConnectionImpl::AddStream(DOMMediaStream &aMediaStream,
 
   // TODO(ekr@rtfm.com): these integers should be the track IDs
   if (hints & DOMMediaStream::HINT_CONTENTS_AUDIO) {
-    cc_media_constraints_t* cc_constraints = aConstraints.build();
-    NS_ENSURE_TRUE(cc_constraints, NS_ERROR_UNEXPECTED);
-    mInternal->mCall->addStream(stream_id, 0, AUDIO, cc_constraints);
+    mInternal->mCall->addStream(stream_id, 0, AUDIO);
     mNumAudioStreams++;
   }
 
   if (hints & DOMMediaStream::HINT_CONTENTS_VIDEO) {
-    cc_media_constraints_t* cc_constraints = aConstraints.build();
-    NS_ENSURE_TRUE(cc_constraints, NS_ERROR_UNEXPECTED);
-    mInternal->mCall->addStream(stream_id, 1, VIDEO, cc_constraints);
+    mInternal->mCall->addStream(stream_id, 1, VIDEO);
     mNumVideoStreams++;
   }
 
@@ -1661,6 +1636,16 @@ PeerConnectionImpl::Close()
   return res;
 }
 
+bool
+PeerConnectionImpl::PluginCrash(uint64_t aPluginID)
+{
+  // fire an event to the DOM window if this is "ours"
+  bool result = mMedia ? mMedia->AnyCodecHasPluginID(aPluginID) : false;
+  if (result) {
+    CSFLogError(logTag, "%s: Our plugin %llu crashed", __FUNCTION__, static_cast<unsigned long long>(aPluginID));
+  }
+  return result;
+}
 
 nsresult
 PeerConnectionImpl::CloseInt()
@@ -1996,6 +1981,8 @@ PeerConnectionImpl::IceConnectionStateChange_m(PCImplIceConnectionState aState)
     case PCImplIceConnectionState::Closed:
       STAMP_TIMECARD(mTimeCard, "Ice state: closed");
       break;
+    default:
+      MOZ_ASSERT_UNREACHABLE("Unexpected mIceConnectionState!");
   }
 
   nsRefPtr<PeerConnectionObserver> pco = do_QueryObjectReferent(mPCObserver);
@@ -2033,6 +2020,8 @@ PeerConnectionImpl::IceGatheringStateChange_m(PCImplIceGatheringState aState)
     case PCImplIceGatheringState::Complete:
       STAMP_TIMECARD(mTimeCard, "Ice gathering state: complete");
       break;
+    default:
+      MOZ_ASSERT_UNREACHABLE("Unexpected mIceGatheringState!");
   }
 
   nsRefPtr<PeerConnectionObserver> pco = do_QueryObjectReferent(mPCObserver);
@@ -2173,34 +2162,33 @@ static void RecordIceStats_s(
     RTCStatsReportInternal* report) {
 
   NS_ConvertASCIItoUTF16 componentId(mediaStream.name().c_str());
-  if (internalStats) {
-    std::vector<NrIceCandidatePair> candPairs;
-    nsresult res = mediaStream.GetCandidatePairs(&candPairs);
-    if (NS_FAILED(res)) {
-      CSFLogError(logTag, "%s: Error getting candidate pairs", __FUNCTION__);
-      return;
-    }
 
-    for (auto p = candPairs.begin(); p != candPairs.end(); ++p) {
-      NS_ConvertASCIItoUTF16 codeword(p->codeword.c_str());
-      NS_ConvertASCIItoUTF16 localCodeword(p->local.codeword.c_str());
-      NS_ConvertASCIItoUTF16 remoteCodeword(p->remote.codeword.c_str());
-      // Only expose candidate-pair statistics to chrome, until we've thought
-      // through the implications of exposing it to content.
+  std::vector<NrIceCandidatePair> candPairs;
+  nsresult res = mediaStream.GetCandidatePairs(&candPairs);
+  if (NS_FAILED(res)) {
+    CSFLogError(logTag, "%s: Error getting candidate pairs", __FUNCTION__);
+    return;
+  }
 
-      RTCIceCandidatePairStats s;
-      s.mId.Construct(codeword);
-      s.mComponentId.Construct(componentId);
-      s.mTimestamp.Construct(now);
-      s.mType.Construct(RTCStatsType::Candidatepair);
-      s.mLocalCandidateId.Construct(localCodeword);
-      s.mRemoteCandidateId.Construct(remoteCodeword);
-      s.mNominated.Construct(p->nominated);
-      s.mMozPriority.Construct(p->priority);
-      s.mSelected.Construct(p->selected);
-      s.mState.Construct(RTCStatsIceCandidatePairState(p->state));
-      report->mIceCandidatePairStats.Value().AppendElement(s);
-    }
+  for (auto p = candPairs.begin(); p != candPairs.end(); ++p) {
+    NS_ConvertASCIItoUTF16 codeword(p->codeword.c_str());
+    NS_ConvertASCIItoUTF16 localCodeword(p->local.codeword.c_str());
+    NS_ConvertASCIItoUTF16 remoteCodeword(p->remote.codeword.c_str());
+    // Only expose candidate-pair statistics to chrome, until we've thought
+    // through the implications of exposing it to content.
+
+    RTCIceCandidatePairStats s;
+    s.mId.Construct(codeword);
+    s.mComponentId.Construct(componentId);
+    s.mTimestamp.Construct(now);
+    s.mType.Construct(RTCStatsType::Candidatepair);
+    s.mLocalCandidateId.Construct(localCodeword);
+    s.mRemoteCandidateId.Construct(remoteCodeword);
+    s.mNominated.Construct(p->nominated);
+    s.mMozPriority.Construct(p->priority);
+    s.mSelected.Construct(p->selected);
+    s.mState.Construct(RTCStatsIceCandidatePairState(p->state));
+    report->mIceCandidatePairStats.Value().AppendElement(s);
   }
 
   std::vector<NrIceCandidate> candidates;

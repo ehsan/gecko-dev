@@ -7,6 +7,11 @@
 #define WEBGLCONTEXT_H_
 
 #include "mozilla/Attributes.h"
+#include "mozilla/CheckedInt.h"
+#include "mozilla/EnumeratedArray.h"
+#include "mozilla/LinkedList.h"
+#include "mozilla/UniquePtr.h"
+
 #include "GLDefs.h"
 #include "WebGLActiveInfo.h"
 #include "WebGLObjectModel.h"
@@ -21,14 +26,11 @@
 #include "mozilla/dom/HTMLCanvasElement.h"
 #include "nsWrapperCache.h"
 #include "nsIObserver.h"
+#include "nsIDOMEventListener.h"
 #include "nsLayoutUtils.h"
 
 #include "GLContextProvider.h"
 
-#include "mozilla/EnumeratedArray.h"
-#include "mozilla/LinkedList.h"
-#include "mozilla/CheckedInt.h"
-#include "mozilla/Scoped.h"
 #include "mozilla/gfx/2D.h"
 
 #ifdef XP_MACOSX
@@ -60,12 +62,12 @@ class nsIDocShell;
 
 namespace mozilla {
 
-class WebGLMemoryPressureObserver;
+class WebGLObserver;
 class WebGLContextBoundObject;
 class WebGLActiveInfo;
 class WebGLExtensionBase;
 class WebGLBuffer;
-class WebGLVertexAttribData;
+struct WebGLVertexAttribData;
 class WebGLShader;
 class WebGLProgram;
 class WebGLQuery;
@@ -78,6 +80,7 @@ class WebGLVertexArray;
 
 namespace dom {
 class ImageData;
+class Element;
 
 struct WebGLContextAttributes;
 template<typename> struct Nullable;
@@ -146,7 +149,7 @@ class WebGLContext :
     friend class WebGLExtensionDrawBuffers;
     friend class WebGLExtensionLoseContext;
     friend class WebGLExtensionVertexArray;
-    friend class WebGLMemoryPressureObserver;
+    friend class WebGLObserver;
     friend class WebGLMemoryTracker;
 
     enum {
@@ -161,7 +164,6 @@ class WebGLContext :
 
 public:
     WebGLContext();
-    virtual ~WebGLContext();
 
     NS_DECL_CYCLE_COLLECTING_ISUPPORTS
 
@@ -459,6 +461,10 @@ public:
                     dom::ImageData* pixels, ErrorResult& rv);
     // Allow whatever element types the bindings are willing to pass
     // us in TexImage2D
+    bool TexImageFromVideoElement(GLenum target, GLint level,
+                                  GLenum internalformat, GLenum format, GLenum type,
+                                  mozilla::dom::Element& image);
+
     template<class ElementType>
     void TexImage2D(GLenum target, GLint level,
                     GLenum internalformat, GLenum format, GLenum type,
@@ -466,6 +472,17 @@ public:
     {
         if (IsContextLost())
             return;
+
+        WebGLTexture* tex = activeBoundTextureForTarget(target);
+
+        if (!tex)
+            return ErrorInvalidOperation("no texture is bound to this target");
+
+        // Trying to handle the video by GPU directly first
+        if (TexImageFromVideoElement(target, level, internalformat, format, type, elt)) {
+            return;
+        }
+
         RefPtr<gfx::DataSourceSurface> data;
         WebGLTexelFormat srcFormat;
         nsLayoutUtils::SurfaceFromElementResult res = SurfaceFromElement(elt);
@@ -481,6 +498,7 @@ public:
                                0, format, type, data->GetData(), byteLength,
                                -1, srcFormat, mPixelStorePremultiplyAlpha);
     }
+
     void TexParameterf(GLenum target, GLenum pname, GLfloat param) {
         TexParameter_base(target, pname, nullptr, &param);
     }
@@ -506,6 +524,12 @@ public:
     {
         if (IsContextLost())
             return;
+
+        // Trying to handle the video by GPU directly first
+        if (TexImageFromVideoElement(target, level, format, format, type, elt)) {
+            return;
+        }
+
         RefPtr<gfx::DataSourceSurface> data;
         WebGLTexelFormat srcFormat;
         nsLayoutUtils::SurfaceFromElementResult res = SurfaceFromElement(elt);
@@ -881,6 +905,8 @@ private:
 // -----------------------------------------------------------------------------
 // PROTECTED
 protected:
+    virtual ~WebGLContext();
+
     void SetFakeBlackStatus(WebGLContextFakeBlackStatus x) {
         mFakeBlackStatus = x;
     }
@@ -917,8 +943,9 @@ protected:
     bool mMinCapability;
     bool mDisableExtensions;
     bool mIsMesa;
-    bool mLoseContextOnHeapMinimize;
+    bool mLoseContextOnMemoryPressure;
     bool mCanLoseContextInForeground;
+    bool mRestoreWhenVisible;
     bool mShouldPresent;
     bool mBackbufferNeedsClear;
     bool mDisableFragHighP;
@@ -1162,7 +1189,7 @@ protected:
                              GLenum type,
                              const GLvoid *data);
 
-    void ForceLoseContext();
+    void ForceLoseContext(bool simulateLosing = false);
     void ForceRestoreContext();
 
     nsTArray<WebGLRefPtr<WebGLTexture> > mBound2DTextures;
@@ -1204,16 +1231,16 @@ protected:
         GLuint GLName() const { return mGLName; }
     };
 
-    ScopedDeletePtr<FakeBlackTexture> mBlackOpaqueTexture2D,
-                                      mBlackOpaqueTextureCubeMap,
-                                      mBlackTransparentTexture2D,
-                                      mBlackTransparentTextureCubeMap;
+    UniquePtr<FakeBlackTexture> mBlackOpaqueTexture2D,
+                                mBlackOpaqueTextureCubeMap,
+                                mBlackTransparentTexture2D,
+                                mBlackTransparentTextureCubeMap;
 
     void BindFakeBlackTexturesHelper(
         GLenum target,
         const nsTArray<WebGLRefPtr<WebGLTexture> >& boundTexturesArray,
-        ScopedDeletePtr<FakeBlackTexture> & opaqueTextureScopedPtr,
-        ScopedDeletePtr<FakeBlackTexture> & transparentTextureScopedPtr);
+        UniquePtr<FakeBlackTexture> & opaqueTextureScopedPtr,
+        UniquePtr<FakeBlackTexture> & transparentTextureScopedPtr);
 
     GLfloat mVertexAttrib0Vector[4];
     GLfloat mFakeVertexAttrib0BufferObjectVector[4];
@@ -1273,7 +1300,7 @@ protected:
     ForceDiscreteGPUHelperCGL mForceDiscreteGPUHelper;
 #endif
 
-    nsRefPtr<WebGLMemoryPressureObserver> mMemoryPressureObserver;
+    nsRefPtr<WebGLObserver> mContextObserver;
 
 public:
     // console logging helpers
@@ -1371,19 +1398,30 @@ WebGLContext::ValidateObject(const char* info, ObjectType *aObject)
     return ValidateObjectAssumeNonNull(info, aObject);
 }
 
-class WebGLMemoryPressureObserver MOZ_FINAL
+// Listen visibilitychange and memory-pressure event for context lose/restore
+class WebGLObserver MOZ_FINAL
     : public nsIObserver
+    , public nsIDOMEventListener
 {
 public:
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSIOBSERVER
+    NS_DECL_ISUPPORTS
+    NS_DECL_NSIOBSERVER
+    NS_DECL_NSIDOMEVENTLISTENER
 
-  WebGLMemoryPressureObserver(WebGLContext *context)
-    : mContext(context)
-  {}
+    WebGLObserver(WebGLContext* aContext);
+
+    void Destroy();
+
+    void RegisterVisibilityChangeEvent();
+    void UnregisterVisibilityChangeEvent();
+
+    void RegisterMemoryPressureEvent();
+    void UnregisterMemoryPressureEvent();
 
 private:
-  WebGLContext *mContext;
+    ~WebGLObserver();
+
+    WebGLContext* mContext;
 };
 
 } // namespace mozilla

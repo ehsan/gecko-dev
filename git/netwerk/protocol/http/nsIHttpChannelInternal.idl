@@ -199,4 +199,6 @@ interface nsIHttpChannelInternal : nsISupports
      * write to nsIRedirectHistory.redirects.
      */
     void addRedirect(in nsIPrincipal aPrincipal);
+
+    readonly attribute PRTime lastModifiedTime;
 };

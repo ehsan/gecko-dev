@@ -78,6 +78,7 @@ var ecmaGlobals =
     {name: "SIMD", nightly: true},
     "StopIteration",
     "String",
+    "Symbol",
     "SyntaxError",
     {name: "TypedObject", nightly: true},
     "TypeError",
@@ -112,9 +113,13 @@ var legacyMozPrefixedInterfaces =
 var interfaceNamesInGlobalScope =
   [
 // IMPORTANT: Do not change this list without review from a DOM peer!
+    {name: "AlarmsManager", pref: "dom.mozAlarms.enabled"},
+// IMPORTANT: Do not change this list without review from a DOM peer!
     "AnalyserNode",
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "AnimationEvent",
+// IMPORTANT: Do not change this list without review from a DOM peer!
+    {name: "AnimationPlayer", pref: "dom.animations-api.core.enabled"},
 // IMPORTANT: Do not change this list without review from a DOM peer!
     {name: "AnimationTimeline", pref: "dom.animations-api.core.enabled"},
 // IMPORTANT: Do not change this list without review from a DOM peer!
@@ -217,6 +222,10 @@ var interfaceNamesInGlobalScope =
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "Crypto",
 // IMPORTANT: Do not change this list without review from a DOM peer!
+    {name: "CryptoKey", pref: "dom.webcrypto.enabled"},
+// IMPORTANT: Do not change this list without review from a DOM peer!
+    {name: "CryptoKeyPair", pref: "dom.webcrypto.enabled"},
+// IMPORTANT: Do not change this list without review from a DOM peer!
     "CSS",
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "CSS2Properties",
@@ -224,6 +233,8 @@ var interfaceNamesInGlobalScope =
     "CSSCharsetRule",
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "CSSConditionRule",
+// IMPORTANT: Do not change this list without review from a DOM peer!
+    "CSSCounterStyleRule",
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "CSSFontFaceRule",
 // IMPORTANT: Do not change this list without review from a DOM peer!
@@ -307,6 +318,10 @@ var interfaceNamesInGlobalScope =
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "DOMImplementation",
 // IMPORTANT: Do not change this list without review from a DOM peer!
+    "DOMMatrix",
+// IMPORTANT: Do not change this list without review from a DOM peer!
+    "DOMMatrixReadOnly",
+// IMPORTANT: Do not change this list without review from a DOM peer!
     {name: "DOMMMIError", b2g: true, pref: "dom.mobileconnection.enabled"},
 // IMPORTANT: Do not change this list without review from a DOM peer!
     {name: "DOMMobileMessageError", b2g: true, pref: "dom.sms.enabled"},
@@ -343,8 +358,6 @@ var interfaceNamesInGlobalScope =
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "Element",
 // IMPORTANT: Do not change this list without review from a DOM peer!
-    "ElementReplaceEvent",
-// IMPORTANT: Do not change this list without review from a DOM peer!
     "ErrorEvent",
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "Event",
@@ -357,13 +370,9 @@ var interfaceNamesInGlobalScope =
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "File",
 // IMPORTANT: Do not change this list without review from a DOM peer!
-    "FileHandle",
-// IMPORTANT: Do not change this list without review from a DOM peer!
     "FileList",
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "FileReader",
-// IMPORTANT: Do not change this list without review from a DOM peer!
-    "FileRequest",
 // IMPORTANT: Do not change this list without review from a DOM peer!
     {name: "FMRadio", b2g: true},
 // IMPORTANT: Do not change this list without review from a DOM peer!
@@ -493,6 +502,8 @@ var interfaceNamesInGlobalScope =
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "HTMLPreElement",
 // IMPORTANT: Do not change this list without review from a DOM peer!
+    {name: "HTMLPictureElement", pref: "dom.image.picture.enabled"},
+// IMPORTANT: Do not change this list without review from a DOM peer!
     "HTMLProgressElement",
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "HTMLPropertiesCollection",
@@ -553,9 +564,13 @@ var interfaceNamesInGlobalScope =
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "IDBFileHandle",
 // IMPORTANT: Do not change this list without review from a DOM peer!
+    "IDBFileRequest",
+// IMPORTANT: Do not change this list without review from a DOM peer!
     "IDBIndex",
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "IDBKeyRange",
+// IMPORTANT: Do not change this list without review from a DOM peer!
+    "IDBMutableFile",
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "IDBObjectStore",
 // IMPORTANT: Do not change this list without review from a DOM peer!
@@ -575,19 +590,13 @@ var interfaceNamesInGlobalScope =
 // IMPORTANT: Do not change this list without review from a DOM peer!
     {name: "InstallTrigger", b2g: false},
 // IMPORTANT: Do not change this list without review from a DOM peer!
-    {name: "Key", pref: "dom.webcrypto.enabled"},
-// IMPORTANT: Do not change this list without review from a DOM peer!
     "KeyEvent",
-// IMPORTANT: Do not change this list without review from a DOM peer!
-    {name: "KeyPair", pref: "dom.webcrypto.enabled"},
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "KeyboardEvent",
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "LocalMediaStream",
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "Location",
-// IMPORTANT: Do not change this list without review from a DOM peer!
-    "LockedFile",
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "MediaElementAudioSourceNode",
 // IMPORTANT: Do not change this list without review from a DOM peer!
@@ -667,7 +676,7 @@ var interfaceNamesInGlobalScope =
 // IMPORTANT: Do not change this list without review from a DOM peer!
     {name: "MozMobileNetworkInfo", b2g: true, pref: "dom.mobileconnection.enabled"},
 // IMPORTANT: Do not change this list without review from a DOM peer!
-    "MozMobileMessageManager",
+    {name: "MozMobileMessageManager", b2g: true, pref: "dom.sms.enabled"},
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "MozMobileMessageThread",
 // IMPORTANT: Do not change this list without review from a DOM peer!
@@ -708,6 +717,8 @@ var interfaceNamesInGlobalScope =
     {name: "MozVoicemail", b2g: true, pref: "dom.voicemail.enabled"},
 // IMPORTANT: Do not change this list without review from a DOM peer!
     {name: "MozVoicemailEvent", b2g: true, pref: "dom.voicemail.enabled"},
+// IMPORTANT: Do not change this list without review from a DOM peer!
+    {name: "MozVoicemailStatus", b2g: true, pref: "dom.voicemail.enabled"},
 // IMPORTANT: Do not change this list without review from a DOM peer!
     {name: "MozWakeLock", b2g: true, pref: "dom.wakelock.enabled"},
 // IMPORTANT: Do not change this list without review from a DOM peer!
@@ -804,6 +815,8 @@ var interfaceNamesInGlobalScope =
     "Promise",
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "PropertyNodeList",
+// IMPORTANT: Do not change this list without review from a DOM peer!
+    "RadioNodeList",
 // IMPORTANT: Do not change this list without review from a DOM peer!
     "Range",
 // IMPORTANT: Do not change this list without review from a DOM peer!

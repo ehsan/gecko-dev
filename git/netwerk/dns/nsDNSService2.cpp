@@ -61,7 +61,18 @@ public:
         : mHostRecord(hostRecord)
         , mIter(nullptr)
         , mIterGenCnt(-1)
+        , mHideLocalIPAddresses(false)
+        , mHideLoopbackIPAddresses(false)
         , mDone(false) {}
+
+    // Do not return private, RFC1918-like IP addresses.
+    void HideLocalIPAddresses();
+
+    // Do not return loopback addresses.
+    void HideLoopbackIPAddresses();
+
+    // Convenience function for nsIDNSRecord.hasMore().
+    bool HasMore();
 
 private:
     virtual ~nsDNSRecord() {}
@@ -71,10 +82,26 @@ private:
     int                     mIterGenCnt; // the generation count of
                                          // mHostRecord->addr_info when we
                                          // start iterating
+    // True if private, RFC1918-like IP addresses should be hidden.
+    bool                    mHideLocalIPAddresses;
+    // True if loopback addresses should be hidden.
+    bool                    mHideLoopbackIPAddresses;
     bool                    mDone;
 };
 
 NS_IMPL_ISUPPORTS(nsDNSRecord, nsIDNSRecord)
+
+void
+nsDNSRecord::HideLocalIPAddresses()
+{
+    mHideLocalIPAddresses = true;
+}
+
+void
+nsDNSRecord::HideLoopbackIPAddresses()
+{
+    mHideLoopbackIPAddresses = true;
+}
 
 NS_IMETHODIMP
 nsDNSRecord::GetCanonicalName(nsACString &result)
@@ -122,8 +149,11 @@ nsDNSRecord::GetNextAddr(uint16_t port, NetAddr *addr)
             } else {
                 mIter = mIter->getNext();
             }
-        }
-        while (mIter && mHostRecord->Blacklisted(&mIter->mAddress));
+        } while (mIter && (mHostRecord->Blacklisted(&mIter->mAddress) ||
+                           (mHideLocalIPAddresses &&
+                            IsIPAddrLocal(&mIter->mAddress)) ||
+                           (mHideLoopbackIPAddresses &&
+                            IsLoopBackAddress(&mIter->mAddress))));
 
         if (!mIter && startedFresh) {
             // If everything was blacklisted we want to reset the blacklist (and
@@ -131,6 +161,14 @@ nsDNSRecord::GetNextAddr(uint16_t port, NetAddr *addr)
             // than nothing.
             mHostRecord->ResetBlacklist();
             mIter = mHostRecord->addr_info->mAddresses.getFirst();
+
+            // If Private IPs are hidden, return the first public address.
+            while (mIter && ((mHideLocalIPAddresses &&
+                             IsIPAddrLocal(&mIter->mAddress)) ||
+                            (mHideLoopbackIPAddresses &&
+                             IsLoopBackAddress(&mIter->mAddress)))) {
+                mIter = mIter->getNext();
+            }
         }
 
         if (mIter) {
@@ -147,7 +185,9 @@ nsDNSRecord::GetNextAddr(uint16_t port, NetAddr *addr)
     else {
         mHostRecord->addr_info_lock.Unlock();
 
-        if (!mHostRecord->addr) {
+        if (!mHostRecord->addr ||
+            (mHideLocalIPAddresses && IsIPAddrLocal(mHostRecord->addr)) ||
+            (mHideLoopbackIPAddresses && IsLoopBackAddress(mHostRecord->addr))) {
             // Both mHostRecord->addr_info and mHostRecord->addr are null.
             // This can happen if mHostRecord->addr_info expired and the
             // attempt to reresolve it failed.
@@ -216,6 +256,15 @@ nsDNSRecord::HasMore(bool *result)
     return NS_OK;
 }
 
+bool
+nsDNSRecord::HasMore()
+{
+    bool more;
+    DebugOnly<nsresult> rv = HasMore(&more);
+    MOZ_ASSERT(NS_SUCCEEDED(rv));
+    return more;
+}
+
 NS_IMETHODIMP
 nsDNSRecord::Rewind()
 {
@@ -250,6 +299,8 @@ nsDNSRecord::ReportUnusable(uint16_t aPort)
 class nsDNSAsyncRequest MOZ_FINAL : public nsResolveHostCallback
                                   , public nsICancelable
 {
+    ~nsDNSAsyncRequest() {}
+
 public:
     NS_DECL_THREADSAFE_ISUPPORTS
     NS_DECL_NSICANCELABLE
@@ -264,7 +315,6 @@ public:
         , mListener(listener)
         , mFlags(flags)
         , mAF(af) {}
-    ~nsDNSAsyncRequest() {}
 
     void OnLookupComplete(nsHostResolver *, nsHostRecord *, nsresult);
     // Returns TRUE if the DNS listener arg is the same as the member listener
@@ -292,9 +342,18 @@ nsDNSAsyncRequest::OnLookupComplete(nsHostResolver *resolver,
     nsCOMPtr<nsIDNSRecord> rec;
     if (NS_SUCCEEDED(status)) {
         NS_ASSERTION(hostRecord, "no host record");
-        rec = new nsDNSRecord(hostRecord);
-        if (!rec)
-            status = NS_ERROR_OUT_OF_MEMORY;
+        nsRefPtr<nsDNSRecord> recImpl = new nsDNSRecord(hostRecord);
+        if (mFlags & nsIDNSService::RESOLVE_DISABLE_RFC1918) {
+            recImpl->HideLocalIPAddresses();
+        }
+        if (mFlags & nsIDNSService::RESOLVE_DISABLE_LOOPBACK) {
+            recImpl->HideLoopbackIPAddresses();
+        }
+        if (!recImpl->HasMore()) {
+            status = NS_ERROR_UNKNOWN_HOST;
+            recImpl = nullptr;
+        }
+        rec = recImpl.forget();
     }
 
     MOZ_EVENT_TRACER_DONE(this, "net::dns::lookup");
@@ -675,8 +734,9 @@ nsDNSService::AsyncResolve(const nsACString  &hostname,
 
     const nsACString *hostPtr = &hostname;
 
+    nsAutoCString strLocalhost(NS_LITERAL_CSTRING("localhost"));
     if (localDomain) {
-        hostPtr = &(NS_LITERAL_CSTRING("localhost"));
+        hostPtr = &strLocalhost;
     }
 
     nsresult rv;
@@ -792,8 +852,9 @@ nsDNSService::Resolve(const nsACString &hostname,
 
     const nsACString *hostPtr = &hostname;
 
+    nsAutoCString strLocalhost(NS_LITERAL_CSTRING("localhost"));
     if (localDomain) {
-        hostPtr = &(NS_LITERAL_CSTRING("localhost"));
+        hostPtr = &strLocalhost;
     }
 
     nsresult rv;
@@ -834,11 +895,18 @@ nsDNSService::Resolve(const nsACString &hostname,
             rv = syncReq.mStatus;
         else {
             NS_ASSERTION(syncReq.mHostRecord, "no host record");
-            nsDNSRecord *rec = new nsDNSRecord(syncReq.mHostRecord);
-            if (!rec)
-                rv = NS_ERROR_OUT_OF_MEMORY;
-            else
-                NS_ADDREF(*result = rec);
+            nsRefPtr<nsDNSRecord> rec = new nsDNSRecord(syncReq.mHostRecord);
+            if (flags & nsIDNSService::RESOLVE_DISABLE_RFC1918) {
+              rec->HideLocalIPAddresses();
+            }
+            if (flags & nsIDNSService::RESOLVE_DISABLE_LOOPBACK) {
+              rec->HideLoopbackIPAddresses();
+            }
+            if (!rec->HasMore()) {
+                rv = NS_ERROR_UNKNOWN_HOST;
+                rec = nullptr;
+            }
+            rec.forget(result);
         }
     }
 
@@ -975,7 +1043,7 @@ MOZ_DEFINE_MALLOC_SIZE_OF(DNSServiceMallocSizeOf)
 
 NS_IMETHODIMP
 nsDNSService::CollectReports(nsIHandleReportCallback* aHandleReport,
-                             nsISupports* aData)
+                             nsISupports* aData, bool aAnonymize)
 {
     return MOZ_COLLECT_REPORT(
         "explicit/network/dns-service", KIND_HEAP, UNITS_BYTES,

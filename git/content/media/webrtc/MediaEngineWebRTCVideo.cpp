@@ -79,8 +79,8 @@ MediaEngineWebRTCVideoSource::DeliverFrame(
     return 0;
   }
 
-  MOZ_ASSERT(mWidth*mHeight*3/2 == size);
-  if (mWidth*mHeight*3/2 != size) {
+  if (mWidth*mHeight + 2*(((mWidth+1)/2)*((mHeight+1)/2)) != size) {
+    MOZ_ASSERT(false, "Wrong size frame in DeliverFrame!");
     return 0;
   }
 
@@ -93,14 +93,15 @@ MediaEngineWebRTCVideoSource::DeliverFrame(
   const uint8_t lumaBpp = 8;
   const uint8_t chromaBpp = 4;
 
+  // Take lots of care to round up!
   layers::PlanarYCbCrData data;
   data.mYChannel = frame;
   data.mYSize = IntSize(mWidth, mHeight);
-  data.mYStride = mWidth * lumaBpp/ 8;
-  data.mCbCrStride = mWidth * chromaBpp / 8;
+  data.mYStride = (mWidth * lumaBpp + 7)/ 8;
+  data.mCbCrStride = (mWidth * chromaBpp + 7) / 8;
   data.mCbChannel = frame + mHeight * data.mYStride;
-  data.mCrChannel = data.mCbChannel + mHeight * data.mCbCrStride / 2;
-  data.mCbCrSize = IntSize(mWidth/ 2, mHeight/ 2);
+  data.mCrChannel = data.mCbChannel + ((mHeight+1)/2) * data.mCbCrStride;
+  data.mCbCrSize = IntSize((mWidth+1)/ 2, (mHeight+1)/ 2);
   data.mPicX = 0;
   data.mPicY = 0;
   data.mPicSize = IntSize(mWidth, mHeight);
@@ -143,7 +144,7 @@ MediaEngineWebRTCVideoSource::NotifyPull(MediaStreamGraph* aGraph,
 
   // Note: we're not giving up mImage here
   nsRefPtr<layers::Image> image = mImage;
-  TrackTicks target = TimeToTicksRoundUp(USECS_PER_S, aDesiredTime);
+  TrackTicks target = aSource->TimeToTicksRoundUp(USECS_PER_S, aDesiredTime);
   TrackTicks delta = target - aLastEndTime;
   LOGFRAME(("NotifyPull, desired = %ld, target = %ld, delta = %ld %s", (int64_t) aDesiredTime,
             (int64_t) target, (int64_t) delta, image ? "" : "<null>"));
@@ -841,10 +842,9 @@ void
 MediaEngineWebRTCVideoSource::OnTakePictureComplete(uint8_t* aData, uint32_t aLength, const nsAString& aMimeType)
 {
   ReentrantMonitorAutoEnter sync(mCallbackMonitor);
-  mLastCapture =
-    static_cast<nsIDOMFile*>(new nsDOMMemoryFile(static_cast<void*>(aData),
-                                                 static_cast<uint64_t>(aLength),
-                                                 aMimeType));
+  mLastCapture = dom::DOMFile::CreateMemoryFile(static_cast<void*>(aData),
+                                                static_cast<uint64_t>(aLength),
+                                                aMimeType);
   mCallbackMonitor.Notify();
 }
 

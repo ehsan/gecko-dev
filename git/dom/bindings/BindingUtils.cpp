@@ -54,8 +54,7 @@ JSErrorFormatString ErrorFormatString[] = {
 };
 
 const JSErrorFormatString*
-GetErrorMessage(void* aUserRef, const char* aLocale,
-                const unsigned aErrorNumber)
+GetErrorMessage(void* aUserRef, const unsigned aErrorNumber)
 {
   MOZ_ASSERT(aErrorNumber < ArrayLength(ErrorFormatString));
   return &ErrorFormatString[aErrorNumber];
@@ -86,10 +85,13 @@ ThrowInvalidThis(JSContext* aCx, const JS::CallArgs& aArgs,
   MOZ_ASSERT(func);
   JS::Rooted<JSString*> funcName(aCx, JS_GetFunctionDisplayId(func));
   MOZ_ASSERT(funcName);
+  nsAutoJSString funcNameStr;
+  if (!funcNameStr.init(aCx, funcName)) {
+    return false;
+  }
   JS_ReportErrorNumberUC(aCx, GetErrorMessage, nullptr,
                          static_cast<const unsigned>(aErrorNumber),
-                         JS_GetStringCharsZ(aCx, funcName),
-                         ifaceName.get());
+                         funcNameStr.get(), ifaceName.get());
   return false;
 }
 
@@ -136,8 +138,7 @@ ErrorResult::ThrowTypeError(const dom::ErrNum errorNumber, ...)
   mResult = NS_ERROR_TYPE_ERR;
   Message* message = new Message();
   message->mErrorNumber = errorNumber;
-  uint16_t argCount =
-    dom::GetErrorMessage(nullptr, nullptr, errorNumber)->argCount;
+  uint16_t argCount = dom::GetErrorMessage(nullptr, errorNumber)->argCount;
   MOZ_ASSERT(argCount <= 10);
   argCount = std::min<uint16_t>(argCount, 10);
   while (argCount--) {
@@ -320,6 +321,13 @@ DefinePrefable(JSContext* cx, JS::Handle<JSObject*> obj,
 }
 
 bool
+DefineUnforgeableMethods(JSContext* cx, JS::Handle<JSObject*> obj,
+                         const Prefable<const JSFunctionSpec>* props)
+{
+  return DefinePrefable(cx, obj, props);
+}
+
+bool
 DefineUnforgeableAttributes(JSContext* cx, JS::Handle<JSObject*> obj,
                             const Prefable<const JSPropertySpec>* props)
 {
@@ -355,9 +363,12 @@ InterfaceObjectToString(JSContext* cx, unsigned argc, JS::Value *vp)
   const JSClass* clasp = static_cast<const JSClass*>(v.toPrivate());
 
   v = js::GetFunctionNativeReserved(callee, TOSTRING_NAME_RESERVED_SLOT);
-  JSString* jsname = static_cast<JSString*>(v.toString());
-  size_t length;
-  const jschar* name = JS_GetInternedStringCharsAndLength(jsname, &length);
+  JSString* jsname = v.toString();
+
+  nsAutoJSString name;
+  if (!name.init(cx, jsname)) {
+    return false;
+  }
 
   if (js::GetObjectJSClass(&args.thisv().toObject()) != clasp) {
     JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr,
@@ -369,7 +380,7 @@ InterfaceObjectToString(JSContext* cx, unsigned argc, JS::Value *vp)
 
   nsString str;
   str.AppendLiteral("function ");
-  str.Append(name, length);
+  str.Append(name);
   str.AppendLiteral("() {");
   str.Append('\n');
   str.AppendLiteral("    [native code]");
@@ -768,7 +779,7 @@ TryPreserveWrapper(JSObject* obj)
   // If this DOMClass is not cycle collected, then it isn't wrappercached,
   // so it does not need to be preserved. If it is cycle collected, then
   // we can't tell if it is wrappercached or not, so we just return false.
-  const DOMClass* domClass = GetDOMClass(obj);
+  const DOMJSClass* domClass = GetDOMClass(obj);
   return domClass && !domClass->mParticipant;
 }
 
@@ -777,8 +788,8 @@ bool
 InstanceClassHasProtoAtDepth(const js::Class* clasp,
                              uint32_t protoID, uint32_t depth)
 {
-  const DOMClass& domClass = DOMJSClass::FromJSClass(clasp)->mClass;
-  return static_cast<uint32_t>(domClass.mInterfaceChain[depth]) == protoID;
+  const DOMJSClass* domClass = DOMJSClass::FromJSClass(clasp);
+  return static_cast<uint32_t>(domClass->mInterfaceChain[depth]) == protoID;
 }
 
 // Only set allowNativeWrapper to false if you really know you need it, if in
@@ -903,6 +914,14 @@ GetInterfaceImpl(JSContext* aCx, nsIInterfaceRequestor* aRequestor,
 }
 
 bool
+UnforgeableValueOf(JSContext* cx, unsigned argc, JS::Value* vp)
+{
+  JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
+  args.rval().set(args.thisv());
+  return true;
+}
+
+bool
 ThrowingConstructor(JSContext* cx, unsigned argc, JS::Value* vp)
 {
   return ThrowErrorMessage(cx, MSG_ILLEGAL_CONSTRUCTOR);
@@ -918,7 +937,7 @@ inline const NativePropertyHooks*
 GetNativePropertyHooks(JSContext *cx, JS::Handle<JSObject*> obj,
                        DOMObjectType& type)
 {
-  const DOMClass* domClass = GetDOMClass(obj);
+  const DOMJSClass* domClass = GetDOMClass(obj);
   if (domClass) {
     type = eInstance;
     return domClass->mNativeHooks;
@@ -1046,18 +1065,91 @@ XrayResolveAttribute(JSContext* cx, JS::Handle<JSObject*> wrapper,
   return true;
 }
 
+static bool
+XrayResolveMethod(JSContext* cx, JS::Handle<JSObject*> wrapper,
+                  JS::Handle<JSObject*> obj, JS::Handle<jsid> id,
+                  const Prefable<const JSFunctionSpec>* methods,
+                  jsid* methodIds,
+                  const JSFunctionSpec* methodsSpecs,
+                  JS::MutableHandle<JSPropertyDescriptor> desc)
+{
+  const Prefable<const JSFunctionSpec>* method;
+  for (method = methods; method->specs; ++method) {
+    if (method->isEnabled(cx, obj)) {
+      // Set i to be the index into our full list of ids/specs that we're
+      // looking at now.
+      size_t i = method->specs - methodsSpecs;
+      for ( ; methodIds[i] != JSID_VOID; ++i) {
+        if (id == methodIds[i]) {
+          const JSFunctionSpec& methodSpec = methodsSpecs[i];
+          JSFunction *fun;
+          if (methodSpec.selfHostedName) {
+            fun = JS::GetSelfHostedFunction(cx, methodSpec.selfHostedName, id, methodSpec.nargs);
+            if (!fun) {
+              return false;
+            }
+            MOZ_ASSERT(!methodSpec.call.op, "Bad FunctionSpec declaration: non-null native");
+            MOZ_ASSERT(!methodSpec.call.info, "Bad FunctionSpec declaration: non-null jitinfo");
+          } else {
+            fun = JS_NewFunctionById(cx, methodSpec.call.op, methodSpec.nargs, 0, wrapper, id);
+            if (!fun) {
+              return false;
+            }
+            SET_JITINFO(fun, methodSpec.call.info);
+          }
+          JSObject *funobj = JS_GetFunctionObject(fun);
+          desc.value().setObject(*funobj);
+          desc.setAttributes(methodSpec.flags);
+          desc.object().set(wrapper);
+          desc.setSetter(nullptr);
+          desc.setGetter(nullptr);
+          return true;
+        }
+      }
+    }
+  }
+  return true;
+}
+
 /* static */ bool
 XrayResolveUnforgeableProperty(JSContext* cx, JS::Handle<JSObject*> wrapper,
                                JS::Handle<JSObject*> obj, JS::Handle<jsid> id,
                                JS::MutableHandle<JSPropertyDescriptor> desc,
                                const NativeProperties* nativeProperties)
 {
-  return !nativeProperties || !nativeProperties->unforgeableAttributes ||
-         XrayResolveAttribute(cx, wrapper, obj, id,
+  if (!nativeProperties) {
+    return true;
+  }
+
+  if (nativeProperties->unforgeableAttributes) {
+    if (!XrayResolveAttribute(cx, wrapper, obj, id,
                               nativeProperties->unforgeableAttributes,
                               nativeProperties->unforgeableAttributeIds,
                               nativeProperties->unforgeableAttributeSpecs,
-                              desc);
+                              desc)) {
+      return false;
+    }
+
+    if (desc.object()) {
+      return true;
+    }
+  }
+
+  if (nativeProperties->unforgeableMethods) {
+    if (!XrayResolveMethod(cx, wrapper, obj, id,
+                           nativeProperties->unforgeableMethods,
+                           nativeProperties->unforgeableMethodIds,
+                           nativeProperties->unforgeableMethodSpecs,
+                           desc)) {
+      return false;
+    }
+
+    if (desc.object()) {
+      return true;
+    }
+  }
+
+  return true;
 }
 
 static bool
@@ -1079,40 +1171,12 @@ XrayResolveProperty(JSContext* cx, JS::Handle<JSObject*> wrapper,
     methodsSpecs = nativeProperties->methodsSpecs;
   }
   if (methods) {
-    const Prefable<const JSFunctionSpec>* method;
-    for (method = methods; method->specs; ++method) {
-      if (method->isEnabled(cx, obj)) {
-        // Set i to be the index into our full list of ids/specs that we're
-        // looking at now.
-        size_t i = method->specs - methodsSpecs;
-        for ( ; methodIds[i] != JSID_VOID; ++i) {
-          if (id == methodIds[i]) {
-            const JSFunctionSpec& methodSpec = methodsSpecs[i];
-            JSFunction *fun;
-            if (methodSpec.selfHostedName) {
-              fun = JS::GetSelfHostedFunction(cx, methodSpec.selfHostedName, id, methodSpec.nargs);
-              if (!fun) {
-                return false;
-              }
-              MOZ_ASSERT(!methodSpec.call.op, "Bad FunctionSpec declaration: non-null native");
-              MOZ_ASSERT(!methodSpec.call.info, "Bad FunctionSpec declaration: non-null jitinfo");
-            } else {
-              fun = JS_NewFunctionById(cx, methodSpec.call.op, methodSpec.nargs, 0, wrapper, id);
-              if (!fun) {
-                return false;
-              }
-              SET_JITINFO(fun, methodSpec.call.info);
-            }
-            JSObject *funobj = JS_GetFunctionObject(fun);
-            desc.value().setObject(*funobj);
-            desc.setAttributes(methodSpec.flags);
-            desc.object().set(wrapper);
-            desc.setSetter(nullptr);
-            desc.setGetter(nullptr);
-           return true;
-          }
-        }
-      }
+    if (!XrayResolveMethod(cx, wrapper, obj, id, methods, methodIds,
+                           methodsSpecs, desc)) {
+      return false;
+    }
+    if (desc.object()) {
+      return true;
     }
   }
 
@@ -1272,10 +1336,7 @@ XrayDefineProperty(JSContext* cx, JS::Handle<JSObject*> wrapper,
   if (!js::IsProxy(obj))
       return true;
 
-  MOZ_ASSERT(IsDOMProxy(obj), "What kind of proxy is this?");
-
-  DOMProxyHandler* handler =
-    static_cast<DOMProxyHandler*>(js::GetProxyHandler(obj));
+  const DOMProxyHandler* handler = GetDOMProxyHandler(obj);
   return handler->defineProperty(cx, wrapper, id, desc, defined);
 }
 
@@ -1594,8 +1655,7 @@ ConcatJSString(JSContext* cx, const char* pre, JS::Handle<JSString*> str, const 
 
 bool
 NativeToString(JSContext* cx, JS::Handle<JSObject*> wrapper,
-               JS::Handle<JSObject*> obj, const char* pre,
-               const char* post,
+               JS::Handle<JSObject*> obj,
                JS::MutableHandle<JS::Value> v)
 {
   JS::Rooted<JSPropertyDescriptor> toStringDesc(cx);
@@ -1640,7 +1700,6 @@ NativeToString(JSContext* cx, JS::Handle<JSObject*> wrapper,
         JS::Rooted<JSFunction*> fun(cx, JS_GetObjectFunction(obj));
         str = JS_DecompileFunction(cx, fun, 0);
       }
-      str = ConcatJSString(cx, pre, str, post);
     }
   }
 
@@ -1686,7 +1745,7 @@ ReparentWrapper(JSContext* aCx, JS::Handle<JSObject*> aObjArg)
   JS_CHECK_RECURSION(aCx, return NS_ERROR_FAILURE);
 
   JS::Rooted<JSObject*> aObj(aCx, aObjArg);
-  const DOMClass* domClass = GetDOMClass(aObj);
+  const DOMJSClass* domClass = GetDOMClass(aObj);
 
   JS::Rooted<JSObject*> oldParent(aCx, JS_GetParent(aObj));
   JS::Rooted<JSObject*> newParent(aCx, domClass->mGetParent(aCx, aObj));
@@ -1835,6 +1894,7 @@ GlobalObject::GlobalObject(JSContext* aCx, JSObject* aObject)
     mCx(aCx),
     mGlobalObject(nullptr)
 {
+  MOZ_ASSERT(mCx);
   JS::Rooted<JSObject*> obj(aCx, aObject);
   if (js::IsWrapper(obj)) {
     obj = js::CheckedUnwrap(obj, /* stopAtOuter = */ false);
@@ -1888,7 +1948,7 @@ InterfaceHasInstance(JSContext* cx, JS::Handle<JSObject*> obj,
   const DOMIfaceAndProtoJSClass* clasp =
     DOMIfaceAndProtoJSClass::FromJSClass(js::GetObjectClass(obj));
 
-  const DOMClass* domClass = GetDOMClass(js::UncheckedUnwrap(instance, /* stopAtOuter = */ false));
+  const DOMJSClass* domClass = GetDOMClass(js::UncheckedUnwrap(instance, /* stopAtOuter = */ false));
 
   MOZ_ASSERT(!domClass || clasp->mPrototypeID != prototypes::id::_ID_Count,
              "Why do we have a hasInstance hook if we don't have a prototype "
@@ -1900,11 +1960,10 @@ InterfaceHasInstance(JSContext* cx, JS::Handle<JSObject*> obj,
     return true;
   }
 
-  JS::Rooted<JSObject*> unwrapped(cx, js::CheckedUnwrap(instance, true));
-  if (unwrapped && jsipc::IsCPOW(unwrapped)) {
+  if (jsipc::IsWrappedCPOW(instance)) {
     bool boolp = false;
-    if (!jsipc::DOMInstanceOf(cx, unwrapped, clasp->mPrototypeID,
-                                                clasp->mDepth, &boolp)) {
+    if (!jsipc::DOMInstanceOf(cx, js::CheckedUnwrap(instance), clasp->mPrototypeID,
+                              clasp->mDepth, &boolp)) {
       return false;
     }
     *bp = boolp;
@@ -1957,7 +2016,7 @@ InterfaceHasInstance(JSContext* cx, int prototypeID, int depth,
                      JS::Handle<JSObject*> instance,
                      bool* bp)
 {
-  const DOMClass* domClass = GetDOMClass(js::UncheckedUnwrap(instance));
+  const DOMJSClass* domClass = GetDOMClass(js::UncheckedUnwrap(instance));
 
   MOZ_ASSERT(!domClass || prototypeID != prototypes::id::_ID_Count,
              "Why do we have a hasInstance hook if we don't have a prototype "
@@ -2106,8 +2165,7 @@ NonVoidByteStringToJsval(JSContext *cx, const nsACString &str,
 
 bool
 ConvertJSValueToByteString(JSContext* cx, JS::Handle<JS::Value> v,
-                           JS::MutableHandle<JS::Value> pval, bool nullable,
-                           nsACString& result)
+                           bool nullable, nsACString& result)
 {
   JS::Rooted<JSString*> s(cx);
   if (v.isString()) {
@@ -2123,42 +2181,60 @@ ConvertJSValueToByteString(JSContext* cx, JS::Handle<JS::Value> v,
     if (!s) {
       return false;
     }
-    pval.set(JS::StringValue(s));  // Root the new string.
-  }
-
-  size_t length;
-  const jschar *chars = JS_GetStringCharsZAndLength(cx, s, &length);
-  if (!chars) {
-    return false;
   }
 
   // Conversion from Javascript string to ByteString is only valid if all
-  // characters < 256.
-  for (size_t i = 0; i < length; i++) {
-    if (chars[i] > 255) {
+  // characters < 256. This is always the case for Latin1 strings.
+  size_t length;
+  if (!js::StringHasLatin1Chars(s)) {
+    // ThrowErrorMessage can GC, so we first scan the string for bad chars
+    // and report the error outside the AutoCheckCannotGC scope.
+    bool foundBadChar = false;
+    size_t badCharIndex;
+    jschar badChar;
+    {
+      JS::AutoCheckCannotGC nogc;
+      const jschar* chars = JS_GetTwoByteStringCharsAndLength(cx, nogc, s, &length);
+      if (!chars) {
+        return false;
+      }
+
+      for (size_t i = 0; i < length; i++) {
+        if (chars[i] > 255) {
+          badCharIndex = i;
+          badChar = chars[i];
+          foundBadChar = true;
+          break;
+        }
+      }
+    }
+
+    if (foundBadChar) {
+      MOZ_ASSERT(badCharIndex < length);
+      MOZ_ASSERT(badChar > 255);
       // The largest unsigned 64 bit number (18,446,744,073,709,551,615) has
       // 20 digits, plus one more for the null terminator.
       char index[21];
       static_assert(sizeof(size_t) <= 8, "index array too small");
-      PR_snprintf(index, sizeof(index), "%d", i);
+      PR_snprintf(index, sizeof(index), "%d", badCharIndex);
       // A jschar is 16 bits long.  The biggest unsigned 16 bit
       // number (65,535) has 5 digits, plus one more for the null
       // terminator.
-      char badChar[6];
-      static_assert(sizeof(jschar) <= 2, "badChar array too small");
-      PR_snprintf(badChar, sizeof(badChar), "%d", chars[i]);
-      ThrowErrorMessage(cx, MSG_INVALID_BYTESTRING, index, badChar);
+      char badCharArray[6];
+      static_assert(sizeof(jschar) <= 2, "badCharArray too small");
+      PR_snprintf(badCharArray, sizeof(badCharArray), "%d", badChar);
+      ThrowErrorMessage(cx, MSG_INVALID_BYTESTRING, index, badCharArray);
       return false;
     }
+  } else {
+    length = js::GetStringLength(s);
   }
 
-  if (length >= UINT32_MAX) {
-    return false;
-  }
-  result.SetCapacity(length+1);
-  JS_EncodeStringToBuffer(cx, s, result.BeginWriting(), length);
-  result.BeginWriting()[length] = '\0';
+  static_assert(js::MaxStringLength < UINT32_MAX,
+                "length+1 shouldn't overflow");
+
   result.SetLength(length);
+  JS_EncodeStringToBuffer(cx, s, result.BeginWriting(), length);
 
   return true;
 }
@@ -2437,7 +2513,7 @@ ConvertExceptionToPromise(JSContext* cx,
 
   JS_ClearPendingException(cx);
   ErrorResult rv;
-  nsRefPtr<Promise> promise = Promise::Reject(global, cx, exn, rv);
+  nsRefPtr<Promise> promise = Promise::Reject(global, exn, rv);
   if (rv.Failed()) {
     // We just give up.  Make sure to not leak memory on the
     // ErrorResult, but then just put the original exception back.
@@ -2458,7 +2534,7 @@ CreateGlobalOptions<nsGlobalWindow>::TraceGlobal(JSTracer* aTrc, JSObject* aObj)
   // We might be called from a GC during the creation of a global, before we've
   // been able to set up the compartment private or the XPCWrappedNativeScope,
   // so we need to null-check those.
-  xpc::CompartmentPrivate* compartmentPrivate = xpc::GetCompartmentPrivate(aObj);
+  xpc::CompartmentPrivate* compartmentPrivate = xpc::CompartmentPrivate::Get(aObj);
   if (compartmentPrivate && compartmentPrivate->scope) {
     compartmentPrivate->scope->TraceSelf(aTrc);
   }
@@ -2469,7 +2545,10 @@ bool
 CreateGlobalOptions<nsGlobalWindow>::PostCreateGlobal(JSContext* aCx,
                                                       JS::Handle<JSObject*> aGlobal)
 {
-  return XPCWrappedNativeScope::GetNewOrUsed(aCx, aGlobal);
+  // Invoking the XPCWrappedNativeScope constructor automatically hooks it
+  // up to the compartment of aGlobal.
+  (void) new XPCWrappedNativeScope(aCx, aGlobal);
+  return true;
 }
 
 #ifdef DEBUG

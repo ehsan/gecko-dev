@@ -13,6 +13,7 @@ USE_EXTENSION_MANIFEST = 1
 # files that get copied into $objdir/_tests/
 SERV_FILES = 	\
 		runtests.py \
+		bisection.py \
 		automation.py \
 		runtestsb2g.py \
 		runtestsremote.py \
@@ -22,7 +23,7 @@ SERV_FILES = 	\
 		$(topsrcdir)/testing/mozbase/mozdevice/mozdevice/devicemanager.py \
 		$(topsrcdir)/testing/mozbase/mozdevice/mozdevice/devicemanagerADB.py \
 		$(topsrcdir)/testing/mozbase/mozdevice/mozdevice/devicemanagerSUT.py \
-		$(topsrcdir)/testing/mozbase/manifestdestiny/manifestparser/manifestparser.py \
+		$(topsrcdir)/testing/mozbase/manifestparser/manifestparser/manifestparser.py \
 		$(topsrcdir)/testing/mozbase/mozdevice/mozdevice/droid.py \
 		$(topsrcdir)/testing/mozbase/mozdevice/mozdevice/Zeroconf.py \
 		$(topsrcdir)/testing/mozbase/moznetwork/moznetwork/moznetwork.py \
@@ -47,7 +48,8 @@ SERV_FILES = 	\
 		android23.json \
 		gl.json \
 		b2g_start_script.js \
-		$(NULL)	
+		$(topsrcdir)/build/sanitizers/lsan_suppressions.txt \
+		$(NULL)
 
 ifeq ($(MOZ_BUILD_APP),mobile/android)
 SERV_FILES += \

@@ -632,6 +632,15 @@ nsHttpTransaction::ReadSegments(nsAHttpSegmentReader *reader,
         mConnection->GetSecurityInfo(getter_AddRefs(mSecurityInfo));
     }
 
+    // Verify permission to load from private (RFC1918-like) addresses.
+    if (!(mCaps & NS_HTTP_ALLOW_PRIVATE_IP_ADDRESSES) &&
+        mConnection->PeerHasPrivateIP()) {
+        LOG(("nsHttpTransaction::ReadSegments %p private IPs forbidden; "
+             "closing transaction.", this));
+        Close(NS_ERROR_CONNECTION_REFUSED);
+        return NS_ERROR_CONNECTION_REFUSED;
+    }
+
     mReader = reader;
 
     nsresult rv = mRequestStream->ReadSegments(ReadRequestSegment, this, count, countRead);
@@ -864,6 +873,16 @@ nsHttpTransaction::Close(nsresult reason)
                 mConnInfo, nsHttpConnectionMgr::RedCorruptedContent, nullptr, 0);
             if (NS_SUCCEEDED(RestartInProgress()))
                 return;
+        }
+    }
+
+    if ((mChunkedDecoder || (mContentLength >= int64_t(0))) &&
+        (mHttpVersion >= NS_HTTP_VERSION_1_1)) {
+
+        if (NS_SUCCEEDED(reason) && !mResponseIsComplete) {
+            reason = NS_ERROR_NET_PARTIAL_TRANSFER;
+            LOG(("Partial transfer, incomplete HTTP responese received: %s",
+                 mChunkedDecoder ? "broken chunk" : "c-l underrun"));
         }
     }
 
@@ -1731,9 +1750,9 @@ nsHttpTransaction::ReleaseBlockingTransaction()
 // nsHttpTransaction deletion event
 //-----------------------------------------------------------------------------
 
-class nsDeleteHttpTransaction : public nsRunnable {
+class DeleteHttpTransaction : public nsRunnable {
 public:
-    nsDeleteHttpTransaction(nsHttpTransaction *trans)
+    DeleteHttpTransaction(nsHttpTransaction *trans)
         : mTrans(trans)
     {}
 
@@ -1757,7 +1776,7 @@ nsHttpTransaction::DeleteSelfOnConsumerThread()
         delete this;
     } else {
         LOG(("proxying delete to consumer thread...\n"));
-        nsCOMPtr<nsIRunnable> event = new nsDeleteHttpTransaction(this);
+        nsCOMPtr<nsIRunnable> event = new DeleteHttpTransaction(this);
         if (NS_FAILED(mConsumerTarget->Dispatch(event, NS_DISPATCH_NORMAL)))
             NS_WARNING("failed to dispatch nsHttpDeleteTransaction event");
     }

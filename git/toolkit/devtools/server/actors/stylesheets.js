@@ -74,9 +74,6 @@ let StyleSheetsActor = protocol.ActorClass({
 
     this.parentActor = tabActor;
 
-    // so we can get events when stylesheets and rules are added
-    this.document.styleSheetChangeEventsEnabled = true;
-
     // keep a map of sheets-to-actors so we don't create two actors for one sheet
     this._sheets = new Map();
   },
@@ -272,8 +269,6 @@ let StyleSheetsFront = protocol.FrontClass(StyleSheetsActor, {
   initialize: function(client, tabForm) {
     protocol.Front.prototype.initialize.call(this, client);
     this.actorID = tabForm.styleSheetsActor;
-
-    client.addActorPool(this);
     this.manage(this);
   }
 });
@@ -309,16 +304,8 @@ let MediaRuleActor = protocol.ActorClass({
 
     this._matchesChange = this._matchesChange.bind(this);
 
-    this.line = 0;
-    this.column = 0;
-
-    // We can't get the line of the @media rule itself, so get the line of
-    // the first rule in the media block. See bug 591303.
-    let firstRule = this.rawRule.cssRules[0];
-    if (firstRule && firstRule instanceof Ci.nsIDOMCSSStyleRule) {
-      this.line = DOMUtils.getRuleLine(firstRule);
-      this.column = DOMUtils.getRuleColumn(firstRule);
-    }
+    this.line = DOMUtils.getRuleLine(aMediaRule);
+    this.column = DOMUtils.getRuleColumn(aMediaRule);
 
     try {
       this.mql = this.window.matchMedia(aMediaRule.media.mediaText);
@@ -479,24 +466,6 @@ let StyleSheetActor = protocol.ActorClass({
     this._styleSheetIndex = -1;
 
     this._transitionRefCount = 0;
-
-    this._onRuleAddedOrRemoved = this._onRuleAddedOrRemoved.bind(this);
-
-    if (this.browser) {
-      this.browser.addEventListener("StyleRuleAdded", this._onRuleAddedOrRemoved, true);
-      this.browser.addEventListener("StyleRuleRemoved", this._onRuleAddedOrRemoved, true);
-    }
-  },
-
-  _onRuleAddedOrRemoved: function(event) {
-    if (event.target != this.document || event.stylesheet != this.rawSheet) {
-      return;
-    }
-    if (event.rule && event.rule.type == Ci.nsIDOMCSSRule.MEDIA_RULE) {
-      this._getMediaRules().then((rules) => {
-        events.emit(this, "media-rules-changed", rules);
-      });
-    }
   },
 
   /**
@@ -529,11 +498,11 @@ let StyleSheetActor = protocol.ActorClass({
 
     let deferred = promise.defer();
 
-    let onSheetLoaded = function(event) {
+    let onSheetLoaded = (event) => {
       ownerNode.removeEventListener("load", onSheetLoaded, false);
 
       deferred.resolve(this.rawSheet.cssRules);
-    }.bind(this);
+    };
 
     ownerNode.addEventListener("load", onSheetLoaded, false);
 
@@ -921,6 +890,10 @@ let StyleSheetActor = protocol.ActorClass({
     else {
       this._notifyStyleApplied();
     }
+
+    this._getMediaRules().then((rules) => {
+      events.emit(this, "media-rules-changed", rules);
+    });
   }, {
     request: {
       text: Arg(0, "string"),
