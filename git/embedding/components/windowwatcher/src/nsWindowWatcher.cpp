@@ -87,7 +87,6 @@
 #include "nsIDeviceContext.h"
 #include "nsIDOMStorage.h"
 #include "nsPIDOMStorage.h"
-#include "nsIWidget.h"
 
 #include "nsIPrefBranch.h"
 #include "nsIPrefService.h"

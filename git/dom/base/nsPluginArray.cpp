@@ -42,11 +42,13 @@
 #include "nsIScriptGlobalObject.h"
 #include "nsIDOMNavigator.h"
 #include "nsIDOMMimeType.h"
+#include "nsIServiceManager.h"
 #include "nsIPluginHost.h"
 #include "nsIDocShell.h"
 #include "nsIWebNavigation.h"
 #include "nsDOMClassInfo.h"
 #include "nsPluginError.h"
+#include "nsIComponentRegistrar.h"
 #include "nsContentUtils.h"
 
 static NS_DEFINE_CID(kPluginManagerCID, NS_PLUGINMANAGER_CID);
@@ -200,6 +202,13 @@ nsPluginArray::Refresh(PRBool aReloadDocuments)
   nsresult res = NS_OK;
   if (!AllowPlugins())
     return NS_SUCCESS_LOSS_OF_INSIGNIFICANT_DATA;
+
+  // refresh the component registry first, see bug 87913
+  nsCOMPtr<nsIServiceManager> servManager;
+  NS_GetServiceManager(getter_AddRefs(servManager));
+  nsCOMPtr<nsIComponentRegistrar> registrar = do_QueryInterface(servManager);
+  if (registrar)
+    registrar->AutoRegister(nsnull);
 
   if (!mPluginHost) {
     mPluginHost = do_GetService(kPluginManagerCID, &res);

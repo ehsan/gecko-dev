@@ -39,7 +39,7 @@
 #include "nsTraceRefcntImpl.h"
 #include "nscore.h"
 #include "nsISupports.h"
-#include "nsTArray.h"
+#include "nsVoidArray.h"
 #include "prprf.h"
 #include "prlog.h"
 #include "plstr.h"
@@ -278,7 +278,7 @@ public:
     BloatEntry* entry = (BloatEntry*)he->value;
     if (entry) {
       entry->Accumulate();
-      static_cast<nsTArray<BloatEntry*>*>(arg)->AppendElement(entry);
+      static_cast<nsVoidArray*>(arg)->AppendElement(entry);
     }
     return HT_ENUMERATE_NEXT;
   }
@@ -456,17 +456,6 @@ static PRIntn DumpSerialNumbers(PLHashEntry* aHashEntry, PRIntn aIndex, void* aC
 }
 
 
-NS_SPECIALIZE_TEMPLATE
-class nsDefaultComparator <BloatEntry*, BloatEntry*> {
-  public:
-    PRBool Equals(BloatEntry* const& aA, BloatEntry* const& aB) const {
-      return PL_strcmp(aA->GetClassName(), aB->GetClassName()) == 0;
-    }
-    PRBool LessThan(BloatEntry* const& aA, BloatEntry* const& aB) const {
-      return PL_strcmp(aA->GetClassName(), aB->GetClassName()) < 0;
-    }
-};
-
 #endif /* NS_IMPL_REFCNT_LOGGING */
 
 NS_COM nsresult
@@ -502,16 +491,28 @@ nsTraceRefcntImpl::DumpStatistics(StatisticsType type, FILE* out)
   }
   const PRBool leaked = total.PrintDumpHeader(out, msg, type);
 
-  nsTArray<BloatEntry*> entries;
+  nsVoidArray entries;
   PL_HashTableEnumerateEntries(gBloatView, BloatEntry::DumpEntry, &entries);
-  const PRUint32 count = entries.Length();
+  const PRInt32 count = entries.Count();
 
   if (!gLogLeaksOnly || leaked) {
     // Sort the entries alphabetically by classname.
-    entries.Sort();
+    PRInt32 i, j;
+    for (i = count - 1; i >= 1; --i) {
+      for (j = i - 1; j >= 0; --j) {
+        BloatEntry* left  = static_cast<BloatEntry*>(entries[i]);
+        BloatEntry* right = static_cast<BloatEntry*>(entries[j]);
 
-    for (PRUint32 i = 0; i < count; ++i) {
-      BloatEntry* entry = entries[i];
+        if (PL_strcmp(left->GetClassName(), right->GetClassName()) < 0) {
+          entries.ReplaceElementAt(right, i);
+          entries.ReplaceElementAt(left, j);
+        }
+      }
+    }
+
+    // Enumerate from back-to-front, so things come out in alpha order
+    for (i = 0; i < count; ++i) {
+      BloatEntry* entry = static_cast<BloatEntry*>(entries[i]);
       entry->Dump(i, out, type);
     }
 

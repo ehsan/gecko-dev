@@ -48,6 +48,7 @@
 #include "nsReadableUtils.h"
 #include "nsIDOMClassInfo.h"
 #include "nsIView.h"
+#include "nsIWidget.h"
 #ifdef MOZ_XUL
 #include "nsIDOMXULElement.h"
 #else

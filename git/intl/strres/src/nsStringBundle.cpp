@@ -517,10 +517,7 @@ nsExtensibleStringBundle::FormatStringFromName(const PRUnichar *aName,
                                                PRUnichar ** aResult)
 {
   nsXPIDLString formatStr;
-  nsresult rv;
-  rv = GetStringFromName(aName, getter_Copies(formatStr));
-  if (NS_FAILED(rv))
-    return rv;
+  GetStringFromName(aName, getter_Copies(formatStr));
 
   return nsStringBundle::FormatString(formatStr, aParams, aLength, aResult);
 }

@@ -1066,8 +1066,8 @@ var gCSSProperties = {
 		inherited: true,
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "serif" ],
-		other_values: [ "sans-serif", "Times New Roman, serif", "'Times New Roman', serif", "cursive", "fantasy", "\"Times New Roman", "Times, \"Times New Roman" ],
-		invalid_values: [ "\"Times New\" Roman" ]
+		other_values: [ "sans-serif", "Times New Roman, serif", "'Times New Roman', serif", "cursive", "fantasy" ],
+		invalid_values: []
 	},
 	"font-size": {
 		domProp: "fontSize",
@@ -1892,7 +1892,7 @@ var gCSSProperties = {
 		inherited: true,
 		type: CSS_TYPE_LONGHAND,
 		initial_values: [ "auto" ],
-		other_values: [ "optimizeSpeed", "optimizeQuality", "-moz-crisp-edges" ],
+		other_values: [ "optimizeSpeed", "optimizeQuality", "-moz-disable-resampling" ],
 		invalid_values: []
 	},
 	"lighting-color": {

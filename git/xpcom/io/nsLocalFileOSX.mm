@@ -50,6 +50,7 @@
 #include "nsIDirectoryEnumerator.h"
 #include "nsISimpleEnumerator.h"
 #include "nsITimelineService.h"
+#include "nsVoidArray.h"
 #include "nsTArray.h"
 
 #include "plbase64.h"
@@ -57,6 +58,7 @@
 #include "nsCRT.h"
 #include "nsHashKeys.h"
 
+#include "nsTArray.h"
 #include "nsTraceRefcntImpl.h"
 
 #include <Carbon/Carbon.h>

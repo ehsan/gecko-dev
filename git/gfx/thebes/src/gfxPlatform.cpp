@@ -58,6 +58,7 @@
 #include "gfxTextRunWordCache.h"
 #include "gfxUserFontSet.h"
 
+#include "nsIPref.h"
 #include "nsServiceManagerUtils.h"
 #include "nsTArray.h"
 
@@ -343,43 +344,45 @@ AppendGenericFontFromPref(nsString& aFonts, const char *aLangGroup, const char *
 {
     nsresult rv;
 
-    nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID));
+    nsCOMPtr<nsIPref> prefs(do_GetService(NS_PREF_CONTRACTID));
     if (!prefs)
         return;
 
     nsCAutoString prefName;
-    nsXPIDLCString nameValue, nameListValue;
+    nsXPIDLString nameValue, nameListValue;
 
-    nsCAutoString genericDotLang;
+    nsXPIDLString genericName;
     if (aGenericName) {
-        genericDotLang.Assign(aGenericName);
+        genericName = NS_ConvertASCIItoUTF16(aGenericName);
     } else {
         prefName.AssignLiteral("font.default.");
         prefName.Append(aLangGroup);
-        prefs->GetCharPref(prefName.get(), getter_Copies(genericDotLang));
+        prefs->CopyUnicharPref(prefName.get(), getter_Copies(genericName));
     }
 
+    nsCAutoString genericDotLang;
+    genericDotLang.Assign(NS_ConvertUTF16toUTF8(genericName));
     genericDotLang.AppendLiteral(".");
     genericDotLang.Append(aLangGroup);
 
     // fetch font.name.xxx value                   
     prefName.AssignLiteral("font.name.");
     prefName.Append(genericDotLang);
-    rv = prefs->GetCharPref(prefName.get(), getter_Copies(nameValue));
+    rv = prefs->CopyUnicharPref(prefName.get(), getter_Copies(nameValue));
     if (NS_SUCCEEDED(rv)) {
         if (!aFonts.IsEmpty())
             aFonts.AppendLiteral(", ");
-        aFonts.Append(NS_ConvertUTF8toUTF16(nameValue));
+        aFonts.Append(nameValue);
     }
 
     // fetch font.name-list.xxx value                   
     prefName.AssignLiteral("font.name-list.");
     prefName.Append(genericDotLang);
-    rv = prefs->GetCharPref(prefName.get(), getter_Copies(nameListValue));
+    rv = prefs->CopyUnicharPref(prefName.get(), getter_Copies(nameListValue));
     if (NS_SUCCEEDED(rv) && !nameListValue.Equals(nameValue)) {
         if (!aFonts.IsEmpty())
             aFonts.AppendLiteral(", ");
-        aFonts.Append(NS_ConvertUTF8toUTF16(nameListValue));
+        aFonts.Append(nameListValue);
     }
 }
 
@@ -398,7 +401,7 @@ PRBool gfxPlatform::ForEachPrefFont(eFontPrefLang aLangArray[], PRUint32 aLangAr
 {
     nsresult rv;
 
-    nsCOMPtr<nsIPrefBranch> prefs(do_GetService(NS_PREFSERVICE_CONTRACTID));
+    nsCOMPtr<nsIPref> prefs(do_GetService(NS_PREF_CONTRACTID));
     if (!prefs)
         return PR_FALSE;
 
@@ -409,31 +412,33 @@ PRBool gfxPlatform::ForEachPrefFont(eFontPrefLang aLangArray[], PRUint32 aLangAr
         const char *langGroup = GetPrefLangName(prefLang);
         
         nsCAutoString prefName;
-        nsXPIDLCString nameValue, nameListValue;
+        nsXPIDLString nameValue, nameListValue;
     
-        nsCAutoString genericDotLang;
+        nsXPIDLString genericName;
         prefName.AssignLiteral("font.default.");
         prefName.Append(langGroup);
-        prefs->GetCharPref(prefName.get(), getter_Copies(genericDotLang));
+        prefs->CopyUnicharPref(prefName.get(), getter_Copies(genericName));
     
+        nsCAutoString genericDotLang;
+        genericDotLang.Assign(NS_ConvertUTF16toUTF8(genericName));
         genericDotLang.AppendLiteral(".");
         genericDotLang.Append(langGroup);
     
         // fetch font.name.xxx value                   
         prefName.AssignLiteral("font.name.");
         prefName.Append(genericDotLang);
-        rv = prefs->GetCharPref(prefName.get(), getter_Copies(nameValue));
+        rv = prefs->CopyUnicharPref(prefName.get(), getter_Copies(nameValue));
         if (NS_SUCCEEDED(rv)) {
-            if (!aCallback(prefLang, NS_ConvertUTF8toUTF16(nameValue), aClosure))
+            if (!aCallback(prefLang, nameValue, aClosure))
                 return PR_FALSE;
         }
     
         // fetch font.name-list.xxx value                   
         prefName.AssignLiteral("font.name-list.");
         prefName.Append(genericDotLang);
-        rv = prefs->GetCharPref(prefName.get(), getter_Copies(nameListValue));
+        rv = prefs->CopyUnicharPref(prefName.get(), getter_Copies(nameListValue));
         if (NS_SUCCEEDED(rv) && !nameListValue.Equals(nameValue)) {
-            if (!aCallback(prefLang, NS_ConvertUTF8toUTF16(nameListValue), aClosure))
+            if (!aCallback(prefLang, nameListValue, aClosure))
                 return PR_FALSE;
         }
     }

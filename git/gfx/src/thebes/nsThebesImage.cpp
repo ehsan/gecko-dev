@@ -449,7 +449,6 @@ IsSafeImageTransformComponent(gfxFloat aValue)
 
 void
 nsThebesImage::Draw(gfxContext*        aContext,
-                    gfxPattern::GraphicsFilter aFilter,
                     const gfxMatrix&   aUserSpaceToImageSpace,
                     const gfxRect&     aFill,
                     const nsIntMargin& aPadding,
@@ -670,8 +669,7 @@ nsThebesImage::Draw(gfxContext*        aContext,
   
         case gfxASurface::SurfaceTypeQuartz:
         case gfxASurface::SurfaceTypeQuartzImage:
-            // Don't set EXTEND_PAD, Mac seems to be OK. Really?
-            pattern->SetFilter(aFilter);
+            // Do nothing, Mac seems to be OK. Really?
             break;
 
         default:
@@ -679,7 +677,6 @@ nsThebesImage::Draw(gfxContext*        aContext,
             // This is what we really want for all surface types, if the
             // implementation was universally good.
             pattern->SetExtend(gfxPattern::EXTEND_PAD);
-            pattern->SetFilter(aFilter);
             break;
         }
     }

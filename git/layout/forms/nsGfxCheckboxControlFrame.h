@@ -44,6 +44,10 @@
 class nsIAccessible;
 #endif
 
+
+#define NS_GFX_CHECKBOX_CONTROL_FRAME_FACE_CONTEXT_INDEX   0 // for additional style contexts
+#define NS_GFX_CHECKBOX_CONTROL_FRAME_LAST_CONTEXT_INDEX   0
+
 class nsGfxCheckboxControlFrame : public nsFormControlFrame,
                                   public nsICheckboxControlFrame
 {
@@ -65,15 +69,32 @@ public:
   NS_IMETHOD GetAccessible(nsIAccessible** aAccessible);
 #endif
 
+
   //nsICheckboxControlFrame methods
   NS_IMETHOD OnChecked(nsPresContext* aPresContext, PRBool aChecked);
 
+  virtual nsStyleContext* GetAdditionalStyleContext(PRInt32 aIndex) const;
+  virtual void SetAdditionalStyleContext(PRInt32 aIndex,
+                                         nsStyleContext* aStyleContext);
+
   NS_DECL_QUERYFRAME
+
+  NS_IMETHOD Init(nsIContent* aContent,
+                  nsIFrame* aParent,
+                  nsIFrame* asPrevInFlow);
+
+  void PaintCheckBox(nsIRenderingContext& aRenderingContext,
+                     nsPoint aPt, const nsRect& aDirtyRect);
+
+  void PaintCheckBoxFromStyle(nsIRenderingContext& aRenderingContext,
+                              nsPoint aPt, const nsRect& aDirtyRect);
 
 protected:
 
   PRBool IsChecked();
   PRBool IsIndeterminate();
+
+  nsRefPtr<nsStyleContext> mCheckButtonFaceStyle;
 };
 
 #endif

@@ -51,6 +51,7 @@
 #include "nsDebug.h"
 #include "nsID.h"
 #include "nsMemory.h"
+#include "nsVoidArray.h"
 
 #include "nsIFastLoadFileControl.h"
 #include "nsIFastLoadService.h"

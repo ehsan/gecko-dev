@@ -39,13 +39,11 @@
 #ifndef nsEventDispatcher_h___
 #define nsEventDispatcher_h___
 
-#include "nsCOMPtr.h"
-#include "nsEvent.h"
+#include "nsGUIEvent.h"
 
 class nsIContent;
 class nsIDocument;
 class nsPresContext;
-class nsIDOMEvent;
 class nsPIDOMEventTarget;
 class nsIScriptGlobalObject;
 class nsEventTargetChainItem;

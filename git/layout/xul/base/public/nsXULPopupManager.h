@@ -44,6 +44,7 @@
 #include "prlog.h"
 #include "nsGUIEvent.h"
 #include "nsIContent.h"
+#include "nsIWidget.h"
 #include "nsIRollupListener.h"
 #include "nsIMenuRollup.h"
 #include "nsIDOMKeyListener.h"

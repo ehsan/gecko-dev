@@ -51,8 +51,7 @@
 #include "nsISelection2.h"
 #include "nsServiceManagerUtils.h"
 #include "nsIViewManager.h"
-
-class nsIWidget;
+#include "nsIWidget.h"
 
 NS_IMPL_ISUPPORTS1(nsCaretAccessible, nsISelectionListener)
   

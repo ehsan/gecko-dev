@@ -2254,12 +2254,12 @@ nsPluginInstanceOwner::~nsPluginInstanceOwner()
 
   for (cnt = 0; cnt < (mNumCachedAttrs + 1 + mNumCachedParams); cnt++) {
     if (mCachedAttrParamNames && mCachedAttrParamNames[cnt]) {
-      NS_Free(mCachedAttrParamNames[cnt]);
+      PR_Free(mCachedAttrParamNames[cnt]);
       mCachedAttrParamNames[cnt] = nsnull;
     }
 
     if (mCachedAttrParamValues && mCachedAttrParamValues[cnt]) {
-      NS_Free(mCachedAttrParamValues[cnt]);
+      PR_Free(mCachedAttrParamValues[cnt]);
       mCachedAttrParamValues[cnt] = nsnull;
     }
   }

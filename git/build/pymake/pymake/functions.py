@@ -574,8 +574,6 @@ class OriginFunction(Function):
             r = 'command line'
         elif source == data.Variables.SOURCE_AUTOMATIC:
             r = 'automatic'
-        elif source == data.Variables.SOURCE_IMPLICIT:
-            r = 'default'
 
         fd.write(r)
 
