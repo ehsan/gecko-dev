@@ -84,6 +84,7 @@ class nsIContent;
 class nsIFontMetrics;
 class nsIFrame;
 class nsFrameManager;
+class nsIImage;
 class nsILinkHandler;
 class nsStyleContext;
 class nsIAtom;

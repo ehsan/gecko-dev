@@ -54,6 +54,8 @@
 #include "nsIThebesFontMetrics.h"
 #include "gfxContext.h"
 
+class nsIImage;
+
 class nsThebesRenderingContext : public nsIRenderingContext
 {
 public:

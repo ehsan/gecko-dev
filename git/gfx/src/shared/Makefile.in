@@ -15,8 +15,8 @@
 # The Original Code is mozilla.org code.
 #
 # The Initial Developer of the Original Code is
-# Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2007
+# Netscape Communications Corporation.
+# Portions created by the Initial Developer are Copyright (C) 2001
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -39,62 +39,29 @@ DEPTH		= ../../..
 topsrcdir	= @top_srcdir@
 srcdir		= @srcdir@
 VPATH		= @srcdir@
-relativesrcdir  = extensions/cookie/test
 
 include $(DEPTH)/config/autoconf.mk
 
-MODULE          = test_cookies
+MODULE = gfx
+LIBRARY_NAME = gfxshared_s
+FORCE_STATIC_LIB=1
+EXPORT_LIBRARY=1
+LIBXUL_LIBRARY = 1
 
-_TEST_FILES = \
-  test_samedomain.html \
-  file_testcommon.js \
-  file_domain_inner.html \
-  file_domain_inner_inner.html \
-  test_differentdomain.html \
-  test_image.html \
-  file_image_inner.html \
-  file_image_inner_inner.html \
-  image1.png \
-  image1.png^headers^ \
-  image2.png \
-  image2.png^headers^ \
-  test1.css \
-  test1.css^headers^ \
-  test2.css \
-  test2.css^headers^ \
-  test_same_base_domain.html \
-  file_subdomain_inner.html \
-  test_same_base_domain_2.html \
-  test_same_base_domain_3.html \
-  test_same_base_domain_4.html \
-  file_localhost_inner.html \
-  test_same_base_domain_5.html \
-  test_same_base_domain_6.html \
-  file_loopback_inner.html \
+REQUIRES= \
+		  xpcom \
+		  string \
+		  imglib2 \
+		  widget \
+		  thebes \
+		  $(NULL)
+
+CPPSRCS = \
+	gfxImageFrame.cpp \
 	$(NULL)
 
-# XXX see bug 454857
-#  test_loadflags.html \
-#  file_testloadflags.js \
-#  file_loadflags_inner.html \
-
-# the tests below use Firefox-specific features
-ifdef MOZ_PHOENIX
-_BROWSER_TEST_FILES = \
-  browser_test_favicon.js \
-  $(NULL)
-endif
-
-libs:: $(_TEST_FILES)
-	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)
-
-# see above, only defined for Firefox
-ifdef MOZ_PHOENIX
-libs:: $(_BROWSER_TEST_FILES)
-	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/browser/$(relativesrcdir)
-endif
-
-XPCSHELL_TESTS = unit
+LOCAL_INCLUDES = -I$(srcdir)/.. \
+                 $(NULL)
 
 include $(topsrcdir)/config/rules.mk
 

@@ -58,7 +58,9 @@
 #endif
 
 #include "imgIContainer.h"
+#include "gfxIImageFrame.h"
 #include "nsIInterfaceRequestorUtils.h"
+#include "nsIImage.h"
 
 nsDisplayListBuilder::nsDisplayListBuilder(nsIFrame* aReferenceFrame,
     PRBool aIsForEvents, PRBool aBuildCaret)
@@ -553,12 +555,18 @@ nsDisplayBackground::IsOpaque(nsDisplayListBuilder* aBuilder) {
       nsCOMPtr<imgIContainer> container;
       bottomLayer.mImage->GetImage(getter_AddRefs(container));
       if (container) {
-        PRBool animated;
-        container->GetAnimated(&animated);
-        if (!animated) {
-          PRBool isOpaque;
-          if (NS_SUCCEEDED(container->GetCurrentFrameIsOpaque(&isOpaque)))
-            return isOpaque;
+        PRUint32 nframes;
+        container->GetNumFrames(&nframes);
+        if (nframes == 1) {
+          nsCOMPtr<gfxIImageFrame> imgFrame;
+          container->GetCurrentFrame(getter_AddRefs(imgFrame));
+          if (imgFrame) {
+            nsCOMPtr<nsIImage> img(do_GetInterface(imgFrame));
+
+            PRBool hasMask = img->GetHasAlphaMask();
+
+            return !hasMask;
+          }
         }
       }
     }

@@ -51,6 +51,7 @@
 #include "IEnumFE.h"
 #include "nsPrimitiveHelpers.h"
 #include "nsXPIDLString.h"
+#include "nsIImage.h"
 #include "nsImageClipboard.h"
 #include "nsCRT.h"
 #include "nsPrintfCString.h"
@@ -858,7 +859,7 @@ nsDataObj::GetBitmap ( const nsACString& , FORMATETC&, STGMEDIUM& )
 // GetDIB
 //
 // Someone is asking for a bitmap. The data in the transferable will be a straight
-// imgIContainer, so just QI it.
+// nsIImage, so just QI it.
 //
 HRESULT 
 nsDataObj :: GetDib ( const nsACString& inFlavor, FORMATETC &, STGMEDIUM & aSTG )
@@ -868,11 +869,12 @@ nsDataObj :: GetDib ( const nsACString& inFlavor, FORMATETC &, STGMEDIUM & aSTG 
   PRUint32 len = 0;
   nsCOMPtr<nsISupports> genericDataWrapper;
   mTransferable->GetTransferData(PromiseFlatCString(inFlavor).get(), getter_AddRefs(genericDataWrapper), &len);
-  nsCOMPtr<imgIContainer> image ( do_QueryInterface(genericDataWrapper) );
+  nsCOMPtr<nsIImage> image ( do_QueryInterface(genericDataWrapper) );
   if ( !image ) {
-    // Check if the image was put in an nsISupportsInterfacePointer wrapper.
-    // This might not be necessary any more, but could be useful for backwards
-    // compatibility.
+    // In the 0.9.4 timeframe, I had some embedding clients put the nsIImage directly into the
+    // transferable. Newer code, however, wraps the nsIImage in a nsISupportsInterfacePointer.
+    // We should be backwards compatibile with code already out in the field. If we can't find
+    // the image directly out of the transferable,  unwrap the image from its wrapper.
     nsCOMPtr<nsISupportsInterfacePointer> ptr(do_QueryInterface(genericDataWrapper));
     if ( ptr )
       ptr->GetData(getter_AddRefs(image));
@@ -1382,12 +1384,13 @@ HRESULT nsDataObj::GetFile(FORMATETC& aFE, STGMEDIUM& aSTG)
   nsCOMPtr<nsISupports> genericDataWrapper;
 
   mTransferable->GetTransferData(kNativeImageMime, getter_AddRefs(genericDataWrapper), &len);
-  nsCOMPtr<imgIContainer> image ( do_QueryInterface(genericDataWrapper) );
+  nsCOMPtr<nsIImage> image ( do_QueryInterface(genericDataWrapper) );
   
   if (!image) {
-    // Check if the image was put in an nsISupportsInterfacePointer wrapper.
-    // This might not be necessary any more, but could be useful for backwards
-    // compatibility.
+    // In the 0.9.4 timeframe, I had some embedding clients put the nsIImage directly into the
+    // transferable. Newer code, however, wraps the nsIImage in a nsISupportsInterfacePointer.
+    // We should be backwards compatibile with code already out in the field. If we can't find
+    // the image directly out of the transferable,  unwrap the image from its wrapper.
     nsCOMPtr<nsISupportsInterfacePointer> ptr(do_QueryInterface(genericDataWrapper));
     if (ptr)
       ptr->GetData(getter_AddRefs(image));

@@ -17,7 +17,7 @@
  *
  * The Initial Developer of the Original Code is
  * Netscape Communications Corporation.
- * Portions created by the Initial Developer are Copyright (C) 2001
+ * Portions created by the Initial Developer are Copyright (C) 2000-2001
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
@@ -37,61 +37,58 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-/* class to notify frames of background and border image loads */
+#include "gfxIImageFrame.h"
+#include "nsIInterfaceRequestor.h"
+#include "nsIInterfaceRequestorUtils.h"
 
-#include "nsStubImageDecoderObserver.h"
+#include "nsIImage.h"
 
-class nsIFrame;
-class nsIURI;
+#include "nsPoint.h"
+#include "nsSize.h"
 
-#include "imgIRequest.h"
 #include "nsCOMPtr.h"
-#include "nsAutoPtr.h"
 
-/**
- * Image loaders pass notifications for background and border image
- * loading and animation on to the frames.
- *
- * Each frame's image loaders form a linked list.
- */
-class nsImageLoader : public nsStubImageDecoderObserver
+#define GFX_IMAGEFRAME_CID \
+{ /* aa699204-1dd1-11b2-84a9-a280c268e4fb */         \
+     0xaa699204,                                     \
+     0x1dd1,                                         \
+     0x11b2,                                         \
+    {0x84, 0xa9, 0xa2, 0x80, 0xc2, 0x68, 0xe4, 0xfb} \
+}
+
+class gfxImageFrame : public gfxIImageFrame,
+                      public nsIInterfaceRequestor
 {
-private:
-  nsImageLoader(nsIFrame *aFrame, PRBool aReflowOnLoad,
-                nsImageLoader *aNextLoader);
-  virtual ~nsImageLoader();
-
 public:
-  static already_AddRefed<nsImageLoader>
-    Create(nsIFrame *aFrame, imgIRequest *aRequest,
-           PRBool aReflowOnLoad, nsImageLoader *aNextLoader);
-
   NS_DECL_ISUPPORTS
+  NS_DECL_GFXIIMAGEFRAME
+  NS_DECL_NSIINTERFACEREQUESTOR
 
-  // imgIDecoderObserver (override nsStubImageDecoderObserver)
-  NS_IMETHOD OnStartContainer(imgIRequest *aRequest, imgIContainer *aImage);
-  NS_IMETHOD OnStopFrame(imgIRequest *aRequest, gfxIImageFrame *aFrame);
-  // Do not override OnDataAvailable since background images are not
-  // displayed incrementally; they are displayed after the entire image
-  // has been loaded.
-  // Note: Images referenced by the <img> element are displayed
-  // incrementally in nsImageFrame.cpp.
+  gfxImageFrame();
+  virtual ~gfxImageFrame();
 
-  // imgIContainerObserver (override nsStubImageDecoderObserver)
-  NS_IMETHOD FrameChanged(imgIContainer *aContainer, gfxIImageFrame *newframe,
-                          nsIntRect *dirtyRect);
-
-  void Destroy();
-
-  imgIRequest *GetRequest() { return mRequest; }
-  nsImageLoader *GetNextLoader() { return mNextLoader; }
+protected:
+  nsIntSize mSize;
 
 private:
-  nsresult Load(imgIRequest *aImage);
-  void RedrawDirtyFrame(const nsRect* aDamageRect);
+  PRUint32 PaletteDataLength() const {
+    return ((1 << mDepth) * sizeof(gfx_color));
+  }
 
-  nsIFrame *mFrame;
-  nsCOMPtr<imgIRequest> mRequest;
-  PRBool mReflowOnLoad;
-  nsRefPtr<nsImageLoader> mNextLoader;
+  PRUint32 ImageDataLength() const {
+    return (mImage ? mImage->GetLineStride() : mSize.width) * mSize.height;
+  }
+
+  nsCOMPtr<nsIImage> mImage;
+  PRUint8*     mImageData;
+
+  PRInt32      mTimeout; // -1 means display forever
+  nsIntPoint   mOffset;
+  PRInt32      mDisposalMethod;
+
+  gfx_format   mFormat;
+  gfx_depth    mDepth;
+  PRInt8       mBlendMethod;
+  PRPackedBool mInitialized;
+  PRPackedBool mMutable;
 };

@@ -104,7 +104,9 @@ static const char sAccessibilityKey [] = "config.use_system_prefs.accessibility"
 /* SetCursor(imgIContainer*) */
 #include <gdk/gdk.h>
 #include "imgIContainer.h"
+#include "gfxIImageFrame.h"
 #include "nsGfxCIID.h"
+#include "nsIImage.h"
 #include "nsImageToPixbuf.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsAutoPtr.h"
@@ -1570,8 +1572,17 @@ nsWindow::SetCursor(imgIContainer* aCursor,
     }
     mCursor = nsCursor(-1);
 
-    // Get the image's current frame
-    GdkPixbuf* pixbuf = nsImageToPixbuf::ImageToPixbuf(aCursor);
+    // Get first image frame
+    nsCOMPtr<gfxIImageFrame> frame;
+    aCursor->GetFrameAt(0, getter_AddRefs(frame));
+    if (!frame)
+        return NS_ERROR_NOT_AVAILABLE;
+
+    nsCOMPtr<nsIImage> img(do_GetInterface(frame));
+    if (!img)
+        return NS_ERROR_NOT_AVAILABLE;
+
+    GdkPixbuf* pixbuf = nsImageToPixbuf::ImageToPixbuf(img);
     if (!pixbuf)
         return NS_ERROR_NOT_AVAILABLE;
 
