@@ -174,6 +174,8 @@ public:
     mDisableCookieAccess = PR_TRUE;
   }
 
+  virtual nsIContent* GetBodyContentExternal();
+
   class nsAutoEditingState {
   public:
     nsAutoEditingState(nsHTMLDocument* aDoc, EditingState aState)

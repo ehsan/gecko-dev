@@ -63,6 +63,8 @@
 #include "nsIDocument.h"
 #include "nsIPresShell.h"
 #include "nsStyleConsts.h"
+#include "nsIHTMLDocument.h"
+#include "nsIDOMHTMLElement.h"
 #include "nsCSSAnonBoxes.h"
 #include "nsRuleWalker.h"
 #include "nsRuleData.h"

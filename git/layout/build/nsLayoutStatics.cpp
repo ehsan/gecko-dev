@@ -89,6 +89,8 @@
 #include "nsListControlFrame.h"
 #include "nsHTMLInputElement.h"
 #include "nsSVGUtils.h"
+#include "nsMathMLAtoms.h"
+#include "nsMathMLOperators.h"
 
 #ifdef MOZ_XUL
 #include "nsXULPopupManager.h"
@@ -98,11 +100,6 @@
 #include "nsXULTooltipListener.h"
 
 #include "inDOMView.h"
-#endif
-
-#ifdef MOZ_MATHML
-#include "nsMathMLAtoms.h"
-#include "nsMathMLOperators.h"
 #endif
 
 #include "nsHTMLEditor.h"
@@ -186,7 +183,11 @@ nsLayoutStatics::Initialize()
     return rv;
   }
 
-  nsCSSRendering::Init();
+  rv = nsCSSRendering::Init();
+  if (NS_FAILED(rv)) {
+    NS_ERROR("Could not initialize nsCSSRendering");
+    return rv;
+  }
 
   rv = nsTextFrameTextRunCache::Init();
   if (NS_FAILED(rv)) {
@@ -211,9 +212,7 @@ nsLayoutStatics::Initialize()
 
 #endif
 
-#ifdef MOZ_MATHML
   nsMathMLOperators::AddRefTable();
-#endif
 
   nsEditProperty::RegisterAtoms();
   nsTextServicesDocument::RegisterAtoms();
@@ -324,9 +323,7 @@ nsLayoutStatics::Shutdown()
   nsSprocketLayout::Shutdown();
 #endif
 
-#ifdef MOZ_MATHML
   nsMathMLOperators::ReleaseTable();
-#endif
 
   nsCSSFrameConstructor::ReleaseGlobals();
   nsFloatManager::Shutdown();
