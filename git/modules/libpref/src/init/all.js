@@ -565,9 +565,6 @@ pref("devtools.debugger.prompt-connection", true);
 // Block tools from seeing / interacting with certified apps
 pref("devtools.debugger.forbid-certified-apps", true);
 
-// Disable add-on debugging
-pref("devtools.debugger.addon-enabled", false);
-
 // DevTools default color unit
 pref("devtools.defaultColorUnit", "hex");
 
@@ -4185,8 +4182,9 @@ pref("profiler.enabled", false);
 pref("profiler.interval", 10);
 pref("profiler.entries", 100000);
 
-// Network Information API
-pref("dom.netinfo.enabled", true);
+// Network API
+pref("dom.network.enabled", true);
+pref("dom.network.metered", false);
 
 #ifdef XP_WIN
 // On 32-bit Windows, fire a low-memory notification if we have less than this

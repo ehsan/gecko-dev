@@ -486,7 +486,8 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
     }
 
     case AndroidGeckoEvent::NETWORK_CHANGED: {
-        hal::NotifyNetworkChange(hal::NetworkInformation(curEvent->ConnectionType(),
+        hal::NotifyNetworkChange(hal::NetworkInformation(curEvent->Bandwidth(),
+                                                         curEvent->CanBeMetered(),
                                                          curEvent->IsWifi(),
                                                          curEvent->DHCPGateway()));
         break;

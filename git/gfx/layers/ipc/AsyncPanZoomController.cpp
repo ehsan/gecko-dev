@@ -66,15 +66,12 @@
 // #define APZC_LOG(...) printf_stderr("APZC: " __VA_ARGS__)
 #define APZC_LOG_FM(fm, prefix, ...) \
   APZC_LOG(prefix ":" \
-           " i=(%ld %lld) cb=(%d %d %d %d) rcs=(%.3f %.3f) dp=(%.3f %.3f %.3f %.3f) dpm=(%.3f %.3f %.3f %.3f) um=%d " \
-           "v=(%.3f %.3f %.3f %.3f) s=(%.3f %.3f) sr=(%.3f %.3f %.3f %.3f) z=(%.3f %.3f %.3f %.3f) u=(%d %llu)\n", \
+           " i=(%ld %lld) cb=(%d %d %d %d) dp=(%.3f %.3f %.3f %.3f) v=(%.3f %.3f %.3f %.3f) " \
+           "s=(%.3f %.3f) sr=(%.3f %.3f %.3f %.3f) z=(%.3f %.3f %.3f %.3f) u=(%d %llu)\n", \
            __VA_ARGS__, \
            fm.mPresShellId, fm.GetScrollId(), \
            fm.mCompositionBounds.x, fm.mCompositionBounds.y, fm.mCompositionBounds.width, fm.mCompositionBounds.height, \
-           fm.GetRootCompositionSize().width, fm.GetRootCompositionSize().height, \
            fm.mDisplayPort.x, fm.mDisplayPort.y, fm.mDisplayPort.width, fm.mDisplayPort.height, \
-           fm.mDisplayPortMargins.top, fm.mDisplayPortMargins.right, fm.mDisplayPortMargins.bottom, fm.mDisplayPortMargins.left, \
-           fm.mUseDisplayPortMargins ? 1 : 0, \
            fm.mViewport.x, fm.mViewport.y, fm.mViewport.width, fm.mViewport.height, \
            fm.GetScrollOffset().x, fm.GetScrollOffset().y, \
            fm.mScrollableRect.x, fm.mScrollableRect.y, fm.mScrollableRect.width, fm.mScrollableRect.height, \
@@ -594,18 +591,6 @@ nsEventStatus AsyncPanZoomController::HandleInputEvent(const InputData& aEvent) 
     }
     break;
   }
-  default: NS_WARNING("Unhandled input event"); break;
-  }
-
-  mLastEventTime = aEvent.mTime;
-  return rv;
-}
-
-nsEventStatus AsyncPanZoomController::HandleGestureEvent(const InputData& aEvent)
-{
-  nsEventStatus rv = nsEventStatus_eIgnore;
-
-  switch (aEvent.mInputType) {
   case PINCHGESTURE_INPUT: {
     const PinchGestureInput& pinchGestureInput = aEvent.AsPinchGestureInput();
     switch (pinchGestureInput.mType) {
@@ -1383,7 +1368,7 @@ void AsyncPanZoomController::ScaleWithFocus(float aScale,
  * Enlarges the displayport along both axes based on the velocity.
  */
 static CSSSize
-CalculateDisplayPortSize(const CSSSize& aCompositionSize,
+CalculateDisplayPortSize(const CSSRect& aCompositionBounds,
                          const CSSPoint& aVelocity)
 {
   float xMultiplier = fabsf(aVelocity.x) < gMinSkateSpeed
@@ -1392,8 +1377,8 @@ CalculateDisplayPortSize(const CSSSize& aCompositionSize,
   float yMultiplier = fabsf(aVelocity.y) < gMinSkateSpeed
                         ? gYStationarySizeMultiplier
                         : gYSkateSizeMultiplier;
-  return CSSSize(aCompositionSize.width * xMultiplier,
-                 aCompositionSize.height * yMultiplier);
+  return CSSSize(aCompositionBounds.width * xMultiplier,
+                 aCompositionBounds.height * yMultiplier);
 }
 
 /**
@@ -1403,6 +1388,7 @@ CalculateDisplayPortSize(const CSSSize& aCompositionSize,
  */
 static void
 RedistributeDisplayPortExcess(CSSSize& aDisplayPortSize,
+                              const CSSRect& aCompositionBounds,
                               const CSSRect& aScrollableRect)
 {
   float xSlack = std::max(0.0f, aDisplayPortSize.width - aScrollableRect.width);
@@ -1422,25 +1408,21 @@ RedistributeDisplayPortExcess(CSSSize& aDisplayPortSize,
 }
 
 /* static */
-const LayerMargin AsyncPanZoomController::CalculatePendingDisplayPort(
+const CSSRect AsyncPanZoomController::CalculatePendingDisplayPort(
   const FrameMetrics& aFrameMetrics,
   const ScreenPoint& aVelocity,
   double aEstimatedPaintDuration)
 {
   CSSRect compositionBounds(aFrameMetrics.CalculateCompositedRectInCssPixels());
-  CSSSize compositionSize = aFrameMetrics.GetRootCompositionSize();
-  compositionSize =
-    CSSSize(std::min(compositionBounds.width, compositionSize.width),
-            std::min(compositionBounds.height, compositionSize.height));
   CSSPoint velocity = aVelocity / aFrameMetrics.GetZoom();
   CSSPoint scrollOffset = aFrameMetrics.GetScrollOffset();
   CSSRect scrollableRect = aFrameMetrics.GetExpandedScrollableRect();
 
   // Calculate the displayport size based on how fast we're moving along each axis.
-  CSSSize displayPortSize = CalculateDisplayPortSize(compositionSize, velocity);
+  CSSSize displayPortSize = CalculateDisplayPortSize(compositionBounds, velocity);
 
   if (gEnlargeDisplayPortWhenClipped) {
-    RedistributeDisplayPortExcess(displayPortSize, scrollableRect);
+    RedistributeDisplayPortExcess(displayPortSize, compositionBounds, scrollableRect);
   }
 
   // Offset the displayport, depending on how fast we're moving and the
@@ -1450,9 +1432,9 @@ const LayerMargin AsyncPanZoomController::CalculatePendingDisplayPort(
   CSSRect displayPort = CSSRect(scrollOffset + (velocity * paintFactor * gVelocityBias),
                                 displayPortSize);
 
-  // Re-center the displayport based on its expansion over the composition size.
-  displayPort.MoveBy((compositionSize.width - displayPort.width)/2.0f,
-                     (compositionSize.height - displayPort.height)/2.0f);
+  // Re-center the displayport based on its expansion over the composition bounds.
+  displayPort.MoveBy((compositionBounds.width - displayPort.width)/2.0f,
+                     (compositionBounds.height - displayPort.height)/2.0f);
 
   // Make sure the displayport remains within the scrollable rect.
   displayPort = displayPort.ForceInside(scrollableRect) - scrollOffset;
@@ -1462,15 +1444,7 @@ const LayerMargin AsyncPanZoomController::CalculatePendingDisplayPort(
     displayPort.x, displayPort.y, displayPort.width, displayPort.height,
     aVelocity.x, aVelocity.y, (float)estimatedPaintDurationMillis);
 
-  CSSMargin cssMargins;
-  cssMargins.left = -displayPort.x;
-  cssMargins.top = -displayPort.y;
-  cssMargins.right = displayPort.width - compositionSize.width - cssMargins.left;
-  cssMargins.bottom = displayPort.height - compositionSize.height - cssMargins.top;
-
-  LayerMargin layerMargins = cssMargins * aFrameMetrics.LayersPixelsPerCSSPixel();
-
-  return layerMargins;
+  return displayPort;
 }
 
 void AsyncPanZoomController::ScheduleComposite() {
@@ -1490,11 +1464,10 @@ void AsyncPanZoomController::RequestContentRepaint() {
 }
 
 void AsyncPanZoomController::RequestContentRepaint(FrameMetrics& aFrameMetrics) {
-  aFrameMetrics.SetDisplayPortMargins(
+  aFrameMetrics.mDisplayPort =
     CalculatePendingDisplayPort(aFrameMetrics,
                                 GetVelocityVector(),
-                                mPaintThrottler.AverageDuration().ToSeconds()));
-  aFrameMetrics.SetUseDisplayPortMargins();
+                                mPaintThrottler.AverageDuration().ToSeconds());
 
   // If we're trying to paint what we already think is painted, discard this
   // request since it's a pointless paint.
@@ -1776,7 +1749,6 @@ void AsyncPanZoomController::NotifyLayersUpdated(const FrameMetrics& aLayerMetri
     }
     mFrameMetrics.mScrollableRect = aLayerMetrics.mScrollableRect;
     mFrameMetrics.mCompositionBounds = aLayerMetrics.mCompositionBounds;
-    mFrameMetrics.SetRootCompositionSize(aLayerMetrics.GetRootCompositionSize());
     mFrameMetrics.mResolution = aLayerMetrics.mResolution;
     mFrameMetrics.mCumulativeResolution = aLayerMetrics.mCumulativeResolution;
     mFrameMetrics.mHasScrollgrab = aLayerMetrics.mHasScrollgrab;
@@ -1896,11 +1868,10 @@ void AsyncPanZoomController::ZoomToRect(CSSRect aRect) {
     }
 
     endZoomToMetrics.SetScrollOffset(aRect.TopLeft());
-    endZoomToMetrics.SetDisplayPortMargins(
+    endZoomToMetrics.mDisplayPort =
       CalculatePendingDisplayPort(endZoomToMetrics,
                                   ScreenPoint(0,0),
-                                  0));
-    endZoomToMetrics.SetUseDisplayPortMargins();
+                                  0);
 
     StartAnimation(new ZoomAnimation(
         mFrameMetrics.GetScrollOffset(),

@@ -22,7 +22,8 @@ DisableNetworkNotifications()
 void
 GetCurrentNetworkInformation(hal::NetworkInformation* aNetworkInfo)
 {
-  aNetworkInfo->type() = dom::network::kDefaultType;
+  aNetworkInfo->bandwidth() = dom::network::kDefaultBandwidth;
+  aNetworkInfo->canBeMetered() = dom::network::kDefaultCanBeMetered;
   aNetworkInfo->isWifi() = dom::network::kDefaultIsWifi;
   aNetworkInfo->dhcpGateway() = dom::network::kDefaultDHCPGateway;
 }

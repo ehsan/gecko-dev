@@ -7162,26 +7162,9 @@ SetGridAutoColumnsRows(const nsCSSValue& aValue,
 }
 
 static void
-AppendGridLineNames(const nsCSSValue& aValue,
-                    nsStyleGridTemplate& aResult)
-{
-  // Compute a <line-names> value
-  nsTArray<nsString>* nameList = aResult.mLineNameLists.AppendElement();
-  // Null unit means empty list, nothing more to do.
-  if (aValue.GetUnit() != eCSSUnit_Null) {
-    const nsCSSValueList* item = aValue.GetListValue();
-    do {
-      nsString* name = nameList->AppendElement();
-      item->mValue.GetStringValue(*name);
-      item = item->mNext;
-    } while (item);
-  }
-}
-
-static void
 SetGridTrackList(const nsCSSValue& aValue,
-                 nsStyleGridTemplate& aResult,
-                 const nsStyleGridTemplate& aParentValue,
+                 nsStyleGridTrackList& aResult,
+                 const nsStyleGridTrackList& aParentValue,
                  nsStyleContext* aStyleContext,
                  nsPresContext* aPresContext,
                  bool& aCanStoreInRuleTree)
@@ -7193,7 +7176,6 @@ SetGridTrackList(const nsCSSValue& aValue,
 
   case eCSSUnit_Inherit:
     aCanStoreInRuleTree = false;
-    aResult.mIsSubgrid = aParentValue.mIsSubgrid;
     aResult.mLineNameLists = aParentValue.mLineNameLists;
     aResult.mMinTrackSizingFunctions = aParentValue.mMinTrackSizingFunctions;
     aResult.mMaxTrackSizingFunctions = aParentValue.mMaxTrackSizingFunctions;
@@ -7202,7 +7184,6 @@ SetGridTrackList(const nsCSSValue& aValue,
   case eCSSUnit_Initial:
   case eCSSUnit_Unset:
   case eCSSUnit_None:
-    aResult.mIsSubgrid = false;
     aResult.mLineNameLists.Clear();
     aResult.mMinTrackSizingFunctions.Clear();
     aResult.mMaxTrackSizingFunctions.Clear();
@@ -7212,45 +7193,42 @@ SetGridTrackList(const nsCSSValue& aValue,
     aResult.mLineNameLists.Clear();
     aResult.mMinTrackSizingFunctions.Clear();
     aResult.mMaxTrackSizingFunctions.Clear();
+    // This list is expected to have odd number of items, at least 3
+    // starting with a <line-names> (sub list of identifiers),
+    // and alternating between that and <track-size>.
     const nsCSSValueList* item = aValue.GetListValue();
-    if (item->mValue.GetUnit() == eCSSUnit_Enumerated &&
-        item->mValue.GetIntValue() == NS_STYLE_GRID_TEMPLATE_SUBGRID) {
-      // subgrid <line-name-list>?
-      aResult.mIsSubgrid = true;
+    for (;;) {
+      // Compute a <line-names> value
+      nsTArray<nsString>* nameList = aResult.mLineNameLists.AppendElement();
+      // Null unit means empty list, nothing more to do.
+      if (item->mValue.GetUnit() != eCSSUnit_Null) {
+        const nsCSSValueList* subItem = item->mValue.GetListValue();
+        do {
+          nsString* name = nameList->AppendElement();
+          subItem->mValue.GetStringValue(*name);
+          subItem = subItem->mNext;
+        } while (subItem);
+      }
       item = item->mNext;
-      while (item) {
-        AppendGridLineNames(item->mValue, aResult);
-        item = item->mNext;
+
+      if (!item) {
+        break;
       }
-    } else {
-      // <track-list>
-      // The list is expected to have odd number of items, at least 3
-      // starting with a <line-names> (sub list of identifiers),
-      // and alternating between that and <track-size>.
-      aResult.mIsSubgrid = false;
-      for (;;) {
-        AppendGridLineNames(item->mValue, aResult);
-        item = item->mNext;
 
-        if (!item) {
-          break;
-        }
+      nsStyleCoord& min = *aResult.mMinTrackSizingFunctions.AppendElement();
+      nsStyleCoord& max = *aResult.mMaxTrackSizingFunctions.AppendElement();
+      SetGridTrackSize(item->mValue, min, max,
+                       aStyleContext, aPresContext, aCanStoreInRuleTree);
 
-        nsStyleCoord& min = *aResult.mMinTrackSizingFunctions.AppendElement();
-        nsStyleCoord& max = *aResult.mMaxTrackSizingFunctions.AppendElement();
-        SetGridTrackSize(item->mValue, min, max,
-                         aStyleContext, aPresContext, aCanStoreInRuleTree);
-
-        item = item->mNext;
-        MOZ_ASSERT(item, "Expected a eCSSUnit_List of odd length");
-      }
-      MOZ_ASSERT(!aResult.mMinTrackSizingFunctions.IsEmpty() &&
-                 aResult.mMinTrackSizingFunctions.Length() ==
-                 aResult.mMaxTrackSizingFunctions.Length() &&
-                 aResult.mMinTrackSizingFunctions.Length() + 1 ==
-                 aResult.mLineNameLists.Length(),
-                 "Inconstistent array lengths for nsStyleGridTemplate");
+      item = item->mNext;
+      MOZ_ASSERT(item, "Expected a eCSSUnit_List of odd length");
     }
+    MOZ_ASSERT(!aResult.mMinTrackSizingFunctions.IsEmpty() &&
+               aResult.mMinTrackSizingFunctions.Length() ==
+               aResult.mMaxTrackSizingFunctions.Length() &&
+               aResult.mMinTrackSizingFunctions.Length() + 1 ==
+               aResult.mLineNameLists.Length(),
+               "Inconstistent array lengths for nsStyleGridTrackList");
   }
 }
 

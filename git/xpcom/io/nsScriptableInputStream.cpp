@@ -45,13 +45,14 @@ nsScriptableInputStream::Read(uint32_t aCount, char **_retval) {
     buffer = (char*)moz_malloc(count+1); // make room for '\0'
     if (!buffer) return NS_ERROR_OUT_OF_MEMORY;
 
-    rv = ReadHelper(buffer, count);
+    uint32_t amtRead = 0;
+    rv = mInputStream->Read(buffer, count, &amtRead);
     if (NS_FAILED(rv)) {
         nsMemory::Free(buffer);
         return rv;
     }
 
-    buffer[count] = '\0';
+    buffer[amtRead] = '\0';
     *_retval = buffer;
     return NS_OK;
 }
@@ -68,20 +69,10 @@ nsScriptableInputStream::ReadBytes(uint32_t aCount, nsACString &_retval) {
     }
 
     char *ptr = _retval.BeginWriting();
-    nsresult rv = ReadHelper(ptr, aCount);
-    if (NS_FAILED(rv)) {
-      _retval.Truncate();
-    }
-    return rv;
-}
-
-nsresult
-nsScriptableInputStream::ReadHelper(char* aBuffer, uint32_t aCount)
-{
     uint32_t totalBytesRead = 0;
     while (1) {
       uint32_t bytesRead;
-      nsresult rv = mInputStream->Read(aBuffer + totalBytesRead,
+      nsresult rv = mInputStream->Read(ptr + totalBytesRead,
                                        aCount - totalBytesRead,
                                        &bytesRead);
       if (NS_FAILED(rv)) {
@@ -95,6 +86,7 @@ nsScriptableInputStream::ReadHelper(char* aBuffer, uint32_t aCount)
 
       // If we have read zero bytes, we have hit EOF.
       if (bytesRead == 0) {
+        _retval.Truncate();
         return NS_ERROR_FAILURE;
       }
 

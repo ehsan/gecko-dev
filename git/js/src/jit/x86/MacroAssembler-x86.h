@@ -1067,7 +1067,7 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
 
     void callWithExitFrame(JitCode *target, Register dynStack) {
         addPtr(Imm32(framePushed()), dynStack);
-        makeFrameDescriptor(dynStack, JitFrame_IonJS);
+        makeFrameDescriptor(dynStack, IonFrame_OptimizedJS);
         Push(dynStack);
         call(target);
     }
@@ -1076,6 +1076,14 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
     // register that holds a PerThreadData *.
     void linkParallelExitFrame(const Register &pt) {
         movl(StackPointer, Operand(pt, offsetof(PerThreadData, ionTop)));
+    }
+
+    void enterOsr(Register calleeToken, Register code) {
+        push(Imm32(0)); // num actual args.
+        push(calleeToken);
+        push(Imm32(MakeFrameDescriptor(0, IonFrame_Osr)));
+        call(code);
+        addl(Imm32(sizeof(uintptr_t) * 2), esp);
     }
 };
 

@@ -11,7 +11,6 @@
 #include "nsCycleCollectionParticipant.h"
 #include "mozilla/Observer.h"
 #include "Types.h"
-#include "mozilla/dom/NetworkInformationBinding.h"
 
 namespace mozilla {
 
@@ -45,9 +44,11 @@ public:
   virtual JSObject* WrapObject(JSContext* aCx,
                                JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
 
-  ConnectionType Type() const { return mType; }
+  double Bandwidth() const;
 
-  IMPL_EVENT_HANDLER(typechange)
+  bool Metered() const;
+
+  IMPL_EVENT_HANDLER(change)
 
 private:
   /**
@@ -57,9 +58,14 @@ private:
   void UpdateFromNetworkInfo(const hal::NetworkInformation& aNetworkInfo);
 
   /**
-   * The type of current connection.
+   * If the connection is of a type that can be metered.
    */
-  ConnectionType mType;
+  bool mCanBeMetered;
+
+  /**
+   * The connection bandwidth.
+   */
+  double mBandwidth;
 
   /**
    * If the connection is WIFI
@@ -70,6 +76,9 @@ private:
    * DHCP Gateway information for IPV4, in network byte order. 0 if unassigned.
    */
   uint32_t mDHCPGateway;
+
+  static const char* sMeteredPrefName;
+  static const bool  sMeteredDefaultValue;
 };
 
 } // namespace network

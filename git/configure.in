@@ -5269,13 +5269,9 @@ fi;
 dnl ========================================================
 dnl FFmpeg H264/AAC Decoding Support
 dnl ========================================================
-case "$OS_TARGET" in
-WINNT|Darwin|Android)
-    ;;
-*)
-    MOZ_FFMPEG=1
-    ;;
-esac
+if test "$OS_TARGET" = "Linux"; then
+  MOZ_FFMPEG=1
+fi
 
 MOZ_ARG_DISABLE_BOOL(ffmpeg,
 [  --disable-ffmpeg         Disable FFmpeg for fragmented H264/AAC decoding],
