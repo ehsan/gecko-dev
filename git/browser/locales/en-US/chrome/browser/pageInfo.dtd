@@ -83,5 +83,3 @@
 <!ENTITY  securityView.privacy.viewPasswords.accessKey  "w">
 
 <!ENTITY  securityView.technical.header                 "Technical Details">
-
-<!ENTITY  helpButton.label                              "Help">

@@ -4,6 +4,7 @@
 
 package org.mozilla.gecko.browserid.verifier;
 
+import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URISyntaxException;
 
@@ -51,7 +52,7 @@ public class BrowserIDRemoteVerifierClient20 extends AbstractBrowserIDRemoteVeri
 
     try {
       r.post(requestBody);
-    } catch (Exception e) {
+    } catch (UnsupportedEncodingException e) {
       delegate.handleError(e);
     }
   }

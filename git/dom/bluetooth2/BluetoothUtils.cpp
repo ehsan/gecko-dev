@@ -64,9 +64,6 @@ StringToUuid(const char* aString, BluetoothUuid& aUuid)
   memcpy(&aUuid.mUuid[14], &uuid5, sizeof(uint16_t));
 }
 
-/**
- * |SetJsObject| is an internal function used by |BroadcastSystemMessage| only
- */
 bool
 SetJsObject(JSContext* aContext,
             const BluetoothValue& aValue,
@@ -122,7 +119,7 @@ BroadcastSystemMessage(const nsAString& aType,
                        const BluetoothValue& aData)
 {
   mozilla::AutoSafeJSContext cx;
-  MOZ_ASSERT(!::JS_IsExceptionPending(cx),
+  NS_ASSERTION(!::JS_IsExceptionPending(cx),
       "Shouldn't get here when an exception is pending!");
 
   nsCOMPtr<nsISystemMessagesInternal> systemMessenger =
@@ -163,7 +160,7 @@ BroadcastSystemMessage(const nsAString& aType,
                        const InfallibleTArray<BluetoothNamedValue>& aData)
 {
   mozilla::AutoSafeJSContext cx;
-  MOZ_ASSERT(!::JS_IsExceptionPending(cx),
+  NS_ASSERTION(!::JS_IsExceptionPending(cx),
       "Shouldn't get here when an exception is pending!");
 
   JS::Rooted<JSObject*> obj(cx, JS_NewPlainObject(cx));
@@ -189,50 +186,44 @@ BroadcastSystemMessage(const nsAString& aType,
 }
 
 void
-DispatchReplySuccess(BluetoothReplyRunnable* aRunnable)
+DispatchBluetoothReply(BluetoothReplyRunnable* aRunnable,
+                       const BluetoothValue& aValue,
+                       const nsAString& aErrorStr)
 {
-  DispatchReplySuccess(aRunnable, BluetoothValue(true));
+  // Reply will be deleted by the runnable after running on main thread
+  BluetoothReply* reply;
+  if (!aErrorStr.IsEmpty()) {
+    nsString err(aErrorStr);
+    reply = new BluetoothReply(BluetoothReplyError(STATUS_FAIL, err));
+  } else {
+    MOZ_ASSERT(aValue.type() != BluetoothValue::T__None);
+    reply = new BluetoothReply(BluetoothReplySuccess(aValue));
+  }
+
+  aRunnable->SetReply(reply);
+  if (NS_FAILED(NS_DispatchToMainThread(aRunnable))) {
+    BT_WARNING("Failed to dispatch to main thread!");
+  }
 }
 
 void
-DispatchReplySuccess(BluetoothReplyRunnable* aRunnable,
-                     const BluetoothValue& aValue)
+DispatchBluetoothReply(BluetoothReplyRunnable* aRunnable,
+                       const BluetoothValue& aValue,
+                       const enum BluetoothStatus aStatusCode)
 {
-  MOZ_ASSERT(aRunnable);
-  MOZ_ASSERT(aValue.type() != BluetoothValue::T__None);
+  // Reply will be deleted by the runnable after running on main thread
+  BluetoothReply* reply;
+  if (aStatusCode != STATUS_SUCCESS) {
+    reply = new BluetoothReply(BluetoothReplyError(aStatusCode, EmptyString()));
+  } else {
+    MOZ_ASSERT(aValue.type() != BluetoothValue::T__None);
+    reply = new BluetoothReply(BluetoothReplySuccess(aValue));
+  }
 
-  BluetoothReply* reply = new BluetoothReply(BluetoothReplySuccess(aValue));
-
-  aRunnable->SetReply(reply); // runnable will delete reply after Run()
-  NS_WARN_IF(NS_FAILED(NS_DispatchToMainThread(aRunnable)));
-}
-
-void
-DispatchReplyError(BluetoothReplyRunnable* aRunnable,
-                   const nsAString& aErrorStr)
-{
-  MOZ_ASSERT(aRunnable);
-  MOZ_ASSERT(!aErrorStr.IsEmpty());
-
-  BluetoothReply* reply =
-    new BluetoothReply(BluetoothReplyError(STATUS_FAIL, nsString(aErrorStr)));
-
-  aRunnable->SetReply(reply); // runnable will delete reply after Run()
-  NS_WARN_IF(NS_FAILED(NS_DispatchToMainThread(aRunnable)));
-}
-
-void
-DispatchReplyError(BluetoothReplyRunnable* aRunnable,
-                   const enum BluetoothStatus aStatus)
-{
-  MOZ_ASSERT(aRunnable);
-  MOZ_ASSERT(aStatus != STATUS_SUCCESS);
-
-  BluetoothReply* reply =
-    new BluetoothReply(BluetoothReplyError(aStatus, EmptyString()));
-
-  aRunnable->SetReply(reply); // runnable will delete reply after Run()
-  NS_WARN_IF(NS_FAILED(NS_DispatchToMainThread(aRunnable)));
+  aRunnable->SetReply(reply);
+  if (NS_FAILED(NS_DispatchToMainThread(aRunnable))) {
+    BT_WARNING("Failed to dispatch to main thread!");
+  }
 }
 
 void

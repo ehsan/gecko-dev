@@ -779,11 +779,6 @@ let gDevToolsBrowser = {
   },
 
   /**
-   * The deferred promise will be resolved by WebIDE's UI.init()
-   */
-  isWebIDEInitialized: promise.defer(),
-
-  /**
    * Uninstall WebIDE widget
    */
   uninstallWebIDEWidget: function() {

@@ -5,6 +5,7 @@
 package org.mozilla.gecko.background.fxa.oauth;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.security.GeneralSecurityException;
 import java.util.Locale;
 import java.util.concurrent.Executor;
@@ -126,7 +127,7 @@ public abstract class FxAccountAbstractClient {
       } else {
         resource.post(requestBody);
       }
-    } catch (Exception e) {
+    } catch (UnsupportedEncodingException e) {
       invokeHandleError(delegate, e);
       return;
     }
