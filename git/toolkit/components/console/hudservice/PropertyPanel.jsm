@@ -430,8 +430,7 @@ function PropertyPanel(aParent, aDocument, aTitle, aObject, aButtons)
     label: aTitle,
     titlebar: "normal",
     noautofocus: "true",
-    noautohide: "true",
-    close: "true",
+    noautohide: "true"
   });
 
   // Create the tree.
@@ -485,12 +484,6 @@ function PropertyPanel(aParent, aDocument, aTitle, aObject, aButtons)
     self.panel.removeEventListener("popupshown", onPopupShow, false);
     self.tree.view = self.treeView;
   }, false);
-
-  this.panel.addEventListener("popuphidden", function onPopupHide()
-  {
-    self.panel.removeEventListener("popuphidden", onPopupHide, false);
-    self.destroy();
-  }, false);
 }
 
 /**
@@ -501,13 +494,9 @@ function PropertyPanel(aParent, aDocument, aTitle, aObject, aButtons)
  */
 PropertyPanel.prototype.destroy = function PP_destroy()
 {
+  this.panel.hidePopup();
   this.panel.parentNode.removeChild(this.panel);
   this.treeView = null;
   this.panel = null;
   this.tree = null;
-
-  if (this.linkNode) {
-    this.linkNode._panelOpen = false;
-    this.linkNode = null;
-  }
 }

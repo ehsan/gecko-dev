@@ -98,7 +98,6 @@ EXPORTS_mozilla = \
 
 ifeq (windows,$(MOZ_WIDGET_TOOLKIT))
 CPPSRCS += nsSetDllDirectory.cpp
-CPPSRCS += nsCrashOnException.cpp
 endif
 
 ifeq ($(OS_ARCH),WINNT)

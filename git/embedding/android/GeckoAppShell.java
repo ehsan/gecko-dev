@@ -110,19 +110,10 @@ class GeckoAppShell
     }
 
     public static long getFreeSpace() {
-        try {
-            if (sFreeSpace == -1) {
-                File cacheDir = getCacheDir();
-                if (cacheDir != null) {
-                    StatFs cacheStats = new StatFs(cacheDir.getPath());
-                    sFreeSpace = cacheStats.getFreeBlocks() * 
-                        cacheStats.getBlockSize();
-                } else {
-                    Log.i("GeckoAppShell", "Unable to get cache dir");
-                }
-            }
-        } catch (Exception e) {
-            Log.e("GeckoAppShell", "exception while stating cache dir: ", e);
+        if (sFreeSpace == -1) {
+            StatFs cacheStats = new StatFs(getCacheDir().getPath());
+            sFreeSpace = cacheStats.getFreeBlocks() * 
+                cacheStats.getBlockSize();
         }
         return sFreeSpace;
     }

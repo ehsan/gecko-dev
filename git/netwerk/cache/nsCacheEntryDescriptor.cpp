@@ -673,6 +673,7 @@ nsOutputStreamWrapper::WriteFrom(nsIInputStream * inStr,
                                  PRUint32         count,
                                  PRUint32 *       result)
 {
+    NS_NOTREACHED("cache stream not buffered");
     return NS_ERROR_NOT_IMPLEMENTED;
 }
 
@@ -682,6 +683,7 @@ nsOutputStreamWrapper::WriteSegments(nsReadSegmentFun  reader,
                                      PRUint32          count,
                                      PRUint32 *        result)
 {
+    NS_NOTREACHED("cache stream not buffered");
     return NS_ERROR_NOT_IMPLEMENTED;
 }
 

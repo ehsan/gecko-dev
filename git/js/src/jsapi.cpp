@@ -1366,103 +1366,6 @@ JS_TransplantObject(JSContext *cx, JSObject *origobj, JSObject *target)
     return obj;
 }
 
-/*
- * The location object is special. There is the location object itself and
- * then the location object wrapper. Because there are no direct references to
- * the location object itself, we don't want the old obj (|origobj| here) to
- * become the new wrapper but the wrapper itself instead. This leads to very
- * subtle differences between js_TransplantObjectWithWrapper and
- * JS_TransplantObject.
- */
-JS_FRIEND_API(JSObject *)
-js_TransplantObjectWithWrapper(JSContext *cx,
-                               JSObject *origobj,
-                               JSObject *origwrapper,
-                               JSObject *targetobj,
-                               JSObject *targetwrapper)
-{
-    JSObject *obj;
-    JSCompartment *destination = targetobj->getCompartment();
-    WrapperMap &map = destination->crossCompartmentWrappers;
-
-    // |origv| is the map entry we're looking up. The map entries are going to
-    // be for the location object itself.
-    Value origv = ObjectValue(*origobj);
-
-    // There might already be a wrapper for the original object in the new
-    // compartment.
-    if (WrapperMap::Ptr p = map.lookup(origv)) {
-        // There is. Make the existing wrapper a same compartment location
-        // wrapper (swapping it with the given new wrapper).
-        obj = &p->value.toObject();
-        map.remove(p);
-        if (!obj->swap(cx, targetwrapper))
-            return NULL;
-    } else {
-        // Otherwise, use the passed-in wrapper as the same compartment
-        // location wrapper.
-        obj = targetwrapper;
-    }
-
-    // Now, iterate through other scopes looking for references to the old
-    // location object. Note that the entries in the maps are for |origobj|
-    // and not |origwrapper|. They need to be updated to point at the new
-    // location object.
-    Value targetv = ObjectValue(*targetobj);
-    WrapperVector &vector = cx->runtime->compartments;
-    AutoValueVector toTransplant(cx);
-    toTransplant.reserve(vector.length());
-
-    for (JSCompartment **p = vector.begin(), **end = vector.end(); p != end; ++p) {
-        WrapperMap &pmap = (*p)->crossCompartmentWrappers;
-        if (WrapperMap::Ptr wp = pmap.lookup(origv)) {
-            // We found a wrapper. Remember and root it.
-            toTransplant.append(wp->value);
-        }
-    }
-
-    for (Value *begin = toTransplant.begin(), *end = toTransplant.end(); begin != end; ++begin) {
-        JSObject *wobj = &begin->toObject();
-        JSCompartment *wcompartment = wobj->compartment();
-        WrapperMap &pmap = wcompartment->crossCompartmentWrappers;
-        JS_ASSERT(pmap.lookup(origv));
-        pmap.remove(origv);
-
-        // First, we wrap it in the new compartment. This will return a
-        // new wrapper.
-        AutoCompartment ac(cx, wobj);
-
-        JSObject *tobj = targetobj;
-        if (!ac.enter() || !wcompartment->wrap(cx, &tobj))
-            return NULL;
-
-        // Now, because we need to maintain object identity, we do a brain
-        // transplant on the old object. At the same time, we update the
-        // entry in the compartment's wrapper map to point to the old
-        // wrapper.
-        JS_ASSERT(tobj != wobj);
-        if (!wobj->swap(cx, tobj))
-            return NULL;
-        pmap.put(targetv, ObjectValue(*wobj));
-    }
-
-    // Lastly, update the original object to point to the new one. However, as
-    // mentioned above, we do the transplant on the wrapper, not the object
-    // itself, since all of the references are to the object itself.
-    {
-        AutoCompartment ac(cx, origobj);
-        JSObject *tobj = obj;
-        if (!ac.enter() || !JS_WrapObject(cx, &tobj))
-            return NULL;
-        if (!origwrapper->swap(cx, tobj))
-            return NULL;
-        origwrapper->getCompartment()->crossCompartmentWrappers.put(targetv,
-                                                                    ObjectValue(*origwrapper));
-    }
-
-    return obj;
-}
-
 JS_PUBLIC_API(JSObject *)
 JS_GetGlobalObject(JSContext *cx)
 {
@@ -3062,8 +2965,8 @@ JS_NewGlobalObject(JSContext *cx, JSClass *clasp)
     /* Construct a regexp statics object for this global object. */
     JSObject *res = regexp_statics_construct(cx, obj);
     if (!res ||
-        !js_SetReservedSlot(cx, obj, JSRESERVED_GLOBAL_REGEXP_STATICS, ObjectValue(*res)) ||
-        !js_SetReservedSlot(cx, obj, JSRESERVED_GLOBAL_FLAGS, Int32Value(0))) {
+        !js_SetReservedSlot(cx, obj, JSRESERVED_GLOBAL_REGEXP_STATICS,
+                            ObjectValue(*res))) {
         return NULL;
     }
 
@@ -3937,25 +3840,11 @@ JS_ClearScope(JSContext *cx, JSObject *obj)
 
     /* Clear cached class objects on the global object. */
     if (obj->isGlobal()) {
-        /* This can return false but that doesn't mean it failed. */
-        obj->unbrand(cx);
-
         for (int key = JSProto_Null; key < JSProto_LIMIT * 3; key++)
             JS_SetReservedSlot(cx, obj, key, JSVAL_VOID);
 
-        /* Clear regexp statics. */
-        RegExpStatics::extractFrom(obj)->clear();
-
         /* Clear the CSP eval-is-allowed cache. */
         JS_SetReservedSlot(cx, obj, JSRESERVED_GLOBAL_EVAL_ALLOWED, JSVAL_VOID);
-
-        /*
-         * Mark global as cleared. If we try to execute any compile-and-go
-         * scripts from here on, we will throw.
-         */
-        int32 flags = obj->getReservedSlot(JSRESERVED_GLOBAL_FLAGS).toInt32();
-        flags |= JSGLOBAL_FLAGS_CLEARED;
-        JS_SetReservedSlot(cx, obj, JSRESERVED_GLOBAL_FLAGS, Jsvalify(Int32Value(flags)));
     }
 
     js_InitRandom(cx);
@@ -5299,6 +5188,7 @@ JS_RestoreFrameChain(JSContext *cx, JSStackFrame *fp)
     if (!fp)
         return;
     cx->restoreSegment();
+    cx->resetCompartment();
 }
 
 /************************************************************************/

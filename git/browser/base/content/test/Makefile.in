@@ -146,7 +146,6 @@ _BROWSER_FILES = \
                  browser_bug562649.js \
                  browser_bug563588.js \
                  browser_bug565575.js \
-                 browser_bug567306.js \
                  browser_zbug569342.js \
                  browser_bug575561.js \
                  browser_bug577121.js \
@@ -170,7 +169,6 @@ _BROWSER_FILES = \
                  browser_bug616836.js \
                  browser_bug623893.js \
                  browser_bug624734.js \
-                 browser_bug628179.js \
                  browser_contextSearchTabPosition.js \
                  browser_ctrlTab.js \
                  browser_customize_popupNotification.js \
@@ -245,7 +243,6 @@ _BROWSER_FILES = \
                  browser_addon_bar_close_button.js \
                  browser_addon_bar_shortcut.js \
                  browser_addon_bar_aomlistener.js \
-                 test_bug628179.html \
                  $(NULL)
 
 # compartment-disabled

@@ -157,7 +157,7 @@ Rect.prototype = {
   // ----------
   // Function: contains
   // Returns a boolean denoting if the given <Rect> is contained within
-  // this rectangle.
+  // the this rectangle.
   //
   // Paramaters
   //  - A <Rect>

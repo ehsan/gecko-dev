@@ -50,7 +50,6 @@
 #endif
 #ifdef XP_WIN
 #include "mozilla/gfx/SharedDIBSurface.h"
-#include "nsCrashOnException.h"
 
 using mozilla::gfx::SharedDIBSurface;
 #endif
@@ -1141,16 +1140,6 @@ PluginInstanceChild::PluginWindowProc(HWND hWnd,
                                       UINT message,
                                       WPARAM wParam,
                                       LPARAM lParam)
-{
-  return mozilla::CallWindowProcCrashProtected(PluginWindowProcInternal, hWnd, message, wParam, lParam);
-}
-
-// static
-LRESULT CALLBACK
-PluginInstanceChild::PluginWindowProcInternal(HWND hWnd,
-                                              UINT message,
-                                              WPARAM wParam,
-                                              LPARAM lParam)
 {
     NS_ASSERTION(!mozilla::ipc::SyncChannel::IsPumpingMessages(),
                  "Failed to prevent a nonqueued message from running!");

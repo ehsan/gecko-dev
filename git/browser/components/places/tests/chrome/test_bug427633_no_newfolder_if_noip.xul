@@ -89,7 +89,7 @@
 
       // Add a bookmark.
       var itemId = bs.insertBookmark(bs.toolbarFolder,
-                                     uri("http://www.example.com/"),
+                                     uri("http://www.mozilla.org/"),
                                      bs.DEFAULT_INDEX,
                                      "mozilla");
 

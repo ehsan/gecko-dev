@@ -2397,15 +2397,8 @@ BasicShadowImageLayer::Paint(gfxContext* aContext,
 
   nsRefPtr<gfxPattern> pat = new gfxPattern(mFrontSurface);
   pat->SetFilter(mFilter);
-
-  // The visible region can extend outside the image.  If we're not
-  // tiling, we don't want to draw into that area, so just draw within
-  // the image bounds.
-  const nsIntRect* tileSrcRect = GetTileSourceRect();
-  BasicImageLayer::PaintContext(pat,
-                                tileSrcRect ? GetEffectiveVisibleRegion() : nsIntRegion(nsIntRect(0, 0, mSize.width, mSize.height)),
-                                tileSrcRect,
-                                GetEffectiveOpacity(), aContext);
+  BasicImageLayer::PaintContext(
+    pat, GetEffectiveVisibleRegion(), GetTileSourceRect(), GetEffectiveOpacity(), aContext);
 }
 
 class BasicShadowColorLayer : public ShadowColorLayer,

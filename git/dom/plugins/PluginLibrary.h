@@ -51,15 +51,6 @@ class gfxASurface;
 class nsCString;
 
 namespace mozilla {
-namespace layers {
-class Image;
-class ImageContainer;
-}
-}
-
-using namespace mozilla::layers;
-
-namespace mozilla {
 
 class PluginLibrary
 {
@@ -97,11 +88,7 @@ public:
 
   virtual nsresult AsyncSetWindow(NPP instance, NPWindow* window) = 0;
   virtual nsresult GetSurface(NPP instance, gfxASurface** aSurface) = 0;
-  virtual nsresult GetImage(NPP instance, ImageContainer* aContainer, Image** aImage) = 0;
   virtual bool UseAsyncPainting() = 0;
-#if defined(XP_MACOSX)
-  virtual nsresult IsRemoteDrawingCoreAnimation(NPP instance, PRBool *aDrawing) = 0;
-#endif
 };
 
 

@@ -113,10 +113,6 @@ nsDocAccessible::
   mAccessibleCache.Init(kDefaultCacheSize);
   mNodeToAccessibleMap.Init(kDefaultCacheSize);
 
-  // If this is a XUL Document, it should not implement nsHyperText
-  if (mDocument && mDocument->IsXUL())
-    mFlags &= ~eHyperTextAccessible;
-
   // For GTK+ native window, we do nothing here.
   if (!mDocument)
     return;
@@ -174,10 +170,11 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsDocAccessible)
     // However at some point we may push <body> to implement the interfaces and
     // return nsDocAccessible to inherit from nsAccessibleWrap.
 
-    status = IsHyperText() ? 
-      nsHyperTextAccessible::QueryInterface(aIID,
-                                            (void**)&foundInterface) :
-      nsAccessible::QueryInterface(aIID, (void**)&foundInterface);
+    if (mDocument && mDocument->IsXUL())
+      status = nsAccessible::QueryInterface(aIID, (void**)&foundInterface);
+    else
+      status = nsHyperTextAccessible::QueryInterface(aIID,
+                                                     (void**)&foundInterface);
   } else {
     NS_ADDREF(foundInterface);
     status = NS_OK;

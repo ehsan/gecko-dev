@@ -78,10 +78,6 @@ class PluginInstanceChild : public PPluginInstanceChild
                                              UINT message,
                                              WPARAM wParam,
                                              LPARAM lParam);
-    static LRESULT CALLBACK PluginWindowProcInternal(HWND hWnd,
-                                                     UINT message,
-                                                     WPARAM wParam,
-                                                     LPARAM lParam);
 #endif
 
 protected:

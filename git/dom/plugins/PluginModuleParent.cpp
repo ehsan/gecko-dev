@@ -682,15 +682,6 @@ PluginModuleParent::GetSurface(NPP instance, gfxASurface** aSurface)
     return i->GetSurface(aSurface);
 }
 
-nsresult
-PluginModuleParent::GetImage(NPP instance,
-                             mozilla::layers::ImageContainer* aContainer,
-                             mozilla::layers::Image** aImage)
-{
-    PluginInstanceParent* i = InstCast(instance);
-    return !i ? NS_ERROR_FAILURE : i->GetImage(aContainer, aImage);
-}
-
 #if defined(XP_UNIX) && !defined(XP_MACOSX)
 nsresult
 PluginModuleParent::NP_Initialize(NPNetscapeFuncs* bFuncs, NPPluginFuncs* pFuncs, NPError* error)
@@ -887,18 +878,6 @@ PluginModuleParent::NPP_GetSitesWithData(InfallibleTArray<nsCString>& result)
 
     return NS_OK;
 }
-
-#if defined(XP_MACOSX)
-nsresult
-PluginModuleParent::IsRemoteDrawingCoreAnimation(NPP instance, PRBool *aDrawing)
-{
-    PluginInstanceParent* i = InstCast(instance);
-    if (!i)
-        return NS_ERROR_FAILURE;
-
-    return i->IsRemoteDrawingCoreAnimation(aDrawing);
-}
-#endif
 
 bool
 PluginModuleParent::AnswerNPN_GetValue_WithBoolReturn(const NPNVariable& aVariable,

@@ -3,6 +3,7 @@ body {
   font: message-box;
   color: rgba(0, 0, 0, 0.6);
   font-size: 12px;
+  line-height: 16px;
 }
 
 #bg {
@@ -245,7 +246,7 @@ html[dir=rtl] .overlay {
   right: 1px;
   -moz-border-start: 1px solid #E1E1E1;
   padding: 0 5px;
-  overflow: -moz-hidden-unscrollable;
+  overflow-x: hidden;
   text-align: start;
   line-height: 0;
 }
@@ -258,6 +259,7 @@ html[dir=rtl] .appTabTrayContainer {
 .appTabTray {
   display: inline-block;
   -moz-column-width: 16px;
+  -moz-column-count: 0;
   -moz-column-gap: 5px;
 }
 
@@ -420,6 +422,7 @@ html[dir=rtl] .acceptsDrop {
 
 .titlebar {
   font-size: 12px;
+  line-height: 18px;
   height: 18px;
 }
 
