@@ -127,10 +127,11 @@ nsApplicationAccessible::GetValue(nsAString &aValue)
   return NS_OK;
 }
 
-void
-nsApplicationAccessible::Description(nsString &aDescription)
+NS_IMETHODIMP
+nsApplicationAccessible::GetDescription(nsAString &aDescription)
 {
   aDescription.Truncate();
+  return NS_OK;
 }
 
 NS_IMETHODIMP
