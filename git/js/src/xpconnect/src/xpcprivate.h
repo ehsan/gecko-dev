@@ -600,11 +600,6 @@ public:
     virtual void PrintAllReferencesTo(void *p);
 #endif
 
-    XPCCallContext *GetCycleCollectionContext()
-    {
-        return mCycleCollectionContext;
-    }
-
     unsigned GetOutstandingRequests(JSContext* cx);
 
     // This returns the singleton nsCycleCollectionParticipant for JSContexts.
@@ -808,9 +803,6 @@ public:
     nsresult RemoveJSHolder(void* aHolder);
 
     void ClearWeakRoots();
-
-    static void SuspectWrappedNative(JSContext *cx, XPCWrappedNative *wrapper,
-                                     nsCycleCollectionTraversalCallback &cb);
 
     void DebugDump(PRInt16 depth);
 

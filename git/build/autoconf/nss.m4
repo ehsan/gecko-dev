@@ -73,7 +73,6 @@ AC_ARG_WITH(nss-exec-prefix,
 		ifelse([$2], , :, [$2])     
 	else
 		AC_MSG_RESULT(no)
-		ifelse([$3], , :, [$3])
 	fi
 
 

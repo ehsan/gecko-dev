@@ -190,7 +190,7 @@ EXTRA_DSO_LDOPTS += $(MOZ_GIO_LIBS)
 endif
 endif
 
-ifdef MOZ_ENABLE_CONTENTACTION
+ifeq ($(MOZ_PLATFORM_MAEMO),6)
 CPPSRCS += nsContentHandlerApp.cpp
 endif
 

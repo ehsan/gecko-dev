@@ -475,7 +475,6 @@ nsWaveStateMachine::Seek(double aTime)
     }
     ChangeState(STATE_SEEKING);
   }
-  NS_ASSERTION(IsSeeking(), "IsSeeking() must return true when seeking");
 }
 
 double
@@ -772,13 +771,11 @@ nsWaveStateMachine::Run()
           ChangeState(nextState);
         }
 
-        if (mState != STATE_SEEKING) {
-          monitor.Exit();
-          nsCOMPtr<nsIRunnable> stopEvent =
-            NS_NewRunnableMethod(mDecoder, &nsWaveDecoder::SeekingStopped);
-          NS_DispatchToMainThread(stopEvent, NS_DISPATCH_SYNC);
-          monitor.Enter();
-        }
+        monitor.Exit();
+        nsCOMPtr<nsIRunnable> stopEvent =
+          NS_NewRunnableMethod(mDecoder, &nsWaveDecoder::SeekingStopped);
+        NS_DispatchToMainThread(stopEvent, NS_DISPATCH_SYNC);
+        monitor.Enter();
       }
       break;
 
@@ -1324,7 +1321,6 @@ nsWaveDecoder::Seek(double aTime)
 {
   if (mPlaybackStateMachine) {
     mEnded = PR_FALSE;
-    mCurrentTime = aTime;
     PinForSeek();
     mPlaybackStateMachine->Seek(aTime);
     return StartStateMachineThread();

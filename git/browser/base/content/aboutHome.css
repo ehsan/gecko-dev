@@ -197,7 +197,7 @@ body[dir=rtl] #searchSubmit:active {
   font-size: 10px;
 }
 
-#searchEngineLinks > a:not([hidden="true"]) {
+#searchEngineLinks a {
   display: block;
   white-space: nowrap;
 }

@@ -467,6 +467,10 @@ nsResProtocolHandler::ResolveURI(nsIURI *uri, nsACString &result)
 {
     nsresult rv;
 
+    nsCOMPtr<nsIURL> url(do_QueryInterface(uri));
+    if (!url)
+        return NS_NOINTERFACE;
+
     nsCAutoString host;
     nsCAutoString path;
 
@@ -476,15 +480,15 @@ nsResProtocolHandler::ResolveURI(nsIURI *uri, nsACString &result)
     rv = uri->GetPath(path);
     if (NS_FAILED(rv)) return rv;
 
-    // Unescape the path so we can perform some checks on it.
-    nsCAutoString unescapedPath(path);
-    NS_UnescapeURL(unescapedPath);
+    nsCAutoString filepath;
+    url->GetFilePath(filepath);
 
     // Don't misinterpret the filepath as an absolute URI.
-    if (unescapedPath.FindChar(':') != -1)
+    if (filepath.FindChar(':') != -1)
         return NS_ERROR_MALFORMED_URI;
 
-    if (unescapedPath.FindChar('\\') != -1)
+    NS_UnescapeURL(filepath);
+    if (filepath.FindChar('\\') != -1)
         return NS_ERROR_MALFORMED_URI;
 
     const char *p = path.get() + 1; // path always starts with a slash
