@@ -969,7 +969,9 @@ const STATE_WAITING_FOR_REFTEST_WAIT_REMOVAL = 1;
 const STATE_WAITING_TO_FINISH = 2;
 const STATE_COMPLETED = 3;
 
-function WaitForTestEnd(contentRootElement) {
+function WaitForTestEnd() {
+    var currentDoc = gBrowser.contentDocument;
+    var contentRootElement = currentDoc ? currentDoc.documentElement : null;
     var stopAfterPaintReceived = false;
     var state = STATE_WAITING_TO_FIRE_INVALIDATE_EVENT;
 
@@ -1174,20 +1176,23 @@ function OnDocumentLoad(event)
 
     var contentRootElement = currentDoc ? currentDoc.documentElement : null;
     setupZoom(contentRootElement);
-    var inPrintMode = false;
 
     function AfterOnLoadScripts() {
+        if (doPrintMode(contentRootElement)) {
+            LogInfo("AfterOnLoadScripts setting up print mode");
+            setupPrintMode();
+        }
+
         // Take a snapshot now. We need to do this before we check whether
         // we should wait, since this might trigger dispatching of
         // MozPaintWait events and make shouldWaitForExplicitPaintWaiters() true
         // below.
         InitCurrentCanvasWithSnapshot();
 
-        if (shouldWaitForExplicitPaintWaiters() ||
-            (!inPrintMode && doPrintMode(contentRootElement))) {
+        if (shouldWaitForExplicitPaintWaiters()) {
             LogInfo("AfterOnLoadScripts belatedly entering WaitForTestEnd");
             // Go into reftest-wait mode belatedly.
-            WaitForTestEnd(contentRootElement);
+            WaitForTestEnd();
         } else {
             RecordResult();
         }
@@ -1199,14 +1204,8 @@ function OnDocumentLoad(event)
         // unsuppressed, after the onload event has finished dispatching.
         gFailureReason = "timed out waiting for test to complete (trying to get into WaitForTestEnd)";
         LogInfo("OnDocumentLoad triggering WaitForTestEnd");
-        setTimeout(WaitForTestEnd, 0, contentRootElement);
+        setTimeout(WaitForTestEnd, 0);
     } else {
-        if (doPrintMode(contentRootElement)) {
-            LogInfo("OnDocumentLoad setting up print mode");
-            setupPrintMode();
-            inPrintMode = true;
-        }
-
         // Since we can't use a bubbling-phase load listener from chrome,
         // this is a capturing phase listener.  So do setTimeout twice, the
         // first to get us after the onload has fired in the content, and
