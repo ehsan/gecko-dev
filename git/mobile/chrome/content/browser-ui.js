@@ -1,3 +1,4 @@
+// -*- Mode: js2; tab-width: 2; indent-tabs-mode: nil; js2-basic-offset: 2; js2-skip-preprocessor-directives: t; -*-
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -39,16 +40,17 @@ const TOOLBARSTATE_LOADING        = 1;
 const TOOLBARSTATE_LOADED         = 2;
 const TOOLBARSTATE_INDETERMINATE  = 3;
 
-const UIMODE_NONE              = 0;
-const UIMODE_URLVIEW           = 1;
-const UIMODE_URLEDIT           = 2;
-const UIMODE_BOOKMARK          = 3;
-const UIMODE_BOOKMARKLIST      = 4;
-const UIMODE_TABS              = 5;
-const UIMODE_CONTROLS          = 6;
-const UIMODE_PANEL             = 7;
+const PANELMODE_NONE              = 0;
+const PANELMODE_URLVIEW           = 1;
+const PANELMODE_URLEDIT           = 2;
+const PANELMODE_BOOKMARK          = 3;
+const PANELMODE_BOOKMARKLIST      = 4;
+const PANELMODE_ADDONS            = 5;
+const PANELMODE_SIDEBAR           = 6;
+const PANELMODE_TABLIST           = 7;
+const PANELMODE_FULL              = 8;
+const PANELMODE_PREFS             = 9;
 
-const kMaxEngines = 4;
 const kDefaultFavIconURL = "chrome://browser/skin/images/default-favicon.png";
 
 var BrowserUI = {
@@ -82,6 +84,7 @@ var BrowserUI = {
     var rel = link.rel && link.rel.toLowerCase();
     var rels = rel.split(/\s+/);
     if (rels.indexOf("icon") != -1) {
+      this._throbber.setAttribute("src", "");
       this._setIcon(link.href);
     }
   },
@@ -90,24 +93,22 @@ var BrowserUI = {
     var browser = Browser.currentBrowser;
     this.setURI();
     this._titleChanged(browser.contentDocument);
-    this._favicon.src = browser.mIconURL || kDefaultFavIconURL;
+    this._favicon.setAttribute("src", browser.mIconURL || kDefaultFavIconURL);
 
     let toolbar = document.getElementById("toolbar-main");
     let browserBox = document.getElementById("browser");
     if (Browser.content.currentTab.chromeTop) {
       // Browser box was panned, so let's reset it
       browserBox.top = Browser.content.currentTab.chromeTop;
-      browserBox.left = 0;
       toolbar.top = browserBox.top - toolbar.boxObject.height;
     }
     else {
       // Must be initial conditions
       toolbar.top = 0;
       browserBox.top = toolbar.boxObject.height;
-      browserBox.left = 0;
     }
 
-    this.show(UIMODE_NONE);
+    this.show(PANELMODE_NONE);
   },
 
   _setIcon : function(aURI) {
@@ -123,7 +124,7 @@ var BrowserUI = {
     browser.mIconURL = faviconURI.spec;
 
     fis.setAndLoadFaviconForPage(browser.currentURI, faviconURI, true);
-    this._favicon.src = faviconURI.spec;
+    this._favicon.setAttribute("src", faviconURI.spec);
     this._faviconAdded = true;
   },
 
@@ -171,35 +172,20 @@ var BrowserUI = {
     return items;
   },
 
-  _dragData :  {
-    dragging : false,
-    startX : 0,
-    startY : 0,
-    dragX : 0,
-    dragY : 0,
-    lastX : 0,
-    lastY : 0,
-    sTop : 0,
-    sLeft : 0
-  },
+  _dragData :  { dragging : false, sY : 0, sTop : 0 },
 
-  _scrollToolbar : function bui_scrollToolbar(aEvent) {
-    var [scrollWidth, ] = Browser.content._contentAreaDimensions;
-    var [canvasW, ] = Browser.content._effectiveCanvasDimensions;
-
-    var pannedUI = false;
-
+  _scrollToolbar : function(aEvent) {
     if (this._dragData.dragging && Browser.content.scrollY == 0) {
       let toolbar = document.getElementById("toolbar-main");
       let browser = document.getElementById("browser");
-      let dy = this._dragData.lastY - aEvent.screenY;
-      this._dragData.dragY += dy;
-
-      // NOTE: We should only be scrolling the toolbar if the sidebars are not
-      // visible (browser.left == 0)
+      let dy = this._dragData.sY - aEvent.screenY;
 
       let newTop = null;
-      if (dy > 0 && (toolbar.top > -toolbar.boxObject.height && browser.left == 0)) {
+      if (dy > 0 && toolbar.top > -toolbar.boxObject.height) {
+        // Revert the chrome to a "safe" mode
+        if (this.mode != PANELMODE_URLVIEW)
+          this.show(PANELMODE_URLVIEW);
+
         // Scroll the toolbar up unless it is already scrolled up
         newTop = this._dragData.sTop - dy;
 
@@ -211,7 +197,7 @@ var BrowserUI = {
         Browser.content.dragData.sX = aEvent.screenX;
         Browser.content.dragData.sY = aEvent.screenY;
       }
-      else if (dy < 0 && (toolbar.top < 0 && browser.left == 0)) {
+      else if (dy < 0 && toolbar.top < 0) {
         // Scroll the toolbar down unless it is already down
         newTop = this._dragData.sTop - dy;
 
@@ -229,181 +215,59 @@ var BrowserUI = {
         // Cache the current top so we can use it when switching tabs
         Browser.content.currentTab.chromeTop = browser.top;
 
-        pannedUI = true;
+        aEvent.stopPropagation();
       }
-    }
-
-    if (this._dragData.dragging && (Browser.content.scrollX == 0 || (Browser.content.scrollX + canvasW) == scrollWidth)) {
-      let tabbar = document.getElementById("tab-list-container");
-      let sidebar = document.getElementById("browser-controls");
-      let panelUI = document.getElementById("panel-container");
-      let toolbar = document.getElementById("toolbar-main");
-      let browser = document.getElementById("browser");
-      let dx = this._dragData.lastX - aEvent.screenX;
-      this._dragData.dragX += dx;
-
-      if (Math.abs(this._dragData.screenX - aEvent.screenX) > 30) {
-        let newLeft = this._dragData.sLeft - dx;
-        let oldLeft = tabbar.left;
-
-        let tabbarW = tabbar.boxObject.width;
-        let sidebarW = sidebar.boxObject.width;
-        let browserW = browser.boxObject.width;
-
-        // Limit the panning
-        if (newLeft > 0)
-          newLeft = 0;
-        else if (newLeft < -(tabbarW + sidebarW))
-          newLeft = -(tabbarW + sidebarW);
-
-        tabbar.left = newLeft;
-
-        // Never let the toolbar pan off the screen
-        let newToolbarLeft = newLeft;
-        if (newToolbarLeft < 0)
-          newToolbarLeft = 0;
-        toolbar.left = newToolbarLeft;
-
-        // Make the toolbar appear/disappear depending on the state of the sidebars
-        if (newLeft + tabbarW != 0)
-          toolbar.top = 0;
-        else
-          toolbar.top = browser.top - toolbar.boxObject.height;
-
-        browser.left = newLeft + tabbarW;
-        sidebar.left = newLeft + tabbarW + browserW;
-        panelUI.left = newLeft + tabbarW + browserW + sidebarW;
-
-        // Set the UI mode based on where we ended up
-        if (newLeft > -(tabbarW - tabbarW / 3) && newLeft <= 0)
-          this.mode = UIMODE_TABS;
-        else if (newLeft >= -(tabbarW + sidebarW) && newLeft < -(tabbarW + sidebarW / 3))
-          this.mode = UIMODE_CONTROLS;
-        else
-          this.mode = (browser.top == 0 ? UIMODE_NONE : UIMODE_URLVIEW);
-
-        pannedUI = true;
-      }
-    }
-
-    if (pannedUI) {
-      aEvent.stopPropagation();
-
-      // Force a sync redraw
-      window.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
-            .getInterface(Components.interfaces.nsIDOMWindowUtils)
-            .processUpdates();
     }
     else {
       // Reset our start point while the browser is doing its panning
-      this._dragData.lastX = aEvent.screenX;
-      this._dragData.lastY = aEvent.screenY;
+      this._dragData.sY = aEvent.screenY;
     }
   },
 
-  _showToolbar : function(aShow) {
+  // This function will always show the toolbar
+  _showToolbar : function() {
     var toolbar = document.getElementById("toolbar-main");
     var browser = document.getElementById("browser");
 
-    if (aShow) {
-      // Always show the toolbar, either by floating or panning
-      if (toolbar.top == -toolbar.boxObject.height) {
-        // Float the toolbar over content
-        toolbar.top = 0;
-      }
-      else if (toolbar.top < 0) {
-        // Partially showing, so show it completely
-        toolbar.top = 0;
-        browser.top = toolbar.boxObject.height;
-      }
+    if (toolbar.top == -toolbar.boxObject.height) {
+      // Float the toolbar over content
+      toolbar.top = 0;
     }
-    else {
-      // If we are floating the toolbar, then hide it again
-      if (browser.top == 0) {
-        toolbar.top = -toolbar.boxObject.height;
-      }
+    else if (toolbar.top < 0) {
+      // Partially showing, so show it completely
+      toolbar.top = 0;
+      browser.top = toolbar.boxObject.height;
     }
   },
 
-  _editToolbar : function(aEdit) {
+  // This function will only hide the toolbar if it was floated
+  _hideToolbar : function() {
     var toolbar = document.getElementById("toolbar-main");
-    if (aEdit) {
-      toolbar.setAttribute("mode", "edit");
-      this._caption.hidden = true;
-      this._edit.hidden = false;
-      this._edit.inputField.focus();
-    }
-    else {
-      toolbar.setAttribute("mode", "view");
-      this._edit.hidden = true;
-      this._edit.reallyClosePopup();
-      this._caption.hidden = false;
+    var browser = document.getElementById("browser");
+
+    // If we are floating the toolbar, then hide it again
+    if (browser.top == 0) {
+      toolbar.top = -toolbar.boxObject.height;
     }
   },
 
-  _showPanel : function(aMode) {
-      let tabbar = document.getElementById("tab-list-container");
-      let sidebar = document.getElementById("browser-controls");
-      let panelUI = document.getElementById("panel-container");
-      let toolbar = document.getElementById("toolbar-main");
-      let browser = document.getElementById("browser");
-
-      let tabbarW = tabbar.boxObject.width;
-      let sidebarW = sidebar.boxObject.width;
-      let browserW = browser.boxObject.width;
-
-      let newLeft = -tabbarW;
-      switch (aMode) {
-        case UIMODE_PANEL:
-          newLeft = -browserW;
-          break;
-        case UIMODE_CONTROLS:
-          newLeft = -(tabbarW + sidebarW);
-          break;
-        case UIMODE_TABS:
-          newLeft = 0;
-          break;
-      }
-      tabbar.left = newLeft;
-
-      let newToolbarLeft = newLeft;
-      if (newToolbarLeft < 0 && aMode != UIMODE_PANEL)
-        newToolbarLeft = 0;
-      else if (newToolbarLeft < 0 && aMode == UIMODE_PANEL)
-        newToolbarLeft += tabbarW + sidebarW;
-      toolbar.left = newToolbarLeft;
-
-      browser.left = newLeft + tabbarW;
-      sidebar.left = newLeft + tabbarW + browserW;
-      panelUI.left = newLeft + tabbarW + browserW + sidebarW;
-      panelUI.width = browserW;
-  },
-
-  _sizeControls : function(aEvent) {
+  _sizeControls : function (aEvent) {
     var rect = document.getElementById("browser-container").getBoundingClientRect();
     var containerW = rect.right - rect.left;
     var containerH = rect.bottom - rect.top;
-    var toolbar = document.getElementById("toolbar-main");
-    var toolbarH = toolbar.boxObject.height;
 
     var browser = document.getElementById("browser");
     browser.width = containerW;
     browser.height = containerH;
 
+    var toolbar = document.getElementById("toolbar-main");
     var sidebar = document.getElementById("browser-controls");
-    var panelUI = document.getElementById("panel-container");
-    var tabbar = document.getElementById("tab-list-container");
-    if (window == aEvent.target) {
-      tabbar.left = -tabbar.boxObject.width;
-      panelUI.left = containerW + sidebar.boxObject.width;
-      sidebar.left = containerW;
-      sidebar.height = tabbar.height = (panelUI.height = containerH) - toolbarH;
-    }
-    panelUI.width = containerW - sidebar.boxObject.width - tabbar.boxObject.width;
+    var tablist = document.getElementById("tab-list-container");
+    sidebar.left = toolbar.width = containerW;
+    sidebar.height = tablist.height = containerH;
 
     var popup = document.getElementById("popup_autocomplete");
-    toolbar.width = containerW;
-    popup.height = containerH - toolbarH;
+    popup.height = containerH - toolbar.boxObject.height;
   },
 
   init : function() {
@@ -420,6 +284,8 @@ var BrowserUI = {
 
     Browser.content.addEventListener("DOMTitleChanged", this, true);
     Browser.content.addEventListener("DOMLinkAdded", this, true);
+    Browser.content.addEventListener("overpan", this, false);
+    Browser.content.addEventListener("pan", this, true);
 
     document.getElementById("tab-list").addEventListener("TabSelect", this, true);
 
@@ -439,14 +305,13 @@ var BrowserUI = {
 
     var toolbar = document.getElementById("toolbar-main");
     if (aState == TOOLBARSTATE_LOADING) {
-      this.show(UIMODE_URLVIEW);
+      this.show(PANELMODE_URLVIEW);
       Browser.content.setLoading(aBrowser);
 
       toolbar.top = 0;
       toolbar.setAttribute("mode", "loading");
-      document.getElementById("urlbar-image-deck").selectedIndex = 0;
-      this._favicon.src = "";
-      this._throbber.setAttribute("loading", "true");
+      this._throbber.setAttribute("src", "chrome://browser/skin/images/throbber.gif");
+      this._favicon.setAttribute("src", "");
       this._faviconAdded = false;
     }
     else if (aState == TOOLBARSTATE_LOADED) {
@@ -454,9 +319,7 @@ var BrowserUI = {
       container.top = toolbar.boxObject.height;
 
       toolbar.setAttribute("mode", "view");
-
-      document.getElementById("urlbar-image-deck").selectedIndex = 1;
-      this._throbber.removeAttribute("loading");
+      this._throbber.setAttribute("src", "");
       if (this._faviconAdded == false) {
         var faviconURI = aBrowser.currentURI.prePath + "/favicon.ico";
         this._setIcon(faviconURI);
@@ -501,7 +364,7 @@ var BrowserUI = {
     var urlString = uri.spec;
     if (urlString == "about:blank") {
       urlString = "";
-      this.show(UIMODE_URLEDIT);
+      this.show(PANELMODE_URLEDIT);
     }
 
     this._caption.value = urlString;
@@ -516,21 +379,21 @@ var BrowserUI = {
 
     var flags = Ci.nsIWebNavigation.LOAD_FLAGS_ALLOW_THIRD_PARTY_FIXUP;
     getBrowser().loadURIWithFlags(aURI, flags, null, null);
-    this.show(UIMODE_URLVIEW);
+    this.show(PANELMODE_URLVIEW);
   },
 
   search : function() {
     var queryURI = "http://www.google.com/search?q=" + this._edit.value + "&hl=en&lr=&btnG=Search";
     getBrowser().loadURI(queryURI, null, null, false);
 
-    this.show(UIMODE_URLVIEW);
+    this.show(PANELMODE_URLVIEW);
   },
 
-  updateAutoComplete : function(showDefault)
-  {
-    this.updateSearchEngines();
-    if (showDefault || this._edit.getAttribute("nomatch"))
+  openDefaultHistory : function () {
+    if (!this._edit.value) {
+      this._autocompleteNavbuttons.hidden = true;
       this._edit.showHistoryPopup();
+    }
   },
 
   doButtonSearch : function(button)
@@ -541,6 +404,8 @@ var BrowserUI = {
     var urlbar = this._edit;
     urlbar.open = false;
     var value = urlbar.value;
+    if (!value)
+      return;
 
     var submission = button.engine.getSubmission(value, null);
     getBrowser().loadURI(submission.uri.spec, null, submission.postData, false);
@@ -564,100 +429,159 @@ var BrowserUI = {
     this.engines = engines;
     const kXULNS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
     var container = this._autocompleteNavbuttons;
-    for (var e = 0; e < kMaxEngines && e < engines.length; e++) {
+    for (var e = 0; e < engines.length; e++) {
       var button = document.createElementNS(kXULNS, "toolbarbutton");
       var engine = engines[e];
       button.id = engine.name;
       button.setAttribute("label", engine.name);
-      button.className = "searchengine";
       if (engine.iconURI)
         button.setAttribute("image", engine.iconURI.spec);
-      container.appendChild(button);
+      container.insertBefore(button, container.firstChild);
       button.engine = engine;
     }
   },
 
-  mode : UIMODE_NONE,
+  mode : PANELMODE_NONE,
   show : function(aMode) {
     if (this.mode == aMode)
       return;
-
-    if (this.mode == UIMODE_BOOKMARKLIST && aMode != UIMODE_BOOKMARKLIST)
-      window.removeEventListener("keypress", BrowserUI.closePopup, false);
-
     this.mode = aMode;
 
     var toolbar = document.getElementById("toolbar-main");
     var bookmark = document.getElementById("bookmark-container");
     var urllist = document.getElementById("urllist-container");
+    var sidebar = document.getElementById("browser-controls");
+    var tablist = document.getElementById("tab-list-container");
+    var addons = document.getElementById("addons-container");
     var container = document.getElementById("browser-container");
+    var prefs = document.getElementById("pref-pane");
 
-    if (aMode == UIMODE_URLVIEW)
+    // Make sure the UI elements are sized correctly since the window size can change
+    sidebar.left = container.boxObject.width;
+    sidebar.height = tablist.height = container.boxObject.height;
+
+    if (aMode == PANELMODE_URLVIEW || aMode == PANELMODE_SIDEBAR ||
+        aMode == PANELMODE_TABLIST || aMode == PANELMODE_FULL)
     {
-      this._showToolbar(true);
-      this._editToolbar(false);
+      this._showToolbar();
+      toolbar.setAttribute("mode", "view");
+      this._edit.hidden = true;
+      this._edit.reallyClosePopup();
+      this._caption.hidden = false;
+      bookmark.hidden = true;
+      urllist.hidden = true;
+      addons.hidden = true;
+      prefs.hidden = true;
+
+      let sidebarTo = toolbar.boxObject.width;
+      let tablistTo = -tablist.boxObject.width;
+      if (aMode == PANELMODE_SIDEBAR || aMode == PANELMODE_FULL)
+        sidebarTo -= sidebar.boxObject.width;
+      if (aMode == PANELMODE_TABLIST || aMode == PANELMODE_FULL)
+        tablistTo = 0;
+      sidebar.left = sidebarTo;
+      tablist.left = tablistTo;
+    }
+    else if (aMode == PANELMODE_URLEDIT) {
+      this._showToolbar();
+      toolbar.setAttribute("mode", "edit");
+      this._caption.hidden = true;
+      this._edit.hidden = false;
+      this._edit.focus();
 
       bookmark.hidden = true;
       urllist.hidden = true;
+      addons.hidden = true;
+      prefs.hidden = true;
 
-      this._showPanel(UIMODE_NONE);
+      sidebar.left = toolbar.boxObject.width;
+      tablist.left = -tablist.boxObject.width;
     }
-    else if (aMode == UIMODE_URLEDIT) {
-      this._showToolbar(true);
-      this._editToolbar(true);
-
-      bookmark.hidden = true;
-      urllist.hidden = true;
-
-      this._showPanel(UIMODE_NONE);
-    }
-    else if (aMode == UIMODE_BOOKMARK) {
-      this._showToolbar(true);
-      this._editToolbar(false);
+    else if (aMode == PANELMODE_BOOKMARK) {
+      this._showToolbar();
+      toolbar.setAttribute("mode", "view");
+      this._edit.hidden = true;
+      this._edit.reallyClosePopup();
+      this._caption.hidden = false;
 
       urllist.hidden = true;
+      sidebar.left = toolbar.boxObject.width;
+      tablist.left = -tablist.boxObject.width;
+
       bookmark.hidden = false;
+      addons.hidden = true;
+      prefs.hidden = true;
+
       bookmark.width = container.boxObject.width;
-
-      this._showPanel(UIMODE_NONE);
     }
-    else if (aMode == UIMODE_BOOKMARKLIST) {
-      this._showToolbar(false);
-      this._editToolbar(false);
-
-      window.addEventListener("keypress", this.closePopup, false);
+    else if (aMode == PANELMODE_BOOKMARKLIST) {
+      this._showToolbar();
+      toolbar.setAttribute("mode", "view");
+      this._edit.hidden = true;
+      this._edit.reallyClosePopup();
+      this._caption.hidden = false;
 
       bookmark.hidden = true;
+      addons.hidden = true;
+      prefs.hidden = true;
+
+      sidebar.left = toolbar.boxObject.width;
+      tablist.left = -tablist.boxObject.width;
+
       urllist.hidden = false;
       urllist.width = container.boxObject.width;
       urllist.height = container.boxObject.height;
-
-      this._showPanel(UIMODE_NONE);
     }
-    else if (aMode == UIMODE_PANEL) {
-      this._showToolbar(true);
-      this._editToolbar(false);
+    else if (aMode == PANELMODE_ADDONS) {
+      this._showToolbar();
+      toolbar.setAttribute("mode", "view");
+      this._edit.hidden = true;
+      this._edit.reallyClosePopup();
+      this._caption.hidden = false;
 
       bookmark.hidden = true;
+      prefs.hidden = true;
+      sidebar.left = toolbar.boxObject.width;
+      tablist.left = -tablist.boxObject.width;
 
-      let addons = document.getElementById("addons-container");
-      if (addons.getAttribute("src") == "")
-        addons.setAttribute("src", "chrome://mozapps/content/extensions/extensions.xul");
-      let dloads = document.getElementById("downloads-container");
-      if (dloads.getAttribute("src") == "")
-        dloads.setAttribute("src", "chrome://mozapps/content/downloads/downloads.xul");
+      var iframe = document.getElementById("addons-items-container");
+      if (iframe.getAttribute("src") == "")
+        iframe.setAttribute("src", "chrome://mozapps/content/extensions/extensions.xul");
 
-      this._showPanel(aMode);
+      addons.hidden = false;
+      addons.width = container.boxObject.width;
+      addons.height = container.boxObject.height - toolbar.boxObject.height;
     }
-    else if (aMode == UIMODE_TABS || aMode == UIMODE_CONTROLS) {
-      this._showPanel(aMode);
+    else if (aMode == PANELMODE_PREFS) {
+      this._showToolbar();
+      toolbar.setAttribute("mode", "view");
+      this._edit.hidden = true;
+      this._edit.reallyClosePopup();
+      this._caption.hidden = false;
+
+      bookmark.hidden = true;
+      urllist.hidden = true;
+      addons.hidden = true;
+      prefs.hidden = false;
+      sidebar.left = toolbar.boxObject.width;
+      tablist.left = -tablist.boxObject.width;
+
+      prefs.width = container.boxObject.width;
+      prefs.height = container.boxObject.height - toolbar.boxObject.height;
+
+      PreferencesUI.init();
     }
-    else if (aMode == UIMODE_NONE) {
-      this._showToolbar(false);
+      else if (aMode == PANELMODE_NONE) {
+      this._hideToolbar();
+
+      sidebar.left = toolbar.boxObject.width;
+      tablist.left = -tablist.boxObject.width;
+
       this._edit.reallyClosePopup();
       urllist.hidden = true;
       bookmark.hidden = true;
-      this._showPanel(aMode);
+      addons.hidden = true;
+      prefs.hidden = true;
     }
   },
 
@@ -674,7 +598,6 @@ var BrowserUI = {
       let node = aItems[i];
       let listItem = document.createElement("richlistitem");
       listItem.setAttribute("class", "urllist-item");
-      listItem.setAttribute("value", node.uri);
 
       let box = document.createElement("vbox");
       box.setAttribute("pack", "center");
@@ -698,18 +621,12 @@ var BrowserUI = {
     list.focus();
   },
 
-  closePopup : function(aEvent)
-  {
-    if (aEvent.keyCode == aEvent.DOM_VK_ESCAPE)
-      BrowserUI.show(UIMODE_NONE);
-  },
-
   showHistory : function() {
     this._showPlaces(this._getHistory(6));
   },
 
   showBookmarks : function () {
-    this.show(UIMODE_BOOKMARKLIST);
+    this.show(PANELMODE_BOOKMARKLIST);
 
     var bms = Cc["@mozilla.org/browser/nav-bookmarks-service;1"].getService(Ci.nsINavBookmarksService);
     this._showPlaces(this._getBookmarks([bms.bookmarksMenuFolder]));
@@ -717,12 +634,11 @@ var BrowserUI = {
 
   newTab : function() {
     Browser.content.newTab(true);
-    this.show(UIMODE_URLEDIT);
+    this.show(PANELMODE_URLEDIT);
   },
 
   selectTab : function(aTab) {
     Browser.content.selectTab(aTab);
-    this.show(UIMODE_NONE);
   },
 
   handleEvent: function (aEvent) {
@@ -739,41 +655,50 @@ var BrowserUI = {
         break;
       // URL textbox events
       case "click":
-        this.show(UIMODE_URLEDIT);
-        this.updateAutoComplete(true);
+        this.show(PANELMODE_URLEDIT);
+        this.openDefaultHistory();
         break;
       case "input":
-        this.updateAutoComplete(false);
+        if (this._edit.value) {
+          this.updateSearchEngines();
+          this._autocompleteNavbuttons.hidden = false;
+        }
         break;
       case "keypress":
         if (aEvent.keyCode == aEvent.DOM_VK_ESCAPE) {
           this._edit.reallyClosePopup();
-          this.show(UIMODE_URLVIEW);
+          this.show(PANELMODE_URLVIEW);
         }
         break;
       // Favicon events
       case "error":
-        this._favicon.src = "chrome://browser/skin/images/default-favicon.png";
+        this._favicon.setAttribute("src", "chrome://browser/skin/images/default-favicon.png");
         break;
-      // UI panning events
+      case "overpan": {
+        // Default to hide the controls when user overpans
+        let mode = PANELMODE_NONE;
+
+        // Open the sidebar controls if we get a right side overpan
+        if (aEvent.detail == 2 && (this.mode == PANELMODE_NONE || this.mode == PANELMODE_URLVIEW))
+          mode = PANELMODE_SIDEBAR;
+        // Close the sidebar controls if we get a left side overpan
+        else if (aEvent.detail == 1 && (this.mode == PANELMODE_NONE || this.mode == PANELMODE_URLVIEW))
+          mode = PANELMODE_TABLIST;
+
+        this.show(mode);
+        break;
+      }
       case "mousedown":
         this._dragData.dragging = true;
-        this._dragData.dragX = 0;
-        this._dragData.dragY = 0;
-        this._dragData.screenX = this._dragData.lastX = aEvent.screenX;
-        this._dragData.screenY = this._dragData.lastY = aEvent.screenY;
+        this._dragData.sY = aEvent.screenY;
         this._dragData.sTop = document.getElementById("toolbar-main").top;
-        this._dragData.sLeft = document.getElementById("tab-list-container").left;
         break;
       case "mouseup":
         this._dragData.dragging = false;
-        // Cause the UI to snap, if needed
-        this._showPanel(this.mode);
         break;
       case "mousemove":
         this._scrollToolbar(aEvent);
         break;
-      // Window size events
       case "resize":
         this._sizeControls(aEvent);
         break;
@@ -794,8 +719,10 @@ var BrowserUI = {
       case "cmd_menu":
       case "cmd_newTab":
       case "cmd_closeTab":
+      case "cmd_addons":
       case "cmd_actions":
-      case "cmd_panel":
+      case "cmd_prefs":
+      case "cmd_sanitize":
         isSupported = true;
         break;
       default:
@@ -848,10 +775,10 @@ var BrowserUI = {
           var fis = Cc["@mozilla.org/browser/favicon-service;1"].getService(Ci.nsIFaviconService);
           fis.setAndLoadFaviconForPage(bookmarkURI, faviconURI, true);
 
-          this.show(UIMODE_NONE);
+          this.show(PANELMODE_NONE);
         }
         else {
-          this.show(UIMODE_BOOKMARK);
+          this.show(PANELMODE_BOOKMARK);
           BookmarkHelper.edit(bookmarkURI);
         }
         break;
@@ -860,6 +787,11 @@ var BrowserUI = {
         this.showBookmarks();
         break;
       case "cmd_menu":
+        // XXX Remove PANELMODE_ADDON when design changes
+        if (this.mode == PANELMODE_FULL || this.mode == PANELMODE_ADDONS || this.mode == PANELMODE_PREFS)
+          this.show(PANELMODE_NONE);
+        else
+          this.show(PANELMODE_FULL);
         break;
       case "cmd_newTab":
         this.newTab();
@@ -867,14 +799,16 @@ var BrowserUI = {
       case "cmd_closeTab":
         Browser.content.removeTab(Browser.content.browser);
         break;
+      case "cmd_addons":
+        this.show(PANELMODE_ADDONS);
+        break;
+      case "cmd_prefs":
       case "cmd_actions":
+        this.show(PANELMODE_PREFS);
         break;
-      case "cmd_panel":
-      {
-        var mode = (this.mode != UIMODE_PANEL ? UIMODE_PANEL : UIMODE_CONTROLS);
-        this.show(mode);
+      case "cmd_sanitize":
+        Sanitizer.sanitize();
         break;
-      }
     }
   }
 };
@@ -912,7 +846,6 @@ var BookmarkHelper = {
       document.getElementById("bookmark-name").value = this._bmksvc.getItemTitle(this._item);
       var currentTags = this._tagsvc.getTagsForURI(this._uri, {});
       document.getElementById("bookmark-tags").value = currentTags.join(", ");
-      document.getElementById("bookmark-folder").value = ""; // XXX either use this or remove it
     }
 
     window.addEventListener("keypress", this, true);
@@ -960,7 +893,7 @@ var BookmarkHelper = {
   close : function() {
     window.removeEventListener("keypress", this, true);
     this._item = null;
-    BrowserUI.show(UIMODE_NONE);
+    BrowserUI.show(PANELMODE_NONE);
   },
 
   handleEvent: function (aEvent) {

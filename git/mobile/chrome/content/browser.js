@@ -96,9 +96,6 @@ var Browser = {
 
     BrowserUI.init();
 
-    window.QueryInterface(Ci.nsIDOMChromeWindow).browserDOMWindow = new nsBrowserAccess();
-
-    this._content.addEventListener("command", this._handleContentCommand, false);
     this._content.addEventListener("DOMUpdatePageReport", gPopupBlockerObserver.onUpdatePageReport, false);
     this._content.tabList = document.getElementById("tab-list");
     this._content.newTab(true);
@@ -147,13 +144,6 @@ var Browser = {
         var self = this;
         setTimeout(function() { self.currentBrowser.loadURI(whereURI, null, null, false); }, 0);
       }
-
-      // Disable plugins
-      var phs = Cc["@mozilla.org/plugin/host;1"].
-                getService(Ci.nsIPluginHost);
-      var plugins = phs.getPluginTags({ });
-      for (i = 0; i < plugins.length; ++i)
-        plugins[i].disabled = true;
     }
   },
 
@@ -173,30 +163,26 @@ var Browser = {
         var bundle_browser = document.getElementById("bundle_browser");
         var buttons = [{
             label: bundle_browser.getString("gelocation.exactLocation"),
-            subLabel: bundle_browser.getString("gelocation.exactLocation.subLabel"),
             accessKey: bundle_browser.getString("gelocation.exactLocationKey"),
             callback: function(){request.allow()}
           },
           {
             label: bundle_browser.getString("gelocation.neighborhoodLocation"),
-            subLabel: bundle_browser.getString("gelocation.neighborhoodLocation.subLabel"),
             accessKey: bundle_browser.getString("gelocation.neighborhoodLocationKey"),
             callback: function(){request.allowButFuzz()}
           },
           {
             label: bundle_browser.getString("gelocation.nothingLocation"),
-            subLabel: "",
             accessKey: bundle_browser.getString("gelocation.nothingLocationKey"),
             callback: function(){request.cancel()}
           }];
 
         var message = bundle_browser.getFormattedString("geolocation.requestMessage", [request.requestingURI.spec]);
-        var notification = notificationBox.appendNotification(message,
-                             "geolocation", null, // todo "chrome://browser/skin/Info.png",
-                             notificationBox.PRIORITY_INFO_HIGH, buttons);
-        var children = notification.childNodes;
-        for (var b = 0; b < children.length; b++)
-          children[b].setAttribute("sublabel", children[b].buttonInfo.subLabel);
+        notificationBox.appendNotification(message,
+                                           "geolocation",
+                                           null, // todo "chrome://browser/skin/Info.png",
+                                           notificationBox.PRIORITY_INFO_HIGH,
+                                           buttons);
         return 1;
       }
     }
@@ -238,6 +224,9 @@ var Browser = {
     switch (cmd) {
       case "cmd_fullscreen":
         window.fullScreen = !window.fullScreen;
+        break;
+      case "cmd_downloads":
+        Cc["@mozilla.org/download-manager-ui;1"].getService(Ci.nsIDownloadManagerUI).show(window);
         break;
     }
   },
@@ -296,61 +285,6 @@ var Browser = {
         }
       }
     }
-  },
-
-  /**
-   * Handle command event bubbling up from content.  This allows us to do chrome-
-   * privileged things based on buttons in, e.g., unprivileged error pages.
-   * Obviously, care should be taken not to trust events that web pages could have
-   * synthesized.
-   */
-  _handleContentCommand: function (aEvent) {
-    // Don't trust synthetic events
-    if (!aEvent.isTrusted)
-      return;
-
-    var ot = aEvent.originalTarget;
-    var errorDoc = ot.ownerDocument;
-
-    // If the event came from an ssl error page, it is probably either the "Add
-    // Exception…" or "Get me out of here!" button
-    if (/^about:neterror\?e=nssBadCert/.test(errorDoc.documentURI)) {
-      if (ot == errorDoc.getElementById('exceptionDialogButton')) {
-        var params = { exceptionAdded : false };
-
-        try {
-          switch (gPrefService.getIntPref("browser.ssl_override_behavior")) {
-            case 2 : // Pre-fetch & pre-populate
-              params.prefetchCert = true;
-            case 1 : // Pre-populate
-              params.location = errorDoc.location.href;
-          }
-        } catch (e) {
-          Components.utils.reportError("Couldn't get ssl_override pref: " + e);
-        }
-
-        window.openDialog('chrome://pippki/content/exceptionDialog.xul',
-                          '','chrome,centerscreen,modal', params);
-
-        // If the user added the exception cert, attempt to reload the page
-        if (params.exceptionAdded)
-          errorDoc.location.reload();
-      }
-      else if (ot == errorDoc.getElementById('getMeOutOfHereButton')) {
-        // Get the start page from the *default* pref branch, not the user's
-        var defaultPrefs = Cc["@mozilla.org/preferences-service;1"]
-                          .getService(Ci.nsIPrefService).getDefaultBranch(null);
-        var url = "about:blank";
-        try {
-          url = defaultPrefs.getCharPref("browser.startup.homepage");
-          // If url is a pipe-delimited set of pages, just take the first one.
-          if (url.indexOf("|") != -1)
-            url = url.split("|")[0];
-        } catch (e) { /* Fall back on about blank */ }
-
-        Browser.currentBrowser.loadURI(url, null, null, false);
-      }
-    }
   }
 };
 
@@ -364,6 +298,12 @@ ProgressController.prototype = {
 
   init : function(aBrowser) {
     this._browser = aBrowser;
+
+    // FIXME: until we can get proper canvas repainting hooked up, update the canvas every 300ms
+    var tabbrowser = this._tabbrowser;
+    this._refreshInterval = setInterval(function () {
+      tabbrowser.updateCanvasState();
+    }, 400);
   },
 
   onStateChange : function(aWebProgress, aRequest, aStateFlags, aStatus) {
@@ -371,9 +311,11 @@ ProgressController.prototype = {
       if (aRequest && aWebProgress.DOMWindow == this._browser.contentWindow) {
         if (aStateFlags & Ci.nsIWebProgressListener.STATE_START) {
           BrowserUI.update(TOOLBARSTATE_LOADING, this._browser);
+          this._tabbrowser.updateCanvasState();
         }
         else if (aStateFlags & Ci.nsIWebProgressListener.STATE_STOP) {
           BrowserUI.update(TOOLBARSTATE_LOADED, this._browser);
+          this._tabbrowser.updateCanvasState();
         }
       }
     }
@@ -383,7 +325,7 @@ ProgressController.prototype = {
         aWebProgress.DOMWindow.focus();
         Browser.translatePhoneNumbers();
         this._tabbrowser.updateBrowser(this._browser, true);
-        this._tabbrowser.updateCanvasState();
+        this._tabbrowser.updateCanvasState(true);
         //aWebProgress.DOMWindow.scrollbars.visible = false;
       }
     }
@@ -431,12 +373,14 @@ ProgressController.prototype = {
     if (aWebProgress.DOMWindow == this._browser.contentWindow) {
       BrowserUI.setURI();
       this._tabbrowser.updateBrowser(this._browser, false);
+      this._tabbrowser.updateCanvasState();
     }
   },
 
   // This method is called to indicate a status changes for the currently
   // loading page.  The message is already formatted for display.
   onStatusChange : function(aWebProgress, aRequest, aStatus, aMessage) {
+    this._tabbrowser.updateCanvasState();
   },
 
  // Properties used to cache security state used to update the UI
@@ -490,87 +434,6 @@ ProgressController.prototype = {
     throw Components.results.NS_ERROR_NO_INTERFACE;
   }
 };
-
-function nsBrowserAccess()
-{
-}
-
-nsBrowserAccess.prototype =
-{
-  QueryInterface : function(aIID)
-  {
-    if (aIID.equals(Ci.nsIBrowserDOMWindow) ||
-        aIID.equals(Ci.nsISupports))
-      return this;
-    throw Components.results.NS_NOINTERFACE;
-  },
-
-  openURI : function(aURI, aOpener, aWhere, aContext)
-  {
-    var isExternal = (aContext == Ci.nsIBrowserDOMWindow.OPEN_EXTERNAL);
-
-    if (isExternal && aURI && aURI.schemeIs("chrome")) {
-      dump("use -chrome command-line option to load external chrome urls\n");
-      return null;
-    }
-    var loadflags = isExternal ?
-                       Ci.nsIWebNavigation.LOAD_FLAGS_FROM_EXTERNAL :
-                       Ci.nsIWebNavigation.LOAD_FLAGS_NONE;
-    var location;
-    if (aWhere == Ci.nsIBrowserDOMWindow.OPEN_DEFAULTWINDOW) {
-      switch (aContext) {
-        case Ci.nsIBrowserDOMWindow.OPEN_EXTERNAL :
-          aWhere = gPrefService.getIntPref("browser.link.open_external");
-          break;
-        default : // OPEN_NEW or an illegal value
-          aWhere = gPrefService.getIntPref("browser.link.open_newwindow");
-      }
-    }
-
-    var newWindow;
-    if (aWhere == Ci.nsIBrowserDOMWindow.OPEN_NEWWINDOW) {
-      var url = aURI ? aURI.spec : "about:blank";
-      newWindow = openDialog("chrome://browser/content/browser.xul", "_blank",
-                             "all,dialog=no", url, null, null, null);
-    }
-    else {
-      if (aWhere == Ci.nsIBrowserDOMWindow.OPEN_NEWTAB) {
-        var tab = Browser._content.newTab(true);
-        if (tab) {
-          var content = Browser._content;
-          var browser = content.getBrowserForDisplay(content.getDisplayForTab(tab));
-          newWindow = browser.contentWindow;
-        }
-      }
-      else {
-        newWindow = aOpener ? aOpener.top : browser.contentWindow;
-      }
-    }
-      
-    try {
-      var referrer;
-      if (aURI) {
-        if (aOpener) {
-          location = aOpener.location;
-          referrer = Components.classes["@mozilla.org/network/io-service;1"]
-                               .getService(Components.interfaces.nsIIOService)
-                               .newURI(location, null, null);
-        }
-        newWindow.QueryInterface(Ci.nsIInterfaceRequestor)
-                 .getInterface(Ci.nsIWebNavigation)
-                 .loadURI(aURI.spec, loadflags, referrer, null, null);
-      }
-      newWindow.focus();
-    } catch(e) { }
-
-    return newWindow;
-  },
-
-  isTabContentWindow : function(aWindow)
-  {
-    return Browser._content.browsers.some(function (browser) browser.contentWindow == aWindow);
-  }
-}
 
 /**
  * Utility class to handle manipulations of the identity indicators in the UI
