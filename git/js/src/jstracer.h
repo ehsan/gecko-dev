@@ -221,6 +221,9 @@ class TraceRecorder {
     nanojit::LirWriter*     cse_filter;
     nanojit::LirWriter*     expr_filter;
     nanojit::LirWriter*     func_filter;
+#ifdef NJ_SOFTFLOAT
+    nanojit::LirWriter*     float_filter;
+#endif
     nanojit::LIns*          cx_ins;
     nanojit::LIns*          gp_ins;
     nanojit::LIns*          eos_ins;
@@ -393,6 +396,9 @@ js_FlushJITCache(JSContext* cx);
 
 extern void
 js_FlushJITOracle(JSContext* cx);
+
+extern void
+js_ShutDownJIT();
 
 #endif /* defined JS_TRACER */
 
