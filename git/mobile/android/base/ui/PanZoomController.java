@@ -232,10 +232,8 @@ public class PanZoomController
         case NOTHING:
             // Don't do animations here; they're distracting and can cause flashes on page
             // transitions.
-            synchronized (mController) {
-                mController.setViewportMetrics(getValidViewportMetrics());
-                mController.notifyLayerClientOfGeometryChange();
-            }
+            mController.setViewportMetrics(getValidViewportMetrics());
+            mController.notifyLayerClientOfGeometryChange();
             break;
         }
     }
@@ -243,14 +241,12 @@ public class PanZoomController
     /** This must be called on the UI thread. */
     public void pageSizeUpdated() {
         if (mState == PanZoomState.NOTHING) {
-            synchronized (mController) {
-                ViewportMetrics validated = getValidViewportMetrics();
-                if (! (new ViewportMetrics(mController.getViewportMetrics())).fuzzyEquals(validated)) {
-                    // page size changed such that we are now in overscroll. snap to the
-                    // the nearest valid viewport
-                    mController.setViewportMetrics(validated);
-                    mController.notifyLayerClientOfGeometryChange();
-                }
+            ViewportMetrics validated = getValidViewportMetrics();
+            if (! (new ViewportMetrics(mController.getViewportMetrics())).fuzzyEquals(validated)) {
+                // page size changed such that we are now in overscroll. snap to the
+                // the nearest valid viewport
+                mController.setViewportMetrics(validated);
+                mController.notifyLayerClientOfGeometryChange();
             }
         }
     }

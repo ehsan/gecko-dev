@@ -39,7 +39,7 @@
 
 #include <windows.h>
 #include <tlhelp32.h>
-#include <dbghelp.h>
+#include <Dbghelp.h>
 
 #include "shared-libraries.h"
 #include "nsWindowsHelpers.h"

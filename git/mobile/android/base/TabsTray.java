@@ -72,13 +72,6 @@ public class TabsTray extends Activity implements Tabs.OnTabsChangedListener {
             }
         });
 
-        RelativeLayout toolbar = (RelativeLayout) findViewById(R.id.toolbar);
-        toolbar.setOnClickListener(new Button.OnClickListener() {
-            public void onClick(View v) {
-                // Consume the click event to avoid enclosing container consuming it
-            }
-        });
-
         LinearLayout container = (LinearLayout) findViewById(R.id.container);
         container.setOnClickListener(new Button.OnClickListener() {
             public void onClick(View v) {
@@ -94,8 +87,9 @@ public class TabsTray extends Activity implements Tabs.OnTabsChangedListener {
         sPreferredHeight = (int) (0.67 * metrics.heightPixels);
         sMaxHeight = (int) (sPreferredHeight + (0.33 * sListItemHeight));
 
-        Tabs.registerOnTabsChangedListener(this);
-        Tabs.getInstance().refreshThumbnails();
+        Tabs tabs = Tabs.getInstance();
+        tabs.registerOnTabsChangedListener(this);
+        tabs.refreshThumbnails();
         onTabChanged(null, null);
 
         // If Sync is set up, query the database for remote clients.
@@ -120,7 +114,7 @@ public class TabsTray extends Activity implements Tabs.OnTabsChangedListener {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        Tabs.unregisterOnTabsChangedListener(this);
+        Tabs.getInstance().unregisterOnTabsChangedListener(this);
     }
 
     public void onTabChanged(Tab tab, Tabs.TabEvents msg) {

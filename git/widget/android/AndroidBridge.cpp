@@ -1936,6 +1936,7 @@ NS_IMETHODIMP nsAndroidBridge::SetDrawMetadataProvider(nsIAndroidDrawMetadataPro
 
 void
 AndroidBridge::SetPreventPanning(bool aPreventPanning) {
+    ALOG_BRIDGE("AndroidBridge::PreventPanning");
     JNIEnv *env = GetJNIEnv();
     if (!env)
         return;
@@ -2105,10 +2106,10 @@ nsresult AndroidBridge::TakeScreenshot(nsIDOMWindow *window, PRInt32 srcX, PRInt
     nsIPresShell* presShell = presContext->PresShell();
     PRUint32 renderDocFlags = (nsIPresShell::RENDER_IGNORE_VIEWPORT_SCROLLING |
                                nsIPresShell::RENDER_DOCUMENT_RELATIVE);
-    nsRect r(nsPresContext::CSSPixelsToAppUnits(srcX / scale),
-             nsPresContext::CSSPixelsToAppUnits(srcY / scale),
-             nsPresContext::CSSPixelsToAppUnits(srcW / scale),
-             nsPresContext::CSSPixelsToAppUnits(srcH / scale));
+    nsRect r(nsPresContext::CSSPixelsToAppUnits(srcX),
+             nsPresContext::CSSPixelsToAppUnits(srcY),
+             nsPresContext::CSSPixelsToAppUnits(srcW),
+             nsPresContext::CSSPixelsToAppUnits(srcH));
 
     JNIEnv* jenv = AndroidBridge::GetJNIEnv();
     if (!jenv)

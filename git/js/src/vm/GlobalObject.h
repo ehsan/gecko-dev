@@ -49,6 +49,7 @@
 #include "jsfun.h"
 #include "jsiter.h"
 #include "jsnum.h"
+#include "jstypedarray.h"
 
 #include "js/Vector.h"
 
@@ -59,9 +60,6 @@ js_InitObjectClass(JSContext *cx, JSObject *obj);
 
 extern JSObject *
 js_InitFunctionClass(JSContext *cx, JSObject *obj);
-
-extern JSObject *
-js_InitTypedArrayClasses(JSContext *cx, JSObject *obj);
 
 namespace js {
 

@@ -61,10 +61,6 @@
 #include "nsIStringBundle.h"
 #include "nsContentUtils.h"
 
-#ifdef ACCESSIBILITY
-#include "nsAccessibilityService.h"
-#endif
-
 namespace dom = mozilla::dom;
 
 static NS_DEFINE_CID(kCStringBundleServiceCID, NS_STRINGBUNDLESERVICE_CID);
@@ -818,16 +814,7 @@ nsImageMap::UpdateAreas()
   bool foundAnchor = false;
   mContainsBlockContents = false;
 
-  nsresult rv = SearchForAreas(mMap, foundArea, foundAnchor);
-#ifdef ACCESSIBILITY
-  if (NS_SUCCEEDED(rv)) {
-    nsAccessibilityService* accService = GetAccService();
-    if (accService) {
-      accService->UpdateImageMap(mImageFrame);
-    }
-  }
-#endif
-  return rv;
+  return SearchForAreas(mMap, foundArea, foundAnchor);
 }
 
 nsresult
@@ -900,12 +887,6 @@ nsImageMap::GetArea(nscoord aX, nscoord aY) const
   }
 
   return nsnull;
-}
-
-nsIContent*
-nsImageMap::GetAreaAt(PRUint32 aIndex) const
-{
-  return mAreas.ElementAt(aIndex)->mArea;
 }
 
 void

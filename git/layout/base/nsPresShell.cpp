@@ -8540,9 +8540,6 @@ void ReflowCounter::DisplayHTMLTotals(PRUint32 aTotal, const char * aTitle)
 //------------------------------------------------------------------
 //-- ReflowCountMgr
 //------------------------------------------------------------------
-
-#define KEY_BUF_SIZE_FOR_PTR  24 // adequate char[] buffer to sprintf a pointer
-
 ReflowCountMgr::ReflowCountMgr()
 {
   mCounts = PL_NewHashTable(10, PL_HashString, PL_CompareStrings, 
@@ -8591,14 +8588,14 @@ void ReflowCountMgr::Add(const char * aName, nsIFrame * aFrame)
   if ((mDumpFrameByFrameCounts || mPaintFrameByFrameCounts) && 
       nsnull != mIndiFrameCounts && 
       aFrame != nsnull) {
-    char key[KEY_BUF_SIZE_FOR_PTR];
+    char * key = new char[16];
     sprintf(key, "%p", (void*)aFrame);
     IndiReflowCounter * counter = (IndiReflowCounter *)PL_HashTableLookup(mIndiFrameCounts, key);
     if (counter == nsnull) {
       counter = new IndiReflowCounter(this);
       counter->mFrame = aFrame;
       counter->mName.AssignASCII(aName);
-      PL_HashTableAdd(mIndiFrameCounts, NS_strdup(key), counter);
+      PL_HashTableAdd(mIndiFrameCounts, key, counter);
     }
     // this eliminates extra counts from super classes
     if (counter != nsnull && counter->mName.EqualsASCII(aName)) {
@@ -8619,7 +8616,7 @@ void ReflowCountMgr::PaintCount(const char*     aName,
   if (mPaintFrameByFrameCounts &&
       nsnull != mIndiFrameCounts &&
       aFrame != nsnull) {
-    char key[KEY_BUF_SIZE_FOR_PTR];
+    char * key = new char[16];
     sprintf(key, "%p", (void*)aFrame);
     IndiReflowCounter * counter =
       (IndiReflowCounter *)PL_HashTableLookup(mIndiFrameCounts, key);
@@ -8756,7 +8753,7 @@ static void RecurseIndiTotals(nsPresContext* aPresContext,
     return;
   }
 
-  char key[KEY_BUF_SIZE_FOR_PTR];
+  char key[16];
   sprintf(key, "%p", (void*)aParentFrame);
   IndiReflowCounter * counter = (IndiReflowCounter *)PL_HashTableLookup(aHT, key);
   if (counter) {

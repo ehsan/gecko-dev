@@ -52,16 +52,15 @@
 #include "nsImageMap.h"
 
 using namespace mozilla::a11y;
-
 ////////////////////////////////////////////////////////////////////////////////
 // nsHTMLImageMapAccessible
 ////////////////////////////////////////////////////////////////////////////////
 
 nsHTMLImageMapAccessible::
-  nsHTMLImageMapAccessible(nsIContent* aContent, nsDocAccessible* aDoc) :
-  nsHTMLImageAccessibleWrap(aContent, aDoc)
+  nsHTMLImageMapAccessible(nsIContent* aContent, nsDocAccessible* aDoc,
+                           nsIDOMHTMLMapElement* aMapElm) :
+  nsHTMLImageAccessibleWrap(aContent, aDoc), mMapElement(aMapElm)
 {
-  mFlags |= eImageMapAccessible;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -105,75 +104,39 @@ nsHTMLImageMapAccessible::AnchorURIAt(PRUint32 aAnchorIndex)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// nsHTMLImageMapAccessible: public
-
-void
-nsHTMLImageMapAccessible::UpdateChildAreas(bool aDoFireEvents)
-{
-  nsImageFrame* imageFrame = do_QueryFrame(mContent->GetPrimaryFrame());
-
-  // If image map is not initialized yet then we trigger one time more later.
-  nsImageMap* imageMapObj = imageFrame->GetExistingImageMap();
-  if (!imageMapObj)
-    return;
-
-  bool doReorderEvent = false;
-
-  // Remove areas that are not a valid part of the image map anymore.
-  for (PRInt32 childIdx = mChildren.Length() - 1; childIdx >= 0; childIdx--) {
-    nsAccessible* area = mChildren.ElementAt(childIdx);
-    if (area->GetContent()->GetPrimaryFrame())
-      continue;
-
-    if (aDoFireEvents) {
-      nsRefPtr<AccEvent> event = new AccHideEvent(area, area->GetContent());
-      mDoc->FireDelayedAccessibleEvent(event);
-      doReorderEvent = true;
-    }
-
-    RemoveChild(area);
-  }
-
-  // Insert new areas into the tree.
-  PRUint32 areaElmCount = imageMapObj->AreaCount();
-  for (PRUint32 idx = 0; idx < areaElmCount; idx++) {
-    nsIContent* areaContent = imageMapObj->GetAreaAt(idx);
-
-    nsAccessible* area = mChildren.SafeElementAt(idx);
-    if (!area || area->GetContent() != areaContent) {
-      nsRefPtr<nsAccessible> area = new nsHTMLAreaAccessible(areaContent, mDoc);
-      if (!mDoc->BindToDocument(area, nsAccUtils::GetRoleMapEntry(areaContent)))
-        break;
-
-      if (!InsertChildAt(idx, area)) {
-        mDoc->UnbindFromDocument(area);
-        break;
-      }
-
-      if (aDoFireEvents) {
-        nsRefPtr<AccEvent> event = new AccShowEvent(area, areaContent);
-        mDoc->FireDelayedAccessibleEvent(event);
-        doReorderEvent = true;
-      }
-    }
-  }
-
-  // Fire reorder event if needed.
-  if (doReorderEvent) {
-    nsRefPtr<AccEvent> reorderEvent =
-      new AccEvent(nsIAccessibleEvent::EVENT_REORDER, mContent,
-                   eAutoDetect, AccEvent::eCoalesceFromSameSubtree);
-    mDoc->FireDelayedAccessibleEvent(reorderEvent);
-  }
-}
-
-////////////////////////////////////////////////////////////////////////////////
 // nsHTMLImageMapAccessible: nsAccessible protected
 
-void
+void 
 nsHTMLImageMapAccessible::CacheChildren()
 {
-  UpdateChildAreas(false);
+  if (!mMapElement)
+    return;
+
+  nsCOMPtr<nsIDOMHTMLCollection> mapAreas;
+  mMapElement->GetAreas(getter_AddRefs(mapAreas));
+  if (!mapAreas)
+    return;
+
+  nsDocAccessible* document = Document();
+
+  PRUint32 areaCount = 0;
+  mapAreas->GetLength(&areaCount);
+
+  for (PRUint32 areaIdx = 0; areaIdx < areaCount; areaIdx++) {
+    nsCOMPtr<nsIDOMNode> areaNode;
+    mapAreas->Item(areaIdx, getter_AddRefs(areaNode));
+    if (!areaNode)
+      return;
+
+    nsCOMPtr<nsIContent> areaContent(do_QueryInterface(areaNode));
+    nsRefPtr<nsAccessible> area =
+      new nsHTMLAreaAccessible(areaContent, mDoc);
+
+    if (!document->BindToDocument(area, nsAccUtils::GetRoleMapEntry(areaContent)) ||
+        !AppendChild(area)) {
+      return;
+    }
+  }
 }
 
 
@@ -261,17 +224,6 @@ nsHTMLAreaAccessible::GetBounds(PRInt32 *aX, PRInt32 *aY,
   *aY += orgRectPixels.y;
 
   return NS_OK;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// nsHTMLAreaAccessible: nsAccessNode public
-
-bool
-nsHTMLAreaAccessible::IsPrimaryForNode() const
-{
-  // Make HTML area DOM element not accessible. HTML image map accessible
-  // manages its tree itself.
-  return false;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -214,7 +214,8 @@ RasterImage::RasterImage(imgStatusTracker* aStatusTracker) :
   mAnimationFinished(false)
 {
   // Set up the discard tracker node.
-  mDiscardTrackerNode.img = this;
+  mDiscardTrackerNode.curr = this;
+  mDiscardTrackerNode.prev = mDiscardTrackerNode.next = nsnull;
   Telemetry::GetHistogramById(Telemetry::IMAGE_DECODE_COUNT)->Add(0);
 
   // Statistics
@@ -2220,7 +2221,7 @@ RasterImage::CanForciblyDiscard() {
 // discarding this image. Mainly for assertions.
 bool
 RasterImage::DiscardingActive() {
-  return mDiscardTrackerNode.isInList();
+  return !!(mDiscardTrackerNode.prev || mDiscardTrackerNode.next);
 }
 
 // Helper method to determine if we're storing the source data in a buffer

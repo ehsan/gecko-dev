@@ -6,10 +6,8 @@ package org.mozilla.gecko.sync.repositories.android;
 
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
-import org.mozilla.gecko.sync.repositories.InactiveSessionException;
 import org.mozilla.gecko.sync.repositories.NullCursorException;
 import org.mozilla.gecko.sync.repositories.Repository;
-import org.mozilla.gecko.sync.repositories.delegates.RepositorySessionFinishDelegate;
 import org.mozilla.gecko.sync.repositories.domain.HistoryRecord;
 import org.mozilla.gecko.sync.repositories.domain.Record;
 
@@ -97,17 +95,5 @@ public class AndroidBrowserHistoryRepositorySession extends AndroidBrowserReposi
   @Override
   protected Record prepareRecord(Record record) {
     return record;
-  }
-  
-  @Override
-  public void abort() {
-    ((AndroidBrowserHistoryDataAccessor) dbHelper).closeExtender();
-    super.abort();
-  }
-
-  @Override
-  public void finish(final RepositorySessionFinishDelegate delegate) throws InactiveSessionException {
-    ((AndroidBrowserHistoryDataAccessor) dbHelper).closeExtender();
-    super.finish(delegate);
   }
 }

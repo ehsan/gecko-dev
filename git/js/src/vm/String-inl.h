@@ -48,8 +48,6 @@
 #include "String.h"
 
 #include "jsgcinlines.h"
-#include "jsobjinlines.h"
-#include "gc/Barrier-inl.h"
 
 inline void
 JSString::writeBarrierPre(JSString *str)

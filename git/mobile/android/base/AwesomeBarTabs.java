@@ -864,9 +864,11 @@ public class AwesomeBarTabs extends TabHost {
     }
 
     private void handleBookmarkItemClick(int position) {
-        // If we tap on the header view, there's nothing to do
-        if (position == 0)
+        // If we tap on the header view, go up a level
+        if (position == 0) {
+            mBookmarksAdapter.moveToParentFolder();
             return;
+        }
 
         Cursor cursor = mBookmarksAdapter.getCursor();
         // The header view takes up a spot in the list

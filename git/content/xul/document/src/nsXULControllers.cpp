@@ -49,6 +49,7 @@
 #include "nsIControllers.h"
 #include "nsIDOMElement.h"
 #include "nsXULControllers.h"
+#include "nsString.h"
 #include "nsContentUtils.h"
 
 //----------------------------------------------------------------------

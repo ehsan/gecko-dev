@@ -101,10 +101,7 @@ function test_history_guids() {
   dump("tbguid: " + tbguid + "\n");
 
   _("History: Verify GUIDs are added to the guid column.");
-  let connection = PlacesUtils.history
-                              .QueryInterface(Ci.nsPIPlacesDatabase)
-                              .DBConnection;
-  let stmt = connection.createAsyncStatement(
+  let stmt = PlacesUtils.history.DBConnection.createAsyncStatement(
     "SELECT id FROM moz_places WHERE guid = :guid");
 
   stmt.params.guid = fxguid;
@@ -117,7 +114,7 @@ function test_history_guids() {
   stmt.finalize();
 
   _("History: Verify GUIDs weren't added to annotations.");
-  stmt = connection.createAsyncStatement(
+  stmt = PlacesUtils.history.DBConnection.createAsyncStatement(
     "SELECT a.content AS guid FROM moz_annos a WHERE guid = :guid");
 
   stmt.params.guid = fxguid;
@@ -149,10 +146,7 @@ function test_bookmark_guids() {
   let tbguid = store.GUIDForId(tbid);
 
   _("Bookmarks: Verify GUIDs are added to the guid column.");
-  let connection = PlacesUtils.history
-                              .QueryInterface(Ci.nsPIPlacesDatabase)
-                              .DBConnection;
-  let stmt = connection.createAsyncStatement(
+  let stmt = PlacesUtils.history.DBConnection.createAsyncStatement(
     "SELECT id FROM moz_bookmarks WHERE guid = :guid");
 
   stmt.params.guid = fxguid;
@@ -167,7 +161,7 @@ function test_bookmark_guids() {
   stmt.finalize();
 
   _("Bookmarks: Verify GUIDs weren't added to annotations.");
-  stmt = connection.createAsyncStatement(
+  stmt = PlacesUtils.history.DBConnection.createAsyncStatement(
     "SELECT a.content AS guid FROM moz_items_annos a WHERE guid = :guid");
 
   stmt.params.guid = fxguid;

@@ -67,6 +67,7 @@
 #include "nsDOMAttribute.h"
 #include "nsGUIEvent.h"
 #include "nsCExternalHandlerService.h"
+#include "nsNetUtil.h"
 #include "nsMimeTypes.h"
 #include "nsEventListenerManager.h"
 #include "nsContentUtils.h"

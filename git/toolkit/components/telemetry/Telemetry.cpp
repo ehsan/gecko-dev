@@ -1200,21 +1200,11 @@ TelemetrySessionData::SampleReflector(EntryType *entry, JSContext *cx,
     return false;
   }
   JS::AutoObjectRooter root(cx, snapshot);
-  switch (ReflectHistogramAndSamples(cx, snapshot, h, entry->mData)) {
-  case REFLECT_OK:
-    return JS_DefineProperty(cx, snapshots,
-                             h->histogram_name().c_str(),
-                             OBJECT_TO_JSVAL(snapshot), NULL, NULL,
-                             JSPROP_ENUMERATE);
-  case REFLECT_CORRUPT:
-    // Just ignore this one.
-    return true;
-  case REFLECT_FAILURE:
-    return false;
-  default:
-    MOZ_NOT_REACHED("unhandled reflection status");
-    return false;
-  }
+  return (ReflectHistogramAndSamples(cx, snapshot, h, entry->mData)
+          && JS_DefineProperty(cx, snapshots,
+                               h->histogram_name().c_str(),
+                               OBJECT_TO_JSVAL(snapshot), NULL, NULL,
+                               JSPROP_ENUMERATE));
 }
 
 NS_IMETHODIMP
@@ -1464,15 +1454,10 @@ private:
 
 NS_IMETHODIMP
 TelemetryImpl::LoadHistograms(nsIFile *file,
-                              nsITelemetryLoadSessionDataCallback *callback,
-                              bool isSynchronous)
+                              nsITelemetryLoadSessionDataCallback *callback)
 {
   nsCOMPtr<nsIRunnable> event = new LoadHistogramEvent(file, callback);
-  if (isSynchronous) {
-    return event ? event->Run() : NS_ERROR_FAILURE;
-  } else {
-    return NS_DispatchToCurrentThread(event);
-  }
+  return NS_DispatchToCurrentThread(event);
 }
 
 NS_IMETHODIMP

@@ -94,10 +94,6 @@ public class GLController {
     }
 
     public void disposeGLContext() {
-        if (mEGL == null) {
-            return;
-        }
-
         if (!mEGL.eglMakeCurrent(mEGLDisplay, EGL10.EGL_NO_SURFACE, EGL10.EGL_NO_SURFACE,
                                  EGL10.EGL_NO_CONTEXT)) {
             throw new GLControllerException("EGL context could not be released!");
@@ -111,12 +107,14 @@ public class GLController {
             mEGLSurface = null;
         }
 
-        if (mEGLContext != null) {
+        if (mEGLContext == null) {
             if (!mEGL.eglDestroyContext(mEGLDisplay, mEGLContext)) {
                 throw new GLControllerException("EGL context could not be destroyed!");
             }
 
             mGL = null;
+            mEGLDisplay = null;
+            mEGLConfig = null;
             mEGLContext = null;
         }
     }

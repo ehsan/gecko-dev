@@ -42,7 +42,6 @@
 #include "nscore.h"
 #include "jsapi.h"
 #include "mozilla/TimeStamp.h"
-#include "mozilla/Util.h"
 
 using mozilla::TimeStamp;
 using mozilla::TimeDuration;
@@ -184,7 +183,7 @@ public:
     if (!aMarker) {
       return; //discard
     }
-    if (mMarkerPointer == mozilla::ArrayLength(mMarkers)) {
+    if (mMarkerPointer == 1024) {
       return; //array full, silently drop
     }
     mMarkers[mMarkerPointer] = aMarker;
@@ -213,7 +212,7 @@ public:
 
   void push(const char *aName)
   {
-    if (mStackPointer >= mozilla::ArrayLength(mStack)) {
+    if (mStackPointer >= 1024) {
       mDroppedStackEntries++;
       return;
     }

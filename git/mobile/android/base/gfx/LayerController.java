@@ -142,13 +142,14 @@ public class LayerController implements Tabs.OnTabsChangedListener {
         mView = new LayerView(context, this);
         mCheckerboardShouldShowChecks = true;
 
-        Tabs.registerOnTabsChangedListener(this);
+        Tabs.getInstance().registerOnTabsChangedListener(this);
 
-        mTimeout = ViewConfiguration.getLongPressTimeout();
+        ViewConfiguration vc = ViewConfiguration.get(mContext); 
+        mTimeout = vc.getLongPressTimeout();
     }
 
     public void onDestroy() {
-        Tabs.unregisterOnTabsChangedListener(this);
+        Tabs.getInstance().unregisterOnTabsChangedListener(this);
     }
 
     public void setRoot(Layer layer) { mRootLayer = layer; }
@@ -306,11 +307,14 @@ public class LayerController implements Tabs.OnTabsChangedListener {
     }
 
     /** Aborts any pan/zoom animation that is currently in progress. */
-    public void abortPanZoomAnimation() {
+    public void abortPanZoomAnimation(final boolean notifyLayerClient) {
         if (mPanZoomController != null) {
             mView.post(new Runnable() {
                 public void run() {
                     mPanZoomController.abortAnimation();
+                    if (notifyLayerClient) {
+                        notifyLayerClientOfGeometryChange();
+                    }
                 }
             });
         }

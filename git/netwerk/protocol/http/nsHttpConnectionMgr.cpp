@@ -491,6 +491,7 @@ nsHttpConnectionMgr::ReportSpdyConnection(nsHttpConnection *conn,
     nsConnectionEntry *ent = LookupConnectionEntry(conn->ConnectionInfo(),
                                                    conn, nsnull);
 
+    NS_ABORT_IF_FALSE(ent, "no connection entry");
     if (!ent)
         return;
 

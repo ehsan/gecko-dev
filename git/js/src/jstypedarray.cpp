@@ -2457,7 +2457,7 @@ InitArrayBufferClass(JSContext *cx, GlobalObject *global)
     return arrayBufferProto;
 }
 
-JSObject *
+JS_FRIEND_API(JSObject *)
 js_InitTypedArrayClasses(JSContext *cx, JSObject *obj)
 {
     JS_ASSERT(obj->isNative());

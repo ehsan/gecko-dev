@@ -58,6 +58,7 @@
 #include "nsIFrame.h"
 #include "nsIDocShell.h"
 #include "nsIEditorDocShell.h"
+#include "nsCOMPtr.h"
 #include "nsRuleWalker.h"
 #include "jsapi.h"
 
