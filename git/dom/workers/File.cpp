@@ -37,9 +37,9 @@ class Blob
 
 public:
   static JSObject*
-  InitClass(JSContext* aCx, JS::Handle<JSObject*> aObj)
+  InitClass(JSContext* aCx, JSObject* aObj)
   {
-    return JS_InitClass(aCx, aObj, JS::NullPtr(), &sClass, Construct, 0,
+    return JS_InitClass(aCx, aObj, nullptr, &sClass, Construct, 0,
                         sProperties, sFunctions, nullptr, nullptr);
   }
 
@@ -237,7 +237,7 @@ class File : public Blob
 
 public:
   static JSObject*
-  InitClass(JSContext* aCx, JS::Handle<JSObject*> aObj, JS::Handle<JSObject*> aParentProto)
+  InitClass(JSContext* aCx, JSObject* aObj, JSObject* aParentProto)
   {
     return JS_InitClass(aCx, aObj, aParentProto, &sClass, Construct, 0,
                         sProperties, nullptr, nullptr, nullptr);
@@ -470,7 +470,7 @@ CreateBlob(JSContext* aCx, nsIDOMBlob* aBlob)
 bool
 InitClasses(JSContext* aCx, JS::Handle<JSObject*> aGlobal)
 {
-  JS::Rooted<JSObject*> blobProto(aCx, Blob::InitClass(aCx, aGlobal));
+  JSObject* blobProto = Blob::InitClass(aCx, aGlobal);
   return blobProto && File::InitClass(aCx, aGlobal, blobProto);
 }
 

@@ -146,7 +146,6 @@ TextureClientD3D11::TextureClientD3D11(gfx::SurfaceFormat aFormat, TextureFlags 
   : TextureClient(aFlags)
   , mFormat(aFormat)
   , mIsLocked(false)
-  , mNeedsClear(false)
 {}
 
 TextureClientD3D11::~TextureClientD3D11()
@@ -160,12 +159,6 @@ TextureClientD3D11::Lock(OpenMode aMode)
   }
   MOZ_ASSERT(!mIsLocked, "The Texture is already locked!");
   LockD3DTexture(mTexture.get());
-
-  if (mNeedsClear) {
-    mDrawTarget->ClearRect(Rect(0, 0, GetSize().width, GetSize().height));
-    mNeedsClear = false;
-  }
-
   mIsLocked = true;
   return true;
 }
@@ -176,6 +169,7 @@ TextureClientD3D11::Unlock()
   MOZ_ASSERT(mIsLocked, "Unlocked called while the texture is not locked!");
   if (mDrawTarget) {
     mDrawTarget->Flush();
+    mDrawTarget = nullptr;
   }
   UnlockD3DTexture(mTexture.get());
   mIsLocked = false;
@@ -190,8 +184,6 @@ TextureClientD3D11::GetAsDrawTarget()
     return mDrawTarget;
   }
 
-  // The DrawTarget is created only once, and is only usable between calls
-  // to Lock and Unlock.
   mDrawTarget = Factory::CreateDrawTargetForD3D10Texture(mTexture, mFormat);
   return mDrawTarget;
 }
@@ -215,8 +207,13 @@ TextureClientD3D11::AllocateForSurface(gfx::IntSize aSize, TextureAllocationFlag
     return false;
   }
 
-  // Defer clearing to the next time we lock to avoid an extra (expensive) lock.
-  mNeedsClear = aFlags & ALLOC_CLEAR_BUFFER;
+  if (aFlags & ALLOC_CLEAR_BUFFER) {
+    DebugOnly<bool> locked = Lock(OPEN_WRITE_ONLY);
+    MOZ_ASSERT(locked);
+    RefPtr<DrawTarget> dt = GetAsDrawTarget();
+    dt->ClearRect(Rect(0, 0, GetSize().width, GetSize().height));
+    Unlock();
+  }
 
   return true;
 }

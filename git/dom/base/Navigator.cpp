@@ -52,7 +52,6 @@
 #include "nsIDOMNavigatorSystemMessages.h"
 #include "nsIAppsService.h"
 #include "mozIApplication.h"
-#include "WidgetUtils.h"
 
 #ifdef MOZ_MEDIA_NAVIGATOR
 #include "MediaManager.h"
@@ -763,19 +762,6 @@ Navigator::Vibrate(const nsTArray<uint32_t>& aPattern)
 
   hal::Vibrate(aPattern, mWindow);
   return true;
-}
-
-//*****************************************************************************
-//  Pointer Events interface
-//*****************************************************************************
-
-uint32_t
-Navigator::MaxTouchPoints()
-{
-  nsCOMPtr<nsIWidget> widget = widget::WidgetUtils::DOMWindowToWidget(mWindow);
-
-  NS_ENSURE_TRUE(widget, 0);
-  return widget->GetMaxTouchPoints();
 }
 
 //*****************************************************************************
@@ -1798,26 +1784,6 @@ Navigator::HasIccManagerSupport(JSContext* /* unused */,
 
   nsCOMPtr<nsPIDOMWindow> win = GetWindowFromGlobal(aGlobal);
   return win && CheckPermission(win, "mobileconnection");
-}
-
-/* static */
-bool
-Navigator::HasWifiManagerSupport(JSContext* /* unused */,
-                                 JSObject* aGlobal)
-{
-  // On XBL scope, the global object is NOT |window|. So we have
-  // to use nsContentUtils::GetObjectPrincipal to get the principal
-  // and test directly with permission manager.
-
-  nsIPrincipal* principal = nsContentUtils::GetObjectPrincipal(aGlobal);
-
-  nsCOMPtr<nsIPermissionManager> permMgr =
-    do_GetService(NS_PERMISSIONMANAGER_CONTRACTID);
-  NS_ENSURE_TRUE(permMgr, false);
-
-  uint32_t permission = nsIPermissionManager::DENY_ACTION;
-  permMgr->TestPermissionFromPrincipal(principal, "wifi-manage", &permission);
-  return nsIPermissionManager::ALLOW_ACTION == permission;
 }
 #endif // MOZ_B2G_RIL
 

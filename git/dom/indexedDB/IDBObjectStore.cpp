@@ -1043,8 +1043,9 @@ IDBObjectStore::AppendIndexUpdateInfo(
     return NS_OK;
   }
 
-  if (JS_IsArrayObject(aCx, val)) {
-    JS::Rooted<JSObject*> array(aCx, &val.toObject());
+  if (!JSVAL_IS_PRIMITIVE(val) &&
+      JS_IsArrayObject(aCx, JSVAL_TO_OBJECT(val))) {
+    JS::Rooted<JSObject*> array(aCx, JSVAL_TO_OBJECT(val));
     uint32_t arrayLength;
     if (!JS_GetArrayLength(aCx, array, &arrayLength)) {
       IDB_REPORT_INTERNAL_ERR();

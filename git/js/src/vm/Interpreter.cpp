@@ -59,7 +59,6 @@ using namespace js::types;
 using mozilla::DebugOnly;
 using mozilla::DoubleEqualsInt32;
 using mozilla::PodCopy;
-using JS::ForOfIterator;
 
 /*
  * Note: when Clang 3.2 (32-bit) inlines the two functions below in Interpret,

@@ -413,14 +413,14 @@ GetIntFromJSObject(JSContext* aCtx,
  *        The JSObject to get the object from.
  * @param aIndex
  *        The index to get the object from.
- * @param objOut
- *        Set to the JSObject pointer on success.
+ * @param _object
+ *        The JSObject pointer on success.
  */
 nsresult
 GetJSObjectFromArray(JSContext* aCtx,
-                     JS::Handle<JSObject*> aArray,
+                     JSObject* aArray,
                      uint32_t aIndex,
-                     JS::MutableHandle<JSObject*> objOut)
+                     JSObject** _rooter)
 {
   NS_PRECONDITION(JS_IsArrayObject(aCtx, aArray),
                   "Must provide an object that is an array!");
@@ -428,8 +428,8 @@ GetJSObjectFromArray(JSContext* aCtx,
   JS::Rooted<JS::Value> value(aCtx);
   bool rc = JS_GetElement(aCtx, aArray, aIndex, &value);
   NS_ENSURE_TRUE(rc, NS_ERROR_UNEXPECTED);
-  NS_ENSURE_ARG(!value.isPrimitive());
-  objOut.set(&value.toObject());
+  NS_ENSURE_ARG(!JSVAL_IS_PRIMITIVE(value));
+  *_rooter = JSVAL_TO_OBJECT(value);
   return NS_OK;
 }
 
@@ -2760,7 +2760,7 @@ History::UpdatePlaces(JS::Handle<JS::Value> aPlaceInfos,
   nsTArray<VisitData> visitData;
   for (uint32_t i = 0; i < infosLength; i++) {
     JS::Rooted<JSObject*> info(aCtx);
-    nsresult rv = GetJSObjectFromArray(aCtx, infos, i, &info);
+    nsresult rv = GetJSObjectFromArray(aCtx, infos, i, info.address());
     NS_ENSURE_SUCCESS(rv, rv);
 
     nsCOMPtr<nsIURI> uri = GetURIFromJSObject(aCtx, info, "uri");
@@ -2814,7 +2814,7 @@ History::UpdatePlaces(JS::Handle<JS::Value> aPlaceInfos,
     visitData.SetCapacity(visitData.Length() + visitsLength);
     for (uint32_t j = 0; j < visitsLength; j++) {
       JS::Rooted<JSObject*> visit(aCtx);
-      rv = GetJSObjectFromArray(aCtx, visits, j, &visit);
+      rv = GetJSObjectFromArray(aCtx, visits, j, visit.address());
       NS_ENSURE_SUCCESS(rv, rv);
 
       VisitData& data = *visitData.AppendElement(VisitData(uri));

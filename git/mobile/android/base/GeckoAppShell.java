@@ -393,7 +393,7 @@ public class GeckoAppShell
      *  The Gecko-side API: API methods that Gecko calls
      */
 
-    @WrapElementForJNI(allowMultithread = true, generateStatic = true, noThrow = true)
+    @WrapElementForJNI(generateStatic = true, noThrow = true)
     public static void handleUncaughtException(Thread thread, Throwable e) {
         if (thread == null) {
             thread = Thread.currentThread();

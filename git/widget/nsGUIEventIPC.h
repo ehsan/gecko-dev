@@ -522,11 +522,13 @@ struct ParamTraits<nsIMEUpdatePreference>
   static void Write(Message* aMsg, const paramType& aParam)
   {
     WriteParam(aMsg, aParam.mWantUpdates);
+    WriteParam(aMsg, aParam.mWantHints);
   }
 
   static bool Read(const Message* aMsg, void** aIter, paramType* aResult)
   {
-    return ReadParam(aMsg, aIter, &aResult->mWantUpdates);
+    return ReadParam(aMsg, aIter, &aResult->mWantUpdates) &&
+           ReadParam(aMsg, aIter, &aResult->mWantHints);
   }
 };
 

@@ -6069,10 +6069,8 @@ class CppKeywords():
 
     @staticmethod
     def checkMethodName(name):
-        # Double '_' because 'assert' and '_assert' cannot be used in MS2013 compiler.
-        # Bug 964892 and bug 963560.
         if name in CppKeywords.keywords:
-          name = '_' + name + '_'
+          name = '_' + name
         return name
 
 class CGStaticMethod(CGAbstractStaticBindingMethod):

@@ -463,7 +463,7 @@ FT2FontEntry::CairoFontFace()
 }
 
 nsresult
-FT2FontEntry::ReadCMAP(FontInfoData *aFontInfoData)
+FT2FontEntry::ReadCMAP()
 {
     if (mCharacterMap) {
         return NS_OK;

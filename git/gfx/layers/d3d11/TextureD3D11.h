@@ -66,7 +66,6 @@ protected:
   RefPtr<gfx::DrawTarget> mDrawTarget;
   gfx::SurfaceFormat mFormat;
   bool mIsLocked;
-  bool mNeedsClear;
 };
 
 /**

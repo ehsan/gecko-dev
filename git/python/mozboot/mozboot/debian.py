@@ -42,10 +42,9 @@ class DebianBootstrapper(BaseBootstrapper):
         self.version = version
         self.dist_id = dist_id
 
-        self.packages = self.COMMON_PACKAGES + self.DISTRO_PACKAGES
-
     def install_system_packages(self):
-        self.apt_install(*self.packages)
+        packages = self.COMMON_PACKAGES + self.DISTRO_PACKAGES
+        self.apt_install(*packages)
 
     def _update_package_manager(self):
         self.run_as_root(['apt-get', 'update'])

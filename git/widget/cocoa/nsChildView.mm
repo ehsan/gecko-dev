@@ -1972,7 +1972,8 @@ nsChildView::GetInputContext()
 nsIMEUpdatePreference
 nsChildView::GetIMEUpdatePreference()
 {
-  return nsIMEUpdatePreference(nsIMEUpdatePreference::NOTIFY_SELECTION_CHANGE);
+  return nsIMEUpdatePreference(nsIMEUpdatePreference::NOTIFY_SELECTION_CHANGE,
+                               false);
 }
 
 NS_IMETHODIMP nsChildView::GetToggledKeyState(uint32_t aKeyCode,

@@ -12,7 +12,6 @@
 #include "jit/BaselineIC.h"
 #include "jit/CompileInfo.h"
 #include "jit/IonSpewer.h"
-#include "jit/JitCommon.h"
 #include "vm/Interpreter.h"
 
 #include "jsgcinlines.h"
@@ -119,8 +118,8 @@ EnterBaseline(JSContext *cx, EnterJitData &data)
         JS_ASSERT_IF(data.osrFrame, !IsJSDEnabled(cx));
 
         // Single transition point from Interpreter to Baseline.
-        CALL_GENERATED_CODE(enter, data.jitcode, data.maxArgc, data.maxArgv, data.osrFrame, data.calleeToken,
-                            data.scopeChain.get(), data.osrNumStackValues, data.result.address());
+        enter(data.jitcode, data.maxArgc, data.maxArgv, data.osrFrame, data.calleeToken,
+              data.scopeChain, data.osrNumStackValues, data.result.address());
 
         if (data.osrFrame)
             data.osrFrame->clearRunningInJit();

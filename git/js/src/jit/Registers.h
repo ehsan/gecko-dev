@@ -31,11 +31,6 @@ struct Register {
         Register r = { (Registers::Code)i };
         return r;
     }
-    static Register FromName(const char *name) {
-        Registers::Code code = Registers::FromName(name);
-        Register r = { code };
-        return r;
-    }
     Code code() const {
         JS_ASSERT((uint32_t)code_ < Registers::Total);
         return code_;
@@ -63,11 +58,6 @@ struct FloatRegister {
     static FloatRegister FromCode(uint32_t i) {
         JS_ASSERT(i < FloatRegisters::Total);
         FloatRegister r = { (FloatRegisters::Code)i };
-        return r;
-    }
-    static FloatRegister FromName(const char *name) {
-        FloatRegisters::Code code = FloatRegisters::FromName(name);
-        FloatRegister r = { code };
         return r;
     }
     Code code() const {
