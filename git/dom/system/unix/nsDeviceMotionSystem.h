@@ -39,7 +39,6 @@
 #define nsDeviceMotionSystem_h
 
 #include <unistd.h>
-#include <stdio.h>
 #include "nsDeviceMotion.h"
 
 enum nsAccelerometerSystemDriver

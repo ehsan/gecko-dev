@@ -1977,25 +1977,25 @@ WebSocketChannel::AsyncOpen(nsIURI *aURI,
     rv = prefService->GetIntPref("network.websocket.max-message-size", 
                                  &intpref);
     if (NS_SUCCEEDED(rv)) {
-      mMaxMessageSize = clamped(intpref, 1024, 1 << 30);
+      mMaxMessageSize = NS_CLAMP(intpref, 1024, 1 << 30);
     }
     rv = prefService->GetIntPref("network.websocket.timeout.close", &intpref);
     if (NS_SUCCEEDED(rv)) {
-      mCloseTimeout = clamped(intpref, 1, 1800) * 1000;
+      mCloseTimeout = NS_CLAMP(intpref, 1, 1800) * 1000;
     }
     rv = prefService->GetIntPref("network.websocket.timeout.open", &intpref);
     if (NS_SUCCEEDED(rv)) {
-      mOpenTimeout = clamped(intpref, 1, 1800) * 1000;
+      mOpenTimeout = NS_CLAMP(intpref, 1, 1800) * 1000;
     }
     rv = prefService->GetIntPref("network.websocket.timeout.ping.request",
                                  &intpref);
     if (NS_SUCCEEDED(rv)) {
-      mPingTimeout = clamped(intpref, 0, 86400) * 1000;
+      mPingTimeout = NS_CLAMP(intpref, 0, 86400) * 1000;
     }
     rv = prefService->GetIntPref("network.websocket.timeout.ping.response",
                                  &intpref);
     if (NS_SUCCEEDED(rv)) {
-      mPingResponseTimeout = clamped(intpref, 1, 3600) * 1000;
+      mPingResponseTimeout = NS_CLAMP(intpref, 1, 3600) * 1000;
     }
     rv = prefService->GetBoolPref("network.websocket.extensions.stream-deflate",
                                   &boolpref);
@@ -2010,7 +2010,7 @@ WebSocketChannel::AsyncOpen(nsIURI *aURI,
     rv = prefService->GetIntPref
       ("network.websocket.max-connections", &intpref);
     if (NS_SUCCEEDED(rv)) {
-      mMaxConcurrentConnections = clamped(intpref, 1, 0xffff);
+      mMaxConcurrentConnections = NS_CLAMP(intpref, 1, 0xffff);
     }
   }
 

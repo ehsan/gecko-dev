@@ -47,6 +47,7 @@
 #include "nsIInterfaceRequestorUtils.h"
 #include "gfxPlatform.h"
 #include "nsSVGSVGElement.h"
+#include "mozilla/Preferences.h"
 
 using namespace mozilla;
 
@@ -209,9 +210,10 @@ nsSVGImageFrame::AttributeChanged(PRInt32         aNameSpaceID,
   }
   if (aNameSpaceID == kNameSpaceID_XLink &&
       aAttribute == nsGkAtoms::href) {
-
-    // Prevent setting image.src by exiting early
-    if (nsContentUtils::IsImageSrcSetDisabled()) {
+    // If caller is not chrome and dom.disable_image_src_set is true,
+    // prevent setting image.src by exiting early
+    if (Preferences::GetBool("dom.disable_image_src_set") &&
+        !nsContentUtils::IsCallerChrome()) {
       return NS_OK;
     }
     nsSVGImageElement *element = static_cast<nsSVGImageElement*>(mContent);

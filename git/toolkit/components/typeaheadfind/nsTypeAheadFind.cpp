@@ -73,6 +73,7 @@
 #include "nsILink.h"
 #include "nsTextFragment.h"
 #include "nsIDOMNSEditableElement.h"
+#include "nsIDOMNSHTMLElement.h"
 #include "nsIEditor.h"
 
 #include "nsIDocShellTreeItem.h"

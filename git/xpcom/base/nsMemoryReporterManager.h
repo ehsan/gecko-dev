@@ -2,7 +2,6 @@
 #include "nsIMemoryReporter.h"
 #include "nsCOMArray.h"
 #include "mozilla/Mutex.h"
-#include "nsString.h"
 
 using mozilla::Mutex;
 

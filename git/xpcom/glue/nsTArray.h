@@ -410,15 +410,14 @@ public:
 //   class Comparator {
 //     public:
 //       /** @return True if the elements are equals; false otherwise. */
-//       bool Equals(const elem_type& a, const Item& b) const;
+//       bool Equals(const elem_type& a, const elem_type& b) const;
 //
 //       /** @return True if (a < b); false otherwise. */
-//       bool LessThan(const elem_type& a, const Item& b) const;
+//       bool LessThan(const elem_type& a, const elem_type& b) const;
 //   };
 //
 // The Equals method is used for searching, and the LessThan method is used
-// for sorting.  The |Item| type above can be arbitrary, but must match the
-// Item type passed to the sort or search function.
+// for sorting.
 //
 // The Alloc template parameter can be used to choose between
 // "fallible" and "infallible" nsTArray (if available), defaulting to

@@ -46,6 +46,7 @@
 #include "nsIAccessibleRelation.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMHTMLInputElement.h"
+#include "nsIDOMNSHTMLElement.h"
 #include "nsIDOMNSEditableElement.h"
 #include "nsIDOMHTMLFormElement.h"
 #include "nsIDOMHTMLLegendElement.h"

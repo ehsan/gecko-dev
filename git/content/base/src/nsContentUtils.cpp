@@ -90,7 +90,7 @@
 #include "nsIDOMHTMLDocument.h"
 #include "nsIDOMHTMLCollection.h"
 #include "nsIDOMHTMLFormElement.h"
-#include "nsIDOMHTMLElement.h"
+#include "nsIDOMNSHTMLElement.h"
 #include "nsIForm.h"
 #include "nsIFormControl.h"
 #include "nsGkAtoms.h"
@@ -1453,13 +1453,6 @@ nsContentUtils::IsCallerTrustedForWrite()
   return IsCallerTrustedForCapability("UniversalBrowserWrite");
 }
 
-bool
-nsContentUtils::IsImageSrcSetDisabled()
-{
-  return Preferences::GetBool("dom.disable_image_src_set") &&
-         !IsCallerChrome();
-}
-
 // static
 nsINode*
 nsContentUtils::GetCrossDocParentNode(nsINode* aChild)
@@ -2409,7 +2402,7 @@ nsContentUtils::GetStaticRequest(imgIRequest* aRequest)
 bool
 nsContentUtils::ContentIsDraggable(nsIContent* aContent)
 {
-  nsCOMPtr<nsIDOMHTMLElement> htmlElement = do_QueryInterface(aContent);
+  nsCOMPtr<nsIDOMNSHTMLElement> htmlElement = do_QueryInterface(aContent);
   if (htmlElement) {
     bool draggable = false;
     htmlElement->GetDraggable(&draggable);

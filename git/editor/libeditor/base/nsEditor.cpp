@@ -43,6 +43,7 @@
 #include "pratom.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMHTMLElement.h"
+#include "nsIDOMNSHTMLElement.h"
 #include "nsIDOMNSEvent.h"
 #include "nsIMEStateManager.h"
 #include "nsFocusManager.h"
@@ -84,7 +85,6 @@
 #include "nsCSSStyleSheet.h"
 
 #include "nsIContent.h"
-#include "nsDOMString.h"
 #include "nsServiceManagerUtils.h"
 
 // transactions the editor knows how to build
@@ -410,7 +410,7 @@ nsEditor::GetDesiredSpellCheckState()
     content = content->GetParent();
   }
 
-  nsCOMPtr<nsIDOMHTMLElement> element = do_QueryInterface(content);
+  nsCOMPtr<nsIDOMNSHTMLElement> element = do_QueryInterface(content);
   if (!element) {
     return false;
   }
@@ -1253,18 +1253,19 @@ nsEditor::GetAttributeValue(nsIDOMElement *aElement,
                             bool *aResultIsSet)
 {
   NS_ENSURE_TRUE(aResultIsSet, NS_ERROR_NULL_POINTER);
-  *aResultIsSet = false;
-  if (!aElement) {
-    return NS_OK;
+  *aResultIsSet=false;
+  nsresult result=NS_OK;
+  if (aElement)
+  {
+    nsCOMPtr<nsIDOMAttr> attNode;
+    result = aElement->GetAttributeNode(aAttribute, getter_AddRefs(attNode));
+    if ((NS_SUCCEEDED(result)) && attNode)
+    {
+      attNode->GetSpecified(aResultIsSet);
+      attNode->GetValue(aResultValue);
+    }
   }
-  nsAutoString value;
-  nsresult rv = aElement->GetAttribute(aAttribute, value);
-  NS_ENSURE_SUCCESS(rv, rv);
-  if (!DOMStringIsNull(value)) {
-    *aResultIsSet = true;
-    aResultValue = value;
-  }
-  return rv;
+  return result;
 }
 
 NS_IMETHODIMP 
@@ -5013,7 +5014,7 @@ nsEditor::CreateHTMLContent(const nsAString& aTag, nsIContent** aContent)
     return NS_ERROR_FAILURE;
   }
 
-  return doc->CreateElem(aTag, nsnull, kNameSpaceID_XHTML, aContent);
+  return doc->CreateElem(aTag, nsnull, kNameSpaceID_XHTML, false, aContent);
 }
 
 nsresult

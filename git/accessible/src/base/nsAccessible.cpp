@@ -62,7 +62,7 @@
 #include "nsIDOMHTMLDocument.h"
 #include "nsIDOMHTMLFormElement.h"
 #include "nsIDOMNodeFilter.h"
-#include "nsIDOMHTMLElement.h"
+#include "nsIDOMNSHTMLElement.h"
 #include "nsIDOMTreeWalker.h"
 #include "nsIDOMXULButtonElement.h"
 #include "nsIDOMXULDocument.h"
@@ -1424,7 +1424,7 @@ nsAccessible::GetAttributesInternal(nsIPersistentProperties *aAttributes)
     nsAccUtils::SetAccAttr(aAttributes, nsGkAtoms::textIndent, value);
 
   // Expose draggable object attribute?
-  nsCOMPtr<nsIDOMHTMLElement> htmlElement = do_QueryInterface(mContent);
+  nsCOMPtr<nsIDOMNSHTMLElement> htmlElement = do_QueryInterface(mContent);
   if (htmlElement) {
     bool draggable = false;
     htmlElement->GetDraggable(&draggable);

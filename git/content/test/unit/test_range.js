@@ -320,11 +320,11 @@ function run_extract_test() {
     var foundStart = false;
     var foundEnd = false;
     do {
-      if (walker.currentNode == startContainer) {
+      if (walker.currentNode.isSameNode(startContainer)) {
         foundStart = true;
       }
 
-      if (walker.currentNode == endContainer) {
+      if (walker.currentNode.isSameNode(endContainer)) {
         // An end container node should not come before the start container node.
         do_check_true(foundStart);
         foundEnd = true;
@@ -354,11 +354,11 @@ function run_extract_test() {
     foundStart = false;
     foundEnd = false;
     do {
-      if (walker.currentNode == startContainer) {
+      if (walker.currentNode.isSameNode(startContainer)) {
         foundStart = true;
       }
 
-      if (walker.currentNode == endContainer) {
+      if (walker.currentNode.isSameNode(endContainer)) {
         // An end container node should not come before the start container node.
         do_check_true(foundStart);
         foundEnd = true;

@@ -400,10 +400,11 @@ nsJAR::GetCertificatePrincipal(const nsACString &aFilename, nsIPrincipal** aPrin
     return NS_OK;
 
   PRInt16 requestedStatus;
-  if (!aFilename.IsEmpty())
+  const char *filename = PromiseFlatCString(aFilename).get();
+  if (*filename)
   {
     //-- Find the item
-    nsCStringKey key(aFilename);
+    nsCStringKey key(filename);
     nsJARManifestItem* manItem = static_cast<nsJARManifestItem*>(mManifestData.Get(&key));
     if (!manItem)
       return NS_OK;
@@ -423,7 +424,7 @@ nsJAR::GetCertificatePrincipal(const nsACString &aFilename, nsIPrincipal** aPrin
     requestedStatus = mGlobalStatus;
 
   if (requestedStatus != JAR_VALID_MANIFEST)
-    ReportError(aFilename, requestedStatus);
+    ReportError(filename, requestedStatus);
   else // Valid signature
   {
     *aPrincipal = mPrincipal;
@@ -839,12 +840,12 @@ nsJAR::VerifyEntry(nsJARManifestItem* aManItem, const char* aEntryData,
   return NS_OK;
 }
 
-void nsJAR::ReportError(const nsACString &aFilename, PRInt16 errorCode)
+void nsJAR::ReportError(const char* aFilename, PRInt16 errorCode)
 {
   //-- Generate error message
   nsAutoString message; 
   message.AssignLiteral("Signature Verification Error: the signature on ");
-  if (!aFilename.IsEmpty())
+  if (aFilename)
     message.AppendWithConversion(aFilename);
   else
     message.AppendLiteral("this .jar archive");

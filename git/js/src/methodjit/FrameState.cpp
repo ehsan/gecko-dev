@@ -1265,13 +1265,13 @@ FrameState::assertValidRegisterState() const
 
 #if defined JS_NUNBOX32
 void
-FrameState::syncFancy(Assembler &masm, Registers avail, int trackerIndex) const
+FrameState::syncFancy(Assembler &masm, Registers avail, FrameEntry *resumeAt,
+                      FrameEntry *bottom) const
 {
-    reifier.reset(&masm, avail, a->sp, entries);
+    reifier.reset(&masm, avail, resumeAt, bottom);
 
-    for (; trackerIndex >= 0; trackerIndex--) {
-        FrameEntry *fe = tracker[trackerIndex];
-        if (fe >= a->sp)
+    for (FrameEntry *fe = resumeAt; fe >= bottom; fe--) {
+        if (!fe->isTracked())
             continue;
 
         reifier.sync(fe);
@@ -1325,11 +1325,8 @@ FrameState::sync(Assembler &masm, Uses uses) const
     Registers avail(freeRegs.freeMask & Registers::AvailRegs);
     Registers temp(Registers::TempAnyRegs);
 
-    unsigned nentries = tracker.nentries;
-    for (int trackerIndex = nentries - 1; trackerIndex >= 0; trackerIndex--) {
-        JS_ASSERT(tracker.nentries == nentries);
-        FrameEntry *fe = tracker[trackerIndex];
-        if (fe >= a->sp)
+    for (FrameEntry *fe = a->sp - 1; fe >= entries; fe--) {
+        if (!fe->isTracked())
             continue;
 
         if (fe->isType(JSVAL_TYPE_DOUBLE)) {
@@ -1378,7 +1375,7 @@ FrameState::sync(Assembler &masm, Uses uses) const
             /* Fall back to a slower sync algorithm if load required. */
             if ((!fe->type.synced() && backing->type.inMemory()) ||
                 (!fe->data.synced() && backing->data.inMemory())) {
-                syncFancy(masm, avail, trackerIndex);
+                syncFancy(masm, avail, fe, entries);
                 return;
             }
 #endif
@@ -1457,13 +1454,15 @@ FrameState::syncAndKill(Registers kill, Uses uses, Uses ignore)
 #endif
     }
 
+    uint32 maxvisits = tracker.nentries;
 
-    unsigned nentries = tracker.nentries;
-    for (int trackerIndex = nentries - 1; trackerIndex >= 0; trackerIndex--) {
-        JS_ASSERT(tracker.nentries == nentries);
-        FrameEntry *fe = tracker[trackerIndex];
+    for (FrameEntry *fe = a->sp - 1; fe >= entries && maxvisits; fe--) {
+        if (!fe->isTracked())
+            continue;
 
-        if (fe >= a->sp || deadEntry(fe, ignore.nuses))
+        maxvisits--;
+
+        if (deadEntry(fe, ignore.nuses))
             continue;
 
         syncFe(fe);

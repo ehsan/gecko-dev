@@ -260,6 +260,11 @@ protected:
 
     already_AddRefed<nsPIWindowRoot> GetWindowRoot();
 
+    PRInt32 GetDefaultNamespaceID() const
+    {
+        return kNameSpaceID_XUL;
+    }
+
     static NS_HIDDEN_(int) DirectionChanged(const char* aPrefName, void* aData);
 
     // pseudo constants
@@ -391,7 +396,7 @@ protected:
      * Execute the precompiled script object scoped by this XUL document's
      * containing window object, and using its associated script context.
      */
-    nsresult ExecuteScript(nsIScriptContext *aContext, JSScript* aScriptObject);
+    nsresult ExecuteScript(nsIScriptContext *aContext, void* aScriptObject);
 
     /**
      * Helper method for the above that uses aScript to find the appropriate

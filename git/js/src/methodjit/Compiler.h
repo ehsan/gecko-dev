@@ -534,7 +534,6 @@ private:
     /* Analysis helpers. */
     CompileStatus prepareInferenceTypes(JSScript *script, ActiveFrame *a);
     void ensureDoubleArguments();
-    void markUndefinedLocals();
     void fixDoubleTypes(jsbytecode *target);
     void watchGlobalReallocation();
     void updateVarType();

@@ -588,10 +588,10 @@ public:
                                nsIPresShell** aInstancePtrResult);
   virtual void DeleteShell();
 
-  virtual nsresult SetSubDocumentFor(Element* aContent,
+  virtual nsresult SetSubDocumentFor(nsIContent *aContent,
                                      nsIDocument* aSubDoc);
-  virtual nsIDocument* GetSubDocumentFor(nsIContent* aContent) const;
-  virtual Element* FindContentForSubDocument(nsIDocument *aDocument) const;
+  virtual nsIDocument* GetSubDocumentFor(nsIContent *aContent) const;
+  virtual nsIContent* FindContentForSubDocument(nsIDocument *aDocument) const;
   virtual Element* GetRootElementInternal() const;
 
   /**
@@ -798,6 +798,7 @@ public:
 
   virtual nsresult CreateElem(const nsAString& aName, nsIAtom *aPrefix,
                               PRInt32 aNamespaceID,
+                              bool aDocumentDefaultType,
                               nsIContent **aResult);
 
   nsresult CreateElement(const nsAString& aTagName,
@@ -1009,6 +1010,11 @@ protected:
   // Return whether all the presshells for this document are safe to flush
   bool IsSafeToFlush() const;
   
+  virtual PRInt32 GetDefaultNamespaceID() const
+  {
+    return kNameSpaceID_None;
+  }
+
   void DispatchPageTransition(nsIDOMEventTarget* aDispatchTarget,
                               const nsAString& aType,
                               bool aPersisted);
@@ -1124,6 +1130,8 @@ protected:
   bool mIsFullScreen:1;
 
   PRUint8 mXMLDeclarationBits;
+
+  PRUint8 mDefaultElementType;
 
   nsInterfaceHashtable<nsVoidPtrHashKey, nsPIBoxObject> *mBoxObjectTable;
 
