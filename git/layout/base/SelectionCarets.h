@@ -227,8 +227,7 @@ private:
   DragMode mDragMode;
 
   // True if AsyncPanZoom is enabled
-  bool mAsyncPanZoomEnabled;
-
+  bool mAPZenabled;
   bool mEndCaretVisible;
   bool mStartCaretVisible;
   bool mVisible;

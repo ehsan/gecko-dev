@@ -142,7 +142,7 @@ def setup_logging(suite, args, defaults=None):
     # Keep track of any options passed for formatters.
     formatter_options = defaultdict(lambda: formatter_option_defaults.copy())
     # Keep track of formatters and list of streams specified.
-    formatters = defaultdict(list)
+    formatters = {}
     found = False
     found_stdout_logger = False
     if not hasattr(args, 'iteritems'):
@@ -164,6 +164,7 @@ def setup_logging(suite, args, defaults=None):
                 continue
             if len(parts) == 2:
                 _, formatter = parts
+                formatters[formatter] = []
                 for value in values:
                     found = True
                     if isinstance(value, basestring):
@@ -178,12 +179,12 @@ def setup_logging(suite, args, defaults=None):
     #If there is no user-specified logging, go with the default options
     if not found:
         for name, value in defaults.iteritems():
-            formatters[name].append(value)
+            formatters[name] = [value]
 
     elif not found_stdout_logger and sys.stdout in defaults.values():
         for name, value in defaults.iteritems():
             if value == sys.stdout:
-                formatters[name].append(value)
+                formatters[name] = [value]
 
     setup_handlers(logger, formatters, formatter_options)
     set_default_logger(logger)

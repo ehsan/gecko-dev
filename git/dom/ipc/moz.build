@@ -91,7 +91,6 @@ IPDL_SOURCES += [
     'PDocumentRenderer.ipdl',
     'PFilePicker.ipdl',
     'PMemoryReportRequest.ipdl',
-    'PPluginWidget.ipdl',
     'PScreenManager.ipdl',
     'PTabContext.ipdlh',
 ]

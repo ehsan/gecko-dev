@@ -73,6 +73,8 @@ function testIncomingCall() {
 startDSDSTest(function() {
   testOutgoingCall()
     .then(testIncomingCall)
-    .catch(error => ok(false, "Promise reject: " + error))
+    .then(null, () => {
+      ok(false, "promise rejects during test.");
+    })
     .then(finish);
 });

@@ -89,6 +89,8 @@ startTest(function() {
     .then(() => check(PHONE_STATE_NORMAL))
 
     // End
-    .catch(error => ok(false, "Promise reject: " + error))
+    .then(null, error => {
+      ok(false, 'promise rejects during test.');
+    })
     .then(finish);
 });

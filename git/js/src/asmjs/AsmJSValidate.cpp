@@ -436,7 +436,6 @@ class Type
         return t;
     }
     MOZ_IMPLICIT Type(Which w) : which_(w) {}
-    Which which() const { return which_; }
     MOZ_IMPLICIT Type(AsmJSSimdType type) {
         switch (type) {
           case AsmJSSimdType_int32x4:
@@ -753,19 +752,25 @@ class VarType
     }
     static VarType Of(const AsmJSNumLit &lit) {
         MOZ_ASSERT(lit.hasType());
+        VarType v;
         switch (lit.which()) {
           case AsmJSNumLit::Fixnum:
           case AsmJSNumLit::NegativeInt:
           case AsmJSNumLit::BigUnsigned:
-            return Int;
+            v.which_ = Int;
+            return v;
           case AsmJSNumLit::Double:
-            return Double;
+            v.which_ = Double;
+            return v;
           case AsmJSNumLit::Float:
-            return Float;
+            v.which_ = Float;
+            return v;
           case AsmJSNumLit::Int32x4:
-            return Int32x4;
+            v.which_ = Int32x4;
+            return v;
           case AsmJSNumLit::Float32x4:
-            return Float32x4;
+            v.which_ = Float32x4;
+            return v;
           case AsmJSNumLit::OutOfRangeInt:
             MOZ_MAKE_COMPILER_ASSUME_IS_UNREACHABLE("can't be out of range int");
         }
@@ -1074,7 +1079,7 @@ class MOZ_STACK_CLASS ModuleCompiler
         Which which_;
         union {
             struct {
-                Type::Which type_;
+                VarType::Which type_;
                 uint32_t index_;
                 AsmJSNumLit literalValue_;
             } varOrConst;
@@ -1103,9 +1108,9 @@ class MOZ_STACK_CLASS ModuleCompiler
         Which which() const {
             return which_;
         }
-        Type varOrConstType() const {
+        VarType varOrConstType() const {
             MOZ_ASSERT(which_ == Variable || which_ == ConstantLiteral || which_ == ConstantImport);
-            return u.varOrConst.type_;
+            return VarType(u.varOrConst.type_);
         }
         uint32_t varOrConstIndex() const {
             MOZ_ASSERT(which_ == Variable || which_ == ConstantImport);
@@ -1570,12 +1575,11 @@ class MOZ_STACK_CLASS ModuleCompiler
     void initBufferArgumentName(PropertyName *n) { module_->initBufferArgumentName(n); }
 
     bool addGlobalVarInit(PropertyName *varName, const AsmJSNumLit &lit, bool isConst) {
-        // The type of a const is the exact type of the literal (since its value
-        // cannot change) which is more precise than the corresponding vartype.
-        Type type = isConst ? Type::Of(lit) : VarType::Of(lit).toType();
         uint32_t index;
+        VarType type = VarType::Of(lit);
         if (!module_->addGlobalVarInit(lit, &index))
             return false;
+
         Global::Which which = isConst ? Global::ConstantLiteral : Global::Variable;
         Global *global = moduleLifo_.new_<Global>(which);
         if (!global)
@@ -1584,11 +1588,11 @@ class MOZ_STACK_CLASS ModuleCompiler
         global->u.varOrConst.type_ = type.which();
         if (isConst)
             global->u.varOrConst.literalValue_ = lit;
+
         return globals_.putNew(varName, global);
     }
     bool addGlobalVarImport(PropertyName *varName, PropertyName *fieldName, AsmJSCoercion coercion,
-                            bool isConst)
-    {
+                            bool isConst) {
         uint32_t index;
         if (!module_->addGlobalVarImport(fieldName, coercion, &index))
             return false;
@@ -1598,7 +1602,7 @@ class MOZ_STACK_CLASS ModuleCompiler
         if (!global)
             return false;
         global->u.varOrConst.index_ = index;
-        global->u.varOrConst.type_ = VarType(coercion).toType().which();
+        global->u.varOrConst.type_ = VarType(coercion).which();
         return globals_.putNew(varName, global);
     }
     bool addFunction(PropertyName *name, Signature &&sig, Func **func) {
@@ -1715,7 +1719,7 @@ class MOZ_STACK_CLASS ModuleCompiler
         Global *global = moduleLifo_.new_<Global>(Global::ConstantLiteral);
         if (!global)
             return false;
-        global->u.varOrConst.type_ = Type::Double;
+        global->u.varOrConst.type_ = VarType::Double;
         global->u.varOrConst.literalValue_ = AsmJSNumLit::Create(AsmJSNumLit::Double,
                                                                  DoubleValue(constant));
         return globals_.putNew(varName, global);
@@ -2206,13 +2210,17 @@ ExtractNumericLiteral(ModuleCompiler &m, ParseNode *pn)
 }
 
 static inline bool
-IsLiteralInt(AsmJSNumLit lit, uint32_t *u32)
+IsLiteralInt(ModuleCompiler &m, ParseNode *pn, uint32_t *u32)
 {
-    switch (lit.which()) {
+    if (!IsNumericLiteral(m, pn))
+        return false;
+
+    AsmJSNumLit literal = ExtractNumericLiteral(m, pn);
+    switch (literal.which()) {
       case AsmJSNumLit::Fixnum:
       case AsmJSNumLit::BigUnsigned:
       case AsmJSNumLit::NegativeInt:
-        *u32 = uint32_t(lit.toInt32());
+        *u32 = uint32_t(literal.toInt32());
         return true;
       case AsmJSNumLit::Double:
       case AsmJSNumLit::Float:
@@ -2221,14 +2229,8 @@ IsLiteralInt(AsmJSNumLit lit, uint32_t *u32)
       case AsmJSNumLit::Float32x4:
         return false;
     }
-    MOZ_MAKE_COMPILER_ASSUME_IS_UNREACHABLE("Bad literal type");
-}
 
-static inline bool
-IsLiteralInt(ModuleCompiler &m, ParseNode *pn, uint32_t *u32)
-{
-    return IsNumericLiteral(m, pn) &&
-           IsLiteralInt(ExtractNumericLiteral(m, pn), u32);
+    MOZ_MAKE_COMPILER_ASSUME_IS_UNREACHABLE("Bad literal type");
 }
 
 /*****************************************************************************/
@@ -4012,32 +4014,12 @@ CheckArguments(FunctionCompiler &f, ParseNode **stmtIter, VarTypeVector *argType
 }
 
 static bool
-IsLiteralOrConst(FunctionCompiler &f, ParseNode *pn, AsmJSNumLit *lit)
-{
-    if (pn->isKind(PNK_NAME)) {
-        const ModuleCompiler::Global *global = f.lookupGlobal(pn->name());
-        if (!global || global->which() != ModuleCompiler::Global::ConstantLiteral)
-            return false;
-
-        *lit = global->constLiteralValue();
-        return true;
-    }
-
-    if (!IsNumericLiteral(f.m(), pn))
-        return false;
-
-    *lit = ExtractNumericLiteral(f.m(), pn);
-    return true;
-}
-
-static bool
 CheckFinalReturn(FunctionCompiler &f, ParseNode *stmt, RetType *retType)
 {
     if (stmt && stmt->isKind(PNK_RETURN)) {
         if (ParseNode *coercionNode = UnaryKid(stmt)) {
-            AsmJSNumLit lit;
-            if (IsLiteralOrConst(f, coercionNode, &lit)) {
-                switch (lit.which()) {
+            if (IsNumericLiteral(f.m(), coercionNode)) {
+                switch (ExtractNumericLiteral(f.m(), coercionNode).which()) {
                   case AsmJSNumLit::BigUnsigned:
                   case AsmJSNumLit::OutOfRangeInt:
                     return f.fail(coercionNode, "returned literal is out of integer range");
@@ -4093,14 +4075,25 @@ CheckVariable(FunctionCompiler &f, ParseNode *var)
     if (!initNode)
         return f.failName(var, "var '%s' needs explicit type declaration via an initial value", name);
 
-    AsmJSNumLit lit;
-    if (!IsLiteralOrConst(f, initNode, &lit))
-        return f.failName(var, "var '%s' initializer must be literal or const literal", name);
+    if (initNode->isKind(PNK_NAME)) {
+        PropertyName *initName = initNode->name();
+        if (const ModuleCompiler::Global *global = f.lookupGlobal(initName)) {
+            if (global->which() != ModuleCompiler::Global::ConstantLiteral)
+                return f.failName(initNode, "'%s' isn't a possible global variable initializer, "
+                                            "needs to be a const numeric literal", initName);
+            return f.addVariable(var, name, global->constLiteralValue());
+        }
+        return f.failName(initNode, "'%s' needs to be a global name", initName);
+    }
 
-    if (!lit.hasType())
-        return f.failName(var, "var '%s' initializer out of range", name);
+    if (!IsNumericLiteral(f.m(), initNode))
+        return f.failName(initNode, "initializer for '%s' needs to be a numeric literal or a global const literal", name);
 
-    return f.addVariable(var, name, lit);
+    AsmJSNumLit literal = ExtractNumericLiteral(f.m(), initNode);
+    if (!literal.hasType())
+        return f.failName(initNode, "initializer for '%s' is out of range", name);
+
+    return f.addVariable(var, name, literal);
 }
 
 static bool
@@ -4149,12 +4142,12 @@ CheckVarRef(FunctionCompiler &f, ParseNode *varRef, MDefinition **def, Type *typ
         switch (global->which()) {
           case ModuleCompiler::Global::ConstantLiteral:
             *def = f.constant(global->constLiteralValue());
-            *type = global->varOrConstType();
+            *type = global->varOrConstType().toType();
             break;
           case ModuleCompiler::Global::ConstantImport:
           case ModuleCompiler::Global::Variable:
             *def = f.loadGlobalVar(*global);
-            *type = global->varOrConstType();
+            *type = global->varOrConstType().toType();
             break;
           case ModuleCompiler::Global::Function:
           case ModuleCompiler::Global::FFI:
@@ -4177,11 +4170,23 @@ CheckVarRef(FunctionCompiler &f, ParseNode *varRef, MDefinition **def, Type *typ
 static inline bool
 IsLiteralOrConstInt(FunctionCompiler &f, ParseNode *pn, uint32_t *u32)
 {
-    AsmJSNumLit lit;
-    if (!IsLiteralOrConst(f, pn, &lit))
+    if (IsLiteralInt(f.m(), pn, u32))
+        return true;
+
+    if (pn->getKind() != PNK_NAME)
         return false;
 
-    return IsLiteralInt(lit, u32);
+    PropertyName *name = pn->name();
+    const ModuleCompiler::Global *global = f.lookupGlobal(name);
+    if (!global || global->which() != ModuleCompiler::Global::ConstantLiteral)
+        return false;
+
+    const Value &v = global->constLiteralValue().scalarValue();
+    if (!v.isInt32())
+        return false;
+
+    *u32 = (uint32_t) v.toInt32();
+    return true;
 }
 
 static bool
@@ -4437,7 +4442,7 @@ CheckAssignName(FunctionCompiler &f, ParseNode *lhs, ParseNode *rhs, MDefinition
             return f.failName(lhs, "'%s' is not a mutable variable", name);
         if (!(rhsType <= global->varOrConstType())) {
             return f.failf(lhs, "%s is not a subtype of %s",
-                           rhsType.toChars(), global->varOrConstType().toChars());
+                           rhsType.toChars(), global->varOrConstType().toType().toChars());
         }
         f.storeGlobalVar(*global, rhsDef);
     } else {

@@ -1534,7 +1534,7 @@ function PeerConnectionWrapper(label, configuration, h264) {
   this.onAddStreamFired = false;
   this.addStreamCallbacks = {};
 
-  this.holdIceCandidates = true;
+  this.remoteDescriptionSet = false;
   this.endOfTrickleIce = false;
   this.localRequiresTrickleIce = false;
   this.remoteRequiresTrickleIce  = false;
@@ -1851,15 +1851,10 @@ PeerConnectionWrapper.prototype = {
    */
   setLocalDescription : function PCW_setLocalDescription(desc, onSuccess) {
     var self = this;
-
-    if (onSuccess) {
-      this._pc.setLocalDescription(desc, function () {
-        info(self + ": Successfully set the local description");
-        onSuccess();
-      }, generateErrorCallback());
-    } else {
-      this._pc.setLocalDescription(desc);
-    }
+    this._pc.setLocalDescription(desc, function () {
+      info(self + ": Successfully set the local description");
+      onSuccess();
+    }, generateErrorCallback());
   },
 
   /**
@@ -1891,15 +1886,17 @@ PeerConnectionWrapper.prototype = {
    */
   setRemoteDescription : function PCW_setRemoteDescription(desc, onSuccess) {
     var self = this;
-
-    if (!onSuccess) {
-      this._pc.setRemoteDescription(desc);
-      this.addStoredIceCandidates();
-      return;
-    }
     this._pc.setRemoteDescription(desc, function () {
       info(self + ": Successfully set remote description");
-      self.addStoredIceCandidates();
+      self.remoteDescriptionSet = true;
+      if ((self._ice_candidates_to_add) &&
+          (self._ice_candidates_to_add.length > 0)) {
+        info("adding stored ice candidates");
+        for (var i = 0; i < self._ice_candidates_to_add.length; i++) {
+          self.addIceCandidate(self._ice_candidates_to_add[i]);
+        }
+        self._ice_candidates_to_add = [];
+      }
       onSuccess();
     }, generateErrorCallback());
   },
@@ -1960,24 +1957,10 @@ PeerConnectionWrapper.prototype = {
       info("Received ICE candidate for closed PeerConnection - discarding");
       return;
     }
-    if (!self.holdIceCandidates) {
+    if (self.remoteDescriptionSet) {
       self.addIceCandidate(candidate);
     } else {
       self._ice_candidates_to_add.push(candidate);
-    }
-  },
-
-  addStoredIceCandidates : function PCW_addStoredIceCandidates() {
-    var self = this;
-
-    self.holdIceCandidates = false;
-    if ((self._ice_candidates_to_add) &&
-        (self._ice_candidates_to_add.length > 0)) {
-      info("adding stored ice candidates");
-      for (var i = 0; i < self._ice_candidates_to_add.length; i++) {
-        self.addIceCandidate(self._ice_candidates_to_add[i]);
-      }
-      self._ice_candidates_to_add = [];
     }
   },
 

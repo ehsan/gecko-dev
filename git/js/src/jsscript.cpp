@@ -600,7 +600,7 @@ js::XDRScript(XDRState<mode> *xdr, HandleObject enclosingScope, HandleScript enc
 
     uint32_t length, lineno, column, nslots, staticLevel;
     uint32_t natoms, nsrcnotes, i;
-    uint32_t nconsts, nobjects, nregexps, ntrynotes, nblockscopes, nyieldoffsets;
+    uint32_t nconsts, nobjects, nregexps, ntrynotes, nblockscopes;
     uint32_t prologLength, version;
     uint32_t funLength = 0;
     uint32_t nTypeSets = 0;
@@ -609,7 +609,7 @@ js::XDRScript(XDRState<mode> *xdr, HandleObject enclosingScope, HandleScript enc
     JSContext *cx = xdr->cx();
     RootedScript script(cx);
     natoms = nsrcnotes = 0;
-    nconsts = nobjects = nregexps = ntrynotes = nblockscopes = nyieldoffsets = 0;
+    nconsts = nobjects = nregexps = ntrynotes = nblockscopes = 0;
 
     /* XDR arguments and vars. */
     uint16_t nargs = 0;
@@ -669,8 +669,6 @@ js::XDRScript(XDRState<mode> *xdr, HandleObject enclosingScope, HandleScript enc
             ntrynotes = script->trynotes()->length;
         if (script->hasBlockScopes())
             nblockscopes = script->blockScopes()->length;
-        if (script->hasYieldOffsets())
-            nyieldoffsets = script->yieldOffsets().length();
 
         nTypeSets = script->nTypeSets();
         funLength = script->funLength();
@@ -735,8 +733,6 @@ js::XDRScript(XDRState<mode> *xdr, HandleObject enclosingScope, HandleScript enc
         return false;
     if (!xdr->codeUint32(&nblockscopes))
         return false;
-    if (!xdr->codeUint32(&nyieldoffsets))
-        return false;
     if (!xdr->codeUint32(&nTypeSets))
         return false;
     if (!xdr->codeUint32(&funLength))
@@ -794,7 +790,7 @@ js::XDRScript(XDRState<mode> *xdr, HandleObject enclosingScope, HandleScript enc
 
     if (mode == XDR_DECODE) {
         if (!JSScript::partiallyInit(cx, script, nconsts, nobjects, nregexps, ntrynotes,
-                                     nblockscopes, nyieldoffsets, nTypeSets))
+                                     nblockscopes, nTypeSets))
         {
             return false;
         }
@@ -1081,12 +1077,6 @@ js::XDRScript(XDRState<mode> *xdr, HandleObject enclosingScope, HandleScript enc
         {
             return false;
         }
-    }
-
-    for (i = 0; i < nyieldoffsets; ++i) {
-        uint32_t *offset = &script->yieldOffsets()[i];
-        if (!xdr->codeUint32(offset))
-            return false;
     }
 
     if (scriptBits & (1 << HasLazyScript)) {
@@ -2375,7 +2365,7 @@ JS_STATIC_ASSERT(NO_PADDING_BETWEEN_ENTRIES(BlockScopeNote, uint32_t));
 
 static inline size_t
 ScriptDataSize(uint32_t nbindings, uint32_t nconsts, uint32_t nobjects, uint32_t nregexps,
-               uint32_t ntrynotes, uint32_t nblockscopes, uint32_t nyieldoffsets)
+               uint32_t ntrynotes, uint32_t nblockscopes)
 {
     size_t size = 0;
 
@@ -2389,8 +2379,6 @@ ScriptDataSize(uint32_t nbindings, uint32_t nconsts, uint32_t nobjects, uint32_t
         size += sizeof(TryNoteArray) + ntrynotes * sizeof(JSTryNote);
     if (nblockscopes != 0)
         size += sizeof(BlockScopeArray) + nblockscopes * sizeof(BlockScopeNote);
-    if (nyieldoffsets != 0)
-        size += sizeof(YieldOffsetArray) + nyieldoffsets * sizeof(uint32_t);
 
     if (nbindings != 0) {
 	// Make sure bindings are sufficiently aligned.
@@ -2467,10 +2455,10 @@ AllocScriptData(JS::Zone *zone, size_t size)
 /* static */ bool
 JSScript::partiallyInit(ExclusiveContext *cx, HandleScript script, uint32_t nconsts,
                         uint32_t nobjects, uint32_t nregexps, uint32_t ntrynotes,
-                        uint32_t nblockscopes, uint32_t nyieldoffsets, uint32_t nTypeSets)
+                        uint32_t nblockscopes, uint32_t nTypeSets)
 {
     size_t size = ScriptDataSize(script->bindings.count(), nconsts, nobjects, nregexps, ntrynotes,
-                                 nblockscopes, nyieldoffsets);
+                                 nblockscopes);
     script->data = AllocScriptData(script->zone(), size);
     if (size && !script->data)
         return false;
@@ -2499,12 +2487,6 @@ JSScript::partiallyInit(ExclusiveContext *cx, HandleScript script, uint32_t ncon
     if (nblockscopes != 0) {
         script->setHasArray(BLOCK_SCOPES);
         cursor += sizeof(BlockScopeArray);
-    }
-
-    YieldOffsetArray *yieldOffsets = nullptr;
-    if (nyieldoffsets != 0) {
-        yieldOffsets = reinterpret_cast<YieldOffsetArray *>(cursor);
-        cursor += sizeof(YieldOffsetArray);
     }
 
     if (nconsts != 0) {
@@ -2546,15 +2528,6 @@ JSScript::partiallyInit(ExclusiveContext *cx, HandleScript script, uint32_t ncon
         cursor += vectorSize;
     }
 
-    if (nyieldoffsets != 0) {
-        yieldOffsets->init(reinterpret_cast<uint32_t *>(cursor), nyieldoffsets);
-        size_t vectorSize = nyieldoffsets * sizeof(script->yieldOffsets()[0]);
-#ifdef DEBUG
-        memset(cursor, 0, vectorSize);
-#endif
-        cursor += vectorSize;
-    }
-
     if (script->bindings.count() != 0) {
 	// Make sure bindings are sufficiently aligned.
 	cursor = reinterpret_cast<uint8_t*>
@@ -2569,7 +2542,7 @@ JSScript::partiallyInit(ExclusiveContext *cx, HandleScript script, uint32_t ncon
 /* static */ bool
 JSScript::fullyInitTrivial(ExclusiveContext *cx, Handle<JSScript*> script)
 {
-    if (!partiallyInit(cx, script, 0, 0, 0, 0, 0, 0, 0))
+    if (!partiallyInit(cx, script, 0, 0, 0, 0, 0, 0))
         return false;
 
     SharedScriptData *ssd = SharedScriptData::new_(cx, 1, 1, 0);
@@ -2598,8 +2571,7 @@ JSScript::fullyInitFromEmitter(ExclusiveContext *cx, HandleScript script, Byteco
     uint32_t natoms = bce->atomIndices->count();
     if (!partiallyInit(cx, script,
                        bce->constList.length(), bce->objectList.length, bce->regexpList.length,
-                       bce->tryNoteList.length(), bce->blockScopeList.length(),
-                       bce->yieldOffsetList.length(), bce->typesetCount))
+                       bce->tryNoteList.length(), bce->blockScopeList.length(), bce->typesetCount))
     {
         return false;
     }
@@ -2662,8 +2634,6 @@ JSScript::fullyInitFromEmitter(ExclusiveContext *cx, HandleScript script, Byteco
         script->isGeneratorExp_ = funbox->inGenexpLambda;
         script->setGeneratorKind(funbox->generatorKind());
         script->setFunction(funbox->function());
-        if (bce->yieldOffsetList.length() != 0)
-            bce->yieldOffsetList.finish(script->yieldOffsets(), prologLength);
     }
 
     // The call to nfixed() depends on the above setFunction() call.
@@ -2848,7 +2818,10 @@ js::PCToLineNumber(unsigned startLine, jssrcnote *notes, jsbytecode *code, jsbyt
             break;
 
         if (type == SRC_COLSPAN) {
-            ptrdiff_t colspan = SN_OFFSET_TO_COLSPAN(js_GetSrcNoteOffset(sn, 0));
+            ptrdiff_t colspan = js_GetSrcNoteOffset(sn, 0);
+
+            if (colspan >= SN_COLSPAN_DOMAIN / 2)
+                colspan -= SN_COLSPAN_DOMAIN;
             MOZ_ASSERT(ptrdiff_t(column) + colspan >= 0);
             column += colspan;
         }
