@@ -77,7 +77,7 @@ public:
                        TextureFlags aFlags,
                        gl::AndroidSurfaceTexture* aSurfTex,
                        gfx::IntSize aSize,
-                       gl::OriginPos aOriginPos);
+                       bool aInverted);
 
   ~SurfaceTextureClient();
 

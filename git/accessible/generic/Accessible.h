@@ -366,9 +366,14 @@ public:
     { mRoleMapEntry = aRoleMapEntry; }
 
   /**
-   * Cache children if necessary.
+   * Update the children cache.
    */
-  void EnsureChildren();
+  bool UpdateChildren();
+
+  /**
+   * Cache children if necessary. Return true if the accessible is defunct.
+   */
+  bool EnsureChildren();
 
   /**
    * Set the child count to -1 (unknown) and null out cached child pointers.
@@ -582,7 +587,6 @@ public:
   HyperTextAccessible* AsHyperText();
 
   bool IsHTMLBr() const { return mType == eHTMLBRType; }
-  bool IsHTMLCombobox() const { return mType == eHTMLComboboxType; }
   bool IsHTMLFileInput() const { return mType == eHTMLFileInputType; }
 
   bool IsHTMLListItem() const { return mType == eHTMLLiType; }
@@ -867,19 +871,6 @@ public:
     { return !(mStateFlags & eIgnoreDOMUIEvent); }
 
   /**
-   * Get/set survivingInUpdate bit on child indicating that parent recollects
-   * its children.
-   */
-  bool IsSurvivingInUpdate() const { return mStateFlags & eSurvivingInUpdate; }
-  void SetSurvivingInUpdate(bool aIsSurviving)
-  {
-    if (aIsSurviving)
-      mStateFlags |= eSurvivingInUpdate;
-    else
-      mStateFlags &= ~eSurvivingInUpdate;
-  }
-
-  /**
    * Return true if this accessible has a parent whose name depends on this
    * accessible.
    */
@@ -962,9 +953,8 @@ protected:
     eGroupInfoDirty = 1 << 5, // accessible needs to update group info
     eSubtreeMutating = 1 << 6, // subtree is being mutated
     eIgnoreDOMUIEvent = 1 << 7, // don't process DOM UI events for a11y events
-    eSurvivingInUpdate = 1 << 8, // parent drops children to recollect them
 
-    eLastStateFlag = eSurvivingInUpdate
+    eLastStateFlag = eIgnoreDOMUIEvent
   };
 
   /**
@@ -1078,7 +1068,7 @@ protected:
   int32_t mIndexInParent;
 
   static const uint8_t kChildrenFlagsBits = 2;
-  static const uint8_t kStateFlagsBits = 9;
+  static const uint8_t kStateFlagsBits = 8;
   static const uint8_t kContextFlagsBits = 1;
   static const uint8_t kTypeBits = 6;
   static const uint8_t kGenericTypesBits = 13;

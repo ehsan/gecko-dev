@@ -19,7 +19,6 @@ if CONFIG['MOZ_NFC']:
     ]
     EXTRA_COMPONENTS += [
         'NfcContentHelper.js',
-        'NfcContentHelper.manifest',
         'nsNfc.js',
         'nsNfc.manifest',
     ]

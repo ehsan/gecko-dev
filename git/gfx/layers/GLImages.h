@@ -6,7 +6,6 @@
 #ifndef GFX_GLIMAGES_H
 #define GFX_GLIMAGES_H
 
-#include "GLContextTypes.h"
 #include "GLTypes.h"
 #include "ImageContainer.h"             // for Image
 #include "ImageTypes.h"                 // for ImageFormat::SHARED_GLTEXTURE
@@ -32,11 +31,10 @@ public:
     EGLImage mImage;
     EGLSync mSync;
     gfx::IntSize mSize;
-    gl::OriginPos mOriginPos;
+    bool mInverted;
     bool mOwns;
 
-    Data() : mImage(nullptr), mSync(nullptr), mSize(0, 0),
-             mOriginPos(gl::OriginPos::TopLeft), mOwns(false)
+    Data() : mImage(nullptr), mSync(nullptr), mSize(0, 0), mInverted(false), mOwns(false)
     {
     }
   };
@@ -62,7 +60,7 @@ public:
   struct Data {
     mozilla::gl::AndroidSurfaceTexture* mSurfTex;
     gfx::IntSize mSize;
-    gl::OriginPos mOriginPos;
+    bool mInverted;
   };
 
   void SetData(const Data& aData) { mData = aData; }

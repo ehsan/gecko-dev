@@ -58,8 +58,10 @@ CodeGeneratorX86Shared::generateEpilogue()
 
 #ifdef JS_TRACE_LOGGING
     if (gen->info().executionMode() == SequentialExecution) {
-        emitTracelogStopEvent(TraceLogger_IonMonkey);
-        emitTracelogScriptStop();
+        if (!emitTracelogStopEvent(TraceLogger::IonMonkey))
+            return false;
+        if (!emitTracelogScriptStop())
+            return false;
     }
 #endif
 
@@ -2143,8 +2145,9 @@ CodeGeneratorX86Shared::visitSimdSplatX4(LSimdSplatX4 *ins)
       }
       case MIRType_Float32x4: {
         FloatRegister r = ToFloatRegister(ins->getOperand(0));
-        FloatRegister rCopy = masm.reusedInputFloat32x4(r, output);
-        masm.vshufps(0, rCopy, rCopy, output);
+        if (r != output)
+            masm.moveFloat32x4(r, output);
+        masm.vshufps(0, output, output, output);
         break;
       }
       default:
@@ -2188,12 +2191,7 @@ CodeGeneratorX86Shared::visitSimdExtractElementF(LSimdExtractElementF *ins)
         uint32_t mask = MacroAssembler::ComputeShuffleMask(lane);
         masm.shuffleFloat32(mask, input, output);
     }
-    // NaNs contained within SIMD values are not enforced to be canonical, so
-    // when we extract an element into a "regular" scalar JS value, we have to
-    // canonicalize. In asm.js code, we can skip this, as asm.js only has to
-    // canonicalize NaNs at FFI boundaries.
-    if (!gen->compilingAsmJS())
-        masm.canonicalizeFloat(output);
+    masm.canonicalizeFloat(output);
 }
 
 void
@@ -2333,8 +2331,9 @@ void
 CodeGeneratorX86Shared::visitSimdShuffle(LSimdShuffle *ins)
 {
     FloatRegister lhs = ToFloatRegister(ins->lhs());
-    Operand rhs = ToOperand(ins->rhs());
+    FloatRegister rhs = ToFloatRegister(ins->rhs());
     FloatRegister out = ToFloatRegister(ins->output());
+    MOZ_ASSERT(out == lhs); // define reuse input
 
     uint32_t x = ins->laneX();
     uint32_t y = ins->laneY();
@@ -2373,8 +2372,8 @@ CodeGeneratorX86Shared::visitSimdShuffle(LSimdShuffle *ins)
         unsigned firstMask = -1, secondMask = -1;
 
         // register-register vmovss preserves the high lanes.
-        if (ins->lanesMatch(4, 1, 2, 3) && rhs.kind() == Operand::FPREG) {
-            masm.vmovss(FloatRegister::FromCode(rhs.fpu()), lhs, out);
+        if (ins->lanesMatch(4, 1, 2, 3)) {
+            masm.vmovss(rhs, lhs, out);
             return;
         }
 
@@ -2397,7 +2396,7 @@ CodeGeneratorX86Shared::visitSimdShuffle(LSimdShuffle *ins)
                 srcLane = SimdLane(w - 4);
                 dstLane = LaneW;
             }
-            masm.vinsertps(masm.vinsertpsMask(srcLane, dstLane), rhs, lhs, out);
+            masm.vinsertps(masm.vinsertpsMask(srcLane, dstLane), rhs, out, out);
             return;
         }
 
@@ -2406,21 +2405,21 @@ CodeGeneratorX86Shared::visitSimdShuffle(LSimdShuffle *ins)
         if (x < 4 && y < 4) {
             if (w >= 4) {
                 w %= 4;
-                // T = (Rw Rw Lz Lz) = vshufps(firstMask, lhs, rhs, rhsCopy)
+                // T = (Rw Rw Lz Lz) = vshufps(firstMask, lhs, rhs, rhs)
                 firstMask = MacroAssembler::ComputeShuffleMask(w, w, z, z);
-                // (Lx Ly Lz Rw) = (Lx Ly Tz Tx) = vshufps(secondMask, T, lhs, out)
+                // (Lx Ly Lz Rw) = (Lx Ly Tz Tx) = vshufps(secondMask, T, lhs, lhs)
                 secondMask = MacroAssembler::ComputeShuffleMask(x, y, LaneZ, LaneX);
             } else {
                 MOZ_ASSERT(z >= 4);
                 z %= 4;
-                // T = (Rz Rz Lw Lw) = vshufps(firstMask, lhs, rhs, rhsCopy)
+                // T = (Rz Rz Lw Lw) = vshufps(firstMask, lhs, rhs, rhs)
                 firstMask = MacroAssembler::ComputeShuffleMask(z, z, w, w);
-                // (Lx Ly Rz Lw) = (Lx Ly Tx Tz) = vshufps(secondMask, T, lhs, out)
+                // (Lx Ly Rz Lw) = (Lx Ly Tx Tz) = vshufps(secondMask, T, lhs, lhs)
                 secondMask = MacroAssembler::ComputeShuffleMask(x, y, LaneX, LaneZ);
             }
 
             masm.vshufps(firstMask, lhs, rhsCopy, rhsCopy);
-            masm.vshufps(secondMask, rhsCopy, lhs, out);
+            masm.vshufps(secondMask, rhsCopy, lhs, lhs);
             return;
         }
 
@@ -2428,26 +2427,22 @@ CodeGeneratorX86Shared::visitSimdShuffle(LSimdShuffle *ins)
 
         if (y >= 4) {
             y %= 4;
-            // T = (Ry Ry Lx Lx) = vshufps(firstMask, lhs, rhs, rhsCopy)
+            // T = (Ry Ry Lx Lx) = vshufps(firstMask, lhs, rhs, rhs)
             firstMask = MacroAssembler::ComputeShuffleMask(y, y, x, x);
-            // (Lx Ry Lz Lw) = (Tz Tx Lz Lw) = vshufps(secondMask, lhs, T, out)
+            // (Lx Ry Lz Lw) = (Tz Tx Lz Lw) = vshufps(secondMask, lhs, T, T)
             secondMask = MacroAssembler::ComputeShuffleMask(LaneZ, LaneX, z, w);
         } else {
             MOZ_ASSERT(x >= 4);
             x %= 4;
-            // T = (Rx Rx Ly Ly) = vshufps(firstMask, lhs, rhs, rhsCopy)
+            // T = (Rx Rx Ly Ly) = vshufps(firstMask, lhs, rhs, rhs)
             firstMask = MacroAssembler::ComputeShuffleMask(x, x, y, y);
-            // (Rx Ly Lz Lw) = (Tx Tz Lz Lw) = vshufps(secondMask, lhs, T, out)
+            // (Rx Ly Lz Lw) = (Tx Tz Lz Lw) = vshufps(secondMask, lhs, T, T)
             secondMask = MacroAssembler::ComputeShuffleMask(LaneX, LaneZ, z, w);
         }
 
         masm.vshufps(firstMask, lhs, rhsCopy, rhsCopy);
-        if (AssemblerX86Shared::HasAVX()) {
-            masm.vshufps(secondMask, lhs, rhsCopy, out);
-        } else {
-            masm.vshufps(secondMask, lhs, rhsCopy, rhsCopy);
-            masm.moveFloat32x4(rhsCopy, out);
-        }
+        masm.vshufps(secondMask, lhs, rhsCopy, rhsCopy);
+        masm.moveFloat32x4(rhsCopy, out);
         return;
     }
 
@@ -2458,10 +2453,9 @@ CodeGeneratorX86Shared::visitSimdShuffle(LSimdShuffle *ins)
     // but can't be reached because operands would get swapped (bug 1084404).
     if (ins->lanesMatch(2, 3, 6, 7)) {
         if (AssemblerX86Shared::HasAVX()) {
-            FloatRegister rhsCopy = masm.reusedInputAlignedFloat32x4(rhs, ScratchSimdReg);
-            masm.vmovhlps(lhs, rhsCopy, out);
+            masm.vmovhlps(lhs, rhs, out);
         } else {
-            masm.loadAlignedFloat32x4(rhs, ScratchSimdReg);
+            masm.moveFloat32x4(rhs, ScratchSimdReg);
             masm.vmovhlps(lhs, ScratchSimdReg, ScratchSimdReg);
             masm.moveFloat32x4(ScratchSimdReg, out);
         }
@@ -2469,16 +2463,7 @@ CodeGeneratorX86Shared::visitSimdShuffle(LSimdShuffle *ins)
     }
 
     if (ins->lanesMatch(0, 1, 4, 5)) {
-        FloatRegister rhsCopy;
-        if (rhs.kind() == Operand::FPREG) {
-            // No need to make an actual copy, since the operand is already
-            // in a register, and it won't be clobbered by the vmovlhps.
-            rhsCopy = FloatRegister::FromCode(rhs.fpu());
-        } else {
-            masm.loadAlignedFloat32x4(rhs, ScratchSimdReg);
-            rhsCopy = ScratchSimdReg;
-        }
-        masm.vmovlhps(rhsCopy, lhs, out);
+        masm.vmovlhps(rhs, lhs, out);
         return;
     }
 
@@ -2490,10 +2475,9 @@ CodeGeneratorX86Shared::visitSimdShuffle(LSimdShuffle *ins)
     // TODO swapped case would be better (bug 1084404)
     if (ins->lanesMatch(4, 0, 5, 1)) {
         if (AssemblerX86Shared::HasAVX()) {
-            FloatRegister rhsCopy = masm.reusedInputAlignedFloat32x4(rhs, ScratchSimdReg);
-            masm.vunpcklps(lhs, rhsCopy, out);
+            masm.vunpcklps(lhs, rhs, out);
         } else {
-            masm.loadAlignedFloat32x4(rhs, ScratchSimdReg);
+            masm.moveFloat32x4(rhs, ScratchSimdReg);
             masm.vunpcklps(lhs, ScratchSimdReg, ScratchSimdReg);
             masm.moveFloat32x4(ScratchSimdReg, out);
         }
@@ -2501,17 +2485,16 @@ CodeGeneratorX86Shared::visitSimdShuffle(LSimdShuffle *ins)
     }
 
     if (ins->lanesMatch(2, 6, 3, 7)) {
-        masm.vunpckhps(rhs, lhs, out);
+        masm.vunpckhps(rhs, lhs, lhs);
         return;
     }
 
     // TODO swapped case would be better (bug 1084404)
     if (ins->lanesMatch(6, 2, 7, 3)) {
         if (AssemblerX86Shared::HasAVX()) {
-            FloatRegister rhsCopy = masm.reusedInputAlignedFloat32x4(rhs, ScratchSimdReg);
-            masm.vunpckhps(lhs, rhsCopy, out);
+            masm.vunpckhps(lhs, rhs, out);
         } else {
-            masm.loadAlignedFloat32x4(rhs, ScratchSimdReg);
+            masm.moveFloat32x4(rhs, ScratchSimdReg);
             masm.vunpckhps(lhs, ScratchSimdReg, ScratchSimdReg);
             masm.moveFloat32x4(ScratchSimdReg, out);
         }
@@ -2521,7 +2504,7 @@ CodeGeneratorX86Shared::visitSimdShuffle(LSimdShuffle *ins)
     // In one vshufps
     if (x < 4 && y < 4) {
         mask = MacroAssembler::ComputeShuffleMask(x, y, z % 4, w % 4);
-        masm.vshufps(mask, rhs, lhs, out);
+        masm.vshufps(mask, rhs, out, out);
         return;
     }
 

@@ -3966,12 +3966,14 @@ LIRGenerator::visitSimdShuffle(MSimdShuffle *ins)
     bool wFromLHS = ins->laneW() < 4;
     uint32_t lanesFromLHS = (ins->laneX() < 4) + (ins->laneY() < 4) + zFromLHS + wFromLHS;
 
-    LSimdShuffle *lir = new (alloc()) LSimdShuffle();
-    lowerForFPU(lir, ins, ins->lhs(), ins->rhs());
+    LUse lhs = useRegisterAtStart(ins->lhs());
+    LUse rhs = useRegister(ins->rhs());
 
     // See codegen for requirements details.
     LDefinition temp = (lanesFromLHS == 3) ? tempCopy(ins->rhs(), 1) : LDefinition::BogusTemp();
-    lir->setTemp(0, temp);
+
+    LSimdShuffle *lir = new (alloc()) LSimdShuffle(lhs, rhs, temp);
+    defineReuseInput(lir, ins, 0);
 }
 
 void

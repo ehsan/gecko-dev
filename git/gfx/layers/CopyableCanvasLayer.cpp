@@ -32,7 +32,6 @@ CopyableCanvasLayer::CopyableCanvasLayer(LayerManager* aLayerManager, void *aImp
   CanvasLayer(aLayerManager, aImplData)
   , mGLFrontbuffer(nullptr)
   , mIsAlphaPremultiplied(true)
-  , mOriginPos(gl::OriginPos::TopLeft)
 {
   MOZ_COUNT_CTOR(CopyableCanvasLayer);
 }
@@ -50,8 +49,7 @@ CopyableCanvasLayer::Initialize(const Data& aData)
   if (aData.mGLContext) {
     mGLContext = aData.mGLContext;
     mIsAlphaPremultiplied = aData.mIsGLAlphaPremult;
-    mOriginPos = gl::OriginPos::BottomLeft;
-
+    mNeedsYFlip = true;
     MOZ_ASSERT(mGLContext->IsOffscreen(), "canvas gl context isn't offscreen");
 
     if (aData.mFrontbufferGLTex) {
@@ -65,8 +63,9 @@ CopyableCanvasLayer::Initialize(const Data& aData)
   } else if (aData.mDrawTarget) {
     mDrawTarget = aData.mDrawTarget;
     mSurface = mDrawTarget->Snapshot();
+    mNeedsYFlip = false;
   } else {
-    MOZ_CRASH("CanvasLayer created without mSurface, mDrawTarget or mGLContext?");
+    NS_ERROR("CanvasLayer created without mSurface, mDrawTarget or mGLContext?");
   }
 
   mBounds.SetRect(0, 0, aData.mSize.width, aData.mSize.height);

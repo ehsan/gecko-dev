@@ -4550,7 +4550,7 @@ nsCSSFrameConstructor::FindDisplayData(const nsStyleDisplay* aDisplay,
     }
 
     // Handle various non-scrollable blocks.
-    static const FrameConstructionData sNonScrollableBlockData[2][2] = {
+    static const FrameConstructionData sNonScrollableBlockData[2][2] {
       { FULL_CTOR_FCDATA(0,
                          &nsCSSFrameConstructor::ConstructNonScrollableBlock),
         FULL_CTOR_FCDATA(kCaptionCtorFlags,
@@ -6070,11 +6070,8 @@ AdjustAppendParentForAfterContent(nsFrameManager* aFrameManager,
       if (child && child->IsPseudoFrame(aContainer) &&
           !child->IsGeneratedContentFrame()) {
         // Drill down into non-generated pseudo frames of aContainer.
-        nsContainerFrame* childAsContainer = do_QueryFrame(child);
-        if (childAsContainer) {
-          parent = nsLayoutUtils::LastContinuationWithChild(childAsContainer);
-          continue;
-        }
+        parent = nsLayoutUtils::LastContinuationWithChild(do_QueryFrame(child));
+        continue;
       }
 
       for (; child; child = child->GetPrevSibling()) {

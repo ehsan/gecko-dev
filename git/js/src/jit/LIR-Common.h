@@ -299,8 +299,12 @@ class LSimdShuffle : public LInstructionHelper<1, 2, 1>
 {
   public:
     LIR_HEADER(SimdShuffle);
-    LSimdShuffle()
-    {}
+    LSimdShuffle(const LAllocation &lhs, const LAllocation &rhs, const LDefinition &temp)
+    {
+        setOperand(0, lhs);
+        setOperand(1, rhs);
+        setTemp(0, temp);
+    }
 
     const LAllocation *lhs() {
         return getOperand(0);
