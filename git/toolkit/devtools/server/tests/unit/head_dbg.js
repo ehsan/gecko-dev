@@ -103,7 +103,7 @@ function testGlobal(aName) {
     .createInstance(Ci.nsIPrincipal);
 
   let sandbox = Cu.Sandbox(systemPrincipal);
-  sandbox.__name = aName;
+  Cu.evalInSandbox("this.__name = '" + aName + "'", sandbox);
   return sandbox;
 }
 

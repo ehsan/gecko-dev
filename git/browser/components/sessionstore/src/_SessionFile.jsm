@@ -75,7 +75,7 @@ this._SessionFile = {
    * state. This must only be called once, it will throw an error otherwise.
    */
   writeLoadStateOnceAfterStartup: function (aLoadState) {
-    SessionFileInternal.writeLoadStateOnceAfterStartup(aLoadState);
+    return SessionFileInternal.writeLoadStateOnceAfterStartup(aLoadState);
   },
   /**
    * Create a backup copy, asynchronously.
@@ -95,7 +95,7 @@ this._SessionFile = {
    * Wipe the contents of the session file, asynchronously.
    */
   wipe: function () {
-    SessionFileInternal.wipe();
+    return SessionFileInternal.wipe();
   }
 };
 
@@ -231,7 +231,7 @@ let SessionFileInternal = {
   },
 
   writeLoadStateOnceAfterStartup: function (aLoadState) {
-    SessionWorker.post("writeLoadStateOnceAfterStartup", [aLoadState]).then(msg => {
+    return SessionWorker.post("writeLoadStateOnceAfterStartup", [aLoadState]).then(msg => {
       this._recordTelemetry(msg.telemetry);
       return msg;
     });
@@ -246,7 +246,7 @@ let SessionFileInternal = {
   },
 
   wipe: function () {
-    SessionWorker.post("wipe");
+    return SessionWorker.post("wipe");
   },
 
   _recordTelemetry: function(telemetry) {

@@ -32,19 +32,12 @@ TelephonyListener::CallStateChanged(uint32_t aCallIndex,
                                     const nsAString& aNumber,
                                     bool aIsActive,
                                     bool aIsOutgoing,
-                                    bool aIsEmergency,
-                                    bool aIsConference)
+                                    bool aIsEmergency)
 {
   BluetoothHfpManager* hfp = BluetoothHfpManager::Get();
   hfp->HandleCallStateChanged(aCallIndex, aCallState, EmptyString(), aNumber,
                               aIsOutgoing, true);
 
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-TelephonyListener::ConferenceCallStateChanged(uint16_t aCallState)
-{
   return NS_OK;
 }
 
@@ -61,7 +54,6 @@ TelephonyListener::EnumerateCallState(uint32_t aCallIndex,
                                       bool aIsActive,
                                       bool aIsOutgoing,
                                       bool aIsEmergency,
-                                      bool aIsConference,
                                       bool* aResult)
 {
   BluetoothHfpManager* hfp = BluetoothHfpManager::Get();

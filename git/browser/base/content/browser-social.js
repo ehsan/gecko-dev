@@ -36,7 +36,6 @@ SocialUI = {
     Services.obs.addObserver(this, "social:frameworker-error", false);
     Services.obs.addObserver(this, "social:provider-set", false);
     Services.obs.addObserver(this, "social:providers-changed", false);
-    Services.obs.addObserver(this, "social:provider-reload", false);
 
     Services.prefs.addObserver("social.sidebar.open", this, false);
     Services.prefs.addObserver("social.toast-notifications.enabled", this, false);
@@ -61,7 +60,6 @@ SocialUI = {
     Services.obs.removeObserver(this, "social:frameworker-error");
     Services.obs.removeObserver(this, "social:provider-set");
     Services.obs.removeObserver(this, "social:providers-changed");
-    Services.obs.removeObserver(this, "social:provider-reload");
 
     Services.prefs.removeObserver("social.sidebar.open", this);
     Services.prefs.removeObserver("social.toast-notifications.enabled", this);
@@ -76,16 +74,6 @@ SocialUI = {
     // manually :(
     try {
       switch (topic) {
-        case "social:provider-reload":
-          // if the reloaded provider is our current provider, fall through
-          // to social:provider-set so the ui will be reset
-          if (!Social.provider || Social.provider.origin != data)
-            return;
-          // be sure to unload the sidebar as it will not reload if the origin
-          // has not changed, it will be loaded in provider-set below. Other
-          // panels will be unloaded or handle reload.
-          SocialSidebar.unloadSidebar();
-          // fall through to social:provider-set
         case "social:provider-set":
           // Social.provider has changed (possibly to null), update any state
           // which depends on it.
@@ -154,7 +142,7 @@ SocialUI = {
 
   // Miscellaneous helpers
   showProfile: function SocialUI_showProfile() {
-    if (Social.provider.haveLoggedInUser())
+    if (Social.haveLoggedInUser())
       openUILinkIn(Social.provider.profile.profileURL, "tab");
     else {
       // XXX Bug 789585 will implement an API for provider-specified login pages.
@@ -988,20 +976,22 @@ SocialToolbar = {
     let toggleNotificationsCommand = document.getElementById("Social:ToggleNotifications");
     toggleNotificationsCommand.setAttribute("hidden", !socialEnabled);
 
-    let parent = document.getElementById("social-notification-panel");
-    while (parent.hasChildNodes()) {
-      let frame = parent.firstChild;
-      SharedFrame.forgetGroup(frame.id);
-      parent.removeChild(frame);
-    }
+    if (!Social.haveLoggedInUser() || !socialEnabled) {
+      let parent = document.getElementById("social-notification-panel");
+      while (parent.hasChildNodes()) {
+        let frame = parent.firstChild;
+        SharedFrame.forgetGroup(frame.id);
+        parent.removeChild(frame);
+      }
 
-    let tbi = document.getElementById("social-toolbar-item");
-    if (tbi) {
-      // SocialMark is the last button allways
-      let next = SocialMark.button.previousSibling;
-      while (next != this.button) {
-        tbi.removeChild(next);
-        next = SocialMark.button.previousSibling;
+      let tbi = document.getElementById("social-toolbar-item");
+      if (tbi) {
+        // SocialMark is the last button allways
+        let next = SocialMark.button.previousSibling;
+        while (next != this.button) {
+          tbi.removeChild(next);
+          next = SocialMark.button.previousSibling;
+        }
       }
     }
   },
@@ -1045,7 +1035,7 @@ SocialToolbar = {
     // provider.profile == undefined means no response yet from the provider
     // to tell us whether the user is logged in or not.
     if (!SocialUI.enabled ||
-        (!Social.provider.haveLoggedInUser() && Social.provider.profile !== undefined)) {
+        (!Social.haveLoggedInUser() && Social.provider.profile !== undefined)) {
       // Either no enabled provider, or there is a provider and it has
       // responded with a profile and the user isn't loggedin.  The icons
       // etc have already been removed by updateButtonHiddenState, so we want

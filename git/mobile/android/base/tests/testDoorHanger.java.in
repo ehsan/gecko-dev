@@ -47,7 +47,7 @@ public class testDoorHanger extends BaseTest {
         blockForGeckoReady();
 
         // Test geolocation notification
-        inputAndLoadUrl(GEO_URL);
+        loadUrl(GEO_URL);
         waitForText(GEO_MESSAGE);
         mAsserter.is(mSolo.searchText(GEO_MESSAGE), true, "Geolocation doorhanger has been displayed");
 
@@ -57,7 +57,7 @@ public class testDoorHanger extends BaseTest {
         mAsserter.is(mSolo.searchText(GEO_MESSAGE), false, "Geolocation doorhanger has been hidden when allowing share");
 
         // Re-trigger geolocation notification
-        inputAndLoadUrl(GEO_URL);
+        loadUrl(GEO_URL);
         waitForText(GEO_MESSAGE);
 
         // Test "Don't share" button hides the notification
@@ -65,9 +65,8 @@ public class testDoorHanger extends BaseTest {
         mSolo.clickOnButton(GEO_DENY);
         mAsserter.is(mSolo.searchText(GEO_MESSAGE), false, "Geolocation doorhanger has been hidden when denying share");
 
-        /* FIXME: disabled on fig - bug 880060 (for some reason this fails because of some raciness)
         // Re-trigger geolocation notification
-        inputAndLoadUrl(GEO_URL);
+        loadUrl(GEO_URL);
         waitForText(GEO_MESSAGE);
 
         // Add a new tab
@@ -75,7 +74,6 @@ public class testDoorHanger extends BaseTest {
 
         // Make sure doorhanger is hidden
         mAsserter.is(mSolo.searchText(GEO_MESSAGE), false, "Geolocation doorhanger notification is hidden when opening a new tab");
-        */
 
 
         boolean offlineAllowedByDefault = true;
@@ -117,7 +115,7 @@ public class testDoorHanger extends BaseTest {
         }
 
         // Load offline storage page
-        inputAndLoadUrl(OFFLINE_STORAGE_URL);
+        loadUrl(OFFLINE_STORAGE_URL);
         waitForText(OFFLINE_MESSAGE);
 
         // Test doorhanger dismissed when tapping "Don't share"
@@ -126,13 +124,13 @@ public class testDoorHanger extends BaseTest {
         mAsserter.is(mSolo.searchText(OFFLINE_MESSAGE), false, "Offline storage doorhanger notification is hidden when denying storage");
 
         // Load offline storage page
-        inputAndLoadUrl(OFFLINE_STORAGE_URL);
+        loadUrl(OFFLINE_STORAGE_URL);
         waitForText(OFFLINE_MESSAGE);
 
         // Test doorhanger dismissed when tapping "Allow" and is not displayed again
         mSolo.clickOnButton(OFFLINE_ALLOW);
         mAsserter.is(mSolo.searchText(OFFLINE_MESSAGE), false, "Offline storage doorhanger notification is hidden when allowing storage");
-        inputAndLoadUrl(OFFLINE_STORAGE_URL);
+        loadUrl(OFFLINE_STORAGE_URL);
         mAsserter.is(mSolo.searchText(OFFLINE_MESSAGE), false, "Offline storage doorhanger is no longer triggered");
 
         try {
@@ -148,7 +146,7 @@ public class testDoorHanger extends BaseTest {
 
 
         // Load login page
-        inputAndLoadUrl(LOGIN_URL);
+        loadUrl(LOGIN_URL);
         waitForText(LOGIN_MESSAGE);
 
         // Test doorhanger is dismissed when tapping "Don't save"
@@ -156,7 +154,7 @@ public class testDoorHanger extends BaseTest {
         mAsserter.is(mSolo.searchText(LOGIN_MESSAGE), false, "Login doorhanger notification is hidden when denying saving password");
 
         // Load login page
-        inputAndLoadUrl(LOGIN_URL);
+        loadUrl(LOGIN_URL);
         waitForText(LOGIN_MESSAGE);
 
         // Test doorhanger is dismissed when tapping "Save" and is no longer triggered
@@ -164,7 +162,7 @@ public class testDoorHanger extends BaseTest {
         mAsserter.is(mSolo.searchText(LOGIN_MESSAGE), false, "Login doorhanger notification is hidden when allowing saving password");
 
         // Reload the page and check that there is no doorhanger displayed
-        inputAndLoadUrl(LOGIN_URL);
+        loadUrl(LOGIN_URL);
         mAsserter.is(mSolo.searchText(LOGIN_MESSAGE), false, "Login doorhanger is not re-triggered");
     }
 }
