@@ -649,9 +649,6 @@ nsEventDispatcher::CreateEvent(nsPresContext* aPresContext,
       return NS_NewDOMNotifyPaintEvent(aDOMEvent, aPresContext,
                                        static_cast<nsNotifyPaintEvent*>
                                                      (aEvent));
-    case NS_SIMPLE_GESTURE_EVENT:
-      return NS_NewDOMSimpleGestureEvent(aDOMEvent, aPresContext,
-                                         static_cast<nsSimpleGestureEvent*>(aEvent));
     }
 
     // For all other types of events, create a vanilla event object.
@@ -710,8 +707,6 @@ nsEventDispatcher::CreateEvent(nsPresContext* aPresContext,
     return NS_NewDOMProgressEvent(aDOMEvent, aPresContext, nsnull);
   if (aEventType.LowerCaseEqualsLiteral("notifypaintevent"))
     return NS_NewDOMNotifyPaintEvent(aDOMEvent, aPresContext, nsnull);
-  if (aEventType.LowerCaseEqualsLiteral("simplegestureevent"))
-    return NS_NewDOMSimpleGestureEvent(aDOMEvent, aPresContext, nsnull);
 
   return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
 }
