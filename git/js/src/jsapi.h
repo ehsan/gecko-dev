@@ -3478,7 +3478,7 @@ class JS_FRIEND_API(ReadOnlyCompileOptions)
         asmJSOption(false),
         forceAsync(false),
         sourcePolicy(SAVE_SOURCE),
-        introductionType(nullptr),
+        introducer(nullptr),
         introductionLineno(0),
         introductionOffset(0),
         hasIntroductionInfo(false)
@@ -3521,9 +3521,9 @@ class JS_FRIEND_API(ReadOnlyCompileOptions)
         SAVE_SOURCE
     } sourcePolicy;
 
-    // |introductionType| is a statically allocated C string:
+    // |introducer| is a statically allocated C string:
     // one of "eval", "Function", or "GeneratorFunction".
-    const char *introductionType;
+    const char *introducer;
     unsigned introductionLineno;
     uint32_t introductionOffset;
     bool hasIntroductionInfo;
@@ -3616,7 +3616,7 @@ class JS_FRIEND_API(OwningCompileOptions) : public ReadOnlyCompileOptions
     {
         if (!setIntroducerFilename(cx, introducerFn))
             return false;
-        introductionType = intro;
+        introducer = intro;
         introductionLineno = line;
         introductionOffset = offset;
         hasIntroductionInfo = true;
@@ -3692,7 +3692,7 @@ class MOZ_STACK_CLASS JS_FRIEND_API(CompileOptions) : public ReadOnlyCompileOpti
                                         unsigned line, uint32_t offset)
     {
         introducerFilename_ = introducerFn;
-        introductionType = intro;
+        introducer = intro;
         introductionLineno = line;
         introductionOffset = offset;
         hasIntroductionInfo = true;

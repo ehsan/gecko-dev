@@ -37,7 +37,7 @@ public:
   int32_t PointerId();
   int32_t Width();
   int32_t Height();
-  float Pressure();
+  int32_t Pressure();
   int32_t TiltX();
   int32_t TiltY();
   bool IsPrimary();

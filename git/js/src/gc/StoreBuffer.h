@@ -115,8 +115,6 @@ class StoreBuffer
             return !storage_->isEmpty() && storage_->availableInCurrentChunk() < MinAvailableSize;
         }
 
-        void handleOverflow(StoreBuffer *owner);
-
         /* Compaction algorithms. */
         void compactRemoveDuplicates(StoreBuffer *owner);
 
@@ -137,8 +135,11 @@ class StoreBuffer
             if (!tp)
                 CrashAtUnhandlableOOM("Failed to allocate for MonoTypeBuffer::put.");
 
-            if (isAboutToOverflow())
-                handleOverflow(owner);
+            if (isAboutToOverflow()) {
+                compact(owner);
+                if (isAboutToOverflow())
+                    owner->setAboutToOverflow();
+            }
         }
 
         /* Mark the source of all edges in the store buffer. */

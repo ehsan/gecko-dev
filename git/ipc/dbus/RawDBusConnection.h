@@ -31,8 +31,6 @@ public:
 
   nsresult EstablishDBusConnection();
 
-  bool Watch();
-
   DBusConnection* GetConnection()
   {
     return mConnection;

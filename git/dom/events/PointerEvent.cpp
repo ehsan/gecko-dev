@@ -115,7 +115,7 @@ int32_t PointerEvent::Height()
   return mEvent->AsPointerEvent()->height;
 }
 
-float PointerEvent::Pressure()
+int32_t PointerEvent::Pressure()
 {
   return mEvent->AsPointerEvent()->pressure;
 }
