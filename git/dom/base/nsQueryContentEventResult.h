@@ -31,7 +31,7 @@ protected:
 
   uint32_t mOffset;
   nsString mString;
-  mozilla::LayoutDeviceIntRect mRect;
+  nsIntRect mRect;
 
   bool mSucceeded;
   bool mReversed;

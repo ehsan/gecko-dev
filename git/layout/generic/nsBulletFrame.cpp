@@ -39,7 +39,6 @@
 
 using namespace mozilla;
 using namespace mozilla::gfx;
-using namespace mozilla::image;
 
 NS_DECLARE_FRAME_PROPERTY(FontSizeInflationProperty, nullptr)
 
@@ -170,14 +169,11 @@ nsBulletFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
 #endif
 }
 
-class nsDisplayBulletGeometry
-  : public nsDisplayItemGenericGeometry
-  , public nsImageGeometryMixin<nsDisplayBulletGeometry>
+class nsDisplayBulletGeometry : public nsDisplayItemGenericGeometry
 {
 public:
   nsDisplayBulletGeometry(nsDisplayItem* aItem, nsDisplayListBuilder* aBuilder)
     : nsDisplayItemGenericGeometry(aItem, aBuilder)
-    , nsImageGeometryMixin(aItem)
   {
     nsBulletFrame* f = static_cast<nsBulletFrame*>(aItem->Frame());
     mOrdinal = f->GetOrdinal();
@@ -238,8 +234,10 @@ public:
     }
 
     nsCOMPtr<imgIContainer> image = f->GetImage();
-    if (aBuilder->ShouldSyncDecodeImages() && image &&
-        geometry->LastDrawResult() != DrawResult::SUCCESS) {
+    if (aBuilder->ShouldSyncDecodeImages() && image && !image->IsDecoded()) {
+      // If we are going to do a sync decode and we are not decoded then we are
+      // going to be drawing something different from what is currently there,
+      // so we add our bounds to the invalid region.
       bool snap;
       aInvalidRegion->Or(*aInvalidRegion, GetBounds(aBuilder, &snap));
     }
@@ -255,11 +253,8 @@ void nsDisplayBullet::Paint(nsDisplayListBuilder* aBuilder,
   if (aBuilder->ShouldSyncDecodeImages()) {
     flags |= imgIContainer::FLAG_SYNC_DECODE;
   }
-
-  DrawResult result = static_cast<nsBulletFrame*>(mFrame)->
+  static_cast<nsBulletFrame*>(mFrame)->
     PaintBullet(*aCtx, ToReferenceFrame(), mVisibleRect, flags);
-
-  nsDisplayBulletGeometry::UpdateDrawResult(this, result);
 }
 
 void
@@ -276,7 +271,7 @@ nsBulletFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     new (aBuilder) nsDisplayBullet(aBuilder, this));
 }
 
-DrawResult
+void
 nsBulletFrame::PaintBullet(nsRenderingContext& aRenderingContext, nsPoint aPt,
                            const nsRect& aDirtyRect, uint32_t aFlags)
 {
@@ -295,11 +290,11 @@ nsBulletFrame::PaintBullet(nsRenderingContext& aRenderingContext, nsPoint aPt,
         nsRect dest(padding.left, padding.top,
                     mRect.width - (padding.left + padding.right),
                     mRect.height - (padding.top + padding.bottom));
-        return
-          nsLayoutUtils::DrawSingleImage(*aRenderingContext.ThebesContext(),
+        nsLayoutUtils::DrawSingleImage(*aRenderingContext.ThebesContext(),
              PresContext(),
              imageCon, nsLayoutUtils::GetGraphicsFilterForFrame(this),
              dest + aPt, aDirtyRect, nullptr, aFlags);
+        return;
       }
     }
   }
@@ -437,8 +432,6 @@ nsBulletFrame::PaintBullet(nsRenderingContext& aRenderingContext, nsPoint aPt,
     }
     break;
   }
-
-  return DrawResult::SUCCESS;
 }
 
 int32_t

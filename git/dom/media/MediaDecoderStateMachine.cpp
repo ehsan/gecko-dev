@@ -657,6 +657,42 @@ MediaDecoderStateMachine::NeedToSkipToNextKeyframe()
   return false;
 }
 
+void
+MediaDecoderStateMachine::DecodeVideo()
+{
+  int64_t currentTime = 0;
+  bool skipToNextKeyFrame = false;
+  {
+    ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
+    NS_ASSERTION(OnDecodeThread(), "Should be on decode thread.");
+
+    if (mState != DECODER_STATE_DECODING &&
+        mState != DECODER_STATE_DECODING_FIRSTFRAME &&
+        mState != DECODER_STATE_BUFFERING &&
+        mState != DECODER_STATE_SEEKING) {
+      mVideoRequestStatus = RequestStatus::Idle;
+      DispatchDecodeTasksIfNeeded();
+      return;
+    }
+
+    skipToNextKeyFrame = NeedToSkipToNextKeyframe();
+    currentTime = mState == DECODER_STATE_SEEKING ? 0 : GetMediaTime();
+
+    // Time the video decode, so that if it's slow, we can increase our low
+    // audio threshold to reduce the chance of an audio underrun while we're
+    // waiting for a video decode to complete.
+    mVideoDecodeStartTime = TimeStamp::Now();
+  }
+
+  SAMPLE_LOG("DecodeVideo() queued=%i, decoder-queued=%o, skip=%i, time=%lld",
+             VideoQueue().GetSize(), mReader->SizeOfVideoQueueInFrames(), skipToNextKeyFrame, currentTime);
+
+  mReader->RequestVideoData(skipToNextKeyFrame, currentTime)
+         ->Then(DecodeTaskQueue(), __func__, this,
+                &MediaDecoderStateMachine::OnVideoDecoded,
+                &MediaDecoderStateMachine::OnVideoNotDecoded);
+}
+
 bool
 MediaDecoderStateMachine::NeedToDecodeAudio()
 {
@@ -673,6 +709,32 @@ MediaDecoderStateMachine::NeedToDecodeAudio()
           (!mMinimizePreroll &&
           !HaveEnoughDecodedAudio(mAmpleAudioThresholdUsecs * mPlaybackRate) &&
           (mState != DECODER_STATE_SEEKING || mDecodeToSeekTarget)));
+}
+
+void
+MediaDecoderStateMachine::DecodeAudio()
+{
+  {
+    ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
+    NS_ASSERTION(OnDecodeThread(), "Should be on decode thread.");
+
+    if (mState != DECODER_STATE_DECODING &&
+        mState != DECODER_STATE_DECODING_FIRSTFRAME &&
+        mState != DECODER_STATE_BUFFERING &&
+        mState != DECODER_STATE_SEEKING) {
+      mAudioRequestStatus = RequestStatus::Idle;
+      DispatchDecodeTasksIfNeeded();
+      mon.NotifyAll();
+      return;
+    }
+  }
+
+  SAMPLE_LOG("DecodeAudio() queued=%i, decoder-queued=%o",
+             AudioQueue().GetSize(), mReader->SizeOfAudioQueueInFrames());
+
+  mReader->RequestAudioData()->Then(DecodeTaskQueue(), __func__, this,
+                                    &MediaDecoderStateMachine::OnAudioDecoded,
+                                    &MediaDecoderStateMachine::OnAudioNotDecoded);
 }
 
 bool
@@ -1927,25 +1989,22 @@ MediaDecoderStateMachine::EnsureAudioDecodeTaskQueued()
   SAMPLE_LOG("EnsureAudioDecodeTaskQueued isDecoding=%d status=%d",
               IsAudioDecoding(), mAudioRequestStatus);
 
-  if (mState != DECODER_STATE_DECODING &&
-      mState != DECODER_STATE_DECODING_FIRSTFRAME &&
-      mState != DECODER_STATE_BUFFERING &&
-      mState != DECODER_STATE_SEEKING) {
+  if (mState >= DECODER_STATE_COMPLETED || mState == DECODER_STATE_DORMANT) {
     return NS_OK;
   }
 
-  if (!IsAudioDecoding() || mAudioRequestStatus != RequestStatus::Idle || mWaitingForDecoderSeek) {
-    return NS_OK;
+  MOZ_ASSERT(mState >= DECODER_STATE_DECODING_FIRSTFRAME);
+
+  if (IsAudioDecoding() && mAudioRequestStatus == RequestStatus::Idle && !mWaitingForDecoderSeek) {
+    RefPtr<nsIRunnable> task(
+      NS_NewRunnableMethod(this, &MediaDecoderStateMachine::DecodeAudio));
+    nsresult rv = DecodeTaskQueue()->Dispatch(task);
+    if (NS_SUCCEEDED(rv)) {
+      mAudioRequestStatus = RequestStatus::Pending;
+    } else {
+      DECODER_WARN("Failed to dispatch task to decode audio");
+    }
   }
-
-  SAMPLE_LOG("Queueing audio task - queued=%i, decoder-queued=%o",
-             AudioQueue().GetSize(), mReader->SizeOfAudioQueueInFrames());
-
-  mAudioRequestStatus = RequestStatus::Pending;
-  ProxyMediaCall(DecodeTaskQueue(), mReader.get(), __func__, &MediaDecoderReader::RequestAudioData)
-    ->Then(DecodeTaskQueue(), __func__, this,
-           &MediaDecoderStateMachine::OnAudioDecoded,
-           &MediaDecoderStateMachine::OnAudioNotDecoded);
 
   return NS_OK;
 }
@@ -1975,35 +2034,22 @@ MediaDecoderStateMachine::EnsureVideoDecodeTaskQueued()
   NS_ASSERTION(OnStateMachineThread() || OnDecodeThread(),
                "Should be on state machine or decode thread.");
 
-  if (mState != DECODER_STATE_DECODING &&
-      mState != DECODER_STATE_DECODING_FIRSTFRAME &&
-      mState != DECODER_STATE_BUFFERING &&
-      mState != DECODER_STATE_SEEKING) {
+  if (mState >= DECODER_STATE_COMPLETED || mState == DECODER_STATE_DORMANT) {
     return NS_OK;
   }
 
-  if (!IsVideoDecoding() || mVideoRequestStatus != RequestStatus::Idle || mWaitingForDecoderSeek) {
-    return NS_OK;
+  MOZ_ASSERT(mState >= DECODER_STATE_DECODING_FIRSTFRAME);
+
+  if (IsVideoDecoding() && mVideoRequestStatus == RequestStatus::Idle && !mWaitingForDecoderSeek) {
+    RefPtr<nsIRunnable> task(
+      NS_NewRunnableMethod(this, &MediaDecoderStateMachine::DecodeVideo));
+    nsresult rv = DecodeTaskQueue()->Dispatch(task);
+    if (NS_SUCCEEDED(rv)) {
+      mVideoRequestStatus = RequestStatus::Pending;
+    } else {
+      DECODER_WARN("Failed to dispatch task to decode video");
+    }
   }
-
-  bool skipToNextKeyFrame = NeedToSkipToNextKeyframe();
-  int64_t currentTime = mState == DECODER_STATE_SEEKING ? 0 : GetMediaTime();
-
-  // Time the video decode, so that if it's slow, we can increase our low
-  // audio threshold to reduce the chance of an audio underrun while we're
-  // waiting for a video decode to complete.
-  mVideoDecodeStartTime = TimeStamp::Now();
-
-  SAMPLE_LOG("Queueing video task - queued=%i, decoder-queued=%o, skip=%i, time=%lld",
-             VideoQueue().GetSize(), mReader->SizeOfVideoQueueInFrames(), skipToNextKeyFrame,
-             currentTime);
-
-  mVideoRequestStatus = RequestStatus::Pending;
-  ProxyMediaCall(DecodeTaskQueue(), mReader.get(), __func__,
-                 &MediaDecoderReader::RequestVideoData, skipToNextKeyFrame, currentTime)
-    ->Then(DecodeTaskQueue(), __func__, this,
-           &MediaDecoderStateMachine::OnVideoDecoded,
-           &MediaDecoderStateMachine::OnVideoNotDecoded);
 
   return NS_OK;
 }

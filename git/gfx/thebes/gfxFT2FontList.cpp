@@ -687,8 +687,9 @@ public:
             }
             uint32_t filesize = strtoul(beginning, nullptr, 10);
 
-            FNCMapEntry* mapEntry = static_cast<FNCMapEntry*>
-                (PL_DHashTableAdd(&mMap, filename.get(), fallible));
+            FNCMapEntry* mapEntry =
+                static_cast<FNCMapEntry*>
+                (PL_DHashTableAdd(&mMap, filename.get()));
             if (mapEntry) {
                 mapEntry->mFilename.Assign(filename);
                 mapEntry->mTimestamp = timestamp;
@@ -735,8 +736,9 @@ public:
         if (!mMap.IsInitialized()) {
             return;
         }
-        FNCMapEntry* entry = static_cast<FNCMapEntry*>
-            (PL_DHashTableAdd(&mMap, aFileName.get(), fallible));
+        FNCMapEntry* entry =
+            static_cast<FNCMapEntry*>
+            (PL_DHashTableAdd(&mMap, aFileName.get()));
         if (entry) {
             entry->mFilename.Assign(aFileName);
             entry->mTimestamp = aTimestamp;

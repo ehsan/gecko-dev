@@ -22,7 +22,6 @@
 #ifdef MOZ_WIDGET_ANDROID
 #include "AndroidDecoderModule.h"
 #endif
-#include "GMPDecoderModule.h"
 
 #include "mozilla/Preferences.h"
 #ifdef MOZ_EME
@@ -41,7 +40,6 @@ bool PlatformDecoderModule::sFFmpegDecoderEnabled = false;
 bool PlatformDecoderModule::sGonkDecoderEnabled = false;
 bool PlatformDecoderModule::sAndroidMCDecoderEnabled = false;
 bool PlatformDecoderModule::sAndroidMCDecoderPreferred = false;
-bool PlatformDecoderModule::sGMPDecoderEnabled = false;
 
 /* static */
 void
@@ -69,9 +67,6 @@ PlatformDecoderModule::Init()
   Preferences::AddBoolVarCache(&sAndroidMCDecoderPreferred,
                                "media.fragmented-mp4.android-media-codec.preferred", false);
 #endif
-
-  Preferences::AddBoolVarCache(&sGMPDecoderEnabled,
-                               "media.fragmented-mp4.gmp.enabled", false);
 
 #ifdef XP_WIN
   WMFDecoderModule::Init();
@@ -172,10 +167,6 @@ PlatformDecoderModule::CreatePDM()
     return m.forget();
   }
 #endif
-  if (sGMPDecoderEnabled) {
-    nsRefPtr<PlatformDecoderModule> m(new AVCCDecoderModule(new GMPDecoderModule()));
-    return m.forget();
-  }
   return nullptr;
 }
 

@@ -33,9 +33,11 @@ function run_test()
 
     if ("*." == firstTwo)
     {
-      let rest = line.substring(2);
-      checkPublicSuffix("foo.SUPER-SPECIAL-AWESOME-PREFIX." + rest,
-                        "SUPER-SPECIAL-AWESOME-PREFIX." + rest);
+      let (rest = line.substring(2))
+      {
+        checkPublicSuffix("foo.SUPER-SPECIAL-AWESOME-PREFIX." + rest,
+                          "SUPER-SPECIAL-AWESOME-PREFIX." + rest);
+      }
     }
     else if ("!" == line.charAt(0))
     {

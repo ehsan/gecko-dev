@@ -996,16 +996,12 @@ DefineABIConstant(JSContext* cx,
                   ABICode code,
                   HandleObject prototype)
 {
-  RootedObject obj(cx, JS_NewObjectWithGivenProto(cx, &sCABIClass, prototype));
+  RootedObject obj(cx, JS_DefineObject(cx, parent, name, &sCABIClass, prototype,
+                                       JSPROP_ENUMERATE | JSPROP_READONLY | JSPROP_PERMANENT));
   if (!obj)
     return false;
   JS_SetReservedSlot(obj, SLOT_ABICODE, INT_TO_JSVAL(code));
-
-  if (!JS_FreezeObject(cx, obj))
-    return false;
-
-  return JS_DefineProperty(cx, parent, name, obj,
-                           JSPROP_ENUMERATE | JSPROP_READONLY | JSPROP_PERMANENT);
+  return JS_FreezeObject(cx, obj);
 }
 
 // Set up a single type constructor for

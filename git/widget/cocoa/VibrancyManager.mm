@@ -140,31 +140,18 @@ HitTestNil(id self, SEL _cmd, NSPoint aPoint)
   return nil;
 }
 
-static BOOL
-AllowsVibrancyYes(id self, SEL _cmd)
-{
-  // Means that the foreground is blended using a vibrant blend mode.
-  return YES;
-}
-
 static Class
-CreateEffectViewClass(BOOL aForegroundVibrancy)
+CreateEffectViewClass()
 {
   // Create a class called EffectView that inherits from NSVisualEffectView
   // and overrides the methods -[NSVisualEffectView drawRect:] and
   // -[NSView hitTest:].
   Class NSVisualEffectViewClass = NSClassFromString(@"NSVisualEffectView");
-  const char* className = aForegroundVibrancy
-    ? "EffectViewWithForegroundVibrancy" : "EffectViewWithoutForegroundVibrancy";
-  Class EffectViewClass = objc_allocateClassPair(NSVisualEffectViewClass, className, 0);
+  Class EffectViewClass = objc_allocateClassPair(NSVisualEffectViewClass, "EffectView", 0);
   class_addMethod(EffectViewClass, @selector(drawRect:), (IMP)DrawRectNothing,
                   "v@:{CGRect={CGPoint=dd}{CGSize=dd}}");
   class_addMethod(EffectViewClass, @selector(hitTest:), (IMP)HitTestNil,
                   "@@:{CGPoint=dd}");
-  if (aForegroundVibrancy) {
-    // Also override the -[NSView allowsVibrancy] method to return YES.
-    class_addMethod(EffectViewClass, @selector(allowsVibrancy), (IMP)AllowsVibrancyYes, "I@:");
-  }
   return EffectViewClass;
 }
 
@@ -175,8 +162,6 @@ AppearanceForVibrancyType(VibrancyType aType)
   switch (aType) {
     case VibrancyType::LIGHT:
     case VibrancyType::TOOLTIP:
-    case VibrancyType::MENU:
-    case VibrancyType::HIGHLIGHTED_MENUITEM:
       return [NSAppearanceClass performSelector:@selector(appearanceNamed:)
                                      withObject:@"NSAppearanceNameVibrantLight"];
     case VibrancyType::DARK:
@@ -191,76 +176,24 @@ enum {
   NSVisualEffectStateActive,
   NSVisualEffectStateInactive
 };
-
-enum {
-  NSVisualEffectMaterialTitlebar = 3
-};
 #endif
 
-static NSUInteger
-VisualEffectStateForVibrancyType(VibrancyType aType)
-{
-  switch (aType) {
-    case VibrancyType::TOOLTIP:
-    case VibrancyType::MENU:
-    case VibrancyType::HIGHLIGHTED_MENUITEM:
-      // Tooltip and menu windows are never "key", so we need to tell the
-      // vibrancy effect to look active regardless of window state.
-      return NSVisualEffectStateActive;
-    default:
-      return NSVisualEffectStateFollowsWindowActiveState;
-  }
-}
-
-static BOOL
-HasVibrantForeground(VibrancyType aType)
-{
-  switch (aType) {
-    case VibrancyType::MENU:
-      return YES;
-    default:
-      return NO;
-  }
-}
-
-enum {
-  NSVisualEffectMaterialMenuItem = 4
-};
-
-@interface NSView(NSVisualEffectViewMethods)
+@interface NSView(NSVisualEffectViewSetState)
 - (void)setState:(NSUInteger)state;
-- (void)setMaterial:(NSUInteger)material;
-- (void)setEmphasized:(BOOL)emphasized;
 @end
 
 NSView*
 VibrancyManager::CreateEffectView(VibrancyType aType, NSRect aRect)
 {
-  static Class EffectViewClassWithoutForegroundVibrancy = CreateEffectViewClass(NO);
-  static Class EffectViewClassWithForegroundVibrancy = CreateEffectViewClass(YES);
-
-  Class EffectViewClass = HasVibrantForeground(aType)
-    ? EffectViewClassWithForegroundVibrancy : EffectViewClassWithoutForegroundVibrancy;
+  static Class EffectViewClass = CreateEffectViewClass();
   NSView* effectView = [[EffectViewClass alloc] initWithFrame:aRect];
   [effectView performSelector:@selector(setAppearance:)
                    withObject:AppearanceForVibrancyType(aType)];
-  [effectView setState:VisualEffectStateForVibrancyType(aType)];
-
-  if (aType == VibrancyType::MENU) {
-    // NSVisualEffectMaterialTitlebar doesn't match the native menu look
-    // perfectly but comes pretty close. Ideally we'd use a material with
-    // materialTypeName "MacLight", since that's what menus use, but there's
-    // no entry with that material in the internalMaterialType-to-
-    // CGSWindowBackdropViewSpec table which NSVisualEffectView consults when
-    // setting up the effect.
-    [effectView setMaterial:NSVisualEffectMaterialTitlebar];
-  } else if (aType == VibrancyType::HIGHLIGHTED_MENUITEM) {
-    [effectView setMaterial:NSVisualEffectMaterialMenuItem];
-    if ([effectView respondsToSelector:@selector(setEmphasized:)]) {
-      [effectView setEmphasized:YES];
-    }
+  if (aType == VibrancyType::TOOLTIP) {
+    // Tooltip windows never become active, so we need to tell the vibrancy
+    // effect to look active regardless of window state.
+    [effectView setState:NSVisualEffectStateActive];
   }
-
   return effectView;
 }
 

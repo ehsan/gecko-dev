@@ -3334,9 +3334,9 @@ nsTextStore::GetScreenExtInternal(RECT &aScreenExt)
     boundRect.MoveTo(0, 0);
 
     // Clip frame rect to window rect
-    boundRect.IntersectRect(LayoutDevicePixel::ToUntyped(event.mReply.mRect), boundRect);
+    boundRect.IntersectRect(event.mReply.mRect, boundRect);
     if (!boundRect.IsEmpty()) {
-      boundRect.MoveBy(refWindow->WidgetToScreenOffsetUntyped());
+      boundRect.MoveBy(refWindow->WidgetToScreenOffset());
       ::SetRect(&aScreenExt, boundRect.x, boundRect.y,
                 boundRect.XMost(), boundRect.YMost());
     } else {
@@ -4305,7 +4305,7 @@ nsTextStore::CreateNativeCaret()
     return;
   }
 
-  LayoutDeviceIntRect& caretRect = queryCaretRect.mReply.mRect;
+  nsIntRect& caretRect = queryCaretRect.mReply.mRect;
   mNativeCaretIsCreated = ::CreateCaret(mWidget->GetWindowHandle(), nullptr,
                                         caretRect.width, caretRect.height);
   if (!mNativeCaretIsCreated) {

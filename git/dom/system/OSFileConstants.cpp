@@ -804,7 +804,8 @@ JSObject *GetOrCreateObjectProperty(JSContext *cx, JS::Handle<JSObject*> aObject
       JSMSG_UNEXPECTED_TYPE, aProperty, "not an object");
     return nullptr;
   }
-  return JS_DefineObject(cx, aObject, aProperty, nullptr, JSPROP_ENUMERATE);
+  return JS_DefineObject(cx, aObject, aProperty, nullptr, JS::NullPtr(),
+                         JSPROP_ENUMERATE);
 }
 
 /**

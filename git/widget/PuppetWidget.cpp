@@ -550,13 +550,13 @@ PuppetWidget::NotifyIMEOfUpdateComposition()
 
   uint32_t startOffset;
   uint32_t targetCauseOffset;
-  nsAutoTArray<LayoutDeviceIntRect, 16> textRectArray;
+  nsAutoTArray<nsIntRect, 16> textRectArray;
   if (!GetCompositionRects(startOffset,
                            textRectArray,
                            targetCauseOffset)) {
     return NS_ERROR_FAILURE;
   }
-  LayoutDeviceIntRect caretRect;
+  nsIntRect caretRect;
   GetCaretRect(caretRect, targetCauseOffset);
 
   mTabChild->SendNotifyIMESelectedCompositionRect(startOffset,
@@ -568,7 +568,7 @@ PuppetWidget::NotifyIMEOfUpdateComposition()
 
 bool
 PuppetWidget::GetCompositionRects(uint32_t& aStartOffset,
-                                  nsTArray<LayoutDeviceIntRect>& aTextRectArray,
+                                  nsTArray<nsIntRect>& aTextRectArray,
                                   uint32_t& aTargetCauseOffset)
 {
   nsRefPtr<TextComposition> textComposition =
@@ -605,7 +605,7 @@ PuppetWidget::GetCaretOffset()
 }
 
 bool
-PuppetWidget::GetCaretRect(LayoutDeviceIntRect& aCaretRect, uint32_t aCaretOffset)
+PuppetWidget::GetCaretRect(nsIntRect& aCaretRect, uint32_t aCaretOffset)
 {
   nsEventStatus status;
   WidgetQueryContentEvent caretRect(true, NS_QUERY_CARET_RECT, this);
@@ -629,7 +629,7 @@ PuppetWidget::NotifyIMEOfEditorRect()
     return NS_ERROR_FAILURE;
   }
 
-  LayoutDeviceIntRect rect;
+  nsIntRect rect;
   if (!GetEditorRect(rect)) {
     return NS_ERROR_FAILURE;
   }
@@ -638,7 +638,7 @@ PuppetWidget::NotifyIMEOfEditorRect()
 }
 
 bool
-PuppetWidget::GetEditorRect(LayoutDeviceIntRect& aRect)
+PuppetWidget::GetEditorRect(nsIntRect& aRect)
 {
   nsEventStatus status;
   WidgetQueryContentEvent editorRectEvent(true, NS_QUERY_EDITOR_RECT, this);
@@ -761,14 +761,14 @@ PuppetWidget::NotifyIMEOfPositionChange()
     return NS_ERROR_FAILURE;
   }
 
-  LayoutDeviceIntRect editorRect;
+  nsIntRect editorRect;
   if (!GetEditorRect(editorRect)) {
     return NS_ERROR_FAILURE;
   }
 
   uint32_t startOffset;
   uint32_t targetCauseOffset;
-  nsAutoTArray<LayoutDeviceIntRect, 16> textRectArray;
+  nsAutoTArray<nsIntRect, 16> textRectArray;
   if (!GetCompositionRects(startOffset,
                            textRectArray,
                            targetCauseOffset)) {
@@ -776,7 +776,7 @@ PuppetWidget::NotifyIMEOfPositionChange()
     targetCauseOffset = GetCaretOffset();
   }
 
-  LayoutDeviceIntRect caretRect;
+  nsIntRect caretRect;
   GetCaretRect(caretRect, targetCauseOffset);
   if (!mTabChild->SendNotifyIMEPositionChange(editorRect, textRectArray,
                                               caretRect)) {

@@ -116,8 +116,7 @@ js::StartOffThreadIonCompile(JSContext *cx, jit::IonBuilder *builder)
 static void
 FinishOffThreadIonCompile(jit::IonBuilder *builder)
 {
-    if (!HelperThreadState().ionFinishedList().append(builder))
-        CrashAtUnhandlableOOM("FinishOffThreadIonCompile");
+    HelperThreadState().ionFinishedList().append(builder);
 }
 
 static inline bool

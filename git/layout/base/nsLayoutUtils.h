@@ -127,7 +127,6 @@ class nsLayoutUtils
   typedef mozilla::gfx::Matrix4x4 Matrix4x4;
   typedef mozilla::gfx::RectCornerRadii RectCornerRadii;
   typedef mozilla::gfx::StrokeOptions StrokeOptions;
-  typedef mozilla::image::DrawResult DrawResult;
 
 public:
   typedef mozilla::layers::FrameMetrics FrameMetrics;
@@ -729,10 +728,9 @@ public:
    * @param aWidget the widget to which returned coordinates are relative
    * @return the point in the view's coordinates
    */
-  static mozilla::LayoutDeviceIntPoint
-    TranslateViewToWidget(nsPresContext* aPresContext,
-                          nsView* aView, nsPoint aPt,
-                          nsIWidget* aWidget);
+  static nsIntPoint TranslateViewToWidget(nsPresContext* aPresContext,
+                                          nsView* aView, nsPoint aPt,
+                                          nsIWidget* aWidget);
 
   enum FrameForPointFlags {
     /**
@@ -1658,16 +1656,16 @@ public:
    *   @param aDirty            Pixels outside this area may be skipped.
    *   @param aImageFlags       Image flags of the imgIContainer::FLAG_* variety
    */
-  static DrawResult DrawBackgroundImage(gfxContext&         aContext,
-                                        nsPresContext*      aPresContext,
-                                        imgIContainer*      aImage,
-                                        const nsIntSize&    aImageSize,
-                                        GraphicsFilter      aGraphicsFilter,
-                                        const nsRect&       aDest,
-                                        const nsRect&       aFill,
-                                        const nsPoint&      aAnchor,
-                                        const nsRect&       aDirty,
-                                        uint32_t            aImageFlags);
+  static nsresult DrawBackgroundImage(gfxContext&         aContext,
+                                      nsPresContext*      aPresContext,
+                                      imgIContainer*      aImage,
+                                      const nsIntSize&    aImageSize,
+                                      GraphicsFilter      aGraphicsFilter,
+                                      const nsRect&       aDest,
+                                      const nsRect&       aFill,
+                                      const nsPoint&      aAnchor,
+                                      const nsRect&       aDirty,
+                                      uint32_t            aImageFlags);
 
   /**
    * Draw an image.
@@ -1684,15 +1682,15 @@ public:
    *   @param aDirty            Pixels outside this area may be skipped.
    *   @param aImageFlags       Image flags of the imgIContainer::FLAG_* variety
    */
-  static DrawResult DrawImage(gfxContext&         aContext,
-                              nsPresContext*      aPresContext,
-                              imgIContainer*      aImage,
-                              GraphicsFilter      aGraphicsFilter,
-                              const nsRect&       aDest,
-                              const nsRect&       aFill,
-                              const nsPoint&      aAnchor,
-                              const nsRect&       aDirty,
-                              uint32_t            aImageFlags);
+  static nsresult DrawImage(gfxContext&         aContext,
+                            nsPresContext*      aPresContext,
+                            imgIContainer*      aImage,
+                            GraphicsFilter      aGraphicsFilter,
+                            const nsRect&       aDest,
+                            const nsRect&       aFill,
+                            const nsPoint&      aAnchor,
+                            const nsRect&       aDirty,
+                            uint32_t            aImageFlags);
 
   static inline void InitDashPattern(StrokeOptions& aStrokeOptions,
                                      uint8_t aBorderStyle) {
@@ -1738,14 +1736,14 @@ public:
    *                            in appunits. For best results it should
    *                            be aligned with image pixels.
    */
-  static DrawResult DrawSingleUnscaledImage(gfxContext&          aContext,
-                                            nsPresContext*       aPresContext,
-                                            imgIContainer*       aImage,
-                                            GraphicsFilter       aGraphicsFilter,
-                                            const nsPoint&       aDest,
-                                            const nsRect*        aDirty,
-                                            uint32_t             aImageFlags,
-                                            const nsRect*        aSourceArea = nullptr);
+  static nsresult DrawSingleUnscaledImage(gfxContext&          aContext,
+                                          nsPresContext*       aPresContext,
+                                          imgIContainer*       aImage,
+                                          GraphicsFilter       aGraphicsFilter,
+                                          const nsPoint&       aDest,
+                                          const nsRect*        aDirty,
+                                          uint32_t             aImageFlags,
+                                          const nsRect*        aSourceArea = nullptr);
 
   /**
    * Draw a whole image without tiling.
@@ -1769,16 +1767,16 @@ public:
    *                            in appunits. For best results it should
    *                            be aligned with image pixels.
    */
-  static DrawResult DrawSingleImage(gfxContext&         aContext,
-                                    nsPresContext*      aPresContext,
-                                    imgIContainer*      aImage,
-                                    GraphicsFilter      aGraphicsFilter,
-                                    const nsRect&       aDest,
-                                    const nsRect&       aDirty,
-                                    const mozilla::SVGImageContext* aSVGContext,
-                                    uint32_t            aImageFlags,
-                                    const nsPoint*      aAnchorPoint = nullptr,
-                                    const nsRect*       aSourceArea = nullptr);
+  static nsresult DrawSingleImage(gfxContext&         aContext,
+                                  nsPresContext*      aPresContext,
+                                  imgIContainer*      aImage,
+                                  GraphicsFilter      aGraphicsFilter,
+                                  const nsRect&       aDest,
+                                  const nsRect&       aDirty,
+                                  const mozilla::SVGImageContext* aSVGContext,
+                                  uint32_t            aImageFlags,
+                                  const nsPoint*      aAnchorPoint = nullptr,
+                                  const nsRect*       aSourceArea = nullptr);
 
   /**
    * Given an imgIContainer, this method attempts to obtain an intrinsic

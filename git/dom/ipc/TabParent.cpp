@@ -549,7 +549,7 @@ TabParent::RecvCreateWindow(PBrowserParent* aNewTab,
     do_GetService(NS_WINDOWWATCHER_CONTRACTID, &rv);
   NS_ENSURE_SUCCESS(rv, false);
 
-  TabParent* newTab = TabParent::GetFrom(aNewTab);
+  TabParent* newTab = static_cast<TabParent*>(aNewTab);
 
   nsCOMPtr<nsIContent> frame(do_QueryInterface(mFrameElement));
 
@@ -653,7 +653,7 @@ TabParent::RecvCreateWindow(PBrowserParent* aNewTab,
   nsCOMPtr<nsITabParent> newRemoteTab = newDocShell->GetOpenedRemote();
   NS_ENSURE_TRUE(newRemoteTab, false);
 
-  MOZ_ASSERT(TabParent::GetFrom(newRemoteTab) == newTab);
+  MOZ_ASSERT(static_cast<TabParent*>(newRemoteTab.get()) == newTab);
 
   aFrameScripts->SwapElements(newTab->mDelayedFrameScripts);
   return true;
@@ -1612,9 +1612,9 @@ TabParent::RecvNotifyIMETextChange(const uint32_t& aStart,
 bool
 TabParent::RecvNotifyIMESelectedCompositionRect(
   const uint32_t& aOffset,
-  InfallibleTArray<LayoutDeviceIntRect>&& aRects,
+  InfallibleTArray<nsIntRect>&& aRects,
   const uint32_t& aCaretOffset,
-  const LayoutDeviceIntRect& aCaretRect)
+  const nsIntRect& aCaretRect)
 {
   // add rect to cache for another query
   mIMECompositionRectOffset = aOffset;
@@ -1684,7 +1684,7 @@ TabParent::RecvNotifyIMEMouseButtonEvent(
 }
 
 bool
-TabParent::RecvNotifyIMEEditorRect(const LayoutDeviceIntRect& aRect)
+TabParent::RecvNotifyIMEEditorRect(const nsIntRect& aRect)
 {
   mIMEEditorRect = aRect;
   return true;
@@ -1692,9 +1692,9 @@ TabParent::RecvNotifyIMEEditorRect(const LayoutDeviceIntRect& aRect)
 
 bool
 TabParent::RecvNotifyIMEPositionChange(
-             const LayoutDeviceIntRect& aEditorRect,
-             InfallibleTArray<LayoutDeviceIntRect>&& aCompositionRects,
-             const LayoutDeviceIntRect& aCaretRect)
+             const nsIntRect& aEditorRect,
+             InfallibleTArray<nsIntRect>&& aCompositionRects,
+             const nsIntRect& aCaretRect)
 {
   mIMEEditorRect = aEditorRect;
   mIMECompositionRects = aCompositionRects;
@@ -1929,8 +1929,7 @@ TabParent::HandleQueryContentEvent(WidgetQueryContentEvent& aEvent)
           aEvent.mReply.mRect.Union(mIMECompositionRects[i]);
       }
       aEvent.mReply.mOffset = aEvent.mInput.mOffset;
-      aEvent.mReply.mRect =
-        aEvent.mReply.mRect - LayoutDevicePixel::FromUntyped(GetChildProcessOffset());
+      aEvent.mReply.mRect = aEvent.mReply.mRect - GetChildProcessOffset();
       aEvent.mSucceeded = true;
     }
     break;
@@ -1941,15 +1940,13 @@ TabParent::HandleQueryContentEvent(WidgetQueryContentEvent& aEvent)
       }
 
       aEvent.mReply.mOffset = mIMECaretOffset;
-      aEvent.mReply.mRect =
-        mIMECaretRect - LayoutDevicePixel::FromUntyped(GetChildProcessOffset());
+      aEvent.mReply.mRect = mIMECaretRect - GetChildProcessOffset();
       aEvent.mSucceeded = true;
     }
     break;
   case NS_QUERY_EDITOR_RECT:
     {
-      aEvent.mReply.mRect =
-        mIMEEditorRect - LayoutDevicePixel::FromUntyped(GetChildProcessOffset());
+      aEvent.mReply.mRect = mIMEEditorRect - GetChildProcessOffset();
       aEvent.mSucceeded = true;
     }
     break;
@@ -2025,26 +2022,6 @@ TabParent::GetFrom(nsFrameLoader* aFrameLoader)
   }
   PBrowserParent* remoteBrowser = aFrameLoader->GetRemoteBrowser();
   return static_cast<TabParent*>(remoteBrowser);
-}
-
-/*static*/ TabParent*
-TabParent::GetFrom(nsIFrameLoader* aFrameLoader)
-{
-  if (!aFrameLoader)
-    return nullptr;
-  return GetFrom(static_cast<nsFrameLoader*>(aFrameLoader));
-}
-
-/*static*/ TabParent*
-TabParent::GetFrom(nsITabParent* aTabParent)
-{
-  return static_cast<TabParent*>(aTabParent);
-}
-
-/*static*/ TabParent*
-TabParent::GetFrom(PBrowserParent* aTabParent)
-{
-  return static_cast<TabParent*>(aTabParent);
 }
 
 /*static*/ TabParent*
@@ -2445,7 +2422,7 @@ TabParent::RecvBrowserFrameOpenWindow(PBrowserParent* aOpener,
                                       bool* aOutWindowOpened)
 {
   BrowserElementParent::OpenWindowResult opened =
-    BrowserElementParent::OpenWindowOOP(TabParent::GetFrom(aOpener),
+    BrowserElementParent::OpenWindowOOP(static_cast<TabParent*>(aOpener),
                                         this, aURL, aName, aFeatures);
   *aOutWindowOpened = (opened != BrowserElementParent::OPEN_WINDOW_CANCELLED);
   return true;

@@ -740,8 +740,7 @@ function BuildTypedSeqImpl(arrayType, len, depth, func) {
   // Create a zeroed instance with no data
   var result = new arrayType();
 
-  var indices = new List();
-  indices.length = depth;
+  var indices = NewDenseArray(depth);
   for (var i = 0; i < depth; i++) {
     indices[i] = 0;
   }
@@ -773,8 +772,7 @@ function ComputeIterationSpace(arrayType, depth, len) {
   assert(IsObject(arrayType) && ObjectIsTypeDescr(arrayType), "ComputeIterationSpace called on non-type-object");
   assert(TypeDescrIsArrayType(arrayType), "ComputeIterationSpace called on non-array-type");
   assert(depth > 0, "ComputeIterationSpace called on non-positive depth");
-  var iterationSpace = new List();
-  iterationSpace.length = depth;
+  var iterationSpace = NewDenseArray(depth);
   iterationSpace[0] = len;
   var totalLength = len;
   var grainType = arrayType.elementType;
