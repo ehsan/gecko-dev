@@ -259,7 +259,7 @@ nsTableCellFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
      
 NS_IMETHODIMP
 nsTableCellFrame::AppendFrames(nsIAtom*        aListName,
-                               nsFrameList&    aFrameList)
+                               nsIFrame*       aFrameList)
 {
   NS_PRECONDITION(PR_FALSE, "unsupported operation");
   return NS_ERROR_NOT_IMPLEMENTED;
@@ -268,7 +268,7 @@ nsTableCellFrame::AppendFrames(nsIAtom*        aListName,
 NS_IMETHODIMP
 nsTableCellFrame::InsertFrames(nsIAtom*        aListName,
                                nsIFrame*       aPrevFrame,
-                               nsFrameList&    aFrameList)
+                               nsIFrame*       aFrameList)
 {
   NS_PRECONDITION(PR_FALSE, "unsupported operation");
   return NS_ERROR_NOT_IMPLEMENTED;

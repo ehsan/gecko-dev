@@ -99,10 +99,10 @@ public:
   NS_IMETHOD SetInitialChildList(nsIAtom*        aListName,
                                  nsFrameList&    aChildList);
   NS_IMETHOD AppendFrames(nsIAtom*        aListName,
-                          nsFrameList&    aFrameList);
+                          nsIFrame*       aFrameList);
   NS_IMETHOD InsertFrames(nsIAtom*        aListName,
                           nsIFrame*       aPrevFrame,
-                          nsFrameList&    aFrameList);
+                          nsIFrame*       aFrameList);
   NS_IMETHOD RemoveFrame(nsIAtom*        aListName,
                          nsIFrame*       aOldFrame);
 
@@ -286,7 +286,7 @@ CanvasFrame::SetInitialChildList(nsIAtom*        aListName,
 
 NS_IMETHODIMP
 CanvasFrame::AppendFrames(nsIAtom*        aListName,
-                          nsFrameList&    aFrameList)
+                          nsIFrame*       aFrameList)
 {
   nsresult  rv;
 
@@ -305,12 +305,10 @@ CanvasFrame::AppendFrames(nsIAtom*        aListName,
 
   } else {
     // Insert the new frames
-    NS_ASSERTION(aFrameList.FirstChild() == aFrameList.LastChild(),
-                 "Only one principal child frame allowed");
 #ifdef NS_DEBUG
     nsFrame::VerifyDirtyBitSet(aFrameList);
 #endif
-    mFrames.AppendFrames(nsnull, aFrameList);
+    mFrames.AppendFrame(nsnull, aFrameList);
 
     rv = PresContext()->PresShell()->
            FrameNeedsReflow(this, nsIPresShell::eTreeChange,
@@ -323,7 +321,7 @@ CanvasFrame::AppendFrames(nsIAtom*        aListName,
 NS_IMETHODIMP
 CanvasFrame::InsertFrames(nsIAtom*        aListName,
                           nsIFrame*       aPrevFrame,
-                          nsFrameList&    aFrameList)
+                          nsIFrame*       aFrameList)
 {
   nsresult  rv;
 

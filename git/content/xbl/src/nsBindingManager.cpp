@@ -69,7 +69,6 @@
 #include "nsIHTMLCSSStyleSheet.h"
 
 #include "nsIStyleRuleProcessor.h"
-#include "nsRuleProcessorData.h"
 #include "nsIWeakReference.h"
 
 #include "jsapi.h"

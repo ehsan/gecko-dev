@@ -432,7 +432,9 @@ var PlacesCommandHook = {
       if (starIcon && isElementVisible(starIcon)) {
         // Make sure the bookmark properties dialog hangs toward the middle of
         // the location bar in RTL builds
-        var position = (getComputedStyle(gNavToolbox, "").direction == "rtl") ? 'after_start' : 'after_end';
+        var position = "after_end";
+        if (gURLBar.getAttribute("chromedir") == "rtl")
+          position = "after_start";
         if (aShowEditUI)
           StarUI.showEditBookmarkPopup(itemId, starIcon, position);
 #ifdef ADVANCED_STARRING_UI
@@ -522,7 +524,10 @@ var PlacesCommandHook = {
    *            A short description of the feed. Optional.
    */
   addLiveBookmark: function PCH_addLiveBookmark(url, feedTitle, feedSubtitle) {
-    var feedURI = makeURI(url);
+    var ios = 
+        Cc["@mozilla.org/network/io-service;1"].
+        getService(Ci.nsIIOService);
+    var feedURI = ios.newURI(url, null, null);
     
     var doc = gBrowser.contentDocument;
     var title = (arguments.length > 1) ? feedTitle : doc.title;
@@ -879,7 +884,6 @@ var BookmarksEventHandler = {
     if (!target._endOptSeparator) {
       // create a separator before options
       target._endOptSeparator = document.createElement("menuseparator");
-      target._endOptSeparator.className = "bookmarks-actions-menuseparator";
       target._endMarker = target.childNodes.length;
       target.appendChild(target._endOptSeparator);
     }
@@ -887,7 +891,6 @@ var BookmarksEventHandler = {
     if (siteURIString && !target._endOptOpenSiteURI) {
       // Add "Open (Feed Name)" menuitem if it's a livemark with a siteURI
       target._endOptOpenSiteURI = document.createElement("menuitem");
-      target._endOptOpenSiteURI.className = "openlivemarksite-menuitem";
       target._endOptOpenSiteURI.setAttribute("siteURI", siteURIString);
       target._endOptOpenSiteURI.setAttribute("oncommand",
           "openUILink(this.getAttribute('siteURI'), event);");
@@ -907,7 +910,6 @@ var BookmarksEventHandler = {
         // Add the "Open All in Tabs" menuitem if there are
         // at least two menuitems with places result nodes.
         target._endOptOpenAllInTabs = document.createElement("menuitem");
-        target._endOptOpenAllInTabs.className = "openintabs-menuitem";
         target._endOptOpenAllInTabs.setAttribute("oncommand",
             "PlacesUIUtils.openContainerNodeInTabs(this.parentNode._resultNode, event);");
         target._endOptOpenAllInTabs.setAttribute("onclick",

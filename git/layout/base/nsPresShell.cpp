@@ -3061,10 +3061,15 @@ NS_IMETHODIMP
 PresShell::PageMove(PRBool aForward, PRBool aExtend)
 {
   nsresult result;
-  nsIScrollableView *scrollableView = GetViewToScroll(nsLayoutUtils::eVertical);
-  if (!scrollableView)
+  nsIViewManager* viewManager = GetViewManager();
+  nsIScrollableView *scrollableView;
+  if (!viewManager) 
     return NS_ERROR_UNEXPECTED;
-
+  result = viewManager->GetRootScrollableView(&scrollableView);
+  if (NS_FAILED(result)) 
+    return result;
+  if (!scrollableView) 
+    return NS_ERROR_UNEXPECTED;
   nsIView *scrolledView;
   result = scrollableView->GetScrolledView(scrolledView);
   mSelection->CommonPageMove(aForward, aExtend, scrollableView);

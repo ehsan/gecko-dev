@@ -13,10 +13,10 @@
   list-style-image: url("moz-icon://stock/gtk-go-back-ltr?size=toolbar&state=disabled");
 }
 
-#back-button:-moz-locale-dir(rtl) {
+#back-button[chromedir="rtl"] {
   list-style-image: url("moz-icon://stock/gtk-go-back-rtl?size=toolbar");
 }
-#back-button[disabled="true"]:-moz-locale-dir(rtl) {
+#back-button[disabled="true"][chromedir="rtl"] {
   list-style-image: url("moz-icon://stock/gtk-go-back-rtl?size=toolbar&state=disabled");
 }
 
@@ -29,10 +29,10 @@
   list-style-image: url("moz-icon://stock/gtk-go-forward-ltr?size=toolbar&state=disabled");
 }
 
-#forward-button:-moz-locale-dir(rtl) {
+#forward-button[chromedir="rtl"] {
   list-style-image: url("moz-icon://stock/gtk-go-forward-rtl?size=toolbar");
 }
-#forward-button[disabled="true"]:-moz-locale-dir(rtl) {
+#forward-button[disabled="true"][chromedir="rtl"] {
   list-style-image: url("moz-icon://stock/gtk-go-forward-rtl?size=toolbar&state=disabled");
 }
 

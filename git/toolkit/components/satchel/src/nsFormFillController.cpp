@@ -517,7 +517,6 @@ nsFormFillController::StartSearch(const nsAString &aSearchString, const nsAStrin
 
     rv = formAutoComplete->AutoCompleteSearch(aSearchParam,
                                               aSearchString,
-                                              mFocusedInput,
                                               aPreviousResult,
                                               getter_AddRefs(result));
   }

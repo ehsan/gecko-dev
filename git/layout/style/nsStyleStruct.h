@@ -124,68 +124,6 @@ struct nsStyleFont {
 #endif
 };
 
-struct nsStyleGradientStop {
-  nscolor mColor;
-  float mPosition; // 0.0 - 1.0
-};
-
-class nsStyleGradient {
-public:
-  nsStyleGradient();
-
-  PRPackedBool mIsRadial;
-
-  nsStyleCoord mStartX; // percent or coord
-  nsStyleCoord mStartY; // percent or coord
-
-  nsStyleCoord mEndX; // percent or coord
-  nsStyleCoord mEndY; // percent or coord
-
-  nscoord mStartRadius;
-  nscoord mEndRadius;
-
-  // stops are in the order specified in the stylesheet
-  nsTArray<nsStyleGradientStop> mStops;
-
-  nsrefcnt AddRef() {
-    if (mRefCnt == PR_UINT32_MAX) {
-      NS_WARNING("refcount overflow, leaking nsStyleGradient");
-      return mRefCnt;
-    }
-    ++mRefCnt;
-    NS_LOG_ADDREF(this, mRefCnt, "nsStyleGradient", sizeof(*this));
-    return mRefCnt;
-  }
-
-  nsrefcnt Release() {
-    if (mRefCnt == PR_UINT32_MAX) {
-      NS_WARNING("refcount overflow, leaking nsStyleGradient");
-      return mRefCnt;
-    }
-    --mRefCnt;
-    NS_LOG_RELEASE(this, mRefCnt, "nsStyleGradient");
-    if (mRefCnt == 0) {
-      delete this;
-      return 0;
-    }
-    return mRefCnt;
-  }
-
-  PRBool operator==(const nsStyleGradient& aOther) const;
-  PRBool operator!=(const nsStyleGradient& aOther) const {
-    return !(*this == aOther);
-  };
-
-private:
-  nsrefcnt mRefCnt;
-
-  ~nsStyleGradient() {}
-
-  // Not to be implemented
-  nsStyleGradient(const nsStyleGradient& aOther);
-  nsStyleGradient& operator=(const nsStyleGradient& aOther);
-};
-
 struct nsStyleColor {
   nsStyleColor(nsPresContext* aPresContext);
   nsStyleColor(const nsStyleColor& aOther);
@@ -207,12 +145,6 @@ struct nsStyleColor {
   // Don't add ANY members to this struct!  We can achieve caching in the rule
   // tree (rather than the style tree) by letting color stay by itself! -dwh
   nscolor mColor;                 // [inherited]
-};
-
-enum nsStyleBackgroundImageType {
-  eBackgroundImage_Null,
-  eBackgroundImage_Image,
-  eBackgroundImage_Gradient
 };
 
 struct nsStyleBackground {
@@ -262,80 +194,6 @@ struct nsStyleBackground {
     }
   };
 
-  struct Size;
-  friend struct Size;
-  struct Size {
-    typedef union {
-      nscoord mCoord; // for lengths
-      float mFloat; // for percents
-    } Dimension;
-    Dimension mWidth, mHeight;
-
-    enum DimensionType {
-      // If one of mWidth and mHeight is eContain or eCover, then both are.
-      // Also, these two values must equal the corresponding values in
-      // kBackgroundSizeKTable.
-      eContain, eCover,
-
-      eAuto,
-      ePercentage,
-      eLength,
-      eDimensionType_COUNT
-    };
-    PRUint8 mWidthType, mHeightType;
-
-    // Initialize nothing
-    Size() {}
-
-    // Initialize to initial values
-    void SetInitialValues();
-
-    PRBool operator==(const Size& aOther) const;
-    PRBool operator!=(const Size& aOther) const {
-      return !(*this == aOther);
-    }
-  };
-
-  struct Image;
-  friend struct Image;
-  struct Image {
-  public:
-    Image();
-    ~Image();
-    Image(const Image& aOther);
-    Image& operator=(const Image& aOther);
-
-    void SetImageData(imgIRequest* aImage);
-    void SetGradientData(nsStyleGradient* aGradient);
-    void SetNull();
-
-    nsStyleBackgroundImageType GetType() const {
-      return mType;
-    };
-    imgIRequest* GetImageData() const {
-      NS_ASSERTION(mType == eBackgroundImage_Image, "Data is not an image!");
-      return mImage;
-    };
-    nsStyleGradient* GetGradientData() const {
-      NS_ASSERTION(mType == eBackgroundImage_Gradient, "Data is not a gradient!");
-      return mGradient;
-    };
-
-    PRBool operator==(const Image& aOther) const;
-    PRBool operator!=(const Image& aOther) const {
-      return !(*this == aOther);
-    }
-
-  private:
-    void DoCopy(const Image& aOther);
-
-    nsStyleBackgroundImageType mType;
-    union {
-      imgIRequest* mImage;
-      nsStyleGradient* mGradient;
-    };
-  };
-
   struct Layer;
   friend struct Layer;
   struct Layer {
@@ -344,8 +202,7 @@ struct nsStyleBackground {
     PRUint8 mOrigin;                    // [reset] See nsStyleConsts.h
     PRUint8 mRepeat;                    // [reset] See nsStyleConsts.h
     Position mPosition;                 // [reset]
-    Image mImage;                       // [reset]
-    Size mSize;                         // [reset]
+    nsCOMPtr<imgIRequest> mImage;       // [reset]
 
     // Initializes only mImage
     Layer();
@@ -368,8 +225,7 @@ struct nsStyleBackground {
            mOriginCount,
            mRepeatCount,
            mPositionCount,
-           mImageCount,
-           mSizeCount;
+           mImageCount;
   // Layers are stored in an array, matching the top-to-bottom order in
   // which they are specified in CSS.  The number of layers to be used
   // should come from the background-image property.  We create
@@ -378,7 +234,7 @@ struct nsStyleBackground {
   // callers in layout care about (which is also the one whose
   // background-clip applies to the background-color) may not be last
   // layer.  In layers below the bottom layer, properties will be
-  // uninitialized unless their count, above, indicates that they are
+  // unitialized unless their count, above, indicates that they are
   // present.
   nsAutoTArray<Layer, 1> mLayers;
 

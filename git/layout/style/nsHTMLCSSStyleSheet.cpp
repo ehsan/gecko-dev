@@ -54,7 +54,6 @@
 #include "nsCOMPtr.h"
 #include "nsRuleWalker.h"
 #include "nsRuleData.h"
-#include "nsRuleProcessorData.h"
 
 // -----------------------------------------------------------
 

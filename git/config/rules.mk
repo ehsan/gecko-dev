@@ -179,7 +179,7 @@ check-interactive:
           -I$(topsrcdir)/build \
           $(testxpcsrcdir)/runxpcshelltests.py \
           --symbols-path=$(DIST)/crashreporter-symbols \
-          --test-path=$(SOLO_FILE) \
+          --test=$(SOLO_FILE) \
           --interactive \
           $(DIST)/bin/xpcshell \
           $(foreach dir,$(XPCSHELL_TESTS),$(testxpcobjdir)/$(MODULE)/$(dir))
@@ -190,7 +190,7 @@ check-one:
           -I$(topsrcdir)/build \
           $(testxpcsrcdir)/runxpcshelltests.py \
           --symbols-path=$(DIST)/crashreporter-symbols \
-          --test-path=$(SOLO_FILE) \
+          --test=$(SOLO_FILE) \
           $(DIST)/bin/xpcshell \
           $(foreach dir,$(XPCSHELL_TESTS),$(testxpcobjdir)/$(MODULE)/$(dir))
 
@@ -1487,7 +1487,7 @@ else
 #  on it, then merge with the rest of the path.
 root-path = $(shell echo $(1) | sed -e "s|\(/[^/]*\)/\?\(.*\)|\1|")
 non-root-path = $(shell echo $(1) | sed -e "s|\(/[^/]*\)/\?\(.*\)|\2|")
-normalizepath = $(foreach p,$(1),$(if $(filter /%,$(1)),$(patsubst %/,%,$(shell cd $(call root-path,$(1)) && pwd -W))/$(call non-root-path,$(1)),$(1)))
+normalizepath = $(foreach p,$(1),$(if $(filter /%,$(1)),$(shell cd $(call root-path,$(1)) && pwd -W)$(call non-root-path,$(1)),$(1)))
 endif
 else
 normalizepath = $(1)

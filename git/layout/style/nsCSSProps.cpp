@@ -527,12 +527,6 @@ const PRInt32 nsCSSProps::kBackgroundRepeatKTable[] = {
   eCSSKeyword_UNKNOWN,-1
 };
 
-const PRInt32 nsCSSProps::kBackgroundSizeKTable[] = {
-  eCSSKeyword_contain, NS_STYLE_BG_SIZE_CONTAIN,
-  eCSSKeyword_cover,   NS_STYLE_BG_SIZE_COVER,
-  eCSSKeyword_UNKNOWN,-1
-};
-
 const PRInt32 nsCSSProps::kBorderCollapseKTable[] = {
   eCSSKeyword_collapse,  NS_STYLE_BORDER_COLLAPSE,
   eCSSKeyword_separate,  NS_STYLE_BORDER_SEPARATE,
@@ -1508,7 +1502,6 @@ static const nsCSSProperty gBackgroundSubpropTable[] = {
   eCSSProperty_background_position,
   eCSSProperty__moz_background_clip,
   eCSSProperty__moz_background_origin,
-  eCSSProperty__moz_background_size,
   eCSSProperty_UNKNOWN
 };
 

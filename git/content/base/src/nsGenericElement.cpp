@@ -134,7 +134,6 @@
 #include "nsXBLInsertionPoint.h"
 #include "nsICSSStyleRule.h" /* For nsCSSSelectorList */
 #include "nsCSSRuleProcessor.h"
-#include "nsRuleProcessorData.h"
 
 #ifdef MOZ_XUL
 #include "nsIXULDocument.h"
@@ -3210,10 +3209,15 @@ nsGenericElement::doInsertChildAt(nsIContent* aKid, PRUint32 aIndex,
     return rv;
   }
 
-  NS_ASSERTION(aKid->GetNodeParent() == container,
-               "Did we run script inappropriately?");
+  // The kid may have removed its parent from the document, so recheck that
+  // that's still in the document before proceeding.  Also, the kid may have
+  // just removed itself, in which case we don't really want to fire
+  // ContentAppended or a mutation event.
+  // XXXbz What if the kid just moved us in the document?  Scripts suck.  We
+  // really need to stop running them while we're in the middle of modifying
+  // the DOM....
 
-  if (aNotify) {
+  if (aNotify && aKid->GetNodeParent() == container) {
     // Note that we always want to call ContentInserted when things are added
     // as kids to documents
     if (aParent && isAppend) {
@@ -3726,7 +3730,7 @@ nsGenericElement::doReplaceOrInsertBefore(PRBool aReplace,
 
   // We want an update batch when we expect several mutations to be performed,
   // which is when we're replacing a node, or when we're inserting a fragment.
-  mozAutoDocConditionalContentUpdateBatch batch(aDocument,
+  mozAutoDocConditionalContentUpdateBatch(aDocument,
     aReplace || nodeType == nsIDOMNode::DOCUMENT_FRAGMENT_NODE);
 
   // If we're replacing
@@ -3764,12 +3768,6 @@ nsGenericElement::doReplaceOrInsertBefore(PRBool aReplace,
   if (nodeType == nsIDOMNode::DOCUMENT_FRAGMENT_NODE) {
     PRUint32 count = newContent->GetChildCount();
 
-    if (!count) {
-      returnVal.swap(*aReturn);
-
-      return NS_OK;
-    }
-
     // Copy the children into a separate array to avoid having to deal with
     // mutations to the fragment while we're inserting.
     nsCOMArray<nsIContent> fragChildren;
@@ -3795,12 +3793,25 @@ nsGenericElement::doReplaceOrInsertBefore(PRBool aReplace,
       mutated = mutated || guard.Mutated(1);
     }
 
-    // If we've had any unexpeted mutations so far we need to recheck that
-    // the child can still be inserted.
-    if (mutated) {
-      for (i = 0; i < count; ++i) {
-        // Get the n:th child from the array.
-        nsIContent* childContent = fragChildren[i];
+    // Iterate through the fragment's children, and insert them in the new
+    // parent
+    for (i = 0; i < count; ++i) {
+      // Get the n:th child from the array.
+      nsIContent* childContent = fragChildren[i];
+
+      // If we've had any unexpeted mutations so far we need to recheck that
+      // the child can still be inserted.
+      if (mutated) {
+        // We really only need to update insPos if we *just* got an unexpected
+        // mutation as opposed to 3 insertions ago. But this is an edgecase so
+        // no need to over optimize.
+        insPos = refContent ? container->IndexOf(refContent) :
+                              container->GetChildCount();
+        if (insPos < 0) {
+          // Someone seriously messed up the childlist. We have no idea
+          // where to insert the remaining children, so just bail.
+          return NS_ERROR_DOM_NOT_FOUND_ERR;
+        }
 
         nsCOMPtr<nsIDOMNode> tmpNode = do_QueryInterface(childContent);
         PRUint16 tmpType = 0;
@@ -3813,64 +3824,18 @@ nsGenericElement::doReplaceOrInsertBefore(PRBool aReplace,
         }
       }
 
-      insPos = refContent ? container->IndexOf(refContent) :
-                            container->GetChildCount();
-      if (insPos < 0) {
-        // Someone seriously messed up the childlist. We have no idea
-        // where to insert the remaining children, so just bail.
-        return NS_ERROR_DOM_NOT_FOUND_ERR;
-      }
-    }
-
-    PRBool appending = aParent && (insPos == container->GetChildCount());
-    PRBool firstInsPos = insPos;
-
-    // Iterate through the fragment's children, and insert them in the new
-    // parent
-    for (i = 0; i < count; ++i, ++insPos) {
-      nsIContent* childContent = fragChildren[i];
+      nsMutationGuard guard;
 
       // XXXbz how come no reparenting here?  That seems odd...
       // Insert the child.
-      res = container->InsertChildAt(childContent, insPos, PR_FALSE);
-      if (NS_FAILED(res)) {
-        // Make sure to notify on any children that we did succeed to insert
-        if (appending && i != 0) {
-          nsNodeUtils::ContentAppended(aParent, firstInsPos);
-        }
-        return res;
-      }
+      res = container->InsertChildAt(childContent, insPos, PR_TRUE);
+      NS_ENSURE_SUCCESS(res, res);
 
-      if (!appending) {
-        nsNodeUtils::ContentInserted(container, childContent, insPos);
-      }
-    }
-
-    // Notify
-    if (appending) {
-      nsNodeUtils::ContentAppended(aParent, firstInsPos);
-    }
-
-    // Fire mutation events. Optimize for the case when there are no listeners
-    nsIDocument* doc = container->GetOwnerDoc();
-    nsPIDOMWindow* window = nsnull;
-    if (doc && (window = doc->GetInnerWindow()) &&
-        window->HasMutationListeners(NS_EVENT_BITS_MUTATION_NODEINSERTED)) {
-
-      for (i = 0; i < count; ++i, ++insPos) {
-        nsIContent* childContent = fragChildren[i];
-
-        if (nsContentUtils::HasMutationListeners(childContent,
-              NS_EVENT_BITS_MUTATION_NODEINSERTED, container)) {
-          mozAutoRemovableBlockerRemover blockerRemover;
-
-          nsMutationEvent mutation(PR_TRUE, NS_MUTATION_NODEINSERTED);
-          mutation.mRelatedNode = do_QueryInterface(container);
-
-          mozAutoSubtreeModified subtree(container->GetOwnerDoc(), container);
-          nsEventDispatcher::Dispatch(childContent, nsnull, &mutation);
-        }
-      }
+      // Check to see if any evil mutation events mucked around with the
+      // child list.
+      mutated = mutated || guard.Mutated(1);
+      
+      ++insPos;
     }
   }
   else {

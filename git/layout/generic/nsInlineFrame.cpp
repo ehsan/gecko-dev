@@ -1098,7 +1098,7 @@ nsPositionedInlineFrame::SetInitialChildList(nsIAtom*        aListName,
 
 NS_IMETHODIMP
 nsPositionedInlineFrame::AppendFrames(nsIAtom*        aListName,
-                                      nsFrameList&    aFrameList)
+                                      nsIFrame*       aFrameList)
 {
   nsresult  rv;
   
@@ -1114,7 +1114,7 @@ nsPositionedInlineFrame::AppendFrames(nsIAtom*        aListName,
 NS_IMETHODIMP
 nsPositionedInlineFrame::InsertFrames(nsIAtom*        aListName,
                                       nsIFrame*       aPrevFrame,
-                                      nsFrameList&    aFrameList)
+                                      nsIFrame*       aFrameList)
 {
   nsresult  rv;
 

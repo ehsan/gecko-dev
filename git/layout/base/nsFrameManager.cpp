@@ -688,7 +688,7 @@ nsresult
 nsFrameManager::InsertFrames(nsIFrame*       aParentFrame,
                              nsIAtom*        aListName,
                              nsIFrame*       aPrevFrame,
-                             nsFrameList&    aFrameList)
+                             nsIFrame*       aFrameList)
 {
   NS_PRECONDITION(!aPrevFrame || (!aPrevFrame->GetNextContinuation()
                   || IS_TRUE_OVERFLOW_CONTAINER(aPrevFrame->GetNextContinuation()))
@@ -1082,8 +1082,7 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
                                       nsIFrame          *aFrame,
                                       nsIContent        *aParentContent,
                                       nsStyleChangeList *aChangeList, 
-                                      nsChangeHint       aMinChange,
-                                      PRBool             aFireAccessibilityEvents)
+                                      nsChangeHint       aMinChange)
 {
   // It would be nice if we could make stronger assertions here; they
   // would let us simplify the ?: expressions below setting |content|
@@ -1147,12 +1146,9 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
       // can't be trusted because it assumes any changes to the parent
       // style context provider will be automatically propagated to
       // the frame(s) with child style contexts.
-
-      // Accessibility: we don't need to fire a11y events for child provider
-      // frame because it is visible or hidden withitn this frame.
       assumeDifferenceHint = ReResolveStyleContext(aPresContext, providerFrame,
                                                    aParentContent, aChangeList,
-                                                   aMinChange, PR_FALSE);
+                                                   aMinChange);
 
       // The provider's new context becomes the parent context of
       // aFrame's context.
@@ -1372,32 +1368,7 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
         }      
       }
     }
-
-    PRBool fireAccessibilityEvents = aFireAccessibilityEvents;
-#ifdef ACCESSIBILITY
-    if (fireAccessibilityEvents && mPresShell->IsAccessibilityActive() &&
-        aFrame->GetStyleVisibility()->IsVisible() != isVisible &&
-        !aFrame->GetPrevContinuation()) {
-      // A significant enough change occured that this part
-      // of the accessible tree is no longer valid. Fire event for primary
-      // frames only and if it wasn't fired for parent frame already.
-
-      // XXX: bug 355521. Visibility does not affect descendents with
-      // visibility set. Work on a separate, accurate mechanism for dealing with
-      // visibility changes.
-      nsCOMPtr<nsIAccessibilityService> accService = 
-        do_GetService("@mozilla.org/accessibilityService;1");
-      if (accService) {
-        PRUint32 event = isVisible ?
-          nsIAccessibleEvent::EVENT_ASYNCH_HIDE :
-          nsIAccessibleEvent::EVENT_ASYNCH_SHOW;
-        accService->InvalidateSubtreeFor(mPresShell, aFrame->GetContent(),
-                                         event);
-        fireAccessibilityEvents = PR_FALSE;
-      }
-    }
-#endif
-
+    
     if (!(aMinChange & nsChangeHint_ReconstructFrame)) {
       
       // There is no need to waste time crawling into a frame's children on a frame change.
@@ -1439,20 +1410,17 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
               ReResolveStyleContext(aPresContext, outOfFlowFrame,
                                     content, aChangeList,
                                     NS_SubtractHint(aMinChange,
-                                                    nsChangeHint_ReflowFrame),
-                                    fireAccessibilityEvents);
+                                                    nsChangeHint_ReflowFrame));
 
               // reresolve placeholder's context under the same parent
               // as the out-of-flow frame
               ReResolveStyleContext(aPresContext, child, content,
-                                    aChangeList, aMinChange,
-                                    fireAccessibilityEvents);
+                                    aChangeList, aMinChange);
             }
             else {  // regular child frame
               if (child != resolvedChild) {
                 ReResolveStyleContext(aPresContext, child, content,
-                                      aChangeList, aMinChange,
-                                      fireAccessibilityEvents);
+                                      aChangeList, aMinChange);
               } else {
                 NOISY_TRACE_FRAME("child frame already resolved as descendant, skipping",aFrame);
               }
@@ -1468,6 +1436,25 @@ nsFrameManager::ReResolveStyleContext(nsPresContext     *aPresContext,
 
     newContext->Release();
   }
+
+#ifdef ACCESSIBILITY
+  if (mPresShell->IsAccessibilityActive() &&
+      aFrame->GetStyleVisibility()->IsVisible() != isVisible &&
+      !aFrame->GetPrevContinuation()) { // Primary frames only
+    // XXX Visibility does not affect descendents with visibility set
+    // Work on a separate, accurate mechanism for dealing with visibility changes.
+    // A significant enough change occured that this part
+    // of the accessible tree is no longer valid.
+    nsCOMPtr<nsIAccessibilityService> accService = 
+      do_GetService("@mozilla.org/accessibilityService;1");
+    if (accService) {
+      PRUint32 event = isVisible ?
+        PRUint32(nsIAccessibleEvent::EVENT_ASYNCH_HIDE) :
+        PRUint32(nsIAccessibleEvent::EVENT_ASYNCH_SHOW);
+      accService->InvalidateSubtreeFor(mPresShell, aFrame->GetContent(), event);
+    }
+  }
+#endif
 
   return aMinChange;
 }
@@ -1500,7 +1487,7 @@ nsFrameManager::ComputeStyleChangeFor(nsIFrame          *aFrame,
       // Inner loop over next-in-flows of the current frame
       nsChangeHint frameChange =
         ReResolveStyleContext(GetPresContext(), frame, nsnull,
-                              aChangeList, topLevelChange, PR_TRUE);
+                              aChangeList, topLevelChange);
       NS_UpdateHint(topLevelChange, frameChange);
 
       if (topLevelChange & nsChangeHint_ReconstructFrame) {

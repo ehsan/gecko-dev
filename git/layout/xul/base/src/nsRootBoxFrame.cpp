@@ -90,10 +90,10 @@ public:
   virtual nsresult RemoveTooltipSupport(nsIContent* aNode);
 
   NS_IMETHOD AppendFrames(nsIAtom*        aListName,
-                          nsFrameList&    aFrameList);
+                          nsIFrame*       aFrameList);
   NS_IMETHOD InsertFrames(nsIAtom*        aListName,
                           nsIFrame*       aPrevFrame,
-                          nsFrameList&    aFrameList);
+                          nsIFrame*       aFrameList);
   NS_IMETHOD RemoveFrame(nsIAtom*        aListName,
                          nsIFrame*       aOldFrame);
 
@@ -154,7 +154,7 @@ nsRootBoxFrame::nsRootBoxFrame(nsIPresShell* aShell, nsStyleContext* aContext):
 
 NS_IMETHODIMP
 nsRootBoxFrame::AppendFrames(nsIAtom*        aListName,
-                             nsFrameList&    aFrameList)
+                             nsIFrame*       aFrameList)
 {
   nsresult  rv;
 
@@ -178,7 +178,7 @@ nsRootBoxFrame::AppendFrames(nsIAtom*        aListName,
 NS_IMETHODIMP
 nsRootBoxFrame::InsertFrames(nsIAtom*        aListName,
                              nsIFrame*       aPrevFrame,
-                             nsFrameList&    aFrameList)
+                             nsIFrame*       aFrameList)
 {
   nsresult  rv;
 

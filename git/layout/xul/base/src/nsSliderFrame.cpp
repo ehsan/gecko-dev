@@ -140,7 +140,7 @@ nsSliderFrame::RemoveFrame(nsIAtom*        aListName,
 NS_IMETHODIMP
 nsSliderFrame::InsertFrames(nsIAtom*        aListName,
                             nsIFrame*       aPrevFrame,
-                            nsFrameList&    aFrameList)
+                            nsIFrame*       aFrameList)
 {
   PRBool wasEmpty = mFrames.IsEmpty();
   nsresult rv = nsBoxFrame::InsertFrames(aListName, aPrevFrame, aFrameList);
@@ -152,7 +152,7 @@ nsSliderFrame::InsertFrames(nsIAtom*        aListName,
 
 NS_IMETHODIMP
 nsSliderFrame::AppendFrames(nsIAtom*        aListName,
-                            nsFrameList&    aFrameList)
+                            nsIFrame*       aFrameList)
 {
   // if we have no children and on was added then make sure we add the
   // listener

@@ -51,7 +51,7 @@ class Exception(exceptions.Exception):
     def __init__(self, errno, message = None):
         assert int(errno) == errno, "The errno param must be an integer"
         self.errno = errno
-        self.msg = message
+        self.message = message
         exceptions.Exception.__init__(self, errno)
     def __str__(self):
         if not hr_map:
@@ -59,7 +59,7 @@ class Exception(exceptions.Exception):
             for name, val in nsError.__dict__.items():
                 if type(val)==type(0):
                     hr_map[val] = name
-        message = self.msg
+        message = self.message
         if message is None:
             message = hr_map.get(self.errno)
             if message is None:

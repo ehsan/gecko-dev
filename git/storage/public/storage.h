@@ -61,6 +61,4 @@
 #include "mozStorageHelper.h"
 #include "mozStorageCID.h"
 
-#include "mozilla/storage/Variant.h"
-
 #endif // mozilla_storage_h_

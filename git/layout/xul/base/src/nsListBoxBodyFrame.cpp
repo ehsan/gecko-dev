@@ -1310,13 +1310,13 @@ nsListBoxBodyFrame::ContinueReflow(nscoord height)
 }
 
 NS_IMETHODIMP
-nsListBoxBodyFrame::ListBoxAppendFrames(nsFrameList& aFrameList)
+nsListBoxBodyFrame::ListBoxAppendFrames(nsIFrame* aFrameList)
 {
   // append them after
   nsBoxLayoutState state(PresContext());
-  const nsFrameList::Slice& newFrames = mFrames.AppendFrames(nsnull, aFrameList);
+  mFrames.AppendFrames(nsnull, aFrameList);
   if (mLayoutManager)
-    mLayoutManager->ChildrenAppended(this, state, newFrames);
+    mLayoutManager->ChildrenAppended(this, state, aFrameList);
   PresContext()->PresShell()->
     FrameNeedsReflow(this, nsIPresShell::eTreeChange,
                      NS_FRAME_HAS_DIRTY_CHILDREN);
@@ -1325,15 +1325,13 @@ nsListBoxBodyFrame::ListBoxAppendFrames(nsFrameList& aFrameList)
 }
 
 NS_IMETHODIMP
-nsListBoxBodyFrame::ListBoxInsertFrames(nsIFrame* aPrevFrame,
-                                        nsFrameList& aFrameList)
+nsListBoxBodyFrame::ListBoxInsertFrames(nsIFrame* aPrevFrame, nsIFrame* aFrameList)
 {
   // insert the frames to our info list
   nsBoxLayoutState state(PresContext());
-  const nsFrameList::Slice& newFrames =
-    mFrames.InsertFrames(nsnull, aPrevFrame, aFrameList);
+  mFrames.InsertFrames(nsnull, aPrevFrame, aFrameList);
   if (mLayoutManager)
-    mLayoutManager->ChildrenInserted(this, state, aPrevFrame, newFrames);
+    mLayoutManager->ChildrenInserted(this, state, aPrevFrame, aFrameList);
   PresContext()->PresShell()->
     FrameNeedsReflow(this, nsIPresShell::eTreeChange,
                      NS_FRAME_HAS_DIRTY_CHILDREN);

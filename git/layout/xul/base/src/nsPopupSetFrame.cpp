@@ -92,10 +92,11 @@ nsPopupSetFrame::GetType() const
 
 NS_IMETHODIMP
 nsPopupSetFrame::AppendFrames(nsIAtom*        aListName,
-                              nsFrameList&    aFrameList)
+                              nsIFrame*       aFrameList)
 {
   if (aListName == nsGkAtoms::popupList) {
-    return AddPopupFrameList(aFrameList);
+    nsFrameList temp(aFrameList);
+    return AddPopupFrameList(temp);
   }
   return nsBoxFrame::AppendFrames(aListName, aFrameList);
 }
@@ -113,10 +114,11 @@ nsPopupSetFrame::RemoveFrame(nsIAtom*        aListName,
 NS_IMETHODIMP
 nsPopupSetFrame::InsertFrames(nsIAtom*        aListName,
                               nsIFrame*       aPrevFrame,
-                              nsFrameList&    aFrameList)
+                              nsIFrame*       aFrameList)
 {
   if (aListName == nsGkAtoms::popupList) {
-    return AddPopupFrameList(aFrameList);
+    nsFrameList temp(aFrameList);
+    return AddPopupFrameList(temp);
   }
   return nsBoxFrame::InsertFrames(aListName, aPrevFrame, aFrameList);
 }

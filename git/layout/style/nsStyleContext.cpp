@@ -43,13 +43,18 @@
 #include "nsString.h"
 #include "nsPresContext.h"
 #include "nsIStyleRule.h"
+#include "nsCRT.h"
 
 #include "nsCOMPtr.h"
 #include "nsStyleSet.h"
 #include "nsIPresShell.h"
+#include "prenv.h"
 
 #include "nsRuleNode.h"
 #include "nsStyleContext.h"
+#include "imgIRequest.h"
+
+#include "nsPrintfCString.h"
 
 #ifdef DEBUG
 // #define NOISY_DEBUG

@@ -38,69 +38,51 @@
 function test() {
   /** Test for Bug 490040 **/
 
-  let ss = Cc["@mozilla.org/browser/sessionstore;1"].
-           getService(Ci.nsISessionStore);
-  let os = Cc["@mozilla.org/observer-service;1"].
-           getService(Ci.nsIObserverService);
-  let ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
-           getService(Ci.nsIWindowWatcher);
+  let ss = Cc["@mozilla.org/browser/sessionstore;1"].getService(Ci.nsISessionStore);
+  let os = Cc["@mozilla.org/observer-service;1"].getService(Ci.nsIObserverService);
 
   waitForExplicitFinish();
 
-  function testWithState(aState) {
-    // Ensure we can store the window if needed.
+  function testWithState(aState, aCallback) {
+    // ensure we can store the window if need be
     let curClosedWindowCount = ss.getClosedWindowCount();
-    gPrefService.setIntPref("browser.sessionstore.max_windows_undo",
-                            curClosedWindowCount + 1);
+    gPrefService.setIntPref("browser.sessionstore.max_windows_undo", curClosedWindowCount + 1);
 
-    let windowObserver = {
-      observe: function(aSubject, aTopic, aData) {
-        let theWin = aSubject.QueryInterface(Ci.nsIDOMWindow);
+    let theWin = openDialog(location, "_blank", "chrome,all,dialog=no");
+    theWin.addEventListener("load", function(aEvent) {
+      theWin.removeEventListener("load", arguments.callee, true);
 
-        switch(aTopic) {
-          case "domwindowopened":
-            theWin.addEventListener("load", function () {
-              theWin.removeEventListener("load", arguments.callee, false);
-              executeSoon(function() {
-                // Close the window as soon as the first tab loads, or
-                // immediately if there are no tabs.
-                if (aState.windowState.windows[0].tabs[0].entries.length) {
-                  theWin.gBrowser.addEventListener("load", function() {
-                    theWin.gBrowser.removeEventListener("load",
-                                                        arguments.callee, true);
-                    theWin.close();
-                  }, true);
-                } else {
-                  executeSoon(function() {
-                    theWin.close();
-                  });
-                }
-                ss.setWindowState(theWin, JSON.stringify(aState.windowState),
-                                  true);
-              });
-            }, false);
-            break;
+      ss.setWindowState(theWin, JSON.stringify(aState.windowState), true);
 
-          case "domwindowclosed":
-            ww.unregisterNotification(this);
-            // Use executeSoon to ensure this happens after SS observer.
-            executeSoon(function() {
-              is(ss.getClosedWindowCount(),
-                 curClosedWindowCount + (aState.shouldBeAdded ? 1 : 0),
-                 "That window should " + (aState.shouldBeAdded ? "" : "not ") +
-                 "be restorable");
-              executeSoon(runNextTest);
-            });
-            break;
+      let observer = {
+        QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver,
+                                               Ci.nsISupportsWeakReference]),
+        observe: function(aSubject, aTopic, aData) {
+          let _this = this;
+          // use executeSoon to ensure this happens after SS observer
+          executeSoon(function() {
+            is(ss.getClosedWindowCount(), curClosedWindowCount + (aState.shouldBeAdded ? 1 : 0),
+               "That window should " + (aState.shouldBeAdded ? "" : "not ") + "be restorable");
+            os.removeObserver(_this, "domwindowclosed");
+            executeSoon(aCallback);
+          });
         }
+      };
+      os.addObserver(observer, "domwindowclosed", true);
+
+      // Close the window as soon as the first tab loads, or immediately if
+      // there are no tabs.
+      if (aState.windowState.windows[0].tabs[0].entries.length) {
+        theWin.gBrowser.addEventListener("load", function() {
+          theWin.gBrowser.removeEventListener("load", arguments.callee, true);
+          theWin.close();
+        }, true);
+      } else {
+        executeSoon(function() {
+          theWin.close();
+        });
       }
-    }
-    ww.registerNotification(windowObserver);
-    ww.openWindow(null,
-                  location,
-                  "_blank",
-                  "chrome,all,dialog=no",
-                  null);
+    }, true);
   }
 
   // Only windows with open tabs are restorable. Windows where a lone tab is
@@ -146,16 +128,15 @@ function test() {
     }
   ];
 
-  function runNextTest() {
-    if (states.length) {
-      let state = states.shift();
-      testWithState(state);
-    }
-    else {
-      gPrefService.clearUserPref("browser.sessionstore.max_windows_undo");
-      finish();
-    }
-  }
-  runNextTest();
+  testWithState(states[0], function() {
+    testWithState(states[1], function() {
+      testWithState(states[2], function() {
+        testWithState(states[3], function() {
+          gPrefService.clearUserPref("browser.sessionstore.max_windows_undo");
+          finish();
+        });
+      });
+    });
+  });
 }
 

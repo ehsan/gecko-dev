@@ -1119,15 +1119,6 @@ nsXULElement::AfterSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
             SetTitlebarColor(color, aName == nsGkAtoms::activetitlebarcolor);
         }
 
-        // if the localedir changed on the root element, reset the document direction
-        if (aName == nsGkAtoms::localedir &&
-            document && document->GetRootContent() == this) {
-            nsCOMPtr<nsIXULDocument> xuldoc = do_QueryInterface(document);
-            if (xuldoc) {
-                xuldoc->ResetDocumentDirection();
-            }
-        }
-
         if (aName == nsGkAtoms::src && document) {
             LoadSrc();
         }
@@ -1374,15 +1365,6 @@ nsXULElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName, PRBool aNotify)
             SetTitlebarColor(NS_RGBA(0, 0, 0, 0), aName == nsGkAtoms::activetitlebarcolor);
         }
 
-        // if the localedir changed on the root element, reset the document direction
-        if (aName == nsGkAtoms::localedir &&
-            doc && doc->GetRootContent() == this) {
-            nsCOMPtr<nsIXULDocument> xuldoc = do_QueryInterface(doc);
-            if (xuldoc) {
-                xuldoc->ResetDocumentDirection();
-            }
-        }
-
         // If the accesskey attribute is removed, unregister it here
         // Also see nsXULLabelFrame, nsBoxFrame and nsTextBoxFrame's AttributeChanged
         if (aName == nsGkAtoms::accesskey || aName == nsGkAtoms::control) {
@@ -1586,9 +1568,7 @@ nsXULElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
         (aVisitor.mEvent->message == NS_MOUSE_CLICK ||
          aVisitor.mEvent->message == NS_MOUSE_DOUBLECLICK ||
          aVisitor.mEvent->message == NS_XUL_COMMAND ||
-         aVisitor.mEvent->message == NS_CONTEXTMENU ||
-         aVisitor.mEvent->message == NS_DRAGDROP_START ||
-         aVisitor.mEvent->message == NS_DRAGDROP_GESTURE)) {
+         aVisitor.mEvent->message == NS_CONTEXTMENU)) {
         // Don't propagate these events from native anonymous scrollbar.
         aVisitor.mCanHandle = PR_TRUE;
         aVisitor.mParentTarget = nsnull;
@@ -1813,7 +1793,8 @@ nsXULElement::GetAttributeChangeHint(const nsIAtom* aAttribute,
         retval = NS_STYLE_HINT_FRAMECHANGE;
     } else {
         // if left or top changes we reflow. This will happen in xul
-        // containers that manage positioned children such as a stack.
+        // containers that manage positioned children such as a
+        // bulletinboard.
         if (nsGkAtoms::left == aAttribute || nsGkAtoms::top == aAttribute)
             retval = NS_STYLE_HINT_REFLOW;
     }

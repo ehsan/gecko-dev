@@ -182,10 +182,6 @@ public:
 
     virtual void EndUpdate(nsUpdateType aUpdateType);
 
-    virtual PRBool IsDocumentRightToLeft();
-
-    virtual void ResetDocumentDirection() { mDocDirection = Direction_Uninitialized; }
-
     static PRBool
     MatchAttribute(nsIContent* aContent,
                    PRInt32 aNameSpaceID,
@@ -248,8 +244,7 @@ protected:
         return kNameSpaceID_XUL;
     }
 
-    static NS_HIDDEN_(int) DirectionChanged(const char* aPrefName, void* aData);
-
+protected:
     // pseudo constants
     static PRInt32 gRefCnt;
 
@@ -330,17 +325,6 @@ protected:
      */
 
     nsCOMPtr<nsIDOMNode>    mTooltipNode;          // [OWNER] element triggering the tooltip
-
-    /**
-     * document direction for use with the -moz-locale-dir property
-     */
-    enum DocumentDirection {
-      Direction_Uninitialized, // not determined yet
-      Direction_LeftToRight,
-      Direction_RightToLeft
-    };
-
-    DocumentDirection               mDocDirection;
 
     /**
      * Context stack, which maintains the state of the Builder and allows

@@ -42,9 +42,6 @@ VPATH		= @srcdir@
 relativesrcdir  = toolkit/content/tests/chrome
 
 include $(DEPTH)/config/autoconf.mk
-
-DIRS = rtltest
-
 include $(topsrcdir)/config/rules.mk
 
 _TEST_FILES = 	findbar_window.xul \
@@ -89,7 +86,6 @@ _TEST_FILES = 	findbar_window.xul \
 		test_keys.xul \
 		window_keys.xul \
 		test_showcaret.xul \
-		test_righttoleft.xul \
 		$(NULL)
 
 # test_panel_focus.xul won't work if the Full Keyboard Access preference is set to

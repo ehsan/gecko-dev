@@ -81,7 +81,6 @@ public:
                              nsSize aCBSize, nscoord aAvailableWidth,
                              nsSize aMargin, nsSize aBorder, nsSize aPadding,
                              PRBool aShrinkWrap);
-  virtual nscoord GetBaseline() const;
 
   NS_IMETHOD Reflow(nsPresContext*           aPresContext,
                     nsHTMLReflowMetrics&     aDesiredSize,
@@ -96,10 +95,10 @@ public:
     nsPoint aPt, const nsRect& aDirtyRect);
 
   NS_IMETHOD AppendFrames(nsIAtom*       aListName,
-                          nsFrameList&   aFrameList);
+                          nsIFrame*      aFrameList);
   NS_IMETHOD InsertFrames(nsIAtom*       aListName,
                           nsIFrame*      aPrevFrame,
-                          nsFrameList&   aFrameList);
+                          nsIFrame*      aFrameList);
   NS_IMETHOD RemoveFrame(nsIAtom*       aListName,
                          nsIFrame*      aOldFrame);
 
@@ -119,7 +118,7 @@ public:
 protected:
 
   virtual PRIntn GetSkipSides() const;
-  void ReParentFrameList(const nsFrameList& aFrameList);
+  void ReParentFrameList(nsIFrame* aFrameList);
 
   nsIFrame* mLegendFrame;
   nsIFrame* mContentFrame;
@@ -614,28 +613,34 @@ nsFieldSetFrame::GetSkipSides() const
 
 NS_IMETHODIMP
 nsFieldSetFrame::AppendFrames(nsIAtom*       aListName,
-                              nsFrameList&   aFrameList)
+                              nsIFrame*      aFrameList)
 {
-  // aFrameList is not allowed to contain "the legend" for this fieldset
-  ReParentFrameList(aFrameList);
-  return mContentFrame->AppendFrames(aListName, aFrameList);
+  if (aFrameList) {
+    // aFrameList is not allowed to contain "the legend" for this fieldset
+    ReParentFrameList(aFrameList);
+    return mContentFrame->AppendFrames(aListName, aFrameList);
+  }
+  return NS_OK;
 }
 
 NS_IMETHODIMP
 nsFieldSetFrame::InsertFrames(nsIAtom*       aListName,
                               nsIFrame*      aPrevFrame,
-                              nsFrameList&   aFrameList)
+                              nsIFrame*      aFrameList)
 {
   NS_ASSERTION(!aPrevFrame || aPrevFrame->GetParent() == this ||
                aPrevFrame->GetParent() == mContentFrame,
                "inserting after sibling frame with different parent");
 
-  // aFrameList is not allowed to contain "the legend" for this fieldset
-  ReParentFrameList(aFrameList);
-  if (NS_UNLIKELY(aPrevFrame == mLegendFrame)) {
-    aPrevFrame = nsnull;
+  if (aFrameList) {
+    // aFrameList is not allowed to contain "the legend" for this fieldset
+    ReParentFrameList(aFrameList);
+    if (NS_UNLIKELY(aPrevFrame == mLegendFrame)) {
+      aPrevFrame = nsnull;
+    }
+    return mContentFrame->InsertFrames(aListName, aPrevFrame, aFrameList);
   }
-  return mContentFrame->InsertFrames(aListName, aPrevFrame, aFrameList);
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -661,24 +666,14 @@ NS_IMETHODIMP nsFieldSetFrame::GetAccessible(nsIAccessible** aAccessible)
 #endif
 
 void
-nsFieldSetFrame::ReParentFrameList(const nsFrameList& aFrameList)
+nsFieldSetFrame::ReParentFrameList(nsIFrame* aFrameList)
 {
   nsFrameManager* frameManager = PresContext()->FrameManager();
-  for (nsFrameList::Enumerator e(aFrameList); !e.AtEnd(); e.Next()) {
-    NS_ASSERTION(mLegendFrame || e.get()->GetType() != nsGkAtoms::legendFrame,
+  for (nsIFrame* frame = aFrameList; frame; frame = frame->GetNextSibling()) {
+    NS_ASSERTION(mLegendFrame || frame->GetType() != nsGkAtoms::legendFrame,
                  "The fieldset's legend is not allowed in this list");
-    e.get()->SetParent(mContentFrame);
-    frameManager->ReParentStyleContext(e.get());
+    frame->SetParent(mContentFrame);
+    frameManager->ReParentStyleContext(frame);
   }
   mContentFrame->AddStateBits(GetStateBits() & NS_FRAME_HAS_CHILD_WITH_VIEW);
-}
-
-nscoord
-nsFieldSetFrame::GetBaseline() const
-{
-  // We know mContentFrame is a block, so calling GetBaseline() on it will do
-  // the right thing (that being to return the baseline of the last line).
-  NS_ASSERTION(nsLayoutUtils::GetAsBlock(mContentFrame),
-               "Unexpected mContentFrame");
-  return mContentFrame->GetPosition().y + mContentFrame->GetBaseline();
 }

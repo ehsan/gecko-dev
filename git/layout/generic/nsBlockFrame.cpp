@@ -541,20 +541,6 @@ nsBlockFrame::GetChildList(nsIAtom* aListName) const
   return nsContainerFrame::GetChildList(aListName);
 }
 
-nsIFrame*
-nsBlockFrame::GetLastChild(nsIAtom* aListName) const
-{
-  if (aListName) {
-    return nsBlockFrameSuper::GetLastChild(aListName);
-  }
-
-  if (mLines.empty()) {
-    return nsnull;
-  }
-
-  return mLines.back()->LastChild();
-}
-
 #define NS_BLOCK_FRAME_OVERFLOW_OOF_LIST_INDEX  (NS_CONTAINER_LIST_COUNT_INCL_OC + 0)
 #define NS_BLOCK_FRAME_FLOAT_LIST_INDEX         (NS_CONTAINER_LIST_COUNT_INCL_OC + 1)
 #define NS_BLOCK_FRAME_BULLET_LIST_INDEX        (NS_CONTAINER_LIST_COUNT_INCL_OC + 2)
@@ -1978,11 +1964,6 @@ nsBlockFrame::ReflowDirtyLines(nsBlockReflowState& aState)
       // to be reflowed, so this computation of deltaY will not be
       // used.
       deltaY = line->mBounds.YMost() - oldYMost;
-
-      // Now do an interrupt check. We want to do this only in the case when we
-      // actually reflow the line, so that if we get back in here we'll get
-      // further on the reflow before interrupting.
-      aState.mPresContext->CheckForInterrupt(this);
     } else {
       aState.mOverflowTracker.Skip(line->mFirstChild, aState.mReflowStatus);
         // Nop except for blocks (we don't create overflow container
@@ -2049,7 +2030,7 @@ nsBlockFrame::ReflowDirtyLines(nsBlockReflowState& aState)
 
     DumpLine(aState, line, deltaY, -1);
 
-    if (aState.mPresContext->HasPendingInterrupt()) {
+    if (aState.mPresContext->CheckForInterrupt(this)) {
       willReflowAgain = PR_TRUE;
       // Another option here might be to leave |line| clean if
       // !HasPendingInterrupt() before the CheckForInterrupt() call, since in
@@ -4416,8 +4397,6 @@ nsBlockFrame::HandleOverflowPlaceholdersForPulledFrame(
     }
     ReparentFrame(outOfFlow, parent, this);
 
-    // XXXbz should this be InsertFrame?  Or can |frame| really have
-    // following siblings here?
     aState.mOverflowPlaceholders.InsertFrames(nsnull, lastOverflowPlace, frame);
     // outOfFlow isn't inserted anywhere yet. Eventually the overflow
     // placeholders get put into the overflow lines, and at the same time we
@@ -4501,7 +4480,8 @@ nsBlockFrame::DrainOverflowLines(nsBlockReflowState& aState)
         for (nsIFrame* f = oofs.mList.FirstChild(); f; f = f->GetNextSibling()) {
           ReparentFrame(f, prevBlock, this);
         }
-        mFloats.InsertFrames(nsnull, nsnull, oofs.mList);
+        mFloats.InsertFrames(nsnull, nsnull, oofs.mList.FirstChild());
+        oofs.mList.Clear();
       }
     }
     
@@ -4663,7 +4643,7 @@ nsBlockFrame::DrainOverflowLines(nsBlockReflowState& aState)
 
     // Put the placeholders' out of flows into the float list
     keepOutOfFlows.SortByContentOrder();
-    mFloats.InsertFrames(nsnull, nsnull, keepOutOfFlows);
+    mFloats.InsertFrames(nsnull, nsnull, keepOutOfFlows.FirstChild());
   }
 
   return PR_TRUE;
@@ -4790,9 +4770,9 @@ nsBlockFrame::LastChild()
 
 NS_IMETHODIMP
 nsBlockFrame::AppendFrames(nsIAtom*  aListName,
-                           nsFrameList& aFrameList)
+                           nsIFrame* aFrameList)
 {
-  if (aFrameList.IsEmpty()) {
+  if (nsnull == aFrameList) {
     return NS_OK;
   }
   if (aListName) {
@@ -4828,21 +4808,18 @@ nsBlockFrame::AppendFrames(nsIAtom*  aListName,
   printf("\n");
 #endif
   nsresult rv = AddFrames(aFrameList, lastKid);
-  if (NS_FAILED(rv)) {
-    return rv;
+  if (NS_SUCCEEDED(rv)) {
+    PresContext()->PresShell()->
+      FrameNeedsReflow(this, nsIPresShell::eTreeChange,
+                       NS_FRAME_HAS_DIRTY_CHILDREN); // XXX sufficient?
   }
-  aFrameList.Clear();
-
-  PresContext()->PresShell()->
-    FrameNeedsReflow(this, nsIPresShell::eTreeChange,
-                     NS_FRAME_HAS_DIRTY_CHILDREN); // XXX sufficient?
-  return NS_OK;
+  return rv;
 }
 
 NS_IMETHODIMP
 nsBlockFrame::InsertFrames(nsIAtom*  aListName,
                            nsIFrame* aPrevFrame,
-                           nsFrameList& aFrameList)
+                           nsIFrame* aFrameList)
 {
   NS_ASSERTION(!aPrevFrame || aPrevFrame->GetParent() == this,
                "inserting after sibling frame with different parent");
@@ -4876,17 +4853,15 @@ nsBlockFrame::InsertFrames(nsIAtom*  aListName,
   printf("\n");
 #endif
   nsresult rv = AddFrames(aFrameList, aPrevFrame);
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
-  aFrameList.Clear();
 #ifdef IBMBIDI
   if (aListName != nsGkAtoms::nextBidi)
 #endif // IBMBIDI
+  if (NS_SUCCEEDED(rv)) {
     PresContext()->PresShell()->
       FrameNeedsReflow(this, nsIPresShell::eTreeChange,
                        NS_FRAME_HAS_DIRTY_CHILDREN); // XXX sufficient?
-  return NS_OK;
+  }
+  return rv;
 }
 
 static PRBool

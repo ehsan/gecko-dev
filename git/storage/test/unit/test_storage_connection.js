@@ -37,9 +37,6 @@
 
 // This file tests the functions of mozIStorageConnection
 
-////////////////////////////////////////////////////////////////////////////////
-//// Test Functions
-
 function test_connectionReady_open()
 {
   // there doesn't seem to be a way for the connection to not be ready (unless
@@ -214,22 +211,6 @@ function test_defaultSynchronousAtNormal()
   }
 }
 
-function test_close_succeeds_with_finalized_async_statement()
-{
-  // We want to make sure we create a cached async statement to make sure that
-  // when we finalize our statement, we end up finalizing the async one too so
-  // close will succeed.
-  let stmt = createStatement("SELECT * FROM test");
-  stmt.executeAsync();
-  stmt.finalize();
-
-  // Cleanup calls close, as well as removes the database file.
-  cleanup();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-//// Test Runner
-
 var tests = [
   test_connectionReady_open,
   test_connectionReady_closed,
@@ -250,7 +231,6 @@ var tests = [
   test_set_schemaVersion_negative,
   test_createTable,
   test_defaultSynchronousAtNormal,
-  test_close_succeeds_with_finalized_async_statement,
 ];
 
 function run_test()

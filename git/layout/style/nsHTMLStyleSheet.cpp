@@ -69,7 +69,6 @@
 #include "nsRuleWalker.h"
 #include "nsRuleData.h"
 #include "nsContentErrors.h"
-#include "nsRuleProcessorData.h"
 
 NS_IMPL_ISUPPORTS1(nsHTMLStyleSheet::HTMLColorRule, nsIStyleRule)
 

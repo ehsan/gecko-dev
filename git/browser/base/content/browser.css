@@ -45,7 +45,7 @@ toolbarpaletteitem[place="palette"] > toolbaritem > hbox[type="places"] {
   display: none;
 }
 
-#feed-menu:-moz-locale-dir(rtl) > menuitem {
+#feed-menu[chromedir="rtl"] > menuitem {
   direction: rtl;
 }
 
