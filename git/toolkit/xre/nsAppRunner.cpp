@@ -121,9 +121,6 @@
 #include "nsAppShellCID.h"
 
 #include "mozilla/FunctionTimer.h"
-#include "mozilla/unused.h"
-
-using mozilla::unused;
 
 #ifdef XP_WIN
 #include "nsIWinAppHelper.h"
@@ -754,7 +751,9 @@ nsXULAppInfo::EnsureContentProcess()
   if (XRE_GetProcessType() != GeckoProcessType_Default)
     return NS_ERROR_NOT_AVAILABLE;
 
-  unused << ContentParent::GetNewOrUsed();
+  ContentParent* c = ContentParent::GetSingleton();
+  if (!c)
+    return NS_ERROR_NOT_AVAILABLE;
   return NS_OK;
 }
 
