@@ -42,13 +42,6 @@ let connectionCounters = new Map();
  */
 let isClosed = false;
 
-this.Debugging = {
-  // Tests should fail if a connection auto closes.  The exception is
-  // when finalization itself is tested, in which case this flag
-  // should be set to false.
-  failTestsOnAutoClose: true
-};
-
 // Displays a script error message
 function logScriptError(message) {
   let consoleMessage = Cc["@mozilla.org/scripterror;1"].
@@ -58,12 +51,8 @@ function logScriptError(message) {
                       Ci.nsIScriptError.errorFlag, "component javascript");
   Services.console.logMessage(consoleMessage);
 
-  // This `Promise.reject` will cause tests to fail.  The debugging
-  // flag can be used to suppress this for tests that explicitly
-  // test auto closes.
-  if (Debugging.failTestsOnAutoClose) {
-    Promise.reject(new Error(message));
-  }
+  // Always dump errors, in case the Console Service isn't listening anymore
+  dump("*** " + message + "\n");
 }
 
 /**

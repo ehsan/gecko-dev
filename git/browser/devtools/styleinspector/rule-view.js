@@ -2869,13 +2869,7 @@ function getParentTextProperty(node) {
   if (!parent) {
     return null;
   }
-
-  let propValue = parent.querySelector(".ruleview-propertyvalue");
-  if (!propValue) {
-    return null;
-  }
-
-  return propValue.textProperty;
+  return parent.querySelector(".ruleview-propertyvalue").textProperty;
 }
 
 /**

@@ -20,13 +20,9 @@ const AppActorFront = require("devtools/app-actor-front");
 const {getDeviceFront} = require("devtools/server/actors/device");
 const {setTimeout} = require("sdk/timers");
 const {Task} = Cu.import("resource://gre/modules/Task.jsm", {});
-const {USBRuntime, WiFiRuntime, SimulatorRuntime,
-       gLocalRuntime, gRemoteRuntime} = require("devtools/webide/runtimes");
-const discovery = require("devtools/toolkit/discovery/discovery");
+const {USBRuntime, SimulatorRuntime, gLocalRuntime, gRemoteRuntime} = require("devtools/webide/runtimes");
 
 const Strings = Services.strings.createBundle("chrome://webide/content/webide.properties");
-
-const WIFI_SCANNING_PREF = "devtools.remote.wifi.scan";
 
 exports.AppManager = AppManager = {
 
@@ -46,21 +42,12 @@ exports.AppManager = AppManager = {
     this.webAppsStore = new WebappsStore(this.connection);
     this.webAppsStore.on("store-ready", this.onWebAppsStoreready);
 
-    this.runtimeList = {
-      usb: [],
-      wifi: [],
-      simulator: [],
-      custom: [gRemoteRuntime]
-    };
+    this.runtimeList = {usb: [], simulator: [], custom: [gRemoteRuntime]};
     if (Services.prefs.getBoolPref("devtools.webide.enableLocalRuntime")) {
       this.runtimeList.custom.push(gLocalRuntime);
     }
     this.trackUSBRuntimes();
-    this.trackWiFiRuntimes();
     this.trackSimulatorRuntimes();
-
-    this.observe = this.observe.bind(this);
-    Services.prefs.addObserver(WIFI_SCANNING_PREF, this, false);
   },
 
   uninit: function() {
@@ -68,7 +55,6 @@ exports.AppManager = AppManager = {
     this.selectedProject = null;
     this.selectedRuntime = null;
     this.untrackUSBRuntimes();
-    this.untrackWiFiRuntimes();
     this.untrackSimulatorRuntimes();
     this._runningApps.clear();
     this.runtimeList = null;
@@ -79,17 +65,6 @@ exports.AppManager = AppManager = {
     this._listTabsResponse = null;
     this.connection.disconnect();
     this.connection = null;
-    Services.prefs.removeObserver(WIFI_SCANNING_PREF, this);
-  },
-
-  observe: function(subject, topic, data) {
-    if (data !== WIFI_SCANNING_PREF) {
-      return;
-    }
-    // Cycle WiFi tracking to reflect the new value
-    this.untrackWiFiRuntimes();
-    this.trackWiFiRuntimes();
-    this._updateWiFiRuntimes();
   },
 
   update: function(what, details) {
@@ -526,40 +501,6 @@ exports.AppManager = AppManager = {
     this.runtimeList.usb = [];
     for (let id of Devices.available()) {
       this.runtimeList.usb.push(new USBRuntime(id));
-    }
-    this.update("runtimelist");
-  },
-
-  get isWiFiScanningEnabled() {
-    return Services.prefs.getBoolPref(WIFI_SCANNING_PREF);
-  },
-  scanForWiFiRuntimes: function() {
-    if (!this.isWiFiScanningEnabled) {
-      return;
-    }
-    discovery.scan();
-  },
-  trackWiFiRuntimes: function() {
-    if (!this.isWiFiScanningEnabled) {
-      return;
-    }
-    this._updateWiFiRuntimes = this._updateWiFiRuntimes.bind(this);
-    discovery.on("devtools-device-added", this._updateWiFiRuntimes);
-    discovery.on("devtools-device-updated", this._updateWiFiRuntimes);
-    discovery.on("devtools-device-removed", this._updateWiFiRuntimes);
-  },
-  untrackWiFiRuntimes: function() {
-    if (!this.isWiFiScanningEnabled) {
-      return;
-    }
-    discovery.off("devtools-device-added", this._updateWiFiRuntimes);
-    discovery.off("devtools-device-updated", this._updateWiFiRuntimes);
-    discovery.off("devtools-device-removed", this._updateWiFiRuntimes);
-  },
-  _updateWiFiRuntimes: function() {
-    this.runtimeList.wifi = [];
-    for (let device of discovery.getRemoteDevicesWithService("devtools")) {
-      this.runtimeList.wifi.push(new WiFiRuntime(device));
     }
     this.update("runtimelist");
   },

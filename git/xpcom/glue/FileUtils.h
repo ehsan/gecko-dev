@@ -39,10 +39,10 @@ struct ScopedCloseFDTraits
 {
   typedef int type;
   static type empty() { return -1; }
-  static void release(type aFd)
-  {
-    if (aFd != -1) {
-      while (close(aFd) == -1 && errno == EINTR) {
+  static void release(type fd) {
+    if (fd != -1) {
+      while ((close(fd) == -1) && (errno == EINTR)) {
+        ;
       }
     }
   }
@@ -60,10 +60,9 @@ struct ScopedClosePRFDTraits
 {
   typedef PRFileDesc* type;
   static type empty() { return nullptr; }
-  static void release(type aFd)
-  {
-    if (aFd) {
-      PR_Close(aFd);
+  static void release(type fd) {
+    if (fd != nullptr) {
+      PR_Close(fd);
     }
   }
 };
@@ -72,12 +71,11 @@ typedef Scoped<ScopedClosePRFDTraits> AutoFDClose;
 /* RAII wrapper for FILE descriptors */
 struct ScopedCloseFileTraits
 {
-  typedef FILE* type;
+  typedef FILE *type;
   static type empty() { return nullptr; }
-  static void release(type aFile)
-  {
-    if (aFile) {
-      fclose(aFile);
+  static void release(type f) {
+    if (f) {
+      fclose(f);
     }
   }
 };
@@ -92,11 +90,11 @@ typedef Scoped<ScopedCloseFileTraits> ScopedCloseFile;
  * @param aLength length of file to grow to.
  * @return true on success.
  */
-NS_COM_GLUE bool fallocate(PRFileDesc* aFD, int64_t aLength);
+NS_COM_GLUE bool fallocate(PRFileDesc *aFD, int64_t aLength);
 
 /**
  * Use readahead to preload shared libraries into the file cache before loading.
- * WARNING: This function should not be used without a telemetry field trial
+ * WARNING: This function should not be used without a telemetry field trial 
  *          demonstrating a clear performance improvement!
  *
  * @param aFile nsIFile representing path to shared library
@@ -105,7 +103,7 @@ NS_COM_GLUE void ReadAheadLib(nsIFile* aFile);
 
 /**
  * Use readahead to preload a file into the file cache before reading.
- * WARNING: This function should not be used without a telemetry field trial
+ * WARNING: This function should not be used without a telemetry field trial 
  *          demonstrating a clear performance improvement!
  *
  * @param aFile nsIFile representing path to shared library
@@ -122,7 +120,7 @@ NS_COM_GLUE void ReadAheadFile(nsIFile* aFile, const size_t aOffset = 0,
 
 /**
  * Use readahead to preload shared libraries into the file cache before loading.
- * WARNING: This function should not be used without a telemetry field trial
+ * WARNING: This function should not be used without a telemetry field trial 
  *          demonstrating a clear performance improvement!
  *
  * @param aFilePath path to shared library
@@ -131,7 +129,7 @@ NS_COM_GLUE void ReadAheadLib(pathstr_t aFilePath);
 
 /**
  * Use readahead to preload a file into the file cache before loading.
- * WARNING: This function should not be used without a telemetry field trial
+ * WARNING: This function should not be used without a telemetry field trial 
  *          demonstrating a clear performance improvement!
  *
  * @param aFilePath path to shared library
@@ -148,7 +146,7 @@ NS_COM_GLUE void ReadAheadFile(pathstr_t aFilePath, const size_t aOffset = 0,
  * Use readahead to preload a file into the file cache before reading.
  * When this function exits, the file pointer is guaranteed to be in the same
  * position it was in before this function was called.
- * WARNING: This function should not be used without a telemetry field trial
+ * WARNING: This function should not be used without a telemetry field trial 
  *          demonstrating a clear performance improvement!
  *
  * @param aFd file descriptor opened for read access
@@ -189,20 +187,30 @@ and run in non-GONK builds. */
  * @return true on success, notice that less than requested bytes could have
  * been read if the file was smaller
  */
-bool ReadSysFile(const char* aFilename, char* aBuf, size_t aBufSize);
+bool
+ReadSysFile(
+  const char* aFilename,
+  char* aBuf,
+  size_t aBufSize);
 
 /**
  * Parse the contents of a file, assuming it contains a decimal integer.
  * @return true on success
  */
-bool ReadSysFile(const char* aFilename, int* aVal);
+bool
+ReadSysFile(
+  const char* aFilename,
+  int* aVal);
 
 /**
  * Parse the contents of a file, assuming it contains a boolean value
  * (either 0 or 1).
  * @return true on success
  */
-bool ReadSysFile(const char* aFilename, bool* aVal);
+bool
+ReadSysFile(
+  const char* aFilename,
+  bool* aVal);
 
 #endif /* (MOZ_WIDGET_GONK || DEBUG) && XP_UNIX */
 

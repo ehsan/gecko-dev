@@ -40,10 +40,10 @@ TabSource.prototype = {
       let label;
       if (tab.browser.contentTitle)
         label = tab.browser.contentTitle;
-      else if (tab.browser.contentURI)
+      else if (tab.browser.contentURI && tab.browser.contentURI.spec)
         label = tab.browser.contentURI.spec;
       else
-        label = tab.originalURI.spec;
+        label = tab.originalURI;
       return { label: label,
                icon: "thumbnail:" + tab.id }
     }));

@@ -19,26 +19,28 @@
  * @see nsDataHashtable, nsClassHashtable
  */
 template<class KeyClass, class RefPtr>
-class nsRefPtrHashtable
-  : public nsBaseHashtable<KeyClass, nsRefPtr<RefPtr>, RefPtr*>
+class nsRefPtrHashtable :
+  public nsBaseHashtable< KeyClass, nsRefPtr<RefPtr> , RefPtr* >
 {
 public:
   typedef typename KeyClass::KeyType KeyType;
   typedef RefPtr* UserDataType;
-  typedef nsBaseHashtable<KeyClass, nsRefPtr<RefPtr>, RefPtr*> base_type;
+  typedef nsBaseHashtable< KeyClass, nsRefPtr<RefPtr> , RefPtr* > base_type;
 
-  nsRefPtrHashtable() {}
+  nsRefPtrHashtable()
+  {
+  }
   explicit nsRefPtrHashtable(uint32_t aInitSize)
-    : nsBaseHashtable<KeyClass, nsRefPtr<RefPtr>, RefPtr*>(aInitSize)
+    : nsBaseHashtable<KeyClass,nsRefPtr<RefPtr>,RefPtr*>(aInitSize)
   {
   }
 
   /**
    * @copydoc nsBaseHashtable::Get
-   * @param aData This is an XPCOM getter, so aData is already_addrefed.
-   *   If the key doesn't exist, aData will be set to nullptr.
+   * @param pData This is an XPCOM getter, so pData is already_addrefed.
+   *   If the key doesn't exist, pData will be set to nullptr.
    */
-  bool Get(KeyType aKey, UserDataType* aData) const;
+  bool Get(KeyType aKey, UserDataType* pData) const;
 
   /**
    * Gets a weak reference to the hashtable entry.
@@ -53,8 +55,7 @@ public:
 
   void Put(KeyType aKey, already_AddRefed<RefPtr> aData);
 
-  MOZ_WARN_UNUSED_RESULT bool Put(KeyType aKey, already_AddRefed<RefPtr> aData,
-                                  const mozilla::fallible_t&);
+  bool Put(KeyType aKey, already_AddRefed<RefPtr> aData, const mozilla::fallible_t&) MOZ_WARN_UNUSED_RESULT;
 
   // Overload Remove, rather than overriding it.
   using base_type::Remove;
@@ -63,20 +64,20 @@ public:
    * Remove the data for the associated key, swapping the current value into
    * pData, thereby avoiding calls to AddRef and Release.
    * @param aKey the key to remove from the hashtable
-   * @param aData This is an XPCOM getter, so aData is already_addrefed.
-   *   If the key doesn't exist, aData will be set to nullptr. Must be non-null.
+   * @param pData This is an XPCOM getter, so pData is already_addrefed.
+   *   If the key doesn't exist, pData will be set to nullptr. Must be non-null.
    */
-  bool Remove(KeyType aKey, UserDataType* aData);
+  bool Remove(KeyType aKey, UserDataType* pData);
 };
 
-template<typename K, typename T>
+template <typename K, typename T>
 inline void
 ImplCycleCollectionUnlink(nsRefPtrHashtable<K, T>& aField)
 {
   aField.Clear();
 }
 
-template<typename K, typename T>
+template <typename K, typename T>
 inline void
 ImplCycleCollectionTraverse(nsCycleCollectionTraversalCallback& aCallback,
                             nsRefPtrHashtable<K, T>& aField,
@@ -85,7 +86,7 @@ ImplCycleCollectionTraverse(nsCycleCollectionTraversalCallback& aCallback,
 {
   nsBaseHashtableCCTraversalData userData(aCallback, aName, aFlags);
 
-  aField.EnumerateRead(ImplCycleCollectionTraverse_EnumFunc<typename K::KeyType, T*>,
+  aField.EnumerateRead(ImplCycleCollectionTraverse_EnumFunc<typename K::KeyType,T*>,
                        &userData);
 }
 
@@ -95,25 +96,25 @@ ImplCycleCollectionTraverse(nsCycleCollectionTraversalCallback& aCallback,
 
 template<class KeyClass, class RefPtr>
 bool
-nsRefPtrHashtable<KeyClass, RefPtr>::Get(KeyType aKey,
-                                         UserDataType* aRefPtr) const
+nsRefPtrHashtable<KeyClass,RefPtr>::Get
+  (KeyType aKey, UserDataType* pRefPtr) const
 {
   typename base_type::EntryType* ent = this->GetEntry(aKey);
 
   if (ent) {
-    if (aRefPtr) {
-      *aRefPtr = ent->mData;
+    if (pRefPtr) {
+      *pRefPtr = ent->mData;
 
-      NS_IF_ADDREF(*aRefPtr);
+      NS_IF_ADDREF(*pRefPtr);
     }
 
     return true;
   }
 
-  // if the key doesn't exist, set *aRefPtr to null
+  // if the key doesn't exist, set *pRefPtr to null
   // so that it is a valid XPCOM getter
-  if (aRefPtr) {
-    *aRefPtr = nullptr;
+  if (pRefPtr) {
+    *pRefPtr = nullptr;
   }
 
   return false;
@@ -121,7 +122,8 @@ nsRefPtrHashtable<KeyClass, RefPtr>::Get(KeyType aKey,
 
 template<class KeyClass, class RefPtr>
 RefPtr*
-nsRefPtrHashtable<KeyClass, RefPtr>::GetWeak(KeyType aKey, bool* aFound) const
+nsRefPtrHashtable<KeyClass,RefPtr>::GetWeak
+  (KeyType aKey, bool* aFound) const
 {
   typename base_type::EntryType* ent = this->GetEntry(aKey);
 
@@ -143,8 +145,7 @@ nsRefPtrHashtable<KeyClass, RefPtr>::GetWeak(KeyType aKey, bool* aFound) const
 
 template<class KeyClass, class RefPtr>
 void
-nsRefPtrHashtable<KeyClass, RefPtr>::Put(KeyType aKey,
-                                         already_AddRefed<RefPtr> aData)
+nsRefPtrHashtable<KeyClass,RefPtr>::Put(KeyType aKey, already_AddRefed<RefPtr> aData)
 {
   if (!Put(aKey, mozilla::Move(aData), mozilla::fallible_t())) {
     NS_ABORT_OOM(this->mTable.entrySize * this->mTable.entryCount);
@@ -153,9 +154,9 @@ nsRefPtrHashtable<KeyClass, RefPtr>::Put(KeyType aKey,
 
 template<class KeyClass, class RefPtr>
 bool
-nsRefPtrHashtable<KeyClass, RefPtr>::Put(KeyType aKey,
-                                         already_AddRefed<RefPtr> aData,
-                                         const mozilla::fallible_t&)
+nsRefPtrHashtable<KeyClass,RefPtr>::Put(KeyType aKey,
+                                        already_AddRefed<RefPtr> aData,
+                                        const mozilla::fallible_t&)
 {
   typename base_type::EntryType* ent = this->PutEntry(aKey);
 
@@ -170,21 +171,21 @@ nsRefPtrHashtable<KeyClass, RefPtr>::Put(KeyType aKey,
 
 template<class KeyClass, class RefPtr>
 bool
-nsRefPtrHashtable<KeyClass, RefPtr>::Remove(KeyType aKey,
-                                            UserDataType* aRefPtr)
+nsRefPtrHashtable<KeyClass,RefPtr>::Remove(KeyType aKey,
+                                           UserDataType* pRefPtr)
 {
-  MOZ_ASSERT(aRefPtr);
+  MOZ_ASSERT(pRefPtr);
   typename base_type::EntryType* ent = this->GetEntry(aKey);
 
   if (ent) {
-    ent->mData.forget(aRefPtr);
+    ent->mData.forget(pRefPtr);
     this->Remove(aKey);
     return true;
   }
 
-  // If the key doesn't exist, set *aRefPtr to null
+  // If the key doesn't exist, set *pRefPtr to null
   // so that it is a valid XPCOM getter.
-  *aRefPtr = nullptr;
+  *pRefPtr = nullptr;
   return false;
 }
 

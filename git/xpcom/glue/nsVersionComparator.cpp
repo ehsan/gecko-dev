@@ -12,29 +12,27 @@
 #include "nsStringGlue.h"
 #endif
 
-struct VersionPart
-{
+struct VersionPart {
   int32_t     numA;
 
-  const char* strB;    // NOT null-terminated, can be a null pointer
+  const char *strB;    // NOT null-terminated, can be a null pointer
   uint32_t    strBlen;
 
   int32_t     numC;
 
-  char*       extraD;  // null-terminated
+  char       *extraD;  // null-terminated
 };
 
 #ifdef XP_WIN
-struct VersionPartW
-{
+struct VersionPartW {
   int32_t     numA;
 
-  wchar_t*    strB;    // NOT null-terminated, can be a null pointer
+  wchar_t    *strB;    // NOT null-terminated, can be a null pointer
   uint32_t    strBlen;
 
   int32_t     numC;
 
-  wchar_t*    extraD;  // null-terminated
+  wchar_t    *extraD;  // null-terminated
 
 };
 #endif
@@ -45,53 +43,54 @@ struct VersionPartW
  * @returns A pointer to the next versionpart, or null if none.
  */
 static char*
-ParseVP(char* aPart, VersionPart& aResult)
+ParseVP(char *part, VersionPart &result)
 {
-  char* dot;
+  char *dot;
 
-  aResult.numA = 0;
-  aResult.strB = nullptr;
-  aResult.strBlen = 0;
-  aResult.numC = 0;
-  aResult.extraD = nullptr;
+  result.numA = 0;
+  result.strB = nullptr;
+  result.strBlen = 0;
+  result.numC = 0;
+  result.extraD = nullptr;
 
-  if (!aPart) {
-    return aPart;
-  }
+  if (!part)
+    return part;
 
-  dot = strchr(aPart, '.');
-  if (dot) {
+  dot = strchr(part, '.');
+  if (dot)
     *dot = '\0';
+
+  if (part[0] == '*' && part[1] == '\0') {
+    result.numA = INT32_MAX;
+    result.strB = "";
+  }
+  else {
+    result.numA = strtol(part, const_cast<char**>(&result.strB), 10);
   }
 
-  if (aPart[0] == '*' && aPart[1] == '\0') {
-    aResult.numA = INT32_MAX;
-    aResult.strB = "";
-  } else {
-    aResult.numA = strtol(aPart, const_cast<char**>(&aResult.strB), 10);
+  if (!*result.strB) {
+    result.strB = nullptr;
+    result.strBlen = 0;
   }
-
-  if (!*aResult.strB) {
-    aResult.strB = nullptr;
-    aResult.strBlen = 0;
-  } else {
-    if (aResult.strB[0] == '+') {
+  else {
+    if (result.strB[0] == '+') {
       static const char kPre[] = "pre";
 
-      ++aResult.numA;
-      aResult.strB = kPre;
-      aResult.strBlen = sizeof(kPre) - 1;
-    } else {
-      const char* numstart = strpbrk(aResult.strB, "0123456789+-");
+      ++result.numA;
+      result.strB = kPre;
+      result.strBlen = sizeof(kPre) - 1;
+    }
+    else {
+      const char *numstart = strpbrk(result.strB, "0123456789+-");
       if (!numstart) {
-        aResult.strBlen = strlen(aResult.strB);
-      } else {
-        aResult.strBlen = numstart - aResult.strB;
+	result.strBlen = strlen(result.strB);
+      }
+      else {
+	result.strBlen = numstart - result.strB;
 
-        aResult.numC = strtol(numstart, &aResult.extraD, 10);
-        if (!*aResult.extraD) {
-          aResult.extraD = nullptr;
-        }
+	result.numC = strtol(numstart, &result.extraD, 10);
+	if (!*result.extraD)
+	  result.extraD = nullptr;
       }
     }
   }
@@ -99,9 +98,8 @@ ParseVP(char* aPart, VersionPart& aResult)
   if (dot) {
     ++dot;
 
-    if (!*dot) {
+    if (!*dot)
       dot = nullptr;
-    }
   }
 
   return dot;
@@ -115,54 +113,55 @@ ParseVP(char* aPart, VersionPart& aResult)
  */
 #ifdef XP_WIN
 static wchar_t*
-ParseVP(wchar_t* aPart, VersionPartW& aResult)
+ParseVP(wchar_t *part, VersionPartW &result)
 {
 
-  wchar_t* dot;
+  wchar_t *dot;
 
-  aResult.numA = 0;
-  aResult.strB = nullptr;
-  aResult.strBlen = 0;
-  aResult.numC = 0;
-  aResult.extraD = nullptr;
+  result.numA = 0;
+  result.strB = nullptr;
+  result.strBlen = 0;
+  result.numC = 0;
+  result.extraD = nullptr;
 
-  if (!aPart) {
-    return aPart;
-  }
+  if (!part)
+    return part;
 
-  dot = wcschr(aPart, '.');
-  if (dot) {
+  dot = wcschr(part, '.');
+  if (dot)
     *dot = '\0';
+
+  if (part[0] == '*' && part[1] == '\0') {
+    result.numA = INT32_MAX;
+    result.strB = L"";
+  }
+  else {
+    result.numA = wcstol(part, const_cast<wchar_t**>(&result.strB), 10);
   }
 
-  if (aPart[0] == '*' && aPart[1] == '\0') {
-    aResult.numA = INT32_MAX;
-    aResult.strB = L"";
-  } else {
-    aResult.numA = wcstol(aPart, const_cast<wchar_t**>(&aResult.strB), 10);
+  if (!*result.strB) {
+    result.strB = nullptr;
+    result.strBlen = 0;
   }
-
-  if (!*aResult.strB) {
-    aResult.strB = nullptr;
-    aResult.strBlen = 0;
-  } else {
-    if (aResult.strB[0] == '+') {
+  else {
+    if (result.strB[0] == '+') {
       static wchar_t kPre[] = L"pre";
 
-      ++aResult.numA;
-      aResult.strB = kPre;
-      aResult.strBlen = sizeof(kPre) - 1;
-    } else {
-      const wchar_t* numstart = wcspbrk(aResult.strB, L"0123456789+-");
+      ++result.numA;
+      result.strB = kPre;
+      result.strBlen = sizeof(kPre) - 1;
+    }
+    else {
+      const wchar_t *numstart = wcspbrk(result.strB, L"0123456789+-");
       if (!numstart) {
-        aResult.strBlen = wcslen(aResult.strB);
-      } else {
-        aResult.strBlen = numstart - aResult.strB;
+	result.strBlen = wcslen(result.strB);
+      }
+      else {
+	result.strBlen = numstart - result.strB;
 
-        aResult.numC = wcstol(numstart, &aResult.extraD, 10);
-        if (!*aResult.extraD) {
-          aResult.extraD = nullptr;
-        }
+	result.numC = wcstol(numstart, &result.extraD, 10);
+	if (!*result.extraD)
+	  result.extraD = nullptr;
       }
     }
   }
@@ -170,9 +169,8 @@ ParseVP(wchar_t* aPart, VersionPartW& aResult)
   if (dot) {
     ++dot;
 
-    if (!*dot) {
+    if (!*dot)
       dot = nullptr;
-    }
   }
 
   return dot;
@@ -181,84 +179,72 @@ ParseVP(wchar_t* aPart, VersionPartW& aResult)
 
 // compare two null-terminated strings, which may be null pointers
 static int32_t
-ns_strcmp(const char* aStr1, const char* aStr2)
+ns_strcmp(const char *str1, const char *str2)
 {
   // any string is *before* no string
-  if (!aStr1) {
-    return aStr2 != 0;
-  }
+  if (!str1)
+    return str2 != 0;
 
-  if (!aStr2) {
+  if (!str2)
     return -1;
-  }
 
-  return strcmp(aStr1, aStr2);
+  return strcmp(str1, str2);
 }
 
 // compare two length-specified string, which may be null pointers
 static int32_t
-ns_strnncmp(const char* aStr1, uint32_t aLen1,
-            const char* aStr2, uint32_t aLen2)
+ns_strnncmp(const char *str1, uint32_t len1, const char *str2, uint32_t len2)
 {
   // any string is *before* no string
-  if (!aStr1) {
-    return aStr2 != 0;
-  }
+  if (!str1)
+    return str2 != 0;
 
-  if (!aStr2) {
+  if (!str2)
     return -1;
-  }
 
-  for (; aLen1 && aLen2; --aLen1, --aLen2, ++aStr1, ++aStr2) {
-    if (*aStr1 < *aStr2) {
+  for (; len1 && len2; --len1, --len2, ++str1, ++str2) {
+    if (*str1 < *str2)
       return -1;
-    }
 
-    if (*aStr1 > *aStr2) {
+    if (*str1 > *str2)
       return 1;
-    }
   }
 
-  if (aLen1 == 0) {
-    return aLen2 == 0 ? 0 : -1;
-  }
+  if (len1 == 0)
+    return len2 == 0 ? 0 : -1;
 
   return 1;
 }
 
 // compare two int32_t
 static int32_t
-ns_cmp(int32_t aNum1, int32_t aNum2)
+ns_cmp(int32_t n1, int32_t n2)
 {
-  if (aNum1 < aNum2) {
+  if (n1 < n2)
     return -1;
-  }
 
-  return aNum1 != aNum2;
+  return n1 != n2;
 }
 
 /**
  * Compares two VersionParts
  */
 static int32_t
-CompareVP(VersionPart& aVer1, VersionPart& aVer2)
+CompareVP(VersionPart &v1, VersionPart &v2)
 {
-  int32_t r = ns_cmp(aVer1.numA, aVer2.numA);
-  if (r) {
+  int32_t r = ns_cmp(v1.numA, v2.numA);
+  if (r)
     return r;
-  }
 
-  r = ns_strnncmp(aVer1.strB, aVer1.strBlen, aVer2.strB, aVer2.strBlen);
-  if (r) {
+  r = ns_strnncmp(v1.strB, v1.strBlen, v2.strB, v2.strBlen);
+  if (r)
     return r;
-  }
 
-  r = ns_cmp(aVer1.numC, aVer2.numC);
-  if (r) {
+  r = ns_cmp(v1.numC, v2.numC);
+  if (r)
     return r;
-  }
 
-  return ns_strcmp(aVer1.extraD, aVer2.extraD);
+  return ns_strcmp(v1.extraD, v2.extraD);
 }
 
 /**
@@ -266,32 +252,27 @@ CompareVP(VersionPart& aVer1, VersionPart& aVer2)
  */
 #ifdef XP_WIN
 static int32_t
-CompareVP(VersionPartW& aVer1, VersionPartW& aVer2)
+CompareVP(VersionPartW &v1, VersionPartW &v2)
 {
-  int32_t r = ns_cmp(aVer1.numA, aVer2.numA);
-  if (r) {
+  int32_t r = ns_cmp(v1.numA, v2.numA);
+  if (r)
     return r;
-  }
 
-  r = wcsncmp(aVer1.strB, aVer2.strB, XPCOM_MIN(aVer1.strBlen, aVer2.strBlen));
-  if (r) {
+  r = wcsncmp(v1.strB, v2.strB, XPCOM_MIN(v1.strBlen,v2.strBlen));
+  if (r)
     return r;
-  }
 
-  r = ns_cmp(aVer1.numC, aVer2.numC);
-  if (r) {
+  r = ns_cmp(v1.numC, v2.numC);
+  if (r)
     return r;
-  }
 
-  if (!aVer1.extraD) {
-    return aVer2.extraD != 0;
-  }
+  if (!v1.extraD)
+    return v2.extraD != 0;
 
-  if (!aVer2.extraD) {
+  if (!v2.extraD)
     return -1;
-  }
 
-  return wcscmp(aVer1.extraD, aVer2.extraD);
+  return wcscmp(v1.extraD, v2.extraD);
 }
 #endif
 
@@ -299,22 +280,20 @@ namespace mozilla {
 
 #ifdef XP_WIN
 int32_t
-CompareVersions(const char16_t* aStrA, const char16_t* aStrB)
+CompareVersions(const char16_t *A, const char16_t *B)
 {
-  wchar_t* A2 = wcsdup(char16ptr_t(aStrA));
-  if (!A2) {
+  wchar_t *A2 = wcsdup(char16ptr_t(A));
+  if (!A2)
     return 1;
-  }
 
-  wchar_t* B2 = wcsdup(char16ptr_t(aStrB));
+  wchar_t *B2 = wcsdup(char16ptr_t(B));
   if (!B2) {
     free(A2);
     return 1;
   }
 
   int32_t result;
-  wchar_t* a = A2;
-  wchar_t* b = B2;
+  wchar_t *a = A2, *b = B2;
 
   do {
     VersionPartW va, vb;
@@ -323,9 +302,8 @@ CompareVersions(const char16_t* aStrA, const char16_t* aStrB)
     b = ParseVP(b, vb);
 
     result = CompareVP(va, vb);
-    if (result) {
+    if (result)
       break;
-    }
 
   } while (a || b);
 
@@ -337,22 +315,20 @@ CompareVersions(const char16_t* aStrA, const char16_t* aStrB)
 #endif
 
 int32_t
-CompareVersions(const char* aStrA, const char* aStrB)
+CompareVersions(const char *A, const char *B)
 {
-  char* A2 = strdup(aStrA);
-  if (!A2) {
+  char *A2 = strdup(A);
+  if (!A2)
     return 1;
-  }
 
-  char* B2 = strdup(aStrB);
+  char *B2 = strdup(B);
   if (!B2) {
     free(A2);
     return 1;
   }
 
   int32_t result;
-  char* a = A2;
-  char* b = B2;
+  char *a = A2, *b = B2;
 
   do {
     VersionPart va, vb;
@@ -361,9 +337,8 @@ CompareVersions(const char* aStrA, const char* aStrB)
     b = ParseVP(b, vb);
 
     result = CompareVP(va, vb);
-    if (result) {
+    if (result)
       break;
-    }
 
   } while (a || b);
 

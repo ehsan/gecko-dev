@@ -22,55 +22,54 @@
 #endif
 
 const char*
-NS_strspnp(const char* aDelims, const char* aStr)
+NS_strspnp(const char *delims, const char *str)
 {
-  const char* d;
+  const char *d;
   do {
-    for (d = aDelims; *d != '\0'; ++d) {
-      if (*aStr == *d) {
-        ++aStr;
+    for (d = delims; *d != '\0'; ++d) {
+      if (*str == *d) {
+        ++str;
         break;
       }
     }
   } while (*d);
 
-  return aStr;
+  return str;
 }
 
 char*
-NS_strtok(const char* aDelims, char** aStr)
+NS_strtok(const char *delims, char **str)
 {
-  if (!*aStr) {
+  if (!*str)
     return nullptr;
-  }
 
-  char* ret = (char*)NS_strspnp(aDelims, *aStr);
+  char *ret = (char*) NS_strspnp(delims, *str);
 
   if (!*ret) {
-    *aStr = ret;
+    *str = ret;
     return nullptr;
   }
 
-  char* i = ret;
+  char *i = ret;
   do {
-    for (const char* d = aDelims; *d != '\0'; ++d) {
+    for (const char *d = delims; *d != '\0'; ++d) {
       if (*i == *d) {
         *i = '\0';
-        *aStr = ++i;
+        *str = ++i;
         return ret;
       }
     }
     ++i;
   } while (*i);
 
-  *aStr = nullptr;
+  *str = nullptr;
   return ret;
 }
 
 uint32_t
-NS_strlen(const char16_t* aString)
+NS_strlen(const char16_t *aString)
 {
-  const char16_t* end;
+  const char16_t *end;
 
   for (end = aString; *end; ++end) {
     // empty loop
@@ -80,32 +79,31 @@ NS_strlen(const char16_t* aString)
 }
 
 int
-NS_strcmp(const char16_t* aStrA, const char16_t* aStrB)
+NS_strcmp(const char16_t *a, const char16_t *b)
 {
-  while (*aStrB) {
-    int r = *aStrA - *aStrB;
-    if (r) {
+  while (*b) {
+    int r = *a - *b;
+    if (r)
       return r;
-    }
 
-    ++aStrA;
-    ++aStrB;
+    ++a;
+    ++b;
   }
 
-  return *aStrA != '\0';
+  return *a != '\0';
 }
 
 char16_t*
-NS_strdup(const char16_t* aString)
+NS_strdup(const char16_t *aString)
 {
   uint32_t len = NS_strlen(aString);
   return NS_strndup(aString, len);
 }
 
 char16_t*
-NS_strndup(const char16_t* aString, uint32_t aLen)
+NS_strndup(const char16_t *aString, uint32_t aLen)
 {
-  char16_t* newBuf = (char16_t*)NS_Alloc((aLen + 1) * sizeof(char16_t));
+  char16_t *newBuf = (char16_t*) NS_Alloc((aLen + 1) * sizeof(char16_t));
   if (newBuf) {
     memcpy(newBuf, aString, aLen * sizeof(char16_t));
     newBuf[aLen] = '\0';
@@ -114,10 +112,10 @@ NS_strndup(const char16_t* aString, uint32_t aLen)
 }
 
 char*
-NS_strdup(const char* aString)
+NS_strdup(const char *aString)
 {
   uint32_t len = strlen(aString);
-  char* str = (char*)NS_Alloc(len + 1);
+  char *str = (char*) NS_Alloc(len + 1);
   if (str) {
     memcpy(str, aString, len);
     str[len] = '\0';
@@ -175,70 +173,59 @@ const unsigned char nsLowerUpperUtils::kLower2Upper[256] = {
   240,241,242,243,244,245,246,247,248,249,250,251,252,253,254,255
 };
 
-bool
-NS_IsUpper(char aChar)
+bool NS_IsUpper(char aChar)
 {
   return aChar != (char)nsLowerUpperUtils::kUpper2Lower[(unsigned char)aChar];
 }
 
-bool
-NS_IsLower(char aChar)
+bool NS_IsLower(char aChar)
 {
   return aChar != (char)nsLowerUpperUtils::kLower2Upper[(unsigned char)aChar];
 }
 
-bool
-NS_IsAscii(char16_t aChar)
+bool NS_IsAscii(char16_t aChar)
 {
   return (0x0080 > aChar);
 }
 
-bool
-NS_IsAscii(const char16_t* aString)
+bool NS_IsAscii(const char16_t *aString)
 {
-  while (*aString) {
-    if (0x0080 <= *aString) {
+  while(*aString) {
+    if( 0x0080 <= *aString)
       return false;
-    }
     aString++;
   }
   return true;
 }
 
-bool
-NS_IsAscii(const char* aString)
+bool NS_IsAscii(const char *aString)
 {
-  while (*aString) {
-    if (0x80 & *aString) {
+  while(*aString) {
+    if( 0x80 & *aString)
       return false;
-    }
     aString++;
   }
   return true;
 }
 
-bool
-NS_IsAscii(const char* aString, uint32_t aLength)
+bool NS_IsAscii(const char* aString, uint32_t aLength)
 {
   const char* end = aString + aLength;
   while (aString < end) {
-    if (0x80 & *aString) {
+    if (0x80 & *aString)
       return false;
-    }
     ++aString;
   }
   return true;
 }
 
-bool
-NS_IsAsciiAlpha(char16_t aChar)
+bool NS_IsAsciiAlpha(char16_t aChar)
 {
-  return (aChar >= 'A' && aChar <= 'Z') ||
-         (aChar >= 'a' && aChar <= 'z');
+  return ((aChar >= 'A') && (aChar <= 'Z')) ||
+         ((aChar >= 'a') && (aChar <= 'z'));
 }
 
-bool
-NS_IsAsciiWhitespace(char16_t aChar)
+bool NS_IsAsciiWhitespace(char16_t aChar)
 {
   return aChar == ' ' ||
          aChar == '\r' ||
@@ -246,8 +233,7 @@ NS_IsAsciiWhitespace(char16_t aChar)
          aChar == '\t';
 }
 
-bool
-NS_IsAsciiDigit(char16_t aChar)
+bool NS_IsAsciiDigit(char16_t aChar)
 {
   return aChar >= '0' && aChar <= '9';
 }
@@ -256,14 +242,13 @@ NS_IsAsciiDigit(char16_t aChar)
 #ifndef XPCOM_GLUE_AVOID_NSPR
 #define TABLE_SIZE 36
 static const char table[] = {
-  'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j',
-  'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't',
-  'u', 'v', 'w', 'x', 'y', 'z', '0', '1', '2', '3',
-  '4', '5', '6', '7', '8', '9'
+  'a','b','c','d','e','f','g','h','i','j',
+  'k','l','m','n','o','p','q','r','s','t',
+  'u','v','w','x','y','z','0','1','2','3',
+  '4','5','6','7','8','9'
 };
 
-void
-NS_MakeRandomString(char* aBuf, int32_t aBufLen)
+void NS_MakeRandomString(char *aBuf, int32_t aBufLen)
 {
   // turn PR_Now() into milliseconds since epoch
   // and salt rand with that.
@@ -275,8 +260,8 @@ NS_MakeRandomString(char* aBuf, int32_t aBufLen)
   }
 
   int32_t i;
-  for (i = 0; i < aBufLen; ++i) {
-    *aBuf++ = table[rand() % TABLE_SIZE];
+  for (i=0;i<aBufLen;i++) {
+    *aBuf++ = table[rand()%TABLE_SIZE];
   }
   *aBuf = 0;
 }
@@ -302,81 +287,80 @@ set_stderr_callback(StderrCallback aCallback)
 #if defined(XP_WIN)
 
 void
-vprintf_stderr(const char* aFmt, va_list aArgs)
+vprintf_stderr(const char *fmt, va_list args)
 {
   if (sStderrCallback) {
     va_list argsCpy;
-    VARARGS_ASSIGN(argsCpy, aArgs);
-    sStderrCallback(aFmt, aArgs);
+    VARARGS_ASSIGN(argsCpy, args);
+    sStderrCallback(fmt, args);
     va_end(argsCpy);
   }
 
   if (IsDebuggerPresent()) {
     char buf[2048];
     va_list argsCpy;
-    VARARGS_ASSIGN(argsCpy, aArgs);
-    vsnprintf(buf, sizeof(buf), aFmt, argsCpy);
+    VARARGS_ASSIGN(argsCpy, args);
+    vsnprintf(buf, sizeof(buf), fmt, argsCpy);
     buf[sizeof(buf) - 1] = '\0';
     va_end(argsCpy);
     OutputDebugStringA(buf);
   }
 
-  FILE* fp = _fdopen(_dup(2), "a");
-  if (!fp) {
-    return;
-  }
+  FILE *fp = _fdopen(_dup(2), "a");
+  if (!fp)
+      return;
 
-  vfprintf(fp, aFmt, aArgs);
+  vfprintf(fp, fmt, args);
 
   fclose(fp);
 }
 
 #elif defined(ANDROID)
 void
-vprintf_stderr(const char* aFmt, va_list aArgs)
+vprintf_stderr(const char *fmt, va_list args)
 {
   if (sStderrCallback) {
     va_list argsCpy;
-    VARARGS_ASSIGN(argsCpy, aArgs);
-    sStderrCallback(aFmt, aArgs);
+    VARARGS_ASSIGN(argsCpy, args);
+    sStderrCallback(fmt, args);
     va_end(argsCpy);
   }
 
-  __android_log_vprint(ANDROID_LOG_INFO, "Gecko", aFmt, aArgs);
+  __android_log_vprint(ANDROID_LOG_INFO, "Gecko", fmt, args);
 }
 #else
 void
-vprintf_stderr(const char* aFmt, va_list aArgs)
+vprintf_stderr(const char *fmt, va_list args)
 {
   if (sStderrCallback) {
     va_list argsCpy;
-    VARARGS_ASSIGN(argsCpy, aArgs);
-    sStderrCallback(aFmt, aArgs);
+    VARARGS_ASSIGN(argsCpy, args);
+    sStderrCallback(fmt, args);
     va_end(argsCpy);
   }
 
-  vfprintf(stderr, aFmt, aArgs);
+  vfprintf(stderr, fmt, args);
 }
 #endif
 
 void
-printf_stderr(const char* aFmt, ...)
+printf_stderr(const char *fmt, ...)
 {
   va_list args;
-  va_start(args, aFmt);
-  vprintf_stderr(aFmt, args);
+  va_start(args, fmt);
+  vprintf_stderr(fmt, args);
   va_end(args);
 }
 
 void
-fprintf_stderr(FILE* aFile, const char* aFmt, ...)
+fprintf_stderr(FILE* aFile, const char *fmt, ...)
 {
   va_list args;
-  va_start(args, aFmt);
+  va_start(args, fmt);
   if (aFile == stderr) {
-    vprintf_stderr(aFmt, args);
+    vprintf_stderr(fmt, args);
   } else {
-    vfprintf(aFile, aFmt, args);
+    vfprintf(aFile, fmt, args);
   }
   va_end(args);
 }

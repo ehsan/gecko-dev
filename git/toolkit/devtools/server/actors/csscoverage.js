@@ -7,9 +7,7 @@
 const { Cc, Ci, Cu } = require("chrome");
 
 const Services = require("Services");
-const { XPCOMUtils } = require("resource://gre/modules/XPCOMUtils.jsm");
 
-const events = require("sdk/event/core");
 const protocol = require("devtools/server/protocol");
 const { method, custom, RetVal, Arg } = protocol;
 
@@ -77,13 +75,6 @@ const l10n = exports.l10n = {
 let UsageReportActor = protocol.ActorClass({
   typeName: "usageReport",
 
-  events: {
-    "state-change" : {
-      type: "stateChange",
-      stateChange: Arg(0, "json")
-    }
-  },
-
   initialize: function(conn, tabActor) {
     protocol.Actor.prototype.initialize.call(this, conn);
 
@@ -92,9 +83,6 @@ let UsageReportActor = protocol.ActorClass({
 
     this._onTabLoad = this._onTabLoad.bind(this);
     this._onChange = this._onChange.bind(this);
-
-    this._notifyOn = Ci.nsIWebProgress.NOTIFY_STATUS |
-                     Ci.nsIWebProgress.NOTIFY_STATE_ALL
   },
 
   destroy: function() {
@@ -119,34 +107,12 @@ let UsageReportActor = protocol.ActorClass({
     this._running = true;
     this._tooManyUnused = false;
 
-    this._progressListener = {
-      QueryInterface: XPCOMUtils.generateQI([ Ci.nsIWebProgressListener,
-                                              Ci.nsISupportsWeakReference ]),
+    this._tabActor.browser.addEventListener("load", this._onTabLoad, true);
 
-      onStateChange: (progress, request, flags, status) => {
-        let isStop = flags & Ci.nsIWebProgressListener.STATE_STOP;
-        let isWindow = flags & Ci.nsIWebProgressListener.STATE_IS_WINDOW;
-
-        if (isStop && isWindow) {
-          this._onTabLoad(progress.DOMWindow.document);
-        }
-      },
-
-      onLocationChange: () => {},
-      onProgressChange: () => {},
-      onSecurityChange: () => {},
-      onStatusChange: () => {},
-      destroy: () => {}
-    };
-
-    this._progress = this._tabActor.docShell.QueryInterface(Ci.nsIInterfaceRequestor)
-                                            .getInterface(Ci.nsIWebProgress);
-    this._progress.addProgressListener(this._progressListener, this._notifyOn);
+    this._observeMutations(this._tabActor.window.document);
 
     this._populateKnownRules(this._tabActor.window.document);
     this._updateUsage(this._tabActor.window.document, false);
-
-    events.emit(this, "state-change", { isRunning: true });
   }),
 
   /**
@@ -157,18 +123,19 @@ let UsageReportActor = protocol.ActorClass({
       throw new Error(l10n.lookup("csscoverageNotRunningError"));
     }
 
-    this._progress.removeProgressListener(this._progressListener, this._notifyOn);
-    this._progress = undefined;
-
+    this._tabActor.browser.removeEventListener("load", this._onTabLoad, true);
     this._running = false;
-    events.emit(this, "state-change", { isRunning: false });
   }),
 
   /**
    * Start/stop recording usage data depending on what we're currently doing.
    */
   toggle: method(function() {
-    return this._running ? this.stop() : this.start();
+    return this._running ?
+        this.stop().then(() => false) :
+        this.start().then(() => true);
+  }, {
+    response: RetVal("boolean"),
   }),
 
   /**
@@ -188,9 +155,10 @@ let UsageReportActor = protocol.ActorClass({
   }),
 
   /**
-   * Called by the ProgressListener to simulate a "load" event
+   * Called from the tab "load" event
    */
-  _onTabLoad: function(document) {
+  _onTabLoad: function(ev) {
+    let document = ev.target;
     this._populateKnownRules(document);
     this._updateUsage(document, true);
 
@@ -468,6 +436,15 @@ let UsageReportActor = protocol.ActorClass({
   }),
 
   /**
+   * For testing only. Is css coverage running.
+   */
+  _testOnly_isRunning: method(function() {
+    return this._running;
+  }, {
+    response: { value: RetVal("boolean") }
+  }),
+
+  /**
    * For testing only. What pages did we visit.
    */
   _testOnly_visitedPages: method(function() {
@@ -721,16 +698,6 @@ const sheetToUrl = exports.sheetToUrl = function(stylesheet) {
 }
 
 /**
- * Running more than one usage report at a time is probably bad for performance
- * and it isn't particularly useful, and it's confusing from a notification POV
- * so we only allow one.
- */
-let isRunning = false;
-let notification;
-let target;
-let chromeWindow;
-
-/**
  * Front for UsageReportActor
  */
 const UsageReportFront = protocol.FrontClass(UsageReportActor, {
@@ -740,46 +707,31 @@ const UsageReportFront = protocol.FrontClass(UsageReportActor, {
     this.manage(this);
   },
 
-  _onStateChange: protocol.preEvent("state-change", function(ev) {
-    isRunning = ev.isRunning;
-    ev.target = target;
-
-    if (isRunning) {
+  /**
+   * Server-side start is above. Client-side start adds a notification box
+   */
+  start: custom(function(chromeWindow, target) {
+    if (chromeWindow != null) {
       let gnb = chromeWindow.document.getElementById("global-notificationbox");
-      notification = gnb.getNotificationWithValue("csscoverage-running");
+      this.notification = gnb.getNotificationWithValue("csscoverage-running");
 
-      if (notification == null) {
-        let notifyStop = reason => {
-          if (reason == "removed") {
+      if (this.notification == null) {
+        let notifyStop = ev => {
+          if (ev == "removed") {
             this.stop();
+            gDevTools.showToolbox(target, "styleeditor");
           }
         };
 
         let msg = l10n.lookup("csscoverageRunningReply");
-        notification = gnb.appendNotification(msg, "csscoverage-running",
-                                              "", // i.e. no image
-                                              gnb.PRIORITY_INFO_HIGH,
-                                              null, // i.e. no buttons
-                                              notifyStop);
+        this.notification = gnb.appendNotification(msg,
+                                                   "csscoverage-running",
+                                                   "", // i.e. no image
+                                                   gnb.PRIORITY_INFO_HIGH,
+                                                   null, // i.e. no buttons
+                                                   notifyStop);
       }
     }
-    else {
-      if (notification) {
-        notification.remove();
-        notification = undefined;
-      }
-
-      gDevTools.showToolbox(target, "styleeditor");
-      target = undefined;
-    }
-  }),
-
-  /**
-   * Server-side start is above. Client-side start adds a notification box
-   */
-  start: custom(function(newChromeWindow, newTarget) {
-    target = newTarget;
-    chromeWindow = newChromeWindow;
 
     return this._start();
   }, {
@@ -787,23 +739,18 @@ const UsageReportFront = protocol.FrontClass(UsageReportActor, {
   }),
 
   /**
-   * Server-side start is above. Client-side start adds a notification box
+   * Client-side stop also removes the notification box
    */
-  toggle: custom(function(newChromeWindow, newTarget) {
-    target = newTarget;
-    chromeWindow = newChromeWindow;
+  stop: custom(function() {
+    if (this.notification != null) {
+      this.notification.remove();
+      this.notification = undefined;
+    }
 
-    return this._toggle();
+    return this._stop();
   }, {
-    impl: "_toggle"
+    impl: "_stop"
   }),
-
-  /**
-   * We count STARTING and STOPPING as 'running'
-   */
-  isRunning: function() {
-    return isRunning;
-  }
 });
 
 exports.UsageReportFront = UsageReportFront;

@@ -4,19 +4,18 @@
 
 (function() {
   const DEVTOOLS_SKIN_URL = "chrome://browser/skin/devtools/";
-  let documentElement = document.documentElement;
 
   function forceStyle() {
-    let computedStyle = window.getComputedStyle(documentElement);
+    let computedStyle = window.getComputedStyle(document.documentElement);
     if (!computedStyle) {
       // Null when documentElement is not ready. This method is anyways not
       // required then as scrollbars would be in their state without flushing.
       return;
     }
     let display = computedStyle.display; // Save display value
-    documentElement.style.display = "none";
-    window.getComputedStyle(documentElement).display; // Flush
-    documentElement.style.display = display; // Restore
+    document.documentElement.style.display = "none";
+    window.getComputedStyle(document.documentElement).display; // Flush
+    document.documentElement.style.display = display; // Restore
   }
 
   function switchTheme(newTheme, oldTheme) {
@@ -62,8 +61,8 @@
       forceStyle();
     }
 
-    documentElement.classList.remove("theme-" + oldTheme);
-    documentElement.classList.add("theme-" + newTheme);
+    document.documentElement.classList.remove("theme-" + oldTheme);
+    document.documentElement.classList.add("theme-" + newTheme);
   }
 
   function handlePrefChange(event, data) {
@@ -79,14 +78,11 @@
   const {devtools} = Components.utils.import("resource://gre/modules/devtools/Loader.jsm", {});
   const StylesheetUtils = devtools.require("sdk/stylesheet/utils");
 
-  if (documentElement.hasAttribute("force-theme")) {
-    switchTheme(documentElement.getAttribute("force-theme"));
-  } else {
-    switchTheme(Services.prefs.getCharPref("devtools.theme"));
+  let theme = Services.prefs.getCharPref("devtools.theme");
+  switchTheme(theme);
 
-    gDevTools.on("pref-changed", handlePrefChange);
-    window.addEventListener("unload", function() {
-      gDevTools.off("pref-changed", handlePrefChange);
-    });
-  }
+  gDevTools.on("pref-changed", handlePrefChange);
+  window.addEventListener("unload", function() {
+    gDevTools.off("pref-changed", handlePrefChange);
+  });
 })();

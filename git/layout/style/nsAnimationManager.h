@@ -58,7 +58,7 @@ public:
   {
   }
 
-  static mozilla::ElementAnimationCollection*
+  static mozilla::css::CommonElementAnimationData*
   GetAnimationsForCompositor(nsIContent* aContent, nsCSSProperty aProperty)
   {
     return mozilla::css::CommonAnimationManager::GetAnimationsForCompositor(
@@ -76,10 +76,10 @@ public:
     return false;
   }
 
-  void UpdateStyleAndEvents(mozilla::ElementAnimationCollection* aEA,
+  void UpdateStyleAndEvents(mozilla::css::CommonElementAnimationData* aEA,
                             mozilla::TimeStamp aRefreshTime,
                             mozilla::EnsureStyleRuleFlags aFlags);
-  void GetEventsAt(mozilla::ElementAnimationCollection* aEA,
+  void GetEventsAt(mozilla::css::CommonElementAnimationData* aEA,
                    mozilla::TimeStamp aRefreshTime,
                    EventArray &aEventsToDispatch);
 
@@ -128,7 +128,7 @@ public:
     }
   }
 
-  mozilla::ElementAnimationCollection*
+  mozilla::css::CommonElementAnimationData*
   GetElementAnimations(mozilla::dom::Element *aElement,
                        nsCSSPseudoElements::Type aPseudoType,
                        bool aCreateIfNeeded);
@@ -137,12 +137,11 @@ public:
   void UpdateAllThrottledStyles();
 
 protected:
-  virtual void ElementCollectionRemoved() MOZ_OVERRIDE
+  virtual void ElementDataRemoved() MOZ_OVERRIDE
   {
     CheckNeedsRefresh();
   }
-  virtual void
-  AddElementCollection(mozilla::ElementAnimationCollection* aData) MOZ_OVERRIDE;
+  virtual void AddElementData(mozilla::css::CommonElementAnimationData* aData) MOZ_OVERRIDE;
 
   /**
    * Check to see if we should stop or start observing the refresh driver
@@ -154,8 +153,7 @@ private:
                        mozilla::ElementAnimationPtrArray& aAnimations);
   bool BuildSegment(InfallibleTArray<mozilla::AnimationPropertySegment>&
                       aSegments,
-                    nsCSSProperty aProperty,
-                    const mozilla::StyleAnimation& aAnimation,
+                    nsCSSProperty aProperty, const nsAnimation& aAnimation,
                     float aFromKey, nsStyleContext* aFromContext,
                     mozilla::css::Declaration* aFromDeclaration,
                     float aToKey, nsStyleContext* aToContext);
