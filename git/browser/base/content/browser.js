@@ -719,11 +719,11 @@ const gXPInstallObserver = {
       options.installs = installInfo.installs;
       options.contentWindow = browser.contentWindow;
       options.sourceURI = browser.currentURI;
-      options.eventCallback = function(aEvent) {
+      options.eventCallback = function(aNotification, aEvent) {
         if (aEvent != "removed")
           return;
-        options.contentWindow = null;
-        options.sourceURI = null;
+        aNotification.options.contentWindow = null;
+        aNotification.options.sourceURI = null;
       };
       PopupNotifications.show(browser, notificationID, messageString, anchorID,
                               null, null, options);
