@@ -257,10 +257,7 @@ CodeGeneratorX86Shared::emitSet(Assembler::Condition cond, const Register &dest)
 bool
 CodeGeneratorX86Shared::visitCompareI(LCompareI *comp)
 {
-    if (comp->right()->isConstant())
-        masm.cmpl(ToRegister(comp->left()), Imm32(ToInt32(comp->right())));
-    else
-        masm.cmpl(ToRegister(comp->left()), ToOperand(comp->right()));
+    masm.cmpl(ToRegister(comp->left()), ToOperand(comp->right()));
     emitSet(JSOpToCondition(comp->jsop()), ToRegister(comp->output()));
     return true;
 }
@@ -268,11 +265,8 @@ CodeGeneratorX86Shared::visitCompareI(LCompareI *comp)
 bool
 CodeGeneratorX86Shared::visitCompareIAndBranch(LCompareIAndBranch *comp)
 {
-    if (comp->right()->isConstant())
-        masm.cmpl(ToRegister(comp->left()), Imm32(ToInt32(comp->right())));
-    else
-        masm.cmpl(ToRegister(comp->left()), ToOperand(comp->right()));
     Assembler::Condition cond = JSOpToCondition(comp->jsop());
+    masm.cmpl(ToRegister(comp->left()), ToOperand(comp->right()));
     emitBranch(cond, comp->ifTrue(), comp->ifFalse());
     return true;
 }

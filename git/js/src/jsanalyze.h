@@ -333,9 +333,6 @@ ReverseCompareOp(JSOp op)
         return JSOP_GT;
       case JSOP_LE:
         return JSOP_GE;
-      case JSOP_EQ:
-      case JSOP_NE:
-        return op;
       default:
         JS_NOT_REACHED("unrecognized op");
         return op;

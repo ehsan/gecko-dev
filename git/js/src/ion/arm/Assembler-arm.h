@@ -152,12 +152,12 @@ class VFPRegister
     VFPRegister(FloatRegister fr)
         : kind(Double), _code(fr.code()), _isInvalid(false), _isMissing(false)
     {
-        JS_ASSERT(_code == (unsigned)fr.code());
+        JS_ASSERT(_code == fr.code());
     }
     VFPRegister(FloatRegister fr, RegType k)
         : kind(k), _code (fr.code()), _isInvalid(false), _isMissing(false)
     {
-        JS_ASSERT(_code == (unsigned)fr.code());
+        JS_ASSERT(_code == fr.code());
     }
     bool isDouble() { return kind == Double; }
     bool isSingle() { return kind == Single; }
@@ -797,7 +797,8 @@ class Operand
     Tag_ Tag;
     uint32 data;
   public:
-    Operand (Register reg)  : Tag(OP2), data(reg.code()) {}
+    Operand (Operand2 init) : Tag(OP2), data(init.encode()) {}
+    Operand (Register reg)  : Tag(OP2), data(O2Reg(reg).encode()) {}
     Operand (FloatRegister reg)  : Tag(FOP), data(reg.code()) {}
     Operand (DTRAddr addr) : Tag(DTR), data(addr.encode()) {}
     Operand (VFPAddr addr) : Tag(VDTR), data(addr.encode()) {}

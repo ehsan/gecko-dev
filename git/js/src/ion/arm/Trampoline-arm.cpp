@@ -45,7 +45,6 @@
 #include "ion/IonLinker.h"
 #include "ion/IonFrames.h"
 #include "ion/Bailouts.h"
-#include "ion/arm/Bailouts-arm.h"
 
 using namespace js;
 using namespace js::ion;
@@ -390,8 +389,7 @@ GenerateBailoutThunk(MacroAssembler &masm, uint32 frameClass)
     masm.as_mov(r0, O2Reg(sp));
     masm.setupAlignedABICall(1);
     masm.setABIArg(0,r0);
-    void *func = JS_FUNC_TO_DATA_PTR(void *, ion::HandleException);
-    masm.callWithABI(func);
+    masm.callWithABI(JS_FUNC_TO_DATA_PTR(void *, HandleException));
 
     // The return value is how much stack to adjust before returning.
     masm.as_add(sp, sp, O2Reg(r0));
