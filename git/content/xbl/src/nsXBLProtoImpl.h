@@ -73,7 +73,7 @@ public:
   nsresult InitTargetObjects(nsXBLPrototypeBinding* aBinding, nsIScriptContext* aContext, 
                              nsIContent* aBoundElement, 
                              nsIXPConnectJSObjectHolder** aScriptObjectHolder,
-                             JSObject** aTargetClassObject);
+                             void** aTargetClassObject);
   nsresult CompilePrototypeMembers(nsXBLPrototypeBinding* aBinding);
 
   void SetMemberList(nsXBLProtoImplMember* aMemberList)
@@ -131,8 +131,8 @@ public:
   nsCString mClassName; // The name of the class. 
 
 protected:
-  JSObject* mClassObject; // The class object for the binding. We'll use this to pre-compile properties
-                          // and methods for the binding.
+  void* mClassObject;   // The class object for the binding. We'll use this to pre-compile properties 
+                        // and methods for the binding.
 
   nsXBLProtoImplMember* mMembers; // The members of an implementation are chained in this singly-linked list.
 

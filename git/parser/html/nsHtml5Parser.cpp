@@ -177,10 +177,11 @@ nsHtml5Parser::GetDTD(nsIDTD** aDTD)
   return NS_OK;
 }
 
-nsIStreamListener*
-nsHtml5Parser::GetStreamListener()
+NS_IMETHODIMP
+nsHtml5Parser::GetStreamListener(nsIStreamListener** aListener)
 {
-  return mStreamParser;
+  NS_IF_ADDREF(*aListener = mStreamParser);
+  return NS_OK;
 }
 
 NS_IMETHODIMP

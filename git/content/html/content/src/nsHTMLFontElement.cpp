@@ -47,7 +47,6 @@
 #include "nsMappedAttributes.h"
 #include "nsRuleData.h"
 #include "nsIDocument.h"
-#include "nsAlgorithm.h"
 
 using namespace mozilla;
 
@@ -218,7 +217,7 @@ MapAttributesIntoRule(const nsMappedAttributes* aAttributes,
             else
               size = value->GetIntegerValue();
 
-            size = clamped(size, 1, 7);
+            size = ((0 < size) ? ((size < 8) ? size : 7) : 1); 
             fontSize->SetIntValue(size, eCSSUnit_Enumerated);
           }
         }

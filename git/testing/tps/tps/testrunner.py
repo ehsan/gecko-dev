@@ -53,7 +53,7 @@ from mozprofile import Profile
 
 from tps.firefoxrunner import TPSFirefoxRunner
 from tps.phase import TPSTestPhase
-from tps.mozhttpd import MozHttpd
+
 
 class TempFile(object):
   """Class for temporary files that delete themselves when garbage-collected.
@@ -397,9 +397,6 @@ class TPSTestRunner(object):
       testlist = [os.path.basename(self.testfile)]
     testdir = os.path.dirname(self.testfile)
 
-    self.mozhttpd = MozHttpd(port=4567, docroot=testdir)
-    self.mozhttpd.start()
-
     # run each test, and save the results
     for test in testlist:
       result = self.run_single_test(testdir, test)
@@ -417,8 +414,6 @@ class TPSTestRunner(object):
         self.numpassed += 1
       else:
         self.numfailed += 1
-
-    self.mozhttpd.stop()
 
     # generate the postdata we'll use to post the results to the db
     self.postdata = { 'tests': self.results, 
@@ -445,7 +440,7 @@ class TPSTestRunner(object):
                                  self.numpassed,
                                  self.numfailed,
                                  self.config['account']['serverURL'],
-                                 buildUrl)
+                                 self.buildUrl)
 
       subj = "TPS Report: "
       if self.numfailed == 0 and self.numpassed > 0:
