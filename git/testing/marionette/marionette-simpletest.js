@@ -5,8 +5,8 @@
  * The Marionette object, passed to the script context.
  */
 
-function Marionette(scope, window, context, logObj) {
-  this.scope = scope;
+function Marionette(is_async, window, context, logObj) {
+  this.is_async = is_async;
   this.window = window;
   this.tests = [];
   this.logObj = logObj;
@@ -15,8 +15,7 @@ function Marionette(scope, window, context, logObj) {
 }
 
 Marionette.prototype = {
-  exports: ['ok', 'is', 'isnot', 'log', 'getLogs', 'generate_results', 'waitFor',
-            'runEmulatorCmd'],
+  exports: ['ok', 'is', 'isnot', 'log', 'getLogs', 'generate_results', 'waitFor'],
 
   ok: function Marionette__ok(condition, name, diag) {
     let test = {'result': !!condition, 'name': name, 'diag': diag};
@@ -135,10 +134,5 @@ Marionette.prototype = {
       }
       this.window.setTimeout(this.waitFor.bind(this), 100, callback, test, timeout);
   },
-
-  runEmulatorCmd: function runEmulatorCmd(cmd, callback) {
-    this.scope.runEmulatorCmd(cmd, callback);
-  },
-
 };
 
