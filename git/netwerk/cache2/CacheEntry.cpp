@@ -1041,15 +1041,16 @@ NS_IMETHODIMP CacheEntry::GetSecurityInfo(nsISupports * *aSecurityInfo)
 
   NS_ENSURE_SUCCESS(mFileStatus, NS_ERROR_NOT_AVAILABLE);
 
-  nsXPIDLCString info;
+  char const* info;
   nsCOMPtr<nsISupports> secInfo;
   nsresult rv;
 
-  rv = mFile->GetElement("security-info", getter_Copies(info));
+  rv = mFile->GetElement("security-info", &info);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (info) {
-    rv = NS_DeserializeObject(info, getter_AddRefs(secInfo));
+    rv = NS_DeserializeObject(nsDependentCString(info),
+                              getter_AddRefs(secInfo));
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -1136,7 +1137,15 @@ NS_IMETHODIMP CacheEntry::GetMetaDataElement(const char * aKey, char * *aRetval)
 {
   NS_ENSURE_SUCCESS(mFileStatus, NS_ERROR_NOT_AVAILABLE);
 
-  return mFile->GetElement(aKey, aRetval);
+  const char *value;
+  nsresult rv = mFile->GetElement(aKey, &value);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (!value)
+    return NS_ERROR_NOT_AVAILABLE;
+
+  *aRetval = NS_strdup(value);
+  return NS_OK;
 }
 
 NS_IMETHODIMP CacheEntry::SetMetaDataElement(const char * aKey, const char * aValue)

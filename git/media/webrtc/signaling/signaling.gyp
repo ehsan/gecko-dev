@@ -193,10 +193,6 @@
           'defines' : [
             'MOZILLA_INTERNAL_API'
           ],
-          'sources': [
-            './src/peerconnection/WebrtcGlobalInformation.cpp',
-            './src/peerconnection/WebrtcGlobalInformation.h',
-          ],
         }],
         ['build_for_test!=0', {
           'include_dirs': [

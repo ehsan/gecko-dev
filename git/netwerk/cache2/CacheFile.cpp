@@ -745,18 +745,13 @@ CacheFile::ThrowMemoryCachedData()
 }
 
 nsresult
-CacheFile::GetElement(const char *aKey, char **_retval)
+CacheFile::GetElement(const char *aKey, const char **_retval)
 {
   CacheFileAutoLock lock(this);
   MOZ_ASSERT(mMetadata);
   NS_ENSURE_TRUE(mMetadata, NS_ERROR_UNEXPECTED);
 
-  const char *value;
-  value = mMetadata->GetElement(aKey);
-  if (!value)
-    return NS_ERROR_NOT_AVAILABLE;
-
-  *_retval = NS_strdup(value);
+  *_retval = mMetadata->GetElement(aKey);
   return NS_OK;
 }
 

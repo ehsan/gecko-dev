@@ -23,9 +23,7 @@ EXTRA_JS_MODULES += [
 ]
 
 if CONFIG['MOZ_ANDROID_SYNTHAPKS']:
-    EXTRA_PP_JS_MODULES += [
-        'WebappManager.jsm',
-    ]
     EXTRA_JS_MODULES += [
+        'WebappManager.jsm',
         'WebappManagerWorker.js',
     ]

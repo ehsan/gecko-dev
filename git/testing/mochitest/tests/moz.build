@@ -9,6 +9,3 @@ PARALLEL_DIRS += [
     'SimpleTest',
     'browser',
 ]
-
-MOCHITEST_MANIFESTS += ['Harness_sanity/mochitest.ini']
-
