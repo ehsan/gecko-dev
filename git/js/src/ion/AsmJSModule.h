@@ -13,6 +13,7 @@
 #include "ion/RegisterSets.h"
 
 #include "jsscript.h"
+#include "jstypedarrayinlines.h"
 
 #if defined(JS_ION_PERF)
 # include "ion/PerfSpewer.h"

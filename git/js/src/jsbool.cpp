@@ -124,7 +124,7 @@ Boolean(JSContext *cx, unsigned argc, Value *vp)
 
     bool b = args.length() != 0 ? JS::ToBoolean(args[0]) : false;
 
-    if (args.isConstructing()) {
+    if (IsConstructing(vp)) {
         JSObject *obj = BooleanObject::create(cx, b);
         if (!obj)
             return false;

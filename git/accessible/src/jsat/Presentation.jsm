@@ -109,9 +109,7 @@ Presenter.prototype = {
  * Visual presenter. Draws a box around the virtual cursor's position.
  */
 
-this.VisualPresenter = function VisualPresenter() {
-  this._displayedAccessibles = new WeakMap();
-};
+this.VisualPresenter = function VisualPresenter() {};
 
 VisualPresenter.prototype = {
   __proto__: Presenter.prototype,
@@ -124,14 +122,13 @@ VisualPresenter.prototype = {
   BORDER_PADDING: 2,
 
   viewportChanged: function VisualPresenter_viewportChanged(aWindow) {
-    let currentAcc = this._displayedAccessibles.get(aWindow);
-    if (Utils.isAliveAndVisible(currentAcc)) {
-      let bounds = Utils.getBounds(currentAcc);
+    if (this._currentAccessible) {
+      let context = new PivotContext(this._currentAccessible);
       return {
         type: this.type,
         details: {
           method: 'showBounds',
-          bounds: bounds,
+          bounds: context.bounds,
           padding: this.BORDER_PADDING
         }
       };
@@ -141,8 +138,7 @@ VisualPresenter.prototype = {
   },
 
   pivotChanged: function VisualPresenter_pivotChanged(aContext, aReason) {
-    this._displayedAccessibles.set(aContext.accessible.document.window,
-                                   aContext.accessible);
+    this._currentAccessible = aContext.accessible;
 
     if (!aContext.accessible)
       return {type: this.type, details: {method: 'hideBounds'}};

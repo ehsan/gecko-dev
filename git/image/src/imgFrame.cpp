@@ -37,7 +37,6 @@ static uint32_t gTotalDDBSize = 0;
 
 #endif
 
-using namespace mozilla;
 using namespace mozilla::image;
 
 // Returns true if an image of aWidth x aHeight is allowed and legal.
@@ -107,7 +106,6 @@ static bool ShouldUseImageSurfaces()
 
 imgFrame::imgFrame() :
   mDecoded(0, 0, 0, 0),
-  mDirtyMutex("imgFrame::mDirty"),
   mPalettedImageData(nullptr),
   mSinglePixelColor(0),
   mTimeout(100),
@@ -122,8 +120,7 @@ imgFrame::imgFrame() :
 #ifdef USE_WIN_SURFACE
   mIsDDBSurface(false),
 #endif
-  mInformedDiscardTracker(false),
-  mDirty(false)
+  mInformedDiscardTracker(false)
 {
   static bool hasCheckedOptimize = false;
   if (!hasCheckedOptimize) {
@@ -495,8 +492,6 @@ void imgFrame::Draw(gfxContext *aContext, gfxPattern::GraphicsFilter aFilter,
 // This can be called from any thread, but not simultaneously.
 nsresult imgFrame::ImageUpdated(const nsIntRect &aUpdateRect)
 {
-  MutexAutoLock lock(mDirtyMutex);
-
   mDecoded.UnionRect(mDecoded, aUpdateRect);
 
   // clamp to bounds, in case someone sends a bogus updateRect (I'm looking at
@@ -504,15 +499,7 @@ nsresult imgFrame::ImageUpdated(const nsIntRect &aUpdateRect)
   nsIntRect boundsRect(mOffset, mSize);
   mDecoded.IntersectRect(mDecoded, boundsRect);
 
-  mDirty = true;
-
   return NS_OK;
-}
-
-bool imgFrame::GetIsDirty()
-{
-  MutexAutoLock lock(mDirtyMutex);
-  return mDirty;
 }
 
 nsIntRect imgFrame::GetRect() const
@@ -684,17 +671,6 @@ nsresult imgFrame::UnlockImageData()
   if (mPalettedImageData)
     return NS_OK;
 
-  // FIXME: Bug 795737
-  // If this image has been drawn since we were locked, it has had snapshots
-  // added, and we need to remove them before calling MarkDirty.
-  if (mImageSurface)
-    mImageSurface->Flush();
-
-#ifdef USE_WIN_SURFACE
-  if (mWinSurface)
-    mWinSurface->Flush();
-#endif
-
   // Assume we've been written to.
   if (mImageSurface)
     mImageSurface->MarkDirty();
@@ -714,40 +690,32 @@ nsresult imgFrame::UnlockImageData()
   return NS_OK;
 }
 
-void imgFrame::ApplyDirtToSurfaces()
+void imgFrame::MarkImageDataDirty()
 {
   MOZ_ASSERT(NS_IsMainThread());
 
-  MutexAutoLock lock(mDirtyMutex);
-  if (mDirty) {
-    // FIXME: Bug 795737
-    // If this image has been drawn since we were locked, it has had snapshots
-    // added, and we need to remove them before calling MarkDirty.
-    if (mImageSurface)
-      mImageSurface->Flush();
+  if (mImageSurface)
+    mImageSurface->Flush();
 
 #ifdef USE_WIN_SURFACE
-    if (mWinSurface)
-      mWinSurface->Flush();
+  if (mWinSurface)
+    mWinSurface->Flush();
 #endif
 
-    if (mImageSurface)
-      mImageSurface->MarkDirty();
+  if (mImageSurface)
+    mImageSurface->MarkDirty();
 
 #ifdef USE_WIN_SURFACE
-    if (mWinSurface)
-      mWinSurface->MarkDirty();
+  if (mWinSurface)
+    mWinSurface->MarkDirty();
 #endif
 
 #ifdef XP_MACOSX
-    // The quartz image surface (ab)uses the flush method to get the
-    // cairo_image_surface data into a CGImage, so we have to call Flush() here.
-    if (mQuartzSurface)
-      mQuartzSurface->Flush();
+  // The quartz image surface (ab)uses the flush method to get the
+  // cairo_image_surface data into a CGImage, so we have to call Flush() here.
+  if (mQuartzSurface)
+    mQuartzSurface->Flush();
 #endif
-
-    mDirty = false;
-  }
 }
 
 int32_t imgFrame::GetTimeout() const

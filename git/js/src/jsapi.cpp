@@ -46,6 +46,7 @@
 #include "prmjtime.h"
 #include "jsweakmap.h"
 #include "jswrapper.h"
+#include "jstypedarray.h"
 #ifdef JS_THREADSAFE
 #include "jsworkers.h"
 #endif
@@ -71,7 +72,6 @@
 #include "vm/Shape.h"
 #include "vm/StopIterationObject.h"
 #include "vm/StringBuffer.h"
-#include "vm/TypedArrayObject.h"
 #include "vm/WeakMapObject.h"
 #include "vm/Xdr.h"
 #include "yarr/BumpPointerAllocator.h"

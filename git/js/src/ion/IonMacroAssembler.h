@@ -9,6 +9,7 @@
 
 #ifdef JS_ION
 
+#include "jstypedarray.h"
 #include "jscompartment.h"
 
 #if defined(JS_CPU_X86)
@@ -25,7 +26,6 @@
 #include "ion/VMFunctions.h"
 #include "vm/ForkJoin.h"
 #include "vm/Shape.h"
-#include "vm/TypedArrayObject.h"
 
 namespace js {
 namespace ion {
@@ -751,8 +751,6 @@ class MacroAssembler : public MacroAssemblerSpecific
         return truthy ? Assembler::Zero : Assembler::NonZero;
     }
 
-    void pushCalleeToken(Register callee, ExecutionMode mode);
-    void PushCalleeToken(Register callee, ExecutionMode mode);
     void tagCallee(Register callee, ExecutionMode mode);
     void clearCalleeTag(Register callee, ExecutionMode mode);
 

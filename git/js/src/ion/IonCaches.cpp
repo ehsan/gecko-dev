@@ -1213,7 +1213,7 @@ GetPropertyIC::attachArrayLength(JSContext *cx, IonScript *ion, JSObject *obj)
 bool
 GetPropertyIC::attachTypedArrayLength(JSContext *cx, IonScript *ion, JSObject *obj)
 {
-    JS_ASSERT(obj->is<TypedArrayObject>());
+    JS_ASSERT(obj->isTypedArray());
     JS_ASSERT(!idempotent());
 
     Label failures;
@@ -1481,7 +1481,7 @@ GetPropertyIC::update(JSContext *cx, size_t cacheIndex,
                 // The next execution should cause an invalidation because the type
                 // does not fit.
                 isCacheable = false;
-            } else if (obj->is<TypedArrayObject>() && !cache.hasTypedArrayLengthStub()) {
+            } else if (obj->isTypedArray() && !cache.hasTypedArrayLengthStub()) {
                 isCacheable = true;
                 if (!cache.attachTypedArrayLength(cx, ion, obj))
                     return false;
@@ -1580,8 +1580,15 @@ bool
 ParallelGetPropertyIC::canAttachReadSlot(LockedJSContext &cx, JSObject *obj,
                                          MutableHandleObject holder, MutableHandleShape shape)
 {
-    // Bail if we have hooks or are not native.
-    if (!obj->hasIdempotentProtoChain())
+    // Parallel execution should only cache native objects.
+    if (!obj->isNative())
+        return false;
+
+    if (IsIdempotentAndMaybeHasHooks(*this, obj))
+        return false;
+
+    // Bail if we have hooks.
+    if (obj->getOps()->lookupProperty || obj->getOps()->lookupGeneric)
         return false;
 
     if (!js::LookupPropertyPure(obj, NameToId(name()), holder.address(), shape.address()))
@@ -1596,6 +1603,9 @@ ParallelGetPropertyIC::canAttachReadSlot(LockedJSContext &cx, JSObject *obj,
     {
         return false;
     }
+
+    if (IsIdempotentAndHasSingletonHolder(*this, holder, shape))
+        return false;
 
     return true;
 }
@@ -1616,7 +1626,11 @@ ParallelGetPropertyIC::attachReadSlot(LockedJSContext &cx, IonScript *ion,
     MacroAssembler masm(cx);
     GenerateReadSlot(cx, ion, masm, attacher, obj, name(), holder, shape, object(), output());
 
-    if (!linkAndAttachStub(cx, masm, attacher, ion, "parallel reading"))
+    const char *attachKind = "parallel non-idempotent reading";
+    if (idempotent())
+        attachKind = "parallel idempotent reading";
+
+    if (!linkAndAttachStub(cx, masm, attacher, ion, attachKind))
         return false;
 
     *attachedStub = true;
@@ -1637,13 +1651,17 @@ ParallelGetPropertyIC::update(ForkJoinSlice *slice, size_t cacheIndex,
 
     ParallelGetPropertyIC &cache = ion->getCache(cacheIndex).toParallelGetProperty();
 
+    RootedScript script(pt);
+    jsbytecode *pc;
+    cache.getScriptedLocation(&script, &pc);
+
     // Grab the property early, as the pure path is fast anyways and doesn't
     // need a lock. If we can't do it purely, bail out of parallel execution.
     if (!GetPropertyPure(obj, NameToId(cache.name()), vp.address()))
         return TP_RETRY_SEQUENTIALLY;
 
-    // Avoid unnecessary locking if cannot attach stubs.
-    if (!cache.canAttachStub())
+    // Avoid unnecessary locking if cannot attach stubs and idempotent.
+    if (cache.idempotent() && !cache.canAttachStub())
         return TP_SUCCESS;
 
     {
@@ -1669,10 +1687,24 @@ ParallelGetPropertyIC::update(ForkJoinSlice *slice, size_t cacheIndex,
                 return TP_FATAL;
 
             if (!attachedStub) {
+                if (cache.idempotent())
+                    topScript->invalidatedIdempotentCache = true;
+
                 // ParallelDo will take care of invalidating all bailed out
                 // scripts, so just bail out now.
                 return TP_RETRY_SEQUENTIALLY;
             }
+        }
+
+        if (!cache.idempotent()) {
+#if JS_HAS_NO_SUCH_METHOD
+            // Straight up bail if there's this __noSuchMethod__ hook.
+            if (JSOp(*pc) == JSOP_CALLPROP && JS_UNLIKELY(vp.isPrimitive()))
+                return TP_RETRY_SEQUENTIALLY;
+#endif
+
+            // Monitor changes to cache entry.
+            types::TypeScript::Monitor(cx, script, pc, vp);
         }
     }
 
@@ -2225,15 +2257,17 @@ GetElementIC::attachDenseElement(JSContext *cx, IonScript *ion, JSObject *obj, c
 }
 
 bool
-GetElementIC::attachTypedArrayElement(JSContext *cx, IonScript *ion, TypedArrayObject *tarr,
+GetElementIC::attachTypedArrayElement(JSContext *cx, IonScript *ion, JSObject *obj,
                                       const Value &idval)
 {
+    JS_ASSERT(obj->isTypedArray());
+
     Label failures;
     MacroAssembler masm(cx);
     RepatchStubAppender attacher(*this);
 
     // The array type is the object within the table of typed array classes.
-    int arrayType = tarr->type();
+    int arrayType = TypedArrayObject::type(obj);
 
     // The output register is not yet specialized as a float register, the only
     // way to accept float typed arrays for now is to return a Value type.
@@ -2246,7 +2280,7 @@ GetElementIC::attachTypedArrayElement(JSContext *cx, IonScript *ion, TypedArrayO
 
     // Check that the typed array is of the same type as the current object
     // because load size differ in function of the typed array data width.
-    masm.branchTestObjClass(Assembler::NotEqual, object(), tmpReg, tarr->getClass(), &failures);
+    masm.branchTestObjClass(Assembler::NotEqual, object(), tmpReg, obj->getClass(), &failures);
 
     // Decide to what type index the stub should be optimized
     Register indexReg = tmpReg;
@@ -2497,16 +2531,15 @@ GetElementIC::update(JSContext *cx, size_t cacheIndex, HandleObject obj,
                 return false;
             attachedStub = true;
         }
-        if (!attachedStub && obj->is<TypedArrayObject>()) {
+        if (!attachedStub && obj->isTypedArray()) {
             if ((idval.isInt32()) ||
                 (idval.isString() && GetIndexFromString(idval.toString()) != UINT32_MAX))
             {
-                Rooted<TypedArrayObject*> tarr(cx, &obj->as<TypedArrayObject>());
-                int arrayType = tarr->type();
+                int arrayType = TypedArrayObject::type(obj);
                 bool floatOutput = arrayType == TypedArrayObject::TYPE_FLOAT32 ||
                                    arrayType == TypedArrayObject::TYPE_FLOAT64;
                 if (!floatOutput || cache.output().hasValue()) {
-                    if (!cache.attachTypedArrayElement(cx, ion, tarr, idval))
+                    if (!cache.attachTypedArrayElement(cx, ion, obj, idval))
                         return false;
                     attachedStub = true;
                 }

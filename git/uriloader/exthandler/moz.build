@@ -111,7 +111,3 @@ if CONFIG['MOZ_ENABLE_CONTENTACTION']:
     CPP_SOURCES += [
         'nsContentHandlerApp.cpp',
     ]
-
-IPDL_SOURCES += [
-    'PExternalHelperApp.ipdl',
-]

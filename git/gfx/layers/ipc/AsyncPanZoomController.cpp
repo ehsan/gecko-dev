@@ -185,7 +185,6 @@ AsyncPanZoomController::AsyncPanZoomController(GeckoContentController* aGeckoCon
      mDelayPanning(false)
 {
   MOZ_ASSERT(NS_IsMainThread());
-  MOZ_COUNT_CTOR(AsyncPanZoomController);
 
   InitAZPCPrefs();
 
@@ -207,7 +206,7 @@ AsyncPanZoomController::AsyncPanZoomController(GeckoContentController* aGeckoCon
 }
 
 AsyncPanZoomController::~AsyncPanZoomController() {
-  MOZ_COUNT_DTOR(AsyncPanZoomController);
+
 }
 
 void
@@ -1163,8 +1162,12 @@ bool AsyncPanZoomController::SampleContentTransformForFrame(const TimeStamp& aSa
                                             mAsyncScrollTimeout);
   }
 
-  CSSToLayerScale paintedScale = frame.mDevPixelsPerCSSPixel * frame.mResolution;
-  LayerPoint translation = (scrollOffset * paintedScale) - metricsScrollOffset;
+  // Scales on the root layer, on what's currently painted.
+  const gfx3DMatrix& currentTransform = aLayer->GetTransform();
+  CSSToLayerScale rootScale = frame.mDevPixelsPerCSSPixel
+      / LayerToLayoutDeviceScale(currentTransform.GetXScale(), currentTransform.GetYScale());
+
+  LayerPoint translation = (scrollOffset * rootScale) - metricsScrollOffset;
   *aNewTransform = ViewTransform(-translation, localScale / frame.mDevPixelsPerCSSPixel);
   aScrollOffset = scrollOffset * localScale;
 
@@ -1455,53 +1458,5 @@ void AsyncPanZoomController::SendAsyncScrollEvent() {
 
   mGeckoContentController->SendAsyncScrollDOMEvent(contentRect, scrollableSize);
 }
-
-static void GetAPZCAtPointOnSubtree(const ContainerLayer& aLayerIn,
-                    const gfxPoint& aPoint,
-                    AsyncPanZoomController** aApzcOut,
-                    LayerIntPoint* aRelativePointOut)
-{
-  // Making layers const correct is very slow because it requires
-  // a near clobber of the tree. Once const correct is further along
-  // remove this cast.
-  ContainerLayer& aLayer = const_cast<ContainerLayer&>(aLayerIn);
-  gfx3DMatrix transform = aLayer.GetLocalTransform().Inverse();
-  gfxPoint layerPoint = transform.Transform(aPoint);
-
-  // iterate over the children first. They are better match then the parent
-  Layer* currLayer = aLayer.GetLastChild();
-  while (currLayer) {
-    if (currLayer->AsContainerLayer()) {
-      GetAPZCAtPointOnSubtree(*currLayer->AsContainerLayer(), layerPoint, aApzcOut, aRelativePointOut);
-    }
-    if (*aApzcOut) {
-        return;
-    }
-    currLayer = currLayer->GetPrevSibling();
-  }
-
-  bool intersect = aLayer.GetVisibleRegion().Contains(nsIntRect(layerPoint.x, layerPoint.y, 1, 1));
-
-  if (intersect) {
-    if (aLayer.GetFrameMetrics().IsScrollable()) {
-      *aApzcOut = aLayer.GetAsyncPanZoomController();
-      *aRelativePointOut = LayerIntPoint(NS_lround(layerPoint.x), NS_lround(layerPoint.y));
-    }
-  }
-
-}
-
-void AsyncPanZoomController::GetAPZCAtPoint(const ContainerLayer& aLayerTree,
-                    const ScreenIntPoint& aPoint,
-                    AsyncPanZoomController** aApzcOut,
-                    LayerIntPoint* aRelativePointOut)
-{
-  *aApzcOut = nullptr;
-
-  gfxPoint point(aPoint.x, aPoint.y);
-
-  GetAPZCAtPointOnSubtree(aLayerTree, point, aApzcOut, aRelativePointOut);
-}
-
 }
 }

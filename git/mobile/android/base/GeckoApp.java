@@ -40,7 +40,6 @@ import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.content.pm.PackageManager.NameNotFoundException;
 import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -155,10 +154,9 @@ abstract public class GeckoApp
     public static final String PREFS_OOM_EXCEPTION = "OOMException";
     public static final String PREFS_WAS_STOPPED   = "wasStopped";
     public static final String PREFS_CRASHED       = "crashed";
-    public static final String PREFS_VERSION_CODE  = "versionCode";
 
     static public final int RESTORE_NONE = 0;
-    static public final int RESTORE_NORMAL = 1;
+    static public final int RESTORE_OOM = 1;
     static public final int RESTORE_CRASH = 2;
 
     static private final String LOCATION_URL = "https://location.services.mozilla.com/v1/submit";
@@ -1260,7 +1258,7 @@ abstract public class GeckoApp
         // we were in the background, or a more harsh kill while we were
         // active.
         mRestoreMode = getSessionRestoreState(savedInstanceState);
-        if (mRestoreMode == RESTORE_NORMAL && savedInstanceState != null) {
+        if (mRestoreMode == RESTORE_OOM) {
             boolean wasInBackground =
                 savedInstanceState.getBoolean(SAVED_STATE_IN_BACKGROUND, false);
 
@@ -1418,7 +1416,7 @@ abstract public class GeckoApp
             loadStartupTab(isExternalURL ? passedUri : null);
         }
 
-        if (mRestoreMode == RESTORE_NORMAL) {
+        if (mRestoreMode == RESTORE_OOM) {
             // If we successfully did an OOM restore, we now have tab stubs
             // from the last session. Any future tabs should be animated.
             Tabs.getInstance().notifyListeners(null, Tabs.TabEvents.RESTORED);
@@ -1599,7 +1597,7 @@ abstract public class GeckoApp
             // If we are doing an OOM restore, parse the session data and
             // stub the restored tabs immediately. This allows the UI to be
             // updated before Gecko has restored.
-            if (mRestoreMode == RESTORE_NORMAL) {
+            if (mRestoreMode == RESTORE_OOM) {
                 final JSONArray tabs = new JSONArray();
                 SessionParser parser = new SessionParser() {
                     @Override
@@ -1637,7 +1635,7 @@ abstract public class GeckoApp
             }
 
             JSONObject restoreData = new JSONObject();
-            restoreData.put("normalRestore", mRestoreMode == RESTORE_NORMAL);
+            restoreData.put("restoringOOM", mRestoreMode == RESTORE_OOM);
             restoreData.put("sessionString", sessionString);
             return restoreData.toString();
 
@@ -1655,26 +1653,11 @@ abstract public class GeckoApp
     }
 
     protected int getSessionRestoreState(Bundle savedInstanceState) {
-        final SharedPreferences prefs = GeckoApp.getAppSharedPreferences();
-        int restoreMode = RESTORE_NONE;
-
-        // If the version has changed, the user has done an upgrade, so restore
-        // previous tabs.
-        final int versionCode = getVersionCode();
-        if (prefs.getInt(PREFS_VERSION_CODE, 0) != versionCode) {
-            ThreadUtils.postToBackgroundThread(new Runnable() {
-                @Override
-                public void run() {
-                    prefs.edit()
-                         .putInt(PREFS_VERSION_CODE, versionCode)
-                         .commit();
-                }
-            });
-
-            restoreMode = RESTORE_NORMAL;
-        } else if (savedInstanceState != null) {
-            restoreMode = RESTORE_NORMAL;
+        if (savedInstanceState != null) {
+            return RESTORE_OOM;
         }
+
+        final SharedPreferences prefs = GeckoApp.getAppSharedPreferences();
 
         // We record crashes in the crash reporter. If sessionstore.js
         // exists, but we didn't flag a crash in the crash reporter, we
@@ -1685,15 +1668,16 @@ abstract public class GeckoApp
                 @Override
                 public void run() {
                     prefs.edit()
-                         .putBoolean(PREFS_CRASHED, false)
+                         .putBoolean(GeckoApp.PREFS_CRASHED, false)
                          .commit();
                 }
             });
 
-            restoreMode = RESTORE_CRASH;
+            if (getProfile().shouldRestoreSession()) {
+                return RESTORE_CRASH;
+            }
         }
-
-        return restoreMode;
+        return RESTORE_NONE;
     }
 
     /**
@@ -2671,15 +2655,5 @@ abstract public class GeckoApp
         // Don't use a notification service; we may be killed in the background
         // during downloads.
         return new AppNotificationClient(getApplicationContext());
-    }
-
-    private int getVersionCode() {
-        int versionCode = 0;
-        try {
-            versionCode = getPackageManager().getPackageInfo(getPackageName(), 0).versionCode;
-        } catch (NameNotFoundException e) {
-            Log.wtf(LOGTAG, getPackageName() + " not found", e);
-        }
-        return versionCode;
     }
 }

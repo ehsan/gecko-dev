@@ -2972,7 +2972,7 @@ js_Date(JSContext *cx, unsigned argc, Value *vp)
     CallArgs args = CallArgsFromVp(argc, vp);
 
     /* Date called as function. */
-    if (!args.isConstructing())
+    if (!IsConstructing(args))
         return date_format(cx, NowAsMillis(), FORMATSPEC_FULL, args.rval());
 
     /* Date called as constructor. */

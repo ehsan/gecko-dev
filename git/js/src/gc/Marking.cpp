@@ -8,9 +8,10 @@
 
 #include "mozilla/DebugOnly.h"
 
+#include "jstypedarray.h"
+
 #include "ion/IonCode.h"
 #include "vm/Shape.h"
-#include "vm/TypedArrayObject.h"
 
 #include "jscompartmentinlines.h"
 #include "jsinferinlines.h"

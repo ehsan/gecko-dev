@@ -100,9 +100,7 @@ CompositableClient::CreateTextureClient(TextureClientType aTextureClientType)
     }
     break;
   case TEXTURE_YCBCR:
-    if (parentBackend == LAYERS_OPENGL ||
-        parentBackend == LAYERS_D3D11 ||
-        parentBackend == LAYERS_BASIC) {
+    if (parentBackend == LAYERS_OPENGL || parentBackend == LAYERS_D3D11) {
       result = new TextureClientShmemYCbCr(GetForwarder(), GetTextureInfo());
     }
     break;

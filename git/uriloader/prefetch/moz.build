@@ -29,6 +29,3 @@ CPP_SOURCES += [
     'nsPrefetchService.cpp',
 ]
 
-IPDL_SOURCES += [
-    'POfflineCacheUpdate.ipdl',
-]
