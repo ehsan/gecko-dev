@@ -34,7 +34,11 @@ add_task(function*() {
   yield toolbox.highlighter.showBoxModel(divFront);
 
   for (let id of ELEMENTS) {
-    let foundId = yield getHighlighterNodeAttribute(toolbox.highlighter, id, "id");
+    let {data: foundId} = yield executeInContent("Test:GetHighlighterAttribute", {
+      nodeID: id,
+      name: "id",
+      actorID: getHighlighterActorID(toolbox)
+    });
     is(foundId, id, "Element " + id + " found");
   }
 

@@ -35,8 +35,7 @@ add_task(function*() {
   let {data} = yield executeInContent("Test:GetAllAdjustedQuads", null, {node});
   let expected = data.border;
 
-  let points = yield getHighlighterNodeAttribute(highlighter,
-    "css-transform-transformed", "points");
+  let points = yield getAttribute("css-transform-transformed", "points", highlighter);
   let polygonPoints = points.split(" ").map(p => {
     return {
       x: +p.substring(0, p.indexOf(",")),
@@ -55,3 +54,9 @@ add_task(function*() {
   yield highlighter.hide();
   yield highlighter.finalize();
 });
+
+function* getAttribute(nodeID, name, {actorID}) {
+  let {data} = yield executeInContent("Test:GetHighlighterAttribute",
+    {nodeID, name, actorID});
+  return data;
+}

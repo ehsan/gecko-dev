@@ -26,7 +26,7 @@ add_task(function test_execute()
                     transition: TRANSITION_FRAMED_LINK });
     }
   }
-  yield PlacesTestUtils.addVisits(places);
+  yield promiseAddVisits(places);
 
   // test our optimized query for the "Most Visited" item
   // in the "Smart Bookmarks" folder

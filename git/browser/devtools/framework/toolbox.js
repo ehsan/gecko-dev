@@ -47,7 +47,6 @@ loader.lazyGetter(this, "toolboxStrings", () => {
 
 loader.lazyGetter(this, "Selection", () => require("devtools/framework/selection").Selection);
 loader.lazyGetter(this, "InspectorFront", () => require("devtools/server/actors/inspector").InspectorFront);
-loader.lazyRequireGetter(this, "DevToolsUtils", "devtools/toolkit/DevToolsUtils");
 
 // White-list buttons that can be toggled to prevent adding prefs for
 // addons that have manually inserted toolbarbuttons into DOM.
@@ -1660,11 +1659,8 @@ Toolbox.prototype = {
     // Finish all outstanding tasks (which means finish destroying panels and
     // then destroying the host, successfully or not) before destroying the
     // target.
-    this._destroyer = DevToolsUtils.settleAll(outstanding)
-                                   .catch(console.error)
-                                   .then(() => this.destroyHost())
-                                   .catch(console.error)
-                                   .then(() => {
+    this._destroyer = promise.all(outstanding)
+      .then(() => this.destroyHost()).then(null, console.error).then(() => {
       // Targets need to be notified that the toolbox is being torn down.
       // This is done after other destruction tasks since it may tear down
       // fronts and the debugger transport which earlier destroy methods may

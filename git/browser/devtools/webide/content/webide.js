@@ -913,47 +913,34 @@ let UI = {
       let json = JSON.parse(event.data);
       switch (json.name) {
         case "toolbox-close":
-          // There are many ways to close a toolbox:
-          // * Close button inside the toolbox
-          // * Toggle toolbox wrench in WebIDE
-          // * Disconnect the current runtime gracefully
-          // * Yank cord out of device
-          // We can't know for sure which one was used here, so reset the
-          // |toolboxPromise| since someone must be destroying it to reach here,
-          // and call our own close method.
-          this.toolboxPromise = null;
-          this._closeToolboxUI();
+          this.closeToolboxUI();
           break;
       }
     } catch(e) { console.error(e); }
   },
 
   destroyToolbox: function() {
-    // Only have a live toolbox if |this.toolboxPromise| exists
     if (this.toolboxPromise) {
-      let toolboxPromise = this.toolboxPromise;
-      this.toolboxPromise = null;
-      return toolboxPromise.then(toolbox => {
-        return toolbox.destroy();
-      }).catch(console.error)
-        .then(() => this._closeToolboxUI())
-        .catch(console.error);
+      return this.toolboxPromise.then(toolbox => {
+        toolbox.destroy();
+        this.toolboxPromise = null;
+      }, console.error);
     }
     return promise.resolve();
   },
 
   createToolbox: function() {
-    // If |this.toolboxPromise| exists, there is already a live toolbox
-    if (this.toolboxPromise) {
-      return this.toolboxPromise;
-    }
     this.toolboxPromise = AppManager.getTarget().then((target) => {
-      return this._showToolbox(target);
+      return this.showToolbox(target);
     }, console.error);
     return this.busyUntil(this.toolboxPromise, "opening toolbox");
   },
 
-  _showToolbox: function(target) {
+  showToolbox: function(target) {
+    if (this.toolboxIframe) {
+      return;
+    }
+
     let splitter = document.querySelector(".devtools-horizontal-splitter");
     splitter.removeAttribute("hidden");
 
@@ -977,7 +964,7 @@ let UI = {
   updateToolboxFullscreenState: function() {
     let panel = document.querySelector("#deck").selectedPanel;
     let nbox = document.querySelector("#notificationbox");
-    if (panel && panel.id == "deck-panel-details" &&
+    if (panel.id == "deck-panel-details" &&
         AppManager.selectedProject.type != "packaged" &&
         this.toolboxIframe) {
       nbox.setAttribute("toolboxfullscreen", "true");
@@ -986,11 +973,7 @@ let UI = {
     }
   },
 
-  _closeToolboxUI: function() {
-    if (!this.toolboxIframe) {
-      return;
-    }
-
+  closeToolboxUI: function() {
     this.resetFocus();
     Services.prefs.setIntPref("devtools.toolbox.footer.height", this.toolboxIframe.height);
 
@@ -1249,11 +1232,7 @@ let Cmds = {
   },
 
   disconnectRuntime: function() {
-    let disconnecting = Task.spawn(function*() {
-      yield UI.destroyToolbox();
-      yield AppManager.disconnectRuntime();
-    });
-    return UI.busyUntil(disconnecting, "disconnecting from runtime");
+    return UI.busyUntil(AppManager.disconnectRuntime(), "disconnecting from runtime");
   },
 
   takeScreenshot: function() {

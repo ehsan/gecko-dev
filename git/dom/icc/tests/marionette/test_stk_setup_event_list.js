@@ -5,46 +5,27 @@ MARIONETTE_TIMEOUT = 60000;
 MARIONETTE_HEAD_JS = "head.js";
 
 const TEST_DATA = [
-  {command: "D00C" + // Length
-            "8103010500" + // Command details
-            "82028182" + // Device identities
-            "990104", // Event list
+  {command: "d00c810301050082028182990104",
    expect: {commandQualifier: 0x00,
             eventList: [4]}},
-  {command: "D00D" + // Length
-            "8103010500" + // Command details
-            "82028182" + // Device identities
-            "99020507", // Event list
+  {command: "d00d81030105008202818299020507",
    expect: {commandQualifier: 0x00,
             eventList: [5, 7]}},
-  {command: "D00C" + // Length
-            "8103010500" + // Command details
-            "82028182" + // Device identities
-            "990107", // Event list
+  {command: "d00c810301050082028182990107",
    expect: {commandQualifier: 0x00,
             eventList: [7]}},
-  {command: "D00C" + // Length
-            "8103010500" + // Command details
-            "82028182" + // Device identities
-            "990107", // Event list
+  {command: "d00c810301050082028182990107",
    expect: {commandQualifier: 0x00,
             eventList: [7]}},
-  {command: "D00B" + // Length
-            "8103010500" + // Command details
-            "82028182" + // Device identities
-            "9900", // Event list
+  {command: "d00b8103010500820281829900",
    expect: {commandQualifier: 0x00,
             eventList: null}},
-  {command: "D00C" + // Length
-            "8103010500" + // Command details
-            "82028182" + // Device identities
-            "990107", // Event list
+  {command: "d00c810301050082028182990107",
    expect: {commandQualifier: 0x00,
             eventList: [7]}}
 ];
 
 function testSetupEventList(aCommand, aExpect) {
-  is(aCommand.commandNumber, 0x01, "commandNumber");
   is(aCommand.typeOfCommand, MozIccManager.STK_CMD_SET_UP_EVENT_LIST,
      "typeOfCommand");
   is(aCommand.commandQualifier, aExpect.commandQualifier, "commandQualifier");
@@ -68,12 +49,6 @@ startTestCommon(function() {
       // Wait onstkcommand event.
       promises.push(waitForTargetEvent(icc, "stkcommand")
         .then((aEvent) => testSetupEventList(aEvent.command, data.expect)));
-      // Wait icc-stkcommand system message.
-      promises.push(waitForSystemMessage("icc-stkcommand")
-        .then((aMessage) => {
-          is(aMessage.iccId, icc.iccInfo.iccid, "iccId");
-          testSetupEventList(aMessage.command, data.expect);
-        }));
       // Send emulator command to generate stk unsolicited event.
       promises.push(sendEmulatorStkPdu(data.command));
 

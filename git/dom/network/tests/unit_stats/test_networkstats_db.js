@@ -5,7 +5,6 @@ const {classes: Cc, interfaces: Ci, utils: Cu, results: Cr} = Components;
 
 Cu.import("resource://gre/modules/NetworkStatsDB.jsm");
 
-const STATS_STORE_NAME = "net_stats_store_v3";
 const netStatsDb = new NetworkStatsDB();
 
 function clearStore(store, callback) {
@@ -27,7 +26,7 @@ function getNetworkId(aIccId, aNetworkType) {
 add_test(function prepareDatabase() {
   // Clear whole database to avoid starting tests with unknown state
   // due to the previous tests.
-  clearStore(STATS_STORE_NAME, function() {
+  clearStore('net_stats_store', function() {
     clearStore('net_alarm', function() {
       run_next_test();
     });
@@ -152,7 +151,6 @@ add_test(function test_internalSaveStats_singleSample() {
   var networks = getNetworks();
 
   var stats = { appId:         0,
-                isInBrowser:   0,
                 serviceType:   "",
                 network:       [networks[0].id, networks[0].type],
                 timestamp:     Date.now(),
@@ -163,7 +161,7 @@ add_test(function test_internalSaveStats_singleSample() {
                 rxTotalBytes:  1234,
                 txTotalBytes:  1234 };
 
-  netStatsDb.dbNewTxn(STATS_STORE_NAME, "readwrite", function(txn, store) {
+  netStatsDb.dbNewTxn("net_stats_store", "readwrite", function(txn, store) {
     netStatsDb._saveStats(txn, store, stats);
   }, function(error, result) {
     do_check_eq(error, null);
@@ -172,7 +170,6 @@ add_test(function test_internalSaveStats_singleSample() {
       do_check_eq(error, null);
       do_check_eq(result.length, 1);
       do_check_eq(result[0].appId, stats.appId);
-      do_check_eq(result[0].isInBrowser, stats.isInBrowser);
       do_check_eq(result[0].serviceType, stats.serviceType);
       do_check_true(compareNetworks(result[0].network, stats.network));
       do_check_eq(result[0].timestamp, stats.timestamp);
@@ -188,7 +185,7 @@ add_test(function test_internalSaveStats_singleSample() {
 });
 
 add_test(function test_internalSaveStats_arraySamples() {
-  clearStore(STATS_STORE_NAME, function() {
+  clearStore('net_stats_store', function() {
     var networks = getNetworks();
     var network = [networks[0].id, networks[0].type];
 
@@ -196,7 +193,6 @@ add_test(function test_internalSaveStats_arraySamples() {
     var stats = [];
     for (var i = 0; i < samples; i++) {
       stats.push({ appId:         0,
-                   isInBrowser:   0,
                    serviceType:   "",
                    network:       network,
                    timestamp:     Date.now() + (10 * i),
@@ -208,7 +204,7 @@ add_test(function test_internalSaveStats_arraySamples() {
                    txTotalBytes:  1234 });
     }
 
-    netStatsDb.dbNewTxn(STATS_STORE_NAME, "readwrite", function(txn, store) {
+    netStatsDb.dbNewTxn("net_stats_store", "readwrite", function(txn, store) {
       netStatsDb._saveStats(txn, store, stats);
     }, function(error, result) {
       do_check_eq(error, null);
@@ -220,7 +216,6 @@ add_test(function test_internalSaveStats_arraySamples() {
         var success = true;
         for (var i = 0; i < samples; i++) {
           if (result[i].appId != stats[i].appId ||
-              result[i].isInBrowser != stats[i].isInBrowser ||
               result[i].serviceType != stats[i].serviceType ||
               !compareNetworks(result[i].network, stats[i].network) ||
               result[i].timestamp != stats[i].timestamp ||
@@ -242,32 +237,30 @@ add_test(function test_internalSaveStats_arraySamples() {
 });
 
 add_test(function test_internalRemoveOldStats() {
-  clearStore(STATS_STORE_NAME, function() {
+  clearStore('net_stats_store', function() {
     var networks = getNetworks();
     var network = [networks[0].id, networks[0].type];
     var samples = 10;
     var stats = [];
     for (var i = 0; i < samples - 1; i++) {
-      stats.push({ appId:               0, isInBrowser:   0,
-                   serviceType:        "",
+      stats.push({ appId:               0, serviceType: "",
                    network:       network, timestamp:     Date.now() + (10 * i),
                    rxBytes:             0, txBytes:       0,
                    rxSystemBytes:    1234, txSystemBytes: 1234,
                    rxTotalBytes:     1234, txTotalBytes:  1234 });
     }
 
-    stats.push({ appId:               0, isInBrowser:   0,
-                 serviceType:        "",
+    stats.push({ appId:               0, serviceType: "",
                  network:       network, timestamp:     Date.now() + (10 * samples),
                  rxBytes:             0, txBytes:       0,
                  rxSystemBytes:    1234, txSystemBytes: 1234,
                  rxTotalBytes:     1234, txTotalBytes:  1234 });
 
-    netStatsDb.dbNewTxn(STATS_STORE_NAME, "readwrite", function(txn, store) {
+    netStatsDb.dbNewTxn("net_stats_store", "readwrite", function(txn, store) {
       netStatsDb._saveStats(txn, store, stats);
       var date = stats[stats.length - 1].timestamp
                  + (netStatsDb.sampleRate * netStatsDb.maxStorageSamples - 1) - 1;
-      netStatsDb._removeOldStats(txn, store, 0, 0, "", network, date);
+      netStatsDb._removeOldStats(txn, store, 0, "", network, date);
     }, function(error, result) {
       do_check_eq(error, null);
 
@@ -282,11 +275,11 @@ add_test(function test_internalRemoveOldStats() {
 });
 
 function processSamplesDiff(networks, lastStat, newStat, callback) {
-  clearStore(STATS_STORE_NAME, function() {
-    netStatsDb.dbNewTxn(STATS_STORE_NAME, "readwrite", function(txn, store) {
+  clearStore('net_stats_store', function() {
+    netStatsDb.dbNewTxn("net_stats_store", "readwrite", function(txn, store) {
       netStatsDb._saveStats(txn, store, lastStat);
     }, function(error, result) {
-      netStatsDb.dbNewTxn(STATS_STORE_NAME, "readwrite", function(txn, store) {
+      netStatsDb.dbNewTxn("net_stats_store", "readwrite", function(txn, store) {
         let request = store.index("network").openCursor(newStat.network, "prev");
         request.onsuccess = function onsuccess(event) {
           let cursor = event.target.result;
@@ -311,15 +304,13 @@ add_test(function test_processSamplesDiffSameSample() {
   var sampleRate = netStatsDb.sampleRate;
   var date = filterTimestamp(new Date());
 
-  var lastStat = { appId:               0, isInBrowser:   0,
-                   serviceType:        "",
+  var lastStat = { appId:               0, serviceType:   "",
                    network:       network, timestamp:     date,
                    rxBytes:             0, txBytes:       0,
                    rxSystemBytes:    1234, txSystemBytes: 1234,
                    rxTotalBytes:     2234, txTotalBytes:  2234 };
 
-  var newStat = { appId:               0, isInBrowser:   0,
-                  serviceType:        "",
+  var newStat = { appId:               0, serviceType:   "",
                   network:       network, timestamp:     date,
                   rxBytes:             0, txBytes:       0,
                   rxSystemBytes:    2234, txSystemBytes: 2234,
@@ -328,7 +319,6 @@ add_test(function test_processSamplesDiffSameSample() {
   processSamplesDiff(networks, lastStat, newStat, function(result) {
     do_check_eq(result.length, 1);
     do_check_eq(result[0].appId, newStat.appId);
-    do_check_eq(result[0].isInBrowser, newStat.isInBrowser);
     do_check_eq(result[0].serviceType, newStat.serviceType);
     do_check_true(compareNetworks(result[0].network, newStat.network));
     do_check_eq(result[0].timestamp, newStat.timestamp);
@@ -349,15 +339,13 @@ add_test(function test_processSamplesDiffNextSample() {
   var sampleRate = netStatsDb.sampleRate;
   var date = filterTimestamp(new Date());
 
-  var lastStat = { appId:               0, isInBrowser:   0,
-                   serviceType:        "",
+  var lastStat = { appId:               0, serviceType:  "",
                    network:       network, timestamp:     date,
                    rxBytes:             0, txBytes:       0,
                    rxSystemBytes:    1234, txSystemBytes: 1234,
                    rxTotalBytes:     2234, txTotalBytes:  2234 };
 
-  var newStat = { appId:               0, isInBrowser:   0,
-                  serviceType:        "",
+  var newStat = { appId:               0, serviceType:  "",
                   network:       network, timestamp:     date + sampleRate,
                   rxBytes:             0, txBytes:       0,
                   rxSystemBytes:    1734, txSystemBytes: 1734,
@@ -366,7 +354,6 @@ add_test(function test_processSamplesDiffNextSample() {
   processSamplesDiff(networks, lastStat, newStat, function(result) {
     do_check_eq(result.length, 2);
     do_check_eq(result[1].appId, newStat.appId);
-    do_check_eq(result[1].isInBrowser, newStat.isInBrowser);
     do_check_eq(result[1].serviceType, newStat.serviceType);
     do_check_true(compareNetworks(result[1].network, newStat.network));
     do_check_eq(result[1].timestamp, newStat.timestamp);
@@ -386,15 +373,13 @@ add_test(function test_processSamplesDiffSamplesLost() {
   var samples = 5;
   var sampleRate = netStatsDb.sampleRate;
   var date = filterTimestamp(new Date());
-  var lastStat = { appId:              0, isInBrowser:   0,
-                   serviceType:       "",
+  var lastStat = { appId:              0, serviceType:  "",
                    network:      network, timestamp:     date,
                    rxBytes:            0, txBytes:       0,
                    rxSystemBytes:   1234, txSystemBytes: 1234,
                    rxTotalBytes:    2234, txTotalBytes:  2234};
 
-  var newStat = { appId:               0, isInBrowser:   0,
-                  serviceType:        "",
+  var newStat = { appId:               0, serviceType:  "",
                   network:       network, timestamp:     date + (sampleRate * samples),
                   rxBytes:             0, txBytes:       0,
                   rxSystemBytes:    2234, txSystemBytes: 2234,
@@ -403,7 +388,6 @@ add_test(function test_processSamplesDiffSamplesLost() {
   processSamplesDiff(networks, lastStat, newStat, function(result) {
     do_check_eq(result.length, samples + 1);
     do_check_eq(result[0].appId, newStat.appId);
-    do_check_eq(result[0].isInBrowser, newStat.isInBrowser);
     do_check_eq(result[0].serviceType, newStat.serviceType);
     do_check_true(compareNetworks(result[samples].network, newStat.network));
     do_check_eq(result[samples].timestamp, newStat.timestamp);
@@ -422,7 +406,6 @@ add_test(function test_saveStats() {
   var network = [networks[0].id, networks[0].type];
 
   var stats = { appId:          0,
-                isInBrowser:    false,
                 serviceType:    "",
                 networkId:      networks[0].id,
                 networkType:    networks[0].type,
@@ -431,14 +414,13 @@ add_test(function test_saveStats() {
                 txBytes:        2234,
                 isAccumulative: true };
 
-  clearStore(STATS_STORE_NAME, function() {
+  clearStore('net_stats_store', function() {
     netStatsDb.saveStats(stats, function(error, result) {
       do_check_eq(error, null);
       netStatsDb.logAllRecords(function(error, result) {
         do_check_eq(error, null);
         do_check_eq(result.length, 1);
         do_check_eq(result[0].appId, stats.appId);
-        do_check_eq(result[0].isInBrowser, stats.isInBrowser);
         do_check_eq(result[0].serviceType, stats.serviceType);
         do_check_true(compareNetworks(result[0].network, network));
         let timestamp = filterTimestamp(stats.date);
@@ -460,7 +442,6 @@ add_test(function test_saveAppStats() {
   var network = [networks[0].id, networks[0].type];
 
   var stats = { appId:          1,
-                isInBrowser:    false,
                 serviceType:    "",
                 networkId:      networks[0].id,
                 networkType:    networks[0].type,
@@ -469,14 +450,13 @@ add_test(function test_saveAppStats() {
                 txBytes:        2234,
                 isAccumulative: false };
 
-  clearStore(STATS_STORE_NAME, function() {
+  clearStore('net_stats_store', function() {
     netStatsDb.saveStats(stats, function(error, result) {
       do_check_eq(error, null);
       netStatsDb.logAllRecords(function(error, result) {
         do_check_eq(error, null);
         do_check_eq(result.length, 1);
         do_check_eq(result[0].appId, stats.appId);
-        do_check_eq(result[0].isInBrowser, 0);
         do_check_eq(result[0].serviceType, stats.serviceType);
         do_check_true(compareNetworks(result[0].network, network));
         let timestamp = filterTimestamp(stats.date);
@@ -498,7 +478,6 @@ add_test(function test_saveServiceStats() {
   var network = [networks[0].id, networks[0].type];
 
   var stats = { appId:          0,
-                isInBrowser:    false,
                 serviceType:    "FakeType",
                 networkId:      networks[0].id,
                 networkType:    networks[0].type,
@@ -507,14 +486,13 @@ add_test(function test_saveServiceStats() {
                 txBytes:        2234,
                 isAccumulative: false };
 
-  clearStore(STATS_STORE_NAME, function() {
+  clearStore('net_stats_store', function() {
     netStatsDb.saveStats(stats, function(error, result) {
       do_check_eq(error, null);
       netStatsDb.logAllRecords(function(error, result) {
         do_check_eq(error, null);
         do_check_eq(result.length, 1);
         do_check_eq(result[0].appId, stats.appId);
-        do_check_eq(result[0].isInBrowser, 0);
         do_check_eq(result[0].serviceType, stats.serviceType);
         do_check_true(compareNetworks(result[0].network, network));
         let timestamp = filterTimestamp(stats.date);
@@ -532,8 +510,8 @@ add_test(function test_saveServiceStats() {
 });
 
 function prepareFind(stats, callback) {
-  clearStore(STATS_STORE_NAME, function() {
-    netStatsDb.dbNewTxn(STATS_STORE_NAME, "readwrite", function(txn, store) {
+  clearStore('net_stats_store', function() {
+    netStatsDb.dbNewTxn("net_stats_store", "readwrite", function(txn, store) {
       netStatsDb._saveStats(txn, store, stats);
     }, function(error, result) {
         callback(error, result);
@@ -546,7 +524,6 @@ add_test(function test_find () {
   var networkWifi = [networks[0].id, networks[0].type];
   var networkMobile = [networks[1].id, networks[1].type]; // Fake mobile interface
   var appId = 0;
-  var isInBrowser = 0;
   var serviceType = "";
 
   var samples = 5;
@@ -557,16 +534,14 @@ add_test(function test_find () {
   start = new Date(start - sampleRate);
   var stats = [];
   for (var i = 0; i < samples; i++) {
-    stats.push({ appId:               appId, isInBrowser:   isInBrowser,
-                 serviceType:   serviceType,
+    stats.push({ appId:               appId, serviceType:   serviceType,
                  network:       networkWifi, timestamp:     saveDate + (sampleRate * i),
                  rxBytes:                 0, txBytes:       10,
                  rxSystemBytes:           0, txSystemBytes: 0,
                  rxTotalBytes:            0, txTotalBytes:  0 });
 
 
-    stats.push({ appId:                 appId, isInBrowser:   isInBrowser,
-                 serviceType:     serviceType,
+    stats.push({ appId:                 appId, serviceType:   serviceType,
                  network:       networkMobile, timestamp:     saveDate + (sampleRate * i),
                  rxBytes:                   0, txBytes:       10,
                  rxSystemBytes:             0, txSystemBytes: 0,
@@ -577,7 +552,6 @@ add_test(function test_find () {
     do_check_eq(error, null);
     netStatsDb.find(function (error, result) {
       do_check_eq(error, null);
-      do_check_eq(result.browsingTrafficOnly, false);
       do_check_eq(result.serviceType, serviceType);
       do_check_eq(result.network.id, networks[0].id);
       do_check_eq(result.network.type, networks[0].type);
@@ -588,7 +562,7 @@ add_test(function test_find () {
       do_check_eq(result.data[1].rxBytes, 0);
       do_check_eq(result.data[samples].rxBytes, 0);
       run_next_test();
-    }, appId, false, serviceType, networks[0], start, end);
+    }, appId, serviceType, networks[0], start, end);
   });
 });
 
@@ -597,7 +571,6 @@ add_test(function test_findAppStats () {
   var networkWifi = [networks[0].id, networks[0].type];
   var networkMobile = [networks[1].id, networks[1].type]; // Fake mobile interface
   var appId = 1;
-  var isInBrowser = 0;
   var serviceType = "";
 
   var samples = 5;
@@ -608,14 +581,12 @@ add_test(function test_findAppStats () {
   start = new Date(start - sampleRate);
   var stats = [];
   for (var i = 0; i < samples; i++) {
-    stats.push({ appId:              appId, isInBrowser:  isInBrowser,
-                 serviceType:  serviceType,
+    stats.push({ appId:              appId, serviceType:  serviceType,
                  network:      networkWifi, timestamp:    saveDate + (sampleRate * i),
                  rxBytes:                0, txBytes:      10,
                  rxTotalBytes:           0, txTotalBytes: 0 });
 
-    stats.push({ appId:                appId, isInBrowser:  isInBrowser,
-                 serviceType:    serviceType,
+    stats.push({ appId:                appId, serviceType:  serviceType,
                  network:      networkMobile, timestamp:    saveDate + (sampleRate * i),
                  rxBytes:                  0, txBytes:      10,
                  rxTotalBytes:             0, txTotalBytes: 0 });
@@ -625,7 +596,6 @@ add_test(function test_findAppStats () {
     do_check_eq(error, null);
     netStatsDb.find(function (error, result) {
       do_check_eq(error, null);
-      do_check_eq(result.browsingTrafficOnly, false);
       do_check_eq(result.serviceType, serviceType);
       do_check_eq(result.network.id, networks[0].id);
       do_check_eq(result.network.type, networks[0].type);
@@ -636,7 +606,7 @@ add_test(function test_findAppStats () {
       do_check_eq(result.data[1].rxBytes, 0);
       do_check_eq(result.data[samples].rxBytes, 0);
       run_next_test();
-    }, appId, false, serviceType, networks[0], start, end);
+    }, appId, serviceType, networks[0], start, end);
   });
 });
 
@@ -645,7 +615,6 @@ add_test(function test_findServiceStats () {
   var networkWifi = [networks[0].id, networks[0].type];
   var networkMobile = [networks[1].id, networks[1].type]; // Fake mobile interface
   var appId = 0;
-  var isInBrowser = 0;
   var serviceType = "FakeType";
 
   var samples = 5;
@@ -656,14 +625,12 @@ add_test(function test_findServiceStats () {
   start = new Date(start - sampleRate);
   var stats = [];
   for (var i = 0; i < samples; i++) {
-    stats.push({ appId:              appId, isInBrowser:  isInBrowser,
-                 serviceType:  serviceType,
+    stats.push({ appId:              appId, serviceType:  serviceType,
                  network:      networkWifi, timestamp:    saveDate + (sampleRate * i),
                  rxBytes:                0, txBytes:      10,
                  rxTotalBytes:           0, txTotalBytes: 0 });
 
-    stats.push({ appId:                appId, isInBrowser:  isInBrowser,
-                 serviceType:    serviceType,
+    stats.push({ appId:                appId, serviceType:  serviceType,
                  network:      networkMobile, timestamp:    saveDate + (sampleRate * i),
                  rxBytes:                  0, txBytes:      10,
                  rxTotalBytes:             0, txTotalBytes: 0 });
@@ -673,7 +640,6 @@ add_test(function test_findServiceStats () {
     do_check_eq(error, null);
     netStatsDb.find(function (error, result) {
       do_check_eq(error, null);
-      do_check_eq(result.browsingTrafficOnly, false);
       do_check_eq(result.serviceType, serviceType);
       do_check_eq(result.network.id, networks[0].id);
       do_check_eq(result.network.type, networks[0].type);
@@ -684,7 +650,7 @@ add_test(function test_findServiceStats () {
       do_check_eq(result.data[1].rxBytes, 0);
       do_check_eq(result.data[samples].rxBytes, 0);
       run_next_test();
-    }, appId, false, serviceType, networks[0], start, end);
+    }, appId, serviceType, networks[0], start, end);
   });
 });
 
@@ -703,48 +669,42 @@ add_test(function test_saveMultipleAppStats () {
     appId:                    0, date:           new Date(),
     networkId:   networkWifi.id, networkType:    networkWifi.type,
     rxBytes:                  0, txBytes:        10,
-    serviceType:    serviceType, isAccumulative: false,
-    isInBrowser:          false
+    serviceType:    serviceType, isAccumulative: false
   };
 
   cached[0 + '' + serviceType + mobileNetId] = {
     appId:                    0, date:           new Date(),
     networkId: networkMobile.id, networkType:    networkMobile.type,
     rxBytes:                  0, txBytes:        10,
-    serviceType:    serviceType, isAccumulative: false,
-    isInBrowser:          false
+    serviceType:    serviceType, isAccumulative: false
   };
 
   cached[1 + '' + wifiNetId] = {
     appId:                    1, date:           new Date(),
     networkId:   networkWifi.id, networkType:    networkWifi.type,
     rxBytes:                  0, txBytes:        10,
-    serviceType:             "", isAccumulative: false,
-    isInBrowser:          false
+    serviceType:             "", isAccumulative: false
   };
 
   cached[1 + '' + mobileNetId] = {
     appId:                    1, date:           new Date(),
     networkId: networkMobile.id, networkType:    networkMobile.type,
     rxBytes:                  0, txBytes:        10,
-    serviceType:             "", isAccumulative: false,
-    isInBrowser:          false
+    serviceType:             "", isAccumulative: false
   };
 
   cached[2 + '' + wifiNetId] = {
     appId:                    2, date:           new Date(),
     networkId:   networkWifi.id, networkType:    networkWifi.type,
     rxBytes:                  0, txBytes:        10,
-    serviceType:             "", isAccumulative: false,
-    isInBrowser:          false
+    serviceType:             "", isAccumulative: false
   };
 
   cached[2 + '' + mobileNetId] = {
     appId:                    2, date:           new Date(),
     networkId: networkMobile.id, networkType:    networkMobile.type,
     rxBytes:                  0, txBytes:        10,
-    serviceType:             "", isAccumulative: false,
-    isInBrowser:          false
+    serviceType:             "", isAccumulative: false
   };
 
   let keys = Object.keys(cached);
@@ -752,7 +712,7 @@ add_test(function test_saveMultipleAppStats () {
 
   networks.push(networkMobile);
 
-  clearStore(STATS_STORE_NAME, function() {
+  clearStore('net_stats_store', function() {
     netStatsDb.saveStats(cached[keys[index]],
       function callback(error, result) {
         do_check_eq(error, null);
@@ -761,7 +721,6 @@ add_test(function test_saveMultipleAppStats () {
           netStatsDb.logAllRecords(function(error, result) {
             do_check_eq(error, null);
             do_check_eq(result.length, 6);
-            do_check_eq(result[0].isInBrowser, 0);
             do_check_eq(result[0].serviceType, serviceType);
             do_check_eq(result[3].appId, 1);
             do_check_true(compareNetworks(result[0].network, [networkWifi.id, networkWifi.type]));
@@ -775,118 +734,6 @@ add_test(function test_saveMultipleAppStats () {
         index += 1;
         netStatsDb.saveStats(cached[keys[index]], callback);
     });
-  });
-});
-
-// Test case for find samples with browsingTrafficOnly option.
-add_test(function test_findBrowsingTrafficStats() {
-  var networks = getNetworks();
-  var networkWifi = [networks[0].id, networks[0].type];
-  var networkMobile = [networks[1].id, networks[1].type];
-  var serviceType = "";
-  var samples = 5;
-  var sampleRate = netStatsDb.sampleRate;
-  var start = Date.now();
-  var end = new Date(start + (sampleRate * (samples - 1)));
-  var saveDate = filterTimestamp(new Date());
-  start = new Date(start - sampleRate);
-  var stats = [];
-
-  for (var i = 0; i < samples; i++) {
-    // System app.
-    stats.push({ appId: 1008, isInBrowser: 0,
-                 serviceType: serviceType, network: networkMobile,
-                 timestamp: saveDate + (sampleRate * i),
-                 rxBytes: 200, txBytes: 100});
-    // Browser of system app.
-    stats.push({ appId: 1008, isInBrowser: 1,
-                 serviceType: serviceType, network: networkMobile,
-                 timestamp: saveDate + (sampleRate * i),
-                 rxBytes: 1000, txBytes: 500});
-    // Another app.
-    stats.push({ appId: 1021, isInBrowser: 0,
-                 serviceType: serviceType, network: networkMobile,
-                 timestamp: saveDate + (sampleRate * i),
-                 rxBytes: 300, txBytes: 150});
-    // Browser of another app.
-    stats.push({ appId: 1021, isInBrowser: 1,
-                 serviceType: serviceType, network: networkMobile,
-                 timestamp: saveDate + (sampleRate * i),
-                 rxBytes: 600, txBytes: 300});
-  }
-
-  prepareFind(stats, function(error, result) {
-    do_check_eq(error, null);
-    netStatsDb.find(function(error, result) {
-      do_check_eq(error, null);
-      do_check_eq(result.browsingTrafficOnly, true);
-      do_check_eq(result.serviceType, serviceType);
-      do_check_eq(result.network.id, networks[1].id);
-      do_check_eq(result.network.type, networks[1].type);
-      do_check_eq(result.start.getTime(), start.getTime());
-      do_check_eq(result.end.getTime(), end.getTime());
-      do_check_eq(result.data.length, samples + 1);
-      do_check_eq(result.data[0].rxBytes, null);
-      do_check_eq(result.data[1].txBytes, 500);
-      do_check_eq(result.data[2].rxBytes, 1000);
-      run_next_test();
-    }, 1008, true, serviceType, networks[1], start, end);
-  });
-});
-
-// Test case for find samples with browsingTrafficOnly option.
-add_test(function test_findAppTrafficStats() {
-  var networks = getNetworks();
-  var networkWifi = [networks[0].id, networks[0].type];
-  var networkMobile = [networks[1].id, networks[1].type];
-  var serviceType = "";
-  var samples = 5;
-  var sampleRate = netStatsDb.sampleRate;
-  var start = Date.now();
-  var end = new Date(start + (sampleRate * (samples - 1)));
-  var saveDate = filterTimestamp(new Date());
-  start = new Date(start - sampleRate);
-  var stats = [];
-
-  for (var i = 0; i < samples; i++) {
-    // System app.
-    stats.push({ appId: 1008, isInBrowser: 0,
-                 serviceType: serviceType, network: networkMobile,
-                 timestamp: saveDate + (sampleRate * i),
-                 rxBytes: 200, txBytes: 100});
-    // Browser of system app.
-    stats.push({ appId: 1008, isInBrowser: 1,
-                 serviceType: serviceType, network: networkMobile,
-                 timestamp: saveDate + (sampleRate * i),
-                 rxBytes: 1000, txBytes: 500});
-    // Another app.
-    stats.push({ appId: 1021, isInBrowser: 0,
-                 serviceType: serviceType, network: networkMobile,
-                 timestamp: saveDate + (sampleRate * i),
-                 rxBytes: 300, txBytes: 150});
-    // Browser of another app.
-    stats.push({ appId: 1021, isInBrowser: 1,
-                 serviceType: serviceType, network: networkMobile,
-                 timestamp: saveDate + (sampleRate * i),
-                 rxBytes: 600, txBytes: 300});
-  }
-
-  prepareFind(stats, function(error, result) {
-    do_check_eq(error, null);
-    netStatsDb.find(function(error, result) {
-      do_check_eq(error, null);
-      do_check_eq(result.browsingTrafficOnly, false);
-      do_check_eq(result.serviceType, serviceType);
-      do_check_eq(result.network.id, networks[1].id);
-      do_check_eq(result.network.type, networks[1].type);
-      do_check_eq(result.start.getTime(), start.getTime());
-      do_check_eq(result.end.getTime(), end.getTime());
-      do_check_eq(result.data.length, samples + 1);
-      do_check_eq(result.data[0].rxBytes, null);
-      do_check_eq(result.data[1].txBytes, 600);
-      do_check_eq(result.data[2].rxBytes, 1200);
-      run_next_test();
-    }, 1008, false, serviceType, networks[1], start, end);
   });
 });
 

@@ -130,7 +130,7 @@ Waterfall.prototype = {
    */
   setupKeys: function() {
     let pane = this._container;
-    pane.addEventListener("keydown", e => {
+    pane.parentNode.parentNode.addEventListener("keydown", e => {
       if (e.keyCode === Ci.nsIDOMKeyEvent.DOM_VK_UP) {
         e.preventDefault();
         this.selectNearestRow(this._selectedRowIdx - 1);

@@ -50,7 +50,7 @@ add_task(function* test_history_clear()
 {
   yield promiseInit;
 
-  yield PlacesTestUtils.addVisits([
+  yield promiseAddVisits([
     { uri: uri("http://typed.mozilla.org/"),
       transition: TRANSITION_TYPED },
     { uri: uri("http://link.mozilla.org/"),
@@ -85,7 +85,7 @@ add_task(function* test_history_clear()
                                        PlacesUtils.bookmarks.DEFAULT_INDEX,
                                        "bookmark");
 
-  yield PlacesTestUtils.addVisits([
+  yield promiseAddVisits([
     { uri: uri("http://typed.mozilla.org/"),
       transition: TRANSITION_BOOKMARK },
     { uri: uri("http://frecency.mozilla.org/"),

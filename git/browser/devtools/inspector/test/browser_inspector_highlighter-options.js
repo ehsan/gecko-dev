@@ -21,17 +21,14 @@ const TEST_DATA = [
     desc: "Guides and infobar should be shown by default",
     options: {},
     checkHighlighter: function*(toolbox) {
-      let hidden = yield getHighlighterNodeAttribute(toolbox.highlighter,
-        "box-model-nodeinfobar-container", "hidden");
+      let hidden = yield getAttribute("box-model-nodeinfobar-container", "hidden", toolbox);
       ok(!hidden, "Node infobar is visible");
 
-      hidden = yield getHighlighterNodeAttribute(toolbox.highlighter,
-        "box-model-elements", "hidden");
+      hidden = yield getAttribute("box-model-elements", "hidden", toolbox);
       ok(!hidden, "SVG container is visible");
 
       for (let side of ["top", "right", "bottom", "left"]) {
-        hidden = yield getHighlighterNodeAttribute(toolbox.highlighter,
-          "box-model-guide-" + side, "hidden");
+        hidden = yield getAttribute("box-model-guide-" + side, "hidden", toolbox);
         ok(!hidden, side + " guide is visible");
       }
     }
@@ -41,8 +38,7 @@ const TEST_DATA = [
     options: {},
     checkHighlighter: function*(toolbox) {
       for (let region of ["margin", "border", "padding", "content"]) {
-        let points = yield getHighlighterNodeAttribute(toolbox.highlighter,
-          "box-model-" + region, "points");
+        let points = yield getAttribute("box-model-" + region, "points", toolbox);
         ok(points, "Region " + region + " has set coordinates");
       }
     }
@@ -52,8 +48,7 @@ const TEST_DATA = [
     options: {hideGuides: true},
     checkHighlighter: function*(toolbox) {
       for (let side of ["top", "right", "bottom", "left"]) {
-        let hidden = yield getHighlighterNodeAttribute(toolbox.highlighter,
-          "box-model-guide-" + side, "hidden");
+        let hidden = yield getAttribute("box-model-guide-" + side, "hidden", toolbox);
         is(hidden, "true", side + " guide has been hidden");
       }
     }
@@ -62,8 +57,7 @@ const TEST_DATA = [
     desc: "Infobar can be hidden",
     options: {hideInfoBar: true},
     checkHighlighter: function*(toolbox) {
-      let hidden = yield getHighlighterNodeAttribute(toolbox.highlighter,
-        "box-model-nodeinfobar-container", "hidden");
+      let hidden = yield getAttribute("box-model-nodeinfobar-container", "hidden", toolbox);
       is(hidden, "true", "nodeinfobar has been hidden");
     }
   },
@@ -71,20 +65,16 @@ const TEST_DATA = [
     desc: "One region only can be shown (1)",
     options: {showOnly: "content"},
     checkHighlighter: function*(toolbox) {
-      let points = yield getHighlighterNodeAttribute(toolbox.highlighter,
-        "box-model-margin", "points");
+      let points = yield getAttribute("box-model-margin", "points", toolbox);
       ok(!points, "margin region is hidden");
 
-      points = yield getHighlighterNodeAttribute(toolbox.highlighter,
-        "box-model-border", "points");
+      points = yield getAttribute("box-model-border", "points", toolbox);
       ok(!points, "border region is hidden");
 
-      points = yield getHighlighterNodeAttribute(toolbox.highlighter,
-        "box-model-padding", "points");
+      points = yield getAttribute("box-model-padding", "points", toolbox);
       ok(!points, "padding region is hidden");
 
-      points = yield getHighlighterNodeAttribute(toolbox.highlighter,
-        "box-model-content", "points");
+      points = yield getAttribute("box-model-content", "points", toolbox);
       ok(points, "content region is shown");
     }
   },
@@ -92,20 +82,16 @@ const TEST_DATA = [
     desc: "One region only can be shown (2)",
     options: {showOnly: "margin"},
     checkHighlighter: function*(toolbox) {
-      let points = yield getHighlighterNodeAttribute(toolbox.highlighter,
-        "box-model-margin", "points");
+      let points = yield getAttribute("box-model-margin", "points", toolbox);
       ok(points, "margin region is shown");
 
-      points = yield getHighlighterNodeAttribute(toolbox.highlighter,
-        "box-model-border", "points");
+      points = yield getAttribute("box-model-border", "points", toolbox);
       ok(!points, "border region is hidden");
 
-      points = yield getHighlighterNodeAttribute(toolbox.highlighter,
-        "box-model-padding", "points");
+      points = yield getAttribute("box-model-padding", "points", toolbox);
       ok(!points, "padding region is hidden");
 
-      points = yield getHighlighterNodeAttribute(toolbox.highlighter,
-        "box-model-content", "points");
+      points = yield getAttribute("box-model-content", "points", toolbox);
       ok(!points, "content region is hidden");
     }
   },
@@ -113,17 +99,12 @@ const TEST_DATA = [
     desc: "Guides can be drawn around a given region (1)",
     options: {region: "padding"},
     checkHighlighter: function*(toolbox) {
-      let topY1 = yield getHighlighterNodeAttribute(toolbox.highlighter,
-        "box-model-guide-top", "y1");
-      let rightX1 = yield getHighlighterNodeAttribute(toolbox.highlighter,
-        "box-model-guide-right", "x1");
-      let bottomY1 = yield getHighlighterNodeAttribute(toolbox.highlighter,
-        "box-model-guide-bottom", "y1");
-      let leftX1 = yield getHighlighterNodeAttribute(toolbox.highlighter,
-        "box-model-guide-left", "x1");
+      let topY1 = yield getAttribute("box-model-guide-top", "y1", toolbox);
+      let rightX1 = yield getAttribute("box-model-guide-right", "x1", toolbox);
+      let bottomY1 = yield getAttribute("box-model-guide-bottom", "y1", toolbox);
+      let leftX1 = yield getAttribute("box-model-guide-left", "x1", toolbox);
 
-      let points = yield getHighlighterNodeAttribute(toolbox.highlighter,
-        "box-model-padding", "points");
+      let points = yield getAttribute("box-model-padding", "points", toolbox);
       points = points.split(" ").map(xy => xy.split(","));
 
       is(Math.ceil(topY1), points[0][1], "Top guide's y1 is correct");
@@ -136,17 +117,12 @@ const TEST_DATA = [
     desc: "Guides can be drawn around a given region (2)",
     options: {region: "margin"},
     checkHighlighter: function*(toolbox) {
-      let topY1 = yield getHighlighterNodeAttribute(toolbox.highlighter,
-        "box-model-guide-top", "y1");
-      let rightX1 = yield getHighlighterNodeAttribute(toolbox.highlighter,
-        "box-model-guide-right", "x1");
-      let bottomY1 = yield getHighlighterNodeAttribute(toolbox.highlighter,
-        "box-model-guide-bottom", "y1");
-      let leftX1 = yield getHighlighterNodeAttribute(toolbox.highlighter,
-        "box-model-guide-left", "x1");
+      let topY1 = yield getAttribute("box-model-guide-top", "y1", toolbox);
+      let rightX1 = yield getAttribute("box-model-guide-right", "x1", toolbox);
+      let bottomY1 = yield getAttribute("box-model-guide-bottom", "y1", toolbox);
+      let leftX1 = yield getAttribute("box-model-guide-left", "x1", toolbox);
 
-      let points = yield getHighlighterNodeAttribute(toolbox.highlighter,
-        "box-model-margin", "points");
+      let points = yield getAttribute("box-model-margin", "points", toolbox);
 
       points = points.split(" ").map(xy => xy.split(","));
       is(Math.ceil(topY1), points[0][1], "Top guide's y1 is correct");
@@ -174,3 +150,10 @@ add_task(function*() {
     yield toolbox.highlighter.hideBoxModel();
   }
 });
+
+function* getAttribute(nodeID, name, toolbox) {
+  let actorID = getHighlighterActorID(toolbox);
+  let {data: value} = yield executeInContent("Test:GetHighlighterAttribute",
+                                             {nodeID, name, actorID});
+  return value;
+}

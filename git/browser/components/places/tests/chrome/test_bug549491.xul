@@ -50,10 +50,11 @@
       Task.spawn(function* () {
         yield PlacesTestUtils.clearHistory();
 
-        yield PlacesTestUtils.addVisits({
+        let visits = {
           uri: Services.io.newURI("http://example.tld/", null, null),
           transition: PlacesUtils.history.TRANSITION_TYPED
-        });
+        };
+        yield new Promise(resolve => addVisits(visits, resolve));
 
         // Make a history query.
         let query = PlacesUtils.history.getNewQuery();

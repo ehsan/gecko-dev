@@ -3,10 +3,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 add_task(function* test_prefix_space_noautofill() {
-  yield PlacesTestUtils.addVisits({
-    uri: NetUtil.newURI("http://moz.org/test/"),
-    transition: TRANSITION_TYPED
-  });
+  yield promiseAddVisits({ uri: NetUtil.newURI("http://moz.org/test/"),
+                           transition: TRANSITION_TYPED });
 
   do_print("Should not try to autoFill if search string contains a space");
   yield check_autocomplete({
@@ -19,10 +17,8 @@ add_task(function* test_prefix_space_noautofill() {
 });
 
 add_task(function* test_trailing_space_noautofill() {
-  yield PlacesTestUtils.addVisits({
-    uri: NetUtil.newURI("http://moz.org/test/"),
-    transition: TRANSITION_TYPED
-  });
+  yield promiseAddVisits({ uri: NetUtil.newURI("http://moz.org/test/"),
+                           transition: TRANSITION_TYPED });
 
   do_print("Should not try to autoFill if search string contains a space");
   yield check_autocomplete({
@@ -158,14 +154,10 @@ add_task(function* test_searchEngine_matching_prefix_autofill() {
 });
 
 add_task(function* test_prefix_autofill() {
-  yield PlacesTestUtils.addVisits({
-    uri: NetUtil.newURI("http://mozilla.org/test/"),
-    transition: TRANSITION_TYPED
-  });
-  yield PlacesTestUtils.addVisits({
-    uri: NetUtil.newURI("http://moz.org/test/"),
-    transition: TRANSITION_TYPED
-  });
+  yield promiseAddVisits({ uri: NetUtil.newURI("http://mozilla.org/test/"),
+                           transition: TRANSITION_TYPED });
+  yield promiseAddVisits({ uri: NetUtil.newURI("http://moz.org/test/"),
+                           transition: TRANSITION_TYPED });
 
   do_print("Should not try to autoFill in-the-middle if a search is canceled immediately");
   yield check_autocomplete({

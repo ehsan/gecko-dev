@@ -62,7 +62,7 @@ add_task(function test_buildTestDatabase()
     });
   }
 
-  yield PlacesTestUtils.addVisits(places);
+  yield promiseAddVisits(places);
 
   PlacesUtils.annotations.setPageAnnotation(testURI, testAnnoName,
                                             testAnnoVal, 0, 0);
