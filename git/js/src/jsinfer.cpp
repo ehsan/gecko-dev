@@ -420,7 +420,7 @@ TypeSet::isSubset(const TypeSet *other) const
 }
 
 bool
-TypeSet::enumerateTypes(TypeList *list) const
+TypeSet::enumerateTypes(TypeList *list)
 {
     /* If any type is possible, there's no need to worry about specifics. */
     if (flags & TYPE_FLAG_UNKNOWN)
@@ -4046,13 +4046,8 @@ TypeNewScript::maybeAnalyze(JSContext *cx, TypeObject *type, bool *regenerate, b
         // For now, we require all preliminary objects to have only simple
         // lineages of plain data properties.
         Shape *shape = obj->lastProperty();
-        if (shape->inDictionary() ||
-            !OnlyHasDataProperties(shape) ||
-            shape->getObjectFlags() != 0 ||
-            shape->getObjectMetadata() != nullptr)
-        {
+        if (shape->inDictionary() || !OnlyHasDataProperties(shape))
             return true;
-        }
 
         maxSlotSpan = Max<size_t>(maxSlotSpan, obj->slotSpan());
 

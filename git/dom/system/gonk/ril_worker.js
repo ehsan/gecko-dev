@@ -152,10 +152,7 @@ BufObject.prototype = {
    *        original main thread message object that led to the RIL request.
    */
   newParcel: function(type, options) {
-    if (DEBUG) {
-      this.context.debug("New outgoing parcel of type " + type +
-                         ", token " + this.mToken);
-    }
+    if (DEBUG) this.context.debug("New outgoing parcel of type " + type);
 
     // We're going to leave room for the parcel size at the beginning.
     this.outgoingIndex = this.PARCEL_SIZE_SIZE;
@@ -10739,12 +10736,7 @@ ICCPDUHelperObject.prototype = {
     let numLen = this.context.GsmPDUHelper.readHexOctet();
     if (numLen != 0xff) {
       if (numLen > ADN_MAX_BCD_NUMBER_BYTES) {
-        if (DEBUG) {
-          this.context.debug(
-            "Error: invalid length of BCD number/SSC contents - " + numLen);
-        }
-        Buf.seekIncoming(ADN_MAX_BCD_NUMBER_BYTES * Buf.PDU_HEX_OCTET_SIZE);
-        return "";
+        throw new Error("invalid length of BCD number/SSC contents - " + numLen);
       }
 
       number = this.readDiallingNumber(numLen);

@@ -22,10 +22,6 @@
 #include "I420ColorConverterHelper.h"
 #include "MediaCodecProxy.h"
 #include "MediaOmxCommonReader.h"
-#include "mozilla/layers/FenceUtils.h"
-#if MOZ_WIDGET_GONK && ANDROID_VERSION >= 17
-#include <ui/Fence.h>
-#endif
 
 namespace android {
 struct ALooper;
@@ -51,7 +47,6 @@ class TextureClient;
 class MediaCodecReader : public MediaOmxCommonReader
 {
   typedef mozilla::layers::TextureClient TextureClient;
-  typedef mozilla::layers::FenceHandle FenceHandle;
 
 public:
   MediaCodecReader(AbstractMediaDecoder* aDecoder);
@@ -269,7 +264,6 @@ private:
     // Protected by mTrackMonitor.
     MediaPromiseHolder<VideoDataPromise> mVideoPromise;
 
-    nsRefPtr<MediaTaskQueue> mReleaseBufferTaskQueue;
   private:
     // Forbidden
     VideoTrack(const VideoTrack &rhs) = delete;
@@ -421,7 +415,6 @@ private:
   static void TextureClientRecycleCallback(TextureClient* aClient,
                                            void* aClosure);
   void TextureClientRecycleCallback(TextureClient* aClient);
-  void WaitFenceAndReleaseOutputBuffer();
 
   void ReleaseRecycledTextureClients();
   static PLDHashOperator ReleaseTextureClient(TextureClient* aClient,
@@ -457,26 +450,6 @@ private:
   int64_t mNextParserPosition;
   int64_t mParsedDataLength;
   nsAutoPtr<MP3FrameParser> mMP3FrameParser;
-#if MOZ_WIDGET_GONK && ANDROID_VERSION >= 17
-  // mReleaseIndex corresponding to a graphic buffer, and the mReleaseFence is
-  // the graohic buffer's fence. We must wait for the fence signaled by
-  // compositor, otherwise we will see the flicker because the HW decoder and
-  // compositor use the buffer concurrently.
-  struct ReleaseItem {
-    ReleaseItem(size_t aIndex, const android::sp<android::Fence>& aFence)
-    : mReleaseIndex(aIndex)
-    , mReleaseFence(aFence) {}
-    size_t mReleaseIndex;
-    android::sp<android::Fence> mReleaseFence;
-  };
-#else
-  struct ReleaseItem {
-    ReleaseItem(size_t aIndex)
-    : mReleaseIndex(aIndex) {}
-    size_t mReleaseIndex;
-  };
-#endif
-  nsTArray<ReleaseItem> mPendingReleaseItems;
 };
 
 } // namespace mozilla

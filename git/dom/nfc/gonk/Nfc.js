@@ -58,8 +58,7 @@ const NFC_IPC_MSG_ENTRIES = [
   { permission: null,
     messages: ["NFC:AddEventListener",
                "NFC:QueryInfo",
-               "NFC:CallDefaultFoundHandler",
-               "NFC:CallDefaultLostHandler"] },
+               "NFC:CallDefaultFoundHandler"] },
 
   { permission: "nfc",
     messages: ["NFC:ReadNDEF",
@@ -102,7 +101,7 @@ XPCOMUtils.defineLazyGetter(this, "gMessageManager", function () {
 
     eventListeners: {},
 
-    focusApp: NFC.SYSTEM_APP_ID,
+    focusApp: null,
 
     init: function init(nfc) {
       this.nfc = nfc;
@@ -178,21 +177,11 @@ XPCOMUtils.defineLazyGetter(this, "gMessageManager", function () {
     },
 
     setFocusApp: function setFocusApp(id, isFocus) {
-      // if calling setNFCFocus(true) on the same browser-element, ignore.
-      if (isFocus && (id == this.focusApp)) {
-        return;
-      }
-
-      if (this.focusApp != NFC.SYSTEM_APP_ID) {
-        this.onFocusChanged(this.focusApp, false);
-      }
-
       if (isFocus) {
         // Now we only support one focus app.
         this.focusApp = id;
-        this.onFocusChanged(this.focusApp, true);
       } else if (this.focusApp == id){
-        // Set focusApp to SystemApp means currently there is no foreground app.
+        // Set focusApp to null means currently there is no foreground app.
         this.focusApp = NFC.SYSTEM_APP_ID;
       }
     },
@@ -246,11 +235,6 @@ XPCOMUtils.defineLazyGetter(this, "gMessageManager", function () {
       gSystemMessenger.broadcastMessage("nfc-manager-tech-discovered", sysMsg);
     },
 
-    callDefaultLostHandler: function callDefaultLostHandler(message) {
-      // message.isP2P is not used.
-      gSystemMessenger.broadcastMessage("nfc-manager-tech-lost", message.sessionToken);
-    },
-
     onTagFound: function onTagFound(message) {
       let target = this.eventListeners[this.focusApp] ||
                    this.eventListeners[NFC.SYSTEM_APP_ID];
@@ -278,22 +262,12 @@ XPCOMUtils.defineLazyGetter(this, "gMessageManager", function () {
                                     sessionToken: sessionToken });
     },
 
-    onRFStateChanged: function onRFStateChanged(rfState) {
+    onRFStateChange: function onRFStateChange(rfState) {
       for (let id in this.eventListeners) {
         this.notifyDOMEvent(this.eventListeners[id],
-                            { event: NFC.RF_EVENT_STATE_CHANGED,
+                            { event: NFC.RF_EVENT_STATE_CHANGE,
                               rfState: rfState });
       }
-    },
-
-    onFocusChanged: function onFocusChanged(focusApp, focus) {
-      let target = this.eventListeners[focusApp];
-      if (!target) {
-        return;
-      }
-
-      this.notifyDOMEvent(target, { event: NFC.FOCUS_CHANGED,
-                                    focus: focus });
     },
 
     /**
@@ -353,9 +327,6 @@ XPCOMUtils.defineLazyGetter(this, "gMessageManager", function () {
           return null;
         case "NFC:CallDefaultFoundHandler":
           this.callDefaultFoundHandler(message.data);
-          return null;
-        case "NFC:CallDefaultLostHandler":
-          this.callDefaultLostHandler(message.data);
           return null;
         default:
           return this.nfc.receiveMessage(message);
@@ -555,6 +526,10 @@ Nfc.prototype = {
         }
 
         SessionHelper.unregisterSession(message.sessionId);
+        // Do not expose the actual session to the content
+        delete message.sessionId;
+
+        gSystemMessenger.broadcastMessage("nfc-manager-tech-lost", message);
         break;
      case "HCIEventTransactionNotification":
         this.notifyHCIEventTransaction(message);
@@ -564,7 +539,7 @@ Nfc.prototype = {
 
         if (!message.errorMsg) {
           this.rfState = message.rfState;
-          gMessageManager.onRFStateChanged(this.rfState);
+          gMessageManager.onRFStateChange(this.rfState);
         }
         break;
       case "ReadNDEFResponse": // Fall through.

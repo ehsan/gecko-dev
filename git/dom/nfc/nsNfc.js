@@ -456,6 +456,9 @@ MozNFCImpl.prototype = {
       return false;
     }
 
+    this.eventService.addSystemEventListener(this._window, "visibilitychange",
+      this, /* useCapture */false);
+
     let tagImpl = new MozNFCTagImpl(this._window, sessionToken, tagInfo, ndefInfo);
     let tag = this._window.MozNFCTag._create(this._window, tagImpl);
 
@@ -493,24 +496,24 @@ MozNFCImpl.prototype = {
   },
 
   notifyTagLost: function notifyTagLost(sessionToken) {
-    if (!this.handleTagLost(sessionToken)) {
-      this._nfcContentHelper.callDefaultLostHandler(sessionToken, false);
-    }
-  },
-
-  handleTagLost: function handleTagLost(sessionToken) {
     if (this.hasDeadWrapper()) {
       dump("this._window or this.__DOM_IMPL__ is a dead wrapper.");
-      return false;
+      return;
     }
 
     if (!this.checkPermissions(["nfc"])) {
-      return false;
+      return;
     }
 
     if (!this.nfcTag) {
       debug("No NFCTag object existing.");
-      return false;
+      return;
+    }
+
+    // Remove system event listener only when tag and peer are both lost.
+    if (!this.nfcPeer) {
+      this.eventService.removeSystemEventListener(this._window, "visibilitychange",
+        this, /* useCapture */false);
     }
 
     this.nfcTag.notifyLost();
@@ -519,8 +522,6 @@ MozNFCImpl.prototype = {
     debug("fire ontaglost " + sessionToken);
     let event = new this._window.Event("taglost");
     this.__DOM_IMPL__.dispatchEvent(event);
-
-    return true;
   },
 
   notifyPeerFound: function notifyPeerFound(sessionToken, isPeerReady) {
@@ -550,6 +551,9 @@ MozNFCImpl.prototype = {
     if (!this.checkPermissions(perm)) {
       return false;
     }
+
+    this.eventService.addSystemEventListener(this._window, "visibilitychange",
+      this, /* useCapture */false);
 
     let peerImpl = new MozNFCPeerImpl(this._window, sessionToken);
     this.nfcPeer = this._window.MozNFCPeer._create(this._window, peerImpl);
@@ -586,24 +590,24 @@ MozNFCImpl.prototype = {
   },
 
   notifyPeerLost: function notifyPeerLost(sessionToken) {
-    if (!this.handlePeerLost(sessionToken)) {
-      this._nfcContentHelper.callDefaultLostHandler(sessionToken, true);
-    }
-  },
-
-  handlePeerLost: function handlePeerLost(sessionToken) {
     if (this.hasDeadWrapper()) {
       dump("this._window or this.__DOM_IMPL__ is a dead wrapper.");
-      return false;
+      return;
     }
 
     if (!this.checkPermissions(["nfc", "nfc-share"])) {
-      return false;
+      return;
     }
 
     if (!this.nfcPeer) {
       debug("No NFCPeer object existing.");
-      return false;
+      return;
+    }
+
+    // Remove system event listener only when tag and peer are both lost.
+    if (!this.nfcTag) {
+      this.eventService.removeSystemEventListener(this._window, "visibilitychange",
+        this, /* useCapture */false);
     }
 
     this.nfcPeer.notifyLost();
@@ -612,28 +616,26 @@ MozNFCImpl.prototype = {
     debug("fire onpeerlost");
     let event = new this._window.Event("peerlost");
     this.__DOM_IMPL__.dispatchEvent(event);
-
-    return true;
   },
 
-  notifyRFStateChanged: function notifyRFStateChanged(rfState) {
-    this._rfState = rfState;
-  },
-
-  notifyFocusChanged: function notifyFocusChanged(focus) {
-    if (focus) {
+  handleEvent: function handleEvent (event) {
+    if (!this._window.document.hidden) {
       return;
     }
 
     if (this.nfcTag) {
-      debug("losing focus, call taglost.");
+      debug("handleEvent notifyTagLost");
       this.notifyTagLost(this.nfcTag.session);
     }
 
     if (this.nfcPeer) {
-      debug("losing focus, call peerlost.");
+      debug("handleEvent notifyPeerLost");
       this.notifyPeerLost(this.nfcPeer.session);
     }
+  },
+
+  notifyRFStateChange: function notifyRFStateChange(rfState) {
+    this._rfState = rfState;
   },
 
   checkPermissions: function checkPermissions(perms) {
@@ -659,7 +661,8 @@ MozNFCImpl.prototype = {
   contractID: "@mozilla.org/nfc/manager;1",
   QueryInterface: XPCOMUtils.generateQI([Ci.nsISupports,
                                          Ci.nsIDOMGlobalPropertyInitializer,
-                                         Ci.nsINfcEventListener]),
+                                         Ci.nsINfcEventListener,
+                                         Ci.nsIDOMEventListener]),
 };
 
 function NFCSendFileWrapper() {

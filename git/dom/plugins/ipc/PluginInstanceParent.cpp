@@ -43,8 +43,7 @@
 #include <windowsx.h>
 #include "gfxWindowsPlatform.h"
 #include "mozilla/plugins/PluginSurfaceParent.h"
-#include "nsClassHashtable.h"
-#include "nsHashKeys.h"
+
 // Plugin focus event for widget.
 extern const wchar_t* kOOPPPluginFocusEventId;
 UINT gOOPPPluginFocusEvent =
@@ -74,29 +73,6 @@ StreamNotifyParent::RecvRedirectNotifyResponse(const bool& allow)
   return true;
 }
 
-#if defined(XP_WIN)
-namespace mozilla {
-namespace plugins {
-/**
- * e10s specific, used in cross referencing hwnds with plugin instances so we
- * can access methods here from PluginWidgetChild.
- */
-static nsClassHashtable<nsVoidPtrHashKey, PluginInstanceParent>* sPluginInstanceList;
-
-// static
-PluginInstanceParent*
-PluginInstanceParent::LookupPluginInstanceByID(uintptr_t aId)
-{
-    MOZ_ASSERT(NS_IsMainThread());
-    if (sPluginInstanceList) {
-        return sPluginInstanceList->Get((void*)aId);
-    }
-    return nullptr;
-}
-}
-}
-#endif
-
 PluginInstanceParent::PluginInstanceParent(PluginModuleParent* parent,
                                            NPP npp,
                                            const nsCString& aMimeType,
@@ -119,11 +95,6 @@ PluginInstanceParent::PluginInstanceParent(PluginModuleParent* parent,
     , mShColorSpace(nullptr)
 #endif
 {
-#if defined(OS_WIN)
-    if (!sPluginInstanceList) {
-        sPluginInstanceList = new nsClassHashtable<nsVoidPtrHashKey, PluginInstanceParent>();
-    }
-#endif
 }
 
 PluginInstanceParent::~PluginInstanceParent()
@@ -1785,60 +1756,30 @@ PluginInstanceParent::PluginWindowHookProc(HWND hWnd,
 void
 PluginInstanceParent::SubclassPluginWindow(HWND aWnd)
 {
-    if ((aWnd && mPluginHWND == aWnd) || (!aWnd && mPluginHWND)) {
-        return;
-    }
-
-#if defined(XP_WIN)
     if (XRE_GetProcessType() == GeckoProcessType_Content) {
-        if (!aWnd) {
-            NS_WARNING("PluginInstanceParent::SubclassPluginWindow unexpected null window");
-            return;
-        }
-        mPluginHWND = aWnd; // now a remote window, we can't subclass this
-        mPluginWndProc = nullptr;
-        // Note sPluginInstanceList wil delete 'this' if we do not remove
-        // it on shutdown.
-        sPluginInstanceList->Put((void*)mPluginHWND, this);
-        return;
+      mPluginHWND = aWnd; // now a remote window, we can't subclass this
+      mPluginWndProc = nullptr;
+      return;
     }
-#endif
-
     NS_ASSERTION(!(mPluginHWND && aWnd != mPluginHWND),
-        "PluginInstanceParent::SubclassPluginWindow hwnd is not our window!");
+      "PluginInstanceParent::SubclassPluginWindow hwnd is not our window!");
 
-    mPluginHWND = aWnd;
-    mPluginWndProc =
-        (WNDPROC)::SetWindowLongPtrA(mPluginHWND, GWLP_WNDPROC,
-            reinterpret_cast<LONG_PTR>(PluginWindowHookProc));
-    DebugOnly<bool> bRes = ::SetPropW(mPluginHWND, kPluginInstanceParentProperty, this);
-    NS_ASSERTION(mPluginWndProc,
-        "PluginInstanceParent::SubclassPluginWindow failed to set subclass!");
-    NS_ASSERTION(bRes,
-        "PluginInstanceParent::SubclassPluginWindow failed to set prop!");
+    if (!mPluginHWND) {
+        mPluginHWND = aWnd;
+        mPluginWndProc =
+            (WNDPROC)::SetWindowLongPtrA(mPluginHWND, GWLP_WNDPROC,
+                         reinterpret_cast<LONG_PTR>(PluginWindowHookProc));
+        DebugOnly<bool> bRes = ::SetPropW(mPluginHWND, kPluginInstanceParentProperty, this);
+        NS_ASSERTION(mPluginWndProc,
+          "PluginInstanceParent::SubclassPluginWindow failed to set subclass!");
+        NS_ASSERTION(bRes,
+          "PluginInstanceParent::SubclassPluginWindow failed to set prop!");
+   }
 }
 
 void
 PluginInstanceParent::UnsubclassPluginWindow()
 {
-#if defined(XP_WIN)
-    if (XRE_GetProcessType() == GeckoProcessType_Content) {
-        if (mPluginHWND) {
-            // Remove 'this' from the plugin list safely
-            nsAutoPtr<PluginInstanceParent> tmp;
-            MOZ_ASSERT(sPluginInstanceList);
-            sPluginInstanceList->RemoveAndForget((void*)mPluginHWND, tmp);
-            tmp.forget();
-            if (!sPluginInstanceList->Count()) {
-                delete sPluginInstanceList;
-                sPluginInstanceList = nullptr;
-            }
-        }
-        mPluginHWND = nullptr;
-        return;
-    }
-#endif
-
     if (mPluginHWND && mPluginWndProc) {
         ::SetWindowLongPtrA(mPluginHWND, GWLP_WNDPROC,
                             reinterpret_cast<LONG_PTR>(mPluginWndProc));

@@ -6,6 +6,7 @@
 #define _nsPluginNativeWindowGdk_h_
 
 #include "nsPluginNativeWindow.h"
+#include "nsNPAPIPlugin.h"
 #include "npapi.h"
 #include <gtk/gtk.h>
 #include <gdk/gdkx.h>

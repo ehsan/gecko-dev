@@ -14,10 +14,6 @@
 #include "mozilla/Telemetry.h"
 #include "nsThreadUtils.h"
 
-#if defined(XP_WIN) && defined(MOZ_SANDBOX)
-#include "mozilla/Preferences.h"
-#endif
-
 using std::vector;
 using std::string;
 
@@ -52,8 +48,6 @@ PluginProcessParent::Launch(mozilla::UniquePtr<LaunchCompleteTask> aLaunchComple
 {
 #if defined(XP_WIN) && defined(MOZ_SANDBOX)
     mEnableNPAPISandbox = aEnableSandbox;
-    mMoreStrictSandbox =
-      Preferences::GetBool("dom.ipc.plugins.moreStrictSandbox");
 #else
     if (aEnableSandbox) {
         MOZ_ASSERT(false,

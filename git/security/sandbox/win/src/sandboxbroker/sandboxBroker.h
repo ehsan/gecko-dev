@@ -34,7 +34,7 @@ public:
 #if defined(MOZ_CONTENT_SANDBOX)
   bool SetSecurityLevelForContentProcess(bool aMoreStrict);
 #endif
-  bool SetSecurityLevelForPluginProcess(bool aMoreStrict);
+  bool SetSecurityLevelForPluginProcess();
   bool SetSecurityLevelForIPDLUnitTestProcess();
   bool SetSecurityLevelForGMPlugin();
 

@@ -22,32 +22,30 @@ namespace layers {
 /* static */ LayersBackend
 Compositor::GetBackend()
 {
-  if (sBackend != LayersBackend::LAYERS_NONE) {
-    AssertOnCompositorThread();
-  }
+  AssertOnCompositorThread();
   return sBackend;
 }
 
 /* static */ void
 Compositor::SetBackend(LayersBackend backend)
 {
-  if (!gIsGtest && sBackend != backend &&
-      sBackend != LayersBackend::LAYERS_NONE &&
-      backend != LayersBackend::LAYERS_NONE) {
+  if (!gIsGtest && sBackend != LayersBackend::LAYERS_NONE && sBackend != backend) {
     // Assert this once we figure out bug 972891.
+    //MOZ_CRASH("Trying to use more than one OMTC compositor.");
+
 #ifdef XP_MACOSX
-    gfxWarning() << "Changing compositor from " << unsigned(sBackend) << " to " << unsigned(backend);
+    printf("ERROR: Changing compositor from %u to %u.\n",
+           unsigned(sBackend), unsigned(backend));
 #endif
   }
-
   sBackend = backend;
 }
 
 /* static */ void
 Compositor::AssertOnCompositorThread()
 {
-  MOZ_ASSERT(!CompositorParent::CompositorLoop() ||
-             CompositorParent::CompositorLoop() == MessageLoop::current(),
+  MOZ_ASSERT(CompositorParent::CompositorLoop() ==
+             MessageLoop::current(),
              "Can only call this from the compositor thread!");
 }
 
