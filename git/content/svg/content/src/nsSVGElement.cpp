@@ -758,7 +758,7 @@ nsSVGElement::WalkContentStyleRules(nsRuleWalker* aRuleWalker)
   nsIDocument* doc = GetOwnerDoc();
   NS_ASSERTION(doc, "SVG element without doc");
   if (doc) {
-    nsIPresShell* shell = doc->GetShell();
+    nsIPresShell* shell = doc->GetPrimaryShell();
     nsPresContext* context = shell ? shell->GetPresContext() : nsnull;
     if (context && context->IsProcessingRestyles() &&
         !context->IsProcessingAnimationStyleChange()) {
@@ -766,7 +766,7 @@ nsSVGElement::WalkContentStyleRules(nsRuleWalker* aRuleWalker)
       // want that to happen from SMIL-animated value of mapped attrs, so
       // ignore animated value for now, and request an animation restyle to
       // get our animated value noticed.
-      shell->RestyleForAnimation(this, eRestyle_Self);
+      context->PresShell()->RestyleForAnimation(this);
     } else {
       // Ok, this is an animation restyle -- go ahead and update/walk the
       // animated content style rule.
@@ -872,6 +872,7 @@ nsSVGElement::sViewportsMap[] = {
 // PresentationAttributes-Makers
 /* static */ const nsGenericElement::MappedAttributeEntry
 nsSVGElement::sMarkersMap[] = {
+  { &nsGkAtoms::marker },
   { &nsGkAtoms::marker_end },
   { &nsGkAtoms::marker_mid },
   { &nsGkAtoms::marker_start },
@@ -1953,8 +1954,6 @@ nsSVGElement::GetAnimatedAttr(nsIAtom* aName)
   if (aName == nsGkAtoms::gradientTransform) {
     nsCOMPtr<nsIDOMSVGGradientElement> gradientElement(
             do_QueryInterface(static_cast<nsIContent*>(this)));
-    if (!gradientElement)
-      return nsnull;
 
     nsresult rv = gradientElement->GetGradientTransform(getter_AddRefs(transformList));
     NS_ENSURE_SUCCESS(rv, nsnull);
@@ -1962,8 +1961,6 @@ nsSVGElement::GetAnimatedAttr(nsIAtom* aName)
   if (aName == nsGkAtoms::patternTransform) {
     nsCOMPtr<nsIDOMSVGPatternElement> patternElement(
             do_QueryInterface(static_cast<nsIContent*>(this)));
-    if (!patternElement)
-      return nsnull;
 
     nsresult rv = patternElement->GetPatternTransform(getter_AddRefs(transformList));
     NS_ENSURE_SUCCESS(rv, nsnull);

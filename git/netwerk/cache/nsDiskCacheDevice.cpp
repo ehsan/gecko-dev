@@ -190,9 +190,7 @@ NS_IMETHODIMP nsDiskCacheDeviceInfo::GetUsageReport(char ** usageReport)
     NS_ENSURE_ARG_POINTER(usageReport);
     nsCString buffer;
     
-    buffer.AssignLiteral("  <tr>\n"
-                         "    <th>Cache Directory:</th>\n"
-                         "    <td>");
+    buffer.AssignLiteral("\n<tr>\n<td><b>Cache Directory:</b></td>\n<td><tt> ");
     nsCOMPtr<nsILocalFile> cacheDir;
     nsAutoString           path;
     mDevice->getCacheDirectory(getter_AddRefs(cacheDir)); 
@@ -202,9 +200,8 @@ NS_IMETHODIMP nsDiskCacheDeviceInfo::GetUsageReport(char ** usageReport)
     } else {
         buffer.AppendLiteral("directory unavailable");
     }
-    buffer.AppendLiteral("</td>\n"
-                         "  </tr>\n");
-
+    buffer.AppendLiteral("</tt></td>\n</tr>\n");
+    // buffer.Append("<tr><td><b>Files:</b></td><td><tt> XXX</tt></td></tr>");
     *usageReport = ToNewCString(buffer);
     if (!*usageReport) return NS_ERROR_OUT_OF_MEMORY;
 
@@ -787,8 +784,8 @@ nsDiskCacheDevice::OnDataSizeChange(nsCacheEntry * entry, PRInt32 deltaSize)
 
     PRUint32  sizeK = ((entry->DataSize() + 0x03FF) >> 10); // round up to next 1k
 
-    NS_ASSERTION(sizeK <= USHRT_MAX, "data size out of range");
-    NS_ASSERTION(newSizeK <= USHRT_MAX, "data size out of range");
+    NS_ASSERTION(sizeK < USHRT_MAX, "data size out of range");
+    NS_ASSERTION(newSizeK < USHRT_MAX, "data size out of range");
 
     // pre-evict entries to make space for new data
     PRUint32  targetCapacity = mCacheCapacity > (newSizeK - sizeK)
@@ -1037,8 +1034,6 @@ nsDiskCacheDevice::SetCapacity(PRUint32  capacity)
         // start evicting entries if the new size is smaller!
         EvictDiskCacheEntries(mCacheCapacity);
     }
-    // Let cache map know of the new capacity
-    mCacheMap.NotifyCapacityChange(capacity);
 }
 
 

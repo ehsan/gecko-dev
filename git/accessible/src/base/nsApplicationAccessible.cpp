@@ -64,31 +64,19 @@ NS_IMPL_ISUPPORTS_INHERITED1(nsApplicationAccessible, nsAccessible,
                              nsIAccessibleApplication)
 
 ////////////////////////////////////////////////////////////////////////////////
+// nsIAccessNode
+
+NS_IMETHODIMP
+nsApplicationAccessible::GetRootDocument(nsIAccessibleDocument **aRootDocument)
+{
+  NS_ENSURE_ARG_POINTER(aRootDocument);
+  *aRootDocument = nsnull;
+
+  return NS_OK;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // nsIAccessible
-
-NS_IMETHODIMP
-nsApplicationAccessible::GetParent(nsIAccessible **aAccessible)
-{
-  NS_ENSURE_ARG_POINTER(aAccessible);
-  *aAccessible = nsnull;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsApplicationAccessible::GetNextSibling(nsIAccessible **aNextSibling)
-{
-  NS_ENSURE_ARG_POINTER(aNextSibling);
-  *aNextSibling = nsnull;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsApplicationAccessible::GetPreviousSibling(nsIAccessible **aPreviousSibling)
-{
-  NS_ENSURE_ARG_POINTER(aPreviousSibling);
-  *aPreviousSibling = nsnull;
-  return NS_OK;
-}
 
 NS_IMETHODIMP
 nsApplicationAccessible::GetName(nsAString& aName)
@@ -119,23 +107,9 @@ nsApplicationAccessible::GetName(nsAString& aName)
 }
 
 NS_IMETHODIMP
-nsApplicationAccessible::GetValue(nsAString &aValue)
+nsApplicationAccessible::GetDescription(nsAString& aValue)
 {
   aValue.Truncate();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsApplicationAccessible::GetDescription(nsAString &aDescription)
-{
-  aDescription.Truncate();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsApplicationAccessible::GetKeyboardShortcut(nsAString &aKeyboardShortcut)
-{
-  aKeyboardShortcut.Truncate();
   return NS_OK;
 }
 
@@ -143,6 +117,7 @@ NS_IMETHODIMP
 nsApplicationAccessible::GetRole(PRUint32 *aRole)
 {
   NS_ENSURE_ARG_POINTER(aRole);
+
   return GetRoleInternal(aRole);
 }
 
@@ -150,144 +125,21 @@ NS_IMETHODIMP
 nsApplicationAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
 {
   NS_ENSURE_ARG_POINTER(aState);
-  GetStateInternal(aState, aExtraState);
+  *aState = 0;
+
+  if (aExtraState)
+    *aExtraState = 0;
+
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsApplicationAccessible::GetAttributes(nsIPersistentProperties **aAttributes)
+nsApplicationAccessible::GetParent(nsIAccessible **aAccessible)
 {
-  NS_ENSURE_ARG_POINTER(aAttributes);
-  *aAttributes = nsnull;
-  return NS_OK;
-}
+  NS_ENSURE_ARG_POINTER(aAccessible);
+  *aAccessible = nsnull;
 
-NS_IMETHODIMP
-nsApplicationAccessible::GroupPosition(PRInt32 *aGroupLevel,
-                                       PRInt32 *aSimilarItemsInGroup,
-                                       PRInt32 *aPositionInGroup)
-{
-  NS_ENSURE_ARG_POINTER(aGroupLevel);
-  *aGroupLevel = 0;
-  NS_ENSURE_ARG_POINTER(aSimilarItemsInGroup);
-  *aSimilarItemsInGroup = 0;
-  NS_ENSURE_ARG_POINTER(aPositionInGroup);
-  *aPositionInGroup = 0;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsApplicationAccessible::GetChildAtPoint(PRInt32 aX, PRInt32 aY,
-                                         nsIAccessible **aChild)
-{
-  NS_ENSURE_ARG_POINTER(aChild);
-  *aChild = nsnull;
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-nsApplicationAccessible::GetDeepestChildAtPoint(PRInt32 aX, PRInt32 aY,
-                                                nsIAccessible **aChild)
-{
-  NS_ENSURE_ARG_POINTER(aChild);
-  *aChild = nsnull;
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-nsApplicationAccessible::GetRelationByType(PRUint32 aRelationType,
-                                           nsIAccessibleRelation **aRelation)
-{
-  NS_ENSURE_ARG_POINTER(aRelation);
-  *aRelation = nsnull;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsApplicationAccessible::GetRelationsCount(PRUint32 *aCount)
-{
-  NS_ENSURE_ARG_POINTER(aCount);
-  *aCount = 0;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsApplicationAccessible::GetRelation(PRUint32 aIndex,
-                                     nsIAccessibleRelation **aRelation)
-{
-  NS_ENSURE_ARG_POINTER(aRelation);
-  *aRelation = nsnull;
-  return NS_ERROR_INVALID_ARG;
-}
-
-NS_IMETHODIMP
-nsApplicationAccessible::GetRelations(nsIArray **aRelations)
-{
-  NS_ENSURE_ARG_POINTER(aRelations);
-  *aRelations = nsnull;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsApplicationAccessible::GetBounds(PRInt32 *aX, PRInt32 *aY,
-                                   PRInt32 *aWidth, PRInt32 *aHeight)
-{
-  NS_ENSURE_ARG_POINTER(aX);
-  *aX = 0;
-  NS_ENSURE_ARG_POINTER(aY);
-  *aY = 0;
-  NS_ENSURE_ARG_POINTER(aWidth);
-  *aWidth = 0;
-  NS_ENSURE_ARG_POINTER(aHeight);
-  *aHeight = 0;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsApplicationAccessible::SetSelected(PRBool aIsSelected)
-{
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsApplicationAccessible::TakeSelection()
-{
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsApplicationAccessible::TakeFocus()
-{
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsApplicationAccessible::GetNumActions(PRUint8 *aNumActions)
-{
-  NS_ENSURE_ARG_POINTER(aNumActions);
-  *aNumActions = 0;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsApplicationAccessible::GetActionName(PRUint8 aIndex, nsAString &aName)
-{
-  aName.Truncate();
-  return NS_ERROR_INVALID_ARG;
-}
-
-NS_IMETHODIMP
-nsApplicationAccessible::GetActionDescription(PRUint8 aIndex,
-                                              nsAString &aDescription)
-{
-  aDescription.Truncate();
-  return NS_ERROR_INVALID_ARG;
-}
-
-NS_IMETHODIMP
-nsApplicationAccessible::DoAction(PRUint8 aIndex)
-{
-  return NS_OK;
+  return IsDefunct() ? NS_ERROR_FAILURE : NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -354,30 +206,25 @@ nsApplicationAccessible::GetPlatformVersion(nsAString& aVersion)
 PRBool
 nsApplicationAccessible::IsDefunct()
 {
-  return nsAccessibilityService::IsShutdown();
+  return nsAccessibilityService::gIsShutdown;
 }
 
-PRBool
+nsresult
 nsApplicationAccessible::Init()
 {
   mAppInfo = do_GetService("@mozilla.org/xre/app-info;1");
-  return PR_TRUE;
+  return NS_OK;
 }
 
-void
+nsresult
 nsApplicationAccessible::Shutdown()
 {
   mAppInfo = nsnull;
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccessible public methods
-
-nsresult
-nsApplicationAccessible::GetARIAState(PRUint32 *aState, PRUint32 *aExtraState)
-{
-  return NS_OK;
-}
 
 nsresult
 nsApplicationAccessible::GetRoleInternal(PRUint32 *aRole)
@@ -391,25 +238,23 @@ nsApplicationAccessible::GetStateInternal(PRUint32 *aState,
                                           PRUint32 *aExtraState)
 {
   *aState = 0;
-
-  if (IsDefunct()) {
-    if (aExtraState)
-      *aExtraState = nsIAccessibleStates::EXT_STATE_DEFUNCT;
-
-    return NS_OK_DEFUNCT_OBJECT;
-  }
-
   if (aExtraState)
     *aExtraState = 0;
 
   return NS_OK;
 }
 
+nsAccessible*
+nsApplicationAccessible::GetParent()
+{
+  return nsnull;
+}
+
 void
 nsApplicationAccessible::InvalidateChildren()
 {
-  // Do nothing because application children are kept updated by AppendChild()
-  // and RemoveChild() method calls.
+  // Do nothing because application children are kept updated by
+  // AddRootAccessible() and RemoveRootAccessible() method calls.
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -422,8 +267,8 @@ nsApplicationAccessible::CacheChildren()
   // children are requested because empty InvalidateChldren() prevents its
   // repeated calls.
 
-  // Basically children are kept updated by Append/RemoveChild method calls.
-  // However if there are open windows before accessibility was started
+  // Basically children are kept updated by Add/RemoveRootAccessible method
+  // calls. However if there are open windows before accessibility was started
   // then we need to make sure root accessibles for open windows are created so
   // that all root accessibles are stored in application accessible children
   // array.
@@ -447,8 +292,9 @@ nsApplicationAccessible::CacheChildren()
       nsCOMPtr<nsIDOMDocument> DOMDocument;
       DOMWindow->GetDocument(getter_AddRefs(DOMDocument));
       if (DOMDocument) {
-        nsCOMPtr<nsIDocument> docNode(do_QueryInterface(DOMDocument));
-        GetAccService()->GetDocAccessible(docNode); // ensure creation
+        nsCOMPtr<nsIAccessible> accessible;
+        GetAccService()->GetAccessibleFor(DOMDocument,
+                                          getter_AddRefs(accessible));
       }
     }
     windowEnumerator->HasMoreElements(&hasMore);
@@ -472,89 +318,30 @@ nsApplicationAccessible::GetSiblingAtOffset(PRInt32 aOffset, nsresult* aError)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// nsIAccessNode
+// Public methods
 
-NS_IMETHODIMP
-nsApplicationAccessible::GetDOMNode(nsIDOMNode **aDOMNode)
+nsresult
+nsApplicationAccessible::AddRootAccessible(nsIAccessible *aRootAccessible)
 {
-  NS_ENSURE_ARG_POINTER(aDOMNode);
-  *aDOMNode = nsnull;
+  NS_ENSURE_ARG_POINTER(aRootAccessible);
+
+  nsRefPtr<nsAccessible> rootAcc = do_QueryObject(aRootAccessible);
+
+  if (!mChildren.AppendElement(rootAcc))
+    return NS_ERROR_FAILURE;
+
+  rootAcc->SetParent(this);
+
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsApplicationAccessible::GetDocument(nsIAccessibleDocument **aDocument)
+nsresult
+nsApplicationAccessible::RemoveRootAccessible(nsIAccessible *aRootAccessible)
 {
-  NS_ENSURE_ARG_POINTER(aDocument);
-  *aDocument = nsnull;
-  return NS_OK;
-}
+  NS_ENSURE_ARG_POINTER(aRootAccessible);
 
-NS_IMETHODIMP
-nsApplicationAccessible::GetRootDocument(nsIAccessibleDocument **aRootDocument)
-{
-  NS_ENSURE_ARG_POINTER(aRootDocument);
-  *aRootDocument = nsnull;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsApplicationAccessible::GetInnerHTML(nsAString &aInnerHTML)
-{
-  aInnerHTML.Truncate();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsApplicationAccessible::ScrollTo(PRUint32 aScrollType)
-{
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsApplicationAccessible::ScrollToPoint(PRUint32 aCoordinateType,
-                                       PRInt32 aX, PRInt32 aY)
-{
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsApplicationAccessible::GetOwnerWindow(void **aOwnerWindow)
-{
-  NS_ENSURE_ARG_POINTER(aOwnerWindow);
-  *aOwnerWindow = nsnull;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsApplicationAccessible::GetUniqueID(void **aUniqueID)
-{
-  NS_ENSURE_ARG_POINTER(aUniqueID);
-  *aUniqueID = static_cast<void *>(this);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsApplicationAccessible::GetComputedStyleValue(const nsAString &aPseudoElt,
-                                               const nsAString &aPropertyName,
-                                               nsAString &aValue)
-{
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsApplicationAccessible::GetComputedStyleCSSValue(const nsAString &aPseudoElt,
-                                                  const nsAString &aPropertyName,
-                                                  nsIDOMCSSPrimitiveValue **aCSSPrimitiveValue)
-{
-  NS_ENSURE_ARG_POINTER(aCSSPrimitiveValue);
-  *aCSSPrimitiveValue = nsnull;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsApplicationAccessible::GetLanguage(nsAString &aLanguage)
-{
-  aLanguage.Truncate();
-  return NS_OK;
+  // It's not needed to void root accessible parent because this method is
+  // called on root accessible shutdown and its parent will be cleared
+  // properly.
+  return mChildren.RemoveElement(aRootAccessible) ? NS_OK : NS_ERROR_FAILURE;
 }

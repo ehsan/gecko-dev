@@ -75,8 +75,6 @@ class LayerOGL;
  * the main thread.
  */
 class THEBES_API LayerManagerOGL : public LayerManager {
-  typedef mozilla::gl::GLContext GLContext;
-
 public:
   LayerManagerOGL(nsIWidget *aWidget);
   virtual ~LayerManagerOGL();
@@ -87,12 +85,9 @@ public:
    * to draw to the window. If this method fails the device cannot be used.
    * This function is not threadsafe.
    *
-   * \param aExistingContext an existing GL context to use, instead of creating
-   * our own for the widget.
-   *
    * \return True is initialization was succesful, false when it was not.
    */
-  PRBool Initialize(GLContext *aExistingContext = nsnull);
+  PRBool Initialize();
 
   /**
    * Sets the clipping region for this layer manager. This is important on 
@@ -117,8 +112,8 @@ public:
   virtual void EndTransaction(DrawThebesLayerCallback aCallback,
                               void* aCallbackData);
 
-  virtual void SetRoot(Layer* aLayer) { mRoot = aLayer; }
-
+  void SetRoot(Layer* aLayer);
+  
   virtual already_AddRefed<ThebesLayer> CreateThebesLayer();
 
   virtual already_AddRefed<ContainerLayer> CreateContainerLayer();
@@ -172,6 +167,8 @@ public:
     return static_cast<ColorTextureLayerProgram*>(mPrograms[RGBALayerProgramType]);
   }
 
+  typedef mozilla::gl::GLContext GLContext;
+
   GLContext *gl() const { return mGLContext; }
 
   /*
@@ -184,8 +181,7 @@ public:
     NS_ASSERTION(mThebesLayerCallback,
                  "CallThebesLayerDrawCallback without callback!");
     mThebesLayerCallback(aLayer, aContext,
-                         aRegionToDraw, nsIntRegion(),
-                         mThebesLayerCallbackData);
+                         aRegionToDraw, mThebesLayerCallbackData);
   }
 
   GLenum FBOTextureTarget() { return mFBOTextureTarget; }
@@ -288,6 +284,9 @@ private:
 
   static ProgramType sLayerProgramTypes[];
 
+  /** Current root layer. */
+  LayerOGL *mRootLayer;
+
   /** Backbuffer */
   GLuint mBackBufferFBO;
   GLuint mBackBufferTexture;
@@ -309,9 +308,6 @@ private:
 
   /** Misc */
   PRPackedBool mHasBGRA;
-
-  /** Current root layer. */
-  LayerOGL *RootLayer() const;
 
   /**
    * Render the current layer tree to the active target.
@@ -359,6 +355,16 @@ public:
     : mOGLManager(aManager)
   { }
 
+  enum LayerType {
+    TYPE_THEBES,
+    TYPE_CONTAINER,
+    TYPE_IMAGE,
+    TYPE_COLOR,
+    TYPE_CANVAS
+  };
+  
+  virtual LayerType GetType() = 0;
+
   virtual LayerOGL *GetFirstChildOGL() {
     return nsnull;
   }
@@ -374,6 +380,16 @@ public:
 protected:
   LayerManagerOGL *mOGLManager;
 };
+
+#ifdef DEBUG
+#define DEBUG_GL_ERROR_CHECK(cx) do {           \
+    /*fprintf (stderr, "trace %s %d\n", __FILE__, __LINE__);*/          \
+    GLenum err = (cx)->fGetError();             \
+    if (err) { fprintf (stderr, "GL ERROR: 0x%04x at %s:%d\n", err, __FILE__, __LINE__); } \
+  } while (0)
+#else
+#define DEBUG_GL_ERROR_CHECK(cx) do { } while (0)
+#endif
 
 } /* layers */
 } /* mozilla */

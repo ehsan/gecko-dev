@@ -33,13 +33,12 @@ let gGen, dm, dmui, chromeWindow, testCleanup;
 
 function test()
 {
-  if (testSetup()) {
-    SimpleTest.waitForExplicitFinish();
+  testSetup();
+  SimpleTest.waitForExplicitFinish();
 
-    //Start test
-    gGen = doTest();
-    gGen.next();
-  }
+  //Start test
+  gGen = doTest();
+  gGen.next();
 }
 
 function doTest()
@@ -122,18 +121,15 @@ function testSetup()
                   QueryInterface(Components.interfaces.nsIInterfaceRequestor).
                   getInterface(Components.interfaces.nsIDOMWindow);
 
-  dmui = getDMUI();
-  if (!dmui) {
-    todo(false, "skip test for toolkit download manager UI");
-    return false;
-  }
+  // Change the window type so this one doesn't count as a browser window
+  let oldWinType = chromeWindow.document.documentElement.getAttribute("windowtype");
+  chromeWindow.document.documentElement.setAttribute("windowtype", "navigator:testrunner");
 
   dm = Cc["@mozilla.org/download-manager;1"].
        getService(Ci.nsIDownloadManager);
 
-  // Change the window type so this one doesn't count as a browser window
-  let oldWinType = chromeWindow.document.documentElement.getAttribute("windowtype");
-  chromeWindow.document.documentElement.setAttribute("windowtype", "navigator:testrunner");
+  dmui = Cc["@mozilla.org/download-manager-ui;1"].
+         getService(Ci.nsIDownloadManagerUI);
 
   downloadListener = {
 
@@ -157,8 +153,6 @@ function testSetup()
     dm.removeListener(downloadListener);
     chromeWindow.document.documentElement.setAttribute("windowtype", oldWinType);
   };
-
-  return true;
 }
 
 function openBrowserWindow(callback)

@@ -222,12 +222,14 @@ nsINode::SetProperty(PRUint16 aCategory, nsIAtom *aPropertyName, void *aValue,
   return rv;
 }
 
-void
+nsresult
 nsINode::DeleteProperty(PRUint16 aCategory, nsIAtom *aPropertyName)
 {
   nsIDocument *doc = GetOwnerDoc();
-  if (doc)
-    doc->PropertyTable(aCategory)->DeleteProperty(this, aPropertyName);
+  if (!doc)
+    return nsnull;
+
+  return doc->PropertyTable(aCategory)->DeleteProperty(this, aPropertyName);
 }
 
 void*
@@ -847,7 +849,7 @@ nsIContent::GetDesiredIMEState()
   if (!doc) {
     return IME_STATUS_DISABLE;
   }
-  nsIPresShell* ps = doc->GetShell();
+  nsIPresShell* ps = doc->GetPrimaryShell();
   if (!ps) {
     return IME_STATUS_DISABLE;
   }
@@ -1404,40 +1406,27 @@ nsNSElementTearoff::GetClassList(nsIDOMDOMTokenList** aResult)
   return NS_OK;
 }
 
-void
-nsGenericElement::SetCapture(PRBool aRetargetToElement)
+NS_IMETHODIMP
+nsNSElementTearoff::SetCapture(PRBool aRetargetToElement)
 {
   // If there is already an active capture, ignore this request. This would
   // occur if a splitter, frame resizer, etc had already captured and we don't
   // want to override those.
-  if (nsIPresShell::GetCapturingContent())
-    return;
+  nsCOMPtr<nsIDOMNode> node = do_QueryInterface(nsIPresShell::GetCapturingContent());
+  if (node)
+    return NS_OK;
 
-  nsIPresShell::SetCapturingContent(this, CAPTURE_PREVENTDRAG |
+  nsIPresShell::SetCapturingContent(mContent, CAPTURE_PREVENTDRAG |
     (aRetargetToElement ? CAPTURE_RETARGETTOELEMENT : 0));
-}
-
-NS_IMETHODIMP
-nsNSElementTearoff::SetCapture(PRBool aRetargetToElement)
-{
-  mContent->SetCapture(aRetargetToElement);
-
   return NS_OK;
-}
-
-void
-nsGenericElement::ReleaseCapture()
-{
-  if (nsIPresShell::GetCapturingContent() == this) {
-    nsIPresShell::SetCapturingContent(nsnull, 0);
-  }
 }
 
 NS_IMETHODIMP
 nsNSElementTearoff::ReleaseCapture()
 {
-  mContent->ReleaseCapture();
-
+  if (nsIPresShell::GetCapturingContent() == mContent) {
+    nsIPresShell::SetCapturingContent(nsnull, 0);
+  }
   return NS_OK;
 }
 
@@ -2895,9 +2884,7 @@ nsGenericElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
     // Unset this flag since we now really are in a document.
     UnsetFlags(NODE_FORCE_XBL_BINDINGS |
                // And clear the lazy frame construction bits.
-               NODE_NEEDS_FRAME | NODE_DESCENDANTS_NEED_FRAMES |
-               // And the restyle bits
-               ELEMENT_ALL_RESTYLE_FLAGS);
+               NODE_NEEDS_FRAME | NODE_DESCENDANTS_NEED_FRAMES);
   }
 
   // If NODE_FORCE_XBL_BINDINGS was set we might have anonymous children
@@ -3314,9 +3301,9 @@ nsGenericElement::SetSMILOverrideStyleRule(nsICSSStyleRule* aStyleRule,
     // be in a document, if we're clearing animation effects on a target node
     // that's been detached since the previous animation sample.)
     if (doc) {
-      nsCOMPtr<nsIPresShell> shell = doc->GetShell();
+      nsCOMPtr<nsIPresShell> shell = doc->GetPrimaryShell();
       if (shell) {
-        shell->RestyleForAnimation(this, eRestyle_Self);
+        shell->RestyleForAnimation(this);
       }
     }
   }
@@ -3496,13 +3483,14 @@ nsGenericElement::GetScriptTypeID() const
 {
     PtrBits flags = GetFlags();
 
-    return (flags >> NODE_SCRIPT_TYPE_OFFSET) & NODE_SCRIPT_TYPE_MASK;
+    /* 4 bits reserved for script-type ID. */
+    return (flags >> NODE_SCRIPT_TYPE_OFFSET) & 0x000F;
 }
 
 NS_IMETHODIMP
 nsGenericElement::SetScriptTypeID(PRUint32 aLang)
 {
-    if ((aLang & NODE_SCRIPT_TYPE_MASK) != aLang) {
+    if ((aLang & 0x000F) != aLang) {
         NS_ERROR("script ID too large!");
         return NS_ERROR_FAILURE;
     }
@@ -3634,7 +3622,7 @@ nsINode::doRemoveChildAt(PRUint32 aIndex, PRBool aNotify,
   // A11y needs to be notified of content removals first, so accessibility
   // events can be fired before any changes occur
   if (aNotify && doc) {
-    nsIPresShell *presShell = doc->GetShell();
+    nsIPresShell *presShell = doc->GetPrimaryShell();
     if (presShell && presShell->IsAccessibilityActive()) {
       nsCOMPtr<nsIAccessibilityService> accService = 
         do_GetService("@mozilla.org/accessibilityService;1");
@@ -5391,7 +5379,7 @@ ParseSelectorList(nsINode* aNode,
   // It's not strictly necessary to have a prescontext here, but it's
   // a bit of an optimization for various stuff.
   *aPresContext = nsnull;
-  nsIPresShell* shell = doc->GetShell();
+  nsIPresShell* shell = doc->GetPrimaryShell();
   if (shell) {
     *aPresContext = shell->GetPresContext();
   }

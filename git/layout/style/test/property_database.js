@@ -71,6 +71,19 @@ var gCSSProperties = {
 		other_values: [ "radio", "menulist" ],
 		invalid_values: []
 	},
+	"-moz-background-clip": {
+		/*
+		 * When we rename this to 'background-clip', we also
+		 * need to rename the values to match the spec.
+		 */
+		domProp: "MozBackgroundClip",
+		inherited: false,
+		type: CSS_TYPE_LONGHAND,
+		/* XXX Need to add support for "content" -- important for symmetry when handling background shorthand */
+		initial_values: [ "border" ],
+		other_values: [ "padding", "border, padding", "padding, padding, padding", "border, border" ],
+		invalid_values: [ "content", "margin", "border border" ]
+	},
 	"-moz-background-inline-policy": {
 		domProp: "MozBackgroundInlinePolicy",
 		inherited: false,
@@ -78,6 +91,22 @@ var gCSSProperties = {
 		initial_values: [ "continuous" ],
 		other_values: ["bounding-box", "each-box" ],
 		invalid_values: []
+	},
+	"-moz-background-origin": {
+		domProp: "MozBackgroundOrigin",
+		inherited: false,
+		type: CSS_TYPE_LONGHAND,
+		initial_values: [ "padding" ],
+		other_values: [ "border", "content", "border, padding", "padding, padding, padding", "border, border" ],
+		invalid_values: [ "margin", "padding padding" ]
+	},
+	"-moz-background-size": {
+		domProp: "MozBackgroundSize",
+		inherited: false,
+		type: CSS_TYPE_LONGHAND,
+		initial_values: [ "auto", "auto auto" ],
+		other_values: [ "contain", "cover", "100px auto", "auto 100px", "100% auto", "auto 100%", "25% 50px", "3em 40%" ],
+		invalid_values: [ "contain contain", "cover cover", "cover auto", "auto cover", "contain cover", "cover contain", "-5px 3px", "3px -5px", "auto -5px", "-5px auto" ]
 	},
 	"-moz-binding": {
 		domProp: "MozBinding",
@@ -657,8 +686,8 @@ var gCSSProperties = {
 		other_values: [ "1px", "3em" ],
 		invalid_values: []
 	},
-	"resize": {
-		domProp: "resize",
+	"-moz-resize": {
+		domProp: "MozResize",
 		inherited: false,
 		type: CSS_TYPE_LONGHAND,
 		prerequisites: { "display": "block", "overflow": "auto" },
@@ -686,25 +715,9 @@ var gCSSProperties = {
 		domProp: "MozTransform",
 		inherited: false,
 		type: CSS_TYPE_LONGHAND,
-		prerequisites: { "width": "300px", "height": "50px" },
 		initial_values: [ "none" ],
-		other_values: [ "translatex(1px)", "translatex(4em)", "translatex(-4px)", "translatex(3px)", "translatex(0px) translatex(1px) translatex(2px) translatex(3px) translatex(4px)", "translatey(4em)", "translate(3px)", "translate(10px, -3px)", "rotate(45deg)", "rotate(45grad)", "rotate(45rad)", "rotate(0)", "scalex(10)", "scaley(10)", "scale(10)", "scale(10, 20)", "skewx(30deg)", "skewx(0)", "skewy(0)", "skewx(30grad)", "skewx(30rad)", "skewy(30deg)", "skewy(30grad)", "skewy(30rad)", "matrix(1, 2, 3, 4, 5px, 6em)", "rotate(45deg) scale(2, 1)", "skewx(45deg) skewx(-50grad)", "translate(0, 0) scale(1, 1) skewx(0) skewy(0) matrix(1, 0, 0, 1, 0, 0)", "translatex(50%)", "translatey(50%)", "translate(50%)", "translate(3%, 5px)", "translate(5px, 3%)", "matrix(1, 2, 3, 4, 5px, 6%)", "matrix(1, 2, 3, 4, 5%, 6px)", "matrix(1, 2, 3, 4, 5%, 6%)",
-			/* valid calc() values */
-			"translatex(-moz-calc(5px + 10%))",
-			"translatey(-moz-calc(0.25 * 5px + 10% / 3))",
-			"translate(-moz-calc(5px - 10% * 3))",
-			"translate(-moz-calc(5px - 3 * 10%), 50px)",
-			"translate(-50px, -moz-calc(5px - 10% * 3))",
-			"matrix(1, 0, 0, 1, -moz-calc(5px * 3), -moz-calc(10% - 3px))"
-		],
-		invalid_values: ["1px", "#0000ff", "red", "auto", "translatex(1px 1px)", "translatex(translatex(1px))", "translatex(#0000ff)", "translatex(red)", "translatey()", "matrix(1, 2, 3, 4, 5, 6)", "matrix(1px, 2px, 3px, 4px, 5px, 6px)", "scale(150%)", "skewx(red)", "matrix(1%, 0, 0, 0, 0px, 0px)", "matrix(0, 1%, 2, 3, 4px,5px)", "matrix(0, 1, 2%, 3, 4px, 5px)", "matrix(0, 1, 2, 3%, 4%, 5%)",
-			/* invalid (specially for this) calc() values */
-			"translatey(-moz-min(5px,10%))",
-			"translatex(-moz-max(5px,10%))",
-			"translate(10px, -moz-calc(min(5px,10%)))",
-			"translate(-moz-calc(max(5px,10%)), 10%)",
-			"matrix(1, 0, 0, 1, -moz-max(5px * 3), -moz-calc(10% - 3px))"
-		]
+		other_values: [ "translatex(1px)", "translatex(4em)", "translatex(-4px)", "translatex(3px)", "translatex(0px) translatex(1px) translatex(2px) translatex(3px) translatex(4px)", "translatey(4em)", "translate(3px)", "translate(10px, -3px)", "rotate(45deg)", "rotate(45grad)", "rotate(45rad)", "rotate(0)", "scalex(10)", "scaley(10)", "scale(10)", "scale(10, 20)", "skewx(30deg)", "skewx(0)", "skewy(0)", "skewx(30grad)", "skewx(30rad)", "skewy(30deg)", "skewy(30grad)", "skewy(30rad)", "matrix(1, 2, 3, 4, 5px, 6em)", "rotate(45deg) scale(2, 1)", "skewx(45deg) skewx(-50grad)", "translate(0, 0) scale(1, 1) skewx(0) skewy(0) matrix(1, 0, 0, 1, 0, 0)", "translatex(50%)", "translatey(50%)", "translate(50%)", "translate(3%, 5px)", "translate(5px, 3%)", "matrix(1, 2, 3, 4, 5px, 6%)", "matrix(1, 2, 3, 4, 5%, 6px)", "matrix(1, 2, 3, 4, 5%, 6%)"],
+		invalid_values: ["1px", "#0000ff", "red", "auto", "translatex(1px 1px)", "translatex(translatex(1px))", "translatex(#0000ff)", "translatex(red)", "translatey()", "matrix(1, 2, 3, 4, 5, 6)", "matrix(1px, 2px, 3px, 4px, 5px, 6px)", "scale(150%)", "skewx(red)", "matrix(1%, 0, 0, 0, 0px, 0px)", "matrix(0, 1%, 2, 3, 4px,5px)", "matrix(0, 1, 2%, 3, 4px, 5px)", "matrix(0, 1, 2, 3%, 4%, 5%)"]
 	},
 	"-moz-transform-origin": {
 		domProp: "MozTransformOrigin",
@@ -776,7 +789,7 @@ var gCSSProperties = {
 		domProp: "background",
 		inherited: false,
 		type: CSS_TYPE_TRUE_SHORTHAND,
-		subproperties: [ "background-attachment", "background-color", "background-image", "background-position", "background-repeat", "background-clip", "background-origin", "background-size" ],
+		subproperties: [ "background-attachment", "background-color", "background-image", "background-position", "background-repeat", "-moz-background-clip", "-moz-background-origin", "-moz-background-size" ],
 		initial_values: [ "transparent", "none", "repeat", "scroll", "0% 0%", "top left", "left top", "transparent none", "top left none", "left top none", "none left top", "none top left", "none 0% 0%", "transparent none repeat scroll top left", "left top repeat none scroll transparent" ],
 		other_values: [
 				/* without multiple backgrounds */
@@ -811,9 +824,15 @@ var gCSSProperties = {
 				"fixed repeat-y top left url(404.png), repeat-x green",
 				"url(404.png), -moz-linear-gradient(20px 20px -45deg, blue, green) black",
 				/* test cases with clip+origin in the shorthand */
+	// This is commented out for now until we change
+	// -moz-background-clip to background-clip, -moz-background-origin
+	// to background-origin, change their value names to *-box, and add
+	// support for content-box on background-clip.
+	/*
 				"url(404.png) green padding-box",
 				"url(404.png) border-box transparent",
 				"content-box url(404.png) blue",
+	*/
 		],
 		invalid_values: [
 			/* mixes with keywords have to be in correct order */
@@ -843,18 +862,6 @@ var gCSSProperties = {
 		initial_values: [ "scroll" ],
 		other_values: [ "fixed", "scroll,scroll", "fixed, scroll", "scroll, fixed, scroll", "fixed, fixed" ],
 		invalid_values: []
-	},
-	"background-clip": {
-		/*
-		 * When we rename this to 'background-clip', we also
-		 * need to rename the values to match the spec.
-		 */
-		domProp: "backgroundClip",
-		inherited: false,
-		type: CSS_TYPE_LONGHAND,
-		initial_values: [ "border-box" ],
-		other_values: [ "content-box", "padding-box", "border-box, padding-box", "padding-box, padding-box, padding-box", "border-box, border-box" ],
-		invalid_values: [ "margin-box", "border-box border-box" ]
 	},
 	"background-color": {
 		domProp: "backgroundColor",
@@ -1084,14 +1091,6 @@ var gCSSProperties = {
 			"-moz-repeating-linear-gradient(left left blue red)",
 			"-moz-repeating-linear-gradient()" ]
 	},
-	"background-origin": {
-		domProp: "backgroundOrigin",
-		inherited: false,
-		type: CSS_TYPE_LONGHAND,
-		initial_values: [ "padding-box" ],
-		other_values: [ "border-box", "content-box", "border-box, padding-box", "padding-box, padding-box, padding-box", "border-box, border-box" ],
-		invalid_values: [ "margin-box", "padding-box padding-box" ]
-	},
 	"background-position": {
 		domProp: "backgroundPosition",
 		inherited: false,
@@ -1113,14 +1112,6 @@ var gCSSProperties = {
 			"repeat, repeat, repeat"
 		],
 		invalid_values: [ "repeat repeat" ]
-	},
-	"background-size": {
-		domProp: "backgroundSize",
-		inherited: false,
-		type: CSS_TYPE_LONGHAND,
-		initial_values: [ "auto", "auto auto" ],
-		other_values: [ "contain", "cover", "100px auto", "auto 100px", "100% auto", "auto 100%", "25% 50px", "3em 40%" ],
-		invalid_values: [ "contain contain", "cover cover", "cover auto", "auto cover", "contain cover", "cover contain", "-5px 3px", "3px -5px", "auto -5px", "-5px auto" ]
 	},
 	"border": {
 		domProp: "border",
@@ -1471,7 +1462,7 @@ var gCSSProperties = {
 		domProp: "font",
 		inherited: true,
 		type: CSS_TYPE_TRUE_SHORTHAND,
-		subproperties: [ "font-style", "font-variant", "font-weight", "font-size", "line-height", "font-family", "font-stretch", "font-size-adjust", "-moz-font-feature-settings", "-moz-font-language-override" ],
+		subproperties: [ "font-style", "font-variant", "font-weight", "font-size", "line-height", "font-family", "font-stretch", "font-size-adjust" ],
 		/* XXX could be sans-serif */
 		initial_values: [ "medium serif" ],
 		other_values: [ "large serif", "9px fantasy", "bold italic small-caps 24px/1.4 Times New Roman, serif", "caption", "icon", "menu", "message-box", "small-caption", "status-bar" ],
@@ -1484,22 +1475,6 @@ var gCSSProperties = {
 		initial_values: [ "serif" ],
 		other_values: [ "sans-serif", "Times New Roman, serif", "'Times New Roman', serif", "cursive", "fantasy", "\"Times New Roman", "Times, \"Times New Roman" ],
 		invalid_values: [ "\"Times New\" Roman" ]
-	},
-	"-moz-font-feature-settings": {
-		domProp: "MozFontFeatureSettings",
-		inherited: true,
-		type: CSS_TYPE_LONGHAND,
-		initial_values: [ "normal" ],
-		other_values: [ "'liga=1'", "\"liga=1\"", "'foo,bar=\"hello\"'" ],
-		invalid_values: [ "liga=1", "foo,bar=\"hello\"" ]
-	},
-	"-moz-font-language-override": {
-		domProp: "MozFontLanguageOverride",
-		inherited: true,
-		type: CSS_TYPE_LONGHAND,
-		initial_values: [ "normal" ],
-		other_values: [ "'TRK'", "\"TRK\"", "'N\\'Ko'" ],
-		invalid_values: [ "TRK" ]
 	},
 	"font-size": {
 		domProp: "fontSize",

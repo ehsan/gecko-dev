@@ -41,6 +41,7 @@
 #include "nsIUnicodeEncoder.h"
 #include "nsIUnicodeDecoder.h"
 #include "uconvutil.h"
+#include "nsICharRepresentable.h"
 
 // all the useful constructors
 NS_METHOD

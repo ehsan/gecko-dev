@@ -157,7 +157,7 @@ NS_IMETHODIMP xpcstringtest::GetWStringShared(const PRUnichar **s)
 /***************************************************************************/
 
 // static
-nsresult
+NS_IMETHODIMP
 xpctest::ConstructStringTest(nsISupports *aOuter, REFNSIID aIID, void **aResult)
 {
     nsresult rv;

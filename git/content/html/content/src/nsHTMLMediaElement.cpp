@@ -93,9 +93,6 @@
 #ifdef MOZ_WAVE
 #include "nsWaveDecoder.h"
 #endif
-#ifdef MOZ_WEBM
-#include "nsWebMDecoder.h"
-#endif
 
 #ifdef PR_LOGGING
 static PRLogModuleInfo* gMediaElementLog;
@@ -945,7 +942,7 @@ NS_IMETHODIMP nsHTMLMediaElement::SetMuted(PRBool aMuted)
   return NS_OK;
 }
 
-nsHTMLMediaElement::nsHTMLMediaElement(nsINodeInfo *aNodeInfo, PRUint32 aFromParser)
+nsHTMLMediaElement::nsHTMLMediaElement(nsINodeInfo *aNodeInfo, PRBool aFromParser)
   : nsGenericHTMLElement(aNodeInfo),
     mCurrentLoadID(0),
     mNetworkState(nsIDOMHTMLMediaElement::NETWORK_EMPTY),
@@ -1188,26 +1185,24 @@ void nsHTMLMediaElement::UnbindFromTree(PRBool aDeep,
 #ifdef MOZ_OGG
 // See http://www.rfc-editor.org/rfc/rfc5334.txt for the definitions
 // of Ogg media types and codec types
-const char nsHTMLMediaElement::gOggTypes[3][16] = {
+static const char gOggTypes[][16] = {
   "video/ogg",
   "audio/ogg",
   "application/ogg"
 };
 
-char const *const nsHTMLMediaElement::gOggCodecs[3] = {
+static const char* gOggCodecs[] = {
   "vorbis",
   "theora",
   nsnull
 };
 
-bool
-nsHTMLMediaElement::IsOggEnabled()
+static PRBool IsOggEnabled()
 {
   return nsContentUtils::GetBoolPref("media.ogg.enabled");
 }
 
-bool
-nsHTMLMediaElement::IsOggType(const nsACString& aType)
+static PRBool IsOggType(const nsACString& aType)
 {
   if (!IsOggEnabled())
     return PR_FALSE;
@@ -1223,26 +1218,24 @@ nsHTMLMediaElement::IsOggType(const nsACString& aType)
 // See http://www.rfc-editor.org/rfc/rfc2361.txt for the definitions
 // of WAVE media types and codec types. However, the audio/vnd.wave
 // MIME type described there is not used.
-const char nsHTMLMediaElement::gWaveTypes[4][16] = {
+static const char gWaveTypes[][16] = {
   "audio/x-wav",
   "audio/wav",
   "audio/wave",
   "audio/x-pn-wav"
 };
 
-char const *const nsHTMLMediaElement::gWaveCodecs[2] = {
+static const char* gWaveCodecs[] = {
   "1", // Microsoft PCM Format
   nsnull
 };
 
-bool
-nsHTMLMediaElement::IsWaveEnabled()
+static PRBool IsWaveEnabled()
 {
   return nsContentUtils::GetBoolPref("media.wave.enabled");
 }
 
-bool
-nsHTMLMediaElement::IsWaveType(const nsACString& aType)
+static PRBool IsWaveType(const nsACString& aType)
 {
   if (!IsWaveEnabled())
     return PR_FALSE;
@@ -1254,62 +1247,23 @@ nsHTMLMediaElement::IsWaveType(const nsACString& aType)
 }
 #endif
 
-#ifdef MOZ_WEBM
-const char nsHTMLMediaElement::gWebMTypes[2][17] = {
-  "video/webm",
-  "audio/webm"
-};
-
-char const *const nsHTMLMediaElement::gWebMCodecs[4] = {
-  "vp8",
-  "vp8.0",
-  "vorbis",
-  nsnull
-};
-
-bool
-nsHTMLMediaElement::IsWebMEnabled()
-{
-  return nsContentUtils::GetBoolPref("media.webm.enabled");
-}
-
-bool
-nsHTMLMediaElement::IsWebMType(const nsACString& aType)
-{
-  if (!IsWebMEnabled())
-    return PR_FALSE;
-  for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(gWebMTypes); ++i) {
-    if (aType.EqualsASCII(gWebMTypes[i]))
-      return PR_TRUE;
-  }
-  return PR_FALSE;
-}
-#endif
-
 /* static */
-nsHTMLMediaElement::CanPlayStatus 
-nsHTMLMediaElement::CanHandleMediaType(const char* aMIMEType,
-                                       char const *const ** aCodecList)
+PRBool nsHTMLMediaElement::CanHandleMediaType(const char* aMIMEType,
+                                              const char*** aCodecList)
 {
 #ifdef MOZ_OGG
   if (IsOggType(nsDependentCString(aMIMEType))) {
     *aCodecList = gOggCodecs;
-    return CANPLAY_MAYBE;
+    return PR_TRUE;
   }
 #endif
 #ifdef MOZ_WAVE
   if (IsWaveType(nsDependentCString(aMIMEType))) {
     *aCodecList = gWaveCodecs;
-    return CANPLAY_MAYBE;
+    return PR_TRUE;
   }
 #endif
-#ifdef MOZ_WEBM
-  if (IsWebMType(nsDependentCString(aMIMEType))) {
-    *aCodecList = gWebMCodecs;
-    return CANPLAY_YES;
-  }
-#endif
-  return CANPLAY_NO;
+  return PR_FALSE;
 }
 
 /* static */
@@ -1317,10 +1271,6 @@ PRBool nsHTMLMediaElement::ShouldHandleMediaType(const char* aMIMEType)
 {
 #ifdef MOZ_OGG
   if (IsOggType(nsDependentCString(aMIMEType)))
-    return PR_TRUE;
-#endif
-#ifdef MOZ_WEBM
-  if (IsWebMType(nsDependentCString(aMIMEType)))
     return PR_TRUE;
 #endif
   // We should not return true for Wave types, since there are some
@@ -1332,7 +1282,7 @@ PRBool nsHTMLMediaElement::ShouldHandleMediaType(const char* aMIMEType)
 }
 
 static PRBool
-CodecListContains(char const *const * aCodecs, const nsAString& aCodec)
+CodecListContains(const char** aCodecs, const nsAString& aCodec)
 {
   for (PRInt32 i = 0; aCodecs[i]; ++i) {
     if (aCodec.EqualsASCII(aCodecs[i]))
@@ -1341,9 +1291,13 @@ CodecListContains(char const *const * aCodecs, const nsAString& aCodec)
   return PR_FALSE;
 }
 
-/* static */
-nsHTMLMediaElement::CanPlayStatus
-nsHTMLMediaElement::GetCanPlay(const nsAString& aType)
+enum CanPlayStatus {
+  CANPLAY_NO,
+  CANPLAY_MAYBE,
+  CANPLAY_YES
+};
+
+static CanPlayStatus GetCanPlay(const nsAString& aType)
 {
   nsContentTypeParser parser(aType);
   nsAutoString mimeType;
@@ -1352,18 +1306,16 @@ nsHTMLMediaElement::GetCanPlay(const nsAString& aType)
     return CANPLAY_NO;
 
   NS_ConvertUTF16toUTF8 mimeTypeUTF8(mimeType);
-  char const *const * supportedCodecs;
-  CanPlayStatus status = CanHandleMediaType(mimeTypeUTF8.get(),
-                                            &supportedCodecs);
-  if (status == CANPLAY_NO)
+  const char** supportedCodecs;
+  if (!nsHTMLMediaElement::CanHandleMediaType(mimeTypeUTF8.get(),
+                                              &supportedCodecs))
     return CANPLAY_NO;
 
   nsAutoString codecs;
   rv = parser.GetParameter("codecs", codecs);
-  if (NS_FAILED(rv)) {
+  if (NS_FAILED(rv))
     // Parameter not found or whatever
-    return status;
-  }
+    return CANPLAY_MAYBE;
 
   CanPlayStatus result = CANPLAY_YES;
   // See http://www.rfc-editor.org/rfc/rfc4281.txt for the description
@@ -1398,6 +1350,43 @@ nsHTMLMediaElement::CanPlayType(const nsAString& aType, nsAString& aResult)
   return NS_OK;
 }
 
+/* static */
+void nsHTMLMediaElement::InitMediaTypes()
+{
+  nsresult rv;
+  nsCOMPtr<nsICategoryManager> catMan(do_GetService(NS_CATEGORYMANAGER_CONTRACTID, &rv));
+  if (NS_SUCCEEDED(rv)) {
+#ifdef MOZ_OGG
+    if (IsOggEnabled()) {
+      for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(gOggTypes); i++) {
+        catMan->AddCategoryEntry("Gecko-Content-Viewers", gOggTypes[i],
+                                 "@mozilla.org/content/document-loader-factory;1",
+                                 PR_FALSE, PR_TRUE, nsnull);
+      }
+    }
+#endif
+  }
+}
+
+/* static */
+void nsHTMLMediaElement::ShutdownMediaTypes()
+{
+  nsresult rv;
+  nsCOMPtr<nsICategoryManager> catMan(do_GetService(NS_CATEGORYMANAGER_CONTRACTID, &rv));
+  if (NS_SUCCEEDED(rv)) {
+#ifdef MOZ_OGG
+    for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(gOggTypes); i++) {
+      catMan->DeleteCategoryEntry("Gecko-Content-Viewers", gOggTypes[i], PR_FALSE);
+    }
+#endif
+#ifdef MOZ_WAVE
+    for (PRUint32 i = 0; i < NS_ARRAY_LENGTH(gWaveTypes); i++) {
+      catMan->DeleteCategoryEntry("Gecko-Content-Viewers", gWaveTypes[i], PR_FALSE);
+    }
+#endif
+  }
+}
+
 already_AddRefed<nsMediaDecoder>
 nsHTMLMediaElement::CreateDecoder(const nsACString& aType)
 {
@@ -1412,14 +1401,6 @@ nsHTMLMediaElement::CreateDecoder(const nsACString& aType)
 #ifdef MOZ_WAVE
   if (IsWaveType(aType)) {
     nsRefPtr<nsWaveDecoder> decoder = new nsWaveDecoder();
-    if (decoder && decoder->Init(this)) {
-      return decoder.forget().get();
-    }
-  }
-#endif
-#ifdef MOZ_WEBM
-  if (IsWebMType(aType)) {
-    nsRefPtr<nsWebMDecoder> decoder = new nsWebMDecoder();
     if (decoder && decoder->Init(this)) {
       return decoder.forget().get();
     }

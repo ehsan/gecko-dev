@@ -45,7 +45,7 @@ static const PRUint16 g_MacRomanMappingTable[] = {
 #include "macroman.ut"
 };
 
-nsresult
+NS_METHOD
 nsMacRomanToUnicodeConstructor(nsISupports *aOuter, REFNSIID aIID,
                                void **aResult)
 {

@@ -81,10 +81,8 @@
 #include "nsDisplayList.h"
 #include "nsDOMCSSDeclaration.h"
 #include "mozilla/dom/Element.h"
-#include "CSSCalc.h"
 
 using namespace mozilla::dom;
-namespace css = mozilla::css;
 
 #if defined(DEBUG_bzbarsky) || defined(DEBUG_caillon)
 #define DEBUG_ComputedDOMStyle
@@ -410,7 +408,7 @@ nsComputedDOMStyle::GetPresShellForContent(nsIContent* aContent)
   if (!currentDoc)
     return nsnull;
 
-  return currentDoc->GetShell();
+  return currentDoc->GetPrimaryShell();
 }
 
 NS_IMETHODIMP
@@ -457,7 +455,7 @@ nsComputedDOMStyle::GetPropertyCSSValue(const nsAString& aPropertyName,
   mFlushedPendingReflows = propEntry->mNeedsLayoutFlush;
 #endif
 
-  mPresShell = document->GetShell();
+  mPresShell = document->GetPrimaryShell();
   NS_ENSURE_TRUE(mPresShell && mPresShell->GetPresContext(),
                  NS_ERROR_NOT_AVAILABLE);
 
@@ -1021,7 +1019,7 @@ nsresult nsComputedDOMStyle::GetMozTransform(nsIDOMCSSValue **aValue)
   /* If the "no transforms" flag is set, then we should construct a
    * single-element entry and hand it back.
    */
-  if (!display->HasTransform()) {
+  if (!display->mTransformPresent) {
     nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
     if (!val)
       return NS_ERROR_OUT_OF_MEMORY;
@@ -1181,7 +1179,7 @@ nsComputedDOMStyle::GetFontFamily(nsIDOMCSSValue** aValue)
 
   nsCOMPtr<nsIDocument> doc = do_QueryReferent(mDocumentWeak);
   NS_ASSERTION(doc, "document is required");
-  nsIPresShell* presShell = doc->GetShell();
+  nsIPresShell* presShell = doc->GetPrimaryShell();
   NS_ASSERTION(presShell, "pres shell is required");
   nsPresContext *presContext = presShell->GetPresContext();
   NS_ASSERTION(presContext, "pres context is required");
@@ -1319,40 +1317,6 @@ nsComputedDOMStyle::GetFontVariant(nsIDOMCSSValue** aValue)
 }
 
 nsresult
-nsComputedDOMStyle::GetMozFontFeatureSettings(nsIDOMCSSValue** aValue)
-{
-  nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
-  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
-
-  const nsStyleFont* font = GetStyleFont();
-  if (font->mFont.featureSettings.IsEmpty()) {
-    val->SetIdent(eCSSKeyword_normal);
-  } else {
-    nsString str;
-    nsStyleUtil::AppendEscapedCSSString(font->mFont.featureSettings, str);
-    val->SetString(str);
-  }
-  return CallQueryInterface(val, aValue);
-}
-
-nsresult
-nsComputedDOMStyle::GetMozFontLanguageOverride(nsIDOMCSSValue** aValue)
-{
-  nsROCSSPrimitiveValue* val = GetROCSSPrimitiveValue();
-  NS_ENSURE_TRUE(val, NS_ERROR_OUT_OF_MEMORY);
-
-  const nsStyleFont* font = GetStyleFont();
-  if (font->mFont.languageOverride.IsEmpty()) {
-    val->SetIdent(eCSSKeyword_normal);
-  } else {
-    nsString str;
-    nsStyleUtil::AppendEscapedCSSString(font->mFont.languageOverride, str);
-    val->SetString(str);
-  }
-  return CallQueryInterface(val, aValue);
-}
-
-nsresult
 nsComputedDOMStyle::GetBackgroundList(PRUint8 nsStyleBackground::Layer::* aMember,
                                       PRUint32 nsStyleBackground::* aCount,
                                       const PRInt32 aTable[],
@@ -1392,7 +1356,7 @@ nsComputedDOMStyle::GetBackgroundClip(nsIDOMCSSValue** aValue)
 {
   return GetBackgroundList(&nsStyleBackground::Layer::mClip,
                            &nsStyleBackground::mClipCount,
-                           nsCSSProps::kBackgroundOriginKTable,
+                           nsCSSProps::kBackgroundClipKTable,
                            aValue);
 }
 
@@ -3755,57 +3719,6 @@ nsComputedDOMStyle::GetBorderStyleFor(mozilla::css::Side aSide, nsIDOMCSSValue**
   return NS_OK;
 }
 
-struct StyleCoordSerializeCalcOps {
-  StyleCoordSerializeCalcOps(nsAString& aResult, PRInt32 aAppUnitsPerInch)
-    : mResult(aResult),
-      mAppUnitsPerInch(aAppUnitsPerInch)
-  {
-  }
-
-  typedef nsStyleCoord input_type;
-  typedef nsStyleCoord::Array input_array_type;
-
-  static nsCSSUnit GetUnit(const input_type& aValue) {
-    if (aValue.IsCalcUnit()) {
-      return css::ConvertCalcUnit(aValue.GetUnit());
-    }
-    return eCSSUnit_Null;
-  }
-
-  void Append(const char* aString)
-  {
-    mResult.AppendASCII(aString);
-  }
-
-  void AppendLeafValue(const input_type& aValue)
-  {
-    nsRefPtr<nsROCSSPrimitiveValue> val =
-      new nsROCSSPrimitiveValue(mAppUnitsPerInch);
-    if (aValue.GetUnit() == eStyleUnit_Percent) {
-      val->SetPercent(aValue.GetPercentValue());
-    } else {
-      NS_ABORT_IF_FALSE(aValue.GetUnit() == eStyleUnit_Coord,
-                        "unexpected unit");
-      val->SetAppUnits(aValue.GetCoordValue());
-    }
-
-    nsAutoString tmp;
-    val->GetCssText(tmp);
-    mResult.Append(tmp);
-  }
-
-  void AppendNumber(const input_type& aValue)
-  {
-    NS_ABORT_IF_FALSE(PR_FALSE,
-                      "should not have numbers in nsStyleCoord calc()");
-  }
-
-private:
-  nsAString &mResult;
-  PRInt32 mAppUnitsPerInch;
-};
-
-
 void
 nsComputedDOMStyle::SetValueToCoord(nsROCSSPrimitiveValue* aValue,
                                     const nsStyleCoord& aCoord,
@@ -3830,8 +3743,7 @@ nsComputedDOMStyle::SetValueToCoord(nsROCSSPrimitiveValue* aValue,
         nscoord percentageBase;
         if (aPercentageBaseGetter &&
             (this->*aPercentageBaseGetter)(percentageBase)) {
-          nscoord val = NSCoordSaturatingMultiply(percentageBase,
-                                                  aCoord.GetPercentValue());
+          nscoord val = nscoord(aCoord.GetPercentValue() * percentageBase);
           aValue->SetAppUnits(NS_MAX(aMinAppUnits, NS_MIN(val, aMaxAppUnits)));
         } else {
           aValue->SetPercent(aCoord.GetPercentValue());
@@ -3865,22 +3777,7 @@ nsComputedDOMStyle::SetValueToCoord(nsROCSSPrimitiveValue* aValue,
       break;
 
     default:
-      if (aCoord.IsCalcUnit()) {
-        nscoord percentageBase;
-        if (aPercentageBaseGetter &&
-            (this->*aPercentageBaseGetter)(percentageBase)) {
-          nscoord val =
-            nsRuleNode::ComputeCoordPercentCalc(aCoord, percentageBase);
-          aValue->SetAppUnits(NS_MAX(aMinAppUnits, NS_MIN(val, aMaxAppUnits)));
-        } else {
-          nsAutoString tmp;
-          StyleCoordSerializeCalcOps ops(tmp, mAppUnitsPerInch);
-          css::SerializeCalc(aCoord, ops);
-          aValue->SetString(tmp); // not really SetString
-        }
-      } else {
-        NS_ERROR("Can't handle this unit");
-      }
+      NS_ERROR("Can't handle this unit");
       break;
   }
 }
@@ -3891,15 +3788,19 @@ nsComputedDOMStyle::StyleCoordToNSCoord(const nsStyleCoord& aCoord,
                                         nscoord aDefaultValue)
 {
   NS_PRECONDITION(aPercentageBaseGetter, "Must have a percentage base getter");
-  if (aCoord.GetUnit() == eStyleUnit_Coord) {
-    return aCoord.GetCoordValue();
-  }
-  if (aCoord.GetUnit() == eStyleUnit_Percent || aCoord.IsCalcUnit()) {
-    nscoord percentageBase;
-    if ((this->*aPercentageBaseGetter)(percentageBase)) {
-      return nsRuleNode::ComputeCoordPercentCalc(aCoord, percentageBase);
-    }
-    // Fall through to returning aDefaultValue if we have no percentage base.
+  switch (aCoord.GetUnit()) {
+    case eStyleUnit_Coord:
+      return aCoord.GetCoordValue();
+    case eStyleUnit_Percent:
+      {
+        nscoord percentageBase;
+        if ((this->*aPercentageBaseGetter)(percentageBase)) {
+          return nscoord(aCoord.GetPercentValue() * percentageBase);
+        }
+      }
+      // Fall through to returning aDefaultValue if we have no percentage base.
+    default:
+      break;
   }
 
   return aDefaultValue;
@@ -4768,10 +4669,10 @@ nsComputedDOMStyle::GetQueryablePropertyMap(PRUint32* aLength)
     \* ******************************* */
 
     COMPUTED_STYLE_MAP_ENTRY(appearance,                    Appearance),
-    COMPUTED_STYLE_MAP_ENTRY(background_clip,               BackgroundClip),
+    COMPUTED_STYLE_MAP_ENTRY(_moz_background_clip,          BackgroundClip),
     COMPUTED_STYLE_MAP_ENTRY(_moz_background_inline_policy, BackgroundInlinePolicy),
-    COMPUTED_STYLE_MAP_ENTRY(background_origin,             BackgroundOrigin),
-    COMPUTED_STYLE_MAP_ENTRY(background_size,               MozBackgroundSize),
+    COMPUTED_STYLE_MAP_ENTRY(_moz_background_origin,        BackgroundOrigin),
+    COMPUTED_STYLE_MAP_ENTRY(_moz_background_size,          MozBackgroundSize),
     COMPUTED_STYLE_MAP_ENTRY(binding,                       Binding),
     COMPUTED_STYLE_MAP_ENTRY(border_bottom_colors,          BorderBottomColors),
     COMPUTED_STYLE_MAP_ENTRY(border_image,                  BorderImage),
@@ -4798,8 +4699,6 @@ nsComputedDOMStyle::GetQueryablePropertyMap(PRUint32* aLength)
     COMPUTED_STYLE_MAP_ENTRY(_moz_column_rule_width,        ColumnRuleWidth),
     COMPUTED_STYLE_MAP_ENTRY(_moz_column_rule_style,        ColumnRuleStyle),
     COMPUTED_STYLE_MAP_ENTRY(float_edge,                    FloatEdge),
-    COMPUTED_STYLE_MAP_ENTRY(font_feature_settings,         MozFontFeatureSettings),
-    COMPUTED_STYLE_MAP_ENTRY(font_language_override,        MozFontLanguageOverride),
     COMPUTED_STYLE_MAP_ENTRY(force_broken_image_icon,  ForceBrokenImageIcon),
     COMPUTED_STYLE_MAP_ENTRY(image_region,                  ImageRegion),
     COMPUTED_STYLE_MAP_ENTRY_LAYOUT(_moz_outline_radius_bottomLeft, OutlineRadiusBottomLeft),

@@ -809,11 +809,9 @@ function setupAddons(aCallback) {
     aAddons.forEach(function(aAddon) {
       // If an addon's type equals plugin it is skipped since
       // checking plugins compatibility information isn't supported at this
-      // time (also see bug 566787). Also, SCOPE_APPLICATION add-ons are
-      // excluded by app update so there is no reason to disable them.
+      // time (also see bug 566787).
       if (aAddon.type != "plugin" && !aAddon.appDisabled &&
-          !aAddon.userDisabled &&
-          aAddon.scope != AddonManager.SCOPE_APPLICATION) {
+          !aAddon.userDisabled) {
         disabledAddons.push(aAddon);
         aAddon.userDisabled = true;
       }

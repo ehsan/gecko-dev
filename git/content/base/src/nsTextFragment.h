@@ -55,7 +55,7 @@ class nsCString;
 
 // XXX these need I18N spankage
 #define XP_IS_SPACE(_ch) \
-  (((_ch) == ' ') || ((_ch) == '\t') || ((_ch) == '\n') || ((_ch) == '\r'))
+  (((_ch) == ' ') || ((_ch) == '\t') || ((_ch) == '\n'))
 
 #define XP_IS_UPPERCASE(_ch) \
   (((_ch) >= 'A') && ((_ch) <= 'Z'))

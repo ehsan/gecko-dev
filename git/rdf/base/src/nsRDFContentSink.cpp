@@ -1377,7 +1377,8 @@ RDFContentSinkImpl::SplitExpatName(const PRUnichar *aExpatName,
     }
 
     const nsDependentSubstring& nameSpaceURI = Substring(aExpatName, uriEnd);
-    *aLocalName = NS_NewAtom(Substring(nameStart, pos));
+    *aLocalName = NS_NewAtom(NS_ConvertUTF16toUTF8(nameStart,
+                                                   pos - nameStart));
     return nameSpaceURI;
 }
 

@@ -45,21 +45,15 @@
 #include "nsIAccessibleRole.h"
 #include "nsIAccessibleText.h"
 #include "nsIAccessibleTable.h"
-
 #include "nsARIAMap.h"
-#include "nsAccessibilityService.h"
-#include "nsCoreUtils.h"
 
-#include "nsIContent.h"
-#include "nsIDocShell.h"
 #include "nsIDOMNode.h"
 #include "nsIPersistentProperties2.h"
-#include "nsIPresShell.h"
+#include "nsIContent.h"
 #include "nsPoint.h"
 
 class nsAccessNode;
 class nsAccessible;
-class nsHyperTextAccessible;
 class nsHTMLTableAccessible;
 class nsDocAccessible;
 #ifdef MOZ_XUL
@@ -107,13 +101,13 @@ public:
    * Return ARIA level value or the default one if ARIA is missed for the
    * given accessible.
    */
-  static PRInt32 GetARIAOrDefaultLevel(nsAccessible *aAccessible);
+  static PRInt32 GetARIAOrDefaultLevel(nsIAccessible *aAcc);
 
   /**
    * Compute position in group (posinset) and group size (setsize) for
    * nsIDOMXULSelectControlItemElement node.
    */
-  static void GetPositionAndSizeForXULSelectControlItem(nsIContent *aContent,
+  static void GetPositionAndSizeForXULSelectControlItem(nsIDOMNode *aNode,
                                                         PRInt32 *aPosInSet,
                                                         PRInt32 *aSetSize);
 
@@ -121,14 +115,14 @@ public:
    * Compute group position and group size (posinset and setsize) for
    * nsIDOMXULContainerItemElement node.
    */
-  static void GetPositionAndSizeForXULContainerItem(nsIContent *aContent,
+  static void GetPositionAndSizeForXULContainerItem(nsIDOMNode *aNode,
                                                     PRInt32 *aPosInSet,
                                                     PRInt32 *aSetSize);
 
   /**
    * Compute group level for nsIDOMXULContainerItemElement node.
    */
-  static PRInt32 GetLevelForXULContainerItem(nsIContent *aContent);
+  static PRInt32 GetLevelForXULContainerItem(nsIDOMNode *aNode);
 
   /**
    * Set container-foo live region attributes for the given node.
@@ -151,52 +145,31 @@ public:
   static PRBool HasDefinedARIAToken(nsIContent *aContent, nsIAtom *aAtom);
 
   /**
-   * Return document accessible for the given presshell.
-   */
-  static nsDocAccessible *GetDocAccessibleFor(nsIWeakReference *aWeakShell)
-  {
-    nsCOMPtr<nsIPresShell> presShell(do_QueryReferent(aWeakShell));
-    return presShell ?
-      GetAccService()->GetDocAccessible(presShell->GetDocument()) : nsnull;
-  }
-
-  /**
-   * Return document accessible for the given DOM node.
-   */
-  static nsDocAccessible *GetDocAccessibleFor(nsINode *aNode)
-  {
-    nsIPresShell *presShell = nsCoreUtils::GetPresShellFor(aNode);
-    return presShell ?
-      GetAccService()->GetDocAccessible(presShell->GetDocument()) : nsnull;
-  }
-
-  /**
-   * Return document accessible for the given docshell.
-   */
-  static nsDocAccessible *GetDocAccessibleFor(nsIDocShellTreeItem *aContainer)
-  {
-    nsCOMPtr<nsIDocShell> docShell(do_QueryInterface(aContainer));
-    nsCOMPtr<nsIPresShell> presShell;
-    docShell->GetPresShell(getter_AddRefs(presShell));
-    return presShell ?
-      GetAccService()->GetDocAccessible(presShell->GetDocument()) : nsnull;
-  }
-
-  /**
    * Return true if the given DOM node contains accessible children.
    */
-  static PRBool HasAccessibleChildren(nsINode *aNode);
+  static PRBool HasAccessibleChildren(nsIDOMNode *aNode);
 
   /**
-    * Return ancestor in this document with the given role if it exists.
-    *
-    * @param  aDescendant  [in] descendant to start search with
-    * @param  aRole        [in] role to find matching ancestor for
-    * @return               the ancestor accessible with the given role, or
-    *                       nsnull if no match is found
+    * If an ancestor in this document exists with the given role, return it
+    * @param aDescendant Descendant to start search with
+    * @param aRole Role to find matching ancestor for
+    * @return The ancestor accessible with the given role, or nsnull if no match is found
     */
-   static nsAccessible * GetAncestorWithRole(nsAccessible *aDescendant,
-                                             PRUint32 aRole);
+   static already_AddRefed<nsIAccessible>
+     GetAncestorWithRole(nsIAccessible *aDescendant, PRUint32 aRole);
+
+   /**
+     * For an ARIA tree item , get the accessible that represents its conceptual parent.
+     * This method will use the correct method for the given way the tree is constructed.
+     * The conceptual parent is what the user sees as the parent, not the DOM or accessible parent.
+     * @param aStartTreeItem  The tree item to get the parent for
+     * @param aStartTreeItemContent  The content node for the tree item
+     * @param The tree item's parent, or null if none
+     */
+   static void
+     GetARIATreeItemParent(nsIAccessible *aStartTreeItem,
+                           nsIContent *aStartTreeItemContent,
+                           nsIAccessible **aTreeItemParent);
 
   /**
    * Return single or multi selectable container for the given item.
@@ -204,19 +177,20 @@ public:
    * @param  aAccessible  [in] the item accessible
    * @param  aState       [in] the state of the item accessible
    */
-  static nsAccessible *GetSelectableContainer(nsAccessible *aAccessible,
-                                              PRUint32 aState);
+  static already_AddRefed<nsIAccessible>
+    GetSelectableContainer(nsIAccessible *aAccessible, PRUint32 aState);
 
   /**
    * Return multi selectable container for the given item.
    */
-  static nsAccessible *GetMultiSelectableContainer(nsINode *aNode);
+  static already_AddRefed<nsIAccessible>
+    GetMultiSelectableContainer(nsIDOMNode *aNode);
 
   /**
    * Return true if the DOM node of given accessible has aria-selected="true"
    * attribute.
    */
-  static PRBool IsARIASelected(nsAccessible *aAccessible);
+  static PRBool IsARIASelected(nsIAccessible *aAccessible);
 
   /**
    * Return text accessible containing focus point of the given selection.
@@ -226,9 +200,9 @@ public:
    * @param aNode       [out, optional] the DOM node of text accessible
    * @return            text accessible
    */
-  static already_AddRefed<nsHyperTextAccessible>
+  static already_AddRefed<nsIAccessibleText>
     GetTextAccessibleFromSelection(nsISelection *aSelection,
-                                   nsINode **aNode = nsnull);
+                                   nsIDOMNode **aNode = nsnull);
 
   /**
    * Converts the given coordinates to coordinates relative screen.
@@ -243,7 +217,7 @@ public:
    */
   static nsresult ConvertToScreenCoords(PRInt32 aX, PRInt32 aY,
                                         PRUint32 aCoordinateType,
-                                        nsAccessNode *aAccessNode,
+                                        nsIAccessNode *aAccessNode,
                                         nsIntPoint *aCoords);
 
   /**
@@ -259,31 +233,29 @@ public:
    */
   static nsresult ConvertScreenCoordsTo(PRInt32 *aX, PRInt32 *aY,
                                         PRUint32 aCoordinateType,
-                                        nsAccessNode *aAccessNode);
+                                        nsIAccessNode *aAccessNode);
 
   /**
    * Returns coordinates relative screen for the top level window.
    *
    * @param aAccessNode  the accessible hosted in the window
    */
-  static nsIntPoint GetScreenCoordsForWindow(nsAccessNode *aAccessNode);
+  static nsIntPoint GetScreenCoordsForWindow(nsIAccessNode *aAccessNode);
 
   /**
    * Returns coordinates relative screen for the parent of the given accessible.
    *
    * @param aAccessNode  the accessible
    */
-  static nsIntPoint GetScreenCoordsForParent(nsAccessNode *aAccessNode);
+  static nsIntPoint GetScreenCoordsForParent(nsIAccessNode *aAccessNode);
 
   /**
    * Get the role map entry for a given DOM node. This will use the first
    * ARIA role if the role attribute provides a space delimited list of roles.
-   *
-   * @param aNode  [in] the DOM node to get the role map entry for
-   * @return        a pointer to the role map entry for the ARIA role, or nsnull
-   *                if none
+   * @param aNode  The DOM node to get the role map entry for
+   * @return       A pointer to the role map entry for the ARIA role, or nsnull if none
    */
-  static nsRoleMapEntry *GetRoleMapEntry(nsINode *aNode);
+  static nsRoleMapEntry* GetRoleMapEntry(nsIDOMNode *aNode);
 
   /**
    * Return the role of the given accessible.
@@ -396,6 +368,12 @@ public:
    * to platform accessibility APIs, should the children be pruned off?
    */
   static PRBool MustPrune(nsIAccessible *aAccessible);
+
+  /**
+   * Return true if the given node can be accessible and attached to
+   * the document's accessible tree.
+   */
+  static PRBool IsNodeRelevant(nsIDOMNode *aNode);
 
   /**
    * Search hint enum constants. Used by GetHeaderCellsFor() method.

@@ -57,8 +57,7 @@ function checkServices() {
   checkService("dirsvc", Ci.nsIDirectoryService);
   checkService("dirsvc", Ci.nsIProperties);
   checkService("prompt", Ci.nsIPromptService);
-  if ("nsIBrowserSearchService" in Ci)
-    checkService("search", Ci.nsIBrowserSearchService);
+  checkService("search", Ci.nsIBrowserSearchService);
   checkService("storage", Ci.mozIStorageService);
   checkService("vc", Ci.nsIVersionComparator);
   checkService("locale", Ci.nsILocaleService);

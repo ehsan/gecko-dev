@@ -424,7 +424,7 @@ NS_NewSVG##_elementName##Element(nsIContent **aResult,                       \
 nsresult                                                                     \
 NS_NewSVG##_elementName##Element(nsIContent **aResult,                       \
                                  nsINodeInfo *aNodeInfo,                     \
-                                 PRUint32 aFromParser)                       \
+                                 PRBool aFromParser)                         \
 {                                                                            \
   nsRefPtr<nsSVG##_elementName##Element> it =                                \
     new nsSVG##_elementName##Element(aNodeInfo, aFromParser);                \

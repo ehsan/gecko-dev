@@ -36,8 +36,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsRegion.h"
-
 #include "mozilla/ipc/IOThreadChild.h"
 
 #include "IPDLUnitTestProcessChild.h"
@@ -54,10 +52,6 @@ IPDLUnitTestProcessChild::Init()
     IPDLUnitTestChildInit(IOThreadChild::channel(),
                           ParentHandle(),
                           IOThreadChild::message_loop());
-
-    if (NS_FAILED(nsRegion::InitStatic()))
-      return false;
-
     return true;
 }
 

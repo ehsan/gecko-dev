@@ -235,20 +235,6 @@ _PlatformDeinitProfiler()
 
 //-----------------------------------------------------------------------------
 
-class ScopedLogging
-{
-public:
-    ScopedLogging()
-    {
-        NS_LogInit();
-    }
-
-    ~ScopedLogging()
-    {
-        NS_LogTerm();
-    }
-};
-
 class ScopedXPCOM : public nsIDirectoryServiceProvider2
 {
   public:

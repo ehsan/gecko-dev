@@ -605,13 +605,6 @@ class _StructField(_CompoundTypeComponent):
             ref = ExprDeref(ref)
         return ref
 
-    def constRefExpr(self, thisexpr=None):
-        # sigh, gross hack
-        refexpr = self.refExpr(thisexpr)
-        if 'Shmem' == self.ipdltype.name():
-            refexpr = ExprCast(refexpr, Type('Shmem', ref=1), const=1)
-        return refexpr
-
     def argVar(self):
         return ExprVar('_'+ self.name)
 
@@ -1495,12 +1488,6 @@ stmt.  Some types generate both kinds.'''
     def visitArrayType(self, t):
         return TypeVisitor.visitArrayType(self, t)
 
-    def visitShmemType(self, s):
-        if s in self.visited: return
-        self.visited.add(s)
-        self.usingTypedefs.append(Typedef(Type('mozilla::ipc::Shmem'),
-                                          'Shmem'))
-
     def visitVoidType(self, v): assert 0
     def visitMessageType(self, v): assert 0
     def visitProtocolType(self, v): assert 0
@@ -1600,11 +1587,9 @@ def _generateCxxStruct(sd):
                                     force_inline=1))
         get.addstmt(StmtReturn(f.refExpr()))
 
-        getconstdecl = deepcopy(get.decl)
-        getconstdecl.ret = f.constRefType()
-        getconstdecl.const = 1
-        getconst = MethodDefn(getconstdecl)
-        getconst.addstmt(StmtReturn(f.constRefExpr()))
+        getconst = deepcopy(get)
+        getconst.decl.ret = f.constRefType()
+        getconst.decl.const = 1
 
         struct.addstmts([ get, getconst, Whitespace.NL ])
 

@@ -2120,7 +2120,6 @@ class CallMethodHelper
     const jsid mIdxValueId;
 
     nsAutoTArray<nsXPTCVariant, 8> mDispatchParams;
-    uint8 mJSContextIndex; // TODO make const
     uint8 mOptArgcIndex; // TODO make const
 
     // Reserve space for one nsAutoString. We don't want the string itself
@@ -2170,8 +2169,6 @@ class CallMethodHelper
     nsXPTCVariant*
     GetDispatchParam(uint8 paramIndex)
     {
-        if (paramIndex >= mJSContextIndex)
-            paramIndex += 1;
         if (paramIndex >= mOptArgcIndex)
             paramIndex += 1;
         return &mDispatchParams[paramIndex];
@@ -2198,7 +2195,6 @@ public:
         , mCallee(ccx.GetTearOff()->GetNative())
         , mVTableIndex(ccx.GetMethodIndex())
         , mIdxValueId(ccx.GetRuntime()->GetStringID(XPCJSRuntime::IDX_VALUE))
-        , mJSContextIndex(PR_UINT8_MAX)
         , mOptArgcIndex(PR_UINT8_MAX)
         , mArgv(ccx.GetArgv())
         , mArgc(ccx.GetArgc())
@@ -2384,11 +2380,8 @@ CallMethodHelper::~CallMethodHelper()
                 delete (nsCString*) p;
             else if(dp->IsValCString())
                 delete (nsCString*) p;
-            else if(dp->IsValJSRoot())
-                JS_RemoveRoot(mCallContext, (jsval*)dp->ptr);
-        }   
+        }
     }
-
 }
 
 JSBool
@@ -2572,7 +2565,7 @@ CallMethodHelper::GatherAndConvertResults()
 
         if(paramInfo.IsRetval())
         {
-            if(!mCallContext.GetReturnValueWasSet() && type.TagPart() != nsXPTType::T_JSVAL)
+            if(!mCallContext.GetReturnValueWasSet())
                 mCallContext.SetRetVal(v);
         }
         else if(i < mArgc)
@@ -2660,17 +2653,12 @@ JSBool
 CallMethodHelper::InitializeDispatchParams()
 {
     const uint8 wantsOptArgc = mMethodInfo->WantsOptArgc() ? 1 : 0;
-    const uint8 wantsJSContext = mMethodInfo->WantsContext() ? 1 : 0;
     const uint8 paramCount = mMethodInfo->GetParamCount();
     uint8 requiredArgs = paramCount;
-    uint8 hasRetval = 0;
 
     // XXX ASSUMES that retval is last arg. The xpidl compiler ensures this.
     if(paramCount && mMethodInfo->GetParam(paramCount-1).IsRetval())
-    {
-        hasRetval = 1;
         requiredArgs--;
-    }
 
     if(mArgc < requiredArgs || wantsOptArgc)
     {
@@ -2687,29 +2675,12 @@ CallMethodHelper::InitializeDispatchParams()
         }
     }
 
-    if(wantsJSContext)
-    {
-        if(wantsOptArgc)
-            // Need to bump mOptArgcIndex up one here.
-            mJSContextIndex = mOptArgcIndex++;
-        else
-            mJSContextIndex = paramCount - hasRetval;
-    }
-
     // iterate through the params to clear flags (for safe cleanup later)
-    for(uint8 i = 0; i < paramCount + wantsJSContext + wantsOptArgc; i++)
+    for(uint8 i = 0; i < paramCount + wantsOptArgc; i++)
     {
         nsXPTCVariant* dp = mDispatchParams.AppendElement();
         dp->ClearFlags();
         dp->val.p = nsnull;
-    }
-
-    // Fill in the JSContext argument
-    if(wantsJSContext)
-    {
-        nsXPTCVariant* dp = &mDispatchParams[mJSContextIndex];
-        dp->type = nsXPTType::T_VOID;
-        dp->val.p = mCallContext;
     }
 
     // Fill in the optional_argc argument
@@ -2757,22 +2728,6 @@ CallMethodHelper::ConvertIndependentParams(JSBool* foundDependentParam)
         {
             dp->SetPtrIsData();
             dp->ptr = &dp->val;
-
-            if (type_tag == nsXPTType::T_JSVAL)
-            {
-                if (paramInfo.IsRetval())
-                {
-                    dp->ptr = mCallContext.GetRetVal();
-                }
-                else
-                {
-                    jsval *rootp = (jsval *)&dp->val.p;
-                    dp->ptr = rootp;
-                    *rootp = JSVAL_VOID;
-                    if (!JS_AddRoot(mCallContext, rootp))
-                        return JS_FALSE;
-                }
-            }
 
             if(type.IsPointer() &&
                type_tag != nsXPTType::T_INTERFACE &&
@@ -2858,12 +2813,7 @@ CallMethodHelper::ConvertIndependentParams(JSBool* foundDependentParam)
             // is really an 'out' param masquerading as an 'in' param.
             NS_ASSERTION(i < mArgc || paramInfo.IsOptional(),
                          "Expected either enough arguments or an optional argument");
-            if(i < mArgc)
-                src = mArgv[i];
-            else if(type_tag == nsXPTType::T_JSVAL)
-                src = JSVAL_VOID;
-            else
-                src = JSVAL_NULL;
+            src = i < mArgc ? mArgv[i] : JSVAL_NULL;
         }
 
         nsID param_iid;

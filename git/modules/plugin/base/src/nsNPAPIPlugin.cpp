@@ -116,10 +116,6 @@ using mozilla::PluginPRLibrary;
 using mozilla::plugins::PluginModuleParent;
 #endif
 
-#ifdef MOZ_X11
-#include "mozilla/X11Util.h"
-#endif
-
 using namespace mozilla::plugins::parent;
 
 // We should make this const...
@@ -1889,7 +1885,11 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
         inst->GetValueFromPlugin(NPPVpluginNeedsXEmbed, &needXEmbed);
       }
       if (windowless || needXEmbed) {
-        (*(Display **)result) = mozilla::DefaultXDisplay();
+#ifdef MOZ_WIDGET_GTK2
+        (*(Display **)result) = GDK_DISPLAY();
+#else
+        (*(Display **)result) = QX11Info::display();
+#endif
         return NPERR_NO_ERROR;
       }
     }
@@ -2062,12 +2062,6 @@ _getvalue(NPP npp, NPNVariable variable, void *result)
   }
 
    case NPNVsupportsCoreAnimationBool: {
-     *(NPBool*)result = PR_TRUE;
-
-     return NPERR_NO_ERROR;
-   }
-
-   case NPNVsupportsInvalidatingCoreAnimationBool: {
      *(NPBool*)result = PR_TRUE;
 
      return NPERR_NO_ERROR;

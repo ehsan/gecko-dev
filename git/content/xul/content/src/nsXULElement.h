@@ -353,9 +353,6 @@ public:
     void Set(void *aObject)
     {
         NS_ASSERTION(!mScriptObject.mObject, "Leaking script object.");
-        if (!aObject) {
-          return;
-        }
 
         nsresult rv = nsContentUtils::HoldScriptObject(mScriptObject.mLangID,
                                                        this,
@@ -449,10 +446,7 @@ public:
 
  */
 
-#define XUL_ELEMENT_TEMPLATE_GENERATED (1 << ELEMENT_TYPE_SPECIFIC_BITS_OFFSET)
-
-// Make sure we have space for our bit
-PR_STATIC_ASSERT(ELEMENT_TYPE_SPECIFIC_BITS_OFFSET < 32);
+#define XUL_ELEMENT_TEMPLATE_GENERATED 1 << NODE_TYPE_SPECIFIC_BITS_OFFSET
 
 class nsScriptEventHandlerOwnerTearoff;
 
@@ -580,13 +574,6 @@ public:
       mBindingParent = aBindingParent;
     }
 
-    /**
-     * Get the attr info for the given namespace ID and attribute name.
-     * The namespace ID must not be kNameSpaceID_Unknown and the name
-     * must not be null.
-     */
-    virtual nsAttrInfo GetAttrInfo(PRInt32 aNamespaceID, nsIAtom* aName) const;
-
 protected:
     // XXX This can be removed when nsNodeUtils::CloneAndAdopt doesn't need
     //     access to mPrototype anymore.
@@ -637,6 +624,13 @@ protected:
      */
     nsresult MakeHeavyweight();
 
+    /**
+     * Get the attr info for the given namespace ID and attribute name.
+     * The namespace ID must not be kNameSpaceID_Unknown and the name
+     * must not be null.
+     */
+    virtual nsAttrInfo GetAttrInfo(PRInt32 aNamespaceID, nsIAtom* aName) const;
+
     const nsAttrValue* FindLocalOrProtoAttr(PRInt32 aNameSpaceID,
                                             nsIAtom *aName) const {
         return nsXULElement::GetAttrInfo(aNameSpaceID, aName).mValue;
@@ -671,10 +665,8 @@ protected:
 
     nsIWidget* GetWindowWidget();
 
-    // attribute setters for widget
     nsresult HideWindowChrome(PRBool aShouldHide);
-    void SetChromeMargins(const nsAString* aValue);
-    void ResetChromeMargins();
+
     void SetTitlebarColor(nscolor aColor, PRBool aActive);
 
     void SetDrawsInTitlebar(PRBool aState);

@@ -105,16 +105,27 @@ function run_test()
   AddonManager.getAddonByID("test@mozilla.org", function(item) {
     // Initiate update
     item.findUpdates({
-      onCompatibilityUpdateAvailable: function(addon) {
-        do_throw("Should not have seen a compatibility update");
+      onNoCompatibilityUpdateAvailable: function(addon) {
+        do_throw("Should not have seen no compatibility update");
       },
 
       onUpdateAvailable: function(addon, install) {
-        do_throw("Should not have seen an available update");
+        ensure_test_completed();
+
+        do_check_eq(addon, a1);
+        do_check_eq(install.name, addon.name);
+        do_check_eq(install.version, "2.0");
+        do_check_eq(install.state, AddonManager.STATE_AVAILABLE);
+        do_check_eq(install.existingAddon, addon);
+
+        prepare_test({}, [
+          "onDownloadStarted",
+          "onDownloadEnded",
+        ], check_test_1);
+        install.install();
       },
 
-      onUpdateFinished: function(addon, error) {
-        do_check_eq(error, AddonManager.UPDATE_STATUS_DOWNLOAD_ERROR);
+      onUpdateFinished: function(addon) {
         do_check_true(gSeenExpectedURL);
         shutdownTest();
       }

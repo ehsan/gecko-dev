@@ -39,9 +39,10 @@
 #ifndef _nsAccCache_H_
 #define _nsAccCache_H_
 
-#include "nsIAccessible.h"
 #include "nsRefPtrHashtable.h"
 #include "nsCycleCollectionParticipant.h"
+
+class nsIAccessNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 // Accessible cache utils
@@ -52,11 +53,11 @@
  */
 template <class T>
 static PLDHashOperator
-ClearCacheEntry(const void* aKey, nsRefPtr<T>& aAccessible, void* aUserArg)
+ClearCacheEntry(const void* aKey, nsRefPtr<T>& aAccessNode, void* aUserArg)
 {
-  NS_ASSERTION(aAccessible, "Calling ClearCacheEntry with a NULL pointer!");
-  if (aAccessible)
-    aAccessible->Shutdown();
+  NS_ASSERTION(aAccessNode, "Calling ClearCacheEntry with a NULL pointer!");
+  if (aAccessNode)
+    aAccessNode->Shutdown();
 
   return PL_DHASH_REMOVE;
 }
@@ -76,7 +77,7 @@ ClearCache(nsRefPtrHashtable<nsVoidPtrHashKey, T> & aCache)
  */
 template <class T>
 static PLDHashOperator
-CycleCollectorTraverseCacheEntry(const void *aKey, T *aAccessible,
+CycleCollectorTraverseCacheEntry(const void *aKey, T *aAccessNode,
                                  void *aUserArg)
 {
   nsCycleCollectionTraversalCallback *cb =
@@ -84,7 +85,7 @@ CycleCollectorTraverseCacheEntry(const void *aKey, T *aAccessible,
 
   NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*cb, "accessible cache entry");
 
-  nsISupports *supports = static_cast<nsIAccessible*>(aAccessible);
+  nsISupports *supports = static_cast<nsIAccessNode*>(aAccessNode);
   cb->NoteXPCOMChild(supports);
   return PL_DHASH_NEXT;
 }

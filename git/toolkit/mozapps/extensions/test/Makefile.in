@@ -48,12 +48,14 @@ include $(DEPTH)/config/autoconf.mk
 
 MODULE = test_extensionmanager
 
-ifneq (mobile,$(MOZ_BUILD_APP))
- DIRS +=  \
-    xpinstall \
-    browser \
-    $(NULL)
+DIRS = \
+  xpinstall \
+  $(NULL)
+
+ifeq (browser,$(MOZ_BUILD_APP))
+ DIRS += browser
 endif
+
 
 XPCSHELL_TESTS = \
   xpcshell \
@@ -68,6 +70,6 @@ libs::
 		$(EXIT_ON_ERROR) \
 		for dir in $(ADDONSRC)/*; do \
 			base=`basename $$dir` ; \
-			(cd $$dir && zip -r $(TESTXPI)/$$base.xpi *) \
+			(cd $$dir && zip $(TESTXPI)/$$base.xpi *) \
 		done \
 	fi

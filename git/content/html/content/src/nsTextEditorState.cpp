@@ -165,7 +165,6 @@ public:
   NS_IMETHOD SetCaretVisibilityDuringSelection(PRBool aVisibility);
   NS_IMETHOD CharacterMove(PRBool aForward, PRBool aExtend);
   NS_IMETHOD CharacterExtendForDelete();
-  NS_IMETHOD CharacterExtendForBackspace();
   NS_IMETHOD WordMove(PRBool aForward, PRBool aExtend);
   NS_IMETHOD WordExtendForDelete(PRBool aForward);
   NS_IMETHOD LineMove(PRBool aForward, PRBool aExtend);
@@ -395,14 +394,6 @@ nsTextInputSelectionImpl::CharacterExtendForDelete()
 {
   if (mFrameSelection)
     return mFrameSelection->CharacterExtendForDelete();
-  return NS_ERROR_NULL_POINTER;
-}
-
-NS_IMETHODIMP
-nsTextInputSelectionImpl::CharacterExtendForBackspace()
-{
-  if (mFrameSelection)
-    return mFrameSelection->CharacterExtendForBackspace();
   return NS_ERROR_NULL_POINTER;
 }
 
@@ -685,7 +676,7 @@ nsTextInputListener::NotifySelectionChanged(nsIDOMDocument* aDoc, nsISelection* 
       nsCOMPtr<nsIDocument> doc = content->GetDocument();
       if (doc) 
       {
-        nsCOMPtr<nsIPresShell> presShell = doc->GetShell();
+        nsCOMPtr<nsIPresShell> presShell = doc->GetPrimaryShell();
         if (presShell) 
         {
           nsEventStatus status = nsEventStatus_eIgnore;
@@ -1126,7 +1117,7 @@ nsTextEditorState::PrepareEditor(const nsAString *aValue)
   } else {
     if (aValue) {
       // Set the correct value in the root node
-      rv = mBoundFrame->UpdateValueDisplay(PR_TRUE, PR_FALSE, aValue);
+      rv = mBoundFrame->UpdateValueDisplay(PR_FALSE, PR_FALSE, aValue);
       NS_ENSURE_SUCCESS(rv, rv);
     }
 
@@ -1323,11 +1314,12 @@ nsTextEditorState::DestroyEditor()
 void
 nsTextEditorState::UnbindFromFrame(nsTextControlFrame* aFrame)
 {
+  NS_ASSERTION(mBoundFrame, "Can't be unbound without being bound originally");
   NS_ENSURE_TRUE(mBoundFrame, );
 
   // If it was, however, it should be unbounded from the same frame.
-  NS_ASSERTION(!aFrame || aFrame == mBoundFrame, "Unbinding from the wrong frame");
-  NS_ENSURE_TRUE(!aFrame || aFrame == mBoundFrame, );
+  NS_ASSERTION(aFrame == mBoundFrame, "Unbinding from the wrong frame");
+  NS_ENSURE_TRUE(aFrame == mBoundFrame, );
 
   // We need to start storing the value outside of the editor if we're not
   // going to use it anymore, so retrieve it for now.
@@ -1726,14 +1718,8 @@ nsTextEditorState::SetValue(const nsAString& aValue, PRBool aUserInput)
           plaintextEditor->InsertText(insertValue);
         }
         if (!weakFrame.IsAlive()) {
-          // If the frame was destroyed because of a flush somewhere inside
-          // InsertText, mBoundFrame here will be false.  But it's also possible
-          // for the frame to go away because of another reason (such as deleting
-          // the existing selection -- see bug 574558), in which case we don't
-          // need to reset the value here.
-          if (!mBoundFrame) {
-            SetValue(newValue, PR_FALSE);
-          }
+          NS_ASSERTION(!mBoundFrame, "The frame should have been unbounded");
+          SetValue(newValue, PR_FALSE);
           valueSetter.Cancel();
           return;
         }
@@ -1770,7 +1756,7 @@ nsTextEditorState::SetValue(const nsAString& aValue, PRBool aUserInput)
     }
     nsString value(aValue);
     nsContentUtils::PlatformToDOMLineBreaks(value);
-    CopyUTF16toUTF8(value, *mValue);
+    *mValue = ToNewUTF8String(value);
 
     // Update the frame display if needed
     if (mBoundFrame) {

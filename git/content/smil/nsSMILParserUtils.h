@@ -75,7 +75,7 @@ public:
                               const nsISMILAnimationElement* aSrcElement,
                               const nsISMILAttr& aAttribute,
                               nsTArray<nsSMILValue>& aValuesArray,
-                              PRBool& aPreventCachingOfSandwich);
+                              PRBool& aCanCache);
 
   // Generic method that will run some code on each sub-section of an animation
   // element's "values" list.

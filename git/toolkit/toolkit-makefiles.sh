@@ -85,7 +85,6 @@ MAKEFILES_dom="
   dom/src/threads/Makefile
   dom/locales/Makefile
   dom/plugins/Makefile
-  js/jetpack/Makefile
 "
 
 MAKEFILES_editor="
@@ -122,11 +121,16 @@ MAKEFILES_xmlparser="
 MAKEFILES_gfx="
   gfx/Makefile
   gfx/ycbcr/Makefile
+  gfx/idl/Makefile
   gfx/layers/Makefile
+  gfx/public/Makefile
   gfx/src/Makefile
+  gfx/src/psshared/Makefile
   gfx/src/thebes/Makefile
   gfx/tests/Makefile
   gfx/thebes/Makefile
+  gfx/thebes/public/Makefile
+  gfx/thebes/src/Makefile
   gfx/qcms/Makefile
 "
 
@@ -200,10 +204,6 @@ MAKEFILES_xpconnect="
   js/src/xpconnect/tests/Makefile
   js/src/xpconnect/tests/components/Makefile
   js/src/xpconnect/tests/idl/Makefile
-"
-
-MAKEFILES_jsipc="
-  js/ipc/Makefile
 "
 
 MAKEFILES_jsdebugger="
@@ -314,10 +314,6 @@ MAKEFILES_libvorbis="
   media/libvorbis/include/vorbis/Makefile
 "
 
-MAKEFILES_libvpx="
-  media/libvpx/Makefile
-"
-
 MAKEFILES_libtheora="
   media/libtheora/Makefile
   media/libtheora/lib/Makefile
@@ -331,17 +327,10 @@ MAKEFILES_libogg="
   media/libogg/include/Makefile
   media/libogg/include/ogg/Makefile
 "
-
 MAKEFILES_libsydneyaudio="
   media/libsydneyaudio/Makefile
   media/libsydneyaudio/include/Makefile
   media/libsydneyaudio/src/Makefile
-"
-
-MAKEFILES_libnestegg="
-  media/libnestegg/Makefile
-  media/libnestegg/include/Makefile
-  media/libnestegg/src/Makefile
 "
 
 MAKEFILES_plugin="
@@ -374,6 +363,7 @@ MAKEFILES_netwerk="
   netwerk/protocol/data/Makefile
   netwerk/protocol/file/Makefile
   netwerk/protocol/ftp/Makefile
+  netwerk/protocol/gopher/Makefile
   netwerk/protocol/http/Makefile
   netwerk/protocol/res/Makefile
   netwerk/protocol/viewsource/Makefile
@@ -517,6 +507,8 @@ MAKEFILES_xpcom="
   xpcom/proxy/tests/Makefile
   xpcom/sample/Makefile
   xpcom/threads/Makefile
+  xpcom/tools/Makefile
+  xpcom/tools/registry/Makefile
   xpcom/stub/Makefile
   xpcom/windbgdlg/Makefile
   xpcom/system/Makefile
@@ -524,6 +516,8 @@ MAKEFILES_xpcom="
 
 MAKEFILES_xpcom_tests="
   xpcom/tests/Makefile
+  xpcom/tests/dynamic/Makefile
+  xpcom/tests/services/Makefile
   xpcom/tests/windows/Makefile
   xpcom/tests/static-checker/Makefile
 "
@@ -552,6 +546,7 @@ MAKEFILES_xpfe="
 MAKEFILES_embedding="
   embedding/Makefile
   embedding/base/Makefile
+  embedding/base/standalone/Makefile
   embedding/browser/Makefile
   embedding/browser/activex/src/Makefile
   embedding/browser/activex/src/common/Makefile
@@ -786,7 +781,6 @@ add_makefiles "
   $MAKEFILES_htmlparser
   $MAKEFILES_intl
   $MAKEFILES_xpconnect
-  $MAKEFILES_jsipc
   $MAKEFILES_jsdebugger
   $MAKEFILES_jsctypes
   $MAKEFILES_content
@@ -1200,25 +1194,12 @@ if [ "$MOZ_MEDIA" ]; then
  "
 fi
 
-if [ "$MOZ_VORBIS" ]; then
- add_makefiles "
-   $MAKEFILES_libvorbis
-   $MAKEFILES_libogg
- "
-fi
-
 if [ "$MOZ_OGG" ]; then
  add_makefiles "
+   $MAKEFILES_libvorbis
    $MAKEFILES_libtheora
+   $MAKEFILES_libogg
    content/media/ogg/Makefile
- "
-fi
-
-if [ "$MOZ_WEBM" ]; then
- add_makefiles "
-   $MAKEFILES_libvpx
-   $MAKEFILES_libnestegg
-   content/media/webm/Makefile
  "
 fi
 

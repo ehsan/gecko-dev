@@ -478,7 +478,7 @@ nsDOMWindowUtils::GetWidgetForElement(nsIDOMElement* aElement)
 
   nsCOMPtr<nsIContent> content = do_QueryInterface(aElement);
   nsIDocument* doc = content->GetCurrentDoc();
-  nsIPresShell* presShell = doc ? doc->GetShell() : nsnull;
+  nsIPresShell* presShell = doc ? doc->GetPrimaryShell() : nsnull;
 
   if (presShell) {
     nsIFrame* frame = content->GetPrimaryFrame();
@@ -486,7 +486,7 @@ nsDOMWindowUtils::GetWidgetForElement(nsIDOMElement* aElement)
       frame = presShell->GetRootFrame();
     }
     if (frame)
-      return frame->GetNearestWidget();
+      return frame->GetWindow();
   }
 
   return nsnull;
@@ -784,7 +784,7 @@ nsDOMWindowUtils::GetScrollXY(PRBool aFlushLayout, PRInt32* aScrollX, PRInt32* a
   }
 
   nsPoint scrollPos(0,0);
-  nsIPresShell *presShell = doc->GetShell();
+  nsIPresShell *presShell = doc->GetPrimaryShell();
   if (presShell) {
     nsIScrollableFrame* sf = presShell->GetRootScrollFrameAsScrollable();
     if (sf) {
@@ -1098,7 +1098,7 @@ nsDOMWindowUtils::SendQueryContentEvent(PRUint32 aType,
 
     // Fire the event on the widget at the point
     if (popupFrame) {
-      targetWidget = popupFrame->GetNearestWidget();
+      targetWidget = popupFrame->GetWindow();
     }
   }
 
@@ -1265,27 +1265,6 @@ nsDOMWindowUtils::GetVisitedDependentComputedStyle(
   static_cast<nsComputedDOMStyle*>(decl.get())->SetExposeVisitedStyle(PR_FALSE);
 
   return rv;
-}
-
-NS_IMETHODIMP
-nsDOMWindowUtils::EnterModalState()
-{
-  mWindow->EnterModalState();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMWindowUtils::LeaveModalState()
-{
-  mWindow->LeaveModalState();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMWindowUtils::IsInModalState(PRBool *retval)
-{
-  *retval = mWindow->IsInModalState();
-  return NS_OK;
 }
 
 NS_IMETHODIMP

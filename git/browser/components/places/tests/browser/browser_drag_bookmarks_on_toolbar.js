@@ -244,23 +244,13 @@ function nextTest() {
 
     setTimeout(nextTest, 0);
   }
-  else {
-    // Collapse the personal toolbar if needed.
-    if (wasCollapsed)
-      toolbar.collapsed = true;
+  else
     finish();
-  }
 }
 
-let toolbar = document.getElementById("PersonalToolbar");
-let wasCollapsed = toolbar.collapsed;
-
 function test() {
-  // Uncollapse the personal toolbar if needed.
-  if (wasCollapsed)
-    toolbar.collapsed = false;
-
   waitForExplicitFinish();
+
   nextTest();
 }
 

@@ -37,6 +37,7 @@
   
 /**
  * The nsIComponentManager interface.
+ * @status FROZEN
  */
 
 #include "nsISupports.idl"

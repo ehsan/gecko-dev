@@ -138,23 +138,21 @@ static PRLogModuleInfo* gSinkLogModuleInfo;
 
 //----------------------------------------------------------------------
 
-typedef nsGenericHTMLElement* (*contentCreatorCallback)(nsINodeInfo*, PRUint32 aFromParser);
+typedef nsGenericHTMLElement* (*contentCreatorCallback)(nsINodeInfo*, PRBool aFromParser);
 
 nsGenericHTMLElement*
-NS_NewHTMLNOTUSEDElement(nsINodeInfo *aNodeInfo, PRUint32 aFromParser)
+NS_NewHTMLNOTUSEDElement(nsINodeInfo *aNodeInfo, PRBool aFromParser)
 {
   NS_NOTREACHED("The element ctor should never be called");
   return nsnull;
 }
 
 #define HTML_TAG(_tag, _classname) NS_NewHTML##_classname##Element,
-#define HTML_HTMLELEMENT_TAG(_tag) NS_NewHTMLElement,
 #define HTML_OTHER(_tag) NS_NewHTMLNOTUSEDElement,
 static const contentCreatorCallback sContentCreatorCallbacks[] = {
   NS_NewHTMLUnknownElement,
 #include "nsHTMLTagList.h"
 #undef HTML_TAG
-#undef HTML_HTMLELEMENT_TAG
 #undef HTML_OTHER
   NS_NewHTMLUnknownElement
 };
@@ -499,6 +497,7 @@ MaybeSetForm(nsGenericHTMLElement* aContent, nsHTMLTag aNodeType,
     case eHTMLTag_button:
     case eHTMLTag_fieldset:
     case eHTMLTag_label:
+    case eHTMLTag_legend:
     case eHTMLTag_object:
     case eHTMLTag_input:
     case eHTMLTag_select:
@@ -530,9 +529,10 @@ HTMLContentSink::CreateContentObject(const nsIParserNode& aNode,
   nsCOMPtr<nsINodeInfo> nodeInfo;
 
   if (aNodeType == eHTMLTag_userdefined) {
-    nsAutoString lower;
-    nsContentUtils::ASCIIToLower(aNode.GetText(), lower);
-    nsCOMPtr<nsIAtom> name = do_GetAtom(lower);
+    NS_ConvertUTF16toUTF8 tmp(aNode.GetText());
+    ToLowerCase(tmp);
+
+    nsCOMPtr<nsIAtom> name = do_GetAtom(tmp);
     nodeInfo = mNodeInfoManager->GetNodeInfo(name, nsnull, kNameSpaceID_XHTML);
   }
   else if (mNodeInfoCache[aNodeType]) {
@@ -558,7 +558,7 @@ HTMLContentSink::CreateContentObject(const nsIParserNode& aNode,
 
 nsresult
 NS_NewHTMLElement(nsIContent** aResult, nsINodeInfo *aNodeInfo,
-                  PRUint32 aFromParser)
+                  PRBool aFromParser)
 {
   *aResult = nsnull;
 
@@ -579,7 +579,7 @@ NS_NewHTMLElement(nsIContent** aResult, nsINodeInfo *aNodeInfo,
 
 already_AddRefed<nsGenericHTMLElement>
 CreateHTMLElement(PRUint32 aNodeType, nsINodeInfo *aNodeInfo,
-                  PRUint32 aFromParser)
+                  PRBool aFromParser)
 {
   NS_ASSERTION(aNodeType <= NS_HTML_TAG_MAX ||
                aNodeType == eHTMLTag_userdefined,

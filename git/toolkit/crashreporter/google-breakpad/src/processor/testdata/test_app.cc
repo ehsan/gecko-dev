@@ -32,7 +32,7 @@
 //   google_breakpad/src/client/windows/releasestaticcrt/exception_handler.lib
 // Then run test_app to generate a dump, and dump_syms to create the .sym file.
 
-#include <stdio.h>
+#include <cstdio>
 
 #include "client/windows/handler/exception_handler.h"
 

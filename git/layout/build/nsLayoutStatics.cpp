@@ -80,7 +80,6 @@
 #include "nsTextFragment.h"
 #include "nsCSSRuleProcessor.h"
 #include "nsXMLHttpRequest.h"
-#include "nsWebSocket.h"
 #include "nsDOMThreadService.h"
 #include "nsHTMLDNSPrefetch.h"
 #include "nsHtml5Module.h"
@@ -89,9 +88,6 @@
 #include "nsFrameList.h"
 #include "nsListControlFrame.h"
 #include "nsFileControlFrame.h"
-#ifdef MOZ_SVG
-#include "nsSVGUtils.h"
-#endif
 
 #ifdef MOZ_XUL
 #include "nsXULPopupManager.h"
@@ -225,6 +221,11 @@ nsLayoutStatics::Initialize()
   nsMathMLOperators::AddRefTable();
 #endif
 
+#ifdef MOZ_SVG
+  if (NS_SVGEnabled())
+    nsContentDLF::RegisterSVG();
+#endif
+
 #ifndef MOZILLA_PLAINTEXT_EDITOR_ONLY
   nsEditProperty::RegisterAtoms();
   nsTextServicesDocument::RegisterAtoms();
@@ -273,6 +274,10 @@ nsLayoutStatics::Initialize()
     return rv;
   }
 
+#ifdef MOZ_MEDIA
+  nsHTMLMediaElement::InitMediaTypes();
+#endif
+
 #ifdef MOZ_SYDNEYAUDIO
   nsAudioStream::InitLibrary();
 #endif
@@ -316,10 +321,6 @@ nsLayoutStatics::Shutdown()
   nsFrame::DisplayReflowShutdown();
 #endif
   nsCellMap::Shutdown();
-
-#ifdef MOZ_SVG
-  nsSVGUtils::Shutdown();
-#endif
 
   // Release all of our atoms
   nsColorNames::ReleaseTable();
@@ -370,13 +371,14 @@ nsLayoutStatics::Shutdown()
 
   nsDOMThreadService::Shutdown();
 
+#ifdef MOZ_MEDIA
+  nsHTMLMediaElement::ShutdownMediaTypes();
+#endif
 #ifdef MOZ_SYDNEYAUDIO
   nsAudioStream::ShutdownLibrary();
 #endif
 
   nsXMLHttpRequest::ShutdownACCache();
-  
-  nsWebSocket::ReleaseGlobals();
   
   nsIPresShell::ReleaseStatics();
 

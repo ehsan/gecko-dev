@@ -50,7 +50,7 @@ class nsHTMLAudioElement : public nsHTMLMediaElement,
                            public nsIJSNativeInitializer
 {
 public:
-  nsHTMLAudioElement(nsINodeInfo *aNodeInfo, PRUint32 aFromParser = 0);
+  nsHTMLAudioElement(nsINodeInfo *aNodeInfo, PRBool aFromParser = PR_FALSE);
   virtual ~nsHTMLAudioElement();
 
   // nsISupports

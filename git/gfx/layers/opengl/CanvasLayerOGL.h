@@ -64,6 +64,7 @@ public:
   virtual void Updated(const nsIntRect& aRect);
 
   // LayerOGL implementation
+  virtual LayerType GetType() { return TYPE_CANVAS; }
   virtual Layer* GetLayer() { return this; }
   virtual void RenderLayer(int aPreviousFrameBuffer,
                            const nsIntPoint& aOffset);
@@ -79,7 +80,6 @@ protected:
 
   PRPackedBool mGLBufferIsPremultiplied;
   PRPackedBool mNeedsYFlip;
-  nsRefPtr<GLContext> mCanvasSurfaceAsGLContext;
 };
 
 } /* layers */

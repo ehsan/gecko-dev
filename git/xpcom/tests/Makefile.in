@@ -48,13 +48,7 @@ ifndef MOZ_ENABLE_LIBXUL
 MOZILLA_INTERNAL_API = 1
 endif
 
-DIRS		= external
-
-# Disabled because manifests make this test difficult to run correctly.
-# ifdef MOZ_ENABLE_LIBXUL
-# DIRS += xptinfo
-# endif
-
+DIRS		= dynamic services external
 ifeq ($(OS_ARCH),WINNT)
 DIRS		+= windows
 endif
@@ -92,6 +86,7 @@ CPP_UNIT_TESTS = \
                  TestCOMArray.cpp \
                  TestCOMPtr.cpp \
                  TestCOMPtrEq.cpp \
+                 TestFactory.cpp \
                  TestFile.cpp \
                  TestHashtables.cpp \
                  TestID.cpp \
@@ -99,8 +94,8 @@ CPP_UNIT_TESTS = \
                  TestObserverService.cpp \
                  TestPipe.cpp \
                  TestRefPtr.cpp \
+                 TestServMgr.cpp \
                  TestTextFormatter.cpp \
-                 TestCheckedInt.cpp \
                  $(NULL)
 
 ifndef MOZ_ENABLE_LIBXUL

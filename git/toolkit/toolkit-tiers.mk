@@ -104,7 +104,7 @@ endif
 #
 
 ifdef MOZ_IPC
-tier_platform_dirs += ipc js/ipc js/jetpack
+tier_platform_dirs += ipc
 endif
 
 tier_platform_dirs += \
@@ -142,23 +142,11 @@ ifdef MOZ_JSDEBUGGER
 tier_platform_dirs += js/jsd
 endif
 
-ifdef MOZ_VORBIS
-tier_platform_dirs += \
-		media/libvorbis \
-		$(NULL)
-endif
-
-ifdef MOZ_WEBM
-tier_platform_dirs += \
-		media/libnestegg \
-		media/libvpx \
-		$(NULL)
-endif
-
 ifdef MOZ_OGG
 tier_platform_dirs += \
 		media/libogg \
 		media/libtheora \
+		media/libvorbis \
 		$(NULL)
 endif
 
@@ -200,7 +188,7 @@ endif
 # "toolkit" - xpfe & toolkit
 #
 
-tier_platform_dirs += profile
+tier_platform_dirs += chrome profile
 
 # This must preceed xpfe
 ifdef MOZ_JPROF
@@ -269,11 +257,6 @@ endif
 
 ifdef MOZ_MAPINFO
 tier_platform_dirs	+= tools/codesighs
-endif
-
-ifdef MOZ_SERVICES_SYNC
-tier_platform_dirs += services/crypto
-tier_platform_dirs += services/sync
 endif
 
 ifdef ENABLE_TESTS

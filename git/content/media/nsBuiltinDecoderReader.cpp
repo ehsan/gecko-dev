@@ -89,7 +89,6 @@ VideoData* VideoData::Create(nsVideoInfo& aInfo,
                              ImageContainer* aContainer,
                              PRInt64 aOffset,
                              PRInt64 aTime,
-                             PRInt64 aEndTime,
                              const YCbCrBuffer& aBuffer,
                              PRBool aKeyframe,
                              PRInt64 aTimecode)
@@ -126,9 +125,9 @@ VideoData* VideoData::Create(nsVideoInfo& aInfo,
   PRUint32 picXLimit;
   PRUint32 picYLimit;
   if (!AddOverflow32(aInfo.mPicture.x, aInfo.mPicture.width, picXLimit) ||
-      picXLimit > aBuffer.mPlanes[0].mStride ||
+      picXLimit > PRUint32(aBuffer.mPlanes[0].mStride) ||
       !AddOverflow32(aInfo.mPicture.y, aInfo.mPicture.height, picYLimit) ||
-      picYLimit > aBuffer.mPlanes[0].mHeight)
+      picYLimit > PRUint32(aBuffer.mPlanes[0].mHeight))
   {
     // The specified picture dimensions can't be contained inside the video
     // frame, we'll stomp memory if we try to copy it. Fail.
@@ -136,7 +135,7 @@ VideoData* VideoData::Create(nsVideoInfo& aInfo,
     return nsnull;
   }
 
-  nsAutoPtr<VideoData> v(new VideoData(aOffset, aTime, aEndTime, aKeyframe, aTimecode));
+  nsAutoPtr<VideoData> v(new VideoData(aOffset, aTime, aKeyframe, aTimecode));
   // Currently our decoder only knows how to output to PLANAR_YCBCR
   // format.
   Image::Format format = Image::PLANAR_YCBCR;
@@ -214,12 +213,8 @@ nsresult nsBuiltinDecoderReader::GetBufferedBytes(nsTArray<ByteRange>& aRanges)
       }
       FindStartTime(startOffset, startTime);
       if (startTime != -1 &&
-          ((endTime = FindEndTime(endOffset)) != -1))
+          (endTime = FindEndTime(endOffset) != -1))
       {
-        NS_ASSERTION(startOffset < endOffset,
-                     "Start offset must be before end offset");
-        NS_ASSERTION(startTime < endTime,
-                     "Start time must be before end time");
         aRanges.AppendElement(ByteRange(startOffset,
                                         endOffset,
                                         startTime,
@@ -302,11 +297,6 @@ VideoData* nsBuiltinDecoderReader::FindStartTime(PRInt64 aOffset,
   }
 
   return videoData;
-}
-
-PRInt64 nsBuiltinDecoderReader::FindEndTime(PRInt64 aEndOffset)
-{
-  return -1;
 }
 
 template<class Data>

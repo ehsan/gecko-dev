@@ -70,7 +70,7 @@ nsrefcnt nsEditorTxnLog::Release(void)
 {
   NS_PRECONDITION(0 != mRefCnt, "dup release");
   if (--mRefCnt == 0) {
-    delete this;
+    NS_DELETEXPCOM(this);
     return 0;
   }
   return mRefCnt;
@@ -362,7 +362,8 @@ nsEditorTxnLog::PrintIndent(PRInt32 aIndentLevel)
 nsresult
 nsEditorTxnLog::Write(const char *aBuffer)
 {
-  NS_ENSURE_TRUE(aBuffer, NS_ERROR_NULL_POINTER);
+  if (!aBuffer)
+    return NS_ERROR_NULL_POINTER;
 
   if (mEditorLog)
     mEditorLog->Write(aBuffer);

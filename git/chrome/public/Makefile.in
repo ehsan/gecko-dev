@@ -43,9 +43,6 @@ include $(DEPTH)/config/autoconf.mk
 
 MODULE = chrome
 
-XPIDLSRCS = \
-  nsIChromeRegistry.idl \
-  nsIToolkitChromeRegistry.idl \
-  $(NULL)
+XPIDLSRCS = nsIToolkitChromeRegistry.idl
 
 include $(topsrcdir)/config/rules.mk

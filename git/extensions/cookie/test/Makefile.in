@@ -58,10 +58,6 @@ _TEST_FILES = \
   image1.png^headers^ \
   image2.png \
   image2.png^headers^ \
-  beltzner.jpg \
-  beltzner.jpg^headers^ \
-  damonbowling.jpg \
-  damonbowling.jpg^headers^ \
   test1.css \
   test1.css^headers^ \
   test2.css \

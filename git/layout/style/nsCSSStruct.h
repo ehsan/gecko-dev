@@ -283,8 +283,6 @@ struct nsCSSFont : public nsCSSStruct {
   nsCSSValue mSize;
   nsCSSValue mSizeAdjust; // NEW
   nsCSSValue mStretch; // NEW
-  nsCSSValue mFontFeatureSettings;
-  nsCSSValue mFontLanguageOverride;
 
 #ifdef MOZ_MATHML
   nsCSSValue mScriptLevel; // Integer values mean "relative", Number values mean "absolute" 

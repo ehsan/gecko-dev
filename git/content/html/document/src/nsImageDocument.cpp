@@ -511,7 +511,7 @@ nsImageDocument::ScrollImageTo(PRInt32 aX, PRInt32 aY, PRBool restoreImage)
     FlushPendingNotifications(Flush_Layout);
   }
 
-  nsIPresShell *shell = GetShell();
+  nsIPresShell *shell = GetPrimaryShell();
   if (!shell)
     return NS_OK;
 
@@ -687,7 +687,7 @@ nsImageDocument::CheckOverflowing(PRBool changeState)
    * presentatation through style resolution is potentially dangerous.
    */
   {
-    nsIPresShell *shell = GetShell();
+    nsIPresShell *shell = GetPrimaryShell();
     if (!shell) {
       return NS_OK;
     }

@@ -35,12 +35,13 @@
  *
  * ***** END LICENSE BLOCK *****
  */
-Components.utils.import("resource://gre/modules/AddonRepository.jsm");
 
 const PREF_GETADDONS_GETRECOMMENDED      = "extensions.getAddons.recommended.url";
 
 do_load_httpd_js();
 var server;
+var addonRepo;
+
 var RESULTS = [
   -1,
   -1,
@@ -84,10 +85,13 @@ function run_test()
   // Point the addons repository to the test server
   Services.prefs.setCharPref(PREF_GETADDONS_GETRECOMMENDED, "http://localhost:4444/test_bug424262.xml");
   
-  do_check_neq(AddonRepository, null);
+  addonRepo = Components.classes["@mozilla.org/extensions/addon-repository;1"]
+                        .getService(Components.interfaces.nsIAddonRepository);
+
+  do_check_neq(addonRepo, null);
 
   do_test_pending();
   // Pull some results.
-  AddonRepository.retrieveRecommendedAddons(RESULTS.length, RecommendedCallback);
+  addonRepo.retrieveRecommendedAddons(RESULTS.length, RecommendedCallback);
 }
 

@@ -46,10 +46,7 @@ const Ci = Components.interfaces;
 const Cr = Components.results;
 const Cu = Components.utils;
 
-// Use places-teardown to ensure we run last in the shutdown process.
-// Any other implementer should use places-shutdown instead, since teardown is
-// where things really break.
-const kTopicShutdown = "places-teardown";
+const kTopicShutdown = "places-shutdown";
 const kSyncFinished = "places-sync-finished";
 const kDebugStopSync = "places-debug-stop-sync";
 const kDebugStartSync = "places-debug-start-sync";
@@ -381,7 +378,16 @@ nsPlacesDBFlush.prototype = {
   //////////////////////////////////////////////////////////////////////////////
   //// nsISupports
 
+  classDescription: "Used to synchronize the temporary and permanent tables of Places",
   classID: Components.ID("c1751cfc-e8f1-4ade-b0bb-f74edfb8ef6a"),
+  contractID: "@mozilla.org/places/sync;1",
+
+  // Registering in these categories makes us get initialized when either of
+  // those listeners would be notified.
+  _xpcom_categories: [
+    { category: "bookmark-observers" },
+    { category: "history-observers" },
+  ],
 
   QueryInterface: XPCOMUtils.generateQI([
     Ci.nsIObserver,
@@ -396,4 +402,7 @@ nsPlacesDBFlush.prototype = {
 //// Module Registration
 
 let components = [nsPlacesDBFlush];
-var NSGetFactory = XPCOMUtils.generateNSGetFactory(components);
+function NSGetModule(compMgr, fileSpec)
+{
+  return XPCOMUtils.generateModule(components);
+}

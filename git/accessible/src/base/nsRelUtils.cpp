@@ -40,7 +40,6 @@
 
 #include "nsAccessibilityService.h"
 #include "nsAccessNode.h"
-#include "nsCoreUtils.h"
 
 #include "nsIDOMDocument.h"
 #include "nsIDOMElement.h"
@@ -91,7 +90,10 @@ nsRelUtils::AddTargetFromContent(PRUint32 aRelationType,
   if (!aContent)
     return NS_OK_NO_RELATION_TARGET;
 
-  nsAccessible* accessible = GetAccService()->GetAccessible(aContent);
+  nsCOMPtr<nsIDOMNode> node(do_QueryInterface(aContent));
+
+  nsCOMPtr<nsIAccessible> accessible;
+  GetAccService()->GetAccessibleFor(node, getter_AddRefs(accessible));
   return AddTarget(aRelationType, aRelation, accessible);
 }
 

@@ -150,7 +150,7 @@ nsProxyObjectManager::Shutdown()
     NS_ASSERTION(!gInstance, "Destructor didn't null gInstance?");
 }
 
-nsresult
+NS_IMETHODIMP 
 nsProxyObjectManager::Create(nsISupports* outer, const nsIID& aIID,
                              void* *aInstancePtr)
 {
@@ -290,7 +290,7 @@ nsProxyObjectManager::GetClass(REFNSIID aIID, nsProxyEventClass **aResult)
     }
 
     nsIInterfaceInfoManager *iim =
-        xptiInterfaceInfoManager::GetSingleton();
+        xptiInterfaceInfoManager::GetInterfaceInfoManagerNoAddRef();
     if (!iim)
         return NS_ERROR_FAILURE;
 

@@ -125,7 +125,7 @@ richlistitem[type="download"] button {
   -moz-border-radius: @toolbarbuttonCornerRadius@;
   -moz-box-shadow: @loweredShadow@;
   background: @toolbarbuttonBackground@;
-  background-origin: border-box;
+  -moz-background-origin: border;
 }
 
 #clearListButton:hover:active:not([disabled="true"]) {

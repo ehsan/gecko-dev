@@ -266,7 +266,7 @@ var PluginInstallService = {
 
   getPidForInstall: function(install) {
     for (let i = 0; i < this._xpiPlugins.length; i++) {
-      if (install.sourceURI.spec == this._xpiPlugins[i].XPILocation)
+      if (install.sourceURL == this._xpiPlugins[i].XPILocation)
         return this._xpiPlugins[i].pid;
     }
     return -1;
@@ -289,9 +289,9 @@ var PluginInstallService = {
     gPluginInstaller.pluginInstallationProgress(pid, DOWNLOAD_FINISHED, null);
   },
 
-  onDownloadFailed: function(install) {
+  onDownloadFailed: function(install, error) {
     var pid = this.getPidForInstall(install);
-    switch (install.error) {
+    switch (error) {
     case AddonManager.ERROR_NETWORK_FAILURE:
       var errorMsg = getLocalizedError("error-228");
       break;
@@ -321,7 +321,7 @@ var PluginInstallService = {
     this._fireFinishedNotification();
   },
 
-  onInstallFailed: function(install) {
+  onInstallFailed: function(install, error) {
     var pid = this.getPidForInstall(install);
     gPluginInstaller.pluginInstallationProgress(pid, INSTALL_FINISHED,
                                                 getLocalizedError("error-203"));

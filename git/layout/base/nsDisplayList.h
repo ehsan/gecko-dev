@@ -118,7 +118,7 @@ class nsDisplayItem;
  * available from the prescontext/presshell, but we copy them into the builder
  * for faster/more convenient access.
  */
-class nsDisplayListBuilder {
+class NS_STACK_CLASS nsDisplayListBuilder {
 public:
   typedef mozilla::FramePropertyDescriptor FramePropertyDescriptor;
   typedef mozilla::FrameLayerBuilder FrameLayerBuilder;
@@ -235,14 +235,11 @@ public:
    */
   nsIFrame* GetIgnoreScrollFrame() { return mIgnoreScrollFrame; }
   /**
-   * Calling this setter makes us:
-   * 1. include all positioned descendant frames in the display list,
-   *    wherever they may be positioned (even outside the dirty rects).
-   * 2. exclude all leaf frames that does not have the NS_FRAME_SELECTED_CONTENT
-   *    bit.
+   * Calling this setter makes us ignore all dirty rects and include all
+   * descendant frames in the display list, wherever they may be positioned.
    */
-  void SetSelectedFramesOnly() { mSelectedFramesOnly = PR_TRUE; }
-  PRBool GetSelectedFramesOnly() { return mSelectedFramesOnly; }
+  void SetPaintAllFrames() { mPaintAllFrames = PR_TRUE; }
+  PRBool GetPaintAllFrames() { return mPaintAllFrames; }
   /**
    * Calling this setter makes us compute accurate visible regions at the cost
    * of performance if regions get very complex.
@@ -403,6 +400,10 @@ public:
   NS_DECLARE_FRAME_PROPERTY(OutOfFlowDirtyRectProperty, nsIFrame::DestroyRect)
 
 private:
+  // This class is only used on stack, so we don't have to worry about leaking
+  // it.  Don't let us be heap-allocated!
+  void* operator new(size_t sz) CPP_THROW_NEW;
+  
   struct PresShellState {
     nsIPresShell* mPresShell;
     nsIFrame*     mCaretFrame;
@@ -429,7 +430,7 @@ private:
   PRPackedBool                   mEventDelivery;
   PRPackedBool                   mIsBackgroundOnly;
   PRPackedBool                   mIsAtRootOfPseudoStackingContext;
-  PRPackedBool                   mSelectedFramesOnly;
+  PRPackedBool                   mPaintAllFrames;
   PRPackedBool                   mAccurateVisibleRegions;
   // True when we're building a display list that's directly or indirectly
   // under an nsDisplayTransform
@@ -1256,7 +1257,7 @@ private:
 class nsDisplayBackground : public nsDisplayItem {
 public:
   nsDisplayBackground(nsIFrame* aFrame) : nsDisplayItem(aFrame) {
-    mIsThemed = mFrame->IsThemed(&mThemeTransparency);
+    mIsThemed = mFrame->IsThemed();
     MOZ_COUNT_CTOR(nsDisplayBackground);
   }
 #ifdef NS_BUILD_REFCNT_LOGGING
@@ -1277,9 +1278,8 @@ public:
   virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx);
   NS_DISPLAY_DECL_NAME("Background")
 private:
-  /* Used to cache mFrame->IsThemed() since it isn't a cheap call */
-  PRPackedBool mIsThemed;
-  nsITheme::Transparency mThemeTransparency;
+    /* Used to cache mFrame->IsThemed() since it isn't a cheap call */
+    PRPackedBool mIsThemed;
 };
 
 /**

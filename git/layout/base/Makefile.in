@@ -58,8 +58,6 @@ XPIDLSRCS	= \
 		nsIStyleSheetService.idl	\
 		$(NULL)
 
-EXPORTS_NAMESPACES = mozilla
-
 EXPORTS		= \
 		FrameLayerBuilder.h \
 		FramePropertyTable.h \
@@ -90,14 +88,9 @@ EXPORTS		= \
 		nsStyleConsts.h \
 		$(NULL)
 
-EXPORTS_mozilla = \
-  PaintTracker.h \
-  $(NULL)
-
 CPPSRCS		= \
 		FrameLayerBuilder.cpp \
 		FramePropertyTable.cpp \
-		RestyleTracker.cpp \
 		nsCSSColorUtils.cpp \
 		nsCSSFrameConstructor.cpp \
 		nsCSSRendering.cpp \
@@ -121,7 +114,6 @@ CPPSRCS		= \
 		nsRefreshDriver.cpp \
 		nsStyleChangeList.cpp \
 		nsStyleSheetService.cpp \
-		PaintTracker.cpp \
 		$(NULL)
 
 ifndef MOZ_XUL

@@ -189,8 +189,7 @@ pluginDraw(InstanceData* instanceData, NPCocoaEvent* event)
 
     // Initialize a rectangular path.
     CGMutablePathRef path = CGPathCreateMutable();
-    CGRect bounds = CGRectMake(10.0, 10.0, PR_MAX(0.0, windowWidth - 20.0),
-                               PR_MAX(0.0, windowHeight - 20.0));
+    CGRect bounds = CGRectMake(10.0, 10.0, windowWidth - 20.0, windowHeight - 20.0);
     CGPathAddRect(path, NULL, bounds);
 
     // Initialize an attributed string.
@@ -211,10 +210,8 @@ pluginDraw(InstanceData* instanceData, NPCocoaEvent* event)
     // Create the frame and draw it into the graphics context
     CTFrameRef frame = CTFramesetterCreateFrame(framesetter, CFRangeMake(0, 0), path, NULL);
     CFRelease(framesetter);
-    if (frame) {
-      CTFrameDraw(frame, cgContext);
-      CFRelease(frame);
-    }
+    CTFrameDraw(frame, cgContext);
+    CFRelease(frame);
 
     // restore the cgcontext gstate
     CGContextRestoreGState(cgContext);

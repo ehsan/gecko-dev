@@ -147,7 +147,6 @@ extern "C" long TSMProcessRawKeyEvent(EventRef carbonEvent);
   // rects that were invalidated during a draw, so have pending drawing
   NSMutableArray* mPendingDirtyRects;
   BOOL mPendingFullDisplay;
-  BOOL mPendingDisplay;
 
   // Holds our drag service across multiple drag calls. The reference to the
   // service is obtained when the mouse enters the view and is released when
@@ -162,9 +161,8 @@ extern "C" long TSMProcessRawKeyEvent(EventRef carbonEvent);
   // class) -- for some reason TSMProcessRawKeyEvent() doesn't work with them.
   TSMDocumentID mPluginTSMDoc;
 #endif
-  BOOL mPluginComplexTextInputRequested;
 
-  NSOpenGLContext *mGLContext;
+  NSOpenGLContext *mContext;
 
   // Simple gestures support
   //
@@ -213,7 +211,6 @@ extern "C" long TSMProcessRawKeyEvent(EventRef carbonEvent);
 #ifndef NP_NO_CARBON
 - (void) processPluginKeyEvent:(EventRef)aKeyEvent;
 #endif
-- (void)pluginRequestsComplexTextInputForCurrentEvent;
 
 - (void)update;
 - (void)lockFocus;
@@ -350,8 +347,6 @@ public:
 
   NS_IMETHOD        SetPluginEventModel(int inEventModel);
   NS_IMETHOD        GetPluginEventModel(int* outEventModel);
-
-  NS_IMETHOD        StartComplexTextInputForCurrentEvent();
 
   virtual nsTransparencyMode GetTransparencyMode();
   virtual void                SetTransparencyMode(nsTransparencyMode aMode);
@@ -500,9 +495,7 @@ protected:
   PRPackedBool          mPluginIsCG; // true if this is a CoreGraphics plugin
 
   NP_CGContext          mPluginCGContext;
-#ifndef NP_NO_QUICKDRAW
   NP_Port               mPluginQDPort;
-#endif
   nsIPluginInstanceOwner* mPluginInstanceOwner; // [WEAK]
 
   static PRUint32 sLastInputEventCount;

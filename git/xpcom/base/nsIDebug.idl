@@ -38,6 +38,7 @@
 #include "nsISupports.idl"
 
 /**
+ * @status FROZEN
  *   For use by consumers in scripted languages (JavaScript, Java, Python,
  *   Perl, ...).
  *

@@ -182,11 +182,8 @@
               catch (e) {
               }
             }
-
-            if (!(aFlags & this.webNavigation.LOAD_FLAGS_FROM_EXTERNAL))
-              this.userTypedClear++;
-
             try {
+              this.userTypedClear++;
               this.webNavigation.loadURI(aURI, aFlags, aReferrerURI, aPostData, null);
             } finally {
               if (this.userTypedClear)
@@ -315,7 +312,7 @@
       
       <property name="webProgress"
                 readonly="true"
-                onget="return this.QueryInterface(Components.interfaces.nsIFrameLoaderOwner).frameLoader.webProgress;"/>
+                onget="return this.docShell.QueryInterface(Components.interfaces.nsIInterfaceRequestor).getInterface(Components.interfaces.nsIWebProgress);"/>
 
       <field name="_contentWindow">null</field>
 

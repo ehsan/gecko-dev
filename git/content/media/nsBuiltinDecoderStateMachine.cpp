@@ -76,7 +76,7 @@ extern PRLogModuleInfo* gBuiltinDecoderLog;
 // we'll only go into BUFFERING state if we've got audio and have queued
 // less than LOW_AUDIO_MS of audio, or if we've got video and have queued
 // less than LOW_VIDEO_FRAMES frames.
-static const PRUint32 LOW_AUDIO_MS = 300;
+static const PRUint32 LOW_AUDIO_MS = 100;
 
 // If more than this many ms of decoded audio is queued, we'll hold off
 // decoding more audio.
@@ -91,9 +91,6 @@ const unsigned AMPLE_AUDIO_MS = 2000;
 // less than LOW_AUDIO_MS of audio, or if we've got video and have queued
 // less than LOW_VIDEO_FRAMES frames.
 static const PRUint32 LOW_VIDEO_FRAMES = 1;
-
-// Arbitrary "frame duration" when playing only audio.
-static const int AUDIO_DURATION_MS = 40;
 
 nsBuiltinDecoderStateMachine::nsBuiltinDecoderStateMachine(nsBuiltinDecoder* aDecoder,
                                                            nsBuiltinDecoderReader* aReader) :
@@ -110,7 +107,7 @@ nsBuiltinDecoderStateMachine::nsBuiltinDecoderStateMachine(nsBuiltinDecoder* aDe
   mCurrentFrameTime(0),
   mAudioStartTime(-1),
   mAudioEndTime(-1),
-  mVideoFrameEndTime(-1),
+  mVideoFrameTime(-1),
   mVolume(1.0),
   mSeekable(PR_TRUE),
   mPositionChangeQueued(PR_FALSE),
@@ -129,13 +126,10 @@ nsBuiltinDecoderStateMachine::~nsBuiltinDecoderStateMachine()
 
 PRBool nsBuiltinDecoderStateMachine::HasFutureAudio() const {
   mDecoder->GetMonitor().AssertCurrentThreadIn();
-  PRBool aboveLowAudioThreshold = PR_FALSE;
-  if (mAudioEndTime != -1) {
-    aboveLowAudioThreshold = mAudioEndTime - mCurrentFrameTime + mStartTime > LOW_AUDIO_MS;
-  }
   return HasAudio() &&
-    !mAudioCompleted &&
-    (mReader->mAudioQueue.GetSize() > 0 || aboveLowAudioThreshold);
+         !mAudioCompleted &&
+         (mReader->mAudioQueue.GetSize() > 0 ||
+         mAudioEndTime - mCurrentFrameTime + mStartTime > LOW_AUDIO_MS);
 }
 
 PRBool nsBuiltinDecoderStateMachine::HaveNextFrameData() const {
@@ -178,7 +172,7 @@ void nsBuiltinDecoderStateMachine::DecodeLoop()
   // After the audio decode fills with more than audioPumpThresholdMs ms
   // of decoded audio, we'll start to check whether the audio or video decode
   // is falling behind.
-  const unsigned audioPumpThresholdMs = LOW_AUDIO_MS * 2;
+  const unsigned audioPumpThresholdMs = 250;
 
   // Main decode loop.
   while (videoPlaying || audioPlaying) {
@@ -227,10 +221,8 @@ void nsBuiltinDecoderStateMachine::DecodeLoop()
     {
       MonitorAutoEnter mon(mDecoder->GetMonitor());
       currentTime = mCurrentFrameTime + mStartTime;
-      audioDecoded = mReader->mAudioQueue.Duration();
-      if (mAudioEndTime != -1) {
-        audioDecoded += mAudioEndTime - currentTime;
-      }
+      audioDecoded = mReader->mAudioQueue.Duration() +
+                     mAudioEndTime - currentTime;
       initialDownloadPosition =
         mDecoder->GetCurrentStream()->GetCachedDataEnd(mDecoder->mDecoderPosition);
     }
@@ -250,7 +242,7 @@ void nsBuiltinDecoderStateMachine::DecodeLoop()
       videoPlaying = mReader->DecodeVideoFrame(skipToNextKeyframe, currentTime);
       {
         MonitorAutoEnter mon(mDecoder->GetMonitor());
-        if (mDecoder->mDecoderPosition > initialDownloadPosition) {
+        if (mDecoder->mDecoderPosition >= initialDownloadPosition) {
           mBufferExhausted = PR_TRUE;
         }
       }
@@ -266,7 +258,7 @@ void nsBuiltinDecoderStateMachine::DecodeLoop()
       audioPlaying = mReader->DecodeAudioData();
       {
         MonitorAutoEnter mon(mDecoder->GetMonitor());
-        if (mDecoder->mDecoderPosition > initialDownloadPosition) {
+        if (mDecoder->mDecoderPosition >= initialDownloadPosition) {
           mBufferExhausted = PR_TRUE;
         }
       }
@@ -588,8 +580,7 @@ PRInt64 nsBuiltinDecoderStateMachine::GetDuration()
 
 void nsBuiltinDecoderStateMachine::SetDuration(PRInt64 aDuration)
 {
-  NS_ASSERTION(NS_IsMainThread() || mDecoder->OnStateMachineThread(),
-    "Should be on main or state machine thread.");
+  NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
   mDecoder->GetMonitor().AssertCurrentThreadIn();
 
   if (mStartTime != -1) {
@@ -639,7 +630,7 @@ void nsBuiltinDecoderStateMachine::ResetPlayback()
 {
   NS_ASSERTION(IsCurrentThread(mDecoder->mStateMachineThread),
                "Should be on state machine thread.");
-  mVideoFrameEndTime = -1;
+  mVideoFrameTime = -1;
   mAudioStartTime = -1;
   mAudioEndTime = -1;
   mAudioCompleted = PR_FALSE;
@@ -897,7 +888,7 @@ nsresult nsBuiltinDecoderStateMachine::Run()
                 RenderVideoFrame(video);
                 if (!audio) {
                   NS_ASSERTION(video->mTime <= seekTime &&
-                               seekTime <= video->mEndTime,
+                               seekTime <= video->mTime + mReader->GetInfo().mCallbackPeriod,
                                "Seek target should lie inside the first frame after seek");
                   mPlayDuration = TimeDuration::FromMilliseconds(seekTime);
                 }
@@ -993,7 +984,7 @@ nsresult nsBuiltinDecoderStateMachine::Run()
                  (HasAudio() && !mAudioCompleted)));
 
         if (mAudioStream) {
-          // Close the audio stream so that next time audio is used a new stream
+          // Close the audop stream so that next time audio is used a new stream
           // is created. The StopPlayback call also resets the IsPlaying() state
           // so audio is restarted correctly.
           StopPlayback(AUDIO_SHUTDOWN);
@@ -1006,7 +997,7 @@ nsresult nsBuiltinDecoderStateMachine::Run()
         StopDecodeThreads();
 
         if (mDecoder->GetState() == nsBuiltinDecoder::PLAY_STATE_PLAYING) {
-          PRInt64 videoTime = HasVideo() ? mVideoFrameEndTime : 0;
+          PRInt64 videoTime = HasVideo() ? (mVideoFrameTime + mReader->GetInfo().mCallbackPeriod) : 0;
           PRInt64 clockTime = NS_MAX(mEndTime, NS_MAX(videoTime, GetAudioClock()));
           UpdatePlaybackPosition(clockTime);
           {
@@ -1066,12 +1057,11 @@ void nsBuiltinDecoderStateMachine::AdvanceFrame()
     }
 
     if (HasAudio() && mAudioStartTime == -1 && !mAudioCompleted) {
-      // We've got audio (so we should sync off the audio clock), but we've not
-      // played a sample on the audio thread, so we can't get a time from the
-      // audio clock. Just wait and then return, to give the audio clock time
-      // to tick.  This should really wait for a specific signal from the audio
-      // thread rather than polling after a sleep.  See bug 568431 comment 4.
-      Wait(AUDIO_DURATION_MS);
+      // We've got audio (so we should sync off the audio clock), but we've
+      // not played a sample on the audio thread, so we can't get a time
+      // from the audio clock. Just wait and then return, to give the audio
+      // clock time to tick.
+      Wait(mReader->GetInfo().mCallbackPeriod);
       return;
     }
 
@@ -1099,7 +1089,7 @@ void nsBuiltinDecoderStateMachine::AdvanceFrame()
     if (mReader->mVideoQueue.GetSize() > 0) {
       VideoData* data = mReader->mVideoQueue.PeekFront();
       while (clock_time >= data->mTime) {
-        mVideoFrameEndTime = data->mEndTime;
+        mVideoFrameTime = data->mTime;
         videoData = data;
         mReader->mVideoQueue.PopFront();
         mDecoder->UpdatePlaybackOffset(data->mOffset);
@@ -1109,7 +1099,6 @@ void nsBuiltinDecoderStateMachine::AdvanceFrame()
       }
     }
 
-    PRInt64 frameDuration = AUDIO_DURATION_MS;
     if (videoData) {
       // Decode one frame and display it
       NS_ASSERTION(videoData->mTime >= mStartTime, "Should have positive frame time");
@@ -1120,16 +1109,15 @@ void nsBuiltinDecoderStateMachine::AdvanceFrame()
         RenderVideoFrame(videoData);
       }
       mDecoder->GetMonitor().NotifyAll();
-      frameDuration = videoData->mEndTime - videoData->mTime;
       videoData = nsnull;
     }
 
     // Cap the current time to the larger of the audio and video end time.
     // This ensures that if we're running off the system clock, we don't
     // advance the clock to after the media end time.
-    if (mVideoFrameEndTime != -1 || mAudioEndTime != -1) {
+    if (mVideoFrameTime != -1 || mAudioEndTime != -1) {
       // These will be non -1 if we've displayed a video frame, or played an audio sample.
-      clock_time = NS_MIN(clock_time, NS_MAX(mVideoFrameEndTime, mAudioEndTime));
+      clock_time = NS_MIN(clock_time, NS_MAX(mVideoFrameTime, mAudioEndTime));
       if (clock_time - mStartTime > mCurrentFrameTime) {
         // Only update the playback position if the clock time is greater
         // than the previous playback position. The audio clock can
@@ -1145,7 +1133,7 @@ void nsBuiltinDecoderStateMachine::AdvanceFrame()
     // ready state. Post an update to do so.
     UpdateReadyState();
 
-    Wait(frameDuration);
+    Wait(mReader->GetInfo().mCallbackPeriod);
   } else {
     if (IsPlaying()) {
       StopPlayback(AUDIO_PAUSE);
@@ -1257,6 +1245,8 @@ void nsBuiltinDecoderStateMachine::LoadMetadata()
 
   LOG(PR_LOG_DEBUG, ("Loading Media Headers"));
 
+  nsMediaStream* stream = mDecoder->mStream;
+
   {
     MonitorAutoExit exitMon(mDecoder->GetMonitor());
     mReader->ReadMetadata();
@@ -1271,4 +1261,6 @@ void nsBuiltinDecoderStateMachine::LoadMetadata()
     NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
     return;
   }
+
+  LOG(PR_LOG_DEBUG, ("%p Callback Period: %u", mDecoder, info.mCallbackPeriod));
 }

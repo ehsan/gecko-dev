@@ -56,11 +56,10 @@
 #include "nsFont.h"
 #include "nsReadableUtils.h"
 #include "nsStyleUtil.h"
-#include "nsStyleConsts.h"
-#include "nsCOMPtr.h"
-#include "CSSCalc.h"
 
-namespace css = mozilla::css;
+#include "nsStyleConsts.h"
+
+#include "nsCOMPtr.h"
 
 nsCSSDeclaration::nsCSSDeclaration() 
 {
@@ -173,14 +172,14 @@ nsCSSDeclaration::AppendStorageToString(nsCSSProperty aProperty,
               aProperty == eCSSProperty__moz_transform_origin) &&
              pair->mXValue.GetUnit() != eCSSUnit_Inherit &&
              pair->mXValue.GetUnit() != eCSSUnit_Initial) ||
-            (aProperty == eCSSProperty_background_size &&
+            (aProperty == eCSSProperty__moz_background_size &&
              pair->mXValue.GetUnit() != eCSSUnit_Inherit &&
              pair->mXValue.GetUnit() != eCSSUnit_Initial &&
              pair->mXValue.GetUnit() != eCSSUnit_Enumerated)) {
           // Only output a Y value if it's different from the X value,
           // or if it's a background-position value other than 'initial'
           // or 'inherit', or if it's a -moz-transform-origin value other
-          // than 'initial' or 'inherit', or if it's a background-size
+          // than 'initial' or 'inherit', or if it's a -moz-background-size
           // value other than 'initial' or 'inherit' or 'contain' or 'cover'.
           aResult.Append(PRUnichar(' '));
           AppendCSSValueToString(aProperty, pair->mYValue, aResult);
@@ -227,42 +226,20 @@ nsCSSDeclaration::AppendStorageToString(nsCSSProperty aProperty,
   return aStorage != nsnull;
 }
 
-struct CSSValueSerializeCalcOps {
-  CSSValueSerializeCalcOps(nsCSSProperty aProperty, nsAString& aResult)
-    : mProperty(aProperty),
-      mResult(aResult)
-  {
-  }
+static inline PRBool
+IsCalcAdditiveUnit(nsCSSUnit aUnit)
+{
+  return aUnit == eCSSUnit_Calc_Plus ||
+         aUnit == eCSSUnit_Calc_Minus;
+}
 
-  typedef nsCSSValue input_type;
-  typedef nsCSSValue::Array input_array_type;
-
-  static nsCSSUnit GetUnit(const input_type& aValue) {
-    return aValue.GetUnit();
-  }
-
-  void Append(const char* aString)
-  {
-    mResult.AppendASCII(aString);
-  }
-
-  void AppendLeafValue(const input_type& aValue)
-  {
-    NS_ABORT_IF_FALSE(aValue.GetUnit() == eCSSUnit_Percent ||
-                      aValue.IsLengthUnit(), "unexpected unit");
-    nsCSSDeclaration::AppendCSSValueToString(mProperty, aValue, mResult);
-  }
-
-  void AppendNumber(const input_type& aValue)
-  {
-    NS_ABORT_IF_FALSE(aValue.GetUnit() == eCSSUnit_Number, "unexpected unit");
-    nsCSSDeclaration::AppendCSSValueToString(mProperty, aValue, mResult);
-  }
-
-private:
-  nsCSSProperty mProperty;
-  nsAString &mResult;
-};
+static inline PRBool
+IsCalcMultiplicativeUnit(nsCSSUnit aUnit)
+{
+  return aUnit == eCSSUnit_Calc_Times_L ||
+         aUnit == eCSSUnit_Calc_Times_R ||
+         aUnit == eCSSUnit_Calc_Divided;
+}
 
 /* static */ PRBool
 nsCSSDeclaration::AppendCSSValueToString(nsCSSProperty aProperty,
@@ -300,7 +277,7 @@ nsCSSDeclaration::AppendCSSValueToString(nsCSSProperty aProperty,
 
     nsCSSValue::Array *array = aValue.GetArrayValue();
     PRBool mark = PR_FALSE;
-    for (size_t i = 0, i_end = array->Count(); i < i_end; ++i) {
+    for (PRUint16 i = 0, i_end = array->Count(); i < i_end; ++i) {
       if (aProperty == eCSSProperty_border_image && i >= 5) {
         if (array->Item(i).GetUnit() == eCSSUnit_Null) {
           continue;
@@ -350,7 +327,7 @@ nsCSSDeclaration::AppendCSSValueToString(nsCSSProperty aProperty,
     aResult.AppendLiteral("(");
 
     /* Now, step through the function contents, writing each of them as we go. */
-    for (size_t index = 1; index < array->Count(); ++index) {
+    for (PRUint16 index = 1; index < array->Count(); ++index) {
       AppendCSSValueToString(aProperty, array->Item(index), aResult);
 
       /* If we're not at the final element, append a comma. */
@@ -361,13 +338,89 @@ nsCSSDeclaration::AppendCSSValueToString(nsCSSProperty aProperty,
     /* Finally, append the closing parenthesis. */
     aResult.AppendLiteral(")");
   }
-  else if (aValue.IsCalcUnit()) {
-    NS_ABORT_IF_FALSE(aValue.GetUnit() == eCSSUnit_Calc ||
-                      aValue.GetUnit() == eCSSUnit_Calc_Maximum ||
-                      aValue.GetUnit() == eCSSUnit_Calc_Minimum,
-                      "unexpected unit");
-    CSSValueSerializeCalcOps ops(aProperty, aResult);
-    css::SerializeCalc(aValue, ops);
+  else if (eCSSUnit_Calc <= unit && unit <= eCSSUnit_Calc_Maximum) {
+    const nsCSSValue::Array* array = aValue.GetArrayValue();
+    if (eCSSUnit_Calc == unit) {
+      NS_ABORT_IF_FALSE(array->Count() == 1, "unexpected length");
+      aResult.AppendLiteral("-moz-calc(");
+      // When we make recursive calls, we pass eCSSProperty_UNKNOWN as
+      // the property so we can distinguish min() and max() at toplevel
+      // (where we need to serialize with a -moz- prefix) from min() and
+      // max() within calc() (where we don't).
+      AppendCSSValueToString(eCSSProperty_UNKNOWN, array->Item(0), aResult);
+      aResult.AppendLiteral(")");
+    } else if (eCSSUnit_Calc_Minimum == unit ||
+               eCSSUnit_Calc_Maximum == unit) {
+      if (aProperty == eCSSProperty_UNKNOWN) {
+        // min() or max() inside calc()
+        if (eCSSUnit_Calc_Minimum == unit) {
+          aResult.AppendLiteral("min(");
+        } else {
+          aResult.AppendLiteral("max(");
+        }
+      } else {
+        // min() or max() at toplevel
+        if (eCSSUnit_Calc_Minimum == unit) {
+          aResult.AppendLiteral("-moz-min(");
+        } else {
+          aResult.AppendLiteral("-moz-max(");
+        }
+      }
+
+      for (PRUint32 i = 0, i_end = array->Count(); i < i_end; ++i) {
+        if (i != 0) {
+          aResult.AppendLiteral(", ");
+        }
+        // When we make recursive calls, we pass eCSSProperty_UNKNOWN as
+        // the property so we can distinguish min() and max() at toplevel
+        // (where we need to serialize with a -moz- prefix) from min() and
+        // max() within calc() (where we don't).
+        AppendCSSValueToString(eCSSProperty_UNKNOWN, array->Item(i), aResult);
+      }
+
+      aResult.AppendLiteral(")");
+    } else if (IsCalcAdditiveUnit(unit)) {
+      NS_ABORT_IF_FALSE(array->Count() == 2, "unexpected length");
+
+      AppendCSSValueToString(aProperty, array->Item(0), aResult);
+
+      if (eCSSUnit_Calc_Plus == unit) {
+        aResult.AppendLiteral(" + ");
+      } else {
+        NS_ABORT_IF_FALSE(eCSSUnit_Calc_Minus == unit, "unexpected unit");
+        aResult.AppendLiteral(" - ");
+      }
+
+      PRBool needParens = IsCalcAdditiveUnit(array->Item(1).GetUnit());
+      if (needParens)
+        aResult.AppendLiteral("(");
+      AppendCSSValueToString(aProperty, array->Item(1), aResult);
+      if (needParens)
+        aResult.AppendLiteral(")");
+    } else if (IsCalcMultiplicativeUnit(unit)) {
+      PRBool needParens = IsCalcAdditiveUnit(array->Item(0).GetUnit());
+      if (needParens)
+        aResult.AppendLiteral("(");
+      AppendCSSValueToString(aProperty, array->Item(0), aResult);
+      if (needParens)
+        aResult.AppendLiteral(")");
+
+      if (eCSSUnit_Calc_Times_L == unit || eCSSUnit_Calc_Times_R == unit) {
+        aResult.AppendLiteral(" * ");
+      } else {
+        NS_ABORT_IF_FALSE(eCSSUnit_Calc_Divided == unit, "unexpected unit");
+        aResult.AppendLiteral(" / ");
+      }
+
+      nsCSSUnit subUnit = array->Item(1).GetUnit();
+      needParens = IsCalcAdditiveUnit(subUnit) ||
+                   IsCalcMultiplicativeUnit(subUnit);
+      if (needParens)
+        aResult.AppendLiteral("(");
+      AppendCSSValueToString(aProperty, array->Item(1), aResult);
+      if (needParens)
+        aResult.AppendLiteral(")");
+    }
   }
   else if (eCSSUnit_Integer == unit) {
     nsAutoString tmpStr;
@@ -920,11 +973,11 @@ nsCSSDeclaration::GetValue(nsCSSProperty aProperty,
       const nsCSSValuePairList *position =
         * data->ValuePairListStorageFor(eCSSProperty_background_position);
       const nsCSSValueList *clip =
-        * data->ValueListStorageFor(eCSSProperty_background_clip);
+        * data->ValueListStorageFor(eCSSProperty__moz_background_clip);
       const nsCSSValueList *origin =
-        * data->ValueListStorageFor(eCSSProperty_background_origin);
+        * data->ValueListStorageFor(eCSSProperty__moz_background_origin);
       const nsCSSValuePairList *size =
-        * data->ValuePairListStorageFor(eCSSProperty_background_size);
+        * data->ValuePairListStorageFor(eCSSProperty__moz_background_size);
       for (;;) {
         if (size->mXValue.GetUnit() != eCSSUnit_Auto ||
             size->mYValue.GetUnit() != eCSSUnit_Auto) {
@@ -952,24 +1005,29 @@ nsCSSDeclaration::GetValue(nsCSSProperty aProperty,
                      "should have returned early for real inherit/initial");
         if (clip->mValue.GetIntValue() != NS_STYLE_BG_CLIP_BORDER ||
             origin->mValue.GetIntValue() != NS_STYLE_BG_ORIGIN_PADDING) {
+#if 0
+    // This is commented out for now until we change
+    // -moz-background-clip to background-clip, -moz-background-origin
+    // to background-origin, change their value names to *-box, and add
+    // support for content-box on background-clip.
           PR_STATIC_ASSERT(NS_STYLE_BG_CLIP_BORDER ==
                            NS_STYLE_BG_ORIGIN_BORDER);
           PR_STATIC_ASSERT(NS_STYLE_BG_CLIP_PADDING ==
                            NS_STYLE_BG_ORIGIN_PADDING);
-          PR_STATIC_ASSERT(NS_STYLE_BG_CLIP_CONTENT ==
-                           NS_STYLE_BG_ORIGIN_CONTENT);
-          // The shorthand only has a single clip/origin value which
-          // sets both properties.  So if they're different (and
-          // non-default), we can't represent the state using the
-          // shorthand.
+          // PR_STATIC_ASSERT(NS_STYLE_BG_CLIP_CONTENT == /* does not exist */
+          //                  NS_STYLE_BG_ORIGIN_CONTENT);
           if (clip->mValue != origin->mValue) {
             aValue.Truncate();
             return NS_OK;
           }
 
           aValue.Append(PRUnichar(' '));
-          AppendCSSValueToString(eCSSProperty_background_clip,
+          AppendCSSValueToString(eCSSProperty__moz_background_clip,
                                  clip->mValue, aValue);
+#else
+          aValue.Truncate();
+          return NS_OK;
+#endif
         }
 
         image = image->mNext;
@@ -1030,10 +1088,6 @@ nsCSSDeclaration::GetValue(nsCSSProperty aProperty,
         *data->ValueStorageFor(eCSSProperty_font_stretch);
       const nsCSSValue &sizeAdjust =
         *data->ValueStorageFor(eCSSProperty_font_size_adjust);
-      const nsCSSValue &featureSettings =
-        *data->ValueStorageFor(eCSSProperty_font_feature_settings);
-      const nsCSSValue &languageOverride =
-        *data->ValueStorageFor(eCSSProperty_font_language_override);
 
       if (systemFont &&
           systemFont->GetUnit() != eCSSUnit_None &&
@@ -1045,24 +1099,19 @@ nsCSSDeclaration::GetValue(nsCSSProperty aProperty,
             lh.GetUnit() != eCSSUnit_System_Font ||
             family.GetUnit() != eCSSUnit_System_Font ||
             stretch.GetUnit() != eCSSUnit_System_Font ||
-            sizeAdjust.GetUnit() != eCSSUnit_System_Font ||
-            featureSettings.GetUnit() != eCSSUnit_System_Font ||
-            languageOverride.GetUnit() != eCSSUnit_System_Font) {
+            sizeAdjust.GetUnit() != eCSSUnit_System_Font) {
           // This can't be represented as a shorthand.
           return NS_OK;
         }
         AppendCSSValueToString(eCSSProperty__x_system_font, *systemFont,
                                aValue);
       } else {
-        // The font-stretch, font-size-adjust,
-        // -moz-font-feature-settings, and -moz-font-language-override
+        // The font-stretch and font-size-adjust
         // properties are reset by this shorthand property to their
         // initial values, but can't be represented in its syntax.
         if (stretch.GetUnit() != eCSSUnit_Enumerated ||
             stretch.GetIntValue() != NS_STYLE_FONT_STRETCH_NORMAL ||
-            sizeAdjust.GetUnit() != eCSSUnit_None ||
-            featureSettings.GetUnit() != eCSSUnit_Normal ||
-            languageOverride.GetUnit() != eCSSUnit_Normal) {
+            sizeAdjust.GetUnit() != eCSSUnit_None) {
           return NS_OK;
         }
 

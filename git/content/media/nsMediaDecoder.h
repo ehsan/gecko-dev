@@ -278,6 +278,10 @@ protected:
   // in the midst of being changed.
   PRLock* mVideoUpdateLock;
 
+  // Framerate of video being displayed in the element
+  // expressed in numbers of frames per second.
+  float mFramerate;
+
   // Pixel aspect ratio (ratio of the pixel width to pixel height)
   float mPixelAspectRatio;
 

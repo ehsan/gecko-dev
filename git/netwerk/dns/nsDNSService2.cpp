@@ -51,7 +51,7 @@
 #include "nsNetCID.h"
 #include "nsNetError.h"
 #include "nsDNSPrefetch.h"
-#include "nsIProtocolProxyService.h"
+#include "nsProtocolProxyService.h"
 #include "prsystem.h"
 #include "prnetdb.h"
 #include "prmon.h"
@@ -333,7 +333,7 @@ nsDNSService::Init()
     PRBool   enableIDN        = PR_TRUE;
     PRBool   disableIPv6      = PR_FALSE;
     PRBool   disablePrefetch  = PR_FALSE;
-    int      proxyType        = nsIProtocolProxyService::PROXYCONFIG_DIRECT;
+    int      proxyType        = nsProtocolProxyService::eProxyConfig_Direct;
     
     nsAdoptingCString ipv4OnlyDomains;
 
@@ -395,7 +395,7 @@ nsDNSService::Init()
         mDisableIPv6 = disableIPv6;
 
         // Disable prefetching either by explicit preference or if a manual proxy is configured 
-        mDisablePrefetch = disablePrefetch || (proxyType == nsIProtocolProxyService::PROXYCONFIG_MANUAL);
+        mDisablePrefetch = disablePrefetch || (proxyType == nsProtocolProxyService::eProxyConfig_Manual);
     }
     
     nsDNSPrefetch::Initialize(this);

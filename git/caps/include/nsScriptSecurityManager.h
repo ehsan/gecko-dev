@@ -51,6 +51,7 @@
 #include "nsHashtable.h"
 #include "nsCOMPtr.h"
 #include "nsIPrefService.h"
+#include "nsISecurityPref.h"
 #include "nsIChannelEventSink.h"
 #include "nsIJSContextStack.h"
 #include "nsIObserver.h"
@@ -369,6 +370,7 @@ MoveClassPolicyEntry(PLDHashTable *table,
 { 0xba, 0x18, 0x00, 0x60, 0xb0, 0xf1, 0x99, 0xa2 }}
 
 class nsScriptSecurityManager : public nsIScriptSecurityManager,
+                                public nsIPrefSecurityCheck,
                                 public nsIChannelEventSink,
                                 public nsIObserver
 {
@@ -380,6 +382,7 @@ public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSISCRIPTSECURITYMANAGER
     NS_DECL_NSIXPCSECURITYMANAGER
+    NS_DECL_NSIPREFSECURITYCHECK
     NS_DECL_NSICHANNELEVENTSINK
     NS_DECL_NSIOBSERVER
 
@@ -586,7 +589,8 @@ private:
                      DomainPolicy* aDomainPolicy);
 
     nsresult
-    InitPrincipals(PRUint32 prefCount, const char** prefNames);
+    InitPrincipals(PRUint32 prefCount, const char** prefNames,
+                   nsISecurityPref* securityPref);
 
 
 #ifdef XPC_IDISPATCH_SUPPORT
@@ -625,6 +629,7 @@ private:
     nsObjectHashtable* mCapabilities;
 
     nsCOMPtr<nsIPrefBranch> mPrefBranch;
+    nsCOMPtr<nsISecurityPref> mSecurityPref;
     nsCOMPtr<nsIPrincipal> mSystemPrincipal;
     nsCOMPtr<nsIPrincipal> mSystemCertificate;
     ContextPrincipal *mContextPrincipals;

@@ -46,8 +46,6 @@
 
 #include "AndroidJavaWrappers.h"
 
-#include "nsVoidArray.h"
-
 // Some debug #defines
 // #define ANDROID_DEBUG_EVENTS
 // #define ANDROID_DEBUG_WIDGET
@@ -104,14 +102,6 @@ public:
     void SetSurfaceView(jobject jobj);
     AndroidGeckoSurfaceView& SurfaceView() { return mSurfaceView; }
 
-    void GetHandlersForMimeType(const char *aMimeType, nsStringArray* aStringArray);
-
-    PRBool OpenUriExternal(nsCString& aUriSpec, nsCString& aMimeType);
-
-    void GetMimeTypeFromExtension(const nsCString& aFileExt, nsCString& aMimeType);
-
-    void MoveTaskToBack();
-
     struct AutoLocalJNIFrame {
         AutoLocalJNIFrame(int nEntries = 128) : mEntries(nEntries) {
             AndroidBridge::Bridge()->JNI()->PushLocalFrame(mEntries);
@@ -128,9 +118,6 @@ public:
         }
         int mEntries;
     };
-
-    /* See GLHelpers.java as to why this is needed */
-    void *CallEglCreateWindowSurface(void *dpy, void *config, AndroidGeckoSurfaceView& surfaceView);
 
 protected:
     static AndroidBridge *sBridge;
@@ -161,18 +148,6 @@ protected:
     jmethodID jNotifyXreExit;
     jmethodID jScheduleRestart;
     jmethodID jGetOutstandingDrawEvents;
-    jmethodID jGetHandlersForMimeType;
-    jmethodID jOpenUriExternal;
-    jmethodID jGetMimeTypeFromExtension;
-    jmethodID jMoveTaskToBack;
-
-    // stuff we need for CallEglCreateWindowSurface
-    jclass jEGLSurfaceImplClass;
-    jclass jEGLContextImplClass;
-    jclass jEGLConfigImplClass;
-    jclass jEGLDisplayImplClass;
-    jclass jEGLContextClass;
-    jclass jEGL10Class;
 };
 
 }

@@ -59,6 +59,7 @@
 #include "nsISupports.h"
 #include "nsQueryFrame.h"
 #include "nsCoord.h"
+#include "nsRect.h"
 #include "nsColor.h"
 #include "nsEvent.h"
 #include "nsCompatibility.h"
@@ -66,8 +67,6 @@
 #include "mozFlushType.h"
 #include "nsWeakReference.h"
 #include <stdio.h> // for FILE definition
-#include "nsRefreshDriver.h"
-#include "nsChangeHint.h"
 
 class nsIContent;
 class nsIDocument;
@@ -96,14 +95,9 @@ class gfxContext;
 class nsIDOMEvent;
 class nsDisplayList;
 class nsDisplayListBuilder;
-class nsPIDOMWindow;
-struct nsPoint;
-struct nsIntPoint;
-struct nsRect;
-struct nsIntRect;
 
 typedef short SelectionType;
-typedef PRUint64 nsFrameState;
+typedef PRUint32 nsFrameState;
 
 namespace mozilla {
 namespace dom {
@@ -133,8 +127,8 @@ typedef struct CapturingContentInfo {
 } CapturingContentInfo;
 
 #define NS_IPRESSHELL_IID     \
-  { 0x6b32e1ca, 0xb295, 0x406d, \
-    { 0xb2, 0x8b, 0x73, 0xda, 0xc3, 0x66, 0xc2, 0xa7 } }
+  { 0x7ae0e29f, 0x4d2e, 0x4acd, \
+    { 0xb5, 0x74, 0xb6, 0x40, 0x8a, 0xca, 0xb8, 0x4d } }
 
 // Constants for ScrollContentIntoView() function
 #define NS_PRESSHELL_SCROLL_TOP      0
@@ -439,8 +433,7 @@ public:
   virtual NS_HIDDEN_(nsresult) RecreateFramesFor(nsIContent* aContent) = 0;
 
   void PostRecreateFramesFor(mozilla::dom::Element* aElement);
-  void RestyleForAnimation(mozilla::dom::Element* aElement,
-                           nsRestyleHint aHint);
+  void RestyleForAnimation(mozilla::dom::Element* aElement);
 
   /**
    * Determine if it is safe to flush all pending notifications
@@ -1005,42 +998,6 @@ public:
    */
   PRUint64 GetPaintCount() { return mPaintCount; }
   void IncrementPaintCount() { ++mPaintCount; }
-
-  /**
-   * Get the root DOM window of this presShell.
-   */
-  virtual already_AddRefed<nsPIDOMWindow> GetRootWindow() = 0;
-
-  /**
-   * Refresh observer management.
-   */
-protected:
-  virtual PRBool AddRefreshObserverExternal(nsARefreshObserver* aObserver,
-                                            mozFlushType aFlushType);
-  PRBool AddRefreshObserverInternal(nsARefreshObserver* aObserver,
-                                    mozFlushType aFlushType);
-  virtual PRBool RemoveRefreshObserverExternal(nsARefreshObserver* aObserver,
-                                               mozFlushType aFlushType);
-  PRBool RemoveRefreshObserverInternal(nsARefreshObserver* aObserver,
-                                       mozFlushType aFlushType);
-public:
-  PRBool AddRefreshObserver(nsARefreshObserver* aObserver,
-                            mozFlushType aFlushType) {
-#ifdef _IMPL_NS_LAYOUT
-    return AddRefreshObserverInternal(aObserver, aFlushType);
-#else
-    return AddRefreshObserverExternal(aObserver, aFlushType);
-#endif
-  }
-
-  PRBool RemoveRefreshObserver(nsARefreshObserver* aObserver,
-                               mozFlushType aFlushType) {
-#ifdef _IMPL_NS_LAYOUT
-    return RemoveRefreshObserverInternal(aObserver, aFlushType);
-#else
-    return RemoveRefreshObserverExternal(aObserver, aFlushType);
-#endif
-  }
 
   /**
    * Initialize and shut down static variables.

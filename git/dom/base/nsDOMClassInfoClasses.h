@@ -84,7 +84,6 @@ DOMCI_CLASS(HTMLOptionsCollection)
 DOMCI_CLASS(HTMLCollection)
 
 // HTML element classes
-DOMCI_CLASS(HTMLElement)
 DOMCI_CLASS(HTMLAnchorElement)
 DOMCI_CLASS(HTMLAppletElement)
 DOMCI_CLASS(HTMLAreaElement)
@@ -142,6 +141,7 @@ DOMCI_CLASS(HTMLTextAreaElement)
 DOMCI_CLASS(HTMLTitleElement)
 DOMCI_CLASS(HTMLUListElement)
 DOMCI_CLASS(HTMLUnknownElement)
+DOMCI_CLASS(HTMLWBRElement)
 
 // CSS classes
 DOMCI_CLASS(CSSStyleRule)
@@ -423,13 +423,11 @@ DOMCI_CLASS(GeoPositionError)
 DOMCI_CLASS(CSSFontFaceRule)
 DOMCI_CLASS(CSSFontFaceStyleDecl)
 
-#if defined(MOZ_MEDIA)
 // WhatWG Video Element
 DOMCI_CLASS(HTMLVideoElement)
 DOMCI_CLASS(HTMLSourceElement)
 DOMCI_CLASS(HTMLMediaError)
 DOMCI_CLASS(HTMLAudioElement)
-#endif
 
 DOMCI_CLASS(ProgressEvent)
 
@@ -474,19 +472,3 @@ DOMCI_CLASS(TransitionEvent)
 DOMCI_CLASS(ContentFrameMessageManager)
 
 DOMCI_CLASS(FormData)
-
-// WebSocket
-DOMCI_CLASS(WebSocket)
-DOMCI_CLASS(CloseEvent)
-
-DOMCI_CLASS(IDBFactory)
-DOMCI_CLASS(IDBRequest)
-DOMCI_CLASS(IDBDatabase)
-DOMCI_CLASS(IDBErrorEvent)
-DOMCI_CLASS(IDBSuccessEvent)
-DOMCI_CLASS(IDBTransactionEvent)
-DOMCI_CLASS(IDBObjectStore)
-DOMCI_CLASS(IDBTransaction)
-DOMCI_CLASS(IDBCursor)
-DOMCI_CLASS(IDBKeyRange)
-DOMCI_CLASS(IDBIndex)

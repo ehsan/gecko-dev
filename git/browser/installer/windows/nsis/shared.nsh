@@ -548,6 +548,7 @@
   Push "xpcom.dll"
   Push "crashreporter.exe"
   Push "updater.exe"
+  Push "xpicleanup.exe"
   Push "${FileMainEXE}"
 !macroend
 !define PushFilesToCheck "!insertmacro PushFilesToCheck"

@@ -45,7 +45,7 @@ static const PRUint16 g_MacCEMappingTable[] = {
 #include "macce.uf"
 };
 
-nsresult
+NS_METHOD
 nsUnicodeToMacCEConstructor(nsISupports *aOuter, REFNSIID aIID,
                             void **aResult) 
 {

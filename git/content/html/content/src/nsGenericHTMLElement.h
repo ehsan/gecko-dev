@@ -87,6 +87,9 @@ public:
     return nsnull;
   }
 
+  /** Call on shutdown to release globals */
+  static void Shutdown();
+
   /**
    * Handle QI for the standard DOM interfaces (DOMNode, DOMElement,
    * DOMHTMLElement) and handles tearoffs for other standard interfaces.
@@ -175,16 +178,14 @@ public:
   virtual PRBool IsFocusable(PRInt32 *aTabIndex = nsnull, PRBool aWithMouse = PR_FALSE)
   {
     PRBool isFocusable = PR_FALSE;
-    IsHTMLFocusable(aWithMouse, &isFocusable, aTabIndex);
+    IsHTMLFocusable(&isFocusable, aTabIndex);
     return isFocusable;
   }
   /**
    * Returns PR_TRUE if a subclass is not allowed to override the value returned
    * in aIsFocusable.
    */
-  virtual PRBool IsHTMLFocusable(PRBool aWithMouse,
-                                 PRBool *aIsFocusable,
-                                 PRInt32 *aTabIndex);
+  virtual PRBool IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex);
   virtual void PerformAccesskey(PRBool aKeyCausesActivation,
                                 PRBool aIsTrustedEvent);
 
@@ -253,8 +254,8 @@ public:
    * @param aResult the resulting HTMLValue
    * @return whether the value was parsed
    */
-  static PRBool ParseDivAlignValue(const nsAString& aString,
-                                   nsAttrValue& aResult);
+  PRBool ParseDivAlignValue(const nsAString& aString,
+                            nsAttrValue& aResult) const;
 
   /**
    * Convert a table halign string to value (left/right/center/char/justify)
@@ -263,8 +264,8 @@ public:
    * @param aResult the resulting HTMLValue
    * @return whether the value was parsed
    */
-  static PRBool ParseTableHAlignValue(const nsAString& aString,
-                                      nsAttrValue& aResult);
+  PRBool ParseTableHAlignValue(const nsAString& aString,
+                               nsAttrValue& aResult) const;
 
   /**
    * Convert a table cell halign string to value
@@ -803,11 +804,9 @@ public:
   virtual void SaveSubtreeState();
 
   // nsIFormControl
-  virtual mozilla::dom::Element* GetFormElement();
+  NS_IMETHOD GetForm(nsIDOMHTMLFormElement** aForm);
   virtual void SetForm(nsIDOMHTMLFormElement* aForm);
   virtual void ClearForm(PRBool aRemoveFromForm, PRBool aNotify);
-
-  nsresult GetForm(nsIDOMHTMLFormElement** aForm);
 
   NS_IMETHOD SaveState()
   {
@@ -887,19 +886,16 @@ protected:
 // added ourselves to our mForm.  It's possible to have a non-null mForm, but
 // not have this flag set.  That happens when the form is set via the content
 // sink.
-#define ADDED_TO_FORM (1 << ELEMENT_TYPE_SPECIFIC_BITS_OFFSET)
+#define ADDED_TO_FORM (1 << NODE_TYPE_SPECIFIC_BITS_OFFSET)
 
 // If this flag is set on an nsGenericHTMLFormElement, that means that its form
 // is in the process of being unbound from the tree, and this form element
 // hasn't re-found its form in nsGenericHTMLFormElement::UnbindFromTree yet.
-#define MAYBE_ORPHAN_FORM_ELEMENT (1 << (ELEMENT_TYPE_SPECIFIC_BITS_OFFSET+1))
+#define MAYBE_ORPHAN_FORM_ELEMENT (1 << (NODE_TYPE_SPECIFIC_BITS_OFFSET+1))
 
 // NOTE: I don't think it's possible to have the above two flags set at the
 // same time, so if it becomes an issue we can probably merge them into the
 // same bit.  --bz
-
-// Make sure we have enough space for those bits
-PR_STATIC_ASSERT(ELEMENT_TYPE_SPECIFIC_BITS_OFFSET + 1 < 32);
 
 //----------------------------------------------------------------------
 
@@ -928,7 +924,7 @@ public:
   NS_DECL_NSIFRAMELOADEROWNER
 
   // nsIContent
-  virtual PRBool IsHTMLFocusable(PRBool aWithMouse, PRBool *aIsFocusable, PRInt32 *aTabIndex);
+  virtual PRBool IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex);
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
                               PRBool aCompileEventHandlers);
@@ -970,17 +966,18 @@ protected:
  */
 #define NS_IMPL_NS_NEW_HTML_ELEMENT(_elementName)                            \
 nsGenericHTMLElement*                                                        \
-NS_NewHTML##_elementName##Element(nsINodeInfo *aNodeInfo, PRUint32 aFromParser)\
+NS_NewHTML##_elementName##Element(nsINodeInfo *aNodeInfo, PRBool aFromParser)\
 {                                                                            \
   return new nsHTML##_elementName##Element(aNodeInfo);                       \
 }
 
 #define NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(_elementName)               \
 nsGenericHTMLElement*                                                        \
-NS_NewHTML##_elementName##Element(nsINodeInfo *aNodeInfo, PRUint32 aFromParser)\
+NS_NewHTML##_elementName##Element(nsINodeInfo *aNodeInfo, PRBool aFromParser)\
 {                                                                            \
   return new nsHTML##_elementName##Element(aNodeInfo, aFromParser);          \
 }
+
 
 /**
  * A macro to implement the getter and setter for a given string
@@ -1308,25 +1305,15 @@ NS_NewHTML##_elementName##Element(nsINodeInfo *aNodeInfo, PRUint32 aFromParser)\
 #define NS_DECLARE_NS_NEW_HTML_ELEMENT(_elementName)              \
 nsGenericHTMLElement*                                             \
 NS_NewHTML##_elementName##Element(nsINodeInfo *aNodeInfo,         \
-                                  PRUint32 aFromParser = 0);
+                                  PRBool aFromParser = PR_FALSE);
 
 #define NS_DECLARE_NS_NEW_HTML_ELEMENT_AS_SHARED(_elementName)    \
 inline nsGenericHTMLElement*                                      \
 NS_NewHTML##_elementName##Element(nsINodeInfo *aNodeInfo,         \
-                                  PRUint32 aFromParser = 0)       \
+                                  PRBool aFromParser = PR_FALSE)  \
 {                                                                 \
   return NS_NewHTMLSharedElement(aNodeInfo, aFromParser);         \
 }
-
-// Disable MSVC warning that spams when we pass empty string as only macro arg.
-#ifdef _MSC_VER
-#pragma warning(push)
-#pragma warning(disable:4003)
-#endif
-NS_DECLARE_NS_NEW_HTML_ELEMENT() // HTMLElement
-#ifdef _MSC_VER
-#pragma warning(pop)
-#endif
 
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Shared)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(SharedList)

@@ -182,7 +182,7 @@ nsBoxObject::GetPresShell(PRBool aFlushLayout)
     doc->FlushPendingNotifications(Flush_Layout);
   }
 
-  return doc->GetShell();
+  return doc->GetPrimaryShell();
 }
 
 nsresult 

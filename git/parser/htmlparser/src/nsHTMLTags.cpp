@@ -57,10 +57,6 @@ static const PRUnichar sHTMLTagUnicodeName_applet[] =
   {'a', 'p', 'p', 'l', 'e', 't', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_area[] =
   {'a', 'r', 'e', 'a', '\0'};
-static const PRUnichar sHTMLTagUnicodeName_article[] =
-  {'a', 'r', 't', 'i', 'c', 'l', 'e', '\0'};
-static const PRUnichar sHTMLTagUnicodeName_aside[] =
-  {'a', 's', 'i', 'd', 'e', '\0'};
 #if defined(MOZ_MEDIA)
 static const PRUnichar sHTMLTagUnicodeName_audio[] =
   {'a', 'u', 'd', 'i', 'o', '\0'};
@@ -123,14 +119,8 @@ static const PRUnichar sHTMLTagUnicodeName_embed[] =
   {'e', 'm', 'b', 'e', 'd', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_fieldset[] =
   {'f', 'i', 'e', 'l', 'd', 's', 'e', 't', '\0'};
-static const PRUnichar sHTMLTagUnicodeName_figcaption[] =
-  {'f', 'i', 'g', 'c', 'a', 'p', 't', 'i', 'o', 'n', '\0'};
-static const PRUnichar sHTMLTagUnicodeName_figure[] =
-  {'f', 'i', 'g', 'u', 'r', 'e', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_font[] =
   {'f', 'o', 'n', 't', '\0'};
-static const PRUnichar sHTMLTagUnicodeName_footer[] =
-  {'f', 'o', 'o', 't', 'e', 'r', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_form[] =
   {'f', 'o', 'r', 'm', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_frame[] =
@@ -151,10 +141,6 @@ static const PRUnichar sHTMLTagUnicodeName_h6[] =
   {'h', '6', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_head[] =
   {'h', 'e', 'a', 'd', '\0'};
-static const PRUnichar sHTMLTagUnicodeName_header[] =
-  {'h', 'e', 'a', 'd', 'e', 'r', '\0'};
-static const PRUnichar sHTMLTagUnicodeName_hgroup[] =
-  {'h', 'g', 'r', 'o', 'u', 'p', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_hr[] =
   {'h', 'r', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_html[] =
@@ -189,8 +175,6 @@ static const PRUnichar sHTMLTagUnicodeName_listing[] =
   {'l', 'i', 's', 't', 'i', 'n', 'g', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_map[] =
   {'m', 'a', 'p', '\0'};
-static const PRUnichar sHTMLTagUnicodeName_mark[] =
-  {'m', 'a', 'r', 'k', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_marquee[] =
   {'m', 'a', 'r', 'q', 'u', 'e', 'e', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_menu[] =
@@ -199,8 +183,6 @@ static const PRUnichar sHTMLTagUnicodeName_meta[] =
   {'m', 'e', 't', 'a', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_multicol[] =
   {'m', 'u', 'l', 't', 'i', 'c', 'o', 'l', '\0'};
-static const PRUnichar sHTMLTagUnicodeName_nav[] =
-  {'n', 'a', 'v', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_nobr[] =
   {'n', 'o', 'b', 'r', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_noembed[] =
@@ -235,8 +217,6 @@ static const PRUnichar sHTMLTagUnicodeName_samp[] =
   {'s', 'a', 'm', 'p', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_script[] =
   {'s', 'c', 'r', 'i', 'p', 't', '\0'};
-static const PRUnichar sHTMLTagUnicodeName_section[] =
-  {'s', 'e', 'c', 't', 'i', 'o', 'n', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_select[] =
   {'s', 'e', 'l', 'e', 'c', 't', '\0'};
 static const PRUnichar sHTMLTagUnicodeName_small[] =
@@ -296,13 +276,11 @@ static const PRUnichar sHTMLTagUnicodeName_xmp[] =
 
 // static array of unicode tag names
 #define HTML_TAG(_tag, _classname) sHTMLTagUnicodeName_##_tag,
-#define HTML_HTMLELEMENT_TAG(_tag) sHTMLTagUnicodeName_##_tag,
 #define HTML_OTHER(_tag)
 const PRUnichar* const nsHTMLTags::sTagUnicodeTable[] = {
 #include "nsHTMLTagList.h"
 };
 #undef HTML_TAG
-#undef HTML_HTMLELEMENT_TAG
 #undef HTML_OTHER
 
 // static array of tag atoms
@@ -341,11 +319,9 @@ HTMLTagsHashCodeAtom(const void *key)
 #define NS_HTMLTAG_NAME_MAX_LENGTH 10
 
 #define HTML_TAG(_tag, _classname) NS_STATIC_ATOM_BUFFER(Atombuffer_##_tag, #_tag)
-#define HTML_HTMLELEMENT_TAG(_tag) NS_STATIC_ATOM_BUFFER(Atombuffer_##_tag, #_tag)
 #define HTML_OTHER(_tag)
 #include "nsHTMLTagList.h"
 #undef HTML_TAG
-#undef HTML_HTMLELEMENT_TAG
 #undef HTML_OTHER
 
 
@@ -355,13 +331,11 @@ nsHTMLTags::AddRefTable(void)
 {
   // static array of tag StaticAtom structs
 #define HTML_TAG(_tag, _classname) NS_STATIC_ATOM(Atombuffer_##_tag, &nsHTMLTags::sTagAtomTable[eHTMLTag_##_tag - 1]),
-#define HTML_HTMLELEMENT_TAG(_tag) NS_STATIC_ATOM(Atombuffer_##_tag, &nsHTMLTags::sTagAtomTable[eHTMLTag_##_tag - 1]),
 #define HTML_OTHER(_tag)
   static const nsStaticAtom sTagAtoms_info[] = {
 #include "nsHTMLTagList.h"
   };
 #undef HTML_TAG
-#undef HTML_HTMLELEMENT_TAG
 #undef HTML_OTHER
 
   if (gTableRefCount++ == 0) {

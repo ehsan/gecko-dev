@@ -53,14 +53,10 @@
  * see http://lxr.mozilla.org/seamonkey/source/accessible/accessible-docs.html
  */
 
-////////////////////////////////////////////////////////////////////////////////
-// nsDocAccessibleWrap
-////////////////////////////////////////////////////////////////////////////////
+//----- nsDocAccessibleWrap -----
 
-nsDocAccessibleWrap::
-  nsDocAccessibleWrap(nsIDocument *aDocument, nsIContent *aRootContent,
-                      nsIWeakReference *aShell) :
-  nsDocAccessible(aDocument, aRootContent, aShell)
+nsDocAccessibleWrap::nsDocAccessibleWrap(nsIDOMNode *aDOMNode, nsIWeakReference *aShell): 
+  nsDocAccessible(aDOMNode, aShell)
 {
 }
 
@@ -272,6 +268,33 @@ STDMETHODIMP nsDocAccessibleWrap::get_accValue(
   return get_URL(pszValue);
 }
 
+struct nsSearchAccessibleInCacheArg
+{
+  nsRefPtr<nsAccessible> mAccessible;
+  void *mUniqueID;
+};
+
+static PLDHashOperator
+SearchAccessibleInCache(const void* aKey, nsDocAccessible* aDocAccessible,
+                        void* aUserArg)
+{
+  NS_ASSERTION(aDocAccessible,
+               "No doc accessible for the object in doc accessible cache!");
+
+  if (aDocAccessible) {
+    nsSearchAccessibleInCacheArg* arg =
+      static_cast<nsSearchAccessibleInCacheArg*>(aUserArg);
+    nsAccessNode* accessNode =
+      aDocAccessible->GetCachedAccessNode(arg->mUniqueID);
+    if (accessNode) {
+      arg->mAccessible = do_QueryObject(accessNode);
+      return PL_DHASH_STOP;
+    }
+  }
+
+  return PL_DHASH_NEXT;
+}
+
 nsAccessible*
 nsDocAccessibleWrap::GetXPAccessibleForChildID(const VARIANT& aVarChild)
 {
@@ -280,5 +303,12 @@ nsDocAccessibleWrap::GetXPAccessibleForChildID(const VARIANT& aVarChild)
 
   // Convert child ID to unique ID.
   void *uniqueID = reinterpret_cast<void*>(-aVarChild.lVal);
-  return GetAccService()->FindAccessibleInCache(uniqueID);
+
+  nsSearchAccessibleInCacheArg arg;
+  arg.mUniqueID = uniqueID;
+
+  gGlobalDocAccessibleCache.EnumerateRead(SearchAccessibleInCache,
+                                          static_cast<void*>(&arg));
+
+  return arg.mAccessible;
 }

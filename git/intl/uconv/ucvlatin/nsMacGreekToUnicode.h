@@ -46,7 +46,7 @@
  * @created         05/Apr/1999
  * @author  Catalin Rotaru [CATA]
  */
-nsresult
+NS_METHOD
 nsMacGreekToUnicodeConstructor(nsISupports *aOuter, REFNSIID aIID,
                                void **aResult);
 

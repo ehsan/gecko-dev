@@ -1480,7 +1480,7 @@ AppendSerializedFontSrc(const nsCSSValue& src, nsAString & aResult NS_OUTPARAM)
                   "improper value unit for src:");
 
   const nsCSSValue::Array& sources = *src.GetArrayValue();
-  size_t i = 0;
+  PRUint32 i = 0;
 
   while (i < sources.Count()) {
     nsAutoString formats;
@@ -1576,9 +1576,7 @@ nsCSSFontFaceStyleDecl::Fields[] = {
     &nsCSSFontFaceStyleDecl::mWeight,
     &nsCSSFontFaceStyleDecl::mStretch,
     &nsCSSFontFaceStyleDecl::mSrc,
-    &nsCSSFontFaceStyleDecl::mUnicodeRange,
-    &nsCSSFontFaceStyleDecl::mFontFeatureSettings,
-    &nsCSSFontFaceStyleDecl::mFontLanguageOverride
+    &nsCSSFontFaceStyleDecl::mUnicodeRange
 };
 
 DOMCI_DATA(CSSFontFaceStyleDecl, nsCSSFontFaceStyleDecl)

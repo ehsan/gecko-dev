@@ -37,10 +37,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifdef MOZ_IPC
-#include "nsXULAppAPI.h"
-#endif
-
 #include "nsPrefService.h"
 #include "nsAppDirectoryServiceDefs.h"
 #include "nsDirectoryServiceDefs.h"
@@ -78,7 +74,6 @@
 // Prototypes
 static nsresult openPrefFile(nsIFile* aFile);
 static nsresult pref_InitInitialObjects(void);
-static nsresult pref_LoadPrefsInDirList(const char *listId);
 
 //-----------------------------------------------------------------------------
 
@@ -125,14 +120,7 @@ nsresult nsPrefService::Init()
     return NS_ERROR_OUT_OF_MEMORY;
 
   mRootBranch = (nsIPrefBranch2 *)rootBranch;
-
-#ifdef MOZ_IPC
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
-    // We're done. Let the prefbranch remote requests.
-    return NS_OK;
-  }
-#endif
-
+  
   nsXPIDLCString lockFileName;
   nsresult rv;
 
@@ -166,8 +154,6 @@ nsresult nsPrefService::Init()
   if (NS_SUCCEEDED(rv))
     rv = observerService->AddObserver(this, "profile-do-change", PR_TRUE);
 
-  observerService->AddObserver(this, "load-extension-defaults", PR_TRUE);
-
   return(rv);
 }
 
@@ -187,8 +173,6 @@ NS_IMETHODIMP nsPrefService::Observe(nsISupports *aSubject, const char *aTopic, 
   } else if (!nsCRT::strcmp(aTopic, "profile-do-change")) {
     ResetUserPrefs();
     rv = ReadUserPrefs(nsnull);
-  } else if (!strcmp(aTopic, "load-extension-defaults")) {
-    pref_LoadPrefsInDirList(NS_EXT_PREFS_DEFAULTS_DIR_LIST);
   } else if (!nsCRT::strcmp(aTopic, "reload-default-prefs")) {
     // Reload the default prefs from file.
     pref_InitInitialObjects();
@@ -199,13 +183,6 @@ NS_IMETHODIMP nsPrefService::Observe(nsISupports *aSubject, const char *aTopic, 
 
 NS_IMETHODIMP nsPrefService::ReadUserPrefs(nsIFile *aFile)
 {
-#ifdef MOZ_IPC
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
-    NS_ERROR("cannot load prefs from content process");
-    return NS_ERROR_NOT_AVAILABLE;
-  }
-#endif
-
   nsresult rv;
 
   if (nsnull == aFile) {
@@ -222,13 +199,6 @@ NS_IMETHODIMP nsPrefService::ReadUserPrefs(nsIFile *aFile)
 
 NS_IMETHODIMP nsPrefService::ResetPrefs()
 {
-#ifdef MOZ_IPC
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
-    NS_ERROR("cannot set prefs from content process");
-    return NS_ERROR_NOT_AVAILABLE;
-  }
-#endif
-
   NotifyServiceObservers(NS_PREFSERVICE_RESET_TOPIC_ID);
   PREF_CleanupPrefs();
 
@@ -240,26 +210,12 @@ NS_IMETHODIMP nsPrefService::ResetPrefs()
 
 NS_IMETHODIMP nsPrefService::ResetUserPrefs()
 {
-#ifdef MOZ_IPC
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
-    NS_ERROR("cannot set prefs from content process");
-    return NS_ERROR_NOT_AVAILABLE;
-  }
-#endif
-
   PREF_ClearAllUserPrefs();
   return NS_OK;    
 }
 
 NS_IMETHODIMP nsPrefService::SavePrefFile(nsIFile *aFile)
 {
-#ifdef MOZ_IPC
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
-    NS_ERROR("cannot save prefs from content process");
-    return NS_ERROR_NOT_AVAILABLE;
-  }
-#endif
-
   return SavePrefFileInternal(aFile);
 }
 

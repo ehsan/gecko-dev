@@ -144,6 +144,7 @@ imgContainer::imgContainer() :
   mLoopCount(-1),
   mObserver(nsnull),
   mLockCount(0),
+  mDiscardTimer(nsnull),
   mDecoder(nsnull),
   mWorker(nsnull),
   mBytesDecoded(0),
@@ -160,10 +161,6 @@ imgContainer::imgContainer() :
   mInDecoder(PR_FALSE),
   mError(PR_FALSE)
 {
-  // Set up the discard tracker node.
-  mDiscardTrackerNode.curr = this;
-  mDiscardTrackerNode.prev = mDiscardTrackerNode.next = nsnull;
-
   // Statistics
   num_containers++;
 }
@@ -193,7 +190,10 @@ imgContainer::~imgContainer()
              discardable_source_bytes));
   }
 
-  imgDiscardTracker::Remove(&mDiscardTrackerNode);
+  if (mDiscardTimer) {
+    mDiscardTimer->Cancel();
+    mDiscardTimer = nsnull;
+  }
 
   // If we have a decoder open, shut it down
   if (mDecoder) {
@@ -1026,9 +1026,9 @@ NS_IMETHODIMP imgContainer::DecodingComplete(void)
 
   // We now have one of the qualifications for discarding. Re-evaluate.
   if (CanDiscard()) {
-    NS_ABORT_IF_FALSE(!DiscardingActive(),
+    NS_ABORT_IF_FALSE(!mDiscardTimer,
                       "We shouldn't have been discardable before this");
-    rv = imgDiscardTracker::Reset(&mDiscardTrackerNode);
+    rv = ResetDiscardTimer();
     CONTAINER_ENSURE_SUCCESS(rv);
   }
 
@@ -1345,7 +1345,7 @@ NS_IMETHODIMP imgContainer::SourceDataComplete()
 
   // We now have one of the qualifications for discarding. Re-evaluate.
   if (CanDiscard()) {
-    nsresult rv = imgDiscardTracker::Reset(&mDiscardTrackerNode);
+    nsresult rv = ResetDiscardTimer();
     CONTAINER_ENSURE_SUCCESS(rv);
   }
   return NS_OK;
@@ -1393,15 +1393,6 @@ NS_IMETHODIMP imgContainer::NewSourceData()
   rv = InitDecoder(imgIDecoder::DECODER_FLAG_NONE);
   CONTAINER_ENSURE_SUCCESS(rv);
 
-  return NS_OK;
-}
-
-//******************************************************************************
-/* void setSourceSizeHint(in unsigned long sizeHint); */
-NS_IMETHODIMP imgContainer::SetSourceSizeHint(PRUint32 sizeHint)
-{
-  if (sizeHint && StoringSourceData())
-    mSourceData.SetCapacity(sizeHint);
   return NS_OK;
 }
 
@@ -1633,8 +1624,7 @@ nsresult imgContainer::DoComposite(imgFrame** aFrameToUse,
       return rv;
     }
     needToBlankComposite = PR_TRUE;
-  } else if (aNextFrameIndex != mAnim->lastCompositedFrameIndex+1) {
-
+  } else if (aNextFrameIndex == 1) {
     // When we are looping the compositing frame needs to be cleared.
     needToBlankComposite = PR_TRUE;
   }
@@ -2014,32 +2004,46 @@ NS_IMETHODIMP imgContainer::GetKeys(PRUint32 *count, char ***keys)
   return mProperties->GetKeys(count, keys);
 }
 
-void
-imgContainer::Discard()
+static int
+get_discard_timer_ms (void)
 {
+  /* FIXME: don't hardcode this */
+  return 15000; /* 15 seconds */
+}
+
+void
+imgContainer::sDiscardTimerCallback(nsITimer *aTimer, void *aClosure)
+{
+  // Retrieve self pointer and null out the expired timer
+  imgContainer *self = (imgContainer *) aClosure;
+  NS_ABORT_IF_FALSE(aTimer == self->mDiscardTimer, 
+                    "imgContainer::DiscardTimerCallback() got a callback "
+                    "for an unknown timer");
+  self->mDiscardTimer = nsnull;
+
   // We should be ok for discard
-  NS_ABORT_IF_FALSE(CanDiscard(), "Asked to discard but can't!");
+  NS_ABORT_IF_FALSE(self->CanDiscard(), "Hit discard callback but can't discard!");
 
   // We should never discard when we have an active decoder
-  NS_ABORT_IF_FALSE(!mDecoder, "Asked to discard with open decoder!");
+  NS_ABORT_IF_FALSE(!self->mDecoder, "Discard callback fired with open decoder!");
 
   // As soon as an image becomes animated, it becomes non-discardable and any
   // timers are cancelled.
-  NS_ABORT_IF_FALSE(!mAnim, "Asked to discard for animated image!");
+  NS_ABORT_IF_FALSE(!self->mAnim, "Discard callback fired for animated image!");
 
   // For post-operation logging
-  int old_frame_count = mFrames.Length();
+  int old_frame_count = self->mFrames.Length();
 
   // Delete all the decoded frames, then clear the array.
   for (int i = 0; i < old_frame_count; ++i)
-    delete mFrames[i];
-  mFrames.Clear();
+    delete self->mFrames[i];
+  self->mFrames.Clear();
 
   // Flag that we no longer have decoded frames for this image
-  mDecoded = PR_FALSE;
+  self->mDecoded = PR_FALSE;
 
   // Notify that we discarded
-  nsCOMPtr<imgIDecoderObserver> observer(do_QueryReferent(mObserver));
+  nsCOMPtr<imgIDecoderObserver> observer(do_QueryReferent(self->mObserver));
   if (observer)
     observer->OnDiscard(nsnull);
 
@@ -2049,14 +2053,41 @@ imgContainer::Discard()
           "data from imgContainer %p (%s) - %d frames (cached count: %d); "
           "Total Containers: %d, Discardable containers: %d, "
           "Total source bytes: %lld, Source bytes for discardable containers %lld",
-          this,
-          mSourceDataMimeType.get(),
+          self,
+          self->mSourceDataMimeType.get(),
           old_frame_count,
-          mFrames.Length(),
+          self->mFrames.Length(),
           num_containers,
           num_discardable_containers,
           total_source_bytes,
           discardable_source_bytes));
+}
+
+nsresult
+imgContainer::ResetDiscardTimer()
+{
+  // We should not call this function if we can't discard
+  NS_ABORT_IF_FALSE(CanDiscard(), "Calling ResetDiscardTimer but can't discard!");
+
+  // As soon as an image becomes animated it is set non-discardable
+  NS_ABORT_IF_FALSE(!mAnim, "Trying to reset discard timer on animated image!");
+
+  // If we have a timer already ticking, cancel it
+  if (mDiscardTimer) {
+    nsresult rv = mDiscardTimer->Cancel();
+    CONTAINER_ENSURE_SUCCESS(rv);
+    mDiscardTimer = nsnull;
+  }
+
+  // Create a new timer
+  mDiscardTimer = do_CreateInstance("@mozilla.org/timer;1");
+  CONTAINER_ENSURE_TRUE(mDiscardTimer, NS_ERROR_OUT_OF_MEMORY);
+
+  // Activate the timer
+  return mDiscardTimer->InitWithFuncCallback(sDiscardTimerCallback,
+                                             (void *) this,
+                                             get_discard_timer_ms (),
+                                             nsITimer::TYPE_ONE_SHOT);
 }
 
 // Helper method to determine if we can discard an image
@@ -2067,13 +2098,6 @@ imgContainer::CanDiscard() {
           (mLockCount == 0) &&   // ...not temporarily disabled...
           mHasSourceData &&      // ...have the source data...
           mDecoded);             // ...and have something to discard.
-}
-
-// Helper method to tell us whether the clock is currently running for
-// discarding this image. Mainly for assertions.
-PRBool
-imgContainer::DiscardingActive() {
-  return !!(mDiscardTrackerNode.prev || mDiscardTrackerNode.next);
 }
 
 // Helper method to determine if we're storing the source data in a buffer
@@ -2096,7 +2120,7 @@ imgContainer::InitDecoder (PRUint32 dFlags)
   NS_ABORT_IF_FALSE(!mDecoded, "Calling InitDecoder() but already decoded!");
 
   // Since we're not decoded, we should not have a discard timer active
-  NS_ABORT_IF_FALSE(!DiscardingActive(), "Discard Timer active in InitDecoder()!");
+  NS_ABORT_IF_FALSE(!mDiscardTimer, "Discard Timer active in InitDecoder()!");
 
   // Find and instantiate the decoder
   nsCAutoString decoderCID(NS_LITERAL_CSTRING("@mozilla.org/image/decoder;3?type=") +
@@ -2243,11 +2267,10 @@ imgContainer::WantDecodedFrames()
 {
   nsresult rv;
 
-  // If we can discard, the clock should be running. Reset it.
+  // If we can discard, we should have a timer already. reset it.
   if (CanDiscard()) {
-    NS_ABORT_IF_FALSE(DiscardingActive(),
-                      "Decoded and discardable but discarding not activated!");
-    rv = imgDiscardTracker::Reset(&mDiscardTrackerNode);
+    NS_ABORT_IF_FALSE(mDiscardTimer, "Decoded and discardable but timer not set!");
+    rv = ResetDiscardTimer();
     CONTAINER_ENSURE_SUCCESS(rv);
   }
 
@@ -2370,18 +2393,12 @@ imgContainer::SyncDecode()
 }
 
 //******************************************************************************
-/* [noscript] void draw(in gfxContext aContext,
- *                      in gfxGraphicsFilter aFilter,
- *                      [const] in gfxMatrix aUserSpaceToImageSpace,
- *                      [const] in gfxRect aFill,
- *                      [const] in nsIntRect aSubimage,
- *                      in PRUint32 aFlags); */
-NS_IMETHODIMP imgContainer::Draw(gfxContext *aContext,
-                                 gfxPattern::GraphicsFilter aFilter,
-                                 const gfxMatrix &aUserSpaceToImageSpace,
-                                 const gfxRect &aFill,
-                                 const nsIntRect &aSubimage,
-                                 PRUint32 aFlags)
+/* [noscript] void draw(in gfxContext aContext, in gfxGraphicsFilter aFilter,
+ * in gfxMatrix aUserSpaceToImageSpace, in gfxRect aFill, in nsIntRect aSubimage,
+ * in PRUint32 aFlags); */ 
+NS_IMETHODIMP imgContainer::Draw(gfxContext *aContext, gfxPattern::GraphicsFilter aFilter, 
+                                 gfxMatrix &aUserSpaceToImageSpace, gfxRect &aFill,
+                                 nsIntRect &aSubimage, PRUint32 aFlags)
 {
   if (mError)
     return NS_ERROR_FAILURE;
@@ -2418,7 +2435,11 @@ imgContainer::LockImage()
     return NS_ERROR_FAILURE;
 
   // Cancel the discard timer if it's there
-  imgDiscardTracker::Remove(&mDiscardTrackerNode);
+  if (mDiscardTimer) {
+    mDiscardTimer->Cancel();
+    mDiscardTimer = nsnull; // It's wasteful to null out the discard timers each
+                            // time, but we'll wait to fix that until bug 502694.
+  }
 
   // Increment the lock count
   mLockCount++;
@@ -2440,15 +2461,15 @@ imgContainer::UnlockImage()
   if (mLockCount == 0)
     return NS_ERROR_ABORT;
 
-  // We're locked, so discarding should not be active
-  NS_ABORT_IF_FALSE(!DiscardingActive(), "Locked, but discarding activated");
+  // We're locked, so we shouldn't have a discard timer set
+  NS_ABORT_IF_FALSE(!mDiscardTimer, "Locked, but discard timer set!");
 
   // Decrement our lock count
   mLockCount--;
 
   // We now _might_ have one of the qualifications for discarding. Re-evaluate.
   if (CanDiscard()) {
-    nsresult rv = imgDiscardTracker::Reset(&mDiscardTrackerNode);
+    nsresult rv = ResetDiscardTimer();
     CONTAINER_ENSURE_SUCCESS(rv);
   }
 

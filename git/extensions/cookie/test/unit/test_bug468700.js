@@ -1,9 +1,8 @@
-/* Any copyright is dedicated to the Public Domain.
- * http://creativecommons.org/publicdomain/zero/1.0/
- */
+const Cc = Components.classes;
+const Ci = Components.interfaces;
 
 function run_test() {
-  do_load_manifest("cookieprompt.manifest");
+  do_load_module("cookieprompt.js");
 
   var cs = Cc["@mozilla.org/cookieService;1"].getService(Ci.nsICookieService);
   var cm = Cc["@mozilla.org/cookiemanager;1"].getService(Ci.nsICookieManager2);

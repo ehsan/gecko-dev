@@ -48,7 +48,7 @@ NSPR_CONFIG_MK	= 1
 #
 # For example:
 #
-# MOZ_OPTIMIZE=1
+# BUILD_OPT=1
 # USE_PTHREADS=1
 # NS_USE_GCC=
 #

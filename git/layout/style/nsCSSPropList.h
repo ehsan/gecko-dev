@@ -450,15 +450,15 @@ CSS_PROP_BACKGROUND(
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
 CSS_PROP_BACKGROUND(
-    background-clip,
-    background_clip,
-    BackgroundClip,
+    -moz-background-clip,
+    _moz_background_clip,
+    MozBackgroundClip,
     CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE |
         CSS_PROPERTY_VALUE_LIST_USES_COMMAS,
     Color,
     mBackClip,
     eCSSType_ValueList,
-    kBackgroundOriginKTable,
+    kBackgroundClipKTable,
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
 CSS_PROP_BACKGROUND(
@@ -499,9 +499,9 @@ CSS_PROP_BACKGROUND(
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
 CSS_PROP_BACKGROUND(
-    background-origin,
-    background_origin,
-    BackgroundOrigin,
+    -moz-background-origin,
+    _moz_background_origin,
+    MozBackgroundOrigin,
     CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE |
         CSS_PROPERTY_VALUE_LIST_USES_COMMAS,
     Color,
@@ -535,9 +535,9 @@ CSS_PROP_BACKGROUND(
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
 CSS_PROP_BACKGROUND(
-    background-size,
-    background_size,
-    BackgroundSize,
+    -moz-background-size,
+    _moz_background_size,
+    MozBackgroundSize,
     CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE |
         CSS_PROPERTY_VALUE_LIST_USES_COMMAS,
     Color,
@@ -1431,28 +1431,6 @@ CSS_PROP_FONT(
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
 CSS_PROP_FONT(
-    -moz-font-feature-settings,
-    font_feature_settings,
-    MozFontFeatureSettings,
-    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE,
-    Font,
-    mFontFeatureSettings,
-    eCSSType_Value,
-    nsnull,
-    CSS_PROP_NO_OFFSET,
-    eStyleAnimType_None)
-CSS_PROP_FONT(
-    -moz-font-language-override,
-    font_language_override,
-    MozFontLanguageOverride,
-    CSS_PROPERTY_APPLIES_TO_FIRST_LETTER_AND_FIRST_LINE,
-    Font,
-    mFontLanguageOverride,
-    eCSSType_Value,
-    nsnull,
-    CSS_PROP_NO_OFFSET,
-    eStyleAnimType_None)
-CSS_PROP_FONT(
     font-size,
     font_size,
     FontSize,
@@ -2208,9 +2186,9 @@ CSS_PROP_QUOTES(
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
 CSS_PROP_DISPLAY(
+    -moz-resize,
     resize,
-    resize,
-    Resize,
+    MozResize,
     0,
     Display,
     mResize,
@@ -2378,8 +2356,8 @@ CSS_PROP_DISPLAY(
     mTransform,
     eCSSType_ValueList,
     kDisplayKTable,
-    offsetof(nsStyleDisplay, mSpecifiedTransform),
-    eStyleAnimType_Custom)
+    CSS_PROP_NO_OFFSET,
+    eStyleAnimType_None)
 CSS_PROP_DISPLAY(
     -moz-transform-origin,
     _moz_transform_origin,

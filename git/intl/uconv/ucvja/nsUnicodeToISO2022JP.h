@@ -69,8 +69,6 @@ protected:
 
   nsresult ChangeCharset(PRInt32 aCharset, char * aDest, 
       PRInt32 * aDestLength);
-  nsresult ConvertHankaku(const PRUnichar *aSrc, PRInt32 * aSrcLength,
-                          char *aDest, PRInt32 * aDestLength);
 
   //--------------------------------------------------------------------
   // Subclassing of nsEncoderSupport class [declaration]
@@ -79,6 +77,7 @@ protected:
       char * aDest, PRInt32 * aDestLength);
   NS_IMETHOD FinishNoBuff(char * aDest, PRInt32 * aDestLength);
   NS_IMETHOD Reset();
+  NS_IMETHOD FillInfo(PRUint32 *aInfo);
 };
 
 #endif /* nsUnicodeToISO2022JP_h___ */

@@ -124,7 +124,8 @@ NS_NewXMLContentSink(nsIXMLContentSink** aResult,
   if (nsnull == aResult) {
     return NS_ERROR_NULL_POINTER;
   }
-  nsXMLContentSink* it = new nsXMLContentSink();
+  nsXMLContentSink* it;
+  NS_NEWXPCOM(it, nsXMLContentSink);
   if (nsnull == it) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
@@ -502,7 +503,7 @@ nsresult
 nsXMLContentSink::CreateElement(const PRUnichar** aAtts, PRUint32 aAttsCount,
                                 nsINodeInfo* aNodeInfo, PRUint32 aLineNumber,
                                 nsIContent** aResult, PRBool* aAppendContent,
-                                PRUint32 aFromParser)
+                                PRBool aFromParser)
 {
   NS_ASSERTION(aNodeInfo, "can't create element without nodeinfo");
 
@@ -1175,7 +1176,7 @@ nsXMLContentSink::HandleEndElement(const PRUnichar *aName,
     // For that matter, do we really want to try getting the prescontext?  Does
     // this event ever want one?
     nsRefPtr<nsPresContext> ctx;
-    nsCOMPtr<nsIPresShell> shell = mDocument->GetShell();
+    nsCOMPtr<nsIPresShell> shell = mDocument->GetPrimaryShell();
     if (shell) {
       ctx = shell->GetPresContext();
     }

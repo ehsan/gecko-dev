@@ -62,6 +62,14 @@ class nsIDocShellTreeItem;
 class imgIContainer;
 class nsDOMDataTransfer;
 
+// mac uses click-hold context menus, a holdover from 4.x
+// touch screens (like maemo) could use this also, 
+// perhaps we should move to NS_TOUCHSCREEN
+#if defined(XP_MACOSX) || defined(MOZ_PLATFORM_MAEMO)
+#define CLICK_HOLD_CONTEXT_MENUS 1
+#endif
+
+
 /*
  * Event listener manager
  */
@@ -324,7 +332,7 @@ protected:
    * Set the fields of aEvent to reflect the mouse position and modifier keys
    * that were set when the user first pressed the mouse button (stored by
    * BeginTrackingDragGesture). aEvent->widget must be
-   * mCurrentTarget->GetNearestWidget().
+   * mCurrentTarget->GetWindow().
    */
   void FillInEventFromGestureDown(nsMouseEvent* aEvent);
 
@@ -391,16 +399,19 @@ protected:
   PRPackedBool mLastLineScrollConsumedX;
   PRPackedBool mLastLineScrollConsumedY;
 
-  static PRInt32 sUserInputEventDepth;
+#ifdef CLICK_HOLD_CONTEXT_MENUS
+  enum { kClickHoldDelay = 500 } ;        // 500ms == 1/2 second
 
-  // Functions used for click hold context menus
-  PRBool mClickHoldContextMenu;
-  nsCOMPtr<nsITimer> mClickHoldTimer;
   void CreateClickHoldTimer ( nsPresContext* aPresContext, nsIFrame* inDownFrame,
                               nsGUIEvent* inMouseDownEvent ) ;
   void KillClickHoldTimer ( ) ;
   void FireContextClick ( ) ;
   static void sClickHoldCallback ( nsITimer* aTimer, void* aESM ) ;
+  
+  nsCOMPtr<nsITimer> mClickHoldTimer;
+#endif
+
+  static PRInt32 sUserInputEventDepth;
 };
 
 /**

@@ -43,6 +43,7 @@
 #include "nsIPrefBranch.h"
 #include "nsIPrefBranchInternal.h"
 #include "nsIPrefLocalizedString.h"
+#include "nsISecurityPref.h"
 #include "nsXPCOM.h"
 #include "nsISupportsPrimitives.h"
 #include "nsIRelativeFilePref.h"
@@ -53,6 +54,7 @@
 #include "nsWeakReference.h"
 
 class nsPrefBranch : public nsIPrefBranchInternal,
+                     public nsISecurityPref,
                      public nsIObserver,
                      public nsSupportsWeakReference
 {
@@ -60,6 +62,7 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIPREFBRANCH
   NS_DECL_NSIPREFBRANCH2
+  NS_DECL_NSISECURITYPREF
   NS_DECL_NSIOBSERVER
 
   nsPrefBranch(const char *aPrefRoot, PRBool aDefaultBranch);
@@ -73,6 +76,7 @@ protected:
 
   nsresult   GetDefaultFromPropertiesFile(const char *aPrefName, PRUnichar **return_buf);
   const char *getPrefName(const char *aPrefName);
+  nsresult   getValidatedPrefName(const char *aPrefName, const char **_retval);
   void       freeObserverList(void);
 
 private:

@@ -58,11 +58,11 @@ struct objc_class;
 class nsAccessibleWrap : public nsAccessible
 {
   public: // construction, destruction
-    nsAccessibleWrap(nsIContent *aContent, nsIWeakReference *aShell);
+    nsAccessibleWrap(nsIDOMNode*, nsIWeakReference *aShell);
     virtual ~nsAccessibleWrap();
     
     // creates the native accessible connected to this one.
-    virtual PRBool Init ();
+    NS_IMETHOD Init ();
     
     // get the native obj-c object (mozAccessible)
     NS_IMETHOD GetNativeInterface (void **aOutAccessible);
@@ -75,7 +75,7 @@ class nsAccessibleWrap : public nsAccessible
     // returns a pointer to the native window for this accessible tree.
     void GetNativeWindow (void **aOutNativeWindow);
     
-    virtual void Shutdown ();
+    virtual nsresult Shutdown ();
     virtual void InvalidateChildren();
 
     virtual nsresult HandleAccEvent(nsAccEvent *aEvent);

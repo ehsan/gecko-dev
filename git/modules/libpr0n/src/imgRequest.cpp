@@ -71,80 +71,8 @@
 #include "nsNetUtil.h"
 #include "nsIProtocolHandler.h"
 
-#include "nsIPrefService.h"
-#include "nsIPrefBranch2.h"
-
-#include "imgDiscardTracker.h"
-
-#define DISCARD_PREF "image.mem.discardable"
-#define DECODEONDRAW_PREF "image.mem.decodeondraw"
-
-/* Kept up to date by a pref observer. */
 static PRBool gDecodeOnDraw = PR_FALSE;
 static PRBool gDiscardable = PR_FALSE;
-
-/*
- * Pref observer goop. Yuck.
- */
-
-// Flag
-static PRBool gRegisteredPrefObserver = PR_FALSE;
-
-// Reloader
-static void
-ReloadPrefs(nsIPrefBranch *aBranch)
-{
-  // Discardable
-  PRBool discardable;
-  nsresult rv = aBranch->GetBoolPref(DISCARD_PREF, &discardable);
-  if (NS_SUCCEEDED(rv))
-    gDiscardable = discardable;
-
-  // Decode-on-draw
-  PRBool decodeondraw;
-  rv = aBranch->GetBoolPref(DECODEONDRAW_PREF, &decodeondraw);
-  if (NS_SUCCEEDED(rv))
-    gDecodeOnDraw = decodeondraw;
-
-  // Discard timeout
-  imgDiscardTracker::ReloadTimeout();
-}
-
-// Observer
-class imgRequestPrefObserver : public nsIObserver {
-public:
-    NS_DECL_ISUPPORTS
-    NS_DECL_NSIOBSERVER
-};
-NS_IMPL_ISUPPORTS1(imgRequestPrefObserver, nsIObserver)
-
-// Callback
-NS_IMETHODIMP
-imgRequestPrefObserver::Observe(nsISupports     *aSubject,
-                                const char      *aTopic,
-                                const PRUnichar *aData)
-{
-  // Right topic
-  NS_ABORT_IF_FALSE(!strcmp(aTopic, NS_PREFBRANCH_PREFCHANGE_TOPIC_ID), "invalid topic");
-
-  // Right pref
-  if (strcmp(NS_LossyConvertUTF16toASCII(aData).get(), DISCARD_PREF) &&
-      strcmp(NS_LossyConvertUTF16toASCII(aData).get(), DECODEONDRAW_PREF) &&
-      strcmp(NS_LossyConvertUTF16toASCII(aData).get(), DISCARD_TIMEOUT_PREF))
-    return NS_OK;
-
-  // Get the pref branch
-  nsCOMPtr<nsIPrefBranch> branch = do_QueryInterface(aSubject);
-  if (!branch) {
-    NS_WARNING("Couldn't get pref branch within imgRequestPrefObserver::Observe!");
-    return NS_OK;
-  }
-
-  // Process the change
-  ReloadPrefs(branch);
-
-  return NS_OK;
-}
 
 #if defined(PR_LOGGING)
 PRLogModuleInfo *gImgLog = PR_NewLogModule("imgRequest");
@@ -221,23 +149,6 @@ nsresult imgRequest::Init(nsIURI *aURI,
   mCacheId = aCacheId;
 
   SetLoadId(aLoadId);
-
-  // Register our pref observer if it hasn't been done yet.
-  if (NS_UNLIKELY(!gRegisteredPrefObserver)) {
-    imgRequestPrefObserver *observer = new imgRequestPrefObserver();
-    if (observer) {
-      nsCOMPtr<nsIPrefBranch2> branch = do_GetService(NS_PREFSERVICE_CONTRACTID);
-      if (branch) {
-        branch->AddObserver(DISCARD_PREF, observer, PR_FALSE);
-        branch->AddObserver(DECODEONDRAW_PREF, observer, PR_FALSE);
-        branch->AddObserver(DISCARD_TIMEOUT_PREF, observer, PR_FALSE);
-        ReloadPrefs(branch);
-        gRegisteredPrefObserver = PR_TRUE;
-      }
-    }
-    else
-      delete observer;
-  }
 
   return NS_OK;
 }
@@ -1015,7 +926,7 @@ NS_IMETHODIMP imgRequest::OnStopRequest(nsIRequest *aRequest, nsISupports *ctxt,
   // If the request went through, say we loaded the image, and update the
   // cache entry size. Otherwise, cancel the request, which adds an error
   // flag to mImageStatus.
-  if (mImage && NS_SUCCEEDED(status)) {
+  if (NS_SUCCEEDED(status)) {
 
     // Flag that we loaded the image
     mImageStatus |= imgIRequest::STATUS_LOAD_COMPLETE;
@@ -1179,25 +1090,6 @@ NS_IMETHODIMP imgRequest::OnDataAvailable(nsIRequest *aRequest, nsISupports *ctx
       this->Cancel(rv);
       return NS_BINDING_ABORTED;
     }
-
-    /* Use content-length as a size hint for http channels. */
-    if (httpChannel) {
-      nsCAutoString contentLength;
-      rv = httpChannel->GetResponseHeader(NS_LITERAL_CSTRING("content-length"),
-                                          contentLength);
-      if (NS_SUCCEEDED(rv)) {
-        PRInt32 len = contentLength.ToInteger(&rv);
-
-        // Pass anything usable on so that the imgContainer can preallocate its
-        // source buffer
-        if (len > 0) {
-          PRUint32 sizeHint = (PRUint32) len;
-          sizeHint = PR_MIN(sizeHint, 20000000); /* Bound by something reasonable */
-          mImage->SetSourceSizeHint(sizeHint);
-        }
-      }
-    }
-
 
     // If we were waiting on the image to do something, now's our chance.
     if (mDecodeRequested) {

@@ -64,8 +64,6 @@ public class GeckoEvent {
     public static final int DRAW = 6;
     public static final int SIZE_CHANGED = 7;
     public static final int ACTIVITY_STOPPING = 8;
-    public static final int ACTIVITY_PAUSING = 9;
-    public static final int LOAD_URI = 10;
 
     public static final int IME_BATCH_END = 0;
     public static final int IME_BATCH_BEGIN = 1;
@@ -111,10 +109,7 @@ public class GeckoEvent {
         mType = MOTION_EVENT;
         mAction = m.getAction();
         mTime = m.getEventTime();
-        mP0 = new Point((int)m.getX(0), (int)m.getY(0));
-        mCount = m.getPointerCount();
-        if (mCount > 1)
-            mP1 = new Point((int)m.getX(1), (int)m.getY(1));
+        mP0 = new Point((int)m.getX(), (int)m.getY());
     }
 
     public GeckoEvent(SensorEvent s) {
@@ -174,10 +169,5 @@ public class GeckoEvent {
 
         mP0 = new Point(w, h);
         mP1 = new Point(oldw, oldh);
-    }
-
-    public GeckoEvent(String uri) {
-        mType = LOAD_URI;
-        mCharacters = uri;
     }
 }

@@ -93,12 +93,9 @@ endif
 # dependent libraries
 ifdef MOZ_IPC
 STATIC_LIBS += \
-  jsipc_s \
-  domipc_s \
   domplugins_s \
   mozipc_s \
   mozipdlgen_s \
-  ipcshell_s \
   gfxipc_s \
   $(NULL)
 
@@ -107,9 +104,7 @@ STATIC_LIBS += ipdlunittest_s
 endif
 
 ifeq (Linux,$(OS_ARCH))
-ifneq (Android,$(OS_TARGET))
 OS_LIBS += -lrt
-endif
 endif
 ifeq (WINNT,$(OS_ARCH))
 OS_LIBS += dbghelp.lib
@@ -120,6 +115,7 @@ STATIC_LIBS += \
 	xpcom_core \
 	ucvutil_s \
 	gkgfx \
+	gfxutils \
 	$(NULL)
 
 ifdef MOZ_IPC
@@ -148,6 +144,7 @@ COMPONENT_LIBS += \
 	webbrwsr \
 	nsappshell \
 	txmgr \
+	chrome \
 	commandlines \
 	extensions \
 	toolkitcomps \
@@ -155,10 +152,6 @@ COMPONENT_LIBS += \
 	pipnss \
 	appcomps \
 	$(NULL)
-
-ifdef MOZ_IPC
-COMPONENT_LIBS +=  jetpack_s
-endif
 
 ifdef BUILD_CTYPES
 COMPONENT_LIBS += \
@@ -292,6 +285,11 @@ STATIC_LIBS += gtkxtbin
 endif
 endif
 
+ifdef MOZ_ENABLE_POSTSCRIPT
+DEFINES += -DMOZ_ENABLE_POSTSCRIPT
+STATIC_LIBS += gfxpsshar
+endif
+
 ifneq (,$(filter icon,$(MOZ_IMG_DECODERS)))
 DEFINES += -DICON_DECODER
 COMPONENT_LIBS += imgicon
@@ -356,7 +354,6 @@ EXTRA_DSO_LDOPTS += \
 	$(MOZ_JS_LIBS) \
 	$(NSS_LIBS) \
 	$(MOZ_CAIRO_LIBS) \
-	$(MOZ_HARFBUZZ_LIBS) \
 	$(NULL)
 
 ifdef MOZ_NATIVE_ZLIB

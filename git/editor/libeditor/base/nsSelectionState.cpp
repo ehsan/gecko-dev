@@ -74,7 +74,7 @@ nsSelectionState::DoTraverse(nsCycleCollectionTraversalCallback &cb)
 nsresult  
 nsSelectionState::SaveSelection(nsISelection *aSel)
 {
-  NS_ENSURE_TRUE(aSel, NS_ERROR_NULL_POINTER);
+  if (!aSel) return NS_ERROR_NULL_POINTER;
   PRInt32 i,rangeCount, arrayCount = mArray.Length();
   aSel->GetRangeCount(&rangeCount);
   
@@ -112,7 +112,7 @@ nsSelectionState::SaveSelection(nsISelection *aSel)
 nsresult  
 nsSelectionState::RestoreSelection(nsISelection *aSel)
 {
-  NS_ENSURE_TRUE(aSel, NS_ERROR_NULL_POINTER);
+  if (!aSel) return NS_ERROR_NULL_POINTER;
   nsresult res;
   PRUint32 i, arrayCount = mArray.Length();
 
@@ -124,7 +124,7 @@ nsSelectionState::RestoreSelection(nsISelection *aSel)
   {
     nsCOMPtr<nsIDOMRange> range;
     mArray[i].GetRange(address_of(range));
-    NS_ENSURE_TRUE(range, NS_ERROR_UNEXPECTED);
+    if (!range) return NS_ERROR_UNEXPECTED;
    
     res = aSel->AddRange(range);
     if(NS_FAILED(res)) return res;
@@ -139,7 +139,7 @@ nsSelectionState::IsCollapsed()
   if (1 != mArray.Length()) return PR_FALSE;
   nsCOMPtr<nsIDOMRange> range;
   mArray[0].GetRange(address_of(range));
-  NS_ENSURE_TRUE(range, PR_FALSE);
+  if (!range) return PR_FALSE;
   PRBool bIsCollapsed;
   range->GetCollapsed(&bIsCollapsed);
   return bIsCollapsed;
@@ -148,7 +148,7 @@ nsSelectionState::IsCollapsed()
 PRBool
 nsSelectionState::IsEqual(nsSelectionState *aSelState)
 {
-  NS_ENSURE_TRUE(aSelState, NS_ERROR_NULL_POINTER);
+  if (!aSelState) return NS_ERROR_NULL_POINTER;
   PRUint32 i, myCount = mArray.Length(), itsCount = aSelState->mArray.Length();
   if (myCount != itsCount) return PR_FALSE;
   if (myCount < 1) return PR_FALSE;
@@ -158,7 +158,7 @@ nsSelectionState::IsEqual(nsSelectionState *aSelState)
     nsCOMPtr<nsIDOMRange> myRange, itsRange;
     mArray[i].GetRange(address_of(myRange));
     aSelState->mArray[i].GetRange(address_of(itsRange));
-    NS_ENSURE_TRUE(myRange && itsRange, PR_FALSE);
+    if (!myRange || !itsRange) return PR_FALSE;
   
     PRInt16 compResult;
     myRange->CompareBoundaryPoints(nsIDOMRange::START_TO_START, itsRange, &compResult);
@@ -247,18 +247,16 @@ nsresult
 nsRangeUpdater::SelAdjCreateNode(nsIDOMNode *aParent, PRInt32 aPosition)
 {
   if (mLock) return NS_OK;  // lock set by Will/DidReplaceParent, etc...
-  NS_ENSURE_TRUE(aParent, NS_ERROR_NULL_POINTER);
+  if (!aParent) return NS_ERROR_NULL_POINTER;
   PRUint32 i, count = mArray.Length();
-  if (!count) {
-    return NS_OK;
-  }
+  if (!count) return NS_OK;
 
   nsRangeStore *item;
   
   for (i=0; i<count; i++)
   {
     item = mArray[i];
-    NS_ENSURE_TRUE(item, NS_ERROR_NULL_POINTER);
+    if (!item) return NS_ERROR_NULL_POINTER;
     
     if ((item->startNode.get() == aParent) && (item->startOffset > aPosition))
       item->startOffset++;
@@ -279,11 +277,9 @@ nsresult
 nsRangeUpdater::SelAdjDeleteNode(nsIDOMNode *aNode)
 {
   if (mLock) return NS_OK;  // lock set by Will/DidReplaceParent, etc...
-  NS_ENSURE_TRUE(aNode, NS_ERROR_NULL_POINTER);
+  if (!aNode) return NS_ERROR_NULL_POINTER;
   PRUint32 i, count = mArray.Length();
-  if (!count) {
-    return NS_OK;
-  }
+  if (!count) return NS_OK;
 
   nsCOMPtr<nsIDOMNode> parent;
   PRInt32 offset = 0;
@@ -296,7 +292,7 @@ nsRangeUpdater::SelAdjDeleteNode(nsIDOMNode *aNode)
   for (i=0; i<count; i++)
   {
     item = mArray[i];
-    NS_ENSURE_TRUE(item, NS_ERROR_NULL_POINTER);
+    if (!item) return NS_ERROR_NULL_POINTER;
     
     if ((item->startNode.get() == parent) && (item->startOffset > offset))
       item->startOffset--;
@@ -339,20 +335,18 @@ nsresult
 nsRangeUpdater::SelAdjSplitNode(nsIDOMNode *aOldRightNode, PRInt32 aOffset, nsIDOMNode *aNewLeftNode)
 {
   if (mLock) return NS_OK;  // lock set by Will/DidReplaceParent, etc...
-  NS_ENSURE_TRUE(aOldRightNode && aNewLeftNode, NS_ERROR_NULL_POINTER);
+  if (!aOldRightNode || !aNewLeftNode) return NS_ERROR_NULL_POINTER;
   PRUint32 i, count = mArray.Length();
-  if (!count) {
-    return NS_OK;
-  }
+  if (!count) return NS_OK;
 
   nsCOMPtr<nsIDOMNode> parent;
   PRInt32 offset;
   nsresult result = nsEditor::GetNodeLocation(aOldRightNode, address_of(parent), &offset);
-  NS_ENSURE_SUCCESS(result, result);
+  if (NS_FAILED(result)) return result;
   
   // first part is same as inserting aNewLeftnode
   result = SelAdjInsertNode(parent,offset-1);
-  NS_ENSURE_SUCCESS(result, result);
+  if (NS_FAILED(result)) return result;
 
   // next step is to check for range enpoints inside aOldRightNode
   nsRangeStore *item;
@@ -360,7 +354,7 @@ nsRangeUpdater::SelAdjSplitNode(nsIDOMNode *aOldRightNode, PRInt32 aOffset, nsID
   for (i=0; i<count; i++)
   {
     item = mArray[i];
-    NS_ENSURE_TRUE(item, NS_ERROR_NULL_POINTER);
+    if (!item) return NS_ERROR_NULL_POINTER;
     
     if (item->startNode.get() == aOldRightNode)
     {
@@ -397,18 +391,16 @@ nsRangeUpdater::SelAdjJoinNodes(nsIDOMNode *aLeftNode,
                                   PRInt32 aOldLeftNodeLength)
 {
   if (mLock) return NS_OK;  // lock set by Will/DidReplaceParent, etc...
-  NS_ENSURE_TRUE(aLeftNode && aRightNode && aParent, NS_ERROR_NULL_POINTER);
+  if (!aLeftNode || !aRightNode || !aParent) return NS_ERROR_NULL_POINTER;
   PRUint32 i, count = mArray.Length();
-  if (!count) {
-    return NS_OK;
-  }
+  if (!count) return NS_OK;
 
   nsRangeStore *item;
 
   for (i=0; i<count; i++)
   {
     item = mArray[i];
-    NS_ENSURE_TRUE(item, NS_ERROR_NULL_POINTER);
+    if (!item) return NS_ERROR_NULL_POINTER;
     
     if (item->startNode.get() == aParent)
     {
@@ -471,18 +463,16 @@ nsRangeUpdater::SelAdjInsertText(nsIDOMCharacterData *aTextNode, PRInt32 aOffset
   if (mLock) return NS_OK;  // lock set by Will/DidReplaceParent, etc...
 
   PRUint32 count = mArray.Length();
-  if (!count) {
-    return NS_OK;
-  }
+  if (!count) return NS_OK;
   nsCOMPtr<nsIDOMNode> node(do_QueryInterface(aTextNode));
-  NS_ENSURE_TRUE(node, NS_ERROR_NULL_POINTER);
+  if (!node) return NS_ERROR_NULL_POINTER;
   
   PRUint32 len=aString.Length(), i;
   nsRangeStore *item;
   for (i=0; i<count; i++)
   {
     item = mArray[i];
-    NS_ENSURE_TRUE(item, NS_ERROR_NULL_POINTER);
+    if (!item) return NS_ERROR_NULL_POINTER;
     
     if ((item->startNode.get() == node) && (item->startOffset > aOffset))
       item->startOffset += len;
@@ -499,17 +489,15 @@ nsRangeUpdater::SelAdjDeleteText(nsIDOMCharacterData *aTextNode, PRInt32 aOffset
   if (mLock) return NS_OK;  // lock set by Will/DidReplaceParent, etc...
 
   PRUint32 i, count = mArray.Length();
-  if (!count) {
-    return NS_OK;
-  }
+  if (!count) return NS_OK;
   nsRangeStore *item;
   nsCOMPtr<nsIDOMNode> node(do_QueryInterface(aTextNode));
-  NS_ENSURE_TRUE(node, NS_ERROR_NULL_POINTER);
+  if (!node) return NS_ERROR_NULL_POINTER;
   
   for (i=0; i<count; i++)
   {
     item = mArray[i];
-    NS_ENSURE_TRUE(item, NS_ERROR_NULL_POINTER);
+    if (!item) return NS_ERROR_NULL_POINTER;
     
     if ((item->startNode.get() == node) && (item->startOffset > aOffset))
     {
@@ -538,21 +526,19 @@ nsRangeUpdater::WillReplaceContainer()
 nsresult
 nsRangeUpdater::DidReplaceContainer(nsIDOMNode *aOriginalNode, nsIDOMNode *aNewNode)
 {
-  NS_ENSURE_TRUE(mLock, NS_ERROR_UNEXPECTED);  
+  if (!mLock) return NS_ERROR_UNEXPECTED;  
   mLock = PR_FALSE;
 
-  NS_ENSURE_TRUE(aOriginalNode && aNewNode, NS_ERROR_NULL_POINTER);
+  if (!aOriginalNode || !aNewNode) return NS_ERROR_NULL_POINTER;
   PRUint32 i, count = mArray.Length();
-  if (!count) {
-    return NS_OK;
-  }
+  if (!count) return NS_OK;
 
   nsRangeStore *item;
   
   for (i=0; i<count; i++)
   {
     item = mArray[i];
-    NS_ENSURE_TRUE(item, NS_ERROR_NULL_POINTER);
+    if (!item) return NS_ERROR_NULL_POINTER;
     
     if (item->startNode.get() == aOriginalNode)
       item->startNode = aNewNode;
@@ -575,21 +561,19 @@ nsRangeUpdater::WillRemoveContainer()
 nsresult
 nsRangeUpdater::DidRemoveContainer(nsIDOMNode *aNode, nsIDOMNode *aParent, PRInt32 aOffset, PRUint32 aNodeOrigLen)
 {
-  NS_ENSURE_TRUE(mLock, NS_ERROR_UNEXPECTED);  
+  if (!mLock) return NS_ERROR_UNEXPECTED;  
   mLock = PR_FALSE;
 
-  NS_ENSURE_TRUE(aNode && aParent, NS_ERROR_NULL_POINTER);
+  if (!aNode || !aParent) return NS_ERROR_NULL_POINTER;
   PRUint32 i, count = mArray.Length();
-  if (!count) {
-    return NS_OK;
-  }
+  if (!count) return NS_OK;
 
   nsRangeStore *item;
   
   for (i=0; i<count; i++)
   {
     item = mArray[i];
-    NS_ENSURE_TRUE(item, NS_ERROR_NULL_POINTER);
+    if (!item) return NS_ERROR_NULL_POINTER;
     
     if (item->startNode.get() == aNode)
     {
@@ -623,7 +607,7 @@ nsRangeUpdater::WillInsertContainer()
 nsresult
 nsRangeUpdater::DidInsertContainer()
 {
-  NS_ENSURE_TRUE(mLock, NS_ERROR_UNEXPECTED);  
+  if (!mLock) return NS_ERROR_UNEXPECTED;  
   mLock = PR_FALSE;
   return NS_OK;
 }
@@ -641,21 +625,19 @@ nsRangeUpdater::WillMoveNode()
 nsresult
 nsRangeUpdater::DidMoveNode(nsIDOMNode *aOldParent, PRInt32 aOldOffset, nsIDOMNode *aNewParent, PRInt32 aNewOffset)
 {
-  NS_ENSURE_TRUE(mLock, NS_ERROR_UNEXPECTED);  
+  if (!mLock) return NS_ERROR_UNEXPECTED;  
   mLock = PR_FALSE;
 
-  NS_ENSURE_TRUE(aOldParent && aNewParent, NS_ERROR_NULL_POINTER);
+  if (!aOldParent || !aNewParent) return NS_ERROR_NULL_POINTER;
   PRUint32 i, count = mArray.Length();
-  if (!count) {
-    return NS_OK;
-  }
+  if (!count) return NS_OK;
 
   nsRangeStore *item;
   
   for (i=0; i<count; i++)
   {
     item = mArray[i];
-    NS_ENSURE_TRUE(item, NS_ERROR_NULL_POINTER);
+    if (!item) return NS_ERROR_NULL_POINTER;
     
     // like a delete in aOldParent
     if ((item->startNode.get() == aOldParent) && (item->startOffset > aOldOffset))
@@ -691,7 +673,7 @@ nsRangeStore::~nsRangeStore()
 
 nsresult nsRangeStore::StoreRange(nsIDOMRange *aRange)
 {
-  NS_ENSURE_TRUE(aRange, NS_ERROR_NULL_POINTER);
+  if (!aRange) return NS_ERROR_NULL_POINTER;
   aRange->GetStartContainer(getter_AddRefs(startNode));
   aRange->GetEndContainer(getter_AddRefs(endNode));
   aRange->GetStartOffset(&startOffset);
@@ -701,7 +683,7 @@ nsresult nsRangeStore::StoreRange(nsIDOMRange *aRange)
 
 nsresult nsRangeStore::GetRange(nsCOMPtr<nsIDOMRange> *outRange)
 {
-  NS_ENSURE_TRUE(outRange, NS_ERROR_NULL_POINTER);
+  if (!outRange) return NS_ERROR_NULL_POINTER;
   nsresult res;
   *outRange = do_CreateInstance("@mozilla.org/content/range;1", &res);
   if(NS_FAILED(res)) return res;

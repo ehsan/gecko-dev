@@ -107,8 +107,7 @@ class nsHttpDigestAuth : public nsIHttpAuthenticator
     // result is in mHashBuf
     nsresult MD5Hash(const char *buf, PRUint32 len);
 
-    nsresult GetMethodAndPath(nsIHttpAuthenticableChannel *,
-                              PRBool, nsCString &, nsCString &);
+    nsresult GetMethodAndPath(nsIHttpChannel *, PRBool, nsCString &, nsCString &);
 
     // append the quoted version of value to aHeaderLine
     nsresult AppendQuotedString(const nsACString & value,
