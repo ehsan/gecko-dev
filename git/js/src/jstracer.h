@@ -94,12 +94,12 @@ class TreeInfo {
 public:
     TreeInfo() {
         typeMap = NULL;
-        globalSlots = NULL;
+        gslots = NULL;
     }
 
     virtual ~TreeInfo() {
         if (typeMap) free(typeMap);
-        if (globalSlots) free(globalSlots);
+        if (gslots) free(gslots);
     }
     
     unsigned                entryStackDepth;
@@ -108,10 +108,9 @@ public:
     ptrdiff_t               nativeStackBase;
     unsigned                maxCallDepth;
     uint32                  globalShape;
-    uint16                 *globalSlots;
-    unsigned                numGlobalSlots;
-    unsigned                maxGlobalSlots;
+    unsigned                ngslots;
     uint8                  *typeMap;
+    uint16                 *gslots;
 };
 
 extern struct nanojit::CallInfo builtins[];
@@ -152,7 +151,7 @@ class TraceRecorder {
 
     unsigned getCallDepth() const;
     nanojit::LIns* guard(bool expected, nanojit::LIns* cond, 
-            nanojit::ExitType exitType = nanojit::DONT_GROW);
+            nanojit::ExitType exitType = nanojit::BRANCH_EXIT);
     nanojit::LIns* addName(nanojit::LIns* ins, const char* name);
 
     nanojit::LIns* get(jsval* p);
