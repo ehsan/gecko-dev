@@ -505,6 +505,10 @@ const gPopupBlockerObserver = {
     var pageReport = gBrowser.pageReport;
     if (pageReport) {
       for (var i = 0; i < pageReport.length; ++i) {
+        // popupWindowURI will be null if the file picker popup is blocked.
+        // xxxdz this should make the option say "Show file picker" and do it (Bug 590306) 
+        if (!pageReport[i].popupWindowURI)
+          continue;
         var popupURIspec = pageReport[i].popupWindowURI.spec;
 
         // Sometimes the popup URI that we get back from the pageReport
@@ -7009,8 +7013,13 @@ var gIdentityHandler = {
     if (!this._eTLDService)
       this._eTLDService = Cc["@mozilla.org/network/effective-tld-service;1"]
                          .getService(Ci.nsIEffectiveTLDService);
+    if (!this._IDNService)
+      this._IDNService = Cc["@mozilla.org/network/idn-service;1"]
+                         .getService(Ci.nsIIDNService);
     try {
-      return this._eTLDService.getBaseDomainFromHost(this._lastLocation.hostname);
+      let baseDomain =
+        this._eTLDService.getBaseDomainFromHost(this._lastLocation.hostname);
+      return this._IDNService.convertToDisplayIDN(baseDomain, {});
     } catch (e) {
       // If something goes wrong (e.g. hostname is an IP address) just fail back
       // to the full domain.
