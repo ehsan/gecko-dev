@@ -1082,7 +1082,6 @@ pref("devtools.netmonitor.enabled", true);
 
 // The default Network Monitor UI settings
 pref("devtools.netmonitor.panes-network-details-width", 450);
-pref("devtools.netmonitor.panes-network-details-height", 450);
 
 // Enable the Tilt inspector
 pref("devtools.tilt.enabled", true);
