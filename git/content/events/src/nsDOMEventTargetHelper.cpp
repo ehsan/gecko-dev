@@ -85,7 +85,7 @@ nsDOMEventTargetHelper::~nsDOMEventTargetHelper()
   if (mListenerManager) {
     mListenerManager->Disconnect();
   }
-  nsContentUtils::ReleaseWrapper(this, this);
+  ReleaseWrapper(this);
 }
 
 void

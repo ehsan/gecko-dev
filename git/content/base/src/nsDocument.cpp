@@ -2481,7 +2481,7 @@ nsDocument::SendToConsole(nsCOMArray<nsISecurityConsoleMessage>& aMessages)
     aMessages[i]->GetCategory(category);
 
     nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
-                                    NS_ConvertUTF16toUTF8(category).get(),
+                                    NS_ConvertUTF16toUTF8(category),
                                     this, nsContentUtils::eSECURITY_PROPERTIES,
                                     NS_ConvertUTF16toUTF8(messageTag).get());
   }
@@ -7789,7 +7789,7 @@ nsDocument::Destroy()
 
   // XXX We really should let cycle collection do this, but that currently still
   //     leaks (see https://bugzilla.mozilla.org/show_bug.cgi?id=406684).
-  nsContentUtils::ReleaseWrapper(static_cast<nsINode*>(this), this);
+  ReleaseWrapper(static_cast<nsINode*>(this));
 }
 
 void
