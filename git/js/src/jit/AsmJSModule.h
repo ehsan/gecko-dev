@@ -228,7 +228,7 @@ class AsmJSModule
         ExportedFunction(mozilla::MoveRef<ExportedFunction> rhs) {
             name_ = rhs->name_;
             maybeFieldName_ = rhs->maybeFieldName_;
-            argCoercions_ = mozilla::OldMove(rhs->argCoercions_);
+            argCoercions_ = mozilla::Move(rhs->argCoercions_);
             pod = rhs->pod;
         }
 
@@ -288,12 +288,12 @@ class AsmJSModule
 
         ProfiledBlocksFunction(JSAtom *name, unsigned start, unsigned end,
                                jit::PerfSpewer::BasicBlocksVector &blocksVector)
-          : ProfiledFunction(name, start, end), blocks(mozilla::OldMove(blocksVector))
+          : ProfiledFunction(name, start, end), blocks(mozilla::Move(blocksVector))
         { }
 
         ProfiledBlocksFunction(const ProfiledBlocksFunction &copy)
           : ProfiledFunction(copy.name, copy.startCodeOffset, copy.endCodeOffset),
-            blocks(mozilla::OldMove(copy.blocks))
+            blocks(mozilla::Move(copy.blocks))
         { }
     };
 #endif
@@ -457,7 +457,7 @@ class AsmJSModule
                              ReturnType returnType)
     {
         ExportedFunction func(name, maybeFieldName, argCoercions, returnType);
-        return exports_.append(mozilla::OldMove(func));
+        return exports_.append(mozilla::Move(func));
     }
     unsigned numExportedFunctions() const {
         return exports_.length();

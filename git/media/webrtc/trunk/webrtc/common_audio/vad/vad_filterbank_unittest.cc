@@ -10,18 +10,18 @@
 
 #include <stdlib.h>
 
-#include "testing/gtest/include/gtest/gtest.h"
-#include "webrtc/common_audio/vad/vad_unittest.h"
-#include "webrtc/typedefs.h"
+#include "gtest/gtest.h"
+#include "typedefs.h"
+#include "vad_unittest.h"
 
 extern "C" {
-#include "webrtc/common_audio/vad/vad_core.h"
-#include "webrtc/common_audio/vad/vad_filterbank.h"
+#include "vad_core.h"
+#include "vad_filterbank.h"
 }
 
 namespace {
 
-const int kNumValidFrameLengths = 3;
+enum { kNumValidFrameLengths = 3 };
 
 TEST_F(VadTest, vad_filterbank) {
   VadInstT* self = reinterpret_cast<VadInstT*>(malloc(sizeof(VadInstT)));

@@ -8,13 +8,13 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/test/libtest/include/random_encryption.h"
+#include "test/libtest/include/random_encryption.h"
 
 #include <algorithm>
-#include <cmath>
 #include <cstdlib>
+#include <cmath>
 
-#include "webrtc/video_engine/vie_defines.h"
+#include "video_engine/vie_defines.h"
 
 static int Saturate(int value, int min, int max) {
   return std::min(std::max(value, min), max);

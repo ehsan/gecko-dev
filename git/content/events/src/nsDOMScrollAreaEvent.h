@@ -10,6 +10,7 @@
 #include "nsIDOMScrollAreaEvent.h"
 #include "nsDOMUIEvent.h"
 
+#include "nsGUIEvent.h"
 #include "nsClientRect.h"
 #include "mozilla/dom/ScrollAreaEventBinding.h"
 

@@ -7,7 +7,11 @@
 
 #include "nsDOMDataTransfer.h"
 
+#include "prlog.h"
+#include "nsString.h"
 #include "nsIDOMDocument.h"
+#include "nsIServiceManager.h"
+#include "nsIInterfaceRequestorUtils.h"
 #include "nsIVariant.h"
 #include "nsISupportsPrimitives.h"
 #include "nsDOMClassInfoID.h"
@@ -17,10 +21,12 @@
 #include "nsError.h"
 #include "nsIDragService.h"
 #include "nsIClipboard.h"
+#include "nsIScriptableRegion.h"
 #include "nsContentUtils.h"
 #include "nsIContent.h"
 #include "nsCRT.h"
 #include "nsIScriptObjectPrincipal.h"
+#include "nsIWebNavigation.h"
 #include "nsIScriptContext.h"
 
 using namespace mozilla;

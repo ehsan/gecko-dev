@@ -10,12 +10,12 @@
 
 #include <stdlib.h>
 
-#include "testing/gtest/include/gtest/gtest.h"
-#include "webrtc/common_audio/vad/vad_unittest.h"
-#include "webrtc/typedefs.h"
+#include "gtest/gtest.h"
+#include "typedefs.h"
+#include "vad_unittest.h"
 
 extern "C" {
-#include "webrtc/common_audio/vad/vad_core.h"
+#include "vad_core.h"
 }
 
 namespace {

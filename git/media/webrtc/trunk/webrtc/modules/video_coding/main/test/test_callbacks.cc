@@ -8,14 +8,13 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/modules/video_coding/main/test/test_callbacks.h"
+#include "test_callbacks.h"
 
 #include <cmath>
 
-#include "webrtc/common_video/libyuv/include/webrtc_libyuv.h"
-#include "webrtc/modules/rtp_rtcp/interface/rtp_header_parser.h"
-#include "webrtc/modules/utility/interface/rtp_dump.h"
-#include "webrtc/modules/video_coding/main/test/test_macros.h"
+#include "common_video/libyuv/include/webrtc_libyuv.h"
+#include "rtp_dump.h"
+#include "test_macros.h"
 #include "webrtc/system_wrappers/interface/clock.h"
 
 namespace webrtc {
@@ -293,15 +292,12 @@ RTPSendCompleteCallback::SendPacket(int channel, const void *data, int len)
         _rtpPackets.pop_front();
         assert(_rtp);  // We must have a configured RTP module for this test.
         // Send to receive side
-        RTPHeader header;
-        scoped_ptr<RtpHeaderParser> parser(RtpHeaderParser::Create());
-        if (!parser->Parse(packet->data, packet->length, &header)) {
-          delete packet;
-          return -1;
-        }
-        if (_rtp->IncomingRtpPacket(packet->data, packet->length, header) < 0)
+        if (_rtp->IncomingPacket((const uint8_t*)packet->data,
+                                 packet->length) < 0)
         {
             delete packet;
+            packet = NULL;
+            // Will return an error after the first packet that goes wrong
             return -1;
         }
         delete packet;

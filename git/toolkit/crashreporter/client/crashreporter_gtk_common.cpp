@@ -51,7 +51,7 @@ string gURLParameter;
 vector<string> gRestartArgs;
 GThread* gSendThreadID;
 
-// From crashreporter_linux.cpp
+// From crashreporter_linux.cpp or crashreporter_maemo_gtk.cpp
 void SaveSettings();
 void SendReport();
 void TryInitGnome();
@@ -284,6 +284,9 @@ bool UIInit()
         gStrings["isRTL"] == "yes")
       gtk_widget_set_default_direction(GTK_TEXT_DIR_RTL);
 
+#ifndef MOZ_PLATFORM_MAEMO
+    TryInitGnome();
+#endif
     return true;
   }
 

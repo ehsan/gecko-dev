@@ -6,6 +6,7 @@
 
 XPIDL_SOURCES += [
     'nsIBFCacheEntry.idl',
+    'nsIHistoryEntry.idl',
     'nsISHContainer.idl',
     'nsISHEntry.idl',
     'nsISHTransaction.idl',

@@ -8,13 +8,13 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/video_engine/test/auto_test/interface/vie_autotest_android.h"
+#include "../interface/vie_autotest_android.h"
 
 #include <android/log.h>
 #include <stdio.h>
 
-#include "webrtc/video_engine/test/auto_test/interface/vie_autotest.h"
-#include "webrtc/video_engine/test/auto_test/interface/vie_autotest_defines.h"
+#include "vie_autotest.h"
+#include "vie_autotest_defines.h"
 
 int ViEAutoTestAndroid::RunAutotest(int testSelection, int subTestSelection,
                                     void* window1, void* window2,

@@ -163,6 +163,18 @@ class RtpRtcp : public Module {
     virtual int32_t DeRegisterReceivePayload(
         const int8_t payloadType) = 0;
 
+   /*
+    *   (De)register RTP header extension type and id.
+    *
+    *   return -1 on failure else 0
+    */
+    virtual int32_t RegisterReceiveRtpHeaderExtension(
+        const RTPExtensionType type,
+        const uint8_t id) = 0;
+
+    virtual int32_t DeregisterReceiveRtpHeaderExtension(
+        const RTPExtensionType type) = 0;
+
     /*
     *   Get last received remote timestamp
     */
@@ -238,16 +250,11 @@ class RtpRtcp : public Module {
     *
     *   incomingPacket - incoming packet buffer
     *   packetLength   - length of incoming buffer
-    *   parsed_rtp_header - the parsed RTP header
     *
     *   return -1 on failure else 0
     */
-    virtual int32_t IncomingRtpPacket(const uint8_t* incomingPacket,
-                                      const uint16_t packetLength,
-                                      const RTPHeader& parsed_rtp_header) = 0;
-
-    virtual int32_t IncomingRtcpPacket(const uint8_t* incoming_packet,
-                                       uint16_t incoming_packet_length) = 0;
+    virtual int32_t IncomingPacket(const uint8_t* incomingPacket,
+                                   const uint16_t packetLength) = 0;
 
     /**************************************************************************
     *
@@ -486,10 +493,8 @@ class RtpRtcp : public Module {
         const RTPFragmentationHeader* fragmentation = NULL,
         const RTPVideoHeader* rtpVideoHdr = NULL) = 0;
 
-    virtual bool TimeToSendPacket(uint32_t ssrc, uint16_t sequence_number,
+    virtual void TimeToSendPacket(uint32_t ssrc, uint16_t sequence_number,
                                   int64_t capture_time_ms) = 0;
-
-    virtual int TimeToSendPadding(int bytes) = 0;
 
     /**************************************************************************
     *

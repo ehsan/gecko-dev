@@ -8,11 +8,13 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "webrtc/video_engine/test/auto_test/interface/vie_window_manager_factory.h"
+#include "vie_window_manager_factory.h"
 
-#include "webrtc/engine_configurations.h"
+#include "engine_configurations.h"
 #if defined(COCOA_RENDERING)
-#include "webrtc/video_engine/test/auto_test/interface/vie_autotest_mac_cocoa.h"
+#include "vie_autotest_mac_cocoa.h"
+#elif defined(CARBON_RENDERING)
+#include "vie_autotest_mac_carbon.h"
 #endif
 
 ViEAutoTestWindowManagerInterface*

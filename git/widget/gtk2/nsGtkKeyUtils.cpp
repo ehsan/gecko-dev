@@ -737,6 +737,9 @@ KeymapWrapper::InitKeyEvent(nsKeyEvent& aKeyEvent,
     }
     InitInputEvent(aKeyEvent, modifierState);
 
+#ifdef MOZ_PLATFORM_MAEMO
+    aKeyEvent.location = nsIDOMKeyEvent::DOM_KEY_LOCATION_MOBILE;
+#else // #ifdef MOZ_PLATFORM_MAEMO
     switch (aGdkKeyEvent->keyval) {
         case GDK_Shift_L:
         case GDK_Control_L:
@@ -798,6 +801,7 @@ KeymapWrapper::InitKeyEvent(nsKeyEvent& aKeyEvent,
             aKeyEvent.location = nsIDOMKeyEvent::DOM_KEY_LOCATION_STANDARD;
             break;
     }
+#endif // #ifdef MOZ_PLATFORM_MAEMO #else
 
     PR_LOG(gKeymapWrapperLog, PR_LOG_ALWAYS,
         ("KeymapWrapper(%p): InitKeyEvent, modifierState=0x%08X "

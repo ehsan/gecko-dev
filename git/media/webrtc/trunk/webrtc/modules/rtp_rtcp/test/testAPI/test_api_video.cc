@@ -13,7 +13,7 @@
 #include <algorithm>
 #include <vector>
 
-#include "testing/gtest/include/gtest/gtest.h"
+#include "gtest/gtest.h"
 #include "webrtc/common_types.h"
 #include "webrtc/modules/rtp_rtcp/interface/rtp_rtcp.h"
 #include "webrtc/modules/rtp_rtcp/interface/rtp_rtcp_defines.h"
@@ -153,11 +153,7 @@ TEST_F(RtpRtcpVideoTest, PaddingOnlyFrames) {
       int packet_size = PaddingPacket(padding_packet, timestamp, seq_num,
                                       kPadSize);
       ++seq_num;
-      RTPHeader header;
-      scoped_ptr<RtpHeaderParser> parser(RtpHeaderParser::Create());
-      EXPECT_TRUE(parser->Parse(padding_packet, packet_size, &header));
-      EXPECT_EQ(0, video_module_->IncomingRtpPacket(padding_packet,
-                                                    packet_size, header));
+      EXPECT_EQ(0, video_module_->IncomingPacket(padding_packet, packet_size));
       EXPECT_EQ(0, receiver_->payload_size());
       EXPECT_EQ(packet_size - 12, receiver_->rtp_header().header.paddingLength);
     }

@@ -19,6 +19,7 @@
 #include "nsISHEntry.h"
 #include "nsISHContainer.h"
 #include "nsIURI.h"
+#include "nsIHistoryEntry.h"
 
 class nsSHEntryShared;
 
@@ -31,6 +32,7 @@ public:
   nsSHEntry(const nsSHEntry &other);
 
   NS_DECL_ISUPPORTS
+  NS_DECL_NSIHISTORYENTRY
   NS_DECL_NSISHENTRY
   NS_DECL_NSISHENTRYINTERNAL
   NS_DECL_NSISHCONTAINER

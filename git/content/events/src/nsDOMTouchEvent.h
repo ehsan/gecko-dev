@@ -6,13 +6,12 @@
 #define nsDOMTouchEvent_h_
 
 #include "nsDOMUIEvent.h"
+#include "nsString.h"
 #include "nsTArray.h"
 #include "mozilla/Attributes.h"
 #include "nsJSEnvironment.h"
 #include "mozilla/dom/TouchEventBinding.h"
 #include "nsWrapperCache.h"
-
-class nsAString;
 
 class nsDOMTouchList MOZ_FINAL : public nsISupports
                                , public nsWrapperCache

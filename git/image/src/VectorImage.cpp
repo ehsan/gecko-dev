@@ -29,7 +29,6 @@
 #include "nsSVGUtils.h"  // for nsSVGUtils::ConvertToSurfaceSize
 #include "Orientation.h"
 #include "SVGDocumentWrapper.h"
-#include "nsIDOMEventListener.h"
 
 namespace mozilla {
 

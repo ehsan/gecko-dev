@@ -11,9 +11,9 @@
 #ifndef WEBRTC_COMMON_VIDEO_JPEG
 #define WEBRTC_COMMON_VIDEO_JPEG
 
-#include "webrtc/common_video/interface/i420_video_frame.h"
-#include "webrtc/common_video/interface/video_image.h"  // EncodedImage
-#include "webrtc/typedefs.h"
+#include "typedefs.h"
+#include "common_video/interface/i420_video_frame.h"
+#include "common_video/interface/video_image.h"  // EncodedImage
 
 // jpeg forward declaration
 struct jpeg_compress_struct;

@@ -94,10 +94,18 @@ else:
         'nsURLHelperUnix.cpp',
     ]
 
-if CONFIG['MOZ_ENABLE_QTNETWORK']:
+if CONFIG['MOZ_PLATFORM_MAEMO']:
     CPP_SOURCES += [
-        'nsAutodialQt.cpp',
+        'nsNativeConnectionHelper.cpp',
     ]
+    if CONFIG['MOZ_ENABLE_LIBCONIC']:
+        CPP_SOURCES += [
+            'nsAutodialMaemo.cpp',
+        ]
+    if CONFIG['MOZ_ENABLE_QTNETWORK']:
+        CPP_SOURCES += [
+            'nsAutodialQt.cpp',
+        ]
 
 EXTRA_JS_MODULES += [
     'NetUtil.jsm',

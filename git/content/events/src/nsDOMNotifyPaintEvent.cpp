@@ -10,6 +10,7 @@
 #include "nsContentUtils.h"
 #include "nsClientRect.h"
 #include "nsPaintRequest.h"
+#include "nsIFrame.h"
 
 nsDOMNotifyPaintEvent::nsDOMNotifyPaintEvent(mozilla::dom::EventTarget* aOwner,
                                              nsPresContext* aPresContext,

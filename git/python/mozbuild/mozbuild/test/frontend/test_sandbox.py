@@ -169,7 +169,7 @@ class TestSandbox(unittest.TestCase):
         sandbox.exec_source('add_tier_dir("t1", "foo")', 'foo.py')
 
         self.assertEqual(sandbox['TIERS']['t1'],
-            {'regular': ['foo'], 'static': [], 'external': []})
+            {'regular': ['foo'], 'static': []})
 
     def test_add_tier_dir_regular_list(self):
         sandbox = self.sandbox()
@@ -177,7 +177,7 @@ class TestSandbox(unittest.TestCase):
         sandbox.exec_source('add_tier_dir("t1", ["foo", "bar"])', 'foo.py')
 
         self.assertEqual(sandbox['TIERS']['t1'],
-            {'regular': ['foo', 'bar'], 'static': [], 'external': []})
+            {'regular': ['foo', 'bar'], 'static': []})
 
     def test_add_tier_dir_static(self):
         sandbox = self.sandbox()
@@ -185,15 +185,7 @@ class TestSandbox(unittest.TestCase):
         sandbox.exec_source('add_tier_dir("t1", "foo", static=True)', 'foo.py')
 
         self.assertEqual(sandbox['TIERS']['t1'],
-            {'regular': [], 'static': ['foo'], 'external': []})
-
-    def test_add_tier_dir_static(self):
-        sandbox = self.sandbox()
-
-        sandbox.exec_source('add_tier_dir("t1", "foo", external=True)', 'foo.py')
-
-        self.assertEqual(sandbox['TIERS']['t1'],
-            {'regular': [], 'static': [], 'external': ['foo']})
+            {'regular': [], 'static': ['foo']})
 
     def test_tier_order(self):
         sandbox = self.sandbox()
