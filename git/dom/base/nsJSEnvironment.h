@@ -34,8 +34,8 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-#ifndef nsJSEnvironment_h
-#define nsJSEnvironment_h
+#ifndef nsJSEnvironment_h___
+#define nsJSEnvironment_h___
 
 #include "nsIScriptContext.h"
 #include "nsIScriptRuntime.h"
@@ -129,7 +129,7 @@ public:
 
   virtual void SetDefaultLanguageVersion(PRUint32 aVersion);
   virtual nsIScriptGlobalObject *GetGlobalObject();
-  virtual JSContext* GetNativeContext();
+  virtual void *GetNativeContext();
   virtual void *GetNativeGlobal();
   virtual nsresult CreateNativeGlobalForInner(
                                       nsIScriptGlobalObject *aGlobal,
@@ -370,4 +370,4 @@ JSBool NS_DOMWriteStructuredClone(JSContext* cx,
 
 void NS_DOMStructuredCloneError(JSContext* cx, uint32 errorid);
 
-#endif /* nsJSEnvironment_h */
+#endif /* nsJSEnvironment_h___ */
