@@ -106,6 +106,10 @@ ProfilerActor.prototype = {
     var currentTime = isActive ? getCurrentTime() : null;
     return { "isActive": isActive, "currentTime": currentTime }
   },
+  onGetResponsivenessTimes: function(aRequest) {
+    var times = this._profiler.GetResponsivenessTimes({});
+    return { "responsivenessTimes": times }
+  },
   onGetFeatures: function(aRequest) {
     var features = this._profiler.GetFeatures([]);
     return { "features": features }
@@ -236,6 +240,7 @@ ProfilerActor.prototype.requestTypes = {
   "getProfileStr": ProfilerActor.prototype.onGetProfileStr,
   "getProfile": ProfilerActor.prototype.onGetProfile,
   "isActive": ProfilerActor.prototype.onIsActive,
+  "getResponsivenessTimes": ProfilerActor.prototype.onGetResponsivenessTimes,
   "getFeatures": ProfilerActor.prototype.onGetFeatures,
   "getSharedLibraryInformation": ProfilerActor.prototype.onGetSharedLibraryInformation,
   "registerEventNotifications": ProfilerActor.prototype.onRegisterEventNotifications,

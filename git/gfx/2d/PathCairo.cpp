@@ -167,7 +167,7 @@ PathCairo::CopyToBuilder(FillRule aFillRule) const
   builder->mPathData = mPathData;
   builder->mCurrentPoint = mCurrentPoint;
 
-  return builder.forget();
+  return builder;
 }
 
 TemporaryRef<PathBuilder>
@@ -178,7 +178,7 @@ PathCairo::TransformedCopyToBuilder(const Matrix &aTransform, FillRule aFillRule
   AppendPathToBuilder(builder, &aTransform);
   builder->mCurrentPoint = aTransform * mCurrentPoint;
 
-  return builder.forget();
+  return builder;
 }
 
 bool

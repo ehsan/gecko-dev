@@ -1396,27 +1396,18 @@ ContentParent::ProcessingError(Result what)
 }
 
 typedef std::pair<ContentParent*, std::set<uint64_t> > IDPair;
-
-namespace {
-std::map<ContentParent*, std::set<uint64_t> >&
-NestedBrowserLayerIds()
-{
-  MOZ_ASSERT(NS_IsMainThread());
-  static std::map<ContentParent*, std::set<uint64_t> > sNestedBrowserIds;
-  return sNestedBrowserIds;
-}
-} // anonymous namespace
+static std::map<ContentParent*, std::set<uint64_t> > sNestedBrowserIds;
 
 bool
 ContentParent::RecvAllocateLayerTreeId(uint64_t* aId)
 {
     *aId = CompositorParent::AllocateLayerTreeId();
 
-    auto iter = NestedBrowserLayerIds().find(this);
-    if (iter == NestedBrowserLayerIds().end()) {
+    auto iter = sNestedBrowserIds.find(this);
+    if (iter == sNestedBrowserIds.end()) {
         std::set<uint64_t> ids;
         ids.insert(*aId);
-        NestedBrowserLayerIds().insert(IDPair(this, ids));
+        sNestedBrowserIds.insert(IDPair(this, ids));
     } else {
         iter->second.insert(*aId);
     }
@@ -1426,8 +1417,8 @@ ContentParent::RecvAllocateLayerTreeId(uint64_t* aId)
 bool
 ContentParent::RecvDeallocateLayerTreeId(const uint64_t& aId)
 {
-    auto iter = NestedBrowserLayerIds().find(this);
-    if (iter != NestedBrowserLayerIds().end() &&
+    auto iter = sNestedBrowserIds.find(this);
+    if (iter != sNestedBrowserIds.end() &&
         iter->second.find(aId) != iter->second.end()) {
         CompositorParent::DeallocateLayerTreeId(aId);
     } else {
@@ -3279,7 +3270,7 @@ ContentParent::RecvAddGeolocationListener(const IPC::Principal& aPrincipal,
                                           const bool& aHighAccuracy)
 {
 #ifdef MOZ_CHILD_PERMISSIONS
-    if (!ContentParent::IgnoreIPCPrincipal()) {
+    if (!Preferences::GetBool("dom.testing.ignore_ipc_principal", false)) {
         uint32_t permission = mozilla::CheckPermission(this, aPrincipal,
                                                        "geolocation");
         if (permission != nsIPermissionManager::ALLOW_ACTION) {
@@ -3649,19 +3640,6 @@ ContentParent::DeallocPFileDescriptorSetParent(PFileDescriptorSetParent* aActor)
 {
     delete static_cast<FileDescriptorSetParent*>(aActor);
     return true;
-}
-
-bool
-ContentParent::IgnoreIPCPrincipal()
-{
-  static bool sDidAddVarCache = false;
-  static bool sIgnoreIPCPrincipal = false;
-  if (!sDidAddVarCache) {
-    sDidAddVarCache = true;
-    Preferences::AddBoolVarCache(&sIgnoreIPCPrincipal,
-                                 "dom.testing.ignore_ipc_principal", false);
-  }
-  return sIgnoreIPCPrincipal;
 }
 
 } // namespace dom

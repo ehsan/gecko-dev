@@ -190,6 +190,11 @@ public:
     void DumpAsDataURL(FILE* aOutput = stdout);
 
     /**
+     * Write as a PNG encoded Data URL to stdout.
+     */
+    void PrintAsDataURL();
+
+    /**
      * Copy a PNG encoded Data URL to the clipboard.
      */
     void CopyAsDataURL();

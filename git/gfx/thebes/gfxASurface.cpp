@@ -700,6 +700,13 @@ gfxASurface::DumpAsDataURL(FILE* aOutput)
 }
 
 void
+gfxASurface::PrintAsDataURL()
+{
+  WriteAsPNG_internal(stdout, false);
+  fprintf(stdout, "\n");
+}
+
+void
 gfxASurface::CopyAsDataURL()
 {
   WriteAsPNG_internal(nullptr, false);

@@ -275,11 +275,6 @@ MediaConduitErrorCode WebrtcVideoConduit::Init(WebrtcVideoConduit *other)
       if (temp >= 0) {
         mMaxBitrate = temp;
       }
-      bool use_loadmanager = false;
-      NS_WARN_IF(NS_FAILED(branch->GetBoolPref("media.navigator.load_adapt", &use_loadmanager)));
-      if (use_loadmanager) {
-        mLoadManager = LoadManagerBuild();
-      }
     }
   }
 #endif
@@ -557,9 +552,9 @@ WebrtcVideoConduit::ConfigureSendMediaCodec(const VideoCodecConfig* codecConfig)
     mEngineTransmitting = false;
   }
 
-  if (mLoadManager) {
-    mPtrViEBase->RegisterCpuOveruseObserver(mChannel, mLoadManager);
-    mPtrViEBase->SetLoadManager(mLoadManager);
+  if (codecConfig->mLoadManager) {
+    mPtrViEBase->RegisterCpuOveruseObserver(mChannel, codecConfig->mLoadManager);
+    mPtrViEBase->SetLoadManager(codecConfig->mLoadManager);
   }
 
   if (mExternalSendCodec &&

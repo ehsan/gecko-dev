@@ -229,7 +229,7 @@ struct FREEBLVectorStr {
                               unsigned char *output,
                               const unsigned char *input);
 
-  SECStatus (* p_RSA_PrivateKeyCheck)(const RSAPrivateKey *key);
+  SECStatus (* p_RSA_PrivateKeyCheck)(RSAPrivateKey *key);
 
   void (* p_BL_Cleanup)(void);
 

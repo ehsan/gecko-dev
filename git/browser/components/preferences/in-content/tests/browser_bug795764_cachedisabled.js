@@ -7,21 +7,11 @@ Components.utils.import("resource://gre/modules/NetUtil.jsm");
 function test() {
   waitForExplicitFinish();
 
-  let prefs = [
-    "browser.cache.offline.enable",
-    "browser.cache.disk.enable",
-    "browser.cache.memory.enable",
-  ];
-
   registerCleanupFunction(function() {
-    for (let pref of prefs) {
-      Services.prefs.clearUserPref(pref);
-    }
+    Services.prefs.clearUserPref("browser.cache.offline.enable");
   });
 
-  for (let pref of prefs) {
-    Services.prefs.setBoolPref(pref, false);
-  }
+  Services.prefs.setBoolPref("browser.cache.offline.enable", false);
 
   open_preferences(runTest);
 }

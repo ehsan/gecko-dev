@@ -24,31 +24,23 @@ namespace dom {
  */
 struct TypedArrayObjectStorage : AllTypedArraysBase {
 protected:
-  JSObject* mTypedObj;
-  JSObject* mWrappedObj;
+  JSObject* mObj;
 
-  TypedArrayObjectStorage()
-    : mTypedObj(nullptr),
-      mWrappedObj(nullptr)
+  TypedArrayObjectStorage() : mObj(nullptr)
   {
   }
 
   explicit TypedArrayObjectStorage(TypedArrayObjectStorage&& aOther)
-    : mTypedObj(aOther.mTypedObj),
-      mWrappedObj(aOther.mWrappedObj)
+    : mObj(aOther.mObj)
   {
-    aOther.mTypedObj = nullptr;
-    aOther.mWrappedObj = nullptr;
+    aOther.mObj = nullptr;
   }
 
 public:
   inline void TraceSelf(JSTracer* trc)
   {
-    if (mTypedObj) {
-      JS_CallObjectTracer(trc, &mTypedObj, "TypedArray.mTypedObj");
-    }
-    if (mWrappedObj) {
-      JS_CallObjectTracer(trc, &mTypedObj, "TypedArray.mWrappedObj");
+    if (mObj) {
+      JS_CallObjectTracer(trc, &mObj, "TypedArray.mObj");
     }
   }
 
@@ -95,12 +87,12 @@ public:
   inline bool Init(JSObject* obj)
   {
     MOZ_ASSERT(!inited());
-    mTypedObj = mWrappedObj = UnwrapArray(obj);
+    mObj = UnwrapArray(obj);
     return inited();
   }
 
   inline bool inited() const {
-    return !!mTypedObj;
+    return !!mObj;
   }
 
   inline T *Data() const {
@@ -115,21 +107,30 @@ public:
 
   inline JSObject *Obj() const {
     MOZ_ASSERT(inited());
-    return mWrappedObj;
+    return mObj;
   }
 
   inline bool WrapIntoNewCompartment(JSContext* cx)
   {
     return JS_WrapObject(cx,
-      JS::MutableHandle<JSObject*>::fromMarkedLocation(&mWrappedObj));
+      JS::MutableHandle<JSObject*>::fromMarkedLocation(&mObj));
   }
 
   inline void ComputeLengthAndData() const
   {
     MOZ_ASSERT(inited());
     MOZ_ASSERT(!mComputed);
-    GetLengthAndData(mTypedObj, &mLength, &mData);
+    GetLengthAndData(mObj, &mLength, &mData);
     mComputed = true;
+  }
+
+protected:
+  inline void ComputeData() const {
+    MOZ_ASSERT(inited());
+    if (!mComputed) {
+      GetLengthAndData(mObj, &mLength, &mData);
+      mComputed = true;
+    }
   }
 
 private:

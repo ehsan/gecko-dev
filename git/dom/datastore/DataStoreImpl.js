@@ -99,8 +99,7 @@ DataStore.prototype = {
 
     cpmm.addMessageListener("DataStore:Changed:Return:OK", this);
     cpmm.sendAsyncMessage("DataStore:RegisterForMessages",
-                          { store: this._name, owner: this._owner,
-                            innerWindowID: this._innerWindowID });
+                          { store: this._name, owner: this._owner });
   },
 
   observe: function(aSubject, aTopic, aData) {
@@ -109,8 +108,7 @@ DataStore.prototype = {
       Services.obs.removeObserver(this, "inner-window-destroyed");
 
       cpmm.removeMessageListener("DataStore:Changed:Return:OK", this);
-      cpmm.sendAsyncMessage("DataStore:UnregisterForMessages",
-                            { innerWindowID: this._innerWindowID });
+      cpmm.sendAsyncMessage("DataStore:UnregisterForMessages");
       this._shuttingdown = true;
       this._db.close();
     }

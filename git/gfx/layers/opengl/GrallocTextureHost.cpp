@@ -144,13 +144,6 @@ GrallocTextureSourceOGL::BindTexture(GLenum aTextureUnit, gfx::Filter aFilter)
   }
 
   ApplyFilterToBoundTexture(gl(), aFilter, textureTarget);
-
-#if defined(MOZ_WIDGET_GONK) && ANDROID_VERSION >= 17
-  if (mTextureHost) {
-    // Wait until it's ready.
-    mTextureHost->WaitAcquireFenceSyncComplete();
-  }
-#endif
 }
 
 void GrallocTextureSourceOGL::Lock()
@@ -450,6 +443,12 @@ GrallocTextureSourceOGL::GetGLTexture()
 void
 GrallocTextureSourceOGL::BindEGLImage()
 {
+#if defined(MOZ_WIDGET_GONK) && ANDROID_VERSION >= 17
+  if (mTextureHost) {
+    mTextureHost->WaitAcquireFenceSyncComplete();
+  }
+#endif
+
   if (mCompositableBackendData) {
     CompositableDataGonkOGL* backend = static_cast<CompositableDataGonkOGL*>(mCompositableBackendData.get());
     backend->BindEGLImage(GetTextureTarget(), mEGLImage);

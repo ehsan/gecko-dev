@@ -984,12 +984,10 @@ TabParent::RecvSyncMessage(const nsString& aMessage,
 {
   // FIXME Permission check for TabParent in Content process
   nsIPrincipal* principal = aPrincipal;
-  if (Manager()->IsContentParent()) {
-    ContentParent* parent = Manager()->AsContentParent();
-    if (!ContentParent::IgnoreIPCPrincipal() &&
-        parent && principal && !AssertAppPrincipal(parent, principal)) {
-      return false;
-    }
+  ContentParent* parent = Manager()->AsContentParent();
+  if (!Preferences::GetBool("dom.testing.ignore_ipc_principal", false) &&
+      parent && principal && !AssertAppPrincipal(parent, principal)) {
+    return false;
   }
 
   StructuredCloneData cloneData = ipc::UnpackClonedMessageDataForParent(aData);
@@ -1006,12 +1004,10 @@ TabParent::AnswerRpcMessage(const nsString& aMessage,
 {
   // FIXME Permission check for TabParent in Content process
   nsIPrincipal* principal = aPrincipal;
-  if (Manager()->IsContentParent()) {
-    ContentParent* parent = Manager()->AsContentParent();
-    if (!ContentParent::IgnoreIPCPrincipal() &&
-        parent && principal && !AssertAppPrincipal(parent, principal)) {
-      return false;
-    }
+  ContentParent* parent = Manager()->AsContentParent();
+  if (!Preferences::GetBool("dom.testing.ignore_ipc_principal", false) &&
+      parent && principal && !AssertAppPrincipal(parent, principal)) {
+    return false;
   }
 
   StructuredCloneData cloneData = ipc::UnpackClonedMessageDataForParent(aData);
@@ -1027,12 +1023,10 @@ TabParent::RecvAsyncMessage(const nsString& aMessage,
 {
   // FIXME Permission check for TabParent in Content process
   nsIPrincipal* principal = aPrincipal;
-  if (Manager()->IsContentParent()) {
-    ContentParent* parent = Manager()->AsContentParent();
-    if (!ContentParent::IgnoreIPCPrincipal() &&
-        parent && principal && !AssertAppPrincipal(parent, principal)) {
-      return false;
-    }
+  ContentParent* parent = Manager()->AsContentParent();
+  if (!Preferences::GetBool("dom.testing.ignore_ipc_principal", false) &&
+      parent && principal && !AssertAppPrincipal(parent, principal)) {
+    return false;
   }
 
   StructuredCloneData cloneData = ipc::UnpackClonedMessageDataForParent(aData);

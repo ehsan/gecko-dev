@@ -91,7 +91,7 @@ js::CreateRegExpMatchResult(JSContext *cx, HandleString input, const MatchPairs 
 
 static RegExpRunStatus
 ExecuteRegExpImpl(JSContext *cx, RegExpStatics *res, RegExpShared &re,
-                  HandleLinearString input, const jschar *chars, size_t length,
+                  Handle<JSLinearString*> input, const jschar *chars, size_t length,
                   size_t *lastIndex, MatchConduit &matches)
 {
     RegExpRunStatus status;
@@ -121,7 +121,7 @@ ExecuteRegExpImpl(JSContext *cx, RegExpStatics *res, RegExpShared &re,
 /* Legacy ExecuteRegExp behavior is baked into the JSAPI. */
 bool
 js::ExecuteRegExpLegacy(JSContext *cx, RegExpStatics *res, RegExpObject &reobj,
-                        HandleLinearString input_, const jschar *chars, size_t length,
+                        Handle<JSLinearString*> input_, const jschar *chars, size_t length,
                         size_t *lastIndex, bool test, MutableHandleValue rval)
 {
     RegExpGuard shared(cx);
@@ -176,12 +176,8 @@ EscapeNakedForwardSlashes(JSContext *cx, HandleAtom unescaped)
             /* There's a forward slash that needs escaping. */
             if (sb.empty()) {
                 /* This is the first one we've seen, copy everything up to this point. */
-                if (unescaped->hasTwoByteChars() && !sb.ensureTwoByteChars())
-                    return nullptr;
-
                 if (!sb.reserve(oldLen + 1))
                     return nullptr;
-
                 sb.infallibleAppend(oldChars, size_t(it - oldChars));
             }
             if (!sb.append('\\'))
@@ -562,7 +558,7 @@ js::ExecuteRegExp(JSContext *cx, HandleObject regexp, HandleString string,
     }
 
     /* Step 3. */
-    RootedLinearString input(cx, string->ensureLinear(cx));
+    Rooted<JSLinearString*> input(cx, string->ensureLinear(cx));
     if (!input)
         return RegExpRunStatus_Error;
 

@@ -247,11 +247,9 @@ SimpleTiledContentClient::UseTiledLayerBuffer()
   mTiledBuffer.ClearPaintedRegion();
 }
 
-SimpleClientTiledThebesLayer::SimpleClientTiledThebesLayer(ClientLayerManager* aManager,
-                                                           ClientLayerManager::ThebesLayerCreationHint aCreationHint)
+SimpleClientTiledThebesLayer::SimpleClientTiledThebesLayer(ClientLayerManager* aManager)
   : ThebesLayer(aManager,
-                static_cast<ClientLayer*>(MOZ_THIS_IN_INITIALIZER_LIST()),
-                aCreationHint)
+                static_cast<ClientLayer*>(MOZ_THIS_IN_INITIALIZER_LIST()))
   , mContentClient()
 {
   MOZ_COUNT_CTOR(SimpleClientTiledThebesLayer);

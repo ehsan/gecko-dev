@@ -143,33 +143,34 @@ std::ostream& operator<<(std::ostream& stream, const ProfileEntry& entry)
 
 #define DYNAMIC_MAX_STRING 512
 
-ThreadProfile::ThreadProfile(ThreadInfo* aInfo, int aEntrySize)
-  : mThreadInfo(aInfo)
-  , mWritePos(0)
+ThreadProfile::ThreadProfile(const char* aName, int aEntrySize,
+                             PseudoStack *aStack, Thread::tid_t aThreadId,
+                             PlatformData* aPlatform,
+                             bool aIsMainThread, void *aStackTop)
+  : mWritePos(0)
   , mLastFlushPos(0)
   , mReadPos(0)
   , mEntrySize(aEntrySize)
-  , mPseudoStack(aInfo->Stack())
+  , mPseudoStack(aStack)
   , mMutex("ThreadProfile::mMutex")
-  , mThreadId(aInfo->ThreadId())
-  , mIsMainThread(aInfo->IsMainThread())
-  , mPlatformData(aInfo->GetPlatformData())
+  , mName(strdup(aName))
+  , mThreadId(aThreadId)
+  , mIsMainThread(aIsMainThread)
+  , mPlatformData(aPlatform)
   , mGeneration(0)
   , mPendingGenerationFlush(0)
-  , mStackTop(aInfo->StackTop())
-  , mRespInfo(MOZ_THIS_IN_INITIALIZER_LIST())
+  , mStackTop(aStackTop)
 #ifdef XP_LINUX
   , mRssMemory(0)
   , mUssMemory(0)
 #endif
 {
-  MOZ_COUNT_CTOR(ThreadProfile);
   mEntries = new ProfileEntry[mEntrySize];
 }
 
 ThreadProfile::~ThreadProfile()
 {
-  MOZ_COUNT_DTOR(ThreadProfile);
+  free(mName);
   delete[] mEntries;
 }
 
@@ -324,7 +325,7 @@ void ThreadProfile::StreamJSObject(JSStreamWriter& b)
       // TODO Add the proper plugin name
       b.NameValue("name", "Plugin");
     } else {
-      b.NameValue("name", Name());
+      b.NameValue("name", mName);
     }
     b.NameValue("tid", static_cast<int>(mThreadId));
 

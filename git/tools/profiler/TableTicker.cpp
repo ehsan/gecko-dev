@@ -657,8 +657,8 @@ void TableTicker::InplaceTick(TickSample* sample)
   if (recordSample)
     currThreadProfile.flush();
 
-  if (sample && currThreadProfile.GetThreadResponsiveness()->HasData()) {
-    TimeDuration delta = currThreadProfile.GetThreadResponsiveness()->GetUnresponsiveDuration(sample->timestamp);
+  if (!sLastTracerEvent.IsNull() && sample && currThreadProfile.IsMainThread()) {
+    TimeDuration delta = sample->timestamp - sLastTracerEvent;
     currThreadProfile.addTag(ProfileEntry('r', static_cast<float>(delta.ToMilliseconds())));
   }
 
@@ -700,8 +700,9 @@ SyncProfile* NewSyncProfile()
   }
   Thread::tid_t tid = Thread::GetCurrentId();
 
-  ThreadInfo* info = new ThreadInfo("SyncProfile", tid, NS_IsMainThread(), stack, nullptr);
-  SyncProfile* profile = new SyncProfile(info, GET_BACKTRACE_DEFAULT_ENTRY);
+  SyncProfile* profile = new SyncProfile("SyncProfile",
+                                         GET_BACKTRACE_DEFAULT_ENTRY,
+                                         stack, tid, NS_IsMainThread());
   return profile;
 }
 
@@ -764,9 +765,7 @@ void mozilla_sampler_print_location1()
 
   printf_stderr("Backtrace:\n");
   syncProfile->IterateTags(print_callback);
-  ThreadInfo* info = syncProfile->GetThreadInfo();
   delete syncProfile;
-  delete info;
 }
 
 

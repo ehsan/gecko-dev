@@ -151,12 +151,9 @@ static MOZ_CONSTEXPR_VAR FloatRegister f30 = {FloatRegisters::f30};
 static const uint32_t StackAlignment = 8;
 static const uint32_t CodeAlignment = 4;
 static const bool StackKeptAligned = true;
-
-// As an invariant across architectures, within asm.js code:
-//    $sp % StackAlignment = (AsmJSSizeOfRetAddr + masm.framePushed) % StackAlignment
-// To achieve this on MIPS, the first instruction of the asm.js prologue pushes
-// ra without incrementing masm.framePushed.
-static const uint32_t AsmJSSizeOfRetAddr = sizeof(void*);
+// NativeFrameSize is the size of return adress on stack in AsmJS functions.
+static const uint32_t NativeFrameSize = sizeof(void*);
+static const uint32_t AlignmentAtAsmJSPrologue = sizeof(void*);
 
 static const Scale ScalePointer = TimesFour;
 

@@ -3,9 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 #include "BorrowedContext.h"
-#include "DataSurfaceHelpers.h"
 #include "DrawTargetCG.h"
-#include "Logging.h"
 #include "SourceSurfaceCG.h"
 #include "Rect.h"
 #include "ScaledFontMac.h"
@@ -15,7 +13,6 @@
 #include "MacIOSurface.h"
 #include "FilterNodeSoftware.h"
 #include "mozilla/Assertions.h"
-#include "mozilla/Types.h" // for decltype
 #include "mozilla/FloatingPoint.h"
 
 using namespace std;
@@ -173,8 +170,9 @@ DrawTargetCG::Snapshot()
   if (!mSnapshot) {
     if (GetContextType(mCg) == CG_CONTEXT_TYPE_IOSURFACE) {
       return new SourceSurfaceCGIOSurfaceContext(this);
+    } else {
+      mSnapshot = new SourceSurfaceCGBitmapContext(this);
     }
-    mSnapshot = new SourceSurfaceCGBitmapContext(this);
   }
 
   return mSnapshot;
@@ -187,9 +185,10 @@ DrawTargetCG::CreateSimilarDrawTarget(const IntSize &aSize, SurfaceFormat aForma
   // to add that in somehow, but at a higher level
   RefPtr<DrawTargetCG> newTarget = new DrawTargetCG();
   if (newTarget->Init(GetType(), aSize, aFormat)) {
-    return newTarget.forget();
+    return newTarget;
+  } else {
+    return nullptr;
   }
-  return nullptr;
 }
 
 TemporaryRef<SourceSurface>
@@ -200,11 +199,11 @@ DrawTargetCG::CreateSourceSurfaceFromData(unsigned char *aData,
 {
   RefPtr<SourceSurfaceCG> newSurf = new SourceSurfaceCG();
 
-  if (!newSurf->InitFromData(aData, aSize, aStride, aFormat)) {
+ if (!newSurf->InitFromData(aData, aSize, aStride, aFormat)) {
     return nullptr;
   }
 
-  return newSurf.forget();
+  return newSurf;
 }
 
 // This function returns a retained CGImage that needs to be released after
@@ -1300,7 +1299,6 @@ DrawTargetCG::Init(BackendType aType,
       // 32767 is the maximum size supported by cairo
       // we clamp to that to make it easier to interoperate
       aSize.width > 32767 || aSize.height > 32767) {
-    gfxWarning() << "Failed to Init() DrawTargetCG because of bad size.";
     mColorSpace = nullptr;
     mCg = nullptr;
     return false;
@@ -1313,17 +1311,9 @@ DrawTargetCG::Init(BackendType aType,
 
   if (aData == nullptr && aType != BackendType::COREGRAPHICS_ACCELERATED) {
     // XXX: Currently, Init implicitly clears, that can often be a waste of time
-    size_t bufLen = BufferSizeFromStrideAndHeight(aStride, aSize.height);
-    if (bufLen == 0) {
-      mColorSpace = nullptr;
-      mCg = nullptr;
-      return false;
-    }
-    static_assert(sizeof(decltype(mData[0])) == 1,
-                  "mData.Realloc() takes an object count, so its objects must be 1-byte sized if we use bufLen");
-    mData.Realloc(/* actually an object count */ bufLen);
+    mData.Realloc(aStride * aSize.height);
     aData = static_cast<unsigned char*>(mData);
-    memset(aData, 0, bufLen);
+    memset(aData, 0, aStride * aSize.height);
   }
 
   mSize = aSize;
@@ -1457,7 +1447,8 @@ DrawTargetCG::Init(BackendType aType, const IntSize &aSize, SurfaceFormat &aForm
 TemporaryRef<PathBuilder>
 DrawTargetCG::CreatePathBuilder(FillRule aFillRule) const
 {
-  return new PathBuilderCG(aFillRule);
+  RefPtr<PathBuilderCG> pb = new PathBuilderCG(aFillRule);
+  return pb;
 }
 
 void*

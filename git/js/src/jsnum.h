@@ -8,7 +8,6 @@
 #define jsnum_h
 
 #include "mozilla/FloatingPoint.h"
-#include "mozilla/Range.h"
 
 #include "NamespaceImports.h"
 
@@ -118,9 +117,8 @@ const double DOUBLE_INTEGRAL_PRECISION_LIMIT = uint64_t(1) << 53;
  * the double type -- that is, the number will be smaller than
  * DOUBLE_INTEGRAL_PRECISION_LIMIT
  */
-template <typename CharT>
 extern double
-ParseDecimalNumber(const mozilla::Range<const CharT> chars);
+ParseDecimalNumber(const JS::TwoByteChars chars);
 
 /*
  * Compute the positive integer of the given base described immediately at the

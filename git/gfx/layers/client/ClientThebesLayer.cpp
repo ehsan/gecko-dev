@@ -127,22 +127,6 @@ ClientThebesLayer::RenderLayer()
   mContentClient->EndPaint();
 }
 
-bool
-ClientLayerManager::IsOptimizedFor(ThebesLayer* aLayer, ThebesLayerCreationHint aHint)
-{
-#ifdef MOZ_B2G
-  // The only creation hint is whether the layer is scrollable or not, and this
-  // is only respected on B2G, where it's used to determine whether to use
-  // tiled layers or not.
-  // There are pretty nasty performance consequences for not using tiles on
-  // large, scrollable layers, so we want the layer to be recreated in this
-  // situation.
-  return aHint == aLayer->GetCreationHint();
-#else
-  return LayerManager::IsOptimizedFor(aLayer, aHint);
-#endif
-}
-
 already_AddRefed<ThebesLayer>
 ClientLayerManager::CreateThebesLayer()
 {
@@ -166,19 +150,19 @@ ClientLayerManager::CreateThebesLayerWithHint(ThebesLayerCreationHint aHint)
     }
     if (gfxPrefs::LayersUseSimpleTiles()) {
       nsRefPtr<SimpleClientTiledThebesLayer> layer =
-        new SimpleClientTiledThebesLayer(this, aHint);
+        new SimpleClientTiledThebesLayer(this);
       CREATE_SHADOW(Thebes);
       return layer.forget();
     } else {
       nsRefPtr<ClientTiledThebesLayer> layer =
-        new ClientTiledThebesLayer(this, aHint);
+        new ClientTiledThebesLayer(this);
       CREATE_SHADOW(Thebes);
       return layer.forget();
     }
   } else
   {
     nsRefPtr<ClientThebesLayer> layer =
-      new ClientThebesLayer(this, aHint);
+      new ClientThebesLayer(this);
     CREATE_SHADOW(Thebes);
     return layer.forget();
   }

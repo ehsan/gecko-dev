@@ -66,10 +66,6 @@ TextTrack::TextTrack(nsPIDOMWindow* aOwnerWindow,
   SetDefaultSettings();
 }
 
-TextTrack::~TextTrack()
-{
-}
-
 void
 TextTrack::SetDefaultSettings()
 {
