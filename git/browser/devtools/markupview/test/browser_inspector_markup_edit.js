@@ -42,27 +42,12 @@ function test() {
     EventUtils.sendKey("return", inspector.panelWin);
   }
 
-  /**
-   * Check that the appropriate attributes are assigned to a node.
-   *
-   * @param  {HTMLNode} aElement
-   *         The node to check.
-   * @param  {Object} aAttributes
-   *         An object containing the arguments to check.
-   *         e.g. {id="id1",class="someclass"}
-   *
-   * NOTE: When checking attribute values bare in mind that node.getAttribute()
-   *       returns attribute values provided by the HTML parser. The parser only
-   *       provides unescaped entities so &amp; will return &.
-   */
   function assertAttributes(aElement, aAttributes)
   {
     let attrs = Object.getOwnPropertyNames(aAttributes);
-    is(aElement.attributes.length, attrs.length,
-      "Node has the correct number of attributes");
+    is(aElement.attributes.length, attrs.length, "Node has the correct number of attributes");
     for (let attr of attrs) {
-      is(aElement.getAttribute(attr), aAttributes[attr],
-        "Node has the correct " + attr + " attribute.");
+      is(aElement.getAttribute(attr), aAttributes[attr], "Node has the correct " + attr + " attribute.");
     }
   }
 
@@ -91,8 +76,7 @@ function test() {
     },
 
     {
-      desc: 'Try changing an attribute to a quote (") - this should result ' +
-            'in it being set to an empty string',
+      desc: "Try change an attribute to a badly formed string",
       before: function() {
         assertAttributes(doc.querySelector("#node22"), {
           id: "node22",
@@ -108,7 +92,7 @@ function test() {
       after: function() {
         assertAttributes(doc.querySelector("#node22"), {
           id: "node22",
-          class: ""
+          class: "unchanged"
         });
       }
     },
@@ -157,9 +141,7 @@ function test() {
     },
 
     {
-      desc: 'Try add an attribute containing a quote (") attribute by ' +
-            'clicking the empty space after a node - this should result ' +
-            'in it being set to an empty string',
+      desc: "Try add a badly formed attribute by clicking the empty space after a node",
       before: function() {
         assertAttributes(doc.querySelector("#node23"), {
           id: "node23",
@@ -174,8 +156,6 @@ function test() {
       after: function() {
         assertAttributes(doc.querySelector("#node23"), {
           id: "node23",
-          class: "newclass",
-          style: ""
         });
       }
     },
@@ -196,7 +176,6 @@ function test() {
       after: function() {
         assertAttributes(doc.querySelector("#node24"), {
           id: "node24",
-          class: ""
         });
       }
     },
@@ -218,27 +197,6 @@ function test() {
         let node = doc.querySelector('.node6').firstChild;
         is(node.nodeValue, "New text", "Text should be changed.");
       },
-    },
-
-    {
-      desc: "Add an attribute value containing < > &uuml; \" & '",
-      before: function() {
-        assertAttributes(doc.querySelector("#node25"), {
-          id: "node25",
-        });
-      },
-      execute: function(after) {
-        inspector.once("markupmutation", after);
-        let editor = markup.getContainer(doc.querySelector("#node25")).editor;
-        let attr = editor.newAttr;
-        editField(attr, 'src="somefile.html?param1=<a>&param2=&uuml;"bl\'ah"');
-      },
-      after: function() {
-        assertAttributes(doc.querySelector("#node25"), {
-          id: "node25",
-          src: "somefile.html?param1=&lt;a&gt;&param2=&uuml;&quot;bl&apos;ah"
-        });
-      }
     },
   ];
 

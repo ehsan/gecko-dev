@@ -27,8 +27,6 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "Services",
   "resource://gre/modules/Services.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "FileUtils",
-  "resource://gre/modules/FileUtils.jsm");
 
 /**
  * Implements the thumbnail protocol handler responsible for moz-page-thumb: URIs.
@@ -75,8 +73,8 @@ Protocol.prototype = {
    */
   newChannel: function Proto_newChannel(aURI) {
     let {url} = parseURI(aURI);
-    let file = PageThumbsStorage.getFilePathForURL(url);
-    let fileuri = Services.io.newFileURI(new FileUtils.File(file));
+    let file = PageThumbsStorage.getFileForURL(url);
+    let fileuri = Services.io.newFileURI(file);
     return Services.io.newChannelFromURI(fileuri);
   },
 
