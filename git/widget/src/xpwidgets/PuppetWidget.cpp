@@ -78,6 +78,7 @@ NS_IMPL_ISUPPORTS_INHERITED1(PuppetWidget, nsBaseWidget,
 
 PuppetWidget::PuppetWidget(PBrowserChild *aTabChild)
   : mTabChild(aTabChild)
+  , mDPI(-1)
 {
   MOZ_COUNT_CTOR(PuppetWidget);
 }
@@ -111,8 +112,9 @@ PuppetWidget::Create(nsIWidget        *aParent,
                                       gfxASurface::ContentFromFormat(gfxASurface::ImageFormatARGB32));
 
   mIMEComposing = PR_FALSE;
-  mIMELastReceivedSeqno = 0;
-  mIMELastBlurSeqno = 0;
+  PRUint32 chromeSeqno;
+  mTabChild->SendNotifyIMEFocus(false, &mIMEPreference, &chromeSeqno);
+  mIMELastBlurSeqno = mIMELastReceivedSeqno = chromeSeqno;
 
   PuppetWidget* parent = static_cast<PuppetWidget*>(aParent);
   if (parent) {
@@ -370,10 +372,10 @@ PuppetWidget::SetIMEOpenState(PRBool aState)
 }
 
 NS_IMETHODIMP
-PuppetWidget::SetIMEEnabled(PRUint32 aState)
+PuppetWidget::SetInputMode(const IMEContext& aContext)
 {
   if (mTabChild &&
-      mTabChild->SendSetIMEEnabled(aState))
+      mTabChild->SendSetInputMode(aContext.mStatus, aContext.mHTMLInputType, aContext.mActionHint))
     return NS_OK;
   return NS_ERROR_FAILURE;
 }
@@ -388,10 +390,10 @@ PuppetWidget::GetIMEOpenState(PRBool *aState)
 }
 
 NS_IMETHODIMP
-PuppetWidget::GetIMEEnabled(PRUint32 *aState)
+PuppetWidget::GetInputMode(IMEContext& aContext)
 {
   if (mTabChild &&
-      mTabChild->SendGetIMEEnabled(aState))
+      mTabChild->SendGetIMEEnabled(&aContext.mStatus))
     return NS_OK;
   return NS_ERROR_FAILURE;
 }
@@ -547,6 +549,17 @@ PuppetWidget::PaintTask::Run()
     mWidget->DispatchPaintEvent();
   }
   return NS_OK;
+}
+
+float
+PuppetWidget::GetDPI()
+{
+  if (mDPI < 0) {
+    NS_ABORT_IF_FALSE(mTabChild, "Need TabChild to get the DPI from!");
+    mTabChild->SendGetDPI(&mDPI);
+  }
+
+  return mDPI;
 }
 
 }  // namespace widget

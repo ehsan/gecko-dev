@@ -69,6 +69,7 @@
 #include "nsIPromptFactory.h"
 #include "nsIContent.h"
 #include "mozilla/unused.h"
+#include "nsDebug.h"
 
 using namespace mozilla::dom;
 using namespace mozilla::ipc;
@@ -482,25 +483,40 @@ bool
 TabParent::RecvGetIMEEnabled(PRUint32* aValue)
 {
   nsCOMPtr<nsIWidget> widget = GetWidget();
-  if (widget)
-    widget->GetIMEEnabled(aValue);
+  if (!widget)
+    return true;
+
+  nsIWidget_MOZILLA_2_0_BRANCH* widget2 = static_cast<nsIWidget_MOZILLA_2_0_BRANCH*>(widget.get());
+  IMEContext context;
+  if (widget2) {
+    widget2->GetInputMode(context);
+    *aValue = context.mStatus;
+  }
   return true;
 }
 
 bool
-TabParent::RecvSetIMEEnabled(const PRUint32& aValue)
+TabParent::RecvSetInputMode(const PRUint32& aValue, const nsString& aType, const nsString& aAction)
 {
   nsCOMPtr<nsIWidget> widget = GetWidget();
-  if (widget && AllowContentIME()) {
-    widget->SetIMEEnabled(aValue);
+  if (!widget || !AllowContentIME())
+    return true;
 
-    nsCOMPtr<nsIObserverService> observerService = mozilla::services::GetObserverService();
-    if (observerService) {
-      nsAutoString state;
-      state.AppendInt(aValue);
-      observerService->NotifyObservers(nsnull, "ime-enabled-state-changed", state.get());
-    }
-  }
+  nsIWidget_MOZILLA_2_0_BRANCH* widget2 = static_cast<nsIWidget_MOZILLA_2_0_BRANCH*>(widget.get());
+
+  IMEContext context;
+  context.mStatus = aValue;
+  context.mHTMLInputType.Assign(aType);
+  context.mActionHint.Assign(aAction);
+  widget2->SetInputMode(context);
+
+  nsCOMPtr<nsIObserverService> observerService = mozilla::services::GetObserverService();
+  if (!observerService)
+    return true;
+
+  nsAutoString state;
+  state.AppendInt(aValue);
+  observerService->NotifyObservers(nsnull, "ime-enabled-state-changed", state.get());
 
   return true;
 }
@@ -520,6 +536,15 @@ TabParent::RecvSetIMEOpenState(const PRBool& aValue)
   nsCOMPtr<nsIWidget> widget = GetWidget();
   if (widget && AllowContentIME())
     widget->SetIMEOpenState(aValue);
+  return true;
+}
+
+bool
+TabParent::RecvGetDPI(float* aValue)
+{
+  nsCOMPtr<nsIWidget> widget = GetWidget();
+  NS_ABORT_IF_FALSE(widget, "Must have a widget to find the DPI!");
+  *aValue = widget->GetDPI();
   return true;
 }
 
