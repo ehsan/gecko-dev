@@ -1316,8 +1316,6 @@ nsPermissionManager::Read()
   uint32_t appId;
   bool isInBrowserElement;
   bool hasResult;
-  bool readError = false;
-
   while (NS_SUCCEEDED(stmt->ExecuteStep(&hasResult)) && hasResult) {
     // explicitly set our entry id counter for use in AddInternal(),
     // and keep track of the largest id so we know where to pick up.
@@ -1326,16 +1324,10 @@ nsPermissionManager::Read()
       mLargestID = id;
 
     rv = stmt->GetUTF8String(1, host);
-    if (NS_FAILED(rv)) {
-      readError = true;
-      continue;
-    }
+    NS_ENSURE_SUCCESS(rv, rv);
 
     rv = stmt->GetUTF8String(2, type);
-    if (NS_FAILED(rv)) {
-      readError = true;
-      continue;
-    }
+    NS_ENSURE_SUCCESS(rv, rv);
 
     permission = stmt->AsInt32(3);
     expireType = stmt->AsInt32(4);
@@ -1349,22 +1341,11 @@ nsPermissionManager::Read()
 
     nsCOMPtr<nsIPrincipal> principal;
     nsresult rv = GetPrincipal(host, appId, isInBrowserElement, getter_AddRefs(principal));
-    if (NS_FAILED(rv)) {
-      readError = true;
-      continue;
-    }
+    NS_ENSURE_SUCCESS(rv, rv);
 
     rv = AddInternal(principal, type, permission, id, expireType, expireTime,
                      eDontNotify, eNoDBOperation);
-    if (NS_FAILED(rv)) {
-      readError = true;
-      continue;
-    }
-  }
-
-  if (readError) {
-    NS_ERROR("Error occured while reading the permissions database!");
-    return NS_ERROR_FAILURE;
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
   return NS_OK;
