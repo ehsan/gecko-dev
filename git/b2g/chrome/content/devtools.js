@@ -27,7 +27,6 @@ XPCOMUtils.defineLazyGetter(this, 'MemoryFront', function() {
   return devtools.require('devtools/server/actors/memory').MemoryFront;
 });
 
-Cu.import('resource://gre/modules/AppFrames.jsm');
 
 /**
  * The Developer HUD is an on-device developer tool that displays widgets,
@@ -37,6 +36,7 @@ Cu.import('resource://gre/modules/AppFrames.jsm');
 let developerHUD = {
 
   _targets: new Map(),
+  _frames: new Map(),
   _client: null,
   _conn: null,
   _watchers: [],
@@ -77,9 +77,15 @@ let developerHUD = {
       }
     }
 
-    AppFrames.addObserver(this);
+    Services.obs.addObserver(this, 'remote-browser-shown', false);
+    Services.obs.addObserver(this, 'inprocess-browser-shown', false);
+    Services.obs.addObserver(this, 'message-manager-disconnect', false);
 
-    for (let frame of AppFrames.list()) {
+    let systemapp = document.querySelector('#systemapp');
+    this.trackFrame(systemapp);
+
+    let frames = systemapp.contentWindow.document.querySelectorAll('iframe[mozapp]');
+    for (let frame of frames) {
       this.trackFrame(frame);
     }
 
@@ -96,7 +102,9 @@ let developerHUD = {
       this.untrackFrame(frame);
     }
 
-    AppFrames.removeObserver(this);
+    Services.obs.removeObserver(this, 'remote-browser-shown');
+    Services.obs.removeObserver(this, 'inprocess-browser-shown');
+    Services.obs.removeObserver(this, 'message-manager-disconnect');
 
     this._client.close();
     delete this._client;
@@ -132,12 +140,41 @@ let developerHUD = {
     }
   },
 
-  onAppFrameCreated: function (frame, isFirstAppFrame) {
-    this.trackFrame(frame);
-  },
+  observe: function dwp_observe(subject, topic, data) {
+    if (!this._client)
+      return;
 
-  onAppFrameDestroyed: function (frame, isLastAppFrame) {
-    this.untrackFrame(frame);
+    let frame;
+
+    switch(topic) {
+
+      // listen for frame creation in OOP (device) as well as in parent process (b2g desktop)
+      case 'remote-browser-shown':
+      case 'inprocess-browser-shown':
+        let frameLoader = subject;
+        // get a ref to the app <iframe>
+        frameLoader.QueryInterface(Ci.nsIFrameLoader);
+        // Ignore notifications that aren't from a BrowserOrApp
+        if (!frameLoader.ownerIsBrowserOrAppFrame) {
+          return;
+        }
+        frame = frameLoader.ownerElement;
+        if (!frame.appManifestURL) // Ignore all frames but app frames
+          return;
+        this.trackFrame(frame);
+        this._frames.set(frameLoader.messageManager, frame);
+        break;
+
+      // Every time an iframe is destroyed, its message manager also is
+      case 'message-manager-disconnect':
+        let mm = subject;
+        frame = this._frames.get(mm);
+        if (!frame)
+          return;
+        this.untrackFrame(frame);
+        this._frames.delete(mm);
+        break;
+    }
   },
 
   log: function dwp_log(message) {
