@@ -26,7 +26,7 @@ namespace js {
  * All values except ropes are hashable as-is.
  */
 class HashableValue {
-    EncapsulatedValue value;
+    RelocatableValue value;
 
   public:
     struct Hasher {

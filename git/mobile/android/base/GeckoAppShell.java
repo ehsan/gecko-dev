@@ -334,6 +334,11 @@ public class GeckoAppShell
         }
     }
 
+    public static void sendEventToGeckoSync(GeckoEvent e) {
+        sendEventToGecko(e);
+        geckoEventSync();
+    }
+
     // Tell the Gecko event loop that an event is available.
     public static native void notifyGeckoOfEvent(GeckoEvent event);
 
@@ -367,31 +372,29 @@ public class GeckoAppShell
         }
     }
 
-    private static final Object sEventAckLock = new Object();
-    private static boolean sWaitingForEventAck;
+    private static final GeckoEvent sSyncEvent = GeckoEvent.createSyncEvent();
+    private static boolean sWaitingForSyncAck;
 
     // Block the current thread until the Gecko event loop is caught up
-    public static void sendEventToGeckoSync(GeckoEvent e) {
-        e.setAckNeeded(true);
-
+    public static void geckoEventSync() {
         long time = SystemClock.uptimeMillis();
         boolean isMainThread = (GeckoApp.mAppContext.getMainLooper().getThread() == Thread.currentThread());
 
-        synchronized (sEventAckLock) {
-            if (sWaitingForEventAck) {
+        synchronized (sSyncEvent) {
+            if (sWaitingForSyncAck) {
                 // should never happen since we always leave it as false when we exit this function.
                 Log.e(LOGTAG, "geckoEventSync() may have been called twice concurrently!", new Exception());
                 // fall through for graceful handling
             }
 
-            sendEventToGecko(e);
-            sWaitingForEventAck = true;
+            GeckoAppShell.sendEventToGecko(sSyncEvent);
+            sWaitingForSyncAck = true;
             while (true) {
                 try {
-                    sEventAckLock.wait(100);
+                    sSyncEvent.wait(100);
                 } catch (InterruptedException ie) {
                 }
-                if (!sWaitingForEventAck) {
+                if (!sWaitingForSyncAck) {
                     // response received
                     break;
                 }
@@ -399,7 +402,7 @@ public class GeckoAppShell
                 Log.d(LOGTAG, "Gecko event sync taking too long: " + waited + "ms");
                 if (isMainThread && waited >= 4000) {
                     Log.w(LOGTAG, "Gecko event sync took too long, aborting!", new Exception());
-                    sWaitingForEventAck = false;
+                    sWaitingForSyncAck = false;
                     break;
                 }
             }
@@ -407,10 +410,10 @@ public class GeckoAppShell
     }
 
     // Signal the Java thread that it's time to wake up
-    public static void acknowledgeEvent() {
-        synchronized (sEventAckLock) {
-            sWaitingForEventAck = false;
-            sEventAckLock.notifyAll();
+    public static void acknowledgeEventSync() {
+        synchronized (sSyncEvent) {
+            sWaitingForSyncAck = false;
+            sSyncEvent.notifyAll();
         }
     }
 

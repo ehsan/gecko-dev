@@ -4005,7 +4005,7 @@ DrawImageInternal(nsRenderingContext*    aRenderingContext,
 
   aImage->Draw(ctx, aGraphicsFilter, drawingParams.mUserSpaceToImageSpace,
                drawingParams.mFillRect, drawingParams.mSubimage, aImageSize,
-               aSVGContext, imgIContainer::FRAME_CURRENT, aImageFlags);
+               aSVGContext, aImageFlags);
   return NS_OK;
 }
 

@@ -10,18 +10,10 @@
 #include <stdlib.h>
 #include <AudioUnit/AudioUnit.h>
 #include "cubeb/cubeb.h"
-#include "cubeb-internal.h"
 
 #define NBUFS 4
 
-static struct cubeb_ops const audiounit_ops;
-
-struct cubeb {
-  struct cubeb_ops const * ops;
-};
-
 struct cubeb_stream {
-  cubeb * context;
   AudioUnit unit;
   cubeb_data_callback data_callback;
   cubeb_state_callback state_callback;
@@ -35,9 +27,9 @@ struct cubeb_stream {
 };
 
 static OSStatus
-audiounit_output_callback(void * user_ptr, AudioUnitRenderActionFlags * flags,
-                          AudioTimeStamp const * tstamp, UInt32 bus, UInt32 nframes,
-                          AudioBufferList * bufs)
+audio_unit_output_callback(void * user_ptr, AudioUnitRenderActionFlags * flags,
+                           AudioTimeStamp const * tstamp, UInt32 bus, UInt32 nframes,
+                           AudioBufferList * bufs)
 {
   cubeb_stream * stm;
   unsigned char * buf;
@@ -87,42 +79,30 @@ audiounit_output_callback(void * user_ptr, AudioUnitRenderActionFlags * flags,
   return noErr;
 }
 
-/*static*/ int
-audiounit_init(cubeb ** context, char const * context_name)
+int
+cubeb_init(cubeb ** context, char const * context_name)
 {
-  cubeb * ctx;
-
-  *context = NULL;
-
-  ctx = calloc(1, sizeof(*ctx));
-  assert(ctx);
-
-  ctx->ops = &audiounit_ops;
-
-  *context = ctx;
-
+  *context = (void *) 0xdeadbeef;
   return CUBEB_OK;
 }
 
-static char const *
-audiounit_get_backend_id(cubeb * ctx)
+char const *
+cubeb_get_backend_id(cubeb * ctx)
 {
   return "audiounit";
 }
 
-static void
-audiounit_destroy(cubeb * ctx)
+void
+cubeb_destroy(cubeb * ctx)
 {
-  free(ctx);
+  assert(ctx == (void *) 0xdeadbeef);
 }
 
-static void audiounit_stream_destroy(cubeb_stream * stm);
-
-static int
-audiounit_stream_init(cubeb * context, cubeb_stream ** stream, char const * stream_name,
-                      cubeb_stream_params stream_params, unsigned int latency,
-                      cubeb_data_callback data_callback, cubeb_state_callback state_callback,
-                      void * user_ptr)
+int
+cubeb_stream_init(cubeb * context, cubeb_stream ** stream, char const * stream_name,
+                  cubeb_stream_params stream_params, unsigned int latency,
+                  cubeb_data_callback data_callback, cubeb_state_callback state_callback,
+                  void * user_ptr)
 {
   AudioStreamBasicDescription ss;
 #if MAC_OS_X_VERSION_MIN_REQUIRED < 1060
@@ -137,8 +117,14 @@ audiounit_stream_init(cubeb * context, cubeb_stream ** stream, char const * stre
   unsigned int buffer_size;
   OSStatus r;
 
-  assert(context);
+  assert(context == (void *) 0xdeadbeef);
   *stream = NULL;
+
+  if (stream_params.rate < 1 || stream_params.rate > 192000 ||
+      stream_params.channels < 1 || stream_params.channels > 32 ||
+      latency < 1 || latency > 2000) {
+    return CUBEB_ERROR_INVALID_FORMAT;
+  }
 
   memset(&ss, 0, sizeof(ss));
   ss.mFormatFlags = 0;
@@ -190,7 +176,6 @@ audiounit_stream_init(cubeb * context, cubeb_stream ** stream, char const * stre
   stm = calloc(1, sizeof(*stm));
   assert(stm);
 
-  stm->context = context;
   stm->data_callback = data_callback;
   stm->state_callback = state_callback;
   stm->user_ptr = user_ptr;
@@ -209,23 +194,23 @@ audiounit_stream_init(cubeb * context, cubeb_stream ** stream, char const * stre
   r = AudioComponentInstanceNew(comp, &stm->unit);
 #endif
   if (r != 0) {
-    audiounit_stream_destroy(stm);
+    cubeb_stream_destroy(stm);
     return CUBEB_ERROR;
   }
 
-  input.inputProc = audiounit_output_callback;
+  input.inputProc = audio_unit_output_callback;
   input.inputProcRefCon = stm;
   r = AudioUnitSetProperty(stm->unit, kAudioUnitProperty_SetRenderCallback,
                            kAudioUnitScope_Global, 0, &input, sizeof(input));
   if (r != 0) {
-    audiounit_stream_destroy(stm);
+    cubeb_stream_destroy(stm);
     return CUBEB_ERROR;
   }
 
   r = AudioUnitSetProperty(stm->unit, kAudioUnitProperty_StreamFormat, kAudioUnitScope_Input,
                            0, &ss, sizeof(ss));
   if (r != 0) {
-    audiounit_stream_destroy(stm);
+    cubeb_stream_destroy(stm);
     return CUBEB_ERROR;
   }
 
@@ -237,7 +222,7 @@ audiounit_stream_init(cubeb * context, cubeb_stream ** stream, char const * stre
 
   r = AudioUnitInitialize(stm->unit);
   if (r != 0) {
-    audiounit_stream_destroy(stm);
+    cubeb_stream_destroy(stm);
     return CUBEB_ERROR;
   }
 
@@ -246,8 +231,8 @@ audiounit_stream_init(cubeb * context, cubeb_stream ** stream, char const * stre
   return CUBEB_OK;
 }
 
-static void
-audiounit_stream_destroy(cubeb_stream * stm)
+void
+cubeb_stream_destroy(cubeb_stream * stm)
 {
   int r;
 
@@ -269,8 +254,8 @@ audiounit_stream_destroy(cubeb_stream * stm)
   free(stm);
 }
 
-static int
-audiounit_stream_start(cubeb_stream * stm)
+int
+cubeb_stream_start(cubeb_stream * stm)
 {
   OSStatus r;
   r = AudioOutputUnitStart(stm->unit);
@@ -279,8 +264,8 @@ audiounit_stream_start(cubeb_stream * stm)
   return CUBEB_OK;
 }
 
-static int
-audiounit_stream_stop(cubeb_stream * stm)
+int
+cubeb_stream_stop(cubeb_stream * stm)
 {
   OSStatus r;
   r = AudioOutputUnitStop(stm->unit);
@@ -289,22 +274,11 @@ audiounit_stream_stop(cubeb_stream * stm)
   return CUBEB_OK;
 }
 
-static int
-audiounit_stream_get_position(cubeb_stream * stm, uint64_t * position)
+int
+cubeb_stream_get_position(cubeb_stream * stm, uint64_t * position)
 {
   pthread_mutex_lock(&stm->mutex);
   *position = stm->frames_played;
   pthread_mutex_unlock(&stm->mutex);
   return CUBEB_OK;
 }
-
-static struct cubeb_ops const audiounit_ops = {
-  .init = audiounit_init,
-  .get_backend_id = audiounit_get_backend_id,
-  .destroy = audiounit_destroy,
-  .stream_init = audiounit_stream_init,
-  .stream_destroy = audiounit_stream_destroy,
-  .stream_start = audiounit_stream_start,
-  .stream_stop = audiounit_stream_stop,
-  .stream_get_position = audiounit_stream_get_position
-};

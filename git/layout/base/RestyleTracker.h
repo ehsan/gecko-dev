@@ -126,15 +126,11 @@ private:
     }
  
     /**
-     * Sort by *reverse* depth in the tree, and break ties with
-     * the frame pointer.
+     * Sort by the frame pointer.
      */
     bool operator<(const Entry& aOther) const
     {
-      if (mDepth == aOther.mDepth) {
-        return mFrame < aOther.mFrame;
-      }
-      return mDepth > aOther.mDepth; /* reverse, want "min" to be deepest */
+      return mFrame < aOther.mFrame;
     }
 
     static int compare(const Entry& aOne, const Entry& aTwo)

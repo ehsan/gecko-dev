@@ -97,7 +97,6 @@ using namespace mozilla;
 using namespace mozilla::dom;
 using namespace mozilla::layers;
 
-using mozilla::net::nsMediaFragmentURIParser;
 
 // Number of milliseconds between timeupdate events as defined by spec
 #define TIMEUPDATE_MS 250
@@ -1390,7 +1389,7 @@ NS_IMETHODIMP nsHTMLMediaElement::GetVolume(double *aVolume)
 
 NS_IMETHODIMP nsHTMLMediaElement::SetVolume(double aVolume)
 {
-  if (!(aVolume >= 0.0 && aVolume <= 1.0))
+  if (aVolume < 0.0 || aVolume > 1.0)
     return NS_ERROR_DOM_INDEX_SIZE_ERR;
 
   if (aVolume == mVolume)
@@ -2485,15 +2484,24 @@ nsresult nsHTMLMediaElement::NewURIFromString(const nsAutoString& aURISpec, nsIU
 
 void nsHTMLMediaElement::ProcessMediaFragmentURI()
 {
-  nsMediaFragmentURIParser parser(mLoadingSrc);
-
-  if (mDecoder && parser.HasEndTime()) {
-    mFragmentEnd = parser.GetEndTime();
+  nsAutoCString ref;
+  GetCurrentSpec(ref);
+  nsMediaFragmentURIParser parser(ref);
+  parser.Parse();
+  double start = parser.GetStartTime();
+  if (mDecoder) {
+    double end = parser.GetEndTime();
+    if (end < 0.0 || end > start) {
+      mFragmentEnd = end;
+    }
+    else {
+      start = -1.0;
+      end = -1.0;
+    }
   }
-
-  if (parser.HasStartTime()) {
-    SetCurrentTime(parser.GetStartTime());
-    mFragmentStart = parser.GetStartTime();
+  if (start > 0.0) {
+    SetCurrentTime(start);
+    mFragmentStart = start;
   }
 }
 
@@ -3418,9 +3426,7 @@ NS_IMETHODIMP nsHTMLMediaElement::GetPlaybackRate(double* aPlaybackRate)
 
 NS_IMETHODIMP nsHTMLMediaElement::SetPlaybackRate(double aPlaybackRate)
 {
-  // Changing the playback rate of a media that has more than two channels is
-  // not supported.
-  if (aPlaybackRate < 0 || (mChannels > 2 && aPlaybackRate != 1.0)) {
+  if (aPlaybackRate < 0) {
     return NS_ERROR_NOT_IMPLEMENTED;
   }
 

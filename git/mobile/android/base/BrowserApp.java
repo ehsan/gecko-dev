@@ -960,6 +960,9 @@ abstract public class BrowserApp extends GeckoApp
         mAboutHomeShowing = true;
         Runnable r = new AboutHomeRunnable(true);
         mMainHandler.postAtFrontOfQueue(r);
+
+        // Refresh margins to possibly remove the toolbar padding
+        ((BrowserToolbarLayout)mBrowserToolbar.getLayout()).refreshMargins();
     }
 
     private void hideAboutHome() {
@@ -972,6 +975,9 @@ abstract public class BrowserApp extends GeckoApp
         mAboutHomeShowing = false;
         Runnable r = new AboutHomeRunnable(false);
         mMainHandler.postAtFrontOfQueue(r);
+
+        // Refresh margins to possibly restore the toolbar padding
+        ((BrowserToolbarLayout)mBrowserToolbar.getLayout()).refreshMargins();
     }
 
     private class AboutHomeRunnable implements Runnable {
@@ -1008,10 +1014,7 @@ abstract public class BrowserApp extends GeckoApp
             } else {
                 findViewById(R.id.abouthome_content).setVisibility(View.GONE);
             }
-
-            // Refresh margins to possibly restore the toolbar padding
-            ((BrowserToolbarLayout)mBrowserToolbar.getLayout()).refreshMargins();
-        }
+        } 
     }
 
     private class HideTabsTouchListener implements OnInterceptTouchListener {

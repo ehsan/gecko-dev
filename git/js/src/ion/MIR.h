@@ -1331,9 +1331,6 @@ class MCall
         return setOperand(FunctionOperandIndex, func);
     }
 
-    MPrepareCall *getPrepareCall() {
-        return getOperand(PrepareCallOperandIndex)->toPrepareCall();
-    }
     MDefinition *getFunction() const {
         return getOperand(FunctionOperandIndex);
     }

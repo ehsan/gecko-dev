@@ -559,16 +559,8 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
         break;
     }
 
-    case AndroidGeckoEvent::NOOP:
-        break;
-
     default:
         nsWindow::OnGlobalAndroidEvent(curEvent);
-        break;
-    }
-
-    if (curEvent->AckNeeded()) {
-        AndroidBridge::Bridge()->AcknowledgeEvent();
     }
 
     EVLOG("nsAppShell: -- done event %p %d", (void*)curEvent.get(), curEvent->Type());

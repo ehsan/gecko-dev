@@ -252,12 +252,6 @@ bool
 LIRGenerator::visitPrepareCall(MPrepareCall *ins)
 {
     allocateArguments(ins->argc());
-
-#ifdef DEBUG
-    if (!prepareCallStack_.append(ins))
-        return false;
-#endif
-
     return true;
 }
 
@@ -330,9 +324,6 @@ LIRGenerator::visitCall(MCall *call)
     // Height of the current argument vector.
     uint32_t argslot = getArgumentSlotForCall();
     freeArguments(call->numStackArgs());
-
-    // Check MPrepareCall/MCall nesting.
-    JS_ASSERT(prepareCallStack_.popCopy() == call->getPrepareCall());
 
     JSFunction *target = call->getSingleTarget();
 
@@ -2641,8 +2632,6 @@ LIRGenerator::generate()
 
     lirGraph_.setArgumentSlotCount(maxargslots_);
 
-    JS_ASSERT(argslots_ == 0);
-    JS_ASSERT(prepareCallStack_.empty());
     return true;
 }
 

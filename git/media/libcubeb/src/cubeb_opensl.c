@@ -5,17 +5,13 @@
  * accompanying file LICENSE for details.
  */
 #undef NDEBUG
+#include "cubeb/cubeb.h"
 #include <assert.h>
 #include <dlfcn.h>
 #include <stdlib.h>
 #include <SLES/OpenSLES.h>
-#include "cubeb/cubeb.h"
-#include "cubeb-internal.h"
-
-static struct cubeb_ops const opensl_ops;
 
 struct cubeb {
-  struct cubeb_ops const * ops;
   void * lib;
   SLInterfaceID SL_IID_BUFFERQUEUE;
   SLInterfaceID SL_IID_PLAY;
@@ -80,10 +76,8 @@ bufferqueue_callback(SLBufferQueueItf caller, struct cubeb_stream *stm)
   }
 }
 
-static void opensl_destroy(cubeb * ctx);
-
-/*static*/ int
-opensl_init(cubeb ** context, char const * context_name)
+int
+cubeb_init(cubeb ** context, char const * context_name)
 {
   cubeb * ctx;
 
@@ -115,7 +109,7 @@ opensl_init(cubeb ** context, char const * context_name)
       !SL_IID_OUTPUTMIX ||
       !ctx->SL_IID_BUFFERQUEUE ||
       !ctx->SL_IID_PLAY) {
-    opensl_destroy(ctx);
+    cubeb_destroy(ctx);
     return CUBEB_ERROR;
   }
 
@@ -125,19 +119,19 @@ opensl_init(cubeb ** context, char const * context_name)
   SLresult res;
   res = f_slCreateEngine(&ctx->engObj, 1, opt, 0, NULL, NULL);
   if (res != SL_RESULT_SUCCESS) {
-    opensl_destroy(ctx);
+    cubeb_destroy(ctx);
     return CUBEB_ERROR;
   }
 
   res = (*ctx->engObj)->Realize(ctx->engObj, SL_BOOLEAN_FALSE);
   if (res != SL_RESULT_SUCCESS) {
-    opensl_destroy(ctx);
+    cubeb_destroy(ctx);
     return CUBEB_ERROR;
   }
 
   res = (*ctx->engObj)->GetInterface(ctx->engObj, SL_IID_ENGINE, &ctx->eng);
   if (res != SL_RESULT_SUCCESS) {
-    opensl_destroy(ctx);
+    cubeb_destroy(ctx);
     return CUBEB_ERROR;
   }
 
@@ -145,13 +139,13 @@ opensl_init(cubeb ** context, char const * context_name)
   const SLboolean reqom[] = {SL_BOOLEAN_TRUE};
   res = (*ctx->eng)->CreateOutputMix(ctx->eng, &ctx->outmixObj, 1, idsom, reqom);
   if (res != SL_RESULT_SUCCESS) {
-    opensl_destroy(ctx);
+    cubeb_destroy(ctx);
     return CUBEB_ERROR;
   }
 
   res = (*ctx->outmixObj)->Realize(ctx->outmixObj, SL_BOOLEAN_FALSE);
   if (res != SL_RESULT_SUCCESS) {
-    opensl_destroy(ctx);
+    cubeb_destroy(ctx);
     return CUBEB_ERROR;
   }
 
@@ -160,14 +154,14 @@ opensl_init(cubeb ** context, char const * context_name)
   return CUBEB_OK;
 }
 
-static char const *
-opensl_get_backend_id(cubeb * ctx)
+char const *
+cubeb_get_backend_id(cubeb * ctx)
 {
   return "opensl";
 }
 
-static void
-opensl_destroy(cubeb * ctx)
+void
+cubeb_destroy(cubeb * ctx)
 {
   if (ctx->outmixObj)
     (*ctx->outmixObj)->Destroy(ctx->outmixObj);
@@ -177,10 +171,8 @@ opensl_destroy(cubeb * ctx)
   free(ctx);
 }
 
-static void opensl_stream_destroy(cubeb_stream * stm);
-
-static int
-opensl_stream_init(cubeb * ctx, cubeb_stream ** stream, char const * stream_name,
+int
+cubeb_stream_init(cubeb * ctx, cubeb_stream ** stream, char const * stream_name,
                   cubeb_stream_params stream_params, unsigned int latency,
                   cubeb_data_callback data_callback, cubeb_state_callback state_callback,
                   void * user_ptr)
@@ -257,32 +249,32 @@ opensl_stream_init(cubeb * ctx, cubeb_stream ** stream, char const * stream_name
   SLresult res = (*ctx->eng)->CreateAudioPlayer(ctx->eng, &stm->playerObj,
                                                 &source, &sink, 1, ids, req);
   if (res != SL_RESULT_SUCCESS) {
-    opensl_stream_destroy(stm);
+    cubeb_stream_destroy(stm);
     return CUBEB_ERROR;
   }
 
   res = (*stm->playerObj)->Realize(stm->playerObj, SL_BOOLEAN_FALSE);
   if (res != SL_RESULT_SUCCESS) {
-    opensl_stream_destroy(stm);
+    cubeb_stream_destroy(stm);
     return CUBEB_ERROR;
   }
 
   res = (*stm->playerObj)->GetInterface(stm->playerObj, ctx->SL_IID_PLAY, &stm->play);
   if (res != SL_RESULT_SUCCESS) {
-    opensl_stream_destroy(stm);
+    cubeb_stream_destroy(stm);
     return CUBEB_ERROR;
   }
 
   res = (*stm->playerObj)->GetInterface(stm->playerObj, ctx->SL_IID_BUFFERQUEUE,
                                     &stm->bufq);
   if (res != SL_RESULT_SUCCESS) {
-    opensl_stream_destroy(stm);
+    cubeb_stream_destroy(stm);
     return CUBEB_ERROR;
   }
 
   res = (*stm->bufq)->RegisterCallback(stm->bufq, bufferqueue_callback, stm);
   if (res != SL_RESULT_SUCCESS) {
-    opensl_stream_destroy(stm);
+    cubeb_stream_destroy(stm);
     return CUBEB_ERROR;
   }
 
@@ -291,16 +283,16 @@ opensl_stream_init(cubeb * ctx, cubeb_stream ** stream, char const * stream_name
   return CUBEB_OK;
 }
 
-static void
-opensl_stream_destroy(cubeb_stream * stm)
+void
+cubeb_stream_destroy(cubeb_stream * stm)
 {
   if (stm->playerObj)
     (*stm->playerObj)->Destroy(stm->playerObj);
   free(stm);
 }
 
-static int
-opensl_stream_start(cubeb_stream * stm)
+int
+cubeb_stream_start(cubeb_stream * stm)
 {
   SLresult res = (*stm->play)->SetPlayState(stm->play, SL_PLAYSTATE_PLAYING);
   if (res != SL_RESULT_SUCCESS)
@@ -310,8 +302,8 @@ opensl_stream_start(cubeb_stream * stm)
   return CUBEB_OK;
 }
 
-static int
-opensl_stream_stop(cubeb_stream * stm)
+int
+cubeb_stream_stop(cubeb_stream * stm)
 {
   SLresult res = (*stm->play)->SetPlayState(stm->play, SL_PLAYSTATE_PAUSED);
   if (res != SL_RESULT_SUCCESS)
@@ -320,8 +312,8 @@ opensl_stream_stop(cubeb_stream * stm)
   return CUBEB_OK;
 }
 
-static int
-opensl_stream_get_position(cubeb_stream * stm, uint64_t * position)
+int
+cubeb_stream_get_position(cubeb_stream * stm, uint64_t * position)
 {
   SLmillisecond msec;
   SLresult res = (*stm->play)->GetPosition(stm->play, &msec);
@@ -331,13 +323,3 @@ opensl_stream_get_position(cubeb_stream * stm, uint64_t * position)
   return CUBEB_OK;
 }
 
-static struct cubeb_ops const opensl_ops = {
-  .init = opensl_init,
-  .get_backend_id = opensl_get_backend_id,
-  .destroy = opensl_destroy,
-  .stream_init = opensl_stream_init,
-  .stream_destroy = opensl_stream_destroy,
-  .stream_start = opensl_stream_start,
-  .stream_stop = opensl_stream_stop,
-  .stream_get_position = opensl_stream_get_position
-};

@@ -305,12 +305,6 @@ NS_NewDOMDragEvent(nsIDOMEvent** aInstancePtrResult,
                    nsPresContext* aPresContext,
                    class nsDragEvent* aEvent);
 nsresult
-NS_NewDOMClipboardEvent(nsIDOMEvent** aInstancePtrResult,
-                        mozilla::dom::EventTarget* aOwner,
-                        nsPresContext* aPresContext,
-                        class nsClipboardEvent *aEvent);
-
-nsresult
 NS_NewDOMKeyboardEvent(nsIDOMEvent** aInstancePtrResult,
                        mozilla::dom::EventTarget* aOwner,
                        nsPresContext* aPresContext,

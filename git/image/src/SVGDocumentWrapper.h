@@ -135,8 +135,6 @@ public:
   void StartAnimation();
   void StopAnimation();
   void ResetAnimation();
-  float GetCurrentTime();
-  void SetCurrentTime(float aTime);
 
   /**
    * Force a layout flush of the underlying SVG document.

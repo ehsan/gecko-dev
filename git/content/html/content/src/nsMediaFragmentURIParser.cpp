@@ -3,28 +3,21 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-#include "nsTArray.h"
 #include "nsCharSeparatedTokenizer.h"
 #include "nsEscape.h"
-#include <utility>
-
 #include "nsMediaFragmentURIParser.h"
 
-using std::pair;
-using std::make_pair;
-
-namespace mozilla { namespace net {
-
-nsMediaFragmentURIParser::nsMediaFragmentURIParser(nsIURI* aURI)
-  : mClipUnit(eClipUnit_Pixel)
+nsMediaFragmentURIParser::nsMediaFragmentURIParser(const nsCString& aSpec)
 {
-  nsAutoCString ref;
-  aURI->GetRef(ref);
-  Parse(ref);
+  nsReadingIterator<char> start, end;
+  aSpec.BeginReading(start);
+  aSpec.EndReading(end);
+  if (FindCharInReadable('#', start, end)) {
+    mHash = Substring(++start, end);
+  }
 }
 
-bool nsMediaFragmentURIParser::ParseNPT(nsDependentSubstring aString)
+bool nsMediaFragmentURIParser::ParseNPT(nsDependentSubstring& aString, double& aStart, double& aEnd)
 {
   nsDependentSubstring original(aString);
   if (aString.Length() > 4 &&
@@ -40,10 +33,11 @@ bool nsMediaFragmentURIParser::ParseNPT(nsDependentSubstring aString)
   double start = -1.0;
   double end = -1.0;
 
-  ParseNPTTime(aString, start);
+  if (ParseNPTTime(aString, start)) {
+    aStart = start;
+  }
 
   if (aString.Length() == 0) {
-    mStart.construct(start);
     return true;
   }
 
@@ -59,15 +53,15 @@ bool nsMediaFragmentURIParser::ParseNPT(nsDependentSubstring aString)
     return false;
   }
 
-  ParseNPTTime(aString, end);
+  if (ParseNPTTime(aString, end)) {
+    aEnd = end;
+  }
 
-  if (end <= start || aString.Length() != 0) {
+  if (aString.Length() != 0) {
     aString.Rebind(original, 0);
     return false;
   }
 
-  mStart.construct(start);
-  mEnd.construct(end);
   return true;
 }
 
@@ -258,82 +252,9 @@ bool nsMediaFragmentURIParser::ParseNPTSS(nsDependentSubstring& aString, uint32_
   return false;
 }
 
-static bool ParseInteger(nsDependentSubstring& aString,
-                         int32_t& aResult)
+void nsMediaFragmentURIParser::Parse()
 {
-  uint32_t index = FirstNonDigit(aString, 0);
-  if (index == 0) {
-    return false;
-  }
-
-  nsDependentSubstring n(aString, 0, index);
-  nsresult ec;
-  int32_t s = PromiseFlatString(n).ToInteger(&ec);
-  if (NS_FAILED(ec)) {
-    return false;
-  }
-
-  aString.Rebind(aString, index);
-  aResult = s;
-  return true;
-}
-
-static bool ParseCommaSeparator(nsDependentSubstring& aString)
-{
-  if (aString.Length() > 1 && aString[0] == ',') {
-    aString.Rebind(aString, 1);
-    return true;
-  }
-
-  return false;
-}
-
-bool nsMediaFragmentURIParser::ParseXYWH(nsDependentSubstring aString)
-{
-  int32_t x, y, w, h;
-  ClipUnit clipUnit;
-
-  // Determine units.
-  if (StringBeginsWith(aString, NS_LITERAL_STRING("pixel:"))) {
-    clipUnit = eClipUnit_Pixel;
-    aString.Rebind(aString, 6);
-  } else if (StringBeginsWith(aString, NS_LITERAL_STRING("percent:"))) {
-    clipUnit = eClipUnit_Percent;
-    aString.Rebind(aString, 8);
-  } else {
-    clipUnit = eClipUnit_Pixel;
-  }
-
-  // Read and validate coordinates.
-  if (ParseInteger(aString, x) && x >= 0 &&
-      ParseCommaSeparator(aString)       &&
-      ParseInteger(aString, y) && y >= 0 &&
-      ParseCommaSeparator(aString)       &&
-      ParseInteger(aString, w) && w > 0  &&
-      ParseCommaSeparator(aString)       &&
-      ParseInteger(aString, h) && h > 0  &&
-      aString.Length() == 0) {
-
-    // Reject invalid percentage coordinates.
-    if (clipUnit == eClipUnit_Percent &&
-        (x + w > 100 || y + h > 100)) {
-      return false;
-    }
-
-    mClip.construct(x, y, w, h);
-    mClipUnit = clipUnit;
-    return true;
-  }
-
-  return false;
-}
-
-void nsMediaFragmentURIParser::Parse(nsACString& aRef)
-{
-  // Create an array of possibly-invalid media fragments.
-  nsTArray< std::pair<nsCString, nsCString> > fragments;
-  nsCCharSeparatedTokenizer tokenizer(aRef, '&');
-
+  nsCCharSeparatedTokenizer tokenizer(mHash, '&');
   while (tokenizer.hasMoreTokens()) {
     const nsCSubstring& nv = tokenizer.nextToken();
     int32_t index = nv.FindChar('=');
@@ -343,24 +264,43 @@ void nsMediaFragmentURIParser::Parse(nsACString& aRef)
       NS_UnescapeURL(StringHead(nv, index), esc_Ref | esc_AlwaysCopy, name);
       NS_UnescapeURL(Substring(nv, index + 1, nv.Length()),
                      esc_Ref | esc_AlwaysCopy, value);
-      fragments.AppendElement(make_pair(name, value));
-    }
-  }
-
-  // Parse the media fragment values.
-  bool gotTemporal = false, gotSpatial = false;
-  for (int i = fragments.Length() - 1 ; i >= 0 ; --i) {
-    if (gotTemporal && gotSpatial) {
-      // We've got one of each possible type. No need to look at the rest.
-      break;
-    } else if (!gotTemporal && fragments[i].first.EqualsLiteral("t")) {
-      nsAutoString value = NS_ConvertUTF8toUTF16(fragments[i].second);
-      gotTemporal = ParseNPT(nsDependentSubstring(value, 0));
-    } else if (!gotSpatial && fragments[i].first.EqualsLiteral("xywh")) {
-      nsAutoString value = NS_ConvertUTF8toUTF16(fragments[i].second);
-      gotSpatial = ParseXYWH(nsDependentSubstring(value, 0));
+      nsAutoString a = NS_ConvertUTF8toUTF16(name);
+      nsAutoString b = NS_ConvertUTF8toUTF16(value);
+      mFragments.AppendElement(Pair(a, b));
     }
   }
 }
 
-}} // namespace mozilla::net
+double nsMediaFragmentURIParser::GetStartTime()
+{
+  for (uint32_t i = 0; i < mFragments.Length(); ++i) {
+    uint32_t index = mFragments.Length() - i - 1;
+    if (mFragments[index].mName.EqualsLiteral("t")) {
+      double start = -1;
+      double end = -1;
+      nsDependentSubstring s(mFragments[index].mValue, 0);
+      if (ParseNPT(s, start, end)) {
+        return start;
+      }
+    }
+  }
+  return 0.0;
+}
+
+double nsMediaFragmentURIParser::GetEndTime()
+{
+  for (uint32_t i = 0; i < mFragments.Length(); ++i) {
+    uint32_t index = mFragments.Length() - i - 1;
+    if (mFragments[index].mName.EqualsLiteral("t")) {
+      double start = -1;
+      double end = -1;
+      nsDependentSubstring s(mFragments[index].mValue, 0);
+      if (ParseNPT(s, start, end)) {
+        return end;
+      }
+    }
+  }
+  return -1;
+}
+
+

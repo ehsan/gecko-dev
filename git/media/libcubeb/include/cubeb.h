@@ -119,10 +119,9 @@ typedef enum {
 
 /** Result code enumeration. */
 enum {
-  CUBEB_OK = 0,                       /**< Success. */
-  CUBEB_ERROR = -1,                   /**< Unclassified error. */
-  CUBEB_ERROR_INVALID_FORMAT = -2,    /**< Unsupported #cubeb_stream_params requested. */
-  CUBEB_ERROR_INVALID_PARAMETER = -3  /**< Invalid parameter specified. */
+  CUBEB_OK = 0,                   /**< Success. */
+  CUBEB_ERROR = -1,               /**< Unclassified error. */
+  CUBEB_ERROR_INVALID_FORMAT = -2 /**< Unsupported #cubeb_stream_params requested. */
 };
 
 /** User supplied data callback.

@@ -12,7 +12,6 @@ using namespace mozilla;
 jclass AndroidGeckoEvent::jGeckoEventClass = 0;
 jfieldID AndroidGeckoEvent::jActionField = 0;
 jfieldID AndroidGeckoEvent::jTypeField = 0;
-jfieldID AndroidGeckoEvent::jAckNeededField = 0;
 jfieldID AndroidGeckoEvent::jTimeField = 0;
 jfieldID AndroidGeckoEvent::jPoints = 0;
 jfieldID AndroidGeckoEvent::jPointIndicies = 0;
@@ -206,7 +205,6 @@ AndroidGeckoEvent::InitGeckoEventClass(JNIEnv *jEnv)
 
     jActionField = getField("mAction", "I");
     jTypeField = getField("mType", "I");
-    jAckNeededField = getField("mAckNeeded", "Z");
     jTimeField = getField("mTime", "J");
     jPoints = getField("mPoints", "[Landroid/graphics/Point;");
     jPointIndicies = getField("mPointIndicies", "[I");
@@ -502,7 +500,6 @@ AndroidGeckoEvent::Init(JNIEnv *jenv, jobject jobj)
 
     mAction = jenv->GetIntField(jobj, jActionField);
     mType = jenv->GetIntField(jobj, jTypeField);
-    mAckNeeded = jenv->GetBooleanField(jobj, jAckNeededField);
 
     switch (mType) {
         case SIZE_CHANGED:

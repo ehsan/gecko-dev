@@ -18,7 +18,6 @@
 #include "nsCRT.h"
 
 #include "Image.h"
-#include "ImageFactory.h"
 #include "nsError.h"
 #include "ImageLogging.h"
 
@@ -907,21 +906,25 @@ imgRequestProxy::GetStaticRequest(imgRequestProxy** aReturn)
     return NS_OK;
   }
 
-  // Check for errors in the image. Callers code rely on GetStaticRequest
-  // failing in this case, though with FrozenImage there's no technical reason
-  // for it anymore.
-  if (image->HasError()) {
-    return NS_ERROR_FAILURE;
-  }
+  // We are animated. We need to extract the current frame from this image.
+  int32_t w = 0;
+  int32_t h = 0;
+  image->GetWidth(&w);
+  image->GetHeight(&h);
+  nsIntRect rect(0, 0, w, h);
+  nsCOMPtr<imgIContainer> currentFrame;
+  nsresult rv = image->ExtractFrame(imgIContainer::FRAME_CURRENT, rect,
+                                    imgIContainer::FLAG_SYNC_DECODE,
+                                    getter_AddRefs(currentFrame));
+  if (NS_FAILED(rv))
+    return rv;
 
-  // We are animated. We need to create a frozen version of this image.
-  nsRefPtr<Image> frozenImage = ImageFactory::Freeze(image);
+  nsRefPtr<Image> frame = static_cast<Image*>(currentFrame.get());
 
   // Create a static imgRequestProxy with our new extracted frame.
   nsCOMPtr<nsIPrincipal> currentPrincipal;
   GetImagePrincipal(getter_AddRefs(currentPrincipal));
-  nsRefPtr<imgRequestProxy> req = new imgRequestProxyStatic(frozenImage,
-                                                            currentPrincipal);
+  nsRefPtr<imgRequestProxy> req = new imgRequestProxyStatic(frame, currentPrincipal);
   req->Init(nullptr, nullptr, mURI, nullptr);
 
   NS_ADDREF(*aReturn = req);
