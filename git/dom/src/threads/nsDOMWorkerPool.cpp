@@ -164,9 +164,9 @@ nsDOMWorkerPool::NoteDyingWorker(nsDOMWorker* aWorker)
 void
 nsDOMWorkerPool::GetWorkers(nsTArray<nsDOMWorker*>& aArray)
 {
-  PR_ASSERT_CURRENT_THREAD_IN_MONITOR(mMonitor);
-  NS_ASSERTION(!aArray.Length(), "Should be empty!");
+  aArray.Clear();
 
+  nsAutoMonitor mon(mMonitor);
 #ifdef DEBUG
   nsDOMWorker** newWorkers =
 #endif

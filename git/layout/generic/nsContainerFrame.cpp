@@ -471,41 +471,38 @@ IsMenuPopup(nsIFrame *aFrame)
   return (frameType == nsGkAtoms::menuPopupFrame);
 }
 
-static nsIWidget*
-GetPresContextContainerWidget(nsPresContext* aPresContext)
+static PRBool
+IsTopLevelWidget(nsPresContext* aPresContext)
 {
   nsCOMPtr<nsISupports> container = aPresContext->Document()->GetContainer();
   nsCOMPtr<nsIBaseWindow> baseWindow = do_QueryInterface(container);
   if (!baseWindow)
-    return nsnull;
+    return PR_FALSE;
 
   nsCOMPtr<nsIWidget> mainWidget;
   baseWindow->GetMainWidget(getter_AddRefs(mainWidget));
-  return mainWidget;
-}
+  if (!mainWidget)
+    return PR_FALSE;
 
-static PRBool
-IsTopLevelWidget(nsIWidget* aWidget)
-{
   nsWindowType windowType;
-  aWidget->GetWindowType(windowType);
+  mainWidget->GetWindowType(windowType);
   return windowType == eWindowType_toplevel ||
-         windowType == eWindowType_dialog || 
-         windowType == eWindowType_sheet;
+         windowType == eWindowType_dialog;
   // popups aren't toplevel so they're not handled here
 }
 
-void
-nsContainerFrame::SyncWindowProperties(nsPresContext*       aPresContext,
-                                       nsIFrame*            aFrame,
-                                       nsIView*             aView)
+static void
+SyncFrameViewGeometryDependentProperties(nsPresContext*   aPresContext,
+                                         nsIFrame*        aFrame,
+                                         nsStyleContext*  aStyleContext,
+                                         nsIView*         aView,
+                                         PRUint32         aFlags)
 {
 #ifdef MOZ_XUL
-  if (!aView || !nsCSSRendering::IsCanvasFrame(aFrame) || !aView->HasWidget())
+  if (!nsCSSRendering::IsCanvasFrame(aFrame))
     return;
 
-  nsIWidget* windowWidget = GetPresContextContainerWidget(aPresContext);
-  if (!windowWidget || !IsTopLevelWidget(windowWidget))
+  if (!aView->HasWidget() || !IsTopLevelWidget(aPresContext))
     return;
 
   nsIViewManager* vm = aView->GetViewManager();
@@ -535,14 +532,21 @@ nsContainerFrame::SyncWindowProperties(nsPresContext*       aPresContext,
     return;
   }
 
+  // The issue here is that the CSS 'background' propagates from the root
+  // element's frame (rootFrame) to the real root frame (nsViewportFrame),
+  // so we need to call GetFrameTransparency on that. But -moz-appearance
+  // does not propagate so we need to check that directly on rootFrame.
+  nsTransparencyMode mode = nsLayoutUtils::GetFrameTransparency(aFrame);
   nsIFrame *rootFrame = aPresContext->PresShell()->FrameConstructor()->GetRootElementStyleFrame();
-  if (!rootFrame)
-    return;
-
-  nsTransparencyMode mode = nsLayoutUtils::GetFrameTransparency(aFrame, rootFrame);
-  nsIWidget* viewWidget = aView->GetWidget();
-  viewWidget->SetTransparencyMode(mode);
-  windowWidget->SetWindowShadowStyle(rootFrame->GetStyleUIReset()->mWindowShadow);
+  if (rootFrame &&
+      NS_THEME_WIN_GLASS == rootFrame->GetStyleDisplay()->mAppearance) {
+    mode = eTransparencyGlass;
+  }
+  nsIWidget* widget = aView->GetWidget();
+  widget->SetTransparencyMode(mode);
+  if (rootFrame) {
+    widget->SetWindowShadowStyle(rootFrame->GetStyleUIReset()->mWindowShadow);
+  }
 #endif
 }
 
@@ -568,6 +572,15 @@ nsContainerFrame::SyncFrameViewAfterReflow(nsPresContext* aPresContext,
     nsIViewManager* vm = aView->GetViewManager();
 
     vm->ResizeView(aView, *aCombinedArea, PR_TRUE);
+
+    // Even if the size hasn't changed, we need to sync up the
+    // geometry dependent properties, because overflow areas of
+    // children might have changed, and we can't
+    // detect whether it has or not. Likewise, whether the view size
+    // has changed or not, we may need to change the transparency
+    // state even if there is no clip.
+    nsStyleContext* savedStyleContext = aFrame->GetStyleContext();
+    SyncFrameViewGeometryDependentProperties(aPresContext, aFrame, savedStyleContext, aView, aFlags);
   }
 }
 
@@ -651,6 +664,8 @@ nsContainerFrame::SyncFrameViewProperties(nsPresContext*  aPresContext,
   }
 
   vm->SetViewZIndex(aView, autoZIndex, zIndex, isPositioned);
+
+  SyncFrameViewGeometryDependentProperties(aPresContext, aFrame, aStyleContext, aView, aFlags);
 }
 
 PRBool
@@ -1124,7 +1139,7 @@ void
 nsContainerFrame::DestroyOverflowList(nsPresContext* aPresContext)
 {
   nsFrameList* list =
-    RemovePropTableFrames(aPresContext, nsGkAtoms::overflowProperty);
+    RemovePropTableFrames(aPresContext, nsGkAtoms::overflowList);
   if (list)
     list->Destroy();
 }
@@ -1629,7 +1644,10 @@ nsContainerFrame::List(FILE* out, PRInt32 aIndent) const
         NS_ASSERTION(kid->GetParent() == (nsIFrame*)this, "bad parent frame pointer");
 
         // Have the child frame list
-        kid->List(out, aIndent + 1);
+        nsIFrameDebug *frameDebug = do_QueryFrame(kid);
+        if (frameDebug) {
+          frameDebug->List(out, aIndent + 1);
+        }
         kid = kid->GetNextSibling();
       }
       IndentBy(out, aIndent);

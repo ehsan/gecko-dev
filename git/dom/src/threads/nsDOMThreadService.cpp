@@ -538,6 +538,13 @@ DOMWorkerOperationCallback(JSContext* aCx)
     }
 
     if (!wasSuspended) {
+      // It's possible that the worker was canceled since we checked above.
+      if (worker->IsCanceled()) {
+        NS_WARNING("Tried to suspend on a pool that has gone away");
+        JS_ClearPendingException(aCx);
+        return JS_FALSE;
+      }
+
       // Make sure to suspend our request while we block like this, otherwise we
       // prevent GC for everyone.
       suspendDepth = JS_SuspendRequest(aCx);
@@ -553,18 +560,8 @@ DOMWorkerOperationCallback(JSContext* aCx)
     }
 
     nsAutoMonitor mon(worker->Pool()->Monitor());
-
-    // There's a small chance that the worker was canceled after our check
-    // above in which case we shouldn't wait here. We're guaranteed not to race
-    // here because the pool reenters its monitor after canceling each worker
-    // in order to notify its condition variable.
-    if (worker->IsSuspended() && !worker->IsCanceled()) {
-      mon.Wait();
-    }
+    mon.Wait();
   }
-
-  NS_NOTREACHED("Should never get here!");
-  return JS_FALSE;
 }
 
 void

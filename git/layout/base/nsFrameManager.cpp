@@ -766,8 +766,11 @@ DumpContext(nsIFrame* aFrame, nsStyleContext* aContext)
   if (aFrame) {
     fputs("frame: ", stdout);
     nsAutoString  name;
-    aFrame->GetFrameName(name);
-    fputs(NS_LossyConvertUTF16toASCII(name).get(), stdout);
+    nsIFrameDebug *frameDebug = do_QueryFrame(aFrame);
+    if (frameDebug) {
+      frameDebug->GetFrameName(name);
+      fputs(NS_LossyConvertUTF16toASCII(name).get(), stdout);
+    }
     fprintf(stdout, " (%p)", static_cast<void*>(aFrame));
   }
   if (aContext) {

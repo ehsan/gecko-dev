@@ -316,7 +316,7 @@ nsTSubstring_CharT::EnsureMutable( size_type newLen )
 
         // promote to a shared string buffer
         char_type* prevData = mData;
-        Assign(mData, mLength);
+        Assign(string_type(mData, mLength));
         return mData != prevData;
       }
     else
@@ -394,12 +394,7 @@ nsTSubstring_CharT::Assign( const self_type& str )
     if (&str == this)
       return;
 
-    if (!str.mLength)
-      {
-        Truncate();
-        mFlags |= str.mFlags & F_VOIDED;
-      }
-    else if (str.mFlags & F_SHARED)
+    if (str.mFlags & F_SHARED)
       {
         // nice! we can avoid a string copy :-)
 
@@ -414,6 +409,11 @@ nsTSubstring_CharT::Assign( const self_type& str )
 
         // get an owning reference to the mData
         nsStringBuffer::FromData(mData)->AddRef();
+      }
+    else if (str.mFlags & F_VOIDED)
+      {
+        // inherit the F_VOIDED attribute
+        SetIsVoid(PR_TRUE);
       }
     else
       {

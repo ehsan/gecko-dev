@@ -56,9 +56,7 @@
 # define W_OK 02
 # define R_OK 04
 # define access _access
-#ifndef WINCE
 # define putenv _putenv
-#endif
 # define snprintf _snprintf
 # define fchmod(a,b)
 
@@ -512,7 +510,7 @@ static int copy_file(const NS_tchar *spath, const NS_tchar *dpath)
 
   AutoFile sfile = NS_tfopen(spath, NS_T("rb"));
   if (sfile == NULL || fstat(fileno(sfile), &ss)) {
-    LOG(("copy_file: failed to open or stat: %p," LOG_S ",%d\n", sfile.get(), spath, errno));
+    LOG(("copy_file: failed to open or stat: %p," LOG_S ",%d\n", sfile, spath, errno));
     return READ_ERROR;
   }
 
@@ -1246,11 +1244,6 @@ LaunchWinPostProcess(const WCHAR *appExe)
 static void
 LaunchCallbackApp(const NS_tchar *workingDir, int argc, NS_tchar **argv)
 {
-  // Windows CE uses a mock environment by passing environment variable with
-  // the command line. It is the responsibility of the application to provide
-  // the working directory and other environment variables used by the
-  // application which is then passed back to the application when the updater
-  // launches it.
   putenv(const_cast<char*>("NO_EM_RESTART="));
   putenv(const_cast<char*>("MOZ_LAUNCHED_CHILD=1"));
 
@@ -1319,7 +1312,9 @@ UpdateThreadFunc(void *param)
 
 int NS_main(int argc, NS_tchar **argv)
 {
+#ifndef WINCE
   InitProgressUI(&argc, &argv);
+#endif
   // The updater command line consists of the directory path containing the
   // updater.mar file to process followed by the PID of the calling process.
   // The updater will wait on the parent process to exit if the PID is non-
@@ -1451,8 +1446,6 @@ int NS_main(int argc, NS_tchar **argv)
 
   gSourcePath = argv[1];
 #ifdef WINCE
-  // This is the working directory to apply the update and is required on WinCE
-  // since it doesn't have the concept of a working directory.
   gDestPath = argv[3];
 #endif
 

@@ -3189,7 +3189,7 @@ nsComponentManagerImpl::IsRegistered(const nsCID &aClass,
 {
     if (!aRegistered)
     {
-        NS_ERROR("null ptr");
+        NS_ASSERTION(0, "null ptr");
         return NS_ERROR_NULL_POINTER;
     }
     *aRegistered = (nsnull != GetFactoryEntry(aClass));

@@ -20,8 +20,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Pete Zha <pete.zha@sun.com> (original author)
- *   Alexander Surkov <surkov.alexander@gmail.com>
+ *   Pete Zha (pete.zha@sun.com)
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -40,28 +39,33 @@
 #ifndef __nsXULTreeAccessibleWrap_h__
 #define __nsXULTreeAccessibleWrap_h__
 
-#include "nsXULTreeGridAccessible.h"
-
-#include "CAccessibleTable.h"
+#include "nsXULTreeAccessible.h"
 
 typedef class nsXULTreeColumnsAccessible   nsXULTreeColumnsAccessibleWrap;
 
-/**
- * IA2 wrapper of nsXULTreeGridAccessible class, implements IAccessibleTable
- * interface.
- */
-class nsXULTreeGridAccessibleWrap : public nsXULTreeGridAccessible,
-                                    public CAccessibleTable
+class nsXULTreeAccessibleWrap : public nsXULTreeAccessible
 {
 public:
-  nsXULTreeGridAccessibleWrap(nsIDOMNode *aDOMNode, nsIWeakReference *aShell);
-  virtual ~nsXULTreeGridAccessibleWrap() {}
+  nsXULTreeAccessibleWrap(nsIDOMNode *aDOMNode, nsIWeakReference *aShell);
+  virtual ~nsXULTreeAccessibleWrap() {}
 
-  // IUnknown
-  DECL_IUNKNOWN_INHERITED
+  // nsAccessible
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
+};
 
-  // nsISupports
-  NS_DECL_ISUPPORTS_INHERITED
+class nsXULTreeitemAccessibleWrap : public nsXULTreeitemAccessible
+{
+public:
+  nsXULTreeitemAccessibleWrap(nsIAccessible *aParent, nsIDOMNode *aDOMNode, nsIWeakReference *aShell, 
+    PRInt32 aRow, nsITreeColumn* aColumn);
+  virtual ~nsXULTreeitemAccessibleWrap() {}
+
+  // nsIAccessible
+  NS_IMETHOD GetBounds(PRInt32 *x, PRInt32 *y, PRInt32 *width, PRInt32 *height);
+  NS_IMETHOD GetName(nsAString &aName);
+
+  // nsAccessible
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
 };
 
 #endif

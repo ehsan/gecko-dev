@@ -154,7 +154,6 @@
 
 #if defined(WINCE)
 #include "nsWindowCE.h"
-#define KILL_PRIORITY_ID 2444
 #endif
 
 #include "nsWindowGfx.h"
@@ -437,7 +436,6 @@ nsWindow::nsWindow() : nsBaseWidget()
   mWindowType           = eWindowType_child;
   mBorderStyle          = eBorderStyle_default;
   mPopupType            = ePopupTypeAny;
-  mDisplayPanFeedback   = PR_FALSE;
   mLastPoint.x          = 0;
   mLastPoint.y          = 0;
   mLastSize.width       = 0;
@@ -717,6 +715,20 @@ nsWindow::StandardWindowCreate(nsIWidget *aParent,
      nsWindowCE::CreateSoftKeyMenuBar(mWnd);
 #endif
 
+#if !defined(WINCE)
+  // Enable gesture support for this window.
+  if (mWindowType != eWindowType_invisible &&
+      mWindowType != eWindowType_plugin &&
+      mWindowType != eWindowType_java &&
+      mWindowType != eWindowType_toplevel) {
+    // eWindowType_toplevel is the top level main frame window. Gesture support
+    // there prevents the user from interacting with the title bar or nc
+    // areas using a single finger. Java and plugin windows can make their
+    // own calls.
+    mGesture.InitWinGestureSupport(mWnd);
+  }
+#endif // !defined(WINCE)
+
   return NS_OK;
 }
 
@@ -898,7 +910,7 @@ DWORD nsWindow::WindowStyle()
       break;
 
     default:
-      NS_ERROR("unknown border style");
+      NS_ASSERTION(0, "unknown border style");
       // fall through
 
     case eWindowType_toplevel:
@@ -908,38 +920,6 @@ DWORD nsWindow::WindowStyle()
       break;
   }
 
-  if (mBorderStyle != eBorderStyle_default && mBorderStyle != eBorderStyle_all) {
-    if (mBorderStyle == eBorderStyle_none || !(mBorderStyle & eBorderStyle_border))
-      style &= ~WS_BORDER;
-
-    if (mBorderStyle == eBorderStyle_none || !(mBorderStyle & eBorderStyle_title)) {
-      style &= ~WS_DLGFRAME;
-      style |= WS_POPUP;
-      style &= ~WS_CHILD;
-    }
-
-    if (mBorderStyle == eBorderStyle_none || !(mBorderStyle & eBorderStyle_close))
-      style &= ~0;
-    // XXX The close box can only be removed by changing the window class,
-    // as far as I know   --- roc+moz@cs.cmu.edu
-
-    if (mBorderStyle == eBorderStyle_none ||
-      !(mBorderStyle & (eBorderStyle_menu | eBorderStyle_close)))
-      style &= ~WS_SYSMENU;
-    // Looks like getting rid of the system menu also does away with the
-    // close box. So, we only get rid of the system menu if you want neither it
-    // nor the close box. How does the Windows "Dialog" window class get just
-    // closebox and no sysmenu? Who knows.
-
-    if (mBorderStyle == eBorderStyle_none || !(mBorderStyle & eBorderStyle_resizeh))
-      style &= ~WS_THICKFRAME;
-
-    if (mBorderStyle == eBorderStyle_none || !(mBorderStyle & eBorderStyle_minimize))
-      style &= ~WS_MINIMIZEBOX;
-
-    if (mBorderStyle == eBorderStyle_none || !(mBorderStyle & eBorderStyle_maximize))
-      style &= ~WS_MAXIMIZEBOX;
-  }
   VERIFY_WINDOW_STYLE(style);
   return style;
 }
@@ -964,7 +944,7 @@ DWORD nsWindow::WindowExStyle()
         WS_EX_TOPMOST | WS_EX_TOOLWINDOW;
 
     default:
-      NS_ERROR("unknown border style");
+      NS_ASSERTION(0, "unknown border style");
       // fall through
 
     case eWindowType_toplevel:
@@ -2202,8 +2182,7 @@ ClipRegionContainedInRect(const nsTArray<nsIntRect>& aClipRects,
 }
 
 void
-nsWindow::Scroll(const nsIntPoint& aDelta,
-                 const nsTArray<nsIntRect>& aDestRects,
+nsWindow::Scroll(const nsIntPoint& aDelta, const nsIntRect& aSource,
                  const nsTArray<Configuration>& aConfigurations)
 {
   // We use SW_SCROLLCHILDREN if all the windows that intersect the
@@ -2225,58 +2204,43 @@ nsWindow::Scroll(const nsIntPoint& aDelta,
     w->SetWindowClipRegion(configuration.mClipRegion, PR_TRUE);
   }
 
-  for (PRUint32 i = 0; i < aDestRects.Length(); ++i) {
-    nsIntRect affectedRect;
-    affectedRect.UnionRect(aDestRects[i], aDestRects[i] - aDelta);
-    // We pass SW_INVALIDATE because areas that get scrolled into view
-    // from offscreen (but inside the scroll area) need to be repainted.
-    UINT flags = SW_SCROLLCHILDREN | SW_INVALIDATE;
-    // Now check if any of our children would be affected by
-    // SW_SCROLLCHILDREN but not supposed to scroll.
-    for (nsWindow* w = static_cast<nsWindow*>(GetFirstChild()); w;
-         w = static_cast<nsWindow*>(w->GetNextSibling())) {
-      if (w->mBounds.Intersects(affectedRect)) {
-        // This child will be affected
-        nsPtrHashKey<nsWindow>* entry = scrolledWidgets.GetEntry(w);
-        if (entry) {
-          // It's supposed to be scrolled, so we can still use
-          // SW_SCROLLCHILDREN. But don't allow SW_SCROLLCHILDREN to be
-          // used on it again by a later rectangle in aDestRects, we
-          // don't want it to move twice!
-          scrolledWidgets.RawRemoveEntry(entry);
-        } else {
-          flags &= ~SW_SCROLLCHILDREN;
-          // We may have removed some children from scrolledWidgets even
-          // though we decide here to not use SW_SCROLLCHILDREN. That's OK,
-          // it just means that we might not use SW_SCROLLCHILDREN
-          // for a later rectangle when we could have.
-          break;
-        }
-      }
+  // Now check if any of our children would be affected by
+  // SW_SCROLLCHILDREN but not supposed to scroll.
+  nsIntRect affectedRect;
+  affectedRect.UnionRect(aSource, aSource + aDelta);
+  // We pass SW_INVALIDATE because areas that get scrolled into view
+  // from offscreen (but inside the scroll area) need to be repainted.
+  UINT flags = SW_SCROLLCHILDREN | SW_INVALIDATE;
+  for (nsWindow* w = static_cast<nsWindow*>(GetFirstChild()); w;
+       w = static_cast<nsWindow*>(w->GetNextSibling())) {
+    if (w->mBounds.Intersects(affectedRect) &&
+        !scrolledWidgets.GetEntry(w)) {
+      flags &= ~SW_SCROLLCHILDREN;
+      break;
     }
-
-    if (flags & SW_SCROLLCHILDREN) {
-      for (PRUint32 i = 0; i < aConfigurations.Length(); ++i) {
-        const Configuration& configuration = aConfigurations[i];
-        nsWindow* w = static_cast<nsWindow*>(configuration.mChild);
-        // Widgets that will be scrolled by SW_SCROLLCHILDREN but which
-        // will be partly visible outside the scroll area after scrolling
-        // must be invalidated, because SW_SCROLLCHILDREN doesn't
-        // update parts of widgets outside the area it scrolled, even
-        // if it moved them.
-        if (w->mBounds.Intersects(affectedRect) &&
-            !ClipRegionContainedInRect(configuration.mClipRegion,
-                                       affectedRect - (w->mBounds.TopLeft() + aDelta))) {
-          w->Invalidate(PR_FALSE);
-        }
-      }
-    }
-
-    // Note that when SW_SCROLLCHILDREN is used, WM_MOVE messages are sent
-    // which will update the mBounds of the children.
-    RECT clip = { affectedRect.x, affectedRect.y, affectedRect.XMost(), affectedRect.YMost() };
-    ::ScrollWindowEx(mWnd, aDelta.x, aDelta.y, &clip, &clip, NULL, NULL, flags);
   }
+
+  if (flags & SW_SCROLLCHILDREN) {
+    for (PRUint32 i = 0; i < aConfigurations.Length(); ++i) {
+      const Configuration& configuration = aConfigurations[i];
+      nsWindow* w = static_cast<nsWindow*>(configuration.mChild);
+      // Widgets that will be scrolled by SW_SCROLLCHILDREN but which
+      // will be partly visible outside the scroll area after scrolling
+      // must be invalidated, because SW_SCROLLCHILDREN doesn't
+      // update parts of widgets outside the area it scrolled, even
+      // if it moved them.
+      if (w->mBounds.Intersects(affectedRect) &&
+          !ClipRegionContainedInRect(configuration.mClipRegion,
+                                     affectedRect - (w->mBounds.TopLeft() + aDelta))) {
+        w->Invalidate(PR_FALSE);
+      }
+    }
+  }
+
+  // Note that when SW_SCROLLCHILDREN is used, WM_MOVE messages are sent
+  // which will update the mBounds of the children.
+  RECT clip = { affectedRect.x, affectedRect.y, affectedRect.XMost(), affectedRect.YMost() };
+  ::ScrollWindowEx(mWnd, aDelta.x, aDelta.y, &clip, &clip, NULL, NULL, flags);
 
   // Now make sure all children actually get positioned, sized and clipped
   // correctly. If SW_SCROLLCHILDREN already moved widgets to their correct
@@ -3522,8 +3486,6 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
                                 LRESULT *aRetValue)
 {
   // (Large blocks of code should be broken out into OnEvent handlers.)
-  if (mWindowHook.Notify(mWnd, msg, wParam, lParam, aRetValue))
-    return PR_TRUE;
   
   PRBool eatMessage;
   if (nsIMM32Handler::ProcessMessage(this, msg, wParam, lParam, aRetValue,
@@ -3785,11 +3747,6 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
 
     case WM_MOUSEMOVE:
     {
-#ifdef WINCE
-      // Reset the kill timer so that we can continue at this
-      // priority
-      SetTimer(mWnd, KILL_PRIORITY_ID, 2000 /* 2seconds */, NULL);
-#endif
       // Suppress dispatch of pending events
       // when mouse moves are generated by widget
       // creation instead of user input.
@@ -3809,19 +3766,8 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
     }
     break;
 
-    case WM_TIMER:
-#ifdef WINCE
-      SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_NORMAL);
-      KillTimer(mWnd, KILL_PRIORITY_ID);
-#endif
-      break;
-
     case WM_LBUTTONDOWN:
     {
-#ifdef WINCE
-      SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_ABOVE_NORMAL);
-      SetTimer(mWnd, KILL_PRIORITY_ID, 2000 /* 2 seconds */, NULL);
-#endif
       result = DispatchMouseEvent(NS_MOUSE_BUTTON_DOWN, wParam, lParam,
                                   PR_FALSE, nsMouseEvent::eLeftButton);
       DispatchPendingEvents();
@@ -3833,11 +3779,6 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
       result = DispatchMouseEvent(NS_MOUSE_BUTTON_UP, wParam, lParam,
                                   PR_FALSE, nsMouseEvent::eLeftButton);
       DispatchPendingEvents();
-
-#ifdef WINCE
-      SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_NORMAL);
-      KillTimer(mWnd, KILL_PRIORITY_ID);
-#endif
     }
     break;
 
@@ -3988,12 +3929,6 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
 #if defined(WINCE_HAVE_SOFTKB)
         if (mIsTopWidgetWindow && sSoftKeyboardState)
           nsWindowCE::ToggleSoftKB(fActive);
-        if (nsWindowCE::sShowSIPButton != TRI_TRUE && WA_INACTIVE != fActive) {
-          HWND hWndSIPB = FindWindowW(L"MS_SIPBUTTON", NULL ); 
-          if (hWndSIPB)
-            ShowWindow(hWndSIPB, SW_HIDE);
-        }
-
 #endif
 
         if (WA_INACTIVE == fActive) {
@@ -4206,31 +4141,6 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
     
   case WM_GESTURE:
     result = OnGesture(wParam, lParam);
-    break;
-
-  case WM_GESTURENOTIFY:
-    {
-      if (mWindowType != eWindowType_invisible &&
-          mWindowType != eWindowType_plugin &&
-          mWindowType != eWindowType_java &&
-          mWindowType != eWindowType_toplevel) {
-        // eWindowType_toplevel is the top level main frame window. Gesture support
-        // there prevents the user from interacting with the title bar or nc
-        // areas using a single finger. Java and plugin windows can make their
-        // own calls.
-        GESTURENOTIFYSTRUCT * gestureinfo = (GESTURENOTIFYSTRUCT*)lParam;
-        nsPointWin touchPoint;
-        touchPoint = gestureinfo->ptsLocation;
-        touchPoint.ScreenToClient(mWnd);
-        nsGestureNotifyEvent gestureNotifyEvent(PR_TRUE, NS_GESTURENOTIFY_EVENT_START, this);
-        gestureNotifyEvent.refPoint = touchPoint;
-        nsEventStatus status;
-        DispatchEvent(&gestureNotifyEvent, status);
-        mDisplayPanFeedback = gestureNotifyEvent.displayPanFeedback;
-        mGesture.SetWinGestureSupport(mWnd, gestureNotifyEvent.panDirection);
-      }
-      result = PR_FALSE; //should always bubble to DefWindowProc
-    }
     break;
 #endif // !defined(WINCE)
 
@@ -4819,7 +4729,7 @@ PRBool nsWindow::OnGesture(WPARAM wParam, LPARAM lParam)
       scrollOverflowY = event.scrollOverflow;
     }
 
-    if (mDisplayPanFeedback) {
+    if (mWindowType != eWindowType_popup) {
       mGesture.UpdatePanFeedbackX(mWnd, scrollOverflowX, endFeedback);
       mGesture.UpdatePanFeedbackY(mWnd, scrollOverflowY, endFeedback);
       mGesture.PanFeedbackFinalize(mWnd, endFeedback);

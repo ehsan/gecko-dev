@@ -57,6 +57,9 @@ ifdef DEHYDRA_PATH
 DIRS += static-checker
 endif
 
+REQUIRES	= \
+		  string \
+		  $(NULL)
 
 CPPSRCS		= \
 		nsIFileEnumerator.cpp \

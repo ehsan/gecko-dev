@@ -49,6 +49,8 @@ MODULE		= xpcom
 LIBRARY_NAME	= xpcomglue
 DIST_INSTALL	= 1
 
+REQUIRES	= string \
+		  $(NULL)
 
 LOCAL_INCLUDES	= \
 		-I$(srcdir)/../../build \

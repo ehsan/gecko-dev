@@ -87,13 +87,7 @@ public:
   static void ToggleSoftKB(PRBool show);
   static void CreateSoftKeyMenuBar(HWND wnd);
   static void NotifySoftKbObservers(LPRECT = NULL);
-  static PRBool sSIPInTransition;
   static TriStateBool sShowSIPButton;
-  static void CheckKeyboardStatus();
-  static TriStateBool GetSliderStateOpen();
-private:
-  static TriStateBool sHardKBPresence;
-
 #endif
 };
 

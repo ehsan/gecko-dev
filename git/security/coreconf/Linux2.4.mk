@@ -45,6 +45,4 @@ ifdef MAPFILE
 endif
 PROCESS_MAP_FILE = grep -v ';-' $< | \
         sed -e 's,;+,,' -e 's; DATA ;;' -e 's,;;,,' -e 's,;.*,;,' > $@
-        
-NSS_NO_FORK_CHECK=1
 

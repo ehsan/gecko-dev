@@ -730,22 +730,24 @@ nsListControlFrame::ReflowAsDropdown(nsPresContext*           aPresContext,
     // This all breaks down if the font of the combobox is a lot larger then the option items
     // or CSS style has set the height of the combobox to be rather large.
     // We can fix these cases later if they actually happen.
-    nsRect screen = nsFormControlFrame::GetUsableScreenRect(aPresContext);
-    nscoord screenHeight = screen.height;
-
-    nscoord availDropHgt = (screenHeight / 2) - (heightOfARow*2); // approx half screen minus combo size
-    availDropHgt -= aReflowState.mComputedBorderPadding.top + aReflowState.mComputedBorderPadding.bottom;
-
-    nscoord hgt = visibleHeight + aReflowState.mComputedBorderPadding.top + aReflowState.mComputedBorderPadding.bottom;
-    if (heightOfARow > 0) {
-      if (hgt > availDropHgt) {
-        visibleHeight = (availDropHgt / heightOfARow) * heightOfARow;
+    nscoord screenHeightInPixels = 0;
+    if (NS_SUCCEEDED(nsFormControlFrame::GetScreenHeight(aPresContext, screenHeightInPixels))) {
+      nscoord screenHeight = aPresContext->DevPixelsToAppUnits(screenHeightInPixels);
+      
+      nscoord availDropHgt = (screenHeight / 2) - (heightOfARow*2); // approx half screen minus combo size
+      availDropHgt -= aReflowState.mComputedBorderPadding.top + aReflowState.mComputedBorderPadding.bottom;
+      
+      nscoord hgt = visibleHeight + aReflowState.mComputedBorderPadding.top + aReflowState.mComputedBorderPadding.bottom;
+      if (heightOfARow > 0) {
+        if (hgt > availDropHgt) {
+          visibleHeight = (availDropHgt / heightOfARow) * heightOfARow;
+        }
+        mNumDisplayRows = visibleHeight / heightOfARow;
+      } else {
+        // Hmmm, not sure what to do here. Punt, and make both of them one
+        visibleHeight   = 1;
+        mNumDisplayRows = 1;
       }
-      mNumDisplayRows = visibleHeight / heightOfARow;
-    } else {
-      // Hmmm, not sure what to do here. Punt, and make both of them one
-      visibleHeight   = 1;
-      mNumDisplayRows = 1;
     }
 
     state.SetComputedHeight(mNumDisplayRows * heightOfARow);
@@ -1479,13 +1481,12 @@ nsListControlFrame::AddOption(PRInt32 aIndex)
     }
   }
   
-  // Make sure we scroll to the selected option as needed
-  mNeedToReset = PR_TRUE;
-
   if (!mHasBeenInitialized) {
     return NS_OK;
   }
 
+  // Make sure we scroll to the selected option as needed
+  mNeedToReset = PR_TRUE;
   mPostChildrenLoadedReset = mIsAllContentHere;
   return NS_OK;
 }
@@ -2143,6 +2144,8 @@ nsListControlFrame::MouseDown(nsIDOMEvent* aMouseEvent)
 
   UpdateInListState(aMouseEvent);
 
+  mButtonDown = PR_TRUE;
+
   if (mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::disabled)) {
     return NS_OK;
   }
@@ -2167,7 +2170,6 @@ nsListControlFrame::MouseDown(nsIDOMEvent* aMouseEvent)
   PRInt32 selectedIndex;
   if (NS_SUCCEEDED(GetIndexFromDOMEvent(aMouseEvent, selectedIndex))) {
     // Handle Like List
-    mButtonDown = PR_TRUE;
     CaptureMouseEvents(PR_TRUE);
     mChangesSinceDragStart = HandleListSelection(aMouseEvent, selectedIndex);
 #ifdef ACCESSIBILITY

@@ -637,10 +637,10 @@ nsHttpHandler::InitUserAgentComponents()
     "Macintosh"
 #elif defined(XP_BEOS)
     "BeOS"
-#elif defined(MOZ_X11)
-    "X11"
-#else
+#elif !defined(MOZ_X11)
     "?"
+#else
+    "X11"
 #endif
     );
 
@@ -658,20 +658,42 @@ nsHttpHandler::InitUserAgentComponents()
     else if (os2ver == 45)
         mOscpu.AssignLiteral("Warp 4.5");
 
-#elif defined(WINCE) || defined(XP_WIN)
+#elif defined(WINCE)
     OSVERSIONINFO info = { sizeof(OSVERSIONINFO) };
     if (GetVersionEx(&info)) {
-        char *buf = PR_smprintf(
-#if defined(WINCE)
-                                "WindowsCE %ld.%ld",
-#else
-                                "Windows NT %ld.%ld",
-#endif
+        char *buf = PR_smprintf("WindowsCE %ld.%ld",
                                 info.dwMajorVersion,
                                 info.dwMinorVersion);
         if (buf) {
             mOscpu = buf;
             PR_smprintf_free(buf);
+        }
+    }
+#elif defined(XP_WIN)
+    OSVERSIONINFO info = { sizeof(OSVERSIONINFO) };
+    if (GetVersionEx(&info)) {
+        if (info.dwPlatformId == VER_PLATFORM_WIN32_NT) {
+            if (info.dwMajorVersion      == 3)
+                mOscpu.AssignLiteral("WinNT3.51");
+            else if (info.dwMajorVersion == 4)
+                mOscpu.AssignLiteral("WinNT4.0");
+            else {
+                char *buf = PR_smprintf("Windows NT %ld.%ld",
+                                        info.dwMajorVersion,
+                                        info.dwMinorVersion);
+                if (buf) {
+                    mOscpu = buf;
+                    PR_smprintf_free(buf);
+                }
+            }
+        } else {
+            char *buf = PR_smprintf("Windows %ld.%ld",
+                                    info.dwMajorVersion,
+                                    info.dwMinorVersion);
+            if (buf) {
+                mOscpu = buf;
+                PR_smprintf_free(buf);
+            }
         }
     }
 #elif defined (XP_MACOSX)

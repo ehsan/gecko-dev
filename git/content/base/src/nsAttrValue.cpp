@@ -384,14 +384,23 @@ nsAttrValue::ToString(nsAString& aResult) const
 
       break;
     }
-#ifdef DEBUG
     case eColor:
     {
-      NS_NOTREACHED("color attribute without string data");
-      aResult.Truncate();
+      nscolor v;
+      GetColorValue(v);
+      if (NS_GET_A(v) == 255) {
+        char buf[10];
+        PR_snprintf(buf, sizeof(buf), "#%02x%02x%02x",
+                    NS_GET_R(v), NS_GET_G(v), NS_GET_B(v));
+        CopyASCIItoUTF16(buf, aResult);
+      } else if (v == NS_RGBA(0,0,0,0)) {
+        aResult.AssignLiteral("transparent");
+      } else {
+        NS_NOTREACHED("translucent color attribute cannot be stringified");
+        aResult.Truncate();
+      }
       break;
     }
-#endif
     case eEnum:
     {
       PRInt16 val = GetEnumValue();
@@ -476,13 +485,26 @@ nsAttrValue::GetStringValue() const
 PRBool
 nsAttrValue::GetColorValue(nscolor& aColor) const
 {
-  if (Type() != eColor) {
-    // Unparseable value, treat as unset.
-    NS_ASSERTION(Type() == eString, "unexpected type for color-valued attr");
-    return PR_FALSE;
+  NS_PRECONDITION(Type() == eColor || Type() == eString, "wrong type");
+  switch (Type()) {
+    case eString:
+    {
+      return GetPtr() && NS_ColorNameToRGB(GetStringValue(), &aColor);
+    }
+    case eColor:
+    {
+      aColor = GetMiscContainer()->mColor;
+      
+      break;
+    }
+    default:
+    {
+      NS_NOTREACHED("unexpected basetype");
+      
+      break;
+    }
   }
 
-  aColor = GetMiscContainer()->mColor;
   return PR_TRUE;
 }
 
@@ -641,7 +663,7 @@ nsAttrValue::Equals(const nsAttrValue& aOther) const
   }
 
   PRBool needsStringComparison = PR_FALSE;
-
+  
   switch (thisCont->mType) {
     case eInteger:
     {
@@ -666,10 +688,7 @@ nsAttrValue::Equals(const nsAttrValue& aOther) const
     }
     case eColor:
     {
-      if (thisCont->mColor == otherCont->mColor) {
-        needsStringComparison = PR_TRUE;
-      }
-      break;
+      return thisCont->mColor == otherCont->mColor;
     }
     case eCSSStyleRule:
     {
@@ -1090,62 +1109,46 @@ nsAttrValue::ParseIntWithBounds(const nsAString& aString,
   return PR_TRUE;
 }
 
-void
-nsAttrValue::SetColorValue(nscolor aColor, const nsAString& aString)
-{
-  nsStringBuffer* buf = GetStringBuffer(aString);
-  if (!buf) {
-    return;
-  }
-
-  if (!EnsureEmptyMiscContainer()) {
-    buf->Release();
-    return;
-  }
-
-  MiscContainer* cont = GetMiscContainer();
-  cont->mColor = aColor;
-  cont->mType = eColor;
-
-  // Save the literal string we were passed for round-tripping.
-  cont->mStringBits = reinterpret_cast<PtrBits>(buf) | eStringBase;
-}
-
 PRBool
 nsAttrValue::ParseColor(const nsAString& aString, nsIDocument* aDocument)
 {
-  ResetIfSet();
-
   nsAutoString colorStr(aString);
   colorStr.CompressWhitespace(PR_TRUE, PR_TRUE);
   if (colorStr.IsEmpty()) {
+    Reset();
     return PR_FALSE;
   }
 
   nscolor color;
-  // No color names begin with a '#'; in standards mode, all acceptable
-  // numeric colors do.
-  if (colorStr.First() == '#') {
+  // No color names begin with a '#', but numerical colors do so
+  // it is a very common first char
+  if ((colorStr.CharAt(0) != '#') && NS_ColorNameToRGB(colorStr, &color)) {
+    SetTo(colorStr);
+    return PR_TRUE;
+  }
+
+  // Check if we are in compatibility mode
+  if (aDocument->GetCompatibilityMode() == eCompatibility_NavQuirks) {
+    NS_LooseHexToRGB(colorStr, &color);
+  }
+  else {
+    if (colorStr.First() != '#') {
+      Reset();
+      return PR_FALSE;
+    }
     colorStr.Cut(0, 1);
-    if (NS_HexToRGB(colorStr, &color)) {
-      SetColorValue(color, aString);
-      return PR_TRUE;
-    }
-  } else {
-    if (NS_ColorNameToRGB(colorStr, &color)) {
-      SetColorValue(color, aString);
-      return PR_TRUE;
+    if (!NS_HexToRGB(colorStr, &color)) {
+      Reset();
+      return PR_FALSE;
     }
   }
 
-  if (aDocument->GetCompatibilityMode() != eCompatibility_NavQuirks) {
-    return PR_FALSE;
+  if (EnsureEmptyMiscContainer()) {
+    MiscContainer* cont = GetMiscContainer();
+    cont->mColor = color;
+    cont->mType = eColor;
   }
 
-  // In compatibility mode, try LooseHexToRGB as a fallback for either
-  // of the above two possibilities.
-  NS_LooseHexToRGB(colorStr, &color);
-  SetColorValue(color, aString);
   return PR_TRUE;
 }
 

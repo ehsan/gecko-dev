@@ -104,7 +104,7 @@ protected:
      PAD_SIZE =         0x4
    };
 
-   nsXULWindow(PRUint32 aChromeFlags);
+   nsXULWindow();
    virtual ~nsXULWindow();
 
    NS_IMETHOD EnsureChromeTreeOwner();

@@ -48,7 +48,7 @@
 
 menulist {
   -moz-appearance: menulist;
-  margin: 5px 2px 3px;
+  margin: 2px 4px 1px;
   min-height: 20px !important;
   color: -moz-DialogText;
 }
@@ -94,7 +94,7 @@ menulist[disabled="true"] > .menulist-dropmarker {
 
 menulist[editable="true"] {
   -moz-appearance: menulist-textfield;
-  margin: 4px 2px;
+  margin: 2px 4px;
 }
 
 html|*.menulist-editable-input {

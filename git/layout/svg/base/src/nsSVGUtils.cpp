@@ -85,7 +85,6 @@
 #include "nsSVGIntegrationUtils.h"
 #include "nsSVGFilterPaintCallback.h"
 #include "nsSVGGeometryFrame.h"
-#include "nsComputedDOMStyle.h"
 
 gfxASurface *nsSVGUtils::mThebesComputationalSurface = nsnull;
 
@@ -268,69 +267,39 @@ nsSVGUtils::GetParentElement(nsIContent *aContent)
 float
 nsSVGUtils::GetFontSize(nsIContent *aContent)
 {
-  nsRefPtr<nsStyleContext> styleContext = 
-    nsComputedDOMStyle::GetStyleContextForContentNoFlush(aContent, nsnull,
-                                                         nsnull);
-  if (!styleContext) {
-    NS_WARNING("Couldn't get style context for content in GetFontStyle");
+  nsIFrame* frame = GetFrameForContent(aContent);
+  if (!frame) {
+    NS_WARNING("no frame in GetFontSize()");
     return 1.0f;
   }
 
-  return GetFontSize(styleContext);
+  return GetFontSize(frame);
 }
 
 float
 nsSVGUtils::GetFontSize(nsIFrame *aFrame)
 {
-  NS_ABORT_IF_FALSE(aFrame, "NULL frame in GetFontSize");
-  return GetFontSize(aFrame->GetStyleContext());
-}
-
-float
-nsSVGUtils::GetFontSize(nsStyleContext *aStyleContext)
-{
-  NS_ABORT_IF_FALSE(aStyleContext, "NULL style context in GetFontSize");
-
-  nsPresContext *presContext = aStyleContext->PresContext();
-  NS_ABORT_IF_FALSE(presContext, "NULL pres context in GetFontSize");
-
-  nscoord fontSize = aStyleContext->GetStyleFont()->mSize;
-  return nsPresContext::AppUnitsToFloatCSSPixels(fontSize) / 
-         presContext->TextZoom();
+  return nsPresContext::AppUnitsToFloatCSSPixels(aFrame->GetStyleFont()->mSize) /
+         aFrame->PresContext()->TextZoom();
 }
 
 float
 nsSVGUtils::GetFontXHeight(nsIContent *aContent)
 {
-  nsRefPtr<nsStyleContext> styleContext = 
-    nsComputedDOMStyle::GetStyleContextForContentNoFlush(aContent, nsnull,
-                                                         nsnull);
-  if (!styleContext) {
-    NS_WARNING("Couldn't get style context for content in GetFontStyle");
+  nsIFrame* frame = GetFrameForContent(aContent);
+  if (!frame) {
+    NS_WARNING("no frame in GetFontXHeight()");
     return 1.0f;
   }
 
-  return GetFontXHeight(styleContext);
+  return GetFontXHeight(frame);
 }
   
 float
 nsSVGUtils::GetFontXHeight(nsIFrame *aFrame)
 {
-  NS_ABORT_IF_FALSE(aFrame, "NULL frame in GetFontXHeight");
-  return GetFontXHeight(aFrame->GetStyleContext());
-}
-
-float
-nsSVGUtils::GetFontXHeight(nsStyleContext *aStyleContext)
-{
-  NS_ABORT_IF_FALSE(aStyleContext, "NULL style context in GetFontXHeight");
-
-  nsPresContext *presContext = aStyleContext->PresContext();
-  NS_ABORT_IF_FALSE(presContext, "NULL pres context in GetFontXHeight");
-
   nsCOMPtr<nsIFontMetrics> fontMetrics;
-  nsLayoutUtils::GetFontMetricsForStyleContext(aStyleContext,
-                                               getter_AddRefs(fontMetrics));
+  nsLayoutUtils::GetFontMetricsForFrame(aFrame, getter_AddRefs(fontMetrics));
 
   if (!fontMetrics) {
     NS_WARNING("no FontMetrics in GetFontXHeight()");
@@ -340,7 +309,7 @@ nsSVGUtils::GetFontXHeight(nsStyleContext *aStyleContext)
   nscoord xHeight;
   fontMetrics->GetXHeight(xHeight);
   return nsPresContext::AppUnitsToFloatCSSPixels(xHeight) /
-         presContext->TextZoom();
+         aFrame->PresContext()->TextZoom();
 }
 
 void

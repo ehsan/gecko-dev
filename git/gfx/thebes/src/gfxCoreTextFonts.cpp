@@ -58,7 +58,7 @@
 #include "cairo-quartz.h"
 
 #include "gfxQuartzSurface.h"
-#include "gfxMacPlatformFontList.h"
+#include "gfxQuartzFontCache.h"
 #include "gfxUserFontSet.h"
 
 #include "nsUnicodeRange.h"
@@ -589,11 +589,12 @@ gfxCoreTextFontGroup::gfxCoreTextFontGroup(const nsAString& families,
         // user font.
 
         PRBool needsBold;
-        MacOSFontEntry *defaultFont = static_cast<MacOSFontEntry*>
-            (gfxMacPlatformFontList::PlatformFontList()->GetDefaultFont(aStyle, needsBold));
+        MacOSFontEntry *defaultFont =
+            gfxQuartzFontCache::SharedFontCache()->GetDefaultFont(aStyle, needsBold);
         NS_ASSERTION(defaultFont, "invalid default font returned by GetDefaultFont");
 
         nsRefPtr<gfxCoreTextFont> font = GetOrMakeCTFont(defaultFont, aStyle, needsBold);
+
         if (font) {
             mFonts.AppendElement(font);
         }
@@ -617,9 +618,9 @@ gfxCoreTextFontGroup::gfxCoreTextFontGroup(const nsAString& families,
 PRBool
 gfxCoreTextFontGroup::FindCTFont(const nsAString& aName,
                                  const nsACString& aGenericName,
-                                 void *aClosure)
+                                 void *closure)
 {
-    gfxCoreTextFontGroup *fontGroup = static_cast<gfxCoreTextFontGroup*>(aClosure);
+    gfxCoreTextFontGroup *fontGroup = (gfxCoreTextFontGroup*) closure;
     const gfxFontStyle *fontStyle = fontGroup->GetStyle();
 
 
@@ -636,8 +637,8 @@ gfxCoreTextFontGroup::FindCTFont(const nsAString& aName,
 
     // nothing in the user font set ==> check system fonts
     if (!fe) {
-        fe = static_cast<MacOSFontEntry*>
-            (gfxMacPlatformFontList::PlatformFontList()->FindFontForFamily(aName, fontStyle, needsBold));
+        gfxQuartzFontCache *fc = gfxQuartzFontCache::SharedFontCache();
+        fe = fc->FindFontForFamily(aName, fontStyle, needsBold);
     }
 
     if (fe && !fontGroup->HasFont(fe->GetFontRef())) {
@@ -1220,17 +1221,17 @@ gfxCoreTextFontGroup::HasFont(ATSFontRef aFontRef)
 }
 
 struct PrefFontCallbackData {
-    PrefFontCallbackData(nsTArray<nsRefPtr<gfxFontFamily> >& aFamiliesArray)
+    PrefFontCallbackData(nsTArray<nsRefPtr<MacOSFamilyEntry> >& aFamiliesArray)
         : mPrefFamilies(aFamiliesArray)
     {}
 
-    nsTArray<nsRefPtr<gfxFontFamily> >& mPrefFamilies;
+    nsTArray<nsRefPtr<MacOSFamilyEntry> >& mPrefFamilies;
 
     static PRBool AddFontFamilyEntry(eFontPrefLang aLang, const nsAString& aName, void *aClosure)
     {
-        PrefFontCallbackData *prefFontData = static_cast<PrefFontCallbackData*>(aClosure);
+        PrefFontCallbackData *prefFontData = (PrefFontCallbackData*) aClosure;
 
-        gfxFontFamily *family = gfxMacPlatformFontList::PlatformFontList()->FindFamily(aName);
+        MacOSFamilyEntry *family = gfxQuartzFontCache::SharedFontCache()->FindFamily(aName);
         if (family) {
             prefFontData->mPrefFamilies.AppendElement(family);
         }
@@ -1268,10 +1269,10 @@ gfxCoreTextFontGroup::WhichPrefFontSupportsChar(PRUint32 aCh)
     macPlatform->GetLangPrefs(prefLangs, numLangs, charLang, mPageLang);
 
     for (i = 0; i < numLangs; i++) {
-        nsAutoTArray<nsRefPtr<gfxFontFamily>, 5> families;
+        nsAutoTArray<nsRefPtr<MacOSFamilyEntry>, 5> families;
         eFontPrefLang currentLang = prefLangs[i];
 
-        gfxMacPlatformFontList *fc = gfxMacPlatformFontList::PlatformFontList();
+        gfxQuartzFontCache *fc = gfxQuartzFontCache::SharedFontCache();
 
         // get the pref families for a single pref lang
         if (!fc->GetPrefFontFamilyEntries(currentLang, &families)) {
@@ -1287,7 +1288,7 @@ gfxCoreTextFontGroup::WhichPrefFontSupportsChar(PRUint32 aCh)
         numPrefs = families.Length();
         for (i = 0; i < numPrefs; i++) {
             // look up the appropriate face
-            gfxFontFamily *family = families[i];
+            MacOSFamilyEntry *family = families[i];
             if (!family) continue;
 
             // if a pref font is used, it's likely to be used again in the same text run.
@@ -1301,8 +1302,7 @@ gfxCoreTextFontGroup::WhichPrefFontSupportsChar(PRUint32 aCh)
             }
 
             PRBool needsBold;
-            MacOSFontEntry *fe =
-                static_cast<MacOSFontEntry*>(family->FindFontForStyle(mStyle, needsBold));
+            MacOSFontEntry *fe = family->FindFont(&mStyle, needsBold);
             // if ch in cmap, create and return a gfxFont
             if (fe && fe->TestCharacterMap(aCh)) {
                 nsRefPtr<gfxCoreTextFont> prefFont = GetOrMakeCTFont(fe, &mStyle, needsBold);
@@ -1311,7 +1311,7 @@ gfxCoreTextFontGroup::WhichPrefFontSupportsChar(PRUint32 aCh)
                 mLastPrefFont = prefFont;
                 mLastPrefLang = charLang;
                 mLastPrefFirstFont = (i == 0);
-                nsRefPtr<gfxFont> font2 = prefFont.get();
+                nsRefPtr<gfxFont> font2 = (gfxFont*) prefFont;
                 return font2.forget();
             }
 
@@ -1324,11 +1324,12 @@ gfxCoreTextFontGroup::WhichPrefFontSupportsChar(PRUint32 aCh)
 already_AddRefed<gfxFont>
 gfxCoreTextFontGroup::WhichSystemFontSupportsChar(PRUint32 aCh)
 {
-    MacOSFontEntry *fe = static_cast<MacOSFontEntry*>
-        (gfxMacPlatformFontList::PlatformFontList()->FindFontForChar(aCh, GetFontAt(0)));
+    MacOSFontEntry *fe;
+
+    fe = gfxQuartzFontCache::SharedFontCache()->FindFontForChar(aCh, GetFontAt(0));
     if (fe) {
         nsRefPtr<gfxCoreTextFont> ctFont = GetOrMakeCTFont(fe, &mStyle, PR_FALSE); // ignore bolder considerations in system fallback case...
-        nsRefPtr<gfxFont> font = ctFont.get();
+        nsRefPtr<gfxFont> font = (gfxFont*) ctFont;
         return font.forget();
     }
 

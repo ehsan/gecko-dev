@@ -47,6 +47,10 @@
  */
 #define NS_VIEWSOURCE_TOKENS_PER_BLOCK 16
 
+// TODO get rid of these unused macros
+#define STOP_TIMER()
+#define START_TIMER()
+
 #include "nsIAtom.h"
 #include "nsViewSourceHTML.h"
 #include "nsCRT.h"
@@ -257,6 +261,7 @@ CViewSourceHTML::WillBuildModel(const CParserContext& aParserContext,
   NS_START_STOPWATCH(vsTimer);
 #endif
 
+  STOP_TIMER();
   mSink=(nsIHTMLContentSink*)aSink;
 
   if((!aParserContext.mPrevContext) && (mSink)) {
@@ -296,6 +301,8 @@ CViewSourceHTML::WillBuildModel(const CParserContext& aParserContext,
   else mDocType=aParserContext.mDocType;
 
   mLineNumber = 1;
+
+  START_TIMER();
 
   return result;
 }
@@ -533,6 +540,8 @@ NS_IMETHODIMP CViewSourceHTML::DidBuildModel(nsresult anErrorCode)
 
   //ADD CODE HERE TO CLOSE OPEN CONTAINERS...
 
+  STOP_TIMER();
+
   if (mSink) {
       //now let's close automatically auto-opened containers...
 
@@ -551,6 +560,8 @@ NS_IMETHODIMP CViewSourceHTML::DidBuildModel(nsresult anErrorCode)
       mSink->CloseContainer(eHTMLTag_html);
     }
   }
+
+  START_TIMER();
 
 #ifdef RAPTOR_PERF_METRICS
   NS_STOP_STOPWATCH(vsTimer);
@@ -758,6 +769,8 @@ nsresult CViewSourceHTML::WriteTag(PRInt32 aTagType,const nsSubstring & aText,PR
 #endif // DUMP_TO_FILE
   }
 
+  STOP_TIMER();
+
   mITextToken.SetIndirectString(aText);  //now emit the tag name...
 
   nsCParserNode theNode(&mITextToken, 0/*stack token*/);
@@ -802,6 +815,8 @@ nsresult CViewSourceHTML::WriteTag(PRInt32 aTagType,const nsSubstring & aText,PR
       fprintf(gDumpFile, "</span>");
 #endif //DUMP_TO_FILE
   }
+
+  START_TIMER();
 
   return result;
 }

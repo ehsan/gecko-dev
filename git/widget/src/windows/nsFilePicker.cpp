@@ -71,6 +71,12 @@ char nsFilePicker::mLastUsedDirectory[MAX_PATH+1] = { 0 };
 
 #define MAX_EXTENSION_LENGTH 10
 
+#ifndef BIF_USENEWUI
+// BIF_USENEWUI isn't defined in the platform SDK that comes with
+// MSVC6.0. 
+#define BIF_USENEWUI 0x50
+#endif
+
 //-------------------------------------------------------------------------
 //
 // nsFilePicker constructor
@@ -282,7 +288,7 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
       }
 #endif
       else {
-        NS_ERROR("unsupported mode"); 
+        NS_ASSERTION(0, "unsupported mode"); 
       }
 #ifndef WINCE
     }

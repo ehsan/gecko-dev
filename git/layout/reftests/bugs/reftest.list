@@ -690,8 +690,6 @@ fails == 386147-1.html 386147-1-ref.html # bug 447460
 == 387201-1.html 387201-1-ref.html
 == 387201-2.html about:blank  # Really an assertion test rather than a rendering test
 == 387201-3.html about:blank  # Really an assertion test rather than a rendering test
-== 387227-1.html 387227-1-ref.html
-== 387227-2.html 387227-2-ref.html
 == 387344-1.html 387344-1-ref.html
 == 387876-1.html 387876-1-ref.html
 random == 387876-2.html 387876-2-ref.html # bug 471630
@@ -1055,7 +1053,6 @@ fails == 428810-3e-rtl-insets.html 428810-empty-rtl-insets-ref.html # bug 179596
 == 431341-1.html 431341-1-ref.html
 == 431341-2.html 431341-2-ref.html
 == 431520-1.html 431520-1-ref.html
-== 431948-1.html 431948-1-ref.html
 == 440112.html 440112-ref.html
 == 433640-1.html 433640-1-ref.html
 == 433700.html 433700-ref.html
@@ -1304,7 +1301,6 @@ fails-if(MOZ_WIDGET_TOOLKIT!="cocoa") == 488692-1.html 488692-1-ref.html # needs
 == 503364-1b.html 503364-1-ref.html
 == 504032-1.html 504032-1-ref.html
 == 505743-1.html about:blank
-== 506481-1.html 506481-1-ref.html
 == 507187-1.html 507187-1-ref.html
 == 507487-1.html 507487-1-ref.html
 == 507487-2.xhtml 507487-2-ref.xhtml

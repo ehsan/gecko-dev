@@ -74,7 +74,9 @@ public:
 private:
   ~nsAppStartup() { }
 
+  void AttemptingQuit(PRBool aAttempt);
   void CloseAllWindows();
+  inline PRInt32 RealQuitStoppers();
 
   friend class nsAppExitEvent;
 

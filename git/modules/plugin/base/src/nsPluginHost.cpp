@@ -160,17 +160,6 @@
 #include <gdk/gdkx.h> // for GDK_DISPLAY()
 #endif
 
-// Null out a strong ref to a linked list iteratively to avoid
-// exhausting the stack (bug 486349).
-#define NS_ITERATIVE_UNREF_LIST(type_, list_, mNext_)                \
-  {                                                                  \
-    while (list_) {                                                  \
-      type_ temp = list_->mNext_;                                    \
-      list_->mNext_ = nsnull;                                        \
-      list_ = temp;                                                  \
-    }                                                                \
-  }
-
 // this is the name of the directory which will be created
 // to cache temporary files.
 #define kPluginTmpDirName NS_LITERAL_CSTRING("plugtmp")
@@ -418,6 +407,7 @@ PRBool nsPluginInstanceTagList::remove(nsPluginInstanceTag * plugin)
   for (nsPluginInstanceTag * p = mFirst; p != nsnull; p = p->mNext) {
     if (p == plugin) {
       PRBool lastInstance = IsLastInstance(p);
+      nsPluginTag *pluginTag = p->mPluginTag;
 
       if (p == mFirst)
         mFirst = p->mNext;
@@ -427,26 +417,18 @@ PRBool nsPluginInstanceTagList::remove(nsPluginInstanceTag * plugin)
       if (prev && !prev->mNext)
         mLast = prev;
 
-      if (lastInstance) {
-        nsRefPtr<nsPluginTag> pluginTag = p->mPluginTag;
+      delete p;
 
-        delete p;
+      if (lastInstance && pluginTag) {
+        nsresult rv;
+        nsCOMPtr<nsIPrefBranch> pref(do_GetService(NS_PREFSERVICE_CONTRACTID, &rv));
+        NS_ENSURE_SUCCESS(rv, rv);
 
-        if (pluginTag) {
-          nsresult rv;
-          nsCOMPtr<nsIPrefBranch> pref(do_GetService(NS_PREFSERVICE_CONTRACTID, &rv));
-          NS_ENSURE_SUCCESS(rv, rv);
-
-          PRBool unloadPluginsASAP = PR_FALSE;
-          rv = pref->GetBoolPref("plugins.unloadASAP", &unloadPluginsASAP);
-          if (NS_SUCCEEDED(rv) && unloadPluginsASAP)
-            pluginTag->TryUnloadPlugin();
-        } 
-        else
-          NS_ASSERTION(pluginTag, "pluginTag was not set, plugin not shutdown");
+        PRBool unloadPluginsASAP = PR_FALSE;
+        rv = pref->GetBoolPref("plugins.unloadASAP", &unloadPluginsASAP);
+        if (NS_SUCCEEDED(rv) && unloadPluginsASAP)
+          pluginTag->TryUnloadPlugin();
       }
-      else
-        delete p;
 
       mCount--;
       return PR_TRUE;
@@ -804,8 +786,6 @@ nsPluginTag::nsPluginTag(const char* aName,
 
 nsPluginTag::~nsPluginTag()
 {
-  NS_ASSERTION(!mNext, "Risk of exhausting the stack space, bug 486349");
-
   TryUnloadPlugin();
 
   // Remove mime types added to the category manager
@@ -939,6 +919,19 @@ nsPluginTag::SetDisabled(PRBool aDisabled)
 {
   if (HasFlag(NS_PLUGIN_FLAG_ENABLED) == !aDisabled)
     return NS_OK;
+
+  if (mIsJavaPlugin) {
+    nsresult rv;
+    nsCOMPtr<nsIPrefBranch> pref(do_GetService(NS_PREFSERVICE_CONTRACTID, &rv));
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    PRBool javaEnabled;
+    rv = pref->GetBoolPref("security.enable_java", &javaEnabled);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    if (javaEnabled == aDisabled)
+      return pref->SetBoolPref("security.enable_java", !aDisabled);
+  }
 
   if (aDisabled)
     UnMark(NS_PLUGIN_FLAG_ENABLED);
@@ -2443,9 +2436,15 @@ nsPluginStreamListenerPeer::VisitHeader(const nsACString &header, const nsACStri
 }
 
 nsPluginHost::nsPluginHost()
-  // No need to initialize members to nsnull, PR_FALSE etc because this class
-  // has a zeroing operator new.
 {
+  mPluginsLoaded = PR_FALSE;
+  mDontShowBadPluginMessage = PR_FALSE;
+  mIsDestroyed = PR_FALSE;
+  mOverrideInternalTypes = PR_FALSE;
+  mAllowAlienStarHandler = PR_FALSE;
+  mDefaultPluginDisabled = PR_FALSE;
+  mJavaEnabled = PR_TRUE;
+
   gActivePluginList = &mPluginInstanceTagList;
 
   // check to see if pref is set at startup to let plugins take over in
@@ -2472,6 +2471,11 @@ nsPluginHost::nsPluginHost()
 #ifdef WINCE
     mDefaultPluginDisabled = PR_TRUE;
 #endif
+
+    rv = mPrefService->GetBoolPref("security.enable_java", &tmp);
+    if (NS_SUCCEEDED(rv)) {
+      mJavaEnabled = tmp;
+    }
   }
 
   nsCOMPtr<nsIObserverService> obsService = do_GetService("@mozilla.org/observer-service;1");
@@ -2492,6 +2496,7 @@ nsPluginHost::nsPluginHost()
   PLUGIN_LOG(PLUGIN_LOG_ALWAYS,("nsPluginHost::ctor\n"));
   PR_LogFlush();
 #endif
+  mCachedPlugins = nsnull;
 }
 
 nsPluginHost::~nsPluginHost()
@@ -2515,6 +2520,12 @@ nsPluginHost::GetInst()
     if (!sInst)
       return nsnull;
     NS_ADDREF(sInst);
+
+    // Must call this after the refcount is already 1!
+    if (NS_FAILED(sInst->AddPrefObserver())) {
+      NS_RELEASE(sInst);
+      return nsnull;
+    }
   }
 
   NS_ADDREF(sInst);
@@ -2946,8 +2957,19 @@ NS_IMETHODIMP nsPluginHost::Destroy()
     mPluginPath = nsnull;
   }
 
-  NS_ITERATIVE_UNREF_LIST(nsRefPtr<nsPluginTag>, mPlugins, mNext);
-  NS_ITERATIVE_UNREF_LIST(nsRefPtr<nsPluginTag>, mCachedPlugins, mNext);
+  while (mPlugins) {
+    nsRefPtr<nsPluginTag> temp = mPlugins->mNext;
+    // while walking through the list of the plugins see if we still have anything
+    // to shutdown some plugins may have never created an instance but still expect
+    // the shutdown call see bugzilla bug 73071
+    // with current logic, no need to do anything special as nsIPlugin::Shutdown
+    // will be performed in the destructor
+    mPlugins->mNext = nsnull;
+    mPlugins = temp;
+  }
+
+  // Delete any remaining cached plugins list
+  mCachedPlugins = nsnull;
 
   // Lets remove any of the temporary files that we created.
   if (sPluginTempDir) {
@@ -2965,6 +2987,9 @@ NS_IMETHODIMP nsPluginHost::Destroy()
   }
 #endif /* XP_WIN */
 
+  nsCOMPtr<nsIPrefBranch2> prefBranch(do_QueryInterface(mPrefService));
+  if (prefBranch)
+    prefBranch->RemoveObserver("security.enable_java", this);
   mPrefService = nsnull; // release prefs service to avoid leaks!
 
   return NS_OK;
@@ -3109,8 +3134,14 @@ NS_IMETHODIMP nsPluginHost::InstantiateEmbeddedPlugin(const char *aMimeType,
   if (pluginTag) {
     if (!pluginTag->IsEnabled())
       return NS_ERROR_NOT_AVAILABLE;
+  } else if (!mJavaEnabled && IsJavaMIMEType(aMimeType)) {
+    // Even if we had no Java plugin, if mJavaEnabled is false we should throw
+    // here for Java types.  Note that we only need to do this for the case
+    // when pluginTag is null; if we had a pluginTag, it would have its
+    // NS_PLUGIN_FLAG_ENABLED set the right way.
+    return NS_ERROR_NOT_AVAILABLE;
   }
-
+    
   PRBool isJava = pluginTag && pluginTag->mIsJavaPlugin;
 
   // Determine if the scheme of this URL is one we can handle internaly because we should
@@ -3480,7 +3511,6 @@ NS_IMETHODIMP nsPluginHost::SetUpPluginInstance(const char *aMimeType,
       return rv;
 
     // other failure return codes may be not fatal, so we can still try
-    aOwner->SetInstance(nsnull); // avoid assert about setting it twice
     rv = TrySetUpPluginInstance(aMimeType, aURL, aOwner);
   }
 
@@ -4388,7 +4418,7 @@ nsresult nsPluginHost::ScanPluginsDirectory(nsIFile * pluginsDir,
         }
       }
 
-      if (!enabled)
+      if (!enabled || (pluginTag->mIsJavaPlugin && !mJavaEnabled))
         pluginTag->UnMark(NS_PLUGIN_FLAG_ENABLED);
 
       // if this is unwanted plugin we are checkin for, or this is a duplicate plugin,
@@ -4419,6 +4449,7 @@ nsresult nsPluginHost::ScanPluginsDirectory(nsIFile * pluginsDir,
         // we cannot get here if the plugin has just been added
         // and thus |pluginTag| is not from cache, because otherwise
         // it would not be present in the list;
+        // so there is no need to delete |pluginTag| -- it _is_ from the cache info list.
         bAddIt = PR_FALSE;
       }
     }
@@ -4431,6 +4462,12 @@ nsresult nsPluginHost::ScanPluginsDirectory(nsIFile * pluginsDir,
 
       if (pluginTag->IsEnabled())
         pluginTag->RegisterWithCategoryManager(mOverrideInternalTypes);
+    }
+    else if (!pluginTag->HasFlag(NS_PLUGIN_FLAG_UNWANTED)) {
+      // we don't need it, delete it;
+      // but don't delete unwanted plugins since they are cached
+      // in the cache info list and will be deleted later
+      pluginTag = nsnull;
     }
   }
   return NS_OK;
@@ -4545,7 +4582,7 @@ nsresult nsPluginHost::FindPlugins(PRBool aCreatePluginList, PRBool * aPluginsCh
     // if we are just looking for possible changes,
     // no need to proceed if changes are detected
     if (!aCreatePluginList && *aPluginsChanged) {
-      NS_ITERATIVE_UNREF_LIST(nsRefPtr<nsPluginTag>, mCachedPlugins, mNext);
+      mCachedPlugins = nsnull;
       return NS_OK;
     }
   }
@@ -4571,7 +4608,7 @@ nsresult nsPluginHost::FindPlugins(PRBool aCreatePluginList, PRBool * aPluginsCh
       // if we are just looking for possible changes,
       // no need to proceed if changes are detected
       if (!aCreatePluginList && *aPluginsChanged) {
-        NS_ITERATIVE_UNREF_LIST(nsRefPtr<nsPluginTag>, mCachedPlugins, mNext);
+        mCachedPlugins = nsnull;
         return NS_OK;
       }
     }
@@ -4619,7 +4656,7 @@ nsresult nsPluginHost::FindPlugins(PRBool aCreatePluginList, PRBool * aPluginsCh
       // if we are just looking for possible changes,
       // no need to proceed if changes are detected
       if (!aCreatePluginList && *aPluginsChanged) {
-        NS_ITERATIVE_UNREF_LIST(nsRefPtr<nsPluginTag>, mCachedPlugins, mNext);
+        mCachedPlugins = nsnull;
         return NS_OK;
       }
     }
@@ -4646,7 +4683,7 @@ nsresult nsPluginHost::FindPlugins(PRBool aCreatePluginList, PRBool * aPluginsCh
 
   // if we are not creating the list, there is no need to proceed
   if (!aCreatePluginList) {
-    NS_ITERATIVE_UNREF_LIST(nsRefPtr<nsPluginTag>, mCachedPlugins, mNext);
+    mCachedPlugins = nsnull;
     return NS_OK;
   }
 
@@ -4656,7 +4693,7 @@ nsresult nsPluginHost::FindPlugins(PRBool aCreatePluginList, PRBool * aPluginsCh
     WritePluginInfo();
 
   // No more need for cached plugins. Clear it up.
-  NS_ITERATIVE_UNREF_LIST(nsRefPtr<nsPluginTag>, mCachedPlugins, mNext);
+  mCachedPlugins = nsnull;
 
   // reverse our list of plugins
   nsRefPtr<nsPluginTag> next;
@@ -4680,7 +4717,7 @@ nsPluginHost::UpdatePluginInfo(nsPluginTag* aPluginTag)
 {
   ReadPluginInfo();
   WritePluginInfo();
-  NS_ITERATIVE_UNREF_LIST(nsRefPtr<nsPluginTag>, mCachedPlugins, mNext);
+  mCachedPlugins = nsnull;
 
   if (!aPluginTag || aPluginTag->IsEnabled())
     return NS_OK;
@@ -5032,6 +5069,12 @@ nsPluginHost::ReadPluginInfo()
 
     // Mark plugin as loaded from cache
     tag->Mark(tagflag | NS_PLUGIN_FLAG_FROMCACHE);
+    if (tag->mIsJavaPlugin) {
+      if (mJavaEnabled)
+        tag->Mark(NS_PLUGIN_FLAG_ENABLED);
+      else
+        tag->UnMark(NS_PLUGIN_FLAG_ENABLED);
+    }
     PR_LOG(nsPluginLogging::gPluginLog, PLUGIN_LOG_BASIC,
       ("LoadCachedPluginsInfo : Loading Cached plugininfo for %s\n", tag->mFileName.get()));
     tag->mNext = mCachedPlugins;
@@ -5465,6 +5508,28 @@ NS_IMETHODIMP nsPluginHost::Observe(nsISupports *aSubject,
       pi->PrivateModeStateChanged();
     }
   }
+  if (!nsCRT::strcmp(NS_PREFBRANCH_PREFCHANGE_TOPIC_ID, aTopic)) {
+    NS_ASSERTION(someData &&
+                 nsDependentString(someData).EqualsLiteral("security.enable_java"),
+                 "Unexpected pref");
+    nsCOMPtr<nsIPrefBranch> branch = do_QueryInterface(aSubject);
+    NS_ASSERTION(branch, "Not a pref branch?");
+    PRBool enabled;
+    if (NS_FAILED(branch->GetBoolPref("security.enable_java", &enabled)))
+      enabled = PR_TRUE;
+
+    if (enabled != mJavaEnabled) {
+      mJavaEnabled = enabled;
+      // We want to keep the java PluginTag around so we'll know that it's
+      // actually disabled, not just not present.  So just manually mark it as
+      // disabled so at least FindPluginForType/Extension doesn't return
+      // anything.
+      for (nsPluginTag* cur = mPlugins; cur; cur = cur->mNext) {
+        if (cur->mIsJavaPlugin)
+          cur->SetDisabled(!mJavaEnabled);
+      }
+    }
+  }
   return NS_OK;
 }
 
@@ -5877,6 +5942,14 @@ nsresult nsPluginHost::AddUnusedLibrary(PRLibrary * aLibrary)
     mUnusedLibraries.AppendElement(aLibrary);
 
   return NS_OK;
+}
+
+nsresult nsPluginHost::AddPrefObserver()
+{
+  nsCOMPtr<nsIPrefBranch2> prefBranch(do_QueryInterface(mPrefService));
+  NS_ENSURE_TRUE(prefBranch, NS_ERROR_UNEXPECTED);
+  
+  return prefBranch->AddObserver("security.enable_java", this, PR_TRUE);
 }
 
 nsresult nsPluginStreamListenerPeer::ServeStreamAsFile(nsIRequest *request,

@@ -236,29 +236,34 @@ ReifyPropertyOps(JSContext *cx, JSObject *obj, jsval idval, jsid interned_id,
 }
 
 static JSBool
-LookupGetterOrSetter(JSContext *cx, JSBool wantGetter, uintN argc, jsval *vp)
+LookupGetterOrSetter(JSContext *cx, JSBool wantGetter, jsval *vp)
 {
-    XPC_QS_ASSERT_CONTEXT_OK(cx);
-
-    if(argc == 0)
-    {
-        JS_SET_RVAL(cx, vp, JSVAL_VOID);
-        return JS_TRUE;
-    }
-
-    JSObject *obj = JS_THIS_OBJECT(cx, vp);
-    if(!obj)
-        return JS_FALSE;
-
-    jsval idval = JS_ARGV(cx, vp)[0];
+    uintN attrs;
+    JSBool found;
+    JSPropertyOp getter, setter;
+    JSObject *obj2;
     jsid interned_id;
-    JSPropertyDescriptor desc;
+    jsval v;
+
+    XPC_QS_ASSERT_CONTEXT_OK(cx);
+    JSObject *obj = JS_THIS_OBJECT(cx, vp);
+    if (!obj)
+        return JS_FALSE;
+    jsval idval = JS_ARGV(cx, vp)[0];
+
+    const char *name = JSVAL_IS_STRING(idval)
+                       ? JS_GetStringBytes(JSVAL_TO_STRING(idval))
+                       : nsnull;
     if(!JS_ValueToId(cx, idval, &interned_id) ||
-       !JS_GetPropertyDescriptorById(cx, obj, interned_id, JSRESOLVE_QUALIFIED, &desc))
+       !JS_LookupPropertyWithFlagsById(cx, obj, interned_id,
+                                       JSRESOLVE_QUALIFIED, &obj2, &v) ||
+       (obj2 &&
+        !JS_GetPropertyAttrsGetterAndSetterById(cx, obj2, interned_id, &attrs,
+                                                &found, &getter, &setter)))
         return JS_FALSE;
 
     // No property at all means no getters or setters possible.
-    if(!desc.obj)
+    if(!obj2 || !found)
     {
         JS_SET_RVAL(cx, vp, JSVAL_VOID);
         return JS_TRUE;
@@ -267,19 +272,19 @@ LookupGetterOrSetter(JSContext *cx, JSBool wantGetter, uintN argc, jsval *vp)
     // Inline obj_lookup[GS]etter here.
     if(wantGetter)
     {
-        if(desc.attrs & JSPROP_GETTER)
+        if(attrs & JSPROP_GETTER)
         {
             JS_SET_RVAL(cx, vp,
-                        OBJECT_TO_JSVAL(JS_FUNC_TO_DATA_PTR(JSObject *, desc.getter)));
+                        OBJECT_TO_JSVAL(JS_FUNC_TO_DATA_PTR(JSObject *, getter)));
             return JS_TRUE;
         }
     }
     else
     {
-        if(desc.attrs & JSPROP_SETTER)
+        if(attrs & JSPROP_SETTER)
         {
             JS_SET_RVAL(cx, vp,
-                        OBJECT_TO_JSVAL(JS_FUNC_TO_DATA_PTR(JSObject *, desc.setter)));
+                        OBJECT_TO_JSVAL(JS_FUNC_TO_DATA_PTR(JSObject *, setter)));
             return JS_TRUE;
         }
     }
@@ -288,26 +293,22 @@ LookupGetterOrSetter(JSContext *cx, JSBool wantGetter, uintN argc, jsval *vp)
     // ensuring that we have an XPConnect prototype object ensures that
     // we are only going to expose quickstubbed properties to script.
     // Also be careful not to overwrite existing properties!
-
-    const char *name = JSVAL_IS_STRING(idval)
-                       ? JS_GetStringBytes(JSVAL_TO_STRING(idval))
-                       : nsnull;
     if(!name ||
-       !IS_PROTO_CLASS(STOBJ_GET_CLASS(desc.obj)) ||
-       (desc.attrs & (JSPROP_GETTER | JSPROP_SETTER)) ||
-       !(desc.getter || desc.setter))
+       !IS_PROTO_CLASS(STOBJ_GET_CLASS(obj2)) ||
+       (attrs & (JSPROP_GETTER | JSPROP_SETTER)) ||
+       !(getter || setter))
     {
         JS_SET_RVAL(cx, vp, JSVAL_VOID);
         return JS_TRUE;
     }
 
     JSObject *getterobj, *setterobj;
-    if(!ReifyPropertyOps(cx, obj, idval, interned_id, name,
-                         desc.getter, desc.setter, &getterobj, &setterobj))
+    if(!ReifyPropertyOps(cx, obj, idval, interned_id, name, getter, setter,
+                         &getterobj, &setterobj))
         return JS_FALSE;
 
     JSObject *wantedobj = wantGetter ? getterobj : setterobj;
-    jsval v = wantedobj ? OBJECT_TO_JSVAL(wantedobj) : JSVAL_VOID;
+    v = wantedobj ? OBJECT_TO_JSVAL(wantedobj) : JSVAL_VOID;
     JS_SET_RVAL(cx, vp, v);
     return JS_TRUE;
 }
@@ -315,13 +316,13 @@ LookupGetterOrSetter(JSContext *cx, JSBool wantGetter, uintN argc, jsval *vp)
 static JSBool
 SharedLookupGetter(JSContext *cx, uintN argc, jsval *vp)
 {
-    return LookupGetterOrSetter(cx, PR_TRUE, argc, vp);
+    return LookupGetterOrSetter(cx, PR_TRUE, vp);
 }
 
 static JSBool
 SharedLookupSetter(JSContext *cx, uintN argc, jsval *vp)
 {
-    return LookupGetterOrSetter(cx, PR_FALSE, argc, vp);
+    return LookupGetterOrSetter(cx, PR_FALSE, vp);
 }
 
 // XXX Hack! :-/

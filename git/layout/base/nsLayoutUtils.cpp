@@ -648,7 +648,6 @@ nsLayoutUtils::GetEventCoordinatesRelativeTo(const nsEvent* aEvent, nsIFrame* aF
                   aEvent->eventStructType != NS_MOUSE_SCROLL_EVENT &&
                   aEvent->eventStructType != NS_DRAG_EVENT &&
                   aEvent->eventStructType != NS_SIMPLE_GESTURE_EVENT &&
-                  aEvent->eventStructType != NS_GESTURENOTIFY_EVENT &&
                   aEvent->eventStructType != NS_QUERY_CONTENT_EVENT))
     return nsPoint(NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE);
 
@@ -942,10 +941,10 @@ nsLayoutUtils::GetFrameForPoint(nsIFrame* aFrame, nsPoint aPt,
 #ifdef DEBUG
   if (gDumpEventList) {
     fprintf(stderr, "Event handling --- (%d,%d):\n", aPt.x, aPt.y);
-    nsFrame::PrintDisplayList(&builder, list);
+    nsIFrameDebug::PrintDisplayList(&builder, list);
   }
 #endif
-
+  
   nsDisplayItem::HitTestState hitTestState;
   nsIFrame* result = list.HitTest(&builder, aPt, &hitTestState);
   list.DeleteAll();
@@ -1114,20 +1113,20 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
   if (gDumpPaintList) {
     fprintf(stderr, "Painting --- before optimization (dirty %d,%d,%d,%d):\n",
             dirtyRect.x, dirtyRect.y, dirtyRect.width, dirtyRect.height);
-    nsFrame::PrintDisplayList(&builder, list);
+    nsIFrameDebug::PrintDisplayList(&builder, list);
   }
 #endif
-
+  
   nsRegion visibleRegion = aDirtyRegion;
   list.OptimizeVisibility(&builder, &visibleRegion);
 
 #ifdef DEBUG
   if (gDumpPaintList) {
     fprintf(stderr, "Painting --- after optimization:\n");
-    nsFrame::PrintDisplayList(&builder, list);
+    nsIFrameDebug::PrintDisplayList(&builder, list);
   }
 #endif
-
+  
   list.Paint(&builder, aRenderingContext, aDirtyRegion.GetBounds());
   // Flush the list so we don't trigger the IsEmpty-on-destruction assertion
   list.DeleteAll();
@@ -1135,12 +1134,12 @@ nsLayoutUtils::PaintFrame(nsIRenderingContext* aRenderingContext, nsIFrame* aFra
 }
 
 static void
-AccumulateItemInRegion(nsRegion* aRegion, const nsRect& aUpdateRect,
+AccumulateItemInRegion(nsRegion* aRegion, const nsRect& aAreaRect,
                        const nsRect& aItemRect, const nsRect& aExclude,
                        nsDisplayItem* aItem)
 {
   nsRect damageRect;
-  if (damageRect.IntersectRect(aUpdateRect, aItemRect)) {
+  if (damageRect.IntersectRect(aAreaRect, aItemRect)) {
     nsRegion r;
     r.Sub(damageRect, aExclude);
 #ifdef DEBUG
@@ -1157,7 +1156,7 @@ AccumulateItemInRegion(nsRegion* aRegion, const nsRect& aUpdateRect,
 
 static void
 AddItemsToRegion(nsDisplayListBuilder* aBuilder, nsDisplayList* aList,
-                 const nsRect& aUpdateRect, const nsRect& aClipRect, nsPoint aDelta,
+                 const nsRect& aRect, const nsRect& aClipRect, nsPoint aDelta,
                  nsRegion* aRegion)
 {
   for (nsDisplayItem* item = aList->GetBottom(); item; item = item->GetAbove()) {
@@ -1186,19 +1185,19 @@ AddItemsToRegion(nsDisplayListBuilder* aBuilder, nsDisplayList* aList,
 
           // Invalidate the translation of the source area that was clipped out
           nsRegion clippedOutSource;
-          clippedOutSource.Sub(aUpdateRect - aDelta, clip);
+          clippedOutSource.Sub(aRect, clip);
           clippedOutSource.MoveBy(aDelta);
           aRegion->Or(*aRegion, clippedOutSource);
 
           // Invalidate the destination area that is clipped out
           nsRegion clippedOutDestination;
-          clippedOutDestination.Sub(aUpdateRect, clip);
+          clippedOutDestination.Sub(aRect + aDelta, clip);
           aRegion->Or(*aRegion, clippedOutDestination);
         }
-        AddItemsToRegion(aBuilder, sublist, aUpdateRect, clip, aDelta, aRegion);
+        AddItemsToRegion(aBuilder, sublist, aRect, clip, aDelta, aRegion);
       } else {
         // opacity, or a generic sublist
-        AddItemsToRegion(aBuilder, sublist, aUpdateRect, aClipRect, aDelta, aRegion);
+        AddItemsToRegion(aBuilder, sublist, aRect, aClipRect, aDelta, aRegion);
       }
     } else {
       nsRect r;
@@ -1210,7 +1209,7 @@ AddItemsToRegion(nsDisplayListBuilder* aBuilder, nsDisplayList* aList,
           if (item->IsVaryingRelativeToMovingFrame(aBuilder)) {
             // something like background-attachment:fixed that varies
             // its drawing when it moves
-            AccumulateItemInRegion(aRegion, aUpdateRect, r, exclude, item);
+            AccumulateItemInRegion(aRegion, aRect + aDelta, r, exclude, item);
           }
         } else {
           // not moving.
@@ -1220,11 +1219,11 @@ AddItemsToRegion(nsDisplayListBuilder* aBuilder, nsDisplayList* aList,
             exclude.IntersectRect(r, r + aDelta);
           }
           // area where a non-moving element is visible must be repainted
-          AccumulateItemInRegion(aRegion, aUpdateRect, r, exclude, item);
+          AccumulateItemInRegion(aRegion, aRect + aDelta, r, exclude, item);
           // we may have bitblitted an area that was painted by a non-moving
           // element. This bitblitted data is invalid and was copied to
           // "r + aDelta".
-          AccumulateItemInRegion(aRegion, aUpdateRect, r + aDelta,
+          AccumulateItemInRegion(aRegion, aRect + aDelta, r + aDelta,
                                  exclude, item);
         }
       }
@@ -1236,8 +1235,7 @@ nsresult
 nsLayoutUtils::ComputeRepaintRegionForCopy(nsIFrame* aRootFrame,
                                            nsIFrame* aMovingFrame,
                                            nsPoint aDelta,
-                                           const nsRect& aUpdateRect,
-                                           nsRegion* aBlitRegion,
+                                           const nsRect& aCopyRect,
                                            nsRegion* aRepaintRegion)
 {
   NS_ASSERTION(aRootFrame != aMovingFrame,
@@ -1258,12 +1256,9 @@ nsLayoutUtils::ComputeRepaintRegionForCopy(nsIFrame* aRootFrame,
   // XXX but currently a non-moving clip item can incorrectly clip
   // moving items! See bug 428156.
   nsRect rect;
-  rect.UnionRect(aUpdateRect, aUpdateRect - aDelta);
+  rect.UnionRect(aCopyRect, aCopyRect + aDelta);
   nsDisplayListBuilder builder(aRootFrame, PR_FALSE, PR_TRUE);
-  // Retrieve the area of the moving content that's visible. This is the
-  // only area that needs to be blitted or repainted.
-  nsRegion visibleRegionOfMovingContent;
-  builder.SetMovingFrame(aMovingFrame, aDelta, &visibleRegionOfMovingContent);
+  builder.SetMovingFrame(aMovingFrame, aDelta);
   nsDisplayList list;
 
   builder.EnterPresShell(aRootFrame, rect);
@@ -1279,20 +1274,20 @@ nsLayoutUtils::ComputeRepaintRegionForCopy(nsIFrame* aRootFrame,
     fprintf(stderr,
             "Repaint region for copy --- before optimization (area %d,%d,%d,%d, frame %p):\n",
             rect.x, rect.y, rect.width, rect.height, (void*)aMovingFrame);
-    nsFrame::PrintDisplayList(&builder, list);
+    nsIFrameDebug::PrintDisplayList(&builder, list);
   }
 #endif
 
   // Optimize for visibility, but frames under aMovingFrame will not be
   // considered opaque, so they don't cover non-moving frames.
-  nsRegion visibleRegion(aUpdateRect);
-  visibleRegion.Or(visibleRegion, aUpdateRect - aDelta);
+  nsRegion visibleRegion(aCopyRect);
+  visibleRegion.Or(visibleRegion, aCopyRect + aDelta);
   list.OptimizeVisibility(&builder, &visibleRegion);
 
 #ifdef DEBUG
   if (gDumpRepaintRegionForCopy) {
     fprintf(stderr, "Repaint region for copy --- after optimization:\n");
-    nsFrame::PrintDisplayList(&builder, list);
+    nsIFrameDebug::PrintDisplayList(&builder, list);
   }
 #endif
 
@@ -1301,21 +1296,14 @@ nsLayoutUtils::ComputeRepaintRegionForCopy(nsIFrame* aRootFrame,
   // a) at their current location and b) offset by -aPt (their position in
   // the 'before' display list) (unless they're uniform and we can exclude them).
   // Also, any visible position-varying display items get added to the
-  // repaint region. All these areas are confined to aUpdateRect.
+  // repaint region. All these areas are confined to aCopyRect+aDelta.
   // We could do more work here: e.g., do another optimize-visibility pass
   // with the moving items taken into account, either on the before-list
   // or the after-list, or even both if we cloned the display lists ... but
   // it's probably not worth it.
-  AddItemsToRegion(&builder, &list, aUpdateRect, rect, aDelta, aRepaintRegion);
+  AddItemsToRegion(&builder, &list, aCopyRect, rect, aDelta, aRepaintRegion);
   // Flush the list so we don't trigger the IsEmpty-on-destruction assertion
   list.DeleteAll();
-
-  // Finalize output regions. The region of moving content that's not
-  // visible --- hidden by overlaid opaque non-moving content --- need not
-  // be blitted or repainted.
-  visibleRegionOfMovingContent.And(visibleRegionOfMovingContent, aUpdateRect);
-  aRepaintRegion->And(*aRepaintRegion, visibleRegionOfMovingContent);
-  aBlitRegion->Sub(visibleRegionOfMovingContent, *aRepaintRegion);
   return NS_OK;
 }
 
@@ -2650,11 +2638,11 @@ CalculateBlockContentBottom(nsBlockFrame* aFrame)
     if (line->IsBlock()) {
       nsIFrame* child = line->mFirstChild;
       nscoord offset = child->GetRect().y - child->GetRelativeOffset().y;
-      contentBottom = NS_MAX(contentBottom,
+      contentBottom = PR_MAX(contentBottom,
                         nsLayoutUtils::CalculateContentBottom(child) + offset);
     }
     else {
-      contentBottom = NS_MAX(contentBottom, line->mBounds.YMost());
+      contentBottom = PR_MAX(contentBottom, line->mBounds.YMost());
     }
   }
   return contentBottom;
@@ -2673,7 +2661,7 @@ nsLayoutUtils::CalculateContentBottom(nsIFrame* aFrame)
     PRIntn nextListID = 0;
     do {
       if (childList == nsnull && blockFrame) {
-        contentBottom = NS_MAX(contentBottom, CalculateBlockContentBottom(blockFrame));
+        contentBottom = PR_MAX(contentBottom, CalculateBlockContentBottom(blockFrame));
       }
       else if (childList != nsGkAtoms::overflowList &&
                childList != nsGkAtoms::excessOverflowContainersList &&
@@ -2683,7 +2671,7 @@ nsLayoutUtils::CalculateContentBottom(nsIFrame* aFrame)
             child; child = child->GetNextSibling())
         {
           nscoord offset = child->GetRect().y - child->GetRelativeOffset().y;
-          contentBottom = NS_MAX(contentBottom,
+          contentBottom = PR_MAX(contentBottom,
                                  CalculateContentBottom(child) + offset);
         }
       }
@@ -3047,34 +3035,31 @@ nsLayoutUtils::HasNonZeroCornerOnSide(const nsStyleCorners& aCorners,
 }
 
 /* static */ nsTransparencyMode
-nsLayoutUtils::GetFrameTransparency(nsIFrame* aBackgroundFrame,
-                                    nsIFrame* aCSSRootFrame) {
-  if (aCSSRootFrame->GetStyleContext()->GetStyleDisplay()->mOpacity < 1.0f)
+nsLayoutUtils::GetFrameTransparency(nsIFrame* aFrame) {
+  if (aFrame->GetStyleContext()->GetStyleDisplay()->mOpacity < 1.0f)
     return eTransparencyTransparent;
 
-  if (HasNonZeroCorner(aCSSRootFrame->GetStyleContext()->GetStyleBorder()->mBorderRadius))
+  if (HasNonZeroCorner(aFrame->GetStyleContext()->GetStyleBorder()->mBorderRadius))
     return eTransparencyTransparent;
 
   nsTransparencyMode transparency;
-  if (aCSSRootFrame->IsThemed(&transparency))
+  if (aFrame->IsThemed(&transparency))
     return transparency;
 
-  if (aCSSRootFrame->GetStyleDisplay()->mAppearance == NS_THEME_WIN_GLASS)
+  if (aFrame->GetStyleDisplay()->mAppearance == NS_THEME_WIN_GLASS)
     return eTransparencyGlass;
 
   // We need an uninitialized window to be treated as opaque because
   // doing otherwise breaks window display effects on some platforms,
   // specifically Vista. (bug 450322)
-  if (aBackgroundFrame->GetType() == nsGkAtoms::viewportFrame &&
-      !aBackgroundFrame->GetFirstChild(nsnull)) {
+  if (aFrame->GetType() == nsGkAtoms::viewportFrame &&
+      !aFrame->GetFirstChild(nsnull)) {
     return eTransparencyOpaque;
   }
 
   const nsStyleBackground* bg;
-  if (!nsCSSRendering::FindBackground(aBackgroundFrame->PresContext(),
-                                      aBackgroundFrame, &bg)) {
+  if (!nsCSSRendering::FindBackground(aFrame->PresContext(), aFrame, &bg))
     return eTransparencyTransparent;
-  }
   if (NS_GET_A(bg->mBackgroundColor) < 255 ||
       // bottom layer's clip is used for the color
       bg->BottomLayer().mClip != NS_STYLE_BG_CLIP_BORDER)

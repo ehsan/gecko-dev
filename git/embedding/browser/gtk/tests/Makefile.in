@@ -44,6 +44,9 @@ VPATH		= @srcdir@
 include $(DEPTH)/config/autoconf.mk
 
 MODULE		= gtkembedmoz
+REQUIRES	= xpcom \
+		  dom \
+		  $(NULL)
 
 CPPSRCS         = \
 		TestGtkEmbed.cpp \

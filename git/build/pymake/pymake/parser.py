@@ -64,9 +64,6 @@ class Data(object):
     def getloc(self, offset):
         return self.startloc + self.data[:offset]
 
-    def endloc(self):
-        return self.startloc + self.data
-
     def skipwhitespace(self, offset):
         """
         Return the offset into data after skipping whitespace.
@@ -559,7 +556,7 @@ def parsestream(fd, filename):
                     raise SyntaxError("Unterminated define", d.getloc())
 
                 value = _iterflatten(iterdefinechars, d, startpos)
-                condstack[-1].append(parserdata.SetVariable(vname, value=value, valueloc=d.getloc(0), token='=', targetexp=None, source=data.Variables.SOURCE_MAKEFILE, endloc=d.endloc()))
+                condstack[-1].append(parserdata.SetVariable(vname, value=value, valueloc=d.getloc(0), token='=', targetexp=None))
                 continue
 
             if kword in ('include', '-include'):
@@ -586,7 +583,7 @@ def parsestream(fd, filename):
 
                 value = _iterflatten(itermakefilechars, d, offset).lstrip()
 
-                condstack[-1].append(parserdata.SetVariable(vname, value=value, valueloc=d.getloc(offset), token=token, targetexp=None, source=data.Variables.SOURCE_OVERRIDE, endloc=d.endloc()))
+                condstack[-1].append(parserdata.SetVariable(vname, value=value, valueloc=d.getloc(offset), token=token, targetexp=None, source=data.Variables.SOURCE_OVERRIDE))
                 continue
 
             if kword == 'export':
@@ -601,7 +598,7 @@ def parsestream(fd, filename):
                     condstack[-1].append(parserdata.ExportDirective(e, single=True))
 
                     value = _iterflatten(itermakefilechars, d, offset).lstrip()
-                    condstack[-1].append(parserdata.SetVariable(e, value=value, valueloc=d.getloc(offset), token=token, targetexp=None, source=data.Variables.SOURCE_MAKEFILE, endloc=d.endloc()))
+                    condstack[-1].append(parserdata.SetVariable(e, value=value, valueloc=d.getloc(offset), token=token, targetexp=None))
 
                 continue
 
@@ -629,7 +626,7 @@ def parsestream(fd, filename):
 
                 value = _iterflatten(itermakefilechars, d, offset).lstrip()
 
-                condstack[-1].append(parserdata.SetVariable(e, value=value, valueloc=d.getloc(offset), token=token, targetexp=None, source=data.Variables.SOURCE_MAKEFILE, endloc=d.endloc()))
+                condstack[-1].append(parserdata.SetVariable(e, value=value, valueloc=d.getloc(offset), token=token, targetexp=None))
             else:
                 doublecolon = token == '::'
 
@@ -660,7 +657,7 @@ def parsestream(fd, filename):
                     e.rstrip()
 
                     value = _iterflatten(itermakefilechars, d, offset).lstrip()
-                    condstack[-1].append(parserdata.SetVariable(e, value=value, valueloc=d.getloc(offset), token=token, targetexp=targets, source=data.Variables.SOURCE_MAKEFILE, endloc=d.endloc()))
+                    condstack[-1].append(parserdata.SetVariable(e, value=value, valueloc=d.getloc(offset), token=token, targetexp=targets))
                 elif token == '|':
                     raise SyntaxError('order-only prerequisites not implemented', d.getloc(offset))
                 else:

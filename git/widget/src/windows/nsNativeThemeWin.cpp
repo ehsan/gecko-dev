@@ -149,23 +149,21 @@ static PRBool IsTopLevelMenu(nsIFrame *aFrame)
   return isTopLevel;
 }
 
-static MARGINS GetCheckboxMargins(HANDLE theme, HDC hdc)
-{
-    MARGINS checkboxContent = {0};
-    nsUXThemeData::getThemeMargins(theme, hdc, MENU_POPUPCHECK, MCB_NORMAL, TMT_CONTENTMARGINS, NULL, &checkboxContent);
-    return checkboxContent;
-}
-static SIZE GetCheckboxBGSize(HANDLE theme, HDC hdc)
+
+static SIZE GetCheckboxSize(HANDLE theme, HDC hdc)
 {
     SIZE checkboxSize;
     nsUXThemeData::getThemePartSize(theme, hdc, MENU_POPUPCHECK, MC_CHECKMARKNORMAL, NULL, TS_TRUE, &checkboxSize);
 
-    MARGINS checkboxMargins = GetCheckboxMargins(theme, hdc);
+    MARGINS checkboxSizing;
+    MARGINS checkboxContent;
+    nsUXThemeData::getThemeMargins(theme, hdc, MENU_POPUPCHECKBACKGROUND, MCB_NORMAL, TMT_SIZINGMARGINS, NULL, &checkboxSizing);
+    nsUXThemeData::getThemeMargins(theme, hdc, MENU_POPUPCHECKBACKGROUND, MCB_NORMAL, TMT_CONTENTMARGINS, NULL, &checkboxContent);
 
-    int leftMargin = checkboxMargins.cxLeftWidth;
-    int rightMargin = checkboxMargins.cxRightWidth;
-    int topMargin = checkboxMargins.cyTopHeight;
-    int bottomMargin = checkboxMargins.cyBottomHeight;
+    int leftMargin = checkboxSizing.cxLeftWidth;
+    int rightMargin = checkboxSizing.cxRightWidth;
+    int topMargin = checkboxSizing.cyTopHeight;
+    int bottomMargin = checkboxSizing.cyBottomHeight;
 
     int width = leftMargin + checkboxSize.cx + rightMargin;
     int height = topMargin + checkboxSize.cy + bottomMargin;
@@ -174,21 +172,21 @@ static SIZE GetCheckboxBGSize(HANDLE theme, HDC hdc)
     ret.cy = height;
     return ret;
 }
-static SIZE GetCheckboxBGBounds(HANDLE theme, HDC hdc)
+static SIZE GetCheckboxBounds(HANDLE theme, HDC hdc)
 {
-    MARGINS checkboxBGSizing = {0};
-    MARGINS checkboxBGContent = {0};
-    nsUXThemeData::getThemeMargins(theme, hdc, MENU_POPUPCHECKBACKGROUND, MCB_NORMAL, TMT_SIZINGMARGINS, NULL, &checkboxBGSizing);
-    nsUXThemeData::getThemeMargins(theme, hdc, MENU_POPUPCHECKBACKGROUND, MCB_NORMAL, TMT_CONTENTMARGINS, NULL, &checkboxBGContent);
+    MARGINS checkboxSizing;
+    MARGINS checkboxContent;
+    nsUXThemeData::getThemeMargins(theme, hdc, MENU_POPUPCHECKBACKGROUND, MCB_NORMAL, TMT_SIZINGMARGINS, NULL, &checkboxSizing);
+    nsUXThemeData::getThemeMargins(theme, hdc, MENU_POPUPCHECKBACKGROUND, MCB_NORMAL, TMT_CONTENTMARGINS, NULL, &checkboxContent);
 
 #define posdx(d) ((d) > 0 ? d : 0)
 
-    int dx = posdx(checkboxBGContent.cxRightWidth - checkboxBGSizing.cxRightWidth) + posdx(checkboxBGContent.cxLeftWidth - checkboxBGSizing.cxLeftWidth);
-    int dy = posdx(checkboxBGContent.cyTopHeight - checkboxBGSizing.cyTopHeight) + posdx(checkboxBGContent.cyBottomHeight - checkboxBGSizing.cyBottomHeight);
+    int dx = posdx(checkboxContent.cxRightWidth - checkboxSizing.cxRightWidth) + posdx(checkboxContent.cxLeftWidth - checkboxSizing.cxLeftWidth);
+    int dy = posdx(checkboxContent.cyTopHeight - checkboxSizing.cyTopHeight) + posdx(checkboxContent.cyBottomHeight - checkboxSizing.cyBottomHeight);
 
 #undef posdx
 
-    SIZE ret(GetCheckboxBGSize(theme, hdc));
+    SIZE ret(GetCheckboxSize(theme,hdc));
     ret.cx += dx;
     ret.cy += dy;
     return ret;
@@ -198,13 +196,13 @@ static SIZE GetGutterSize(HANDLE theme, HDC hdc)
     SIZE gutterSize;
     nsUXThemeData::getThemePartSize(theme, hdc, MENU_POPUPGUTTER, 0, NULL, TS_TRUE, &gutterSize);
 
-    SIZE checkboxBGSize(GetCheckboxBGBounds(theme, hdc));
+    SIZE checkboxSize(GetCheckboxBounds(theme, hdc));
 
     SIZE itemSize;
     nsUXThemeData::getThemePartSize(theme, hdc, MENU_POPUPITEM, MPI_NORMAL, NULL, TS_TRUE, &itemSize);
 
-    int width = PR_MAX(itemSize.cx, checkboxBGSize.cx + gutterSize.cx);
-    int height = PR_MAX(itemSize.cy, checkboxBGSize.cy);
+    int width = PR_MAX(itemSize.cx, checkboxSize.cx + gutterSize.cx);
+    int height = PR_MAX(itemSize.cy, checkboxSize.cy);
     SIZE ret;
     ret.cx = width;
     ret.cy = height;
@@ -1105,27 +1103,20 @@ RENDER_AGAIN:
         if (isDisabled)
           bgState += 1;
 
-        SIZE checkboxBGSize(GetCheckboxBGSize(theme, hdc));
+        SIZE checkboxSize(GetCheckboxSize(theme,hdc));
 
-        RECT checkBGRect = widgetRect;
+        RECT checkRect = widgetRect;
         if (IsFrameRTL(aFrame)) {
-          checkBGRect.left = checkBGRect.right-checkboxBGSize.cx;
+          checkRect.left = checkRect.right-checkboxSize.cx;
         } else {
-          checkBGRect.right = checkBGRect.left+checkboxBGSize.cx;
+          checkRect.right = checkRect.left+checkboxSize.cx;
         }
 
-        // Center the checkbox background vertically in the menuitem
-        checkBGRect.top += (checkBGRect.bottom - checkBGRect.top)/2 - checkboxBGSize.cy/2;
-        checkBGRect.bottom = checkBGRect.top + checkboxBGSize.cy;
+        // Center the checkbox vertically in the menuitem
+        checkRect.top += (checkRect.bottom - checkRect.top)/2 - checkboxSize.cy/2;
+        checkRect.bottom = checkRect.top + checkboxSize.cy;
 
-        nsUXThemeData::drawThemeBG(theme, hdc, MENU_POPUPCHECKBACKGROUND, bgState, &checkBGRect, &clipRect);
-
-        MARGINS checkMargins = GetCheckboxMargins(theme, hdc);
-        RECT checkRect = checkBGRect;
-        checkRect.left += checkMargins.cxLeftWidth;
-        checkRect.right -= checkMargins.cxRightWidth;
-        checkRect.top += checkMargins.cyTopHeight;
-        checkRect.bottom -= checkMargins.cyBottomHeight;
+        nsUXThemeData::drawThemeBG(theme, hdc, MENU_POPUPCHECKBACKGROUND, bgState, &checkRect, &clipRect);
         nsUXThemeData::drawThemeBG(theme, hdc, MENU_POPUPCHECK, state, &checkRect, &clipRect);
       }
   }
@@ -2009,32 +2000,22 @@ nsNativeThemeWin::ClassicGetMinimumWidgetSize(nsIRenderingContext* aContext, nsI
 #endif
         (*aResult).width = (*aResult).height = 15;
       break;
-    case NS_THEME_SCROLLBAR_THUMB_VERTICAL:
+    case NS_THEME_SCROLLBAR_THUMB_VERTICAL:        
 #ifndef WINCE
-      (*aResult).width = ::GetSystemMetrics(SM_CXVSCROLL);
-      (*aResult).height = ::GetSystemMetrics(SM_CYVTHUMB);
+      (*aResult).width = ::GetSystemMetrics(SM_CYVTHUMB);
 #else
       (*aResult).width = 15;
-      (*aResult).height = 15;
 #endif
-      // Without theming, divide the thumb size by two in order to look more
-      // native
-      if (!GetTheme(aWidgetType))
-        (*aResult).height >>= 1;
+      (*aResult).height = (*aResult).width >> 1;
       *aIsOverridable = PR_FALSE;
       break;
     case NS_THEME_SCROLLBAR_THUMB_HORIZONTAL:
 #ifndef WINCE
-      (*aResult).width = ::GetSystemMetrics(SM_CXHTHUMB);
-      (*aResult).height = ::GetSystemMetrics(SM_CYHSCROLL);
+      (*aResult).height = ::GetSystemMetrics(SM_CXHTHUMB);
 #else
-      (*aResult).width = 15;
       (*aResult).height = 15;
 #endif
-      // Without theming, divide the thumb size by two in order to look more
-      // native
-      if (!GetTheme(aWidgetType))
-        (*aResult).width >>= 1;
+      (*aResult).width = (*aResult).height >> 1;
       *aIsOverridable = PR_FALSE;
       break;
     case NS_THEME_SCROLLBAR_TRACK_HORIZONTAL:

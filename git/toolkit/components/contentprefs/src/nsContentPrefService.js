@@ -128,10 +128,6 @@ ContentPrefService.prototype = {
   // nsIContentPrefService
 
   getPref: function ContentPrefService_getPref(aURI, aName) {
-    if (!aName)
-      throw Components.Exception("aName cannot be null or an empty string",
-                                 Cr.NS_ERROR_ILLEGAL_VALUE);
-
     if (aURI) {
       var group = this.grouper.group(aURI);
       return this._selectPref(group, aName);
@@ -236,10 +232,6 @@ ContentPrefService.prototype = {
   },
 
   removePrefsByName: function ContentPrefService_removePrefsByName(aName) {
-    if (!aName)
-      throw Components.Exception("aName cannot be null or an empty string",
-                                 Cr.NS_ERROR_ILLEGAL_VALUE);
-
     var settingID = this._selectSettingID(aName);
     if (!settingID) {
       return;
@@ -288,10 +280,6 @@ ContentPrefService.prototype = {
   },
 
   getPrefsByName: function ContentPrefService_getPrefsByName(aName) {
-    if (!aName)
-      throw Components.Exception("aName cannot be null or an empty string",
-                                 Cr.NS_ERROR_ILLEGAL_VALUE);
-
     return this._selectPrefsByName(aName);
   },
 

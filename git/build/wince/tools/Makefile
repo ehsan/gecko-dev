@@ -140,7 +140,5 @@ $(MOZCE_TOOLS_BIN_DIR)/arm-wince-res.exe:	$(MOZCE_TOOLS_DIR)/arm-wince-res.c $(M
 
 
 export:: $(SDK_TOOLS)
-ifdef MOZCE_NOT_CONFIGURE
 	mkdir -p $(OBJDIR)/dist/sdk/bin
 	cp $^ $(OBJDIR)/dist/sdk/bin
-endif

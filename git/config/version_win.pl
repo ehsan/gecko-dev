@@ -54,9 +54,8 @@ sub daysFromBuildID
     $d || die("Unrecognized buildid string.");
 
     my $secondstodays = 60 * 60 * 24;
-    return sprintf("%d",
-		   (POSIX::mktime(00, 00, 00, $d, $m - 1, $y - 1900) -
-		    POSIX::mktime(00, 00, 00, 01, 00, 100)) / $secondstodays);
+    return (POSIX::mktime(00, 00, 00, $d, $m - 1, $y - 1900) -
+            POSIX::mktime(00, 00, 00, 01, 00, 100)) / $secondstodays;
 }
 
 #Creates version resource file

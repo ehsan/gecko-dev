@@ -118,8 +118,7 @@ static NS_DEFINE_CID(kWindowCID,           NS_WINDOW_CID);
 
 #define SIZE_PERSISTENCE_TIMEOUT 500 // msec
 
-nsWebShellWindow::nsWebShellWindow(PRUint32 aChromeFlags)
-  : nsXULWindow(aChromeFlags)
+nsWebShellWindow::nsWebShellWindow() : nsXULWindow()
 {
   mSPTimerLock = PR_NewLock();
 }
@@ -225,7 +224,7 @@ nsresult nsWebShellWindow::Initialize(nsIXULWindow* aParent,
   }
 
   if (nsnull != aUrl)  {
-    nsCString tmpStr;
+    nsCAutoString tmpStr;
 
     rv = aUrl->GetSpec(tmpStr);
     if (NS_FAILED(rv)) return rv;
@@ -337,7 +336,7 @@ nsWebShellWindow::HandleEvent(nsGUIEvent *aEvent)
         // persist size, but not immediately, in case this OS is firing
         // repeated size events as the user drags the sizing handle
         if (!eventWindow->IsLocked())
-          eventWindow->SetPersistenceTimer(PAD_POSITION | PAD_SIZE | PAD_MISC);
+          eventWindow->SetPersistenceTimer(PAD_SIZE | PAD_MISC);
         result = nsEventStatus_eConsumeNoDefault;
         break;
       }

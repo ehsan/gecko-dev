@@ -37,7 +37,7 @@
 /*
  * Moved from secpkcs7.c
  *
- * $Id: crl.c,v 1.68 2009/08/10 22:25:44 julien.pierre.boogz%sun.com Exp $
+ * $Id: crl.c,v 1.67 2009/05/13 22:47:28 julien.pierre.boogz%sun.com Exp $
  */
  
 #include "cert.h"
@@ -1047,38 +1047,48 @@ void PreAllocator_Destroy(PreAllocator* PreAllocator)
     {
         PORT_FreeArena(PreAllocator->arena, PR_TRUE);
     }
+    if (PreAllocator->data)
+    {
+        PORT_Free(PreAllocator->data);
+    }
+    PORT_Free(PreAllocator);
 }
 
 /* constructor for PreAllocator object */
 PreAllocator* PreAllocator_Create(PRSize size)
 {
-    PRArenaPool* arena = NULL;
-    PreAllocator* prebuffer = NULL;
-    arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
-    if (!arena)
+    PreAllocator prebuffer;
+    PreAllocator* prepointer = NULL;
+    memset(&prebuffer, 0, sizeof(PreAllocator));
+    prebuffer.len = size;
+    prebuffer.arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);
+    PORT_Assert(prebuffer.arena);
+    if (!prebuffer.arena)
     {
+        PreAllocator_Destroy(&prebuffer);
         return NULL;
     }
-    prebuffer = (PreAllocator*)PORT_ArenaZAlloc(arena,
-                                                sizeof(PreAllocator));
-    if (!prebuffer)
+    if (prebuffer.len)
     {
-        PORT_FreeArena(arena, PR_TRUE);
-        return NULL;
-    }
-    prebuffer->arena = arena;
-
-    if (size)
-    {
-        prebuffer->len = size;
-        prebuffer->data = PORT_ArenaAlloc(arena, size);
-        if (!prebuffer->data)
+        prebuffer.data = PORT_Alloc(prebuffer.len);
+        if (!prebuffer.data)
         {
-            PORT_FreeArena(arena, PR_TRUE);
+            PreAllocator_Destroy(&prebuffer);
             return NULL;
         }
     }
-    return prebuffer;
+    else
+    {
+        prebuffer.data = NULL;
+    }
+    prepointer = (PreAllocator*)PORT_Alloc(sizeof(PreAllocator));
+    if (!prepointer)
+    {
+        PreAllocator_Destroy(&prebuffer);
+        return NULL;
+    }
+    *prepointer = prebuffer;
+    return prepointer;
 }
 
 /* global Named CRL cache object */

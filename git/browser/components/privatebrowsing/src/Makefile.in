@@ -50,6 +50,13 @@ ifndef MOZ_MEMORY
 USE_STATIC_LIBS = 1
 endif
 
+REQUIRES = \
+	xpcom \
+	string \
+	necko \
+	js \
+	xpconnect \
+	$(NULL)
 
 CPPSRCS = \
 	nsPrivateBrowsingServiceWrapper.cpp \
@@ -59,6 +66,7 @@ LOCAL_INCLUDES = -I$(srcdir)/../../build
 
 EXTRA_PP_COMPONENTS = \
 	nsPrivateBrowsingService.js \
+	aboutPrivateBrowsing.js \
 	$(NULL)
 
 include $(topsrcdir)/config/rules.mk

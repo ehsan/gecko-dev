@@ -47,6 +47,21 @@ MODULE = accessibility
 LIBRARY_NAME = accessibility_xul_s
 LIBXUL_LIBRARY = 1
 
+REQUIRES	= content \
+		  docshell \
+		  dom \
+		  editor \
+		  gfx \
+		  thebes \
+		  intl \
+		  layout \
+		  locale \
+		  necko \
+		  pref \
+		  string \
+		  widget \
+		  xpcom \
+		  $(NULL)
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)
 REQUIRES += editor
@@ -62,7 +77,6 @@ CPPSRCS = \
   nsXULTabAccessible.cpp \
   nsXULTextAccessible.cpp \
   nsXULTreeAccessible.cpp \
-  nsXULTreeGridAccessible.cpp \
   $(NULL)
 
 # we don't want the shared lib, but we want to force the creation of a static lib.

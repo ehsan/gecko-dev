@@ -144,7 +144,7 @@ PRBool nsWinGesture::InitLibrary()
 
 #define GCOUNT 5
 
-PRBool nsWinGesture::SetWinGestureSupport(HWND hWnd, nsGestureNotifyEvent::ePanDirection aDirection)
+PRBool nsWinGesture::InitWinGestureSupport(HWND hWnd)
 {
   if (!getGestureInfo)
     return PR_FALSE;
@@ -162,27 +162,17 @@ PRBool nsWinGesture::SetWinGestureSupport(HWND hWnd, nsGestureNotifyEvent::ePanD
   config[1].dwBlock = 0;
 
   config[2].dwID = GID_PAN;
-  config[2].dwWant  = GC_PAN|GC_PAN_WITH_INERTIA|
-                      GC_PAN_WITH_GUTTER;
-  config[2].dwBlock = GC_PAN_WITH_SINGLE_FINGER_VERTICALLY|
-                      GC_PAN_WITH_SINGLE_FINGER_HORIZONTALLY;
-
   if (gEnableSingleFingerPanEvents) {
-
-    if (aDirection == nsGestureNotifyEvent::ePanVertical ||
-        aDirection == nsGestureNotifyEvent::ePanBoth)
-    {
-      config[2].dwWant  |= GC_PAN_WITH_SINGLE_FINGER_VERTICALLY;
-      config[2].dwBlock -= GC_PAN_WITH_SINGLE_FINGER_VERTICALLY;
-    }
-
-    if (aDirection == nsGestureNotifyEvent::ePanHorizontal ||
-        aDirection == nsGestureNotifyEvent::ePanBoth)
-    {
-      config[2].dwWant  |= GC_PAN_WITH_SINGLE_FINGER_HORIZONTALLY;
-      config[2].dwBlock -= GC_PAN_WITH_SINGLE_FINGER_HORIZONTALLY;
-    }
-
+    config[2].dwWant = GC_PAN|GC_PAN_WITH_INERTIA|
+                       GC_PAN_WITH_GUTTER|
+                       GC_PAN_WITH_SINGLE_FINGER_VERTICALLY;
+    config[2].dwBlock = GC_PAN_WITH_SINGLE_FINGER_HORIZONTALLY;
+  }
+  else {
+    config[2].dwWant = GC_PAN|GC_PAN_WITH_INERTIA|
+                       GC_PAN_WITH_GUTTER;
+    config[2].dwBlock = GC_PAN_WITH_SINGLE_FINGER_VERTICALLY|
+                        GC_PAN_WITH_SINGLE_FINGER_HORIZONTALLY;
   }
 
   config[3].dwWant = GC_TWOFINGERTAP;

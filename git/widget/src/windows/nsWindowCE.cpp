@@ -64,9 +64,7 @@
 #if defined(WINCE_HAVE_SOFTKB)
 PRBool          nsWindow::sSoftKeyMenuBar         = PR_FALSE;
 PRBool          nsWindow::sSoftKeyboardState      = PR_FALSE;
-PRBool          nsWindowCE::sSIPInTransition      = PR_FALSE;
 TriStateBool    nsWindowCE::sShowSIPButton        = TRI_UNKNOWN;
-TriStateBool    nsWindowCE::sHardKBPresence       = TRI_UNKNOWN;
 #endif
 
 /**************************************************************
@@ -105,17 +103,6 @@ void nsWindowCE::NotifySoftKbObservers(LPRECT visRect)
 
 void nsWindowCE::ToggleSoftKB(PRBool show)
 {
-  if (sHardKBPresence == TRI_UNKNOWN)
-    CheckKeyboardStatus();
-
-  if (sHardKBPresence == TRI_TRUE) {
-    if (GetSliderStateOpen() != TRI_FALSE) {
-      show = PR_FALSE;
-      sShowSIPButton = TRI_FALSE;
-    }
-  }
-
-  sSIPInTransition = PR_TRUE;
   HWND hWndSIP = FindWindowW(L"SipWndClass", NULL );
   if (hWndSIP)
     ShowWindow(hWndSIP, show ? SW_SHOW: SW_HIDE);
@@ -169,7 +156,6 @@ void nsWindowCE::ToggleSoftKB(PRBool show)
   } else {
     NotifySoftKbObservers();
   }
-  sSIPInTransition = PR_FALSE;
 }
 
 void nsWindowCE::CreateSoftKeyMenuBar(HWND wnd)
@@ -213,78 +199,6 @@ void nsWindowCE::CreateSoftKeyMenuBar(HWND wnd)
   
   sSoftKeyMenuBar = mbi.hwndMB;
 }
-
-void nsWindowCE::CheckKeyboardStatus()
-{
-  HKEY  hKey = 0;
-  LONG  result = 0;
-  DWORD entryType = 0;
-  DWORD hwkbd = 0;
-  DWORD paramSize = sizeof(DWORD);
- 
-  result = RegOpenKeyExW(HKEY_CURRENT_USER, 
-                           L"SOFTWARE\\Microsoft\\Shell", 
-                           0, 
-                           KEY_READ,
-                           &hKey); 
-
-  if (result != ERROR_SUCCESS)
-  {
-    sHardKBPresence = TRI_FALSE;
-    return;
-  }
-
-  result = RegQueryValueEx(hKey,
-                             L"HasKeyboard",
-                             NULL, 
-                             &entryType, 
-                             (LPBYTE)&hwkbd, 
-                             &paramSize);
-
-  if (result != ERROR_SUCCESS)
-  {
-    RegCloseKey(hKey);
-    sHardKBPresence = TRI_FALSE;
-    return;
-  }
-    
-  sHardKBPresence = hwkbd ? TRI_TRUE : TRI_FALSE;
-}
-
-TriStateBool nsWindowCE::GetSliderStateOpen()
-{
-
-  HKEY  hKey = 0;
-  LONG  result = 0;
-  DWORD entryType = 0;
-  DWORD sliderStateOpen = 0;
-  DWORD paramSize = sizeof(DWORD);
-
-  result = RegOpenKeyExW(HKEY_LOCAL_MACHINE, 
-                           L"System\\GDI\\Rotation", 
-                           0, 
-                           KEY_READ,
-                           &hKey); 
-
-  if (result != ERROR_SUCCESS)
-    return TRI_UNKNOWN;
-
-  result = RegQueryValueEx(hKey,
-                             L"Slidekey",
-                             NULL, 
-                             &entryType, 
-                             (LPBYTE)&sliderStateOpen, 
-                             &paramSize);
-
-  if (result != ERROR_SUCCESS)
-  {
-     RegCloseKey(hKey);
-     return TRI_UNKNOWN;
-  }
-    
-  return  sliderStateOpen ? TRI_TRUE : TRI_FALSE;
-}
-
 #endif  //defined(WINCE_HAVE_SOFTKB)
 
 typedef struct ECWWindows
@@ -375,7 +289,7 @@ DWORD nsWindow::WindowStyle()
       break;
 
     default:
-      NS_ERROR("unknown border style");
+      NS_ASSERTION(0, "unknown border style");
       // fall through
 
     case eWindowType_toplevel:
@@ -437,12 +351,7 @@ DWORD nsWindow::WindowStyle()
 // Maximize, minimize or restore the window.
 NS_IMETHODIMP nsWindow::SetSizeMode(PRInt32 aMode)
 {
-#if defined(WINCE_HAVE_SOFTKB)
-  if (aMode == 0 && mSizeMode == 3  && nsWindowCE::sSIPInTransition) {
-      // ignore the size mode being set to normal by the SIP resizing us
-    return NS_OK;
-  }
-#endif
+
   nsresult rv;
 
   // Let's not try and do anything if we're already in that state.

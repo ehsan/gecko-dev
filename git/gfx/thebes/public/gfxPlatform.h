@@ -60,7 +60,6 @@ struct gfxFontStyle;
 class gfxUserFontSet;
 class gfxFontEntry;
 class gfxProxyFontEntry;
-class gfxPlatformFontList;
 class nsIURI;
 
 // pref lang id's for font prefs
@@ -163,14 +162,6 @@ public:
      * Rebuilds the any cached system font lists
      */
     virtual nsresult UpdateFontList();
-
-    /**
-     * Create the platform font-list object (gfxPlatformFontList concrete subclass)
-     */
-    virtual gfxPlatformFontList *CreatePlatformFontList() {
-        NS_NOTREACHED("oops, this platform doesn't have a gfxPlatformFontList implementation");
-        return nsnull;
-    }
 
     /**
      * Font name resolver, this returns actual font name(s) by the callback

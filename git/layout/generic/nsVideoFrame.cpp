@@ -81,6 +81,9 @@ nsVideoFrame::~nsVideoFrame()
 
 NS_QUERYFRAME_HEAD(nsVideoFrame)
   NS_QUERYFRAME_ENTRY(nsIAnonymousContentCreator)
+#ifdef DEBUG
+  NS_QUERYFRAME_ENTRY(nsIFrameDebug)
+#endif
 NS_QUERYFRAME_TAIL_INHERITING(nsContainerFrame)
 
 nsresult

@@ -47,7 +47,6 @@
 #include "nsBaseWidget.h"
 #include "nsPIWidgetCocoa.h"
 #include "nsAutoPtr.h"
-#include "nsCocoaUtils.h"
 
 class nsCocoaWindow;
 class nsChildView;
@@ -81,7 +80,7 @@ typedef struct _nsCocoaWindowList {
   BOOL mIsContextMenu;
 }
 
-- (id)initWithContentRect:(NSRect)contentRect styleMask:(NSUInteger)styleMask
+- (id)initWithContentRect:(NSRect)contentRect styleMask:(unsigned int)styleMask
       backing:(NSBackingStoreType)bufferingType defer:(BOOL)deferCreation;
 - (BOOL)isContextMenu;
 - (void)setIsContextMenu:(BOOL)flag;
@@ -104,7 +103,6 @@ typedef struct _nsCocoaWindowList {
   // NS_DEACTIVATE to Gecko for toplevel widgets.  Starts out
   // PR_FALSE.
   PRBool mToplevelActiveState;
-  BOOL mHasEverBeenZoomed;
 }
 + (void)paintMenubarForWindow:(NSWindow*)aWindow;
 - (id)initWithGeckoWindow:(nsCocoaWindow*)geckoWind;
@@ -228,8 +226,7 @@ public:
     NS_IMETHOD Invalidate(PRBool aIsSynchronous);
     NS_IMETHOD Update();
     virtual nsresult ConfigureChildren(const nsTArray<Configuration>& aConfigurations);
-    virtual void Scroll(const nsIntPoint& aDelta,
-                        const nsTArray<nsIntRect>& aDestRects,
+    virtual void Scroll(const nsIntPoint& aDelta, const nsIntRect& aSource,
                         const nsTArray<Configuration>& aConfigurations);
     NS_IMETHOD DispatchEvent(nsGUIEvent* event, nsEventStatus & aStatus) ;
     NS_IMETHOD CaptureRollupEvents(nsIRollupListener * aListener, PRBool aDoCapture, PRBool aConsumeRollupEvent);
@@ -241,7 +238,8 @@ public:
     virtual void SetShowsToolbarButton(PRBool aShow);
     NS_IMETHOD SetWindowTitlebarColor(nscolor aColor, PRBool aActive);
 
-    void DispatchSizeModeEvent();
+    // dispatch an NS_SIZEMODE event on miniaturize or deminiaturize
+    void DispatchSizeModeEvent(nsSizeMode aSizeMode);
 
     virtual gfxASurface* GetThebesSurface();
 
@@ -267,7 +265,7 @@ public:
     NS_IMETHOD BeginSecureKeyboardInput();
     NS_IMETHOD EndSecureKeyboardInput();
 
-    static void UnifiedShading(void* aInfo, const CGFloat* aIn, CGFloat* aOut);
+    static void UnifiedShading(void* aInfo, const float* aIn, float* aOut);
 
 protected:
 

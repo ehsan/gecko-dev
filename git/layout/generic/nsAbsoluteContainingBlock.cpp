@@ -403,10 +403,13 @@ nsAbsoluteContainingBlock::ReflowAbsoluteFrame(nsIFrame*                aDelegat
   if (nsBlockFrame::gNoisyReflow) {
     nsFrame::IndentBy(stdout,nsBlockFrame::gNoiseIndent);
     printf("abs pos ");
-    if (aKidFrame) {
-      nsAutoString name;
-      aKidFrame->GetFrameName(name);
-      printf("%s ", NS_LossyConvertUTF16toASCII(name).get());
+    if (nsnull != aKidFrame) {
+      nsIFrameDebug *frameDebug = do_QueryFrame(aKidFrame);
+      if (frameDebug) {
+        nsAutoString name;
+        frameDebug->GetFrameName(name);
+        printf("%s ", NS_LossyConvertUTF16toASCII(name).get());
+      }
     }
 
     char width[16];
@@ -544,13 +547,16 @@ nsAbsoluteContainingBlock::ReflowAbsoluteFrame(nsIFrame*                aDelegat
   if (nsBlockFrame::gNoisyReflow) {
     nsFrame::IndentBy(stdout,nsBlockFrame::gNoiseIndent - 1);
     printf("abs pos ");
-    if (aKidFrame) {
-      nsAutoString name;
-      aKidFrame->GetFrameName(name);
-      printf("%s ", NS_LossyConvertUTF16toASCII(name).get());
+    if (nsnull != aKidFrame) {
+      nsIFrameDebug *frameDebug = do_QueryFrame(aKidFrame);
+      if (frameDebug) {
+        nsAutoString name;
+        frameDebug->GetFrameName(name);
+        printf("%s ", NS_LossyConvertUTF16toASCII(name).get());
+      }
     }
-    printf("%p rect=%d,%d,%d,%d\n", (void*)aKidFrame,
-           rect.x, rect.y, rect.width, rect.height);
+    printf("%p rect=%d,%d,%d,%d", aKidFrame, rect.x, rect.y, rect.width, rect.height);
+    printf("\n");
   }
 #endif
 

@@ -436,7 +436,7 @@ XPCNativeInterface::NewInstance(XPCCallContext& ccx,
         str = JS_InternString(ccx, info->GetName());
         if(!str)
         {
-            NS_ERROR("bad method name");
+            NS_ASSERTION(0,"bad method name");
             failed = JS_TRUE;
             break;
         }
@@ -480,7 +480,7 @@ XPCNativeInterface::NewInstance(XPCCallContext& ccx,
             str = JS_InternString(ccx, constant->GetName());
             if(!str)
             {
-                NS_ERROR("bad constant name");
+                NS_ASSERTION(0,"bad constant name");
                 failed = JS_TRUE;
                 break;
             }

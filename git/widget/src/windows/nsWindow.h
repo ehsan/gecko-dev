@@ -67,8 +67,6 @@
 #include "nsWindowCE.h"
 #endif
 
-#include "WindowHook.h"
-
 #ifdef ACCESSIBILITY
 #include "OLEACC.H"
 #include "nsIAccessible.h"
@@ -94,7 +92,6 @@ class imgIContainer;
 
 class nsWindow : public nsBaseWidget
 {
-  typedef mozilla::widget::WindowHook WindowHook;
 public:
   nsWindow();
   virtual ~nsWindow();
@@ -148,8 +145,7 @@ public:
   NS_IMETHOD              Invalidate(PRBool aIsSynchronous);
   NS_IMETHOD              Invalidate(const nsIntRect & aRect, PRBool aIsSynchronous);
   NS_IMETHOD              Update();
-  virtual void            Scroll(const nsIntPoint& aDelta,
-                                 const nsTArray<nsIntRect>& aDestRects,
+  virtual void            Scroll(const nsIntPoint& aDelta, const nsIntRect& aSource,
                                  const nsTArray<Configuration>& aReconfigureChildren);
   virtual void*           GetNativeData(PRUint32 aDataType);
   virtual void            FreeNativeData(void * data, PRUint32 aDataType);
@@ -221,8 +217,6 @@ public:
   static HWND             GetTopLevelHWND(HWND aWnd, PRBool aStopOnDialogOrPopup = PR_FALSE);
   HWND                    GetWindowHandle() { return mWnd; }
   WNDPROC                 GetPrevWindowProc() { return mPrevWndProc; }
-  static nsWindow*        GetNSWindowPtr(HWND aWnd);
-  WindowHook&             GetWindowHook() { return mWindowHook; }
 
   /**
    * Misc.
@@ -252,6 +246,7 @@ protected:
   /**
    * Window utilities
    */
+  static nsWindow*        GetNSWindowPtr(HWND aWnd);
   static BOOL             SetNSWindowPtr(HWND aWnd, nsWindow * ptr);
   LPARAM                  lParamToScreen(LPARAM lParam);
   LPARAM                  lParamToClient(LPARAM lParam);
@@ -419,8 +414,6 @@ protected:
   HKL                   mLastKeyboardLayout;
   nsPopupType           mPopupType;
   int                   mScrollSeriesCounter;
-  PRPackedBool          mDisplayPanFeedback;
-  WindowHook            mWindowHook;
 
   static PRUint32       sInstanceCount;
   static TriStateBool   sCanQuit;

@@ -16,15 +16,14 @@ const NAV_FORWARD = 2;
 const NAV_URI = 3;
 const NAV_RELOAD = 4;
 
-var gExpectedEvents;          // an array of events which are expected to
-                              // be triggered by this navigation
-var gFinalEvent;              // true if the last expected event has fired
-var gUrisNotInBFCache = [];   // an array of uri's which shouldn't be stored
-                              // in the bfcache
-var gNavType = NAV_NONE;      // defines the most recent navigation type
-                              // executed by doPageNavigation
-var gOrigMaxTotalViewers =    // original value of max_total_viewers,
-  undefined;                  // to be restored at end of test
+var gExpectedEvents;         // an array of events which are expected to be 
+                             // triggered by this navigation
+var gFinalEvent;             // true if the last expected event has occurred
+var gUrisNotInBFCache = [];  // an array of uri's which shouldn't be stored
+                             // in the bfcache
+var gNavType = NAV_NONE;     // defines the most recent navigation type
+                             // executed by doPageNavigation
+
 
 /**
  * The doPageNavigation() function performs page navigations asynchronously, 
@@ -93,9 +92,7 @@ function doPageNavigation(params) {
     eventsToListenFor.length == 0 ? undefined : params.expectedEvents; 
   let preventBFCache = (typeof[params.preventBFCache] == "undefined") ? 
     false : params.preventBFCache;
-  let waitOnly = (typeof(params.waitForEventsOnly) == "boolean" 
-    && params.waitForEventsOnly);
-  
+    
   // Do some sanity checking on arguments.  
   if (back && forward)
     throw "Can't specify both back and forward";
@@ -105,18 +102,12 @@ function doPageNavigation(params) {
     throw "Can't specify both forward and a uri";
   if (reload && (forward || back || uri))
     throw "Can't specify reload and another navigation type";
-  if (!back && !forward && !uri && !reload && !waitOnly)
+  if (!back && !forward && !uri && !reload)
     throw "Must specify back or foward or reload or uri";
   if (params.onNavComplete && eventsToListenFor.length == 0)
     throw "Can't use onNavComplete when eventsToListenFor == []";
   if (params.preventBFCache && eventsToListenFor.length == 0)
     throw "Can't use preventBFCache when eventsToListenFor == []";
-  if (params.preventBFCache && waitOnly)
-    throw "Can't prevent bfcaching when only waiting for events";
-  if (waitOnly && typeof(params.onNavComplete) == "undefined")
-    throw "Must specify onNavComplete when specifying waitForEventsOnly";
-  if (waitOnly && (back || forward || reload || uri))
-    throw "Can't specify a navigation type when using waitForEventsOnly";
   for each (let anEventType in eventsToListenFor) {
     let eventFound = false;
     if ( (anEventType == "pageshow") && (!gExpectedEvents) )
@@ -158,9 +149,6 @@ function doPageNavigation(params) {
   else if (reload) {
     gNavType = NAV_RELOAD;
     TestWindow.getBrowser().reload();
-  }
-  else if (waitOnly) {
-    gNavType = NAV_NONE;
   }
   else {
     throw "No valid navigation type passed to doPageNavigation!";
@@ -221,16 +209,6 @@ function doPageNavigation_complete(eventsToListenFor, onNavComplete,
   
   // Notify the callback now that we're done.
   onNavComplete.call();
-}
-
-/**
- * Allows a test to wait for page navigation events, and notify a 
- * callback when they've all been received.  This works exactly the
- * same as doPageNavigation(), except that no navigation is initiated.
- */
-function waitForPageEvents(params) {
-  params.waitForEventsOnly = true;
-  doPageNavigation(params);
 }
 
 /**
@@ -309,16 +287,6 @@ function finish() {
   // Work around bug 467960.
   var history = TestWindow.getBrowser().webNavigation.sessionHistory;
   history.PurgeHistory(history.count);
-  
-  // If the test changed the value of max_total_viewers via a call to
-  // enableBFCache(), then restore it now.
-  if (typeof(gOrigMaxTotalViewers) != "undefined") {
-    netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
-    var prefs = Components.classes["@mozilla.org/preferences-service;1"]
-                .getService(Components.interfaces.nsIPrefBranch);
-    prefs.setIntPref("browser.sessionhistory.max_total_viewers",
-      gOrigMaxTotalViewers);
-  }
 
   // Close the test window and signal the framework that the test is done.
   window.close();
@@ -385,15 +353,6 @@ function enableBFCache(enable) {
   netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
   var prefs = Components.classes["@mozilla.org/preferences-service;1"]
               .getService(Components.interfaces.nsIPrefBranch);
-  
-  // If this is the first time the test called enableBFCache(),
-  // store the original value of max_total_viewers, so it can
-  // be restored at the end of the test.
-  if (typeof(gOrigMaxTotalViewers) == "undefined") {
-    gOrigMaxTotalViewers =
-      prefs.getIntPref("browser.sessionhistory.max_total_viewers");
-  }
-  
   if (typeof(enable) == "boolean") {
     if (enable)
       prefs.setIntPref("browser.sessionhistory.max_total_viewers", -1);

@@ -51,7 +51,6 @@ class nsTreeBoxObject : public nsITreeBoxObject, public nsBoxObject
 {
 public:
   NS_DECL_ISUPPORTS_INHERITED
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsTreeBoxObject, nsBoxObject)
   NS_DECL_NSITREEBOXOBJECT
 
   nsTreeBoxObject();

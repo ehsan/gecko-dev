@@ -44,6 +44,7 @@
 #include "nsWidgetsCID.h"
 #include "nsGUIEvent.h"
 #include "nsIRollupListener.h"
+#include "nsCocoaUtils.h"
 #include "nsChildView.h"
 #include "nsWindowMap.h"
 #include "nsAppShell.h"
@@ -381,7 +382,7 @@ nsresult nsCocoaWindow::CreateNativeWindow(const NSRect &aRect,
     contentRect.origin.y -= (newWindowFrame.size.height - aRect.size.height);
 
     if (mWindowType != eWindowType_popup)
-      contentRect.origin.y -= [[NSApp mainMenu] menuBarHeight];
+      contentRect.origin.y -= ::GetMBarHeight();
   }
 
   // NSLog(@"Top-level window being created at Cocoa rect: %f, %f, %f, %f\n",
@@ -531,7 +532,7 @@ void* nsCocoaWindow::GetNativeData(PRUint32 aDataType)
     case NS_NATIVE_GRAPHIC:
       // There isn't anything that makes sense to return here,
       // and it doesn't matter so just return nsnull.
-      NS_ERROR("Requesting NS_NATIVE_GRAPHIC on a top-level window!");
+      NS_ASSERTION(0, "Requesting NS_NATIVE_GRAPHIC on a top-level window!");
       break;
   }
 
@@ -851,12 +852,11 @@ nsCocoaWindow::ConfigureChildren(const nsTArray<Configuration>& aConfigurations)
 }
 
 void
-nsCocoaWindow::Scroll(const nsIntPoint& aDelta,
-                      const nsTArray<nsIntRect>& aDestRects,
+nsCocoaWindow::Scroll(const nsIntPoint& aDelta, const nsIntRect& aSource,
                       const nsTArray<Configuration>& aConfigurations)
 {
   if (mPopupContentView) {
-    mPopupContentView->Scroll(aDelta, aDestRects, aConfigurations);
+    mPopupContentView->Scroll(aDelta, aSource, aConfigurations);
   }
 }
 
@@ -1271,20 +1271,11 @@ nsCocoaWindow::DispatchEvent(nsGUIEvent* event, nsEventStatus& aStatus)
   return NS_OK;
 }
 
-static nsSizeMode
-GetWindowSizeMode(NSWindow* aWindow) {
-  if ([aWindow isMiniaturized])
-    return nsSizeMode_Minimized;
-  if (([aWindow styleMask] & NSResizableWindowMask) && [aWindow isZoomed])
-    return nsSizeMode_Maximized;
-  return nsSizeMode_Normal;
-}
-
 void
-nsCocoaWindow::DispatchSizeModeEvent()
+nsCocoaWindow::DispatchSizeModeEvent(nsSizeMode aSizeMode)
 {
   nsSizeModeEvent event(PR_TRUE, NS_SIZEMODE, this);
-  event.mSizeMode = GetWindowSizeMode(mWindow);
+  event.mSizeMode = aSizeMode;
   event.time = PR_IntervalNow();
 
   nsEventStatus status = nsEventStatus_eIgnore;
@@ -1519,7 +1510,7 @@ NS_IMETHODIMP nsCocoaWindow::EndSecureKeyboardInput()
 // Callback used by the default titlebar and toolbar shading.
 // *aIn == 0 at the top of the titlebar/toolbar, *aIn == 1 at the bottom
 /* static */ void
-nsCocoaWindow::UnifiedShading(void* aInfo, const CGFloat* aIn, CGFloat* aOut)
+nsCocoaWindow::UnifiedShading(void* aInfo, const float* aIn, float* aOut)
 {
   UnifiedGradientInfo* info = (UnifiedGradientInfo*)aInfo;
   // The gradient percentage at the bottom of the titlebar / top of the toolbar
@@ -1592,7 +1583,6 @@ nsCocoaWindow::UnifiedShading(void* aInfo, const CGFloat* aIn, CGFloat* aOut)
   [super init];
   mGeckoWindow = geckoWind;
   mToplevelActiveState = PR_FALSE;
-  mHasEverBeenZoomed = PR_FALSE;
   return self;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
@@ -1610,8 +1600,6 @@ nsCocoaWindow::UnifiedShading(void* aInfo, const CGFloat* aIn, CGFloat* aOut)
   if (!mGeckoWindow || mGeckoWindow->IsResizing())
     return;
 
-  // Resizing might have changed our zoom state.
-  mGeckoWindow->DispatchSizeModeEvent();
   mGeckoWindow->ReportSizeEvent();
 }
 
@@ -1712,22 +1700,13 @@ nsCocoaWindow::UnifiedShading(void* aInfo, const CGFloat* aIn, CGFloat* aOut)
 - (void)windowDidMiniaturize:(NSNotification *)aNotification
 {
   if (mGeckoWindow)
-    mGeckoWindow->DispatchSizeModeEvent();
+    mGeckoWindow->DispatchSizeModeEvent(nsSizeMode_Minimized);
 }
 
 - (void)windowDidDeminiaturize:(NSNotification *)aNotification
 {
   if (mGeckoWindow)
-    mGeckoWindow->DispatchSizeModeEvent();
-}
-
-- (BOOL)windowShouldZoom:(NSWindow *)window toFrame:(NSRect)proposedFrame
-{
-  if (!mHasEverBeenZoomed && [window isZoomed])
-    return NO; // See bug 429954.
-
-  mHasEverBeenZoomed = YES;
-  return YES;
+    mGeckoWindow->DispatchSizeModeEvent(nsSizeMode_Normal);
 }
 
 - (void)sendFocusEvent:(PRUint32)eventType
@@ -1843,7 +1822,7 @@ nsCocoaWindow::UnifiedShading(void* aInfo, const CGFloat* aIn, CGFloat* aOut)
 // query the window for its titlebar height when drawing the toolbar.
 @implementation ToolbarWindow
 
-- (id)initWithContentRect:(NSRect)aContentRect styleMask:(NSUInteger)aStyle backing:(NSBackingStoreType)aBufferingType defer:(BOOL)aFlag
+- (id)initWithContentRect:(NSRect)aContentRect styleMask:(unsigned int)aStyle backing:(NSBackingStoreType)aBufferingType defer:(BOOL)aFlag
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
 
@@ -2140,7 +2119,7 @@ void patternDraw(void* aInfo, CGContextRef aContext)
   CGColorSpaceRef patternSpace = CGColorSpaceCreatePattern(NULL);
   CGContextSetFillColorSpace(context, patternSpace);
   CGColorSpaceRelease(patternSpace);
-  CGFloat component = 1.0f;
+  float component = 1.0f;
   CGContextSetFillPattern(context, pattern, &component);
   CGPatternRelease(pattern);
 
@@ -2339,7 +2318,7 @@ void patternDraw(void* aInfo, CGContextRef aContext)
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
-- (id)initWithContentRect:(NSRect)contentRect styleMask:(NSUInteger)styleMask
+- (id)initWithContentRect:(NSRect)contentRect styleMask:(unsigned int)styleMask
       backing:(NSBackingStoreType)bufferingType defer:(BOOL)deferCreation
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;

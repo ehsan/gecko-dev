@@ -1357,7 +1357,7 @@ x86_64 | ia64)
     ;;
 
 arm)
-    if test "$OS_TARGET" = "WINCE"; then
+    if test "$OS_TARGET" == "WINCE"; then
         CPU_ARCH="$OS_TEST"
     fi
     ;;
@@ -2134,9 +2134,6 @@ case "$target" in
         MKSHLIB_FORCE_ALL=
         MKSHLIB_UNFORCE_ALL=
         DSO_LDOPTS=-SUBSYSTEM:WINDOWS
-        _USE_CPP_INCLUDE_FLAG=1
-        _DEFINES_CFLAGS='-FI $(DEPTH)/dist/include/mozilla-config.h -DMOZILLA_CLIENT'
-        _DEFINES_CXXFLAGS='-FI $(DEPTH)/dist/include/mozilla-config.h -DMOZILLA_CLIENT'
         CFLAGS="$CFLAGS -W3 -Gy -Fd\$(COMPILE_PDBFILE)"
         CXXFLAGS="$CXXFLAGS -W3 -Gy -Fd\$(COMPILE_PDBFILE)"
         LIBS="$LIBS kernel32.lib user32.lib gdi32.lib winmm.lib wsock32.lib advapi32.lib"
@@ -4512,7 +4509,6 @@ MOZ_PSM=1
 MOZ_RDF=1
 MOZ_REFLOW_PERF=
 MOZ_SAFE_BROWSING=
-MOZ_FASTSTART=
 MOZ_HELP_VIEWER=
 MOZ_SPELLCHECK=1
 MOZ_SPLASHSCREEN=
@@ -5541,16 +5537,15 @@ dnl = Check alsa availability on Linux if using sydneyaudio
 dnl ========================================================
 
 dnl If using sydneyaudio with Linux, ensure that the alsa library is available
+if test "$COMPILE_ENVIRONMENT"; then
 if test -n "$MOZ_SYDNEYAUDIO"; then
    case "$target_os" in
 linux*)
-      PKG_CHECK_MODULES(MOZ_ALSA, alsa, ,
-         [echo "$MOZ_ALSA_PKG_ERRORS"
-          AC_MSG_ERROR([Need alsa for Ogg or Wave decoding on Linux.  Disable with --disable-ogg --disable-wave.])])
+      AC_CHECK_LIB(asound, snd_pcm_open,,AC_MSG_ERROR([Ogg support on Linux requires the alsa library]))
       ;;
    esac
 fi
-AC_SUBST(MOZ_ALSA_LIBS)
+fi
 
 dnl ========================================================
 dnl Splashscreen
@@ -6235,18 +6230,6 @@ if test -n "$MOZ_SAFE_BROWSING"; then
     AC_DEFINE(MOZ_SAFE_BROWSING)
 fi
 AC_SUBST(MOZ_SAFE_BROWSING)
-
-dnl ========================================================
-dnl = Enable faststart component
-dnl ========================================================
-MOZ_ARG_ENABLE_BOOL(faststart,
-[  --enable-faststart            Enable the faststart component],
-    MOZ_FASTSTART=1,
-    MOZ_FASTSTART= )
-if test -n "$MOZ_FASTSTART"; then
-    AC_DEFINE(MOZ_FASTSTART)
-fi
-AC_SUBST(MOZ_FASTSTART)
 
 dnl ========================================================
 dnl = Enable url-classifier
@@ -7380,12 +7363,9 @@ if test "$_cpp_md_flag"; then
   fi
 else
   COMPILER_DEPEND=
-  dnl Don't override this for MSVC
-  if test -z "$_WIN32_MSVC"; then
-    _USE_CPP_INCLUDE_FLAG=
-    _DEFINES_CFLAGS='$(ACDEFINES) -D_MOZILLA_CONFIG_H_ -DMOZILLA_CLIENT'
-    _DEFINES_CXXFLAGS='$(ACDEFINES) -D_MOZILLA_CONFIG_H_ -DMOZILLA_CLIENT'
-  fi
+  _USE_CPP_INCLUDE_FLAG=
+  _DEFINES_CFLAGS='$(ACDEFINES) -D_MOZILLA_CONFIG_H_ -DMOZILLA_CLIENT'
+  _DEFINES_CXXFLAGS='$(ACDEFINES) -D_MOZILLA_CONFIG_H_ -DMOZILLA_CLIENT'
 fi
 fi # MOZ_AUTO_DEPS
 MDDEPDIR='.deps'

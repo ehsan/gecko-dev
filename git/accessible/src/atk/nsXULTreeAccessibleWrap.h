@@ -40,16 +40,27 @@
 #ifndef __nsXULTreeAccessibleWrap_h__
 #define __nsXULTreeAccessibleWrap_h__
 
-#include "nsXULTreeGridAccessible.h"
+#include "nsIAccessibleTable.h"
+#include "nsXULTreeAccessible.h"
 
-class nsXULTreeGridAccessibleWrap : public nsXULTreeGridAccessible
+typedef class nsXULTreeitemAccessible nsXULTreeitemAccessibleWrap;
+
+class nsXULTreeAccessibleWrap : public nsXULTreeAccessible,
+                                public nsIAccessibleTable
 {
 public:
-  nsXULTreeGridAccessibleWrap(nsIDOMNode* aDOMNode, nsIWeakReference* aShell);
+  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_NSIACCESSIBLETABLE
 
-  // nsIAccessibleTable
-  NS_IMETHOD GetColumnHeader(nsIAccessibleTable **aColumnHeader);
-  NS_IMETHOD GetColumnDescription(PRInt32 aColumn, nsAString& aDescription);
+  nsXULTreeAccessibleWrap(nsIDOMNode* aDOMNode, nsIWeakReference* aShell);
+  virtual ~nsXULTreeAccessibleWrap() {}
+
+  // nsIAccessible
+  NS_IMETHOD GetChildCount(PRInt32 *_retval);
+
+protected:
+  NS_IMETHOD ChangeSelection(PRInt32 aIndex, PRUint8 aMethod,
+                             PRBool *aSelState);
 };
 
 class nsXULTreeColumnsAccessibleWrap : public nsXULTreeColumnsAccessible,
@@ -60,6 +71,7 @@ public:
   NS_DECL_NSIACCESSIBLETABLE
 
   nsXULTreeColumnsAccessibleWrap(nsIDOMNode* aDOMNode, nsIWeakReference* aShell);
+  virtual ~nsXULTreeColumnsAccessibleWrap() {}
 };
 
 #endif

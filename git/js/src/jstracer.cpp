@@ -1704,6 +1704,34 @@ TraceRecorder::TraceRecorder(JSContext* cx, VMSideExit* _anchor, Fragment* _frag
 
     debug_only_printf(LC_TMTracer, "globalObj=%p, shape=%d\n",
                       (void*)this->globalObj, OBJ_SHAPE(this->globalObj));
+
+    /* Set up jitstats so that trace-test.js can determine which architecture
+     * we're running on. */
+    jitstats.archIsIA32 = 0;
+    jitstats.archIsAMD64 = 0;
+    jitstats.archIs64BIT = 0;
+    jitstats.archIsARM = 0;
+    jitstats.archIsSPARC = 0;
+    jitstats.archIsPPC = 0;
+#if defined NANOJIT_IA32
+    jitstats.archIsIA32 = 1;
+#endif
+#if defined NANOJIT_ARM64
+    jitstats.archIsAMD64 = 1;
+#endif
+#if defined NANOJIT_64BIT
+    jitstats.archIs64BIT = 1;
+#endif
+#if defined NANOJIT_ARM
+    jitstats.archIsARM = 1;
+#endif
+#if defined NANOJIT_SPARC
+    jitstats.archIsSPARC = 1;
+#endif
+#if defined NANOJIT_PPC
+    jitstats.archIsPPC = 1;
+#endif
+
 #endif
 
     lir = lir_buf_writer = new (&gc) LirBufWriter(lirbuf);
@@ -6238,29 +6266,6 @@ js_arm_check_vfp() {
     return ret;
 }
 
-#define HAVE_ENABLE_DISABLE_DEBUGGER_EXCEPTIONS 1
-
-/* See "Suppressing Exception Notifications while Debugging", at
- * http://msdn.microsoft.com/en-us/library/ms924252.aspx
- */
-static void
-js_disable_debugger_exceptions() {
-    // 2 == TLSSLOT_KERNEL
-    DWORD kctrl = (DWORD) TlsGetValue(2);
-    // 0x12 = TLSKERN_NOFAULT | TLSKERN_NOFAULTMSG
-    kctrl |= 0x12;
-    TlsSetValue(2, (LPVOID) kctrl); 
-}
-
-static void
-js_enable_debugger_exceptions() {
-    // 2 == TLSSLOT_KERNEL
-    DWORD kctrl = (DWORD) TlsGetValue(2);
-    // 0x12 = TLSKERN_NOFAULT | TLSKERN_NOFAULTMSG
-    kctrl &= ~0x12;
-    TlsSetValue(2, (LPVOID) kctrl); 
-}
-
 #elif defined(__GNUC__) && defined(AVMPLUS_LINUX)
 
 #include <stdlib.h>
@@ -6380,13 +6385,6 @@ static bool
 js_arm_check_vfp() { return false; }
 #endif
 
-#ifndef HAVE_ENABLE_DISABLE_DEBUGGER_EXCEPTIONS
-static void
-js_enable_debugger_exceptions() { }
-static void
-js_disable_debugger_exceptions() { }
-#endif
-
 #endif /* NANOJIT_ARM */
 
 #define K *1024
@@ -6424,15 +6422,10 @@ js_InitJIT(JSTraceMonitor *tm)
             avmplus::AvmCore::config.sse2 = CheckForSSE2();
 #endif
 #if defined NANOJIT_ARM
-
-        js_disable_debugger_exceptions();
-
         bool            arm_vfp     = js_arm_check_vfp();
         bool            arm_thumb   = js_arm_check_thumb();
         bool            arm_thumb2  = js_arm_check_thumb2();
         unsigned int    arm_arch    = js_arm_check_arch();
-
-        js_enable_debugger_exceptions();
 
         avmplus::AvmCore::config.vfp        = arm_vfp;
         avmplus::AvmCore::config.soft_float = !arm_vfp;

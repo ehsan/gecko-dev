@@ -55,6 +55,7 @@
 #include "nsIDocShell.h"
 #include "nsIContentViewer.h"
 #include "nsIContentViewerFile.h"
+#include "nsIFrameDebug.h"
 #include "nsIFrame.h"
 #include "nsStyleStruct.h"
 #include "nsIFrameUtil.h"
@@ -104,11 +105,14 @@ nsRegressionTester::DumpFrameModel(nsIDOMWindow *aWindowToDump, nsILocalFile *aD
     *aResult = DUMP_RESULT_LOADING;
     return NS_OK;
   }
-
+  
   nsCOMPtr<nsIPresShell> presShell;
   docShell->GetPresShell(getter_AddRefs(presShell));
 
   nsIFrame* root = presShell->GetRootFrame();
+
+  nsIFrameDebug*  fdbg = do_QueryFrame(root);
+  if (NS_FAILED(rv)) return rv;
 
   FILE* fp = stdout;
   if (aDestFile)
@@ -127,7 +131,7 @@ nsRegressionTester::DumpFrameModel(nsIDOMWindow *aWindowToDump, nsILocalFile *aD
     }
   }
   else {
-    root->DumpRegressionData(presShell->GetPresContext(), fp, 0);
+    fdbg->DumpRegressionData(presShell->GetPresContext(), fp, 0);
   }
   if (fp != stdout)
     fclose(fp);

@@ -130,6 +130,7 @@ public:
                                   PRUint32 aFlags);
 
 #ifdef DEBUG
+    // nsIFrameDebug
   NS_IMETHOD GetFrameName(nsAString& aResult) const;
 #endif
 

@@ -45,6 +45,7 @@ include $(DEPTH)/config/autoconf.mk
 
 MODULE    = xulrunner
 
+REQUIRES  = xpcom string xulapp
 
 CPPSRCS   = nsXULStub.cpp
 

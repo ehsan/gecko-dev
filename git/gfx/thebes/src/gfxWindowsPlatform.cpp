@@ -309,8 +309,7 @@ void gfxWindowsPlatform::AppendFacesFromFontFile(const PRUnichar *aFileName) {
                     ff = new FontFamily(name);
                     mFonts.Put(name, ff);
                 }
-                ff->AddFontEntry(fe);
-                ff->SetHasStyles(PR_TRUE);
+                ff->mFaces.AppendElement(fe);
             }
         }
         FT_Done_Face(dummy);
@@ -603,6 +602,16 @@ gfxWindowsPlatform::FontResolveProc(const ENUMLOGFONTEXW *lpelfe,
     // XXX If the font has font link, we should add the linked font.
 }
 
+struct FontSearch {
+    FontSearch(PRUint32 aCh, gfxFont *aFont) :
+        ch(aCh), fontToMatch(aFont), matchRank(-1) {
+    }
+    PRUint32 ch;
+    nsRefPtr<gfxFont> fontToMatch;
+    PRInt32 matchRank;
+    nsRefPtr<FontEntry> bestMatch;
+};
+
 PLDHashOperator
 gfxWindowsPlatform::FindFontForCharProc(nsStringHashKey::KeyType aKey,
                                         nsRefPtr<FontFamily>& aFontFamily,
@@ -610,9 +619,9 @@ gfxWindowsPlatform::FindFontForCharProc(nsStringHashKey::KeyType aKey,
 {
     FontSearch *data = (FontSearch*)userArg;
 
-    const PRUint32 ch = data->mCh;
+    const PRUint32 ch = data->ch;
 
-    nsRefPtr<FontEntry> fe = aFontFamily->FindFontEntry(*data->mFontToMatch->GetStyle());
+    nsRefPtr<FontEntry> fe = aFontFamily->FindFontEntry(*data->fontToMatch->GetStyle());
     NS_ASSERTION(fe, "couldn't find any font entry in family");
     if (!fe)
         return PL_DHASH_NEXT;
@@ -630,10 +639,10 @@ gfxWindowsPlatform::FindFontForCharProc(nsStringHashKey::KeyType aKey,
     if (fe->SupportsRange(gfxFontUtils::CharRangeBit(ch)))
         rank += 1;
 
-    if (fe->SupportsLangGroup(data->mFontToMatch->GetStyle()->langGroup))
+    if (fe->SupportsLangGroup(data->fontToMatch->GetStyle()->langGroup))
         rank += 2;
 
-    FontEntry* mfe = static_cast<FontEntry*>(data->mFontToMatch->GetFontEntry());
+    FontEntry* mfe = static_cast<FontEntry*>(data->fontToMatch->GetFontEntry());
 
     if (fe->mWindowsFamily == mfe->mWindowsFamily)
         rank += 3;
@@ -641,22 +650,22 @@ gfxWindowsPlatform::FindFontForCharProc(nsStringHashKey::KeyType aKey,
         rank += 3;
 #endif
     /* italic */
-    const PRBool italic = (data->mFontToMatch->GetStyle()->style != FONT_STYLE_NORMAL);
+    const PRBool italic = (data->fontToMatch->GetStyle()->style != FONT_STYLE_NORMAL);
     if (fe->mItalic != italic)
         rank += 3;
 
     /* weight */
     PRInt8 baseWeight, weightDistance;
-    data->mFontToMatch->GetStyle()->ComputeWeightAndOffset(&baseWeight, &weightDistance);
+    data->fontToMatch->GetStyle()->ComputeWeightAndOffset(&baseWeight, &weightDistance);
     if (fe->mWeight == (baseWeight * 100) + (weightDistance * 100))
         rank += 2;
-    else if (fe->mWeight == data->mFontToMatch->GetFontEntry()->mWeight)
+    else if (fe->mWeight == data->fontToMatch->GetFontEntry()->mWeight)
         rank += 1;
 
-    if (rank > data->mMatchRank ||
-        (rank == data->mMatchRank && Compare(fe->Name(), data->mBestMatch->Name()) > 0)) {
-        data->mBestMatch = fe;
-        data->mMatchRank = rank;
+    if (rank > data->matchRank ||
+        (rank == data->matchRank && Compare(fe->Name(), data->bestMatch->Name()) > 0)) {
+        data->bestMatch = fe;
+        data->matchRank = rank;
     }
 
     return PL_DHASH_NEXT;
@@ -675,17 +684,16 @@ gfxWindowsPlatform::FindFontForChar(PRUint32 aCh, gfxFont *aFont)
     // find fonts that support the character
     mFonts.Enumerate(gfxWindowsPlatform::FindFontForCharProc, &data);
 
-    if (data.mBestMatch) {
+    if (data.bestMatch) {
 #ifdef MOZ_FT2_FONTS
         nsRefPtr<gfxFT2Font> font =
-            gfxFT2Font::GetOrMakeFont(data.mBestMatch->mName, 
+            gfxFT2Font::GetOrMakeFont(data.bestMatch->mName, 
                                       aFont->GetStyle()); 
             gfxFont* ret = font.forget().get();
             return already_AddRefed<gfxFont>(ret);
 #else
         nsRefPtr<gfxWindowsFont> font =
-            gfxWindowsFont::GetOrMakeFont(static_cast<FontEntry*>(data.mBestMatch.get()),
-                                          aFont->GetStyle());
+            gfxWindowsFont::GetOrMakeFont(data.bestMatch, aFont->GetStyle());
         if (font->IsValid()) {
             gfxFont* ret = font.forget().get();
             return already_AddRefed<gfxFont>(ret);
@@ -774,13 +782,13 @@ FindFullName(nsStringHashKey::KeyType aKey,
     // if so, iterate over faces in this family to see if there is a match
     if (family.Equals(fullNameFamily)) {
 #ifdef MOZ_FT2_FONTS
-        int len = aFontFamily->GetFontList().Length();
+        int len = aFontFamily->mFaces.Length();
         int index = 0;
         for (; index < len && 
-                 !aFontFamily->GetFontList()[index]->Name().Equals(data->mFullName); index++);
+                 !aFontFamily->mFaces[index]->Name().Equals(data->mFullName); index++);
         if (index < len) {
             data->mFound = PR_TRUE;
-            data->mFontEntry = aFontFamily->GetFontList()[index];
+            data->mFontEntry = aFontFamily->mFaces[index];
         }
 #else
         HDC hdc;

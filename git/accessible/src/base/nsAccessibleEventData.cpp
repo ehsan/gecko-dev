@@ -38,7 +38,6 @@
 
 #include "nsAccessibleEventData.h"
 #include "nsAccessibilityAtoms.h"
-#include "nsApplicationAccessibleWrap.h"
 #include "nsCoreUtils.h"
 #include "nsIAccessibilityService.h"
 #include "nsIAccessNode.h"
@@ -112,17 +111,7 @@ void nsAccEvent::CaptureIsFromUserInput(PRBool aIsAsynch)
   nsCOMPtr<nsIDOMNode> eventNode;
   GetDOMNode(getter_AddRefs(eventNode));
   if (!eventNode) {
-#ifdef DEBUG
-    // XXX: remove this hack during reorganization of 506907. Meanwhile we
-    // want to get rid an assertion for application accessible events which
-    // don't have DOM node (see bug 506206).
-    nsRefPtr<nsApplicationAccessibleWrap> applicationAcc =
-      nsAccessNode::GetApplicationAccessible();
-
-    if (mAccessible != static_cast<nsIAccessible*>(applicationAcc.get()))
-      NS_ASSERTION(eventNode, "There should always be a DOM node for an event");
-#endif
-
+    NS_NOTREACHED("There should always be a DOM node for an event");
     return;
   }
 
@@ -277,8 +266,8 @@ nsAccEvent::GetAccessibleByNode()
   if (!accService)
     return nsnull;
 
-  nsCOMPtr<nsIAccessible> accessible;
-  accService->GetAccessibleFor(mDOMNode, getter_AddRefs(accessible));
+  nsIAccessible *accessible = nsnull;
+  accService->GetAccessibleFor(mDOMNode, &accessible);
 
 #ifdef MOZ_XUL
   // hack for xul tree table. We need a better way for firing delayed event
@@ -294,16 +283,18 @@ nsAccEvent::GetAccessibleByNode()
       PRInt32 treeIndex = -1;
       multiSelect->GetCurrentIndex(&treeIndex);
       if (treeIndex >= 0) {
-        nsRefPtr<nsXULTreeAccessible> treeAcc =
+        nsRefPtr<nsXULTreeAccessible> treeCache =
           nsAccUtils::QueryAccessibleTree(accessible);
-        if (treeAcc)
-          treeAcc->GetTreeItemAccessible(treeIndex, getter_AddRefs(accessible));
+        if (treeCache) {
+          treeCache->GetCachedTreeitemAccessible(treeIndex, nsnull,
+                                                 &accessible);
+        }
       }
     }
   }
 #endif
 
-  return accessible.forget();
+  return accessible;
 }
 
 /* static */

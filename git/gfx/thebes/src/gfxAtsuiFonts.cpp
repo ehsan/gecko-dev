@@ -15,14 +15,13 @@
  * The Original Code is Mozilla Corporation code.
  *
  * The Initial Developer of the Original Code is Mozilla Corporation.
- * Portions created by the Initial Developer are Copyright (C) 2006-2009
+ * Portions created by the Initial Developer are Copyright (C) 2006
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
  *   Vladimir Vukicevic <vladimir@pobox.com>
  *   Masayuki Nakano <masayuki@d-toybox.com>
  *   John Daggett <jdaggett@mozilla.com>
- *   Jonathan Kew <jfkthame@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -60,7 +59,7 @@
 #include "cairo-quartz.h"
 
 #include "gfxQuartzSurface.h"
-#include "gfxMacPlatformFontList.h"
+#include "gfxQuartzFontCache.h"
 #include "gfxUserFontSet.h"
 
 #include "nsUnicodeRange.h"
@@ -508,7 +507,7 @@ PRBool gfxAtsuiFont::TestCharacterMap(PRUint32 aCh) {
 MacOSFontEntry*
 gfxAtsuiFont::GetFontEntry()
 {
-    return static_cast<MacOSFontEntry*> (mFontEntry.get());
+    return static_cast< MacOSFontEntry*> (mFontEntry.get());
 }
 
 /**
@@ -550,11 +549,11 @@ gfxAtsuiFontGroup::gfxAtsuiFontGroup(const nsAString& families,
 }
 
 PRBool
-gfxAtsuiFontGroup::FindATSFont(const nsAString& aName,
-                               const nsACString& aGenericName,
-                               void *aClosure)
+gfxAtsuiFontGroup::FindATSUFont(const nsAString& aName,
+                                const nsACString& aGenericName,
+                                void *closure)
 {
-    gfxAtsuiFontGroup *fontGroup = static_cast<gfxAtsuiFontGroup*>(aClosure);
+    gfxAtsuiFontGroup *fontGroup = (gfxAtsuiFontGroup*) closure;
     const gfxFontStyle *fontStyle = fontGroup->GetStyle();
 
 
@@ -571,8 +570,8 @@ gfxAtsuiFontGroup::FindATSFont(const nsAString& aName,
     
     // nothing in the user font set ==> check system fonts
     if (!fe) {
-        fe = static_cast<MacOSFontEntry*>
-            (gfxMacPlatformFontList::PlatformFontList()->FindFontForFamily(aName, fontStyle, needsBold));
+        gfxQuartzFontCache *fc = gfxQuartzFontCache::SharedFontCache();
+        fe = fc->FindFontForFamily(aName, fontStyle, needsBold);
     }
 
     if (fe && !fontGroup->HasFont(fe->GetFontRef())) {
@@ -805,17 +804,17 @@ gfxAtsuiFontGroup::HasFont(ATSFontRef aFontRef)
 }
 
 struct PrefFontCallbackData {
-    PrefFontCallbackData(nsTArray<nsRefPtr<gfxFontFamily> >& aFamiliesArray) 
+    PrefFontCallbackData(nsTArray<nsRefPtr<MacOSFamilyEntry> >& aFamiliesArray) 
         : mPrefFamilies(aFamiliesArray)
     {}
 
-    nsTArray<nsRefPtr<gfxFontFamily> >& mPrefFamilies;
+    nsTArray<nsRefPtr<MacOSFamilyEntry> >& mPrefFamilies;
 
     static PRBool AddFontFamilyEntry(eFontPrefLang aLang, const nsAString& aName, void *aClosure)
     {
-        PrefFontCallbackData *prefFontData = static_cast<PrefFontCallbackData*>(aClosure);
+        PrefFontCallbackData *prefFontData = (PrefFontCallbackData*) aClosure;
         
-        gfxFontFamily *family = gfxMacPlatformFontList::PlatformFontList()->FindFamily(aName);
+        MacOSFamilyEntry *family = gfxQuartzFontCache::SharedFontCache()->FindFamily(aName);
         if (family) {
             prefFontData->mPrefFamilies.AppendElement(family);
         }
@@ -852,10 +851,10 @@ gfxAtsuiFontGroup::WhichPrefFontSupportsChar(PRUint32 aCh)
     macPlatform->GetLangPrefs(prefLangs, numLangs, charLang, mPageLang);
 
     for (i = 0; i < numLangs; i++) {
-        nsAutoTArray<nsRefPtr<gfxFontFamily>, 5> families;
+        nsAutoTArray<nsRefPtr<MacOSFamilyEntry>, 5> families;
         eFontPrefLang currentLang = prefLangs[i];
         
-        gfxMacPlatformFontList *fc = gfxMacPlatformFontList::PlatformFontList();
+        gfxQuartzFontCache *fc = gfxQuartzFontCache::SharedFontCache();
 
         // get the pref families for a single pref lang
         if (!fc->GetPrefFontFamilyEntries(currentLang, &families)) {
@@ -871,7 +870,7 @@ gfxAtsuiFontGroup::WhichPrefFontSupportsChar(PRUint32 aCh)
         numPrefs = families.Length();
         for (i = 0; i < numPrefs; i++) {
             // look up the appropriate face
-            gfxFontFamily *family = families[i];
+            MacOSFamilyEntry *family = families[i];
             if (!family) continue;
             
             // if a pref font is used, it's likely to be used again in the same text run.
@@ -885,8 +884,7 @@ gfxAtsuiFontGroup::WhichPrefFontSupportsChar(PRUint32 aCh)
             }
             
             PRBool needsBold;
-            MacOSFontEntry *fe =
-                static_cast<MacOSFontEntry*>(family->FindFontForStyle(mStyle, needsBold));
+            MacOSFontEntry *fe = family->FindFont(&mStyle, needsBold);
             // if ch in cmap, create and return a gfxFont
             if (fe && fe->TestCharacterMap(aCh)) {
                 nsRefPtr<gfxAtsuiFont> prefFont = GetOrMakeFont(fe, &mStyle, needsBold);
@@ -895,7 +893,7 @@ gfxAtsuiFontGroup::WhichPrefFontSupportsChar(PRUint32 aCh)
                 mLastPrefFont = prefFont;
                 mLastPrefLang = charLang;
                 mLastPrefFirstFont = (i == 0);
-                nsRefPtr<gfxFont> font2 = prefFont.get();
+                nsRefPtr<gfxFont> font2 = (gfxFont*) prefFont;
                 return font2.forget();
             }
 
@@ -910,11 +908,10 @@ gfxAtsuiFontGroup::WhichSystemFontSupportsChar(PRUint32 aCh)
 {
     MacOSFontEntry *fe;
 
-    fe = static_cast<MacOSFontEntry*>
-        (gfxMacPlatformFontList::PlatformFontList()->FindFontForChar(aCh, GetFontAt(0)));
+    fe = gfxQuartzFontCache::SharedFontCache()->FindFontForChar(aCh, GetFontAt(0));
     if (fe) {
         nsRefPtr<gfxAtsuiFont> atsuiFont = GetOrMakeFont(fe, &mStyle, PR_FALSE); // ignore bolder considerations in system fallback case...
-        nsRefPtr<gfxFont> font = atsuiFont.get(); 
+        nsRefPtr<gfxFont> font = (gfxFont*) atsuiFont; 
         return font.forget();
     }
 
@@ -1511,8 +1508,8 @@ gfxAtsuiFontGroup::InitTextRun(gfxTextRun *aRun,
         
             if (matchedFont != firstFont) {
                 // create a new sub-style and add it to the layout
-                ATSUStyle subStyle = SetLayoutRangeToFont(layout, mainStyle, runStart,
-                                                          matchedLength, matchedFont->GetATSFontRef());
+                ATSUStyle subStyle = SetLayoutRangeToFont(layout, mainStyle, runStart, matchedLength,
+                                                          FMGetFontFromATSFontRef(matchedFont->GetATSFontRef()));
                 stylesToDispose.AppendElement(subStyle);
             }
 
@@ -1553,7 +1550,7 @@ gfxAtsuiFontGroup::InitTextRun(gfxTextRun *aRun,
 void
 gfxAtsuiFontGroup::InitFontList()
 {
-    ForEachFont(FindATSFont, this);
+    ForEachFont(FindATSUFont, this);
 
     if (mFonts.Length() == 0) {
         // XXX this will generate a list of the lang groups for which we have no
@@ -1569,8 +1566,7 @@ gfxAtsuiFontGroup::InitFontList()
         // user font.
 
         PRBool needsBold;
-        MacOSFontEntry *defaultFont = static_cast<MacOSFontEntry*>
-            (gfxMacPlatformFontList::PlatformFontList()->GetDefaultFont(&mStyle, needsBold));
+        MacOSFontEntry *defaultFont = gfxQuartzFontCache::SharedFontCache()->GetDefaultFont(&mStyle, needsBold);
         NS_ASSERTION(defaultFont, "invalid default font returned by GetDefaultFont");
 
         nsRefPtr<gfxAtsuiFont> font = GetOrMakeFont(defaultFont, &mStyle, needsBold);

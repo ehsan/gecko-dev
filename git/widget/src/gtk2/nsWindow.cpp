@@ -1018,12 +1018,6 @@ nsWindow::Show(PRBool aState)
     // If someone is showing this window and it needs a resize then
     // resize the widget.
     if (aState) {
-        
-        // Sizemode can be set before the window is created.  If it is,
-        // we want to force fullscreen, if needed.
-        if (mSizeMode == nsSizeMode_Fullscreen)
-            MakeFullScreen(PR_TRUE);
-
         if (mNeedsMove) {
             LOG(("\tresizing\n"));
             NativeResize(mBounds.x, mBounds.y, mBounds.width, mBounds.height,
@@ -1286,10 +1280,6 @@ nsWindow::SetSizeMode(PRInt32 aMode)
     case nsSizeMode_Minimized:
         gtk_window_iconify(GTK_WINDOW(mShell));
         break;
-    case nsSizeMode_Fullscreen:
-        MakeFullScreen(PR_TRUE);
-        break;
-
     default:
         // nsSizeMode_Normal, really.
         if (mSizeState == nsSizeMode_Minimized)
@@ -1751,8 +1741,7 @@ nsWindow::Update()
 }
 
 void
-nsWindow::Scroll(const nsIntPoint& aDelta,
-                 const nsTArray<nsIntRect>& aDestRects,
+nsWindow::Scroll(const nsIntPoint& aDelta, const nsIntRect& aSource,
                  const nsTArray<Configuration>& aConfigurations)
 {
     if (!mGdkWindow) {
@@ -1779,18 +1768,11 @@ nsWindow::Scroll(const nsIntPoint& aDelta,
         }
     }
 
-    // gdk_window_move_region, up to GDK 2.16 at least, has a ghastly bug
-    // where it doesn't restrict blitting to the given region, and blits
-    // its full bounding box. So we have to work around that by
-    // blitting one rectangle at a time.
-    for (PRUint32 i = 0; i < aDestRects.Length(); ++i) {
-        const nsIntRect& r = aDestRects[i];
-        GdkRectangle gdkSource =
-            { r.x - aDelta.x, r.y - aDelta.y, r.width, r.height };
-        GdkRegion* region = gdk_region_rectangle(&gdkSource);
-        gdk_window_move_region(GDK_WINDOW(mGdkWindow), region, aDelta.x, aDelta.y);
-        gdk_region_destroy(region);
-    }
+    GdkRectangle gdkSource =
+      { aSource.x, aSource.y, aSource.width, aSource.height };
+    GdkRegion* region = gdk_region_rectangle(&gdkSource);
+    gdk_window_move_region(GDK_WINDOW(mGdkWindow), region, aDelta.x, aDelta.y);
+    gdk_region_destroy(region);
 
     ConfigureChildren(aConfigurations);
 
@@ -3379,11 +3361,6 @@ nsWindow::OnWindowStateEvent(GtkWidget *aWidget, GdkEventWindowState *aEvent)
         LOG(("\tMaximized\n"));
         event.mSizeMode = nsSizeMode_Maximized;
         mSizeState = nsSizeMode_Maximized;
-    }
-    else if (aEvent->new_window_state & GDK_WINDOW_STATE_FULLSCREEN) {
-        LOG(("\tFullscreen\n"));
-        event.mSizeMode = nsSizeMode_Fullscreen;
-        mSizeState = nsSizeMode_Fullscreen;
     }
     else {
         LOG(("\tNormal\n"));
@@ -4996,14 +4973,9 @@ nsWindow::ConvertBorderStyles(nsBorderStyle aStyle)
 NS_IMETHODIMP
 nsWindow::MakeFullScreen(PRBool aFullScreen)
 {
-    LOG(("nsWindow::MakeFullScreen [%p] aFullScreen %d\n",
-         (void *)this, aFullScreen));
-
 #if GTK_CHECK_VERSION(2,2,0)
-    if (aFullScreen) {
-        mSizeMode = nsSizeMode_Fullscreen;
+    if (aFullScreen)
         gdk_window_fullscreen (mShell->window);
-    }
     else
         gdk_window_unfullscreen (mShell->window);
     return NS_OK;
@@ -6554,14 +6526,8 @@ nsWindow::IMEGetContext()
 static PRBool
 IsIMEEnabledState(PRUint32 aState)
 {
-#ifdef MOZ_PLATFORM_HILDON
-    return aState == nsIWidget::IME_STATUS_ENABLED ||
-           aState == nsIWidget::IME_STATUS_PLUGIN  ||
-           aState == nsIWidget::IME_STATUS_PASSWORD;
-#else
     return aState == nsIWidget::IME_STATUS_ENABLED ||
            aState == nsIWidget::IME_STATUS_PLUGIN;
-#endif
 }
 
 PRBool
@@ -6768,21 +6734,19 @@ nsWindow::SetIMEEnabled(PRUint32 aState)
             // user previous entered passwds, so lets make completions invisible
             // in these cases.
             int mode;
-            g_object_get (G_OBJECT(IMEGetContext()), "hildon-input-mode", &mode, NULL);
+            g_object_get (G_OBJECT(focusedIm), "hildon-input-mode", &mode, NULL);
 
-
-            if (mIMEData->mEnabled == nsIWidget::IME_STATUS_ENABLED ||
-                mIMEData->mEnabled == nsIWidget::IME_STATUS_PLUGIN)
+            if (mIMEData->mEnabled == IME_STATUS_ENABLED)
                 mode &= ~HILDON_GTK_INPUT_MODE_INVISIBLE;
             else if (mIMEData->mEnabled == nsIWidget::IME_STATUS_PASSWORD)
                mode |= HILDON_GTK_INPUT_MODE_INVISIBLE;
 
-            g_object_set (G_OBJECT(IMEGetContext()), "hildon-input-mode", (HildonGtkInputMode)mode, NULL);
+            g_object_set (G_OBJECT(focusedIm), "hildon-input-mode", (HildonGtkInputMode)mode, NULL);
             gIMEVirtualKeyboardOpened = PR_TRUE;
-            hildon_gtk_im_context_show (IMEGetContext());
+            hildon_gtk_im_context_show (focusedIm);
         } else {
             gIMEVirtualKeyboardOpened = PR_FALSE;
-            hildon_gtk_im_context_hide (IMEGetContext());
+            hildon_gtk_im_context_hide (focusedIm);
         }
 #endif
 
@@ -6936,7 +6900,8 @@ IM_commit_cb(GtkIMContext *aContext,
     // if gFocusWindow is null, use the last focused gIMEFocusWindow
     nsRefPtr<nsWindow> window = gFocusWindow ? gFocusWindow : gIMEFocusWindow;
 
-    if (!window || IM_get_input_context(window) != aContext)
+    if (!window || IM_get_input_context(window) != aContext &&
+        !(window->mIMEData && window->mIMEData->mEnabled == nsIWidget::IME_STATUS_PASSWORD)) 
         return;
 
     /* If IME doesn't change they keyevent that generated this commit,
@@ -7120,11 +7085,7 @@ IM_get_input_context(nsWindow *aWindow)
         data->mEnabled == nsIWidget::IME_STATUS_PLUGIN)
         return data->mContext;
     if (data->mEnabled == nsIWidget::IME_STATUS_PASSWORD)
-#ifdef MOZ_PLATFORM_HILDON
-        return data->mContext;
-#else
         return data->mSimpleContext;
-#endif
     return data->mDummyContext;
 }
 

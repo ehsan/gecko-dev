@@ -376,7 +376,7 @@ jsds_FilterHook (JSDContext *jsdc, JSDThreadState *state)
     if (!script)
         return PR_TRUE;
 
-    jsuword pc = JSD_GetPCForStackFrame (jsdc, state, frame);
+    jsuint pc = JSD_GetPCForStackFrame (jsdc, state, frame);
 
     nsDependentCString url(JSD_GetScriptFilename (jsdc, script));
     if (url.IsEmpty()) {
@@ -437,7 +437,7 @@ jsds_FilterHook (JSDContext *jsdc, JSDThreadState *state)
                             }
                             break;
                         default:
-                            NS_ERROR("Invalid pattern type");
+                            NS_ASSERTION(0, "Invalid pattern type");
                     }
                 }                
             }

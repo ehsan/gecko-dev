@@ -148,7 +148,7 @@ CIEHtmlDomNode::~CIEHtmlDomNode()
         WrapperType::CreateInstance(&pWrapper); \
         if (!pWrapper) \
         { \
-            NS_ERROR(errorMsg); \
+            NS_ASSERTION(0, errorMsg); \
             return E_OUTOFMEMORY; \
         } \
         if (FAILED(pWrapper->QueryInterface(IID_IUnknown, (void**)pNode))) \

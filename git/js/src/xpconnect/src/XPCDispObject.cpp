@@ -305,7 +305,7 @@ JSBool XPCDispObject::Invoke(XPCCallContext & ccx, CallMode mode)
             secAction = nsIXPCSecurityManager::ACCESS_SET_PROPERTY;
             break;
         default:
-            NS_ERROR("bad value");
+            NS_ASSERTION(0,"bad value");
             return JS_FALSE;
     }
     jsval name = member->GetName();

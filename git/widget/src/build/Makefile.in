@@ -50,6 +50,17 @@ RESFILE		= widget.res
 MODULE_NAME	= nsWidgetModule
 LIBXUL_LIBRARY = 1
 
+REQUIRES	= xpcom \
+		  string \
+		  necko \
+		  uconv \
+		  gfx \
+		  dom \
+		  timer \
+		  accessibility \
+		  thebes \
+		  cairo \
+		  $(NULL)
 
 CPPSRCS		= nsWinWidgetFactory.cpp
 

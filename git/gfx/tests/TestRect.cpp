@@ -35,57 +35,53 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "TestHarness.h"
-
 #include "nsRect.h"
+#include <stdio.h>
 #ifdef XP_WIN
 #include <windows.h>
 #endif
 
-template <class RectType>
 static PRBool
 TestConstructors()
 {
   // Create a rectangle
-  RectType  rect1(10, 20, 30, 40);
+  nsRect  rect1(10, 20, 30, 40);
 
   // Make sure the rectangle was properly initialized
   if ((rect1.x != 10) || (rect1.y != 20) ||
       (rect1.width != 30) || (rect1.height != 40)) {
-    fail("[1] Make sure the rectangle was properly initialized with constructor");
+    printf("rect initialization failed!\n");
     return PR_FALSE;
   }
 
   // Create a second rect using the copy constructor
-  RectType  rect2(rect1);
+  nsRect  rect2(rect1);
 
   // Make sure the rectangle was properly initialized
   if ((rect2.x != rect1.x) || (rect2.y != rect1.y) ||
       (rect2.width != rect1.width) || (rect2.height != rect1.height)) {
-    fail("[2] Make sure the rectangle was properly initialized with copy constructor");
+    printf("rect copy constructor failed!\n");
     return PR_FALSE;
   }
 
-  passed("TestConstructors");
   return PR_TRUE;
 }
 
-template <class RectType>
 static PRBool
 TestEqualityOperator()
 {
-  RectType  rect1(10, 20, 30, 40);
-  RectType  rect2(rect1);
+  nsRect  rect1(10, 20, 30, 40);
+  nsRect  rect2(rect1);
 
   // Test the equality operator
   if (!(rect1 == rect2)) {
-    fail("[1] Test the equality operator");
+    printf("rect equality operator failed!\n");
     return PR_FALSE;
   }
 
   // Test the inequality operator
   if (rect1 != rect2) {
-    fail("[2] Test the inequality operator");
+    printf("rect inequality operator failed!\n");
     return PR_FALSE;
   }
 
@@ -93,55 +89,53 @@ TestEqualityOperator()
   rect1.Empty();
   rect2.Empty();
   if (!(rect1 == rect2)) {
-    fail("[3] Make sure that two empty rects are equal");
+    printf("rect equality operator failed for empty rects!\n");
     return PR_FALSE;
   }
 
-  passed("TestEqualityOperator");
   return PR_TRUE;
 }
 
-template <class RectType>
 static PRBool
 TestContainment()
 {
-  RectType  rect1(10, 10, 50, 50);
+  nsRect  rect1(10, 10, 50, 50);
 
   // Test the point containment methods
   //
 
   // Basic test of a point in the middle of the rect
   if (!rect1.Contains(rect1.x + rect1.width/2, rect1.y + rect1.height/2)) {
-    fail("[1] Basic test of a point in the middle of the rect");
+    printf("point containment test #1 failed!\n");
     return PR_FALSE;
   }
 
   // Test against a point at the left/top edges
   if (!rect1.Contains(rect1.x, rect1.y)) {
-    fail("[2] Test against a point at the left/top edges");
+    printf("point containment test #2 failed!\n");
     return PR_FALSE;
   }
 
   // Test against a point at the right/bottom extents
   if (rect1.Contains(rect1.XMost(), rect1.YMost())) {
-    fail("[3] Test against a point at the right/bottom extents");
+    printf("point containment test #3 failed!\n");
     return PR_FALSE;
   }
 
   // Test the rect containment methods
   //
-  RectType  rect2(rect1);
+  nsRect  rect2(rect1);
 
   // Test against a rect that's the same as rect1
   if (!rect1.Contains(rect2)) {
-    fail("[4] Test against a rect that's the same as rect1");
+    printf("rect containment test #1 failed!\n");
     return PR_FALSE;
   }
 
   // Test against a rect whose left edge (only) is outside of rect1
   rect2.x--;
   if (rect1.Contains(rect2)) {
-    fail("[5] Test against a rect whose left edge (only) is outside of rect1");
+    printf("rect containment test #2 failed!\n");
     return PR_FALSE;
   }
   rect2.x++;
@@ -149,7 +143,7 @@ TestContainment()
   // Test against a rect whose top edge (only) is outside of rect1
   rect2.y--;
   if (rect1.Contains(rect2)) {
-    fail("[6] Test against a rect whose top edge (only) is outside of rect1");
+    printf("rect containment test #3 failed!\n");
     return PR_FALSE;
   }
   rect2.y++;
@@ -157,7 +151,7 @@ TestContainment()
   // Test against a rect whose right edge (only) is outside of rect1
   rect2.x++;
   if (rect1.Contains(rect2)) {
-    fail("[7] Test against a rect whose right edge (only) is outside of rect1");
+    printf("rect containment test #2 failed!\n");
     return PR_FALSE;
   }
   rect2.x--;
@@ -165,48 +159,46 @@ TestContainment()
   // Test against a rect whose bottom edge (only) is outside of rect1
   rect2.y++;
   if (rect1.Contains(rect2)) {
-    fail("[8] Test against a rect whose bottom edge (only) is outside of rect1");
+    printf("rect containment test #3 failed!\n");
     return PR_FALSE;
   }
   rect2.y--;
 
-  passed("TestContainment");
   return PR_TRUE;
 }
 
 // Test the method that returns a boolean result but doesn't return a
 // a rectangle
-template <class RectType>
 static PRBool
 TestIntersects()
 {
-  RectType  rect1(10, 10, 50, 50);
-  RectType  rect2(rect1);
+  nsRect  rect1(10, 10, 50, 50);
+  nsRect  rect2(rect1);
 
   // Test against a rect that's the same as rect1
   if (!rect1.Intersects(rect2)) {
-    fail("[1] Test against a rect that's the same as rect1");
+    printf("rect intersects test #1 failed!\n");
     return PR_FALSE;
   }
 
   // Test against a rect that's enclosed by rect1
-  rect2.Inflate(-1, -1);
+  rect2.Deflate(1, 1);
   if (!rect1.Contains(rect2) || !rect1.Intersects(rect2)) {
-    fail("[2] Test against a rect that's enclosed by rect1");
+    printf("rect intersects test #2 failed!\n");
     return PR_FALSE;
   }
   rect2.Inflate(1, 1);
 
   // Make sure inflate and deflate worked correctly
   if (rect1 != rect2) {
-    fail("[3] Make sure inflate and deflate worked correctly");
+    printf("rect inflate or deflate failed!\n");
     return PR_FALSE;
   }
 
   // Test against a rect that overlaps the left edge of rect1
   rect2.x--;
   if (!rect1.Intersects(rect2)) {
-    fail("[4] Test against a rect that overlaps the left edge of rect1");
+    printf("rect containment test #3 failed!\n");
     return PR_FALSE;
   }
   rect2.x++;
@@ -214,7 +206,7 @@ TestIntersects()
   // Test against a rect that's outside of rect1 on the left
   rect2.x -= rect2.width;
   if (rect1.Intersects(rect2)) {
-    fail("[5] Test against a rect that's outside of rect1 on the left");
+    printf("rect containment test #4 failed!\n");
     return PR_FALSE;
   }
   rect2.x += rect2.width;
@@ -222,7 +214,7 @@ TestIntersects()
   // Test against a rect that overlaps the top edge of rect1
   rect2.y--;
   if (!rect1.Intersects(rect2)) {
-    fail("[6] Test against a rect that overlaps the top edge of rect1");
+    printf("rect containment test #5 failed!\n");
     return PR_FALSE;
   }
   rect2.y++;
@@ -230,7 +222,7 @@ TestIntersects()
   // Test against a rect that's outside of rect1 on the top
   rect2.y -= rect2.height;
   if (rect1.Intersects(rect2)) {
-    fail("[7] Test against a rect that's outside of rect1 on the top");
+    printf("rect containment test #6 failed!\n");
     return PR_FALSE;
   }
   rect2.y += rect2.height;
@@ -238,7 +230,7 @@ TestIntersects()
   // Test against a rect that overlaps the right edge of rect1
   rect2.x++;
   if (!rect1.Intersects(rect2)) {
-    fail("[8] Test against a rect that overlaps the right edge of rect1");
+    printf("rect containment test #7 failed!\n");
     return PR_FALSE;
   }
   rect2.x--;
@@ -246,7 +238,7 @@ TestIntersects()
   // Test against a rect that's outside of rect1 on the right
   rect2.x += rect2.width;
   if (rect1.Intersects(rect2)) {
-    fail("[9] Test against a rect that's outside of rect1 on the right");
+    printf("rect containment test #8 failed!\n");
     return PR_FALSE;
   }
   rect2.x -= rect2.width;
@@ -254,7 +246,7 @@ TestIntersects()
   // Test against a rect that overlaps the bottom edge of rect1
   rect2.y++;
   if (!rect1.Intersects(rect2)) {
-    fail("[10] Test against a rect that overlaps the bottom edge of rect1");
+    printf("rect containment test #9 failed!\n");
     return PR_FALSE;
   }
   rect2.y--;
@@ -262,34 +254,32 @@ TestIntersects()
   // Test against a rect that's outside of rect1 on the bottom
   rect2.y += rect2.height;
   if (rect1.Intersects(rect2)) {
-    fail("[11] Test against a rect that's outside of rect1 on the bottom");
+    printf("rect containment test #10 failed!\n");
     return PR_FALSE;
   }
   rect2.y -= rect2.height;
 
-  passed("TestIntersects");
   return PR_TRUE;
 }
 
 // Test the method that returns a boolean result and an intersection rect
-template <class RectType>
 static PRBool
 TestIntersection()
 {
-  RectType  rect1(10, 10, 50, 50);
-  RectType  rect2(rect1);
-  RectType  dest;
+  nsRect  rect1(10, 10, 50, 50);
+  nsRect  rect2(rect1);
+  nsRect  dest;
 
   // Test against a rect that's the same as rect1
   if (!dest.IntersectRect(rect1, rect2) || (dest != rect1)) {
-    fail("[1] Test against a rect that's the same as rect1");
+    printf("rect intersection test #1 failed!\n");
     return PR_FALSE;
   }
 
   // Test against a rect that's enclosed by rect1
-  rect2.Inflate(-1, -1);
+  rect2.Deflate(1, 1);
   if (!dest.IntersectRect(rect1, rect2) || (dest != rect2)) {
-    fail("[2] Test against a rect that's enclosed by rect1");
+    printf("rect intersection test #2 failed!\n");
     return PR_FALSE;
   }
   rect2.Inflate(1, 1);
@@ -297,8 +287,8 @@ TestIntersection()
   // Test against a rect that overlaps the left edge of rect1
   rect2.x--;
   if (!dest.IntersectRect(rect1, rect2) ||
-     (dest != RectType(rect1.x, rect1.y, rect1.width - 1, rect1.height))) {
-    fail("[3] Test against a rect that overlaps the left edge of rect1");
+     (dest != nsRect(rect1.x, rect1.y, rect1.width - 1, rect1.height))) {
+    printf("rect intersection test #3 failed!\n");
     return PR_FALSE;
   }
   rect2.x++;
@@ -306,12 +296,12 @@ TestIntersection()
   // Test against a rect that's outside of rect1 on the left
   rect2.x -= rect2.width;
   if (dest.IntersectRect(rect1, rect2)) {
-    fail("[4] Test against a rect that's outside of rect1 on the left");
+    printf("rect intersection test #4 failed!\n");
     return PR_FALSE;
   }
   // Make sure an empty rect is returned
   if (!dest.IsEmpty()) {
-    fail("[4] Make sure an empty rect is returned");
+    printf("rect intersection test #4 no empty rect!\n");
     return PR_FALSE;
   }
   rect2.x += rect2.width;
@@ -319,8 +309,8 @@ TestIntersection()
   // Test against a rect that overlaps the top edge of rect1
   rect2.y--;
   if (!dest.IntersectRect(rect1, rect2) ||
-     (dest != RectType(rect1.x, rect1.y, rect1.width, rect1.height - 1))) {
-    fail("[5] Test against a rect that overlaps the top edge of rect1");
+     (dest != nsRect(rect1.x, rect1.y, rect1.width, rect1.height - 1))) {
+    printf("rect intersection test #5 failed!\n");
     return PR_FALSE;
   }
   rect2.y++;
@@ -328,12 +318,12 @@ TestIntersection()
   // Test against a rect that's outside of rect1 on the top
   rect2.y -= rect2.height;
   if (dest.IntersectRect(rect1, rect2)) {
-    fail("[6] Test against a rect that's outside of rect1 on the top");
+    printf("rect intersection test #6 failed!\n");
     return PR_FALSE;
   }
   // Make sure an empty rect is returned
   if (!dest.IsEmpty()) {
-    fail("[6] Make sure an empty rect is returned");
+    printf("rect intersection test #6 no empty rect!\n");
     return PR_FALSE;
   }
   rect2.y += rect2.height;
@@ -341,8 +331,8 @@ TestIntersection()
   // Test against a rect that overlaps the right edge of rect1
   rect2.x++;
   if (!dest.IntersectRect(rect1, rect2) ||
-     (dest != RectType(rect1.x + 1, rect1.y, rect1.width - 1, rect1.height))) {
-    fail("[7] Test against a rect that overlaps the right edge of rect1");
+     (dest != nsRect(rect1.x + 1, rect1.y, rect1.width - 1, rect1.height))) {
+    printf("rect intersection test #7 failed!\n");
     return PR_FALSE;
   }
   rect2.x--;
@@ -350,12 +340,12 @@ TestIntersection()
   // Test against a rect that's outside of rect1 on the right
   rect2.x += rect2.width;
   if (dest.IntersectRect(rect1, rect2)) {
-    fail("[8] Test against a rect that's outside of rect1 on the right");
+    printf("rect intersection test #8 failed!\n");
     return PR_FALSE;
   }
   // Make sure an empty rect is returned
   if (!dest.IsEmpty()) {
-    fail("[8] Make sure an empty rect is returned");
+    printf("rect intersection test #8 no empty rect!\n");
     return PR_FALSE;
   }
   rect2.x -= rect2.width;
@@ -363,8 +353,8 @@ TestIntersection()
   // Test against a rect that overlaps the bottom edge of rect1
   rect2.y++;
   if (!dest.IntersectRect(rect1, rect2) ||
-     (dest != RectType(rect1.x, rect1.y + 1, rect1.width, rect1.height - 1))) {
-    fail("[9] Test against a rect that overlaps the bottom edge of rect1");
+     (dest != nsRect(rect1.x, rect1.y + 1, rect1.width, rect1.height - 1))) {
+    printf("rect intersection test #9 failed!\n");
     return PR_FALSE;
   }
   rect2.y--;
@@ -372,68 +362,30 @@ TestIntersection()
   // Test against a rect that's outside of rect1 on the bottom
   rect2.y += rect2.height;
   if (dest.IntersectRect(rect1, rect2)) {
-    fail("[10] Test against a rect that's outside of rect1 on the bottom");
+    printf("rect intersection test #10 failed!\n");
     return PR_FALSE;
   }
   // Make sure an empty rect is returned
   if (!dest.IsEmpty()) {
-    fail("[10] Make sure an empty rect is returned");
+    printf("rect intersection test #10 no empty rect!\n");
     return PR_FALSE;
   }
   rect2.y -= rect2.height;
 
-  // Test against a rect with zero width or height
-  rect1.SetRect(100, 100, 100, 100);
-  rect2.SetRect(150, 100, 0, 100);
-  if (dest.IntersectRect(rect1, rect2) || !dest.IsEmpty()) {
-    fail("[11] Intersection of rects with zero width or height should be empty");
-    return PR_FALSE;
-  }
-
-  // Tests against a rect with negative width or height
-  //
-
-  // Test against a rect with negative width
-  rect1.SetRect(100, 100, 100, 100);
-  rect2.SetRect(100, 100, -100, 100);
-  if (dest.IntersectRect(rect1, rect2) || !dest.IsEmpty()) {
-    fail("[12] Intersection of rects with negative width or height should be empty");
-    return PR_FALSE;
-  }
-
-  // Those two rects exactly overlap in some way...
-  // but we still want to return an empty rect
-  rect1.SetRect(100, 100, 100, 100);
-  rect2.SetRect(200, 200, -100, -100);
-  if (dest.IntersectRect(rect1, rect2) || !dest.IsEmpty()) {
-    fail("[13] Intersection of rects with negative width or height should be empty");
-    return PR_FALSE;
-  }
-
-  // Test against two identical rects with negative height
-  rect1.SetRect(100, 100, 100, -100);
-  rect2.SetRect(100, 100, 100, -100);
-  if (dest.IntersectRect(rect1, rect2) || !dest.IsEmpty()) {
-    fail("[14] Intersection of rects with negative width or height should be empty");
-    return PR_FALSE;
-  }
-
-  passed("TestIntersection");
   return PR_TRUE;
 }
 
-template <class RectType>
 static PRBool
 TestUnion()
 {
-  RectType  rect1;
-  RectType  rect2(10, 10, 50, 50);
-  RectType  dest;
+  nsRect  rect1;
+  nsRect  rect2(10, 10, 50, 50);
+  nsRect  dest;
 
   // Check the case where the receiver is an empty rect
   rect1.Empty();
   if (!dest.UnionRect(rect1, rect2) || (dest != rect2)) {
-    fail("[1] Check the case where the receiver is an empty rect");
+    printf("rect union test #1 failed!\n");
     return PR_FALSE;
   }
 
@@ -441,15 +393,15 @@ TestUnion()
   rect1 = rect2;
   rect2.Empty();
   if (!dest.UnionRect(rect1, rect2) || (dest != rect1)) {
-    fail("[2] Check the case where the source rect is an empty rect");
+    printf("rect union test #2 failed!\n");
     return PR_FALSE;
   }
 
-  // Test the case where both rects are empty
+  // Test the case where both rects are empty. This should fail
   rect1.Empty();
   rect2.Empty();
   if (dest.UnionRect(rect1, rect2)) {
-    fail("[3] Test the case where both rects are empty");
+    printf("rect union test #3 failed!\n");
     return PR_FALSE;
   }
 
@@ -457,8 +409,8 @@ TestUnion()
   rect1.SetRect(10, 10, 50, 50);
   rect2.SetRect(100, 100, 50, 50);
   if (!dest.UnionRect(rect1, rect2) ||
-     (dest != RectType(rect1.x, rect1.y, rect2.XMost() - rect1.x, rect2.YMost() - rect1.y))) {
-    fail("[4] Test union case where the two rects don't overlap at all");
+     (dest != nsRect(rect1.x, rect1.y, rect2.XMost() - rect1.x, rect2.YMost() - rect1.y))) {
+    printf("rect union test #4 failed!\n");
     return PR_FALSE;
   }
 
@@ -466,68 +418,33 @@ TestUnion()
   rect1.SetRect(30, 30, 50, 50);
   rect2.SetRect(10, 10, 50, 50);
   if (!dest.UnionRect(rect1, rect2) ||
-      (dest != RectType(rect2.x, rect2.y, rect1.XMost() - rect2.x, rect1.YMost() - rect2.y))) {
-    fail("[5] Test union case where the two rects overlap");
+      (dest != nsRect(rect2.x, rect2.y, rect1.XMost() - rect2.x, rect1.YMost() - rect2.y))) {
+    printf("rect union test #5 failed!\n");
     return PR_FALSE;
   }
 
-  passed("TestUnion");
   return PR_TRUE;
 }
 
 int main(int argc, char** argv)
 {
-  ScopedXPCOM xpcom("TestRect");
-  if (xpcom.failed())
+  if (!TestConstructors())
     return -1;
 
-  int rv = 0;
+  if (!TestEqualityOperator())
+    return -1;
 
-  //-----------------------
-  // Test nsRect
-  //
-  printf("===== nsRect tests =====\n");
+  if (!TestContainment())
+    return -1;
 
-  if (!TestConstructors<nsRect>())
-    rv = -1;
+  if (!TestIntersects())
+    return -1;
 
-  if (!TestEqualityOperator<nsRect>())
-    rv = -1;
+  if (!TestIntersection())
+    return -1;
 
-  if (!TestContainment<nsRect>())
-    rv = -1;
+  if (!TestUnion())
+    return -1;
 
-  if (!TestIntersects<nsRect>())
-    rv = -1;
-
-  if (!TestIntersection<nsRect>())
-    rv = -1;
-
-  if (!TestUnion<nsRect>())
-    rv = -1;
-
-  //-----------------------
-  // Test nsIntRect
-  //
-  printf("===== nsIntRect tests =====\n");
- 
-  if (!TestConstructors<nsIntRect>())
-    rv = -1;
-
-  if (!TestEqualityOperator<nsIntRect>())
-    rv = -1;
-
-  if (!TestContainment<nsIntRect>())
-    rv = -1;
-
-  if (!TestIntersects<nsIntRect>())
-    rv = -1;
-
-  if (!TestIntersection<nsIntRect>())
-    rv = -1;
-
-  if (!TestUnion<nsIntRect>())
-    rv = -1;
-
-  return rv;
+  return 0;
 }

@@ -41,7 +41,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#if defined(AVMPLUS_UNIX) || defined(AVMPLUS_OS2)
+#if defined(AVMPLUS_UNIX)
 #include <unistd.h>
 #include <sys/mman.h>
 #endif
@@ -74,9 +74,6 @@
 
 #ifdef WIN32
 #include <windows.h>
-#elif defined(AVMPLUS_OS2)
-#define INCL_DOSMEMMGR
-#include <os2.h>
 #endif
 
 #if defined(DEBUG) || defined(MOZ_NO_VARADIC_MACROS)

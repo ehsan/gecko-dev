@@ -679,16 +679,6 @@ void nsChildView::TearDownView()
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
-nsCocoaWindow*
-nsChildView::GetXULWindowWidget()
-{
-  id windowDelegate = [[mView nativeWindow] delegate];
-  if (windowDelegate && [windowDelegate isKindOfClass:[WindowDelegate class]]) {
-    return [(WindowDelegate *)windowDelegate geckoWidget];
-  }
-  return nsnull;
-}
-
 // create a nsChildView
 NS_IMETHODIMP nsChildView::Create(nsIWidget *aParent,
                       const nsIntRect &aRect,
@@ -771,7 +761,7 @@ void* nsChildView::GetNativeData(PRUint32 aDataType)
       break;
 
     case NS_NATIVE_GRAPHIC:
-      NS_ERROR("Requesting NS_NATIVE_GRAPHIC on a Mac OS X child view!");
+      NS_ASSERTION(0, "Requesting NS_NATIVE_GRAPHIC on a Mac OS X child view!");
       retVal = nsnull;
       break;
 
@@ -827,14 +817,40 @@ void nsChildView::SetTransparencyMode(nsTransparencyMode aMode)
   BOOL isTransparent = aMode == eTransparencyTransparent;
   BOOL currentTransparency = ![[mView nativeWindow] isOpaque];
   if (isTransparent != currentTransparency) {
-    nsCocoaWindow *widget = GetXULWindowWidget();
-    if (widget) {
-      widget->MakeBackgroundTransparent(aMode);
-      [(ChildView*)mView setTransparent:isTransparent];
+    // Find out if this is a window we created by seeing if the delegate is WindowDelegate. If it is,
+    // tell the nsCocoaWindow to set its background to transparent.
+    id windowDelegate = [[mView nativeWindow] delegate];
+    if (windowDelegate && [windowDelegate isKindOfClass:[WindowDelegate class]]) {
+      nsCocoaWindow *widget = [(WindowDelegate *)windowDelegate geckoWidget];
+      if (widget) {
+        widget->MakeBackgroundTransparent(aMode);
+        [(ChildView*)mView setTransparent:isTransparent];
+      }
     }
   }
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
+}
+
+// This is called by nsContainerFrame on the root widget for all window types
+// except popup windows (when nsCocoaWindow::SetWindowShadowStyle is used instead).
+NS_IMETHODIMP nsChildView::SetWindowShadowStyle(PRInt32 aStyle)
+{
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+
+  // Find out if this is a window we created by seeing if the delegate is WindowDelegate. If it is,
+  // tell the nsCocoaWindow to set the shadow style.
+  id windowDelegate = [[mView nativeWindow] delegate];
+  if (windowDelegate && [windowDelegate isKindOfClass:[WindowDelegate class]]) {
+    nsCocoaWindow *widget = [(WindowDelegate *)windowDelegate geckoWidget];
+    if (widget) {
+      widget->SetWindowShadowStyle(aStyle);
+    }
+  }
+
+  return NS_OK;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
 NS_IMETHODIMP nsChildView::IsVisible(PRBool& outState)
@@ -1023,14 +1039,9 @@ NS_IMETHODIMP nsChildView::SetFocus(PRBool aRaise)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  // Don't so anything if we're invisible (if Show(PR_FALSE) has been
-  // called on us, or if Show(PR_TRUE) hasn't yet been called).  This
-  // resolves bug 504450.
-  if (mView && ![mView isHidden]) {
-    NSWindow* window = [mView window];
-    if (window)
-      [window makeFirstResponder:mView];
-  }
+  NSWindow* window = [mView window];
+  if (window)
+    [window makeFirstResponder:mView];
   return NS_OK;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
@@ -1514,14 +1525,17 @@ NS_IMETHODIMP nsChildView::ForceUpdateNativeMenuAt(const nsAString& indexString)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  nsCocoaWindow *widget = GetXULWindowWidget();
-  if (widget) {
-    nsMenuBarX* mb = widget->GetMenuBar();
-    if (mb) {
-      if (indexString.IsEmpty())
-        mb->ForceNativeMenuReload();
-      else
-        mb->ForceUpdateNativeMenuAt(indexString);
+  id windowDelegate = [[mView nativeWindow] delegate];
+  if (windowDelegate && [windowDelegate isKindOfClass:[WindowDelegate class]]) {
+    nsCocoaWindow *widget = [(WindowDelegate *)windowDelegate geckoWidget];
+    if (widget) {
+      nsMenuBarX* mb = widget->GetMenuBar();
+      if (mb) {
+        if (indexString.IsEmpty())
+          mb->ForceNativeMenuReload();
+        else
+          mb->ForceUpdateNativeMenuAt(indexString);
+      }
     }
   }
   return NS_OK;
@@ -1697,8 +1711,7 @@ nsresult nsChildView::ConfigureChildren(const nsTArray<Configuration>& aConfigur
   return NS_OK;
 }  
 
-void nsChildView::Scroll(const nsIntPoint& aDelta,
-                         const nsTArray<nsIntRect>& aDestRects,
+void nsChildView::Scroll(const nsIntPoint& aDelta, const nsIntRect& aSource,
                          const nsTArray<Configuration>& aConfigurations)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
@@ -1711,12 +1724,10 @@ void nsChildView::Scroll(const nsIntPoint& aDelta,
   if (mVisible) {
     viewWasDirty = [mView needsDisplay];
 
-    for (PRUint32 i = 0; i < aDestRects.Length(); ++i) {
-      NSRect rect;
-      GeckoRectToNSRect(aDestRects[i] - aDelta, rect);
-      NSSize scrollVector = {aDelta.x, aDelta.y};
-      [mView scrollRect:rect by:scrollVector];
-    }
+    NSRect rect;
+    GeckoRectToNSRect(aSource, rect);
+    NSSize scrollVector = {aDelta.x, aDelta.y};
+    [mView scrollRect:rect by:scrollVector];
   }
 
   // Don't force invalidation of the child if it's moving by the scroll
@@ -2673,16 +2684,16 @@ static const PRInt32 sShadowInvalidationInterval = 100;
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
 
+  // If there is no rollup widget we assume the OS routed the event correctly.
+  if (!gRollupWidget)
+    return YES;
+
   // Don't bother if we've been destroyed:  mWindow will now be nil, which
   // makes all our work here pointless, and can even cause us to resend the
   // event to ourselves in an infinte loop (since targetWindow == mWindow no
   // longer tests whether targetWindow is us).
   if (!mGeckoChild || !mWindow)
     return YES;
-
-  // Find the window that the event is over.
-  BOOL isUnderMouse;
-  NSWindow* targetWindow = nsCocoaUtils::FindWindowForEvent(anEvent, &isUnderMouse);
 
   // If this is the rollup widget and the event is not a mouse move then trust the OS routing.  
   // The reason for this trust is complicated.
@@ -2703,19 +2714,20 @@ static const PRInt32 sShadowInvalidationInterval = 100;
   // action must have caused the rollup window to come into existence. In that case, we might need
   // to reroute the event if it is over the rollup window. That is why if we're not the rollup window
   // we don't return YES here.
-  if (gRollupWidget) {
-    NSWindow* rollupWindow = (NSWindow*)gRollupWidget->GetNativeData(NS_NATIVE_WINDOW);
-    if (mWindow == rollupWindow && [anEvent type] != NSMouseMoved)
-      return YES;
+  NSWindow* rollupWindow = (NSWindow*)gRollupWidget->GetNativeData(NS_NATIVE_WINDOW);
+  if (mWindow == rollupWindow && [anEvent type] != NSMouseMoved)
+    return YES;
 
-    // If the event was not over any window, send it to the rollup window.
-    if (!isUnderMouse)
-      targetWindow = rollupWindow;
-  }
+  // Find the window that the event is over.
+  NSWindow* targetWindow = nsCocoaUtils::FindWindowUnderPoint(nsCocoaUtils::ScreenLocationForEvent(anEvent));
 
-  // If there's no window that's more appropriate than our window then just return
+  // If the event was not over any window, send it to the rollup window.
+  if (!targetWindow)
+    targetWindow = rollupWindow;
+
+  // At this point we've resolved a target window, if we are it then just return
   // yes so we handle it. No need to redirect.
-  if (!targetWindow || targetWindow == mWindow)
+  if (targetWindow == mWindow)
     return YES;
 
   // Send the event to its new destination.
@@ -3991,8 +4003,7 @@ static PRBool IsNormalCharInputtingEvent(const nsKeyEvent& aEvent)
   [self convertGenericCocoaEvent:aMouseEvent toGeckoEvent:outGeckoEvent];
 
   // convert point to view coordinate system
-  NSPoint locationInWindow = nsCocoaUtils::EventLocationForWindow(aMouseEvent, mWindow);
-  NSPoint localPoint = [self convertPoint:locationInWindow fromView:nil];
+  NSPoint localPoint = [self convertPoint:[aMouseEvent locationInWindow] fromView:nil];
   outGeckoEvent->refPoint.x = static_cast<nscoord>(localPoint.x);
   outGeckoEvent->refPoint.y = static_cast<nscoord>(localPoint.y);
 
@@ -4175,39 +4186,17 @@ GetInputSourceIDFromKeyboardLayout(SInt32 aLayoutID)
   return sourceID;
 }
 
-static void
-GetKCHRData(KeyTranslateData &aKT)
-{
-  KeyboardLayoutRef kbRef;
-  OSStatus err =
-    ::KLGetKeyboardLayoutWithIdentifier(aKT.mLayoutID, &kbRef);
-  if (err != noErr)
-    return;
-
-  err = ::KLGetKeyboardLayoutProperty(kbRef, kKLKCHRData,
-                                      (const void**)&aKT.mKchr.mHandle);
-  if (err != noErr || !aKT.mKchr.mHandle)
-    return;
-
-  err = ::GetTextEncodingFromScriptInfo(aKT.mScript, kTextLanguageDontCare,
-                                        kTextRegionDontCare,
-                                        &aKT.mKchr.mEncoding);
-  if (err != noErr)
-    aKT.mKchr.mHandle = nsnull;
-}
-
 static PRUint32
 GetUSLayoutCharFromKeyTranslate(UInt32 aKeyCode, UInt32 aModifiers)
 {
-  KeyboardLayoutRef kbRef = nsnull;
-  OSStatus err = ::KLGetKeyboardLayoutWithIdentifier(kKLUSKeyboard, &kbRef);
-  NS_ENSURE_TRUE(err == noErr && kbRef, 0);
-  const UCKeyboardLayout* layout = nsnull;
-  err = ::KLGetKeyboardLayoutProperty(kbRef, kKLuchrData,
-                                      (const void**)&layout);
-  NS_ENSURE_TRUE(err == noErr && layout, 0);
+  KeyTranslateData kt;
+  Handle handle = ::GetResource('uchr', kKLUSKeyboard); // US keyboard layout
+  if (!handle || !(*handle)) {
+    NS_ERROR("US keyboard layout doesn't have uchr resource");
+    return 0;
+  }
   UInt32 kbType = 40; // ANSI, don't use actual layout
-  return UCKeyTranslateToUnicode(layout, aKeyCode,
+  return UCKeyTranslateToUnicode((UCKeyboardLayout*)(*handle), aKeyCode,
                                  aModifiers, kbType);
 }
 
@@ -4266,7 +4255,7 @@ GetUSLayoutCharFromKeyTranslate(UInt32 aKeyCode, UInt32 aModifiers)
         kt.mLayoutID = ::GetScriptVariable(kt.mScript, smScriptKeys);
       }
 
-      PRBool isUchrKeyboardLayout = PR_FALSE;
+      CFDataRef uchr = NULL;
       // GetResource('uchr', kt.mLayoutID) fails on OS X 10.5
       if (nsToolkit::OnLeopardOrLater() &&
           Leopard_TISCopyCurrentKeyboardLayoutInputSource &&
@@ -4274,7 +4263,6 @@ GetUSLayoutCharFromKeyTranslate(UInt32 aKeyCode, UInt32 aModifiers)
           Leopard_TISCreateInputSourceList &&
           kOurTISPropertyUnicodeKeyLayoutData &&
           kOurTISPropertyInputSourceID) {
-        CFDataRef uchr = NULL;
         if (gOverrideKeyboardLayout.mOverrideEnabled) {
           CFStringRef sourceID = GetInputSourceIDFromKeyboardLayout(kt.mLayoutID);
           NS_ASSERTION(sourceID, "unable to map keyboard layout ID to input source ID");
@@ -4292,39 +4280,41 @@ GetUSLayoutCharFromKeyTranslate(UInt32 aKeyCode, UInt32 aModifiers)
           TISInputSourceRef tis = Leopard_TISCopyCurrentKeyboardLayoutInputSource();
           uchr = static_cast<CFDataRef>(Leopard_TISGetInputSourceProperty(tis, kOurTISPropertyUnicodeKeyLayoutData));
         }
-        if (uchr) {
-          // We should be here on OS X 10.5 for any Apple provided layout, as
-          // they are all uchr.  It may be possible to still use kchr resources
-          // from elsewhere, so they may be picked by GetKCHRData below
-          kt.mUchr.mLayout = reinterpret_cast<const UCKeyboardLayout*>
-            (CFDataGetBytePtr(uchr));
-          isUchrKeyboardLayout = PR_TRUE;
-        }
-      } else {
-        // 10.4
-        KeyboardLayoutRef kbRef = nsnull;
-        OSStatus err = ::KLGetKeyboardLayoutWithIdentifier(kt.mLayoutID,
-                                                           &kbRef);
-        if (err == noErr && kbRef) {
-          SInt32 kind;
-          err = ::KLGetKeyboardLayoutProperty(kbRef, kKLKind,
-                                              (const void **)&kind);
-          if (err == noErr && kind != kKLKCHRKind) {
-            err = ::KLGetKeyboardLayoutProperty(kbRef, kKLuchrData,
-                      (const void**)&kt.mUchr.mLayout);
-            if (err != noErr) {
-              kt.mUchr.mLayout = nsnull;
-              // if the kind is kKLKCHRuchrKind, we can retry by KCHR.
-              isUchrKeyboardLayout = kind != kKLKCHRuchrKind;
-            } else {
-              isUchrKeyboardLayout = PR_TRUE;
-            }
-          }
-        }
       }
 
-      if (!isUchrKeyboardLayout) {
-        GetKCHRData(kt);
+      // This fails for Azeri on 10.4 even though kKLKind (2) indicates that
+      // the layout has a uchr resource.  Perhaps KLGetKeyboardLayoutProperty
+      // with kKLuchrData would be helpful here.
+      Handle handle = ::GetResource('uchr', kt.mLayoutID);
+      if (uchr) {
+        // We should be here on OS X 10.5 for any Apple provided layout, as
+        // they are all uchr.  It may be possible to still use kchr resources
+        // from elsewhere, so they may be picked by
+        // GetScriptManagerVariable(smKCHRCache) below
+        kt.mUchr.mLayout = reinterpret_cast<const UCKeyboardLayout*>
+          (CFDataGetBytePtr(uchr));
+      } else if (handle) {
+        // uchr (Unicode) keyboard layout resource prior to 10.5.
+        kt.mUchr.mLayout = *((UCKeyboardLayout**)handle);
+      } else {
+        // kchr (non-Unicode) keyboard layout resource.
+
+        // There are no know cases where GetResource succeeds here, and so
+        // tests (gOverrideKeyboardLayout.mOverrideEnabled) currently end up
+        // with no keyboard layout.  KLGetKeyboardLayoutWithIdentifier and
+        // KLGetKeyboardLayoutProperty with kKLKCHRData would be useful here.
+        kt.mKchr.mHandle = ::GetResource('kchr', kt.mLayoutID);
+
+        if (!kt.mKchr.mHandle && !gOverrideKeyboardLayout.mOverrideEnabled)
+          kt.mKchr.mHandle = (char**)::GetScriptManagerVariable(smKCHRCache);
+        if (kt.mKchr.mHandle) {
+          OSStatus err =
+            ::GetTextEncodingFromScriptInfo(kt.mScript, kTextLanguageDontCare,
+                                            kTextRegionDontCare,
+                                            &kt.mKchr.mEncoding);
+          if (err != noErr)
+            kt.mKchr.mHandle = nsnull;
+        }
       }
 
       // If a keyboard layout override is set, we also need to force the

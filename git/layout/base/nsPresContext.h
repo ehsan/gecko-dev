@@ -280,7 +280,7 @@ public:
   void* AllocateFromShell(size_t aSize)
   {
     if (mShell)
-      return mShell->AllocateMisc(aSize);
+      return mShell->AllocateFrame(aSize);
     return nsnull;
   }
 
@@ -288,7 +288,7 @@ public:
   {
     NS_ASSERTION(mShell, "freeing after shutdown");
     if (mShell)
-      mShell->FreeMisc(aSize, aFreeChunk);
+      mShell->FreeFrame(aSize, aFreeChunk);
   }
 
   /**
@@ -468,6 +468,9 @@ public:
    */
   PRBool IsPaginated() const { return mPaginated; }
   
+  PRBool GetRenderedPositionVaryingContent() const { return mRenderedPositionVaryingContent; }
+  void SetRenderedPositionVaryingContent() { mRenderedPositionVaryingContent = PR_TRUE; }
+
   /**
    * Sets whether the presentation context can scroll for a paginated
    * context.
@@ -1012,6 +1015,7 @@ protected:
   unsigned              mPendingThemeChanged : 1;
   unsigned              mPendingMediaFeatureValuesChanged : 1;
   unsigned              mPrefChangePendingNeedsReflow : 1;
+  unsigned              mRenderedPositionVaryingContent : 1;
 
   // Is the current mUserFontSet valid?
   unsigned              mUserFontSetDirty : 1;

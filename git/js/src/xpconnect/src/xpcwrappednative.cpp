@@ -2289,7 +2289,7 @@ XPCWrappedNative::CallMethod(XPCCallContext& ccx,
             secAction = nsIXPCSecurityManager::ACCESS_SET_PROPERTY;
             break;
         default:
-            NS_ERROR("bad value");
+            NS_ASSERTION(0,"bad value");
             return JS_FALSE;
     }
 
@@ -2852,7 +2852,7 @@ done:
                                               i, GET_LENGTH, dispatchParams,
                                               &array_count))
                     {
-                        NS_ERROR("failed to get array length, we'll leak here");
+                        NS_ASSERTION(0,"failed to get array length, we'll leak here");
                         continue;
                     }
                     if(dp->IsValAllocated())
@@ -3730,7 +3730,7 @@ XPCJSObjectHolder::newHolder(XPCCallContext& ccx, JSObject* obj)
 {
     if(!obj)
     {
-        NS_ERROR("bad param");
+        NS_ASSERTION(0, "bad param");
         return nsnull;
     }
     return new XPCJSObjectHolder(ccx, obj);
