@@ -157,12 +157,6 @@ js_Math_floor(jsdouble d)
 }
 
 jsdouble FASTCALL
-js_Math_ceil(jsdouble d)
-{
-    return ceil(d);
-}
-
-jsdouble FASTCALL
 js_Math_pow(jsdouble d, jsdouble p)
 {
 #ifdef NOTYET
