@@ -1474,9 +1474,10 @@ NS_MEMORY_REPORTER_IMPLEMENT(XPConnectJSMjitData,
 static PRInt64
 GetCompartmentTjitCode(JSCompartment *c)
 {
-    if (c->hasTraceMonitor()) {
+    js::TraceMonitor &tm = c->traceMonitor;
+    if (tm.codeAlloc) {
         size_t total, frag_size, free_size;
-        c->traceMonitor()->getCodeAllocStats(total, frag_size, free_size);
+        tm.getCodeAllocStats(total, frag_size, free_size);
         return total;
     }
     return 0;
@@ -1485,17 +1486,15 @@ GetCompartmentTjitCode(JSCompartment *c)
 static PRInt64
 GetCompartmentTjitDataAllocatorsMain(JSCompartment *c)
 {
-    return c->hasTraceMonitor()
-         ? c->traceMonitor()->getVMAllocatorsMainSize()
-         : 0;
+    js::TraceMonitor &tm = c->traceMonitor;
+    return tm.dataAlloc ? tm.getVMAllocatorsMainSize() : 0;
 }
 
 static PRInt64
 GetCompartmentTjitDataAllocatorsReserve(JSCompartment *c)
 {
-    return c->hasTraceMonitor()
-         ? c->traceMonitor()->getVMAllocatorsReserveSize()
-         : 0;
+    js::TraceMonitor &tm = c->traceMonitor;
+    return tm.dataAlloc ? tm.getVMAllocatorsReserveSize() : 0;
 }
 
 static PRInt64

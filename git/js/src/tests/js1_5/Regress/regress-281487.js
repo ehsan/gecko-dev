@@ -16,10 +16,10 @@
  *
  * The Initial Developer of the Original Code is
  * Mozilla Foundation.
- * Portions created by the Initial Developer are Copyright (C) 2007
+ * Portions created by the Initial Developer are Copyright (C) 2005
  * the Initial Developer. All Rights Reserved.
  *
- * Contributor(s): Dave Herman
+ * Contributor(s): Philipp Vogt
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -35,16 +35,34 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-
 //-----------------------------------------------------------------------------
-var BUGNUMBER = 665286;
-var summary = 'yield in comprehension RHS';
-var actual = '';
-var expect = '';
+var BUGNUMBER = 281487;
+var summary = 'JSOP_ARGDEC assertion when tracing';
+var actual = 'No Crash';
+var expect = 'No Crash';
 
-function reported() {
-    [1 for (x in yield)]
+printBugNumber(BUGNUMBER);
+printStatus (summary);
+
+printStatus('This test requires a DEBUG build and will cause a false ' +
+            'failure to be reported by jsDriver.pl since the tracing output ' +
+            'will contain the string FAILED.');
+printStatus('This test only fails if it causes a crash.');
+
+if (typeof tracing == 'function')
+{
+  tracing(true);
 }
 
-reportCompare(reported.isGenerator(), true, "reported case: is generator");
-reportCompare(typeof reported(), "object", "reported case: calling doesn't crash");
+var x;
+
+var a = function (i,j,k) {
+  x = j--;
+};
+
+a(1,2,3);
+if (typeof tracing == 'function')
+{
+  tracing(false);
+} 
+reportCompare(expect, actual, summary);
