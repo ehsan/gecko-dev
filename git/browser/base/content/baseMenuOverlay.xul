@@ -100,6 +100,7 @@
         <menuseparator id="updateSeparator"/>
 #ifdef MOZ_UPDATER
         <menuitem id="checkForUpdates"
+                  accesskey="&updateCmd.accesskey;"
                   label="&updateCmd.label;"
                   class="menuitem-iconic"
                   oncommand="checkForUpdates();"/>

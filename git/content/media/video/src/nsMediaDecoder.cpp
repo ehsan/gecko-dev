@@ -68,8 +68,8 @@ nsMediaDecoder::nsMediaDecoder() :
   mElement(0),
   mRGBWidth(-1),
   mRGBHeight(-1),
-  mProgressTime(),
-  mDataTime(),
+  mProgressTime(0),
+  mDataTime(0),
   mVideoUpdateLock(nsnull),
   mFramerate(0.0),
   mSizeChanged(PR_FALSE),
@@ -153,27 +153,25 @@ void nsMediaDecoder::Progress(PRBool aTimer)
   if (!mElement)
     return;
 
-  TimeStamp now = TimeStamp::Now();
+  PRIntervalTime now = PR_IntervalNow();
 
   if (!aTimer) {
     mDataTime = now;
   }
 
+  PRUint32 progressDelta = PR_IntervalToMilliseconds(now - mProgressTime);
+  PRUint32 networkDelta = PR_IntervalToMilliseconds(now - mDataTime);
+
   // If PROGRESS_MS has passed since the last progress event fired and more
   // data has arrived since then, fire another progress event.
-  if ((mProgressTime.IsNull() ||
-       now - mProgressTime >= TimeDuration::FromMilliseconds(PROGRESS_MS)) &&
-      !mDataTime.IsNull() &&
-      now - mDataTime <= TimeDuration::FromMilliseconds(PROGRESS_MS)) {
+  if (progressDelta >= PROGRESS_MS && networkDelta <= PROGRESS_MS) {
     mElement->DispatchAsyncProgressEvent(NS_LITERAL_STRING("progress"));
     mProgressTime = now;
   }
 
-  if (!mDataTime.IsNull() &&
-      now - mDataTime >= TimeDuration::FromMilliseconds(STALL_MS)) {
+  if (mDataTime != 0 && networkDelta >= STALL_MS) {
     mElement->DispatchAsyncProgressEvent(NS_LITERAL_STRING("stalled"));
-    // Null it out
-    mDataTime = TimeStamp();
+    mDataTime = 0;
   }
 }
 
