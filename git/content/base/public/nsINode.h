@@ -49,7 +49,6 @@
 #include "nsDOMError.h"
 #include "nsDOMString.h"
 #include "jspubtd.h"
-#include "nsDOMMemoryReporter.h"
 
 class nsIContent;
 class nsIDocument;
@@ -282,8 +281,8 @@ private:
 
 // IID for the nsINode interface
 #define NS_INODE_IID \
-{ 0x5572c8a9, 0xbda9, 0x4b78, \
-  { 0xb4, 0x1a, 0xdb, 0x1a, 0x83, 0xef, 0x53, 0x7e } }
+{ 0xcdab747e, 0xa58f, 0x4b96, \
+ { 0x8b, 0xae, 0x9d, 0x53, 0xe0, 0xa7, 0x8a, 0x74 } }
 
 /**
  * An internal interface that abstracts some DOMNode-related parts that both
@@ -296,7 +295,9 @@ class nsINode : public nsIDOMEventTarget,
 public:
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_INODE_IID)
 
-  NS_DECL_DOM_MEMORY_REPORTER_SIZEOF
+  virtual PRInt64 SizeOf() const {
+    return sizeof(*this);
+  }
 
   friend class nsNodeUtils;
   friend class nsNodeWeakReference;
