@@ -43,8 +43,6 @@
 #include "nsApplicationAccessibleWrap.h"
 #include "nsARIAGridAccessibleWrap.h"
 #include "nsARIAMap.h"
-#include "FocusManager.h"
-
 #include "nsIContentViewer.h"
 #include "nsCURILoader.h"
 #include "nsDocAccessible.h"
@@ -117,10 +115,9 @@ using namespace mozilla::a11y;
 ////////////////////////////////////////////////////////////////////////////////
 
 nsAccessibilityService *nsAccessibilityService::gAccessibilityService = nsnull;
-bool nsAccessibilityService::gIsShutdown = true;
+PRBool nsAccessibilityService::gIsShutdown = PR_TRUE;
 
-nsAccessibilityService::nsAccessibilityService() :
-  nsAccDocManager(), FocusManager()
+nsAccessibilityService::nsAccessibilityService() : nsAccDocManager()
 {
   NS_TIME_FUNCTION;
 }
@@ -178,7 +175,7 @@ nsAccessibilityService::FireAccessibleEvent(PRUint32 aEvent,
 
 nsAccessible*
 nsAccessibilityService::GetRootDocumentAccessible(nsIPresShell* aPresShell,
-                                                  bool aCanCreate)
+                                                  PRBool aCanCreate)
 {
   nsIDocument* documentNode = aPresShell->GetDocument();
   if (documentNode) {
@@ -876,7 +873,7 @@ nsAccessibilityService::GetAccessibleOrContainer(nsINode* aNode,
   return document ? document->GetAccessibleOrContainer(aNode) : nsnull;
 }
 
-static bool HasRelatedContent(nsIContent *aContent)
+static PRBool HasRelatedContent(nsIContent *aContent)
 {
   nsAutoString id;
   if (!aContent || !nsCoreUtils::GetID(aContent, id) || id.IsEmpty()) {
@@ -995,7 +992,7 @@ nsAccessibilityService::GetOrCreateAccessible(nsINode* aNode,
     return nsnull;
   }
 
-  bool isHTML = content->IsHTML();
+  PRBool isHTML = content->IsHTML();
   if (isHTML && content->Tag() == nsGkAtoms::map) {
     // Create hyper text accessible for HTML map if it is used to group links
     // (see http://www.w3.org/TR/WCAG10-HTML-TECHS/#group-bypass). If the HTML
@@ -1031,11 +1028,11 @@ nsAccessibilityService::GetOrCreateAccessible(nsINode* aNode,
   }
 
   if (weakFrame.IsAlive() && !newAcc && isHTML) {  // HTML accessibles
-    bool tryTagNameOrFrame = true;
+    PRBool tryTagNameOrFrame = PR_TRUE;
 
     nsIAtom *frameType = weakFrame.GetFrame()->GetType();
 
-    bool partOfHTMLTable =
+    PRBool partOfHTMLTable =
       frameType == nsGkAtoms::tableCaptionFrame ||
       frameType == nsGkAtoms::tableCellFrame ||
       frameType == nsGkAtoms::tableRowGroupFrame ||
@@ -1209,7 +1206,7 @@ nsAccessibilityService::GetOrCreateAccessible(nsINode* aNode,
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccessibilityService private
 
-bool
+PRBool
 nsAccessibilityService::Init()
 {
   // Initialize accessible document manager.
@@ -1255,7 +1252,7 @@ nsAccessibilityService::Shutdown()
   nsAccessNodeWrap::ShutdownAccessibility();
 }
 
-bool
+PRBool
 nsAccessibilityService::HasUniversalAriaProperty(nsIContent *aContent)
 {
   // ARIA attributes that take token values (NMTOKEN, bool) are special cased
@@ -1855,13 +1852,3 @@ nsAccessibilityService::CreateAccessibleForXULTree(nsIContent* aContent,
   return accessible;
 }
 #endif
-
-////////////////////////////////////////////////////////////////////////////////
-// Services
-////////////////////////////////////////////////////////////////////////////////
-
-mozilla::a11y::FocusManager*
-mozilla::a11y::FocusMgr()
-{
-  return nsAccessibilityService::gAccessibilityService;
-}

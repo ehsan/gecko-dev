@@ -162,7 +162,7 @@ MediaDocument::StartDocumentLoad(const char*         aCommand,
                                  nsILoadGroup*       aLoadGroup,
                                  nsISupports*        aContainer,
                                  nsIStreamListener** aDocListener,
-                                 bool                aReset,
+                                 PRBool              aReset,
                                  nsIContentSink*     aSink)
 {
   nsresult rv = nsDocument::StartDocumentLoad(aCommand, aChannel, aLoadGroup,

@@ -221,7 +221,7 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
     parent->SuppressBlurEvents(PR_TRUE);
   }
 
-  bool result = false;
+  PRBool result = PR_FALSE;
   nsAutoArrayPtr<PRUnichar> fileBuffer(new PRUnichar[FILE_BUFFER_SIZE+1]);
             
   wcsncpy(fileBuffer,  mDefault.get(), FILE_BUFFER_SIZE);
@@ -305,7 +305,7 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
     // Handle add to recent docs settings
     nsCOMPtr<nsIPrivateBrowsingService> pbs =
       do_GetService(NS_PRIVATE_BROWSING_SERVICE_CONTRACTID);
-    bool privacyModeEnabled = false;
+    PRBool privacyModeEnabled = PR_FALSE;
     if (pbs) {
       pbs->GetPrivateBrowsingEnabled(&privacyModeEnabled);
     }
@@ -522,7 +522,7 @@ NS_IMETHODIMP nsFilePicker::ShowW(PRInt16 *aReturnVal)
     if (mMode == modeSave) {
       // Windows does not return resultReplace,
       //   we must check if file already exists
-      bool exists = false;
+      PRBool exists = PR_FALSE;
       file->Exists(&exists);
 
       if (exists)

@@ -510,7 +510,7 @@ RasterImage::GetCurrentDrawableImgFrame()
 //******************************************************************************
 /* readonly attribute boolean currentFrameIsOpaque; */
 NS_IMETHODIMP
-RasterImage::GetCurrentFrameIsOpaque(bool *aIsOpaque)
+RasterImage::GetCurrentFrameIsOpaque(PRBool *aIsOpaque)
 {
   NS_ENSURE_ARG_POINTER(aIsOpaque);
 
@@ -572,7 +572,7 @@ RasterImage::GetNumFrames()
 //******************************************************************************
 /* readonly attribute boolean animated; */
 NS_IMETHODIMP
-RasterImage::GetAnimated(bool *aAnimated)
+RasterImage::GetAnimated(PRBool *aAnimated)
 {
   if (mError)
     return NS_ERROR_FAILURE;
@@ -1878,7 +1878,7 @@ RasterImage::ClearFrame(imgFrame *aFrame, nsIntRect &aRect)
 //******************************************************************************
 // Whether we succeed or fail will not cause a crash, and there's not much
 // we can do about a failure, so there we don't return a nsresult
-bool
+PRBool
 RasterImage::CopyFrameImage(imgFrame *aSrcFrame,
                             imgFrame *aDstFrame)
 {
@@ -2041,7 +2041,7 @@ RasterImage::Set(const char *prop, nsISupports *value)
 }
 
 NS_IMETHODIMP
-RasterImage::Has(const char *prop, bool *_retval)
+RasterImage::Has(const char *prop, PRBool *_retval)
 {
   NS_ENSURE_ARG_POINTER(_retval);
   if (!mProperties) {
@@ -2167,35 +2167,35 @@ RasterImage::InitDecoder(bool aDoSizeDecode)
   eDecoderType type = GetDecoderType(mSourceDataMimeType.get());
   CONTAINER_ENSURE_TRUE(type != eDecoderType_unknown, NS_IMAGELIB_ERROR_NO_DECODER);
 
-  nsCOMPtr<imgIDecoderObserver> observer(do_QueryReferent(mObserver));
   // Instantiate the appropriate decoder
   switch (type) {
     case eDecoderType_png:
-      mDecoder = new nsPNGDecoder(this, observer);
+      mDecoder = new nsPNGDecoder();
       break;
     case eDecoderType_gif:
-      mDecoder = new nsGIFDecoder2(this, observer);
+      mDecoder = new nsGIFDecoder2();
       break;
     case eDecoderType_jpeg:
-      mDecoder = new nsJPEGDecoder(this, observer);
+      mDecoder = new nsJPEGDecoder();
       break;
     case eDecoderType_bmp:
-      mDecoder = new nsBMPDecoder(this, observer);
+      mDecoder = new nsBMPDecoder();
       break;
     case eDecoderType_ico:
-      mDecoder = new nsICODecoder(this, observer);
+      mDecoder = new nsICODecoder();
       break;
     case eDecoderType_icon:
-      mDecoder = new nsIconDecoder(this, observer);
+      mDecoder = new nsIconDecoder();
       break;
     default:
       NS_ABORT_IF_FALSE(0, "Shouldn't get here!");
   }
 
   // Initialize the decoder
+  nsCOMPtr<imgIDecoderObserver> observer(do_QueryReferent(mObserver));
   mDecoder->SetSizeDecode(aDoSizeDecode);
   mDecoder->SetDecodeFlags(mFrameDecodeFlags);
-  mDecoder->Init();
+  mDecoder->Init(this, observer);
   CONTAINER_ENSURE_SUCCESS(mDecoder->GetDecoderError());
 
   // Create a decode worker
@@ -2631,14 +2631,14 @@ RasterImage::DecodeSomeData(PRUint32 aMaxBytes)
 // task at hand and can shut down the decoder.
 //
 // This method may not be called if there is no decoder.
-bool
+PRBool
 RasterImage::IsDecodeFinished()
 {
   // Precondition
   NS_ABORT_IF_FALSE(mDecoder, "Can't call IsDecodeFinished() without decoder!");
 
   // Assume it's not finished
-  bool decodeFinished = false;
+  PRBool decodeFinished = PR_FALSE;
 
   // There shouldn't be any reason to call this if we're not storing
   // source data

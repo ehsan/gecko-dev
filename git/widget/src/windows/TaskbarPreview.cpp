@@ -101,8 +101,8 @@ GetRenderingContext(nsIDocShell *shell, gfxASurface *surface,
       NS_WARNING("Could not create nsICanvasRenderingContext2D for tab previews!");
       return rv;
     }
+    NS_ADDREF(ctx);
     gCtx = ctx;
-    NS_ADDREF(gCtx);
   }
 
   nsCOMPtr<nsICanvasRenderingContextInternal> ctxI = do_QueryInterface(ctx, &rv);
@@ -192,7 +192,7 @@ TaskbarPreview::SetTooltip(const nsAString &aTooltip) {
 }
 
 NS_IMETHODIMP
-TaskbarPreview::SetVisible(bool visible) {
+TaskbarPreview::SetVisible(PRBool visible) {
   if (mVisible == visible) return NS_OK;
   mVisible = visible;
 
@@ -207,13 +207,13 @@ TaskbarPreview::SetVisible(bool visible) {
 }
 
 NS_IMETHODIMP
-TaskbarPreview::GetVisible(bool *visible) {
+TaskbarPreview::GetVisible(PRBool *visible) {
   *visible = mVisible;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-TaskbarPreview::SetActive(bool active) {
+TaskbarPreview::SetActive(PRBool active) {
   if (active)
     sActivePreview = this;
   else if (sActivePreview == this)
@@ -223,7 +223,7 @@ TaskbarPreview::SetActive(bool active) {
 }
 
 NS_IMETHODIMP
-TaskbarPreview::GetActive(bool *active) {
+TaskbarPreview::GetActive(PRBool *active) {
   *active = sActivePreview == this;
   return NS_OK;
 }
@@ -282,17 +282,6 @@ TaskbarPreview::Disable() {
   return NS_OK;
 }
 
-bool
-TaskbarPreview::IsWindowAvailable() const {
-  if (mWnd) {
-    nsWindow* win = nsWindow::GetNSWindowPtr(mWnd);
-    if(win && !win->HasDestroyStarted()) {
-      return PR_TRUE;
-    }
-  }
-  return PR_FALSE;
-}
-
 void
 TaskbarPreview::DetachFromNSWindow() {
   WindowHook &hook = GetWindowHook();
@@ -345,7 +334,7 @@ TaskbarPreview::WndProc(UINT nMsg, WPARAM wParam, LPARAM lParam) {
   return ::DefWindowProcW(PreviewWindow(), nMsg, wParam, lParam);
 }
 
-bool
+PRBool
 TaskbarPreview::CanMakeTaskbarCalls() {
   // If the nsWindow has already been destroyed and we know it but our caller
   // clearly doesn't so we can't make any calls.
@@ -372,7 +361,7 @@ TaskbarPreview::GetWindowHook() {
 }
 
 void
-TaskbarPreview::EnableCustomDrawing(HWND aHWND, bool aEnable) {
+TaskbarPreview::EnableCustomDrawing(HWND aHWND, PRBool aEnable) {
   nsUXThemeData::dwmSetWindowAttributePtr(
       aHWND,
       DWMWA_FORCE_ICONIC_REPRESENTATION,
@@ -397,7 +386,7 @@ TaskbarPreview::UpdateTooltip() {
 }
 
 void
-TaskbarPreview::DrawBitmap(PRUint32 width, PRUint32 height, bool isPreview) {
+TaskbarPreview::DrawBitmap(PRUint32 width, PRUint32 height, PRBool isPreview) {
   nsresult rv;
   nsRefPtr<gfxWindowsSurface> surface = new gfxWindowsSurface(gfxIntSize(width, height), gfxASurface::ImageFormatARGB32);
 
@@ -410,7 +399,7 @@ TaskbarPreview::DrawBitmap(PRUint32 width, PRUint32 height, bool isPreview) {
   if (NS_FAILED(rv))
     return;
 
-  bool drawFrame = false;
+  PRBool drawFrame = PR_FALSE;
   if (isPreview)
     rv = mController->DrawPreview(gCtx, &drawFrame);
   else
@@ -433,7 +422,7 @@ TaskbarPreview::DrawBitmap(PRUint32 width, PRUint32 height, bool isPreview) {
 }
 
 /* static */
-bool
+PRBool
 TaskbarPreview::MainWindowHook(void *aContext,
                                HWND hWnd, UINT nMsg,
                                WPARAM wParam, LPARAM lParam,

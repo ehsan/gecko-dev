@@ -54,7 +54,7 @@ class nsPSPrinterList {
          * @return PR_TRUE if enabled,
          *         PR_FALSE if not.
          */
-        bool Enabled();
+        PRBool Enabled();
 
         /**
          * Obtain a list of printers (print destinations) supported by the

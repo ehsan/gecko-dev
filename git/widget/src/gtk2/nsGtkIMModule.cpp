@@ -102,7 +102,7 @@ GetEnabledStateName(PRUint32 aState)
 nsGtkIMModule* nsGtkIMModule::sLastFocusedModule = nsnull;
 
 #ifdef MOZ_PLATFORM_MAEMO
-static bool gIsVirtualKeyboardOpened = false;
+static PRBool gIsVirtualKeyboardOpened = PR_FALSE;
 #endif
 
 nsGtkIMModule::nsGtkIMModule(nsWindow* aOwnerWindow) :
@@ -365,9 +365,9 @@ nsGtkIMModule::OnBlurWindow(nsWindow* aWindow)
     Blur();
 }
 
-bool
+PRBool
 nsGtkIMModule::OnKeyEvent(nsWindow* aCaller, GdkEventKey* aEvent,
-                          bool aKeyDownEventWasSent /* = false */)
+                          PRBool aKeyDownEventWasSent /* = PR_FALSE */)
 {
     NS_PRECONDITION(aEvent, "aEvent must be non-null");
 
@@ -410,7 +410,7 @@ nsGtkIMModule::OnKeyEvent(nsWindow* aCaller, GdkEventKey* aEvent,
     // committed _and_ changed.  This way we still let key press
     // events go through as simple key press events instead of
     // composed characters.
-    bool filterThisEvent = isFiltered && mFilterKeyEvent;
+    PRBool filterThisEvent = isFiltered && mFilterKeyEvent;
 
     if (mIsComposing && !isFiltered) {
         if (aEvent->type == GDK_KEY_PRESS) {
@@ -445,7 +445,7 @@ nsGtkIMModule::OnKeyEvent(nsWindow* aCaller, GdkEventKey* aEvent,
 }
 
 void
-nsGtkIMModule::OnFocusChangeInGecko(bool aFocus)
+nsGtkIMModule::OnFocusChangeInGecko(PRBool aFocus)
 {
     PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
         ("GtkIMModule(%p): OnFocusChangeInGecko, aFocus=%s mIsComposing=%s, mIsIMFocused=%s, mIgnoreNativeCompositionEvent=%s",
@@ -597,8 +597,8 @@ nsGtkIMModule::SetInputMode(nsWindow* aCaller, const IMEContext* aContext)
             if (mIMEContext.mStatus != nsIWidget::IME_STATUS_DISABLED && 
                 mIMEContext.mStatus != nsIWidget::IME_STATUS_PLUGIN) {
 
-                bool useStrictPolicy =
-                    Preferences::GetBool("content.ime.strict_policy", false);
+                PRBool useStrictPolicy =
+                    Preferences::GetBool("content.ime.strict_policy", PR_FALSE);
                 if (useStrictPolicy && !mIMEContext.FocusMovedByUser() && 
                     mIMEContext.FocusMovedInContentProcess()) {
                     return NS_OK;
@@ -667,7 +667,7 @@ nsGtkIMModule::GetInputMode(IMEContext* aContext)
 }
 
 /* static */
-bool
+PRBool
 nsGtkIMModule::IsVirtualKeyboardOpened()
 {
 #ifdef MOZ_PLATFORM_MAEMO
@@ -693,7 +693,7 @@ nsGtkIMModule::GetContext()
     return mDummyContext;
 }
 
-bool
+PRBool
 nsGtkIMModule::IsEnabled()
 {
     return mIMEContext.mStatus == nsIWidget::IME_STATUS_ENABLED ||
@@ -703,7 +703,7 @@ nsGtkIMModule::IsEnabled()
            mIMEContext.mStatus == nsIWidget::IME_STATUS_PLUGIN;
 }
 
-bool
+PRBool
 nsGtkIMModule::IsEditable()
 {
     return mIMEContext.mStatus == nsIWidget::IME_STATUS_ENABLED ||
@@ -821,7 +821,7 @@ nsGtkIMModule::OnEndCompositionNative(GtkIMContext *aContext)
         return;
     }
 
-    bool shouldIgnoreThisEvent = ShouldIgnoreNativeCompositionEvent();
+    PRBool shouldIgnoreThisEvent = ShouldIgnoreNativeCompositionEvent();
 
     // Finish the cancelling mode here rather than DispatchCompositionEnd()
     // because DispatchCompositionEnd() is called ourselves when we need to
@@ -1021,7 +1021,7 @@ nsGtkIMModule::OnCommitCompositionNative(GtkIMContext *aContext,
     CommitCompositionBy(str); // Be aware, widget can be gone
 }
 
-bool
+PRBool
 nsGtkIMModule::CommitCompositionBy(const nsAString& aString)
 {
     PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
@@ -1060,7 +1060,7 @@ nsGtkIMModule::GetCompositionString(nsAString &aCompositionString)
     g_free(preedit_string);
 }
 
-bool
+PRBool
 nsGtkIMModule::DispatchCompositionStart()
 {
     PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
@@ -1098,7 +1098,7 @@ nsGtkIMModule::DispatchCompositionStart()
         // If this composition is started by a native keydown event, we need to
         // dispatch our keydown event here (before composition start).
         nsCOMPtr<nsIWidget> kungFuDeathGrip = mLastFocusedWindow;
-        bool isCancelled;
+        PRBool isCancelled;
         mLastFocusedWindow->DispatchKeyDownEvent(mProcessingKeyEvent,
                                                  &isCancelled);
         PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
@@ -1135,7 +1135,7 @@ nsGtkIMModule::DispatchCompositionStart()
     return PR_TRUE;
 }
 
-bool
+PRBool
 nsGtkIMModule::DispatchCompositionEnd()
 {
     PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
@@ -1176,9 +1176,9 @@ nsGtkIMModule::DispatchCompositionEnd()
     return PR_TRUE;
 }
 
-bool
+PRBool
 nsGtkIMModule::DispatchTextEvent(const nsAString &aCompositionString,
-                                 bool aCheckAttr)
+                                 PRBool aCheckAttr)
 {
     PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
         ("GtkIMModule(%p): DispatchTextEvent, aCheckAttr=%s",
@@ -1555,7 +1555,7 @@ nsGtkIMModule::InitEvent(nsGUIEvent &aEvent)
     aEvent.time = PR_Now() / 1000;
 }
 
-bool
+PRBool
 nsGtkIMModule::ShouldIgnoreNativeCompositionEvent()
 {
     PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,

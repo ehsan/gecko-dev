@@ -390,7 +390,7 @@ nsIDOMCanvasRenderingContext2D_PutImageData(JSContext *cx, uintN argc, jsval *vp
         return JS_FALSE;
 
     // the optional dirty rect
-    bool hasDirtyRect = false;
+    PRBool hasDirtyRect = PR_FALSE;
     int32 dirtyX = 0,
           dirtyY = 0,
           dirtyWidth = w,

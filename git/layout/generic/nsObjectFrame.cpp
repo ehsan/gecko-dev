@@ -271,7 +271,7 @@ public:
   void Destroy() { mFrame = nsnull; }
 
 protected:
-  bool AcceptUpdate(PRUint64 aSequenceNumber) {
+  PRBool AcceptUpdate(PRUint64 aSequenceNumber) {
     if (aSequenceNumber > mLastSequenceNumber && mFrame &&
         mFrame->mInstanceOwner) {
       mLastSequenceNumber = aSequenceNumber;
@@ -399,7 +399,7 @@ nsObjectFrame::GetFrameName(nsAString& aResult) const
 nsresult
 nsObjectFrame::CreateWidget(nscoord aWidth,
                             nscoord aHeight,
-                            bool    aViewOnly)
+                            PRBool  aViewOnly)
 {
   nsIView* view = GetView();
   NS_ASSERTION(view, "Object frames must have views");  
@@ -407,8 +407,8 @@ nsObjectFrame::CreateWidget(nscoord aWidth,
     return NS_OK;       //XXX why OK? MMP
   }
 
-  bool needsWidget = !aViewOnly;
-  bool canCreateWidget = !nsIWidget::UsePuppetWidgets();
+  PRBool needsWidget = !aViewOnly;
+  PRBool canCreateWidget = !nsIWidget::UsePuppetWidgets();
   if (needsWidget && !canCreateWidget) {
     NS_WARNING("Can't use native widgets, and can't hand a plugins a PuppetWidget");
   }
@@ -679,7 +679,7 @@ nsObjectFrame::Reflow(nsPresContext*           aPresContext,
 
 ///////////// nsIReflowCallback ///////////////
 
-bool
+PRBool
 nsObjectFrame::ReflowFinished()
 {
   mReflowCallbackPosted = PR_FALSE;
@@ -713,7 +713,7 @@ nsObjectFrame::InstantiatePlugin(nsPluginHost* aPluginHost,
 
   nsIDocument* doc = mContent->GetOwnerDoc();
   nsCOMPtr<nsIPluginDocument> pDoc (do_QueryInterface(doc));
-  bool fullPageMode = false;
+  PRBool fullPageMode = PR_FALSE;
   if (pDoc) {
     pDoc->GetWillHandleInstantiation(&fullPageMode);
   }
@@ -754,7 +754,7 @@ nsObjectFrame::FixupWindow(const nsSize& aSize)
   mInstanceOwner->FixUpPluginWindow(nsPluginInstanceOwner::ePluginPaintDisable);
 #endif
 
-  bool windowless = (window->type == NPWindowTypeDrawable);
+  PRBool windowless = (window->type == NPWindowTypeDrawable);
 
   nsIntPoint origin = GetWindowOriginInPixels(windowless);
 
@@ -780,7 +780,7 @@ nsObjectFrame::FixupWindow(const nsSize& aSize)
 }
 
 nsresult
-nsObjectFrame::CallSetWindow(bool aCheckIsHidden)
+nsObjectFrame::CallSetWindow(PRBool aCheckIsHidden)
 {
   NPWindow *win = nsnull;
  
@@ -832,16 +832,16 @@ nsObjectFrame::CallSetWindow(bool aCheckIsHidden)
   return rv;
 }
 
-bool
-nsObjectFrame::IsFocusable(PRInt32 *aTabIndex, bool aWithMouse)
+PRBool
+nsObjectFrame::IsFocusable(PRInt32 *aTabIndex, PRBool aWithMouse)
 {
   if (aTabIndex)
     *aTabIndex = -1;
   return nsObjectFrameSuper::IsFocusable(aTabIndex, aWithMouse);
 }
 
-bool
-nsObjectFrame::IsHidden(bool aCheckVisibilityStyle) const
+PRBool
+nsObjectFrame::IsHidden(PRBool aCheckVisibilityStyle) const
 {
   if (aCheckVisibilityStyle) {
     if (!GetStyleVisibility()->IsVisibleOrCollapsed())
@@ -870,7 +870,7 @@ nsObjectFrame::IsHidden(bool aCheckVisibilityStyle) const
   return PR_FALSE;
 }
 
-nsIntPoint nsObjectFrame::GetWindowOriginInPixels(bool aWindowless)
+nsIntPoint nsObjectFrame::GetWindowOriginInPixels(PRBool aWindowless)
 {
   nsIView * parentWithView;
   nsPoint origin(0,0);
@@ -945,7 +945,7 @@ public:
 #endif
 
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder);
-  virtual bool ComputeVisibility(nsDisplayListBuilder* aBuilder,
+  virtual PRBool ComputeVisibility(nsDisplayListBuilder* aBuilder,
                                    nsRegion* aVisibleRegion,
                                    const nsRect& aAllowVisibleRegionExpansion);
 
@@ -978,7 +978,7 @@ nsDisplayPluginReadback::GetBounds(nsDisplayListBuilder* aBuilder)
   return GetDisplayItemBounds(aBuilder, this, mFrame);
 }
 
-bool
+PRBool
 nsDisplayPluginReadback::ComputeVisibility(nsDisplayListBuilder* aBuilder,
                                            nsRegion* aVisibleRegion,
                                            const nsRect& aAllowVisibleRegionExpansion)
@@ -1010,7 +1010,7 @@ nsDisplayPlugin::Paint(nsDisplayListBuilder* aBuilder,
   f->PaintPlugin(aBuilder, *aCtx, mVisibleRect, GetBounds(aBuilder));
 }
 
-bool
+PRBool
 nsDisplayPlugin::ComputeVisibility(nsDisplayListBuilder* aBuilder,
                                    nsRegion* aVisibleRegion,
                                    const nsRect& aAllowVisibleRegionExpansion)
@@ -1022,7 +1022,7 @@ nsDisplayPlugin::ComputeVisibility(nsDisplayListBuilder* aBuilder,
 
 nsRegion
 nsDisplayPlugin::GetOpaqueRegion(nsDisplayListBuilder* aBuilder,
-                                 bool* aForceTransparentSurface)
+                                 PRBool* aForceTransparentSurface)
 {
   if (aForceTransparentSurface) {
     *aForceTransparentSurface = PR_FALSE;
@@ -1137,7 +1137,7 @@ nsObjectFrame::DidSetWidgetGeometry()
 #endif
 }
 
-bool
+PRBool
 nsObjectFrame::IsOpaque() const
 {
 #if defined(XP_MACOSX)
@@ -1148,7 +1148,7 @@ nsObjectFrame::IsOpaque() const
 #endif
 }
 
-bool
+PRBool
 nsObjectFrame::IsTransparentMode() const
 {
 #if defined(XP_MACOSX)
@@ -1169,7 +1169,7 @@ nsObjectFrame::IsTransparentMode() const
   if (NS_FAILED(rv) || !pi)
     return PR_FALSE;
 
-  bool transparent = false;
+  PRBool transparent = PR_FALSE;
   pi->IsTransparent(&transparent);
   return transparent;
 #endif
@@ -1207,7 +1207,7 @@ nsObjectFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   if (aBuilder->IsForPainting() && mInstanceOwner && mInstanceOwner->UseAsyncRendering()) {
     NPWindow* window = nsnull;
     mInstanceOwner->GetWindow(window);
-    bool isVisible = window && window->width > 0 && window->height > 0;
+    PRBool isVisible = window && window->width > 0 && window->height > 0;
     if (isVisible && aBuilder->ShouldSyncDecodeImages()) {
   #ifndef XP_MACOSX
       mInstanceOwner->UpdateWindowVisibility(PR_TRUE);
@@ -1295,7 +1295,7 @@ nsObjectFrame::PrintPlugin(nsRenderingContext& aRenderingContext,
   npprint.mode = NP_EMBED;
 
   // we need to find out if we are windowless or not
-  bool windowless = false;
+  PRBool windowless = PR_FALSE;
   pi->IsWindowless(&windowless);
   window.type = windowless ? NPWindowTypeDrawable : NPWindowTypeWindow;
 
@@ -1946,7 +1946,7 @@ nsObjectFrame::PaintPlugin(nsDisplayListBuilder* aBuilder,
         translate(&aRenderingContext, aPluginRect.TopLeft());
 
       // check if we need to call SetWindow with updated parameters
-      bool doupdatewindow = false;
+      PRBool doupdatewindow = PR_FALSE;
       // the offset of the DC
       nsIntPoint origin;
 
@@ -2303,8 +2303,8 @@ GetMIMEType(nsNPAPIPluginInstance *aPluginInstance)
 }
 #endif // XP_WIN
 
-static bool
-DoDelayedStop(nsPluginInstanceOwner *aInstanceOwner, bool aDelayedStop)
+static PRBool
+DoDelayedStop(nsPluginInstanceOwner *aInstanceOwner, PRBool aDelayedStop)
 {
 #if (MOZ_PLATFORM_MAEMO==5)
   // Don't delay stop on Maemo/Hildon (bug 530739).
@@ -2330,7 +2330,7 @@ DoDelayedStop(nsPluginInstanceOwner *aInstanceOwner, bool aDelayedStop)
 }
 
 static void
-DoStopPlugin(nsPluginInstanceOwner *aInstanceOwner, bool aDelayedStop)
+DoStopPlugin(nsPluginInstanceOwner *aInstanceOwner, PRBool aDelayedStop)
 {
   nsRefPtr<nsNPAPIPluginInstance> inst;
   aInstanceOwner->GetInstance(getter_AddRefs(inst));
@@ -2407,7 +2407,7 @@ nsStopPluginRunnable::Run()
 void
 nsObjectFrame::StopPlugin()
 {
-  bool delayedStop = false;
+  PRBool delayedStop = PR_FALSE;
 #ifdef XP_WIN
   nsRefPtr<nsNPAPIPluginInstance> inst;
   if (mInstanceOwner)
@@ -2422,7 +2422,7 @@ nsObjectFrame::StopPlugin()
 }
 
 void
-nsObjectFrame::StopPluginInternal(bool aDelayedStop)
+nsObjectFrame::StopPluginInternal(PRBool aDelayedStop)
 {
   if (!mInstanceOwner) {
     return;
@@ -2464,7 +2464,7 @@ nsObjectFrame::StopPluginInternal(bool aDelayedStop)
   // get reinstantiated we'll send the right messages to the plug-in.
   mWindowlessRect.SetEmpty();
 
-  bool oldVal = mPreventInstantiation;
+  PRBool oldVal = mPreventInstantiation;
   mPreventInstantiation = PR_TRUE;
 
   nsWeakFrame weakFrame(this);
@@ -2510,7 +2510,7 @@ nsObjectFrame::GetCursor(const nsPoint& aPoint, nsIFrame::Cursor& aCursor)
     return NS_ERROR_FAILURE;
   }
 
-  bool useDOMCursor = static_cast<nsNPAPIPluginInstance*>(inst.get())->UsesDOMForCursor();
+  PRBool useDOMCursor = static_cast<nsNPAPIPluginInstance*>(inst.get())->UsesDOMForCursor();
   if (!useDOMCursor) {
     return NS_ERROR_FAILURE;
   }
@@ -2519,7 +2519,7 @@ nsObjectFrame::GetCursor(const nsPoint& aPoint, nsIFrame::Cursor& aCursor)
 }
 
 void
-nsObjectFrame::SetIsDocumentActive(bool aIsActive)
+nsObjectFrame::SetIsDocumentActive(PRBool aIsActive)
 {
 #ifndef XP_MACOSX
   if (mInstanceOwner) {

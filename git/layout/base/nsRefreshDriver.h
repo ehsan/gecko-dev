@@ -123,42 +123,42 @@ public:
    * The refresh driver does NOT own a reference to these observers;
    * they must remove themselves before they are destroyed.
    */
-  bool AddRefreshObserver(nsARefreshObserver *aObserver,
+  PRBool AddRefreshObserver(nsARefreshObserver *aObserver,
                             mozFlushType aFlushType);
-  bool RemoveRefreshObserver(nsARefreshObserver *aObserver,
+  PRBool RemoveRefreshObserver(nsARefreshObserver *aObserver,
                                mozFlushType aFlushType);
 
   /**
    * Add / remove presshells that we should flush style and layout on
    */
-  bool AddStyleFlushObserver(nsIPresShell* aShell) {
+  PRBool AddStyleFlushObserver(nsIPresShell* aShell) {
     NS_ASSERTION(!mStyleFlushObservers.Contains(aShell),
 		 "Double-adding style flush observer");
-    bool appended = mStyleFlushObservers.AppendElement(aShell) != nsnull;
+    PRBool appended = mStyleFlushObservers.AppendElement(aShell) != nsnull;
     EnsureTimerStarted(false);
     return appended;
   }
   void RemoveStyleFlushObserver(nsIPresShell* aShell) {
     mStyleFlushObservers.RemoveElement(aShell);
   }
-  bool AddLayoutFlushObserver(nsIPresShell* aShell) {
+  PRBool AddLayoutFlushObserver(nsIPresShell* aShell) {
     NS_ASSERTION(!IsLayoutFlushObserver(aShell),
 		 "Double-adding layout flush observer");
-    bool appended = mLayoutFlushObservers.AppendElement(aShell) != nsnull;
+    PRBool appended = mLayoutFlushObservers.AppendElement(aShell) != nsnull;
     EnsureTimerStarted(false);
     return appended;
   }
   void RemoveLayoutFlushObserver(nsIPresShell* aShell) {
     mLayoutFlushObservers.RemoveElement(aShell);
   }
-  bool IsLayoutFlushObserver(nsIPresShell* aShell) {
+  PRBool IsLayoutFlushObserver(nsIPresShell* aShell) {
     return mLayoutFlushObservers.Contains(aShell);
   }
 
   /**
    * Add a document for which we should fire a MozBeforePaint event.
    */
-  bool ScheduleBeforePaintEvent(nsIDocument* aDocument);
+  PRBool ScheduleBeforePaintEvent(nsIDocument* aDocument);
 
   /**
    * Add a document for which we have nsIAnimationFrameListeners
@@ -212,7 +212,7 @@ public:
   /**
    * Check whether the given observer is an observer for the given flush type
    */
-  bool IsRefreshObserver(nsARefreshObserver *aObserver,
+  PRBool IsRefreshObserver(nsARefreshObserver *aObserver,
 			   mozFlushType aFlushType);
 #endif
 

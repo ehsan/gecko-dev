@@ -77,6 +77,7 @@
 #include "jsversion.h"
 
 #include "jsinferinlines.h"
+#include "jsinterpinlines.h"
 #include "jsobjinlines.h"
 #include "jsregexpinlines.h"
 #include "jsautooplen.h"        // generated headers last
@@ -456,12 +457,9 @@ str_quote(JSContext *cx, uintN argc, Value *vp)
 static JSBool
 str_toSource(JSContext *cx, uintN argc, Value *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-
     JSString *str;
-    bool ok;
-    if (!BoxedPrimitiveMethodGuard(cx, args, &str, &ok))
-        return ok;
+    if (!GetPrimitiveThis(cx, vp, &str))
+        return false;
 
     str = js_QuoteString(cx, str, '"');
     if (!str)
@@ -495,7 +493,7 @@ str_toSource(JSContext *cx, uintN argc, Value *vp)
         cx->free_(t);
         return false;
     }
-    args.rval().setString(str);
+    vp->setString(str);
     return true;
 }
 
@@ -504,14 +502,10 @@ str_toSource(JSContext *cx, uintN argc, Value *vp)
 JSBool
 js_str_toString(JSContext *cx, uintN argc, Value *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-
     JSString *str;
-    bool ok;
-    if (!BoxedPrimitiveMethodGuard(cx, args, &str, &ok))
-        return ok;
-
-    args.rval().setString(str);
+    if (!GetPrimitiveThis(cx, vp, &str))
+        return false;
+    vp->setString(str);
     return true;
 }
 
@@ -2093,7 +2087,7 @@ str_replace_flat_lambda(JSContext *cx, uintN argc, Value *vp, ReplaceData &rdata
     args.calleev().setObject(*rdata.lambda);
     args.thisv().setUndefined();
 
-    Value *sp = args.array();
+    Value *sp = args.argv();
     sp[0].setString(matchStr);
     sp[1].setInt32(fm.match());
     sp[2].setString(rdata.str);

@@ -74,7 +74,7 @@ NS_IMPL_ISUPPORTS1(nsDeviceContextSpecX, nsIDeviceContextSpec)
 
 NS_IMETHODIMP nsDeviceContextSpecX::Init(nsIWidget *aWidget,
                                          nsIPrintSettings* aPS,
-                                         bool aIsPrintPreview)
+                                         PRBool aIsPrintPreview)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 

@@ -142,12 +142,6 @@ gdk_window_get_display(GdkWindow *window)
 {
   return gdk_drawable_get_display(GDK_DRAWABLE(window));
 }
-
-static inline GdkScreen*
-gdk_window_get_screen (GdkWindow *window)
-{
-  return gdk_drawable_get_screen (window);
-}
 #endif
 
 static inline Window 

@@ -66,13 +66,13 @@ nsUXThemeData::sDwmDLL = NULL;
 
 BOOL
 nsUXThemeData::sFlatMenus = FALSE;
-bool
+PRPackedBool
 nsUXThemeData::sIsXPOrLater = PR_FALSE;
-bool
+PRPackedBool
 nsUXThemeData::sIsVistaOrLater = PR_FALSE;
 
-bool nsUXThemeData::sTitlebarInfoPopulatedAero = false;
-bool nsUXThemeData::sTitlebarInfoPopulatedThemed = false;
+PRBool nsUXThemeData::sTitlebarInfoPopulatedAero = PR_FALSE;
+PRBool nsUXThemeData::sTitlebarInfoPopulatedThemed = PR_FALSE;
 SIZE nsUXThemeData::sCommandButtons[4];
 
 nsUXThemeData::OpenThemeDataPtr nsUXThemeData::openTheme = NULL;
@@ -377,7 +377,7 @@ const THEMELIST knownColors[] = {
 LookAndFeel::WindowsTheme
 nsUXThemeData::sThemeId = LookAndFeel::eWindowsTheme_Generic;
 
-bool
+PRBool
 nsUXThemeData::sIsDefaultWindowsTheme = PR_FALSE;
 
 // static
@@ -388,7 +388,7 @@ nsUXThemeData::GetNativeThemeId()
 }
 
 // static
-bool nsUXThemeData::IsDefaultWindowTheme()
+PRBool nsUXThemeData::IsDefaultWindowTheme()
 {
   return sIsDefaultWindowsTheme;
 }

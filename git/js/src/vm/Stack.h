@@ -239,8 +239,8 @@ class CallArgs : public CallReceiver
     friend CallArgs CallArgsFromArgv(uintN, Value *);
     friend CallArgs CallArgsFromSp(uintN, Value *);
     Value &operator[](unsigned i) const { JS_ASSERT(i < argc_); return argv_[i]; }
-    Value *array() const { return argv_; }
-    uintN length() const { return argc_; }
+    Value *argv() const { return argv_; }
+    uintN argc() const { return argc_; }
     Value *end() const { return argv_ + argc_; }
 };
 
@@ -863,17 +863,19 @@ class StackFrame
 
     /*
      * Epilogue for function frames: put any args or call object for the frame
-     * which may still be live, and maintain type nesting invariants. Note:
-     * this does not mark the epilogue as having been completed, since the
-     * frame is about to be popped. Use markFunctionEpilogueDone for this.
+     * which may still be live, and maintain type nesting invariants. Only the
+     * args/call objects are put if activationOnly is set. Note: this does not
+     * mark the epilogue as having been completed, since the frame is about to
+     * be popped. Use markFunctionEpilogueDone for this.
      */
-    inline void functionEpilogue();
+    inline void functionEpilogue(bool activationOnly = false);
 
     /*
-     * Mark any work needed in the function's epilogue as done. This call must
-     * be followed by a later functionEpilogue.
+     * Mark any work needed in the function's epilogue as done. Only the args
+     * and call objects are reset if activationOnly is set. If activationOnly
+     * is *NOT* set, this call must be followed by a later functionEpilogue.
      */
-    inline void markFunctionEpilogueDone();
+    inline void markFunctionEpilogueDone(bool activationOnly = false);
 
     inline bool maintainNestingState() const;
 
@@ -1388,11 +1390,11 @@ class StackSegment
     }
 
     Value *callArgv() const {
-        return calls_->array();
+        return calls_->argv();
     }
 
     Value *maybeCallArgv() const {
-        return calls_ ? calls_->array() : NULL;
+        return calls_ ? calls_->argv() : NULL;
     }
 
     StackSegment *prevInContext() const {

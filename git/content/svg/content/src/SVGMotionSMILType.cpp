@@ -40,6 +40,7 @@
 #include "SVGMotionSMILType.h"
 #include "nsSMILValue.h"
 #include "nsDebug.h"
+#include "nsSVGTransform.h"
 #include "nsSVGAngle.h"
 #include "nsIDOMSVGAngle.h"
 #include "nsSVGPathElement.h"
@@ -137,7 +138,7 @@ struct MotionSegment
   }
 
   // Comparison operators
-  bool operator==(const MotionSegment& aOther) const
+  PRBool operator==(const MotionSegment& aOther) const
   {
     // Compare basic params
     if (mSegmentType != aOther.mSegmentType ||
@@ -159,7 +160,7 @@ struct MotionSegment
        aOther.mU.mPathPointParams.mDistToPoint);
   }
 
-  bool operator!=(const MotionSegment& aOther) const
+  PRBool operator!=(const MotionSegment& aOther) const
   {
     return !(*this == aOther);
   }
@@ -234,7 +235,7 @@ SVGMotionSMILType::Assign(nsSMILValue& aDest, const nsSMILValue& aSrc) const
   return NS_OK;
 }
 
-bool
+PRBool
 SVGMotionSMILType::IsEqual(const nsSMILValue& aLeft,
                            const nsSMILValue& aRight) const
 {

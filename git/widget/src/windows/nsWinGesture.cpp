@@ -73,7 +73,7 @@ nsWinGesture::UnregisterTouchWindowPtr nsWinGesture::unregisterTouchWindow = nsn
 nsWinGesture::GetTouchInputInfoPtr nsWinGesture::getTouchInputInfo = nsnull;
 nsWinGesture::CloseTouchInputHandlePtr nsWinGesture::closeTouchInputHandle = nsnull;
 
-static bool gEnableSingleFingerPanEvents = false;
+static PRBool gEnableSingleFingerPanEvents = PR_FALSE;
 
 nsWinGesture::nsWinGesture() :
   mPanActive(PR_FALSE),
@@ -88,7 +88,7 @@ nsWinGesture::nsWinGesture() :
 
 /* Load and shutdown */
 
-bool nsWinGesture::InitLibrary()
+PRBool nsWinGesture::InitLibrary()
 {
   if (getGestureInfo) {
     return PR_TRUE;
@@ -145,14 +145,14 @@ bool nsWinGesture::InitLibrary()
   // Check to see if we want single finger gesture input. Only do this once
   // for the app so we don't have to look it up on every window create.
   gEnableSingleFingerPanEvents =
-    Preferences::GetBool("gestures.enable_single_finger_input", false);
+    Preferences::GetBool("gestures.enable_single_finger_input", PR_FALSE);
 
   return PR_TRUE;
 }
 
 #define GCOUNT 5
 
-bool nsWinGesture::SetWinGestureSupport(HWND hWnd, nsGestureNotifyEvent::ePanDirection aDirection)
+PRBool nsWinGesture::SetWinGestureSupport(HWND hWnd, nsGestureNotifyEvent::ePanDirection aDirection)
 {
   if (!getGestureInfo)
     return PR_FALSE;
@@ -206,12 +206,12 @@ bool nsWinGesture::SetWinGestureSupport(HWND hWnd, nsGestureNotifyEvent::ePanDir
 
 /* Helpers */
 
-bool nsWinGesture::IsAvailable()
+PRBool nsWinGesture::IsAvailable()
 {
   return getGestureInfo != nsnull;
 }
 
-bool nsWinGesture::RegisterTouchWindow(HWND hWnd)
+PRBool nsWinGesture::RegisterTouchWindow(HWND hWnd)
 {
   if (!registerTouchWindow)
     return PR_FALSE;
@@ -219,7 +219,7 @@ bool nsWinGesture::RegisterTouchWindow(HWND hWnd)
   return registerTouchWindow(hWnd, TWF_WANTPALM);
 }
 
-bool nsWinGesture::UnregisterTouchWindow(HWND hWnd)
+PRBool nsWinGesture::UnregisterTouchWindow(HWND hWnd)
 {
   if (!unregisterTouchWindow)
     return PR_FALSE;
@@ -227,7 +227,7 @@ bool nsWinGesture::UnregisterTouchWindow(HWND hWnd)
   return unregisterTouchWindow(hWnd);
 }
 
-bool nsWinGesture::GetTouchInputInfo(HTOUCHINPUT hTouchInput, PRUint32 cInputs, PTOUCHINPUT pInputs)
+PRBool nsWinGesture::GetTouchInputInfo(HTOUCHINPUT hTouchInput, PRUint32 cInputs, PTOUCHINPUT pInputs)
 {
   if (!getTouchInputInfo)
     return PR_FALSE;
@@ -235,7 +235,7 @@ bool nsWinGesture::GetTouchInputInfo(HTOUCHINPUT hTouchInput, PRUint32 cInputs, 
   return getTouchInputInfo(hTouchInput, cInputs, pInputs, sizeof(TOUCHINPUT));
 }
 
-bool nsWinGesture::CloseTouchInputHandle(HTOUCHINPUT hTouchInput)
+PRBool nsWinGesture::CloseTouchInputHandle(HTOUCHINPUT hTouchInput)
 {
   if (!closeTouchInputHandle)
     return PR_FALSE;
@@ -243,7 +243,7 @@ bool nsWinGesture::CloseTouchInputHandle(HTOUCHINPUT hTouchInput)
   return closeTouchInputHandle(hTouchInput);
 }
 
-bool nsWinGesture::GetGestureInfo(HGESTUREINFO hGestureInfo, PGESTUREINFO pGestureInfo)
+PRBool nsWinGesture::GetGestureInfo(HGESTUREINFO hGestureInfo, PGESTUREINFO pGestureInfo)
 {
   if (!getGestureInfo || !hGestureInfo || !pGestureInfo)
     return PR_FALSE;
@@ -254,7 +254,7 @@ bool nsWinGesture::GetGestureInfo(HGESTUREINFO hGestureInfo, PGESTUREINFO pGestu
   return getGestureInfo(hGestureInfo, pGestureInfo);
 }
 
-bool nsWinGesture::CloseGestureInfoHandle(HGESTUREINFO hGestureInfo)
+PRBool nsWinGesture::CloseGestureInfoHandle(HGESTUREINFO hGestureInfo)
 {
   if (!getGestureInfo || !hGestureInfo)
     return PR_FALSE;
@@ -262,7 +262,7 @@ bool nsWinGesture::CloseGestureInfoHandle(HGESTUREINFO hGestureInfo)
   return closeGestureInfoHandle(hGestureInfo);
 }
 
-bool nsWinGesture::GetGestureExtraArgs(HGESTUREINFO hGestureInfo, UINT cbExtraArgs, PBYTE pExtraArgs)
+PRBool nsWinGesture::GetGestureExtraArgs(HGESTUREINFO hGestureInfo, UINT cbExtraArgs, PBYTE pExtraArgs)
 {
   if (!getGestureInfo || !hGestureInfo || !pExtraArgs)
     return PR_FALSE;
@@ -270,7 +270,7 @@ bool nsWinGesture::GetGestureExtraArgs(HGESTUREINFO hGestureInfo, UINT cbExtraAr
   return getGestureExtraArgs(hGestureInfo, cbExtraArgs, pExtraArgs);
 }
 
-bool nsWinGesture::SetGestureConfig(HWND hWnd, UINT cIDs, PGESTURECONFIG pGestureConfig)
+PRBool nsWinGesture::SetGestureConfig(HWND hWnd, UINT cIDs, PGESTURECONFIG pGestureConfig)
 {
   if (!getGestureInfo || !pGestureConfig)
     return PR_FALSE;
@@ -278,7 +278,7 @@ bool nsWinGesture::SetGestureConfig(HWND hWnd, UINT cIDs, PGESTURECONFIG pGestur
   return setGestureConfig(hWnd, 0, cIDs, pGestureConfig, sizeof(GESTURECONFIG));
 }
 
-bool nsWinGesture::GetGestureConfig(HWND hWnd, DWORD dwFlags, PUINT pcIDs, PGESTURECONFIG pGestureConfig)
+PRBool nsWinGesture::GetGestureConfig(HWND hWnd, DWORD dwFlags, PUINT pcIDs, PGESTURECONFIG pGestureConfig)
 {
   if (!getGestureInfo || !pGestureConfig)
     return PR_FALSE;
@@ -286,7 +286,7 @@ bool nsWinGesture::GetGestureConfig(HWND hWnd, DWORD dwFlags, PUINT pcIDs, PGEST
   return getGestureConfig(hWnd, 0, dwFlags, pcIDs, pGestureConfig, sizeof(GESTURECONFIG));
 }
 
-bool nsWinGesture::BeginPanningFeedback(HWND hWnd)
+PRBool nsWinGesture::BeginPanningFeedback(HWND hWnd)
 {
   if (!beginPanningFeedback)
     return PR_FALSE;
@@ -294,7 +294,7 @@ bool nsWinGesture::BeginPanningFeedback(HWND hWnd)
   return beginPanningFeedback(hWnd);
 }
 
-bool nsWinGesture::EndPanningFeedback(HWND hWnd)
+PRBool nsWinGesture::EndPanningFeedback(HWND hWnd)
 {
   if (!beginPanningFeedback)
     return PR_FALSE;
@@ -302,7 +302,7 @@ bool nsWinGesture::EndPanningFeedback(HWND hWnd)
   return endPanningFeedback(hWnd, TRUE);
 }
 
-bool nsWinGesture::UpdatePanningFeedback(HWND hWnd, LONG offsetX, LONG offsetY, BOOL fInInertia)
+PRBool nsWinGesture::UpdatePanningFeedback(HWND hWnd, LONG offsetX, LONG offsetY, BOOL fInInertia)
 {
   if (!beginPanningFeedback)
     return PR_FALSE;
@@ -310,7 +310,7 @@ bool nsWinGesture::UpdatePanningFeedback(HWND hWnd, LONG offsetX, LONG offsetY, 
   return updatePanningFeedback(hWnd, offsetX, offsetY, fInInertia);
 }
 
-bool nsWinGesture::IsPanEvent(LPARAM lParam)
+PRBool nsWinGesture::IsPanEvent(LPARAM lParam)
 {
   GESTUREINFO gi;
 
@@ -329,7 +329,7 @@ bool nsWinGesture::IsPanEvent(LPARAM lParam)
 
 /* Gesture event processing */
 
-bool
+PRBool
 nsWinGesture::ProcessGestureMessage(HWND hWnd, WPARAM wParam, LPARAM lParam, nsSimpleGestureEvent& evt)
 {
   GESTUREINFO gi;
@@ -437,7 +437,7 @@ nsWinGesture::ProcessGestureMessage(HWND hWnd, WPARAM wParam, LPARAM lParam, nsS
   return PR_TRUE;
 }
 
-bool
+PRBool
 nsWinGesture::ProcessPanMessage(HWND hWnd, WPARAM wParam, LPARAM lParam)
 {
   GESTUREINFO gi;
@@ -502,7 +502,7 @@ nsWinGesture::ProcessPanMessage(HWND hWnd, WPARAM wParam, LPARAM lParam)
   return PR_TRUE;
 }
 
-inline bool TestTransition(PRInt32 a, PRInt32 b)
+inline PRBool TestTransition(PRInt32 a, PRInt32 b)
 {
   // If a is zero, overflow is zero, implying the cursor has moved back to the start position.
   // If b is zero, cached overscroll is zero, implying feedback just begun. 
@@ -512,7 +512,7 @@ inline bool TestTransition(PRInt32 a, PRInt32 b)
 }
 
 void
-nsWinGesture::UpdatePanFeedbackX(HWND hWnd, PRInt32 scrollOverflow, bool& endFeedback)
+nsWinGesture::UpdatePanFeedbackX(HWND hWnd, PRInt32 scrollOverflow, PRBool& endFeedback)
 {
   // If scroll overflow was returned indicating we panned past the bounds of
   // the scrollable view port, start feeback.
@@ -541,7 +541,7 @@ nsWinGesture::UpdatePanFeedbackX(HWND hWnd, PRInt32 scrollOverflow, bool& endFee
 }
 
 void
-nsWinGesture::UpdatePanFeedbackY(HWND hWnd, PRInt32 scrollOverflow, bool& endFeedback)
+nsWinGesture::UpdatePanFeedbackY(HWND hWnd, PRInt32 scrollOverflow, PRBool& endFeedback)
 {
   // If scroll overflow was returned indicating we panned past the bounds of
   // the scrollable view port, start feeback.
@@ -570,7 +570,7 @@ nsWinGesture::UpdatePanFeedbackY(HWND hWnd, PRInt32 scrollOverflow, bool& endFee
 }
 
 void
-nsWinGesture::PanFeedbackFinalize(HWND hWnd, bool endFeedback)
+nsWinGesture::PanFeedbackFinalize(HWND hWnd, PRBool endFeedback)
 {
   if (!mFeedbackActive)
     return;
@@ -587,7 +587,7 @@ nsWinGesture::PanFeedbackFinalize(HWND hWnd, bool endFeedback)
   UpdatePanningFeedback(hWnd, mPixelScrollOverflow.x, mPixelScrollOverflow.y, mPanInertiaActive);
 }
 
-bool
+PRBool
 nsWinGesture::PanDeltaToPixelScrollX(nsMouseScrollEvent& evt)
 {
   evt.delta = 0;
@@ -613,7 +613,7 @@ nsWinGesture::PanDeltaToPixelScrollX(nsMouseScrollEvent& evt)
   return PR_FALSE;
 }
 
-bool
+PRBool
 nsWinGesture::PanDeltaToPixelScrollY(nsMouseScrollEvent& evt)
 {
   evt.delta = 0;

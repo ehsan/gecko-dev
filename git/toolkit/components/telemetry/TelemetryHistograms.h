@@ -53,8 +53,6 @@
  * a11y telemetry
  */
 HISTOGRAM(A11Y_INSTANTIATED, 0, 1, 2, BOOLEAN, "has accessibility support been instantiated")
-HISTOGRAM(ISIMPLE_DOM_USAGE, 0, 1, 2, BOOLEAN, "have the ISimpleDOM* accessibility interfaces been used")
-HISTOGRAM(IACCESSIBLE_TABLE_USAGE, 0, 1, 2, BOOLEAN, "has the IAccessibleTable accessibility interface been used")
 
 HISTOGRAM(CYCLE_COLLECTOR, 1, 10000, 50, EXPONENTIAL, "Time spent on one cycle collection (ms)")
 HISTOGRAM(CYCLE_COLLECTOR_VISITED_REF_COUNTED, 1, 300000, 50, EXPONENTIAL, "Number of ref counted objects visited by the cycle collector")
@@ -176,7 +174,7 @@ HISTOGRAM(MOZ_SQLITE_PLACES_WRITE_B, 1, 32768, 3, LINEAR, "SQLite write (bytes)"
 HISTOGRAM(MOZ_SQLITE_COOKIES_WRITE_B, 1, 32768, 3, LINEAR, "SQLite write (bytes)")
 HISTOGRAM(MOZ_SQLITE_URLCLASSIFIER_WRITE_B, 1, 32768, 3, LINEAR, "SQLite write (bytes)")
 HISTOGRAM(MOZ_SQLITE_OTHER_WRITE_B, 1, 32768, 3, LINEAR, "SQLite write (bytes)")
-HISTOGRAM(STARTUP_MEASUREMENT_ERRORS, 1, 4, 5, LINEAR, "Flags errors in startup calculation()")
+HISTOGRAM(STARTUP_MEASUREMENT_ERRORS, 1, 3, 4, LINEAR, "Flags errors in startup calculation()")
 HISTOGRAM(NETWORK_DISK_CACHE_OPEN, 1, 10000, 10, EXPONENTIAL, "Time spent opening disk cache (ms)")
 HISTOGRAM(NETWORK_DISK_CACHE_TRASHRENAME, 1, 10000, 10, EXPONENTIAL, "Time spent renaming bad Cache to Cache.Trash (ms)")
 HISTOGRAM(NETWORK_DISK_CACHE_DELETEDIR, 1, 10000, 10, EXPONENTIAL, "Time spent deleting disk cache (ms)")

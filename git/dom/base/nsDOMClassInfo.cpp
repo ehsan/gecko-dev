@@ -487,7 +487,6 @@
 #include "DOMSVGNumberList.h"
 #include "DOMSVGPathSegList.h"
 #include "DOMSVGPointList.h"
-#include "DOMSVGTransformList.h"
 
 #include "mozilla/dom/indexedDB/IDBFactory.h"
 #include "mozilla/dom/indexedDB/IDBRequest.h"
@@ -1240,8 +1239,8 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(SVGTransform, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
-  NS_DEFINE_CLASSINFO_DATA(SVGTransformList, nsSVGTransformListSH,
-                           ARRAY_SCRIPTABLE_FLAGS)
+  NS_DEFINE_CLASSINFO_DATA(SVGTransformList, nsDOMGenericSH,
+                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(SVGZoomEvent, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
@@ -1571,9 +1570,9 @@ static const nsConstructorFuncMapData kConstructorFuncMap[] =
 
 nsIXPConnect *nsDOMClassInfo::sXPConnect = nsnull;
 nsIScriptSecurityManager *nsDOMClassInfo::sSecMan = nsnull;
-bool nsDOMClassInfo::sIsInitialized = false;
-bool nsDOMClassInfo::sDisableDocumentAllSupport = false;
-bool nsDOMClassInfo::sDisableGlobalScopePollutionSupport = false;
+PRBool nsDOMClassInfo::sIsInitialized = PR_FALSE;
+PRBool nsDOMClassInfo::sDisableDocumentAllSupport = PR_FALSE;
+PRBool nsDOMClassInfo::sDisableGlobalScopePollutionSupport = PR_FALSE;
 
 
 jsid nsDOMClassInfo::sParent_id          = JSID_VOID;
@@ -1728,7 +1727,7 @@ IdToString(JSContext *cx, jsid id)
 static inline nsresult
 WrapNative(JSContext *cx, JSObject *scope, nsISupports *native,
            nsWrapperCache *cache, const nsIID* aIID, jsval *vp,
-           nsIXPConnectJSObjectHolder** aHolder, bool aAllowWrapping)
+           nsIXPConnectJSObjectHolder** aHolder, PRBool aAllowWrapping)
 {
   if (!native) {
     NS_ASSERTION(!aHolder || !*aHolder, "*aHolder should be null!");
@@ -1751,7 +1750,7 @@ WrapNative(JSContext *cx, JSObject *scope, nsISupports *native,
 
 static inline nsresult
 WrapNative(JSContext *cx, JSObject *scope, nsISupports *native,
-           const nsIID* aIID, bool aAllowWrapping, jsval *vp,
+           const nsIID* aIID, PRBool aAllowWrapping, jsval *vp,
            // If non-null aHolder will keep the jsval alive
            // while there's a ref to it
            nsIXPConnectJSObjectHolder** aHolder = nsnull)
@@ -1763,7 +1762,7 @@ WrapNative(JSContext *cx, JSObject *scope, nsISupports *native,
 // Same as the WrapNative above, but use these if aIID is nsISupports' IID.
 static inline nsresult
 WrapNative(JSContext *cx, JSObject *scope, nsISupports *native,
-           bool aAllowWrapping, jsval *vp,
+           PRBool aAllowWrapping, jsval *vp,
            // If non-null aHolder will keep the jsval alive
            // while there's a ref to it
            nsIXPConnectJSObjectHolder** aHolder = nsnull)
@@ -1774,7 +1773,7 @@ WrapNative(JSContext *cx, JSObject *scope, nsISupports *native,
 
 static inline nsresult
 WrapNative(JSContext *cx, JSObject *scope, nsISupports *native,
-           nsWrapperCache *cache, bool aAllowWrapping, jsval *vp,
+           nsWrapperCache *cache, PRBool aAllowWrapping, jsval *vp,
            // If non-null aHolder will keep the jsval alive
            // while there's a ref to it
            nsIXPConnectJSObjectHolder** aHolder = nsnull)
@@ -1957,7 +1956,7 @@ nsDOMClassInfo::ThrowJSException(JSContext *cx, nsresult aResult)
 }
 
 // static
-bool
+PRBool
 nsDOMClassInfo::ObjectIsNativeWrapper(JSContext* cx, JSObject* obj)
 {
   return xpc::WrapperFactory::IsXrayWrapper(obj) &&
@@ -2038,7 +2037,7 @@ nsDOMClassInfo::RegisterClassProtos(PRInt32 aClassInfoID)
   nsScriptNameSpaceManager *nameSpaceManager =
     nsJSRuntime::GetNameSpaceManager();
   NS_ENSURE_TRUE(nameSpaceManager, NS_ERROR_NOT_INITIALIZED);
-  bool found_old;
+  PRBool found_old;
 
   const nsIID *primary_iid = sClassInfoData[aClassInfoID].mProtoChainInterface;
 
@@ -2051,7 +2050,7 @@ nsDOMClassInfo::RegisterClassProtos(PRInt32 aClassInfoID)
   NS_ENSURE_TRUE(iim, NS_ERROR_NOT_AVAILABLE);
 
   nsCOMPtr<nsIInterfaceInfo> if_info;
-  bool first = true;
+  PRBool first = PR_TRUE;
 
   iim->GetInfoForIID(primary_iid, getter_AddRefs(if_info));
 
@@ -2958,6 +2957,8 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
   DOM_CLASSINFO_MAP_END
 
+  // FIXME: bug 680903. Should ChromeWindow really not have touch,
+  // performance apis?
   DOM_CLASSINFO_MAP_BEGIN_NO_CLASS_IF(ChromeWindow, nsIDOMWindow)
     DOM_CLASSINFO_WINDOW_MAP_ENTRIES(PR_TRUE)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMChromeWindow)
@@ -3823,6 +3824,8 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(FileReader, nsIDOMFileReader)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMFileReader)
+    DOM_CLASSINFO_MAP_ENTRY(nsIXMLHttpRequestEventTarget)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
     DOM_CLASSINFO_MAP_ENTRY(nsIInterfaceRequestor)
   DOM_CLASSINFO_MAP_END
 
@@ -3838,6 +3841,8 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMDOMStringMap)
   DOM_CLASSINFO_MAP_END
 
+  // FIXME: Bug 680903.  Should ModalContentWindow really not have
+  // touch, performance apis and have unconditional indexeddb??
   DOM_CLASSINFO_MAP_BEGIN_NO_CLASS_IF(ModalContentWindow, nsIDOMWindow)
     DOM_CLASSINFO_WINDOW_MAP_ENTRIES(nsGlobalWindow::HasIndexedDBSupport())
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMModalContentWindow)
@@ -4206,7 +4211,7 @@ nsDOMClassInfo::Init()
 
 // static
 PRInt32
-nsDOMClassInfo::GetArrayIndexFromId(JSContext *cx, jsid id, bool *aIsNumber)
+nsDOMClassInfo::GetArrayIndexFromId(JSContext *cx, jsid id, PRBool *aIsNumber)
 {
   if (aIsNumber) {
     *aIsNumber = PR_FALSE;
@@ -4387,7 +4392,7 @@ nsDOMClassInfo::PostCreate(nsIXPConnectWrappedNative *wrapper,
 NS_IMETHODIMP
 nsDOMClassInfo::AddProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                             JSObject *obj, jsid id, jsval *vp,
-                            bool *_retval)
+                            PRBool *_retval)
 {
   NS_WARNING("nsDOMClassInfo::AddProperty Don't call me!");
 
@@ -4397,7 +4402,7 @@ nsDOMClassInfo::AddProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 NS_IMETHODIMP
 nsDOMClassInfo::DelProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                             JSObject *obj, jsid id, jsval *vp,
-                            bool *_retval)
+                            PRBool *_retval)
 {
   NS_WARNING("nsDOMClassInfo::DelProperty Don't call me!");
 
@@ -4407,7 +4412,7 @@ nsDOMClassInfo::DelProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 NS_IMETHODIMP
 nsDOMClassInfo::GetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                             JSObject *obj, jsid id, jsval *vp,
-                            bool *_retval)
+                            PRBool *_retval)
 {
   NS_WARNING("nsDOMClassInfo::GetProperty Don't call me!");
 
@@ -4417,7 +4422,7 @@ nsDOMClassInfo::GetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 NS_IMETHODIMP
 nsDOMClassInfo::SetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                             JSObject *obj, jsid id, jsval *vp,
-                            bool *_retval)
+                            PRBool *_retval)
 {
   NS_WARNING("nsDOMClassInfo::SetProperty Don't call me!");
 
@@ -4426,7 +4431,7 @@ nsDOMClassInfo::SetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 
 NS_IMETHODIMP
 nsDOMClassInfo::Enumerate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
-                          JSObject *obj, bool *_retval)
+                          JSObject *obj, PRBool *_retval)
 {
 #ifdef DEBUG
   if (!sSecMan) {
@@ -4449,7 +4454,7 @@ nsDOMClassInfo::Enumerate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 NS_IMETHODIMP
 nsDOMClassInfo::NewEnumerate(nsIXPConnectWrappedNative *wrapper,
                              JSContext *cx, JSObject *obj, PRUint32 enum_op,
-                             jsval *statep, jsid *idp, bool *_retval)
+                             jsval *statep, jsid *idp, PRBool *_retval)
 {
   NS_WARNING("nsDOMClassInfo::NewEnumerate Don't call me!");
 
@@ -4488,7 +4493,7 @@ nsDOMClassInfo::ResolveConstructor(JSContext *cx, JSObject *obj,
 NS_IMETHODIMP
 nsDOMClassInfo::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                            JSObject *obj, jsid id, PRUint32 flags,
-                           JSObject **objp, bool *_retval)
+                           JSObject **objp, PRBool *_retval)
 {
   if (id == sConstructor_id && !(flags & JSRESOLVE_ASSIGNING)) {
     return ResolveConstructor(cx, obj, objp);
@@ -4500,7 +4505,7 @@ nsDOMClassInfo::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 NS_IMETHODIMP
 nsDOMClassInfo::Convert(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                         JSObject *obj, PRUint32 type, jsval *vp,
-                        bool *_retval)
+                        PRBool *_retval)
 {
   NS_WARNING("nsDOMClassInfo::Convert Don't call me!");
 
@@ -4519,7 +4524,7 @@ nsDOMClassInfo::Finalize(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 NS_IMETHODIMP
 nsDOMClassInfo::CheckAccess(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                             JSObject *obj, jsid id, PRUint32 mode,
-                            jsval *vp, bool *_retval)
+                            jsval *vp, PRBool *_retval)
 {
   PRUint32 mode_type = mode & JSACC_TYPEMASK;
 
@@ -4554,7 +4559,7 @@ nsDOMClassInfo::CheckAccess(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 NS_IMETHODIMP
 nsDOMClassInfo::Call(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                      JSObject *obj, PRUint32 argc, jsval *argv, jsval *vp,
-                     bool *_retval)
+                     PRBool *_retval)
 {
   NS_WARNING("nsDOMClassInfo::Call Don't call me!");
 
@@ -4564,7 +4569,7 @@ nsDOMClassInfo::Call(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 NS_IMETHODIMP
 nsDOMClassInfo::Construct(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                           JSObject *obj, PRUint32 argc, jsval *argv,
-                          jsval *vp, bool *_retval)
+                          jsval *vp, PRBool *_retval)
 {
   NS_WARNING("nsDOMClassInfo::Construct Don't call me!");
 
@@ -4573,8 +4578,8 @@ nsDOMClassInfo::Construct(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 
 NS_IMETHODIMP
 nsDOMClassInfo::HasInstance(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
-                            JSObject *obj, const jsval &val, bool *bp,
-                            bool *_retval)
+                            JSObject *obj, const jsval &val, PRBool *bp,
+                            PRBool *_retval)
 {
   NS_WARNING("nsDOMClassInfo::HasInstance Don't call me!");
 
@@ -4592,7 +4597,7 @@ nsDOMClassInfo::Trace(nsIXPConnectWrappedNative *wrapper, JSTracer *trc,
 
 NS_IMETHODIMP
 nsDOMClassInfo::Equality(nsIXPConnectWrappedNative *wrapper, JSContext * cx,
-                         JSObject * obj, const jsval &val, bool *bp)
+                         JSObject * obj, const jsval &val, PRBool *bp)
 {
   NS_WARNING("nsDOMClassInfo::Equality Don't call me!");
 
@@ -4650,7 +4655,7 @@ ResolvePrototype(nsIXPConnect *aXPConnect, nsGlobalWindow *aWin, JSContext *cx,
                  const nsDOMClassInfoData *ci_data,
                  const nsGlobalNameStruct *name_struct,
                  nsScriptNameSpaceManager *nameSpaceManager,
-                 JSObject *dot_prototype, bool install, bool *did_resolve);
+                 JSObject *dot_prototype, PRBool install, PRBool *did_resolve);
 
 
 NS_IMETHODIMP
@@ -4754,7 +4759,7 @@ nsDOMClassInfo::PostCreatePrototype(JSContext * cx, JSObject * proto)
     nsJSRuntime::GetNameSpaceManager();
   NS_ENSURE_TRUE(nameSpaceManager, NS_OK);
 
-  bool unused;
+  PRBool unused;
   return ResolvePrototype(sXPConnect, win, cx, global, mData->mNameUTF16,
                           mData, nsnull, nameSpaceManager, proto, !found,
                           &unused);
@@ -5161,7 +5166,7 @@ GetChildFrame(nsGlobalWindow *win, PRUint32 index)
 
 NS_IMETHODIMP
 nsWindowSH::GetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
-                        JSObject *obj, jsid id, jsval *vp, bool *_retval)
+                        JSObject *obj, jsid id, jsval *vp, PRBool *_retval)
 {
   nsGlobalWindow *win = nsGlobalWindow::FromWrapper(wrapper);
 
@@ -5273,7 +5278,7 @@ nsWindowSH::GetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 
 NS_IMETHODIMP
 nsWindowSH::Enumerate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
-                      JSObject *obj, bool *_retval)
+                      JSObject *obj, PRBool *_retval)
 {
   if (!ObjectIsNativeWrapper(cx, obj)) {
     *_retval = JS_EnumerateStandardClasses(cx, obj);
@@ -5468,7 +5473,7 @@ class nsDOMConstructor : public nsIDOMDOMConstructor
 {
 protected:
   nsDOMConstructor(const PRUnichar* aName,
-                   bool aIsConstructable,
+                   PRBool aIsConstructable,
                    nsPIDOMWindow* aOwner)
     : mClassName(aName),
       mConstructable(aIsConstructable),
@@ -5491,11 +5496,11 @@ public:
 
   nsresult Construct(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                      JSObject *obj, PRUint32 argc, jsval *argv,
-                     jsval *vp, bool *_retval);
+                     jsval *vp, PRBool *_retval);
 
   nsresult HasInstance(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
-                       JSObject *obj, const jsval &val, bool *bp,
-                       bool *_retval);
+                       JSObject *obj, const jsval &val, PRBool *bp,
+                       PRBool *_retval);
 
   nsresult Install(JSContext *cx, JSObject *target, jsval thisAsVal)
   {
@@ -5546,7 +5551,7 @@ private:
     return NS_OK;
   }
 
-  static bool IsConstructable(const nsDOMClassInfoData *aData)
+  static PRBool IsConstructable(const nsDOMClassInfoData *aData)
   {
     if (IS_EXTERNAL(aData->mCachedClassInfo)) {
       const nsExternalDOMClassInfoData* data =
@@ -5556,7 +5561,7 @@ private:
 
     return FindConstructorContractID(aData) || FindConstructorFunc(aData);
   }
-  static bool IsConstructable(const nsGlobalNameStruct *aNameStruct)
+  static PRBool IsConstructable(const nsGlobalNameStruct *aNameStruct)
   {
     return
       (aNameStruct->mType == nsGlobalNameStruct::eTypeClassConstructor &&
@@ -5568,7 +5573,7 @@ private:
   }
 
   const PRUnichar*   mClassName;
-  const bool mConstructable;
+  const PRPackedBool mConstructable;
   nsWeakPtr          mWeakOwner;
 };
 
@@ -5596,7 +5601,7 @@ nsDOMConstructor::Create(const PRUnichar* aName,
     return NS_ERROR_DOM_SECURITY_ERR;
   }
 
-  bool constructable = aNameStruct ?
+  PRBool constructable = aNameStruct ?
                          IsConstructable(aNameStruct) :
                          IsConstructable(aData);
 
@@ -5648,7 +5653,7 @@ nsDOMConstructor::PreCreate(JSContext *cx, JSObject *globalObj, JSObject **paren
 nsresult
 nsDOMConstructor::Construct(nsIXPConnectWrappedNative *wrapper, JSContext * cx,
                             JSObject * obj, PRUint32 argc, jsval * argv,
-                            jsval * vp, bool *_retval)
+                            jsval * vp, PRBool *_retval)
 {
   JSObject* class_obj = JSVAL_TO_OBJECT(argv[-2]);
   if (!class_obj) {
@@ -5670,7 +5675,7 @@ nsDOMConstructor::Construct(nsIXPConnectWrappedNative *wrapper, JSContext * cx,
 nsresult
 nsDOMConstructor::HasInstance(nsIXPConnectWrappedNative *wrapper,
                               JSContext * cx, JSObject * obj,
-                              const jsval &v, bool *bp, bool *_retval)
+                              const jsval &v, PRBool *bp, PRBool *_retval)
 
 {
   // No need to look these up in the hash.
@@ -5906,7 +5911,7 @@ ResolvePrototype(nsIXPConnect *aXPConnect, nsGlobalWindow *aWin, JSContext *cx,
                  const nsDOMClassInfoData *ci_data,
                  const nsGlobalNameStruct *name_struct,
                  nsScriptNameSpaceManager *nameSpaceManager,
-                 JSObject *dot_prototype, bool install, bool *did_resolve)
+                 JSObject *dot_prototype, PRBool install, PRBool *did_resolve)
 {
   NS_ASSERTION(ci_data ||
                (name_struct &&
@@ -6092,7 +6097,7 @@ ResolvePrototype(nsIXPConnect *aXPConnect, nsGlobalWindow *aWin, JSContext *cx,
 // static
 nsresult
 nsWindowSH::GlobalResolve(nsGlobalWindow *aWin, JSContext *cx,
-                          JSObject *obj, jsid id, bool *did_resolve)
+                          JSObject *obj, jsid id, PRBool *did_resolve)
 {
   *did_resolve = PR_FALSE;
 
@@ -6439,7 +6444,7 @@ LocationSetterUnwrapper(JSContext *cx, JSObject *obj, jsid id, JSBool strict,
 NS_IMETHODIMP
 nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                        JSObject *obj, jsid id, PRUint32 flags,
-                       JSObject **objp, bool *_retval)
+                       JSObject **objp, PRBool *_retval)
 {
   nsGlobalWindow *win = nsGlobalWindow::FromWrapper(wrapper);
 
@@ -6642,7 +6647,7 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 
         JSAutoRequest ar(cx);
 
-        bool ok = JS_WrapValue(cx, &v) &&
+        PRBool ok = JS_WrapValue(cx, &v) &&
                     JS_DefinePropertyById(cx, obj, id, v, nsnull, nsnull, 0);
         if (!ok) {
           return NS_ERROR_FAILURE;
@@ -6675,7 +6680,7 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
     // that named child frames will override external properties
     // which have been registered with the script namespace manager.
 
-    bool did_resolve = false;
+    PRBool did_resolve = PR_FALSE;
     rv = GlobalResolve(win, cx, obj, id, &did_resolve);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -6792,7 +6797,7 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
     }
 
     if (id == sJava_id || id == sPackages_id) {
-      static bool isResolvingJavaProperties;
+      static PRBool isResolvingJavaProperties;
 
       if (!isResolvingJavaProperties) {
         isResolvingJavaProperties = PR_TRUE;
@@ -6804,7 +6809,7 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
         win->InitJavaProperties(); 
 
         JSBool hasProp;
-        bool ok = ::JS_HasPropertyById(cx, obj, id, &hasProp);
+        PRBool ok = ::JS_HasPropertyById(cx, obj, id, &hasProp);
 
         isResolvingJavaProperties = PR_FALSE;
 
@@ -6953,7 +6958,7 @@ nsWindowSH::OuterObject(nsIXPConnectWrappedNative *wrapper, JSContext * cx,
 NS_IMETHODIMP
 nsLocationSH::CheckAccess(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                           JSObject *obj, jsid id, PRUint32 mode,
-                          jsval *vp, bool *_retval)
+                          jsval *vp, PRBool *_retval)
 {
   if ((mode & JSACC_TYPEMASK) == JSACC_PROTO && (mode & JSACC_WRITE)) {
     // No setting location.__proto__, ever!
@@ -7008,7 +7013,7 @@ nsLocationSH::PreCreate(nsISupports *nativeObj, JSContext *cx,
 NS_IMETHODIMP
 nsNavigatorSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                           JSObject *obj, jsid id, PRUint32 flags,
-                          JSObject **objp, bool *_retval)
+                          JSObject **objp, PRBool *_retval)
 {
   if (!JSID_IS_STRING(id) || (flags & JSRESOLVE_ASSIGNING)) {
     return NS_OK;
@@ -7189,10 +7194,10 @@ nsNodeSH::PostCreatePrototype(JSContext * cx, JSObject * proto)
   return rv;
 }
 
-bool
+PRBool
 nsNodeSH::IsCapabilityEnabled(const char* aCapability)
 {
-  bool enabled;
+  PRBool enabled;
   return sSecMan &&
     NS_SUCCEEDED(sSecMan->IsCapabilityEnabled(aCapability, &enabled)) &&
     enabled;
@@ -7240,14 +7245,14 @@ nsNodeSH::PreCreate(nsISupports *nativeObj, JSContext *cx, JSObject *globalObj,
   // Event handling is possible only if (1). If (2) event handling is prevented.
   // If document has never had a script handling object,
   // untrusted scripts (3) shouldn't touch it!
-  bool hasHadScriptHandlingObject = false;
+  PRBool hasHadScriptHandlingObject = PR_FALSE;
   NS_ENSURE_STATE(doc->GetScriptHandlingObject(hasHadScriptHandlingObject) ||
                   hasHadScriptHandlingObject ||
                   IsPrivilegedScript());
 
   nsINode *native_parent;
 
-  bool nodeIsElement = node->IsElement();
+  PRBool nodeIsElement = node->IsElement();
   if (nodeIsElement && node->AsElement()->IsXUL()) {
     // For XUL elements, use the parent, if any.
     native_parent = node->GetParent();
@@ -7334,7 +7339,7 @@ nsNodeSH::PreCreate(nsISupports *nativeObj, JSContext *cx, JSObject *globalObj,
 
 NS_IMETHODIMP
 nsNodeSH::AddProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
-                      JSObject *obj, jsid id, jsval *vp, bool *_retval)
+                      JSObject *obj, jsid id, jsval *vp, PRBool *_retval)
 {
   nsNodeSH::PreserveWrapper(GetNative(wrapper, obj));
   return NS_OK;
@@ -7343,7 +7348,7 @@ nsNodeSH::AddProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 NS_IMETHODIMP
 nsNodeSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                      JSObject *obj, jsid id, PRUint32 flags,
-                     JSObject **objp, bool *_retval)
+                     JSObject **objp, PRBool *_retval)
 {
   if (id == sOnload_id || id == sOnerror_id) {
     // Make sure that this node can't go away while waiting for a
@@ -7393,7 +7398,7 @@ nsEventTargetSH::PreCreate(nsISupports *nativeObj, JSContext *cx,
 
 NS_IMETHODIMP
 nsEventTargetSH::AddProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
-                             JSObject *obj, jsid id, jsval *vp, bool *_retval)
+                             JSObject *obj, jsid id, jsval *vp, PRBool *_retval)
 {
   if (id == sAddEventListener_id) {
     return NS_OK;
@@ -7415,7 +7420,7 @@ nsEventTargetSH::PreserveWrapper(nsISupports *aNative)
 
 // Element helper
 
-static bool
+static PRBool
 GetBindingURL(Element *aElement, nsIDocument *aDocument,
               nsCSSValue::URL **aResult)
 {
@@ -7477,7 +7482,7 @@ nsElementSH::PreCreate(nsISupports *nativeObj, JSContext *cx,
   }
 
   nsCSSValue::URL *bindingURL;
-  bool ok = GetBindingURL(element, doc, &bindingURL);
+  PRBool ok = GetBindingURL(element, doc, &bindingURL);
   NS_ENSURE_TRUE(ok, NS_ERROR_FAILURE);
 
   // Only allow slim wrappers if there's no binding.
@@ -7542,7 +7547,7 @@ nsElementSH::PostCreate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
   // Make sure the style context goes away _before_ we load the binding
   // since that can destroy the relevant presshell.
   nsCSSValue::URL *bindingURL;
-  bool ok = GetBindingURL(element, doc, &bindingURL);
+  PRBool ok = GetBindingURL(element, doc, &bindingURL);
   NS_ENSURE_TRUE(ok, NS_ERROR_FAILURE);
 
   if (!bindingURL) {
@@ -7554,7 +7559,7 @@ nsElementSH::PostCreate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
   nsCOMPtr<nsIPrincipal> principal = bindingURL->mOriginPrincipal;
 
   // We have a binding that must be installed.
-  bool dummy;
+  PRBool dummy;
 
   nsCOMPtr<nsIXBLService> xblService(do_GetService("@mozilla.org/xbl;1"));
   NS_ENSURE_TRUE(xblService, NS_ERROR_NOT_AVAILABLE);
@@ -7578,7 +7583,7 @@ nsElementSH::PostCreate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 
 NS_IMETHODIMP
 nsElementSH::Enumerate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
-                       JSObject *obj, bool *_retval)
+                       JSObject *obj, PRBool *_retval)
 {
   // Make sure to not call the superclass here!
   nsCOMPtr<nsIContent> content(do_QueryWrappedNative(wrapper, obj));
@@ -7607,14 +7612,14 @@ nsElementSH::Enumerate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 NS_IMETHODIMP
 nsGenericArraySH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                              JSObject *obj, jsid id, PRUint32 flags,
-                             JSObject **objp, bool *_retval)
+                             JSObject **objp, PRBool *_retval)
 {
   if (id == sLength_id) {
     // Bail early; this isn't something we're interested in
     return NS_OK;
   }
   
-  bool is_number = false;
+  PRBool is_number = PR_FALSE;
   PRInt32 n = GetArrayIndexFromId(cx, id, &is_number);
 
   if (is_number && n >= 0) {
@@ -7667,13 +7672,13 @@ nsGenericArraySH::GetLength(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 
 NS_IMETHODIMP
 nsGenericArraySH::Enumerate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
-                            JSObject *obj, bool *_retval)
+                            JSObject *obj, PRBool *_retval)
 {
   // Recursion protection in case someone tries to be smart and call
   // the enumerate hook from a user defined .length getter, or
   // somesuch.
 
-  static bool sCurrentlyEnumerating;
+  static PRBool sCurrentlyEnumerating;
 
   if (sCurrentlyEnumerating) {
     // Don't recurse to death.
@@ -7704,9 +7709,9 @@ nsGenericArraySH::Enumerate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 
 NS_IMETHODIMP
 nsArraySH::GetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
-                       JSObject *obj, jsid id, jsval *vp, bool *_retval)
+                       JSObject *obj, jsid id, jsval *vp, PRBool *_retval)
 {
-  bool is_number = false;
+  PRBool is_number = PR_FALSE;
   PRInt32 n = GetArrayIndexFromId(cx, id, &is_number);
 
   nsresult rv = NS_OK;
@@ -7852,7 +7857,7 @@ nsDOMTokenListSH::GetStringAt(nsISupports *aNative, PRInt32 aIndex,
 NS_IMETHODIMP
 nsNamedArraySH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                            JSObject *obj, jsid id, PRUint32 flags,
-                           JSObject **objp, bool *_retval)
+                           JSObject **objp, PRBool *_retval)
 {
   if ((!(JSRESOLVE_ASSIGNING & flags)) && JSID_IS_STRING(id) &&
       !ObjectIsNativeWrapper(cx, obj)) {
@@ -7908,7 +7913,7 @@ nsNamedArraySH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 NS_IMETHODIMP
 nsNamedArraySH::GetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                             JSObject *obj, jsid id, jsval *vp,
-                            bool *_retval)
+                            PRBool *_retval)
 {
   if (JSID_IS_STRING(id) && !ObjectIsNativeWrapper(cx, obj)) {
     nsresult rv = NS_OK;
@@ -8076,7 +8081,7 @@ nsContentListSH::GetNamedItem(nsISupports *aNative, const nsAString& aName,
 NS_IMETHODIMP
 nsDOMStringMapSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                              JSObject *obj, jsid id, PRUint32 flags,
-                             JSObject **objp, bool *_retval)
+                             JSObject **objp, PRBool *_retval)
 {
   nsCOMPtr<nsIDOMDOMStringMap> dataset(do_QueryWrappedNative(wrapper, obj));
   NS_ENSURE_TRUE(dataset, NS_ERROR_UNEXPECTED);
@@ -8096,7 +8101,7 @@ nsDOMStringMapSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 
 NS_IMETHODIMP
 nsDOMStringMapSH::Enumerate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
-                            JSObject *obj, bool *_retval)
+                            JSObject *obj, PRBool *_retval)
 {
   nsCOMPtr<nsIDOMDOMStringMap> dataset(do_QueryWrappedNative(wrapper, obj));
   NS_ENSURE_TRUE(dataset, NS_ERROR_UNEXPECTED);
@@ -8146,7 +8151,7 @@ nsDOMStringMapSH::PreCreate(nsISupports *nativeObj, JSContext *cx,
 NS_IMETHODIMP
 nsDOMStringMapSH::DelProperty(nsIXPConnectWrappedNative *wrapper,
                               JSContext *cx, JSObject *obj, jsid id,
-                              jsval *vp, bool *_retval)
+                              jsval *vp, PRBool *_retval)
 {
   nsCOMPtr<nsIDOMDOMStringMap> dataset(do_QueryWrappedNative(wrapper, obj));
   NS_ENSURE_TRUE(dataset, NS_ERROR_UNEXPECTED);
@@ -8162,7 +8167,7 @@ nsDOMStringMapSH::DelProperty(nsIXPConnectWrappedNative *wrapper,
 NS_IMETHODIMP
 nsDOMStringMapSH::GetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                               JSObject *obj, jsid id, jsval *vp,
-                              bool *_retval)
+                              PRBool *_retval)
 {
   nsCOMPtr<nsIDOMDOMStringMap> dataset(do_QueryWrappedNative(wrapper, obj));
   NS_ENSURE_TRUE(dataset, NS_ERROR_UNEXPECTED);
@@ -8191,7 +8196,7 @@ nsDOMStringMapSH::GetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 NS_IMETHODIMP
 nsDOMStringMapSH::SetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                               JSObject *obj, jsid id, jsval *vp,
-                              bool *_retval)
+                              PRBool *_retval)
 {
   nsCOMPtr<nsIDOMDOMStringMap> dataset(do_QueryWrappedNative(wrapper, obj));
   NS_ENSURE_TRUE(dataset, NS_ERROR_UNEXPECTED);
@@ -8263,7 +8268,7 @@ nsDocumentSH::PostCreatePrototype(JSContext * cx, JSObject * proto)
 NS_IMETHODIMP
 nsDocumentSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                          JSObject *obj, jsid id, PRUint32 flags,
-                         JSObject **objp, bool *_retval)
+                         JSObject **objp, PRBool *_retval)
 {
   nsresult rv;
 
@@ -8840,7 +8845,7 @@ nsHTMLDocumentSH::DocumentAllTagsNewResolve(JSContext *cx, JSObject *obj,
 NS_IMETHODIMP
 nsHTMLDocumentSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                              JSObject *obj, jsid id, PRUint32 flags,
-                             JSObject **objp, bool *_retval)
+                             JSObject **objp, PRBool *_retval)
 {
   // nsDocumentSH::NewResolve() does a security check that we'd kinda
   // want to do here too before doing anything else. But given that we
@@ -8946,7 +8951,7 @@ nsHTMLDocumentSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 NS_IMETHODIMP
 nsHTMLDocumentSH::GetProperty(nsIXPConnectWrappedNative *wrapper,
                               JSContext *cx, JSObject *obj, jsid id,
-                              jsval *vp, bool *_retval)
+                              jsval *vp, PRBool *_retval)
 {
   // For native wrappers, do not get random names on document
   if (!ObjectIsNativeWrapper(cx, obj)) {
@@ -9002,7 +9007,7 @@ NS_IMETHODIMP
 nsHTMLFormElementSH::NewResolve(nsIXPConnectWrappedNative *wrapper,
                                 JSContext *cx, JSObject *obj, jsid id,
                                 PRUint32 flags, JSObject **objp,
-                                bool *_retval)
+                                PRBool *_retval)
 {
   // For native wrappers, do not resolve random names on form
   if ((!(JSRESOLVE_ASSIGNING & flags)) && JSID_IS_STRING(id) &&
@@ -9031,7 +9036,7 @@ nsHTMLFormElementSH::NewResolve(nsIXPConnectWrappedNative *wrapper,
 NS_IMETHODIMP
 nsHTMLFormElementSH::GetProperty(nsIXPConnectWrappedNative *wrapper,
                                  JSContext *cx, JSObject *obj, jsid id,
-                                 jsval *vp, bool *_retval)
+                                 jsval *vp, PRBool *_retval)
 {
   nsCOMPtr<nsIForm> form(do_QueryWrappedNative(wrapper, obj));
 
@@ -9073,7 +9078,7 @@ NS_IMETHODIMP
 nsHTMLFormElementSH::NewEnumerate(nsIXPConnectWrappedNative *wrapper,
                                   JSContext *cx, JSObject *obj,
                                   PRUint32 enum_op, jsval *statep,
-                                  jsid *idp, bool *_retval)
+                                  jsid *idp, PRBool *_retval)
 {
   switch (enum_op) {
   case JSENUMERATE_INIT:
@@ -9151,7 +9156,7 @@ nsHTMLFormElementSH::NewEnumerate(nsIXPConnectWrappedNative *wrapper,
 NS_IMETHODIMP
 nsHTMLSelectElementSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                                   JSObject *obj, jsid id, PRUint32 flags,
-                                  JSObject **objp, bool *_retval)
+                                  JSObject **objp, PRBool *_retval)
 {
   PRInt32 n = GetArrayIndexFromId(cx, id);
   if (n >= 0) {
@@ -9177,7 +9182,7 @@ nsHTMLSelectElementSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext 
 NS_IMETHODIMP
 nsHTMLSelectElementSH::GetProperty(nsIXPConnectWrappedNative *wrapper,
                                    JSContext *cx, JSObject *obj, jsid id,
-                                   jsval *vp, bool *_retval)
+                                   jsval *vp, PRBool *_retval)
 {
   PRInt32 n = GetArrayIndexFromId(cx, id);
 
@@ -9232,7 +9237,7 @@ nsHTMLSelectElementSH::SetOption(JSContext *cx, jsval *vp, PRUint32 aIndex,
 NS_IMETHODIMP
 nsHTMLSelectElementSH::SetProperty(nsIXPConnectWrappedNative *wrapper,
                                    JSContext *cx, JSObject *obj, jsid id,
-                                   jsval *vp, bool *_retval)
+                                   jsval *vp, PRBool *_retval)
 {
   PRInt32 n = GetArrayIndexFromId(cx, id);
 
@@ -9283,7 +9288,7 @@ nsHTMLPluginObjElementSH::GetPluginInstanceIfSafe(nsIXPConnectWrappedNative *wra
 
 // Check if proto is already in obj's prototype chain.
 
-static bool
+static PRBool
 IsObjInProtoChain(JSContext *cx, JSObject *obj, JSObject *proto)
 {
   JSObject *o = obj;
@@ -9501,7 +9506,7 @@ nsHTMLPluginObjElementSH::PostCreate(nsIXPConnectWrappedNative *wrapper,
 NS_IMETHODIMP
 nsHTMLPluginObjElementSH::GetProperty(nsIXPConnectWrappedNative *wrapper,
                                       JSContext *cx, JSObject *obj, jsid id,
-                                      jsval *vp, bool *_retval)
+                                      jsval *vp, PRBool *_retval)
 {
   JSAutoRequest ar(cx);
 
@@ -9530,7 +9535,7 @@ nsHTMLPluginObjElementSH::GetProperty(nsIXPConnectWrappedNative *wrapper,
 NS_IMETHODIMP
 nsHTMLPluginObjElementSH::SetProperty(nsIXPConnectWrappedNative *wrapper,
                                       JSContext *cx, JSObject *obj, jsid id,
-                                      jsval *vp, bool *_retval)
+                                      jsval *vp, PRBool *_retval)
 {
   JSAutoRequest ar(cx);
 
@@ -9559,7 +9564,7 @@ nsHTMLPluginObjElementSH::SetProperty(nsIXPConnectWrappedNative *wrapper,
 NS_IMETHODIMP
 nsHTMLPluginObjElementSH::Call(nsIXPConnectWrappedNative *wrapper,
                                JSContext *cx, JSObject *obj, PRUint32 argc,
-                               jsval *argv, jsval *vp, bool *_retval)
+                               jsval *argv, jsval *vp, PRBool *_retval)
 {
   nsRefPtr<nsNPAPIPluginInstance> pi;
   nsresult rv = GetPluginInstanceIfSafe(wrapper, obj, getter_AddRefs(pi));
@@ -9624,7 +9629,7 @@ NS_IMETHODIMP
 nsHTMLPluginObjElementSH::NewResolve(nsIXPConnectWrappedNative *wrapper,
                                      JSContext *cx, JSObject *obj, jsid id,
                                      PRUint32 flags, JSObject **objp,
-                                     bool *_retval)
+                                     PRBool *_retval)
 {
   // Make sure the plugin instance is loaded and instantiated, if
   // possible.
@@ -9642,7 +9647,7 @@ nsHTMLPluginObjElementSH::NewResolve(nsIXPConnectWrappedNative *wrapper,
 NS_IMETHODIMP
 nsHTMLOptionsCollectionSH::SetProperty(nsIXPConnectWrappedNative *wrapper,
                                        JSContext *cx, JSObject *obj, jsid id,
-                                       jsval *vp, bool *_retval)
+                                       jsval *vp, PRBool *_retval)
 {
   PRInt32 n = GetArrayIndexFromId(cx, id);
 
@@ -9730,9 +9735,9 @@ nsMimeTypeArraySH::GetNamedItem(nsISupports *aNative, const nsAString& aName,
 NS_IMETHODIMP
 nsStringArraySH::GetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                              JSObject *obj, jsid id, jsval *vp,
-                             bool *_retval)
+                             PRBool *_retval)
 {
-  bool is_number = false;
+  PRBool is_number = PR_FALSE;
   PRInt32 n = GetArrayIndexFromId(cx, id, &is_number);
 
   if (!is_number) {
@@ -9780,9 +9785,9 @@ nsHistorySH::PreCreate(nsISupports *nativeObj, JSContext *cx,
 
 NS_IMETHODIMP
 nsHistorySH::GetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
-                         JSObject *obj, jsid id, jsval *vp, bool *_retval)
+                         JSObject *obj, jsid id, jsval *vp, PRBool *_retval)
 {
-  bool is_number = false;
+  PRBool is_number = PR_FALSE;
   GetArrayIndexFromId(cx, id, &is_number);
 
   if (!is_number) {
@@ -9995,7 +10000,7 @@ nsTreeColumnsSH::GetNamedItem(nsISupports *aNative,
 NS_IMETHODIMP
 nsStorageSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                         JSObject *obj, jsid id, PRUint32 flags,
-                        JSObject **objp, bool *_retval)
+                        JSObject **objp, PRBool *_retval)
 {
   if (ObjectIsNativeWrapper(cx, obj)) {
     return NS_OK;
@@ -10067,7 +10072,7 @@ nsStorageSH::GetNamedItem(nsISupports *aNative, const nsAString& aName,
 NS_IMETHODIMP
 nsStorageSH::SetProperty(nsIXPConnectWrappedNative *wrapper,
                          JSContext *cx, JSObject *obj, jsid id,
-                         jsval *vp, bool *_retval)
+                         jsval *vp, PRBool *_retval)
 {
   nsCOMPtr<nsIDOMStorageObsolete> storage(do_QueryWrappedNative(wrapper));
   NS_ENSURE_TRUE(storage, NS_ERROR_UNEXPECTED);
@@ -10095,7 +10100,7 @@ nsStorageSH::SetProperty(nsIXPConnectWrappedNative *wrapper,
 NS_IMETHODIMP
 nsStorageSH::DelProperty(nsIXPConnectWrappedNative *wrapper,
                          JSContext *cx, JSObject *obj, jsid id,
-                         jsval *vp, bool *_retval)
+                         jsval *vp, PRBool *_retval)
 {
   nsCOMPtr<nsIDOMStorageObsolete> storage(do_QueryWrappedNative(wrapper));
   NS_ENSURE_TRUE(storage, NS_ERROR_UNEXPECTED);
@@ -10118,7 +10123,7 @@ nsStorageSH::DelProperty(nsIXPConnectWrappedNative *wrapper,
 NS_IMETHODIMP
 nsStorageSH::NewEnumerate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                           JSObject *obj, PRUint32 enum_op, jsval *statep,
-                          jsid *idp, bool *_retval)
+                          jsid *idp, PRBool *_retval)
 {
   if (enum_op == JSENUMERATE_INIT || enum_op == JSENUMERATE_INIT_ALL) {
     nsCOMPtr<nsPIDOMStorage> storage(do_QueryWrappedNative(wrapper));
@@ -10175,7 +10180,7 @@ nsStorageSH::NewEnumerate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 NS_IMETHODIMP
 nsStorage2SH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                          JSObject *obj, jsid id, PRUint32 flags,
-                         JSObject **objp, bool *_retval)
+                         JSObject **objp, PRBool *_retval)
 {
   if (ObjectIsNativeWrapper(cx, obj)) {
     return NS_OK;
@@ -10238,7 +10243,7 @@ nsStorage2SH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 
 NS_IMETHODIMP
 nsStorage2SH::GetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
-                          JSObject *obj, jsid id, jsval *vp, bool *_retval)
+                          JSObject *obj, jsid id, jsval *vp, PRBool *_retval)
 {
   nsCOMPtr<nsIDOMStorage> storage(do_QueryWrappedNative(wrapper));
   NS_ENSURE_TRUE(storage, NS_ERROR_UNEXPECTED);
@@ -10282,7 +10287,7 @@ nsStorage2SH::GetProperty(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 NS_IMETHODIMP
 nsStorage2SH::SetProperty(nsIXPConnectWrappedNative *wrapper,
                           JSContext *cx, JSObject *obj, jsid id,
-                          jsval *vp, bool *_retval)
+                          jsval *vp, PRBool *_retval)
 {
   nsCOMPtr<nsIDOMStorage> storage(do_QueryWrappedNative(wrapper));
   NS_ENSURE_TRUE(storage, NS_ERROR_UNEXPECTED);
@@ -10310,7 +10315,7 @@ nsStorage2SH::SetProperty(nsIXPConnectWrappedNative *wrapper,
 NS_IMETHODIMP
 nsStorage2SH::DelProperty(nsIXPConnectWrappedNative *wrapper,
                           JSContext *cx, JSObject *obj, jsid id,
-                          jsval *vp, bool *_retval)
+                          jsval *vp, PRBool *_retval)
 {
   nsCOMPtr<nsIDOMStorage> storage(do_QueryWrappedNative(wrapper));
   NS_ENSURE_TRUE(storage, NS_ERROR_UNEXPECTED);
@@ -10333,7 +10338,7 @@ nsStorage2SH::DelProperty(nsIXPConnectWrappedNative *wrapper,
 NS_IMETHODIMP
 nsStorage2SH::NewEnumerate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                            JSObject *obj, PRUint32 enum_op, jsval *statep,
-                           jsid *idp, bool *_retval)
+                           jsid *idp, PRBool *_retval)
 {
   if (enum_op == JSENUMERATE_INIT || enum_op == JSENUMERATE_INIT_ALL) {
     nsCOMPtr<nsPIDOMStorage> storage(do_QueryWrappedNative(wrapper));
@@ -10407,7 +10412,7 @@ NS_IMETHODIMP
 nsEventListenerThisTranslator::TranslateThis(nsISupports *aInitialThis,
                                              nsIInterfaceInfo *aInterfaceInfo,
                                              PRUint16 aMethodIndex,
-                                             bool *aHideFirstParamFromJS,
+                                             PRBool *aHideFirstParamFromJS,
                                              nsIID * *aIIDOfResult,
                                              nsISupports **_retval)
 {
@@ -10445,7 +10450,7 @@ nsDOMConstructorSH::PreCreate(nsISupports *nativeObj, JSContext *cx,
 NS_IMETHODIMP
 nsDOMConstructorSH::Call(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                          JSObject *obj, PRUint32 argc, jsval *argv, jsval *vp,
-                         bool *_retval)
+                         PRBool *_retval)
 {
   nsDOMConstructor *wrapped =
     static_cast<nsDOMConstructor *>(wrapper->Native());
@@ -10464,7 +10469,7 @@ nsDOMConstructorSH::Call(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 NS_IMETHODIMP
 nsDOMConstructorSH::Construct(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                               JSObject *obj, PRUint32 argc, jsval *argv,
-                              jsval *vp, bool *_retval)
+                              jsval *vp, PRBool *_retval)
 {
   nsDOMConstructor *wrapped =
     static_cast<nsDOMConstructor *>(wrapper->Native());
@@ -10483,7 +10488,7 @@ nsDOMConstructorSH::Construct(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
 NS_IMETHODIMP
 nsDOMConstructorSH::HasInstance(nsIXPConnectWrappedNative *wrapper,
                                 JSContext *cx, JSObject *obj, const jsval &val,
-                                bool *bp, bool *_retval)
+                                PRBool *bp, PRBool *_retval)
 {
   nsDOMConstructor *wrapped =
     static_cast<nsDOMConstructor *>(wrapper->Native());

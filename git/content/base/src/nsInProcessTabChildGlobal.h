@@ -88,7 +88,7 @@ public:
   virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor);
   NS_IMETHOD AddEventListener(const nsAString& aType,
                               nsIDOMEventListener* aListener,
-                              bool aUseCapture)
+                              PRBool aUseCapture)
   {
     // By default add listeners only for trusted events!
     return nsDOMEventTargetHelper::AddEventListener(aType, aListener,
@@ -96,7 +96,7 @@ public:
   }
   NS_IMETHOD AddEventListener(const nsAString& aType,
                               nsIDOMEventListener* aListener,
-                              bool aUseCapture, bool aWantsUntrusted,
+                              PRBool aUseCapture, PRBool aWantsUntrusted,
                               PRUint8 optional_argc)
   {
     return nsDOMEventTargetHelper::AddEventListener(aType, aListener,
@@ -110,7 +110,7 @@ public:
   virtual nsIPrincipal* GetPrincipal() { return mPrincipal; }
   void LoadFrameScript(const nsAString& aURL);
   void Disconnect();
-  void SendMessageToParent(const nsString& aMessage, bool aSync,
+  void SendMessageToParent(const nsString& aMessage, PRBool aSync,
                            const nsString& aJSON,
                            nsTArray<nsString>* aJSONRetVal);
   nsFrameMessageManager* GetInnerManager()
@@ -134,9 +134,9 @@ protected:
   nsresult InitTabChildGlobal();
   nsCOMPtr<nsIContentFrameMessageManager> mMessageManager;
   nsCOMPtr<nsIDocShell> mDocShell;
-  bool mInitialized;
-  bool mLoadingScript;
-  bool mDelayedDisconnect;
+  PRPackedBool mInitialized;
+  PRPackedBool mLoadingScript;
+  PRPackedBool mDelayedDisconnect;
 public:
   nsIContent* mOwner;
   nsFrameMessageManager* mChromeMessageManager;

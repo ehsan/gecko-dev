@@ -93,7 +93,7 @@ nsresult NS_NewContentSubtreeIterator(nsIContentIterator** aInstancePtrResult);
 // static
 nsresult
 nsRange::CompareNodeToRange(nsINode* aNode, nsIDOMRange* aRange,
-                            bool *outNodeBefore, bool *outNodeAfter)
+                            PRBool *outNodeBefore, PRBool *outNodeAfter)
 {
   nsresult rv;
   nsCOMPtr<nsIRange> range = do_QueryInterface(aRange, &rv);
@@ -105,7 +105,7 @@ nsRange::CompareNodeToRange(nsINode* aNode, nsIDOMRange* aRange,
 // static
 nsresult
 nsRange::CompareNodeToRange(nsINode* aNode, nsIRange* aRange,
-                            bool *outNodeBefore, bool *outNodeAfter)
+                            PRBool *outNodeBefore, PRBool *outNodeAfter)
 {
   NS_ENSURE_STATE(aNode);
   // create a pair of dom points that expresses location of node:
@@ -140,7 +140,7 @@ nsRange::CompareNodeToRange(nsINode* aNode, nsIRange* aRange,
   PRInt32 rangeEndOffset = aRange->EndOffset();
 
   // is RANGE(start) <= NODE(start) ?
-  bool disconnected = false;
+  PRBool disconnected = PR_FALSE;
   *outNodeBefore = nsContentUtils::ComparePoints(rangeStartParent,
                                                  rangeStartOffset,
                                                  parent, nodeStart,
@@ -196,7 +196,7 @@ nsRangeUtils::ComparePoints(nsIDOMNode* aParent1, PRInt32 aOffset1,
 
 NS_IMETHODIMP
 nsRangeUtils::CompareNodeToRange(nsIContent* aNode, nsIDOMRange* aRange,
-                                 bool *outNodeBefore, bool *outNodeAfter)
+                                 PRBool *outNodeBefore, PRBool *outNodeAfter)
 {
   return nsRange::CompareNodeToRange(aNode, aRange, outNodeBefore,
                                      outNodeAfter);
@@ -271,12 +271,6 @@ nsRange::CharacterDataChanged(nsIDocument* aDocument,
 {
   NS_ASSERTION(mIsPositioned, "shouldn't be notified if not positioned");
 
-  nsINode* newRoot = nsnull;
-  nsINode* newStartNode = nsnull;
-  nsINode* newEndNode = nsnull;
-  PRUint32 newStartOffset = 0;
-  PRUint32 newEndOffset = 0;
-
   // If the changed node contains our start boundary and the change starts
   // before the boundary we'll need to adjust the offset.
   if (aContent == mStartParent &&
@@ -288,11 +282,8 @@ nsRange::CharacterDataChanged(nsIDocument* aDocument,
                    "only a split can start before the end");
       NS_ASSERTION(static_cast<PRUint32>(mStartOffset) <= aInfo->mChangeEnd,
                    "mStartOffset is beyond the end of this node");
-      newStartOffset = static_cast<PRUint32>(mStartOffset) - aInfo->mChangeStart;
-      newStartNode = aInfo->mDetails->mNextSibling;
-      if (NS_UNLIKELY(aContent == mRoot)) {
-        newRoot = IsValidBoundary(newStartNode);
-      }
+      mStartOffset = static_cast<PRUint32>(mStartOffset) - aInfo->mChangeStart;
+      mStartParent = aInfo->mDetails->mNextSibling;
     } else {
       // If boundary is inside changed text, position it before change
       // else adjust start offset for the change in length.
@@ -303,20 +294,17 @@ nsRange::CharacterDataChanged(nsIDocument* aDocument,
     }
   }
 
-  // Do the same thing for the end boundary, except for splitText of a node
-  // with no parent then only switch to the new node if the start boundary
-  // did so too (otherwise the range would end up with disconnected nodes).
-  if (aContent == mEndParent &&
-      aInfo->mChangeStart < static_cast<PRUint32>(mEndOffset)) {
-    if (aInfo->mDetails && (aContent->GetParent() || newStartNode)) {
+  // Do the same thing for the end boundary.
+  if (aContent == mEndParent && aInfo->mChangeStart < static_cast<PRUint32>(mEndOffset)) {
+    if (aInfo->mDetails) {
       // splitText(), aInfo->mDetails->mNextSibling is the new text node
       NS_ASSERTION(aInfo->mDetails->mType ==
                    CharacterDataChangeInfo::Details::eSplit,
                    "only a split can start before the end");
       NS_ASSERTION(static_cast<PRUint32>(mEndOffset) <= aInfo->mChangeEnd,
                    "mEndOffset is beyond the end of this node");
-      newEndOffset = static_cast<PRUint32>(mEndOffset) - aInfo->mChangeStart;
-      newEndNode = aInfo->mDetails->mNextSibling;
+      mEndOffset = static_cast<PRUint32>(mEndOffset) - aInfo->mChangeStart;
+      mEndParent = aInfo->mDetails->mNextSibling;
     } else {
       mEndOffset = static_cast<PRUint32>(mEndOffset) <= aInfo->mChangeEnd ?
         aInfo->mChangeStart :
@@ -331,35 +319,13 @@ nsRange::CharacterDataChanged(nsIDocument* aDocument,
     // that will be removed
     nsIContent* removed = aInfo->mDetails->mNextSibling;
     if (removed == mStartParent) {
-      newStartOffset = static_cast<PRUint32>(mStartOffset) + aInfo->mChangeStart;
-      newStartNode = aContent;
-      if (NS_UNLIKELY(removed == mRoot)) {
-        newRoot = IsValidBoundary(newStartNode);
-      }
+      mStartOffset = static_cast<PRUint32>(mStartOffset) + aInfo->mChangeStart;
+      mStartParent = aContent;
     }
     if (removed == mEndParent) {
-      newEndOffset = static_cast<PRUint32>(mEndOffset) + aInfo->mChangeStart;
-      newEndNode = aContent;
-      if (NS_UNLIKELY(removed == mRoot)) {
-        newRoot = IsValidBoundary(newEndNode);
-      }
+      mEndOffset = static_cast<PRUint32>(mEndOffset) + aInfo->mChangeStart;
+      mEndParent = aContent;
     }
-  }
-  if (newStartNode || newEndNode) {
-    if (!newStartNode) {
-      newStartNode = mStartParent;
-      newStartOffset = mStartOffset;
-    }
-    if (!newEndNode) {
-      newEndNode = mEndParent;
-      newEndOffset = mEndOffset;
-    }
-    DoSetRange(newStartNode, newStartOffset, newEndNode, newEndOffset,
-               newRoot ? newRoot : mRoot.get()
-#ifdef DEBUG
-               , !newEndNode->GetParent()
-#endif
-               );
   }
 }
 
@@ -434,7 +400,7 @@ nsRange::ParentChainChanged(nsIContent *aContent)
  * Utilities for comparing points: API from nsIDOMNSRange
  ********************************************************/
 NS_IMETHODIMP
-nsRange::IsPointInRange(nsIDOMNode* aParent, PRInt32 aOffset, bool* aResult)
+nsRange::IsPointInRange(nsIDOMNode* aParent, PRInt32 aOffset, PRBool* aResult)
 {
   PRInt16 compareResult = 0;
   nsresult rv = ComparePoint(aParent, aOffset, &compareResult);
@@ -507,16 +473,12 @@ static PRUint32 GetNodeLength(nsINode *aNode)
 void
 nsRange::DoSetRange(nsINode* aStartN, PRInt32 aStartOffset,
                     nsINode* aEndN, PRInt32 aEndOffset,
-                    nsINode* aRoot
-#ifdef DEBUG
-                    , bool aNotInsertedYet
-#endif
-                    )
+                    nsINode* aRoot)
 {
   NS_PRECONDITION((aStartN && aEndN && aRoot) ||
                   (!aStartN && !aEndN && !aRoot),
                   "Set all or none");
-  NS_PRECONDITION(!aRoot || aNotInsertedYet ||
+  NS_PRECONDITION(!aRoot ||
                   (nsContentUtils::ContentIsDescendantOf(aStartN, aRoot) &&
                    nsContentUtils::ContentIsDescendantOf(aEndN, aRoot) &&
                    aRoot == IsValidBoundary(aStartN) &&
@@ -635,7 +597,7 @@ nsRange::GetEndOffset(PRInt32* aEndOffset)
 }
 
 NS_IMETHODIMP
-nsRange::GetCollapsed(bool* aIsCollapsed)
+nsRange::GetCollapsed(PRBool* aIsCollapsed)
 {
   if(mIsDetached)
     return NS_ERROR_DOM_INVALID_STATE_ERR;
@@ -838,7 +800,7 @@ nsRange::SetEndAfter(nsIDOMNode* aSibling)
 }
 
 NS_IMETHODIMP
-nsRange::Collapse(bool aToStart)
+nsRange::Collapse(PRBool aToStart)
 {
   if(mIsDetached)
     return NS_ERROR_DOM_INVALID_STATE_ERR;
@@ -934,7 +896,7 @@ public:
   void Next();
   void Prev();
 
-  bool IsDone()
+  PRBool IsDone()
   {
     return mIterState == eDone;
   }
@@ -944,7 +906,7 @@ nsresult
 RangeSubtreeIterator::Init(nsIDOMRange *aRange)
 {
   mIterState = eDone;
-  bool collapsed;
+  PRBool collapsed;
   aRange->GetCollapsed(&collapsed);
   if (collapsed) {
     return NS_OK;
@@ -1165,7 +1127,7 @@ CollapseRangeAfterDelete(nsIDOMRange *aRange)
 
   // Check if range gravity took care of collapsing the range for us!
 
-  bool isCollapsed = false;
+  PRBool isCollapsed = PR_FALSE;
   nsresult res = aRange->GetCollapsed(&isCollapsed);
   if (NS_FAILED(res)) return res;
 
@@ -1262,7 +1224,7 @@ RemoveNode(nsIDOMNode* aNode)
 static nsresult SplitDataNode(nsIDOMCharacterData* aStartNode,
                               PRUint32 aStartIndex,
                               nsIDOMCharacterData** aEndNode,
-                              bool aCloneAfterOriginal = true)
+                              PRBool aCloneAfterOriginal = PR_TRUE)
 {
   nsresult rv;
   nsCOMPtr<nsINode> node = do_QueryInterface(aStartNode);
@@ -1345,7 +1307,7 @@ nsresult nsRange::CutContents(nsIDOMDocumentFragment** aFragment)
 
   iter.Last();
 
-  bool handled = false;
+  PRBool handled = PR_FALSE;
 
   // With the exception of text nodes that contain one of the range
   // end points, the subtree iterator should only give us back subtrees
@@ -1713,7 +1675,7 @@ nsRange::CloneContents(nsIDOMDocumentFragment** aReturn)
   {
     nsCOMPtr<nsIDOMNode> node(iter.GetCurrentNode());
     nsCOMPtr<nsINode> iNode = do_QueryInterface(node);
-    bool deepClone = !iNode->IsElement() ||
+    PRBool deepClone = !iNode->IsElement() ||
                        (!(iNode == mEndParent && mEndOffset == 0) &&
                         !(iNode == mStartParent &&
                           mStartOffset ==
@@ -1948,8 +1910,8 @@ nsRange::SurroundContents(nsIDOMNode* aNewParent)
   // BAD_BOUNDARYPOINTS_ERR: Raised if the Range partially selects a non-text
   // node.
   if (mStartParent != mEndParent) {
-    bool startIsText = mStartParent->IsNodeOfType(nsINode::eTEXT);
-    bool endIsText = mEndParent->IsNodeOfType(nsINode::eTEXT);
+    PRBool startIsText = mStartParent->IsNodeOfType(nsINode::eTEXT);
+    PRBool endIsText = mEndParent->IsNodeOfType(nsINode::eTEXT);
     nsINode* startGrandParent = mStartParent->GetNodeParent();
     nsINode* endGrandParent = mEndParent->GetNodeParent();
     NS_ENSURE_TRUE((startIsText && endIsText &&
@@ -2136,7 +2098,7 @@ nsRange::CreateContextualFragment(const nsAString& aFragment,
 
 static void ExtractRectFromOffset(nsIFrame* aFrame,
                                   const nsIFrame* aRelativeTo, 
-                                  const PRInt32 aOffset, nsRect* aR, bool aKeepLeft)
+                                  const PRInt32 aOffset, nsRect* aR, PRBool aKeepLeft)
 {
   nsPoint point;
   aFrame->GetPointFromOffset(aOffset, &point);
@@ -2171,7 +2133,7 @@ static nsresult GetPartialTextRect(nsLayoutUtils::RectCallback* aCallback,
       // overlapping with the offset we want
       f->EnsureTextRun();
       NS_ENSURE_TRUE(f->GetTextRun(), NS_ERROR_OUT_OF_MEMORY);
-      bool rtl = f->GetTextRun()->IsRightToLeft();
+      PRBool rtl = f->GetTextRun()->IsRightToLeft();
       nsRect r(f->GetOffsetTo(relativeTo), f->GetSize());
       if (fstart < aStartOffset) {
         // aStartOffset is within this frame

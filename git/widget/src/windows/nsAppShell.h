@@ -66,14 +66,14 @@ protected:
   NS_IMETHOD Run();
 #endif
   virtual void ScheduleNativeEventCallback();
-  virtual bool ProcessNextNativeEvent(bool mayWait);
+  virtual PRBool ProcessNextNativeEvent(PRBool mayWait);
   virtual ~nsAppShell();
 
   static LRESULT CALLBACK EventWindowProc(HWND, UINT, WPARAM, LPARAM);
 
 protected:
   HWND mEventWnd;
-  bool mNativeCallbackPending;
+  PRBool mNativeCallbackPending;
   TimeStamp mLastNativeEventScheduled;
 };
 

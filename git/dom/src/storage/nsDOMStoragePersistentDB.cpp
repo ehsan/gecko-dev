@@ -118,7 +118,7 @@ nsIsOfflineSQLFunction::OnFunctionCall(
   rv = nsDOMStorageDBWrapper::GetDomainFromScopeKey(scope, domain);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  bool hasOfflinePermission = IsOfflineAllowed(domain);
+  PRBool hasOfflinePermission = IsOfflineAllowed(domain);
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIWritableVariant> outVar(do_CreateInstance(
@@ -275,7 +275,7 @@ nsDOMStoragePersistentDB::Init(const nsString& aDatabaseName)
   rv = mConnection->CreateFunction(NS_LITERAL_CSTRING("ISOFFLINE"), 1, function2);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  bool exists;
+  PRBool exists;
 
   // Check if there is storage of Gecko 1.9.0 and if so, upgrade that storage
   // to actual webappsstore2 table and drop the obsolete table. First process
@@ -576,7 +576,7 @@ nsDOMStoragePersistentDB::GetAllKeys(DOMStorageImpl* aStorage,
   rv = binder.Add();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  bool exists;
+  PRBool exists;
   while (NS_SUCCEEDED(rv = mGetAllKeysStatement->ExecuteStep(&exists)) &&
          exists) {
 
@@ -609,7 +609,7 @@ nsresult
 nsDOMStoragePersistentDB::GetKeyValue(DOMStorageImpl* aStorage,
                                       const nsAString& aKey,
                                       nsAString& aValue,
-                                      bool* aSecure)
+                                      PRBool* aSecure)
 {
   nsresult rv;
 
@@ -634,7 +634,7 @@ nsDOMStoragePersistentDB::GetKeyValue(DOMStorageImpl* aStorage,
   rv = binder.Add();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  bool exists;
+  PRBool exists;
   rv = mGetKeyValueStatement->ExecuteStep(&exists);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -659,9 +659,9 @@ nsresult
 nsDOMStoragePersistentDB::SetKey(DOMStorageImpl* aStorage,
                                  const nsAString& aKey,
                                  const nsAString& aValue,
-                                 bool aSecure,
+                                 PRBool aSecure,
                                  PRInt32 aQuota,
-                                 bool aExcludeOfflineFromUsage,
+                                 PRBool aExcludeOfflineFromUsage,
                                  PRInt32 *aNewUsage)
 {
   nsresult rv;
@@ -680,7 +680,7 @@ nsDOMStoragePersistentDB::SetKey(DOMStorageImpl* aStorage,
   usage += aKey.Length() + aValue.Length();
 
   nsAutoString previousValue;
-  bool secure;
+  PRBool secure;
   rv = aStorage->GetCachedValue(aKey, previousValue, &secure);
   if (NS_SUCCEEDED(rv)) {
     if (!aSecure && secure)
@@ -726,15 +726,13 @@ nsDOMStoragePersistentDB::SetKey(DOMStorageImpl* aStorage,
 
   *aNewUsage = usage;
 
-  MarkScopeDirty(aStorage);
-
   return NS_OK;
 }
 
 nsresult
 nsDOMStoragePersistentDB::SetSecure(DOMStorageImpl* aStorage,
                                     const nsAString& aKey,
-                                    const bool aSecure)
+                                    const PRBool aSecure)
 {
   nsresult rv;
 
@@ -762,18 +760,13 @@ nsDOMStoragePersistentDB::SetSecure(DOMStorageImpl* aStorage,
   rv = binder.Add();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = mSetSecureStatement->Execute();
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  MarkScopeDirty(aStorage);
-
-  return NS_OK;
+  return mSetSecureStatement->Execute();
 }
 
 nsresult
 nsDOMStoragePersistentDB::RemoveKey(DOMStorageImpl* aStorage,
                                     const nsAString& aKey,
-                                    bool aExcludeOfflineFromUsage,
+                                    PRBool aExcludeOfflineFromUsage,
                                     PRInt32 aKeyUsage)
 {
   nsresult rv;
@@ -802,8 +795,6 @@ nsDOMStoragePersistentDB::RemoveKey(DOMStorageImpl* aStorage,
 
   rv = mRemoveKeyStatement->Execute();
   NS_ENSURE_SUCCESS(rv, rv);
-
-  MarkScopeDirty(aStorage);
 
   return NS_OK;
 }
@@ -834,14 +825,12 @@ nsDOMStoragePersistentDB::ClearStorage(DOMStorageImpl* aStorage)
   rv = mRemoveStorageStatement->Execute();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  MarkScopeDirty(aStorage);
-
   return NS_OK;
 }
 
 nsresult
 nsDOMStoragePersistentDB::RemoveOwner(const nsACString& aOwner,
-                                      bool aIncludeSubDomains)
+                                      PRBool aIncludeSubDomains)
 {
   nsresult rv;
 
@@ -875,16 +864,14 @@ nsDOMStoragePersistentDB::RemoveOwner(const nsACString& aOwner,
   rv = mRemoveOwnerStatement->Execute();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  MarkAllScopesDirty();
-
   return NS_OK;
 }
 
 
 nsresult
 nsDOMStoragePersistentDB::RemoveOwners(const nsTArray<nsString> &aOwners,
-                                       bool aIncludeSubDomains,
-                                       bool aMatch)
+                                       PRBool aIncludeSubDomains,
+                                       PRBool aMatch)
 {
   if (aOwners.Length() == 0) {
     if (aMatch) {
@@ -954,8 +941,6 @@ nsDOMStoragePersistentDB::RemoveOwners(const nsTArray<nsString> &aOwners,
   rv = statement->Execute();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  MarkAllScopesDirty();
-
   return NS_OK;
 }
 
@@ -972,14 +957,12 @@ nsDOMStoragePersistentDB::RemoveAll()
   rv = mRemoveAllStatement->Execute();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  MarkAllScopesDirty();
-
   return NS_OK;
 }
 
 nsresult
 nsDOMStoragePersistentDB::GetUsage(DOMStorageImpl* aStorage,
-                                   bool aExcludeOfflineFromUsage,
+                                   PRBool aExcludeOfflineFromUsage,
                                    PRInt32 *aUsage)
 {
   return GetUsageInternal(aStorage->GetQuotaDomainDBKey(!aExcludeOfflineFromUsage),
@@ -989,7 +972,7 @@ nsDOMStoragePersistentDB::GetUsage(DOMStorageImpl* aStorage,
 
 nsresult
 nsDOMStoragePersistentDB::GetUsage(const nsACString& aDomain,
-                                   bool aIncludeSubDomains,
+                                   PRBool aIncludeSubDomains,
                                    PRInt32 *aUsage)
 {
   nsresult rv;
@@ -1006,7 +989,7 @@ nsDOMStoragePersistentDB::GetUsage(const nsACString& aDomain,
 
 nsresult
 nsDOMStoragePersistentDB::GetUsageInternal(const nsACString& aQuotaDomainDBKey,
-                                           bool aExcludeOfflineFromUsage,
+                                           PRBool aExcludeOfflineFromUsage,
                                            PRInt32 *aUsage)
 {
   if (aQuotaDomainDBKey == mCachedOwner) {
@@ -1036,7 +1019,7 @@ nsDOMStoragePersistentDB::GetUsageInternal(const nsACString& aQuotaDomainDBKey,
   rv = binder.Add();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  bool exists;
+  PRBool exists;
   rv = statement->ExecuteStep(&exists);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1062,7 +1045,7 @@ nsDOMStoragePersistentDB::EnsureInsertTransaction()
   if (!mConnection)
     return NS_ERROR_UNEXPECTED;
 
-  bool transactionInProgress;
+  PRBool transactionInProgress;
   nsresult rv = mConnection->GetTransactionInProgress(&transactionInProgress);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1081,7 +1064,7 @@ nsDOMStoragePersistentDB::MaybeCommitInsertTransaction()
   if (!mConnection)
     return NS_ERROR_UNEXPECTED;
 
-  bool transactionInProgress;
+  PRBool transactionInProgress;
   nsresult rv = mConnection->GetTransactionInProgress(&transactionInProgress);
   if (NS_FAILED(rv)) {
     NS_WARNING("nsDOMStoragePersistentDB::MaybeCommitInsertTransaction: "

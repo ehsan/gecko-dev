@@ -51,8 +51,6 @@
 
 #include "jsfriendapi.h"
 
-using namespace js;
-
 namespace xpc {
 
 nsIPrincipal *
@@ -74,7 +72,7 @@ AccessCheck::isSameOrigin(JSCompartment *a, JSCompartment *b)
     if (!aprin || !bprin)
         return true;
 
-    bool equals;
+    PRBool equals;
     nsresult rv = aprin->EqualsIgnoringDomain(bprin, &equals);
     if (NS_FAILED(rv)) {
         NS_ERROR("unable to ask about equality");
@@ -106,7 +104,7 @@ AccessCheck::isChrome(JSCompartment *compartment)
         return false;
     }
 
-    bool privileged;
+    PRBool privileged;
     nsIPrincipal *principal = GetCompartmentPrincipal(compartment);
     return NS_SUCCEEDED(ssm->IsSystemPrincipal(principal, &privileged)) && privileged;
 }
@@ -276,21 +274,21 @@ AccessCheck::documentDomainMakesSameOrigin(JSContext *cx, JSObject *obj)
         object = GetPrincipal(JS_GetGlobalForObject(cx, obj));
     }
 
-    bool subsumes;
+    PRBool subsumes;
     return NS_SUCCEEDED(subject->Subsumes(object, &subsumes)) && subsumes;
 }
 
 bool
 AccessCheck::isCrossOriginAccessPermitted(JSContext *cx, JSObject *wrapper, jsid id,
-                                          Wrapper::Action act)
+                                          JSWrapper::Action act)
 {
     if (!XPCWrapper::GetSecurityManager())
         return true;
 
-    if (act == Wrapper::CALL)
+    if (act == JSWrapper::CALL)
         return true;
 
-    JSObject *obj = Wrapper::wrappedObject(wrapper);
+    JSObject *obj = JSWrapper::wrappedObject(wrapper);
 
     const char *name;
     js::Class *clasp = obj->getClass();
@@ -301,7 +299,7 @@ AccessCheck::isCrossOriginAccessPermitted(JSContext *cx, JSObject *wrapper, jsid
         name = clasp->name;
 
     if (JSID_IS_ATOM(id)) {
-        if (IsPermitted(name, JSID_TO_FLAT_STRING(id), act == Wrapper::SET))
+        if (IsPermitted(name, JSID_TO_FLAT_STRING(id), act == JSWrapper::SET))
             return true;
     }
 
@@ -313,7 +311,7 @@ AccessCheck::isCrossOriginAccessPermitted(JSContext *cx, JSObject *wrapper, jsid
     if (!IsLocation(name) && documentDomainMakesSameOrigin(cx, obj))
         return true;
 
-    return (act == Wrapper::SET)
+    return (act == JSWrapper::SET)
            ? nsContentUtils::IsCallerTrustedForWrite()
            : nsContentUtils::IsCallerTrustedForRead();
 }
@@ -346,7 +344,7 @@ AccessCheck::isSystemOnlyAccessPermitted(JSContext *cx)
         fp = NULL;
     }
 
-    bool privileged;
+    PRBool privileged;
     if (NS_SUCCEEDED(ssm->IsSystemPrincipal(principal, &privileged)) &&
         privileged) {
         return true;
@@ -396,13 +394,13 @@ AccessCheck::isScriptAccessOnly(JSContext *cx, JSObject *wrapper)
             return true;
 
         // Bypass script-only status if UniversalXPConnect is enabled.
-        bool privileged;
+        PRBool privileged;
         return !NS_SUCCEEDED(ssm->IsCapabilityEnabled("UniversalXPConnect", &privileged)) ||
                !privileged;
     }
 
     // In addition, chrome objects can explicitly opt-in by setting .scriptOnly to true.
-    if (wrapper->getProxyHandler() == &FilteringWrapper<CrossCompartmentWrapper,
+    if (wrapper->getProxyHandler() == &FilteringWrapper<JSCrossCompartmentWrapper,
         CrossOriginAccessiblePropertiesOnly>::singleton) {
         jsid scriptOnlyId = GetRTIdByIndex(cx, XPCJSRuntime::IDX_SCRIPTONLY);
         jsval scriptOnly;
@@ -437,10 +435,10 @@ AccessCheck::deny(JSContext *cx, jsid id)
 enum Access { READ = (1<<0), WRITE = (1<<1), NO_ACCESS = 0 };
 
 static bool
-Deny(JSContext *cx, jsid id, Wrapper::Action act)
+Deny(JSContext *cx, jsid id, JSWrapper::Action act)
 {
     // Refuse to perform the action and just return the default value.
-    if (act == Wrapper::GET)
+    if (act == JSWrapper::GET)
         return true;
     // If its a set, deny it and throw an exception.
     AccessCheck::deny(cx, id);
@@ -448,7 +446,7 @@ Deny(JSContext *cx, jsid id, Wrapper::Action act)
 }
 
 bool
-PermitIfUniversalXPConnect(JSContext *cx, jsid id, Wrapper::Action act,
+PermitIfUniversalXPConnect(JSContext *cx, jsid id, JSWrapper::Action act,
                            ExposedPropertiesOnly::Permission &perm)
 {
     // If UniversalXPConnect is enabled, allow access even if __exposedProps__ doesn't
@@ -457,7 +455,7 @@ PermitIfUniversalXPConnect(JSContext *cx, jsid id, Wrapper::Action act,
     if (!ssm) {
         return false;
     }
-    bool privileged;
+    PRBool privileged;
     if (NS_SUCCEEDED(ssm->IsCapabilityEnabled("UniversalXPConnect", &privileged)) &&
         privileged) {
         perm = ExposedPropertiesOnly::PermitPropertyAccess;
@@ -469,12 +467,12 @@ PermitIfUniversalXPConnect(JSContext *cx, jsid id, Wrapper::Action act,
 }
 
 bool
-ExposedPropertiesOnly::check(JSContext *cx, JSObject *wrapper, jsid id, Wrapper::Action act,
+ExposedPropertiesOnly::check(JSContext *cx, JSObject *wrapper, jsid id, JSWrapper::Action act,
                              Permission &perm)
 {
-    JSObject *wrappedObject = Wrapper::wrappedObject(wrapper);
+    JSObject *wrappedObject = JSWrapper::wrappedObject(wrapper);
 
-    if (act == Wrapper::CALL) {
+    if (act == JSWrapper::CALL) {
         perm = PermitObjectAccess;
         return true;
     }
@@ -578,8 +576,8 @@ ExposedPropertiesOnly::check(JSContext *cx, JSObject *wrapper, jsid id, Wrapper:
         return false;
     }
 
-    if ((act == Wrapper::SET && !(access & WRITE)) ||
-        (act != Wrapper::SET && !(access & READ))) {
+    if ((act == JSWrapper::SET && !(access & WRITE)) ||
+        (act != JSWrapper::SET && !(access & READ))) {
         return PermitIfUniversalXPConnect(cx, id, act, perm); // Deny
     }
 

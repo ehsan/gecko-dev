@@ -47,13 +47,12 @@
 #include "nsUXThemeData.h"
 #include "TaskbarPreviewButton.h"
 #include "nsWindow.h"
-#include "nsWindowGfx.h"
 
 namespace mozilla {
 namespace widget {
 
 namespace {
-bool WindowHookProc(void *aContext, HWND hWnd, UINT nMsg, WPARAM wParam, LPARAM lParam, LRESULT *aResult)
+PRBool WindowHookProc(void *aContext, HWND hWnd, UINT nMsg, WPARAM wParam, LPARAM lParam, LRESULT *aResult)
 {
   TaskbarWindowPreview *preview = reinterpret_cast<TaskbarWindowPreview*>(aContext);
   *aResult = preview->WndProc(nMsg, wParam, lParam);
@@ -61,9 +60,8 @@ bool WindowHookProc(void *aContext, HWND hWnd, UINT nMsg, WPARAM wParam, LPARAM 
 }
 }
 
-NS_IMPL_ISUPPORTS4(TaskbarWindowPreview, nsITaskbarWindowPreview,
-                   nsITaskbarProgress, nsITaskbarOverlayIconController,
-                   nsISupportsWeakReference)
+NS_IMPL_ISUPPORTS3(TaskbarWindowPreview, nsITaskbarWindowPreview,
+                   nsITaskbarProgress, nsISupportsWeakReference)
 
 /**
  * These correspond directly to the states defined in nsITaskbarProgress.idl, so
@@ -84,8 +82,7 @@ TaskbarWindowPreview::TaskbarWindowPreview(ITaskbarList4 *aTaskbar, nsITaskbarPr
     mHaveButtons(PR_FALSE),
     mState(TBPF_NOPROGRESS),
     mCurrentValue(0),
-    mMaxValue(0),
-    mOverlayIcon(NULL)
+    mMaxValue(0)
 {
   // Window previews are visible by default
   (void) SetVisible(PR_TRUE);
@@ -100,24 +97,16 @@ TaskbarWindowPreview::TaskbarWindowPreview(ITaskbarList4 *aTaskbar, nsITaskbarPr
   WindowHook &hook = GetWindowHook();
   if (!CanMakeTaskbarCalls())
     hook.AddMonitor(nsAppShell::GetTaskbarButtonCreatedMessage(),
-                    TaskbarWindowHook, this);
+                    TaskbarProgressWindowHook, this);
 }
 
 TaskbarWindowPreview::~TaskbarWindowPreview() {
-  if (mOverlayIcon) {
-    ::DestroyIcon(mOverlayIcon);
-    mOverlayIcon = NULL;
-  }
-
-  if (IsWindowAvailable()) {
+  if (mWnd)
     DetachFromNSWindow();
-  } else {
-    mWnd = NULL;
-  }
 }
 
 nsresult
-TaskbarWindowPreview::ShowActive(bool active) {
+TaskbarWindowPreview::ShowActive(PRBool active) {
   return FAILED(mTaskbar->ActivateTab(active ? mWnd : NULL))
        ? NS_ERROR_FAILURE
        : NS_OK;
@@ -160,7 +149,7 @@ TaskbarWindowPreview::GetButton(PRUint32 index, nsITaskbarPreviewButton **_retVa
 }
 
 NS_IMETHODIMP
-TaskbarWindowPreview::SetEnableCustomDrawing(bool aEnable) {
+TaskbarWindowPreview::SetEnableCustomDrawing(PRBool aEnable) {
   if (aEnable == mCustomDrawing)
     return NS_OK;
   mCustomDrawing = aEnable;
@@ -178,7 +167,7 @@ TaskbarWindowPreview::SetEnableCustomDrawing(bool aEnable) {
 }
 
 NS_IMETHODIMP
-TaskbarWindowPreview::GetEnableCustomDrawing(bool *aEnable) {
+TaskbarWindowPreview::GetEnableCustomDrawing(PRBool *aEnable) {
   *aEnable = mCustomDrawing;
   return NS_OK;
 }
@@ -207,35 +196,6 @@ TaskbarWindowPreview::SetProgressState(nsTaskbarProgressState aState,
   return CanMakeTaskbarCalls() ? UpdateTaskbarProgress() : NS_OK;
 }
 
-NS_IMETHODIMP
-TaskbarWindowPreview::SetOverlayIcon(imgIContainer* aStatusIcon,
-                                     const nsAString& aStatusDescription) {
-  nsresult rv;
-  if (aStatusIcon) {
-    // The image shouldn't be animated
-    bool isAnimated;
-    rv = aStatusIcon->GetAnimated(&isAnimated);
-    NS_ENSURE_SUCCESS(rv, rv);
-    NS_ENSURE_FALSE(isAnimated, NS_ERROR_INVALID_ARG);
-  }
-
-  HICON hIcon = NULL;
-  if (aStatusIcon) {
-    rv = nsWindowGfx::CreateIcon(aStatusIcon, false, 0, 0,
-                                 nsWindowGfx::GetIconMetrics(nsWindowGfx::kSmallIcon),
-                                 &hIcon);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
-  if (mOverlayIcon)
-    ::DestroyIcon(mOverlayIcon);
-  mOverlayIcon = hIcon;
-  mIconDescription = aStatusDescription;
-
-  // Only update if we can
-  return CanMakeTaskbarCalls() ? UpdateOverlayIcon() : NS_OK;
-}
-
 nsresult
 TaskbarWindowPreview::UpdateTaskbarProperties() {
   if (mHaveButtons) {
@@ -243,8 +203,6 @@ TaskbarWindowPreview::UpdateTaskbarProperties() {
       return NS_ERROR_FAILURE;
   }
   nsresult rv = UpdateTaskbarProgress();
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = UpdateOverlayIcon();
   NS_ENSURE_SUCCESS(rv, rv);
   return TaskbarPreview::UpdateTaskbarProperties();
 }
@@ -256,13 +214,6 @@ TaskbarWindowPreview::UpdateTaskbarProgress() {
       mState != TBPF_INDETERMINATE)
     hr = mTaskbar->SetProgressValue(mWnd, mCurrentValue, mMaxValue);
 
-  return SUCCEEDED(hr) ? NS_OK : NS_ERROR_FAILURE;
-}
-
-nsresult
-TaskbarWindowPreview::UpdateOverlayIcon() {
-  HRESULT hr = mTaskbar->SetOverlayIcon(mWnd, mOverlayIcon,
-                                        mIconDescription.get());
   return SUCCEEDED(hr) ? NS_OK : NS_ERROR_FAILURE;
 }
 
@@ -285,18 +236,18 @@ TaskbarWindowPreview::WndProc(UINT nMsg, WPARAM wParam, LPARAM lParam) {
 }
 
 /* static */
-bool
-TaskbarWindowPreview::TaskbarWindowHook(void *aContext,
-                                        HWND hWnd, UINT nMsg,
-                                        WPARAM wParam, LPARAM lParam,
-                                        LRESULT *aResult)
+PRBool
+TaskbarWindowPreview::TaskbarProgressWindowHook(void *aContext,
+                                                HWND hWnd, UINT nMsg,
+                                                WPARAM wParam, LPARAM lParam,
+                                                LRESULT *aResult)
 {
   NS_ASSERTION(nMsg == nsAppShell::GetTaskbarButtonCreatedMessage(),
                "Window hook proc called with wrong message");
   TaskbarWindowPreview *preview =
     reinterpret_cast<TaskbarWindowPreview*>(aContext);
   // Now we can make all the calls to mTaskbar
-  preview->UpdateTaskbarProperties();
+  preview->UpdateTaskbarProgress();
   return PR_FALSE;
 }
 
@@ -328,7 +279,7 @@ TaskbarWindowPreview::DetachFromNSWindow() {
   WindowHook &hook = GetWindowHook();
   (void) hook.RemoveHook(WM_COMMAND, WindowHookProc, this);
   (void) hook.RemoveMonitor(nsAppShell::GetTaskbarButtonCreatedMessage(),
-                            TaskbarWindowHook, this);
+                            TaskbarProgressWindowHook, this);
 
   TaskbarPreview::DetachFromNSWindow();
 }

@@ -117,7 +117,7 @@ public:
 
   NS_IMETHOD AddEventListener(const nsAString& aType,
                               nsIDOMEventListener* aListener,
-                              bool aUseCapture)
+                              PRBool aUseCapture)
   {
     // By default add listeners only for trusted events!
     return nsDOMEventTargetHelper::AddEventListener(aType, aListener,
@@ -125,7 +125,7 @@ public:
   }
   NS_IMETHOD AddEventListener(const nsAString& aType,
                               nsIDOMEventListener* aListener,
-                              bool aUseCapture, bool aWantsUntrusted,
+                              PRBool aUseCapture, PRBool aWantsUntrusted,
                               PRUint8 optional_argc)
   {
     return nsDOMEventTargetHelper::AddEventListener(aType, aListener,

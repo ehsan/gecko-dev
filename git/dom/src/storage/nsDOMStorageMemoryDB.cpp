@@ -160,7 +160,7 @@ nsresult
 nsDOMStorageMemoryDB::GetKeyValue(DOMStorageImpl* aStorage,
                                   const nsAString& aKey,
                                   nsAString& aValue,
-                                  bool* aSecure)
+                                  PRBool* aSecure)
 {
   if (mPreloading) {
     NS_PRECONDITION(mPreloadDB, "Must have a preload DB set when preloading");
@@ -186,9 +186,9 @@ nsresult
 nsDOMStorageMemoryDB::SetKey(DOMStorageImpl* aStorage,
                              const nsAString& aKey,
                              const nsAString& aValue,
-                             bool aSecure,
+                             PRBool aSecure,
                              PRInt32 aQuota,
-                             bool aExcludeOfflineFromUsage,
+                             PRBool aExcludeOfflineFromUsage,
                              PRInt32 *aNewUsage)
 {
   nsresult rv;
@@ -235,15 +235,13 @@ nsDOMStorageMemoryDB::SetKey(DOMStorageImpl* aStorage,
 
   *aNewUsage = usage;
 
-  MarkScopeDirty(aStorage);
-
   return NS_OK;
 }
 
 nsresult
 nsDOMStorageMemoryDB::SetSecure(DOMStorageImpl* aStorage,
                                 const nsAString& aKey,
-                                const bool aSecure)
+                                const PRBool aSecure)
 {
   nsresult rv;
 
@@ -257,15 +255,13 @@ nsDOMStorageMemoryDB::SetSecure(DOMStorageImpl* aStorage,
 
   item->mSecure = aSecure;
 
-  MarkScopeDirty(aStorage);
-
   return NS_OK;
 }
 
 nsresult
 nsDOMStorageMemoryDB::RemoveKey(DOMStorageImpl* aStorage,
                                 const nsAString& aKey,
-                                bool aExcludeOfflineFromUsage,
+                                PRBool aExcludeOfflineFromUsage,
                                 PRInt32 aKeyUsage)
 {
   nsresult rv;
@@ -280,8 +276,6 @@ nsDOMStorageMemoryDB::RemoveKey(DOMStorageImpl* aStorage,
 
   storage->mUsageDelta -= aKey.Length() + item->mValue.Length();
   storage->mTable.Remove(aKey);
-
-  MarkScopeDirty(aStorage);
 
   return NS_OK;
 }
@@ -308,9 +302,6 @@ nsDOMStorageMemoryDB::ClearStorage(DOMStorageImpl* aStorage)
   NS_ENSURE_SUCCESS(rv, rv);
 
   storage->mTable.Enumerate(RemoveAllKeysEnum, storage);
-
-  MarkScopeDirty(aStorage);
-
   return NS_OK;
 }
 
@@ -318,14 +309,13 @@ nsresult
 nsDOMStorageMemoryDB::DropStorage(DOMStorageImpl* aStorage)
 {
   mData.Remove(aStorage->GetScopeDBKey());
-  MarkScopeDirty(aStorage);
   return NS_OK;
 }
 
 struct RemoveOwnersStruc
 {
   nsCString* mSubDomain;
-  bool mMatch;
+  PRBool mMatch;
 };
 
 static PLDHashOperator
@@ -343,7 +333,7 @@ RemoveOwnersEnum(const nsACString& key,
 
 nsresult
 nsDOMStorageMemoryDB::RemoveOwner(const nsACString& aOwner,
-                                  bool aIncludeSubDomains)
+                                  PRBool aIncludeSubDomains)
 {
   nsCAutoString subdomainsDBKey;
   nsDOMStorageDBWrapper::CreateDomainScopeDBKey(aOwner, subdomainsDBKey);
@@ -356,16 +346,14 @@ nsDOMStorageMemoryDB::RemoveOwner(const nsACString& aOwner,
   struc.mMatch = PR_TRUE;
   mData.Enumerate(RemoveOwnersEnum, &struc);
 
-  MarkAllScopesDirty();
-
   return NS_OK;
 }
 
 
 nsresult
 nsDOMStorageMemoryDB::RemoveOwners(const nsTArray<nsString> &aOwners,
-                                   bool aIncludeSubDomains,
-                                   bool aMatch)
+                                   PRBool aIncludeSubDomains,
+                                   PRBool aMatch)
 {
   if (aOwners.Length() == 0) {
     if (aMatch) {
@@ -390,8 +378,6 @@ nsDOMStorageMemoryDB::RemoveOwners(const nsTArray<nsString> &aOwners,
     mData.Enumerate(RemoveOwnersEnum, &struc);
   }
 
-  MarkAllScopesDirty();
-
   return NS_OK;
 }
 
@@ -399,15 +385,12 @@ nsresult
 nsDOMStorageMemoryDB::RemoveAll()
 {
   mData.Clear(); // XXX Check this releases all instances
-
-  MarkAllScopesDirty();
-
   return NS_OK;
 }
 
 nsresult
 nsDOMStorageMemoryDB::GetUsage(DOMStorageImpl* aStorage,
-                               bool aExcludeOfflineFromUsage, PRInt32 *aUsage)
+                               PRBool aExcludeOfflineFromUsage, PRInt32 *aUsage)
 {
   return GetUsageInternal(aStorage->GetQuotaDomainDBKey(!aExcludeOfflineFromUsage),
                           aExcludeOfflineFromUsage, aUsage);
@@ -415,7 +398,7 @@ nsDOMStorageMemoryDB::GetUsage(DOMStorageImpl* aStorage,
 
 nsresult
 nsDOMStorageMemoryDB::GetUsage(const nsACString& aDomain,
-                               bool aIncludeSubDomains,
+                               PRBool aIncludeSubDomains,
                                PRInt32 *aUsage)
 {
   nsresult rv;
@@ -460,7 +443,7 @@ GetUsageEnum(const nsACString& key,
 
 nsresult
 nsDOMStorageMemoryDB::GetUsageInternal(const nsACString& aQuotaDomainDBKey,
-                                       bool aExcludeOfflineFromUsage,
+                                       PRBool aExcludeOfflineFromUsage,
                                        PRInt32 *aUsage)
 {
   GetUsageEnumStruc struc;

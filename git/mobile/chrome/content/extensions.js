@@ -89,7 +89,6 @@ var ExtensionsView = {
     item.setAttribute("name", aAddon.name);
     item.setAttribute("version", aAddon.version);
     item.setAttribute("iconURL", aAddon.iconURL);
-    item.setAttribute("class", "panel-listitem");
     return item;
   },
 
@@ -621,7 +620,6 @@ var ExtensionsView = {
 
     let whatare = document.createElement("richlistitem");
     whatare.setAttribute("typeName", "banner");
-    whatare.setAttribute("class", "panel-listitem");
     whatare.setAttribute("label", strings.GetStringFromName("addonsWhatAre.label"));
 
     let desc = strings.GetStringFromName("addonsWhatAre.description");
@@ -929,9 +927,7 @@ AddonInstallListener.prototype = {
     // otherwise, we are likely a bootstrapped addon
     if (needsRestart)
       ExtensionsView.showRestart(mode);
-
-    if (aAddon.type != "locale")
-      this._showInstallCompleteAlert(true, needsRestart);
+    this._showInstallCompleteAlert(true, needsRestart);
 
     // only do this if the view has already been inited
     if (!ExtensionsView._list)

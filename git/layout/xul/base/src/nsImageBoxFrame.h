@@ -147,8 +147,8 @@ private:
 
   PRInt32 mLoadFlags;
 
-  bool mUseSrcAttr; ///< Whether or not the image src comes from an attribute.
-  bool mSuppressStyleCheck;
+  PRPackedBool mUseSrcAttr; ///< Whether or not the image src comes from an attribute.
+  PRPackedBool mSuppressStyleCheck;
 }; // class nsImageBoxFrame
 
 #endif /* nsImageBoxFrame_h___ */

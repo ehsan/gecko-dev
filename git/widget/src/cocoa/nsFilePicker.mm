@@ -62,7 +62,7 @@ using namespace mozilla;
 const float kAccessoryViewPadding = 5;
 const int   kSaveTypeControlTag = 1;
 
-static bool gCallSecretHiddenFileAPI = false;
+static PRBool gCallSecretHiddenFileAPI = PR_FALSE;
 const char kShowHiddenFilesPref[] = "filepicker.showHiddenFiles";
 
 /**
@@ -91,7 +91,7 @@ static void SetShowHiddenFileState(NSSavePanel* panel)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  bool show = false;
+  PRBool show = PR_FALSE;
   if (NS_SUCCEEDED(Preferences::GetBool(kShowHiddenFilesPref, &show))) {
     gCallSecretHiddenFileAPI = PR_TRUE;
   }
@@ -321,7 +321,7 @@ void UpdatePanelFileTypes(NSOpenPanel* aPanel, NSArray* aFilters)
 
 // Use OpenPanel to do a GetFile. Returns |returnOK| if the user presses OK in the dialog. 
 PRInt16
-nsFilePicker::GetLocalFiles(const nsString& inTitle, bool inAllowMultiple, nsCOMArray<nsILocalFile>& outFiles)
+nsFilePicker::GetLocalFiles(const nsString& inTitle, PRBool inAllowMultiple, nsCOMArray<nsILocalFile>& outFiles)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
 

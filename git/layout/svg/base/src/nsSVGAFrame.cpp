@@ -39,6 +39,7 @@
 #include "nsSVGTSpanFrame.h"
 #include "nsISVGGlyphFragmentNode.h"
 #include "nsSVGGraphicElement.h"
+#include "nsSVGMatrix.h"
 #include "nsSVGAElement.h"
 #include "nsSVGUtils.h"
 #include "gfxMatrix.h"
@@ -102,7 +103,7 @@ public:
   }
 
 private:
-  nsAutoPtr<gfxMatrix> mCanvasTM;
+  nsCOMPtr<nsIDOMSVGMatrix> mCanvasTM;
 };
 
 //----------------------------------------------------------------------
@@ -187,10 +188,10 @@ nsSVGAFrame::GetCanvasTM()
 
     gfxMatrix tm = content->PrependLocalTransformTo(parent->GetCanvasTM());
 
-    mCanvasTM = new gfxMatrix(tm);
+    mCanvasTM = NS_NewSVGMatrix(tm);
   }
 
-  return *mCanvasTM;
+  return nsSVGUtils::ConvertSVGMatrixToThebes(mCanvasTM);
 }
 
 //----------------------------------------------------------------------

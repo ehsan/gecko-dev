@@ -981,7 +981,7 @@ PluginModuleParent::NPP_GetSitesWithData(InfallibleTArray<nsCString>& result)
 
 #if defined(XP_MACOSX)
 nsresult
-PluginModuleParent::IsRemoteDrawingCoreAnimation(NPP instance, bool *aDrawing)
+PluginModuleParent::IsRemoteDrawingCoreAnimation(NPP instance, PRBool *aDrawing)
 {
     PluginInstanceParent* i = InstCast(instance);
     if (!i)
@@ -1167,7 +1167,7 @@ PluginModuleParent::RecvGetNativeCursorsSupported(bool* supported)
 {
     PLUGIN_LOG_DEBUG(("%s", FULLFUNCTION));
 #if defined(XP_MACOSX)
-    bool nativeCursorsSupported = false;
+    PRBool nativeCursorsSupported = PR_FALSE;
     nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
     if (prefs) {
       if (NS_FAILED(prefs->GetBoolPref("dom.ipc.plugins.nativeCursorSupport",
@@ -1223,7 +1223,7 @@ PluginModuleParent::AddToRefreshTimer(PluginInstanceParent *aInstance) {
 
 void
 PluginModuleParent::RemoveFromRefreshTimer(PluginInstanceParent *aInstance) {
-    bool visibleRemoved = mCATimerTargets.RemoveElement(aInstance);
+    PRBool visibleRemoved = mCATimerTargets.RemoveElement(aInstance);
     if (visibleRemoved && mCATimerTargets.IsEmpty()) {
         mCATimer->Cancel();
     }

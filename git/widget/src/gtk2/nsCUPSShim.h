@@ -92,13 +92,13 @@ class nsCUPSShim {
          *                  any of the functions could not be found.
          *         PR_TRUE  for successful initialization.
          */
-        bool Init();
+        PRBool Init();
 
         /**
          * @return PR_TRUE  if the object was initialized successfully.
          *         PR_FALSE otherwise.
          */
-        bool IsInitialized() { return nsnull != mCupsLib; }
+        PRBool IsInitialized() { return nsnull != mCupsLib; }
 
         /* Function pointers for supported functions. These are only
          * valid after successful initialization.

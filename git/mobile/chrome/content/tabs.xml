@@ -195,7 +195,9 @@
             },
 
             dragStart: function dragStart(cx, cy, target) {
-              this._grabSidebar = false;
+              this._grabSidebar = Util.isTablet() && !Util.isPortrait();
+              if (this._grabSidebar)
+                Browser.grabSidebar();
               dragger.dragStart(cx, cy, target, scroller);
             },
 
@@ -206,13 +208,6 @@
             },
 
             dragMove: function dragMove(dx, dy) {
-              let ltr = (Util.localeDir == Util.LOCALE_DIR_LTR);
-              let hiddingPan = ltr ? (dx > 0) : (dx < 0);
-              if (!this._grabSidebar && hiddingPan) {
-                this._grabSidebar = dx && Util.isTablet() && !Util.isPortrait();
-                if (this._grabSidebar)
-                  Browser.grabSidebar();
-              }
               if (this._grabSidebar)
                 Browser.slideSidebarBy(dx);
               return dragger.dragMove(dx, dy, scroller);

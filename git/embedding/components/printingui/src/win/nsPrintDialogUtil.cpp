@@ -113,7 +113,7 @@ static const char* kEachFrameSeparately  = "&Each frame separately";
 static UINT gFrameSelectedRadioBtn = 0;
 
 // Indicates whether the native print dialog was successfully extended
-static bool gDialogWasExtended     = false;
+static PRPackedBool gDialogWasExtended     = PR_FALSE;
 
 #define PRINTDLG_PROPERTIES "chrome://global/locale/printdialog.properties"
 
@@ -126,7 +126,7 @@ typedef struct {
   short  mPaperSize; // native enum
   double mWidth;
   double mHeight;
-  bool mIsInches;
+  PRBool mIsInches;
 } NativePaperSizes;
 
 // There are around 40 default print sizes defined by Windows
@@ -176,7 +176,7 @@ const NativePaperSizes kPaperSizes[] = {
 const PRInt32 kNumPaperSizes = 41;
 
 //----------------------------------------------------------------------------------
-static bool 
+static PRBool 
 CheckForExtendedDialog()
 {
 #ifdef MOZ_REQUIRE_CURRENT_SDK
@@ -330,7 +330,7 @@ SetPrintSettingsFromDevMode(nsIPrintSettings* aPrintSettings,
     }
 
   } else if (aDevMode->dmFields & DM_PAPERLENGTH && aDevMode->dmFields & DM_PAPERWIDTH) {
-    bool found = false;
+    PRBool found = PR_FALSE;
     for (PRInt32 i=0;i<kNumPaperSizes;i++) {
       if (kPaperSizes[i].mPaperSize == aDevMode->dmPaperSize) {
         aPrintSettings->SetPaperSizeType(nsIPrintSettings::kPaperSizeDefined);
@@ -424,8 +424,8 @@ static void SetText(HWND             aParent,
 //--------------------------------------------------------
 static void SetRadio(HWND         aParent, 
                      UINT         aId, 
-                     bool         aIsSet,
-                     bool         isEnabled = true) 
+                     PRBool       aIsSet,
+                     PRBool       isEnabled = PR_TRUE) 
 {
   HWND wnd = ::GetDlgItem (aParent, aId);
   if (!wnd) {
@@ -485,7 +485,7 @@ static void GetLocalRect(HWND aWnd, RECT& aRect, HWND aParent)
 
 //--------------------------------------------------------
 // Show or Hide the control
-static void Show(HWND aWnd, bool bState)
+static void Show(HWND aWnd, PRBool bState)
 {
   if (aWnd) {
     ::ShowWindow(aWnd, bState?SW_SHOW:SW_HIDE);
@@ -550,9 +550,6 @@ static HWND CreateGroupBox(HINSTANCE        aHInst,
 // Localizes and initializes the radio buttons and group
 static void InitializeExtendedDialog(HWND hdlg, PRInt16 aHowToEnableFrameUI) 
 {
-  NS_ABORT_IF_FALSE(aHowToEnableFrameUI != nsIPrintSettings::kFrameEnableNone,
-                    "should not be called");
-
   // Localize the new controls in the print dialog
   nsCOMPtr<nsIStringBundle> strBundle;
   if (NS_SUCCEEDED(GetLocalizedBundle(PRINTDLG_PROPERTIES, getter_AddRefs(strBundle)))) {
@@ -571,13 +568,23 @@ static void InitializeExtendedDialog(HWND hdlg, PRInt16 aHowToEnableFrameUI)
     // set default so user doesn't have to actually press on it
     gFrameSelectedRadioBtn = rad5;
 
-  } else { // nsIPrintSettings::kFrameEnableAsIsAndEach
+  } else if (aHowToEnableFrameUI == nsIPrintSettings::kFrameEnableAsIsAndEach) {
     SetRadio(hdlg, rad4, PR_FALSE);  
     SetRadio(hdlg, rad5, PR_FALSE, PR_FALSE); 
     SetRadio(hdlg, rad6, PR_TRUE);
     // set default so user doesn't have to actually press on it
     gFrameSelectedRadioBtn = rad6;
+
+
+  } else {  // nsIPrintSettings::kFrameEnableNone
+    // we are using this function to disabe the group box
+    SetRadio(hdlg, grp3, PR_FALSE, PR_FALSE); 
+    // now disable radiobuttons
+    SetRadio(hdlg, rad4, PR_FALSE, PR_FALSE); 
+    SetRadio(hdlg, rad5, PR_FALSE, PR_FALSE); 
+    SetRadio(hdlg, rad6, PR_FALSE, PR_FALSE); 
   }
+
 }
 
 
@@ -598,10 +605,6 @@ static UINT CALLBACK PrintHookProc(HWND hdlg, UINT uiMsg, WPARAM wParam, LPARAM 
     if (printDlg == NULL) return 0L;
 
     PRInt16 howToEnableFrameUI = (PRInt16)printDlg->lCustData;
-    // don't add frame options if they would be disabled anyway
-    // because there are no frames
-    if (howToEnableFrameUI == nsIPrintSettings::kFrameEnableNone)
-      return TRUE;
 
     HINSTANCE hInst = (HINSTANCE)::GetWindowLongPtr(hdlg, GWLP_HINSTANCE);
     if (hInst == NULL) return 0L;
@@ -823,7 +826,7 @@ static void GetDefaultPrinterNameFromGlobalPrinters(nsXPIDLString &printerName)
 
 // Determine whether we have a completely native dialog
 // or whether we cshould extend it
-static bool ShouldExtendPrintDialog()
+static PRBool ShouldExtendPrintDialog()
 {
   nsresult rv;
   nsCOMPtr<nsIPrefService> prefs =
@@ -833,7 +836,7 @@ static bool ShouldExtendPrintDialog()
   rv = prefs->GetBranch(nsnull, getter_AddRefs(prefBranch));
   NS_ENSURE_SUCCESS(rv, PR_TRUE);
 
-  bool result;
+  PRBool result;
   rv = prefBranch->GetBoolPref("print.extend_native_print_dialog", &result);
   NS_ENSURE_SUCCESS(rv, PR_TRUE);
   return result;
@@ -909,12 +912,11 @@ ShowNativePrintDialog(HWND              aHWnd,
   prntdlg.hDevMode    = hGlobalDevMode;
   prntdlg.hDevNames   = hDevNames;
   prntdlg.hDC         = NULL;
-  prntdlg.Flags       = PD_ALLPAGES | PD_RETURNIC | 
-                        PD_USEDEVMODECOPIESANDCOLLATE | PD_COLLATE;
+  prntdlg.Flags       = PD_ALLPAGES | PD_RETURNIC | PD_USEDEVMODECOPIESANDCOLLATE;
 
   // if there is a current selection then enable the "Selection" radio button
   PRInt16 howToEnableFrameUI = nsIPrintSettings::kFrameEnableNone;
-  bool isOn;
+  PRBool isOn;
   aPrintSettings->GetPrintOptions(nsIPrintSettings::kEnableSelectionRB, &isOn);
   if (!isOn) {
     prntdlg.Flags |= PD_NOSELECTION;
@@ -1054,9 +1056,9 @@ ShowNativePrintDialog(HWND              aHWnd,
     ::GlobalUnlock(prntdlg.hDevMode);
 
 #if defined(DEBUG_rods) || defined(DEBUG_dcone)
-    bool    printSelection = prntdlg.Flags & PD_SELECTION;
-    bool    printAllPages  = prntdlg.Flags & PD_ALLPAGES;
-    bool    printNumPages  = prntdlg.Flags & PD_PAGENUMS;
+    PRBool  printSelection = prntdlg.Flags & PD_SELECTION;
+    PRBool  printAllPages  = prntdlg.Flags & PD_ALLPAGES;
+    PRBool  printNumPages  = prntdlg.Flags & PD_PAGENUMS;
     PRInt32 fromPageNum    = 0;
     PRInt32 toPageNum      = 0;
 
@@ -1104,11 +1106,6 @@ static BOOL APIENTRY PropSheetCallBack(HWND hdlg, UINT uiMsg, UINT wParam, LONG 
     // We temporarily borrowed the global value for initialization
     // now clear it before the dialog appears
     PRInt16 howToEnableFrameUI = gFrameSelectedRadioBtn;
-    // don't add frame options if they would be disabled anyway
-    // because there are no frames
-    if (howToEnableFrameUI == nsIPrintSettings::kFrameEnableNone)
-      return TRUE;
-
     gFrameSelectedRadioBtn     = 0;
 
     HINSTANCE hInst = (HINSTANCE)::GetWindowLongPtr(hdlg, GWLP_HINSTANCE);
@@ -1241,13 +1238,13 @@ ShowNativePrintDialogEx(HWND              aHWnd,
   prntdlg.hwndOwner   = aHWnd;
   prntdlg.hDevMode    = hGlobalDevMode;
   prntdlg.Flags       = PD_ALLPAGES | PD_RETURNDC | PD_USEDEVMODECOPIESANDCOLLATE |
-                        PD_NOCURRENTPAGE | PD_COLLATE;
+                        PD_NOCURRENTPAGE;
   prntdlg.nStartPage  = START_PAGE_GENERAL;
 
   // if there is a current selection then enable the "Selection" radio button
   PRInt16 howToEnableFrameUI = nsIPrintSettings::kFrameEnableNone;
   if (aPrintSettings != nsnull) {
-    bool isOn;
+    PRBool isOn;
     aPrintSettings->GetPrintOptions(nsIPrintSettings::kEnableSelectionRB, &isOn);
     if (!isOn) {
       prntdlg.Flags |= PD_NOSELECTION;
@@ -1397,9 +1394,9 @@ ShowNativePrintDialogEx(HWND              aHWnd,
     ::GlobalUnlock(prntdlg.hDevMode);
 
 #if defined(DEBUG_rods) || defined(DEBUG_dcone)
-    bool    printSelection = prntdlg.Flags & PD_SELECTION;
-    bool    printAllPages  = prntdlg.Flags & PD_ALLPAGES;
-    bool    printNumPages  = prntdlg.Flags & PD_PAGENUMS;
+    PRBool  printSelection = prntdlg.Flags & PD_SELECTION;
+    PRBool  printAllPages  = prntdlg.Flags & PD_ALLPAGES;
+    PRBool  printNumPages  = prntdlg.Flags & PD_PAGENUMS;
     PRInt32 fromPageNum    = 0;
     PRInt32 toPageNum      = 0;
 
@@ -1436,10 +1433,10 @@ PrepareForPrintDialog(nsIWebBrowserPrint* aWebBrowserPrint, nsIPrintSettings* aP
   NS_ASSERTION(aWebBrowserPrint, "Can't be null");
   NS_ASSERTION(aPS, "Can't be null");
 
-  bool isFramesetDocument;
-  bool isFramesetFrameSelected;
-  bool isIFrameSelected;
-  bool isRangeSelection;
+  PRBool isFramesetDocument;
+  PRBool isFramesetFrameSelected;
+  PRBool isIFrameSelected;
+  PRBool isRangeSelection;
 
   aWebBrowserPrint->GetIsFramesetDocument(&isFramesetDocument);
   aWebBrowserPrint->GetIsFramesetFrameSelected(&isFramesetFrameSelected);

@@ -45,7 +45,6 @@
 #include "nsSVGAngle.h"
 #include "nsSVGViewBox.h"
 #include "SVGAnimatedPreserveAspectRatio.h"
-#include "gfxMatrix.h"
 
 class nsSVGOrientType
 {
@@ -126,12 +125,12 @@ public:
   NS_FORWARD_NSIDOMSVGELEMENT(nsSVGElement::)
 
   // nsIContent interface
-  NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* name) const;
+  NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* name) const;
 
-  virtual bool GetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
+  virtual PRBool GetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                          nsAString& aResult) const;
   virtual nsresult UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
-                             bool aNotify);
+                             PRBool aNotify);
 
   // public helpers
   gfxMatrix GetMarkerTransform(float aStrokeWidth,
@@ -146,7 +145,7 @@ public:
   virtual nsXPCClassInfo* GetClassInfo();
 protected:
 
-  virtual bool ParseAttribute(PRInt32 aNameSpaceID, nsIAtom* aName,
+  virtual PRBool ParseAttribute(PRInt32 aNameSpaceID, nsIAtom* aName,
                                 const nsAString& aValue,
                                 nsAttrValue& aResult);
 
@@ -178,7 +177,7 @@ protected:
   nsSVGOrientType                        mOrientType;
 
   nsSVGSVGElement                       *mCoordCtx;
-  nsAutoPtr<gfxMatrix>                   mViewBoxToViewportTransform;
+  nsCOMPtr<nsIDOMSVGMatrix>         mViewBoxToViewportTransform;
 };
 
 #endif

@@ -415,7 +415,7 @@ xpc_qsDefineQuickStubs(JSContext *cx, JSObject *proto, uintN flags,
      * searching the interfaces forward.  Here, definitions toward the
      * front of 'interfaces' overwrite those toward the back.
      */
-    bool definedProperty = false;
+    PRBool definedProperty = PR_FALSE;
     for(uint32 i = ifacec; i-- != 0;)
     {
         const nsID &iid = *interfaces[i];

@@ -382,7 +382,7 @@ nsImageBoxFrame::PaintImage(nsRenderingContext& aRenderingContext,
   mImageRequest->GetImage(getter_AddRefs(imgCon));
 
   if (imgCon) {
-    bool hasSubRect = !mUseSrcAttr && (mSubRect.width > 0 || mSubRect.height > 0);
+    PRBool hasSubRect = !mUseSrcAttr && (mSubRect.width > 0 || mSubRect.height > 0);
     nsLayoutUtils::DrawSingleImage(&aRenderingContext, imgCon,
         nsLayoutUtils::GetGraphicsFilterForFrame(this),
         rect, dirty, aFlags, hasSubRect ? &mSubRect : nsnull);
@@ -419,7 +419,7 @@ nsImageBoxFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
     mImageRequest->GetURI(getter_AddRefs(oldURI));
   if (myList->GetListStyleImage())
     myList->GetListStyleImage()->GetURI(getter_AddRefs(newURI));
-  bool equal;
+  PRBool equal;
   if (newURI == oldURI ||   // handles null==null
       (newURI && oldURI &&
        NS_SUCCEEDED(newURI->Equals(oldURI, &equal)) && equal))
@@ -463,7 +463,7 @@ nsImageBoxFrame::GetPrefSize(nsBoxLayoutState& aState)
   size.width += borderPadding.LeftRight();
   size.height += borderPadding.TopBottom();
 
-  bool widthSet, heightSet;
+  PRBool widthSet, heightSet;
   nsIBox::AddCSSPrefSize(this, size, widthSet, heightSet);
   NS_ASSERTION(size.width != NS_INTRINSICSIZE && size.height != NS_INTRINSICSIZE,
                "non-nintrinsic size expected");
@@ -528,7 +528,7 @@ nsImageBoxFrame::GetMinSize(nsBoxLayoutState& aState)
   nsSize size(0,0);
   DISPLAY_MIN_SIZE(this, size);
   AddBorderAndPadding(size);
-  bool widthSet, heightSet;
+  PRBool widthSet, heightSet;
   nsIBox::AddCSSMinSize(aState, this, size, widthSet, heightSet);
   return size;
 }

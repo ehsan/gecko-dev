@@ -47,6 +47,7 @@
 #include "nsSVGUtils.h"
 #include "nsIURI.h"
 #include "nsSVGRect.h"
+#include "nsSVGMatrix.h"
 #include "nsINameSpaceManager.h"
 #include "nsSVGForeignObjectElement.h"
 #include "nsSVGContainerFrame.h"
@@ -123,8 +124,6 @@ nsSVGForeignObjectFrame::AttributeChanged(PRInt32  aNameSpaceID,
       RequestReflow(nsIPresShell::eStyleChange);
     } else if (aAttribute == nsGkAtoms::x ||
                aAttribute == nsGkAtoms::y ||
-               aAttribute == nsGkAtoms::viewBox ||
-               aAttribute == nsGkAtoms::preserveAspectRatio ||
                aAttribute == nsGkAtoms::transform) {
       // make sure our cached transform matrix gets (lazily) updated
       mCanvasTM = nsnull;
@@ -372,7 +371,7 @@ nsSVGForeignObjectFrame::InitialUpdate()
 void
 nsSVGForeignObjectFrame::NotifySVGChanged(PRUint32 aFlags)
 {
-  bool reflow = false;
+  PRBool reflow = PR_FALSE;
 
   if (aFlags & TRANSFORM_CHANGED) {
     // In an ideal world we would reflow when our CTM changes. This is because
@@ -433,8 +432,7 @@ nsSVGForeignObjectFrame::NotifyRedrawUnsuspended()
 }
 
 gfxRect
-nsSVGForeignObjectFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace,
-                                             PRUint32 aFlags)
+nsSVGForeignObjectFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace)
 {
   NS_ASSERTION(!(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD),
                "Should not be calling this on a non-display child");
@@ -469,9 +467,9 @@ nsSVGForeignObjectFrame::GetCanvasTM()
 
     gfxMatrix tm = content->PrependLocalTransformTo(parent->GetCanvasTM());
 
-    mCanvasTM = new gfxMatrix(tm);
+    mCanvasTM = NS_NewSVGMatrix(tm);
   }
-  return *mCanvasTM;
+  return nsSVGUtils::ConvertSVGMatrixToThebes(mCanvasTM);
 }
 
 //----------------------------------------------------------------------

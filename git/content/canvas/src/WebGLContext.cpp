@@ -456,7 +456,7 @@ static bool
 GetBoolFromPropertyBag(nsIPropertyBag *bag, const char *propName, bool *boolResult)
 {
     nsCOMPtr<nsIVariant> vv;
-    bool bv;
+    PRBool bv;
 
     nsresult rv = bag->GetProperty(NS_ConvertASCIItoUTF16(propName), getter_AddRefs(vv));
     if (NS_FAILED(rv) || !vv)
@@ -549,18 +549,18 @@ WebGLContext::SetDimensions(PRInt32 width, PRInt32 height)
     // Get some prefs for some preferred/overriden things
     NS_ENSURE_TRUE(Preferences::GetRootBranch(), NS_ERROR_FAILURE);
 
-    bool forceOSMesa =
-        Preferences::GetBool("webgl.force_osmesa", false);
-    bool preferEGL =
-        Preferences::GetBool("webgl.prefer-egl", false);
-    bool preferOpenGL =
-        Preferences::GetBool("webgl.prefer-native-gl", false);
-    bool forceEnabled =
-        Preferences::GetBool("webgl.force-enabled", false);
-    bool disabled =
-        Preferences::GetBool("webgl.disabled", false);
-    bool verbose =
-        Preferences::GetBool("webgl.verbose", false);
+    PRBool forceOSMesa =
+        Preferences::GetBool("webgl.force_osmesa", PR_FALSE);
+    PRBool preferEGL =
+        Preferences::GetBool("webgl.prefer-egl", PR_FALSE);
+    PRBool preferOpenGL =
+        Preferences::GetBool("webgl.prefer-native-gl", PR_FALSE);
+    PRBool forceEnabled =
+        Preferences::GetBool("webgl.force-enabled", PR_FALSE);
+    PRBool disabled =
+        Preferences::GetBool("webgl.disabled", PR_FALSE);
+    PRBool verbose =
+        Preferences::GetBool("webgl.verbose", PR_FALSE);
 
     if (disabled)
         return NS_ERROR_FAILURE;
@@ -605,8 +605,8 @@ WebGLContext::SetDimensions(PRInt32 width, PRInt32 height)
     }
 
     // Ask GfxInfo about what we should use
-    bool useOpenGL = true;
-    bool useANGLE = true;
+    PRBool useOpenGL = PR_TRUE;
+    PRBool useANGLE = PR_TRUE;
 
     nsCOMPtr<nsIGfxInfo> gfxInfo = do_GetService("@mozilla.org/gfx/info;1");
     if (gfxInfo && !forceEnabled) {
@@ -978,9 +978,9 @@ WebGLContext::ForceClearFramebufferWithDefaultValues(PRUint32 mask, const nsIntR
 {
     MakeContextCurrent();
 
-    bool initializeColorBuffer = 0 != (mask & LOCAL_GL_COLOR_BUFFER_BIT);
-    bool initializeDepthBuffer = 0 != (mask & LOCAL_GL_DEPTH_BUFFER_BIT);
-    bool initializeStencilBuffer = 0 != (mask & LOCAL_GL_STENCIL_BUFFER_BIT);
+    PRBool initializeColorBuffer = 0 != (mask & LOCAL_GL_COLOR_BUFFER_BIT);
+    PRBool initializeDepthBuffer = 0 != (mask & LOCAL_GL_DEPTH_BUFFER_BIT);
+    PRBool initializeStencilBuffer = 0 != (mask & LOCAL_GL_STENCIL_BUFFER_BIT);
 
     // prepare GL state for clearing
     gl->fDisable(LOCAL_GL_SCISSOR_TEST);

@@ -61,7 +61,7 @@ nsCUPSShim gCupsShim;
 nsPSPrinterList::nsPSPrinterList()
 {
     // Should we try cups?
-    if (Preferences::GetBool("print.postscript.cups.enabled", true) &&
+    if (Preferences::GetBool("print.postscript.cups.enabled", PR_TRUE) &&
         !gCupsShim.IsInitialized()) {
         gCupsShim.Init();
     }
@@ -69,7 +69,7 @@ nsPSPrinterList::nsPSPrinterList()
 
 
 /* Check whether the PostScript module has been disabled at runtime */
-bool
+PRBool
 nsPSPrinterList::Enabled()
 {
     const char *val = PR_GetEnv("MOZILLA_POSTSCRIPT_ENABLED");
@@ -77,7 +77,7 @@ nsPSPrinterList::Enabled()
         return PR_FALSE;
 
     // is the PS module enabled?
-    return Preferences::GetBool("print.postscript.enabled", true);
+    return Preferences::GetBool("print.postscript.enabled", PR_TRUE);
 }
 
 

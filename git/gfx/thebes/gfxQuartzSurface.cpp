@@ -41,7 +41,7 @@
 #include "cairo-quartz.h"
 
 gfxQuartzSurface::gfxQuartzSurface(const gfxSize& size, gfxImageFormat format,
-                                   bool aForPrinting)
+                                   PRBool aForPrinting)
     : mCGContext(NULL), mSize(size), mForPrinting(aForPrinting)
 {
     unsigned int width = (unsigned int) floor(size.width);
@@ -62,7 +62,7 @@ gfxQuartzSurface::gfxQuartzSurface(const gfxSize& size, gfxImageFormat format,
 
 gfxQuartzSurface::gfxQuartzSurface(CGContextRef context,
                                    const gfxSize& size,
-                                   bool aForPrinting)
+                                   PRBool aForPrinting)
     : mCGContext(context), mSize(size), mForPrinting(aForPrinting)
 {
     unsigned int width = (unsigned int) floor(size.width);
@@ -78,7 +78,7 @@ gfxQuartzSurface::gfxQuartzSurface(CGContextRef context,
 }
 
 gfxQuartzSurface::gfxQuartzSurface(cairo_surface_t *csurf,
-                                   bool aForPrinting) :
+                                   PRBool aForPrinting) :
     mSize(-1.0, -1.0), mForPrinting(aForPrinting)
 {
     mCGContext = cairo_quartz_surface_get_cg_context (csurf);
@@ -91,7 +91,7 @@ gfxQuartzSurface::gfxQuartzSurface(unsigned char *data,
                                    const gfxSize& size,
                                    long stride,
                                    gfxImageFormat format,
-                                   bool aForPrinting)
+                                   PRBool aForPrinting)
     : mCGContext(nsnull), mSize(size), mForPrinting(aForPrinting)
 {
     unsigned int width = (unsigned int) floor(size.width);
@@ -154,10 +154,9 @@ already_AddRefed<gfxImageSurface> gfxQuartzSurface::GetAsImageSurface()
     // shares the refcounts of Cairo surfaces. However, Wrap also adds a
     // reference to the image. We need to remove one of these references
     // explicitly so we don't leak.
-    gfxImageSurface* imgSurface = static_cast<gfxImageSurface*> (img.forget().get());
-    imgSurface->Release();
+    img->Release();
 
-    return imgSurface;
+    return static_cast<gfxImageSurface*>(img.forget().get());
 }
 
 gfxQuartzSurface::~gfxQuartzSurface()

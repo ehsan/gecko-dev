@@ -36,7 +36,9 @@
 
 #include "nsGkAtoms.h"
 #include "nsCOMPtr.h"
+#include "nsISVGValueUtils.h"
 #include "SVGAnimatedPreserveAspectRatio.h"
+#include "nsSVGMatrix.h"
 #include "nsDOMError.h"
 #include "nsSVGUtils.h"
 #include "nsSVGMarkerElement.h"
@@ -230,7 +232,7 @@ NS_IMETHODIMP nsSVGMarkerElement::SetOrientToAngle(nsIDOMSVGAngle *angle)
 //----------------------------------------------------------------------
 // nsIContent methods
 
-NS_IMETHODIMP_(bool)
+NS_IMETHODIMP_(PRBool)
 nsSVGMarkerElement::IsAttributeMapped(const nsIAtom* name) const
 {
   static const MappedAttributeEntry* const map[] = {
@@ -251,7 +253,7 @@ nsSVGMarkerElement::IsAttributeMapped(const nsIAtom* name) const
 //----------------------------------------------------------------------
 // nsSVGElement methods
 
-bool
+PRBool
 nsSVGMarkerElement::GetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                             nsAString &aResult) const
 {
@@ -264,7 +266,7 @@ nsSVGMarkerElement::GetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
   return nsSVGMarkerElementBase::GetAttr(aNameSpaceID, aName, aResult);
 }
 
-bool
+PRBool
 nsSVGMarkerElement::ParseAttribute(PRInt32 aNameSpaceID, nsIAtom* aName,
                                    const nsAString& aValue,
                                    nsAttrValue& aResult)
@@ -283,7 +285,7 @@ nsSVGMarkerElement::ParseAttribute(PRInt32 aNameSpaceID, nsIAtom* aName,
 
 nsresult
 nsSVGMarkerElement::UnsetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
-                              bool aNotify)
+                              PRBool aNotify)
 {
   if (aNamespaceID == kNameSpaceID_None) {
     if (aName == nsGkAtoms::orient) {
@@ -396,10 +398,10 @@ nsSVGMarkerElement::GetViewBoxTransform()
 
     gfxMatrix TM = viewBoxTM * gfxMatrix().Translate(gfxPoint(-ref.x, -ref.y));
 
-    mViewBoxToViewportTransform = new gfxMatrix(TM);
+    mViewBoxToViewportTransform = NS_NewSVGMatrix(TM);
   }
 
-  return *mViewBoxToViewportTransform;
+  return nsSVGUtils::ConvertSVGMatrixToThebes(mViewBoxToViewportTransform);
 }
 
 

@@ -85,7 +85,7 @@ nsTextStore::~nsTextStore()
   SaveTextEvent(nsnull);
 }
 
-bool
+PRBool
 nsTextStore::Create(nsWindow* aWindow,
                     PRUint32 aIMEState)
 {
@@ -114,7 +114,7 @@ nsTextStore::Create(nsWindow* aWindow,
   return PR_FALSE;
 }
 
-bool
+PRBool
 nsTextStore::Destroy(void)
 {
   if (mWindow) {
@@ -566,7 +566,7 @@ nsTextStore::SaveTextEvent(const nsTextEvent* aEvent)
   return S_OK;
 }
 
-static bool
+static PRBool
 IsSameTextEvent(const nsTextEvent* aEvent1, const nsTextEvent* aEvent2)
 {
   NS_PRECONDITION(aEvent1 || aEvent2, "both events are null");
@@ -622,7 +622,7 @@ nsTextStore::UpdateCompositionExtent(ITfRange* aRangeNew)
   return S_OK;
 }
 
-static bool
+static PRBool
 GetColor(const TF_DA_COLOR &aTSFColor, nscolor &aResult)
 {
   switch (aTSFColor.type) {
@@ -642,7 +642,7 @@ GetColor(const TF_DA_COLOR &aTSFColor, nscolor &aResult)
   }
 }
 
-static bool
+static PRBool
 GetLineStyle(TF_DA_LINESTYLE aTSFLineStyle, PRUint8 &aTextRangeLineStyle)
 {
   switch (aTSFLineStyle) {
@@ -825,7 +825,7 @@ nsTextStore::SendTextEventForCompositionString()
 
 HRESULT
 nsTextStore::SetSelectionInternal(const TS_SELECTION_ACP* pSelection,
-                                  bool aDispatchTextEvent)
+                                  PRBool aDispatchTextEvent)
 {
   PR_LOG(sTextStoreLog, PR_LOG_ALWAYS,
          ("TSF: SetSelection, sel=%ld-%ld\n",
@@ -1313,7 +1313,7 @@ nsTextStore::InsertEmbeddedAtSelection(DWORD dwFlags,
 HRESULT
 nsTextStore::OnStartCompositionInternal(ITfCompositionView* pComposition,
                                         ITfRange* aRange,
-                                        bool aPreserveSelection)
+                                        PRBool aPreserveSelection)
 {
   mCompositionView = pComposition;
   HRESULT hr = GetRangeExtent(aRange, &mCompositionStart, &mCompositionLength);
@@ -1475,7 +1475,7 @@ nsTextStore::OnEndComposition(ITfCompositionView* pComposition)
 }
 
 nsresult
-nsTextStore::OnFocusChange(bool aFocus,
+nsTextStore::OnFocusChange(PRBool aFocus,
                            nsWindow* aWindow,
                            PRUint32 aIMEEnabled)
 {
@@ -1484,7 +1484,7 @@ nsTextStore::OnFocusChange(bool aFocus,
     return NS_ERROR_NOT_AVAILABLE;
 
   if (aFocus) {
-    bool bRet = sTsfTextStore->Create(aWindow, aIMEEnabled);
+    PRBool bRet = sTsfTextStore->Create(aWindow, aIMEEnabled);
     NS_ENSURE_TRUE(bRet, NS_ERROR_FAILURE);
     NS_ENSURE_TRUE(sTsfTextStore->mDocumentMgr, NS_ERROR_FAILURE);
     HRESULT hr = sTsfThreadMgr->SetFocus(sTsfTextStore->mDocumentMgr);
@@ -1547,7 +1547,7 @@ nsTextStore::OnCompositionTimer()
 }
 
 void
-nsTextStore::CommitCompositionInternal(bool aDiscard)
+nsTextStore::CommitCompositionInternal(PRBool aDiscard)
 {
   if (mCompositionView && aDiscard) {
     mCompositionString.Truncate(0);
@@ -1578,7 +1578,7 @@ nsTextStore::CommitCompositionInternal(bool aDiscard)
 }
 
 static
-bool
+PRBool
 GetCompartment(IUnknown* pUnk,
                const GUID& aID,
                ITfCompartment** aCompartment)
@@ -1594,7 +1594,7 @@ GetCompartment(IUnknown* pUnk,
 }
 
 void
-nsTextStore::SetIMEOpenState(bool aState)
+nsTextStore::SetIMEOpenState(PRBool aState)
 {
   PR_LOG(sTextStoreLog, PR_LOG_ALWAYS,
          ("TSF: SetIMEOpenState, state=%lu\n", aState));
@@ -1611,7 +1611,7 @@ nsTextStore::SetIMEOpenState(bool aState)
   comp->SetValue(sTsfClientId, &variant);
 }
 
-bool
+PRBool
 nsTextStore::GetIMEOpenState(void)
 {
   nsRefPtr<ITfCompartment> comp;
@@ -1663,8 +1663,8 @@ nsTextStore::Initialize(void)
     sTextStoreLog = PR_NewLogModule("nsTextStoreWidgets");
 #endif
   if (!sTsfThreadMgr) {
-    bool enableTsf =
-      Preferences::GetBool("intl.enable_tsf_support", false);
+    PRBool enableTsf =
+      Preferences::GetBool("intl.enable_tsf_support", PR_FALSE);
     if (enableTsf) {
       if (SUCCEEDED(CoCreateInstance(CLSID_TF_ThreadMgr, NULL,
             CLSCTX_INPROC_SERVER, IID_ITfThreadMgr,

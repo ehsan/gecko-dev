@@ -169,7 +169,7 @@ nsGenericDOMDataNode::GetPrefix(nsAString& aPrefix)
 nsresult
 nsGenericDOMDataNode::IsSupported(const nsAString& aFeature,
                                   const nsAString& aVersion,
-                                  bool* aReturn)
+                                  PRBool* aReturn)
 {
   return nsGenericElement::InternalIsSupported(static_cast<nsIContent*>(this),
                                                aFeature, aVersion, aReturn);
@@ -277,7 +277,7 @@ nsGenericDOMDataNode::ReplaceData(PRUint32 aOffset, PRUint32 aCount,
 nsresult
 nsGenericDOMDataNode::SetTextInternal(PRUint32 aOffset, PRUint32 aCount,
                                       const PRUnichar* aBuffer,
-                                      PRUint32 aLength, bool aNotify,
+                                      PRUint32 aLength, PRBool aNotify,
                                       CharacterDataChangeInfo::Details* aDetails)
 {
   NS_PRECONDITION(aBuffer || !aLength,
@@ -306,7 +306,7 @@ nsGenericDOMDataNode::SetTextInternal(PRUint32 aOffset, PRUint32 aCount,
   nsIDocument *document = GetCurrentDoc();
   mozAutoDocUpdate updateBatch(document, UPDATE_CONTENT_MODEL, aNotify);
 
-  bool haveMutationListeners = aNotify &&
+  PRBool haveMutationListeners = aNotify &&
     nsContentUtils::HasMutationListeners(this,
       NS_EVENT_BITS_MUTATION_CHARACTERDATAMODIFIED,
       this);
@@ -453,7 +453,7 @@ nsGenericDOMDataNode::ToCString(nsAString& aBuf, PRInt32 aOffset,
 nsresult
 nsGenericDOMDataNode::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                                  nsIContent* aBindingParent,
-                                 bool aCompileEventHandlers)
+                                 PRBool aCompileEventHandlers)
 {
   NS_PRECONDITION(aParent || aDocument, "Must have document if no parent!");
   NS_PRECONDITION(HasSameOwnerDoc(NODE_FROM(aParent, aDocument)),
@@ -536,7 +536,7 @@ nsGenericDOMDataNode::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 }
 
 void
-nsGenericDOMDataNode::UnbindFromTree(bool aDeep, bool aNullParent)
+nsGenericDOMDataNode::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
 {
   // Unset frame flags; if we need them again later, they'll get set again.
   UnsetFlags(NS_CREATE_FRAME_IF_NON_WHITESPACE |
@@ -589,19 +589,19 @@ nsGenericDOMDataNode::GetExistingAttrNameFromQName(const nsAString& aStr) const
 nsresult
 nsGenericDOMDataNode::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttr,
                               nsIAtom* aPrefix, const nsAString& aValue,
-                              bool aNotify)
+                              PRBool aNotify)
 {
   return NS_OK;
 }
 
 nsresult
 nsGenericDOMDataNode::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttr,
-                                bool aNotify)
+                                PRBool aNotify)
 {
   return NS_OK;
 }
 
-bool
+PRBool
 nsGenericDOMDataNode::GetAttr(PRInt32 aNameSpaceID, nsIAtom *aAttr,
                               nsAString& aResult) const
 {
@@ -610,7 +610,7 @@ nsGenericDOMDataNode::GetAttr(PRInt32 aNameSpaceID, nsIAtom *aAttr,
   return PR_FALSE;
 }
 
-bool
+PRBool
 nsGenericDOMDataNode::HasAttr(PRInt32 aNameSpaceID, nsIAtom *aAttribute) const
 {
   return PR_FALSE;
@@ -655,13 +655,13 @@ nsGenericDOMDataNode::IndexOf(nsINode* aPossibleChild) const
 
 nsresult
 nsGenericDOMDataNode::InsertChildAt(nsIContent* aKid, PRUint32 aIndex,
-                                    bool aNotify)
+                                    PRBool aNotify)
 {
   return NS_OK;
 }
 
 nsresult
-nsGenericDOMDataNode::RemoveChildAt(PRUint32 aIndex, bool aNotify)
+nsGenericDOMDataNode::RemoveChildAt(PRUint32 aIndex, PRBool aNotify)
 {
   return NS_OK;
 }
@@ -673,7 +673,7 @@ nsGenericDOMDataNode::GetBindingParent() const
   return slots ? slots->mBindingParent : nsnull;
 }
 
-bool
+PRBool
 nsGenericDOMDataNode::IsNodeOfType(PRUint32 aFlags) const
 {
   return !(aFlags & ~(eCONTENT | eDATA_NODE));
@@ -700,12 +700,12 @@ nsGenericDOMDataNode::List(FILE* out, PRInt32 aIndent) const
 
 void
 nsGenericDOMDataNode::DumpContent(FILE* out, PRInt32 aIndent,
-                                  bool aDumpAll) const 
+                                  PRBool aDumpAll) const 
 {
 }
 #endif
 
-bool
+PRBool
 nsGenericDOMDataNode::IsLink(nsIURI** aURI) const
 {
   *aURI = nsnull;
@@ -724,7 +724,7 @@ nsGenericDOMDataNode::CreateSlots()
 
 nsresult
 nsGenericDOMDataNode::SplitData(PRUint32 aOffset, nsIContent** aReturn,
-                                bool aCloneAfterOriginal)
+                                PRBool aCloneAfterOriginal)
 {
   *aReturn = nsnull;
   nsresult rv = NS_OK;
@@ -846,8 +846,6 @@ nsGenericDOMDataNode::ReplaceWholeText(const nsAString& aContent,
 {
   *aResult = nsnull;
 
-  GetOwnerDoc()->WarnOnceAbout(nsIDocument::eReplaceWholeText);
-
   // Handle parent-less nodes
   nsCOMPtr<nsIContent> parent = GetParent();
   if (!parent) {
@@ -934,7 +932,7 @@ nsGenericDOMDataNode::TextLength()
 nsresult
 nsGenericDOMDataNode::SetText(const PRUnichar* aBuffer,
                               PRUint32 aLength,
-                              bool aNotify)
+                              PRBool aNotify)
 {
   return SetTextInternal(0, mText.GetLength(), aBuffer, aLength, aNotify);
 }
@@ -942,12 +940,12 @@ nsGenericDOMDataNode::SetText(const PRUnichar* aBuffer,
 nsresult
 nsGenericDOMDataNode::AppendText(const PRUnichar* aBuffer,
                                  PRUint32 aLength,
-                                 bool aNotify)
+                                 PRBool aNotify)
 {
   return SetTextInternal(mText.GetLength(), 0, aBuffer, aLength, aNotify);
 }
 
-bool
+PRBool
 nsGenericDOMDataNode::TextIsOnlyWhitespace()
 {
   if (mText.Is2b()) {
@@ -1020,7 +1018,7 @@ nsGenericDOMDataNode::GetSMILOverrideStyleRule()
 
 nsresult
 nsGenericDOMDataNode::SetSMILOverrideStyleRule(css::StyleRule* aStyleRule,
-                                               bool aNotify)
+                                               PRBool aNotify)
 {
   NS_NOTREACHED("How come we're setting SMILOverrideStyle on a non-element?");
   return NS_ERROR_UNEXPECTED;
@@ -1035,13 +1033,13 @@ nsGenericDOMDataNode::GetInlineStyleRule()
 
 NS_IMETHODIMP
 nsGenericDOMDataNode::SetInlineStyleRule(css::StyleRule* aStyleRule,
-                                         bool aNotify)
+                                         PRBool aNotify)
 {
   NS_NOTREACHED("How come we're setting inline style on a non-element?");
   return NS_ERROR_UNEXPECTED;
 }
 
-NS_IMETHODIMP_(bool)
+NS_IMETHODIMP_(PRBool)
 nsGenericDOMDataNode::IsAttributeMapped(const nsIAtom* aAttribute) const
 {
   return PR_FALSE;

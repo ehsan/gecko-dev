@@ -117,18 +117,16 @@ var BrowserUI = {
 
   _titleChanged: function(aBrowser) {
     let url = this.getDisplayURI(aBrowser);
-    let contentTitle = aBrowser.contentTitle;
-    let caption = contentTitle || url;
-    let tabCaption = contentTitle || (Util.isURLEmpty(url) ? "" : url);
+    let caption = aBrowser.contentTitle || url;
 
-    if (contentTitle == "" && !Util.isURLEmpty(aBrowser.userTypedValue))
-      caption = tabCaption = aBrowser.userTypedValue;
+    if (aBrowser.contentTitle == "" && !Util.isURLEmpty(aBrowser.userTypedValue))
+      caption = aBrowser.userTypedValue;
     else if (Util.isURLEmpty(url))
       caption = "";
 
     let tab = Browser.getTabForBrowser(aBrowser);
     if (tab)
-      tab.chromeTab.updateTitle(tabCaption);
+      tab.chromeTab.updateTitle(caption);
 
     let browser = Browser.selectedBrowser;
     if (browser && aBrowser != browser)
@@ -492,8 +490,6 @@ var BrowserUI = {
       FindHelperUI.init();
       FullScreenVideo.init();
       NewTabPopup.init();
-      WebappsUI.init();
-      CapturePickerUI.init();
 
       // If some add-ons were disabled during during an application update, alert user
       let addonIDs = AddonManager.getStartupChanges("disabled");
@@ -715,10 +711,9 @@ var BrowserUI = {
 
     let engine = Services.search.getEngineByName(aName);
     let submission = engine.getSubmission(searchValue, null);
+    Browser.selectedBrowser.userTypedValue = submission.uri.spec;
     Browser.loadURI(submission.uri.spec, { postData: submission.postData });
 
-    // loadURI may open a new tab, so get the selectedBrowser afterward.
-    Browser.selectedBrowser.userTypedValue = submission.uri.spec;
     this._titleChanged(Browser.selectedBrowser);
   },
 
@@ -1230,6 +1225,20 @@ var BrowserUI = {
           // to make the sure the dialog stacking is correct.
           AwesomeScreen.activePanel = RemoteTabsList;
           WeaveGlue.open();
+        } else if (!Weave.Service.isLoggedIn && !Services.prefs.getBoolPref("browser.sync.enabled")) {
+          // unchecked the relative command button
+          document.getElementById("remotetabs-button").removeAttribute("checked");
+
+          BrowserUI.showPanel("prefs-container");
+          let prefsBox = document.getElementById("prefs-list");
+          let syncArea = document.getElementById("prefs-sync");
+          if (prefsBox && syncArea) {
+            let prefsBoxY = prefsBox.firstChild.boxObject.screenY;
+            let syncAreaY = syncArea.boxObject.screenY;
+            setTimeout(function() {
+              prefsBox.scrollBoxObject.scrollTo(0, syncAreaY - prefsBoxY);
+            }, 0);
+          }
         } else {
           AwesomeScreen.activePanel = RemoteTabsList;
         }

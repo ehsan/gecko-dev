@@ -49,7 +49,6 @@
 #include "nsSVGString.h"
 #include "nsSVGViewBox.h"
 #include "SVGAnimatedPreserveAspectRatio.h"
-#include "SVGAnimatedTransformList.h"
 
 //--------------------- Patterns ------------------------
 
@@ -88,23 +87,23 @@ public:
   NS_FORWARD_NSIDOMSVGELEMENT(nsSVGElement::)
 
   // nsIContent interface
-  NS_IMETHOD_(bool) IsAttributeMapped(const nsIAtom* name) const;
+  NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* name) const;
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
   virtual nsXPCClassInfo* GetClassInfo();
-
-  virtual mozilla::SVGAnimatedTransformList* GetAnimatedTransformList();
-  virtual nsIAtom* GetTransformListAttrName() const {
-    return nsGkAtoms::patternTransform;
-  }
 protected:
+
+  virtual nsresult BeforeSetAttr(PRInt32 aNamespaceID, nsIAtom* aName,
+                                 const nsAString* aValue, PRBool aNotify);
 
   virtual LengthAttributesInfo GetLengthInfo();
   virtual EnumAttributesInfo GetEnumInfo();
   virtual nsSVGViewBox *GetViewBox();
   virtual SVGAnimatedPreserveAspectRatio *GetPreserveAspectRatio();
   virtual StringAttributesInfo GetStringInfo();
+
+  virtual void DidAnimateTransform();
 
   // nsIDOMSVGPatternElement values
   enum { X, Y, WIDTH, HEIGHT };
@@ -115,7 +114,7 @@ protected:
   nsSVGEnum mEnumAttributes[2];
   static EnumInfo sEnumInfo[2];
 
-  nsAutoPtr<mozilla::SVGAnimatedTransformList> mPatternTransform;
+  nsCOMPtr<nsIDOMSVGAnimatedTransformList> mPatternTransform;
 
   // nsIDOMSVGURIReference properties
   enum { HREF };
@@ -125,6 +124,9 @@ protected:
   // nsIDOMSVGFitToViewbox properties
   nsSVGViewBox mViewBox;
   SVGAnimatedPreserveAspectRatio mPreserveAspectRatio;
+
+  // helper
+  nsresult CreateTransformList();
 };
 
 #endif
