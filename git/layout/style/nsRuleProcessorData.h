@@ -449,27 +449,19 @@ struct MOZ_STACK_CLASS PseudoElementRuleProcessorData :
                                  mozilla::dom::Element* aParentElement,
                                  nsRuleWalker* aRuleWalker,
                                  nsCSSPseudoElements::Type aPseudoType,
-                                 TreeMatchContext& aTreeMatchContext,
-                                 mozilla::dom::Element* aPseudoElement)
+                                 TreeMatchContext& aTreeMatchContext)
     : ElementDependentRuleProcessorData(aPresContext, aParentElement, aRuleWalker,
                                         aTreeMatchContext),
-      mPseudoType(aPseudoType),
-      mPseudoElement(aPseudoElement)
+      mPseudoType(aPseudoType)
   {
     NS_PRECONDITION(aPseudoType <
                       nsCSSPseudoElements::ePseudo_PseudoElementCount,
                     "invalid aPseudoType value");
     NS_PRECONDITION(aTreeMatchContext.mForStyling, "Styling here!");
     NS_PRECONDITION(aRuleWalker, "Must have rule walker");
-    if (nsCSSPseudoElements::PseudoElementSupportsStyleAttribute(aPseudoType)) {
-      NS_PRECONDITION(aPseudoElement,
-          "If pseudo element is supposed to support style attribute, it must "
-          "have a pseudo element set");
-    }
   }
 
   nsCSSPseudoElements::Type mPseudoType;
-  mozilla::dom::Element* const mPseudoElement; // weak ref
 };
 
 struct MOZ_STACK_CLASS AnonBoxRuleProcessorData : public RuleProcessorData {

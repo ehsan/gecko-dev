@@ -5,7 +5,6 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 MODULE = 'sqlite3'
-NO_VISIBILITY_FLAGS = True
 
 EXPORTS += [
     'sqlite3.h',
@@ -13,9 +12,7 @@ EXPORTS += [
 
 LIBRARY_NAME = 'mozsqlite3'
 
-SOURCES += [
+CSRCS += [
     'sqlite3.c',
 ]
 
-if CONFIG['MOZ_FOLD_LIBS']:
-    FORCE_STATIC_LIB = True

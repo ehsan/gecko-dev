@@ -9,7 +9,6 @@
 #include "jsanalyze.h"
 
 #include "jit/BaselineInspector.h"
-#include "jit/BaselineJIT.h"
 #include "jit/Ion.h"
 #include "jit/IonBuilder.h"
 #include "jit/LIR.h"
@@ -1285,8 +1284,6 @@ void
 jit::AssertGraphCoherency(MIRGraph &graph)
 {
 #ifdef DEBUG
-    if (!js_IonOptions.assertGraphConsistency)
-        return;
     AssertBasicGraphCoherency(graph);
     AssertReversePostOrder(graph);
 #endif
@@ -1300,8 +1297,6 @@ jit::AssertExtendedGraphCoherency(MIRGraph &graph)
     // are split)
 
 #ifdef DEBUG
-    if (!js_IonOptions.assertGraphConsistency)
-        return;
     AssertGraphCoherency(graph);
 
     uint32_t idx = 0;
@@ -2058,7 +2053,7 @@ CmpInstructions(const void *a, const void *b)
 }
 
 bool
-jit::AnalyzeNewScriptProperties(JSContext *cx, HandleFunction fun,
+jit::AnalyzeNewScriptProperties(JSContext *cx, JSFunction *fun,
                                 types::TypeObject *type, HandleObject baseobj,
                                 Vector<types::TypeNewScript::Initializer> *initializerList)
 {
@@ -2066,13 +2061,17 @@ jit::AnalyzeNewScriptProperties(JSContext *cx, HandleFunction fun,
     // which will definitely be added to the created object before it has a
     // chance to escape and be accessed elsewhere.
 
-    if (fun->isInterpretedLazy() && !fun->getOrCreateScript(cx))
+    if (fun->isInterpretedLazy() && !fun->getOrCreateScript(cx)) {
+        return false;
+    }
+
+    if (!fun->nonLazyScript()->compileAndGo)
+        return true;
+
+    if (!fun->nonLazyScript()->ensureHasTypes(cx))
         return false;
 
-    RootedScript script(cx, fun->nonLazyScript());
-
-    if (!script->compileAndGo || !script->canBaselineCompile())
-        return true;
+    types::TypeScript::SetThis(cx, fun->nonLazyScript(), types::Type::ObjectType(type));
 
     Vector<PropertyName *> accessedProperties(cx);
 
@@ -2083,28 +2082,18 @@ jit::AnalyzeNewScriptProperties(JSContext *cx, HandleFunction fun,
 
     types::AutoEnterAnalysis enter(cx);
 
-    if (!cx->compartment()->ensureJitCompartmentExists(cx))
-        return Method_Error;
-
-    if (!script->hasBaselineScript()) {
-        MethodStatus status = BaselineCompile(cx, script);
-        if (status == Method_Error)
-            return false;
-        if (status != Method_Compiled)
-            return true;
-    }
-
-    types::TypeScript::SetThis(cx, script, types::Type::ObjectType(type));
+    if (!fun->nonLazyScript()->ensureRanAnalysis(cx))
+        return false;
 
     MIRGraph graph(&temp);
-    CompileInfo info(script, fun,
+    CompileInfo info(fun->nonLazyScript(), fun,
                      /* osrPc = */ nullptr, /* constructing = */ false,
                      DefinitePropertiesAnalysis);
 
     AutoTempAllocatorRooter root(cx, &temp);
 
     types::CompilerConstraintList *constraints = types::NewCompilerConstraintList();
-    BaselineInspector inspector(script);
+    BaselineInspector inspector(cx, fun->nonLazyScript());
     IonBuilder builder(cx, &temp, &graph, constraints,
                        &inspector, &info, /* baselineFrame = */ nullptr);
 

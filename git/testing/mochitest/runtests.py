@@ -288,8 +288,6 @@ class MochitestUtilsMixin(object):
         logFile -- logs test run to an absolute path
         totalChunks -- how many chunks to split tests into
         thisChunk -- which chunk to run
-        startAt -- name of test to start at
-        endAt -- name of test to end at
         timeout -- per-test timeout in seconds
         repeat -- How many times to repeat the test, ie: repeat=1 will run the test twice.
     """
@@ -316,10 +314,6 @@ class MochitestUtilsMixin(object):
         self.urlOpts.append("thisChunk=%d" % options.thisChunk)
       if options.chunkByDir:
         self.urlOpts.append("chunkByDir=%d" % options.chunkByDir)
-      if options.startAt:
-        self.urlOpts.append("startAt=%s" % options.startAt)
-      if options.endAt:
-        self.urlOpts.append("endAt=%s" % options.endAt)
       if options.shuffle:
         self.urlOpts.append("shuffle=1")
       if "MOZ_HIDE_RESULTS_TABLE" in env and env["MOZ_HIDE_RESULTS_TABLE"] == "1":
@@ -905,11 +899,9 @@ class Mochitest(MochitestUtilsMixin):
       self.handleTimeout(timeout, proc, utilityPath, debuggerInfo, browserProcessId)
 
     # record post-test information
-    if status:
-      log.info("TEST-UNEXPECTED-FAIL | %s | application terminated with exit code %s", self.lastTestSeen, status)
-    else:
+    if not status:
       self.lastTestSeen = 'Main app process exited normally'
-
+    log.info("INFO | runtests.py | exit %s", status)
     log.info("INFO | runtests.py | Application ran for: %s", str(datetime.now() - startTime))
 
     # Do a final check for zombie child processes.
@@ -980,9 +972,6 @@ class Mochitest(MochitestUtilsMixin):
     if options.immersiveMode:
       options.browserArgs.extend(('-firefoxpath', options.app))
       options.app = self.immersiveHelperPath
-
-    if options.jsdebugger:
-      options.browserArgs.extend(['-jsdebugger'])
 
     # Remove the leak detection file so it can't "leak" to the tests run.
     # The file is not there if leak logging was not enabled in the application build.

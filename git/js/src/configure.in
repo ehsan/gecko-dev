@@ -10,6 +10,7 @@ dnl ========================================================
 AC_PREREQ(2.13)
 AC_INIT(jsapi.h)
 AC_CONFIG_AUX_DIR(${srcdir}/build/autoconf)
+AC_CONFIG_HEADER(js-config.h)
 AC_CANONICAL_SYSTEM
 TARGET_CPU="${target_cpu}"
 TARGET_VENDOR="${target_vendor}"
@@ -3945,14 +3946,6 @@ COMPILE_CXXFLAGS=`echo \
 	$_DEPEND_CFLAGS \
     $COMPILE_CXXFLAGS`
 
-HOST_CFLAGS=`echo \
-    $HOST_CFLAGS \
-    $_DEPEND_CFLAGS`
-
-HOST_CXXFLAGS=`echo \
-    $HOST_CXXFLAGS \
-    $_DEPEND_CFLAGS`
-
 AC_SUBST(NSPR_CFLAGS)
 AC_SUBST(NSPR_LIBS)
 AC_SUBST(MOZ_NATIVE_NSPR)
@@ -4085,9 +4078,8 @@ fi
 
 JS_THREADSAFE=1
 MOZ_ARG_DISABLE_BOOL(threadsafe,
-[  --disable-threadsafe    Disable support for multiple threads.],
-    JS_THREADSAFE= ,
-    JS_THREADSAFE=1 )
+[  --disable-threadsafe Disable support for multiple threads.],
+    JS_THREADSAFE= )
 if test -n "$JS_THREADSAFE"; then
     AC_DEFINE(JS_THREADSAFE)
 fi
@@ -4266,7 +4258,7 @@ AC_SUBST(ac_configure_args)
 dnl Spit out some output
 dnl ========================================================
 
-AC_OUTPUT()
+AC_OUTPUT([js-confdefs.h config/autoconf.mk config/emptyvars.mk])
 
 # Produce the js-config script at configure time; see the comments for
 # 'js*-config' in Makefile.in.

@@ -47,7 +47,9 @@ function testUglySearch() {
 }
 
 function clickPrettyPrintButton() {
-  gDebugger.document.getElementById("pretty-print").click();
+  EventUtils.sendMouseEvent({ type: "click" },
+                            gDebugger.document.getElementById("pretty-print"),
+                            gDebugger);
 }
 
 function testPrettyPrintedSearch() {

@@ -8,9 +8,9 @@ MODULE = 'xpcom'
 
 include('../../objs.mozbuild')
 
-SOURCES += xpcom_glue_src_cppsrcs
+CPP_SOURCES += xpcom_glue_src_cppsrcs
 
-SOURCES += [
+CPP_SOURCES += [
     '../../nsStringAPI.cpp',
     '../nsXPCOMGlue.cpp',
 ]
@@ -20,6 +20,3 @@ LIBRARY_NAME = 'xpcomglue_staticruntime'
 SDK_LIBRARY = [
     "%s%s.%s" % (CONFIG['LIB_PREFIX'], 'xpcomglue_staticruntime', CONFIG['LIB_SUFFIX']),
 ]
-
-# create a static lib
-FORCE_STATIC_LIB = True

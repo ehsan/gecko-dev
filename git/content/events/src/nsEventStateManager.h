@@ -6,6 +6,7 @@
 #ifndef nsEventStateManager_h__
 #define nsEventStateManager_h__
 
+#include "mozilla/BasicEvents.h"
 #include "mozilla/EventForwards.h"
 #include "mozilla/TypedEnum.h"
 
@@ -14,11 +15,11 @@
 #include "nsCOMPtr.h"
 #include "nsCOMArray.h"
 #include "nsCycleCollectionParticipant.h"
+#include "nsFocusManager.h"
 #include "mozilla/TimeStamp.h"
 #include "nsIFrame.h"
 #include "Units.h"
 
-class nsFrameLoader;
 class nsIContent;
 class nsIDocument;
 class nsIDocShell;
@@ -255,7 +256,7 @@ protected:
    * content.  This returns the primary frame for the content (or null
    * if it goes away during the event).
    */
-  nsIFrame* DispatchMouseEvent(mozilla::WidgetMouseEvent* aMouseEvent,
+  nsIFrame* DispatchMouseEvent(mozilla::WidgetGUIEvent* aEvent,
                                uint32_t aMessage,
                                nsIContent* aTargetContent,
                                nsIContent* aRelatedContent);
@@ -263,26 +264,24 @@ protected:
    * Synthesize DOM and frame mouseover and mouseout events from this
    * MOUSE_MOVE or MOUSE_EXIT event.
    */
-  void GenerateMouseEnterExit(mozilla::WidgetMouseEvent* aMouseEvent);
+  void GenerateMouseEnterExit(mozilla::WidgetGUIEvent* aEvent);
   /**
    * Tell this ESM and ESMs in parent documents that the mouse is
    * over some content in this document.
    */
-  void NotifyMouseOver(mozilla::WidgetMouseEvent* aMouseEvent,
-                       nsIContent* aContent);
+  void NotifyMouseOver(mozilla::WidgetGUIEvent* aEvent, nsIContent* aContent);
   /**
    * Tell this ESM and ESMs in affected child documents that the mouse
    * has exited this document's currently hovered content.
-   * @param aMouseEvent the event that triggered the mouseout
+   * @param aEvent the event that triggered the mouseout
    * @param aMovingInto the content node we've moved into.  This is used to set
    *        the relatedTarget for mouseout events.  Also, if it's non-null
    *        NotifyMouseOut will NOT change the current hover content to null;
    *        in that case the caller is responsible for updating hover state.
    */
-  void NotifyMouseOut(mozilla::WidgetMouseEvent* aMouseEvent,
-                      nsIContent* aMovingInto);
+  void NotifyMouseOut(mozilla::WidgetGUIEvent* aEvent, nsIContent* aMovingInto);
   void GenerateDragDropEnterExit(nsPresContext* aPresContext,
-                                 mozilla::WidgetDragEvent* aDragEvent);
+                                 mozilla::WidgetGUIEvent* aEvent);
   /**
    * Fire the dragenter and dragexit/dragleave events when the mouse moves to a
    * new target.
@@ -292,7 +291,7 @@ protected:
    * @param aTargetFrame target frame for the event
    */
   void FireDragEnterOrExit(nsPresContext* aPresContext,
-                           mozilla::WidgetDragEvent* aDragEvent,
+                           mozilla::WidgetGUIEvent* aEvent,
                            uint32_t aMsg,
                            nsIContent* aRelatedTarget,
                            nsIContent* aTargetContent,
@@ -846,19 +845,51 @@ public:
   static void sClickHoldCallback ( nsITimer* aTimer, void* aESM ) ;
 };
 
-namespace mozilla {
-
 /**
  * This class is used while processing real user input. During this time, popups
  * are allowed. For mousedown events, mouse capturing is also permitted.
  */
-class AutoHandlingUserInputStatePusher
+class nsAutoHandlingUserInputStatePusher
 {
 public:
-  AutoHandlingUserInputStatePusher(bool aIsHandlingUserInput,
-                                   WidgetEvent* aEvent,
-                                   nsIDocument* aDocument);
-  ~AutoHandlingUserInputStatePusher();
+  nsAutoHandlingUserInputStatePusher(bool aIsHandlingUserInput,
+                                     mozilla::WidgetEvent* aEvent,
+                                     nsIDocument* aDocument)
+    : mIsHandlingUserInput(aIsHandlingUserInput),
+      mIsMouseDown(aEvent && aEvent->message == NS_MOUSE_BUTTON_DOWN),
+      mResetFMMouseDownState(false)
+  {
+    if (aIsHandlingUserInput) {
+      nsEventStateManager::StartHandlingUserInput();
+      if (mIsMouseDown) {
+        nsIPresShell::SetCapturingContent(nullptr, 0);
+        nsIPresShell::AllowMouseCapture(true);
+        if (aDocument && aEvent->mFlags.mIsTrusted) {
+          nsFocusManager* fm = nsFocusManager::GetFocusManager();
+          if (fm) {
+            fm->SetMouseButtonDownHandlingDocument(aDocument);
+            mResetFMMouseDownState = true;
+          }
+        }
+      }
+    }
+  }
+
+  ~nsAutoHandlingUserInputStatePusher()
+  {
+    if (mIsHandlingUserInput) {
+      nsEventStateManager::StopHandlingUserInput();
+      if (mIsMouseDown) {
+        nsIPresShell::AllowMouseCapture(false);
+        if (mResetFMMouseDownState) {
+          nsFocusManager* fm = nsFocusManager::GetFocusManager();
+          if (fm) {
+            fm->SetMouseButtonDownHandlingDocument(nullptr);
+          }
+        }
+      }
+    }
+  }
 
 protected:
   bool mIsHandlingUserInput;
@@ -870,8 +901,6 @@ private:
   static void* operator new(size_t /*size*/) CPP_THROW_NEW { return nullptr; }
   static void operator delete(void* /*memory*/) {}
 };
-
-} // namespace mozilla
 
 // Click and double-click events need to be handled even for content that
 // has no frame. This is required for Web compatibility.

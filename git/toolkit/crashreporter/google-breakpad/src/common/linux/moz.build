@@ -6,7 +6,7 @@
 
 MODULE = 'breakpad_linux_common'
 
-SOURCES += [
+CPP_SOURCES += [
     'elfutils.cc',
     'file_id.cc',
     'guid_creator.cc',
@@ -16,13 +16,13 @@ SOURCES += [
 ]
 
 if CONFIG['OS_TARGET'] != 'Android':
-    SOURCES += [
+    CPP_SOURCES += [
         'http_upload.cc',
     ]
 
 if CONFIG['MOZ_CRASHREPORTER']:
     HOST_LIBRARY_NAME = 'host_breakpad_linux_common_s'
-    HOST_SOURCES += [
+    HOST_CPPSRCS += [
         'dump_symbols.cc',
         'elf_symbols_to_module.cc',
         'elfutils.cc',
@@ -34,5 +34,3 @@ if CONFIG['MOZ_CRASHREPORTER']:
 
 LIBRARY_NAME = 'breakpad_linux_common_s'
 
-# need static lib
-FORCE_STATIC_LIB = True

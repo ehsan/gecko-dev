@@ -11,6 +11,7 @@
 
 #include "nsString.h"
 #include "nsCRT.h"
+#include "prtypes.h"
 #include "pldhash.h"
 
 using namespace mozilla;

@@ -1299,12 +1299,11 @@ var SecondaryToolbar = {
 
   initialize: function secondaryToolbarInitialize(options) {
     this.toolbar = options.toolbar;
-    this.presentationMode = options.presentationMode;
     this.buttonContainer = this.toolbar.firstElementChild;
 
     // Define the toolbar buttons.
     this.toggleButton = options.toggleButton;
-    this.presentationModeButton = options.presentationModeButton;
+    this.presentationMode = options.presentationMode;
     this.openFile = options.openFile;
     this.print = options.print;
     this.download = options.download;
@@ -1316,8 +1315,7 @@ var SecondaryToolbar = {
     // Attach the event listeners.
     var elements = [
       { element: this.toggleButton, handler: this.toggle },
-      { element: this.presentationModeButton,
-        handler: this.presentationModeClick },
+      { element: this.presentationMode, handler: this.presentationModeClick },
       { element: this.openFile, handler: this.openFileClick },
       { element: this.print, handler: this.printClick },
       { element: this.download, handler: this.downloadClick },
@@ -1337,7 +1335,7 @@ var SecondaryToolbar = {
 
   // Event handling functions.
   presentationModeClick: function secondaryToolbarPresentationModeClick(evt) {
-    this.presentationMode.request();
+    PresentationMode.request();
     this.close();
   },
 
@@ -1374,7 +1372,7 @@ var SecondaryToolbar = {
 
   // Misc. functions for interacting with the toolbar.
   setMaxHeight: function secondaryToolbarSetMaxHeight(container) {
-    if (!container || !this.buttonContainer) {
+    if (!container) {
       return;
     }
     this.newContainerHeight = container.clientHeight;
@@ -1412,6 +1410,10 @@ var SecondaryToolbar = {
     } else {
       this.open();
     }
+  },
+
+  get isOpen() {
+    return this.opened;
   }
 };
 
@@ -1504,8 +1506,6 @@ var PresentationMode = {
     this.container = options.container;
     this.secondaryToolbar = options.secondaryToolbar;
 
-    this.viewer = this.container.firstElementChild;
-
     this.firstPage = options.firstPage;
     this.lastPage = options.lastPage;
     this.pageRotateCw = options.pageRotateCw;
@@ -1538,8 +1538,7 @@ var PresentationMode = {
   },
 
   request: function presentationModeRequest() {
-    if (!PDFView.supportsFullscreen || this.isFullscreen ||
-        !this.viewer.hasChildNodes()) {
+    if (!PDFView.supportsFullscreen || this.isFullscreen) {
       return false;
     }
 
@@ -1721,10 +1720,8 @@ var PDFView = {
 
     SecondaryToolbar.initialize({
       toolbar: document.getElementById('secondaryToolbar'),
-      presentationMode: PresentationMode,
       toggleButton: document.getElementById('secondaryToolbarToggle'),
-      presentationModeButton:
-        document.getElementById('secondaryPresentationMode'),
+      presentationMode: document.getElementById('secondaryPresentationMode'),
       openFile: document.getElementById('secondaryOpenFile'),
       print: document.getElementById('secondaryPrint'),
       download: document.getElementById('secondaryDownload'),
@@ -1971,8 +1968,8 @@ var PDFView = {
   },
 
   get isHorizontalScrollbarEnabled() {
-    return (PresentationMode.active ? false :
-            (this.container.scrollWidth > this.container.clientWidth));
+    var div = document.getElementById('viewerContainer');
+    return div.scrollWidth > div.clientWidth;
   },
 
   initPassiveLoading: function pdfViewInitPassiveLoading() {
@@ -3233,7 +3230,6 @@ var PageView = function pageView(container, id, scale,
   this.scrollIntoView = function pageViewScrollIntoView(dest) {
     if (PresentationMode.active) { // Avoid breaking presentation mode.
       dest = null;
-      PDFView.setScale(PDFView.currentScaleValue, true, true);
     }
     if (!dest) {
       scrollIntoView(div);
@@ -4558,7 +4554,7 @@ window.addEventListener('DOMMouseScroll', function(evt) {
 
 window.addEventListener('click', function click(evt) {
   if (!PresentationMode.active) {
-    if (SecondaryToolbar.opened && PDFView.container.contains(evt.target)) {
+    if (SecondaryToolbar.isOpen && PDFView.container.contains(evt.target)) {
       SecondaryToolbar.close();
     }
   } else if (evt.button === 0) {
@@ -4653,9 +4649,6 @@ window.addEventListener('keydown', function keydown(evt) {
       return; // ignoring if the 'toolbar' element is focused
     curElement = curElement.parentNode;
   }
-  // Workaround for issue in Firefox, that prevents scroll keys from working
-  // when elements with 'tabindex' are focused.
-  PDFView.container.blur();
 
   if (cmd === 0) { // no control key pressed at all.
     switch (evt.keyCode) {
@@ -4680,7 +4673,7 @@ window.addEventListener('keydown', function keydown(evt) {
         handled = true;
         break;
       case 27: // esc key
-        if (SecondaryToolbar.opened) {
+        if (SecondaryToolbar.isOpen) {
           SecondaryToolbar.close();
           handled = true;
         }

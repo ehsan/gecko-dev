@@ -495,7 +495,7 @@ MmsMessage::GetAttachments(JSContext* aCx, JS::Value* aAttachments)
 
     tmpJsVal.setString(tmpJsStr);
     if (!JS_DefineProperty(aCx, attachmentObj, "id", tmpJsVal,
-                           nullptr, nullptr, JSPROP_ENUMERATE)) {
+                           NULL, NULL, JSPROP_ENUMERATE)) {
       return NS_ERROR_FAILURE;
     }
 
@@ -507,7 +507,7 @@ MmsMessage::GetAttachments(JSContext* aCx, JS::Value* aAttachments)
 
     tmpJsVal.setString(tmpJsStr);
     if (!JS_DefineProperty(aCx, attachmentObj, "location", tmpJsVal,
-                           nullptr, nullptr, JSPROP_ENUMERATE)) {
+                           NULL, NULL, JSPROP_ENUMERATE)) {
       return NS_ERROR_FAILURE;
     }
 
@@ -521,7 +521,7 @@ MmsMessage::GetAttachments(JSContext* aCx, JS::Value* aAttachments)
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (!JS_DefineProperty(aCx, attachmentObj, "content", tmpJsVal,
-                           nullptr, nullptr, JSPROP_ENUMERATE)) {
+                           NULL, NULL, JSPROP_ENUMERATE)) {
       return NS_ERROR_FAILURE;
     }
 

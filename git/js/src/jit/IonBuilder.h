@@ -231,7 +231,7 @@ class IonBuilder : public MIRGenerator
     JSFunction *getSingleCallTarget(types::TemporaryTypeSet *calleeTypes);
     bool getPolyCallTargets(types::TemporaryTypeSet *calleeTypes, bool constructing,
                             ObjectVector &targets, uint32_t maxTargets, bool *gotLambda);
-    bool canInlineTarget(JSFunction *target, CallInfo &callInfo);
+    bool canInlineTarget(JSFunction *target, bool constructing);
 
     void popCfgStack();
     DeferredEdge *filterDeadDeferredEdges(DeferredEdge *edge);
@@ -694,10 +694,8 @@ class IonBuilder : public MIRGenerator
         // completed, both the |cx| member and |context()| may be used.
         if (info().executionMode() == DefinitePropertiesAnalysis)
             return cx;
-        return nullptr;
+        return NULL;
     }
-
-    JSAtomState &names() { return compartment->runtimeFromAnyThread()->atomState; }
 
   private:
     bool init();

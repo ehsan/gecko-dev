@@ -6,7 +6,7 @@
 
 MODULE = 'accessibility'
 
-SOURCES += [
+CPP_SOURCES += [
     'uiaRawElmProvider.cpp',
 ]
 

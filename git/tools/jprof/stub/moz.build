@@ -10,7 +10,7 @@ EXPORTS += [
     'jprof.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'libmalloc.cpp',
 ]
 

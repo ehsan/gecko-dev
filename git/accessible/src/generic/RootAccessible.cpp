@@ -467,12 +467,12 @@ RootAccessible::ProcessDOMEvent(nsIDOMEvent* aDOMEvent)
 
 
 ////////////////////////////////////////////////////////////////////////////////
-// Accessible
+// nsAccessNode
 
 void
 RootAccessible::Shutdown()
 {
-  // Called manually or by Accessible::LastRelease()
+  // Called manually or by nsAccessNode::LastRelease()
   if (!PresShell())
     return;  // Already shutdown
 
@@ -481,9 +481,9 @@ RootAccessible::Shutdown()
 
 // nsIAccessible method
 Relation
-RootAccessible::RelationByType(RelationType aType)
+RootAccessible::RelationByType(uint32_t aType)
 {
-  if (!mDocumentNode || aType != RelationType::EMBEDS)
+  if (!mDocumentNode || aType != nsIAccessibleRelation::RELATION_EMBEDS)
     return DocAccessibleWrap::RelationByType(aType);
 
   nsIDOMWindow* rootWindow = mDocumentNode->GetWindow();

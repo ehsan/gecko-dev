@@ -365,7 +365,7 @@ NS_IMPL_ISUPPORTS_INHERITED1(HTMLTableAccessible, Accessible,
                              nsIAccessibleTable)
 
 ////////////////////////////////////////////////////////////////////////////////
-// HTMLTableAccessible: Accessible
+//nsAccessNode
 
 void
 HTMLTableAccessible::Shutdown()
@@ -373,6 +373,10 @@ HTMLTableAccessible::Shutdown()
   mTable = nullptr;
   AccessibleWrap::Shutdown();
 }
+
+
+////////////////////////////////////////////////////////////////////////////////
+// HTMLTableAccessible: Accessible implementation
 
 void
 HTMLTableAccessible::CacheChildren()
@@ -447,10 +451,10 @@ HTMLTableAccessible::NativeAttributes()
 // HTMLTableAccessible: nsIAccessible implementation
 
 Relation
-HTMLTableAccessible::RelationByType(RelationType aType)
+HTMLTableAccessible::RelationByType(uint32_t aType)
 {
   Relation rel = AccessibleWrap::RelationByType(aType);
-  if (aType == RelationType::LABELLED_BY)
+  if (aType == nsIAccessibleRelation::RELATION_LABELLED_BY)
     rel.AppendTarget(Caption());
 
   return rel;
@@ -1114,10 +1118,10 @@ HTMLTableAccessible::IsProbablyLayoutTable()
 ////////////////////////////////////////////////////////////////////////////////
 
 Relation
-HTMLCaptionAccessible::RelationByType(RelationType aType)
+HTMLCaptionAccessible::RelationByType(uint32_t aType)
 {
   Relation rel = HyperTextAccessible::RelationByType(aType);
-  if (aType == RelationType::LABEL_FOR)
+  if (aType == nsIAccessibleRelation::RELATION_LABEL_FOR)
     rel.AppendTarget(Parent());
 
   return rel;

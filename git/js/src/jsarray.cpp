@@ -1086,12 +1086,14 @@ ArrayJoin(JSContext *cx, CallArgs &args)
 
     // Steps 4 and 5
     RootedString sepstr(cx, nullptr);
+    JS::Anchor<JSString *> anchor(nullptr);
     const jschar *sepchars;
     size_t seplen;
     if (!Locale && args.hasDefined(0)) {
         sepstr = ToString<CanGC>(cx, args[0]);
         if (!sepstr)
             return false;
+        anchor = sepstr;
         sepchars = sepstr->getChars(cx);
         if (!sepchars)
             return false;
@@ -1125,9 +1127,6 @@ ArrayJoin(JSContext *cx, CallArgs &args)
         if (!ArrayJoinKernel<Locale>(cx, op, obj, length, sb))
             return false;
     }
-
-    // Ensure that sepstr stays alive longer than sepchars.
-    JS_AnchorPtr(sepstr);
 
     // Step 11
     JSString *str = sb.finishString();
@@ -3126,7 +3125,7 @@ NewArray(ExclusiveContext *cxArg, uint32_t length,
     if (JSContext *cx = cxArg->maybeJSContext()) {
         NewObjectCache &cache = cx->runtime()->newObjectCache;
         if (newKind == GenericObject &&
-            !cx->compartment()->hasObjectMetadataCallback() &&
+            !cx->compartment()->objectMetadataCallback &&
             cache.lookupGlobal(&ArrayObject::class_, cx->global(), allocKind, &entry))
         {
             RootedObject obj(cx, cache.newObjectFromHit(cx, entry,

@@ -9,19 +9,11 @@
 #include "nsCOMPtr.h"
 #include "nsThread.h"
 #include "mozilla/dom/WifiOptionsBinding.h"
-#include "nsTArray.h"
 
 namespace mozilla {
 
 class WifiProxyService MOZ_FINAL : public nsIWifiProxyService
 {
-private:
-  struct EventThreadListEntry
-  {
-    nsCOMPtr<nsIThread> mThread;
-    nsCString mInterface;
-  };
-
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIWIFIPROXYSERVICE
@@ -29,15 +21,14 @@ public:
   static already_AddRefed<WifiProxyService>
   FactoryCreate();
 
-  void DispatchWifiEvent(const nsAString& aEvent, const nsACString& aInterface);
-  void DispatchWifiResult(const mozilla::dom::WifiResultOptions& aOptions,
-                          const nsACString& aInterface);
+  void DispatchWifiEvent(const nsAString& aEvent);
+  void DispatchWifiResult(const mozilla::dom::WifiResultOptions& aOptions);
 
 private:
   WifiProxyService();
   ~WifiProxyService();
 
-  nsTArray<EventThreadListEntry> mEventThreadList;
+  nsCOMPtr<nsIThread> mEventThread;
   nsCOMPtr<nsIThread> mControlThread;
   nsCOMPtr<nsIWifiEventListener> mListener;
 };

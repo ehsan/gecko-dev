@@ -400,11 +400,6 @@ public:
 
   size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
 
-  uint32_t ListenerCount() const
-  {
-    return mListeners.Length();
-  }
-
   void MarkForCC();
 
   mozilla::dom::EventTarget* GetTarget() { return mTarget; }
@@ -465,7 +460,7 @@ public:
                        const nsAString& aTypeString,
                        mozilla::dom::EventHandlerNonNull* aHandler);
   void SetEventHandler(mozilla::dom::OnErrorEventHandlerNonNull* aHandler);
-  void SetEventHandler(mozilla::dom::OnBeforeUnloadEventHandlerNonNull* aHandler);
+  void SetEventHandler(mozilla::dom::BeforeUnloadEventHandlerNonNull* aHandler);
 
   /**
    * Get the value of the "inline" event listener for aEventName.
@@ -489,11 +484,11 @@ public:
       GetEventHandlerInternal(nsGkAtoms::onerror, EmptyString());
     return handler ? handler->OnErrorEventHandler() : nullptr;
   }
-  mozilla::dom::OnBeforeUnloadEventHandlerNonNull* GetOnBeforeUnloadEventHandler()
+  mozilla::dom::BeforeUnloadEventHandlerNonNull* GetOnBeforeUnloadEventHandler()
   {
     const nsEventHandler* handler =
       GetEventHandlerInternal(nsGkAtoms::onbeforeunload, EmptyString());
-    return handler ? handler->OnBeforeUnloadEventHandler() : nullptr;
+    return handler ? handler->BeforeUnloadEventHandler() : nullptr;
   }
 
 protected:
@@ -565,8 +560,7 @@ NS_AddSystemEventListener(mozilla::dom::EventTarget* aTarget,
                           bool aUseCapture,
                           bool aWantsUntrusted)
 {
-  nsEventListenerManager* listenerManager =
-    aTarget->GetOrCreateListenerManager();
+  nsEventListenerManager* listenerManager = aTarget->GetListenerManager(true);
   NS_ENSURE_STATE(listenerManager);
   mozilla::dom::EventListenerFlags flags;
   flags.mInSystemGroup = true;

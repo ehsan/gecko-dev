@@ -25,47 +25,42 @@ if CONFIG['MOZ_B2G_BT']:
         'nsIDOMBluetoothStatusChangedEvent.idl',
     ]
 
-    SOURCES += [
-        'BluetoothA2dpManager.cpp',
+    CPP_SOURCES += [
+        'BluetoothService.cpp',
+        'BluetoothManager.cpp',
         'BluetoothAdapter.cpp',
         'BluetoothDevice.cpp',
-        'BluetoothHfpManager.cpp',
-        'BluetoothHidManager.cpp',
-        'BluetoothManager.cpp',
-        'BluetoothOppManager.cpp',
-        'BluetoothProfileController.cpp',
-        'BluetoothPropertyContainer.cpp',
         'BluetoothReplyRunnable.cpp',
-        'BluetoothService.cpp',
-        'BluetoothSocket.cpp',
-        'BluetoothUnixSocketConnector.cpp',
+        'BluetoothPropertyContainer.cpp',
         'BluetoothUtils.cpp',
-        'BluetoothUuid.cpp',
         'ipc/BluetoothChild.cpp',
         'ipc/BluetoothParent.cpp',
         'ipc/BluetoothServiceChildProcess.cpp',
-        'ObexBase.cpp'
+        'BluetoothUnixSocketConnector.cpp',
+        'BluetoothA2dpManager.cpp',
+        'BluetoothHfpManager.cpp',
+        'BluetoothHidManager.cpp',
+        'BluetoothOppManager.cpp',
+        'ObexBase.cpp',
+        'BluetoothUuid.cpp',
+        'BluetoothSocket.cpp',
+        'BluetoothProfileController.cpp'
     ]
 
     if CONFIG['MOZ_B2G_RIL']:
-        SOURCES += [
+        CPP_SOURCES += [
             'BluetoothRilListener.cpp',
         ]
 
-    if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk':
-        if CONFIG['MOZ_B2G_BT_BLUEZ']:
-            SOURCES += [
-               'gonk/BluetoothGonkService.cpp',
-               'linux/BluetoothDBusService.cpp',
-            ]
-        if CONFIG['MOZ_B2G_BT_BLUEDROID']:
-            SOURCES += [
-                'BluetoothServiceBluedroid.cpp',
-            ]
+    if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk' and CONFIG['MOZ_B2G_BT_BLUEZ']:
+        CPP_SOURCES += [
+            'linux/BluetoothDBusService.cpp',
+            'gonk/BluetoothGonkService.cpp',
+        ]
     else:
         if CONFIG['MOZ_ENABLE_DBUS']:
-            SOURCES += [
-                 'linux/BluetoothDBusService.cpp',
+            CPP_SOURCES += [
+                'linux/BluetoothDBusService.cpp',
             ]
 
 EXPORTS.mozilla.dom.bluetooth.ipc += [
@@ -84,10 +79,3 @@ IPDL_SOURCES += [
 
 FAIL_ON_WARNINGS = True
 
-LOCAL_INCLUDES += [
-    '../base',
-    '../network/src',
-    '../system/gonk',
-]
-
-include('/ipc/chromium/chromium-config.mozbuild')

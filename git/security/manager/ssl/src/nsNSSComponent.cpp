@@ -934,12 +934,6 @@ void nsNSSComponent::setValidationOptions()
                            ocspMode_FailureIsVerificationFailure
                            : ocspMode_FailureIsNotAVerificationFailure);
 
-  int OCSPTimeoutSeconds = 3;
-  if (ocspRequired || anyFreshRequired) {
-    OCSPTimeoutSeconds = 10;
-  }
-  CERT_SetOCSPTimeout(OCSPTimeoutSeconds);
-
   mDefaultCertVerifier = new CertVerifier(
       aiaDownloadEnabled ? 
         CertVerifier::missing_cert_download_on : CertVerifier::missing_cert_download_off,
@@ -960,15 +954,14 @@ void nsNSSComponent::setValidationOptions()
   SSL_ClearSessionCache();
 }
 
-// Enable the TLS versions given in the prefs, defaulting to SSL 3.0 (min
-// version) and TLS 1.1 (max version) when the prefs aren't set or set to
-// invalid values.
+// Enable the TLS versions given in the prefs, defaulting to SSL 3.0 and
+// TLS 1.0 when the prefs aren't set or when they are set to invalid values.
 nsresult
 nsNSSComponent::setEnabledTLSVersions()
 {
-  // keep these values in sync with security-prefs.js
+  // keep these values in sync with security-prefs.js and firefox.js
   static const int32_t PSM_DEFAULT_MIN_TLS_VERSION = 0;
-  static const int32_t PSM_DEFAULT_MAX_TLS_VERSION = 2;
+  static const int32_t PSM_DEFAULT_MAX_TLS_VERSION = 1;
 
   int32_t minVersion = Preferences::GetInt("security.tls.version.min",
                                            PSM_DEFAULT_MIN_TLS_VERSION);
@@ -1043,6 +1036,7 @@ static void configureMD5(bool enabled)
 
 static const bool SUPPRESS_WARNING_PREF_DEFAULT = false;
 static const bool MD5_ENABLED_DEFAULT = false;
+static const bool TLS_SESSION_TICKETS_ENABLED_DEFAULT = true;
 static const bool REQUIRE_SAFE_NEGOTIATION_DEFAULT = false;
 static const bool ALLOW_UNRESTRICTED_RENEGO_DEFAULT = false;
 static const bool FALSE_START_ENABLED_DEFAULT = true;
@@ -1202,7 +1196,11 @@ nsNSSComponent::InitializeNSS(bool showWarningBox)
                                              MD5_ENABLED_DEFAULT);
       configureMD5(md5Enabled);
 
-      SSL_OptionSetDefault(SSL_ENABLE_SESSION_TICKETS, true);
+      // Configure TLS session tickets
+      bool tlsSessionTicketsEnabled =
+        Preferences::GetBool("security.enable_tls_session_tickets",
+                             TLS_SESSION_TICKETS_ENABLED_DEFAULT);
+      SSL_OptionSetDefault(SSL_ENABLE_SESSION_TICKETS, tlsSessionTicketsEnabled);
 
       bool requireSafeNegotiation =
         Preferences::GetBool("security.ssl.require_safe_negotiation",
@@ -1634,6 +1632,11 @@ nsNSSComponent::Observe(nsISupports *aSubject, const char *aTopic,
                                              MD5_ENABLED_DEFAULT);
       configureMD5(md5Enabled);
       clearSessionCache = true;
+    } else if (prefName.Equals("security.enable_tls_session_tickets")) {
+      bool tlsSessionTicketsEnabled =
+        Preferences::GetBool("security.enable_tls_session_tickets",
+                             TLS_SESSION_TICKETS_ENABLED_DEFAULT);
+      SSL_OptionSetDefault(SSL_ENABLE_SESSION_TICKETS, tlsSessionTicketsEnabled);
     } else if (prefName.Equals("security.ssl.require_safe_negotiation")) {
       bool requireSafeNegotiation =
         Preferences::GetBool("security.ssl.require_safe_negotiation",

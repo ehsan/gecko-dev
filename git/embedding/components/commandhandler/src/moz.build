@@ -6,7 +6,7 @@
 
 MODULE = 'commandhandler'
 
-SOURCES += [
+CPP_SOURCES += [
     'nsBaseCommandController.cpp',
     'nsCommandGroup.cpp',
     'nsCommandManager.cpp',

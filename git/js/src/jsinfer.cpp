@@ -26,7 +26,7 @@
 #include "jit/BaselineJIT.h"
 #include "jit/Ion.h"
 #include "jit/IonAnalysis.h"
-#include "jit/JitCompartment.h"
+#include "jit/IonCompartment.h"
 #endif
 #include "js/MemoryMetrics.h"
 #include "vm/Shape.h"
@@ -571,7 +571,7 @@ class CompilerConstraint
 
     CompilerConstraint(const HeapTypeSetKey &property)
       : property(property),
-        expected(property.maybeTypes() ? property.maybeTypes()->clone(IonAlloc()) : nullptr)
+        expected(property.maybeTypes() ? property.maybeTypes()->clone(IonAlloc()) : NULL)
     {}
 
     // Generate the type constraint recording the assumption made by this
@@ -706,7 +706,7 @@ TypeScript::FreezeTypeSets(CompilerConstraintList *constraints, JSScript *script
     *pThisTypes = types + (ThisTypes(script) - existing);
     *pArgTypes = (script->function() && script->function()->nargs)
                  ? (types + (ArgTypes(script, 0) - existing))
-                 : nullptr;
+                 : NULL;
     *pBytecodeTypes = types;
 
     constraints->freezeScript(script, *pThisTypes, *pArgTypes, *pBytecodeTypes);
@@ -792,7 +792,7 @@ TypeObjectKey::clasp()
 TaggedProto
 TypeObjectKey::proto()
 {
-    return isTypeObject() ? TaggedProto(asTypeObject()->proto) : asSingleObject()->getTaggedProto();
+    return isTypeObject() ? asTypeObject()->proto : asSingleObject()->getProto();
 }
 
 JSObject *
@@ -818,7 +818,7 @@ TypeObjectKey::maybeType()
     if (isTypeObject())
         return asTypeObject();
     if (asSingleObject()->hasLazyType())
-        return nullptr;
+        return NULL;
     return asSingleObject()->type();
 }
 
@@ -831,7 +831,7 @@ TypeObjectKey::unknownProperties()
 }
 
 HeapTypeSetKey
-TypeObjectKey::property(jsid id, JSContext *maybecx /* = nullptr */)
+TypeObjectKey::property(jsid id, JSContext *maybecx /* = NULL */)
 {
     JS_ASSERT(!unknownProperties());
 
@@ -867,7 +867,7 @@ HeapTypeSetKey::instantiate(JSContext *cx)
     if (object()->isSingleObject() && !object()->asSingleObject()->getType(cx))
         return false;
     maybeTypes_ = object()->maybeType()->getProperty(cx, id());
-    return maybeTypes_ != nullptr;
+    return maybeTypes_ != NULL;
 }
 
 static bool
@@ -926,7 +926,7 @@ class TypeConstraintFreezeStack : public TypeConstraint
 } /* anonymous namespace */
 
 bool
-types::FinishCompilation(JSContext *cx, HandleScript script, ExecutionMode executionMode,
+types::FinishCompilation(JSContext *cx, JSScript *script, ExecutionMode executionMode,
                          CompilerConstraintList *constraints, RecompileInfo *precompileInfo)
 {
     if (constraints->failed())
@@ -986,7 +986,6 @@ types::FinishCompilation(JSContext *cx, HandleScript script, ExecutionMode execu
 
     if (!succeeded || types.constrainedOutputs->back().pendingInvalidation()) {
         types.constrainedOutputs->back().invalidate();
-        script->resetUseCount();
         return false;
     }
 
@@ -1368,7 +1367,7 @@ ObjectStateChange(ExclusiveContext *cxArg, TypeObject *object, bool markingUnkno
 }
 
 static void
-CheckNewScriptProperties(JSContext *cx, TypeObject *type, HandleFunction fun);
+CheckNewScriptProperties(JSContext *cx, TypeObject *type, JSFunction *fun);
 
 namespace {
 
@@ -1402,8 +1401,7 @@ class ConstraintDataFreezeConfiguredProperty
         if (type->flags & OBJECT_FLAG_NEW_SCRIPT_REGENERATE) {
             type->flags &= ~OBJECT_FLAG_NEW_SCRIPT_REGENERATE;
             if (type->hasNewScript()) {
-                RootedFunction fun(cx, type->newScript()->fun);
-                CheckNewScriptProperties(cx, type, fun);
+                CheckNewScriptProperties(cx, type, type->newScript()->fun);
             } else {
                 JS_ASSERT(type->flags & OBJECT_FLAG_ADDENDUM_CLEARED);
                 type->flags &= ~OBJECT_FLAG_NEW_SCRIPT_REGENERATE;
@@ -3212,7 +3210,7 @@ types::AddClearDefiniteFunctionUsesInScript(JSContext *cx, TypeObject *type,
  * newScript on the type after they were cleared by a GC.
  */
 static void
-CheckNewScriptProperties(JSContext *cx, TypeObject *type, HandleFunction fun)
+CheckNewScriptProperties(JSContext *cx, TypeObject *type, JSFunction *fun)
 {
     JS_ASSERT(cx->compartment()->activeAnalysis);
 
@@ -3353,10 +3351,15 @@ types::TypeMonitorResult(JSContext *cx, JSScript *script, jsbytecode *pc, const 
     if (!(js_CodeSpec[*pc].format & JOF_TYPESET))
         return;
 
-    if (!script->hasBaselineScript())
+    if (!script->types)
         return;
 
     AutoEnterAnalysis enter(cx);
+
+    if (!script->ensureHasBytecodeTypeMap(cx)) {
+        cx->compartment()->types.setPendingNukeTypes(cx);
+        return;
+    }
 
     Type type = GetValueType(rval);
     TypeSet *types = TypeScript::BytecodeTypes(script, pc);
@@ -3477,6 +3480,36 @@ JSScript::makeTypes(JSContext *cx)
 #endif
 
     return analyzedArgsUsage() || ensureRanAnalysis(cx);
+}
+
+bool
+JSScript::makeBytecodeTypeMap(JSContext *cx)
+{
+    JS_ASSERT(cx->typeInferenceEnabled());
+    JS_ASSERT(types && !types->bytecodeMap);
+
+    types->bytecodeMap = cx->typeLifoAlloc().newArrayUninitialized<uint32_t>(nTypeSets + 1);
+
+    if (!types->bytecodeMap)
+        return false;
+
+    uint32_t added = 0;
+    for (jsbytecode *pc = code; pc < code + length; pc += GetBytecodeLength(pc)) {
+        JSOp op = JSOp(*pc);
+        if (js_CodeSpec[op].format & JOF_TYPESET) {
+            types->bytecodeMap[added++] = pc - code;
+            if (added == nTypeSets)
+                break;
+        }
+    }
+
+    JS_ASSERT(added == nTypeSets);
+
+    // The last entry in the last index found, and is used to avoid binary
+    // searches for the sought entry when queries are in linear order.
+    types->bytecodeMap[nTypeSets] = 0;
+
+    return true;
 }
 
 bool
@@ -4336,7 +4369,7 @@ TypeScript::printTypes(JSContext *cx, HandleScript script) const
 {
     JS_ASSERT(script->types == this);
 
-    if (!script->hasBaselineScript())
+    if (!bytecodeMap)
         return;
 
     AutoEnterAnalysis enter(nullptr, script->compartment());

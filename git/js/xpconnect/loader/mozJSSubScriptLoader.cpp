@@ -310,19 +310,17 @@ mozJSSubScriptLoader::LoadSubScript(const nsAString& url,
 
     loader->NoteSubScript(script, targetObj);
 
-    RootedValue rval(cx);
     bool ok = false;
     if (function) {
-        ok = JS_CallFunction(cx, targetObj, function, 0, nullptr, rval.address());
+        ok = JS_CallFunction(cx, targetObj, function, 0, nullptr, retval);
     } else {
-        ok = JS_ExecuteScriptVersion(cx, targetObj, script, rval.address(), version);
+        ok = JS_ExecuteScriptVersion(cx, targetObj, script, retval, version);
     }
 
     if (ok) {
         JSAutoCompartment rac(cx, result_obj);
-        if (!JS_WrapValue(cx, &rval))
+        if (!JS_WrapValue(cx, retval))
             return NS_ERROR_UNEXPECTED;
-        *retval = rval;
     }
 
     if (cache && ok && writeScript) {

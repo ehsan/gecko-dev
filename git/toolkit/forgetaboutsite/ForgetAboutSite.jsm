@@ -98,11 +98,8 @@ this.ForgetAboutSite = {
     // Downloads
     let useJSTransfer = false;
     try {
-      // This method throws an exception if the old Download Manager is disabled.
-      Services.downloads.activeDownloadCount;
-    } catch (ex) {
-      useJSTransfer = true;
-    }
+      useJSTransfer = Services.prefs.getBoolPref("browser.download.useJSTransfer");
+    } catch(ex) { }
 
     if (useJSTransfer) {
       Task.spawn(function() {
@@ -219,11 +216,5 @@ this.ForgetAboutSite = {
       handleCompletion: function() onContentPrefsRemovalFinished(),
       handleError: function() {}
     });
-
-    // Predictive network data - like cache, no way to clear this per
-    // domain, so just trash it all
-    let ns = Cc["@mozilla.org/network/seer;1"].
-             getService(Ci.nsINetworkSeer);
-    ns.reset();
   }
 };

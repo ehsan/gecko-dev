@@ -17,7 +17,7 @@ XPIDL_SOURCES += [
 
 MODULE = 'autocomplete'
 
-SOURCES += [
+CPP_SOURCES += [
     'nsAutoCompleteController.cpp',
     'nsAutoCompleteSimpleResult.cpp',
 ]

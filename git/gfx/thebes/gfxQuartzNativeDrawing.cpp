@@ -5,7 +5,6 @@
 
 #include "gfxQuartzNativeDrawing.h"
 #include "gfxQuartzSurface.h"
-#include "gfxPlatform.h"
 #include "cairo-quartz.h"
 
 // see cairo-quartz-surface.c for the complete list of these
@@ -36,37 +35,32 @@ gfxQuartzNativeDrawing::BeginNativeDrawing()
 {
     NS_ASSERTION(!mQuartzSurface, "BeginNativeDrawing called when drawing already in progress");
 
-    gfxPoint deviceOffset;
-    nsRefPtr<gfxASurface> surf;
-
     if (!mContext->IsCairo()) {
       DrawTarget *dt = mContext->GetDrawTarget();
-      if (dt->GetType() == BACKEND_COREGRAPHICS) {
-        if (dt->IsDualDrawTarget()) {
-          IntSize backingSize(NSToIntFloor(mNativeRect.width * mBackingScale),
-                              NSToIntFloor(mNativeRect.height * mBackingScale));
+      if (mContext->GetDrawTarget()->IsDualDrawTarget()) {
+        IntSize backingSize(NSToIntFloor(mNativeRect.width * mBackingScale),
+                            NSToIntFloor(mNativeRect.height * mBackingScale));
 
-         if (backingSize.IsEmpty())
-            return nullptr;
+       if (backingSize.IsEmpty())
+          return nullptr;
 
-          mDrawTarget = Factory::CreateDrawTarget(BACKEND_COREGRAPHICS, backingSize, FORMAT_B8G8R8A8);
+        mDrawTarget = Factory::CreateDrawTarget(BACKEND_COREGRAPHICS, backingSize, FORMAT_B8G8R8A8);
 
-          Matrix transform;
-          transform.Scale(mBackingScale, mBackingScale);
-          transform.Translate(-mNativeRect.x, -mNativeRect.y);
+        Matrix transform;
+        transform.Scale(mBackingScale, mBackingScale);
+        transform.Translate(-mNativeRect.x, -mNativeRect.y);
 
-          mDrawTarget->SetTransform(transform);
-          dt = mDrawTarget;
-        }
-
-        mCGContext = mBorrowedContext.Init(dt);
-        MOZ_ASSERT(mCGContext);
-        return mCGContext;
+        mDrawTarget->SetTransform(transform);
+        dt = mDrawTarget;
       }
-      surf = gfxPlatform::GetPlatform()->GetThebesSurfaceForDrawTarget(dt);
-    } else {
-      surf = mContext->CurrentSurface(&deviceOffset.x, &deviceOffset.y);
+
+      mCGContext = mBorrowedContext.Init(dt);
+      MOZ_ASSERT(mCGContext);
+      return mCGContext;
     }
+
+    gfxPoint deviceOffset;
+    nsRefPtr<gfxASurface> surf = mContext->CurrentSurface(&deviceOffset.x, &deviceOffset.y);
     if (!surf || surf->CairoStatus())
         return nullptr;
 

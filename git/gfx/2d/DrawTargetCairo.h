@@ -60,10 +60,6 @@ public:
   virtual TemporaryRef<SourceSurface> Snapshot();
   virtual IntSize GetSize();
 
-  virtual bool LockBits(uint8_t** aData, IntSize* aSize,
-                        int32_t* aStride, SurfaceFormat* aFormat);
-  virtual void ReleaseBits(uint8_t* aData);
-
   virtual void Flush();
   virtual void DrawSurface(SourceSurface *aSurface,
                            const Rect &aDest,
@@ -157,10 +153,6 @@ public:
 
   static cairo_surface_t *GetDummySurface();
 
-  static TemporaryRef<SourceSurface>
-      CreateSourceSurfaceForCairoSurface(cairo_surface_t* aSurface,
-                                         SurfaceFormat aFormat);
-
 private: // methods
   // Init cairo surface without doing a cairo_surface_reference() call.
   bool InitAlreadyReferenced(cairo_surface_t* aSurface, const IntSize& aSize);
@@ -169,14 +161,11 @@ private: // methods
   void DrawPattern(const Pattern& aPattern,
                    const StrokeOptions& aStrokeOptions,
                    const DrawOptions& aOptions,
-                   DrawPatternType aDrawType,
-                   bool aPathBoundsClip = false);
+                   DrawPatternType aDrawType);
 
   void CopySurfaceInternal(cairo_surface_t* aSurface,
                            const IntRect& aSource,
                            const IntPoint& aDest);
-
-  Rect GetUserSpaceClip();
 
   // Call before you make any changes to the backing surface with which this
   // context is associated. Pass the path you're going to be using if you have
@@ -194,8 +183,6 @@ private: // data
   cairo_t* mContext;
   cairo_surface_t* mSurface;
   IntSize mSize;
-
-  uint8_t* mLockedBits;
 
   // The latest snapshot of this surface. This needs to be told when this
   // target is modified. We keep it alive as a cache.

@@ -16,7 +16,6 @@
 
 #include "jscompartmentinlines.h"
 #include "jsinferinlines.h"
-#include "jsobjinlines.h"
 
 #ifdef JSGC_GENERATIONAL
 # include "gc/Nursery-inl.h"

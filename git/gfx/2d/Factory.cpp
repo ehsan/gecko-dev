@@ -513,12 +513,6 @@ Factory::CreateDrawTargetSkiaWithGLContextAndGrGLInterface(GenericRefCountedBase
   RefPtr<DrawTarget> newTarget = newDrawTargetSkia;
   return newTarget;
 }
-
-void
-Factory::SetGlobalSkiaCacheLimits(int aCount, int aSizeInBytes)
-{
-    DrawTargetSkia::SetGlobalCacheLimits(aCount, aSizeInBytes);
-}
 #endif // USE_SKIA_GPU
 
 #ifdef USE_SKIA_FREETYPE
@@ -550,18 +544,6 @@ Factory::CreateDrawTargetForCairoSurface(cairo_surface_t* aSurface, const IntSiz
     RefPtr<DrawTarget> recordDT = new DrawTargetRecording(mRecorder, retVal);
     return recordDT;
   }
-#endif
-  return retVal;
-}
-
-TemporaryRef<SourceSurface>
-Factory::CreateSourceSurfaceForCairoSurface(cairo_surface_t* aSurface,
-                                            SurfaceFormat aFormat)
-{
-  RefPtr<SourceSurface> retVal;
-
-#ifdef USE_CAIRO
-  retVal = DrawTargetCairo::CreateSourceSurfaceForCairoSurface(aSurface, aFormat);
 #endif
   return retVal;
 }

@@ -6,8 +6,6 @@
 
 TEST_TOOL_DIRS += ['httpserver', 'browser', 'mochitests']
 
-FAIL_ON_WARNINGS = True
-
 MODULE = 'test_necko'
 
 XPCSHELL_TESTS_MANIFESTS += ['unit/xpcshell.ini']
@@ -30,8 +28,8 @@ sources = [
     'TestServ',
     'TestStandardURL',
     'TestStreamLoader',
-    'TestUpload',
     'TestURLParser',
+    'TestUpload',
     'urltest',
 ]
 
@@ -47,7 +45,7 @@ sources = [
 #    TestUDPSocketProvider',
 #]
 
-SOURCES += [
+CPP_SOURCES += [
     '%s.cpp' % s for s in sources
 ]
 

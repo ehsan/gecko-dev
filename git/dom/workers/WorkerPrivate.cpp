@@ -1387,13 +1387,13 @@ public:
 
 class UpdateJSContextOptionsRunnable : public WorkerControlRunnable
 {
-  JS::ContextOptions mContentOptions;
-  JS::ContextOptions mChromeOptions;
+  uint32_t mContentOptions;
+  uint32_t mChromeOptions;
 
 public:
   UpdateJSContextOptionsRunnable(WorkerPrivate* aWorkerPrivate,
-                                 const JS::ContextOptions& aContentOptions,
-                                 const JS::ContextOptions& aChromeOptions)
+                                 uint32_t aContentOptions,
+                                 uint32_t aChromeOptions)
   : WorkerControlRunnable(aWorkerPrivate, WorkerThread, UnchangedBusyCount),
     mContentOptions(aContentOptions), mChromeOptions(aChromeOptions)
   { }
@@ -1990,11 +1990,6 @@ private:
 
     mAlreadyMappedToAddon = true;
 
-    if (XRE_GetProcessType() != GeckoProcessType_Default) {
-      // Only try to access the service from the main process.
-      return;
-    }
-
     nsAutoCString addonId;
     bool ok;
     nsCOMPtr<amIAddonManager> addonManager =
@@ -2049,6 +2044,11 @@ WorkerPrivateParent<Derived>::WorkerPrivateParent(
     aParent->AssertIsOnWorkerThread();
 
     aParent->CopyJSSettings(mJSSettings);
+
+    NS_ASSERTION(JS_GetOptions(aCx) == (aParent->IsChromeWorker() ?
+                                        mJSSettings.chrome.options :
+                                        mJSSettings.content.options),
+                 "Options mismatch!");
   }
   else {
     AssertIsOnMainThread();
@@ -2392,7 +2392,7 @@ WorkerPrivateParent<Derived>::_finalize(JSFreeOp* aFop)
   // will call Release, and some of our members cannot be released during
   // finalization. Of course, if those members are already gone then we can skip
   // this mess...
-  WorkerPrivateParent<Derived>* extraSelfRef = nullptr;
+  WorkerPrivateParent<Derived>* extraSelfRef = NULL;
 
   if (!mParent && !mMainThreadObjectsForgotten) {
     AssertIsOnMainThread();
@@ -2636,7 +2636,7 @@ WorkerPrivateParent<Derived>::DispatchMessageEventToMessagePort(
   JSAutoCompartment(cx, sgo->GetGlobalJSObject());
 
   JS::Rooted<JS::Value> data(cx);
-  if (!buffer.read(cx, &data, WorkerStructuredCloneCallbacks(true))) {
+  if (!buffer.read(cx, data.address(), WorkerStructuredCloneCallbacks(true))) {
     return false;
   }
 
@@ -2682,8 +2682,8 @@ WorkerPrivateParent<Derived>::GetInnerWindowId()
 template <class Derived>
 void
 WorkerPrivateParent<Derived>::UpdateJSContextOptions(JSContext* aCx,
-                                                     const JS::ContextOptions& aContentOptions,
-                                                     const JS::ContextOptions& aChromeOptions)
+                                                     uint32_t aContentOptions,
+                                                     uint32_t aChromeOptions)
 {
   AssertIsOnParentThread();
 
@@ -4646,8 +4646,7 @@ WorkerPrivate::SetTimeout(JSContext* aCx, unsigned aArgc, jsval* aVp,
   // See if any of the optional arguments were passed.
   if (aArgc > 1) {
     double intervalMS = 0;
-    JS::RootedValue interval(aCx, argv[1]);
-    if (!JS::ToNumber(aCx, interval, &intervalMS)) {
+    if (!JS_ValueToNumber(aCx, argv[1], &intervalMS)) {
       return false;
     }
     newInfo->mInterval = TimeDuration::FromMilliseconds(intervalMS);
@@ -4898,12 +4897,12 @@ WorkerPrivate::RescheduleTimeoutTimer(JSContext* aCx)
 
 void
 WorkerPrivate::UpdateJSContextOptionsInternal(JSContext* aCx,
-                                              const JS::ContextOptions& aContentOptions,
-                                              const JS::ContextOptions& aChromeOptions)
+                                              uint32_t aContentOptions,
+                                              uint32_t aChromeOptions)
 {
   AssertIsOnWorkerThread();
 
-  JS::ContextOptionsRef(aCx) = IsChromeWorker() ? aChromeOptions : aContentOptions;
+  JS_SetOptions(aCx, IsChromeWorker() ? aChromeOptions : aContentOptions);
 
   for (uint32_t index = 0; index < mChildWorkers.Length(); index++) {
     mChildWorkers[index]->UpdateJSContextOptions(aCx, aContentOptions,

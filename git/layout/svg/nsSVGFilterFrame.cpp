@@ -221,16 +221,16 @@ nsAutoFilterInstance::nsAutoFilterInstance(nsIFrame *aTarget,
       // nothing to draw
       return;
     }
+    float scale = nsSVGUtils::MaxExpansion(canvasTM);
 
-    gfxSize scale = canvasTM.ScaleFactors(true);
-    filterRegion.Scale(scale.width, scale.height);
+    filterRegion.Scale(scale);
     filterRegion.RoundOut();
     // We don't care if this overflows, because we can handle upscaling/
     // downscaling to filterRes
     bool overflow;
     filterRes = nsSVGUtils::ConvertToSurfaceSize(filterRegion.Size(),
                                                  &overflow);
-    filterRegion.Scale(1.0 / scale.width, 1.0 / scale.height);
+    filterRegion.Scale(1.0 / scale);
   }
 
   // Get various transforms:

@@ -261,11 +261,11 @@ JS_ConvertArgumentsVA(JSContext *cx, unsigned argc, jsval *argv, const char *for
                 return false;
             break;
           case 'd':
-            if (!ToNumber(cx, arg, va_arg(ap, double *)))
+            if (!JS_ValueToNumber(cx, *sp, va_arg(ap, double *)))
                 return false;
             break;
           case 'I':
-            if (!ToNumber(cx, arg, &d))
+            if (!JS_ValueToNumber(cx, *sp, &d))
                 return false;
             *va_arg(ap, double *) = ToInteger(d);
             break;
@@ -356,7 +356,7 @@ JS_ConvertValue(JSContext *cx, HandleValue value, JSType type, MutableHandleValu
             vp.setString(str);
         break;
       case JSTYPE_NUMBER:
-        ok = ToNumber(cx, value, &d);
+        ok = JS_ValueToNumber(cx, value, &d);
         if (ok)
             vp.setDouble(d);
         break;
@@ -427,6 +427,13 @@ JS_ValueToSource(JSContext *cx, jsval valueArg)
     CHECK_REQUEST(cx);
     assertSameCompartment(cx, value);
     return ValueToSource(cx, value);
+}
+
+JS_PUBLIC_API(bool)
+JS_ValueToNumber(JSContext *cx, jsval valueArg, double *dp)
+{
+    RootedValue value(cx, valueArg);
+    return JS::ToNumber(cx, value, dp);
 }
 
 JS_PUBLIC_API(bool)
@@ -957,6 +964,73 @@ JS_StringToVersion(const char *string)
     return JSVERSION_UNKNOWN;
 }
 
+static unsigned
+GetOptionsCommon(JSContext *cx)
+{
+    return (cx->options().extraWarnings() ? JSOPTION_EXTRA_WARNINGS : 0)
+         | (cx->options().werror() ? JSOPTION_WERROR : 0)
+         | (cx->options().varObjFix() ? JSOPTION_VAROBJFIX : 0)
+         | (cx->options().privateIsNSISupports() ? JSOPTION_PRIVATE_IS_NSISUPPORTS : 0)
+         | (cx->options().compileAndGo() ? JSOPTION_COMPILE_N_GO : 0)
+         | (cx->options().dontReportUncaught() ? JSOPTION_DONT_REPORT_UNCAUGHT : 0)
+         | (cx->options().noDefaultCompartmentObject() ? JSOPTION_NO_DEFAULT_COMPARTMENT_OBJECT : 0)
+         | (cx->options().noScriptRval() ? JSOPTION_NO_SCRIPT_RVAL : 0)
+         | (cx->options().baseline() ? JSOPTION_BASELINE : 0)
+         | (cx->options().typeInference() ? JSOPTION_TYPE_INFERENCE : 0)
+         | (cx->options().strictMode() ? JSOPTION_STRICT_MODE : 0)
+         | (cx->options().ion() ? JSOPTION_ION : 0)
+         | (cx->options().asmJS() ? JSOPTION_ASMJS : 0);
+}
+
+static unsigned
+SetOptionsCommon(JSContext *cx, unsigned newopts)
+{
+    JS_ASSERT((newopts & JSOPTION_MASK) == newopts);
+    unsigned oldopts = GetOptionsCommon(cx);
+
+    cx->options().setExtraWarnings(newopts & JSOPTION_EXTRA_WARNINGS);
+    cx->options().setWerror(newopts & JSOPTION_WERROR);
+    cx->options().setVarObjFix(newopts & JSOPTION_VAROBJFIX);
+    cx->options().setPrivateIsNSISupports(newopts & JSOPTION_PRIVATE_IS_NSISUPPORTS);
+    cx->options().setCompileAndGo(newopts & JSOPTION_COMPILE_N_GO);
+    cx->options().setDontReportUncaught(newopts & JSOPTION_DONT_REPORT_UNCAUGHT);
+    cx->options().setNoDefaultCompartmentObject(newopts & JSOPTION_NO_DEFAULT_COMPARTMENT_OBJECT);
+    cx->options().setNoScriptRval(newopts & JSOPTION_NO_SCRIPT_RVAL);
+    cx->options().setBaseline(newopts & JSOPTION_BASELINE);
+    cx->options().setTypeInference(newopts & JSOPTION_TYPE_INFERENCE);
+    cx->options().setStrictMode(newopts & JSOPTION_STRICT_MODE);
+    cx->options().setIon(newopts & JSOPTION_ION);
+    cx->options().setAsmJS(newopts & JSOPTION_ASMJS);
+
+    cx->updateJITEnabled();
+    return oldopts;
+}
+
+JS_PUBLIC_API(uint32_t)
+JS_GetOptions(JSContext *cx)
+{
+    /*
+     * Can't check option/version synchronization here.
+     * We may have been synchronized with a script version that was formerly on
+     * the stack, but has now been popped.
+     */
+    return GetOptionsCommon(cx);
+}
+
+JS_PUBLIC_API(uint32_t)
+JS_SetOptions(JSContext *cx, uint32_t options)
+{
+    return SetOptionsCommon(cx, options);
+}
+
+JS_PUBLIC_API(uint32_t)
+JS_ToggleOptions(JSContext *cx, uint32_t options)
+{
+    unsigned oldopts = GetOptionsCommon(cx);
+    unsigned newopts = oldopts ^ options;
+    return SetOptionsCommon(cx, newopts);
+}
+
 JS_PUBLIC_API(JS::ContextOptions &)
 JS::ContextOptionsRef(JSContext *cx)
 {
@@ -1072,12 +1146,16 @@ JS_WrapObject(JSContext *cx, MutableHandleObject objp)
 }
 
 JS_PUBLIC_API(bool)
-JS_WrapValue(JSContext *cx, MutableHandleValue vp)
+JS_WrapValue(JSContext *cx, jsval *vp)
 {
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
-    JS::ExposeValueToActiveJS(vp);
-    return cx->compartment()->wrap(cx, vp);
+    if (vp)
+        JS::ExposeValueToActiveJS(*vp);
+    RootedValue value(cx, *vp);
+    bool ok = cx->compartment()->wrap(cx, &value);
+    *vp = value.get();
+    return ok;
 }
 
 JS_PUBLIC_API(bool)
@@ -4395,7 +4473,7 @@ JS::Compile(JSContext *cx, HandleObject obj, CompileOptions options, const char 
     AutoFile file;
     if (!file.open(cx, filename))
         return nullptr;
-    options.setFileAndLine(filename, 1);
+    options = options.setFileAndLine(filename, 1);
     JSScript *script = Compile(cx, obj, options, file.fp());
     return script;
 }
@@ -4460,11 +4538,6 @@ JS::FinishOffThreadScript(JSContext *maybecx, JSRuntime *rt, void *token)
 {
 #ifdef JS_WORKER_THREADS
     JS_ASSERT(CurrentThreadCanAccessRuntime(rt));
-
-    Maybe<AutoLastFrameCheck> lfc;
-    if (maybecx)
-        lfc.construct(maybecx);
-
     return rt->workerThreadState->finishParseTask(maybecx, rt, token);
 #else
     MOZ_ASSUME_UNREACHABLE("Off thread compilation is not available.");
@@ -6012,24 +6085,7 @@ JS_SetGlobalJitCompilerOption(JSContext *cx, JSJitCompilerOption opt, uint32_t v
         if (value == 0)
             jit::js_IonOptions.setEagerCompilation();
         break;
-      case JSJITCOMPILER_ION_ENABLE:
-        if (value == 1) {
-            JS::ContextOptionsRef(cx).setIon(true);
-            IonSpew(js::jit::IonSpew_Scripts, "Enable ion");
-        } else if (value == 0) {
-            JS::ContextOptionsRef(cx).setIon(false);
-            IonSpew(js::jit::IonSpew_Scripts, "Disable ion");
-        }
-        break;
-      case JSJITCOMPILER_BASELINE_ENABLE:
-        if (value == 1) {
-            JS::ContextOptionsRef(cx).setBaseline(true);
-            IonSpew(js::jit::IonSpew_BaselineScripts, "Enable baseline");
-        } else if (value == 0) {
-            JS::ContextOptionsRef(cx).setBaseline(false);
-            IonSpew(js::jit::IonSpew_BaselineScripts, "Disable baseline");
-        }
-        break;
+
       default:
         break;
     }
@@ -6214,12 +6270,6 @@ JS_PreventExtensions(JSContext *cx, JS::HandleObject obj)
     if (!extensible)
         return true;
     return JSObject::preventExtensions(cx, obj);
-}
-
-JS_PUBLIC_API(void)
-JS::SetAsmJSCacheOps(JSRuntime *rt, const JS::AsmJSCacheOps *ops)
-{
-    rt->asmJSCacheOps = *ops;
 }
 
 char *

@@ -35,7 +35,7 @@ function test() {
     is(gEditor.getBreakpoints().length, 0,
       "No breakpoints currently shown in the editor.");
 
-    gEditor.on("breakpointAdded", onEditorBreakpointAdd);
+    gEditor.addEventListener(SourceEditor.EVENTS.BREAKPOINT_CHANGE, onEditorBreakpointAdd);
     gPanel.addBreakpoint({ url: gSources.selectedValue, line: 4 }).then(onBreakpointAdd);
   }
 
@@ -59,8 +59,8 @@ function test() {
     maybeFinish();
   }
 
-  function onEditorBreakpointAdd() {
-    gEditor.off("breakpointAdded", onEditorBreakpointAdd);
+  function onEditorBreakpointAdd(aEvent) {
+    gEditor.removeEventListener(SourceEditor.EVENTS.BREAKPOINT_CHANGE, onEditorBreakpointAdd);
 
     is(gEditor.getBreakpoints().length, 1,
       "There is only one breakpoint in the editor");

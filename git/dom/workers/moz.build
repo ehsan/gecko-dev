@@ -31,12 +31,12 @@ EXPORTS.mozilla.dom.workers.bindings += [
     'XMLHttpRequestUpload.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'ChromeWorkerScope.cpp',
     'DOMBindingBase.cpp',
     'EventListenerManager.cpp',
-    'Events.cpp',
     'EventTarget.cpp',
+    'Events.cpp',
     'File.cpp',
     'FileReaderSync.cpp',
     'Location.cpp',

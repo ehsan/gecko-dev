@@ -824,11 +824,6 @@ Connection::internalClose()
                                       leafName.get()));
 #endif
 
-  // Set the property to null before closing the connection, otherwise the other
-  // functions in the module may try to use the connection after it is closed.
-  sqlite3 *dbConn = mDBConn;
-  mDBConn = nullptr;
-
   // At this stage, we may still have statements that need to be
   // finalized. Attempt to close the database connection. This will
   // always disconnect any virtual tables and cleanly finalize their
@@ -836,13 +831,13 @@ Connection::internalClose()
   // unfinalized client statements, in which case we need to finalize
   // these statements and close again.
 
-  int srv = sqlite3_close(dbConn);
+  int srv = sqlite3_close(mDBConn);
 
   if (srv == SQLITE_BUSY) {
     // We still have non-finalized statements. Finalize them.
 
-    sqlite3_stmt *stmt = nullptr;
-    while ((stmt = ::sqlite3_next_stmt(dbConn, stmt))) {
+    sqlite3_stmt *stmt = NULL;
+    while ((stmt = ::sqlite3_next_stmt(mDBConn, stmt))) {
       PR_LOG(gStorageLog, PR_LOG_NOTICE,
              ("Auto-finalizing SQL statement '%s' (%x)",
               ::sqlite3_sql(stmt),
@@ -871,13 +866,13 @@ Connection::internalClose()
       // Ensure that the loop continues properly, whether closing has succeeded
       // or not.
       if (srv == SQLITE_OK) {
-        stmt = nullptr;
+        stmt = NULL;
       }
     }
 
     // Now that all statements have been finalized, we
-    // should be able to close.
-    srv = ::sqlite3_close(dbConn);
+    // shoudl be able to close.
+    srv = ::sqlite3_close(mDBConn);
 
   }
 
@@ -886,6 +881,7 @@ Connection::internalClose()
                "sqlite3_close failed. There are probably outstanding statements that are listed above!");
   }
 
+  mDBConn = nullptr;
   return convertResultCode(srv);
 }
 

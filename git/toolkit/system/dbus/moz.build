@@ -6,7 +6,7 @@
 
 MODULE = 'dbus'
 
-SOURCES += [
+CPP_SOURCES += [
     'nsDBusModule.cpp',
     'nsDBusService.cpp',
     'nsNetworkManagerListener.cpp',

@@ -65,6 +65,7 @@ ifeq (windows,$(MOZ_WIDGET_TOOLKIT))
 endif
 
 include $(topsrcdir)/config/rules.mk
+include $(topsrcdir)/ipc/chromium/chromium-config.mk
 
 DEFINES += \
   -DJS_THREADSAFE \

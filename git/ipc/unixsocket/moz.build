@@ -10,7 +10,7 @@ EXPORTS.mozilla.ipc += [
     'UnixSocket.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'UnixSocket.cpp',
 ]
 
@@ -21,6 +21,4 @@ LIBXUL_LIBRARY = True
 LIBRARY_NAME = 'mozipcunixsocket_s'
 
 EXPORT_LIBRARY = True
-
-include('/ipc/chromium/chromium-config.mozbuild')
 

@@ -8,6 +8,6 @@ DIRS += ['profile']
 
 PROGRAM = 'xulrunner'
 
-SOURCES += [
+CPP_SOURCES += [
     'nsXULRunnerApp.cpp',
 ]

@@ -187,8 +187,7 @@ let AboutHome = {
         showRestoreLastSession: ss.canRestoreLastSession,
         snippetsURL: AboutHomeUtils.snippetsURL,
         showKnowYourRights: AboutHomeUtils.showKnowYourRights,
-        snippetsVersion: AboutHomeUtils.snippetsVersion,
-        defaultEngineName: Services.search.defaultEngine.name
+        snippetsVersion: AboutHomeUtils.snippetsVersion
       };
 
       if (AboutHomeUtils.showKnowYourRights) {

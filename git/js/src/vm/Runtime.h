@@ -87,7 +87,7 @@ class MathCache;
 class WorkerThreadState;
 
 namespace jit {
-class JitRuntime;
+class IonRuntime;
 class JitActivation;
 struct PcScriptCache;
 }
@@ -592,7 +592,6 @@ class PerThreadData : public PerThreadDataFriendFields,
 
     bool associatedWith(const JSRuntime *rt) { return runtime_ == rt; }
     inline JSRuntime *runtimeFromMainThread();
-    inline JSRuntime *runtimeIfOnOwnerThread();
 };
 
 template<class Client>
@@ -676,7 +675,7 @@ class MarkingValidator;
 typedef Vector<JS::Zone *, 4, SystemAllocPolicy> ZoneVector;
 
 class AutoLockForExclusiveAccess;
-class AutoPauseWorkersForTracing;
+class AutoPauseWorkersForGC;
 class ThreadDataIter;
 
 void RecomputeStackLimit(JSRuntime *rt, StackKind kind);
@@ -790,7 +789,7 @@ struct JSRuntime : public JS::shadow::Runtime,
     size_t numExclusiveThreads;
 
     friend class js::AutoLockForExclusiveAccess;
-    friend class js::AutoPauseWorkersForTracing;
+    friend class js::AutoPauseWorkersForGC;
     friend class js::ThreadDataIter;
 
   public:
@@ -860,7 +859,7 @@ struct JSRuntime : public JS::shadow::Runtime,
      */
     JSC::ExecutableAllocator *execAlloc_;
     WTF::BumpPointerAllocator *bumpAlloc_;
-    js::jit::JitRuntime *jitRuntime_;
+    js::jit::IonRuntime *ionRuntime_;
 
     JSObject *selfHostingGlobal_;
 
@@ -869,7 +868,7 @@ struct JSRuntime : public JS::shadow::Runtime,
 
     JSC::ExecutableAllocator *createExecutableAllocator(JSContext *cx);
     WTF::BumpPointerAllocator *createBumpPointerAllocator(JSContext *cx);
-    js::jit::JitRuntime *createJitRuntime(JSContext *cx);
+    js::jit::IonRuntime *createIonRuntime(JSContext *cx);
 
   public:
     JSC::ExecutableAllocator *getExecAlloc(JSContext *cx) {
@@ -885,14 +884,14 @@ struct JSRuntime : public JS::shadow::Runtime,
     WTF::BumpPointerAllocator *getBumpPointerAllocator(JSContext *cx) {
         return bumpAlloc_ ? bumpAlloc_ : createBumpPointerAllocator(cx);
     }
-    js::jit::JitRuntime *getJitRuntime(JSContext *cx) {
-        return jitRuntime_ ? jitRuntime_ : createJitRuntime(cx);
+    js::jit::IonRuntime *getIonRuntime(JSContext *cx) {
+        return ionRuntime_ ? ionRuntime_ : createIonRuntime(cx);
     }
-    js::jit::JitRuntime *jitRuntime() const {
-        return jitRuntime_;
+    js::jit::IonRuntime *ionRuntime() {
+        return ionRuntime_;
     }
-    bool hasJitRuntime() const {
-        return !!jitRuntime_;
+    bool hasIonRuntime() const {
+        return !!ionRuntime_;
     }
     js::InterpreterStack &interpreterStack() {
         return interpreterStack_;
@@ -1354,9 +1353,6 @@ struct JSRuntime : public JS::shadow::Runtime,
     /* Call this to accumulate telemetry data. */
     JSAccumulateTelemetryDataCallback telemetryCallback;
 
-    /* AsmJSCache callbacks are runtime-wide. */
-    JS::AsmJSCacheOps asmJSCacheOps;
-
     /*
      * The propertyRemovals counter is incremented for every JSObject::clear,
      * and for each JSObject::remove method call that frees a slot in the given
@@ -1794,12 +1790,6 @@ PerThreadData::runtimeFromMainThread()
 {
     JS_ASSERT(js::CurrentThreadCanAccessRuntime(runtime_));
     return runtime_;
-}
-
-inline JSRuntime *
-PerThreadData::runtimeIfOnOwnerThread()
-{
-    return js::CurrentThreadCanAccessRuntime(runtime_) ? runtime_ : nullptr;
 }
 
 /************************************************************************/

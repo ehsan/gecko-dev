@@ -385,7 +385,7 @@ OutputPin::RequestAllocator(IMemAllocator* aPreferred,
                         CLSCTX_INPROC_SERVER,
                         IID_IMemAllocator,
                         getter_AddRefs(allocator));
-  if(FAILED(hr) || (allocator == nullptr)) {
+  if(FAILED(hr) || (allocator == NULL)) {
     NS_WARNING("Can't create our own DirectShow allocator.");
     return hr;
   }
@@ -451,7 +451,7 @@ OutputPin::WaitForNext(DWORD aTimeout,
   NS_ASSERTION(aTimeout == 0 || aTimeout == INFINITE,
                "Oops, we don't handle this!");
 
-  *aOutSample = nullptr;
+  *aOutSample = NULL;
   *aOutDwUser = 0;
 
   LONGLONG offset = 0;
@@ -657,7 +657,7 @@ SourceFilter::GetPin(int n)
     NS_ASSERTION(mOutputPin != 0, "GetPin with no pin!");
     return static_cast<BasePin*>(mOutputPin);
   } else {
-    return nullptr;
+    return NULL;
   }
 }
 

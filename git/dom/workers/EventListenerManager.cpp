@@ -35,7 +35,7 @@ struct EventListenerManager::ListenerCollection :
       static_cast<ListenerCollection*>(JS_malloc(aCx,
                                                  sizeof(ListenerCollection)));
     if (!collection) {
-      return nullptr;
+      return NULL;
     }
 
     new (collection) ListenerCollection(aTypeId);
@@ -72,7 +72,7 @@ struct ListenerData : LinkedListElement<ListenerData>
     ListenerData* listenerData =
       static_cast<ListenerData*>(JS_malloc(aCx, sizeof(ListenerData)));
     if (!listenerData) {
-      return nullptr;
+      return NULL;
     }
 
     new (listenerData) ListenerData(aListener, aPhase, aWantsUntrusted);
@@ -283,7 +283,7 @@ EventListenerManager::GetEventListener(const jsid& aType) const
     }
   }
 
-  return nullptr;
+  return NULL;
 }
 
 bool
@@ -338,14 +338,29 @@ EventListenerManager::DispatchEvent(JSContext* aCx, const EventTarget& aTarget,
     return false;
   }
 
-  JS::AutoValueVector listeners(aCx);
+  ContextAllocPolicy ap(aCx);
+
+  // XXXbent There is no reason to use nsAutoJSValHolder here as we should be
+  //         able to use js::AutoValueVector. Worse, nsAutoJSValHolder is much
+  //         slower. However, js::AutoValueVector causes crashes on Android at
+  //         the moment so we don't have much choice.
+  js::Vector<nsAutoJSValHolder, 10, ContextAllocPolicy> listeners(ap);
+
   for (ListenerData* listenerData = collection->mListeners.getFirst();
        listenerData;
        listenerData = listenerData->getNext()) {
     // Listeners that don't want untrusted events will be skipped if this is an
     // untrusted event.
     if (eventIsTrusted || listenerData->mWantsUntrusted) {
-      if (!listeners.append(OBJECT_TO_JSVAL(listenerData->mListener))) {
+      nsAutoJSValHolder holder;
+      if (!holder.Hold(aCx)) {
+        aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
+        return false;
+      }
+
+      holder = listenerData->mListener;
+
+      if (!listeners.append(holder)) {
         aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
         return false;
       }

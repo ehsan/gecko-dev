@@ -54,14 +54,7 @@ function submit() {
   Services.prefs.setIntPref("devtools.debugger.remote-port", port);
 
   // Initiate the connection
-  let transport;
-  try {
-    transport = debuggerSocketConnect(host, port);
-  } catch(e) {
-    // Bug 921850: catch rare exception from debuggerSocketConnect
-    showError("unexpected");
-    return;
-  }
+  let transport = debuggerSocketConnect(host, port);
   gClient = new DebuggerClient(transport);
   let delay = Services.prefs.getIntPref("devtools.debugger.remote-timeout");
   gConnectionTimeout = setTimeout(handleConnectionTimeout, delay);

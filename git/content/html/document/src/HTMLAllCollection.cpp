@@ -9,8 +9,6 @@
 #include "mozilla/HoldDropJSObjects.h"
 #include "nsDOMClassInfo.h"
 #include "nsHTMLDocument.h"
-#include "jsapi.h"
-#include "nsWrapperCacheInlines.h"
 
 namespace mozilla {
 namespace dom {

@@ -39,6 +39,9 @@ EXTERNALLY_MANAGED_MAKE_FILE := 1
 """
 
 COMMON_FOOTER = """
+# Skip rules that deal with regenerating Makefiles from Makefile.in files.
+NO_MAKEFILE_RULE = 1
+NO_SUBMAKEFILES_RULE = 1
 
 include %(common_mk_path)s
 """
@@ -48,12 +51,7 @@ ifndef COMMON_MK_INCLUDED
 COMMON_MK_INCLUDED := 1
 
 include $(topsrcdir)/config/rules.mk
-
-LOCAL_INCLUDES += \\
-  -I$(topsrcdir)/ipc/chromium/src \\
-  -I$(topsrcdir)/ipc/glue \\
-  -I$(DEPTH)/ipc/ipdl/_ipdlheaders \\
-  $(NULL)
+include $(topsrcdir)/ipc/chromium/chromium-config.mk
 
 ifdef MOZ_DEBUG
 CFLAGS += $(CPPFLAGS_Debug) $(CFLAGS_Debug)

@@ -21,8 +21,6 @@ function ManifestEditor(project) {
 ManifestEditor.prototype = {
   get manifest() { return this.project.manifest; },
 
-  get editable() { return this.project.type == "packaged"; },
-
   show: function(containerElement) {
     let deferred = promise.defer();
     let iframe = document.createElement("iframe");
@@ -42,19 +40,12 @@ ManifestEditor.prototype = {
   _onContainerReady: function(varWindow) {
     let variablesContainer = varWindow.document.querySelector("#variables");
 
-    variablesContainer.classList.add("manifest-editor");
-
     let editor = this.editor = new VariablesView(variablesContainer);
 
     editor.onlyEnumVisible = true;
-    editor.alignedValues = true;
-    editor.actionsFirst = true;
-
-    if (this.editable) {
-      editor.eval = this._onEval;
-      editor.switch = this._onSwitch;
-      editor.delete = this._onDelete;
-    }
+    editor.eval = this._onEval;
+    editor.switch = this._onSwitch;
+    editor.delete = this._onDelete;
 
     return this.update();
   },
@@ -99,7 +90,7 @@ ManifestEditor.prototype = {
   },
 
   save: function() {
-    if (this.editable) {
+    if (this.project.type == "packaged") {
       let validator = new AppValidator(this.project);
       let manifestFile = validator._getPackagedManifestFile();
       let path = manifestFile.path;

@@ -78,7 +78,7 @@ WebVTTListener::LoadResource()
   rv = mParserWrapper->Watch(this);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  mElement->mTrack->SetReadyState(HTMLTrackElement::LOADING);
+  mElement->mReadyState = HTMLTrackElement::LOADING;
   return NS_OK;
 }
 
@@ -106,9 +106,8 @@ WebVTTListener::OnStopRequest(nsIRequest* aRequest,
                               nsISupports* aContext,
                               nsresult aStatus)
 {
-  if (mElement->ReadyState() != HTMLTrackElement::ERROR) {
-    TextTrack* track = mElement->Track();
-    track->SetReadyState(HTMLTrackElement::LOADED);
+  if (mElement->mReadyState != HTMLTrackElement::ERROR) {
+    mElement->mReadyState = HTMLTrackElement::LOADED;
   }
   // Attempt to parse any final data the parser might still have.
   mParserWrapper->Flush();

@@ -15,9 +15,9 @@
 #include "jit/BaselineIC.h"
 #include "jit/BaselineJIT.h"
 #include "jit/Ion.h"
+#include "jit/IonCompartment.h"
 #include "jit/IonMacroAssembler.h"
 #include "jit/IonSpewer.h"
-#include "jit/JitCompartment.h"
 #include "jit/ParallelFunctions.h"
 #include "jit/PcScriptCache.h"
 #include "jit/Safepoints.h"
@@ -184,10 +184,9 @@ IonFrameIterator::baselineScriptAndPc(JSScript **scriptRes, jsbytecode **pcRes) 
         *scriptRes = script;
     uint8_t *retAddr = returnAddressToFp();
     if (pcRes) {
-        // If the return address is into the prologue entry address, then assume start
-        // of script.
+        // If the return address is into the prologue entry addr, then assume PC 0.
         if (retAddr == script->baselineScript()->prologueEntryAddr()) {
-            *pcRes = script->code;
+            *pcRes = 0;
             return;
         }
 
@@ -377,7 +376,7 @@ HandleExceptionIon(JSContext *cx, const InlineFrameIterator &frame, ResumeFromEx
                 if (retval == BAILOUT_RETURN_OK) {
                     JS_ASSERT(info);
                     rfe->kind = ResumeFromException::RESUME_BAILOUT;
-                    rfe->target = cx->runtime()->jitRuntime()->getBailoutTail()->raw();
+                    rfe->target = cx->runtime()->ionRuntime()->getBailoutTail()->raw();
                     rfe->bailoutInfo = info;
                     return;
                 }
@@ -1250,11 +1249,6 @@ SnapshotIterator::slotReadable(const Slot &slot)
     }
 }
 
-typedef union {
-    double d;
-    float f;
-} PunDoubleFloat;
-
 Value
 SnapshotIterator::slotValue(const Slot &slot)
 {
@@ -1264,19 +1258,17 @@ SnapshotIterator::slotValue(const Slot &slot)
 
       case SnapshotReader::FLOAT32_REG:
       {
-        PunDoubleFloat pdf;
-        pdf.d = machine_.read(slot.floatReg());
+        double asDouble = machine_.read(slot.floatReg());
         // The register contains the encoding of a float32. We just read
         // the bits without making any conversion.
-        float asFloat = pdf.f;
+        float asFloat = *(float*) &asDouble;
         return DoubleValue(asFloat);
       }
 
       case SnapshotReader::FLOAT32_STACK:
       {
-        PunDoubleFloat pdf;
-        pdf.d = ReadFrameDoubleSlot(fp_, slot.stackSlot());
-        float asFloat = pdf.f; // no conversion, see comment above.
+        double asDouble = ReadFrameDoubleSlot(fp_, slot.stackSlot());
+        float asFloat = *(float*) &asDouble; // no conversion, see comment above.
         return DoubleValue(asFloat);
       }
 

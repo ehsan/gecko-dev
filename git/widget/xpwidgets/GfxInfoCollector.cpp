@@ -18,8 +18,7 @@ InfoObject::DefineProperty(const char *name, int value)
   if (!mOk)
     return;
 
-  mOk = JS_DefineProperty(mCx, mObj, name, INT_TO_JSVAL(value),
-                          nullptr, nullptr, JSPROP_ENUMERATE);
+  mOk = JS_DefineProperty(mCx, mObj, name, INT_TO_JSVAL(value), NULL, NULL, JSPROP_ENUMERATE);
 }
 
 void
@@ -36,8 +35,7 @@ InfoObject::DefineProperty(const char *name, nsAString &value)
   if (!mOk)
     return;
 
-  mOk = JS_DefineProperty(mCx, mObj, name, STRING_TO_JSVAL(string),
-                          nullptr, nullptr, JSPROP_ENUMERATE);
+  mOk = JS_DefineProperty(mCx, mObj, name, STRING_TO_JSVAL(string), NULL, NULL, JSPROP_ENUMERATE);
 }
 
 void
@@ -49,7 +47,7 @@ InfoObject::DefineProperty(const char *name, const char *value)
 
 InfoObject::InfoObject(JSContext *aCx) : mCx(aCx), mObj(aCx), mOk(true)
 {
-  mObj = JS_NewObject(mCx, nullptr, nullptr, nullptr);
+  mObj = JS_NewObject(mCx, NULL, NULL, NULL);
   if (!mObj)
     mOk = false;
 }

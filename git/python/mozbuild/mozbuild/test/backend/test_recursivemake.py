@@ -4,7 +4,6 @@
 
 from __future__ import unicode_literals
 
-import json
 import os
 import unittest
 
@@ -153,9 +152,9 @@ class TestRecursiveMakeBackend(BackendTester):
         """Ensure the RecursiveMakeBackend works without error."""
         env = self._consume('stub0', RecursiveMakeBackend)
         self.assertTrue(os.path.exists(os.path.join(env.topobjdir,
-            'backend.RecursiveMakeBackend')))
+            'backend.RecursiveMakeBackend.built')))
         self.assertTrue(os.path.exists(os.path.join(env.topobjdir,
-            'backend.RecursiveMakeBackend.pp')))
+            'backend.RecursiveMakeBackend.built.pp')))
 
     def test_output_files(self):
         """Ensure proper files are generated."""
@@ -211,6 +210,8 @@ class TestRecursiveMakeBackend(BackendTester):
         lines = [l.strip() for l in open(p, 'rt').readlines()[2:]]
         self.assertEqual(lines, [
             'MOZBUILD_DERIVED := 1',
+            'NO_MAKEFILE_RULE := 1',
+            'NO_SUBMAKEFILES_RULE := 1',
             'DIRS := dir1',
             'PARALLEL_DIRS := dir2',
             'TEST_DIRS := dir3',
@@ -242,6 +243,8 @@ class TestRecursiveMakeBackend(BackendTester):
         lines = [l.strip() for l in open(backend_path, 'rt').readlines()[2:]]
         self.assertEqual(lines, [
             'MOZBUILD_DERIVED := 1',
+            'NO_MAKEFILE_RULE := 1',
+            'NO_SUBMAKEFILES_RULE := 1',
             'DIRS := dir',
             'PARALLEL_DIRS := p_dir',
             'DIRS += external',
@@ -351,11 +354,8 @@ class TestRecursiveMakeBackend(BackendTester):
                 'SIMPLE_PROGRAMS += foo.x',
             ],
             'SSRCS': [
-                'SSRCS += baz.S',
+                'SSRCS += bar.S',
                 'SSRCS += foo.S',
-            ],
-            'VISIBILITY_FLAGS': [
-                'VISIBILITY_FLAGS :=',
             ],
         }
 
@@ -393,17 +393,6 @@ class TestRecursiveMakeBackend(BackendTester):
             '[include:dir1/xpcshell.ini]',
             '[include:xpcshell.ini]',
         ])
-
-        all_tests_path = os.path.join(env.topobjdir, 'all-tests.json')
-        self.assertTrue(os.path.exists(all_tests_path))
-
-        with open(all_tests_path, 'rt') as fh:
-            o = json.load(fh)
-
-            self.assertIn('xpcshell.js', o)
-            self.assertIn('dir1/test_bar.js', o)
-
-            self.assertEqual(len(o['xpcshell.js']), 1)
 
     def test_xpidl_generation(self):
         """Ensure xpidl files and directories are written out."""
@@ -515,56 +504,6 @@ class TestRecursiveMakeBackend(BackendTester):
 
         found = [str for str in lines if str.startswith('LOCAL_INCLUDES')]
         self.assertEqual(found, expected)
-
-    def test_generated_includes(self):
-        """Test that GENERATED_INCLUDES are written to backend.mk correctly."""
-        env = self._consume('generated_includes', RecursiveMakeBackend)
-
-        backend_path = os.path.join(env.topobjdir, 'backend.mk')
-        lines = [l.strip() for l in open(backend_path, 'rt').readlines()[2:]]
-
-        topobjdir = env.topobjdir.replace('\\', '/')
-
-        expected = [
-            'LOCAL_INCLUDES += -I%s/bar/baz' % topobjdir,
-            'LOCAL_INCLUDES += -Ifoo',
-        ]
-
-        found = [str for str in lines if str.startswith('LOCAL_INCLUDES')]
-        self.assertEqual(found, expected)
-
-    def test_final_target(self):
-        """Test that FINAL_TARGET is written to backend.mk correctly."""
-        env = self._consume('final_target', RecursiveMakeBackend)
-
-        final_target_rule = "FINAL_TARGET = $(if $(XPI_NAME),$(DIST)/xpi-stage/$(XPI_NAME),$(DIST)/bin)$(DIST_SUBDIR:%=/%)"
-        print([x for x in os.walk(env.topobjdir)])
-        expected = dict()
-        expected[env.topobjdir] = []
-        expected[os.path.join(env.topobjdir, 'both')] = [
-            'XPI_NAME = mycrazyxpi',
-            'DIST_SUBDIR = asubdir',
-            final_target_rule
-        ]
-        expected[os.path.join(env.topobjdir, 'dist-subdir')] = [
-            'DIST_SUBDIR = asubdir',
-            final_target_rule
-        ]
-        expected[os.path.join(env.topobjdir, 'xpi-name')] = [
-            'XPI_NAME = mycrazyxpi',
-            final_target_rule
-        ]
-        expected[os.path.join(env.topobjdir, 'final-target')] = [
-            'FINAL_TARGET = $(DEPTH)/random-final-target'
-        ]
-        for key, expected_rules in expected.iteritems():
-            backend_path = os.path.join(key, 'backend.mk')
-            lines = [l.strip() for l in open(backend_path, 'rt').readlines()[2:]]
-            found = [str for str in lines if
-                str.startswith('FINAL_TARGET') or str.startswith('XPI_NAME') or
-                str.startswith('DIST_SUBDIR')]
-            self.assertEqual(found, expected_rules)
-
 
 if __name__ == '__main__':
     main()

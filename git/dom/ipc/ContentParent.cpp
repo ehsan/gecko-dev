@@ -1057,14 +1057,14 @@ ContentParent::MarkAsDead()
             sAppContentParents->Remove(mAppManifestURL);
             if (!sAppContentParents->Count()) {
                 delete sAppContentParents;
-                sAppContentParents = nullptr;
+                sAppContentParents = NULL;
             }
         }
     } else if (sNonAppContentParents) {
         sNonAppContentParents->RemoveElement(this);
         if (!sNonAppContentParents->Length()) {
             delete sNonAppContentParents;
-            sNonAppContentParents = nullptr;
+            sNonAppContentParents = NULL;
         }
     }
 
@@ -1072,7 +1072,7 @@ ContentParent::MarkAsDead()
         sPrivateContent->RemoveElement(this);
         if (!sPrivateContent->Length()) {
             delete sPrivateContent;
-            sPrivateContent = nullptr;
+            sPrivateContent = NULL;
         }
     }
 
@@ -1261,7 +1261,7 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
                                                        NS_ConvertUTF16toUTF8(mAppManifestURL));
                 }
 
-                crashReporter->GenerateCrashReport(this, nullptr);
+                crashReporter->GenerateCrashReport(this, NULL);
 
                 nsAutoString dumpID(crashReporter->ChildDumpID());
                 props->SetPropertyAsAString(NS_LITERAL_STRING("dumpID"), dumpID);
@@ -1279,7 +1279,7 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
     MessageLoop::current()->
         PostTask(FROM_HERE,
                  NewRunnableFunction(DelayedDeleteSubprocess, mSubprocess));
-    mSubprocess = nullptr;
+    mSubprocess = NULL;
 
     // IPDL rules require actors to live on past ActorDestroy, but it
     // may be that the kungFuDeathGrip above is the last reference to
@@ -1605,9 +1605,9 @@ ContentParent::~ContentParent()
                    !sNonAppContentParents->Contains(this));
     } else {
         // In general, we expect sAppContentParents->Get(mAppManifestURL) to be
-        // nullptr.  But it could be that we created another ContentParent for
-        // this app after we did this->ActorDestroy(), so the right check is
-        // that sAppContentParents->Get(mAppManifestURL) != this.
+        // NULL.  But it could be that we created another ContentParent for this
+        // app after we did this->ActorDestroy(), so the right check is that
+        // sAppContentParents->Get(mAppManifestURL) != this.
         MOZ_ASSERT(!sAppContentParents ||
                    sAppContentParents->Get(mAppManifestURL) != this);
     }
@@ -1733,7 +1733,7 @@ ContentParent::RecvSetClipboardText(const nsString& text,
                                 text.Length() * sizeof(PRUnichar));
     NS_ENSURE_SUCCESS(rv, true);
     
-    clipboard->SetData(trans, nullptr, whichClipboard);
+    clipboard->SetData(trans, NULL, whichClipboard);
     return true;
 }
 
@@ -1933,6 +1933,23 @@ ContentParent::RecvBroadcastVolume(const nsString& aVolumeName)
     NS_WARNING("ContentParent::RecvBroadcastVolume shouldn't be called when MOZ_WIDGET_GONK is not defined");
     return false;
 #endif
+}
+
+bool
+ContentParent::RecvRecordingDeviceEvents(const nsString& aRecordingStatus)
+{
+    nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
+    if (obs) {
+        // recording-device-ipc-events needs to gather more information from content process
+        nsRefPtr<nsHashPropertyBag> props = new nsHashPropertyBag();
+        props->SetPropertyAsUint64(NS_LITERAL_STRING("childID"), mChildID);
+        obs->NotifyObservers((nsIPropertyBag2*) props,
+                             "recording-device-ipc-events",
+                             aRecordingStatus.get());
+    } else {
+        NS_WARNING("Could not get the Observer service for ContentParent::RecvRecordingDeviceEvents.");
+    }
+    return true;
 }
 
 bool
@@ -2136,7 +2153,7 @@ ContentParent::AllocPJavaScriptParent()
     mozilla::jsipc::JavaScriptParent *parent = new mozilla::jsipc::JavaScriptParent();
     if (!parent->init()) {
         delete parent;
-        return nullptr;
+        return NULL;
     }
     return parent;
 }
@@ -3166,7 +3183,7 @@ ContentParent::RecvPrivateDocShellsExist(const bool& aExist)
       nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
       obs->NotifyObservers(nullptr, "last-pb-context-exited", nullptr);
       delete sPrivateContent;
-      sPrivateContent = nullptr;
+      sPrivateContent = NULL;
     }
   }
   return true;

@@ -578,15 +578,6 @@ public:
   virtual TemporaryRef<SourceSurface> Snapshot() = 0;
   virtual IntSize GetSize() = 0;
 
-  /**
-   * If possible returns the bits to this DrawTarget for direct manipulation. While
-   * the bits is locked any modifications to this DrawTarget is forbidden.
-   * Release takes the original data pointer for safety.
-   */
-  virtual bool LockBits(uint8_t** aData, IntSize* aSize,
-                        int32_t* aStride, SurfaceFormat* aFormat) { return false; }
-  virtual void ReleaseBits(uint8_t* aData) {}
-
   /* Ensure that the DrawTarget backend has flushed all drawing operations to
    * this draw target. This must be called before using the backing surface of
    * this draw target outside of GFX 2D code.
@@ -937,10 +928,6 @@ public:
 
   static TemporaryRef<DrawTarget> CreateDrawTargetForCairoSurface(cairo_surface_t* aSurface, const IntSize& aSize);
 
-  static TemporaryRef<SourceSurface>
-    CreateSourceSurfaceForCairoSurface(cairo_surface_t* aSurface,
-                                       SurfaceFormat aFormat);
-
   static TemporaryRef<DrawTarget>
     CreateDrawTarget(BackendType aBackend, const IntSize &aSize, SurfaceFormat aFormat);
 
@@ -1002,9 +989,6 @@ public:
                                                       GrGLInterface* aGrGLInterface,
                                                       const IntSize &aSize,
                                                       SurfaceFormat aFormat);
-
-  static void
-    SetGlobalSkiaCacheLimits(int aCount, int aSizeInBytes);
 #endif
 
 #if defined(USE_SKIA) && defined(MOZ_ENABLE_FREETYPE)

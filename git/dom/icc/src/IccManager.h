@@ -2,8 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef mozilla_dom_IccManager_h
-#define mozilla_dom_IccManager_h
+#ifndef mozilla_dom_icc_IccManager_h
+#define mozilla_dom_icc_IccManager_h
 
 #include "nsCycleCollectionParticipant.h"
 #include "nsDOMEventTargetHelper.h"
@@ -12,6 +12,7 @@
 
 namespace mozilla {
 namespace dom {
+namespace icc {
 
 class IccManager : public nsDOMEventTargetHelper
                  , public nsIDOMMozIccManager
@@ -41,7 +42,8 @@ private:
   nsRefPtr<Listener> mListener;
 };
 
+} // namespace icc
 } // namespace dom
 } // namespace mozilla
 
-#endif // mozilla_dom_IccManager_h
+#endif // mozilla_dom_icc_IccManager_h

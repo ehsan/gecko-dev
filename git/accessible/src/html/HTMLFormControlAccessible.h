@@ -131,7 +131,6 @@ public:
   virtual void ApplyARIAState(uint64_t* aState) const;
   virtual mozilla::a11y::role NativeRole();
   virtual uint64_t NativeState();
-  virtual already_AddRefed<nsIPersistentProperties> NativeAttributes() MOZ_OVERRIDE;
 
   // ActionAccessible
   virtual uint8_t ActionCount();
@@ -194,7 +193,7 @@ public:
 
   // Accessible
   virtual mozilla::a11y::role NativeRole();
-  virtual Relation RelationByType(RelationType aType) MOZ_OVERRIDE;
+  virtual Relation RelationByType(uint32_t aType);
 
 protected:
   // Accessible
@@ -215,7 +214,7 @@ public:
 
   // Accessible
   virtual mozilla::a11y::role NativeRole();
-  virtual Relation RelationByType(RelationType aType) MOZ_OVERRIDE;
+  virtual Relation RelationByType(uint32_t aType);
 };
 
 /**
@@ -229,7 +228,7 @@ public:
   // Accessible
   virtual already_AddRefed<nsIPersistentProperties> NativeAttributes() MOZ_OVERRIDE;
   virtual mozilla::a11y::role NativeRole();
-  virtual Relation RelationByType(RelationType aType) MOZ_OVERRIDE;
+  virtual Relation RelationByType(uint32_t aType);
 
 protected:
   // Accessible
@@ -250,7 +249,7 @@ public:
 
   // Accessible
   virtual mozilla::a11y::role NativeRole();
-  virtual Relation RelationByType(RelationType aType) MOZ_OVERRIDE;
+  virtual Relation RelationByType(uint32_t aType);
 };
 
 } // namespace a11y

@@ -36,6 +36,8 @@ public:
 
   // Accessible
   virtual TableAccessible* AsTable() { return this; }
+
+  // nsAccessNode
   virtual void Shutdown();
 
   // TableAccessible

@@ -609,12 +609,8 @@ template <typename TYPESET>
 TypeScript::BytecodeTypes(JSScript *script, jsbytecode *pc, uint32_t *hint, TYPESET *typeArray)
 {
     JS_ASSERT(js_CodeSpec[*pc].format & JOF_TYPESET);
-#ifdef JS_ION
-    uint32_t *bytecodeMap = script->baselineScript()->bytecodeTypeMap();
-#else
-    uint32_t *bytecodeMap = nullptr;
-    MOZ_CRASH();
-#endif
+    JS_ASSERT(script->types && script->types->bytecodeMap);
+    uint32_t *bytecodeMap = script->types->bytecodeMap;
     uint32_t offset = pc - script->code;
     JS_ASSERT(offset < script->length);
 
@@ -655,12 +651,7 @@ TypeScript::BytecodeTypes(JSScript *script, jsbytecode *pc, uint32_t *hint, TYPE
 TypeScript::BytecodeTypes(JSScript *script, jsbytecode *pc)
 {
     JS_ASSERT(CurrentThreadCanAccessRuntime(script->runtimeFromMainThread()));
-#ifdef JS_ION
-    uint32_t *hint = script->baselineScript()->bytecodeTypeMap() + script->nTypeSets;
-#else
-    uint32_t *hint = nullptr;
-    MOZ_CRASH();
-#endif
+    uint32_t *hint = script->types->bytecodeMap + script->nTypeSets;
     return BytecodeTypes(script, pc, hint, script->types->typeArray());
 }
 
@@ -1462,6 +1453,12 @@ JSScript::ensureHasTypes(JSContext *cx)
 }
 
 inline bool
+JSScript::ensureHasBytecodeTypeMap(JSContext *cx)
+{
+    return ensureHasTypes(cx) && (types->bytecodeMap || makeBytecodeTypeMap(cx));
+}
+
+inline bool
 JSScript::ensureRanAnalysis(JSContext *cx)
 {
     js::types::AutoEnterAnalysis aea(cx);
@@ -1490,8 +1487,10 @@ JSScript::analysis()
 inline void
 JSScript::clearAnalysis()
 {
-    if (types)
+    if (types) {
         types->analysis = nullptr;
+        types->bytecodeMap = nullptr;
+    }
 }
 
 namespace js {

@@ -17,8 +17,7 @@ BytecodeAnalysis::BytecodeAnalysis(JSScript *script)
   : script_(script),
     infos_(),
     usesScopeChain_(false),
-    hasTryFinally_(false),
-    hasSetArg_(false)
+    hasTryFinally_(false)
 {
 }
 
@@ -40,7 +39,7 @@ struct CatchFinallyRange
 };
 
 bool
-BytecodeAnalysis::init(GSNCache &gsn)
+BytecodeAnalysis::init(JSContext *cx)
 {
     if (!infos_.growByUninitialized(script_->length))
         return false;
@@ -121,7 +120,7 @@ BytecodeAnalysis::init(GSNCache &gsn)
 
             // Get the pc of the last instruction in the try block. It's a JSOP_GOTO to
             // jump over the catch/finally blocks.
-            jssrcnote *sn = GetSrcNote(gsn, script_, pc);
+            jssrcnote *sn = js_GetSrcNote(cx, script_, pc);
             JS_ASSERT(SN_TYPE(sn) == SRC_TRY);
 
             jsbytecode *endOfTry = pc + js_GetSrcNoteOffset(sn, 0);

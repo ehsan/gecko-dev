@@ -6,10 +6,7 @@
 
 PROGRAM = 'CommandExecuteHandler'
 
-SOURCES += [
+CPP_SOURCES += [
     'CEHHelper.cpp',
     'CommandExecuteHandler.cpp',
 ]
-
-# We want this exe in dist/bin
-DIST_SUBDIR = ''

@@ -28,6 +28,13 @@ const SEARCH_FUNCTION_FLAG = "@";
 const SEARCH_TOKEN_FLAG = "#";
 const SEARCH_LINE_FLAG = ":";
 const SEARCH_VARIABLE_FLAG = "*";
+const DEFAULT_EDITOR_CONFIG = {
+  mode: SourceEditor.MODES.TEXT,
+  readOnly: true,
+  showLineNumbers: true,
+  showAnnotationRuler: true,
+  showOverviewRuler: true
+};
 
 /**
  * Object defining the debugger view components.
@@ -61,7 +68,6 @@ let DebuggerView = {
     this.GlobalSearch.initialize();
     this._initializeVariablesView();
     this._initializeEditor(deferred.resolve);
-
     document.title = L10N.getStr("DebuggerWindowTitle");
 
     return deferred.promise;
@@ -104,8 +110,6 @@ let DebuggerView = {
   _initializePanes: function() {
     dumpn("Initializing the DebuggerView panes");
 
-    this._body = document.getElementById("body");
-    this._editorDeck = document.getElementById("editor-deck");
     this._sourcesPane = document.getElementById("sources-pane");
     this._instrumentsPane = document.getElementById("instruments-pane");
     this._instrumentsPaneToggleButton = document.getElementById("instruments-pane-toggle");
@@ -114,6 +118,7 @@ let DebuggerView = {
     this.showBlackBoxMessage = this.showBlackBoxMessage.bind(this);
     this.showProgressBar = this.showProgressBar.bind(this);
     this.maybeShowBlackBoxMessage = this.maybeShowBlackBoxMessage.bind(this);
+    this._editorDeck = document.getElementById("editor-deck");
 
     this._onTabSelect = this._onInstrumentsPaneTabSelect.bind(this);
     this._instrumentsPane.tabpanels.addEventListener("select", this._onTabSelect);
@@ -124,11 +129,6 @@ let DebuggerView = {
     this._sourcesPane.setAttribute("width", Prefs.sourcesWidth);
     this._instrumentsPane.setAttribute("width", Prefs.instrumentsWidth);
     this.toggleInstrumentsPane({ visible: Prefs.panesVisibleOnStartup });
-
-    // Side hosts requires a different arrangement of the debugger widgets.
-    if (gHostType == "side") {
-      this.handleHostChanged(gHostType);
-    }
   },
 
   /**
@@ -137,10 +137,10 @@ let DebuggerView = {
   _destroyPanes: function() {
     dumpn("Destroying the DebuggerView panes");
 
-    if (gHostType != "side") {
-      Prefs.sourcesWidth = this._sourcesPane.getAttribute("width");
-      Prefs.instrumentsWidth = this._instrumentsPane.getAttribute("width");
-    }
+    Prefs.sourcesWidth = this._sourcesPane.getAttribute("width");
+    Prefs.instrumentsWidth = this._instrumentsPane.getAttribute("width");
+
+    this._instrumentsPane.tabpanels.removeEventListener("select", this._onTabSelect);
 
     this._sourcesPane = null;
     this._instrumentsPane = null;
@@ -180,7 +180,7 @@ let DebuggerView = {
   },
 
   /**
-   * Initializes the Editor instance.
+   * Initializes the SourceEditor instance.
    *
    * @param function aCallback
    *        Called after the editor finishes initializing.
@@ -188,34 +188,10 @@ let DebuggerView = {
   _initializeEditor: function(aCallback) {
     dumpn("Initializing the DebuggerView editor");
 
-    // This needs to be more localizable: see bug 929234.
-    let extraKeys = {};
-    extraKeys[(Services.appinfo.OS == "Darwin" ? "Cmd-" : "Ctrl-") + "F"] = (cm) => {
-      DebuggerView.Filtering._doTokenSearch();
-    };
-
-    this.editor = new Editor({
-      mode: Editor.modes.text,
-      readOnly: true,
-      lineNumbers: true,
-      showAnnotationRuler: true,
-      gutters: [ "breakpoints" ],
-      extraKeys: extraKeys,
-      contextMenu: "sourceEditorContextMenu"
-    });
-
-    this.editor.appendTo(document.getElementById("editor")).then(() => {
-      this.editor.extend(DebuggerEditor);
+    this.editor = new SourceEditor();
+    this.editor.init(document.getElementById("editor"), DEFAULT_EDITOR_CONFIG, () => {
       this._loadingText = L10N.getStr("loadingText");
       this._onEditorLoad(aCallback);
-    });
-
-    this.editor.on("gutterClick", (ev, line) => {
-      if (this.editor.hasBreakpoint(line)) {
-        this.editor.removeBreakpoint(line);
-      } else {
-        this.editor.addBreakpoint(line);
-      }
     });
   },
 
@@ -236,7 +212,7 @@ let DebuggerView = {
   },
 
   /**
-   * Destroys the Editor instance and also executes any necessary
+   * Destroys the SourceEditor instance and also executes any necessary
    * post-unload operations.
    *
    * @param function aCallback
@@ -293,9 +269,9 @@ let DebuggerView = {
    *        The source text content.
    */
   _setEditorText: function(aTextContent = "") {
-    this.editor.setMode(Editor.modes.text);
+    this.editor.setMode(SourceEditor.MODES.TEXT);
     this.editor.setText(aTextContent);
-    this.editor.clearHistory();
+    this.editor.resetUndo();
   },
 
   /**
@@ -311,24 +287,22 @@ let DebuggerView = {
    */
   _setEditorMode: function(aUrl, aContentType = "", aTextContent = "") {
     // Avoid setting the editor mode for very large files.
-    // Is this still necessary? See bug 929225.
     if (aTextContent.length >= SOURCE_SYNTAX_HIGHLIGHT_MAX_FILE_SIZE) {
-      return void this.editor.setMode(Editor.modes.text);
+      this.editor.setMode(SourceEditor.MODES.TEXT);
     }
-
     // Use JS mode for files with .js and .jsm extensions.
-    if (SourceUtils.isJavaScript(aUrl, aContentType)) {
-      return void this.editor.setMode(Editor.modes.js);
+    else if (SourceUtils.isJavaScript(aUrl, aContentType)) {
+      this.editor.setMode(SourceEditor.MODES.JAVASCRIPT);
     }
-
     // Use HTML mode for files in which the first non whitespace character is
     // &lt;, regardless of extension.
-    if (aTextContent.match(/^\s*</)) {
-      return void this.editor.setMode(Editor.modes.html);
+    else if (aTextContent.match(/^\s*</)) {
+      this.editor.setMode(SourceEditor.MODES.HTML);
     }
-
-    // Unknown language, use text.
-    this.editor.setMode(Editor.modes.text);
+    // Unknown languange, use plain text.
+    else {
+      this.editor.setMode(SourceEditor.MODES.TEXT);
+    }
   },
 
   /**
@@ -434,11 +408,6 @@ let DebuggerView = {
     let sourceItem = this.Sources.getItemByValue(aUrl);
     let sourceForm = sourceItem.attachment.source;
 
-    // Once we change the editor location, it replaces editor's contents.
-    // This means that the debug location information is now obsolete, so
-    // we need to clear it. We set a new location below, in this function.
-    this.editor.clearDebugLocation();
-
     // Make sure the requested source client is shown in the editor, then
     // update the source editor's caret position and debug location.
     return this._setEditorSource(sourceForm, aFlags).then(() => {
@@ -447,24 +416,35 @@ let DebuggerView = {
       if (aLine < 1) {
         return;
       }
-
       if (aFlags.charOffset) {
-        aLine += this.editor.getPosition(aFlags.charOffset).line;
+        aLine += this.editor.getLineAtOffset(aFlags.charOffset);
       }
-
       if (aFlags.lineOffset) {
         aLine += aFlags.lineOffset;
       }
-
       if (!aFlags.noCaret) {
-        this.editor.setCursor({ line: aLine -1, ch: aFlags.columnOffset || 0 },
-                              aFlags.align);
+        this.editor.setCaretPosition(aLine - 1, aFlags.columnOffset);
       }
-
       if (!aFlags.noDebug) {
-        this.editor.setDebugLocation(aLine - 1);
+        this.editor.setDebugLocation(aLine - 1, aFlags.columnOffset);
       }
-    }).then(null, console.error);
+    });
+  },
+
+  /**
+   * Gets the text in the source editor's specified line.
+   *
+   * @param number aLine [optional]
+   *        The line to get the text from. If unspecified, it defaults to
+   *        the current caret position.
+   * @return string
+   *         The specified line's text.
+   */
+  getEditorLineText: function(aLine) {
+    let line = aLine || this.editor.getCaretPosition().line;
+    let start = this.editor.getLineStart(line);
+    let end = this.editor.getLineEnd(line);
+    return this.editor.getText(start, end);
   },
 
   /**
@@ -537,68 +517,9 @@ let DebuggerView = {
   },
 
   /**
-   * Handles a host change event issued by the parent toolbox.
-   *
-   * @param string aType
-   *        The host type, either "bottom", "side" or "window".
-   */
-  handleHostChanged: function(aType) {
-    let newLayout = "";
-
-    if (aType == "side") {
-      newLayout = "vertical";
-      this._enterVerticalLayout();
-    } else {
-      newLayout = "horizontal";
-      this._enterHorizontalLayout();
-    }
-
-    this._hostType = aType;
-    this._body.setAttribute("layout", newLayout);
-    window.emit(EVENTS.LAYOUT_CHANGED, newLayout);
-  },
-
-  /**
-   * Switches the debugger widgets to a horizontal layout.
-   */
-  _enterVerticalLayout: function() {
-    let normContainer = document.getElementById("debugger-widgets");
-    let vertContainer = document.getElementById("vertical-layout-panes-container");
-
-    // Move the soruces and instruments panes in a different container.
-    let splitter = document.getElementById("sources-and-instruments-splitter");
-    vertContainer.insertBefore(this._sourcesPane, splitter);
-    vertContainer.appendChild(this._instrumentsPane);
-
-    // Make sure the vertical layout container's height doesn't repeatedly
-    // grow or shrink based on the displayed sources, variables etc.
-    vertContainer.setAttribute("height",
-      vertContainer.getBoundingClientRect().height);
-  },
-
-  /**
-   * Switches the debugger widgets to a vertical layout.
-   */
-  _enterHorizontalLayout: function() {
-    let normContainer = document.getElementById("debugger-widgets");
-    let vertContainer = document.getElementById("vertical-layout-panes-container");
-
-    // The sources and instruments pane need to be inserted at their
-    // previous locations in their normal container.
-    let splitter = document.getElementById("sources-and-editor-splitter");
-    normContainer.insertBefore(this._sourcesPane, splitter);
-    normContainer.appendChild(this._instrumentsPane);
-
-    // Revert to the preferred sources and instruments widths, because
-    // they flexed in the vertical layout.
-    this._sourcesPane.setAttribute("width", Prefs.sourcesWidth);
-    this._instrumentsPane.setAttribute("width", Prefs.instrumentsWidth);
-  },
-
-  /**
    * Handles any initialization on a tab navigation event issued by the client.
    */
-  handleTabNavigation: function() {
+  _handleTabNavigation: function() {
     dumpn("Handling tab navigation in the DebuggerView");
 
     this.Filtering.clearSearch();
@@ -612,9 +533,9 @@ let DebuggerView = {
     this.EventListeners.empty();
 
     if (this.editor) {
-      this.editor.setMode(Editor.modes.text);
+      this.editor.setMode(SourceEditor.MODES.TEXT);
       this.editor.setText("");
-      this.editor.clearHistory();
+      this.editor.resetUndo();
       this._editorSource = {};
     }
   },
@@ -636,13 +557,12 @@ let DebuggerView = {
   editor: null,
   _editorSource: {},
   _loadingText: "",
-  _body: null,
-  _editorDeck: null,
   _sourcesPane: null,
   _instrumentsPane: null,
   _instrumentsPaneToggleButton: null,
   _collapsePaneString: "",
-  _expandPaneString: ""
+  _expandPaneString: "",
+  _editorDeck: null,
 };
 
 /**

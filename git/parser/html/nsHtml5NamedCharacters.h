@@ -23,6 +23,7 @@
 #ifndef nsHtml5NamedCharacters_h
 #define nsHtml5NamedCharacters_h
 
+#include "prtypes.h"
 #include "jArray.h"
 #include "nscore.h"
 #include "nsDebug.h"

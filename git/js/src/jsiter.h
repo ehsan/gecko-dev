@@ -139,12 +139,6 @@ class ArrayIteratorObject : public JSObject
     static const Class class_;
 };
 
-class StringIteratorObject : public JSObject
-{
-  public:
-    static const Class class_;
-};
-
 bool
 VectorToIdArray(JSContext *cx, AutoIdVector &props, JSIdArray **idap);
 

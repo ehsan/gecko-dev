@@ -13,12 +13,12 @@ EXPORTS += [
     'GStreamerReader.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'GStreamerDecoder.cpp',
     'GStreamerFormatHelper.cpp',
-    'GStreamerLoader.cpp',
-    'GStreamerMozVideoBuffer.cpp',
     'GStreamerReader.cpp',
+    'GStreamerMozVideoBuffer.cpp',
+    'GStreamerLoader.cpp',
 ]
 
 LIBRARY_NAME = 'gkcongstreamer_s'

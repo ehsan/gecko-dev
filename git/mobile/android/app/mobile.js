@@ -164,9 +164,6 @@ pref("layout.spellcheckDefault", 0);
 /* new html5 forms */
 pref("dom.experimental_forms", true);
 pref("dom.forms.number", true);
-// Don't enable <input type=color> yet as we don't have a color picker
-// implemented for Android (bug 875750)
-pref("dom.forms.color", false);
 
 /* extension manager and xpinstall */
 pref("xpinstall.whitelist.add", "addons.mozilla.org");
@@ -730,9 +727,6 @@ pref("browser.chrome.dynamictoolbar", true);
 // 0: Show a current page title.
 // 1: Show a current page url.
 pref("browser.chrome.titlebarMode", 0);
-
-// Hide common parts of URLs like "www." or "http://"
-pref("browser.urlbar.trimURLs", true);
 
 #ifdef MOZ_PKG_SPECIAL
 // Disable webgl on ARMv6 because running the reftests takes

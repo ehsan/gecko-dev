@@ -84,7 +84,7 @@ class DOMBindingAnchor
 
 public:
   DOMBindingAnchor()
-  : mBinding(nullptr)
+  : mBinding(NULL)
   { }
 
   DOMBindingAnchor(T* aBinding)

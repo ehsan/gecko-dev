@@ -46,12 +46,12 @@ class SetElemICInspector : public ICInspector
 class BaselineInspector
 {
   private:
-    JSScript *script;
+    RootedScript script;
     ICEntry *prevLookedUpEntry;
 
   public:
-    BaselineInspector(JSScript *script)
-      : script(script), prevLookedUpEntry(nullptr)
+    BaselineInspector(JSContext *cx, JSScript *rawScript)
+      : script(cx, rawScript), prevLookedUpEntry(nullptr)
     {
         JS_ASSERT(script);
     }
@@ -113,9 +113,6 @@ class BaselineInspector
 
     JSObject *getTemplateObject(jsbytecode *pc);
     JSObject *getTemplateObjectForNative(jsbytecode *pc, Native native);
-
-    DeclEnvObject *templateDeclEnvObject();
-    CallObject *templateCallObject();
 };
 
 } // namespace jit

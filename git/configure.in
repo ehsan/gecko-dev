@@ -231,10 +231,11 @@ if test -n "$gonkdir" ; then
     17|18)
         GONK_INCLUDES="-I$gonkdir/frameworks/native/include -I$gonkdir/frameworks/av/include -I$gonkdir/frameworks/av/include/media -I$gonkdir/frameworks/av/include/camera -I$gonkdir/frameworks/native/include/media/openmax -I$gonkdir/frameworks/av/media/libstagefright/include"
         if test -d "$gonkdir/external/bluetooth/bluez"; then
-          GONK_INCLUDES="$GONK_INCLUDES -I$gonkdir/external/dbus -I$gonkdir/external/bluetooth/bluez/lib"
+            GONK_INCLUDES="$GONK_INCLUDES -I$gonkdir/external/dbus -I$gonkdir/external/bluetooth/bluez/lib"
             MOZ_B2G_BT=1
             MOZ_B2G_BT_BLUEZ=1
-        elif test -d "$gonkdir/external/bluetooth/bluedroid"; then
+        fi
+        if test -d "$gonkdir/external/bluetooth/bluedroid"; then
             MOZ_B2G_BT=1
             MOZ_B2G_BT_BLUEDROID=1
         fi
@@ -3985,7 +3986,7 @@ MOZ_PDF_PRINTING=
 MOZ_DISABLE_CRYPTOLEGACY=
 NSS_DISABLE_DBM=
 NECKO_COOKIES=1
-NECKO_PROTOCOLS_DEFAULT="about app data file ftp http res viewsource websocket wyciwyg device"
+NECKO_PROTOCOLS_DEFAULT="about data file ftp http res viewsource websocket wyciwyg device"
 USE_ARM_KUSER=
 BUILD_CTYPES=1
 MOZ_USE_NATIVE_POPUP_WINDOWS=
@@ -5375,7 +5376,7 @@ AC_SUBST(MOZ_NATIVE_LIBVPX)
 AC_SUBST(MOZ_LIBVPX_CFLAGS)
 AC_SUBST(MOZ_LIBVPX_LIBS)
 
-if test "$MOZ_WEBM" -o "$MOZ_OGG"; then
+if test "$MOZ_WEBM"; then
     MOZ_CUBEB=1
     if test "$MOZ_SAMPLE_TYPE_FLOAT32"; then
         MOZ_VORBIS=1
@@ -5497,21 +5498,8 @@ if test -n "$MOZ_CUBEB"; then
     AC_DEFINE(MOZ_CUBEB)
 fi
 
-if test -n "$MOZ_OPUS" -a -z "$MOZ_OGG"; then
-    AC_MSG_ERROR([MOZ_OPUS requires MOZ_OGG which is disabled.])
-fi
-
-if test -n "$MOZ_VORBIS" -a -z "$MOZ_OGG"; then
-    AC_MSG_ERROR([MOZ_VORBIS requires MOZ_OGG which is disabled.
-Note that you need vorbis support for WebM playback.])
-fi
-
 if test -n "$MOZ_VORBIS" -a -n "$MOZ_TREMOR"; then
     AC_MSG_ERROR([MOZ_VORBIS and MOZ_TREMOR are mutually exclusive!  The build system should not allow them both to be set, but they are.  Please file a bug at https://bugzilla.mozilla.org/])
-fi
-
-if test -n "$MOZ_WEBRTC" -a -z "$MOZ_OPUS"; then
-    AC_MSG_ERROR([MOZ_WEBRTC requires MOZ_OPUS which is disabled.])
 fi
 
 if test -n "$MOZ_VORBIS"; then
@@ -8341,11 +8329,6 @@ AC_SUBST(MOZ_POST_DSO_LIB_COMMAND)
 AC_SUBST(MOZ_POST_PROGRAM_COMMAND)
 AC_SUBST(MOZ_LINKER_EXTRACT)
 
-AC_SUBST(MOZ_JSDOWNLOADS)
-if test -n "$MOZ_JSDOWNLOADS"; then
-  AC_DEFINE(MOZ_JSDOWNLOADS)
-fi
-
 dnl ========================================================
 dnl = Mac bundle name prefix
 dnl ========================================================
@@ -8511,14 +8494,6 @@ COMPILE_CXXFLAGS=`echo \
     $_DEFINES_CXXFLAGS \
 	$_DEPEND_CFLAGS \
     $COMPILE_CXXFLAGS`
-
-HOST_CFLAGS=`echo \
-    $HOST_CFLAGS \
-    $_DEPEND_CFLAGS`
-
-HOST_CXXFLAGS=`echo \
-    $HOST_CXXFLAGS \
-    $_DEPEND_CFLAGS`
 
 AC_SUBST(SYSTEM_LIBXUL)
 AC_SUBST(MOZ_NATIVE_JPEG)
@@ -8772,10 +8747,17 @@ HAVE_SYS_VFS_H
 HAVE_SYS_MOUNT_H
 "
 
+# FUTURE? Consider moving all these to moz.build files.
+AC_CONFIG_HEADER(
+netwerk/necko-config.h
+xpcom/xpcom-config.h
+xpcom/xpcom-private.h
+)
+
 AC_SUBST(STLPORT_LIBS)
 
 export WRITE_MOZINFO=1
-AC_OUTPUT()
+AC_OUTPUT([mozilla-config.h])
 unset WRITE_MOZINFO
 
 # Hack around an Apple bug that affects the egrep that comes with OS X 10.7.

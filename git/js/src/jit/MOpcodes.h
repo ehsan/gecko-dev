@@ -24,7 +24,6 @@ namespace jit {
     _(Beta)                                                                 \
     _(OsrValue)                                                             \
     _(OsrScopeChain)                                                        \
-    _(OsrReturnValue)                                                       \
     _(OsrArgumentsObject)                                                   \
     _(ReturnFromCtor)                                                       \
     _(CheckOverRecursed)                                                    \
@@ -185,7 +184,6 @@ namespace jit {
     _(AsmJSUDiv)                                                            \
     _(AsmJSUMod)                                                            \
     _(AsmJSUnsignedToDouble)                                                \
-    _(AsmJSUnsignedToFloat32)                                               \
     _(AsmJSLoadHeap)                                                        \
     _(AsmJSStoreHeap)                                                       \
     _(AsmJSLoadGlobalVar)                                                   \

@@ -193,7 +193,7 @@ ShutdownVolumeServiceTest()
 {
 #if TEST_NSVOLUME_OBSERVER
   DBG("ShutdownVolumeServiceTestIOThread called");
-  sTestObserver = nullptr;
+  sTestObserver = NULL;
 #endif
 }
 

@@ -16,7 +16,7 @@
 namespace js {
 
 namespace jit {
-class JitCompartment;
+class IonCompartment;
 }
 
 namespace gc {
@@ -196,9 +196,9 @@ struct JSCompartment
 
     void                         *data;
 
-  private:
     js::ObjectMetadataCallback   objectMetadataCallback;
 
+  private:
     js::WrapperMap               crossCompartmentWrappers;
 
   public:
@@ -326,12 +326,6 @@ struct JSCompartment
     void purge();
     void clearTables();
 
-    bool hasObjectMetadataCallback() const { return objectMetadataCallback; }
-    void setObjectMetadataCallback(js::ObjectMetadataCallback callback);
-    bool callObjectMetadataCallback(JSContext *cx, JSObject **obj) const {
-        return objectMetadataCallback(cx, obj);
-    }
-
     void findOutgoingEdges(js::gc::ComponentFinder<JS::Zone> &finder);
 
     js::DtoaCache dtoaCache;
@@ -405,12 +399,12 @@ struct JSCompartment
 
 #ifdef JS_ION
   private:
-    js::jit::JitCompartment *jitCompartment_;
+    js::jit::IonCompartment *ionCompartment_;
 
   public:
-    bool ensureJitCompartmentExists(JSContext *cx);
-    js::jit::JitCompartment *jitCompartment() {
-        return jitCompartment_;
+    bool ensureIonCompartmentExists(JSContext *cx);
+    js::jit::IonCompartment *ionCompartment() {
+        return ionCompartment_;
     }
 #endif
 };

@@ -23,17 +23,13 @@ from .data import (
     DirectoryTraversal,
     Exports,
     GeneratedEventWebIDLFile,
-    GeneratedInclude,
     GeneratedWebIDLFile,
-    HeaderFileSubstitution,
-    InstallationTarget,
     IPDLFile,
     LocalInclude,
     PreprocessedTestWebIDLFile,
     PreprocessedWebIDLFile,
     Program,
     ReaderSummary,
-    SandboxWrapped,
     TestWebIDLFile,
     TestManifest,
     VariablePassthru,
@@ -100,12 +96,14 @@ class TreeMetadataEmitter(LoggingMixin):
         for o in self._emit_directory_traversal_from_sandbox(sandbox): yield o
 
         for path in sandbox['CONFIGURE_SUBST_FILES']:
-            yield self._create_substitution(ConfigFileSubstitution, sandbox,
-                path)
+            if os.path.isabs(path):
+                path = path[1:]
 
-        for path in sandbox['CONFIGURE_DEFINE_FILES']:
-            yield self._create_substitution(HeaderFileSubstitution, sandbox,
-                path)
+            sub = ConfigFileSubstitution(sandbox)
+            sub.input_path = os.path.join(sandbox['SRCDIR'], '%s.in' % path)
+            sub.output_path = os.path.join(sandbox['OBJDIR'], path)
+            sub.relpath = path
+            yield sub
 
         # XPIDL source files get processed and turned into .h and .xpt files.
         # If there are multiple XPIDL files in a directory, they get linked
@@ -128,7 +126,7 @@ class TreeMetadataEmitter(LoggingMixin):
             yield XPIDLFile(sandbox, mozpath.join(sandbox['SRCDIR'], idl),
                 xpidl_module)
 
-        for symbol in ('SOURCES', 'GTEST_SOURCES', 'HOST_SOURCES', 'UNIFIED_SOURCES'):
+        for symbol in ('CPP_SOURCES', 'CSRCS'):
             for src in (sandbox[symbol] or []):
                 if not os.path.exists(os.path.join(sandbox['SRCDIR'], src)):
                     raise SandboxValidationError('Reference to a file that '
@@ -143,7 +141,11 @@ class TreeMetadataEmitter(LoggingMixin):
             # Makefile.in : moz.build
             ANDROID_GENERATED_RESFILES='ANDROID_GENERATED_RESFILES',
             ANDROID_RESFILES='ANDROID_RESFILES',
+            ASFILES='ASFILES',
+            CMMSRCS='CMMSRCS',
+            CPPSRCS='CPP_SOURCES',
             CPP_UNIT_TESTS='CPP_UNIT_TESTS',
+            CSRCS='CSRCS',
             EXPORT_LIBRARY='EXPORT_LIBRARY',
             EXTRA_COMPONENTS='EXTRA_COMPONENTS',
             EXTRA_JS_MODULES='EXTRA_JS_MODULES',
@@ -152,6 +154,11 @@ class TreeMetadataEmitter(LoggingMixin):
             FAIL_ON_WARNINGS='FAIL_ON_WARNINGS',
             FORCE_SHARED_LIB='FORCE_SHARED_LIB',
             FORCE_STATIC_LIB='FORCE_STATIC_LIB',
+            GTEST_CMMSRCS='GTEST_CMM_SOURCES',
+            GTEST_CPPSRCS='GTEST_CPP_SOURCES',
+            GTEST_CSRCS='GTEST_C_SOURCES',
+            HOST_CPPSRCS='HOST_CPPSRCS',
+            HOST_CSRCS='HOST_CSRCS',
             HOST_LIBRARY_NAME='HOST_LIBRARY_NAME',
             IS_COMPONENT='IS_COMPONENT',
             JS_MODULES_PATH='JS_MODULES_PATH',
@@ -165,34 +172,11 @@ class TreeMetadataEmitter(LoggingMixin):
             SDK_LIBRARY='SDK_LIBRARY',
             SHARED_LIBRARY_LIBS='SHARED_LIBRARY_LIBS',
             SIMPLE_PROGRAMS='SIMPLE_PROGRAMS',
+            SSRCS='SSRCS',
         )
         for mak, moz in varmap.items():
             if sandbox[moz]:
                 passthru.variables[mak] = sandbox[moz]
-
-        # NO_VISIBILITY_FLAGS is slightly different
-        if sandbox['NO_VISIBILITY_FLAGS']:
-            passthru.variables['VISIBILITY_FLAGS'] = ''
-
-        varmap = dict(
-            ASFILES=('SOURCES', ('.s', '.asm')),
-            CSRCS=('SOURCES', '.c'),
-            CMMSRCS=('SOURCES', '.mm'),
-            CPPSRCS=('SOURCES', ('.cc', '.cpp')),
-            SSRCS=('SOURCES', '.S'),
-            HOST_CPPSRCS=('HOST_SOURCES', ('.cc', '.cpp')),
-            HOST_CSRCS=('HOST_SOURCES', '.c'),
-            GTEST_CMMSRCS=('GTEST_SOURCES', '.mm'),
-            GTEST_CPPSRCS=('GTEST_SOURCES', ('.cc', '.cpp')),
-            GTEST_CSRCS=('GTEST_SOURCES', '.c'),
-            UNIFIED_CSRCS=('UNIFIED_SOURCES', '.c'),
-            UNIFIED_CPPSRCS=('UNIFIED_SOURCES', ('.cc', '.cpp')),
-        )
-        for mak, (moz, ext) in varmap.items():
-            if sandbox[moz]:
-                filtered = [f for f in sandbox[moz] if f.endswith(ext)]
-                if filtered:
-                    passthru.variables[mak] = filtered
 
         if passthru.variables:
             yield passthru
@@ -215,7 +199,6 @@ class TreeMetadataEmitter(LoggingMixin):
             ('GENERATED_WEBIDL_FILES', GeneratedWebIDLFile),
             ('IPDL_SOURCES', IPDLFile),
             ('LOCAL_INCLUDES', LocalInclude),
-            ('GENERATED_INCLUDES', GeneratedInclude),
             ('PREPROCESSED_TEST_WEBIDL_FILES', PreprocessedTestWebIDLFile),
             ('PREPROCESSED_WEBIDL_FILES', PreprocessedWebIDLFile),
             ('TEST_WEBIDL_FILES', TestWebIDLFile),
@@ -224,10 +207,6 @@ class TreeMetadataEmitter(LoggingMixin):
         for sandbox_var, klass in simple_lists:
             for name in sandbox.get(sandbox_var, []):
                 yield klass(sandbox, name)
-
-        if sandbox.get('FINAL_TARGET') or sandbox.get('XPI_NAME') or \
-                sandbox.get('DIST_SUBDIR'):
-            yield InstallationTarget(sandbox)
 
         # While there are multiple test manifests, the behavior is very similar
         # across them. We enforce this by having common handling of all
@@ -264,20 +243,6 @@ class TreeMetadataEmitter(LoggingMixin):
                 for obj in self._process_test_manifest(sandbox, info, path):
                     yield obj
 
-        for name, jar in sandbox.get('JAVA_JAR_TARGETS', {}).items():
-            yield SandboxWrapped(sandbox, jar)
-
-    def _create_substitution(self, cls, sandbox, path):
-        if os.path.isabs(path):
-            path = path[1:]
-
-        sub = cls(sandbox)
-        sub.input_path = os.path.join(sandbox['SRCDIR'], '%s.in' % path)
-        sub.output_path = os.path.join(sandbox['OBJDIR'], path)
-        sub.relpath = path
-
-        return sub
-
     def _process_test_manifest(self, sandbox, info, manifest_path):
         flavor, install_prefix, filter_inactive = info
 
@@ -308,28 +273,15 @@ class TreeMetadataEmitter(LoggingMixin):
 
             finder = FileFinder(base=manifest_dir, find_executables=False)
 
-            # "head" and "tail" lists.
-            # All manifests support support-files.
-            #
-            # Keep a set of already seen support file patterns, because
-            # repeatedly processing the patterns from the default section
-            # for every test is quite costly (see bug 922517).
-            extras = (('head', set()),
-                      ('tail', set()),
-                      ('support-files', set()))
-
             for test in filtered:
-                obj.tests.append(test)
-
                 obj.installs[mozpath.normpath(test['path'])] = \
                     mozpath.join(out_dir, test['relpath'])
 
-                for thing, seen in extras:
-                    value = test.get(thing, '')
-                    if value in seen:
-                        continue
-                    seen.add(value)
-                    for pattern in value.split():
+                # xpcshell defines extra files to install in the
+                # "head" and "tail" lists.
+                # All manifests support support-files.
+                for thing in ('head', 'tail', 'support-files'):
+                    for pattern in test.get(thing, '').split():
                         # We only support globbing on support-files because
                         # the harness doesn't support * for head and tail.
                         #

@@ -13,48 +13,63 @@
   min-width: 50px;
 }
 
-#sources-and-editor-splitter {
+#sources-container + .devtools-side-splitter {
   -moz-border-start-color: transparent;
 }
 
-/* Sources toolbar */
-
-#sources-toolbar {
-  border: none; /* Remove the devtools-toolbar's black bottom border. */
-  -moz-border-end: 1px solid #222426; /* Match the sources list's dark margin. */
-}
-
-#sources-toolbar .devtools-toolbarbutton {
-  min-width: 32px;
-}
-
 #pretty-print {
+  min-width: 0;
   font-weight: bold;
 }
 
-#black-box {
-  list-style-image: url(debugger-blackbox.png);
-  -moz-image-region: rect(0px,16px,16px,0px);
+#sources .side-menu-widget-item-checkbox {
+  -moz-appearance: none;
+  -moz-margin-end: -6px;
+  padding: 0;
+  opacity: 0;
+  transition: opacity .15s ease 0s;
 }
 
-#black-box[checked] {
-  -moz-image-region: rect(0px,32px,16px,16px);
+/* Only show the checkbox when the source is hovered over, is selected, or if it
+ * is not checked. */
+#sources .side-menu-widget-item:hover > .side-menu-widget-item-checkbox,
+#sources .side-menu-widget-item.selected > .side-menu-widget-item-checkbox,
+#sources .side-menu-widget-item-checkbox:not([checked]) {
+  opacity: 1;
+  transition: opacity .15s ease-out 0s;
 }
 
-#sources .black-boxed {
+#sources .side-menu-widget-item-checkbox > .checkbox-check {
+  -moz-appearance: none;
+  background: none;
+  background-image: url(itemToggle.png);
+  background-repeat: no-repeat;
+  background-clip: content-box;
+  background-size: 32px 16px;
+  background-position: -16px 0;
+  width: 16px;
+  height: 16px;
+  border: 0;
+}
+
+#sources .side-menu-widget-item-checkbox[checked] > .checkbox-check {
+  background-position: 0 0;
+}
+
+#sources .side-menu-widget-item-checkbox:not([checked]) ~ .side-menu-widget-item-contents {
   color: #888;
 }
 
-#sources .black-boxed > .dbg-breakpoint {
+#sources .side-menu-widget-item-checkbox:not([checked]) ~ .side-menu-widget-item-contents > .dbg-breakpoint {
   display: none;
 }
 
-#sources .black-boxed + .side-menu-widget-item-arrow:-moz-locale-dir(ltr) {
+#sources .side-menu-widget-item.selected > .side-menu-widget-item-checkbox:not([checked]) ~ .side-menu-widget-item-arrow:-moz-locale-dir(ltr) {
   background-image: none;
   box-shadow: inset -1px 0 0 #222426;
 }
 
-#sources .black-boxed + .side-menu-widget-item-arrow:-moz-locale-dir(rtl) {
+#sources .side-menu-widget-item.selected > .side-menu-widget-item-checkbox:not([checked]) ~ .side-menu-widget-item-arrow:-moz-locale-dir(rtl) {
   background-image: none;
   box-shadow: inset 1px 0 0 #222426;
 }
@@ -66,6 +81,7 @@
   background: url(background-noise-toolbar.png) rgb(61,69,76);
   /* Prevent the container deck from aquiring the height from this message. */
   min-height: 1px;
+  padding: 25vh 0;
   color: white;
 }
 
@@ -130,7 +146,7 @@
 /* Sources and breakpoints view */
 
 .dbg-breakpoint {
-  -moz-margin-start: 4px;
+  -moz-margin-start: -14px;
 }
 
 .dbg-breakpoint-line {
@@ -152,7 +168,7 @@
 /* Instruments pane (watch expressions, variables, event listeners...) */
 
 #instruments-pane > tabs > tab {
-  min-height: 25px !important;
+  min-height: 2em !important;
   padding: 0 !important;
 }
 
@@ -385,8 +401,7 @@
   list-style-image: url("chrome://browser/skin/devtools/debugger-step-out.png");
 }
 
-#debugger-controls > toolbarbutton,
-#sources-controls > toolbarbutton {
+#debugger-controls > toolbarbutton {
   margin: 0;
   box-shadow: none;
   border-radius: 0;
@@ -395,13 +410,11 @@
   outline-offset: -3px;
 }
 
-#debugger-controls > toolbarbutton:last-of-type,
-#sources-controls > toolbarbutton:last-of-type {
+#debugger-controls > toolbarbutton:last-of-type {
   -moz-border-end-width: 0;
 }
 
-#debugger-controls,
-#sources-controls {
+#debugger-controls {
   box-shadow: 0 1px 0 hsla(209,29%,72%,.15) inset,
               0 0 0 1px hsla(209,29%,72%,.1) inset,
               0 0 0 1px hsla(209,29%,72%,.1),
@@ -429,29 +442,4 @@
 
 #instruments-pane-toggle:hover:active {
   -moz-image-region: rect(0px,48px,16px,32px);
-}
-
-/* Horizontal vs. vertical layout */
-
-#vertical-layout-panes-container {
-  min-height: 35vh;
-  max-height: 80vh;
-}
-
-#body[layout=vertical] #instruments-pane {
-  margin: 0 !important;
-  /* To prevent all the margin hacks to hide the sidebar. */
-}
-
-#body[layout=vertical] .side-menu-widget-container {
-  box-shadow: none !important;
-}
-
-#body[layout=vertical] .side-menu-widget-item-arrow {
-  background-image: none !important;
-}
-
-#body[layout=vertical] .side-menu-widget-group,
-#body[layout=vertical] .side-menu-widget-item {
-  -moz-margin-end: 0;
 }

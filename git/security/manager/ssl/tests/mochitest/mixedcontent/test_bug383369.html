@@ -46,11 +46,8 @@
 
     var useJSTransfer = false;
     try {
-      // This method throws an exception if the old Download Manager is disabled.
-      Services.downloads.activeDownloadCount;
-    } catch (ex) {
-      useJSTransfer = true;
-    }
+      useJSTransfer = prefs.getBoolPref("useJSTransfer");
+    } catch (ex) { }
 
     if (useJSTransfer) {
       var Downloads = SpecialPowers.Cu.import("resource://gre/modules/Downloads.jsm").Downloads;

@@ -10,7 +10,7 @@ EXPORTS += [
     'mozStorageCID.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'mozStorageModule.cpp',
 ]
 

@@ -12,9 +12,25 @@
 #include "mozilla/Compiler.h"
 
 /*
+ * MOZ_INLINE is a macro which expands to tell the compiler that the method
+ * decorated with it should be inlined.  This macro is usable from C and C++
+ * code, even though C89 does not support the |inline| keyword.  The compiler
+ * may ignore this directive if it chooses.
+ */
+#if defined(__cplusplus)
+#  define MOZ_INLINE            inline
+#elif defined(_MSC_VER)
+#  define MOZ_INLINE            __inline
+#elif defined(__GNUC__)
+#  define MOZ_INLINE            __inline__
+#else
+#  define MOZ_INLINE            inline
+#endif
+
+/*
  * MOZ_ALWAYS_INLINE is a macro which expands to tell the compiler that the
  * method decorated with it must be inlined, even if the compiler thinks
- * otherwise.  This is only a (much) stronger version of the inline hint:
+ * otherwise.  This is only a (much) stronger version of the MOZ_INLINE hint:
  * compilers are not guaranteed to respect it (although they're much more likely
  * to do so).
  *
@@ -24,17 +40,15 @@
 #if defined(_MSC_VER)
 #  define MOZ_ALWAYS_INLINE_EVEN_DEBUG     __forceinline
 #elif defined(__GNUC__)
-#  define MOZ_ALWAYS_INLINE_EVEN_DEBUG     __attribute__((always_inline)) inline
+#  define MOZ_ALWAYS_INLINE_EVEN_DEBUG     __attribute__((always_inline)) MOZ_INLINE
 #else
-#  define MOZ_ALWAYS_INLINE_EVEN_DEBUG     inline
+#  define MOZ_ALWAYS_INLINE_EVEN_DEBUG     MOZ_INLINE
 #endif
 
-#if !defined(DEBUG)
-#  define MOZ_ALWAYS_INLINE     MOZ_ALWAYS_INLINE_EVEN_DEBUG
-#elif defined(_MSC_VER) && !defined(__cplusplus)
-#  define MOZ_ALWAYS_INLINE     __inline
+#if defined(DEBUG)
+#  define MOZ_ALWAYS_INLINE     MOZ_INLINE
 #else
-#  define MOZ_ALWAYS_INLINE     inline
+#  define MOZ_ALWAYS_INLINE     MOZ_ALWAYS_INLINE_EVEN_DEBUG
 #endif
 
 /*

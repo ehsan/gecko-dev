@@ -722,39 +722,41 @@ gfxPlatformGtk::SetPrefFontEntries(const nsCString& aKey, nsTArray<nsRefPtr<gfxF
 
 #if (MOZ_WIDGET_GTK == 2)
 void
-gfxPlatformGtk::SetGdkDrawable(cairo_surface_t *target,
+gfxPlatformGtk::SetGdkDrawable(gfxASurface *target,
                                GdkDrawable *drawable)
 {
-    if (cairo_surface_status(target))
+    if (target->CairoStatus())
         return;
 
     g_object_ref(drawable);
 
-    cairo_surface_set_user_data (target,
+    cairo_surface_set_user_data (target->CairoSurface(),
                                  &cairo_gdk_drawable_key,
                                  drawable,
                                  g_object_unref);
 }
 
 GdkDrawable *
-gfxPlatformGtk::GetGdkDrawable(cairo_surface_t *target)
+gfxPlatformGtk::GetGdkDrawable(gfxASurface *target)
 {
-    if (cairo_surface_status(target))
+    if (target->CairoStatus())
         return nullptr;
 
     GdkDrawable *result;
 
-    result = (GdkDrawable*) cairo_surface_get_user_data (target,
+    result = (GdkDrawable*) cairo_surface_get_user_data (target->CairoSurface(),
                                                          &cairo_gdk_drawable_key);
     if (result)
         return result;
 
 #ifdef MOZ_X11
-    if (cairo_surface_get_type(target) != CAIRO_SURFACE_TYPE_XLIB)
+    if (target->GetType() != gfxSurfaceTypeXlib)
         return nullptr;
 
+    gfxXlibSurface *xs = static_cast<gfxXlibSurface*>(target);
+
     // try looking it up in gdk's table
-    result = (GdkDrawable*) gdk_xid_table_lookup(cairo_xlib_surface_get_drawable(target));
+    result = (GdkDrawable*) gdk_xid_table_lookup(xs->XDrawable());
     if (result) {
         SetGdkDrawable(target, result);
         return result;

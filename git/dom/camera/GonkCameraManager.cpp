@@ -16,6 +16,7 @@
 
 #include <camera/Camera.h>
 
+#include "jsapi.h"
 #include "GonkCameraControl.h"
 #include "DOMCameraManager.h"
 #include "CameraCommon.h"

@@ -344,21 +344,6 @@ var SelectionHelperUI = {
     return false;
   },
 
-
-  /*
-   * Observers
-   */
-
-  observe: function (aSubject, aTopic, aData) {
-  switch (aTopic) {
-    case "attach_edit_session_to_content":
-      let event = aSubject;
-      SelectionHelperUI.attachEditSession(Browser.selectedTab.browser,
-                                          event.clientX, event.clientY);
-      break;
-    }
-  },
-
   /*
    * Public apis
    */
@@ -509,10 +494,6 @@ var SelectionHelperUI = {
   /*
    * Init and shutdown
    */
-
-  init: function () {
-    Services.obs.addObserver(this, "attach_edit_session_to_content", false);
-  },
 
   _init: function _init(aMsgTarget) {
     // store the target message manager
@@ -791,16 +772,6 @@ var SelectionHelperUI = {
   /*
    * Event handlers for document events
    */
-
-   urlbarClick: function() {
-    // Workaround for bug 925457: taping browser chrome resets last tap
-    // co-ordinates to 'undefined' so that we know not to shift the browser
-    // when the keyboard is up (in SelectionHandler._calcNewContentPosition())
-    Browser.selectedTab.browser.messageManager.sendAsyncMessage("Browser:ResetLastPos", {
-      xPos: null,
-      yPos: null
-    });
-   },
 
   /*
    * Handles taps that move the current caret around in text edits,

@@ -32,9 +32,9 @@ public:
           const sp<IOMX> &omx,
           const sp<MetaData> &meta, bool createEncoder,
           const sp<MediaSource> &source,
-          const char *matchComponentName = nullptr,
+          const char *matchComponentName = NULL,
           uint32_t flags = 0,
-          const sp<ANativeWindow> &nativeWindow = nullptr);
+          const sp<ANativeWindow> &nativeWindow = NULL);
 
     MediaResourceManagerClient::State getState();
 
@@ -47,13 +47,13 @@ public:
     virtual void statusChanged(int event);
 
     // MediaSource
-    virtual status_t start(MetaData *params = nullptr);
+    virtual status_t start(MetaData *params = NULL);
     virtual status_t stop();
 
     virtual sp<MetaData> getFormat();
 
     virtual status_t read(
-            MediaBuffer **buffer, const ReadOptions *options = nullptr);
+            MediaBuffer **buffer, const ReadOptions *options = NULL);
 
     virtual status_t pause();
 

@@ -384,14 +384,14 @@ private:
     {
         NPObjectData(const NPObject* key)
             : nsPtrHashKey<NPObject>(key)
-            , instance(nullptr)
-            , actor(nullptr)
+            , instance(NULL)
+            , actor(NULL)
         { }
 
-        // never nullptr
+        // never NULL
         PluginInstanceChild* instance;
 
-        // sometimes nullptr (no actor associated with an NPObject)
+        // sometimes NULL (no actor associated with an NPObject)
         PluginScriptableObjectChild* actor;
     };
     /**

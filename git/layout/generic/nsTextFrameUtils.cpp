@@ -21,7 +21,11 @@ static bool IsDiscardable(PRUnichar ch, uint32_t* aFlags)
     *aFlags |= nsTextFrameUtils::TEXT_HAS_SHY;
     return true;
   }
-  return IsBidiControl(ch);
+  if ((ch & 0xFF00) != 0x2000) {
+    // Not a Bidi control character
+    return false;
+  }
+  return IS_BIDI_CONTROL_CHAR(ch);
 }
 
 static bool IsDiscardable(uint8_t ch, uint32_t* aFlags)

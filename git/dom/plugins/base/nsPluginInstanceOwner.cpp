@@ -166,7 +166,7 @@ nsPluginInstanceOwner::GetImageContainer()
   // Right now we only draw with Gecko layers on Honeycomb and higher. See Paint()
   // for what we do on other versions.
   if (AndroidBridge::Bridge()->GetAPIVersion() < 11)
-    return nullptr;
+    return NULL;
   
   container = LayerManager::CreateImageContainer();
 
@@ -1354,8 +1354,8 @@ NPEventModel nsPluginInstanceOwner::GetEventModel()
 
 #define DEFAULT_REFRESH_RATE 20 // 50 FPS
 
-nsCOMPtr<nsITimer>               *nsPluginInstanceOwner::sCATimer = nullptr;
-nsTArray<nsPluginInstanceOwner*> *nsPluginInstanceOwner::sCARefreshListeners = nullptr;
+nsCOMPtr<nsITimer>                *nsPluginInstanceOwner::sCATimer = NULL;
+nsTArray<nsPluginInstanceOwner*>  *nsPluginInstanceOwner::sCARefreshListeners = NULL;
 
 void nsPluginInstanceOwner::CARefresh(nsITimer *aTimer, void *aClosure) {
   if (!sCARefreshListeners) {
@@ -1412,7 +1412,7 @@ void nsPluginInstanceOwner::AddToCARefreshTimer() {
 
   if (sCARefreshListeners->Length() == 1) {
     *sCATimer = do_CreateInstance("@mozilla.org/timer;1");
-    (*sCATimer)->InitWithFuncCallback(CARefresh, nullptr, 
+    (*sCATimer)->InitWithFuncCallback(CARefresh, NULL, 
                    DEFAULT_REFRESH_RATE, nsITimer::TYPE_REPEATING_SLACK);
   }
 }
@@ -1428,10 +1428,10 @@ void nsPluginInstanceOwner::RemoveFromCARefreshTimer() {
     if (sCATimer) {
       (*sCATimer)->Cancel();
       delete sCATimer;
-      sCATimer = nullptr;
+      sCATimer = NULL;
     }
     delete sCARefreshListeners;
-    sCARefreshListeners = nullptr;
+    sCARefreshListeners = NULL;
   }
 }
 
@@ -1477,7 +1477,7 @@ void nsPluginInstanceOwner::RenderCoreAnimation(CGContextRef aCGContext,
   }
 
   if (mCARenderer->isInit() == false) {
-    void *caLayer = nullptr;
+    void *caLayer = NULL;
     nsresult rv = mInstance->GetValueFromPlugin(NPPVpluginCoreAnimationLayer, &caLayer);
     if (NS_FAILED(rv) || !caLayer) {
       return;
@@ -1494,12 +1494,12 @@ void nsPluginInstanceOwner::RenderCoreAnimation(CGContextRef aCGContext,
     FixUpPluginWindow(ePluginPaintEnable);
   }
 
-  CGImageRef caImage = nullptr;
+  CGImageRef caImage = NULL;
   nsresult rt = mCARenderer->Render(aWidth, aHeight, scaleFactor, &caImage);
   if (rt == NS_OK && mIOSurface && mColorProfile) {
     nsCARenderer::DrawSurfaceToCGContext(aCGContext, mIOSurface, mColorProfile,
                                          0, 0, aWidth, aHeight);
-  } else if (rt == NS_OK && caImage != nullptr) {
+  } else if (rt == NS_OK && caImage != NULL) {
     // Significant speed up by resetting the scaling
     ::CGContextSetInterpolationQuality(aCGContext, kCGInterpolationNone );
     ::CGContextTranslateCTM(aCGContext, 0, (double) aHeight * scaleFactor);
@@ -1830,10 +1830,9 @@ nsresult nsPluginInstanceOwner::DispatchKeyToPlugin(nsIDOMEvent* aKeyEvent)
 #endif
 
   if (mInstance) {
-    WidgetKeyboardEvent* keyEvent =
-      aKeyEvent->GetInternalNSEvent()->AsKeyboardEvent();
-    if (keyEvent && keyEvent->eventStructType == NS_KEY_EVENT) {
-      nsEventStatus rv = ProcessEvent(*keyEvent);
+    WidgetEvent* event = aKeyEvent->GetInternalNSEvent();
+    if (event && event->eventStructType == NS_KEY_EVENT) {
+      nsEventStatus rv = ProcessEvent(*static_cast<WidgetGUIEvent*>(event));
       if (nsEventStatus_eConsumeNoDefault == rv) {
         aKeyEvent->PreventDefault();
         aKeyEvent->StopPropagation();
@@ -1865,11 +1864,10 @@ nsPluginInstanceOwner::ProcessMouseDown(nsIDOMEvent* aMouseEvent)
     }
   }
 
-  WidgetMouseEvent* mouseEvent =
-    aMouseEvent->GetInternalNSEvent()->AsMouseEvent();
-  if (mouseEvent && mouseEvent->eventStructType == NS_MOUSE_EVENT) {
-    mLastMouseDownButtonType = mouseEvent->button;
-    nsEventStatus rv = ProcessEvent(*mouseEvent);
+  WidgetEvent* event = aMouseEvent->GetInternalNSEvent();
+  if (event && event->eventStructType == NS_MOUSE_EVENT) {
+    mLastMouseDownButtonType = static_cast<WidgetMouseEvent*>(event)->button;
+    nsEventStatus rv = ProcessEvent(*static_cast<WidgetGUIEvent*>(event));
     if (nsEventStatus_eConsumeNoDefault == rv) {
       return aMouseEvent->PreventDefault(); // consume event
     }
@@ -1889,15 +1887,14 @@ nsresult nsPluginInstanceOwner::DispatchMouseToPlugin(nsIDOMEvent* aMouseEvent)
   if (!mWidgetVisible)
     return NS_OK;
 
-  WidgetMouseEvent* mouseEvent =
-    aMouseEvent->GetInternalNSEvent()->AsMouseEvent();
-  if (mouseEvent && mouseEvent->eventStructType == NS_MOUSE_EVENT) {
-    nsEventStatus rv = ProcessEvent(*mouseEvent);
+  WidgetEvent* event = aMouseEvent->GetInternalNSEvent();
+  if (event && event->eventStructType == NS_MOUSE_EVENT) {
+    nsEventStatus rv = ProcessEvent(*static_cast<WidgetGUIEvent*>(event));
     if (nsEventStatus_eConsumeNoDefault == rv) {
       aMouseEvent->PreventDefault();
       aMouseEvent->StopPropagation();
     }
-    if (mouseEvent->message == NS_MOUSE_BUTTON_UP) {
+    if (event->message == NS_MOUSE_BUTTON_UP) {
       mLastMouseDownButtonType = -1;
     }
   }
@@ -1929,9 +1926,9 @@ nsPluginInstanceOwner::HandleEvent(nsIDOMEvent* aEvent)
     // element above the plugin, the mouse is still above the plugin, and the
     // mouse-down event caused the element to disappear.  See bug 627649 and
     // bug 909678.
-    WidgetMouseEvent* mouseEvent = aEvent->GetInternalNSEvent()->AsMouseEvent();
-    if (mouseEvent &&
-        static_cast<int>(mouseEvent->button) != mLastMouseDownButtonType) {
+    WidgetMouseEvent *event =
+      static_cast<WidgetMouseEvent*>(aEvent->GetInternalNSEvent());
+    if (event && ((int) event->button != mLastMouseDownButtonType)) {
       aEvent->PreventDefault();
       return NS_OK;
     }
@@ -2041,7 +2038,8 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const WidgetGUIEvent& anEvent)
         // If we're in a dragging operation that started over another frame,
         // convert it into a mouse-entered event (in the Cocoa Event Model).
         // See bug 525078.
-        if (anEvent.AsMouseEvent()->button == WidgetMouseEvent::eLeftButton &&
+        if ((static_cast<const WidgetMouseEvent&>(anEvent).button ==
+               WidgetMouseEvent::eLeftButton) &&
             (nsIPresShell::GetCapturingContent() != mObjectFrame->GetContent())) {
           synthCocoaEvent.type = NPCocoaEventMouseEntered;
           synthCocoaEvent.data.mouse.pluginX = static_cast<double>(ptPx.x);
@@ -2076,11 +2074,12 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const WidgetGUIEvent& anEvent)
   }
 
   if ((response == kNPEventHandled || response == kNPEventStartIME) &&
-      !(anEvent.message == NS_MOUSE_BUTTON_DOWN &&
-        anEvent.AsMouseEvent()->button == WidgetMouseEvent::eLeftButton &&
-        !mContentFocused)) {
+      !(anEvent.eventStructType == NS_MOUSE_EVENT &&
+        anEvent.message == NS_MOUSE_BUTTON_DOWN &&
+        static_cast<const WidgetMouseEvent&>(anEvent).button ==
+          WidgetMouseEvent::eLeftButton &&
+        !mContentFocused))
     rv = nsEventStatus_eConsumeNoDefault;
-  }
 
   pluginWidget->EndDrawPlugin();
 #endif
@@ -2096,7 +2095,8 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const WidgetGUIEvent& anEvent)
       // XXX Should extend this list to synthesize events for more event
       // types
       pluginEvent.event = 0;
-      const WidgetMouseEvent* mouseEvent = anEvent.AsMouseEvent();
+      const WidgetMouseEvent* mouseEvent =
+        static_cast<const WidgetMouseEvent*>(&anEvent);
       switch (anEvent.message) {
       case NS_MOUSE_MOVE:
         pluginEvent.event = WM_MOUSEMOVE;
@@ -2215,7 +2215,8 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const WidgetGUIEvent& anEvent)
           mObjectFrame->GetContentRectRelativeToSelf().TopLeft();
         nsIntPoint pluginPoint(presContext->AppUnitsToDevPixels(appPoint.x),
                                presContext->AppUnitsToDevPixels(appPoint.y));
-        const WidgetMouseEvent& mouseEvent = *anEvent.AsMouseEvent();
+        const WidgetMouseEvent& mouseEvent =
+          static_cast<const WidgetMouseEvent&>(anEvent);
         // Get reference point relative to screen:
         LayoutDeviceIntPoint rootPoint(-1, -1);
         if (widget)
@@ -2795,18 +2796,18 @@ void nsPluginInstanceOwner::Paint(gfxContext* aContext,
   Visual* visual = DefaultVisualOfScreen(screen);
 
   renderer.Draw(aContext, nsIntSize(window->width, window->height),
-                rendererFlags, screen, visual);
+                rendererFlags, screen, visual, nullptr);
 }
 nsresult
-nsPluginInstanceOwner::Renderer::DrawWithXlib(cairo_surface_t* xsurface,
+nsPluginInstanceOwner::Renderer::DrawWithXlib(gfxXlibSurface* xsurface, 
                                               nsIntPoint offset,
                                               nsIntRect *clipRects, 
                                               uint32_t numClipRects)
 {
-  Screen *screen = cairo_xlib_surface_get_screen(xsurface);
+  Screen *screen = cairo_xlib_surface_get_screen(xsurface->CairoSurface());
   Colormap colormap;
   Visual* visual;
-  if (!gfxXlibSurface::GetColormapAndVisual(xsurface, &colormap, &visual)) {
+  if (!xsurface->GetColormapAndVisual(&colormap, &visual)) {
     NS_ERROR("Failed to get visual and colormap");
     return NS_ERROR_UNEXPECTED;
   }
@@ -2850,10 +2851,10 @@ nsPluginInstanceOwner::Renderer::DrawWithXlib(cairo_surface_t* xsurface,
     clipRect.height = mWindow->height;
     // Don't ask the plugin to draw outside the drawable.
     // This also ensures that the unsigned clip rectangle offsets won't be -ve.
+    gfxIntSize surfaceSize = xsurface->GetSize();
     clipRect.IntersectRect(clipRect,
                            nsIntRect(0, 0,
-                                     cairo_xlib_surface_get_width(xsurface),
-                                     cairo_xlib_surface_get_height(xsurface)));
+                                     surfaceSize.width, surfaceSize.height));
   }
 
   NPRect newClipRect;
@@ -2906,7 +2907,7 @@ nsPluginInstanceOwner::Renderer::DrawWithXlib(cairo_surface_t* xsurface,
     // set the drawing info
     exposeEvent.type = GraphicsExpose;
     exposeEvent.display = DisplayOfScreen(screen);
-    exposeEvent.drawable = cairo_xlib_surface_get_drawable(xsurface);
+    exposeEvent.drawable = xsurface->XDrawable();
     exposeEvent.x = dirtyRect.x;
     exposeEvent.y = dirtyRect.y;
     exposeEvent.width  = dirtyRect.width;
@@ -2989,7 +2990,7 @@ void* nsPluginInstanceOwner::GetPluginPortFromWidget()
 {
 //!!! Port must be released for windowless plugins on Windows, because it is HDC !!!
 
-  void* result = nullptr;
+  void* result = NULL;
   if (mWidget) {
 #ifdef XP_WIN
     if (mPluginWindow && (mPluginWindow->type == NPWindowTypeDrawable))
@@ -3081,7 +3082,7 @@ NS_IMETHODIMP nsPluginInstanceOwner::CreateWidget(void)
   }
 
   if (mObjectFrame) {
-    // nullptr widget is fine, will result in windowless setup.
+    // NULL widget is fine, will result in windowless setup.
     mObjectFrame->PrepForDrawing(mWidget);
   }
 

@@ -10,7 +10,7 @@ EXPORTS += [
     'nsBrowserCompsCID.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'nsModule.cpp',
 ]
 

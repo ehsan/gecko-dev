@@ -10,7 +10,7 @@ EXPORTS += [
     'nsToolkitCompsCID.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'nsToolkitCompsModule.cpp',
 ]
 

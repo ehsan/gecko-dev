@@ -33,9 +33,7 @@ protected:
 public:
   inline void TraceSelf(JSTracer* trc)
   {
-    if (mObj) {
-      JS_CallObjectTracer(trc, &mObj, "TypedArray.mObj");
-    }
+    JS_CallObjectTracer(trc, &mObj, "TypedArray.mObj");
   }
 
 private:

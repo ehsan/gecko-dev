@@ -11,7 +11,6 @@
 #include "mozilla/dom/TextTrackRegion.h"
 #include "mozilla/dom/TextTrackRegionList.h"
 #include "mozilla/dom/HTMLMediaElement.h"
-#include "mozilla/dom/HTMLTrackElement.h"
 
 namespace mozilla {
 namespace dom {
@@ -69,15 +68,12 @@ TextTrack::SetDefaultSettings()
   mRegionList = new TextTrackRegionList(mParent);
   mCuePos = 0;
   mDirty = false;
-  mReadyState = HTMLTrackElement::NONE;
 }
 
 void
 TextTrack::Update(double aTime)
 {
-  if (mCueList) {
-    mCueList->Update(aTime);
-  }
+  mCueList->Update(aTime);
 }
 
 JSObject*
@@ -172,22 +168,6 @@ TextTrack::GetActiveCues()
     mActiveCueList->AddCue(*cue);
   }
   return mActiveCueList;
-}
-
-uint16_t
-TextTrack::ReadyState() const
-{
-  return mReadyState;
-}
-
-void
-TextTrack::SetReadyState(uint16_t aState)
-{
-  mReadyState = aState;
-  if (mMediaElement && (mReadyState == HTMLTrackElement::LOADED ||
-      mReadyState == HTMLTrackElement::ERROR)) {
-    mMediaElement->RemoveTextTrack(this, true);
-  }
 }
 
 } // namespace dom

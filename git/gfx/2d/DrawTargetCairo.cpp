@@ -399,7 +399,6 @@ NeedIntermediateSurface(const Pattern& aPattern, const DrawOptions& aOptions)
 
 DrawTargetCairo::DrawTargetCairo()
   : mContext(nullptr)
-  , mLockedBits(nullptr)
 {
 }
 
@@ -409,7 +408,6 @@ DrawTargetCairo::~DrawTargetCairo()
   if (mSurface) {
     cairo_surface_destroy(mSurface);
   }
-  MOZ_ASSERT(!mLockedBits);
 }
 
 IntSize
@@ -433,31 +431,6 @@ DrawTargetCairo::Snapshot()
                                      CairoContentToGfxFormat(content),
                                      this);
   return mSnapshot;
-}
-
-bool
-DrawTargetCairo::LockBits(uint8_t** aData, IntSize* aSize,
-                          int32_t* aStride, SurfaceFormat* aFormat)
-{
-  if (cairo_surface_get_type(mSurface) == CAIRO_SURFACE_TYPE_IMAGE) {
-    WillChange();
-
-    mLockedBits = cairo_image_surface_get_data(mSurface);
-    *aData = mLockedBits;
-    *aSize = GetSize();
-    *aStride = cairo_image_surface_get_stride(mSurface);
-    *aFormat = GetFormat();
-    return true;
-  }
-
-  return false;
-}
-
-void
-DrawTargetCairo::ReleaseBits(uint8_t* aData)
-{
-  MOZ_ASSERT(mLockedBits == aData);
-  mLockedBits = nullptr;
 }
 
 void
@@ -512,10 +485,13 @@ DrawTargetCairo::DrawSurface(SourceSurface *aSurface,
 
   cairo_set_antialias(mContext, GfxAntialiasToCairoAntialias(aOptions.mAntialiasMode));
 
+  double clipX1, clipY1, clipX2, clipY2;
+  cairo_clip_extents(mContext, &clipX1, &clipY1, &clipX2, &clipY2);
+  Rect clip(clipX1, clipY1, clipX2 - clipX1, clipY2 - clipY1); // Narrowing of doubles to floats
   // If the destination rect covers the entire clipped area, then unbounded and bounded
   // operations are identical, and we don't need to push a group.
   bool needsGroup = !IsOperatorBoundByMask(aOptions.mCompositionOp) &&
-                    !aDest.Contains(GetUserSpaceClip());
+                    !aDest.Contains(clip);
 
   cairo_translate(mContext, aDest.X(), aDest.Y());
 
@@ -617,8 +593,7 @@ void
 DrawTargetCairo::DrawPattern(const Pattern& aPattern,
                              const StrokeOptions& aStrokeOptions,
                              const DrawOptions& aOptions,
-                             DrawPatternType aDrawType,
-                             bool aPathBoundsClip)
+                             DrawPatternType aDrawType)
 {
   if (!PatternIsCompatible(aPattern)) {
     return;
@@ -632,8 +607,10 @@ DrawTargetCairo::DrawPattern(const Pattern& aPattern,
   cairo_set_antialias(mContext, GfxAntialiasToCairoAntialias(aOptions.mAntialiasMode));
 
   if (NeedIntermediateSurface(aPattern, aOptions) ||
-      (!IsOperatorBoundByMask(aOptions.mCompositionOp) && !aPathBoundsClip)) {
+      !IsOperatorBoundByMask(aOptions.mCompositionOp)) {
     cairo_push_group_with_content(mContext, CAIRO_CONTENT_COLOR_ALPHA);
+
+    ClearSurfaceForUnboundedSource(aOptions.mCompositionOp);
 
     // Don't want operators to be applied twice
     cairo_set_operator(mContext, CAIRO_OPERATOR_OVER);
@@ -651,6 +628,7 @@ DrawTargetCairo::DrawPattern(const Pattern& aPattern,
     cairo_set_operator(mContext, GfxOpToCairoOp(aOptions.mCompositionOp));
     cairo_paint_with_alpha(mContext, aOptions.mAlpha);
   } else {
+    ClearSurfaceForUnboundedSource(aOptions.mCompositionOp);
     cairo_set_operator(mContext, GfxOpToCairoOp(aOptions.mCompositionOp));
 
     if (aDrawType == DRAW_STROKE) {
@@ -674,13 +652,7 @@ DrawTargetCairo::FillRect(const Rect &aRect,
   cairo_new_path(mContext);
   cairo_rectangle(mContext, aRect.x, aRect.y, aRect.Width(), aRect.Height());
 
-  bool pathBoundsClip = false;
-
-  if (aRect.Contains(GetUserSpaceClip())) {
-    pathBoundsClip = true;
-  }
-
-  DrawPattern(aPattern, StrokeOptions(), aOptions, DRAW_FILL, pathBoundsClip);
+  DrawPattern(aPattern, StrokeOptions(), aOptions, DRAW_FILL);
 }
 
 void
@@ -1061,20 +1033,6 @@ DrawTargetCairo::CreateSourceSurfaceFromNativeSurface(const NativeSurface &aSurf
   return nullptr;
 }
 
-TemporaryRef<SourceSurface>
-DrawTargetCairo::CreateSourceSurfaceForCairoSurface(cairo_surface_t *aSurface,
-                                                    SurfaceFormat aFormat)
-{
-  IntSize size;
-  if (GetCairoSurfaceSize(aSurface, size)) {
-    RefPtr<SourceSurfaceCairo> source =
-      new SourceSurfaceCairo(aSurface, size, aFormat);
-    return source;
-  }
-
-  return nullptr;
-}
-
 TemporaryRef<DrawTarget>
 DrawTargetCairo::CreateSimilarDrawTarget(const IntSize &aSize, SurfaceFormat aFormat) const
 {
@@ -1181,7 +1139,6 @@ void
 DrawTargetCairo::WillChange(const Path* aPath /* = nullptr */)
 {
   MarkSnapshotIndependent();
-  MOZ_ASSERT(!mLockedBits);
 }
 
 void
@@ -1192,14 +1149,6 @@ DrawTargetCairo::SetTransform(const Matrix& aTransform)
   cairo_matrix_t mat;
   GfxMatrixToCairoMatrix(mTransform, mat);
   cairo_set_matrix(mContext, &mat);
-}
-
-Rect
-DrawTargetCairo::GetUserSpaceClip()
-{
-  double clipX1, clipY1, clipX2, clipY2;
-  cairo_clip_extents(mContext, &clipX1, &clipY1, &clipX2, &clipY2);
-  return Rect(clipX1, clipY1, clipX2 - clipX1, clipY2 - clipY1); // Narrowing of doubles to floats
 }
 
 cairo_t*

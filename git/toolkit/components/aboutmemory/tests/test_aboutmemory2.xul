@@ -177,7 +177,6 @@ Other Measurements\n\
 \n\
 250.00 MB ── heap-allocated\n\
 \n\
-End of Main Process\n\
 ";
 
   let acCollapsedExpected =
@@ -202,7 +201,6 @@ Other Measurements\n\
 \n\
 250.00 MB ── heap-allocated\n\
 \n\
-End of Main Process\n\
 ";
 
   let alExpandedExpected =
@@ -229,7 +227,6 @@ Other Measurements\n\
 \n\
 250.00 MB ── heap-allocated\n\
 \n\
-End of Main Process\n\
 ";
 
   let aCollapsedExpected =
@@ -250,7 +247,6 @@ Other Measurements\n\
 \n\
 250.00 MB ── heap-allocated\n\
 \n\
-End of Main Process\n\
 ";
 
   let hCollapsedExpected =
@@ -269,7 +265,6 @@ Other Measurements\n\
 \n\
 250.00 MB ── heap-allocated\n\
 \n\
-End of Main Process\n\
 ";
 
   let jExpandedExpected =
@@ -290,7 +285,6 @@ Other Measurements\n\
 \n\
 250.00 MB ── heap-allocated\n\
 \n\
-End of Main Process\n\
 ";
 
   // The important thing here is that two values have been swapped.
@@ -314,7 +308,6 @@ Other Measurements\n\
 \n\
 250.00 MB ── heap-allocated\n\
 \n\
-End of Main Process\n\
 ";
 
   let aExpandedExpected =
@@ -341,7 +334,6 @@ Other Measurements\n\
 \n\
 250.00 MB ── heap-allocated\n\
 \n\
-End of Main Process\n\
 ";
 
   let acExpandedExpected =
@@ -370,7 +362,6 @@ Other Measurements\n\
 \n\
 250.00 MB ── heap-allocated\n\
 \n\
-End of Main Process\n\
 ";
 
   let alCollapsedExpected =
@@ -397,7 +388,6 @@ Other Measurements\n\
 \n\
 250.00 MB ── heap-allocated\n\
 \n\
-End of Main Process\n\
 ";
 
   // Test the following cases:

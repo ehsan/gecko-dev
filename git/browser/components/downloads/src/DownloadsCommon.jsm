@@ -235,12 +235,15 @@ this.DownloadsCommon = {
   },
 
   /**
-   * Indicates that we should show the simplified panel interface instead of the
-   * full Download Manager window interface.  The code associated with the
-   * Download Manager window interface will be removed in bug 899110.
+   * Indicates whether we should show the full Download Manager window interface
+   * instead of the simplified panel interface.  The behavior of downloads
+   * across browsing session is consistent with the selected interface.
    */
   get useToolkitUI()
   {
+    try {
+      return Services.prefs.getBoolPref("browser.download.useToolkitUI");
+    } catch (ex) { }
     return false;
   },
 
@@ -567,12 +570,17 @@ XPCOMUtils.defineLazyGetter(DownloadsCommon, "isWinVistaOrHigher", function () {
 });
 
 /**
- * Returns true to indicate that we should hook the panel to the JavaScript API
- * for downloads instead of the nsIDownloadManager back-end.  The code
- * associated with nsIDownloadManager will be removed in bug 899110.
+ * Returns true if we should hook the panel to the JavaScript API for downloads
+ * instead of the nsIDownloadManager back-end.  In order for the logic to work
+ * properly, this value never changes during the execution of the application,
+ * even if the underlying preference value has changed.  A restart is required
+ * for the change to take effect.
  */
 XPCOMUtils.defineLazyGetter(DownloadsCommon, "useJSTransfer", function () {
-  return true;
+  try {
+    return Services.prefs.getBoolPref("browser.download.useJSTransfer");
+  } catch (ex) { }
+  return false;
 });
 
 ////////////////////////////////////////////////////////////////////////////////

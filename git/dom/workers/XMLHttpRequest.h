@@ -232,13 +232,13 @@ public:
   JSObject*
   GetResponseXML() const
   {
-    return nullptr;
+    return NULL;
   }
 
   JSObject*
   GetChannel() const
   {
-    return nullptr;
+    return NULL;
   }
 
   JS::Value

@@ -8,7 +8,7 @@
 /*****************************************************************************/
 
 #include <stdint.h>
-const PRTime gPreloadListExpirationTime = INT64_C(1393668300858000);
+const PRTime gPreloadListExpirationTime = INT64_C(1392458781200000);
 
 class nsSTSPreload
 {
@@ -30,7 +30,6 @@ static const nsSTSPreload kSTSPreloadList[] = {
   { "blog.cyveillance.com", true },
   { "blog.linode.com", false },
   { "blog.torproject.org", false },
-  { "blueseed.co", false },
   { "bugzilla.mozilla.org", true },
   { "business.medbank.com.mt", true },
   { "carezone.com", false },
@@ -81,7 +80,7 @@ static const nsSTSPreload kSTSPreloadList[] = {
   { "lookout.com", false },
   { "lumi.do", false },
   { "luneta.nearbuysystems.com", false },
-  { "makeyourlaws.org", false },
+  { "makeyourlaws.org", true },
   { "manager.linode.com", false },
   { "mattmccutchen.net", true },
   { "mediacru.sh", true },
@@ -102,12 +101,14 @@ static const nsSTSPreload kSTSPreloadList[] = {
   { "paymill.de", true },
   { "piratenlogin.de", true },
   { "pixi.me", true },
+  { "rapidresearch.me", true },
   { "riseup.net", true },
   { "roundcube.mayfirst.org", false },
   { "sandbox.mydigipass.com", false },
   { "securityheaders.com", true },
   { "shodan.io", true },
   { "silentcircle.com", false },
+  { "simple.com", false },
   { "squareup.com", false },
   { "stocktrade.de", false },
   { "stripe.com", true },
@@ -134,7 +135,7 @@ static const nsSTSPreload kSTSPreloadList[] = {
   { "www.irccloud.com", false },
   { "www.linode.com", false },
   { "www.lookout.com", false },
-  { "www.makeyourlaws.org", false },
+  { "www.makeyourlaws.org", true },
   { "www.mydigipass.com", false },
   { "www.mylookout.com", false },
   { "www.noisebridge.net", false },

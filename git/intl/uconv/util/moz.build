@@ -6,16 +6,21 @@
 
 MODULE = 'uconv'
 
-SOURCES += [
-    'UnifiedUCVUtils.cpp',
+CPP_SOURCES += [
+    'nsUCConstructors.cpp',
+    'nsUCSupport.cpp',
+    'nsUnicodeDecodeHelper.cpp',
+    'nsUnicodeEncodeHelper.cpp',
 ]
 
 LIBRARY_NAME = 'ucvutil_s'
 
 LIBXUL_LIBRARY = True
 
-SOURCES += [
-    'UnifiedUCVCUtils.c',
+CSRCS += [
+    'ugen.c',
+    'umap.c',
+    'uscan.c',
 ]
 
 MSVC_ENABLE_PGO = True

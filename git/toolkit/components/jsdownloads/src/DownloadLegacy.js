@@ -131,9 +131,9 @@ DownloadLegacyTransfer.prototype = {
                                                   aCurTotalProgress,
                                                   aMaxTotalProgress)
   {
-    this.onProgressChange64(aWebProgress, aRequest, aCurSelfProgress,
-                            aMaxSelfProgress, aCurTotalProgress,
-                            aMaxTotalProgress);
+    return onProgressChange64(aWebProgress, aRequest, aCurSelfProgress,
+                              aMaxSelfProgress, aCurTotalProgress,
+                              aMaxTotalProgress);
   },
 
   onLocationChange: function () { },

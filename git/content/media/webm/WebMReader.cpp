@@ -9,6 +9,7 @@
 #include "MediaResource.h"
 #include "WebMReader.h"
 #include "WebMBufferedParser.h"
+#include "VideoUtils.h"
 #include "mozilla/dom/TimeRanges.h"
 #include "VorbisUtils.h"
 
@@ -199,7 +200,7 @@ WebMReader::~WebMReader()
 
 nsresult WebMReader::Init(MediaDecoderReader* aCloneDonor)
 {
-  if (vpx_codec_dec_init(&mVP8, vpx_codec_vp8_dx(), nullptr, 0)) {
+  if (vpx_codec_dec_init(&mVP8, vpx_codec_vp8_dx(), NULL, 0)) {
     return NS_ERROR_FAILURE;
   }
 
@@ -852,7 +853,7 @@ bool WebMReader::DecodeVideoFrame(bool &aKeyframeSkip,
       aKeyframeSkip = false;
     }
 
-    if (vpx_codec_decode(&mVP8, data, length, nullptr, 0)) {
+    if (vpx_codec_decode(&mVP8, data, length, NULL, 0)) {
       return false;
     }
 
@@ -864,7 +865,7 @@ bool WebMReader::DecodeVideoFrame(bool &aKeyframeSkip,
       continue;
     }
 
-    vpx_codec_iter_t  iter = nullptr;
+    vpx_codec_iter_t  iter = NULL;
     vpx_image_t      *img;
 
     while ((img = vpx_codec_get_frame(&mVP8, &iter))) {
@@ -906,7 +907,7 @@ bool WebMReader::DecodeVideoFrame(bool &aKeyframeSkip,
                                        mDecoder->GetImageContainer(),
                                        holder->mOffset,
                                        tstamp_usecs,
-                                       (next_tstamp / NS_PER_USEC) - tstamp_usecs,
+                                       next_tstamp / NS_PER_USEC,
                                        b,
                                        si.is_kf,
                                        -1,

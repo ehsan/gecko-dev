@@ -6,7 +6,7 @@
 
 MODULE = 'breakpad_sps_common'
 
-SOURCES += [
+CPP_SOURCES += [
     'basic_code_modules.cc',
     'basic_source_line_resolver.cc',
     'call_stack.cc',
@@ -25,5 +25,3 @@ SOURCES += [
 
 LIBRARY_NAME = 'breakpad_sps_common_s'
 
-# need static lib
-FORCE_STATIC_LIB = True

@@ -140,7 +140,7 @@ function onInstall(aEvent) {
     return;
 
   addApplication(aEvent.application);
-  document.getElementById("main-container").classList.remove("hidden");
+  document.getElementById("noapps").className = "hidden";
 }
 
 function onUninstall(aEvent) {
@@ -149,6 +149,6 @@ function onUninstall(aEvent) {
     let parent = node.parentNode;
     parent.removeChild(node);
     if (!parent.firstChild)
-      document.getElementById("main-container").classList.add("hidden");
+      document.getElementById("noapps").className = "";
   }
 }

@@ -9,6 +9,7 @@
 #ifndef nsContentUtils_h___
 #define nsContentUtils_h___
 
+#include <math.h>
 #if defined(XP_WIN) || defined(XP_OS2)
 #include <float.h>
 #endif
@@ -20,6 +21,7 @@
 #include "js/TypeDecls.h"
 #include "js/Value.h"
 #include "js/RootingAPI.h"
+#include "mozilla/Assertions.h"
 #include "mozilla/EventForwards.h"
 #include "mozilla/GuardObjects.h"
 #include "mozilla/TimeStamp.h"
@@ -1059,19 +1061,15 @@ public:
                                       nsCycleCollectionTraversalCallback &cb);
 
   /**
-   * Get the eventlistener manager for aNode, creating it if it does not
-   * already exist.
+   * Get the eventlistener manager for aNode. If a new eventlistener manager
+   * was created, aCreated is set to true.
    *
    * @param aNode The node for which to get the eventlistener manager.
+   * @param aCreateIfNotFound If false, returns a listener manager only if
+   *                          one already exists.
    */
-  static nsEventListenerManager* GetListenerManagerForNode(nsINode* aNode);
-  /**
-   * Get the eventlistener manager for aNode, returning null if it does not
-   * already exist.
-   *
-   * @param aNode The node for which to get the eventlistener manager.
-   */
-  static nsEventListenerManager* GetExistingListenerManagerForNode(const nsINode* aNode);
+  static nsEventListenerManager* GetListenerManager(nsINode* aNode,
+                                                    bool aCreateIfNotFound);
 
   static void UnmarkGrayJSListenersInCCGenerationDocuments(uint32_t aGeneration);
 

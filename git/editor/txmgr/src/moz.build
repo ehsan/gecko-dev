@@ -6,7 +6,7 @@
 
 MODULE = 'txmgr'
 
-SOURCES += [
+CPP_SOURCES += [
     'nsTransactionItem.cpp',
     'nsTransactionList.cpp',
     'nsTransactionManager.cpp',

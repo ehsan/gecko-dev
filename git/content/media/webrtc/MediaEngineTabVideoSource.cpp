@@ -49,7 +49,7 @@ MediaEngineTabVideoSource::StopRunnable::Run()
 
   if (mVideoSource->mTimer) {
     mVideoSource->mTimer->Cancel();
-    mVideoSource->mTimer = nullptr;
+    mVideoSource->mTimer = NULL;
   }
   return NS_OK;
 }
@@ -152,7 +152,7 @@ NotifyPull(MediaStreamGraph*, SourceMediaStream* aSource, mozilla::TrackID aID, 
   TrackTicks target = TimeToTicksRoundUp(USECS_PER_S, aDesiredTime);
   TrackTicks delta = target - aLastEndTime;
   if (delta > 0) {
-    // nullptr images are allowed
+    // NULL images are allowed
     if (image) {
       gfxIntSize size = image->GetSize();
       segment.AppendFrame(image.forget(), delta, size);
@@ -256,6 +256,7 @@ MediaEngineTabVideoSource::Draw() {
   cairoData.mSurface = surf;
   cairoData.mSize = size;
 
+  ImageFormat cairoFormat = CAIRO_SURFACE;
   nsRefPtr<layers::CairoImage> image = new layers::CairoImage();
 
   image->SetData(cairoData);

@@ -10,7 +10,7 @@ sources = [
     'TestXPTCInvoke',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     '%s.cpp' % s for s in sources
 ]
 

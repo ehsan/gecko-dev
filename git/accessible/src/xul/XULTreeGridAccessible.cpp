@@ -220,7 +220,7 @@ XULTreeGridAccessible::UnselectRow(uint32_t aRowIdx)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// XULTreeGridAccessible: Accessible implementation
+// XULTreeGridAccessible: nsAccessNode implementation
 
 void
 XULTreeGridAccessible::Shutdown()
@@ -228,6 +228,9 @@ XULTreeGridAccessible::Shutdown()
   mTable = nullptr;
   XULTreeAccessible::Shutdown();
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// XULTreeGridAccessible: Accessible implementation
 
 role
 XULTreeGridAccessible::NativeRole()
@@ -288,7 +291,7 @@ NS_IMPL_RELEASE_INHERITED(XULTreeGridRowAccessible,
                           XULTreeItemAccessibleBase)
 
 ////////////////////////////////////////////////////////////////////////////////
-// XULTreeGridRowAccessible: Accessible implementation
+// XULTreeGridRowAccessible: nsAccessNode implementation
 
 void
 XULTreeGridRowAccessible::Shutdown()
@@ -296,6 +299,9 @@ XULTreeGridRowAccessible::Shutdown()
   ClearCache(mAccessibleCache);
   XULTreeItemAccessibleBase::Shutdown();
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// XULTreeGridRowAccessible: Accessible implementation
 
 role
 XULTreeGridRowAccessible::NativeRole()
@@ -756,7 +762,7 @@ XULTreeGridCellAccessible::IndexInParent() const
 }
 
 Relation
-XULTreeGridCellAccessible::RelationByType(RelationType aType)
+XULTreeGridCellAccessible::RelationByType(uint32_t aType)
 {
   return Relation();
 }

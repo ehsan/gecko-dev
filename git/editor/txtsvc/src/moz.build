@@ -6,7 +6,7 @@
 
 MODULE = 'txtsvc'
 
-SOURCES += [
+CPP_SOURCES += [
     'nsFilteredContentIterator.cpp',
     'nsTextServicesDocument.cpp',
 ]

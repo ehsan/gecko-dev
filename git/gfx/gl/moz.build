@@ -29,7 +29,6 @@ if CONFIG['MOZ_GL_PROVIDER']:
 
 EXPORTS += [
     'ForceDiscreteGPUHelperCGL.h',
-    'GfxTexturesReporter.h',
     'GLConsts.h',
     'GLContext.h',
     'GLContextProvider.h',
@@ -42,6 +41,7 @@ EXPORTS += [
     'GLScreenBuffer.h',
     'GLTextureImage.h',
     'GLTypes.h',
+    'GfxTexturesReporter.h',
     'SharedSurface.h',
     'SharedSurfaceEGL.h',
     'SharedSurfaceGL.h',
@@ -61,53 +61,53 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'windows':
         'SharedSurfaceANGLE.h',
         'WGLLibrary.h',
     ]
-    SOURCES += [
+    CPP_SOURCES += [
         'GLContextProviderEGL.cpp',
         'SharedSurfaceANGLE.cpp',
     ]
 if CONFIG['MOZ_ENABLE_SKIA_GPU']:
     EXPORTS += ['GLContextSkia.h']
-    SOURCES += [
+    CPP_SOURCES += [
         'GLContextSkia.cpp',
     ]
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk':
-    SOURCES += ['SharedSurfaceGralloc.cpp']
+    CPP_SOURCES += ['SharedSurfaceGralloc.cpp']
     EXPORTS += ['SharedSurfaceGralloc.h']
 
 if gl_provider == 'CGL':
-    SOURCES += [
+    CMMSRCS += [
         "GLContextProvider%s.mm" % (gl_provider),
     ]
     EXPORTS += [
         'SharedSurfaceIO.h',
     ]
-    SOURCES += [
+    CPP_SOURCES += [
         'SharedSurfaceIO.cpp',
     ]
 else:
-    SOURCES += [
+    CPP_SOURCES += [
         'GLContextProvider%s.cpp' % gl_provider,
     ]
 
-SOURCES += [
-    'GfxTexturesReporter.cpp',
+CPP_SOURCES += [
     'GLContext.cpp',
     'GLContextFeatures.cpp',
     'GLContextTypes.cpp',
     'GLContextUtils.cpp',
-    'GLLibraryEGL.cpp',
     'GLLibraryLoader.cpp',
     'GLScreenBuffer.cpp',
     'GLTextureImage.cpp',
+    'GfxTexturesReporter.cpp',
     'SharedSurface.cpp',
+    'GLLibraryEGL.cpp',
     'SharedSurfaceEGL.cpp',
+    'TextureImageEGL.cpp',
     'SharedSurfaceGL.cpp',
     'SurfaceFactory.cpp',
     'SurfaceStream.cpp',
-    'TextureGarbageBin.cpp',
-    'TextureImageEGL.cpp',
     'VBOArena.cpp',
+    'TextureGarbageBin.cpp',
 ]
 
 FAIL_ON_WARNINGS = True
@@ -119,6 +119,4 @@ MSVC_ENABLE_PGO = True
 LIBRARY_NAME = 'gl'
 
 EXPORT_LIBRARY = True
-
-include('/ipc/chromium/chromium-config.mozbuild')
 

@@ -31,6 +31,7 @@ LIBS		= $(NSPR_LIBS)
 ifdef JS_SHARED_LIBRARY
 FORCE_SHARED_LIB = 1
 endif
+FORCE_STATIC_LIB = 1
 DIST_INSTALL = 1
 
 ###############################################
@@ -369,7 +370,7 @@ DIST_GARBAGE = config.cache config.log config.status* \
    $(JS_CONFIG_NAME) js-config.h js-confdefs.h \
    backend.mk config/backend.mk devtools/backend.mk editline/backend.mk \
    gdb/backend.mk jsapi-tests/backend.mk shell/backend.mk tests/backend.mk \
-   backend.RecursiveMakeBackend backend.RecursiveMakeBackend.pp \
+   backend.RecursiveMakeBackend.built backend.RecursiveMakeBackend.built.pp \
    devtools/rootAnalysis/Makefile
 
 distclean::
@@ -602,10 +603,15 @@ ifneq (,$(IMPORT_LIBRARY))
 endif
 	$(MAKE) -C shell install
 
+# Extra dependencies and rules for auto-generated headers
+host_jskwgen.$(OBJ_SUFFIX): jsversion.h vm/Keywords.h
+
 # Use CURDIR to avoid finding a jsautokw.h in the source tree (from a
 # previous build?) via VPATH when we're building in a separate tree.
 $(CURDIR)/jsautokw.h: host_jskwgen$(HOST_BIN_SUFFIX)
 	./host_jskwgen$(HOST_BIN_SUFFIX) $@
+
+host_jsoplengen.$(OBJ_SUFFIX): jsopcode.tbl
 
 # Use CURDIR to avoid finding a jsautooplen.h in the source tree (from
 # a previous build?) via VPATH when we're building in a separate tree.
@@ -658,12 +664,11 @@ selfhosting_srcs := \
   $(srcdir)/builtin/Intl.js \
   $(srcdir)/builtin/IntlData.js \
   $(srcdir)/builtin/Iterator.js \
-  $(srcdir)/builtin/Map.js \
   $(srcdir)/builtin/Number.js \
   $(srcdir)/builtin/ParallelArray.js \
   $(srcdir)/builtin/String.js \
   $(srcdir)/builtin/Set.js \
-  $(srcdir)/builtin/TypedObject.js \
+  $(srcdir)/builtin/Map.js \
   $(NULL)
 
 selfhosted_out_h_deps := \

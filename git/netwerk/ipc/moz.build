@@ -22,7 +22,7 @@ EXPORTS.mozilla.net += [
     'RemoteOpenFileParent.h',
 ]
 
-SOURCES += [
+CPP_SOURCES += [
     'ChannelEventQueue.cpp',
     'NeckoChild.cpp',
     'NeckoCommon.cpp',
@@ -45,6 +45,4 @@ LIBXUL_LIBRARY = True
 LIBRARY_NAME = 'neckoipc_s'
 
 EXPORT_LIBRARY = True
-
-include('/ipc/chromium/chromium-config.mozbuild')
 

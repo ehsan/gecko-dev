@@ -6,7 +6,7 @@
 
 MODULE = 'rdf'
 
-SOURCES += [
+CPP_SOURCES += [
     'nsCompositeDataSource.cpp',
     'nsContainerEnumerator.cpp',
     'nsDefaultResourceFactory.cpp',

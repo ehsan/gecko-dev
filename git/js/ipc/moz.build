@@ -6,7 +6,7 @@
 
 MODULE = 'js'
 
-SOURCES += [
+CPP_SOURCES += [
     'JavaScriptChild.cpp',
     'JavaScriptParent.cpp',
     'JavaScriptShared.cpp',
@@ -24,6 +24,4 @@ LIBXUL_LIBRARY = True
 LIBRARY_NAME = 'jsipc_s'
 
 EXPORT_LIBRARY = True
-
-include('/ipc/chromium/chromium-config.mozbuild')
 

@@ -568,14 +568,9 @@ class XPCShellTestThread(Thread):
 
         completeCmd = cmdH + cmdT + args
 
-        testTimeoutInterval = HARNESS_TIMEOUT
-        # Allow a test to request a multiple of the timeout if it is expected to take long
-        if 'requesttimeoutfactor' in self.test_object:
-            testTimeoutInterval *= int(self.test_object['requesttimeoutfactor'])
-
         testTimer = None
         if not self.interactive and not self.debuggerInfo:
-            testTimer = Timer(testTimeoutInterval, lambda: self.testTimeout(name, proc.pid))
+            testTimer = Timer(HARNESS_TIMEOUT, lambda: self.testTimeout(name, proc.pid))
             testTimer.start()
 
         proc = None

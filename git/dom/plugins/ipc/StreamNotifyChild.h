@@ -22,8 +22,8 @@ class StreamNotifyChild : public PStreamNotifyChild
 public:
   StreamNotifyChild(const nsCString& aURL)
     : mURL(aURL)
-    , mClosure(nullptr)
-    , mBrowserStream(nullptr)
+    , mClosure(NULL)
+    , mBrowserStream(NULL)
   { }
 
   virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE;

@@ -29,22 +29,22 @@ const CONTENT_MIME_TYPE_ABBREVIATIONS = {
   "x-javascript": "js"
 };
 const CONTENT_MIME_TYPE_MAPPINGS = {
-  "/ecmascript": Editor.modes.js,
-  "/javascript": Editor.modes.js,
-  "/x-javascript": Editor.modes.js,
-  "/html": Editor.modes.html,
-  "/xhtml": Editor.modes.html,
-  "/xml": Editor.modes.html,
-  "/atom": Editor.modes.html,
-  "/soap": Editor.modes.html,
-  "/rdf": Editor.modes.css,
-  "/rss": Editor.modes.css,
-  "/css": Editor.modes.css
+  "/ecmascript": SourceEditor.MODES.JAVASCRIPT,
+  "/javascript": SourceEditor.MODES.JAVASCRIPT,
+  "/x-javascript": SourceEditor.MODES.JAVASCRIPT,
+  "/html": SourceEditor.MODES.HTML,
+  "/xhtml": SourceEditor.MODES.HTML,
+  "/xml": SourceEditor.MODES.HTML,
+  "/atom": SourceEditor.MODES.HTML,
+  "/soap": SourceEditor.MODES.HTML,
+  "/rdf": SourceEditor.MODES.HTML,
+  "/rss": SourceEditor.MODES.HTML,
+  "/css": SourceEditor.MODES.CSS
 };
 const DEFAULT_EDITOR_CONFIG = {
-  mode: Editor.modes.text,
+  mode: SourceEditor.MODES.TEXT,
   readOnly: true,
-  lineNumbers: true
+  showLineNumbers: true
 };
 const GENERIC_VARIABLES_VIEW_SETTINGS = {
   lazyEmpty: true,
@@ -156,7 +156,7 @@ let NetMonitorView = {
   },
 
   /**
-   * Lazily initializes and returns a promise for a Editor instance.
+   * Lazily initializes and returns a promise for a SourceEditor instance.
    *
    * @param string aId
    *        The id of the editor placeholder node.
@@ -175,8 +175,7 @@ let NetMonitorView = {
 
     // Initialize the source editor and store the newly created instance
     // in the ether of a resolved promise's value.
-    let editor = new Editor(DEFAULT_EDITOR_CONFIG);
-    editor.appendTo($(aId)).then(() => deferred.resolve(editor));
+    new SourceEditor().init($(aId), DEFAULT_EDITOR_CONFIG, deferred.resolve);
 
     return deferred.promise;
   },
@@ -1901,7 +1900,7 @@ NetworkDetailsView.prototype = {
         else {
           $("#response-content-textarea-box").hidden = false;
           NetMonitorView.editor("#response-content-textarea").then(aEditor => {
-            aEditor.setMode(Editor.modes.js);
+            aEditor.setMode(SourceEditor.MODES.JAVASCRIPT);
             aEditor.setText(aString);
           });
           let infoHeader = $("#response-content-info-header");
@@ -1938,7 +1937,7 @@ NetworkDetailsView.prototype = {
       else {
         $("#response-content-textarea-box").hidden = false;
         NetMonitorView.editor("#response-content-textarea").then(aEditor => {
-          aEditor.setMode(Editor.modes.text);
+          aEditor.setMode(SourceEditor.MODES.TEXT);
           aEditor.setText(aString);
 
           // Maybe set a more appropriate mode in the Source Editor if possible,
@@ -2044,7 +2043,6 @@ NetworkDetailsView.prototype = {
  * DOM query helper.
  */
 function $(aSelector, aTarget = document) aTarget.querySelector(aSelector);
-function $all(aSelector, aTarget = document) aTarget.querySelectorAll(aSelector);
 
 /**
  * Helper for getting an nsIURL instance out of a string.

@@ -7,7 +7,6 @@
 #include <stdio.h>
 
 #include "GStreamerLoader.h"
-#include "mozilla/NullPtr.h"
 
 #define LIBGSTREAMER 0
 #define LIBGSTAPP 1
@@ -45,7 +44,7 @@ load_gstreamer()
     return true;
   }
 
-  void *gstreamerLib = nullptr;
+  void *gstreamerLib = NULL;
   guint major = 0;
   guint minor = 0;
   guint micro, nano;

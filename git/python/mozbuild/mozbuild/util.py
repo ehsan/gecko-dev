@@ -118,7 +118,7 @@ class FileAvoidWrite(StringIO):
     """
     def __init__(self, filename):
         StringIO.__init__(self)
-        self.name = filename
+        self.filename = filename
 
     def close(self):
         """Stop accepting writes, compare file contents, and rewrite if needed.
@@ -131,7 +131,7 @@ class FileAvoidWrite(StringIO):
         StringIO.close(self)
         existed = False
         try:
-            existing = open(self.name, 'rU')
+            existing = open(self.filename, 'rU')
             existed = True
         except IOError:
             pass
@@ -144,8 +144,8 @@ class FileAvoidWrite(StringIO):
             finally:
                 existing.close()
 
-        ensureParentDir(self.name)
-        with open(self.name, 'w') as file:
+        ensureParentDir(self.filename)
+        with open(self.filename, 'w') as file:
             file.write(buf)
 
         return existed, True
@@ -252,7 +252,7 @@ class StrictOrderingOnAppendList(list):
     """
     @staticmethod
     def ensure_sorted(l):
-        srtd = sorted(l, key=lambda x: x.lower())
+        srtd = sorted(l)
 
         if srtd != l:
             raise UnsortedError(srtd, l)

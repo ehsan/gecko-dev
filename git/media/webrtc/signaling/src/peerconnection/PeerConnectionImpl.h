@@ -12,9 +12,6 @@
 
 #include "prlock.h"
 #include "mozilla/RefPtr.h"
-#include "nsWeakPtr.h"
-#include "nsIWeakReferenceUtils.h" // for the definition of nsWeakPtr
-#include "IPeerConnection.h"
 #include "sigslot.h"
 #include "nricectx.h"
 #include "nricemediastream.h"
@@ -74,7 +71,6 @@ class PeerConnectionObserver;
 typedef NS_ConvertUTF8toUTF16 PCObserverString;
 #endif
 }
-class MediaConstraintsExternal;
 }
 
 #if defined(__cplusplus) && __cplusplus >= 201103L
@@ -99,7 +95,6 @@ namespace sipcc {
 using mozilla::dom::PeerConnectionObserver;
 using mozilla::dom::RTCConfiguration;
 using mozilla::dom::MediaConstraintsInternal;
-using mozilla::MediaConstraintsExternal;
 using mozilla::DOMMediaStream;
 using mozilla::NrIceCtx;
 using mozilla::NrIceMediaStream;
@@ -111,6 +106,7 @@ using mozilla::NrIceTurnServer;
 class PeerConnectionWrapper;
 class PeerConnectionMedia;
 class RemoteSourceStreamInfo;
+class MediaConstraintsExternal;
 class OnCallEventArgs;
 
 class IceConfiguration
@@ -127,15 +123,13 @@ public:
   }
   bool addTurnServer(const std::string& addr, uint16_t port,
                      const std::string& username,
-                     const std::string& pwd,
-                     const std::string& transport)
+                     const std::string& pwd)
   {
     // TODO(ekr@rtfm.com): Need support for SASLprep for
     // username and password. Bug # ???
     std::vector<unsigned char> password(pwd.begin(), pwd.end());
 
-    NrIceTurnServer* server(NrIceTurnServer::Create(addr, port, username, password,
-                                                    transport));
+    NrIceTurnServer* server(NrIceTurnServer::Create(addr, port, username, password));
     if (!server) {
       return false;
     }
@@ -254,7 +248,7 @@ public:
 
   // Initialize PeerConnection from an IceConfiguration object (unit-tests)
   nsresult Initialize(PeerConnectionObserver& aObserver,
-                      nsGlobalWindow* aWindow,
+                      nsIDOMWindow* aWindow,
                       const IceConfiguration& aConfiguration,
                       nsIThread* aThread) {
     return Initialize(aObserver, aWindow, &aConfiguration, nullptr, aThread);
@@ -262,12 +256,12 @@ public:
 
   // Initialize PeerConnection from an RTCConfiguration object (JS entrypoint)
   void Initialize(PeerConnectionObserver& aObserver,
-                  nsGlobalWindow& aWindow,
+                  nsIDOMWindow* aWindow,
                   const RTCConfiguration& aConfiguration,
                   nsISupports* aThread,
                   ErrorResult &rv)
   {
-    nsresult r = Initialize(aObserver, &aWindow, nullptr, &aConfiguration, aThread);
+    nsresult r = Initialize(aObserver, aWindow, nullptr, &aConfiguration, aThread);
     if (NS_FAILED(r)) {
       rv.Throw(r);
     }
@@ -447,7 +441,7 @@ private:
   PeerConnectionImpl(const PeerConnectionImpl&rhs);
   PeerConnectionImpl& operator=(PeerConnectionImpl);
   NS_IMETHODIMP Initialize(PeerConnectionObserver& aObserver,
-                           nsGlobalWindow* aWindow,
+                           nsIDOMWindow* aWindow,
                            const IceConfiguration* aConfiguration,
                            const RTCConfiguration* aRTCConfiguration,
                            nsISupports* aThread);
@@ -508,19 +502,29 @@ private:
   mozilla::dom::PCImplIceState mIceState;
 
   nsCOMPtr<nsIThread> mThread;
-  // WeakConcretePtr to PeerConnectionObserver. TODO: Remove after bug 928535
+  // We hold a raw pointer to PeerConnectionObserver (no WeakRefs to concretes!)
+  // which is an invariant guaranteed to exist between Initialize() and Close().
+  // We explicitly clear it in Close(). We wrap it in a helper, to encourage
+  // testing against nullptr before use. Use in Runnables requires wrapping
+  // access in RefPtr<> since they may execute after close. This is only safe
+  // to use on the main thread
   //
-  // This is only safe to use on the main thread
   // TODO: Remove if we ever properly wire PeerConnection for cycle-collection.
-  class WeakConcretePtr
+  class WeakReminder
   {
   public:
-    WeakConcretePtr() : mObserver(nullptr) {}
-    void Set(PeerConnectionObserver *aObserver);
-    PeerConnectionObserver *MayGet();
+    WeakReminder() : mObserver(nullptr) {}
+    void Init(PeerConnectionObserver *aObserver) {
+      mObserver = aObserver;
+    }
+    void Close() {
+      mObserver = nullptr;
+    }
+    PeerConnectionObserver *MayGet() {
+      return mObserver;
+    }
   private:
     PeerConnectionObserver *mObserver;
-    nsWeakPtr mWeakPtr;
   } mPCObserver;
   nsCOMPtr<nsPIDOMWindow> mWindow;
 

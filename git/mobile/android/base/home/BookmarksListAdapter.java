@@ -14,8 +14,6 @@ import android.database.Cursor;
 import android.util.Pair;
 import android.view.View;
 
-import java.util.Collections;
-import java.util.List;
 import java.util.LinkedList;
 
 /**
@@ -42,23 +40,15 @@ class BookmarksListAdapter extends MultiTypeCursorAdapter {
     // Refresh folder listener.
     private OnRefreshFolderListener mListener;
 
-    public BookmarksListAdapter(Context context, Cursor cursor, List<Pair<Integer, String>> parentStack) {
+    public BookmarksListAdapter(Context context, Cursor cursor) {
         // Initializing with a null cursor.
         super(context, cursor, VIEW_TYPES, LAYOUT_TYPES);
 
-        if (parentStack == null) {
-            mParentStack = new LinkedList<Pair<Integer, String>>();
+        mParentStack = new LinkedList<Pair<Integer, String>>();
 
-            // Add the root folder to the stack
-            Pair<Integer, String> rootFolder = new Pair<Integer, String>(Bookmarks.FIXED_ROOT_ID, "");
-            mParentStack.addFirst(rootFolder);
-        } else {
-            mParentStack = new LinkedList<Pair<Integer, String>>(parentStack);
-        }
-    }
-
-    public List<Pair<Integer, String>> getParentStack() {
-        return Collections.unmodifiableList(mParentStack);
+        // Add the root folder to the stack
+        Pair<Integer, String> rootFolder = new Pair<Integer, String>(Bookmarks.FIXED_ROOT_ID, "");
+        mParentStack.addFirst(rootFolder);
     }
 
     // Refresh the current folder by executing a new task.

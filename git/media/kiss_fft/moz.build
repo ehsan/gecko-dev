@@ -11,12 +11,10 @@ EXPORTS.kiss_fft += [
     'kiss_fftr.h',
 ]
 
-SOURCES += [
+CSRCS += [
     'kiss_fft.c',
     'kiss_fftr.c',
 ]
 
 LIBRARY_NAME = 'kiss_fft'
 
-if CONFIG['OS_TARGET'] == 'WINNT':
-    NO_VISIBILITY_FLAGS = True

@@ -7,24 +7,22 @@
 MODULE = 'shellservice'
 
 if CONFIG['OS_ARCH'] == 'WINNT':
-    SOURCES += [
+    CPP_SOURCES += [
         'nsWindowsShellService.cpp',
     ]
 elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'cocoa':
-    SOURCES += [
+    CPP_SOURCES += [
         'nsMacShellService.cpp',
     ]
 elif CONFIG['MOZ_WIDGET_GTK']:
-    SOURCES += [
+    CPP_SOURCES += [
         'nsGNOMEShellService.cpp',
     ]
 
-if SOURCES:
+if CPP_SOURCES:
     LIBRARY_NAME = 'shellservice_s'
 
 EXTRA_COMPONENTS += [
     'nsSetDefaultBrowser.js',
     'nsSetDefaultBrowser.manifest',
 ]
-
-FORCE_STATIC_LIB = True

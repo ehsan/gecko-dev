@@ -5,6 +5,10 @@
 
 DEFINES += -DHAVE_CONFIG_H=vpx_config.h
 
+FORCE_STATIC_LIB= 1
+ifeq (WINNT,$(OS_TARGET))
+VISIBILITY_FLAGS =
+endif
 
 LOCAL_INCLUDES += \
   -I. \
