@@ -1125,7 +1125,7 @@ DocAccessible::AttributeChangedImpl(nsIContent* aContent, int32_t aNameSpaceID, 
 
   if (aAttribute == nsGkAtoms::value) {
     Accessible* accessible = GetAccessible(aContent);
-    if(accessible && accessible->IsProgress()) {
+    if(accessible->IsProgress()) {
       FireDelayedAccessibleEvent(nsIAccessibleEvent::EVENT_VALUE_CHANGE,
                                  aContent);
     }

@@ -1227,15 +1227,6 @@ MustInheritFromNonRefcountedDOMObject(NonRefcountedDOMObject*)
 JSObject* GetXrayExpandoChain(JSObject *obj);
 void SetXrayExpandoChain(JSObject *obj, JSObject *chain);
 
-struct MainThreadDictionaryBase
-{
-protected:
-  JSContext* ParseJSON(const nsAString& aJSON,
-                       mozilla::Maybe<JSAutoRequest>& aAr,
-                       mozilla::Maybe<JSAutoCompartment>& aAc,
-                       JS::Value& aVal);
-};
-
 } // namespace dom
 } // namespace mozilla
 
