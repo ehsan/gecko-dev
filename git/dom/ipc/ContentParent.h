@@ -25,6 +25,7 @@
 #include "nsNetUtil.h"
 #include "nsIPermissionManager.h"
 #include "nsIDOMGeoPositionCallback.h"
+#include "nsIMemoryReporter.h"
 #include "nsCOMArray.h"
 #include "nsDataHashtable.h"
 #include "nsHashKeys.h"
@@ -35,7 +36,6 @@
 class mozIApplication;
 class nsConsoleService;
 class nsIDOMBlob;
-class nsIMemoryReporter;
 
 namespace mozilla {
 

@@ -752,6 +752,47 @@ GhostURLsReporter::CollectReports(
   return reportGhostWindowsEnumData.rv;
 }
 
+NS_IMPL_ISUPPORTS1(nsWindowMemoryReporter::NumGhostsReporter,
+                   nsIMemoryReporter)
+
+nsWindowMemoryReporter::
+NumGhostsReporter::NumGhostsReporter(
+  nsWindowMemoryReporter *aWindowReporter)
+  : mWindowReporter(aWindowReporter)
+{}
+
+NS_IMETHODIMP
+nsWindowMemoryReporter::
+NumGhostsReporter::GetProcess(nsACString& aProcess)
+{
+  aProcess.AssignLiteral("");
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsWindowMemoryReporter::
+NumGhostsReporter::GetPath(nsACString& aPath)
+{
+  aPath.AssignLiteral("ghost-windows");
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsWindowMemoryReporter::
+NumGhostsReporter::GetKind(int32_t* aKind)
+{
+  *aKind = KIND_OTHER;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsWindowMemoryReporter::
+NumGhostsReporter::GetUnits(int32_t* aUnits)
+{
+  *aUnits = nsIMemoryReporter::UNITS_COUNT;
+  return NS_OK;
+}
+
 NS_IMETHODIMP
 nsWindowMemoryReporter::
 NumGhostsReporter::GetDescription(nsACString& aDesc)
@@ -771,11 +812,14 @@ in the browser or add-ons.",
   return NS_OK;
 }
 
-int64_t
-nsWindowMemoryReporter::NumGhostsReporter::Amount()
+NS_IMETHODIMP
+nsWindowMemoryReporter::
+NumGhostsReporter::GetAmount(int64_t* aAmount)
 {
   nsTHashtable<nsUint64HashKey> ghostWindows;
   ghostWindows.Init();
   mWindowReporter->CheckForGhostWindows(&ghostWindows);
-  return ghostWindows.Count();
+
+  *aAmount = ghostWindows.Count();
+  return NS_OK;
 }

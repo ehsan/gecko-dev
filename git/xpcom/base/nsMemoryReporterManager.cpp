@@ -490,7 +490,7 @@ public:
 "exact amount requested is not recorded.)")
     {}
 private:
-    int64_t Amount() MOZ_OVERRIDE
+    int64_t Amount()
     {
         jemalloc_stats_t stats;
         jemalloc_stats(&stats);

@@ -1,5 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -25,23 +24,21 @@
 
 using namespace mozilla;
 
-class LayoutStyleSheetServiceReporter MOZ_FINAL
-  : public mozilla::MemoryReporterBase
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(LayoutStyleSheetServiceMallocSizeOf)
+
+static int64_t
+GetStyleSheetServiceSize()
 {
-public:
-  LayoutStyleSheetServiceReporter()
-    : MemoryReporterBase("explicit/layout/style-sheet-service",
-                         KIND_HEAP, UNITS_BYTES,
-"Memory used for style sheets held by the style sheet service.")
-  {}
-private:
-  int64_t Amount() MOZ_OVERRIDE
-  {
-    return nsStyleSheetService::gInstance
-         ? nsStyleSheetService::gInstance->SizeOfIncludingThis(MallocSizeOf)
-         : 0;
-  }
-};
+  return nsStyleSheetService::SizeOfIncludingThis(
+           LayoutStyleSheetServiceMallocSizeOf);
+}
+
+NS_MEMORY_REPORTER_IMPLEMENT(StyleSheetService,
+  "explicit/layout/style-sheet-service",
+  KIND_HEAP,
+  nsIMemoryReporter::UNITS_BYTES,
+  GetStyleSheetServiceSize,
+  "Memory used for style sheets held by the style sheet service.")
 
 nsStyleSheetService *nsStyleSheetService::gInstance = nullptr;
 
@@ -52,16 +49,17 @@ nsStyleSheetService::nsStyleSheetService()
   gInstance = this;
   nsLayoutStatics::AddRef();
 
-  mReporter = new LayoutStyleSheetServiceReporter();
-  NS_RegisterMemoryReporter(mReporter);
+  mReporter = new NS_MEMORY_REPORTER_NAME(StyleSheetService);
+  (void)::NS_RegisterMemoryReporter(mReporter);
 }
 
 nsStyleSheetService::~nsStyleSheetService()
 {
-  NS_UnregisterMemoryReporter(mReporter);
-
   gInstance = nullptr;
   nsLayoutStatics::Release();
+
+  (void)::NS_UnregisterMemoryReporter(mReporter);
+  mReporter = nullptr;
 }
 
 NS_IMPL_ISUPPORTS1(nsStyleSheetService, nsIStyleSheetService)
@@ -294,6 +292,17 @@ nsStyleSheetService::GetInstance()
   return gInstance;
 }
 
+size_t
+nsStyleSheetService::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf)
+{
+  if (!nsStyleSheetService::gInstance) {
+    return 0;
+  }
+
+  return nsStyleSheetService::gInstance->
+      SizeOfIncludingThisHelper(aMallocSizeOf);
+}
+
 static size_t
 SizeOfElementIncludingThis(nsIStyleSheet* aElement,
                            MallocSizeOf aMallocSizeOf, void *aData)
@@ -302,7 +311,7 @@ SizeOfElementIncludingThis(nsIStyleSheet* aElement,
 }
 
 size_t
-nsStyleSheetService::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
+nsStyleSheetService::SizeOfIncludingThisHelper(MallocSizeOf aMallocSizeOf) const
 {
   size_t n = aMallocSizeOf(this);
   n += mSheets[AGENT_SHEET].SizeOfExcludingThis(SizeOfElementIncludingThis,

@@ -1,5 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set ts=8 sts=2 et sw=2 tw=80: */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -161,6 +160,8 @@ static nsTArray<nsAutoPtr<CacheData> >* gCacheData = nullptr;
 static nsRefPtrHashtable<ValueObserverHashKey,
                          ValueObserver>* gObserverTable = nullptr;
 
+NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN(PreferencesMallocSizeOf)
+
 static size_t
 SizeOfObserverEntryExcludingThis(ValueObserverHashKey* aKey,
                                  const nsRefPtr<ValueObserver>& aData,
@@ -173,56 +174,52 @@ SizeOfObserverEntryExcludingThis(ValueObserverHashKey* aKey,
   return n;
 }
 
-// Although this is a member of Preferences, it measures sPreferences and
-// several other global structures.
-/* static */ int64_t
-Preferences::SizeOfIncludingThisAndOtherStuff(mozilla::MallocSizeOf aMallocSizeOf)
+// static
+int64_t
+Preferences::GetPreferencesMemoryUsed()
 {
   NS_ENSURE_TRUE(InitStaticMembers(), 0);
 
-  size_t n = aMallocSizeOf(sPreferences);
+  size_t n = 0;
+  n += PreferencesMallocSizeOf(sPreferences);
   if (gHashTable.ops) {
     // pref keys are allocated in a private arena, which we count elsewhere.
     // pref stringvals are allocated out of the same private arena.
-    n += PL_DHashTableSizeOfExcludingThis(&gHashTable, nullptr, aMallocSizeOf);
+    n += PL_DHashTableSizeOfExcludingThis(&gHashTable, nullptr,
+                                          PreferencesMallocSizeOf);
   }
   if (gCacheData) {
-    n += gCacheData->SizeOfIncludingThis(aMallocSizeOf);
+    n += gCacheData->SizeOfIncludingThis(PreferencesMallocSizeOf);
     for (uint32_t i = 0, count = gCacheData->Length(); i < count; ++i) {
-      n += aMallocSizeOf((*gCacheData)[i]);
+      n += PreferencesMallocSizeOf((*gCacheData)[i]);
     }
   }
   if (gObserverTable) {
-    n += aMallocSizeOf(gObserverTable);
+    n += PreferencesMallocSizeOf(gObserverTable);
     n += gObserverTable->SizeOfExcludingThis(SizeOfObserverEntryExcludingThis,
-                                             aMallocSizeOf);
+                                             PreferencesMallocSizeOf);
   }
   // We don't measure sRootBranch and sDefaultRootBranch here because
   // DMD indicates they are not significant.
-  n += pref_SizeOfPrivateData(aMallocSizeOf);
+  n += pref_SizeOfPrivateData(PreferencesMallocSizeOf);
   return n;
 }
 
-class PreferencesReporter MOZ_FINAL : public MemoryReporterBase
-{
-public:
-  PreferencesReporter()
-    : MemoryReporterBase("explicit/preferences", KIND_HEAP, UNITS_BYTES,
-                         "Memory used by the preferences system.")
-  {}
-private:
-  int64_t Amount() MOZ_OVERRIDE
-  {
-    return Preferences::SizeOfIncludingThisAndOtherStuff(MallocSizeOf);
-  }
-};
+NS_MEMORY_REPORTER_IMPLEMENT(Preferences,
+  "explicit/preferences",
+  KIND_HEAP,
+  UNITS_BYTES,
+  Preferences::GetPreferencesMemoryUsed,
+  "Memory used by the preferences system.")
 
 namespace {
 class AddPreferencesMemoryReporterRunnable : public nsRunnable
 {
   NS_IMETHOD Run()
   {
-    return NS_RegisterMemoryReporter(new PreferencesReporter());
+    nsCOMPtr<nsIMemoryReporter> reporter =
+      new NS_MEMORY_REPORTER_NAME(Preferences);
+    return NS_RegisterMemoryReporter(reporter);
   }
 };
 } // anonymous namespace

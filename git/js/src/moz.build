@@ -59,7 +59,6 @@ if CONFIG['HAVE_DTRACE']:
 EXPORTS.js += [
     '../public/Anchor.h',
     '../public/CallArgs.h',
-    '../public/CallNonGenericMethod.h',
     '../public/CharacterEncoding.h',
     '../public/Class.h',
     '../public/Date.h',
@@ -86,7 +85,6 @@ CPP_SOURCES += [
     'BinaryData.cpp',
     'BytecodeCompiler.cpp',
     'BytecodeEmitter.cpp',
-    'CallNonGenericMethod.cpp',
     'CharacterEncoding.cpp',
     'DateTime.cpp',
     'Debugger.cpp',
