@@ -568,14 +568,15 @@ TabChild::HandlePossibleViewportChange()
 
   nsCOMPtr<nsIDOMWindowUtils> utils(GetDOMWindowUtils());
 
-  nsViewportInfo viewportInfo = nsContentUtils::GetViewportInfo(document, mInnerSize);
+  nsViewportInfo viewportInfo =
+    nsContentUtils::GetViewportInfo(document, mInnerSize.width, mInnerSize.height);
   SendUpdateZoomConstraints(viewportInfo.IsZoomAllowed(),
-                            viewportInfo.GetMinZoom(),
-                            viewportInfo.GetMaxZoom());
+                            CSSToScreenScale(viewportInfo.GetMinZoom()),
+                            CSSToScreenScale(viewportInfo.GetMaxZoom()));
 
   float screenW = mInnerSize.width;
   float screenH = mInnerSize.height;
-  CSSSize viewport(viewportInfo.GetSize());
+  CSSSize viewport(viewportInfo.GetWidth(), viewportInfo.GetHeight());
 
   // We're not being displayed in any way; don't bother doing anything because
   // that will just confuse future adjustments.
@@ -608,6 +609,8 @@ TabChild::HandlePossibleViewportChange()
     return;
   }
 
+  float minScale = 1.0f;
+
   nsCOMPtr<Element> htmlDOMElement = document->GetHtmlElement();
   HTMLBodyElement* bodyDOMElement = document->GetBodyElement();
 
@@ -635,11 +638,12 @@ TabChild::HandlePossibleViewportChange()
     return;
   }
 
-  CSSToScreenScale minScale(mInnerSize.width / pageSize.width);
-  minScale = clamped(minScale, viewportInfo.GetMinZoom(), viewportInfo.GetMaxZoom());
-  NS_ENSURE_TRUE_VOID(minScale.scale); // (return early rather than divide by 0)
+  minScale = mInnerSize.width / pageSize.width;
+  minScale = clamped((double)minScale, viewportInfo.GetMinZoom(),
+                     viewportInfo.GetMaxZoom());
+  NS_ENSURE_TRUE_VOID(minScale); // (return early rather than divide by 0)
 
-  viewport.height = std::max(viewport.height, screenH / minScale.scale);
+  viewport.height = std::max(viewport.height, screenH / minScale);
   SetCSSViewport(viewport);
 
   float oldScreenWidth = mLastMetrics.mCompositionBounds.width;
@@ -676,14 +680,14 @@ TabChild::HandlePossibleViewportChange()
     // FIXME/bug 799585(?): GetViewportInfo() returns a defaultZoom of
     // 0.0 to mean "did not calculate a zoom".  In that case, we default
     // it to the intrinsic scale.
-    if (viewportInfo.GetDefaultZoom().scale < 0.01f) {
-      viewportInfo.SetDefaultZoom(metrics.CalculateIntrinsicScale());
+    if (viewportInfo.GetDefaultZoom() < 0.01f) {
+      viewportInfo.SetDefaultZoom(metrics.CalculateIntrinsicScale().scale);
     }
 
-    CSSToScreenScale defaultZoom = viewportInfo.GetDefaultZoom();
+    double defaultZoom = viewportInfo.GetDefaultZoom();
     MOZ_ASSERT(viewportInfo.GetMinZoom() <= defaultZoom &&
                defaultZoom <= viewportInfo.GetMaxZoom());
-    metrics.mZoom = defaultZoom;
+    metrics.mZoom = CSSToScreenScale(defaultZoom);
   }
 
   metrics.mDisplayPort = AsyncPanZoomController::CalculatePendingDisplayPort(

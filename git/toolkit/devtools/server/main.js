@@ -10,37 +10,7 @@
  * debugging global.
  */
 
-// |this.require| is used to test if this file was loaded via the devtools
-// loader (as it is in DebuggerProcess.jsm) or via loadSubScript (as it is from
-// dbg-server.jsm).  Note that testing |require| is not safe in either
-// situation, as it causes a ReferenceError.
-var Ci, Cc, CC, Cu, Cr, Components;
-if (this.require) {
-  ({ Ci, Cc, CC, Cu, Cr, components: Components }) = require("chrome");
-} else {
-  ({
-    interfaces: Ci,
-    classes: Cc,
-    Constructor: CC,
-    utils: Cu,
-    results: Cr
-  }) = Components;
-}
-
-// On B2G, if |this.require| is undefined at this point, it remains undefined
-// later on when |DebuggerServer.registerModule| is called.  On desktop (and
-// perhaps other places), if |this.require| starts out undefined, it ends up
-// being set to some native code by the time we get to |registerModule|.  Here
-// we perform a test early on, and then cache the correct require function for
-// later use.
-var localRequire;
-if (this.require) {
-  localRequire = id => require(id);
-} else {
-  let { devtools } = Cu.import("resource://gre/modules/devtools/Loader.jsm", {});
-  localRequire = id => devtools.require(id);
-}
-
+const { Ci, Cc, CC, Cu, Cr, components: Components } = require("chrome");
 const DBG_STRINGS_URI = "chrome://global/locale/devtools/debugger.properties";
 
 Cu.import("resource://gre/modules/Services.jsm");
@@ -65,7 +35,7 @@ function loadSubScript(aURL)
   }
 }
 
-let loaderRequire = this.require;
+let loaderRequire = require;
 this.require = null;
 loadSubScript.call(this, "resource://gre/modules/commonjs/sdk/core/promise.js");
 this.require = loaderRequire;
@@ -302,7 +272,7 @@ var DebuggerServer = {
     }
 
     let moduleAPI = ModuleAPI();
-    let mod = localRequire(id);
+    let mod = require(id);
     mod.register(moduleAPI);
     gRegisteredModules[id] = { module: mod, api: moduleAPI };
   },
@@ -648,9 +618,7 @@ var DebuggerServer = {
   }
 };
 
-if (this.exports) {
-  exports.DebuggerServer = DebuggerServer;
-}
+exports.DebuggerServer = DebuggerServer;
 
 /**
  * Construct an ActorPool.
@@ -666,9 +634,7 @@ function ActorPool(aConnection)
   this._actors = {};
 }
 
-if (this.exports) {
-  exports.ActorPool = ActorPool;
-}
+exports.ActorPool = ActorPool;
 
 ActorPool.prototype = {
   /**

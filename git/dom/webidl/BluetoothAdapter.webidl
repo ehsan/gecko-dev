@@ -67,10 +67,6 @@ interface BluetoothAdapter : EventTarget {
   [SetterThrows]
            attribute EventHandler   onscostatuschanged;
 
-  // Fired when remote devices query current media play status
-  [SetterThrows]
-           attribute EventHandler   onrequestmediaplaystatus;
-
   [Creator, Throws]
   DOMRequest setName(DOMString name);
   [Creator, Throws]

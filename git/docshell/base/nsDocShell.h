@@ -520,6 +520,9 @@ protected:
     nsresult   EnsureTransferableHookData();
     NS_IMETHOD EnsureFind();
     nsresult   RefreshURIFromQueue();
+    NS_IMETHOD DisplayLoadError(nsresult aError, nsIURI *aURI,
+                                const PRUnichar *aURL,
+                                nsIChannel* aFailedChannel = nullptr);
     NS_IMETHOD LoadErrorPage(nsIURI *aURI, const PRUnichar *aURL,
                              const char *aErrorPage,
                              const PRUnichar *aErrorType,
