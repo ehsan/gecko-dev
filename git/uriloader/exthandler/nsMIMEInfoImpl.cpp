@@ -62,7 +62,7 @@ NS_INTERFACE_MAP_END_THREADSAFE
 
 // Constructors for a MIME handler.
 nsMIMEInfoBase::nsMIMEInfoBase(const char *aMIMEType) :
-    mSchemeOrType(aMIMEType),
+    mType(aMIMEType),
     mClass(eMIMEInfo),
     mPreferredAction(nsIMIMEInfo::saveToDisk),
     mAlwaysAskBeforeHandling(PR_TRUE)
@@ -70,7 +70,7 @@ nsMIMEInfoBase::nsMIMEInfoBase(const char *aMIMEType) :
 }
 
 nsMIMEInfoBase::nsMIMEInfoBase(const nsACString& aMIMEType) :
-    mSchemeOrType(aMIMEType),
+    mType(aMIMEType),
     mClass(eMIMEInfo),
     mPreferredAction(nsIMIMEInfo::saveToDisk),
     mAlwaysAskBeforeHandling(PR_TRUE)
@@ -83,7 +83,7 @@ nsMIMEInfoBase::nsMIMEInfoBase(const nsACString& aMIMEType) :
 // for both and distinguish between the two kinds of handlers via the aClass
 // argument to this method, which can be either eMIMEInfo or eProtocolInfo.
 nsMIMEInfoBase::nsMIMEInfoBase(const nsACString& aType, HandlerClass aClass) :
-    mSchemeOrType(aType),
+    mType(aType),
     mClass(aClass),
     mPreferredAction(nsIMIMEInfo::saveToDisk),
     mAlwaysAskBeforeHandling(PR_TRUE)
@@ -163,20 +163,20 @@ nsMIMEInfoBase::AppendExtension(const nsACString& aExtension)
 NS_IMETHODIMP
 nsMIMEInfoBase::GetType(nsACString& aType)
 {
-    if (mSchemeOrType.IsEmpty())
+    if (mType.IsEmpty())
         return NS_ERROR_NOT_INITIALIZED;
 
-    aType = mSchemeOrType;
+    aType = mType;
     return NS_OK;
 }
 
 NS_IMETHODIMP
 nsMIMEInfoBase::GetMIMEType(nsACString& aMIMEType)
 {
-    if (mSchemeOrType.IsEmpty())
+    if (mType.IsEmpty())
         return NS_ERROR_NOT_INITIALIZED;
 
-    aMIMEType = mSchemeOrType;
+    aMIMEType = mType;
     return NS_OK;
 }
 
@@ -203,7 +203,7 @@ nsMIMEInfoBase::Equals(nsIMIMEInfo *aMIMEInfo, PRBool *_retval)
     nsresult rv = aMIMEInfo->GetMIMEType(type);
     if (NS_FAILED(rv)) return rv;
 
-    *_retval = mSchemeOrType.Equals(type);
+    *_retval = mType.Equals(type);
 
     return NS_OK;
 }
@@ -367,7 +367,7 @@ nsMIMEInfoBase::LaunchWithURI(nsIURI* aURI,
 void
 nsMIMEInfoBase::CopyBasicDataTo(nsMIMEInfoBase* aOther)
 {
-  aOther->mSchemeOrType = mSchemeOrType;
+  aOther->mType = mType;
   aOther->mDefaultAppDescription = mDefaultAppDescription;
   aOther->mExtensions = mExtensions;
 }

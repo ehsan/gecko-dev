@@ -129,7 +129,7 @@ public:
    * @return true if the statement has parameters to bind against, false
    *         otherwise.
    */
-  inline bool hasParametersToBeBound() const { return !!mParamsArray; }
+  inline bool hasParametersToBeBound() const { return mParamsArray != nsnull; }
   /**
    * Indicates if this statement needs a transaction for execution.
    *

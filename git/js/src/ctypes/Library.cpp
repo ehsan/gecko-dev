@@ -215,18 +215,9 @@ Library::Declare(JSContext* cx, uintN argc, jsval* vp)
     return JS_FALSE;
   }
 
-  // We allow two API variants:
-  // 1) library.declare(name, abi, returnType, argType1, ...)
-  //    declares a function with the given properties, and resolves the symbol
-  //    address in the library.
-  // 2) library.declare(name, type)
-  //    declares a symbol of 'type', and resolves it. The object that comes
-  //    back will be of type 'type', and will point into the symbol data.
-  //    This data will be both readable and writable via the usual CData
-  //    accessors. If 'type' is a FunctionType, the result will be a function
-  //    pointer, as with 1). 
-  if (argc < 2) {
-    JS_ReportError(cx, "declare requires at least two arguments");
+  // we always need at least a method name, a call type and a return type
+  if (argc < 3) {
+    JS_ReportError(cx, "declare requires at least three arguments");
     return JS_FALSE;
   }
 
@@ -240,65 +231,24 @@ Library::Declare(JSContext* cx, uintN argc, jsval* vp)
   if (!name)
     return JS_FALSE;
 
-  JSObject* typeObj;
-  js::AutoValueRooter root(cx);
-  bool isFunction = argc > 2;
-  if (isFunction) {
-    // Case 1).
-    // Create a FunctionType representing the function.
-    typeObj = FunctionType::CreateInternal(cx,
-                argv[1], argv[2], &argv[3], argc - 3);
-    if (!typeObj)
-      return JS_FALSE;
-    root.setObject(typeObj);
-
-    // Make a function pointer type.
-    typeObj = PointerType::CreateInternal(cx, typeObj);
-    if (!typeObj)
-      return JS_FALSE;
-    root.setObject(typeObj);
-
-  } else {
-    // Case 2).
-    if (JSVAL_IS_PRIMITIVE(argv[1]) ||
-        !CType::IsCType(cx, JSVAL_TO_OBJECT(argv[1])) ||
-        !CType::IsSizeDefined(cx, JSVAL_TO_OBJECT(argv[1]))) {
-      JS_ReportError(cx, "second argument must be a type of defined size");
-      return JS_FALSE;
-    }
-
-    typeObj = JSVAL_TO_OBJECT(argv[1]);
-    if (CType::GetTypeCode(cx, typeObj) == TYPE_pointer) {
-      JSObject* baseType = PointerType::GetBaseType(cx, typeObj);
-      isFunction = baseType && CType::GetTypeCode(cx, baseType) == TYPE_function;
-    }
+  PRFuncPtr func = PR_FindFunctionSymbol(library, name);
+  if (!func) {
+    JS_ReportError(cx, "couldn't find function symbol in library");
+    return JS_FALSE;
   }
 
-  void* data;
-  PRFuncPtr fnptr;
-  if (isFunction) {
-    // Look up the function symbol.
-    fnptr = PR_FindFunctionSymbol(library, name);
-    if (!fnptr) {
-      JS_ReportError(cx, "couldn't find function symbol in library");
-      return JS_FALSE;
-    }
-    data = &fnptr;
+  // Create a FunctionType representing the function.
+  JSObject* typeObj = FunctionType::CreateInternal(cx,
+                        argv[1], argv[2], &argv[3], argc - 3);
+  if (!typeObj)
+    return JS_FALSE;
+  js::AutoValueRooter root(cx, typeObj);
 
-  } else {
-    // 'typeObj' is another data type. Look up the data symbol.
-    data = PR_FindSymbol(library, name);
-    if (!data) {
-      JS_ReportError(cx, "couldn't find symbol in library");
-      return JS_FALSE;
-    }
-  }
-
-  JSObject* result = CData::Create(cx, typeObj, obj, data, isFunction);
-  if (!result)
+  JSObject* fn = CData::Create(cx, typeObj, obj, &func, true);
+  if (!fn)
     return JS_FALSE;
 
-  JS_SET_RVAL(cx, vp, OBJECT_TO_JSVAL(result));
+  JS_SET_RVAL(cx, vp, OBJECT_TO_JSVAL(fn));
 
   // Seal the CData object, to prevent modification of the function pointer.
   // This permanently associates this object with the library, and avoids
@@ -306,10 +256,7 @@ Library::Declare(JSContext* cx, uintN argc, jsval* vp)
   // change the pointer value.
   // XXX This will need to change when bug 541212 is fixed -- CData::ValueSetter
   // could be called on a sealed object.
-  if (isFunction && !JS_SealObject(cx, result, JS_FALSE))
-    return JS_FALSE;
-
-  return JS_TRUE;
+  return JS_SealObject(cx, fn, JS_FALSE);
 }
 
 }

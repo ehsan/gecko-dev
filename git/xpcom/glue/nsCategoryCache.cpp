@@ -65,7 +65,6 @@ nsCategoryObserver::nsCategoryObserver(const char* aCategory,
   if (NS_FAILED(rv))
     return;
 
-  nsTArray<nsCString> entries;
   nsCOMPtr<nsISupports> entry;
   while (NS_SUCCEEDED(enumerator->GetNext(getter_AddRefs(entry)))) {
     nsCOMPtr<nsISupportsCString> entryName = do_QueryInterface(entry, &rv);
@@ -81,7 +80,7 @@ nsCategoryObserver::nsCategoryObserver(const char* aCategory,
 
       if (NS_SUCCEEDED(rv)) {
         mHash.Put(categoryEntry, entryValue);
-        entries.AppendElement(entryValue);
+        mListener->EntryAdded(entryValue);
       }
     }
   }
@@ -89,15 +88,14 @@ nsCategoryObserver::nsCategoryObserver(const char* aCategory,
   // Now, listen for changes
   nsCOMPtr<nsIObserverService> serv =
     do_GetService(NS_OBSERVERSERVICE_CONTRACTID);
-  if (serv) {
-    serv->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, PR_FALSE);
-    serv->AddObserver(this, NS_XPCOM_CATEGORY_ENTRY_ADDED_OBSERVER_ID, PR_FALSE);
-    serv->AddObserver(this, NS_XPCOM_CATEGORY_ENTRY_REMOVED_OBSERVER_ID, PR_FALSE);
-    serv->AddObserver(this, NS_XPCOM_CATEGORY_CLEARED_OBSERVER_ID, PR_FALSE);
-  }
+  if (!serv)
+    return;
 
-  for (PRInt32 i = entries.Length() - 1; i >= 0; --i)
-    mListener->EntryAdded(entries[i]);
+  serv->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, PR_FALSE);
+
+  serv->AddObserver(this, NS_XPCOM_CATEGORY_ENTRY_ADDED_OBSERVER_ID, PR_FALSE);
+  serv->AddObserver(this, NS_XPCOM_CATEGORY_ENTRY_REMOVED_OBSERVER_ID, PR_FALSE);
+  serv->AddObserver(this, NS_XPCOM_CATEGORY_CLEARED_OBSERVER_ID, PR_FALSE);
 }
 
 nsCategoryObserver::~nsCategoryObserver() {

@@ -69,6 +69,9 @@
 
 using namespace js;
 
+const uint32 JSSLOT_EXEC_DEPTH          = JSSLOT_PRIVATE + 1;
+const uint32 JSSCRIPT_RESERVED_SLOTS    = 1;
+
 static const jsbytecode emptyScriptCode[] = {JSOP_STOP, SRC_NULL};
 
 /* static */ const JSScript JSScript::emptyScriptConst = {
@@ -401,7 +404,7 @@ script_trace(JSTracer *trc, JSObject *obj)
 
 JSClass js_ScriptClass = {
     "Script",
-    JSCLASS_HAS_PRIVATE |
+    JSCLASS_HAS_PRIVATE | JSCLASS_HAS_RESERVED_SLOTS(JSSCRIPT_RESERVED_SLOTS) |
     JSCLASS_MARK_IS_TRACE | JSCLASS_HAS_CACHED_PROTO(JSProto_Object),
     JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,
     JS_EnumerateStub, JS_ResolveStub,   JS_ConvertStub,   script_finalize,
@@ -704,7 +707,7 @@ js_script_filename_marker(JSHashEntry *he, intN i, void *arg)
 }
 
 void
-js_MarkScriptFilenames(JSRuntime *rt)
+js_MarkScriptFilenames(JSRuntime *rt, JSBool keepAtoms)
 {
     JSCList *head, *link;
     ScriptFilenamePrefix *sfp;
@@ -712,7 +715,7 @@ js_MarkScriptFilenames(JSRuntime *rt)
     if (!rt->scriptFilenameTable)
         return;
 
-    if (rt->gcKeepAtoms) {
+    if (keepAtoms) {
         JS_HashTableEnumerateEntries(rt->scriptFilenameTable,
                                      js_script_filename_marker,
                                      rt);
@@ -1001,7 +1004,7 @@ js_NewScriptFromCG(JSContext *cx, JSCodeGenerator *cg)
     script->nfixed = (uint16) nfixed;
     js_InitAtomMap(cx, &script->atomMap, &cg->atomList);
 
-    filename = cg->parser->tokenStream.getFilename();
+    filename = cg->compiler->tokenStream.getFilename();
     if (filename) {
         script->filename = js_SaveScriptFilename(cx, filename);
         if (!script->filename)
@@ -1014,7 +1017,7 @@ js_NewScriptFromCG(JSContext *cx, JSCodeGenerator *cg)
     }
     script->nslots = script->nfixed + cg->maxStackDepth;
     script->staticLevel = uint16(cg->staticLevel);
-    script->principals = cg->parser->principals;
+    script->principals = cg->compiler->principals;
     if (script->principals)
         JSPRINCIPALS_HOLD(cx, script->principals);
 
@@ -1084,9 +1087,10 @@ js_CallNewScriptHook(JSContext *cx, JSScript *script, JSFunction *fun)
 
     hook = cx->debugHooks->newScriptHook;
     if (hook) {
-        AutoKeepAtoms keep(cx->runtime);
+        JS_KEEP_ATOMS(cx->runtime);
         hook(cx, script->filename, script->lineno, script, fun,
              cx->debugHooks->newScriptHookData);
+        JS_UNKEEP_ATOMS(cx->runtime);
     }
 }
 

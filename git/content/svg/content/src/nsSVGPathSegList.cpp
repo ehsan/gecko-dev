@@ -132,10 +132,12 @@ NS_INTERFACE_MAP_END
 NS_IMETHODIMP
 nsSVGPathSegList::SetValueString(const nsAString& aValue)
 {
+  nsresult rv;
+  
   WillModify();
   ReleaseSegments(PR_FALSE);
   nsSVGPathDataParserToDOM parser(&mSegments);
-  nsresult rv = parser.Parse(aValue);
+  rv = parser.Parse(aValue);
 
   PRInt32 count = mSegments.Count();
   for (PRInt32 i=0; i<count; ++i) {

@@ -56,8 +56,9 @@ let (commonFile = do_get_file("../head_common.js", false)) {
 // Simulates an expiration at shutdown.
 function shutdownExpiration()
 {
+  const TOPIC_XPCOM_SHUTDOWN = "xpcom-shutdown";
   let expire = Cc["@mozilla.org/places/expiration;1"].getService(Ci.nsIObserver);
-  expire.observe(null, PlacesUtils.TOPIC_SHUTDOWN, null);
+  expire.observe(null, TOPIC_XPCOM_SHUTDOWN, null);
 }
 
 

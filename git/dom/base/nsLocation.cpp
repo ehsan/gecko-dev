@@ -921,7 +921,7 @@ nsLocation::GetSourceBaseURL(JSContext* cx, nsIURI** sourceURL)
   nsCOMPtr<nsIDocument> doc;
   nsresult rv = GetSourceDocument(cx, getter_AddRefs(doc));
   if (doc) {
-    *sourceURL = doc->GetBaseURI().get();
+    NS_IF_ADDREF(*sourceURL = doc->GetBaseURI());
   } else {
     *sourceURL = nsnull;
   }

@@ -56,7 +56,7 @@ function test()
   // don't crash|assert
   f = function () { };
   f.__proto__ = this; 
-  Object.defineProperty(this, "m", { set: f, enumerable: true, configurable: true });
+  this.m setter = f; 
   uneval(this);
   reportCompare(expect, actual, summary);
 

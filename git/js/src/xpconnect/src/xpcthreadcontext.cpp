@@ -45,7 +45,6 @@
 #include "XPCWrapper.h"
 #include "nsDOMJSUtils.h"
 #include "nsIScriptGlobalObject.h"
-#include "nsNullPrincipal.h"
 
 /***************************************************************************/
 
@@ -227,13 +226,12 @@ XPCJSContextStack::GetSafeJSContext(JSContext * *aSafeJSContext)
 #ifndef XPCONNECT_STANDALONE
         // Start by getting the principal holder and principal for this
         // context.  If we can't manage that, don't bother with the rest.
-        nsRefPtr<nsNullPrincipal> principal = new nsNullPrincipal();
+        nsCOMPtr<nsIPrincipal> principal =
+            do_CreateInstance("@mozilla.org/nullprincipal;1");
         nsCOMPtr<nsIScriptObjectPrincipal> sop;
         if(principal)
         {
-            nsresult rv = principal->Init();
-            if(NS_SUCCEEDED(rv))
-              sop = new PrincipalHolder(principal);
+            sop = new PrincipalHolder(principal);
         }
         if(!sop)
         {
@@ -389,11 +387,6 @@ XPCPerThreadData::Cleanup()
 
 XPCPerThreadData::~XPCPerThreadData()
 {
-    /* Be careful to ensure that both any update to |gThreads| and the
-       decision about whether or not to destroy the lock, are done
-       atomically.  See bug 557586. */
-    PRBool doDestroyLock = PR_FALSE;
-
     MOZ_COUNT_DTOR(xpcPerThreadData);
 
     Cleanup();
@@ -417,11 +410,9 @@ XPCPerThreadData::~XPCPerThreadData()
                 cur = cur->mNextThread;
             }
         }
-        if (!gThreads)
-            doDestroyLock = PR_TRUE;
     }
 
-    if(gLock && doDestroyLock)
+    if(gLock && !gThreads)
     {
         PR_DestroyLock(gLock);
         gLock = nsnull;

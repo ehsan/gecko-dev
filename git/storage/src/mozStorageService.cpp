@@ -51,7 +51,6 @@
 #include "nsILocaleService.h"
 #include "nsIXPConnect.h"
 #include "nsIObserverService.h"
-#include "mozilla/Services.h"
 
 #include "sqlite3.h"
 
@@ -171,7 +170,7 @@ Service::initialize()
     return convertResultCode(rc);
 
   nsCOMPtr<nsIObserverService> os =
-    mozilla::services::GetObserverService();
+    do_GetService("@mozilla.org/observer-service;1");
   NS_ENSURE_TRUE(os, NS_ERROR_FAILURE);
 
   nsresult rv = os->AddObserver(this, "xpcom-shutdown", PR_FALSE);

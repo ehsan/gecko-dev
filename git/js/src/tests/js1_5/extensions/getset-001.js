@@ -47,23 +47,26 @@ function TestObject ()
 
 TestObject.prototype._y = "<initial y>";
    
-Object.defineProperty(TestObject.prototype, "y",
+TestObject.prototype.y getter =
+  function get_y ()
 {
-  enumerable: true, configurable: true,
-  get: function get_y ()
-  {
-    var rv;
-    if (typeof this._y == "string")
-      rv = "got " + this._y;
-    else
-      rv = this._y;
-    return rv;
-  },
-  set: function set_y (newVal) { this._y = newVal; }
-});
+  var rv;
+   
+  if (typeof this._y == "string")
+    rv = "got " + this._y;
+  else
+    rv = this._y;
+   
+  return rv;
+}
 
+  TestObject.prototype.y setter =
+  function set_y (newVal)
+{
+  this._y = newVal;
+}
 
-test(new TestObject());
+    test(new TestObject());
 
 function test(t)
 {

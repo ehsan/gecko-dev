@@ -1,4 +1,4 @@
-include protocol DeleteSub;
+include protocol "DeleteSub.ipdl";
 
 sync protocol Delete {
     manages DeleteSub;

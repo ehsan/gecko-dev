@@ -109,7 +109,6 @@
 #include "nsLayoutUtils.h"
 #include "nsContentCreatorFunctions.h"
 #include "mozAutoDocUpdate.h"
-#include "nsHtml5Module.h"
 
 class nsINodeInfo;
 class nsIDOMNodeList;
@@ -265,6 +264,23 @@ nsGenericHTMLElement::CopyInnerTo(nsGenericElement* aDst) const
     rv = aDst->SetAttr(name->NamespaceID(), name->LocalName(),
                        name->GetPrefix(), valStr, PR_FALSE);
     NS_ENSURE_SUCCESS(rv, rv);
+  }
+
+  // Copy the baseuri and basetarget
+  void* prop;
+  if ((prop = GetProperty(nsGkAtoms::htmlBaseHref))) {
+    rv = aDst->SetProperty(nsGkAtoms::htmlBaseHref, prop,
+                           nsPropertyTable::SupportsDtorFunc, PR_TRUE);
+    if (NS_SUCCEEDED(rv)) {
+      NS_ADDREF(static_cast<nsIURI*>(prop));
+    }
+  }
+  if ((prop = GetProperty(nsGkAtoms::htmlBaseTarget))) {
+    rv = aDst->SetProperty(nsGkAtoms::htmlBaseTarget, prop,
+                           nsPropertyTable::SupportsDtorFunc, PR_TRUE);
+    if (NS_SUCCEEDED(rv)) {
+      NS_ADDREF(static_cast<nsIAtom*>(prop));
+    }
   }
 
   return NS_OK;
@@ -453,7 +469,7 @@ nsGenericHTMLElement::GetOffsetRect(nsRect& aRect, nsIContent** aOffsetParent)
     parent = parent->GetParent();
   }
 
-  Element* docElement = GetCurrentDoc()->GetRootElement();
+  nsIContent* docElement = GetCurrentDoc()->GetRootContent();
   nsIContent* content = frame->GetContent();
 
   if (content && (IsBody(content) || content == docElement)) {
@@ -658,66 +674,38 @@ nsGenericHTMLElement::GetInnerHTML(nsAString& aInnerHTML)
 nsresult
 nsGenericHTMLElement::SetInnerHTML(const nsAString& aInnerHTML)
 {
-  nsIDocument* doc = GetOwnerDoc();
-  NS_ENSURE_STATE(doc);
-
-  nsresult rv = NS_OK;
-
   // This BeginUpdate/EndUpdate pair is important to make us reenable the
   // scriptloader before the last EndUpdate call.
-  mozAutoDocUpdate updateBatch(doc, UPDATE_CONTENT_MODEL, PR_TRUE);
+  mozAutoDocUpdate updateBatch(GetCurrentDoc(), UPDATE_CONTENT_MODEL, PR_TRUE);
 
   // Batch possible DOMSubtreeModified events.
-  mozAutoSubtreeModified subtree(doc, nsnull);
+  mozAutoSubtreeModified subtree(GetOwnerDoc(), nsnull);
 
   // Remove childnodes
   nsContentUtils::SetNodeTextContent(this, EmptyString(), PR_FALSE);
 
   nsCOMPtr<nsIDOMDocumentFragment> df;
 
+  nsCOMPtr<nsIDocument> doc = GetOwnerDoc();
+
   // Strong ref since appendChild can fire events
-  nsRefPtr<nsScriptLoader> loader = doc->ScriptLoader();
-  PRBool scripts_enabled = loader->GetEnabled();
-  loader->SetEnabled(PR_FALSE);
+  nsRefPtr<nsScriptLoader> loader;
+  PRBool scripts_enabled = PR_FALSE;
 
-  if (doc->IsHTML() && nsHtml5Module::sEnabled) {
-    nsCOMPtr<nsIParser> parser = doc->GetFragmentParser();
-    if (parser) {
-      parser->Reset();
-    } else {
-      parser = nsHtml5Module::NewHtml5Parser();
-      NS_ENSURE_TRUE(parser, NS_ERROR_OUT_OF_MEMORY);
-    }
+  if (doc) {
+    loader = doc->ScriptLoader();
+    scripts_enabled = loader->GetEnabled();
+    loader->SetEnabled(PR_FALSE);
+  }
 
-    PRInt32 oldChildCount = GetChildCount();
-    parser->ParseFragment(aInnerHTML, this, Tag(), GetNameSpaceID(),
-                          doc->GetCompatibilityMode() == eCompatibility_NavQuirks);
-    doc->SetFragmentParser(parser);
-
-    // HTML5 parser has notified, but not fired mutation events.
-    // Fire mutation events. Optimize for the case when there are no listeners
-    nsPIDOMWindow* window = nsnull;
-    PRInt32 newChildCount = GetChildCount();
-    if (newChildCount &&
-        (((window = doc->GetInnerWindow()) &&
-          window->HasMutationListeners(NS_EVENT_BITS_MUTATION_NODEINSERTED)) ||
-         !window)) {
-      nsCOMArray<nsIContent> childNodes;
-      NS_ASSERTION(newChildCount - oldChildCount >= 0,
-                   "What, some unexpected dom mutation has happened?");
-      childNodes.SetCapacity(newChildCount - oldChildCount);
-      for (nsINode::ChildIterator iter(this); !iter.IsDone(); iter.Next()) {
-        childNodes.AppendObject(iter);
-      }
-      nsGenericElement::FireNodeInserted(doc, this, childNodes);
-    }
-  } else {
-    rv = nsContentUtils::CreateContextualFragment(this, aInnerHTML, PR_FALSE,
-                                                  getter_AddRefs(df));
-    nsCOMPtr<nsINode> fragment = do_QueryInterface(df);
-    if (NS_SUCCEEDED(rv)) {
-      static_cast<nsINode*>(this)->AppendChild(fragment, &rv);
-    }
+  nsCOMPtr<nsIDOMNode> thisNode(do_QueryInterface(static_cast<nsIContent *>
+                                                             (this)));
+  nsresult rv = nsContentUtils::CreateContextualFragment(thisNode, aInnerHTML,
+                                                         PR_FALSE,
+                                                         getter_AddRefs(df));
+  if (NS_SUCCEEDED(rv)) {
+    nsCOMPtr<nsIDOMNode> tmpNode;
+    rv = thisNode->AppendChild(df, getter_AddRefs(tmpNode));
   }
 
   if (scripts_enabled) {
@@ -1165,15 +1153,42 @@ nsGenericHTMLElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
   return NS_OK;
 }
 
+already_AddRefed<nsIURI>
+nsGenericHTMLElement::GetBaseURI() const
+{
+  void* prop;
+  if (HasFlag(NODE_HAS_PROPERTIES) && (prop = GetProperty(nsGkAtoms::htmlBaseHref))) {
+    nsIURI* uri = static_cast<nsIURI*>(prop);
+    NS_ADDREF(uri);
+    
+    return uri;
+  }
+
+  return nsGenericHTMLElementBase::GetBaseURI();
+}
+
 void
 nsGenericHTMLElement::GetBaseTarget(nsAString& aBaseTarget) const
 {
+  void* prop;
+  if (HasFlag(NODE_HAS_PROPERTIES) && (prop = GetProperty(nsGkAtoms::htmlBaseTarget))) {
+    static_cast<nsIAtom*>(prop)->ToString(aBaseTarget);
+    
+    return;
+  }
+
   nsIDocument* ownerDoc = GetOwnerDoc();
   if (ownerDoc) {
     ownerDoc->GetBaseTarget(aBaseTarget);
   } else {
     aBaseTarget.Truncate();
   }
+}
+
+PRBool
+nsGenericHTMLElement::IsNodeOfType(PRUint32 aFlags) const
+{
+  return !(aFlags & ~(eCONTENT | eELEMENT));
 }
 
 //----------------------------------------------------------------------
@@ -1187,7 +1202,7 @@ nsGenericHTMLElement::ParseAttribute(PRInt32 aNamespaceID,
 {
   if (aNamespaceID == kNameSpaceID_None) {
     if (aAttribute == nsGkAtoms::dir) {
-      return aResult.ParseEnumValue(aValue, kDirTable, PR_FALSE);
+      return aResult.ParseEnumValue(aValue, kDirTable);
     }
   
     if (aAttribute == nsGkAtoms::tabindex) {
@@ -1436,7 +1451,7 @@ PRBool
 nsGenericHTMLElement::ParseAlignValue(const nsAString& aString,
                                       nsAttrValue& aResult)
 {
-  return aResult.ParseEnumValue(aString, kAlignTable, PR_FALSE);
+  return aResult.ParseEnumValue(aString, kAlignTable);
 }
 
 //----------------------------------------
@@ -1469,9 +1484,9 @@ nsGenericHTMLElement::ParseTableHAlignValue(const nsAString& aString,
                                             nsAttrValue& aResult) const
 {
   if (InNavQuirksMode(GetOwnerDoc())) {
-    return aResult.ParseEnumValue(aString, kCompatTableHAlignTable, PR_FALSE);
+    return aResult.ParseEnumValue(aString, kCompatTableHAlignTable);
   }
-  return aResult.ParseEnumValue(aString, kTableHAlignTable, PR_FALSE);
+  return aResult.ParseEnumValue(aString, kTableHAlignTable);
 }
 
 //----------------------------------------
@@ -1507,9 +1522,9 @@ nsGenericHTMLElement::ParseTableCellHAlignValue(const nsAString& aString,
                                                 nsAttrValue& aResult) const
 {
   if (InNavQuirksMode(GetOwnerDoc())) {
-    return aResult.ParseEnumValue(aString, kCompatTableCellHAlignTable, PR_FALSE);
+    return aResult.ParseEnumValue(aString, kCompatTableCellHAlignTable);
   }
-  return aResult.ParseEnumValue(aString, kTableCellHAlignTable, PR_FALSE);
+  return aResult.ParseEnumValue(aString, kTableCellHAlignTable);
 }
 
 //----------------------------------------
@@ -1518,14 +1533,14 @@ PRBool
 nsGenericHTMLElement::ParseTableVAlignValue(const nsAString& aString,
                                             nsAttrValue& aResult)
 {
-  return aResult.ParseEnumValue(aString, kTableVAlignTable, PR_FALSE);
+  return aResult.ParseEnumValue(aString, kTableVAlignTable);
 }
 
-PRBool 
+PRBool
 nsGenericHTMLElement::ParseDivAlignValue(const nsAString& aString,
                                          nsAttrValue& aResult) const
 {
-  return aResult.ParseEnumValue(aString, kDivAlignTable, PR_FALSE);
+  return aResult.ParseEnumValue(aString, kDivAlignTable);
 }
 
 PRBool
@@ -1549,14 +1564,14 @@ PRBool
 nsGenericHTMLElement::ParseFrameborderValue(const nsAString& aString,
                                             nsAttrValue& aResult)
 {
-  return aResult.ParseEnumValue(aString, kFrameborderTable, PR_FALSE);
+  return aResult.ParseEnumValue(aString, kFrameborderTable);
 }
 
 PRBool
 nsGenericHTMLElement::ParseScrollingValue(const nsAString& aString,
                                           nsAttrValue& aResult)
 {
-  return aResult.ParseEnumValue(aString, kScrollingTable, PR_FALSE);
+  return aResult.ParseEnumValue(aString, kScrollingTable);
 }
 
 /**
@@ -1596,9 +1611,6 @@ nsGenericHTMLElement::MapCommonAttributesInto(const nsMappedAttributes* aAttribu
 void
 nsGenericHTMLFormElement::UpdateEditableFormControlState()
 {
-  // nsCSSFrameConstructor::MaybeConstructLazily is based on the logic of this
-  // function, so should be kept in sync with that.
-
   ContentEditableTristate value = GetContentEditableValue();
   if (value != eInherit) {
     SetEditableFlag(!!value);
@@ -1869,7 +1881,7 @@ nsGenericHTMLElement::MapBackgroundInto(const nsMappedAttributes* aAttributes,
         nsIDocument* doc = presContext->Document();
         nsCOMPtr<nsIURI> uri;
         nsresult rv = nsContentUtils::NewURIWithDocumentCharset(
-            getter_AddRefs(uri), spec, doc, doc->GetDocBaseURI());
+            getter_AddRefs(uri), spec, doc, doc->GetBaseURI());
         if (NS_SUCCEEDED(rv)) {
           // Note that this should generally succeed here, due to the way
           // |spec| is created.  Maybe we should just add an nsStringBuffer
@@ -2167,24 +2179,6 @@ nsGenericHTMLElement::GetURIListAttr(nsIAtom* aAttr, nsAString& aResult)
 }
 
 nsresult
-nsGenericHTMLElement::GetEnumAttr(nsIAtom* aAttr,
-                                  const char* aDefault,
-                                  nsAString& aResult)
-{
-  const nsAttrValue* attrVal = mAttrsAndChildren.GetAttr(aAttr);
-
-  aResult.Truncate();
-
-  if (attrVal && attrVal->Type() == nsAttrValue::eEnum) {
-    attrVal->GetEnumString(aResult, PR_TRUE);
-  } else {
-    AppendASCIItoUTF16(nsDependentCString(aDefault), aResult);
-  }
-
-  return NS_OK;
-}
-
-nsresult
 nsGenericHTMLElement::GetContentEditable(nsAString& aContentEditable)
 {
   ContentEditableTristate value = GetContentEditableValue();
@@ -2268,7 +2262,7 @@ NS_IMPL_QUERY_INTERFACE_INHERITED1(nsGenericHTMLFormElement,
 PRBool
 nsGenericHTMLFormElement::IsNodeOfType(PRUint32 aFlags) const
 {
-  return !(aFlags & ~(eCONTENT | eHTML_FORM_CONTROL));
+  return !(aFlags & ~(eCONTENT | eELEMENT | eHTML_FORM_CONTROL));
 }
 
 void
@@ -2598,8 +2592,7 @@ nsGenericHTMLFormElement::CanBeDisabled() const
     type != NS_FORM_LABEL &&
     type != NS_FORM_LEGEND &&
     type != NS_FORM_FIELDSET &&
-    type != NS_FORM_OBJECT &&
-    type != NS_FORM_OUTPUT;
+    type != NS_FORM_OBJECT;
 }
 
 PRBool

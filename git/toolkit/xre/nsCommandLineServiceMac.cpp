@@ -143,7 +143,7 @@ nsresult nsMacCommandLine::Initialize(int& argc, char**& argv)
   return NS_OK;
 }
 
-void nsMacCommandLine::SetupCommandLine(int& argc, char**& argv, PRBool forRestart)
+void nsMacCommandLine::SetupCommandLine(int& argc, char**& argv)
 {
   // Initializes the command line from Apple Events and other sources,
   // as appropriate for OS X.
@@ -157,21 +157,20 @@ void nsMacCommandLine::SetupCommandLine(int& argc, char**& argv, PRBool forResta
   // Process Apple Events and put them into the arguments.
   Initialize(argc, argv);
 
-  if (forRestart) {
-    Boolean isForeground = PR_FALSE;
-    ProcessSerialNumber psnSelf, psnFront;
+  Boolean isForeground = PR_FALSE;
+  ProcessSerialNumber psnSelf, psnFront;
 
-    // If the process will be relaunched, the child should be in the foreground
-    // if the parent is in the foreground.  This will be communicated in a
-    // command-line argument to the child.
-    if (::GetCurrentProcess(&psnSelf) == noErr &&
-        ::GetFrontProcess(&psnFront) == noErr &&
-        ::SameProcess(&psnSelf, &psnFront, &isForeground) == noErr &&
-        isForeground) {
-      // The process is currently in the foreground.  The relaunched
-      // process should come to the front, too.
-      AddToCommandLine("-foreground");
-    }
+  // If the process will be relaunched, the child should be in the foreground
+  // if the parent is in the foreground.  This will be communicated in a
+  // command-line argument to the child.  Adding this argument is harmless
+  // if not relaunching.
+  if (::GetCurrentProcess(&psnSelf) == noErr &&
+      ::GetFrontProcess(&psnFront) == noErr &&
+      ::SameProcess(&psnSelf, &psnFront, &isForeground) == noErr &&
+      isForeground) {
+    // The process is currently in the foreground.  The relaunched
+    // process should come to the front, too.
+    AddToCommandLine("-foreground");
   }
 
   argc = mArgsUsed;
@@ -323,8 +322,8 @@ nsresult nsMacCommandLine::DispatchURLToNewBrowser(const char* url)
 
 #pragma mark -
 
-void SetupMacCommandLine(int& argc, char**& argv, PRBool forRestart)
+void SetupMacCommandLine(int& argc, char**& argv)
 {
   nsMacCommandLine& cmdLine = nsMacCommandLine::GetMacCommandLine();
-  return cmdLine.SetupCommandLine(argc, argv, forRestart);
+  return cmdLine.SetupCommandLine(argc, argv);
 }

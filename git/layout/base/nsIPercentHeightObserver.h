@@ -41,6 +41,7 @@
 #include "nsQueryFrame.h"
 
 struct nsHTMLReflowState;
+class  nsPresContext;
 
 /**
  * This interface is supported by frames that need to provide computed height

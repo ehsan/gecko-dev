@@ -64,5 +64,4 @@ function checkServices() {
   checkService("scriptloader", Ci.mozIJSSubScriptLoader);
   checkService("ww", Ci.nsIWindowWatcher);
   checkService("tm", Ci.nsIThreadManager);
-  checkService("strings", Ci.nsIStringBundleService);
 }

@@ -97,7 +97,7 @@ js_GetMutableScope(JSContext *cx, JSObject *obj)
     JSClass *clasp;
     uint32 freeslot;
 
-    scope = obj->scope();
+    scope = OBJ_SCOPE(obj);
     JS_ASSERT(JS_IS_SCOPE_LOCKED(cx, scope));
     if (!scope->isSharedEmpty())
         return scope;
@@ -120,8 +120,8 @@ js_GetMutableScope(JSContext *cx, JSObject *obj)
     clasp = obj->getClass();
     if (clasp->reserveSlots) {
         /*
-         * FIXME: Here we change obj->scope()->freeslot without changing
-         * obj->shape(). If we strengthen the shape guarantees to cover
+         * FIXME: Here we change OBJ_SCOPE(obj)->freeslot without changing
+         * OBJ_SHAPE(obj). If we strengthen the shape guarantees to cover
          * freeslot, we can eliminate a check in JSOP_SETPROP and in
          * js_AddProperty. See bug 535416.
          */
@@ -738,6 +738,8 @@ JSScope::addProperty(JSContext *cx, jsid id,
     CHECK_ANCESTOR_LINE(this, true);
 
     JS_ASSERT(!JSVAL_IS_NULL(id));
+    JS_ASSERT_IF(attrs & JSPROP_GETTER, getter);
+    JS_ASSERT_IF(attrs & JSPROP_SETTER, setter);
     JS_ASSERT_IF(!cx->runtime->gcRegenShapes,
                  hasRegenFlag(cx->runtime->gcRegenShapesScopeFlag));
 
@@ -768,20 +770,16 @@ NormalizeGetterAndSetter(JSContext *cx, JSScope *scope,
                          JSPropertyOp &getter,
                          JSPropertyOp &setter)
 {
-    if (setter == JS_PropertyStub) {
-        JS_ASSERT(!(attrs & JSPROP_SETTER));
+    if (setter == JS_PropertyStub)
         setter = NULL;
-    }
     if (flags & JSScopeProperty::METHOD) {
         /* Here, getter is the method, a function object reference. */
         JS_ASSERT(getter);
         JS_ASSERT(!setter || setter == js_watch_set);
         JS_ASSERT(!(attrs & (JSPROP_GETTER | JSPROP_SETTER)));
     } else {
-        if (getter == JS_PropertyStub) {
-            JS_ASSERT(!(attrs & JSPROP_GETTER));
+        if (getter == JS_PropertyStub)
             getter = NULL;
-        }
     }
 
     /*
@@ -871,6 +869,8 @@ JSScope::putProperty(JSContext *cx, jsid id,
     CHECK_ANCESTOR_LINE(this, true);
 
     JS_ASSERT(!JSVAL_IS_NULL(id));
+    JS_ASSERT_IF(attrs & JSPROP_GETTER, getter);
+    JS_ASSERT_IF(attrs & JSPROP_SETTER, setter);
 
     JS_ASSERT_IF(!cx->runtime->gcRegenShapes,
                  hasRegenFlag(cx->runtime->gcRegenShapesScopeFlag));
@@ -1143,7 +1143,7 @@ JSScope::clear(JSContext *cx)
     uint32 newShape;
     if (proto &&
         proto->isNative() &&
-        (emptyScope = proto->scope()->emptyScope) &&
+        (emptyScope = OBJ_SCOPE(proto)->emptyScope) &&
         emptyScope->clasp == clasp) {
         newShape = emptyScope->shape;
     } else {
@@ -1162,12 +1162,12 @@ JSScope::deletingShapeChange(JSContext *cx, JSScopeProperty *sprop)
 }
 
 bool
-JSScope::methodShapeChange(JSContext *cx, JSScopeProperty *sprop)
+JSScope::methodShapeChange(JSContext *cx, JSScopeProperty *sprop, jsval toval)
 {
     JS_ASSERT(!JSVAL_IS_NULL(sprop->id));
     if (sprop->isMethod()) {
 #ifdef DEBUG
-        jsval prev = object->lockedGetSlot(sprop->slot);
+        jsval prev = LOCKED_OBJ_GET_SLOT(object, sprop->slot);
         JS_ASSERT(sprop->methodValue() == prev);
         JS_ASSERT(hasMethodBarrier());
         JS_ASSERT(object->getClass() == &js_ObjectClass);
@@ -1193,7 +1193,7 @@ JSScope::methodShapeChange(JSContext *cx, JSScopeProperty *sprop)
 }
 
 bool
-JSScope::methodShapeChange(JSContext *cx, uint32 slot)
+JSScope::methodShapeChange(JSContext *cx, uint32 slot, jsval toval)
 {
     if (!hasMethodBarrier()) {
         generateOwnShape(cx);
@@ -1201,7 +1201,7 @@ JSScope::methodShapeChange(JSContext *cx, uint32 slot)
         for (JSScopeProperty *sprop = lastProp; sprop; sprop = sprop->parent) {
             JS_ASSERT(!JSVAL_IS_NULL(sprop->id));
             if (sprop->slot == slot)
-                return methodShapeChange(cx, sprop);
+                return methodShapeChange(cx, sprop, toval);
         }
     }
     return true;
@@ -1218,13 +1218,6 @@ JSScope::shadowingShapeChange(JSContext *cx, JSScopeProperty *sprop)
 {
     JS_ASSERT(!JSVAL_IS_NULL(sprop->id));
     generateOwnShape(cx);
-}
-
-bool
-JSScope::globalObjectOwnShapeChange(JSContext *cx)
-{
-    generateOwnShape(cx);
-    return !js_IsPropertyCacheDisabled(cx);
 }
 
 void
@@ -1289,6 +1282,7 @@ JSScopeProperty::trace(JSTracer *trc)
         mark();
     js_TraceId(trc, id);
 
+#if JS_HAS_GETTER_SETTER
     if (attrs & (JSPROP_GETTER | JSPROP_SETTER)) {
         if ((attrs & JSPROP_GETTER) && rawGetter) {
             JS_SET_TRACING_DETAILS(trc, PrintPropertyGetterOrSetter, this, 0);
@@ -1299,6 +1293,7 @@ JSScopeProperty::trace(JSTracer *trc)
             js_CallGCMarker(trc, setterObject(), JSTRACE_OBJECT);
         }
     }
+#endif /* JS_HAS_GETTER_SETTER */
 
     if (isMethod()) {
         JS_SET_TRACING_DETAILS(trc, PrintPropertyMethod, this, 0);

@@ -131,7 +131,7 @@ struct REHashKey;
 struct FrameInfo;
 struct VMSideExit;
 struct TreeFragment;
-struct TracerState;
+struct InterpState;
 template<typename T> class Queue;
 typedef Queue<uint16> SlotList;
 class TypeMap;
@@ -165,7 +165,7 @@ class ContextAllocPolicy
 };
 
 /* Holds the execution state during trace execution. */
-struct TracerState 
+struct InterpState
 {
     JSContext*     cx;                  // current VM context handle
     double*        stackBase;           // native stack base
@@ -185,7 +185,7 @@ struct TracerState
     VMSideExit**   innermostNestedGuardp;
     VMSideExit*    innermost;
     uint64         startTime;
-    TracerState*   prev;
+    InterpState*   prev;
 
     // Used by _FAIL builtins; see jsbuiltins.h. The builtin sets the
     // JSBUILTIN_BAILED bit if it bails off trace and the JSBUILTIN_ERROR bit
@@ -199,15 +199,15 @@ struct TracerState
     uintN          nativeVpLen;
     jsval*         nativeVp;
 
-    TracerState(JSContext *cx, TraceMonitor *tm, TreeFragment *ti,
+    InterpState(JSContext *cx, TraceMonitor *tm, TreeFragment *ti,
                 uintN &inlineCallCountp, VMSideExit** innermostNestedGuardp);
-    ~TracerState();
+    ~InterpState();
 };
 
 /*
  * Storage for the execution state and store during trace execution. Generated
  * code depends on the fact that the globals begin |MAX_NATIVE_STACK_SLOTS|
- * doubles after the stack begins. Thus, on trace, |TracerState::eos| holds a
+ * doubles after the stack begins. Thus, on trace, |InterpState::eos| holds a
  * pointer to the first global.
  */
 struct TraceNativeStorage
@@ -334,8 +334,6 @@ typedef HashMap<jsbytecode*,
                 DefaultHasher<jsbytecode*>,
                 SystemAllocPolicy> RecordAttemptMap;
 
-class Oracle;
-
 /*
  * Trace monitor. Every JSThread (if JS_THREADSAFE) or JSRuntime (if not
  * JS_THREADSAFE) has an associated trace monitor that keeps track of loop
@@ -397,7 +395,6 @@ struct TraceMonitor {
     nanojit::Assembler*     assembler;
     FrameInfoCache*         frameCache;
 
-    Oracle*                 oracle;
     TraceRecorder*          recorder;
 
     GlobalState             globalStates[MONITOR_N_GLOBAL_STATES];
@@ -556,17 +553,6 @@ struct JSThreadData {
     /* State used by dtoa.c. */
     DtoaState           *dtoaState;
 
-    /* 
-     * State used to cache some double-to-string conversions.  A stupid
-     * optimization aimed directly at v8-splay.js, which stupidly converts
-     * many doubles multiple times in a row.
-     */
-    struct {
-        jsdouble d;
-        jsint    base;
-        JSString *s;        // if s==NULL, d and base are not valid
-    } dtoaCache;
-
     /*
      * Cache of reusable JSNativeEnumerators mapped by shape identifiers (as
      * stored in scope->shape). This cache is nulled by the GC and protected
@@ -580,12 +566,6 @@ struct JSThreadData {
     ((((shape) >> NATIVE_ENUM_CACHE_LOG2) ^ (shape)) & NATIVE_ENUM_CACHE_MASK)
 
     jsuword             nativeEnumCache[NATIVE_ENUM_CACHE_SIZE];
-
-    /*
-     * One-entry deep cache of iterator objects. We deposit here the last
-     * iterator that was freed in JSOP_ENDITER.
-     */
-    JSObject           *cachedIteratorObject;
 
     bool init();
     void finish();
@@ -624,6 +604,11 @@ struct JSThread {
      * Protected by rt->gcLock.
      */
     bool                gcWaiting;
+
+    /*
+     * Deallocator task for this thread.
+     */
+    JSFreePointerListTask *deallocatorTask;
 
     /* Factored out of JSThread for !JS_THREADSAFE embedding in JSRuntime. */
     JSThreadData        data;
@@ -730,12 +715,6 @@ struct JSClassProtoCache {
 #endif
 };
 
-namespace js {
-
-typedef Vector<JSGCChunkInfo *, 32, SystemAllocPolicy> GCChunks;
-
-} /* namespace js */
-
 struct JSRuntime {
     /* Runtime state, synchronized by the stateChange/gcLock condvar/lock. */
     JSRuntimeState      state;
@@ -758,11 +737,7 @@ struct JSRuntime {
     uint32              protoHazardShape;
 
     /* Garbage collector state, used by jsgc.c. */
-    js::GCChunks        gcChunks;
-    size_t              gcChunkCursor;
-#ifdef DEBUG
-    JSGCArena           *gcEmptyArenaList;
-#endif
+    JSGCChunkInfo       *gcChunkList;
     JSGCArenaList       gcArenaList[FINALIZE_LIMIT];
     JSGCDoubleArenaList gcDoubleArenaList;
     JSDHashTable        gcRootsHash;
@@ -820,9 +795,11 @@ struct JSRuntime {
     size_t              gcMarkLaterCount;
 #endif
 
-#ifdef JS_THREADSAFE
-    JSBackgroundThread  gcHelperThread;
-#endif
+    /*
+     * Table for tracking iterators to ensure that we close iterator's state
+     * before finalizing the iterable object.
+     */
+    js::Vector<JSObject*, 0, js::SystemAllocPolicy> gcIteratorTable;
 
     /*
      * The trace operation and its data argument to trace embedding-specific
@@ -832,9 +809,10 @@ struct JSRuntime {
     void                *gcExtraRootsData;
 
     /*
-     * Used to serialize cycle checks when setting __proto__ by requesting the
-     * GC handle the required cycle detection. If the GC hasn't been poked, it
-     * won't scan for garbage. This member is protected by rt->gcLock.
+     * Used to serialize cycle checks when setting __proto__ or __parent__ by
+     * requesting the GC handle the required cycle detection. If the GC hasn't
+     * been poked, it won't scan for garbage. This member is protected by
+     * rt->gcLock.
      */
     JSSetSlotRequest    *setSlotRequests;
 
@@ -864,7 +842,7 @@ struct JSRuntime {
 #ifdef JS_TRACER
     /* True if any debug hooks not supported by the JIT are enabled. */
     bool debuggerInhibitsJIT() const {
-        return (globalDebugHooks.interruptHook ||
+        return (globalDebugHooks.interruptHandler ||
                 globalDebugHooks.callHook ||
                 globalDebugHooks.objectHook);
     }
@@ -995,6 +973,10 @@ struct JSRuntime {
 
     /* Literal table maintained by jsatom.c functions. */
     JSAtomState         atomState;
+
+#ifdef JS_THREADSAFE
+    JSBackgroundThread    *deallocatorThread;
+#endif
 
     JSEmptyScope          *emptyArgumentsScope;
     JSEmptyScope          *emptyBlockScope;
@@ -1188,27 +1170,9 @@ namespace js {
 class AutoGCRooter;
 }
 
-struct JSRegExpStatics {
-    JSContext   *cx;
-    JSString    *input;         /* input string to match (perl $_, GC root) */
-    JSBool      multiline;      /* whether input contains newlines (perl $*) */
-    JSSubString lastMatch;      /* last string matched (perl $&) */
-    JSSubString lastParen;      /* last paren matched (perl $+) */
-    JSSubString leftContext;    /* input to left of last match (perl $`) */
-    JSSubString rightContext;   /* input to right of last match (perl $') */
-    js::Vector<JSSubString> parens; /* last set of parens matched (perl $1, $2) */
-
-    JSRegExpStatics(JSContext *cx) : cx(cx), parens(cx) {}
-
-    bool copy(const JSRegExpStatics& other);
-    void clearRoots();
-    void clear();
-};
-
 struct JSContext
 {
-    explicit JSContext(JSRuntime *rt) :
-      runtime(rt), regExpStatics(this), busyArrays(this) {}
+    explicit JSContext(JSRuntime *rt) : runtime(rt), busyArrays(this) {}
 
     /*
      * If this flag is set, we were asked to call back the operation callback
@@ -1294,7 +1258,7 @@ struct JSContext
     /* Storage to root recently allocated GC things and script result. */
     JSWeakRoots         weakRoots;
 
-    /* Regular expression class statics. */
+    /* Regular expression class statics (XXX not shared globally). */
     JSRegExpStatics     regExpStatics;
 
     /* State for object and array toSource conversion. */
@@ -1424,7 +1388,7 @@ struct JSContext
      * called back into native code via a _FAIL builtin and has not yet bailed,
      * else garbage (NULL in debug builds).
      */
-    js::TracerState     *tracerState;
+    js::InterpState     *interpState;
     js::VMSideExit      *bailExit;
 
     /*
@@ -1440,6 +1404,8 @@ struct JSContext
     bool                 jitEnabled;
 #endif
 
+    JSClassProtoCache    classProtoCache;
+
     /* Caller must be holding runtime->gcLock. */
     void updateJITEnabled() {
 #ifdef JS_TRACER
@@ -1450,13 +1416,19 @@ struct JSContext
 #endif
     }
 
-    JSClassProtoCache    classProtoCache;
-
 #ifdef JS_THREADSAFE
-    /*
-     * The sweep task for this context.
-     */
-    js::BackgroundSweepTask *gcSweepTask;
+    inline void createDeallocatorTask() {
+        JS_ASSERT(!thread->deallocatorTask);
+        if (runtime->deallocatorThread && !runtime->deallocatorThread->busy())
+            thread->deallocatorTask = new JSFreePointerListTask();
+    }
+
+    inline void submitDeallocatorTask() {
+        if (thread->deallocatorTask) {
+            runtime->deallocatorThread->schedule(thread->deallocatorTask);
+            thread->deallocatorTask = NULL;
+        }
+    }
 #endif
 
     ptrdiff_t &getMallocCounter() {
@@ -1531,15 +1503,26 @@ struct JSContext
         return p;
     }
 
-    inline void free(void* p) {
 #ifdef JS_THREADSAFE
-        if (gcSweepTask) {
-            gcSweepTask->freeLater(p);
+    inline void free(void* p) {
+        if (!p)
             return;
+        if (thread) {
+            JSFreePointerListTask* task = thread->deallocatorTask;
+            if (task) {
+                task->add(p);
+                return;
+            }
         }
-#endif
         runtime->free(p);
     }
+#else
+    inline void free(void* p) {
+        if (!p)
+            return;
+        runtime->free(p);
+    }
+#endif
 
     /*
      * In the common case that we'd like to allocate the memory for an object
@@ -1666,7 +1649,7 @@ class AutoGCRooter {
         JSVAL =        -1, /* js::AutoValueRooter */
         SPROP =        -2, /* js::AutoScopePropertyRooter */
         WEAKROOTS =    -3, /* js::AutoSaveWeakRoots */
-        PARSER =       -4, /* js::Parser */
+        COMPILER =     -4, /* JSCompiler */
         SCRIPT =       -5, /* js::AutoScriptRooter */
         ENUMERATOR =   -6, /* js::AutoEnumStateRooter */
         IDARRAY =      -7, /* js::AutoIdArray */
@@ -1677,26 +1660,16 @@ class AutoGCRooter {
         ID =          -12, /* js::AutoIdRooter */
         VECTOR =      -13  /* js::AutoValueVector */
     };
-
-    private:
-    /* No copy or assignment semantics. */
-    AutoGCRooter(AutoGCRooter &ida);
-    void operator=(AutoGCRooter &ida);
 };
 
-class AutoPreserveWeakRoots : private AutoGCRooter
+class AutoSaveWeakRoots : private AutoGCRooter
 {
   public:
-    explicit AutoPreserveWeakRoots(JSContext *cx
-                                   JS_GUARD_OBJECT_NOTIFIER_PARAM)
+    explicit AutoSaveWeakRoots(JSContext *cx
+                               JS_GUARD_OBJECT_NOTIFIER_PARAM)
       : AutoGCRooter(cx, WEAKROOTS), savedRoots(cx->weakRoots)
     {
         JS_GUARD_OBJECT_NOTIFIER_INIT;
-    }
-
-    ~AutoPreserveWeakRoots()
-    {
-        context->weakRoots = savedRoots;
     }
 
     friend void AutoGCRooter::trace(JSTracer *trc);
@@ -1882,8 +1855,9 @@ class AutoIdRooter : private AutoGCRooter
 
 class AutoIdArray : private AutoGCRooter {
   public:
-    AutoIdArray(JSContext *cx, JSIdArray *ida JS_GUARD_OBJECT_NOTIFIER_PARAM)
-      : AutoGCRooter(cx, IDARRAY), idArray(ida)
+    AutoIdArray(JSContext *cx, JSIdArray *ida
+                  JS_GUARD_OBJECT_NOTIFIER_PARAM)
+      : AutoGCRooter(cx, ida ? ida->length : 0), idArray(ida)
     {
         JS_GUARD_OBJECT_NOTIFIER_INIT;
     }
@@ -1972,29 +1946,6 @@ class AutoXMLRooter : private AutoGCRooter {
     JSXML * const xml;
 };
 #endif /* JS_HAS_XML_SUPPORT */
-
-class AutoLockGC {
-private:
-    JSRuntime *rt;
-public:
-    explicit AutoLockGC(JSRuntime *rt) : rt(rt) { JS_LOCK_GC(rt); }
-    ~AutoLockGC() { JS_UNLOCK_GC(rt); }
-};
-
-class AutoUnlockGC {
-private:
-    JSRuntime *rt;
-public:
-    explicit AutoUnlockGC(JSRuntime *rt) : rt(rt) { JS_UNLOCK_GC(rt); }
-    ~AutoUnlockGC() { JS_LOCK_GC(rt); }
-};
-
-class AutoKeepAtoms {
-    JSRuntime *rt;
-  public:
-    explicit AutoKeepAtoms(JSRuntime *rt) : rt(rt) { JS_KEEP_ATOMS(rt); }
-    ~AutoKeepAtoms() { JS_UNKEEP_ATOMS(rt); }
-};
 
 } /* namespace js */
 
@@ -2462,8 +2413,12 @@ class AutoValueVector : private AutoGCRooter
     void pop() { vector.popBack(); }
 
     bool resize(size_t newLength) {
+        size_t oldLength = vector.length();
         if (!vector.resize(newLength))
             return false;
+        JS_STATIC_ASSERT(JSVAL_NULL == 0);
+        if (newLength > oldLength)
+            PodZero(vector.begin(), newLength - oldLength);
         return true;
     }
 
@@ -2471,11 +2426,11 @@ class AutoValueVector : private AutoGCRooter
         return vector.reserve(newLength);
     }
 
-    jsval &operator[](size_t i) { return vector[i]; }
+    jsval & operator[](size_t i) { return vector[i]; }
     jsval operator[](size_t i) const { return vector[i]; }
 
-    const jsval *buffer() const { return vector.begin(); }
-    jsval *buffer() { return vector.begin(); }
+    const jsval * buffer() const { return vector.begin(); }
+    jsval * buffer() { return vector.begin(); }
 
     friend void AutoGCRooter::trace(JSTracer *trc);
 

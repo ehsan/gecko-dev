@@ -69,6 +69,7 @@
 #include "nsIRangeUtils.h"
 #include "nsIDOMCharacterData.h"
 #include "nsIEnumerator.h"
+#include "nsIPresShell.h"
 #include "nsIPrefBranch.h"
 #include "nsIPrefService.h"
 #include "nsIDOMNamedNodeMap.h"
@@ -248,13 +249,13 @@ NS_IMPL_QUERY_INTERFACE_INHERITED2(nsHTMLEditRules, nsTextEditRules, nsIHTMLEdit
  ********************************************************/
 
 NS_IMETHODIMP
-nsHTMLEditRules::Init(nsPlaintextEditor *aEditor)
+nsHTMLEditRules::Init(nsPlaintextEditor *aEditor, PRUint32 aFlags)
 {
   mHTMLEditor = static_cast<nsHTMLEditor*>(aEditor);
   nsresult res;
   
   // call through to base class Init 
-  res = nsTextEditRules::Init(aEditor);
+  res = nsTextEditRules::Init(aEditor, aFlags);
   if (NS_FAILED(res)) return res;
 
   // cache any prefs we care about
@@ -1061,7 +1062,7 @@ nsHTMLEditRules::GetIndentState(PRBool *aCanIndent, PRBool *aCanOutdent)
   {
     // if we haven't found something to outdent yet, also check the parents
     // of selection endpoints.  We might have a blockquote or list item 
-    // in the parent hierarchy.
+    // in the parent heirarchy.
     
     // gather up info we need for test
     nsCOMPtr<nsIDOMNode> parent, tmp, root;
@@ -1126,7 +1127,7 @@ nsHTMLEditRules::GetParagraphState(PRBool *aMixed, nsAString &outFormat)
   if (NS_FAILED(res)) return res;
 
   // post process list.  We need to replace any block nodes that are not format
-  // nodes with their content.  This is so we only have to look "up" the hierarchy
+  // nodes with their content.  This is so we only have to look "up" the heirarchy
   // to find format nodes, instead of both up and down.
   PRInt32 listCount = arrayOfNodes.Count();
   PRInt32 i;
@@ -1373,6 +1374,8 @@ nsHTMLEditRules::WillInsertText(PRInt32          aAction,
   nsCOMPtr<nsIDOMNode> selNode;
   PRInt32 selOffset;
 
+  PRBool bPlaintext = mFlags & nsIPlaintextEditor::eEditorPlaintextMask;
+
   // if the selection isn't collapsed, delete it.
   PRBool bCollapsed;
   res = aSelection->GetIsCollapsed(&bCollapsed);
@@ -1448,7 +1451,7 @@ nsHTMLEditRules::WillInsertText(PRInt32          aAction,
     // for efficiency, break out the pre case separately.  This is because
     // its a lot cheaper to search the input string for only newlines than
     // it is to search for both tabs and newlines.
-    if (isPRE || IsPlaintextEditor())
+    if (isPRE || bPlaintext)
     {
       while (unicodeBuf && (pos != -1) && (pos < (PRInt32)(*inString).Length()))
       {
@@ -1581,6 +1584,8 @@ nsHTMLEditRules::WillInsertBreak(nsISelection *aSelection, PRBool *aCancel, PRBo
   // initialize out param
   *aCancel = PR_FALSE;
   *aHandled = PR_FALSE;
+  
+  PRBool bPlaintext = mFlags & nsIPlaintextEditor::eEditorPlaintextMask;
 
   // if the selection isn't collapsed, delete it.
   PRBool bCollapsed;
@@ -1601,9 +1606,9 @@ nsHTMLEditRules::WillInsertBreak(nsISelection *aSelection, PRBool *aCancel, PRBo
   
   // split any mailcites in the way.
   // should we abort this if we encounter table cell boundaries?
-  if (IsMailEditor())
+  if (mFlags & nsIPlaintextEditor::eEditorMailMask)
   {
-    res = SplitMailCites(aSelection, IsPlaintextEditor(), aHandled);
+    res = SplitMailCites(aSelection, bPlaintext, aHandled);
     if (NS_FAILED(res)) return res;
     if (*aHandled) return NS_OK;
   }
@@ -1693,7 +1698,7 @@ nsHTMLEditRules::StandardBreakImpl(nsIDOMNode *aNode, PRInt32 aOffset, nsISelect
   nsCOMPtr<nsIDOMNode> node(aNode);
   nsCOMPtr<nsISelectionPrivate> selPriv(do_QueryInterface(aSelection));
   
-  if (IsPlaintextEditor())
+  if (mFlags & nsIPlaintextEditor::eEditorPlaintextMask)
   {
     res = mHTMLEditor->CreateBR(node, aOffset, address_of(brNode));
   }
@@ -1913,6 +1918,8 @@ nsHTMLEditRules::WillDeleteSelection(nsISelection *aSelection,
   }
 
   nsresult res = NS_OK;
+  PRBool bPlaintext = mFlags & nsIPlaintextEditor::eEditorPlaintextMask;
+  
   PRBool bCollapsed, join = PR_FALSE;
   res = aSelection->GetIsCollapsed(&bCollapsed);
   if (NS_FAILED(res)) return res;
@@ -2357,7 +2364,7 @@ nsHTMLEditRules::WillDeleteSelection(nsISelection *aSelection,
 
   // figure out if the endpoints are in nodes that can be merged  
   // adjust surrounding whitespace in preperation to delete selection
-  if (!IsPlaintextEditor())
+  if (!bPlaintext)
   {
     nsAutoTxnsConserveSelection dontSpazMySelection(mHTMLEditor);
     res = nsWSRunObject::PrepareToDeleteRange(mHTMLEditor,
@@ -2382,10 +2389,10 @@ nsHTMLEditRules::WillDeleteSelection(nsISelection *aSelection,
       // figure out mailcite ancestors
       nsCOMPtr<nsIDOMNode> endCiteNode, startCiteNode;
       res = GetTopEnclosingMailCite(startNode, address_of(startCiteNode), 
-                                    IsPlaintextEditor());
+                                    mFlags & nsIPlaintextEditor::eEditorPlaintextMask);
       if (NS_FAILED(res)) return res; 
       res = GetTopEnclosingMailCite(endNode, address_of(endCiteNode), 
-                                    IsPlaintextEditor());
+                                    mFlags & nsIPlaintextEditor::eEditorPlaintextMask);
       if (NS_FAILED(res)) return res; 
       
       // if we only have a mailcite at one of the two endpoints, set the directionality
@@ -2991,7 +2998,7 @@ nsHTMLEditRules::DidDeleteSelection(nsISelection *aSelection,
   // find any enclosing mailcite
   nsCOMPtr<nsIDOMNode> citeNode;
   res = GetTopEnclosingMailCite(startNode, address_of(citeNode), 
-                                IsPlaintextEditor());
+                                mFlags & nsIPlaintextEditor::eEditorPlaintextMask);
   if (NS_FAILED(res)) return res;
   if (citeNode)
   {
@@ -4126,7 +4133,7 @@ nsHTMLEditRules::WillOutdent(nsISelection *aSelection, PRBool *aCancel, PRBool *
       nsCOMPtr<nsIDOMNode> n = curNode;
       nsCOMPtr<nsIDOMNode> tmp;
       curBlockQuoteIsIndentedWithCSS = PR_FALSE;
-      // keep looking up the hierarchy as long as we don't hit the body or a table element
+      // keep looking up the heirarchy as long as we don't hit the body or a table element
       // (other than an entire table)
       while (!nsTextEditUtils::IsBody(n) &&   
              (nsHTMLEditUtils::IsTable(n) || !nsHTMLEditUtils::IsTableElement(n)))
@@ -4521,10 +4528,10 @@ nsHTMLEditRules::CreateStyleForInsertText(nsISelection *aSelection, nsIDOMDocume
         res = mEditor->DeleteNode(rightNode);
         NS_ENSURE_SUCCESS(res, res);
       }
-      // remove the style on this new hierarchy
+      // remove the style on this new heirarchy
       PRInt32 newSelOffset = 0;
       {
-        // track the point at the new hierarchy.
+        // track the point at the new heirarchy.
         // This is so we can know where to put the selection after we call
         // RemoveStyleInside().  RemoveStyleInside() could remove any and all of those nodes,
         // so I have to use the range tracking system to find the right spot to put selection.

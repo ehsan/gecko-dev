@@ -297,7 +297,7 @@ function searchItemInView(aItemId, aView) {
  * @returns [node, index] or [null, null] if not found.
  */
 function getNodeForToolbarItem(aItemId) {
-  var toolbar = document.getElementById("PlacesToolbarItems");
+  var toolbar = document.getElementById("bookmarksBarContent");
 
   function findNode(aContainer) {
     var children = aContainer.childNodes;
@@ -305,17 +305,17 @@ function getNodeForToolbarItem(aItemId) {
       var child = children[i];
 
       // Is this a Places node?
-      if (!child._placesNode) {
+      if (!child.node) {
         staticNodes++;
         continue;
       }
 
-      if (child._placesNode.itemId == aItemId)
-        return [child._placesNode, i - staticNodes];
+      if (child.node.itemId == aItemId)
+        return [child.node, i - staticNodes];
 
       // Don't search in queries, they could contain our item in a
       // different position.  Search only folders
-      if (PlacesUtils.nodeIsFolder(child._placesNode)) {
+      if (PlacesUtils.nodeIsFolder(child.node)) {
         var popup = child.lastChild;
         popup.showPopup(popup);
         var foundNode = findNode(popup);
@@ -346,17 +346,17 @@ function getNodeForMenuItem(aItemId) {
       var child = children[i];
 
       // Is this a Places node?
-      if (!child._placesNode) {
+      if (!child.node) {
         staticNodes++;
         continue;
       }
 
-      if (child._placesNode.itemId == aItemId)
-        return [child._placesNode, i - staticNodes];
+      if (child.node.itemId == aItemId)
+        return [child.node, i - staticNodes];
 
       // Don't search in queries, they could contain our item in a
       // different position.  Search only folders
-      if (PlacesUtils.nodeIsFolder(child._placesNode)) {
+      if (PlacesUtils.nodeIsFolder(child.node)) {
         var popup = child.lastChild;
         fakeOpenPopup(popup);
         var foundNode = findNode(popup);

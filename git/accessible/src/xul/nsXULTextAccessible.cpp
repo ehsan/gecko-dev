@@ -37,19 +37,14 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-// NOTE: groups are alphabetically ordered
-#include "nsXULTextAccessible.h"
-
+// NOTE: alphabetically ordered
 #include "nsAccessibilityAtoms.h"
-#include "nsAccUtils.h"
-#include "nsBaseWidgetAccessible.h"
 #include "nsCoreUtils.h"
-#include "nsRelUtils.h"
-#include "nsTextEquivUtils.h"
-
+#include "nsBaseWidgetAccessible.h"
 #include "nsIDOMXULDescriptionElement.h"
 #include "nsINameSpaceManager.h"
 #include "nsString.h"
+#include "nsXULTextAccessible.h"
 #include "nsNetUtil.h"
 
 /**

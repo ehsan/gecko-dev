@@ -64,7 +64,6 @@
 #include "json.h"
 
 #include "jsatominlines.h"
-#include "jsobjinlines.h"
 
 using namespace js;
 
@@ -257,61 +256,83 @@ JO(JSContext *cx, jsval *vp, StringifyContext *scx)
     if (!scx->cb.append('{'))
         return JS_FALSE;
 
-    jsval vec[4] = {JSVAL_NULL, JSVAL_NULL, JSVAL_NULL, JSVAL_NULL};
+    jsval vec[3] = {JSVAL_NULL, JSVAL_NULL, JSVAL_NULL};
     AutoArrayRooter tvr(cx, JS_ARRAY_LENGTH(vec), vec);
-    jsval& outputValue = vec[0];
-    jsval& whitelistElement = vec[1];
-    jsid& id = vec[2];
+    jsval& key = vec[0];
+    jsval& outputValue = vec[1];
 
+    JSObject *iterObj = NULL;
     jsval *keySource = vp;
     bool usingWhitelist = false;
 
     // if the replacer is an array, we use the keys from it
     if (scx->replacer && JS_IsArrayObject(cx, scx->replacer)) {
         usingWhitelist = true;
-        vec[3] = OBJECT_TO_JSVAL(scx->replacer);
-        keySource = &vec[3];
+        vec[2] = OBJECT_TO_JSVAL(scx->replacer);
+        keySource = &vec[2];
     }
 
-    JSBool memberWritten = JS_FALSE;
-    AutoIdArray ida(cx, JS_Enumerate(cx, JSVAL_TO_OBJECT(*keySource)));
-    if (!ida)
+    if (!js_ValueToIterator(cx, JSITER_ENUMERATE, keySource))
         return JS_FALSE;
+    iterObj = JSVAL_TO_OBJECT(*keySource);
 
-    for (jsint i = 0, len = ida.length(); i < len; i++) {
+    JSBool memberWritten = JS_FALSE;
+
+    bool ok = false;
+    while (true) {
         outputValue = JSVAL_VOID;
+        if (!js_CallIteratorNext(cx, iterObj, &key))
+            goto error_break;
+        if (key == JSVAL_HOLE)
+            break;
 
-        if (!usingWhitelist) {
-            if (!js_ValueToStringId(cx, ida[i], &id))
-                return JS_FALSE;
-        } else {
+        jsuint index = 0;
+        if (usingWhitelist) {
             // skip non-index properties
-            jsuint index = 0;
-            if (!js_IdIsIndex(ID_TO_VALUE(ida[i]), &index))
+            if (!js_IdIsIndex(key, &index))
                 continue;
 
-            if (!scx->replacer->getProperty(cx, ID_TO_VALUE(ida[i]), &whitelistElement))
-                return JS_FALSE;
-
-            if (!js_ValueToStringId(cx, whitelistElement, &id))
-                return JS_FALSE;
+            jsval newKey;
+            if (!scx->replacer->getProperty(cx, key, &newKey))
+                goto error_break;
+            key = newKey;
         }
 
-        // We should have a string id by this point. Either from 
-        // JS_Enumerate's id array, or by converting an element
-        // of the whitelist.
-        JS_ASSERT(JSVAL_IS_STRING(ID_TO_VALUE(id)));
+        JSString *ks;
+        if (JSVAL_IS_STRING(key)) {
+            ks = JSVAL_TO_STRING(key);
+        } else {
+            ks = js_ValueToString(cx, key);
+            if (!ks)
+                goto error_break;
+        }
+        AutoValueRooter keyStringRoot(cx, ks);
+
+        // Don't include prototype properties, since this operation is
+        // supposed to be implemented as if by ES3.1 Object.keys()
+        jsid id;
+        JSObject *obj2;
+        JSProperty *prop;
+        if (!js_ValueToStringId(cx, STRING_TO_JSVAL(ks), &id) ||
+            !js_HasOwnProperty(cx, obj->map->ops->lookupProperty, obj, id, &obj2, &prop)) {
+            goto error_break;
+        }
+
+        if (!prop)
+            continue;
+
+        obj2->dropProperty(cx, prop);
 
         if (!JS_GetPropertyById(cx, obj, id, &outputValue))
-            return JS_FALSE;
+            goto error_break;
 
         if (JSVAL_IS_OBJECT(outputValue) && !js_TryJSON(cx, &outputValue))
-            return JS_FALSE;
+            goto error_break;
 
         // call this here, so we don't write out keys if the replacer function
         // wants to elide the value.
         if (!CallReplacerFunction(cx, id, obj, scx, &outputValue))
-            return JS_FALSE;
+            goto error_break;
 
         JSType type = JS_TypeOfValue(cx, outputValue);
 
@@ -321,16 +342,16 @@ JO(JSContext *cx, jsval *vp, StringifyContext *scx)
 
         // output a comma unless this is the first member to write
         if (memberWritten && !scx->cb.append(','))
-            return JS_FALSE;
+            goto error_break;
         memberWritten = JS_TRUE;
 
         if (!WriteIndent(cx, scx, scx->depth))
-            return JS_FALSE;
+            goto error_break;
 
         // Be careful below, this string is weakly rooted
-        JSString *s = js_ValueToString(cx, ID_TO_VALUE(id));
+        JSString *s = js_ValueToString(cx, key);
         if (!s)
-            return JS_FALSE;
+            goto error_break;
 
         const jschar *chars;
         size_t length;
@@ -338,9 +359,20 @@ JO(JSContext *cx, jsval *vp, StringifyContext *scx)
         if (!write_string(cx, scx->cb, chars, length) ||
             !scx->cb.append(':') ||
             !Str(cx, id, obj, scx, &outputValue, false)) {
-            return JS_FALSE;
+            goto error_break;
         }
     }
+    ok = true;
+
+  error_break:
+    if (iterObj) {
+        // Always close the iterator, but make sure not to stomp on OK
+        JS_ASSERT(OBJECT_TO_JSVAL(iterObj) == *keySource);
+        ok &= !!js_CloseIterator(cx, *keySource);
+    }
+
+    if (!ok)
+        return JS_FALSE;
 
     if (memberWritten && !WriteIndent(cx, scx, scx->depth - 1))
         return JS_FALSE;
@@ -358,9 +390,6 @@ JA(JSContext *cx, jsval *vp, StringifyContext *scx)
 
     jsuint length;
     if (!js_GetLengthProperty(cx, obj, &length))
-        return JS_FALSE;
-
-    if (length != 0 && !WriteIndent(cx, scx, scx->depth))
         return JS_FALSE;
 
     AutoValueRooter outputValue(cx, JSVAL_NULL);
@@ -412,6 +441,9 @@ Str(JSContext *cx, jsid id, JSObject *holder, StringifyContext *scx, jsval *vp, 
 {
     JS_CHECK_RECURSION(cx, return JS_FALSE);
 
+    if (!holder->getProperty(cx, id, vp))
+        return JS_FALSE;
+
     if (!JSVAL_IS_PRIMITIVE(*vp) && !js_TryJSON(cx, vp))
         return JS_FALSE;
 
@@ -420,9 +452,9 @@ Str(JSContext *cx, jsid id, JSObject *holder, StringifyContext *scx, jsval *vp, 
 
     // catches string and number objects with no toJSON
     if (!JSVAL_IS_PRIMITIVE(*vp)) {
-        JSClass *clasp = JSVAL_TO_OBJECT(*vp)->getClass();
+        JSClass *clasp = OBJ_GET_CLASS(cx, JSVAL_TO_OBJECT(*vp));
         if (clasp == &js_StringClass || clasp == &js_NumberClass)
-            *vp = JSVAL_TO_OBJECT(*vp)->getPrimitiveThis();
+            *vp = JSVAL_TO_OBJECT(*vp)->fslots[JSSLOT_PRIMITIVE_THIS];
     }
 
     if (JSVAL_IS_STRING(*vp)) {
@@ -486,9 +518,9 @@ InitializeGap(JSContext *cx, jsval space, JSCharBuffer &cb)
 
     if (!JSVAL_IS_PRIMITIVE(space)) {
         JSObject *obj = JSVAL_TO_OBJECT(space);
-        JSClass *clasp = obj->getClass();
+        JSClass *clasp = OBJ_GET_CLASS(cx, obj);
         if (clasp == &js_NumberClass || clasp == &js_StringClass)
-            *gap.addr() = obj->getPrimitiveThis();
+            *gap.addr() = obj->fslots[JSSLOT_PRIMITIVE_THIS];
     }
 
     if (JSVAL_IS_STRING(gap.value())) {
@@ -514,15 +546,19 @@ JSBool
 js_Stringify(JSContext *cx, jsval *vp, JSObject *replacer, jsval space,
              JSCharBuffer &cb)
 {
+    // XXX stack
+    JSObject *stack = JS_NewArrayObject(cx, 0, NULL);
+    if (!stack)
+        return JS_FALSE;
+
     StringifyContext scx(cx, cb, replacer);
     if (!InitializeGap(cx, space, scx.gap))
         return JS_FALSE;
 
-    JSObject *obj = NewObject(cx, &js_ObjectClass, NULL, NULL);
+    JSObject *obj = js_NewObject(cx, &js_ObjectClass, NULL, NULL);
     if (!obj)
         return JS_FALSE;
 
-    AutoObjectRooter tvr(cx, obj);
     if (!obj->defineProperty(cx, ATOM_TO_JSID(cx->runtime->atomState.emptyAtom),
                              *vp, NULL, NULL, JSPROP_ENUMERATE)) {
         return JS_FALSE;
@@ -610,7 +646,7 @@ static bool
 Revive(JSContext *cx, jsval reviver, jsval *vp)
 {
 
-    JSObject *obj = NewObject(cx, &js_ObjectClass, NULL, NULL);
+    JSObject *obj = js_NewObject(cx, &js_ObjectClass, NULL, NULL);
     if (!obj)
         return false;
 
@@ -802,7 +838,7 @@ PushObject(JSContext *cx, JSONParser *jp, JSObject *obj)
 static JSBool
 OpenObject(JSContext *cx, JSONParser *jp)
 {
-    JSObject *obj = NewObject(cx, &js_ObjectClass, NULL, NULL);
+    JSObject *obj = js_NewObject(cx, &js_ObjectClass, NULL, NULL);
     if (!obj)
         return JS_FALSE;
 

@@ -273,10 +273,6 @@ inDOMUtils::GetRuleNodeForContent(nsIContent* aContent,
   *aRuleNode = nsnull;
   *aStyleContext = nsnull;
 
-  if (!aContent->IsElement()) {
-    return NS_ERROR_UNEXPECTED;
-  }
-
   nsIDocument* doc = aContent->GetDocument();
   NS_ENSURE_TRUE(doc, NS_ERROR_UNEXPECTED);
 
@@ -290,8 +286,7 @@ inDOMUtils::GetRuleNodeForContent(nsIContent* aContent,
   NS_ENSURE_TRUE(safe, NS_ERROR_OUT_OF_MEMORY);
 
   nsRefPtr<nsStyleContext> sContext =
-    nsComputedDOMStyle::GetStyleContextForElement(aContent->AsElement(),
-						  nsnull, presShell);
+    nsComputedDOMStyle::GetStyleContextForContent(aContent, nsnull, presShell);
   *aRuleNode = sContext->GetRuleNode();
   sContext.forget(aStyleContext);
   return NS_OK;

@@ -8,8 +8,7 @@ namespace _ipdltest {
 void
 TestShutdownParent::Main()
 {
-    if (!SendStart())
-        fail("sending Start()");
+    SendStart();
 }
 
 void
@@ -36,14 +35,18 @@ TestShutdownSubParent::ActorDestroy(ActorDestroyReason why)
     else if (!mExpectCrash && AbnormalShutdown == why)
         fail("wasn't expecting crash!");
 
-    if (mExpectCrash && 0 == ManagedPTestShutdownSubsubParent().Length())
+    nsTArray<PTestShutdownSubsubParent*> kidsArr;
+    ManagedPTestShutdownSubsubParent(kidsArr);
+    if (mExpectCrash && 0 == kidsArr.Length())
         fail("expected to *still* have kids");
 }
 
 void
 TestShutdownSubsubParent::ActorDestroy(ActorDestroyReason why)
 {
-    if (Manager()->ManagedPTestShutdownSubsubParent().Length() == 0)
+    nsTArray<PTestShutdownSubsubParent*> broArr;
+    Manager()->ManagedPTestShutdownSubsubParent(broArr);
+    if (broArr.Length() == 0)
         fail("manager should still have managees!");
 
     if (mExpectParentDeleted && AncestorDeletion != why)
@@ -208,7 +211,9 @@ TestShutdownSubChild::AnswerStackFrame()
 void
 TestShutdownSubChild::ActorDestroy(ActorDestroyReason why)
 {
-    if (Manager()->ManagedPTestShutdownSubChild().Length() == 0)
+    nsTArray<PTestShutdownSubChild*> broArr;
+    Manager()->ManagedPTestShutdownSubChild(broArr);
+    if (broArr.Length() == 0)
         fail("manager should still have managees!");
 
     if (mExpectCrash && AbnormalShutdown != why)
@@ -216,14 +221,18 @@ TestShutdownSubChild::ActorDestroy(ActorDestroyReason why)
     else if (!mExpectCrash && AbnormalShutdown == why)
         fail("wasn't expecting crash!");
 
-    if (mExpectCrash && 0 == ManagedPTestShutdownSubsubChild().Length())
+    nsTArray<PTestShutdownSubsubChild*> kidsArr;
+    ManagedPTestShutdownSubsubChild(kidsArr);
+    if (mExpectCrash && 0 == kidsArr.Length())
         fail("expected to *still* have kids");
 }
 
 void
 TestShutdownSubsubChild::ActorDestroy(ActorDestroyReason why)
 {
-    if (Manager()->ManagedPTestShutdownSubsubChild().Length() == 0)
+    nsTArray<PTestShutdownSubsubChild*> broArr;
+    Manager()->ManagedPTestShutdownSubsubChild(broArr);
+    if (broArr.Length() == 0)
         fail("manager should still have managees!");
 
     if (mExpectParentDeleted && AncestorDeletion != why)

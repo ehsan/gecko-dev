@@ -407,7 +407,7 @@ nsMathMLElement::IntrinsicState() const
 PRBool
 nsMathMLElement::IsNodeOfType(PRUint32 aFlags) const
 {
-  return !(aFlags & ~eCONTENT);
+  return !(aFlags & ~(eCONTENT | eELEMENT));
 }
 
 void

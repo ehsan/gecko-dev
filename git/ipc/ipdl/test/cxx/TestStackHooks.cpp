@@ -10,8 +10,7 @@ namespace _ipdltest {
 //-----------------------------------------------------------------------------
 // parent
 
-TestStackHooksParent::TestStackHooksParent() :
-    mOnStack(false), mIncallDepth(0)
+TestStackHooksParent::TestStackHooksParent() : mOnStack(false)
 {
     MOZ_COUNT_CTOR(TestStackHooksParent);
 }
@@ -41,9 +40,6 @@ TestStackHooksParent::AnswerStackFrame()
     if (!mOnStack)
         fail("not on C++ stack?!");
 
-    if (1 != mIncallDepth)
-        fail("missed EnteredCall or ExitedCall hook");
-
     return true;
 }
 
@@ -53,8 +49,7 @@ TestStackHooksParent::AnswerStackFrame()
 TestStackHooksChild::TestStackHooksChild() :
     mOnStack(false),
     mEntered(0),
-    mExited(0),
-    mIncallDepth(0)
+    mExited(0)
 {
     MOZ_COUNT_CTOR(TestStackHooksChild);
 }
@@ -76,9 +71,6 @@ TestStackHooksChild::RecvStart()
     if (!mOnStack)
         fail("missed stack notification");
 
-    if (0 != mIncallDepth)
-        fail("EnteredCall/ExitedCall malfunction");
-
     // kick off tests from a runnable so that we can start with
     // RPCChannel code on the C++ stack
     MessageLoop::current()->PostTask(FROM_HERE,
@@ -93,15 +85,12 @@ TestStackHooksChild::AnswerStackFrame()
     if (!mOnStack)
         fail("missed stack notification");
 
-    if (1 != mIncallDepth)
-        fail("missed EnteredCall or ExitedCall hook");
-
     // FIXME use IPDL state instead
-    if (4 == mEntered) {        // test 4
+    if (4 == mEntered) {
         if (!SendAsync())
             fail("sending Async()");
     }
-    else if (5 == mEntered) {   // test 5
+    else if (5 == mEntered) {
         if (!SendSync())
             fail("sending Sync()");
     }
@@ -123,15 +112,11 @@ TestStackHooksChild::RunTests()
         fail("missed stack notification");
     if (mOnStack)
         fail("spurious stack notification");
-    if (0 != mIncallDepth)
-        fail("EnteredCall/ExitedCall malfunction");
 
     if (!SendAsync())
         fail("sending Async()");
     if (mOnStack)
         fail("spurious stack notification");
-    if (0 != mIncallDepth)
-        fail("EnteredCall/ExitedCall malfunction");
     if (2 != mEntered)
         fail("missed stack notification");
 
@@ -139,8 +124,6 @@ TestStackHooksChild::RunTests()
         fail("sending Sync()");
     if (mOnStack)
         fail("spurious stack notification");
-    if (0 != mIncallDepth)
-        fail("EnteredCall/ExitedCall malfunction");
     if (3 != mEntered)
         fail("missed stack notification");
 
@@ -148,8 +131,6 @@ TestStackHooksChild::RunTests()
         fail("calling RPC()");
     if (mOnStack)
         fail("spurious stack notification");
-    if (0 != mIncallDepth)
-        fail("EnteredCall/ExitedCall malfunction");
     if (4 != mEntered)
         fail("missed stack notification");
 
@@ -157,8 +138,6 @@ TestStackHooksChild::RunTests()
         fail("calling StackFrame()");
     if (mOnStack)
         fail("spurious stack notification");
-    if (0 != mIncallDepth)
-        fail("EnteredCall/ExitedCall malfunction");
     if (5 != mEntered)
         fail("missed stack notification");
 

@@ -39,7 +39,6 @@
 #include "nsSVGPointList.h"
 #include "nsSVGPoint.h"
 #include "nsSVGUtils.h"
-#include "nsCharSeparatedTokenizer.h"
 #include "nsDOMError.h"
 #include "prdtoa.h"
 #include "nsReadableUtils.h"
@@ -164,55 +163,56 @@ NS_INTERFACE_MAP_END
 NS_IMETHODIMP
 nsSVGPointList::SetValueString(const nsAString& aValue)
 {
-  nsCharSeparatedTokenizer
-    tokenizer(aValue, ',',
-              nsCharSeparatedTokenizer::SEPARATOR_OPTIONAL);
+  nsresult rv = NS_OK;
+
+  char* str = ToNewCString(aValue);
+  
+  char* rest = str;
+  char* token1;
+  char* token2;
   nsCOMArray<nsIDOMSVGPoint> points;
+  
+  while ( (token1 = nsCRT::strtok(rest, SVG_COMMA_WSP_DELIM, &rest)) &&
+          (token2 = nsCRT::strtok(rest, SVG_COMMA_WSP_DELIM, &rest)) ) {
 
-  while (tokenizer.hasMoreTokens()) {
-    // Parse 2 tokens
-    NS_ConvertUTF16toUTF8 utf8String1(tokenizer.nextToken());
-    const char *token1 = utf8String1.get();
-    if (!tokenizer.hasMoreTokens() ||  // No 2nd token.
-        *token1 == '\0') {             // 1st token is empty string.
-      return NS_ERROR_DOM_SYNTAX_ERR;
-    }
-    NS_ConvertUTF16toUTF8 utf8String2(tokenizer.nextToken());
-    const char *token2 = utf8String2.get();
-    if (*token2 == '\0') {             // 2nd token is empty string.
-      return NS_ERROR_DOM_SYNTAX_ERR;
-    }
-
-    // Convert parsed tokens to float values.
     char *end;
+    
     float x = float(PR_strtod(token1, &end));
     if (*end != '\0' || !NS_FloatIsFinite(x)) {
-      return NS_ERROR_DOM_SYNTAX_ERR;
+      rv = NS_ERROR_DOM_SYNTAX_ERR;
+      break; // parse error
     }
     float y = float(PR_strtod(token2, &end));
     if (*end != '\0' || !NS_FloatIsFinite(y)) {
-      return NS_ERROR_DOM_SYNTAX_ERR;
+      rv = NS_ERROR_DOM_SYNTAX_ERR;
+      break; // parse error
     }
-
-    // Build a point from our parsed float values.
+    
     nsCOMPtr<nsIDOMSVGPoint> point;
-    NS_NewSVGPoint(getter_AddRefs(point), x, y); // uses infallible 'new'.
+    NS_NewSVGPoint(getter_AddRefs(point), x, y);
+    if (!point) {
+      rv = NS_ERROR_OUT_OF_MEMORY;
+      break;
+    }
     points.AppendObject(point);
   }
 
-  if (tokenizer.lastTokenEndedWithSeparator()) { // Reject trailing comma
-    return NS_ERROR_DOM_SYNTAX_ERR;
+  if (token1 || NS_FAILED(rv)) {
+    // there was a parse error or we ran out of memory
+    rv = NS_ERROR_DOM_SYNTAX_ERR;
+  } else {
+    WillModify();
+    ReleasePoints();
+    PRInt32 count = points.Count();
+    for (PRInt32 i=0; i<count; ++i) {
+      AppendElement(points.ObjectAt(i));
+    }
+    DidModify();
   }
 
-  WillModify();
-  ReleasePoints();
-  PRInt32 count = points.Count();
-  for (PRInt32 i = 0; i < count; ++i) {
-    AppendElement(points.ObjectAt(i));
-  }
-  DidModify();
-
-  return NS_OK;
+  nsMemory::Free(str);
+  
+  return rv;
 }
 
 NS_IMETHODIMP

@@ -164,6 +164,11 @@ function test()
 
 // =====
 
+  var f = new Function("let ([] = [({ get x5 this (x) {}  })]) { for(let y in []) with({}) {} }");
+  "" + f;
+
+// =====
+
   try
   {
     eval(

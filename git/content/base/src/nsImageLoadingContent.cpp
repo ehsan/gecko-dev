@@ -60,6 +60,7 @@
 #include "nsNetUtil.h"
 #include "nsPLDOMEvent.h"
 
+#include "nsPresContext.h"
 #include "nsIPresShell.h"
 #include "nsIEventStateManager.h"
 #include "nsGUIEvent.h"

@@ -47,6 +47,10 @@
 
 /* Definitions of functions and operators that allocate memory. */
 #if !defined(XPCOM_GLUE) && !defined(NS_NO_XPCOM) && !defined(MOZ_NO_MOZALLOC)
+#  if defined(__cplusplus)
+#    include NEW_H              /* to give mozalloc std::bad_alloc */
+#  endif
+#  include <stdlib.h>         /* to give mozalloc malloc/free decls */
 #  include "mozilla/mozalloc.h"
 #  include "mozilla/mozalloc_macro_wrappers.h"
 #endif
@@ -362,15 +366,9 @@ typedef PRUint32 nsrefcnt;
 #endif
 
 /**
- * The preferred symbol for null.  Make sure this is the same size as
- * void* on the target.  See bug 547964.
+ * The preferred symbol for null.
  */
-#if defined(_WIN64)
-# define nsnull 0LL
-#else
-# define nsnull 0L
-#endif
-
+#define nsnull 0
 
 #include "nsError.h"
 

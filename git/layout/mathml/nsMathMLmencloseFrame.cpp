@@ -159,8 +159,6 @@ nsresult nsMathMLmencloseFrame::AddNotation(const nsAString& aNotation)
     mNotationsToDraw |= NOTATION_VERTICALSTRIKE;
   } else if (aNotation.EqualsLiteral("horizontalstrike")) {
     mNotationsToDraw |= NOTATION_HORIZONTALSTRIKE;
-  } else if (aNotation.EqualsLiteral("madruwb")) {
-    mNotationsToDraw |= (NOTATION_RIGHT | NOTATION_BOTTOM);
   }
 
   return NS_OK;

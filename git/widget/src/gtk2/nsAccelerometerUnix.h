@@ -46,8 +46,7 @@ enum nsAccelerometerUnixDriver
   eNoSensor,
   eAppleSensor,
   eIBMSensor,
-  eMaemoSensor,
-  eHPdv7Sensor
+  eMaemoSensor
 };
 
 class nsAccelerometerUnix : public nsAccelerometer

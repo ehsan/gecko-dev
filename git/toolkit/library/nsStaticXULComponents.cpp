@@ -96,6 +96,7 @@
 #ifdef MOZ_RDF
 #define RDF_MODULES \
     MODULE(nsRDFModule) \
+    MODULE(nsXPIntlModule) \
     MODULE(nsWindowDataSourceModule)
 #else
 #define RDF_MODULES
@@ -234,6 +235,7 @@
 #endif
 
 #define XUL_MODULES                          \
+    MODULE(xpconnect)                        \
     MODULE(nsUConvModule)                    \
     MODULE(nsI18nModule)                     \
     MODULE(nsChardetModule)                  \
@@ -244,6 +246,7 @@
     MODULE(nsJarModule)                      \
     ZIPWRITER_MODULE                         \
     MODULE(nsPrefModule)                     \
+    MODULE(nsSecurityManagerModule)          \
     RDF_MODULES                              \
     MODULE(nsParserModule)                   \
     GFX_MODULES                              \
@@ -261,6 +264,7 @@
     COMPOSER_MODULE                          \
     MODULE(nsChromeModule)                   \
     MODULE(application)                      \
+    MODULE(nsFindComponent)                  \
     MODULE(Apprunner)                        \
     MODULE(CommandLineModule)                \
     FILEVIEW_MODULE                          \

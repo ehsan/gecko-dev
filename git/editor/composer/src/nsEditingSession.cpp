@@ -81,6 +81,7 @@
 #include "nsIDOMNSDocument.h"
 #include "nsIScriptContext.h"
 #include "imgIContainer.h"
+#include "nsPresContext.h"
 
 #if DEBUG
 //#define NOISY_DOC_LOADING  1

@@ -48,6 +48,7 @@
 #include "nsISupports.h"
 
 class nsIStyleSheet;
+class nsPresContext;
 class nsIContent;
 struct nsRuleData;
 

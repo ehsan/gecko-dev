@@ -53,6 +53,8 @@
 
 
 
+class nsIPresShell;
+
 /**
   * A transaction that inserts text into a content node. 
   */

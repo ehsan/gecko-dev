@@ -38,11 +38,7 @@
 
 #include "nsXULTreeAccessible.h"
 
-#include "nsAccCache.h"
-#include "nsAccUtils.h"
-#include "nsCoreUtils.h"
 #include "nsDocAccessible.h"
-#include "nsRelUtils.h"
 
 #include "nsIDOMXULElement.h"
 #include "nsIDOMXULMultSelectCntrlEl.h"
@@ -553,7 +549,8 @@ nsXULTreeAccessible::InvalidateCache(PRInt32 aRow, PRInt32 aCount)
       // Remove accessible from document cache and tree cache.
       nsCOMPtr<nsIAccessibleDocument> docAccessible = GetDocAccessible();
       if (docAccessible) { 
-        nsRefPtr<nsDocAccessible> docAcc = do_QueryObject(docAccessible);
+        nsRefPtr<nsDocAccessible> docAcc =
+          nsAccUtils::QueryAccessibleDocument(docAccessible);
         docAcc->RemoveAccessNodeFromCache(accessible);
       }
 
@@ -582,7 +579,8 @@ nsXULTreeAccessible::InvalidateCache(PRInt32 aRow, PRInt32 aCount)
       // Remove accessible from document cache and tree cache.
       nsCOMPtr<nsIAccessibleDocument> docAccessible = GetDocAccessible();
       if (docAccessible) {
-        nsRefPtr<nsDocAccessible> docAcc = do_QueryObject(docAccessible);
+        nsRefPtr<nsDocAccessible> docAcc =
+          nsAccUtils::QueryAccessibleDocument(docAccessible);
         docAcc->RemoveAccessNodeFromCache(accessible);
       }
 
@@ -839,7 +837,8 @@ nsXULTreeItemAccessibleBase::GetRelationByType(PRUint32 aRelationType,
       if (parentIndex == -1)
         return nsRelUtils::AddTarget(aRelationType, aRelation, mParent);
 
-      nsRefPtr<nsXULTreeAccessible> treeAcc = do_QueryObject(mParent);
+      nsRefPtr<nsXULTreeAccessible> treeAcc =
+        nsAccUtils::QueryAccessibleTree(mParent);
 
       nsAccessible *logicalParent = treeAcc->GetTreeItemAccessible(parentIndex);
       return nsRelUtils::AddTarget(aRelationType, aRelation, logicalParent);
@@ -1107,7 +1106,8 @@ nsXULTreeItemAccessibleBase::GetSiblingAtOffset(PRInt32 aOffset,
   if (aError)
     *aError = NS_OK; // fail peacefully
 
-  nsRefPtr<nsXULTreeAccessible> treeAcc = do_QueryObject(mParent);
+  nsRefPtr<nsXULTreeAccessible> treeAcc =
+    nsAccUtils::QueryAccessibleTree(mParent);
   if (!treeAcc)
     return nsnull;
 
@@ -1290,7 +1290,8 @@ nsXULTreeColumnsAccessible::GetSiblingAtOffset(PRInt32 aOffset,
       PRInt32 rowCount = 0;
       treeView->GetRowCount(&rowCount);
       if (rowCount > 0 && aOffset <= rowCount) {
-        nsRefPtr<nsXULTreeAccessible> treeAcc = do_QueryObject(mParent);
+        nsRefPtr<nsXULTreeAccessible> treeAcc =
+          nsAccUtils::QueryAccessibleTree(mParent);
 
         if (treeAcc)
           return treeAcc->GetTreeItemAccessible(aOffset - 1);

@@ -186,5 +186,10 @@ function test()
   actual = f + '';
   compareSource(expect, actual, summary);
 
+  f = (function() { ({x setter: (function () {}).x }) });
+  expect = 'function() { ({x setter: function () {}.x }); }';
+  actual = f + '';
+  compareSource(expect, actual, summary);
+
   exitFunc ('test');
 }

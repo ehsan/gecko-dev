@@ -42,11 +42,8 @@
 extern "C" {
 #include "cairo-win32.h"
 #include "cairo-analysis-surface-private.h"
-#include "cairo-surface-clipper-private.h"
 }
 
-// Required for using placement new.
-#include <new>
 
 ID2D1Factory *D2DSurfFactory::mFactoryInstance = NULL;
 ID3D10Device1 *D3D10Factory::mDeviceInstance = NULL;
@@ -162,7 +159,7 @@ _cairo_d2d_flush(void                  *surface);
  * \param fill_rule The fill rule to uses on the path
  * \param tolerance The tolerance applied to the filling
  * \param antialias The anti-alias mode to use
- * \param clip The clip of this operation
+ * \param extents The extents of the surface to which to apply this operation
  * \return Return code, this can be CAIRO_ERROR_SURFACE_TYPE_MISMATCH,
  * CAIRO_INT_STATUS_UNSUPPORTED or CAIRO_STATUS_SUCCESS
  */
@@ -174,16 +171,17 @@ _cairo_d2d_fill(void			*surface,
 		cairo_fill_rule_t	 fill_rule,
 		double			 tolerance,
 		cairo_antialias_t	 antialias,
-		cairo_clip_t		*clip);
+		cairo_rectangle_int_t	*extents);
 
 /**
  * Paint this surface, applying the operation to the entire surface
+ * or to the passed in 'extents' of the surface.
  *
  * \param surface The surface to apply this operation to, must be
  * a D2D surface
  * \param op Operator to use when painting
  * \param source The pattern to fill this surface with, source of the op
- * \param clip The clip of this operation
+ * \param Extents of the surface to apply this operation to
  * \return Return code, this can be CAIRO_ERROR_SURFACE_TYPE_MISMATCH,
  * CAIRO_INT_STATUS_UNSUPPORTED or CAIRO_STATUS_SUCCESS
  */
@@ -191,7 +189,7 @@ static cairo_int_status_t
 _cairo_d2d_paint(void			*surface,
 		 cairo_operator_t	 op,
 		 const cairo_pattern_t	*source,
-		 cairo_clip_t		*clip);
+		 cairo_rectangle_int_t  *extents);
 
 /**
  * Paint something on the surface applying a certain mask to that
@@ -202,7 +200,7 @@ _cairo_d2d_paint(void			*surface,
  * \param op Operator to use
  * \param source Source for this operation
  * \param mask Pattern to mask source with
- * \param clip The clip of this operation
+ * \param extents Extents of the surface to apply this operation to
  * \return Return code, this can be CAIRO_ERROR_SURFACE_TYPE_MISMATCH,
  * CAIRO_INT_STATUS_UNSUPPORTED or CAIRO_STATUS_SUCCESS
  */
@@ -211,7 +209,7 @@ _cairo_d2d_mask(void			*surface,
 		cairo_operator_t	 op,
 		const cairo_pattern_t	*source,
 		const cairo_pattern_t	*mask,
-		cairo_clip_t		*clip);
+		cairo_rectangle_int_t  *extents);
 
 /**
  * Show a glyph run on the target D2D surface.
@@ -225,7 +223,7 @@ _cairo_d2d_mask(void			*surface,
  * \param scaled_font Scaled font to draw
  * \param remaining_glyphs Pointer to store amount of glyphs still
  * requiring drawing.
- * \param clip The clip of this operation
+ * \param extents Extents this operation applies to.
  * \return CAIRO_ERROR_SURFACE_TYPE_MISMATCH, CAIRO_ERROR_FONT_TYPE_MISMATCH,
  * CAIRO_INT_STATUS_UNSUPPORTED or CAIRO_STATUS_SUCCESS
  */
@@ -236,8 +234,8 @@ _cairo_d2d_show_glyphs (void			*surface,
 			cairo_glyph_t		*glyphs,
 			int			 num_glyphs,
 			cairo_scaled_font_t	*scaled_font,
-			cairo_clip_t		*clip,
-			int			*remaining_glyphs);
+			int			*remaining_glyphs,
+			cairo_rectangle_int_t	*extents);
 
 /**
  * Get the extents of this surface.
@@ -246,17 +244,20 @@ _cairo_d2d_show_glyphs (void			*surface,
  * \param extents Pointer to where to store the extents
  * \param CAIRO_ERROR_SURFACE_TYPE_MISTMATCH or CAIRO_STATUS_SUCCESS
  */
-static cairo_bool_t
+static cairo_int_status_t
 _cairo_d2d_getextents(void		       *surface,
 		      cairo_rectangle_int_t    *extents);
 
 
-static cairo_status_t
-_cairo_d2d_surface_clipper_intersect_clip_path(cairo_surface_clipper_t *clipper,
-					       cairo_path_fixed_t	*path,
-					       cairo_fill_rule_t	fill_rule,
-					       double			tolerance,
-					       cairo_antialias_t	antialias);
+/**
+ * See cairo backend documentation.
+ */
+static cairo_int_status_t
+_cairo_d2d_intersect_clip_path(void			*dst,
+			       cairo_path_fixed_t	*path,
+			       cairo_fill_rule_t	fill_rule,
+			       double			tolerance,
+			       cairo_antialias_t	antialias);
 
 /**
  * Stroke a path on this D2D surface.
@@ -274,7 +275,7 @@ _cairo_d2d_surface_clipper_intersect_clip_path(cairo_surface_clipper_t *clipper,
  * to logical space.
  * \param tolerance Tolerance to stroke with
  * \param antialias Antialias mode to use
- * \param clip The clip of this operation
+ * \param extents Extents of the surface to apply this operation to
  * \return Return code, this can be CAIRO_ERROR_SURFACE_TYPE_MISMATCH,
  * CAIRO_INT_STATUS_UNSUPPORTED or CAIRO_STATUS_SUCCESS
  */
@@ -288,7 +289,7 @@ _cairo_d2d_stroke(void			*surface,
 		  cairo_matrix_t	*ctm_inverse,
 		  double		 tolerance,
 		  cairo_antialias_t	 antialias,
-		  cairo_clip_t		*clip);
+		  cairo_rectangle_int_t  *extents);
 
 static const cairo_surface_backend_t cairo_d2d_surface_backend = {
     CAIRO_SURFACE_TYPE_D2D,
@@ -306,7 +307,9 @@ static const cairo_surface_backend_t cairo_d2d_surface_backend = {
     NULL, /* check_span_renderer */
     NULL, /* copy_page */
     NULL, /* show_page */
-    _cairo_d2d_getextents, /* get_extents */
+    NULL, /* set_clip_region */
+    _cairo_d2d_intersect_clip_path, /* intersect_clip_path */
+    _cairo_d2d_getextents, /* getextents */
     NULL, /* old_show_glyphs */
     NULL, /* get_font_options */
     _cairo_d2d_flush, /* flush */
@@ -319,6 +322,7 @@ static const cairo_surface_backend_t cairo_d2d_surface_backend = {
     _cairo_d2d_fill, /* fill */
     _cairo_d2d_show_glyphs, /* show_glyphs */
     NULL, /* snapshot */
+    NULL,
     NULL
 };
 
@@ -385,7 +389,7 @@ static void _cairo_d2d_update_surface_bitmap(cairo_d2d_surface_t *d2dsurf)
     }
     ID3D10Texture2D *texture = _cairo_d2d_get_buffer_texture(d2dsurf);
     if (!d2dsurf->surfaceBitmap) {
-	RefPtr<IDXGISurface> dxgiSurface;
+	IDXGISurface *dxgiSurface;
 	D2D1_ALPHA_MODE alpha;
 	if (d2dsurf->base.content == CAIRO_CONTENT_COLOR) {
 	    alpha = D2D1_ALPHA_MODE_IGNORE;
@@ -400,6 +404,7 @@ static void _cairo_d2d_update_surface_bitmap(cairo_d2d_surface_t *d2dsurf)
 					dxgiSurface,
 					&bitProps,
 					&d2dsurf->surfaceBitmap);
+	dxgiSurface->Release();
     }
     D3D10Factory::Device()->CopyResource(texture, d2dsurf->surface);
 }
@@ -497,15 +502,6 @@ static void _begin_draw_state(cairo_d2d_surface_t* surface)
     }
 }
 
-/* External helper called from dwrite code.
- * Will hopefully go away when/if that code
- * moves into here */
-void
-_cairo_d2d_begin_draw_state(cairo_d2d_surface_t *d2dsurf)
-{
-	_begin_draw_state(d2dsurf);
-}
-
 /**
  * Get a D2D matrix from a cairo matrix. Note that D2D uses row vectors where cairo
  * uses column vectors. Hence the transposition.
@@ -531,7 +527,7 @@ _cairo_d2d_matrix_from_matrix(const cairo_matrix_t *matrix)
  * \param style Cairo stroke style object
  * \return D2D StrokeStyle interface
  */
-static RefPtr<ID2D1StrokeStyle>
+static ID2D1StrokeStyle*
 _cairo_d2d_create_strokestyle_for_stroke_style(const cairo_stroke_style_t *style)
 {
     D2D1_CAP_STYLE line_cap = D2D1_CAP_STYLE_FLAT;
@@ -573,7 +569,7 @@ _cairo_d2d_create_strokestyle_for_stroke_style(const cairo_stroke_style_t *style
 	dashStyle = D2D1_DASH_STYLE_CUSTOM;
     }
 
-    RefPtr<ID2D1StrokeStyle> strokeStyle;
+    ID2D1StrokeStyle *strokeStyle;
     D2DSurfFactory::Instance()->CreateStrokeStyle(D2D1::StrokeStyleProperties(line_cap, 
 									      line_cap,
 									      line_cap, 
@@ -588,13 +584,13 @@ _cairo_d2d_create_strokestyle_for_stroke_style(const cairo_stroke_style_t *style
     return strokeStyle;
 }
 
-cairo_user_data_key_t bitmap_key_nonextend;
-cairo_user_data_key_t bitmap_key_extend;
-cairo_user_data_key_t bitmap_key_snapshot;
+cairo_user_data_key_t bitmap_key;
 
 struct cached_bitmap {
     /** The cached bitmap */
-    RefPtr<ID2D1Bitmap> bitmap;
+    ID2D1Bitmap *bitmap;
+    /** The cached bitmap was created with a transparent rectangle around it */
+    bool isNoneExtended;
     /** The cached bitmap is dirty and needs its data refreshed */
     bool dirty;
     /** Order of snapshot detach/release bitmap called not guaranteed, single threaded refcount for now */
@@ -607,9 +603,10 @@ struct cached_bitmap {
  */
 static void _d2d_release_bitmap(void *bitmap)
 {
-    cached_bitmap *existingBitmap = (cached_bitmap*)bitmap;
-    if (!--existingBitmap->refs) {
-	delete existingBitmap;
+    cached_bitmap *bitmp = (cached_bitmap*)bitmap;
+    bitmp->bitmap->Release();
+    if (!--bitmp->refs) {
+	delete bitmap;
     }
 }
 
@@ -619,7 +616,7 @@ static void _d2d_release_bitmap(void *bitmap)
  */
 static void _d2d_snapshot_detached(cairo_surface_t *surface)
 {
-    cached_bitmap *existingBitmap = (cached_bitmap*)cairo_surface_get_user_data(surface, &bitmap_key_snapshot);
+    cached_bitmap *existingBitmap = (cached_bitmap*)cairo_surface_get_user_data(surface, &bitmap_key);
     if (existingBitmap) {
 	existingBitmap->dirty = true;
     }
@@ -644,7 +641,7 @@ static void _d2d_snapshot_detached(cairo_surface_t *surface)
  * this will make the function return a seperate brush.
  * \return A brush object
  */
-RefPtr<ID2D1Brush>
+ID2D1Brush*
 _cairo_d2d_create_brush_for_pattern(cairo_d2d_surface_t *d2dsurf, 
 				    const cairo_pattern_t *pattern,
 				    unsigned int last_run,
@@ -660,7 +657,7 @@ _cairo_d2d_create_brush_for_pattern(cairo_d2d_surface_t *d2dsurf,
 	    (cairo_solid_pattern_t*)pattern;
 	D2D1_COLOR_F color = _cairo_d2d_color_from_cairo_color(sourcePattern->color);
 	if (unique) {
-	    RefPtr<ID2D1SolidColorBrush> brush;
+	    ID2D1SolidColorBrush *brush;
 	    d2dsurf->rt->CreateSolidColorBrush(color,
 					       &brush);
 	    *remaining_runs = 0;
@@ -672,6 +669,7 @@ _cairo_d2d_create_brush_for_pattern(cairo_d2d_surface_t *d2dsurf,
 		d2dsurf->solidColorBrush->GetColor().b != color.b) {
 		d2dsurf->solidColorBrush->SetColor(color);
 	    }
+	    d2dsurf->solidColorBrush->AddRef();
 	    *remaining_runs = 0;
 	    return d2dsurf->solidColorBrush;
 	}
@@ -697,15 +695,16 @@ _cairo_d2d_create_brush_for_pattern(cairo_d2d_surface_t *d2dsurf,
 	    stops[i].color = 
 		_cairo_d2d_color_from_cairo_color(sourcePattern->base.stops[i].color);
 	}
-	RefPtr<ID2D1GradientStopCollection> stopCollection;
+	ID2D1GradientStopCollection *stopCollection;
 	d2dsurf->rt->CreateGradientStopCollection(stops, sourcePattern->base.n_stops, &stopCollection);
-	RefPtr<ID2D1LinearGradientBrush> brush;
+	ID2D1LinearGradientBrush *brush;
 	d2dsurf->rt->CreateLinearGradientBrush(D2D1::LinearGradientBrushProperties(_d2d_point_from_cairo_point(&sourcePattern->p1),
 										   _d2d_point_from_cairo_point(&sourcePattern->p2)),
 					       brushProps,
 					       stopCollection,
 					       &brush);
 	delete [] stops;
+	stopCollection->Release();
 	*remaining_runs = 0;
 	return brush;
 
@@ -741,9 +740,9 @@ _cairo_d2d_create_brush_for_pattern(cairo_d2d_surface_t *d2dsurf,
 	    stops[i].color = 
 		_cairo_d2d_color_from_cairo_color(sourcePattern->base.stops[i].color);
 	}
-	RefPtr<ID2D1GradientStopCollection> stopCollection;
+	ID2D1GradientStopCollection *stopCollection;
 	d2dsurf->rt->CreateGradientStopCollection(stops, sourcePattern->base.n_stops, &stopCollection);
-	RefPtr<ID2D1RadialGradientBrush> brush;
+	ID2D1RadialGradientBrush *brush;
 
 	d2dsurf->rt->CreateRadialGradientBrush(D2D1::RadialGradientBrushProperties(center,
 										   origin,
@@ -752,6 +751,7 @@ _cairo_d2d_create_brush_for_pattern(cairo_d2d_surface_t *d2dsurf,
 					       brushProps,
 					       stopCollection,
 					       &brush);
+	stopCollection->Release();
 	delete [] stops;
 	*remaining_runs = 0;
 	return brush;
@@ -763,12 +763,10 @@ _cairo_d2d_create_brush_for_pattern(cairo_d2d_surface_t *d2dsurf,
 	cairo_surface_pattern_t *surfacePattern =
 	    (cairo_surface_pattern_t*)pattern;
 	D2D1_EXTEND_MODE extendMode;
-
-	cairo_user_data_key_t *key = &bitmap_key_extend;
-
+	bool nonExtended = false;
 	if (pattern->extend == CAIRO_EXTEND_NONE) {
 	    extendMode = D2D1_EXTEND_MODE_CLAMP;
-	    key = &bitmap_key_nonextend;
+	    nonExtended = true;
 	    /** 
 	     * For image surfaces we create a slightly larger bitmap with
 	     * a transparent border around it for this case. Need to translate
@@ -784,7 +782,7 @@ _cairo_d2d_create_brush_for_pattern(cairo_d2d_surface_t *d2dsurf,
 	} else {
 	    extendMode = D2D1_EXTEND_MODE_CLAMP;
 	}
-	RefPtr<ID2D1Bitmap> sourceBitmap;
+	ID2D1Bitmap *sourceBitmap;
 	bool tiled = false;
 	unsigned int xoffset = 0;
 	unsigned int yoffset = 0;
@@ -846,7 +844,7 @@ _cairo_d2d_create_brush_for_pattern(cairo_d2d_surface_t *d2dsurf,
 		// Move the image to the right spot.
 		cairo_matrix_translate(&mat, xoffset, yoffset);
 		if (true) {
-		    RefPtr<ID2D1RectangleGeometry> clipRect;
+		    ID2D1RectangleGeometry *clipRect;
 		    D2DSurfFactory::Instance()->CreateRectangleGeometry(D2D1::RectF(0, 0, (float)width, (float)height),
 									&clipRect);
 
@@ -860,6 +858,7 @@ _cairo_d2d_create_brush_for_pattern(cairo_d2d_surface_t *d2dsurf,
 								 _cairo_d2d_matrix_from_matrix(&mat)),
 					   d2dsurf->helperLayer);
 		    *pushed_clip = true;
+		    clipRect->Release();
 		}
 	    } else {
 		width = srcSurf->width;
@@ -867,20 +866,19 @@ _cairo_d2d_create_brush_for_pattern(cairo_d2d_surface_t *d2dsurf,
 	    }
 
 	    cached_bitmap *cachebitmap = NULL;
-
 	    if (!tiled) {
 		cachebitmap = 
 		    (cached_bitmap*)cairo_surface_get_user_data(
 		    surfacePattern->surface,
-		    key);
+		    &bitmap_key);
 	    }
 
-	    if (cachebitmap) {
+	    if (cachebitmap && cachebitmap->isNoneExtended == nonExtended) {
 		sourceBitmap = cachebitmap->bitmap;
 		if (cachebitmap->dirty) {
 		    D2D1_RECT_U rect;
 		    /** No need to take tiling into account - tiled surfaces are never cached. */
-		    if (pattern->extend == CAIRO_EXTEND_NONE) {
+		    if (nonExtended) {
 			rect = D2D1::RectU(1, 1, srcSurf->width + 1, srcSurf->height + 1);
 		    } else {
 			rect = D2D1::RectU(0, 0, srcSurf->width, srcSurf->height);
@@ -891,9 +889,8 @@ _cairo_d2d_create_brush_for_pattern(cairo_d2d_surface_t *d2dsurf,
 		    cairo_surface_t *nullSurf =
 			_cairo_null_surface_create(CAIRO_CONTENT_COLOR_ALPHA);
 		    cachebitmap->refs++;
-		    cachebitmap->dirty = false;
 		    cairo_surface_set_user_data(nullSurf,
-						&bitmap_key_snapshot,
+						&bitmap_key,
 						cachebitmap,
 						NULL);
 		    _cairo_surface_attach_snapshot(surfacePattern->surface,
@@ -902,6 +899,7 @@ _cairo_d2d_create_brush_for_pattern(cairo_d2d_surface_t *d2dsurf,
 		}
 	    } else {
 		cached_bitmap *cachebitmap = new cached_bitmap;
+		cachebitmap->isNoneExtended = nonExtended;
 		if (pattern->extend != CAIRO_EXTEND_NONE) {
 		    d2dsurf->rt->CreateBitmap(D2D1::SizeU(width, height),
 							  srcSurf->data + yoffset * srcSurf->stride + xoffset,
@@ -942,13 +940,13 @@ _cairo_d2d_create_brush_for_pattern(cairo_d2d_surface_t *d2dsurf,
 		cachebitmap->bitmap = sourceBitmap;
 		cachebitmap->refs = 2;
 		cairo_surface_set_user_data(surfacePattern->surface,
-					    key,
+					    &bitmap_key,
 					    cachebitmap,
 					    _d2d_release_bitmap);
 		cairo_surface_t *nullSurf =
 		    _cairo_null_surface_create(CAIRO_CONTENT_COLOR_ALPHA);
 		cairo_surface_set_user_data(nullSurf,
-					    &bitmap_key_snapshot,
+					    &bitmap_key,
 					    cachebitmap,
 					    NULL);
 		_cairo_surface_attach_snapshot(surfacePattern->surface,
@@ -970,7 +968,7 @@ _cairo_d2d_create_brush_for_pattern(cairo_d2d_surface_t *d2dsurf,
 						   D2D1_BITMAP_INTERPOLATION_MODE_LINEAR);
 	}
 	if (unique) {
-	    RefPtr<ID2D1BitmapBrush> bitBrush;
+	    ID2D1BitmapBrush *bitBrush;
 	    D2D1_BRUSH_PROPERTIES brushProps =
 		D2D1::BrushProperties(1.0, _cairo_d2d_matrix_from_matrix(&mat));
 	    d2dsurf->rt->CreateBitmapBrush(sourceBitmap, 
@@ -1001,6 +999,7 @@ _cairo_d2d_create_brush_for_pattern(cairo_d2d_surface_t *d2dsurf,
 					       &brushProps,
 					       &d2dsurf->bitmapBrush);
 	    }
+	    d2dsurf->bitmapBrush->AddRef();
 	    return d2dsurf->bitmapBrush;
 	}
     } else {
@@ -1091,16 +1090,6 @@ _cairo_d2d_path_close(void *closure)
     path_conversion *pathConvert =
 	static_cast<path_conversion*>(closure);
 
-    if (!pathConvert->figureActive) {
-	pathConvert->sink->BeginFigure(_d2d_point_from_cairo_point(&pathConvert->current_point),
-				       pathConvert->type);
-	/**
-	 * In this case we mean a single point. For D2D this means we need to add an infinitely
-	 * small line here to get that effect.
-	 */
-	pathConvert->sink->AddLine(_d2d_point_from_cairo_point(&pathConvert->current_point));
-    }
-
     pathConvert->sink->EndFigure(D2D1_FIGURE_END_CLOSED);
     pathConvert->figureActive = false;
     return CAIRO_STATUS_SUCCESS;
@@ -1114,14 +1103,14 @@ _cairo_d2d_path_close(void *closure)
  * \param type Figure begin type to use
  * \return A D2D geometry
  */
-static RefPtr<ID2D1PathGeometry>
+static ID2D1PathGeometry*
 _cairo_d2d_create_path_geometry_for_path(cairo_path_fixed_t *path, 
 					 cairo_fill_rule_t fill_rule,
 					 D2D1_FIGURE_BEGIN type)
 {
-    RefPtr<ID2D1PathGeometry> d2dpath;
+    ID2D1PathGeometry *d2dpath;
     D2DSurfFactory::Instance()->CreatePathGeometry(&d2dpath);
-    RefPtr<ID2D1GeometrySink> sink;
+    ID2D1GeometrySink *sink;
     d2dpath->Open(&sink);
     D2D1_FILL_MODE fillMode = D2D1_FILL_MODE_WINDING;
     if (fill_rule == CAIRO_FILL_RULE_WINDING) {
@@ -1146,6 +1135,7 @@ _cairo_d2d_create_path_geometry_for_path(cairo_path_fixed_t *path,
 	sink->EndFigure(D2D1_FIGURE_END_OPEN);
     }
     sink->Close();
+    sink->Release();
     return d2dpath;
 }
 
@@ -1172,14 +1162,11 @@ static void _cairo_d2d_clear_geometry(cairo_d2d_surface_t *d2dsurf,
 	return;
     }
 
-    RefPtr<IDXGISurface> dxgiSurface;
-    RefPtr<ID2D1Bitmap> bitmp;
-
-    /** We flush here, this takes us out of drawing state! */
-    _cairo_d2d_flush(d2dsurf);
+    IDXGISurface *dxgiSurface;
+    ID2D1Bitmap *bitmp;
 
     /** Create a temporary buffer for our surface content */
-    RefPtr<ID3D10Texture2D> bufTexture = _cairo_d2d_get_buffer_texture(d2dsurf);
+    ID3D10Texture2D *bufTexture = _cairo_d2d_get_buffer_texture(d2dsurf);
 
     /** Copy our contents into the temporary buffer */
     D3D10Factory::Device()->CopyResource(bufTexture, d2dsurf->surface);
@@ -1193,32 +1180,31 @@ static void _cairo_d2d_clear_geometry(cairo_d2d_surface_t *d2dsurf,
 						 &props,
 						 &bitmp);
 
-    /** We need to manually BeginDraw here, since we're outside of the normal drawing state */
-    d2dsurf->rt->BeginDraw();
-
     /** Clear our original surface */
     d2dsurf->rt->Clear(D2D1::ColorF(0, 0));
 
     DXGI_SURFACE_DESC desc;
     dxgiSurface->GetDesc(&desc);
 
-    RefPtr<ID2D1RectangleGeometry> rectGeom;
-    RefPtr<ID2D1PathGeometry> inverse;
-    RefPtr<ID2D1Geometry> clearGeometry;
-    RefPtr<ID2D1GeometrySink> sink;
+    ID2D1RectangleGeometry *rectGeom;
+    ID2D1PathGeometry *inverse;
+    ID2D1Geometry *clearGeometry;
+    ID2D1GeometrySink *sink;
 
     if (!d2dsurf->clipMask) {
 	/** No clip mask, our clear geometry is equal to our path geometry. */
 	clearGeometry = pathGeometry;
+	clearGeometry->AddRef();
     } else if (!pathGeometry) {
 	/** No path geometry, our clear geometry is equal to our clip mask. */
 	clearGeometry = d2dsurf->clipMask;
+	clearGeometry->AddRef();
     } else {
 	/**
 	 * A clipping mask and a pathGeometry, the intersect of the two
 	 * geometries is the area of the surface that we want to clear.
 	 */
-	RefPtr<ID2D1PathGeometry> clipPathUnion;
+	ID2D1PathGeometry *clipPathUnion;
 	D2DSurfFactory::Instance()->CreatePathGeometry(&clipPathUnion);
 	clipPathUnion->Open(&sink);
 	pathGeometry->CombineWithGeometry(d2dsurf->clipMask,
@@ -1226,7 +1212,13 @@ static void _cairo_d2d_clear_geometry(cairo_d2d_surface_t *d2dsurf,
 					  D2D1::IdentityMatrix(),
 					  sink);
 	sink->Close();
+	sink->Release();
 	clearGeometry = clipPathUnion;
+    }
+
+    if (d2dsurf->clipMask) {
+	/** If we have a clip mask, we'll need to pop the surface clip */
+	_cairo_d2d_surface_pop_clip(d2dsurf);
     }
 
     /**
@@ -1238,6 +1230,9 @@ static void _cairo_d2d_clear_geometry(cairo_d2d_surface_t *d2dsurf,
     D2DSurfFactory::Instance()->CreateRectangleGeometry(D2D1::RectF(0, 0, (FLOAT)desc.Width, (FLOAT)desc.Height), &rectGeom);
     rectGeom->CombineWithGeometry(clearGeometry, D2D1_COMBINE_MODE_EXCLUDE, D2D1::IdentityMatrix(), sink);
     sink->Close();
+    sink->Release();
+    rectGeom->Release();
+    clearGeometry->Release();
 
     /** Clip by the inverse and draw our content back to the surface */
     d2dsurf->rt->PushLayer(D2D1::LayerParameters(D2D1::InfiniteRect(), inverse),
@@ -1245,8 +1240,14 @@ static void _cairo_d2d_clear_geometry(cairo_d2d_surface_t *d2dsurf,
     d2dsurf->rt->DrawBitmap(bitmp);
     d2dsurf->rt->PopLayer();
 
-    /** We're not in drawing state, make sure our D2D RT isn't either */
-    d2dsurf->rt->EndDraw();
+    bitmp->Release();
+    dxgiSurface->Release();
+    inverse->Release();
+
+    if (d2dsurf->clipMask) {
+	/** If we have a clip mask, we'll need to push back the surface clip */
+	_cairo_d2d_surface_push_clip(d2dsurf);
+    }
 }
 
 static cairo_operator_t _cairo_d2d_simplify_operator(cairo_operator_t op,
@@ -1281,10 +1282,9 @@ _cairo_d2d_create_similar(void			*surface,
     cairo_d2d_surface_t *d2dsurf = static_cast<cairo_d2d_surface_t*>(surface);
     cairo_d2d_surface_t *newSurf = static_cast<cairo_d2d_surface_t*>(malloc(sizeof(cairo_d2d_surface_t)));
     
-    new (newSurf) cairo_d2d_surface_t();
-    _cairo_surface_init(&newSurf->base, &cairo_d2d_surface_backend, content);
-    _cairo_surface_clipper_init(&newSurf->clipper, _cairo_d2d_surface_clipper_intersect_clip_path);
+    memset(newSurf, 0, sizeof(cairo_d2d_surface_t));
 
+    _cairo_surface_init(&newSurf->base, &cairo_d2d_surface_backend, content);
 
     D2D1_SIZE_U sizePixels;
     D2D1_SIZE_F size;
@@ -1321,11 +1321,12 @@ _cairo_d2d_create_similar(void			*surface,
     if (sizePixels.height < 1) {
 	sizePixels.height = 1;
     }
-    RefPtr<IDXGISurface> oldDxgiSurface;
+    IDXGISurface *oldDxgiSurface;
     d2dsurf->surface->QueryInterface(&oldDxgiSurface);
     DXGI_SURFACE_DESC origDesc;
 
     oldDxgiSurface->GetDesc(&origDesc);
+    oldDxgiSurface->Release();
 
     CD3D10_TEXTURE2D_DESC desc(origDesc.Format,
 			       sizePixels.width,
@@ -1338,27 +1339,27 @@ _cairo_d2d_create_similar(void			*surface,
     desc.MipLevels = 1;
     desc.Usage = D3D10_USAGE_DEFAULT;
     desc.BindFlags = D3D10_BIND_RENDER_TARGET | D3D10_BIND_SHADER_RESOURCE;
-    RefPtr<ID3D10Texture2D> texture;
-    RefPtr<IDXGISurface> dxgiSurface;
+    ID3D10Texture2D *texture;
 
     hr = D3D10Factory::Device()->CreateTexture2D(&desc, NULL, &texture);
     if (FAILED(hr)) {
-	goto FAIL_CREATESIMILAR;
+	goto FAIL_D3DTEXTURE;
     }
 
     newSurf->surface = texture;
 
     // Create the DXGI surface.
+    IDXGISurface *dxgiSurface;
     hr = newSurf->surface->QueryInterface(IID_IDXGISurface, (void**)&dxgiSurface);
     if (FAILED(hr)) {
-	goto FAIL_CREATESIMILAR;
+	goto FAIL_DXGISURFACE;
     }
     hr = D2DSurfFactory::Instance()->CreateDxgiSurfaceRenderTarget(dxgiSurface,
 								   props,
 								   &newSurf->rt);
 
     if (FAILED(hr)) {
-	goto FAIL_CREATESIMILAR;
+	goto FAIL_DXGIRT;
     }
 
     hr = newSurf->rt->CreateSharedBitmap(IID_IDXGISurface,
@@ -1366,16 +1367,22 @@ _cairo_d2d_create_similar(void			*surface,
 					 &bitProps,
 					 &newSurf->surfaceBitmap);
     if (FAILED(hr)) {
-	goto FAIL_CREATESIMILAR;
+	goto FAIL_SHAREDBITMAP;
     }
+
+    dxgiSurface->Release();
 
     newSurf->rt->CreateSolidColorBrush(D2D1::ColorF(0, 1.0), &newSurf->solidColorBrush);
 
     return reinterpret_cast<cairo_surface_t*>(newSurf);
 
-FAIL_CREATESIMILAR:
-    /** Ensure we call our surfaces desctructor */
-    newSurf->~cairo_d2d_surface_t();
+FAIL_SHAREDBITMAP:
+    newSurf->rt->Release();
+FAIL_DXGIRT:
+    dxgiSurface->Release();
+FAIL_DXGISURFACE:
+    newSurf->surface->Release();
+FAIL_D3DTEXTURE:
     free(newSurf);
     return _cairo_surface_create_in_error(_cairo_error(CAIRO_STATUS_NO_MEMORY));
 }
@@ -1384,10 +1391,45 @@ static cairo_status_t
 _cairo_d2d_finish(void	    *surface)
 {
     cairo_d2d_surface_t *d2dsurf = static_cast<cairo_d2d_surface_t*>(surface);
-
-    _cairo_surface_clipper_reset (&d2dsurf->clipper);
-
-    d2dsurf->~cairo_d2d_surface_t();
+    if (d2dsurf->rt) {
+	d2dsurf->rt->Release();
+    }
+    if (d2dsurf->surfaceBitmap) {
+	d2dsurf->surfaceBitmap->Release();
+    }
+    if (d2dsurf->backBuf) {
+	d2dsurf->backBuf->Release();
+    }
+    if (d2dsurf->dxgiChain) {
+	d2dsurf->dxgiChain->Release();
+    }
+    if (d2dsurf->clipMask) {
+	d2dsurf->clipMask->Release();
+    }
+    if (d2dsurf->clipRect) {
+	delete d2dsurf->clipRect;
+    }
+    if (d2dsurf->clipLayer) {
+	d2dsurf->clipLayer->Release();
+    }
+    if (d2dsurf->maskLayer) {
+	d2dsurf->maskLayer->Release();
+    }
+    if (d2dsurf->solidColorBrush) {
+	d2dsurf->solidColorBrush->Release();
+    }
+    if (d2dsurf->bitmapBrush) {
+	d2dsurf->bitmapBrush->Release();
+    }
+    if (d2dsurf->surface) {
+	d2dsurf->surface->Release();
+    }
+    if (d2dsurf->helperLayer) {
+	d2dsurf->helperLayer->Release();
+    }
+    if (d2dsurf->bufferTexture) {
+	d2dsurf->bufferTexture->Release();
+    }
     return CAIRO_STATUS_SUCCESS;
 }
 
@@ -1402,13 +1444,14 @@ _cairo_d2d_acquire_source_image(void                    *abstract_surface,
     HRESULT hr;
     D2D1_SIZE_U size = d2dsurf->rt->GetPixelSize();
 
-    RefPtr<ID3D10Texture2D> softTexture;
+    ID3D10Texture2D *softTexture;
 
-    RefPtr<IDXGISurface> dxgiSurface;
+    IDXGISurface *dxgiSurface;
     d2dsurf->surface->QueryInterface(&dxgiSurface);
     DXGI_SURFACE_DESC desc;
 
     dxgiSurface->GetDesc(&desc);
+    dxgiSurface->Release();
 
     CD3D10_TEXTURE2D_DESC softDesc(desc.Format, desc.Width, desc.Height);
 
@@ -1431,6 +1474,7 @@ _cairo_d2d_acquire_source_image(void                    *abstract_surface,
     D3D10_MAPPED_TEXTURE2D data;
     hr = softTexture->Map(0, D3D10_MAP_READ_WRITE, 0, &data);
     if (FAILED(hr)) {
+	softTexture->Release();
 	return (cairo_status_t)CAIRO_INT_STATUS_UNSUPPORTED;
     }
     *image_out = 
@@ -1439,7 +1483,7 @@ _cairo_d2d_acquire_source_image(void                    *abstract_surface,
 										  size.width,
 										  size.height,
 										  data.RowPitch);
-    *image_extra = softTexture.forget();
+    *image_extra = softTexture;
 
     return CAIRO_STATUS_SUCCESS;
 }
@@ -1475,14 +1519,15 @@ _cairo_d2d_acquire_dest_image(void                    *abstract_surface,
     HRESULT hr;
     D2D1_SIZE_U size = d2dsurf->rt->GetPixelSize();
 
-    RefPtr<ID3D10Texture2D> softTexture;
+    ID3D10Texture2D *softTexture;
 
 
-    RefPtr<IDXGISurface> dxgiSurface;
+    IDXGISurface *dxgiSurface;
     d2dsurf->surface->QueryInterface(&dxgiSurface);
     DXGI_SURFACE_DESC desc;
 
     dxgiSurface->GetDesc(&desc);
+    dxgiSurface->Release();
 
     CD3D10_TEXTURE2D_DESC softDesc(desc.Format, desc.Width, desc.Height);
 
@@ -1503,6 +1548,7 @@ _cairo_d2d_acquire_dest_image(void                    *abstract_surface,
     D3D10_MAPPED_TEXTURE2D data;
     hr = softTexture->Map(0, D3D10_MAP_READ_WRITE, 0, &data);
     if (FAILED(hr)) {
+	softTexture->Release();
 	return (cairo_status_t)CAIRO_INT_STATUS_UNSUPPORTED;
     }
     *image_out = 
@@ -1511,7 +1557,7 @@ _cairo_d2d_acquire_dest_image(void                    *abstract_surface,
 										  size.width,
 										  size.height,
 										  data.RowPitch);
-    *image_extra = softTexture.forget();
+    *image_extra = softTexture;
 
     return CAIRO_STATUS_SUCCESS;
 }
@@ -1542,25 +1588,26 @@ _cairo_d2d_release_dest_image(void                    *abstract_surface,
     softTexture->Release();
 }
 
-static cairo_status_t
-_cairo_d2d_surface_clipper_intersect_clip_path(cairo_surface_clipper_t *clipper,
-					       cairo_path_fixed_t      *path,
-					       cairo_fill_rule_t	fill_rule,
-					       double			tolerance,
-					       cairo_antialias_t	antialias)
+cairo_int_status_t
+_cairo_d2d_intersect_clip_path(void			*dst,
+			       cairo_path_fixed_t	*path,
+			       cairo_fill_rule_t	fill_rule,
+			       double			tolerance,
+			       cairo_antialias_t	antialias)
 {
-    cairo_d2d_surface_t *d2dsurf = cairo_container_of (clipper, cairo_d2d_surface_t, clipper);
+    cairo_d2d_surface_t *d2dsurf = static_cast<cairo_d2d_surface_t*>(dst);
 
     _cairo_d2d_surface_pop_clip(d2dsurf);
     if (!path) {
 	if (d2dsurf->clipMask) {
+	    d2dsurf->clipMask->Release();
 	    d2dsurf->clipMask = NULL;
 	}
 	if (d2dsurf->clipRect) {
 	    delete d2dsurf->clipRect;
 	    d2dsurf->clipRect = NULL;
 	}
-	return CAIRO_STATUS_SUCCESS;
+	return CAIRO_INT_STATUS_SUCCESS;
     }
     cairo_box_t box;
 
@@ -1571,12 +1618,11 @@ _cairo_d2d_surface_clipper_intersect_clip_path(cairo_surface_clipper_t *clipper,
 	 */
 	if (!d2dsurf->clipRect && !d2dsurf->clipMask) {
 	    /** Nothing yet, just use this clip rect */
-	    //XXX: unchecked allocation
 	    d2dsurf->clipRect = new D2D1_RECT_F(D2D1::RectF(_cairo_fixed_to_float(box.p1.x),
 							    _cairo_fixed_to_float(box.p1.y),
 							    _cairo_fixed_to_float(box.p2.x),
 							    _cairo_fixed_to_float(box.p2.y)));
-	    return CAIRO_STATUS_SUCCESS;
+	    return CAIRO_INT_STATUS_SUCCESS;
 	} else if (!d2dsurf->clipMask) {
 	    /** We have a clip rect, intersect of two rects is simple */
 	    d2dsurf->clipRect->top = max(_cairo_fixed_to_float(box.p1.y), d2dsurf->clipRect->top);
@@ -1589,13 +1635,13 @@ _cairo_d2d_surface_clipper_intersect_clip_path(cairo_surface_clipper_t *clipper,
 	    if (d2dsurf->clipRect->left > d2dsurf->clipRect->right) {
 		d2dsurf->clipRect->left = d2dsurf->clipRect->right;
 	    }
-	    return CAIRO_STATUS_SUCCESS;
+	    return CAIRO_INT_STATUS_SUCCESS;
 	} else {
 	    /** 
 	     * We have a mask, see if this rect is completely contained by it, so we
 	     * can optimize by just using this rect rather than a geometry mask.
 	     */
-	    RefPtr<ID2D1RectangleGeometry> newMask;
+	    ID2D1RectangleGeometry *newMask;
 	    D2DSurfFactory::Instance()->CreateRectangleGeometry(D2D1::RectF(_cairo_fixed_to_float(box.p1.x),
 									    _cairo_fixed_to_float(box.p1.y),
 									    _cairo_fixed_to_float(box.p2.x),
@@ -1604,15 +1650,17 @@ _cairo_d2d_surface_clipper_intersect_clip_path(cairo_surface_clipper_t *clipper,
 	    D2D1_GEOMETRY_RELATION relation;
 	    d2dsurf->clipMask->CompareWithGeometry(newMask, D2D1::Matrix3x2F::Identity(), &relation);
 	    if (relation == D2D1_GEOMETRY_RELATION_CONTAINS) {
+	        d2dsurf->clipMask->Release();
 		d2dsurf->clipMask = NULL;
-		//XXX: unchecked allocation
+	        newMask->Release();
 	        d2dsurf->clipRect = new D2D1_RECT_F(D2D1::RectF(_cairo_fixed_to_float(box.p1.x),
 								_cairo_fixed_to_float(box.p1.y),
 								_cairo_fixed_to_float(box.p2.x),
 								_cairo_fixed_to_float(box.p2.y)));
-		return CAIRO_STATUS_SUCCESS;
+		return CAIRO_INT_STATUS_SUCCESS;		    
 		
 	    }
+	    newMask->Release();
 	}
     }
     
@@ -1621,16 +1669,19 @@ _cairo_d2d_surface_clipper_intersect_clip_path(cairo_surface_clipper_t *clipper,
 	d2dsurf->clipMask = _cairo_d2d_create_path_geometry_for_path(path, fill_rule, D2D1_FIGURE_BEGIN_FILLED);
     } else if (d2dsurf->clipMask) {
 	/** We already have a clip mask, combine the two into a new clip mask */
-	RefPtr<ID2D1Geometry> newMask = _cairo_d2d_create_path_geometry_for_path(path, fill_rule, D2D1_FIGURE_BEGIN_FILLED);
-	RefPtr<ID2D1PathGeometry> finalMask;
+	ID2D1Geometry *newMask = _cairo_d2d_create_path_geometry_for_path(path, fill_rule, D2D1_FIGURE_BEGIN_FILLED);
+	ID2D1PathGeometry *finalMask;
 	D2DSurfFactory::Instance()->CreatePathGeometry(&finalMask);
-	RefPtr<ID2D1GeometrySink> sink;
+	ID2D1GeometrySink *sink;
 	finalMask->Open(&sink);
 	newMask->CombineWithGeometry(d2dsurf->clipMask,
 				     D2D1_COMBINE_MODE_INTERSECT,
 				     D2D1::Matrix3x2F::Identity(),
 				     sink);
 	sink->Close();
+	sink->Release();
+	d2dsurf->clipMask->Release();
+	newMask->Release();
 	d2dsurf->clipMask = finalMask;
     } else if (d2dsurf->clipRect) {
 	/** 
@@ -1638,25 +1689,31 @@ _cairo_d2d_surface_clipper_intersect_clip_path(cairo_surface_clipper_t *clipper,
 	 * it contains the new path, use the new path, otherwise, go into a
 	 * potentially expensive combine.
 	 */
-	RefPtr<ID2D1RectangleGeometry> currentMask;
+	ID2D1RectangleGeometry *currentMask;
 	D2DSurfFactory::Instance()->CreateRectangleGeometry(d2dsurf->clipRect, &currentMask);
-	RefPtr<ID2D1Geometry> newMask = _cairo_d2d_create_path_geometry_for_path(path, fill_rule, D2D1_FIGURE_BEGIN_FILLED);
+	ID2D1Geometry *newMask = _cairo_d2d_create_path_geometry_for_path(path, fill_rule, D2D1_FIGURE_BEGIN_FILLED);
         D2D1_GEOMETRY_RELATION relation;
 	newMask->CompareWithGeometry(currentMask, D2D1::Matrix3x2F::Identity(), &relation);
 	if (relation == D2D1_GEOMETRY_RELATION_CONTAINS) {
-	    return CAIRO_STATUS_SUCCESS;
+	    currentMask->Release();
+	    newMask->Release();
+	    return CAIRO_INT_STATUS_SUCCESS;
 	} else if (relation == D2D1_GEOMETRY_RELATION_IS_CONTAINED) {
+	    currentMask->Release();
 	    d2dsurf->clipMask = newMask;
 	} else {
-	    RefPtr<ID2D1PathGeometry> finalMask;
+	    ID2D1PathGeometry *finalMask;
 	    D2DSurfFactory::Instance()->CreatePathGeometry(&finalMask);
-	    RefPtr<ID2D1GeometrySink> sink;
+	    ID2D1GeometrySink *sink;
 	    finalMask->Open(&sink);
 	    newMask->CombineWithGeometry(currentMask,
 					 D2D1_COMBINE_MODE_INTERSECT,
 					 D2D1::Matrix3x2F::Identity(),
 					 sink);
 	    sink->Close();
+	    sink->Release();
+	    currentMask->Release();
+	    newMask->Release();
 	    d2dsurf->clipMask = finalMask;
 	}
     }
@@ -1666,7 +1723,7 @@ _cairo_d2d_surface_clipper_intersect_clip_path(cairo_surface_clipper_t *clipper,
 	d2dsurf->clipRect = NULL;
     }
   
-    return CAIRO_STATUS_SUCCESS;
+    return CAIRO_INT_STATUS_SUCCESS;
 }
 
 static cairo_status_t
@@ -1679,7 +1736,6 @@ _cairo_d2d_flush(void                  *surface)
 	HRESULT hr = d2dsurf->rt->EndDraw();
 	d2dsurf->isDrawing = false;
     }
-
     return CAIRO_STATUS_SUCCESS;
 }
 
@@ -1687,15 +1743,9 @@ static cairo_int_status_t
 _cairo_d2d_paint(void			*surface,
 		 cairo_operator_t	 op,
 		 const cairo_pattern_t	*source,
-		 cairo_clip_t		*clip)
+		 cairo_rectangle_int_t  *extents)
 {
     cairo_d2d_surface_t *d2dsurf = static_cast<cairo_d2d_surface_t*>(surface);
-    cairo_int_status_t status;
-
-    status = (cairo_int_status_t)_cairo_surface_clipper_set_clip (&d2dsurf->clipper, clip);
-    if (unlikely(status))
-	return status;
-
     _begin_draw_state(d2dsurf);
 
     op = _cairo_d2d_simplify_operator(op, source);
@@ -1712,23 +1762,29 @@ _cairo_d2d_paint(void			*surface,
     bool pushed_clip = false;
 
     while (runs_remaining) {
-	RefPtr<ID2D1Brush> brush = _cairo_d2d_create_brush_for_pattern(d2dsurf,
-								       source,
-								       last_run++,
-								       &runs_remaining,
-								       &pushed_clip);
+	ID2D1Brush *brush = _cairo_d2d_create_brush_for_pattern(d2dsurf,
+								source,
+								last_run++,
+								&runs_remaining,
+								&pushed_clip);
 
 	if (!brush) {
 	    return CAIRO_INT_STATUS_UNSUPPORTED;
 	}
-	if (op == CAIRO_OPERATOR_OVER) {
+	if (op == CAIRO_OPERATOR_OVER && extents) {
+	    d2dsurf->rt->FillRectangle(D2D1::RectF((FLOAT)extents->x,
+						   (FLOAT)extents->y,
+						   (FLOAT)extents->x + extents->width,
+						   (FLOAT)extents->y + extents->height),
+				       brush);
+	} else if (op == CAIRO_OPERATOR_OVER) {
 	    D2D1_SIZE_F size = d2dsurf->rt->GetSize();
 	    d2dsurf->rt->FillRectangle(D2D1::RectF((FLOAT)0,
 						   (FLOAT)0,
 						   (FLOAT)size.width,
 						   (FLOAT)size.height),
 				       brush);
-        } else if (op == CAIRO_OPERATOR_SOURCE) {
+        } else if (op == CAIRO_OPERATOR_SOURCE && !extents) {
 	    D2D1_SIZE_F size = d2dsurf->rt->GetSize();
             d2dsurf->rt->Clear(D2D1::ColorF(0, 0));
             d2dsurf->rt->FillRectangle(D2D1::RectF((FLOAT)0,
@@ -1737,8 +1793,10 @@ _cairo_d2d_paint(void			*surface,
 						   (FLOAT)size.height),
 				       brush);
         } else {
+	    brush->Release();
 	    return CAIRO_INT_STATUS_UNSUPPORTED;
 	}
+	brush->Release();
 
 	if (pushed_clip) {
 	    d2dsurf->rt->PopLayer();
@@ -1752,34 +1810,20 @@ _cairo_d2d_mask(void			*surface,
 		cairo_operator_t	 op,
 		const cairo_pattern_t	*source,
 		const cairo_pattern_t	*mask,
-		cairo_clip_t		*clip)
+		cairo_rectangle_int_t	*extents)
 {
     cairo_d2d_surface_t *d2dsurf = static_cast<cairo_d2d_surface_t*>(surface);
-    cairo_rectangle_int_t extents;
+    _begin_draw_state(d2dsurf);
 
     unsigned int runs_remaining = 0;
     bool pushed_clip;
-    cairo_int_status_t status;
 
-    status = (cairo_int_status_t)_cairo_surface_clipper_set_clip (&d2dsurf->clipper, clip);
-    if (unlikely (status))
-	return status;
-
-    _begin_draw_state(d2dsurf);
-
-    status = (cairo_int_status_t)_cairo_surface_mask_extents (&d2dsurf->base,
-		    op, source,
-		    mask,
-		    clip, &extents);
-    if (unlikely (status))
-	    return status;
-
-
-    RefPtr<ID2D1Brush> brush = _cairo_d2d_create_brush_for_pattern(d2dsurf, source, 0, &runs_remaining, &pushed_clip);
+    ID2D1Brush *brush = _cairo_d2d_create_brush_for_pattern(d2dsurf, source, 0, &runs_remaining, &pushed_clip);
     if (!brush) {
 	return CAIRO_INT_STATUS_UNSUPPORTED;
     }
     if (runs_remaining) {
+	brush->Release();
 	// TODO: Implement me!!
 	return CAIRO_INT_STATUS_UNSUPPORTED;
     }
@@ -1787,12 +1831,12 @@ _cairo_d2d_mask(void			*surface,
 				   0,
 				   (FLOAT)d2dsurf->rt->GetPixelSize().width,
 				   (FLOAT)d2dsurf->rt->GetPixelSize().height);
-
-    rect.left = (FLOAT)extents.x;
-    rect.right = (FLOAT)(extents.x + extents.width);
-    rect.top = (FLOAT)extents.y;
-    rect.bottom = (FLOAT)(extents.y + extents.height);
-
+    if (extents) {
+	rect.left = (FLOAT)extents->x;
+	rect.right = (FLOAT)(extents->x + extents->width);
+	rect.top = (FLOAT)extents->y;
+	rect.bottom = (FLOAT)(extents->y + extents->height);
+    }
 
     if (mask->type == CAIRO_PATTERN_TYPE_SOLID) {
 	cairo_solid_pattern_t *solidPattern =
@@ -1802,14 +1846,18 @@ _cairo_d2d_mask(void			*surface,
 	    d2dsurf->rt->FillRectangle(rect,
 				       brush);
 	    brush->SetOpacity(1.0);
+	    brush->Release();
 	    return CAIRO_INT_STATUS_SUCCESS;
 	}
     }
-    RefPtr<ID2D1Brush> opacityBrush = _cairo_d2d_create_brush_for_pattern(d2dsurf, mask, 0, &runs_remaining, &pushed_clip, true);
+    ID2D1Brush *opacityBrush = _cairo_d2d_create_brush_for_pattern(d2dsurf, mask, 0, &runs_remaining, &pushed_clip, true);
     if (!opacityBrush) {
+	brush->Release();
 	return CAIRO_INT_STATUS_UNSUPPORTED;
     }
     if (runs_remaining) {
+	brush->Release();
+	opacityBrush->Release();
 	return CAIRO_INT_STATUS_UNSUPPORTED;
     }
     if (!d2dsurf->maskLayer) {
@@ -1826,6 +1874,8 @@ _cairo_d2d_mask(void			*surface,
     d2dsurf->rt->FillRectangle(rect,
 			       brush);
     d2dsurf->rt->PopLayer();
+    brush->Release();
+    opacityBrush->Release();
     return CAIRO_INT_STATUS_SUCCESS;
 }
 
@@ -1839,11 +1889,10 @@ _cairo_d2d_stroke(void			*surface,
 		  cairo_matrix_t	*ctm_inverse,
 		  double		 tolerance,
 		  cairo_antialias_t	 antialias,
-		  cairo_clip_t		*clip)
+		  cairo_rectangle_int_t  *extents)
 {
-    cairo_int_status_t status;
-
     cairo_d2d_surface_t *d2dsurf = static_cast<cairo_d2d_surface_t*>(surface);
+    _begin_draw_state(d2dsurf);
 
     op = _cairo_d2d_simplify_operator(op, source);
 
@@ -1857,18 +1906,12 @@ _cairo_d2d_stroke(void			*surface,
 	return CAIRO_INT_STATUS_UNSUPPORTED;
     }
 
-    status = (cairo_int_status_t)_cairo_surface_clipper_set_clip (&d2dsurf->clipper, clip);
-    if (unlikely (status))
-	return status;
-
-    _begin_draw_state(d2dsurf);
-
     if (antialias == CAIRO_ANTIALIAS_NONE) {
 	d2dsurf->rt->SetAntialiasMode(D2D1_ANTIALIAS_MODE_ALIASED);
     } else {
 	d2dsurf->rt->SetAntialiasMode(D2D1_ANTIALIAS_MODE_PER_PRIMITIVE);
     }
-    RefPtr<ID2D1StrokeStyle> strokeStyle = _cairo_d2d_create_strokestyle_for_stroke_style(style);
+    ID2D1StrokeStyle *strokeStyle = _cairo_d2d_create_strokestyle_for_stroke_style(style);
 
     if (!strokeStyle) {
 	return CAIRO_INT_STATUS_UNSUPPORTED;
@@ -1878,21 +1921,25 @@ _cairo_d2d_stroke(void			*surface,
     _cairo_path_fixed_transform(path, ctm_inverse);
 
     if (op == CAIRO_OPERATOR_CLEAR) {
-	RefPtr<ID2D1Geometry> d2dpath = _cairo_d2d_create_path_geometry_for_path(path,
-										 CAIRO_FILL_RULE_WINDING,
-										 D2D1_FIGURE_BEGIN_FILLED);
+	ID2D1Geometry *d2dpath = _cairo_d2d_create_path_geometry_for_path(path,
+									  CAIRO_FILL_RULE_WINDING,
+									  D2D1_FIGURE_BEGIN_FILLED);
 
         ID2D1PathGeometry *strokeGeometry;
 	D2DSurfFactory::Instance()->CreatePathGeometry(&strokeGeometry);
 
-	RefPtr<ID2D1GeometrySink> sink;
+	ID2D1GeometrySink *sink;
 	strokeGeometry->Open(&sink);
 	d2dpath->Widen((FLOAT)style->line_width, strokeStyle, mat, (FLOAT)tolerance, sink);
 	sink->Close();
+	sink->Release();
 
 	_cairo_d2d_clear_geometry(d2dsurf, strokeGeometry);
 
-	return CAIRO_INT_STATUS_SUCCESS;
+	strokeGeometry->Release();
+	d2dpath->Release();
+
+        return CAIRO_INT_STATUS_SUCCESS;
     }
 
     d2dsurf->rt->SetTransform(mat);
@@ -1908,13 +1955,14 @@ _cairo_d2d_stroke(void			*surface,
 	float x2 = _cairo_fixed_to_float(box.p2.x);    
 	float y2 = _cairo_fixed_to_float(box.p2.y);
 	while (runs_remaining) {
-	    RefPtr<ID2D1Brush> brush = _cairo_d2d_create_brush_for_pattern(d2dsurf,
-			    						   source,
-									   last_run++,
-									   &runs_remaining,
-									   &pushed_clip);
+	    ID2D1Brush *brush = _cairo_d2d_create_brush_for_pattern(d2dsurf,
+								    source,
+								    last_run++,
+								    &runs_remaining,
+								    &pushed_clip);
 
 	    if (!brush) {
+		strokeStyle->Release();
 		return CAIRO_INT_STATUS_UNSUPPORTED;
 	    }
 	    d2dsurf->rt->DrawRectangle(D2D1::RectF(x1,
@@ -1925,34 +1973,40 @@ _cairo_d2d_stroke(void			*surface,
 				       (FLOAT)style->line_width,
 				       strokeStyle);
 
+	    brush->Release();
 	    if (pushed_clip) {
 		d2dsurf->rt->PopLayer();
 	    }
 	}
     } else {
-	RefPtr<ID2D1Geometry> d2dpath = _cairo_d2d_create_path_geometry_for_path(path, 
-			    							 CAIRO_FILL_RULE_WINDING, 
-										 D2D1_FIGURE_BEGIN_HOLLOW);
+	ID2D1Geometry *d2dpath = _cairo_d2d_create_path_geometry_for_path(path, 
+									  CAIRO_FILL_RULE_WINDING, 
+									  D2D1_FIGURE_BEGIN_HOLLOW);
 	while (runs_remaining) {
-	    RefPtr<ID2D1Brush> brush = _cairo_d2d_create_brush_for_pattern(d2dsurf,
-									   source,
-									   last_run++,
-									   &runs_remaining,
-									   &pushed_clip);
+	    ID2D1Brush *brush = _cairo_d2d_create_brush_for_pattern(d2dsurf,
+								    source,
+								    last_run++,
+								    &runs_remaining,
+								    &pushed_clip);
 
 	    if (!brush) {
+		strokeStyle->Release();
+		d2dpath->Release();
 		return CAIRO_INT_STATUS_UNSUPPORTED;
 	    }
 	    d2dsurf->rt->DrawGeometry(d2dpath, brush, (FLOAT)style->line_width, strokeStyle);
 
+	    brush->Release();
 	    if (pushed_clip) {
 		d2dsurf->rt->PopLayer();
 	    }
 	}
+	d2dpath->Release();
     }
 
     _cairo_path_fixed_transform(path, ctm);
     d2dsurf->rt->SetTransform(D2D1::Matrix3x2F::Identity());
+    strokeStyle->Release();
     return CAIRO_INT_STATUS_SUCCESS;
 }
 
@@ -1964,11 +2018,13 @@ _cairo_d2d_fill(void			*surface,
 		cairo_fill_rule_t	 fill_rule,
 		double			 tolerance,
 		cairo_antialias_t	 antialias,
-		cairo_clip_t		*clip)
+		cairo_rectangle_int_t	*extents)
 {
-    cairo_int_status_t status;
-
+    if (((cairo_surface_t*)surface)->type != CAIRO_SURFACE_TYPE_D2D) {
+	return CAIRO_INT_STATUS_UNSUPPORTED;
+    }
     cairo_d2d_surface_t *d2dsurf = static_cast<cairo_d2d_surface_t*>(surface);
+    _begin_draw_state(d2dsurf);
 
     op = _cairo_d2d_simplify_operator(op, source);
 
@@ -1981,12 +2037,6 @@ _cairo_d2d_fill(void			*surface,
 	 */
 	return CAIRO_INT_STATUS_UNSUPPORTED;
     }
-
-    status = (cairo_int_status_t)_cairo_surface_clipper_set_clip (&d2dsurf->clipper, clip);
-    if (unlikely(status))
-	return status;
-
-    _begin_draw_state(d2dsurf);
 
     if (antialias == CAIRO_ANTIALIAS_NONE) {
 	d2dsurf->rt->SetAntialiasMode(D2D1_ANTIALIAS_MODE_ALIASED);
@@ -2011,11 +2061,12 @@ _cairo_d2d_fill(void			*surface,
 	    d2dsurf->rt->PopAxisAlignedClip();
 	    return CAIRO_INT_STATUS_SUCCESS;
 	}
-	RefPtr<ID2D1Geometry> d2dpath = _cairo_d2d_create_path_geometry_for_path(path,
-										 fill_rule,
-										 D2D1_FIGURE_BEGIN_FILLED);
+	ID2D1Geometry *d2dpath = _cairo_d2d_create_path_geometry_for_path(path,
+									  fill_rule,
+									  D2D1_FIGURE_BEGIN_FILLED);
 	_cairo_d2d_clear_geometry(d2dsurf, d2dpath);
 	
+	d2dpath->Release();
 	return CAIRO_INT_STATUS_SUCCESS;
     }
 
@@ -2025,11 +2076,11 @@ _cairo_d2d_fill(void			*surface,
 	float x2 = _cairo_fixed_to_float(box.p2.x);    
 	float y2 = _cairo_fixed_to_float(box.p2.y);
 	while (runs_remaining) {
-	    RefPtr<ID2D1Brush> brush = _cairo_d2d_create_brush_for_pattern(d2dsurf,
-									   source,
-									   last_run++,
-									   &runs_remaining,
-									   &pushed_clip);
+	    ID2D1Brush *brush = _cairo_d2d_create_brush_for_pattern(d2dsurf,
+								    source,
+								    last_run++,
+								    &runs_remaining,
+								    &pushed_clip);
 	    if (!brush) {
 		return CAIRO_INT_STATUS_UNSUPPORTED;
 	    }
@@ -2042,27 +2093,30 @@ _cairo_d2d_fill(void			*surface,
 	    if (pushed_clip) {
 		d2dsurf->rt->PopLayer();
 	    }
+	    brush->Release();
 	}
     } else {
-	RefPtr<ID2D1Geometry> d2dpath = _cairo_d2d_create_path_geometry_for_path(path, fill_rule, D2D1_FIGURE_BEGIN_FILLED);
+	ID2D1Geometry *d2dpath = _cairo_d2d_create_path_geometry_for_path(path, fill_rule, D2D1_FIGURE_BEGIN_FILLED);
 	while (runs_remaining) {
-	    RefPtr<ID2D1Brush> brush = _cairo_d2d_create_brush_for_pattern(d2dsurf,
-									   source,
-									   last_run++,
-									   &runs_remaining,
-									   &pushed_clip);
+	    ID2D1Brush *brush = _cairo_d2d_create_brush_for_pattern(d2dsurf,
+								    source,
+								    last_run++,
+								    &runs_remaining,
+								    &pushed_clip);
 	    if (!brush) {
+		d2dpath->Release();
 		return CAIRO_INT_STATUS_UNSUPPORTED;
 	    }
 	    d2dsurf->rt->FillGeometry(d2dpath, brush);
+	    brush->Release();
 	    if (pushed_clip) {
 		d2dsurf->rt->PopLayer();
 	    }
 	}
+	d2dpath->Release();
     }
     return CAIRO_INT_STATUS_SUCCESS;
 }
-
 
 static cairo_int_status_t
 _cairo_d2d_show_glyphs (void			*surface,
@@ -2071,40 +2125,44 @@ _cairo_d2d_show_glyphs (void			*surface,
 			cairo_glyph_t		*glyphs,
 			int			 num_glyphs,
 			cairo_scaled_font_t	*scaled_font,
-			cairo_clip_t            *clip,
-			int			*remaining_glyphs)
+			int			*remaining_glyphs,
+			cairo_rectangle_int_t	*extents)
 {
     if (((cairo_surface_t*)surface)->type != CAIRO_SURFACE_TYPE_D2D) {
 	return CAIRO_INT_STATUS_UNSUPPORTED;
     }
     cairo_d2d_surface_t *d2dsurf = static_cast<cairo_d2d_surface_t*>(surface);
     if (!d2dsurf->textRenderingInit) {
-	RefPtr<IDWriteRenderingParams> params;
+	IDWriteRenderingParams *params;
 	DWriteFactory::Instance()->CreateRenderingParams(&params);
 	d2dsurf->rt->SetTextRenderingParams(params);
 	d2dsurf->textRenderingInit = true;
+	params->Release();
     }
+    _begin_draw_state(d2dsurf);
     cairo_int_status_t status = CAIRO_INT_STATUS_UNSUPPORTED;
     if (scaled_font->backend->type == CAIRO_FONT_TYPE_DWRITE) {
         status = (cairo_int_status_t)
-	    _cairo_dwrite_show_glyphs_on_d2d_surface(surface, op, source, glyphs, num_glyphs, scaled_font, clip);
+	    cairo_dwrite_show_glyphs_on_d2d_surface(surface, op, source, glyphs, num_glyphs, scaled_font, extents);
     }
 
     return status;
 }
 
-
-static cairo_bool_t
+static cairo_int_status_t
 _cairo_d2d_getextents(void		       *surface,
 		      cairo_rectangle_int_t    *extents)
 {
+    if (((cairo_surface_t*)surface)->type != CAIRO_SURFACE_TYPE_D2D) {
+	return (cairo_int_status_t)CAIRO_STATUS_SURFACE_TYPE_MISMATCH;
+    }
     cairo_d2d_surface_t *d2dsurf = static_cast<cairo_d2d_surface_t*>(surface);
     extents->x = 0;
     extents->y = 0;
     D2D1_SIZE_U size = d2dsurf->rt->GetPixelSize(); 
     extents->width = size.width;
     extents->height = size.height;
-    return TRUE;
+    return CAIRO_INT_STATUS_SUCCESS;
 }
 
 
@@ -2122,10 +2180,9 @@ cairo_d2d_surface_create_for_hwnd(HWND wnd)
     }
 
     cairo_d2d_surface_t *newSurf = static_cast<cairo_d2d_surface_t*>(malloc(sizeof(cairo_d2d_surface_t)));
-    new (newSurf) cairo_d2d_surface_t();
 
+    memset(newSurf, 0, sizeof(cairo_d2d_surface_t));
     _cairo_surface_init(&newSurf->base, &cairo_d2d_surface_backend, CAIRO_CONTENT_COLOR);
-    _cairo_surface_clipper_init(&newSurf->clipper, _cairo_d2d_surface_clipper_intersect_clip_path);
 
     RECT rc;
     HRESULT hr;
@@ -2152,15 +2209,15 @@ cairo_d2d_surface_create_for_hwnd(HWND wnd)
 	sizePixels.height = 1;
     }
     ID3D10Device1 *device = D3D10Factory::Device();
-    RefPtr<IDXGIDevice> dxgiDevice;
-    RefPtr<IDXGIAdapter> dxgiAdapter;
-    RefPtr<IDXGIFactory> dxgiFactory;
-    D2D1_RENDER_TARGET_PROPERTIES props;    
-    D2D1_BITMAP_PROPERTIES bitProps;
-
+    IDXGIDevice *dxgiDevice;
+    IDXGIAdapter *dxgiAdapter;
+    IDXGIFactory *dxgiFactory;
+    
     device->QueryInterface(&dxgiDevice);
     dxgiDevice->GetAdapter(&dxgiAdapter);
     dxgiAdapter->GetParent(IID_PPV_ARGS(&dxgiFactory));
+    dxgiAdapter->Release();
+    dxgiDevice->Release();
 
     DXGI_SWAP_CHAIN_DESC swapDesc;
     ::ZeroMemory(&swapDesc, sizeof(swapDesc));
@@ -2184,22 +2241,19 @@ cairo_d2d_surface_create_for_hwnd(HWND wnd)
      */
     hr = dxgiFactory->CreateSwapChain(dxgiDevice, &swapDesc, &newSurf->dxgiChain);
 
-    /**
-     * We do not want DXGI to intercept alt-enter events and make the window go
-     * fullscreen! This shouldn't be in the cairo backend but controlled through
-     * the device. See comments on mozilla bug 553603.
-     */
-    dxgiFactory->MakeWindowAssociation(wnd, DXGI_MWA_NO_WINDOW_CHANGES);
-
+    dxgiFactory->Release();
     if (FAILED(hr)) {
-	goto FAIL_HWND;
+	free(newSurf);
+	return _cairo_surface_create_in_error(_cairo_error(CAIRO_STATUS_NO_MEMORY));
     }
     /** Get the backbuffer surface from the swap chain */
     hr = newSurf->dxgiChain->GetBuffer(0,
 	                               IID_PPV_ARGS(&newSurf->backBuf));
 
     if (FAILED(hr)) {
-	goto FAIL_HWND;
+	newSurf->dxgiChain->Release();
+	free(newSurf);
+	return _cairo_surface_create_in_error(_cairo_error(CAIRO_STATUS_NO_MEMORY));
     }
 
     newSurf->backBuf->QueryInterface(&newSurf->surface);
@@ -2207,29 +2261,35 @@ cairo_d2d_surface_create_for_hwnd(HWND wnd)
     size.width = sizePixels.width * dpiX;
     size.height = sizePixels.height * dpiY;
 
-    props = D2D1::RenderTargetProperties(D2D1_RENDER_TARGET_TYPE_DEFAULT,
+    /** Create the DXGI surface. */
+    IDXGISurface *dxgiSurface;
+    hr = newSurf->surface->QueryInterface(IID_IDXGISurface, (void**)&dxgiSurface);
+
+    D2D1_RENDER_TARGET_PROPERTIES props = D2D1::RenderTargetProperties(D2D1_RENDER_TARGET_TYPE_DEFAULT,
 								       D2D1::PixelFormat(DXGI_FORMAT_UNKNOWN, D2D1_ALPHA_MODE_PREMULTIPLIED),
 								       dpiX,
 								       dpiY,
 								       D2D1_RENDER_TARGET_USAGE_NONE);
-    hr = D2DSurfFactory::Instance()->CreateDxgiSurfaceRenderTarget(newSurf->backBuf,
+    hr = D2DSurfFactory::Instance()->CreateDxgiSurfaceRenderTarget(dxgiSurface,
 								   props,
 								   &newSurf->rt);
     if (FAILED(hr)) {
-	goto FAIL_HWND;
+	dxgiSurface->Release();
+	newSurf->surface->Release();
+	newSurf->dxgiChain->Release();
+	newSurf->backBuf->Release();
+	free(newSurf);
+	return _cairo_surface_create_in_error(_cairo_error(CAIRO_STATUS_NO_MEMORY));
     }
 
-    bitProps = D2D1::BitmapProperties(D2D1::PixelFormat(DXGI_FORMAT_UNKNOWN, 
+    D2D1_BITMAP_PROPERTIES bitProps = D2D1::BitmapProperties(D2D1::PixelFormat(DXGI_FORMAT_UNKNOWN, 
 									       D2D1_ALPHA_MODE_PREMULTIPLIED));
     
+    dxgiSurface->Release();
+
     newSurf->rt->CreateSolidColorBrush(D2D1::ColorF(0, 1.0), &newSurf->solidColorBrush);
 
     return reinterpret_cast<cairo_surface_t*>(newSurf);
-
-FAIL_HWND:
-    newSurf->~cairo_d2d_surface_t();
-    free(newSurf);
-    return _cairo_surface_create_in_error(_cairo_error(CAIRO_STATUS_NO_MEMORY));
 }
 
 cairo_surface_t *
@@ -2245,8 +2305,8 @@ cairo_d2d_surface_create(cairo_format_t format,
 	return _cairo_surface_create_in_error(_cairo_error(CAIRO_STATUS_NO_DEVICE));
     }
     cairo_d2d_surface_t *newSurf = static_cast<cairo_d2d_surface_t*>(malloc(sizeof(cairo_d2d_surface_t)));
-    new (newSurf) cairo_d2d_surface_t();
 
+    memset(newSurf, 0, sizeof(cairo_d2d_surface_t));
     DXGI_FORMAT dxgiformat = DXGI_FORMAT_B8G8R8A8_UNORM;
     D2D1_ALPHA_MODE alpha = D2D1_ALPHA_MODE_PREMULTIPLIED;
     if (format == CAIRO_FORMAT_ARGB32) {
@@ -2258,9 +2318,6 @@ cairo_d2d_surface_create(cairo_format_t format,
 	_cairo_surface_init(&newSurf->base, &cairo_d2d_surface_backend, CAIRO_CONTENT_ALPHA);
 	dxgiformat = DXGI_FORMAT_A8_UNORM;
     }
-
-    _cairo_surface_clipper_init(&newSurf->clipper, _cairo_d2d_surface_clipper_intersect_clip_path);
-
     newSurf->format = format;
 
     D2D1_SIZE_U sizePixels;
@@ -2278,36 +2335,40 @@ cairo_d2d_surface_create(cairo_format_t format,
     desc.Usage = D3D10_USAGE_DEFAULT;
     desc.BindFlags = D3D10_BIND_RENDER_TARGET | D3D10_BIND_SHADER_RESOURCE;
     
-    RefPtr<ID3D10Texture2D> texture;
-    RefPtr<IDXGISurface> dxgiSurface;
-    D2D1_BITMAP_PROPERTIES bitProps;
-    D2D1_RENDER_TARGET_PROPERTIES props;
+    ID3D10Texture2D *texture;
 
     hr = D3D10Factory::Device()->CreateTexture2D(&desc, NULL, &texture);
 
     if (FAILED(hr)) {
-	goto FAIL_CREATE;
+	free(newSurf);
+	return _cairo_surface_create_in_error(_cairo_error(CAIRO_STATUS_NO_MEMORY));
     }
 
     newSurf->surface = texture;
 
     /** Create the DXGI surface. */
+    IDXGISurface *dxgiSurface;
     hr = newSurf->surface->QueryInterface(IID_IDXGISurface, (void**)&dxgiSurface);
     if (FAILED(hr)) {
-	goto FAIL_CREATE;
+	newSurf->surface->Release();
+	free(newSurf);
+	return _cairo_surface_create_in_error(_cairo_error(CAIRO_STATUS_NO_MEMORY));
     }
 
-    props = D2D1::RenderTargetProperties(D2D1_RENDER_TARGET_TYPE_DEFAULT,
+    D2D1_RENDER_TARGET_PROPERTIES props = D2D1::RenderTargetProperties(D2D1_RENDER_TARGET_TYPE_DEFAULT,
 								       D2D1::PixelFormat(DXGI_FORMAT_UNKNOWN, alpha));
     hr = D2DSurfFactory::Instance()->CreateDxgiSurfaceRenderTarget(dxgiSurface,
 								   props,
 								   &newSurf->rt);
 
     if (FAILED(hr)) {
-	goto FAIL_CREATE;
+	dxgiSurface->Release();
+	newSurf->surface->Release();
+	free(newSurf);
+	return _cairo_surface_create_in_error(_cairo_error(CAIRO_STATUS_NO_MEMORY));
     }
 
-    bitProps = D2D1::BitmapProperties(D2D1::PixelFormat(DXGI_FORMAT_UNKNOWN, 
+    D2D1_BITMAP_PROPERTIES bitProps = D2D1::BitmapProperties(D2D1::PixelFormat(DXGI_FORMAT_UNKNOWN, 
 									       alpha));
     hr = newSurf->rt->CreateSharedBitmap(IID_IDXGISurface,
 					 dxgiSurface,
@@ -2315,16 +2376,18 @@ cairo_d2d_surface_create(cairo_format_t format,
 					 &newSurf->surfaceBitmap);
 
     if (FAILED(hr)) {
+	dxgiSurface->Release();
+	newSurf->rt->Release();
+	newSurf->surface->Release();
+	free(newSurf);
+	return _cairo_surface_create_in_error(_cairo_error(CAIRO_STATUS_NO_MEMORY));
     }
+
+    dxgiSurface->Release();
 
     newSurf->rt->CreateSolidColorBrush(D2D1::ColorF(0, 1.0), &newSurf->solidColorBrush);
 
     return reinterpret_cast<cairo_surface_t*>(newSurf);
-
-FAIL_CREATE:
-    newSurf->~cairo_d2d_surface_t();
-    free(newSurf);
-    return _cairo_surface_create_in_error(_cairo_error(CAIRO_STATUS_NO_MEMORY));
 }
 
 void cairo_d2d_scroll(cairo_surface_t *surface, int x, int y, cairo_rectangle_t *clip)
@@ -2340,11 +2403,12 @@ void cairo_d2d_scroll(cairo_surface_t *surface, int x, int y, cairo_rectangle_t 
     rect.front = 0;
     rect.back = 1;
 
-    RefPtr<IDXGISurface> dxgiSurface;
+    IDXGISurface *dxgiSurface;
     d2dsurf->surface->QueryInterface(&dxgiSurface);
     DXGI_SURFACE_DESC desc;
 
     dxgiSurface->GetDesc(&desc);
+    dxgiSurface->Release();
 
     /**
      * It's important we constrain the size of the clip region to the area of

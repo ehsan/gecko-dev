@@ -66,7 +66,6 @@
 #include "nsLayoutUtils.h"
 #include "nsINameSpaceManager.h"
 #include "nsIContent.h"
-#include "mozilla/dom/Element.h"
 #include "nsIFrame.h"
 #include "nsIView.h"
 #include "nsIViewManager.h"
@@ -96,8 +95,6 @@
 #include "nsEventListenerService.h"
 #include "nsDOMEvent.h"
 #include "nsIContentSecurityPolicy.h"
-
-using namespace mozilla::dom;
 
 #define EVENT_TYPE_EQUALS( ls, type, userType ) \
   (ls->mEventType && ls->mEventType == type && \
@@ -781,7 +778,7 @@ nsEventListenerManager::AddScriptEventListener(nsISupports *aObject,
           nameSpace = content->GetNameSpaceID();
         }
         else if (doc) {
-          Element* root = doc->GetRootElement();
+          nsCOMPtr<nsIContent> root = doc->GetRootContent();
           if (root)
             nameSpace = root->GetNameSpaceID();
         }
@@ -1098,14 +1095,34 @@ static const EventDispatchData* sLatestEventDispData = nsnull;
 */
 
 nsresult
-nsEventListenerManager::HandleEventInternal(nsPresContext* aPresContext,
-                                            nsEvent* aEvent,
-                                            nsIDOMEvent** aDOMEvent,
-                                            nsPIDOMEventTarget* aCurrentTarget,
-                                            PRUint32 aFlags,
-                                            nsEventStatus* aEventStatus,
-                                            nsCxPusher* aPusher)
+nsEventListenerManager::HandleEvent(nsPresContext* aPresContext,
+                                    nsEvent* aEvent, nsIDOMEvent** aDOMEvent,
+                                    nsPIDOMEventTarget* aCurrentTarget,
+                                    PRUint32 aFlags,
+                                    nsEventStatus* aEventStatus,
+                                    nsCxPusher* aPusher)
 {
+  if (mListeners.IsEmpty() || aEvent->flags & NS_EVENT_FLAG_STOP_DISPATCH) {
+    return NS_OK;
+  }
+
+  if (!mMayHaveCapturingListeners &&
+      !(aEvent->flags & NS_EVENT_FLAG_BUBBLE)) {
+    return NS_OK;
+  }
+  
+  if (!mMayHaveSystemGroupListeners &&
+      aFlags & NS_EVENT_FLAG_SYSTEM_EVENT) {
+    return NS_OK;
+  }
+
+  // Check if we already know that there is no event listener for the event.
+  if (mNoListenerForEvent == aEvent->message &&
+      (mNoListenerForEvent != NS_USER_DEFINED_EVENT ||
+       mNoListenerForEventAtom == aEvent->userType)) {
+    return NS_OK;
+  }
+
   //Set the value of the internal PreventDefault flag properly based on aEventStatus
   if (*aEventStatus == nsEventStatus_eConsumeNoDefault) {
     aEvent->flags |= NS_EVENT_FLAG_NO_DEFAULT;

@@ -42,6 +42,7 @@
 
 class nsIDOMDocument;
 class nsIDOMRange;
+class nsIPresShell;
 class nsIEditor;
 class nsString;
 class nsITextServicesFilter;

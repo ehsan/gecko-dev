@@ -145,12 +145,6 @@ bool CreateNotificationPipeForChild(int* childCrashFd, int* childCrashRemapFd);
 
 // Child-side API
 bool SetRemoteExceptionHandler();
-
-#  elif defined(XP_MACOSX)
-// When OOP crash reporting is implemented for Mac, it will almost
-// certainly use the same interface as the linux code above.  Until
-// then, we provide stubs.
-void CreateNotificationPipeForChild();
 #endif  // XP_WIN32
 
 bool UnsetRemoteExceptionHandler();

@@ -93,7 +93,7 @@ static const unsigned char win1253_CharToOrderMap[] =
 //first 1024 sequences:1.7001%
 //rest  sequences:     0.0359%
 //negative sequences:  0.0148% 
-static const PRUint8 GreekLangModel[] = 
+static const char GreekLangModel[] = 
 {
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,

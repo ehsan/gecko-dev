@@ -181,11 +181,9 @@ class ReentrancyGuard
 #endif
   public:
     template <class T>
-#ifdef DEBUG
     ReentrancyGuard(T &obj)
+#ifdef DEBUG
       : entered(obj.entered)
-#else
-    ReentrancyGuard(T &/*obj*/)
 #endif
     {
 #ifdef DEBUG
@@ -208,6 +206,7 @@ class ReentrancyGuard
 JS_ALWAYS_INLINE size_t
 RoundUpPow2(size_t x)
 {
+    typedef tl::StaticAssert<tl::IsSameType<size_t,JSUword>::result>::result _;
     size_t log2 = JS_CEILING_LOG2W(x);
     JS_ASSERT(log2 < tl::BitSize<size_t>::result);
     size_t result = size_t(1) << log2;
@@ -243,32 +242,10 @@ PointerRangeSize(T *begin, T *end)
 class SystemAllocPolicy
 {
   public:
-    void *malloc(size_t bytes) { return js_malloc(bytes); }
-    void *realloc(void *p, size_t bytes) { return js_realloc(p, bytes); }
-    void free(void *p) { js_free(p); }
+    void *malloc(size_t bytes) { return ::malloc(bytes); }
+    void *realloc(void *p, size_t bytes) { return ::realloc(p, bytes); }
+    void free(void *p) { ::free(p); }
     void reportAllocOverflow() const {}
-};
-
-/*
- * This utility pales in comparison to Boost's aligned_storage. The utility
- * simply assumes that JSUint64 is enough alignment for anyone. This may need
- * to be extended one day...
- *
- * As an important side effect, pulling the storage into this template is
- * enough obfuscation to confuse gcc's strict-aliasing analysis into not giving
- * false negatives when we cast from the char buffer to whatever type we've
- * constructed using the bytes.
- */
-template <size_t nbytes>
-struct AlignedStorage
-{
-    union U {
-        char bytes[nbytes];
-        uint64 _;
-    } u;
-
-    const void *addr() const { return u.bytes; }
-    void *addr() { return u.bytes; }
 };
 
 /*
@@ -282,65 +259,46 @@ struct AlignedStorage
 template <class T>
 class LazilyConstructed
 {
-    AlignedStorage<sizeof(T)> storage;
-    bool constructed;
+    union {
+        uint64 align;
+        char bytes[sizeof(T) + 1];
+    };
 
-    T &asT() { return *reinterpret_cast<T *>(storage.addr()); }
+    T &asT() { return *reinterpret_cast<T *>(bytes); }
+    char & constructed() { return bytes[sizeof(T)]; }
 
   public:
-    LazilyConstructed() { constructed = false; }
-    ~LazilyConstructed() { if (constructed) asT().~T(); }
+    LazilyConstructed() { constructed() = false; }
+    ~LazilyConstructed() { if (constructed()) asT().~T(); }
 
-    bool empty() const { return !constructed; }
+    bool empty() const { return !constructed(); }
 
     void construct() {
-        JS_ASSERT(!constructed);
-        new(storage.addr()) T();
-        constructed = true;
+        JS_ASSERT(!constructed());
+        new(bytes) T();
+        constructed() = true;
     }
 
     template <class T1>
     void construct(const T1 &t1) {
-        JS_ASSERT(!constructed);
-        new(storage.addr()) T(t1);
-        constructed = true;
+        JS_ASSERT(!constructed());
+        new(bytes) T(t1);
+        constructed() = true;
     }
 
     template <class T1, class T2>
     void construct(const T1 &t1, const T2 &t2) {
-        JS_ASSERT(!constructed);
-        new(storage.addr()) T(t1, t2);
-        constructed = true;
+        JS_ASSERT(!constructed());
+        new(bytes) T(t1, t2);
+        constructed() = true;
     }
 
     template <class T1, class T2, class T3>
     void construct(const T1 &t1, const T2 &t2, const T3 &t3) {
-        JS_ASSERT(!constructed);
-        new(storage.addr()) T(t1, t2, t3);
-        constructed = true;
+        JS_ASSERT(!constructed());
+        new(bytes) T(t1, t2, t3);
+        constructed() = true;
     }
-
-    T *addr() {
-        JS_ASSERT(constructed);
-        return &asT();
-    }
-
-    T &ref() {
-        JS_ASSERT(constructed);
-        return asT();
-    }
-};
-
-
-template <class T>
-class Conditionally {
-    LazilyConstructed<T> t;
-
-  public:
-    Conditionally(bool b) { if (b) t.construct(); }
-
-    template <class T1>
-    Conditionally(bool b, const T1 &t1) { if (b) t.construct(t1); }
 };
 
 template <class T>

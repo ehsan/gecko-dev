@@ -38,10 +38,8 @@
 #include "ThebesLayerOGL.h"
 #include "ContainerLayerOGL.h"
 #include "gfxContext.h"
-#include "gfxPlatform.h"
-#ifdef XP_WIN
-#include "gfxWindowsSurface.h"
-#endif
+
+#include "glWrapper.h"
 
 namespace mozilla {
 namespace layers {
@@ -69,9 +67,8 @@ UseOpaqueSurface(Layer* aLayer)
 }
 
 
-ThebesLayerOGL::ThebesLayerOGL(LayerManagerOGL *aManager)
+ThebesLayerOGL::ThebesLayerOGL(LayerManager *aManager)
   : ThebesLayer(aManager, NULL)
-  , LayerOGL(aManager)
   , mTexture(0)
 {
   mImplData = static_cast<LayerOGL*>(this);
@@ -81,7 +78,7 @@ ThebesLayerOGL::~ThebesLayerOGL()
 {
   static_cast<LayerManagerOGL*>(mManager)->MakeCurrent();
   if (mTexture) {
-    gl()->fDeleteTextures(1, &mTexture);
+    sglWrapper.DeleteTextures(1, &mTexture);
   }
 }
 
@@ -96,27 +93,27 @@ ThebesLayerOGL::SetVisibleRegion(const nsIntRegion &aRegion)
   static_cast<LayerManagerOGL*>(mManager)->MakeCurrent();
 
   if (!mTexture) {
-    gl()->fGenTextures(1, &mTexture);
+    sglWrapper.GenTextures(1, &mTexture);
   }
 
   mInvalidatedRect = mVisibleRect;
 
-  gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, mTexture);
+  sglWrapper.BindTexture(LOCAL_GL_TEXTURE_2D, mTexture);
 
-  gl()->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MIN_FILTER, LOCAL_GL_LINEAR);
-  gl()->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MAG_FILTER, LOCAL_GL_LINEAR);
-  gl()->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_WRAP_S, LOCAL_GL_CLAMP_TO_EDGE);
-  gl()->fTexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_WRAP_T, LOCAL_GL_CLAMP_TO_EDGE);
+  sglWrapper.TexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MIN_FILTER, LOCAL_GL_LINEAR);
+  sglWrapper.TexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_MAG_FILTER, LOCAL_GL_LINEAR);
+  sglWrapper.TexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_WRAP_S, LOCAL_GL_CLAMP_TO_EDGE);
+  sglWrapper.TexParameteri(LOCAL_GL_TEXTURE_2D, LOCAL_GL_TEXTURE_WRAP_T, LOCAL_GL_CLAMP_TO_EDGE);
 
-  gl()->fTexImage2D(LOCAL_GL_TEXTURE_2D,
-                  0,
-                  LOCAL_GL_RGBA,
-                  mVisibleRect.width,
-                  mVisibleRect.height,
-                  0,
-                  LOCAL_GL_BGRA,
-                  LOCAL_GL_UNSIGNED_BYTE,
-                  NULL);
+  sglWrapper.TexImage2D(LOCAL_GL_TEXTURE_2D,
+                        0,
+                        LOCAL_GL_RGBA,
+                        mVisibleRect.width,
+                        mVisibleRect.height,
+                        0,
+                        LOCAL_GL_BGRA,
+                        LOCAL_GL_UNSIGNED_BYTE,
+                        NULL);
 }
 
 void
@@ -141,21 +138,17 @@ ThebesLayerOGL::BeginDrawing(nsIntRegion *aRegion)
   }
   *aRegion = mInvalidatedRect;
 
-  gfxASurface::gfxImageFormat imageFormat;
-
   if (UseOpaqueSurface(this)) {
-    imageFormat = gfxASurface::ImageFormatRGB24;
+    mSoftwareSurface = new gfxImageSurface(gfxIntSize(mInvalidatedRect.width,
+                                                      mInvalidatedRect.height),
+                                           gfxASurface::ImageFormatRGB24);
   } else {
-    imageFormat = gfxASurface::ImageFormatARGB32;
+    mSoftwareSurface = new gfxImageSurface(gfxIntSize(mInvalidatedRect.width,
+                                                      mInvalidatedRect.height),
+                                           gfxASurface::ImageFormatARGB32);
   }
 
-  mDestinationSurface =
-    gfxPlatform::GetPlatform()->
-      CreateOffscreenSurface(gfxIntSize(mInvalidatedRect.width,
-                                        mInvalidatedRect.height),
-                             imageFormat);
-
-  mContext = new gfxContext(mDestinationSurface);
+  mContext = new gfxContext(mSoftwareSurface);
   mContext->Translate(gfxPoint(-mInvalidatedRect.x, -mInvalidatedRect.y));
   return mContext.get();
 }
@@ -165,56 +158,18 @@ ThebesLayerOGL::EndDrawing()
 {
   static_cast<LayerManagerOGL*>(mManager)->MakeCurrent();
 
-  nsRefPtr<gfxImageSurface> imageSurface;
+  sglWrapper.BindTexture(LOCAL_GL_TEXTURE_2D, mTexture);
+  sglWrapper.TexSubImage2D(LOCAL_GL_TEXTURE_2D,
+                           0,
+                           mInvalidatedRect.x - mVisibleRect.x,
+                           mInvalidatedRect.y - mVisibleRect.y,
+                           mInvalidatedRect.width,
+                           mInvalidatedRect.height,
+                           LOCAL_GL_BGRA,
+                           LOCAL_GL_UNSIGNED_BYTE,
+                           mSoftwareSurface->Data());
 
-  gfxASurface::gfxImageFormat imageFormat;
-
-  if (UseOpaqueSurface(this)) {
-    imageFormat = gfxASurface::ImageFormatRGB24;
-  } else {
-    imageFormat = gfxASurface::ImageFormatARGB32;
-  }
-
-  switch (mDestinationSurface->GetType()) {
-    case gfxASurface::SurfaceTypeImage:
-      imageSurface = static_cast<gfxImageSurface*>(mDestinationSurface.get());
-      break;
-#ifdef XP_WIN
-    case gfxASurface::SurfaceTypeWin32:
-      imageSurface =
-        static_cast<gfxWindowsSurface*>(mDestinationSurface.get())->
-          GetImageSurface();
-      break;
-#endif
-    default:
-      /** 
-       * XXX - This is very undesirable. Implement this for other platforms in
-       * a more efficient way as well!
-       */
-      {
-        imageSurface = new gfxImageSurface(gfxIntSize(mInvalidatedRect.width,
-                                                      mInvalidatedRect.height),
-                                           imageFormat);
-        nsRefPtr<gfxContext> tmpContext = new gfxContext(imageSurface);
-        tmpContext->SetSource(mDestinationSurface);
-        tmpContext->SetOperator(gfxContext::OPERATOR_SOURCE);
-        tmpContext->Paint();
-      }
-      break;
-  }
-
-  gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, mTexture);
-  gl()->fTexSubImage2D(LOCAL_GL_TEXTURE_2D,
-                       0,
-                       mInvalidatedRect.x - mVisibleRect.x,
-                       mInvalidatedRect.y - mVisibleRect.y,
-                       mInvalidatedRect.width,
-                       mInvalidatedRect.height,
-                       LOCAL_GL_BGRA,
-                       LOCAL_GL_UNSIGNED_BYTE,
-                       imageSurface->Data());
-
-  mDestinationSurface = NULL;
+  mSoftwareSurface = NULL;
   mContext = NULL;
 }
 
@@ -267,9 +222,9 @@ ThebesLayerOGL::RenderLayer(int aPreviousFrameBuffer)
   program->SetLayerTransform(&mTransform._11);
   program->Apply();
 
-  gl()->fBindTexture(LOCAL_GL_TEXTURE_2D, mTexture);
+  sglWrapper.BindTexture(LOCAL_GL_TEXTURE_2D, mTexture);
 
-  gl()->fDrawArrays(LOCAL_GL_TRIANGLE_STRIP, 0, 4);
+  sglWrapper.DrawArrays(LOCAL_GL_TRIANGLE_STRIP, 0, 4);
 }
 
 const nsIntRect&

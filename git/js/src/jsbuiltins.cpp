@@ -102,6 +102,10 @@ js_imod(int32 a, int32 b)
 }
 JS_DEFINE_CALLINFO_2(extern, INT32, js_imod, INT32, INT32, 1, ACC_NONE)
 
+/* The following boxing/unboxing primitives we can't emit inline because
+   they either interact with the GC and depend on Spidermonkey's 32-bit
+   integer representation. */
+
 jsval FASTCALL
 js_BoxDouble(JSContext* cx, jsdouble d)
 {
@@ -111,7 +115,7 @@ js_BoxDouble(JSContext* cx, jsdouble d)
     JS_ASSERT(JS_ON_TRACE(cx));
     jsval v; /* not rooted but ok here because we know GC won't run */
     if (!js_NewDoubleInRootedValue(cx, d, &v))
-        return JSVAL_NULL;
+        return JSVAL_ERROR_COOKIE;
     return v;
 }
 JS_DEFINE_CALLINFO_2(extern, JSVAL, js_BoxDouble, CONTEXT, DOUBLE, 1, ACC_NONE)
@@ -125,7 +129,7 @@ js_BoxInt32(JSContext* cx, int32 i)
     jsval v; /* not rooted but ok here because we know GC won't run */
     jsdouble d = (jsdouble)i;
     if (!js_NewDoubleInRootedValue(cx, d, &v))
-        return JSVAL_NULL;
+        return JSVAL_ERROR_COOKIE;
     return v;
 }
 JS_DEFINE_CALLINFO_2(extern, JSVAL, js_BoxInt32, CONTEXT, INT32, 1, ACC_NONE)
@@ -200,7 +204,7 @@ js_AddProperty(JSContext* cx, JSObject* obj, JSScopeProperty* sprop)
     JS_LOCK_OBJ(cx, obj);
 
     uint32 slot = sprop->slot;
-    JSScope* scope = obj->scope();
+    JSScope* scope = OBJ_SCOPE(obj);
     if (slot != scope->freeslot)
         goto exit_trace;
     JS_ASSERT(sprop->parent == scope->lastProperty());
@@ -214,7 +218,7 @@ js_AddProperty(JSContext* cx, JSObject* obj, JSScopeProperty* sprop)
     }
 
     if (!scope->table) {
-        if (slot < obj->numSlots() && !obj->getClass()->reserveSlots) {
+        if (slot < obj->numSlots() && !OBJ_GET_CLASS(cx, obj)->reserveSlots) {
             JS_ASSERT(JSVAL_IS_VOID(obj->getSlot(scope->freeslot)));
             ++scope->freeslot;
         } else {
@@ -256,7 +260,7 @@ HasProperty(JSContext* cx, JSObject* obj, jsid id)
     for (JSObject* pobj = obj; pobj; pobj = pobj->getProto()) {
         if (pobj->map->ops->lookupProperty != js_LookupProperty)
             return JSVAL_TO_SPECIAL(JSVAL_VOID);
-        JSClass* clasp = pobj->getClass();
+        JSClass* clasp = OBJ_GET_CLASS(cx, pobj);
         if (clasp->resolve != JS_ResolveStub && clasp != &js_StringClass)
             return JSVAL_TO_SPECIAL(JSVAL_VOID);
     }
@@ -343,7 +347,7 @@ JS_DEFINE_CALLINFO_4(extern, OBJECT, js_NewNullClosure, CONTEXT, OBJECT, OBJECT,
                      ACC_STORE_ANY)
 
 JS_REQUIRES_STACK JSBool FASTCALL
-js_PopInterpFrame(JSContext* cx, TracerState* state)
+js_PopInterpFrame(JSContext* cx, InterpState* state)
 {
     JS_ASSERT(cx->fp && cx->fp->down);
     JSInlineFrame* ifp = (JSInlineFrame*)cx->fp;
@@ -381,7 +385,7 @@ js_PopInterpFrame(JSContext* cx, TracerState* state)
     *state->inlineCallCountp = *state->inlineCallCountp - 1;
     return JS_TRUE;
 }
-JS_DEFINE_CALLINFO_2(extern, BOOL, js_PopInterpFrame, CONTEXT, TRACERSTATE, 0, ACC_STORE_ANY)
+JS_DEFINE_CALLINFO_2(extern, BOOL, js_PopInterpFrame, CONTEXT, INTERPSTATE, 0, ACC_STORE_ANY)
 
 JSString* FASTCALL
 js_ConcatN(JSContext *cx, JSString **strArray, uint32 size)

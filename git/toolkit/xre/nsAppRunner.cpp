@@ -59,7 +59,6 @@
 #ifdef XP_MACOSX
 #include "MacLaunchHelper.h"
 #include "MacApplicationDelegate.h"
-#include "MacAutoreleasePool.h"
 #endif
 
 #ifdef XP_OS2
@@ -111,8 +110,6 @@
 #include "nsIDocShell.h"
 #include "nsAppShellCID.h"
 
-#include "mozilla/FunctionTimer.h"
-
 #ifdef XP_WIN
 #include "nsIWinAppHelper.h"
 #include <windows.h>
@@ -151,7 +148,6 @@
 #ifdef XP_UNIX
 #include <sys/stat.h>
 #include <unistd.h>
-#include <pwd.h>
 #endif
 
 #ifdef XP_BEOS
@@ -250,8 +246,8 @@ extern void InstallSignalHandlers(const char *ProgramName);
 int    gArgc;
 char **gArgv;
 
-static const char gToolkitVersion[] = NS_STRINGIFY(GRE_MILESTONE);
-static const char gToolkitBuildID[] = NS_STRINGIFY(GRE_BUILDID);
+static char gToolkitVersion[20];
+static char gToolkitBuildID[40];
 
 static int    gRestartArgc;
 static char **gRestartArgv;
@@ -269,16 +265,6 @@ static char **gRestartArgv;
 #endif /* MOZ_X11 */
 #include "nsGTKToolkit.h"
 #endif
-
-// Save literal putenv string to environment variable.
-static void
-SaveToEnv(const char *putenv)
-{
-  char *expr = strdup(putenv);
-  if (expr)
-    PR_SetEnv(expr);
-  // We intentionally leak |expr| here since it is required by PR_SetEnv.
-}
 
 // Save the given word to the specified environment variable.
 static void
@@ -1058,12 +1044,6 @@ private:
 ScopedXPCOMStartup::~ScopedXPCOMStartup()
 {
   if (mServiceManager) {
-#ifdef XP_MACOSX
-    // On OS X, we need a pool to catch cocoa objects that are autoreleased
-    // during teardown.
-    mozilla::MacAutoreleasePool pool;
-#endif
-
     nsCOMPtr<nsIAppStartup> appStartup (do_GetService(NS_APPSTARTUP_CONTRACTID));
     if (appStartup)
       appStartup->DestroyHiddenWindow();
@@ -1731,10 +1711,10 @@ static nsresult LaunchChild(nsINativeAppSupport* aNative,
     gRestartArgv[gRestartArgc] = nsnull;
   }
 
-  SaveToEnv("MOZ_LAUNCHED_CHILD=1");
+  PR_SetEnv("MOZ_LAUNCHED_CHILD=1");
 
 #if defined(XP_MACOSX)
-  SetupMacCommandLine(gRestartArgc, gRestartArgv, PR_TRUE);
+  SetupMacCommandLine(gRestartArgc, gRestartArgv);
   LaunchChildMac(gRestartArgc, gRestartArgv);
 #else
   nsCOMPtr<nsILocalFile> lf;
@@ -1939,7 +1919,7 @@ ShowProfileManager(nsIToolkitProfileService* aProfileSvc,
     NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
 
 #ifdef XP_MACOSX
-    SetupMacCommandLine(gRestartArgc, gRestartArgv, PR_TRUE);
+    SetupMacCommandLine(gRestartArgc, gRestartArgv);
 #endif
 
 #ifdef XP_WIN
@@ -2006,7 +1986,7 @@ ShowProfileManager(nsIToolkitProfileService* aProfileSvc,
   PRBool offline = PR_FALSE;
   aProfileSvc->GetStartOffline(&offline);
   if (offline) {
-    SaveToEnv("XRE_START_OFFLINE=1");
+    PR_SetEnv("XRE_START_OFFLINE=1");
   }
 
   return LaunchChild(aNative);
@@ -2018,7 +1998,7 @@ ImportProfiles(nsIToolkitProfileService* aPService,
 {
   nsresult rv;
 
-  SaveToEnv("XRE_IMPORT_PROFILES=1");
+  PR_SetEnv("XRE_IMPORT_PROFILES=1");
 
   // try to import old-style profiles
   { // scope XPCOM
@@ -2029,7 +2009,7 @@ ImportProfiles(nsIToolkitProfileService* aPService,
       xpcom.RegisterProfileService();
 
 #ifdef XP_MACOSX
-      SetupMacCommandLine(gRestartArgc, gRestartArgv, PR_TRUE);
+      SetupMacCommandLine(gRestartArgc, gRestartArgv);
 #endif
 
       nsCOMPtr<nsIProfileMigrator> migrator
@@ -2705,8 +2685,6 @@ typedef BOOL (WINAPI* SetProcessDEPPolicyFunc)(DWORD dwFlags);
 int
 XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 {
-  NS_TIME_FUNCTION;
-
 #ifdef MOZ_SPLASHSCREEN
   nsSplashScreen *splashScreen = nsnull;
 #endif
@@ -2721,18 +2699,6 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 #endif
 
   SetupErrorHandling(argv[0]);
-
-#ifdef XP_UNIX
-  const char *home = PR_GetEnv("HOME");
-  if (!home || !*home) {
-    struct passwd *pw = getpwuid(geteuid());
-    if (!pw || !pw->pw_dir) {
-      Output(PR_TRUE, "Could not determine HOME directory");
-      return 1;
-    }
-    SaveWordToEnv("HOME", nsDependentCString(pw->pw_dir));
-  }
-#endif
 
 #ifdef MOZ_ACCESSIBILITY_ATK
   // Reset GTK_MODULES, strip atk-bridge if exists
@@ -2880,6 +2846,32 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
       return 2;
   }
 
+  nsCOMPtr<nsIFile> iniFile;
+  rv = appData.xreDirectory->Clone(getter_AddRefs(iniFile));
+  if (NS_FAILED(rv))
+    return 2;
+
+  iniFile->AppendNative(NS_LITERAL_CSTRING("platform.ini"));
+
+  nsCOMPtr<nsILocalFile> localIniFile = do_QueryInterface(iniFile);
+  if (!localIniFile)
+    return 2;
+
+  nsINIParser parser;
+  rv = parser.Init(localIniFile);
+  if (NS_SUCCEEDED(rv)) {
+    rv = parser.GetString("Build", "Milestone",
+                          gToolkitVersion, sizeof(gToolkitVersion));
+    NS_ASSERTION(NS_SUCCEEDED(rv), "Failed to get toolkit version");
+
+    rv = parser.GetString("Build", "BuildID",
+                          gToolkitBuildID, sizeof(gToolkitBuildID));
+    NS_ASSERTION(NS_SUCCEEDED(rv), "Failed to get toolkit buildid");
+  }
+  else {
+    NS_ERROR("Couldn't parse platform.ini!");
+  }
+
   if (appData.size > offsetof(nsXREAppData, minVersion)) {
     if (!appData.minVersion) {
       Output(PR_TRUE, "Error: Gecko:MinVersion not specified in application.ini\n");
@@ -2993,7 +2985,7 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
   }
 #endif
 
-  SaveToEnv("MOZ_LAUNCHED_CHILD=");
+  PR_SetEnv("MOZ_LAUNCHED_CHILD=");
 
   gRestartArgc = gArgc;
   gRestartArgv = (char**) malloc(sizeof(char*) * (gArgc + 1 + (override ? 2 : 0)));
@@ -3040,7 +3032,7 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
     PR_fprintf(PR_STDERR, "Error: argument -a requires an application name\n");
     return 1;
   } else if (ar == ARG_FOUND) {
-    SaveToEnv("MOZ_NO_REMOTE=1");
+    PR_SetEnv("MOZ_NO_REMOTE=1");
   }
 
   // Handle -help and -version command line arguments.
@@ -3334,8 +3326,6 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 
     MOZ_SPLASHSCREEN_UPDATE(30);
 
-    NS_TIME_FUNCTION_MARK("Next: ScopedXPCOMStartup");
-
     // Allows the user to forcefully bypass the restart process at their
     // own risk. Useful for debugging or for tinderboxes where child 
     // processes can be problematic.
@@ -3366,9 +3356,6 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
         }
       }
 #endif
-
-      NS_TIME_FUNCTION_MARK("Next: AppStartup");
-
       {
         if (startOffline) {
           nsCOMPtr<nsIIOService2> io (do_GetService("@mozilla.org/network/io-service;1"));
@@ -3438,13 +3425,11 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 
           /* Special-case services that need early access to the command
              line. */
-          nsCOMPtr<nsIObserverService> obsService =
-            mozilla::services::GetObserverService();
+          nsCOMPtr<nsIObserverService> obsService
+            (do_GetService("@mozilla.org/observer-service;1"));
           if (obsService) {
             obsService->NotifyObservers(cmdLine, "command-line-startup", nsnull);
           }
-
-          NS_TIME_FUNCTION_MARK("Next: CreateHiddenWindow");
 
           NS_TIMELINE_ENTER("appStartup->CreateHiddenWindow");
           rv = appStartup->CreateHiddenWindow();
@@ -3452,8 +3437,6 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
           NS_ENSURE_SUCCESS(rv, 1);
 
           MOZ_SPLASHSCREEN_UPDATE(50);
-
-          NS_TIME_FUNCTION_MARK("Next: prepare for Run");
 
 #if defined(HAVE_DESKTOP_STARTUP_ID) && defined(MOZ_WIDGET_GTK2)
           nsRefPtr<nsGTKToolkit> toolkit = GetGTKToolkit();
@@ -3495,14 +3478,14 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 
           // clear out any environment variables which may have been set 
           // during the relaunch process now that we know we won't be relaunching.
-          SaveToEnv("XRE_PROFILE_PATH=");
-          SaveToEnv("XRE_PROFILE_LOCAL_PATH=");
-          SaveToEnv("XRE_PROFILE_NAME=");
-          SaveToEnv("XRE_START_OFFLINE=");
-          SaveToEnv("XRE_IMPORT_PROFILES=");
-          SaveToEnv("NO_EM_RESTART=");
-          SaveToEnv("XUL_APP_FILE=");
-          SaveToEnv("XRE_BINARY_PATH=");
+          PR_SetEnv("XRE_PROFILE_PATH=");
+          PR_SetEnv("XRE_PROFILE_LOCAL_PATH=");
+          PR_SetEnv("XRE_PROFILE_NAME=");
+          PR_SetEnv("XRE_START_OFFLINE=");
+          PR_SetEnv("XRE_IMPORT_PROFILES=");
+          PR_SetEnv("NO_EM_RESTART=");
+          PR_SetEnv("XUL_APP_FILE=");
+          PR_SetEnv("XRE_BINARY_PATH=");
 
           if (!shuttingDown) {
 #ifdef XP_MACOSX
@@ -3511,7 +3494,7 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
             cmdLine = do_CreateInstance("@mozilla.org/toolkit/command-line;1");
             NS_ENSURE_TRUE(cmdLine, 1);
 
-            SetupMacCommandLine(gArgc, gArgv, PR_FALSE);
+            SetupMacCommandLine(gArgc, gArgv);
 
             rv = cmdLine->Init(gArgc, gArgv,
                                workingDir, nsICommandLine::STATE_INITIAL_LAUNCH);
@@ -3524,8 +3507,8 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 
             MOZ_SPLASHSCREEN_UPDATE(70);
 
-            nsCOMPtr<nsIObserverService> obsService =
-              mozilla::services::GetObserverService();
+            nsCOMPtr<nsIObserverService> obsService
+              (do_GetService("@mozilla.org/observer-service;1"));
             if (obsService)
               obsService->NotifyObservers(nsnull, "final-ui-startup", nsnull);
 
@@ -3556,8 +3539,6 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
             nativeApp->Enable();
           }
 
-          NS_TIME_FUNCTION_MARK("Next: Run");
-
           MOZ_SPLASHSCREEN_UPDATE(90);
           {
             NS_TIMELINE_ENTER("appStartup->Run");
@@ -3568,8 +3549,6 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
               gLogConsoleErrors = PR_TRUE;
             }
           }
-
-          NS_TIME_FUNCTION_MARK("Next: Finish");
 
           // Check for an application initiated restart.  This is one that
           // corresponds to nsIAppStartup.quit(eRestart)
@@ -3604,7 +3583,7 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 #endif
 
 #ifdef XP_MACOSX
-          SetupMacCommandLine(gRestartArgc, gRestartArgv, PR_TRUE);
+          SetupMacCommandLine(gRestartArgc, gRestartArgv);
 #endif
         }
       }
@@ -3624,10 +3603,10 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
       else {
         char* noEMRestart = PR_GetEnv("NO_EM_RESTART");
         if (noEMRestart && *noEMRestart) {
-          SaveToEnv("NO_EM_RESTART=1");
+          PR_SetEnv("NO_EM_RESTART=1");
         }
         else {
-          SaveToEnv("NO_EM_RESTART=0");
+          PR_SetEnv("NO_EM_RESTART=0");
         }
       }
 
@@ -3782,6 +3761,13 @@ SetupErrorHandling(const char* progname)
 
   SetErrorMode(realMode);
 
+#ifdef DEBUG
+  // Disable small heap allocator to get heapwalk() giving us
+  // accurate heap numbers. Win2k non-debug does not use small heap allocator.
+  // Win2k debug seems to be still using it.
+  // http://msdn.microsoft.com/library/default.asp?url=/library/en-us/vclib/html/_crt__set_sbh_threshold.asp
+  _set_sbh_threshold(0);
+#endif
 #endif
 
 #ifndef XP_OS2

@@ -137,10 +137,10 @@ inline bool
 JSScope::methodWriteBarrier(JSContext *cx, JSScopeProperty *sprop, jsval v)
 {
     if (flags & (BRANDED | METHOD_BARRIER)) {
-        jsval prev = object->lockedGetSlot(sprop->slot);
+        jsval prev = LOCKED_OBJ_GET_SLOT(object, sprop->slot);
 
         if (prev != v && VALUE_IS_FUNCTION(cx, prev))
-            return methodShapeChange(cx, sprop);
+            return methodShapeChange(cx, sprop, v);
     }
     return true;
 }
@@ -149,10 +149,10 @@ inline bool
 JSScope::methodWriteBarrier(JSContext *cx, uint32 slot, jsval v)
 {
     if (flags & (BRANDED | METHOD_BARRIER)) {
-        jsval prev = object->lockedGetSlot(slot);
+        jsval prev = LOCKED_OBJ_GET_SLOT(object, slot);
 
         if (prev != v && VALUE_IS_FUNCTION(cx, prev))
-            return methodShapeChange(cx, slot);
+            return methodShapeChange(cx, slot, v);
     }
     return true;
 }

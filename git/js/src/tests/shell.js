@@ -650,12 +650,11 @@ function optionsInit() {
 function optionsClear() {
        
   // turn off current settings
-  // except jit.
   var optionNames = options().split(',');
   for (var i = 0; i < optionNames.length; i++)
   {
     var optionName = optionNames[i];
-    if (optionName && optionName != "jit")
+    if (optionName)
     {
       options(optionName);
     }
@@ -830,18 +829,6 @@ function getFailedCases() {
     }
   }
 }
-
-var JSTest = {
-  waitForExplicitFinish: function () {
-    gDelayTestDriverEnd = true;
-  },
-
-  testFinished: function () {
-    gDelayTestDriverEnd = false;
-    jsTestDriverEnd();
-    quit();
-  }
-};
 
 function jsTestDriverEnd()
 {

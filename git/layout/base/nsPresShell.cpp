@@ -58,7 +58,6 @@
 #include "nsIPresShell.h"
 #include "nsPresContext.h"
 #include "nsIContent.h"
-#include "mozilla/dom/Element.h"
 #include "nsIDocument.h"
 #include "nsIDOMXULDocument.h"
 #include "nsStubDocumentObserver.h"
@@ -211,7 +210,6 @@
 static NS_DEFINE_IID(kRangeCID,     NS_RANGE_CID);
 
 using namespace mozilla::layers;
-using namespace mozilla::dom;
 
 PRBool nsIPresShell::gIsAccessibilityActive = PR_FALSE;
 CapturingContentInfo nsIPresShell::gCaptureInfo;
@@ -745,6 +743,9 @@ public:
 
   virtual NS_HIDDEN_(void) UnsuppressPainting();
 
+  virtual NS_HIDDEN_(void) DisableThemeSupport();
+  virtual PRBool IsThemeSupportEnabled();
+
   virtual nsresult GetAgentStyleSheets(nsCOMArray<nsIStyleSheet>& aSheets);
   virtual nsresult SetAgentStyleSheets(const nsCOMArray<nsIStyleSheet>& aSheets);
 
@@ -1176,6 +1177,8 @@ protected:
   nsCallbackEventRequest* mLastCallbackEventRequest;
 
   PRPackedBool      mSuppressInterruptibleReflows;
+
+  PRPackedBool      mIsThemeSupportDisabled;  // Whether or not form controls should use nsITheme in this shell.
 
   PRPackedBool      mIsDocumentGone;      // We've been disconnected from the document.
                                           // We will refuse to paint the document until either
@@ -1649,7 +1652,8 @@ PresShell::Init(nsIDocument* aDocument,
   }
 
   {
-    nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
+    nsCOMPtr<nsIObserverService> os =
+      do_GetService("@mozilla.org/observer-service;1", &result);
     if (os) {
       os->AddObserver(this, "agent-sheet-added", PR_FALSE);
       os->AddObserver(this, "user-sheet-added", PR_FALSE);
@@ -1724,7 +1728,8 @@ PresShell::Destroy()
   }
 
   {
-    nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
+    nsCOMPtr<nsIObserverService> os =
+      do_GetService("@mozilla.org/observer-service;1");
     if (os) {
       os->RemoveObserver(this, "agent-sheet-added");
       os->RemoveObserver(this, "user-sheet-added");
@@ -2487,7 +2492,7 @@ PresShell::InitialReflow(nscoord aWidth, nscoord aHeight)
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
-  Element *root = mDocument->GetRootElement();
+  nsIContent *root = mDocument->GetRootContent();
 
   if (root) {
     {
@@ -2496,7 +2501,7 @@ PresShell::InitialReflow(nscoord aWidth, nscoord aHeight)
 
       // Have the style sheet processor construct frame for the root
       // content object down
-      mFrameConstructor->ContentInserted(nsnull, root, 0, nsnull, PR_FALSE);
+      mFrameConstructor->ContentInserted(nsnull, root, 0, nsnull);
       VERIFY_STYLE_TREE;
 
       // Something in mFrameConstructor->ContentInserted may have caused
@@ -2519,7 +2524,6 @@ PresShell::InitialReflow(nscoord aWidth, nscoord aHeight)
     // case XBL constructors changed styles somewhere.
     {
       nsAutoScriptBlocker scriptBlocker;
-      mFrameConstructor->CreateNeededFrames();
       mFrameConstructor->ProcessPendingRestyles();
     }
 
@@ -2630,7 +2634,6 @@ PresShell::ResizeReflow(nscoord aWidth, nscoord aHeight)
     // Make sure style is up to date
     {
       nsAutoScriptBlocker scriptBlocker;
-      mFrameConstructor->CreateNeededFrames();
       mFrameConstructor->ProcessPendingRestyles();
     }
 
@@ -2674,7 +2677,7 @@ PresShell::ResizeReflow(nscoord aWidth, nscoord aHeight)
       }
     } else {
       nsRefPtr<nsRunnableMethod<PresShell> > resizeEvent =
-        NS_NewRunnableMethod(this, &PresShell::FireResizeEvent);
+        NS_NEW_RUNNABLE_METHOD(PresShell, this, FireResizeEvent);
       if (NS_SUCCEEDED(NS_DispatchToCurrentThread(resizeEvent))) {
         mResizeEvent = resizeEvent;
       }
@@ -3237,9 +3240,9 @@ PresShell::FrameNeedsReflow(nsIFrame *aFrame, IntrinsicDirty aIntrinsicDirty,
     printf("\nPresShell@%p: frame %p needs reflow\n", (void*)this, (void*)aFrame);
     if (VERIFY_REFLOW_REALLY_NOISY_RC & gVerifyReflowFlags) {
       printf("Current content model:\n");
-      Element *rootElement = mDocument->GetRootElement();
-      if (rootElement) {
-        rootElement->List(stdout, 0);
+      nsIContent *rootContent = mDocument->GetRootContent();
+      if (rootContent) {
+        rootContent->List(stdout, 0);
       }
     }
   }  
@@ -4101,9 +4104,7 @@ PresShell::ScrollFrameRectIntoView(nsIFrame*     aFrame,
       ScrollToShowRect(sf, rect - sf->GetScrolledFrame()->GetPosition(),
                        aVPercent, aHPercent, aFlags);
       nsPoint newPosition = sf->GetScrollPosition();
-      // If the scroll position increased, that means our content moved up,
-      // so our rect's offset should decrease
-      rect += oldPosition - newPosition;
+      rect += newPosition - oldPosition;
 
       if (oldPosition != newPosition) {
         didScroll = PR_TRUE;
@@ -4131,9 +4132,7 @@ PresShell::ScrollFrameRectIntoView(nsIFrame*     aFrame,
       rect.IntersectRect(rect, sf->GetScrollPortRect());
     }
     rect += container->GetPosition();
-    nsPoint extraOffset(0,0);
-    container = nsLayoutUtils::GetCrossDocParentFrame(container, &extraOffset);
-    rect += extraOffset;
+    container = container->GetParent();
   } while (container);
 
   return didScroll;
@@ -4427,6 +4426,19 @@ PresShell::UnsuppressPainting()
     UnsuppressAndInvalidate();
 }
 
+void
+PresShell::DisableThemeSupport()
+{
+  // Doesn't have to be dynamic.  Just set the bool.
+  mIsThemeSupportDisabled = PR_TRUE;
+}
+
+PRBool 
+PresShell::IsThemeSupportEnabled()
+{
+  return !mIsThemeSupportDisabled;
+}
+
 // Post a request to handle an arbitrary callback after reflow has finished.
 nsresult
 PresShell::PostReflowCallback(nsIReflowCallback* aCallback)
@@ -4577,14 +4589,6 @@ PresShell::FlushPendingNotifications(mozFlushType aType)
     // batching if we only have style reresolve
     nsIViewManager::UpdateViewBatch batch(mViewManager);
 
-    // We need to make sure external resource documents are flushed too (for
-    // example, svg filters that reference a filter in an external document
-    // need the frames in the external document to be constructed for the
-    // filter to work). We only need external resources to be flushed when the
-    // main document is flushing >= Flush_Frames, so we flush external
-    // resources here instead of nsDocument::FlushPendingNotifications.
-    mDocument->FlushExternalResources(aType);
-
     // Force flushing of any pending content notifications that might have
     // queued up while our event was pending.  That will ensure that we don't
     // construct frames for content right now that's still waiting to be
@@ -4609,7 +4613,6 @@ PresShell::FlushPendingNotifications(mozFlushType aType)
 #endif // MOZ_SMIL
 
       nsAutoScriptBlocker scriptBlocker;
-      mFrameConstructor->CreateNeededFrames();
       mFrameConstructor->ProcessPendingRestyles();
     }
 
@@ -4628,7 +4631,6 @@ PresShell::FlushPendingNotifications(mozFlushType aType)
     // the frame type.
     if (!mIsDestroying) {
       nsAutoScriptBlocker scriptBlocker;
-      mFrameConstructor->CreateNeededFrames();
       mFrameConstructor->ProcessPendingRestyles();
     }
 
@@ -4730,9 +4732,9 @@ PresShell::DocumentStatesChanged(nsIDocument* aDocument,
 
   if (mDidInitialReflow &&
       mStyleSet->HasDocumentStateDependentStyle(mPresContext,
-                                                mDocument->GetRootElement(),
+                                                mDocument->GetRootContent(),
                                                 aStateMask)) {
-    mFrameConstructor->PostRestyleEvent(mDocument->GetRootElement(),
+    mFrameConstructor->PostRestyleEvent(mDocument->GetRootContent(),
                                         eRestyle_Self, NS_STYLE_HINT_NONE);
     VERIFY_STYLE_TREE;
   }
@@ -4800,7 +4802,7 @@ PresShell::ContentAppended(nsIDocument *aDocument,
   // frame reconstruction.
   mFrameConstructor->RestyleForAppend(aContainer, aNewIndexInContainer);
 
-  mFrameConstructor->ContentAppended(aContainer, aNewIndexInContainer, PR_TRUE);
+  mFrameConstructor->ContentAppended(aContainer, aNewIndexInContainer);
   VERIFY_STYLE_TREE;
 }
 
@@ -4826,7 +4828,7 @@ PresShell::ContentInserted(nsIDocument* aDocument,
     mFrameConstructor->RestyleForInsertOrChange(aContainer, aChild);
 
   mFrameConstructor->ContentInserted(aContainer, aChild,
-                                     aIndexInContainer, nsnull, PR_TRUE);
+                                     aIndexInContainer, nsnull);
   VERIFY_STYLE_TREE;
 }
 
@@ -4896,7 +4898,7 @@ nsIPresShell::ReconstructStyleDataInternal()
     mPresContext->RebuildUserFontSet();
   }
 
-  Element* root = mDocument->GetRootElement();
+  nsIContent* root = mDocument->GetRootContent();
   if (!mDidInitialReflow) {
     // Nothing to do here, since we have no frames yet
     return;
@@ -5659,11 +5661,8 @@ PresShell::Paint(nsIView*        aDisplayRoot,
           nsPoint offsetToRoot = aViewToPaint->GetOffsetTo(aDisplayRoot);
           nsRegion dirtyRegion = aDirtyRegion;
           dirtyRegion.MoveBy(offsetToRoot);
-
-          nsPoint translate = -offsetToRoot + aViewToPaint->ViewToWidgetOffset();
           nsIRenderingContext::AutoPushTranslation
-            push(rc, translate.x, translate.y);
-
+            push(rc, -offsetToRoot.x, -offsetToRoot.y);
           nsLayoutUtils::PaintFrame(rc, frame, dirtyRegion, bgcolor);
         }
       } else {
@@ -5930,15 +5929,6 @@ PresShell::HandleEvent(nsIView         *aView,
     return NS_OK;
   }
 
-  if (aEvent->message == NS_UISTATECHANGED && mDocument) {
-    nsPIDOMWindow* win = mDocument->GetWindow();
-    if (win) {
-      nsUIStateChangeEvent* event = (nsUIStateChangeEvent*)aEvent;
-      win->SetKeyboardIndicators(event->showAccelerators, event->showFocusRings);
-    }
-    return NS_OK;
-  }
-
   // Check for a system color change up front, since the frame type is
   // irrelevant
   if ((aEvent->message == NS_SYSCOLORCHANGED) && mPresContext) {
@@ -5980,7 +5970,7 @@ PresShell::HandleEvent(nsIView         *aView,
   // view that has a frame.
   if (!frame &&
       (dispatchUsingCoordinates || NS_IS_KEY_EVENT(aEvent) ||
-       NS_IS_IME_RELATED_EVENT(aEvent) || NS_IS_NON_RETARGETED_PLUGIN_EVENT(aEvent) ||
+       NS_IS_IME_RELATED_EVENT(aEvent) ||
        aEvent->message == NS_PLUGIN_ACTIVATE)) {
     nsIView* targetView = aView;
     while (targetView && !targetView->GetClientData()) {
@@ -6168,8 +6158,9 @@ PresShell::HandleEvent(nsIView         *aView,
       // still get sent to the window properly if nothing is focused or if a
       // frame goes away while it is focused.
       if (!mCurrentEventContent || !GetCurrentEventFrame())
-        mCurrentEventContent = mDocument->GetRootElement();
+        mCurrentEventContent = mDocument->GetRootContent();
       mCurrentEventFrame = nsnull;
+
         
       if (!mCurrentEventContent || !GetCurrentEventFrame() ||
           InZombieDocument(mCurrentEventContent)) {
@@ -6253,7 +6244,8 @@ PresShell::HandlePositionedEvent(nsIView*       aView,
       //
       // We use weak pointers because during this tight loop, the node
       // will *not* go away.  And this happens on every mousemove.
-      while (targetElement && !targetElement->IsElement()) {
+      while (targetElement &&
+             !targetElement->IsNodeOfType(nsINode::eELEMENT)) {
         targetElement = targetElement->GetParent();
       }
 
@@ -6414,11 +6406,6 @@ PresShell::HandleEventInternal(nsEvent* aEvent, nsIView *aView,
 
     // 2. Give event to the DOM for third party and JS use.
     if (GetCurrentEventFrame() && NS_SUCCEEDED(rv)) {
-      PRBool wasHandlingKeyBoardEvent =
-        nsContentUtils::IsHandlingKeyBoardEvent();
-      if (aEvent->eventStructType == NS_KEY_EVENT) {
-        nsContentUtils::SetIsHandlingKeyBoardEvent(PR_TRUE);
-      }
       // We want synthesized mouse moves to cause mouseover and mouseout
       // DOM events (PreHandleEvent above), but not mousemove DOM events.
       // Synthesized button up events also do not cause DOM events
@@ -6442,8 +6429,6 @@ PresShell::HandleEventInternal(nsEvent* aEvent, nsIView *aView,
           }
         }
       }
-
-      nsContentUtils::SetIsHandlingKeyBoardEvent(wasHandlingKeyBoardEvent);
 
       // 3. Give event to event manager for post event state changes and
       //    generation of synthetic events.

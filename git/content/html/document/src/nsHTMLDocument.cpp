@@ -143,9 +143,6 @@
 #include "nsCCUncollectableMarker.h"
 #include "nsHtml5Module.h"
 #include "prprf.h"
-#include "mozilla/dom/Element.h"
-
-using namespace mozilla::dom;
 
 #define NS_MAX_DOCUMENT_WRITE_DEPTH 20
 
@@ -1395,6 +1392,26 @@ nsHTMLDocument::GetElementsByTagName(const nsAString& aTagname,
   return nsDocument::GetElementsByTagName(tmp, aReturn);
 }
 
+NS_IMETHODIMP
+nsHTMLDocument::GetBaseURI(nsAString &aURI)
+{
+  aURI.Truncate();
+  nsIURI *uri = mDocumentBaseURI; // WEAK
+
+  if (!uri) {
+    uri = mDocumentURI;
+  }
+
+  if (uri) {
+    nsCAutoString spec;
+    uri->GetSpec(spec);
+
+    CopyUTF8toUTF16(spec, aURI);
+  }
+
+  return NS_OK;
+}
+
 // nsIDOM3Document interface implementation
 NS_IMETHODIMP
 nsHTMLDocument::GetXmlEncoding(nsAString& aXmlEncoding)
@@ -1585,7 +1602,7 @@ nsHTMLDocument::GetBody(nsIDOMHTMLElement** aBody)
 {
   *aBody = nsnull;
 
-  Element* body = GetBodyElement();
+  nsIContent* body = GetBodyContent();
 
   if (body) {
     // There is a body element, return that as the body.
@@ -1617,7 +1634,7 @@ NS_IMETHODIMP
 nsHTMLDocument::SetBody(nsIDOMHTMLElement* aBody)
 {
   nsCOMPtr<nsIContent> newBody = do_QueryInterface(aBody);
-  Element* root = GetRootElement();
+  nsIContent* root = GetRootContent();
 
   // The body element must be either a body tag or a frameset tag. And we must
   // have a html root tag, otherwise GetBody will not return the newly set
@@ -1633,7 +1650,7 @@ nsHTMLDocument::SetBody(nsIDOMHTMLElement* aBody)
   nsCOMPtr<nsIDOMNode> tmp;
 
   // Use DOM methods so that we pass through the appropriate security checks.
-  nsCOMPtr<nsIDOMNode> currentBody = do_QueryInterface(GetBodyElement());
+  nsCOMPtr<nsIDOMNode> currentBody = do_QueryInterface(GetBodyContent());
   if (currentBody) {
     return rootElem->ReplaceChild(aBody, currentBody, getter_AddRefs(tmp));
   }
@@ -1922,12 +1939,6 @@ nsHTMLDocument::OpenCommon(const nsACString& aContentType, PRBool aReplace)
 
     nsCOMPtr<nsIWebNavigation> webnav(do_QueryInterface(shell));
     webnav->Stop(nsIWebNavigation::STOP_NETWORK);
-
-    // The Stop call may have cancelled the onload blocker request or prevented
-    // it from getting added, so we need to make sure it gets added to the
-    // document again otherwise the document could have a non-zero onload block
-    // count without the onload blocker request being in the loadgroup.
-    EnsureOnloadBlocker();
   }
 
   // The open occurred after the document finished loading.
@@ -2344,7 +2355,7 @@ nsHTMLDocument::GetBodySize(PRInt32* aWidth,
 
   // Find the <body> element: this is what we'll want to use for the
   // document's width and height values.
-  Element* body = GetBodyElement();
+  nsIContent* body = GetBodyContent();
   if (!body) {
     return NS_OK;
   }
@@ -2385,7 +2396,7 @@ nsHTMLDocument::GetAlinkColor(nsAString& aAlinkColor)
 {
   aAlinkColor.Truncate();
 
-  nsCOMPtr<nsIDOMHTMLBodyElement> body = do_QueryInterface(GetBodyElement());
+  nsCOMPtr<nsIDOMHTMLBodyElement> body = do_QueryInterface(GetBodyContent());
   if (body) {
     body->GetALink(aAlinkColor);
   }
@@ -2396,7 +2407,7 @@ nsHTMLDocument::GetAlinkColor(nsAString& aAlinkColor)
 NS_IMETHODIMP
 nsHTMLDocument::SetAlinkColor(const nsAString& aAlinkColor)
 {
-  nsCOMPtr<nsIDOMHTMLBodyElement> body = do_QueryInterface(GetBodyElement());
+  nsCOMPtr<nsIDOMHTMLBodyElement> body = do_QueryInterface(GetBodyContent());
   if (body) {
     body->SetALink(aAlinkColor);
   }
@@ -2409,7 +2420,7 @@ nsHTMLDocument::GetLinkColor(nsAString& aLinkColor)
 {
   aLinkColor.Truncate();
 
-  nsCOMPtr<nsIDOMHTMLBodyElement> body = do_QueryInterface(GetBodyElement());
+  nsCOMPtr<nsIDOMHTMLBodyElement> body = do_QueryInterface(GetBodyContent());
   if (body) {
     body->GetLink(aLinkColor);
   }
@@ -2420,7 +2431,7 @@ nsHTMLDocument::GetLinkColor(nsAString& aLinkColor)
 NS_IMETHODIMP
 nsHTMLDocument::SetLinkColor(const nsAString& aLinkColor)
 {
-  nsCOMPtr<nsIDOMHTMLBodyElement> body = do_QueryInterface(GetBodyElement());
+  nsCOMPtr<nsIDOMHTMLBodyElement> body = do_QueryInterface(GetBodyContent());
   if (body) {
     body->SetLink(aLinkColor);
   }
@@ -2433,7 +2444,7 @@ nsHTMLDocument::GetVlinkColor(nsAString& aVlinkColor)
 {
   aVlinkColor.Truncate();
 
-  nsCOMPtr<nsIDOMHTMLBodyElement> body = do_QueryInterface(GetBodyElement());
+  nsCOMPtr<nsIDOMHTMLBodyElement> body = do_QueryInterface(GetBodyContent());
   if (body) {
     body->GetVLink(aVlinkColor);
   }
@@ -2444,7 +2455,7 @@ nsHTMLDocument::GetVlinkColor(nsAString& aVlinkColor)
 NS_IMETHODIMP
 nsHTMLDocument::SetVlinkColor(const nsAString& aVlinkColor)
 {
-  nsCOMPtr<nsIDOMHTMLBodyElement> body = do_QueryInterface(GetBodyElement());
+  nsCOMPtr<nsIDOMHTMLBodyElement> body = do_QueryInterface(GetBodyContent());
   if (body) {
     body->SetVLink(aVlinkColor);
   }
@@ -2457,7 +2468,7 @@ nsHTMLDocument::GetBgColor(nsAString& aBgColor)
 {
   aBgColor.Truncate();
 
-  nsCOMPtr<nsIDOMHTMLBodyElement> body = do_QueryInterface(GetBodyElement());
+  nsCOMPtr<nsIDOMHTMLBodyElement> body = do_QueryInterface(GetBodyContent());
   if (body) {
     body->GetBgColor(aBgColor);
   }
@@ -2468,7 +2479,7 @@ nsHTMLDocument::GetBgColor(nsAString& aBgColor)
 NS_IMETHODIMP
 nsHTMLDocument::SetBgColor(const nsAString& aBgColor)
 {
-  nsCOMPtr<nsIDOMHTMLBodyElement> body = do_QueryInterface(GetBodyElement());
+  nsCOMPtr<nsIDOMHTMLBodyElement> body = do_QueryInterface(GetBodyContent());
   if (body) {
     body->SetBgColor(aBgColor);
   }
@@ -2481,7 +2492,7 @@ nsHTMLDocument::GetFgColor(nsAString& aFgColor)
 {
   aFgColor.Truncate();
 
-  nsCOMPtr<nsIDOMHTMLBodyElement> body = do_QueryInterface(GetBodyElement());
+  nsCOMPtr<nsIDOMHTMLBodyElement> body = do_QueryInterface(GetBodyContent());
   if (body) {
     body->GetText(aFgColor);
   }
@@ -2492,7 +2503,7 @@ nsHTMLDocument::GetFgColor(nsAString& aFgColor)
 NS_IMETHODIMP
 nsHTMLDocument::SetFgColor(const nsAString& aFgColor)
 {
-  nsCOMPtr<nsIDOMHTMLBodyElement> body = do_QueryInterface(GetBodyElement());
+  nsCOMPtr<nsIDOMHTMLBodyElement> body = do_QueryInterface(GetBodyContent());
   if (body) {
     body->SetText(aFgColor);
   }
@@ -2623,26 +2634,24 @@ FindNamedItems(nsIAtom* aName, nsIContent *aContent,
   NS_ASSERTION(!aEntry->IsInvalidName(),
                "Entry that should never have a list passed to FindNamedItems()!");
 
-  if (!aContent->IsElement()) {
-    // non-elements are not named items nor can they have children.
+  if (aContent->IsNodeOfType(nsINode::eTEXT)) {
+    // Text nodes are not named items nor can they have children.
     return;
   }
 
-  Element* element = aContent->AsElement();
-
-  if (aName == nsContentUtils::IsNamedItem(element)) {
-    aEntry->AddNameElement(element);
+  if (aName == nsContentUtils::IsNamedItem(aContent)) {
+    aEntry->AddNameContent(aContent);
   }
 
-  if (!aEntry->GetIdElement() &&
+  if (!aEntry->GetIdContent() &&
       // Maybe this node has the right id?
-      aName == element->GetID()) {
-    aEntry->AddIdElement(element);
+      aName == aContent->GetID()) {
+    aEntry->AddIdContent(aContent);
   }
 
-  PRUint32 i, count = element->GetChildCount();
+  PRUint32 i, count = aContent->GetChildCount();
   for (i = 0; i < count; ++i) {
-    FindNamedItems(aName, element->GetChildAt(i), aEntry);
+    FindNamedItems(aName, aContent->GetChildAt(i), aEntry);
   }
 }
 
@@ -2699,7 +2708,7 @@ nsHTMLDocument::ResolveName(const nsAString& aName,
     if (NS_FAILED(rv))
       return rv;
 
-    Element* root = GetRootElement();
+    nsIContent* root = GetRootContent();
     if (root && !aName.IsEmpty()) {
       FindNamedItems(name, root, entry);
     }
@@ -2773,7 +2782,7 @@ nsHTMLDocument::ResolveName(const nsAString& aName,
   // for aName, so we're guaranteed that if there is an element with
   // the id aName, it'll be entry's IdContent.
 
-  Element *e = entry->GetIdElement();
+  nsIContent *e = entry->GetIdContent();
 
   if (e && e->IsHTML()) {
     nsIAtom *tag = e->Tag();
@@ -2820,7 +2829,7 @@ nsHTMLDocument::PrePopulateIdentifierMap()
 /* virtual */ nsIContent*
 nsHTMLDocument::GetBodyContentExternal()
 {
-  return GetBodyElement();
+  return GetBodyContent();
 }
 
 // forms related stuff
@@ -2988,7 +2997,7 @@ nsHTMLDocument::MaybeEditingStateChanged()
       EditingStateChanged();
     } else if (!mInDestructor) {
       nsContentUtils::AddScriptRunner(
-        NS_NewRunnableMethod(this, &nsHTMLDocument::MaybeEditingStateChanged));
+        NS_NEW_RUNNABLE_METHOD(nsHTMLDocument, this, MaybeEditingStateChanged));
     }
   }
 }
@@ -3108,7 +3117,7 @@ nsHTMLDocument::GetDocumentAllResult(const nsAString& aID, nsISupports** aResult
   nsIdentifierMapEntry *entry = mIdentifierMap.PutEntry(id);
   NS_ENSURE_TRUE(entry, NS_ERROR_OUT_OF_MEMORY);
 
-  Element* root = GetRootElement();
+  nsIContent* root = GetRootContent();
   if (!root) {
     return NS_OK;
   }

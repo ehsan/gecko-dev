@@ -107,6 +107,11 @@ endif
 
 ifdef MOZ_IPC
 tier_platform_dirs += ipc
+else
+# Include fake mozilla-runtime so that unify has something to unify.
+ifeq ($(OS_ARCH)_$(TARGET_CPU),Darwin_powerpc)
+tier_platform_dirs += ipc/app/fake
+endif
 endif
 
 tier_platform_dirs += \
@@ -146,7 +151,10 @@ endif
 
 ifdef MOZ_OGG
 tier_platform_dirs += \
+		media/libfishsound \
 		media/libogg \
+		media/liboggplay \
+		media/liboggz \
 		media/libtheora \
 		media/libvorbis \
 		$(NULL)

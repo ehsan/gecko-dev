@@ -44,9 +44,9 @@
 #include "nsIDOMHTMLDocument.h"
 #include "nsIDOMHTMLElement.h"
 #include "nsIDOMNSHTMLElement.h"
+#include "nsIDOMEventTarget.h"
 #include "nsPIDOMEventTarget.h"
-#include "nsIMEStateManager.h"
-#include "nsFocusManager.h"
+#include "nsIEventListenerManager.h"
 #include "nsIPrefBranch.h"
 #include "nsIPrefService.h"
 #include "nsUnicharUtils.h"
@@ -60,6 +60,12 @@
 #include "nsIDOMNamedNodeMap.h"
 #include "nsIDOMNodeList.h"
 #include "nsIDOMRange.h"
+#include "nsIDOMEventListener.h"
+#include "nsIDOMEventGroup.h"
+#include "nsIDOMMouseListener.h"
+#include "nsIDOMFocusListener.h"
+#include "nsIDOMTextListener.h"
+#include "nsIDOMCompositionListener.h"
 #include "nsIDOMHTMLBRElement.h"
 #include "nsIDocument.h"
 #include "nsITransactionManager.h"
@@ -70,7 +76,6 @@
 #include "nsISelectionPrivate.h"
 #include "nsISelectionController.h"
 #include "nsIEnumerator.h"
-#include "nsEditProperty.h"
 #include "nsIAtom.h"
 #include "nsCaret.h"
 #include "nsIWidget.h"
@@ -158,8 +163,6 @@ nsEditor::nsEditor()
 
 nsEditor::~nsEditor()
 {
-  NS_ASSERTION(!mDocWeak || mDidPreDestroy, "Why PreDestroy hasn't been called?");
-
   mTxnMgr = nsnull;
 
   delete mPhonetic;
@@ -221,17 +224,10 @@ nsEditor::Init(nsIDOMDocument *aDoc, nsIPresShell* aPresShell, nsIContent *aRoot
   if ((nsnull==aDoc) || (nsnull==aPresShell))
     return NS_ERROR_NULL_POINTER;
 
-  // First only set flags, but other stuff shouldn't be initialized now.
-  // Don't move this call after initializing mDocWeak and mPresShellWeak.
-  // SetFlags() can check whether it's called during initialization or not by
-  // them.  Note that SetFlags() will be called by PostCreate().
-  nsresult rv = SetFlags(aFlags);
-  NS_ASSERTION(NS_SUCCEEDED(rv), "SetFlags() failed");
-
+  mFlags = aFlags;
   mDocWeak = do_GetWeakReference(aDoc);  // weak reference to doc
   mPresShellWeak = do_GetWeakReference(aPresShell);   // weak reference to pres shell
   mSelConWeak = do_GetWeakReference(aSelCon);   // weak reference to selectioncontroller
-
   nsCOMPtr<nsIPresShell> ps = do_QueryReferent(mPresShellWeak);
   if (!ps) return NS_ERROR_NOT_INITIALIZED;
   
@@ -285,8 +281,8 @@ nsEditor::Init(nsIDOMDocument *aDoc, nsIPresShell* aPresShell, nsIContent *aRoot
 NS_IMETHODIMP
 nsEditor::PostCreate()
 {
-  // Synchronize some stuff for the flags
-  nsresult rv = SetFlags(mFlags);
+  // Set up spellchecking
+  nsresult rv = SyncRealTimeSpell();
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Set up listeners
@@ -317,7 +313,7 @@ nsEditor::CreateEventListeners()
 {
   NS_ENSURE_TRUE(!mEventListener, NS_ERROR_ALREADY_INITIALIZED);
   mEventListener = do_QueryInterface(
-    static_cast<nsIDOMKeyListener*>(new nsEditorEventListener()));
+    static_cast<nsIDOMKeyListener*>(new nsEditorEventListener(this)));
   NS_ENSURE_TRUE(mEventListener, NS_ERROR_OUT_OF_MEMORY);
   return NS_OK;
 }
@@ -327,18 +323,127 @@ nsEditor::InstallEventListeners()
 {
   NS_ENSURE_TRUE(mDocWeak && mPresShellWeak && mEventListener,
                  NS_ERROR_NOT_INITIALIZED);
-  nsEditorEventListener* listener =
-    reinterpret_cast<nsEditorEventListener*>(mEventListener.get());
-  return listener->Connect(this);
+
+  nsCOMPtr<nsPIDOMEventTarget> piTarget = GetPIDOMEventTarget();
+
+  if (!piTarget) {
+    RemoveEventListeners();
+    return NS_ERROR_FAILURE;
+  }
+
+  nsresult rv = NS_OK;
+
+  // register the event listeners with the listener manager
+  nsCOMPtr<nsIDOMEventGroup> sysGroup;
+  piTarget->GetSystemEventGroup(getter_AddRefs(sysGroup));
+  nsIEventListenerManager* elmP = piTarget->GetListenerManager(PR_TRUE);
+
+  if (sysGroup && elmP)
+  {
+    rv = elmP->AddEventListenerByType(mEventListener,
+                                      NS_LITERAL_STRING("keypress"),
+                                      NS_EVENT_FLAG_BUBBLE |
+                                      NS_PRIV_EVENT_UNTRUSTED_PERMITTED,
+                                      sysGroup);
+    NS_ASSERTION(NS_SUCCEEDED(rv),
+                 "failed to register key listener in system group");
+  }
+
+  rv |= piTarget->AddEventListenerByIID(mEventListener,
+                                        NS_GET_IID(nsIDOMMouseListener));
+
+  if (elmP) {
+    // Focus event doesn't bubble so adding the listener to capturing phase.
+    // Make sure this works after bug 235441 gets fixed.
+    rv |= elmP->AddEventListenerByIID(mEventListener,
+                                      NS_GET_IID(nsIDOMFocusListener),
+                                      NS_EVENT_FLAG_CAPTURE);
+  }
+
+  rv |= piTarget->AddEventListenerByIID(mEventListener,
+                                        NS_GET_IID(nsIDOMTextListener));
+
+  rv |= piTarget->AddEventListenerByIID(mEventListener,
+                                        NS_GET_IID(nsIDOMCompositionListener));
+
+  nsCOMPtr<nsIDOMEventTarget> target(do_QueryInterface(piTarget));
+  if (target) {
+    // See bug 455215, we cannot use the standard dragstart event yet
+    rv |= target->AddEventListener(NS_LITERAL_STRING("draggesture"),
+                                   mEventListener, PR_FALSE);
+    rv |= target->AddEventListener(NS_LITERAL_STRING("dragenter"),
+                                   mEventListener, PR_FALSE);
+    rv |= target->AddEventListener(NS_LITERAL_STRING("dragover"),
+                                   mEventListener, PR_FALSE);
+    rv |= target->AddEventListener(NS_LITERAL_STRING("dragleave"),
+                                   mEventListener, PR_FALSE);
+    rv |= target->AddEventListener(NS_LITERAL_STRING("drop"),
+                                   mEventListener, PR_FALSE);
+  }
+
+  if (NS_FAILED(rv))
+  {
+    NS_ERROR("failed to register some event listeners");
+
+    RemoveEventListeners();
+  }
+
+  return rv;
 }
 
 void
 nsEditor::RemoveEventListeners()
 {
-  if (!mDocWeak || !mEventListener) {
+  if (!mDocWeak || !mEventListener)
+  {
     return;
   }
-  reinterpret_cast<nsEditorEventListener*>(mEventListener.get())->Disconnect();
+
+  nsCOMPtr<nsPIDOMEventTarget> piTarget = GetPIDOMEventTarget();
+
+  if (piTarget)
+  {
+    // unregister the event listeners with the DOM event target
+    nsCOMPtr<nsIEventListenerManager> elmP =
+      piTarget->GetListenerManager(PR_TRUE);
+    nsCOMPtr<nsIDOMEventGroup> sysGroup;
+    piTarget->GetSystemEventGroup(getter_AddRefs(sysGroup));
+    if (sysGroup && elmP)
+    {
+      elmP->RemoveEventListenerByType(mEventListener,
+                                      NS_LITERAL_STRING("keypress"),
+                                      NS_EVENT_FLAG_BUBBLE |
+                                      NS_PRIV_EVENT_UNTRUSTED_PERMITTED,
+                                      sysGroup);
+    }
+
+    piTarget->RemoveEventListenerByIID(mEventListener,
+                                       NS_GET_IID(nsIDOMMouseListener));
+
+    elmP->RemoveEventListenerByIID(mEventListener,
+                                   NS_GET_IID(nsIDOMFocusListener),
+                                   NS_EVENT_FLAG_CAPTURE);
+
+    piTarget->RemoveEventListenerByIID(mEventListener,
+                                       NS_GET_IID(nsIDOMTextListener));
+
+    piTarget->RemoveEventListenerByIID(mEventListener,
+                                       NS_GET_IID(nsIDOMCompositionListener));
+
+    nsCOMPtr<nsIDOMEventTarget> target(do_QueryInterface(piTarget));
+    if (target) {
+      target->RemoveEventListener(NS_LITERAL_STRING("draggesture"),
+                                  mEventListener, PR_FALSE);
+      target->RemoveEventListener(NS_LITERAL_STRING("dragenter"),
+                                  mEventListener, PR_FALSE);
+      target->RemoveEventListener(NS_LITERAL_STRING("dragover"),
+                                  mEventListener, PR_FALSE);
+      target->RemoveEventListener(NS_LITERAL_STRING("dragleave"),
+                                  mEventListener, PR_FALSE);
+      target->RemoveEventListener(NS_LITERAL_STRING("drop"),
+                                  mEventListener, PR_FALSE);
+    }
+  }
 }
 
 PRBool
@@ -364,7 +469,11 @@ nsEditor::GetDesiredSpellCheckState()
 
   // Check for password/readonly/disabled, which are not spellchecked
   // regardless of DOM
-  if (IsPasswordEditor() || IsReadonly() || IsDisabled()) {
+  PRUint32 flags;
+  if (NS_SUCCEEDED(GetFlags(&flags)) &&
+      flags & (nsIPlaintextEditor::eEditorPasswordMask |
+               nsIPlaintextEditor::eEditorReadonlyMask |
+               nsIPlaintextEditor::eEditorDisabledMask)) {
     return PR_FALSE;
   }
 
@@ -443,29 +552,8 @@ nsEditor::SetFlags(PRUint32 aFlags)
 {
   mFlags = aFlags;
 
-  if (!mDocWeak || !mPresShellWeak) {
-    // If we're initializing, we shouldn't do anything now.
-    // SetFlags() will be called by PostCreate(),
-    // we should synchronize some stuff for the flags at that time.
-    return NS_OK;
-  }
-
   // Changing the flags can change whether spellchecking is on, so re-sync it
-  nsresult rv = SyncRealTimeSpell();
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // Might be changing editable state, so, we need to reset current IME state
-  // if we're focused.
-  if (HasFocus()) {
-    // Use "enable" for the default value because if IME is disabled
-    // unexpectedly, it makes serious a11y problem.
-    PRUint32 newState = nsIContent::IME_STATUS_ENABLE;
-    rv = GetPreferredIMEState(&newState);
-    if (NS_SUCCEEDED(rv)) {
-      nsIMEStateManager::ChangeIMEStateTo(newState);
-    }
-  }
-
+  SyncRealTimeSpell();
   return NS_OK;
 }
 
@@ -1234,10 +1322,9 @@ NS_IMETHODIMP
 nsEditor::MarkNodeDirty(nsIDOMNode* aNode)
 {  
   //  mark the node dirty.
-  nsCOMPtr<nsIContent> element (do_QueryInterface(aNode));
+  nsCOMPtr<nsIDOMElement> element (do_QueryInterface(aNode));
   if (element)
-    element->SetAttr(kNameSpaceID_None, nsEditProperty::mozdirty,
-                     EmptyString(), PR_FALSE);
+    element->SetAttribute(NS_LITERAL_STRING("_moz_dirty"), EmptyString());
   return NS_OK;
 }
 
@@ -1882,17 +1969,86 @@ nsEditor::StopPreservingSelection()
 //
 // The BeingComposition method is called from the Editor Composition event listeners.
 //
+nsresult
+nsEditor::QueryComposition(nsTextEventReply* aReply)
+{
+  nsresult result;
+  nsCOMPtr<nsISelection> selection;
+  nsCOMPtr<nsISelectionController> selcon = do_QueryReferent(mSelConWeak);
+  if (selcon)
+    selcon->GetSelection(nsISelectionController::SELECTION_NORMAL, getter_AddRefs(selection));
+
+  if (!mPresShellWeak) return NS_ERROR_NOT_INITIALIZED;
+  nsCOMPtr<nsIPresShell> ps = do_QueryReferent(mPresShellWeak);
+  if (!ps) return NS_ERROR_NOT_INITIALIZED;
+  nsRefPtr<nsCaret> caretP = ps->GetCaret();
+
+  if (caretP) {
+    if (aReply) {
+      caretP->SetCaretDOMSelection(selection);
+
+      // XXX_kin: BEGIN HACK! HACK! HACK!
+      // XXX_kin:
+      // XXX_kin: This is lame! The IME stuff needs caret coordinates
+      // XXX_kin: synchronously, but the editor could be using async
+      // XXX_kin: updates (reflows and paints) for performance reasons.
+      // XXX_kin: In order to give IME what it needs, we have to temporarily
+      // XXX_kin: switch to sync updating during this call so that the
+      // XXX_kin: nsAutoUpdateViewBatch can force sync reflows and paints
+      // XXX_kin: so that we get back accurate caret coordinates.
+
+      PRUint32 flags = 0;
+
+      if (NS_SUCCEEDED(GetFlags(&flags)) &&
+          (flags & nsIPlaintextEditor::eEditorUseAsyncUpdatesMask))
+      {
+        PRBool restoreFlags = PR_FALSE;
+
+        if (NS_SUCCEEDED(SetFlags(flags & (~nsIPlaintextEditor::eEditorUseAsyncUpdatesMask))))
+        {
+           // Scope the viewBatch within this |if| block so that we
+           // force synchronous reflows and paints before restoring
+           // our editor flags below.
+
+           nsAutoUpdateViewBatch viewBatch(this);
+           restoreFlags = PR_TRUE;
+        }
+
+        // Restore the previous set of flags!
+
+        if (restoreFlags)
+          SetFlags(flags);
+      }
+
+
+      // XXX_kin: END HACK! HACK! HACK!
+
+      nsRect rect;
+      nsIFrame* frame = caretP->GetGeometry(selection, &rect);
+      if (!frame)
+        return NS_ERROR_FAILURE;
+      nsPoint nearestWidgetOffset;
+      aReply->mReferenceWidget = frame->GetWindowOffset(nearestWidgetOffset);
+      rect.MoveBy(nearestWidgetOffset);
+      aReply->mCursorPosition =
+        rect.ToOutsidePixels(frame->PresContext()->AppUnitsPerDevPixel());
+    }
+  }
+  return result;
+}
+
 NS_IMETHODIMP
-nsEditor::BeginComposition()
+nsEditor::BeginComposition(nsTextEventReply* aReply)
 {
 #ifdef DEBUG_tague
   printf("nsEditor::StartComposition\n");
 #endif
+  nsresult ret = QueryComposition(aReply);
   mInIMEMode = PR_TRUE;
   if (mPhonetic)
     mPhonetic->Truncate(0);
 
-  return NS_OK;
+  return ret;
 }
 
 NS_IMETHODIMP
@@ -1929,8 +2085,7 @@ nsEditor::EndComposition(void)
 }
 
 NS_IMETHODIMP
-nsEditor::SetCompositionString(const nsAString& aCompositionString,
-                               nsIPrivateTextRangeList* aTextRangeList)
+nsEditor::SetCompositionString(const nsAString& aCompositionString, nsIPrivateTextRangeList* aTextRangeList,nsTextEventReply* aReply)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }
@@ -2003,15 +2158,13 @@ nsEditor::ForceCompositionEnd()
 // We should use nsILookAndFeel to resolve this
 
 #if defined(XP_MAC) || defined(XP_MACOSX) || defined(XP_WIN) || defined(XP_OS2)
-  // XXXmnakano see bug 558976, ResetInputState() has two meaning which are
-  // "commit the composition" and "cursor is moved".  This method name is
-  // "ForceCompositionEnd", so, ResetInputState() should be used only for the
-  // former here.  However, ResetInputState() is also used for the latter here
-  // because even if we don't have composition, we call ResetInputState() on
-  // Linux.  Currently, nsGtkIMModule can know the timing of the cursor move,
-  // so, the latter meaning should be gone and we should remove this #if.
   if(! mInIMEMode)
     return NS_OK;
+#endif
+
+#ifdef XP_UNIX
+  if(mFlags & nsIPlaintextEditor::eEditorPasswordMask)
+	return NS_OK;
 #endif
 
   nsCOMPtr<nsIWidget> widget;
@@ -2034,7 +2187,12 @@ nsEditor::GetPreferredIMEState(PRUint32 *aState)
   NS_ENSURE_ARG_POINTER(aState);
   *aState = nsIContent::IME_STATUS_ENABLE;
 
-  if (IsReadonly() || IsDisabled()) {
+  PRUint32 flags;
+  nsresult rv = GetFlags(&flags);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (flags & (nsIPlaintextEditor::eEditorReadonlyMask |
+               nsIPlaintextEditor::eEditorDisabledMask)) {
     *aState = nsIContent::IME_STATUS_DISABLE;
     return NS_OK;
   }
@@ -2047,7 +2205,7 @@ nsEditor::GetPreferredIMEState(PRUint32 *aState)
 
   switch (frame->GetStyleUIReset()->mIMEMode) {
     case NS_STYLE_IME_MODE_AUTO:
-      if (IsPasswordEditor())
+      if (flags & (nsIPlaintextEditor::eEditorPasswordMask))
         *aState = nsIContent::IME_STATUS_PASSWORD;
       break;
     case NS_STYLE_IME_MODE_DISABLED:
@@ -3526,7 +3684,7 @@ PRBool
 nsEditor::IsBlockNode(nsIDOMNode *aNode)
 {
   // stub to be overridden in nsHTMLEditor.
-  // screwing around with the class hierarchy here in order
+  // screwing around with the class heirarchy here in order
   // to not duplicate the code in GetNextNode/GetPrevNode
   // across both nsEditor/nsHTMLEditor.  
   return PR_FALSE;
@@ -3635,7 +3793,7 @@ nsEditor::IsEditable(nsIDOMNode *aNode)
     if (!resultFrame)   // if it has no frame, it is not editable
       return PR_FALSE;
     NS_ASSERTION(content->IsNodeOfType(nsINode::eTEXT) ||
-                 content->IsElement(),
+                 content->IsNodeOfType(nsINode::eELEMENT),
                  "frame for non element-or-text?");
     if (!content->IsNodeOfType(nsINode::eTEXT))
       return PR_TRUE;  // not a text node; has a frame
@@ -3662,10 +3820,20 @@ nsEditor::IsEditable(nsIDOMNode *aNode)
 PRBool
 nsEditor::IsMozEditorBogusNode(nsIDOMNode *aNode)
 {
-  nsCOMPtr<nsIContent> element = do_QueryInterface(aNode);
-  return element &&
-         element->AttrValueIs(kNameSpaceID_None, kMOZEditorBogusNodeAttrAtom,
-                              kMOZEditorBogusNodeValue, eCaseMatters);
+  if (!aNode)
+    return PR_FALSE;
+
+  nsCOMPtr<nsIDOMElement>element = do_QueryInterface(aNode);
+  if (element)
+  {
+    nsAutoString val;
+    (void)element->GetAttribute(kMOZEditorBogusNodeAttr, val);
+    if (val.Equals(kMOZEditorBogusNodeValue)) {
+      return PR_TRUE;
+    }
+  }
+    
+  return PR_FALSE;
 }
 
 nsresult
@@ -5181,19 +5349,4 @@ PRBool
 nsEditor::IsModifiableNode(nsIDOMNode *aNode)
 {
   return PR_TRUE;
-}
-
-PRBool
-nsEditor::HasFocus()
-{
-  nsCOMPtr<nsPIDOMEventTarget> piTarget = GetPIDOMEventTarget();
-  if (!piTarget) {
-    return PR_FALSE;
-  }
-
-  nsFocusManager* fm = nsFocusManager::GetFocusManager();
-  NS_ENSURE_TRUE(fm, PR_FALSE);
-
-  nsCOMPtr<nsIContent> content = fm->GetFocusedContent();
-  return SameCOMIdentity(content, piTarget);
 }

@@ -1214,14 +1214,10 @@ tests.push({
 
 ////////////////////////////////////////////////////////////////////////////////
 
-function prepare_and_run_next_test(aTest) {
-  aTest.setup();
-  aTest.check();
-  // sorting reversed, usually SORT_BY have ASC and DESC
-  aTest.check_reverse();
+function prepare_for_next_test() {
   // Execute cleanup tasks
+  PlacesUtils.bhistory.removeAllPages();
   remove_all_bookmarks();
-  waitForClearHistory(runNextTest);
 }
 
 /**
@@ -1230,16 +1226,13 @@ function prepare_and_run_next_test(aTest) {
  * playing with the result set.
  */
 function run_test() {
-  do_test_pending();
-  runNextTest();
-}
-
-function runNextTest() {
-  if (tests.length) {
+  prepare_for_next_test();
+  while (tests.length) {
     let test = tests.shift();
-    prepare_and_run_next_test(test);
-  }
-  else {
-    do_test_finished();
+    test.setup();
+    test.check();
+    // sorting reversed, usually SORT_BY have ASC and DESC
+    test.check_reverse();
+    prepare_for_next_test();
   }
 }

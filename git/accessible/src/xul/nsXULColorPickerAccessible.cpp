@@ -38,9 +38,7 @@
 
 #include "nsXULColorPickerAccessible.h"
 
-#include "nsAccUtils.h"
 #include "nsAccTreeWalker.h"
-#include "nsCoreUtils.h"
 
 #include "nsIDOMElement.h"
 

@@ -40,7 +40,6 @@
 #include "nsThreadUtils.h"
 #include "nsIObserverService.h"
 #include "nsServiceManagerUtils.h"
-#include "mozilla/Services.h"
 
 #ifdef MOZ_IPC
 #include "base/message_loop.h"
@@ -82,7 +81,7 @@ nsBaseAppShell::Init()
   threadInt->SetObserver(this);
 
   nsCOMPtr<nsIObserverService> obsSvc =
-    mozilla::services::GetObserverService();
+      do_GetService("@mozilla.org/observer-service;1");
   if (obsSvc)
     obsSvc->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, PR_FALSE);
   return NS_OK;

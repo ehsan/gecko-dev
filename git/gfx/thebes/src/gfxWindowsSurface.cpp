@@ -123,12 +123,6 @@ gfxWindowsSurface::~gfxWindowsSurface()
     }
 }
 
-HDC
-gfxWindowsSurface::GetDCWithClip(gfxContext *ctx)
-{
-    return cairo_win32_get_dc_with_clip (ctx->GetCairo());
-}
-
 already_AddRefed<gfxImageSurface>
 gfxWindowsSurface::GetImageSurface()
 {

@@ -108,7 +108,7 @@ bool DebugUtil::BeingDebugged() {
 
 // static
 void DebugUtil::BreakDebugger() {
-#if defined(ARCH_CPU_X86_FAMILY)
+#if !defined(ARCH_CPU_ARM_FAMILY)
   asm ("int3");
 #endif
 }

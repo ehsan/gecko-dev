@@ -36,12 +36,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsXULTabAccessible.h"
-
-#include "nsAccUtils.h"
-#include "nsRelUtils.h"
-
 // NOTE: alphabetically ordered
+#include "nsXULTabAccessible.h"
 #include "nsIDocument.h"
 #include "nsIFrame.h"
 #include "nsIDOMDocument.h"

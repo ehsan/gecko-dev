@@ -64,7 +64,6 @@
 
 #import <Carbon/Carbon.h>
 #import <Cocoa/Cocoa.h>
-#import <AppKit/NSOpenGL.h>
 
 class gfxASurface;
 class nsChildView;
@@ -106,8 +105,8 @@ extern "C" long TSMProcessRawKeyEvent(EventRef carbonEvent);
 // Support for pixel scroll deltas, not part of NSEvent.h
 // See http://lists.apple.com/archives/cocoa-dev/2007/Feb/msg00050.html
 @interface NSEvent (DeviceDelta)
-  - (CGFloat)deviceDeltaX;
-  - (CGFloat)deviceDeltaY;
+  - (float)deviceDeltaX;
+  - (float)deviceDeltaY;
 @end
 
 @interface ChildView : NSView<
@@ -162,8 +161,6 @@ extern "C" long TSMProcessRawKeyEvent(EventRef carbonEvent);
   TSMDocumentID mPluginTSMDoc;
 #endif
 
-  NSOpenGLContext *mContext;
-
   // Simple gestures support
   //
   // mGestureState is used to detect when Cocoa has called both
@@ -211,10 +208,6 @@ extern "C" long TSMProcessRawKeyEvent(EventRef carbonEvent);
 #ifndef NP_NO_CARBON
 - (void) processPluginKeyEvent:(EventRef)aKeyEvent;
 #endif
-
-- (void)update;
-- (void)lockFocus;
-- (void) _surfaceNeedsUpdate:(NSNotification*)notification;
 
 // Simple gestures support
 //
@@ -285,8 +278,6 @@ public:
 
   NS_IMETHOD              SetParent(nsIWidget* aNewParent);
   virtual nsIWidget*      GetParent(void);
-
-  LayerManager*           GetLayerManager();
 
   NS_IMETHOD              ConstrainPosition(PRBool aAllowSlop,
                                             PRInt32 *aX, PRInt32 *aY);

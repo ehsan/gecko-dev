@@ -63,8 +63,6 @@
 #include "jsscript.h"
 #include "jsstaticcheck.h"
 
-#include "jsobjinlines.h"
-
 using namespace js;
 
 /* Forward declarations for js_ErrorClass's initializer. */
@@ -262,7 +260,7 @@ InitExnPrivate(JSContext *cx, JSObject *exnObject, JSString *message,
     JSStackTraceElem *elem;
     jsval *values;
 
-    JS_ASSERT(exnObject->getClass() == &js_ErrorClass);
+    JS_ASSERT(OBJ_GET_CLASS(cx, exnObject) == &js_ErrorClass);
 
     /*
      * Prepare stack trace data.
@@ -513,7 +511,7 @@ js_ErrorFromException(JSContext *cx, jsval exn)
     if (JSVAL_IS_PRIMITIVE(exn))
         return NULL;
     obj = JSVAL_TO_OBJECT(exn);
-    if (obj->getClass() != &js_ErrorClass)
+    if (OBJ_GET_CLASS(cx, obj) != &js_ErrorClass)
         return NULL;
     priv = GetExnPrivate(cx, obj);
     if (!priv)
@@ -549,7 +547,7 @@ ValueToShortSource(JSContext *cx, jsval v)
          */
         char buf[100];
         JS_snprintf(buf, sizeof buf, "[object %s]",
-                    JSVAL_TO_OBJECT(v)->getClass()->name);
+                    OBJ_GET_CLASS(cx, JSVAL_TO_OBJECT(v))->name);
         str = JS_NewStringCopyZ(cx, buf);
     }
     return str;
@@ -687,6 +685,7 @@ StringToFilename(JSContext *cx, JSString *str)
 static JSBool
 Exception(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
 {
+    uint32 lineno;
     JSString *message, *filename;
     JSStackFrame *fp;
 
@@ -695,7 +694,7 @@ Exception(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
          * ECMA ed. 3, 15.11.1 requires Error, etc., to construct even when
          * called as functions, without operator new.  But as we do not give
          * each constructor a distinct JSClass, whose .name member is used by
-         * NewObject to find the class prototype, we must get the class
+         * js_NewObject to find the class prototype, we must get the class
          * prototype ourselves.
          */
         if (!JSVAL_TO_OBJECT(argv[-2])->getProperty(cx,
@@ -704,7 +703,7 @@ Exception(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
                                                     rval)) {
             return JS_FALSE;
         }
-        obj = NewObject(cx, &js_ErrorClass, JSVAL_TO_OBJECT(*rval), NULL);
+        obj = js_NewObject(cx, &js_ErrorClass, JSVAL_TO_OBJECT(*rval), NULL);
         if (!obj)
             return JS_FALSE;
         *rval = OBJECT_TO_JSVAL(obj);
@@ -714,7 +713,7 @@ Exception(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
      * If it's a new object of class Exception, then null out the private
      * data so that the finalizer doesn't attempt to free it.
      */
-    if (obj->getClass() == &js_ErrorClass)
+    if (OBJ_GET_CLASS(cx, obj) == &js_ErrorClass)
         obj->setPrivate(NULL);
 
     /* Set the 'message' property. */
@@ -746,9 +745,9 @@ Exception(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     }
 
     /* Set the 'lineNumber' property. */
-    uint32_t lineno;
     if (argc > 2) {
-        if (!ValueToECMAUint32(cx, argv[2], &lineno))
+        lineno = js_ValueToECMAUint32(cx, &argv[2]);
+        if (JSVAL_IS_NULL(argv[2]))
             return JS_FALSE;
     } else {
         if (!fp)
@@ -756,7 +755,7 @@ Exception(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
         lineno = (fp && fp->regs) ? js_FramePCToLineNumber(cx, fp) : 0;
     }
 
-    return (obj->getClass() != &js_ErrorClass) ||
+    return (OBJ_GET_CLASS(cx, obj) != &js_ErrorClass) ||
             InitExnPrivate(cx, obj, message, filename, lineno, NULL);
 }
 
@@ -827,6 +826,7 @@ exn_toSource(JSContext *cx, uintN argc, jsval *vp)
     JSObject *obj;
     JSString *name, *message, *filename, *lineno_as_str, *result;
     jsval localroots[3] = {JSVAL_NULL, JSVAL_NULL, JSVAL_NULL};
+    uint32 lineno;
     size_t lineno_length, name_length, message_length, filename_length, length;
     jschar *chars, *cp;
 
@@ -858,8 +858,8 @@ exn_toSource(JSContext *cx, uintN argc, jsval *vp)
 
         if (!JS_GetProperty(cx, obj, js_lineNumber_str, &localroots[2]))
             return false;
-        uint32_t lineno;
-        if (!ValueToECMAUint32(cx, localroots[2], &lineno))
+        lineno = js_ValueToECMAUint32 (cx, &localroots[2]);
+        if (JSVAL_IS_NULL(localroots[2]))
             return false;
 
         if (lineno != 0) {
@@ -979,11 +979,11 @@ js_InitExceptionClasses(JSContext *cx, JSObject *obj)
      * If lazy class initialization occurs for any Error subclass, then all
      * classes are initialized, starting with Error.  To avoid reentry and
      * redundant initialization, we must not pass a null proto parameter to
-     * NewObject below, when called for the Error superclass.  We need to
+     * js_NewObject below, when called for the Error superclass.  We need to
      * ensure that Object.prototype is the proto of Error.prototype.
      *
      * See the equivalent code to ensure that parent_proto is non-null when
-     * JS_InitClass calls NewObject, in jsapi.c.
+     * JS_InitClass calls js_NewObject, in jsapi.c.
      */
     if (!js_GetClassPrototype(cx, obj, JSProto_Object, &obj_proto))
         return NULL;
@@ -1003,9 +1003,9 @@ js_InitExceptionClasses(JSContext *cx, JSObject *obj)
         JSFunction *fun;
 
         /* Make the prototype for the current constructor name. */
-        proto = NewObject(cx, &js_ErrorClass,
-                          (i != JSEXN_ERR) ? error_proto : obj_proto,
-                          obj);
+        proto = js_NewObject(cx, &js_ErrorClass,
+                             (i != JSEXN_ERR) ? error_proto : obj_proto,
+                             obj);
         if (!proto)
             return NULL;
         if (i == JSEXN_ERR) {
@@ -1159,7 +1159,7 @@ js_ErrorToException(JSContext *cx, const char *message, JSErrorReport *reportp,
         goto out;
     tv[0] = OBJECT_TO_JSVAL(errProto);
 
-    errObject = NewObject(cx, &js_ErrorClass, errProto, NULL);
+    errObject = js_NewObject(cx, &js_ErrorClass, errProto, NULL);
     if (!errObject) {
         ok = JS_FALSE;
         goto out;
@@ -1243,6 +1243,7 @@ js_ReportUncaughtException(JSContext *cx)
 
     if (!reportp && exnObject && exnObject->getClass() == &js_ErrorClass) {
         const char *filename;
+        uint32 lineno;
 
         if (!JS_GetProperty(cx, exnObject, js_message_str, &roots[2]))
             return false;
@@ -1263,19 +1264,14 @@ js_ReportUncaughtException(JSContext *cx)
 
         if (!JS_GetProperty(cx, exnObject, js_lineNumber_str, &roots[4]))
             return false;
-        uint32_t lineno;
-        if (!ValueToECMAUint32 (cx, roots[4], &lineno))
+        lineno = js_ValueToECMAUint32 (cx, &roots[4]);
+        if (JSVAL_IS_NULL(roots[4]))
             return false;
 
         reportp = &report;
         PodZero(&report);
         report.filename = filename;
         report.lineno = (uintN) lineno;
-        if (JSVAL_IS_STRING(roots[2])) {
-            report.ucmessage = js_GetStringChars(cx, JSVAL_TO_STRING(roots[2]));
-            if (!report.ucmessage)
-                return false;
-        }
     }
 
     if (!reportp) {

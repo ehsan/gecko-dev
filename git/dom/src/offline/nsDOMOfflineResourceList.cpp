@@ -193,14 +193,13 @@ nsDOMOfflineResourceList::Init()
   }
 
   // watch for new offline cache updates
-  nsCOMPtr<nsIObserverService> observerService =
-    mozilla::services::GetObserverService();
-  if (!observerService)
-    return NS_ERROR_FAILURE;
-
-  rv = observerService->AddObserver(this, "offline-cache-update-added", PR_TRUE);
+  nsCOMPtr<nsIObserverService> observerServ =
+    do_GetService("@mozilla.org/observer-service;1", &rv);
   NS_ENSURE_SUCCESS(rv, rv);
-  rv = observerService->AddObserver(this, "offline-cache-update-completed", PR_TRUE);
+
+  rv = observerServ->AddObserver(this, "offline-cache-update-added", PR_TRUE);
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = observerServ->AddObserver(this, "offline-cache-update-completed", PR_TRUE);
   NS_ENSURE_SUCCESS(rv, rv);
 
   mInitialized = PR_TRUE;

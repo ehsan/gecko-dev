@@ -130,7 +130,6 @@ PRBool NS_SVGEnabled();
 
 #include "nsCycleCollector.h"
 #include "nsJSEnvironment.h"
-#include "nsContentSink.h"
 
 extern void NS_ShutdownChainItemPool();
 
@@ -256,11 +255,7 @@ nsLayoutStatics::Initialize()
     return rv;
   }
 
-  rv = nsCSSRuleProcessor::Startup();
-  if (NS_FAILED(rv)) {
-    NS_ERROR("Could not initialize nsCSSRuleProcessor");
-    return rv;
-  }
+  nsCSSRuleProcessor::Startup();
 
 #ifdef MOZ_XUL
   rv = nsXULPopupManager::Init();
@@ -284,7 +279,6 @@ nsLayoutStatics::Initialize()
   nsAudioStream::InitLibrary();
 #endif
 
-  nsContentSink::InitializeStatics();
   nsHtml5Module::InitializeStatics();
   
   nsCrossSiteListenerProxy::Startup();
@@ -314,7 +308,7 @@ nsLayoutStatics::Shutdown()
   nsEventListenerManager::Shutdown();
   nsComputedDOMStyle::Shutdown();
   nsCSSParser::Shutdown();
-  nsCSSRuleProcessor::Shutdown();
+  nsCSSRuleProcessor::FreeSystemMetrics();
   nsTextFrameTextRunCache::Shutdown();
   nsHTMLDNSPrefetch::Shutdown();
   nsCSSRendering::Shutdown();

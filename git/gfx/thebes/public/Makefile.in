@@ -12,6 +12,7 @@ MODULE		= thebes
 EXPORTS		= 	gfx3DMatrix.h \
 			gfxASurface.h \
 			gfxAlphaRecovery.h \
+			gfxBlur.h \
 			gfxColor.h \
 			gfxContext.h \
 			gfxFont.h \
@@ -30,9 +31,6 @@ EXPORTS		= 	gfx3DMatrix.h \
 			gfxTextRunWordCache.h \
 			gfxUtils.h \
 			gfxUserFontSet.h \
-			GLDefs.h \
-			GLContext.h \
-			GLContextProvider.h \
 			$(NULL)
 
 EXPORTS		+= \

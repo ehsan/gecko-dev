@@ -42,11 +42,15 @@
 #include "nsRefPtrHashtable.h"
 #include "nsCycleCollectionParticipant.h"
 
+class nsAccessNode;
+class nsAccessible;
 class nsIAccessNode;
 
-////////////////////////////////////////////////////////////////////////////////
-// Accessible cache utils
-////////////////////////////////////////////////////////////////////////////////
+typedef nsRefPtrHashtable<nsVoidPtrHashKey, nsAccessNode>
+  nsAccessNodeHashtable;
+
+typedef nsRefPtrHashtable<nsVoidPtrHashKey, nsAccessible>
+  nsAccessibleHashtable;
 
 /**
  * Shutdown and removes the accessible from cache.

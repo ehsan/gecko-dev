@@ -96,34 +96,32 @@ public:
     : nsDisplayWrapList(aFrame, aItem) {}
   nsDisplayOptionEventGrabber(nsIFrame* aFrame, nsDisplayList* aList)
     : nsDisplayWrapList(aFrame, aList) {}
-  virtual void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
-                       HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames);
+  virtual nsIFrame* HitTest(nsDisplayListBuilder* aBuilder, nsPoint aPt,
+                            HitTestState* aState);
   NS_DISPLAY_DECL_NAME("OptionEventGrabber")
 
   virtual nsDisplayWrapList* WrapWithClone(nsDisplayListBuilder* aBuilder,
                                            nsDisplayItem* aItem);
 };
 
-void nsDisplayOptionEventGrabber::HitTest(nsDisplayListBuilder* aBuilder,
-    const nsRect& aRect, HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames)
+nsIFrame* nsDisplayOptionEventGrabber::HitTest(nsDisplayListBuilder* aBuilder,
+    nsPoint aPt, HitTestState* aState)
 {
-  nsTArray<nsIFrame*> outFrames;
-  mList.HitTest(aBuilder, aRect, aState, &outFrames);
+  nsIFrame* frame = mList.HitTest(aBuilder, aPt, aState);
 
-  for (PRUint32 i = 0; i < outFrames.Length(); i++) {
-    nsIFrame* selectedFrame = outFrames.ElementAt(i);
+  if (frame) {
+    nsIFrame* selectedFrame = frame;
     while (selectedFrame &&
            !nsSelectsAreaFrame::IsOptionElementFrame(selectedFrame)) {
       selectedFrame = selectedFrame->GetParent();
     }
     if (selectedFrame) {
-      aOutFrames->AppendElement(selectedFrame);
-    } else {
-      // keep the original result, which could be this frame
-      aOutFrames->AppendElement(outFrames.ElementAt(i));
+      return selectedFrame;
     }
+    // else, keep the original result, which could be this frame
   }
 
+  return frame;
 }
 
 nsDisplayWrapList* nsDisplayOptionEventGrabber::WrapWithClone(

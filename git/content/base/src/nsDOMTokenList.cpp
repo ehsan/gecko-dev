@@ -154,10 +154,6 @@ void
 nsDOMTokenList::AddInternal(const nsAttrValue* aAttr,
                             const nsAString& aToken)
 {
-  if (!mElement) {
-    return;
-  }
-
   nsAutoString resultStr;
 
   if (aAttr) {

@@ -981,8 +981,7 @@ LookupStyleContext(nsIContent* aElement)
   if (!shell) {
     return nsnull;
   }
-  return nsComputedDOMStyle::GetStyleContextForElement(aElement->AsElement(),
-                                                       nsnull, shell);
+  return nsComputedDOMStyle::GetStyleContextForContent(aElement, nsnull, shell);
 }
 
 
@@ -1045,7 +1044,6 @@ nsStyleAnimation::ComputeValue(nsCSSProperty aProperty,
                                PRBool aUseSVGMode,
                                Value& aComputedValue)
 {
-  // XXXbz aTargetElement should be an Element
   NS_ABORT_IF_FALSE(aTargetElement, "null target element");
   NS_ABORT_IF_FALSE(aTargetElement->GetCurrentDoc(),
                     "we should only be able to actively animate nodes that "
@@ -1202,7 +1200,7 @@ nsStyleAnimation::UncomputeValue(nsCSSProperty aProperty,
     case eCSSType_Rect:
       storage = &rect;
       break;
-    case eCSSType_ValuePair:
+    case eCSSType_ValuePair: 
       storage = &vp;
       break;
     case eCSSType_ValueList:
@@ -1238,9 +1236,9 @@ StyleDataAtOffset(void* aStyleStruct, ptrdiff_t aOffset)
 
 static void
 ExtractBorderColor(nsStyleContext* aStyleContext, const void* aStyleBorder,
-                   mozilla::css::Side aSide, nsStyleAnimation::Value& aComputedValue)
+                   PRUint8 aSide, nsStyleAnimation::Value& aComputedValue)
 {
-  nscolor color;
+  nscolor color; 
   PRBool foreground;
   static_cast<const nsStyleBorder*>(aStyleBorder)->
     GetBorderColor(aSide, color, foreground);
@@ -1322,7 +1320,7 @@ nsStyleAnimation::ExtractComputedValue(nsCSSProperty aProperty,
         // For border-width, ignore the border-image business (which
         // only exists until we update our implementation to the current
         // spec) and use GetComputedBorder
-
+        
         #define BORDER_WIDTH_CASE(prop_, side_)                               \
         case prop_:                                                           \
           aComputedValue.SetCoordValue(                                       \
@@ -1577,7 +1575,7 @@ nsStyleAnimation::ExtractComputedValue(nsCSSProperty aProperty,
             }
             *resultTail = item;
             resultTail = &item->mNext;
-
+            
             const nsStyleBackground::Position &pos = bg->mLayers[i].mPosition;
             if (pos.mXIsPercent) {
               item->mXValue.SetPercentValue(pos.mXPosition.mFloat);
@@ -1609,7 +1607,7 @@ nsStyleAnimation::ExtractComputedValue(nsCSSProperty aProperty,
             }
             *resultTail = item;
             resultTail = &item->mNext;
-
+            
             const nsStyleBackground::Size &size = bg->mLayers[i].mSize;
             switch (size.mWidthType) {
               case nsStyleBackground::Size::eContain:
@@ -1670,7 +1668,7 @@ nsStyleAnimation::ExtractComputedValue(nsCSSProperty aProperty,
                          == NS_SIDE_LEFT);
       const nsStyleCoord &coord = static_cast<const nsStyleSides*>(
         StyleDataAtOffset(styleStruct, ssOffset))->
-          Get(mozilla::css::Side(animType - eStyleAnimType_Sides_Top));
+          Get(animType - eStyleAnimType_Sides_Top);
       return StyleCoordToValue(coord, aComputedValue);
     }
     case eStyleAnimType_Corner_TopLeft:

@@ -174,7 +174,6 @@ static void SetOptionsKeyUint32(const nsCString& aValue,
 #define QUERYKEY_QUERY_TYPE "queryType"
 #define QUERYKEY_TAG "tag"
 #define QUERYKEY_NOTTAGS "!tags"
-#define QUERYKEY_ASYNC_ENABLED "asyncEnabled"
 
 inline void AppendAmpersandIfNonempty(nsACString& aString)
 {
@@ -616,12 +615,6 @@ nsNavHistory::QueriesToQueryString(nsINavHistoryQuery **aQueries,
     AppendInt16(queryString, options->QueryType());
   }
 
-  // async enabled
-  if (options->AsyncEnabled()) {
-    AppendAmpersandIfNonempty(queryString);
-    queryString += NS_LITERAL_CSTRING(QUERYKEY_ASYNC_ENABLED "=1");
-  }
-
   aQueryString.Assign(NS_LITERAL_CSTRING("place:") + queryString);
   return NS_OK;
 }
@@ -877,10 +870,6 @@ nsNavHistory::TokensToQueries(const nsTArray<QueryKeyValuePair>& aTokens,
     } else if (kvp.key.EqualsLiteral(QUERYKEY_QUERY_TYPE)) {
       SetOptionsKeyUint16(kvp.value, aOptions,
                           &nsINavHistoryQueryOptions::SetQueryType);
-    // async enabled
-    } else if (kvp.key.EqualsLiteral(QUERYKEY_ASYNC_ENABLED)) {
-      SetOptionsKeyBool(kvp.value, aOptions,
-                        &nsINavHistoryQueryOptions::SetAsyncEnabled);
     // unknown key
     } else {
       NS_WARNING("TokensToQueries(), ignoring unknown key: ");
@@ -1531,21 +1520,6 @@ nsNavHistoryQueryOptions::SetQueryType(PRUint16 aQueryType)
   return NS_OK;
 }
 
-// asyncEnabled
-NS_IMETHODIMP
-nsNavHistoryQueryOptions::GetAsyncEnabled(PRBool* _asyncEnabled)
-{
-  *_asyncEnabled = mAsyncEnabled;
-  return NS_OK;
-}
-NS_IMETHODIMP
-nsNavHistoryQueryOptions::SetAsyncEnabled(PRBool aAsyncEnabled)
-{
-  mAsyncEnabled = aAsyncEnabled;
-  return NS_OK;
-}
-
-
 NS_IMETHODIMP
 nsNavHistoryQueryOptions::Clone(nsINavHistoryQueryOptions** aResult)
 {
@@ -1572,7 +1546,6 @@ nsNavHistoryQueryOptions::Clone(nsNavHistoryQueryOptions **aResult)
   result->mMaxResults = mMaxResults;
   result->mQueryType = mQueryType;
   result->mParentAnnotationToExclude = mParentAnnotationToExclude;
-  result->mAsyncEnabled = mAsyncEnabled;
 
   resultHolder.swap(*aResult);
   return NS_OK;

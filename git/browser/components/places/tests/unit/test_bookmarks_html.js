@@ -206,10 +206,10 @@ function testCanonicalBookmarks(aFolder) {
 
   // 6-2: the toolbar folder and unfiled bookmarks folder imported to the
   // corresponding places folders
-  do_check_eq(rootNode.childCount, DEFAULT_BOOKMARKS_ON_MENU + 1);
+  do_check_eq(rootNode.childCount, 4);
 
   // get test folder
-  var testFolder = rootNode.getChild(DEFAULT_BOOKMARKS_ON_MENU);
+  var testFolder = rootNode.getChild(3);
   do_check_eq(testFolder.type, testFolder.RESULT_TYPE_FOLDER);
   do_check_eq(testFolder.title, "test");
 

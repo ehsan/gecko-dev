@@ -78,14 +78,11 @@
 #include "gfxContext.h"
 #include "gfxQuartzSurface.h"
 #include "nsRegion.h"
-#include "Layers.h"
-#include "LayerManagerOGL.h"
 
 #include <dlfcn.h>
 
 #include <ApplicationServices/ApplicationServices.h>
 
-using namespace mozilla::layers;
 #undef DEBUG_IME
 #undef DEBUG_UPDATE
 #undef INVALIDATE_DEBUGGING  // flash areas as they are invalidated
@@ -147,7 +144,7 @@ PRUint32 nsChildView::sLastInputEventCount = 0;
 - (id)initWithFrame:(NSRect)inFrame geckoChild:(nsChildView*)inChild;
 
 // sends gecko an ime composition event
-- (void) sendCompositionEvent:(PRInt32)aEventType;
+- (nsIntRect) sendCompositionEvent:(PRInt32)aEventType;
 
 // sends gecko an ime text event
 - (void) sendTextEvent:(PRUnichar*) aBuffer 
@@ -522,11 +519,6 @@ nsresult nsChildView::Create(nsIWidget *aParent,
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  // Because the hidden window is created outside of an event loop,
-  // we need to provide an autorelease pool to avoid leaking cocoa objects
-  // (see bug 559075).
-  nsAutoreleasePool localPool;
-
   // See NSView (MethodSwizzling) below.
   if (!gChildViewMethodsSwizzled) {
     nsToolkit::SwizzleMethods([NSView class], @selector(mouseDownCanMoveWindow),
@@ -890,11 +882,6 @@ NS_IMETHODIMP nsChildView::Show(PRBool aState)
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
   if (aState != mVisible) {
-    // Provide an autorelease pool because this gets called during startup
-    // on the "hidden window", resulting in cocoa object leakage if there's
-    // no pool in place.
-    nsAutoreleasePool localPool;
-
     [mView setHidden:!aState];
     mVisible = aState;
     if (!mVisible)
@@ -950,20 +937,9 @@ void nsChildView::ResetParent()
 }
 
 nsIWidget*
-nsChildView::GetParent()
+nsChildView::GetParent(void)
 {
   return mParentWidget;
-}
-
-LayerManager*
-nsChildView::GetLayerManager()
-{
-  nsCocoaWindow* window = GetXULWindowWidget();
-  if (window->GetAcceleratedRendering() != mUseAcceleratedRendering) {
-    mLayerManager = NULL;
-    mUseAcceleratedRendering = window->GetAcceleratedRendering();
-  }
-  return nsBaseWidget::GetLayerManager();
 }
 
 NS_IMETHODIMP nsChildView::Enable(PRBool aState)
@@ -2225,14 +2201,6 @@ NSEvent* gLastDragMouseDownEvent = nil;
                                                           kCorePboardType_urln,
                                                           nil]];
   [[NSNotificationCenter defaultCenter] addObserver:self
-                                           selector:@selector(windowBecameMain:)
-                                               name:NSWindowDidBecomeMainNotification
-                                             object:nil];
-  [[NSNotificationCenter defaultCenter] addObserver:self
-                                           selector:@selector(windowResignedMain:)
-                                               name:NSWindowDidResignMainNotification
-                                             object:nil];
-  [[NSNotificationCenter defaultCenter] addObserver:self
                                            selector:@selector(systemMetricsChanged)
                                                name:NSControlTintDidChangeNotification
                                              object:nil];
@@ -2245,10 +2213,6 @@ NSEvent* gLastDragMouseDownEvent = nil;
                                                           name:@"AppleAquaScrollBarVariantChanged"
                                                         object:nil
                                             suspensionBehavior:NSNotificationSuspensionBehaviorDeliverImmediately]; 
-  [[NSNotificationCenter defaultCenter] addObserver:self
-                                           selector:@selector(_surfaceNeedsUpdate:)
-                                               name:NSViewGlobalFrameDidChangeNotification
-                                             object:self];
 
   return self;
 
@@ -2277,46 +2241,6 @@ NSEvent* gLastDragMouseDownEvent = nil;
   // todo: Only do if a Quickdraw plugin is present in the hierarchy!
   ::SetPort(NULL);
 #endif
-
-  NS_OBJC_END_TRY_ABORT_BLOCK;
-}
-
-- (void)updatePluginTopLevelWindowStatus:(BOOL)hasMain
-{
-  if (!mGeckoChild)
-    return;
-
-  nsGUIEvent pluginEvent(PR_TRUE, NS_NON_RETARGETED_PLUGIN_EVENT, mGeckoChild);
-  NPCocoaEvent cocoaEvent;
-  InitNPCocoaEvent(&cocoaEvent);
-  cocoaEvent.type = NPCocoaEventWindowFocusChanged;
-  cocoaEvent.data.focus.hasFocus = hasMain;
-  pluginEvent.pluginEvent = &cocoaEvent;
-  mGeckoChild->DispatchWindowEvent(pluginEvent);
-}
-
-- (void)windowBecameMain:(NSNotification*)inNotification
-{
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
-
-  if (mIsPluginView && mPluginEventModel == NPEventModelCocoa) {
-    if ((NSWindow*)[inNotification object] == [self window]) {
-      [self updatePluginTopLevelWindowStatus:YES];
-    }
-  }
-
-  NS_OBJC_END_TRY_ABORT_BLOCK;
-}
-
-- (void)windowResignedMain:(NSNotification*)inNotification
-{
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
-
-  if (mIsPluginView && mPluginEventModel == NPEventModelCocoa) {
-    if ((NSWindow*)[inNotification object] == [self window]) {
-      [self updatePluginTopLevelWindowStatus:NO];
-    }
-  }
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
@@ -2457,7 +2381,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
 }
 
 // We accept key and mouse events, so don't keep passing them up the chain. Allow
-// this to be a 'focused' widget for event dispatch.
+// this to be a 'focussed' widget for event dispatch
 - (BOOL)acceptsFirstResponder
 {
   return YES;
@@ -2522,14 +2446,6 @@ NSEvent* gLastDragMouseDownEvent = nil;
 
   [super lockFocus];
 
-  if (mContext) {
-    if ([mContext view] != self) {
-      [mContext setView:self];
-    }
-
-    [mContext makeCurrentContext];
-  }
-
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
@@ -2569,18 +2485,6 @@ static BOOL DrawingAtWindowTop(CGContextRef aContext)
   }
 }
 
--(void)update
-{
-  if (mContext) {
-    [mContext update];
-  }
-}
-
-- (void) _surfaceNeedsUpdate:(NSNotification*)notification
-{
-   [self update];
-}
-
 // The display system has told us that a portion of our view is dirty. Tell
 // gecko to paint it
 - (void)drawRect:(NSRect)aRect
@@ -2614,6 +2518,14 @@ static BOOL DrawingAtWindowTop(CGContextRef aContext)
   CGAffineTransform xform = CGContextGetCTM(aContext);
   fprintf (stderr, "  xform in: [%f %f %f %f %f %f]\n", xform.a, xform.b, xform.c, xform.d, xform.tx, xform.ty);
 #endif
+
+  // Create Cairo objects.
+  NSSize bufferSize = [self bounds].size;
+  nsRefPtr<gfxQuartzSurface> targetSurface =
+    new gfxQuartzSurface(aContext, gfxSize(bufferSize.width, bufferSize.height));
+
+  nsRefPtr<gfxContext> targetContext = new gfxContext(targetSurface);
+
   // Create the event so we can fill in its region
   nsPaintEvent paintEvent(PR_TRUE, NS_PAINT, mGeckoChild);
 
@@ -2642,25 +2554,6 @@ static BOOL DrawingAtWindowTop(CGContextRef aContext)
     paintEvent.region.Sub(paintEvent.region,
       nsIntRect(frame.origin.x, frame.origin.y, frame.size.width, frame.size.height));
   }
-  
-  if (mGeckoChild->GetLayerManager()->GetBackendType() == LayerManager::LAYERS_OPENGL) {
-    LayerManagerOGL *manager = static_cast<LayerManagerOGL*>(mGeckoChild->GetLayerManager());
-    manager->SetClippingRegion(paintEvent.region); 
-    if (!mContext) {
-        mContext = (NSOpenGLContext *)manager->gl()->GetNativeContext();
-    }
-    [mContext makeCurrentContext];
-    mGeckoChild->DispatchWindowEvent(paintEvent);
-    [mContext flushBuffer];
-    return;
-  }
-
-  // Create Cairo objects.
-  NSSize bufferSize = [self bounds].size;
-  nsRefPtr<gfxQuartzSurface> targetSurface =
-    new gfxQuartzSurface(aContext, gfxSize(bufferSize.width, bufferSize.height));
-
-  nsRefPtr<gfxContext> targetContext = new gfxContext(targetSurface);
 
   // Set up the clip region.
   nsIntRegionRectIterator iter(paintEvent.region);
@@ -4523,19 +4416,20 @@ GetUSLayoutCharFromKeyTranslate(UInt32 aKeyCode, UInt32 aModifiers)
 }
 #endif // NP_NO_CARBON
 
-- (void)sendCompositionEvent:(PRInt32) aEventType
+- (nsIntRect)sendCompositionEvent:(PRInt32) aEventType
 {
 #ifdef DEBUG_IME
   NSLog(@"****in sendCompositionEvent; type = %d", aEventType);
 #endif
 
   if (!mGeckoChild)
-    return;
+    return nsIntRect(0, 0, 0, 0);
 
   // static void init_composition_event( *aEvent, int aType)
   nsCompositionEvent event(PR_TRUE, aEventType, mGeckoChild);
   event.time = PR_IntervalNow();
   mGeckoChild->DispatchWindowEvent(event);
+  return event.theReply.mCursorPosition;
 }
 
 - (void)sendTextEvent:(PRUnichar*) aBuffer 
@@ -5521,48 +5415,16 @@ static const char* ToEscapedString(NSString* aString, nsCAutoString& aBuf)
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
-- (void)updateCocoaPluginFocusStatus:(BOOL)hasFocus
-{
-  if (!mGeckoChild)
-    return;
-
-  nsGUIEvent pluginEvent(PR_TRUE, NS_NON_RETARGETED_PLUGIN_EVENT, mGeckoChild);
-  NPCocoaEvent cocoaEvent;
-  InitNPCocoaEvent(&cocoaEvent);
-  cocoaEvent.type = NPCocoaEventFocusChanged;
-  cocoaEvent.data.focus.hasFocus = hasFocus;
-  pluginEvent.pluginEvent = &cocoaEvent;
-  mGeckoChild->DispatchWindowEvent(pluginEvent);
-}
-
-// We must always call through to our superclass, even when mGeckoChild is
-// nil -- otherwise the keyboard focus can end up in the wrong NSView.
-- (BOOL)becomeFirstResponder
-{
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
-
-  if (mIsPluginView && mPluginEventModel == NPEventModelCocoa) {
-    [self updateCocoaPluginFocusStatus:YES];
-  }
-
-  return [super becomeFirstResponder];
-
-  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(YES);
-}
-
+// This method is called when are are about to lose focus.
 // We must always call through to our superclass, even when mGeckoChild is
 // nil -- otherwise the keyboard focus can end up in the wrong NSView.
 - (BOOL)resignFirstResponder
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
 
-  if (mIsPluginView && mPluginEventModel == NPEventModelCocoa) {
-    [self updateCocoaPluginFocusStatus:NO];
-  }
-
   return [super resignFirstResponder];
 
-  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(YES);
+  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NO);
 }
 
 - (void)viewsWindowDidBecomeKey
@@ -6393,10 +6255,11 @@ ChildViewMouseTracker::WindowAcceptsEvent(NSWindow* aWindow, NSEvent* anEvent)
 OSStatus PluginKeyEventsHandler(EventHandlerCallRef inHandlerRef,
                                 EventRef inEvent, void *userData)
 {
-  nsAutoreleasePool localPool;
+  id arp = [[NSAutoreleasePool alloc] init];
 
   TSMDocumentID activeDoc = ::TSMGetActiveDocument();
   if (!activeDoc) {
+    [arp release];
     return eventNotHandledErr;
   }
 
@@ -6406,6 +6269,7 @@ OSStatus PluginKeyEventsHandler(EventHandlerCallRef inHandlerRef,
   if (status != noErr)
     target = nil;
   if (!target) {
+    [arp release];
     return eventNotHandledErr;
   }
 
@@ -6413,11 +6277,13 @@ OSStatus PluginKeyEventsHandler(EventHandlerCallRef inHandlerRef,
   status = ::GetEventParameter(inEvent, kEventParamTextInputSendKeyboardEvent,
                                typeEventRef, NULL, sizeof(EventRef), NULL, &keyEvent);
   if ((status != noErr) || !keyEvent) {
+    [arp release];
     return eventNotHandledErr;
   }
 
   [target processPluginKeyEvent:keyEvent];
 
+  [arp release];
   return noErr;
 }
 

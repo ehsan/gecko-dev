@@ -39,11 +39,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsMaiInterfaceComponent.h"
-
 #include "nsAccessibleWrap.h"
-#include "nsAccUtils.h"
-#include "nsCoreUtils.h"
-
 #include "nsIDOMDocument.h"
 #include "nsIDOMDocumentView.h"
 #include "nsIDOMAbstractView.h"

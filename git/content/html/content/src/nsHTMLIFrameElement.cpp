@@ -42,6 +42,8 @@
 #include "nsIDOMSVGDocument.h"
 #endif
 #include "nsGkAtoms.h"
+#include "nsPresContext.h"
+#include "nsIPresShell.h"
 #include "nsIDocument.h"
 #include "nsMappedAttributes.h"
 #include "nsDOMError.h"

@@ -47,11 +47,7 @@ printStatus (summary);
 
 jit(true);
 
-Object.defineProperty(__proto__, "x",
-{
-  enumerable: true, configurable: true,
-  get: function () { return <y/>.([]) }
-});
+__proto__.x getter= function () { return <y/>.([]) };
 for each (let x in []) { for each (let x in ['', '']) { } }
 
 jit(true);

@@ -42,6 +42,7 @@
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
 #include "nsPresContext.h"
+#include "nsIPresShell.h"
 #include "nsMappedAttributes.h"
 #include "nsIJSNativeInitializer.h"
 #include "nsSize.h"
@@ -561,7 +562,8 @@ nsHTMLImageElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
     // loading.
     if (LoadingEnabled()) {
       nsContentUtils::AddScriptRunner(
-        NS_NewRunnableMethod(this, &nsHTMLImageElement::MaybeLoadImage));
+        new nsRunnableMethod<nsHTMLImageElement>(this,
+                                                 &nsHTMLImageElement::MaybeLoadImage));
     }
   }
 

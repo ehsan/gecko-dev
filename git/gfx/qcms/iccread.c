@@ -23,7 +23,6 @@
 #include <math.h>
 #include <assert.h>
 #include <stdlib.h>
-#include <string.h>
 #include "qcmsint.h"
 
 typedef uint32_t be32;

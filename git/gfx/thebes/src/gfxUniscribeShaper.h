@@ -52,17 +52,9 @@
 class gfxUniscribeShaper : public gfxFontShaper
 {
 public:
-    gfxUniscribeShaper(gfxGDIFont *aFont)
-        : gfxFontShaper(aFont)
-        , mScriptCache(NULL)
-    {
-        MOZ_COUNT_CTOR(gfxUniscribeShaper);
-    }
+    gfxUniscribeShaper(gfxGDIFont *aFont);
 
-    virtual ~gfxUniscribeShaper()
-    {
-        MOZ_COUNT_DTOR(gfxUniscribeShaper);
-    }
+    virtual ~gfxUniscribeShaper();
 
     virtual PRBool InitTextRun(gfxContext *aContext,
                                gfxTextRun *aTextRun,

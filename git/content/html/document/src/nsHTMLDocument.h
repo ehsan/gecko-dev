@@ -138,6 +138,9 @@ public:
   // nsIDOMNode interface
   NS_FORWARD_NSIDOMNODE(nsDocument::)
 
+  // nsIDOM3Node interface
+  NS_IMETHOD GetBaseURI(nsAString& aBaseURI);
+
   // nsIDOMHTMLDocument interface
   NS_IMETHOD GetTitle(nsAString & aTitle);
   NS_IMETHOD SetTitle(const nsAString & aTitle);

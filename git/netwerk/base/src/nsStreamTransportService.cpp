@@ -53,7 +53,6 @@
 #include "nsITransport.h"
 #include "nsIRunnable.h"
 #include "nsIObserverService.h"
-#include "mozilla/Services.h"
 
 //-----------------------------------------------------------------------------
 // nsInputStreamTransport
@@ -482,7 +481,7 @@ nsStreamTransportService::Init()
     mPool->SetIdleThreadTimeout(PR_SecondsToInterval(60));
 
     nsCOMPtr<nsIObserverService> obsSvc =
-        mozilla::services::GetObserverService();
+            do_GetService("@mozilla.org/observer-service;1");
     if (obsSvc)
         obsSvc->AddObserver(this, "xpcom-shutdown-threads", PR_FALSE);
     return NS_OK;

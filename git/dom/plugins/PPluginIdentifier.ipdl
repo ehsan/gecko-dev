@@ -36,7 +36,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-include protocol PPluginModule;
+include protocol "PPluginModule.ipdl";
 
 namespace mozilla {
 namespace plugins {

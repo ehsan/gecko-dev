@@ -54,10 +54,8 @@ function test()
   printBugNumber(BUGNUMBER);
   printStatus (summary);
 
-  var o =
-    Object.defineProperty({}, "x", { get: decodeURI, enumerable: true, configurable: true });
-  expect = '( { get x ( ) { [ native code ] } } )';
-  actual =  uneval(o);
+  expect = '( { get x decodeURI ( ) { [ native code ] } } )';
+  actual =  uneval({x getter: decodeURI});
 
   compareSource(expect, actual, summary);
 

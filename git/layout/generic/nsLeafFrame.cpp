@@ -41,6 +41,7 @@
 #include "nsLeafFrame.h"
 #include "nsHTMLContainerFrame.h"
 #include "nsHTMLParts.h"
+#include "nsIPresShell.h"
 #include "nsPresContext.h"
 
 nsLeafFrame::~nsLeafFrame()

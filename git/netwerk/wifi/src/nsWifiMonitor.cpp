@@ -52,7 +52,6 @@
 #include "nsIProxyObjectManager.h"
 #include "nsServiceManagerUtils.h"
 #include "nsComponentManagerUtils.h"
-#include "mozilla/Services.h"
 
 #if defined(PR_LOGGING)
 PRLogModuleInfo *gWifiMonitorLog;
@@ -72,7 +71,7 @@ nsWifiMonitor::nsWifiMonitor()
 
   mMonitor = nsAutoMonitor::NewMonitor("nsWifiMonitor");
 
-  nsCOMPtr<nsIObserverService> obsSvc = mozilla::services::GetObserverService();
+  nsCOMPtr<nsIObserverService> obsSvc = do_GetService("@mozilla.org/observer-service;1");
   if (obsSvc)
     obsSvc->AddObserver(this, "xpcom-shutdown", PR_FALSE);
 

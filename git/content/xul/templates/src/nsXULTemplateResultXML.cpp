@@ -76,7 +76,7 @@ nsXULTemplateResultXML::GetIsEmpty(PRBool* aIsEmpty)
     if (content) {
         PRUint32 count = content->GetChildCount();
         for (PRUint32 c = 0; c < count; c++) {
-            if (content->GetChildAt(c)->IsElement()) {
+            if (content->GetChildAt(c)->IsNodeOfType(nsIContent::eELEMENT)) {
                 *aIsEmpty = PR_FALSE;
                 return NS_OK;
             }

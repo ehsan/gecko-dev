@@ -39,6 +39,7 @@
 
 const LMANNO_FEEDURI = "livemark/feedURI";
 
+Components.utils.import("resource://gre/modules/utils.js");
 var PU = PlacesUtils;
 var bs = PU.bookmarks;
 var as = PU.annotations;

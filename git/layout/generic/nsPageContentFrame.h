@@ -57,11 +57,6 @@ public:
                      nsReflowStatus&      aStatus);
 
   virtual PRBool IsContainingBlock() const;
-  virtual PRBool IsFrameOfType(PRUint32 aFlags) const
-  {
-    return ViewportFrame::IsFrameOfType(aFlags &
-             ~(nsIFrame::eCanContainOverflowContainers));
-  }
 
   virtual void SetSharedPageData(nsSharedPageData* aPD) { mPD = aPD; }
 

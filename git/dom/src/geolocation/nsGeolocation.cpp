@@ -50,7 +50,6 @@
 #include "nsIPrefService.h"
 #include "nsIPrefBranch2.h"
 #include "nsIJSContextStack.h"
-#include "mozilla/Services.h"
 
 #include <math.h>
 
@@ -58,7 +57,7 @@
 #include "WinMobileLocationProvider.h"
 #endif
 
-#ifdef MOZ_MAEMO_LIBLOCATION
+#ifdef MOZ_PLATFORM_MAEMO
 #include "MaemoLocationProvider.h"
 #endif
 
@@ -277,7 +276,7 @@ nsGeolocationRequest::Allow()
   }
 
   if (lastPosition && maximumAge > 0 &&
-      ( PRTime(PR_Now() / PR_USEC_PER_MSEC) - maximumAge <=
+      ( (PR_Now() / PR_USEC_PER_MSEC) - maximumAge <=
         PRTime(cachedPositionTime) )) {
     // okay, we can return a cached position
     mAllowed = PR_TRUE;
@@ -384,7 +383,7 @@ nsresult nsGeolocationService::Init()
     return NS_ERROR_FAILURE;
 
   // geolocation service can be enabled -> now register observer
-  nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
+  nsCOMPtr<nsIObserverService> obs = do_GetService("@mozilla.org/observer-service;1");
   if (!obs)
     return NS_ERROR_FAILURE;
 
@@ -421,7 +420,7 @@ nsresult nsGeolocationService::Init()
     mProviders.AppendObject(provider);
 #endif
 
-#ifdef MOZ_MAEMO_LIBLOCATION
+#ifdef MOZ_PLATFORM_MAEMO
   provider = new MaemoLocationProvider();
   if (provider)
     mProviders.AppendObject(provider);
@@ -440,7 +439,7 @@ nsGeolocationService::Observe(nsISupports* aSubject,
 {
   if (!strcmp("quit-application", aTopic))
   {
-    nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
+    nsCOMPtr<nsIObserverService> obs = do_GetService("@mozilla.org/observer-service;1");
     if (obs) {
       obs->RemoveObserver(this, "quit-application");
     }

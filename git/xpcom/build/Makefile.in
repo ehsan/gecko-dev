@@ -68,7 +68,6 @@ CPPSRCS		= \
 		$(XPCOM_GLUENS_SRC_LCPPSRCS) \
 		nsXPComInit.cpp \
 		nsXPCOMStrings.cpp \
-		Services.cpp \
 		$(NULL)
 
 ifndef MOZ_ENABLE_LIBXUL
@@ -126,8 +125,6 @@ EXPORTS	= \
 
 EXPORTS_mozilla = \
   XPCOM.h \
-  Services.h \
-  ServiceList.h \
   $(NULL)
 
 # Force use of PIC

@@ -54,6 +54,14 @@ function test()
   printBugNumber(BUGNUMBER);
   printStatus (summary);
  
+  expect = '({ set x () {}})';
+  actual = uneval({x setter: eval("(function () { })") });
+  compareSource(expect, actual, summary);
+  
+  expect = '(function() { })';
+  actual = uneval(eval("(function() { })"));
+  compareSource(expect, actual, summary);
+    
   expect = '(function() { })';
   actual = uneval(eval("(function() { })"));
   compareSource(expect, actual, summary);

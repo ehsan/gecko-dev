@@ -682,7 +682,7 @@ nsCopySupport::FireClipboardEvent(PRInt32 aType, nsIPresShell* aPresShell, nsISe
 
   // if no content node was set, just get the root
   if (!content) {
-    content = doc->GetRootElement();
+    content = doc->GetRootContent();
     if (!content)
       return PR_FALSE;
   }

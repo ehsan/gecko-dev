@@ -45,6 +45,7 @@
 #include "nsContentList.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
+#include "nsPresContext.h"
 #include "nsHTMLParts.h"
 #include "nsRuleData.h"
 

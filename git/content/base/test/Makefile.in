@@ -62,11 +62,8 @@ XPCSHELL_TESTS = \
 
 include $(topsrcdir)/config/rules.mk
 
-# Split files arbitrarily in two groups to not run into too-long command lines
-# which break on Windows (see bug 563151)
-_TEST_FILES1 = 	test_bug5141.html \
+_TEST_FILES = 	test_bug5141.html \
 		test_bug51034.html \
-		test_bug166235.html \
 		test_bug199959.html \
 		test_bug218236.html \
 		file_bug218236_multipart.txt \
@@ -253,7 +250,6 @@ _TEST_FILES1 = 	test_bug5141.html \
 		test_bug518104.html \
 		bug457746.sjs \
 		test_CrossSiteXHR.html \
-		test_CrossSiteXHR_origin.html \
 		file_CrossSiteXHR_inner.html \
 		file_CrossSiteXHR_inner_data.sjs \
 		file_CrossSiteXHR_inner.jar \
@@ -265,9 +261,6 @@ _TEST_FILES1 = 	test_bug5141.html \
 		file_XHRDocURI.xml^headers^ \
 		file_XHRDocURI.text \
 		file_XHRDocURI.text^headers^ \
-		$(NULL)
-
-_TEST_FILES2 = \
 		test_bug459424.html \
 		bug461735-redirect1.sjs \
 		bug461735-redirect2.sjs \
@@ -371,28 +364,14 @@ _TEST_FILES2 = \
 		test_bug545644.html \
 		test_bug545644.xhtml \
 		test_bug553896.xhtml \
-		test_bug515401.html \
 		test_bug541937.html \
 		file_bug541937.html \
 		file_bug541937.xhtml \
-		test_bug558726.html \
-		test_bug557892.html \
-		file_bug557892.html \
-		test_bug559526.html \
-		test_csp_redirects.html \
-		file_csp_redirects_page.sjs \
-		file_csp_redirects_main.html \
-		file_csp_redirects_resource.sjs \
-		test_bug346485.html \
-		test_bug560780.html \
-		test_bug562652.html \
-		test_bug562137.html \
-		file_bug562137.txt \
 		$(NULL)
 
 # This test fails on the Mac for some reason
 ifneq (,$(filter gtk2 windows,$(MOZ_WIDGET_TOOLKIT)))
-_TEST_FILES2 += 	test_copyimage.html \
+_TEST_FILES += 	test_copyimage.html \
 		$(NULL)
 endif
 
@@ -407,8 +386,5 @@ endif
 #		test_bug503473.html \
 #		file_bug503473-frame.sjs \
 
-libs:: $(_TEST_FILES1)
-	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)
-
-libs:: $(_TEST_FILES2)
+libs:: $(_TEST_FILES)
 	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)

@@ -88,26 +88,11 @@
 #define URI_LENGTH_MAX 65536
 #define TITLE_LENGTH_MAX 4096
 
-#ifdef MOZ_XUL
-// Fired after autocomplete feedback has been updated.
-#define TOPIC_AUTOCOMPLETE_FEEDBACK_UPDATED "places-autocomplete-feedback-updated"
-#endif
-// Fired when Places is shutting down.
-#define TOPIC_PLACES_SHUTDOWN "places-shutdown"
-// Fired when Places found a locked database while initing.
-#define TOPIC_DATABASE_LOCKED "places-database-locked"
-// Fired after Places inited.
-#define TOPIC_PLACES_INIT_COMPLETE "places-init-complete"
-// Fired before starting a VACUUM operation.
-#define TOPIC_DATABASE_VACUUM_STARTING "places-vacuum-starting"
-
 namespace mozilla {
 namespace places {
 
   enum HistoryStatementId {
-    DB_GET_PAGE_INFO_BY_URL = 0
-  , DB_GET_TAGS = 1
-  , DB_IS_PAGE_VISITED = 2
+    DB_GET_PAGE_INFO = 0
   };
 
 } // namespace places
@@ -257,7 +242,13 @@ public:
   static const PRInt32 kGetInfoIndex_ItemTags;
   static const PRInt32 kGetInfoIndex_ItemParentId;
 
+  // select a history row by id
+  mozIStorageStatement *DBGetIdPageInfo() { return mDBGetIdPageInfo; }
+
+  mozIStorageStatement *DBGetTags() { return mDBGetTags; }
   PRInt64 GetTagsFolder();
+
+  mozIStorageStatement *DBGetIsVisited() { return mDBIsPageVisited; }
 
   // Constants for the columns returned by the above statement
   // (in addition to the ones above).
@@ -276,7 +267,7 @@ public:
 
   // Take a row of kGetInfoIndex_* columns and construct a ResultNode.
   // The row must contain the full set of columns.
-  nsresult RowToResult(mozIStorageValueArray* aRow,
+  nsresult RowToResult(mozIStorageStatement* aRow,
                        nsNavHistoryQueryOptions* aOptions,
                        nsNavHistoryResultNode** aResult);
   nsresult QueryRowToResult(PRInt64 aItemId, const nsACString& aURI,
@@ -322,10 +313,12 @@ public:
   nsresult BeginUpdateBatch();
   nsresult EndUpdateBatch();
 
-  // The level of batches' nesting, 0 when no batches are open.
+  // the level of nesting of batches, 0 when no batches are open
   PRInt32 mBatchLevel;
-  // Current active transaction for a batch.
-  mozStorageTransaction* mBatchDBTransaction;
+
+  // true if the outermost batch has an associated transaction that should
+  // be committed when our batch level reaches 0 again.
+  PRBool mBatchHasTransaction;
 
   // better alternative to QueryStringToQueries (in nsNavHistoryQuery.cpp)
   nsresult QueryStringToQueryArray(const nsACString& aQueryString,
@@ -396,12 +389,8 @@ public:
   {
     using namespace mozilla::places;
     switch(aStatementId) {
-      case DB_GET_PAGE_INFO_BY_URL:
+      case DB_GET_PAGE_INFO:
         return mDBGetURLPageInfo;
-      case DB_GET_TAGS:
-        return mDBGetTags;
-      case DB_IS_PAGE_VISITED:
-        return mDBIsPageVisited;
     }
     return nsnull;
   }
@@ -739,7 +728,18 @@ protected:
   nsCategoryCache<nsINavHistoryObserver> mCacheObservers;
 };
 
-
+/**
+ * These utils bind a specified URI (or URL) to a statement, at the specified
+ * index.
+ * @note URIs are always bound as UTF8.
+ */
+nsresult BindStatementURI(mozIStorageStatement* statement,
+                          PRInt32 index,
+                          nsIURI* aURI);
+nsresult BindStatementURLCString(mozIStorageStatement* statement,
+                                 PRInt32 index,
+                                 const nsACString& aURLString);
+                        
 #define PLACES_URI_PREFIX "place:"
 
 /* Returns true if the given URI represents a history query. */

@@ -480,6 +480,7 @@ case "$target" in
     ;;
 esac
 
+
 MOZ_ARG_WITH_STRING(windows-version,
 [  --with-windows-version=WINSDK_TARGETVER
                           Highest Windows version to target using this SDK
@@ -499,12 +500,27 @@ case "$WINSDK_TARGETVER" in
 
 esac
 
+dnl Vista SDK specific api (deprecated)
+MOZ_ARG_DISABLE_BOOL(vista-sdk-requirements,
+[  --disable-vista-sdk-requirements
+                           Do not build Vista SDK specific code],
+   MOZ_DISABLE_VISTA_SDK_REQUIREMENTS=1,
+   MOZ_DISABLE_VISTA_SDK_REQUIREMENTS=$_PLATFORM_MOZ_DISABLE_VISTA_SDK_REQUIREMENTS)
 if test -n "$COMPILE_ENVIRONMENT"; then
+if test -n "$MOZ_DISABLE_VISTA_SDK_REQUIREMENTS"; then
+    AC_MSG_WARN([--disable-vista-sdk-requirements is deprecated, use --with-windows-version=502 instead])
+    MOZ_WINSDK_TARGETVER=05020000
+fi
+
 if test "$MOZ_WINSDK_TARGETVER" -lt "06000000"; then
+    MOZ_DISABLE_VISTA_SDK_REQUIREMENTS=1
+    AC_DEFINE(MOZ_DISABLE_VISTA_SDK_REQUIREMENTS)
     # We can't build parental controls either
     MOZ_DISABLE_PARENTAL_CONTROLS=1
 fi
 fi
+
+AC_SUBST(MOZ_DISABLE_VISTA_SDK_REQUIREMENTS)
 
 case "$target" in
 *-cygwin*|*-mingw*|*-msvc*|*-mks*|*-wince|*-winmo)
@@ -683,71 +699,6 @@ EOF
 
         unset _MSVC_VER_FILTER
 
-        AC_CACHE_CHECK(for std::_Throw, ac_cv_have_std__Throw,
-            [
-                AC_LANG_SAVE
-                AC_LANG_CPLUSPLUS
-                _SAVE_CXXFLAGS="$CXXFLAGS"
-                CXXFLAGS="${CXXFLAGS} -D_HAS_EXCEPTIONS=0"
-                AC_TRY_COMPILE([#include <exception>],
-                            [std::_Throw(std::exception()); return 0;],
-                            ac_cv_have_std__Throw="yes",
-                            ac_cv_have_std__Throw="no")
-                CXXFLAGS="$_SAVE_CXXFLAGS"
-                AC_LANG_RESTORE
-            ])
-
-        if test "$ac_cv_have_std__Throw" == "yes"; then
-            AC_CACHE_CHECK(for |class __declspec(dllimport) exception| bug,
-                           ac_cv_have_dllimport_exception_bug,
-                [
-                    AC_LANG_SAVE
-                    AC_LANG_CPLUSPLUS
-                    _SAVE_CXXFLAGS="$CXXFLAGS"
-                    CXXFLAGS="${CXXFLAGS} -D_HAS_EXCEPTIONS=0"
-                    AC_TRY_LINK([#include <vector>],
-                                [std::vector<int> v; return v.at(1);],
-                                ac_cv_have_dllimport_exception_bug="no",
-                                ac_cv_have_dllimport_exception_bug="yes")
-                    CXXFLAGS="$_SAVE_CXXFLAGS"
-                    AC_LANG_RESTORE
-                ])
-            if test "$ac_cv_have_dllimport_exception_bug" = "no"; then
-                WRAP_STL_INCLUDES=1
-                MOZ_MSVC_STL_WRAP__Throw=1
-                AC_DEFINE(MOZ_MSVC_STL_WRAP__Throw)
-            fi
-        else
-            AC_CACHE_CHECK(for overridable _RAISE,
-                           ac_cv_have__RAISE,
-                [
-                    AC_LANG_SAVE
-                    AC_LANG_CPLUSPLUS
-                    _SAVE_CXXFLAGS="$CXXFLAGS"
-                    CXXFLAGS="${CXXFLAGS} -D_HAS_EXCEPTIONS=0"
-                    AC_TRY_COMPILE([#include <xstddef>
-                                    #undef _RAISE
-                                    #define _RAISE(x) externallyDefinedFunction((x).what())
-                                    #include <vector>
-                                   ],
-                                   [std::vector<int> v; return v.at(1);],
-                                   ac_cv_have__RAISE="no",
-                                   ac_cv_have__RAISE="yes")
-                    CXXFLAGS="$_SAVE_CXXFLAGS"
-                    AC_LANG_RESTORE
-                ])
-            if test "$ac_cv_have__RAISE" = "yes"; then
-                WRAP_STL_INCLUDES=1
-                MOZ_MSVC_STL_WRAP__RAISE=1
-                AC_DEFINE(MOZ_MSVC_STL_WRAP__RAISE)
-            else
-                AC_MSG_ERROR([Gecko exception wrapping doesn't understand your your MSVC/SDK.  Please file a bug describing this error and your build configuration.])
-            fi
-        fi
-
-        if test "$WRAP_STL_INCLUDES" = "1"; then
-            STL_FLAGS='-D_HAS_EXCEPTIONS=0 -I$(DIST)/stl_wrappers'
-        fi
     else
         # Check w32api version
         _W32API_MAJOR_VERSION=`echo $W32API_VERSION | $AWK -F\. '{ print $1 }'`
@@ -808,6 +759,9 @@ EOF
     AC_DEFINE_UNQUOTED(MOZ_NTDDI_WS03, 0x05020000)
     AC_DEFINE_UNQUOTED(MOZ_NTDDI_LONGHORN, 0x06000000)
     AC_DEFINE_UNQUOTED(MOZ_NTDDI_WIN7, 0x06010000)
+
+    STL_FLAGS='-D_HAS_EXCEPTIONS=0 -I$(DIST)/stl_wrappers'
+    WRAP_STL_INCLUDES=1
     ;;
 esac
 
@@ -858,8 +812,6 @@ AC_SUBST(INTEL_CXX)
 
 AC_SUBST(STL_FLAGS)
 AC_SUBST(WRAP_STL_INCLUDES)
-AC_SUBST(MOZ_MSVC_STL_WRAP__Throw)
-AC_SUBST(MOZ_MSVC_STL_WRAP__RAISE)
 
 dnl ========================================================
 dnl Checks for programs.
@@ -1142,7 +1094,6 @@ if test -n "$CROSS_COMPILE"; then
     case "${target_os}" in
         linux*)       OS_ARCH=Linux OS_TARGET=Linux ;;
         kfreebsd*-gnu) OS_ARCH=GNU_kFreeBSD OS_TARGET=GNU_kFreeBSD ;;
-        gnu*)         OS_ARCH=GNU ;;
         solaris*)     OS_ARCH=SunOS OS_RELEASE=5 ;;
         mingw*)       OS_ARCH=WINNT ;;
         wince*)       OS_ARCH=WINCE ;;
@@ -1439,7 +1390,9 @@ x86_64 | ia64)
     ;;
 
 arm)
-    CPU_ARCH=arm
+    if test "$OS_TARGET" = "WINCE"; then
+        CPU_ARCH="$OS_TEST"
+    fi
     ;;
 esac
 
@@ -1481,8 +1434,8 @@ if test "$GNU_CC"; then
     if test -z "$INTEL_CC"; then
        # Don't use -Wcast-align with ICC
        case "$CPU_ARCH" in
-           # And don't use it on hppa, ia64, sparc, arm, since it's noisy there
-           hppa | ia64 | sparc | arm)
+           # And don't use it on hppa, ia64, sparc, since it's noisy there
+           hppa | ia64 | sparc)
            ;;
            *)
         _WARNINGS_CFLAGS="${_WARNINGS_CFLAGS} -Wcast-align"
@@ -1544,8 +1497,8 @@ if test "$GNU_CXX"; then
     if test -z "$INTEL_CC"; then
        # Don't use -Wcast-align with ICC
        case "$CPU_ARCH" in
-           # And don't use it on hppa, ia64, sparc, arm, since it's noisy there
-           hppa | ia64 | sparc | arm)
+           # And don't use it on hppa, ia64, sparc, since it's noisy there
+           hppa | ia64 | sparc)
            ;;
            *)
         _WARNINGS_CXXFLAGS="${_WARNINGS_CXXFLAGS} -Wcast-align"
@@ -1785,7 +1738,7 @@ case "$host" in
     HOST_OPTIMIZE_FLAGS="${HOST_OPTIMIZE_FLAGS=-O3}"
     ;;
 
-*-linux*|*-kfreebsd*-gnu|*-gnu*)
+*-linux*|*-kfreebsd*-gnu)
     HOST_CFLAGS="$HOST_CFLAGS -DXP_UNIX"
     HOST_NSPR_MDCPUCFG='\"md/_linux.cfg\"'
     HOST_OPTIMIZE_FLAGS="${HOST_OPTIMIZE_FLAGS=-O3}"
@@ -1987,26 +1940,6 @@ case "$target" in
 #    fi
     ;; 
 
-ia64*-hpux*)
-    DLL_SUFFIX=".so"
-    if test ! "$GNU_CC"; then
-       DSO_LDOPTS='-b'
-       DSO_CFLAGS=""
-       DSO_PIC_CFLAGS=
-       MKSHLIB='$(CXX) $(CXXFLAGS) $(DSO_LDOPTS) -o $@'
-       MKCSHLIB='$(CC) $(CFLAGS) $(DSO_LDOPTS) -o $@'
-       CXXFLAGS="$CXXFLAGS -Wc,-ansi_for_scope,on"
-    else
-       DSO_LDOPTS='-b -E'
-       MKSHLIB='$(LD) $(DSO_LDOPTS) -o $@'
-       MKCSHLIB='$(LD) $(DSO_LDOPTS) -o $@'
-    fi
-    MOZ_FIX_LINK_PATHS=
-    SYSTEM_MAKEDEPEND=
-    AC_DEFINE(NSCAP_DISABLE_DEBUG_PTR_TYPES)
-    AC_DEFINE(_LARGEFILE64_SOURCE)
-    ;;
-
 *-hpux*)
     DLL_SUFFIX=".sl"
     if test ! "$GNU_CC"; then
@@ -2100,7 +2033,7 @@ ia64*-hpux*)
             # -Os is broken on gcc 4.1.x and 4.2.x, we need to tweak it to get good results.
             MOZ_OPTIMIZE_SIZE_TWEAK="-finline-limit=50"
         esac
-        MOZ_OPTIMIZE_FLAGS="-Os -freorder-blocks -fomit-frame-pointer $MOZ_OPTIMIZE_SIZE_TWEAK"
+        MOZ_OPTIMIZE_FLAGS="-Os -freorder-blocks -fno-reorder-functions -fomit-frame-pointer $MOZ_OPTIMIZE_SIZE_TWEAK"
         MOZ_DEBUG_FLAGS="-g"
     fi
 
@@ -2125,6 +2058,7 @@ ia64*-hpux*)
 *-wince*|*-winmo*)
     TARGET_COMPILER_ABI=msvc
     _PLATFORM_DEFAULT_TOOLKIT=cairo-windows
+    _PLATFORM_MOZ_DISABLE_VISTA_SDK_REQUIREMENTS=1
     MOZ_TOOLS_DIR=`cd $MOZ_TOOLS && pwd -W`
     MOZ_BUILD_ROOT=`cd $MOZ_BUILD_ROOT && pwd -W`
     AR_LIST="$AR -list"
@@ -2704,6 +2638,7 @@ alpha*-*-osf*)
     # $ORIGIN/.. is for shared libraries under components/ to locate shared
     # libraries one level up (e.g. libnspr4.so)
     LDFLAGS="$LDFLAGS -z ignore -R '\$\$ORIGIN:\$\$ORIGIN/..'"
+    MOZ_MEMORY=1
     if test "$SOLARIS_SUNPRO_CC"; then
        LIBS="-lCrun -lCstd $LIBS"
        NS_USE_NATIVE=1
@@ -2832,7 +2767,7 @@ dnl ========================================================
 dnl = Flags to strip unused symbols from .so components
 dnl ========================================================
 case "$target" in
-    *-linux*|*-kfreebsd*-gnu|*-gnu*)
+    *-linux*|*-kfreebsd*-gnu)
         MOZ_COMPONENTS_VERSION_SCRIPT_LDFLAGS='-Wl,--version-script -Wl,$(BUILD_TOOLS)/gnu-ld-scripts/components-version-script'
         ;;
     *-solaris*)
@@ -2874,18 +2809,6 @@ AC_TYPE_MODE_T
 AC_TYPE_OFF_T
 AC_TYPE_PID_T
 AC_TYPE_SIZE_T
-AC_MSG_CHECKING(for __stdcall)
-AC_CACHE_VAL(ac_cv___stdcall,
- [AC_TRY_COMPILE([],
-                 [void foo(); void __stdcall foo();],
-                 [ac_cv___stdcall=true],
-                 [ac_cv___stdcall=false])])
-if test "$ac_cv___stdcall" = true ; then
-  AC_DEFINE(HAVE_STDCALL)
-  AC_MSG_RESULT(yes)
-else
-  AC_MSG_RESULT(no)
-fi
 AC_MSG_CHECKING(for ssize_t)
 AC_CACHE_VAL(ac_cv_type_ssize_t,
  [AC_TRY_COMPILE([#include <stdio.h>
@@ -3627,7 +3550,7 @@ then
 			fi
 			;;
 
-	    *-*-linux*|*-*-kfreebsd*-gnu|*-*-gnu*)
+	    *-*-linux*|*-*-kfreebsd*-gnu)
 			AC_DEFINE(_REENTRANT) 
 			;;
 
@@ -4024,30 +3947,8 @@ dnl Put your C++ language/feature checks below
 dnl ========================================================
 AC_LANG_CPLUSPLUS
 
-ARM_ABI_PREFIX=
 HAVE_GCC3_ABI=
 if test "$GNU_CC"; then
-  if test "$CPU_ARCH" = "arm" ; then
-    AC_CACHE_CHECK(for ARM EABI,
-        ac_cv_gcc_arm_eabi,
-        [AC_TRY_COMPILE([],
-                        [
-#if defined(__ARM_EABI__)
-  return 0;
-#else
-#error Not ARM EABI.
-#endif
-                        ],
-                        ac_cv_gcc_arm_eabi="yes",
-                        ac_cv_gcc_arm_eabi="no")])
-    if test "$ac_cv_gcc_arm_eabi" = "yes"; then
-        HAVE_ARM_EABI=1
-        ARM_ABI_PREFIX=eabi-
-    else
-        ARM_ABI_PREFIX=oabi-
-    fi
-  fi
-
   AC_CACHE_CHECK(for gcc 3.0 ABI,
       ac_cv_gcc_three_abi,
       [AC_TRY_COMPILE([],
@@ -4061,10 +3962,10 @@ if test "$GNU_CC"; then
                       ac_cv_gcc_three_abi="yes",
                       ac_cv_gcc_three_abi="no")])
   if test "$ac_cv_gcc_three_abi" = "yes"; then
-      TARGET_COMPILER_ABI="${TARGET_COMPILER_ABI-${ARM_ABI_PREFIX}gcc3}"
+      TARGET_COMPILER_ABI="${TARGET_COMPILER_ABI-gcc3}"
       HAVE_GCC3_ABI=1
   else
-      TARGET_COMPILER_ABI="${TARGET_COMPILER_ABI-${ARM_ABI_PREFIX}gcc2}"
+      TARGET_COMPILER_ABI="${TARGET_COMPILER_ABI-gcc2}"
   fi
 fi
 AC_SUBST(HAVE_GCC3_ABI)
@@ -4367,16 +4268,7 @@ AC_CACHE_CHECK(for __thread keyword for TLS variables,
                             ac_cv_thread_keyword=no)])
 LDFLAGS=$_SAVE_LDFLAGS
 if test "$ac_cv_thread_keyword" = yes; then
-  # mips builds fail with TLS variables because of a binutils bug.
-  # See bug 528687
-  case "${target_cpu}" in
-    mips*)
-      :
-      ;;
-    *)
-      AC_DEFINE(HAVE_THREAD_TLS_KEYWORD)
-      ;;
-  esac
+  AC_DEFINE(HAVE_THREAD_TLS_KEYWORD)
 fi
 
 dnl Check for the existence of various allocation headers/functions
@@ -4577,43 +4469,6 @@ else
     fi
 fi
 
-dnl system libevent Support
-dnl ========================================================
-MOZ_ARG_WITH_STRING(system-libevent,
-[  --with-system-libevent=[PFX]
-                          Use system libevent [installed at prefix PFX]],
-    LIBEVENT_DIR=$withval)
-
-_SAVE_CFLAGS=$CFLAGS
-_SAVE_LDFLAGS=$LDFLAGS
-_SAVE_LIBS=$LIBS
-if test -z "$LIBEVENT_DIR" -o "$LIBEVENT_DIR" = no; then
-    MOZ_NATIVE_LIBEVENT=
-else
-    if test "${LIBEVENT_DIR}" = "yes"; then
-        LIBEVENT_DIR=/usr
-    fi
-    CFLAGS="-I${LIBEVENT_DIR}/include $CFLAGS"
-    LDFLAGS="-L${LIBEVENT_DIR}/lib $LDFLAGS"
-    AC_CHECK_HEADER(event.h,
-                    [if test ! -f "${LIBEVENT_DIR}/include/event.h"; then
-                         AC_MSG_ERROR([event.h found, but is not in ${LIBEVENT_DIR}/include])
-                     fi],
-                    AC_MSG_ERROR([--with-system-libevent requested but event.h not found]))
-    AC_CHECK_LIB(event, event_init,
-                 [MOZ_NATIVE_LIBEVENT=1
-                  MOZ_LIBEVENT_INCLUDES="${LIBEVENT_DIR}/include"
-                  MOZ_LIBEVENT_LIBS="-L${LIBEVENT_DIR}/lib -levent"],
-                 [MOZ_NATIVE_LIBEVENT= MOZ_LIBEVENT_INCLUDES= MOZ_LIBEVENT_LIBS=])
-fi
-CFLAGS=$_SAVE_CFLAGS
-LDFLAGS=$_SAVE_LDFLAGS
-LIBS=$_SAVE_LIBS
-
-AC_SUBST(MOZ_NATIVE_LIBEVENT)
-AC_SUBST(MOZ_LIBEVENT_INCLUDES)
-AC_SUBST(MOZ_LIBEVENT_LIBS)
-
 dnl ========================================================
 dnl = If NSS was not detected in the system, 
 dnl = use the one in the source tree (mozilla/security/nss)
@@ -4749,7 +4604,7 @@ if test -z "$BZ2_DIR" -o "$BZ2_DIR" = no; then
     SYSTEM_BZ2=
 else
     AC_CHECK_LIB(bz2, BZ2_bzread, [SYSTEM_BZ2=1 BZ2_LIBS="-lbz2"],
-	[SYSTEM_BZ2= BZ2_CFLAGS= BZ2_LIBS=])
+	[SYSTEM_BZ2= BZ2_CFLAGS= BZ2_LIBS=], $BZ2_LIBS)
 fi
 CFLAGS=$_SAVE_CFLAGS
 LDFLAGS=$_SAVE_LDFLAGS
@@ -4757,7 +4612,7 @@ LIBS=$_SAVE_LIBS
 
 if test "${BZ2_DIR}" -a -d "${BZ2_DIR}" -a "$SYSTEM_BZ2" = 1; then
     BZ2_CFLAGS="-I${BZ2_DIR}/include"
-    BZ2_LIBS="-L${BZ2_DIR}/lib ${BZ2_LIBS}"
+    BZ2_LIBS="-L${BZ2_DIR}/lib ${MOZ_BZ2_LIBS}"
 fi
 
 dnl system PNG Support
@@ -4914,6 +4769,7 @@ NECKO_WIFI=1
 NECKO_COOKIES=1
 NECKO_DISK_CACHE=1
 NECKO_PROTOCOLS_DEFAULT="about data file ftp gopher http res viewsource"
+NECKO_SMALL_BUFFERS=
 BUILD_CTYPES=1
 XPC_IDISPATCH_SUPPORT=
 
@@ -5071,6 +4927,8 @@ MOZ_ARG_HEADER(Toolkit Options)
         AC_MSG_ERROR([You must specify a default toolkit (perhaps $_PLATFORM_DEFAULT_TOOLKIT).])
     fi
 
+AC_DEFINE_UNQUOTED(MOZ_DEFAULT_TOOLKIT,"$MOZ_WIDGET_TOOLKIT")
+
 dnl ========================================================
 dnl = Enable the toolkit as needed                         =
 dnl ========================================================
@@ -5161,7 +5019,7 @@ cairo-cocoa)
     AC_DEFINE(MOZ_WIDGET_COCOA)
     MOZ_USER_DIR="Mozilla"
     AC_DEFINE(XP_MACOSX)
-    TK_LIBS='-framework QuartzCore -framework Carbon -framework CoreAudio -framework AudioToolbox -framework AudioUnit -framework AddressBook -framework OpenGL'
+    TK_LIBS='-framework QuartzCore -framework Carbon -framework CoreAudio -framework AudioToolbox -framework AudioUnit -framework AddressBook'
     TK_CFLAGS="-DNO_X11"
     LDFLAGS="$LDFLAGS -framework Cocoa -lobjc"
     CFLAGS="$CFLAGS $TK_CFLAGS"
@@ -5190,6 +5048,7 @@ if test "$COMPILE_ENVIRONMENT"; then
 
 fi # COMPILE_ENVIRONMENT
 
+AC_SUBST(MOZ_DEFAULT_TOOLKIT)
 AC_SUBST(MOZ_FS_LAYOUT)
 
 dnl ========================================================
@@ -5596,14 +5455,11 @@ then
 
     if test "$MOZ_ENABLE_DBUS"
     then
-        PKG_CHECK_MODULES(MOZ_DBUS, dbus-1 >= $DBUS_VERSION)
         PKG_CHECK_MODULES(MOZ_DBUS_GLIB, dbus-glib-1 >= $DBUS_VERSION)
         AC_DEFINE(MOZ_ENABLE_DBUS)
     fi
 fi
 AC_SUBST(MOZ_ENABLE_DBUS)
-AC_SUBST(MOZ_DBUS_CFLAGS)
-AC_SUBST(MOZ_DBUS_LIBS)
 AC_SUBST(MOZ_DBUS_GLIB_CFLAGS)
 AC_SUBST(MOZ_DBUS_GLIB_LIBS)
 
@@ -5628,6 +5484,9 @@ dnl ========================================================
 dnl = Disable IPC support for tabs and plugins
 dnl ========================================================
 case "${target}" in
+powerpc-apple-darwin*)
+    MOZ_IPC=
+    ;;
 *-wince*)
     MOZ_IPC=
     ;;
@@ -6015,7 +5874,7 @@ i?86-*-mingw*)
 i?86-apple-darwin*|powerpc-apple-darwin*)
   MOZ_CRASHREPORTER=1
   ;;
-i?86-*-linux*|x86_64-*-linux*|arm-*-linux*)
+i?86-*-linux*|x86_64-*-linux*)
   MOZ_CRASHREPORTER=1
   ;;
 *solaris*)
@@ -6519,7 +6378,7 @@ else
             #include "sqlite3.h"
 
             int main(int argc, char **argv){
-              return !sqlite3_compileoption_used("SQLITE_SECURE_DELETE");
+              return !sqlite3_compileoption_used("SQLITE_SECURE_DELETE=1");
             }],
             ac_cv_sqlite_secure_delete=yes,
             ac_cv_sqlite_secure_delete=no,
@@ -6577,7 +6436,7 @@ else
             #include "sqlite3.h"
 
             int main(int argc, char **argv){
-              return !sqlite3_compileoption_used("SQLITE_ENABLE_FTS3");
+              return !sqlite3_compileoption_used("SQLITE_ENABLE_FTS3=1");
             }],
             ac_cv_sqlite_enable_fts3=yes,
             ac_cv_sqlite_enable_fts3=no,
@@ -6593,14 +6452,6 @@ else
 fi
 
 AC_SUBST(MOZ_NATIVE_SQLITE)
-
-dnl ========================================================
-dnl = Enable help viewer (off by default)
-dnl ========================================================
-if test -n "$MOZ_HELP_VIEWER"; then
-     dnl Do this if defined in confvars.sh
-     AC_DEFINE(MOZ_HELP_VIEWER)
-fi
 
 dnl ========================================================
 dnl = Enable safe browsing (anti-phishing)
@@ -6707,10 +6558,9 @@ if test $MOZ_PLATFORM_MAEMO; then
    if test -z "$MOZ_ENABLE_DBUS"; then
        AC_MSG_ERROR([DBus is required when building for Maemo])
    fi
-
+   
    MOZ_GFX_OPTIMIZE_MOBILE=1
    MOZ_WEBGL_GLX=
-   MOZ_MAEMO_LIBLOCATION=
 
    if test $MOZ_PLATFORM_MAEMO = 5; then
       dnl if we have Xcomposite we should also have Xdamage and Xfixes
@@ -6743,18 +6593,13 @@ if test $MOZ_PLATFORM_MAEMO; then
          AC_MSG_ERROR([Hildon FM-2 is required when building for Maemo])
       fi
 
+      PKG_CHECK_MODULES(LIBLOCATION,liblocation, _LIB_FOUND=1, _LIB_FOUND=)
+      MOZ_PLATFORM_MAEMO_LIBS="$MOZ_PLATFORM_MAEMO_LIBS $LIBLOCATION_LIBS"
+      MOZ_PLATFORM_MAEMO_CFLAGS="$MOZ_PLATFORM_MAEMO_CFLAGS $LIBLOCATION_CFLAGS"
+      if test -z "$_LIB_FOUND"; then
+         AC_MSG_ERROR([liblocation is required when building for Maemo])
+      fi
    fi
-
-   PKG_CHECK_MODULES(LIBLOCATION,liblocation, _LIB_FOUND=1, _LIB_FOUND=)
-   MOZ_PLATFORM_MAEMO_LIBS="$MOZ_PLATFORM_MAEMO_LIBS $LIBLOCATION_LIBS"
-   MOZ_PLATFORM_MAEMO_CFLAGS="$MOZ_PLATFORM_MAEMO_CFLAGS $LIBLOCATION_CFLAGS"
-   if test "$_LIB_FOUND"; then
-      MOZ_MAEMO_LIBLOCATION=1
-      AC_DEFINE(MOZ_MAEMO_LIBLOCATION)
-   else
-      AC_MSG_WARN([Cannot liblocation-dev. Disabling Maemo geolocation.])
-   fi
-   AC_SUBST(MOZ_MAEMO_LIBLOCATION)
 
    AC_SUBST(MOZ_PLATFORM_MAEMO_LIBS)
    AC_SUBST(MOZ_PLATFORM_MAEMO_CFLAGS)
@@ -6945,18 +6790,7 @@ if test -n "$MOZ_DEBUG" -o -n "$MOZ_DEBUG_SYMBOLS"; then
 fi
 
 dnl ========================================================
-dnl = Disable any treating of compile warnings as errors
-dnl ========================================================
-MOZ_ARG_DISABLE_BOOL(warnings-as-errors,
-[  --disable-warnings-as-errors       Disable treating of warnings as errors],
-    MOZ_DISABLE_WARNINGS_AS_ERRORS=1,
-    MOZ_DISABLE_WARNINGS_AS_ERRORS= )
-if test "$MOZ_DISABLE_WARNINGS_AS_ERRORS"; then
-   WARNINGS_AS_ERRORS=''
-fi
-
-dnl ========================================================
-dnl = Disable runtime logging checks
+dnl Disable runtime logging checks
 dnl ========================================================
 MOZ_ARG_DISABLE_BOOL(logging,
 [  --disable-logging       Disable logging facilities],
@@ -6969,7 +6803,7 @@ else
 fi
 
 dnl ========================================================
-dnl = This will enable logging of addref, release, ctor, dtor.
+dnl = dnl This will enable logging of addref, release, ctor, dtor.
 dnl ========================================================
 _ENABLE_LOGREFCNT=42
 MOZ_ARG_ENABLE_BOOL(logrefcnt,
@@ -7296,19 +7130,6 @@ if test -n "$MOZ_TIMELINE"; then
 fi
 
 dnl ========================================================
-dnl = Enable NS_FUNCTION_TIMER, which provides Function 
-dnl = timing for identifying code bottlenecks 
-dnl = NS_FUNCTION_TIMER is off by default.
-dnl ========================================================
-MOZ_ARG_ENABLE_BOOL(functiontimer,
-[  --enable-functiontimer       Enable NS_FUNCTION_TIMER ],
-    NS_FUNCTION_TIMER=1,
-    NS_FUNCTION_TIMER= )
-if test -n "$NS_FUNCTION_TIMER"; then
-    AC_DEFINE(NS_FUNCTION_TIMER)
-fi
-
-dnl ========================================================
 dnl Turn on reflow counting
 dnl ========================================================
 MOZ_ARG_ENABLE_BOOL(reflow-perf,
@@ -7497,26 +7318,23 @@ else
     AC_MSG_RESULT([no])
 fi
 
-dnl ========================================================
-dnl Pass -Wno-long-long to the compiler
-dnl ========================================================
-MOZ_ARG_DISABLE_BOOL(long-long-warning,
-[  --disable-long-long-warning
-                          Do not warn about use of non-ANSI long long type (if supported)],
-    _IGNORE_LONG_LONG_WARNINGS=1,
-    _IGNORE_LONG_LONG_WARNINGS=)
+dnl pass -Wno-long-long to the compiler
+MOZ_ARG_ENABLE_BOOL(long-long-warning,
+[  --enable-long-long-warning 
+                          Warn about use of non-ANSI long long type],
+    _IGNORE_LONG_LONG_WARNINGS=,
+    _IGNORE_LONG_LONG_WARNINGS=1)
 
-if test -n "$_IGNORE_LONG_LONG_WARNINGS"; then
-    _SAVE_CFLAGS="$CFLAGS"
-    CFLAGS="$CFLAGS ${_COMPILER_PREFIX}-Wno-long-long"
-    AC_MSG_CHECKING([whether compiler supports -Wno-long-long])
-    AC_TRY_COMPILE([], [return(0);],
-      [ _WARNINGS_CFLAGS="${_WARNINGS_CFLAGS} ${_COMPILER_PREFIX}-Wno-long-long"
-        _WARNINGS_CXXFLAGS="${_WARNINGS_CXXFLAGS} ${_COMPILER_PREFIX}-Wno-long-long"
-        result="yes" ],
-      result="no")
-    AC_MSG_RESULT([$result])
-    CFLAGS="$_SAVE_CFLAGS"
+if test "$_IGNORE_LONG_LONG_WARNINGS"; then
+     _SAVE_CFLAGS="$CFLAGS"
+     CFLAGS="$CFLAGS ${_COMPILER_PREFIX}-Wno-long-long"
+     AC_MSG_CHECKING([whether compiler supports -Wno-long-long])
+     AC_TRY_COMPILE([], [return(0);], 
+	[ _WARNINGS_CFLAGS="${_WARNINGS_CFLAGS} ${_COMPILER_PREFIX}-Wno-long-long"
+	  _WARNINGS_CXXFLAGS="${_WARNINGS_CXXFLAGS} ${_COMPILER_PREFIX}-Wno-long-long"
+	  result="yes" ], result="no")
+     AC_MSG_RESULT([$result])
+     CFLAGS="$_SAVE_CFLAGS"
 fi
 
 dnl ========================================================
@@ -7536,7 +7354,7 @@ MOZ_PROFILE_GUIDED_OPTIMIZE_DISABLE=)
 AC_SUBST(MOZ_PROFILE_GUIDED_OPTIMIZE_DISABLE)
 
 _SAVE_CFLAGS="$CFLAGS"
-CFLAGS="$CFLAGS -fprofile-generate -fprofile-correction"
+CFLAGS="$CFLAGS -fprofile-generate"
 
 AC_MSG_CHECKING([whether C compiler supports -fprofile-generate])
 AC_TRY_COMPILE([], [return 0;],
@@ -7546,7 +7364,7 @@ AC_MSG_RESULT([$result])
 
 if test $result = "yes"; then
   PROFILE_GEN_LDFLAGS="-fprofile-generate"
-  PROFILE_USE_CFLAGS="-fprofile-use -fprofile-correction -Wcoverage-mismatch -freorder-blocks-and-partition"
+  PROFILE_USE_CFLAGS="-fprofile-use"
   PROFILE_USE_LDFLAGS="-fprofile-use"
 else
   CFLAGS="$_SAVE_CFLAGS -fprofile-arcs"
@@ -8274,6 +8092,19 @@ if test "$NECKO_WIFI"; then
   AC_DEFINE(NECKO_WIFI)
 fi
 AC_SUBST(NECKO_WIFI)
+
+dnl
+dnl option to minimize size of necko's i/o buffers
+dnl
+MOZ_ARG_ENABLE_BOOL(necko-small-buffers,
+[  --enable-necko-small-buffers
+                          Minimize size of necko's i/o buffers],
+    NECKO_SMALL_BUFFERS=1,
+    NECKO_SMALL_BUFFERS=)
+AC_SUBST(NECKO_SMALL_BUFFERS)
+if test "$NECKO_SMALL_BUFFERS"; then
+    AC_DEFINE(NECKO_SMALL_BUFFERS)
+fi 
 
 dnl
 dnl option to disable cookies

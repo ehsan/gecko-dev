@@ -68,11 +68,8 @@
 
 #include "nsCycleCollectionParticipant.h"
 
-// Avoid warnings about macro empty parameters.
-#define FAVICONSTEP_FAKE_EMPTYPARAM
-
 #define FAVICONSTEP_FAIL_IF_FALSE(_cond) \
-  FAVICONSTEP_FAIL_IF_FALSE_RV(_cond, FAVICONSTEP_FAKE_EMPTYPARAM)
+  FAVICONSTEP_FAIL_IF_FALSE_RV(_cond, )
 
 #define FAVICONSTEP_FAIL_IF_FALSE_RV(_cond, _rv) \
   PR_BEGIN_MACRO \
@@ -84,7 +81,7 @@
   PR_END_MACRO
 
 #define FAVICONSTEP_CANCEL_IF_TRUE(_cond, _notify) \
-  FAVICONSTEP_CANCEL_IF_TRUE_RV(_cond, _notify, FAVICONSTEP_FAKE_EMPTYPARAM)
+  FAVICONSTEP_CANCEL_IF_TRUE_RV(_cond, _notify, )
 
 #define FAVICONSTEP_CANCEL_IF_TRUE_RV(_cond, _notify, _rv) \
   PR_BEGIN_MACRO \

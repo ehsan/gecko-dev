@@ -73,9 +73,6 @@
 
 using namespace js;
 
-static const size_t ARENA_HEADER_SIZE_HACK = 40;
-static const size_t TEMP_POOL_CHUNK_SIZE = 4096 - ARENA_HEADER_SIZE_HACK;
-
 static void
 FreeContext(JSContext *cx);
 
@@ -158,8 +155,6 @@ JSThreadData::mark(JSTracer *trc)
 void
 JSThreadData::purge(JSContext *cx)
 {
-    cachedIteratorObject = NULL;
-
     purgeGCFreeLists();
 
     js_PurgeGSNCache(&gsnCache);
@@ -180,8 +175,6 @@ JSThreadData::purge(JSContext *cx)
     js_DestroyScriptsToGC(cx, this);
 
     js_PurgeCachedNativeEnumerators(cx, this);
-
-    dtoaCache.s = NULL;
 }
 
 void
@@ -496,8 +489,9 @@ js_NewContext(JSRuntime *rt, size_t stackChunkSize)
     JS_InitArenaPool(&cx->stackPool, "stack", stackChunkSize, sizeof(jsval),
                      &cx->scriptStackQuota);
 
-    JS_InitArenaPool(&cx->tempPool, "temp", TEMP_POOL_CHUNK_SIZE, sizeof(jsdouble),
-                     &cx->scriptStackQuota);
+    JS_InitArenaPool(&cx->tempPool, "temp",
+                     1024,  /* FIXME: bug 421435 */
+                     sizeof(jsdouble), &cx->scriptStackQuota);
 
     js_InitRegExpStatics(cx);
     JS_ASSERT(cx->resolveFlags == 0);
@@ -575,9 +569,10 @@ js_NewContext(JSRuntime *rt, size_t stackChunkSize)
             return NULL;
         }
 
-        AutoLockGC lock(rt);
+        JS_LOCK_GC(rt);
         rt->state = JSRTS_UP;
         JS_NOTIFY_ALL_CONDVAR(rt->stateChange);
+        JS_UNLOCK_GC(rt);
     }
 
     cxCallback = rt->cxCallback;
@@ -897,11 +892,14 @@ js_ContextIterator(JSRuntime *rt, JSBool unlocked, JSContext **iterp)
 {
     JSContext *cx = *iterp;
 
-    Conditionally<AutoLockGC> lockIf(!!unlocked, rt);
+    if (unlocked)
+        JS_LOCK_GC(rt);
     cx = js_ContextFromLinkField(cx ? cx->link.next : rt->contextList.next);
     if (&cx->link == &rt->contextList)
         cx = NULL;
     *iterp = cx;
+    if (unlocked)
+        JS_UNLOCK_GC(rt);
     return cx;
 }
 
@@ -1848,27 +1846,11 @@ js_InvokeOperationCallback(JSContext *cx)
      * not yield. Operation callbacks are supposed to happen rarely (seconds,
      * not milliseconds) so it is acceptable to yield at every callback.
      */
-    JSRuntime *rt = cx->runtime;
-    if (rt->gcIsNeeded) {
+    if (cx->runtime->gcIsNeeded)
         js_GC(cx, GC_NORMAL);
-
-        /*
-         * On trace we can exceed the GC quota, see comments in NewGCArena. So
-         * we check the quota and report OOM here when we are off trace.
-         */
-        bool delayedOutOfMemory;
-        JS_LOCK_GC(rt);
-        delayedOutOfMemory = (rt->gcBytes > rt->gcMaxBytes);
-        JS_UNLOCK_GC(rt);
-        if (delayedOutOfMemory) {
-            js_ReportOutOfMemory(cx);
-            return false;
-        }
-    }
 #ifdef JS_THREADSAFE
-    else {
+    else
         JS_YieldRequest(cx);
-    }
 #endif
 
     JSOperationCallback cb = cx->operationCallback;
@@ -1885,12 +1867,18 @@ js_InvokeOperationCallback(JSContext *cx)
 void
 js_TriggerAllOperationCallbacks(JSRuntime *rt, JSBool gcLocked)
 {
+    JSContext *acx, *iter;
 #ifdef JS_THREADSAFE
-    Conditionally<AutoLockGC> lockIf(!gcLocked, rt);
+    if (!gcLocked)
+        JS_LOCK_GC(rt);
 #endif
-    JSContext *iter = NULL;
-    while (JSContext *acx = js_ContextIterator(rt, JS_FALSE, &iter))
+    iter = NULL;
+    while ((acx = js_ContextIterator(rt, JS_FALSE, &iter)))
         JS_TriggerOperationCallback(acx);
+#ifdef JS_THREADSAFE
+    if (!gcLocked)
+        JS_UNLOCK_GC(rt);
+#endif
 }
 
 JSStackFrame *
@@ -1993,7 +1981,7 @@ JSContext::checkMallocGCPressure(void *p)
     ptrdiff_t n = JS_GC_THREAD_MALLOC_LIMIT - thread->gcThreadMallocBytes;
     thread->gcThreadMallocBytes = JS_GC_THREAD_MALLOC_LIMIT;
 
-    AutoLockGC lock(runtime);
+    JS_LOCK_GC(runtime);
     runtime->gcMallocBytes -= n;
     if (runtime->isGCMallocLimitReached())
 #endif
@@ -2011,6 +1999,7 @@ JSContext::checkMallocGCPressure(void *p)
         JS_THREAD_DATA(this)->purgeGCFreeLists();
         js_TriggerGC(this, true);
     }
+    JS_UNLOCK_GC(runtime);
 }
 
 

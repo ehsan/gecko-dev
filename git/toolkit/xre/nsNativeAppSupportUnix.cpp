@@ -58,8 +58,6 @@
 #include "nsIBaseWindow.h"
 #include "nsIWidget.h"
 #include "nsIWritablePropertyBag2.h"
-#include "nsIPrefService.h"
-#include "mozilla/Services.h"
 
 #include <stdlib.h>
 #include <glib.h>
@@ -130,7 +128,7 @@ gboolean save_yourself_cb(GnomeClient *client, gint phase,
                           gpointer user_data)
 {
   nsCOMPtr<nsIObserverService> obsServ =
-    mozilla::services::GetObserverService();
+    do_GetService("@mozilla.org/observer-service;1");
 
   nsCOMPtr<nsISupportsPRBool> didSaveSession =
     do_CreateInstance(NS_SUPPORTS_PRBOOL_CONTRACTID);
@@ -221,15 +219,6 @@ WidgetForDOMWindow(nsISupports *aWindow)
 static void
 OssoSetWindowOrientation(PRBool aPortrait)
 {
-  // If we locked the screen, ignore any orientation changes
-  PRBool lockScreen = PR_FALSE;
-  nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
-  if (prefs)
-    prefs->GetBoolPref("toolkit.screen.lock", &lockScreen);
-
-  if (lockScreen)
-    return;
-
   // Tell Hildon desktop to force our window to be either portrait or landscape,
   // depending on the current rotation
   // NOTE: We only update the most recent top-level window so this is only
@@ -298,7 +287,7 @@ static void OssoRequestAccelerometer(osso_context_t *ctx, PRBool aEnabled)
 
 static void OssoDisplayCallback(osso_display_state_t state, gpointer data)
 {
-  nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
+  nsCOMPtr<nsIObserverService> os = do_GetService("@mozilla.org/observer-service;1");
   if (!os)
       return;
 
@@ -327,14 +316,16 @@ static void OssoHardwareCallback(osso_hw_state_t *state, gpointer data)
     return;
   }
 
-  if (state->memory_low_ind && !ourState->memory_low_ind) {
-    nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
-    if (os)
-      os->NotifyObservers(nsnull, "memory-pressure", NS_LITERAL_STRING("low-memory").get());
+  if (state->memory_low_ind) {
+      if (! ourState->memory_low_ind) {
+      nsCOMPtr<nsIObserverService> os = do_GetService("@mozilla.org/observer-service;1");
+      if (os)
+        os->NotifyObservers(nsnull, "memory-pressure", NS_LITERAL_STRING("low-memory").get());
+    }
   }
   
   if (state->system_inactivity_ind != ourState->system_inactivity_ind) {
-      nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
+      nsCOMPtr<nsIObserverService> os = do_GetService("@mozilla.org/observer-service;1");
       if (!os)
         return;
  

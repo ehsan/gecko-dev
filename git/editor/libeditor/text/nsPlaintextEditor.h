@@ -89,10 +89,11 @@ public:
 
   /* ------------ nsIEditorIMESupport overrides -------------- */
   NS_IMETHOD SetCompositionString(const nsAString &aCompositionString,
-                                  nsIPrivateTextRangeList *aTextRange);
+                                  nsIPrivateTextRangeList *aTextRange,
+                                  nsTextEventReply *aReply);
 
   /* ------------ Overrides of nsEditor interface methods -------------- */
-  NS_IMETHOD BeginComposition();
+  NS_IMETHOD BeginComposition(nsTextEventReply* aReply);
   NS_IMETHOD SetAttributeOrEquivalent(nsIDOMElement * aElement,
                                       const nsAString & aAttribute,
                                       const nsAString & aValue,
@@ -110,6 +111,9 @@ public:
   NS_IMETHOD DeleteSelection(EDirection aAction);
 
   NS_IMETHOD SetDocumentCharacterSet(const nsACString & characterSet);
+
+  NS_IMETHOD GetFlags(PRUint32 *aFlags);
+  NS_IMETHOD SetFlags(PRUint32 aFlags);
 
   NS_IMETHOD Undo(PRUint32 aCount);
   NS_IMETHOD Redo(PRUint32 aCount);

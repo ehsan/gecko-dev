@@ -78,14 +78,8 @@ DOMCI_CASTABLE_INTERFACE(nsINode, 0, _extra)                                  \
 DOMCI_CASTABLE_INTERFACE(nsIContent, 1, _extra)                               \
 DOMCI_CASTABLE_INTERFACE(nsIDocument, 2, _extra)                              \
 DOMCI_CASTABLE_INTERFACE(nsINodeList, 3, _extra)                              \
-DOMCI_CASTABLE_INTERFACE(nsICSSDeclaration, 4, _extra)                        \
-DOMCI_CASTABLE_INTERFACE(nsGenericTextNode, 5, _extra)
+DOMCI_CASTABLE_INTERFACE(nsICSSDeclaration, 4, _extra)
 
-// Make sure all classes mentioned in DOMCI_CASTABLE_INTERFACES
-// have been declared.
-#define DOMCI_CASTABLE_INTERFACE(_interface, _u1, _u2) class _interface;
-DOMCI_CASTABLE_INTERFACES(unused)
-#undef DOMCI_CASTABLE_INTERFACE
 
 #ifdef _IMPL_NS_LAYOUT
 
@@ -97,46 +91,32 @@ DOMCI_CASTABLE_INTERFACES(unused)
 #undef DOMCI_CLASS
 
 /**
- * Provide a general "does class C implement interface I" predicate.
- * This is not as sophisticated as e.g. boost's is_base_of template,
- * but it does the job adequately for our purposes.
+ * We define two functions for every interface in DOMCI_CASTABLE_INTERFACES.
+ * One takes a void* and one takes an nsIFoo*. These are used to compute the
+ * bitmap for a given class. If the class doesn't implement the interface then
+ * the void* variant will be called and we'll return 0, otherwise the nsIFoo*
+ * variant will be called and we'll return (1 << bit).
  */
+#define DOMCI_CASTABLE_INTERFACE(_interface, _bit, _extra)                    \
+class _interface;                                                             \
+inline PRUint32 Implements_##_interface(_interface *foo)                      \
+  { return 1 << _bit; }                                                       \
+inline PRUint32 Implements_##_interface(void *foo)                            \
+  { return 0; }
 
-#if __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ > 2) || \
-    _MSC_FULL_VER >= 140050215
+DOMCI_CASTABLE_INTERFACES()
 
-/* Use a compiler intrinsic if one is available. */
-
-#define DOMCI_CASTABLE_TO(_interface, _class) __is_base_of(_interface, _class)
-
-#else
-
-/* The generic version of this predicate relies on the overload resolution
- * rules.  If |_class| inherits from |_interface|, the |_interface*|
- * overload of DOMCI_CastableTo<_interface>::p() will be chosen, otherwise
- * the |void*| overload will be chosen.  There is no definition of these
- * functions; we determine which overload was selected by inspecting the
- * size of the return type.
- */
-
-template <typename Interface> struct DOMCI_CastableTo {
-  struct false_type { int x[1]; };
-  struct true_type { int x[2]; };
-  static false_type p(void*);
-  static true_type p(Interface*);
-};
-
-#define DOMCI_CASTABLE_TO(_interface, _class)                                 \
-  (sizeof(DOMCI_CastableTo<_interface>::p(static_cast<_class*>(0))) ==        \
-   sizeof(DOMCI_CastableTo<_interface>::true_type))
-
-#endif
+#undef DOMCI_CASTABLE_INTERFACE
 
 /**
- * Here we calculate the bitmap for a given class.
+ * Here we calculate the bitmap for a given class. We'll call the functions
+ * defined above with (_class*)nsnull. If the class implements an interface,
+ * that function will return (1 << bit), if it doesn't the function returns 0.
+ * We just make the sum of all the values returned from the functions to
+ * generate the bitmap.
  */
 #define DOMCI_CASTABLE_INTERFACE(_interface, _bit, _class)                    \
-  (DOMCI_CASTABLE_TO(_interface, _class) ? 1 << _bit : 0) +
+  Implements_##_interface((_class*)nsnull) +
 
 #define DOMCI_DATA(_dom_class, _class)                                        \
 const PRUint32 kDOMClassInfo_##_dom_class##_interfaces =                      \
