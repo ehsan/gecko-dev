@@ -1,5 +1,5 @@
 actual   = 'No Error';
-expected = /column-numbers\.js:4:11/;
+expected = /column-numbers\.js:4:5/;
 try {
     throw new Error("test");
 }

@@ -693,7 +693,7 @@ IonBuilder::build()
     }
 
     // Emit the start instruction, so we can begin real instructions.
-    current->add(MStart::New(alloc(), MStart::StartType_Default));
+    current->makeStart(MStart::New(alloc(), MStart::StartType_Default));
     if (instrumentedProfiling())
         current->add(MProfilerStackOp::New(alloc(), script(), MProfilerStackOp::Enter));
 
@@ -9733,12 +9733,9 @@ IonBuilder::jsop_defvar(uint32_t index)
     PropertyName *name = script()->getName(index);
 
     // Bake in attrs.
-    unsigned attrs = JSPROP_ENUMERATE;
+    unsigned attrs = JSPROP_ENUMERATE | JSPROP_PERMANENT;
     if (JSOp(*pc) == JSOP_DEFCONST)
         attrs |= JSPROP_READONLY;
-    else
-        attrs |= JSPROP_PERMANENT;
-    JS_ASSERT(!script()->isForEval());
 
     // Pass the ScopeChain.
     JS_ASSERT(analysis().usesScopeChain());

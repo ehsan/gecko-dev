@@ -26,14 +26,15 @@ public:
   // *evOidPolicy == SEC_OID_UNKNOWN means the cert is NOT EV
   // Only one usage per verification is supported.
   SECStatus VerifyCert(CERTCertificate* cert,
-                       SECCertificateUsage usage,
-                       PRTime time,
+                       const SECCertificateUsage usage,
+                       const PRTime time,
                        void* pinArg,
                        const char* hostname,
-                       Flags flags = 0,
+                       const Flags flags = 0,
        /*optional in*/ const SECItem* stapledOCSPResponse = nullptr,
       /*optional out*/ mozilla::pkix::ScopedCERTCertList* validationChain = nullptr,
-      /*optional out*/ SECOidTag* evOidPolicy = nullptr);
+      /*optional out*/ SECOidTag* evOidPolicy = nullptr ,
+      /*optional out*/ CERTVerifyLog* verifyLog = nullptr);
 
   SECStatus VerifySSLServerCert(
                     CERTCertificate* peerCert,
@@ -44,6 +45,15 @@ public:
                     bool saveIntermediatesInPermanentDatabase = false,
    /*optional out*/ mozilla::pkix::ScopedCERTCertList* certChainOut = nullptr,
    /*optional out*/ SECOidTag* evOidPolicy = nullptr);
+
+
+  enum implementation_config {
+    classic = 0,
+#ifndef NSS_NO_LIBPKIX
+    libpkix = 1,
+#endif
+    mozillapkix = 2
+  };
 
   enum pinning_enforcement_config {
     pinningDisabled = 0,
@@ -60,19 +70,38 @@ public:
 
   bool IsOCSPDownloadEnabled() const { return mOCSPDownloadEnabled; }
 
-  CertVerifier(ocsp_download_config odc, ocsp_strict_config osc,
+  CertVerifier(implementation_config ic,
+#ifndef NSS_NO_LIBPKIX
+               missing_cert_download_config ac, crl_download_config cdc,
+#endif
+               ocsp_download_config odc, ocsp_strict_config osc,
                ocsp_get_config ogc,
                pinning_enforcement_config pinningEnforcementLevel);
   ~CertVerifier();
 
   void ClearOCSPCache() { mOCSPCache.Clear(); }
 
+  const implementation_config mImplementation;
+#ifndef NSS_NO_LIBPKIX
+  const bool mMissingCertDownloadEnabled;
+  const bool mCRLDownloadEnabled;
+#endif
   const bool mOCSPDownloadEnabled;
   const bool mOCSPStrict;
   const bool mOCSPGETEnabled;
   const pinning_enforcement_config mPinningEnforcementLevel;
 
 private:
+  SECStatus MozillaPKIXVerifyCert(CERTCertificate* cert,
+      const SECCertificateUsage usage,
+      const PRTime time,
+      void* pinArg,
+      const Flags flags,
+      ChainValidationCallbackState* callbackState,
+      /*optional*/ const SECItem* stapledOCSPResponse,
+      /*optional out*/ mozilla::pkix::ScopedCERTCertList* validationChain,
+      /*optional out*/ SECOidTag* evOidPolicy);
+
   OCSPCache mOCSPCache;
 };
 

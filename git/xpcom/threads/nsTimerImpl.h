@@ -59,9 +59,7 @@ public:
   friend struct TimerAdditionComparator;
 
   void Fire();
-  // If a failure is encountered, the reference is returned to the caller
-  static already_AddRefed<nsTimerImpl> PostTimerEvent(
-      already_AddRefed<nsTimerImpl> aTimerRef);
+  nsresult PostTimerEvent();
   void SetDelayInternal(uint32_t aDelay);
 
   NS_DECL_THREADSAFE_ISUPPORTS
@@ -78,8 +76,6 @@ public:
     mTracedTask = mozilla::tasktracer::CreateFakeTracedTask(*(int**)(this));
   }
 #endif
-
-  virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
 
 private:
   ~nsTimerImpl();

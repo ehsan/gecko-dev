@@ -5,7 +5,6 @@
 
 #include "CameraPreferences.h"
 #include "CameraCommon.h"
-#include "mozilla/ArrayUtils.h"
 #include "mozilla/Monitor.h"
 #include "mozilla/StaticPtr.h"
 #include "mozilla/Preferences.h"

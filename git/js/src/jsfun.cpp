@@ -55,7 +55,6 @@ using namespace js::frontend;
 using mozilla::ArrayLength;
 using mozilla::PodCopy;
 using mozilla::Range;
-using mozilla::RangedPtr;
 
 static bool
 fun_getProperty(JSContext *cx, HandleObject obj_, HandleId id, MutableHandleValue vp)
@@ -748,8 +747,8 @@ const Class* const js::FunctionClassPtr = &JSFunction::class_;
 
 /* Find the body of a function (not including braces). */
 bool
-js::FindBody(JSContext *cx, HandleFunction fun, HandleLinearString src, size_t *bodyStart,
-             size_t *bodyEnd)
+js::FindBody(JSContext *cx, HandleFunction fun, ConstTwoByteChars chars, size_t length,
+         size_t *bodyStart, size_t *bodyEnd)
 {
     // We don't need principals, since those are only used for error reporting.
     CompileOptions options(cx);
@@ -760,13 +759,7 @@ js::FindBody(JSContext *cx, HandleFunction fun, HandleLinearString src, size_t *
         options.setVersion(fun->nonLazyScript()->getVersion());
 
     AutoKeepAtoms keepAtoms(cx->perThreadData);
-
-    AutoStableStringChars stableChars(cx);
-    if (!stableChars.initTwoByte(cx, src))
-        return false;
-
-    const Range<const jschar> srcChars = stableChars.twoByteRange();
-    TokenStream ts(cx, options, srcChars.start().get(), srcChars.length(), nullptr);
+    TokenStream ts(cx, options, chars.get(), length, nullptr);
     int nest = 0;
     bool onward = true;
     // Skip arguments list.
@@ -801,7 +794,7 @@ js::FindBody(JSContext *cx, HandleFunction fun, HandleLinearString src, size_t *
     *bodyStart = ts.currentToken().pos.begin;
     if (braced)
         *bodyStart += 1;
-    RangedPtr<const jschar> end = srcChars.end();
+    ConstTwoByteChars end(chars.get() + length, chars.get(), length);
     if (end[-1] == '}') {
         end--;
     } else {
@@ -809,7 +802,7 @@ js::FindBody(JSContext *cx, HandleFunction fun, HandleLinearString src, size_t *
         for (; unicode::IsSpaceOrBOM2(end[-1]); end--)
             ;
     }
-    *bodyEnd = end - srcChars.start();
+    *bodyEnd = end - chars;
     JS_ASSERT(*bodyStart <= *bodyEnd);
     return true;
 }
@@ -869,6 +862,7 @@ js::FunctionToString(JSContext *cx, HandleFunction fun, bool bodyOnly, bool lamb
         if (!src)
             return nullptr;
 
+        ConstTwoByteChars chars(src->chars(), src->length());
         bool exprBody = fun->isExprClosure();
 
         // The source data for functions created by calling the Function
@@ -884,8 +878,7 @@ js::FunctionToString(JSContext *cx, HandleFunction fun, bool bodyOnly, bool lamb
         // expression closures.
         JS_ASSERT_IF(funCon, !fun->isArrow());
         JS_ASSERT_IF(funCon, !exprBody);
-        JS_ASSERT_IF(!funCon && !fun->isArrow(),
-                     src->length() > 0 && src->latin1OrTwoByteChar(0) == '(');
+        JS_ASSERT_IF(!funCon && !fun->isArrow(), src->length() > 0 && chars[0] == '(');
 
         // If a function inherits strict mode by having scopes above it that
         // have "use strict", we insert "use strict" into the body of the
@@ -926,7 +919,7 @@ js::FunctionToString(JSContext *cx, HandleFunction fun, bool bodyOnly, bool lamb
             // already have a body.
             if (!funCon) {
                 JS_ASSERT(!buildBody);
-                if (!FindBody(cx, fun, src, &bodyStart, &bodyEnd))
+                if (!FindBody(cx, fun, chars, src->length(), &bodyStart, &bodyEnd))
                     return nullptr;
             } else {
                 bodyEnd = src->length();
@@ -934,7 +927,7 @@ js::FunctionToString(JSContext *cx, HandleFunction fun, bool bodyOnly, bool lamb
 
             if (addUseStrict) {
                 // Output source up to beginning of body.
-                if (!out.appendSubstring(src, 0, bodyStart))
+                if (!out.append(chars, bodyStart))
                     return nullptr;
                 if (exprBody) {
                     // We can't insert a statement into a function with an
@@ -951,7 +944,7 @@ js::FunctionToString(JSContext *cx, HandleFunction fun, bool bodyOnly, bool lamb
             // Output just the body (for bodyOnly) or the body and possibly
             // closing braces (for addUseStrict).
             size_t dependentEnd = bodyOnly ? bodyEnd : src->length();
-            if (!out.appendSubstring(src, bodyStart, dependentEnd - bodyStart))
+            if (!out.append(chars + bodyStart, dependentEnd - bodyStart))
                 return nullptr;
         } else {
             if (!out.append(src))
@@ -1285,7 +1278,7 @@ JSFunction::createScriptForLazilyInterpretedFunction(JSContext *cx, HandleFuncti
         JS_ASSERT(lazy->source()->hasSourceData());
 
         // Parse and compile the script from source.
-        UncompressedSourceCache::AutoHoldEntry holder;
+        SourceDataCache::AutoHoldEntry holder;
         const jschar *chars = lazy->source()->chars(cx, holder);
         if (!chars)
             return false;
@@ -1737,8 +1730,12 @@ FunctionConstructor(JSContext *cx, unsigned argc, Value *vp, GeneratorKind gener
     if (hasRest)
         fun->setHasRest();
 
-    AutoStableStringChars stableChars(cx);
-    if (!stableChars.initTwoByte(cx, str))
+    JSLinearString *linear = str->ensureLinear(cx);
+    if (!linear)
+        return false;
+
+    AutoStableStringChars stableChars(cx, linear);
+    if (!stableChars.initTwoByte(cx))
         return false;
 
     Range<const jschar> chars = stableChars.twoByteRange();

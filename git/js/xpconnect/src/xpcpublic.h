@@ -110,12 +110,6 @@ bool
 UseContentXBLScope(JSCompartment *c);
 
 bool
-IsInAddonScope(JSObject *obj);
-
-JSObject *
-GetAddonScope(JSContext *cx, JS::HandleObject contentScope, JSAddonId *addonId);
-
-bool
 IsSandboxPrototypeProxy(JSObject *obj);
 
 bool

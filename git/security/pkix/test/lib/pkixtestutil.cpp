@@ -178,11 +178,14 @@ private:
 };
 
 OCSPResponseContext::OCSPResponseContext(PLArenaPool* arena,
-                                         const CertID& certID, PRTime time)
+                                         CERTCertificate* cert,
+                                         PRTime time)
   : arena(arena)
-  , certID(certID)
+  , cert(CERT_DupCertificate(cert))
   , responseStatus(successful)
   , skipResponseBytes(false)
+  , issuerNameDER(nullptr)
+  , issuerSPKI(nullptr)
   , signerNameDER(nullptr)
   , producedAt(time)
   , extensions(nullptr)
@@ -240,7 +243,7 @@ HashAlgorithmToLength(SECOidTag hashAlg)
 }
 
 static SECItem*
-HashedOctetString(PLArenaPool* arena, const SECItem& bytes, SECOidTag hashAlg)
+HashedOctetString(PLArenaPool* arena, const SECItem* bytes, SECOidTag hashAlg)
 {
   size_t hashLen = HashAlgorithmToLength(hashAlg);
   if (hashLen == 0) {
@@ -250,7 +253,7 @@ HashedOctetString(PLArenaPool* arena, const SECItem& bytes, SECOidTag hashAlg)
   if (!hashBuf) {
     return nullptr;
   }
-  if (PK11_HashBuf(hashAlg, hashBuf->data, bytes.data, bytes.len)
+  if (PK11_HashBuf(hashAlg, hashBuf->data, bytes->data, bytes->len)
         != SECSuccess) {
     return nullptr;
   }
@@ -264,7 +267,7 @@ KeyHashHelper(PLArenaPool* arena, const CERTSubjectPublicKeyInfo* spki)
   // We only need a shallow copy here.
   SECItem spk = spki->subjectPublicKey;
   DER_ConvertBitString(&spk); // bits to bytes
-  return HashedOctetString(arena, spk, SEC_OID_SHA1);
+  return HashedOctetString(arena, &spk, SEC_OID_SHA1);
 }
 
 static SECItem*
@@ -916,7 +919,8 @@ CreateEncodedOCSPResponse(OCSPResponseContext& context)
   }
 
   if (!context.skipResponseBytes) {
-    if (!context.signerPrivateKey) {
+    if (!context.cert || !context.issuerNameDER || !context.issuerSPKI ||
+        !context.signerPrivateKey) {
       PR_SetError(SEC_ERROR_INVALID_ARGS, 0);
       return nullptr;
     }
@@ -1256,29 +1260,21 @@ CertID(OCSPResponseContext& context)
     return nullptr;
   }
   SECItem* issuerNameHash = HashedOctetString(context.arena,
-                                              context.certID.issuer,
+                                              context.issuerNameDER,
                                               context.certIDHashAlg);
   if (!issuerNameHash) {
     return nullptr;
   }
-
-  ScopedPtr<CERTSubjectPublicKeyInfo, SECKEY_DestroySubjectPublicKeyInfo>
-    spki(SECKEY_DecodeDERSubjectPublicKeyInfo(
-          &context.certID.issuerSubjectPublicKeyInfo));
-  if (!spki) {
-    return nullptr;
-  }
-  SECItem* issuerKeyHash(KeyHashHelper(context.arena, spki.get()));
+  SECItem* issuerKeyHash = KeyHashHelper(context.arena, context.issuerSPKI);
   if (!issuerKeyHash) {
     return nullptr;
   }
-
   static const SEC_ASN1Template serialTemplate[] = {
-    { SEC_ASN1_INTEGER, 0 },
+    { SEC_ASN1_INTEGER, offsetof(CERTCertificate, serialNumber) },
     { 0 }
   };
   SECItem* serialNumber = SEC_ASN1EncodeItem(context.arena, nullptr,
-                                             &context.certID.serialNumber,
+                                             context.cert.get(),
                                              serialTemplate);
   if (!serialNumber) {
     return nullptr;

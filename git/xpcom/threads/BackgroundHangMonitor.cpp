@@ -137,7 +137,7 @@ public:
   // Platform-specific helper to get hang stacks
   ThreadStackHelper mStackHelper;
   // Stack of current hang
-  Telemetry::HangStack mHangStack;
+  Telemetry::HangHistogram::Stack mHangStack;
   // Statistics for telemetry
   Telemetry::ThreadHangStats mStats;
 

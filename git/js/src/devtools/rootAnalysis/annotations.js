@@ -190,8 +190,7 @@ function isRootedTypeName(name)
         name == "WrappableJSErrorResult" ||
         name == "js::frontend::TokenStream" ||
         name == "js::frontend::TokenStream::Position" ||
-        name == "ModuleCompiler" ||
-        name == "JSAddonId")
+        name == "ModuleCompiler")
     {
         return true;
     }

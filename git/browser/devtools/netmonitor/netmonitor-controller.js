@@ -539,7 +539,7 @@ NetworkEventsHandler.prototype = {
 
     let { actor, startedDateTime, method, url, isXHR } = aPacket.eventActor;
     NetMonitorView.RequestsMenu.addRequest(actor, startedDateTime, method, url, isXHR);
-    window.emit(EVENTS.NETWORK_EVENT, actor);
+    window.emit(EVENTS.NETWORK_EVENT);
   },
 
   /**
@@ -560,23 +560,23 @@ NetworkEventsHandler.prototype = {
     switch (aPacket.updateType) {
       case "requestHeaders":
         this.webConsoleClient.getRequestHeaders(actor, this._onRequestHeaders);
-        window.emit(EVENTS.UPDATING_REQUEST_HEADERS, actor);
+        window.emit(EVENTS.UPDATING_REQUEST_HEADERS);
         break;
       case "requestCookies":
         this.webConsoleClient.getRequestCookies(actor, this._onRequestCookies);
-        window.emit(EVENTS.UPDATING_REQUEST_COOKIES, actor);
+        window.emit(EVENTS.UPDATING_REQUEST_COOKIES);
         break;
       case "requestPostData":
         this.webConsoleClient.getRequestPostData(actor, this._onRequestPostData);
-        window.emit(EVENTS.UPDATING_REQUEST_POST_DATA, actor);
+        window.emit(EVENTS.UPDATING_REQUEST_POST_DATA);
         break;
       case "responseHeaders":
         this.webConsoleClient.getResponseHeaders(actor, this._onResponseHeaders);
-        window.emit(EVENTS.UPDATING_RESPONSE_HEADERS, actor);
+        window.emit(EVENTS.UPDATING_RESPONSE_HEADERS);
         break;
       case "responseCookies":
         this.webConsoleClient.getResponseCookies(actor, this._onResponseCookies);
-        window.emit(EVENTS.UPDATING_RESPONSE_COOKIES, actor);
+        window.emit(EVENTS.UPDATING_RESPONSE_COOKIES);
         break;
       case "responseStart":
         NetMonitorView.RequestsMenu.updateRequest(aPacket.from, {
@@ -585,7 +585,7 @@ NetworkEventsHandler.prototype = {
           statusText: aPacket.response.statusText,
           headersSize: aPacket.response.headersSize
         });
-        window.emit(EVENTS.STARTED_RECEIVING_RESPONSE, actor);
+        window.emit(EVENTS.STARTED_RECEIVING_RESPONSE);
         break;
       case "responseContent":
         NetMonitorView.RequestsMenu.updateRequest(aPacket.from, {
@@ -593,14 +593,14 @@ NetworkEventsHandler.prototype = {
           mimeType: aPacket.mimeType
         });
         this.webConsoleClient.getResponseContent(actor, this._onResponseContent);
-        window.emit(EVENTS.UPDATING_RESPONSE_CONTENT, actor);
+        window.emit(EVENTS.UPDATING_RESPONSE_CONTENT);
         break;
       case "eventTimings":
         NetMonitorView.RequestsMenu.updateRequest(aPacket.from, {
           totalTime: aPacket.totalTime
         });
         this.webConsoleClient.getEventTimings(actor, this._onEventTimings);
-        window.emit(EVENTS.UPDATING_EVENT_TIMINGS, actor);
+        window.emit(EVENTS.UPDATING_EVENT_TIMINGS);
         break;
     }
   },
@@ -615,7 +615,7 @@ NetworkEventsHandler.prototype = {
     NetMonitorView.RequestsMenu.updateRequest(aResponse.from, {
       requestHeaders: aResponse
     });
-    window.emit(EVENTS.RECEIVED_REQUEST_HEADERS, aResponse.from);
+    window.emit(EVENTS.RECEIVED_REQUEST_HEADERS);
   },
 
   /**
@@ -628,7 +628,7 @@ NetworkEventsHandler.prototype = {
     NetMonitorView.RequestsMenu.updateRequest(aResponse.from, {
       requestCookies: aResponse
     });
-    window.emit(EVENTS.RECEIVED_REQUEST_COOKIES, aResponse.from);
+    window.emit(EVENTS.RECEIVED_REQUEST_COOKIES);
   },
 
   /**
@@ -641,7 +641,7 @@ NetworkEventsHandler.prototype = {
     NetMonitorView.RequestsMenu.updateRequest(aResponse.from, {
       requestPostData: aResponse
     });
-    window.emit(EVENTS.RECEIVED_REQUEST_POST_DATA, aResponse.from);
+    window.emit(EVENTS.RECEIVED_REQUEST_POST_DATA);
   },
 
   /**
@@ -654,7 +654,7 @@ NetworkEventsHandler.prototype = {
     NetMonitorView.RequestsMenu.updateRequest(aResponse.from, {
       responseHeaders: aResponse
     });
-    window.emit(EVENTS.RECEIVED_RESPONSE_HEADERS, aResponse.from);
+    window.emit(EVENTS.RECEIVED_RESPONSE_HEADERS);
   },
 
   /**
@@ -667,7 +667,7 @@ NetworkEventsHandler.prototype = {
     NetMonitorView.RequestsMenu.updateRequest(aResponse.from, {
       responseCookies: aResponse
     });
-    window.emit(EVENTS.RECEIVED_RESPONSE_COOKIES, aResponse.from);
+    window.emit(EVENTS.RECEIVED_RESPONSE_COOKIES);
   },
 
   /**
@@ -680,7 +680,7 @@ NetworkEventsHandler.prototype = {
     NetMonitorView.RequestsMenu.updateRequest(aResponse.from, {
       responseContent: aResponse
     });
-    window.emit(EVENTS.RECEIVED_RESPONSE_CONTENT, aResponse.from);
+    window.emit(EVENTS.RECEIVED_RESPONSE_CONTENT);
   },
 
   /**
@@ -693,7 +693,7 @@ NetworkEventsHandler.prototype = {
     NetMonitorView.RequestsMenu.updateRequest(aResponse.from, {
       eventTimings: aResponse
     });
-    window.emit(EVENTS.RECEIVED_EVENT_TIMINGS, aResponse.from);
+    window.emit(EVENTS.RECEIVED_EVENT_TIMINGS);
   },
 
   /**

@@ -10,6 +10,7 @@ import org.mozilla.gecko.background.helpers.BackgroundServiceTestCase;
 
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.test.mock.MockContext;
 
 public class TestHealthReportPruneService
     extends BackgroundServiceTestCase<TestHealthReportPruneService.MockHealthReportPruneService> {
@@ -36,10 +37,7 @@ public class TestHealthReportPruneService
 
     @Override
     public PrunePolicy getPrunePolicy(final String profilePath) {
-      // We don't actually need any storage, so just make it null. Actually
-      // creating storage requires a valid context; here, we only have a
-      // MockContext.
-      final PrunePolicyStorage storage = null;
+      final PrunePolicyStorage storage = new PrunePolicyDatabaseStorage(new MockContext(), profilePath);
       prunePolicy = new MockPrunePolicy(storage, getSharedPreferences());
       return prunePolicy;
     }

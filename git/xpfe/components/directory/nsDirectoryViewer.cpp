@@ -20,6 +20,7 @@
 #include "nsIDocShell.h"
 #include "jsapi.h"
 #include "nsCOMPtr.h"
+#include "nsCRT.h"
 #include "nsEnumeratorUtils.h"
 #include "nsEscape.h"
 #include "nsIRDFService.h"
@@ -1269,7 +1270,7 @@ nsDirectoryViewerFactory::CreateInstance(const char *aCommand,
 {
   nsresult rv;
 
-  bool viewSource = aContentType && strstr(aContentType, "view-source");
+  bool viewSource = (PL_strstr(aContentType,"view-source") != 0);
 
   if (!viewSource &&
       Preferences::GetInt("network.dir.format", FORMAT_XUL) == FORMAT_XUL) {

@@ -3,10 +3,15 @@
 
 package org.mozilla.gecko.background.sync;
 
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.PrintStream;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.mozilla.gecko.background.common.GlobalConstants;
+import org.mozilla.gecko.background.helpers.AndroidSyncTestCase;
 import org.mozilla.gecko.db.BrowserContract;
 import org.mozilla.gecko.sync.ExtendedJSONObject;
 import org.mozilla.gecko.sync.SyncConfiguration;
@@ -23,7 +28,7 @@ import android.content.ContentResolver;
 import android.content.Context;
 import android.content.SharedPreferences;
 
-public class TestAccountPickler extends AndroidSyncTestCaseWithAccounts {
+public class TestAccountPickler extends AndroidSyncTestCase {
   public static final String TEST_FILENAME = "test.json";
   public static final String TEST_ACCOUNTTYPE = SyncConstants.ACCOUNTTYPE_SYNC;
 
@@ -44,17 +49,56 @@ public class TestAccountPickler extends AndroidSyncTestCaseWithAccounts {
   public static final long TEST_VERSION = SyncConfiguration.CURRENT_PREFS_VERSION;
 
   protected SyncAccountParameters params;
+  protected Context context;
+  protected AccountManager accountManager;
+  protected int numAccounts;
 
-  public TestAccountPickler() {
-    super(TEST_ACCOUNTTYPE, TEST_USERNAME);
-  }
-
-  @Override
   public void setUp() {
-    super.setUp();
+    context = getApplicationContext();
+    accountManager = AccountManager.get(context);
     params = new SyncAccountParameters(context, accountManager,
         TEST_USERNAME, TEST_SYNCKEY, TEST_PASSWORD, TEST_SERVER_URL,
         TEST_CLUSTER_URL, TEST_CLIENT_NAME, TEST_CLIENT_GUID);
+    numAccounts = accountManager.getAccountsByType(TEST_ACCOUNTTYPE).length;
+  }
+
+  public static List<Account> getTestAccounts(final AccountManager accountManager) {
+    final List<Account> testAccounts = new ArrayList<Account>();
+
+    final Account[] accounts = accountManager.getAccountsByType(TEST_ACCOUNTTYPE);
+    for (Account account : accounts) {
+      if (account.name.startsWith(TEST_USERNAME)) {
+        testAccounts.add(account);
+      }
+    }
+
+    return testAccounts;
+  }
+
+  public void deleteTestAccounts() {
+    for (Account account : getTestAccounts(accountManager)) {
+      TestSyncAccounts.deleteAccount(this, accountManager, account);
+    }
+  }
+
+  public void tearDown() {
+    deleteTestAccounts();
+    assertEquals(numAccounts, accountManager.getAccountsByType(TEST_ACCOUNTTYPE).length);
+  }
+
+  public static void assertFileNotPresent(final Context context, final String filename) throws Exception {
+    // Verify file is not present.
+    FileInputStream fis = null;
+    try {
+      fis = context.openFileInput(TEST_FILENAME);
+      fail("Should get FileNotFoundException.");
+    } catch (FileNotFoundException e) {
+      // Do nothing; file should not exist.
+    } finally {
+      if (fis != null) {
+        fis.close();
+      }
+    }
   }
 
   public void testPersist() throws Exception {
@@ -93,7 +137,7 @@ public class TestAccountPickler extends AndroidSyncTestCaseWithAccounts {
 
   public Account deleteAccountsAndUnpickle(final Context context, final AccountManager accountManager, final String filename) {
     deleteTestAccounts();
-    assertEquals(0, getTestAccounts().size());
+    assertEquals(0, getTestAccounts(accountManager).size());
 
     return AccountPickler.unpickle(context, filename);
   }
@@ -106,7 +150,7 @@ public class TestAccountPickler extends AndroidSyncTestCaseWithAccounts {
     assertNotNull(account);
 
     try {
-      assertEquals(1, getTestAccounts().size());
+      assertEquals(1, getTestAccounts(accountManager).size());
       assertTrue(ContentResolver.getSyncAutomatically(account, BrowserContract.AUTHORITY));
       assertEquals(account.name, TEST_USERNAME);
 
@@ -142,7 +186,7 @@ public class TestAccountPickler extends AndroidSyncTestCaseWithAccounts {
     assertNotNull(account);
 
     try {
-      assertEquals(1, getTestAccounts().size());
+      assertEquals(1, getTestAccounts(accountManager).size());
       assertFalse(ContentResolver.getSyncAutomatically(account, BrowserContract.AUTHORITY));
     } finally {
       TestSyncAccounts.deleteAccount(this, accountManager, account);
@@ -197,7 +241,7 @@ public class TestAccountPickler extends AndroidSyncTestCaseWithAccounts {
     // nothing was unpickled by verifying that the username has not changed.
     assertTrue(SyncAccounts.syncAccountsExist(context));
 
-    for (Account a : getTestAccounts()) {
+    for (Account a : getTestAccounts(accountManager)) {
       assertEquals(TEST_USERNAME, a.name);
     }
   }

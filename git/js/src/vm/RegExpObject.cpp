@@ -595,8 +595,8 @@ RegExpShared::execute(JSContext *cx, HandleLinearString input, size_t *lastIndex
     if (uint8_t *byteCode = maybeByteCode(input->hasLatin1Chars())) {
         AutoTraceLog logInterpreter(logger, TraceLogger::IrregexpExecute);
 
-        AutoStableStringChars inputChars(cx);
-        if (!inputChars.init(cx, input))
+        AutoStableStringChars inputChars(cx, input);
+        if (!inputChars.init())
             return RegExpRunStatus_Error;
 
         RegExpRunStatus result;

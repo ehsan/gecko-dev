@@ -67,9 +67,11 @@ WMFMediaDataDecoder::Input(mp4_demuxer::MP4Sample* aSample)
 void
 WMFMediaDataDecoder::ProcessDecode(mp4_demuxer::MP4Sample* aSample)
 {
-  HRESULT hr = mSource->Input(aSample);
+  const uint8_t* data = reinterpret_cast<const uint8_t*>(aSample->data);
+  uint32_t length = aSample->size;
+  HRESULT hr = mDecoder->Input(data, length, aSample->composition_timestamp);
   if (FAILED(hr)) {
-    NS_WARNING("WMFOutputSource rejected sample");
+    NS_WARNING("WMFAudioDecoder failed to input data");
     mCallback->Error();
     return;
   }

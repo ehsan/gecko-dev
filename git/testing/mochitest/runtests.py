@@ -30,7 +30,7 @@ import traceback
 import urllib2
 import zipfile
 
-from automationutils import environment, getDebuggerInfo, isURL, KeyValueParseError, parseKeyValue, processLeakLog, dumpScreen, ShutdownLeaks, printstatus, LSANLeaks
+from automationutils import environment, getDebuggerInfo, isURL, KeyValueParseError, parseKeyValue, processLeakLog, dumpScreen, ShutdownLeaks, printstatus
 from datetime import datetime
 from manifestparser import TestManifest
 from mochitest_options import MochitestOptions
@@ -1028,13 +1028,8 @@ class Mochitest(MochitestUtilsMixin):
 
   def buildBrowserEnv(self, options, debugger=False):
     """build the environment variables for the specific test and operating system"""
-    if mozinfo.info["asan"]:
-      lsanPath = SCRIPT_DIR
-    else:
-      lsanPath = None
-
     browserEnv = self.environment(xrePath=options.xrePath, debugger=debugger,
-                                  dmdPath=options.dmdPath, lsanPath=lsanPath)
+                                  dmdPath=options.dmdPath)
 
     # These variables are necessary for correct application startup; change
     # via the commandline at your own risk.
@@ -1242,11 +1237,6 @@ class Mochitest(MochitestUtilsMixin):
       else:
         shutdownLeaks = None
 
-      if mozinfo.info["asan"] and (mozinfo.isLinux or mozinfo.isMac):
-        lsanLeaks = LSANLeaks(log.info)
-      else:
-        lsanLeaks = None
-
       # create an instance to process the output
       outputHandler = self.OutputHandler(harness=self,
                                          utilityPath=utilityPath,
@@ -1254,7 +1244,6 @@ class Mochitest(MochitestUtilsMixin):
                                          dump_screen_on_timeout=not debuggerInfo,
                                          dump_screen_on_fail=screenshotOnFail,
                                          shutdownLeaks=shutdownLeaks,
-                                         lsanLeaks=lsanLeaks,
         )
 
       def timeoutHandler():
@@ -1529,7 +1518,7 @@ class Mochitest(MochitestUtilsMixin):
 
   class OutputHandler(object):
     """line output handler for mozrunner"""
-    def __init__(self, harness, utilityPath, symbolsPath=None, dump_screen_on_timeout=True, dump_screen_on_fail=False, shutdownLeaks=None, lsanLeaks=None):
+    def __init__(self, harness, utilityPath, symbolsPath=None, dump_screen_on_timeout=True, dump_screen_on_fail=False, shutdownLeaks=None):
       """
       harness -- harness instance
       dump_screen_on_timeout -- whether to dump the screen on timeout
@@ -1540,7 +1529,6 @@ class Mochitest(MochitestUtilsMixin):
       self.dump_screen_on_timeout = dump_screen_on_timeout
       self.dump_screen_on_fail = dump_screen_on_fail
       self.shutdownLeaks = shutdownLeaks
-      self.lsanLeaks = lsanLeaks
 
       # perl binary to use
       self.perl = which('perl')
@@ -1568,7 +1556,6 @@ class Mochitest(MochitestUtilsMixin):
               self.dumpScreenOnFail,
               self.metro_subprocess_id,
               self.trackShutdownLeaks,
-              self.trackLSANLeaks,
               self.log,
               self.countline,
               ]
@@ -1619,9 +1606,6 @@ class Mochitest(MochitestUtilsMixin):
 
       if self.shutdownLeaks:
         self.shutdownLeaks.process()
-
-      if self.lsanLeaks:
-        self.lsanLeaks.process()
 
 
     # output line handlers:
@@ -1678,11 +1662,6 @@ class Mochitest(MochitestUtilsMixin):
     def trackShutdownLeaks(self, line):
       if self.shutdownLeaks:
         self.shutdownLeaks.log(line)
-      return line
-
-    def trackLSANLeaks(self, line):
-      if self.lsanLeaks:
-        self.lsanLeaks.log(line)
       return line
 
     def log(self, line):

@@ -1369,13 +1369,13 @@ JSScript::sourceData(JSContext *cx)
     return scriptSource()->substring(cx, sourceStart(), sourceEnd());
 }
 
-UncompressedSourceCache::AutoHoldEntry::AutoHoldEntry()
+SourceDataCache::AutoHoldEntry::AutoHoldEntry()
   : cache_(nullptr), source_(nullptr), charsToFree_(nullptr)
 {
 }
 
 void
-UncompressedSourceCache::AutoHoldEntry::holdEntry(UncompressedSourceCache *cache, ScriptSource *source)
+SourceDataCache::AutoHoldEntry::holdEntry(SourceDataCache *cache, ScriptSource *source)
 {
     // Initialise the holder for a specific cache and script source. This will
     // hold on to the cached source chars in the event that the cache is purged.
@@ -1385,7 +1385,7 @@ UncompressedSourceCache::AutoHoldEntry::holdEntry(UncompressedSourceCache *cache
 }
 
 void
-UncompressedSourceCache::AutoHoldEntry::deferDelete(const jschar *chars)
+SourceDataCache::AutoHoldEntry::deferDelete(const jschar *chars)
 {
     // Take ownership of source chars now the cache is being purged. Remove our
     // reference to the ScriptSource which might soon be destroyed.
@@ -1395,7 +1395,7 @@ UncompressedSourceCache::AutoHoldEntry::deferDelete(const jschar *chars)
     charsToFree_ = chars;
 }
 
-UncompressedSourceCache::AutoHoldEntry::~AutoHoldEntry()
+SourceDataCache::AutoHoldEntry::~AutoHoldEntry()
 {
     // The holder is going out of scope. If it has taken ownership of cached
     // chars then delete them, otherwise unregister ourself with the cache.
@@ -1409,7 +1409,7 @@ UncompressedSourceCache::AutoHoldEntry::~AutoHoldEntry()
 }
 
 void
-UncompressedSourceCache::holdEntry(AutoHoldEntry &holder, ScriptSource *ss)
+SourceDataCache::holdEntry(AutoHoldEntry &holder, ScriptSource *ss)
 {
     JS_ASSERT(!holder_);
     holder.holdEntry(this, ss);
@@ -1417,14 +1417,14 @@ UncompressedSourceCache::holdEntry(AutoHoldEntry &holder, ScriptSource *ss)
 }
 
 void
-UncompressedSourceCache::releaseEntry(AutoHoldEntry &holder)
+SourceDataCache::releaseEntry(AutoHoldEntry &holder)
 {
     JS_ASSERT(holder_ == &holder);
     holder_ = nullptr;
 }
 
 const jschar *
-UncompressedSourceCache::lookup(ScriptSource *ss, AutoHoldEntry &holder)
+SourceDataCache::lookup(ScriptSource *ss, AutoHoldEntry &holder)
 {
     JS_ASSERT(!holder_);
     if (!map_)
@@ -1437,7 +1437,7 @@ UncompressedSourceCache::lookup(ScriptSource *ss, AutoHoldEntry &holder)
 }
 
 bool
-UncompressedSourceCache::put(ScriptSource *ss, const jschar *str, AutoHoldEntry &holder)
+SourceDataCache::put(ScriptSource *ss, const jschar *str, AutoHoldEntry &holder)
 {
     JS_ASSERT(!holder_);
 
@@ -1461,7 +1461,7 @@ UncompressedSourceCache::put(ScriptSource *ss, const jschar *str, AutoHoldEntry 
 }
 
 void
-UncompressedSourceCache::purge()
+SourceDataCache::purge()
 {
     if (!map_)
         return;
@@ -1481,7 +1481,7 @@ UncompressedSourceCache::purge()
 }
 
 size_t
-UncompressedSourceCache::sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf)
+SourceDataCache::sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf)
 {
     size_t n = 0;
     if (map_ && !map_->empty()) {
@@ -1495,7 +1495,7 @@ UncompressedSourceCache::sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf)
 }
 
 const jschar *
-ScriptSource::chars(JSContext *cx, UncompressedSourceCache::AutoHoldEntry &holder)
+ScriptSource::chars(JSContext *cx, SourceDataCache::AutoHoldEntry &holder)
 {
     switch (dataType) {
       case DataUncompressed:
@@ -1503,7 +1503,7 @@ ScriptSource::chars(JSContext *cx, UncompressedSourceCache::AutoHoldEntry &holde
 
       case DataCompressed: {
 #ifdef USE_ZLIB
-        if (const jschar *decompressed = cx->runtime()->uncompressedSourceCache.lookup(this, holder))
+        if (const jschar *decompressed = cx->runtime()->sourceDataCache.lookup(this, holder))
             return decompressed;
 
         const size_t nbytes = sizeof(jschar) * (length_ + 1);
@@ -1520,7 +1520,7 @@ ScriptSource::chars(JSContext *cx, UncompressedSourceCache::AutoHoldEntry &holde
 
         decompressed[length_] = 0;
 
-        if (!cx->runtime()->uncompressedSourceCache.put(this, decompressed, holder)) {
+        if (!cx->runtime()->sourceDataCache.put(this, decompressed, holder)) {
             JS_ReportOutOfMemory(cx);
             js_free(decompressed);
             return nullptr;
@@ -1532,9 +1532,6 @@ ScriptSource::chars(JSContext *cx, UncompressedSourceCache::AutoHoldEntry &holde
 #endif
       }
 
-      case DataParent:
-        return parent()->chars(cx, holder);
-
       default:
         MOZ_CRASH();
     }
@@ -1544,7 +1541,7 @@ JSFlatString *
 ScriptSource::substring(JSContext *cx, uint32_t start, uint32_t stop)
 {
     JS_ASSERT(start <= stop);
-    UncompressedSourceCache::AutoHoldEntry holder;
+    SourceDataCache::AutoHoldEntry holder;
     const jschar *chars = this->chars(cx, holder);
     if (!chars)
         return nullptr;
@@ -1564,7 +1561,7 @@ ScriptSource::setSource(const jschar *chars, size_t length, bool ownsChars /* = 
 }
 
 void
-ScriptSource::setCompressedSource(JSRuntime *maybert, void *raw, size_t nbytes, HashNumber hash)
+ScriptSource::setCompressedSource(void *raw, size_t nbytes)
 {
     JS_ASSERT(dataType == DataMissing || dataType == DataUncompressed);
     if (dataType == DataUncompressed && ownsUncompressedChars())
@@ -1573,33 +1570,6 @@ ScriptSource::setCompressedSource(JSRuntime *maybert, void *raw, size_t nbytes, 
     dataType = DataCompressed;
     data.compressed.raw = raw;
     data.compressed.nbytes = nbytes;
-    data.compressed.hash = hash;
-
-    if (maybert)
-        updateCompressedSourceSet(maybert);
-}
-
-void
-ScriptSource::updateCompressedSourceSet(JSRuntime *rt)
-{
-    JS_ASSERT(dataType == DataCompressed);
-    JS_ASSERT(!inCompressedSourceSet);
-
-    CompressedSourceSet::AddPtr p = rt->compressedSourceSet.lookupForAdd(this);
-    if (p) {
-        // There is another ScriptSource with the same compressed data.
-        // Mark that ScriptSource as the parent and use it for all attempts to
-        // get the source for this ScriptSource.
-        ScriptSource *parent = *p;
-        parent->incref();
-
-        js_free(compressedData());
-        dataType = DataParent;
-        data.parent = parent;
-    } else {
-        if (rt->compressedSourceSet.add(p, this))
-            inCompressedSourceSet = true;
-    }
 }
 
 bool
@@ -1718,7 +1688,6 @@ SourceCompressionTask::work()
         }
     }
     compressedBytes = comp.outWritten();
-    compressedHash = CompressedSourceHasher::computeHash(compressed, compressedBytes);
 #else
     MOZ_CRASH();
 #endif
@@ -1732,8 +1701,6 @@ SourceCompressionTask::work()
 
 ScriptSource::~ScriptSource()
 {
-    JS_ASSERT_IF(inCompressedSourceSet, dataType == DataCompressed);
-
     switch (dataType) {
       case DataUncompressed:
         if (ownsUncompressedChars())
@@ -1741,19 +1708,7 @@ ScriptSource::~ScriptSource()
         break;
 
       case DataCompressed:
-        // Script source references are only manipulated on the main thread,
-        // except during off thread parsing when the source may be created
-        // and used exclusively by the thread doing the parse. In this case the
-        // ScriptSource might be destroyed while off the main thread, but it
-        // will not have been added to the runtime's compressed source set
-        // until the parse is finished on the main thread.
-        if (inCompressedSourceSet)
-            TlsPerThreadData.get()->runtimeFromMainThread()->compressedSourceSet.remove(this);
         js_free(compressedData());
-        break;
-
-      case DataParent:
-        parent()->decref();
         break;
 
       default:
@@ -1798,22 +1753,7 @@ ScriptSource::performXDR(XDRState<mode> *xdr)
         if (!xdr->codeUint32(&length_))
             return false;
 
-        uint32_t compressedLength;
-        if (mode == XDR_ENCODE) {
-            switch (dataType) {
-              case DataUncompressed:
-                compressedLength = 0;
-                break;
-              case DataCompressed:
-                compressedLength = compressedBytes();
-                break;
-              case DataParent:
-                compressedLength = parent()->compressedBytes();
-                break;
-              default:
-                MOZ_CRASH();
-            }
-        }
+        uint32_t compressedLength = (dataType == DataCompressed) ? compressedBytes() : 0;
         if (!xdr->codeUint32(&compressedLength))
             return false;
 
@@ -1836,25 +1776,11 @@ ScriptSource::performXDR(XDRState<mode> *xdr)
             }
 
             if (compressedLength)
-                setCompressedSource(xdr->cx()->runtime(), p, compressedLength,
-                                    CompressedSourceHasher::computeHash(p, compressedLength));
+                setCompressedSource(p, compressedLength);
             else
                 setSource((const jschar *) p, length_);
         } else {
-            void *p;
-            switch (dataType) {
-              case DataUncompressed:
-                p = (void *) uncompressedChars();
-                break;
-              case DataCompressed:
-                p = compressedData();
-                break;
-              case DataParent:
-                p = parent()->compressedData();
-                break;
-              default:
-                MOZ_CRASH();
-            }
+            void *p = compressedLength ? compressedData() : (void *) uncompressedChars();
             if (!xdr->codeBytes(p, byteLen))
                 return false;
         }
@@ -2128,8 +2054,8 @@ static bool
 SaveSharedScriptData(ExclusiveContext *cx, Handle<JSScript *> script, SharedScriptData *ssd,
                      uint32_t nsrcnotes)
 {
-    JS_ASSERT(script != nullptr);
-    JS_ASSERT(ssd != nullptr);
+    ASSERT(script != nullptr);
+    ASSERT(ssd != nullptr);
 
     AutoLockForExclusiveAccess lock(cx);
 
@@ -3948,7 +3874,7 @@ LazyScriptHashPolicy::match(JSScript *script, const Lookup &lookup)
         return false;
     }
 
-    UncompressedSourceCache::AutoHoldEntry holder;
+    SourceDataCache::AutoHoldEntry holder;
 
     const jschar *scriptChars = script->scriptSource()->chars(cx, holder);
     if (!scriptChars)

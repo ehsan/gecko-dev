@@ -24,12 +24,14 @@
 
 #include <limits>
 
-#include "hasht.h"
-#include "pk11pub.h"
 #include "pkix/bind.h"
 #include "pkix/pkix.h"
 #include "pkixcheck.h"
 #include "pkixder.h"
+
+#include "hasht.h"
+#include "pk11pub.h"
+#include "secder.h"
 
 // TODO: use typed/qualified typedefs everywhere?
 // TODO: When should we return SEC_ERROR_OCSP_UNAUTHORIZED_RESPONSE?
@@ -50,17 +52,23 @@ MOZILLA_PKIX_ENUM_CLASS CertStatus : uint8_t {
 class Context
 {
 public:
-  Context(TrustDomain& trustDomain, const CertID& certID, PRTime time,
-          uint16_t maxLifetimeInDays, /*optional out*/ PRTime* thisUpdate,
-          /*optional out*/ PRTime* validThrough)
+  Context(TrustDomain& trustDomain,
+          const SECItem& certSerialNumber,
+          const SECItem& issuerSubject,
+          const SECItem& issuerSubjectPublicKeyInfo,
+          PRTime time,
+          uint16_t maxLifetimeInDays,
+          PRTime* thisUpdate,
+          PRTime* validThrough)
     : trustDomain(trustDomain)
-    , certID(certID)
+    , certSerialNumber(certSerialNumber)
+    , issuerSubject(issuerSubject)
+    , issuerSubjectPublicKeyInfo(issuerSubjectPublicKeyInfo)
     , time(time)
     , maxLifetimeInDays(maxLifetimeInDays)
     , certStatus(CertStatus::Unknown)
     , thisUpdate(thisUpdate)
     , validThrough(validThrough)
-    , expired(false)
   {
     if (thisUpdate) {
       *thisUpdate = 0;
@@ -71,13 +79,14 @@ public:
   }
 
   TrustDomain& trustDomain;
-  const CertID& certID;
+  const SECItem& certSerialNumber;
+  const SECItem& issuerSubject;
+  const SECItem& issuerSubjectPublicKeyInfo;
   const PRTime time;
   const uint16_t maxLifetimeInDays;
   CertStatus certStatus;
   PRTime* thisUpdate;
   PRTime* validThrough;
-  bool expired;
 
 private:
   Context(const Context&); // delete
@@ -186,9 +195,6 @@ static inline der::Result CertID(der::Input& input,
 static Result MatchKeyHash(const SECItem& issuerKeyHash,
                            const SECItem& issuerSubjectPublicKeyInfo,
                            /*out*/ bool& match);
-static Result KeyHash(const SECItem& subjectPublicKeyInfo,
-                      /*out*/ uint8_t* hashBuf, size_t hashBufSize);
-
 
 static Result
 MatchResponderID(ResponderIDType responderIDType,
@@ -253,15 +259,14 @@ VerifySignature(Context& context, ResponderIDType responderIDType,
 {
   bool match;
   Result rv = MatchResponderID(responderIDType, responderID,
-                               context.certID.issuer,
-                               context.certID.issuerSubjectPublicKeyInfo,
-                               match);
+                               context.issuerSubject,
+                               context.issuerSubjectPublicKeyInfo, match);
   if (rv != Success) {
     return rv;
   }
   if (match) {
     return VerifyOCSPSignedData(context.trustDomain, signedResponseData,
-                                context.certID.issuerSubjectPublicKeyInfo);
+                                context.issuerSubjectPublicKeyInfo);
   }
 
   for (size_t i = 0; i < numCerts; ++i) {
@@ -282,8 +287,8 @@ VerifySignature(Context& context, ResponderIDType responderIDType,
 
     if (match) {
       rv = CheckOCSPResponseSignerCert(context.trustDomain, cert,
-                                       context.certID.issuer,
-                                       context.certID.issuerSubjectPublicKeyInfo,
+                                       context.issuerSubject,
+                                       context.issuerSubjectPublicKeyInfo,
                                        context.time);
       if (rv == FatalError) {
         return rv;
@@ -309,22 +314,30 @@ SetErrorToMalformedResponseOnBadDERError()
 }
 
 SECStatus
-VerifyEncodedOCSPResponse(TrustDomain& trustDomain, const struct CertID& certID,
-                          PRTime time, uint16_t maxOCSPLifetimeInDays,
-                          const SECItem& encodedResponse,
-                          bool& expired,
-                          /*optional out*/ PRTime* thisUpdate,
-                          /*optional out*/ PRTime* validThrough)
+VerifyEncodedOCSPResponse(TrustDomain& trustDomain,
+                          const CERTCertificate* cert,
+                          CERTCertificate* issuerCert, PRTime time,
+                          uint16_t maxOCSPLifetimeInDays,
+                          const SECItem* encodedResponse,
+                          PRTime* thisUpdate,
+                          PRTime* validThrough)
 {
-  // Always initialize this to something reasonable.
-  expired = false;
+  PR_ASSERT(cert);
+  PR_ASSERT(issuerCert);
+  // TODO: PR_Assert(pinArg)
+  PR_ASSERT(encodedResponse);
+  if (!cert || !issuerCert || !encodedResponse || !encodedResponse->data) {
+    PR_SetError(SEC_ERROR_INVALID_ARGS, 0);
+    return SECFailure;
+  }
 
   der::Input input;
-  if (input.Init(encodedResponse.data, encodedResponse.len) != der::Success) {
+  if (input.Init(encodedResponse->data, encodedResponse->len) != der::Success) {
     SetErrorToMalformedResponseOnBadDERError();
     return SECFailure;
   }
-  Context context(trustDomain, certID, time, maxOCSPLifetimeInDays,
+  Context context(trustDomain, cert->serialNumber, issuerCert->derSubject,
+                  issuerCert->derPublicKey, time, maxOCSPLifetimeInDays,
                   thisUpdate, validThrough);
 
   if (der::Nested(input, der::SEQUENCE,
@@ -338,14 +351,8 @@ VerifyEncodedOCSPResponse(TrustDomain& trustDomain, const struct CertID& certID,
     return SECFailure;
   }
 
-  expired = context.expired;
-
   switch (context.certStatus) {
     case CertStatus::Good:
-      if (expired) {
-        PR_SetError(SEC_ERROR_OCSP_OLD_RESPONSE, 0);
-        return SECFailure;
-      }
       return SECSuccess;
     case CertStatus::Revoked:
       PR_SetError(SEC_ERROR_REVOKED_CERTIFICATE, 0);
@@ -651,9 +658,8 @@ SingleResponse(der::Input& input, Context& context)
   if (context.time < SLOP) { // prevent underflow
     return der::Fail(SEC_ERROR_INVALID_ARGS);
   }
-
   if (context.time - SLOP > notAfter) {
-    context.expired = true;
+    return der::Fail(SEC_ERROR_OCSP_OLD_RESPONSE);
   }
 
   if (!input.AtEnd()) {
@@ -707,7 +713,7 @@ CertID(der::Input& input, const Context& context, /*out*/ bool& match)
     return der::Failure;
   }
 
-  if (!SECITEM_ItemsAreEqual(&serialNumber, &context.certID.serialNumber)) {
+  if (!SECITEM_ItemsAreEqual(&serialNumber, &context.certSerialNumber)) {
     // This does not reference the certificate we're interested in.
     // Consume the rest of the input and return successfully to
     // potentially continue processing other responses.
@@ -732,7 +738,7 @@ CertID(der::Input& input, const Context& context, /*out*/ bool& match)
   // "The hash shall be calculated over the DER encoding of the
   // issuer's name field in the certificate being checked."
   uint8_t hashBuf[SHA1_LENGTH];
-  if (HashBuf(context.certID.issuer, hashBuf, sizeof(hashBuf))
+  if (HashBuf(context.issuerSubject, hashBuf, sizeof(hashBuf))
         != der::Success) {
     return der::Failure;
   }
@@ -742,7 +748,7 @@ CertID(der::Input& input, const Context& context, /*out*/ bool& match)
     return der::Success;
   }
 
-  if (MatchKeyHash(issuerKeyHash, context.certID.issuerSubjectPublicKeyInfo,
+  if (MatchKeyHash(issuerKeyHash, context.issuerSubjectPublicKeyInfo,
                    match) != Success) {
     return der::Failure;
   }
@@ -767,23 +773,8 @@ MatchKeyHash(const SECItem& keyHash, const SECItem& subjectPublicKeyInfo,
   if (keyHash.len != SHA1_LENGTH)  {
     return Fail(RecoverableError, SEC_ERROR_OCSP_MALFORMED_RESPONSE);
   }
-  static uint8_t hashBuf[SHA1_LENGTH];
-  Result rv = KeyHash(subjectPublicKeyInfo, hashBuf, sizeof hashBuf);
-  if (rv != Success) {
-    return rv;
-  }
-  match = !memcmp(hashBuf, keyHash.data, keyHash.len);
-  return Success;
-}
 
-// TODO(bug 966856): support SHA-2 hashes
-Result
-KeyHash(const SECItem& subjectPublicKeyInfo, /*out*/ uint8_t* hashBuf,
-        size_t hashBufSize)
-{
-  if (!hashBuf || hashBufSize != SHA1_LENGTH) {
-    return Fail(FatalError, SEC_ERROR_LIBRARY_FAILURE);
-  }
+  // TODO(bug 966856): support SHA-2 hashes
 
   // RFC 5280 Section 4.1
   //
@@ -832,9 +823,11 @@ KeyHash(const SECItem& subjectPublicKeyInfo, /*out*/ uint8_t* hashBuf,
   ++subjectPublicKey.data;
   --subjectPublicKey.len;
 
-  if (HashBuf(subjectPublicKey, hashBuf, hashBufSize) != der::Success) {
+  static uint8_t hashBuf[SHA1_LENGTH];
+  if (HashBuf(subjectPublicKey, hashBuf, sizeof(hashBuf)) != der::Success) {
     return MapSECStatus(SECFailure);
   }
+  match = !memcmp(hashBuf, keyHash.data, keyHash.len);
   return Success;
 }
 
@@ -897,9 +890,11 @@ CheckExtensionsForCriticality(der::Input& input)
 // http://tools.ietf.org/html/rfc5019#section-4
 
 SECItem*
-CreateEncodedOCSPRequest(PLArenaPool* arena, const struct CertID& certID)
+CreateEncodedOCSPRequest(PLArenaPool* arena,
+                         const CERTCertificate* cert,
+                         const CERTCertificate* issuerCert)
 {
-  if (!arena) {
+  if (!arena || !cert || !issuerCert) {
     PR_SetError(SEC_ERROR_INVALID_ARGS, 0);
     return nullptr;
   }
@@ -944,13 +939,13 @@ CreateEncodedOCSPRequest(PLArenaPool* arena, const struct CertID& certID)
   // we allow for some amount of non-conformance with that requirement while
   // still ensuring we can encode the length values in the ASN.1 TLV structures
   // in a single byte.
-  if (certID.serialNumber.len > 127u - totalLenWithoutSerialNumberData) {
+  if (cert->serialNumber.len > 127u - totalLenWithoutSerialNumberData) {
     PR_SetError(SEC_ERROR_BAD_DATA, 0);
     return nullptr;
   }
 
   uint8_t totalLen = static_cast<uint8_t>(totalLenWithoutSerialNumberData +
-    certID.serialNumber.len);
+    cert->serialNumber.len);
 
   SECItem* encodedRequest = SECITEM_AllocItem(arena, nullptr, totalLen);
   if (!encodedRequest) {
@@ -972,7 +967,7 @@ CreateEncodedOCSPRequest(PLArenaPool* arena, const struct CertID& certID)
   // reqCert.issuerNameHash (OCTET STRING)
   *d++ = 0x04;
   *d++ = hashLen;
-  if (HashBuf(certID.issuer, d, hashLen) != der::Success) {
+  if (HashBuf(issuerCert->derSubject, d, hashLen) != der::Success) {
     return nullptr;
   }
   d += hashLen;
@@ -980,16 +975,18 @@ CreateEncodedOCSPRequest(PLArenaPool* arena, const struct CertID& certID)
   // reqCert.issuerKeyHash (OCTET STRING)
   *d++ = 0x04;
   *d++ = hashLen;
-  if (KeyHash(certID.issuerSubjectPublicKeyInfo, d, hashLen) != Success) {
+  SECItem key = issuerCert->subjectPublicKeyInfo.subjectPublicKey;
+  DER_ConvertBitString(&key);
+  if (HashBuf(key, d, hashLen) != der::Success) {
     return nullptr;
   }
   d += hashLen;
 
   // reqCert.serialNumber (INTEGER)
   *d++ = 0x02; // INTEGER
-  *d++ = static_cast<uint8_t>(certID.serialNumber.len);
-  for (size_t i = 0; i < certID.serialNumber.len; ++i) {
-    *d++ = certID.serialNumber.data[i];
+  *d++ = static_cast<uint8_t>(cert->serialNumber.len);
+  for (size_t i = 0; i < cert->serialNumber.len; ++i) {
+    *d++ = cert->serialNumber.data[i];
   }
 
   PR_ASSERT(d == encodedRequest->data + totalLen);

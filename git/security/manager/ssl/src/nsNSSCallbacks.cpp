@@ -586,6 +586,16 @@ void nsNSSHttpInterface::initTable()
   v1.freeFcn = freeFcn;
 }
 
+void nsNSSHttpInterface::registerHttpClient()
+{
+  SEC_RegisterDefaultHttpClient(&sNSSInterfaceTable);
+}
+
+void nsNSSHttpInterface::unregisterHttpClient()
+{
+  SEC_RegisterDefaultHttpClient(nullptr);
+}
+
 nsHTTPListener::nsHTTPListener()
 : mResultData(nullptr),
   mResultLen(0),

@@ -105,12 +105,10 @@ SECStatus VerifySignedData(const CERTSignedData* sd,
                            void* pkcs11PinArg);
 
 // The return value, if non-null, is owned by the arena and MUST NOT be freed.
-SECItem* CreateEncodedOCSPRequest(PLArenaPool* arena, const CertID& certID);
+SECItem* CreateEncodedOCSPRequest(PLArenaPool* arena,
+                                  const CERTCertificate* cert,
+                                  const CERTCertificate* issuerCert);
 
-// The out parameter expired will be true if the response has expired. If the
-// response also indicates a revoked or unknown certificate, that error
-// will be returned by PR_GetError(). Otherwise, SEC_ERROR_OCSP_OLD_RESPONSE
-// will be returned by PR_GetError() for an expired response.
 // The optional parameter thisUpdate will be the thisUpdate value of
 // the encoded response if it is considered trustworthy. Only
 // good, unknown, or revoked responses that verify correctly are considered
@@ -119,12 +117,13 @@ SECItem* CreateEncodedOCSPRequest(PLArenaPool* arena, const CertID& certID);
 // which the encoded response is considered trustworthy (that is, if a response had a
 // thisUpdate time of validThrough, it would be considered trustworthy).
 SECStatus VerifyEncodedOCSPResponse(TrustDomain& trustDomain,
-                                    const CertID& certID, PRTime time,
+                                    const CERTCertificate* cert,
+                                    CERTCertificate* issuerCert,
+                                    PRTime time,
                                     uint16_t maxLifetimeInDays,
-                                    const SECItem& encodedResponse,
-                          /* out */ bool& expired,
-                 /* optional out */ PRTime* thisUpdate = nullptr,
-                 /* optional out */ PRTime* validThrough = nullptr);
+                                    const SECItem* encodedResponse,
+                 /* optional out */ PRTime* thisUpdate,
+                 /* optional out */ PRTime* validThrough);
 
 } } // namespace mozilla::pkix
 

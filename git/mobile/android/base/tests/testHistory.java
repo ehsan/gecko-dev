@@ -21,9 +21,9 @@ public class testHistory extends AboutHomeTest {
         inputAndLoadUrl(url3);
         verifyPageTitle("Browser Blank Page 03");
 
-        openAboutHomeTab(AboutHomeTabs.HISTORY);
+        openAboutHomeTab(AboutHomeTabs.MOST_RECENT);
 
-        final ListView hList = findListViewWithTag("history");
+        final ListView hList = findListViewWithTag("most_recent");
         mAsserter.is(waitForNonEmptyListToLoad(hList), true, "list is properly loaded");
 
         // Click on the history item and wait for the page to load
