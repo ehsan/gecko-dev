@@ -17,39 +17,45 @@ import android.graphics.drawable.StateListDrawable;
 import android.util.AttributeSet;
 
 public class ForwardButton extends ShapedButton { 
-    private final Path mBorderPath;
-    private final Paint mBorderPaint;
-    private final float mBorderWidth;
+    private Path mBorderPath;
+    private Paint mBorderPaint;
+    private Paint mBorderPrivatePaint;
 
     public ForwardButton(Context context, AttributeSet attrs) {
         super(context, attrs);
 
-        mBorderWidth = getResources().getDimension(R.dimen.nav_button_border_width);
-
         // Paint to draw the border.
         mBorderPaint = new Paint();
         mBorderPaint.setAntiAlias(true);
-        mBorderPaint.setStrokeWidth(mBorderWidth);
+        mBorderPaint.setColor(0xFF000000);
         mBorderPaint.setStyle(Paint.Style.STROKE);
 
+        mBorderPrivatePaint = new Paint(mBorderPaint);
+
         mBorderPath = new Path();
-
-        setPrivateMode(false);
-    }
-
-    @Override
-    public void setPrivateMode(boolean isPrivate) {
-        super.setPrivateMode(isPrivate);
-        mBorderPaint.setColor(isPrivate ? 0xFF363B40 : 0xFFBFBFBF);
     }
 
     @Override
     protected void onSizeChanged(int width, int height, int oldWidth, int oldHeight) {
         super.onSizeChanged(width, height, oldWidth, oldHeight);
 
+        float borderWidth = getContext().getResources().getDimension(R.dimen.nav_button_border_width);
+        mBorderPaint.setStrokeWidth(borderWidth);
+        mBorderPrivatePaint.setStrokeWidth(borderWidth);
+
         mBorderPath.reset();
-        mBorderPath.moveTo(width - mBorderWidth, 0);
-        mBorderPath.lineTo(width - mBorderWidth, height);
+        mBorderPath.moveTo(width - borderWidth, 0);
+        mBorderPath.lineTo(width - borderWidth, height);
+
+        mBorderPaint.setShader(new LinearGradient(0, 0, 
+                                                  0, height, 
+                                                  0xFFB5BBC1, 0xFFFAFBFC,
+                                                  Shader.TileMode.CLAMP));
+
+        mBorderPrivatePaint.setShader(new LinearGradient(0, 0, 
+                                                         0, height, 
+                                                         0xFF040607, 0xFF0B0D0E,
+                                                         Shader.TileMode.CLAMP));
     }
 
     @Override
@@ -57,7 +63,7 @@ public class ForwardButton extends ShapedButton {
         super.draw(canvas);
 
         // Draw the border on top.
-        canvas.drawPath(mBorderPath, mBorderPaint);
+        canvas.drawPath(mBorderPath, isPrivateMode() ? mBorderPrivatePaint : mBorderPaint);
     }
 
     // The drawable is constructed as per @drawable/url_bar_nav_button.
