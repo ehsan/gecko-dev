@@ -2680,19 +2680,11 @@ static bool
 EvalInContext(JSContext *cx, unsigned argc, jsval *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
-    if (!args.requireAtLeast(cx, "evalcx", 1))
-        return false;
 
-    RootedString str(cx, ToString(cx, args[0]));
-    if (!str)
-        return false;
-
+    RootedString str(cx);
     RootedObject sobj(cx);
-    if (args.hasDefined(1)) {
-        sobj = ToObject(cx, args[1]);
-        if (!sobj)
-            return false;
-    }
+    if (!JS_ConvertArguments(cx, args, "S / o", str.address(), sobj.address()))
+        return false;
 
     AutoStableStringChars strChars(cx);
     if (!strChars.initTwoByte(cx, str))
@@ -5717,14 +5709,6 @@ SetRuntimeOptions(JSRuntime *rt, const OptionParser &op)
 static int
 Shell(JSContext *cx, OptionParser *op, char **envp)
 {
-    Maybe<JS::AutoDisableGenerationalGC> noggc;
-    if (op->getBoolOption("no-ggc"))
-        noggc.emplace(cx->runtime());
-
-    Maybe<AutoDisableCompactingGC> nocgc;
-    if (op->getBoolOption("no-cgc"))
-        nocgc.emplace(cx->runtime());
-
     JSAutoRequest ar(cx);
 
     if (op->getBoolOption("fuzzing-safe"))
@@ -6037,6 +6021,14 @@ main(int argc, char **argv, char **envp)
 
     JS_SetGCParameter(rt, JSGC_MAX_BYTES, 0xffffffff);
 
+    Maybe<JS::AutoDisableGenerationalGC> noggc;
+    if (op.getBoolOption("no-ggc"))
+        noggc.emplace(rt);
+
+    Maybe<AutoDisableCompactingGC> nocgc;
+    if (op.getBoolOption("no-cgc"))
+        nocgc.emplace(rt);
+
     size_t availMem = op.getIntOption("available-memory");
     if (availMem > 0)
         JS_SetGCParametersBasedOnAvailableMemory(rt, availMem);
@@ -6096,6 +6088,8 @@ main(int argc, char **argv, char **envp)
     MOZ_ASSERT_IF(!CanUseExtraThreads(), workerThreads.empty());
     for (size_t i = 0; i < workerThreads.length(); i++)
         PR_JoinThread(workerThreads[i]);
+
+    noggc.reset();
 
     JS_DestroyRuntime(rt);
     JS_ShutDown();

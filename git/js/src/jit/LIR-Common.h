@@ -7,8 +7,6 @@
 #ifndef jit_LIR_Common_h
 #define jit_LIR_Common_h
 
-#include "jsutil.h"
-
 #include "jit/AtomicOp.h"
 #include "jit/shared/Assembler-shared.h"
 
@@ -1484,9 +1482,6 @@ class LJSCallInstructionHelper : public LCallInstructionHelper<Defs, Operands, T
 {
   public:
     uint32_t argslot() const {
-        static const uint32_t alignment = JitStackAlignment / sizeof(Value);
-        if (alignment > 1)
-            return AlignBytes(mir()->numStackArgs(), alignment);
         return mir()->numStackArgs();
     }
     MCall *mir() const {

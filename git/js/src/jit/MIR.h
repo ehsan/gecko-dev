@@ -2029,7 +2029,7 @@ class MSimdBinaryArith
 
 class MSimdBinaryBitwise
   : public MBinaryInstruction,
-    public MixPolicy<SimdSameAsReturnedTypePolicy<0>, SimdSameAsReturnedTypePolicy<1> >::Data
+    public NoTypePolicy::Data
 {
   public:
     enum Operation {
@@ -2045,6 +2045,8 @@ class MSimdBinaryBitwise
       : MBinaryInstruction(left, right), operation_(op)
     {
         MOZ_ASSERT(IsSimdType(type));
+        MOZ_ASSERT(left->type() == right->type());
+        MOZ_ASSERT(left->type() == type);
         setResultType(type);
         setMovable();
         setCommutative();
@@ -2052,17 +2054,9 @@ class MSimdBinaryBitwise
 
   public:
     INSTRUCTION_HEADER(SimdBinaryBitwise)
-    static MSimdBinaryBitwise *New(TempAllocator &alloc, MDefinition *left, MDefinition *right,
-                                   Operation op, MIRType t)
-    {
-        return new(alloc) MSimdBinaryBitwise(left, right, op, t);
-    }
-
     static MSimdBinaryBitwise *NewAsmJS(TempAllocator &alloc, MDefinition *left,
                                         MDefinition *right, Operation op, MIRType t)
     {
-        MOZ_ASSERT(left->type() == right->type());
-        MOZ_ASSERT(left->type() == t);
         return new(alloc) MSimdBinaryBitwise(left, right, op, t);
     }
 

@@ -21,7 +21,7 @@ def do_defered_imports():
     global html
     global raw
 
-    from .xmlgen import html, raw
+    from py.xml import html, raw
 
 
 class HTMLFormatter(base.BaseFormatter):

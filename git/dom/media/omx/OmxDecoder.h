@@ -154,6 +154,8 @@ public:
   // Note: RTSP requires a custom extractor because it doesn't have a container.
   bool Init(sp<MediaExtractor>& extractor);
 
+  bool IsDormantNeeded();
+
   // Called after resources(video/audio codec) are allocated, set the
   // mDurationUs and video/audio metadata.
   bool EnsureMetadata();

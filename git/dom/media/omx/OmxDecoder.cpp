@@ -150,7 +150,7 @@ bool OmxDecoder::Init(sp<MediaExtractor>& extractor) {
 
   mResource->SetReadMode(MediaCacheStream::MODE_PLAYBACK);
 
-  if (videoTrackIndex != -1 && mDecoder->GetImageContainer()) {
+  if (videoTrackIndex != -1) {
     mVideoTrack = extractor->getTrack(videoTrackIndex);
   }
 
@@ -217,6 +217,14 @@ bool OmxDecoder::EnsureMetadata() {
   }
 
   return true;
+}
+
+bool OmxDecoder::IsDormantNeeded()
+{
+  if (mVideoTrack.get()) {
+    return true;
+  }
+  return false;
 }
 
 bool OmxDecoder::IsWaitingMediaResources()

@@ -78,9 +78,6 @@ class ComplexAddress {
           case Operand::MEM_SCALE:
             *this = ComplexAddress(op.disp(), op.base(), op.index(), op.scale());
             return;
-          case Operand::MEM_ADDRESS32:
-            *this = ComplexAddress(op.address());
-            return;
           default:
             break;
         }

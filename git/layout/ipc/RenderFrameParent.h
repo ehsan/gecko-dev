@@ -116,9 +116,6 @@ public:
   void GetTextureFactoryIdentifier(TextureFactoryIdentifier* aTextureFactoryIdentifier);
 
   inline uint64_t GetLayersId() { return mLayersId; }
-
-  void TakeFocusForClick();
-
 protected:
   void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE;
 
