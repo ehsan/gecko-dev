@@ -1740,11 +1740,8 @@ nsXULDocument::RemoveSubtreeFromDocument(nsIContent* aElement)
             return rv;
     }
 
-    // 2. Remove the element from the resource-to-element map.
-    // Also remove it from the id map, since we added it in
-    // AddElementToDocumentPre().
+    // 2. Remove the element from the resource-to-element map
     RemoveElementFromRefMap(aElement);
-    RemoveFromIdTable(aElement);
 
     // 3. If the element is a 'command updater', then remove the
     // element from the document's command dispatcher.
