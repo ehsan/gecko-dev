@@ -291,7 +291,7 @@ struct JSThread {
 #define JS_THREAD_DATA(cx)      (&(cx)->thread()->data)
 
 extern JSThread *
-js_CurrentThread(JSRuntime *rt);
+js_CurrentThreadAndLockGC(JSRuntime *rt);
 
 /*
  * The function takes the GC lock and does not release in successful return.
@@ -299,7 +299,7 @@ js_CurrentThread(JSRuntime *rt);
  * the error reporting to the caller.
  */
 extern JSBool
-js_InitContextThread(JSContext *cx);
+js_InitContextThreadAndLockGC(JSContext *cx);
 
 /*
  * On entrance the GC lock must be held and it will be held on exit.
@@ -427,6 +427,7 @@ struct JSRuntime {
 
     /* Pre-allocated space for the GC mark stacks. Pointer type ensures alignment. */
     void                *gcMarkStackObjs[js::OBJECT_MARK_STACK_SIZE / sizeof(void *)];
+    void                *gcMarkStackRopes[js::ROPES_MARK_STACK_SIZE / sizeof(void *)];
     void                *gcMarkStackXMLs[js::XML_MARK_STACK_SIZE / sizeof(void *)];
     void                *gcMarkStackLarges[js::LARGE_MARK_STACK_SIZE / sizeof(void *)];
 
