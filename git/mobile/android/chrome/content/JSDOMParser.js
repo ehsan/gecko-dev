@@ -482,8 +482,8 @@
         }
       }
 
-      // Using Array.join() avoids the overhead from lazy string concatenation.
-      // See http://blog.cdleary.com/2012/01/string-representation-in-spidermonkey/#ropes
+      // Using Array.join() prevents lots of large intermediate strings from
+      // being created; instead, the result is created in one go.
       let arr = [];
       getHTML(this);
       return arr.join("");
@@ -526,8 +526,8 @@
         }
       }
 
-      // Using Array.join() avoids the overhead from lazy string concatenation.
-      // See http://blog.cdleary.com/2012/01/string-representation-in-spidermonkey/#ropes
+      // Using Array.join() prevents lots of large intermediate strings from
+      // being created; instead, the result is created in one go.
       let text = [];
       getText(this);
       return text.join("");

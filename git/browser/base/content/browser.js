@@ -1434,6 +1434,14 @@ var gBrowserInit = {
       }
     }
 
+    // Enable Inspector?
+    let enabled = gPrefService.getBoolPref("devtools.inspector.enabled");
+    if (enabled) {
+      let cmd = document.getElementById("Tools:Inspect");
+      cmd.removeAttribute("disabled");
+      cmd.removeAttribute("hidden");
+    }
+
     // Enable Debugger?
     let enabled = gPrefService.getBoolPref("devtools.debugger.enabled");
     if (enabled) {

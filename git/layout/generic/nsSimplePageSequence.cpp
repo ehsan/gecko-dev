@@ -496,9 +496,6 @@ nsSimplePageSequenceFrame::StartPrint(nsPresContext*   aPresContext,
 void
 GetPrintCanvasElementsInFrame(nsIFrame* aFrame, nsTArray<nsRefPtr<nsHTMLCanvasElement> >* aArr)
 {
-  if (!aFrame) {
-    return;
-  }
   for (nsIFrame::ChildListIterator childLists(aFrame);
     !childLists.IsDone(); childLists.Next()) {
 

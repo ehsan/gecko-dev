@@ -605,7 +605,7 @@ html|*#gcli-output-frame,
 
 /* Responsive Mode */
 
-.browserContainer[responsivemode] {
+vbox[anonid=browserContainer][responsivemode] {
   overflow: auto;
 }
 
@@ -613,16 +613,16 @@ html|*#gcli-output-frame,
   -moz-box-pack: end;
 }
 
-.browserStack[responsivemode] {
+stack[anonid=browserStack][responsivemode] {
   transition-duration: 200ms;
   transition-timing-function: linear;
 }
 
-.browserStack[responsivemode] {
+stack[anonid=browserStack][responsivemode] {
   transition-property: min-width, max-width, min-height, max-height;
 }
 
-.browserStack[responsivemode][notransition] {
+stack[anonid=browserStack][responsivemode][notransition] {
   transition: none;
 }
 

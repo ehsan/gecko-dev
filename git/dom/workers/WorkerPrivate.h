@@ -11,7 +11,6 @@
 #include "nsIRunnable.h"
 #include "nsIThread.h"
 #include "nsIThreadInternal.h"
-#include "nsPIDOMWindow.h"
 
 #include "jsapi.h"
 #include "mozilla/CondVar.h"
@@ -182,6 +181,7 @@ private:
   nsCOMPtr<nsIURI> mBaseURI;
   nsCOMPtr<nsIURI> mScriptURI;
   nsCOMPtr<nsIPrincipal> mPrincipal;
+  nsCOMPtr<nsIDocument> mDocument;
 
   // Only used for top level workers.
   nsTArray<nsRefPtr<WorkerRunnable> > mQueuedRunnables;
@@ -204,7 +204,8 @@ protected:
                       nsCOMPtr<nsPIDOMWindow>& aWindow,
                       nsCOMPtr<nsIScriptContext>& aScriptContext,
                       nsCOMPtr<nsIURI>& aBaseURI,
-                      nsCOMPtr<nsIPrincipal>& aPrincipal);
+                      nsCOMPtr<nsIPrincipal>& aPrincipal,
+                      nsCOMPtr<nsIDocument>& aDocument);
 
   ~WorkerPrivateParent();
 
@@ -425,7 +426,14 @@ public:
   GetDocument() const
   {
     AssertIsOnMainThread();
-    return mWindow ? mWindow->GetExtantDoc() : nullptr;
+    return mDocument;
+  }
+
+  void
+  SetDocument(nsIDocument* aDocument)
+  {
+    AssertIsOnMainThread();
+    mDocument = aDocument;
   }
 
   nsPIDOMWindow*
@@ -719,7 +727,8 @@ private:
                 bool aIsChromeWorker, const nsACString& aDomain,
                 nsCOMPtr<nsPIDOMWindow>& aWindow,
                 nsCOMPtr<nsIScriptContext>& aScriptContext,
-                nsCOMPtr<nsIURI>& aBaseURI, nsCOMPtr<nsIPrincipal>& aPrincipal);
+                nsCOMPtr<nsIURI>& aBaseURI, nsCOMPtr<nsIPrincipal>& aPrincipal,
+                nsCOMPtr<nsIDocument>& aDocument);
 
   bool
   Dispatch(WorkerRunnable* aEvent, EventQueue* aQueue);
