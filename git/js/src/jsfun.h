@@ -131,7 +131,7 @@ struct JSFunction : public JSObject
     uint16          nargs;        /* maximum number of specified arguments,
                                      reflected as f.length/f.arity */
     uint16          flags;        /* flags, see JSFUN_* below and in jsapi.h */
-    union U {
+    union {
         struct {
             uint16      extra;    /* number of arg slots for local GC roots */
             uint16      spare;    /* reserved for future use */
@@ -140,7 +140,7 @@ struct JSFunction : public JSObject
                                      by this function */
             JSNativeTraceInfo *trcinfo;
         } n;
-        struct Scripted {
+        struct {
             uint16      nvars;    /* number of local variables */
             uint16      nupvars;  /* number of upvars (computable from script
                                      but here for faster access) */
@@ -202,10 +202,6 @@ struct JSFunction : public JSObject
     bool mightEscape() const {
         return FUN_INTERPRETED(this) && (FUN_FLAT_CLOSURE(this) || u.i.nupvars == 0);
     }
-
-    js::FunObjTag funObjVal() {
-        return js::FunObjTag(*this);
-    }
 };
 
 JS_STATIC_ASSERT(sizeof(JSFunction) % JS_GCTHING_ALIGN == 0);
@@ -246,9 +242,9 @@ JSObject::isArguments() const
     return getClass() == &js_ArgumentsClass;
 }
 
-extern JS_FRIEND_DATA(js::Class) js_CallClass;
 extern js::Class js_DeclEnvClass;
-extern const uint32 CALL_CLASS_FIXED_RESERVED_SLOTS;
+extern JS_PUBLIC_DATA(js::Class) js_CallClass;
+extern JS_PUBLIC_DATA(js::Class) js_FunctionClass;
 
 inline bool
 JSObject::isFunction() const
@@ -256,7 +252,25 @@ JSObject::isFunction() const
     return getClass() == &js_FunctionClass;
 }
 
-#define VALUE_IS_FUNCTION(cx, v) (Valueify(v).isFunObj())
+extern const uint32 CALL_CLASS_FIXED_RESERVED_SLOTS;
+
+/*
+ * NB: jsapi.h and jsobj.h must be included before any call to this macro.
+ */
+#define VALUE_IS_FUNCTION(cx, v)                                              \
+    (!JSVAL_IS_PRIMITIVE(v) && JSVAL_TO_OBJECT(v)->isFunction())
+
+static JS_ALWAYS_INLINE bool
+IsFunctionObject(const js::Value &v)
+{
+    return v.isObject() && v.asObject().isFunction();
+}
+
+static JS_ALWAYS_INLINE bool
+IsFunctionObject(const js::Value &v, JSObject **funobj)
+{
+    return v.isObject() && (*funobj = &v.asObject())->isFunction();
+}
 
 /*
  * Macro to access the private slot of the function object after the slot is

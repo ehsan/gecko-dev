@@ -409,15 +409,6 @@ js_Disassemble1(JSContext *cx, JSScript *script, jsbytecode *pc,
         fprintf(fp, " %s", bytes);
         break;
 
-      case JOF_GLOBAL:
-        atom = script->getGlobalAtom(GET_SLOTNO(pc));
-        v = ATOM_TO_JSVAL(atom);
-        bytes = ToDisassemblySource(cx, v);
-        if (!bytes)
-            return 0;
-        fprintf(fp, " %s", bytes);
-        break;
-
       case JOF_UINT16PAIR:
         i = (jsint)GET_UINT16(pc);
         fprintf(fp, " %d", i);
@@ -1443,8 +1434,8 @@ DecompileDestructuringLHS(SprintStack *ss, jsbytecode *pc, jsbytecode *endpc,
         LOCAL_ASSERT(*pc == JSOP_POP);
         break;
 
-      case JSOP_SETGLOBAL:
       case JSOP_SETARG:
+      case JSOP_SETGVAR:
       case JSOP_SETLOCAL:
         LOCAL_ASSERT(pc[oplen] == JSOP_POP || pc[oplen] == JSOP_POPN);
         /* FALL THROUGH */
@@ -1455,8 +1446,8 @@ DecompileDestructuringLHS(SprintStack *ss, jsbytecode *pc, jsbytecode *endpc,
         if (op == JSOP_SETARG) {
             atom = GetArgOrVarAtom(jp, GET_SLOTNO(pc));
             LOCAL_ASSERT(atom);
-        } else if (op == JSOP_SETGLOBAL) {
-            atom = jp->script->getGlobalAtom(GET_SLOTNO(pc));
+        } else if (op == JSOP_SETGVAR) {
+            LOAD_ATOM(0);
         } else if (IsVarSlot(jp, pc, &i)) {
             atom = GetArgOrVarAtom(jp, i);
             LOCAL_ASSERT(atom);
@@ -2335,7 +2326,6 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                 /* FALL THROUGH */
 
               case JSOP_BINDNAME:
-              case JSOP_BINDGNAME:
                 todo = Sprint(&ss->sprinter, "");
                 break;
 
@@ -3397,10 +3387,6 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                 xval = "&&";
                 goto do_logical_connective;
 
-              case JSOP_FORGLOBAL:
-                atom = jp->script->getGlobalAtom(GET_SLOTNO(pc));
-                goto do_forname;
-
               case JSOP_FORARG:
                 sn = NULL;
                 i = GET_ARGNO(pc);
@@ -3424,8 +3410,6 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
 
               case JSOP_FORNAME:
                 LOAD_ATOM(0);
-
-              do_forname:
                 sn = js_GetSrcNote(jp->script, pc);
                 todo = SprintCString(&ss->sprinter, VarPrefix(sn));
                 if (todo < 0 || !QuoteString(&ss->sprinter, ATOM_TO_STRING(atom), 0))
@@ -3538,13 +3522,9 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                 LOCAL_ASSERT(atom);
                 goto do_setname;
 
-              case JSOP_SETGLOBAL:
-                atom = jp->script->getGlobalAtom(GET_SLOTNO(pc));
-                goto do_setname;
-
               case JSOP_SETCONST:
               case JSOP_SETNAME:
-              case JSOP_SETGNAME:
+              case JSOP_SETGVAR:
                 LOAD_ATOM(0);
 
               do_setname:
@@ -3552,7 +3532,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                 if (!lval)
                     return NULL;
                 rval = POP_STR();
-                if (op == JSOP_SETNAME || op == JSOP_SETGNAME)
+                if (op == JSOP_SETNAME)
                     (void) PopOff(ss, op);
 
               do_setlval:
@@ -3758,15 +3738,10 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                 LOCAL_ASSERT(atom);
                 goto do_incatom;
 
-              case JSOP_INCGLOBAL:
-              case JSOP_DECGLOBAL:
-                atom = jp->script->getGlobalAtom(GET_SLOTNO(pc));
-                goto do_incatom;
-
               case JSOP_INCNAME:
               case JSOP_DECNAME:
-              case JSOP_INCGNAME:
-              case JSOP_DECGNAME:
+              case JSOP_INCGVAR:
+              case JSOP_DECGVAR:
                 LOAD_ATOM(0);
               do_incatom:
                 lval = QuoteString(&ss->sprinter, ATOM_TO_STRING(atom), 0);
@@ -3819,15 +3794,10 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                 LOCAL_ASSERT(atom);
                 goto do_atominc;
 
-              case JSOP_GLOBALINC:
-              case JSOP_GLOBALDEC:
-                atom = jp->script->getGlobalAtom(GET_SLOTNO(pc));
-                goto do_atominc;
-
               case JSOP_NAMEINC:
               case JSOP_NAMEDEC:
-              case JSOP_GNAMEINC:
-              case JSOP_GNAMEDEC:
+              case JSOP_GVARINC:
+              case JSOP_GVARDEC:
                 LOAD_ATOM(0);
               do_atominc:
                 lval = QuoteString(&ss->sprinter, ATOM_TO_STRING(atom), 0);
@@ -4029,15 +3999,10 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
 #endif
                 goto do_name;
 
-              case JSOP_CALLGLOBAL:
-              case JSOP_GETGLOBAL:
-                atom = jp->script->getGlobalAtom(GET_SLOTNO(pc));
-                goto do_name;
-
               case JSOP_CALLNAME:
               case JSOP_NAME:
-              case JSOP_GETGNAME:
-              case JSOP_CALLGNAME:
+              case JSOP_GETGVAR:
+              case JSOP_CALLGVAR:
                 LOAD_ATOM(0);
               do_name:
                 lval = "";

@@ -193,11 +193,9 @@ JSVAL_TO_OBJECT(jsval v)
 static JS_ALWAYS_INLINE jsval
 OBJECT_TO_JSVAL(JSObject *obj)
 {
-    JSValueType type;
-    if (!obj)
-        return JSVAL_NULL;
-    type = JS_OBJ_IS_FUN_IMPL(obj) ? JSVAL_TYPE_FUNOBJ : JSVAL_TYPE_NONFUNOBJ;
-    return IMPL_TO_JSVAL(OBJECT_TO_JSVAL_IMPL(type, obj));
+    if (obj)
+        return IMPL_TO_JSVAL(OBJECT_TO_JSVAL_IMPL(obj));
+    return JSVAL_NULL;
 }
 
 static JS_ALWAYS_INLINE JSBool
@@ -928,8 +926,6 @@ JS_StringToVersion(const char *string);
                                                    leaving that up to the
                                                    embedding. */
 
-#define JSOPTION_METHODJIT      JS_BIT(14)      /* Whole-method JIT. */
-
 extern JS_PUBLIC_API(uint32)
 JS_GetOptions(JSContext *cx);
 
@@ -1036,6 +1032,7 @@ JS_InitCTypesClass(JSContext *cx, JSObject *global);
  */
 #define JS_CALLEE(cx,vp)        ((vp)[0])
 #define JS_ARGV_CALLEE(argv)    ((argv)[-2])
+#define JS_THIS(cx,vp)          JS_ComputeThis(cx, vp)
 #define JS_THIS_OBJECT(cx,vp)   (JSVAL_TO_OBJECT(JS_THIS(cx,vp)))
 #define JS_ARGV(cx,vp)          ((vp) + 2)
 #define JS_RVAL(cx,vp)          (*(vp))
@@ -1043,14 +1040,6 @@ JS_InitCTypesClass(JSContext *cx, JSObject *global);
 
 extern JS_PUBLIC_API(jsval)
 JS_ComputeThis(JSContext *cx, jsval *vp);
-
-#ifdef __cplusplus
-static inline jsval
-JS_THIS(JSContext *cx, jsval *vp)
-{
-    return JSVAL_IS_PRIMITIVE(vp[1]) ? JS_ComputeThis(cx, vp) : vp[1];
-}
-#endif
 
 extern JS_PUBLIC_API(void *)
 JS_malloc(JSContext *cx, size_t nbytes);
@@ -1357,7 +1346,9 @@ JS_MarkGCThing(JSContext *cx, jsval v, const char *name, void *arg);
 static JS_ALWAYS_INLINE JSBool
 JSVAL_IS_TRACEABLE(jsval v)
 {
-    return JSVAL_IS_GCTHING(v);
+    jsval_layout l;
+    l.asBits = JSVAL_BITS(v);
+    return JSVAL_IS_TRACEABLE_IMPL(l);
 }
 
 static JS_ALWAYS_INLINE void *
@@ -3133,26 +3124,6 @@ struct StringTag {
     JSString *str;
 };
 
-struct FunObjTag {
-    explicit FunObjTag(JSObject &obj) : obj(obj) {}
-    JSObject &obj;
-};
-
-struct FunObjOrNull {
-    explicit FunObjOrNull(JSObject *obj) : obj(obj) {}
-    JSObject *obj;
-};
-
-struct NonFunObjTag {
-    explicit NonFunObjTag(JSObject &obj) : obj(obj) {}
-    JSObject &obj;
-};
-
-struct NonFunObjOrNullTag {
-    explicit NonFunObjOrNullTag(JSObject *obj) : obj(obj) {}
-    JSObject *obj;
-};
-
 struct ObjectTag {
     explicit ObjectTag(JSObject &obj) : obj(obj) {}
     JSObject &obj;
@@ -3208,24 +3179,20 @@ class Value
 
     /* Construct a Value of a single type */
 
-    Value(NullTag)                         { setNull(); }
-    Value(UndefinedTag)                    { setUndefined(); }
-    Value(Int32Tag arg)                    { setInt32(arg.i32); }
-    Value(DoubleTag arg)                   { setDouble(arg.dbl); }
-    Value(StringTag arg)                   { setString(arg.str); }
-    Value(FunObjTag arg)                   { setFunObj(arg.obj); }
-    Value(NonFunObjTag arg)                { setNonFunObj(arg.obj); }
-    Value(BooleanTag arg)                  { setBoolean(arg.boo); }
-    Value(JSWhyMagic arg)                  { setMagic(arg); }
+    Value(NullTag)                  { setNull(); }
+    Value(UndefinedTag)             { setUndefined(); }
+    Value(Int32Tag arg)             { setInt32(arg.i32); }
+    Value(DoubleTag arg)            { setDouble(arg.dbl); }
+    Value(StringTag arg)            { setString(arg.str); }
+    Value(BooleanTag arg)           { setBoolean(arg.boo); }
+    Value(ObjectTag arg)            { setObject(arg.obj); }
+    Value(JSWhyMagic arg)           { setMagic(arg); }
 
     /* Construct a Value of a type dynamically chosen from a set of types */
 
-    Value(FunObjOrNull arg)                { setFunObjOrNull(arg.obj); }
-    Value(NonFunObjOrNullTag arg)          { setNonFunObjOrNull(arg.obj); }
     inline Value(NumberTag arg);
-    inline Value(ObjectTag arg)            { setObject(arg.obj); }
-    inline Value(ObjectOrNullTag arg)      { setObjectOrNull(arg.obj); }
-    inline Value(ObjectOrUndefinedTag arg) { setObjectOrUndefined(arg.obj); }
+    Value(ObjectOrNullTag arg)      { setObjectOrNull(arg.obj); }
+    Value(ObjectOrUndefinedTag arg) { setObjectOrUndefined(arg.obj); }
 
     /* Change to a Value of a single type */
 
@@ -3259,14 +3226,8 @@ class Value
         data = STRING_TO_JSVAL_IMPL(str);
     }
 
-    void setFunObj(JSObject &arg) {
-        JS_ASSERT(JS_OBJ_IS_FUN_IMPL(&arg));
-        data = OBJECT_TO_JSVAL_IMPL(JSVAL_TYPE_FUNOBJ, &arg);
-    }
-
-    void setNonFunObj(JSObject &arg) {
-        JS_ASSERT(!JS_OBJ_IS_FUN_IMPL(&arg));
-        data = OBJECT_TO_JSVAL_IMPL(JSVAL_TYPE_NONFUNOBJ, &arg);
+    void setObject(JSObject &obj) {
+        data = OBJECT_TO_JSVAL_IMPL(&obj);
     }
 
     void setBoolean(bool b) {
@@ -3288,29 +3249,11 @@ class Value
 
     inline void setNumber(double d);
 
-    void setFunObjOrNull(JSObject *arg) {
-        JS_ASSERT_IF(arg, JS_OBJ_IS_FUN_IMPL(arg));
-        JSValueType type = arg ? JSVAL_TYPE_FUNOBJ : JSVAL_TYPE_NULL;
-        data = OBJECT_TO_JSVAL_IMPL(type, arg);
-    }
-
-    void setNonFunObjOrNull(JSObject *arg) {
-        JS_ASSERT_IF(arg, !JS_OBJ_IS_FUN_IMPL(arg));
-        JSValueType type = arg ? JSVAL_TYPE_NONFUNOBJ : JSVAL_TYPE_NULL;
-        data = OBJECT_TO_JSVAL_IMPL(type, arg);
-    }
-
-    inline void setObject(JSObject &arg) {
-        JSValueType type = JS_OBJ_IS_FUN_IMPL(&arg) ? JSVAL_TYPE_FUNOBJ
-                                                    : JSVAL_TYPE_NONFUNOBJ;
-        data = OBJECT_TO_JSVAL_IMPL(type, &arg);
-    }
-
     inline void setObjectOrNull(JSObject *arg) {
-        JSValueType type = arg ? JS_OBJ_IS_FUN_IMPL(arg) ? JSVAL_TYPE_FUNOBJ
-                                                         : JSVAL_TYPE_NONFUNOBJ
-                               : JSVAL_TYPE_NULL;
-        data = OBJECT_TO_JSVAL_IMPL(type, arg);
+        if (arg)
+            setObject(*arg);
+        else
+            setNull();
     }
 
     inline void setObjectOrUndefined(JSObject *arg) {
@@ -3354,14 +3297,6 @@ class Value
         return JSVAL_IS_STRING_IMPL(data);
     }
 
-    bool isNonFunObj() const {
-        return JSVAL_IS_NONFUNOBJ_IMPL(data);
-    }
-
-    bool isFunObj() const {
-        return JSVAL_IS_FUNOBJ_IMPL(data);
-    }
-
     bool isObject() const {
         return JSVAL_IS_OBJECT_IMPL(data);
     }
@@ -3399,8 +3334,12 @@ class Value
         return JSVAL_IS_MAGIC_IMPL(data);
     }
 
-    int32 traceKind() const {
-        JS_ASSERT(isGCThing());
+    bool isMarkable() const {
+        return JSVAL_IS_TRACEABLE_IMPL(data);
+    }
+
+    int32 gcKind() const {
+        JS_ASSERT(isMarkable());
         return JSVAL_TRACE_KIND_IMPL(data);
     }
 
@@ -3421,8 +3360,8 @@ class Value
         return data.asBits != rhs.data.asBits;
     }
 
-    friend bool SamePrimitiveTypeOrBothObjects(const Value &lhs, const Value &rhs) {
-        return JSVAL_SAME_PRIMITIVE_TYPE_OR_BOTH_OBJECTS_IMPL(lhs.data, rhs.data);
+    friend bool SameType(const Value &lhs, const Value &rhs) {
+        return JSVAL_SAME_TYPE_IMPL(lhs.data, rhs.data);
     }
 
     /* Extract a Value's payload */
@@ -3447,19 +3386,8 @@ class Value
         return JSVAL_TO_STRING_IMPL(data);
     }
 
-    JSObject &asNonFunObj() const {
-        JS_ASSERT(isNonFunObj());
-        return *JSVAL_TO_OBJECT_IMPL(data);
-    }
-
-    JSObject &asFunObj() const {
-        JS_ASSERT(isFunObj());
-        return *JSVAL_TO_OBJECT_IMPL(data);
-    }
-
     JSObject &asObject() const {
         JS_ASSERT(isObject());
-        JS_ASSERT(JSVAL_TO_OBJECT_IMPL(data));
         return *JSVAL_TO_OBJECT_IMPL(data);
     }
 
@@ -3487,12 +3415,12 @@ class Value
         return data.asBits;
     }
 
-    JSValueType extractNonDoubleType() const {
-        return JSVAL_EXTRACT_NON_DOUBLE_TYPE_IMPL(data);
+    JSValueType extractNonDoubleObjectType() const {
+        return JSVAL_EXTRACT_NON_DOUBLE_OBJECT_TYPE_IMPL(data);
     }
 
-    JSValueTag extractNonDoubleTag() const {
-        return JSVAL_EXTRACT_NON_DOUBLE_TAG_IMPL(data);
+    JSValueTag extractNonDoubleObjectTag() const {
+        return JSVAL_EXTRACT_NON_DOUBLE_OBJECT_TAG_IMPL(data);
     }
 
     void unboxNonDoubleTo(uint64 *out) const {
