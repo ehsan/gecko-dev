@@ -1308,6 +1308,19 @@ TypeMap::matches(TypeMap& other) const
     return !memcmp(data(), other.data(), length());
 }
 
+/* Use the provided storage area to create a new type map that contains the partial type map
+   with the rest of it filled up from the complete type map. */
+static void
+mergeTypeMaps(uint8** partial, unsigned* plength, uint8* complete, unsigned clength, uint8* mem)
+{
+    unsigned l = *plength;
+    JS_ASSERT(l < clength);
+    memcpy(mem, *partial, l * sizeof(uint8));
+    memcpy(mem + l, complete + l, (clength - l) * sizeof(uint8));
+    *partial = mem;
+    *plength = clength;
+}
+
 /* Specializes a tree to any missing globals, including any dependent trees. */
 static JS_REQUIRES_STACK void
 specializeTreesToMissingGlobals(JSContext* cx, TreeInfo* root)
@@ -1850,7 +1863,7 @@ FlushNativeGlobalFrame(JSContext* cx, unsigned ngslots, uint16* gslots, uint8* m
  */
 static uint32 
 GetUpvarOnTraceTail(InterpState* state, uint32 cookie,
-                    int32 nativeStackFramePos, uint8* typemap, double* result)
+                    uint32 nativeStackFramePos, uint8* typemap, double* result)
 {
     uintN slot = UPVAR_FRAME_SLOT(cookie);
     slot = (slot == CALLEE_UPVAR_SLOT) ? 0 : 2/*callee,this*/ + slot;
@@ -1886,10 +1899,10 @@ js_GetUpvarOnTrace(JSContext* cx, uint32 level, uint32 cookie, uint32 callDepth,
              * activation record corresponding to *fip in the native
              * stack.
              */
-            int32 nativeStackFramePos = state->callstackBase[0]->spoffset;
+            uintN nativeStackFramePos = state->callstackBase[0]->spoffset;
             for (FrameInfo** fip2 = state->callstackBase; fip2 <= fip; fip2++)
                 nativeStackFramePos += (*fip2)->spdist;
-            nativeStackFramePos -= (2 + (*fip)->get_argc());
+            nativeStackFramePos -= (2 + (*fip)->argc);
             uint8* typemap = (uint8*) (fi+1);
             return GetUpvarOnTraceTail(state, cookie, nativeStackFramePos,
                                        typemap, result);
@@ -2077,16 +2090,29 @@ JS_REQUIRES_STACK void
 TraceRecorder::import(TreeInfo* treeInfo, LIns* sp, unsigned stackSlots, unsigned ngslots,
                       unsigned callDepth, uint8* typeMap)
 {
+    /* If we get a partial list that doesn't have all the types (i.e. recording from a side
+       exit that was recorded but we added more global slots later), merge the missing types
+       from the entry type map. This is safe because at the loop edge we verify that we
+       have compatible types for all globals (entry type and loop edge type match). While
+       a different trace of the tree might have had a guard with a different type map for
+       these slots we just filled in here (the guard we continue from didn't know about them),
+       since we didn't take that particular guard the only way we could have ended up here
+       is if that other trace had at its end a compatible type distribution with the entry
+       map. Since thats exactly what we used to fill in the types our current side exit
+       didn't provide, this is always safe to do. */
+
+    uint8* globalTypeMap = typeMap + stackSlots;
+    unsigned length = treeInfo->nGlobalTypes();
+
     /*
-     * If we get a partial list that doesn't have all the types, capture the missing types
-     * from the current environment.
+     * This is potentially the typemap of the side exit and thus shorter than the tree's
+     * global type map.
      */
-    TypeMap fullTypeMap(typeMap, stackSlots + ngslots);
-    if (ngslots < treeInfo->globalSlots->length()) {
-        fullTypeMap.captureMissingGlobalTypes(cx, *treeInfo->globalSlots, stackSlots);
-        ngslots = treeInfo->globalSlots->length();
+    if (ngslots < length) {
+        mergeTypeMaps(&globalTypeMap/*out param*/, &ngslots/*out param*/,
+                      treeInfo->globalTypeMap(), length,
+                      (uint8*)alloca(sizeof(uint8) * length));
     }
-    uint8* globalTypeMap = fullTypeMap.data() + stackSlots;
     JS_ASSERT(ngslots == treeInfo->nGlobalTypes());
 
     /*
@@ -3537,7 +3563,7 @@ js_SynthesizeFrame(JSContext* cx, const FrameInfo& fi)
     /* Code duplicated from inline_call: case in js_Interpret (FIXME). */
     JSArena* a = cx->stackPool.current;
     void* newmark = (void*) a->avail;
-    uintN argc = fi.get_argc();
+    uintN argc = fi.argc & 0x7fff;
     jsval* vp = fp->slots + fi.spdist - (2 + argc);
     uintN missing = 0;
     jsval* newsp;
@@ -3596,7 +3622,7 @@ js_SynthesizeFrame(JSContext* cx, const FrameInfo& fi)
     newifp->frame.callee = fi.callee; // Roll with a potentially stale callee for now.
     newifp->frame.fun = fun;
 
-    bool constructing = fi.is_constructing();
+    bool constructing = (fi.argc & 0x8000) != 0;
     newifp->frame.argc = argc;
     newifp->callerRegs.pc = fi.pc;
     newifp->callerRegs.sp = fp->slots + fi.spdist;
@@ -5322,13 +5348,12 @@ js_PurgeScriptRecordingAttempts(JSDHashTable *table,
     return JS_DHASH_NEXT;
 }
 
-/*
- * Call 'action' for each root fragment created for 'script'.
- */
-template<typename FragmentAction>
-static void
-js_IterateScriptFragments(JSContext* cx, JSScript* script, FragmentAction action)
+JS_REQUIRES_STACK void
+js_PurgeScriptFragments(JSContext* cx, JSScript* script)
 {
+    if (!TRACING_ENABLED(cx))
+        return;
+    debug_only_v(nj_dprintf("Purging fragments for JSScript %p.\n", (void*)script);)
     JSTraceMonitor* tm = &JS_TRACE_MONITOR(cx);
     for (size_t i = 0; i < FRAGMENT_TABLE_SIZE; ++i) {
         for (VMFragment **f = &(tm->vmfragments[i]); *f; ) {
@@ -5341,39 +5366,15 @@ js_IterateScriptFragments(JSContext* cx, JSScript* script, FragmentAction action
                                         (void*)frag, frag->ip, script->code,
                                         script->code + script->length));
                 VMFragment* next = frag->next;
-                action(cx, tm, frag);
+                for (Fragment *p = frag; p; p = p->peer)
+                    js_TrashTree(cx, p);
+                tm->fragmento->clearFragment(frag);
                 *f = next;
             } else {
                 f = &((*f)->next);
             }
         }
     }
-}
-
-static void trashTreeAction(JSContext* cx, JSTraceMonitor* tm, Fragment* frag)
-{
-    for (Fragment *p = frag; p; p = p->peer)
-        js_TrashTree(cx, p);
-}
-
-static void clearFragmentAction(JSContext* cx, JSTraceMonitor* tm, Fragment* frag)
-{
-    tm->fragmento->clearFragment(frag);
-}
-
-JS_REQUIRES_STACK void
-js_PurgeScriptFragments(JSContext* cx, JSScript* script)
-{
-    if (!TRACING_ENABLED(cx))
-        return;
-    debug_only_v(nj_dprintf("Purging fragments for JSScript %p.\n", (void*)script);)
-    /*
-     * js_TrashTree trashes dependent trees recursively, so we must do all the trashing
-     * before clearing in order to avoid calling js_TrashTree with a deleted fragment.
-     */
-    js_IterateScriptFragments(cx, script, trashTreeAction);
-    js_IterateScriptFragments(cx, script, clearFragmentAction);
-    JSTraceMonitor* tm = &JS_TRACE_MONITOR(cx);
     JS_DHashTableEnumerate(&(tm->recordAttempts),
                            js_PurgeScriptRecordingAttempts, script);
 
@@ -8614,7 +8615,7 @@ TraceRecorder::interpretedFunctionCall(jsval& fval, JSFunction* fun, uintN argc,
     fi->pc = fp->regs->pc;
     fi->imacpc = fp->imacpc;
     fi->spdist = fp->regs->sp - fp->slots;
-    fi->set_argc(argc, constructing);
+    fi->argc = argc | (constructing ? 0x8000 : 0);
     fi->spoffset = 2 /*callee,this*/ + fp->argc;
 
     unsigned callDepth = getCallDepth();
@@ -10793,19 +10794,6 @@ TraceRecorder::record_JSOP_LOOP()
 {
     return JSRS_CONTINUE;
 }
-
-#define DBG_STUB(OP)                                                          \
-    JS_REQUIRES_STACK JSRecordingStatus                                       \
-    TraceRecorder::record_##OP()                                              \
-    {                                                                         \
-        ABORT_TRACE("can't trace " #OP);                                      \
-    }
-
-DBG_STUB(JSOP_GETUPVAR_DBG)
-DBG_STUB(JSOP_CALLUPVAR_DBG)
-DBG_STUB(JSOP_DEFFUN_DBGFC)
-DBG_STUB(JSOP_DEFLOCALFUN_DBGFC)
-DBG_STUB(JSOP_LAMBDA_DBGFC)
 
 #ifdef JS_JIT_SPEW
 /* Prints information about entry typemaps and unstable exits for all peers at a PC */

@@ -76,13 +76,6 @@ public:
         this->_data = (T*)malloc(max * sizeof(T));
     }
 
-    Queue(T* data, unsigned length) {
-        this->_max =
-        this->_len = length;
-        this->_data = (T*)malloc(length * sizeof(T));
-        memcpy(this->_data, data, length);
-    }
-
     ~Queue() {
         free(_data);
     }
@@ -196,12 +189,6 @@ typedef Queue<uint16> SlotList;
 
 class TypeMap : public Queue<uint8> {
 public:
-    TypeMap() : Queue<uint8>() {
-    }
-
-    TypeMap(uint8* partial, unsigned length) : Queue<uint8>(partial, length) {
-    }
-
     JS_REQUIRES_STACK void captureTypes(JSContext* cx, SlotList& slots, unsigned callDepth);
     JS_REQUIRES_STACK void captureMissingGlobalTypes(JSContext* cx,
                                                      SlotList& slots,
@@ -305,12 +292,7 @@ struct FrameInfo {
     jsbytecode*     pc;         // caller fp->regs->pc
     jsbytecode*     imacpc;     // caller fp->imacpc
     uint16          spdist;     // distance from fp->slots to fp->regs->sp at JSOP_CALL
-
-    /*
-     * Bit  15 (0x8000) is a flag that is set if constructing (called through new).
-     * Bits 0-14 are the actual argument count. This may be less than fun->nargs.
-     */
-    uint16          argc;
+    uint16          argc;       // actual argument count, may be < fun->nargs
 
     /*
      * Stack pointer adjustment needed for navigation of native stack in
@@ -322,14 +304,6 @@ struct FrameInfo {
      * non-argument slot in the callee's native stack frame.
      */
     int32          spoffset;
-
-    // Safer accessors for argc.
-    enum { CONSTRUCTING_MASK = 0x8000 };
-    void   set_argc(uint16 argc, bool constructing) {
-        this->argc = argc | (constructing ? CONSTRUCTING_MASK : 0);
-    }
-    uint16 get_argc() const { return argc & ~CONSTRUCTING_MASK; }
-    bool   is_constructing() const { return (argc & CONSTRUCTING_MASK) != 0; }
 };
 
 struct UnstableExit
