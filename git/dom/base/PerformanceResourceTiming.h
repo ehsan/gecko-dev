@@ -59,7 +59,7 @@ public:
   DOMHighResTimeStamp RedirectStart() const {
     // We have to check if all the redirect URIs had the same origin (since
     // there is no check in RedirectEndHighRes())
-    return mTiming && mTiming->ShouldReportCrossOriginRedirect()
+    return mTiming && mTiming->IsSameOriginAsReferral()
         ? mTiming->RedirectStartHighRes()
         : 0;
   }
@@ -67,43 +67,43 @@ public:
   DOMHighResTimeStamp RedirectEnd() const {
     // We have to check if all the redirect URIs had the same origin (since
     // there is no check in RedirectEndHighRes())
-    return mTiming && mTiming->ShouldReportCrossOriginRedirect()
+    return mTiming && mTiming->IsSameOriginAsReferral()
         ? mTiming->RedirectEndHighRes()
         : 0;
   }
 
   DOMHighResTimeStamp DomainLookupStart() const {
-    return mTiming && mTiming->TimingAllowed()
+    return mTiming && mTiming->IsSameOriginAsReferral()
         ? mTiming->DomainLookupStartHighRes()
         : 0;
   }
 
   DOMHighResTimeStamp DomainLookupEnd() const {
-    return mTiming && mTiming->TimingAllowed()
+    return mTiming && mTiming->IsSameOriginAsReferral()
         ? mTiming->DomainLookupEndHighRes()
         : 0;
   }
 
   DOMHighResTimeStamp ConnectStart() const {
-    return mTiming && mTiming->TimingAllowed()
+    return mTiming && mTiming->IsSameOriginAsReferral()
         ? mTiming->ConnectStartHighRes()
         : 0;
   }
 
   DOMHighResTimeStamp ConnectEnd() const {
-    return mTiming && mTiming->TimingAllowed()
+    return mTiming && mTiming->IsSameOriginAsReferral()
         ? mTiming->ConnectEndHighRes()
         : 0;
   }
 
   DOMHighResTimeStamp RequestStart() const {
-    return mTiming && mTiming->TimingAllowed()
+    return mTiming && mTiming->IsSameOriginAsReferral()
         ? mTiming->RequestStartHighRes()
         : 0;
   }
 
   DOMHighResTimeStamp ResponseStart() const {
-    return mTiming && mTiming->TimingAllowed()
+    return mTiming && mTiming->IsSameOriginAsReferral()
         ? mTiming->ResponseStartHighRes()
         : 0;
   }

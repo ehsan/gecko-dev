@@ -4569,7 +4569,7 @@ JS_BufferIsCompilableUnit(JSContext *cx, HandleObject obj, const char *utf8, siz
     Parser<frontend::FullParseHandler> parser(cx, &cx->tempLifoAlloc(),
                                               options, chars, length,
                                               /* foldConstants = */ true, nullptr, nullptr);
-    JSErrorReporter older = JS_SetErrorReporter(cx->runtime(), nullptr);
+    JSErrorReporter older = JS_SetErrorReporter(cx, nullptr);
     if (!parser.parse(obj)) {
         // We ran into an error. If it was because we ran out of source, we
         // return false so our caller knows to try to collect more buffered
@@ -4579,7 +4579,7 @@ JS_BufferIsCompilableUnit(JSContext *cx, HandleObject obj, const char *utf8, siz
 
         cx->clearPendingException();
     }
-    JS_SetErrorReporter(cx->runtime(), older);
+    JS_SetErrorReporter(cx, older);
 
     js_free(chars);
     return result;
@@ -5767,18 +5767,18 @@ JS_ReportAllocationOverflow(JSContext *cx)
 }
 
 JS_PUBLIC_API(JSErrorReporter)
-JS_GetErrorReporter(JSRuntime *rt)
+JS_GetErrorReporter(JSContext *cx)
 {
-    return rt->errorReporter;
+    return cx->errorReporter;
 }
 
 JS_PUBLIC_API(JSErrorReporter)
-JS_SetErrorReporter(JSRuntime *rt, JSErrorReporter er)
+JS_SetErrorReporter(JSContext *cx, JSErrorReporter er)
 {
     JSErrorReporter older;
 
-    older = rt->errorReporter;
-    rt->errorReporter = er;
+    older = cx->errorReporter;
+    cx->errorReporter = er;
     return older;
 }
 
@@ -6070,13 +6070,11 @@ JS::AutoSaveExceptionState::restore()
 
 JS::AutoSaveExceptionState::~AutoSaveExceptionState()
 {
-    if (!context->isExceptionPending()) {
-        if (wasPropagatingForcedReturn)
-            context->setPropagatingForcedReturn();
-        if (wasThrowing) {
-            context->throwing = true;
-            context->unwrappedException_ = exceptionValue;
-        }
+    if (wasPropagatingForcedReturn && !context->isPropagatingForcedReturn())
+        context->setPropagatingForcedReturn();
+    if (wasThrowing && !context->isExceptionPending()) {
+        context->throwing = true;
+        context->unwrappedException_ = exceptionValue;
     }
 }
 

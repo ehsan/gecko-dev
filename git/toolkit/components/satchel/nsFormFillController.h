@@ -21,7 +21,6 @@
 #include "nsILoginManager.h"
 #include "nsIMutationObserver.h"
 #include "nsTArray.h"
-#include "nsCycleCollectionParticipant.h"
 
 // X.h defines KeyPress
 #ifdef KeyPress
@@ -31,23 +30,21 @@
 class nsFormHistory;
 class nsINode;
 
-class nsFormFillController MOZ_FINAL : public nsIFormFillController,
-                                       public nsIAutoCompleteInput,
-                                       public nsIAutoCompleteSearch,
-                                       public nsIDOMEventListener,
-                                       public nsIFormAutoCompleteObserver,
-                                       public nsIMutationObserver
+class nsFormFillController : public nsIFormFillController,
+                             public nsIAutoCompleteInput,
+                             public nsIAutoCompleteSearch,
+                             public nsIDOMEventListener,
+                             public nsIFormAutoCompleteObserver,
+                             public nsIMutationObserver
 {
 public:
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIFORMFILLCONTROLLER
   NS_DECL_NSIAUTOCOMPLETESEARCH
   NS_DECL_NSIAUTOCOMPLETEINPUT
   NS_DECL_NSIFORMAUTOCOMPLETEOBSERVER
   NS_DECL_NSIDOMEVENTLISTENER
   NS_DECL_NSIMUTATIONOBSERVER
-
-  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsFormFillController, nsIFormFillController)
 
   nsresult Focus(nsIDOMEvent* aEvent);
   nsresult KeyPress(nsIDOMEvent* aKeyEvent);

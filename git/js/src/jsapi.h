@@ -4638,10 +4638,10 @@ struct JSErrorReport {
 #define JSREPORT_IS_STRICT_MODE_ERROR(flags) (((flags) &                      \
                                               JSREPORT_STRICT_MODE_ERROR) != 0)
 extern JS_PUBLIC_API(JSErrorReporter)
-JS_GetErrorReporter(JSRuntime *rt);
+JS_GetErrorReporter(JSContext *cx);
 
 extern JS_PUBLIC_API(JSErrorReporter)
-JS_SetErrorReporter(JSRuntime *rt, JSErrorReporter er);
+JS_SetErrorReporter(JSContext *cx, JSErrorReporter er);
 
 namespace JS {
 
