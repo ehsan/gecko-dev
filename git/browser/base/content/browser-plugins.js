@@ -113,34 +113,6 @@ var gPluginHandler = {
                               true);
   },
 
-  // Helper to get the binding handler type from a plugin object
-  _getBindingType : function(plugin) {
-    if (!(plugin instanceof Ci.nsIObjectLoadingContent))
-      return;
-
-    switch (plugin.pluginFallbackType) {
-      case Ci.nsIObjectLoadingContent.PLUGIN_UNSUPPORTED:
-        return "PluginNotFound";
-      case Ci.nsIObjectLoadingContent.PLUGIN_DISABLED:
-        return "PluginDisabled";
-      case Ci.nsIObjectLoadingContent.PLUGIN_BLOCKLISTED:
-        return "PluginBlocklisted";
-      case Ci.nsIObjectLoadingContent.PLUGIN_OUTDATED:
-        return "PluginOutdated";
-      case Ci.nsIObjectLoadingContent.PLUGIN_CLICK_TO_PLAY:
-        return "PluginClickToPlay";
-      case Ci.nsIObjectLoadingContent.PLUGIN_VULNERABLE_UPDATABLE:
-        return "PluginVulnerableUpdatable";
-      case Ci.nsIObjectLoadingContent.PLUGIN_VULNERABLE_NO_UPDATE:
-        return "PluginVulnerableNoUpdate";
-      case Ci.nsIObjectLoadingContent.PLUGIN_PLAY_PREVIEW:
-        return "PluginPlayPreview";
-      default:
-        // Not all states map to a handler
-        return;
-    }
-  },
-
   handleEvent : function(event) {
     let self = gPluginHandler;
     let plugin = event.target;
@@ -150,26 +122,10 @@ var gPluginHandler = {
     if (!(plugin instanceof Ci.nsIObjectLoadingContent))
       return;
 
-    let eventType = event.type;
-    if (eventType == "PluginBindingAttached") {
-      // The plugin binding fires this event when it is created.
-      // As an untrusted event, ensure that this object actually has a binding
-      // and make sure we don't handle it twice
-      let overlay = doc.getAnonymousElementByAttribute(plugin, "class", "mainBox");
-      if (!overlay || overlay._bindingHandled) {
-        return;
-      }
-      overlay._bindingHandled = true;
+    // Force a style flush, so that we ensure our binding is attached.
+    plugin.clientTop;
 
-      // Lookup the handler for this binding
-      eventType = self._getBindingType(plugin);
-      if (!eventType) {
-        // Not all bindings have handlers
-        return;
-      }
-    }
-
-    switch (eventType) {
+    switch (event.type) {
       case "PluginCrashed":
         self.pluginInstanceCrashed(plugin, event);
         break;
@@ -195,7 +151,7 @@ var gPluginHandler = {
 #ifdef XP_MACOSX
       case "npapi-carbon-event-model-failure":
 #endif
-        self.pluginUnavailable(plugin, eventType);
+        self.pluginUnavailable(plugin, event.type);
         break;
 
       case "PluginVulnerableUpdatable":
@@ -211,9 +167,9 @@ var gPluginHandler = {
         let messageString = gNavigatorBundle.getFormattedString("PluginClickToPlay", [pluginName]);
         let overlayText = doc.getAnonymousElementByAttribute(plugin, "class", "msg msgClickToPlay");
         overlayText.textContent = messageString;
-        if (eventType == "PluginVulnerableUpdatable" ||
-            eventType == "PluginVulnerableNoUpdate") {
-          let vulnerabilityString = gNavigatorBundle.getString(eventType);
+        if (event.type == "PluginVulnerableUpdatable" ||
+            event.type == "PluginVulnerableNoUpdate") {
+          let vulnerabilityString = gNavigatorBundle.getString(event.type);
           let vulnerabilityText = doc.getAnonymousElementByAttribute(plugin, "anonid", "vulnerabilityStatus");
           vulnerabilityText.textContent = vulnerabilityString;
         }
@@ -230,8 +186,9 @@ var gPluginHandler = {
     }
 
     // Hide the in-content UI if it's too big. The crashed plugin handler already did this.
-    if (eventType != "PluginCrashed") {
+    if (event.type != "PluginCrashed") {
       let overlay = doc.getAnonymousElementByAttribute(plugin, "class", "mainBox");
+      /* overlay might be null, so only operate on it if it exists */
       if (overlay != null && self.isTooSmall(plugin, overlay))
           overlay.style.visibility = "hidden";
     }
@@ -364,6 +321,7 @@ var gPluginHandler = {
       return;
     }
 
+    // The overlay is null if the XBL binding is not attached (element is display:none).
     if (overlay) {
       overlay.addEventListener("click", function(aEvent) {
         // Have to check that the target is not the link to update the plugin
@@ -383,6 +341,11 @@ var gPluginHandler = {
   _handlePlayPreviewEvent: function PH_handlePlayPreviewEvent(aPlugin) {
     let doc = aPlugin.ownerDocument;
     let previewContent = doc.getAnonymousElementByAttribute(aPlugin, "class", "previewPluginContent");
+    if (!previewContent) {
+      // the XBL binding is not attached (element is display:none), fallback to click-to-play logic
+      gPluginHandler.stopPlayPreview(aPlugin, false);
+      return;
+    }
     let iframe = previewContent.getElementsByClassName("previewPluginContentFrame")[0];
     if (!iframe) {
       // lazy initialization of the iframe
@@ -794,9 +757,6 @@ var gPluginHandler = {
     //
     // Configure the crashed-plugin placeholder.
     //
-
-    // Force a layout flush so the binding is attached.
-    plugin.clientTop;
     let doc = plugin.ownerDocument;
     let overlay = doc.getAnonymousElementByAttribute(plugin, "class", "mainBox");
     let statusDiv = doc.getAnonymousElementByAttribute(plugin, "class", "submitStatus");

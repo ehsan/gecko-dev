@@ -1156,7 +1156,6 @@ struct SourceCompressionToken
 
     void ensureReady();
     void abort();
-    bool active() const { return !!ss; }
 };
 
 extern void

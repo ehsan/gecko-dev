@@ -1476,14 +1476,6 @@ JSAutoCompartment::JSAutoCompartment(JSContext *cx, JSStackFrame *target)
     cx_->enterCompartment(Valueify(target)->global().compartment());
 }
 
-JSAutoCompartment::JSAutoCompartment(JSContext *cx, JSString *target)
-  : cx_(cx),
-    oldCompartment_(cx->compartment)
-{
-    AssertHeapIsIdleOrIterating(cx_);
-    cx_->enterCompartment(target->compartment());
-}
-
 JSAutoCompartment::~JSAutoCompartment()
 {
     cx_->leaveCompartment(oldCompartment_);
@@ -5592,20 +5584,16 @@ JS_CompileFunction(JSContext *cx, JSObject *objArg, const char *name,
 }
 
 JS_PUBLIC_API(JSString *)
-JS_DecompileScript(JSContext *cx, JSScript *scriptArg, const char *name, unsigned indent)
+JS_DecompileScript(JSContext *cx, JSScript *script, const char *name, unsigned indent)
 {
     JS_THREADSAFE_ASSERT(cx->compartment != cx->runtime->atomsCompartment);
 
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
-    RootedScript script(cx, scriptArg);
     RootedFunction fun(cx, script->function());
     if (fun)
         return JS_DecompileFunction(cx, fun, indent);
-    bool haveSource = script->scriptSource()->hasSourceData();
-    if (!haveSource && !script->loadSource(cx, &haveSource))
-        return NULL;
-    return haveSource ? script->sourceData(cx) : js_NewStringCopyZ(cx, "[no source]");
+    return script->sourceData(cx);
 }
 
 JS_PUBLIC_API(JSString *)

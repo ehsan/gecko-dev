@@ -834,7 +834,6 @@ MediaStreamGraphImpl::UpdateCurrentTime()
     if (stream->mFinished && !stream->mNotifiedFinished &&
         stream->mBufferStartTime + stream->GetBufferEnd() <= nextCurrentTime) {
       stream->mNotifiedFinished = true;
-      stream->mLastPlayedVideoFrame.SetNull();
       for (uint32_t j = 0; j < stream->mListeners.Length(); ++j) {
         MediaStreamListener* l = stream->mListeners[j];
         l->NotifyFinished(this);
@@ -1299,9 +1298,7 @@ MediaStreamGraphImpl::PlayVideo(MediaStream* aStream)
       NS_NewRunnableMethod(output, &VideoFrameContainer::Invalidate);
     NS_DispatchToMainThread(event, NS_DISPATCH_NORMAL);
   }
-  if (!aStream->mNotifiedFinished) {
-    aStream->mLastPlayedVideoFrame = *frame;
-  }
+  aStream->mLastPlayedVideoFrame = *frame;
 }
 
 void

@@ -1011,11 +1011,15 @@ var gBrowserInit = {
 
     gBrowser.addEventListener("DOMUpdatePageReport", gPopupBlockerObserver, false);
 
-    // Note that the XBL binding is untrusted
-    gBrowser.addEventListener("PluginBindingAttached", gPluginHandler, true, true);
-    gBrowser.addEventListener("PluginCrashed",         gPluginHandler, true);
-    gBrowser.addEventListener("PluginOutdated",        gPluginHandler, true);
-
+    gBrowser.addEventListener("PluginNotFound",     gPluginHandler, true);
+    gBrowser.addEventListener("PluginCrashed",      gPluginHandler, true);
+    gBrowser.addEventListener("PluginBlocklisted",  gPluginHandler, true);
+    gBrowser.addEventListener("PluginOutdated",     gPluginHandler, true);
+    gBrowser.addEventListener("PluginDisabled",     gPluginHandler, true);
+    gBrowser.addEventListener("PluginClickToPlay",  gPluginHandler, true);
+    gBrowser.addEventListener("PluginPlayPreview",  gPluginHandler, true);
+    gBrowser.addEventListener("PluginVulnerableUpdatable", gPluginHandler, true);
+    gBrowser.addEventListener("PluginVulnerableNoUpdate", gPluginHandler, true);
     gBrowser.addEventListener("NewPluginInstalled", gPluginHandler.newPluginInstalled, true);
 #ifdef XP_MACOSX
     gBrowser.addEventListener("npapi-carbon-event-model-failure", gPluginHandler, true);

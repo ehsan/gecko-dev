@@ -13,19 +13,15 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=425013
 <a target="_blank" href="https://bugzilla.mozilla.org/show_bug.cgi?id=425013">Mozilla Bug 425013</a>
 <br>
 
-<script type="text/javascript;version=1.7">
+<script>
 var missingPlugins = new Array();
-var OBJLC = Components.interfaces.nsIObjectLoadingContent;
 
-function pluginBinding(event)
+function pluginNotFound(event)
 {
-  var plugin = event.target;
-  plugin instanceof OBJLC;
-  if (SpecialPowers.wrap(plugin).pluginFallbackType == OBJLC.PLUGIN_UNSUPPORTED)
-    missingPlugins.push(plugin);
+  missingPlugins.push(event.target);
 }
 
-document.addEventListener("PluginBindingAttached", pluginBinding, true);
+document.addEventListener("PluginNotFound", pluginNotFound, false);
 </script>
 
 <object type="foo/bar" id="obj1"></object>
@@ -59,23 +55,14 @@ document.addEventListener("PluginBindingAttached", pluginBinding, true);
 <script class="testbody" type="text/javascript">
 function runtests()
 {
-  // Force layout flush so the binding is attached and the event is fired
-  document.getElementById("obj1").clientTop;
-  document.getElementById("obj3").clientTop;
-  document.getElementById("embed1").clientTop;
-  document.getElementById("embed2").clientTop;
+  ok(missingPlugins.indexOf(document.getElementById("obj1")) >= 0, "Missing plugin element obj1");
+  ok(missingPlugins.indexOf(document.getElementById("embed1")) >= 0, "Missing plugin element embed1");
+  ok(missingPlugins.indexOf(document.getElementById("embed2")) >= 0, "Missing plugin element embed2");
+  ok(missingPlugins.indexOf(document.getElementById("obj3")) >= 0, "Missing plugin element obj3");
 
-  // Let pending events flush
-  SimpleTest.executeSoon(function () {
-    ok(missingPlugins.indexOf(document.getElementById("obj1")) >= 0, "Missing plugin element obj1");
-    ok(missingPlugins.indexOf(document.getElementById("embed1")) >= 0, "Missing plugin element embed1");
-    ok(missingPlugins.indexOf(document.getElementById("embed2")) >= 0, "Missing plugin element embed2");
-    ok(missingPlugins.indexOf(document.getElementById("obj3")) >= 0, "Missing plugin element obj3");
+  is(missingPlugins.length, 4, "Wrong number of missing plugins");
 
-    is(missingPlugins.length, 4, "Wrong number of missing plugins");
-
-    SimpleTest.finish();
-  });
+  SimpleTest.finish();
 }
 
 SimpleTest.waitForExplicitFinish();

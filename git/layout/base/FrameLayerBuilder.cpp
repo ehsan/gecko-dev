@@ -1929,8 +1929,6 @@ PaintInactiveLayer(nsDisplayListBuilder* aBuilder,
     builder->DidEndTransaction();
   }
 
-  basic->SetTarget(nullptr);
-
 #ifdef MOZ_DUMP_PAINTING
   if (gfxUtils::sDumpPainting) {
     DumpPaintedImage(aItem, surf);
@@ -2297,9 +2295,9 @@ FrameLayerBuilder::AddThebesDisplayItem(ThebesLayer* aLayer,
 
       nsIntPoint offset = GetLastPaintOffset(aLayer) - GetTranslationForThebesLayer(aLayer);
       props->MoveBy(-offset);
-      nsIntRegion invalid = props->ComputeDifferences(layer, nullptr);
+      nsIntRect invalid = props->ComputeDifferences(layer, nullptr);
       if (aLayerState == LAYER_SVG_EFFECTS) {
-        invalid = nsSVGIntegrationUtils::AdjustInvalidAreaForSVGEffects(aItem->GetUnderlyingFrame(), invalid.GetBounds());
+        invalid = nsSVGIntegrationUtils::AdjustInvalidAreaForSVGEffects(aItem->GetUnderlyingFrame(), invalid);
       }
       if (!invalid.IsEmpty()) {
 #ifdef DEBUG_INVALIDATIONS

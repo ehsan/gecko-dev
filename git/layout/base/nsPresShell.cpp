@@ -5272,7 +5272,7 @@ PresShell::Paint(nsIView*           aViewToPaint,
                                          nullptr);
 
       if (layerManager->EndEmptyTransaction((aType == PaintType_NoComposite) ? LayerManager::END_NO_COMPOSITE : LayerManager::END_DEFAULT)) {
-        nsIntRegion invalid;
+        nsIntRect invalid;
         if (props) {
           invalid = props->ComputeDifferences(layerManager->GetRoot(), computeInvalidFunc);
         } else {
@@ -5280,13 +5280,12 @@ PresShell::Paint(nsIView*           aViewToPaint,
         }
         if (props) {
           if (!invalid.IsEmpty()) {
-            nsIntRect bounds = invalid.GetBounds();
-            nsRect rect(presContext->DevPixelsToAppUnits(bounds.x),
-                        presContext->DevPixelsToAppUnits(bounds.y),
-                        presContext->DevPixelsToAppUnits(bounds.width),
-                        presContext->DevPixelsToAppUnits(bounds.height));
+            nsRect rect(presContext->DevPixelsToAppUnits(invalid.x),
+                        presContext->DevPixelsToAppUnits(invalid.y),
+                        presContext->DevPixelsToAppUnits(invalid.width),
+                        presContext->DevPixelsToAppUnits(invalid.height));
             aViewToPaint->GetViewManager()->InvalidateViewNoSuppression(aViewToPaint, rect);
-            presContext->NotifyInvalidation(bounds, 0);
+            presContext->NotifyInvalidation(invalid, 0);
           }
         } else {
           aViewToPaint->GetViewManager()->InvalidateView(aViewToPaint);
@@ -9150,7 +9149,6 @@ PresShell::SetupFontInflation()
   mFontSizeInflationEmPerLine = nsLayoutUtils::FontSizeInflationEmPerLine();
   mFontSizeInflationMinTwips = nsLayoutUtils::FontSizeInflationMinTwips();
   mFontSizeInflationLineThreshold = nsLayoutUtils::FontSizeInflationLineThreshold();
-  mFontSizeInflationForceEnabled = nsLayoutUtils::FontSizeInflationForceEnabled();
 }
 
 void

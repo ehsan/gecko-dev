@@ -258,38 +258,16 @@ let Activities = {
     };
 
     let matchFunc = function matchFunc(aResult) {
-
-      function matchFuncValue(aValue, aFilter) {
-        // Bug 805822 - Regexp support for MozActivity
-
-        let values = Array.isArray(aValue) ? aValue : [aValue];
-        let filters = Array.isArray(aFilter) ? aFilter : [aFilter];
-
-        // At least 1 value must match.
-        let ret = false;
-        values.forEach(function(value) {
-          if (filters.indexOf(value) != -1) {
-            ret = true;
+      // Bug 773383: arrays of strings / regexp.
+      for (let prop in aResult.description.filters) {
+        if (Array.isArray(aResult.description.filters[prop])) {
+          if (aResult.description.filters[prop].indexOf(aMsg.options.data[prop]) == -1) {
+            return false;
           }
-        });
-
-        return ret;
-      }
-
-      // For any incoming property.
-      for (let prop in aMsg.options.data) {
-
-        // If this is unknown for the app, let's continue.
-        if (!(prop in aResult.description.filters)) {
-          continue;
-        }
-
-        // Otherwise, let's check the value against the filter.
-        if (!matchFuncValue(aMsg.options.data[prop], aResult.description.filters[prop])) {
+        } else if (aResult.description.filters[prop] !== aMsg.options.data[prop] ) {
           return false;
         }
       }
-
       return true;
     };
 

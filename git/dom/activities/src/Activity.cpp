@@ -7,7 +7,6 @@
 #include "nsContentUtils.h"
 #include "nsIDOMActivityOptions.h"
 #include "nsEventStateManager.h"
-#include "nsIConsoleService.h"
 
 using namespace mozilla::dom;
 
@@ -49,23 +48,11 @@ Activity::Initialize(nsISupports* aOwner,
 
   Init(window);
 
-  nsCOMPtr<nsIDocument> document = do_QueryInterface(window->GetExtantDocument());
-
-  if (!nsEventStateManager::IsHandlingUserInput() &&
-      !nsContentUtils::IsChromeDoc(document)) {
+  if (!nsEventStateManager::IsHandlingUserInput()) {
     nsCOMPtr<nsIDOMRequestService> rs =
       do_GetService("@mozilla.org/dom/dom-request-service;1");
     rs->FireErrorAsync(static_cast<DOMRequest*>(this),
                        NS_LITERAL_STRING("NotUserInput"));
-
-    nsCOMPtr<nsIConsoleService> console(
-      do_GetService("@mozilla.org/consoleservice;1"));
-    NS_ENSURE_TRUE(console, NS_OK);
-
-    nsString message =
-      NS_LITERAL_STRING("Can start activity from non user input or chrome code");
-    console->LogStringMessage(message.get());
-
     return NS_OK;
   }
 

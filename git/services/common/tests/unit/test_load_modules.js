@@ -3,7 +3,6 @@
 
 const modules = [
   "async.js",
-  "bagheeraclient.js",
   "log4moz.js",
   "preferences.js",
   "rest.js",
@@ -15,7 +14,6 @@ const modules = [
 
 const test_modules = [
   "aitcserver.js",
-  "bagheeraserver.js",
   "storageserver.js",
 ];
 

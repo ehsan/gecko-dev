@@ -145,7 +145,7 @@ function test() {
   gBrowser.selectedTab = newTab;
   gTestBrowser = gBrowser.selectedBrowser;
   gTestBrowser.addEventListener("load", pageLoad, true);
-  gTestBrowser.addEventListener("PluginBindingAttached", handleBindingAttached, true, true);
+  gTestBrowser.addEventListener("PluginPlayPreview", handlePluginPlayPreview, true);
 
   registerPlayPreview('application/x-test', 'about:');
   prepareTest(test1a, gTestRoot + "plugin_test.html", 1);
@@ -153,16 +153,14 @@ function test() {
 
 function finishTest() {
   gTestBrowser.removeEventListener("load", pageLoad, true);
-  gTestBrowser.removeEventListener("PluginBindingAttached", handleBindingAttached, true, true);
+  gTestBrowser.removeEventListener("PluginPlayPreview", handlePluginPlayPreview, true);
   gBrowser.removeCurrentTab();
   window.focus();
   finish();
 }
 
-function handleBindingAttached(evt) {
-  if (evt.target instanceof Ci.nsIObjectLoadingContent &&
-      evt.target.pluginFallbackType == Ci.nsIObjectLoadingContent.PLUGIN_PLAY_PREVIEW)
-    gPlayPreviewPluginActualEvents++;
+function handlePluginPlayPreview() {
+  gPlayPreviewPluginActualEvents++;
 }
 
 function pageLoad() {
