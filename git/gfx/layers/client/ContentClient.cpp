@@ -168,10 +168,8 @@ bool
 ContentClientRemoteBuffer::CreateAndAllocateTextureClient(RefPtr<TextureClient>& aClient,
                                                           TextureFlags aFlags)
 {
-  // gfx::BackendType::NONE means fallback to the content backend
   aClient = CreateTextureClientForDrawing(mSurfaceFormat,
                                           mTextureInfo.mTextureFlags | aFlags,
-                                          gfx::BackendType::NONE,
                                           mSize);
   if (!aClient) {
     return false;
@@ -180,7 +178,6 @@ ContentClientRemoteBuffer::CreateAndAllocateTextureClient(RefPtr<TextureClient>&
   if (!aClient->AsTextureClientDrawTarget()->AllocateForSurface(mSize, ALLOC_CLEAR_BUFFER)) {
     aClient = CreateTextureClientForDrawing(mSurfaceFormat,
                 mTextureInfo.mTextureFlags | TEXTURE_ALLOC_FALLBACK | aFlags,
-                gfx::BackendType::NONE,
                 mSize);
     if (!aClient) {
       return false;

@@ -163,11 +163,6 @@ public:
     return Success;
   }
 
-  void SkipToEnd()
-  {
-    input = end;
-  }
-
   bool AtEnd() const { return input == end; }
 
   class Mark

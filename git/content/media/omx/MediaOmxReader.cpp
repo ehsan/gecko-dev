@@ -140,14 +140,13 @@ nsresult MediaOmxReader::ReadMetadata(MediaInfo* aInfo,
   mDecoder->SetMediaSeekable(mExtractor->flags() & MediaExtractor::CAN_SEEK);
 
   if (mOmxDecoder->HasVideo()) {
-    int32_t displayWidth, displayHeight, width, height;
-    mOmxDecoder->GetVideoParameters(&displayWidth, &displayHeight,
-                                    &width, &height);
+    int32_t width, height;
+    mOmxDecoder->GetVideoParameters(&width, &height);
     nsIntRect pictureRect(0, 0, width, height);
 
     // Validate the container-reported frame and pictureRect sizes. This ensures
     // that our video frame creation code doesn't overflow.
-    nsIntSize displaySize(displayWidth, displayHeight);
+    nsIntSize displaySize(width, height);
     nsIntSize frameSize(width, height);
     if (!IsValidVideoRegion(frameSize, pictureRect, displaySize)) {
       return NS_ERROR_FAILURE;

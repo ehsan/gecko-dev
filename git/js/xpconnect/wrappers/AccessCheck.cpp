@@ -8,7 +8,8 @@
 #include "AccessCheck.h"
 
 #include "nsJSPrincipals.h"
-#include "nsGlobalWindow.h"
+#include "nsIDOMWindow.h"
+#include "nsIDOMWindowCollection.h"
 
 #include "XPCWrapper.h"
 #include "XrayWrapper.h"
@@ -16,8 +17,6 @@
 #include "jsfriendapi.h"
 #include "mozilla/dom/BindingUtils.h"
 #include "mozilla/dom/WindowBinding.h"
-#include "nsIDOMWindowCollection.h"
-#include "nsJSUtils.h"
 
 using namespace mozilla;
 using namespace JS;
@@ -150,22 +149,30 @@ IsFrameId(JSContext *cx, JSObject *objArg, jsid idArg)
 
     obj = JS_ObjectToInnerObject(cx, obj);
     MOZ_ASSERT(!js::IsWrapper(obj));
-    nsGlobalWindow* win = WindowOrNull(obj);
-    if (!win) {
+    XPCWrappedNative *wn = IS_WN_REFLECTOR(obj) ? XPCWrappedNative::Get(obj)
+                                                : nullptr;
+    if (!wn) {
+        return false;
+    }
+
+    nsCOMPtr<nsIDOMWindow> domwin(do_QueryWrappedNative(wn));
+    if (!domwin) {
         return false;
     }
 
     nsCOMPtr<nsIDOMWindowCollection> col;
-    win->GetFrames(getter_AddRefs(col));
+    domwin->GetFrames(getter_AddRefs(col));
     if (!col) {
         return false;
     }
 
-    nsCOMPtr<nsIDOMWindow> domwin;
     if (JSID_IS_INT(id)) {
         col->Item(JSID_TO_INT(id), getter_AddRefs(domwin));
     } else if (JSID_IS_STRING(id)) {
-        col->NamedItem(nsDependentJSString(id), getter_AddRefs(domwin));
+        nsAutoString str(JS_GetInternedStringChars(JSID_TO_STRING(id)));
+        col->NamedItem(str, getter_AddRefs(domwin));
+    } else {
+        return false;
     }
 
     return domwin != nullptr;

@@ -77,17 +77,10 @@ let iccListener = {
     let clientId = 0;
     let iccInfo = iccProvider.getIccInfo(clientId);
     if (iccInfo && iccInfo.mcc && iccInfo.mnc) {
-      let mcc = iccInfo.mcc;
-      let mnc = iccInfo.mnc;
-      debug("******* iccListener cardIccInfo MCC-MNC: " + mcc + "-" + mnc);
+      debug("******* iccListener cardIccInfo MCC-MNC: " + iccInfo.mcc +
+            "-" + iccInfo.mnc);
       iccProvider.unregisterIccMsg(clientId, this);
-      OperatorAppsRegistry._installOperatorApps(mcc, mnc);
-
-      debug("Broadcast message first-run-with-sim");
-      let messenger = Cc["@mozilla.org/system-message-internal;1"]
-                        .getService(Ci.nsISystemMessagesInternal);
-      messenger.broadcastMessage("first-run-with-sim", { mcc: mcc,
-                                                         mnc: mnc });
+      OperatorAppsRegistry._installOperatorApps(iccInfo.mcc, iccInfo.mnc);
     }
   }
 };

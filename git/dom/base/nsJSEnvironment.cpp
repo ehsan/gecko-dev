@@ -631,9 +631,24 @@ NS_ScriptErrorReporter(JSContext *cx,
 #ifdef DEBUG
 // A couple of useful functions to call when you're debugging.
 nsGlobalWindow *
-JSObject2Win(JSObject *obj)
+JSObject2Win(JSContext *cx, JSObject *obj)
 {
-  return xpc::WindowOrNull(obj);
+  nsIXPConnect *xpc = nsContentUtils::XPConnect();
+  if (!xpc) {
+    return nullptr;
+  }
+
+  nsCOMPtr<nsIXPConnectWrappedNative> wrapper;
+  xpc->GetWrappedNativeOfJSObject(cx, obj, getter_AddRefs(wrapper));
+  if (wrapper) {
+    nsCOMPtr<nsPIDOMWindow> win = do_QueryWrappedNative(wrapper);
+    if (win) {
+      return static_cast<nsGlobalWindow *>
+                        (static_cast<nsPIDOMWindow *>(win));
+    }
+  }
+
+  return nullptr;
 }
 
 void
@@ -1029,27 +1044,28 @@ nsJSContext::GetGlobalObject()
 
   const JSClass *c = JS_GetClass(global);
 
+  // Whenever we end up with globals that are JSCLASS_IS_DOMJSCLASS
+  // and have an nsISupports DOM object, we will need to modify this
+  // check here.
+  MOZ_ASSERT(!(c->flags & JSCLASS_IS_DOMJSCLASS));
+  if ((~c->flags) & (JSCLASS_HAS_PRIVATE |
+                     JSCLASS_PRIVATE_IS_NSISUPPORTS)) {
+    return nullptr;
+  }
+  
+  nsISupports *priv = static_cast<nsISupports*>(js::GetObjectPrivate(global));
+
+  nsCOMPtr<nsIXPConnectWrappedNative> wrapped_native =
+    do_QueryInterface(priv);
+
   nsCOMPtr<nsIScriptGlobalObject> sgo;
-  if (IsDOMClass(c)) {
-    sgo = do_QueryInterface(UnwrapDOMObjectToISupports(global));
+  if (wrapped_native) {
+    // The global object is a XPConnect wrapped native, the native in
+    // the wrapper might be the nsIScriptGlobalObject
+
+    sgo = do_QueryWrappedNative(wrapped_native);
   } else {
-    if ((~c->flags) & (JSCLASS_HAS_PRIVATE |
-                       JSCLASS_PRIVATE_IS_NSISUPPORTS)) {
-      return nullptr;
-    }
-
-    nsISupports *priv = static_cast<nsISupports*>(js::GetObjectPrivate(global));
-
-    nsCOMPtr<nsIXPConnectWrappedNative> wrapped_native =
-      do_QueryInterface(priv);
-    if (wrapped_native) {
-      // The global object is a XPConnect wrapped native, the native in
-      // the wrapper might be the nsIScriptGlobalObject
-
-      sgo = do_QueryWrappedNative(wrapped_native);
-    } else {
-      sgo = do_QueryInterface(priv);
-    }
+    sgo = do_QueryInterface(priv);
   }
 
   // This'll return a pointer to something we're about to release, but

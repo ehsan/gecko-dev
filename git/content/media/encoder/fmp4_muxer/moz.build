@@ -10,7 +10,6 @@ EXPORTS += [
 ]
 
 UNIFIED_SOURCES += [
-    'AMRBox.cpp',
     'AVCBox.cpp',
     'ISOControl.cpp',
     'ISOMediaBoxes.cpp',

@@ -9,16 +9,10 @@ let mobileConnection = window.navigator.mozMobileConnections[0];
 ok(mobileConnection instanceof MozMobileConnection,
    "mobileConnection is instanceof " + mobileConnection.constructor);
 
-let _pendingEmulatorCmdCount = 0;
-
 /* Remove permission and execute finish() */
 let cleanUp = function() {
-  waitFor(function() {
-    SpecialPowers.removePermission("mobileconnection", document);
-    finish();
-  }, function() {
-    return _pendingEmulatorCmdCount === 0;
-  });
+  SpecialPowers.removePermission("mobileconnection", document);
+  finish();
 };
 
 /* Helper for tasks */
@@ -44,10 +38,12 @@ let taskHelper = {
 
 /* Helper for emulator console command */
 let emulatorHelper = {
+  pendingCommandCount: 0,
+
   sendCommand: function(cmd, callback) {
-    _pendingEmulatorCmdCount++;
+    this.pendingCommandCount++;
     runEmulatorCmd(cmd, function(results) {
-      _pendingEmulatorCmdCount--;
+      this.pendingCommandCount--;
 
       let result = results[results.length - 1];
       is(result, "OK", "'"+ cmd +"' returns '" + result + "'");

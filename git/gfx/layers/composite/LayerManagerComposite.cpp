@@ -509,7 +509,6 @@ LayerManagerComposite::Render()
   {
     PROFILER_LABEL("LayerManagerComposite", "EndFrame");
     mCompositor->EndFrame();
-    mCompositor->SetFBAcquireFence(mRoot);
   }
 
   mCompositor->GetWidget()->PostRender(this);

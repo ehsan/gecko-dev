@@ -74,7 +74,6 @@ SharedSurface_Gralloc::Create(GLContext* prodGL,
       new GrallocTextureClientOGL(
           allocator,
           gfx::ImageFormatToSurfaceFormat(format),
-          gfx::BackendType::NONE, // we don't need to use it with a DrawTarget
           TEXTURE_FLAGS_DEFAULT);
 
     if (!grallocTC->AllocateForGLRendering(size)) {

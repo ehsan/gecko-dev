@@ -89,8 +89,7 @@ testInner(const char *asciiChars, JSPrincipals *principal, JSPrincipals *originP
     JS::RootedValue rval(cx);
     CHECK(eval(asciiChars, principal, originPrincipal, &rval));
 
-    JS::RootedFunction fun(cx, &rval.toObject().as<JSFunction>());
-    JSScript *script = JS_GetFunctionScript(cx, fun);
+    JSScript *script = JS_GetFunctionScript(cx, &rval.toObject().as<JSFunction>());
     CHECK(JS_GetScriptPrincipals(script) == principal);
     CHECK(JS_GetScriptOriginPrincipals(script) == originPrincipal);
 

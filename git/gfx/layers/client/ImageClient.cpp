@@ -240,7 +240,7 @@ ImageClientSingle::UpdateImageInternal(ImageContainer* aContainer,
       gfxImageFormat format
         = gfxPlatform::GetPlatform()->OptimalFormatForContent(gfx::ContentForFormat(surface->GetFormat()));
       mFrontBuffer = CreateTextureClientForDrawing(gfx::ImageFormatToSurfaceFormat(format),
-                                                   mTextureFlags, gfx::BackendType::NONE, size);
+                                                   mTextureFlags, size);
       MOZ_ASSERT(mFrontBuffer->AsTextureClientDrawTarget());
       if (!mFrontBuffer->AsTextureClientDrawTarget()->AllocateForSurface(size)) {
         mFrontBuffer = nullptr;

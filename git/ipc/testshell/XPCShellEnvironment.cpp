@@ -165,7 +165,8 @@ Load(JSContext *cx,
         JS::CompileOptions options(cx);
         options.setUTF8(true)
                .setFileAndLine(filename.ptr(), 1);
-        JS::Rooted<JSScript*> script(cx, JS::Compile(cx, obj, options, file));
+        JS::RootedObject rootedObj(cx, obj);
+        JSScript *script = JS::Compile(cx, rootedObj, options, file);
         fclose(file);
         if (!script)
             return false;
@@ -297,6 +298,7 @@ XPCShellEnvironment::ProcessFile(JSContext *cx,
 {
     XPCShellEnvironment* env = this;
 
+    JSScript *script;
     JS::Rooted<JS::Value> result(cx);
     int lineno, startline;
     bool ok, hitEOF;
@@ -331,7 +333,7 @@ XPCShellEnvironment::ProcessFile(JSContext *cx,
         JS::CompileOptions options(cx);
         options.setUTF8(true)
                .setFileAndLine(filename, 1);
-        JS::Rooted<JSScript*> script(cx, JS::Compile(cx, obj, options, file));
+        JSScript* script = JS::Compile(cx, obj, options, file);
         if (script)
             (void)JS_ExecuteScript(cx, obj, script, result.address());
 
@@ -368,8 +370,7 @@ XPCShellEnvironment::ProcessFile(JSContext *cx,
         JS_ClearPendingException(cx);
         JS::CompileOptions options(cx);
         options.setFileAndLine("typein", startline);
-        JS::Rooted<JSScript*> script(cx,
-                                     JS_CompileScript(cx, obj, buffer, strlen(buffer), options));
+        script = JS_CompileScript(cx, obj, buffer, strlen(buffer), options);
         if (script) {
             JSErrorReporter older;
 
@@ -577,8 +578,8 @@ XPCShellEnvironment::EvaluateString(const nsString& aString,
 
   JS::CompileOptions options(cx);
   options.setFileAndLine("typein", 0);
-  JS::Rooted<JSScript*> script(cx, JS_CompileUCScript(cx, global, aString.get(),
-                                                      aString.Length(), options));
+  JSScript* script = JS_CompileUCScript(cx, global, aString.get(),
+                                        aString.Length(), options);
   if (!script) {
      return false;
   }
