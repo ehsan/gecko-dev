@@ -5010,9 +5010,7 @@ class CGGenericGetter(CGAbstractBindingMethod):
             name = "genericLenientGetter"
             unwrapFailureCode = (
                 "MOZ_ASSERT(!JS_IsExceptionPending(cx));\n"
-                "if (!ReportLenientThisUnwrappingFailure(cx, obj)) {\n"
-                "  return false;\n"
-                "}\n"
+                "ReportLenientThisUnwrappingFailure(cx, obj);\n"
                 "JS_SET_RVAL(cx, vp, JS::UndefinedValue());\n"
                 "return true;")
         else:
@@ -5089,9 +5087,7 @@ class CGGenericSetter(CGAbstractBindingMethod):
             name = "genericLenientSetter"
             unwrapFailureCode = (
                 "MOZ_ASSERT(!JS_IsExceptionPending(cx));\n"
-                "if (!ReportLenientThisUnwrappingFailure(cx, obj)) {\n"
-                "  return false;\n"
-                "}\n"
+                "ReportLenientThisUnwrappingFailure(cx, obj);\n"
                 "JS_SET_RVAL(cx, vp, JS::UndefinedValue());\n"
                 "return true;")
         else:

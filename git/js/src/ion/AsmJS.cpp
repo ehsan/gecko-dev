@@ -23,10 +23,6 @@ using namespace mozilla;
 
 using namespace js::ion;
 
-#ifdef MOZ_VTUNE
-# include "jitprofiling.h"
-#endif
-
 #ifdef JS_ASMJS
 
 /*****************************************************************************/
@@ -1363,14 +1359,6 @@ class ModuleCompiler
         return module_->addExportedFunction(FunctionObject(func->fn()), maybeFieldName,
                                             Move(argCoercions), returnType);
     }
-
-#ifdef MOZ_VTUNE
-    bool trackProfiledFunction(const Func &func, unsigned endCodeOffset) {
-        JSAtom *name = FunctionName(func.fn());
-        unsigned startCodeOffset = func.codeLabel()->offset();
-        return module_->trackProfiledFunction(name, startCodeOffset, endCodeOffset);
-    }
-#endif
 
     void setFirstPassComplete() {
         JS_ASSERT(currentPass_ == 1);
@@ -4600,13 +4588,6 @@ GenerateAsmJSCode(ModuleCompiler &m, ModuleCompiler::Func &func,
         js_delete(counts);
         return false;
     }
-
-#ifdef MOZ_VTUNE
-    if (iJIT_IsProfilingActive() == iJIT_SAMPLING_ON) {
-        if (!m.trackProfiledFunction(func, m.masm().size()))
-            return false;
-    }
-#endif
 
     // A single MacroAssembler is reused for all function compilations so
     // that there is a single linear code segment for each module. To avoid

@@ -46,13 +46,6 @@ public:
   JSContext*
   GetJSContext() const;
 
-  void
-  TraceJSObject(JSTracer* aTrc, const char* aName)
-  {
-      if (GetJSObject())
-          TraceJSObjectFromBits(aTrc, aName);
-  }
-
 #ifdef DEBUG
   JSObject*
   GetJSObject() const;

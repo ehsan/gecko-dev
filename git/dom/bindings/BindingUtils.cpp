@@ -1631,7 +1631,6 @@ GlobalObject::GlobalObject(JSContext* aCx, JSObject* aObject)
   Maybe<JSAutoCompartment> ac;
   mGlobalJSObject = GetGlobalObject<true>(aCx, aObject, ac);
   if (!mGlobalJSObject) {
-    mGlobalObject = nullptr;
     return;
   }
 
@@ -1718,18 +1717,14 @@ InterfaceHasInstance(JSContext* cx, JSHandleObject obj, JSMutableHandleValue vp,
   return InterfaceHasInstance(cx, obj, instanceObject, bp);
 }
 
-bool
+void
 ReportLenientThisUnwrappingFailure(JSContext* cx, JS::Handle<JSObject*> obj)
 {
   GlobalObject global(cx, obj);
-  if (global.Failed()) {
-    return false;
-  }
   nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(global.Get());
   if (window && window->GetDoc()) {
     window->GetDoc()->WarnOnceAbout(nsIDocument::eLenientThis);
   }
-  return true;
 }
 
 // Date implementation methods

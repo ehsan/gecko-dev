@@ -149,10 +149,10 @@ struct IonScript
 {
   private:
     // Code pointer containing the actual method.
-    EncapsulatedPtr<IonCode> method_;
+    HeapPtr<IonCode> method_;
 
     // Deoptimization table used by this method.
-    EncapsulatedPtr<IonCode> deoptTable_;
+    HeapPtr<IonCode> deoptTable_;
 
     // Entrypoint for OSR, or NULL.
     jsbytecode *osrPc_;
@@ -255,8 +255,8 @@ struct IonScript
     SnapshotOffset *bailoutTable() {
         return (SnapshotOffset *) &bottomBuffer()[bailoutTable_];
     }
-    EncapsulatedValue *constants() {
-        return (EncapsulatedValue *) &bottomBuffer()[constantTable_];
+    HeapValue *constants() {
+        return (HeapValue *) &bottomBuffer()[constantTable_];
     }
     const SafepointIndex *safepointIndices() const {
         return const_cast<IonScript *>(this)->safepointIndices();
@@ -407,7 +407,7 @@ struct IonScript
     size_t sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf) const {
         return mallocSizeOf(this);
     }
-    EncapsulatedValue &getConstant(size_t index) {
+    HeapValue &getConstant(size_t index) {
         JS_ASSERT(index < numConstants());
         return constants()[index];
     }
@@ -448,7 +448,7 @@ struct IonScript
     void destroyCaches();
     void copySnapshots(const SnapshotWriter *writer);
     void copyBailoutTable(const SnapshotOffset *table);
-    void copyConstants(const Value *vp);
+    void copyConstants(const HeapValue *vp);
     void copySafepointIndices(const SafepointIndex *firstSafepointIndex, MacroAssembler &masm);
     void copyOsiIndices(const OsiIndex *firstOsiIndex, MacroAssembler &masm);
     void copyRuntimeData(const uint8_t *data);

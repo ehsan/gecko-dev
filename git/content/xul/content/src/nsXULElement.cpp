@@ -2340,7 +2340,10 @@ nsXULPrototypeElement::TraceAllScripts(JSTracer* aTrc)
         if (child->mType == nsXULPrototypeNode::eType_Element) {
             static_cast<nsXULPrototypeElement*>(child)->TraceAllScripts(aTrc);
         } else if (child->mType == nsXULPrototypeNode::eType_Script) {
-            static_cast<nsXULPrototypeScript*>(child)->TraceScriptObject(aTrc);
+            JSScript* script = static_cast<nsXULPrototypeScript*>(child)->GetScriptObject();
+            if (script) {
+                JS_CallScriptTracer(aTrc, script, "active window XUL prototype script");
+            }
         }
     }
 }
