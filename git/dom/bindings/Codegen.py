@@ -14348,13 +14348,6 @@ class GlobalGenRoots():
         return curr
 
     @staticmethod
-    def GeneratedEventList(config):
-        eventList = CGList([]);
-        for generatedEvent in config.generatedEvents:
-            eventList.append(CGGeneric(declare=("GENERATED_EVENT(%s)\n" % generatedEvent)))
-        return eventList
-
-    @staticmethod
     def PrototypeList(config):
 
         # Prototype ID enum.
@@ -14916,8 +14909,7 @@ class CGEventClass(CGBindingImplClass):
                                            [],
                                            virtual=True,
                                            body="return this;\n",
-                                           breakAfterReturnDecl=" ",
-                                           override=True)
+                                           breakAfterReturnDecl=" ")
 
         CGClass.__init__(self, className,
                          bases=[ClassBase(self.parentType)],

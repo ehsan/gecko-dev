@@ -984,7 +984,7 @@ NS_IMPL_ISUPPORTS(nsMemoryReporterManager, nsIMemoryReporterManager)
 NS_IMETHODIMP
 nsMemoryReporterManager::Init()
 {
-#if defined(HAVE_JEMALLOC_STATS) && defined(MOZ_GLUE_IN_PROGRAM)
+#if defined(HAVE_JEMALLOC_STATS) && defined(XP_LINUX)
   if (!jemalloc_stats) {
     return NS_ERROR_FAILURE;
   }

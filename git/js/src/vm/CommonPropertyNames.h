@@ -211,7 +211,6 @@
     macro(useAsm, useAsm, "use asm") \
     macro(useStrict, useStrict, "use strict") \
     macro(value, value, "value") \
-    macro(values, values, "values") \
     macro(valueOf, valueOf, "valueOf") \
     macro(var, var, "var") \
     macro(variable, variable, "variable") \

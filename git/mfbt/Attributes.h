@@ -50,6 +50,7 @@
  * don't indicate support for them here, due to
  * http://stackoverflow.com/questions/20498142/visual-studio-2013-explicit-keyword-bug
  */
+#  define MOZ_HAVE_CXX11_DELETE
 #  define MOZ_HAVE_CXX11_FINAL         final
 #  define MOZ_HAVE_CXX11_OVERRIDE
 #  define MOZ_HAVE_NEVER_INLINE          __declspec(noinline)
@@ -78,6 +79,9 @@
 #  if __has_extension(cxx_explicit_conversions)
 #    define MOZ_HAVE_EXPLICIT_CONVERSION
 #  endif
+#  if __has_extension(cxx_deleted_functions)
+#    define MOZ_HAVE_CXX11_DELETE
+#  endif
 #  if __has_extension(cxx_override_control)
 #    define MOZ_HAVE_CXX11_OVERRIDE
 #    define MOZ_HAVE_CXX11_FINAL         final
@@ -100,6 +104,7 @@
 #    if MOZ_GCC_VERSION_AT_LEAST(4, 5, 0)
 #      define MOZ_HAVE_EXPLICIT_CONVERSION
 #    endif
+#    define MOZ_HAVE_CXX11_DELETE
 #  else
      /* __final is a non-C++11 GCC synonym for 'final', per GCC r176655. */
 #    if MOZ_GCC_VERSION_AT_LEAST(4, 7, 0)
@@ -257,6 +262,34 @@
 #endif
 
 #ifdef __cplusplus
+
+/*
+ * MOZ_DELETE, specified immediately prior to the ';' terminating an undefined-
+ * method declaration, attempts to delete that method from the corresponding
+ * class.  An attempt to use the method will always produce an error *at compile
+ * time* (instead of sometimes as late as link time) when this macro can be
+ * implemented.  For example, you can use MOZ_DELETE to produce classes with no
+ * implicit copy constructor or assignment operator:
+ *
+ *   struct NonCopyable
+ *   {
+ *   private:
+ *     NonCopyable(const NonCopyable& aOther) MOZ_DELETE;
+ *     void operator=(const NonCopyable& aOther) MOZ_DELETE;
+ *   };
+ *
+ * If MOZ_DELETE can't be implemented for the current compiler, use of the
+ * annotated method will still cause an error, but the error might occur at link
+ * time in some cases rather than at compile time.
+ *
+ * MOZ_DELETE relies on C++11 functionality not universally implemented.  As a
+ * backstop, method declarations using MOZ_DELETE should be private.
+ */
+#if defined(MOZ_HAVE_CXX11_DELETE)
+#  define MOZ_DELETE            = delete
+#else
+#  define MOZ_DELETE            /* no support */
+#endif
 
 /*
  * MOZ_OVERRIDE explicitly indicates that a virtual member function in a class
@@ -529,6 +562,20 @@
 #  define MOZ_UNSAFE_REF(reason) /* nothing */
 #  define MOZ_NO_ADDREF_RELEASE_ON_RETURN /* nothing */
 #endif /* MOZ_CLANG_PLUGIN */
+
+/*
+ * MOZ_THIS_IN_INITIALIZER_LIST is used to avoid a warning when we know that
+ * it's safe to use 'this' in an initializer list.
+ */
+#ifdef _MSC_VER
+#  define MOZ_THIS_IN_INITIALIZER_LIST() \
+     __pragma(warning(push)) \
+     __pragma(warning(disable:4355)) \
+     this \
+     __pragma(warning(pop))
+#else
+#  define MOZ_THIS_IN_INITIALIZER_LIST() this
+#endif
 
 #endif /* __cplusplus */
 

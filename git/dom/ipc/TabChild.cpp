@@ -777,10 +777,7 @@ private:
         MOZ_ASSERT(NS_IsMainThread());
         MOZ_ASSERT(mTabChild);
 
-        // Check in case ActorDestroy was called after RecvDestroy message.
-        if (mTabChild->IPCOpen()) {
-            unused << PBrowserChild::Send__delete__(mTabChild);
-        }
+        unused << PBrowserChild::Send__delete__(mTabChild);
 
         mTabChild = nullptr;
         return NS_OK;
@@ -908,7 +905,6 @@ TabChild::TabChild(nsIContentChild* aManager,
   , mUniqueId(aTabId)
   , mDPI(0)
   , mDefaultScale(0)
-  , mIPCOpen(true)
 {
   if (!sActiveDurationMsSet) {
     Preferences::AddIntVarCache(&sActiveDurationMs,
@@ -1658,8 +1654,6 @@ TabChild::DestroyWindow()
 void
 TabChild::ActorDestroy(ActorDestroyReason why)
 {
-  mIPCOpen = false;
-
   DestroyWindow();
 
   if (mTabChildGlobal) {
@@ -3049,21 +3043,6 @@ bool
 TabChild::RecvSetUpdateHitRegion(const bool& aEnabled)
 {
     mUpdateHitRegion = aEnabled;
-
-    // We need to trigger a repaint of the child frame to ensure that it
-    // recomputes and sends its region.
-    if (!mUpdateHitRegion) {
-      return true;
-    }
-
-    nsCOMPtr<nsIDocument> document(GetDocument());
-    NS_ENSURE_TRUE(document, true);
-    nsCOMPtr<nsIPresShell> presShell = document->GetShell();
-    NS_ENSURE_TRUE(presShell, true);
-    nsRefPtr<nsPresContext> presContext = presShell->GetPresContext();
-    NS_ENSURE_TRUE(presContext, true);
-    presContext->InvalidatePaintedLayers();
-
     return true;
 }
 

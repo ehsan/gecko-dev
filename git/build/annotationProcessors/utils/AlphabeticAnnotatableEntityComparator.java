@@ -57,16 +57,16 @@ public class AlphabeticAnnotatableEntityComparator<T extends Member> implements 
         }
 
         // The names were the same, so we need to compare signatures to find their uniqueness..
-        lName = Utils.getSignature(aLhs);
-        rName = Utils.getSignature(aRhs);
+        lName = Utils.getTypeSignatureStringForMethod(aLhs);
+        rName = Utils.getTypeSignatureStringForMethod(aRhs);
 
         return lName.compareTo(rName);
     }
 
     private static int compare(Constructor<?> aLhs, Constructor<?> aRhs) {
         // The names will be the same, so we need to compare signatures to find their uniqueness..
-        String lName = Utils.getSignature(aLhs);
-        String rName = Utils.getSignature(aRhs);
+        String lName = Utils.getTypeSignatureString(aLhs);
+        String rName = Utils.getTypeSignatureString(aRhs);
 
         return lName.compareTo(rName);
     }

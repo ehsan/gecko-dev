@@ -1,4 +1,3 @@
-// |jit-test| test-also-noasmjs
 function testUniqueness(asmJSModule) {
     var f = asmJSModule();
     var g = asmJSModule();

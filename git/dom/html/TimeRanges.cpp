@@ -156,10 +156,10 @@ TimeRanges::Intersection(const TimeRanges* aOtherRanges)
 }
 
 TimeRanges::index_type
-TimeRanges::Find(double aTime, double aError /* = 0 */)
+TimeRanges::Find(double aTime)
 {
   for (index_type i = 0; i < mRanges.Length(); ++i) {
-    if (aTime < mRanges[i].mEnd && (aTime + aError) >= mRanges[i].mStart) {
+    if (aTime >= mRanges[i].mStart && aTime < mRanges[i].mEnd) {
       return i;
     }
   }

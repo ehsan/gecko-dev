@@ -176,7 +176,8 @@ StereoPannerNode::StereoPannerNode(AudioContext* aContext)
               2,
               ChannelCountMode::Clamped_max,
               ChannelInterpretation::Speakers)
-  , mPan(new AudioParam(this, SendPanToStream, 0.f))
+  , mPan(new AudioParam(MOZ_THIS_IN_INITIALIZER_LIST(),
+                        SendPanToStream, 0.f))
 {
   StereoPannerNodeEngine* engine = new StereoPannerNodeEngine(this, aContext->Destination());
   mStream = aContext->Graph()->CreateAudioNodeStream(engine,
@@ -217,3 +218,4 @@ StereoPannerNode::SendPanToStream(AudioNode* aNode)
 
 }
 }
+

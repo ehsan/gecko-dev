@@ -700,8 +700,8 @@ StaticBlockObject::addVar(ExclusiveContext *cx, Handle<StaticBlockObject*> block
     *redeclared = false;
 
     /* Inline NativeObject::addProperty in order to trap the redefinition case. */
-    ShapeTable::Entry *entry;
-    if (Shape::search(cx, block->lastProperty(), id, &entry, true)) {
+    Shape **spp;
+    if (Shape::search(cx, block->lastProperty(), id, &spp, true)) {
         *redeclared = true;
         return nullptr;
     }
@@ -719,7 +719,7 @@ StaticBlockObject::addVar(ExclusiveContext *cx, Handle<StaticBlockObject*> block
                                              slot,
                                              propFlags,
                                              /* attrs = */ 0,
-                                             entry,
+                                             spp,
                                              /* allowDictionary = */ false);
 }
 
@@ -1353,7 +1353,7 @@ class DebugScopeProxy : public BaseProxyHandler
                 return true;
 
             if (bi->kind() == Binding::VARIABLE || bi->kind() == Binding::CONSTANT) {
-                if (script->bindingIsAliased(bi))
+                if (script->bodyLevelLocalIsAliased(bi.localIndex()))
                     return true;
 
                 uint32_t i = bi.frameIndex();

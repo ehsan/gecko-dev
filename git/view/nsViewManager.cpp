@@ -226,7 +226,7 @@ nsViewManager::FlushDelayedResize(bool aDoReflow)
     if (aDoReflow) {
       DoSetWindowDimensions(mDelayedResize.width, mDelayedResize.height);
       mDelayedResize.SizeTo(NSCOORD_NONE, NSCOORD_NONE);
-    } else if (mPresShell && !mPresShell->GetIsViewportOverridden()) {
+    } else if (mPresShell) {
       nsPresContext* presContext = mPresShell->GetPresContext();
       if (presContext) {
         presContext->SetVisibleArea(nsRect(nsPoint(0, 0), mDelayedResize));

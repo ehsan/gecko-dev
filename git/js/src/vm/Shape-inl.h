@@ -51,7 +51,7 @@ Shape::get(JSContext* cx, HandleObject receiver, JSObject* obj, JSObject *pobj,
 inline Shape *
 Shape::search(ExclusiveContext *cx, jsid id)
 {
-    ShapeTable::Entry *_;
+    Shape **_;
     return search(cx, this, id, &_);
 }
 
@@ -87,25 +87,25 @@ Shape::set(JSContext* cx, HandleObject obj, HandleObject receiver, bool strict,
 }
 
 /* static */ inline Shape *
-Shape::search(ExclusiveContext *cx, Shape *start, jsid id, ShapeTable::Entry **pentry, bool adding)
+Shape::search(ExclusiveContext *cx, Shape *start, jsid id, Shape ***pspp, bool adding)
 {
     if (start->inDictionary()) {
-        *pentry = &start->table().search(id, adding);
-        return (*pentry)->shape();
+        *pspp = start->table().search(id, adding);
+        return SHAPE_FETCH(*pspp);
     }
 
-    *pentry = nullptr;
+    *pspp = nullptr;
 
     if (start->hasTable()) {
-        ShapeTable::Entry &entry = start->table().search(id, adding);
-        return entry.shape();
+        Shape **spp = start->table().search(id, adding);
+        return SHAPE_FETCH(spp);
     }
 
     if (start->numLinearSearches() == LINEAR_SEARCHES_MAX) {
         if (start->isBigEnoughForAShapeTable()) {
             if (Shape::hashify(cx, start)) {
-                ShapeTable::Entry &entry = start->table().search(id, adding);
-                return entry.shape();
+                Shape **spp = start->table().search(id, adding);
+                return SHAPE_FETCH(spp);
             } else {
                 cx->recoverFromOutOfMemory();
             }

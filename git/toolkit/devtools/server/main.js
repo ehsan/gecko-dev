@@ -146,6 +146,7 @@ function ModuleAPI() {
 var DebuggerServer = {
   _listeners: [],
   _initialized: false,
+  _transportInitialized: false,
   // Map of global actor names to actor constructors provided by extensions.
   globalActorFactories: {},
   // Map of tab actor names to actor constructors provided by extensions.
@@ -170,13 +171,26 @@ var DebuggerServer = {
       return;
     }
 
-    this._connections = {};
-    this._nextConnID = 0;
+    this.initTransport();
 
     this._initialized = true;
   },
 
   get protocol() require("devtools/server/protocol"),
+
+  /**
+   * Initialize the debugger server's transport variables.  This can be
+   * in place of init() for cases where the jsdebugger isn't needed.
+   */
+  initTransport: function DS_initTransport() {
+    if (this._transportInitialized) {
+      return;
+    }
+
+    this._connections = {};
+    this._nextConnID = 0;
+    this._transportInitialized = true;
+  },
 
   get initialized() this._initialized,
 
@@ -204,22 +218,10 @@ var DebuggerServer = {
     this.closeAllListeners();
     this.globalActorFactories = {};
     this.tabActorFactories = {};
+    this._transportInitialized = false;
     this._initialized = false;
 
     dumpn("Debugger server is shut down.");
-  },
-
-  /**
-   * Raises an exception if the server has not been properly initialized.
-   */
-  _checkInit: function DS_checkInit() {
-    if (!this._initialized) {
-      throw "DebuggerServer has not been initialized.";
-    }
-
-    if (!this.createRootActor) {
-      throw "Use DebuggerServer.addActors() to add a root actor implementation.";
-    }
   },
 
   /**
@@ -928,6 +930,19 @@ var DebuggerServer = {
   },
 
   /**
+   * Raises an exception if the server has not been properly initialized.
+   */
+  _checkInit: function DS_checkInit() {
+    if (!this._transportInitialized) {
+      throw "DebuggerServer has not been initialized.";
+    }
+
+    if (!this.createRootActor) {
+      throw "Use DebuggerServer.addActors() to add a root actor implementation.";
+    }
+  },
+
+  /**
    * Create a new debugger connection for the given transport. Called after
    * connectPipe(), from connectToParent, or from an incoming socket
    * connection handler.
@@ -1138,7 +1153,7 @@ function DebuggerServerConnection(aPrefix, aTransport)
   this._nextID = 1;
 
   this._actorPool = new ActorPool(this);
-  this._extraPools = [this._actorPool];
+  this._extraPools = [];
 
   // Responses to a given actor must be returned the the client
   // in the same order as the requests that they're replying to, but
@@ -1281,6 +1296,10 @@ DebuggerServerConnection.prototype = {
   },
 
   poolFor: function DSC_actorPool(aActorID) {
+    if (this._actorPool && this._actorPool.has(aActorID)) {
+      return this._actorPool;
+    }
+
     for (let pool of this._extraPools) {
       if (pool.has(aActorID)) {
         return pool;
@@ -1517,6 +1536,7 @@ DebuggerServerConnection.prototype = {
     }
     events.emit(this, "closed", aStatus);
 
+    this._actorPool.cleanup();
     this._actorPool = null;
     this._extraPools.map(function(p) { p.cleanup(); });
     this._extraPools = null;
@@ -1533,12 +1553,9 @@ DebuggerServerConnection.prototype = {
       dumpn("--------------------- actorPool actors: " +
             uneval(Object.keys(this._actorPool._actors)));
     }
-    for each (let pool in this._extraPools) {
-      if (pool !== this._actorPool) {
-        dumpn("--------------------- extraPool actors: " +
-              uneval(Object.keys(pool._actors)));
-      }
-    }
+    for each (let pool in this._extraPools)
+      dumpn("--------------------- extraPool actors: " +
+            uneval(Object.keys(pool._actors)));
   },
 
   /*

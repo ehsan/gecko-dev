@@ -122,6 +122,10 @@ public:
     virtual Composer2D* GetComposer2D() MOZ_OVERRIDE;
 
 protected:
+    // nsBaseWidget
+    already_AddRefed<GeckoContentController> CreateRootContentController() MOZ_OVERRIDE;
+
+protected:
     nsWindow* mParent;
     bool mVisible;
     InputContext mInputContext;

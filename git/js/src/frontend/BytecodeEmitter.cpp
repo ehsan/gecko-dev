@@ -1504,8 +1504,8 @@ BytecodeEmitter::isAliasedName(ParseNode *pn)
         return script->formalIsAliased(pn->pn_cookie.slot());
       case Definition::VAR:
       case Definition::GLOBALCONST:
-        MOZ_ASSERT_IF(sc->allLocalsAliased(), script->cookieIsAliased(pn->pn_cookie));
-        return script->cookieIsAliased(pn->pn_cookie);
+        MOZ_ASSERT_IF(sc->allLocalsAliased(), script->varIsAliased(pn->pn_cookie.slot()));
+        return script->varIsAliased(pn->pn_cookie.slot());
       case Definition::PLACEHOLDER:
       case Definition::NAMED_LAMBDA:
       case Definition::MISSING:
@@ -3090,15 +3090,15 @@ frontend::EmitFunctionScript(ExclusiveContext *cx, BytecodeEmitter *bce, ParseNo
         if (Emit1(cx, bce, JSOP_ARGUMENTS) < 0)
             return false;
         InternalBindingsHandle bindings(bce->script, &bce->script->bindings);
-        BindingIter bi = Bindings::argumentsBinding(cx, bindings);
-        if (bce->script->bindingIsAliased(bi)) {
+        uint32_t varIndex = Bindings::argumentsVarIndex(cx, bindings);
+        if (bce->script->varIsAliased(varIndex)) {
             ScopeCoordinate sc;
             sc.setHops(0);
             JS_ALWAYS_TRUE(LookupAliasedNameSlot(bce, bce->script, cx->names().arguments, &sc));
             if (!EmitAliasedVarOp(cx, JSOP_SETALIASEDVAR, sc, DontCheckLexical, bce))
                 return false;
         } else {
-            if (!EmitUnaliasedVarOp(cx, JSOP_SETLOCAL, bi.localIndex(), DontCheckLexical, bce))
+            if (!EmitUnaliasedVarOp(cx, JSOP_SETLOCAL, varIndex, DontCheckLexical, bce))
                 return false;
         }
         if (Emit1(cx, bce, JSOP_POP) < 0)

@@ -64,13 +64,13 @@ NewObjectCache::newObjectFromHit(JSContext *cx, EntryIndex entry_, js::gc::Initi
     // so that we trigger the right kind of GC automatically.
     if (allowGC) {
         mozilla::DebugOnly<JSObject *> obj =
-            js::gc::AllocateObjectForCacheHit<allowGC>(cx, entry->kind, heap, type->clasp());
+            js::gc::AllocateObjectForCacheHit<allowGC>(cx, entry->kind, heap);
         MOZ_ASSERT(!obj);
         return nullptr;
     }
 
     MOZ_ASSERT(allowGC == NoGC);
-    JSObject *obj = js::gc::AllocateObjectForCacheHit<NoGC>(cx, entry->kind, heap, type->clasp());
+    JSObject *obj = js::gc::AllocateObjectForCacheHit<NoGC>(cx, entry->kind, heap);
     if (obj) {
         copyCachedToObject(obj, templateObj, entry->kind);
         probes::CreateObject(cx, obj);

@@ -526,8 +526,8 @@ BaselineScript::pcMappingReader(size_t indexEntry)
     return CompactBufferReader(dataStart, dataEnd);
 }
 
-ICEntry &
-BaselineScript::icEntryFromReturnOffset(CodeOffsetLabel returnOffset)
+ICEntry *
+BaselineScript::maybeICEntryFromReturnOffset(CodeOffsetLabel returnOffset)
 {
     size_t bottom = 0;
     size_t top = numICEntries();
@@ -536,15 +536,25 @@ BaselineScript::icEntryFromReturnOffset(CodeOffsetLabel returnOffset)
         ICEntry &midEntry = icEntry(mid);
         if (midEntry.returnOffset().offset() < returnOffset.offset())
             bottom = mid + 1;
-        else
+        else // if (midEntry.returnOffset().offset() >= returnOffset.offset())
             top = mid;
         mid = bottom + (top - bottom) / 2;
     }
+    if (mid >= numICEntries())
+        return nullptr;
 
-    MOZ_ASSERT(mid < numICEntries());
-    MOZ_ASSERT(icEntry(mid).returnOffset().offset() == returnOffset.offset());
+    if (icEntry(mid).returnOffset().offset() != returnOffset.offset())
+        return nullptr;
 
-    return icEntry(mid);
+    return &icEntry(mid);
+}
+
+ICEntry &
+BaselineScript::icEntryFromReturnOffset(CodeOffsetLabel returnOffset)
+{
+    ICEntry *result = maybeICEntryFromReturnOffset(returnOffset);
+    MOZ_ASSERT(result);
+    return *result;
 }
 
 uint8_t *
@@ -634,6 +644,15 @@ BaselineScript::callVMEntryFromPCOffset(uint32_t pcOffset)
     MOZ_CRASH("Invalid PC offset for callVM entry.");
 }
 
+ICEntry *
+BaselineScript::maybeICEntryFromReturnAddress(uint8_t *returnAddr)
+{
+    MOZ_ASSERT(returnAddr > method_->raw());
+    MOZ_ASSERT(returnAddr < method_->raw() + method_->instructionsSize());
+    CodeOffsetLabel offset(returnAddr - method_->raw());
+    return maybeICEntryFromReturnOffset(offset);
+}
+
 ICEntry &
 BaselineScript::icEntryFromReturnAddress(uint8_t *returnAddr)
 {
@@ -709,7 +728,7 @@ BaselineScript::copyPCMappingIndexEntries(const PCMappingIndexEntry *entries)
 }
 
 uint8_t *
-BaselineScript::nativeCodeForPC(JSScript *script, jsbytecode *pc, PCMappingSlotInfo *slotInfo)
+BaselineScript::maybeNativeCodeForPC(JSScript *script, jsbytecode *pc, PCMappingSlotInfo *slotInfo)
 {
     MOZ_ASSERT_IF(script->hasBaselineScript(), script->baselineScript() == this);
 
@@ -753,7 +772,7 @@ BaselineScript::nativeCodeForPC(JSScript *script, jsbytecode *pc, PCMappingSlotI
         curPC += GetBytecodeLength(curPC);
     }
 
-    MOZ_CRASH("No native code for this pc");
+    return nullptr;
 }
 
 jsbytecode *

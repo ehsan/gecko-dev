@@ -684,11 +684,7 @@ nsIOService::NewChannelFromURIWithProxyFlagsInternal(nsIURI* aURI,
       // loadinfo on the newly created channel.
       nsCOMPtr<nsILoadInfo> loadInfo;
       (*result)->GetLoadInfo(getter_AddRefs(loadInfo));
-      // make sure we have the same instance of loadInfo on the newly created channel
-      if (aLoadInfo != loadInfo) {
-        MOZ_ASSERT(false, "newly created channel must have a loadinfo attached");
-        return NS_ERROR_UNEXPECTED;
-      }
+      MOZ_ASSERT(loadInfo);
 
       // If we're sandboxed, make sure to clear any owner the channel
       // might already have.

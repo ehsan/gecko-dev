@@ -13,6 +13,7 @@
 
 #include "mozilla/Assertions.h"
 #include "mozilla/LinkedList.h"
+#include "mozilla/NullPtr.h"
 #include "mozilla/PodOperations.h"
 
 #include "jsprototypes.h"

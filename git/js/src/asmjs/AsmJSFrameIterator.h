@@ -19,6 +19,8 @@
 #ifndef asmjs_AsmJSFrameIterator_h
 #define asmjs_AsmJSFrameIterator_h
 
+#include "mozilla/NullPtr.h"
+
 #include <stdint.h>
 
 #include "js/ProfilingFrameIterator.h"

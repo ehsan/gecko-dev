@@ -17,10 +17,6 @@ ChromeProcessController::RequestContentRepaint(const FrameMetrics& aFrameMetrics
 {
   MOZ_ASSERT(NS_IsMainThread());
 
-  if (aFrameMetrics.GetScrollId() == FrameMetrics::NULL_SCROLL_ID) {
-    return;
-  }
-
   nsCOMPtr<nsIContent> targetContent = nsLayoutUtils::FindContentFor(aFrameMetrics.GetScrollId());
   if (targetContent) {
     FrameMetrics metrics = aFrameMetrics;

@@ -664,9 +664,6 @@ FormatValue(JSContext *cx, const Value &vArg, JSAutoByteString &bytes)
 {
     RootedValue v(cx, vArg);
 
-    if (v.isMagic(JS_OPTIMIZED_OUT))
-        return "[unavailable]";
-
     /*
      * We could use Maybe<AutoCompartment> here, but G++ can't quite follow
      * that, and warns about uninitialized members being used in the
@@ -741,10 +738,7 @@ FormatFrame(JSContext *cx, const ScriptFrameIter &iter, char *buf, int num,
             } else if (script->argsObjAliasesFormals() && iter.hasArgsObj()) {
                 arg = iter.argsObj().arg(i);
             } else {
-                if (iter.hasUsableAbstractFramePtr())
-                    arg = iter.unaliasedActual(i, DONT_CHECK_ALIASING);
-                else
-                    arg = MagicValue(JS_OPTIMIZED_OUT);
+                arg = iter.unaliasedActual(i, DONT_CHECK_ALIASING);
             }
 
             JSAutoByteString valueBytes;
