@@ -84,7 +84,7 @@ public:
 
   // nsAccessible
   virtual Relation RelationByType(PRUint32 aType);
-  virtual mozilla::a11y::role NativeRole();
+  virtual PRUint32 NativeRole();
   virtual PRUint64 NativeState();
 
   // nsRootAccessible

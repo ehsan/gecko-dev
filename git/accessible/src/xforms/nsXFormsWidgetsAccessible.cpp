@@ -38,7 +38,6 @@
 
 #include "nsXFormsWidgetsAccessible.h"
 
-#include "Role.h"
 #include "States.h"
 
 using namespace mozilla::a11y;
@@ -54,10 +53,10 @@ nsXFormsDropmarkerWidgetAccessible::
 {
 }
 
-role
+PRUint32
 nsXFormsDropmarkerWidgetAccessible::NativeRole()
 {
-  return roles::PUSHBUTTON;
+  return nsIAccessibleRole::ROLE_PUSHBUTTON;
 }
 
 PRUint64
@@ -118,10 +117,10 @@ nsXFormsCalendarWidgetAccessible(nsIContent *aContent, nsIWeakReference *aShell)
 {
 }
 
-role
+PRUint32
 nsXFormsCalendarWidgetAccessible::NativeRole()
 {
-  return roles::CALENDAR;
+  return nsIAccessibleRole::ROLE_CALENDAR;
 }
 
 
@@ -136,10 +135,10 @@ nsXFormsComboboxPopupWidgetAccessible::
 {
 }
 
-role
+PRUint32
 nsXFormsComboboxPopupWidgetAccessible::NativeRole()
 {
-  return roles::LIST;
+  return nsIAccessibleRole::ROLE_LIST;
 }
 
 PRUint64
