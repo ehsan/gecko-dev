@@ -1335,7 +1335,6 @@ nsPresContext::SetContainer(nsISupports* aHandler)
   if (mContainer) {
     GetDocumentColorPreferences();
   }
-  UpdateIsChromeCacheInternal();
 }
 
 already_AddRefed<nsISupports>
@@ -1625,8 +1624,8 @@ nsPresContext::CountReflows(const char * aName, nsIFrame * aFrame)
 }
 #endif
 
-void
-nsPresContext::UpdateIsChromeCacheInternal()
+PRBool
+nsPresContext::IsChrome() const
 {
   PRBool isChrome = PR_FALSE;
   nsCOMPtr<nsISupports> container = GetContainer();
@@ -1641,13 +1640,7 @@ nsPresContext::UpdateIsChromeCacheInternal()
       }
     }
   }
-  mIsChrome = isChrome;
-}
-
-void
-nsPresContext::UpdateIsChromeCacheExternal()
-{
-  UpdateIsChromeCacheInternal();
+  return isChrome;
 }
 
 /* virtual */ PRBool
@@ -1829,8 +1822,13 @@ nsPresContext::GetUserFontSetInternal()
     // that's a bad thing to do, and the caller was responsible for
     // flushing first.  If we're not (e.g., in frame construction), it's
     // ok.
-    NS_ASSERTION(!userFontSetGottenBefore || !mShell->IsReflowLocked(),
-                 "FlushUserFontSet should have been called first");
+#ifdef DEBUG
+    {
+      PRBool inReflow;
+      NS_ASSERTION(!userFontSetGottenBefore || !mShell->IsReflowLocked(),
+                   "FlushUserFontSet should have been called first");
+    }
+#endif
     FlushUserFontSet();
   }
 

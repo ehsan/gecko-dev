@@ -57,7 +57,6 @@ class nsIURI;
 class nsMediaList;
 class nsMediaQueryResultCacheKey;
 class nsCSSStyleSheet;
-class nsPresContext;
 
 // -------------------------------
 // CSS Style Sheet Inner Data Container

@@ -46,6 +46,7 @@
 #include "nsIDOMHTMLIFrameElement.h"
 #include "nsIDOMHTMLFrameElement.h"
 #include "nsIDOMWindow.h"
+#include "nsPresContext.h"
 #include "nsIPresShell.h"
 #include "nsIContent.h"
 #include "nsIContentViewer.h"
