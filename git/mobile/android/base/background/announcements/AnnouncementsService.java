@@ -10,7 +10,6 @@ import java.net.URI;
 import java.util.List;
 import java.util.Locale;
 
-import org.mozilla.gecko.BrowserLocaleManager;
 import org.mozilla.gecko.background.BackgroundService;
 import org.mozilla.gecko.background.common.GlobalConstants;
 import org.mozilla.gecko.background.common.log.Logger;
@@ -128,10 +127,6 @@ public class AnnouncementsService extends BackgroundService implements Announcem
       Logger.debug(LOG_TAG, "Not fetching.");
       return;
     }
-
-    // Ensure that our locale is up to date, so that the fetcher's
-    // Accept-Language header is, too.
-    BrowserLocaleManager.getInstance().getAndApplyPersistedLocale(getApplicationContext());
 
     // Otherwise, grab our announcements URL and process the contents.
     AnnouncementsFetcher.fetchAndProcessAnnouncements(getLastLaunch(), this);

@@ -292,11 +292,11 @@ GonkCameraHardware::AutoFocus()
   return mCamera->autoFocus();
 }
 
-int
+void
 GonkCameraHardware::CancelAutoFocus()
 {
   DOM_CAMERA_LOGI("%s\n", __func__);
-  return mCamera->cancelAutoFocus();
+  mCamera->cancelAutoFocus();
 }
 
 int
