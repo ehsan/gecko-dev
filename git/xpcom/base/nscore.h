@@ -258,14 +258,10 @@
 /**
  * Attributes defined to help Dehydra GCC analysis.	
  */
-#ifdef STATIC_CHECKING
-# define NS_SCRIPTABLE __attribute__((user("NS_script")))
-# define NS_OUTPARAM  __attribute__((user("NS_outparam")))
-# define NS_INOUTPARAM __attribute__((user("NS_inoutparam")))
+#ifdef DEHYDRA_GCC
+# define NS_SCRIPTABLE __attribute__((user("script")))
 #else
 # define NS_SCRIPTABLE
-# define NS_OUTPARAM
-# define NS_INOUTPARAM
 #endif
 
 /**
@@ -493,20 +489,6 @@ typedef PRUint32 nsrefcnt;
   */
 #if defined(XPCOM_GLUE) && !defined(XPCOM_GLUE_USE_NSPR)
 #define XPCOM_GLUE_AVOID_NSPR
-#endif
-
-/**
- * Static type annotations, enforced when static-checking is enabled:
- *
- * NS_STACK_CLASS: a class which must only be instantiated on the stack
- * NS_FINAL_CLASS: a class which may not be subclassed
- */
-#ifdef NS_STATIC_CHECKING
-#define NS_STACK_CLASS __attribute__((user("NS_stack")))
-#define NS_FINAL_CLASS __attribute__((user("NS_final")))
-#else
-#define NS_STACK_CLASS
-#define NS_FINAL_CLASS
 #endif
 
 #endif /* nscore_h___ */
