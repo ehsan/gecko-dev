@@ -122,7 +122,7 @@ abstract public class GeckoApp
     public static SurfaceView cameraView;
     public static GeckoApp mAppContext;
     public static boolean mDOMFullScreen = false;
-    public static Menu sMenu;
+    protected Menu mMenu;
     private static GeckoThread sGeckoThread = null;
     public Handler mMainHandler;
     private GeckoProfile mProfile;
@@ -144,6 +144,8 @@ abstract public class GeckoApp
 
     private FullScreenHolder mFullScreenPluginContainer;
     private View mFullScreenPluginView;
+    
+    private HashMap<String, PowerManager.WakeLock> mWakeLocks = new HashMap<String, PowerManager.WakeLock>();
 
     private int mRestoreMode = GeckoAppShell.RESTORE_NONE;
     private boolean mInitialized = false;
@@ -380,10 +382,10 @@ abstract public class GeckoApp
 
     @Override
     public void invalidateOptionsMenu() {
-        if (sMenu == null)
+        if (mMenu == null)
             return;
 
-        onPrepareOptionsMenu(sMenu);
+        onPrepareOptionsMenu(mMenu);
 
         if (Build.VERSION.SDK_INT >= 11)
             super.invalidateOptionsMenu();
@@ -392,7 +394,7 @@ abstract public class GeckoApp
     @Override
     public boolean onCreateOptionsMenu(Menu menu)
     {
-        sMenu = menu;
+        mMenu = menu;
         MenuInflater inflater = getMenuInflater();
         inflater.inflate(R.menu.gecko_menu, menu);
         return true;
@@ -851,11 +853,11 @@ abstract public class GeckoApp
                     ExtraMenuItem item = i.next();
                     if (item.id == id) {
                         sExtraMenuItems.remove(item);
-                        if (sMenu == null)
+                        if (mMenu == null)
                             return;
-                        MenuItem menu = sMenu.findItem(id);
+                        MenuItem menu = mMenu.findItem(id);
                         if (menu != null)
-                            sMenu.removeItem(id);
+                            mMenu.removeItem(id);
                     }
                 }
             } else if (event.equals("Toast:Show")) {
@@ -940,10 +942,11 @@ abstract public class GeckoApp
                 handleDoorHangerRemove(message);
             } else if (event.equals("Gecko:Ready")) {
                 sIsGeckoReady = true;
+                final Menu menu = mMenu;
                 mMainHandler.post(new Runnable() {
                     public void run() {
-                        if (sMenu != null)
-                            sMenu.findItem(R.id.settings).setEnabled(true);
+                        if (menu != null)
+                            menu.findItem(R.id.settings).setEnabled(true);
                     }
                 });
                 setLaunchState(GeckoApp.LaunchState.GeckoRunning);
@@ -1012,13 +1015,13 @@ abstract public class GeckoApp
             } else if (event.equals("CharEncoding:State")) {
                 final boolean visible = message.getString("visible").equals("true");
                 GeckoPreferences.setCharEncodingState(visible);
-                if (sMenu != null) {
-                    mMainHandler.post(new Runnable() {
-                        public void run() {
-                            sMenu.findItem(R.id.char_encoding).setVisible(visible);
-                        }
-                    });
-                }
+                final Menu menu = mMenu;
+                mMainHandler.post(new Runnable() {
+                    public void run() {
+                        if (menu != null)
+                            menu.findItem(R.id.char_encoding).setVisible(visible);
+                    }
+                });
             } else if (event.equals("Update:Restart")) {
                 doRestart("org.mozilla.gecko.restart_update");
             } else if (event.equals("Tab:ViewportMetadata")) {
@@ -2938,6 +2941,19 @@ abstract public class GeckoApp
     {
     }
 
+    // Called when a Gecko Hal WakeLock is changed
+    public void notifyWakeLockChanged(String topic, String state) {
+        PowerManager.WakeLock wl = mWakeLocks.get(topic);
+        if (state.equals("locked-foreground") && wl == null) {
+            PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+            wl = pm.newWakeLock(PowerManager.SCREEN_BRIGHT_WAKE_LOCK, topic);
+            wl.acquire();
+            mWakeLocks.put(topic, wl);
+        } else if (!state.equals("locked-foreground") && wl != null) {
+            wl.release();
+            mWakeLocks.remove(topic);
+        }
+    }
 
     private void connectGeckoLayerClient() {
         LayerController layerController = getLayerController();
