@@ -40,9 +40,7 @@
 #ifndef __nssutil_h_
 #define __nssutil_h_
 
-#ifndef RC_INVOKED
 #include "seccomon.h"
-#endif
 
 /*
  * NSS utilities's major version, minor version, patch level, and whether

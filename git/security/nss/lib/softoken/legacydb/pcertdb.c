@@ -37,7 +37,7 @@
 /*
  * Permanent Certificate database handling code 
  *
- * $Id: pcertdb.c,v 1.9 2009/04/09 02:00:33 nelson%bolyard.com Exp $
+ * $Id: pcertdb.c,v 1.7 2009/02/03 05:34:44 julien.pierre.boogz%sun.com Exp $
  */
 #include "lowkeyti.h"
 #include "pcert.h"
@@ -761,17 +761,14 @@ DecodeDBCertEntry(certDBEntryCert *entry, SECItem *dbentry)
     entry->derCert.len = ( ( dbentry->data[lenoff] << 8 ) |
 			  dbentry->data[lenoff+1] );
     nnlen = ( ( dbentry->data[lenoff+2] << 8 ) | dbentry->data[lenoff+3] );
-    lenoff = dbentry->len - ( entry->derCert.len + nnlen + headerlen );
-    if ( lenoff ) {
-	if ( lenoff < 0 || (lenoff & 0xffff) != 0 ) {
-	    PORT_SetError(SEC_ERROR_BAD_DATABASE);
-	    goto loser;
-	}
-	/* The cert size exceeded 64KB.  Reconstruct the correct length. */
-	entry->derCert.len += lenoff;
+    if ( ( entry->derCert.len + nnlen + headerlen )
+	!= dbentry->len) {
+	PORT_SetError(SEC_ERROR_BAD_DATABASE);
+	goto loser;
     }
     
     /* copy the dercert */
+
     entry->derCert.data = pkcs11_copyStaticData(&dbentry->data[headerlen],
 	entry->derCert.len,entry->derCertSpace,sizeof(entry->derCertSpace));
     if ( entry->derCert.data == NULL ) {
@@ -1178,9 +1175,8 @@ loser:
 static SECStatus
 DecodeDBCrlEntry(certDBEntryRevocation *entry, SECItem *dbentry)
 {
-    unsigned int urlLen;
-    int lenDiff;
-
+    unsigned int nnlen;
+    
     /* is record long enough for header? */
     if ( dbentry->len < DB_CRL_ENTRY_HEADER_LEN ) {
 	PORT_SetError(SEC_ERROR_BAD_DATABASE);
@@ -1189,19 +1185,20 @@ DecodeDBCrlEntry(certDBEntryRevocation *entry, SECItem *dbentry)
     
     /* is database entry correct length? */
     entry->derCrl.len = ( ( dbentry->data[0] << 8 ) | dbentry->data[1] );
-    urlLen =            ( ( dbentry->data[2] << 8 ) | dbentry->data[3] );
-    lenDiff = dbentry->len - 
-			(entry->derCrl.len + urlLen + DB_CRL_ENTRY_HEADER_LEN);
-    if (lenDiff) {
-    	if (lenDiff < 0 || (lenDiff & 0xffff) != 0) {
-	    PORT_SetError(SEC_ERROR_BAD_DATABASE);
-	    goto loser;
-	}    
-	/* CRL entry is greater than 64 K. Hack to make this continue to work */
-	entry->derCrl.len += lenDiff;
+    nnlen = ( ( dbentry->data[2] << 8 ) | dbentry->data[3] );
+    if ( ( entry->derCrl.len + nnlen + DB_CRL_ENTRY_HEADER_LEN )
+	!= dbentry->len) {
+      /* CRL entry is greater than 64 K. Hack to make this continue to work */
+      if (dbentry->len >= (0xffff - DB_CRL_ENTRY_HEADER_LEN) - nnlen) {
+          entry->derCrl.len = 
+                      (dbentry->len - DB_CRL_ENTRY_HEADER_LEN) - nnlen;
+      } else {
+          PORT_SetError(SEC_ERROR_BAD_DATABASE);
+          goto loser;
+      }    
     }
     
-    /* copy the der CRL */
+    /* copy the dercert */
     entry->derCrl.data = (unsigned char *)PORT_ArenaAlloc(entry->common.arena,
 							 entry->derCrl.len);
     if ( entry->derCrl.data == NULL ) {
@@ -1213,15 +1210,15 @@ DecodeDBCrlEntry(certDBEntryRevocation *entry, SECItem *dbentry)
 
     /* copy the url */
     entry->url = NULL;
-    if (urlLen != 0) {
-	entry->url = (char *)PORT_ArenaAlloc(entry->common.arena, urlLen);
+    if (nnlen != 0) {
+	entry->url = (char *)PORT_ArenaAlloc(entry->common.arena, nnlen);
 	if ( entry->url == NULL ) {
 	    PORT_SetError(SEC_ERROR_NO_MEMORY);
 	    goto loser;
 	}
 	PORT_Memcpy(entry->url,
 	      &dbentry->data[DB_CRL_ENTRY_HEADER_LEN + entry->derCrl.len],
-	      urlLen);
+	      nnlen);
     }
     
     return(SECSuccess);
@@ -1503,8 +1500,6 @@ static SECStatus
 DecodeDBNicknameEntry(certDBEntryNickname *entry, SECItem *dbentry,
                       char *nickname)
 {
-    int lenDiff;
-
     /* is record long enough for header? */
     if ( dbentry->len < DB_NICKNAME_ENTRY_HEADER_LEN ) {
 	PORT_SetError(SEC_ERROR_BAD_DATABASE);
@@ -1513,17 +1508,12 @@ DecodeDBNicknameEntry(certDBEntryNickname *entry, SECItem *dbentry,
     
     /* is database entry correct length? */
     entry->subjectName.len = ( ( dbentry->data[0] << 8 ) | dbentry->data[1] );
-    lenDiff = dbentry->len - 
-	      (entry->subjectName.len + DB_NICKNAME_ENTRY_HEADER_LEN);
-    if (lenDiff) {
-	if (lenDiff < 0 || (lenDiff & 0xffff) != 0 ) { 
-	    PORT_SetError(SEC_ERROR_BAD_DATABASE);
-	    goto loser;
-	}
-	/* The entry size exceeded 64KB.  Reconstruct the correct length. */
-	entry->subjectName.len += lenDiff;
+    if (( entry->subjectName.len + DB_NICKNAME_ENTRY_HEADER_LEN ) !=
+	dbentry->len ){
+	PORT_SetError(SEC_ERROR_BAD_DATABASE);
+	goto loser;
     }
-
+    
     /* copy the certkey */
     entry->subjectName.data =
 	(unsigned char *)PORT_ArenaAlloc(entry->common.arena,
@@ -1838,8 +1828,6 @@ loser:
 static SECStatus
 DecodeDBSMimeEntry(certDBEntrySMime *entry, SECItem *dbentry, char *emailAddr)
 {
-    int lenDiff;
-
     /* is record long enough for header? */
     if ( dbentry->len < DB_SMIME_ENTRY_HEADER_LEN ) {
 	PORT_SetError(SEC_ERROR_BAD_DATABASE);
@@ -1847,22 +1835,15 @@ DecodeDBSMimeEntry(certDBEntrySMime *entry, SECItem *dbentry, char *emailAddr)
     }
     
     /* is database entry correct length? */
-    entry->subjectName.len  = (( dbentry->data[0] << 8 ) | dbentry->data[1] );
-    entry->smimeOptions.len = (( dbentry->data[2] << 8 ) | dbentry->data[3] );
-    entry->optionsDate.len  = (( dbentry->data[4] << 8 ) | dbentry->data[5] );
-    lenDiff = dbentry->len - (entry->subjectName.len + 
-                              entry->smimeOptions.len + 
-			      entry->optionsDate.len + 
-			      DB_SMIME_ENTRY_HEADER_LEN);
-    if (lenDiff) {
-	if (lenDiff < 0 || (lenDiff & 0xffff) != 0 ) { 
-	    PORT_SetError(SEC_ERROR_BAD_DATABASE);
-	    goto loser;
-	}
-	/* The entry size exceeded 64KB.  Reconstruct the correct length. */
-	entry->subjectName.len += lenDiff;
+    entry->subjectName.len = ( ( dbentry->data[0] << 8 ) | dbentry->data[1] );
+    entry->smimeOptions.len = ( ( dbentry->data[2] << 8 ) | dbentry->data[3] );
+    entry->optionsDate.len = ( ( dbentry->data[4] << 8 ) | dbentry->data[5] );
+    if (( entry->subjectName.len + entry->smimeOptions.len +
+	 entry->optionsDate.len + DB_SMIME_ENTRY_HEADER_LEN ) != dbentry->len){
+	PORT_SetError(SEC_ERROR_BAD_DATABASE);
+	goto loser;
     }
-
+    
     /* copy the subject name */
     entry->subjectName.data =
 	(unsigned char *)PORT_ArenaAlloc(entry->common.arena,
@@ -4242,7 +4223,7 @@ nsslowcert_TraverseDBEntries(NSSLOWCERTCertDBHandle *handle,
 {
     DBT data;
     DBT key;
-    SECStatus rv = SECSuccess;
+    SECStatus rv;
     int ret;
     SECItem dataitem;
     SECItem keyitem;
@@ -4250,12 +4231,11 @@ nsslowcert_TraverseDBEntries(NSSLOWCERTCertDBHandle *handle,
     unsigned char *keybuf;
     
     ret = certdb_Seq(handle->permCertDB, &key, &data, R_FIRST);
+
     if ( ret ) {
 	return(SECFailure);
     }
-    /* here, ret is zero and rv is SECSuccess.  
-     * Below here, ret is a count of successful calls to the callback function.
-     */
+    
     do {
 	buf = (unsigned char *)data.data;
 	
@@ -4270,15 +4250,13 @@ nsslowcert_TraverseDBEntries(NSSLOWCERTCertDBHandle *handle,
 	    /* type should equal keybuf[0].  */
 
 	    rv = (* callback)(&dataitem, &keyitem, type, udata);
-	    if ( rv == SECSuccess ) {
-		++ret;
+	    if ( rv != SECSuccess ) {
+		return(rv);
 	    }
 	}
     } while ( certdb_Seq(handle->permCertDB, &key, &data, R_NEXT) == 0 );
-    /* If any callbacks succeeded, or no calls to callbacks were made, 
-     * then report success.  Otherwise, report failure.
-     */
-    return (ret ? SECSuccess : rv);
+
+    return(SECSuccess);
 }
 /*
  * Decode a certificate and enter it into the temporary certificate database.

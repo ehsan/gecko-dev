@@ -90,7 +90,7 @@ ifeq ($(OS_TARGET),OSF1)
     MPI_SRCS += mpvalpha.c
 endif
 
-ifeq (,$(filter-out WINNT WIN95,$(OS_TARGET)))  #omits WINCE
+ifeq (,$(filter-out WINNT WIN95,$(OS_TARGET)))  #omits WIN16 and WINCE
 ifndef USE_64
 # 32-bit Windows
 ifdef NS_USE_GCC

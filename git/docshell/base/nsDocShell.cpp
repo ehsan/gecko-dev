@@ -5321,7 +5321,6 @@ nsDocShell::EnsureContentViewer()
         return NS_ERROR_FAILURE;
 
     nsIPrincipal* principal = nsnull;
-    nsCOMPtr<nsIURI> baseURI;
 
     nsCOMPtr<nsPIDOMWindow> piDOMWindow(do_QueryInterface(mScriptGlobal));
     if (piDOMWindow) {
@@ -5330,21 +5329,9 @@ nsDocShell::EnsureContentViewer()
 
     if (!principal) {
         principal = GetInheritedPrincipal(PR_FALSE);
-        nsCOMPtr<nsIDocShellTreeItem> parentItem;
-        GetSameTypeParent(getter_AddRefs(parentItem));
-        if (parentItem) {
-            nsCOMPtr<nsPIDOMWindow> domWin = do_GetInterface(GetAsSupports(this));
-            if (domWin) {
-                nsCOMPtr<nsIContent> parentContent =
-                    do_QueryInterface(domWin->GetFrameElementInternal());
-                if (parentContent) {
-                    baseURI = parentContent->GetBaseURI();
-                }
-            }
-        }
     }
 
-    nsresult rv = CreateAboutBlankContentViewer(principal, baseURI);
+    nsresult rv = CreateAboutBlankContentViewer(principal);
 
     if (NS_SUCCEEDED(rv)) {
         nsCOMPtr<nsIDOMDocument> domDoc;
@@ -5361,8 +5348,7 @@ nsDocShell::EnsureContentViewer()
 }
 
 nsresult
-nsDocShell::CreateAboutBlankContentViewer(nsIPrincipal* aPrincipal,
-                                          nsIURI* aBaseURI)
+nsDocShell::CreateAboutBlankContentViewer(nsIPrincipal* aPrincipal)
 {
   nsCOMPtr<nsIDocument> blankDoc;
   nsCOMPtr<nsIContentViewer> viewer;
@@ -5431,10 +5417,6 @@ nsDocShell::CreateAboutBlankContentViewer(nsIPrincipal* aPrincipal,
     docFactory->CreateBlankDocument(mLoadGroup, aPrincipal,
                                     getter_AddRefs(blankDoc));
     if (blankDoc) {
-      // Hack: set the base URI manually, since this document never
-      // got Reset() with a channel.
-      blankDoc->SetBaseURI(aBaseURI);
-
       blankDoc->SetContainer(static_cast<nsIDocShell *>(this));
 
       // create a content viewer for us and the new document
@@ -7096,7 +7078,7 @@ nsDocShell::InternalLoad(nsIURI * aURI,
         }
 
         // clear the decks to prevent context bleed-through (bug 298255)
-        rv = CreateAboutBlankContentViewer(nsnull, nsnull);
+        rv = CreateAboutBlankContentViewer(nsnull);
         if (NS_FAILED(rv))
             return NS_ERROR_FAILURE;
 
@@ -8497,7 +8479,7 @@ nsDocShell::LoadHistoryEntry(nsISHEntry * aEntry, PRUint32 aLoadType)
         // anything from the current document from leaking into any JavaScript
         // code in the URL.
         nsCOMPtr<nsIPrincipal> prin = do_QueryInterface(owner);
-        rv = CreateAboutBlankContentViewer(prin, nsnull);
+        rv = CreateAboutBlankContentViewer(prin);
 
         if (NS_FAILED(rv)) {
             // The creation of the intermittent about:blank content

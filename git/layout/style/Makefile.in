@@ -91,7 +91,6 @@ EXPORTS		= \
 		nsCSSStyleSheet.h \
 		nsCSSStruct.h \
 		nsCSSValue.h \
-		nsDOMCSSAttrDeclaration.h \
 		nsDOMCSSDeclaration.h \
 		nsICSSDeclaration.h \
 		nsICSSGroupRule.h \
@@ -99,6 +98,7 @@ EXPORTS		= \
 		nsICSSLoader.h \
 		nsICSSLoaderObserver.h \
 		nsICSSNameSpaceRule.h \
+		nsICSSOMFactory.h \
 		nsICSSParser.h \
 		nsICSSPseudoComparator.h \
 		nsICSSRule.h \
@@ -133,6 +133,7 @@ CPPSRCS		= \
 		nsCSSDeclaration.cpp \
 		nsCSSKeywords.cpp \
 		nsCSSLoader.cpp \
+		nsCSSOMFactory.cpp \
 		nsCSSParser.cpp \
 		nsCSSProps.cpp \
 		nsCSSPseudoClasses.cpp \

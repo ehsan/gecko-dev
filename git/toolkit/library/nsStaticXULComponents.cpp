@@ -105,6 +105,12 @@
 #define RDF_MODULE
 #endif
 
+#ifdef OJI
+#define OJI_MODULES MODULE(nsCJVMManagerModule)
+#else
+#define OJI_MODULES
+#endif
+
 #ifdef MOZ_PLAINTEXT_EDITOR_ONLY
 #define COMPOSER_MODULE
 #else
@@ -281,6 +287,7 @@
     MODULE(docshell_provider)                \
     MODULE(embedcomponents)                  \
     MODULE(Browser_Embedding_Module)         \
+    OJI_MODULES                              \
     ACCESS_MODULES                           \
     MODULE(appshell)                         \
     MODULE(nsTransactionManagerModule)       \

@@ -195,11 +195,17 @@ nsresult nsMacCommandLine::AddToCommandLine(const char* inArgText)
   return NS_OK;
 }
 
-nsresult nsMacCommandLine::AddToCommandLine(const char* inOptionString, const CFURLRef file)
+nsresult nsMacCommandLine::AddToCommandLine(const char* inOptionString, const FSRef* inFSRef)
 {
-  CFStringRef string = ::CFURLGetString(file);
-  if (!string)
+  CFURLRef url = ::CFURLCreateFromFSRef(nsnull, inFSRef);
+  if (!url)
     return NS_ERROR_FAILURE;
+
+  CFStringRef string = ::CFURLGetString(url);
+  if (!string) {
+    ::CFRelease(url);
+    return NS_ERROR_FAILURE;
+  }
 
   CFIndex length = ::CFStringGetLength(string);
   CFIndex bufLen = 0;
@@ -207,12 +213,16 @@ nsresult nsMacCommandLine::AddToCommandLine(const char* inOptionString, const CF
                      0, PR_FALSE, nsnull, 0, &bufLen);
 
   UInt8 buffer[bufLen + 1];
-  if (!buffer)
-    return NS_ERROR_OUT_OF_MEMORY;
+  if (!buffer) {
+    ::CFRelease(url);
+    return NS_ERROR_FAILURE;
+  }
 
   ::CFStringGetBytes(string, CFRangeMake(0, length), kCFStringEncodingUTF8,
                      0, PR_FALSE, buffer, bufLen, nsnull);
   buffer[bufLen] = 0;
+
+  ::CFRelease(url);
 
   AddToCommandLine(inOptionString);  
   AddToCommandLine((char*)buffer);
@@ -226,12 +236,12 @@ nsresult nsMacCommandLine::AddToEnvironmentVars(const char* inArgText)
   return NS_OK;
 }
 
-nsresult nsMacCommandLine::HandleOpenOneDoc(const CFURLRef file, OSType inFileType)
+OSErr nsMacCommandLine::HandleOpenOneDoc(const FSRef* inFSRef, OSType inFileType)
 {
   nsCOMPtr<nsILocalFileMac> inFile;
-  nsresult rv = NS_NewLocalFileWithCFURL(file, PR_TRUE, getter_AddRefs(inFile));
+  nsresult rv = NS_NewLocalFileWithFSRef(inFSRef, PR_TRUE, getter_AddRefs(inFile));
   if (NS_FAILED(rv))
-    return rv;
+    return errAEEventNotHandled;
 
   if (!mStartedUp) {
     // Is it the right type to be a command-line file?
@@ -260,16 +270,17 @@ nsresult nsMacCommandLine::HandleOpenOneDoc(const CFURLRef file, OSType inFileTy
 
         fclose(fp);
         // If we found a command line or environment vars we want to return now
-        // rather than trying to open the file as a URL
+        // raather than trying to open the file as a URL
         if (foundArgs || foundEnv)
-          return NS_OK;
+          return noErr;
       }
     }
     // If it's not a command-line argument, and we are starting up the application,
     // add a command-line "-url" argument to the global list. This means that if
     // the app is opened with documents on the mac, they'll be handled the same
     // way as if they had been typed on the command line in Unix or DOS.
-    return AddToCommandLine("-url", file);
+    rv = AddToCommandLine("-url", inFSRef);
+    return (NS_SUCCEEDED(rv)) ? noErr : errAEEventNotHandled;
   }
 
   // Final case: we're not just starting up, use the arg as a -file <arg>
@@ -277,47 +288,48 @@ nsresult nsMacCommandLine::HandleOpenOneDoc(const CFURLRef file, OSType inFileTy
     (do_CreateInstance("@mozilla.org/toolkit/command-line;1"));
   if (!cmdLine) {
     NS_ERROR("Couldn't create command line!");
-    return NS_ERROR_FAILURE;
+    return errAEEventNotHandled;
   }
   nsCString filePath;
   rv = inFile->GetNativePath(filePath);
   if (NS_FAILED(rv))
-    return rv;
+    return errAEEventNotHandled;
 
   nsCOMPtr<nsIFile> workingDir;
   rv = NS_GetSpecialDirectory(NS_OS_CURRENT_WORKING_DIR, getter_AddRefs(workingDir));
   if (NS_FAILED(rv))
-    return rv;
+    return errAEEventNotHandled;
 
   const char *argv[3] = {nsnull, "-file", filePath.get()};
   rv = cmdLine->Init(3, const_cast<char**>(argv), workingDir, nsICommandLine::STATE_REMOTE_EXPLICIT);
   if (NS_FAILED(rv))
-    return rv;
+    return errAEEventNotHandled;
   rv = cmdLine->Run();
-  return rv;
+  return (NS_SUCCEEDED(rv)) ? noErr : errAEEventNotHandled;
 }
 
-nsresult nsMacCommandLine::HandlePrintOneDoc(const CFURLRef file, OSType fileType)
+OSErr nsMacCommandLine::HandlePrintOneDoc(const FSRef* inFSRef, OSType fileType)
 {
   // If  we are starting up the application,
   // add a command-line "-print" argument to the global list. This means that if
   // the app is opened with documents on the mac, they'll be handled the same
   // way as if they had been typed on the command line in Unix or DOS.
   if (!mStartedUp)
-    return AddToCommandLine("-print", file);
-
+    return AddToCommandLine("-print", inFSRef);
+  
   // Final case: we're not just starting up. How do we handle this?
   NS_NOTYETIMPLEMENTED("Write Me");
-  return NS_ERROR_FAILURE;
+  return errAEEventNotHandled;
 }
 
-nsresult nsMacCommandLine::DispatchURLToNewBrowser(const char* url)
+OSErr nsMacCommandLine::DispatchURLToNewBrowser(const char* url)
 {
-  nsresult rv = AddToCommandLine("-url");
-  if (NS_SUCCEEDED(rv))
-    rv = AddToCommandLine(url);
-
-  return rv;
+  OSErr err = errAEEventNotHandled;
+  err = AddToCommandLine("-url");
+  if (err == noErr)
+    err = AddToCommandLine(url);
+  
+  return err;
 }
 
 #pragma mark -

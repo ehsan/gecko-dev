@@ -46,6 +46,9 @@
 #include "prprf.h"
 #include "nsIFile.h"
 #include "nsCOMPtr.h"
+#ifdef OJI
+#include "nsIJVMManager.h"
+#endif
 #include "nsIServiceManager.h"
 
 #include "nsIDocument.h"
@@ -77,6 +80,18 @@ nsPluginInstancePeerImpl::~nsPluginInstancePeerImpl()
 
 static NS_DEFINE_IID(kIPluginTagInfoIID, NS_IPLUGINTAGINFO_IID); 
 static NS_DEFINE_IID(kIPluginTagInfo2IID, NS_IPLUGINTAGINFO2_IID); 
+#ifdef OJI
+static NS_DEFINE_IID(kIJVMPluginTagInfoIID, NS_IJVMPLUGINTAGINFO_IID);
+
+NS_IMPL_ISUPPORTS7(nsPluginInstancePeerImpl,
+                   nsIPluginInstancePeer,
+                   nsIPluginInstancePeer2,
+                   nsIWindowlessPluginInstancePeer,
+                   nsIPluginTagInfo,
+                   nsIPluginTagInfo2,
+                   nsIJVMPluginTagInfo,
+                   nsPIPluginInstancePeer)
+#else
 NS_IMPL_ISUPPORTS6(nsPluginInstancePeerImpl,
                    nsIPluginInstancePeer,
                    nsIPluginInstancePeer2,
@@ -84,6 +99,7 @@ NS_IMPL_ISUPPORTS6(nsPluginInstancePeerImpl,
                    nsIPluginTagInfo,
                    nsIPluginTagInfo2,
                    nsPIPluginInstancePeer)
+#endif
 
 NS_IMETHODIMP
 nsPluginInstancePeerImpl::GetValue(nsPluginInstancePeerVariable variable,
@@ -618,36 +634,131 @@ nsPluginInstancePeerImpl::GetUniqueID(PRUint32 *result)
 NS_IMETHODIMP
 nsPluginInstancePeerImpl::GetCode(const char* *result)
 {
-  *result = 0;
-  return NS_ERROR_FAILURE;
+#ifdef OJI
+  if (nsnull != mOwner) {
+    nsIJVMPluginTagInfo *tinfo;
+    nsresult            rv;
+
+    rv = mOwner->QueryInterface(kIJVMPluginTagInfoIID, (void **)&tinfo);
+
+    if (NS_OK == rv) {
+      rv = tinfo->GetCode(result);
+      NS_RELEASE(tinfo);
+    }
+
+    return rv;
+  }
+  else {
+#endif
+    *result = 0;
+    return NS_ERROR_FAILURE;
+#ifdef OJI
+  }
+#endif
 }
 
 NS_IMETHODIMP
 nsPluginInstancePeerImpl::GetCodeBase(const char* *result)
 {
-  *result = 0;
-  return NS_ERROR_FAILURE;
+#ifdef OJI
+  if (nsnull != mOwner) {
+    nsIJVMPluginTagInfo *tinfo;
+    nsresult            rv;
+
+    rv = mOwner->QueryInterface(kIJVMPluginTagInfoIID, (void **)&tinfo);
+
+    if (NS_OK == rv) {
+      rv = tinfo->GetCodeBase(result);
+      NS_RELEASE(tinfo);
+    }
+
+    return rv;
+  }
+  else {
+#endif
+    *result = 0;
+    return NS_ERROR_FAILURE;
+#ifdef OJI
+  }
+#endif
 }
 
 NS_IMETHODIMP
 nsPluginInstancePeerImpl::GetArchive(const char* *result)
 {
-  *result = 0;
-  return NS_ERROR_FAILURE;
+#ifdef OJI
+  if (nsnull != mOwner) {
+    nsIJVMPluginTagInfo *tinfo;
+    nsresult            rv;
+
+    rv = mOwner->QueryInterface(kIJVMPluginTagInfoIID, (void **)&tinfo);
+
+    if (NS_OK == rv) {
+      rv = tinfo->GetArchive(result);
+      NS_RELEASE(tinfo);
+    }
+
+    return rv;
+  }
+  else {
+#endif
+    *result = 0;
+    return NS_ERROR_FAILURE;
+#ifdef OJI
+  }
+#endif
 }
 
 NS_IMETHODIMP
 nsPluginInstancePeerImpl::GetName(const char* *result)
 {
-  *result = 0;
-  return NS_ERROR_FAILURE;
+#ifdef OJI
+  if (nsnull != mOwner) {
+    nsIJVMPluginTagInfo *tinfo;
+    nsresult            rv;
+
+    rv = mOwner->QueryInterface(kIJVMPluginTagInfoIID, (void **)&tinfo);
+
+    if (NS_OK == rv) {
+      rv = tinfo->GetName(result);
+      NS_RELEASE(tinfo);
+    }
+
+    return rv;
+  }
+  else {
+#endif
+    *result = 0;
+    return NS_ERROR_FAILURE;
+#ifdef OJI
+  }
+#endif
 }
 
 NS_IMETHODIMP
 nsPluginInstancePeerImpl::GetMayScript(PRBool *result)
 {
-  *result = 0;
-  return NS_ERROR_FAILURE;
+#ifdef OJI
+  if (nsnull != mOwner) {
+    nsIJVMPluginTagInfo *tinfo;
+    nsresult            rv;
+
+    rv = mOwner->QueryInterface(kIJVMPluginTagInfoIID, (void **)&tinfo);
+
+    if (NS_OK == rv) {
+      rv = tinfo->GetMayScript(result);
+      NS_RELEASE(tinfo);
+    }
+
+    return rv;
+  }
+  else {
+#endif
+    *result = 0;
+    return NS_ERROR_FAILURE;
+#ifdef OJI
+  }
+#endif
 }
 
 NS_IMETHODIMP

@@ -59,8 +59,6 @@
  *   6. if folder scope was clicked, searches again and ensures folder scope
  *      remains selected.
  */
- 
-const TEST_URL = "http://dummy.mozilla.org/";
 
 // Add your tests here.  Each is a function that's called by testHelper().
 var testCases = [
@@ -68,7 +66,7 @@ var testCases = [
   // All Bookmarks
   function () {
     var defScope = getDefaultScope(PlacesUIUtils.allBookmarksFolderId);
-    search(PlacesUIUtils.allBookmarksFolderId, "dummy", defScope);
+    search(PlacesUIUtils.allBookmarksFolderId, "dummy search", defScope);
     is(selectScope("scopeBarFolder"), false,
        "Folder scope should be disabled for All Bookmarks");
     resetSearch(defScope);
@@ -77,7 +75,7 @@ var testCases = [
   // History
   function () {
     defScope = getDefaultScope(PlacesUIUtils.leftPaneQueries["History"]);
-    search(PlacesUIUtils.leftPaneQueries["History"], "dummy", defScope);
+    search(PlacesUIUtils.leftPaneQueries["History"], "dummy search", defScope);
     is(selectScope("scopeBarFolder"), false,
        "Folder scope should be disabled for History");
     resetSearch(defScope);
@@ -86,13 +84,13 @@ var testCases = [
   // Toolbar folder
   function () {
     defScope = getDefaultScope(bmsvc.toolbarFolder);
-    search(bmsvc.toolbarFolder, "dummy", defScope);
+    search(bmsvc.toolbarFolder, "dummy search", defScope);
     is(selectScope("scopeBarFolder"), true,
        "Folder scope should be enabled for toolbar folder");
     // Ensure that folder scope is still selected after resetting and searching
     // again.
     resetSearch("scopeBarFolder");
-    search(bmsvc.toolbarFolder, "dummy", "scopeBarFolder");
+    search(bmsvc.toolbarFolder, "dummy search", "scopeBarFolder");
   },
 
   // A regular non-root subfolder
@@ -101,13 +99,13 @@ var testCases = [
                                       "dummy folder",
                                       bmsvc.DEFAULT_INDEX);
     defScope = getDefaultScope(folderId);
-    search(folderId, "dummy", defScope);
+    search(folderId, "dummy search", defScope);
     is(selectScope("scopeBarFolder"), true,
        "Folder scope should be enabled for regular subfolder");
     // Ensure that folder scope is still selected after resetting and searching
     // again.
     resetSearch("scopeBarFolder");
-    search(folderId, "dummy", "scopeBarFolder");
+    search(folderId, "dummy search", "scopeBarFolder");
     bmsvc.removeItem(folderId);
   },
 ];
@@ -221,15 +219,6 @@ function search(aFolderId, aSearchStr, aExpectedScopeButtonId) {
        "Content tree's searchTerms should be text in search box");
     is(doc.getElementById("searchModifiers").hidden, false,
        "Scope bar should not be hidden after searching");
-    if (getSelectedScopeButtonId() == "scopeBarHistory" ||
-        getSelectedScopeButtonId() == "scopeBarAll" ||
-        aFolderId == PlacesUtils.bookmarks.unfiledBookmarksFolder) {
-      // Check that search has returned a valid result.
-      contentTree.view.selection.select(0);
-      var foundNode = contentTree.selectedNode;
-      isnot(foundNode, null, "Found a valid node");
-      is(foundNode.uri, TEST_URL);
-    }
   }
   else {
     is(query.hasSearchTerms, false,
@@ -271,12 +260,6 @@ function testHelper(aLibraryWin) {
   libraryWin = aLibraryWin;
   testCases.forEach(function (aTest) aTest());
   aLibraryWin.close();
-
-  // Cleanup.
-  PlacesUtils.tagging.untagURI(PlacesUtils._uri(TEST_URL), ["dummyTag"]);
-  PlacesUtils.bookmarks.removeFolderChildren(PlacesUtils.bookmarks.unfiledBookmarksFolder);
-  PlacesUtils.history.QueryInterface(Ci.nsIBrowserHistory).removeAllPages();
-
   finish();
 }
 
@@ -284,18 +267,6 @@ function testHelper(aLibraryWin) {
 
 function test() {
   waitForExplicitFinish();
-
-  // Sanity:
-  ok(PlacesUtils, "PlacesUtils in context");
-  // Add a visit, a bookmark and a tag.
-  PlacesUtils.history.addVisit(PlacesUtils._uri(TEST_URL),
-                               Date.now() * 1000, null,
-                               PlacesUtils.history.TRANSITION_TYPED, false, 0);
-  PlacesUtils.bookmarks.insertBookmark(PlacesUtils.bookmarks.unfiledBookmarksFolder,
-                                       PlacesUtils._uri(TEST_URL),
-                                       PlacesUtils.bookmarks.DEFAULT_INDEX,
-                                       "dummy");
-  PlacesUtils.tagging.tagURI(PlacesUtils._uri(TEST_URL), ["dummyTag"]);
 
   var ww = Cc["@mozilla.org/embedcomp/window-watcher;1"].
            getService(Ci.nsIWindowWatcher);

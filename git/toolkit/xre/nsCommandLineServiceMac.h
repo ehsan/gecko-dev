@@ -40,15 +40,18 @@
 #ifndef nsCommandLineServiceMac_h_
 #define nsCommandLineServiceMac_h_
 
-#include <CoreFoundation/CoreFoundation.h>
+#include <Carbon/Carbon.h>
 
 #include "nscore.h"
 #include "nsError.h"
 #include "nsString.h"
 
+#ifdef __cplusplus
+
 class nsMacCommandLine
 {
 public:
+
 
   enum
   {
@@ -62,17 +65,17 @@ public:
   void            SetupCommandLine(int& argc, char**& argv);
   
   nsresult        AddToCommandLine(const char* inArgText);
-  nsresult        AddToCommandLine(const char* inOptionString, const CFURLRef file);
+  nsresult        AddToCommandLine(const char* inOptionString, const FSRef* inFSRef);
   nsresult        AddToEnvironmentVars(const char* inArgText);
 
-  nsresult        HandleOpenOneDoc(const CFURLRef file, OSType inFileType);
-  nsresult        HandlePrintOneDoc(const CFURLRef file, OSType fileType);
+  OSErr           HandleOpenOneDoc(const FSRef* inFSRef, OSType inFileType);
+  OSErr           HandlePrintOneDoc(const FSRef* inFSRef, OSType fileType);
 
-  nsresult        DispatchURLToNewBrowser(const char* url);
+	OSErr						DispatchURLToNewBrowser(const char* url);
 
 protected:
 
-  nsresult        OpenURL(const char* aURL);
+  OSErr           OpenURL(const char* aURL);
 
   nsresult        OpenWindow(const char *chrome, const PRUnichar *url);
     
@@ -85,13 +88,25 @@ protected:
 public:
 
   static nsMacCommandLine& GetMacCommandLine() { return sMacCommandLine; }
-
+  
 private:
 
   static nsMacCommandLine sMacCommandLine;
   
 };
 
+#endif    //__cplusplus
+
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void SetupMacCommandLine(int& argc, char**& argv);
+
+#ifdef __cplusplus
+}
+#endif
+
 
 #endif // nsCommandLineServiceMac_h_

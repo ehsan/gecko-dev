@@ -318,8 +318,6 @@ public:
     virtual ~nsCanvasRenderingContext2D();
 
     nsresult Redraw();
-    // this rect is in CSS pixels
-    nsresult Redraw(const gfxRect& r);
 
     // nsICanvasRenderingContextInternal
     NS_IMETHOD SetCanvasElement(nsICanvasElement* aParentCanvas);
@@ -886,20 +884,6 @@ nsCanvasRenderingContext2D::Redraw()
     if (!mIsFrameInvalid) {
         mIsFrameInvalid = PR_TRUE;
         return mCanvasElement->InvalidateFrame();
-    }
-
-    return NS_OK;
-}
-
-nsresult
-nsCanvasRenderingContext2D::Redraw(const gfxRect& r)
-{
-    if (!mCanvasElement)
-        return NS_OK;
-
-    if (!mIsFrameInvalid) {
-        mIsFrameInvalid = PR_TRUE;
-        return mCanvasElement->InvalidateFrameSubrect(r);
     }
 
     return NS_OK;
@@ -3413,9 +3397,7 @@ nsCanvasRenderingContext2D::DrawWindow(nsIDOMWindow* aWindow, float aX, float aY
     }
 
     // Flush layout updates
-    PRBool skipFlush =
-        (flags & nsIDOMCanvasRenderingContext2D::DRAWWINDOW_DO_NOT_FLUSH) != 0;
-    if (!skipFlush)
+    if (!(flags & nsIDOMCanvasRenderingContext2D::DRAWWINDOW_DO_NOT_FLUSH))
         FlushLayoutForTree(aWindow);
 
     nsCOMPtr<nsPresContext> presContext;
@@ -3445,23 +3427,13 @@ nsCanvasRenderingContext2D::DrawWindow(nsIDOMWindow* aWindow, float aX, float aY
     if (flags & nsIDOMCanvasRenderingContext2D::DRAWWINDOW_DRAW_CARET) {
         renderDocFlags |= nsIPresShell::RENDER_CARET;
     }
-
-    PRBool oldDisableValue = nsLayoutUtils::sDisableGetUsedXAssertions;
-    nsLayoutUtils::sDisableGetUsedXAssertions = oldDisableValue || skipFlush;
     presShell->RenderDocument(r, renderDocFlags, bgColor, mThebes);
-    nsLayoutUtils::sDisableGetUsedXAssertions = oldDisableValue;
 
     // get rid of the pattern surface ref, just in case
     mThebes->SetColor(gfxRGBA(1,1,1,1));
     DirtyAllStyles();
 
-    // note that aX and aY are coordinates in the document that
-    // we're drawing; aX and aY are drawn to 0,0 in current user
-    // space.
-    gfxRect damageRect = mThebes->UserToDevice(gfxRect(0, 0, aW, aH));
-    damageRect.RoundOut();
-
-    Redraw(damageRect);
+    Redraw();
 
     return rv;
 }

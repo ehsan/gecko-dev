@@ -223,6 +223,11 @@ NS_IMETHODIMP nsBaseWidget::Validate()
   return NS_OK;
 }
 
+NS_IMETHODIMP nsBaseWidget::InvalidateRegion(const nsIRegion *aRegion, PRBool aIsSynchronous)
+{
+  return NS_ERROR_FAILURE;
+}
+
 //-------------------------------------------------------------------------
 //
 // Accessor functions to get/set the client data
@@ -787,6 +792,33 @@ NS_METHOD nsBaseWidget::SetBounds(const nsIntRect &aRect)
  
 
 
+/**
+* Calculates the border width and height  
+*
+**/
+NS_METHOD nsBaseWidget::GetBorderSize(PRInt32 &aWidth, PRInt32 &aHeight)
+{
+  nsIntRect rectWin;
+  nsIntRect rect;
+  GetBounds(rectWin);
+  GetClientBounds(rect);
+
+  aWidth  = (rectWin.width - rect.width) / 2;
+  aHeight = (rectWin.height - rect.height) / 2;
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP nsBaseWidget::ScrollWidgets(PRInt32 aDx, PRInt32 aDy)
+{
+  return NS_ERROR_FAILURE;
+}
+
+NS_IMETHODIMP nsBaseWidget::ScrollRect(nsIntRect &aRect, PRInt32 aDx, PRInt32 aDy)
+{
+  return NS_ERROR_FAILURE;
+}
+
 NS_METHOD nsBaseWidget::EnableDragDrop(PRBool aEnable)
 {
   return NS_OK;
@@ -795,6 +827,14 @@ NS_METHOD nsBaseWidget::EnableDragDrop(PRBool aEnable)
 NS_METHOD nsBaseWidget::SetModal(PRBool aModal)
 {
   return NS_ERROR_FAILURE;
+}
+
+// generic xp assumption is that events should be processed
+NS_METHOD nsBaseWidget::ModalEventFilter(PRBool aRealEvent, void *aEvent,
+                            PRBool *aForWindow)
+{
+  *aForWindow = PR_TRUE;
+  return NS_OK;
 }
 
 NS_IMETHODIMP

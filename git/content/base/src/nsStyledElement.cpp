@@ -44,7 +44,7 @@
 #include "nsGenericElement.h"
 #include "nsMutationEvent.h"
 #include "nsDOMCSSDeclaration.h"
-#include "nsDOMCSSAttrDeclaration.h"
+#include "nsICSSOMFactory.h"
 #include "nsServiceManagerUtils.h"
 #include "nsIDocument.h"
 #include "nsICSSStyleRule.h"
@@ -167,6 +167,9 @@ nsStyledElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 // ---------------------------------------------------------------
 // Others and helpers
 
+static nsICSSOMFactory* gCSSOMFactory = nsnull;
+static NS_DEFINE_CID(kCSSOMFactoryCID, NS_CSSOMFACTORY_CID);
+
 nsresult
 nsStyledElement::GetStyle(nsIDOMCSSStyleDeclaration** aStyle)
 {
@@ -177,8 +180,15 @@ nsStyledElement::GetStyle(nsIDOMCSSStyleDeclaration** aStyle)
     // Just in case...
     ReparseStyleAttribute(PR_TRUE);
 
-    slots->mStyle = new nsDOMCSSAttributeDeclaration(this);
-    NS_ENSURE_TRUE(slots->mStyle, NS_ERROR_OUT_OF_MEMORY);
+    nsresult rv;
+    if (!gCSSOMFactory) {
+      rv = CallGetService(kCSSOMFactoryCID, &gCSSOMFactory);
+      NS_ENSURE_SUCCESS(rv, rv);
+    }
+
+    rv = gCSSOMFactory->CreateDOMCSSAttributeDeclaration(this,
+                                                 getter_AddRefs(slots->mStyle));
+    NS_ENSURE_SUCCESS(rv, rv);
     SetFlags(NODE_MAY_HAVE_STYLE);
   }
 
@@ -254,4 +264,11 @@ nsStyledElement::ParseStyleAttribute(nsIContent* aContent,
   }
 
   aResult.SetTo(aValue);
+}
+
+
+/* static */ void
+nsStyledElement::Shutdown()
+{
+  NS_IF_RELEASE(gCSSOMFactory);
 }

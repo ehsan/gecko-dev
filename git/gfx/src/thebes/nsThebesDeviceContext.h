@@ -41,19 +41,15 @@
 #define _NS_THEBESDEVICECONTEXT_H_
 
 #include "nsIScreenManager.h"
-#include "nsIDeviceContext.h"
-#include "nsIDeviceContextSpec.h"
-#include "nsCOMPtr.h"
-#include "nsIAtom.h"
-#include "nsIObserver.h"
-#include "nsIObserverService.h"
-#include "nsWeakReference.h"
-#include "gfxContext.h"
+
+#include "nsDeviceContext.h"
 
 #include "nsRefPtrHashtable.h"
 #include "nsHashKeys.h"
 
 #include "prlog.h"
+
+#include "gfxContext.h"
 
 #ifdef PR_LOGGING
 extern PRLogModuleInfo* gThebesGFXLog;
@@ -65,12 +61,7 @@ extern PRLogModuleInfo* gThebesGFXLog;
 #include "gfxOS2Surface.h"
 #endif
 
-class nsHashtable;
-class nsFontCache;
-
-class nsThebesDeviceContext : public nsIDeviceContext,
-                              public nsIObserver,
-                              public nsSupportsWeakReference
+class nsThebesDeviceContext : public DeviceContextImpl
 {
 public:
     nsThebesDeviceContext();
@@ -78,31 +69,15 @@ public:
 
     static void Shutdown();
 
-    NS_DECL_ISUPPORTS
-    NS_DECL_NSIOBSERVER
+    NS_DECL_ISUPPORTS_INHERITED
 
     NS_IMETHOD Init(nsNativeWidget aWidget);
     NS_IMETHOD InitForPrinting(nsIDeviceContextSpec *aDevSpec);
     NS_IMETHOD CreateRenderingContext(nsIView *aView, nsIRenderingContext *&aContext);
+
     NS_IMETHOD CreateRenderingContext(nsIWidget *aWidget, nsIRenderingContext *&aContext);
     NS_IMETHOD CreateRenderingContext(nsIRenderingContext *&aContext);
     NS_IMETHOD CreateRenderingContextInstance(nsIRenderingContext *&aContext);
-
-    NS_IMETHOD GetMetricsFor(const nsFont& aFont, nsIAtom* aLangGroup,
-                             gfxUserFontSet* aUserFontSet,
-                             nsIFontMetrics*& aMetrics);
-    NS_IMETHOD GetMetricsFor(const nsFont& aFont,
-                             gfxUserFontSet* aUserFontSet,
-                             nsIFontMetrics*& aMetrics);
-
-    NS_IMETHOD FirstExistingFont(const nsFont& aFont, nsString& aFaceName);
-
-    NS_IMETHOD GetLocalFontName(const nsString& aFaceName, nsString& aLocalName,
-                                PRBool& aAliased);
-
-    NS_IMETHOD CreateFontCache();
-    NS_IMETHOD FontMetricsDeleted(const nsIFontMetrics* aFontMetrics);
-    NS_IMETHOD FlushFontCache(void);
 
     NS_IMETHOD SupportsNativeWidgets(PRBool& aSupportsWidgets);
     NS_IMETHOD PrepareNativeWidget(nsIWidget *aWidget, void **aOut);
@@ -118,7 +93,7 @@ public:
 
     NS_IMETHOD ConvertPixel(nscolor aColor, PRUint32& aPixel);
 
-    NS_IMETHOD GetDeviceSurfaceDimensions(nscoord& aWidth, nscoord& aHeight);
+    NS_IMETHOD GetDeviceSurfaceDimensions(PRInt32& aWidth, PRInt32& aHeight);
     NS_IMETHOD GetRect(nsRect& aRect);
     NS_IMETHOD GetClientRect(nsRect& aRect);
 
@@ -151,11 +126,6 @@ public:
 #endif
 
 protected:
-    virtual nsresult CreateFontAliasTable();
-    nsresult AliasFont(const nsString& aFont, 
-                       const nsString& aAlias, const nsString& aAltAlias,
-                       PRBool aForceAlias);
-    void GetLocaleLangGroup(void);
     nsresult SetDPI();
     void ComputeClientRectUsingScreen(nsRect *outRect);
     void ComputeFullAreaUsingScreen(nsRect *outRect);
@@ -163,20 +133,15 @@ protected:
     void CalcPrintingSize();
     void UpdateScaledAppUnits();
 
-    PRUint32          mDepth;
-    nsFontCache*      mFontCache;
-    nsCOMPtr<nsIAtom> mLocaleLangGroup; // XXX temp fix for performance bug - erik
-    nsHashtable*      mFontAliasTable;
-    nsNativeWidget    mWidget;
-#ifdef NS_DEBUG
-    PRBool            mInitialized;
-#endif
+    PRUint32 mDepth;
 
 private:
     nsCOMPtr<nsIScreenManager> mScreenManager;
 
     nscoord mWidth;
     nscoord mHeight;
+
+    nsRefPtrHashtable<nsISupportsHashKey, gfxASurface> mWidgetSurfaceCache;
 
     nsRefPtr<gfxASurface> mPrintingSurface;
     float mPrintingScale;

@@ -38,7 +38,7 @@
 #define NSSBASET_H
 
 #ifdef DEBUG
-static const char NSSBASET_CVS_ID[] = "@(#) $RCSfile: nssbaset.h,v $ $Revision: 1.8 $ $Date: 2009/04/07 23:52:05 $";
+static const char NSSBASET_CVS_ID[] = "@(#) $RCSfile: nssbaset.h,v $ $Revision: 1.7 $ $Date: 2008/10/05 20:59:16 $";
 #endif /* DEBUG */
 
 /*
@@ -56,7 +56,8 @@ static const char NSSBASET_CVS_ID[] = "@(#) $RCSfile: nssbaset.h,v $ $Revision: 
  * NSS has its own versions of these NSPR macros, in a form which
  * does not confuse ctags and other related utilities.  NSPR 
  * defines these macros to take the type as an argument, because
- * of certain OS requirements on platforms not supported by NSS.
+ * of a requirement to support win16 dlls.  We do not have that
+ * requirement, so we can drop that restriction.
  */
 
 #define DUMMY	/* dummy */

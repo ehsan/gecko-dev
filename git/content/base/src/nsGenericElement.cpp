@@ -173,8 +173,6 @@ NS_DEFINE_IID(kThisPtrOffsetsSID, NS_THISPTROFFSETS_SID);
 
 PRInt32 nsIContent::sTabFocusModel = eTabFocus_any;
 PRBool nsIContent::sTabFocusModelAppliesToXUL = PR_FALSE;
-PRUint32 nsMutationGuard::sMutationCount = 0;
-
 nsresult NS_NewContentIterator(nsIContentIterator** aInstancePtrResult);
 
 //----------------------------------------------------------------------
@@ -5125,10 +5123,17 @@ TryMatchingElementsInSubtree(nsINode* aRoot,
   char databuf[2 * sizeof(RuleProcessorData)];
   RuleProcessorData* prevSibling = nsnull;
   RuleProcessorData* data = reinterpret_cast<RuleProcessorData*>(databuf);
+  PRUint32 count;
+  nsIContent * const * kidSlot = aRoot->GetChildArray(&count);
+  nsIContent * const * end = kidSlot + count;
 
+#ifdef DEBUG
+  nsMutationGuard debugMutationGuard;
+#endif
+  
   PRBool continueIteration = PR_TRUE;
-  for (nsINode::ChildIterator iter(aRoot); !iter.IsDone(); iter.Next()) {
-    nsIContent* kid = iter;
+  for (; kidSlot != end; ++kidSlot) {
+    nsIContent* kid = *kidSlot;
     if (!kid->IsNodeOfType(nsINode::eELEMENT)) {
       continue;
     }
@@ -5187,6 +5192,10 @@ TryMatchingElementsInSubtree(nsINode* aRoot,
     /* Make sure to clean this up */
     prevSibling->~RuleProcessorData();
   }
+
+#ifdef DEBUG
+  NS_ASSERTION(!debugMutationGuard.Mutated(0), "Unexpected mutations happened");
+#endif
 
   return continueIteration;
 }

@@ -63,6 +63,7 @@ EXPORTS		= \
 		nsIImage.h \
 		nsGfxCIID.h \
 		nsIRegion.h \
+		nsDeviceContext.h \
 		nsITheme.h \
 		nsThemeConstants.h \
 		$(NULL)

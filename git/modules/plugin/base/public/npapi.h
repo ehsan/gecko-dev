@@ -44,6 +44,10 @@
 
 #include "nptypes.h"
 
+#ifdef OJI
+#include "jri.h"                /* Java Runtime Interface */
+#endif
+
 #if defined (__OS2__) || defined (OS2)
 # ifndef XP_OS2
 #  define XP_OS2 1
@@ -618,6 +622,9 @@ void    NP_LOADDS NPP_Print(NPP instance, NPPrint* platformPrint);
 int16_t NP_LOADDS NPP_HandleEvent(NPP instance, void* event);
 void    NP_LOADDS NPP_URLNotify(NPP instance, const char* url,
                                 NPReason reason, void* notifyData);
+#ifdef OJI
+jref    NP_LOADDS NPP_GetJavaClass();
+#endif
 NPError NP_LOADDS NPP_GetValue(NPP instance, NPPVariable variable, void *value);
 NPError NP_LOADDS NPP_SetValue(NPP instance, NPNVariable variable, void *value);
 
@@ -648,6 +655,10 @@ void*       NP_LOADDS NPN_MemAlloc(uint32_t size);
 void        NP_LOADDS NPN_MemFree(void* ptr);
 uint32_t    NP_LOADDS NPN_MemFlush(uint32_t size);
 void        NP_LOADDS NPN_ReloadPlugins(NPBool reloadPages);
+#ifdef OJI
+JRIEnv*     NP_LOADDS NPN_GetJavaEnv();
+jref        NP_LOADDS NPN_GetJavaPeer(NPP instance);
+#endif
 NPError     NP_LOADDS NPN_GetValue(NPP instance, NPNVariable variable,
                                    void *value);
 NPError     NP_LOADDS NPN_SetValue(NPP instance, NPPVariable variable,

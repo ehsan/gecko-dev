@@ -386,10 +386,7 @@ nsFrameManager::GetPrimaryFrameFor(nsIContent* aContent,
           entry = static_cast<PrimaryFrameMapEntry*>
                              (PL_DHashTableOperate(&mPrimaryFrameMap, prevSibling,
                                                PL_DHASH_LOOKUP));
-          // XXXbz the GetContent() == prevSibling check is needed due to bug
-          // 135040.  Remove it once that's fixed.
-          if (PL_DHASH_ENTRY_IS_BUSY(entry) && entry->frame &&
-              entry->frame->GetContent() == prevSibling)
+          if (PL_DHASH_ENTRY_IS_BUSY(entry))
             hint.mPrimaryFrameForPrevSibling = entry->frame;
         }
       }
