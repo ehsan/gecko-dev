@@ -47,20 +47,8 @@ function waitForBrowserState(aState, aSetStateCallback) {
   let windowsOpen = 1;
   let listening = false;
   let windowObserving = false;
-  let restoreHiddenTabs = Services.prefs.getBoolPref(
-                          "browser.sessionstore.restore_hidden_tabs");
 
-  aState.windows.forEach(function (winState) {
-    winState.tabs.forEach(function (tabState) {
-      if (restoreHiddenTabs || !tabState.hidden)
-        expectedTabsRestored++;
-    });
-  });
-
-  // There must be only hidden tabs and restoreHiddenTabs = false. We still
-  // expect one of them to be restored because it gets shown automatically.
-  if (!expectedTabsRestored)
-    expectedTabsRestored = 1;
+  aState.windows.forEach(function(winState) expectedTabsRestored += winState.tabs.length);
 
   function onSSTabRestored(aEvent) {
     if (++tabsRestored == expectedTabsRestored) {
