@@ -15,8 +15,8 @@
 # The Original Code is mozilla.org code.
 #
 # The Initial Developer of the Original Code is
-# Mozilla Foundation.
-# Portions created by the Initial Developer are Copyright (C) 2007
+# Netscape Communications Corporation.
+# Portions created by the Initial Developer are Copyright (C) 1998
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
@@ -39,36 +39,51 @@ DEPTH		= ../../..
 topsrcdir	= @top_srcdir@
 srcdir		= @srcdir@
 VPATH		= @srcdir@
-relativesrcdir  = layout/generic/test
 
 include $(DEPTH)/config/autoconf.mk
-include $(topsrcdir)/config/rules.mk
 
-_TEST_FILES = 	test_bug288789.html \
-		test_bug323656.html \
-		test_bug344830.html \
-		bug344830_testembed.svg \
-		test_bug382429.html \
-		test_bug384527.html \
-		test_bug385751.html \
-		test_bug389630.html \
-		test_bug391747.html \
-		test_bug392746.html \
-		test_bug392923.html \
-		test_bug394173.html \
-		test_bug394239.html \
-		test_bug402380.html \
-		test_bug404872.html \
-		test_bug405178.html \
-		test_bug416168.html \
-		test_bug421436.html \
-		test_bug448860.html \
-		test_bug460532.html \
-		test_bug468167.html \
-		test_character_movement.html \
-		test_word_movement.html \
-		test_backspace_delete.html \
+MODULE		= prefmigr
+LIBRARY_NAME	= nsprefm
+EXPORT_LIBRARY = 1
+IS_COMPONENT	= 1
+MODULE_NAME	= nsPrefMigrationModule
+MOZILLA_INTERNAL_API = 1
+
+REQUIRES	= xpcom \
+                  xpcom_obsolete \
+		  string \
+		  pref \
+		  intl \
+		  docshell \
+		  dom \
+		  layout \
+		  js \
+		  necko \
+		  widget \
+		  webbrwsr \
+		  uconv \
+		  windowwatcher \
+		  embed_base \
+		  content \
+		  $(NULL)
+
+CPPSRCS		= \
+		nsPrefMigration.cpp \
+		nsPrefMigrationFactory.cpp \
 		$(NULL)
 
-libs:: $(_TEST_FILES)
-	$(INSTALL) $(foreach f,$^,"$f") $(DEPTH)/_tests/testing/mochitest/tests/$(relativesrcdir)
+EXPORTS		= \
+		nsPrefMigration.h \
+		nsPrefMigrationFactory.h \
+		$(NULL)
+
+EXTRA_DSO_LDOPTS = \
+		$(LIBS_DIR) \
+		$(MOZ_COMPONENT_LIBS) \
+		$(MOZ_XPCOM_OBSOLETE_LIBS) \
+		$(MOZ_JS_LIBS) \
+		$(NULL)
+
+include $(topsrcdir)/config/rules.mk
+
+
