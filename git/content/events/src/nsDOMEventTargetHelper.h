@@ -13,7 +13,7 @@
 #include "nsIScriptGlobalObject.h"
 #include "nsEventListenerManager.h"
 #include "nsIScriptContext.h"
-#include "MainThreadUtils.h"
+#include "nsThreadUtils.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/dom/EventTarget.h"
 
@@ -174,12 +174,15 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsDOMEventTargetHelper,
     }                                                                     \
     return GetEventHandler(nullptr, NS_LITERAL_STRING(#_event));          \
   }                                                                       \
-  inline void SetOn##_event(mozilla::dom::EventHandlerNonNull* aCallback) \
+  inline void SetOn##_event(mozilla::dom::EventHandlerNonNull* aCallback, \
+                            mozilla::ErrorResult& aRv)                    \
   {                                                                       \
     if (NS_IsMainThread()) {                                              \
-      SetEventHandler(nsGkAtoms::on##_event, EmptyString(), aCallback);   \
+      SetEventHandler(nsGkAtoms::on##_event, EmptyString(),               \
+                      aCallback, aRv);                                    \
     } else {                                                              \
-      SetEventHandler(nullptr, NS_LITERAL_STRING(#_event), aCallback);    \
+      SetEventHandler(nullptr, NS_LITERAL_STRING(#_event),                \
+                      aCallback, aRv);                                    \
     }                                                                     \
   }
 

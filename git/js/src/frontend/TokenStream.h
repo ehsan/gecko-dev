@@ -596,12 +596,16 @@ class MOZ_STACK_CLASS TokenStream
         return pos.buf - userbuf.base();
     }
 
-    bool hasSourceMapURL() const {
-        return sourceMapURL_ != NULL;
+    bool hasSourceMap() const {
+        return sourceMap != NULL;
     }
 
-    jschar *sourceMapURL() {
-        return sourceMapURL_;
+    // Give up responsibility for managing the sourceMap filename's memory.
+    jschar *releaseSourceMap() {
+        JS_ASSERT(hasSourceMap());
+        jschar *sm = sourceMap;
+        sourceMap = NULL;
+        return sm;
     }
 
     // If the name at s[0:length] is not a keyword in this version, return
@@ -843,7 +847,7 @@ class MOZ_STACK_CLASS TokenStream
     const jschar        *prevLinebase;      // start of previous line;  NULL if on the first line
     TokenBuf            userbuf;            // user input buffer
     const char          *filename;          // input filename or null
-    jschar              *sourceMapURL_;     // source map's filename or null
+    jschar              *sourceMap;         // source map's filename or null
     CharBuffer          tokenbuf;           // current token string buffer
     bool                maybeEOL[256];      // probabilistic EOL lookup table
     bool                maybeStrSpecial[256];   // speeds up string scanning

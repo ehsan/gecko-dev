@@ -9,6 +9,7 @@
 
 #include "mozilla/MemoryReporting.h"
 #include "jsapi.h"
+#include "js/Class.h"
 
 #include "nsCycleCollector.h"
 #include "nsCycleCollectionParticipant.h"
@@ -17,11 +18,8 @@
 #include "nsTArray.h"
 
 class nsCycleCollectionNoteRootCallback;
+class nsScriptObjectTracer;
 class nsIException;
-
-namespace js {
-class Class;
-}
 
 namespace mozilla {
 
@@ -88,10 +86,6 @@ protected:
   CycleCollectedJSRuntime(uint32_t aMaxbytes,
                           JSUseHelperThreads aUseHelperThreads);
   virtual ~CycleCollectedJSRuntime();
-
-  // Idempotent. Subclasses may destroy their runtimes earlier in execution if
-  // they so desire.
-  void DestroyRuntime();
 
   size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
   void UnmarkSkippableJSHolders();

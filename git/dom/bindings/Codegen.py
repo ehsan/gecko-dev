@@ -795,7 +795,7 @@ def UnionTypes(descriptors, dictionaries, callbacks, config):
     implheaders = set(["UnionTypes.h"])
     declarations = set()
     unionStructs = dict()
-    owningUnionStructs = dict()
+    unionReturnValues = dict()
 
     def addInfoForType((t, descriptor, dictionary)):
         """
@@ -812,8 +812,8 @@ def UnionTypes(descriptors, dictionaries, callbacks, config):
                                              config)
             # FIXME: Unions are broken in workers.  See bug 809899.
             unionStructs[name] = CGUnionStruct(t, providers[0])
-            owningUnionStructs[name] = CGUnionStruct(t, providers[0],
-                                                     ownsMembers=True)
+            unionReturnValues[name] = CGUnionStruct(t, providers[0],
+                                                    isReturnValue=True)
 
             for f in t.flatMemberTypes:
                 f = f.unroll()
@@ -841,7 +841,7 @@ def UnionTypes(descriptors, dictionaries, callbacks, config):
 
     return (headers, implheaders, declarations,
             CGList(itertools.chain(SortedDictValues(unionStructs),
-                                   SortedDictValues(owningUnionStructs)), "\n"))
+                                   SortedDictValues(unionReturnValues)), "\n"))
 
 def UnionConversions(descriptors, dictionaries, callbacks, config):
     """
@@ -2575,7 +2575,7 @@ def getJSToNativeConversionInfo(type, descriptorProvider, failureCode=None,
                                 lenientFloatCode=None,
                                 allowTreatNonCallableAsNull=False,
                                 isCallbackReturnValue=False,
-                                isInOwningUnion=False,
+                                isInUnionReturnValue=False,
                                 sourceDescription="value"):
     """
     Get a template for converting a JS value to a native object based on the
@@ -2741,8 +2741,9 @@ def getJSToNativeConversionInfo(type, descriptorProvider, failureCode=None,
         return templateBody
 
     # A helper function for converting things that look like a JSObject*.
-    def handleJSObjectType(type, isMember, isInOwningUnion, failureCode):
-        if not isMember and not isInOwningUnion:
+    def handleJSObjectType(type, isMember, isInUnionReturnValue,
+                           failureCode):
+        if not isMember and not isInUnionReturnValue:
             if isOptional:
                 # We have a specialization of Optional that will use a
                 # Rooted for the storage here.
@@ -2751,7 +2752,7 @@ def getJSToNativeConversionInfo(type, descriptorProvider, failureCode=None,
                 declType = CGGeneric("JS::Rooted<JSObject*>")
         else:
             assert (isMember == "Sequence" or isMember == "Variadic" or
-                    isMember == "Dictionary" or isInOwningUnion)
+                    isMember == "Dictionary" or isInUnionReturnValue)
             # We'll get traced by the sequence or dictionary or union tracer
             declType = CGGeneric("JSObject*")
         templateBody = "${declName} = &${val}.toObject();"
@@ -3053,7 +3054,7 @@ for (uint32_t i = 0; i < length; ++i) {
                                  exceptionCodeIndented.define()))
         templateBody = CGWrapper(CGIndenter(CGList([templateBody, throw], "\n")), pre="{\n", post="\n}")
 
-        typeName = ("Owning" if isMember else "") + type.name
+        typeName = type.name + ("ReturnValue" if isMember else "")
         argumentTypeName = typeName + "Argument"
         if nullable:
             typeName = "Nullable<" + typeName + " >"
@@ -3140,7 +3141,7 @@ for (uint32_t i = 0; i < length; ++i) {
         if descriptor.nativeType == 'JSObject':
             # XXXbz Workers code does this sometimes
             assert descriptor.workers
-            return handleJSObjectType(type, isMember, isInOwningUnion,
+            return handleJSObjectType(type, isMember, isInUnionReturnValue,
                                       failureCode)
 
         if (descriptor.interface.isCallback() and
@@ -3179,7 +3180,7 @@ for (uint32_t i = 0; i < length; ++i) {
         forceOwningType = ((descriptor.interface.isCallback() and
                             not descriptor.workers) or
                            isMember or
-                           isInOwningUnion or
+                           isInUnionReturnValue or
                            isCallbackReturnValue)
 
         typeName = descriptor.nativeType
@@ -3303,7 +3304,7 @@ for (uint32_t i = 0; i < length; ++i) {
              CGIndenter(onFailureBadType(failureCode, type.name)).define()))
         template = wrapObjectTemplate(template, type, "${declName}.SetNull()",
                                       failureCode)
-        if not isMember and not isInOwningUnion:
+        if not isMember and not isInUnionReturnValue:
             # This is a bit annoying.  In a union we don't want to have a
             # holder, since unions don't support that.  But if we're optional we
             # want to have a holder, so that the callee doesn't see
@@ -3395,22 +3396,22 @@ for (uint32_t i = 0; i < length; ++i) {
 
         if isOptional:
             declType = "Optional<nsAString>"
-        elif isInOwningUnion:
+        elif isInUnionReturnValue:
             declType = "nsString"
         else:
             declType = "NonNull<nsAString>"
 
         # No need to deal with optional here; we handled it already
         decl = ""
-        if isInOwningUnion:
+        if isInUnionReturnValue:
             decl += "FakeDependentString str;\n"
         return JSToNativeConversionInfo(
             "%s"
             "%s\n"
             "${declName} = %s" %
               (decl,
-               getConversionCode("str" if isInOwningUnion else "${holderName}"),
-               ("str;" if isInOwningUnion else "&${holderName};")),
+               getConversionCode("str" if isInUnionReturnValue else "${holderName}"),
+               ("str;" if isInUnionReturnValue else "&${holderName};")),
             declType=CGGeneric(declType),
             holderType=CGGeneric("FakeDependentString"))
 
@@ -3505,12 +3506,7 @@ for (uint32_t i = 0; i < length; ++i) {
                 raise NoSuchDescriptorError("Can't handle member callbacks in "
                                             "workers; need to sort out rooting"
                                             "issues")
-            if isOptional:
-                # We have a specialization of Optional that will use a
-                # Rooted for the storage here.
-                declType = CGGeneric("JS::Handle<JSObject*>")
-            else:
-                declType = CGGeneric("JS::Rooted<JSObject*>")            
+            declType = CGGeneric("JS::Rooted<JSObject*>")
             conversion = "  ${declName} = &${val}.toObject();\n"
             declArgs = "cx"
         else:
@@ -3579,7 +3575,8 @@ for (uint32_t i = 0; i < length; ++i) {
 
     if type.isObject():
         assert not isEnforceRange and not isClamp
-        return handleJSObjectType(type, isMember, isInOwningUnion, failureCode)
+        return handleJSObjectType(type, isMember, isInUnionReturnValue,
+                                  failureCode)
 
     if type.isDictionary():
         if failureCode is not None and not isDefinitelyObject:
@@ -3658,9 +3655,8 @@ for (uint32_t i = 0; i < length; ++i) {
             notDate = failureCode
 
         conversion = (
-            "JS::RootedObject possibleDateObject(cx, &${val}.toObject());\n"
-            "if (!JS_ObjectIsDate(cx, possibleDateObject) ||\n"
-            "    !%s.SetTimeStamp(cx, possibleDateObject)) {\n"
+            "if (!JS_ObjectIsDate(cx, &${val}.toObject()) ||\n"
+            "    !%s.SetTimeStamp(cx, &${val}.toObject())) {\n"
             "%s\n"
             "}" %
             (dateVal, CGIndenter(CGGeneric(notDate)).define()))
@@ -4500,7 +4496,7 @@ def getRetvalDeclarationForType(returnType, descriptorProvider,
             resultArgs = None
         return result, True, None, resultArgs
     if returnType.isUnion():
-        result = CGGeneric("Owning" + returnType.unroll().name)
+        result = CGGeneric(returnType.unroll().name + "ReturnValue")
         if not isMember and typeNeedsRooting(returnType, descriptorProvider):
             if returnType.nullable():
                 result = CGTemplatedType("NullableRootedUnion", result)
@@ -6142,8 +6138,7 @@ def getUnionAccessorSignatureType(type, descriptorProvider):
         typeName = CGTemplatedType("Nullable", typeName, isReference=True)
     return typeName
 
-def getUnionTypeTemplateVars(unionType, type, descriptorProvider,
-                             ownsMembers=False):
+def getUnionTypeTemplateVars(unionType, type, descriptorProvider, isReturnValue=False):
     # For dictionaries and sequences we need to pass None as the failureCode
     # for getJSToNativeConversionInfo.
     # Also, for dictionaries we would need to handle conversion of
@@ -6153,19 +6148,19 @@ def getUnionTypeTemplateVars(unionType, type, descriptorProvider,
 
     name = getUnionMemberName(type)
 
-    ctorNeedsCx = type.isSpiderMonkeyInterface() and not ownsMembers
+    ctorNeedsCx = type.isSpiderMonkeyInterface() and not isReturnValue
     ctorArgs = "cx" if ctorNeedsCx else ""
 
     tryNextCode = ("tryNext = true;\n"
                    "return true;")
     if type.isGeckoInterface():
-         prefix = "" if ownsMembers else "mUnion."
+         prefix = "" if isReturnValue else "mUnion."
          tryNextCode = ("if (%smType != %seUninitialized) {"
                         "  %sDestroy%s();"
                         "}") % (prefix, prefix, prefix, name) + tryNextCode
     conversionInfo = getJSToNativeConversionInfo(
         type, descriptorProvider, failureCode=tryNextCode,
-        isDefinitelyObject=True, isInOwningUnion=ownsMembers,
+        isDefinitelyObject=True, isInUnionReturnValue=isReturnValue,
         sourceDescription="member of %s" % unionType)
 
     # This is ugly, but UnionMember needs to call a constructor with no
@@ -6176,7 +6171,7 @@ def getUnionTypeTemplateVars(unionType, type, descriptorProvider,
     externalType = getUnionAccessorSignatureType(type, descriptorProvider).define()
 
     if type.isObject():
-        if ownsMembers:
+        if isReturnValue:
             body = ("mValue.mObject.SetValue(obj);\n"
                     "mType = eObject;")
         else:
@@ -6206,8 +6201,8 @@ def getUnionTypeTemplateVars(unionType, type, descriptorProvider,
                                Argument("JS::Handle<JS::Value>", "value"),
                                Argument("JS::MutableHandle<JS::Value>", "pvalue"),
                                Argument("bool&", "tryNext")],
-                              inline=not ownsMembers,
-                              bodyInHeader=not ownsMembers,
+                              inline=not isReturnValue,
+                              bodyInHeader=not isReturnValue,
                               body=jsConversion.define())
 
     return {
@@ -6225,11 +6220,11 @@ def mapTemplate(template, templateVarArray):
                templateVarArray)
 
 class CGUnionStruct(CGThing):
-    def __init__(self, type, descriptorProvider, ownsMembers=False):
+    def __init__(self, type, descriptorProvider, isReturnValue=False):
         CGThing.__init__(self)
         self.type = type.unroll()
         self.descriptorProvider = descriptorProvider
-        self.ownsMembers = ownsMembers
+        self.isReturnValue = isReturnValue
         self.struct = self.getStruct()
 
     def declare(self):
@@ -6266,8 +6261,8 @@ class CGUnionStruct(CGThing):
         for t in self.type.flatMemberTypes:
             vars = getUnionTypeTemplateVars(self.type,
                                             t, self.descriptorProvider,
-                                            ownsMembers=self.ownsMembers)
-            if vars["name"] != "Object" or self.ownsMembers:
+                                            isReturnValue=self.isReturnValue)
+            if vars["name"] != "Object" or self.isReturnValue:
                 body=string.Template("mType = e${name};\n"
                                      "return mValue.m${name}.SetValue(${ctorArgs});").substitute(vars)
                 # bodyInHeader must be false for return values because they own
@@ -6276,9 +6271,9 @@ class CGUnionStruct(CGThing):
                 methods.append(ClassMethod("SetAs" + vars["name"],
                                            vars["structType"] + "&",
                                            vars["ctorArgList"],
-                                           bodyInHeader=not self.ownsMembers,
+                                           bodyInHeader=not self.isReturnValue,
                                            body=body))
-                if self.ownsMembers:
+                if self.isReturnValue:
                     methods.append(vars["setter"])
                     if t.isString():
                         methods.append(
@@ -6295,7 +6290,7 @@ class CGUnionStruct(CGThing):
                                        "void",
                                        [],
                                        visibility="private",
-                                       bodyInHeader=not self.ownsMembers,
+                                       bodyInHeader=not self.isReturnValue,
                                        body=body))
             body = string.Template("return mType == e${name};").substitute(vars)
             methods.append(ClassMethod("Is" + vars["name"],
@@ -6307,7 +6302,7 @@ class CGUnionStruct(CGThing):
 
             body = string.Template('MOZ_ASSERT(Is${name}(), "Wrong type!");\n'
                                    'return const_cast<${structType}&>(mValue.m${name}.Value());').substitute(vars)
-            if self.ownsMembers:
+            if self.isReturnValue:
                 getterReturnType = "%s&" % vars["structType"]
             else:
                 getterReturnType = vars["externalType"]
@@ -6327,7 +6322,7 @@ class CGUnionStruct(CGThing):
             destructorCases.append(CGCase("e" + vars["name"],
                                           CGGeneric("Destroy%s();"
                                                      % vars["name"])))
-            if self.ownsMembers and typeNeedsRooting(t, self.descriptorProvider):
+            if self.isReturnValue and typeNeedsRooting(t, self.descriptorProvider):
                 if t.isObject():
                     traceCases.append(
                         CGCase("e" + vars["name"],
@@ -6350,7 +6345,7 @@ class CGUnionStruct(CGThing):
         ], body=CGSwitch("mType", toJSValCases,
                          default=CGGeneric("return false;")).define(), const=True))
 
-        if self.ownsMembers:
+        if self.isReturnValue:
             if len(traceCases):
                 traceBody = CGSwitch("mType", traceCases,
                                      default=CGGeneric("")).define()
@@ -6360,8 +6355,8 @@ class CGUnionStruct(CGThing):
                                        [Argument("JSTracer*", "trc")],
                                        body=traceBody))
 
-        friend="  friend class %sArgument;\n" % str(self.type) if not self.ownsMembers else ""
-        return CGClass(("Owning" if self.ownsMembers else "") + str(self.type),
+        friend="  friend class %sArgument;\n" % str(self.type) if not self.isReturnValue else ""
+        return CGClass(str(self.type) + ("ReturnValue" if self.isReturnValue else ""),
                        members=members,
                        constructors=[ctor],
                        methods=methods,
@@ -6369,7 +6364,7 @@ class CGUnionStruct(CGThing):
                        extradeclarations=friend,
                        destructor=ClassDestructor(visibility="public",
                                                   body=dtor,
-                                                  bodyInHeader=not self.ownsMembers),
+                                                  bodyInHeader=not self.isReturnValue),
                        enums=[ClassEnum("Type", enumValues, visibility="private")],
                        unions=[ClassUnion("Value", unionValues, visibility="private")])
 
@@ -8185,7 +8180,7 @@ class CGDictionary(CGThing):
                             isMember="Dictionary",
                             isOptional=(not member.defaultValue),
                             # Set this to true so that we get an owning union.
-                            isInOwningUnion=True,
+                            isInUnionReturnValue=True,
                             defaultValue=member.defaultValue,
                             sourceDescription=("'%s' member of %s" %
                                                (member.identifier.name,

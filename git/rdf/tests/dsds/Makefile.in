@@ -5,6 +5,10 @@
 
 MOZILLA_INTERNAL_API = 1
 
+
+
+IS_COMPONENT	= 1
+
 SAMPLES_DIR	= $(DIST)/bin/res/samples/rdf
 
 RESOURCE_SAMPLES = \

@@ -658,6 +658,11 @@ class PCCounts
 
     enum BaseCounts {
         BASE_INTERP = 0,
+        BASE_METHODJIT,
+
+        BASE_METHODJIT_STUBS,
+        BASE_METHODJIT_CODE,
+        BASE_METHODJIT_PICS,
 
         BASE_LIMIT
     };

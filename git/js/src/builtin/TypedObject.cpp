@@ -23,8 +23,6 @@
 #include "jsatominlines.h"
 #include "jsobjinlines.h"
 
-#include "vm/Shape-inl.h"
-
 using mozilla::DebugOnly;
 
 using namespace js;
@@ -237,6 +235,12 @@ static inline bool
 IsBinaryArray(JSContext *cx, HandleObject obj)
 {
     return IsBlockOfKind(cx, obj, TypeRepresentation::Array);
+}
+
+static inline bool
+IsBinaryStruct(JSContext *cx, HandleObject obj)
+{
+    return IsBlockOfKind(cx, obj, TypeRepresentation::Struct);
 }
 
 const Class js::DataClass = {

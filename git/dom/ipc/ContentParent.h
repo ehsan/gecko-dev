@@ -420,11 +420,9 @@ private:
                                           const bool& aElementWasHidden,
                                           AudioChannelState* aValue);
 
-    virtual bool RecvAudioChannelRegisterType(const AudioChannelType& aType,
-                                              const bool& aWithVideo);
+    virtual bool RecvAudioChannelRegisterType(const AudioChannelType& aType);
     virtual bool RecvAudioChannelUnregisterType(const AudioChannelType& aType,
-                                                const bool& aElementHidden,
-                                                const bool& aWithVideo);
+                                                const bool& aElementHidden);
 
     virtual bool RecvAudioChannelChangedNotification();
 

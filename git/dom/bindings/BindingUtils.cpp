@@ -181,8 +181,7 @@ ErrorResult::ReportJSException(JSContext* cx)
   MOZ_ASSERT(!mMightHaveUnreportedJSException,
              "Why didn't you tell us you planned to handle JS exceptions?");
   if (JS_WrapValue(cx, &mJSException)) {
-    JS::RootedValue exception(cx, mJSException);
-    JS_SetPendingException(cx, exception);
+    JS_SetPendingException(cx, mJSException);
   }
   // If JS_WrapValue failed, not much we can do about it...  No matter
   // what, go ahead and unroot mJSException.
@@ -1485,7 +1484,7 @@ MainThreadDictionaryBase::ParseJSON(JSContext *aCx,
 }
 
 static JSString*
-ConcatJSString(JSContext* cx, const char* pre, JS::Handle<JSString*> str, const char* post)
+ConcatJSString(JSContext* cx, const char* pre, JSString* str, const char* post)
 {
   if (!str) {
     return nullptr;
@@ -1497,12 +1496,12 @@ ConcatJSString(JSContext* cx, const char* pre, JS::Handle<JSString*> str, const 
     return nullptr;
   }
 
-  preString = JS_ConcatStrings(cx, preString, str);
-  if (!preString) {
+  str = JS_ConcatStrings(cx, preString, str);
+  if (!str) {
     return nullptr;
   }
 
-  return JS_ConcatStrings(cx, preString, postString);
+  return JS_ConcatStrings(cx, str, postString);
 }
 
 bool
@@ -1545,8 +1544,8 @@ NativeToString(JSContext* cx, JS::Handle<JSObject*> wrapper,
       } else {
         const js::Class* clasp = js::GetObjectClass(obj);
         if (IsDOMClass(clasp)) {
-          str = JS_NewStringCopyZ(cx, clasp->name);
-          str = ConcatJSString(cx, "[object ", str, "]");
+          str = ConcatJSString(cx, "[object ",
+                               JS_NewStringCopyZ(cx, clasp->name), "]");
         } else if (IsDOMIfaceAndProtoClass(clasp)) {
           const DOMIfaceAndProtoJSClass* ifaceAndProtoJSClass =
             DOMIfaceAndProtoJSClass::FromJSClass(clasp);

@@ -22,9 +22,9 @@ using mozilla::dom::DestroyProtoAndIfaceCache;
 
 XPCJSContextStack::~XPCJSContextStack()
 {
-    if (mSafeJSContext) {
-        JS_DestroyContextNoGC(mSafeJSContext);
-        mSafeJSContext = nullptr;
+    if (mOwnSafeJSContext) {
+        JS_DestroyContext(mOwnSafeJSContext);
+        mOwnSafeJSContext = nullptr;
     }
 }
 
@@ -180,6 +180,9 @@ XPCJSContextStack::GetSafeJSContext()
         MOZ_CRASH();
 
     JS_FireOnNewGlobalObject(mSafeJSContext, glob);
+
+    // Save it off so we can destroy it later.
+    mOwnSafeJSContext = mSafeJSContext;
 
     return mSafeJSContext;
 }

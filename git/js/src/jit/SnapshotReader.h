@@ -50,6 +50,8 @@ class SnapshotReader
     void readSnapshotHeader();
     void readFrameHeader();
 
+    template <typename T> inline T readVariableLength();
+
   public:
     enum SlotMode
     {

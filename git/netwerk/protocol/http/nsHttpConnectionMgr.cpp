@@ -32,6 +32,8 @@ using namespace mozilla::net;
 // defined by the socket transport service while active
 extern PRThread *gSocketThread;
 
+static NS_DEFINE_CID(kSocketTransportServiceCID, NS_SOCKETTRANSPORTSERVICE_CID);
+
 //-----------------------------------------------------------------------------
 
 
@@ -211,7 +213,7 @@ nsHttpConnectionMgr::ConditionallyStopPruneDeadConnectionsTimer()
     mTimeOfNextWakeUp = UINT64_MAX;
     if (mTimer) {
         mTimer->Cancel();
-        mTimer = nullptr;
+        mTimer = NULL;
     }
 }
 

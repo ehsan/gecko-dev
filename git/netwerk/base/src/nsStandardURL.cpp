@@ -837,19 +837,19 @@ nsStandardURL::AppendToSubstring(uint32_t pos,
 {
     // Verify pos and length are within boundaries
     if (pos > mSpec.Length())
-        return nullptr;
+        return NULL;
     if (len < 0)
-        return nullptr;
+        return NULL;
     if ((uint32_t)len > (mSpec.Length() - pos))
-        return nullptr;
+        return NULL;
     if (!tail)
-        return nullptr;
+        return NULL;
 
     uint32_t tailLen = strlen(tail);
 
     // Check for int overflow for proposed length of combined string
     if (UINT32_MAX - ((uint32_t)len + 1) < tailLen)
-        return nullptr;
+        return NULL;
 
     char *result = (char *) NS_Alloc(len + tailLen + 1);
     if (result) {

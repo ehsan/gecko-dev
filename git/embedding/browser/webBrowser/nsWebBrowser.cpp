@@ -53,6 +53,7 @@
 using namespace mozilla;
 using namespace mozilla::layers;
 
+static NS_DEFINE_IID(kWindowCID, NS_WINDOW_CID);
 static NS_DEFINE_CID(kChildCID, NS_CHILD_CID);
 
 
@@ -1244,7 +1245,7 @@ NS_IMETHODIMP nsWebBrowser::Destroy()
 
 NS_IMETHODIMP nsWebBrowser::GetUnscaledDevicePixelsPerCSSPixel(double *aScale)
 {
-  *aScale = mParentWidget ? mParentWidget->GetDefaultScale().scale : 1.0;
+  *aScale = mParentWidget ? mParentWidget->GetDefaultScale() : 1.0;
   return NS_OK;
 }
 

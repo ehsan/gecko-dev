@@ -104,7 +104,7 @@ public class BrowserSearch extends HomeFragment
     // Whether search suggestions are enabled or not
     private boolean mSuggestionsEnabled;
 
-    // Callbacks used for the search loader
+    // Callbacks used for the search and favicon cursor loaders
     private CursorLoaderCallbacks mCursorLoaderCallbacks;
 
     // Callbacks used for the search suggestion loader
@@ -286,15 +286,17 @@ public class BrowserSearch extends HomeFragment
     public void onActivityCreated(Bundle savedInstanceState) {
         super.onActivityCreated(savedInstanceState);
 
+        final Activity activity = getActivity();
+
         // Intialize the search adapter
-        mAdapter = new SearchAdapter(getActivity());
+        mAdapter = new SearchAdapter(activity);
         mList.setAdapter(mAdapter);
 
         // Only create an instance when we need it
         mSuggestionLoaderCallbacks = null;
 
         // Create callbacks before the initial loader is started
-        mCursorLoaderCallbacks = new CursorLoaderCallbacks();
+        mCursorLoaderCallbacks = new CursorLoaderCallbacks(activity, getLoaderManager());
         loadIfVisible();
     }
 
@@ -770,26 +772,49 @@ public class BrowserSearch extends HomeFragment
         }
     }
 
-    private class CursorLoaderCallbacks implements LoaderCallbacks<Cursor> {
+    private class CursorLoaderCallbacks extends HomeCursorLoaderCallbacks {
+        public CursorLoaderCallbacks(Context context, LoaderManager loaderManager) {
+            super(context, loaderManager);
+        }
+
         @Override
         public Loader<Cursor> onCreateLoader(int id, Bundle args) {
-            return SearchLoader.createInstance(getActivity(), args);
+            if (id == LOADER_ID_SEARCH) {
+                return SearchLoader.createInstance(getActivity(), args);
+            } else {
+                return super.onCreateLoader(id, args);
+            }
         }
 
         @Override
         public void onLoadFinished(Loader<Cursor> loader, Cursor c) {
-            mAdapter.swapCursor(c);
+            if (loader.getId() == LOADER_ID_SEARCH) {
+                mAdapter.swapCursor(c);
 
-            // We should handle autocompletion based on the search term
-            // associated with the currently loader that has just provided
-            // the results.
-            SearchCursorLoader searchLoader = (SearchCursorLoader) loader;
-            handleAutocomplete(searchLoader.getSearchTerm(), c);
+                // We should handle autocompletion based on the search term
+                // associated with the currently loader that has just provided
+                // the results.
+                SearchCursorLoader searchLoader = (SearchCursorLoader) loader;
+                handleAutocomplete(searchLoader.getSearchTerm(), c);
+
+                loadFavicons(c);
+            } else {
+                super.onLoadFinished(loader, c);
+            }
         }
 
         @Override
         public void onLoaderReset(Loader<Cursor> loader) {
-            mAdapter.swapCursor(null);
+            if (loader.getId() == LOADER_ID_SEARCH) {
+                mAdapter.swapCursor(null);
+            } else {
+                super.onLoaderReset(loader);
+            }
+        }
+
+        @Override
+        public void onFaviconsLoaded() {
+            mAdapter.notifyDataSetChanged();
         }
     }
 

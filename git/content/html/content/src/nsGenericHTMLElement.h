@@ -239,12 +239,14 @@ public:
   using nsINode::GetOn##name_;                                                \
   using nsINode::SetOn##name_;                                                \
   mozilla::dom::EventHandlerNonNull* GetOn##name_();                          \
-  void SetOn##name_(mozilla::dom::EventHandlerNonNull* handler);
+  void SetOn##name_(mozilla::dom::EventHandlerNonNull* handler,               \
+                    mozilla::ErrorResult& error);
 #define ERROR_EVENT(name_, id_, type_, struct_)                               \
   using nsINode::GetOn##name_;                                                \
   using nsINode::SetOn##name_;                                                \
   already_AddRefed<mozilla::dom::EventHandlerNonNull> GetOn##name_();         \
-  void SetOn##name_(mozilla::dom::EventHandlerNonNull* handler);
+  void SetOn##name_(mozilla::dom::EventHandlerNonNull* handler,               \
+                    mozilla::ErrorResult& error);
 #include "nsEventNameList.h" // IWYU pragma: keep
 #undef ERROR_EVENT
 #undef FORWARDED_EVENT

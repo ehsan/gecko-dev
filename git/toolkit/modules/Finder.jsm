@@ -80,11 +80,7 @@ Finder.prototype = {
 
   highlight: function (aHighlight, aWord) {
     this._searchString = aWord;
-    let found = this._highlight(aHighlight, aWord, null);
-    if (found)
-      this._notify(Ci.nsITypeAheadFind.FIND_FOUND, false, false);
-    else
-      this._notify(Ci.nsITypeAheadFind.FIND_NOTFOUND, false, false);
+    this._highlight(aHighlight, aWord, null);
   },
 
   removeSelection: function() {
@@ -182,10 +178,10 @@ Finder.prototype = {
   _highlight: function (aHighlight, aWord, aWindow) {
     let win = aWindow || this._getWindow();
 
-    let found = false;
+    let result = Ci.nsITypeAheadFind.FIND_NOTFOUND;
     for (let i = 0; win.frames && i < win.frames.length; i++) {
       if (this._highlight(aHighlight, aWord, win.frames[i]))
-        found = true;
+        result = Ci.nsITypeAheadFind.FIND_FOUND;
     }
 
     let controller = this._getSelectionController(win);
@@ -193,7 +189,8 @@ Finder.prototype = {
     if (!controller || !doc || !doc.documentElement) {
       // Without the selection controller,
       // we are unable to (un)highlight any matches
-      return found;
+      this._notify(result)
+      return;
     }
 
     let body = (doc instanceof Ci.nsIDOMHTMLDocument && doc.body) ?
@@ -222,7 +219,7 @@ Finder.prototype = {
         startPt = retRange.cloneRange();
         startPt.collapse(false);
 
-        found = true;
+        result = Ci.nsITypeAheadFind.FIND_FOUND;
       }
     } else {
       // First, attempt to remove highlighting from main document
@@ -242,12 +239,10 @@ Finder.prototype = {
           }
         }
       }
-
-      //Removing the highlighting always succeeds, so return true.
-      found = true;
+      return true;
     }
 
-    return found;
+    this._notify(result);
   },
 
   _highlightRange: function(aRange, aController) {
@@ -296,14 +291,6 @@ Finder.prototype = {
     return controller;
   },
 
-  /*
-   * For a given node, walk up it's parent chain, to try and find an
-   * editable node.
-   *
-   * @param aNode the node we want to check
-   * @returns the first node in the parent chain that is editable,
-   *          null if there is no such node
-   */
   _getEditableNode: function (aNode) {
     while (aNode) {
       if (aNode instanceof Ci.nsIDOMNSEditableElement)

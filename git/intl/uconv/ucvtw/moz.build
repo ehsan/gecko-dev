@@ -22,6 +22,3 @@ LIBRARY_NAME = 'ucvtw_s'
 
 LIBXUL_LIBRARY = True
 
-LOCAL_INCLUDES += [
-    '../util',
-]

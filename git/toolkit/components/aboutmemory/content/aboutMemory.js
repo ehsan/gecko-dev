@@ -48,16 +48,11 @@ XPCOMUtils.defineLazyGetter(this, "nsGzipConverter",
 let gMgr = Cc["@mozilla.org/memory-reporter-manager;1"]
              .getService(Ci.nsIMemoryReporterManager);
 
-// We need to know about "child-memory-reporter-update" events from child
-// processes.
-let gOs = Cc["@mozilla.org/observer-service;1"]
-            .getService(Ci.nsIObserverService);
-gOs.addObserver(updateAboutMemoryFromReporters,
-                "child-memory-reporter-update", false);
-
 let gUnnamedProcessStr = "Main Process";
 
 let gIsDiff = false;
+
+let gChildMemoryListener = undefined;
 
 //---------------------------------------------------------------------------
 
@@ -120,10 +115,28 @@ function debug(x)
 
 //---------------------------------------------------------------------------
 
+function addChildObserversAndUpdate(aUpdateFn)
+{
+  let os = Cc["@mozilla.org/observer-service;1"]
+             .getService(Ci.nsIObserverService);
+  os.notifyObservers(null, "child-memory-reporter-request", null);
+
+  gChildMemoryListener = aUpdateFn;
+  os.addObserver(gChildMemoryListener, "child-memory-reporter-update", false);
+
+  gChildMemoryListener();
+}
+
 function onUnload()
 {
-  gOs.removeObserver(updateAboutMemoryFromReporters,
-                     "child-memory-reporter-update");
+  // We need to check if the observer has been added before removing; in some
+  // circumstances (e.g. reloading the page quickly) it might not have because
+  // onLoad might not fire.
+  if (gChildMemoryListener) {
+    let os = Cc["@mozilla.org/observer-service;1"]
+               .getService(Ci.nsIObserverService);
+    os.removeObserver(gChildMemoryListener, "child-memory-reporter-update");
+  }
 }
 
 //---------------------------------------------------------------------------
@@ -454,12 +467,7 @@ function doMMU()
 
 function doMeasure()
 {
-  // Notify any children that they should measure memory consumption, then
-  // update the page.  If any reports come back from children,
-  // updateAboutMemoryFromReporters() will be called again and the page will
-  // regenerate.
-  gOs.notifyObservers(null, "child-memory-reporter-request", null);
-  updateAboutMemoryFromReporters();
+  addChildObserversAndUpdate(updateAboutMemoryFromReporters);
 }
 
 /**
@@ -483,9 +491,6 @@ function updateAboutMemoryFromReporters()
 }
 
 // Increment this if the JSON format changes.
-//
-// If/when this changes to 2, the beLenient() function and its use can be
-// removed.
 var gCurrentFileFormatVersion = 1;
 
 /**
@@ -961,29 +966,8 @@ function getPCollsByProcess(aProcessReports)
                   "non-sentence explicit description");
 
     } else {
-      const kLenientPrefixes =
-        ['rss/', 'pss/', 'size/', 'swap/', 'compartments/', 'ghost-windows/'];
-      let beLenient = function(aUnsafePath) {
-        for (let i = 0; i < kLenientPrefixes.length; i++) {
-          if (aUnsafePath.startsWith(kLenientPrefixes[i])) {
-            return true;
-          }
-        }
-        return false;
-      }
-
-      // In general, non-explicit reports should have a description that is a
-      // complete sentence.  However, we want to be able to read old saved
-      // reports, so we are lenient in a couple of situations where we used to
-      // allow non-sentence descriptions:
-      // - smaps reports (which were removed in bug 912165);
-      // - compartment and ghost-window reports (which had empty descriptions
-      //   prior to bug 911641).
-      if (!beLenient(aUnsafePath)) {
-        assertInput(gSentenceRegExp.test(aDescription),
-                    "non-sentence other description: " + aUnsafePath + ", " +
-                    aDescription);
-      }
+      assertInput(gSentenceRegExp.test(aDescription),
+                  "non-sentence other description");
     }
 
     assert(aPresence === undefined ||
@@ -1761,9 +1745,7 @@ function appendTreeElements(aP, aRoot, aProcess, aPadText)
       tIsInvalid = true;
       let unsafePath = aUnsafeNames.join("/");
       gUnsafePathsWithInvalidValuesForThisProcess.push(unsafePath);
-      reportAssertionFailure("Invalid value (" + aT._amount + " / " +
-                             aRoot._amount + ") for " +
-                             flipBackslashes(unsafePath));
+      reportAssertionFailure("Invalid value for " + flipBackslashes(unsafePath));
     }
 
     // For non-leaf nodes, the entire sub-tree is put within a span so it can

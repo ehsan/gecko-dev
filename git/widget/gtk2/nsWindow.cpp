@@ -105,7 +105,6 @@ extern "C" {
 #include "LayerManagerOGL.h"
 #include "GLContextProvider.h"
 #include "mozilla/gfx/2D.h"
-#include "mozilla/layers/CompositorParent.h"
 
 #ifdef MOZ_X11
 #include "gfxXlibSurface.h"
@@ -959,10 +958,9 @@ nsWindow::Show(bool aState)
 NS_IMETHODIMP
 nsWindow::Resize(double aWidth, double aHeight, bool aRepaint)
 {
-    CSSToLayoutDeviceScale scale = BoundsUseDisplayPixels() ? GetDefaultScale()
-                                    : CSSToLayoutDeviceScale(1.0);
-    int32_t width = NSToIntRound(scale.scale * aWidth);
-    int32_t height = NSToIntRound(scale.scale * aHeight);
+    double scale = BoundsUseDisplayPixels() ? GetDefaultScale() : 1.0;
+    int32_t width = NSToIntRound(scale * aWidth);
+    int32_t height = NSToIntRound(scale * aHeight);
     ConstrainSize(&width, &height);
 
     // For top-level windows, aWidth and aHeight should possibly be
@@ -1040,14 +1038,13 @@ NS_IMETHODIMP
 nsWindow::Resize(double aX, double aY, double aWidth, double aHeight,
                  bool aRepaint)
 {
-    CSSToLayoutDeviceScale scale = BoundsUseDisplayPixels() ? GetDefaultScale()
-                                    : CSSToLayoutDeviceScale(1.0);
-    int32_t width = NSToIntRound(scale.scale * aWidth);
-    int32_t height = NSToIntRound(scale.scale * aHeight);
+    double scale = BoundsUseDisplayPixels() ? GetDefaultScale() : 1.0;
+    int32_t width = NSToIntRound(scale * aWidth);
+    int32_t height = NSToIntRound(scale * aHeight);
     ConstrainSize(&width, &height);
 
-    int32_t x = NSToIntRound(scale.scale * aX);
-    int32_t y = NSToIntRound(scale.scale * aY);
+    int32_t x = NSToIntRound(scale * aX);
+    int32_t y = NSToIntRound(scale * aY);
     mBounds.x = x;
     mBounds.y = y;
     mBounds.SizeTo(width, height);
@@ -1129,10 +1126,9 @@ nsWindow::Move(double aX, double aY)
     LOG(("nsWindow::Move [%p] %f %f\n", (void *)this,
          aX, aY));
 
-    CSSToLayoutDeviceScale scale = BoundsUseDisplayPixels() ? GetDefaultScale()
-                                   : CSSToLayoutDeviceScale(1.0);
-    int32_t x = NSToIntRound(aX * scale.scale);
-    int32_t y = NSToIntRound(aY * scale.scale);
+    double scale = BoundsUseDisplayPixels() ? GetDefaultScale() : 1.0;
+    int32_t x = NSToIntRound(aX * scale);
+    int32_t y = NSToIntRound(aY * scale);
 
     if (mWindowType == eWindowType_toplevel ||
         mWindowType == eWindowType_dialog) {
@@ -1976,12 +1972,6 @@ nsWindow::OnExposeEvent(cairo_t *cr)
     if (!listener)
         return FALSE;
 
-    // Do an early async composite so that we at least have something on screen
-    // in the right place, even if the content is out of date.
-    if (GetLayerManager()->GetBackendType() == LAYERS_CLIENT && mCompositorParent) {
-        mCompositorParent->ScheduleRenderOnCompositorThread();
-    }
-
     // Dispatch WillPaintWindow notification to allow scripts etc. to run
     // before we paint
     {
@@ -2112,30 +2102,11 @@ nsWindow::OnExposeEvent(cairo_t *cr)
         return TRUE;
     }
 
-    gfxASurface* surf;
 #if defined(MOZ_WIDGET_GTK2)
-    surf = GetThebesSurface();
+    nsRefPtr<gfxContext> ctx = new gfxContext(GetThebesSurface());
 #else
-    surf = GetThebesSurface(cr);
+    nsRefPtr<gfxContext> ctx = new gfxContext(GetThebesSurface(cr));
 #endif
-
-    nsRefPtr<gfxContext> ctx;
-    if (gfxPlatform::GetPlatform()->
-            SupportsAzureContentForType(BACKEND_CAIRO)) {
-        IntSize intSize(surf->GetSize().width, surf->GetSize().height);
-        ctx = new gfxContext(gfxPlatform::GetPlatform()->
-            CreateDrawTargetForSurface(surf, intSize));
-    } else if (gfxPlatform::GetPlatform()->
-                   SupportsAzureContentForType(BACKEND_SKIA) &&
-               surf->GetType() != gfxASurface::SurfaceTypeImage) {
-       gfxImageSurface* imgSurf = static_cast<gfxImageSurface*>(surf);
-       SurfaceFormat format = ImageFormatToSurfaceFormat(imgSurf->Format());
-       IntSize intSize(surf->GetSize().width, surf->GetSize().height);
-       ctx = new gfxContext(gfxPlatform::GetPlatform()->CreateDrawTargetForData(
-           imgSurf->Data(), intSize, imgSurf->Stride(), format));
-    }  else {
-        ctx = new gfxContext(surf);
-    }
 
 #ifdef MOZ_X11
     nsIntRect boundsRect; // for shaped only
@@ -2200,7 +2171,23 @@ nsWindow::OnExposeEvent(cairo_t *cr)
             if (painted) {
                 nsRefPtr<gfxPattern> pattern = ctx->PopGroup();
 
-                UpdateAlpha(pattern, boundsRect);
+                nsRefPtr<gfxImageSurface> img =
+                    new gfxImageSurface(gfxIntSize(boundsRect.width, boundsRect.height),
+                                        gfxImageSurface::ImageFormatA8);
+                if (img && !img->CairoStatus()) {
+                    img->SetDeviceOffset(gfxPoint(-boundsRect.x, -boundsRect.y));
+
+                    nsRefPtr<gfxContext> imgCtx = new gfxContext(img);
+                    if (imgCtx) {
+                        imgCtx->SetPattern(pattern);
+                        imgCtx->SetOperator(gfxContext::OPERATOR_SOURCE);
+                        imgCtx->Paint();
+                    }
+
+                    UpdateTranslucentWindowAlphaInternal(nsIntRect(boundsRect.x, boundsRect.y,
+                                                                   boundsRect.width, boundsRect.height),
+                                                         img->Data(), img->Stride());
+                }
 
                 ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
                 ctx->SetPattern(pattern);
@@ -2246,44 +2233,6 @@ nsWindow::OnExposeEvent(cairo_t *cr)
 
     // check the return value!
     return TRUE;
-}
-
-void
-nsWindow::UpdateAlpha(gfxPattern* aPattern, nsIntRect aBoundsRect)
-{
-  if (gfxPlatform::GetPlatform()->SupportsAzureContent()) {
-      // We need to create our own buffer to force the stride to match the
-      // expected stride.
-      int32_t stride = GetAlignedStride<4>(BytesPerPixel(FORMAT_A8) *
-                                           aBoundsRect.width);
-      int32_t bufferSize = stride * aBoundsRect.height;
-      nsAutoArrayPtr<PRUint8> imageBuffer(new (std::nothrow) PRUint8[bufferSize]);
-      RefPtr<DrawTarget> drawTarget = gfxPlatform::GetPlatform()->
-          CreateDrawTargetForData(imageBuffer, ToIntSize(aBoundsRect.Size()),
-                                  stride, FORMAT_A8);
-
-      if (drawTarget) {
-          drawTarget->FillRect(ToRect(aBoundsRect),
-                               *aPattern->GetPattern(drawTarget),
-                               DrawOptions(1.0, OP_SOURCE));
-      }
-      UpdateTranslucentWindowAlphaInternal(aBoundsRect, imageBuffer, stride);
-  } else {
-      nsRefPtr<gfxImageSurface> img =
-          new gfxImageSurface(ThebesIntSize(aBoundsRect.Size()),
-                              gfxImageSurface::ImageFormatA8);
-      if (img && !img->CairoStatus()) {
-          img->SetDeviceOffset(-aBoundsRect.TopLeft());
-
-          nsRefPtr<gfxContext> imgCtx = new gfxContext(img);
-          imgCtx->SetPattern(aPattern);
-          imgCtx->SetOperator(gfxContext::OPERATOR_SOURCE);
-          imgCtx->Paint();
-
-          UpdateTranslucentWindowAlphaInternal(aBoundsRect, img->Data(),
-                                               img->Stride());
-      }
-  }
 }
 
 gboolean

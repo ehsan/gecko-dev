@@ -112,7 +112,7 @@ class JavaScriptShared
 
     bool unwrap(JSContext *cx, ObjectId id, JS::MutableHandle<JSObject*> objp) {
         if (!id) {
-            objp.set(nullptr);
+            objp.set(NULL);
             return true;
         }
 

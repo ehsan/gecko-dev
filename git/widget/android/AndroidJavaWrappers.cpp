@@ -757,13 +757,12 @@ AndroidGeckoEvent::MakeTouchEvent(nsIWidget* widget)
         // into Gecko (as opposed to going through the AsyncPanZoomController),
         // and the Points() array has points in CSS pixels, which we need
         // to convert.
-        CSSToLayoutDeviceScale scale = widget->GetDefaultScale();
         nsIntPoint pt(
-            (Points()[i].x * scale.scale) - offset.x,
-            (Points()[i].y * scale.scale) - offset.y);
+            (Points()[i].x * widget->GetDefaultScale()) - offset.x,
+            (Points()[i].y * widget->GetDefaultScale()) - offset.y);
         nsIntPoint radii(
-            PointRadii()[i].x * scale.scale,
-            PointRadii()[i].y * scale.scale);
+            PointRadii()[i].x * widget->GetDefaultScale(),
+            PointRadii()[i].y * widget->GetDefaultScale());
         nsRefPtr<Touch> t = new Touch(PointIndicies()[i],
                                       pt,
                                       radii,

@@ -239,13 +239,13 @@ BEGIN_TEST(testXDR_sourceMap)
         CHECK(expected);
 
         // The script source takes responsibility of free'ing |expected|.
-        CHECK(script->scriptSource()->setSourceMapURL(cx, expected));
+        CHECK(script->scriptSource()->setSourceMap(cx, expected));
         script = FreezeThaw(cx, script);
         CHECK(script);
         CHECK(script->scriptSource());
-        CHECK(script->scriptSource()->hasSourceMapURL());
+        CHECK(script->scriptSource()->hasSourceMap());
 
-        const jschar *actual = script->scriptSource()->sourceMapURL();
+        const jschar *actual = script->scriptSource()->sourceMap();
         CHECK(actual);
 
         while (*expected) {

@@ -445,12 +445,7 @@ class XPCShellTestThread(Thread):
     def report_message(self, line):
         """ Reports a message to a consumer, both as a strucutured and
         human-readable log message. """
-        message = self.message_from_line(line)
-
-        if message.endswith('\n'):
-            # A new line is always added by head.js to delimit messages,
-            # however consumers will want to supply their own.
-            message = message[:-1]
+        message = self.message_from_line(line).strip()
 
         if self.on_message:
             self.on_message(line, message)

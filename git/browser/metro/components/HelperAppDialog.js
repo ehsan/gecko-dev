@@ -44,8 +44,7 @@ HelperAppLauncherDialog.prototype = {
 
   _getDownloadSize: function dv__getDownloadSize (aSize) {
     let displaySize = DownloadUtils.convertByteUnits(aSize);
-    // displaySize[0] is formatted size, displaySize[1] is units
-    if (aSize > 0)
+    if (!isNaN(displaySize[0]) && displaySize[0] > 0) // [0] is size, [1] is units
       return displaySize.join("");
     else {
       let browserBundle = Services.strings.createBundle("chrome://browser/locale/browser.properties");
@@ -124,6 +123,7 @@ HelperAppLauncherDialog.prototype = {
                         className: "download-host-text"
                       }
                     );
+    notificationBox.notificationsHidden = false;
     let newBar = notificationBox.appendNotification("",
                                                     "save-download",
                                                     URI_GENERIC_ICON_DOWNLOAD,

@@ -23,8 +23,6 @@
 using namespace js;
 using namespace jit;
 
-using JS::GenericNaN;
-
 bool
 LIRGenerator::visitParameter(MParameter *param)
 {
@@ -1325,12 +1323,6 @@ LIRGenerator::visitMul(MMul *ins)
     if (ins->specialization() == MIRType_Int32) {
         JS_ASSERT(lhs->type() == MIRType_Int32);
         ReorderCommutative(&lhs, &rhs);
-
-        // If our RHS is a constant -1 and we don't have to worry about
-        // overflow, we can optimize to an LNegI.
-        if (!ins->fallible() && rhs->isConstant() && rhs->toConstant()->value() == Int32Value(-1))
-            return defineReuseInput(new LNegI(useRegisterAtStart(lhs)), ins, 0);
-
         return lowerMulI(ins, lhs, rhs);
     }
     if (ins->specialization() == MIRType_Double) {
@@ -1348,7 +1340,9 @@ LIRGenerator::visitMul(MMul *ins)
         ReorderCommutative(&lhs, &rhs);
 
         // We apply the same optimizations as for doubles
-        if (rhs->isConstant() && rhs->toConstant()->value() == Float32Value(-1.0f))
+        if (lhs->isConstant() && lhs->toConstant()->value() == JS::Float32Value(-1.0f))
+            return defineReuseInput(new LNegF(useRegisterAtStart(rhs)), ins, 0);
+        if (rhs->isConstant() && rhs->toConstant()->value() == JS::Float32Value(-1.0f))
             return defineReuseInput(new LNegF(useRegisterAtStart(lhs)), ins, 0);
 
         return lowerForFPU(new LMathF(JSOP_MUL), ins, lhs, rhs);
@@ -1556,7 +1550,7 @@ LIRGenerator::visitToDouble(MToDouble *convert)
 
       case MIRType_Undefined:
         JS_ASSERT(conversion != MToDouble::NumbersOnly);
-        return lowerConstantDouble(GenericNaN(), convert);
+        return lowerConstantDouble(js_NaN, convert);
 
       case MIRType_Boolean:
         JS_ASSERT(conversion != MToDouble::NumbersOnly);
@@ -1605,7 +1599,7 @@ LIRGenerator::visitToFloat32(MToFloat32 *convert)
 
       case MIRType_Undefined:
         JS_ASSERT(conversion != MToFloat32::NumbersOnly);
-        return lowerConstantFloat32(GenericNaN(), convert);
+        return lowerConstantFloat32(js_NaN, convert);
 
       case MIRType_Boolean:
         JS_ASSERT(conversion != MToFloat32::NumbersOnly);
@@ -1964,10 +1958,13 @@ LIRGenerator::visitTypeBarrier(MTypeBarrier *ins)
     MIRType outputType = ins->type();
 
     JS_ASSERT(inputType == outputType);
+    JS_ASSERT_IF(ins->alwaysBails(), outputType == MIRType_Value);
 
     // Handle typebarrier that will always bail.
     // (Emit LBail for visibility).
     if (ins->alwaysBails()) {
+        JS_ASSERT(outputType == MIRType_Value);
+
         LBail *bail = new LBail();
         if (!assignSnapshot(bail, ins->bailoutKind()))
             return false;
@@ -2019,11 +2016,6 @@ bool
 LIRGenerator::visitPostWriteBarrier(MPostWriteBarrier *ins)
 {
 #ifdef JSGC_GENERATIONAL
-    if (!ins->hasValue()) {
-        LPostWriteBarrierAllSlots *lir =
-            new LPostWriteBarrierAllSlots(useRegisterOrConstant(ins->object()));
-        return add(lir, ins) && assignSafepoint(lir, ins);
-    }
     switch (ins->value()->type()) {
       case MIRType_Object: {
         LPostWriteBarrierO *lir = new LPostWriteBarrierO(useRegisterOrConstant(ins->object()),
@@ -2447,11 +2439,8 @@ LIRGenerator::visitStoreTypedArrayElement(MStoreTypedArrayElement *ins)
     JS_ASSERT(ins->index()->type() == MIRType_Int32);
 
     if (ins->isFloatArray()) {
-        bool optimizeFloat32 = allowFloat32Optimizations();
-        JS_ASSERT_IF(optimizeFloat32 && ins->arrayType() == ScalarTypeRepresentation::TYPE_FLOAT32,
-                     ins->value()->type() == MIRType_Float32);
-        JS_ASSERT_IF(!optimizeFloat32 || ins->arrayType() == ScalarTypeRepresentation::TYPE_FLOAT64,
-                     ins->value()->type() == MIRType_Double);
+        JS_ASSERT_IF(ins->arrayType() == ScalarTypeRepresentation::TYPE_FLOAT32, ins->value()->type() == MIRType_Float32);
+        JS_ASSERT_IF(ins->arrayType() == ScalarTypeRepresentation::TYPE_FLOAT64, ins->value()->type() == MIRType_Double);
     } else {
         JS_ASSERT(ins->value()->type() == MIRType_Int32);
     }
@@ -2476,11 +2465,8 @@ LIRGenerator::visitStoreTypedArrayElementHole(MStoreTypedArrayElementHole *ins)
     JS_ASSERT(ins->length()->type() == MIRType_Int32);
 
     if (ins->isFloatArray()) {
-        bool optimizeFloat32 = allowFloat32Optimizations();
-        JS_ASSERT_IF(optimizeFloat32 && ins->arrayType() == ScalarTypeRepresentation::TYPE_FLOAT32,
-                     ins->value()->type() == MIRType_Float32);
-        JS_ASSERT_IF(!optimizeFloat32 || ins->arrayType() == ScalarTypeRepresentation::TYPE_FLOAT64,
-                     ins->value()->type() == MIRType_Double);
+        JS_ASSERT_IF(ins->arrayType() == ScalarTypeRepresentation::TYPE_FLOAT32, ins->value()->type() == MIRType_Float32);
+        JS_ASSERT_IF(ins->arrayType() == ScalarTypeRepresentation::TYPE_FLOAT64, ins->value()->type() == MIRType_Double);
     } else {
         JS_ASSERT(ins->value()->type() == MIRType_Int32);
     }
@@ -2674,7 +2660,7 @@ LIRGenerator::visitAssertRange(MAssertRange *ins)
 
     switch (input->type()) {
       case MIRType_Int32:
-        lir = new LAssertRangeI(useRegisterAtStart(input));
+          lir = new LAssertRangeI(useRegisterAtStart(input));
         break;
 
       case MIRType_Double:

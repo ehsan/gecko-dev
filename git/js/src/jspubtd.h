@@ -71,7 +71,7 @@ typedef enum JSType {
 typedef enum JSProtoKey {
 #define PROTOKEY_AND_INITIALIZER(name,code,init) JSProto_##name = code,
     JS_FOR_EACH_PROTOTYPE(PROTOKEY_AND_INITIALIZER)
-#undef PROTOKEY_AND_INITIALIZER
+#undef JS_PROTO
     JSProto_LIMIT
 } JSProtoKey;
 
@@ -201,14 +201,14 @@ struct Runtime
   public:
     Runtime(
 #ifdef JSGC_GENERATIONAL
-        js::gc::StoreBuffer *storeBuffer
+        js::gc::StoreBuffer *gcStoreBufferPtr
 #endif
     )
       : needsBarrier_(false)
 #ifdef JSGC_GENERATIONAL
       , gcNurseryStart_(0)
       , gcNurseryEnd_(0)
-      , gcStoreBufferPtr_(storeBuffer)
+      , gcStoreBufferPtr_(gcStoreBufferPtr)
 #endif
     {}
 

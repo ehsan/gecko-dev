@@ -22,6 +22,7 @@ interface AudioChannelManager : EventTarget {
    * speakers (or vice versa).  This allows you to, for example, pause your
    * window's audio when the headphones are unplugged.
    */
+  [SetterThrows]
   attribute EventHandler onheadphoneschange;
 
   /**

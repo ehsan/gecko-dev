@@ -100,7 +100,6 @@ class CodeGenerator : public CodeGeneratorSpecific
     bool visitMonitorTypes(LMonitorTypes *lir);
     bool visitPostWriteBarrierO(LPostWriteBarrierO *lir);
     bool visitPostWriteBarrierV(LPostWriteBarrierV *lir);
-    bool visitPostWriteBarrierAllSlots(LPostWriteBarrierAllSlots *lir);
     bool visitOutOfLineCallPostWriteBarrier(OutOfLineCallPostWriteBarrier *ool);
     bool visitCallNative(LCallNative *call);
     bool emitCallInvokeFunction(LInstruction *call, Register callereg,
@@ -364,8 +363,8 @@ class CodeGenerator : public CodeGeneratorSpecific
     // Bailout if an element about to be written to is a hole.
     bool emitStoreHoleCheck(Register elements, const LAllocation *index, LSnapshot *snapshot);
 
-    bool emitAssertRangeI(const Range *r, Register input);
-    bool emitAssertRangeD(const Range *r, FloatRegister input, FloatRegister temp);
+    bool emitAssertRangeI(Range *r, Register input);
+    bool emitAssertRangeD(Range *r, FloatRegister input, FloatRegister temp);
 
     // Script counts created when compiling code with no associated JSScript.
     IonScriptCounts *unassociatedScriptCounts_;

@@ -28,6 +28,18 @@ class MBasicBlock;
 class MIRGraph;
 class MStart;
 
+struct AsmJSGlobalAccess
+{
+    unsigned offset;
+    unsigned globalDataOffset;
+
+    AsmJSGlobalAccess(unsigned offset, unsigned globalDataOffset)
+      : offset(offset), globalDataOffset(globalDataOffset)
+    {}
+};
+
+typedef Vector<AsmJSGlobalAccess, 0, IonAllocPolicy> AsmJSGlobalAccessVector;
+
 class MIRGenerator
 {
   public:

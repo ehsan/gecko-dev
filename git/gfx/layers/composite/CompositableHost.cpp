@@ -55,7 +55,6 @@ CompositableHost::AddTextureHost(TextureHost* aTexture)
   RefPtr<TextureHost> second = mFirstTexture;
   mFirstTexture = aTexture;
   aTexture->SetNextSibling(second);
-  aTexture->SetCompositableQuirks(GetCompositableQuirks());
 }
 
 void

@@ -12,6 +12,7 @@
 #include "Relation.h"
 #include "Role.h"
 #include "States.h"
+#include "TreeWalker.h"
 
 #include "nsContentList.h"
 #include "nsCxPusher.h"

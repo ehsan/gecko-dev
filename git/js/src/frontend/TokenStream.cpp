@@ -274,7 +274,7 @@ TokenStream::TokenStream(ExclusiveContext *cx, const CompileOptions &options,
     prevLinebase(NULL),
     userbuf(cx, base - options.column, length + options.column), // See comment below
     filename(options.filename),
-    sourceMapURL_(NULL),
+    sourceMap(NULL),
     tokenbuf(cx),
     cx(cx),
     originPrincipals(options.originPrincipals()),
@@ -333,7 +333,7 @@ TokenStream::TokenStream(ExclusiveContext *cx, const CompileOptions &options,
 
 TokenStream::~TokenStream()
 {
-    js_free(sourceMapURL_);
+    js_free(sourceMap);
 
     JS_ASSERT_IF(originPrincipals, originPrincipals->refcount);
 }
@@ -844,15 +844,15 @@ TokenStream::getSourceMappingURL(bool isMultiline, bool shouldWarnDeprecated)
             // we should stop and drop everything for, though.
             return true;
 
-        size_t sourceMapURLLength = tokenbuf.length();
+        size_t sourceMapLength = tokenbuf.length();
 
-        js_free(sourceMapURL_);
-        sourceMapURL_ = cx->pod_malloc<jschar>(sourceMapURLLength + 1);
-        if (!sourceMapURL_)
+        js_free(sourceMap);
+        sourceMap = cx->pod_malloc<jschar>(sourceMapLength + 1);
+        if (!sourceMap)
             return false;
 
-        PodCopy(sourceMapURL_, tokenbuf.begin(), sourceMapURLLength);
-        sourceMapURL_[sourceMapURLLength] = '\0';
+        PodCopy(sourceMap, tokenbuf.begin(), sourceMapLength);
+        sourceMap[sourceMapLength] = '\0';
     }
     return true;
 }

@@ -71,10 +71,11 @@ interface Element : Node {
 
   // Mozilla specific stuff
 
-  [LenientThis]
+  [SetterThrows,LenientThis]
            attribute EventHandler onmouseenter;
-  [LenientThis]
+  [SetterThrows,LenientThis]
            attribute EventHandler onmouseleave;
+  [SetterThrows]
            attribute EventHandler onwheel;
 
   // Selectors API

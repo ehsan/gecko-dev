@@ -2665,20 +2665,6 @@ Debugger::findAllGlobals(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-bool
-Debugger::makeGlobalObjectReference(JSContext *cx, unsigned argc, Value *vp)
-{
-    REQUIRE_ARGC("Debugger.makeGlobalObjectReference", 1);
-    THIS_DEBUGGER(cx, argc, vp, "makeGlobalObjectReference", args, dbg);
-
-    Rooted<GlobalObject *> global(cx, dbg->unwrapDebuggeeArgument(cx, args[0]));
-    if (!global)
-        return false;
-
-    args.rval().setObject(*global);
-    return dbg->wrapDebuggeeValue(cx, args.rval());
-}
-
 const JSPropertySpec Debugger::properties[] = {
     JS_PSGS("enabled", Debugger::getEnabled, Debugger::setEnabled, 0),
     JS_PSGS("onDebuggerStatement", Debugger::getOnDebuggerStatement,
@@ -2704,7 +2690,6 @@ const JSFunctionSpec Debugger::methods[] = {
     JS_FN("clearAllBreakpoints", Debugger::clearAllBreakpoints, 1, 0),
     JS_FN("findScripts", Debugger::findScripts, 1, 0),
     JS_FN("findAllGlobals", Debugger::findAllGlobals, 0, 0),
-    JS_FN("makeGlobalObjectReference", Debugger::makeGlobalObjectReference, 1, 0),
     JS_FS_END
 };
 
@@ -2716,6 +2701,13 @@ GetScriptReferent(JSObject *obj)
 {
     JS_ASSERT(obj->getClass() == &DebuggerScript_class);
     return static_cast<JSScript *>(obj->getPrivate());
+}
+
+static inline void
+SetScriptReferent(JSObject *obj, JSScript *script)
+{
+    JS_ASSERT(obj->getClass() == &DebuggerScript_class);
+    obj->setPrivateGCThing(script);
 }
 
 static void
@@ -2908,8 +2900,8 @@ DebuggerScript_getSourceMapUrl(JSContext *cx, unsigned argc, Value *vp)
     ScriptSource *source = script->scriptSource();
     JS_ASSERT(source);
 
-    if (source->hasSourceMapURL()) {
-        JSString *str = JS_NewUCStringCopyZ(cx, source->sourceMapURL());
+    if (source->hasSourceMap()) {
+        JSString *str = JS_NewUCStringCopyZ(cx, source->sourceMap());
         if (!str)
             return false;
         args.rval().setString(str);
@@ -3723,12 +3715,7 @@ DebuggerSource_getText(JSContext *cx, unsigned argc, Value *vp)
     THIS_DEBUGSOURCE_REFERENT(cx, argc, vp, "(get text)", args, obj, sourceObject);
 
     ScriptSource *ss = sourceObject->source();
-    bool hasSourceData = ss->hasSourceData();
-    if (!ss->hasSourceData() && !JSScript::loadSource(cx, ss, &hasSourceData))
-        return false;
-
-    JSString *str = hasSourceData ? ss->substring(cx, 0, ss->length())
-                                  : js_NewStringCopyZ<CanGC>(cx, "[no source]");
+    JSString *str = ss->substring(cx, 0, ss->length());
     if (!str)
         return false;
 

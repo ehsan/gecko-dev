@@ -6,13 +6,9 @@
           -->
         <service
             android:exported="false"
-            android:name="org.mozilla.gecko.background.healthreport.HealthReportBroadcastService" >
+            android:name="org.mozilla.gecko.background.healthreport.upload.HealthReportBroadcastService" >
         </service>
         <service
             android:exported="false"
             android:name="org.mozilla.gecko.background.healthreport.upload.HealthReportUploadService" >
-        </service>
-        <service
-            android:exported="false"
-            android:name="org.mozilla.gecko.background.healthreport.prune.HealthReportPruneService" >
         </service>

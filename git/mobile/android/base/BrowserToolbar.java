@@ -20,7 +20,6 @@ import org.mozilla.gecko.util.HardwareUtils;
 import org.mozilla.gecko.util.ThreadUtils;
 import org.mozilla.gecko.util.UiAsyncTask;
 import org.mozilla.gecko.util.GeckoEventListener;
-import org.mozilla.gecko.util.StringUtils;
 
 import org.json.JSONObject;
 
@@ -1093,7 +1092,8 @@ public class BrowserToolbar extends GeckoRelativeLayout
             return;
         }
 
-        CharSequence title = StringUtils.stripCommonSubdomains(StringUtils.stripScheme(url));
+        url = StringUtils.stripScheme(url);
+        CharSequence title = StringUtils.stripCommonSubdomains(url);
 
         String baseDomain = tab.getBaseDomain();
         if (!TextUtils.isEmpty(baseDomain)) {

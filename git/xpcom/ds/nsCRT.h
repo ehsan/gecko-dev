@@ -6,6 +6,7 @@
 #define nsCRT_h___
 
 #include <stdlib.h>
+#include <string.h>
 #include <ctype.h>
 #include "plstr.h"
 #include "nscore.h"

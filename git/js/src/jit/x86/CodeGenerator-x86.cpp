@@ -25,7 +25,6 @@ using namespace js::jit;
 using mozilla::DebugOnly;
 using mozilla::DoubleExponentBias;
 using mozilla::DoubleExponentShift;
-using JS::GenericNaN;
 
 CodeGeneratorX86::CodeGeneratorX86(MIRGenerator *gen, LIRGraph *graph, MacroAssembler *masm)
   : CodeGeneratorX86Shared(gen, graph, masm)
@@ -278,7 +277,8 @@ CodeGeneratorX86::visitInterruptCheck(LInterruptCheck *lir)
     if (!ool)
         return false;
 
-    masm.cmpl(Operand(AbsoluteAddress(&GetIonContext()->runtime->interrupt)), Imm32(0));
+    void *interrupt = (void*)&GetIonContext()->runtime->interrupt;
+    masm.cmpl(Operand(interrupt), Imm32(0));
     masm.j(Assembler::NonZero, ool->entry());
     masm.bind(ool->rejoin());
     return true;
@@ -384,7 +384,7 @@ CodeGeneratorX86::visitCompareVAndBranch(LCompareVAndBranch *lir)
 }
 
 bool
-CodeGeneratorX86::visitAsmJSUInt32ToDouble(LAsmJSUInt32ToDouble *lir)
+CodeGeneratorX86::visitUInt32ToDouble(LUInt32ToDouble *lir)
 {
     Register input = ToRegister(lir->input());
     Register temp = ToRegister(lir->temp());
@@ -494,11 +494,10 @@ CodeGeneratorX86::visitAsmJSLoadHeap(LAsmJSLoadHeap *ins)
     const LDefinition *out = ins->output();
 
     if (ptr->isConstant()) {
-        // The constant displacement still needs to be added to the as-yet-unknown
-        // base address of the heap. For now, embed the displacement as an
-        // immediate in the instruction. This displacement will fixed up when the
-        // base address is known during dynamic linking (AsmJSModule::initHeap).
-        PatchedAbsoluteAddress srcAddr((void *) ptr->toConstant()->toInt32());
+        JS_ASSERT(mir->skipBoundsCheck());
+        int32_t ptrImm = ptr->toConstant()->toInt32();
+        JS_ASSERT(ptrImm >= 0);
+        AbsoluteAddress srcAddr((void *) ptrImm);
         return loadViewTypeElement(vt, srcAddr, out);
     }
 
@@ -535,7 +534,7 @@ bool
 CodeGeneratorX86::visitOutOfLineLoadTypedArrayOutOfBounds(OutOfLineLoadTypedArrayOutOfBounds *ool)
 {
     if (ool->dest().isFloat()) {
-        masm.loadConstantDouble(GenericNaN(), ool->dest().fpu());
+        masm.movsd(&js_NaN, ool->dest().fpu());
     } else {
         Register destReg = ool->dest().gpr();
         masm.xorl(destReg, destReg);
@@ -614,11 +613,10 @@ CodeGeneratorX86::visitAsmJSStoreHeap(LAsmJSStoreHeap *ins)
     const LAllocation *ptr = ins->ptr();
 
     if (ptr->isConstant()) {
-        // The constant displacement still needs to be added to the as-yet-unknown
-        // base address of the heap. For now, embed the displacement as an
-        // immediate in the instruction. This displacement will fixed up when the
-        // base address is known during dynamic linking (AsmJSModule::initHeap).
-        PatchedAbsoluteAddress dstAddr((void *) ptr->toConstant()->toInt32());
+        JS_ASSERT(mir->skipBoundsCheck());
+        int32_t ptrImm = ptr->toConstant()->toInt32();
+        JS_ASSERT(ptrImm >= 0);
+        AbsoluteAddress dstAddr((void *) ptrImm);
         return storeViewTypeElement(vt, value, dstAddr);
     }
 
@@ -654,9 +652,9 @@ CodeGeneratorX86::visitAsmJSLoadGlobalVar(LAsmJSLoadGlobalVar *ins)
 
     CodeOffsetLabel label;
     if (mir->type() == MIRType_Int32)
-        label = masm.movlWithPatch(PatchedAbsoluteAddress(), ToRegister(ins->output()));
+        label = masm.movlWithPatch(NULL, ToRegister(ins->output()));
     else
-        label = masm.movsdWithPatch(PatchedAbsoluteAddress(), ToFloatRegister(ins->output()));
+        label = masm.movsdWithPatch(NULL, ToFloatRegister(ins->output()));
 
     return gen->noteGlobalAccess(label.offset(), mir->globalDataOffset());
 }
@@ -671,9 +669,9 @@ CodeGeneratorX86::visitAsmJSStoreGlobalVar(LAsmJSStoreGlobalVar *ins)
 
     CodeOffsetLabel label;
     if (type == MIRType_Int32)
-        label = masm.movlWithPatch(ToRegister(ins->value()), PatchedAbsoluteAddress());
+        label = masm.movlWithPatch(ToRegister(ins->value()), NULL);
     else
-        label = masm.movsdWithPatch(ToFloatRegister(ins->value()), PatchedAbsoluteAddress());
+        label = masm.movsdWithPatch(ToFloatRegister(ins->value()), NULL);
 
     return gen->noteGlobalAccess(label.offset(), mir->globalDataOffset());
 }
@@ -685,7 +683,7 @@ CodeGeneratorX86::visitAsmJSLoadFuncPtr(LAsmJSLoadFuncPtr *ins)
 
     Register index = ToRegister(ins->index());
     Register out = ToRegister(ins->output());
-    CodeOffsetLabel label = masm.movlWithPatch(PatchedAbsoluteAddress(), index, TimesFour, out);
+    CodeOffsetLabel label = masm.movlWithPatch(NULL, index, TimesFour, out);
 
     return gen->noteGlobalAccess(label.offset(), mir->globalDataOffset());
 }
@@ -696,7 +694,7 @@ CodeGeneratorX86::visitAsmJSLoadFFIFunc(LAsmJSLoadFFIFunc *ins)
     MAsmJSLoadFFIFunc *mir = ins->mir();
 
     Register out = ToRegister(ins->output());
-    CodeOffsetLabel label = masm.movlWithPatch(PatchedAbsoluteAddress(), out);
+    CodeOffsetLabel label = masm.movlWithPatch(NULL, out);
 
     return gen->noteGlobalAccess(label.offset(), mir->globalDataOffset());
 }
@@ -835,12 +833,14 @@ CodeGeneratorX86::visitOutOfLineTruncate(OutOfLineTruncate *ool)
             Label positive;
             masm.j(Assembler::Above, &positive);
 
-            masm.loadConstantDouble(4294967296.0, temp);
+            static const double shiftNeg = 4294967296.0;
+            masm.loadStaticDouble(&shiftNeg, temp);
             Label skip;
             masm.jmp(&skip);
 
             masm.bind(&positive);
-            masm.loadConstantDouble(-4294967296.0, temp);
+            static const double shiftPos = -4294967296.0;
+            masm.loadStaticDouble(&shiftPos, temp);
             masm.bind(&skip);
         }
 

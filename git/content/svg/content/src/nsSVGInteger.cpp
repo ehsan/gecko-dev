@@ -8,7 +8,6 @@
 #include "nsSVGInteger.h"
 #include "nsSMILValue.h"
 #include "SMILIntegerType.h"
-#include "SVGContentUtils.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -25,7 +24,7 @@ GetValueFromString(const nsAString &aValueAsString,
   NS_ConvertUTF16toUTF8 value(aValueAsString);
   const char *str = value.get();
 
-  if (IsSVGWhitespace(*str))
+  if (NS_IsAsciiWhitespace(*str))
     return NS_ERROR_DOM_SYNTAX_ERR;
   
   char *rest;

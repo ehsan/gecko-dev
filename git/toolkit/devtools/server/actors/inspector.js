@@ -817,7 +817,6 @@ var WalkerActor = protocol.ActorClass({
     this._activePseudoClassLocks = null;
     this.progressListener.destroy();
     this.rootDoc = null;
-    events.emit(this, "destroyed");
     protocol.Actor.prototype.destroy.call(this);
   },
 
@@ -924,6 +923,7 @@ var WalkerActor = protocol.ActorClass({
   },
 
   highlight: method(function(node) {
+    this._installHelperSheet(node);
     this._unhighlight();
 
     if (!node ||
@@ -932,7 +932,6 @@ var WalkerActor = protocol.ActorClass({
       return;
     }
 
-    this._installHelperSheet(node);
     this.layoutHelpers.scrollIntoViewIfNeeded(node.rawNode);
     DOMUtils.addPseudoClassLock(node.rawNode, HIGHLIGHTED_PSEUDO_CLASS);
     this._highlightTimeout = setTimeout(this._unhighlight.bind(this), HIGHLIGHTED_TIMEOUT);
@@ -2209,10 +2208,6 @@ var InspectorActor = protocol.ActorClass({
       let tabActor = this.tabActor;
       window.removeEventListener("DOMContentLoaded", domReady, true);
       this.walker = WalkerActor(this.conn, tabActor, options);
-      events.once(this.walker, "destroyed", () => {
-        this._walkerPromise = null;
-        this._pageStylePromise = null;
-      });
       deferred.resolve(this.walker);
     };
 

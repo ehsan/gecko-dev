@@ -62,7 +62,6 @@ EventEmitter.prototype = {
       this.off(aEvent, handler);
       aListener.apply(null, arguments);
     }.bind(this);
-    handler._originalListener = aListener;
     this.on(aEvent, handler);
   },
 
@@ -80,9 +79,7 @@ EventEmitter.prototype = {
       return;
     let listeners = this._eventEmitterListeners.get(aEvent);
     if (listeners) {
-      this._eventEmitterListeners.set(aEvent, listeners.filter(l => {
-        return l !== aListener && l._originalListener !== aListener;
-      }));
+      this._eventEmitterListeners.set(aEvent, listeners.filter(function(l) aListener != l));
     }
   },
 

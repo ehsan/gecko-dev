@@ -304,7 +304,7 @@ class ScriptSource
     uint32_t length_;
     uint32_t compressedLength_;
     char *filename_;
-    jschar *sourceMapURL_;
+    jschar *sourceMap_;
     JSPrincipals *originPrincipals_;
 
     // True if we can call JSRuntime::sourceHook to load the source on
@@ -320,7 +320,7 @@ class ScriptSource
         length_(0),
         compressedLength_(0),
         filename_(NULL),
-        sourceMapURL_(NULL),
+        sourceMap_(NULL),
         originPrincipals_(originPrincipals),
         sourceRetrievable_(false),
         argumentsNotIncluded_(false),
@@ -368,9 +368,9 @@ class ScriptSource
     }
 
     // Source maps
-    bool setSourceMapURL(ExclusiveContext *cx, const jschar *sourceMapURL);
-    const jschar *sourceMapURL();
-    bool hasSourceMapURL() const { return sourceMapURL_ != NULL; }
+    bool setSourceMap(ExclusiveContext *cx, jschar *sourceMapURL);
+    const jschar *sourceMap();
+    bool hasSourceMap() const { return sourceMap_ != NULL; }
 
     JSPrincipals *originPrincipals() const { return originPrincipals_; }
 
@@ -432,7 +432,7 @@ GeneratorKindFromBits(unsigned val) {
 
 } /* namespace js */
 
-class JSScript : public js::gc::BarrieredCell<JSScript>
+class JSScript : public js::gc::Cell
 {
     static const uint32_t stepFlagMask = 0x80000000U;
     static const uint32_t stepCountMask = 0x7fffffffU;
@@ -592,7 +592,6 @@ class JSScript : public js::gc::BarrieredCell<JSScript>
     bool            shouldCloneAtCallsite:1;
     bool            isCallsiteClone:1; /* is a callsite clone; has a link to the original function */
     bool            shouldInline:1;    /* hint to inline when possible */
-    bool            uninlineable:1;    /* explicitly marked as uninlineable */
 #ifdef JS_ION
     bool            failedBoundsCheck:1; /* script has had hoisted bounds checks fail */
     bool            failedShapeGuard:1; /* script has had hoisted shape guard fail */
@@ -797,7 +796,7 @@ class JSScript : public js::gc::BarrieredCell<JSScript>
 
     JSFlatString *sourceData(JSContext *cx);
 
-    static bool loadSource(JSContext *cx, js::ScriptSource *ss, bool *worked);
+    static bool loadSource(JSContext *cx, js::HandleScript scr, bool *worked);
 
     void setSourceObject(js::ScriptSourceObject *object);
     js::ScriptSourceObject *sourceObject() const;
@@ -932,8 +931,6 @@ class JSScript : public js::gc::BarrieredCell<JSScript>
         return reinterpret_cast<js::TryNoteArray *>(data + trynotesOffset());
     }
 
-    bool hasLoops();
-
     js::HeapPtrAtom &getAtom(size_t index) const {
         JS_ASSERT(index < natoms);
         return atoms[index];
@@ -1062,6 +1059,26 @@ class JSScript : public js::gc::BarrieredCell<JSScript>
 
     void finalize(js::FreeOp *fop);
 
+    JS::Zone *zone() const { return tenuredZone(); }
+    JS::shadow::Zone *shadowZone() const { return JS::shadow::Zone::asShadowZone(zone()); }
+
+    static void writeBarrierPre(JSScript *script) {
+#ifdef JSGC_INCREMENTAL
+        if (!script || !script->shadowRuntimeFromAnyThread()->needsBarrier())
+            return;
+
+        JS::shadow::Zone *shadowZone = script->shadowZone();
+        if (shadowZone->needsBarrier()) {
+            MOZ_ASSERT(!js::RuntimeFromMainThreadIsHeapMajorCollecting(shadowZone));
+            JSScript *tmp = script;
+            js::gc::MarkScriptUnbarriered(shadowZone->barrierTracer(), &tmp, "write barrier");
+            JS_ASSERT(tmp == script);
+        }
+#endif
+    }
+
+    static void writeBarrierPost(JSScript *script, void *addr) {}
+
     static inline js::ThingRootKind rootKind() { return js::THING_ROOT_SCRIPT; }
 
     void markChildren(JSTracer *trc);
@@ -1146,7 +1163,7 @@ class AliasedFormalIter
 
 // Information about a script which may be (or has been) lazily compiled to
 // bytecode from its source.
-class LazyScript : public gc::BarrieredCell<LazyScript>
+class LazyScript : public js::gc::Cell
 {
     // If non-NULL, the script has been compiled and this is a forwarding
     // pointer to the result.
@@ -1318,12 +1335,30 @@ class LazyScript : public gc::BarrieredCell<LazyScript>
 
     uint32_t staticLevel(JSContext *cx) const;
 
+    Zone *zone() const { return tenuredZone(); }
+    JS::shadow::Zone *shadowZone() const { return JS::shadow::Zone::asShadowZone(zone()); }
+
     void markChildren(JSTracer *trc);
     void finalize(js::FreeOp *fop);
 
     size_t sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf)
     {
         return mallocSizeOf(table_);
+    }
+
+    static void writeBarrierPre(LazyScript *lazy) {
+#ifdef JSGC_INCREMENTAL
+        if (!lazy || !lazy->shadowRuntimeFromAnyThread()->needsBarrier())
+            return;
+
+        JS::shadow::Zone *shadowZone = lazy->shadowZone();
+        if (shadowZone->needsBarrier()) {
+            MOZ_ASSERT(!js::RuntimeFromMainThreadIsHeapMajorCollecting(shadowZone));
+            js::LazyScript *tmp = lazy;
+            MarkLazyScriptUnbarriered(shadowZone->barrierTracer(), &tmp, "write barrier");
+            JS_ASSERT(tmp == lazy);
+        }
+#endif
     }
 };
 
@@ -1411,11 +1446,6 @@ struct ScriptAndCounts
     }
 };
 
-struct GSNCache;
-
-jssrcnote *
-GetSrcNote(GSNCache &cache, JSScript *script, jsbytecode *pc);
-
 } /* namespace js */
 
 extern jssrcnote *
@@ -1441,8 +1471,8 @@ PCToLineNumber(unsigned startLine, jssrcnote *notes, jsbytecode *code, jsbytecod
  * executing on cx. If there is no current script executing on cx (e.g., a
  * native called directly through JSAPI (e.g., by setTimeout)), NULL and 0 are
  * returned as the file and line. Additionally, this function avoids the full
- * linear scan to compute line number when the caller guarantees that the
- * script compilation occurs at a JSOP_EVAL/JSOP_SPREADEVAL.
+ * linear scan to compute line number when the caller guarnatees that the
+ * script compilation occurs at a JSOP_EVAL.
  */
 
 enum LineOption {

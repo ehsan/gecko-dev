@@ -252,10 +252,13 @@ nsXPCWrappedJSClass::CallQueryInterfaceOnJSObject(JSContext* cx,
 
         JS_SetOptions(cx, oldOpts);
 
-        if (!success && JS_IsExceptionPending(cx)) {
+        if (!success) {
+            MOZ_ASSERT(JS_IsExceptionPending(cx),
+                       "JS failed without setting an exception!");
+
             RootedValue jsexception(cx, NullValue());
 
-            if (JS_GetPendingException(cx, &jsexception)) {
+            if (JS_GetPendingException(cx, jsexception.address())) {
                 nsresult rv;
                 if (jsexception.isObject()) {
                     // XPConnect may have constructed an object to represent a
@@ -287,8 +290,6 @@ nsXPCWrappedJSClass::CallQueryInterfaceOnJSObject(JSContext* cx,
             // Don't report if reporting was disabled by someone else.
             if (!(oldOpts & JSOPTION_DONT_REPORT_UNCAUGHT))
                 JS_ReportPendingException(cx);
-        } else if (!success) {
-            NS_WARNING("QI hook ran OOMed - this is probably a bug!");
         }
     }
 
@@ -941,7 +942,7 @@ nsXPCWrappedJSClass::CheckForException(XPCCallContext & ccx,
     nsresult pending_result = xpcc->GetPendingResult();
 
     RootedValue js_exception(cx);
-    bool is_js_exception = JS_GetPendingException(cx, &js_exception);
+    bool is_js_exception = JS_GetPendingException(cx, js_exception.address());
 
     /* JS might throw an expection whether the reporter was called or not */
     if (is_js_exception) {

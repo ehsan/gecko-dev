@@ -134,27 +134,20 @@ this.WebappOSUtils = {
   },
 
   getInstallPath: function(aApp) {
-#ifdef MOZ_B2G
-    // All b2g builds
-    return aApp.basePath + "/" + aApp.id;
+#ifdef XP_WIN
+    let execFile = this.getLaunchTarget(aApp);
+    if (!execFile) {
+      return null;
+    }
 
+    return execFile.parent.path;
+#elifdef XP_MACOSX
+    let [ bundleID, path ] = this.getLaunchTarget(aApp);
+    return path;
+#elifdef MOZ_B2G
+    return aApp.basePath + "/" + aApp.id;
 #elifdef MOZ_FENNEC
-   // All fennec
     return aApp.basePath + "/" + aApp.id;
-
-#elifdef MOZ_PHOENIX
-   // Firefox
-
-#ifdef XP_WIN
-    let execFile = this.getLaunchTarget(aApp);
-    if (!execFile) {
-      return null;
-    }
-
-    return execFile.parent.path;
-#elifdef XP_MACOSX
-    let [ bundleID, path ] = this.getLaunchTarget(aApp);
-    return path;
 #elifdef XP_UNIX
     let execFile = this.getLaunchTarget(aApp);
     if (!execFile) {
@@ -163,32 +156,6 @@ this.WebappOSUtils = {
 
     return execFile.parent.path;
 #endif
-
-#elifdef MOZ_WEBAPP_RUNTIME
-    // Webapp runtime
-
-#ifdef XP_WIN
-    let execFile = this.getLaunchTarget(aApp);
-    if (!execFile) {
-      return null;
-    }
-
-    return execFile.parent.path;
-#elifdef XP_MACOSX
-    let [ bundleID, path ] = this.getLaunchTarget(aApp);
-    return path;
-#elifdef XP_UNIX
-    let execFile = this.getLaunchTarget(aApp);
-    if (!execFile) {
-      return null;
-    }
-
-    return execFile.parent.path;
-#endif
-
-#endif
-    // Anything unsupported, like Metro
-    throw new Error("Unsupported apps platform");
   },
 
   launch: function(aApp) {

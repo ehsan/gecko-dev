@@ -219,18 +219,33 @@ public class ReadingListPage extends HomeFragment {
     private class CursorLoaderCallbacks implements LoaderCallbacks<Cursor> {
         @Override
         public Loader<Cursor> onCreateLoader(int id, Bundle args) {
-            return new ReadingListLoader(getActivity());
+            switch(id) {
+                case LOADER_ID_READING_LIST:
+                    return new ReadingListLoader(getActivity());
+            }
+            return null;
         }
 
         @Override
         public void onLoadFinished(Loader<Cursor> loader, Cursor c) {
-            mAdapter.swapCursor(c);
-            updateUiFromCursor(c);
+            final int loaderId = loader.getId();
+            switch(loaderId) {
+                case LOADER_ID_READING_LIST:
+                    mAdapter.swapCursor(c);
+                    break;
+           }
+
+           updateUiFromCursor(c);
         }
 
         @Override
         public void onLoaderReset(Loader<Cursor> loader) {
-            mAdapter.swapCursor(null);
+            final int loaderId = loader.getId();
+            switch(loaderId) {
+                case LOADER_ID_READING_LIST:
+                    mAdapter.swapCursor(null);
+                    break;
+            }
         }
     }
 }

@@ -100,6 +100,7 @@ MOCHITEST_CHROME_FILES = imgutils.js \
                 damon.jpg \
                 test_removal_onload.html \
                 test_removal_ondecode.html \
+                invalid.jpg \
                 bad.jpg \
                 rillybad.jpg \
                 red.png \

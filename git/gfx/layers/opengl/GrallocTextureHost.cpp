@@ -117,7 +117,8 @@ void GrallocTextureSourceOGL::BindTexture(GLenum aTextureUnit)
   MOZ_ASSERT(gl());
   gl()->MakeCurrent();
 
-  GLuint tex = GetGLTexture();
+  mQuirks->SetCompositor(mCompositor);
+  GLuint tex = static_cast<CompositableQuirksGonkOGL*>(mQuirks.get())->GetTexture();
   GLuint textureTarget = GetTextureTarget();
 
   gl()->fActiveTexture(aTextureUnit);
@@ -178,7 +179,8 @@ GrallocTextureSourceOGL::SetCompositableQuirks(CompositableQuirks* aQuirks)
   DeallocateDeviceData();
 
   gl()->MakeCurrent();
-  GLuint tex = GetGLTexture();
+  mQuirks->SetCompositor(mCompositor);
+  GLuint tex = static_cast<CompositableQuirksGonkOGL*>(mQuirks.get())->GetTexture();
   GLuint textureTarget = GetTextureTarget();
 
   gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
@@ -308,7 +310,8 @@ GrallocTextureSourceOGL::GetAsSurface() {
   MOZ_ASSERT(gl());
   gl()->MakeCurrent();
 
-  GLuint tex = GetGLTexture();
+  mQuirks->SetCompositor(mCompositor);
+  GLuint tex = static_cast<CompositableQuirksGonkOGL*>(mQuirks.get())->GetTexture();
   gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
   gl()->fBindTexture(GetTextureTarget(), tex);
   if (!mEGLImage) {
@@ -321,13 +324,6 @@ GrallocTextureSourceOGL::GetAsSurface() {
 
   gl()->fActiveTexture(LOCAL_GL_TEXTURE0);
   return surf.forget();
-}
-
-GLuint
-GrallocTextureSourceOGL::GetGLTexture()
-{
-  mQuirks->SetCompositor(mCompositor);
-  return static_cast<CompositableQuirksGonkOGL*>(mQuirks.get())->GetTexture();
 }
 
 void

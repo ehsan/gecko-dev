@@ -139,14 +139,6 @@ function testRemoveTab() {
   let deferred = promise.defer();
 
   gNewWindow.close();
-
-  // give it time to close
-  executeSoon(function() { continue_remove_tab(deferred) });
-  return deferred.promise;
-}
-
-function continue_remove_tab(deferred)
-{
   removeTab(gNewTab);
 
   gClient.listTabs(aResponse => {
@@ -161,6 +153,8 @@ function continue_remove_tab(deferred)
 
     deferred.resolve();
   });
+
+  return deferred.promise;
 }
 
 function closeConnection() {

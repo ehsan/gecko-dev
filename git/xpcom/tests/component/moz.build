@@ -12,5 +12,3 @@ CPP_SOURCES += [
 
 LIBRARY_NAME = 'testcomponent'
 
-IS_COMPONENT = True
-

@@ -187,6 +187,8 @@
 #include "nsIWebBrowserFind.h"
 #include "nsIWidget.h"
 
+static NS_DEFINE_CID(kDOMScriptObjectFactoryCID,
+                     NS_DOM_SCRIPT_OBJECT_FACTORY_CID);
 static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
 
 #if defined(DEBUG_bryner) || defined(DEBUG_chb)
@@ -5046,7 +5048,7 @@ NS_IMETHODIMP
 nsDocShell::GetUnscaledDevicePixelsPerCSSPixel(double *aScale)
 {
     if (mParentWidget) {
-        *aScale = mParentWidget->GetDefaultScale().scale;
+        *aScale = mParentWidget->GetDefaultScale();
         return NS_OK;
     }
 

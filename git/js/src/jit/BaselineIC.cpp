@@ -2879,7 +2879,7 @@ ICBinaryArith_BooleanWithInt32::Compiler::generateStubCode(MacroAssembler &masm)
 
         masm.bind(&fixOverflow);
         masm.sub32(rhsReg, lhsReg);
-        // Proceed to failure below.
+        masm.jump(&failure);
         break;
       }
       case JSOP_SUB: {
@@ -2892,7 +2892,7 @@ ICBinaryArith_BooleanWithInt32::Compiler::generateStubCode(MacroAssembler &masm)
 
         masm.bind(&fixOverflow);
         masm.add32(rhsReg, lhsReg);
-        // Proceed to failure below.
+        masm.jump(&failure);
         break;
       }
       case JSOP_BITOR: {
@@ -3798,7 +3798,7 @@ TryAttachGetElemStub(JSContext *cx, HandleScript script, jsbytecode *pc, ICGetEl
 
     if (obj->isNative()) {
         // Check for NativeObject[int] dense accesses.
-        if (rhs.isInt32() && rhs.toInt32() >= 0) {
+        if (rhs.isInt32()) {
             IonSpew(IonSpew_BaselineIC, "  Generating GetElem(Native[Int32] dense) stub");
             ICGetElem_Dense::Compiler compiler(cx, stub->fallbackMonitorStub()->firstMonitorStub(),
                                                obj->lastProperty());
@@ -4815,16 +4815,6 @@ ICSetElem_Fallback::Compiler::generateStubCode(MacroAssembler &masm)
     masm.pushBaselineFramePtr(BaselineFrameReg, R0.scratchReg());
 
     return tailCallVM(DoSetElemFallbackInfo, masm);
-}
-
-void
-BaselineScript::noteArrayWriteHole(uint32_t pcOffset)
-{
-    ICEntry &entry = icEntryFromPCOffset(pcOffset);
-    ICFallbackStub *stub = entry.fallbackStub();
-
-    if (stub->isSetElem_Fallback())
-        stub->toSetElem_Fallback()->noteArrayWriteHole();
 }
 
 //

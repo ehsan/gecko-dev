@@ -69,6 +69,8 @@ GStreamerReader::GStreamerReader(AbstractMediaDecoder* aDecoder)
   mAudioSinkBufferCount(0),
   mGstThreadsMonitor("media.gst.threads"),
   mReachedEos(false),
+  mByteOffset(0),
+  mLastReportedByteOffset(0),
   fpsNum(0),
   fpsDen(0)
 {
@@ -437,8 +439,18 @@ nsresult GStreamerReader::ResetDecode()
   mVideoSinkBufferCount = 0;
   mAudioSinkBufferCount = 0;
   mReachedEos = false;
+  mLastReportedByteOffset = 0;
+  mByteOffset = 0;
 
   return res;
+}
+
+void GStreamerReader::NotifyBytesConsumed()
+{
+  NS_ASSERTION(mByteOffset >= mLastReportedByteOffset,
+      "current byte offset less than prev offset");
+  mDecoder->NotifyBytesConsumed(mByteOffset - mLastReportedByteOffset);
+  mLastReportedByteOffset = mByteOffset;
 }
 
 bool GStreamerReader::DecodeAudioData()
@@ -476,6 +488,7 @@ bool GStreamerReader::DecodeAudioData()
       }
     }
 
+    NotifyBytesConsumed();
     buffer = gst_app_sink_pull_buffer(mAudioAppSink);
     mAudioSinkBufferCount--;
   }
@@ -539,6 +552,7 @@ bool GStreamerReader::DecodeVideoFrame(bool &aKeyFrameSkip,
       }
     }
 
+    NotifyBytesConsumed();
     mDecoder->NotifyDecodedFrames(0, 1);
 
     buffer = gst_app_sink_pull_buffer(mVideoAppSink);
@@ -665,6 +679,12 @@ nsresult GStreamerReader::GetBuffered(TimeRanges* aBuffered,
   nsTArray<MediaByteRange> ranges;
   resource->GetCachedRanges(ranges);
 
+  if (mDecoder->OnStateMachineThread())
+    /* Report the position from here while buffering as we can't report it from
+     * the gstreamer threads that are actually reading from the resource
+     */
+    NotifyBytesConsumed();
+
   if (resource->IsDataCachedToEndOfResource(0)) {
     /* fast path for local or completely cached files */
     gint64 duration = 0;
@@ -718,6 +738,7 @@ void GStreamerReader::ReadAndPushData(guint aLength)
   }
 
   GST_BUFFER_SIZE(buffer) = bytesRead;
+  mByteOffset += bytesRead;
 
   GstFlowReturn ret = gst_app_src_push_buffer(mSource, gst_buffer_ref(buffer));
   if (ret != GST_FLOW_OK) {
@@ -810,7 +831,9 @@ gboolean GStreamerReader::SeekData(GstAppSrc* aSrc, guint64 aOffset)
     rv = resource->Seek(SEEK_SET, aOffset);
   }
 
-  if (NS_FAILED(rv)) {
+  if (NS_SUCCEEDED(rv)) {
+    mByteOffset = mLastReportedByteOffset = aOffset;
+  } else {
     LOG(PR_LOG_ERROR, ("seek at %lu failed", aOffset));
   }
 

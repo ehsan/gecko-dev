@@ -29,6 +29,8 @@
 using namespace mozilla;
 using namespace mozilla::dom;
 
+static NS_DEFINE_CID(kEventListenerManagerCID,    NS_EVENTLISTENERMANAGER_CID);
+
 nsWindowRoot::nsWindowRoot(nsPIDOMWindow* aWindow)
 {
   mWindow = aWindow;

@@ -324,9 +324,8 @@ IonBuilder::inlineArrayPopShift(CallInfo &callInfo, MArrayPopShift::Mode mode)
         return InliningStatus_NotInlined;
     if (thisTypes->hasObjectFlags(cx, unhandledFlags))
         return InliningStatus_NotInlined;
-
-    RootedScript scriptRoot(cx, script());
-    if (types::ArrayPrototypeHasIndexedProperty(cx, scriptRoot))
+    RootedScript script(cx, script_);
+    if (types::ArrayPrototypeHasIndexedProperty(cx, script))
         return InliningStatus_NotInlined;
 
     callInfo.unwrapArgs();
@@ -388,9 +387,8 @@ IonBuilder::inlineArrayPush(CallInfo &callInfo)
     {
         return InliningStatus_NotInlined;
     }
-
-    RootedScript scriptRoot(cx, script());
-    if (types::ArrayPrototypeHasIndexedProperty(cx, scriptRoot))
+    RootedScript script(cx, script_);
+    if (types::ArrayPrototypeHasIndexedProperty(cx, script))
         return InliningStatus_NotInlined;
 
     types::TemporaryTypeSet::DoubleConversion conversion = thisTypes->convertDoubleElements(cx);
@@ -457,8 +455,8 @@ IonBuilder::inlineArrayConcat(CallInfo &callInfo)
     }
 
     // Watch out for indexed properties on the prototype.
-    RootedScript scriptRoot(cx, script());
-    if (types::ArrayPrototypeHasIndexedProperty(cx, scriptRoot))
+    RootedScript script(cx, script_);
+    if (types::ArrayPrototypeHasIndexedProperty(cx, script))
         return InliningStatus_NotInlined;
 
     // Require the 'this' types to have a specific type matching the current
@@ -469,7 +467,7 @@ IonBuilder::inlineArrayConcat(CallInfo &callInfo)
     types::TypeObject *thisType = thisTypes->getTypeObject(0);
     if (!thisType ||
         thisType->unknownProperties() ||
-        &thisType->proto->global() != &script()->global())
+        &thisType->proto->global() != &script->global())
     {
         return InliningStatus_NotInlined;
     }
@@ -513,7 +511,7 @@ IonBuilder::inlineArrayConcat(CallInfo &callInfo)
     }
 
     // Inline the call.
-    JSObject *templateObj = NewDenseEmptyArray(cx, thisType->proto, TenuredObject);
+    RootedObject templateObj(cx, NewDenseEmptyArray(cx, thisType->proto, TenuredObject));
     if (!templateObj)
         return InliningStatus_Error;
     templateObj->setType(thisType);
@@ -703,7 +701,7 @@ IonBuilder::inlineMathPow(CallInfo &callInfo)
     // Optimize some constant powers.
     if (callInfo.getArg(1)->isConstant()) {
         double pow;
-        Value v = callInfo.getArg(1)->toConstant()->value();
+        RootedValue v(GetIonContext()->cx, callInfo.getArg(1)->toConstant()->value());
         if (!ToNumber(GetIonContext()->cx, v, &pow))
             return InliningStatus_Error;
 
@@ -897,7 +895,7 @@ IonBuilder::inlineStringObject(CallInfo &callInfo)
     callInfo.unwrapArgs();
 
     RootedString emptyString(cx, cx->runtime()->emptyString);
-    JSObject *templateObj = StringObject::create(cx, emptyString, TenuredObject);
+    RootedObject templateObj(cx, StringObject::create(cx, emptyString, TenuredObject));
     if (!templateObj)
         return InliningStatus_Error;
 
@@ -1311,7 +1309,7 @@ IonBuilder::inlineParallelArrayTail(CallInfo &callInfo,
 
     // Create the MIR to allocate the new parallel array.  Take the type
     // object is taken from the prediction set.
-    JSObject *templateObject = ParallelArrayObject::newInstance(cx, TenuredObject);
+    RootedObject templateObject(cx, ParallelArrayObject::newInstance(cx, TenuredObject));
     if (!templateObject)
         return InliningStatus_Error;
     templateObject->setType(typeObject);
@@ -1375,7 +1373,7 @@ IonBuilder::inlineNewDenseArrayForParallelExecution(CallInfo &callInfo)
         return InliningStatus_NotInlined;
     types::TypeObject *typeObject = returnTypes->getTypeObject(0);
 
-    JSObject *templateObject = NewDenseAllocatedArray(cx, 0, NULL, TenuredObject);
+    RootedObject templateObject(cx, NewDenseAllocatedArray(cx, 0, NULL, TenuredObject));
     if (!templateObject)
         return InliningStatus_Error;
     templateObject->setType(typeObject);

@@ -66,15 +66,13 @@ public final class GeckoProfile {
             if (((GeckoApp)context).mProfile != null) {
                 return ((GeckoApp)context).mProfile;
             }
-        }
 
-        // If the guest profile exists and is locked, return it
-        GeckoProfile guest = GeckoProfile.getGuestProfile(context);
-        if (guest != null && guest.locked()) {
-            return guest;
-        }
+            GeckoProfile guest = GeckoProfile.getGuestProfile(context);
+            // if the guest profile is locked, return it
+            if (guest != null && guest.locked()) {
+                return guest;
+            }
 
-        if (context instanceof GeckoApp) {
             // Otherwise, get the default profile for the Activity
             return get(context, ((GeckoApp)context).getDefaultProfileName());
         }
