@@ -227,7 +227,7 @@ private:
   nsRefPtr<AudioDestinationNode> mDestination;
   nsRefPtr<AudioListener> mListener;
   MediaBufferDecoder mDecoder;
-  nsTArray<nsRefPtr<WebAudioDecodeJob> > mDecodeJobs;
+  nsTArray<nsAutoPtr<WebAudioDecodeJob> > mDecodeJobs;
   // Two hashsets containing all the PannerNodes and AudioBufferSourceNodes,
   // to compute the doppler shift, and also to stop AudioBufferSourceNodes.
   // These are all weak pointers.

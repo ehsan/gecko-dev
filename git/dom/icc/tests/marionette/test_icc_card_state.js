@@ -6,28 +6,13 @@ MARIONETTE_TIMEOUT = 30000;
 SpecialPowers.addPermission("mobileconnection", true, document);
 SpecialPowers.addPermission("settings-write", true, document);
 
-// Permission changes can't change existing Navigator.prototype
-// objects, so grab our objects from a new Navigator
-let ifr = document.createElement("iframe");
-let icc;
-ifr.onload = function() {
-  icc = ifr.contentWindow.navigator.mozIccManager;
+let icc = navigator.mozIccManager;
+ok(icc instanceof MozIccManager, "icc is instanceof " + icc.constructor);
 
-  ok(icc instanceof ifr.contentWindow.MozIccManager,
-     "icc is instanceof " + icc.constructor);
-
-  is(icc.cardState, "ready");
-
-  // Enable Airplane mode, expect got cardstatechange to null
-  testCardStateChange(true, null,
-    // Disable Airplane mode, expect got cardstatechange to 'ready'
-    testCardStateChange.bind(window, false, "ready", cleanUp)
-  );
-};
-document.body.appendChild(ifr);
+is(icc.cardState, "ready");
 
 function setAirplaneModeEnabled(enabled) {
-  let settings = ifr.contentWindow.navigator.mozSettings;
+  let settings = window.navigator.mozSettings;
   let setLock = settings.createLock();
   let obj = {
     "ril.radio.disabled": enabled
@@ -68,3 +53,9 @@ function cleanUp() {
 
   finish();
 }
+
+// Enable Airplane mode, expect got cardstatechange to null
+testCardStateChange(true, null,
+  // Disable Airplane mode, expect got cardstatechange to 'ready'
+  testCardStateChange.bind(this, false, "ready", cleanUp)
+);

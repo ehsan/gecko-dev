@@ -45,7 +45,6 @@ function testSendMMI(mmi, error) {
 
   do_print("worker.postMessage " + worker.postMessage);
 
-  worker.RIL.radioState = GECKO_RADIOSTATE_READY;
   worker.RIL.sendMMI({mmi: mmi});
 
   let postedMessage = workerhelper.postedMessage;
@@ -339,7 +338,6 @@ function setCallForwardSuccess(mmi) {
     });
   };
 
-  worker.RIL.radioState = GECKO_RADIOSTATE_READY;
   worker.RIL.sendMMI({mmi: mmi});
 
   let postedMessage = workerhelper.postedMessage;
@@ -386,7 +384,6 @@ add_test(function test_sendMMI_call_forwarding_interrogation() {
     });
   };
 
-  worker.RIL.radioState = GECKO_RADIOSTATE_READY;
   worker.RIL.sendMMI({mmi: "*#21#"});
 
   let postedMessage = workerhelper.postedMessage;
@@ -416,7 +413,6 @@ add_test(function test_sendMMI_call_forwarding_interrogation_no_rules() {
     });
   };
 
-  worker.RIL.radioState = GECKO_RADIOSTATE_READY;
   worker.RIL.sendMMI({mmi: "*#21#"});
 
   let postedMessage = workerhelper.postedMessage;
@@ -480,7 +476,6 @@ add_test(function test_sendMMI_change_PIN() {
     });
   }
 
-  worker.RIL.radioState = GECKO_RADIOSTATE_READY;
   worker.RIL.sendMMI({mmi: "**04*1234*4567*4567#"});
 
   let postedMessage = workerhelper.postedMessage;
@@ -525,7 +520,6 @@ add_test(function test_sendMMI_change_PIN2() {
     });
   }
 
-  worker.RIL.radioState = GECKO_RADIOSTATE_READY;
   worker.RIL.sendMMI({mmi: "**042*1234*4567*4567#"});
 
   let postedMessage = workerhelper.postedMessage;
@@ -570,7 +564,6 @@ add_test(function test_sendMMI_unblock_PIN() {
     });
   }
 
-  worker.RIL.radioState = GECKO_RADIOSTATE_READY;
   worker.RIL.sendMMI({mmi: "**05*1234*4567*4567#"});
 
   let postedMessage = workerhelper.postedMessage;
@@ -615,7 +608,6 @@ add_test(function test_sendMMI_unblock_PIN2() {
     });
   }
 
-  worker.RIL.radioState = GECKO_RADIOSTATE_READY;
   worker.RIL.sendMMI({mmi: "**052*1234*4567*4567#"});
 
   let postedMessage = workerhelper.postedMessage;
@@ -720,7 +712,6 @@ add_test(function test_sendMMI_USSD() {
     });
   }
 
-  worker.RIL.radioState = GECKO_RADIOSTATE_READY;
   worker.RIL.sendMMI({mmi: "*123#"});
 
   let postedMessage = workerhelper.postedMessage;
@@ -745,7 +736,6 @@ add_test(function test_sendMMI_USSD_error() {
     });
   }
 
-  worker.RIL.radioState = GECKO_RADIOSTATE_READY;
   worker.RIL.sendMMI({mmi: "*123#"});
 
   let postedMessage = workerhelper.postedMessage;

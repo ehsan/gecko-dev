@@ -8,19 +8,10 @@ const KEY = "ril.radio.disabled";
 SpecialPowers.addPermission("telephony", true, document);
 SpecialPowers.addPermission("settings-write", true, document);
 
-// Permission changes can't change existing Navigator.prototype
-// objects, so grab our objects from a new Navigator
-let ifr = document.createElement("iframe");
-let settings;
-let telephony;
+let settings = window.navigator.mozSettings;
+let telephony = window.navigator.mozTelephony;
 let number = "112";
 let outgoing;
-ifr.onload = function() {
-  settings = ifr.contentWindow.navigator.mozSettings;
-  telephony = ifr.contentWindow.navigator.mozTelephony;
-  getExistingCalls();
-};
-document.body.appendChild(ifr);
 
 function getExistingCalls() {
   runEmulatorCmd("gsm list", function(result) {
@@ -164,3 +155,5 @@ function cleanUp() {
   SpecialPowers.removePermission("settings-write", document);
   finish();
 }
+
+getExistingCalls();

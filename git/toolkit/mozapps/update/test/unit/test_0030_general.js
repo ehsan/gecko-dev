@@ -5,8 +5,6 @@
 
 /* General MAR File Download Tests */
 
-const TEST_ID = "0030";
-
 const INC_CONTRACT_ID = "@mozilla.org/network/incremental-download;1";
 AUS_Cu.import("resource://gre/modules/FileUtils.jsm");
 AUS_Cu.import("resource://gre/modules/Services.jsm");
@@ -24,9 +22,6 @@ var gIncrementalDownloadErrorType = 0;
 function run_test() {
   do_test_pending();
   do_register_cleanup(end_test);
-
-  adjustGeneralPaths();
-
   Services.prefs.setBoolPref(PREF_APP_UPDATE_STAGING_ENABLED, false);
   removeUpdateDirsAndFiles();
   setUpdateURLOverride();

@@ -30,8 +30,9 @@ DEFINES += -DMOZ_B2G_FM
 endif
 
 include $(topsrcdir)/config/config.mk
-include $(topsrcdir)/config/rules.mk
 include $(topsrcdir)/ipc/chromium/chromium-config.mk
+
+include $(topsrcdir)/config/rules.mk
 
 LOCAL_INCLUDES += \
 		-I$(topsrcdir)/js/xpconnect/src \

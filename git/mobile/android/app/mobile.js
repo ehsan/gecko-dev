@@ -147,9 +147,12 @@ pref("signon.expireMasterPassword", false);
 pref("signon.SignonFileName", "signons.txt");
 pref("signon.debug", false);
 
-/* form helper (scroll to and optionally zoom into editable fields)  */
-pref("formhelper.mode", 2);  // 0 = disabled, 1 = enabled, 2 = dynamic depending on screen size
+/* form helper */
+// 0 = disabled, 1 = enabled, 2 = dynamic depending on screen size
+pref("formhelper.mode", 2);
 pref("formhelper.autozoom", true);
+pref("formhelper.autozoom.caret", true);
+pref("formhelper.restore", false);
 
 /* find helper */
 pref("findhelper.autozoom", true);

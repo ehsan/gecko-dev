@@ -838,16 +838,6 @@ nsHTMLReflowState::ComputeRelativeOffsets(uint8_t aCBDirection,
   }
 }
 
-/* static */ void
-nsHTMLReflowState::ApplyRelativePositioning(const nsStyleDisplay* aDisplay,
-                                            const nsMargin &aComputedOffsets,
-                                            nsPoint* aPosition)
-{
-  if (NS_STYLE_POSITION_RELATIVE == aDisplay->mPosition) {
-    *aPosition += nsPoint(aComputedOffsets.left, aComputedOffsets.top);
-  }
-}
-
 nsIFrame*
 nsHTMLReflowState::GetHypotheticalBoxContainer(nsIFrame* aFrame,
                                                nscoord& aCBLeftEdge,

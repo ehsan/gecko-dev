@@ -8,10 +8,6 @@ generated_webidl_files = \
   CSS2Properties.webidl \
   $(NULL)
 
-preprocessed_webidl_files = \
-  Navigator.webidl \
-  $(NULL)
-
 webidl_files = \
   AnalyserNode.webidl \
   AnimationEvent.webidl \
@@ -231,7 +227,6 @@ webidl_files = \
   Screen.webidl \
   ScriptProcessorNode.webidl \
   ScrollAreaEvent.webidl \
-  SettingsManager.webidl \
   SimpleGestureEvent.webidl \
   SourceBuffer.webidl \
   SourceBufferList.webidl \

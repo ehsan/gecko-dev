@@ -117,10 +117,6 @@
           ]]>
         </body>
       </method>
-
-      <property name="contextNoun" readonly="true"
-                onget="return this.getAttribute('noun');"/>
-
       <property name="contextActions">
         <getter>
           <![CDATA[

@@ -8,28 +8,15 @@ SpecialPowers.addPermission("mobileconnection", true, document);
 const OPERATOR_HOME = 0;
 const OPERATOR_ROAMING = 1;
 
-// Permission changes can't change existing Navigator.prototype
-// objects, so grab our objects from a new Navigator
-let ifr = document.createElement("iframe");
-let connection;
-let voice;
-let network;
-ifr.onload = function() {
-  connection = ifr.contentWindow.navigator.mozMobileConnection;
-  ok(connection instanceof ifr.contentWindow.MozMobileConnection,
-     "connection is instanceof " + connection.constructor);
+let connection = navigator.mozMobileConnection;
+ok(connection instanceof MozMobileConnection,
+   "connection is instanceof " + connection.constructor);
 
-  voice = connection.voice;
-  ok(voice, "voice connection valid");
+let voice = connection.voice;
+ok(voice, "voice connection valid");
 
-  network = voice.network;
-  ok(network, "voice network info valid");
-
-  waitFor(testMobileOperatorNames, function () {
-    return voice.connected;
-  });
-};
-document.body.appendChild(ifr);
+let network = voice.network;
+ok(network, "voice network info valid");
 
 let emulatorCmdPendingCount = 0;
 function sendEmulatorCommand(cmd, callback) {
@@ -216,3 +203,7 @@ function cleanUp() {
   SpecialPowers.removePermission("mobileconnection", document);
   finish();
 }
+
+waitFor(testMobileOperatorNames, function () {
+  return voice.connected;
+});

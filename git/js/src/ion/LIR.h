@@ -10,12 +10,10 @@
 // This file declares the core data structures for LIR: storage allocations for
 // inputs and outputs, as well as the interface instructions must conform to.
 
-#include "mozilla/Array.h"
-
 #include "jscntxt.h"
-
 #include "ion/IonAllocPolicy.h"
 #include "ion/InlineList.h"
+#include "ion/FixedArityList.h"
 #include "ion/LOpcodes.h"
 #include "ion/Registers.h"
 #include "ion/MIR.h"
@@ -807,9 +805,9 @@ class LBlock : public TempObject
 template <size_t Defs, size_t Operands, size_t Temps>
 class LInstructionHelper : public LInstruction
 {
-    mozilla::Array<LDefinition, Defs> defs_;
-    mozilla::Array<LAllocation, Operands> operands_;
-    mozilla::Array<LDefinition, Temps> temps_;
+    FixedArityList<LDefinition, Defs> defs_;
+    FixedArityList<LAllocation, Operands> operands_;
+    FixedArityList<LDefinition, Temps> temps_;
 
   public:
     size_t numDefs() const MOZ_FINAL MOZ_OVERRIDE {
