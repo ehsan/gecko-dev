@@ -407,10 +407,12 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(HTMLMediaElement, nsGenericHTM
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mSourcePointer)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mLoadBlockedDoc)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mSourceLoadCandidate)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mAudioChannelAgent)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mError)
   for (uint32_t i = 0; i < tmp->mOutputStreams.Length(); ++i) {
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mOutputStreams[i].mStream);
   }
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mPlayed);
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(HTMLMediaElement, nsGenericHTMLElement)
@@ -423,10 +425,12 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(HTMLMediaElement, nsGenericHTMLE
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mSourcePointer)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mLoadBlockedDoc)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mSourceLoadCandidate)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mAudioChannelAgent)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mError)
   for (uint32_t i = 0; i < tmp->mOutputStreams.Length(); ++i) {
     NS_IMPL_CYCLE_COLLECTION_UNLINK(mOutputStreams[i].mStream);
   }
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mPlayed);
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(HTMLMediaElement)
@@ -1307,7 +1311,7 @@ HTMLMediaElement::SetCurrentTime(double aCurrentTime, ErrorResult& aRv)
     LOG(PR_LOG_DEBUG, ("%p Adding \'played\' a range : [%f, %f]", this, mCurrentPlayRangeStart, rangeEndTime));
     // Multiple seek without playing, or seek while playing.
     if (mCurrentPlayRangeStart != rangeEndTime) {
-      mPlayed.Add(mCurrentPlayRangeStart, rangeEndTime);
+      mPlayed->Add(mCurrentPlayRangeStart, rangeEndTime);
     }
   }
 
@@ -1408,12 +1412,12 @@ HTMLMediaElement::Played()
   nsRefPtr<TimeRanges> ranges = new TimeRanges();
 
   uint32_t timeRangeCount = 0;
-  mPlayed.GetLength(&timeRangeCount);
+  mPlayed->GetLength(&timeRangeCount);
   for (uint32_t i = 0; i < timeRangeCount; i++) {
     double begin;
     double end;
-    mPlayed.Start(i, &begin);
-    mPlayed.End(i, &end);
+    mPlayed->Start(i, &begin);
+    mPlayed->End(i, &end);
     ranges->Add(begin, end);
   }
 
@@ -1888,6 +1892,7 @@ HTMLMediaElement::HTMLMediaElement(already_AddRefed<nsINodeInfo> aNodeInfo)
     mDefaultPlaybackRate(1.0),
     mPlaybackRate(1.0),
     mPreservesPitch(true),
+    mPlayed(new TimeRanges),
     mCurrentPlayRangeStart(-1.0),
     mAllowAudioData(false),
     mBegun(false),

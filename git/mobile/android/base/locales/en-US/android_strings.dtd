@@ -14,15 +14,18 @@
 <!ENTITY  awesomebar_history_title "History">
 
 <!ENTITY  crash_reporter_title "&brandShortName; Crash Reporter">
-<!ENTITY  crash_message "&brandShortName; has crashed. Your tabs should be listed on the &brandShortName; Start page when you restart.">
-<!ENTITY  crash_help_message "Please help us fix this problem!">
-<!ENTITY  crash_send_report_message "Send Mozilla a crash report">
-<!ENTITY  crash_include_url "Include page address">
+<!ENTITY  crash_message2 "&brandShortName; had a problem and crashed. Your tabs should be listed on the &brandShortName; Start page when you restart.">
+<!ENTITY  crash_send_report_message2 "Tell Mozilla about this crash so they can fix it">
+<!ENTITY  crash_include_url2 "Include the address of the page I was on">
+<!ENTITY  crash_sorry "We\'re sorry">
+<!ENTITY  crash_comment "Add a comment (comments are publicly visible)">
+<!ENTITY  crash_allow_contact "Allow Mozilla to contact me about this report">
+<!ENTITY  crash_email "Your email">
+<!ENTITY  crash_closing_alert "Exit without sending a crash report?">
+<!ENTITY  sending_crash_report "Sending crash report\u2026">
 <!ENTITY  crash_close_label "Close">
 <!ENTITY  crash_restart_label "Restart &brandShortName;">
-<!ENTITY  sending_crash_report "Sending crash report\u2026">
 <!ENTITY  exit_label "Exit">
-<!ENTITY  continue_label "Continue">
 
 <!ENTITY  launcher_shortcuts_title "&brandShortName; Web Apps">
 <!ENTITY  launcher_shortcuts_empty "No web apps were found">
@@ -65,11 +68,15 @@
 <!ENTITY pref_category_general "General">
 <!ENTITY pref_category_privacy "Privacy &amp; Security">
 <!ENTITY pref_category_content "Content">
-<!ENTITY pref_category_importexport "Import &amp; Export">
 <!ENTITY pref_about_firefox "About &brandShortName;">
 <!ENTITY pref_do_not_track "Tell sites not to track me">
 <!ENTITY pref_telemetry "Send performance data">
 <!ENTITY pref_remember_signons "Remember passwords">
+
+<!-- Localization note: These are shown in the left sidebar on tablets -->
+<!ENTITY pref_header_general "General">
+<!ENTITY pref_header_privacy "Privacy &amp; Security">
+<!ENTITY pref_header_content "Content">
 
 <!ENTITY pref_cookies_menu "Cookies">
 <!ENTITY pref_cookies_accept_all "Enabled">

@@ -9,7 +9,7 @@
 %define tabCurveHalfWidth 15px
 
 /* image preloading hack */
-#TabsToolbar::after {
+#TabsToolbar::before {
   content: '';
   display: block;
   background-image:
@@ -21,6 +21,7 @@
 .tabbrowser-tab,
 .tabs-newtab-button {
   -moz-appearance: none;
+  -moz-box-align: stretch;
   background-color: transparent;
   border-radius: 0;
   border-width: 0;
@@ -110,13 +111,13 @@
   background-repeat: no-repeat;
 }
 
-.tab-background-start[selected=true]:not(:-moz-lwtheme):-moz-locale-dir(ltr)::after,
-.tab-background-end[selected=true]:not(:-moz-lwtheme):-moz-locale-dir(rtl)::after {
+.tab-background-start[selected=true]:-moz-locale-dir(ltr)::after,
+.tab-background-end[selected=true]:-moz-locale-dir(rtl)::after {
   background-image: url(chrome://browser/skin/tabbrowser/tab-stroke-start.png);
 }
 
-.tab-background-end[selected=true]:not(:-moz-lwtheme):-moz-locale-dir(ltr)::after,
-.tab-background-start[selected=true]:not(:-moz-lwtheme):-moz-locale-dir(rtl)::after {
+.tab-background-end[selected=true]:-moz-locale-dir(ltr)::after,
+.tab-background-start[selected=true]:-moz-locale-dir(rtl)::after {
   background-image: url(chrome://browser/skin/tabbrowser/tab-stroke-end.png);
 }
 
@@ -134,13 +135,15 @@
   background-repeat: repeat-x;
 }
 
+.tab-background-middle[selected=true]:-moz-lwtheme {
+  background-image: url(chrome://browser/skin/tabbrowser/tab-active-middle.png);
+}
+
 /* Same as above but without border or -moz-dialog background */
 .tab-background-start[selected=true]:-moz-lwtheme::before,
 .tab-background-end[selected=true]:-moz-lwtheme::before,
 .tab-background-middle[selected=true]:-moz-lwtheme {
   background-color: transparent;
-  background-image: @fgTabTexture@;
-  background-position: left 0 top 2px;
 }
 
 /* End selected tab */
@@ -185,20 +188,20 @@
   background-size: 85% 100%;
 }
 
-/* Background tab separators (1px wide).
+/* Background tab separators (3px wide).
    Also show separators beside the selected tab when dragging it. */
 #tabbrowser-tabs[movingtab] > .tabbrowser-tab[beforeselected]:not([last-visible-tab])::after,
 .tabbrowser-tab:not([selected]):not([afterselected-visible]):not([afterhovered]):not([first-visible-tab]):not(:hover)::before,
 #tabbrowser-tabs:not([overflow]) > .tabbrowser-tab[last-visible-tab]:not([selected]):not([beforehovered]):not(:hover)::after {
-  -moz-margin-start: -1px;
-  background-image: linear-gradient(rgba(10,31,51,0), rgba(10,31,51,0.3));
+  -moz-margin-start: -1.5px;
+  -moz-margin-end: -1.5px;
+  background-image: url("chrome://browser/skin/tabbrowser/tab-separator.png");
   background-position: left bottom;
   background-repeat: no-repeat;
-  background-size: 1px 100%;
+  background-size: 3px 100%;
   content: '';
   display: -moz-box;
-  height: @tabHeight@;
-  width: 1px;
+  width: 3px;
 }
 
 /* New tab button */

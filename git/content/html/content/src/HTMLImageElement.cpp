@@ -7,7 +7,6 @@
 
 #include "mozilla/dom/HTMLImageElement.h"
 #include "mozilla/dom/HTMLImageElementBinding.h"
-#include "nsIDOMEventTarget.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
 #include "nsPresContext.h"
@@ -53,8 +52,7 @@ NS_NewHTMLImageElement(already_AddRefed<nsINodeInfo> aNodeInfo,
    */
   nsCOMPtr<nsINodeInfo> nodeInfo(aNodeInfo);
   if (!nodeInfo) {
-    nsCOMPtr<nsIDocument> doc =
-      do_QueryInterface(nsContentUtils::GetDocumentFromCaller());
+    nsCOMPtr<nsIDocument> doc = nsContentUtils::GetDocumentFromCaller();
     NS_ENSURE_TRUE(doc, nullptr);
 
     nodeInfo = doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::img, nullptr,

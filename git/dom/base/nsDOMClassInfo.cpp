@@ -724,6 +724,8 @@ static nsDOMClassInfoData sClassInfoData[] = {
 
   NS_DEFINE_CLASSINFO_DATA(CanvasGradient, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
+  NS_DEFINE_CLASSINFO_DATA(CanvasPattern, nsDOMGenericSH,
+                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(MozCanvasPrintState, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
 
@@ -2007,6 +2009,10 @@ nsDOMClassInfo::Init()
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMCanvasGradient)
   DOM_CLASSINFO_MAP_END
 
+  DOM_CLASSINFO_MAP_BEGIN(CanvasPattern, nsIDOMCanvasPattern)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMCanvasPattern)
+  DOM_CLASSINFO_MAP_END
+
   DOM_CLASSINFO_MAP_BEGIN(MozCanvasPrintState, nsIDOMMozCanvasPrintState)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMMozCanvasPrintState)
   DOM_CLASSINFO_MAP_END
@@ -3262,7 +3268,7 @@ nsWindowSH::GlobalScopePolluterNewResolve(JSContext *cx, JSHandleObject obj,
   // The rest of this function is for HTML documents only.
   //
   nsCOMPtr<nsIHTMLDocument> htmlDoc =
-    do_QueryInterface(win->GetExtantDocument());
+    do_QueryInterface(win->GetExtantDoc());
   if (!htmlDoc)
     return true;
   nsHTMLDocument *document = static_cast<nsHTMLDocument*>(htmlDoc.get());
@@ -6194,7 +6200,7 @@ nsDocumentSH::PostCreate(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
     return NS_OK;
   }
 
-  nsIDOMDocument* currentDoc = win->GetExtantDocument();
+  nsIDocument* currentDoc = win->GetExtantDoc();
 
   if (SameCOMIdentity(doc, currentDoc)) {
     jsval winVal;

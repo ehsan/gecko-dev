@@ -26,8 +26,8 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsDOMEventTargetHelper)
   if (MOZ_UNLIKELY(cb.WantDebugInfo())) {
     char name[512];
     nsAutoString uri;
-    if (tmp->mOwnerWindow && tmp->mOwnerWindow->GetExtantDocument()) {
-      tmp->mOwnerWindow->GetExtantDocument()->GetDocumentURI(uri);
+    if (tmp->mOwnerWindow && tmp->mOwnerWindow->GetExtantDoc()) {
+      tmp->mOwnerWindow->GetExtantDoc()->GetDocumentURI(uri);
     }
     PR_snprintf(name, sizeof(name), "nsDOMEventTargetHelper %s",
                 NS_ConvertUTF16toUTF8(uri).get());
@@ -363,27 +363,3 @@ nsDOMEventTargetHelper::GetContextForEventHandlers(nsresult* aRv)
                : nullptr;
 }
 
-void
-nsDOMEventTargetHelper::Init(JSContext* aCx)
-{
-  JSContext* cx = aCx;
-  if (!cx) {
-    nsIJSContextStack* stack = nsContentUtils::ThreadJSContextStack();
-
-    if (!stack)
-      return;
-
-    if (NS_FAILED(stack->Peek(&cx)) || !cx)
-      return;
-  }
-
-  NS_ASSERTION(cx, "Should have returned earlier ...");
-  nsIScriptContext* context = GetScriptContextFromJSContext(cx);
-  if (context) {
-    nsCOMPtr<nsPIDOMWindow> window =
-      do_QueryInterface(context->GetGlobalObject());
-    if (window) {
-      BindToOwner(window->GetCurrentInnerWindow());
-    }
-  }
-}

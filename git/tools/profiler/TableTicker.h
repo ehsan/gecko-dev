@@ -30,16 +30,20 @@ class TableTicker: public Sampler {
               const char** aFeatures, uint32_t aFeatureCount)
     : Sampler(aInterval, true, aEntrySize)
     , mPrimaryThreadProfile(nullptr)
-    , mStartTime(TimeStamp::Now())
     , mSaveRequested(false)
+    , mUnwinderThread(false)
   {
     mUseStackWalk = hasFeature(aFeatures, aFeatureCount, "stackwalk");
 
     //XXX: It's probably worth splitting the jank profiler out from the regular profiler at some point
     mJankOnly = hasFeature(aFeatures, aFeatureCount, "jank");
     mProfileJS = hasFeature(aFeatures, aFeatureCount, "js");
-    mProfileThreads = true || hasFeature(aFeatures, aFeatureCount, "threads");
+    mProfileJava = hasFeature(aFeatures, aFeatureCount, "java");
+    mProfileThreads = hasFeature(aFeatures, aFeatureCount, "threads");
+    mUnwinderThread = hasFeature(aFeatures, aFeatureCount, "unwinder") || sps_version2();
     mAddLeafAddresses = hasFeature(aFeatures, aFeatureCount, "leaf");
+
+    sStartTime = TimeStamp::Now();
 
     {
       mozilla::MutexAutoLock lock(*sRegisteredThreadsMutex);
@@ -119,12 +123,18 @@ class TableTicker: public Sampler {
   virtual JSObject *ToJSObject(JSContext *aCx);
   JSCustomObject *GetMetaJSCustomObject(JSAObjectBuilder& b);
 
+  bool HasUnwinderThread() const { return mUnwinderThread; }
   bool ProfileJS() const { return mProfileJS; }
+  bool ProfileJava() const { return mProfileJava; }
   bool ProfileThreads() const { return mProfileThreads; }
 
-  virtual BreakpadSampler* AsBreakpadSampler() { return nullptr; }
-
 protected:
+  // Called within a signal. This function must be reentrant
+  virtual void UnwinderTick(TickSample* sample);
+
+  // Called within a signal. This function must be reentrant
+  virtual void InplaceTick(TickSample* sample);
+
   // Not implemented on platforms which do not support backtracing
   void doNativeBacktrace(ThreadProfile &aProfile, TickSample* aSample);
 
@@ -132,25 +142,13 @@ protected:
 
   // This represent the application's main thread (SAMPLER_INIT)
   ThreadProfile* mPrimaryThreadProfile;
-  TimeStamp mStartTime;
   bool mSaveRequested;
   bool mAddLeafAddresses;
   bool mUseStackWalk;
   bool mJankOnly;
   bool mProfileJS;
   bool mProfileThreads;
-};
-
-class BreakpadSampler: public TableTicker {
- public:
-  BreakpadSampler(int aInterval, int aEntrySize,
-              const char** aFeatures, uint32_t aFeatureCount)
-    : TableTicker(aInterval, aEntrySize, aFeatures, aFeatureCount)
-  {}
-
-  // Called within a signal. This function must be reentrant
-  virtual void Tick(TickSample* sample);
-
-  virtual BreakpadSampler* AsBreakpadSampler() { return this; }
+  bool mUnwinderThread;
+  bool mProfileJava;
 };
 

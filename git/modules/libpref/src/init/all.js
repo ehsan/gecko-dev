@@ -3837,6 +3837,13 @@ pref("toolkit.zoomManager.zoomValues", ".3,.5,.67,.8,.9,1,1.1,1.2,1.33,1.5,1.7,2
 pref("browser.zoom.reflowOnZoom", false);
 
 /**
+ * Specifies the number of milliseconds to wait after a given reflow-on-zoom
+ * operation has completed before allowing another one to be triggered. This
+ * is to prevent a buildup of reflow-zoom events.
+ */
+pref("browser.zoom.reflowZoom.reflowTimeout", 500);
+
+/**
  * Controls whether or not the reflow-on-zoom behavior happens on page load.
  * This can be enabled in conjunction with the above preference (reflowOnZoom),
  * but has no effect if browser.zoom.reflowOnZoom is disabled.
@@ -3941,11 +3948,7 @@ pref("network.tcp.sendbuffer", 131072);
 pref("layers.async-video.enabled",false);
 
 // Whether to disable acceleration for all widgets.
-#ifdef MOZ_E10S_COMPAT
-pref("layers.acceleration.disabled", true);
-#else
 pref("layers.acceleration.disabled", false);
-#endif
 
 // Whether to force acceleration on, ignoring blacklists.
 #ifdef ANDROID
@@ -3978,11 +3981,8 @@ pref("gfx.xrender.enabled",true);
 
 #ifdef XP_WIN
 // Whether to disable the automatic detection and use of direct2d.
-#ifdef MOZ_E10S_COMPAT
-pref("gfx.direct2d.disabled", true);
-#else
 pref("gfx.direct2d.disabled", false);
-#endif
+
 // Whether to attempt to enable Direct2D regardless of automatic detection or
 // blacklisting
 pref("gfx.direct2d.force-enabled", false);

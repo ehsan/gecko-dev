@@ -156,7 +156,7 @@ void genPseudoBacktraceEntries(/*MODIFIED*/UnwinderThreadBuffer* utb,
 }
 
 // RUNS IN SIGHANDLER CONTEXT
-void BreakpadSampler::Tick(TickSample* sample)
+void TableTicker::UnwinderTick(TickSample* sample)
 {
   if (!sample->threadProfile) {
     // Platform doesn't support multithread, so use the main thread profile we created
@@ -245,7 +245,7 @@ void BreakpadSampler::Tick(TickSample* sample)
   }
 
   if (sample) {
-    TimeDuration delta = sample->timestamp - mStartTime;
+    TimeDuration delta = sample->timestamp - sStartTime;
     utb__addEntry( utb, ProfileEntry('t', delta.ToMilliseconds()) );
   }
 
