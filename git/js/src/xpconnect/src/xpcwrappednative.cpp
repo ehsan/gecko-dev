@@ -2886,12 +2886,7 @@ CallMethodHelper::ConvertIndependentParams(JSBool* foundDependentParam)
             // is really an 'out' param masquerading as an 'in' param.
             NS_ASSERTION(i < mArgc || paramInfo.IsOptional(),
                          "Expected either enough arguments or an optional argument");
-            if(i < mArgc)
-                src = mArgv[i];
-            else if(type_tag == nsXPTType::T_JSVAL)
-                src = JSVAL_VOID;
-            else
-                src = JSVAL_NULL;
+            src = i < mArgc ? mArgv[i] : JSVAL_NULL;
         }
 
         nsID param_iid;

@@ -50,7 +50,6 @@
 #include "nsXPCOM.h"
 #include "nsISupportsPrimitives.h"
 #include "nsIDOMRange.h"
-#include "nsRange.h"
 #include "imgIContainer.h"
 #include "nsIPresShell.h"
 #include "nsFocusManager.h"
@@ -79,8 +78,6 @@
 #include "nsContentUtils.h"
 #include "nsContentCID.h"
 
-nsresult NS_NewDomSelection(nsISelection **aDomSelection);
-
 static NS_DEFINE_CID(kCClipboardCID,           NS_CLIPBOARD_CID);
 static NS_DEFINE_CID(kCTransferableCID,        NS_TRANSFERABLE_CID);
 static NS_DEFINE_CID(kHTMLConverterCID,        NS_HTMLFORMATCONVERTER_CID);
@@ -103,7 +100,7 @@ static nsresult AppendDOMNode(nsITransferable *aTransferable,
 static nsresult
 SelectionCopyHelper(nsISelection *aSel, nsIDocument *aDoc,
                     PRBool doPutOnClipboard, PRInt16 aClipboardID,
-                    PRUint32 aFlags, nsITransferable ** aTransferable)
+                    nsITransferable ** aTransferable)
 {
   // Clear the output parameter for the transferable, if provided.
   if (aTransferable) {
@@ -138,8 +135,9 @@ SelectionCopyHelper(nsISelection *aSel, nsIDocument *aDoc,
   // we want preformatted for the case where the selection is inside input/textarea
   // and we don't want pretty printing for others cases, to not have additionnal
   // line breaks which are then converted into spaces by the htmlConverter (see bug #524975)
-  PRUint32 flags = aFlags | nsIDocumentEncoder::OutputPreformatted
-                          | nsIDocumentEncoder::OutputRaw;
+  PRUint32 flags = nsIDocumentEncoder::OutputPreformatted
+                   | nsIDocumentEncoder::OutputRaw
+                   | nsIDocumentEncoder::SkipInvisibleContent;
 
   nsCOMPtr<nsIDOMDocument> domDoc = do_QueryInterface(aDoc);
   NS_ASSERTION(domDoc, "Need a document");
@@ -180,7 +178,7 @@ SelectionCopyHelper(nsISelection *aSel, nsIDocument *aDoc,
 
     mimeType.AssignLiteral(kHTMLMime);
 
-    flags = aFlags;
+    flags = nsIDocumentEncoder::SkipInvisibleContent;
 
     rv = docEncoder->Init(domDoc, mimeType, flags);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -281,47 +279,17 @@ SelectionCopyHelper(nsISelection *aSel, nsIDocument *aDoc,
   return rv;
 }
 
-nsresult
-nsCopySupport::HTMLCopy(nsISelection* aSel, nsIDocument* aDoc,
-                        PRInt16 aClipboardID)
+nsresult nsCopySupport::HTMLCopy(nsISelection *aSel, nsIDocument *aDoc, PRInt16 aClipboardID)
 {
-  return SelectionCopyHelper(aSel, aDoc, PR_TRUE, aClipboardID,
-                             nsIDocumentEncoder::SkipInvisibleContent,
-                             nsnull);
+  return SelectionCopyHelper(aSel, aDoc, PR_TRUE, aClipboardID, nsnull);
 }
 
 nsresult
-nsCopySupport::GetTransferableForSelection(nsISelection* aSel,
-                                           nsIDocument* aDoc,
-                                           nsITransferable** aTransferable)
+nsCopySupport::GetTransferableForSelection(nsISelection * aSel,
+                                           nsIDocument * aDoc,
+                                           nsITransferable ** aTransferable)
 {
-  return SelectionCopyHelper(aSel, aDoc, PR_FALSE, 0,
-                             nsIDocumentEncoder::SkipInvisibleContent,
-                             aTransferable);
-}
-
-nsresult
-nsCopySupport::GetTransferableForNode(nsINode* aNode,
-                                      nsIDocument* aDoc,
-                                      nsITransferable** aTransferable)
-{
-  nsCOMPtr<nsISelection> selection;
-  // Make a temporary selection with aNode in a single range.
-  nsresult rv = NS_NewDomSelection(getter_AddRefs(selection));
-  NS_ENSURE_SUCCESS(rv, rv);
-  nsCOMPtr<nsIDOMRange> range;
-  rv = NS_NewRange(getter_AddRefs(range));
-  NS_ENSURE_SUCCESS(rv, rv);
-  nsCOMPtr<nsIDOMNode> node = do_QueryInterface(aNode);
-  NS_ENSURE_TRUE(node, NS_ERROR_FAILURE);
-  rv = range->SelectNode(node);
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = selection->AddRange(range);
-  NS_ENSURE_SUCCESS(rv, rv);
-  // It's not the primary selection - so don't skip invisible content.
-  PRUint32 flags = 0;
-  return SelectionCopyHelper(selection, aDoc, PR_FALSE, 0, flags,
-                             aTransferable);
+  return SelectionCopyHelper(aSel, aDoc, PR_FALSE, 0, aTransferable);
 }
 
 nsresult nsCopySupport::DoHooks(nsIDocument *aDoc, nsITransferable *aTrans,

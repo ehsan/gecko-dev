@@ -1023,8 +1023,7 @@ protected:
   // create a RangePaintInfo for the range aRange containing the
   // display list needed to paint the range to a surface
   RangePaintInfo* CreateRangePaintInfo(nsIDOMRange* aRange,
-                                       nsRect& aSurfaceRect,
-                                       PRBool aForPrimarySelection);
+                                       nsRect& aSurfaceRect);
 
   /*
    * Paint the items to a new surface and return it.
@@ -5459,8 +5458,7 @@ static PRBool gDumpRangePaintList = PR_FALSE;
 
 RangePaintInfo*
 PresShell::CreateRangePaintInfo(nsIDOMRange* aRange,
-                                nsRect& aSurfaceRect,
-                                PRBool aForPrimarySelection)
+                                nsRect& aSurfaceRect)
 {
   NS_TIME_FUNCTION_WITH_DOCURL;
 
@@ -5509,9 +5507,7 @@ PresShell::CreateRangePaintInfo(nsIDOMRange* aRange,
   nsRect ancestorRect = ancestorFrame->GetOverflowRect();
 
   // get a display list containing the range
-  if (aForPrimarySelection) {
-    info->mBuilder.SetSelectedFramesOnly();
-  }
+  info->mBuilder.SetPaintAllFrames();
   info->mBuilder.EnterPresShell(ancestorFrame, ancestorRect);
   ancestorFrame->BuildDisplayListForStackingContext(&info->mBuilder,
                                                     ancestorRect, &info->mList);
@@ -5689,7 +5685,7 @@ PresShell::RenderNode(nsIDOMNode* aNode,
   if (NS_FAILED(range->SelectNode(aNode)))
     return nsnull;
 
-  RangePaintInfo* info = CreateRangePaintInfo(range, area, PR_FALSE);
+  RangePaintInfo* info = CreateRangePaintInfo(range, area);
   if (info && !rangeItems.AppendElement(info)) {
     delete info;
     return nsnull;
@@ -5737,7 +5733,7 @@ PresShell::RenderSelection(nsISelection* aSelection,
     nsCOMPtr<nsIDOMRange> range;
     aSelection->GetRangeAt(r, getter_AddRefs(range));
 
-    RangePaintInfo* info = CreateRangePaintInfo(range, area, PR_TRUE);
+    RangePaintInfo* info = CreateRangePaintInfo(range, area);
     if (info && !rangeItems.AppendElement(info)) {
       delete info;
       return nsnull;
