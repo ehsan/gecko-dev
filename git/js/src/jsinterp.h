@@ -783,14 +783,14 @@ namespace js {
 
 static const size_t VALUES_PER_STACK_FRAME = sizeof(JSStackFrame) / sizeof(Value);
 
-extern JSObject *
-GetBlockChain(JSContext *cx, JSStackFrame *fp);
+} /* namespace js */
+
 
 extern JSObject *
-GetBlockChainFast(JSContext *cx, JSStackFrame *fp, JSOp op, size_t oplen);
+js_GetBlockChain(JSContext *cx, JSStackFrame *fp);
 
 extern JSObject *
-GetScopeChain(JSContext *cx);
+js_GetBlockChainFast(JSContext *cx, JSStackFrame *fp, JSOp op, size_t oplen);
 
 /*
  * Refresh and return fp->scopeChain.  It may be stale if block scopes are
@@ -800,10 +800,12 @@ GetScopeChain(JSContext *cx);
  * must reflect at runtime.
  */
 extern JSObject *
-GetScopeChain(JSContext *cx, JSStackFrame *fp);
+js_GetScopeChain(JSContext *cx, JSStackFrame *fp);
 
 extern JSObject *
-GetScopeChainFast(JSContext *cx, JSStackFrame *fp, JSOp op, size_t oplen);
+js_GetScopeChainFast(JSContext *cx, JSStackFrame *fp, JSOp op, size_t oplen);
+
+namespace js {
 
 /*
  * Report an error that the this value passed as |this| in the given arguments
@@ -972,16 +974,6 @@ InvokeConstructor(JSContext *cx, const CallArgs &args);
 extern JS_REQUIRES_STACK bool
 InvokeConstructorWithGivenThis(JSContext *cx, JSObject *thisobj, const Value &fval,
                                uintN argc, Value *argv, Value *rval);
-
-/*
- * Performs a direct eval for the given arguments, which must correspond to the
- * currently-executing stack frame, which must be a script frame.  evalfun must
- * be the built-in eval function and must correspond to the callee in vp[0].
- * When this function succeeds it returns the result in *vp, adjusts the JS
- * stack pointer, and returns true.
- */
-extern JS_REQUIRES_STACK bool
-DirectEval(JSContext *cx, JSFunction *evalfun, uint32 argc, Value *vp);
 
 /*
  * Executes a script with the given scope chain in the context of the given

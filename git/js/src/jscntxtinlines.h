@@ -47,43 +47,21 @@
 #include "jsxml.h"
 #include "jsregexp.h"
 #include "jsgc.h"
-#include "jscompartment.h"
 
-namespace js {
-
-static inline JSObject *
-GetGlobalForScopeChain(JSContext *cx)
+inline js::RegExpStatics *
+JSContext::regExpStatics()
 {
+    VOUCH_HAVE_STACK();
     /*
-     * This is essentially GetScopeChain(cx)->getGlobal(), but without
-     * falling off trace.
-     *
-     * This use of cx->fp, possibly on trace, is deliberate:
-     * cx->fp->scopeChain->getGlobal() returns the same object whether we're on
-     * trace or not, since we do not trace calls across global objects.
+     * Whether we're on trace or not, the scope chain associated with cx->fp
+     * will lead us to the appropriate global. Although cx->fp is stale on
+     * trace, trace execution never crosses globals.
      */
-    VOUCH_DOES_NOT_REQUIRE_STACK();
-
-    if (cx->hasfp())
-        return cx->fp()->scopeChain().getGlobal();
-
-    JSObject *scope = cx->globalObject;
-    if (!scope) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_INACTIVE);
-        return NULL;
-    }
-    OBJ_TO_INNER_OBJECT(cx, scope);
-    return scope;
+    JS_ASSERT(hasfp());
+    JSObject *global = fp()->scopeChain().getGlobal();
+    js::RegExpStatics *res = js::RegExpStatics::extractFrom(global);
+    return res;
 }
-
-}
-
-#ifdef JS_METHODJIT
-inline js::mjit::JaegerCompartment *JSContext::jaegerCompartment()
-{
-    return compartment->jaegerCompartment;
-}
-#endif
 
 inline bool
 JSContext::ensureGeneratorStackSpace()
@@ -107,12 +85,6 @@ JSContext::computeNextFrame(JSStackFrame *fp)
         if (end != ss->getPreviousInContext()->getCurrentFrame())
             next = NULL;
     }
-}
-
-inline js::RegExpStatics *
-JSContext::regExpStatics()
-{
-    return js::RegExpStatics::extractFrom(js::GetGlobalForScopeChain(this));
 }
 
 namespace js {
@@ -596,10 +568,6 @@ class CompartmentChecker
             if (script->u.object)
                 check(script->u.object);
         }
-    }
-
-    void check(JSStackFrame *fp) {
-        check(&fp->scopeChain());
     }
 
     void check(JSString *) { /* nothing for now */ }

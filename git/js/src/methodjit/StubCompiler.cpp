@@ -240,14 +240,12 @@ StubCompiler::crossJump(Jump j, Label L)
     joins.append(CrossPatch(j, L));
 }
 
-bool
+void
 StubCompiler::jumpInScript(Jump j, jsbytecode *target)
 {
-    if (cc.knownJump(target)) {
+    if (cc.knownJump(target))
         crossJump(j, cc.labelOf(target));
-        return true;
-    } else {
-        return scriptJoins.append(CrossJumpInScript(j, target));
-    }
+    else
+        scriptJoins.append(CrossJumpInScript(j, target));
 }
 

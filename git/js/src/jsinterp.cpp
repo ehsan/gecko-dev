@@ -162,33 +162,6 @@ JSStackFrame::pc(JSContext *cx, JSStackFrame *next)
 #endif
 }
 
-JSObject *
-js::GetScopeChain(JSContext *cx)
-{
-    JSStackFrame *fp = js_GetTopStackFrame(cx);
-    if (!fp) {
-        /*
-         * There is no code active on this context. In place of an actual
-         * scope chain, use the context's global object, which is set in
-         * js_InitFunctionAndObjectClasses, and which represents the default
-         * scope chain for the embedding. See also js_FindClassObject.
-         *
-         * For embeddings that use the inner and outer object hooks, the inner
-         * object represents the ultimate global object, with the outer object
-         * acting as a stand-in.
-         */
-        JSObject *obj = cx->globalObject;
-        if (!obj) {
-            JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_INACTIVE);
-            return NULL;
-        }
-
-        OBJ_TO_INNER_OBJECT(cx, obj);
-        return obj;
-    }
-    return GetScopeChain(cx, fp);
-}
-
 /*
  * This computes the blockChain by iterating through the bytecode
  * of the current script until it reaches the PC. Each time it sees
@@ -197,7 +170,7 @@ js::GetScopeChain(JSContext *cx)
  * require bytecode scanning appears below.
  */
 JSObject *
-js::GetBlockChain(JSContext *cx, JSStackFrame *fp)
+js_GetBlockChain(JSContext *cx, JSStackFrame *fp)
 {
     if (!fp->isScriptFrame())
         return NULL;
@@ -245,7 +218,7 @@ js::GetBlockChain(JSContext *cx, JSStackFrame *fp)
  * |oplen| is the length of opcode at the current PC.
  */
 JSObject *
-js::GetBlockChainFast(JSContext *cx, JSStackFrame *fp, JSOp op, size_t oplen)
+js_GetBlockChainFast(JSContext *cx, JSStackFrame *fp, JSOp op, size_t oplen)
 {
     /* Assume that we're in a script frame. */
     jsbytecode *pc = fp->pc(cx);
@@ -301,11 +274,11 @@ js::GetBlockChainFast(JSContext *cx, JSStackFrame *fp, JSOp op, size_t oplen)
  * closure's scope chain.  If we never close over a lexical block, we never
  * place a mutable clone of it on scopeChain.
  *
- * This lazy cloning is implemented in GetScopeChain, which is also used in
+ * This lazy cloning is implemented in js_GetScopeChain, which is also used in
  * some other cases --- entering 'with' blocks, for example.
  */
 static JSObject *
-GetScopeChainFull(JSContext *cx, JSStackFrame *fp, JSObject *blockChain)
+js_GetScopeChainFull(JSContext *cx, JSStackFrame *fp, JSObject *blockChain)
 {
     JSObject *sharedBlock = blockChain;
 
@@ -426,15 +399,15 @@ GetScopeChainFull(JSContext *cx, JSStackFrame *fp, JSObject *blockChain)
 }
 
 JSObject *
-js::GetScopeChain(JSContext *cx, JSStackFrame *fp)
+js_GetScopeChain(JSContext *cx, JSStackFrame *fp)
 {
-    return GetScopeChainFull(cx, fp, GetBlockChain(cx, fp));
+    return js_GetScopeChainFull(cx, fp, js_GetBlockChain(cx, fp));
 }
 
 JSObject *
-js::GetScopeChainFast(JSContext *cx, JSStackFrame *fp, JSOp op, size_t oplen)
+js_GetScopeChainFast(JSContext *cx, JSStackFrame *fp, JSOp op, size_t oplen)
 {
-    return GetScopeChainFull(cx, fp, GetBlockChainFast(cx, fp, op, oplen));
+    return js_GetScopeChainFull(cx, fp, js_GetBlockChainFast(cx, fp, op, oplen));
 }
 
 /* Some objects (e.g., With) delegate 'this' to another object. */
@@ -743,7 +716,7 @@ Invoke(JSContext *cx, const CallArgs &argsRef, uint32 flags)
      *
      * Compute |this|. Currently, this must happen after the frame is pushed
      * and fp->scopeChain is correct because the thisObject hook may call
-     * GetScopeChain.
+     * JS_GetScopeChain.
      */
     if (!(flags & JSINVOKE_CONSTRUCT)) {
         Value &thisv = fp->functionThis();
@@ -788,10 +761,6 @@ InvokeSessionGuard::start(JSContext *cx, const Value &calleev, const Value &this
     if (!stack.pushInvokeArgs(cx, argc, &args_))
         return false;
 
-    /* Callees may clobber 'this' or 'callee'. */
-    savedCallee_ = args_.callee() = calleev;
-    savedThis_ = args_.thisv() = thisv;
-
     do {
         /* Hoist dynamic checks from scripted Invoke. */
         if (!calleev.isObject())
@@ -805,6 +774,10 @@ InvokeSessionGuard::start(JSContext *cx, const Value &calleev, const Value &this
         script_ = fun->script();
         if (fun->isHeavyweight() || script_->isEmpty() || cx->compartment->debugMode)
             break;
+
+        /* Set (callee, this) once for the session (before args are duped). */
+        args_.callee().setObject(callee);
+        args_.thisv() = thisv;
 
         /* Push the stack frame once for the session. */
         uint32 flags = 0;
@@ -820,7 +793,7 @@ InvokeSessionGuard::start(JSContext *cx, const Value &calleev, const Value &this
             if (!thisp)
                 return false;
             JS_ASSERT(IsSaneThisObject(*thisp));
-            savedThis_.setObject(*thisp);
+            fp->functionThis().setObject(*thisp);
         }
 
 #ifdef JS_METHODJIT
@@ -859,6 +832,8 @@ InvokeSessionGuard::start(JSContext *cx, const Value &calleev, const Value &this
      */
     if (frame_.pushed())
         frame_.pop();
+    args_.thisv() = thisv;
+    savedCallee_ = calleev;
     formals_ = actuals_ = args_.argv();
     nformals_ = (unsigned)-1;
     return true;
@@ -1328,27 +1303,6 @@ InvokeConstructorWithGivenThis(JSContext *cx, JSObject *thisobj, const Value &fv
 }
 
 bool
-DirectEval(JSContext *cx, JSFunction *evalfun, uint32 argc, Value *vp)
-{
-    JS_ASSERT(vp == cx->regs->sp - argc - 2);
-    JS_ASSERT(vp[0].isObject());
-    JS_ASSERT(vp[0].toObject().isFunction());
-    JS_ASSERT(vp[0].toObject().getFunctionPrivate() == evalfun);
-    JS_ASSERT(IsBuiltinEvalFunction(evalfun));
-
-    AutoFunctionCallProbe callProbe(cx, evalfun);
-
-    JSStackFrame *caller = cx->fp();
-    JS_ASSERT(caller->isScriptFrame());
-    JSObject *scopeChain =
-        GetScopeChainFast(cx, caller, JSOP_EVAL, JSOP_EVAL_LENGTH + JSOP_LINENO_LENGTH);
-    if (!scopeChain || !EvalKernel(cx, argc, vp, DIRECT_EVAL, caller, scopeChain))
-        return false;
-    cx->regs->sp = vp + 1;
-    return true;
-}
-
-bool
 ValueToId(JSContext *cx, const Value &v, jsid *idp)
 {
     int32_t i;
@@ -1394,7 +1348,7 @@ js_EnterWith(JSContext *cx, jsint stackIndex, JSOp op, size_t oplen)
         sp[-1].setObject(*obj);
     }
 
-    JSObject *parent = GetScopeChainFast(cx, fp, op, oplen);
+    JSObject *parent = js_GetScopeChainFast(cx, fp, op, oplen);
     if (!parent)
         return JS_FALSE;
 
@@ -2762,7 +2716,7 @@ BEGIN_CASE(JSOP_POPN)
     regs.sp -= GET_UINT16(regs.pc);
 #ifdef DEBUG
     JS_ASSERT(regs.fp->base() <= regs.sp);
-    JSObject *obj = GetBlockChain(cx, regs.fp);
+    JSObject *obj = js_GetBlockChain(cx, regs.fp);
     JS_ASSERT_IF(obj,
                  OBJ_BLOCK_DEPTH(cx, obj) + OBJ_BLOCK_COUNT(cx, obj)
                  <= (size_t) (regs.sp - regs.fp->base()));
@@ -4653,7 +4607,11 @@ BEGIN_CASE(JSOP_EVAL)
     if (!IsBuiltinEvalFunction(newfun))
         goto not_direct_eval;
 
-    if (!DirectEval(cx, newfun, argc, vp))
+    Probes::enterJSFun(cx, newfun);
+    JSBool ok = CallJSNative(cx, newfun->u.n.native, argc, vp);
+    Probes::exitJSFun(cx, newfun);
+    regs.sp = vp + 1;
+    if (!ok)
         goto error;
 }
 END_CASE(JSOP_EVAL)
@@ -4950,7 +4908,7 @@ BEGIN_CASE(JSOP_REGEXP)
      * bytecode at pc. ES5 finally fixed this bad old ES3 design flaw which was
      * flouted by many browser-based implementations.
      *
-     * We avoid the GetScopeChain call here and pass fp->scopeChain as
+     * We avoid the js_GetScopeChain call here and pass fp->scopeChain as
      * js_GetClassPrototype uses the latter only to locate the global.
      */
     jsatomid index = GET_FULL_INDEX(0);
@@ -5410,7 +5368,7 @@ BEGIN_CASE(JSOP_DEFFUN)
     } else {
         JS_ASSERT(!FUN_FLAT_CLOSURE(fun));
 
-        obj2 = GetScopeChainFast(cx, regs.fp, JSOP_DEFFUN, JSOP_DEFFUN_LENGTH);
+        obj2 = js_GetScopeChainFast(cx, regs.fp, JSOP_DEFFUN, JSOP_DEFFUN_LENGTH);
         if (!obj2)
             goto error;
     }
@@ -5557,8 +5515,8 @@ BEGIN_CASE(JSOP_DEFLOCALFUN)
         if (!obj)
             goto error;
     } else {
-        JSObject *parent = GetScopeChainFast(cx, regs.fp, JSOP_DEFLOCALFUN,
-                                             JSOP_DEFLOCALFUN_LENGTH);
+        JSObject *parent = js_GetScopeChainFast(cx, regs.fp, JSOP_DEFLOCALFUN,
+                                                JSOP_DEFLOCALFUN_LENGTH);
         if (!parent)
             goto error;
 
@@ -5721,7 +5679,7 @@ BEGIN_CASE(JSOP_LAMBDA)
             }
 #endif
         } else {
-            parent = GetScopeChainFast(cx, regs.fp, JSOP_LAMBDA, JSOP_LAMBDA_LENGTH);
+            parent = js_GetScopeChainFast(cx, regs.fp, JSOP_LAMBDA, JSOP_LAMBDA_LENGTH);
             if (!parent)
                 goto error;
         }
