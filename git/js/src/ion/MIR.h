@@ -2118,114 +2118,6 @@ class MCreateThis
     }
 };
 
-// Eager initialization of arguments object.
-class MCreateArgumentsObject
-  : public MUnaryInstruction,
-    public ObjectPolicy<0>
-{
-    MCreateArgumentsObject(MDefinition *callObj)
-      : MUnaryInstruction(callObj)
-    {
-        setResultType(MIRType_Object);
-        setGuard();
-    }
-
-  public:
-    INSTRUCTION_HEADER(CreateArgumentsObject)
-    static MCreateArgumentsObject *New(MDefinition *callObj) {
-        return new MCreateArgumentsObject(callObj);
-    }
-
-    MDefinition *getCallObject() const {
-        return getOperand(0);
-    }
-
-    AliasSet getAliasSet() const {
-        return AliasSet::None();
-    }
-
-    TypePolicy *typePolicy() {
-        return this;
-    }
-};
-
-class MGetArgumentsObjectArg
-  : public MUnaryInstruction,
-    public ObjectPolicy<0>
-{
-    size_t argno_;
-
-    MGetArgumentsObjectArg(MDefinition *argsObject, size_t argno)
-      : MUnaryInstruction(argsObject),
-        argno_(argno)
-    {
-        setResultType(MIRType_Value);
-    }
-
-  public:
-    INSTRUCTION_HEADER(GetArgumentsObjectArg)
-    static MGetArgumentsObjectArg *New(MDefinition *argsObj, size_t argno)
-    {
-        return new MGetArgumentsObjectArg(argsObj, argno);
-    }
-
-    MDefinition *getArgsObject() const {
-        return getOperand(0);
-    }
-
-    size_t argno() const {
-        return argno_;
-    }
-
-    AliasSet getAliasSet() const {
-        return AliasSet::Load(AliasSet::Any);
-    }
-
-    TypePolicy *typePolicy() {
-        return this;
-    }
-};
-
-class MSetArgumentsObjectArg
-  : public MBinaryInstruction,
-    public MixPolicy<ObjectPolicy<0>, BoxPolicy<1> >
-{
-    size_t argno_;
-
-    MSetArgumentsObjectArg(MDefinition *argsObj, size_t argno, MDefinition *value)
-      : MBinaryInstruction(argsObj, value),
-        argno_(argno)
-    {
-    }
-
-  public:
-    INSTRUCTION_HEADER(SetArgumentsObjectArg)
-    static MSetArgumentsObjectArg *New(MDefinition *argsObj, size_t argno, MDefinition *value)
-    {
-        return new MSetArgumentsObjectArg(argsObj, argno, value);
-    }
-
-    MDefinition *getArgsObject() const {
-        return getOperand(0);
-    }
-
-    size_t argno() const {
-        return argno_;
-    }
-
-    MDefinition *getValue() const {
-        return getOperand(1);
-    }
-
-    AliasSet getAliasSet() const {
-        return AliasSet::Store(AliasSet::Any);
-    }
-
-    TypePolicy *typePolicy() {
-        return this;
-    }
-};
-
 // Given a MIRType_Value A and a MIRType_Object B:
 // If the Value may be safely unboxed to an Object, return Object(A).
 // Otherwise, return B.
@@ -3136,8 +3028,10 @@ class MAdd : public MBinaryArithInstruction
         MAdd *add = new MAdd(left, right);
         add->specialization_ = type;
         add->setResultType(type);
-        if (type == MIRType_Int32)
+        if (type == MIRType_Int32) {
             add->setTruncated(true);
+            add->setCommutative();
+        }
         return add;
     }
     void analyzeTruncateBackward();
@@ -3209,6 +3103,7 @@ class MMul : public MBinaryArithInstruction
             // can never fail and always truncates its output to int32.
             canBeNegativeZero_ = false;
             setTruncated(true);
+            setCommutative();
         }
         JS_ASSERT_IF(mode != Integer, mode == Normal);
 

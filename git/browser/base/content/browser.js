@@ -18,6 +18,7 @@ var gProxyFavIcon = null;
 var gLastValidURLStr = "";
 var gInPrintPreviewMode = false;
 var gContextMenu = null; // nsContextMenu instance
+var gMultiProcessBrowser = false;
 
 #ifndef XP_MACOSX
 var gEditUIVisible = true;
@@ -746,6 +747,8 @@ var gBrowserInit = {
     if ("arguments" in window && window.arguments[0])
       var uriToLoad = window.arguments[0];
 
+    gMultiProcessBrowser = gPrefService.getBoolPref("browser.tabs.remote");
+
     var mustLoadSidebar = false;
 
     Cc["@mozilla.org/eventlistenerservice;1"]
@@ -767,6 +770,7 @@ var gBrowserInit = {
     window.addEventListener("AppCommand", HandleAppCommandEvent, true);
 
     messageManager.loadFrameScript("chrome://browser/content/content.js", true);
+    messageManager.loadFrameScript("chrome://browser/content/content-sessionStore.js", true);
 
     // initialize observers and listeners
     // and give C++ access to gBrowser
@@ -807,18 +811,18 @@ var gBrowserInit = {
 
     // enable global history
     try {
-      gBrowser.docShell.QueryInterface(Ci.nsIDocShellHistory).useGlobalHistory = true;
+      if (!gMultiProcessBrowser)
+        gBrowser.docShell.QueryInterface(Ci.nsIDocShellHistory).useGlobalHistory = true;
     } catch(ex) {
       Cu.reportError("Places database may be locked: " + ex);
     }
 
-#ifdef MOZ_E10S_COMPAT
     // Bug 666801 - WebProgress support for e10s
-#else
-    // hook up UI through progress listener
-    gBrowser.addProgressListener(window.XULBrowserWindow);
-    gBrowser.addTabsProgressListener(window.TabsProgressListener);
-#endif
+    if (!gMultiProcessBrowser) {
+      // hook up UI through progress listener
+      gBrowser.addProgressListener(window.XULBrowserWindow);
+      gBrowser.addTabsProgressListener(window.TabsProgressListener);
+    }
 
     // setup our common DOMLinkAdded listener
     gBrowser.addEventListener("DOMLinkAdded", DOMLinkHandler, false);
@@ -981,7 +985,7 @@ var gBrowserInit = {
     gBrowser.addEventListener("pageshow", function(event) {
       // Filter out events that are not about the document load we are interested in
       if (content && event.target == content.document)
-        setTimeout(pageShowEventHandlers, 0, event);
+        setTimeout(pageShowEventHandlers, 0, event.persisted);
     }, true);
 
     if (uriToLoad && uriToLoad != "about:blank") {
@@ -1092,13 +1096,12 @@ var gBrowserInit = {
     // apply full zoom settings to tabs restored by the session restore service.
     FullZoom.init();
 
-#ifdef MOZ_E10S_COMPAT
     // Bug 666804 - NetworkPrioritizer support for e10s
-#else
-    let NP = {};
-    Cu.import("resource:///modules/NetworkPrioritizer.jsm", NP);
-    NP.trackBrowserWindow(window);
-#endif
+    if (!gMultiProcessBrowser) {
+      let NP = {};
+      Cu.import("resource:///modules/NetworkPrioritizer.jsm", NP);
+      NP.trackBrowserWindow(window);
+    }
 
     // initialize the session-restore service (in case it's not already running)
     let ss = Cc["@mozilla.org/browser/sessionstore;1"].getService(Ci.nsISessionStore);
@@ -1142,12 +1145,11 @@ var gBrowserInit = {
     gBrowser.mPanelContainer.addEventListener("PreviewBrowserTheme", LightWeightThemeWebInstaller, false, true);
     gBrowser.mPanelContainer.addEventListener("ResetBrowserThemePreview", LightWeightThemeWebInstaller, false, true);
 
-#ifdef MOZ_E10S_COMPAT
     // Bug 666808 - AeroPeek support for e10s
-#else
-    if (Win7Features)
-      Win7Features.onOpenWindow();
-#endif
+    if (!gMultiProcessBrowser) {
+      if (Win7Features)
+        Win7Features.onOpenWindow();
+    }
 
    // called when we go into full screen, even if initiated by a web page script
     window.addEventListener("fullscreen", onFullScreen, true);
@@ -2148,8 +2150,9 @@ function URLBarSetURI(aURI) {
 
     // Replace initial page URIs with an empty string
     // only if there's no opener (bug 370555).
+    // Bug 863515 - Make content.opener checks work in electrolysis.
     if (gInitialPages.indexOf(uri.spec) != -1)
-      value = content.opener ? uri.spec : "";
+      value = !gMultiProcessBrowser && content.opener ? uri.spec : "";
     else
       value = losslessDecodeURI(uri);
 
@@ -3538,15 +3541,15 @@ var XULBrowserWindow = {
   init: function () {
     this.throbberElement = document.getElementById("navigator-throbber");
 
-#ifdef MOZ_E10S_COMPAT
     // Bug 666809 - SecurityUI support for e10s
-#else
+    if (gMultiProcessBrowser)
+      return;
+
     // Initialize the security button's state and tooltip text.  Remember to reset
     // _hostChanged, otherwise onSecurityChange will short circuit.
     var securityUI = gBrowser.securityUI;
     this._hostChanged = true;
     this.onSecurityChange(null, null, securityUI.state);
-#endif
   },
 
   destroy: function () {
@@ -3713,7 +3716,7 @@ var XULBrowserWindow = {
         this.setDefaultStatus(msg);
 
         // Disable menu entries for images, enable otherwise
-        if (content.document && mimeTypeIsTextBased(content.document.contentType))
+        if (!gMultiProcessBrowser && content.document && mimeTypeIsTextBased(content.document.contentType))
           this.isImage.removeAttribute('disabled');
         else
           this.isImage.setAttribute('disabled', 'true');
@@ -3763,7 +3766,7 @@ var XULBrowserWindow = {
     }
 
     // Disable menu entries for images, enable otherwise
-    if (content.document && mimeTypeIsTextBased(content.document.contentType))
+    if (!gMultiProcessBrowser && content.document && mimeTypeIsTextBased(content.document.contentType))
       this.isImage.removeAttribute('disabled');
     else
       this.isImage.setAttribute('disabled', 'true');
@@ -3779,7 +3782,7 @@ var XULBrowserWindow = {
 
     var browser = gBrowser.selectedBrowser;
     if (aWebProgress.DOMWindow == content) {
-      if ((location == "about:blank" && !content.opener) ||
+      if ((location == "about:blank" && (gMultiProcessBrowser || !content.opener)) ||
           location == "") {  // Second condition is for new tabs, otherwise
                              // reload function is enabled until tab is refreshed.
         this.reloadCommand.setAttribute("disabled", "true");
@@ -3833,7 +3836,7 @@ var XULBrowserWindow = {
       }
 
       // Disable find commands in documents that ask for them to be disabled.
-      if (aLocationURI &&
+      if (!gMultiProcessBrowser && aLocationURI &&
           (aLocationURI.schemeIs("about") || aLocationURI.schemeIs("chrome"))) {
         // Don't need to re-enable/disable find commands for same-document location changes
         // (e.g. the replaceStates in about:addons)
@@ -3945,6 +3948,9 @@ var XULBrowserWindow = {
       if (gURLBar)
         gURLBar.removeAttribute("level");
     }
+
+    if (gMultiProcessBrowser)
+      return;
 
     // Don't pass in the actual location object, since it can cause us to
     // hold on to the window object too long.  Just pass in the fields we
@@ -4166,8 +4172,9 @@ var TabsProgressListener = {
     // We can't look for this during onLocationChange since at that point the
     // document URI is not yet the about:-uri of the error page.
 
-    let doc = aWebProgress.DOMWindow.document;
-    if (aStateFlags & Ci.nsIWebProgressListener.STATE_STOP &&
+    let doc = gMultiProcessBrowser ? null : aWebProgress.DOMWindow.document;
+    if (!gMultiProcessBrowser &&
+        aStateFlags & Ci.nsIWebProgressListener.STATE_STOP &&
         Components.isSuccessCode(aStatus) &&
         doc.documentURI.startsWith("about:") &&
         !doc.documentURI.toLowerCase().startsWith("about:blank") &&
@@ -6150,7 +6157,12 @@ function AddKeywordForSearchField() {
 }
 
 function SwitchDocumentDirection(aWindow) {
-  aWindow.document.dir = (aWindow.document.dir == "ltr" ? "rtl" : "ltr");
+  // document.dir can also be "auto", in which case it won't change
+  if (aWindow.document.dir == "ltr" || aWindow.document.dir == "") {
+    aWindow.document.dir = "rtl";
+  } else if (aWindow.document.dir == "rtl") {
+    aWindow.document.dir = "ltr";
+  }
   for (var run = 0; run < aWindow.frames.length; run++)
     SwitchDocumentDirection(aWindow.frames[run]);
 }
@@ -6224,7 +6236,8 @@ function isTabEmpty(aTab) {
   if (!isBlankPageURL(browser.currentURI.spec))
     return false;
 
-  if (browser.contentWindow.opener)
+  // Bug 863515 - Make content.opener checks work in electrolysis.
+  if (!gMultiProcessBrowser && browser.contentWindow.opener)
     return false;
 
   if (browser.sessionHistory && browser.sessionHistory.count >= 2)
