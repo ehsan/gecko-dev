@@ -22,18 +22,13 @@
 
 struct JSContext;
 class nsCSSPropertySet;
-class nsIDocument;
-class nsPresContext;
 
 namespace mozilla {
-struct AnimationPlayerCollection;
 namespace css {
 class AnimValuesStyleRule;
-class CommonAnimationManager;
 } // namespace css
 
 class CSSAnimationPlayer;
-class CSSTransitionPlayer;
 
 namespace dom {
 
@@ -58,7 +53,13 @@ public:
   virtual JSObject* WrapObject(JSContext* aCx) MOZ_OVERRIDE;
 
   virtual CSSAnimationPlayer* AsCSSAnimationPlayer() { return nullptr; }
-  virtual CSSTransitionPlayer* AsCSSTransitionPlayer() { return nullptr; }
+
+  // Temporary flags to control restyle behavior until bug 1073336
+  // provides a better solution.
+  enum UpdateFlags {
+    eNoUpdate,
+    eUpdateStyle
+  };
 
   // AnimationPlayer methods
   Animation* GetSource() const { return mSource; }
@@ -66,21 +67,18 @@ public:
   Nullable<double> GetStartTime() const;
   Nullable<TimeDuration> GetCurrentTime() const;
   AnimationPlayState PlayState() const;
-  virtual void Play();
-  virtual void Pause();
+  virtual void Play(UpdateFlags aUpdateFlags);
+  virtual void Pause(UpdateFlags aUpdateFlags);
   bool IsRunningOnCompositor() const { return mIsRunningOnCompositor; }
 
   // Wrapper functions for AnimationPlayer DOM methods when called
   // from script. We often use the same methods internally and from
-  // script but when called from script we (or one of our subclasses) perform
-  // extra steps such as flushing style or converting the return type.
+  // script but when called from script we perform extra steps such
+  // as flushing style or converting the return type.
   Nullable<double> GetCurrentTimeAsDouble() const;
-  virtual AnimationPlayState PlayStateFromJS() const { return PlayState(); }
-  virtual void PlayFromJS() { Play(); }
-  // PauseFromJS is currently only here for symmetry with PlayFromJS but
-  // in future we will likely have to flush style in
-  // CSSAnimationPlayer::PauseFromJS so we leave it for now.
-  void PauseFromJS() { Pause(); }
+  AnimationPlayState PlayStateFromJS() const;
+  void PlayFromJS();
+  void PauseFromJS();
 
   void SetSource(Animation* aSource);
   void Tick();
@@ -122,17 +120,9 @@ public:
   Nullable<TimeDuration> mStartTime; // Timeline timescale
 
 protected:
-  void DoPlay();
-  void DoPause();
-
   void FlushStyle() const;
-  void PostUpdate();
+  void MaybePostRestyle() const;
   StickyTimeDuration SourceContentEnd() const;
-
-  nsIDocument* GetRenderedDocument() const;
-  nsPresContext* GetPresContext() const;
-  virtual css::CommonAnimationManager* GetAnimationManager() const = 0;
-  AnimationPlayerCollection* GetCollection() const;
 
   nsRefPtr<AnimationTimeline> mTimeline;
   nsRefPtr<Animation> mSource;
