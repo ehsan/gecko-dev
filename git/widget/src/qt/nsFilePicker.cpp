@@ -71,6 +71,7 @@ nsFilePicker::nsFilePicker()
 
 nsFilePicker::~nsFilePicker()
 {
+    delete mDialog;
 }
 
 NS_IMETHODIMP

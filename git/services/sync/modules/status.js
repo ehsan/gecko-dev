@@ -42,8 +42,6 @@ const Cu = Components.utils;
 Cu.import("resource://services-sync/constants.js");
 
 let Status = {
-  ready: false,
-
   get login() this._login,
   set login(code) {
     this._login = code;
@@ -89,7 +87,7 @@ let Status = {
 
     Cu.import("resource://services-sync/util.js");
     Cu.import("resource://services-sync/identity.js");
-    Cu.import("resource://services-sync/record.js");
+    Cu.import("resource://services-sync/base_records/crypto.js");
     if (!Utils.mpLocked()) {
       let id = ID.get("WeaveID");
       if (!id)

@@ -38,9 +38,7 @@
 #include "PlaceInfo.h"
 #include "VisitInfo.h"
 #include "nsIURI.h"
-#include "nsServiceManagerUtils.h"
-#include "nsIXPConnect.h"
-#include "mozilla/Services.h"
+#include "nsContentUtils.h"
 
 namespace mozilla {
 namespace places {
@@ -114,19 +112,12 @@ PlaceInfo::GetVisits(JSContext* aContext,
   JSObject* global = JS_GetGlobalForScopeChain(aContext);
   NS_ENSURE_TRUE(global, NS_ERROR_UNEXPECTED);
 
-  nsCOMPtr<nsIXPConnect> xpc = mozilla::services::GetXPConnect();
-
   for (VisitsArray::size_type idx = 0; idx < mVisits.Length(); idx++) {
-    nsCOMPtr<nsIXPConnectJSObjectHolder> wrapper;
-    nsresult rv = xpc->WrapNative(aContext, global, mVisits[idx],
-                                  NS_GET_IID(mozIVisitInfo),
-                                  getter_AddRefs(wrapper));
+    jsval wrappedVisit;
+    nsresult rv = nsContentUtils::WrapNative(aContext, global, mVisits[idx],
+                                             &NS_GET_IID(mozIVisitInfo),
+                                             &wrappedVisit);
     NS_ENSURE_SUCCESS(rv, rv);
-
-    JSObject* jsobj;
-    rv = wrapper->GetJSObject(&jsobj);
-    NS_ENSURE_SUCCESS(rv, rv);
-    jsval wrappedVisit = OBJECT_TO_JSVAL(jsobj);
 
     JSBool rc = JS_SetElement(aContext, visits, idx, &wrappedVisit);
     NS_ENSURE_TRUE(rc, NS_ERROR_UNEXPECTED);

@@ -110,11 +110,10 @@ public:
   nsTArray<nsCString> mMimeDescriptionArray; // UTF-8
   char          **mExtensionsArray;
   PRLibrary     *mLibrary;
-  nsRefPtr<nsNPAPIPlugin> mEntryPoint;
+  nsCOMPtr<nsIPlugin> mEntryPoint;
   PRPackedBool  mCanUnloadLibrary;
   PRPackedBool  mIsJavaPlugin;
   PRPackedBool  mIsNPRuntimeEnabledJavaPlugin;
-  PRPackedBool  mIsFlashPlugin;
   nsCString     mFileName; // UTF-8
   nsCString     mFullPath; // UTF-8
   nsCString     mVersion;  // UTF-8

@@ -50,11 +50,10 @@ Cu.import("resource://gre/modules/AddonRepository.jsm");
 
 const PREF_DISCOVERURL = "extensions.webservice.discoverURL";
 const PREF_MAXRESULTS = "extensions.getAddons.maxResults";
+const PREF_BACKGROUND_UPDATE = "extensions.update.enabled";
 const PREF_CHECK_COMPATIBILITY = "extensions.checkCompatibility";
 const PREF_CHECK_UPDATE_SECURITY = "extensions.checkUpdateSecurity";
 const PREF_AUTOUPDATE_DEFAULT = "extensions.update.autoUpdateDefault";
-const PREF_GETADDONS_CACHE_ENABLED = "extensions.getAddons.cache.enabled";
-const PREF_GETADDONS_CACHE_ID_ENABLED = "extensions.%ID%.getAddons.cache.enabled";
 
 const BRANCH_REGEXP = /^([^\.]+\.[0-9]+[a-z]*).*/gi;
 
@@ -109,11 +108,6 @@ function initialize() {
   gHeader.initialize();
   gViewController.initialize();
   gEventManager.initialize();
-  Services.obs.addObserver(sendEMPong, "EM-ping", false);
-  Services.obs.notifyObservers(window, "EM-loaded", "");
-  // Send this after the above notifications to give observers of them a chance
-  // to initialize us to a different view.
-  gViewController.updateState(window.history.state);
 }
 
 function notifyInitialized() {
@@ -133,11 +127,6 @@ function shutdown() {
   gSearchView.shutdown();
   gEventManager.shutdown();
   gViewController.shutdown();
-  Services.obs.removeObserver(sendEMPong, "EM-ping");
-}
-
-function sendEMPong(aSubject, aTopic, aData) {
-  Services.obs.notifyObservers(window, "EM-pong", "");
 }
 
 // Used by external callers to load a specific view into the manager
@@ -222,7 +211,7 @@ var FakeHistory = {
       throw new Error("Cannot go back from this point");
 
     this.pos--;
-    gViewController.updateState(this.states[this.pos]);
+    gViewController.statePopped({ state: this.states[this.pos] });
     gViewController.updateCommand("cmd_back");
     gViewController.updateCommand("cmd_forward");
   },
@@ -232,7 +221,7 @@ var FakeHistory = {
       throw new Error("Cannot go forward from this point");
 
     this.pos++;
-    gViewController.updateState(this.states[this.pos]);
+    gViewController.statePopped({ state: this.states[this.pos] });
     gViewController.updateCommand("cmd_back");
     gViewController.updateCommand("cmd_forward");
   },
@@ -254,7 +243,7 @@ var FakeHistory = {
     this.states.splice(this.pos);
     this.pos--;
 
-    gViewController.updateState(this.states[this.pos]);
+    gViewController.statePopped({ state: this.states[this.pos] });
     gViewController.updateCommand("cmd_back");
     gViewController.updateCommand("cmd_forward");
   }
@@ -489,9 +478,7 @@ var gViewController = {
     window.controllers.appendController(this);
 
     window.addEventListener("popstate",
-                            function (e) {
-                              gViewController.updateState(e.state);
-                            },
+                            gViewController.statePopped.bind(gViewController),
                             false);
   },
 
@@ -514,10 +501,10 @@ var gViewController = {
     window.controllers.removeController(this);
   },
 
-  updateState: function(state) {
+  statePopped: function(e) {
     // If this is a navigation to a previous state then load that state
-    if (state) {
-      this.loadViewInternal(state.view, state.previousView, state);
+    if (e.state) {
+      this.loadViewInternal(e.state.view, e.state.previousView);
       return;
     }
 
@@ -554,12 +541,11 @@ var gViewController = {
     if (aViewId == this.currentViewId)
       return;
 
-    var state = {
+    gHistory.pushState({
       view: aViewId,
       previousView: this.currentViewId
-    };
-    gHistory.pushState(state);
-    this.loadViewInternal(aViewId, this.currentViewId, state);
+    }, document.title);
+    this.loadViewInternal(aViewId, this.currentViewId);
   },
 
   // Replaces the existing view with a new one, rewriting the current history
@@ -568,27 +554,25 @@ var gViewController = {
     if (aViewId == this.currentViewId)
       return;
 
-    var state = {
+    gHistory.replaceState({
       view: aViewId,
       previousView: null
-    };
-    gHistory.replaceState(state);
-    this.loadViewInternal(aViewId, null, state);
+    }, document.title);
+    this.loadViewInternal(aViewId, null);
   },
 
   loadInitialView: function(aViewId) {
-    var state = {
+    gHistory.replaceState({
       view: aViewId,
       previousView: null
-    };
-    gHistory.replaceState(state);
+    }, document.title);
 
-    this.loadViewInternal(aViewId, null, state);
+    this.loadViewInternal(aViewId, null);
     this.initialViewSelected = true;
     notifyInitialized();
   },
 
-  loadViewInternal: function(aViewId, aPreviousView, aState) {
+  loadViewInternal: function(aViewId, aPreviousView) {
     var view = this.parseViewId(aViewId);
 
     if (!view.type || !(view.type in this.viewObjects))
@@ -617,7 +601,7 @@ var gViewController = {
 
     this.viewPort.selectedPanel = this.currentViewObj.node;
     this.viewPort.selectedPanel.setAttribute("loading", "true");
-    this.currentViewObj.show(view.param, ++this.currentViewRequest, aState);
+    this.currentViewObj.show(view.param, ++this.currentViewRequest);
   },
 
   // Moves back in the document history and removes the current history entry
@@ -903,7 +887,7 @@ var gViewController = {
       doCommand: function(aAddon) {
         var aboutURL = aAddon.aboutURL;
         if (aboutURL)
-          openDialog(aboutURL, "", "chrome,centerscreen,modal", aAddon);
+          openDialog(aboutURL, "", "chrome,centerscreen,modal");
         else
           openDialog("chrome://mozapps/content/extensions/about.xul",
                      "", "chrome,centerscreen,modal", aAddon);
@@ -1175,16 +1159,6 @@ function shouldAutoUpdate(aAddon, aDefault) {
   return aDefault !== undefined ? aDefault : AddonManager.autoUpdateDefault;
 }
 
-function shouldShowVersionNumber(aAddon) {
-  if (!aAddon.version)
-    return false;
-
-  // The version number is hidden for lightweight themes.
-  if (aAddon.type == "theme")
-    return !/@personas\.mozilla\.org$/.test(aAddon.id);
-
-  return true;
-}
 
 function createItem(aObj, aIsInstall, aIsRemote) {
   let item = document.createElement("richlistitem");
@@ -1216,33 +1190,8 @@ function createItem(aObj, aIsInstall, aIsRemote) {
 }
 
 function sortElements(aElements, aSortBy, aAscending) {
-  // aSortBy is an Array of attributes to sort by, in decending
-  // order of priority.
-
   const DATE_FIELDS = ["updateDate"];
   const NUMERIC_FIELDS = ["size", "relevancescore", "purchaseAmount"];
-
-  // We're going to group add-ons into the following buckets:
-  //
-  //  enabledInstalled
-  //    * Enabled
-  //    * Incompatible but enabled because compatibility checking is off
-  //    * Waiting to be installed
-  //    * Waiting to be enabled
-  //
-  //  pendingDisable
-  //    * Waiting to be disabled
-  //
-  //  pendingUninstall
-  //    * Waiting to be removed
-  //
-  //  disabledIncompatibleBlocked
-  //    * Disabled
-  //    * Incompatible
-  //    * Blocklisted
-
-  const UISTATE_ORDER = ["enabled", "pendingDisable", "pendingUninstall",
-                         "disabled"];
 
   function dateCompare(a, b) {
     var aTime = a.getTime();
@@ -1262,93 +1211,47 @@ function sortElements(aElements, aSortBy, aAscending) {
     return a.localeCompare(b);
   }
 
-  function uiStateCompare(a, b) {
-    // If we're in descending order, swap a and b, because
-    // we don't ever want to have descending uiStates
-    if (!aAscending)
-      [a, b] = [b, a];
-
-    return (UISTATE_ORDER.indexOf(a) - UISTATE_ORDER.indexOf(b));
-  }
-
-  function getValue(aObj, aKey) {
+  function getValue(aObj) {
     if (!aObj)
       return null;
 
-    if (aObj.hasAttribute(aKey))
-      return aObj.getAttribute(aKey);
+    if (aObj.hasAttribute(aSortBy))
+      return aObj.getAttribute(aSortBy);
 
     addon = aObj.mAddon || aObj.mInstall;
     if (!addon)
       return null;
 
-    if (aKey == "uiState") {
-      if (addon.pendingOperations == AddonManager.PENDING_DISABLE)
-        return "pendingDisable";
-      if (addon.pendingOperations == AddonManager.PENDING_UNINSTALL)
-        return "pendingUninstall";
-      if (!addon.isActive &&
-          (addon.pendingOperations != AddonManager.PENDING_ENABLE &&
-           addon.pendingOperations != AddonManager.PENDING_INSTALL))
-        return "disabled";
-      else
-        return "enabled";
-    }
-
-    return addon[aKey];
+    return addon[aSortBy];
   }
 
-  // aSortFuncs will hold the sorting functions that we'll
-  // use per element, in the correct order.
-  var aSortFuncs = [];
-
-  for (let i = 0; i < aSortBy.length; i++) {
-    var sortBy = aSortBy[i];
-
-    aSortFuncs[i] = stringCompare;
-
-    if (sortBy == "uiState")
-      aSortFuncs[i] = uiStateCompare;
-    else if (DATE_FIELDS.indexOf(sortBy) != -1)
-      aSortFuncs[i] = dateCompare;
-    else if (NUMERIC_FIELDS.indexOf(sortBy) != -1)
-      aSortFuncs[i] = numberCompare;
-  }
-
+  var sortFunc = stringCompare;
+  if (DATE_FIELDS.indexOf(aSortBy) != -1)
+    sortFunc = dateCompare;
+  else if (NUMERIC_FIELDS.indexOf(aSortBy) != -1)
+    sortFunc = numberCompare;
 
   aElements.sort(function(a, b) {
     if (!aAscending)
       [a, b] = [b, a];
 
-    for (let i = 0; i < aSortFuncs.length; i++) {
-      var sortBy = aSortBy[i];
-      var aValue = getValue(a, sortBy);
-      var bValue = getValue(b, sortBy);
+    var aValue = getValue(a);
+    var bValue = getValue(b);
 
-      if (!aValue && !bValue)
-        return 0;
-      if (!aValue)
-        return -1;
-      if (!bValue)
-        return 1;
-      if (aValue != bValue) {
-        var result = aSortFuncs[i](aValue, bValue);
+    if (!aValue && !bValue)
+      return 0;
+    if (!aValue)
+      return -1;
+    if (!bValue)
+      return 1;
 
-        if (result != 0)
-          return result;
-      }
-    }
-
-    // If we got here, then all values of a and b
-    // must have been equal.
-    return 0;
-
+    return sortFunc(aValue, bValue);
   });
 }
 
 function sortList(aList, aSortBy, aAscending) {
   var elements = Array.slice(aList.childNodes, 0);
-  sortElements(elements, [aSortBy], aAscending);
+  sortElements(elements, aSortBy, aAscending);
 
   while (aList.listChild)
     aList.removeChild(aList.lastChild);
@@ -1556,18 +1459,10 @@ var gHeader = {
       gViewController.loadView("addons://search/" + encodeURIComponent(query));
     }, false);
 
-    function updateNavButtonVisibility() {
-      var shouldShow = gHeader.shouldShowNavButtons;
-      document.getElementById("back-btn").hidden = !shouldShow;
-      document.getElementById("forward-btn").hidden = !shouldShow;
+    if (this.shouldShowNavButtons) {
+      document.getElementById("back-btn").hidden = false;
+      document.getElementById("forward-btn").hidden = false;
     }
-
-    window.addEventListener("focus", function(aEvent) {
-      if (aEvent.target == window)
-        updateNavButtonVisibility();
-    }, false);
-
-    updateNavButtonVisibility();
   },
 
   get shouldShowNavButtons() {
@@ -1655,12 +1550,12 @@ var gDiscoverView = {
                                               Ci.nsIWebProgress.NOTIFY_STATE_ALL);
 
       if (self.loaded)
-        self._loadURL(self.homepageURL.spec, notifyInitialized);
+        self._loadBrowser(notifyInitialized);
       else
         notifyInitialized();
     }
 
-    if (Services.prefs.getBoolPref(PREF_GETADDONS_CACHE_ENABLED) == false) {
+    if (Services.prefs.getBoolPref(PREF_BACKGROUND_UPDATE) == false) {
       setURL(url);
       return;
     }
@@ -1669,12 +1564,6 @@ var gDiscoverView = {
     AddonManager.getAllAddons(function(aAddons) {
       var list = {};
       aAddons.forEach(function(aAddon) {
-        var prefName = PREF_GETADDONS_CACHE_ID_ENABLED.replace("%ID%",
-                                                               aAddon.id);
-        try {
-          if (!Services.prefs.getBoolPref(prefName))
-            return;
-        } catch (e) { }
         list[aAddon.id] = {
           name: aAddon.name,
           version: aAddon.version,
@@ -1689,18 +1578,11 @@ var gDiscoverView = {
     });
   },
 
-  show: function(aParam, aRequest, aState) {
-    gViewController.updateCommands();
-
-    // If we're being told to load a specific URL then just do that
-    if (aState && "url" in aState) {
-      this.loaded = true;
-      this._loadURL(aState.url);
-    }
-
+  show: function() {
     // If the view has loaded before and the error page is not visible then
     // there is nothing else to do
     if (this.loaded && this.node.selectedPanel != this._error) {
+      gViewController.updateCommands();
       gViewController.notifyViewChanged();
       return;
     }
@@ -1714,8 +1596,7 @@ var gDiscoverView = {
       return;
     }
 
-    this._loadURL(this.homepageURL.spec,
-                  gViewController.notifyViewChanged.bind(gViewController));
+    this._loadBrowser(gViewController.notifyViewChanged.bind(gViewController));
   },
 
   hide: function() { },
@@ -1724,44 +1605,22 @@ var gDiscoverView = {
     this.node.selectedPanel = this._error;
   },
 
-  _loadURL: function(aURL, aCallback) {
-    if (this._browser.currentURI.spec == aURL) {
-      if (aCallback)
-        aCallback();
-      return;
-    }
+  _loadBrowser: function(aCallback) {
+    this.node.selectedPanel = this._loading;
 
     if (aCallback)
       this._loadListeners.push(aCallback);
 
-    this._browser.loadURIWithFlags(aURL,
-                                   Ci.nsIWebNavigation.LOAD_FLAGS_REPLACE_HISTORY);
+    if (this._browser.currentURI.equals(this.homepageURL))
+      this._browser.reload();
+    else
+      this._browser.goHome();
   },
 
   onLocationChange: function(aWebProgress, aRequest, aLocation) {
     // Ignore the about:blank load
     if (aLocation.spec == "about:blank")
       return;
-
-    // When using the real session history the inner-frame will update the
-    // session history automatically, if using the fake history though it must
-    // be manually updated
-    if (gHistory == FakeHistory) {
-      var docshell = aWebProgress.QueryInterface(Ci.nsIDocShell);
-
-      var state = {
-        view: "addons://discover/",
-        url: aLocation.spec
-      };
-
-      var replaceHistory = Ci.nsIWebNavigation.LOAD_FLAGS_REPLACE_HISTORY << 16;
-      if (docshell.loadType & replaceHistory)
-        gHistory.replaceState(state);
-      else
-        gHistory.pushState(state);
-    }
-
-    gViewController.updateCommands();
 
     // If the hostname is the same as the new location's host and either the
     // default scheme is insecure or the new location is secure then continue
@@ -1790,27 +1649,26 @@ var gDiscoverView = {
   },
 
   onStateChange: function(aWebProgress, aRequest, aStateFlags, aStatus) {
-    // Only care about the network events
-    if (!(aStateFlags & (Ci.nsIWebProgressListener.STATE_IS_NETWORK)))
+    // Only care about the network stop status events
+    if (!(aStateFlags & (Ci.nsIWebProgressListener.STATE_IS_NETWORK)) ||
+        !(aStateFlags & (Ci.nsIWebProgressListener.STATE_STOP)))
       return;
 
-    // If this is the start of network activity then show the loading page
-    if (aStateFlags & (Ci.nsIWebProgressListener.STATE_START))
-      this.node.selectedPanel = this._loading;
-
-    // Ignore anything except stop events
-    if (!(aStateFlags & (Ci.nsIWebProgressListener.STATE_STOP)))
-      return;
+    // Sometimes we stop getting onLocationChange events so we must redo the
+    // url tests here (bug 602256)
+    var location = this._browser.currentURI;
 
     // Consider the successful load of about:blank as still loading
-    if (aRequest instanceof Ci.nsIChannel && aRequest.URI.spec == "about:blank")
+    if (Components.isSuccessCode(aStatus) && location && location.spec == "about:blank")
       return;
 
     // If there was an error loading the page or the new hostname is not the
     // same as the default hostname or the default scheme is secure and the new
     // scheme is insecure then show the error page
     if (!Components.isSuccessCode(aStatus) ||
-        (aRequest && aRequest instanceof Ci.nsIHttpChannel && !aRequest.requestSucceeded)) {
+        (aRequest && aRequest instanceof Ci.nsIHttpChannel && !aRequest.requestSucceeded) ||
+        location.host != this.homepageURL.host ||
+        (this.homepageURL.schemeIs("https") && !location.schemeIs("https"))) {
       this.showError();
     } else {
       // Got a successful load, make sure the browser is visible
@@ -1935,7 +1793,7 @@ var gSearchView = {
 
     function finishSearch(createdCount) {
       if (elements.length > 0) {
-        sortElements(elements, [self._sorters.sortBy], self._sorters.ascending);
+        sortElements(elements, self._sorters.sortBy, self._sorters.ascending);
         elements.forEach(function(aElement) {
           self._listBox.insertBefore(aElement, self._listBox.lastChild);
         });
@@ -2167,10 +2025,13 @@ var gListView = {
   node: null,
   _listBox: null,
   _emptyNotice: null,
+  _sorters: null,
   _type: null,
 
   initialize: function() {
     this.node = document.getElementById("list-view");
+    this._sorters = document.getElementById("list-sorters");
+    this._sorters.handler = this;
     this._listBox = document.getElementById("addon-list");
     this._emptyNotice = document.getElementById("addon-list-empty");
 
@@ -2208,7 +2069,7 @@ var gListView = {
 
       self.showEmptyNotice(elements.length == 0);
       if (elements.length > 0) {
-        sortElements(elements, ["uiState", "name"], true);
+        sortElements(elements, self._sorters.sortBy, self._sorters.ascending);
         elements.forEach(function(aElement) {
           self._listBox.appendChild(aElement);
         });
@@ -2367,7 +2228,7 @@ var gDetailView = {
     document.getElementById("detail-creator").setCreator(aAddon.creator, aAddon.homepageURL);
 
     var version = document.getElementById("detail-version");
-    if (shouldShowVersionNumber(aAddon)) {
+    if (aAddon.version) {
       version.hidden = false;
       version.value = aAddon.version;
     } else {
@@ -2778,7 +2639,7 @@ var gUpdatesView = {
 
       self.showEmptyNotice(elements.length == 0);
       if (elements.length > 0) {
-        sortElements(elements, [self._sorters.sortBy], self._sorters.ascending);
+        sortElements(elements, self._sorters.sortBy, self._sorters.ascending);
         elements.forEach(function(aElement) {
           self._listBox.appendChild(aElement);
         });
@@ -2825,7 +2686,7 @@ var gUpdatesView = {
       self.showEmptyNotice(elements.length == 0);
       if (elements.length > 0) {
         self._updateSelected.hidden = false;
-        sortElements(elements, [self._sorters.sortBy], self._sorters.ascending);
+        sortElements(elements, self._sorters.sortBy, self._sorters.ascending);
         elements.forEach(function(aElement) {
           self._listBox.appendChild(aElement);
         });

@@ -46,7 +46,6 @@
 #include "nsWeakReference.h"
 #include "GfxDriverInfo.h"
 #include "nsTArray.h"
-#include "nsString.h"
 
 namespace mozilla {
 namespace widget {  
@@ -73,14 +72,8 @@ public:
   NS_SCRIPTABLE NS_IMETHOD GetFeatureSuggestedDriverVersion(PRInt32 aFeature, nsAString & _retval NS_OUTPARAM);
   NS_SCRIPTABLE NS_IMETHOD GetWebGLParameter(const nsAString & aParam, nsAString & _retval NS_OUTPARAM);
 
-  NS_SCRIPTABLE NS_IMETHOD GetFailures(PRUint32 *failureCount NS_OUTPARAM, char ***failures NS_OUTPARAM);
-  NS_IMETHOD_(void) LogFailure(const nsACString &failure);
-
   // Initialization function. If you override this, you must call this class's
   // version of Init first.
-  // We need Init to be called separately from the constructor so we can
-  // register as an observer after all derived classes have been constructed
-  // and we know we have a non-zero refcount.
   // Ideally, Init() would be void-return, but the rules of
   // NS_GENERIC_FACTORY_CONSTRUCTOR_INIT require it be nsresult return.
   virtual nsresult Init();
@@ -94,9 +87,6 @@ protected:
 private:
 
   void EvaluateDownloadedBlacklist(nsTArray<GfxDriverInfo>& aDriverInfo);
-
-  nsCString mFailures[9]; // The choice of 9 is Ehsan's
-  PRUint32 mFailureCount;
 
 };
 

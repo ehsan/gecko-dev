@@ -121,6 +121,8 @@ public:
 
   JSObject* ToJSObject(JSContext* cx) {
     if (!mObj && !mCx) {
+      JSAutoRequest request(cx);
+
       JSClass* clasp = const_cast<JSClass*>(&sHandle_JSClass);
       JSObject* obj = JS_NewObject(cx, clasp, NULL, NULL);
       if (!obj)
@@ -162,18 +164,14 @@ private:
         js::AutoObjectRooter obj(mCx, mObj);
         mObj = NULL;
 
-        // If we can't enter the compartment, we won't run onInvalidate().
-        JSAutoEnterCompartment ac;
-        if (ac.enter(mCx, obj.object())) {
-          JSBool hasOnInvalidate;
-          if (JS_HasProperty(mCx, obj.object(), "onInvalidate",
-                             &hasOnInvalidate) && hasOnInvalidate) {
-            js::AutoValueRooter r(mCx);
-            JSBool ok = JS_CallFunctionName(mCx, obj.object(), "onInvalidate", 0,
-                                            NULL, r.jsval_addr());
-            if (!ok)
-              JS_ReportPendingException(mCx);
-          }
+        JSBool hasOnInvalidate;
+        if (JS_HasProperty(mCx, obj.object(), "onInvalidate",
+                           &hasOnInvalidate) && hasOnInvalidate) {
+          js::AutoValueRooter r(mCx);
+          JSBool ok = JS_CallFunctionName(mCx, obj.object(), "onInvalidate", 0,
+                                          NULL, r.jsval_addr());
+          if (!ok)
+            JS_ReportPendingException(mCx);
         }
 
         // By not nulling out mContext, we prevent ToJSObject from
@@ -249,7 +247,7 @@ private:
   }
 
   static JSBool
-  SetIsRooted(JSContext* cx, JSObject* obj, jsid, JSBool strict, jsval* vp) {
+  SetIsRooted(JSContext* cx, JSObject* obj, jsid, jsval* vp) {
     Handle* self = Unwrap(cx, obj);
     JSBool v;
     if (!JS_ValueToBoolean(cx, *vp, &v))
@@ -330,7 +328,7 @@ const JSClass
 Handle<BaseType>::sHandle_JSClass = {
   "IPDL Handle", JSCLASS_HAS_PRIVATE,
   JS_PropertyStub, JS_PropertyStub,
-  JS_PropertyStub, JS_StrictPropertyStub,
+  JS_PropertyStub, JS_PropertyStub,
   JS_EnumerateStub, JS_ResolveStub,
   JS_ConvertStub, Handle::Finalize,
   JSCLASS_NO_OPTIONAL_MEMBERS

@@ -93,7 +93,6 @@ private:
   PRUint32 mAdapterVendorID;
   PRUint32 mAdapterDeviceID;
   PRUint32 mWindowsVersion;
-  PRBool mHasDriverVersionMismatch;
 };
 
 } // namespace widget

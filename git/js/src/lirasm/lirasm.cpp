@@ -64,7 +64,7 @@ using namespace std;
 /* Allocator SPI implementation. */
 
 void*
-nanojit::Allocator::allocChunk(size_t nbytes, bool /*fallible*/)
+nanojit::Allocator::allocChunk(size_t nbytes)
 {
     void *p = malloc(nbytes);
     if (!p)

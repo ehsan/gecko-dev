@@ -439,7 +439,7 @@ class GeckoSurfaceView
 
     @Override
     public boolean onKeyPreIme(int keyCode, KeyEvent event) {
-        if (event.isSystem())
+        if (mIMEState != IME_STATE_DISABLED || event.isSystem())
             return super.onKeyPreIme(keyCode, event);
 
         switch (event.getAction()) {
@@ -494,7 +494,6 @@ class GeckoSurfaceView
         // KeyListener returns true if it handled the event for us.
         if (mIMEState == IME_STATE_DISABLED ||
             keyCode == KeyEvent.KEYCODE_ENTER ||
-            (event.getFlags() & KeyEvent.FLAG_SOFT_KEYBOARD) != 0 ||
             !mKeyListener.onKeyDown(this, mEditable, keyCode, event))
             GeckoAppShell.sendEventToGecko(new GeckoEvent(event));
         return true;
@@ -512,7 +511,6 @@ class GeckoSurfaceView
         }
         if (mIMEState == IME_STATE_DISABLED ||
             keyCode == KeyEvent.KEYCODE_ENTER ||
-            (event.getFlags() & KeyEvent.FLAG_SOFT_KEYBOARD) != 0 ||
             !mKeyListener.onKeyUp(this, mEditable, keyCode, event))
             GeckoAppShell.sendEventToGecko(new GeckoEvent(event));
         return true;
@@ -584,6 +582,7 @@ class GeckoSurfaceView
     KeyListener mKeyListener;
     Editable mEditable;
     Editable.Factory mEditableFactory;
+    boolean mIMEFocus;
     int mIMEState;
     String mIMETypeHint;
     String mIMEActionHint;

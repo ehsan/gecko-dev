@@ -270,10 +270,6 @@ nsDOMUIEvent::GetRangeParent(nsIDOMNode** aRangeParent)
                                                               targetFrame);
     nsCOMPtr<nsIContent> parent = targetFrame->GetContentOffsetsFromPoint(pt).content;
     if (parent) {
-      if (parent->IsInNativeAnonymousSubtree() &&
-          !nsContentUtils::CanAccessNativeAnon()) {
-        return NS_OK;
-      }
       return CallQueryInterface(parent, aRangeParent);
     }
   }

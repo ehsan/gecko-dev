@@ -1,5 +1,3 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
-/* vim: set sw=4 ts=4 et lcs=trail\:.,tab\:>~ : */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -52,51 +50,12 @@ const ENCTYPE_SDR = 1;
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
 
-/**
- * Object that manages a database transaction properly so consumers don't have
- * to worry about it throwing.
- *
- * @param aDatabase
- *        The mozIStorageConnection to start a transaction on.
- */
-function Transaction(aDatabase) {
-    this._db = aDatabase;
-
-    this._hasTransaction = false;
-    try {
-        this._db.beginTransaction();
-        this._hasTransaction = true;
-    }
-    catch(e) { /* om nom nom exceptions */ }
-}
-
-Transaction.prototype = {
-    commit : function() {
-        if (this._hasTransaction)
-            this._db.commitTransaction();
-    },
-
-    rollback : function() {
-        if (this._hasTransaction)
-            this._db.rollbackTransaction();
-    },
-};
-
-
 function LoginManagerStorage_mozStorage() { };
 
 LoginManagerStorage_mozStorage.prototype = {
 
     classID : Components.ID("{8c2023b9-175c-477e-9761-44ae7b549756}"),
-    QueryInterface : XPCOMUtils.generateQI([Ci.nsILoginManagerStorage,
-                                            Ci.nsIInterfaceRequestor]),
-    getInterface : function(aIID) {
-        if (aIID.equals(Ci.mozIStorageConnection)) {
-            return this._dbConnection;
-        }
-
-        throw Cr.NS_ERROR_NO_INTERFACE;
-    },
+    QueryInterface : XPCOMUtils.generateQI([Ci.nsILoginManagerStorage]),
 
     __crypto : null,  // nsILoginManagerCrypto service
     get _crypto() {
@@ -1059,7 +1018,7 @@ LoginManagerStorage_mozStorage.prototype = {
             let logins = legacy.getAllEncryptedLogins();
 
             // Wrap in a transaction for better performance.
-            let transaction = new Transaction(this._dbConnection);
+            this._dbConnection.beginTransaction();
             for each (let login in logins) {
                 try {
                     this._addLogin(login, true);
@@ -1070,7 +1029,7 @@ LoginManagerStorage_mozStorage.prototype = {
             let disabledHosts = legacy.getAllDisabledHosts();
             for each (let hostname in disabledHosts)
                 this.setLoginSavingEnabled(hostname, false);
-            transaction.commit();
+            this._dbConnection.commitTransaction();
         } catch (e) {
             this.log("_importLegacySignons failed: " + e.name + " : " + e.message);
             throw "Import failed";
@@ -1174,7 +1133,7 @@ LoginManagerStorage_mozStorage.prototype = {
         // Ignore failures, will try again next session...
 
         this.log("Reencrypting Base64 logins");
-        let transaction;
+        this._dbConnection.beginTransaction();
         try {
             let [logins, ids] = this._searchLogins({ encType: ENCTYPE_BASE64 });
 
@@ -1187,8 +1146,6 @@ LoginManagerStorage_mozStorage.prototype = {
                 // User might have canceled master password entry, just ignore.
                 return;
             }
-
-            transaction = new Transaction(this._dbConnection);
 
             let encUsername, encPassword, stmt;
             for each (let login in logins) {
@@ -1219,9 +1176,7 @@ LoginManagerStorage_mozStorage.prototype = {
         } catch (e) {
             this.log("_reencryptBase64Logins failed: " + e);
         } finally {
-            if (transaction) {
-                transaction.commit();
-            }
+            this._dbConnection.commitTransaction();
         }
     },
 
@@ -1338,7 +1293,7 @@ LoginManagerStorage_mozStorage.prototype = {
 
         // Upgrade to newer version...
 
-        let transaction = new Transaction(this._dbConnection);
+        this._dbConnection.beginTransaction();
 
         try {
             for (let v = oldVersion + 1; v <= DB_VERSION; v++) {
@@ -1348,12 +1303,12 @@ LoginManagerStorage_mozStorage.prototype = {
             }
         } catch (e) {
             this.log("Migration failed: "  + e);
-            transaction.rollback();
+            this._dbConnection.rollbackTransaction();
             throw e;
         }
 
         this._dbConnection.schemaVersion = DB_VERSION;
-        transaction.commit();
+        this._dbConnection.commitTransaction();
         this.log("DB migration completed.");
     },
 
@@ -1608,7 +1563,6 @@ LoginManagerStorage_mozStorage.prototype = {
 
         // Close the connection, ignore 'already closed' error
         try { this._dbConnection.close() } catch(e) {}
-        this._dbConnection = null;
         this._signonsFile.remove(false);
     }
 

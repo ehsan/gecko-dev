@@ -54,6 +54,10 @@
 #include <QtGui/QApplication>
 #include <QtGui/QInputContextFactory>
 #include <QtGui/QInputContext>
+#ifdef MOZ_ENABLE_MEEGOTOUCH
+#include <MApplication>
+#include "MozMeegoAppService.h"
+#endif // MOZ_ENABLE_MEEGOTOUCH
 #endif // MOZ_WIDGET_QT
 
 #ifdef MOZ_IPC
@@ -123,7 +127,6 @@ using mozilla::dom::ContentParent;
 #ifdef XP_WIN
 #include "nsIWinAppHelper.h"
 #include <windows.h>
-#include "cairo/cairo-features.h"
 
 #ifndef PROCESS_DEP_ENABLE
 #define PROCESS_DEP_ENABLE 0x1
@@ -253,7 +256,6 @@ protected:
 };
 #endif
 
-extern PRUint32 gRestartMode;
 extern void InstallSignalHandlers(const char *ProgramName);
 #include "nsX11ErrorHandler.h"
 
@@ -873,7 +875,7 @@ nsXULAppInfo::GetUserCanElevate(PRBool *aUserCanElevate)
     //      be elevated again)
     //   TokenElevationTypeLimited: The token is linked to a limited token 
     //     (e.g. UAC is enabled and the user is not elevated, so they can be
-    //      elevated)
+    //	    elevated)
     *aUserCanElevate = (elevationType == VistaTokenElevationTypeLimited);
   }
 
@@ -1640,8 +1642,6 @@ XRE_GetBinaryPath(const char* argv0, nsILocalFile* *aResult)
 #ifdef XP_WIN
 #include "nsWindowsRestart.cpp"
 #include <shellapi.h>
-
-typedef BOOL (WINAPI* SetProcessDEPPolicyFunc)(DWORD dwFlags);
 #endif
 
 #if defined(XP_OS2) && (__KLIBC__ == 0 && __KLIBC_MINOR__ >= 6) // broken kLibc
@@ -1759,11 +1759,7 @@ static nsresult LaunchChild(nsINativeAppSupport* aNative,
 #else
 #if defined(XP_MACOSX)
   CommandLineServiceMac::SetupMacCommandLine(gRestartArgc, gRestartArgv, PR_TRUE);
-  PRUint32 restartMode = 0;
-#if defined(MOZ_ENABLE_LIBXUL)
-  restartMode = gRestartMode;
-#endif
-  LaunchChildMac(gRestartArgc, gRestartArgv, restartMode);
+  LaunchChildMac(gRestartArgc, gRestartArgv);
 #else
   nsCOMPtr<nsILocalFile> lf;
   nsresult rv = XRE_GetBinaryPath(gArgv[0], getter_AddRefs(lf));
@@ -2724,66 +2720,8 @@ NS_VISIBILITY_DEFAULT PRBool nspr_use_zone_allocator = PR_FALSE;
 #define MOZ_SPLASHSCREEN_UPDATE(_i)  do { } while(0)
 #endif
 
-#ifdef CAIRO_HAS_DWRITE_FONT
-
-#include <dwrite.h>
-
-typedef HRESULT (WINAPI*DWriteCreateFactoryFunc)(
-  __in   DWRITE_FACTORY_TYPE factoryType,
-  __in   REFIID iid,
-  __out  IUnknown **factory
-);
-
-#ifdef DEBUG_DWRITE_STARTUP
-
-#define LOGREGISTRY(msg) LogRegistryEvent(msg)
-
-// for use when monitoring process
-static void LogRegistryEvent(const wchar_t *msg)
-{
-  HKEY dummyKey;
-  HRESULT hr;
-  wchar_t buf[512];
-
-  wsprintf(buf, L" log %s", msg);
-  hr = RegOpenKeyEx(HKEY_LOCAL_MACHINE, buf, 0, KEY_READ, &dummyKey);
-  if (SUCCEEDED(hr)) {
-    RegCloseKey(dummyKey);
-  }
-}
-#else
-
-#define LOGREGISTRY(msg)
-
-#endif
-
-static DWORD InitDwriteBG(LPVOID lpdwThreadParam)
-{
-  SetThreadPriority(GetCurrentThread(), THREAD_MODE_BACKGROUND_BEGIN);
-  LOGREGISTRY(L"loading dwrite.dll");
-  HMODULE dwdll = LoadLibraryW(L"dwrite.dll");
-  if (dwdll) {
-    DWriteCreateFactoryFunc createDWriteFactory = (DWriteCreateFactoryFunc)
-      GetProcAddress(dwdll, "DWriteCreateFactory");
-    if (createDWriteFactory) {
-      LOGREGISTRY(L"creating dwrite factory");
-      IDWriteFactory *factory;
-      HRESULT hr = createDWriteFactory(
-        DWRITE_FACTORY_TYPE_SHARED,
-        __uuidof(IDWriteFactory),
-        reinterpret_cast<IUnknown**>(&factory));
-      if (SUCCEEDED(hr)) {
-        LOGREGISTRY(L"dwrite factory done");
-        factory->Release();
-        LOGREGISTRY(L"freed factory");
-      } else {
-        LOGREGISTRY(L"failed to create factory");
-      }
-    }
-  }
-  SetThreadPriority(GetCurrentThread(), THREAD_MODE_BACKGROUND_END);
-  return 0;
-}
+#ifdef XP_WIN
+typedef BOOL (WINAPI* SetProcessDEPPolicyFunc)(DWORD dwFlags);
 #endif
 
 PRTime gXRE_mainTimestamp = 0;
@@ -2809,26 +2747,6 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 #endif
 
   SetupErrorHandling(argv[0]);
-
-#ifdef CAIRO_HAS_DWRITE_FONT
-
-  // Bug 602792 - when DWriteCreateFactory is called the dwrite client dll
-  // starts the FntCache service if it isn't already running (it's set
-  // to manual startup by default in Windows 7 RTM).  Subsequent DirectWrite
-  // calls cause the IDWriteFactory object to communicate with the FntCache
-  // service with a timeout; if there's no response after the timeout, the
-  // DirectWrite client library will assume the service isn't around and do
-  // manual font file I/O on _all_ system fonts.  To avoid this, load the
-  // dwrite library and create a factory as early as possible so that the
-  // FntCache service is ready by the time it's needed.
-      
-  OSVERSIONINFO vinfo;
-  vinfo.dwOSVersionInfoSize = sizeof(vinfo);
-  if (GetVersionEx(&vinfo) && vinfo.dwMajorVersion >= 6) {
-    CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)&InitDwriteBG, NULL, 0, NULL);
-  }
-
-#endif
 
 #ifdef XP_UNIX
   const char *home = PR_GetEnv("HOME");
@@ -3229,7 +3147,17 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
     if (ar == ARG_FOUND)
       PR_SetEnv(PR_smprintf("MOZ_QT_GRAPHICSSYSTEM=%s", qgraphicssystemARG));
 
+#ifdef MOZ_ENABLE_MEEGOTOUCH
+    QScopedPointer<QApplication> app;
+    if (XRE_GetProcessType() == GeckoProcessType_Default) {
+      MozMeegoAppService *appService = new MozMeegoAppService;
+      app.reset(new MApplication(gArgc, gArgv, appService));
+    } else {
+      app.reset(new QApplication(gArgc, gArgv));
+    }
+#else
     QScopedPointer<QApplication> app(new QApplication(gArgc, gArgv));
+#endif
 
 #if MOZ_PLATFORM_MAEMO > 5
     if (XRE_GetProcessType() == GeckoProcessType_Default) {
@@ -3365,18 +3293,6 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
     if (NS_FAILED(rv) || !canRun) {
       return 1;
     }
-
-#if defined(HAVE_DESKTOP_STARTUP_ID) && defined(MOZ_WIDGET_GTK2)
-    // DESKTOP_STARTUP_ID is cleared now,
-    // we recover it in case we need a restart.
-    if (!desktopStartupID.IsEmpty()) {
-      nsCAutoString desktopStartupEnv;
-      desktopStartupEnv.AssignLiteral("DESKTOP_STARTUP_ID=");
-      desktopStartupEnv.Append(desktopStartupID);
-      // Leak it with extreme prejudice!
-      PR_SetEnv(ToNewCString(desktopStartupEnv));
-    }
-#endif
 
 #if defined(MOZ_UPDATER) && !defined(ANDROID)
     // Check for and process any available updates
@@ -3719,9 +3635,6 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
           if (toolkit && !desktopStartupID.IsEmpty()) {
             toolkit->SetDesktopStartupID(desktopStartupID);
           }
-          // Clear the environment variable so it won't be inherited by
-          // child processes and confuse things.
-          g_unsetenv ("DESKTOP_STARTUP_ID");
 #endif
 
 #ifdef XP_MACOSX
@@ -3836,6 +3749,16 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
         static char kEnvVar[MAXPATHLEN];
         sprintf(kEnvVar, "XRE_BINARY_PATH=%s", gBinaryPath);
         PR_SetEnv(kEnvVar);
+      }
+#endif
+
+#if defined(HAVE_DESKTOP_STARTUP_ID) && defined(MOZ_WIDGET_GTK2)
+      if (!desktopStartupID.IsEmpty()) {
+        nsCAutoString desktopStartupEnv;
+        desktopStartupEnv.AssignLiteral("DESKTOP_STARTUP_ID=");
+        desktopStartupEnv.Append(desktopStartupID);
+        // Leak it with extreme prejudice!
+        PR_SetEnv(ToNewCString(desktopStartupEnv));
       }
 #endif
 

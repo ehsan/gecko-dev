@@ -59,7 +59,7 @@
 #include "mozilla/dom/PCrashReporterChild.h"
 
 #include "nsAudioStream.h"
-#include "nsIMemoryReporter.h"
+
 #include "nsIObserverService.h"
 #include "nsTObserverArray.h"
 #include "nsIObserver.h"
@@ -82,22 +82,24 @@
 #include "nsFrameMessageManager.h"
 
 #include "nsIGeolocationProvider.h"
-#include "mozilla/dom/PMemoryReportRequestChild.h"
 
 #ifdef MOZ_PERMISSIONS
 #include "nsPermission.h"
 #include "nsPermissionManager.h"
 #endif
 
+#if defined(ANDROID) || defined(LINUX)
+#include <sys/time.h>
+#include <sys/resource.h>
+// TODO: For other platforms that support setpriority, figure out
+//       appropriate values of niceness
+static const int kRelativeNiceness = 10;
+#endif
+
 #include "nsAccelerometer.h"
 
 #if defined(ANDROID)
 #include "APKOpen.h"
-#endif
-
-#ifdef XP_WIN
-#include <process.h>
-#define getpid _getpid
 #endif
 
 using namespace mozilla::ipc;
@@ -107,24 +109,6 @@ using namespace mozilla::docshell;
 
 namespace mozilla {
 namespace dom {
-
-class MemoryReportRequestChild : public PMemoryReportRequestChild
-{
-public:
-    MemoryReportRequestChild();
-    virtual ~MemoryReportRequestChild();
-};
-
-MemoryReportRequestChild::MemoryReportRequestChild()
-{
-    MOZ_COUNT_CTOR(MemoryReportRequestChild);
-}
-
-MemoryReportRequestChild::~MemoryReportRequestChild()
-{
-    MOZ_COUNT_DTOR(MemoryReportRequestChild);
-}
-
 class AlertObserver
 {
 public:
@@ -249,6 +233,18 @@ ContentChild::Init(MessageLoop* aIOLoop,
 
     NS_ASSERTION(!sSingleton, "only one ContentChild per child");
 
+#if defined(ANDROID) || defined(LINUX)
+    // XXX We change the behavior of Linux child processes here. That
+    // means that, not just in Fennec, but also in Firefox, once it has
+    // child processes, those will be niced. IOW, Firefox with child processes
+    // will have different performance profiles on Linux than other
+    // platforms. This may alter Talos results and so forth.
+    char* relativeNicenessStr = getenv("MOZ_CHILD_PROCESS_RELATIVE_NICENESS");
+    setpriority(PRIO_PROCESS, 0, getpriority(PRIO_PROCESS, 0) +
+            (relativeNicenessStr ? atoi(relativeNicenessStr) :
+             kRelativeNiceness));
+#endif
+
     Open(aChannel, aParentHandle, aIOLoop);
     sSingleton = this;
 
@@ -282,53 +278,6 @@ ContentChild::InitXPCOM()
     mConsoleListener = new ConsoleListener(this);
     if (NS_FAILED(svc->RegisterListener(mConsoleListener)))
         NS_WARNING("Couldn't register console listener for child process");
-}
-
-PMemoryReportRequestChild*
-ContentChild::AllocPMemoryReportRequest()
-{
-    return new MemoryReportRequestChild();
-}
-
-bool
-ContentChild::RecvPMemoryReportRequestConstructor(PMemoryReportRequestChild* child)
-{
-    InfallibleTArray<MemoryReport> reports;
-    
-    nsCOMPtr<nsIMemoryReporterManager> mgr = do_GetService("@mozilla.org/memory-reporter-manager;1");
-    nsCOMPtr<nsISimpleEnumerator> r;
-    mgr->EnumerateReporters(getter_AddRefs(r));
-
-    PRBool more;
-    while (NS_SUCCEEDED(r->HasMoreElements(&more)) && more) {
-      nsCOMPtr<nsIMemoryReporter> report;
-      r->GetNext(getter_AddRefs(report));
-
-      nsCString path;
-      nsCString desc;
-      PRInt64 memoryUsed;
-      report->GetPath(getter_Copies(path));
-      report->GetDescription(getter_Copies(desc));
-      report->GetMemoryUsed(&memoryUsed);
-
-      MemoryReport memreport(nsPrintfCString("Content Process - %d - ", getpid()),
-                             path,
-                             desc,
-                             memoryUsed);
-
-      reports.AppendElement(memreport);
-
-    }
-
-    child->Send__delete__(child, reports);
-    return true;
-}
-
-bool
-ContentChild::DeallocPMemoryReportRequest(PMemoryReportRequestChild* actor)
-{
-    delete actor;
-    return true;
 }
 
 PBrowserChild*
@@ -466,7 +415,7 @@ ContentChild::RecvSetOffline(const PRBool& offline)
   NS_ASSERTION(io, "IO Service can not be null");
 
   io->SetOffline(offline);
-
+    
   return true;
 }
 
@@ -486,7 +435,7 @@ ContentChild::ActorDestroy(ActorDestroyReason why)
 #endif
 
     mAlertObservers.Clear();
-
+    
     nsCOMPtr<nsIConsoleService> svc(do_GetService(NS_CONSOLESERVICE_CONTRACTID));
     if (svc) {
         svc->UnregisterListener(mConsoleListener);

@@ -6984,9 +6984,10 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
 
                 if (obj) {
                     JS_ASSERT(!obj->inDictionaryMode());
-                    if (!js_DefineNativeProperty(cx, obj, ATOM_TO_JSID(pn3->pn_atom),
-                                                 UndefinedValue(), NULL, NULL,
-                                                 JSPROP_ENUMERATE, 0, 0, NULL)) {
+                    JSProperty *prop = NULL;
+                    if (!js_DefineNativeProperty(cx, obj,
+                                                 ATOM_TO_JSID(pn3->pn_atom), UndefinedValue(), NULL, NULL,
+                                                 JSPROP_ENUMERATE, 0, 0, &prop, 0)) {
                         return JS_FALSE;
                     }
                     if (obj->inDictionaryMode())
@@ -7089,10 +7090,12 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
             return JS_FALSE;
         break;
 
+#if JS_HAS_DEBUGGER_KEYWORD
       case TOK_DEBUGGER:
         if (js_Emit1(cx, cg, JSOP_DEBUGGER) < 0)
             return JS_FALSE;
         break;
+#endif /* JS_HAS_DEBUGGER_KEYWORD */
 
 #if JS_HAS_XML_SUPPORT
       case TOK_XMLELEM:

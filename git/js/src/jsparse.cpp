@@ -149,27 +149,15 @@ JSParseNode::become(JSParseNode *pn2)
         pn2->pn_used = false;
     }
 
+    /* If this is a function node fix up the pn_funbox->node back-pointer. */
+    if (PN_TYPE(pn2) == TOK_FUNCTION && pn2->pn_arity == PN_FUNC)
+        pn2->pn_funbox->node = this;
+
     pn_type = pn2->pn_type;
     pn_op = pn2->pn_op;
     pn_arity = pn2->pn_arity;
     pn_parens = pn2->pn_parens;
     pn_u = pn2->pn_u;
-
-    /*
-     * If any pointers are pointing to pn2, change them to point to this
-     * instead, since pn2 will be cleared and probably recycled.
-     */
-    if (PN_TYPE(this) == TOK_FUNCTION && pn_arity == PN_FUNC) {
-        /* Function node: fix up the pn_funbox->node back-pointer. */
-        JS_ASSERT(pn_funbox->node == pn2);
-        pn_funbox->node = this;
-    } else if (pn_arity == PN_LIST && !pn_head) {
-        /* Empty list: fix up the pn_tail pointer. */
-        JS_ASSERT(pn_count == 0);
-        JS_ASSERT(pn_tail == &pn2->pn_head);
-        pn_tail = &pn_head;
-    }
-
     pn2->clear();
 }
 
@@ -203,12 +191,13 @@ Parser::Parser(JSContext *cx, JSPrincipals *prin, JSStackFrame *cfp)
 }
 
 bool
-Parser::init(const jschar *base, size_t length, const char *filename, uintN lineno,
-             JSVersion version)
+Parser::init(const jschar *base, size_t length, const char *filename, uintN lineno)
 {
     JSContext *cx = context;
+    version = cx->findVersion();
+    
     tempPoolMark = JS_ARENA_MARK(&cx->tempPool);
-    if (!tokenStream.init(base, length, filename, lineno, version)) {
+    if (!tokenStream.init(version, base, length, filename, lineno)) {
         JS_ARENA_RELEASE(&cx->tempPool, tempPoolMark);
         return false;
     }
@@ -300,8 +289,6 @@ Parser::newFunctionBox(JSObject *obj, JSParseNode *fn, JSTreeContext *tc)
     }
     funbox->level = tc->staticLevel;
     funbox->tcflags = (TCF_IN_FUNCTION | (tc->flags & (TCF_COMPILE_N_GO | TCF_STRICT_MODE_CODE)));
-    if (tc->innermostWith)
-        funbox->tcflags |= TCF_IN_WITH;
     return funbox;
 }
 
@@ -310,16 +297,6 @@ JSFunctionBox::joinable() const
 {
     return FUN_NULL_CLOSURE((JSFunction *) object) &&
            !(tcflags & (TCF_FUN_USES_ARGUMENTS | TCF_FUN_USES_OWN_NAME));
-}
-
-bool
-JSFunctionBox::inAnyDynamicScope() const
-{
-    for (const JSFunctionBox *funbox = this; funbox; funbox = funbox->parent) {
-        if (funbox->tcflags & (TCF_IN_WITH | TCF_FUN_CALLS_EVAL))
-            return true;
-    }
-    return false;
 }
 
 bool
@@ -886,7 +863,7 @@ JSScript *
 Compiler::compileScript(JSContext *cx, JSObject *scopeChain, JSStackFrame *callerFrame,
                         JSPrincipals *principals, uint32 tcflags,
                         const jschar *chars, size_t length,
-                        const char *filename, uintN lineno, JSVersion version,
+                        const char *filename, uintN lineno,
                         JSString *source /* = NULL */,
                         uintN staticLevel /* = 0 */)
 {
@@ -910,7 +887,7 @@ Compiler::compileScript(JSContext *cx, JSObject *scopeChain, JSStackFrame *calle
     JS_ASSERT_IF(staticLevel != 0, callerFrame);
 
     Compiler compiler(cx, principals, callerFrame);
-    if (!compiler.init(chars, length, filename, lineno, version))
+    if (!compiler.init(chars, length, filename, lineno))
         return NULL;
 
     JS_InitArenaPool(&codePool, "code", 1024, sizeof(jsbytecode),
@@ -1031,7 +1008,6 @@ Compiler::compileScript(JSContext *cx, JSObject *scopeChain, JSStackFrame *calle
 
         if (!js_EmitTree(cx, &cg, pn))
             goto out;
-
 #if JS_HAS_XML_SUPPORT
         if (PN_TYPE(pn) != TOK_SEMI ||
             !pn->pn_kid ||
@@ -1109,18 +1085,13 @@ Compiler::compileScript(JSContext *cx, JSObject *scopeChain, JSStackFrame *calle
      */
     if (js_Emit1(cx, &cg, JSOP_STOP) < 0)
         goto out;
-
 #ifdef METER_PARSENODES
     printf("Code-gen growth: %d (%u bytecodes, %u srcnotes)\n",
            (char *)sbrk(0) - (char *)before, CG_OFFSET(&cg), cg.noteCount);
 #endif
-
 #ifdef JS_ARENAMETER
     JS_DumpArenaStats(stdout);
 #endif
-
-    JS_ASSERT(cg.version() == version);
-
     script = JSScript::NewScriptFromCG(cx, &cg);
     if (script && funbox)
         script->savedCallerFun = true;
@@ -1188,8 +1159,9 @@ Compiler::defineGlobals(JSContext *cx, GlobalScope &globalScope, JSScript *scrip
 
         JSProperty *prop;
 
-        if (!js_DefineNativeProperty(cx, globalObj, id, rval, PropertyStub, StrictPropertyStub,
-                                     JSPROP_ENUMERATE | JSPROP_PERMANENT, 0, 0, &prop)) {
+        if (!js_DefineNativeProperty(cx, globalObj, id, rval, PropertyStub,
+                                     PropertyStub, JSPROP_ENUMERATE | JSPROP_PERMANENT,
+                                     0, 0, &prop)) {
             return false;
         }
 
@@ -1418,10 +1390,10 @@ CheckStrictAssignment(JSContext *cx, JSTreeContext *tc, JSParseNode *lhs)
 }
 
 /*
- * Check that it is permitted to introduce a binding for atom.  Strict mode
- * forbids introducing new definitions for 'eval', 'arguments', or for any
- * strict mode reserved keyword.  Use pn for reporting error locations, or use
- * tc's token stream if pn is NULL.
+ * Check that it is permitted to introduce a binding for atom.  Strict
+ * mode forbids introducing new definitions for 'eval' or 'arguments'.
+ * Use pn for reporting error locations, or use tc's token stream if
+ * pn is NULL.
  */
 bool
 CheckStrictBinding(JSContext *cx, JSTreeContext *tc, JSAtom *atom, JSParseNode *pn)
@@ -1430,83 +1402,65 @@ CheckStrictBinding(JSContext *cx, JSTreeContext *tc, JSAtom *atom, JSParseNode *
         return true;
 
     JSAtomState *atomState = &cx->runtime->atomState;
-    if (atom == atomState->evalAtom ||
-        atom == atomState->argumentsAtom ||
-        FindKeyword(atom->charsZ(), atom->length()))
-    {
+    if (atom == atomState->evalAtom || atom == atomState->argumentsAtom) {
         JSAutoByteString name;
         if (!js_AtomToPrintableString(cx, atom, &name))
             return false;
         return ReportStrictModeError(cx, TS(tc->parser), tc, pn, JSMSG_BAD_BINDING, name.ptr());
     }
-
     return true;
 }
 
-static bool
-ReportBadParameter(JSContext *cx, JSTreeContext *tc, JSAtom *name, uintN errorNumber)
-{
-    JSDefinition *dn = ALE_DEFN(tc->decls.lookup(name));
-    JSAutoByteString bytes;
-    return js_AtomToPrintableString(cx, name, &bytes) &&
-           ReportStrictModeError(cx, TS(tc->parser), tc, dn, errorNumber, bytes.ptr());
-}
-
 /*
- * In strict mode code, all parameter names must be distinct, must not be
- * strict mode reserved keywords, and must not be 'eval' or 'arguments'.  We
- * must perform these checks here, and not eagerly during parsing, because a
- * function's body may turn on strict mode for the function head.
+ * In strict mode code, all formal parameter names must be distinct. If fun's
+ * formals are legit given fun's strictness level, return true. Otherwise,
+ * report an error and return false. Use pn for error position reporting,
+ * unless we can find something more accurate in tc's decls.
+ *
+ * In some cases the code to parse the argument list will already have noticed
+ * the duplication; we could try to use that knowledge instead of re-checking
+ * here. But since the strictness of the function's body determines what
+ * constraints to apply to the argument list, we can't report the error until
+ * after we've parsed the body. And as it turns out, the function's local name
+ * list makes it reasonably cheap to find duplicates after the fact.
  */
 static bool
-CheckStrictParameters(JSContext *cx, JSTreeContext *tc)
+CheckStrictFormals(JSContext *cx, JSTreeContext *tc, JSFunction *fun,
+                   JSParseNode *pn)
 {
-    JS_ASSERT(tc->inFunction());
-
-    if (!tc->needStrictChecks() || tc->bindings.countArgs() == 0)
+    if (!tc->needStrictChecks())
         return true;
 
-    JSAtom *argumentsAtom = cx->runtime->atomState.argumentsAtom;
-    JSAtom *evalAtom = cx->runtime->atomState.evalAtom;
-
-    /* name => whether we've warned about the name already */
-    HashMap<JSAtom *, bool> parameters(cx);
-    if (!parameters.init(tc->bindings.countArgs()))
-        return false;
-
-    /* Start with lastVariable(), not lastArgument(), for destructuring. */
-    for (Shape::Range r = tc->bindings.lastVariable(); !r.empty(); r.popFront()) {
-        jsid id = r.front().id;
-        if (!JSID_IS_ATOM(id))
-            continue;
-
-        JSAtom *name = JSID_TO_ATOM(id);
-
-        if (name == argumentsAtom || name == evalAtom) {
-            if (!ReportBadParameter(cx, tc, name, JSMSG_BAD_BINDING))
-                return false;
-        }
-
-        if (tc->inStrictMode() && FindKeyword(name->charsZ(), name->length())) {
-            /*
-             * JSOPTION_STRICT is supposed to warn about future keywords, too,
-             * but we took care of that in the scanner.
-             */
-            JS_ALWAYS_TRUE(!ReportBadParameter(cx, tc, name, JSMSG_RESERVED_ID));
+    if (JSAtom *atom = tc->bindings.findDuplicateArgument()) {
+        /*
+         * We have found a duplicate parameter name. If we can find the
+         * JSDefinition for the argument, that will have a more accurate source
+         * location.
+         */
+        JSDefinition *dn = ALE_DEFN(tc->decls.lookup(atom));
+        if (dn->pn_op == JSOP_GETARG)
+            pn = dn;
+        JSAutoByteString name;
+        if (!js_AtomToPrintableString(cx, atom, &name) ||
+            !ReportStrictModeError(cx, TS(tc->parser), tc, pn, JSMSG_DUPLICATE_FORMAL,
+                                   name.ptr())) {
             return false;
         }
+    }
 
-        /*
-         * Check for a duplicate parameter: warn or report an error exactly
-         * once for each duplicated parameter.
-         */
-        if (HashMap<JSAtom *, bool>::AddPtr p = parameters.lookupForAdd(name)) {
-            if (!p->value && !ReportBadParameter(cx, tc, name, JSMSG_DUPLICATE_FORMAL))
-                return false;
-            p->value = true;
-        } else {
-            if (!parameters.add(p, name, false))
-                return false;
+    if (tc->flags & (TCF_FUN_PARAM_ARGUMENTS | TCF_FUN_PARAM_EVAL)) {
+        JSAtomState *atoms = &cx->runtime->atomState;
+        JSAtom *atom = (tc->flags & TCF_FUN_PARAM_ARGUMENTS)
+                       ? atoms->argumentsAtom
+                       : atoms->evalAtom;
+
+        /* The definition's source position will be more precise. */
+        JSDefinition *dn = ALE_DEFN(tc->decls.lookup(atom));
+        JS_ASSERT(dn->pn_atom == atom);
+        JSAutoByteString name;
+        if (!js_AtomToPrintableString(cx, atom, &name) ||
+            !ReportStrictModeError(cx, TS(tc->parser), tc, dn, JSMSG_BAD_BINDING, name.ptr())) {
+            return false;
         }
     }
 
@@ -1566,7 +1520,7 @@ Parser::functionBody()
         pn->pn_pos.begin.lineno = firstLine;
 
         /* Check for falling off the end of a function that returns a value. */
-        if (context->hasStrictOption() && (tc->flags & TCF_RETURN_EXPR) &&
+        if (JS_HAS_STRICT_OPTION(context) && (tc->flags & TCF_RETURN_EXPR) &&
             !CheckFinalReturn(context, tc, pn)) {
             pn = NULL;
         }
@@ -1761,6 +1715,8 @@ DefineArg(JSParseNode *pn, JSAtom *atom, uintN i, JSTreeContext *tc)
     /* Flag tc so we don't have to lookup arguments on every use. */
     if (atom == tc->parser->context->runtime->atomState.argumentsAtom)
         tc->flags |= TCF_FUN_PARAM_ARGUMENTS;
+    if (atom == tc->parser->context->runtime->atomState.evalAtom)
+        tc->flags |= TCF_FUN_PARAM_EVAL;
 
     /*
      * Make an argument definition node, distinguished by being in tc->decls
@@ -1802,11 +1758,11 @@ DefineArg(JSParseNode *pn, JSAtom *atom, uintN i, JSTreeContext *tc)
 bool
 Compiler::compileFunctionBody(JSContext *cx, JSFunction *fun, JSPrincipals *principals,
                               Bindings *bindings, const jschar *chars, size_t length,
-                              const char *filename, uintN lineno, JSVersion version)
+                              const char *filename, uintN lineno)
 {
     Compiler compiler(cx, principals);
 
-    if (!compiler.init(chars, length, filename, lineno, version))
+    if (!compiler.init(chars, length, filename, lineno))
         return false;
 
     /* No early return from after here until the js_FinishArenaPool calls. */
@@ -1867,7 +1823,7 @@ Compiler::compileFunctionBody(JSContext *cx, JSFunction *fun, JSPrincipals *prin
     tokenStream.mungeCurrentToken(TOK_LC);
     JSParseNode *pn = fn ? parser.functionBody() : NULL;
     if (pn) {
-        if (!CheckStrictParameters(cx, &funcg)) {
+        if (!CheckStrictFormals(cx, &funcg, fun, pn)) {
             pn = NULL;
         } else if (!tokenStream.matchToken(TOK_EOF)) {
             parser.reportErrorNumber(NULL, JSREPORT_ERROR, JSMSG_SYNTAX_ERROR);
@@ -1948,6 +1904,8 @@ BindDestructuringArg(JSContext *cx, BindData *data, JSAtom *atom, JSTreeContext 
     /* Flag tc so we don't have to lookup arguments on every use. */
     if (atom == tc->parser->context->runtime->atomState.argumentsAtom)
         tc->flags |= TCF_FUN_PARAM_ARGUMENTS;
+    if (atom == tc->parser->context->runtime->atomState.evalAtom)
+        tc->flags |= TCF_FUN_PARAM_EVAL;
 
     JS_ASSERT(tc->inFunction());
 
@@ -2091,15 +2049,8 @@ FindFunArgs(JSFunctionBox *funbox, int level, JSFunctionBoxQueue *queue)
          * TCF_FUN_HEAVYWEIGHT bottom up, funbox's ancestor function nodes have
          * already been marked as funargs by this point. Therefore we have to
          * flag only funbox->node and funbox->kids' nodes here.
-         *
-         * Generators need to be treated in the same way. Even if the value
-         * of a generator function doesn't escape, anything defined or referred
-         * to inside the generator can escape through a call to the generator.
-         * We could imagine doing static analysis to track the calls and see
-         * if any iterators or values returned by iterators escape, but that
-         * would be hard, so instead we just assume everything might escape.
          */
-        if (funbox->tcflags & (TCF_FUN_HEAVYWEIGHT | TCF_FUN_IS_GENERATOR)) {
+        if (funbox->tcflags & TCF_FUN_HEAVYWEIGHT) {
             fn->setFunArg();
             for (JSFunctionBox *kid = funbox->kids; kid; kid = kid->siblings)
                 kid->node->setFunArg();
@@ -2501,9 +2452,6 @@ Parser::setFunctionKinds(JSFunctionBox *funbox, uint32 *tcflags)
         FUN_METER(allfun);
         if (funbox->tcflags & TCF_FUN_HEAVYWEIGHT) {
             FUN_METER(heavy);
-        } else if (funbox->inAnyDynamicScope()) {
-            JS_ASSERT(!FUN_NULL_CLOSURE(fun));
-            FUN_METER(indynamicscope);
         } else if (pn->pn_type != TOK_UPVARS) {
             /*
              * No lexical dependencies => null closure, for best performance.
@@ -3061,7 +3009,7 @@ Parser::functionDef(JSAtom *funAtom, FunctionType type, uintN lambda)
             JS_ASSERT(!dn->pn_used);
             JS_ASSERT(dn->pn_defn);
 
-            if (context->hasStrictOption() || dn_kind == JSDefinition::CONST) {
+            if (JS_HAS_STRICT_OPTION(context) || dn_kind == JSDefinition::CONST) {
                 JSAutoByteString name;
                 if (!js_AtomToPrintableString(context, funAtom, &name) ||
                     !reportErrorNumber(NULL,
@@ -3216,10 +3164,10 @@ Parser::functionDef(JSAtom *funAtom, FunctionType type, uintN lambda)
     if (!body)
         return NULL;
 
-    if (funAtom && !CheckStrictBinding(context, &funtc, funAtom, pn))
+    if (!CheckStrictBinding(context, &funtc, funAtom, pn))
         return NULL;
 
-    if (!CheckStrictParameters(context, &funtc))
+    if (!CheckStrictFormals(context, &funtc, fun, pn))
         return NULL;
 
 #if JS_HAS_EXPR_CLOSURES
@@ -3374,7 +3322,7 @@ Parser::functionStmt()
     if (tokenStream.getToken(TSF_KEYWORD_IS_NAME) == TOK_NAME) {
         name = tokenStream.currentToken().t_atom;
     } else {
-        if (hasAnonFunFix()) {
+        if (context->options & JSOPTION_ANONFUNFIX) {
             /* Extension: accept unnamed function expressions as statements. */
             reportErrorNumber(NULL, JSREPORT_ERROR, JSMSG_SYNTAX_ERROR);
             return NULL;
@@ -3553,7 +3501,7 @@ Parser::condition()
     JSParseNode *pn;
 
     MUST_MATCH_TOKEN(TOK_LP, JSMSG_PAREN_BEFORE_COND);
-    pn = parenExpr();
+    pn = parenExpr(NULL, NULL);
     if (!pn)
         return NULL;
     MUST_MATCH_TOKEN(TOK_RP, JSMSG_PAREN_AFTER_COND);
@@ -3935,7 +3883,7 @@ BindVarOrConst(JSContext *cx, BindData *data, JSAtom *atom, JSTreeContext *tc)
                           (dn_kind == JSDefinition::LET &&
                            (stmt->type != STMT_CATCH || OuterLet(tc, stmt, atom))));
 
-            if (cx->hasStrictOption()
+            if (JS_HAS_STRICT_OPTION(cx)
                 ? op != JSOP_DEFVAR || dn_kind != JSDefinition::VAR
                 : error) {
                 JSAutoByteString name;
@@ -4826,7 +4774,7 @@ Parser::returnOrYield(bool useAssignExpr)
         return NULL;
     }
 
-    if (context->hasStrictOption() &&
+    if (JS_HAS_STRICT_OPTION(context) &&
         (~tc->flags & (TCF_RETURN_EXPR | TCF_RETURN_VOID)) == 0 &&
         !ReportBadReturn(context, tc, JSREPORT_WARNING | JSREPORT_STRICT,
                          JSMSG_NO_RETURN_VALUE,
@@ -5086,7 +5034,7 @@ Parser::switchStatement()
     MUST_MATCH_TOKEN(TOK_LP, JSMSG_PAREN_BEFORE_SWITCH);
 
     /* pn1 points to the switch's discriminant. */
-    JSParseNode *pn1 = parenExpr();
+    JSParseNode *pn1 = parenExpr(NULL, NULL);
     if (!pn1)
         return NULL;
 
@@ -5284,7 +5232,7 @@ Parser::forStatement()
         if (TokenKindIsDecl(tt)
             ? (pn1->pn_count > 1 || pn1->pn_op == JSOP_DEFCONST
 #if JS_HAS_DESTRUCTURING
-               || (versionNumber() == JSVERSION_1_7 &&
+               || (VersionNumber(version) == JSVERSION_1_7 &&
                    pn->pn_op == JSOP_ITER &&
                    !(pn->pn_iflags & JSITER_FOREACH) &&
                    (pn1->pn_head->pn_type == TOK_RC ||
@@ -5298,7 +5246,7 @@ Parser::forStatement()
             : (pn1->pn_type != TOK_NAME &&
                pn1->pn_type != TOK_DOT &&
 #if JS_HAS_DESTRUCTURING
-               ((versionNumber() == JSVERSION_1_7 &&
+               ((VersionNumber(version) == JSVERSION_1_7 &&
                  pn->pn_op == JSOP_ITER &&
                  !(pn->pn_iflags & JSITER_FOREACH))
                 ? (pn1->pn_type != TOK_RB || pn1->pn_count != 2)
@@ -5411,7 +5359,7 @@ Parser::forStatement()
             if (pn1 == pn2 && !CheckDestructuring(context, NULL, pn2, NULL, tc))
                 return NULL;
 
-            if (versionNumber() == JSVERSION_1_7) {
+            if (VersionNumber(version) == JSVERSION_1_7) {
                 /*
                  * Destructuring for-in requires [key, value] enumeration
                  * in JS1.7.
@@ -5705,7 +5653,7 @@ Parser::withStatement()
     if (!pn)
         return NULL;
     MUST_MATCH_TOKEN(TOK_LP, JSMSG_PAREN_BEFORE_WITH);
-    JSParseNode *pn2 = parenExpr();
+    JSParseNode *pn2 = parenExpr(NULL, NULL);
     if (!pn2)
         return NULL;
     MUST_MATCH_TOKEN(TOK_RP, JSMSG_PAREN_AFTER_WITH);
@@ -6043,7 +5991,7 @@ Parser::statement()
         PopStatement(tc);
         pn->pn_pos.end = pn3->pn_pos.end;
         pn->pn_right = pn3;
-        if (versionNumber() != JSVERSION_ECMA_3) {
+        if (VersionNumber(version) != JSVERSION_ECMA_3) {
             /*
              * All legacy and extended versions must do automatic semicolon
              * insertion after do-while.  See the testcase and discussion in
@@ -6228,6 +6176,7 @@ Parser::statement()
         pn->pn_type = TOK_SEMI;
         return pn;
 
+#if JS_HAS_DEBUGGER_KEYWORD
       case TOK_DEBUGGER:
         pn = NullaryNode::create(tc);
         if (!pn)
@@ -6235,6 +6184,7 @@ Parser::statement()
         pn->pn_type = TOK_DEBUGGER;
         tc->flags |= TCF_FUN_HEAVYWEIGHT;
         break;
+#endif /* JS_HAS_DEBUGGER_KEYWORD */
 
 #if JS_HAS_XML_SUPPORT
       case TOK_DEFAULT:
@@ -6989,35 +6939,28 @@ CompExprTransplanter::transplant(JSParseNode *pn)
 
     switch (pn->pn_arity) {
       case PN_LIST:
-        for (JSParseNode *pn2 = pn->pn_head; pn2; pn2 = pn2->pn_next) {
-            if (!transplant(pn2))
-                return false;
-        }
+        for (JSParseNode *pn2 = pn->pn_head; pn2; pn2 = pn2->pn_next)
+            transplant(pn2);
         if (pn->pn_pos >= root->pn_pos)
             AdjustBlockId(pn, adjust, tc);
         break;
 
       case PN_TERNARY:
-        if (!transplant(pn->pn_kid1) ||
-            !transplant(pn->pn_kid2) ||
-            !transplant(pn->pn_kid3))
-            return false;
+        transplant(pn->pn_kid1);
+        transplant(pn->pn_kid2);
+        transplant(pn->pn_kid3);
         break;
 
       case PN_BINARY:
-        if (!transplant(pn->pn_left))
-            return false;
+        transplant(pn->pn_left);
 
         /* Binary TOK_COLON nodes can have left == right. See bug 492714. */
-        if (pn->pn_right != pn->pn_left) {
-            if (!transplant(pn->pn_right))
-                return false;
-        }
+        if (pn->pn_right != pn->pn_left)
+            transplant(pn->pn_right);
         break;
 
       case PN_UNARY:
-        if (!transplant(pn->pn_kid))
-            return false;
+        transplant(pn->pn_kid);
         break;
 
       case PN_FUNC:
@@ -7052,8 +6995,7 @@ CompExprTransplanter::transplant(JSParseNode *pn)
       }
 
       case PN_NAME:
-        if (!transplant(pn->maybeExpr()))
-            return false;
+        transplant(pn->maybeExpr());
         if (pn->pn_arity == PN_FUNC)
             --funcLevel;
 
@@ -7091,22 +7033,21 @@ CompExprTransplanter::transplant(JSParseNode *pn)
                 JS_ASSERT(!tc->decls.lookup(atom));
 
                 if (dn->pn_pos < root->pn_pos || dn->isPlaceholder()) {
-                    JSAtomListElement *ale = tc->lexdeps.add(tc->parser, atom);
+                    JSAtomListElement *ale = tc->lexdeps.add(tc->parser, dn->pn_atom);
                     if (!ale)
                         return false;
 
                     if (dn->pn_pos >= root->pn_pos) {
                         tc->parent->lexdeps.remove(tc->parser, atom);
                     } else {
-                        JSDefinition *dn2 = (JSDefinition *)NameNode::create(atom, tc);
+                        JSDefinition *dn2 = (JSDefinition *)NameNode::create(dn->pn_atom, tc);
                         if (!dn2)
                             return false;
 
-                        dn2->pn_type = TOK_NAME;
-                        dn2->pn_op = JSOP_NOP;
+                        dn2->pn_type = dn->pn_type;
+                        dn2->pn_pos = root->pn_pos;
                         dn2->pn_defn = true;
                         dn2->pn_dflags |= PND_PLACEHOLDER;
-                        dn2->pn_pos = root->pn_pos;
 
                         JSParseNode **pnup = &dn->dn_uses;
                         JSParseNode *pnu;
@@ -7132,8 +7073,7 @@ CompExprTransplanter::transplant(JSParseNode *pn)
         break;
 
       case PN_NAMESET:
-        if (!transplant(pn->pn_tree))
-            return false;
+        transplant(pn->pn_tree);
         break;
     }
     return true;
@@ -7278,7 +7218,7 @@ Parser::comprehensionTail(JSParseNode *kid, uintN blockid,
             if (!CheckDestructuring(context, &data, pn3, NULL, tc))
                 return NULL;
 
-            if (versionNumber() == JSVERSION_1_7) {
+            if (VersionNumber(version) == JSVERSION_1_7) {
                 /* Destructuring requires [key, value] enumeration in JS1.7. */
                 if (pn3->pn_type != TOK_RB || pn3->pn_count != 2) {
                     reportErrorNumber(NULL, JSREPORT_ERROR, JSMSG_BAD_FOR_LEFTSIDE);
@@ -7340,22 +7280,20 @@ Parser::comprehensionTail(JSParseNode *kid, uintN blockid,
  * generator function that is immediately called to evaluate to the generator
  * iterator that is the value of this generator expression.
  *
- * |kid| must be the expression before the |for| keyword; we return an
- * application of a generator function that includes the |for| loops and
- * |if| guards, with |kid| as the operand of a |yield| expression as the
- * innermost loop body.
+ * Callers pass a blank unary node via pn, which generatorExpr fills in as the
+ * yield expression, which ComprehensionTail in turn wraps in a TOK_SEMI-type
+ * expression-statement node that constitutes the body of the |for| loop(s) in
+ * the generator function.
  *
  * Note how unlike Python, we do not evaluate the expression to the right of
  * the first |in| in the chain of |for| heads. Instead, a generator expression
  * is merely sugar for a generator function expression and its application.
  */
 JSParseNode *
-Parser::generatorExpr(JSParseNode *kid)
+Parser::generatorExpr(JSParseNode *pn, JSParseNode *kid)
 {
-    /* Create a |yield| node for |kid|. */
-    JSParseNode *pn = UnaryNode::create(tc);
-    if (!pn)
-        return NULL;
+    /* Initialize pn, connecting it to kid. */
+    JS_ASSERT(pn->pn_arity == PN_UNARY);
     pn->pn_type = TOK_YIELD;
     pn->pn_op = JSOP_YIELD;
     pn->pn_parens = true;
@@ -7457,7 +7395,10 @@ Parser::argumentList(JSParseNode *listNode)
 #endif
 #if JS_HAS_GENERATOR_EXPRS
         if (tokenStream.matchToken(TOK_FOR)) {
-            argNode = generatorExpr(argNode);
+            JSParseNode *pn = UnaryNode::create(tc);
+            if (!pn)
+                return JS_FALSE;
+            argNode = generatorExpr(pn, argNode);
             if (!argNode)
                 return JS_FALSE;
             if (listNode->pn_count > 1 ||
@@ -8283,16 +8224,26 @@ Parser::xmlElementOrList(JSBool allowList)
 JSParseNode *
 Parser::xmlElementOrListRoot(JSBool allowList)
 {
+    uint32 oldopts;
+    JSParseNode *pn;
+
     /*
      * Force XML support to be enabled so that comments and CDATA literals
      * are recognized, instead of <! followed by -- starting an HTML comment
      * to end of line (used in script tags to hide content from old browsers
      * that don't recognize <script>).
      */
-    bool hadXML = tokenStream.hasXML();
-    tokenStream.setXML(true);
-    JSParseNode *pn = xmlElementOrList(allowList);
-    tokenStream.setXML(hadXML);
+    oldopts = JS_SetOptions(context, context->options | JSOPTION_XML);
+    version = context->findVersion();
+    tokenStream.setVersion(version);
+    JS_ASSERT(VersionHasXML(version));
+
+    pn = xmlElementOrList(allowList);
+
+    JS_SetOptions(context, oldopts);
+    version = context->findVersion();
+    tokenStream.setVersion(version);
+    JS_ASSERT(!!(oldopts & JSOPTION_XML) == VersionHasXML(version));
     return pn;
 }
 
@@ -8762,7 +8713,7 @@ Parser::primaryExpr(TokenKind tt, JSBool afterDot)
       {
         JSBool genexp;
 
-        pn = parenExpr(&genexp);
+        pn = parenExpr(NULL, &genexp);
         if (!pn)
             return NULL;
         pn->pn_parens = true;
@@ -8926,15 +8877,13 @@ Parser::primaryExpr(TokenKind tt, JSBool afterDot)
                  * followed by ::. This is the only case where a keyword after
                  * . or .. is not treated as a property name.
                  */
-                const KeywordInfo *ki = FindKeyword(pn->pn_atom->charsZ(), pn->pn_atom->length());
-                if (ki) {
-                    if (ki->tokentype != TOK_FUNCTION) {
-                        reportErrorNumber(NULL, JSREPORT_ERROR, JSMSG_KEYWORD_NOT_NS);
-                        return NULL;
-                    }
-
+                tt = js_CheckKeyword(pn->pn_atom->chars(), pn->pn_atom->length());
+                if (tt == TOK_FUNCTION) {
                     pn->pn_arity = PN_NULLARY;
                     pn->pn_type = TOK_FUNCTION;
+                } else if (tt != TOK_EOF) {
+                    reportErrorNumber(NULL, JSREPORT_ERROR, JSMSG_KEYWORD_NOT_NS);
+                    return NULL;
                 }
             }
             pn = qualifiedSuffix(pn);
@@ -9005,7 +8954,7 @@ Parser::primaryExpr(TokenKind tt, JSBool afterDot)
 }
 
 JSParseNode *
-Parser::parenExpr(JSBool *genexp)
+Parser::parenExpr(JSParseNode *pn1, JSBool *genexp)
 {
     TokenPtr begin;
     JSParseNode *pn;
@@ -9030,7 +8979,12 @@ Parser::parenExpr(JSBool *genexp)
                               js_generator_str);
             return NULL;
         }
-        pn = generatorExpr(pn);
+        if (!pn1) {
+            pn1 = UnaryNode::create(tc);
+            if (!pn1)
+                return NULL;
+        }
+        pn = generatorExpr(pn1, pn);
         if (!pn)
             return NULL;
         pn->pn_pos.begin = begin;
@@ -9370,6 +9324,7 @@ Boolish(JSParseNode *pn)
 
       case JSOP_DEFFUN:
       case JSOP_LAMBDA:
+      case JSOP_THIS:
       case JSOP_TRUE:
         return 1;
 

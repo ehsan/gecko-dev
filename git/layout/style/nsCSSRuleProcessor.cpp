@@ -2573,14 +2573,6 @@ nsCSSRuleProcessor::HasAttributeDependentStyle(AttributeRuleProcessorData* aData
       {
         data.change = nsRestyleHint(data.change | eRestyle_Subtree);
       }
-
-    // We don't know the namespace of the attribute, and xml:lang applies to
-    // all elements.  If the lang attribute changes, we need to restyle our
-    // whole subtree, since the :lang selector on our descendants can examine
-    // our lang attribute.
-    if (aData->mAttribute == nsGkAtoms::lang) {
-      data.change = nsRestyleHint(data.change | eRestyle_Subtree);
-    }
   }
 
   RuleCascadeData* cascade = GetRuleCascade(aData->mPresContext);
@@ -2720,95 +2712,84 @@ AddSelector(RuleCascadeData* aCascade,
             // The part we should look through (might be in :not or :-moz-any())
             nsCSSSelector* aSelectorPart)
 {
-  // It's worth noting that this loop over negations isn't quite
-  // optimal for two reasons.  One, we could add something to one of
-  // these lists twice, which means we'll check it twice, but I don't
-  // think that's worth worrying about.   (We do the same for multiple
-  // attribute selectors on the same attribute.)  Two, we don't really
-  // need to check negations past the first in the current
-  // implementation (and they're rare as well), but that might change
-  // in the future if :not() is extended.
-  for (nsCSSSelector* negation = aSelectorPart; negation;
-       negation = negation->mNegations) {
-    // Track both document states and attribute dependence in pseudo-classes.
-    for (nsPseudoClassList* pseudoClass = negation->mPseudoClassList;
-         pseudoClass; pseudoClass = pseudoClass->mNext) {
-      switch (pseudoClass->mType) {
-        case nsCSSPseudoClasses::ePseudoClass_mozLocaleDir: {
-          aCascade->mSelectorDocumentStates |= NS_DOCUMENT_STATE_RTL_LOCALE;
-          break;
-        }
-        case nsCSSPseudoClasses::ePseudoClass_mozWindowInactive: {
-          aCascade->mSelectorDocumentStates |= NS_DOCUMENT_STATE_WINDOW_INACTIVE;
-          break;
-        }
-        case nsCSSPseudoClasses::ePseudoClass_mozTableBorderNonzero: {
-          nsTArray<nsCSSSelector*> *array =
-            aCascade->AttributeListFor(nsGkAtoms::border);
-          if (!array) {
-            return PR_FALSE;
-          }
-          array->AppendElement(aSelectorInTopLevel);
-          break;
-        }
-        default: {
-          break;
-        }
+  // Track both document states and attribute dependence in pseudo-classes.
+  for (nsPseudoClassList* pseudoClass = aSelectorPart->mPseudoClassList;
+       pseudoClass; pseudoClass = pseudoClass->mNext) {
+    switch (pseudoClass->mType) {
+      case nsCSSPseudoClasses::ePseudoClass_mozLocaleDir: {
+        aCascade->mSelectorDocumentStates |= NS_DOCUMENT_STATE_RTL_LOCALE;
+        break;
       }
-    }
-
-    // Build mStateSelectors.
-    if (IsStateSelector(*negation))
-      aCascade->mStateSelectors.AppendElement(aSelectorInTopLevel);
-
-    // Build mIDSelectors
-    if (negation->mIDList) {
-      aCascade->mIDSelectors.AppendElement(aSelectorInTopLevel);
-    }
-
-    // Build mClassSelectors
-    if (negation == aSelectorInTopLevel) {
-      for (nsAtomList* curClass = negation->mClassList; curClass;
-           curClass = curClass->mNext) {
-        ClassSelectorEntry *entry =
-          static_cast<ClassSelectorEntry*>(PL_DHashTableOperate(&aCascade->mClassSelectors,
-                                                                curClass->mAtom,
-                                                                PL_DHASH_ADD));
-        if (entry) {
-          entry->mSelectors.AppendElement(aSelectorInTopLevel);
-        }
+      case nsCSSPseudoClasses::ePseudoClass_mozWindowInactive: {
+        aCascade->mSelectorDocumentStates |= NS_DOCUMENT_STATE_WINDOW_INACTIVE;
+        break;
       }
-    } else if (negation->mClassList) {
-      aCascade->mPossiblyNegatedClassSelectors.AppendElement(aSelectorInTopLevel);
-    }
-
-    // Build mAttributeSelectors.
-    for (nsAttrSelector *attr = negation->mAttrList; attr;
-         attr = attr->mNext) {
-      nsTArray<nsCSSSelector*> *array =
-        aCascade->AttributeListFor(attr->mCasedAttr);
-      if (!array) {
-        return PR_FALSE;
-      }
-      array->AppendElement(aSelectorInTopLevel);
-      if (attr->mLowercaseAttr != attr->mCasedAttr) {
-        array = aCascade->AttributeListFor(attr->mLowercaseAttr);
+      case nsCSSPseudoClasses::ePseudoClass_mozTableBorderNonzero: {
+        nsTArray<nsCSSSelector*> *array =
+          aCascade->AttributeListFor(nsGkAtoms::border);
         if (!array) {
           return PR_FALSE;
         }
         array->AppendElement(aSelectorInTopLevel);
+        break;
+      }
+      default: {
+        break;
       }
     }
+  }
 
-    // Recur through any :-moz-any selectors
-    for (nsPseudoClassList* pseudoClass = negation->mPseudoClassList;
-         pseudoClass; pseudoClass = pseudoClass->mNext) {
-      if (pseudoClass->mType == nsCSSPseudoClasses::ePseudoClass_any) {
-        for (nsCSSSelectorList *l = pseudoClass->u.mSelectors; l; l = l->mNext) {
-          nsCSSSelector *s = l->mSelectors;
-          if (!AddSelector(aCascade, aSelectorInTopLevel, s)) {
-            return PR_FALSE;
-          }
+  // Build mStateSelectors.
+  if (IsStateSelector(*aSelectorPart))
+    aCascade->mStateSelectors.AppendElement(aSelectorInTopLevel);
+
+  // Build mIDSelectors
+  if (aSelectorPart->mIDList) {
+    aCascade->mIDSelectors.AppendElement(aSelectorInTopLevel);
+  }
+
+  // Build mClassSelectors
+  if (aSelectorPart == aSelectorInTopLevel) {
+    for (nsAtomList* curClass = aSelectorPart->mClassList; curClass;
+         curClass = curClass->mNext) {
+      ClassSelectorEntry *entry =
+        static_cast<ClassSelectorEntry*>(PL_DHashTableOperate(&aCascade->mClassSelectors,
+                                                              curClass->mAtom,
+                                                              PL_DHASH_ADD));
+      if (entry) {
+        entry->mSelectors.AppendElement(aSelectorInTopLevel);
+      }
+    }
+  } else if (aSelectorPart->mClassList) {
+    aCascade->mPossiblyNegatedClassSelectors.AppendElement(aSelectorInTopLevel);
+  }
+
+  // Build mAttributeSelectors.
+  for (nsAttrSelector *attr = aSelectorPart->mAttrList; attr;
+       attr = attr->mNext) {
+    nsTArray<nsCSSSelector*> *array =
+      aCascade->AttributeListFor(attr->mCasedAttr);
+    if (!array) {
+      return PR_FALSE;
+    }
+    array->AppendElement(aSelectorInTopLevel);
+    if (attr->mLowercaseAttr != attr->mCasedAttr) {
+      array = aCascade->AttributeListFor(attr->mLowercaseAttr);
+      if (!array) {
+        return PR_FALSE;
+      }
+      array->AppendElement(aSelectorInTopLevel);
+    }
+  }
+
+  // Recur through any :-moz-any selectors
+  for (nsPseudoClassList* pseudoClass = aSelectorPart->mPseudoClassList;
+       pseudoClass; pseudoClass = pseudoClass->mNext) {
+    if (pseudoClass->mType == nsCSSPseudoClasses::ePseudoClass_any) {
+      for (nsCSSSelectorList *l = pseudoClass->u.mSelectors; l; l = l->mNext) {
+        nsCSSSelector *s = l->mSelectors;
+        if (!AddSelector(aCascade, aSelectorInTopLevel, s)) {
+          return PR_FALSE;
         }
       }
     }
@@ -2880,8 +2861,19 @@ AddRule(RuleSelectorPair* aRuleInfo, RuleCascadeData* aCascade)
       // anyway, but trees overload mPseudoClassList with weird stuff.
       continue;
     }
-    if (!AddSelector(cascade, selector, selector)) {
-      return PR_FALSE;
+    // It's worth noting that this loop over negations isn't quite
+    // optimal for two reasons.  One, we could add something to one of
+    // these lists twice, which means we'll check it twice, but I don't
+    // think that's worth worrying about.   (We do the same for multiple
+    // attribute selectors on the same attribute.)  Two, we don't really
+    // need to check negations past the first in the current
+    // implementation (and they're rare as well), but that might change
+    // in the future if :not() is extended. 
+    for (nsCSSSelector* negation = selector; negation;
+         negation = negation->mNegations) {
+      if (!AddSelector(cascade, selector, negation)) {
+        return PR_FALSE;
+      }
     }
   }
 

@@ -60,13 +60,15 @@ function onLoad(aEvent) {
 function testBasicNetLogging(aEvent) {
   browser.removeEventListener(aEvent.type, arguments.callee, true);
 
-  outputNode = HUDService.hudReferences[hudId].outputNode;
+  hudBox = HUDService.getHeadsUpDisplay(hudId);
 
   executeSoon(function() {
-    findLogEntry("test-network.html");
-    findLogEntry("testscript.js");
-    findLogEntry("test-image.png");
-    findLogEntry("network console");
+    let text = hudBox.querySelector(".hud-output-node").textContent;
+
+    isnot(text.indexOf("test-network.html"), -1, "found test-network.html");
+    isnot(text.indexOf("testscript.js"), -1, "found testscript.js");
+    isnot(text.indexOf("test-image.png"), -1, "found test-image.png");
+    isnot(text.indexOf("network console"), -1, "found network console");
 
     finishTest();
   });

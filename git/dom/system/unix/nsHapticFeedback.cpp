@@ -36,7 +36,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsHapticFeedback.h"
-#if (MOZ_PLATFORM_MAEMO == 5)
+#ifdef MOZ_PLATFORM_MAEMO
 #include <dbus/dbus.h>
 #include <mce/dbus-names.h>
 #endif

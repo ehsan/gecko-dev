@@ -64,7 +64,7 @@
 #include "nsIDOMHTMLInputElement.h"
 #include "nsStyleSet.h"
 #ifdef ACCESSIBILITY
-#include "nsAccessibilityService.h"
+#include "nsIAccessibilityService.h"
 #endif
 #include "nsDisplayList.h"
 
@@ -113,7 +113,8 @@ NS_QUERYFRAME_TAIL_INHERITING(nsHTMLContainerFrame)
 already_AddRefed<nsAccessible>
 nsHTMLButtonControlFrame::CreateAccessible()
 {
-  nsAccessibilityService* accService = nsIPresShell::AccService();
+  nsCOMPtr<nsIAccessibilityService> accService = do_GetService("@mozilla.org/accessibilityService;1");
+
   if (accService) {
     return IsInput() ?
       accService->CreateHTMLButtonAccessible(mContent, PresContext()->PresShell()) :

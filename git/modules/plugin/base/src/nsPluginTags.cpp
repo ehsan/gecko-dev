@@ -54,7 +54,6 @@
 #include "nsICharsetConverterManager.h"
 #include "nsPluginLogging.h"
 #include "nsICategoryManager.h"
-#include "nsNPAPIPlugin.h"
 #include "mozilla/TimeStamp.h"
 
 using mozilla::TimeStamp;
@@ -84,7 +83,6 @@ mLibrary(nsnull),
 mCanUnloadLibrary(PR_TRUE),
 mIsJavaPlugin(aPluginTag->mIsJavaPlugin),
 mIsNPRuntimeEnabledJavaPlugin(aPluginTag->mIsNPRuntimeEnabledJavaPlugin),
-mIsFlashPlugin(aPluginTag->mIsFlashPlugin),
 mFileName(aPluginTag->mFileName),
 mFullPath(aPluginTag->mFullPath),
 mVersion(aPluginTag->mVersion),
@@ -119,43 +117,34 @@ mCanUnloadLibrary(PR_TRUE),
 #endif
 mIsJavaPlugin(PR_FALSE),
 mIsNPRuntimeEnabledJavaPlugin(PR_FALSE),
-mIsFlashPlugin(PR_FALSE),
 mFileName(aPluginInfo->fFileName),
 mFullPath(aPluginInfo->fFullPath),
 mVersion(aPluginInfo->fVersion),
 mLastModifiedTime(0),
 mFlags(NS_PLUGIN_FLAG_ENABLED)
 {
-  if (aPluginInfo->fMimeTypeArray) {
+  if (aPluginInfo->fMimeTypeArray != nsnull) {
     mMimeTypeArray = new char*[mVariants];
     for (int i = 0; i < mVariants; i++) {
-      char* currentMIMEType = aPluginInfo->fMimeTypeArray[i];
-      if (!currentMIMEType) {
-        continue;
-      }
-
-      if (mIsJavaPlugin) {
-        if (strcmp(currentMIMEType, "application/x-java-vm-npruntime") == 0) {
-          // Stop processing here, any mimetypes after the magic "I'm a
-          // NPRuntime enabled Java plugin" mimetype will be ignored.
-          mIsNPRuntimeEnabledJavaPlugin = PR_TRUE;
-          mVariants = i;
-          break;
-        }
-      }
-
-      mMimeTypeArray[i] = new_str(currentMIMEType);
-
-      if (nsPluginHost::IsJavaMIMEType(mMimeTypeArray[i])) {
+      if (mIsJavaPlugin && aPluginInfo->fMimeTypeArray[i] &&
+          strcmp(aPluginInfo->fMimeTypeArray[i],
+                 "application/x-java-vm-npruntime") == 0) {
+            mIsNPRuntimeEnabledJavaPlugin = PR_TRUE;
+            
+            // Stop processing here, any mimetypes after the magic "I'm a
+            // NPRuntime enabled Java plugin" mimetype will be ignored.
+            mVariants = i;
+            
+            break;
+          }
+      
+      mMimeTypeArray[i] = new_str(aPluginInfo->fMimeTypeArray[i]);
+      if (nsPluginHost::IsJavaMIMEType(mMimeTypeArray[i]))
         mIsJavaPlugin = PR_TRUE;
-      }
-      else if (strcmp(currentMIMEType, "application/x-shockwave-flash") == 0) {
-        mIsFlashPlugin = PR_TRUE;
-      }
     }
   }
-
-  if (aPluginInfo->fMimeDescriptionArray) {
+  
+  if (aPluginInfo->fMimeDescriptionArray != nsnull) {
     for (int i = 0; i < mVariants; i++) {
       // we should cut off the list of suffixes which the mime
       // description string may have, see bug 53895

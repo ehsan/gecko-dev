@@ -54,7 +54,7 @@ class Test:
 
     def copy(self):
         t = Test(self.path)
-        t.jitflags = self.jitflags[:]
+        t.jitflags = self.jitflags
         t.slow = self.slow
         t.allow_oom = self.allow_oom
         t.valgrind = self.valgrind
@@ -93,10 +93,6 @@ class Test:
                         test.allow_oom = True
                     elif name == 'valgrind':
                         test.valgrind = options.valgrind
-                    elif name == 'mjitalways':
-                        test.jitflags.append('-a')
-                    elif name == 'debug':
-                        test.jitflags.append('-d')
                     else:
                         print('warning: unrecognized |jit-test| attribute %s'%part)
 
@@ -127,9 +123,7 @@ def get_test_cmd(path, jitflags, lib_dir):
     if not libdir_var.endswith('/'):
         libdir_var += '/'
     expr = "const platform=%r; const libdir=%r;"%(sys.platform, libdir_var)
-    # We may have specified '-a' or '-d' twice: once via --jitflags, once
-    # via the "|jit-test|" line.  Remove dups because they are toggles.
-    return [ JS ] + list(set(jitflags)) + [ '-e', expr, '-f', os.path.join(lib_dir, 'prolog.js'),
+    return [ JS ] + jitflags + [ '-e', expr, '-f', os.path.join(lib_dir, 'prolog.js'),
              '-f', path ]
 
 def run_cmd(cmdline, env):
@@ -297,7 +291,7 @@ def parse_jitflags():
                  for flags in OPTIONS.jitflags.split(',') ]
     for flags in jitflags:
         for flag in flags:
-            if flag not in ('-j', '-m', '-a', '-p', '-d'):
+            if flag not in ('-j', '-m', '-p', '-d'):
                 print('Invalid jit flag: "%s"'%flag)
                 sys.exit(1)
     return jitflags
@@ -432,7 +426,7 @@ def main(argv):
     for test in test_list:
         for jitflags in jitflags_list:
             new_test = test.copy()
-            new_test.jitflags.extend(jitflags)
+            new_test.jitflags = jitflags
             job_list.append(new_test)
     
 

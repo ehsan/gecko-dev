@@ -20,11 +20,11 @@ BEGIN_TEST(testSetProperty_NativeGetterStubSetter)
     vobj = OBJECT_TO_JSVAL(obj);
 
     CHECK(JS_DefineProperty(cx, global, "globalProp", vobj,
-                            JS_PropertyStub, JS_StrictPropertyStub,
+                            JS_PropertyStub, JS_PropertyStub,
                             JSPROP_ENUMERATE));
 
     CHECK(JS_DefineProperty(cx, obj, "prop", JSVAL_VOID,
-                            nativeGet, JS_StrictPropertyStub,
+                            nativeGet, JS_PropertyStub,
                             JSPROP_SHARED));
 
     EXEC("'use strict';                                     \n"

@@ -67,7 +67,7 @@ public:
   void (*callback)(NPP npp, uint32_t timerID);
 };
 
-class nsNPAPIPluginInstance : public nsIPluginInstance_MOZILLA_2_0_BRANCH
+class nsNPAPIPluginInstance : public nsIPluginInstance
 {
 private:
   typedef mozilla::PluginLibrary PluginLibrary;
@@ -75,7 +75,6 @@ private:
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIPLUGININSTANCE
-  NS_DECL_NSIPLUGININSTANCE_MOZILLA_2_0_BRANCH
 
   nsNPAPIPlugin* GetPlugin();
 
@@ -146,10 +145,6 @@ public:
   nsresult AsyncSetWindow(NPWindow& window);
 
   void URLRedirectResponse(void* notifyData, NPBool allow);
-
-  // Called when the instance fails to instantiate beceause the Carbon
-  // event model is not supported.
-  void CarbonNPAPIFailure();
 
 protected:
   nsresult InitializePlugin();

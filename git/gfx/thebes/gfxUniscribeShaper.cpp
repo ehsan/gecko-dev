@@ -39,6 +39,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+//#define FORCE_PR_LOG
+
 #include "prtypes.h"
 #include "gfxTypes.h"
 
@@ -56,7 +58,9 @@
 
 #include "nsTArray.h"
 
+#include "prlog.h"
 #include "prinit.h"
+static PRLogModuleInfo *gFontLog = PR_NewLogModule("winfonts");
 
 /**********************************************************************
  *
@@ -466,11 +470,13 @@ gfxUniscribeShaper::InitTextRun(gfxContext *aContext,
                                 PRUint32 aRunLength,
                                 PRInt32 aRunScript)
 {
-    mFont->SetupCairoFont(aContext);
     DCFromContext aDC(aContext);
  
     PRBool result = PR_TRUE;
     HRESULT rv;
+
+    gfxGDIFont *font = static_cast<gfxGDIFont*>(mFont);
+    AutoSelectFont fs(aDC, font->GetHFONT());
 
     Uniscribe us(aString + aRunStart, aRunLength, aTextRun);
 
@@ -517,6 +523,7 @@ gfxUniscribeShaper::InitTextRun(gfxContext *aContext,
 
         rv = item.Shape();
         if (FAILED(rv)) {
+            PR_LOG(gFontLog, PR_LOG_DEBUG, ("shaping failed"));
             // we know we have the glyphs to display this font already
             // so Uniscribe just doesn't know how to shape the script.
             // Render the glyphs without shaping.

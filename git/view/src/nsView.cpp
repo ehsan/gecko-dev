@@ -209,7 +209,6 @@ nsView::nsView(nsViewManager* aViewManager, nsViewVisibility aVisibility)
   mViewManager = aViewManager;
   mDirtyRegion = nsnull;
   mDeletionObserver = nsnull;
-  mHaveInvalidationDimensions = PR_FALSE;
   mWidgetIsTopLevel = PR_FALSE;
 }
 
@@ -351,11 +350,6 @@ void nsView::SetPosition(nscoord aX, nscoord aY)
   ResetWidgetBounds(PR_TRUE, PR_TRUE, PR_FALSE);
 }
 
-void nsIView::SetInvalidationDimensions(const nsRect* aRect)
-{
-  return Impl()->SetInvalidationDimensions(aRect);
-}
-
 void nsView::SetPositionIgnoringChildWidgets(nscoord aX, nscoord aY)
 {
   mDimBounds.x += aX - mPosX;
@@ -444,6 +438,8 @@ void nsView::DoResetWidgetBounds(PRBool aMoveOnly,
     return;
   }
   
+  NS_PRECONDITION(mWindow, "Why was this called??");
+
   nsIntRect curBounds;
   mWindow->GetBounds(curBounds);
 
@@ -459,12 +455,18 @@ void nsView::DoResetWidgetBounds(PRBool aMoveOnly,
     return;
   }
 
-  NS_PRECONDITION(mWindow, "Why was this called??");
-
   nsIntRect newBounds = CalcWidgetBounds(type);
 
   PRBool changedPos = curBounds.TopLeft() != newBounds.TopLeft();
   PRBool changedSize = curBounds.Size() != newBounds.Size();
+
+  PRBool curVisibility;
+  mWindow->IsVisible(curVisibility);
+  PRBool newVisibility = IsEffectivelyVisible();
+
+  if (curVisibility && !newVisibility) {
+    mWindow->Show(PR_FALSE);
+  }
 
   // Child views are never attached to top level widgets, this is safe.
   if (changedPos) {
@@ -478,6 +480,10 @@ void nsView::DoResetWidgetBounds(PRBool aMoveOnly,
     if (changedSize && !aMoveOnly) {
       mWindow->Resize(newBounds.width, newBounds.height, aInvalidateChangedSize);
     } // else do nothing!
+  }
+
+  if (!curVisibility && newVisibility) {
+    mWindow->Show(PR_TRUE);
   }
 }
 
@@ -501,13 +507,6 @@ void nsView::SetDimensions(const nsRect& aRect, PRBool aPaint, PRBool aResizeWid
   }
 }
 
-void nsView::SetInvalidationDimensions(const nsRect* aRect)
-{
-  if ((mHaveInvalidationDimensions = !!aRect)) {
-    mInvalidationDimensions = *aRect;
-  }
-}
-
 void nsView::NotifyEffectiveVisibilityChanged(PRBool aEffectivelyVisible)
 {
   if (!aEffectivelyVisible)
@@ -517,13 +516,7 @@ void nsView::NotifyEffectiveVisibilityChanged(PRBool aEffectivelyVisible)
 
   if (nsnull != mWindow)
   {
-    if (aEffectivelyVisible)
-    {
-      DoResetWidgetBounds(PR_FALSE, PR_TRUE);
-      mWindow->Show(PR_TRUE);
-    }
-    else
-      mWindow->Show(PR_FALSE);
+    ResetWidgetBounds(PR_FALSE, PR_TRUE, PR_FALSE);
   }
 
   for (nsView* child = mFirstChild; child; child = child->mNextSibling) {
@@ -867,8 +860,7 @@ nsresult nsIView::AttachToTopLevelWidget(nsIWidget* aWidget)
 
   // Note, the previous device context will be released. Detaching
   // will not restore the old one.
-  nsresult rv = aWidget->AttachViewToTopLevel(
-    nsIWidget::UsePuppetWidgets() ? ::HandleEvent : ::AttachedHandleEvent, dx);
+  nsresult rv = aWidget->AttachViewToTopLevel(::AttachedHandleEvent, dx);
   if (NS_FAILED(rv))
     return rv;
 

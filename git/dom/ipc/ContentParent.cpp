@@ -70,17 +70,11 @@
 #include "nsConsoleMessage.h"
 #include "AudioParent.h"
 
-#if defined(ANDROID) || defined(LINUX)
-#include <sys/time.h>
-#include <sys/resource.h>
-#endif
-
 #ifdef MOZ_PERMISSIONS
 #include "nsPermissionManager.h"
 #endif
 
 #ifdef MOZ_CRASHREPORTER
-#include "nsICrashReporter.h"
 #include "nsExceptionHandler.h"
 #endif
 
@@ -88,62 +82,15 @@
 #include "mozilla/dom/StorageParent.h"
 #include "nsAccelerometer.h"
 
-#include "nsIMemoryReporter.h"
-#include "nsMemoryReporterManager.h"
-#include "mozilla/dom/PMemoryReportRequestParent.h"
-
-#ifdef ANDROID
-#include "gfxAndroidPlatform.h"
-#endif
-
-#include "nsIClipboard.h"
-#include "nsWidgetsCID.h"
-#include "nsISupportsPrimitives.h"
-static NS_DEFINE_CID(kCClipboardCID, NS_CLIPBOARD_CID);
-static const char* sClipboardTextFlavors[] = { kUnicodeMime };
-
 using namespace mozilla::ipc;
 using namespace mozilla::net;
 using namespace mozilla::places;
 using mozilla::MonitorAutoEnter;
-using base::KillProcess;
 
 namespace mozilla {
 namespace dom {
 
 #define NS_IPC_IOSERVICE_SET_OFFLINE_TOPIC "ipc:network:set-offline"
-
-class MemoryReportRequestParent : public PMemoryReportRequestParent
-{
-public:
-    MemoryReportRequestParent();
-    virtual ~MemoryReportRequestParent();
-
-    virtual bool    Recv__delete__(const InfallibleTArray<MemoryReport>& report);
-private:
-    ContentParent* Owner()
-    {
-        return static_cast<ContentParent*>(Manager());
-    }
-};
-    
-
-MemoryReportRequestParent::MemoryReportRequestParent()
-{
-    MOZ_COUNT_CTOR(MemoryReportRequestParent);
-}
-
-bool
-MemoryReportRequestParent::Recv__delete__(const InfallibleTArray<MemoryReport>& report)
-{
-    Owner()->SetChildMemoryReporters(report);
-    return true;
-}
-
-MemoryReportRequestParent::~MemoryReportRequestParent()
-{
-    MOZ_COUNT_DTOR(MemoryReportRequestParent);
-}
 
 ContentParent* ContentParent::gSingleton;
 
@@ -171,7 +118,6 @@ ContentParent::GetSingleton(PRBool aForceNew)
                 obs->AddObserver(
                   parent, NS_IPC_IOSERVICE_SET_OFFLINE_TOPIC, PR_FALSE);
 
-                obs->AddObserver(parent, "child-memory-reporter-request", PR_FALSE);
                 obs->AddObserver(parent, "memory-pressure", PR_FALSE); 
             }
             nsCOMPtr<nsIThreadInternal>
@@ -197,26 +143,6 @@ ContentParent::OnChannelConnected(int32 pid)
     }
     else {
         SetOtherProcess(handle);
-
-#if defined(ANDROID) || defined(LINUX)
-        EnsurePrefService();
-        nsCOMPtr<nsIPrefBranch> branch;
-        branch = do_QueryInterface(mPrefService);
-
-        // Check nice preference
-        PRInt32 nice = 0;
-        branch->GetIntPref("dom.ipc.content.nice", &nice);
-
-        // Environment variable overrides preference
-        char* relativeNicenessStr = getenv("MOZ_CHILD_PROCESS_RELATIVE_NICENESS");
-        if (relativeNicenessStr) {
-            nice = atoi(relativeNicenessStr);
-        }
-
-        if (nice != 0) {
-            setpriority(PRIO_PROCESS, pid, getpriority(PRIO_PROCESS, pid) + nice);
-        }
-#endif
     }
 }
 
@@ -237,27 +163,8 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
         kungFuDeathGrip(static_cast<nsIThreadObserver*>(this));
     nsCOMPtr<nsIObserverService>
         obs(do_GetService("@mozilla.org/observer-service;1"));
-    if (obs) {
+    if (obs)
         obs->RemoveObserver(static_cast<nsIObserver*>(this), "xpcom-shutdown");
-        obs->RemoveObserver(static_cast<nsIObserver*>(this), "memory-pressure");
-        obs->RemoveObserver(static_cast<nsIObserver*>(this), "child-memory-reporter-request");
-        obs->RemoveObserver(static_cast<nsIObserver*>(this), NS_IPC_IOSERVICE_SET_OFFLINE_TOPIC);
-    }
-
-    // clear the child memory reporters
-    InfallibleTArray<MemoryReport> empty;
-    SetChildMemoryReporters(empty);
-
-    // remove the global remote preferences observers
-    nsCOMPtr<nsIPrefBranch2> prefs 
-            (do_GetService(NS_PREFSERVICE_CONTRACTID));
-    if (prefs) { 
-        prefs->RemoveObserver("", this);
-    }
-
-    RecvRemoveGeolocationListener();
-    RecvRemoveAccelerometerListener();
-
     nsCOMPtr<nsIThreadInternal>
         threadInt(do_QueryInterface(NS_GetCurrentThread()));
     if (threadInt)
@@ -372,16 +279,6 @@ ContentParent::RecvReadPrefsArray(InfallibleTArray<PrefTuple> *prefs)
     return true;
 }
 
-bool
-ContentParent::RecvReadFontList(InfallibleTArray<FontListEntry>* retValue)
-{
-#ifdef ANDROID
-    gfxAndroidPlatform::GetPlatform()->GetFontList(retValue);
-#endif
-    return true;
-}
-
-
 void
 ContentParent::EnsurePrefService()
 {
@@ -437,84 +334,6 @@ ContentParent::RecvReadPermissions(InfallibleTArray<IPC::Permission>* aPermissio
     return true;
 }
 
-bool
-ContentParent::RecvSetClipboardText(const nsString& text, const PRInt32& whichClipboard)
-{
-    nsresult rv;
-    nsCOMPtr<nsIClipboard> clipboard(do_GetService(kCClipboardCID, &rv));
-    NS_ENSURE_SUCCESS(rv, true);
-
-    nsCOMPtr<nsISupportsString> dataWrapper =
-        do_CreateInstance(NS_SUPPORTS_STRING_CONTRACTID, &rv);
-    NS_ENSURE_SUCCESS(rv, true);
-    
-    rv = dataWrapper->SetData(text);
-    NS_ENSURE_SUCCESS(rv, true);
-    
-    nsCOMPtr<nsITransferable> trans = do_CreateInstance("@mozilla.org/widget/transferable;1", &rv);
-    NS_ENSURE_SUCCESS(rv, true);
-    
-    // If our data flavor has already been added, this will fail. But we don't care
-    trans->AddDataFlavor(kUnicodeMime);
-    
-    nsCOMPtr<nsISupports> nsisupportsDataWrapper =
-        do_QueryInterface(dataWrapper);
-    
-    rv = trans->SetTransferData(kUnicodeMime, nsisupportsDataWrapper,
-                                text.Length() * sizeof(PRUnichar));
-    NS_ENSURE_SUCCESS(rv, true);
-    
-    clipboard->SetData(trans, NULL, whichClipboard);
-    return true;
-}
-
-bool
-ContentParent::RecvGetClipboardText(const PRInt32& whichClipboard, nsString* text)
-{
-    nsresult rv;
-    nsCOMPtr<nsIClipboard> clipboard(do_GetService(kCClipboardCID, &rv));
-    NS_ENSURE_SUCCESS(rv, true);
-
-    nsCOMPtr<nsITransferable> trans = do_CreateInstance("@mozilla.org/widget/transferable;1", &rv);
-    NS_ENSURE_SUCCESS(rv, true);
-    
-    clipboard->GetData(trans, whichClipboard);
-    nsCOMPtr<nsISupports> tmp;
-    PRUint32 len;
-    rv  = trans->GetTransferData(kUnicodeMime, getter_AddRefs(tmp), &len);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    nsCOMPtr<nsISupportsString> supportsString = do_QueryInterface(tmp);
-    // No support for non-text data
-    NS_ENSURE_TRUE(supportsString, NS_ERROR_NOT_IMPLEMENTED);
-    supportsString->GetData(*text);
-    return true;
-}
-
-bool
-ContentParent::RecvEmptyClipboard()
-{
-    nsresult rv;
-    nsCOMPtr<nsIClipboard> clipboard(do_GetService(kCClipboardCID, &rv));
-    NS_ENSURE_SUCCESS(rv, true);
-
-    clipboard->EmptyClipboard(nsIClipboard::kGlobalClipboard);
-
-    return true;
-}
-
-bool
-ContentParent::RecvClipboardHasText(PRBool* hasText)
-{
-    nsresult rv;
-    nsCOMPtr<nsIClipboard> clipboard(do_GetService(kCClipboardCID, &rv));
-    NS_ENSURE_SUCCESS(rv, true);
-
-    clipboard->HasDataMatchingFlavors(sClipboardTextFlavors, 1, 
-                                      nsIClipboard::kGlobalClipboard, hasText);
-    return true;
-}
-
 NS_IMPL_THREADSAFE_ISUPPORTS3(ContentParent,
                               nsIObserver,
                               nsIThreadObserver,
@@ -526,6 +345,17 @@ ContentParent::Observe(nsISupports* aSubject,
                        const PRUnichar* aData)
 {
     if (!strcmp(aTopic, "xpcom-shutdown") && mSubprocess) {
+        // remove the global remote preferences observers
+        nsCOMPtr<nsIPrefBranch2> prefs 
+            (do_GetService(NS_PREFSERVICE_CONTRACTID));
+        if (prefs) { 
+            if (gSingleton) {
+                prefs->RemoveObserver("", this);
+            }
+        }
+
+        RecvRemoveGeolocationListener();
+            
         Close();
         NS_ASSERTION(!mSubprocess, "Close should have nulled mSubprocess");
     }
@@ -535,7 +365,7 @@ ContentParent::Observe(nsISupports* aSubject,
 
     // listening for memory pressure event
     if (!strcmp(aTopic, "memory-pressure")) {
-      SendFlushMemory(nsDependentString(aData));
+        SendFlushMemory(nsDependentString(aData));
     }
     // listening for remotePrefs...
     else if (!strcmp(aTopic, "nsPref:changed")) {
@@ -545,22 +375,9 @@ ContentParent::Observe(nsISupports* aSubject,
         nsCOMPtr<nsIPrefServiceInternal> prefService =
           do_GetService("@mozilla.org/preferences-service;1");
 
-        PRBool prefNeedUpdate;
-        prefService->PrefHasUserValue(strData, &prefNeedUpdate);
-
-        // If the pref does not have a user value, check if it exist on the
-        // default branch or not
-        if (!prefNeedUpdate) {
-          nsCOMPtr<nsIPrefBranch> defaultBranch;
-          nsCOMPtr<nsIPrefService> prefsService = do_QueryInterface(prefService);
-          prefsService->GetDefaultBranch(nsnull, getter_AddRefs(defaultBranch));
-
-          PRInt32 prefType = nsIPrefBranch::PREF_INVALID;
-          defaultBranch->GetPrefType(strData.get(), &prefType);
-          prefNeedUpdate = (prefType != nsIPrefBranch::PREF_INVALID);
-        }
-
-        if (prefNeedUpdate) {
+        PRBool prefHasValue;
+        prefService->PrefHasUserValue(strData, &prefHasValue);
+        if (prefHasValue) {
             // Pref was created, or previously existed and its value
             // changed.
             PrefTuple pref;
@@ -589,10 +406,6 @@ ContentParent::Observe(nsISupports* aSubject,
                                       nsDependentString(aData)))
             return NS_ERROR_NOT_AVAILABLE;
     }
-    else if (!strcmp(aTopic, "child-memory-reporter-request")) {
-        SendPMemoryReportRequestConstructor();
-    }
-
     return NS_OK;
 }
 
@@ -625,48 +438,6 @@ ContentParent::DeallocPCrashReporter(PCrashReporterParent* crashreporter)
 {
   delete crashreporter;
   return true;
-}
-
-PMemoryReportRequestParent*
-ContentParent::AllocPMemoryReportRequest()
-{
-  MemoryReportRequestParent* parent = new MemoryReportRequestParent();
-  return parent;
-}
-
-bool
-ContentParent::DeallocPMemoryReportRequest(PMemoryReportRequestParent* actor)
-{
-  delete actor;
-  return true;
-}
-
-void
-ContentParent::SetChildMemoryReporters(const InfallibleTArray<MemoryReport>& report)
-{
-    nsCOMPtr<nsIMemoryReporterManager> mgr = do_GetService("@mozilla.org/memory-reporter-manager;1");
-    for (PRUint32 i = 0; i < mMemoryReporters.Count(); i++)
-        mgr->UnregisterReporter(mMemoryReporters[i]);
-
-    for (PRUint32 i = 0; i < report.Length(); i++) {
-
-        nsCString prefix = report[i].prefix();
-        nsCString path   = report[i].path();
-        nsCString desc   = report[i].desc();
-        PRInt64 memoryUsed = report[i].memoryUsed();
-        
-        nsRefPtr<nsMemoryReporter> r = new nsMemoryReporter(prefix,
-                                                            path,
-                                                            desc,
-                                                            memoryUsed);
-      mMemoryReporters.AppendObject(r);
-      mgr->RegisterReporter(r);
-    }
-
-    nsCOMPtr<nsIObserverService> obs =
-        do_GetService("@mozilla.org/observer-service;1");
-    if (obs)
-        obs->NotifyObservers(nsnull, "child-memory-reporter-update", nsnull);
 }
 
 PTestShellParent*

@@ -35,6 +35,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+Cu.import("resource://gre/modules/Services.jsm");
 const ss = Cc["@mozilla.org/browser/sessionstore;1"].
            getService(Ci.nsISessionStore);
 
@@ -343,7 +344,7 @@ function test_undoCloseWindow() {
   function firstWindowObserver(aSubject, aTopic, aData) {
     if (aTopic == "domwindowopened") {
       newWindow = aSubject.QueryInterface(Ci.nsIDOMWindow);
-      Services.ww.unregisterNotification(firstWindowObserver);
+      Services.ww.unregisterNotification(windowObserver);
     }
   }
   Services.ww.registerNotification(firstWindowObserver);
@@ -389,3 +390,4 @@ function test_undoCloseWindow() {
     runNextTest();
   }
 }
+

@@ -7,12 +7,6 @@
   <script type="text/javascript" src="/tests/SimpleTest/EventUtils.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/WindowSnapshot.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
-  <style>
-    iframe {
-      width: 600px;
-      height: 600px;
-    }
-  </style>
 <script type="text/javascript">
 
 var canvases = [];
@@ -51,7 +45,7 @@ function remotePageLoaded() {
   setTimeout(function(){doSnapShot(iframe);}, 0)
 };
 
-const MAX_ITERATIONS = 1000;
+const MAX_ITERATIONS = 10;
 
 function createIframe(url,next) {
   var iframe = document.createElement("iframe");
@@ -81,18 +75,14 @@ function refTest(test,ref) {
   createIframe(test,ref);
 };
 
-var caretBlinkTime = null;
+var caretBlinkTime;
 function endTest() {
   SimpleTest.finish();
   netscape.security.PrivilegeManager.enablePrivilege(
    'UniversalPreferencesRead UniversalPreferencesWrite UniversalXPConnect');
   var prefs = Components.classes["@mozilla.org/preferences-service;1"]
                         .getService(Components.interfaces.nsIPrefBranch);
-  if (caretBlinkTime !== null) {
-    prefs.setIntPref("ui.caretBlinkTime", caretBlinkTime);
-  } else {
-    prefs.clearUserPref("ui.caretBlinkTime");
-  }
+  prefs.setIntPref("ui.caretBlinkTime", caretBlinkTime);
 }
 
 var tests = [
@@ -118,10 +108,7 @@ var tests = [
     [ 'bug613433-1.html' , 'bug613433-ref.html' ] ,
     [ 'bug613433-2.html' , 'bug613433-ref.html' ] ,
     [ 'bug613433-3.html' , 'bug613433-ref.html' ] ,
-    [ 'bug613807-1.html' , 'bug613807-1-ref.html' ] ,
-    [ 'bug632215-1.html' , 'bug632215-ref.html'   ] ,
-    [ 'bug632215-2.html' , 'bug632215-ref.html'   ] ,
-    [ 'bug633044-1.html' , 'bug633044-1-ref.html' ]
+    [ 'bug613807-1.html' , 'bug613807-1-ref.html' ]
 ];
 var testIndex = 0;
 
@@ -141,9 +128,7 @@ function runTests() {
       'UniversalPreferencesRead UniversalPreferencesWrite UniversalXPConnect');
     var prefs = Components.classes["@mozilla.org/preferences-service;1"]
                           .getService(Components.interfaces.nsIPrefBranch);
-    try {
-      caretBlinkTime = prefs.getIntPref("ui.caretBlinkTime");
-    } catch (e) {}
+    caretBlinkTime = prefs.getIntPref("ui.caretBlinkTime");
     prefs.setIntPref("ui.caretBlinkTime", -1);
 
     nextTest();

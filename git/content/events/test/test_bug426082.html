@@ -40,7 +40,26 @@ function runTests() {
   button = $("button");
   label = $("label");
   outside = $("outside");
-  SimpleTest.executeSoon(executeTests);
+  SimpleTest.executeSoon(start);
+}
+
+function start() {
+  takeSnapshot(normalButtonCanvas);
+  // Press the button.
+  sendMouseEvent("mousemove", button);
+  sendMouseEvent("mousedown", button);
+  takeSnapshot(pressedFocusedButtonCanvas);
+  compareSnapshots_(normalButtonCanvas, pressedFocusedButtonCanvas, false, "Pressed focused buttons should look different from normal buttons.");
+  // Release.
+  sendMouseEvent("mouseup", button);
+  // make sure the button is focused as this doesn't happen on click on Mac
+  button.focus();
+  takeSnapshot(normalFocusedButtonCanvas);
+  compareSnapshots_(normalFocusedButtonCanvas, pressedFocusedButtonCanvas, false, "Pressed focused buttons should look different from normal focused buttons.");
+  // Unfocus the button.
+  sendMouseEvent("mousedown", outside);
+  sendMouseEvent("mouseup", outside);
+  executeTests();
 }
 
 function isRectContainedInRectFromRegion(rect, region) {
@@ -53,22 +72,16 @@ function isRectContainedInRectFromRegion(rect, region) {
 }
 
 function paintListener(e) {
-  if (isRectContainedInRectFromRegion(buttonRect(), e.clientRects)) {
-    gNeedsPaint = false;
+  if (isRectContainedInRectFromRegion(buttonRect(), e.clientRects))
     takeSnapshot(currentSnapshot);
-  }
 }
 
-var gNeedsPaint = false;
 function executeTests() {
   var testYielder = tests();
   function execNext() {
     try {
-      if (!gNeedsPaint) {
-        testYielder.next();
-        button.getBoundingClientRect(); // Flush.
-        gNeedsPaint = true;
-      }
+      testYielder.next();
+      button.getBoundingClientRect(); // Flush.
       SimpleTest.executeSoon(execNext);
     } catch (e) {}
   }
@@ -77,25 +90,6 @@ function executeTests() {
 
 function tests() {
   window.addEventListener("MozAfterPaint", paintListener, false);
-  takeSnapshot(normalButtonCanvas);
-  // Press the button.
-  sendMouseEvent("mousemove", button);
-  sendMouseEvent("mousedown", button);
-  yield;
-  takeSnapshot(pressedFocusedButtonCanvas);
-  compareSnapshots_(normalButtonCanvas, pressedFocusedButtonCanvas, false, "Pressed focused buttons should look different from normal buttons.");
-  // Release.
-  sendMouseEvent("mouseup", button);
-  yield;
-  // make sure the button is focused as this doesn't happen on click on Mac
-  button.focus();
-  takeSnapshot(normalFocusedButtonCanvas);
-  compareSnapshots_(normalFocusedButtonCanvas, pressedFocusedButtonCanvas, false, "Pressed focused buttons should look different from normal focused buttons.");
-  // Unfocus the button.
-  sendMouseEvent("mousedown", outside);
-  sendMouseEvent("mouseup", outside);
-  yield;
-
   // Press the label.
   sendMouseEvent("mousemove", label);
   sendMouseEvent("mousedown", label);

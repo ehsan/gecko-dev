@@ -44,8 +44,6 @@
 #include "gfxPlatform.h"
 #include "gfxWindowsSurface.h"
 
-#include "gfxCrashReporterUtils.h"
-
 #include "prenv.h"
 
 namespace mozilla {
@@ -105,9 +103,7 @@ CreateDummyWindow(HDC *aWindowDC = nsnull)
         gSharedWindowPixelFormat = ChoosePixelFormat(dc, &pfd);
     }
 
-    if (!gSharedWindowPixelFormat ||
-        !SetPixelFormat(dc, gSharedWindowPixelFormat, NULL))
-    {
+    if (!SetPixelFormat(dc, gSharedWindowPixelFormat, NULL)) {
         NS_WARNING("SetPixelFormat failed!");
         DestroyWindow(win);
         return NULL;
@@ -125,8 +121,6 @@ WGLLibrary::EnsureInitialized()
 {
     if (mInitialized)
         return PR_TRUE;
-
-    mozilla::ScopedGfxFeatureReporter reporter("WGL");
 
     if (!mOGLLibrary) {
         mOGLLibrary = PR_LoadLibrary("Opengl32.dll");
@@ -216,7 +210,6 @@ WGLLibrary::EnsureInitialized()
         return PR_FALSE;
     }
 
-    reporter.SetSuccessful();
     return PR_TRUE;
 }
 

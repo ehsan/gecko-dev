@@ -2544,8 +2544,6 @@ NS_IMETHODIMP nsFrame::HandleRelease(nsPresContext* aPresContext,
 {
   nsIFrame* activeFrame = GetActiveSelectionFrame(aPresContext, this);
 
-  nsCOMPtr<nsIContent> captureContent = nsIPresShell::GetCapturingContent();
-
   // We can unconditionally stop capturing because
   // we should never be capturing when the mouse button is up
   nsIPresShell::SetCapturingContent(nsnull, 0);
@@ -2587,26 +2585,11 @@ NS_IMETHODIMP nsFrame::HandleRelease(nsPresContext* aPresContext,
   // We might be capturing in some other document and the event just happened to
   // trickle down here. Make sure that document's frame selection is notified.
   // Note, this may cause the current nsFrame object to be deleted, bug 336592.
-  nsRefPtr<nsFrameSelection> frameSelection;
   if (activeFrame != this &&
       static_cast<nsFrame*>(activeFrame)->DisplaySelection(activeFrame->PresContext())
         != nsISelectionController::SELECTION_OFF) {
-      frameSelection = activeFrame->GetFrameSelection();
-  }
-
-  // Also check the selection of the capturing content which might be in a
-  // different document.
-  if (!frameSelection && captureContent) {
-    nsIDocument* doc = captureContent->GetCurrentDoc();
-    if (doc) {
-      nsIPresShell* capturingShell = doc->GetShell();
-      if (capturingShell && capturingShell != PresContext()->GetPresShell()) {
-        frameSelection = capturingShell->FrameSelection();
-      }
-    }
-  }
-
-  if (frameSelection) {
+    nsRefPtr<nsFrameSelection> frameSelection =
+      activeFrame->GetFrameSelection();
     frameSelection->SetMouseDownState(PR_FALSE);
     frameSelection->StopAutoScrollTimer();
   }
@@ -3958,28 +3941,10 @@ nsIFrame::InvalidateLayer(const nsRect& aDamageRect, PRUint32 aDisplayItemKey)
   PRUint32 flags = INVALIDATE_NO_THEBES_LAYERS;
   if (aDisplayItemKey == nsDisplayItem::TYPE_VIDEO ||
       aDisplayItemKey == nsDisplayItem::TYPE_PLUGIN) {
-    flags |= INVALIDATE_NO_UPDATE_LAYER_TREE;
+    flags = INVALIDATE_NO_UPDATE_LAYER_TREE;
   }
 
   InvalidateWithFlags(aDamageRect, flags);
-}
-
-void
-nsIFrame::InvalidateTransformLayer()
-{
-  NS_ASSERTION(mParent, "How can a viewport frame have a transform?");
-
-  PRBool hasLayer =
-      FrameLayerBuilder::HasDedicatedLayer(this, nsDisplayItem::TYPE_TRANSFORM);
-  // Invalidate post-transform area in the parent. We have to invalidate
-  // in the parent because our transform style may have changed from what was
-  // used to paint this frame.
-  // It's OK to bypass the SVG effects processing and other processing
-  // performed if we called this->InvalidateWithFlags, because those effects
-  // are performed before applying transforms.
-  mParent->InvalidateInternal(GetVisualOverflowRect() + GetPosition(),
-                              0, 0, this,
-                              hasLayer ? INVALIDATE_NO_THEBES_LAYERS : 0);
 }
 
 class LayerActivity {
@@ -4132,7 +4097,7 @@ nsIFrame::InvalidateInternalAfterResize(const nsRect& aDamageRect, nscoord aX,
   }
   if (IsTransformed()) {
     nsRect newDamageRect;
-    newDamageRect.UnionRect(nsDisplayTransform::TransformRectOut
+    newDamageRect.UnionRect(nsDisplayTransform::TransformRect
                             (aDamageRect, this, nsPoint(-aX, -aY)), aDamageRect);
     GetParent()->
       InvalidateInternal(newDamageRect, aX + mRect.x, aY + mRect.y, this,

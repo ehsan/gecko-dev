@@ -1,4 +1,3 @@
-// |jit-test| debug
 function main() {
   try {
     throw "something";

@@ -47,7 +47,7 @@ public class GeckoConnectivityReceiver
     public void onReceive(Context context, Intent intent) {
         String status;
         ConnectivityManager cm = (ConnectivityManager)
-            context.getSystemService(Context.CONNECTIVITY_SERVICE);
+            GeckoApp.mAppContext.getSystemService(Context.CONNECTIVITY_SERVICE);
         NetworkInfo info = cm.getActiveNetworkInfo();
         if (info == null)
             status = "unknown";
@@ -58,7 +58,5 @@ public class GeckoConnectivityReceiver
 
         if (GeckoApp.checkLaunchState(GeckoApp.LaunchState.GeckoRunning))
             GeckoAppShell.onChangeNetworkLinkStatus(status);
-        else
-            GeckoApp.mStartedEarly = true;
     }
 }

@@ -174,17 +174,6 @@ public:
   nsRect GetBounds() const { return mDimBounds; }
 
   /**
-   * Set the dimensions at which invalidations are clipped, which can
-   * be different than |GetDimensions()|.  |aRect| is relative to
-   * |this|.  It can be null, in which case invalidations return to
-   * being clipped to the view dimensions.
-   *
-   * The caller is responsible for invalidating the area that may lie
-   * outside the view dimensions but inside |aRect| after this call.
-   */
-  void SetInvalidationDimensions(const nsRect* aRect);
-
-  /**
    * Get the offset between the coordinate systems of |this| and aOther.
    * Adding the return value to a point in the coordinate system of |this|
    * will transform the point to the coordinate system of aOther.
@@ -278,9 +267,8 @@ public:
   /**
    * Get the nearest widget in this view or a parent of this view and
    * the offset from the widget's origin to this view's origin
-   * @param aOffset - if non-null the offset from this view's origin to the
-   * widget's origin (usually positive) expressed in appunits of this will be
-   * returned in aOffset.
+   * @param aOffset the offset from this view's origin to the widget's origin
+   * (usually positive) expressed in appunits of this.
    * @return the widget closest to this view; can be null because some view trees
    * don't have widgets at all (e.g., printing), but if any view in the view tree
    * has a widget, then it's safe to assume this will not return null

@@ -82,7 +82,7 @@ public:
 
   void Reset();
 
-  nsresult SetDone(AsyncConnectionHelper* aHelper);
+  void SetDone(AsyncConnectionHelper* aHelper);
 
   nsIScriptContext* ScriptContext()
   {
@@ -105,6 +105,7 @@ protected:
 
   nsCOMPtr<nsISupports> mSource;
   nsRefPtr<IDBTransaction> mTransaction;
+  nsRefPtr<AsyncConnectionHelper> mHelper;
 
   nsRefPtr<nsDOMEventListenerWrapper> mOnSuccessListener;
   nsRefPtr<nsDOMEventListenerWrapper> mOnErrorListener;

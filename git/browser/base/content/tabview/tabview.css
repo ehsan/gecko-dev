@@ -46,10 +46,6 @@ body {
   left: 0px;
 }
 
-.tabHidden {
-  display: none;
-}
-
 .thumb {
   position: relative;
   width: 100%;
@@ -86,12 +82,10 @@ body {
 
 .front {
   z-index: 999999 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  -moz-transform: none !important;
   image-rendering: -moz-crisp-edges;
-}
-
-.front canvas {
-  border: none !important;
-  padding: 1px !important;
 }
 
 /* Groups
@@ -101,7 +95,7 @@ body {
   position: absolute;
 }
 
-.appTabTrayContainer {
+.appTabTray {
   position: absolute;
 }
 

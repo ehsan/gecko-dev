@@ -53,13 +53,11 @@
 #include "nsTArray.h"
 #include "nsRefPtrHashtable.h"
 
-class AccEvent;
 class AccGroupInfo;
 class EmbeddedObjCollector;
 class nsAccessible;
-class nsHyperTextAccessible;
+class AccEvent;
 struct nsRoleMapEntry;
-class nsTextAccessible;
 
 struct nsRect;
 class nsIContent;
@@ -228,18 +226,9 @@ public:
   virtual void SetRoleMapEntry(nsRoleMapEntry *aRoleMapEntry);
 
   /**
-   * Update the children cache.
-   */
-  inline bool UpdateChildren()
-  {
-    InvalidateChildren();
-    return EnsureChildren();
-  }
-
-  /**
    * Cache children if necessary. Return true if the accessible is defunct.
    */
-  bool EnsureChildren();
+  PRBool EnsureChildren();
 
   /**
    * Set the child count to -1 (unknown) and null out cached child pointers.
@@ -262,7 +251,7 @@ public:
   /**
    * Return parent accessible.
    */
-  nsAccessible* GetParent() const { return mParent; }
+  virtual nsAccessible* GetParent();
 
   /**
    * Return child accessible at the given index.
@@ -282,7 +271,7 @@ public:
   /**
    * Return index in parent accessible.
    */
-  virtual PRInt32 GetIndexInParent() const;
+  virtual PRInt32 GetIndexInParent();
 
   /**
    * Return true if accessible has children;
@@ -307,6 +296,7 @@ public:
   /**
    * Return cached accessible of parent-child relatives.
    */
+  nsAccessible* GetCachedParent() const { return mParent; }
   nsAccessible* GetCachedNextSibling() const
   {
     return mParent ?
@@ -319,9 +309,8 @@ public:
   }
   PRUint32 GetCachedChildCount() const { return mChildren.Length(); }
   nsAccessible* GetCachedChildAt(PRUint32 aIndex) const { return mChildren.ElementAt(aIndex); }
-  inline bool AreChildrenCached() const
-    { return !IsChildrenFlag(eChildrenUninitialized); }
-  bool IsBoundToParent() const { return !!mParent; }
+  PRBool AreChildrenCached() const { return mChildrenFlags != eChildrenUninitialized; }
+  bool IsBoundToParent() const { return mParent; }
 
   //////////////////////////////////////////////////////////////////////////////
   // Miscellaneous methods
@@ -341,34 +330,18 @@ public:
    * Returns text of accessible if accessible has text role otherwise empty
    * string.
    *
-   * @param aText         [in] returned text of the accessible
-   * @param aStartOffset  [in, optional] start offset inside of the accessible,
-   *                        if missed entire text is appended
-   * @param aLength       [in, optional] required length of text, if missed
-   *                        then text form start offset till the end is appended
+   * @param aText         returned text of the accessible
+   * @param aStartOffset  start offset inside of the accesible
+   * @param aLength       required lenght of text
    */
-  virtual void AppendTextTo(nsAString& aText, PRUint32 aStartOffset = 0,
-                            PRUint32 aLength = PR_UINT32_MAX);
+  virtual nsresult AppendTextTo(nsAString& aText, PRUint32 aStartOffset,
+                                PRUint32 aLength);
 
   /**
    * Assert if child not in parent's cache if the cache was initialized at this
    * point.
    */
-  void TestChildCache(nsAccessible* aCachedChild) const;
-
-  //////////////////////////////////////////////////////////////////////////////
-  // Downcasting
-
-  inline bool IsApplication() const { return mFlags & eApplicationAccessible; }
-
-  inline bool IsHyperText() const { return mFlags & eHyperTextAccessible; }
-  nsHyperTextAccessible* AsHyperText();
-
-  inline bool IsRoot() const { return mFlags & eRootAccessible; }
-  nsRootAccessible* AsRoot();
-
-  inline bool IsTextLeaf() const { return mFlags & eTextLeafAccessible; }
-  nsTextAccessible* AsTextLeaf();
+  void TestChildCache(nsAccessible *aCachedChild);
 
   //////////////////////////////////////////////////////////////////////////////
   // HyperLinkAccessible
@@ -484,38 +457,6 @@ protected:
   virtual nsAccessible* GetSiblingAtOffset(PRInt32 aOffset,
                                            nsresult *aError = nsnull);
 
-  /**
-   * Flags used to describe the state and type of children.
-   */
-  enum ChildrenFlags {
-    eChildrenUninitialized = 0, // children aren't initialized
-    eMixedChildren = 1 << 0, // text leaf children are presented
-    eEmbeddedChildren = 1 << 1 // all children are embedded objects
-  };
-
-  /**
-   * Return true if the children flag is set.
-   */
-  inline bool IsChildrenFlag(ChildrenFlags aFlag) const
-    { return (mFlags & kChildrenFlagsMask) == aFlag; }
-
-  /**
-   * Set children flag.
-   */
-  inline void SetChildrenFlag(ChildrenFlags aFlag)
-    { mFlags = (mFlags & ~kChildrenFlagsMask) | aFlag; }
-
-  /**
-   * Flags describing the accessible itself.
-   * @note keep these flags in sync with ChildrenFlags
-   */
-  enum AccessibleTypes {
-    eApplicationAccessible = 1 << 2,
-    eHyperTextAccessible = 1 << 3,
-    eRootAccessible = 1 << 4,
-    eTextLeafAccessible = 1 << 5
-  };
-
   //////////////////////////////////////////////////////////////////////////////
   // Miscellaneous helpers
 
@@ -630,10 +571,12 @@ protected:
   nsTArray<nsRefPtr<nsAccessible> > mChildren;
   PRInt32 mIndexInParent;
 
-  static const PRUint32 kChildrenFlagsMask =
-    eChildrenUninitialized | eMixedChildren | eEmbeddedChildren;
-
-  PRUint32 mFlags;
+  enum ChildrenFlags {
+    eChildrenUninitialized = 0x00,
+    eMixedChildren = 0x01,
+    eEmbeddedChildren = 0x02
+  };
+  ChildrenFlags mChildrenFlags;
 
   nsAutoPtr<EmbeddedObjCollector> mEmbeddedObjCollector;
   PRInt32 mIndexOfEmbeddedChild;

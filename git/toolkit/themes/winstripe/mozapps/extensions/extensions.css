@@ -90,9 +90,7 @@
 
 #view-port-container {
   /* Needed to allow the radius to clip the inner content, see bug 595656 */
-  /* Disabled because of bug 623615
   overflow: hidden;
-  */
   background-color: rgba(255, 255, 255, 0.35);
   background-image: -moz-linear-gradient(top,
                                          rgba(255, 255, 255, 0),
@@ -124,7 +122,6 @@
   border-bottom-left-radius: 0;
 }
 
-
 /*** global warnings ***/
 
 .global-warning-container {
@@ -136,6 +133,11 @@
   padding: 0 8px;
   color: #916D15;
   font-weight: bold;
+}
+
+.global-warning,
+.global-warning .button-link {
+  text-shadow: #FFFFFF 1px 1px 1px;
 }
 
 #addons-page[warning] .global-warning-container {
@@ -224,7 +226,6 @@
   border: 1px solid #A8B8D1;
   border-radius: 8px;
   background-image: -moz-linear-gradient(top, #FFF, #ECF1F7);
-  background-clip: padding-box;
   box-shadow: 2px 2px 4px #999; 
 }
 
@@ -280,8 +281,6 @@
 }
 
 .category[disabled] {
-  border-top: 0;
-  border-bottom: 0;
   height: 0;
   opacity: 0;
   -moz-transition-property: height, opacity;
@@ -297,6 +296,7 @@
 .category[selected] {
   background-color: rgba(255, 255, 255, 0.4);
   color: #252F3B;
+  font-weight: bold;
   border-color: #C3CEDF;
   -moz-border-end-color: #E2E9F2;
 }
@@ -519,9 +519,7 @@
 .icon-container {
   width: 48px;
   height: 48px;
-  margin: 3px 7px;
-  -moz-box-align: center;
-  -moz-box-pack: center;
+  margin: 22px 7px 7px 7px;
 }
 
 .icon {
@@ -552,7 +550,7 @@
   font-weight: bold;
   color: #3F3F3F;
   margin-bottom: 0;
-  -moz-box-align: end;
+  text-shadow: 1px 1px 1px #FFF;
 }
 
 .creator {
@@ -566,7 +564,6 @@
 .description-container {
   margin-top: 8px;
   -moz-margin-start: 6px;
-  -moz-box-align: center;
 }
 
 .description {
@@ -578,44 +575,7 @@
 .error {
   -moz-margin-start: 48px;
   font-weight: bold;
-  -moz-box-align: center;
-}
-
-.content-container,
-.basicinfo-container {
-  -moz-box-align: start;
-}
-
-.addon[status="installing"] > .content-container {
-  -moz-box-align: stretch;
-}
-
-.update-info-container {
-  -moz-box-align: center;
-}
-
-.advancedinfo-container,
-.update-available {
-  -moz-box-align: end;
-}
-
-.install-status-container {
-  -moz-box-pack: end;
-  -moz-box-align: end;
-}
-
-.name-outer-container {
-  -moz-box-pack: center;
-}
-
-.relnotes-toggle-container,
-.icon-outer-container {
-  -moz-box-pack: start;
-}
-
-.status-container,
-.control-container {
-  -moz-box-pack: end;
+  text-shadow: 1px 1px 1px #FFF;
 }
 
 .addon-view .warning {
@@ -719,6 +679,10 @@
 .addon[selected] {
   background-color: rgba(148, 172, 204, 0.39);
   color: black;
+}
+
+.addon[selected] .name-container {
+  text-shadow: 1px 1px 1px rgba(255, 255, 255, 0.7);  
 }
 
 .addon[active="false"][selected] .name-container {
@@ -1098,9 +1062,11 @@
 
 #updates-container {
   -moz-box-align: center;
+  text-shadow: 0 0 3px white;
 }
 
 #updates-container .button-link {
+  text-shadow: 0 0 3px white;
   font-weight: bold;
 }
 

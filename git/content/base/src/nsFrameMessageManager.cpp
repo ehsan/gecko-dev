@@ -378,7 +378,7 @@ nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
           // create array even if len == 0.
           aObjectsArray = JS_NewArrayObject(ctx, 0, NULL);
           if (!aObjectsArray) {
-            return NS_ERROR_OUT_OF_MEMORY;
+            return false;
           }
         }
 
@@ -414,7 +414,7 @@ nsFrameMessageManager::ReceiveMessage(nsISupports* aTarget,
         JSAutoEnterCompartment ac;
 
         if (!ac.enter(ctx, object))
-          return NS_ERROR_FAILURE;
+          return PR_FALSE;
 
         jsval funval = JSVAL_VOID;
         if (JS_ObjectIsFunction(ctx, object)) {
@@ -581,7 +581,6 @@ CachedScriptUnrooter(const nsAString& aKey,
 {
   JSContext* cx = static_cast<JSContext*>(aUserArg);
   JS_RemoveObjectRoot(cx, &(aData->mObject));
-  delete aData;
   return PL_DHASH_REMOVE;
 }
 
@@ -613,7 +612,7 @@ nsFrameScriptExecutor::Shutdown()
 void
 nsFrameScriptExecutor::LoadFrameScriptInternal(const nsAString& aURL)
 {
-  if (!mGlobal || !mCx || !sCachedScripts) {
+  if (!mGlobal || !mCx) {
     return;
   }
 
@@ -714,16 +713,6 @@ nsFrameScriptExecutor::LoadFrameScriptInternal(const nsAString& aURL)
     JSContext* unused;
     nsContentUtils::ThreadJSContextStack()->Pop(&unused);
   }
-}
-
-// static
-void
-nsFrameScriptExecutor::Traverse(nsFrameScriptExecutor *tmp,
-                                nsCycleCollectionTraversalCallback &cb)
-{
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mGlobal)
-  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mCx");
-  nsContentUtils::XPConnect()->NoteJSContext(tmp->mCx, cb);
 }
 
 NS_IMPL_ISUPPORTS1(nsScriptCacheCleaner, nsIObserver)

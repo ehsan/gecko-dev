@@ -280,9 +280,6 @@ class DeviceManager:
   #  success: True
   #  failure: False
   def pushFile(self, localname, destname):
-    if (os.name == "nt"):
-      destname = destname.replace('\\', '/')
-
     if (self.debug >= 3): print "in push file with: " + localname + ", and: " + destname
     if (self.validateFile(destname, localname) == True):
       if (self.debug >= 3): print "files are validated"
@@ -489,17 +486,11 @@ class DeviceManager:
   # returns:
   #  success: pid
   #  failure: None
-  def fireProcess(self, appname, failIfRunning=False):
-    if (not appname):
-      if (self.debug >= 1): print "WARNING: fireProcess called with no command to run"
-      return None
-
+  def fireProcess(self, appname):
     if (self.debug >= 2): print "FIRE PROC: '" + appname + "'"
-
+    
     if (self.processExist(appname) != None):
       print "WARNING: process %s appears to be running already\n" % appname
-      if (failIfRunning):
-        return None
     
     try:
       data = self.verifySendCMD(['exec ' + appname])
@@ -510,7 +501,7 @@ class DeviceManager:
     timeslept = 0
     while (timeslept <= 30):
       process = self.processExist(appname)
-      if (process is not None):
+      if (self.process is not None):
         break
       time.sleep(3)
       timeslept += 3
@@ -522,11 +513,7 @@ class DeviceManager:
   # returns:
   #  success: output filename
   #  failure: None
-  def launchProcess(self, cmd, outputFile = "process.txt", cwd = '', env = '', failIfRunning=False):
-    if not cmd:
-      if (self.debug >= 1): print "WARNING: launchProcess called without command to run"
-      return None
-
+  def launchProcess(self, cmd, outputFile = "process.txt", cwd = '', env = ''):
     cmdline = subprocess.list2cmdline(cmd)
     if (outputFile == "process.txt" or outputFile == None):
       outputFile = self.getDeviceRoot();
@@ -538,7 +525,7 @@ class DeviceManager:
     # Prepend our env to the command 
     cmdline = '%s %s' % (self.formatEnvString(env), cmdline)
 
-    if self.fireProcess(cmdline, failIfRunning) is None:
+    if self.fireProcess(cmdline) is None:
       return None
     return outputFile
   
@@ -756,23 +743,14 @@ class DeviceManager:
 
   # copy directory structure from device (remoteDir) to host (localDir)
   # external function
-  # checkDir exists so that we don't create local directories if the
-  # remote directory doesn't exist but also so that we don't call isDir
-  # twice when recursing.
   # returns:
   #  success: list of files, string
   #  failure: None
-  def getDirectory(self, remoteDir, localDir, checkDir=True):
+  def getDirectory(self, remoteDir, localDir):
     if (self.debug >= 2): print "getting files in '" + remoteDir + "'"
-    if checkDir:
-      try:
-        is_dir = self.isDir(remoteDir)
-      except FileError:
-        return None
-      if not is_dir:
-        return None
-        
     filelist = self.listFiles(remoteDir)
+    if (filelist == []):
+      return None
     if (self.debug >= 3): print filelist
     if not os.path.exists(localDir):
       os.makedirs(localDir)
@@ -788,7 +766,7 @@ class DeviceManager:
         print 'isdir failed on file "%s"; continuing anyway...' % remotePath
         continue
       if is_dir:
-        if (self.getDirectory(remotePath, localPath, False) == None):
+        if (self.getDirectory(remotePath, localPath) == None):
           print 'failed to get directory "%s"' % remotePath
           return None
       else:
@@ -809,10 +787,7 @@ class DeviceManager:
     try:
       data = self.verifySendCMD(['isdir ' + remotePath])
     except(DMError):
-      # normally there should be no error here; a nonexistent file/directory will
-      # return the string "<filename>: No such file or directory".
-      # However, I've seen AGENT-WARNING returned before. 
-      return False
+      data = None
 
     retVal = self.stripPrompt(data).strip()
     if not retVal:
@@ -996,31 +971,17 @@ class DeviceManager:
   # returns:
   #  success: status from test agent
   #  failure: None
-  def reboot(self, wait = False):
+  def reboot(self):
     cmd = 'rebt'
-    if (self.debug >= 3): print "INFO: sending rebt command"
+
+    if (self.debug > 3): print "INFO: sending rebt command"
     
     try:
-      status = self.sendCMD([cmd])
+      status = self.verifySendCMD([cmd])
     except DMError:
       return None
 
-    if (wait == True):
-      #this sleeps up to 5 minutes in 30 second intervals
-      count = 0
-      while (count < 10):
-        if (self.debug >= 4): print "DEBUG: sleeping 30 seconds while waiting for reboot"
-        time.sleep(30)
-        waitstatus = self.getDeviceRoot()
-        if (waitstatus is not None):
-          break
-        self.retries = 0
-        count += 1
-
-      if (count >= 10):
-        return None
-
-    if (self.debug >= 3): print "INFO: rebt- got status back: " + str(status)
+    if (self.debug > 3): print "INFO: rebt- got status back: " + str(status)
     return status
 
   # validate localDir from host to remoteDir on the device
@@ -1086,7 +1047,7 @@ class DeviceManager:
           proclist.append(l.split('\t'))
       result['process'] = proclist
 
-    if (self.debug >= 3): print "results: " + str(result)
+    print "results: " + str(result)
     return result
 
   """
@@ -1167,13 +1128,13 @@ class DeviceManager:
     if (destPath):
       cmd += " " + destPath
 
+    if (self.debug > 3): print "INFO: updateApp using command: " + str(cmd)
+
     if (ipAddr is not None):
       ip, port = self.getCallbackIpAndPort(ipAddr, port)
       cmd += " %s %s" % (ip, port)
       # Set up our callback server
       callbacksvr = callbackServer(ip, port, self.debug)
-
-    if (self.debug >= 3): print "INFO: updateApp using command: " + str(cmd)
 
     try:
       status = self.verifySendCMD([cmd])
@@ -1183,7 +1144,7 @@ class DeviceManager:
     if ipAddr is not None:
       status = callbacksvr.disconnect()
 
-    if (self.debug >= 3): print "INFO: updateApp: got status back: " + str(status)
+    if (self.debug > 3): print "INFO: updateApp: got status back: " + str(status)
 
     return status
 
@@ -1222,65 +1183,13 @@ class DeviceManager:
     Returns a properly formatted env string for the agent.
     Input - env, which is either None, '', or a dict
     Output - a quoted string of the form: '"envvar1=val1,envvar2=val2..."'
-    If env is None or '' return '' (empty quoted string)
+    If env is None or '' return '""' (empty quoted string)
   """
   def formatEnvString(self, env):
     if (env == None or env == ''):
-      return ''
+      return '""'
 
-    retVal = '"%s"' % ','.join(map(lambda x: '%s=%s' % (x[0], x[1]), env.iteritems()))
-    if (retVal == '""'):
-      return ''
-
-    return retVal
-
-  """
-    adjust the screen resolution on the device, REBOOT REQUIRED
-    NOTE: this only works on a tegra ATM
-    success: True
-    failure: False
-
-    supported resolutions: 640x480, 800x600, 1024x768, 1152x864, 1200x1024, 1440x900, 1680x1050, 1920x1080
-  """
-  def adjustResolution(self, width=1680, height=1050, type='hdmi'):
-    if self.getInfo('os')['os'][0].split()[0] != 'harmony-eng':
-      if (self.debug >= 2): print "WARNING: unable to adjust screen resolution on non Tegra device"
-      return False
-
-    results = self.getInfo('screen')
-    parts = results['screen'][0].split(':')
-    if (self.debug >= 3): print "INFO: we have a current resolution of %s, %s" % (parts[1].split()[0], parts[2].split()[0])
-
-    #verify screen type is valid, and set it to the proper value (https://bugzilla.mozilla.org/show_bug.cgi?id=632895#c4)
-    screentype = -1
-    if (type == 'hdmi'):
-      screentype = 5
-    elif (type == 'vga' or type == 'crt'):
-      screentype = 3
-    else:
-      return False
-
-    #verify we have numbers
-    if not (isinstance(width, int) and isinstance(height, int)):
-      return False
-
-    if (width < 100 or width > 9999):
-      return False
-
-    if (height < 100 or height > 9999):
-      return False
-
-    if (self.debug >= 3): print "INFO: adjusting screen resolution to %s, %s and rebooting" % (width, height)
-    try:
-      self.verifySendCMD(["exec setprop persist.tegra.dpy%s.mode.width %s" % (screentype, width)])
-      self.verifySendCMD(["exec setprop persist.tegra.dpy%s.mode.height %s" % (screentype, height)])
-    except(DMError):
-      return False
-
-    if (self.reboot(True) == None):
-      return False
-
-    return True
+    return '"%s"' % ','.join(map(lambda x: '%s=%s' % (x[0], x[1]), env.iteritems()))
 
 gCallbackData = ''
 
@@ -1293,7 +1202,7 @@ class callbackServer():
     self.port = port
     self.connected = False
     self.debug = debuglevel
-    if (self.debug >= 3) : print "Creating server with " + str(ip) + ":" + str(port)
+    if (self.debug > 3) : print "Creating server with " + str(ip) + ":" + str(port)
     self.server = myServer((ip, port), self.myhandler)
     self.server_thread = Thread(target=self.server.serve_forever) 
     self.server_thread.setDaemon(True)
@@ -1301,17 +1210,17 @@ class callbackServer():
 
   def disconnect(self, step = 60, timeout = 600):
     t = 0
-    if (self.debug >= 3): print "Calling disconnect on callback server"
+    if (self.debug > 3): print "Calling disconnect on callback server"
     while t < timeout:
       if (gCallbackData):
         # Got the data back
-        if (self.debug >= 3): print "Got data back from agent: " + str(gCallbackData)
+        if (self.debug > 3): print "Got data back from agent: " + str(gCallbackData)
         break
       time.sleep(step)
       t += step
 
     try:
-      if (self.debug >= 3): print "Shutting down server now"
+      if (self.debug > 3): print "Shutting down server now"
       self.server.shutdown()
     except:
       print "Unable to shutdown callback server - check for a connection on port: " + str(self.port)

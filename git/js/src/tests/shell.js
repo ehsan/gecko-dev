@@ -647,11 +647,7 @@ function optionsClear() {
   for (var i = 0; i < optionNames.length; i++)
   {
     var optionName = optionNames[i];
-    if (optionName &&
-        optionName != "methodjit" &&
-        optionName != "tracejit" &&
-        optionName != "jitprofiling" &&
-        optionName != "methodjit_always")
+    if (optionName && optionName != "methodjit" && optionName != "tracejit" && optionName != "jitprofiling")
     {
       options(optionName);
     }
@@ -698,10 +694,8 @@ function optionsReset() {
     optionsClear();
 
     // turn on initial settings
-    for (var optionName in options.initvalues)
+    for (optionName in options.initvalues)
     {
-      if (!options.hasOwnProperty(optionName))
-        continue;
       options(optionName);
     }
   }

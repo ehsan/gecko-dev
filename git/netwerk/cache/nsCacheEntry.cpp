@@ -250,9 +250,8 @@ PRBool
 nsCacheEntry::RemoveDescriptor(nsCacheEntryDescriptor * descriptor)
 {
     NS_ASSERTION(descriptor->CacheEntry() == this, "### Wrong cache entry!!");
-    descriptor->CloseOutput();
-    descriptor->ClearCacheEntry();
     PR_REMOVE_AND_INIT_LINK(descriptor);
+    descriptor->ClearCacheEntry();
 
     if (!PR_CLIST_IS_EMPTY(&mDescriptorQ))
         return PR_TRUE;  // stay active if we still have open descriptors

@@ -71,12 +71,6 @@ class nsChildView;
 class nsCocoaWindow;
 union nsPluginPort;
 
-namespace mozilla {
-namespace gl {
-class TextureImage;
-}
-}
-
 #ifndef NP_NO_CARBON
 enum {
   // Currently focused ChildView (while this TSM document is active).
@@ -180,12 +174,8 @@ extern "C" long TSMProcessRawKeyEvent(EventRef carbonEvent);
   // Cocoa TSM documents (those created and managed by the NSTSMInputContext
   // class) -- for some reason TSMProcessRawKeyEvent() doesn't work with them.
   TSMDocumentID mPluginTSMDoc;
-  BOOL mPluginTSMInComposition;
 #endif
   BOOL mPluginComplexTextInputRequested;
-
-  // When this is YES the next key up event (keyUp:) will be ignored.
-  BOOL mIgnoreNextKeyUpEvent;
 
   NSOpenGLContext *mGLContext;
 
@@ -211,8 +201,6 @@ extern "C" long TSMProcessRawKeyEvent(EventRef carbonEvent);
   } mGestureState;
   float mCumulativeMagnification;
   float mCumulativeRotation;
-
-  BOOL mDidForceRefreshOpenGL;
 }
 
 // class initialization
@@ -466,7 +454,6 @@ protected:
 #endif
 
   nsRefPtr<gfxASurface> mTempThebesSurface;
-  nsRefPtr<mozilla::gl::TextureImage> mResizerImage;
 
   PRPackedBool          mVisible;
   PRPackedBool          mDrawing;

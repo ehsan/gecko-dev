@@ -447,19 +447,8 @@ nsJNIString::nsJNIString(jstring jstr, JNIEnv *jenv)
     JNIEnv *jni = jenv;
     if (!jni)
         jni = JNI();
-    const jchar* jCharPtr = jni->GetStringChars(jstr, NULL);
-
-    if (!jCharPtr) {
-        SetIsVoid(PR_TRUE);
-        return;
-    }
-
-    jsize len = jni->GetStringLength(jstr);
-
-    if (len <= 0) {
-        SetIsVoid(PR_TRUE);
-    } else {
-        Assign(jCharPtr, len);
-    }
+    const jchar* jCharPtr = jni->GetStringChars(jstr, false);
+    int len = jni->GetStringLength(jstr);
+    Assign(jCharPtr, len);
     jni->ReleaseStringChars(jstr, jCharPtr);
 }

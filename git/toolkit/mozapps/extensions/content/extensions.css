@@ -133,13 +133,6 @@ xhtml|link {
   display: none;
 }
 
-#addons-page:not([warning]) #list-view > .global-warning-container {
-  display: none;
-}
-#addon-list .date-updated {
-  display: none;
-}
-
 .view-pane:not(#updates-view) .addon .relnotes-toggle,
 .view-pane:not(#updates-view) .addon .include-update,
 #updates-view:not([updatetype="available"]) .addon .include-update,
@@ -169,13 +162,4 @@ xhtml|link {
 #view-port:not([selectedIndex="0"]) #discover-view .loading,
 #discover-view:not([selectedIndex="0"]) .loading {
   display: none;
-}
-
-/* Elements in unselected richlistitems cannot be focused */
-richlistitem:not([selected]) * {
-  -moz-user-focus: ignore;
-}
-
-#header-search {
-  width: 22em;
 }

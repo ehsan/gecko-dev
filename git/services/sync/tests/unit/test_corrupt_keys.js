@@ -4,7 +4,8 @@ Cu.import("resource://services-sync/engines.js");
 Cu.import("resource://services-sync/util.js");
 Cu.import("resource://services-sync/status.js");
 Cu.import("resource://services-sync/constants.js");
-Cu.import("resource://services-sync/record.js");
+Cu.import("resource://services-sync/base_records/wbo.js");      // For Records.
+Cu.import("resource://services-sync/base_records/crypto.js");   // For CollectionKeys.
 Cu.import("resource://services-sync/engines/tabs.js");
 Cu.import("resource://services-sync/engines/history.js");
 Cu.import("resource://services-sync/log4moz.js");
@@ -102,7 +103,7 @@ function test_locally_changed_keys() {
     
     // Upload keys.
     CollectionKeys.generateNewKeys();
-    let serverKeys = CollectionKeys.asWBO("crypto", "keys");
+    serverKeys = CollectionKeys.asWBO("crypto", "keys");
     serverKeys.encrypt(Weave.Service.syncKeyBundle);
     do_check_true(serverKeys.upload(Weave.Service.cryptoKeysURL).success);
     
@@ -123,9 +124,10 @@ function test_locally_changed_keys() {
     // Let's create some server side history records.
     let liveKeys = CollectionKeys.keyForCollection("history");
     _("Keys now: " + liveKeys.keyPair);
+    let nextHistory = {}
     let visitType = Ci.nsINavHistoryService.TRANSITION_LINK;
     for (var i = 0; i < 5; i++) {
-      let id = 'record-no--' + i;
+      let id = 'record-no-' + i;
       let modified = Date.now()/1000 - 60*(i+10);
       
       let w = new CryptoWrapper("history", "id");
@@ -134,7 +136,7 @@ function test_locally_changed_keys() {
         histUri: "http://foo/bar?" + id,
         title: id,
         sortindex: i,
-        visits: [{date: (modified - 5) * 1000000, type: visitType}],
+        visits: [{date: (modified - 5), type: visitType}],
         deleted: false};
       w.encrypt();
       
@@ -143,9 +145,7 @@ function test_locally_changed_keys() {
                                    hmac: w.hmac});
       wbo.modified = modified;
       history.wbos[id] = wbo;
-      server.registerPathHandler(
-        "/1.0/johndoe/storage/history/record-no--" + i,
-        upd("history", wbo.handler()));
+      server.registerPathHandler("/1.0/johndoe/storage/history/record-no-" + i, upd("history", wbo.handler()));
     }
     
     collections.history = Date.now()/1000;
@@ -153,8 +153,8 @@ function test_locally_changed_keys() {
     _("Old key time: " + old_key_time);
     
     // Check that we can decrypt one.
-    let rec = new CryptoWrapper("history", "record-no--0");
-    rec.fetch(Weave.Service.storageURL + "history/record-no--0");
+    let rec = new CryptoWrapper("history", "record-no-0");
+    rec.fetch(Weave.Service.storageURL + "history/record-no-0");
     _(JSON.stringify(rec));
     do_check_true(!!rec.decrypt());
     
@@ -166,6 +166,12 @@ function test_locally_changed_keys() {
     
     do_check_eq(hmacErrorCount, 0);
     
+    // Add some data.
+    for (let k in nextHistory) {
+      nextHistory[k].modified += 1000;
+      history.wbos[k] = nextHistory[k];
+    }
+    
     _("HMAC error count: " + hmacErrorCount);
     // Now syncing should succeed, after one HMAC error.
     Weave.Service.sync();
@@ -173,18 +179,17 @@ function test_locally_changed_keys() {
     _("Keys now: " + CollectionKeys.keyForCollection("history").keyPair);
     
     // And look! We downloaded history!
-    let store = Engines.get("history")._store;
-    do_check_true(store.urlExists("http://foo/bar?record-no--0"));
-    do_check_true(store.urlExists("http://foo/bar?record-no--1"));
-    do_check_true(store.urlExists("http://foo/bar?record-no--2"));
-    do_check_true(store.urlExists("http://foo/bar?record-no--3"));
-    do_check_true(store.urlExists("http://foo/bar?record-no--4"));
+    do_check_true(Engines.get("history")._store.urlExists("http://foo/bar?record-no-0"));
+    do_check_true(Engines.get("history")._store.urlExists("http://foo/bar?record-no-1"));
+    do_check_true(Engines.get("history")._store.urlExists("http://foo/bar?record-no-2"));
+    do_check_true(Engines.get("history")._store.urlExists("http://foo/bar?record-no-3"));
+    do_check_true(Engines.get("history")._store.urlExists("http://foo/bar?record-no-4"));
     do_check_eq(hmacErrorCount, 1);
     
     _("Busting some new server values.");
     // Now what happens if we corrupt the HMAC on the server?
     for (var i = 5; i < 10; i++) {
-      let id = 'record-no--' + i;
+      let id = 'record-no-' + i;
       let modified = 1 + (Date.now()/1000);
       
       let w = new CryptoWrapper("history", "id");
@@ -193,7 +198,7 @@ function test_locally_changed_keys() {
         histUri: "http://foo/bar?" + id,
         title: id,
         sortindex: i,
-        visits: [{date: (modified - 5 ) * 1000000, type: visitType}],
+        visits: [{date: (modified - 5), type: visitType}],
         deleted: false};
       w.encrypt();
       w.hmac = w.hmac.toUpperCase();
@@ -203,9 +208,7 @@ function test_locally_changed_keys() {
                                    hmac: w.hmac});
       wbo.modified = modified;
       history.wbos[id] = wbo;
-      server.registerPathHandler(
-        "/1.0/johndoe/storage/history/record-no--" + i,
-        upd("history", wbo.handler()));
+      server.registerPathHandler("/1.0/johndoe/storage/history/record-no-" + i, upd("history", wbo.handler()));
     }
     collections.history = Date.now()/1000;
     
@@ -221,11 +224,11 @@ function test_locally_changed_keys() {
     _("Server keys have been updated, and we skipped over 5 more HMAC errors without adjusting history.");
     do_check_true(collections.crypto > old_key_time);
     do_check_eq(hmacErrorCount, 6);
-    do_check_false(store.urlExists("http://foo/bar?record-no--5"));
-    do_check_false(store.urlExists("http://foo/bar?record-no--6"));
-    do_check_false(store.urlExists("http://foo/bar?record-no--7"));
-    do_check_false(store.urlExists("http://foo/bar?record-no--8"));
-    do_check_false(store.urlExists("http://foo/bar?record-no--9"));
+    do_check_false(Engines.get("history")._store.urlExists("http://foo/bar?record-no-5"));
+    do_check_false(Engines.get("history")._store.urlExists("http://foo/bar?record-no-6"));
+    do_check_false(Engines.get("history")._store.urlExists("http://foo/bar?record-no-7"));
+    do_check_false(Engines.get("history")._store.urlExists("http://foo/bar?record-no-8"));
+    do_check_false(Engines.get("history")._store.urlExists("http://foo/bar?record-no-9"));
     
     // Clean up.
     Weave.Service.startOver();

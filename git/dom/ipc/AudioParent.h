@@ -71,10 +71,7 @@ class AudioParent : public PAudioParent, public nsITimerCallback
     RecvResume();
 
     virtual bool
-    RecvShutdown();
-
-    virtual bool
-    SendDrainDone();
+    Recv__delete__();
 
     AudioParent(PRInt32 aNumChannels, PRInt32 aRate, PRInt32 aFormat);
     virtual ~AudioParent();
@@ -84,8 +81,6 @@ class AudioParent : public PAudioParent, public nsITimerCallback
     nsCOMPtr<nsITimer> mTimer;
 
 private:
-    void Shutdown();
-
     PRPackedBool mIPCOpen;
 };
 } // namespace dom

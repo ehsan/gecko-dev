@@ -53,7 +53,7 @@ NS_SVG_VAL_IMPL_CYCLE_COLLECTION(DOMSVGAnimatedLengthList, mElement)
 NS_IMPL_CYCLE_COLLECTING_ADDREF(DOMSVGAnimatedLengthList)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(DOMSVGAnimatedLengthList)
 
-} // namespace mozilla
+}
 DOMCI_DATA(SVGAnimatedLengthList, mozilla::DOMSVGAnimatedLengthList)
 namespace mozilla {
 
@@ -67,7 +67,7 @@ NS_IMETHODIMP
 DOMSVGAnimatedLengthList::GetBaseVal(nsIDOMSVGLengthList **_retval)
 {
   if (!mBaseVal) {
-    mBaseVal = new DOMSVGLengthList(this, InternalAList().GetBaseValue());
+    mBaseVal = new DOMSVGLengthList(this);
   }
   NS_ADDREF(*_retval = mBaseVal);
   return NS_OK;
@@ -77,7 +77,7 @@ NS_IMETHODIMP
 DOMSVGAnimatedLengthList::GetAnimVal(nsIDOMSVGLengthList **_retval)
 {
   if (!mAnimVal) {
-    mAnimVal = new DOMSVGLengthList(this, InternalAList().GetAnimValue());
+    mAnimVal = new DOMSVGLengthList(this);
   }
   NS_ADDREF(*_retval = mAnimVal);
   return NS_OK;

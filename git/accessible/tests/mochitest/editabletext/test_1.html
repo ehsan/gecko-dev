@@ -21,15 +21,9 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=452161
           src="editabletext.js"></script>
 
   <script type="application/javascript">
-    function addTestEditable(aID, aTestRun, aTrailChar)
+    function addTestEditable(aID, aTestRun)
     {
       var et = new editableTextTest(aID);
-
-      //////////////////////////////////////////////////////////////////////////
-      // setTextContents
-      et.setTextContents("hello");
-      et.setTextContents("olleh", aTrailChar); // due to some reason this reports '\n' in the end
-      et.setTextContents("");
 
       //////////////////////////////////////////////////////////////////////////
       // insertText
@@ -39,6 +33,12 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=452161
       et.insertText(" hello", 10, "mama hello hello");
 
       // XXX: bug 452584
+
+      //////////////////////////////////////////////////////////////////////////
+      // setTextContents
+//      et.setTextContents("hello", "hello");
+//      et.setTextContents("olleh", "olleh");
+//      et.setTextContents("", "");
 
       //////////////////////////////////////////////////////////////////////////
       // deleteText
@@ -64,15 +64,13 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=452161
       aTestRun.add(et);
     }
 
-    //gA11yEventDumpToConsole = true; // debug stuff
-
     function runTest()
     {
       var testRun = new editableTextTestRun();
 
       addTestEditable("input", testRun);
-      addTestEditable("div", testRun, '\n');
-      addTestEditable(getNode("frame").contentDocument, testRun, '\n');
+      // addTestEditable("div"); XXX: bug 452599
+      addTestEditable(getNode("frame").contentDocument, testRun);
 
       testRun.run(); // Will call SimpleTest.finish();
     }
@@ -96,11 +94,6 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=452161
   <a target="_blank"
      title="nsIAccessibleEditableText chrome tests"
      href="https://bugzilla.mozilla.org/show_bug.cgi?id=452161">Mozilla Bug 452161</a>
-  <a target="_blank"
-     title="Cache rendered text on a11y side"
-     href="https://bugzilla.mozilla.org/show_bug.cgi?id=626660">
-    Mozilla Bug 626660
-  </a>
   <p id="display"></p>
   <div id="content" style="display: none"></div>
   <pre id="test">
@@ -108,7 +101,7 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=452161
 
   <input id="input"/>
 
-  <div id="div" contentEditable="true"></div>
+  <div id="div" contentEditable="true"/>
 
   <iframe id="frame"/>
 </body>

@@ -136,7 +136,6 @@ public:
 
   void EndConstruction();
 
-  virtual bool EndEmptyTransaction();
   virtual void EndTransaction(DrawThebesLayerCallback aCallback,
                               void* aCallbackData);
 
@@ -372,33 +371,11 @@ public:
     return mWidgetSize;
   }
 
-  enum WorldTransforPolicy {
-    ApplyWorldTransform,
-    DontApplyWorldTransform
-  };
-
   /**
    * Setup the viewport and projection matrix for rendering
    * to a window of the given dimensions.
    */
-  void SetupPipeline(int aWidth, int aHeight, WorldTransforPolicy aTransformPolicy);
-
-  /**
-   * Returns true if the viewport has a Y axip flip transform applied, and all 
-   * drawing will be done upside-down.
-   */
-  bool IsDrawingFlipped() {
-    return mGLContext->IsDoubleBuffered() && !mTarget; 
-  }
-
-  /**
-   * Setup World transform matrix.
-   * Transform will be ignored if it is not PreservesAxisAlignedRectangles
-   * or has non integer scale
-   */
-  void SetWorldTransform(const gfxMatrix& aMatrix);
-  gfxMatrix& GetWorldTransform(void);
-  void WorldTransformRect(nsIntRect& aRect);
+  void SetupPipeline(int aWidth, int aHeight);
 
 private:
   /** Widget associated with this layer manager */
@@ -477,7 +454,6 @@ private:
    * while rendering */
   DrawThebesLayerCallback mThebesLayerCallback;
   void *mThebesLayerCallbackData;
-  gfxMatrix mWorldMatrix;
 };
 
 /**

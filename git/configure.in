@@ -130,7 +130,7 @@ GCONF_VERSION=1.2.1
 GIO_VERSION=2.0
 STARTUP_NOTIFICATION_VERSION=0.8
 DBUS_VERSION=0.60
-SQLITE_VERSION=3.7.4
+SQLITE_VERSION=3.7.3
 LIBNOTIFY_VERSION=0.4
 
 MSMANIFEST_TOOL=
@@ -185,7 +185,7 @@ dnl Default to MSVC for win32 and gcc-4.2 for darwin
 dnl ==============================================================
 if test -z "$CROSS_COMPILE"; then
 case "$target" in
-*-cygwin*|*-mingw*|*-msvc*|*-mks*)
+*-mingw*)
     if test -z "$CC"; then CC=cl; fi
     if test -z "$CXX"; then CXX=cl; fi
     if test -z "$CPP"; then CPP="cl -E -nologo"; fi
@@ -297,8 +297,8 @@ if test "$target" = "arm-android-eabi" ; then
     STRIP="$android_toolchain"/bin/arm-eabi-strip
 
     CPPFLAGS="-I$android_platform/usr/include $CPPFLAGS"
-    CFLAGS="-mandroid -I$android_platform/usr/include -fno-short-enums -fno-exceptions $CFLAGS"
-    CXXFLAGS="-mandroid -I$android_platform/usr/include -fno-short-enums -fno-exceptions $CXXFLAGS"
+    CFLAGS="-mandroid -I$android_platform/usr/include -msoft-float -fno-short-enums -fno-exceptions $CFLAGS"
+    CXXFLAGS="-mandroid -I$android_platform/usr/include -msoft-float -fno-short-enums -fno-exceptions $CXXFLAGS"
 
     dnl Add -llog by default, since we use it all over the place.
     dnl Add --allow-shlib-undefined, because libGLESv2 links to an
@@ -613,7 +613,7 @@ fi
 fi
 
 case "$target" in
-*-cygwin*|*-mingw*|*-msvc*|*-mks*|*-wince|*-winmo)
+*-mingw*|*-wince|*-winmo)
     if test "$GCC" != "yes"; then
         # Check to see if we are really running in a msvc environemnt
         _WIN32_MSVC=1
@@ -1175,7 +1175,7 @@ if test -n "$MAKE"; then
 fi
 
 case "$host_os" in
-cygwin*|mingw*|mks*|msvc*)
+mingw*)
     MOZ_PATH_PROGS(GMAKE, $GMAKE $NOT_PYMAKE make gmake, :)
     ;;
 *)
@@ -1213,7 +1213,6 @@ ASM_SUFFIX=s
 IMPORT_LIB_SUFFIX=
 TARGET_MD_ARCH=unix
 DIRENT_INO=d_ino
-CYGWIN_WRAPPER=
 WIN_TOP_SRC=
 MOZ_USER_DIR=".mozilla"
 
@@ -1294,7 +1293,7 @@ HOST_OS_ARCH=`echo $host_os | sed -e 's|/|_|g'`
 #
 
 case "$HOST_OS_ARCH" in
-cygwin*|mingw*|mks*|msvc*)
+mingw*)
     HOST_OS_ARCH=WINNT
     ;;
 darwin*)
@@ -1387,13 +1386,8 @@ Windows_NT)
     fi
     OS_RELEASE="${OS_RELEASE}.${OS_MINOR_RELEASE}"
     ;;
-CYGWIN32_NT|CYGWIN_NT*|MINGW*_NT*)
+MINGW*_NT*)
 #
-# If uname -s returns "CYGWIN_NT-4.0", we assume that we are using
-# the uname.exe in the Cygwin tools.
-# Prior to the Beta 20 release, Cygwin was called GNU-Win32.
-# If uname -s returns "CYGWIN32/NT", we assume that we are using
-# the uname.exe in the GNU-Win32 tools.
 # If uname -s returns MINGW32_NT-5.1, we assume that we are using
 # the uname.exe in the MSYS tools.
 #
@@ -1844,74 +1838,6 @@ MOZ_ARG_ENABLE_BOOL(profiling,
     MOZ_PROFILING= )
 
 dnl ========================================================
-dnl = Use Valgrind
-dnl ========================================================
-MOZ_ARG_ENABLE_BOOL(valgrind,
-[  --enable-valgrind       Enable Valgrind integration hooks (default=no)],
-    MOZ_VALGRIND=1,
-    MOZ_VALGRIND= )
-if test -n "$MOZ_VALGRIND"; then
-    AC_CHECK_HEADER([valgrind/valgrind.h], [],
-        AC_MSG_ERROR(
-            [--enable-valgrind specified but Valgrind is not installed]))
-    AC_DEFINE(MOZ_VALGRIND)
-fi
-
-dnl ========================================================
-dnl jprof
-dnl ========================================================
-MOZ_ARG_ENABLE_BOOL(jprof,
-[  --enable-jprof          Enable jprof profiling tool (needs mozilla/tools/jprof). Implies --enable-profiling.],
-    MOZ_JPROF=1,
-    MOZ_JPROF= )
-if test -n "$MOZ_JPROF"; then
-    MOZ_PROFILING=1
-    AC_DEFINE(MOZ_JPROF)
-fi
-
-dnl ========================================================
-dnl shark
-dnl ========================================================
-MOZ_ARG_ENABLE_BOOL(shark,
-[  --enable-shark          Enable shark remote profiling. Implies --enable-profiling.],
-    MOZ_SHARK=1,
-    MOZ_SHARK= )
-if test -n "$MOZ_SHARK"; then
-    MOZ_PROFILING=1
-    AC_DEFINE(MOZ_SHARK)
-fi
-
-dnl ========================================================
-dnl callgrind
-dnl ========================================================
-MOZ_ARG_ENABLE_BOOL(callgrind,
-[  --enable-callgrind      Enable callgrind profiling],
-    MOZ_CALLGRIND=1,
-    MOZ_CALLGRIND= )
-if test -n "$MOZ_CALLGRIND"; then
-    AC_DEFINE(MOZ_CALLGRIND)
-fi
-
-dnl ========================================================
-dnl vtune
-dnl ========================================================
-MOZ_ARG_ENABLE_BOOL(vtune,
-[  --enable-vtune          Enable vtune profiling. Implies --enable-profiling.],
-    MOZ_VTUNE=1,
-    MOZ_VTUNE= )
-if test -n "$MOZ_VTUNE"; then
-    MOZ_PROFILING=1
-    AC_DEFINE(MOZ_VTUNE)
-fi
-
-dnl ========================================================
-dnl Profiling
-dnl ========================================================
-if test -n "$MOZ_PROFILING"; then
-    AC_DEFINE(MOZ_PROFILING)
-fi
-
-dnl ========================================================
 dnl System overrides of the defaults for host
 dnl ========================================================
 case "$host" in
@@ -1921,7 +1847,7 @@ case "$host" in
     HOST_OPTIMIZE_FLAGS="${HOST_OPTIMIZE_FLAGS=-O3}"
     ;;
 
-*cygwin*|*mingw*|*mks*|*msvc*|*wince|*winmo)
+*mingw*|*wince|*winmo)
     if test -n "$_WIN32_MSVC"; then
         HOST_AR=lib
         HOST_AR_FLAGS='-NOLOGO -OUT:"$@"'
@@ -1936,23 +1862,7 @@ case "$host" in
     HOST_BIN_SUFFIX=.exe
     case "$host" in
     *mingw*)
-    dnl MinGW/MSYS does not need CYGWIN_WRAPPER
         PERL="/bin/sh ${_topsrcdir}/build/msys-perl-wrapper"
-        ;;
-    *)
-        CYGWIN_WRAPPER="${srcdir}/build/cygwin-wrapper"
-        if test "`echo ${srcdir} | grep -c ^/ 2>/dev/null`" = 0; then
-            _pwd=`pwd`
-            CYGWIN_WRAPPER="${_pwd}/${srcdir}/build/cygwin-wrapper"
-        fi
-        if test "`${PERL} -v | grep -c cygwin  2>/dev/null`" = 0; then
-            AS_PERL=1
-            PERL="${CYGWIN_WRAPPER} $PERL"
-        fi
-
-        if test "`${PYTHON} -c 'import sys; print sys.platform;'`" != "cygwin"; then
-            PYTHON="${CYGWIN_WRAPPER} $PYTHON"
-        fi
         ;;
     esac
 
@@ -2010,11 +1920,7 @@ dnl Get mozilla version from central milestone file
 MOZILLA_VERSION=`$PERL $srcdir/config/milestone.pl -topsrcdir $srcdir`
 
 dnl Get version of various core apps from the version files.
-FIREFOX_VERSION=`cat $_topsrcdir/browser/config/version.txt`
-
-if test -z "$FIREFOX_VERSION"; then
-    AC_MSG_ERROR([FIREFOX_VERSION is unexpectedly blank.])
-fi
+FIREFOX_VERSION=`cat $topsrcdir/browser/config/version.txt`
 
 AC_DEFINE_UNQUOTED(MOZILLA_VERSION,"$MOZILLA_VERSION")
 AC_DEFINE_UNQUOTED(MOZILLA_VERSION_U,$MOZILLA_VERSION)
@@ -2044,21 +1950,22 @@ case "$target" in
         DSO_CFLAGS='-qflag=w:w'
         DSO_PIC_CFLAGS=
         LDFLAGS="$LDFLAGS -Wl,-brtl -blibpath:/usr/lib:/lib"
+        AC_MSG_WARN([Clearing MOZ_FIX_LINK_PATHS till we can fix bug 332075.])
         MOZ_FIX_LINK_PATHS=
         MKSHLIB='$(CXX) $(DSO_LDOPTS) -o $@'
         MKCSHLIB='$(CC) $(DSO_LDOPTS) -o $@'
         if test "$COMPILE_ENVIRONMENT"; then
             AC_LANG_SAVE
             AC_LANG_CPLUSPLUS
-            AC_MSG_CHECKING([for IBM XLC/C++ compiler version >= 9.0.0.7])
+            AC_MSG_CHECKING([for VisualAge C++ compiler version >= 6.0.0.3])
             AC_TRY_COMPILE([],
-                [#if (__IBMCPP__ < 900)
+                [#if (__IBMCPP__ < 600)
                  #error "Bad compiler"
                  #endif],
                 _BAD_COMPILER=,_BAD_COMPILER=1)
             if test -n "$_BAD_COMPILER"; then
                 AC_MSG_RESULT([no])    
-                AC_MSG_ERROR([IBM XLC/C++ 9.0.0.7 or higher is required to build.])
+                AC_MSG_ERROR([VisualAge C++ version 6.0.0.3 or higher is required to build.])
             else
                 AC_MSG_RESULT([yes])    
             fi
@@ -2410,8 +2317,7 @@ ia64*-hpux*)
     ##fi
 ;;
 
-
-*-mingw*|*-cygwin*|*-msvc*|*-mks*)
+*-mingw*)
     DSO_CFLAGS=
     DSO_PIC_CFLAGS=
     DLL_SUFFIX=.dll
@@ -2535,47 +2441,34 @@ ia64*-hpux*)
     no_x=yes
     AC_DEFINE(NO_X11)
 
-    dnl MinGW/MSYS doesn't provide or need cygpath
     case "$host" in
     *-mingw*)
-	CYGPATH_W=echo
-	CYGPATH_S=cat
-	MOZ_BUILD_ROOT=`cd $MOZ_BUILD_ROOT && pwd -W`
-	;;
-    *-cygwin*|*-msvc*|*-mks*)
-	CYGPATH_W="cygpath -a -w"
-	CYGPATH_S="sed -e s|\\\\|/|g"
-	MOZ_BUILD_ROOT=`$CYGPATH_W $MOZ_BUILD_ROOT | $CYGPATH_S`
-	;;
+        MOZ_BUILD_ROOT=`cd $MOZ_BUILD_ROOT && pwd -W`
+        ;;
     esac
+
     case "$host" in
-    *-mingw*|*-cygwin*|*-msvc*|*-mks*)
-
-    if test -z "$MOZ_TOOLS"; then
-        AC_MSG_ERROR([MOZ_TOOLS is not set])
-    fi
-
-    MOZ_TOOLS_DIR=`cd $MOZ_TOOLS && pwd -W`
-    if test "$?" != "0" -o -z "$MOZ_TOOLS_DIR"; then
-        AC_MSG_ERROR([cd \$MOZ_TOOLS failed. MOZ_TOOLS ==? $MOZ_TOOLS])
-    fi
-    MOZ_TOOLS_BIN_DIR="$(cd "$MOZ_TOOLS_DIR/bin" && pwd)"
-    if test `echo ${PATH}: | grep -ic "$MOZ_TOOLS_BINDIR:"` = 0; then
-        AC_MSG_ERROR([\$MOZ_TOOLS\\bin must be in your path.])
-    fi
-    MOZ_TOOLS_DIR=`$CYGPATH_W $MOZ_TOOLS_DIR | $CYGPATH_S`
-    ;;
+    *-mingw*)
+        if test -z "$MOZ_TOOLS"; then
+            AC_MSG_ERROR([MOZ_TOOLS is not set])
+        fi
+        MOZ_TOOLS_DIR=`cd $MOZ_TOOLS && pwd -W`
+        if test "$?" != "0" -o -z "$MOZ_TOOLS_DIR"; then
+            AC_MSG_ERROR([cd \$MOZ_TOOLS failed. MOZ_TOOLS ==? $MOZ_TOOLS])
+        fi
+        MOZ_TOOLS_BIN_DIR="$(cd "$MOZ_TOOLS_DIR/bin" && pwd)"
+        if test `echo ${PATH}: | grep -ic "$MOZ_TOOLS_BINDIR:"` = 0; then
+            AC_MSG_ERROR([\$MOZ_TOOLS\\bin must be in your path.])
+        fi
+        ;;
     esac 
-
 
     case "$host_os" in
     cygwin*|msvc*|mks*)
-        AC_MSG_WARN([Using a cygwin build environment is unsupported. Configure cannot check for the presence of necessary headers. Please upgrade to MozillaBuild; see https://developer.mozilla.org/en/Windows_Build_Prerequisites.])
+        AC_MSG_ERROR([Using a Cygwin build environment is unsupported. Configure cannot check for presence of necessary headers. Please upgrade to MozillaBuild; see https://developer.mozilla.org/en/Windows_Build_Prerequisites.])
         ;;
-
     *)
         AC_CHECK_HEADERS(oleacc.idl)
-
         AC_LANG_SAVE
         AC_LANG_CPLUSPLUS
         AC_CHECK_HEADERS(atlbase.h)
@@ -2592,13 +2485,7 @@ ia64*-hpux*)
         if test $_MSC_VER -ge 1400; then
             LDFLAGS="$LDFLAGS -SAFESEH"
         fi
-
-        if test -n "$GNU_CC"; then
-            CFLAGS="$CFLAGS -mstackrealign"
-            CXXFLAGS="$CXXFLAGS -mstackrealign"
-        fi
-
-        AC_CHECK_HEADERS(mmintrin.h)
+	AC_CHECK_HEADERS(mmintrin.h)
     	AC_DEFINE(_X86_)
 	;;
     alpha-*)
@@ -2936,8 +2823,6 @@ alpha*-*-osf*)
     else
         MOZ_OPTIMIZE_FLAGS="-Os -freorder-blocks -fno-reorder-functions -fno-omit-frame-pointer"
     fi
-    # The Maemo builders don't know about this flag
-    MOZ_ARM_VFP_FLAGS="-mfpu=vfp"
     ;;
 
 esac
@@ -2969,7 +2854,7 @@ case "$target" in
 *-openvms*)
     NO_LD_ARCHIVE_FLAGS=
     ;;
-*-msvc*|*-mks*|*-mingw*|*-cygwin*|*-wince|*-winmo)
+*-mingw*|*-wince|*-winmo)
     if test -z "$GNU_CC"; then
         NO_LD_ARCHIVE_FLAGS=
     fi
@@ -3003,7 +2888,7 @@ case "$target" in
     *-darwin*)
         MOZ_COMPONENTS_VERSION_SCRIPT_LDFLAGS='-Wl,-exported_symbols_list -Wl,$(BUILD_TOOLS)/gnu-ld-scripts/components-export-list'
         ;;
-    *-cygwin*|*-mingw*|*-mks*|*-msvc|*-wince|*-winmo)
+    *-mingw*|*-wince|*-winmo)
         if test -n "$GNU_CC"; then
            MOZ_COMPONENTS_VERSION_SCRIPT_LDFLAGS='-Wl,--version-script,$(BUILD_TOOLS)/gnu-ld-scripts/components-version-script'
         fi
@@ -3663,9 +3548,7 @@ AC_SUBST(XT_LIBS)
 AC_SUBST(XSS_LIBS)
 
 AC_MSG_CHECKING(for ARM SIMD support in compiler)
-# We try to link so that this also fails when
-# building with LTO.
-AC_TRY_LINK([],
+AC_TRY_COMPILE([],
                [asm("uqadd8 r1, r1, r2");],
                result="yes", result="no")
 AC_MSG_RESULT("$result")
@@ -3681,9 +3564,7 @@ if test "$GNU_CC"; then
   # gcc needs -mfpu=neon to recognize NEON instructions
   CFLAGS="$CFLAGS -mfpu=neon -mfloat-abi=softfp"
 fi
-# We try to link so that this also fails when
-# building with LTO.
-AC_TRY_LINK([],
+AC_TRY_COMPILE([],
                [asm("vadd.i8 d0, d0, d0");],
                result="yes", result="no")
 AC_MSG_RESULT("$result")
@@ -3974,7 +3855,7 @@ if test "$ac_cv_func_gnu_get_libc_version" = "yes"; then
 fi
 
 case $target_os in
-    os2*|msvc*|mks*|cygwin*|mingw*|darwin*|wince*|winmo*|beos*)
+    darwin*|mingw*|os2*|wince*|winmo*)
         ;;
     *)
     
@@ -4700,7 +4581,7 @@ MOZ_ARG_WITH_BOOL(system-nspr,
     _USE_SYSTEM_NSPR=1 )
 
 if test -n "$_USE_SYSTEM_NSPR"; then
-    AM_PATH_NSPR(4.8.7, [MOZ_NATIVE_NSPR=1], [AC_MSG_ERROR([your don't have NSPR installed or your version is too old])])
+    AM_PATH_NSPR(4.8.7, [MOZ_NATIVE_NSPR=1], [MOZ_NATIVE_NSPR=])
 fi
 
 if test -n "$MOZ_NATIVE_NSPR"; then
@@ -4777,7 +4658,7 @@ MOZ_ARG_WITH_BOOL(system-nss,
     _USE_SYSTEM_NSS=1 )
 
 if test -n "$_USE_SYSTEM_NSS"; then
-    AM_PATH_NSS(3.12.9, [MOZ_NATIVE_NSS=1], [AC_MSG_ERROR([you don't have NSS installed or your version is too old])])
+    AM_PATH_NSS(3.12.9, [MOZ_NATIVE_NSS=1], [MOZ_NATIVE_NSS=])
 fi
 
 if test -n "$MOZ_NATIVE_NSS"; then
@@ -4813,7 +4694,7 @@ AC_CHECK_PROGS(YASM, yasm, "")
 if test -n "$YASM"; then
   dnl Pull out yasm's version string
   changequote(,)
-  _YASM_VER_FILTER='s|.* \([0-9]\{1,\}\.[0-9]\{1,\}\.[0-9]\{1,\}\.[0-9]\{1,\}\).*|\1|p'
+  _YASM_VER_FILTER='s|.* \([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+\).*|\1|p'
   changequote([,])
 
   YASM_VERSION=`yasm --version | sed -ne "$_YASM_VER_FILTER"`
@@ -5105,7 +4986,7 @@ case "${target}" in
 esac
 
 case "$target_os" in
-    msvc*|mks*|cygwin*|mingw*)
+    mingw*)
         NS_ENABLE_TSF=1
         if test -z "$GNU_CC"; then 
             if test "$MOZ_WINSDK_TARGETVER" -lt "06000000"; then
@@ -5488,26 +5369,6 @@ incorrect])
       MOZ_ENABLE_QTNETWORK=1
       AC_DEFINE(MOZ_ENABLE_QTNETWORK)
     fi
-
-    MOZ_ENABLE_QTMOBILITY=
-    PKG_CHECK_MODULES(_QTMOBILITY, QtSensors,
-                      MOZ_ENABLE_QTMOBILITY=1,
-                      MOZ_ENABLE_QTMOBILITY=)
-    if test "$MOZ_ENABLE_QTMOBILITY"; then
-       MOZ_ENABLE_QTMOBILITY=1
-       MOZ_QT_CFLAGS="$MOZ_QT_CFLAGS $_QTMOBILITY_CFLAGS"
-       MOZ_QT_LIBS="$MOZ_QT_LIBS $_QTMOBILITY_LIBS"
-    else
-       AC_CHECK_LIB(QtSensors, main, [
-          MOZ_ENABLE_QTMOBILITY=1
-          MOZ_QT_CFLAGS="$MOZ_QT_CFLAGS -I/usr/include/qt4/QtMobility"
-          MOZ_QT_CFLAGS="$MOZ_QT_CFLAGS -I/usr/include/qt4/QtSensors"
-          MOZ_QT_LIBS="$MOZ_QT_LIBS -lQtSensors"
-       ])
-    fi
-    if test "$MOZ_ENABLE_QTMOBILITY"; then
-       AC_DEFINE(MOZ_ENABLE_QTMOBILITY)
-    fi
 fi
 
 AC_SUBST(GTK_CONFIG)
@@ -5518,12 +5379,12 @@ AC_SUBST(MOZ_ENABLE_GTK2)
 AC_SUBST(MOZ_ENABLE_PHOTON)
 AC_SUBST(MOZ_ENABLE_QT)
 AC_SUBST(MOZ_ENABLE_QTNETWORK)
-AC_SUBST(MOZ_ENABLE_QTMOBILITY)
 AC_SUBST(MOZ_ENABLE_XREMOTE)
 AC_SUBST(MOZ_GTK2_CFLAGS)
 AC_SUBST(MOZ_GTK2_LIBS)
 AC_SUBST(MOZ_QT_CFLAGS)
 AC_SUBST(MOZ_QT_LIBS)
+AC_SUBST(MOZ_ENABLE_MEEGOTOUCH)
 
 AC_SUBST(MOC)
 
@@ -5977,7 +5838,7 @@ fi
 
 if test -n "$ACCESSIBILITY" -a "$COMPILE_ENVIRONMENT" = "1"; then
 case "$target" in
-*-mingw*|*-cygwin*|*-msvc*|*-mks*)
+*-mingw*)
     if test "$ac_cv_header_atlbase_h" = "no"; then
         AC_MSG_ERROR([System header atlbase.h is not available. See http://developer.mozilla.org/en/docs/atlbase.h for details on fixing this problem.])
     fi
@@ -6377,11 +6238,6 @@ MOZ_ARG_ENABLE_BOOL(javaxpcom,
     MOZ_JAVAXPCOM=)
 
 case "$host_os" in
-  cygwin*|msvc*|mks*)
-    if test -n "$JAVA_HOME"; then
-      JAVA_HOME=`cygpath -u \`cygpath -m -s "$JAVA_HOME"\``
-    fi
-    ;;
   *mingw*)
     if test -n "$JAVA_HOME"; then
       JAVA_HOME=`cd "$JAVA_HOME" && pwd`
@@ -6437,28 +6293,10 @@ dnl = * enabled by default (shipping build); requires explicit --disable to disa
 dnl ========================================================
 MOZ_ANGLE=
 MOZ_DIRECTX_SDK_PATH=
-MOZ_DIRECTX_SDK_CPU_SUFFIX=
-MOZ_D3DX9_VERSION=
-MOZ_D3DX9_CAB=
-MOZ_D3DCOMPILER_CAB=
-MOZ_D3DX9_DLL=
-MOZ_D3DCOMPILER_DLL=
 case "$target_os" in
-    *msvc*|*mks*|*cygwin*|*mingw*)
-        MOZ_ANGLE=1
-        ;;
-esac
-
-# The DirectX SDK libraries are split into x86 and x64 sub-directories
-case "${target_cpu}" in
-i*86)
-  MOZ_DIRECTX_SDK_CPU_SUFFIX=x86
-  ;;
-x86_64)
-  MOZ_DIRECTX_SDK_CPU_SUFFIX=x64
-  # currently we disable ANGLE in 64bit builds
-  MOZ_ANGLE=
-  ;;
+*mingw*)
+    MOZ_ANGLE=1
+    ;;
 esac
 
 if test -n "$MOZ_ANGLE"; then
@@ -6472,41 +6310,23 @@ if test -n "$MOZ_ANGLE"; then
     AC_MSG_ERROR([Building ANGLE requires MSVC.  To build without ANGLE, reconfigure with --disable-angle.])
   fi
 
-  # Get the SDK path from the registry.
-  MOZ_DIRECTX_SDK_REG_KEY=`reg query 'HKLM\Software\Microsoft\DirectX' //s | grep 'Microsoft DirectX SDK' | head -n 1`
-  MOZ_DIRECTX_SDK_PATH=`reg query "$MOZ_DIRECTX_SDK_REG_KEY" //v InstallPath | grep REG_SZ | sed 's,  *, ,g' | cut -d' ' -f4-`
+  AC_CHECK_HEADER(d3dx9.h, [], [MOZ_ANGLE=])
 
-  MOZ_ANGLE=
-
-  if test -n "$MOZ_DIRECTX_SDK_PATH" ; then
-    if test -f "$MOZ_DIRECTX_SDK_PATH"/include/d3dx9.h && test -f "$MOZ_DIRECTX_SDK_PATH"/lib/$MOZ_DIRECTX_SDK_CPU_SUFFIX/dxguid.lib ; then
-      AC_MSG_RESULT([Found DirectX SDK via registry, using $MOZ_DIRECTX_SDK_PATH])
-      MOZ_ANGLE=1
+  if test -z "$MOZ_ANGLE"; then
+    # Try again, but try to get the SDK path from the registry.  We're going to hardcode
+    # the February 2010 SDK, since that's the one that's installed on the tinderboxen.
+    MOZ_DIRECTX_SDK_PATH=`reg query 'HKLM\Software\Microsoft\DirectX\Microsoft DirectX SDK (February 2010)' //v InstallPath | grep REG_SZ | sed 's,  *, ,g' | cut -d' ' -f4-`
+    if test -n "$MOZ_DIRECTX_SDK_PATH" ; then
+      if test -f "$MOZ_DIRECTX_SDK_PATH"/include/d3dx9.h && test -f "$MOZ_DIRECTX_SDK_PATH"/lib/x86/dxguid.lib ; then
+        AC_MSG_WARN([Found DirectX SDK in registry, using $MOZ_DIRECTX_SDK_PATH])
+        MOZ_ANGLE=1
+      fi
     fi
   fi
 
-  if test -z "$MOZ_ANGLE" ; then
-    AC_MSG_WARN([Couldn't find the DirectX SDK, needed for ANGLE. Please install it (February 2010 or newer). To explicitly build without ANGLE, reconfigure with --disable-angle.])
+  if test -z "$MOZ_ANGLE"; then
+    AC_MSG_WARN([Couldn't find d3dx9.h in your INCLUDE path, needed for ANGLE.  Please install the February 2010 DirectX SDK, or make another version available in your LIB and INCLUDE path env variables.  To explicitly build without ANGLE, reconfigure with --disable-angle.])
     AC_MSG_WARN([This will become an error in the future.])
-  fi
-
-  if test -n "$MOZ_ANGLE" ; then
-    # Get the SDK numeric version (e.g. 42 or 43) by looking at the dependencies of d3dx9.lib
-    MOZ_D3DX9_VERSION=`dumpbin //headers "$MOZ_DIRECTX_SDK_PATH"/lib/$MOZ_DIRECTX_SDK_CPU_SUFFIX/d3dx9.lib | egrep d3dx9_[[0-9]][[0-9]]\.dll | head -n1 | sed 's/.*\([[0-9]][[0-9]]\).*/\\1/g'`
-
-    if test -z "$MOZ_D3DX9_VERSION" ; then
-      MOZ_ANGLE=
-      AC_MSG_WARN([Couldn't determine the D3DX9 version! Disabling ANGLE.])
-      AC_MSG_WARN([This will become an error in the future.])
-    fi
-
-    if test -n "$MOZ_ANGLE" ; then
-      MOZ_D3DX9_CAB=`find "$MOZ_DIRECTX_SDK_PATH"/Redist -name *d3dx9_${MOZ_D3DX9_VERSION}_${MOZ_DIRECTX_SDK_CPU_SUFFIX}.cab | head -n1`
-      MOZ_D3DCOMPILER_CAB=`find "$MOZ_DIRECTX_SDK_PATH"/Redist -name *D3DCompiler_${MOZ_D3DX9_VERSION}_${MOZ_DIRECTX_SDK_CPU_SUFFIX}.cab | head -n1`
-
-      MOZ_D3DX9_DLL=d3dx9_$MOZ_D3DX9_VERSION.dll
-      MOZ_D3DCOMPILER_DLL=D3DCompiler_$MOZ_D3DX9_VERSION.dll
-    fi
   fi
 fi
 fi
@@ -6523,9 +6343,7 @@ i?86-apple-darwin*|powerpc-apple-darwin*|x86_64-apple-darwin*)
   MOZ_CRASHREPORTER=1
   ;;
 i?86-*-linux*|x86_64-*-linux*|arm-*-linux*)
-  if test "$MOZ_ENABLE_GTK2"; then
-    MOZ_CRASHREPORTER=1
-  fi
+  MOZ_CRASHREPORTER=1
   ;;
 arm-android-eabi)
   MOZ_CRASHREPORTER=1
@@ -6729,12 +6547,11 @@ if test -n "$MOZ_TREE_FREETYPE"; then
    AC_SUBST(CAIRO_FT_CFLAGS)
 fi
 
-
 dnl ========================================================
 dnl Installer
 dnl ========================================================
 case "$target_os" in
-    aix*|solaris*|linux*|msvc*|mks*|cygwin*|mingw*|os2*|wince*|winmo*)
+    aix*|solaris*|linux*|mingw*|os2*|wince*|winmo*)
         MOZ_INSTALLER=1
         ;;
 esac
@@ -6768,7 +6585,6 @@ if test -n "$MOZ_INSTALLER" -a "$OS_ARCH" = "WINNT"; then
         AC_MSG_ERROR([To build the installer you must have the latest MozillaBuild or Unicode NSIS with a major version of $REQ_NSIS_MAJOR_VER and a minimum minor version of $MIN_NSIS_MINOR_VER in your path. To build without the installer reconfigure using --disable-installer.])
     fi
     AC_MSG_RESULT([yes])
-    MAKENSISU="${CYGWIN_WRAPPER} $MAKENSISU"
 fi
 
 AC_SUBST(MOZ_INSTALLER)
@@ -6852,7 +6668,7 @@ fi
 if test "$COMPILE_ENVIRONMENT" = "1"; then
 if test -n "$XPC_IDISPATCH_SUPPORT" -o -n "$MOZ_ACTIVEX_SCRIPTING_SUPPORT" -o -z "$MOZ_NO_ACTIVEX_SUPPORT"; then
 case "$target" in
-*-mingw*|*-cygwin*|*-msvc*|*-mks*)
+*-mingw*)
     if test "$ac_cv_header_atlbase_h" = "no"; then
         AC_MSG_ERROR([System header atlbase.h is not available. See http://developer.mozilla.org/en/docs/atlbase.h for details on fixing this problem.])
     fi
@@ -7232,27 +7048,19 @@ if test $MOZ_PLATFORM_MAEMO; then
 
    fi
    if test $MOZ_PLATFORM_MAEMO = 6; then
-      dnl ========================================================
-      dnl = Enable meego libcontentaction
-      dnl ========================================================
-      MOZ_ARG_ENABLE_BOOL(meegocontentaction,
-      [  --enable-meegocontentaction           Enable meegocontentaction support],
-         MOZ_MEEGOCONTENTACTION=1,
-         MOZ_MEEGOCONTENTACTION=)
-
-      if test -n "$MOZ_MEEGOCONTENTACTION"; then
-
-         PKG_CHECK_MODULES(LIBCONTENTACTION, contentaction-0.1, _LIB_FOUND=1, _LIB_FOUND=)
-         if test "$_LIB_FOUND"; then
-            MOZ_PLATFORM_MAEMO_LIBS="$MOZ_PLATFORM_MAEMO_LIBS $LIBCONTENTACTION_LIBS"
-            MOZ_PLATFORM_MAEMO_CFLAGS="$MOZ_PLATFORM_MAEMO_CFLAGS $LIBCONTENTACTION_CFLAGS"
-            MOZ_ENABLE_CONTENTACTION=1
-            AC_DEFINE(MOZ_ENABLE_CONTENTACTION)
-            AC_SUBST(MOZ_ENABLE_CONTENTACTION)
-         fi
+      PKG_CHECK_MODULES(LIBCONTENTACTION, contentaction-0.1, _LIB_FOUND=1, _LIB_FOUND=)
+      MOZ_PLATFORM_MAEMO_LIBS="$MOZ_PLATFORM_MAEMO_LIBS $LIBCONTENTACTION_LIBS"
+      MOZ_PLATFORM_MAEMO_CFLAGS="$MOZ_PLATFORM_MAEMO_CFLAGS $LIBCONTENTACTION_CFLAGS"
+      if test -z "$_LIB_FOUND"; then
+         AC_MSG_ERROR([libcontentaction is required when build for Maemo])
       fi
-
-      MOZ_THUMB2=1
+     
+     MOZ_THUMB2=1
+     PKG_CHECK_MODULES(MOZ_MEEGOTOUCH, meegotouchcore)
+     MOZ_ENABLE_MEEGOTOUCH=1
+     AC_DEFINE(MOZ_ENABLE_MEEGOTOUCH)
+     MOZ_QT_CFLAGS="$MOZ_MEEGOTOUCH_CFLAGS $MOZ_QT_CFLAGS"
+     MOZ_QT_LIBS="$MOZ_MEEGOTOUCH_LIBS $MOZ_QT_LIBS"
    fi
 
    PKG_CHECK_MODULES(LIBLOCATION,liblocation, _LIB_FOUND=1, _LIB_FOUND=)
@@ -7314,9 +7122,9 @@ if test -n "$MOZ_THUMB2"; then
       if test "$GNU_CC"; then
         AC_DEFINE(MOZ_THUMB2)
         AC_DEFINE(MOZ_ARM_ARCH)
-        CFLAGS="$CFLAGS -march=armv7-a -mthumb -mfloat-abi=softfp $MOZ_ARM_VFP_FLAGS"
-        CXXFLAGS="$CXXFLAGS -march=armv7-a -mthumb -mfloat-abi=softfp $MOZ_ARM_VFP_FLAGS"
-        ASFLAGS="$ASFLAGS -march=armv7-a -mthumb -mfloat-abi=softfp $MOZ_ARM_VFP_FLAGS"
+        CFLAGS="$CFLAGS -march=armv7-a -mthumb -Wa, -march=armv7-a -Wa, -mthumb"
+        CXXFLAGS="$CXXFLAGS -march=armv7-a -mthumb -Wa, -march=armv7-a -Wa, -mthumb"
+        ASFLAGS="$ASFLAGS -march=armv7-a -mthumb"
       else
         AC_MSG_ERROR([--enable-thumb2 is not supported for non-GNU toolchains])
       fi
@@ -7330,9 +7138,9 @@ elif test "$MOZ_ARM_ARCH" = "armv7"; then
     arm*)
       if test "$GNU_CC"; then
         AC_DEFINE(MOZ_ARM_ARCH)
-        CFLAGS="$CFLAGS -march=armv7-a -marm -mfloat-abi=softfp $MOZ_ARM_VFP_FLAGS"
-        CXXFLAGS="$CXXFLAGS -march=armv7-a -marm -mfloat-abi=softfp $MOZ_ARM_VFP_FLAGS"
-        ASFLAGS="$ASFLAGS -march=armv7-a -marm -mfloat-abi=softfp $MOZ_ARM_VFP_FLAGS"
+        CFLAGS="$CFLAGS -march=armv7-a -marm -Wa, -march=armv7-a -Wa, -marm"
+        CXXFLAGS="$CXXFLAGS -march=armv7-a -marm -Wa, -march=armv7-a -Wa, -marm"
+        ASFLAGS="$ASFLAGS -march=armv7-a -marm"
       else
         AC_MSG_ERROR([--with-cpu-arch=armv7 is not supported for non-GNU toolchains])
       fi
@@ -7345,9 +7153,9 @@ else
   case "$target_cpu" in
     arm*)
       if test "$GNU_CC"; then
-        CFLAGS="$CFLAGS -march=armv5te -mthumb-interwork -msoft-float"
-        CXXFLAGS="$CXXFLAGS -march=armv5te -mthumb-interwork -msoft-float"
-        ASFLAGS="$ASFLAGS -march=armv5te -mthumb-interwork -msoft-float"
+        CFLAGS="$CFLAGS -march=armv5te -mthumb-interwork -Wa, -march=armv5te -Wa, -mthumb-interwork"
+        CXXFLAGS="$CXXFLAGS -march=armv5te -mthumb-interwork -Wa, -march=armv5te -Wa, -mthumb-interwork"
+        ASFLAGS="$ASFLAGS -march=armv5te -mthumb-interwork"
       fi
       ;;
   esac
@@ -7630,7 +7438,7 @@ if test "$MOZ_MEMORY"; then
   *-solaris*)
     AC_DEFINE(MOZ_MEMORY_SOLARIS)
     ;;
-  *-msvc*|*-mks*|*-cygwin*|*-mingw*)
+  *-mingw*)
     AC_DEFINE(MOZ_MEMORY_WINDOWS)
     dnl This is sort of awful. Will revisit if we add support for more versions
     if test "$CC_VERSION" != "14.00.50727.762" -a "$CC_VERSION" != "15.00.30729.01"; then
@@ -7762,6 +7570,74 @@ if test -n "$MOZ_GCTIMER"; then
 fi
 
 dnl ========================================================
+dnl = Use Valgrind
+dnl ========================================================
+MOZ_ARG_ENABLE_BOOL(valgrind,
+[  --enable-valgrind       Enable Valgrind integration hooks (default=no)],
+    MOZ_VALGRIND=1,
+    MOZ_VALGRIND= )
+if test -n "$MOZ_VALGRIND"; then
+    AC_CHECK_HEADER([valgrind/valgrind.h], [],
+        AC_MSG_ERROR(
+            [--enable-valgrind specified but Valgrind is not installed]))
+    AC_DEFINE(MOZ_VALGRIND)
+fi
+
+dnl ========================================================
+dnl jprof
+dnl ========================================================
+MOZ_ARG_ENABLE_BOOL(jprof,
+[  --enable-jprof          Enable jprof profiling tool (needs mozilla/tools/jprof). Implies --enable-profiling.],
+    MOZ_JPROF=1,
+    MOZ_JPROF= )
+if test -n "$MOZ_JPROF"; then
+    MOZ_PROFILING=1
+    AC_DEFINE(MOZ_JPROF)
+fi
+
+dnl ========================================================
+dnl shark
+dnl ========================================================
+MOZ_ARG_ENABLE_BOOL(shark,
+[  --enable-shark          Enable shark remote profiling. Implies --enable-profiling.],
+    MOZ_SHARK=1,
+    MOZ_SHARK= )
+if test -n "$MOZ_SHARK"; then
+    MOZ_PROFILING=1
+    AC_DEFINE(MOZ_SHARK)
+fi
+
+dnl ========================================================
+dnl callgrind
+dnl ========================================================
+MOZ_ARG_ENABLE_BOOL(callgrind,
+[  --enable-callgrind      Enable callgrind profiling],
+    MOZ_CALLGRIND=1,
+    MOZ_CALLGRIND= )
+if test -n "$MOZ_CALLGRIND"; then
+    AC_DEFINE(MOZ_CALLGRIND)
+fi
+
+dnl ========================================================
+dnl vtune
+dnl ========================================================
+MOZ_ARG_ENABLE_BOOL(vtune,
+[  --enable-vtune          Enable vtune profiling. Implies --enable-profiling.],
+    MOZ_VTUNE=1,
+    MOZ_VTUNE= )
+if test -n "$MOZ_VTUNE"; then
+    MOZ_PROFILING=1
+    AC_DEFINE(MOZ_VTUNE)
+fi
+
+dnl ========================================================
+dnl Profiling
+dnl ========================================================
+if test -n "$MOZ_PROFILING"; then
+    AC_DEFINE(MOZ_PROFILING)
+fi
+
+dnl ========================================================
 dnl Zealous JavaScript GC
 dnl ========================================================
 MOZ_ARG_ENABLE_BOOL(gczeal,
@@ -7840,16 +7716,6 @@ MOZ_ARG_ENABLE_BOOL(elf-dynstr-gc,
 [  --enable-elf-dynstr-gc  Enable elf dynstr garbage collector (opt builds only)],
     USE_ELF_DYNSTR_GC=1,
     USE_ELF_DYNSTR_GC= )
-
-dnl ========================================================
-dnl = --disable-elf-hack
-dnl ========================================================
-
-USE_ELF_HACK=
-MOZ_ARG_DISABLE_BOOL(elf-hack,
-[  --disable-elf-hack      Disable elf hacks],
-    USE_ELF_HACK=,
-    USE_ELF_HACK=1)
 
 dnl ========================================================
 dnl = 
@@ -8384,7 +8250,7 @@ MOZ_ARG_ENABLE_BOOL(libxul,
     MOZ_ENABLE_LIBXUL=)
 
 # split JS out by default to avoid VS2005 PGO crash (bug 591836).
-if test "$OS_ARCH" = "WINNT" -a "$CPU_ARCH" != "x86_64" ; then
+if test "$OS_ARCH" = "WINNT"; then
   ENABLE_SHARED_JS=1
 fi
 
@@ -8469,14 +8335,13 @@ if test "$SKIP_IDL_CHECK" = "no"
 then
     _LIBIDL_FOUND=
     case "$host" in
-    *-mingw*|*-cygwin*|*-msvc*|*-mks*)
+    *-mingw*)
         if test -n "$GLIB_PREFIX"; then
             _GLIB_PREFIX_DIR=`cd $GLIB_PREFIX && pwd -W`
             if test "$?" = "0"; then
                 if test `echo ${PATH}: | grep -ic "$_GLIB_PREFIX_DIR/bin:"` = 0; then
                     AC_MSG_ERROR([GLIB_PREFIX must be in your \$PATH.])
                 fi
-                _GLIB_PREFIX_DIR=`$CYGPATH_W $_GLIB_PREFIX_DIR | $CYGPATH_S`
             else
                  AC_MSG_ERROR([GLIB_PREFIX is set but "${GLIB_PREFIX}" is not a directory.])
             fi
@@ -8501,7 +8366,6 @@ then
                 if test `echo ${PATH}: | grep -ic "$_LIBIDL_PREFIX_DIR/bin:"` = 0; then
                     AC_MSG_ERROR([LIBIDL_PREFIX must be in your \$PATH.])
                 fi
-                _LIBIDL_PREFIX_DIR=`$CYGPATH_W $_LIBIDL_PREFIX_DIR | $CYGPATH_S`
             else
                 AC_MSG_ERROR([LIBIDL_PREFIX is set but "${LIBIDL_PREFIX}" is not a directory.])
             fi
@@ -8610,7 +8474,7 @@ fi
 
 if test -n "$CROSS_COMPILE"; then
     case "$target" in
-    *-mingw*|*-cygwin*|*-msvc*|*-mks*)
+    *-mingw*)
         if test -n "$GLIB_PREFIX"; then
             GLIB_CFLAGS="-I${GLIB_PREFIX}/include"
             if test -f "${GLIB_PREFIX}/lib/glib-1.2_s.lib"; then
@@ -8817,7 +8681,6 @@ else
    PKG_CHECK_MODULES(CAIRO, cairo >= $CAIRO_VERSION pixman-1 freetype2 fontconfig)
    MOZ_CAIRO_CFLAGS=$CAIRO_CFLAGS
    MOZ_CAIRO_LIBS=$CAIRO_LIBS
-   PKG_CHECK_MODULES(CAIRO_TEE, cairo-tee >= $CAIRO_VERSION)
    if test "$MOZ_X11"; then
         PKG_CHECK_MODULES(CAIRO_XRENDER, cairo-xlib-xrender >= $CAIRO_VERSION)
         MOZ_CAIRO_LIBS="$MOZ_CAIRO_LIBS $XLDFLAGS $CAIRO_XRENDER_LIBS"
@@ -9123,17 +8986,10 @@ AC_SUBST(MOZ_CRASHREPORTER)
 AC_SUBST(MOZ_UPDATER)
 AC_SUBST(MOZ_ANGLE)
 AC_SUBST(MOZ_DIRECTX_SDK_PATH)
-AC_SUBST(MOZ_DIRECTX_SDK_CPU_SUFFIX)
-AC_SUBST(MOZ_D3DX9_VERSION)
-AC_SUBST(MOZ_D3DX9_CAB)
-AC_SUBST(MOZ_D3DCOMPILER_CAB)
-AC_SUBST(MOZ_D3DX9_DLL)
-AC_SUBST(MOZ_D3DCOMPILER_DLL)
 
 AC_SUBST(ENABLE_STRIP)
 AC_SUBST(PKG_SKIP_STRIP)
 AC_SUBST(USE_ELF_DYNSTR_GC)
-AC_SUBST(USE_ELF_HACK)
 AC_SUBST(INCREMENTAL_LINKER)
 AC_SUBST(MOZ_COMPONENTS_VERSION_SCRIPT_LDFLAGS)
 AC_SUBST(MOZ_JEMALLOC_STANDALONE_GLUE_LDOPTS)
@@ -9175,8 +9031,6 @@ dnl win32 options
 AC_SUBST(MOZ_MAPINFO)
 AC_SUBST(MOZ_BROWSE_INFO)
 AC_SUBST(MOZ_TOOLS_DIR)
-AC_SUBST(CYGWIN_WRAPPER)
-AC_SUBST(AS_PERL)
 AC_SUBST(WIN32_REDIST_DIR)
 AC_SUBST(PYTHON)
 AC_SUBST(MAKENSISU)
@@ -9255,7 +9109,6 @@ AC_SUBST(HOST_CC)
 AC_SUBST(HOST_CXX)
 AC_SUBST(HOST_CFLAGS)
 AC_SUBST(HOST_CXXFLAGS)
-AC_SUBST(HOST_LDFLAGS)
 AC_SUBST(HOST_OPTIMIZE_FLAGS)
 AC_SUBST(HOST_AR)
 AC_SUBST(HOST_AR_FLAGS)
@@ -9429,29 +9282,12 @@ if test "$ACCESSIBILITY" -a "$MOZ_ENABLE_GTK2" ; then
     AC_DEFINE_UNQUOTED(ATK_REV_VERSION, $ATK_REV_VERSION)
 fi
 
-dnl ========================================================
-dnl Use cygwin wrapper for win32 builds, except MSYS/MinGW
-dnl ========================================================
 case "$host_os" in
 mingw*)
     WIN_TOP_SRC=`cd $srcdir; pwd -W`
     ;;
-cygwin*|msvc*|mks*)
-    HOST_CC="\$(CYGWIN_WRAPPER) $HOST_CC"
-    HOST_CXX="\$(CYGWIN_WRAPPER) $HOST_CXX"
-    CC="\$(CYGWIN_WRAPPER) $CC"
-    CXX="\$(CYGWIN_WRAPPER) $CXX"
-    CPP="\$(CYGWIN_WRAPPER) $CPP"
-    LD="\$(CYGWIN_WRAPPER) $LD"
-    AS="\$(CYGWIN_WRAPPER) $AS"
-    RC="\$(CYGWIN_WRAPPER) $RC"
-    MIDL="\$(CYGWIN_WRAPPER) $MIDL"
-    CYGDRIVE_MOUNT=`mount -p | awk '{ if (/^\//) { print $1; exit } }'`
-    WIN_TOP_SRC=`cygpath -a -w $srcdir | sed -e 's|\\\\|/|g'`
-    ;;
 esac
 
-AC_SUBST(CYGDRIVE_MOUNT)
 AC_SUBST(WIN_TOP_SRC)
 
 AC_SUBST(MOZILLA_VERSION)
@@ -9563,11 +9399,7 @@ dnl This does not change the $MAKEFILES variable.
 dnl
 dnl OpenVMS gets a line overflow on the long eval command, so use a temp file.
 dnl
-if test -z "${AS_PERL}"; then
 echo $MAKEFILES | ${PERL} $srcdir/build/autoconf/acoutput-fast.pl > conftest.sh
-else
-echo $MAKEFILES | ${PERL} $srcdir/build/autoconf/acoutput-fast.pl -nowrap --cygwin-srcdir=$srcdir > conftest.sh
-fi
 . ./conftest.sh
 rm conftest.sh
 
@@ -9687,7 +9519,6 @@ if test "$MOZ_MEMORY"; then
      export MOZ_MEMORY_LDFLAGS
    fi
 fi
-export MOZ_APP_NAME
 AC_OUTPUT_SUBDIRS(js/src)
 ac_configure_args="$_SUBDIR_CONFIG_ARGS"
 
@@ -9701,4 +9532,3 @@ if cmp -s config/autoconf.mk config/autoconf.mk.orig; then
 else
   rm -f config/autoconf.mk.orig 2> /dev/null
 fi
-

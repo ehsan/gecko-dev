@@ -383,13 +383,10 @@ protected:
     // |aReplaceEntry|.  |aSrcShell| is a (possibly null) docshell which
     // corresponds to |aSrcEntry| via its mLSHE or mOHE pointers, and will
     // have that pointer updated to point to the cloned history entry.
-    // If aCloneChildren is true then the children of the entry with id
-    // |aCloneID| will be cloned into |aReplaceEntry|.
     static nsresult CloneAndReplace(nsISHEntry *aSrcEntry,
                                     nsDocShell *aSrcShell,
                                     PRUint32 aCloneID,
                                     nsISHEntry *aReplaceEntry,
-                                    PRBool aCloneChildren,
                                     nsISHEntry **aDestEntry);
 
     // Child-walking callback for CloneAndReplace
@@ -564,10 +561,10 @@ protected:
                                  nsIChannel * aChannel,
                                  nsresult aResult);
 
-    // Sets the current document's current state object to the given SHEntry's
-    // state object.  The current state object is eventually given to the page
+    // Sets the current document's pending state object to the given SHEntry's
+    // state object.  The pending state object is eventually given to the page
     // in the PopState event.
-    nsresult SetDocCurrentStateObj(nsISHEntry *shEntry);
+    nsresult SetDocPendingStateObj(nsISHEntry *shEntry);
 
     nsresult CheckLoadingPermissions();
 
@@ -795,7 +792,6 @@ protected:
     PRPackedBool               mIsOffScreenBrowser;
     PRPackedBool               mIsActive;
     PRPackedBool               mIsAppTab;
-    PRPackedBool               mUseGlobalHistory;
 
     // This boolean is set to true right before we fire pagehide and generally
     // unset when we embed a new content viewer.  While it's true no navigation

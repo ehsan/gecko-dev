@@ -182,47 +182,10 @@
           if (!window.gShowPageResizers)
             return;
 
-          var show = document.getElementById("addon-bar").collapsed &&
-                     window.windowState == window.STATE_NORMAL;
+          var show = document.getElementById("addon-bar").collapsed;
           for (let i = 0; i < this.browsers.length; i++) {
             this.browsers[i].showWindowResizer = show;
           }
-        ]]></body>
-      </method>
-
-      <method name="_setCloseKeyState">
-        <parameter name="aEnabled"/>
-        <body><![CDATA[
-          let keyClose = document.getElementById("key_close");
-          let closeKeyEnabled = keyClose.getAttribute("disabled") != "true";
-          if (closeKeyEnabled == aEnabled)
-            return;
-
-          if (aEnabled)
-            keyClose.removeAttribute("disabled");
-          else
-            keyClose.setAttribute("disabled", "true");
-
-          // We also want to remove the keyboard shortcut from the file menu
-          // when the shortcut is disabled, and bring it back when it's
-          // renabled.
-          //
-          // Fixing bug 630826 could make that happen automatically.
-          // Fixing bug 630830 could avoid the ugly hack below.
-          
-          let closeMenuItem = document.getElementById("menu_close");
-          let parentPopup = closeMenuItem.parentNode;
-          let nextItem = closeMenuItem.nextSibling;
-          let clonedItem = closeMenuItem.cloneNode(true);
-
-          parentPopup.removeChild(closeMenuItem);
-
-          if (aEnabled)
-            clonedItem.setAttribute("key", "key_close");
-          else
-            clonedItem.removeAttribute("key");
-
-          parentPopup.insertBefore(clonedItem, nextItem);
         ]]></body>
       </method>
 
@@ -241,9 +204,6 @@
           this.tabContainer.adjustTabstrip();
 
           this.getBrowserForTab(aTab).docShell.isAppTab = true;
-
-          if (aTab.selected)
-            this._setCloseKeyState(false);
 
           let event = document.createEvent("Events");
           event.initEvent("TabPinned", true, false);
@@ -265,9 +225,6 @@
           this.tabContainer.adjustTabstrip();
 
           this.getBrowserForTab(aTab).docShell.isAppTab = false;
-
-          if (aTab.selected)
-            this._setCloseKeyState(true);
 
           let event = document.createEvent("Events");
           event.initEvent("TabUnpinned", true, false);
@@ -934,9 +891,6 @@
                                           true, false);
             }
 
-            if (this.mCurrentTab.selected)
-              this._setCloseKeyState(!this.mCurrentTab.pinned);
-
             // TabSelect events are suppressed during preview mode to avoid confusing extensions and other bits of code
             // that might rely upon the other changes suppressed.
             // Focus is suppressed in the event that the main browser window is minimized - focusing a tab would restore the window
@@ -1271,6 +1225,15 @@
 
             this.tabContainer.appendChild(t);
 
+            if (this.tabContainer.mTabstrip._isRTLScrollbox) {
+              /* In RTL UI, the tab is visually added to the left side of the
+               * tabstrip. This means the tabstip has to be scrolled back in
+               * order to make sure the same set of tabs is visible before and
+               * after the new tab is added.  See bug 508816. */
+
+              this.tabContainer.mTabstrip.scrollByPixels(t.clientWidth);
+            }
+
             // invalidate cache, because tabContainer is about to change
             this._browsers = null;
 
@@ -1286,8 +1249,7 @@
             b.setAttribute("contextmenu", this.getAttribute("contentcontextmenu"));
             b.setAttribute("tooltip", this.getAttribute("contenttooltip"));
 
-            if (window.gShowPageResizers && document.getElementById("addon-bar").collapsed &&
-                window.windowState == window.STATE_NORMAL) {
+            if (window.gShowPageResizers && document.getElementById("addon-bar").collapsed) {
               b.setAttribute("showresizer", "true");
             }
 
@@ -2658,7 +2620,7 @@
     </resources>
 
     <content>
-      <xul:hbox align="end">
+      <xul:hbox align="start">
         <xul:image class="tab-drop-indicator" anonid="tab-drop-indicator" collapsed="true"/>
       </xul:hbox>
       <xul:arrowscrollbox anonid="arrowscrollbox" orient="horizontal" flex="1"
@@ -2902,7 +2864,6 @@
                 this._handleTabSelect();
                 this.mTabstripWidth = width;
               }
-              this.tabbrowser.updateWindowResizers();
               break;
           }
         ]]></body>
@@ -3092,16 +3053,7 @@
       ]]></handler>
 
       <handler event="dblclick"><![CDATA[
-#ifdef MOZ_WIDGET_GTK2
-        // Disable this on GTK2 when the menubar is draggable, since (a)
-        // the menubar and tabbbar have unified appearance and should
-        // thus not have different behavior (though this condition alone
-        // applies to more cases) and (b) it interacts badly with the
-        // drag handling that we use for dragging either one.
-        if (this.parentNode._dragBindingAlive)
-          return;
-#endif
-        // See hack note in the tabbrowser-close-tab-button binding
+        // See hack note in the tabbrowser-close-button binding
         if (!this._blockDblClick && event.button == 0 &&
             event.originalTarget.localName == "box")
           BrowserOpenTab();
@@ -3266,6 +3218,7 @@
 
         ind.style.MozTransform = "translate(" + Math.round(newMargin) + "px)";
         ind.style.MozMarginStart = (-ind.clientWidth) + "px";
+        ind.style.marginTop = (-ind.clientHeight) + "px";
       ]]></handler>
 
       <handler event="drop"><![CDATA[
@@ -3705,13 +3658,11 @@
       <handler event="popuphidden">
       <![CDATA[
         // clear out the menu popup and remove the listeners
-        for (let i = this.childNodes.length - 1; i > 0; i--) {
-          let menuItem = this.childNodes[i];
-          if (!menuItem.hasAttribute("keepme")) {
-            menuItem.removeEventListener("command", this, false);
-            menuItem.tab.mCorrespondingMenuitem = null;
-            this.removeChild(menuItem);
-          }
+        while (this.hasChildNodes()) {
+          var menuItem = this.lastChild;
+          menuItem.removeEventListener("command", this, false);
+          menuItem.tab.mCorrespondingMenuitem = null;
+          this.removeChild(menuItem);
         }
         var tabcontainer = gBrowser.tabContainer;
         tabcontainer.mTabstrip.removeEventListener("scroll", this, false);
@@ -3736,72 +3687,6 @@
         XULBrowserWindow.setOverLink("", null);
       ]]></handler>
 
-    </handlers>
-  </binding>
-
-  <binding id="statuspanel" display="xul:hbox">
-    <content>
-      <xul:hbox class="statuspanel-inner">
-        <xul:label class="statuspanel-label"
-                   role="status"
-                   xbl:inherits="value=label,crop,mirror"
-                   flex="1"
-                   crop="end"/>
-      </xul:hbox>
-    </content>
-
-    <implementation implements="nsIDOMEventListener">
-      <constructor><![CDATA[
-        window.addEventListener("findbaropen", this, false);
-      ]]></constructor>
-
-      <destructor><![CDATA[
-        window.removeEventListener("findbaropen", this, false);
-      ]]></destructor>
-
-      <property name="label">
-        <setter><![CDATA[
-          if (!this.label) {
-            if (window.gFindBarInitialized && !window.gFindBar.hidden)
-              this.setAttribute("mirror", "true");
-            else
-              this.removeAttribute("mirror");
-          }
-
-          this.style.minWidth = this.getAttribute("type") == "status" &&
-                                this.getAttribute("previoustype") == "status"
-                                  ? getComputedStyle(this).width : "";
-
-          this.setAttribute("label", val);
-          return val;
-        ]]></setter>
-        <getter>
-          return this.getAttribute("label");
-        </getter>
-      </property>
-
-      <method name="handleEvent">
-        <parameter name="event"/>
-        <body><![CDATA[
-          if (event.type == "findbaropen" &&
-              this.label)
-            this.setAttribute("mirror", "true");
-        ]]></body>
-      </method>
-
-      <method name="_mirror">
-        <body>
-          if (this.hasAttribute("mirror"))
-            this.removeAttribute("mirror");
-          else
-            this.setAttribute("mirror", "true");
-        </body>
-      </method>
-    </implementation>
-
-    <handlers>
-      <handler event="mouseover" action="this._mirror();"/>
-      <handler event="dragover" action="this._mirror();"/>
     </handlers>
   </binding>
 

@@ -15,13 +15,12 @@
  *
  * The Original Code is Mozilla code.
  *
- * The Initial Developer of the Original Code is
- * the Mozilla Foundation.
+ * The Initial Developer of the Original Code is the Mozilla Corporation.
  * Portions created by the Initial Developer are Copyright (C) 2007
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   Chris Double <chris.double@double.co.nz>
+ *  Chris Double <chris.double@double.co.nz>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -288,7 +287,7 @@ class AudioShutdownEvent : public nsRunnable
   NS_IMETHOD Run()
   {
     if (mAudioChild->IsIPCOpen())
-      mAudioChild->SendShutdown();
+      PAudioChild::Send__delete__(mAudioChild);
     return NS_OK;
   }
   
@@ -513,8 +512,6 @@ void nsAudioStreamLocal::SetVolume(double aVolume)
 
 void nsAudioStreamLocal::Drain()
 {
-  NS_ASSERTION(!mPaused, "Don't drain audio when paused, it won't finish!");
-
   if (mInError)
     return;
 
@@ -604,8 +601,8 @@ nsAudioStreamRemote::nsAudioStreamRemote()
    mFormat(FORMAT_S16_LE),
    mRate(0),
    mChannels(0),
-   mBytesPerSample(1),
-   mPaused(PR_FALSE)
+   mPaused(PR_FALSE),
+   mBytesPerSample(1)
 {}
 
 nsAudioStreamRemote::~nsAudioStreamRemote()

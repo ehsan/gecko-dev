@@ -253,10 +253,10 @@
     <box id="view-port-container" flex="1">
 
       <!-- view port -->
-      <deck id="view-port" flex="1" selectedIndex="0">
+      <deck id="view-port" flex="1">
 
         <!-- discover view -->
-        <deck id="discover-view" flex="1" class="view-pane" selectedIndex="0">
+        <deck id="discover-view" flex="1" class="view-pane">
           <vbox id="discover-loading" align="center" pack="stretch" flex="1" class="alert-container">
             <spacer class="alert-spacer-before"/>
             <hbox class="alert loading" align="center">
@@ -393,6 +393,9 @@
                       command="cmd_enableUpdateSecurity"/>
               <spacer flex="5000"/> <!-- Necessary to allow the message to wrap -->
             </hbox>
+            <spacer flex="1"/>
+            <hbox id="list-sorters" class="sort-controls" sortby="name"
+                  ascending="true"/>
           </hbox>
           <vbox id="addon-list-empty" class="alert-container"
                 flex="1" hidden="true">
@@ -577,6 +580,7 @@
                        <column flex="2"/>
                     </columns>
                     <rows>
+                      <row class="detail-row" id="detail-dateUpdated" label="&detail.lastupdated.label;"/>
                       <row class="detail-row-complex" id="detail-updates-row">
                         <label class="detail-row-label" value="&detail.updateType;"/>
                         <hbox align="center">
@@ -600,7 +604,6 @@
                                   command="cmd_findItemUpdates"/>
                         </hbox>
                       </row>
-                      <row class="detail-row" id="detail-dateUpdated" label="&detail.lastupdated.label;"/>
                       <row class="detail-row-complex" id="detail-homepage-row" label="&detail.home;">
                         <label class="detail-row-label" value="&detail.home;"/>
                         <label id="detail-homepage" class="detail-row-value text-link" crop="end"/>

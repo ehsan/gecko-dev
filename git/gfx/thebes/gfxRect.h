@@ -114,14 +114,7 @@ struct THEBES_API gfxRect {
     gfxRect Union(const gfxRect& aRect) const;
     PRBool Contains(const gfxRect& aRect) const;
     PRBool Contains(const gfxPoint& aPoint) const;
-
-    /**
-     * Return true if all components of this rect are within
-     * aEpsilon of integer coordinates, defined as
-     *   |round(coord) - coord| <= |aEpsilon|
-     * for x,y,width,height.
-     */
-    PRBool WithinEpsilonOfIntegerPixels(gfxFloat aEpsilon) const;
+    // XXX figure out what methods (intersect, union, etc) we use and add them.
 
     gfxPoint TopLeft() { return pos; }
     gfxPoint BottomRight() { return gfxPoint(XMost(), YMost()); }

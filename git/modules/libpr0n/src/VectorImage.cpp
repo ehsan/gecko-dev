@@ -163,14 +163,14 @@ SVGDrawingCallback::operator()(gfxContext* aContext,
   }
   NS_ABORT_IF_FALSE(presShell, "GetPresShell succeeded but returned null");
 
-  gfxContextAutoSaveRestore contextRestorer(aContext);
+  aContext->Save();
 
   // Clip to aFillRect so that we don't paint outside.
   aContext->NewPath();
   aContext->Rectangle(aFillRect);
   aContext->Clip();
+  gfxMatrix savedMatrix(aContext->CurrentMatrix());
 
-  gfxContextMatrixAutoSaveRestore contextMatrixRestorer(aContext);
   aContext->Multiply(gfxMatrix(aTransform).Invert());
 
 
@@ -190,6 +190,9 @@ SVGDrawingCallback::operator()(gfxContext* aContext,
   presShell->RenderDocument(svgRect, renderDocFlags,
                             NS_RGBA(0, 0, 0, 0), // transparent
                             aContext);
+
+  aContext->SetMatrix(savedMatrix);
+  aContext->Restore();
 
   return PR_TRUE;
 }
@@ -536,7 +539,7 @@ VectorImage::Draw(gfxContext* aContext,
     mSVGDocumentWrapper->UpdateViewportBounds(aViewportSize);
     mLastRenderedSize = aViewportSize;
   }
-  mSVGDocumentWrapper->FlushImageTransformInvalidation();
+  mSVGDocumentWrapper->FlushPreserveAspectRatioOverride();
 
   nsIntSize imageSize = mHaveRestrictedRegion ?
     mRestrictedRegion.Size() : aViewportSize;
@@ -618,7 +621,7 @@ VectorImage::ResetAnimation()
   }
 
   mSVGDocumentWrapper->ResetAnimation();
-
+  
   return NS_OK;
 }
 

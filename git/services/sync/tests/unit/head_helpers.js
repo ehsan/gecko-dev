@@ -1,4 +1,3 @@
-Cu.import("resource://services-sync/util.js");
 var btoa;
 
 // initialize nss
@@ -49,6 +48,8 @@ function loadInSandbox(aUri) {
 }
 
 function FakeTimerService() {
+  Cu.import("resource://services-sync/util.js");
+
   this.callbackQueue = [];
 
   var self = this;
@@ -103,8 +104,7 @@ function initTestLogging(level) {
   log.level = Log4Moz.Level.Trace;
   appender.level = Log4Moz.Level.Trace;
   // Overwrite any other appenders (e.g. from previous incarnations)
-  log.ownAppenders = [appender];
-  log.updateAppenders();
+  log._appenders = [appender];
 
   return logStats;
 }
@@ -150,21 +150,53 @@ function FakePasswordService(contents) {
 
 function FakeFilesystemService(contents) {
   this.fakeContents = contents;
+
   let self = this;
 
-  Utils.jsonSave = function jsonSave(filePath, that, obj, callback) {
-    let json = typeof obj == "function" ? obj.call(that) : obj;
-    self.fakeContents["weave/" + filePath + ".json"] = JSON.stringify(json);
-    callback.call(that);
+  Utils.getProfileFile = function fake_getProfileFile(arg) {
+    let fakeNsILocalFile = {
+      exists: function() {
+        return this._fakeFilename in self.fakeContents;
+      },
+      _fakeFilename: (typeof(arg) == "object") ? arg.path : arg
+    };
+    return fakeNsILocalFile;
   };
 
-  Utils.jsonLoad = function jsonLoad(filePath, that, callback) {
-    let obj;
-    let json = self.fakeContents["weave/" + filePath + ".json"];
-    if (json) {
-      obj = JSON.parse(json);
+  Utils.readStream = function fake_readStream(stream) {
+    getTestLogger().info("Reading from stream.");
+    return stream._fakeData;
+  };
+
+  Utils.open = function fake_open(file, mode) {
+    switch (mode) {
+    case "<":
+      mode = "reading";
+      break;
+    case ">":
+      mode = "writing";
+      break;
+    default:
+      throw new Error("Unexpected mode: " + mode);
     }
-    callback.call(that, obj);
+
+    getTestLogger().info("Opening '" + file._fakeFilename + "' for " +
+                         mode + ".");
+    var contents = "";
+    if (file._fakeFilename in self.fakeContents && mode == "reading")
+      contents = self.fakeContents[file._fakeFilename];
+    let fakeStream = {
+      writeString: function(data) {
+        contents += data;
+        getTestLogger().info("Writing data to local file '" +
+                             file._fakeFilename +"': " + data);
+      },
+      close: function() {
+        self.fakeContents[file._fakeFilename] = contents;
+      },
+      get _fakeData() { return contents; }
+    };
+    return [fakeStream];
   };
 };
 
@@ -187,22 +219,15 @@ function FakeCryptoService() {
   delete Svc.Crypto;  // get rid of the getter first
   Svc.Crypto = this;
   Utils.sha256HMAC = this.sha256HMAC;
-
-  Cu.import("resource://services-sync/record.js");
-  CryptoWrapper.prototype.ciphertextHMAC = this.ciphertextHMAC;
 }
 FakeCryptoService.prototype = {
 
-  sha256HMAC: function Utils_sha256HMAC(message, hasher) {
+  sha256HMAC: function(message, key) {
      message = message.substr(0, 64);
      while (message.length < 64) {
        message += " ";
      }
      return message;
-  },
-
-  ciphertextHMAC: function CryptoWrapper_ciphertextHMAC(keyBundle) {
-    return Utils.sha256HMAC(this.ciphertext);
   },
 
   encrypt: function(aClearText, aSymmetricKey, aIV) {
@@ -352,25 +377,6 @@ function SyncTestingInfrastructure(engineFactory) {
     engine._store.wipe();
   };
 }
-
-
-/*
- * Ensure exceptions from inside callbacks leads to test failures.
- */
-function ensureThrows(func) {
-  return function() {
-    try {
-      func.apply(this, arguments);
-    } catch (ex) {
-      do_throw(ex);
-    }
-  };
-}
-
-function asyncChainTests() {
-  return Utils.asyncChain.apply(this, Array.map(arguments, ensureThrows));
-}
-
 
 /**
  * Print some debug message to the console. All arguments will be printed,

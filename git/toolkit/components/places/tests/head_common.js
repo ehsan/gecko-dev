@@ -597,16 +597,10 @@ function waitForAsyncUpdates(aCallback, aScope, aArguments)
  *
  * @param aGuid
  *        The guid to test.
- * @param [optional] aStack
- *        The stack frame used to report the error.
  */
-function do_check_valid_places_guid(aGuid,
-                                    aStack)
+function do_check_valid_places_guid(aGuid)
 {
-  if (!aStack) {
-    aStack = Components.stack.caller;
-  }
-  do_check_true(/^[a-zA-Z0-9\-_]{12}$/.test(aGuid), aStack);
+  do_check_true(/^[a-zA-Z0-9\-_]{12}$/.test(aGuid), Components.stack.caller);
 }
 
 /**
@@ -614,25 +608,17 @@ function do_check_valid_places_guid(aGuid,
  *
  * @param aURI
  *        The uri to check.
- * @param [optional] aGUID
- *        The expected guid in the database.
  */
-function do_check_guid_for_uri(aURI,
-                               aGUID)
+function do_check_guid_for_uri(aURI)
 {
-  let caller = Components.stack.caller;
   let stmt = DBConn().createStatement(
     "SELECT guid "
   + "FROM moz_places "
   + "WHERE url = :url "
   );
   stmt.params.url = aURI.spec;
-  do_check_true(stmt.executeStep(), caller);
-  do_check_valid_places_guid(stmt.row.guid, caller);
-  if (aGUID) {
-    do_check_valid_places_guid(aGUID, caller);
-    do_check_eq(stmt.row.guid, aGUID, caller);
-  }
+  do_check_true(stmt.executeStep());
+  do_check_valid_places_guid(stmt.row.guid);
   stmt.finalize();
 }
 
@@ -655,6 +641,11 @@ let gRunningTest = null;
 let gTestIndex = 0; // The index of the currently running test.
 function run_next_test()
 {
+  if (gRunningTest !== null) {
+    // Close the previous test do_test_pending call.
+    do_test_finished();
+  }
+
   function _run_next_test()
   {
     if (gTestIndex < gTests.length) {
@@ -674,34 +665,4 @@ function run_next_test()
 
   // For sane stacks during failures, we execute this code soon, but not now.
   do_execute_soon(_run_next_test);
-
-  if (gRunningTest !== null) {
-    // Close the previous test do_test_pending call.
-    do_test_finished();
-  }
-}
-
-/**
- * Compares 2 arrays returning whether they contains the same elements.
- *
- * @param a1
- *        First array to compare.
- * @param a2
- *        Second array to compare.
- * @param [optional] sorted
- *        Whether the comparison should take in count position of the elements.
- * @return true if the arrays contain the same elements, false otherwise.
- */
-function do_compare_arrays(a1, a2, sorted)
-{
-  if (a1.length != a2.length)
-    return false;
-
-  if (sorted) {
-    return a1.every(function (e, i) e == a2[i]);
-  }
-  else {
-    return a1.filter(function (e) a2.indexOf(e) == -1).length == 0 &&
-           a2.filter(function (e) a1.indexOf(e) == -1).length == 0;
-  }
 }

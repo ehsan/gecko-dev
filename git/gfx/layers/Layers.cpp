@@ -45,7 +45,6 @@
 #include "ImageLayers.h"
 #include "Layers.h"
 #include "gfxPlatform.h"
-#include "ReadbackLayer.h"
 
 using namespace mozilla::layers;
 
@@ -65,15 +64,6 @@ FILEOrDefault(FILE* aFile)
 namespace {
 
 // XXX pretty general utilities, could centralize
-
-nsACString&
-AppendToString(nsACString& s, const void* p,
-               const char* pfx="", const char* sfx="")
-{
-  s += pfx;
-  s += nsPrintfCString(64, "%p", p);
-  return s += sfx;
-}
 
 nsACString&
 AppendToString(nsACString& s, const gfxPattern::GraphicsFilter& f,
@@ -209,17 +199,6 @@ LayerManager::CreateOptimalSurface(const gfxIntSize &aSize,
   return gfxPlatform::GetPlatform()->
     CreateOffscreenSurface(aSize, gfxASurface::ContentFromFormat(aFormat));
 }
-
-#ifdef DEBUG
-void
-LayerManager::Mutated(Layer* aLayer)
-{
-  NS_ABORT_IF_FALSE(!aLayer->GetTileSourceRect() ||
-                    (LAYERS_BASIC == GetBackendType() &&
-                     Layer::TYPE_IMAGE == aLayer->GetType()),
-                    "Tiling not supported for this manager/layer type");
-}
-#endif  // DEBUG
 
 //--------------------------------------------------
 // Layer
@@ -401,30 +380,6 @@ ContainerLayer::ComputeEffectiveTransformsForChildren(const gfx3DMatrix& aTransf
   }
 }
 
-void
-ContainerLayer::DidRemoveChild(Layer* aLayer)
-{
-  ThebesLayer* tl = aLayer->AsThebesLayer();
-  if (tl && tl->UsedForReadback()) {
-    for (Layer* l = mFirstChild; l; l = l->GetNextSibling()) {
-      if (l->GetType() == TYPE_READBACK) {
-        static_cast<ReadbackLayer*>(l)->NotifyThebesLayerRemoved(tl);
-      }
-    }
-  }
-  if (aLayer->GetType() == TYPE_READBACK) {
-    static_cast<ReadbackLayer*>(aLayer)->NotifyRemoved();
-  }
-}
-
-void
-ContainerLayer::DidInsertChild(Layer* aLayer)
-{
-  if (aLayer->GetType() == TYPE_READBACK) {
-    mMayHaveReadbackChild = PR_TRUE;
-  }
-}
-
 #ifdef MOZ_LAYERS_HAVE_LOG
 
 static nsACString& PrintInfo(nsACString& aTo, ShadowLayer* aShadowLayer);
@@ -501,9 +456,6 @@ Layer::PrintInfo(nsACString& aTo, const char* aPrefix)
   if (1.0 != mOpacity) {
     aTo.AppendPrintf(" [opacity=%g]", mOpacity);
   }
-  if (const nsIntRect* tileSourceRect = GetTileSourceRect()) {
-    AppendToString(aTo, *tileSourceRect, " [tileSrc=", "]");
-  }
   if (GetContentFlags() & CONTENT_OPAQUE) {
     aTo += " [opaqueContent]";
   }
@@ -564,22 +516,6 @@ ImageLayer::PrintInfo(nsACString& aTo, const char* aPrefix)
   Layer::PrintInfo(aTo, aPrefix);
   if (mFilter != gfxPattern::FILTER_GOOD) {
     AppendToString(aTo, mFilter, " [filter=", "]");
-  }
-  return aTo;
-}
-
-nsACString&
-ReadbackLayer::PrintInfo(nsACString& aTo, const char* aPrefix)
-{
-  Layer::PrintInfo(aTo, aPrefix);
-  AppendToString(aTo, mSize, " [size=", "]");
-  if (mBackgroundLayer) {
-    AppendToString(aTo, mBackgroundLayer, " [backgroundLayer=", "]");
-    AppendToString(aTo, mBackgroundLayerOffset, " [backgroundOffset=", "]");
-  } else if (mBackgroundColor.a == 1.0) {
-    AppendToString(aTo, mBackgroundColor, " [backgroundColor=", "]");
-  } else {
-    aTo += " [nobackground]";
   }
   return aTo;
 }
@@ -713,10 +649,6 @@ CanvasLayer::PrintInfo(nsACString& aTo, const char* aPrefix)
 
 nsACString&
 ImageLayer::PrintInfo(nsACString& aTo, const char* aPrefix)
-{ return aTo; }
-
-nsACString&
-ReadbackLayer::PrintInfo(nsACString& aTo, const char* aPrefix)
 { return aTo; }
 
 void LayerManager::Dump(FILE* aFile, const char* aPrefix) {}

@@ -15,7 +15,7 @@
  * The Original Code is mozilla.org code.
  *
  * The Initial Developer of the Original Code is
- * Mozilla Foundation.
+ * Mozilla Corporation.
  * Portions created by the Initial Developer are Copyright (C) 2009
  * the Initial Developer. All Rights Reserved.
  *
@@ -1203,12 +1203,6 @@ nsXULTreeGridCellAccessible::GetStateInternal(PRUint32 *aStates,
   }
 
   return NS_OK;
-}
-
-PRInt32
-nsXULTreeGridCellAccessible::GetIndexInParent() const
-{
-  return GetColumnIndex();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

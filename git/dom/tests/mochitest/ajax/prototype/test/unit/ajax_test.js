@@ -49,30 +49,23 @@ new Test.Unit.Runner({
   testUpdater: function() {
     this.assertEqual("", $("content").innerHTML);
     
-    new Ajax.Updater("content", "../fixtures/content.html", { method:'get', onComplete: function() {
-        this.assertEqual(sentence, $("content").innerHTML.strip().toLowerCase());
-        $('content').update('');
-        this.assertEqual("", $("content").innerHTML);
-        new Ajax.Updater({ success:"content", failure:"content2" },
-          "../fixtures/content.html",
-          { method:'get', parameters:{ pet:'monkey' }, onComplete: function() {
-            this.assertEqual(sentence, $("content").innerHTML.strip().toLowerCase());
-            this.assertEqual("", $("content2").innerHTML);
-            $('content').update('');
-            this.assertEqual("", $("content").innerHTML);
-            new Ajax.Updater("", "../fixtures/content.html",
-              { method:'get', parameters:"pet=monkey", onComplete: function() {
-                this.assertEqual("", $("content").innerHTML);
-                this.cancelWait();
-              }.bind(this)
-            });
-          }.bind(this)
-        });
-      }.bind(this)
-    });
-
+    new Ajax.Updater("content", "../fixtures/content.html", { method:'get' });
+    
     this.wait(1000, function() {
-      this.flunk("The request was timeouted.");
+      this.assertEqual(sentence, $("content").innerHTML.strip().toLowerCase());
+      
+      $('content').update('');
+      this.assertEqual("", $("content").innerHTML);
+       
+      new Ajax.Updater({ success:"content", failure:"content2" },
+        "../fixtures/content.html", { method:'get', parameters:{ pet:'monkey' } });
+      
+      new Ajax.Updater("", "../fixtures/content.html", { method:'get', parameters:"pet=monkey" });
+      
+      this.wait(1000, function() {
+	// bug 452706        this.assertEqual(sentence, $("content").innerHTML.strip().toLowerCase());
+        this.assertEqual("", $("content2").innerHTML);
+      });
     }); 
   },
   

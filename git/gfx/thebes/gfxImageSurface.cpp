@@ -37,7 +37,6 @@
 
 #include "prmem.h"
 
-#include "gfxAlphaRecovery.h"
 #include "gfxImageSurface.h"
 
 #include "cairo.h"
@@ -97,24 +96,6 @@ gfxImageSurface::InitWithData(unsigned char *aData, const gfxIntSize& aSize,
     Init(surface);
 }
 
-static void*
-TryAllocAlignedBytes(size_t aSize)
-{
-    // Use fallible allocators here
-#if defined(HAVE_POSIX_MEMALIGN) || defined(HAVE_JEMALLOC_POSIX_MEMALIGN)
-    void* ptr;
-    // Try to align for fast alpha recovery.  This should only help
-    // cairo too, can't hurt.
-    return moz_posix_memalign(&ptr,
-                              1 << gfxAlphaRecovery::GoodAlignmentLog2(),
-                              aSize) ?
-             nsnull : ptr;
-#else
-    // Oh well, hope that luck is with us in the allocator
-    return moz_malloc(aSize);
-#endif
-}
-
 gfxImageSurface::gfxImageSurface(const gfxIntSize& size, gfxImageFormat format) :
     mSize(size), mOwnsData(PR_FALSE), mData(nsnull), mFormat(format)
 {
@@ -126,9 +107,8 @@ gfxImageSurface::gfxImageSurface(const gfxIntSize& size, gfxImageFormat format) 
     // if we have a zero-sized surface, just leave mData nsnull
     if (mSize.height * mStride > 0) {
 
-        // This can fail to allocate memory aligned as we requested,
-        // or it can fail to allocate any memory at all.
-        mData = (unsigned char *) TryAllocAlignedBytes(mSize.height * mStride);
+        // Use the fallible allocator here
+        mData = (unsigned char *) moz_malloc(mSize.height * mStride);
         if (!mData)
             return;
         memset(mData, 0, mSize.height * mStride);
@@ -253,71 +233,4 @@ gfxImageSurface::GetAsImageSurface()
 {
   nsRefPtr<gfxImageSurface> surface = this;
   return surface.forget();
-}
-
-void
-gfxImageSurface::MovePixels(const nsIntRect& aSourceRect,
-                            const nsIntPoint& aDestTopLeft)
-{
-    const nsIntRect bounds(0, 0, mSize.width, mSize.height);
-    nsIntPoint offset = aDestTopLeft - aSourceRect.TopLeft(); 
-    nsIntRect clippedSource = aSourceRect;
-    clippedSource.IntersectRect(clippedSource, bounds);
-    nsIntRect clippedDest = clippedSource + offset;
-    clippedDest.IntersectRect(clippedDest, bounds);
-    const nsIntRect dest = clippedDest;
-    const nsIntRect source = dest - offset;
-    // NB: this relies on IntersectRect() and operator+/- preserving
-    // x/y for empty rectangles
-    NS_ABORT_IF_FALSE(bounds.Contains(dest) && bounds.Contains(source) &&
-                      aSourceRect.Contains(source) &&
-                      nsIntRect(aDestTopLeft, aSourceRect.Size()).Contains(dest) &&
-                      source.Size() == dest.Size() &&
-                      offset == (dest.TopLeft() - source.TopLeft()),
-                      "Messed up clipping, crash or corruption will follow");
-    if (source.IsEmpty() || source == dest) {
-        return;
-    }
-
-    long naturalStride = ComputeStride(mSize, mFormat);
-    if (mStride == naturalStride && dest.width == bounds.width) {
-        // Fast path: this is a vertical shift of some rows in a
-        // "normal" image surface.  We can directly memmove and
-        // hopefully stay in SIMD land.
-        unsigned char* dst = mData + dest.y * mStride;
-        const unsigned char* src = mData + source.y * mStride;
-        size_t nBytes = dest.height * mStride;
-        memmove(dst, src, nBytes);
-        return;
-    }
-
-    // Slow(er) path: have to move row-by-row.
-    const PRInt32 bpp = BytePerPixelFromFormat(mFormat);
-    const size_t nRowBytes = dest.width * bpp;
-    // dstRow points at the first pixel within the current destination
-    // row, and similarly for srcRow.  endSrcRow is one row beyond the
-    // last row we need to copy.  stride is either +mStride or
-    // -mStride, depending on which direction we're copying.
-    unsigned char* dstRow;
-    unsigned char* srcRow;
-    unsigned char* endSrcRow;   // NB: this may point outside the image
-    long stride;
-    if (dest.y > source.y) {
-        // We're copying down from source to dest, so walk backwards
-        // starting from the last rows to avoid stomping pixels we
-        // need.
-        stride = -mStride;
-        dstRow = mData + dest.x * bpp + (dest.YMost() - 1) * mStride;
-        srcRow = mData + source.x * bpp + (source.YMost() - 1) * mStride;
-        endSrcRow = mData + source.x * bpp + (source.y - 1) * mStride;
-    } else {
-        stride = mStride;
-        dstRow = mData + dest.x * bpp + dest.y * mStride;
-        srcRow = mData + source.x * bpp + source.y * mStride;
-        endSrcRow = mData + source.x * bpp + source.YMost() * mStride;
-    }
-
-    for (; srcRow != endSrcRow; dstRow += stride, srcRow += stride) {
-        memmove(dstRow, srcRow, nRowBytes);
-    }
 }

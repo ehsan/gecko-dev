@@ -128,8 +128,9 @@ const CATEGORY_NETWORK = 0;
 const CATEGORY_CSS = 1;
 const CATEGORY_JS = 2;
 const CATEGORY_WEBDEV = 3;
-const CATEGORY_INPUT = 4;   // always on
-const CATEGORY_OUTPUT = 5;  // always on
+const CATEGORY_MISC = 4;    // always on
+const CATEGORY_INPUT = 5;   // always on
+const CATEGORY_OUTPUT = 6;  // always on
 
 // The possible message severities. As before, we start at zero so we can use
 // these as indexes into MESSAGE_PREFERENCE_KEYS.
@@ -152,12 +153,6 @@ const MIN_HTTP_ERROR_CODE = 400;
 // The highest HTTP response code (exclusive) that is considered an error.
 const MAX_HTTP_ERROR_CODE = 600;
 
-// HTTP status codes.
-const HTTP_MOVED_PERMANENTLY = 301;
-const HTTP_FOUND = 302;
-const HTTP_SEE_OTHER = 303;
-const HTTP_TEMPORARY_REDIRECT = 307;
-
 // The HTML namespace.
 const HTML_NS = "http://www.w3.org/1999/xhtml";
 
@@ -170,6 +165,7 @@ const CATEGORY_CLASS_FRAGMENTS = [
   "cssparser",
   "exception",
   "console",
+  "misc",
   "input",
   "output",
 ];
@@ -193,6 +189,7 @@ const MESSAGE_PREFERENCE_KEYS = [
   [ "csserror",   "cssparser",  null,   null,          ],  // CSS
   [ "exception",  "jswarn",     null,   null,          ],  // JS
   [ "error",      "warn",       "info", "log",         ],  // Web Developer
+  [ null,         null,         null,   null,          ],  // Misc.
   [ null,         null,         null,   null,          ],  // Input
   [ null,         null,         null,   null,          ],  // Output
 ];
@@ -345,7 +342,7 @@ ResponseListener.prototype =
 
     let data = NetUtil.readInputStreamToString(aInputStream, aCount);
 
-    if (!this.httpActivity.response.bodyDiscarded &&
+    if (HUDService.saveRequestAndResponseBodies &&
         this.receivedData.length < RESPONSE_BODY_LIMIT) {
       this.receivedData += NetworkHelper.
                            convertToUnicode(data, aRequest.contentCharset);
@@ -362,25 +359,6 @@ ResponseListener.prototype =
   onStartRequest: function RL_onStartRequest(aRequest, aContext)
   {
     this.request = aRequest;
-
-    // Always discard the response body if logging is not enabled in the Web
-    // Console.
-    this.httpActivity.response.bodyDiscarded =
-      !HUDService.saveRequestAndResponseBodies;
-
-    // Check response status and discard the body for redirects.
-    if (!this.httpActivity.response.bodyDiscarded &&
-        this.httpActivity.channel instanceof Ci.nsIHttpChannel) {
-      switch (this.httpActivity.channel.responseStatus) {
-        case HTTP_MOVED_PERMANENTLY:
-        case HTTP_FOUND:
-        case HTTP_SEE_OTHER:
-        case HTTP_TEMPORARY_REDIRECT:
-          this.httpActivity.response.bodyDiscarded = true;
-          break;
-      }
-    }
-
     // Asynchronously wait for the data coming from the request.
     this.setAsyncListener(this.sink.inputStream, this);
   },
@@ -402,7 +380,7 @@ ResponseListener.prototype =
     // Retrieve the response headers, as they are, from the server.
     let response = null;
     for each (let item in HUDService.openResponseHeaders) {
-      if (item.channel === this.httpActivity.channel) {
+      if (item.channel === aRequest) {
         response = item;
         break;
       }
@@ -435,9 +413,11 @@ ResponseListener.prototype =
     // Remove our listener from the request input stream.
     this.setAsyncListener(this.sink.inputStream, null);
 
-    if (!this.httpActivity.response.bodyDiscarded &&
-        HUDService.saveRequestAndResponseBodies) {
+    if (HUDService.saveRequestAndResponseBodies) {
       this.httpActivity.response.body = this.receivedData;
+    }
+    else {
+      this.httpActivity.response.bodyDiscarded = true;
     }
 
     if (HUDService.lastFinishedRequestCallback) {
@@ -1201,17 +1181,11 @@ function pruneConsoleOutputIfNecessary(aConsoleNode)
   let scrollBox = aConsoleNode.scrollBoxObject.element;
   let oldScrollHeight = scrollBox.scrollHeight;
   let scrolledToBottom = ConsoleUtils.isOutputScrolledToBottom(aConsoleNode);
-  let hudRef = HUDService.getHudReferenceForOutputNode(aConsoleNode);
 
   // Prune the nodes.
   let messageNodes = aConsoleNode.querySelectorAll(".hud-msg-node");
   let removeNodes = messageNodes.length - logLimit;
   for (let i = 0; i < removeNodes; i++) {
-    if (messageNodes[i].classList.contains("webconsole-msg-cssparser")) {
-      let desc = messageNodes[i].childNodes[2].textContent;
-      let location = messageNodes[i].childNodes[4].getAttribute("title");
-      delete hudRef.cssNodes[desc + location];
-    }
     messageNodes[i].parentNode.removeChild(messageNodes[i]);
   }
 
@@ -1464,12 +1438,6 @@ HUD_SERVICE.prototype =
       aHUD = this.getOutputNodeById(aHUD);
     }
 
-    let hudRef = HUDService.getHudReferenceForOutputNode(aHUD);
-
-    if (hudRef) {
-      hudRef.cssNodes = {};
-    }
-
     var outputNode = aHUD.querySelector(".hud-output-node");
 
     while (outputNode.firstChild) {
@@ -1618,25 +1586,36 @@ HUD_SERVICE.prototype =
   },
 
   /**
-   * Check that the passed string matches the filter arguments.
+   * Returns the source code of the XPath contains() function necessary to
+   * match the given query string.
    *
-   * @param String aString
-   *        to search for filter words in.
-   * @param String aFilter
-   *        is a string containing all of the words to filter on.
-   * @returns boolean
+   * @param string The query string to convert.
+   * @returns string
    */
-  stringMatchesFilters: function stringMatchesFilters(aString, aFilter)
+  buildXPathFunctionForString: function HS_buildXPathFunctionForString(aStr)
   {
-    if (!aFilter || !aString) {
-      return true;
+    let words = aStr.split(/\s+/), results = [];
+    for (let i = 0; i < words.length; i++) {
+      let word = words[i];
+      if (word === "") {
+        continue;
+      }
+
+      let result;
+      if (word.indexOf('"') === -1) {
+        result = '"' + word + '"';
+      }
+      else if (word.indexOf("'") === -1) {
+        result = "'" + word + "'";
+      }
+      else {
+        result = 'concat("' + word.replace(/"/g, "\", '\"', \"") + '")';
+      }
+
+      results.push("contains(translate(., 'ABCDEFGHIJKLMNOPQRSTUVWXYZ', 'abcdefghijklmnopqrstuvwxyz'), " + result.toLowerCase() + ")");
     }
 
-    let searchStr = aString.toLowerCase();
-    let filterStrings = aFilter.toLowerCase().split(/\s+/);
-    return !filterStrings.some(function (f) {
-      return searchStr.indexOf(f) == -1;
-    });
+    return (results.length === 0) ? "true()" : results.join(" and ");
   },
 
   /**
@@ -1652,25 +1631,31 @@ HUD_SERVICE.prototype =
   adjustVisibilityOnSearchStringChange:
   function HS_adjustVisibilityOnSearchStringChange(aHUDId, aSearchString)
   {
+    let fn = this.buildXPathFunctionForString(aSearchString);
     let displayNode = this.getOutputNodeById(aHUDId);
     let outputNode = displayNode.querySelector(".hud-output-node");
     let doc = outputNode.ownerDocument;
 
-    let nodes = outputNode.querySelectorAll(".hud-msg-node");
+    // Look for message nodes ("hud-msg-node") that *aren't* filtered and
+    // that don't contain the string, and hide them.
+    let xpath = './/*[contains(@class, "hud-msg-node") and ' +
+      'not(contains(@class, "hud-filtered-by-string")) and not(' + fn + ')]';
+    let result = doc.evaluate(xpath, outputNode, null,
+      Ci.nsIDOMXPathResult.UNORDERED_NODE_SNAPSHOT_TYPE, null);
+    for (let i = 0; i < result.snapshotLength; i++) {
+      let node = result.snapshotItem(i);
+      node.classList.add("hud-filtered-by-string");
+    }
 
-    for (let i = 0; i < nodes.length; ++i) {
-      let node = nodes[i];
-
-      // hide nodes that match the strings
-      let text = node.clipboardText;
-
-      // if the text matches the words in aSearchString...
-      if (this.stringMatchesFilters(text, aSearchString)) {
-        node.classList.remove("hud-filtered-by-string");
-      }
-      else {
-        node.classList.add("hud-filtered-by-string");
-      }
+    // Look for message nodes ("hud-msg-node") that *are* filtered and that
+    // *do* contain the string, and unhide them.
+    xpath = './/*[contains(@class, "hud-msg-node") and contains(@class, ' +
+      '"hud-filtered-by-string") and ' + fn + ']';
+    result = doc.evaluate(xpath, outputNode, null,
+      Ci.nsIDOMXPathResult.UNORDERED_NODE_SNAPSHOT_TYPE, null);
+    for (let i = 0; i < result.snapshotLength; i++) {
+      let node = result.snapshotItem(i);
+      node.classList.remove("hud-filtered-by-string");
     }
 
     this.regroupOutput(outputNode);
@@ -1688,9 +1673,6 @@ HUD_SERVICE.prototype =
   function HS_registerHUDReference(aHUD)
   {
     this.hudReferences[aHUD.hudId] = aHUD;
-
-    let id = ConsoleUtils.supString(aHUD.hudId);
-    Services.obs.notifyObservers(id, "web-console-created", null);
   },
 
   /**
@@ -1749,9 +1731,6 @@ HUD_SERVICE.prototype =
     parent.removeChild(outputNode);
 
     // remove the HeadsUpDisplay object from memory
-    if ("cssNodes" in this.hudReferences[id]) {
-      delete this.hudReferences[id].cssNodes;
-    }
     delete this.hudReferences[id];
     // remove the related storage object
     this.storage.removeDisplay(id);
@@ -1763,9 +1742,6 @@ HUD_SERVICE.prototype =
     }
 
     this.unregisterActiveContext(id);
-
-    let id = ConsoleUtils.supString(id);
-    Services.obs.notifyObservers(id, "web-console-destroyed", null);
 
     if (Object.keys(this.hudReferences).length == 0) {
       this.suspend();
@@ -1849,39 +1825,6 @@ HUD_SERVICE.prototype =
   },
 
   /**
-   * Returns the hudReference for a given output node.
-   *
-   * @param nsIDOMNode aNode
-   *        an output node (as returned by getOutputNodeById()).
-   * @returns a HUD | null
-   */
-  getHudReferenceForOutputNode: function HS_getHudReferenceForOutputNode(aNode)
-  {
-    let node = aNode;
-    while (!node.classList.contains("hudbox-animated")) {
-      if (node.parent) {
-        node = node.parent;
-      }
-      else {
-        return null;
-      }
-    }
-    let id = node.id;
-    return id in this.hudReferences ? this.hudReferences[id] : null;
-  },
-
-  /**
-   * Returns the hudReference for a given id.
-   *
-   * @param string aId
-   * @returns Object
-   */
-  getHudReferenceById: function HS_getHudReferenceById(aId)
-  {
-    return aId in this.hudReferences ? this.hudReferences[aId] : null;
-  },
-
-  /**
    * Gets the Web Console DOM node, the .hud-box.
    *
    * @param string id
@@ -1926,7 +1869,7 @@ HUD_SERVICE.prototype =
   },
 
   /**
-   * Get the current filter string for the HeadsUpDisplay
+   * get the current filter string for the HeadsUpDisplay
    *
    * @param string aHUDId
    * @returns string
@@ -2005,7 +1948,7 @@ HUD_SERVICE.prototype =
     let hud = this.hudReferences[aHUDId];
     let chromeDocument = hud.HUDBox.ownerDocument;
     let message = stringBundle.GetStringFromName("ConsoleAPIDisabled");
-    let node = ConsoleUtils.createMessageNode(chromeDocument, CATEGORY_JS,
+    let node = ConsoleUtils.createMessageNode(chromeDocument, CATEGORY_MISC,
                                               SEVERITY_WARNING, message);
     ConsoleUtils.outputMessageNode(node, aHUDId);
   },
@@ -2245,7 +2188,7 @@ HUD_SERVICE.prototype =
             });
 
             // Store the loggedNode and the httpActivity object for later reuse.
-            let linkNode = loggedNode.querySelector(".webconsole-msg-link");
+            let linkNode = loggedNode.querySelector(".webconsole-msg-url");
 
             httpActivity.messageObject = {
               messageNode: loggedNode,
@@ -2293,7 +2236,7 @@ HUD_SERVICE.prototype =
             let msgObject = httpActivity.messageObject;
 
             let updatePanel = false;
-            let data;
+            let data, textNode;
             // Store the time information for this activity subtype.
             httpActivity.timing[transCodes[aActivitySubtype]] = aTimestamp;
 
@@ -2343,17 +2286,25 @@ HUD_SERVICE.prototype =
                 httpActivity.response.status =
                   aExtraStringData.split(/\r\n|\n|\r/)[0];
 
-                // Add the response status.
-                let linkNode = msgObject.linkNode;
-                let statusNode = linkNode.
-                  querySelector(".webconsole-msg-status");
-                let statusText = "[" + httpActivity.response.status + "]";
-                statusNode.setAttribute("value", statusText);
+                // Remove the text node from the URL node and add a new one that
+                // contains the response status.
+                textNode = msgObject.linkNode.firstChild;
+                textNode.parentNode.removeChild(textNode);
 
-                let clipboardTextPieces =
-                  [ httpActivity.method, httpActivity.url, statusText ];
+                data = [ httpActivity.url,
+                         httpActivity.response.status ];
+
+                // Format the pieces of data. The result will be something like
+                // "http://example.com/ [HTTP/1.0 200 OK]".
+                let text = self.getFormatStr("networkUrlWithStatus", data);
+
+                // Replace the displayed text and the clipboard text with the
+                // new data.
+                let chromeDocument = msgObject.messageNode.ownerDocument;
+                msgObject.linkNode.appendChild(
+                  chromeDocument.createTextNode(text));
                 msgObject.messageNode.clipboardText =
-                  clipboardTextPieces.join(" ");
+                  msgObject.messageNode.textContent;
 
                 let status = parseInt(httpActivity.response.status.
                   replace(/^HTTP\/\d\.\d (\d+).+$/, "$1"));
@@ -2374,21 +2325,27 @@ HUD_SERVICE.prototype =
                   Math.round((timing.RESPONSE_COMPLETE -
                                 timing.REQUEST_HEADER) / 1000);
 
-                // Add the request duration.
-                let linkNode = msgObject.linkNode;
-                let statusNode = linkNode.
-                  querySelector(".webconsole-msg-status");
+                // Remove the text node from the link node and add a new one
+                // that contains the request duration.
+                textNode = msgObject.linkNode.firstChild;
+                textNode.parentNode.removeChild(textNode);
 
-                let statusText = httpActivity.response.status;
-                let timeText = self.getFormatStr("NetworkPanel.durationMS",
-                                                 [ requestDuration ]);
-                let fullStatusText = "[" + statusText + " " + timeText + "]";
-                statusNode.setAttribute("value", fullStatusText);
+                data = [ httpActivity.url,
+                         httpActivity.response.status,
+                         requestDuration ];
 
-                let clipboardTextPieces =
-                  [ httpActivity.method, httpActivity.url, fullStatusText ];
+                // Format the pieces of data. The result will be something like
+                // "http://example.com/ [HTTP/1.0 200 OK 200 ms]".
+                let text = self.getFormatStr("networkUrlWithStatusAndDuration",
+                                             data);
+
+                // Replace the displayed text and the clipboard text with the
+                // new data.
+                let chromeDocument = msgObject.messageNode.ownerDocument;
+                msgObject.linkNode.appendChild(
+                  chromeDocument.createTextNode(text));
                 msgObject.messageNode.clipboardText =
-                  clipboardTextPieces.join(" ");
+                  msgObject.messageNode.textContent;
 
                 delete self.openRequests[item.id];
                 updatePanel = true;
@@ -2495,35 +2452,18 @@ HUD_SERVICE.prototype =
     let outputNode = this.hudReferences[hudId].outputNode;
 
     let chromeDocument = outputNode.ownerDocument;
-    let msgNode = chromeDocument.createElementNS(XUL_NS, "xul:hbox");
+    let msgNode = chromeDocument.createElementNS(HTML_NS, "html:span");
 
-    let methodNode = chromeDocument.createElementNS(XUL_NS, "xul:label");
-    methodNode.setAttribute("value", aActivityObject.method);
-    methodNode.classList.add("webconsole-msg-body-piece");
-    msgNode.appendChild(methodNode);
+    // Create the method part of the message (e.g. "GET").
+    let method = chromeDocument.createTextNode(aActivityObject.method + " ");
+    msgNode.appendChild(method);
 
-    let linkNode = chromeDocument.createElementNS(XUL_NS, "xul:hbox");
-    linkNode.setAttribute("flex", "1");
-    linkNode.classList.add("webconsole-msg-body-piece");
-    linkNode.classList.add("webconsole-msg-link");
+    // Create the clickable URL part of the message.
+    let linkNode = chromeDocument.createElementNS(HTML_NS, "html:span");
+    linkNode.appendChild(chromeDocument.createTextNode(aActivityObject.url));
+    linkNode.classList.add("hud-clickable");
+    linkNode.classList.add("webconsole-msg-url");
     msgNode.appendChild(linkNode);
-
-    let urlNode = chromeDocument.createElementNS(XUL_NS, "xul:label");
-    urlNode.setAttribute("crop", "center");
-    urlNode.setAttribute("flex", "1");
-    urlNode.setAttribute("title", aActivityObject.url);
-    urlNode.setAttribute("value", aActivityObject.url);
-    urlNode.classList.add("hud-clickable");
-    urlNode.classList.add("webconsole-msg-body-piece");
-    urlNode.classList.add("webconsole-msg-url");
-    linkNode.appendChild(urlNode);
-
-    let statusNode = chromeDocument.createElementNS(XUL_NS, "xul:label");
-    statusNode.setAttribute("value", "");
-    statusNode.classList.add("hud-clickable");
-    statusNode.classList.add("webconsole-msg-body-piece");
-    statusNode.classList.add("webconsole-msg-status");
-    linkNode.appendChild(statusNode);
 
     let clipboardText = aActivityObject.method + " " + aActivityObject.url;
 
@@ -2756,9 +2696,20 @@ HUD_SERVICE.prototype =
       }
     }
 
-    // Need to detect that the console component has been paved over.
+    // Need to detect that the console component has been paved over. Do this by
+    // checking whether its global object is equal to that of an object
+    // returned by our native ConsoleAPI nsIDOMGlobalPropertyInitializer.
     let consoleObject = unwrap(aContentWindow).console;
-    if (!("__mozillaConsole__" in consoleObject))
+    let consoleGlobal = Cu.getGlobalForObject(consoleObject);
+
+    let nativeConsoleObj = Cc["@mozilla.org/console-api;1"].
+                           createInstance(Ci.nsIDOMGlobalPropertyInitializer).
+                           init(aContentWindow);
+    let nativeConsoleGlobal = Cu.getGlobalForObject(nativeConsoleObj);
+
+    // Need a "===" comparison because backstagepass objects have strange
+    // behavior with ==
+    if (consoleGlobal !== nativeConsoleGlobal)
       this.logWarningAboutReplacedAPI(hudId);
 
     // register the controller to handle "select all" properly
@@ -2900,26 +2851,17 @@ HUD_SERVICE.prototype =
     // Gather up the selected items and concatenate their clipboard text.
 
     let strings = [];
-    let newGroup = false;
     for (let i = 0; i < aOutputNode.selectedCount; i++) {
       let item = aOutputNode.selectedItems[i];
 
-      // Add dashes between groups so that group boundaries show up in the
+      // Add newlines between groups so that group boundaries show up in the
       // copied output.
       if (i > 0 && item.classList.contains("webconsole-new-group")) {
-        newGroup = true;
+        strings.push("\n");
       }
 
-      // Ensure the selected item hasn't been filtered by type or string.
-      if (!item.classList.contains("hud-filtered-by-type") &&
-          !item.classList.contains("hud-filtered-by-string")) {
-        let timestampString = ConsoleUtils.timestampString(item.timestamp);
-        if (newGroup) {
-          strings.push("--");
-          newGroup = false;
-        }
-        strings.push("[" + timestampString + "] " + item.clipboardText);
-      }
+      let timestampString = ConsoleUtils.timestampString(item.timestamp);
+      strings.push("[" + timestampString + "] " + item.clipboardText);
     }
     clipboardHelper.copyString(strings.join("\n"));
   }
@@ -3041,9 +2983,6 @@ function HeadsUpDisplay(aConfig)
   catch (ex) {
     Cu.reportError(ex);
   }
-
-  // A cache for tracking repeated CSS Nodes.
-  this.cssNodes = {};
 }
 
 HeadsUpDisplay.prototype = {
@@ -3193,9 +3132,9 @@ HeadsUpDisplay.prototype = {
 
     this.jsTermParentNode = outerWrap;
     this.HUDBox.appendChild(outerWrap);
-
     return this.HUDBox;
   },
+
 
   /**
    * sets the click events for all binary toggle filter buttons
@@ -4072,31 +4011,7 @@ JSTerm.prototype = {
     if (aString.trim() === "help" || aString.trim() === "?") {
       aString = "help()";
     }
-
-    let window = unwrap(this.sandbox.window);
-    let $ = null, $$ = null;
-
-    // We prefer to execute the page-provided implementations for the $() and
-    // $$() functions.
-    if (typeof window.$ == "function") {
-      $ = this.sandbox.$;
-      delete this.sandbox.$;
-    }
-    if (typeof window.$$ == "function") {
-      $$ = this.sandbox.$$;
-      delete this.sandbox.$$;
-    }
-
-    let result = Cu.evalInSandbox(aString, this.sandbox, "1.8", "Web Console", 1);
-
-    if ($) {
-      this.sandbox.$ = $;
-    }
-    if ($$) {
-      this.sandbox.$$ = $$;
-    }
-
-    return result;
+    return Cu.evalInSandbox(aString, this.sandbox, "1.8", "Web Console", 1);
   },
 
 
@@ -4158,9 +4073,10 @@ JSTerm.prototype = {
   {
     let self = this;
     let propPanel;
-    // The property panel has one button:
-    //    `Update`: reexecutes the string executed on the command line. The
+    // The property panel has two buttons:
+    // 1. `Update`: reexecutes the string executed on the command line. The
     //    result will be inspected by this panel.
+    // 2. `Close`: destroys the panel.
     let buttons = [];
 
     // If there is a evalString passed to this function, then add a `Update`
@@ -4188,18 +4104,26 @@ JSTerm.prototype = {
       });
     }
 
+    buttons.push({
+      label: HUDService.getStr("close.button"),
+      accesskey: HUDService.getStr("close.accesskey"),
+      class: "jsPropertyPanelCloseButton",
+      oncommand: function () {
+        propPanel.destroy();
+        aAnchor._panelOpen = false;
+      }
+    });
+
     let doc = self.parentNode.ownerDocument;
     let parent = doc.getElementById("mainPopupSet");
     let title = (aEvalString
         ? HUDService.getFormatStr("jsPropertyInspectTitle", [aEvalString])
         : HUDService.getStr("jsPropertyTitle"));
-
     propPanel = new PropertyPanel(parent, doc, title, aOutputObject, buttons);
-    propPanel.linkNode = aAnchor;
 
     let panel = propPanel.panel;
     panel.openPopup(aAnchor, "after_pointer", 0, 0, false, false);
-    panel.sizeTo(350, 450);
+    panel.sizeTo(200, 400);
     return propPanel;
   },
 
@@ -4313,7 +4237,7 @@ JSTerm.prototype = {
 
     return output;
   },
-
+  
   /**
    * Format a string for output.
    *
@@ -4386,11 +4310,6 @@ JSTerm.prototype = {
   clearOutput: function JST_clearOutput()
   {
     let outputNode = this.outputNode;
-    let hudRef = HUDService.getHudReferenceForOutputNode(outputNode);
-
-    if (hudRef) {
-      hudRef.cssNodes = {};
-    }
 
     while (outputNode.firstChild) {
       outputNode.removeChild(outputNode.firstChild);
@@ -4891,13 +4810,6 @@ FirefoxApplicationHooks.prototype = {
  */
 
 ConsoleUtils = {
-  supString: function ConsoleUtils_supString(aString)
-  {
-    let str = Cc["@mozilla.org/supports-string;1"].
-      createInstance(Ci.nsISupportsString);
-    str.data = aString;
-    return str;
-  },
 
   /**
    * Generates a millisecond resolution timestamp.
@@ -5012,10 +4924,6 @@ ConsoleUtils = {
 
     bodyNode.appendChild(aBody);
 
-    let repeatNode = aDocument.createElementNS(XUL_NS, "xul:label");
-    repeatNode.setAttribute("value", "1");
-    repeatNode.classList.add("webconsole-msg-repeat");
-
     // Create the timestamp.
     let timestampNode = aDocument.createElementNS(XUL_NS, "xul:label");
     timestampNode.classList.add("webconsole-timestamp");
@@ -5039,15 +4947,12 @@ ConsoleUtils = {
     node.timestamp = timestamp;
     ConsoleUtils.setMessageType(node, aCategory, aSeverity);
 
-    node.appendChild(timestampNode);  // childNode[0]
-    node.appendChild(iconContainer);  // childNode[1]
-    node.appendChild(bodyNode);       // childNode[2]
-    node.appendChild(repeatNode);     // childNode[3]
+    node.appendChild(timestampNode);
+    node.appendChild(iconContainer);
+    node.appendChild(bodyNode);
     if (locationNode) {
-      node.appendChild(locationNode); // childNode[4]
+      node.appendChild(locationNode);
     }
-
-    node.setAttribute("id", "console-msg-" + HUDService.sequenceId());
 
     return node;
   },
@@ -5141,115 +5046,28 @@ ConsoleUtils = {
    * @param string aHUDId
    *        The ID of the HUD which this node is to be inserted into.
    */
-  filterMessageNode: function ConsoleUtils_filterMessageNode(aNode, aHUDId) {
+  filterMessageNode: function(aNode, aHUDId) {
+    // Filter on the search string.
+    let search = HUDService.getFilterStringByHUDId(aHUDId);
+    let xpath = ".[" + HUDService.buildXPathFunctionForString(search) + "]";
+    let doc = aNode.ownerDocument;
+    let result = doc.evaluate(xpath, aNode, null,
+      Ci.nsIDOMXPathResult.UNORDERED_NODE_SNAPSHOT_TYPE, null);
+    if (result.snapshotLength == 0) {
+      // The string filter didn't match, so the node is filtered.
+      aNode.classList.add("hud-filtered-by-string");
+    }
+
     // Filter by the message type.
     let prefKey = MESSAGE_PREFERENCE_KEYS[aNode.category][aNode.severity];
     if (prefKey && !HUDService.getFilterState(aHUDId, prefKey)) {
       // The node is filtered by type.
       aNode.classList.add("hud-filtered-by-type");
     }
-
-    // Filter on the search string.
-    let search = HUDService.getFilterStringByHUDId(aHUDId);
-    let text = aNode.clipboardText;
-
-    // if string matches the filter text
-    if (!HUDService.stringMatchesFilters(text, search)) {
-      aNode.classList.add("hud-filtered-by-string");
-    }
   },
 
   /**
-   * Merge the attributes of the two nodes that are about to be filtered.
-   * Increment the number of repeats of aOriginal.
-   *
-   * @param nsIDOMNode aOriginal
-   *        The Original Node. The one being merged into.
-   * @param nsIDOMNode aFiltered
-   *        The node being filtered out because it is repeated.
-   */
-  mergeFilteredMessageNode:
-  function ConsoleUtils_mergeFilteredMessageNode(aOriginal, aFiltered) {
-    // childNodes[3] is the node containing the number of repetitions of a node.
-    let repeatNode = aOriginal.childNodes[3];
-    if (!repeatNode) {
-      return aOriginal; // no repeat node, return early.
-    }
-
-    let occurrences = parseInt(repeatNode.getAttribute("value")) + 1;
-    repeatNode.setAttribute("value", occurrences);
-  },
-
-  /**
-   * Filter the css node from the output node if it is a repeat. CSS messages
-   * are merged with previous messages if they occurred in the past.
-   *
-   * @param nsIDOMNode aNode
-   *        The message node to be filtered or not.
-   * @param nsIDOMNode aOutput
-   *        The outputNode of the HUD.
-   * @returns boolean
-   *         true if the message is filtered, false otherwise.
-   */
-  filterRepeatedCSS:
-  function ConsoleUtils_filterRepeatedCSS(aNode, aOutput, aHUDId) {
-    let hud = HUDService.getHudReferenceById(aHUDId);
-
-    // childNodes[2] is the description node containing the text of the message.
-    let description = aNode.childNodes[2].textContent;
-    let location;
-
-    // childNodes[4] represents the location (source URL) of the error message.
-    // The full source URL is stored in the title attribute.
-    if (aNode.childNodes[4]) {
-      // browser_webconsole_bug_595934_message_categories.js
-      location = aNode.childNodes[4].getAttribute("title");
-    }
-    else {
-      location = "";
-    }
-
-    let dupe = hud.cssNodes[description + location];
-    if (!dupe) {
-      // no matching nodes
-      hud.cssNodes[description + location] = aNode;
-      return false;
-    }
-
-    this.mergeFilteredMessageNode(dupe, aNode);
-
-    return true;
-  },
-
-  /**
-   * Filter the console node from the output node if it is a repeat. Console
-   * messages are filtered from the output if and only if they match the
-   * immediately preceding message. The output node's last occurrence should
-   * have its timestamp updated.
-   *
-   * @param nsIDOMNode aNode
-   *        The message node to be filtered or not.
-   * @param nsIDOMNode aOutput
-   *        The outputNode of the HUD.
-   * @return boolean
-   *         true if the message is filtered, false otherwise.
-   */
-  filterRepeatedConsole:
-  function ConsoleUtils_filterRepeatedConsole(aNode, aOutput) {
-    let lastMessage = aOutput.lastChild;
-
-    // childNodes[2] is the xul:description element
-    if (lastMessage &&
-        aNode.childNodes[2].textContent ==
-        lastMessage.childNodes[2].textContent) {
-      this.mergeFilteredMessageNode(lastMessage, aNode);
-      return true;
-    }
-
-    return false;
-  },
-
-  /**   * Filters a node appropriately, then sends it to the output, regrouping and
+   * Filters a node appropriately, then sends it to the output, regrouping and
    * pruning output as necessary.
    *
    * @param nsIDOMNode aNode
@@ -5264,22 +5082,7 @@ ConsoleUtils = {
 
     let scrolledToBottom = ConsoleUtils.isOutputScrolledToBottom(outputNode);
 
-    let isRepeated = false;
-    if (aNode.classList.contains("webconsole-msg-cssparser")) {
-      isRepeated = this.filterRepeatedCSS(aNode, outputNode, aHUDId);
-    }
-
-    if (!isRepeated &&
-        (aNode.classList.contains("webconsole-msg-console") ||
-         aNode.classList.contains("webconsole-msg-exception") ||
-         aNode.classList.contains("webconsole-msg-error"))) {
-      isRepeated = this.filterRepeatedConsole(aNode, outputNode, aHUDId);
-    }
-
-    if (!isRepeated) {
-      outputNode.appendChild(aNode);
-    }
-
+    outputNode.appendChild(aNode);
     HUDService.regroupOutput(outputNode);
 
     if (pruneConsoleOutputIfNecessary(outputNode) == 0) {
@@ -5296,13 +5099,9 @@ ConsoleUtils = {
     // Scroll to the new node if it is not filtered, and if the output node is
     // scrolled at the bottom or if the new node is a jsterm input/output
     // message.
-    if (!isFiltered && !isRepeated && (scrolledToBottom || isInputOutput)) {
+    if (!isFiltered && (scrolledToBottom || isInputOutput)) {
       ConsoleUtils.scrollToVisible(aNode);
     }
-
-    let id = ConsoleUtils.supString(aHUDId);
-    let nodeID = aNode.getAttribute("id");
-    Services.obs.notifyObservers(id, "web-console-message-created", nodeID);
   },
 
   /**

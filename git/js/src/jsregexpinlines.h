@@ -140,10 +140,8 @@ class RegExp
     /*
      * Parse regexp flags. Report an error and return false if an invalid
      * sequence of flags is encountered (repeat/invalid flag).
-     *
-     * N.B. flagStr must be rooted.
      */
-    static bool parseFlags(JSContext *cx, JSString *flagStr, uintN *flagsOut);
+    static bool parseFlags(JSContext *cx, JSString *flagStr, uint32 &flagsOut);
 
     /*
      * Execute regexp on |input| at |*lastIndex|.
@@ -181,6 +179,7 @@ class RegExp
     static JSObject *createObjectNoStatics(JSContext *cx, const jschar *chars, size_t length,
                                            uint32 flags);
     static RegExp *extractFrom(JSObject *obj);
+    static AlreadyIncRefed<RegExp> clone(JSContext *cx, const RegExp &other);
 
     /* Mutators */
 
@@ -216,7 +215,7 @@ class RegExpMatchBuilder
     }
 
     bool append(jsid id, Value val) {
-        return !!js_DefineProperty(cx, array, id, &val, js::PropertyStub, js::StrictPropertyStub,
+        return !!js_DefineProperty(cx, array, id, &val, js::PropertyStub, js::PropertyStub,
                                    JSPROP_ENUMERATE);
     }
 
@@ -361,20 +360,11 @@ RegExp::executeInternal(JSContext *cx, RegExpStatics *res, JSString *inputstr,
                                          bufCount);
 #else
     int result = jsRegExpExecute(cx, compiled, chars, len, *lastIndex - inputOffset, buf, 
-                                 bufCount);
+                                 bufCount) < 0 ? -1 : buf[0];
 #endif
     if (result == -1) {
         *rval = NullValue();
         return true;
-    }
-
-    if (result < 0) {
-#if ENABLE_YARR_JIT
-        handleYarrError(cx, result);
-#else
-        handlePCREError(cx, result);
-#endif
-        return false;
     }
 
     /* 
@@ -584,6 +574,12 @@ RegExp::extractFrom(JSObject *obj)
         CompartmentChecker::check(obj->getCompartment(), re->compartment);
 #endif
     return re;
+}
+
+inline AlreadyIncRefed<RegExp>
+RegExp::clone(JSContext *cx, const RegExp &other)
+{
+    return create(cx, other.source, other.flags);
 }
 
 /* RegExpStatics inlines. */

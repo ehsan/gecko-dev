@@ -166,11 +166,11 @@ gfxGDIFont::InitTextRun(gfxContext *aContext,
 
     if (!ok) {
         GDIFontEntry *fe = static_cast<GDIFontEntry*>(GetFontEntry());
-        PRBool preferUniscribe =
-            (!fe->IsTrueType() || fe->IsSymbolFont()) && !fe->mForceGDI;
+        PRBool useUniscribeOnly = !fe->IsTrueType() || fe->IsSymbolFont();
 
-        if (preferUniscribe ||
-            UseUniscribe(aTextRun, aString, aRunStart, aRunLength))
+        if (useUniscribeOnly ||
+            (UseUniscribe(aTextRun, aString, aRunStart, aRunLength)
+             && !fe->mForceGDI))
         {
             // first try Uniscribe
             if (!mUniscribeShaper) {
@@ -185,13 +185,16 @@ gfxGDIFont::InitTextRun(gfxContext *aContext,
             }
 
             // fallback to GDI shaping
-            if (!mPlatformShaper) {
-                CreatePlatformShaper();
+            if (!useUniscribeOnly) {
+                if (!mPlatformShaper) {
+                    CreatePlatformShaper();
+                }
+
+                ok = mPlatformShaper->InitTextRun(aContext, aTextRun, aString,
+                                                  aRunStart, aRunLength, 
+                                                  aRunScript);
             }
 
-            ok = mPlatformShaper->InitTextRun(aContext, aTextRun, aString,
-                                              aRunStart, aRunLength, 
-                                              aRunScript);
         } else {
             // first use GDI
             if (!mPlatformShaper) {
@@ -206,7 +209,7 @@ gfxGDIFont::InitTextRun(gfxContext *aContext,
                 return PR_TRUE;
             }
 
-            // try Uniscribe if GDI failed
+            // first try Uniscribe
             if (!mUniscribeShaper) {
                 mUniscribeShaper = new gfxUniscribeShaper(this);
             }
@@ -265,6 +268,7 @@ gfxGDIFont::SetupCairoFont(gfxContext *aContext)
         return PR_FALSE;
     }
     cairo_set_scaled_font(aContext->GetCairo(), mScaledFont);
+    cairo_win32_scaled_font_select_font(mScaledFont, DCFromContext(aContext));
     return PR_TRUE;
 }
 
@@ -336,7 +340,7 @@ gfxGDIFont::Initialize()
         mMetrics->emAscent = ROUND(mMetrics->emHeight * (double)oMetrics.otmAscent / typEmHeight);
         mMetrics->emDescent = mMetrics->emHeight - mMetrics->emAscent;
         if (oMetrics.otmEMSquare > 0) {
-            mFUnitsConvFactor = float(mAdjustedSize / oMetrics.otmEMSquare);
+            mFUnitsConvFactor = float(GetAdjustedSize() / oMetrics.otmEMSquare);
         }
     } else {
         // Make a best-effort guess at extended metrics
@@ -472,7 +476,7 @@ gfxGDIFont::FillLogFont(LOGFONTW& aLogFont, gfxFloat aSize)
 }
 
 PRInt32
-gfxGDIFont::GetGlyphWidth(gfxContext *aCtx, PRUint16 aGID)
+gfxGDIFont::GetHintedGlyphWidth(gfxContext *aCtx, PRUint16 aGID)
 {
     if (!mGlyphWidths.IsInitialized()) {
         mGlyphWidths.Init(200);

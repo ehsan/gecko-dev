@@ -9,11 +9,6 @@ try {
 }
 
 function run_test() {
-  if (this.gczeal) {
-    _("Running crypto random tests with gczeal(2).");
-    gczeal(2);
-  }
-
   // Test salt generation.
   var salt;
 
@@ -35,10 +30,10 @@ function run_test() {
   do_check_eq(salt2.length, 12);
   do_check_neq(salt, salt2);
 
-  salt = cryptoSvc.generateRandomBytes(1024);
-  do_check_eq(salt.length, 1368);
   salt = cryptoSvc.generateRandomBytes(16);
   do_check_eq(salt.length, 24);
+  salt = cryptoSvc.generateRandomBytes(1024);
+  do_check_eq(salt.length, 1368);
 
 
   // Test random key generation
@@ -59,6 +54,19 @@ function run_test() {
   iv = cryptoSvc.generateRandomIV();
   do_check_eq(iv.length, 24);
 
-  if (this.gczeal)
-    gczeal(0);
+  cryptoSvc.algorithm = Ci.IWeaveCrypto.AES_192_CBC;
+  keydata  = cryptoSvc.generateRandomKey();
+  do_check_eq(keydata.length, 32);
+  keydata2 = cryptoSvc.generateRandomKey();
+  do_check_neq(keydata, keydata2); // sanity check for randomness
+  iv = cryptoSvc.generateRandomIV();
+  do_check_eq(iv.length, 24);
+
+  cryptoSvc.algorithm = Ci.IWeaveCrypto.AES_128_CBC;
+  keydata  = cryptoSvc.generateRandomKey();
+  do_check_eq(keydata.length, 24);
+  keydata2 = cryptoSvc.generateRandomKey();
+  do_check_neq(keydata, keydata2); // sanity check for randomness
+  iv = cryptoSvc.generateRandomIV();
+  do_check_eq(iv.length, 24);
 }

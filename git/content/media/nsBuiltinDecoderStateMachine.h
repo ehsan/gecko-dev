@@ -300,12 +300,6 @@ protected:
   // count. Called on the state machine thread.
   void FindEndTime();
 
-  // Update only the state machine's current playback position (and duration,
-  // if unknown).  Does not update the playback position on the decoder or
-  // media element -- use UpdatePlaybackPosition for that.  Called on the state
-  // machine thread, caller must hold the decoder lock.
-  void UpdatePlaybackPositionInternal(PRInt64 aTime);
-
   // Performs YCbCr to RGB conversion, and pushes the image down the
   // rendering pipeline. Called on the state machine thread.
   void RenderVideoFrame(VideoData* aData);
@@ -407,15 +401,14 @@ protected:
   // Thread for decoding video in background. The "decode thread".
   nsCOMPtr<nsIThread> mDecodeThread;
 
-  // The time that playback started from the system clock. This is used for
-  // timing the presentation of video frames when there's no audio.
+  // The time that playback started from the system clock. This is used
+  // for timing the display of audio frames when there's no audio.
   // Accessed only via the state machine thread.
   TimeStamp mPlayStartTime;
 
   // The amount of time we've spent playing already the media. The current
-  // playback position is therefore |Now() - mPlayStartTime +
-  // mPlayDuration|, which must be adjusted by mStartTime if used with media
-  // timestamps.  Accessed only via the state machine thread.
+  // playback position is therefore (mPlayDuration + (now - mPlayStartTime)).
+  // Accessed only via the state machine thread.
   TimeDuration mPlayDuration;
 
   // Time that buffering started. Used for buffering timeout and only

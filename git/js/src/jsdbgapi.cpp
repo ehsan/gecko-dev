@@ -42,12 +42,10 @@
  * JS debugging API.
  */
 #include <string.h>
-#include "jsprvtd.h"
 #include "jstypes.h"
 #include "jsstdint.h"
 #include "jsutil.h"
 #include "jsclist.h"
-#include "jshashtable.h"
 #include "jsapi.h"
 #include "jscntxt.h"
 #include "jsversion.h"
@@ -100,11 +98,17 @@ JS_GetDebugMode(JSContext *cx)
     return cx->compartment->debugMode;
 }
 
-JS_PUBLIC_API(JSBool)
-JS_SetDebugMode(JSContext *cx, JSBool debug)
+#ifdef JS_METHODJIT
+static bool
+IsScriptLive(JSContext *cx, JSScript *script)
 {
-    return JS_SetDebugModeForCompartment(cx, cx->compartment, debug);
+    for (AllFramesIter i(cx); !i.done(); ++i) {
+        if (i.fp()->maybeScript() == script)
+            return true;
+    }
+    return false;
 }
+#endif
 
 JS_PUBLIC_API(void)
 JS_SetRuntimeDebugMode(JSRuntime *rt, JSBool debug)
@@ -112,80 +116,71 @@ JS_SetRuntimeDebugMode(JSRuntime *rt, JSBool debug)
     rt->debugMode = debug;
 }
 
-#ifdef DEBUG
-static bool
-CompartmentHasLiveScripts(JSCompartment *comp)
-{
 #ifdef JS_METHODJIT
-# ifdef JS_THREADSAFE
-    jsword currentThreadId = reinterpret_cast<jsword>(js_CurrentThreadId());
-# endif
-#endif
-
-    // Unsynchronized context iteration is technically a race; but this is only
-    // for debug asserts where such a race would be rare
-    JSContext *iter = NULL;
-    JSContext *icx;
-    while ((icx = JS_ContextIterator(comp->rt, &iter))) {
-#ifdef JS_THREADSAFE
-        if (JS_GetContextThread(icx) != currentThreadId)
+static void
+PurgeCallICs(JSContext *cx, JSScript *start)
+{
+    for (JSScript *script = start;
+         &script->links != &cx->compartment->scripts;
+         script = (JSScript *)script->links.next)
+    {
+        // Debug mode does not use call ICs.
+        if (script->debugMode)
             continue;
-#endif
-        for (AllFramesIter i(icx); !i.done(); ++i) {
-            JSScript *script = i.fp()->maybeScript();
-            if (script && script->compartment == comp)
-                return JS_TRUE;
-        }
-    }
 
-    return JS_FALSE;
+        JS_ASSERT(!IsScriptLive(cx, script));
+
+        if (script->jitNormal)
+            script->jitNormal->nukeScriptDependentICs();
+        if (script->jitCtor)
+            script->jitCtor->nukeScriptDependentICs();
+    }
 }
 #endif
 
 JS_FRIEND_API(JSBool)
-JS_SetDebugModeForCompartment(JSContext *cx, JSCompartment *comp, JSBool debug)
+js_SetDebugMode(JSContext *cx, JSBool debug)
 {
-    if (comp->debugMode == !!debug)
-        return JS_TRUE;
-
-    // This should only be called when no scripts are live. It would even be
-    // incorrect to discard just the non-live scripts' JITScripts because they
-    // might share ICs with live scripts (bug 632343).
-    JS_ASSERT(!CompartmentHasLiveScripts(comp));
-
-    // All scripts compiled from this point on should be in the requested debugMode.
-    comp->debugMode = !!debug;
-
-    // Discard JIT code for any scripts that change debugMode. This function
-    // assumes that 'comp' is in the same thread as 'cx'.
-
+    cx->compartment->debugMode = debug;
 #ifdef JS_METHODJIT
-    JSAutoEnterCompartment ac;
-
-    for (JSScript *script = (JSScript *)comp->scripts.next;
-         &script->links != &comp->scripts;
-         script = (JSScript *)script->links.next)
-    {
-        if (!script->debugMode == !debug)
-            continue;
-
-        /*
-         * If compartment entry fails, debug mode is left partially on, leading
-         * to a small performance overhead but no loss of correctness. We set
-         * the debug flags to false so that the caller will not later attempt
-         * to use debugging features.
-         */
-        if (!ac.entered() && !ac.enter(cx, script)) {
-            comp->debugMode = JS_FALSE;
-            return JS_FALSE;
+    for (JSScript *script = (JSScript *)cx->compartment->scripts.next;
+         &script->links != &cx->compartment->scripts;
+         script = (JSScript *)script->links.next) {
+        if (script->debugMode != !!debug &&
+            script->hasJITCode() &&
+            !IsScriptLive(cx, script)) {
+            /*
+             * In the event that this fails, debug mode is left partially on,
+             * leading to a small performance overhead but no loss of
+             * correctness. We set the debug flag to false so that the caller
+             * will not later attempt to use debugging features.
+             */
+            js::mjit::Recompiler recompiler(cx, script);
+            if (!recompiler.recompile()) {
+                /*
+                 * If recompilation failed, we could be in a state where
+                 * remaining compiled scripts hold call IC references that
+                 * have been destroyed by recompilation. Clear those ICs now.
+                 */
+                PurgeCallICs(cx, script);
+                cx->compartment->debugMode = JS_FALSE;
+                return JS_FALSE;
+            }
         }
-
-        mjit::ReleaseScriptCode(cx, script);
-        script->debugMode = !!debug;
     }
 #endif
-
     return JS_TRUE;
+}
+
+JS_PUBLIC_API(JSBool)
+JS_SetDebugMode(JSContext *cx, JSBool debug)
+{
+#ifdef DEBUG
+    for (AllFramesIter i(cx); !i.done(); ++i)
+        JS_ASSERT(!JS_IsScriptFrame(cx, i.fp()));
+#endif
+
+    return js_SetDebugMode(cx, debug);
 }
 
 JS_FRIEND_API(JSBool)
@@ -568,9 +563,9 @@ JS_ClearInterrupt(JSRuntime *rt, JSInterruptHook *hoop, void **closurep)
 
 struct JSWatchPoint {
     JSCList             links;
-    JSObject            *object;        /* weak link, see js_SweepWatchPoints */
+    JSObject            *object;        /* weak link, see js_FinalizeObject */
     const Shape         *shape;
-    StrictPropertyOp    setter;
+    PropertyOp          setter;
     JSWatchPointHandler handler;
     JSObject            *closure;
     uintN               flags;
@@ -578,6 +573,9 @@ struct JSWatchPoint {
 
 #define JSWP_LIVE       0x1             /* live because set and not cleared */
 #define JSWP_HELD       0x2             /* held while running handler/setter */
+
+static bool
+IsWatchedProperty(JSContext *cx, const Shape *shape);
 
 /*
  * NB: DropWatchPointAndUnlock releases cx->runtime->debuggerLock in all cases.
@@ -593,12 +591,6 @@ DropWatchPointAndUnlock(JSContext *cx, JSWatchPoint *wp, uintN flag)
         DBG_UNLOCK(rt);
         return ok;
     }
-
-    /*
-     * Switch to the same compartment as the watch point, since changeProperty, below,
-     * needs to have a compartment.
-     */
-    SwitchToCompartment sc(cx, wp->object);
 
     /* Remove wp from the list, then restore wp->shape->setter from wp. */
     ++rt->debuggerMutations;
@@ -706,7 +698,7 @@ FindWatchPoint(JSRuntime *rt, JSObject *obj, jsid id)
 }
 
 JSBool
-js_watch_set(JSContext *cx, JSObject *obj, jsid id, JSBool strict, Value *vp)
+js_watch_set(JSContext *cx, JSObject *obj, jsid id, Value *vp)
 {
     JSRuntime *rt = cx->runtime;
     DBG_LOCK(rt);
@@ -714,115 +706,51 @@ js_watch_set(JSContext *cx, JSObject *obj, jsid id, JSBool strict, Value *vp)
          &wp->links != &rt->watchPointList;
          wp = (JSWatchPoint *)wp->links.next) {
         const Shape *shape = wp->shape;
-        if (wp->object == obj && SHAPE_USERID(shape) == id && !(wp->flags & JSWP_HELD)) {
+        if (wp->object == obj && SHAPE_USERID(shape) == id &&
+            !(wp->flags & JSWP_HELD)) {
             wp->flags |= JSWP_HELD;
             DBG_UNLOCK(rt);
 
             jsid propid = shape->id;
-            shape = obj->nativeLookup(propid);
-            JS_ASSERT(IsWatchedProperty(cx, shape));
             jsid userid = SHAPE_USERID(shape);
 
-            /* Determine the property's old value. */
-            bool ok;
-            uint32 slot = shape->slot;
-            Value old = obj->containsSlot(slot) ? obj->nativeGetSlot(slot) : UndefinedValue();
-            const Shape *needMethodSlotWrite = NULL;
-            if (shape->isMethod()) {
-                /*
-                 * We get here in two cases: (1) the existing watched property
-                 * is a method; or (2) the watched property was deleted and is
-                 * now in the middle of being re-added via JSOP_SETMETHOD. In
-                 * both cases we must trip the method read barrier in order to
-                 * avoid passing an uncloned function object to the handler.
-                 *
-                 * Case 2 is especially hairy. js_watch_set, uniquely, gets
-                 * called in the middle of creating a method property, after
-                 * shape is in obj but before the slot has been set. So in this
-                 * case we must finish initializing the half-finished method
-                 * property before triggering the method read barrier.
-                 *
-                 * Bonus weirdness: because this changes obj's shape,
-                 * js_NativeSet (which is our caller) will not write to the
-                 * slot, as it will appear the property was deleted and a new
-                 * property added. We must write the slot ourselves -- however
-                 * we must do it after calling the watchpoint handler. So set
-                 * needMethodSlotWrite here and use it to write to the slot
-                 * below, if the handler does not tinker with the property
-                 * further.
-                 */
-                JS_ASSERT(!wp->setter);
-                Value method = ObjectValue(shape->methodObject());
-                if (old.isUndefined())
-                    obj->nativeSetSlot(slot, method);
-                ok = obj->methodReadBarrier(cx, *shape, &method);
-                if (!ok)
-                    goto out;
-                wp->shape = shape = needMethodSlotWrite = obj->nativeLookup(propid);
-                JS_ASSERT(shape->isDataDescriptor());
-                JS_ASSERT(!shape->isMethod());
-                if (old.isUndefined())
-                    obj->nativeSetSlot(shape->slot, old);
-                else
-                    old = method;
+            /* NB: wp is held, so we can safely dereference it still. */
+            if (!wp->handler(cx, obj, propid,
+                             obj->containsSlot(shape->slot)
+                             ? Jsvalify(obj->nativeGetSlot(shape->slot))
+                             : JSVAL_VOID,
+                             Jsvalify(vp), wp->closure)) {
+                DBG_LOCK(rt);
+                DropWatchPointAndUnlock(cx, wp, JSWP_HELD);
+                return JS_FALSE;
             }
 
-            {
-                Conditionally<AutoShapeRooter> tvr(needMethodSlotWrite, cx, needMethodSlotWrite);
+            /* Handler could have redefined the shape; see bug 624050. */
+            shape = wp->shape;
 
-                /*
-                 * Call the handler. This invalidates shape, so re-lookup the shape.
-                 * NB: wp is held, so we can safely dereference it still.
-                 */
-                ok = wp->handler(cx, obj, propid, Jsvalify(old), Jsvalify(vp), wp->closure);
-                if (!ok)
-                    goto out;
-                shape = obj->nativeLookup(propid);
-
-                if (!shape) {
-                    ok = true;
-                } else if (wp->setter) {
-                    /*
-                     * Pass the output of the handler to the setter. Security wrappers
-                     * prevent any funny business between watchpoints and setters.
-                     */
-                    ok = shape->hasSetterValue()
-                         ? ExternalInvoke(cx, ObjectValue(*obj),
+            /*
+             * Pass the output of the handler to the setter. Security wrappers
+             * prevent any funny business between watchpoints and setters.
+             */
+            JSBool ok = !wp->setter ||
+                        (shape->hasSetterValue()
+                         ? ExternalInvoke(cx, obj,
                                           ObjectValue(*CastAsObject(wp->setter)),
                                           1, vp, vp)
-                         : CallJSPropertyOpSetter(cx, wp->setter, obj, userid, strict, vp);
-                } else if (shape == needMethodSlotWrite) {
-                    /* See comment above about needMethodSlotWrite. */
-                    obj->nativeSetSlot(shape->slot, *vp);
-                    ok = true;
-                } else {
-                    /*
-                     * A property with the default setter might be either a method
-                     * or an ordinary function-valued data property subject to the
-                     * method write barrier.
-                     *
-                     * It is not the setter's job to call methodWriteBarrier,
-                     * but js_watch_set must do so, because the caller will be
-                     * fooled into not doing it: shape does *not* have the
-                     * default setter and therefore seems not to be a method.
-                     */
-                    ok = obj->methodWriteBarrier(cx, *shape, *vp) != NULL;
-                }
-            }
+                         : CallJSPropertyOpSetter(cx, wp->setter, obj, userid, vp));
 
-        out:
             DBG_LOCK(rt);
             return DropWatchPointAndUnlock(cx, wp, JSWP_HELD) && ok;
         }
     }
     DBG_UNLOCK(rt);
-    return true;
+    return JS_TRUE;
 }
 
 static JSBool
 js_watch_set_wrapper(JSContext *cx, uintN argc, Value *vp)
 {
-    JSObject *obj = ToObject(cx, &vp[1]);
+    JSObject *obj = ComputeThisFromVp(cx, vp);
     if (!obj)
         return false;
 
@@ -831,16 +759,10 @@ js_watch_set_wrapper(JSContext *cx, uintN argc, Value *vp)
     jsid userid = ATOM_TO_JSID(wrapper->atom);
 
     JS_SET_RVAL(cx, vp, argc ? JS_ARGV(cx, vp)[0] : UndefinedValue());
-    /*
-     * The strictness we pass here doesn't matter, since we know that it's
-     * a JS setter, which can't depend on the assigning code's strictness.
-     */
-    return js_watch_set(cx, obj, userid, false, vp);
+    return js_watch_set(cx, obj, userid, vp);
 }
 
-namespace js {
-
-bool
+static bool
 IsWatchedProperty(JSContext *cx, const Shape *shape)
 {
     if (shape->hasSetterValue()) {
@@ -848,12 +770,10 @@ IsWatchedProperty(JSContext *cx, const Shape *shape)
         if (!funobj || !funobj->isFunction())
             return false;
 
-        JSFunction *fun = funobj->getFunctionPrivate();
+        JSFunction *fun = GET_FUNCTION_PRIVATE(cx, funobj);
         return fun->maybeNative() == js_watch_set_wrapper;
     }
     return shape->setterOp() == js_watch_set;
-}
-
 }
 
 /*
@@ -861,13 +781,13 @@ IsWatchedProperty(JSContext *cx, const Shape *shape)
  * with attributes |attrs|, to implement a watchpoint on the property named
  * |id|.
  */
-static StrictPropertyOp
-WrapWatchedSetter(JSContext *cx, jsid id, uintN attrs, StrictPropertyOp setter)
+static PropertyOp
+WrapWatchedSetter(JSContext *cx, jsid id, uintN attrs, PropertyOp setter)
 {
     JSAtom *atom;
     JSFunction *wrapper;
 
-    /* Wrap a C++ setter simply by returning our own C++ setter. */
+    /* Wrap a JSPropertyOp setter simply by returning our own JSPropertyOp. */
     if (!(attrs & JSPROP_SETTER))
         return &js_watch_set;   /* & to silence schoolmarmish MSVC */
 
@@ -889,26 +809,26 @@ WrapWatchedSetter(JSContext *cx, jsid id, uintN attrs, StrictPropertyOp setter)
                              setter ? CastAsObject(setter)->getParent() : NULL, atom);
     if (!wrapper)
         return NULL;
-    return CastAsStrictPropertyOp(FUN_OBJECT(wrapper));
+    return CastAsPropertyOp(FUN_OBJECT(wrapper));
 }
 
-static const Shape *
-UpdateWatchpointShape(JSContext *cx, JSWatchPoint *wp, const Shape *newShape)
+static bool
+UpdateWatchpointShape(JSContext *cx, JSWatchPoint *wp, const js::Shape *newShape)
 {
     JS_ASSERT_IF(wp->shape, wp->shape->id == newShape->id);
     JS_ASSERT(!IsWatchedProperty(cx, newShape));
 
     /* Create a watching setter we can substitute for the new shape's setter. */
-    StrictPropertyOp watchingSetter =
-        WrapWatchedSetter(cx, newShape->id, newShape->attributes(), newShape->setter());
+    js::PropertyOp watchingSetter = WrapWatchedSetter(cx, newShape->id, newShape->attributes(),
+                                                      newShape->setter());
     if (!watchingSetter)
-        return NULL;
+        return false;
 
     /*
      * Save the shape's setter; we don't know whether js_ChangeNativePropertyAttrs will
      * return a new shape, or mutate this one.
      */
-    StrictPropertyOp originalSetter = newShape->setter();
+    js::PropertyOp originalSetter = newShape->setter();
 
     /*
      * Drop the watching setter into the object, in place of newShape. Note that a single
@@ -916,21 +836,21 @@ UpdateWatchpointShape(JSContext *cx, JSWatchPoint *wp, const Shape *newShape)
      * wrap all (JSPropertyOp, not JSObject *) setters with js_watch_set, so shapes that
      * differ only in their setter may all get wrapped to the same shape.
      */
-    const Shape *watchingShape = 
+    const js::Shape *watchingShape = 
         js_ChangeNativePropertyAttrs(cx, wp->object, newShape, 0, newShape->attributes(),
                                      newShape->getter(), watchingSetter);
     if (!watchingShape)
-        return NULL;
+        return false;
 
     /* Update the watchpoint with the new shape and its original setter. */
     wp->setter = originalSetter;
     wp->shape = watchingShape;
 
-    return watchingShape;
+    return true;
 }
 
-const Shape *
-js_SlowPathUpdateWatchpointsForShape(JSContext *cx, JSObject *obj, const Shape *newShape)
+bool
+js_SlowPathUpdateWatchpointsForShape(JSContext *cx, JSObject *obj, const js::Shape *newShape)
 {
     /*
      * The watchpoint code uses the normal property-modification functions to install its
@@ -940,11 +860,11 @@ js_SlowPathUpdateWatchpointsForShape(JSContext *cx, JSObject *obj, const Shape *
      * proceed without interference.
      */
     if (IsWatchedProperty(cx, newShape))
-        return newShape;
+        return true;
 
     JSWatchPoint *wp = FindWatchPoint(cx->runtime, obj, newShape->id);
     if (!wp)
-        return newShape;
+        return true;
 
     return UpdateWatchpointShape(cx, wp, newShape);
 }
@@ -955,7 +875,7 @@ js_SlowPathUpdateWatchpointsForShape(JSContext *cx, JSObject *obj, const Shape *
  * watchpoint-wrapped shape may correspond to more than one non-watchpoint shape; see the
  * comments in UpdateWatchpointShape.
  */
-static StrictPropertyOp
+static PropertyOp
 UnwrapSetter(JSContext *cx, JSObject *obj, const Shape *shape)
 {
     /* If it's not a watched property, its setter is not wrapped. */
@@ -1031,8 +951,7 @@ JS_SetWatchPoint(JSContext *cx, JSObject *obj, jsid id,
     } else if (pobj != obj) {
         /* Clone the prototype property so we can watch the right object. */
         AutoValueRooter valroot(cx);
-        PropertyOp getter;
-        StrictPropertyOp setter;
+        PropertyOp getter, setter;
         uintN attrs, flags;
         intN shortid;
 
@@ -1050,8 +969,7 @@ JS_SetWatchPoint(JSContext *cx, JSObject *obj, jsid id,
                 !pobj->getAttributes(cx, propid, &attrs)) {
                 return JS_FALSE;
             }
-            getter = NULL;
-            setter = NULL;
+            getter = setter = NULL;
             flags = 0;
             shortid = 0;
         }
@@ -1101,13 +1019,6 @@ JS_SetWatchPoint(JSContext *cx, JSObject *obj, jsid id,
         JS_APPEND_LINK(&wp->links, &rt->watchPointList);
         ++rt->debuggerMutations;
     }
-
-    /*
-     * Ensure that an object with watchpoints never has the same shape as an
-     * object without them, even if the watched properties are deleted.
-     */
-    obj->watchpointOwnShapeChange(cx);
-
     wp->handler = handler;
     wp->closure = reinterpret_cast<JSObject*>(closure);
     DBG_UNLOCK(rt);
@@ -1569,8 +1480,8 @@ JS_EvaluateUCInStackFrame(JSContext *cx, JSStackFrame *fp,
      */
     JSScript *script = Compiler::compileScript(cx, scobj, fp, js_StackFramePrincipals(cx, fp),
                                                TCF_COMPILE_N_GO, chars, length,
-                                               filename, lineno, cx->findVersion(),
-                                               NULL, UpvarCookie::UPVAR_LEVEL_LIMIT);
+                                               filename, lineno, NULL,
+                                               UpvarCookie::UPVAR_LEVEL_LIMIT);
 
     if (!script)
         return false;
@@ -2013,14 +1924,13 @@ JS_StopProfiling()
 static JSBool
 StartProfiling(JSContext *cx, uintN argc, jsval *vp)
 {
-    JS_SET_RVAL(cx, vp, BOOLEAN_TO_JSVAL(JS_StartProfiling()));
+    JS_SET_RVAL(cx, vp, BOOLEAN_TO_JSVAL(Probes::startProfiling()));
     return true;
 }
 
 static JSBool
 StopProfiling(JSContext *cx, uintN argc, jsval *vp)
 {
-    JS_StopProfiling();
     JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return true;
 }
@@ -2250,7 +2160,7 @@ ethogram_finalize(JSContext *cx, JSObject *obj);
 static JSClass ethogram_class = {
     "Ethogram",
     JSCLASS_HAS_PRIVATE,
-    JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
+    JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_PropertyStub,
     JS_EnumerateStub, JS_ResolveStub, JS_ConvertStub, ethogram_finalize,
     JSCLASS_NO_OPTIONAL_MEMBERS
 };

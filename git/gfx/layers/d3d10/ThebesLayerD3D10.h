@@ -51,7 +51,8 @@ public:
   ThebesLayerD3D10(LayerManagerD3D10 *aManager);
   virtual ~ThebesLayerD3D10();
 
-  void Validate(ReadbackProcessor *aReadback);
+  /* Layer implementation */
+  void SetVisibleRegion(const nsIntRegion& aRegion);
 
   /* ThebesLayer implementation */
   void InvalidateRegion(const nsIntRegion& aRegion);
@@ -59,7 +60,7 @@ public:
   /* LayerD3D10 implementation */
   virtual Layer* GetLayer();
   virtual void RenderLayer();
-  virtual void Validate() { Validate(nsnull); }
+  virtual void Validate();
   virtual void LayerManagerDestroyed();
 
 private:
@@ -69,45 +70,17 @@ private:
   /* Shader resource view for our texture */
   nsRefPtr<ID3D10ShaderResourceView> mSRView;
 
-  /* Texture for render-on-whitew when doing component alpha */
-  nsRefPtr<ID3D10Texture2D> mTextureOnWhite;
-
-  /* Shader resource view for our render-on-white texture */
-  nsRefPtr<ID3D10ShaderResourceView> mSRViewOnWhite;
-
-  /* Visible region used when we drew the contents of the textures */
-  nsIntRegion mTextureRegion;
-
   /* Checks if our D2D surface has the right content type */
-  void VerifyContentType(SurfaceMode aMode);
+  void VerifyContentType();
 
   /* This contains the thebes surface */
   nsRefPtr<gfxASurface> mD2DSurface;
 
-  /* This contains the thebes surface for our render-on-white texture */
-  nsRefPtr<gfxASurface> mD2DSurfaceOnWhite;
-
   /* Have a region of our layer drawn */
-  void DrawRegion(nsIntRegion &aRegion, SurfaceMode aMode);
+  void DrawRegion(const nsIntRegion &aRegion);
 
   /* Create a new texture */
-  void CreateNewTextures(const gfxIntSize &aSize, SurfaceMode aMode);
-
-  /* Copy a texture region */
-  void CopyRegion(ID3D10Texture2D* aSrc, const nsIntPoint &aSrcOffset,
-                  ID3D10Texture2D* aDest, const nsIntPoint &aDestOffset,
-                  const nsIntRegion &aCopyRegion, nsIntRegion* aValidRegion,
-                  float aXRes, float aYRes);
-
-  /**
-   * Calculate the desired texture resolution based on
-   * the layer managers resolution, and the current
-   * transforms scale factor.
-   */
-  void GetDesiredResolutions(float& aXRes, float& aYRes);
-
-  /* Check if the current texture resolution matches the stored resolution. */
-  bool ResolutionChanged(float aXRes, float aYRes);
+  void CreateNewTexture(const gfxIntSize &aSize);
 };
 
 } /* layers */

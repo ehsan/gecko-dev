@@ -85,23 +85,30 @@ using namespace js;
 #include "jskeyword.tbl"
 #undef JS_KEYWORD
 
-static const KeywordInfo keywords[] = {
+struct keyword {
+    const char  *chars;         /* C string with keyword text */
+    TokenKind   tokentype;
+    JSOp        op;             /* JSOp */
+    JSVersion   version;        /* JSVersion */
+};
+
+static const struct keyword keyword_defs[] = {
 #define JS_KEYWORD(keyword, type, op, version) \
     {js_##keyword##_str, type, op, version},
 #include "jskeyword.tbl"
 #undef JS_KEYWORD
 };
 
-namespace js {
+#define KEYWORD_COUNT JS_ARRAY_LENGTH(keyword_defs)
 
-const KeywordInfo *
+static const struct keyword *
 FindKeyword(const jschar *s, size_t length)
 {
-    JS_ASSERT(length != 0);
-
     register size_t i;
-    const struct KeywordInfo *kw;
+    const struct keyword *kw;
     const char *chars;
+
+    JS_ASSERT(length != 0);
 
 #define JSKW_LENGTH()           length
 #define JSKW_AT(column)         s[column]
@@ -116,10 +123,10 @@ FindKeyword(const jschar *s, size_t length)
 #undef JSKW_LENGTH
 
   got_match:
-    return &keywords[i];
+    return &keyword_defs[i];
 
   test_guess:
-    kw = &keywords[i];
+    kw = &keyword_defs[i];
     chars = kw->chars;
     do {
         if (*s++ != (unsigned char)(*chars++))
@@ -131,7 +138,15 @@ FindKeyword(const jschar *s, size_t length)
     return NULL;
 }
 
-} // namespace js
+TokenKind
+js_CheckKeyword(const jschar *str, size_t length)
+{
+    const struct keyword *kw;
+
+    JS_ASSERT(length != 0);
+    kw = FindKeyword(str, length);
+    return kw ? kw->tokentype : TOK_EOF;
+}
 
 JSBool
 js_IsIdentifier(JSLinearString *str)
@@ -168,12 +183,12 @@ TokenStream::TokenStream(JSContext *cx)
 #endif
 
 bool
-TokenStream::init(const jschar *base, size_t length, const char *fn, uintN ln, JSVersion v)
+TokenStream::init(JSVersion version, const jschar *base, size_t length, const char *fn, uintN ln)
 {
+    this->version = version;
+
     filename = fn;
     lineno = ln;
-    version = v;
-    xml = VersionHasXML(v);
 
     userbuf.base = (jschar *)base;
     userbuf.limit = (jschar *)base + length;
@@ -413,11 +428,11 @@ TokenStream::reportCompileErrorNumberVA(JSParseNode *pn, uintN flags, uintN erro
     uintN index, i;
     JSErrorReporter onError;
 
-    if (JSREPORT_IS_STRICT(flags) && !cx->hasStrictOption())
+    if (JSREPORT_IS_STRICT(flags) && !JS_HAS_STRICT_OPTION(cx))
         return JS_TRUE;
 
     warning = JSREPORT_IS_WARNING(flags);
-    if (warning && cx->hasWErrorOption()) {
+    if (warning && JS_HAS_WERROR_OPTION(cx)) {
         flags &= ~JSREPORT_WARNING;
         warning = false;
     }
@@ -568,7 +583,7 @@ js::ReportStrictModeError(JSContext *cx, TokenStream *ts, JSTreeContext *tc, JSP
     if ((ts && ts->isStrictMode()) || (tc && (tc->flags & TCF_STRICT_MODE_CODE))) {
         flags = JSREPORT_ERROR;
     } else {
-        if (!cx->hasStrictOption())
+        if (!JS_HAS_STRICT_OPTION(cx))
             return true;
         flags = JSREPORT_WARNING;
     }
@@ -800,6 +815,7 @@ TokenStream::getTokenInternal()
     Token *tp;
     JSAtom *atom;
     bool hadUnicodeEscape;
+    const struct keyword *kw;
 #if JS_HAS_XML_SUPPORT
     JSBool inTarget;
     size_t targetLength;
@@ -857,7 +873,6 @@ TokenStream::getTokenInternal()
                 c = getChar();
             } while (JS_ISXMLSPACE(c));
             ungetChar(c);
-            tp->pos.end.lineno = lineno;
             tt = TOK_XMLSPACE;
             goto out;
         }
@@ -1024,40 +1039,18 @@ TokenStream::getTokenInternal()
          * Check for keywords unless we saw Unicode escape or parser asks
          * to ignore keywords.
          */
-        const KeywordInfo *kw;
         if (!hadUnicodeEscape &&
             !(flags & TSF_KEYWORD_IS_NAME) &&
             (kw = FindKeyword(tokenbuf.begin(), tokenbuf.length()))) {
             if (kw->tokentype == TOK_RESERVED) {
-                if (!ReportCompileErrorNumber(cx, this, NULL, JSREPORT_ERROR,
+                if (!ReportCompileErrorNumber(cx, this, NULL, JSREPORT_WARNING | JSREPORT_STRICT,
                                               JSMSG_RESERVED_ID, kw->chars)) {
                     goto error;
                 }
-            } else if (kw->tokentype == TOK_STRICT_RESERVED) {
-                if (isStrictMode()
-                    ? !ReportStrictModeError(cx, this, NULL, NULL, JSMSG_RESERVED_ID, kw->chars)
-                    : !ReportCompileErrorNumber(cx, this, NULL,
-                                                JSREPORT_STRICT | JSREPORT_WARNING,
-                                                JSMSG_RESERVED_ID, kw->chars)) {
-                    goto error;
-                }
-            } else {
-                if (kw->version <= versionNumber()) {
-                    tt = kw->tokentype;
-                    tp->t_op = (JSOp) kw->op;
-                    goto out;
-                }
-
-                /*
-                 * let/yield are a Mozilla extension starting in JS1.7. If we
-                 * aren't parsing for a version supporting these extensions,
-                 * conform to ES5 and forbid these names in strict mode.
-                 */
-                if ((kw->tokentype == TOK_LET || kw->tokentype == TOK_YIELD) &&
-                    !ReportStrictModeError(cx, this, NULL, NULL, JSMSG_RESERVED_ID, kw->chars))
-                {
-                    goto error;
-                }
+            } else if (kw->version <= VersionNumber(version)) {
+                tt = kw->tokentype;
+                tp->t_op = (JSOp) kw->op;
+                goto out;
             }
         }
 
@@ -1406,7 +1399,8 @@ TokenStream::getTokenInternal()
          *
          * The check for this is in jsparse.cpp, Compiler::compileScript.
          */
-        if ((flags & TSF_OPERAND) && (hasXML() || peekChar() != '!')) {
+        if ((flags & TSF_OPERAND) &&
+            (VersionShouldParseXML(version) || peekChar() != '!')) {
             /* Check for XML comment or CDATA section. */
             if (matchChar('!')) {
                 tokenbuf.clear();
@@ -1562,7 +1556,7 @@ TokenStream::getTokenInternal()
              * "//@line 123\n" sets the number of the *next* line after the
              * comment to 123.
              */
-            if (cx->hasAtLineOption()) {
+            if (JS_HAS_ATLINE_OPTION(cx)) {
                 jschar cp[5];
                 uintN i, line, temp;
                 char filenameBuf[1024];
@@ -1780,7 +1774,7 @@ TokenStream::getTokenInternal()
             }
         }
         tp->t_dval = (jsdouble) n;
-        if (cx->hasStrictOption() &&
+        if (JS_HAS_STRICT_OPTION(cx) &&
             (c == '=' || c == '#')) {
             char buf[20];
             JS_snprintf(buf, sizeof buf, "#%u%c", n, c);

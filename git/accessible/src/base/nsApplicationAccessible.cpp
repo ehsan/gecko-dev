@@ -55,7 +55,6 @@
 nsApplicationAccessible::nsApplicationAccessible() :
   nsAccessibleWrap(nsnull, nsnull)
 {
-  mFlags |= eApplicationAccessible;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -409,6 +408,12 @@ nsApplicationAccessible::InvalidateChildren()
 {
   // Do nothing because application children are kept updated by AppendChild()
   // and RemoveChild() method calls.
+}
+
+nsAccessible*
+nsApplicationAccessible::GetParent()
+{
+  return nsnull;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -105,7 +105,7 @@ public:
   /**
    * Return the root document accessible for this accessnode.
    */
-  nsRootAccessible* RootAccessible() const;
+  already_AddRefed<nsRootAccessible> GetRootAccessible();
 
   /**
    * Reference to a node of focused accessible.
@@ -135,10 +135,10 @@ public:
    */
   virtual void Shutdown();
 
-  /**
-   * Return frame for the given access node object.
-   */
-  virtual nsIFrame* GetFrame() const;
+    /**
+     * Return frame for the given access node object.
+     */
+    virtual nsIFrame* GetFrame();
 
   /**
    * Return DOM node associated with this accessible.
@@ -165,11 +165,6 @@ public:
   PRBool IsContent() const
   {
     return GetNode() && GetNode()->IsNodeOfType(nsINode::eCONTENT);
-  }
-  bool IsElement() const
-  {
-    nsINode* node = GetNode();
-    return node && node->IsElement();
   }
   PRBool IsDocument() const
   {

@@ -68,7 +68,6 @@
 #include "jscntxtinlines.h"
 #include "jsatominlines.h"
 #include "StubCalls-inl.h"
-#include "MethodJIT-inl.h"
 
 #include "jsautooplen.h"
 
@@ -171,7 +170,12 @@ top:
 }
 
 /*
- * Clean up a frame and return.
+ * Clean up a frame and return.  popFrame indicates whether to additionally pop
+ * the frame and store the return value on the caller's stack.  The frame will
+ * normally be popped by the caller on return from a call into JIT code,
+ * so must be popped here when that caller code will not execute.  This can be
+ * either because of a call into an un-JITable script, or because the call is
+ * throwing an exception.
  */
 static void
 InlineReturn(VMFrame &f)
@@ -268,14 +272,8 @@ stubs::FixupArity(VMFrame &f, uint32 nactual)
     JSStackFrame *newfp = cx->stack().getInlineFrameWithinLimit(cx, (Value*) oldfp, nactual,
                                                                 fun, fun->script(), &flags,
                                                                 f.entryfp, &f.stackLimit);
-    if (!newfp) {
-        /*
-         * The PC is not coherent with the current frame, so fix it up for
-         * exception handling.
-         */
-        f.regs.pc = f.jit()->nativeToPC(ncode);
+    if (!newfp)
         THROWV(NULL);
-    }
 
     /* Reset the part of the stack frame set by the caller. */
     newfp->initCallFrameCallerHalf(cx, flags, ncode);
@@ -307,7 +305,8 @@ stubs::CompileFunction(VMFrame &f, uint32 nactual)
 
     /*
      * FixupArity/RemovePartialFrame expect to be called after the early
-     * prologue.
+     * prologue. Pass the existing value for ncode, it has already been set
+     * by the jit code calling into this stub.
      */
     fp->initCallFrameEarlyPrologue(fun, nactual);
 
@@ -328,7 +327,7 @@ stubs::CompileFunction(VMFrame &f, uint32 nactual)
     if (fun->isHeavyweight() && !js_GetCallObject(cx, fp))
         THROWV(NULL);
 
-    CompileStatus status = CanMethodJIT(cx, script, fp, CompileRequest_JIT);
+    CompileStatus status = CanMethodJIT(cx, script, fp);
     if (status == Compile_Okay)
         return script->getJIT(fp->isConstructing())->invokeEntry;
 
@@ -343,7 +342,7 @@ stubs::CompileFunction(VMFrame &f, uint32 nactual)
 }
 
 static inline bool
-UncachedInlineCall(VMFrame &f, uint32 flags, void **pret, bool *unjittable, uint32 argc)
+UncachedInlineCall(VMFrame &f, uint32 flags, void **pret, uint32 argc)
 {
     JSContext *cx = f.cx;
     Value *vp = f.regs.sp - (argc + 2);
@@ -358,6 +357,8 @@ UncachedInlineCall(VMFrame &f, uint32 flags, void **pret, bool *unjittable, uint
                                                           f.entryfp, &f.stackLimit);
     if (JS_UNLIKELY(!newfp))
         return false;
+    JS_ASSERT_IF(!vp[1].isPrimitive() && !(flags & JSFRAME_CONSTRUCTING),
+                 IsSaneThisObject(vp[1].toObject()));
 
     /* Initialize frame, locals. */
     newfp->initCallFrame(cx, callee, newfun, argc, flags);
@@ -367,21 +368,18 @@ UncachedInlineCall(VMFrame &f, uint32 flags, void **pret, bool *unjittable, uint
     stack.pushInlineFrame(cx, newscript, newfp, &f.regs);
     JS_ASSERT(newfp == f.regs.fp);
 
+    /* Scope with a call object parented by callee's parent. */
+    if (newfun->isHeavyweight() && !js_GetCallObject(cx, newfp))
+        return false;
+
     /* Try to compile if not already compiled. */
     if (newscript->getJITStatus(newfp->isConstructing()) == JITScript_None) {
-        CompileStatus status = CanMethodJIT(cx, newscript, newfp, CompileRequest_Interpreter);
-        if (status == Compile_Error) {
+        if (mjit::TryCompile(cx, newfp) == Compile_Error) {
             /* A runtime exception was thrown, get out. */
             InlineReturn(f);
             return false;
         }
-        if (status == Compile_Abort)
-            *unjittable = true;
     }
-
-    /* Create call object now that we can't fail entering callee. */
-    if (newfun->isHeavyweight() && !js_GetCallObject(cx, newfp))
-        return false;
 
     /* If newscript was successfully compiled, run it. */
     if (JITScript *jit = newscript->getJIT(newfp->isConstructing())) {
@@ -416,7 +414,7 @@ stubs::UncachedNewHelper(VMFrame &f, uint32 argc, UncachedCallResult *ucr)
     /* Try to do a fast inline call before the general Invoke path. */
     if (IsFunctionObject(*vp, &ucr->fun) && ucr->fun->isInterpreted()) {
         ucr->callee = &vp->toObject();
-        if (!UncachedInlineCall(f, JSFRAME_CONSTRUCTING, &ucr->codeAddr, &ucr->unjittable, argc))
+        if (!UncachedInlineCall(f, JSFRAME_CONSTRUCTING, &ucr->codeAddr, argc))
             THROW();
     } else {
         if (!InvokeConstructor(cx, InvokeArgsAlreadyOnTheStack(vp, argc)))
@@ -466,7 +464,7 @@ stubs::UncachedCallHelper(VMFrame &f, uint32 argc, UncachedCallResult *ucr)
         ucr->fun = GET_FUNCTION_PRIVATE(cx, ucr->callee);
 
         if (ucr->fun->isInterpreted()) {
-            if (!UncachedInlineCall(f, 0, &ucr->codeAddr, &ucr->unjittable, argc))
+            if (!UncachedInlineCall(f, 0, &ucr->codeAddr, argc))
                 THROW();
             return;
         }
@@ -759,23 +757,16 @@ PartialInterpret(VMFrame &f)
 
 JS_STATIC_ASSERT(JSOP_NOP == 0);
 
-/*
- * Returns whether the current PC would return, or if the frame has already
- * been completed. This distinction avoids re-entering the interpreter or JIT
- * to complete a JSOP_RETURN. Instead, that edge case is handled in
- * HandleFinishedFrame. We could consider reducing complexity, and making this
- * function return only "finishedInInterpreter", and always using the full VM
- * machinery to fully finish frames.
- */
-static inline bool
+/* Returns whether the current PC would return, popping the frame. */
+static inline JSOp
 FrameIsFinished(JSContext *cx)
 {
     JSOp op = JSOp(*cx->regs->pc);
     return (op == JSOP_RETURN ||
             op == JSOP_RETRVAL ||
             op == JSOP_STOP)
-        ? true
-        : cx->fp()->finishedInInterpreter();
+        ? op
+        : JSOP_NOP;
 }
 
 
@@ -825,9 +816,9 @@ HandleFinishedFrame(VMFrame &f, JSStackFrame *entryFrame)
      *  4. No: Somewhere in the RunTracer call tree, we removed a frame,
      *         and we returned to a JSOP_RETURN opcode. Note carefully
      *         that in this situation, FrameIsFinished() returns true!
-     *  5. Yes: The function exited in the method JIT, during
-     *         FinishExcessFrames() However, in this case, we'll never enter
-     *         HandleFinishedFrame(): we always immediately pop JIT'd frames.
+     *  5. Yes: The function exited in the method JIT. However, in this
+     *         case, we'll never enter HandleFinishedFrame(): we always
+     *         immediately pop JIT'd frames.
      *
      * Since the only scenario where this fixup is NOT needed is a normal exit
      * from the interpreter, we can cleanly check for this scenario by checking
@@ -929,9 +920,9 @@ UpdateTraceHintSingle(Repatcher &repatcher, JSC::CodeLocationJump jump, JSC::Cod
 }
 
 static void
-DisableTraceHint(JITScript *jit, ic::TraceICInfo &ic)
+DisableTraceHint(VMFrame &f, ic::TraceICInfo &ic)
 {
-    Repatcher repatcher(jit);
+    Repatcher repatcher(f.jit());
     UpdateTraceHintSingle(repatcher, ic.traceHint, ic.jumpTarget);
 
     if (ic.hasSlowTraceHint)
@@ -944,7 +935,7 @@ ResetTraceHintAt(JSScript *script, js::mjit::JITScript *jit,
 {
     if (index >= jit->nTraceICs)
         return;
-    ic::TraceICInfo &ic = jit->traceICs()[index];
+    ic::TraceICInfo &ic = jit->traceICs[index];
     if (!ic.initialized)
         return;
     
@@ -1030,7 +1021,7 @@ RunTracer(VMFrame &f)
 #if JS_MONOIC
     ic.loopCounterStart = *loopCounter;
     if (blacklist)
-        DisableTraceHint(entryFrame->jit(), ic);
+        DisableTraceHint(f, ic);
 #endif
 
     // Even though ExecuteTree() bypasses the interpreter, it should propagate

@@ -10,7 +10,7 @@ function f() {
         })\
     "))();
 }
-this.__defineSetter__("x", eval)
+__defineSetter__("x", eval)
 f()
 appendToActual(x);
 

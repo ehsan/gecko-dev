@@ -32,9 +32,8 @@ function testLineLimit() {
   prefBranch.setIntPref("loglimit", 20);
 
   for (let i = 0; i < 20; i++) {
-    console.log("foo #" + i); // must change message to prevent repeats
+    console.log("foo");
   }
-
   is(countMessageNodes(), 20, "there are 20 message nodes in the output " +
      "when the log limit is set to 20");
 
@@ -44,9 +43,8 @@ function testLineLimit() {
 
   prefBranch.setIntPref("loglimit", 30);
   for (let i = 0; i < 20; i++) {
-    console.log("boo #" + i); // must change message to prevent repeats
+    console.log("boo");
   }
-
   is(countMessageNodes(), 30, "there are 30 message nodes in the output " +
      "when the log limit is set to 30");
 

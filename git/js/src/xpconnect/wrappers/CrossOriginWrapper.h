@@ -45,18 +45,7 @@
 
 namespace xpc {
 
-class NoWaiverWrapper : public JSCrossCompartmentWrapper {
-  public:
-    NoWaiverWrapper(uintN flags);
-    virtual ~NoWaiverWrapper();
-
-    virtual bool enter(JSContext *cx, JSObject *wrapper, jsid id, Action act, bool *bp);
-    virtual void leave(JSContext *cx, JSObject *wrapper);
-
-    static NoWaiverWrapper singleton;
-};
-
-class CrossOriginWrapper : public NoWaiverWrapper {
+class CrossOriginWrapper : public JSCrossCompartmentWrapper {
   public:
     CrossOriginWrapper(uintN flags);
     virtual ~CrossOriginWrapper();
@@ -71,6 +60,9 @@ class CrossOriginWrapper : public NoWaiverWrapper {
     virtual bool call(JSContext *cx, JSObject *wrapper, uintN argc, js::Value *vp);
     virtual bool construct(JSContext *cx, JSObject *wrapper,
                            uintN argc, js::Value *argv, js::Value *rval);
+
+    virtual bool enter(JSContext *cx, JSObject *wrapper, jsid id, Action act);
+    virtual void leave(JSContext *cx, JSObject *wrapper);
 
     static CrossOriginWrapper singleton;
 };

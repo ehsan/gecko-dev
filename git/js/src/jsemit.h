@@ -213,7 +213,8 @@ struct JSStmtInfo {
  */
 #define TCF_STRICT_MODE_CODE    0x40000
 
-/* bit 0x80000 is unused */
+/* Function has parameter named 'eval'. */
+#define TCF_FUN_PARAM_EVAL      0x80000
 
 /*
  * Flag signifying that the current function seems to be a constructor that
@@ -260,11 +261,6 @@ struct JSStmtInfo {
  * The script contains singleton initialiser JSOP_OBJECT.
  */
 #define TCF_HAS_SINGLETONS       0x8000000
-
-/*
- * Some enclosing scope is a with-statement or E4X filter-expression.
- */
-#define TCF_IN_WITH             0x10000000
 
 /*
  * Flags to check for return; vs. return expr; in a function.
@@ -463,7 +459,7 @@ struct JSTreeContext {              /* tree context for semantic checks */
  * JSOPTION_STRICT warnings or strict mode errors.
  */
 inline bool JSTreeContext::needStrictChecks() {
-    return parser->context->hasStrictOption() || inStrictMode();
+    return JS_HAS_STRICT_OPTION(parser->context) || inStrictMode();
 }
 
 /*
@@ -652,18 +648,17 @@ struct JSCodeGenerator : public JSTreeContext
      */
     bool addGlobalUse(JSAtom *atom, uint32 slot, js::UpvarCookie *cookie);
 
-    bool hasSharps() const {
+    bool hasSharps() {
         bool rv = !!(flags & TCF_HAS_SHARPS);
         JS_ASSERT((sharpSlotBase >= 0) == rv);
         return rv;
     }
 
-    uintN sharpSlots() const {
+    uintN sharpSlots() {
         return hasSharps() ? SHARP_NSLOTS : 0;
     }
 
-    bool compilingForEval() const { return !!(flags & TCF_COMPILE_FOR_EVAL); }
-    JSVersion version() const { return parser->versionWithFlags(); }
+    bool compilingForEval() { return !!(flags & TCF_COMPILE_FOR_EVAL); }
 
     bool shouldNoteClosedName(JSParseNode *pn);
 

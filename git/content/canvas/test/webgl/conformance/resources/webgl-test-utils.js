@@ -106,7 +106,7 @@ var simpleTextureFragmentShader = '' +
   'uniform sampler2D tex;\n' +
   'varying vec2 texCoord;\n' +
   'void main() {\n' +
-  '    gl_FragData[0] = texture2D(tex, texCoord);\n' +
+  '    gl_FragColor = texture2D(tex, texCoord);\n' +
   '}\n';
 
 /**
@@ -262,21 +262,16 @@ var setupTexturedQuad = function(
  */
 var fillTexture = function(gl, tex, width, height, color, opt_level) {
   opt_level = opt_level || 0;
-  var numPixels = width * height;
-  var size = numPixels * 4;
-  var buf = new Uint8Array(size);
-  for (var ii = 0; ii < numPixels; ++ii) {
-    var off = ii * 4;
-    buf[off + 0] = color[0];
-    buf[off + 1] = color[1];
-    buf[off + 2] = color[2];
-    buf[off + 3] = color[3];
-  }
+  var canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  var ctx2d = canvas.getContext('2d');
+  ctx2d.fillStyle = "rgba(" + color[0] + "," + color[1] + "," + color[2] + "," + color[3] + ")";
+  ctx2d.fillRect(0, 0, width, height);
   gl.bindTexture(gl.TEXTURE_2D, tex);
   gl.texImage2D(
-      gl.TEXTURE_2D, opt_level, gl.RGBA, width, height, 0,
-      gl.RGBA, gl.UNSIGNED_BYTE, buf);
-  };
+      gl.TEXTURE_2D, opt_level, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, canvas);
+};
 
 /**
  * Creates a textures and fills it with a solid color
@@ -321,17 +316,14 @@ var drawQuad = function(gl, opt_color) {
  * @param {!Array.<number>} color The color to fill clear with before drawing. A
  *        4 element array where each element is in the range 0 to 255.
  * @param {string} msg Message to associate with success. Eg ("should be red").
- * @param {number} errorRange Optional. Acceptable error in
- *        color checking. 0 by default.
  */
-var checkCanvasRect = function(gl, x, y, width, height, color, msg, errorRange) {
-  errorRange = errorRange || 0;
+var checkCanvasRect = function(gl, x, y, width, height, color, msg) {
   var buf = new Uint8Array(width * height * 4);
   gl.readPixels(x, y, width, height, gl.RGBA, gl.UNSIGNED_BYTE, buf);
   for (var i = 0; i < width * height; ++i) {
     var offset = i * 4;
     for (var j = 0; j < color.length; ++j) {
-      if (Math.abs(buf[offset + j] - color[j]) > errorRange) {
+      if (buf[offset + j] != color[j]) {
         testFailed(msg);
         var was = buf[offset + 0].toString();
         for (j = 1; j < color.length; ++j) {
@@ -647,11 +639,6 @@ var loadShader = function(gl, shaderSource, shaderType) {
 
   // Load the shader source
   gl.shaderSource(shader, shaderSource);
-  var err = gl.getError();
-  if (err != gl.NO_ERROR) {
-    error("*** Error loading shader '" + shader + "':" + glEnumToString(gl, err));
-    return null;
-  }
 
   // Compile the shader
   gl.compileShader(shader);

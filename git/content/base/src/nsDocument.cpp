@@ -104,7 +104,6 @@
 #include "nsDOMError.h"
 #include "nsIPresShell.h"
 #include "nsPresContext.h"
-#include "nsIJSON.h"
 #include "nsThreadUtils.h"
 #include "nsNodeInfoManager.h"
 #include "nsIXBLService.h"
@@ -186,7 +185,6 @@ static NS_DEFINE_CID(kDOMEventGroupCID, NS_DOMEVENTGROUP_CID);
 
 #include "mozAutoDocUpdate.h"
 #include "nsGlobalWindow.h"
-#include "mozilla/dom/indexedDB/IndexedDatabaseManager.h"
 
 #ifdef MOZ_SMIL
 #include "nsSMILAnimationController.h"
@@ -204,7 +202,6 @@ static NS_DEFINE_CID(kDOMEventGroupCID, NS_DOMEVENTGROUP_CID);
 
 #include "mozilla/dom/Link.h"
 #include "nsIHTMLDocument.h"
-#include "nsXULAppAPI.h"
 
 using namespace mozilla::dom;
 
@@ -500,18 +497,11 @@ struct FindContentData
  */
 struct nsRadioGroupStruct
 {
-  nsRadioGroupStruct()
-    : mRequiredRadioCount(0)
-    , mGroupSuffersFromValueMissing(false)
-  {}
-
   /**
    * A strong pointer to the currently selected radio button.
    */
   nsCOMPtr<nsIDOMHTMLInputElement> mSelectedRadioButton;
   nsCOMArray<nsIFormControl> mRadioButtons;
-  PRUint32 mRequiredRadioCount;
-  bool mGroupSuffersFromValueMissing;
 };
 
 
@@ -889,19 +879,7 @@ TransferZoomLevels(nsIDocument* aFromDoc,
     return;
 
   toCtxt->SetFullZoom(fromCtxt->GetFullZoom());
-  toCtxt->SetMinFontSize(fromCtxt->MinFontSize());
   toCtxt->SetTextZoom(fromCtxt->TextZoom());
-}
-
-void
-TransferShowingState(nsIDocument* aFromDoc, nsIDocument* aToDoc)
-{
-  NS_ABORT_IF_FALSE(aFromDoc && aToDoc,
-                    "transferring showing state from/to null doc");
-
-  if (aFromDoc->IsShowing()) {
-    aToDoc->OnPageShow(PR_TRUE, nsnull);
-  }
 }
 
 nsresult
@@ -963,7 +941,6 @@ nsExternalResourceMap::AddExternalResource(nsIURI* aURI,
     newResource->mLoadGroup = aLoadGroup;
     if (doc) {
       TransferZoomLevels(aDisplayDocument, doc);
-      TransferShowingState(aDisplayDocument, doc);
     }
   }
 
@@ -1733,10 +1710,8 @@ NS_INTERFACE_TABLE_HEAD(nsDocument)
     NS_INTERFACE_TABLE_ENTRY(nsDocument, nsPIDOMEventTarget)
     NS_INTERFACE_TABLE_ENTRY(nsDocument, nsISupportsWeakReference)
     NS_INTERFACE_TABLE_ENTRY(nsDocument, nsIRadioGroupContainer)
-    NS_INTERFACE_TABLE_ENTRY(nsDocument, nsIRadioGroupContainer_MOZILLA_2_0_BRANCH)
     NS_INTERFACE_TABLE_ENTRY(nsDocument, nsIMutationObserver)
     NS_INTERFACE_TABLE_ENTRY(nsDocument, nsIApplicationCacheContainer)
-    NS_INTERFACE_TABLE_ENTRY(nsDocument, nsIDOMNSDocument_MOZILLA_2_0_BRANCH)
   NS_OFFSET_AND_INTERFACE_TABLE_END
   NS_OFFSET_AND_INTERFACE_TABLE_TO_MAP_SEGUE
   NS_INTERFACE_MAP_ENTRIES_CYCLE_COLLECTION(nsDocument)
@@ -1916,7 +1891,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsDocument)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mDOMImplementation)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mOriginalDocument)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mCachedEncoder)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mCurrentStateObjectCached)
 
   // Traverse all our nsCOMArrays.
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMARRAY(mStyleSheets)
@@ -3815,7 +3789,7 @@ nsDocument::SetScriptGlobalObject(nsIScriptGlobalObject *aScriptGlobalObject)
     if (!mWillReparent) {
       // We really shouldn't have a wrapper here but if we do we need to make sure
       // it has the correct parent.
-      JSObject *obj = GetWrapperPreserveColor();
+      JSObject *obj = GetWrapper();
       if (obj) {
         JSObject *newScope = aScriptGlobalObject->GetGlobalJSObject();
         nsIScriptContext *scx = aScriptGlobalObject->GetContext();
@@ -4104,10 +4078,6 @@ nsDocument::MozSetImageElement(const nsAString& aImageElementId,
   if (aImageElementId.IsEmpty())
     return NS_OK;
 
-  // Hold a script blocker while calling SetImageElement since that can call
-  // out to id-observers
-  nsAutoScriptBlocker scriptBlocker;
-
   nsCOMPtr<nsIContent> content = do_QueryInterface(aImageElement);
   nsIdentifierMapEntry *entry = mIdentifierMap.PutEntry(aImageElementId);
   if (entry) {
@@ -4386,7 +4356,8 @@ nsDocument::CreateElement(const nsAString& aTagName,
     ToLowerCase(aTagName, lcTagName);
   }
 
-  rv = CreateElem(needsLowercase ? lcTagName : aTagName,
+  rv = CreateElem(needsLowercase ? static_cast<const nsAString&>(lcTagName)
+                                 : aTagName,
                   nsnull,
                   IsHTML() ? kNameSpaceID_XHTML : GetDefaultNamespaceID(),
                   PR_TRUE, aReturn);
@@ -6723,12 +6694,6 @@ nsDocument::AddToRadioGroup(const nsAString& aName,
   GetRadioGroup(aName, &radioGroup);
   if (radioGroup) {
     radioGroup->mRadioButtons.AppendObject(aRadio);
-
-    nsCOMPtr<nsIContent> element = do_QueryInterface(aRadio);
-    NS_ASSERTION(element, "radio controls have to be content elements");
-    if (element->HasAttr(kNameSpaceID_None, nsGkAtoms::required)) {
-      radioGroup->mRequiredRadioCount++;
-    }
   }
 
   return NS_OK;
@@ -6742,14 +6707,6 @@ nsDocument::RemoveFromRadioGroup(const nsAString& aName,
   GetRadioGroup(aName, &radioGroup);
   if (radioGroup) {
     radioGroup->mRadioButtons.RemoveObject(aRadio);
-
-    nsCOMPtr<nsIContent> element = do_QueryInterface(aRadio);
-    NS_ASSERTION(element, "radio controls have to be content elements");
-    if (element->HasAttr(kNameSpaceID_None, nsGkAtoms::required)) {
-      radioGroup->mRequiredRadioCount--;
-      NS_ASSERTION(radioGroup->mRequiredRadioCount >= 0,
-                   "mRequiredRadioCount shouldn't be negative!");
-    }
   }
 
   return NS_OK;
@@ -6775,70 +6732,6 @@ nsDocument::WalkRadioGroup(const nsAString& aName,
   }
 
   return NS_OK;
-}
-
-PRUint32
-nsDocument::GetRequiredRadioCount(const nsAString& aName) const
-{
-  nsRadioGroupStruct* radioGroup = nsnull;
-  // TODO: we should call GetRadioGroup here (and make it const) but for that
-  // we would need to have an explicit CreateRadioGroup() instead of create
-  // one when GetRadioGroup is called. See bug 636123.
-  nsAutoString tmKey(aName);
-  if (IsHTML())
-     ToLowerCase(tmKey); //should case-insensitive.
-  mRadioGroups.Get(tmKey, &radioGroup);
-
-  return radioGroup ? radioGroup->mRequiredRadioCount : 0;
-}
-
-void
-nsDocument::RadioRequiredChanged(const nsAString& aName, nsIFormControl* aRadio)
-{
-  nsRadioGroupStruct* radioGroup = nsnull;
-  GetRadioGroup(aName, &radioGroup);
-
-  if (!radioGroup) {
-    return;
-  }
-
-  nsCOMPtr<nsIContent> element = do_QueryInterface(aRadio);
-  NS_ASSERTION(element, "radio controls have to be content elements");
-  if (element->HasAttr(kNameSpaceID_None, nsGkAtoms::required)) {
-    radioGroup->mRequiredRadioCount++;
-  } else {
-    radioGroup->mRequiredRadioCount--;
-    NS_ASSERTION(radioGroup->mRequiredRadioCount >= 0,
-                 "mRequiredRadioCount shouldn't be negative!");
-  }
-}
-
-bool
-nsDocument::GetValueMissingState(const nsAString& aName) const
-{
-  nsRadioGroupStruct* radioGroup = nsnull;
-  // TODO: we should call GetRadioGroup here (and make it const) but for that
-  // we would need to have an explicit CreateRadioGroup() instead of create
-  // one when GetRadioGroup is called. See bug 636123.
-  nsAutoString tmKey(aName);
-  if (IsHTML())
-     ToLowerCase(tmKey); //should case-insensitive.
-  mRadioGroups.Get(tmKey, &radioGroup);
-
-  return radioGroup && radioGroup->mGroupSuffersFromValueMissing;
-}
-
-void
-nsDocument::SetValueMissingState(const nsAString& aName, bool aValue)
-{
-  nsRadioGroupStruct* radioGroup = nsnull;
-  GetRadioGroup(aName, &radioGroup);
-
-  if (!radioGroup) {
-    return;
-  }
-
-  radioGroup->mGroupSuffersFromValueMissing = aValue;
 }
 
 void
@@ -7137,7 +7030,6 @@ nsDocument::CanSavePresentation(nsIRequest *aNewRequest)
     }
   }
 
-  // Check if we have pending network requests
   nsCOMPtr<nsILoadGroup> loadGroup = GetDocumentLoadGroup();
   if (loadGroup) {
     nsCOMPtr<nsISimpleEnumerator> requests;
@@ -7163,13 +7055,6 @@ nsDocument::CanSavePresentation(nsIRequest *aNewRequest)
         return PR_FALSE;
       }
     }
-  }
-
-  // Check if we have running IndexedDB transactions
-  indexedDB::IndexedDatabaseManager* idbManager =
-    indexedDB::IndexedDatabaseManager::Get();
-  if (idbManager && idbManager->HasOpenTransactions(win)) {
-    return PR_FALSE;
   }
 
   PRBool canCache = PR_TRUE;
@@ -8216,52 +8101,6 @@ nsIDocument::ScheduleBeforePaintEvent(nsIAnimationFrameListener* aListener)
 
 }
 
-NS_IMETHODIMP
-nsDocument::GetMozCurrentStateObject(nsIVariant** aState)
-{
-  // Get the document's current state object. This is the object returned form
-  // both document.mozCurrentStateObject as well as popStateEvent.state
-
-  nsCOMPtr<nsIVariant> stateObj;
-  // Parse the JSON, if there's any to parse.
-  if (!mCurrentStateObjectCached && !mCurrentStateObject.IsEmpty()) {
-    // Get the JSContext associated with this document. We need this for
-    // deserialization.
-    nsIScriptGlobalObject *sgo = GetScopeObject();
-    NS_ENSURE_TRUE(sgo, NS_ERROR_FAILURE);
-
-    nsIScriptContext *scx = sgo->GetContext();
-    NS_ENSURE_TRUE(scx, NS_ERROR_FAILURE);
-
-    JSContext *cx = (JSContext*) scx->GetNativeContext();
-
-    // Make sure we in the request while we have jsval on the native stack.
-    JSAutoRequest ar(cx);
-
-    // If our json call triggers a JS-to-C++ call, we want that call to use cx
-    // as the context.  So we push cx onto the context stack.
-    nsCxPusher cxPusher;
-
-    jsval jsStateObj = JSVAL_NULL;
-
-    // Deserialize the state object into an nsIVariant.
-    nsCOMPtr<nsIJSON> json = do_GetService("@mozilla.org/dom/json;1");
-    NS_ENSURE_TRUE(cxPusher.Push(cx), NS_ERROR_FAILURE);
-    nsresult rv = json->DecodeToJSVal(mCurrentStateObject, cx, &jsStateObj);
-    NS_ENSURE_SUCCESS(rv, rv);
-    cxPusher.Pop();
-
-    nsCOMPtr<nsIXPConnect> xpconnect = do_GetService(nsIXPConnect::GetCID());
-    NS_ENSURE_TRUE(xpconnect, NS_ERROR_FAILURE);
-    rv = xpconnect->JSValToVariant(cx, &jsStateObj, getter_AddRefs(mCurrentStateObjectCached));
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
-  NS_IF_ADDREF(*aState = mCurrentStateObjectCached);
-  
-  return NS_OK;
-}
-
 nsresult
 nsDocument::AddImage(imgIRequest* aImage)
 {
@@ -8276,24 +8115,22 @@ nsDocument::AddImage(imgIRequest* aImage)
   if (!success)
     return NS_ERROR_OUT_OF_MEMORY;
 
-  nsresult rv = NS_OK;
-
   // If this is the first insertion and we're locking images, lock this image
   // too.
-  if (oldCount == 0 && mLockingImages) {
-    rv = aImage->LockImage();
-    if (NS_SUCCEEDED(rv))
-      rv = aImage->RequestDecode();
+  if ((oldCount == 0) && mLockingImages) {
+    nsresult rv = aImage->LockImage();
+    NS_ENSURE_SUCCESS(rv, rv);
+    rv = aImage->RequestDecode();
+    NS_ENSURE_SUCCESS(rv, rv);
   }
 
   // If this is the first insertion and we're animating images, request
   // that this image be animated too.
   if (oldCount == 0 && mAnimatingImages) {
-    nsresult rv2 = aImage->IncrementAnimationConsumers();
-    rv = NS_SUCCEEDED(rv) ? rv2 : rv;
+    return aImage->IncrementAnimationConsumers();
   }
 
-  return rv;
+  return NS_OK;
 }
 
 nsresult
@@ -8318,21 +8155,17 @@ nsDocument::RemoveImage(imgIRequest* aImage)
     mImageTracker.Put(aImage, count);
   }
 
-  nsresult rv = NS_OK;
-
   // If we removed the image from the tracker and we're locking images, unlock
   // this image.
-  if (count == 0 && mLockingImages)
-    rv = aImage->UnlockImage();
+  if ((count == 0) && mLockingImages)
+    return aImage->UnlockImage();
 
   // If we removed the image from the tracker and we're animating images,
   // remove our request to animate this image.
-  if (count == 0 && mAnimatingImages) {
-    nsresult rv2 = aImage->DecrementAnimationConsumers();
-    rv = NS_SUCCEEDED(rv) ? rv2 : rv;
-  }
+  if (count == 0 && mAnimatingImages)
+    return aImage->DecrementAnimationConsumers();
 
-  return rv;
+  return NS_OK;
 }
 
 PLDHashOperator LockEnumerator(imgIRequest* aKey,
@@ -8356,13 +8189,6 @@ PLDHashOperator UnlockEnumerator(imgIRequest* aKey,
 nsresult
 nsDocument::SetImageLockingState(PRBool aLocked)
 {
-#ifdef MOZ_IPC
-  if (XRE_GetProcessType() == GeckoProcessType_Content &&
-      !nsContentUtils::GetBoolPref("content.image.allow_locking", PR_TRUE)) {
-    return NS_OK;
-  }
-#endif // MOZ_IPC
-
   // If there's no change, there's nothing to do.
   if (mLockingImages == aLocked)
     return NS_OK;

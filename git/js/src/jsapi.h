@@ -955,15 +955,6 @@ JS_StringToVersion(const char *string);
 
 #define JSOPTION_METHODJIT      JS_BIT(14)      /* Whole-method JIT. */
 #define JSOPTION_PROFILING      JS_BIT(15)      /* Profiler to make tracer/methodjit choices. */
-#define JSOPTION_METHODJIT_ALWAYS \
-                                JS_BIT(16)      /* Always whole-method JIT,
-                                                   don't tune at run-time. */
-
-/* Options which reflect compile-time properties of scripts. */
-#define JSCOMPILEOPTION_MASK    (JSOPTION_XML | JSOPTION_ANONFUNFIX)
-
-#define JSRUNOPTION_MASK        (JS_BITMASK(17) & ~JSCOMPILEOPTION_MASK)
-#define JSALLOPTION_MASK        (JSCOMPILEOPTION_MASK | JSRUNOPTION_MASK)
 
 extern JS_PUBLIC_API(uint32)
 JS_GetOptions(JSContext *cx);
@@ -1008,20 +999,6 @@ JS_WrapValue(JSContext *cx, jsval *vp);
 
 extern JS_PUBLIC_API(JSObject *)
 JS_TransplantObject(JSContext *cx, JSObject *origobj, JSObject *target);
-
-extern JS_FRIEND_API(JSObject *)
-js_TransplantObjectWithWrapper(JSContext *cx,
-                               JSObject *origobj,
-                               JSObject *origwrapper,
-                               JSObject *targetobj,
-                               JSObject *targetwrapper);
-
-extern JS_FRIEND_API(JSObject *)
-js_TransplantObjectWithWrapper(JSContext *cx,
-                               JSObject *origobj,
-                               JSObject *origwrapper,
-                               JSObject *targetobj,
-                               JSObject *targetwrapper);
 
 #ifdef __cplusplus
 JS_END_EXTERN_C
@@ -1198,20 +1175,6 @@ JS_THIS(JSContext *cx, jsval *vp)
 }
 #endif
 
-/*
- * |this| is passed to functions in ES5 without change.  Functions themselves
- * do any post-processing they desire to box |this|, compute the global object,
- * &c.  Use this macro to retrieve a function's unboxed |this| value.
- *
- * This macro must not be used in conjunction with JS_THIS or JS_THIS_OBJECT,
- * or vice versa.  Either use the provided this value with this macro, or
- * compute the boxed this value using those.
- *
- * N.B. constructors must not use JS_THIS_VALUE, as no 'this' object has been
- * created.
- */
-#define JS_THIS_VALUE(cx,vp)    ((vp)[1])
-
 extern JS_PUBLIC_API(void *)
 JS_malloc(JSContext *cx, size_t nbytes);
 
@@ -1314,7 +1277,7 @@ js_RemoveRoot(JSRuntime *rt, void *rp);
 #ifdef __cplusplus
 JS_END_EXTERN_C
 
-namespace JS {
+namespace js {
 
 /*
  * Protecting non-jsval, non-JSObject *, non-JSString * values from collection
@@ -1362,12 +1325,12 @@ namespace JS {
  * knows about, but when we work with derived values like |ch|, we must root
  * their owners, as the derived value alone won't keep them alive.
  *
- * A JS::Anchor is a kind of GC root that allows us to keep the owners of
+ * A js::Anchor is a kind of GC root that allows us to keep the owners of
  * derived values like |ch| alive throughout the Anchor's lifetime. We could
  * fix the above code as follows:
  *
  *   void f(JSString *str) {
- *     JS::Anchor<JSString *> a_str(str);
+ *     js::Anchor<JSString *> a_str(str);
  *     const jschar *ch = JS_GetStringCharsZ(str);
  *     ... do stuff with ch, but no uses of str ...;
  *   }
@@ -1467,7 +1430,7 @@ inline Anchor<jsval>::~Anchor() {
 #endif
 #endif
 
-}  /* namespace JS */
+}  /* namespace js */
 
 JS_BEGIN_EXTERN_C
 #endif
@@ -1792,10 +1755,7 @@ typedef enum JSGCParamKey {
     JSGC_MAX_CODE_CACHE_BYTES = 6,
 
     /* Select GC mode. */
-    JSGC_MODE = 7,
-
-    /* Number of GC chunks waiting to expire. */
-    JSGC_UNUSED_CHUNKS = 8
+    JSGC_MODE = 7
 } JSGCParamKey;
 
 typedef enum JSGCMode {
@@ -1918,7 +1878,7 @@ struct JSClass {
     JSPropertyOp        addProperty;
     JSPropertyOp        delProperty;
     JSPropertyOp        getProperty;
-    JSStrictPropertyOp  setProperty;
+    JSPropertyOp        setProperty;
     JSEnumerateOp       enumerate;
     JSResolveOp         resolve;
     JSConvertOp         convert;
@@ -1979,16 +1939,10 @@ struct JSClass {
 #define JSCLASS_FREEZE_CTOR             (1<<(JSCLASS_HIGH_FLAGS_SHIFT+6))
 
 /* Additional global reserved slots, beyond those for standard prototypes. */
-#define JSRESERVED_GLOBAL_SLOTS_COUNT     6
+#define JSRESERVED_GLOBAL_SLOTS_COUNT     3
 #define JSRESERVED_GLOBAL_THIS            (JSProto_LIMIT * 3)
 #define JSRESERVED_GLOBAL_THROWTYPEERROR  (JSRESERVED_GLOBAL_THIS + 1)
 #define JSRESERVED_GLOBAL_REGEXP_STATICS  (JSRESERVED_GLOBAL_THROWTYPEERROR + 1)
-#define JSRESERVED_GLOBAL_FUNCTION_NS     (JSRESERVED_GLOBAL_REGEXP_STATICS + 1)
-#define JSRESERVED_GLOBAL_EVAL_ALLOWED    (JSRESERVED_GLOBAL_FUNCTION_NS + 1)
-#define JSRESERVED_GLOBAL_FLAGS           (JSRESERVED_GLOBAL_EVAL_ALLOWED + 1)
-
-/* Global flags. */
-#define JSGLOBAL_FLAGS_CLEARED          0x1
 
 /*
  * ECMA-262 requires that most constructors used internally create objects
@@ -2003,7 +1957,7 @@ struct JSClass {
  */
 #define JSCLASS_GLOBAL_FLAGS                                                  \
     (JSCLASS_IS_GLOBAL |                                                      \
-     JSCLASS_HAS_RESERVED_SLOTS(JSRESERVED_GLOBAL_THIS + JSRESERVED_GLOBAL_SLOTS_COUNT))
+     JSCLASS_HAS_RESERVED_SLOTS(JSProto_LIMIT * 3 + JSRESERVED_GLOBAL_SLOTS_COUNT))
 
 /* Fast access to the original value of each standard class's prototype. */
 #define JSCLASS_CACHED_PROTO_SHIFT      (JSCLASS_HIGH_FLAGS_SHIFT + 8)
@@ -2047,9 +2001,6 @@ extern JS_PUBLIC_API(JSBool)
 JS_PropertyStub(JSContext *cx, JSObject *obj, jsid id, jsval *vp);
 
 extern JS_PUBLIC_API(JSBool)
-JS_StrictPropertyStub(JSContext *cx, JSObject *obj, jsid id, JSBool strict, jsval *vp);
-
-extern JS_PUBLIC_API(JSBool)
 JS_EnumerateStub(JSContext *cx, JSObject *obj);
 
 extern JS_PUBLIC_API(JSBool)
@@ -2074,11 +2025,11 @@ struct JSConstDoubleSpec {
  * JSPROP_INDEX bit in flags.
  */
 struct JSPropertySpec {
-    const char            *name;
-    int8                  tinyid;
-    uint8                 flags;
-    JSPropertyOp          getter;
-    JSStrictPropertyOp    setter;
+    const char      *name;
+    int8            tinyid;
+    uint8           flags;
+    JSPropertyOp    getter;
+    JSPropertyOp    setter;
 };
 
 struct JSFunctionSpec {
@@ -2219,11 +2170,11 @@ JS_DefineProperties(JSContext *cx, JSObject *obj, JSPropertySpec *ps);
 
 extern JS_PUBLIC_API(JSBool)
 JS_DefineProperty(JSContext *cx, JSObject *obj, const char *name, jsval value,
-                  JSPropertyOp getter, JSStrictPropertyOp setter, uintN attrs);
+                  JSPropertyOp getter, JSPropertyOp setter, uintN attrs);
 
 extern JS_PUBLIC_API(JSBool)
 JS_DefinePropertyById(JSContext *cx, JSObject *obj, jsid id, jsval value,
-                      JSPropertyOp getter, JSStrictPropertyOp setter, uintN attrs);
+                      JSPropertyOp getter, JSPropertyOp setter, uintN attrs);
 
 extern JS_PUBLIC_API(JSBool)
 JS_DefineOwnProperty(JSContext *cx, JSObject *obj, jsid id, jsval descriptor, JSBool *bp);
@@ -2248,14 +2199,14 @@ JS_GetPropertyAttrsGetterAndSetter(JSContext *cx, JSObject *obj,
                                    const char *name,
                                    uintN *attrsp, JSBool *foundp,
                                    JSPropertyOp *getterp,
-                                   JSStrictPropertyOp *setterp);
+                                   JSPropertyOp *setterp);
 
 extern JS_PUBLIC_API(JSBool)
 JS_GetPropertyAttrsGetterAndSetterById(JSContext *cx, JSObject *obj,
                                        jsid id,
                                        uintN *attrsp, JSBool *foundp,
                                        JSPropertyOp *getterp,
-                                       JSStrictPropertyOp *setterp);
+                                       JSPropertyOp *setterp);
 
 /*
  * Set the attributes of a property on a given object.
@@ -2270,7 +2221,7 @@ JS_SetPropertyAttributes(JSContext *cx, JSObject *obj, const char *name,
 extern JS_PUBLIC_API(JSBool)
 JS_DefinePropertyWithTinyId(JSContext *cx, JSObject *obj, const char *name,
                             int8 tinyid, jsval value,
-                            JSPropertyOp getter, JSStrictPropertyOp setter,
+                            JSPropertyOp getter, JSPropertyOp setter,
                             uintN attrs);
 
 extern JS_PUBLIC_API(JSBool)
@@ -2306,12 +2257,12 @@ JS_LookupPropertyWithFlagsById(JSContext *cx, JSObject *obj, jsid id,
                                uintN flags, JSObject **objp, jsval *vp);
 
 struct JSPropertyDescriptor {
-    JSObject           *obj;
-    uintN              attrs;
-    JSPropertyOp       getter;
-    JSStrictPropertyOp setter;
-    jsval              value;
-    uintN              shortid;
+    JSObject     *obj;
+    uintN        attrs;
+    JSPropertyOp getter;
+    JSPropertyOp setter;
+    jsval        value;
+    uintN        shortid;
 };
 
 /*
@@ -2368,7 +2319,7 @@ JS_DeletePropertyById2(JSContext *cx, JSObject *obj, jsid id, jsval *rval);
 extern JS_PUBLIC_API(JSBool)
 JS_DefineUCProperty(JSContext *cx, JSObject *obj,
                     const jschar *name, size_t namelen, jsval value,
-                    JSPropertyOp getter, JSStrictPropertyOp setter,
+                    JSPropertyOp getter, JSPropertyOp setter,
                     uintN attrs);
 
 /*
@@ -2392,7 +2343,7 @@ JS_GetUCPropertyAttrsGetterAndSetter(JSContext *cx, JSObject *obj,
                                      const jschar *name, size_t namelen,
                                      uintN *attrsp, JSBool *foundp,
                                      JSPropertyOp *getterp,
-                                     JSStrictPropertyOp *setterp);
+                                     JSPropertyOp *setterp);
 
 /*
  * Set the attributes of a property on a given object.
@@ -2410,7 +2361,7 @@ extern JS_PUBLIC_API(JSBool)
 JS_DefineUCPropertyWithTinyId(JSContext *cx, JSObject *obj,
                               const jschar *name, size_t namelen,
                               int8 tinyid, jsval value,
-                              JSPropertyOp getter, JSStrictPropertyOp setter,
+                              JSPropertyOp getter, JSPropertyOp setter,
                               uintN attrs);
 
 extern JS_PUBLIC_API(JSBool)
@@ -2459,7 +2410,7 @@ JS_HasArrayLength(JSContext *cx, JSObject *obj, jsuint *lengthp);
 
 extern JS_PUBLIC_API(JSBool)
 JS_DefineElement(JSContext *cx, JSObject *obj, jsint index, jsval value,
-                 JSPropertyOp getter, JSStrictPropertyOp setter, uintN attrs);
+                 JSPropertyOp getter, JSPropertyOp setter, uintN attrs);
 
 extern JS_PUBLIC_API(JSBool)
 JS_AliasElement(JSContext *cx, JSObject *obj, const char *name, jsint alias);
@@ -3642,24 +3593,6 @@ struct JSErrorReport {
 
 extern JS_PUBLIC_API(JSErrorReporter)
 JS_SetErrorReporter(JSContext *cx, JSErrorReporter er);
-
-/************************************************************************/
-
-/*
- * Dates.
- */
-
-extern JS_PUBLIC_API(JSObject *)
-JS_NewDateObject(JSContext *cx, int year, int mon, int mday, int hour, int min, int sec);
-
-extern JS_PUBLIC_API(JSObject *)
-JS_NewDateObjectMsec(JSContext *cx, jsdouble msec);
-
-/*
- * Infallible predicate to test whether obj is a date object.
- */
-extern JS_PUBLIC_API(JSBool)
-JS_ObjectIsDate(JSContext *cx, JSObject *obj);
 
 /************************************************************************/
 

@@ -406,12 +406,12 @@
 @BINPATH@/components/@DLL_PREFIX@mozgnome@DLL_SUFFIX@
 #endif
 
-; ANGLE GLES-on-D3D rendering library
-#ifdef MOZ_ANGLE
+; ANGLE on Win32
+#ifdef XP_WIN32
+#ifndef HAVE_64BIT_OS
 @BINPATH@/libEGL.dll
 @BINPATH@/libGLESv2.dll
-@BINPATH@/@MOZ_D3DX9_DLL@
-@BINPATH@/@MOZ_D3DCOMPILER_DLL@
+#endif
 #endif
 
 ; [Browser Chrome Files]
@@ -421,7 +421,7 @@
 @BINPATH@/extensions/{972ce4c6-7e08-4474-a285-3208198ce6fd}/icon.png
 @BINPATH@/extensions/{972ce4c6-7e08-4474-a285-3208198ce6fd}/preview.png
 #if MOZ_UPDATE_CHANNEL == beta
-@BINPATH@/distribution/extensions/testpilot@labs.mozilla.com.xpi
+@BINPATH@/extensions/testpilot@labs.mozilla.com/*
 #endif
 @BINPATH@/chrome/toolkit@JAREXT@
 @BINPATH@/chrome/toolkit.manifest

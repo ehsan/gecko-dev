@@ -192,7 +192,6 @@ pref("gfx.color_management.display_profile", "");
 pref("gfx.color_management.rendering_intent", 0);
 
 pref("gfx.downloadable_fonts.enabled", true);
-pref("gfx.downloadable_fonts.fallback_delay", 3000);
 pref("gfx.downloadable_fonts.sanitize", true);
 #ifdef XP_MACOSX
 pref("gfx.downloadable_fonts.sanitize.preserve_otl_tables", false);
@@ -205,7 +204,6 @@ pref("gfx.font_rendering.harfbuzz.level", 2);
 #ifdef XP_WIN
 #ifndef WINCE
 pref("gfx.font_rendering.directwrite.enabled", false);
-pref("gfx.font_rendering.directwrite.use_gdi_table_loading", true);
 #endif
 #endif
 
@@ -571,8 +569,6 @@ pref("dom.disable_open_click_delay", 1000);
 pref("dom.storage.enabled", true);
 pref("dom.storage.default_quota",      5120);
 
-pref("dom.send_after_paint_to_content", false);
-
 // Timeout clamp in ms for timeouts we clamp
 pref("dom.min_timeout_value", 10);
 
@@ -586,9 +582,6 @@ pref("content.sink.pending_event_mode", 0);
 //   1 = openControlled
 //   2 = openAbused
 pref("privacy.popups.disable_from_plugins", 2);
-
-// "do not track" HTTP header, disabled by default
-pref("privacy.donottrackheader.enabled",    false);
 
 pref("dom.event.contextmenu.enabled",       true);
 
@@ -604,7 +597,6 @@ pref("javascript.options.methodjit.content", true);
 pref("javascript.options.methodjit.chrome",  false);
 pref("javascript.options.jitprofiling.content", true);
 pref("javascript.options.jitprofiling.chrome",  false);
-pref("javascript.options.methodjit_always", false);
 // This preference limits the memory usage of javascript.
 // If you want to change these values for your device,
 // please find Bug 417052 comment 17 and Bug 456721
@@ -613,7 +605,6 @@ pref("javascript.options.mem.high_water_mark", 128);
 pref("javascript.options.mem.max", -1);
 pref("javascript.options.mem.gc_frequency",   300);
 pref("javascript.options.mem.gc_per_compartment", true);
-pref("javascript.options.mem.log", false);
 
 // advanced prefs
 pref("advanced.mailftp",                    false);
@@ -823,7 +814,6 @@ pref("network.IDN.whitelist.sh", true);
 pref("network.IDN.whitelist.th", true);
 pref("network.IDN.whitelist.tm", true);
 pref("network.IDN.whitelist.tw", true);
-pref("network.IDN.whitelist.ua", true);
 pref("network.IDN.whitelist.vn", true);
 
 // IDN ccTLDs
@@ -832,8 +822,6 @@ pref("network.IDN.whitelist.xn--mgbaam7a8h", true);
 // cn, China, .<China> with variants
 pref("network.IDN.whitelist.xn--fiqz9s", true); // Traditional
 pref("network.IDN.whitelist.xn--fiqs8s", true); // Simplified
-// eg, Egypt, .<Masr>
-pref("network.IDN.whitelist.xn--wgbh1c", true);
 // hk, Hong Kong, .<Hong Kong>
 pref("network.IDN.whitelist.xn--j6w193g", true);
 // ir, Iran, <.Iran> with variants
@@ -1347,9 +1335,11 @@ pref("dom.ipc.plugins.timeoutSecs", 0);
 pref("dom.ipc.plugins.processLaunchTimeoutSecs", 0);
 #endif
 
-// Disable oopp for standard java. They run their own process isolation (which
-// conflicts with our implementation, at least on Windows).
+#ifdef XP_WIN
+// Disable oopp for java on windows. They run their own
+// process isolation which conflicts with our implementation.
 pref("dom.ipc.plugins.java.enabled", false);
+#endif
 
 #ifndef ANDROID
 #ifndef XP_MACOSX
@@ -1818,11 +1808,6 @@ pref("ui.trackpoint_hack.enabled", -1);
 // for "normal" windows. Setting this to MozillaUIWindowClass might make
 // some trackpad drivers behave better.
 pref("ui.window_class_override", "");
-
-// Enables or disables the Elantech gesture hacks.  -1 is autodetect, 0 is off,
-// and 1 is on.  Set this to 1 if three-finger swipe gestures do not cause
-// page back/forward actions, or if pinch-to-zoom does not work.
-pref("ui.elantech_gesture_hacks.enabled", -1);
 
 # WINNT
 #endif
@@ -2580,6 +2565,9 @@ pref("autocomplete.ungrab_during_mode_switch", true);
 // toggling to use the XUL filepicker
 pref("ui.allow_platform_file_picker", true);
 
+// should NetworkManager be authoritative for online/offline status?
+pref("toolkit.networkmanager.disable", true);
+
 pref("helpers.global_mime_types_file", "/etc/mime.types");
 pref("helpers.global_mailcap_file", "/etc/mailcap");
 pref("helpers.private_mime_types_file", "~/.mime.types");
@@ -2620,7 +2608,7 @@ pref("font.name.sans-serif.he", "Droid Sans");
 pref("font.name.monospace.he", "Droid Sans Mono");
 
 pref("font.name.serif.ja", "Droid Serif");
-pref("font.name.sans-serif.ja", "Droid Sans Japanese");
+pref("font.name.sans-serif.ja", "Droid Sans");
 pref("font.name.monospace.ja", "Droid Sans Mono");
 
 pref("font.name.serif.ko", "Droid Serif");
@@ -2850,6 +2838,9 @@ pref("autocomplete.ungrab_during_mode_switch", true);
 // Default to using the system filepicker if possible, but allow
 // toggling to use the XUL filepicker
 pref("ui.allow_platform_file_picker", true);
+
+// should NetworkManager be authoritative for online/offline status?
+pref("toolkit.networkmanager.disable", true);
 
 pref("helpers.global_mime_types_file", "/etc/mime.types");
 pref("helpers.global_mailcap_file", "/etc/mailcap");
@@ -3201,7 +3192,7 @@ pref("image.mem.decodeondraw", false);
 // Minimum timeout for image discarding (in milliseconds). The actual time in
 // which an image must inactive for it to be discarded will vary between this
 // value and twice this value.
-pref("image.mem.min_discard_timeout_ms", 120000);
+pref("image.mem.min_discard_timeout_ms", 10000);
 
 // Chunk size for calls to the image decoders
 pref("image.mem.decode_bytes_at_a_time", 200000);
@@ -3213,13 +3204,12 @@ pref("image.mem.max_ms_before_yield", 400);
 pref("image.mem.max_bytes_for_sync_decode", 150000);
 
 // WebGL prefs
-pref("webgl.force-enabled", false);
-pref("webgl.disabled", false);
+pref("webgl.enabled_for_all_sites", true);
 pref("webgl.shader_validator", true);
 pref("webgl.force_osmesa", false);
+pref("webgl.mochitest_native_gl", false);
 pref("webgl.osmesalib", "");
 pref("webgl.verbose", false);
-pref("webgl.prefer-native-gl", false);
 
 #ifdef XP_WIN
 #ifndef WINCE
@@ -3259,7 +3249,7 @@ pref("geo.enabled", true);
 pref("accelerometer.enabled", true);
 
 // Enable/Disable HTML5 parser
-pref("html5.parser.enable", true);
+pref("html5.enable", true);
 // Toggle which thread the HTML5 parser uses for stream parsing
 pref("html5.offmainthread", true);
 // Time in milliseconds between the time a network buffer is seen and the 

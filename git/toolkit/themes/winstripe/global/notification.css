@@ -63,15 +63,14 @@ notification[type="critical"] .messageImage {
   max-width: 248px;
 }
 
-.popup-notification-button-container {
+.popup-notification-menubutton {
   margin-top: 17px;
 }
 
 %ifdef XP_WIN
 /*
 XXX: apply styles to all themes until bug 509642 is fixed
-@media all and (-moz-windows-default-theme) {
-*/
+@media all and (-moz-windows-default-theme) {*/
   .popup-notification-menubutton[type="menu-button"] {
     -moz-appearance: none;
     border-radius: 3px;
@@ -102,14 +101,10 @@ XXX: apply styles to all themes until bug 509642 is fixed
   }
 
   .popup-notification-menubutton > .button-menubutton-button {
-    background-color: transparent;
-    padding: 1px;
-    -moz-border-end: none;
-  }
-
-  .popup-notification-menubutton > .button-menubutton-button > .button-box {
     -moz-padding-start: 8px;
     -moz-padding-end: 5px;
+    -moz-border-end: none;
+    background-color: transparent;
   }
 
   .popup-notification-menubutton > .button-menubutton-dropmarker {
@@ -117,11 +112,6 @@ XXX: apply styles to all themes until bug 509642 is fixed
     width: auto;
     height: auto;
     list-style-image: url("chrome://global/skin/arrow/arrow-dn-sharp.gif");
-  }
-
-  .popup-notification-menubutton:-moz-focusring > .button-menubutton-dropmarker {
-    outline: 1px dotted ThreeDDarkShadow;
-    outline-offset: -3px;
   }
 
 %ifdef WINSTRIPE_AERO

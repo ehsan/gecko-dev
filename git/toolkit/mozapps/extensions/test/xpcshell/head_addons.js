@@ -605,11 +605,9 @@ function writeInstallRDFForExtension(aData, aDir, aId, aExtraFile) {
 function setExtensionModifiedTime(aExt, aTime) {
   aExt.lastModifiedTime = aTime;
   if (aExt.isDirectory()) {
-    let entries = aExt.directoryEntries
-                      .QueryInterface(AM_Ci.nsIDirectoryEnumerator);
-    while (entries.hasMoreElements())
-      setExtensionModifiedTime(entries.nextFile, aTime);
-    entries.close();
+    aExt = aExt.clone();
+    aExt.append("install.rdf");
+    aExt.lastModifiedTime = aTime;
   }
 }
 
@@ -1051,6 +1049,9 @@ Services.prefs.setBoolPref("extensions.getAddons.cache.enabled", false);
 // Disable the compatibility updates window by default
 Services.prefs.setBoolPref("extensions.showMismatchUI", false);
 
+// By default, don't cache add-ons in AddonRepository.jsm
+Services.prefs.setBoolPref("extensions.getAddons.cache.enabled", false);
+
 // Point update checks to the local machine for fast failures
 Services.prefs.setCharPref("extensions.update.url", "http://127.0.0.1/updateURL");
 Services.prefs.setCharPref("extensions.blocklist.url", "http://127.0.0.1/blocklistURL");
@@ -1063,21 +1064,6 @@ const gTmpD = gProfD.clone();
 gTmpD.append("temp");
 gTmpD.create(AM_Ci.nsIFile.DIRECTORY_TYPE, FileUtils.PERMS_DIRECTORY);
 registerDirectory("TmpD", gTmpD);
-
-// Write out an empty blocklist.xml file to the profile to ensure nothing
-// is blocklisted by default
-var blockFile = gProfD.clone();
-blockFile.append("blocklist.xml");
-var stream = AM_Cc["@mozilla.org/network/file-output-stream;1"].
-             createInstance(AM_Ci.nsIFileOutputStream);
-stream.init(blockFile, FileUtils.MODE_WRONLY | FileUtils.MODE_CREATE | FileUtils.MODE_TRUNCATE,
-            FileUtils.PERMS_FILE, 0);
-
-var data = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
-           "<blocklist xmlns=\"http://www.mozilla.org/2006/addons-blocklist\">\n" +
-           "</blocklist>\n";
-stream.write(data, data.length);
-stream.close();
 
 do_register_cleanup(function() {
   // Check that the temporary directory is empty

@@ -75,9 +75,7 @@
 #if (MOZ_PLATFORM_MAEMO == 6)
 #include <QUrl>
 #include <QString>
-#if (MOZ_ENABLE_CONTENTACTION)
 #include <contentaction/contentaction.h>
-#endif
 #endif
 
 #include "nsDirectoryServiceDefs.h"
@@ -119,7 +117,6 @@ static nsresult MacErrorMapper(OSErr inErr);
 #ifdef ANDROID
 #include "AndroidBridge.h"
 #include "nsIMIMEService.h"
-#include <linux/magic.h>
 #endif
 
 #include "nsNativeCharsetUtils.h"
@@ -1104,20 +1101,9 @@ nsLocalFile::SetPermissions(PRUint32 aPermissions)
      * Race condition here: we should use fchmod instead, there's no way to 
      * guarantee the name still refers to the same file.
      */
-    if (chmod(mPath.get(), aPermissions) >= 0)
-        return NS_OK;
-#if defined(ANDROID) && defined(STATFS)
-    // For the time being, this is restricted for use by Android, but we 
-    // will figure out what to do for all platforms in bug 638503
-    struct STATFS sfs;
-    if (STATFS(mPath.get(), &sfs) < 0)
-         return NSRESULT_FOR_ERRNO();
-
-    // if this is a FAT file system we can't set file permissions
-    if (sfs.f_type == MSDOS_SUPER_MAGIC )
-        return NS_OK;
-#endif
-    return NSRESULT_FOR_ERRNO();
+    if (chmod(mPath.get(), aPermissions) < 0)
+        return NSRESULT_FOR_ERRNO();
+    return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -1913,7 +1899,7 @@ nsLocalFile::Launch()
     
     return NS_ERROR_FAILURE;
 #endif
-#elif defined(MOZ_ENABLE_CONTENTACTION)
+#elif (MOZ_PLATFORM_MAEMO == 6)
     QUrl uri = QUrl::fromLocalFile(QString::fromUtf8(mPath.get()));
     ContentAction::Action action =
       ContentAction::Action::defaultActionForFile(uri);

@@ -51,11 +51,6 @@
 #include "mozilla/Services.h"
 #include "nsINetworkLinkService.h"
 
-#ifdef MOZ_CRASHREPORTER
-#include "nsICrashReporter.h"
-#endif
-
-
 using namespace mozilla;
 
 /* Forward declare all the JNI methods as extern "C" */

@@ -128,6 +128,7 @@ static PRBool gMenuConsumed;
 // stacking order, so the window at gAndroidBounds[0] is the topmost
 // one.
 static nsTArray<nsWindow*> gTopLevelWindows;
+static nsWindow* gFocusedWindow = nsnull;
 
 static nsRefPtr<gl::GLContext> sGLContext;
 static bool sFailedToCreateGLContext = false;
@@ -175,17 +176,15 @@ nsWindow::DumpWindows(const nsTArray<nsWindow*>& wins, int indent)
 
 nsWindow::nsWindow() :
     mIsVisible(PR_FALSE),
-    mParent(nsnull),
-    mFocus(nsnull)
+    mParent(nsnull)
 {
 }
 
 nsWindow::~nsWindow()
 {
     gTopLevelWindows.RemoveElement(this);
-    nsWindow *top = FindTopLevel();
-    if (top->mFocus == this)
-        top->mFocus = nsnull;
+    if (gFocusedWindow == this)
+        gFocusedWindow = nsnull;
     ALOG("nsWindow %p destructor", (void*)this);
 }
 
@@ -342,39 +341,29 @@ nsWindow::Show(PRBool aState)
         return NS_ERROR_FAILURE;
     }
 
-    if (aState == mIsVisible)
-        return NS_OK;
+    if ((aState && !mIsVisible) ||
+        (!aState && mIsVisible))
+    {
+        mIsVisible = aState;
 
-    mIsVisible = aState;
+        if (IsTopLevel()) {
+            // XXX should we bring this to the front when it's shown,
+            // if it's a toplevel widget?
 
-    if (IsTopLevel()) {
-        // XXX should we bring this to the front when it's shown,
-        // if it's a toplevel widget?
+            // XXX we should synthesize a NS_MOUSE_EXIT (for old top
+            // window)/NS_MOUSE_ENTER (for new top window) since we need
+            // to pretend that the top window always has focus.  Not sure
+            // if Show() is the right place to do this, though.
 
-        // XXX we should synthesize a NS_MOUSE_EXIT (for old top
-        // window)/NS_MOUSE_ENTER (for new top window) since we need
-        // to pretend that the top window always has focus.  Not sure
-        // if Show() is the right place to do this, though.
-
-        if (aState) {
-            // It just became visible, so send a resize update if necessary
-            // and bring it to the front.
-            Resize(0, 0, gAndroidBounds.width, gAndroidBounds.height, PR_FALSE);
-            BringToFront();
-        } else if (TopWindow() == this) {
-            // find the next visible window to show
-            unsigned int i;
-            for (i = 1; i < gTopLevelWindows.Length(); i++) {
-                nsWindow *win = gTopLevelWindows[i];
-                if (!win->mIsVisible)
-                    continue;
-
-                win->BringToFront();
-                break;
+            if (mIsVisible) {
+                // It just became visible, so send a resize update if necessary
+                // and bring it to the front.
+                Resize(0, 0, gAndroidBounds.width, gAndroidBounds.height, PR_FALSE);
+                BringToFront();
             }
+        } else if (FindTopLevel() == TopWindow()) {
+            nsAppShell::gAppShell->PostEvent(new AndroidGeckoEvent(-1, -1, -1, -1));
         }
-    } else if (FindTopLevel() == TopWindow()) {
-        nsAppShell::gAppShell->PostEvent(new AndroidGeckoEvent(-1, -1, -1, -1));
     }
 
 #ifdef ANDROID_DEBUG_WIDGET
@@ -523,6 +512,7 @@ NS_IMETHODIMP
 nsWindow::Invalidate(const nsIntRect &aRect,
                      PRBool aIsSynchronous)
 {
+    ALOG("nsWindow::Invalidate %p [%d %d %d %d]", (void*) this, aRect.x, aRect.y, aRect.width, aRect.height);
     nsAppShell::gAppShell->PostEvent(new AndroidGeckoEvent(-1, -1, -1, -1));
     return NS_OK;
 }
@@ -554,12 +544,11 @@ nsWindow::SetFocus(PRBool aRaise)
     if (!aRaise)
         ALOG("nsWindow::SetFocus: can't set focus without raising, ignoring aRaise = false!");
 
+    gFocusedWindow = this;
     if (!AndroidBridge::Bridge())
         return NS_OK;
 
-    nsWindow *top = FindTopLevel();
-    top->mFocus = this;
-    top->BringToFront();
+    FindTopLevel()->BringToFront();
 
     return NS_OK;
 }
@@ -827,8 +816,8 @@ nsWindow::OnGlobalAndroidEvent(AndroidGeckoEvent *ae)
 
         case AndroidGeckoEvent::KEY_EVENT:
             win->UserActivity();
-            if (win->mFocus)
-                win->mFocus->OnKeyEvent(ae);
+            if (gFocusedWindow)
+                gFocusedWindow->OnKeyEvent(ae);
             break;
 
         case AndroidGeckoEvent::DRAW:
@@ -837,24 +826,20 @@ nsWindow::OnGlobalAndroidEvent(AndroidGeckoEvent *ae)
 
         case AndroidGeckoEvent::IME_EVENT:
             win->UserActivity();
-            if (win->mFocus) {
-                win->mFocus->OnIMEEvent(ae);
+            if (gFocusedWindow) {
+                gFocusedWindow->OnIMEEvent(ae);
             } else {
                 NS_WARNING("Sending unexpected IME event to top window");
                 win->OnIMEEvent(ae);
             }
             break;
 
-        case AndroidGeckoEvent::SURFACE_CREATED:
-            break;
+	case AndroidGeckoEvent::SURFACE_CREATED:
+	    break;
 
-        case AndroidGeckoEvent::SURFACE_DESTROYED:
-            sValidSurface = false;
-            break;
-
-        case AndroidGeckoEvent::GECKO_EVENT_SYNC:
-            AndroidBridge::Bridge()->AcknowledgeEventSync();
-            break;
+	case AndroidGeckoEvent::SURFACE_DESTROYED:
+	    sValidSurface = false;
+	    break;
 
         default:
             break;
@@ -900,6 +885,8 @@ nsWindow::DrawTo(gfxASurface *targetSurface)
 
     // If we have no covering child, then we need to render this.
     if (coveringChildIndex == -1) {
+        ALOG("nsWindow[%p]::DrawTo no covering child, drawing this", (void*) this);
+
         nsPaintEvent event(PR_TRUE, NS_PAINT, this);
         event.region = boundsRect;
         switch (GetLayerManager(nsnull)->GetBackendType()) {
@@ -908,7 +895,7 @@ nsWindow::DrawTo(gfxASurface *targetSurface)
 
                 {
                     AutoLayerManagerSetup
-                      setupLayerManager(this, ctx, BasicLayerManager::BUFFER_NONE);
+                      setupLayerManager(this, ctx, BasicLayerManager::BUFFER_BUFFERED);
                     status = DispatchEvent(&event);
                 }
 
@@ -947,6 +934,7 @@ nsWindow::DrawTo(gfxASurface *targetSurface)
         offset = targetSurface->GetDeviceOffset();
 
     for (PRUint32 i = coveringChildIndex; i < mChildren.Length(); ++i) {
+        ALOG("nsWindow[%p]::DrawTo child[%d]", (void*) this, i);
         if (mChildren[i]->mBounds.IsEmpty() ||
             !mChildren[i]->mBounds.Intersects(boundsRect)) {
             continue;
@@ -966,12 +954,16 @@ nsWindow::DrawTo(gfxASurface *targetSurface)
     if (targetSurface)
         targetSurface->SetDeviceOffset(offset);
 
+    ALOG("nsWindow[%p]::DrawTo done", (void*) this);
+
     return PR_TRUE;
 }
 
 void
 nsWindow::OnDraw(AndroidGeckoEvent *ae)
 {
+    ALOG(">> OnDraw");
+
     if (!IsTopLevel()) {
         ALOG("##### redraw for window %p, which is not a toplevel window -- sending to toplevel!", (void*) this);
         DumpWindows();

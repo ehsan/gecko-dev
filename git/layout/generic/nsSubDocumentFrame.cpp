@@ -100,7 +100,7 @@ using mozilla::layout::RenderFrameParent;
 
 // For Accessibility
 #ifdef ACCESSIBILITY
-#include "nsAccessibilityService.h"
+#include "nsIAccessibilityService.h"
 #endif
 #include "nsIServiceManager.h"
 
@@ -131,7 +131,7 @@ nsSubDocumentFrame::nsSubDocumentFrame(nsStyleContext* aContext)
 already_AddRefed<nsAccessible>
 nsSubDocumentFrame::CreateAccessible()
 {
-  nsAccessibilityService* accService = nsIPresShell::AccService();
+  nsCOMPtr<nsIAccessibilityService> accService = do_GetService("@mozilla.org/accessibilityService;1");
   return accService ?
     accService->CreateOuterDocAccessible(mContent, PresContext()->PresShell()) :
     nsnull;
@@ -340,12 +340,32 @@ nsSubDocumentFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   PRInt32 parentAPD = PresContext()->AppUnitsPerDevPixel();
   PRInt32 subdocAPD = presContext->AppUnitsPerDevPixel();
 
+  nsIFrame* subdocRootScrollFrame = presShell->GetRootScrollFrame();
+
   nsRect dirty;
   if (subdocRootFrame) {
-    // get the dirty rect relative to the root frame of the subdoc
-    dirty = aDirtyRect + GetOffsetToCrossDoc(subdocRootFrame);
-    // and convert into the appunits of the subdoc
-    dirty = dirty.ConvertAppUnitsRoundOut(parentAPD, subdocAPD);
+    if (presShell->UsingDisplayPort() && subdocRootScrollFrame) {
+      dirty = presShell->GetDisplayPort();
+
+      // The visual overflow rect of our viewport frame unfortunately may not
+      // intersect with the displayport of that frame. For example, the scroll
+      // offset of the frame may be (0, 0) so that the visual overflow rect
+      // is (0, 0, 800px, 500px) while the display port may have its top-left
+      // corner below y=500px.
+      //
+      // We have to force the frame to have a little faith and build a display
+      // list anyway. (see nsIFrame::BuildDisplayListForChild for the short-
+      // circuit code we are evading here).
+      //
+      subdocRootScrollFrame->AddStateBits(
+        NS_FRAME_FORCE_DISPLAY_LIST_DESCEND_INTO);
+
+    } else {
+      // get the dirty rect relative to the root frame of the subdoc
+      dirty = aDirtyRect + GetOffsetToCrossDoc(subdocRootFrame);
+      // and convert into the appunits of the subdoc
+      dirty = dirty.ConvertAppUnitsRoundOut(parentAPD, subdocAPD);
+    }
 
     aBuilder->EnterPresShell(subdocRootFrame, dirty);
   }
@@ -391,19 +411,41 @@ nsSubDocumentFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
       // Add the canvas background color to the bottom of the list. This
       // happens after we've built the list so that AddCanvasBackgroundColorItem
       // can monkey with the contents if necessary.
-      PRUint32 flags = nsIPresShell_MOZILLA_2_0_BRANCH::FORCE_DRAW;
-      if (presContext->IsRootContentDocument()) {
-        flags |= nsIPresShell_MOZILLA_2_0_BRANCH::ROOT_CONTENT_DOC_BG;
-      }
       rv = presShell->AddCanvasBackgroundColorItem(
              *aBuilder, childItems, subdocRootFrame ? subdocRootFrame : this,
-             bounds, NS_RGBA(0,0,0,0), flags);
+             bounds, NS_RGBA(0,0,0,0), PR_TRUE);
     }
   }
 
   if (NS_SUCCEEDED(rv)) {
 
     bool addedLayer = false;
+
+#ifdef MOZ_IPC
+    // Make a scrollable layer in the child process so it can be manipulated
+    // with transforms in the parent process.
+    if (XRE_GetProcessType() == GeckoProcessType_Content) {
+      nsIScrollableFrame* scrollFrame = presShell->GetRootScrollFrameAsScrollable();
+
+      if (scrollFrame) {
+        NS_ASSERTION(subdocRootFrame, "Root scroll frame should be non-null");
+        nsRect scrollRange = scrollFrame->GetScrollRange();
+        
+        // Since making new layers is expensive, only use nsDisplayScrollLayer
+        // if the area is scrollable.
+        if (scrollRange.width != 0 || scrollRange.height != 0) {
+          addedLayer = true;
+          nsDisplayScrollLayer* layerItem = new (aBuilder) nsDisplayScrollLayer(
+            aBuilder,
+            &childItems,
+            subdocRootScrollFrame,
+            subdocRootFrame
+          );
+          childItems.AppendToTop(layerItem);
+        }
+      }
+    }
+#endif
 
     if (subdocRootFrame && parentAPD != subdocAPD) {
       NS_WARN_IF_FALSE(!addedLayer,
@@ -627,6 +669,11 @@ nsSubDocumentFrame::Reflow(nsPresContext*           aPresContext,
   CheckInvalidateSizeChange(aDesiredSize);
 
   FinishAndStoreOverflow(&aDesiredSize);
+
+  // Invalidate the frame contents
+  // XXX is this really needed?
+  nsRect rect(nsPoint(0, 0), GetSize());
+  Invalidate(rect);
 
   if (!aPresContext->IsPaginated() && !mPostedReflowCallback) {
     PresContext()->PresShell()->PostReflowCallback(this);

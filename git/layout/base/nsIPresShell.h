@@ -22,7 +22,7 @@
  * Contributor(s):
  *   Steve Clark <buster@netscape.com>
  *   Dan Rosen <dr@netscape.com>
- *   Mihai Sucan <mihai.sucan@gmail.com>
+ *   Mihai Șucan <mihai.sucan@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -104,9 +104,6 @@ struct nsIntPoint;
 struct nsIntRect;
 class nsRefreshDriver;
 class nsARefreshObserver;
-#ifdef ACCESSIBILITY
-class nsAccessibilityService;
-#endif
 
 typedef short SelectionType;
 typedef PRUint64 nsFrameState;
@@ -143,8 +140,8 @@ typedef struct CapturingContentInfo {
     { 0x95, 0x47, 0x85, 0x06, 0x5e, 0x02, 0xec, 0xb4 } }
 
 #define NS_IPRESSHELL_MOZILLA_2_0_BRANCH_IID     \
- { 0x4abb9970, 0xd7ce, 0x4c02, \
-    { 0x8a, 0xdb, 0x42, 0xc6, 0xbd, 0xa8, 0x95, 0xb7 } }
+ { 0x5e445910, 0xfbee, 0x11df, \
+    { 0x8c, 0xff, 0x08, 0x00, 0x20, 0x0c, 0x9a, 0x66 } }
 
 #define NS_IPRESSHELL_MOZILLA_2_0_BRANCH2_IID     \
  { 0x5ff6fd00, 0x1ba9, 0x11e0, \
@@ -183,26 +180,6 @@ public:
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_IPRESSHELL_MOZILLA_2_0_BRANCH_IID)
 
   virtual PRBool GetIsViewportOverridden() = 0;
-
-  /**
-   * Add a solid color item to the bottom of aList with frame aFrame and bounds
-   * aBounds. Checks first if this needs to be done by checking if aFrame is a
-   * canvas frame (if the FORCE_DRAW flag is passed then this check is skipped).
-   * aBackstopColor is composed behind the background color of the canvas, it is
-   * transparent by default. The ROOT_CONTENT_DOC_BG flag indicates that this is
-   * the background for the root content document.
-   */
-  enum {
-    FORCE_DRAW = 0x01,
-    ROOT_CONTENT_DOC_BG = 0x02
-  };
-  virtual nsresult AddCanvasBackgroundColorItem2(nsDisplayListBuilder& aBuilder,
-                                                nsDisplayList& aList,
-                                                nsIFrame* aFrame,
-                                                const nsRect& aBounds,
-                                                nscolor aBackstopColor = NS_RGBA(0,0,0,0),
-                                                PRUint32 aFlags = 0) = 0;
-
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIPresShell_MOZILLA_2_0_BRANCH,
@@ -602,9 +579,6 @@ public:
    *                  direction even if overflow:hidden is specified in that
    *                  direction; otherwise we will not scroll in that direction
    *                  when overflow:hidden is set for that direction.
-   *                  If SCROLL_NO_PARENT_FRAMES is set then we only scroll
-   *                  nodes in this document, not in any parent documents which
-   *                  contain this document in a iframe or the like.
    */
   virtual NS_HIDDEN_(nsresult) ScrollContentIntoView(nsIContent* aContent,
                                                      PRIntn      aVPercent,
@@ -613,8 +587,7 @@ public:
 
   enum {
     SCROLL_FIRST_ANCESTOR_ONLY = 0x01,
-    SCROLL_OVERFLOW_HIDDEN = 0x02,
-    SCROLL_NO_PARENT_FRAMES = 0x04
+    SCROLL_OVERFLOW_HIDDEN = 0x02
   };
   /**
    * Scrolls the view of the document so that the given area of a frame
@@ -630,9 +603,6 @@ public:
    * even if overflow:hidden is specified in that direction; otherwise
    * we will not scroll in that direction when overflow:hidden is
    * set for that direction
-   * If SCROLL_NO_PARENT_FRAMES is set then we only scroll
-   * nodes in this document, not in any parent documents which
-   * contain this document in a iframe or the like.
    * @return true if any scrolling happened, false if no scrolling happened
    */
   virtual PRBool ScrollFrameRectIntoView(nsIFrame*     aFrame,
@@ -863,13 +833,6 @@ public:
 
   static PRBool gIsAccessibilityActive;
   static PRBool IsAccessibilityActive() { return gIsAccessibilityActive; }
-
-#ifdef ACCESSIBILITY
-  /**
-   * Return accessibility service if accessibility is active.
-   */
-  static nsAccessibilityService* AccService();
-#endif
 
   /**
    * Stop all active elements (plugins and the caret) in this presentation and
@@ -1154,21 +1117,19 @@ public:
    * Set up a "displayport", which overrides what everything else thinks
    * is the visible region of this document with the specified
    * displayport rect.
-   * @DEPRECATED Use nsLayoutUtils displayport methods
    */
   virtual void SetDisplayPort(const nsRect& aDisplayPort) = 0;
   PRBool UsingDisplayPort() const
-  { NS_ABORT_IF_FALSE(false, "UsingDisplayPort is deprecated"); return false; }
+  { return mRenderFlags & STATE_USING_DISPLAYPORT; }
 
   /**
    * Return the displayport being used.  |UsingDisplayPort()| must be
    * true.
-   * @DEPRECATED Use nsLayoutUtils displayport methods
    */
   nsRect GetDisplayPort()
   {
-    NS_ABORT_IF_FALSE(false, "GetDisplayPort is deprecated");
-    return nsRect();
+    NS_ABORT_IF_FALSE(UsingDisplayPort(), "no displayport defined!");
+    return mDisplayPort;
   }
 
    /**

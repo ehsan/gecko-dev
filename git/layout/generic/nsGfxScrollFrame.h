@@ -70,7 +70,8 @@ class nsGfxScrollFrameInner : public nsIReflowCallback {
 public:
   class AsyncScroll;
 
-  nsGfxScrollFrameInner(nsContainerFrame* aOuter, PRBool aIsRoot);
+  nsGfxScrollFrameInner(nsContainerFrame* aOuter, PRBool aIsRoot,
+                        PRBool aIsXUL);
   ~nsGfxScrollFrameInner();
 
   typedef nsIScrollableFrame::ScrollbarStyles ScrollbarStyles;
@@ -86,8 +87,6 @@ public:
   nsresult FireScrollPortEvent();
   void PostOverflowEvent();
   void Destroy();
-
-  PRBool ShouldBuildLayer() const;
 
   nsresult BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                             const nsRect&           aDirtyRect,
@@ -154,21 +153,6 @@ public:
   nsRect GetScrollPortRect() const { return mScrollPort; }
   nsPoint GetScrollPosition() const {
     return mScrollPort.TopLeft() - mScrolledFrame->GetPosition();
-  }
-  /**
-   * For LTR frames, the logical scroll position is the offset of the top left
-   * corner of the frame from the top left corner of the scroll port (same as
-   * GetScrollPosition).
-   * For RTL frames, it is the offset of the top right corner of the frame from
-   * the top right corner of the scroll port
-   */
-  nsPoint GetLogicalScrollPosition() const {
-    nsPoint pt;
-    pt.x = IsLTR() ?
-      mScrollPort.x - mScrolledFrame->GetPosition().x :
-      mScrollPort.XMost() - mScrolledFrame->GetRect().XMost();
-    pt.y = mScrollPort.y - mScrolledFrame->GetPosition().y;
-    return pt;
   }
   nsRect GetScrollRange() const;
 
@@ -239,7 +223,7 @@ public:
   nsMargin GetDesiredScrollbarSizes(nsBoxLayoutState* aState);
   PRBool IsLTR() const;
   PRBool IsScrollbarOnRight() const;
-  PRBool IsScrollingActive() const { return mScrollingActive || ShouldBuildLayer(); }
+  PRBool IsScrollingActive() const { return mScrollingActive; }
   // adjust the scrollbar rectangle aRect to account for any visible resizer.
   // aHasResizer specifies if there is a content resizer, however this method
   // will also check if a widget resizer is present as well.
@@ -294,6 +278,8 @@ public:
   PRPackedBool mDidHistoryRestore:1;
   // Is this the scrollframe for the document's viewport?
   PRPackedBool mIsRoot:1;
+  // Is mOuter an nsXULScrollFrame?
+  PRPackedBool mIsXUL:1;
   // If true, don't try to layout the scrollbars in Reflow().  This can be
   // useful if multiple passes are involved, because we don't want to place the
   // scrollbars at the wrong size.
@@ -322,12 +308,6 @@ public:
   PRPackedBool mScrollbarsCanOverlapContent:1;
   // If true, the resizer is collapsed and not displayed
   PRPackedBool mCollapsedResizer:1;
-
-#ifdef MOZ_IPC
-  // If true, the layer should always be active because we always build a layer.
-  // Used for asynchronous scrolling.
-  PRPackedBool mShouldBuildLayer:1;
-#endif
 };
 
 /**
@@ -620,8 +600,7 @@ public:
 
   virtual nsPoint GetPositionOfChildIgnoringScrolling(nsIFrame* aChild)
   { nsPoint pt = aChild->GetPosition();
-    if (aChild == mInner.GetScrolledFrame())
-      pt += mInner.GetLogicalScrollPosition();
+    if (aChild == mInner.GetScrolledFrame()) pt += GetScrollPosition();
     return pt;
   }
 
@@ -765,23 +744,6 @@ public:
 protected:
   nsXULScrollFrame(nsIPresShell* aShell, nsStyleContext* aContext, PRBool aIsRoot);
   virtual PRIntn GetSkipSides() const;
-
-  void ClampAndSetBounds(nsBoxLayoutState& aState, 
-                         nsRect& aRect,
-                         nsPoint aScrollPosition,
-                         PRBool aRemoveOverflowAreas = PR_FALSE) {
-    /* 
-     * For RTL frames, restore the original scrolled position of the right
-     * edge, then subtract the current width to find the physical position.
-     * This can break the invariant that the scroll position is a multiple of
-     * device pixels, so round off the result to the nearest device pixel.
-     */
-    if (!mInner.IsLTR()) {
-      aRect.x = PresContext()->RoundAppUnitsToNearestDevPixels(
-         mInner.mScrollPort.XMost() - aScrollPosition.x - aRect.width);
-    }
-    mInner.mScrolledFrame->SetBounds(aState, aRect, aRemoveOverflowAreas);
-  }
 
 private:
   friend class nsGfxScrollFrameInner;

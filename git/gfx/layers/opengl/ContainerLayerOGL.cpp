@@ -57,7 +57,6 @@ ContainerInsertAfter(Container* aContainer, Layer* aChild, Layer* aAfter)
       aContainer->mLastChild = aChild;
     }
     NS_ADDREF(aChild);
-    aContainer->DidInsertChild(aChild);
     return;
   }
   for (Layer *child = aContainer->GetFirstChild(); 
@@ -73,7 +72,6 @@ ContainerInsertAfter(Container* aContainer, Layer* aChild, Layer* aAfter)
       }
       aChild->SetPrevSibling(child);
       NS_ADDREF(aChild);
-      aContainer->DidInsertChild(aChild);
       return;
     }
   }
@@ -94,7 +92,6 @@ ContainerRemoveChild(Container* aContainer, Layer* aChild)
     aChild->SetNextSibling(nsnull);
     aChild->SetPrevSibling(nsnull);
     aChild->SetParent(nsnull);
-    aContainer->DidRemoveChild(aChild);
     NS_RELEASE(aChild);
     return;
   }
@@ -112,7 +109,6 @@ ContainerRemoveChild(Container* aContainer, Layer* aChild)
       child->SetNextSibling(nsnull);
       child->SetPrevSibling(nsnull);
       child->SetParent(nsnull);
-      aContainer->DidRemoveChild(aChild);
       NS_RELEASE(aChild);
       return;
     }
@@ -215,8 +211,7 @@ ContainerRender(Container* aContainer,
     childOffset.y = visibleRect.y;
 
     aContainer->gl()->PushViewportRect();
-    aManager->SetupPipeline(visibleRect.width, visibleRect.height,
-                            LayerManagerOGL::DontApplyWorldTransform);
+    aManager->SetupPipeline(visibleRect.width, visibleRect.height);
 
   } else {
     frameBuffer = aPreviousFrameBuffer;
@@ -260,22 +255,20 @@ ContainerRender(Container* aContainer,
 
     if (needsFramebuffer) {
       scissorRect.MoveBy(- visibleRect.TopLeft());
-    }
+    } else {
+      if (!aPreviousFrameBuffer) {
+        /**
+         * glScissor coordinates are oriented with 0,0 being at the bottom left,
+         * the opposite to layout (0,0 at the top left).
+         * All rendering to an FBO is upside-down, making the coordinate systems
+         * match.
+         * When rendering directly to a window (No current or previous FBO),
+         * we need to flip the scissor rect.
+         */
+        aContainer->gl()->FixWindowCoordinateRect(scissorRect,
+                                                  aManager->GetWigetSize().height);
+      }
 
-    if (aManager->IsDrawingFlipped()) {
-      /**
-       * glScissor coordinates are oriented with 0,0 being at the bottom left,
-       * the opposite to layout (0,0 at the top left).
-       * All rendering to an FBO is upside-down, making the coordinate systems
-       * match.
-       * When rendering directly to a window (No current or previous FBO),
-       * we need to flip the scissor rect.
-       */
-      aContainer->gl()->FixWindowCoordinateRect(scissorRect,
-                                                aContainer->gl()->ViewportRect().height);
-    }
-    
-    if (clipRect && !needsFramebuffer) {
       scissorRect.IntersectRect(scissorRect, cachedScissor);
     }
 
@@ -295,7 +288,6 @@ ContainerRender(Container* aContainer,
     }
 
     layerToRender->RenderLayer(frameBuffer, childOffset);
-    aContainer->gl()->MakeCurrent();
   }
 
   aContainer->gl()->PopScissorRect();
@@ -306,8 +298,7 @@ ContainerRender(Container* aContainer,
     // Restore the viewport
     aContainer->gl()->PopViewportRect();
     nsIntRect viewport = aContainer->gl()->ViewportRect();
-    aManager->SetupPipeline(viewport.width, viewport.height,
-                            LayerManagerOGL::ApplyWorldTransform);
+    aManager->SetupPipeline(viewport.width, viewport.height);
 
     aContainer->gl()->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, aPreviousFrameBuffer);
     aContainer->gl()->fDeleteFramebuffers(1, &frameBuffer);
@@ -332,10 +323,16 @@ ContainerRender(Container* aContainer,
                       2, f);
     }
 
-    aManager->BindAndDrawQuad(rgb, aManager->IsDrawingFlipped());
+    DEBUG_GL_ERROR_CHECK(aContainer->gl());
+
+    aManager->BindAndDrawQuad(rgb, aPreviousFrameBuffer == 0);
+
+    DEBUG_GL_ERROR_CHECK(aContainer->gl());
 
     // Clean up resources.  This also unbinds the texture.
     aContainer->gl()->fDeleteTextures(1, &containerSurface);
+
+    DEBUG_GL_ERROR_CHECK(aContainer->gl());
   }
 }
 

@@ -1,5 +1,6 @@
 Cu.import("resource://services-sync/engines.js");
 Cu.import("resource://services-sync/engines/bookmarks.js");
+Cu.import("resource://services-sync/type_records/bookmark.js");
 Cu.import("resource://services-sync/util.js");
 
 const PARENT_ANNO = "sync/parent";
@@ -35,7 +36,7 @@ function test_bookmark_create() {
     do_check_eq(Svc.Bookmark.getItemType(id), Svc.Bookmark.TYPE_BOOKMARK);
     do_check_true(Svc.Bookmark.getBookmarkURI(id).equals(fxuri));
     do_check_eq(Svc.Bookmark.getItemTitle(id), fxrecord.title);
-    do_check_eq(Svc.Annos.getItemAnnotation(id, "bookmarkProperties/description"),
+    do_check_eq(Utils.anno(id, "bookmarkProperties/description"),
                 fxrecord.description);
     do_check_eq(Svc.Bookmark.getFolderIdForItem(id),
                 Svc.Bookmark.toolbarFolder);
@@ -69,7 +70,7 @@ function test_bookmark_create() {
     do_check_eq(Svc.Bookmark.getItemTitle(id), null);
     let error;
     try {
-      Svc.Annos.getItemAnnotation(id, "bookmarkProperties/description");
+      Utils.anno(id, "bookmarkProperties/description");
     } catch(ex) {
       error = ex;
     }
@@ -89,8 +90,7 @@ function test_bookmark_update() {
     let bmk1_id = Svc.Bookmark.insertBookmark(
       Svc.Bookmark.toolbarFolder, fxuri, Svc.Bookmark.DEFAULT_INDEX,
       "Get Firefox!");
-    Svc.Annos.setItemAnnotation(bmk1_id, "bookmarkProperties/description",
-                                "Firefox is awesome.", 0, Svc.Annos.EXPIRE_NEVER);
+    Utils.anno(bmk1_id, "bookmarkProperties/description", "Firefox is awesome.");
     Svc.Bookmark.setKeywordForBookmark(bmk1_id, "firefox");
     let bmk1_guid = store.GUIDForId(bmk1_id);
 
@@ -103,7 +103,7 @@ function test_bookmark_update() {
     store.applyIncoming(record);
 
     _("Verify that the values have been cleared.");
-    do_check_eq(Svc.Annos.getItemAnnotation(bmk1_id, "bookmarkProperties/description"), "");
+    do_check_eq(Utils.anno(bmk1_id, "bookmarkProperties/description"), "");
     do_check_eq(Svc.Bookmark.getItemTitle(bmk1_id), "");
     do_check_eq(Svc.Bookmark.getKeywordForBookmark(bmk1_id), null);
   } finally {
@@ -307,7 +307,7 @@ function test_orphan() {
     do_check_eq(Svc.Bookmark.getFolderIdForItem(bmk1_id), Svc.Bookmark.toolbarFolder);
     let error;
     try {
-      Svc.Annos.getItemAnnotation(bmk1_id, PARENT_ANNO);
+      Utils.anno(bmk1_id, PARENT_ANNO);
     } catch(ex) {
       error = ex;
     }
@@ -320,7 +320,7 @@ function test_orphan() {
 
     _("Verify that bookmark has been flagged as orphan, has not moved.");
     do_check_eq(Svc.Bookmark.getFolderIdForItem(bmk1_id), Svc.Bookmark.toolbarFolder);
-    do_check_eq(Svc.Annos.getItemAnnotation(bmk1_id, PARENT_ANNO), "non-existent");
+    do_check_eq(Utils.anno(bmk1_id, PARENT_ANNO), "non-existent");
 
   } finally {
     _("Clean up.");
@@ -335,75 +335,15 @@ function test_reparentOrphans() {
     let folder1_guid = store.GUIDForId(folder1_id);
 
     _("Create a bogus orphan record and write the record back to the store to trigger _reparentOrphans.");
-    Svc.Annos.setItemAnnotation(folder1_id, PARENT_ANNO, folder1_guid, 0,
-                                Svc.Annos.EXPIRE_NEVER);
+    Utils.anno(folder1_id, PARENT_ANNO, folder1_guid);
     let record = store.createRecord(folder1_guid);
     record.title = "New title for Folder 1";
     store._childrenToOrder = {};
     store.applyIncoming(record);
 
     _("Verify that is has been marked as an orphan even though it couldn't be moved into itself.");
-    do_check_eq(Svc.Annos.getItemAnnotation(folder1_id, PARENT_ANNO),
-                folder1_guid);
+    do_check_eq(Utils.anno(folder1_id, PARENT_ANNO), folder1_guid);
 
-  } finally {
-    _("Clean up.");
-    store.wipe();
-  }
-}
-
-// Copying a bookmark in the UI also copies its annotations, including the GUID
-// annotation in 3.x.
-function test_copying_avoid_duplicate_guids() {
-  if (store._haveGUIDColumn) {
-    _("No GUID annotation handling functionality; returning without testing.");
-    return;
-  }
-    
-  try {
-    _("Ensure the record isn't present yet.");
-    let ids = Svc.Bookmark.getBookmarkIdsForURI(fxuri, {});
-    do_check_eq(ids.length, 0);
-
-    _("Let's create a new record.");
-    let fxrecord = new Bookmark("bookmarks", "get-firefox1");
-    fxrecord.bmkUri        = fxuri.spec;
-    fxrecord.description   = "Firefox is awesome.";
-    fxrecord.title         = "Get Firefox!";
-    fxrecord.tags          = ["firefox", "awesome", "browser"];
-    fxrecord.keyword       = "awesome";
-    fxrecord.loadInSidebar = false;
-    fxrecord.parentName    = "Bookmarks Toolbar";
-    fxrecord.parentid      = "toolbar";
-    store.applyIncoming(fxrecord);
-
-    _("Verify it has been created correctly.");
-    let id = store.idForGUID(fxrecord.id);
-    do_check_eq(store.GUIDForId(id), fxrecord.id);
-    do_check_true(Svc.Bookmark.getBookmarkURI(id).equals(fxuri));
-    do_check_eq(Svc.Annos.getItemAnnotation(id, "bookmarkProperties/description"),
-                fxrecord.description);
-    
-    _("Copy the record as happens in the UI: with the same GUID.");
-    let parentID = Svc.Bookmark.getFolderIdForItem(id);
-    let copy = Svc.Bookmark.insertBookmark(parentID, fxuri, -1, fxrecord.title);
-    Svc.Bookmark.setItemLastModified(copy, Svc.Bookmark.getItemLastModified(id));
-    Svc.Bookmark.setItemDateAdded(copy, Svc.Bookmark.getItemDateAdded(id));
-    store._setGUID(copy, fxrecord.id);
-    
-    do_check_eq(store.GUIDForId(copy), store.GUIDForId(id));
-    
-    _("Calling idForGUID fixes things.");
-    _("GUID before: " + store.GUIDForId(copy));
-    do_check_eq(store.idForGUID(fxrecord.id), id);           // Oldest wins.
-    _("GUID now: " + store.GUIDForId(copy));
-    do_check_neq(store.GUIDForId(copy), store.GUIDForId(id));
-    
-    _("Verify that the anno itself has changed.");
-    do_check_neq(Svc.Annos.getItemAnnotation(copy, "sync/guid"), fxrecord.id);
-    do_check_eq(Svc.Annos.getItemAnnotation(copy, "sync/guid"),
-                store.GUIDForId(copy));
-    
   } finally {
     _("Clean up.");
     store.wipe();
@@ -411,7 +351,6 @@ function test_copying_avoid_duplicate_guids() {
 }
 
 function run_test() {
-  initTestLogging('Trace');
   test_bookmark_create();
   test_bookmark_createRecord();
   test_bookmark_update();
@@ -422,5 +361,4 @@ function run_test() {
   test_move_order();
   test_orphan();
   test_reparentOrphans();
-  test_copying_avoid_duplicate_guids();
 }

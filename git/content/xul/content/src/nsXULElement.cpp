@@ -375,15 +375,6 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsXULElement,
                                                   nsStyledElement)
     NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NATIVE_MEMBER(mPrototype,
                                                     nsXULPrototypeElement)
-    {
-        nsXULSlots* slots = static_cast<nsXULSlots*>(tmp->GetExistingSlots());
-        if (slots) {
-            NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mFrameLoader");
-            nsISupports *frameLoader =
-                static_cast<nsIFrameLoader*>(slots->mFrameLoader);
-            cb.NoteXPCOMChild(frameLoader);
-        }
-    }
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_ADDREF_INHERITED(nsXULElement, nsStyledElement)
@@ -1341,9 +1332,6 @@ nsXULElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName, PRBool aNotify)
         NS_ENSURE_SUCCESS(rv, rv);
     }
 
-    nsIDocument* doc = GetCurrentDoc();
-    mozAutoDocUpdate updateBatch(doc, UPDATE_CONTENT_MODEL, aNotify);
-
     PRBool isId = PR_FALSE;
     if (aName == nsGkAtoms::id && aNameSpaceID == kNameSpaceID_None) {
       // Have to do this before clearing flag. See RemoveFromIdTable
@@ -1361,6 +1349,9 @@ nsXULElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aName, PRBool aNotify)
 
     nsAutoString oldValue;
     GetAttr(aNameSpaceID, aName, oldValue);
+
+    nsIDocument* doc = GetCurrentDoc();
+    mozAutoDocUpdate updateBatch(doc, UPDATE_CONTENT_MODEL, aNotify);
 
     // When notifying, make sure to keep track of states whose value
     // depends solely on the value of an attribute.
@@ -1839,8 +1830,7 @@ nsXULElement::GetAttributeChangeHint(const nsIAtom* aAttribute,
         // if left or top changes we reflow. This will happen in xul
         // containers that manage positioned children such as a stack.
         if (nsGkAtoms::left == aAttribute || nsGkAtoms::top == aAttribute ||
-            nsGkAtoms::right == aAttribute || nsGkAtoms::bottom == aAttribute ||
-            nsGkAtoms::start == aAttribute || nsGkAtoms::end == aAttribute)
+            nsGkAtoms::right == aAttribute || nsGkAtoms::bottom == aAttribute)
             retval = NS_STYLE_HINT_REFLOW;
     }
 
@@ -2424,32 +2414,12 @@ nsXULElement::SetTitlebarColor(nscolor aColor, PRBool aActive)
     }
 }
 
-class SetDrawInTitleBarEvent : public nsRunnable
-{
-public:
-  SetDrawInTitleBarEvent(nsIWidget* aWidget, PRBool aState)
-    : mWidget(aWidget)
-    , mState(aState)
-  {}
-
-  NS_IMETHOD Run() {
-    NS_ASSERTION(mWidget, "You shouldn't call this runnable with a null widget!");
-
-    mWidget->SetDrawsInTitlebar(mState);
-    return NS_OK;
-  }
-
-private:
-  nsCOMPtr<nsIWidget> mWidget;
-  PRBool mState;
-};
-
 void
 nsXULElement::SetDrawsInTitlebar(PRBool aState)
 {
     nsIWidget* mainWidget = GetWindowWidget();
     if (mainWidget) {
-        nsContentUtils::AddScriptRunner(new SetDrawInTitleBarEvent(mainWidget, aState));
+        mainWidget->SetDrawsInTitlebar(aState);
     }
 }
 

@@ -118,7 +118,7 @@ static const char *CodeToken[] = {
 #undef OPDEF
 };
 
-#if defined(DEBUG) || defined(JS_JIT_SPEW) || defined(JS_METHODJIT_SPEW)
+#if defined(DEBUG) || defined(JS_JIT_SPEW)
 /*
  * Array of JS bytecode names used by DEBUG-only js_Disassemble and by
  * JIT debug spew.
@@ -1910,7 +1910,14 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                ? JSOP_IFEQ                                                    \
                : JSOP_NOP)
 
-#define ATOM_IS_IDENTIFIER(atom) js_IsIdentifier(atom)
+/*
+ * Callers know that ATOM_IS_STRING(atom), and we leave it to the optimizer to
+ * common ATOM_TO_STRING(atom) here and near the call sites.
+ */
+#define ATOM_IS_IDENTIFIER(atom) js_IsIdentifier(ATOM_TO_STRING(atom))
+#define ATOM_IS_KEYWORD(atom)                                                 \
+    (js_CheckKeyword(ATOM_TO_STRING(atom)->chars(),                           \
+                     ATOM_TO_STRING(atom)->length()) != TOK_EOF)
 
 /*
  * Given an atom already fetched from jp->script's atom map, quote/escape its
@@ -4606,10 +4613,12 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                 break;
 #endif /* JS_HAS_SHARP_VARS */
 
+#if JS_HAS_DEBUGGER_KEYWORD
               case JSOP_DEBUGGER:
                 js_printf(jp, "\tdebugger;\n");
                 todo = -2;
                 break;
+#endif /* JS_HAS_DEBUGGER_KEYWORD */
 
 #if JS_HAS_XML_SUPPORT
               case JSOP_STARTXML:
@@ -4834,6 +4843,20 @@ DecompileCode(JSPrinter *jp, JSScript *script, jsbytecode *pc, uintN len,
 
     AutoScriptUntrapper untrapper(cx, script, &pc);
 
+    /* Print a strict mode code directive, if needed. */
+    if (script->strictModeCode && !jp->strict) {
+        if (jp->fun && (jp->fun->flags & JSFUN_EXPR_CLOSURE)) {
+            /*
+             * We have no syntax for strict function expressions;
+             * at least give a hint.
+             */
+            js_printf(jp, "\t/* use strict */ \n");
+        } else {
+            js_printf(jp, "\t\"use strict\";\n");
+        }
+        jp->strict = true;
+    }
+
     /* Initialize a sprinter for use with the offset stack. */
     mark = JS_ARENA_MARK(&cx->tempPool);
     ok = InitSprintStack(cx, &ss, jp, depth);
@@ -4879,36 +4902,10 @@ out:
     return ok;
 }
 
-/*
- * Decompile a function body, expression closure expression, or complete
- * script. Start at |pc|; go to the end of |script|. Include a directive
- * prologue, if appropriate.
- */
-static JSBool
-DecompileBody(JSPrinter *jp, JSScript *script, jsbytecode *pc)
-{
-    /* Print a strict mode code directive, if needed. */
-    if (script->strictModeCode && !jp->strict) {
-        if (jp->fun && (jp->fun->flags & JSFUN_EXPR_CLOSURE)) {
-            /*
-             * We have no syntax for strict function expressions;
-             * at least give a hint.
-             */
-            js_printf(jp, "\t/* use strict */ \n");
-        } else {
-            js_printf(jp, "\t\"use strict\";\n");
-        }
-        jp->strict = true;
-    }
-
-    jsbytecode *end = script->code + script->length;
-    return DecompileCode(jp, script, pc, end - pc, 0);
-}
-
 JSBool
 js_DecompileScript(JSPrinter *jp, JSScript *script)
 {
-    return DecompileBody(jp, script, script->code);
+    return DecompileCode(jp, script, script->code, (uintN)script->length, 0);
 }
 
 JSString *
@@ -4945,7 +4942,7 @@ js_DecompileFunctionBody(JSPrinter *jp)
     }
 
     script = jp->fun->u.i.script;
-    return DecompileBody(jp, script, script->code);
+    return DecompileCode(jp, script, script->code, (uintN)script->length, 0);
 }
 
 JSBool
@@ -4955,6 +4952,7 @@ js_DecompileFunction(JSPrinter *jp)
     uintN i;
     JSAtom *param;
     jsbytecode *pc, *endpc;
+    ptrdiff_t len;
     JSBool ok;
 
     fun = jp->fun;
@@ -5061,7 +5059,8 @@ js_DecompileFunction(JSPrinter *jp)
             jp->indent += 4;
         }
 
-        ok = DecompileBody(jp, script, pc);
+        len = script->code + script->length - pc;
+        ok = DecompileCode(jp, script, pc, (uintN)len, 0);
         if (!ok)
             return JS_FALSE;
 
@@ -5101,9 +5100,6 @@ js_DecompileValueGenerator(JSContext *cx, intN spindex, jsval v_in,
     pc = fp->hasImacropc() ? fp->imacropc() : cx->regs->pc;
     JS_ASSERT(script->code <= pc && pc < script->code + script->length);
 
-    if (pc < script->main)
-        goto do_fallback;
-    
     if (spindex != JSDVG_IGNORE_STACK) {
         jsbytecode **pcstack;
 
@@ -5489,8 +5485,8 @@ ReconstructPCStack(JSContext *cx, JSScript *script, jsbytecode *target,
         return ReconstructImacroPCStack(cx, script, imacstart, target, pcstack);
 #endif
 
-    LOCAL_ASSERT(script->code <= target && target < script->code + script->length);
-    jsbytecode *pc = script->code;
+    LOCAL_ASSERT(script->main <= target && target < script->code + script->length);
+    jsbytecode *pc = script->main;
     uintN pcdepth = 0;
     ptrdiff_t oplen;
     for (; pc < target; pc += oplen) {

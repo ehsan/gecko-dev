@@ -161,7 +161,6 @@
 #include "winbase.h"
 #endif
 
-using namespace mozilla;
 using mozilla::TimeStamp;
 
 // Null out a strong ref to a linked list iteratively to avoid
@@ -231,8 +230,7 @@ PRLogModuleInfo* nsPluginLogging::gPluginLog = nsnull;
 #define DEFAULT_NUMBER_OF_STOPPED_PLUGINS 10
 
 #ifdef CALL_SAFETY_ON
-// By default we run OOPP, so we don't want to cover up crashes.
-PRBool gSkipPluginSafeCalls = PR_TRUE;
+PRBool gSkipPluginSafeCalls = PR_FALSE;
 #endif
 
 nsIFile *nsPluginHost::sPluginTempDir;
@@ -431,9 +429,8 @@ nsPluginHost::~nsPluginHost()
   sInst = nsnull;
 }
 
-NS_IMPL_ISUPPORTS5(nsPluginHost,
+NS_IMPL_ISUPPORTS4(nsPluginHost,
                    nsIPluginHost,
-                   nsIPluginHost_MOZILLA_2_0_BRANCH,
                    nsIObserver,
                    nsITimerCallback,
                    nsISupportsWeakReference)
@@ -1733,7 +1730,7 @@ static nsresult ConvertToNative(nsIUnicodeEncoder *aEncoder,
 }
 
 static nsresult CreateNPAPIPlugin(nsPluginTag *aPluginTag,
-                                  nsNPAPIPlugin **aOutNPAPIPlugin)
+                                  nsIPlugin **aOutNPAPIPlugin)
 {
   // If this is an in-process plugin we'll need to load it here if we haven't already.
 #ifdef MOZ_IPC
@@ -1790,26 +1787,13 @@ static nsresult CreateNPAPIPlugin(nsPluginTag *aPluginTag,
 
 #if defined(XP_MACOSX) && !defined(__LP64__)
   if (NS_SUCCEEDED(rv))
-    (*aOutNPAPIPlugin)->SetPluginRefNum(pluginRefNum);
+    static_cast<nsNPAPIPlugin*>(*aOutNPAPIPlugin)->SetPluginRefNum(pluginRefNum);
   else if (pluginRefNum > 0)
     ::CloseResFile(pluginRefNum);
   ::UseResFile(appRefNum);
 #endif
 
   return rv;
-}
-
-nsresult nsPluginHost::EnsurePluginLoaded(nsPluginTag* plugin)
-{
-  nsRefPtr<nsNPAPIPlugin> entrypoint = plugin->mEntryPoint;
-  if (!entrypoint) {
-    nsresult rv = CreateNPAPIPlugin(plugin, getter_AddRefs(entrypoint));
-    if (NS_FAILED(rv)) {
-      return rv;
-    }
-    plugin->mEntryPoint = entrypoint;
-  }
-  return NS_OK;
 }
 
 NS_IMETHODIMP nsPluginHost::GetPlugin(const char *aMimeType, nsIPlugin** aPlugin)
@@ -1835,12 +1819,16 @@ NS_IMETHODIMP nsPluginHost::GetPlugin(const char *aMimeType, nsIPlugin** aPlugin
       printf("For %s found plugin %s\n", aMimeType, pluginTag->mFileName.get());
 #endif
 
-    rv = EnsurePluginLoaded(pluginTag);
-    if (NS_FAILED(rv)) {
-      return rv;
+    // Create a plugin object if necessary
+    nsCOMPtr<nsIPlugin> plugin = pluginTag->mEntryPoint;
+    if (!plugin) {
+      rv = CreateNPAPIPlugin(pluginTag, getter_AddRefs(plugin));
+      if (NS_FAILED(rv))
+        return rv;
+      pluginTag->mEntryPoint = plugin;
     }
 
-    NS_ADDREF(*aPlugin = pluginTag->mEntryPoint);
+    NS_ADDREF(*aPlugin = plugin);
     return NS_OK;
   }
 
@@ -1850,208 +1838,6 @@ NS_IMETHODIMP nsPluginHost::GetPlugin(const char *aMimeType, nsIPlugin** aPlugin
   (pluginTag ? pluginTag->mFileName.get() : "(not found)")));
 
   return rv;
-}
-
-// Normalize 'host' to ACE.
-nsresult
-nsPluginHost::NormalizeHostname(nsCString& host)
-{
-  if (IsASCII(host)) {
-    ToLowerCase(host);
-    return NS_OK;
-  }
-
-  if (!mIDNService) {
-    nsresult rv;
-    mIDNService = do_GetService(NS_IDNSERVICE_CONTRACTID, &rv);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
-  return mIDNService->ConvertUTF8toACE(host, host);
-}
-
-// Enumerate a 'sites' array returned by GetSitesWithData and determine if
-// any of them have a base domain in common with 'domain'; if so, append them
-// to the 'result' array. If 'firstMatchOnly' is true, return after finding the
-// first match.
-nsresult
-nsPluginHost::EnumerateSiteData(const nsACString& domain,
-                                const nsTArray<nsCString>& sites,
-                                InfallibleTArray<nsCString>& result,
-                                bool firstMatchOnly)
-{
-  NS_ASSERTION(!domain.IsVoid(), "null domain string");
-
-  nsresult rv;
-  if (!mTLDService) {
-    mTLDService = do_GetService(NS_EFFECTIVETLDSERVICE_CONTRACTID, &rv);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
-  // Get the base domain from the domain.
-  nsCString baseDomain;
-  rv = mTLDService->GetBaseDomainFromHost(domain, 0, baseDomain);
-  bool isIP = rv == NS_ERROR_HOST_IS_IP_ADDRESS;
-  if (isIP || rv == NS_ERROR_INSUFFICIENT_DOMAIN_LEVELS) {
-    // The base domain is the site itself. However, we must be careful to
-    // normalize.
-    baseDomain = domain;
-    rv = NormalizeHostname(baseDomain);
-    NS_ENSURE_SUCCESS(rv, rv);
-  } else if (NS_FAILED(rv)) {
-    return rv;
-  }
-
-  // Enumerate the array of sites with data.
-  for (PRUint32 i = 0; i < sites.Length(); ++i) {
-    const nsCString& site = sites[i];
-
-    // Check if the site is an IP address.
-    bool siteIsIP =
-      site.Length() >= 2 && site.First() == '[' && site.Last() == ']';
-    if (siteIsIP != isIP)
-      continue;
-
-    nsCString siteBaseDomain;
-    if (siteIsIP) {
-      // Strip the '[]'.
-      siteBaseDomain = Substring(site, 1, site.Length() - 2);
-    } else {
-      // Determine the base domain of the site.
-      rv = mTLDService->GetBaseDomainFromHost(site, 0, siteBaseDomain);
-      if (rv == NS_ERROR_INSUFFICIENT_DOMAIN_LEVELS) {
-        // The base domain is the site itself. However, we must be careful to
-        // normalize.
-        siteBaseDomain = site;
-        rv = NormalizeHostname(siteBaseDomain);
-        NS_ENSURE_SUCCESS(rv, rv);
-      } else if (NS_FAILED(rv)) {
-        return rv;
-      }
-    }
-
-    // At this point, we can do an exact comparison of the two domains.
-    if (baseDomain != siteBaseDomain) {
-      continue;
-    }
-
-    // Append the site to the result array.
-    result.AppendElement(site);
-
-    // If we're supposed to return early, do so.
-    if (firstMatchOnly) {
-      break;
-    }
-  }
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsPluginHost::ClearSiteData(nsIPluginTag* plugin, const nsACString& domain,
-                            PRUint64 flags, PRInt64 maxAge)
-{
-  // maxAge must be either a nonnegative integer or -1.
-  NS_ENSURE_ARG(maxAge >= 0 || maxAge == -1);
-
-  // Caller may give us a tag object that is no longer live.
-  if (!IsLiveTag(plugin)) {
-    return NS_ERROR_NOT_AVAILABLE;
-  }
-
-  nsPluginTag* tag = static_cast<nsPluginTag*>(plugin);
-
-  // We only ensure support for clearing Flash site data for now.
-  // We will also attempt to clear data for any plugin that happens
-  // to be loaded already.
-  if (!tag->mIsFlashPlugin && !tag->mEntryPoint) {
-    return NS_ERROR_FAILURE;
-  }
-
-  // Make sure the plugin is loaded.
-  nsresult rv = EnsurePluginLoaded(tag);
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
-
-  PluginLibrary* library = tag->mEntryPoint->GetLibrary();
-
-  // If 'domain' is the null string, clear everything.
-  if (domain.IsVoid()) {
-    return library->NPP_ClearSiteData(NULL, flags, maxAge);
-  }
-
-  // Get the list of sites from the plugin.
-  InfallibleTArray<nsCString> sites;
-  rv = library->NPP_GetSitesWithData(sites);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // Enumerate the sites and build a list of matches.
-  InfallibleTArray<nsCString> matches;
-  rv = EnumerateSiteData(domain, sites, matches, false);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // Clear the matches.
-  for (PRUint32 i = 0; i < matches.Length(); ++i) {
-    const nsCString& match = matches[i];
-    rv = library->NPP_ClearSiteData(match.get(), flags, maxAge);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsPluginHost::SiteHasData(nsIPluginTag* plugin, const nsACString& domain,
-                          PRBool* result)
-{
-  // Caller may give us a tag object that is no longer live.
-  if (!IsLiveTag(plugin)) {
-    return NS_ERROR_NOT_AVAILABLE;
-  }
-
-  nsPluginTag* tag = static_cast<nsPluginTag*>(plugin);
-
-  // We only ensure support for clearing Flash site data for now.
-  // We will also attempt to clear data for any plugin that happens
-  // to be loaded already.
-  if (!tag->mIsFlashPlugin && !tag->mEntryPoint) {
-    return NS_ERROR_FAILURE;
-  }
-
-  // Make sure the plugin is loaded.
-  nsresult rv = EnsurePluginLoaded(tag);
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
-
-  PluginLibrary* library = tag->mEntryPoint->GetLibrary();
-
-  // Get the list of sites from the plugin.
-  InfallibleTArray<nsCString> sites;
-  rv = library->NPP_GetSitesWithData(sites);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // If there's no data, we're done.
-  if (sites.IsEmpty()) {
-    *result = false;
-    return NS_OK;
-  }
-
-  // If 'domain' is the null string, and there's data for at least one site,
-  // we're done.
-  if (domain.IsVoid()) {
-    *result = true;
-    return NS_OK;
-  }
-
-  // Enumerate the sites and determine if there's a match.
-  InfallibleTArray<nsCString> matches;
-  rv = EnumerateSiteData(domain, sites, matches, true);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  *result = !matches.IsEmpty();
-  return NS_OK;
 }
 
 // XXX called from ScanPluginsDirectory only when told to filter
@@ -2066,7 +1852,7 @@ static PRBool isUnwantedPlugin(nsPluginTag * tag)
     if (!PL_strcasecmp(tag->mMimeTypeArray[i], "application/pdf"))
       return PR_FALSE;
 
-    if (tag->mIsFlashPlugin)
+    if (!PL_strcasecmp(tag->mMimeTypeArray[i], "application/x-shockwave-flash"))
       return PR_FALSE;
 
     if (!PL_strcasecmp(tag->mMimeTypeArray[i], "application/x-director"))
@@ -2090,19 +1876,6 @@ PRBool nsPluginHost::IsJavaMIMEType(const char* aType)
                           sizeof("application/x-java-applet") - 1)) ||
      (0 == PL_strncasecmp(aType, "application/x-java-bean",
                           sizeof("application/x-java-bean") - 1)));
-}
-
-// Check whether or not a tag is a live, valid tag, and that it's loaded.
-PRBool
-nsPluginHost::IsLiveTag(nsIPluginTag* aPluginTag)
-{
-  nsPluginTag* tag;
-  for (tag = mPlugins; tag; tag = tag->mNext) {
-    if (tag == aPluginTag) {
-      return PR_TRUE;
-    }
-  }
-  return PR_FALSE;
 }
 
 nsPluginTag * nsPluginHost::HaveSamePlugin(nsPluginTag * aPluginTag)
@@ -3341,8 +3114,6 @@ nsresult nsPluginHost::NewPluginURLStream(const nsString& aURL,
       rv = AddHeadersToChannel(aHeadersData, aHeadersDataLen, httpChannel);
   }
   rv = channel->AsyncOpen(listenerPeer, nsnull);
-  if (NS_SUCCEEDED(rv))
-    listenerPeer->TrackRequest(channel);
   return rv;
 }
 

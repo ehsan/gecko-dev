@@ -86,15 +86,8 @@ child:
   rpc NP_Shutdown()
     returns (NPError rv);
 
-  rpc OptionalFunctionsSupported()
-    returns (bool aURLRedirectNotify, bool aClearSiteData,
-             bool aGetSitesWithData);
-
-  rpc NPP_ClearSiteData(nsCString site, uint64_t flags, uint64_t maxAge)
-    returns (NPError rv);
-
-  rpc NPP_GetSitesWithData()
-    returns (nsCString[] sites);
+  rpc URLRedirectNotifySupported()
+    returns (bool aBoolVal);
 
 parent:
   /**

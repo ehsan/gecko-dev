@@ -75,7 +75,6 @@
 #include "nsIXPConnect.h"
 #include "jsapi.h"
 #include "jsdate.h"
-#include "prenv.h"
 
 #if defined(XP_WIN)
 #include <windows.h>
@@ -98,8 +97,6 @@ extern PRTime gFirstPaintTimestamp;
 // mfinklesessionstore-browser-state-restored might be a better choice than the one below
 static PRTime gRestoredTimestamp = 0;       // Timestamp of sessionstore-windows-restored
 static PRTime gProcessCreationTimestamp = 0;// Timestamp of sessionstore-windows-restored
-
-PRUint32 gRestartMode = 0;
 
 class nsAppExitEvent : public nsRunnable {
 private:
@@ -291,15 +288,8 @@ nsAppStartup::Quit(PRUint32 aMode)
     }
 
     mShuttingDown = PR_TRUE;
-    if (!mRestart) {
+    if (!mRestart)
       mRestart = (aMode & eRestart) != 0;
-      gRestartMode = (aMode & 0xF0);
-    }
-
-    if (mRestart) {
-      // Firefox-restarts reuse the process. Process start-time isn't a useful indicator of startup time
-      PR_SetEnv(PR_smprintf("MOZ_APP_RESTART=%lld", (PRInt64) PR_Now() / PR_USEC_PER_MSEC));
-    }
 
     obsService = mozilla::services::GetObserverService();
 
@@ -693,12 +683,8 @@ nsAppStartup::GetStartupInfo()
   *retvalPtr = OBJECT_TO_JSVAL(obj);
   ncc->SetReturnValueWasSet(PR_TRUE);
 
-  char *moz_app_restart = PR_GetEnv("MOZ_APP_RESTART");
-  if (moz_app_restart) {
-    gProcessCreationTimestamp = nsCRT::atoll(moz_app_restart) * PR_USEC_PER_MSEC;
-  } else if (!gProcessCreationTimestamp) {
+  if (!gProcessCreationTimestamp)
     gProcessCreationTimestamp = CalculateProcessCreationTimestamp();
-  }
 
   MaybeDefineProperty(cx, obj, "process", gProcessCreationTimestamp);
 #ifdef MOZ_ENABLE_LIBXUL

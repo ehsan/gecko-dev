@@ -35,9 +35,9 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifdef MOZ_WIDGET_QT
-#include <QString>
-#include <QtCore/QLocale>
+#ifdef MOZ_ENABLE_MEEGOTOUCH
+// It's necessary to include this before realloc gets macroed.
+#include <mgconfitem.h>
 #endif
 
 #include "nsCOMPtr.h"
@@ -98,6 +98,18 @@ static int posix_locale_category[LocaleListLength] =
   LC_CTYPE
 #endif
 };
+#endif
+
+#ifdef MOZ_ENABLE_MEEGOTOUCH
+static void CopyGConfToEnv(const char* gconf, const char* env)
+{
+    MGConfItem item(gconf);
+    QVariant value = item.value();
+    if (QVariant::String == value.type()) {
+        const QByteArray& array = value.toString().toAscii();
+        setenv(env, array.constData(), 1);
+    } // else it's an incompatible type or QVariant::Invalid (not set)
+}
 #endif
 
 //
@@ -180,14 +192,18 @@ nsLocaleService::nsLocaleService(void)
             return; 
         }
 
-
-#ifdef MOZ_WIDGET_QT
-        const char* lang = QLocale::system().name().toAscii();
-#else
+#ifdef MOZ_ENABLE_MEEGOTOUCH
+        // Create a snapshot of the gconf locale values into the
+        // corresponding environment variables to obey system settings
+        // as accurately as possible.
+        CopyGConfToEnv("/meegotouch/i18n/language", "LANG");
+        CopyGConfToEnv("/meegotouch/i18n/lc_collate", NSILOCALE_COLLATE);
+        CopyGConfToEnv("/meegotouch/i18n/lc_monetary", NSILOCALE_MONETARY);
+        CopyGConfToEnv("/meegotouch/i18n/lc_numeric", NSILOCALE_NUMERIC);
+        CopyGConfToEnv("/meegotouch/i18n/lc_time", NSILOCALE_TIME);
+#endif
         // Get system configuration
         const char* lang = getenv("LANG");
-#endif
-
         for( i = 0; i < LocaleListLength; i++ ) {
             nsresult result;
             // setlocale( , "") evaluates LC_* and LANG

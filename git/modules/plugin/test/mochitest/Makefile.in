@@ -70,7 +70,6 @@ _MOCHITEST_FILES = \
   test_pluginstream_poststream.html \
   test_pluginstream_seek.html \
   test_pluginstream_newstream.html \
-  test_pluginstream_seek_close.html \
   test_fullpage.html \
   loremipsum.xtest \
   loremipsum.xtest^headers^ \
@@ -98,7 +97,6 @@ _MOCHITEST_FILES = \
   test_npruntime_construct.html \
   307-xo-redirect.sjs \
   test_redirect_handling.html \
-  test_clear_site_data.html \
   $(NULL)
 
 #  test_plugin_scroll_painting.html \ bug 596491
@@ -122,11 +120,11 @@ _MOCHICHROME_FILES = \
   $(NULL)
 
 ifneq ($(MOZ_WIDGET_TOOLKIT),cocoa)
+ifneq ($(OS_ARCH),WINNT)
 _MOCHITEST_FILES += \
   test_visibility.html \
   $(NULL)
 
-ifneq ($(OS_ARCH),WINNT)
 _MOCHICHROME_FILES += \
   test_xulbrowser_plugin_visibility.xul \
   xulbrowser_plugin_visibility.xul \

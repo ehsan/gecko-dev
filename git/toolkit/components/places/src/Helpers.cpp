@@ -15,7 +15,7 @@
  * The Original Code is Places code.
  *
  * The Initial Developer of the Original Code is
- * the Mozilla Foundation.
+ * Mozilla Foundation.
  * Portions created by the Initial Developer are Copyright (C) 2009
  * the Initial Developer. All Rights Reserved.
  *
@@ -42,10 +42,6 @@
 #include "prio.h"
 #include "nsString.h"
 #include "nsNavHistory.h"
-#include "mozilla/Services.h"
-#if defined(XP_OS2)
-#include "nsIRandomGenerator.h"
-#endif
 
 // The length of guids that are used by history and bookmarks.
 #define GUID_LENGTH 12
@@ -279,8 +275,8 @@ GenerateRandomBytes(PRUint32 aSize,
                                 CRYPT_VERIFYCONTEXT | CRYPT_SILENT);
   if (rc) {
     rc = CryptGenRandom(cryptoProvider, aSize, _buffer);
-    (void)CryptReleaseContext(cryptoProvider, 0);
   }
+  (void)CryptReleaseContext(cryptoProvider, 0);
   return rc ? NS_OK : NS_ERROR_FAILURE;
 
   // On Unix, we'll just read in from /dev/urandom.
@@ -296,17 +292,6 @@ GenerateRandomBytes(PRUint32 aSize,
     (void)PR_Close(urandom);
   }
   return rv;
-#elif defined(XP_OS2)
-  nsCOMPtr<nsIRandomGenerator> rg =
-    do_GetService("@mozilla.org/security/random-generator;1");
-  NS_ENSURE_STATE(rg);
-
-  PRUint8* temp;
-  nsresult rv = rg->GenerateRandomBytes(aSize, &temp);
-  NS_ENSURE_SUCCESS(rv, rv);
-  memcpy(_buffer, temp, aSize);
-  NS_Free(temp);
-  return NS_OK;
 #endif
 }
 
@@ -371,58 +356,6 @@ GetHiddenState(bool aIsRedirect,
          aTransitionType == nsINavHistoryService::TRANSITION_EMBED ||
          aIsRedirect;
 }
-
-////////////////////////////////////////////////////////////////////////////////
-//// PlacesEvent
-
-PlacesEvent::PlacesEvent(const char* aTopic)
-: mTopic(aTopic)
-, mDoubleEnqueue(false)
-{
-}
-
-PlacesEvent::PlacesEvent(const char* aTopic,
-                         bool aDoubleEnqueue)
-: mTopic(aTopic)
-, mDoubleEnqueue(aDoubleEnqueue)
-{
-}
-
-NS_IMETHODIMP
-PlacesEvent::Run()
-{
-  Notify();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-PlacesEvent::Complete()
-{
-  Notify();
-  return NS_OK;
-}
-
-void
-PlacesEvent::Notify()
-{
-  if (mDoubleEnqueue) {
-    mDoubleEnqueue = false;
-    (void)NS_DispatchToMainThread(this);
-  }
-  else {
-    NS_ASSERTION(NS_IsMainThread(), "Must only be used on the main thread!");
-    nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
-    if (obs) {
-      (void)obs->NotifyObservers(nsnull, mTopic, nsnull);
-    }
-  }
-}
-
-NS_IMPL_THREADSAFE_ISUPPORTS2(
-  PlacesEvent
-, mozIStorageCompletionCallback
-, nsIRunnable
-)
 
 } // namespace places
 } // namespace mozilla

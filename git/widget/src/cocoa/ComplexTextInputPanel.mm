@@ -124,9 +124,4 @@
   [self orderOut:nil];
 }
 
-- (BOOL)inComposition
-{
-  return [mInputTextView hasMarkedText];
-}
-
 @end

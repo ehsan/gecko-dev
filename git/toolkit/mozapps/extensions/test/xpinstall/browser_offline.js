@@ -25,16 +25,6 @@ function download_progress(addon, value, maxValue) {
 }
 
 function finish_test(count) {
-  function wait_for_online() {
-    info("Checking if the browser is still offline...");
-    var request = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"].
-                  createInstance(Ci.nsIXMLHttpRequest);
-    request.open("GET", TESTROOT + "empty.xpi", true);
-    request.onerror = wait_for_online;
-    request.onload = Harness.finish;
-    request.send(null);
-  }
-
   is(count, 0, "No add-ons should have been installed");
   try {
     Services.prefs.setBoolPref("browser.offline", false);
@@ -45,5 +35,5 @@ function finish_test(count) {
   Services.perms.remove("example.com", "install");
 
   gBrowser.removeCurrentTab();
-  wait_for_online();
+  Harness.finish();
 }

@@ -36,8 +36,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef GFX_CANVASLAYERD3D10_H
-#define GFX_CANVASLAYERD3D10_H
+#ifndef GFX_CANVASLAYEROGL_H
+#define GFX_CANVASLAYEROGL_H
 
 #include "LayerManagerD3D10.h"
 #include "GLContext.h"
@@ -51,11 +51,10 @@ class THEBES_API CanvasLayerD3D10 : public CanvasLayer,
 {
 public:
   CanvasLayerD3D10(LayerManagerD3D10 *aManager)
-    : CanvasLayer(aManager, NULL)
-    , LayerD3D10(aManager)
-    , mDataIsPremultiplied(PR_FALSE)
-    , mNeedsYFlip(PR_FALSE)
-    , mHasAlpha(PR_TRUE)
+    : CanvasLayer(aManager, NULL),
+      LayerD3D10(aManager),
+      mDataIsPremultiplied(PR_FALSE),
+      mNeedsYFlip(PR_FALSE)
   {
       mImplData = static_cast<LayerD3D10*>(this);
   }
@@ -84,7 +83,6 @@ private:
   PRPackedBool mNeedsYFlip;
   PRPackedBool mIsD2DTexture;
   PRPackedBool mUsingSharedTexture;
-  PRPackedBool mHasAlpha;
 };
 
 } /* layers */

@@ -9202,10 +9202,8 @@ nsHTMLEditRules::DocumentModified()
 void
 nsHTMLEditRules::DocumentModifiedWorker()
 {
-  if (!mHTMLEditor) {
-    return;
-  }
   nsCOMPtr<nsIHTMLEditor> kungFuDeathGrip(mHTMLEditor);
+
   nsCOMPtr<nsISelection> selection;
   nsresult res = mHTMLEditor->GetSelection(getter_AddRefs(selection));
   NS_ENSURE_SUCCESS(res, );

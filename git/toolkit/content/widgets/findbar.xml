@@ -404,8 +404,7 @@
 
         // Make sure the FAYT keypress listener is attached by initializing the
         // browser property
-        if (this.getAttribute("browserid"))
-          setTimeout(function(aSelf) { aSelf.browser = aSelf.browser; }, 0, this);
+        setTimeout(function(aSelf) { aSelf.browser = aSelf.browser; }, 0, this);
       ]]></constructor>
 
       <destructor><![CDATA[
@@ -1142,11 +1141,6 @@
             this.hidden = false;
 
             this._updateStatusUI(this.nsITypeAheadFind.FIND_FOUND);
-
-            let event = document.createEvent("Events");
-            event.initEvent("findbaropen", true, false);
-            this.dispatchEvent(event);
-
             return true;
           }
           return false;
@@ -1158,9 +1152,6 @@
         -->
       <method name="close">
         <body><![CDATA[
-          if (this.hidden)
-            return;
-
           var fm =
             Components.classes["@mozilla.org/focus-manager;1"]
                       .getService(Components.interfaces.nsIFocusManager);

@@ -41,7 +41,7 @@ const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cr = Components.results;
 
-const PREF_BLOCKLIST_PINGCOUNTVERSION = "extensions.blocklist.pingCountVersion";
+const PREF_BLOCKLIST_PINGCOUNT = "extensions.blocklist.pingCount";
 const PREF_EM_UPDATE_ENABLED   = "extensions.update.enabled";
 const PREF_EM_LAST_APP_VERSION = "extensions.lastAppVersion";
 const PREF_EM_AUTOUPDATE_DEFAULT = "extensions.update.autoUpdateDefault";
@@ -241,7 +241,7 @@ var AddonManagerInternal = {
       LOG("Application has been upgraded");
       Services.prefs.setCharPref(PREF_EM_LAST_APP_VERSION,
                                  Services.appinfo.version);
-      Services.prefs.setIntPref(PREF_BLOCKLIST_PINGCOUNTVERSION,
+      Services.prefs.setIntPref(PREF_BLOCKLIST_PINGCOUNT,
                                 (appChanged === undefined ? 0 : -1));
     }
 
@@ -348,9 +348,11 @@ var AddonManagerInternal = {
     scope.LightweightThemeManager.updateCurrentTheme();
 
     this.getAllAddons(function getAddonsCallback(aAddons) {
-      pendingUpdates++;
-      var ids = [a.id for each (a in aAddons)];
-      scope.AddonRepository.repopulateCache(ids, notifyComplete);
+      if ("getCachedAddonByID" in scope.AddonRepository) {
+        pendingUpdates++;
+        var ids = [a.id for each (a in aAddons)];
+        scope.AddonRepository.repopulateCache(ids, notifyComplete);
+      }
 
       pendingUpdates += aAddons.length;
       var autoUpdateDefault = AddonManager.autoUpdateDefault;

@@ -161,7 +161,6 @@ mIsSuspended(PR_FALSE),
 mIsPluginInitJSStream(mInst->mInPluginInitCall &&
                       aURL && strncmp(aURL, "javascript:",
                                       sizeof("javascript:") - 1) == 0),
-mRedirectDenied(PR_FALSE),
 mResponseHeaderBuf(nsnull)
 {
   memset(&mNPStream, 0, sizeof(mNPStream));
@@ -361,7 +360,7 @@ nsNPAPIPluginStreamListener::OnStartBinding(nsIPluginStreamInfo* pluginInfo)
   return NS_OK;
 }
 
-void
+nsresult
 nsNPAPIPluginStreamListener::SuspendRequest()
 {
   NS_ASSERTION(!mIsSuspended,
@@ -369,18 +368,19 @@ nsNPAPIPluginStreamListener::SuspendRequest()
   
   nsCOMPtr<nsINPAPIPluginStreamInfo> pluginInfoNPAPI =
   do_QueryInterface(mStreamInfo);
+  nsIRequest *request;
   
-  if (!pluginInfoNPAPI) {
-    return;
+  if (!pluginInfoNPAPI || !(request = pluginInfoNPAPI->GetRequest())) {
+    NS_ERROR("Trying to suspend a non-suspendable stream!");
+    return NS_ERROR_FAILURE;
   }
   
   nsresult rv = StartDataPump();
-  if (NS_FAILED(rv))
-    return;
+  NS_ENSURE_SUCCESS(rv, rv);
   
   mIsSuspended = PR_TRUE;
   
-  pluginInfoNPAPI->SuspendRequests();
+  return request->Suspend();
 }
 
 void
@@ -389,7 +389,11 @@ nsNPAPIPluginStreamListener::ResumeRequest()
   nsCOMPtr<nsINPAPIPluginStreamInfo> pluginInfoNPAPI =
   do_QueryInterface(mStreamInfo);
   
-  pluginInfoNPAPI->ResumeRequests();
+  nsIRequest *request = pluginInfoNPAPI->GetRequest();
+  
+  // request can be null if the network stream is done.
+  if (request)
+    request->Resume();
   
   mIsSuspended = PR_FALSE;
 }
@@ -604,7 +608,7 @@ nsNPAPIPluginStreamListener::OnDataAvailable(nsIPluginStreamInfo* pluginInfo,
         if (numtowrite <= 0 ||
             (!mIsPluginInitJSStream && PluginInitJSLoadInProgress())) {
           if (!mIsSuspended) {
-            SuspendRequest();
+            rv = SuspendRequest();
           }
           
           // Break out of the inner loop, but keep going through the
@@ -671,7 +675,7 @@ nsNPAPIPluginStreamListener::OnDataAvailable(nsIPluginStreamInfo* pluginInfo,
         // resume the request.
         if (mIsSuspended || ++zeroBytesWriteCount == 3) {
           if (!mIsSuspended) {
-            SuspendRequest();
+            rv = SuspendRequest();
           }
           
           // Break out of the for loop, but keep going through the
@@ -753,26 +757,24 @@ nsNPAPIPluginStreamListener::OnStopBinding(nsIPluginStreamInfo* pluginInfo,
     nsCOMPtr<nsINPAPIPluginStreamInfo> pluginInfoNPAPI =
     do_QueryInterface(mStreamInfo);
     
-    if (pluginInfoNPAPI) {
-      pluginInfoNPAPI->CancelRequests(status);
+    nsIRequest *request;
+    if (pluginInfoNPAPI && (request = pluginInfoNPAPI->GetRequest())) {
+      request->Cancel(status);
     }
   }
   
   if (!mInst || !mInst->CanFireNotifications())
     return NS_ERROR_FAILURE;
-
+  
   // check if the stream is of seekable type and later its destruction
-  // see bug 91140
+  // see bug 91140    
   nsresult rv = NS_OK;
   NPReason reason = NS_FAILED(status) ? NPRES_NETWORK_ERR : NPRES_DONE;
-  if (mRedirectDenied) {
-    reason = NPRES_USER_BREAK;
-  }
   if (mStreamType != NP_SEEK ||
       (NP_SEEK == mStreamType && NS_BINDING_ABORTED == status)) {
     rv = CleanUpStream(reason);
   }
-
+  
   return rv;
 }
 
@@ -842,7 +844,7 @@ nsNPAPIPluginStreamListener::HandleRedirectNotification(nsIChannel *oldChannel, 
     return false;
   }
 
-  if (!mInst || !mInst->CanFireNotifications()) {
+  if (!mInst) {
     return false;
   }
 
@@ -890,7 +892,6 @@ nsNPAPIPluginStreamListener::URLRedirectResponse(NPBool allow)
 {
   if (mHTTPRedirectCallback) {
     mHTTPRedirectCallback->OnRedirectVerifyCallback(allow ? NS_OK : NS_ERROR_FAILURE);
-    mRedirectDenied = allow ? PR_FALSE : PR_TRUE;
     mHTTPRedirectCallback = nsnull;
   }
 }

@@ -48,7 +48,6 @@
 #include "nsFocusManager.h"
 #include "nsIEventStateManager.h"
 #include "nsEventStateManager.h"
-#include "nsFrameManager.h"
 
 #include "nsIScrollableFrame.h"
 
@@ -259,25 +258,9 @@ nsDOMWindowUtils::SetCSSViewport(float aWidthPx, float aHeightPx)
   return NS_OK;
 }
 
-static void DestroyNsRect(void* aObject, nsIAtom* aPropertyName,
-                          void* aPropertyValue, void* aData)
-{
-  nsRect* rect = static_cast<nsRect*>(aPropertyValue);
-  delete rect;
-}
-
 NS_IMETHODIMP
 nsDOMWindowUtils::SetDisplayPort(float aXPx, float aYPx,
                                  float aWidthPx, float aHeightPx)
-{
-  NS_ABORT_IF_FALSE(false, "This interface is deprecated.");
-  return NS_ERROR_FAILURE;
-}
-
-NS_IMETHODIMP
-nsDOMWindowUtils::SetDisplayPortForElement(float aXPx, float aYPx,
-                                           float aWidthPx, float aHeightPx,
-                                           nsIDOMElement* aElement)
 {
   if (!IsUniversalXPConnectCapable()) {
     return NS_ERROR_DOM_SECURITY_ERR;
@@ -292,55 +275,9 @@ nsDOMWindowUtils::SetDisplayPortForElement(float aXPx, float aYPx,
                      nsPresContext::CSSPixelsToAppUnits(aYPx),
                      nsPresContext::CSSPixelsToAppUnits(aWidthPx),
                      nsPresContext::CSSPixelsToAppUnits(aHeightPx));
+  presShell->SetDisplayPort(displayport);
 
-  if (!aElement) {
-    return NS_ERROR_INVALID_ARG;
-  }
-
-  nsCOMPtr<nsIContent> content = do_QueryInterface(aElement);
-
-  if (!content) {
-    return NS_ERROR_INVALID_ARG;
-  }
-
-  nsRect lastDisplayPort;
-  if (nsLayoutUtils::GetDisplayPort(content, &lastDisplayPort) &&
-      displayport == lastDisplayPort) {
-    return NS_OK;
-  }
-
-  content->SetProperty(nsGkAtoms::DisplayPort, new nsRect(displayport),
-                       DestroyNsRect);
-
-  nsIFrame* rootScrollFrame = presShell->GetRootScrollFrame();
-  if (rootScrollFrame) {
-    if (content == rootScrollFrame->GetContent()) {
-      // We are setting a root displayport for a document.
-      // The pres shell needs a special flag set.
-      presShell->SetIgnoreViewportScrolling(PR_TRUE);
-
-      // The root document currently has a widget, but we might end up
-      // painting content inside the displayport but outside the widget
-      // bounds. This ensures the document's view honors invalidations
-      // within the displayport.
-      nsPresContext* presContext = GetPresContext();
-      if (presContext && presContext->IsRoot()) {
-        nsIFrame* rootFrame = presShell->GetRootFrame();
-        nsIView* view = rootFrame->GetView();
-        if (view) {
-          view->SetInvalidationDimensions(&displayport);
-        }
-      }
-    }
-  }
-
-  if (presShell) {
-    nsIFrame* rootFrame = presShell->FrameManager()->GetRootFrame();
-    if (rootFrame) {
-      rootFrame->InvalidateWithFlags(rootFrame->GetVisualOverflowRectRelativeToSelf(),
-                                     nsIFrame::INVALIDATE_NO_THEBES_LAYERS);
-    }
-  }
+  presShell->SetIgnoreViewportScrolling(PR_TRUE);
 
   return NS_OK;
 }
@@ -718,8 +655,7 @@ nsDOMWindowUtils::GarbageCollect(nsICycleCollectorListener *aListener)
   }
 #endif
 
-  nsJSContext::GarbageCollectNow();
-  nsJSContext::CycleCollectNow(aListener);
+  nsJSContext::CC(aListener);
 
   return NS_OK;
 }
@@ -1062,22 +998,17 @@ nsDOMWindowUtils::FindElementWithViewId(nsViewID aID,
 {
   if (aID == FrameMetrics::ROOT_SCROLL_ID) {
     nsPresContext* presContext = GetPresContext();
-    if (!presContext) {
-      return NS_ERROR_NOT_AVAILABLE;
-    }
-
     nsIDocument* document = presContext->Document();
     mozilla::dom::Element* rootElement = document->GetRootElement();
     if (!rootElement) {
       return NS_ERROR_NOT_AVAILABLE;
     }
-
     CallQueryInterface(rootElement, aResult);
     return NS_OK;
   }
 
   nsRefPtr<nsIContent> content = nsLayoutUtils::FindContentFor(aID);
-  return content ? CallQueryInterface(content, aResult) : NS_OK;
+  return CallQueryInterface(content, aResult);
 }
 
 NS_IMETHODIMP
@@ -1482,23 +1413,7 @@ nsDOMWindowUtils::EnterModalState()
 NS_IMETHODIMP
 nsDOMWindowUtils::LeaveModalState()
 {
-  mWindow->LeaveModalState(nsnull);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMWindowUtils::EnterModalStateWithWindow(nsIDOMWindow **aWindow)
-{
-  *aWindow = mWindow->EnterModalState();
-  NS_IF_ADDREF(*aWindow);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMWindowUtils::LeaveModalStateWithWindow(nsIDOMWindow *aWindow)
-{
-  NS_ENSURE_ARG_POINTER(aWindow);
-  mWindow->LeaveModalState(aWindow);
+  mWindow->LeaveModalState();
   return NS_OK;
 }
 
@@ -1775,71 +1690,5 @@ nsDOMWindowUtils::GetOuterWindowWithId(PRUint64 aWindowID,
 
   *aWindow = nsGlobalWindow::GetOuterWindowWithId(aWindowID);
   NS_IF_ADDREF(*aWindow);
-  return NS_OK;
-}
-
-#ifdef DEBUG
-static PRBool
-CheckLeafLayers(Layer* aLayer, const nsIntPoint& aOffset, nsIntRegion* aCoveredRegion)
-{
-  gfxMatrix transform;
-  if (!aLayer->GetTransform().Is2D(&transform) ||
-      transform.HasNonIntegerTranslation())
-    return PR_FALSE;
-  transform.NudgeToIntegers();
-  nsIntPoint offset = aOffset + nsIntPoint(transform.x0, transform.y0);
-
-  Layer* child = aLayer->GetFirstChild();
-  if (child) {
-    while (child) {
-      if (!CheckLeafLayers(child, offset, aCoveredRegion))
-        return PR_FALSE;
-      child = child->GetNextSibling();
-    }
-  } else {
-    nsIntRegion rgn = aLayer->GetVisibleRegion();
-    rgn.MoveBy(offset);
-    nsIntRegion tmp;
-    tmp.And(rgn, *aCoveredRegion);
-    if (!tmp.IsEmpty())
-      return PR_FALSE;
-    aCoveredRegion->Or(*aCoveredRegion, rgn);
-  }
-
-  return PR_TRUE;
-}
-#endif
-
-NS_IMETHODIMP
-nsDOMWindowUtils::LeafLayersPartitionWindow(PRBool* aResult)
-{
-  if (!IsUniversalXPConnectCapable()) {
-    return NS_ERROR_DOM_SECURITY_ERR;
-  }
-
-  *aResult = PR_TRUE;
-#ifdef DEBUG
-  nsIWidget* widget = GetWidget();
-  if (!widget)
-    return NS_ERROR_FAILURE;
-  LayerManager* manager = widget->GetLayerManager();
-  if (!manager)
-    return NS_ERROR_FAILURE;
-  nsPresContext* presContext = GetPresContext();
-  if (!presContext)
-    return NS_ERROR_FAILURE;
-  Layer* root = manager->GetRoot();
-  if (!root)
-    return NS_ERROR_FAILURE;
-
-  nsIntPoint offset(0, 0);
-  nsIntRegion coveredRegion;
-  if (!CheckLeafLayers(root, offset, &coveredRegion)) {
-    *aResult = PR_FALSE;
-  }
-  if (!coveredRegion.IsEqual(root->GetVisibleRegion())) {
-    *aResult = PR_FALSE;
-  }
-#endif
   return NS_OK;
 }

@@ -372,7 +372,7 @@ public:
     // this switch statement away.
     switch (aPrefType) {
     case kPresContext_MinimumFontSize:
-      return mMinimumFontSizePref;
+      return mMinimumFontSize;
     case kPresContext_ScrollbarSide:
       return mPrefScrollbarSide;
     case kPresContext_BidiDirection:
@@ -548,23 +548,6 @@ public:
       return;
 
     mTextZoom = aZoom;
-    if (HasCachedStyleData()) {
-      // Media queries could have changed since we changed the meaning
-      // of 'em' units in them.
-      MediaFeatureValuesChanged(PR_TRUE);
-      RebuildAllStyleData(NS_STYLE_HINT_REFLOW);
-    }
-  }
-
-  PRInt32 MinFontSize() const {
-    return NS_MAX(mMinFontSize, mMinimumFontSizePref);
-  }
-
-  void SetMinFontSize(PRInt32 aMinFontSize) {
-    if (aMinFontSize == mMinFontSize)
-      return;
-
-    mMinFontSize = aMinFontSize;
     if (HasCachedStyleData()) {
       // Media queries could have changed since we changed the meaning
       // of 'em' units in them.
@@ -1071,7 +1054,6 @@ protected:
 
   nsWeakPtr             mContainer;
 
-  PRInt32               mMinFontSize;   // Min font size, defaults to 0
   float                 mTextZoom;      // Text zoom, defaults to 1.0
   float                 mFullZoom;      // Page zoom, defaults to 1.0
 
@@ -1097,7 +1079,7 @@ protected:
   nsTArray<nsFontFaceRuleContainer> mFontFaceRules;
   
   PRInt32               mFontScaler;
-  nscoord               mMinimumFontSizePref;
+  nscoord               mMinimumFontSize;
 
   nsRect                mVisibleArea;
   nsSize                mPageSize;
@@ -1139,7 +1121,6 @@ protected:
   unsigned              mUseDocumentFonts : 1;
   unsigned              mUseDocumentColors : 1;
   unsigned              mUnderlineLinks : 1;
-  unsigned              mSendAfterPaintToContent : 1;
   unsigned              mUseFocusColors : 1;
   unsigned              mFocusRingOnAnything : 1;
   unsigned              mFocusRingStyle : 1;

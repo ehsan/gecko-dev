@@ -62,7 +62,7 @@
 
 #ifdef ACCESSIBILITY
 #include "nsIServiceManager.h"
-#include "nsAccessibilityService.h"
+#include "nsIAccessibilityService.h"
 #endif
 
 using namespace mozilla;
@@ -104,12 +104,6 @@ nsVideoFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
     NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
     mPosterImage = NS_NewHTMLImageElement(nodeInfo.forget());
     NS_ENSURE_TRUE(mPosterImage, NS_ERROR_OUT_OF_MEMORY);
-
-    // Push a null JSContext on the stack so that code that runs
-    // within the below code doesn't think it's being called by
-    // JS. See bug 604262.
-    nsCxPusher pusher;
-    pusher.PushNull();
 
     // Set the nsImageLoadingContent::ImageState() to 0. This means that the
     // image will always report its state as 0, so it will never be reframed
@@ -281,7 +275,6 @@ nsVideoFrame::BuildLayer(nsDisplayListBuilder* aBuilder,
   transform.Translate(r.pos);
   transform.Scale(r.Width()/frameSize.width, r.Height()/frameSize.height);
   layer->SetTransform(gfx3DMatrix::From2D(transform));
-  layer->SetVisibleRegion(nsIntRect(0, 0, videoSize.width, videoSize.height));
   nsRefPtr<Layer> result = layer.forget();
   return result.forget();
 }
@@ -475,7 +468,8 @@ nsVideoFrame::GetType() const
 already_AddRefed<nsAccessible>
 nsVideoFrame::CreateAccessible()
 {
-  nsAccessibilityService* accService = nsIPresShell::AccService();
+  nsCOMPtr<nsIAccessibilityService> accService =
+    do_GetService("@mozilla.org/accessibilityService;1");
   return accService ?
     accService->CreateHTMLMediaAccessible(mContent, PresContext()->PresShell()) :
     nsnull;

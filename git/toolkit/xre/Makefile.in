@@ -108,6 +108,10 @@ ifeq ($(MOZ_WIDGET_TOOLKIT),qt)
 CPPSRCS += nsNativeAppSupportQt.cpp
 CPPSRCS += nsQAppInstance.cpp
 EXPORTS += nsQAppInstance.h
+ifdef MOZ_ENABLE_MEEGOTOUCH
+MOCSRCS += moc_MozMeegoAppService.cpp
+CPPSRCS += moc_MozMeegoAppService.cpp
+endif
 else
 CPPSRCS += nsNativeAppSupportDefault.cpp
 endif
@@ -122,7 +126,7 @@ CMMSRCS += MacLaunchHelper.mm
 CMMSRCS += MacApplicationDelegate.mm
 CMMSRCS += MacAutoreleasePool.mm
 CPPSRCS += nsCommandLineServiceMac.cpp
-ENABLE_CXX_EXCEPTIONS = 1
+OS_CXXFLAGS += -fexceptions
 endif
 
 ifdef MOZ_X11

@@ -43,11 +43,6 @@
 #include "gfxD2DSurface.h"
 #endif
 
-#include "gfxTeeSurface.h"
-#include "gfxUtils.h"
-#include "ReadbackLayer.h"
-#include "ReadbackProcessor.h"
-
 namespace mozilla {
 namespace layers {
 
@@ -70,38 +65,71 @@ ThebesLayerD3D10::~ThebesLayerD3D10()
 #define RETENTION_THRESHOLD 16384
 
 void
-
-ThebesLayerD3D10::InvalidateRegion(const nsIntRegion &aRegion)
+ThebesLayerD3D10::SetVisibleRegion(const nsIntRegion &aRegion)
 {
-  mValidRegion.Sub(mValidRegion, aRegion);
-}
+  if (aRegion.IsEqual(mVisibleRegion)) {
+    return;
+  }
 
-void ThebesLayerD3D10::CopyRegion(ID3D10Texture2D* aSrc, const nsIntPoint &aSrcOffset,
-                                  ID3D10Texture2D* aDest, const nsIntPoint &aDestOffset,
-                                  const nsIntRegion &aCopyRegion, nsIntRegion* aValidRegion,
-                                  float aXRes, float aYRes)
-{
+  nsIntRegion oldVisibleRegion = mVisibleRegion;
+  ThebesLayer::SetVisibleRegion(aRegion);
+
+  if (!mTexture) {
+    // If we don't need to retain content initialize lazily. This is good also
+    // because we might get mIsOpaqueSurface set later than the first call to
+    // SetVisibleRegion.
+    return;
+  }
+
+  VerifyContentType();
+
+  nsRefPtr<ID3D10Texture2D> oldTexture = mTexture;
+
+  nsIntRect oldBounds = oldVisibleRegion.GetBounds();
+  nsIntRect newBounds = mVisibleRegion.GetBounds();
+
+  CreateNewTexture(gfxIntSize(newBounds.width, newBounds.height));
+
+  // Old visible region will become the region that is covered by both the
+  // old and the new visible region.
+  oldVisibleRegion.And(oldVisibleRegion, mVisibleRegion);
+  // No point in retaining parts which were not valid.
+  oldVisibleRegion.And(oldVisibleRegion, mValidRegion);
+
+  nsIntRect largeRect = oldVisibleRegion.GetLargestRectangle();
+
+  // If we had no hardware texture before or have no retained area larger than
+  // the retention threshold, we're not retaining and are done here. If our
+  // texture creation failed this can mean a device reset is pending and we
+  // should silently ignore the failure. In the future when device failures
+  // are properly handled we should test for the type of failure and gracefully
+  // handle different failures. See bug 569081.
+  if (!oldTexture || !mTexture ||
+      largeRect.width * largeRect.height < RETENTION_THRESHOLD) {
+    mValidRegion.SetEmpty();
+    return;
+  }
+
   nsIntRegion retainedRegion;
-  nsIntRegionRectIterator iter(aCopyRegion);
+  nsIntRegionRectIterator iter(oldVisibleRegion);
   const nsIntRect *r;
   while ((r = iter.Next())) {
     if (r->width * r->height > RETENTION_THRESHOLD) {
       // Calculate the retained rectangle's position on the old and the new
-      // surface. We need to scale these rectangles since the visible 
-      // region is in unscaled units, and the texture size has been scaled.
+      // surface.
       D3D10_BOX box;
-      box.left = UINT(floor((r->x - aSrcOffset.x) * aXRes));
-      box.top = UINT(floor((r->y - aSrcOffset.y) * aYRes));
-      box.right = box.left + UINT(ceil(r->width * aXRes));
-      box.bottom = box.top + UINT(ceil(r->height * aYRes));
-      box.back = 1;
+      box.left = r->x - oldBounds.x;
+      box.top = r->y - oldBounds.y;
+      box.right = box.left + r->width;
+      box.bottom = box.top + r->height;
+      box.back = 1.0f;
       box.front = 0;
 
-      device()->CopySubresourceRegion(aDest, 0,
-                                      UINT(floor((r->x - aDestOffset.x) * aXRes)),
-                                      UINT(floor((r->y - aDestOffset.y) * aYRes)),
+      device()->CopySubresourceRegion(mTexture, 0,
+                                      r->x - newBounds.x,
+                                      r->y - newBounds.y,
                                       0,
-                                      aSrc, 0,
+                                      oldTexture, 0,
                                       &box);
 
       retainedRegion.Or(retainedRegion, *r);
@@ -109,7 +137,14 @@ void ThebesLayerD3D10::CopyRegion(ID3D10Texture2D* aSrc, const nsIntPoint &aSrcO
   }
 
   // Areas which were valid and were retained are still valid
-  aValidRegion->And(*aValidRegion, retainedRegion);  
+  mValidRegion.And(mValidRegion, retainedRegion);  
+}
+
+
+void
+ThebesLayerD3D10::InvalidateRegion(const nsIntRegion &aRegion)
+{
+  mValidRegion.Sub(mValidRegion, aRegion);
 }
 
 void
@@ -124,9 +159,7 @@ ThebesLayerD3D10::RenderLayer()
   SetEffectTransformAndOpacity();
 
   ID3D10EffectTechnique *technique;
-  if (mTextureOnWhite) {
-    technique = effect()->GetTechniqueByName("RenderComponentAlphaLayer");
-  } else if (CanUseOpaqueSurface()) {
+  if (CanUseOpaqueSurface()) {
     technique = effect()->GetTechniqueByName("RenderRGBLayerPremul");
   } else {
     technique = effect()->GetTechniqueByName("RenderRGBALayerPremul");
@@ -138,9 +171,6 @@ ThebesLayerD3D10::RenderLayer()
   const nsIntRect *iterRect;
   if (mSRView) {
     effect()->GetVariableByName("tRGB")->AsShaderResource()->SetResource(mSRView);
-  }
-  if (mSRViewOnWhite) {
-    effect()->GetVariableByName("tRGBWhite")->AsShaderResource()->SetResource(mSRViewOnWhite);
   }
 
   while ((iterRect = iter.Next())) {
@@ -170,87 +200,18 @@ ThebesLayerD3D10::RenderLayer()
 }
 
 void
-ThebesLayerD3D10::Validate(ReadbackProcessor *aReadback)
+ThebesLayerD3D10::Validate()
 {
   if (mVisibleRegion.IsEmpty()) {
     return;
   }
 
-  SurfaceMode mode = GetSurfaceMode();
-  if (mode == SURFACE_COMPONENT_ALPHA &&
-      (!mParent || !mParent->SupportsComponentAlphaChildren())) {
-    mode = SURFACE_SINGLE_CHANNEL_ALPHA;
-  }
-
-  VerifyContentType(mode);
-
-  float xres, yres;
-  GetDesiredResolutions(xres, yres);
-
-  // If our resolution changed, we need new sized textures, delete the old ones.
-  if (ResolutionChanged(xres, yres)) {
-      mTexture = nsnull;
-      mTextureOnWhite = nsnull;
-  }
-
-  nsTArray<ReadbackProcessor::Update> readbackUpdates;
-  nsIntRegion readbackRegion;
-  if (aReadback && UsedForReadback()) {
-    aReadback->GetThebesLayerUpdates(this, &readbackUpdates, &readbackRegion);
-  }
+  VerifyContentType();
 
   nsIntRect visibleRect = mVisibleRegion.GetBounds();
 
-  if (mTexture) {
-    if (!mTextureRegion.IsEqual(mVisibleRegion)) {
-      nsRefPtr<ID3D10Texture2D> oldTexture = mTexture;
-      mTexture = nsnull;
-      nsRefPtr<ID3D10Texture2D> oldTextureOnWhite = mTextureOnWhite;
-      mTextureOnWhite = nsnull;
-
-      nsIntRegion retainRegion = mTextureRegion;
-      nsIntRect oldBounds = mTextureRegion.GetBounds();
-      nsIntRect newBounds = mVisibleRegion.GetBounds();
-
-      CreateNewTextures(gfxIntSize(newBounds.width, newBounds.height), mode);
-
-      // Old visible region will become the region that is covered by both the
-      // old and the new visible region.
-      retainRegion.And(retainRegion, mVisibleRegion);
-      // No point in retaining parts which were not valid.
-      retainRegion.And(retainRegion, mValidRegion);
-
-      nsIntRect largeRect = retainRegion.GetLargestRectangle();
-
-      // If we had no hardware texture before, have no retained area larger than
-      // the retention threshold or the requested resolution has changed, 
-      // we're not retaining and are done here. If our texture creation failed 
-      // this can mean a device reset is pending and we should silently ignore the   
-      // failure. In the future when device failures are properly handled we 
-      // should test for the type of failure and gracefully handle different 
-      // failures. See bug 569081.
-      if (!oldTexture || !mTexture ||
-          largeRect.width * largeRect.height < RETENTION_THRESHOLD ||
-          ResolutionChanged(xres, yres)) {
-        mValidRegion.SetEmpty();
-      } else {
-        CopyRegion(oldTexture, oldBounds.TopLeft(),
-                   mTexture, newBounds.TopLeft(),
-                   retainRegion, &mValidRegion,
-                   xres, yres);
-        if (oldTextureOnWhite) {
-          CopyRegion(oldTextureOnWhite, oldBounds.TopLeft(),
-                     mTextureOnWhite, newBounds.TopLeft(),
-                     retainRegion, &mValidRegion,
-                     xres, yres);
-        }
-      }
-    }
-  }
-  mTextureRegion = mVisibleRegion;
-
-  if (!mTexture || (mode == SURFACE_COMPONENT_ALPHA && !mTextureOnWhite)) {
-    CreateNewTextures(gfxIntSize(visibleRect.width, visibleRect.height), mode);
+  if (!mTexture) {
+    CreateNewTexture(gfxIntSize(visibleRect.width, visibleRect.height));
     mValidRegion.SetEmpty();
   }
 
@@ -270,24 +231,7 @@ ThebesLayerD3D10::Validate(ReadbackProcessor *aReadback)
     nsIntRegion region;
     region.Sub(mVisibleRegion, mValidRegion);
 
-    DrawRegion(region, mode);
-
-    if (readbackUpdates.Length() > 0) {
-      CD3D10_TEXTURE2D_DESC desc(DXGI_FORMAT_B8G8R8A8_UNORM,
-                                 visibleRect.width, visibleRect.height,
-                                 1, 1, 0, D3D10_USAGE_STAGING,
-                                 D3D10_CPU_ACCESS_READ);
-
-      nsRefPtr<ID3D10Texture2D> readbackTexture;
-      device()->CreateTexture2D(&desc, NULL, getter_AddRefs(readbackTexture));
-      device()->CopyResource(readbackTexture, mTexture);
-
-      for (int i = 0; i < readbackUpdates.Length(); i++) {
-        mD3DManager->readbackManager()->PostTask(readbackTexture,
-                                                 &readbackUpdates[i],
-                                                 gfxPoint(visibleRect.x, visibleRect.y));
-      }
-    }
+    DrawRegion(region);
 
     mValidRegion = mVisibleRegion;
   }
@@ -306,13 +250,13 @@ ThebesLayerD3D10::GetLayer()
 }
 
 void
-ThebesLayerD3D10::VerifyContentType(SurfaceMode aMode)
+ThebesLayerD3D10::VerifyContentType()
 {
   if (mD2DSurface) {
-    gfxASurface::gfxContentType type = aMode != SURFACE_SINGLE_CHANNEL_ALPHA ?
+    gfxASurface::gfxContentType type = CanUseOpaqueSurface() ?
       gfxASurface::CONTENT_COLOR : gfxASurface::CONTENT_COLOR_ALPHA;
 
-    if (type != mD2DSurface->GetContentType()) {  
+    if (type != mD2DSurface->GetContentType()) {
       mD2DSurface = new gfxD2DSurface(mTexture, type);
 
       if (!mD2DSurface || mD2DSurface->CairoStatus()) {
@@ -320,64 +264,22 @@ ThebesLayerD3D10::VerifyContentType(SurfaceMode aMode)
         mD2DSurface = nsnull;
         return;
       }
-
-      mValidRegion.SetEmpty();
-    }
-        
-    if (aMode != SURFACE_COMPONENT_ALPHA && mTextureOnWhite) {
-      // If we've transitioned away from component alpha, we can delete those resources.
-      mD2DSurfaceOnWhite = nsnull;
-      mSRViewOnWhite = nsnull;
-      mTextureOnWhite = nsnull;
       mValidRegion.SetEmpty();
     }
   }
 }
 
-static void
-FillSurface(gfxASurface* aSurface, const nsIntRegion& aRegion,
-            const nsIntPoint& aOffset, const gfxRGBA& aColor,
-            float aXRes, float aYRes)
-{
-  nsRefPtr<gfxContext> ctx = new gfxContext(aSurface);
-  ctx->Scale(aXRes, aYRes);
-  ctx->Translate(-gfxPoint(aOffset.x, aOffset.y));
-  gfxUtils::PathFromRegion(ctx, aRegion);
-  ctx->SetColor(aColor);
-  ctx->Fill();
-}
-
 void
-ThebesLayerD3D10::DrawRegion(nsIntRegion &aRegion, SurfaceMode aMode)
+ThebesLayerD3D10::DrawRegion(const nsIntRegion &aRegion)
 {
+  HRESULT hr;
   nsIntRect visibleRect = mVisibleRegion.GetBounds();
 
   if (!mD2DSurface) {
     return;
   }
 
-  float xres, yres;
-  GetDesiredResolutions(xres, yres);
-  aRegion.ExtendForScaling(xres, yres);
-
-  nsRefPtr<gfxASurface> destinationSurface;
-  
-  if (aMode == SURFACE_COMPONENT_ALPHA) {
-    FillSurface(mD2DSurface, aRegion, visibleRect.TopLeft(), gfxRGBA(0.0, 0.0, 0.0, 1.0), xres, yres);
-    FillSurface(mD2DSurfaceOnWhite, aRegion, visibleRect.TopLeft(), gfxRGBA(1.0, 1.0, 1.0, 1.0), xres, yres);
-    gfxASurface* surfaces[2] = { mD2DSurface.get(), mD2DSurfaceOnWhite.get() };
-    destinationSurface = new gfxTeeSurface(surfaces, NS_ARRAY_LENGTH(surfaces));
-    // Using this surface as a source will likely go horribly wrong, since
-    // only the onBlack surface will really be used, so alpha information will
-    // be incorrect.
-    destinationSurface->SetAllowUseAsSource(PR_FALSE);
-  } else {
-    destinationSurface = mD2DSurface;
-  }
-
-  nsRefPtr<gfxContext> context = new gfxContext(destinationSurface);
-  // Draw content scaled at our current resolution.
-  context->Scale(xres, yres);
+  nsRefPtr<gfxContext> context = new gfxContext(mD2DSurface);
 
   nsIntRegionRectIterator iter(aRegion);
   context->Translate(gfxPoint(-visibleRect.x, -visibleRect.y));
@@ -388,7 +290,7 @@ ThebesLayerD3D10::DrawRegion(nsIntRegion &aRegion, SurfaceMode aMode)
   }
   context->Clip();
 
-  if (aMode == SURFACE_SINGLE_CHANNEL_ALPHA) {
+  if (mD2DSurface->GetContentType() != gfxASurface::CONTENT_COLOR) {
     context->SetOperator(gfxContext::OPERATOR_CLEAR);
     context->Paint();
     context->SetOperator(gfxContext::OPERATOR_OVER);
@@ -401,99 +303,38 @@ ThebesLayerD3D10::DrawRegion(nsIntRegion &aRegion, SurfaceMode aMode)
 }
 
 void
-ThebesLayerD3D10::CreateNewTextures(const gfxIntSize &aSize, SurfaceMode aMode)
+ThebesLayerD3D10::CreateNewTexture(const gfxIntSize &aSize)
 {
   if (aSize.width == 0 || aSize.height == 0) {
     // Nothing to do.
     return;
   }
 
-  // Scale the requested size (in unscaled units) to the actual
-  // texture size we require.
-  gfxIntSize scaledSize;
-  float xres, yres;
-  GetDesiredResolutions(xres, yres);
-  scaledSize.width = PRInt32(ceil(aSize.width * xres));
-  scaledSize.height = PRInt32(ceil(aSize.height * yres));
-
-  CD3D10_TEXTURE2D_DESC desc(DXGI_FORMAT_B8G8R8A8_UNORM, scaledSize.width, scaledSize.height, 1, 1);
+  CD3D10_TEXTURE2D_DESC desc(DXGI_FORMAT_B8G8R8A8_UNORM, aSize.width, aSize.height, 1, 1);
   desc.BindFlags = D3D10_BIND_RENDER_TARGET | D3D10_BIND_SHADER_RESOURCE;
   desc.MiscFlags = D3D10_RESOURCE_MISC_GDI_COMPATIBLE;
-  HRESULT hr;
 
-  if (!mTexture) {
-    hr = device()->CreateTexture2D(&desc, NULL, getter_AddRefs(mTexture));
+  HRESULT hr = device()->CreateTexture2D(&desc, NULL, getter_AddRefs(mTexture));
 
-    if (FAILED(hr)) {
-      NS_WARNING("Failed to create new texture for ThebesLayerD3D10!");
-      return;
-    }
-
-    hr = device()->CreateShaderResourceView(mTexture, NULL, getter_AddRefs(mSRView));
-
-    if (FAILED(hr)) {
-      NS_WARNING("Failed to create shader resource view for ThebesLayerD3D10.");
-    }
-
-    mD2DSurface = new gfxD2DSurface(mTexture, aMode != SURFACE_SINGLE_CHANNEL_ALPHA ?
-      gfxASurface::CONTENT_COLOR : gfxASurface::CONTENT_COLOR_ALPHA);
-
-    if (!mD2DSurface || mD2DSurface->CairoStatus()) {
-      NS_WARNING("Failed to create surface for ThebesLayerD3D10.");
-      mD2DSurface = nsnull;
-      return;
-    }
-
+  if (FAILED(hr)) {
+    NS_WARNING("Failed to create new texture for ThebesLayerD3D10!");
+    return;
   }
 
-  if (aMode == SURFACE_COMPONENT_ALPHA && !mTextureOnWhite) {
-    hr = device()->CreateTexture2D(&desc, NULL, getter_AddRefs(mTextureOnWhite));
+  hr = device()->CreateShaderResourceView(mTexture, NULL, getter_AddRefs(mSRView));
 
-    if (FAILED(hr)) {
-      NS_WARNING("Failed to create new texture for ThebesLayerD3D10!");
-      return;
-    }
-
-    hr = device()->CreateShaderResourceView(mTextureOnWhite, NULL, getter_AddRefs(mSRViewOnWhite));
-
-    if (FAILED(hr)) {
-      NS_WARNING("Failed to create shader resource view for ThebesLayerD3D10.");
-    }
-
-    mD2DSurfaceOnWhite = new gfxD2DSurface(mTextureOnWhite, gfxASurface::CONTENT_COLOR);
-
-    if (!mD2DSurfaceOnWhite || mD2DSurfaceOnWhite->CairoStatus()) {
-      NS_WARNING("Failed to create surface for ThebesLayerD3D10.");
-      mD2DSurfaceOnWhite = nsnull;
-      return;
-    }
+  if (FAILED(hr)) {
+    NS_WARNING("Failed to create shader resource view for ThebesLayerD3D10.");
   }
-  
-  mXResolution = xres;
-  mYResolution = yres;
-}
-  
-void 
-ThebesLayerD3D10::GetDesiredResolutions(float& aXRes, float& aYRes)
-{
-  const gfx3DMatrix& transform = GetLayer()->GetEffectiveTransform();
-  gfxMatrix transform2d;
-  if (transform.Is2D(&transform2d)) {
-    gfxSize scale = transform2d.ScaleFactors(PR_TRUE);
-    //Scale factors are normalized to a power of 2 to reduce the number of resolution changes
-    aXRes = gfxUtils::ClampToScaleFactor(scale.width);
-    aYRes = gfxUtils::ClampToScaleFactor(scale.height);
-  } else {
-    aXRes = 1.0;
-    aYRes = 1.0;
-  }
-}
 
-bool 
-ThebesLayerD3D10::ResolutionChanged(float aXRes, float aYRes)
-{
-  return aXRes != mXResolution ||
-         aYRes != mYResolution;
+  mD2DSurface = new gfxD2DSurface(mTexture, CanUseOpaqueSurface() ?
+    gfxASurface::CONTENT_COLOR : gfxASurface::CONTENT_COLOR_ALPHA);
+
+  if (!mD2DSurface || mD2DSurface->CairoStatus()) {
+    NS_WARNING("Failed to create surface for ThebesLayerD3D10.");
+    mD2DSurface = nsnull;
+    return;
+  }
 }
 
 } /* namespace layers */

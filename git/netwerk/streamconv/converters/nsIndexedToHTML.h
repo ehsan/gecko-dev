@@ -75,10 +75,7 @@ public:
 protected:
     
     void FormatSizeString(PRInt64 inSize, nsString& outSizeString);
-    nsresult FormatInputStream(nsIRequest* aRequest, nsISupports *aContext, const nsAString &aBuffer);
-    // Helper to properly implement OnStartRequest
-    nsresult DoOnStartRequest(nsIRequest* request, nsISupports *aContext,
-                              nsString& aBuffer);
+    nsresult FormatInputStream(nsIRequest* aRequest, nsISupports *aContext, const nsAString &aBuffer); 
 
 protected:
     nsCOMPtr<nsIDirIndexParser>     mParser;

@@ -39,20 +39,17 @@
 # ***** END LICENSE BLOCK *****
 
 <menupopup id="appmenu-popup"
-           onpopupshowing="if (event.target == this) {
-                             updateEditUIVisibility();
 #ifdef MOZ_SERVICES_SYNC
-                             gSyncUI.updateUI();
+           onpopupshowing="updateEditUIVisibility();gSyncUI.updateUI();">
+#else
+           onpopupshowing="updateEditUIVisibility();">
 #endif
-                             return;
-                           }
-                           if (event.target.parentNode.parentNode.parentNode.parentNode == this)
-                             this._currentPopup = event.target;">
   <hbox>
     <vbox id="appmenuPrimaryPane">
       <splitmenu id="appmenu_newTab"
                  label="&tabCmd.label;"
-                 command="cmd_newNavigatorTab">
+                 command="cmd_newNavigatorTab"
+                 key="key_newNavigatorTab">
           <menupopup>
             <menuitem id="appmenu_newTab_popup"
                       label="&tabCmd.label;"
@@ -101,45 +98,6 @@
                        command="cmd_paste"
                        onclick="if (!this.disabled) hidePopup();"
                        tooltiptext="&pasteButton.tooltip;"/>
-        <spacer flex="1"/>
-        <menu id="appmenu-editmenu">
-          <menupopup id="appmenu-editmenu-menupopup">
-            <menuitem id="appmenu-editmenu-cut"
-                      class="menuitem-iconic"
-                      label="&cutCmd.label;"
-                      key="key_cut"
-                      command="cmd_cut"/>
-            <menuitem id="appmenu-editmenu-copy"
-                      class="menuitem-iconic"
-                      label="&copyCmd.label;"
-                      key="key_copy"
-                      command="cmd_copy"/>
-            <menuitem id="appmenu-editmenu-paste"
-                      class="menuitem-iconic"
-                      label="&pasteCmd.label;"
-                      key="key_paste"
-                      command="cmd_paste"/>
-            <menuseparator/>
-            <menuitem id="appmenu-editmenu-undo"
-                      label="&undoCmd.label;"
-                      key="key_undo"
-                      command="cmd_undo"/>
-            <menuitem id="appmenu-editmenu-redo"
-                      label="&redoCmd.label;"
-                      key="key_redo"
-                      command="cmd_redo"/>
-            <menuseparator/>
-            <menuitem id="appmenu-editmenu-selectAll"
-                      label="&selectAllCmd.label;"
-                      key="key_selectAll"
-                      command="cmd_selectAll"/>
-            <menuseparator/>
-            <menuitem id="appmenu-editmenu-delete"
-                      label="&deleteCmd.label;"
-                      key="key_delete"
-                      command="cmd_delete"/>
-          </menupopup>
-        </menu>
       </hbox>
       <menuitem id="appmenu_find"
                 class="menuitem-tooltip"
@@ -158,7 +116,8 @@
       <splitmenu id="appmenu_print"
                  iconic="true"
                  label="&printCmd.label;"
-                 command="cmd_print">
+                 command="cmd_print"
+                 key="printKb">
           <menupopup>
             <menuitem id="appmenu_print_popup"
                       class="menuitem-iconic"
@@ -244,7 +203,8 @@
       <splitmenu id="appmenu_bookmarks"
                  iconic="true"
                  label="&bookmarksMenu.label;"
-                 command="Browser:ShowAllBookmarks">
+                 command="Browser:ShowAllBookmarks"
+                 key="manBookmarkKb">
           <menupopup id="appmenu_bookmarksPopup"
                      placespopup="true"
                      context="placesContext"
@@ -307,7 +267,8 @@
       <splitmenu id="appmenu_history"
                  iconic="true"
                  label="&historyMenu.label;"
-                 command="Browser:ShowAllHistory">
+                 command="Browser:ShowAllHistory"
+                 key="showAllHistoryKb">
           <menupopup id="appmenu_historyMenupopup"
                      placespopup="true"
                      oncommand="this.parentNode._placesView._onCommand(event);"

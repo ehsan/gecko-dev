@@ -57,7 +57,7 @@
 #include "nsFont.h"
 #include "nsCOMPtr.h"
 #ifdef ACCESSIBILITY
-#include "nsAccessibilityService.h"
+#include "nsIAccessibilityService.h"
 #endif
 #include "nsIServiceManager.h"
 #include "nsDisplayList.h"
@@ -655,7 +655,8 @@ nsFieldSetFrame::RemoveFrame(nsIAtom*       aListName,
 already_AddRefed<nsAccessible>
 nsFieldSetFrame::CreateAccessible()
 {
-  nsAccessibilityService* accService = nsIPresShell::AccService();
+  nsCOMPtr<nsIAccessibilityService> accService = do_GetService("@mozilla.org/accessibilityService;1");
+
   if (accService) {
     return accService->CreateHTMLGroupboxAccessible(mContent,
                                                     PresContext()->PresShell());

@@ -217,7 +217,7 @@ private:
   void ChangeState(State aState);
 
   // Create and initialize audio stream using current audio parameters.
-  void OpenAudioStream(nsAutoMonitor& aMonitor);
+  void OpenAudioStream();
 
   // Shut down and dispose audio stream.
   void CloseAudioStream();
@@ -475,7 +475,6 @@ nsWaveStateMachine::Seek(double aTime)
     }
     ChangeState(STATE_SEEKING);
   }
-  NS_ASSERTION(IsSeeking(), "IsSeeking() must return true when seeking");
 }
 
 double
@@ -598,7 +597,7 @@ nsWaveStateMachine::Run()
 
     case STATE_PLAYING: {
       if (!mAudioStream) {
-        OpenAudioStream(monitor);
+        OpenAudioStream();
         if (!mAudioStream) {
           ChangeState(STATE_ERROR);
           break;
@@ -772,13 +771,11 @@ nsWaveStateMachine::Run()
           ChangeState(nextState);
         }
 
-        if (mState != STATE_SEEKING) {
-          monitor.Exit();
-          nsCOMPtr<nsIRunnable> stopEvent =
-            NS_NewRunnableMethod(mDecoder, &nsWaveDecoder::SeekingStopped);
-          NS_DispatchToMainThread(stopEvent, NS_DISPATCH_SYNC);
-          monitor.Enter();
-        }
+        monitor.Exit();
+        nsCOMPtr<nsIRunnable> stopEvent =
+          NS_NewRunnableMethod(mDecoder, &nsWaveDecoder::SeekingStopped);
+        NS_DispatchToMainThread(stopEvent, NS_DISPATCH_SYNC);
+        monitor.Enter();
       }
       break;
 
@@ -907,27 +904,17 @@ nsWaveStateMachine::ChangeState(State aState)
 }
 
 void
-nsWaveStateMachine::OpenAudioStream(nsAutoMonitor& aMonitor)
+nsWaveStateMachine::OpenAudioStream()
 {
-  NS_ABORT_IF_FALSE(mMetadataValid,
-                    "Attempting to initialize audio stream with invalid metadata");
-
-  nsRefPtr<nsAudioStream> audioStream = nsAudioStream::AllocateStream();
-  if (!audioStream) {
+  mAudioStream = nsAudioStream::AllocateStream();
+  if (!mAudioStream) {
     LOG(PR_LOG_ERROR, ("Could not create audio stream"));
-    return;
+  } else {
+    NS_ABORT_IF_FALSE(mMetadataValid,
+                      "Attempting to initialize audio stream with invalid metadata");
+    mAudioStream->Init(mChannels, mSampleRate, mSampleFormat);
+    mAudioStream->SetVolume(mInitialVolume);
   }
-
-  // Drop the monitor while initializing the stream because remote
-  // audio streams wait on a synchronous event running on the main
-  // thread, and holding the decoder monitor while waiting for this
-  // can result in deadlocks.
-  aMonitor.Exit();
-  audioStream->Init(mChannels, mSampleRate, mSampleFormat);
-  aMonitor.Enter();
-
-  mAudioStream = audioStream;
-  mAudioStream->SetVolume(mInitialVolume);
 }
 
 void
@@ -1334,7 +1321,6 @@ nsWaveDecoder::Seek(double aTime)
 {
   if (mPlaybackStateMachine) {
     mEnded = PR_FALSE;
-    mCurrentTime = aTime;
     PinForSeek();
     mPlaybackStateMachine->Seek(aTime);
     return StartStateMachineThread();
@@ -1563,9 +1549,7 @@ nsWaveDecoder::NotifyDownloadEnded(nsresult aStatus)
     ResourceLoaded();
   } else if (aStatus == NS_BINDING_ABORTED) {
     // Download has been cancelled by user.
-    if (mElement) {
-      mElement->LoadAborted();
-    }
+    mElement->LoadAborted();
   } else if (aStatus != NS_BASE_STREAM_CLOSED) {
     NetworkError();
   }

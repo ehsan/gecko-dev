@@ -37,9 +37,6 @@
 
 %include ../../global/shared.inc
 
-@namespace url("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul");
-@namespace html url("http://www.w3.org/1999/xhtml");
-
 #addons-page {
   -moz-appearance: none;
   padding: 18px;
@@ -51,14 +48,11 @@
 
 #view-port-container {
   /* Needed to allow the radius to clip the inner content, see bug 595656 */
-  /* Disabled because of bug 623615
   overflow: hidden;
-  */
   background-image: -moz-linear-gradient(top, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.25) 50%, rgba(255, 255, 255, 0.05));
   border: 1px solid rgba(50, 65, 92, 0.4);
   border-radius: 5px;
 }
-
 
 /*** global warnings ***/
 
@@ -75,7 +69,7 @@
 
 .global-warning,
 .global-warning .button-link {
-  text-shadow: @loweredShadow@;
+  text-shadow: #FFFFFF 1px 1px 1px;
 }
 
 #addons-page[warning] .global-warning-container {
@@ -166,7 +160,6 @@
   border: 1px solid #A8B8D1;
   border-radius: 8px;
   background-image: -moz-linear-gradient(top, rgba(255, 255, 255, 0.7), rgba(236, 241, 247, 0.7));
-  background-clip: padding-box;
   box-shadow: 0 -3px 0 rgba(58, 78, 103, 0.05) inset,
               0 3px 0 rgba(175, 195, 220, 0.3);  
 }
@@ -223,8 +216,6 @@
 }
 
 .category[disabled] {
-  border-top: 0;
-  border-bottom: 0;
   height: 0;
   opacity: 0;
   -moz-transition-property: height, opacity;
@@ -240,6 +231,7 @@
 .category[selected] {
   background-color: rgba(255, 255, 255, 0.35);
   color: -moz-dialogtext;
+  font-weight: bold;
   border-color: rgba(50, 65, 92, 0.4);
   -moz-border-end-color: #C9CFD7;
 }
@@ -320,7 +312,6 @@
   border-bottom-right-radius: 0;
   border-right: none;
   -moz-image-region: rect(0, 20px, 20px, 0);
-  padding-right: 3px;
 }
 
 #back-btn:-moz-locale-dir(rtl),
@@ -328,47 +319,20 @@
   border-top-left-radius: 0;
   border-bottom-left-radius: 0;
   -moz-image-region: rect(0, 40px, 20px, 20px);
-  padding-left: 3px;
 }
 
 #header-utils-btn {
+  min-width: 4.5em;
   list-style-image: url("chrome://mozapps/skin/extensions/utilities.png");
   -moz-margin-end: 18px;
 }
 
-#header-utils-btn > .toolbarbutton-menu-dropmarker {
-  list-style-image: url("chrome://mozapps/skin/extensions/toolbarbutton-dropmarker.png");
-  padding: 0;
-  -moz-margin-start: 2px;
-}
-
 #header-search {
   margin: 0;
-  -moz-appearance: none;
-  padding: 3px 5px 2px;
-  border: 1px solid rgba(60,73,97,0.5);
-  border-radius: 10000px;
-  box-shadow: inset 0 1px 1px rgba(0,0,0,0.15), 0 1px rgba(255,255,255,0.25);
-  background: -moz-linear-gradient(rgba(255,255,255,0.2), rgba(255,255,255,0.3));
-  background-clip: padding-box;
 }
 
-#header-search[focused] {
-  box-shadow: @focusRingShadow@, inset 0 1px 1px rgba(0,0,0,0.15);
-  border-color: -moz-mac-focusring;
-}
-
-#header-search > .textbox-input-box {
-  -moz-padding-start: 15px;
-  background: url("chrome://mozapps/skin/extensions/search.png") left no-repeat;
-}
-
-#header-search > .textbox-input-box:-moz-locale-dir(rtl) {
-  background-position: right;
-}
-
-#header-search > .textbox-input-box > html|*.textbox-input:-moz-placeholder {
-  color: #5C6470;
+#header-search:not([focused]) {
+  opacity: 0.7;
 }
 
 .view-header {
@@ -401,13 +365,13 @@
 .sorter[checkState="1"],
 .sorter[checkState="2"],
 .sorter:active:hover {
-  text-shadow: @loweredShadow@;
+  text-shadow: #FFF 0 1px 1px;
   background-color: #C0C3CB;
-  box-shadow: inset #A3A6AC 0 1px 1px, @loweredShadow@;
+  box-shadow: inset #A3A6AC 0 1px 1px, #FFF 0 1px 1px;
 }
 
 .sorter:hover {
-  text-shadow: @loweredShadow@;
+  text-shadow: #FFF 0 1px 1px;
   background-color: #C0C3CB;
 }
 
@@ -482,9 +446,7 @@
 .icon-container {
   width: 48px;
   height: 48px;
-  margin: 3px 7px;
-  -moz-box-align: center;
-  -moz-box-pack: center;
+  margin: 22px 7px 7px 7px;
 }
 
 .icon {
@@ -514,8 +476,7 @@
   margin-bottom: 0;
   font-weight: bold;
   color: #000;
-  text-shadow: @loweredShadow@;
-  -moz-box-align: end;
+  text-shadow: 1px 1px 1px #FFF;
 }
 
 .creator {
@@ -529,7 +490,6 @@
 .description-container {
   margin-top: 8px;
   -moz-margin-start: 6px;
-  -moz-box-align: center;
 }
 
 .description {
@@ -541,45 +501,7 @@
 .error {
   -moz-margin-start: 48px;
   font-weight: bold;
-  text-shadow: @loweredShadow@;
-  -moz-box-align: center;
-}
-
-.content-container,
-.basicinfo-container {
-  -moz-box-align: start;
-}
-
-.addon[status="installing"] > .content-container {
-  -moz-box-align: stretch;
-}
-
-.update-info-container {
-  -moz-box-align: center;
-}
-
-.advancedinfo-container,
-.update-available {
-  -moz-box-align: end;
-}
-
-.install-status-container {
-  -moz-box-pack: end;
-  -moz-box-align: end;
-}
-
-.name-outer-container {
-  -moz-box-pack: center;
-}
-
-.relnotes-toggle-container,
-.icon-outer-container {
-  -moz-box-pack: start;
-}
-
-.status-container,
-.control-container {
-  -moz-box-pack: end;
+  text-shadow: 1px 1px 1px #FFF;
 }
 
 .addon-view .warning {
@@ -708,7 +630,7 @@
 }
 
 .addon[selected] .name-container {
-  text-shadow: @loweredShadow@;
+  text-shadow: 1px 1px 1px rgba(255, 255, 255, 0.7);
 }
 
 .addon[active="false"][selected] .name-container {
@@ -738,13 +660,13 @@
 }
 
 .search-filter-radio[selected] {
-  text-shadow: @loweredShadow@;
+  text-shadow: #FFF 0 1px 1px;
   background-color: #C0C3CB;
-  box-shadow: inset #A3A6AC 0 1px 1px, @loweredShadow@;
+  box-shadow: inset #A3A6AC 0 1px 1px, #FFF 0 1px 1px;
 }
 
 .search-filter-radio:hover {
-  text-shadow: @loweredShadow@;
+  text-shadow: #FFF 0 1px 1px;
   background-color: #C0C3CB;
 }
 
@@ -949,7 +871,7 @@
   background-image: -moz-linear-gradient(top, #DCDEE3, #CBCED6);
   border: 1px solid #858898;
   border-radius: 3px;
-  box-shadow: inset #E3E8EC 0 1px 1px, @loweredShadow@;
+  box-shadow: inset #E3E8EC 0 1px 1px, rgba(227, 232, 236, 0.4) 0 1px 1px;
   width: 200px;
   height: 21px;
   margin: 0 8px;
@@ -1044,7 +966,7 @@
 }
 
 .download-progress .status {
-  text-shadow: @loweredShadow@;
+  text-shadow: #FFF 0 0 2px;
 }
 
 
@@ -1063,7 +985,7 @@
 
 #updates-installed,
 #updates-downloaded {
-  color: #3C735C;
+  color: #00BB00;
   font-weight: bold;
 }
 
@@ -1076,25 +998,29 @@
 
 .addon-control {
   -moz-appearance: none;
-  padding: 1px 4px;
-  min-width: 60px;
+  padding: 2px 5px;
+  border: 1px solid #858898;
   border-radius: 3px;
-  border: 1px solid rgba(60,73,97,0.5);
-  box-shadow: inset 0 1px rgba(255,255,255,0.25), 0 1px rgba(255,255,255,0.25);
-  background-image: -moz-linear-gradient(rgba(255,255,255,0.45), rgba(255,255,255,0.2));
-  background-clip: padding-box;
-  color: #252F3B;
-  text-shadow: @loweredShadow@;
+  background-image: -moz-linear-gradient(top, #DCDEE3, #CBCED6);
+  box-shadow: inset #E3E8EC 0 1px 1px, rgba(227, 232, 236, 0.4) 0 1px 1px;
 }
 
 .addon-control[disabled="true"] {
   display: none;
 }
 
+.addon-control:hover {
+  border-color: @toolbarbuttonBorderColor@;
+}
+
 .addon-control:active:hover {
-  box-shadow: inset 0 1px 3px rgba(0,0,0,.2), 0 1px rgba(255,255,255,0.25);
-  background-image: -moz-linear-gradient(rgba(45,54,71,0.3), rgba(45,54,71,0.1));
-  border-color: rgba(60,73,97,0.7);
+  box-shadow: inset rgba(0, 0, 0, 0.5) 1px 1px 4px;
+  background-image: -moz-linear-gradient(top, #949599, #A8A9AD);
+  border-color: #50525B;
+}
+
+.addon-control:-moz-window-inactive {
+  border-color: @toolbarbuttonInactiveBorderColor@;
 }
 
 .button-link {
@@ -1119,14 +1045,16 @@
 
 .header-button {
   -moz-appearance: none;
-  padding: 0 4px;
+  min-width: 0;
+  padding: 0 3px;
   margin: 0;
   height: 22px;
-  border: 1px solid rgba(60,73,97,0.5);
+  border: 1px solid @toolbarbuttonBorderColor@;
   border-radius: @toolbarbuttonCornerRadius@;
-  box-shadow: inset 0 1px rgba(255,255,255,0.25), 0 1px rgba(255,255,255,0.25);
-  background: -moz-linear-gradient(rgba(255,255,255,0.45), rgba(255,255,255,0));
-  background-clip: padding-box;
+  box-shadow: 0 1px rgba(255, 255, 255, 0.2);
+  background: @toolbarbuttonBackground@;
+  background-origin: border-box;
+  opacity: 0.8;
 }
 
 .header-button .toolbarbutton-text {
@@ -1137,10 +1065,19 @@
   opacity: 0.4;
 }
 
+.header-button:not([disabled="true"]):hover {
+  opacity: 1;
+}
+
 .header-button:not([disabled="true"]):active:hover,
 .header-button[open="true"] {
-  border-color: rgba(45,54,71,0.7);
-  box-shadow: inset 0 0 4px rgb(45,54,71), 0 1px rgba(255,255,255,0.25);
-  background-image: -moz-linear-gradient(rgba(45,54,71,0.6), rgba(45,54,71,0));
+  background: @toolbarbuttonPressedBackgroundColor@;
+  text-shadow: @loweredShadow@;
+  box-shadow: @toolbarbuttonPressedInnerShadow@, @loweredShadow@;
+}
+
+.header-button:-moz-window-inactive {
+  border-color: @toolbarbuttonInactiveBorderColor@;
+  background-image: @toolbarbuttonInactiveBackgroundImage@;
 }
 

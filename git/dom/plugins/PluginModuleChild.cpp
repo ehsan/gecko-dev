@@ -107,10 +107,9 @@ static HWND sBrowserHwnd = NULL;
 
 PluginModuleChild::PluginModuleChild() :
     mLibrary(0),
-    mQuirks(QUIRKS_NOT_INITIALIZED),
     mShutdownFunc(0),
-    mInitializeFunc(0)
-  , mPluginFilename("")
+    mInitializeFunc(0),
+    mQuirks(QUIRKS_NOT_INITIALIZED)
 #if defined(OS_WIN) || defined(OS_MACOSX)
   , mGetEntryPointsFunc(0)
 #elif defined(MOZ_WIDGET_GTK2)
@@ -138,9 +137,14 @@ PluginModuleChild::~PluginModuleChild()
     if (mLibrary) {
         PR_UnloadLibrary(mLibrary);
     }
-
-    DeinitGraphics();
-
+#ifdef MOZ_WIDGET_QT
+    nsQAppInstance::Release();
+    if (sGtkLib) {
+        PR_UnloadLibrary(sGtkLib);
+        sGtkLib = nsnull;
+        s_gtk_init = nsnull;
+    }
+#endif
     gInstance = nsnull;
 }
 
@@ -184,9 +188,10 @@ PluginModuleChild::Init(const std::string& aPluginFilename,
     if (!InitGraphics())
         return false;
 
-    mPluginFilename = aPluginFilename.c_str();
+    nsCString filename;
+    filename = aPluginFilename.c_str();
     nsCOMPtr<nsILocalFile> pluginFile;
-    NS_NewNativeLocalFile(mPluginFilename,
+    NS_NewNativeLocalFile(filename,
                           PR_TRUE,
                           getter_AddRefs(pluginFile));
 
@@ -554,26 +559,6 @@ PluginModuleChild::InitGraphics()
     return true;
 }
 
-void
-PluginModuleChild::DeinitGraphics()
-{
-#ifdef MOZ_WIDGET_QT
-    nsQAppInstance::Release();
-    if (sGtkLib) {
-        PR_UnloadLibrary(sGtkLib);
-        sGtkLib = nsnull;
-        s_gtk_init = nsnull;
-    }
-#endif
-
-#if defined(MOZ_X11) && defined(NS_FREE_PERMANENT_DATA)
-    // We free some data off of XDisplay close hooks, ensure they're
-    // run.  Closing the display is pretty scary, so we only do it to
-    // silence leak checkers.
-    XCloseDisplay(DefaultXDisplay());
-#endif
-}
-
 bool
 PluginModuleChild::AnswerNP_Shutdown(NPError *rv)
 {
@@ -595,42 +580,9 @@ PluginModuleChild::AnswerNP_Shutdown(NPError *rv)
 }
 
 bool
-PluginModuleChild::AnswerOptionalFunctionsSupported(bool *aURLRedirectNotify,
-                                                    bool *aClearSiteData,
-                                                    bool *aGetSitesWithData)
+PluginModuleChild::AnswerURLRedirectNotifySupported(bool *aBoolVal)
 {
-    *aURLRedirectNotify = !!mFunctions.urlredirectnotify;
-    *aClearSiteData = !!mFunctions.clearsitedata;
-    *aGetSitesWithData = !!mFunctions.getsiteswithdata;
-    return true;
-}
-
-bool
-PluginModuleChild::AnswerNPP_ClearSiteData(const nsCString& aSite,
-                                           const uint64_t& aFlags,
-                                           const uint64_t& aMaxAge,
-                                           NPError* aResult)
-{
-    *aResult =
-        mFunctions.clearsitedata(NullableStringGet(aSite), aFlags, aMaxAge);
-    return true;
-}
-
-bool
-PluginModuleChild::AnswerNPP_GetSitesWithData(InfallibleTArray<nsCString>* aResult)
-{
-    char** result = mFunctions.getsiteswithdata();
-    if (!result)
-        return true;
-
-    char** iterator = result;
-    while (*iterator) {
-        aResult->AppendElement(*iterator);
-        NS_Free(*iterator);
-        ++iterator;
-    }
-    NS_Free(result);
-
+    *aBoolVal = !!mFunctions.urlredirectnotify;
     return true;
 }
 
@@ -1876,13 +1828,7 @@ PluginModuleChild::InitQuirksModes(const nsCString& aMimeType)
         mQuirks |= QUIRK_FLASH_THROTTLE_WMUSER_EVENTS; 
         mQuirks |= QUIRK_FLASH_HOOK_SETLONGPTR;
         mQuirks |= QUIRK_FLASH_HOOK_GETWINDOWINFO;
-        mQuirks |= QUIRK_FLASH_FIXUP_MOUSE_CAPTURE;
-    }
-
-    // QuickTime plugin usually loaded with audio/mpeg mimetype
-    NS_NAMED_LITERAL_CSTRING(quicktime, "npqtplugin");
-    if (FindInReadable(quicktime, mPluginFilename)) {
-      mQuirks |= QUIRK_QUICKTIME_AVOID_SETWINDOW;
+        mQuirks |= QUIRK_FLASH_MASK_CLEARTYPE_SETTINGS;
     }
 #endif
 }
@@ -1938,13 +1884,7 @@ PluginModuleChild::AnswerPPluginInstanceConstructor(PPluginInstanceChild* aActor
     // plugins need to actively negotiate something else in order to work
     // out of process.
     if (childInstance->EventModel() == NPEventModelCarbon) {
-      // Send notification that a plugin tried to negotiate Carbon NPAPI so that
-      // users can be notified that restarting the browser in i386 mode may allow
-      // them to use the plugin.
-      childInstance->SendNegotiatedCarbon();
-
-      // Fail to instantiate.
-      *rv = NPERR_MODULE_LOAD_FAILED_ERROR;
+        *rv = NPERR_MODULE_LOAD_FAILED_ERROR;
     }
 #endif
 

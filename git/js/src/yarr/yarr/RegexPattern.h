@@ -26,9 +26,9 @@
 #ifndef RegexPattern_h
 #define RegexPattern_h
 
+
 #include "jsvector.h"
 #include "yarr/jswtfbridge.h"
-#include "yarr/yarr/RegexCommon.h"
 
 
 namespace JSC { namespace Yarr {
@@ -39,7 +39,6 @@ namespace JSC { namespace Yarr {
 #define RegexStackSpaceForBackTrackInfoAlternative 1 // One per alternative.
 #define RegexStackSpaceForBackTrackInfoParentheticalAssertion 1
 #define RegexStackSpaceForBackTrackInfoParenthesesOnce 1 // Only for !fixed quantifiers.
-#define RegexStackSpaceForBackTrackInfoParenthesesTerminal 1
 #define RegexStackSpaceForBackTrackInfoParentheses 4
 
 struct PatternDisjunction;
@@ -138,7 +137,6 @@ struct PatternTerm {
             unsigned subpatternId;
             unsigned lastSubpatternId;
             bool isCopy;
-            bool isTerminal;
         } parentheses;
     };
     QuantifierType quantityType;
@@ -170,7 +168,6 @@ struct PatternTerm {
         parentheses.disjunction = disjunction;
         parentheses.subpatternId = subpatternId;
         parentheses.isCopy = false;
-        parentheses.isTerminal = false;
         quantityType = QuantifierFixedCount;
         quantityCount = 1;
     }

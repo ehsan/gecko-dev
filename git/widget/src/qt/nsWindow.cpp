@@ -27,7 +27,6 @@
  *   Vladimir Vukicevic <vladimir@pobox.com>
  *   Jeremias Bosch <jeremias.bosch@gmail.com>
  *   Steffen Imhof <steffen.imhof@gmail.com>
- *   Tatiana Meshkova <tanya.meshkova@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -71,11 +70,10 @@ static Qt::GestureType gSwipeGestureId = Qt::CustomGesture;
 // How many milliseconds mouseevents are blocked after receiving
 // multitouch.
 static const float GESTURES_BLOCK_MOUSE_FOR = 200;
-#ifdef MOZ_ENABLE_QTMOBILITY
-#include <QtSensors/QOrientationSensor>
-using namespace QtMobility;
-#endif // MOZ_ENABLE_QTMOBILITY
-#endif // QT version check 4.6
+#endif // QT version check
+#ifdef MOZ_ENABLE_MEEGOTOUCH
+#include <MApplication>
+#endif
 
 #ifdef MOZ_X11
 #include <QX11Info>
@@ -88,10 +86,6 @@ using namespace QtMobility;
 
 #include "nsWindow.h"
 #include "mozqwidget.h"
-
-#ifdef MOZ_ENABLE_QTMOBILITY
-#include "mozqorientationsensorfilter.h"
-#endif
 
 #include "nsToolkit.h"
 #include "nsIDeviceContext.h"
@@ -183,13 +177,6 @@ static PRBool     check_for_rollup(double aMouseX, double aMouseY,
 static bool
 is_mouse_in_window (MozQWidget* aWindow, double aMouseX, double aMouseY);
 
-static bool sAltGrModifier = false;
-
-#ifdef MOZ_ENABLE_QTMOBILITY
-static QOrientationSensor *gOrientation = nsnull;
-static MozQOrientationSensorFilter gOrientationFilter;
-#endif
-
 static PRBool
 isContextMenuKeyEvent(const QKeyEvent *qe)
 {
@@ -210,11 +197,6 @@ InitKeyEvent(nsKeyEvent &aEvent, QKeyEvent *aQEvent)
     aEvent.isAlt     = (aQEvent->modifiers() & Qt::AltModifier) ? PR_TRUE : PR_FALSE;
     aEvent.isMeta    = (aQEvent->modifiers() & Qt::MetaModifier) ? PR_TRUE : PR_FALSE;
     aEvent.time      = 0;
-
-    if (sAltGrModifier) {
-        aEvent.isControl = PR_TRUE;
-        aEvent.isAlt = PR_TRUE;
-    }
 
     // The transformations above and in qt for the keyval are not invertible
     // so link to the QKeyEvent (which will vanish soon after return from the
@@ -268,17 +250,6 @@ nsWindow::nsWindow()
         // QGestureRecognizer takes ownership
         MozSwipeGestureRecognizer* swipeRecognizer = new MozSwipeGestureRecognizer;
         gSwipeGestureId = QGestureRecognizer::registerRecognizer(swipeRecognizer);
-    }
-#endif
-#ifdef MOZ_ENABLE_QTMOBILITY
-    if (!gOrientation) {
-        gOrientation = new QOrientationSensor();
-        gOrientation->addFilter(&gOrientationFilter);
-        gOrientation->start();
-        if (!gOrientation->isActive()) {
-            qWarning("Orientationsensor didn't start!");
-        }
-        gOrientationFilter.filter(gOrientation->reading());
     }
 #endif
 }
@@ -405,14 +376,6 @@ nsWindow::Destroy(void)
         gBufferSurface = nsnull;
 #ifdef MOZ_HAVE_SHMIMAGE
         gShmImage = nsnull;
-#endif
-#ifdef MOZ_ENABLE_QTMOBILITY
-        if (gOrientation) {
-            gOrientation->removeFilter(&gOrientationFilter);
-            gOrientation->stop();
-            delete gOrientation;
-            gOrientation = nsnull;
-        }
 #endif
     }
 
@@ -560,21 +523,21 @@ nsWindow::Move(PRInt32 aX, PRInt32 aY)
 
     if (mIsTopLevel) {
         SetSizeMode(nsSizeMode_Normal);
+
+        // the internal QGraphicsWidget is always in the top corner of
+        // the view if it is a toplevel one
+        aX = aY = 0;
     }
 
     if (aX == mBounds.x && aY == mBounds.y)
         return NS_OK;
 
-    mNeedsMove = PR_FALSE;
+    if (!mWidget)
+        return NS_OK;
 
     // update the bounds
     QPointF pos( aX, aY );
-    if (mIsTopLevel) {
-        QWidget *widget = GetViewWidget();
-        NS_ENSURE_TRUE(widget, NS_OK);
-        widget->move(aX, aY);
-    }
-    else if (mWidget) {
+    if (mWidget) {
         // the position of the widget is set relative to the parent
         // so we map the coordinates accordingly
         pos = mWidget->mapFromScene(pos);
@@ -702,16 +665,7 @@ nsWindow::SetFocus(PRBool aRaise)
 NS_IMETHODIMP
 nsWindow::GetScreenBounds(nsIntRect &aRect)
 {
-    aRect = nsIntRect(nsIntPoint(0, 0), mBounds.Size());
-    if (mIsTopLevel) {
-        QWidget *widget = GetViewWidget();
-        NS_ENSURE_TRUE(widget, NS_OK);
-        QPoint pos = widget->pos();
-        aRect.MoveTo(pos.x(), pos.y());
-    }
-    else {
-        aRect.MoveTo(WidgetToScreenOffset());
-    }
+    aRect = nsIntRect(WidgetToScreenOffset(), mBounds.Size());
     LOG(("GetScreenBounds %d %d | %d %d | %d %d\n",
          aRect.x, aRect.y,
          mBounds.width, mBounds.height,
@@ -1073,17 +1027,6 @@ nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption, Q
         event.region = nsIntRegion(rect);
         static_cast<mozilla::layers::LayerManagerOGL*>(GetLayerManager(nsnull))->
             SetClippingRegion(event.region);
-
-        gfxMatrix matr;
-        matr.Translate(gfxPoint(aPainter->transform().dx(), aPainter->transform().dy()));
-#ifdef MOZ_ENABLE_QTMOBILITY
-        // This is needed for rotate transformation on MeeGo
-        // This will work very slow if pixman does not handle rotation very well
-        matr.Rotate((M_PI/180) * gOrientationFilter.GetWindowRotationAngle());
-        static_cast<mozilla::layers::LayerManagerOGL*>(GetLayerManager(nsnull))->
-            SetWorldTransform(matr);
-#endif //MOZ_ENABLE_QTMOBILITY
-
         return DispatchEvent(&event);
     }
 
@@ -1121,15 +1064,16 @@ nsWindow::DoPaint(QPainter* aPainter, const QStyleOptionGraphicsItem* aOption, Q
     else if (renderMode == gfxQtPlatform::RENDER_DIRECT) {
       gfxMatrix matr;
       matr.Translate(gfxPoint(aPainter->transform().dx(), aPainter->transform().dy()));
-#ifdef MOZ_ENABLE_QTMOBILITY
-         // This is needed for rotate transformation on MeeGo
-         // This will work very slow if pixman does not handle rotation very well
-         matr.Rotate((M_PI/180) * gOrientationFilter.GetWindowRotationAngle());
-         NS_ASSERTION(PIXMAN_VERSION > PIXMAN_VERSION_ENCODE(0, 21, 2) ||
-                      !gOrientationFilter.GetWindowRotationAngle(),
-                      "Old pixman and rotate transform, it is going to be slow");
-#endif //MOZ_ENABLE_QTMOBILITY
-
+#ifdef MOZ_ENABLE_MEEGOTOUCH
+      MWindow* window = MApplication::activeWindow();
+      if (window) {
+        // This is needed for rotate transformation on MeeGo
+        // This will work very slow if pixman does not handle rotation very well
+        M::OrientationAngle angle = window->orientationAngle();
+        matr.Rotate((M_PI/180)*angle);
+        NS_ASSERTION(PIXMAN_VERSION > PIXMAN_VERSION_ENCODE(0, 21, 2) || !angle, "Old pixman and rotate transform, it is going to be slow");
+      }
+#endif
       ctx->SetMatrix(matr);
     }
 
@@ -1307,14 +1251,14 @@ define CHECK_MOUSE_BLOCKED {}
 #endif
 
 nsEventStatus
-nsWindow::OnMotionNotifyEvent(QPointF aPos,  Qt::KeyboardModifiers aModifiers)
+nsWindow::OnMotionNotifyEvent(QGraphicsSceneMouseEvent *aEvent)
 {
     UserActivity();
 
     CHECK_MOUSE_BLOCKED
 
-    mMoveEvent.pos = aPos;
-    mMoveEvent.modifiers = aModifiers;
+    mMoveEvent.pos = aEvent->pos();
+    mMoveEvent.modifiers = aEvent->modifiers();
     mMoveEvent.needDispatch = true;
     DispatchMotionToMainThread();
 
@@ -1516,10 +1460,6 @@ nsWindow::OnKeyPressEvent(QKeyEvent *aEvent)
     UserActivity();
 
     PRBool setNoDefault = PR_FALSE;
-
-    if (aEvent->key() == Qt::Key_AltGr) {
-        sAltGrModifier = true;
-    }
 
 #ifdef MOZ_X11
     // before we dispatch a key, check if it's the context menu key.
@@ -1881,10 +1821,6 @@ nsWindow::OnKeyReleaseEvent(QKeyEvent *aEvent)
     nsKeyEvent event(PR_TRUE, NS_KEY_UP, this);
     InitKeyEvent(event, aEvent);
 
-    if (aEvent->key() == Qt::Key_AltGr) {
-        sAltGrModifier = false;
-    }
-
     event.keyCode = domKeyCode;
 
     // unset the key down flag
@@ -1960,6 +1896,7 @@ nsEventStatus nsWindow::OnTouchEvent(QTouchEvent *event, PRBool &handled)
             gestureNotifyEvent.refPoint = nsIntPoint(fpos.x(), fpos.y());
             DispatchEvent(&gestureNotifyEvent);
         }
+        mPinchEvent.needDispatch = true;
     }
     else if (event->type() == QEvent::TouchEnd) {
         mGesturesCancelled = PR_FALSE;
@@ -1969,7 +1906,7 @@ nsEventStatus nsWindow::OnTouchEvent(QTouchEvent *event, PRBool &handled)
     if (touchPoints.count() > 0) {
         // Remember start touch point in order to use it for
         // distance calculation in NS_SIMPLE_GESTURE_MAGNIFY_UPDATE
-        mPinchEvent.touchPoint = touchPoints.at(0).pos();
+        mPinchEvent.touchPoint = touchPoints.at(0).scenePos();
     }
 
     return nsEventStatus_eIgnore;
@@ -2004,9 +1941,10 @@ nsWindow::OnGestureEvent(QGestureEvent* event, PRBool &handled) {
                                           0, 0, centerPoint);
         }
         else if (pinch->state() == Qt::GestureUpdated) {
-            mPinchEvent.needDispatch = true;
-            mPinchEvent.delta = 0;
-            DispatchMotionToMainThread();
+            if (mPinchEvent.needDispatch) {
+                mPinchEvent.delta = 0;
+                DispatchMotionToMainThread();
+            }
         }
         else if (pinch->state() == Qt::GestureFinished) {
             double distance = DistanceBetweenPoints(mPinchEvent.centerPoint, mPinchEvent.touchPoint) * 2;
@@ -2323,14 +2261,17 @@ nsWindow::NativeResize(PRInt32 aWidth, PRInt32 aHeight, PRBool  aRepaint)
 
     mNeedsResize = PR_FALSE;
 
-    if (mIsTopLevel) {
+#ifdef MOZ_IPC
+#ifndef MOZ_ENABLE_MEEGOTOUCH
+    if (mIsTopLevel && XRE_GetProcessType() == GeckoProcessType_Default) {
         QWidget *widget = GetViewWidget();
         NS_ENSURE_TRUE(widget,);
         widget->resize(aWidth, aHeight);
     }
-    else {
-        mWidget->resize(aWidth, aHeight);
-    }
+#endif
+#endif
+
+    mWidget->resize( aWidth, aHeight);
 
     if (aRepaint)
         mWidget->update();
@@ -2347,14 +2288,19 @@ nsWindow::NativeResize(PRInt32 aX, PRInt32 aY,
     mNeedsResize = PR_FALSE;
     mNeedsMove = PR_FALSE;
 
+#ifdef MOZ_IPC
+#ifndef MOZ_ENABLE_MEEGOTOUCH
     if (mIsTopLevel) {
-        QWidget *widget = GetViewWidget();
-        NS_ENSURE_TRUE(widget,);
-        widget->setGeometry(aX, aY, aWidth, aHeight);
+        if (XRE_GetProcessType() == GeckoProcessType_Default) {
+            QWidget *widget = GetViewWidget();
+            NS_ENSURE_TRUE(widget,);
+            widget->setGeometry(aX, aY, aWidth, aHeight);
+        }
     }
-    else {
-        mWidget->setGeometry(aX, aY, aWidth, aHeight);
-    }
+#endif
+#endif
+
+    mWidget->setGeometry(aX, aY, aWidth, aHeight);
 
     if (aRepaint)
         mWidget->update();
@@ -2369,6 +2315,9 @@ nsWindow::NativeShow(PRBool aAction)
         // to go fullscreen because if we do the window because visible
         // do to disabled Qt-Xembed
         if (widget &&
+#ifdef MOZ_IPC
+            (XRE_GetProcessType() == GeckoProcessType_Default) &&
+#endif
             !widget->isVisible())
             MakeFullScreen(mSizeMode == nsSizeMode_Fullscreen);
         mWidget->show();
@@ -2575,9 +2524,6 @@ MozQWidget*
 nsWindow::createQWidget(MozQWidget *parent, nsWidgetInitData *aInitData)
 {
     const char *windowName = NULL;
-    Qt::WindowFlags flags = Qt::Widget;
-    QWidget *parentWidget = (parent && parent->getReceiver()) ?
-            parent->getReceiver()->GetViewWidget() : nsnull;
 
 #ifdef DEBUG_WIDGETS
     qDebug("NEW WIDGET\n\tparent is %p (%s)", (void*)parent,
@@ -2588,8 +2534,8 @@ nsWindow::createQWidget(MozQWidget *parent, nsWidgetInitData *aInitData)
     switch (mWindowType) {
     case eWindowType_dialog:
         windowName = "topLevelDialog";
-        mIsTopLevel = PR_TRUE;
-        flags |= Qt::Dialog;
+        if (!parent)
+            mIsTopLevel = PR_TRUE;
         break;
     case eWindowType_popup:
         windowName = "topLevelPopup";
@@ -2621,18 +2567,20 @@ nsWindow::createQWidget(MozQWidget *parent, nsWidgetInitData *aInitData)
     // create a QGraphicsView if this is a new toplevel window
 
     if (mIsTopLevel) {
-        QGraphicsView* newView = new MozQGraphicsView(widget, parentWidget);
-
+        QGraphicsView* newView = nsnull;
+#if defined MOZ_IPC && defined MOZ_ENABLE_MEEGOTOUCH
+        if (XRE_GetProcessType() == GeckoProcessType_Default) {
+            newView = new MozMGraphicsView(widget);
+        } else
+#else
+        {
+            newView = new MozQGraphicsView(widget);
+        }
+#endif
         if (!newView) {
             delete widget;
             return nsnull;
         }
-
-        newView->setWindowFlags(flags);
-        if (mWindowType == eWindowType_dialog) {
-            newView->setWindowModality(Qt::WindowModal);
-        }
-
         if (!IsAcceleratedQView(newView) && GetShouldAccelerate()) {
             newView->setViewport(new QGLWidget());
         }
@@ -2642,10 +2590,6 @@ nsWindow::createQWidget(MozQWidget *parent, nsWidgetInitData *aInitData)
             newView->viewport()->setAttribute(Qt::WA_PaintOnScreen, true);
             newView->viewport()->setAttribute(Qt::WA_NoSystemBackground, true);
         }
-#ifdef MOZ_ENABLE_QTMOBILITY
-        QObject::connect((QObject*) &gOrientationFilter, SIGNAL(orientationChanged()),
-                         widget, SLOT(orientationChanged()));
-#endif
         // Enable gestures:
 #if (QT_VERSION >= QT_VERSION_CHECK(4, 6, 0))
         newView->viewport()->grabGesture(Qt::PinchGesture);
@@ -2660,12 +2604,11 @@ nsWindow::createQWidget(MozQWidget *parent, nsWidgetInitData *aInitData)
 #endif
 
 #ifdef MOZ_X11
-        if (newView->effectiveWinId()) {
-            XSetWindowBackgroundPixmap(QX11Info::display(),
-                                       newView->effectiveWinId(), None);
-        }
+        XSetWindowBackgroundPixmap(QX11Info::display(),
+                                   newView->effectiveWinId(), None);
 #endif
-    }
+    } else if (eWindowType_dialog == mWindowType && parent)
+        parent->scene()->addItem(widget);
 
     if (mWindowType == eWindowType_popup) {
         widget->setZValue(100);

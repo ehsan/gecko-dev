@@ -144,7 +144,6 @@ enum TokenKind {
                                            of definitions paired with a parse
                                            tree full of uses of those names */
     TOK_RESERVED,                       /* reserved keywords */
-    TOK_STRICT_RESERVED,                /* reserved keywords in strict mode */
     TOK_LIMIT                           /* domain size */
 };
 
@@ -319,8 +318,8 @@ class TokenStream
      * Create a new token stream from an input buffer.
      * Return false on memory-allocation failure.
      */
-    bool init(const jschar *base, size_t length, const char *filename, uintN lineno,
-              JSVersion version);
+    bool init(JSVersion version, const jschar *base, size_t length,
+              const char *filename, uintN lineno);
     void close();
     ~TokenStream() {}
 
@@ -331,12 +330,6 @@ class TokenStream
     const CharBuffer &getTokenbuf() const { return tokenbuf; }
     const char *getFilename() const { return filename; }
     uintN getLineno() const { return lineno; }
-    /* Note that the version and hasXML can get out of sync via setXML. */
-    JSVersion versionNumber() const { return VersionNumber(version); }
-    JSVersion versionWithFlags() const { return version; }
-    bool hasAnonFunFix() const { return VersionHasAnonFunFix(version); }
-    bool hasXML() const { return xml || VersionShouldParseXML(versionNumber()); }
-    void setXML(bool enabled) { xml = enabled; }
 
     /* Flag methods. */
     void setStrictMode(bool enabled = true) { setFlag(enabled, TSF_STRICT_MODE_CODE); }
@@ -457,6 +450,8 @@ class TokenStream
         return JS_FALSE;
     }
 
+    void setVersion(JSVersion newVersion) { version = newVersion; }
+
   private:
     typedef struct TokenBuf {
         jschar              *base;      /* base of line or stream buffer */
@@ -513,8 +508,7 @@ class TokenStream
     CharBuffer          tokenbuf;       /* current token string buffer */
     bool                maybeEOL[256];  /* probabilistic EOL lookup table */
     bool                maybeStrSpecial[256];/* speeds up string scanning */
-    JSVersion           version;        /* (i.e. to identify keywords) */
-    bool                xml;            /* see JSOPTION_XML */
+    JSVersion           version;        /* cached version number for scan */
 };
 
 } /* namespace js */
@@ -529,23 +523,12 @@ js_CloseTokenStream(JSContext *cx, js::TokenStream *ts);
 extern JS_FRIEND_API(int)
 js_fgets(char *buf, int size, FILE *file);
 
-namespace js {
-
-struct KeywordInfo {
-    const char  *chars;         /* C string with keyword text */
-    TokenKind   tokentype;
-    JSOp        op;             /* JSOp */
-    JSVersion   version;        /* JSVersion */
-};
-
 /*
- * Returns a KeywordInfo for the specified characters, or NULL if the string is
- * not a keyword.
+ * If the given char array forms JavaScript keyword, return corresponding
+ * token. Otherwise return TOK_EOF.
  */
-extern const KeywordInfo *
-FindKeyword(const jschar *s, size_t length);
-
-} // namespace js
+extern js::TokenKind
+js_CheckKeyword(const jschar *chars, size_t length);
 
 /*
  * Friend-exported API entry point to call a mapping function on each reserved

@@ -40,10 +40,8 @@
 #include "nsMemory.h"
 
 #include "gfxASurface.h"
-#include "gfxContext.h"
-#include "gfxImageSurface.h"
 
-#include "nsRect.h"
+#include "gfxImageSurface.h"
 
 #include "cairo.h"
 
@@ -223,11 +221,9 @@ gfxASurface::Init(cairo_surface_t* surface, PRBool existingSurface)
         mFloatingRefs = 0;
     } else {
         mFloatingRefs = 1;
-#ifdef MOZ_TREE_CAIRO
         if (cairo_surface_get_content(surface) != CAIRO_CONTENT_COLOR) {
             cairo_surface_set_subpixel_antialiasing(surface, CAIRO_SUBPIXEL_ANTIALIASING_DISABLED);
         }
-#endif
     }
 }
 
@@ -373,13 +369,6 @@ gfxASurface::CheckSurfaceSize(const gfxIntSize& sz, PRInt32 limit)
     return PR_TRUE;
 }
 
-/* static */
-PRInt32
-gfxASurface::FormatStrideForWidth(gfxImageFormat format, PRInt32 width)
-{
-    return cairo_format_stride_for_width((cairo_format_t)format, (int)width);
-}
-
 nsresult
 gfxASurface::BeginPrinting(const nsAString& aTitle, const nsAString& aPrintToFileName)
 {
@@ -446,12 +435,10 @@ gfxASurface::FormatFromContent(gfxASurface::gfxContentType type)
 void
 gfxASurface::SetSubpixelAntialiasingEnabled(PRBool aEnabled)
 {
-#ifdef MOZ_TREE_CAIRO
     if (!mSurfaceValid)
         return;
     cairo_surface_set_subpixel_antialiasing(mSurface,
         aEnabled ? CAIRO_SUBPIXEL_ANTIALIASING_ENABLED : CAIRO_SUBPIXEL_ANTIALIASING_DISABLED);
-#endif
 }
 
 PRBool
@@ -459,11 +446,7 @@ gfxASurface::GetSubpixelAntialiasingEnabled()
 {
     if (!mSurfaceValid)
       return PR_FALSE;
-#ifdef MOZ_TREE_CAIRO
     return cairo_surface_get_subpixel_antialiasing(mSurface) == CAIRO_SUBPIXEL_ANTIALIASING_ENABLED;
-#else
-    return PR_TRUE;
-#endif
 }
 
 PRInt32
@@ -481,24 +464,6 @@ gfxASurface::BytePerPixelFromFormat(gfxImageFormat format)
             NS_WARNING("Unknown byte per pixel value for Image format");
     }
     return 0;
-}
-
-void
-gfxASurface::MovePixels(const nsIntRect& aSourceRect,
-                        const nsIntPoint& aDestTopLeft)
-{
-    gfxIntSize size = GetSize();
-    nsIntRect dest(aDestTopLeft, aSourceRect.Size());
-    // Assume that our cairo backend already knows how to properly
-    // self-copy.  gfxASurface subtypes whose backend can't self-copy
-    // need their own implementations, or their backends need to be
-    // fixed.
-    nsRefPtr<gfxContext> ctx = new gfxContext(this);
-    ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
-    nsIntPoint srcOrigin = dest.TopLeft() - aSourceRect.TopLeft();
-    ctx->SetSource(this, gfxPoint(srcOrigin.x, srcOrigin.y));
-    ctx->Rectangle(gfxRect(dest.x, dest.y, dest.width, dest.height));
-    ctx->Fill();
 }
 
 /** Memory reporting **/

@@ -862,8 +862,8 @@ PathifyURI(nsIURI *in, nsACString &out)
    NS_ENSURE_SUCCESS(rv, rv);
    out.Append(scheme);
    nsCAutoString host;
-   // OK for GetHost to fail since it's not implemented sometimes
-   in->GetHost(host);
+   rv = in->GetHost(host);
+   NS_ENSURE_SUCCESS(rv, rv);
 #ifdef MOZ_OMNIJAR
    if (scheme.Equals("resource") && host.Length() == 0){
        host = "gre";
@@ -1500,7 +1500,7 @@ mozJSComponentLoader::ImportInto(const nsACString & aLocation,
 
         JSAutoEnterCompartment ac;
         if (!ac.enter(mContext, mod->global))
-            return NS_ERROR_FAILURE;
+            return NULL;
 
         if (!JS_GetProperty(mContext, mod->global,
                             "EXPORTED_SYMBOLS", &symbols)) {

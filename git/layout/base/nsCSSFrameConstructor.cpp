@@ -129,7 +129,7 @@
 #include "nsIXULDocument.h"
 #endif
 #ifdef ACCESSIBILITY
-#include "nsAccessibilityService.h"
+#include "nsIAccessibilityService.h"
 #endif
 
 #include "nsInlineFrame.h"
@@ -2364,9 +2364,6 @@ nsCSSFrameConstructor::ConstructDocElementFrame(Element*                 aDocEle
     state.mFrameManager->SetUndisplayedContent(aDocElement, styleContext);
     return NS_OK;
   }
-
-  // Make sure to start any background image loads for the root element now.
-  styleContext->StartBackgroundImageLoads();
 
   nsFrameConstructorSaveState absoluteSaveState;
   if (mHasRootAbsPosContainingBlock) {
@@ -5463,9 +5460,11 @@ nsCSSFrameConstructor::ConstructFramesFromItem(nsFrameConstructorState& aState,
                               aFrameItems);
   }
 
-  // Start background loads during frame construction so that we're
-  // guaranteed that they will be started before onload fires.
-  styleContext->StartBackgroundImageLoads();
+  // Start background loads during frame construction. This is just
+  // a hint; the paint code will do the right thing in any case.
+  {
+    styleContext->GetStyleBackground();
+  }
 
   nsFrameState savedStateBits = aState.mAdditionalStateBits;
   if (item.mIsGeneratedContent) {
@@ -5505,12 +5504,8 @@ IsRootBoxFrame(nsIFrame *aFrame)
 nsresult
 nsCSSFrameConstructor::ReconstructDocElementHierarchy()
 {
-  Element* rootElement = mDocument->GetRootElement();
-  if (!rootElement) {
-    /* nothing to do */
-    return NS_OK;
-  }
-  return RecreateFramesForContent(rootElement, PR_FALSE);
+  return RecreateFramesForContent(mPresShell->GetDocument()->GetRootElement(),
+				  PR_FALSE);
 }
 
 nsIFrame*
@@ -6745,10 +6740,13 @@ nsCSSFrameConstructor::ContentAppended(nsIContent*     aContainer,
 #endif
 
 #ifdef ACCESSIBILITY
-  nsAccessibilityService* accService = nsIPresShell::AccService();
-  if (accService) {
-    accService->ContentRangeInserted(mPresShell, aContainer,
-                                     aFirstNewContent, nsnull);
+  if (mPresShell->IsAccessibilityActive()) {
+    nsCOMPtr<nsIAccessibilityService> accService =
+      do_GetService("@mozilla.org/accessibilityService;1");
+    if (accService) {
+      accService->ContentRangeInserted(mPresShell, aContainer,
+                                       aFirstNewContent, nsnull);
+    }
   }
 #endif
 
@@ -6933,10 +6931,13 @@ nsCSSFrameConstructor::ContentRangeInserted(nsIContent*            aContainer,
     }
 
 #ifdef ACCESSIBILITY
-    nsAccessibilityService* accService = nsIPresShell::AccService();
-    if (accService) {
-      accService->ContentRangeInserted(mPresShell, aContainer,
-                                       aStartChild, aEndChild);
+    if (mPresShell->IsAccessibilityActive()) {
+      nsCOMPtr<nsIAccessibilityService> accService =
+          do_GetService("@mozilla.org/accessibilityService;1");
+      if (accService) {
+        accService->ContentRangeInserted(mPresShell, aContainer,
+                                         aStartChild, aEndChild);
+      }
     }
 #endif
 
@@ -7343,10 +7344,13 @@ nsCSSFrameConstructor::ContentRangeInserted(nsIContent*            aContainer,
 #endif
 
 #ifdef ACCESSIBILITY
-  nsAccessibilityService* accService = nsIPresShell::AccService();
-  if (accService) {
-    accService->ContentRangeInserted(mPresShell, aContainer,
-                                     aStartChild, aEndChild);
+  if (mPresShell->IsAccessibilityActive()) {
+    nsCOMPtr<nsIAccessibilityService> accService =
+      do_GetService("@mozilla.org/accessibilityService;1");
+    if (accService) {
+      accService->ContentRangeInserted(mPresShell, aContainer,
+                                       aStartChild, aEndChild);
+    }
   }
 #endif
 
@@ -7483,9 +7487,12 @@ nsCSSFrameConstructor::ContentRemoved(nsIContent* aContainer,
     }
 
 #ifdef ACCESSIBILITY
-    nsAccessibilityService* accService = nsIPresShell::AccService();
-    if (accService) {
-      accService->ContentRemoved(mPresShell, aContainer, aChild);
+    if (mPresShell->IsAccessibilityActive()) {
+      nsCOMPtr<nsIAccessibilityService> accService =
+          do_GetService("@mozilla.org/accessibilityService;1");
+      if (accService) {
+        accService->ContentRemoved(mPresShell, aContainer, aChild);
+      }
     }
 #endif
 
@@ -7668,7 +7675,7 @@ UpdateViewsForTree(nsIFrame* aFrame, nsIViewManager* aViewManager,
           do {
             DoApplyRenderingChangeToTree(outOfFlowFrame, aViewManager,
                                          aFrameManager, aChange);
-          } while ((outOfFlowFrame = outOfFlowFrame->GetNextContinuation()));
+          } while (outOfFlowFrame = outOfFlowFrame->GetNextContinuation());
         } else if (childList == nsGkAtoms::popupList) {
           DoApplyRenderingChangeToTree(child, aViewManager,
                                        aFrameManager, aChange);
@@ -7735,9 +7742,8 @@ DoApplyRenderingChangeToTree(nsIFrame* aFrame,
     
     if (aChange & nsChangeHint_UpdateTransformLayer) {
       aFrame->MarkLayersActive();
-      // Invalidate the old transformed area. The new transformed area
-      // will be invalidated by nsFrame::FinishAndStoreOverflowArea.
-      aFrame->InvalidateTransformLayer();
+      aFrame->InvalidateLayer(aFrame->GetVisualOverflowRectRelativeToSelf(),
+                              nsDisplayItem::TYPE_TRANSFORM);
     }
   }
 }
@@ -11767,17 +11773,6 @@ nsCSSFrameConstructor::GenerateChildFrames(nsIFrame* aFrame)
 
     EndUpdate();
   }
-
-#ifdef ACCESSIBILITY
-  nsAccessibilityService* accService = nsIPresShell::AccService();
-  if (accService) {
-    nsIContent* container = aFrame->GetContent();
-    nsIContent* child = container->GetFirstChild();
-    if (child) {
-      accService->ContentRangeInserted(mPresShell, container, child, nsnull);
-    }
-  }
-#endif
 
   // call XBL constructors after the frames are created
   mPresShell->GetDocument()->BindingManager()->ProcessAttachedQueue();

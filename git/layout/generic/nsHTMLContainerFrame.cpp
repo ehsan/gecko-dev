@@ -337,15 +337,7 @@ nsHTMLContainerFrame::DisplayTextDecorations(nsDisplayListBuilder* aBuilder,
     return NS_OK;
   if (!IsVisibleForPainting(aBuilder))
     return NS_OK;
-
-  // Hide text decorations if we're currently hiding @font-face fallback text
-  nsCOMPtr<nsIFontMetrics> fm;
-  nsresult rv = nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm));
-  NS_ENSURE_SUCCESS(rv, rv);
-  nsIThebesFontMetrics* tfm = static_cast<nsIThebesFontMetrics*>(fm.get());
-  if (tfm->GetThebesFontGroup()->ShouldSkipDrawing())
-    return NS_OK;
-
+  
   // Do standards mode painting of 'text-decoration's: under+overline
   // behind children, line-through in front.  For Quirks mode, see
   // nsTextFrame::PaintTextDecorations.  (See bug 1777.)
@@ -361,25 +353,25 @@ nsHTMLContainerFrame::DisplayTextDecorations(nsDisplayListBuilder* aBuilder,
   // shadow applied to them. So draw the shadows as part of the display
   // list, underneath the text and all decorations.
   if (GetStyleText()->mTextShadow) {
-    rv = aBelowTextDecorations->AppendNewToTop(new (aBuilder)
+    nsresult rv = aBelowTextDecorations->AppendNewToTop(new (aBuilder)
       nsDisplayTextShadow(aBuilder, this, decorations, aLine));
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
   if (decorations & NS_STYLE_TEXT_DECORATION_UNDERLINE) {
-    rv = aBelowTextDecorations->AppendNewToTop(new (aBuilder)
+    nsresult rv = aBelowTextDecorations->AppendNewToTop(new (aBuilder)
       nsDisplayTextDecoration(aBuilder, this, NS_STYLE_TEXT_DECORATION_UNDERLINE,
                               underColor, aLine));
     NS_ENSURE_SUCCESS(rv, rv);
   }
   if (decorations & NS_STYLE_TEXT_DECORATION_OVERLINE) {
-    rv = aBelowTextDecorations->AppendNewToTop(new (aBuilder)
+    nsresult rv = aBelowTextDecorations->AppendNewToTop(new (aBuilder)
       nsDisplayTextDecoration(aBuilder, this, NS_STYLE_TEXT_DECORATION_OVERLINE,
                               overColor, aLine));
     NS_ENSURE_SUCCESS(rv, rv);
   }
   if (decorations & NS_STYLE_TEXT_DECORATION_LINE_THROUGH) {
-    rv = aAboveTextDecorations->AppendNewToTop(new (aBuilder)
+    nsresult rv = aAboveTextDecorations->AppendNewToTop(new (aBuilder)
       nsDisplayTextDecoration(aBuilder, this, NS_STYLE_TEXT_DECORATION_LINE_THROUGH,
                               strikeColor, aLine));
     NS_ENSURE_SUCCESS(rv, rv);

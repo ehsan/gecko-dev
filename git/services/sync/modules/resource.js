@@ -36,77 +36,20 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-const EXPORTED_SYMBOLS = ["Resource", "AsyncResource",
-                          "Auth", "BrokenBasicAuthenticator",
-                          "BasicAuthenticator", "NoOpAuthenticator"];
+const EXPORTED_SYMBOLS = ["Resource", "AsyncResource"];
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cr = Components.results;
 const Cu = Components.utils;
 
+Cu.import("resource://services-sync/auth.js");
 Cu.import("resource://services-sync/constants.js");
 Cu.import("resource://services-sync/ext/Observers.js");
 Cu.import("resource://services-sync/ext/Preferences.js");
+Cu.import("resource://services-sync/ext/Sync.js");
 Cu.import("resource://services-sync/log4moz.js");
 Cu.import("resource://services-sync/util.js");
-
-Utils.lazy(this, 'Auth', AuthMgr);
-
-// XXX: the authenticator api will probably need to be changed to support
-// other methods (digest, oauth, etc)
-
-function NoOpAuthenticator() {}
-NoOpAuthenticator.prototype = {
-  onRequest: function NoOpAuth_onRequest(headers) {
-    return headers;
-  }
-};
-
-// Warning: This will drop the high unicode bytes from passwords.
-// Use BasicAuthenticator to send non-ASCII passwords UTF8-encoded.
-function BrokenBasicAuthenticator(identity) {
-  this._id = identity;
-}
-BrokenBasicAuthenticator.prototype = {
-  onRequest: function BasicAuth_onRequest(headers) {
-    headers['Authorization'] = 'Basic ' +
-      btoa(this._id.username + ':' + this._id.password);
-    return headers;
-  }
-};
-
-function BasicAuthenticator(identity) {
-  this._id = identity;
-}
-BasicAuthenticator.prototype = {
-  onRequest: function onRequest(headers) {
-    headers['Authorization'] = 'Basic ' +
-      btoa(this._id.username + ':' + this._id.passwordUTF8);
-    return headers;
-  }
-};
-
-function AuthMgr() {
-  this._authenticators = {};
-  this.defaultAuthenticator = new NoOpAuthenticator();
-}
-AuthMgr.prototype = {
-  defaultAuthenticator: null,
-
-  registerAuthenticator: function AuthMgr_register(match, authenticator) {
-    this._authenticators[match] = authenticator;
-  },
-
-  lookupAuthenticator: function AuthMgr_lookup(uri) {
-    for (let match in this._authenticators) {
-      if (uri.match(match))
-        return this._authenticators[match];
-    }
-    return this.defaultAuthenticator;
-  }
-};
-
 
 /*
  * AsyncResource represents a remote network resource, identified by a URI.
@@ -140,9 +83,6 @@ function AsyncResource(uri) {
 }
 AsyncResource.prototype = {
   _logName: "Net.Resource",
-
-  // Wait 5 minutes before killing a request
-  ABORT_TIMEOUT: 300000,
 
   // ** {{{ Resource.authenticator }}} **
   //
@@ -272,7 +212,7 @@ AsyncResource.prototype = {
     // Setup a channel listener so that the actual network operation
     // is performed asynchronously.
     let listener = new ChannelListener(this._onComplete, this._onProgress,
-                                       this._log, this.ABORT_TIMEOUT);
+                                       this._log);
     channel.requestMethod = action;
     channel.asyncOpen(listener, null);
   },
@@ -402,7 +342,7 @@ Resource.prototype = {
   // is never called directly, but is used by the high-level
   // {{{get}}}, {{{put}}}, {{{post}}} and {{delete}} methods.
   _request: function Res__request(action, data) {
-    let cb = Utils.makeSyncCallback();
+    let [doRequest, cb] = Sync.withCb(this._doRequest, this);
     function callback(error, ret) {
       if (error)
         cb.throw(error);
@@ -411,13 +351,10 @@ Resource.prototype = {
 
     // The channel listener might get a failure code
     try {
-      this._doRequest(action, data, callback);
-      return Utils.waitForSyncCallback(cb);
+      return doRequest(action, data, callback);
     } catch(ex) {
-      // Combine the channel stack with this request stack.  Need to create
-      // a new error object for that.
+      // Combine the channel stack with this request stack
       let error = Error(ex.message);
-      error.result = ex.result;
       let chanStack = [];
       if (ex.stack)
         chanStack = ex.stack.trim().split(/\n/).slice(1);
@@ -471,14 +408,15 @@ Resource.prototype = {
 //
 // This object implements the {{{nsIStreamListener}}} interface
 // and is called as the network operation proceeds.
-function ChannelListener(onComplete, onProgress, logger, timeout) {
+function ChannelListener(onComplete, onProgress, logger) {
   this._onComplete = onComplete;
   this._onProgress = onProgress;
   this._log = logger;
-  this._timeout = timeout;
   this.delayAbort();
 }
 ChannelListener.prototype = {
+  // Wait 5 minutes before killing a request
+  ABORT_TIMEOUT: 300000,
 
   onStartRequest: function Channel_onStartRequest(channel) {
     channel.QueryInterface(Ci.nsIHttpChannel);
@@ -501,13 +439,9 @@ ChannelListener.prototype = {
     if (this._data == '')
       this._data = null;
 
-    // Throw the failure code and stop execution.  Use Components.Exception()
-    // instead of Error() so the exception is QI-able and can be passed across
-    // XPCOM borders while preserving the status code.
+    // Throw the failure code name (and stop execution)
     if (!Components.isSuccessCode(status)) {
-      let message = Components.Exception("", status).name;
-      let error = Components.Exception(message, status);
-      this._onComplete(error);
+      this._onComplete(Error(Components.Exception("", status).name));
       return;
     }
 
@@ -543,15 +477,14 @@ ChannelListener.prototype = {
    * Create or push back the abort timer that kills this request
    */
   delayAbort: function delayAbort() {
-    Utils.delay(this.abortRequest, this._timeout, this, "abortTimer");
+    Utils.delay(this.abortRequest, this.ABORT_TIMEOUT, this, "abortTimer");
   },
 
   abortRequest: function abortRequest() {
     // Ignore any callbacks if we happen to get any now
     this.onStopRequest = function() {};
-    let error = Components.Exception("Aborting due to channel inactivity.",
-                                     Cr.NS_ERROR_NET_TIMEOUT);
-    this._onComplete(error);
+    this.onDataAvailable = function() {};
+    this._onComplete(Error("Aborting due to channel inactivity."));
   }
 };
 

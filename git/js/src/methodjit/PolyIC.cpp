@@ -485,7 +485,7 @@ class SetPropCompiler : public PICStubCompiler
 
         Class *clasp = obj->getClass();
 
-        if (clasp->setProperty != StrictPropertyStub)
+        if (clasp->setProperty != PropertyStub)
             return disable("set property hook");
         if (clasp->ops.lookupProperty)
             return disable("ops lookup property hook");
@@ -1187,7 +1187,7 @@ class ScopeNameCompiler : public PICStubCompiler
         JS_ASSERT_IF(pic.kind == ic::PICInfo::XNAME, getprop.obj == tobj);
 
         while (tobj && tobj != getprop.holder) {
-            if (!IsCacheableNonGlobalScope(tobj))
+            if (!js_IsCacheableNonGlobalScope(tobj))
                 return disable("non-cacheable scope chain object");
             JS_ASSERT(tobj->isNative());
 
@@ -1539,7 +1539,7 @@ class BindNameCompiler : public PICStubCompiler
         JSObject *tobj = scopeChain;
         Address parent(pic.objReg, offsetof(JSObject, parent));
         while (tobj && tobj != obj) {
-            if (!IsCacheableNonGlobalScope(tobj))
+            if (!js_IsCacheableNonGlobalScope(tobj))
                 return disable("non-cacheable obj in scope chain");
             masm.loadPtr(parent, pic.objReg);
             Jump nullTest = masm.branchTestPtr(Assembler::Zero, pic.objReg, pic.objReg);
@@ -2702,9 +2702,8 @@ JITScript::purgePICs()
 
     Repatcher repatcher(this);
 
-    ic::PICInfo *pics_ = pics();
     for (uint32 i = 0; i < nPICs; i++) {
-        ic::PICInfo &pic = pics_[i];
+        ic::PICInfo &pic = pics[i];
         switch (pic.kind) {
           case ic::PICInfo::SET:
           case ic::PICInfo::SETMETHOD:
@@ -2728,12 +2727,10 @@ JITScript::purgePICs()
         pic.reset();
     }
 
-    ic::GetElementIC *getElems_ = getElems();
-    ic::SetElementIC *setElems_ = setElems();
     for (uint32 i = 0; i < nGetElems; i++)
-        getElems_[i].purge(repatcher);
+        getElems[i].purge(repatcher);
     for (uint32 i = 0; i < nSetElems; i++)
-        setElems_[i].purge(repatcher);
+        setElems[i].purge(repatcher);
 }
 
 void

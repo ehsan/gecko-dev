@@ -93,7 +93,7 @@ load 337476-1.xul
 load 338703-1.html
 load 339651-1.html
 load 340093-1.xul
-asserts-if(browserIsRemote,1) load 341858-1.html # bug 622188
+load 341858-1.html
 load 342145-1.xhtml
 load 343293-1.xhtml
 load 343293-2.xhtml
@@ -103,7 +103,7 @@ load 344064-1.html
 load 344300-1.html
 load 344300-2.html
 load 344340-1.xul
-asserts-if(browserIsRemote,1) load 347898-1.html # bug 622188
+load 347898-1.html
 load 348126-1.html
 load 348688-1.html
 load 348708-1.xhtml
@@ -257,9 +257,9 @@ load 471594-1.xhtml
 load 479114-1.html
 load 477333-1.xhtml
 load 477731-1.html
-asserts(6) load 479360-1.xhtml # Bug 439258
+load 479360-1.xhtml
 load 481806-1.html
-asserts(6) load 483604-1.xhtml # Bug 439258
+load 483604-1.xhtml
 load 485501-1.html
 load 487544-1.html
 load 488390-1.xhtml
@@ -323,6 +323,3 @@ load 609821-1.xhtml
 load 615146-1.html
 load 615781-1.xhtml
 load 616495-single-side-composite-color-border.html
-load 629035-1.html
-load 629908-1.html
-load 635329.html

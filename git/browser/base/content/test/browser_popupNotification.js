@@ -58,7 +58,6 @@ function cleanUp() {
 
 var gActiveListeners = {};
 var gActiveObservers = {};
-var gShownState = {};
 
 function runNextTest() {
   let nextTest = tests[gTestIndex];
@@ -92,7 +91,6 @@ function runNextTest() {
       info("[Test #" + gTestIndex + "] popup showing");
     });
     doOnPopupEvent("popupshown", function () {
-      gShownState[gTestIndex] = true;
       info("[Test #" + gTestIndex + "] popup shown");
       nextTest.onShown(this);
     });
@@ -103,11 +101,6 @@ function runNextTest() {
                         nextTest.onHidden :
                         [nextTest.onHidden];
     doOnPopupEvent("popuphidden", function () {
-      if (!gShownState[gTestIndex]) {
-        // This is expected to happen for test 9, so let's not treat it as a failure.
-        info("Popup from test " + gTestIndex + " was hidden before its popupshown fired");
-      }
-
       let onHidden = onHiddenArray.shift();
       info("[Test #" + gTestIndex + "] popup hidden (" + onHiddenArray.length + " hides remaining)");
       onHidden.call(nextTest, this);
@@ -198,8 +191,6 @@ var tests = [
     },
     onHidden: function (popup) {
       ok(this.notifyObj.mainActionClicked, "mainAction was clicked");
-      ok(!this.notifyObj.dismissalCallbackTriggered, "dismissal callback wasn't triggered");
-      ok(this.notifyObj.removedCallbackTriggered, "removed callback triggered");
     }
   },
   { // Test #1
@@ -213,8 +204,6 @@ var tests = [
     },
     onHidden: function (popup) {
       ok(this.notifyObj.secondaryActionClicked, "secondaryAction was clicked");
-      ok(!this.notifyObj.dismissalCallbackTriggered, "dismissal callback wasn't triggered");
-      ok(this.notifyObj.removedCallbackTriggered, "removed callback triggered");
     }
   },
   { // Test #2
@@ -263,8 +252,9 @@ var tests = [
     },
     onHidden: function (popup) {
       // actually remove the notification to prevent it from reappearing
-      ok(wrongBrowserNotificationObject.dismissalCallbackTriggered, "dismissal callback triggered due to tab switch");
+      ok(!wrongBrowserNotificationObject.dismissalCallbackTriggered, "dismissal callback wasn't called");
       wrongBrowserNotification.remove();
+      ok(!wrongBrowserNotificationObject.dismissalCallbackTriggered, "dismissal callback wasn't called after remove()");
       ok(wrongBrowserNotificationObject.removedCallbackTriggered, "removed callback triggered");
       wrongBrowserNotification = null;
     }
@@ -293,8 +283,6 @@ var tests = [
       this.notification2.remove();
     },
     onHidden: function (popup) {
-      ok(!this.notifyObj.dismissalCallbackTriggered, "dismissal callback wasn't triggered");
-      ok(this.notifyObj.removedCallbackTriggered, "removed callback triggered");
     }
   },
   // Test that two notifications with different IDs are displayed
@@ -597,7 +585,7 @@ var tests = [
     }
   },
   // Test notification when chrome is hidden
-  { // Test #19
+  { // Test #18
     run: function () {
       this.oldSelectedTab = gBrowser.selectedTab;
       gBrowser.selectedTab = gBrowser.addTab("about:blank");
@@ -620,24 +608,6 @@ var tests = [
 
       gBrowser.removeTab(gBrowser.selectedTab);
       gBrowser.selectedTab = this.oldSelectedTab;
-    }
-  },
-  // Test notification is removed when dismissed if removeOnDismissal is true
-  { // Test #20
-    run: function () {
-      this.notifyObj = new basicNotification();
-      this.notifyObj.addOptions({
-        removeOnDismissal: true
-      });
-      this.notification = showNotification(this.notifyObj);
-    },
-    onShown: function (popup) {
-      checkPopup(popup, this.notifyObj);
-      dismissNotification(popup);
-    },
-    onHidden: function (popup) {
-      ok(!this.notifyObj.dismissalCallbackTriggered, "dismissal callback wasn't triggered");
-      ok(this.notifyObj.removedCallbackTriggered, "removed callback triggered");
     }
   },
 ];
