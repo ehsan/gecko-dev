@@ -18,7 +18,6 @@ namespace layers {
 class CompositableClient;
 class TextureFactoryIdentifier;
 class SurfaceDescriptor;
-class SurfaceDescriptorTiles;
 class ThebesBufferData;
 class DeprecatedTextureClient;
 class TextureClient;
@@ -86,7 +85,7 @@ public:
   virtual void DestroyThebesBuffer(CompositableClient* aCompositable) = 0;
 
   virtual void PaintedTiledLayerBuffer(CompositableClient* aCompositable,
-                                       const SurfaceDescriptorTiles& aTiledDescriptor) = 0;
+                                       BasicTiledLayerBuffer* aTiledLayerBuffer) = 0;
 
   /**
    * Communicate to the compositor that the texture identified by aCompositable

@@ -40,10 +40,10 @@
 class nsIDocument;
 class nsString;
 class nsIDocShell;
-class nsXULPrototypeDocument;
 
 class nsIObjectInputStream;
 class nsIObjectOutputStream;
+class nsIScriptGlobalObject;
 class nsXULPrototypeNode;
 typedef nsTArray<nsRefPtr<nsXULPrototypeNode> > nsPrototypeArray;
 
@@ -110,10 +110,10 @@ public:
 
     virtual ~nsXULPrototypeNode() {}
     virtual nsresult Serialize(nsIObjectOutputStream* aStream,
-                               nsXULPrototypeDocument* aProtoDoc,
+                               nsIScriptGlobalObject* aGlobal,
                                const nsCOMArray<nsINodeInfo> *aNodeInfos) = 0;
     virtual nsresult Deserialize(nsIObjectInputStream* aStream,
-                                 nsXULPrototypeDocument* aProtoDoc,
+                                 nsIScriptGlobalObject* aGlobal,
                                  nsIURI* aDocumentURI,
                                  const nsCOMArray<nsINodeInfo> *aNodeInfos) = 0;
 
@@ -174,10 +174,10 @@ public:
     }
 
     virtual nsresult Serialize(nsIObjectOutputStream* aStream,
-                               nsXULPrototypeDocument* aProtoDoc,
+                               nsIScriptGlobalObject* aGlobal,
                                const nsCOMArray<nsINodeInfo> *aNodeInfos) MOZ_OVERRIDE;
     virtual nsresult Deserialize(nsIObjectInputStream* aStream,
-                                 nsXULPrototypeDocument* aProtoDoc,
+                                 nsIScriptGlobalObject* aGlobal,
                                  nsIURI* aDocumentURI,
                                  const nsCOMArray<nsINodeInfo> *aNodeInfos) MOZ_OVERRIDE;
 
@@ -217,21 +217,21 @@ public:
 #endif
 
     virtual nsresult Serialize(nsIObjectOutputStream* aStream,
-                               nsXULPrototypeDocument* aProtoDoc,
+                               nsIScriptGlobalObject* aGlobal,
                                const nsCOMArray<nsINodeInfo> *aNodeInfos) MOZ_OVERRIDE;
     nsresult SerializeOutOfLine(nsIObjectOutputStream* aStream,
-                                nsXULPrototypeDocument* aProtoDoc);
+                                nsIScriptGlobalObject* aGlobal);
     virtual nsresult Deserialize(nsIObjectInputStream* aStream,
-                                 nsXULPrototypeDocument* aProtoDoc,
+                                 nsIScriptGlobalObject* aGlobal,
                                  nsIURI* aDocumentURI,
                                  const nsCOMArray<nsINodeInfo> *aNodeInfos) MOZ_OVERRIDE;
     nsresult DeserializeOutOfLine(nsIObjectInputStream* aInput,
-                                  nsXULPrototypeDocument* aProtoDoc);
+                                  nsIScriptGlobalObject* aGlobal);
 
     nsresult Compile(const PRUnichar* aText, int32_t aTextLength,
                      nsIURI* aURI, uint32_t aLineNo,
                      nsIDocument* aDocument,
-                     nsXULPrototypeDocument* aProtoDoc,
+                     nsIScriptGlobalObject* aGlobal,
                      nsIOffThreadScriptReceiver *aOffThreadReceiver = nullptr);
 
     void UnlinkJSObjects();
@@ -292,10 +292,10 @@ public:
 #endif
 
     virtual nsresult Serialize(nsIObjectOutputStream* aStream,
-                               nsXULPrototypeDocument* aProtoDoc,
+                               nsIScriptGlobalObject* aGlobal,
                                const nsCOMArray<nsINodeInfo> *aNodeInfos) MOZ_OVERRIDE;
     virtual nsresult Deserialize(nsIObjectInputStream* aStream,
-                                 nsXULPrototypeDocument* aProtoDoc,
+                                 nsIScriptGlobalObject* aGlobal,
                                  nsIURI* aDocumentURI,
                                  const nsCOMArray<nsINodeInfo> *aNodeInfos) MOZ_OVERRIDE;
 
@@ -320,10 +320,10 @@ public:
 #endif
 
     virtual nsresult Serialize(nsIObjectOutputStream* aStream,
-                               nsXULPrototypeDocument* aProtoDoc,
+                               nsIScriptGlobalObject* aGlobal,
                                const nsCOMArray<nsINodeInfo> *aNodeInfos) MOZ_OVERRIDE;
     virtual nsresult Deserialize(nsIObjectInputStream* aStream,
-                                 nsXULPrototypeDocument* aProtoDoc,
+                                 nsIScriptGlobalObject* aGlobal,
                                  nsIURI* aDocumentURI,
                                  const nsCOMArray<nsINodeInfo> *aNodeInfos) MOZ_OVERRIDE;
 

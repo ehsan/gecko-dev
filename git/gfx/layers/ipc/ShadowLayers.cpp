@@ -295,10 +295,12 @@ ShadowLayerForwarder::RepositionChild(ShadowableLayer* aContainer,
 
 void
 ShadowLayerForwarder::PaintedTiledLayerBuffer(CompositableClient* aCompositable,
-                                              const SurfaceDescriptorTiles& aTileLayerDescriptor)
+                                              BasicTiledLayerBuffer* aTiledLayerBuffer)
 {
+  if (XRE_GetProcessType() != GeckoProcessType_Default)
+    NS_RUNTIMEABORT("PaintedTiledLayerBuffer must be made IPC safe (not share pointers)");
   mTxn->AddNoSwapPaint(OpPaintTiledLayerBuffer(nullptr, aCompositable->GetIPDLActor(),
-                                               aTileLayerDescriptor));
+                                               uintptr_t(aTiledLayerBuffer)));
 }
 
 void
@@ -382,7 +384,6 @@ ShadowLayerForwarder::AddTexture(CompositableClient* aCompositable,
     NS_WARNING("Failed to serialize a TextureClient");
     return;
   }
-  MOZ_ASSERT(aTexture->GetFlags() != 0);
   mTxn->AddEdit(OpAddTexture(nullptr, aCompositable->GetIPDLActor(),
                              aTexture->GetID(),
                              descriptor,

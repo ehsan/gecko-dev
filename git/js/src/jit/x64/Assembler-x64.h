@@ -434,10 +434,10 @@ class Assembler : public AssemblerX86Shared
             MOZ_ASSUME_UNREACHABLE("unexpected operand kind");
         }
     }
-    void movq(const Register &src, const FloatRegister &dest) {
+    void movqsd(const Register &src, const FloatRegister &dest) {
         masm.movq_rr(src.code(), dest.code());
     }
-    void movq(const FloatRegister &src, const Register &dest) {
+    void movqsd(const FloatRegister &src, const Register &dest) {
         masm.movq_rr(src.code(), dest.code());
     }
     void movq(const Register &src, const Register &dest) {

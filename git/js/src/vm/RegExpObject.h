@@ -15,8 +15,6 @@
 #include "gc/Marking.h"
 #if ENABLE_YARR_JIT
 #include "yarr/YarrJIT.h"
-#else
-#include "yarr/YarrInterpreter.h"
 #endif
 
 /*

@@ -6,6 +6,7 @@
 #define nsJSEnvironment_h
 
 #include "nsIScriptContext.h"
+#include "nsIScriptRuntime.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsCOMPtr.h"
 #include "jsapi.h"
@@ -33,7 +34,8 @@ template <class> class Maybe;
 class nsJSContext : public nsIScriptContext
 {
 public:
-  nsJSContext(bool aGCOnDestruction, nsIScriptGlobalObject* aGlobalObject);
+  nsJSContext(JSRuntime* aRuntime, bool aGCOnDestruction,
+              nsIScriptGlobalObject* aGlobalObject);
   virtual ~nsJSContext();
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
@@ -72,6 +74,11 @@ public:
   virtual void WillInitializeContext() MOZ_OVERRIDE;
   virtual void DidInitializeContext() MOZ_OVERRIDE;
 
+  virtual nsresult Serialize(nsIObjectOutputStream* aStream,
+                             JS::Handle<JSScript*> aScriptObject) MOZ_OVERRIDE;
+  virtual nsresult Deserialize(nsIObjectInputStream* aStream,
+                               JS::MutableHandle<JSScript*> aResult) MOZ_OVERRIDE;
+
   static void LoadStart();
   static void LoadEnd();
 
@@ -89,9 +96,6 @@ public:
     IncrementalGC,
     NonIncrementalGC
   };
-
-  // Setup all the statics etc - safe to call multiple times after Startup().
-  void EnsureStatics();
 
   static void GarbageCollectNow(JS::gcreason::Reason reason,
                                 IsIncremental aIncremental = NonIncrementalGC,
@@ -184,17 +188,27 @@ private:
 
 class nsIJSRuntimeService;
 
-namespace mozilla {
-namespace dom {
+class nsJSRuntime MOZ_FINAL : public nsIScriptRuntime
+{
+public:
+  // let people who can see us use our runtime for convenience.
+  static JSRuntime *sRuntime;
 
-void StartupJSEnvironment();
-void ShutdownJSEnvironment();
+public:
+  // nsISupports
+  NS_DECL_ISUPPORTS
 
-// Get the NameSpaceManager, creating if necessary
-nsScriptNameSpaceManager* GetNameSpaceManager();
+  virtual already_AddRefed<nsIScriptContext>
+  CreateContext(bool aGCOnDestruction,
+                nsIScriptGlobalObject* aGlobalObject) MOZ_OVERRIDE;
 
-} // namespace dom
-} // namespace mozilla
+  static void Startup();
+  static void Shutdown();
+  // Setup all the statics etc - safe to call multiple times after Startup()
+  static nsresult Init();
+  // Get the NameSpaceManager, creating if necessary
+  static nsScriptNameSpaceManager* GetNameSpaceManager();
+};
 
 // An interface for fast and native conversion to/from nsIArray. If an object
 // supports this interface, JS can reach directly in for the argv, and avoid
@@ -215,6 +229,9 @@ public:
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIJSArgArray, NS_IJSARGARRAY_IID)
+
+/* factory functions */
+nsresult NS_CreateJSRuntime(nsIScriptRuntime **aRuntime);
 
 /* prototypes */
 void NS_ScriptErrorReporter(JSContext *cx, const char *message, JSErrorReport *report);

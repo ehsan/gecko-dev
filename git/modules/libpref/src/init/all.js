@@ -779,6 +779,9 @@ pref("dom.min_timeout_value", 4);
 // And for background windows
 pref("dom.min_background_timeout_value", 1000);
 
+// Stop defining the Components object in content.
+pref("dom.omit_components_in_content", true);
+
 // Don't use new input types
 pref("dom.experimental_forms", false);
 
@@ -4068,6 +4071,9 @@ pref("layers.async-video.enabled",false);
 // Whether to disable acceleration for all widgets.
 pref("layers.acceleration.disabled", false);
 
+// Whether to use the deprecated texture architecture rather than the new one.
+pref("layers.use-deprecated-textures", true);
+
 // Whether to force acceleration on, ignoring blacklists.
 #ifdef ANDROID
 // bug 838603 -- on Android, accidentally blacklisting OpenGL layers
@@ -4088,11 +4094,8 @@ pref("layers.max-active", -1);
 
 #ifdef XP_MACOSX
 pref("layers.offmainthreadcomposition.enabled", true);
-// Whether to use the deprecated texture architecture rather than the new one.
-pref("layers.use-deprecated-textures", false);
 #else
 pref("layers.offmainthreadcomposition.enabled", false);
-pref("layers.use-deprecated-textures", true);
 #endif
 // same effect as layers.offmainthreadcomposition.enabled, but specifically for
 // use with tests.

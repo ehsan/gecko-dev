@@ -1227,12 +1227,13 @@ MacroAssembler::tracelogStart(JSScript *script)
     PushRegsInMask(regs);
 
     Register temp = regs.takeGeneral();
+    Register logger = regs.takeGeneral();
     Register type = regs.takeGeneral();
     Register rscript = regs.takeGeneral();
 
     setupUnalignedABICall(3, temp);
-    movePtr(ImmWord((void *)TraceLogging::defaultLogger()), temp);
-    passABIArg(temp);
+    movePtr(ImmWord((void *)TraceLogging::defaultLogger()), logger);
+    passABIArg(logger);
     move32(Imm32(TraceLogging::SCRIPT_START), type);
     passABIArg(type);
     movePtr(ImmGCPtr(script), rscript);

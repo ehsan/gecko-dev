@@ -1621,7 +1621,11 @@ ifneq (,$(filter-out all chrome default export realchrome tools clean clobber cl
 MDDEPEND_FILES		:= $(strip $(wildcard $(foreach file,$(sort $(OBJS) $(PROGOBJS) $(HOST_OBJS) $(HOST_PROGOBJS) $(TARGETS)),$(MDDEPDIR)/$(notdir $(file)).pp) $(addprefix $(MDDEPDIR)/,$(EXTRA_MDDEPEND_FILES))))
 
 ifneq (,$(MDDEPEND_FILES))
-$(call include_deps,$(MDDEPEND_FILES))
+ifdef .PYMAKE
+includedeps $(MDDEPEND_FILES)
+else
+include $(MDDEPEND_FILES)
+endif
 endif
 
 endif
@@ -1631,7 +1635,11 @@ ifneq (,$(filter export,$(MAKECMDGOALS)))
 MDDEPEND_FILES		:= $(strip $(wildcard $(addprefix $(MDDEPDIR)/,$(EXTRA_EXPORT_MDDEPEND_FILES))))
 
 ifneq (,$(MDDEPEND_FILES))
-$(call include_deps,$(MDDEPEND_FILES))
+ifdef .PYMAKE
+includedeps $(MDDEPEND_FILES)
+else
+include $(MDDEPEND_FILES)
+endif
 endif
 
 endif

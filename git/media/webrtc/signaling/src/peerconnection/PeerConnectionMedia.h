@@ -162,41 +162,16 @@ class Fake_VideoGenerator {
 #endif
 
 
-class SourceStreamInfo {
-public:
-  typedef mozilla::DOMMediaStream DOMMediaStream;
-
-  SourceStreamInfo(DOMMediaStream* aMediaStream,
-                   PeerConnectionMedia *aParent)
-      : mMediaStream(aMediaStream),
-        mParent(aParent) {
-    MOZ_ASSERT(mMediaStream);
-  }
-
-  SourceStreamInfo(already_AddRefed<DOMMediaStream> aMediaStream,
-                  PeerConnectionMedia *aParent)
-      : mMediaStream(aMediaStream),
-        mParent(aParent) {
-    MOZ_ASSERT(mMediaStream);
-  }
-
-  mozilla::RefPtr<mozilla::MediaPipeline> GetPipeline(int aTrack);
-
-protected:
-  std::map<int, mozilla::RefPtr<mozilla::MediaPipeline> > mPipelines;
-  nsRefPtr<DOMMediaStream> mMediaStream;
-  PeerConnectionMedia *mParent;
-};
-
 // TODO(ekr@rtfm.com): Refactor {Local,Remote}SourceStreamInfo
 // bug 837539.
-class LocalSourceStreamInfo : public SourceStreamInfo {
+class LocalSourceStreamInfo {
 public:
   typedef mozilla::DOMMediaStream DOMMediaStream;
 
-  LocalSourceStreamInfo(DOMMediaStream *aMediaStream,
-                        PeerConnectionMedia *aParent)
-      : SourceStreamInfo(aMediaStream, aParent) {}
+  LocalSourceStreamInfo(DOMMediaStream* aMediaStream, PeerConnectionMedia *aParent)
+      : mMediaStream(aMediaStream), mParent(aParent) {
+    MOZ_ASSERT(aMediaStream);
+  }
 
   ~LocalSourceStreamInfo() {
     mMediaStream = NULL;
@@ -216,18 +191,25 @@ public:
 
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(LocalSourceStreamInfo)
 private:
+  std::map<int, mozilla::RefPtr<mozilla::MediaPipeline> > mPipelines;
+  nsRefPtr<DOMMediaStream> mMediaStream;
   nsTArray<mozilla::TrackID> mAudioTracks;
   nsTArray<mozilla::TrackID> mVideoTracks;
+  PeerConnectionMedia *mParent;
 };
 
-class RemoteSourceStreamInfo : public SourceStreamInfo {
+class RemoteSourceStreamInfo {
  public:
   typedef mozilla::DOMMediaStream DOMMediaStream;
 
-  RemoteSourceStreamInfo(already_AddRefed<DOMMediaStream> aMediaStream,
-                         PeerConnectionMedia *aParent)
-    : SourceStreamInfo(aMediaStream, aParent),
-      mTrackTypeHints(0) {}
+RemoteSourceStreamInfo(already_AddRefed<DOMMediaStream> aMediaStream,
+                       PeerConnectionMedia *aParent)
+    : mTrackTypeHints(0),
+      mMediaStream(aMediaStream),
+      mPipelines(),
+      mParent(aParent) {
+      MOZ_ASSERT(mMediaStream);
+    }
 
   DOMMediaStream* GetMediaStream() {
     return mMediaStream;
@@ -243,7 +225,10 @@ class RemoteSourceStreamInfo : public SourceStreamInfo {
 public:
   DOMMediaStream::TrackTypeHints mTrackTypeHints;
  private:
+  nsRefPtr<DOMMediaStream> mMediaStream;
+  std::map<int, mozilla::RefPtr<mozilla::MediaPipeline> > mPipelines;
   std::map<int, bool> mTypes;
+  PeerConnectionMedia *mParent;
 };
 
 class PeerConnectionMedia : public sigslot::has_slots<> {

@@ -1937,9 +1937,6 @@ MToDouble::foldsTo(bool useValueNumbers)
 MDefinition *
 MToString::foldsTo(bool useValueNumbers)
 {
-    MDefinition *in = input();
-    if (in->type() == MIRType_String)
-        return in;
     return this;
 }
 
