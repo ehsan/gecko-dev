@@ -35,7 +35,6 @@ describe("loop.webapp", function() {
     beforeEach(function() {
       WebappRouter = loop.webapp.WebappRouter;
       sandbox.stub(WebappRouter.prototype, "navigate");
-      sandbox.stub(WebappRouter.prototype, "loadReactComponent");
     });
 
     afterEach(function() {
@@ -85,6 +84,7 @@ describe("loop.webapp", function() {
         conversation: conversation,
         notifications: notifications
       });
+      sandbox.stub(router, "loadView");
       sandbox.stub(router, "navigate");
     });
 
@@ -273,23 +273,14 @@ describe("loop.webapp", function() {
     });
 
     describe("Routes", function() {
-      beforeEach(function() {
-        // In the router's constructor, it loads the home view, we don't
-        // need to test it here, so reset the stub.
-        router.loadReactComponent.reset();
-      });
-
       describe("#home", function() {
         it("should load the HomeView", function() {
           router.home();
 
-          sinon.assert.calledOnce(router.loadReactComponent);
-          sinon.assert.calledWith(router.loadReactComponent,
-            sinon.match(function(value) {
-              return React.addons.TestUtils.isDescriptorOfType(
-                value, loop.webapp.HomeView);
-            }));
-       });
+          sinon.assert.calledOnce(router.loadView);
+          sinon.assert.calledWith(router.loadView,
+            sinon.match.instanceOf(loop.webapp.HomeView));
+        });
       });
 
       describe("#expired", function() {
@@ -361,12 +352,9 @@ describe("loop.webapp", function() {
         it("should load the UnsupportedDeviceView", function() {
           router.unsupportedDevice();
 
-          sinon.assert.calledOnce(router.loadReactComponent);
-          sinon.assert.calledWith(router.loadReactComponent,
-            sinon.match(function(value) {
-              return React.addons.TestUtils.isDescriptorOfType(
-                value, loop.webapp.UnsupportedDeviceView);
-            }));
+          sinon.assert.calledOnce(router.loadView);
+          sinon.assert.calledWith(router.loadView,
+            sinon.match.instanceOf(sharedViews.UnsupportedDeviceView));
         });
       });
 
@@ -374,12 +362,9 @@ describe("loop.webapp", function() {
         it("should load the UnsupportedBrowserView", function() {
           router.unsupportedBrowser();
 
-          sinon.assert.calledOnce(router.loadReactComponent);
-          sinon.assert.calledWith(router.loadReactComponent,
-            sinon.match(function(value) {
-              return React.addons.TestUtils.isDescriptorOfType(
-                value, loop.webapp.UnsupportedBrowserView);
-            }));
+          sinon.assert.calledOnce(router.loadView);
+          sinon.assert.calledWith(router.loadView,
+            sinon.match.instanceOf(sharedViews.UnsupportedBrowserView));
         });
       });
     });

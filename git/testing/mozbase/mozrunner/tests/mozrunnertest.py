@@ -18,8 +18,7 @@ class MozrunnerTestCase(unittest.TestCase):
         self.threads = [ ]
 
         self.profile = mozprofile.FirefoxProfile()
-        self.runner = mozrunner.FirefoxRunner(os.environ['BROWSER_PATH'],
-                                              profile=self.profile)
+        self.runner = mozrunner.FirefoxRunner(self.profile)
 
     def tearDown(self):
         for thread in self.threads:

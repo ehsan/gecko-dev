@@ -78,6 +78,7 @@ describe("loop.panel", function() {
           addEventListener: sandbox.spy()
         });
 
+        sandbox.stub(router, "loadView");
         sandbox.stub(router, "loadReactComponent");
       });
 

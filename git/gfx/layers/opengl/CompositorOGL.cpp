@@ -567,7 +567,8 @@ CompositorOGL::BindAndDrawQuadWithTextureRect(ShaderProgramOGL *aProg,
 }
 
 void
-CompositorOGL::PrepareViewport(const gfx::IntSize& aSize)
+CompositorOGL::PrepareViewport(const gfx::IntSize& aSize,
+                               const Matrix& aWorldTransform)
 {
   // Set the viewport correctly.
   mGLContext->fViewport(0, 0, aSize.width, aSize.height);
@@ -578,7 +579,9 @@ CompositorOGL::PrepareViewport(const gfx::IntSize& aSize)
   // drawing directly into the window's back buffer, so this keeps things
   // looking correct.
   // XXX: We keep track of whether the window size changed, so we could skip
-  // this update if it hadn't changed since the last call.
+  // this update if it hadn't changed since the last call. We will need to
+  // track changes to aTransformPolicy and aWorldTransform for this to work
+  // though.
 
   // Matrix to transform (0, 0, aWidth, aHeight) to viewport space (-1.0, 1.0,
   // 2, 2) and flip the contents.
@@ -596,6 +599,8 @@ CompositorOGL::PrepareViewport(const gfx::IntSize& aSize)
   if (!mTarget) {
     viewMatrix.PreTranslate(mRenderOffset.x, mRenderOffset.y);
   }
+
+  viewMatrix = aWorldTransform * viewMatrix;
 
   Matrix4x4 matrix3d = Matrix4x4::From2D(viewMatrix);
   matrix3d._33 = 0.0f;
@@ -700,6 +705,7 @@ CompositorOGL::ClearRect(const gfx::Rect& aRect)
 void
 CompositorOGL::BeginFrame(const nsIntRegion& aInvalidRegion,
                           const Rect *aClipRectIn,
+                          const gfx::Matrix& aTransform,
                           const Rect& aRenderBounds,
                           Rect *aClipRectOut,
                           Rect *aRenderBoundsOut)
@@ -717,6 +723,7 @@ CompositorOGL::BeginFrame(const nsIntRegion& aInvalidRegion,
     rect = gfx::Rect(aRenderBounds.x, aRenderBounds.y, aRenderBounds.width, aRenderBounds.height);
   }
 
+  rect = aTransform.TransformBounds(rect);
   if (aRenderBoundsOut) {
     *aRenderBoundsOut = rect;
   }
@@ -751,7 +758,8 @@ CompositorOGL::BeginFrame(const nsIntRegion& aInvalidRegion,
 
   mCurrentRenderTarget =
     CompositingRenderTargetOGL::RenderTargetForWindow(this,
-                                                      IntSize(width, height));
+                                                      IntSize(width, height),
+                                                      aTransform);
   mCurrentRenderTarget->BindRenderTarget();
 #ifdef DEBUG
   mWindowRenderTarget = mCurrentRenderTarget;
@@ -1317,7 +1325,7 @@ CompositorOGL::EndFrame()
       mWidget->GetBounds(rect);
     }
     RefPtr<DrawTarget> target = gfxPlatform::GetPlatform()->CreateOffscreenContentDrawTarget(IntSize(rect.width, rect.height), SurfaceFormat::B8G8R8A8);
-    CopyToTarget(target, nsIntPoint(), Matrix());
+    CopyToTarget(target, nsIntPoint(), mCurrentRenderTarget->GetTransform());
 
     WriteSnapshotToDumpFile(this, target);
   }
@@ -1326,7 +1334,7 @@ CompositorOGL::EndFrame()
   mFrameInProgress = false;
 
   if (mTarget) {
-    CopyToTarget(mTarget, mTargetBounds.TopLeft(), Matrix());
+    CopyToTarget(mTarget, mTargetBounds.TopLeft(), mCurrentRenderTarget->GetTransform());
     mGLContext->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, 0);
     mCurrentRenderTarget = nullptr;
     return;

@@ -28,6 +28,7 @@
 #include "nsCycleCollector.h"
 #include "nsIXPConnect.h"
 #include "nsJSUtils.h"
+#include "MainThreadUtils.h"
 #include "nsISupportsImpl.h"
 #include "qsObjectHelper.h"
 #include "xpcpublic.h"

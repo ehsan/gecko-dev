@@ -165,6 +165,19 @@ public:
 
   virtual const char* Name() const MOZ_OVERRIDE { return ""; }
 
+  enum WorldTransforPolicy {
+    ApplyWorldTransform,
+    DontApplyWorldTransform
+  };
+
+  /**
+   * Setup World transform matrix.
+   * Transform will be ignored if it is not PreservesAxisAlignedRectangles
+   * or has non integer scale
+   */
+  void SetWorldTransform(const gfx::Matrix& aMatrix);
+  gfx::Matrix& GetWorldTransform(void);
+
   /**
    * RAII helper class to add a mask effect with the compositable from aMaskLayer
    * to the EffectChain aEffect and notify the compositable when we are done.
@@ -279,6 +292,7 @@ private:
    */
   void RenderDebugOverlay(const gfx::Rect& aBounds);
 
+  void WorldTransformRect(nsIntRect& aRect);
 
   RefPtr<CompositingRenderTarget> PushGroupForLayerEffects();
   void PopGroupForLayerEffects(RefPtr<CompositingRenderTarget> aPreviousTarget,
@@ -299,6 +313,7 @@ private:
   RefPtr<gfx::DrawTarget> mTarget;
   nsIntRect mTargetBounds;
 
+  gfx::Matrix mWorldMatrix;
   nsIntRegion mInvalidRegion;
   UniquePtr<FPSState> mFPS;
 
