@@ -162,20 +162,19 @@ typedef struct JSCompartment     JSCompartment;
  * TODO: explain boxing strategy
  */
 
-#if defined(__cplusplus) || !defined(_MSC_VER)
 typedef enum JSValueMask16 
-# if defined(_MSC_VER)
+#if defined(_MSC_VER)
                            : uint16
-# endif
+#endif
 {
-    JSVAL_MASK16_INT32     = (uint16)0x0001,
+    JSVAL_MASK16_NULL      = (uint16)0x0001,
     JSVAL_MASK16_UNDEFINED = (uint16)0x0002,
-    JSVAL_MASK16_STRING    = (uint16)0x0004,
-    JSVAL_MASK16_BOOLEAN   = (uint16)0x0008,
-    JSVAL_MASK16_MAGIC     = (uint16)0x0010,
-    JSVAL_MASK16_NULL      = (uint16)0x2000,
-    JSVAL_MASK16_NONFUNOBJ = (uint16)0x4000,
-    JSVAL_MASK16_FUNOBJ    = (uint16)0x8000,
+    JSVAL_MASK16_INT32     = (uint16)0x0004,
+    JSVAL_MASK16_STRING    = (uint16)0x0008,
+    JSVAL_MASK16_NONFUNOBJ = (uint16)0x0010,
+    JSVAL_MASK16_FUNOBJ    = (uint16)0x0020,
+    JSVAL_MASK16_BOOLEAN   = (uint16)0x0040,
+    JSVAL_MASK16_MAGIC     = (uint16)0x0080,
 
     JSVAL_MASK16_SINGLETON = JSVAL_MASK16_NULL | JSVAL_MASK16_UNDEFINED,
     JSVAL_MASK16_OBJECT    = JSVAL_MASK16_NONFUNOBJ | JSVAL_MASK16_FUNOBJ,
@@ -189,41 +188,21 @@ typedef enum JSValueMask16
      */
     JSVAL_NANBOX_PATTERN   = ((uint16)0xFFFF)
 }
-# if defined(__GNUC__)
+#if defined(__GNUC__)
 __attribute__((packed))
-# endif
+#endif
 JSValueMask16;
-#else  /* defined(__cplusplus) || !defined(_MSC_VER) */
-// We need this C API for MSVC, because MSVC doesn't allow us to
-// make a 16-bit enum in C.
-typedef uint16 JSValueMask16;
-
-#define JSVAL_MASK16_INT32     ((uint16)0x0001)
-#define JSVAL_MASK16_UNDEFINED ((uint16)0x0002)
-#define JSVAL_MASK16_STRING    ((uint16)0x0004)
-#define JSVAL_MASK16_BOOLEAN   ((uint16)0x0008)
-#define JSVAL_MASK16_MAGIC     ((uint16)0x0010)
-#define JSVAL_MASK16_NULL      ((uint16)0x2000)
-#define JSVAL_MASK16_NONFUNOBJ ((uint16)0x4000)
-#define JSVAL_MASK16_FUNOBJ    ((uint16)0x8000)
-#define JSVAL_MASK16_SINGLETON (JSVAL_MASK16_NULL | JSVAL_MASK16_UNDEFINED)
-#define JSVAL_MASK16_OBJECT    (JSVAL_MASK16_NONFUNOBJ | JSVAL_MASK16_FUNOBJ)
-#define JSVAL_MASK16_OBJORNULL (JSVAL_MASK16_OBJECT | JSVAL_MASK16_NULL)
-#define JSVAL_MASK16_GCTHING   (JSVAL_MASK16_OBJECT | JSVAL_MASK16_STRING)
-#define JSVAL_NANBOX_PATTERN   ((uint16)0xFFFF)
-
-#endif /* defined(__cplusplus) || !defined(_MSC_VER) */
 
 #define JSVAL_MASK32_CLEAR      ((uint32)0xFFFF0000)
 
-#define JSVAL_MASK32_INT32      ((uint32)(JSVAL_MASK32_CLEAR | JSVAL_MASK16_INT32))
-#define JSVAL_MASK32_UNDEFINED  ((uint32)(JSVAL_MASK32_CLEAR | JSVAL_MASK16_UNDEFINED))
-#define JSVAL_MASK32_STRING     ((uint32)(JSVAL_MASK32_CLEAR | JSVAL_MASK16_STRING))
-#define JSVAL_MASK32_BOOLEAN    ((uint32)(JSVAL_MASK32_CLEAR | JSVAL_MASK16_BOOLEAN))
-#define JSVAL_MASK32_MAGIC      ((uint32)(JSVAL_MASK32_CLEAR | JSVAL_MASK16_MAGIC))
 #define JSVAL_MASK32_NULL       ((uint32)(JSVAL_MASK32_CLEAR | JSVAL_MASK16_NULL))
+#define JSVAL_MASK32_UNDEFINED  ((uint32)(JSVAL_MASK32_CLEAR | JSVAL_MASK16_UNDEFINED))
+#define JSVAL_MASK32_INT32      ((uint32)(JSVAL_MASK32_CLEAR | JSVAL_MASK16_INT32))
+#define JSVAL_MASK32_STRING     ((uint32)(JSVAL_MASK32_CLEAR | JSVAL_MASK16_STRING))
 #define JSVAL_MASK32_NONFUNOBJ  ((uint32)(JSVAL_MASK32_CLEAR | JSVAL_MASK16_NONFUNOBJ))
 #define JSVAL_MASK32_FUNOBJ     ((uint32)(JSVAL_MASK32_CLEAR | JSVAL_MASK16_FUNOBJ))
+#define JSVAL_MASK32_BOOLEAN    ((uint32)(JSVAL_MASK32_CLEAR | JSVAL_MASK16_BOOLEAN))
+#define JSVAL_MASK32_MAGIC      ((uint32)(JSVAL_MASK32_CLEAR | JSVAL_MASK16_MAGIC))
 
 #define JSVAL_MASK32_SINGLETON  ((uint32)(JSVAL_MASK32_CLEAR | JSVAL_MASK16_SINGLETON))
 #define JSVAL_MASK32_OBJECT     ((uint32)(JSVAL_MASK32_CLEAR | JSVAL_MASK16_OBJECT))
@@ -247,7 +226,6 @@ typedef uint32 JSValueMask32;
 #endif
 
 typedef VALUE_ALIGNMENT uint64 jsval;
-typedef VALUE_ALIGNMENT uint64 jsid;
 
 #define BUILD_JSVAL(mask32, payload) ((jsval)((((uint64)(uint32)(mask32)) << 32) | (uint32)(payload)))
 
@@ -586,29 +564,25 @@ static JS_ALWAYS_INLINE JSBool
 JSVAL_IS_NUMBER_IMPL(jsval_layout l)
 {
     JSValueMask32 mask = l.s.u.mask32;
-    JS_ASSERT(mask != JSVAL_MASK32_CLEAR);
-    return mask <= JSVAL_MASK32_INT32;
+    return mask < JSVAL_MASK32_CLEAR || mask == JSVAL_MASK32_INT32;
 }
 
 static JS_ALWAYS_INLINE JSBool
 JSVAL_IS_OBJECT_IMPL(jsval_layout l)
 {
-    JSValueMask32 mask = l.s.u.mask32;
-    return mask >= JSVAL_MASK32_NONFUNOBJ;
+    return (l.s.u.mask32 & JSVAL_MASK32_OBJECT) > JSVAL_MASK32_CLEAR;
 }
 
 static JS_ALWAYS_INLINE JSBool
 JSVAL_IS_OBJECT_OR_NULL_IMPL(jsval_layout l)
 {
-    JSValueMask32 mask = l.s.u.mask32;
-    return mask >= JSVAL_MASK32_NULL;
+    return (l.s.u.mask32 & JSVAL_MASK32_OBJORNULL) > JSVAL_MASK32_CLEAR;
 }
 
 static JS_ALWAYS_INLINE JSBool
 JSVAL_IS_PRIMITIVE_IMPL(jsval_layout l)
 {
-    JSValueMask32 mask = l.s.u.mask32;
-    return mask < JSVAL_MASK32_NONFUNOBJ;
+    return (l.s.u.mask32 & JSVAL_MASK32_OBJECT) <= JSVAL_MASK32_CLEAR;
 }
 
 static JS_ALWAYS_INLINE JSBool
@@ -643,6 +617,21 @@ JSVAL_IS_UNDERLYING_TYPE_OF_PRIVATE_IMPL(jsval_layout l)
 {
     return JSVAL_IS_DOUBLE_IMPL(l);
 }
+
+/*
+ * JavaScript engine unboxed value representation
+ */
+
+#ifdef DEBUG
+typedef struct jsid
+{
+    size_t bits;
+} jsid;
+# define JSID_BITS(id) (id.bits)
+#else
+typedef size_t jsid;
+# define JSID_BITS(id) (id)
+#endif
 
 /* JSClass (and JSObjectOps where appropriate) function pointer typedefs. */
 
@@ -685,7 +674,7 @@ typedef JSBool
  */
 typedef JSBool
 (* JSNewEnumerateOp)(JSContext *cx, JSObject *obj, JSIterateOp enum_op,
-                     jsval *statep, jsval *idp);
+                     jsval *statep, jsid *idp);
 
 /*
  * The old-style JSClass.enumerate op should define all lazy properties not
@@ -822,7 +811,7 @@ typedef JSBool
  * *bp otherwise.
  */
 typedef JSBool
-(* JSHasInstanceOp)(JSContext *cx, JSObject *obj, jsval v, JSBool *bp);
+(* JSHasInstanceOp)(JSContext *cx, JSObject *obj, const jsval *v, JSBool *bp);
 
 /*
  * Deprecated function type for JSClass.mark. All new code should define
@@ -912,7 +901,7 @@ typedef uint32
  *
  */
 typedef JSBool
-(* JSEqualityOp)(JSContext *cx, JSObject *obj, jsval v, JSBool *bp);
+(* JSEqualityOp)(JSContext *cx, JSObject *obj, const jsval *v, JSBool *bp);
 
 /*
  * A generic type for functions mapping an object to another object, or null
@@ -1100,16 +1089,16 @@ typedef JSBool
 (* ConvertOp)(JSContext *cx, JSObject *obj, JSType type, Value *vp);
 typedef JSBool
 (* NewEnumerateOp)(JSContext *cx, JSObject *obj, JSIterateOp enum_op,
-                   Value *statep, jsval *idp);
+                   Value *statep, jsid *idp);
 typedef JSBool
-(* HasInstanceOp)(JSContext *cx, JSObject *obj, Value v, JSBool *bp);
+(* HasInstanceOp)(JSContext *cx, JSObject *obj, const Value *v, JSBool *bp);
 typedef JSBool
 (* CheckAccessOp)(JSContext *cx, JSObject *obj, jsid id, JSAccessMode mode,
                   Value *vp);
 typedef JSObjectOps *
 (* GetObjectOps)(JSContext *cx, Class *clasp);
 typedef JSBool
-(* EqualityOp)(JSContext *cx, JSObject *obj, Value v, JSBool *bp);
+(* EqualityOp)(JSContext *cx, JSObject *obj, const Value *v, JSBool *bp);
 
 /*
  * Since jsval and Value are layout-compatible, pointers to otherwise-identical
@@ -1141,14 +1130,14 @@ static inline JSEqualityOp     Jsvalify(EqualityOp f);      /* Same type as HasI
 }  /* namespace js */
 
 typedef js::Class JSFunctionClassType;
-extern "C" JS_FRIEND_DATA(JSFunctionClassType) js_FunctionClass;
 
 #else  /* !defined(__cplusplus) */
 
 typedef JSClass JSFunctionClassType;
-extern JS_FRIEND_DATA(JSFunctionClassType) js_FunctionClass;
 
 #endif /* __cplusplus */
+
+extern JS_FRIEND_DATA(JSFunctionClassType) js_FunctionClass;
 
 typedef struct JSPretendObject
 {
@@ -1161,7 +1150,5 @@ JS_OBJ_IS_FUN_IMPL(JSObject *obj)
 {
     return ((JSPretendObject *)obj)->clasp == &js_FunctionClass;
 }
-
-
 
 #endif /* jspubtd_h___ */
