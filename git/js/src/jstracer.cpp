@@ -456,22 +456,6 @@ public:
     {
     }
 
-    LInsp ins1(LOpcode v, LInsp s0)
-    {
-        switch (v) {
-          case LIR_fneg:
-              if (isPromoteInt(s0)) {
-                  LIns* result = out->ins1(LIR_neg, demote(out, s0));
-                  out->insGuard(LIR_xt, out->ins1(LIR_ov, result),
-                                recorder.snapshot(OVERFLOW_EXIT));
-                  return out->ins1(LIR_i2f, result);
-              }
-              break;
-          default:;
-        }
-        return out->ins1(v, s0);
-    }
-
     LInsp ins2(LOpcode v, LInsp s0, LInsp s1)
     {
         if (s0 == s1 && v == LIR_feq) {
@@ -3687,9 +3671,11 @@ TraceRecorder::record_JSOP_RETURN()
 {
     jsval& rval = stackval(-1);
     JSStackFrame *fp = cx->fp;
-    if ((cx->fp->flags & JSFRAME_CONSTRUCTING) && JSVAL_IS_PRIMITIVE(rval)) {
-        JS_ASSERT(OBJECT_TO_JSVAL(fp->thisp) == fp->argv[-1]);
-        rval_ins = get(&fp->argv[-1]);
+    if (cx->fp->flags & JSFRAME_CONSTRUCTING) {
+        if (JSVAL_IS_PRIMITIVE(rval)) {
+            JS_ASSERT(OBJECT_TO_JSVAL(fp->thisp) == fp->argv[-1]);
+            rval_ins = get(&fp->argv[-1]);
+        }
     } else {
         rval_ins = get(&rval);
     }
@@ -3895,7 +3881,29 @@ TraceRecorder::record_JSOP_BITNOT()
 bool
 TraceRecorder::record_JSOP_NEG()
 {
-    return unary(LIR_fneg);
+    jsval& v = stackval(-1);
+    if (isNumber(v)) {
+        LIns* a = get(&v);
+
+        /* If we're a promoted integer, we have to watch out for 0s since -0 is a double.
+           Only follow this path if we're not an integer that's 0 and we're not a double 
+           that's zero.
+         */
+        if (isPromoteInt(a) &&
+            (!JSVAL_IS_INT(v) || JSVAL_TO_INT(v) != 0) &&
+            (!JSVAL_IS_DOUBLE(v) || !JSDOUBLE_IS_NEGZERO(*JSVAL_TO_DOUBLE(v))))  {
+            a = lir->ins1(LIR_neg, ::demote(lir, a));
+            lir->insGuard(LIR_xt, lir->ins1(LIR_ov, a), snapshot(OVERFLOW_EXIT));
+            lir->insGuard(LIR_xt, lir->ins2(LIR_eq, a, lir->insImm(0)), snapshot(OVERFLOW_EXIT));
+            a = lir->ins1(LIR_i2f, a);
+        } else {
+            a = lir->ins1(LIR_fneg, a);
+        }
+
+        set(&v, a);
+        return true;
+    }
+    return false;
 }
 
 enum JSTNErrType { INFALLIBLE, FAIL_NULL, FAIL_NEG, FAIL_VOID };
@@ -4834,7 +4842,6 @@ TraceRecorder::prop(JSObject* obj, LIns* obj_ins, uint32& slot, LIns*& v_ins)
                 sprop->shortid < 0) {
                 LIns* args[] = { INS_CONSTPTR(sprop), obj_ins, cx_ins };
                 v_ins = lir->insCall(F_CallGetter, args);
-                guard(false, lir->ins2(LIR_eq, v_ins, INS_CONST(JSVAL_ERROR_COOKIE)), OOM_EXIT);
                 if (!unbox_jsval((sprop->shortid == REGEXP_SOURCE) ? JSVAL_STRING : JSVAL_BOOLEAN,
                                  v_ins)) {
                     ABORT_TRACE("unboxing");
