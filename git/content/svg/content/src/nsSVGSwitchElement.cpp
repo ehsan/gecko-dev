@@ -81,7 +81,8 @@ nsSVGSwitchElement::MaybeInvalidate()
   PRUint32 count = GetChildCount();
   for (PRUint32 i = 0; i < count; i++) {
     nsIContent * child = GetChildAt(i);
-    if (NS_SVG_PassesConditionalProcessingTests(child)) {
+    if (child->IsNodeOfType(nsINode::eELEMENT) &&
+        NS_SVG_PassesConditionalProcessingTests(child)) {
 
       if (mActiveChild == child) {
         return;
@@ -107,7 +108,8 @@ nsSVGSwitchElement::UpdateActiveChild()
   PRUint32 count = GetChildCount();
   for (PRUint32 i = 0; i < count; i++) {
     nsIContent * child = GetChildAt(i);
-    if (NS_SVG_PassesConditionalProcessingTests(child)) {
+    if (child->IsNodeOfType(nsINode::eELEMENT) &&
+        NS_SVG_PassesConditionalProcessingTests(child)) {
       mActiveChild = child;
       return;
     }

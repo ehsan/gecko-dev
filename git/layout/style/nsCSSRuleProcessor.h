@@ -72,7 +72,7 @@ public:
 public:
   nsresult ClearRuleCascades();
 
-  static void FreeSystemMetrics();
+  static void Shutdown();
 
   /*
    * Returns true if the given RuleProcessorData matches one of the
