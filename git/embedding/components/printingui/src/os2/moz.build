@@ -14,5 +14,3 @@ CPP_SOURCES += [
 
 LIBRARY_NAME = 'printingui_s'
 
-LIBXUL_LIBRARY = True
-

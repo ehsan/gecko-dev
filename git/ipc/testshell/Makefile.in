@@ -7,9 +7,12 @@ topsrcdir = @top_srcdir@
 srcdir = @srcdir@
 VPATH = @srcdir@
 relativesrcdir = @relativesrcdir@
+FAIL_ON_WARNINGS = 1
+
 include $(DEPTH)/config/autoconf.mk
 
 LIBRARY_NAME = ipcshell_s
+LIBXUL_LIBRARY = 1
 EXPORT_LIBRARY = 1
 
 # For xpcshell error messages and nsDependentJSString

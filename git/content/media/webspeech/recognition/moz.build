@@ -40,5 +40,3 @@ CPP_SOURCES += [
     'energy_endpointer_params.cc',
 ]
 
-LIBXUL_LIBRARY = True
-

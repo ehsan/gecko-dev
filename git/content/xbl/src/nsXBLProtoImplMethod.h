@@ -9,7 +9,6 @@
 #include "mozilla/Attributes.h"
 #include "nsIAtom.h"
 #include "nsString.h"
-#include "jsapi.h"
 #include "nsString.h"
 #include "nsXBLMaybeCompiled.h"
 #include "nsXBLProtoImplMember.h"
@@ -131,8 +130,8 @@ protected:
 
 class nsXBLProtoImplAnonymousMethod : public nsXBLProtoImplMethod {
 public:
-  nsXBLProtoImplAnonymousMethod(const PRUnichar* aName) :
-    nsXBLProtoImplMethod(aName)
+  nsXBLProtoImplAnonymousMethod() :
+    nsXBLProtoImplMethod(EmptyString().get())
   {}
   
   nsresult Execute(nsIContent* aBoundElement);

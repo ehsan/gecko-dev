@@ -94,11 +94,9 @@ uint64_t nsXBLJSClass::sIdCount = 0;
 
 nsXBLJSClass::nsXBLJSClass(const nsAFlatCString& aClassName,
                            const nsCString& aKey)
-  : LinkedListElement<nsXBLJSClass>()
-  , mRefCnt(0)
-  , mKey(aKey)
 {
-  memset(static_cast<JSClass*>(this), 0, sizeof(JSClass));
+  memset(this, 0, sizeof(nsXBLJSClass));
+  next = prev = static_cast<JSCList*>(this);
   name = ToNewCString(aClassName);
   flags =
     JSCLASS_HAS_PRIVATE | JSCLASS_PRIVATE_IS_NSISUPPORTS |
@@ -112,12 +110,13 @@ nsXBLJSClass::nsXBLJSClass(const nsAFlatCString& aClassName,
   resolve = JS_ResolveStub;
   convert = ::JS_ConvertStub;
   finalize = XBLFinalize;
+  mKey = aKey;
 }
 
 nsrefcnt
 nsXBLJSClass::Destroy()
 {
-  NS_ASSERTION(!isInList(),
+  NS_ASSERTION(next == prev && prev == static_cast<JSCList*>(this),
                "referenced nsXBLJSClass is on LRU list already!?");
 
   if (nsXBLService::gClassTable) {
@@ -131,7 +130,8 @@ nsXBLJSClass::Destroy()
     delete this;
   } else {
     // Put this most-recently-used class on end of the LRU-sorted freelist.
-    nsXBLService::gClassLRUList->insertBack(this);
+    JSCList* mru = static_cast<JSCList*>(this);
+    JS_APPEND_LINK(mru, &nsXBLService::gClassLRUList);
     nsXBLService::gClassLRUListLength++;
   }
 
@@ -957,21 +957,27 @@ nsXBLBinding::DoInitJSClass(JSContext *cx, JS::Handle<JSObject*> global,
       c = static_cast<nsXBLJSClass*>(nsXBLService::gClassTable->Get(&key));
     }
     if (c) {
-      // If c is on the LRU list, remove it now!
-      if (c->isInList()) {
-        c->remove();
+      // If c is on the LRU list (i.e., not linked to itself), remove it now!
+      JSCList* link = static_cast<JSCList*>(c);
+      if (c->next != link) {
+        JS_REMOVE_AND_INIT_LINK(link);
         nsXBLService::gClassLRUListLength--;
       }
     } else {
-      if (nsXBLService::gClassLRUList->isEmpty()) {
+      if (JS_CLIST_IS_EMPTY(&nsXBLService::gClassLRUList)) {
         // We need to create a struct for this class.
         c = new nsXBLJSClass(className, xblKey);
+
+        if (!c)
+          return NS_ERROR_OUT_OF_MEMORY;
       } else {
         // Pull the least recently used class struct off the list.
-        c = nsXBLService::gClassLRUList->popFirst();
+        JSCList* lru = (nsXBLService::gClassLRUList).next;
+        JS_REMOVE_AND_INIT_LINK(lru);
         nsXBLService::gClassLRUListLength--;
 
         // Remove any mapping from the old name to the class struct.
+        c = static_cast<nsXBLJSClass*>(lru);
         nsCStringKey oldKey(c->Key());
         (nsXBLService::gClassTable)->Remove(&oldKey);
 

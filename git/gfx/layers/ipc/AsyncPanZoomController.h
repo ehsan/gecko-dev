@@ -633,14 +633,6 @@ public:
   AsyncPanZoomController* GetLastChild() const { return mLastChild; }
   AsyncPanZoomController* GetPrevSibling() const { return mPrevSibling; }
   AsyncPanZoomController* GetParent() const { return mParent; }
-
-  /* Returns true if there is no APZC higher in the tree with the same
-   * layers id.
-   */
-  bool IsRootForLayersId() const {
-    return !mParent || (mParent->mLayersId != mLayersId);
-  }
-
 private:
   nsRefPtr<AsyncPanZoomController> mLastChild;
   nsRefPtr<AsyncPanZoomController> mPrevSibling;

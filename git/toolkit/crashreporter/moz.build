@@ -77,7 +77,3 @@ EXTRA_JS_MODULES += [
     'KeyValueParser.jsm',
 ]
 
-LIBXUL_LIBRARY = True
-
-MSVC_ENABLE_PGO = True
-

@@ -56,7 +56,6 @@ var tests = {
           doc.body.appendChild(div);
           let swap = document.getAnonymousElementByAttribute(chats.selectedChat, "anonid", "swap");
           swap.click();
-          port.close();
           break;
         case "got-chatbox-message":
           ok(true, "got chatbox message");
@@ -74,16 +73,13 @@ var tests = {
                               .getInterface(Components.interfaces.nsIDOMWindow);
         Services.wm.removeListener(this);
         // wait for load to ensure the window is ready for us to test
-        domwindow.addEventListener("load", function _load(event) {
+        domwindow.addEventListener("load", function _load() {
           let doc = domwindow.document;
-          if (event.target != doc)
-              return;
-
+          if (doc.location.href != "chrome://browser/content/chatWindow.xul")
+            return;
           domwindow.removeEventListener("load", _load, false);
 
-          domwindow.addEventListener("unload", function _close(event) {
-            if (event.target != doc)
-              return;
+          domwindow.addEventListener("unload", function _close() {
             domwindow.removeEventListener("unload", _close, false);
             info("window has been closed");
             waitForCondition(function() {
@@ -164,15 +160,13 @@ var tests = {
         Services.wm.removeListener(this);
         // wait for load to ensure the window is ready for us to test, make sure
         // we're not getting called for about:blank
-        domwindow.addEventListener("load", function _load(event) {
+        domwindow.addEventListener("load", function _load() {
           let doc = domwindow.document;
-          if (event.target != doc)
-              return;
+          if (doc.location.href != "chrome://browser/content/chatWindow.xul")
+            return;
           domwindow.removeEventListener("load", _load, false);
 
-          domwindow.addEventListener("unload", function _close(event) {
-          if (event.target != doc)
-              return;
+          domwindow.addEventListener("unload", function _close() {
             domwindow.removeEventListener("unload", _close, false);
             ok(true, "window has been closed");
             next();
@@ -190,7 +184,6 @@ var tests = {
           },function() {
             // logout, we should get unload next
             port.postMessage({topic: "test-logout"});
-            port.close();
           }, domwindow);
 
         }, false);

@@ -31,8 +31,3 @@ EXTRA_JS_MODULES += [
     'Sandbox.jsm',
     'jwcrypto.jsm',
 ]
-
-FAIL_ON_WARNINGS = True
-
-LIBXUL_LIBRARY = True
-
