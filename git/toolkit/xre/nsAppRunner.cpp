@@ -99,6 +99,7 @@
 #include "nsIWinAppHelper.h"
 #include <windows.h>
 #include "cairo/cairo-features.h"
+#include "mozilla/WindowsVersion.h"
 #ifdef MOZ_METRO
 #include <roapi.h>
 #endif
@@ -2184,12 +2185,12 @@ SelectProfile(nsIProfileLock* *aResult, nsIToolkitProfileService* aProfileSvc, n
         return rv;
       }
       
-      // As with -profile, assume that the given path will be used for both the
-      // main profile directory and the temp profile directory.
-      rv = aProfileSvc->CreateProfile(lf, lf, nsDependentCSubstring(arg, delim),
+      // As with -profile, assume that the given path will be used for the
+      // main profile directory.
+      rv = aProfileSvc->CreateProfile(lf, nsDependentCSubstring(arg, delim),
                                      getter_AddRefs(profile));
     } else {
-      rv = aProfileSvc->CreateProfile(nullptr, nullptr, nsDependentCString(arg),
+      rv = aProfileSvc->CreateProfile(nullptr, nsDependentCString(arg),
                                      getter_AddRefs(profile));
     }
     // Some pathological arguments can make it this far
@@ -2274,7 +2275,6 @@ SelectProfile(nsIProfileLock* *aResult, nsIToolkitProfileService* aProfileSvc, n
     // create a default profile
     nsCOMPtr<nsIToolkitProfile> profile;
     nsresult rv = aProfileSvc->CreateProfile(nullptr, // choose a default dir for us
-                                             nullptr, // choose a default dir for us
                                              NS_LITERAL_CSTRING("default"),
                                              getter_AddRefs(profile));
     if (NS_SUCCEEDED(rv)) {
@@ -2867,10 +2867,8 @@ XREMain::XRE_mainInit(bool* aExitFlag)
     // manual font file I/O on _all_ system fonts.  To avoid this, load the
     // dwrite library and create a factory as early as possible so that the
     // FntCache service is ready by the time it's needed.
-      
-    OSVERSIONINFO vinfo;
-    vinfo.dwOSVersionInfoSize = sizeof(vinfo);
-    if (GetVersionEx(&vinfo) && vinfo.dwMajorVersion >= 6) {
+
+    if (IsVistaOrLater()) {
       CreateThread(nullptr, 0, (LPTHREAD_START_ROUTINE)&InitDwriteBG,
                    nullptr, 0, nullptr);
     }
