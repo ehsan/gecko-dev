@@ -302,7 +302,6 @@ VectorImage::VectorImage(imgStatusTracker* aStatusTracker,
 
 VectorImage::~VectorImage()
 {
-  CancelAllListeners();
 }
 
 //------------------------------------------------------------------------------
@@ -900,6 +899,9 @@ VectorImage::OnSVGDocumentParsed()
 void
 VectorImage::CancelAllListeners()
 {
+  NS_ABORT_IF_FALSE(mParseCompleteListener, "Should have the parse complete listener");
+  NS_ABORT_IF_FALSE(mLoadEventListener, "Should have the load event listener");
+
   if (mParseCompleteListener) {
     mParseCompleteListener->Cancel();
     mParseCompleteListener = nullptr;
