@@ -61,32 +61,34 @@ UrlClassifierDBServiceWorkerProxy::SetHashCompleter
 NS_IMETHODIMP
 UrlClassifierDBServiceWorkerProxy::BeginUpdate
   (nsIUrlClassifierUpdateObserver* aUpdater,
-   const nsACString& aTables)
+   const nsACString& aTables,
+   const nsACString& aClientKey)
 {
   nsCOMPtr<nsIRunnable> r = new BeginUpdateRunnable(mTarget, aUpdater,
-                                                    aTables);
+                                                    aTables, aClientKey);
   return DispatchToWorkerThread(r);
 }
 
 NS_IMETHODIMP
 UrlClassifierDBServiceWorkerProxy::BeginUpdateRunnable::Run()
 {
-  mTarget->BeginUpdate(mUpdater, mTables);
+  mTarget->BeginUpdate(mUpdater, mTables, mClientKey);
   return NS_OK;
 }
 
 NS_IMETHODIMP
-UrlClassifierDBServiceWorkerProxy::BeginStream(const nsACString& aTable)
+UrlClassifierDBServiceWorkerProxy::BeginStream(const nsACString& aTable,
+                                               const nsACString& aServerMAC)
 {
   nsCOMPtr<nsIRunnable> r =
-    new BeginStreamRunnable(mTarget, aTable);
+    new BeginStreamRunnable(mTarget, aTable, aServerMAC);
   return DispatchToWorkerThread(r);
 }
 
 NS_IMETHODIMP
 UrlClassifierDBServiceWorkerProxy::BeginStreamRunnable::Run()
 {
-  mTarget->BeginStream(mTable);
+  mTarget->BeginStream(mTable, mServerMAC);
   return NS_OK;
 }
 
@@ -220,17 +222,32 @@ NS_IMPL_ISUPPORTS1(UrlClassifierUpdateObserverProxy,
 NS_IMETHODIMP
 UrlClassifierUpdateObserverProxy::UpdateUrlRequested
   (const nsACString& aURL,
-   const nsACString& aTable)
+   const nsACString& aTable,
+   const nsACString& aServerMAC)
 {
   nsCOMPtr<nsIRunnable> r =
-    new UpdateUrlRequestedRunnable(mTarget, aURL, aTable);
+    new UpdateUrlRequestedRunnable(mTarget, aURL, aTable, aServerMAC);
   return NS_DispatchToMainThread(r);
 }
 
 NS_IMETHODIMP
 UrlClassifierUpdateObserverProxy::UpdateUrlRequestedRunnable::Run()
 {
-  mTarget->UpdateUrlRequested(mURL, mTable);
+  mTarget->UpdateUrlRequested(mURL, mTable, mServerMAC);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+UrlClassifierUpdateObserverProxy::RekeyRequested()
+{
+  nsCOMPtr<nsIRunnable> r = new RekeyRequestedRunnable(mTarget);
+  return NS_DispatchToMainThread(r);
+}
+
+NS_IMETHODIMP
+UrlClassifierUpdateObserverProxy::RekeyRequestedRunnable::Run()
+{
+  mTarget->RekeyRequested();
   return NS_OK;
 }
 

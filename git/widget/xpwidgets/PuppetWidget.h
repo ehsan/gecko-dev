@@ -183,7 +183,6 @@ private:
   nsresult IMEEndComposition(bool aCancel);
   nsresult NotifyIMEOfFocusChange(bool aFocus);
   nsresult NotifyIMEOfSelectionChange();
-  nsresult NotifyIMEOfUpdateComposition();
 
   class PaintTask : public nsRunnable {
   public:

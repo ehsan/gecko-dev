@@ -181,6 +181,9 @@ private:
   nsCOMPtr<nsIUrlClassifierUpdateObserver> mUpdateObserver;
   bool mInStream;
 
+  // The client key with which the data from the server will be MAC'ed.
+  nsCString mUpdateClientKey;
+
   // The number of noise entries to add to the set of lookup results.
   uint32_t mGethashNoise;
 
@@ -419,6 +422,7 @@ nsUrlClassifierDBServiceWorker::ResetUpdate()
   mUpdateWait = 0;
   mUpdateStatus = NS_OK;
   mUpdateObserver = nullptr;
+  mUpdateClientKey.Truncate();
 }
 
 NS_IMETHODIMP
@@ -430,7 +434,8 @@ nsUrlClassifierDBServiceWorker::SetHashCompleter(const nsACString &tableName,
 
 NS_IMETHODIMP
 nsUrlClassifierDBServiceWorker::BeginUpdate(nsIUrlClassifierUpdateObserver *observer,
-                                            const nsACString &tables)
+                                            const nsACString &tables,
+                                            const nsACString &clientKey)
 {
   LOG(("nsUrlClassifierDBServiceWorker::BeginUpdate [%s]", PromiseFlatCString(tables).get()));
 
@@ -449,12 +454,19 @@ nsUrlClassifierDBServiceWorker::BeginUpdate(nsIUrlClassifierUpdateObserver *obse
   mUpdateObserver = observer;
   SplitTables(tables, mUpdateTables);
 
+  if (!clientKey.IsEmpty()) {
+    rv = nsUrlClassifierUtils::DecodeClientKey(clientKey, mUpdateClientKey);
+    NS_ENSURE_SUCCESS(rv, rv);
+    LOG(("clientKey present, marking update key"));
+  }
+
   return NS_OK;
 }
 
 // Called from the stream updater.
 NS_IMETHODIMP
-nsUrlClassifierDBServiceWorker::BeginStream(const nsACString &table)
+nsUrlClassifierDBServiceWorker::BeginStream(const nsACString &table,
+                                            const nsACString &serverMAC)
 {
   LOG(("nsUrlClassifierDBServiceWorker::BeginStream"));
 
@@ -473,6 +485,17 @@ nsUrlClassifierDBServiceWorker::BeginStream(const nsACString &table)
     return NS_ERROR_OUT_OF_MEMORY;
 
   mProtocolParser->Init(mCryptoHash);
+
+  nsresult rv;
+
+  // If we're expecting a MAC, create the nsICryptoHMAC component now.
+  if (!mUpdateClientKey.IsEmpty()) {
+    LOG(("Expecting MAC in this stream"));
+    rv = mProtocolParser->InitHMAC(mUpdateClientKey, serverMAC);
+    NS_ENSURE_SUCCESS(rv, rv);
+  } else {
+    LOG(("No MAC in this stream"));
+  }
 
   if (!table.IsEmpty()) {
     mProtocolParser->SetCurrentTable(table);
@@ -537,6 +560,7 @@ nsUrlClassifierDBServiceWorker::FinishStream()
 
   mInStream = false;
 
+  mProtocolParser->FinishHMAC();
   if (NS_SUCCEEDED(mProtocolParser->Status())) {
     if (mProtocolParser->UpdateWait()) {
       mUpdateWait = mProtocolParser->UpdateWait();
@@ -546,7 +570,7 @@ nsUrlClassifierDBServiceWorker::FinishStream()
       mProtocolParser->Forwards();
     for (uint32_t i = 0; i < forwards.Length(); i++) {
       const ProtocolParser::ForwardedUpdate &forward = forwards[i];
-      mUpdateObserver->UpdateUrlRequested(forward.url, forward.table);
+      mUpdateObserver->UpdateUrlRequested(forward.url, forward.table, forward.mac);
     }
     // Hold on to any TableUpdate objects that were created by the
     // parser.
@@ -557,10 +581,16 @@ nsUrlClassifierDBServiceWorker::FinishStream()
   }
   mUpdateObserver->StreamFinished(mProtocolParser->Status(), 0);
 
+  // Only reset if MAC was OK
   if (NS_SUCCEEDED(mUpdateStatus)) {
     if (mProtocolParser->ResetRequested()) {
       mClassifier->Reset();
    }
+  }
+
+  // Rekey will cause update to fail (can't check MACs)
+  if (mProtocolParser->RekeyRequested()) {
+    mUpdateObserver->RekeyRequested();
   }
 
   mProtocolParser = nullptr;
@@ -878,10 +908,11 @@ nsUrlClassifierLookupCallback::CompletionFinished(nsresult status)
 NS_IMETHODIMP
 nsUrlClassifierLookupCallback::Completion(const nsACString& completeHash,
                                           const nsACString& tableName,
-                                          uint32_t chunkId)
+                                          uint32_t chunkId,
+                                          bool verified)
 {
-  LOG(("nsUrlClassifierLookupCallback::Completion [%p, %s, %d]",
-       this, PromiseFlatCString(tableName).get(), chunkId));
+  LOG(("nsUrlClassifierLookupCallback::Completion [%p, %s, %d, %d]",
+       this, PromiseFlatCString(tableName).get(), chunkId, verified));
   mozilla::safebrowsing::Completion hash;
   hash.Assign(completeHash);
 
@@ -892,13 +923,15 @@ nsUrlClassifierLookupCallback::Completion(const nsACString& completeHash,
       return NS_ERROR_OUT_OF_MEMORY;
   }
 
-  CacheResult result;
-  result.entry.addChunk = chunkId;
-  result.entry.complete = hash;
-  result.table = tableName;
+  if (verified) {
+    CacheResult result;
+    result.entry.addChunk = chunkId;
+    result.entry.complete = hash;
+    result.table = tableName;
 
-  // OK if this fails, we just won't cache the item.
-  mCacheResults->AppendElement(result);
+    // OK if this fails, we just won't cache the item.
+    mCacheResults->AppendElement(result);
+  }
 
   // Check if this matched any of our results.
   for (uint32_t i = 0; i < mResults->Length(); i++) {
@@ -1296,7 +1329,8 @@ nsUrlClassifierDBService::SetHashCompleter(const nsACString &tableName,
 
 NS_IMETHODIMP
 nsUrlClassifierDBService::BeginUpdate(nsIUrlClassifierUpdateObserver *observer,
-                                      const nsACString &updateTables)
+                                      const nsACString &updateTables,
+                                      const nsACString &clientKey)
 {
   NS_ENSURE_TRUE(gDbBackgroundThread, NS_ERROR_NOT_INITIALIZED);
 
@@ -1309,15 +1343,16 @@ nsUrlClassifierDBService::BeginUpdate(nsIUrlClassifierUpdateObserver *observer,
   nsCOMPtr<nsIUrlClassifierUpdateObserver> proxyObserver =
     new UrlClassifierUpdateObserverProxy(observer);
 
-  return mWorkerProxy->BeginUpdate(proxyObserver, updateTables);
+  return mWorkerProxy->BeginUpdate(proxyObserver, updateTables, clientKey);
 }
 
 NS_IMETHODIMP
-nsUrlClassifierDBService::BeginStream(const nsACString &table)
+nsUrlClassifierDBService::BeginStream(const nsACString &table,
+                                      const nsACString &serverMAC)
 {
   NS_ENSURE_TRUE(gDbBackgroundThread, NS_ERROR_NOT_INITIALIZED);
 
-  return mWorkerProxy->BeginStream(table);
+  return mWorkerProxy->BeginStream(table, serverMAC);
 }
 
 NS_IMETHODIMP

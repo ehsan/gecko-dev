@@ -93,9 +93,7 @@ void
 TextTrack::AddCue(TextTrackCue& aCue)
 {
   mCueList->AddCue(aCue);
-  if (mMediaElement) {
-    mMediaElement->AddCue(aCue);
-  }
+  mMediaElement->AddCue(aCue);
   SetDirty();
 }
 

@@ -770,7 +770,7 @@ CalculatePOTSize(const IntSize& aSize, GLContext* gl)
 void
 CompositorOGL::BeginFrame(const nsIntRegion& aInvalidRegion,
                           const Rect *aClipRectIn,
-                          const gfx::Matrix& aTransform,
+                          const gfxMatrix& aTransform,
                           const Rect& aRenderBounds,
                           Rect *aClipRectOut,
                           Rect *aRenderBoundsOut)
@@ -783,11 +783,11 @@ CompositorOGL::BeginFrame(const nsIntRegion& aInvalidRegion,
   mVBOs.Reset();
 
   mFrameInProgress = true;
-  gfx::Rect rect;
+  gfxRect rect;
   if (mUseExternalSurfaceSize) {
-    rect = gfx::Rect(0, 0, mSurfaceSize.width, mSurfaceSize.height);
+    rect = gfxRect(0, 0, mSurfaceSize.width, mSurfaceSize.height);
   } else {
-    rect = gfx::Rect(aRenderBounds.x, aRenderBounds.y, aRenderBounds.width, aRenderBounds.height);
+    rect = gfxRect(aRenderBounds.x, aRenderBounds.y, aRenderBounds.width, aRenderBounds.height);
     // If render bounds is not updated explicitly, try to infer it from widget
     if (rect.width == 0 || rect.height == 0) {
       // FIXME/bug XXXXXX this races with rotation changes on the main
@@ -795,13 +795,13 @@ CompositorOGL::BeginFrame(const nsIntRegion& aInvalidRegion,
       // sent atomically with rotation changes
       nsIntRect intRect;
       mWidget->GetClientBounds(intRect);
-      rect = gfx::Rect(0, 0, intRect.width, intRect.height);
+      rect = gfxRect(0, 0, intRect.width, intRect.height);
     }
   }
 
   rect = aTransform.TransformBounds(rect);
   if (aRenderBoundsOut) {
-    *aRenderBoundsOut = rect;
+    *aRenderBoundsOut = Rect(rect.x, rect.y, rect.width, rect.height);
   }
 
   GLint width = rect.width;
@@ -834,7 +834,7 @@ CompositorOGL::BeginFrame(const nsIntRegion& aInvalidRegion,
 
   mCurrentRenderTarget = CompositingRenderTargetOGL::RenderTargetForWindow(this,
                             IntSize(width, height),
-                            ThebesMatrix(aTransform));
+                            aTransform);
   mCurrentRenderTarget->BindRenderTarget();
 #ifdef DEBUG
   mWindowRenderTarget = mCurrentRenderTarget;
@@ -1427,7 +1427,7 @@ CompositorOGL::EndFrame()
 }
 
 void
-CompositorOGL::EndFrameForExternalComposition(const gfx::Matrix& aTransform)
+CompositorOGL::EndFrameForExternalComposition(const gfxMatrix& aTransform)
 {
   if (sDrawFPS) {
     if (!mFPS) {
@@ -1440,7 +1440,7 @@ CompositorOGL::EndFrameForExternalComposition(const gfx::Matrix& aTransform)
   // This lets us reftest and screenshot content rendered externally
   if (mTarget) {
     MakeCurrent();
-    CopyToTarget(mTarget, ThebesMatrix(aTransform));
+    CopyToTarget(mTarget, aTransform);
     mGLContext->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, 0);
   }
 }
@@ -1487,17 +1487,14 @@ CompositorOGL::CopyToTarget(DrawTarget *aTarget, const gfxMatrix& aTransform)
 
   RefPtr<DataSourceSurface> source =
         Factory::CreateDataSourceSurface(rect.Size(), gfx::SurfaceFormat::B8G8R8A8);
-
-  DataSourceSurface::MappedSurface map;
-  source->Map(DataSourceSurface::MapType::WRITE, &map);
   // XXX we should do this properly one day without using the gfxImageSurface
   nsRefPtr<gfxImageSurface> surf =
-    new gfxImageSurface(map.mData,
+    new gfxImageSurface(source->GetData(),
                         gfxIntSize(width, height),
-                        map.mStride,
+                        source->Stride(),
                         gfxImageFormatARGB32);
   ReadPixelsIntoImageSurface(mGLContext, surf);
-  source->Unmap();
+  source->MarkDirty();
 
   // Map from GL space to Cairo space and reverse the world transform.
   Matrix glToCairoTransform = ToMatrix(aTransform);

@@ -746,9 +746,7 @@ class BaseMarionetteTestRunner(object):
         if self.marionette.instance:
             self.marionette.instance.close()
             self.marionette.instance = None
-
-        self.marionette.cleanup()
-
+        del self.marionette
         for run_tests in self.mixin_run_tests:
             run_tests(tests)
 

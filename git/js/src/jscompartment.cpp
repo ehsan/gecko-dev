@@ -233,7 +233,7 @@ class WrapperMapRef : public BufferableRef
     }
 };
 
-#ifdef JS_GC_ZEAL
+#ifdef DEBUG
 void
 JSCompartment::checkWrapperMapAfterMovingGC()
 {

@@ -40,9 +40,9 @@ test_fn(JSContext *cx, unsigned argc, jsval *vp)
 static bool
 test_fn2(JSContext *cx, unsigned argc, jsval *vp)
 {
-    JS::RootedValue r(cx);
+    jsval r;
     JS::RootedObject global(cx, JS::CurrentGlobalOrNull(cx));
-    return JS_CallFunctionName(cx, global, "d", 0, nullptr, r.address());
+    return JS_CallFunctionName(cx, global, "d", 0, nullptr, &r);
 }
 
 static bool

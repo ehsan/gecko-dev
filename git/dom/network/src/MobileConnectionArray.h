@@ -34,24 +34,18 @@ public:
 
   //  WebIDL
   nsIDOMMozMobileConnection*
-  Item(uint32_t aIndex);
+  Item(uint32_t aIndex) const;
 
   uint32_t
   Length() const;
 
   nsIDOMMozMobileConnection*
-  IndexedGetter(uint32_t aIndex, bool& aFound);
+  IndexedGetter(uint32_t aIndex, bool& aFound) const;
 
 private:
   ~MobileConnectionArray();
 
-  void
-  Init();
-
-  void
-  DropConnections();
-
-  bool mInitialized;
+  void DropConnections();
 
   nsCOMPtr<nsPIDOMWindow> mWindow;
   nsTArray<nsRefPtr<MobileConnection>> mMobileConnections;

@@ -7,9 +7,10 @@
 #define nsIFormControlFrame_h___
 
 #include "nsQueryFrame.h"
-
 class nsAString;
+class nsIContent;
 class nsIAtom;
+struct nsSize;
 
 /** 
   * nsIFormControlFrame is the common interface for frames of form controls. It

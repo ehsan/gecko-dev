@@ -7,9 +7,16 @@
 #define nsIComboboxControlFrame_h___
 
 #include "nsQueryFrame.h"
+#include "nsFont.h"
+
+class nsString;
+class nsIContent;
+class nsCSSFrameConstructor;
 
 /** 
-  * nsIComboboxControlFrame is the interface for comboboxes.
+  * nsIComboboxControlFrame is the common interface for frames of form controls. It
+  * provides a uniform way of creating widgets, resizing, and painting.
+  * @see nsLeafFrame and its base classes for more info
   */
 class nsIComboboxControlFrame : public nsQueryFrame
 {

@@ -1240,13 +1240,6 @@ nsDocumentViewer::PermitUnloadInternal(bool aCallerClosesWindow,
 }
 
 NS_IMETHODIMP
-nsDocumentViewer::GetBeforeUnloadFiring(bool* aInEvent)
-{
-  *aInEvent = mInPermitUnload;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 nsDocumentViewer::ResetCloseWindow()
 {
   mCallerIsClosingWindow = false;

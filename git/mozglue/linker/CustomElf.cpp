@@ -64,13 +64,6 @@ void debug_phdr(const char *type, const Phdr *phdr)
             phdr->p_flags & PF_W ? 'w' : '-', phdr->p_flags & PF_X ? 'x' : '-');
 }
 
-static int p_flags_to_mprot(Word flags)
-{
-  return ((flags & PF_X) ? PROT_EXEC : 0) |
-         ((flags & PF_W) ? PROT_WRITE : 0) |
-         ((flags & PF_R) ? PROT_READ : 0);
-}
-
 void
 __void_stub(void)
 {
@@ -230,28 +223,6 @@ CustomElf::Load(Mappable *mappable, const char *path, int flags)
   ElfLoader::Singleton.Register(elf);
 
   if (!elf->InitDyn(dyn))
-    return nullptr;
-
-  if (elf->has_text_relocs) {
-    for (std::vector<const Phdr *>::iterator it = pt_loads.begin();
-         it < pt_loads.end(); ++it)
-      mprotect(PageAlignedPtr(elf->GetPtr((*it)->p_vaddr)),
-               PageAlignedEndPtr((*it)->p_memsz),
-               p_flags_to_mprot((*it)->p_flags) | PROT_WRITE);
-  }
-
-  if (!elf->Relocate() || !elf->RelocateJumps())
-    return nullptr;
-
-  if (elf->has_text_relocs) {
-    for (std::vector<const Phdr *>::iterator it = pt_loads.begin();
-         it < pt_loads.end(); ++it)
-      mprotect(PageAlignedPtr(elf->GetPtr((*it)->p_vaddr)),
-               PageAlignedEndPtr((*it)->p_memsz),
-               p_flags_to_mprot((*it)->p_flags));
-  }
-
-  if (!elf->CallInit())
     return nullptr;
 
 #ifdef __ARM_EABI__
@@ -452,7 +423,9 @@ CustomElf::LoadSegment(const Phdr *pt_load) const
     return false;;
   }
 
-  int prot = p_flags_to_mprot(pt_load->p_flags);
+  int prot = ((pt_load->p_flags & PF_X) ? PROT_EXEC : 0) |
+             ((pt_load->p_flags & PF_W) ? PROT_WRITE : 0) |
+             ((pt_load->p_flags & PF_R) ? PROT_READ : 0);
 
   /* Mmap at page boundary */
   Addr align = PageSize();
@@ -576,8 +549,8 @@ CustomElf::InitDyn(const Phdr *pt_dyn)
         }
         break;
       case DT_TEXTREL:
-        has_text_relocs = true;
-        break;
+        LOG("%s: Text relocations are not supported", GetPath());
+        return false;
       case DT_STRSZ: /* Ignored */
         debug_dyn("DT_STRSZ", dyn);
         break;
@@ -647,7 +620,8 @@ CustomElf::InitDyn(const Phdr *pt_dyn)
            Addr flags = dyn->d_un.d_val;
            /* Treat as a DT_TEXTREL tag */
            if (flags & DF_TEXTREL) {
-             has_text_relocs = true;
+             LOG("%s: Text relocations are not supported", GetPath());
+             return false;
            }
            /* we can treat this like having a DT_SYMBOLIC tag */
            flags &= ~DF_SYMBOLIC;
@@ -703,7 +677,8 @@ CustomElf::InitDyn(const Phdr *pt_dyn)
     dependencies.push_back(handle);
   }
 
-  return true;
+  /* Finish initialization */
+  return Relocate() && RelocateJumps() && CallInit();
 }
 
 bool

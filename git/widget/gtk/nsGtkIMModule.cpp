@@ -68,7 +68,6 @@ nsGtkIMModule::nsGtkIMModule(nsWindow* aOwnerWindow) :
     mSimpleContext(nullptr),
     mDummyContext(nullptr),
     mCompositionStart(UINT32_MAX), mProcessingKeyEvent(nullptr),
-    mCompositionTargetOffset(UINT32_MAX),
     mCompositionState(eCompositionState_NotComposing),
     mIsIMFocused(false), mIgnoreNativeCompositionEvent(false)
 {
@@ -504,16 +503,6 @@ nsGtkIMModule::CancelIMEComposition(nsWindow* aCaller)
 }
 
 void
-nsGtkIMModule::OnUpdateComposition(void)
-{
-    if (MOZ_UNLIKELY(IsDestroyed())) {
-        return;
-    }
-
-    SetCursorPosition(mCompositionTargetOffset);
-}
-
-void
 nsGtkIMModule::SetInputContext(nsWindow* aCaller,
                                const InputContext* aContext,
                                const InputContextAction* aAction)
@@ -693,7 +682,7 @@ nsGtkIMModule::OnStartCompositionNative(GtkIMContext *aContext)
     if (!DispatchCompositionStart()) {
         return;
     }
-    mCompositionTargetOffset = mCompositionStart;
+    SetCursorPosition(mCompositionStart);
 }
 
 /* static */
@@ -1060,7 +1049,6 @@ nsGtkIMModule::DispatchCompositionEnd()
     mLastFocusedWindow->DispatchEvent(&compEvent, status);
     mCompositionState = eCompositionState_NotComposing;
     mCompositionStart = UINT32_MAX;
-    mCompositionTargetOffset = UINT32_MAX;
     mDispatchedCompositionString.Truncate();
     if (static_cast<nsWindow*>(kungFuDeathGrip.get())->IsDestroyed() ||
         kungFuDeathGrip != mLastFocusedWindow) {
@@ -1163,10 +1151,7 @@ nsGtkIMModule::DispatchTextEvent(const nsAString &aCompositionString,
         return false;
     }
 
-    // We cannot call SetCursorPosition for e10s-aware.
-    // DispatchEvent is async on e10s, so composition rect isn't updated now
-    // on tab parent.
-    mCompositionTargetOffset = targetOffset;
+    SetCursorPosition(targetOffset);
 
     return true;
 }

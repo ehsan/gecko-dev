@@ -1214,18 +1214,14 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
     break;
   case NS_QUERY_CARET_RECT:
     {
-      if (RemoteQueryContentEvent(aEvent)) {
-        break;
-      }
+      // XXX remote event
       nsContentEventHandler handler(mPresContext);
       handler.OnQueryCaretRect(aEvent->AsQueryContentEvent());
     }
     break;
   case NS_QUERY_TEXT_RECT:
     {
-      if (RemoteQueryContentEvent(aEvent)) {
-        break;
-      }
+      // XXX remote event
       nsContentEventHandler handler(mPresContext);
       handler.OnQueryTextRect(aEvent->AsQueryContentEvent());
     }

@@ -737,7 +737,7 @@ NS_IMETHODIMP
 nsAppShell::Run(void)
 {
   NS_ASSERTION(!mStarted, "nsAppShell::Run() called multiple times");
-  if (mStarted || mTerminated)
+  if (mStarted)
     return NS_OK;
 
   mStarted = true;

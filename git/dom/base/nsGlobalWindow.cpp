@@ -2324,8 +2324,7 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
     // so all expandos and such defined on the outer window should go away. Force
     // all Xray wrappers to be recomputed.
     JS::ExposeObjectToActiveJS(mJSObject);
-    JS::Rooted<JSObject*> rootedObject(cx, mJSObject);
-    if (!JS_RefreshCrossCompartmentWrappers(cx, rootedObject)) {
+    if (!JS_RefreshCrossCompartmentWrappers(cx, mJSObject)) {
       return NS_ERROR_FAILURE;
     }
 
@@ -3753,7 +3752,7 @@ nsGlobalWindow::GetContent(JSContext* aCx, ErrorResult& aError)
   }
 
   JS::Rooted<JS::Value> val(aCx, JS::NullValue());
-  aError = treeOwner->GetContentWindow(aCx, &val);
+  aError = treeOwner->GetContentWindow(aCx, val.address());
   if (aError.Failed()) {
     return nullptr;
   }
@@ -3819,12 +3818,12 @@ nsGlobalWindow::GetContent(nsIDOMWindow** aContent)
 }
 
 NS_IMETHODIMP
-nsGlobalWindow::GetScriptableContent(JSContext* aCx, JS::MutableHandle<JS::Value> aVal)
+nsGlobalWindow::GetScriptableContent(JSContext* aCx, JS::Value* aVal)
 {
   ErrorResult rv;
   JS::Rooted<JSObject*> content(aCx, GetContent(aCx, rv));
   if (!rv.Failed()) {
-    aVal.setObjectOrNull(content);
+    *aVal = JS::ObjectOrNullValue(content);
   }
 
   return rv.ErrorCode();
@@ -4956,7 +4955,7 @@ nsGlobalWindow::RequestAnimationFrame(const nsIDocument::FrameRequestCallbackHol
 }
 
 NS_IMETHODIMP
-nsGlobalWindow::RequestAnimationFrame(JS::Handle<JS::Value> aCallback,
+nsGlobalWindow::RequestAnimationFrame(const JS::Value& aCallback,
                                       JSContext* cx,
                                       int32_t* aHandle)
 {
@@ -7951,13 +7950,15 @@ nsGlobalWindow::PostMessageMoz(JSContext* aCx, JS::Handle<JS::Value> aMessage,
 }
 
 NS_IMETHODIMP
-nsGlobalWindow::PostMessageMoz(JS::Handle<JS::Value> aMessage,
+nsGlobalWindow::PostMessageMoz(const JS::Value& aMessage,
                                const nsAString& aOrigin,
-                               JS::Handle<JS::Value> aTransfer,
+                               const JS::Value& aTransfer,
                                JSContext* aCx)
 {
+  JS::Rooted<JS::Value> message(aCx, aMessage);
+  JS::Rooted<JS::Value> transfer(aCx, aTransfer);
   ErrorResult rv;
-  PostMessageMoz(aCx, aMessage, aOrigin, aTransfer, rv);
+  PostMessageMoz(aCx, message, aOrigin, transfer, rv);
 
   return rv.ErrorCode();
 }
@@ -8782,7 +8783,7 @@ nsGlobalWindow::ShowModalDialog(JSContext* aCx, const nsAString& aUrl,
   nsCOMPtr<nsIVariant> args;
   if (aArgument.WasPassed()) {
     aError = nsContentUtils::XPConnect()->JSToVariant(aCx,
-                                                      aArgument.Value(),
+                                                      aArgument.Value().get(),
                                                       getter_AddRefs(args));
   } else {
     args = CreateVoidVariant();
@@ -8797,7 +8798,7 @@ nsGlobalWindow::ShowModalDialog(JSContext* aCx, const nsAString& aUrl,
   if (retVal) {
     aError = nsContentUtils::XPConnect()->VariantToJS(aCx,
                                                       FastGetGlobalJSObject(),
-                                                      retVal, &result);
+                                                      retVal, result.address());
   } else {
     result = JS::NullValue();
   }
@@ -13278,13 +13279,13 @@ nsGlobalWindow::DisableNetworkEvent(uint32_t aType)
 
 #define EVENT(name_, id_, type_, struct_)                                    \
   NS_IMETHODIMP nsGlobalWindow::GetOn##name_(JSContext *cx,                  \
-                                             JS::MutableHandle<JS::Value> vp) { \
+                                             JS::Value *vp) {                \
     EventHandlerNonNull* h = GetOn##name_();                                 \
-    vp.setObjectOrNull(h ? h->Callable().get() : nullptr);                   \
+    vp->setObjectOrNull(h ? h->Callable().get() : nullptr);                  \
     return NS_OK;                                                            \
   }                                                                          \
   NS_IMETHODIMP nsGlobalWindow::SetOn##name_(JSContext *cx,                  \
-                                             JS::Handle<JS::Value> v) {      \
+                                             const JS::Value &v) {           \
     nsRefPtr<EventHandlerNonNull> handler;                                   \
     JS::Rooted<JSObject*> callable(cx);                                      \
     if (v.isObject() &&                                                      \
@@ -13296,20 +13297,20 @@ nsGlobalWindow::DisableNetworkEvent(uint32_t aType)
   }
 #define ERROR_EVENT(name_, id_, type_, struct_)                              \
   NS_IMETHODIMP nsGlobalWindow::GetOn##name_(JSContext *cx,                  \
-                                             JS::MutableHandle<JS::Value> vp) { \
+                                             JS::Value *vp) {                \
     nsEventListenerManager *elm = GetExistingListenerManager();              \
     if (elm) {                                                               \
       OnErrorEventHandlerNonNull* h = elm->GetOnErrorEventHandler();         \
       if (h) {                                                               \
-        vp.setObject(*h->Callable());                                        \
+        *vp = JS::ObjectValue(*h->Callable());                               \
         return NS_OK;                                                        \
       }                                                                      \
     }                                                                        \
-    vp.setNull();                                                            \
+    *vp = JSVAL_NULL;                                                        \
     return NS_OK;                                                            \
   }                                                                          \
   NS_IMETHODIMP nsGlobalWindow::SetOn##name_(JSContext *cx,                  \
-                                             JS::Handle<JS::Value> v) {      \
+                                             const JS::Value &v) {           \
     nsEventListenerManager *elm = GetOrCreateListenerManager();              \
     if (!elm) {                                                              \
       return NS_ERROR_OUT_OF_MEMORY;                                         \
@@ -13326,21 +13327,21 @@ nsGlobalWindow::DisableNetworkEvent(uint32_t aType)
   }
 #define BEFOREUNLOAD_EVENT(name_, id_, type_, struct_)                       \
   NS_IMETHODIMP nsGlobalWindow::GetOn##name_(JSContext *cx,                  \
-                                             JS::MutableHandle<JS::Value> vp) { \
+                                             JS::Value *vp) {                \
     nsEventListenerManager *elm = GetExistingListenerManager();              \
     if (elm) {                                                               \
       OnBeforeUnloadEventHandlerNonNull* h =                                 \
         elm->GetOnBeforeUnloadEventHandler();                                \
       if (h) {                                                               \
-        vp.setObject(*h->Callable());                                        \
+        *vp = JS::ObjectValue(*h->Callable());                               \
         return NS_OK;                                                        \
       }                                                                      \
     }                                                                        \
-    vp.setNull();                                                            \
+    *vp = JSVAL_NULL;                                                        \
     return NS_OK;                                                            \
   }                                                                          \
   NS_IMETHODIMP nsGlobalWindow::SetOn##name_(JSContext *cx,                  \
-                                             JS::Handle<JS::Value> v) {      \
+                                             const JS::Value &v) {           \
     nsEventListenerManager *elm = GetOrCreateListenerManager();              \
     if (!elm) {                                                              \
       return NS_ERROR_OUT_OF_MEMORY;                                         \

@@ -84,7 +84,6 @@ public:
                          const InputContextAction* aAction);
     InputContext GetInputContext();
     nsresult CancelIMEComposition(nsWindow* aCaller);
-    void OnUpdateComposition();
 
     // If a software keyboard has been opened, this returns TRUE.
     // Otherwise, FALSE.
@@ -137,9 +136,6 @@ protected:
     // OnKeyEvent() temporarily sets mProcessingKeyEvent to the given native
     // event.
     GdkEventKey* mProcessingKeyEvent;
-
-    // current target offset of IME composition
-    uint32_t mCompositionTargetOffset;
 
     // mCompositionState indicates current status of composition.
     enum eCompositionState {

@@ -5252,13 +5252,7 @@ js::IsDelegate(JSContext *cx, HandleObject obj, const js::Value &v, bool *result
         *result = false;
         return true;
     }
-    return IsDelegateOfObject(cx, obj, &v.toObject(), result);
-}
-
-bool
-js::IsDelegateOfObject(JSContext *cx, HandleObject protoObj, JSObject* obj, bool *result)
-{
-    RootedObject obj2(cx, obj);
+    RootedObject obj2(cx, &v.toObject());
     for (;;) {
         if (!JSObject::getProto(cx, obj2, &obj2))
             return false;
@@ -5266,7 +5260,7 @@ js::IsDelegateOfObject(JSContext *cx, HandleObject protoObj, JSObject* obj, bool
             *result = false;
             return true;
         }
-        if (obj2 == protoObj) {
+        if (obj2 == obj) {
             *result = true;
             return true;
         }

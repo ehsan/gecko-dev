@@ -390,8 +390,8 @@ void
 BluetoothA2dpManager::UpdateMetaData(const nsAString& aTitle,
                                      const nsAString& aArtist,
                                      const nsAString& aAlbum,
-                                     uint64_t aMediaNumber,
-                                     uint64_t aTotalMediaCount,
+                                     uint32_t aMediaNumber,
+                                     uint32_t aTotalMediaCount,
                                      uint32_t aDuration)
 {
   mTitle.Assign(aTitle);
@@ -436,7 +436,7 @@ BluetoothA2dpManager::GetPosition()
   return mPosition;
 }
 
-uint64_t
+uint32_t
 BluetoothA2dpManager::GetMediaNumber()
 {
   return mMediaNumber;

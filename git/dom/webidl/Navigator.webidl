@@ -229,6 +229,7 @@ partial interface Navigator {
 };
 
 // nsIDOMMozNavigatorNetwork
+interface MozConnection;
 partial interface Navigator {
   [Pref="dom.network.enabled"]
   readonly attribute MozConnection? mozConnection;

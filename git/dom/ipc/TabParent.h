@@ -112,12 +112,10 @@ public:
 
     virtual bool RecvMoveFocus(const bool& aForward);
     virtual bool RecvEvent(const RemoteDOMEvent& aEvent);
-    virtual bool RecvPRenderFrameConstructor(PRenderFrameParent* actor);
-    virtual bool RecvInitRenderFrame(PRenderFrameParent* aFrame,
-                                     ScrollingBehavior* scrolling,
-                                     TextureFactoryIdentifier* identifier,
-                                     uint64_t* layersId,
-                                     bool *aSuccess);
+    virtual bool RecvPRenderFrameConstructor(PRenderFrameParent* actor,
+                                             ScrollingBehavior* scrolling,
+                                             TextureFactoryIdentifier* identifier,
+                                             uint64_t* layersId);
     virtual bool RecvBrowserFrameOpenWindow(PBrowserParent* aOpener,
                                             const nsString& aURL,
                                             const nsString& aName,
@@ -144,9 +142,6 @@ public:
     virtual bool RecvNotifyIMETextChange(const uint32_t& aStart,
                                          const uint32_t& aEnd,
                                          const uint32_t& aNewEnd);
-    virtual bool RecvNotifyIMESelectedCompositionRect(const uint32_t& aOffset,
-                                                      const nsIntRect& aRect,
-                                                      const nsIntRect& aCaretRect) MOZ_OVERRIDE;
     virtual bool RecvNotifyIMESelection(const uint32_t& aSeqno,
                                         const uint32_t& aAnchor,
                                         const uint32_t& aFocus);
@@ -237,19 +232,11 @@ public:
     AllocPContentPermissionRequestParent(const nsCString& aType, const nsCString& aAccess, const IPC::Principal& aPrincipal);
     virtual bool DeallocPContentPermissionRequestParent(PContentPermissionRequestParent* actor);
 
-    virtual POfflineCacheUpdateParent*
-    AllocPOfflineCacheUpdateParent(const URIParams& aManifestURI,
-                                   const URIParams& aDocumentURI,
-                                   const bool& aStickDocument) MOZ_OVERRIDE;
-    virtual bool
-    RecvPOfflineCacheUpdateConstructor(POfflineCacheUpdateParent* aActor,
-                                       const URIParams& aManifestURI,
-                                       const URIParams& aDocumentURI,
-                                       const bool& stickDocument) MOZ_OVERRIDE;
-    virtual bool
-    DeallocPOfflineCacheUpdateParent(POfflineCacheUpdateParent* aActor)
-                                     MOZ_OVERRIDE;
-
+    virtual POfflineCacheUpdateParent* AllocPOfflineCacheUpdateParent(
+            const URIParams& aManifestURI,
+            const URIParams& aDocumentURI,
+            const bool& stickDocument) MOZ_OVERRIDE;
+    virtual bool DeallocPOfflineCacheUpdateParent(POfflineCacheUpdateParent* actor);
     virtual bool RecvSetOfflinePermission(const IPC::Principal& principal);
 
     bool GetGlobalJSObject(JSContext* cx, JSObject** globalp);
@@ -324,9 +311,10 @@ protected:
 
     bool ShouldDelayDialogs();
     bool AllowContentIME();
-    nsIntPoint GetChildProcessOffset();
 
-    virtual PRenderFrameParent* AllocPRenderFrameParent() MOZ_OVERRIDE;
+    virtual PRenderFrameParent* AllocPRenderFrameParent(ScrollingBehavior* aScrolling,
+                                                        TextureFactoryIdentifier* aTextureFactoryIdentifier,
+                                                        uint64_t* aLayersId) MOZ_OVERRIDE;
     virtual bool DeallocPRenderFrameParent(PRenderFrameParent* aFrame) MOZ_OVERRIDE;
 
     // IME
@@ -341,10 +329,6 @@ protected:
     nsAutoString mIMECompositionText;
     uint32_t mIMECompositionStart;
     uint32_t mIMESeqno;
-
-    uint32_t mIMECompositionRectOffset;
-    nsIntRect mIMECompositionRect;
-    nsIntRect mIMECaretRect;
 
     // The number of event series we're currently capturing.
     int32_t mEventCaptureDepth;

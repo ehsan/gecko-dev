@@ -51,7 +51,7 @@ ErrorReporter(JSContext *cx, const char *message, JSErrorReport *report)
 }
 
 bool
-eval(const char *asciiChars, JSPrincipals *principals, JSPrincipals *originPrincipals, JS::MutableHandleValue rval)
+eval(const char *asciiChars, JSPrincipals *principals, JSPrincipals *originPrincipals, jsval *rval)
 {
     size_t len = strlen(asciiChars);
     jschar *chars = new jschar[len+1];
@@ -66,8 +66,7 @@ eval(const char *asciiChars, JSPrincipals *principals, JSPrincipals *originPrinc
     bool ok = JS_EvaluateUCScriptForPrincipalsVersionOrigin(cx, global,
                                                             principals,
                                                             originPrincipals,
-                                                            chars, len, "", 0,
-							    rval.address(),
+                                                            chars, len, "", 0, rval,
                                                             JSVERSION_DEFAULT);
     delete[] chars;
     return ok;
@@ -85,7 +84,7 @@ bool
 testInner(const char *asciiChars, JSPrincipals *principal, JSPrincipals *originPrincipal)
 {
     JS::RootedValue rval(cx);
-    CHECK(eval(asciiChars, principal, originPrincipal, &rval));
+    CHECK(eval(asciiChars, principal, originPrincipal, rval.address()));
 
     JSScript *script = JS_GetFunctionScript(cx, &rval.toObject().as<JSFunction>());
     CHECK(JS_GetScriptPrincipals(script) == principal);
@@ -97,7 +96,7 @@ testInner(const char *asciiChars, JSPrincipals *principal, JSPrincipals *originP
 bool
 testError(const char *asciiChars)
 {
-    JS::RootedValue rval(cx);
+    jsval rval;
     CHECK(!eval(asciiChars, &prin1, &prin2 /* = originPrincipals */, &rval));
     CHECK(JS_ReportPendingException(cx));
     CHECK(sOriginPrincipalsInErrorReporter == &prin2);

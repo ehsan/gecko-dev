@@ -247,7 +247,7 @@ struct JSCompartment
     js::types::TypeObjectWithNewScriptSet newTypeObjects;
     js::types::TypeObjectWithNewScriptSet lazyTypeObjects;
     void sweepNewTypeObjectTable(js::types::TypeObjectWithNewScriptSet &table);
-#if defined(JSGC_GENERATIONAL) and defined(JS_GC_ZEAL)
+#if defined(DEBUG) && defined(JSGC_GENERATIONAL)
     void checkNewTypeObjectTableAfterMovingGC();
     void checkInitialShapesTableAfterMovingGC();
     void checkWrapperMapAfterMovingGC();

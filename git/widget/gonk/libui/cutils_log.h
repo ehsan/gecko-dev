@@ -25,8 +25,7 @@
 // supports O_APPEND.  These calls have mutex-protected data structures
 // and so are NOT reentrant.  Do not use LOG in a signal handler.
 //
-#if !defined(_LIBS_CUTILS_LOG_H) && !defined(_LIBS_LOG_LOG_H)
-#define _LIBS_LOG_LOG_H
+#ifndef _LIBS_CUTILS_LOG_H
 #define _LIBS_CUTILS_LOG_H
 
 #include <stdio.h>
@@ -38,13 +37,8 @@
 #endif
 #include <stdarg.h>
 
-#if ANDROID_VERSION >= 19
-#include <log/uio.h>
-#include <log/logd.h>
-#else
 #include <cutils/uio.h>
 #include <cutils/logd.h>
-#endif
 
 #ifdef __cplusplus
 extern "C" {

@@ -586,7 +586,7 @@ CancelCompositing(Rect* aRenderBoundsOut)
 void
 CompositorD3D9::BeginFrame(const nsIntRegion& aInvalidRegion,
                            const Rect *aClipRectIn,
-                           const gfx::Matrix& aTransform,
+                           const gfxMatrix& aTransform,
                            const Rect& aRenderBounds,
                            Rect *aClipRectOut,
                            Rect *aRenderBoundsOut)

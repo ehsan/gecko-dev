@@ -98,7 +98,7 @@ class JSAPITest
 
     bool evaluate(const char *bytes, const char *filename, int lineno, jsval *vp);
 
-    JSAPITestString jsvalToSource(JS::HandleValue v) {
+    JSAPITestString jsvalToSource(jsval v) {
         JSString *str = JS_ValueToSource(cx, v);
         if (str) {
             JSAutoByteString bytes(cx, str);
@@ -146,8 +146,7 @@ class JSAPITest
     }
 
     JSAPITestString toSource(JSAtom *v) {
-        JS::RootedValue val(cx, JS::StringValue((JSString *)v));
-        return jsvalToSource(val);
+        return jsvalToSource(STRING_TO_JSVAL((JSString*)v));
     }
 
     JSAPITestString toSource(JSVersion v) {

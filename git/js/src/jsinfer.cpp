@@ -4073,7 +4073,7 @@ ExclusiveContext::getNewType(const Class *clasp, TaggedProto proto, JSFunction *
     return type;
 }
 
-#if defined(JSGC_GENERATIONAL) and defined(JS_GC_ZEAL)
+#if defined(DEBUG) && defined(JSGC_GENERATIONAL)
 void
 JSCompartment::checkNewTypeObjectTableAfterMovingGC()
 {

@@ -2370,7 +2370,6 @@ BluetoothDBusService::SetProperty(BluetoothObjectType aType,
   int type;
   int tmp_int;
   void* val;
-  const char* tempStr;
   nsCString str;
   if (aValue.value().type() == BluetoothValue::Tuint32_t) {
     tmp_int = aValue.value().get_uint32_t();
@@ -2378,7 +2377,7 @@ BluetoothDBusService::SetProperty(BluetoothObjectType aType,
     type = DBUS_TYPE_UINT32;
   } else if (aValue.value().type() == BluetoothValue::TnsString) {
     str = NS_ConvertUTF16toUTF8(aValue.value().get_nsString());
-    tempStr = str.get();
+    const char* tempStr = str.get();
     val = &tempStr;
     type = DBUS_TYPE_STRING;
   } else if (aValue.value().type() == BluetoothValue::Tbool) {
