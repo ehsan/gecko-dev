@@ -96,12 +96,6 @@ SubBufferDecoder::GetImageContainer()
   return mParentDecoder->GetImageContainer();
 }
 
-MediaDecoderOwner*
-SubBufferDecoder::GetOwner()
-{
-  return mParentDecoder->GetOwner();
-}
-
 int64_t
 SubBufferDecoder::ConvertToByteOffset(double aTime)
 {
@@ -499,18 +493,10 @@ SourceBuffer::Evict(double aStart, double aEnd)
 bool
 SourceBuffer::ContainsTime(double aTime)
 {
-  ErrorResult dummy;
-  nsRefPtr<TimeRanges> ranges = GetBuffered(dummy);
-  if (!ranges || ranges->Length() == 0) {
-    return false;
-  }
-  for (uint32_t i = 0; i < ranges->Length(); ++i) {
-    if (aTime >= ranges->Start(i, dummy) &&
-        aTime <= ranges->End(i, dummy)) {
-      return true;
-    }
-  }
-  return false;
+  double start = 0.0;
+  double end = 0.0;
+  GetBufferedStartEndTime(&start, &end);
+  return aTime >= start && aTime <= end;
 }
 
 NS_IMPL_CYCLE_COLLECTION_INHERITED(SourceBuffer, DOMEventTargetHelper,

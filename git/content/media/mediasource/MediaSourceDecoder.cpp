@@ -480,8 +480,6 @@ MediaSourceReader::ReadMetadata(MediaInfo* aInfo, MetadataTags** aTags)
   if (maxDuration != -1) {
     ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
     mDecoder->SetMediaDuration(maxDuration);
-    ErrorResult dummy;
-    mMediaSource->SetDuration(maxDuration, dummy);
   }
 
   *aInfo = mInfo;

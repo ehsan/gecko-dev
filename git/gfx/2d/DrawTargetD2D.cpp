@@ -1222,7 +1222,7 @@ DrawTargetD2D::OptimizeSourceSurface(SourceSurface *aSurface) const
   data->Unmap();
 
   if (!success) {
-    return data;
+    return nullptr;
   }
   return newSurf;
 }

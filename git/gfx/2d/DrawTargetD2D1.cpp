@@ -943,7 +943,7 @@ DrawTargetD2D1::OptimizeSourceSurface(SourceSurface* aSurface) const
   data->Unmap();
 
   if (!bitmap) {
-    return data;
+    return nullptr;
   }
 
   return new SourceSurfaceD2D1(bitmap.get(), mDC, data->GetFormat(), data->GetSize());
