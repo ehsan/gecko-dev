@@ -54,7 +54,7 @@ function LoginRec(collection, id) {
 }
 LoginRec.prototype = {
   __proto__: CryptoWrapper.prototype,
-  _logName: "Sync.Record.Login",
+  _logName: "Record.Login",
 };
 
 Utils.deferGetSet(LoginRec, "cleartext", ["hostname", "formSubmitURL",

@@ -311,6 +311,7 @@ MAKEFILES_libreg="
   modules/libreg/Makefile
   modules/libreg/include/Makefile
   modules/libreg/src/Makefile
+  modules/libreg/standalone/Makefile
 "
 
 MAKEFILES_libpref="

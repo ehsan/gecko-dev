@@ -65,7 +65,7 @@ function TabSetRecord(collection, id) {
 }
 TabSetRecord.prototype = {
   __proto__: CryptoWrapper.prototype,
-  _logName: "Sync.Record.Tabs",
+  _logName: "Record.Tabs",
   ttl: TABS_TTL
 };
 
