@@ -50,7 +50,11 @@ CPU_ARCH	:= $(shell uname -p)
 endif
 
 ifeq (,$(filter-out i%86,$(CPU_ARCH)))
+ifdef USE_64
+CC              += -arch x86_64
+else
 OS_REL_CFLAGS	= -Di386
+endif
 else
 OS_REL_CFLAGS	= -Dppc
 endif
@@ -108,6 +112,9 @@ ifeq (11,$(ALLOW_OPT_CODE_SIZE)$(OPT_CODE_SIZE))
 	OPTIMIZER       = -Oz
 else
 	OPTIMIZER	= -O2
+endif
+ifdef MOZ_DEBUG_SYMBOLS
+	OPTIMIZER  += -gdwarf-2 -gfull
 endif
 endif
 

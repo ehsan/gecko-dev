@@ -45,7 +45,6 @@ include $(DEPTH)/config/autoconf.mk
 
 MODULE    = xulrunner
 
-REQUIRES  = xpcom string xulapp
 
 CPPSRCS   = nsXULStub.cpp
 
@@ -67,13 +66,13 @@ LIBS = \
   $(NULL)
 
 # Need to link with CoreFoundation on Mac
-ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
+ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
 LIBS            += \
 		$(TK_LIBS) \
 		$(NULL)
 endif
 
-ifeq (WINNT,$(OS_ARCH))
+ifneq (,$(filter WINNT WINCE,$(OS_ARCH)))
 RCINCLUDE = xulrunner-stub.rc
 ifndef GNU_CC
 RCFLAGS += -DMOZ_XULRUNNER -I$(srcdir)
@@ -94,8 +93,14 @@ endif
 include $(topsrcdir)/config/config.mk
 
 ifdef _MSC_VER
+ifdef WINCE
+WIN32_EXE_LDFLAGS += -ENTRY:mainWCRTStartup
+else
 WIN32_EXE_LDFLAGS += -ENTRY:wmainCRTStartup
 endif
+endif
+
+LIBS += $(JEMALLOC_LIBS)
 
 include $(topsrcdir)/config/rules.mk
 

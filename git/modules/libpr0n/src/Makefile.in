@@ -49,24 +49,18 @@ MODULE_NAME	= nsImageLib2Module
 GRE_MODULE	= 1
 LIBXUL_LIBRARY  = 1
 
-REQUIRES	= xpcom \
-		  string \
-		  necko \
-		  nkcache \
-		  gfx \
-		  thebes \
-		  caps \
-		  xpconnect \
-		  js \
-		  $(NULL)
 
 CPPSRCS		= \
-			imgCache.cpp     \
 			imgContainer.cpp \
+			imgFrame.cpp \
 			imgLoader.cpp    \
 			imgRequest.cpp   \
 			imgRequestProxy.cpp \
 			imgTools.cpp
 
 include $(topsrcdir)/config/rules.mk
+
+# Because imgFrame.cpp includes "cairo.h"
+CXXFLAGS += $(MOZ_CAIRO_CFLAGS)
+
 

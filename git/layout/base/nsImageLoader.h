@@ -37,28 +37,53 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-/* class to notify frames of background image loads */
+/* class to notify frames of background and border image loads */
 
 #include "nsStubImageDecoderObserver.h"
 
-class nsPresContext;
 class nsIFrame;
 class nsIURI;
 
 #include "imgIRequest.h"
 #include "nsCOMPtr.h"
+#include "nsAutoPtr.h"
 
+/**
+ * Image loaders pass notifications for background and border image
+ * loading and animation on to the frames.
+ *
+ * Each frame's image loaders form a linked list.
+ */
 class nsImageLoader : public nsStubImageDecoderObserver
 {
-public:
-  nsImageLoader();
+private:
+  nsImageLoader(nsIFrame *aFrame, PRUint32 aActions,
+                nsImageLoader *aNextLoader);
   virtual ~nsImageLoader();
+
+public:
+  /*
+   * Flags to specify actions that can be taken for the image at various
+   * times. Reflows always occur before redraws. "Decode" refers to one
+   * frame being available, whereas "load" refers to all the data being loaded
+   * from the network.
+   */
+  enum {
+    ACTION_REFLOW_ON_DECODE = 0x01,
+    ACTION_REDRAW_ON_DECODE = 0x02,
+    ACTION_REFLOW_ON_LOAD   = 0x04,
+    ACTION_REDRAW_ON_LOAD   = 0x08
+  };
+  static already_AddRefed<nsImageLoader>
+    Create(nsIFrame *aFrame, imgIRequest *aRequest,
+           PRUint32 aActions, nsImageLoader *aNextLoader);
 
   NS_DECL_ISUPPORTS
 
   // imgIDecoderObserver (override nsStubImageDecoderObserver)
   NS_IMETHOD OnStartContainer(imgIRequest *aRequest, imgIContainer *aImage);
-  NS_IMETHOD OnStopFrame(imgIRequest *aRequest, gfxIImageFrame *aFrame);
+  NS_IMETHOD OnStopFrame(imgIRequest *aRequest, PRUint32 aFrame);
+  NS_IMETHOD OnStopRequest(imgIRequest *aRequest, PRBool aLastPart);
   // Do not override OnDataAvailable since background images are not
   // displayed incrementally; they are displayed after the entire image
   // has been loaded.
@@ -66,22 +91,21 @@ public:
   // incrementally in nsImageFrame.cpp.
 
   // imgIContainerObserver (override nsStubImageDecoderObserver)
-  NS_IMETHOD FrameChanged(imgIContainer *aContainer, gfxIImageFrame *newframe,
-                          nsRect * dirtyRect);
-
-  void Init(nsIFrame *aFrame, nsPresContext *aPresContext);
-  nsresult Load(imgIRequest *aImage);
+  NS_IMETHOD FrameChanged(imgIContainer *aContainer, nsIntRect *dirtyRect);
 
   void Destroy();
 
-  nsIFrame *GetFrame() { return mFrame; }
   imgIRequest *GetRequest() { return mRequest; }
+  nsImageLoader *GetNextLoader() { return mNextLoader; }
 
 private:
-  void RedrawDirtyFrame(const nsRect* aDamageRect);
+  nsresult Load(imgIRequest *aImage);
+  void DoReflow();
+  /* if aDamageRect is nsnull, the whole frame is redrawn. */
+  void DoRedraw(const nsRect* aDamageRect);
 
-private:
   nsIFrame *mFrame;
-  nsPresContext *mPresContext;
   nsCOMPtr<imgIRequest> mRequest;
+  PRUint32 mActions;
+  nsRefPtr<nsImageLoader> mNextLoader;
 };

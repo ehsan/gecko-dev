@@ -50,20 +50,6 @@ MODULE_NAME	= nsImageLib2Module
 GRE_MODULE	= 1
 LIBXUL_LIBRARY = 1
 
-PACKAGE_FILE = imglib2.pkg
-
-REQUIRES	= xpcom \
-		  string \
-		  thebes \
-		  necko \
-		  nkcache \
-		  gfx \
-		  caps \
-		  $(JPEG_REQUIRES) \
-		  $(PNG_REQUIRES) \
-		  $(ZLIB_REQUIRES) \
-		  $(LCMS_REQUIRES) \
-		  $(NULL)
 
 CPPSRCS = \
 		nsImageModule.cpp \
@@ -95,7 +81,7 @@ EXTRA_DSO_LDOPTS = \
 		$(LIBS_DIR) \
 		$(JPEG_LIBS) \
 		$(PNG_LIBS) $(ZLIB_LIBS) \
-		$(LCMS_LIBS) \
+		$(QCMS_LIBS) \
 		$(EXTRA_DSO_LIBS) \
 		$(MOZ_COMPONENT_LIBS) \
 		$(NULL)

@@ -42,12 +42,9 @@ VPATH		= @srcdir@
 
 include $(DEPTH)/config/autoconf.mk
 
-REQUIRES	= xpcom \
-		  string \
-		  unicharutil \
-		  necko \
-		  uconv \
-		  $(NULL)
+MODULE		= test_intl_unicharutil
+XPCSHELL_TESTS	= unit
+
 
 CPPSRCS		= UnicharSelfTest.cpp \
 		  NormalizationTest.cpp \

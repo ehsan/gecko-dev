@@ -64,7 +64,7 @@ var timer = null;
 function run_test()
 {
   httpserv = new nsHttpServer();
-  httpserv.registerDirectory("/", dirSvc.get("ProfD", Ci.nsILocalFile));
+  httpserv.registerDirectory("/", do_get_cwd());
   httpserv.start(4444);
 
   // our download listener
@@ -78,10 +78,8 @@ function run_test()
         timer.init(observer, 0, Ci.nsITimer.TYPE_ONE_SHOT);
       }
 
-      if (Ci.nsIDownloadManager.DOWNLOAD_FINISHED == aDownload.state) {
-        httpserv.stop();
+      if (Ci.nsIDownloadManager.DOWNLOAD_FINISHED == aDownload.state)
         do_test_finished();
-      }
     },
     onStateChange: function(a, b, c, d, e) { },
     onProgressChange: function(a, b, c, d, e, f, g) { },

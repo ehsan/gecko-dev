@@ -1,4 +1,4 @@
-/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -40,25 +40,33 @@
 /*
  * JS boolean implementation.
  */
-#include "jsstddef.h"
 #include "jstypes.h"
+#include "jsstdint.h"
 #include "jsutil.h" /* Added by JSIFY */
 #include "jsapi.h"
 #include "jsatom.h"
 #include "jsbool.h"
 #include "jscntxt.h"
-#include "jsconfig.h"
-#include "jsinterp.h"
+#include "jsversion.h"
 #include "jslock.h"
 #include "jsnum.h"
 #include "jsobj.h"
 #include "jsstr.h"
+#include "jsvector.h"
+
+/* Check pseudo-booleans values. */
+JS_STATIC_ASSERT(!(JSVAL_TRUE & JSVAL_HOLE_FLAG));
+JS_STATIC_ASSERT(!(JSVAL_FALSE & JSVAL_HOLE_FLAG));
+JS_STATIC_ASSERT(!(JSVAL_VOID & JSVAL_HOLE_FLAG));
+JS_STATIC_ASSERT((JSVAL_HOLE & JSVAL_HOLE_FLAG));
+JS_STATIC_ASSERT((JSVAL_HOLE & ~JSVAL_HOLE_FLAG) == JSVAL_VOID);
+JS_STATIC_ASSERT(!(JSVAL_ARETURN & JSVAL_HOLE_FLAG));
 
 JSClass js_BooleanClass = {
     "Boolean",
-    JSCLASS_HAS_PRIVATE | JSCLASS_HAS_CACHED_PROTO(JSProto_Boolean),
+    JSCLASS_HAS_RESERVED_SLOTS(1) | JSCLASS_HAS_CACHED_PROTO(JSProto_Boolean),
     JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,
-    JS_EnumerateStub, JS_ResolveStub,   JS_ConvertStub,   JS_FinalizeStub,
+    JS_EnumerateStub, JS_ResolveStub,   JS_ConvertStub,   NULL,
     JSCLASS_NO_OPTIONAL_MEMBERS
 };
 
@@ -112,10 +120,11 @@ bool_valueOf(JSContext *cx, uintN argc, jsval *vp)
 
 static JSFunctionSpec boolean_methods[] = {
 #if JS_HAS_TOSOURCE
-    JS_FN(js_toSource_str,  bool_toSource,  0, 0, JSFUN_THISP_BOOLEAN),
+    JS_FN(js_toSource_str,  bool_toSource,  0, JSFUN_THISP_BOOLEAN),
 #endif
-    JS_FN(js_toString_str,  bool_toString,  0, 0, JSFUN_THISP_BOOLEAN),
-    JS_FN(js_valueOf_str,   bool_valueOf,   0, 0, JSFUN_THISP_BOOLEAN),
+    JS_FN(js_toString_str,  bool_toString,  0, JSFUN_THISP_BOOLEAN),
+    JS_FN(js_valueOf_str,   bool_valueOf,   0, JSFUN_THISP_BOOLEAN),
+    JS_FN(js_toJSON_str,    bool_valueOf,   0, JSFUN_THISP_BOOLEAN),
     JS_FS_END
 };
 
@@ -127,12 +136,11 @@ Boolean(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     bval = (argc != 0)
            ? BOOLEAN_TO_JSVAL(js_ValueToBoolean(argv[0]))
            : JSVAL_FALSE;
-    if (!(cx->fp->flags & JSFRAME_CONSTRUCTING)) {
+    if (!JS_IsConstructing(cx))
         *rval = bval;
-        return JS_TRUE;
-    }
-    STOBJ_SET_SLOT(obj, JSSLOT_PRIVATE, bval);
-    return JS_TRUE;
+    else
+        obj->fslots[JSSLOT_PRIMITIVE_THIS] = bval;
+    return true;
 }
 
 JSObject *
@@ -144,7 +152,7 @@ js_InitBooleanClass(JSContext *cx, JSObject *obj)
                         NULL, boolean_methods, NULL, NULL);
     if (!proto)
         return NULL;
-    STOBJ_SET_SLOT(proto, JSSLOT_PRIVATE, JSVAL_FALSE);
+    proto->fslots[JSSLOT_PRIMITIVE_THIS] = JSVAL_FALSE;
     return proto;
 }
 
@@ -152,6 +160,13 @@ JSString *
 js_BooleanToString(JSContext *cx, JSBool b)
 {
     return ATOM_TO_STRING(cx->runtime->atomState.booleanAtoms[b ? 1 : 0]);
+}
+
+/* This function implements E-262-3 section 9.8, toString. */
+JSBool
+js_BooleanToCharBuffer(JSContext *cx, JSBool b, JSCharBuffer &cb)
+{
+    return b ? js_AppendLiteral(cb, "true") : js_AppendLiteral(cb, "false");
 }
 
 JSBool
@@ -162,7 +177,7 @@ js_ValueToBoolean(jsval v)
     if (JSVAL_IS_OBJECT(v))
         return JS_TRUE;
     if (JSVAL_IS_STRING(v))
-        return JSSTRING_LENGTH(JSVAL_TO_STRING(v)) != 0;
+        return JSVAL_TO_STRING(v)->length() != 0;
     if (JSVAL_IS_INT(v))
         return JSVAL_TO_INT(v) != 0;
     if (JSVAL_IS_DOUBLE(v)) {

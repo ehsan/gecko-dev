@@ -51,21 +51,6 @@ MODULE_NAME    = RemoteServiceModule
 
 LIBXUL_LIBRARY = 1
 
-REQUIRES = \
-	xpcom \
-	string \
-	appcomps \
-	toolkitcomps \
-	appshell \
-	layout \
-	xulapp \
-	widget \
-	gfx \
-	dom \
-	content \
-	layout \
-	docshell \
-	$(NULL)
 
 XPIDLSRCS = nsIRemoteService.idl
 
@@ -75,6 +60,10 @@ endif
 
 ifeq (photon,$(MOZ_WIDGET_TOOLKIT))
 CPPSRCS += nsPhRemoteService.cpp
+endif
+
+ifeq (qt,$(MOZ_WIDGET_TOOLKIT))
+CPPSRCS += nsQtRemoteService.cpp
 endif
 
 include $(topsrcdir)/config/rules.mk

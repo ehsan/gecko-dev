@@ -41,8 +41,7 @@
  */
 
 #include "nsILayoutDebugger.h"
-#include "nsIFrame.h"
-#include "nsIFrameDebug.h"
+#include "nsFrame.h"
 #include "nsDisplayList.h"
 
 #include <stdio.h>
@@ -101,28 +100,28 @@ NS_IMPL_ISUPPORTS1(nsLayoutDebugger, nsILayoutDebugger)
 NS_IMETHODIMP
 nsLayoutDebugger::SetShowFrameBorders(PRBool aEnable)
 {
-  nsIFrameDebug::ShowFrameBorders(aEnable);
+  nsFrame::ShowFrameBorders(aEnable);
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsLayoutDebugger::GetShowFrameBorders(PRBool* aResult)
 {
-  *aResult = nsIFrameDebug::GetShowFrameBorders();
+  *aResult = nsFrame::GetShowFrameBorders();
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsLayoutDebugger::SetShowEventTargetFrameBorder(PRBool aEnable)
 {
-  nsIFrameDebug::ShowEventTargetFrameBorder(aEnable);
+  nsFrame::ShowEventTargetFrameBorder(aEnable);
   return NS_OK;
 }
 
 NS_IMETHODIMP
 nsLayoutDebugger::GetShowEventTargetFrameBorder(PRBool* aResult)
 {
-  *aResult = nsIFrameDebug::GetShowEventTargetFrameBorder();
+  *aResult = nsFrame::GetShowEventTargetFrameBorder();
   return NS_OK;
 }
 
@@ -159,13 +158,9 @@ PrintDisplayListTo(nsDisplayListBuilder* aBuilder, const nsDisplayList& aList,
       fputc(' ', aOutput);
     }
     nsIFrame* f = i->GetUnderlyingFrame();
-    nsIFrameDebug* fDebug = nsnull;
-    if (f) {
-      CallQueryInterface(f, &fDebug);
-    }
     nsAutoString fName;
-    if (fDebug) {
-      fDebug->GetFrameName(fName);
+    if (f) {
+      f->GetFrameName(fName);
     }
     nsRect rect = i->GetBounds(aBuilder);
     switch (i->GetType()) {
@@ -189,11 +184,16 @@ PrintDisplayListTo(nsDisplayListBuilder* aBuilder, const nsDisplayList& aList,
     if (list) {
       PrintDisplayListTo(aBuilder, *list, aIndent + 4, aOutput);
     }
+    if (i->GetType() == nsDisplayItem::TYPE_TRANSFORM) {
+      nsDisplayTransform* t = static_cast<nsDisplayTransform*>(i);
+      PrintDisplayListTo(aBuilder, *(t->GetStoredList()->GetList()), aIndent + 4, aOutput);
+    }
   }
 }
 
 void
-nsIFrameDebug::PrintDisplayList(nsDisplayListBuilder* aBuilder, const nsDisplayList& aList)
+nsFrame::PrintDisplayList(nsDisplayListBuilder* aBuilder,
+                          const nsDisplayList& aList)
 {
   PrintDisplayListTo(aBuilder, aList, 0, stderr);
 }

@@ -166,7 +166,10 @@ ServiceInfo.prototype = {
   }
 };
 
-function WebContentConverterRegistrar() {}
+function WebContentConverterRegistrar() {
+  this._contentTypes = { };
+  this._autoHandleContentTypes = { };
+}
 
 WebContentConverterRegistrar.prototype = {
   get stringBundle() {
@@ -184,14 +187,6 @@ WebContentConverterRegistrar.prototype = {
   _getString: function WCCR_getString(key) {
     return this.stringBundle.GetStringFromName(key);
   },
-
-  _contentTypes: { },
-
-  /**
-   * Track auto handlers for various content types using a content-type to 
-   * handler map.
-   */
-  _autoHandleContentTypes: { },
 
   /**
    * See nsIWebContentConverterService
@@ -811,7 +806,7 @@ WebContentConverterRegistrar.prototype = {
      * branch and stop cycling once that's true.  This doesn't fix the case
      * where a user manually removes a reader, but that's not supported yet!
      */
-    var vals = branch.getChildList("", {});
+    var vals = branch.getChildList("");
     if (vals.length == 0)
       return;
 
@@ -837,7 +832,7 @@ WebContentConverterRegistrar.prototype = {
         getService(Ci.nsIPrefService);
 
     var kids = ps.getBranch(PREF_CONTENTHANDLERS_BRANCH)
-                 .getChildList("", {});
+                 .getChildList("");
 
     // first get the numbers of the providers by getting all ###.uri prefs
     var nums = [];
@@ -862,7 +857,7 @@ WebContentConverterRegistrar.prototype = {
     // so that getWebContentHandlerByURI can return successfully.
     try {
       var autoBranch = ps.getBranch(PREF_CONTENTHANDLERS_AUTO);
-      var childPrefs = autoBranch.getChildList("", { });
+      var childPrefs = autoBranch.getChildList("");
       for (var i = 0; i < childPrefs.length; ++i) {
         var type = childPrefs[i];
         var uri = autoBranch.getCharPref(type);
@@ -887,10 +882,10 @@ WebContentConverterRegistrar.prototype = {
         getService(Ci.nsIObserverService);
     switch (topic) {
     case "app-startup":
-      os.addObserver(this, "profile-after-change", false);
+      os.addObserver(this, "browser-ui-startup-complete", false);
       break;
-    case "profile-after-change":
-      os.removeObserver(this, "profile-after-change");
+    case "browser-ui-startup-complete":
+      os.removeObserver(this, "browser-ui-startup-complete");
       this._init();
       break;
     }
@@ -944,6 +939,4 @@ WebContentConverterRegistrar.prototype = {
 function NSGetModule(cm, file) {
   return XPCOMUtils.generateModule([WebContentConverterRegistrar]);
 }
-
-#include ../../../../toolkit/content/debug.js
 

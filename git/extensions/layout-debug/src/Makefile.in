@@ -49,26 +49,6 @@ IS_COMPONENT	= 1
 MODULE_NAME	= nsLayoutDebugModule
 LIBXUL_LIBRARY = 1
 
-REQUIRES	= xpcom \
-		  string \
-		  windowwatcher \
-		  docshell \
-		  dom \
-		  gfx \
-		  thebes \
-		  content \
-		  necko \
-		  layout \
-		  widget \
-		  locale \
-		  view \
-		  pref \
-		  toolkitcomps \
-		  $(NULL)
-
-ifndef MOZ_XUL_APP
-REQUIRES	+= appcomps
-endif
 
 XPIDLSRCS	= \
 		nsILayoutRegressionTester.idl \

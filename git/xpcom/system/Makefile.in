@@ -47,8 +47,11 @@ XPIDL_MODULE    = xpcom_system
 
 XPIDLSRCS = \
         nsIXULAppInfo.idl \
+        nsIXULRuntime.idl \
         nsIGConfService.idl \
         nsIGnomeVFSService.idl \
+        nsIBlocklistService.idl \
+        nsIGIOService.idl \
         $(NULL)
 
 ifdef MOZ_CRASHREPORTER

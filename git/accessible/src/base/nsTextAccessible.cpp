@@ -38,60 +38,26 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-// NOTE: alphabetically ordered
 #include "nsTextAccessible.h"
 
-// ------------
-// Text Accessibles
-// ------------
+////////////////////////////////////////////////////////////////////////////////
+// nsTextAccessible
+////////////////////////////////////////////////////////////////////////////////
 
-nsTextAccessible::nsTextAccessible(nsIDOMNode* aDOMNode, nsIWeakReference* aShell):
-nsLinkableAccessible(aDOMNode, aShell)
-{ 
+nsTextAccessible::
+  nsTextAccessible(nsIDOMNode* aDOMNode, nsIWeakReference* aShell) :
+  nsLinkableAccessible(aDOMNode, aShell)
+{
 }
 
-// Make sure we don't support text or other irrelevant interfaces.
-// We have nsLinkableAccessible in our inheritance chain as a convenience in order to
-// get link actions and states on the text accessibles. Windows screen readers expect that.
-NS_IMPL_ISUPPORTS_INHERITED2(nsTextAccessible, nsAccessNode, nsIAccessible, nsPIAccessible)
-
-/**
-  * We are text
-  */
-NS_IMETHODIMP nsTextAccessible::GetRole(PRUint32 *_retval)
+nsresult
+nsTextAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  *_retval = nsIAccessibleRole::ROLE_TEXT_LEAF;
+  *aRole = nsIAccessibleRole::ROLE_TEXT_LEAF;
   return NS_OK;
 }
 
-/**
-  * No Children
-  */
-NS_IMETHODIMP nsTextAccessible::GetFirstChild(nsIAccessible **_retval)
-{
-  *_retval = nsnull;
-  return NS_OK;
-}
-
-/**
-  * No Children
-  */
-NS_IMETHODIMP nsTextAccessible::GetLastChild(nsIAccessible **_retval)
-{
-  *_retval = nsnull;
-  return NS_OK;
-}
-
-/**
-  * No Children
-  */
-NS_IMETHODIMP nsTextAccessible::GetChildCount(PRInt32 *_retval)
-{
-  *_retval = 0;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
+nsresult
 nsTextAccessible::AppendTextTo(nsAString& aText, PRUint32 aStartOffset, PRUint32 aLength)
 {
   nsIFrame *frame = GetFrame();
@@ -100,3 +66,9 @@ nsTextAccessible::AppendTextTo(nsAString& aText, PRUint32 aStartOffset, PRUint32
   return frame->GetRenderedText(&aText, nsnull, nsnull, aStartOffset, aLength);
 }
 
+void
+nsTextAccessible::CacheChildren()
+{
+  // No children for text accessible.
+  mAccChildCount = IsDefunct() ? eChildCountUninitialized : 0;
+}

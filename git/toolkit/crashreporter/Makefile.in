@@ -45,18 +45,17 @@ MODULE = crashreporter
 LIBXUL_LIBRARY = 1
 LIBRARY_NAME = exception_handler_s
 
-REQUIRES = \
-	xpcom \
-	string \
-	$(NULL)
 
 DIRS = \
 	$(NULL)
 
 ifeq  ($(OS_ARCH),WINNT)
-	DIRS += google-breakpad/src/common/windows \
-		google-breakpad/src/client/windows \
-		$(NULL)
+DIRS += \
+  google-breakpad/src/common/windows \
+  google-breakpad/src/client/windows/handler \
+  google-breakpad/src/client/windows/sender \
+  google-breakpad/src/client/windows/crash_generation \
+  $(NULL)
 endif
 
 ifeq ($(OS_ARCH),Darwin)

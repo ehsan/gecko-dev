@@ -40,6 +40,8 @@
 
 #include "nsBidiKeyboard.h"
 #include "nsObjCExceptions.h"
+#include "nsCocoaUtils.h"
+#include "nsCocoaTextInputHandler.h"
 
 #import <Carbon/Carbon.h>
 
@@ -57,6 +59,10 @@ NS_IMETHODIMP nsBidiKeyboard::IsLangRTL(PRBool *aIsRTL)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
+#ifdef NS_LEOPARD_AND_LATER
+  *aIsRTL = nsTISInputSource::CurrentKeyboardLayout().IsForRTLLanguage();
+  return NS_OK;
+#else  
   *aIsRTL = PR_FALSE;
   nsresult rv = NS_ERROR_FAILURE;
 
@@ -80,6 +86,7 @@ NS_IMETHODIMP nsBidiKeyboard::IsLangRTL(PRBool *aIsRTL)
   }
 
   return rv;
+#endif
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }

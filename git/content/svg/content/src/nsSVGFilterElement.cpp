@@ -77,12 +77,10 @@ NS_IMPL_NS_NEW_SVG_ELEMENT(Filter)
 NS_IMPL_ADDREF_INHERITED(nsSVGFilterElement,nsSVGFilterElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGFilterElement,nsSVGFilterElementBase)
 
-NS_INTERFACE_MAP_BEGIN(nsSVGFilterElement)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMNode)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMElement)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGElement)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGFilterElement)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGURIReference)
+NS_INTERFACE_TABLE_HEAD(nsSVGFilterElement)
+  NS_NODE_INTERFACE_TABLE5(nsSVGFilterElement, nsIDOMNode, nsIDOMElement,
+                           nsIDOMSVGElement, nsIDOMSVGFilterElement,
+                           nsIDOMSVGURIReference)
   NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGFilterElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGFilterElementBase)
 
@@ -174,20 +172,6 @@ nsSVGFilterElement::GetHref(nsIDOMSVGAnimatedString * *aHref)
 
 //----------------------------------------------------------------------
 // nsIContent methods
-
-PRBool
-nsSVGFilterElement::ParseAttribute(PRInt32 aNameSpaceID, nsIAtom* aName,
-                                   const nsAString& aValue,
-                                   nsAttrValue& aResult)
-{
-  if (aName == nsGkAtoms::filterRes && aNameSpaceID == kNameSpaceID_None) {
-    return ParseIntegerOptionalInteger(aName, aValue,
-                                       FILTERRES_X, FILTERRES_Y,
-                                       aResult);
-  }
-  return nsSVGFilterElementBase::ParseAttribute(aNameSpaceID, aName,
-                                                aValue, aResult);
-}
 
 NS_IMETHODIMP_(PRBool)
 nsSVGFilterElement::IsAttributeMapped(const nsIAtom* name) const

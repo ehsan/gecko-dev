@@ -51,7 +51,6 @@
 #include "nsIPrefBranch.h"
 #include "nsIPrefService.h"
 
-#include "nsIWidget.h"
 #include "nsIWindowMediator.h"
 #include "nsIWindowWatcher.h"
 #include "nsPIWindowWatcher.h"
@@ -78,11 +77,12 @@
 #include "nsIUnicodeDecoder.h"
 
 // Default URL for the hidden window, can be overridden by a pref on Mac
-#define DEFAULT_HIDDENWINDOW_URL "resource://gre/res/hiddenWindow.html"
+#define DEFAULT_HIDDENWINDOW_URL "resource://gre-resources/hiddenWindow.html"
 
 class nsIAppShell;
 
 nsAppShellService::nsAppShellService() : 
+  mXPCOMWillShutDown(PR_FALSE),
   mXPCOMShuttingDown(PR_FALSE),
   mModalWindowCount(0),
   mApplicationProvidedHiddenWindow(PR_FALSE)
@@ -90,8 +90,10 @@ nsAppShellService::nsAppShellService() :
   nsCOMPtr<nsIObserverService> obs
     (do_GetService("@mozilla.org/observer-service;1"));
 
-  if (obs)
+  if (obs) {
+    obs->AddObserver(this, "xpcom-will-shutdown", PR_FALSE);
     obs->AddObserver(this, "xpcom-shutdown", PR_FALSE);
+  }
 }
 
 nsAppShellService::~nsAppShellService()
@@ -239,7 +241,10 @@ nsAppShellService::CreateTopLevelWindow(nsIXULWindow *aParent,
   if (NS_SUCCEEDED(rv)) {
     // the addref resulting from this is the owning addref for this window
     RegisterTopLevelWindow(*aResult);
-    (*aResult)->SetZLevel(CalculateWindowZLevel(aParent, aChromeMask));
+    nsCOMPtr<nsIXULWindow> parent;
+    if (aChromeMask & nsIWebBrowserChrome::CHROME_DEPENDENT)
+      parent = aParent;
+    (*aResult)->SetZLevel(CalculateWindowZLevel(parent, aChromeMask));
   }
 
   return rv;
@@ -295,8 +300,13 @@ nsAppShellService::JustCreateTopWindow(nsIXULWindow *aParent,
                                        nsWebShellWindow **aResult)
 {
   *aResult = nsnull;
+  NS_ENSURE_STATE(!mXPCOMWillShutDown);
 
-  nsRefPtr<nsWebShellWindow> window = new nsWebShellWindow();
+  nsCOMPtr<nsIXULWindow> parent;
+  if (aChromeMask & nsIWebBrowserChrome::CHROME_DEPENDENT)
+    parent = aParent;
+
+  nsRefPtr<nsWebShellWindow> window = new nsWebShellWindow(aChromeMask);
   NS_ENSURE_TRUE(window, NS_ERROR_OUT_OF_MEMORY);
 
   nsWidgetInitData widgetInitData;
@@ -320,7 +330,7 @@ nsAppShellService::JustCreateTopWindow(nsIXULWindow *aParent,
   PRUint32 sheetMask = nsIWebBrowserChrome::CHROME_OPENAS_DIALOG |
                        nsIWebBrowserChrome::CHROME_MODAL |
                        nsIWebBrowserChrome::CHROME_OPENAS_CHROME;
-  if (aParent && ((aChromeMask & sheetMask) == sheetMask))
+  if (parent && ((aChromeMask & sheetMask) == sheetMask))
     widgetInitData.mWindowType = eWindowType_sheet;
 #endif
 
@@ -362,18 +372,21 @@ nsAppShellService::JustCreateTopWindow(nsIXULWindow *aParent,
     window->SetIntrinsicallySized(PR_TRUE);
   }
 
-  nsresult rv = window->Initialize(aParent, aAppShell, aUrl,
+  PRBool center = aChromeMask & nsIWebBrowserChrome::CHROME_CENTER_SCREEN;
+
+  nsresult rv = window->Initialize(parent, center ? aParent : nsnull,
+                                   aAppShell, aUrl,
                                    aInitialWidth, aInitialHeight,
                                    aIsHiddenWindow, widgetInitData);
       
   NS_ENSURE_SUCCESS(rv, rv);
 
   window.swap(*aResult); // transfer reference
-  if (aParent)
-    aParent->AddChildWindow(*aResult);
+  if (parent)
+    parent->AddChildWindow(*aResult);
 
-  if (aChromeMask & nsIWebBrowserChrome::CHROME_CENTER_SCREEN)
-    rv = (*aResult)->Center(aParent, aParent ? PR_FALSE : PR_TRUE, PR_FALSE);
+  if (center)
+    rv = (*aResult)->Center(parent, parent ? PR_FALSE : PR_TRUE, PR_FALSE);
 
   return rv;
 }
@@ -548,23 +561,21 @@ nsAppShellService::UnregisterTopLevelWindow(nsIXULWindow* aWindow)
   return NS_OK;
 }
 
-/* Old function, needs to be removed... it was only used on Mac OS9 */
-NS_IMETHODIMP
-nsAppShellService::TopLevelWindowIsModal(nsIXULWindow *aWindow, PRBool aModal)
-{
-  return NS_OK;
-}
 
 NS_IMETHODIMP
 nsAppShellService::Observe(nsISupports* aSubject, const char *aTopic,
                            const PRUnichar *aData)
 {
-  NS_ASSERTION(!strcmp(aTopic, "xpcom-shutdown"), "Unexpected observer topic!");
-
-  mXPCOMShuttingDown = PR_TRUE;
-  if (mHiddenWindow) {
-    ClearXPConnectSafeContext();
-    mHiddenWindow->Destroy();
+  if (!strcmp(aTopic, "xpcom-will-shutdown")) {
+    mXPCOMWillShutDown = PR_TRUE;
+  } else if (!strcmp(aTopic, "xpcom-shutdown")) {
+    mXPCOMShuttingDown = PR_TRUE;
+    if (mHiddenWindow) {
+      ClearXPConnectSafeContext();
+      mHiddenWindow->Destroy();
+    }
+  } else {
+    NS_ERROR("Unexpected observer topic!");
   }
 
   return NS_OK;

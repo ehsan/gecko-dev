@@ -102,14 +102,12 @@ dialogheader {
 	font-weight: bold !important;
 }
 
-#loginContainer {
-	padding-top: 10px;
-}
+/*XXX - belongs to toolkit/content/finddialog.xul: */
 
 #findDialog, #findDialog > menu, #findDialog > groupbox {
 	font: menu !important;
 }
 
-#dialog.caseSensitive {
+#dialog\.caseSensitive {
 	margin-top: 8px;
 }

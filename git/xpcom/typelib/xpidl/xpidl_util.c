@@ -334,7 +334,7 @@ verify_attribute_declaration(IDL_tree attr_tree)
     /* We don't support attributes named IID, conflicts with static GetIID 
      * member. The conflict is due to certain compilers (VC++) choosing a
      * different vtable order, placing GetIID at the beginning regardless
-     * of it's placement
+     * of its placement
      */
     if (strcmp(
         IDL_IDENT(
@@ -521,7 +521,7 @@ check_param_attribute(IDL_tree method_tree, IDL_tree param,
         }
         if (referred_param == param) {
             IDL_tree_error(method_tree,
-                           "attribute [%s(%s)] refers to it's own parameter",
+                           "attribute [%s(%s)] refers to its own parameter",
                            attr_name, referred_name);
             return FALSE;
         }
@@ -581,7 +581,7 @@ verify_method_declaration(IDL_tree method_tree)
     /* We don't support attributes named IID, conflicts with static GetIID 
      * member. The conflict is due to certain compilers (VC++) choosing a
      * different vtable order, placing GetIID at the beginning regardless
-     * of it's placement
+     * of its placement
      */
     if (strcmp(method_name, "GetIID") == 0) {
         IDL_tree_error(method_tree,
@@ -711,15 +711,15 @@ verify_method_declaration(IDL_tree method_tree)
 
         /*
          * confirm that once an optional argument is used, all remaining
-         * arguments are marked as optional
+         * arguments are marked as optional or retval.
          */
         if (IDL_tree_property_get(simple_decl, "optional") != NULL) {
             hasoptional = PR_TRUE;
         }
-        else if (hasoptional) {
+        else if (hasoptional && IDL_tree_property_get(simple_decl, "retval") == NULL) {
             IDL_tree_error(method_tree,
-                           "non-optional parameter used after one marked [optional]");
-                return FALSE;
+                           "non-optional non-retval parameter used after one marked [optional]");
+            return FALSE;
         }
 
         /*
@@ -767,6 +767,14 @@ verify_method_declaration(IDL_tree method_tree)
         if (!verify_type_fits_version(param_type, method_tree))
             return FALSE;
         
+    }
+
+    if (IDL_tree_property_get(op->ident, "optional_argc") != NULL &&
+        !hasoptional) {
+        IDL_tree_error(method_tree,
+                       "[optional_argc] method must contain [optional] "
+                       "arguments");
+        return FALSE;
     }
     
     /* XXX q: can return type be nsid? */

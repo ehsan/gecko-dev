@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 /* vim: set ts=2 sw=2 et tw=78: */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -52,12 +52,11 @@
 #include "nsIDTD.h"
 #include "nsStringGlue.h"
 #include "nsTArray.h"
+#include "nsIAtom.h"
 
-// {506527cc-d832-420b-ba3a-80c05aa105f4}
 #define NS_IPARSER_IID \
-{ 0x506527cc, 0xd832, 0x420b, \
-  { 0xba, 0x3a, 0x80, 0xc0, 0x5a, 0xa1, 0x05, 0xf4 } }
-
+{ 0x3db442c2, 0x8a4d, 0x4ce4, \
+{ 0x86, 0x58, 0x48, 0xee, 0x55, 0x4b, 0xbb, 0xd4 } }
 
 // {41421C60-310A-11d4-816F-000064657374}
 #define NS_IDEBUG_DUMP_CONTENT_IID \
@@ -82,7 +81,6 @@ enum eParserDocType {
   ePlainText = 0,
   eXML,
   eHTML_Quirks,
-  eHTML3_Quirks, // separate, for editor output, since HTML pre-4.0 lacks tbody
   eHTML_Strict
 };
 
@@ -96,16 +94,17 @@ enum eParserDocType {
 #define kCharsetFromCache               4
 #define kCharsetFromParentFrame         5
 #define kCharsetFromBookmarks           6
-#define kCharsetFromAutoDetection       7
-#define kCharsetFromHintPrevDoc         8
-#define kCharsetFromMetaTag             9
-#define kCharsetFromByteOrderMark      10
-#define kCharsetFromChannel            11 
-#define kCharsetFromOtherComponent     12
+#define kCharsetFromAutoDetection       7 
+#define kCharsetFromHintPrevDoc         8 
+#define kCharsetFromMetaPrescan         9 // this one and smaller: HTML5 Tentative
+#define kCharsetFromMetaTag            10 // this one and greater: HTML5 Confident
+#define kCharsetFromByteOrderMark      11
+#define kCharsetFromChannel            12 
+#define kCharsetFromOtherComponent     13
 // Levels below here will be forced onto childframes too
-#define kCharsetFromParentForced       13
-#define kCharsetFromUserForced         14
-#define kCharsetFromPreviousLoading    15
+#define kCharsetFromParentForced       14
+#define kCharsetFromUserForced         15
+#define kCharsetFromPreviousLoading    16
 
 enum eStreamState {eNone,eOnStart,eOnDataAvail,eOnStop};
 
@@ -193,6 +192,13 @@ class nsIParser : public nsISupports {
      * @return NS_OK if successful, NS_ERROR_FAILURE for runtime error
      */
     NS_IMETHOD GetDTD(nsIDTD** aDTD) = 0;
+    
+    /**
+     * Get the nsIStreamListener for this parser
+     * @param aDTD out param that will contain the result
+     * @return NS_OK if successful
+     */
+    NS_IMETHOD GetStreamListener(nsIStreamListener** aListener) = 0;
 
     /**************************************************************************
      *  Parse methods always begin with an input source, and perform
@@ -200,9 +206,6 @@ class nsIParser : public nsISupports {
      *  (which may or may not be a proxy for the NGLayout content model).
      ************************************************************************/
     
-    // Call this method to resume the parser from the blocked state.
-    NS_IMETHOD ContinueParsing() = 0;
-
     // Call this method to resume the parser from an unblocked state.
     // This can happen, for example, if parsing was interrupted and then the
     // consumer needed to restart the parser without waiting for more data.
@@ -259,6 +262,12 @@ class nsIParser : public nsISupports {
                              const nsACString& aContentType,
                              nsDTDMode aMode = eDTDMode_autodetect) = 0;
 
+    NS_IMETHOD ParseFragment(const nsAString& aSourceBuffer,
+                             nsISupports* aTargetNode,
+                             nsIAtom* aContextLocalName,
+                             PRInt32 aContextNamespace,
+                             PRBool aQuirks) = 0;
+
     /**
      * This method gets called when the tokens have been consumed, and it's time
      * to build the model via the content sink.
@@ -266,15 +275,6 @@ class nsIParser : public nsISupports {
      * @return  error code -- 0 if model building went well .
      */
     NS_IMETHOD BuildModel(void) = 0;
-
-
-    /**
-     *  Retrieve the parse mode from the parser...
-     *  
-     *  @update  gess 6/9/98
-     *  @return  ptr to scanner
-     */
-    NS_IMETHOD_(nsDTDMode) GetParseMode(void) = 0;
 
     /**
      *  Call this method to cancel any pending parsing events.
@@ -289,6 +289,37 @@ class nsIParser : public nsISupports {
     NS_IMETHOD CancelParsingEvents() = 0;
 
     virtual void Reset() = 0;
+
+    /**
+     * True if the parser can currently be interrupted. Returns false when
+     * parsing for example document.write or innerHTML.
+     */
+    virtual PRBool CanInterrupt() = 0;
+
+    /**
+     * True if the insertion point (per HTML5) is defined.
+     */
+    virtual PRBool IsInsertionPointDefined() = 0;
+
+    /**
+     * Call immediately before starting to evaluate a parser-inserted script.
+     */
+    virtual void BeginEvaluatingParserInsertedScript() = 0;
+
+    /**
+     * Call immediately after having evaluated a parser-inserted script.
+     */
+    virtual void EndEvaluatingParserInsertedScript() = 0;
+
+    /**
+     * Marks the HTML5 parser as not a script-created parser.
+     */
+    virtual void MarkAsNotScriptCreated() = 0;
+
+    /**
+     * True if this is a script-created HTML5 parser.
+     */
+    virtual PRBool IsScriptCreated() = 0;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIParser, NS_IPARSER_IID)

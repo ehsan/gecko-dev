@@ -62,19 +62,11 @@ nsFormControlFrame::Destroy()
   nsLeafFrame::Destroy();
 }
 
-// Frames are not refcounted, no need to AddRef
-NS_IMETHODIMP
-nsFormControlFrame::QueryInterface(const nsIID& aIID, void** aInstancePtr)
-{
-  NS_PRECONDITION(aInstancePtr, "null out param");
+NS_QUERYFRAME_HEAD(nsFormControlFrame)
+  NS_QUERYFRAME_ENTRY(nsIFormControlFrame)
+NS_QUERYFRAME_TAIL_INHERITING(nsLeafFrame)
 
-  if (aIID.Equals(NS_GET_IID(nsIFormControlFrame))) {
-    *aInstancePtr = static_cast<nsIFormControlFrame*>(this);
-    return NS_OK;
-  }
-
-  return nsLeafFrame::QueryInterface(aIID, aInstancePtr);
-}
+NS_IMPL_FRAMEARENA_HELPERS(nsFormControlFrame)
 
 nscoord
 nsFormControlFrame::GetIntrinsicWidth()
@@ -187,9 +179,9 @@ nsFormControlFrame::GetFormProperty(nsIAtom* aName, nsAString& aValue) const
   return NS_OK;
 }
 
-nsresult 
-nsFormControlFrame::GetScreenHeight(nsPresContext* aPresContext,
-                                    nscoord& aHeight)
+// static
+nsRect
+nsFormControlFrame::GetUsableScreenRect(nsPresContext* aPresContext)
 {
   nsRect screen;
 
@@ -199,10 +191,9 @@ nsFormControlFrame::GetScreenHeight(nsPresContext* aPresContext,
   lookAndFeel->GetMetric(nsILookAndFeel::eMetric_MenusCanOverlapOSBar,
                          dropdownCanOverlapOSBar);
   if ( dropdownCanOverlapOSBar )
-    context->GetRect ( screen );
+    context->GetRect(screen);
   else
     context->GetClientRect(screen);
 
-  aHeight = aPresContext->AppUnitsToDevPixels(screen.height);
-  return NS_OK;
+  return screen;
 }

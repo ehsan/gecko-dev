@@ -46,20 +46,20 @@ options="p:b:x:i:d:"
 function usage()
 {
     cat <<EOF
-usage: 
+usage:
 $SCRIPT -p product -b branch -x executablepath -i talkbackid [-d datafiles]
 
 variable            description
 ===============     ============================================================
--p product          required. firefox|thunderbird
--b branch           required. 1.8.0|1.8.1|1.9.0
--x executablepath   required. directory-tree containing executable named 
+-p product          required. firefox.
+-b branch           required. one of 1.8.0 1.8.1
+-x executablepath   required. directory-tree containing executable named
                     'product'
 -i talkbackid       required. identifier to add to talkback url
--d datafiles        optional. one or more filenames of files containing 
+-d datafiles        optional. one or more filenames of files containing
                     environment variable definitions to be included.
 
-note that the environment variables should have the same names as in the 
+note that the environment variables should have the same names as in the
 "variable" column.
 
 EOF
@@ -68,8 +68,8 @@ EOF
 
 unset product branch executablepath talkbackid datafiles
 
-while getopts $options optname ; 
-  do 
+while getopts $options optname ;
+  do
   case $optname in
       p) product=$OPTARG;;
       b) branch=$OPTARG;;
@@ -80,12 +80,7 @@ while getopts $options optname ;
 done
 
 # include environment variables
-if [[ -n "$datafiles" ]]; then
-    for datafile in $datafiles; do 
-        cat $datafile | sed 's|^|data: |'
-        source $datafile
-    done
-fi
+loaddata $datafiles
 
 if [[ -z "$product" || -z "$branch" || \
     -z "$executablepath" || -z "$talkbackid" ]]; then
@@ -93,14 +88,6 @@ if [[ -z "$product" || -z "$branch" || \
 fi
 
 executable=`get_executable $product $branch $executablepath`
-
-if [[ -z "$executable" ]]; then
-    error "get_executable $product $branch $executablepath returned empty path" $LINENO
-fi
-
-if [[ ! -x "$executable" ]]; then 
-    error "executable \"$executable\" is not executable" $LINENO
-fi
 
 executablepath=`dirname $executable`
 
@@ -118,9 +105,9 @@ elif [[ -e "$executablepath/extensions/talkback@mozilla.org/components/talkback/
     cd "$executablepath/extensions/talkback@mozilla.org/components/talkback/"
 elif [[ -e "$executablepath/components/master.ini" ]]; then
     cd "$executablepath/components"
-else 
+else
     # talkback not found
-    talkback=0 
+    talkback=0
 fi
 
 if [[ $talkback -eq 1 ]]; then
@@ -132,7 +119,7 @@ if [[ $talkback -eq 1 ]]; then
     fi
 
     case $OSID in
-        win32)
+        nt)
             vendorid=`dos2unix < master.ini | grep '^VendorID = "' | sed 's@VendorID = "\([^"]*\)"@\1@'`
             productid=`dos2unix < master.ini | grep '^ProductID = "' | sed 's@ProductID = "\([^"]*\)"@\1@'`
             platformid=`dos2unix < master.ini | grep '^PlatformID = "' | sed 's@PlatformID = "\([^"]*\)"@\1@'`
@@ -147,7 +134,7 @@ if [[ $talkback -eq 1 ]]; then
             buildid=`dos2unix < master.ini | grep '^BuildID = "' | sed 's@BuildID = "\([^"]*\)"@\1@'`
             talkbackdir="$HOME/.fullcircle"
             ;;
-        mac)
+        darwin)
             # hack around Mac's use of spaces in directory names
             vendorid=`grep '^VendorID = "' master.ini | sed 's@VendorID = "\([^"]*\)"@\1@'`
             productid=`grep '^ProductID = "' master.ini | sed 's@ProductID = "\([^"]*\)"@\1@'`
@@ -166,16 +153,16 @@ if [[ $talkback -eq 1 ]]; then
     fi
 
     mkdir -p "$talkbackdir"
-    
+
     case $OSID in
-        win32)
+        nt)
             talkbackinidir="$talkbackdir/$vendorid/$productid/$platformid/$buildid"
             ;;
-        linux | mac )
+        linux | darwin )
             talkbackinidir="$talkbackdir/$vendorid$productid$platformid$buildid"
             ;;
     esac
-    
+
     if [[ ! -d "$talkbackinidir" ]]; then
         create-directory.sh -d "$talkbackinidir" -n
     fi
@@ -185,13 +172,13 @@ if [[ $talkback -eq 1 ]]; then
     cp ${TEST_DIR}/talkback/$OSID/Talkback.ini .
 
     case "$OSID" in
-        win32)
+        nt)
             sed -i.bak "s@URLEdit .*@URLEdit = \"mozqa:$talkbackid\"@" Talkback.ini
             ;;
-        linux )
+        linux)
             sed -i.bak "s@URLEditControl .*@URLEditControl = \"mozqa:$talkbackid\"@" Talkback.ini
             ;;
-        mac )
+        darwin)
             sed -i.bak "s@URLEditControl .*@URLEditControl = \"mozqa:$talkbackid\"@" Talkback.ini
             ;;
         *)

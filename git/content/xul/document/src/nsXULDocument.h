@@ -145,10 +145,7 @@ public:
     NS_DECL_NSIMUTATIONOBSERVER_CONTENTINSERTED
     NS_DECL_NSIMUTATIONOBSERVER_CONTENTREMOVED
     NS_DECL_NSIMUTATIONOBSERVER_ATTRIBUTECHANGED
-
-    virtual void AttributeWillChange(nsIContent* aChild,
-                                     PRInt32 aNameSpaceID,
-                                     nsIAtom* aAttribute);
+    NS_DECL_NSIMUTATIONOBSERVER_ATTRIBUTEWILLCHANGE
 
     // nsIXULDocument interface
     NS_IMETHOD AddElementForID(nsIContent* aElement);
@@ -183,14 +180,23 @@ public:
                                 PRBool aWasAlternate,
                                 nsresult aStatus);
 
+    virtual void EndUpdate(nsUpdateType aUpdateType);
+
+    virtual PRBool IsDocumentRightToLeft();
+
+    virtual void ResetDocumentDirection() { mDocDirection = Direction_Uninitialized; }
+
+    virtual int GetDocumentLWTheme();
+
+    virtual void ResetDocumentLWTheme() { mDocLWTheme = Doc_Theme_Uninitialized; }
+
     static PRBool
     MatchAttribute(nsIContent* aContent,
                    PRInt32 aNameSpaceID,
                    nsIAtom* aAttrName,
                    void* aData);
 
-    NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(nsXULDocument,
-                                                       nsXMLDocument)
+    NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsXULDocument, nsXMLDocument)
 
 protected:
     // Implementation methods
@@ -206,8 +212,6 @@ protected:
     RemoveElementFromRefMap(nsIContent* aElement);
 
     nsresult GetViewportSize(PRInt32* aWidth, PRInt32* aHeight);
-
-    void SetIsPopup(PRBool isPopup) { mIsPopup = isPopup; }
 
     nsresult PrepareToLoad(nsISupports* aContainer,
                            const char* aCommand,
@@ -226,6 +230,7 @@ protected:
                         PRBool* aFailureFromContent);
 
     nsresult ApplyPersistentAttributes();
+    nsresult ApplyPersistentAttributesInternal();
     nsresult ApplyPersistentAttributesToElements(nsIRDFResource* aResource,
                                                  nsCOMArray<nsIContent>& aElements);
 
@@ -247,7 +252,8 @@ protected:
         return kNameSpaceID_XUL;
     }
 
-protected:
+    static NS_HIDDEN_(int) DirectionChanged(const char* aPrefName, void* aData);
+
     // pseudo constants
     static PRInt32 gRefCnt;
 
@@ -261,6 +267,9 @@ protected:
     static nsXULPrototypeCache* gXULCache;
 
     static PRLogModuleInfo* gXULLog;
+
+    PRBool
+    IsCapabilityEnabled(const char* aCapabilityLabel);
 
     nsresult
     Persist(nsIContent* aElement, PRInt32 aNameSpaceID, nsIAtom* aAttribute);
@@ -279,7 +288,6 @@ protected:
     // the element's namespace has no registered ID attribute name.
     nsTHashtable<nsRefMapEntry> mRefMap;
     nsCOMPtr<nsIRDFDataSource> mLocalStore;
-    PRPackedBool               mIsPopup;
     PRPackedBool               mApplyingPersistedAttrs;
     PRPackedBool               mIsWritingFastLoad;
     PRPackedBool               mDocumentLoaded;
@@ -326,6 +334,23 @@ protected:
      */
 
     nsCOMPtr<nsIDOMNode>    mTooltipNode;          // [OWNER] element triggering the tooltip
+
+    /**
+     * document direction for use with the -moz-locale-dir property
+     */
+    enum DocumentDirection {
+      Direction_Uninitialized, // not determined yet
+      Direction_LeftToRight,
+      Direction_RightToLeft
+    };
+
+    DocumentDirection               mDocDirection;
+
+    /**
+     * document lightweight theme for use with :-moz-lwtheme, :-moz-lwtheme-brighttext
+     * and :-moz-lwtheme-darktext
+     */
+    DocumentTheme                         mDocLWTheme;
 
     /**
      * Context stack, which maintains the state of the Builder and allows
@@ -695,6 +720,54 @@ protected:
     nsInterfaceHashtable<nsURIHashKey,nsIObserver> mPendingOverlayLoadNotifications;
     
     PRBool mInitialLayoutComplete;
+
+    class nsDelayedBroadcastUpdate
+    {
+    public:
+      nsDelayedBroadcastUpdate(nsIDOMElement* aBroadcaster,
+                               nsIDOMElement* aListener,
+                               const nsAString &aAttr)
+      : mBroadcaster(aBroadcaster), mListener(aListener), mAttr(aAttr),
+        mSetAttr(PR_FALSE), mNeedsAttrChange(PR_FALSE) {}
+
+      nsDelayedBroadcastUpdate(nsIDOMElement* aBroadcaster,
+                               nsIDOMElement* aListener,
+                               nsIAtom* aAttrName,
+                               const nsAString &aAttr,
+                               PRBool aSetAttr,
+                               PRBool aNeedsAttrChange)
+      : mBroadcaster(aBroadcaster), mListener(aListener), mAttr(aAttr),
+        mAttrName(aAttrName), mSetAttr(aSetAttr),
+        mNeedsAttrChange(aNeedsAttrChange) {}
+
+      nsDelayedBroadcastUpdate(const nsDelayedBroadcastUpdate& aOther)
+      : mBroadcaster(aOther.mBroadcaster), mListener(aOther.mListener),
+        mAttr(aOther.mAttr), mAttrName(aOther.mAttrName),
+        mSetAttr(aOther.mSetAttr), mNeedsAttrChange(aOther.mNeedsAttrChange) {}
+
+      nsCOMPtr<nsIDOMElement> mBroadcaster;
+      nsCOMPtr<nsIDOMElement> mListener;
+      // Note if mAttrName isn't used, this is the name of the attr, otherwise
+      // this is the value of the attribute.
+      nsString                mAttr;
+      nsCOMPtr<nsIAtom>       mAttrName;
+      PRPackedBool            mSetAttr;
+      PRPackedBool            mNeedsAttrChange;
+
+      class Comparator {
+        public:
+          static PRBool Equals(const nsDelayedBroadcastUpdate& a, const nsDelayedBroadcastUpdate& b) {
+            return a.mBroadcaster == b.mBroadcaster && a.mListener == b.mListener && a.mAttrName == b.mAttrName;
+          }
+      };
+    };
+
+    nsTArray<nsDelayedBroadcastUpdate> mDelayedBroadcasters;
+    nsTArray<nsDelayedBroadcastUpdate> mDelayedAttrChangeBroadcasts;
+    PRPackedBool                       mHandlingDelayedAttrChange;
+    PRPackedBool                       mHandlingDelayedBroadcasters;
+
+    void MaybeBroadcast();
 private:
     // helpers
 

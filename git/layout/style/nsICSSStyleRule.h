@@ -121,19 +121,22 @@ public:
   nsAttrSelector(PRInt32 aNameSpace, const nsString& aAttr);
   nsAttrSelector(PRInt32 aNameSpace, const nsString& aAttr, PRUint8 aFunction, 
                  const nsString& aValue, PRBool aCaseSensitive);
-  nsAttrSelector(PRInt32 aNameSpace, nsIAtom* aAttr, PRUint8 aFunction, 
+  nsAttrSelector(PRInt32 aNameSpace, nsIAtom* aLowercaseAttr, 
+                 nsIAtom* aCasedAttr, PRUint8 aFunction, 
                  const nsString& aValue, PRBool aCaseSensitive);
   ~nsAttrSelector(void);
 
   /** Do a deep clone.  Should be used only on the first in the linked list. */
   nsAttrSelector* Clone() const { return Clone(PR_TRUE); }
 
-  PRInt32         mNameSpace;
-  nsCOMPtr<nsIAtom> mAttr;
-  PRUint8         mFunction;
-  PRPackedBool    mCaseSensitive;
   nsString        mValue;
   nsAttrSelector* mNext;
+  nsCOMPtr<nsIAtom> mLowercaseAttr;
+  nsCOMPtr<nsIAtom> mCasedAttr;
+  PRInt32         mNameSpace;
+  PRUint8         mFunction;
+  PRPackedBool    mCaseSensitive; // If we are in an HTML document,
+                                  // is the value case sensitive?
 private: 
   nsAttrSelector* Clone(PRBool aDeep) const;
 
@@ -163,7 +166,16 @@ public:
                     const nsString& aValue, PRBool aCaseSensitive);
   void SetOperator(PRUnichar aOperator);
 
-  PRInt32 CalcWeight(void) const;
+  inline PRBool HasTagSelector() const {
+    return !!mCasedTag;
+  }
+
+  inline PRBool IsPseudoElement() const {
+    return mLowercaseTag && !mCasedTag;
+  }
+
+  // Calculate the specificity of this selector (not including its mNext!).
+  PRInt32 CalcWeight() const;
 
   void ToString(nsAString& aString, nsICSSStyleSheet* aSheet,
                 PRBool aAppend = PR_FALSE) const;
@@ -172,23 +184,36 @@ private:
   void AddPseudoClassInternal(nsPseudoClassList *aPseudoClass);
   nsCSSSelector* Clone(PRBool aDeepNext, PRBool aDeepNegations) const;
 
-  void AppendNegationToString(nsAString& aString);
-  void ToStringInternal(nsAString& aString, nsICSSStyleSheet* aSheet,
-                        PRBool aIsPseudoElem,
-                        PRBool aIsNegated) const;
+  void AppendToStringWithoutCombinators(nsAString& aString,
+                                        nsICSSStyleSheet* aSheet) const;
+  void AppendToStringWithoutCombinatorsOrNegations(nsAString& aString,
+                                                   nsICSSStyleSheet* aSheet,
+                                                   PRBool aIsNegated)
+                                                        const;
+  // Returns true if this selector can have a namespace specified (which
+  // happens if and only if the default namespace would apply to this
+  // selector).
+  PRBool CanBeNamespaced(PRBool aIsNegated) const;
+  // Calculate the specificity of this selector (not including its mNext
+  // or its mNegations).
+  PRInt32 CalcWeightWithoutNegations() const;
 
 public:
-  PRInt32         mNameSpace;
-  nsCOMPtr<nsIAtom> mTag;
+  // For case-sensitive documents, mLowercaseTag is the same as mCasedTag,
+  // but in case-insensitive documents (HTML) mLowercaseTag is lowercase.
+  // Also, for pseudo-elements mCasedTag will be null but mLowercaseTag
+  // contains their name.
+  nsCOMPtr<nsIAtom> mLowercaseTag;
+  nsCOMPtr<nsIAtom> mCasedTag;
   nsAtomList*     mIDList;
   nsAtomList*     mClassList;
   nsPseudoClassList* mPseudoClassList; // atom for the pseudo, string for
                                        // the argument to functional pseudos
   nsAttrSelector* mAttrList;
-  PRUnichar       mOperator;
   nsCSSSelector*  mNegations;
-
   nsCSSSelector*  mNext;
+  PRInt32         mNameSpace;
+  PRUnichar       mOperator;
 private: 
   // These are not supported and are not implemented! 
   nsCSSSelector(const nsCSSSelector& aCopy);

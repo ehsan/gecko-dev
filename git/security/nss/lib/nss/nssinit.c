@@ -36,9 +36,10 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-/* $Id: nssinit.c,v 1.94 2008/03/26 18:49:04 alexei.volkov.bugs%sun.com Exp $ */
+/* $Id: nssinit.c,v 1.99 2009/07/23 01:56:40 nelson%bolyard.com Exp $ */
 
 #include <ctype.h>
+#include <string.h>
 #include "seccomon.h"
 #include "prinit.h"
 #include "prprf.h"
@@ -291,11 +292,9 @@ done:
 }
 
 
-#ifndef XP_MAC
 /*
  * The following code is an attempt to automagically find the external root
- * module. NOTE: This code should be checked out on the MAC! There must be
- * some cross platform support out there to help out with this?
+ * module.
  * Note: Keep the #if-defined chunks in order. HPUX must select before UNIX.
  */
 
@@ -308,8 +307,6 @@ static const char *dllname =
 	"libnssckbi.dylib";
 #elif defined(XP_UNIX) || defined(XP_BEOS)
 	"libnssckbi.so";
-#elif defined(XP_MAC)
-	"NSS Builtin Root Certs";
 #else
 	#error "Uh! Oh! I don't know about this platform."
 #endif
@@ -390,7 +387,6 @@ nss_FindExternalRoot(const char *dbpath, const char* secmodprefix)
         nss_FreeExternalRootPaths(oldpath, path);
 	return;
 }
-#endif
 
 /*
  * OK there are now lots of options here, lets go through them all:
@@ -558,14 +554,15 @@ loser:
 	}
 	CERT_SetDefaultCertDB((CERTCertDBHandle *)
 				STAN_GetDefaultTrustDomain());
-#ifndef XP_MAC
-	/* only servers need this. We currently do not have a mac server */
 	if ((!noModDB) && (!noCertDB) && (!noRootInit)) {
 	    if (!SECMOD_HasRootCerts()) {
-		nss_FindExternalRoot(configdir, secmodName);
+		const char *dbpath = configdir;
+		if (strncmp(dbpath, "sql:", 4) == 0) {
+		    dbpath += 4;
+		}
+		nss_FindExternalRoot(dbpath, secmodName);
 	    }
 	}
-#endif
 	pk11sdr_Init();
 	cert_CreateSubjectKeyIDHashTable();
 	nss_IsInitted = PR_TRUE;
@@ -777,6 +774,7 @@ NSS_RegisterShutdown(NSS_ShutdownFunc sFunc, void *appData)
 		(nssShutdownList.allocatedFuncs + NSS_SHUTDOWN_STEP) 
 		*sizeof(struct NSSShutdownFuncPair));
 	if (!funcs) {
+	    PZ_Unlock(nssShutdownList.lock);
 	    return SECFailure;
 	}
 	nssShutdownList.funcs = funcs;
@@ -898,6 +896,14 @@ NSS_Shutdown(void)
 	shutdownRV = SECFailure;
     }
     pk11sdr_Shutdown();
+    /*
+     * A thread's error stack is automatically destroyed when the thread
+     * terminates, except for the primordial thread, whose error stack is
+     * destroyed by PR_Cleanup.  Since NSS is usually shut down by the
+     * primordial thread and many NSS-based apps don't call PR_Cleanup,
+     * we destroy the calling thread's error stack here.
+     */
+    nss_DestroyErrorStack();
     nssArena_Shutdown();
     if (status == PR_FAILURE) {
 	if (NSS_GetError() == NSS_ERROR_BUSY) {

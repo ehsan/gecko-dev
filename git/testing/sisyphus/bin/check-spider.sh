@@ -48,21 +48,21 @@ options="p:b:x:N:d:"
 function usage()
 {
     cat <<EOF
-usage: 
-$SCRIPT -p product -b branch -x executablepath -N profilename 
+usage:
+$SCRIPT -p product -b branch -x executablepath -N profilename
        [-d datafiles]
 
 variable            description
 ===============     ============================================================
--p product          required. firefox|thunderbird
--b branch           required. 1.8.0|1.8.1|1.9.0
--x executablepath   required. directory-tree containing executable named 
+-p product          required. firefox
+-b branch           required. supported branch. see library.sh
+-x executablepath   required. directory-tree containing executable named
                     'product'
 -N profilename      required. name of profile to be used
--d datafiles        optional. one or more filenames of files containing 
+-d datafiles        optional. one or more filenames of files containing
                     environment variable definitions to be included.
 
-note that the environment variables should have the same names as in the 
+note that the environment variables should have the same names as in the
 "variable" column.
 
 Checks if the Spider extension is installed either in the named profile
@@ -76,8 +76,8 @@ EOF
 
 unset product branch executablepath profilename datafiles
 
-while getopts $options optname ; 
-  do 
+while getopts $options optname ;
+  do
   case $optname in
       p) product=$OPTARG;;
       b) branch=$OPTARG;;
@@ -88,36 +88,16 @@ while getopts $options optname ;
 done
 
 # include environment variables
-if [[ -n "$datafiles" ]]; then
-    for datafile in $datafiles; do 
-        cat $datafile | sed 's|^|data: |'
-        source $datafile
-    done
-fi
+loaddata $datafiles
 
-if [[ -z "$product" || -z "$branch" || -z "$executablepath" || -z "$profilename" ]]; 
+if [[ -z "$product" || -z "$branch" || -z "$executablepath" || -z "$profilename" ]];
     then
     usage
 fi
 
-if [[ "$product" != "firefox" && "$product" != "thunderbird" ]]; then
-    error "product \"$product\" must be one of firefox or thunderbird" $LINENO
-fi
-
-if [[ "$branch" != "1.8.0" && "$branch" != "1.8.1" && "$branch" != "1.9.0" ]]; 
-    then
-    error "branch \"$branch\" must be one of 1.8.0, 1.8.1, 1.9.0" $LINENO
-fi
+checkProductBranch $product $branch
 
 executable=`get_executable $product $branch $executablepath`
-
-if [[ -z "$executable" ]]; then
-    error "get_executable $product $branch $executablepath returned empty path" $LINENO
-fi
-
-if [[ ! -x "$executable" ]]; then 
-    error "executable \"$executable\" is not executable" $LINENO
-fi
 
 if echo "$profilename" | egrep -qiv '[a-z0-9_]'; then
     error "profile name must consist of letters, digits or _" $LINENO
@@ -127,6 +107,7 @@ echo # attempt to force Spider to load
 
 tries=1
 while ! $TEST_DIR/bin/timed_run.py ${TEST_STARTUP_TIMEOUT} "Start Spider: try $tries" \
+     $EXECUTABLE_DRIVER \
     "$executable" -P "$profilename" \
     -spider -start -quit \
     -uri "http://${TEST_HTTP}/bin/start-spider.html" \
@@ -137,4 +118,3 @@ while ! $TEST_DIR/bin/timed_run.py ${TEST_STARTUP_TIMEOUT} "Start Spider: try $t
   fi
   sleep 30
 done
-

@@ -62,7 +62,7 @@ nsAccessibleWrap::~nsAccessibleWrap()
   }
 }
 
-NS_IMETHODIMP
+nsresult
 nsAccessibleWrap::Init () 
 {
   // need to pass the call up, so we're cached (which nsAccessNode::Init() takes care of).
@@ -103,7 +103,7 @@ nsAccessibleWrap::GetNativeType ()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
 
-  PRUint32 role = Role(this);
+  PRUint32 role = nsAccUtils::Role(this);
   switch (role) {
     case nsIAccessibleRole::ROLE_PUSHBUTTON:
     case nsIAccessibleRole::ROLE_SPLITBUTTON:
@@ -159,7 +159,7 @@ nsAccessibleWrap::Shutdown ()
   return nsAccessible::Shutdown();
 }
 
-NS_IMETHODIMP
+nsresult
 nsAccessibleWrap::FireAccessibleEvent(nsIAccessibleEvent *aEvent)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
@@ -211,25 +211,25 @@ nsAccessibleWrap::FirePlatformEvent(nsIAccessibleEvent *aEvent)
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
-nsresult
-nsAccessibleWrap::InvalidateChildren ()
+void
+nsAccessibleWrap::InvalidateChildren()
 {
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
   if (mNativeWrapper) {
     mozAccessible *object = mNativeWrapper->getNativeObject();
     [object invalidateChildren];
   }
-  return nsAccessible::InvalidateChildren();
+  nsAccessible::InvalidateChildren();
 
-  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
+  NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
 PRInt32
 nsAccessibleWrap::GetUnignoredChildCount(PRBool aDeepCount)
 {
   // if we're flat, we have no children.
-  if (MustPrune(this))
+  if (nsAccUtils::MustPrune(this))
     return 0;
   
   PRInt32 childCount = 0;
@@ -238,14 +238,14 @@ nsAccessibleWrap::GetUnignoredChildCount(PRBool aDeepCount)
   nsCOMPtr<nsIAccessible> curAcc;
   
   while (NextChild(curAcc)) {
-    nsAccessibleWrap *childWrap = static_cast<nsAccessibleWrap*>((nsIAccessible*)curAcc.get());
+    nsAccessibleWrap *childWrap = static_cast<nsAccessibleWrap*>(curAcc.get());
     
     // if the current child is not ignored, count it.
     if (!childWrap->IsIgnored())
       ++childCount;
       
     // if it's flat, we don't care to inspect its children.
-    if (MustPrune(childWrap))
+    if (nsAccUtils::MustPrune(childWrap))
       continue;
     
     if (aDeepCount) {
@@ -276,14 +276,14 @@ nsAccessibleWrap::GetUnignoredChildren(nsTArray<nsRefPtr<nsAccessibleWrap> > &aC
   nsCOMPtr<nsIAccessible> curAcc;
   
   // we're flat; there are no children.
-  if (MustPrune(this))
+  if (nsAccUtils::MustPrune(this))
     return;
   
   while (NextChild(curAcc)) {
-    nsAccessibleWrap *childWrap = static_cast<nsAccessibleWrap*>((nsIAccessible*)curAcc.get());
+    nsAccessibleWrap *childWrap = static_cast<nsAccessibleWrap*>(curAcc.get());
     if (childWrap->IsIgnored()) {
       // element is ignored, so try adding its children as substitutes, if it has any.
-      if (!MustPrune(childWrap)) {
+      if (!nsAccUtils::MustPrune(childWrap)) {
         nsTArray<nsRefPtr<nsAccessibleWrap> > children;
         childWrap->GetUnignoredChildren(children);
         if (!children.IsEmpty()) {
@@ -301,7 +301,7 @@ already_AddRefed<nsIAccessible>
 nsAccessibleWrap::GetUnignoredParent()
 {
   nsCOMPtr<nsIAccessible> parent(GetParent());
-  nsAccessibleWrap *parentWrap = static_cast<nsAccessibleWrap*>((nsIAccessible*)parent.get());
+  nsAccessibleWrap *parentWrap = static_cast<nsAccessibleWrap*>(parent.get());
   if (!parentWrap)
     return nsnull;
     

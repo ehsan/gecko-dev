@@ -22,6 +22,7 @@
  *
  * Contributor(s):
  *   Stuart Parmenter <pavlov@netscape.com>
+ *   Bobby Holley <bobbyholley@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -45,12 +46,10 @@
 #include "nsCOMPtr.h"
 
 #include "imgIContainer.h"
-#include "gfxIImageFrame.h"
 #include "imgIDecoderObserver.h"
-#include "imgILoad.h"
 #include "nsIInputStream.h"
 #include "nsIPipe.h"
-#include "lcms.h"
+#include "qcms.h"
 
 extern "C" {
 #include "jpeglib.h"
@@ -91,23 +90,22 @@ public:
   nsJPEGDecoder();
   virtual ~nsJPEGDecoder();
 
-  nsresult  ProcessData(const char *data, PRUint32 count, PRUint32 *writeCount);
+  void NotifyDone(PRBool aSuccess);
 
 protected:
-  PRBool OutputScanlines();
+  nsresult OutputScanlines(PRBool* suspend);
 
 public:
   nsCOMPtr<imgIContainer> mImage;
-  nsCOMPtr<imgILoad> mImageLoad;
-  nsCOMPtr<gfxIImageFrame> mFrame;
-
   nsCOMPtr<imgIDecoderObserver> mObserver;
+
+  PRUint32 mFlags;
+  PRUint8 *mImageData;
 
   struct jpeg_decompress_struct mInfo;
   struct jpeg_source_mgr mSourceMgr;
   decoder_error_mgr mErr;
   jstate mState;
-  nsresult mError;
 
   PRUint32 mBytesToSkip;
 
@@ -122,10 +120,11 @@ public:
   JOCTET  *mProfile;
   PRUint32 mProfileLength;
 
-  cmsHPROFILE mInProfile;
-  cmsHTRANSFORM mTransform;
+  qcms_profile *mInProfile;
+  qcms_transform *mTransform;
 
   PRPackedBool mReading;
+  PRPackedBool mNotifiedDone;
 };
 
 #endif // nsJPEGDecoder_h__

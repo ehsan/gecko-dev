@@ -23,6 +23,7 @@
  * Contributor(s):
  *   Stuart Parmenter <stuart@mozilla.com>
  *   Federico Mena-Quintero <federico@novell.com>
+ *   Bobby Holley <bobbyholley@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -48,7 +49,6 @@
 #include "nspr.h"
 #include "nsCRT.h"
 #include "ImageLogging.h"
-#include "nsIImage.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "gfxColor.h"
 
@@ -100,7 +100,8 @@ nsJPEGDecoder::nsJPEGDecoder()
 {
   mState = JPEG_HEADER;
   mReading = PR_TRUE;
-  mError = NS_OK;
+  mNotifiedDone = PR_FALSE;
+  mImageData = nsnull;
 
   mBytesToSkip = 0;
   memset(&mInfo, 0, sizeof(jpeg_decompress_struct));
@@ -125,9 +126,9 @@ nsJPEGDecoder::~nsJPEGDecoder()
 {
   PR_FREEIF(mBackBuffer);
   if (mTransform)
-    cmsDeleteTransform(mTransform);
+    qcms_transform_release(mTransform);
   if (mInProfile)
-    cmsCloseProfile(mInProfile);
+    qcms_profile_release(mInProfile);
 
   PR_LOG(gJPEGDecoderAccountingLog, PR_LOG_DEBUG,
          ("nsJPEGDecoder::~nsJPEGDecoder: Destroying JPEG decoder %p",
@@ -137,11 +138,22 @@ nsJPEGDecoder::~nsJPEGDecoder()
 
 /** imgIDecoder methods **/
 
-/* void init (in imgILoad aLoad); */
-NS_IMETHODIMP nsJPEGDecoder::Init(imgILoad *aLoad)
+/* void init (in imgIContainer aImage, 
+              in imgIDecoderObserver aObserver,
+              in unsigned long aFlags); */
+NS_IMETHODIMP nsJPEGDecoder::Init(imgIContainer *aImage, 
+                                  imgIDecoderObserver *aObserver,
+                                  PRUint32 aFlags)
 {
-  mImageLoad = aLoad;
-  mObserver = do_QueryInterface(aLoad);
+
+  /* Grab the parameters. */
+  mImage = aImage;
+  mObserver = aObserver;
+  mFlags = aFlags;
+
+  /* Fire OnStartDecode at init time to support bug 512435 */
+  if (!(mFlags & imgIDecoder::DECODER_FLAG_HEADERONLY) && mObserver)
+    mObserver->OnStartDecode(nsnull);
 
   /* We set up the normal JPEG error routines, then override error_exit. */
   mInfo.err = jpeg_std_error(&mErr.pub);
@@ -173,40 +185,12 @@ NS_IMETHODIMP nsJPEGDecoder::Init(imgILoad *aLoad)
   for (PRUint32 m = 0; m < 16; m++)
     jpeg_save_markers(&mInfo, JPEG_APP0 + m, 0xFFFF);
 
-
-
-  /* Check if the request already has an image container.
-   * this is the case when multipart/x-mixed-replace is being downloaded
-   * if we already have one and it has the same width and height, reuse it.
-   * This is also the case when an existing container is reloading itself from
-   * us.
-   *
-   * If we have a mismatch in width/height for the container later on we will
-   * generate an error.
-   */
-  mImageLoad->GetImage(getter_AddRefs(mImage));
-
-  if (!mImage) {
-    mImage = do_CreateInstance("@mozilla.org/image/container;1");
-    if (!mImage)
-      return NS_ERROR_OUT_OF_MEMORY;
-      
-    mImageLoad->SetImage(mImage);
-    nsresult result = mImage->SetDiscardable("image/jpeg");
-    if (NS_FAILED(result)) {
-      mState = JPEG_ERROR;
-      PR_LOG(gJPEGDecoderAccountingLog, PR_LOG_DEBUG,
-             (" (could not set image container to discardable)"));
-      return result;
-    }
-  }
-
   return NS_OK;
 }
 
 
 /* void close (); */
-NS_IMETHODIMP nsJPEGDecoder::Close()
+NS_IMETHODIMP nsJPEGDecoder::Close(PRUint32 aFlags)
 {
   PR_LOG(gJPEGlog, PR_LOG_DEBUG,
          ("[this=%p] nsJPEGDecoder::Close\n", this));
@@ -216,12 +200,19 @@ NS_IMETHODIMP nsJPEGDecoder::Close()
 
   jpeg_destroy_decompress(&mInfo);
 
-  if (mState != JPEG_DONE && mState != JPEG_SINK_NON_JPEG_TRAILER) {
-    NS_WARNING("Never finished decoding the JPEG.");
-    /* Tell imgLoader that image decoding has failed */
-    return NS_ERROR_FAILURE;
-  }
+  /* If we already know we're in an error state, don't
+     bother flagging another one here. */
+  if (mState == JPEG_ERROR)
+    return NS_OK;
 
+  /* If we're doing a full decode and haven't notified of completion yet,
+   * we must not have got everything we wanted. Send error notifications. */
+  if (!(aFlags & CLOSE_FLAG_DONTNOTIFY) &&
+      !(mFlags && imgIDecoder::DECODER_FLAG_HEADERONLY) &&
+      !mNotifiedDone)
+    NotifyDone(/* aSuccess = */ PR_FALSE);
+
+  /* Otherwise, no problems. */
   return NS_OK;
 }
 
@@ -230,80 +221,25 @@ NS_IMETHODIMP nsJPEGDecoder::Flush()
 {
   LOG_SCOPE(gJPEGlog, "nsJPEGDecoder::Flush");
 
-  PRUint32 ret;
   if (mState != JPEG_DONE && mState != JPEG_SINK_NON_JPEG_TRAILER && mState != JPEG_ERROR)
-    return this->ProcessData(nsnull, 0, &ret);
+    return this->Write(nsnull, 0);
 
   return NS_OK;
-}
-
-static NS_METHOD ReadDataOut(nsIInputStream* in,
-                             void* closure,
-                             const char* fromRawSegment,
-                             PRUint32 toOffset,
-                             PRUint32 count,
-                             PRUint32 *writeCount)
-{
-  nsJPEGDecoder *decoder = static_cast<nsJPEGDecoder*>(closure);
-  nsresult rv = decoder->ProcessData(fromRawSegment, count, writeCount);
-  if (NS_FAILED(rv)) {
-    /* Tell imgLoader that image decoding has failed */
-    decoder->mError = rv;
-    *writeCount = 0;
-  }
-
-  return NS_OK;
-}
-
-
-/* unsigned long writeFrom (in nsIInputStream inStr, in unsigned long count); */
-NS_IMETHODIMP nsJPEGDecoder::WriteFrom(nsIInputStream *inStr, PRUint32 count, PRUint32 *writeCount)
-{
-  NS_ENSURE_ARG_POINTER(inStr);
-  NS_ENSURE_ARG_POINTER(writeCount);
-
-  /* necko doesn't propagate the errors from ReadDataOut */
-  nsresult rv = inStr->ReadSegments(ReadDataOut, this, count, writeCount);
-  if (NS_FAILED(mError)) {
-    /* Tell imgLoader that image decoding has failed */
-    rv = NS_ERROR_FAILURE;
-  }
-
-  return rv;
 }
 
 //******************************************************************************
-nsresult nsJPEGDecoder::ProcessData(const char *data, PRUint32 count, PRUint32 *writeCount)
+nsresult nsJPEGDecoder::Write(const char *aBuffer, PRUint32 aCount)
 {
-  LOG_SCOPE_WITH_PARAM(gJPEGlog, "nsJPEGDecoder::ProcessData", "count", count);
+  mSegment = (const JOCTET *)aBuffer;
+  mSegmentLen = aCount;
 
-  mSegment = (const JOCTET *)data;
-  mSegmentLen = count;
-  *writeCount = count;
-
-  if (data && count) {
-    nsresult result = mImage->AddRestoreData((char *) data, count);
-
-    if (NS_FAILED(result)) {
-      mState = JPEG_ERROR;
-      PR_LOG(gJPEGDecoderAccountingLog, PR_LOG_DEBUG,
-             ("} (could not add restore data)"));
-      return result;
-    }
-
-    PR_LOG(gJPEGDecoderAccountingLog, PR_LOG_DEBUG,
-           ("        added %u bytes to restore data",
-            count));
-  }
-  // else no input stream.. Flush() ?
-
-  /* Return here if there is a fatal error. */
+  /* Return here if there is a fatal error within libjpeg. */
   nsresult error_code;
   if ((error_code = setjmp(mErr.setjmp_buffer)) != 0) {
-    mState = JPEG_SINK_NON_JPEG_TRAILER;
     if (error_code == NS_ERROR_FAILURE) {
-      /* Error due to corrupt stream - return NS_OK so that libpr0n
-         doesn't throw away a partial image load */
+      /* Error due to corrupt stream - return NS_OK and consume silently
+         so that libpr0n doesn't throw away a partial image load */
+      mState = JPEG_SINK_NON_JPEG_TRAILER;
       PR_LOG(gJPEGDecoderAccountingLog, PR_LOG_DEBUG,
              ("} (setjmp returned NS_ERROR_FAILURE)"));
       return NS_OK;
@@ -311,6 +247,7 @@ nsresult nsJPEGDecoder::ProcessData(const char *data, PRUint32 count, PRUint32 *
       /* Error due to reasons external to the stream (probably out of
          memory) - let libpr0n attempt to clean up, even though
          mozilla is seconds away from falling flat on its face. */
+      mState = JPEG_ERROR;
       PR_LOG(gJPEGDecoderAccountingLog, PR_LOG_DEBUG,
              ("} (setjmp returned an error)"));
       return error_code;
@@ -318,12 +255,12 @@ nsresult nsJPEGDecoder::ProcessData(const char *data, PRUint32 count, PRUint32 *
   }
 
   PR_LOG(gJPEGlog, PR_LOG_DEBUG,
-         ("[this=%p] nsJPEGDecoder::ProcessData -- processing JPEG data\n", this));
+         ("[this=%p] nsJPEGDecoder::Write -- processing JPEG data\n", this));
 
   switch (mState) {
   case JPEG_HEADER:
   {
-    LOG_SCOPE(gJPEGlog, "nsJPEGDecoder::ProcessData -- entering JPEG_HEADER case");
+    LOG_SCOPE(gJPEGlog, "nsJPEGDecoder::Write -- entering JPEG_HEADER case");
 
     /* Step 3: read file parameters with jpeg_read_header() */
     if (jpeg_read_header(&mInfo, TRUE) == JPEG_SUSPENDED) {
@@ -332,15 +269,26 @@ nsresult nsJPEGDecoder::ProcessData(const char *data, PRUint32 count, PRUint32 *
       return NS_OK; /* I/O suspension */
     }
 
+    /* Set Width and height, and notify that the container is ready to go. */
+    mImage->SetSize(mInfo.image_width, mInfo.image_height);
+    if (mObserver)
+      mObserver->OnStartContainer(nsnull, mImage);
+
+    /* If we're doing a header-only decode, we're done. */
+    if (mFlags & imgIDecoder::DECODER_FLAG_HEADERONLY)
+      return NS_OK;
+
+    /* We're doing a full decode. */
     JOCTET  *profile;
     PRUint32 profileLength;
+    eCMSMode cmsMode = gfxPlatform::GetCMSMode();
 
-    if (gfxPlatform::IsCMSEnabled() &&
+    if ((cmsMode != eCMSMode_Off) &&
         read_icc_profile(&mInfo, &profile, &profileLength) &&
-        (mInProfile = cmsOpenProfileFromMem(profile, profileLength)) != NULL) {
+        (mInProfile = qcms_profile_from_memory(profile, profileLength)) != NULL) {
       free(profile);
 
-      PRUint32 profileSpace = cmsGetColorSpace(mInProfile);
+      PRUint32 profileSpace = qcms_profile_get_color_space(mInProfile);
       PRBool mismatch = PR_FALSE;
 
 #ifdef DEBUG_tor
@@ -360,14 +308,13 @@ nsresult nsJPEGDecoder::ProcessData(const char *data, PRUint32 count, PRUint32 *
       case JCS_YCbCr:
         if (profileSpace == icSigRgbData)
           mInfo.out_color_space = JCS_RGB;
-        else if (profileSpace != icSigYCbCrData)
+        else
+	  // qcms doesn't support ycbcr
           mismatch = PR_TRUE;
         break;
       case JCS_CMYK:
       case JCS_YCCK:
-        if (profileSpace == icSigCmykData)
-          mInfo.out_color_space = JCS_CMYK;
-        else
+	  // qcms doesn't support cmyk
           mismatch = PR_TRUE;
         break;
       default:
@@ -378,19 +325,13 @@ nsresult nsJPEGDecoder::ProcessData(const char *data, PRUint32 count, PRUint32 *
       }
 
       if (!mismatch) {
-        PRUint32 type;
+        qcms_data_type type;
         switch (mInfo.out_color_space) {
         case JCS_GRAYSCALE:
-          type = COLORSPACE_SH(PT_GRAY)  | CHANNELS_SH(1) | BYTES_SH(1);
+          type = QCMS_DATA_GRAY_8;
           break;
         case JCS_RGB:
-          type = COLORSPACE_SH(PT_RGB)   | CHANNELS_SH(3) | BYTES_SH(1);
-          break;
-        case JCS_YCbCr:
-          type = COLORSPACE_SH(PT_YCbCr) | CHANNELS_SH(3) | BYTES_SH(1);
-          break;
-        case JCS_CMYK:
-          type = COLORSPACE_SH(PT_CMYK)  | CHANNELS_SH(4) | BYTES_SH(1);
+          type = QCMS_DATA_RGB_8;
           break;
         default:
           mState = JPEG_ERROR;
@@ -398,18 +339,30 @@ nsresult nsJPEGDecoder::ProcessData(const char *data, PRUint32 count, PRUint32 *
                  ("} (unknown colorpsace (2))"));
           return NS_ERROR_UNEXPECTED;
         }
-
+#if 0
+        /* We don't currently support CMYK profiles. The following
+         * code dealt with lcms types. Add something like this
+         * back when we gain support for CMYK.
+         */
         /* Adobe Photoshop writes YCCK/CMYK files with inverted data */
         if (mInfo.out_color_space == JCS_CMYK)
           type |= FLAVOR_SH(mInfo.saw_Adobe_marker ? 1 : 0);
+#endif
 
-        if (gfxPlatform::GetCMSOutputProfile())
-          mTransform = cmsCreateTransform(mInProfile,
+        if (gfxPlatform::GetCMSOutputProfile()) {
+
+          /* Calculate rendering intent. */
+          int intent = gfxPlatform::GetRenderingIntent();
+          if (intent == -1)
+              intent = qcms_profile_get_rendering_intent(mInProfile);
+
+          /* Create the color management transform. */
+          mTransform = qcms_transform_create(mInProfile,
                                           type,
                                           gfxPlatform::GetCMSOutputProfile(),
-                                          TYPE_RGB_8,
-                                          cmsTakeRenderingIntent(mInProfile),
-                                          0);
+                                          QCMS_DATA_RGB_8,
+                                          (qcms_intent)intent);
+        }
       } else {
 #ifdef DEBUG_tor
         fprintf(stderr, "ICM profile colorspace mismatch\n");
@@ -447,78 +400,31 @@ nsresult nsJPEGDecoder::ProcessData(const char *data, PRUint32 count, PRUint32 *
     /* Used to set up image size so arrays can be allocated */
     jpeg_calc_output_dimensions(&mInfo);
 
-    mObserver->OnStartDecode(nsnull);
 
-    /* verify that the width and height of the image are the same as
-     * the container we're about to put things in to.
-     * XXX it might not matter maybe we should just resize the image.
-     */
-    PRInt32 width, height;
-    mImage->GetWidth(&width);
-    mImage->GetHeight(&height);
-    if (width == 0 && height == 0) {
-      mImage->Init(mInfo.image_width, mInfo.image_height, mObserver);
-    } else if ((width != (PRInt32)mInfo.image_width) || (height != (PRInt32)mInfo.image_height)) {
+    // Use EnsureCleanFrame so we don't create a new frame if we're being
+    // reused for e.g. multipart/x-replace
+    PRUint32 imagelength;
+    if (NS_FAILED(mImage->EnsureCleanFrame(0, 0, 0, mInfo.image_width, mInfo.image_height,
+                                           gfxASurface::ImageFormatRGB24,
+                                           &mImageData, &imagelength))) {
       mState = JPEG_ERROR;
-      return NS_ERROR_UNEXPECTED;
-    }
-
-    mImage->Init(mInfo.image_width, mInfo.image_height, mObserver);
-
-    mObserver->OnStartContainer(nsnull, mImage);
-
-    mImage->GetFrameAt(0, getter_AddRefs(mFrame));
-
-    PRBool createNewFrame = PR_TRUE;
-
-    if (mFrame) {
-      PRInt32 width, height;
-      mFrame->GetWidth(&width);
-      mFrame->GetHeight(&height);
-
-      if ((width == (PRInt32)mInfo.image_width) &&
-          (height == (PRInt32)mInfo.image_height)) {
-        createNewFrame = PR_FALSE;
-      } else {
-        mImage->Clear();
-      }
-    }
-
-    if (createNewFrame) {
-      mFrame = do_CreateInstance("@mozilla.org/gfx/image/frame;2");
-      if (!mFrame) {
-        mState = JPEG_ERROR;
-        PR_LOG(gJPEGDecoderAccountingLog, PR_LOG_DEBUG,
-               ("} (could not create image frame)"));
-        return NS_ERROR_OUT_OF_MEMORY;
-      }
-
-      gfx_format format = gfxIFormats::RGB;
-#if defined(XP_WIN) || defined(XP_OS2) || defined(XP_BEOS)
-      format = gfxIFormats::BGR;
-#endif
-
-      if (NS_FAILED(mFrame->Init(0, 0, mInfo.image_width, mInfo.image_height, format, 24))) {
-        mState = JPEG_ERROR;
-        PR_LOG(gJPEGDecoderAccountingLog, PR_LOG_DEBUG,
-               ("} (could not initialize image frame)"));
-        return NS_ERROR_OUT_OF_MEMORY;
-      }
-
-      mImage->AppendFrame(mFrame);
-
       PR_LOG(gJPEGDecoderAccountingLog, PR_LOG_DEBUG,
-             ("        JPEGDecoderAccounting: nsJPEGDecoder::ProcessData -- created image frame with %ux%u pixels",
-              mInfo.image_width, mInfo.image_height));
+             ("} (could not initialize image frame)"));
+      return NS_ERROR_OUT_OF_MEMORY;
     }
 
-    mObserver->OnStartFrame(nsnull, mFrame);
+    PR_LOG(gJPEGDecoderAccountingLog, PR_LOG_DEBUG,
+           ("        JPEGDecoderAccounting: nsJPEGDecoder::Write -- created image frame with %ux%u pixels",
+            mInfo.image_width, mInfo.image_height));
+
+    if (mObserver)
+      mObserver->OnStartFrame(nsnull, 0);
     mState = JPEG_START_DECOMPRESS;
   }
 
   case JPEG_START_DECOMPRESS:
   {
-    LOG_SCOPE(gJPEGlog, "nsJPEGDecoder::ProcessData -- entering JPEG_START_DECOMPRESS case");
+    LOG_SCOPE(gJPEGlog, "nsJPEGDecoder::Write -- entering JPEG_START_DECOMPRESS case");
     /* Step 4: set parameters for decompression */
 
     /* FIXME -- Should reset dct_method and dither mode
@@ -538,7 +444,7 @@ nsresult nsJPEGDecoder::ProcessData(const char *data, PRUint32 count, PRUint32 *
     }
 
     /* Force to use our YCbCr to Packed RGB converter when possible */
-    if (!mTransform && !gfxPlatform::IsCMSEnabled() &&
+    if (!mTransform && (gfxPlatform::GetCMSMode() == eCMSMode_Off) &&
         mInfo.jpeg_color_space == JCS_YCbCr && mInfo.out_color_space == JCS_RGB) {
       /* Special case for the most common case: transform from YCbCr direct into packed ARGB */
       mInfo.out_color_components = 4; /* Packed ARGB pixels are always 4 bytes...*/
@@ -553,9 +459,14 @@ nsresult nsJPEGDecoder::ProcessData(const char *data, PRUint32 count, PRUint32 *
   {
     if (mState == JPEG_DECOMPRESS_SEQUENTIAL)
     {
-      LOG_SCOPE(gJPEGlog, "nsJPEGDecoder::ProcessData -- JPEG_DECOMPRESS_SEQUENTIAL case");
+      LOG_SCOPE(gJPEGlog, "nsJPEGDecoder::Write -- JPEG_DECOMPRESS_SEQUENTIAL case");
       
-      if (!OutputScanlines()) {
+      PRBool suspend;
+      nsresult rv = OutputScanlines(&suspend);
+      if (NS_FAILED(rv))
+        return rv;
+      
+      if (suspend) {
         PR_LOG(gJPEGDecoderAccountingLog, PR_LOG_DEBUG,
                ("} (I/O suspension after OutputScanlines() - SEQUENTIAL)"));
         return NS_OK; /* I/O suspension */
@@ -571,7 +482,7 @@ nsresult nsJPEGDecoder::ProcessData(const char *data, PRUint32 count, PRUint32 *
   {
     if (mState == JPEG_DECOMPRESS_PROGRESSIVE)
     {
-      LOG_SCOPE(gJPEGlog, "nsJPEGDecoder::ProcessData -- JPEG_DECOMPRESS_PROGRESSIVE case");
+      LOG_SCOPE(gJPEGlog, "nsJPEGDecoder::Write -- JPEG_DECOMPRESS_PROGRESSIVE case");
 
       int status;
       do {
@@ -601,7 +512,12 @@ nsresult nsJPEGDecoder::ProcessData(const char *data, PRUint32 count, PRUint32 *
         if (mInfo.output_scanline == 0xffffff)
           mInfo.output_scanline = 0;
 
-        if (!OutputScanlines()) {
+        PRBool suspend;
+        nsresult rv = OutputScanlines(&suspend);
+        if (NS_FAILED(rv))
+          return rv;
+
+        if (suspend) {
           if (mInfo.output_scanline == 0) {
             /* didn't manage to read any lines - flag so we don't call
                jpeg_start_output() multiple times for the same scan */
@@ -634,8 +550,6 @@ nsresult nsJPEGDecoder::ProcessData(const char *data, PRUint32 count, PRUint32 *
 
   case JPEG_DONE:
   {
-    nsresult result;
-
     LOG_SCOPE(gJPEGlog, "nsJPEGDecoder::ProcessData -- entering JPEG_DONE case");
 
     /* Step 7: Finish decompression */
@@ -647,14 +561,6 @@ nsresult nsJPEGDecoder::ProcessData(const char *data, PRUint32 count, PRUint32 *
     }
 
     mState = JPEG_SINK_NON_JPEG_TRAILER;
-
-    result = mImage->RestoreDataDone();
-    if (NS_FAILED (result)) {
-      mState = JPEG_ERROR;
-      PR_LOG(gJPEGDecoderAccountingLog, PR_LOG_DEBUG,
-             ("} (could not mark image container with RestoreDataDone)"));
-      return result;
-    }
 
     /* we're done dude */
     break;
@@ -668,8 +574,7 @@ nsresult nsJPEGDecoder::ProcessData(const char *data, PRUint32 count, PRUint32 *
   case JPEG_ERROR:
     PR_LOG(gJPEGlog, PR_LOG_DEBUG,
            ("[this=%p] nsJPEGDecoder::ProcessData -- entering JPEG_ERROR case\n", this));
-
-    break;
+    return NS_ERROR_FAILURE;
   }
 
   PR_LOG(gJPEGDecoderAccountingLog, PR_LOG_DEBUG,
@@ -677,29 +582,44 @@ nsresult nsJPEGDecoder::ProcessData(const char *data, PRUint32 count, PRUint32 *
   return NS_OK;
 }
 
-
-PRBool
-nsJPEGDecoder::OutputScanlines()
+void
+nsJPEGDecoder::NotifyDone(PRBool aSuccess)
 {
-  const PRUint32 top = mInfo.output_scanline;
-  PRBool rv = PR_TRUE;
+  // We should only be called once
+  NS_ABORT_IF_FALSE(!mNotifiedDone, "calling NotifyDone twice!");
 
-  mFrame->LockImageData();
-  
-  // we're thebes. we can write stuff directly to the data
-  PRUint8 *imageData;
-  PRUint32 imageDataLength;
-  mFrame->GetImageData(&imageData, &imageDataLength);
+  // Notify
+  if (mObserver)
+    mObserver->OnStopFrame(nsnull, 0);
+  if (aSuccess)
+    mImage->DecodingComplete();
+  if (mObserver) {
+    mObserver->OnStopContainer(nsnull, mImage);
+    mObserver->OnStopDecode(nsnull, aSuccess ? NS_OK : NS_ERROR_FAILURE,
+                            nsnull);
+  }
+
+  // Mark that we've been called
+  mNotifiedDone = PR_TRUE;
+}
+
+nsresult
+nsJPEGDecoder::OutputScanlines(PRBool* suspend)
+{
+  *suspend = PR_FALSE;
+
+  const PRUint32 top = mInfo.output_scanline;
+  nsresult rv = NS_OK;
 
   while ((mInfo.output_scanline < mInfo.output_height)) {
       /* Use the Cairo image buffer as scanline buffer */
-      PRUint32 *imageRow = ((PRUint32*)imageData) +
+      PRUint32 *imageRow = ((PRUint32*)mImageData) +
                            (mInfo.output_scanline * mInfo.output_width);
 
       if (mInfo.cconvert->color_convert == ycc_rgb_convert_argb) {
         /* Special case: scanline will be directly converted into packed ARGB */
         if (jpeg_read_scanlines(&mInfo, (JSAMPARRAY)&imageRow, 1) != 1) {
-          rv = PR_FALSE; /* suspend */
+          *suspend = PR_TRUE; /* suspend */
           break;
         }
         continue; /* all done for this row! */
@@ -713,7 +633,7 @@ nsJPEGDecoder::OutputScanlines()
 
       /* Request one scanline.  Returns 0 or 1 scanlines. */    
       if (jpeg_read_scanlines(&mInfo, &sampleRow, 1) != 1) {
-        rv = PR_FALSE; /* suspend */
+        *suspend = PR_TRUE; /* suspend */
         break;
       }
 
@@ -724,7 +644,7 @@ nsJPEGDecoder::OutputScanlines()
              to the 3byte RGB byte pixels at 'end' of row */
           sampleRow += mInfo.output_width;
         }
-        cmsDoTransform(mTransform, source, sampleRow, mInfo.output_width);
+        qcms_transform_data(mTransform, source, sampleRow, mInfo.output_width);
         /* Move 3byte RGB data to end of row */
         if (mInfo.out_color_space == JCS_CMYK) {
           memmove(sampleRow + mInfo.output_width,
@@ -740,11 +660,11 @@ nsJPEGDecoder::OutputScanlines()
           cmyk_convert_rgb((JSAMPROW)imageRow, mInfo.output_width);
           sampleRow += mInfo.output_width;
         }
-        if (gfxPlatform::IsCMSEnabled()) {
+        if (gfxPlatform::GetCMSMode() == eCMSMode_All) {
           /* No embedded ICC profile - treat as sRGB */
-          cmsHTRANSFORM transform = gfxPlatform::GetCMSRGBTransform();
+          qcms_transform *transform = gfxPlatform::GetCMSRGBTransform();
           if (transform) {
-            cmsDoTransform(transform, sampleRow, sampleRow, mInfo.output_width);
+            qcms_transform_data(transform, sampleRow, sampleRow, mInfo.output_width);
           }
         }
       }
@@ -776,13 +696,11 @@ nsJPEGDecoder::OutputScanlines()
 
   if (top != mInfo.output_scanline) {
       nsIntRect r(0, top, mInfo.output_width, mInfo.output_scanline-top);
-      nsCOMPtr<nsIImage> img(do_GetInterface(mFrame));
-      img->ImageUpdated(nsnull, nsImageUpdateFlags_kBitsChanged, &r);
-      mObserver->OnDataAvailable(nsnull, mFrame, &r);
+      rv = mImage->FrameUpdated(0, r);
+      if (mObserver)
+        mObserver->OnDataAvailable(nsnull, PR_TRUE, &r);
   }
-  
-  mFrame->UnlockImageData();
-  
+
   return rv;
 }
 
@@ -997,16 +915,13 @@ term_source (j_decompress_ptr jd)
 {
   nsJPEGDecoder *decoder = (nsJPEGDecoder *)(jd->client_data);
 
-  if (decoder->mObserver) {
-    decoder->mObserver->OnStopFrame(nsnull, decoder->mFrame);
-    decoder->mObserver->OnStopContainer(nsnull, decoder->mImage);
-    decoder->mObserver->OnStopDecode(nsnull, NS_OK, nsnull);
-  }
+  // This function shouldn't be called if we ran into an error we didn't
+  // recover from.
+  NS_ABORT_IF_FALSE(decoder->mState != JPEG_ERROR,
+                    "Calling term_source on a JPEG with mState == JPEG_ERROR!");
 
-  PRBool isMutable = PR_FALSE;
-  if (decoder->mImageLoad) 
-      decoder->mImageLoad->GetIsMultiPartChannel(&isMutable);
-  decoder->mFrame->SetMutable(isMutable);
+  // Notify
+  decoder->NotifyDone(/* aSuccess = */ PR_TRUE);
 }
 
 

@@ -71,34 +71,11 @@ VPATH		:= $(srcdir) $(srcdir)/$(OSDIR)
 MODULE = exthandler
 LIBRARY_NAME    = exthandler_s
 LIBXUL_LIBRARY  = 1
-REQUIRES	= xpcom \
-		  string \
-		  unicharutil \
-		  mimetype \
-		  uriloader \
-		  necko \
-		  webshell \
-		  plugin \
-		  pref \
-		  intl \
-		  uconv \
-		  docshell \
-		  windowwatcher \
-		  embed_base \
-		  dom \
-		  $(NULL)
 
-ifdef MOZ_PHOENIX
-REQUIRES	+= toolkitcomps
-endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
-REQUIRES		+= windowwatcher \
-	             $(NULL)
 
 CMMSRCS	= nsOSHelperAppService.mm \
-			nsInternetConfig.mm \
-			nsInternetConfigService.mm \
 			nsMIMEInfoMac.mm \
 			nsLocalHandlerAppMac.mm \
 			$(NULL)
@@ -113,6 +90,11 @@ OSHELPER	+= nsGNOMERegistry.cpp
 OSHELPER  += nsMIMEInfoUnix.cpp
 endif
 
+ifeq ($(MOZ_WIDGET_TOOLKIT),qt)
+OSHELPER += nsGNOMERegistry.cpp
+OSHELPER += nsMIMEInfoUnix.cpp
+endif
+
 ifeq ($(MOZ_WIDGET_TOOLKIT),beos)
 OSHELPER  += nsMIMEInfoBeOS.cpp
 endif
@@ -124,7 +106,6 @@ endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),os2)
 OSHELPER  += nsMIMEInfoOS2.cpp
-REQUIRES  += widget
 endif
 
 EXPORTS = \
@@ -140,10 +121,6 @@ XPIDLSRCS = \
 	nsIHandlerService.idl	\
 	$(NULL)
 
-ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
-XPIDLSRCS		+= nsIInternetConfigService.idl
-endif
-
 CPPSRCS	= \
 	nsExternalHelperAppService.cpp	\
 	nsExternalProtocolHandler.cpp \
@@ -151,6 +128,23 @@ CPPSRCS	= \
 	nsLocalHandlerApp.cpp \
 	$(OSHELPER) \
 	$(NULL)
+
+ifdef MOZ_ENABLE_DBUS
+CPPSRCS += nsDBusHandlerApp.cpp
+LOCAL_INCLUDES   += $(TK_CFLAGS) $(MOZ_DBUS_GLIB_CFLAGS)
+EXTRA_DSO_LDOPTS += $(MOZ_DBUS_GLIB_LIBS)
+endif
+
+ifdef MOZ_PLATFORM_HILDON
+ifdef MOZ_ENABLE_GNOMEVFS
+LOCAL_INCLUDES   += $(MOZ_GNOMEVFS_CFLAGS)
+EXTRA_DSO_LDOPTS += $(MOZ_GNOMEVFS_LIBS)
+endif
+ifdef MOZ_ENABLE_GIO
+LOCAL_INCLUDES   += $(MOZ_GIO_CFLAGS)
+EXTRA_DSO_LDOPTS += $(MOZ_GIO_LIBS)
+endif
+endif
 
 ifeq ($(OS_ARCH),WINNT WINCE)
 OS_LIBS		+= shell32.lib

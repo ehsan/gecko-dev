@@ -42,7 +42,7 @@
 #include "nsIAccessibilityService.h"
 #include "nsIAccessibleDocument.h"
 #include "nsAccessibleWrap.h"
-#include "nsAccessibilityUtils.h"
+#include "nsCoreUtils.h"
 #include "nsIDOMNSHTMLElement.h"
 #include "nsGUIEvent.h"
 #include "nsHyperTextAccessibleWrap.h"
@@ -54,9 +54,9 @@
 #include "nsIServiceManager.h"
 #include "nsIURI.h"
 
-//-------------
+////////////////////////////////////////////////////////////////////////////////
 // nsLeafAccessible
-//-------------
+////////////////////////////////////////////////////////////////////////////////
 
 nsLeafAccessible::nsLeafAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell):
 nsAccessibleWrap(aNode, aShell)
@@ -65,48 +65,40 @@ nsAccessibleWrap(aNode, aShell)
 
 NS_IMPL_ISUPPORTS_INHERITED0(nsLeafAccessible, nsAccessible)
 
-/* nsIAccessible getFirstChild (); */
-NS_IMETHODIMP nsLeafAccessible::GetFirstChild(nsIAccessible **_retval)
+// nsAccessible::GetChildAtPoint()
+nsresult
+nsLeafAccessible::GetChildAtPoint(PRInt32 aX, PRInt32 aY,
+                                  PRBool aDeepestChild,
+                                  nsIAccessible **aChild)
 {
-  *_retval = nsnull;
+  // Don't walk into leaf accessibles.
+  NS_ADDREF(*aChild = this);
   return NS_OK;
 }
 
-/* nsIAccessible getLastChild (); */
-NS_IMETHODIMP nsLeafAccessible::GetLastChild(nsIAccessible **_retval)
+// nsAccessible::CacheChildren()
+void
+nsLeafAccessible::CacheChildren()
 {
-  *_retval = nsnull;
-  return NS_OK;
+  // No children for leaf accessible.
+  mAccChildCount = IsDefunct() ? eChildCountUninitialized : 0;
 }
 
-/* long getAccChildCount (); */
-NS_IMETHODIMP nsLeafAccessible::GetChildCount(PRInt32 *_retval)
-{
-  *_retval = 0;
-  return NS_OK;
-}
-
-/* readonly attribute boolean allowsAnonChildAccessibles; */
-NS_IMETHODIMP
-nsLeafAccessible::GetAllowsAnonChildAccessibles(PRBool *aAllowsAnonChildren)
-{
-  *aAllowsAnonChildren = PR_FALSE;
-  return NS_OK;
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsLinkableAccessible
+////////////////////////////////////////////////////////////////////////////////
 
 nsLinkableAccessible::
   nsLinkableAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell) :
-  nsHyperTextAccessibleWrap(aNode, aShell),
+  nsAccessibleWrap(aNode, aShell),
   mActionContent(nsnull),
   mIsLink(PR_FALSE),
   mIsOnclick(PR_FALSE)
 {
 }
 
-NS_IMPL_ISUPPORTS_INHERITED0(nsLinkableAccessible, nsHyperTextAccessibleWrap)
+NS_IMPL_ISUPPORTS_INHERITED0(nsLinkableAccessible, nsAccessibleWrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsLinkableAccessible. nsIAccessible
@@ -118,19 +110,19 @@ nsLinkableAccessible::TakeFocus()
   if (actionAcc)
     return actionAcc->TakeFocus();
 
-  return NS_OK;
+  return nsAccessibleWrap::TakeFocus();
 }
 
-NS_IMETHODIMP
-nsLinkableAccessible::GetState(PRUint32 *aState, PRUint32 *aExtraState)
+nsresult
+nsLinkableAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
 {
-  nsresult rv = nsHyperTextAccessibleWrap::GetState(aState, aExtraState);
-  NS_ENSURE_SUCCESS(rv, rv);
+  nsresult rv = nsAccessibleWrap::GetStateInternal(aState, aExtraState);
+  NS_ENSURE_A11Y_SUCCESS(rv, rv);
 
   if (mIsLink) {
     *aState |= nsIAccessibleStates::STATE_LINKED;
     nsCOMPtr<nsIAccessible> actionAcc = GetActionAccessible();
-    if (actionAcc && (State(actionAcc) & nsIAccessibleStates::STATE_TRAVERSED))
+    if (nsAccUtils::State(actionAcc) & nsIAccessibleStates::STATE_TRAVERSED)
       *aState |= nsIAccessibleStates::STATE_TRAVERSED;
   }
 
@@ -142,7 +134,7 @@ nsLinkableAccessible::GetValue(nsAString& aValue)
 {
   aValue.Truncate();
 
-  nsHyperTextAccessible::GetValue(aValue);
+  nsAccessible::GetValue(aValue);
   if (!aValue.IsEmpty())
     return NS_OK;
 
@@ -188,11 +180,14 @@ nsLinkableAccessible::GetActionName(PRUint8 aIndex, nsAString& aName)
 NS_IMETHODIMP
 nsLinkableAccessible::DoAction(PRUint8 aIndex)
 {
+  if (aIndex != eAction_Jump)
+    return NS_ERROR_INVALID_ARG;
+  
   nsCOMPtr<nsIAccessible> actionAcc = GetActionAccessible();
   if (actionAcc)
     return actionAcc->DoAction(aIndex);
-
-  return NS_ERROR_INVALID_ARG;
+  
+  return nsAccessibleWrap::DoAction(aIndex);
 }
 
 NS_IMETHODIMP
@@ -230,20 +225,20 @@ nsLinkableAccessible::GetURI(PRInt32 aIndex, nsIURI **aURI)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// nsLinkableAccessible. nsPIAccessNode
+// nsLinkableAccessible. nsAccessNode
 
-NS_IMETHODIMP
+nsresult
 nsLinkableAccessible::Init()
 {
   CacheActionContent();
-  return nsHyperTextAccessibleWrap::Init();
+  return nsAccessibleWrap::Init();
 }
 
-NS_IMETHODIMP
+nsresult
 nsLinkableAccessible::Shutdown()
 {
   mActionContent = nsnull;
-  return nsHyperTextAccessibleWrap::Shutdown();
+  return nsAccessibleWrap::Shutdown();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -253,8 +248,8 @@ void
 nsLinkableAccessible::CacheActionContent()
 {
   nsCOMPtr<nsIContent> walkUpContent(do_QueryInterface(mDOMNode));
-  PRBool isOnclick = nsAccUtils::HasListener(walkUpContent,
-                                             NS_LITERAL_STRING("click"));
+  PRBool isOnclick = nsCoreUtils::HasListener(walkUpContent,
+                                              NS_LITERAL_STRING("click"));
 
   if (isOnclick) {
     mActionContent = walkUpContent;
@@ -263,8 +258,8 @@ nsLinkableAccessible::CacheActionContent()
   }
 
   while ((walkUpContent = walkUpContent->GetParent())) {
-    isOnclick = nsAccUtils::HasListener(walkUpContent,
-                                        NS_LITERAL_STRING("click"));
+    isOnclick = nsCoreUtils::HasListener(walkUpContent,
+                                         NS_LITERAL_STRING("click"));
   
     nsCOMPtr<nsIDOMNode> walkUpNode(do_QueryInterface(walkUpContent));
 
@@ -272,8 +267,8 @@ nsLinkableAccessible::CacheActionContent()
     GetAccService()->GetAccessibleInWeakShell(walkUpNode, mWeakShell,
                                               getter_AddRefs(walkUpAcc));
 
-    if (walkUpAcc && Role(walkUpAcc) == nsIAccessibleRole::ROLE_LINK &&
-        (State(walkUpAcc) & nsIAccessibleStates::STATE_LINKED)) {
+    if (nsAccUtils::Role(walkUpAcc) == nsIAccessibleRole::ROLE_LINK &&
+        nsAccUtils::State(walkUpAcc) & nsIAccessibleStates::STATE_LINKED) {
       mIsLink = PR_TRUE;
       mActionContent = walkUpContent;
       return;
@@ -315,3 +310,10 @@ nsEnumRoleAccessible::nsEnumRoleAccessible(nsIDOMNode* aNode, nsIWeakReference* 
 }
 
 NS_IMPL_ISUPPORTS_INHERITED0(nsEnumRoleAccessible, nsAccessible)
+
+nsresult
+nsEnumRoleAccessible::GetRoleInternal(PRUint32 *aRole)
+{
+  *aRole = mRole;
+  return NS_OK;
+}

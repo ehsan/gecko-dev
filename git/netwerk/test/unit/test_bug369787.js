@@ -1,4 +1,4 @@
-do_import_script("netwerk/test/httpserver/httpd.js");
+do_load_httpd_js();
 
 const BUGID = "369787";
 var server = null;
@@ -21,15 +21,14 @@ TestListener.prototype.onStartRequest = function(request, context) {
 TestListener.prototype.onStopRequest = function(request, context, status) {
   change_content_type();
 
-  do_timeout(0, "after_channel_closed()");
+  do_timeout(0, after_channel_closed);
 }
 
 function after_channel_closed() {
   try {
     change_content_type();
   } finally {
-    server.stop();
-    do_test_finished();
+    server.stop(do_test_finished);
   }
 }
 

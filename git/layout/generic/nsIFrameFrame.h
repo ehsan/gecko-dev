@@ -44,19 +44,27 @@
 #define nsIFrameFrame_h___
 
 class nsIDocShell;
+class nsIView;
 
-#define NS_IFRAMEFRAME_IID \
-{ 0xda876f25, 0x1cff, 0x4f0a, { \
-  0xbf, 0x7e, 0x83, 0xd7, 0x4f, 0xc5, 0x2a, 0x3b } }
-
-class nsIFrameFrame : public nsISupports
+class nsIFrameFrame
 {
 public:
-  NS_DECLARE_STATIC_IID_ACCESSOR(NS_IFRAMEFRAME_IID)
+  NS_DECL_QUERYFRAME_TARGET(nsIFrameFrame)
 
   NS_IMETHOD GetDocShell(nsIDocShell **aDocShell) = 0;
-};
 
-NS_DEFINE_STATIC_IID_ACCESSOR(nsIFrameFrame, NS_IFRAMEFRAME_IID)
+  /**
+   * Only allowed to fail if the other frame is not the same type as
+   * this one or if one of the frames has no docshell.  Don't call
+   * EndSwapDocShells() unless BeginSwapDocShells() succeeds.
+   */
+  NS_IMETHOD BeginSwapDocShells(nsIFrame* aOther) = 0;
+  virtual void EndSwapDocShells(nsIFrame* aOther) = 0;
+
+  /**
+   * The frameloader informs us what kind of widget to create during Show()
+   */
+  virtual nsIView* CreateViewAndWidget(nsContentType aContentType) = 0;
+};
 
 #endif

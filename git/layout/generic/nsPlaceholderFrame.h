@@ -74,27 +74,55 @@
 #ifndef nsPlaceholderFrame_h___
 #define nsPlaceholderFrame_h___
 
-#include "nsSplittableFrame.h"
+#include "nsFrame.h"
 #include "nsGkAtoms.h"
 
-nsIFrame* NS_NewPlaceholderFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
+nsIFrame* NS_NewPlaceholderFrame(nsIPresShell* aPresShell,
+                                 nsStyleContext* aContext,
+                                 nsFrameState aTypeBit);
+
+// Frame state bits that are used to keep track of what this is a
+// placeholder for.
+#define PLACEHOLDER_FOR_FLOAT    0x00100000
+#define PLACEHOLDER_FOR_ABSPOS   0x00200000
+#define PLACEHOLDER_FOR_FIXEDPOS 0x00400000
+#define PLACEHOLDER_FOR_POPUP    0x00800000
+#define PLACEHOLDER_TYPE_MASK    0x00F00000
 
 /**
  * Implementation of a frame that's used as a placeholder for a frame that
  * has been moved out of the flow
  */
-class nsPlaceholderFrame : public nsSplittableFrame {
+class nsPlaceholderFrame : public nsFrame {
 public:
+  NS_DECL_FRAMEARENA_HELPERS
+
   /**
-   * Create a new placeholder frame
+   * Create a new placeholder frame.  aTypeBit must be one of the
+   * PLACEHOLDER_FOR_* constants above.
    */
-  friend nsIFrame* NS_NewPlaceholderFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
-  nsPlaceholderFrame(nsStyleContext* aContext) : nsSplittableFrame(aContext) {}
+  friend nsIFrame* NS_NewPlaceholderFrame(nsIPresShell* aPresShell,
+                                          nsStyleContext* aContext,
+                                          nsFrameState aTypeBit);
+  nsPlaceholderFrame(nsStyleContext* aContext, nsFrameState aTypeBit) :
+    nsFrame(aContext)
+  {
+    NS_PRECONDITION(aTypeBit == PLACEHOLDER_FOR_FLOAT ||
+                    aTypeBit == PLACEHOLDER_FOR_ABSPOS ||
+                    aTypeBit == PLACEHOLDER_FOR_FIXEDPOS ||
+                    aTypeBit == PLACEHOLDER_FOR_POPUP,
+                    "Unexpected type bit");
+    AddStateBits(aTypeBit);
+  }
   virtual ~nsPlaceholderFrame();
 
   // Get/Set the associated out of flow frame
   nsIFrame*  GetOutOfFlowFrame() const {return mOutOfFlowFrame;}
-  void       SetOutOfFlowFrame(nsIFrame* aFrame) {mOutOfFlowFrame = aFrame;}
+  void       SetOutOfFlowFrame(nsIFrame* aFrame) {
+               NS_ASSERTION(!aFrame || !aFrame->GetPrevContinuation(),
+                            "OOF must be first continuation");
+               mOutOfFlowFrame = aFrame;
+             }
 
   // nsIHTMLReflow overrides
   // We need to override GetMinWidth and GetPrefWidth because XUL uses
@@ -111,7 +139,6 @@ public:
                     nsReflowStatus& aStatus);
 
   virtual void Destroy();
-  virtual nsSplittableType GetSplittableType() const;
 
   // nsIFrame overrides
 #if defined(DEBUG) || (defined(MOZ_REFLOW_PERF_DSP) && defined(MOZ_REFLOW_PERF))
@@ -145,7 +172,7 @@ public:
   {
     nsIFrame *realFrame = GetRealFrameForPlaceholder(this);
     return realFrame ? realFrame->GetAccessible(aAccessible) :
-                       nsSplittableFrame::GetAccessible(aAccessible);
+                       nsFrame::GetAccessible(aAccessible);
   }
 #endif
 

@@ -163,5 +163,7 @@ static const NSString* AXRoles [] = {
   NSAccessibilityRowRole,                       // ROLE_RICH_OPTION
   NSAccessibilityListRole,                      // ROLE_LISTBOX
   NSAccessibilityUnknownRole,                   // ROLE_FLAT_EQUATION
+  NSAccessibilityGroupRole,                     // ROLE_GRID_CELL
+  NSAccessibilityGroupRole,                     // ROLE_EMBEDDED_OBJECT
   @"ROLE_LAST_ENTRY"                            // ROLE_LAST_ENTRY. bogus role that will never be shown (just marks the end of this array)!
 };

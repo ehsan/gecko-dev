@@ -49,19 +49,23 @@
 
 /* miscellaneous form elements */
 
-legend {
+fieldset > legend {
   padding-left: 2px;
   padding-right: 2px;
   border: none;
-  position: static ! important;
-  float: none ! important;
-  width: -moz-fit-content ! important;
-  min-width: 0 ! important;
-  max-width: none ! important;
-  height: auto ! important;
-  min-height: 0 ! important;
-  max-height: none ! important;
+  position: static;
+  float: none;
+  width: -moz-fit-content;
+  min-width: 0;
+  max-width: none;
+  height: auto;
+  min-height: 0;
+  max-height: none;
   white-space: nowrap;
+}
+
+legend {
+  display: block;
 }
 
 fieldset {
@@ -105,7 +109,9 @@ input {
 }
 
 input > .anonymous-div {
-  white-space: pre;
+  word-wrap: normal !important;
+  /* Make the line-height equal to the available height */
+  line-height: -moz-block-height;
 }
 
 textarea {
@@ -126,6 +132,7 @@ textarea {
   text-indent: 0;
   -moz-user-select: text;
   text-shadow: none;
+  word-wrap: break-word;
 }
 
 textarea > scrollbar {
@@ -134,6 +141,7 @@ textarea > scrollbar {
 
 textarea > .anonymous-div,
 input > .anonymous-div {
+  white-space: pre;
   overflow: auto;
   border: 0px !important;
   /* The 1px horizontal padding is for parity with Win/IE */
@@ -145,6 +153,15 @@ input > .anonymous-div {
   ime-mode: inherit;
 }
 
+textarea > .anonymous-div.wrap,
+input > .anonymous-div.wrap {
+  white-space: pre-wrap;
+}
+textarea > .anonymous-div.inherit-overflow,
+input > .anonymous-div.inherit-overflow {
+  overflow: inherit;
+}
+
 input:-moz-read-write,
 textarea:-moz-read-write {
   -moz-user-modify: read-write !important;
@@ -153,11 +170,12 @@ textarea:-moz-read-write {
 select {
   margin: 0;
   border-color: ThreeDFace;
-  background-color: -moz-Field;
-  color: -moz-FieldText;
+  background-color: -moz-Combobox;
+  color: -moz-ComboboxText;
   font: -moz-list;
   line-height: normal !important;
   white-space: nowrap !important;
+  word-wrap: normal !important;
   text-align: start; 
   cursor: default;
   -moz-box-sizing: border-box;
@@ -177,6 +195,8 @@ select[size],
 select[multiple],
 select[size][multiple] {
   /* Different alignment and padding for listbox vs combobox */
+  background-color: -moz-Field;
+  color: -moz-FieldText;
   vertical-align: text-bottom;
   padding: 1px 0 1px 0;
   -moz-appearance: listbox;
@@ -185,6 +205,8 @@ select[size][multiple] {
 select[size="0"],
 select[size="1"] {
   /* Except this is not a listbox */
+  background-color: -moz-Combobox;
+  color: -moz-ComboboxText;
   vertical-align: baseline;
   padding: 0;
   -moz-appearance: menulist;
@@ -228,7 +250,6 @@ select:empty {
   padding-bottom: 1px;
   -moz-padding-start: 4px;
   -moz-padding-end: 0;
-  background-color: inherit;
   color: inherit;
   white-space: nowrap;
   text-align: inherit;
@@ -251,6 +272,7 @@ option {
   -moz-user-select: none;
   text-indent: 0;
   white-space: nowrap !important;
+  word-wrap: normal !important;
 }
 
 select > option {
@@ -283,6 +305,7 @@ optgroup {
   -moz-user-select: none;
   text-indent: 0;
   white-space: nowrap !important;
+  word-wrap: normal !important;
 }
 
 optgroup > option {
@@ -334,7 +357,7 @@ optgroup[disabled] {
 /* hidden inputs */
 input[type="hidden"] {
   -moz-appearance: none;
-  display: none;
+  display: none !important;
   padding: 0;
   border: 0;
   cursor: auto;
@@ -391,36 +414,34 @@ input[type="file"] > input[type="button"] {
 
 /* radio buttons */
 input[type="radio"] {
-  -moz-appearance: radio-small;
-  width: 13px;
-  height: 13px;
+  -moz-appearance: radio;
   margin: 3px 3px 0px 5px;
-  padding: 0 !important;
-  cursor: default;
-  -moz-binding: none;
-
   -moz-border-radius: 100% !important;
 }
 
 /* check boxes */
 input[type="checkbox"] {
-  -moz-appearance: checkbox-small;
-  width: 13px;
-  height: 13px;
+  -moz-appearance: checkbox;
   margin: 3px 3px 3px 4px;
-  padding: 0 !important;
-  cursor: default;
-  -moz-binding: none;
-
   -moz-border-radius: 0 !important;
 }
 
 /* common features of radio buttons and check boxes */
 
+/* NOTE: The width, height, border-width, and padding here must all
+   add up the way nsFormControlFrame::GetIntrinsic(Width|Height)
+   expects them to, or they will not come out with total width equal
+   to total height on sites that set their 'width' or 'height' to 'auto'.
+   (Should we maybe set !important on width and height, then?)  */
 input[type="radio"],
 input[type="checkbox"] {
-  /* same colors as |input| rule, but |!important| this time. */
   -moz-box-sizing: border-box;
+  width: 13px;
+  height: 13px;
+  cursor: default;
+  padding: 0 !important;
+  -moz-binding: none;
+  /* same colors as |input| rule, but |!important| this time. */
   background-color: -moz-Field ! important;
   color: -moz-FieldText ! important;
   border: 2px inset ThreeDFace ! important;
@@ -451,13 +472,6 @@ input[type="checkbox"]:hover:active,
 input[type="radio"]:hover:active {
   background-color: ThreeDFace ! important;
   border-style: inset !important;
-}
-
-*|*::-moz-radio {
-  width: 4px;
-  height: 4px;
-  background-color: -moz-FieldText ! important;
-  -moz-border-radius: 3px;
 }
 
 /* buttons */

@@ -55,9 +55,6 @@ endif
 endif
 
 ifeq ($(OS_TARGET),SunOS)
-# The -R '$ORIGIN' linker option instructs this library to search for its
-# dependencies in the same directory where it resides.
-MKSHLIB += -R '$$ORIGIN'
 OS_LIBS += -lbsm 
 endif
 

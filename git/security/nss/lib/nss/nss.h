@@ -36,14 +36,10 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-/* $Id: nss.h,v 1.56.2.2 2008/05/28 18:08:20 kaie%kuix.de Exp $ */
+/* $Id: nss.h,v 1.69 2009/08/13 18:11:22 christophe.ravel.bugs%sun.com Exp $ */
 
 #ifndef __nss_h_
 #define __nss_h_
-
-#include "seccomon.h"
-
-SEC_BEGIN_PROTOS
 
 /* The private macro _NSS_ECC_STRING is for NSS internal use only. */
 #ifdef NSS_ENABLE_ECC
@@ -70,11 +66,17 @@ SEC_BEGIN_PROTOS
  * The format of the version string should be
  *     "<major version>.<minor version>[.<patch level>][ <ECC>][ <Beta>]"
  */
-#define NSS_VERSION  "3.12.0.3" _NSS_ECC_STRING _NSS_CUSTOMIZED
+#define NSS_VERSION  "3.12.4.5" _NSS_ECC_STRING _NSS_CUSTOMIZED
 #define NSS_VMAJOR   3
 #define NSS_VMINOR   12
-#define NSS_VPATCH   0
+#define NSS_VPATCH   4
 #define NSS_BETA     PR_FALSE
+
+#ifndef RC_INVOKED
+
+#include "seccomon.h"
+
+SEC_BEGIN_PROTOS
 
 /*
  * Return a boolean that indicates whether the underlying library
@@ -262,4 +264,5 @@ void nss_DumpCertificateCacheInfo(void);
 
 SEC_END_PROTOS
 
+#endif /* RC_INVOKED */
 #endif /* __nss_h_ */

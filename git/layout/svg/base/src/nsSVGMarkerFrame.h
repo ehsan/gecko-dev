@@ -38,6 +38,7 @@
 #define __NS_SVGMARKERFRAME_H__
 
 #include "nsSVGContainerFrame.h"
+#include "gfxMatrix.h"
 
 class gfxContext;
 class nsSVGPathGeometryFrame;
@@ -50,7 +51,7 @@ typedef nsSVGContainerFrame nsSVGMarkerFrameBase;
 class nsSVGMarkerFrame : public nsSVGMarkerFrameBase
 {
   friend nsIFrame*
-  NS_NewSVGMarkerFrame(nsIPresShell* aPresShell, nsIContent* aContent, nsStyleContext* aContext);
+  NS_NewSVGMarkerFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 protected:
   nsSVGMarkerFrame(nsStyleContext* aContext) :
     nsSVGMarkerFrameBase(aContext),
@@ -59,6 +60,18 @@ protected:
     mInUse2(PR_FALSE) {}
 
 public:
+  NS_DECL_FRAMEARENA_HELPERS
+
+  // nsIFrame interface:
+#ifdef DEBUG
+  NS_IMETHOD Init(nsIContent*      aContent,
+                  nsIFrame*        aParent,
+                  nsIFrame*        aPrevInFlow);
+#endif
+
+  NS_IMETHOD AttributeChanged(PRInt32         aNameSpaceID,
+                              nsIAtom*        aAttribute,
+                              PRInt32         aModType);
   /**
    * Get the "type" of the frame
    *
@@ -88,12 +101,7 @@ private:
   float mStrokeWidth, mX, mY, mAngle;
 
   // nsSVGContainerFrame methods:
-  virtual already_AddRefed<nsIDOMSVGMatrix> GetCanvasTM();
-
-  // VC6 does not allow the inner class to access protected members
-  // of the outer class
-  class AutoMarkerReferencer;
-  friend class AutoMarkerReferencer;
+  virtual gfxMatrix GetCanvasTM();
 
   // A helper class to allow us to paint markers safely. The helper
   // automatically sets and clears the mInUse flag on the marker frame (to
@@ -119,8 +127,5 @@ private:
   // second recursion prevention flag, for GetCanvasTM()
   PRPackedBool mInUse2;
 };
-
-nsIContent *
-NS_GetSVGMarkerElement(nsIURI *aURI, nsIContent *aContent);
 
 #endif

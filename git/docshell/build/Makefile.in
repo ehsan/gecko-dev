@@ -52,34 +52,6 @@ EXPORT_LIBRARY = 1
 GRE_MODULE	= 1
 LIBXUL_LIBRARY	= 1
 
-PACKAGE_FILE = docshell.pkg
-
-REQUIRES	= xpcom \
-		  string \
-		  dom \
-		  shistory \
-		  necko \
-		  nkcache \
-		  gfx \
-		  thebes \
-		  content \
-		  layout \
-		  webshell \
-		  widget \
-		  pref \
-		  intl \
-		  htmlparser \
-		  chardet \
-		  find \
-		  composer \
-		  editor \
-		  commandhandler \
-		  uriloader \
-		  exthandler \
-		  mimetype \
-		  prefetch \
-		  imglib2 \
-		  $(NULL)
 
 EXPORTS = \
 		  nsDocShellCID.h \
@@ -124,7 +96,7 @@ LOCAL_INCLUDES	= \
 		-I$(topsrcdir)/uriloader/exthandler \
 		$(NULL)
 
-ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
+ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
 LOCAL_INCLUDES += -I$(topsrcdir)/uriloader/exthandler/mac
 EXTRA_DSO_LDOPTS += \
         $(TK_LIBS) \
@@ -137,4 +109,12 @@ endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)
 EXTRA_DSO_LDOPTS	+= $(TK_LIBS)
+endif
+
+ifdef MOZ_ENABLE_DBUS
+ EXTRA_DSO_LDOPTS += $(MOZ_DBUS_GLIB_LIBS)
+endif
+
+ifdef MOZ_PLATFORM_HILDON
+EXTRA_DSO_LDOPTS += $(LIBHILDONMIME_LIBS)
 endif

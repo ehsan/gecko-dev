@@ -43,6 +43,8 @@
 #include "nsNetUtil.h"
 #include "nsCOMArray.h"
 #include "nsArrayEnumerator.h"
+#include "nsTArray.h"
+#include "nsReadableUtils.h"
 #include "nsILineInputStream.h"
 #include "nsIIDNService.h"
 #include "nsAppDirectoryServiceDefs.h"
@@ -93,7 +95,7 @@ nsHostEntry::nsHostEntry(const nsHostEntry& toCopy)
 // nsPermissionManager Implementation
 
 static const char kPermissionsFileName[] = "permissions.sqlite";
-#define HOSTS_SCHEMA_VERSION 1
+#define HOSTS_SCHEMA_VERSION 2
 
 static const char kHostpermFileName[] = "hostperm.1";
 
@@ -123,7 +125,7 @@ nsPermissionManager::Init()
   // ignore failure here, since it's non-fatal (we can run fine without
   // persistent storage - e.g. if there's no profile).
   // XXX should we tell the user about this?
-  InitDB();
+  InitDB(PR_FALSE);
 
   mObserverService = do_GetService("@mozilla.org/observer-service;1", &rv);
   if (NS_SUCCEEDED(rv)) {
@@ -135,7 +137,7 @@ nsPermissionManager::Init()
 }
 
 nsresult
-nsPermissionManager::InitDB()
+nsPermissionManager::InitDB(PRBool aRemoveFile)
 {
   nsCOMPtr<nsIFile> permissionsFile;
   NS_GetSpecialDirectory(NS_APP_USER_PROFILE_50_DIR, getter_AddRefs(permissionsFile));
@@ -144,6 +146,16 @@ nsPermissionManager::InitDB()
 
   nsresult rv = permissionsFile->AppendNative(NS_LITERAL_CSTRING(kPermissionsFileName));
   NS_ENSURE_SUCCESS(rv, rv);
+
+  if (aRemoveFile) {
+    PRBool exists = PR_FALSE;
+    rv = permissionsFile->Exists(&exists);
+    NS_ENSURE_SUCCESS(rv, rv);
+    if (exists) {
+      rv = permissionsFile->Remove(PR_FALSE);
+      NS_ENSURE_SUCCESS(rv, rv);
+    }
+  }
 
   nsCOMPtr<mozIStorageService> storage = do_GetService(MOZ_STORAGE_SERVICE_CONTRACTID);
   if (!storage)
@@ -186,6 +198,24 @@ nsPermissionManager::InitDB()
     // the upgrading code from the previous version to the new one.
     // fall through to current version
 
+    case 1:
+      {
+        // previous non-expiry version of database.  Upgrade it by adding the
+        // expiration columns
+        rv = mDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
+              "ALTER TABLE moz_hosts ADD expireType INTEGER"));
+        NS_ENSURE_SUCCESS(rv, rv);
+
+        rv = mDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
+              "ALTER TABLE moz_hosts ADD expireTime INTEGER"));
+        NS_ENSURE_SUCCESS(rv, rv);
+
+        rv = mDBConn->SetSchemaVersion(HOSTS_SCHEMA_VERSION);
+        NS_ENSURE_SUCCESS(rv, rv);
+      }
+
+      // fall through to the next upgrade
+      
     // current version.
     case HOSTS_SCHEMA_VERSION:
       break;
@@ -215,7 +245,8 @@ nsPermissionManager::InitDB()
         // check if all the expected columns exist
         nsCOMPtr<mozIStorageStatement> stmt;
         rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
-          "SELECT host, type, permission FROM moz_hosts"), getter_AddRefs(stmt));
+          "SELECT host, type, permission, expireType, expireTime FROM moz_hosts"),
+          getter_AddRefs(stmt));
         if (NS_SUCCEEDED(rv))
           break;
 
@@ -236,8 +267,8 @@ nsPermissionManager::InitDB()
   // cache frequently used statements (for insertion, deletion, and updating)
   rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
     "INSERT INTO moz_hosts "
-    "(id, host, type, permission) "
-    "VALUES (?1, ?2, ?3, ?4)"), getter_AddRefs(mStmtInsert));
+    "(id, host, type, permission, expireType, expireTime) "
+    "VALUES (?1, ?2, ?3, ?4, ?5, ?6)"), getter_AddRefs(mStmtInsert));
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
@@ -247,7 +278,8 @@ nsPermissionManager::InitDB()
 
   rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
     "UPDATE moz_hosts "
-    "SET permission = ?2 WHERE id = ?1"), getter_AddRefs(mStmtUpdate));
+    "SET permission = ?2, expireType= ?3, expireTime = ?4 WHERE id = ?1"),
+    getter_AddRefs(mStmtUpdate));
   NS_ENSURE_SUCCESS(rv, rv);
 
   // check whether to import or just read in the db
@@ -272,24 +304,38 @@ nsPermissionManager::CreateTable()
       ",host TEXT"
       ",type TEXT"
       ",permission INTEGER"
+      ",expireType INTEGER"
+      ",expireTime INTEGER"
     ")"));
 }
 
 NS_IMETHODIMP
 nsPermissionManager::Add(nsIURI     *aURI,
                          const char *aType,
-                         PRUint32    aPermission)
+                         PRUint32    aPermission,
+                         PRUint32    aExpireType,
+                         PRInt64     aExpireTime)
 {
   NS_ENSURE_ARG_POINTER(aURI);
   NS_ENSURE_ARG_POINTER(aType);
+  NS_ENSURE_TRUE(aExpireType == nsIPermissionManager::EXPIRE_NEVER ||
+                 aExpireType == nsIPermissionManager::EXPIRE_TIME ||
+                 aExpireType == nsIPermissionManager::EXPIRE_SESSION,
+                 NS_ERROR_INVALID_ARG);
 
   nsresult rv;
+
+  // Skip addition if the permission is already expired.
+  if (aExpireType == nsIPermissionManager::EXPIRE_TIME &&
+      aExpireTime <= PR_Now() / 1000)
+    return NS_OK;
 
   nsCAutoString host;
   rv = GetHost(aURI, host);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  return AddInternal(host, nsDependentCString(aType), aPermission, 0, eNotify, eWriteToDB);
+  return AddInternal(host, nsDependentCString(aType), aPermission, 0, 
+                     aExpireType, aExpireTime, eNotify, eWriteToDB);
 }
 
 nsresult
@@ -297,6 +343,8 @@ nsPermissionManager::AddInternal(const nsAFlatCString &aHost,
                                  const nsAFlatCString &aType,
                                  PRUint32              aPermission,
                                  PRInt64               aID,
+                                 PRUint32              aExpireType,
+                                 PRInt64               aExpireTime,
                                  NotifyOperationType   aNotifyOperation,
                                  DBOperationType       aDBOperation)
 {
@@ -323,7 +371,6 @@ nsPermissionManager::AddInternal(const nsAFlatCString &aHost,
   // figure out the transaction type, and get any existing permission value
   OperationType op;
   PRInt32 index = entry->GetPermissionIndex(typeIndex);
-  PRUint32 oldPermission;
   if (index == -1) {
     if (aPermission == nsIPermissionManager::UNKNOWN_ACTION)
       op = eOperationNone;
@@ -331,9 +378,17 @@ nsPermissionManager::AddInternal(const nsAFlatCString &aHost,
       op = eOperationAdding;
 
   } else {
-    oldPermission = entry->GetPermissions()[index].mPermission;
+    nsPermissionEntry oldPermissionEntry = entry->GetPermissions()[index];
 
-    if (aPermission == oldPermission)
+    // remove the permission if the permission is UNKNOWN, update the
+    // permission if its value or expire type have changed OR if the time has
+    // changed and the expire type is time, otherwise, don't modify.  There's
+    // no need to modify a permission that doesn't expire with time when the
+    // only thing changed is the expire time.
+    if (aPermission == oldPermissionEntry.mPermission && 
+        aExpireType == oldPermissionEntry.mExpireType &&
+        (aExpireType != nsIPermissionManager::EXPIRE_TIME || 
+         aExpireTime == oldPermissionEntry.mExpireTime))
       op = eOperationNone;
     else if (aPermission == nsIPermissionManager::UNKNOWN_ACTION)
       op = eOperationRemoving;
@@ -361,15 +416,17 @@ nsPermissionManager::AddInternal(const nsAFlatCString &aHost,
         id = aID;
       }
 
-      entry->GetPermissions().AppendElement(nsPermissionEntry(typeIndex, aPermission, id));
+      entry->GetPermissions().AppendElement(nsPermissionEntry(typeIndex, aPermission, id, aExpireType, aExpireTime));
 
-      if (aDBOperation == eWriteToDB)
-        UpdateDB(op, mStmtInsert, id, aHost, aType, aPermission);
+      if (aDBOperation == eWriteToDB && aExpireType != nsIPermissionManager::EXPIRE_SESSION)
+        UpdateDB(op, mStmtInsert, id, aHost, aType, aPermission, aExpireType, aExpireTime);
 
       if (aNotifyOperation == eNotify) {
         NotifyObserversWithPermission(aHost,
                                       mTypeArray[typeIndex],
                                       aPermission,
+                                      aExpireType,
+                                      aExpireTime,
                                       NS_LITERAL_STRING("added").get());
       }
 
@@ -378,7 +435,8 @@ nsPermissionManager::AddInternal(const nsAFlatCString &aHost,
 
   case eOperationRemoving:
     {
-      id = entry->GetPermissions()[index].mID;
+      nsPermissionEntry oldPermissionEntry = entry->GetPermissions()[index];
+      id = oldPermissionEntry.mID;
       entry->GetPermissions().RemoveElementAt(index);
 
       // If no more types are present, remove the entry
@@ -386,12 +444,15 @@ nsPermissionManager::AddInternal(const nsAFlatCString &aHost,
         mHostTable.RawRemoveEntry(entry);
 
       if (aDBOperation == eWriteToDB)
-        UpdateDB(op, mStmtDelete, id, EmptyCString(), EmptyCString(), 0);
+        UpdateDB(op, mStmtDelete, id, EmptyCString(), EmptyCString(), 0, 
+                 nsIPermissionManager::EXPIRE_NEVER, 0);
 
       if (aNotifyOperation == eNotify) {
         NotifyObserversWithPermission(aHost,
                                       mTypeArray[typeIndex],
-                                      oldPermission,
+                                      oldPermissionEntry.mPermission,
+                                      oldPermissionEntry.mExpireType,
+                                      oldPermissionEntry.mExpireTime,
                                       NS_LITERAL_STRING("deleted").get());
       }
 
@@ -403,13 +464,15 @@ nsPermissionManager::AddInternal(const nsAFlatCString &aHost,
       id = entry->GetPermissions()[index].mID;
       entry->GetPermissions()[index].mPermission = aPermission;
 
-      if (aDBOperation == eWriteToDB)
-        UpdateDB(op, mStmtUpdate, id, EmptyCString(), EmptyCString(), aPermission);
+      if (aDBOperation == eWriteToDB && aExpireType != nsIPermissionManager::EXPIRE_SESSION)
+        UpdateDB(op, mStmtUpdate, id, EmptyCString(), EmptyCString(), aPermission, aExpireType, aExpireTime);
 
       if (aNotifyOperation == eNotify) {
         NotifyObserversWithPermission(aHost,
                                       mTypeArray[typeIndex],
                                       aPermission,
+                                      aExpireType,
+                                      aExpireTime,
                                       NS_LITERAL_STRING("changed").get());
       }
 
@@ -430,6 +493,8 @@ nsPermissionManager::Remove(const nsACString &aHost,
   return AddInternal(PromiseFlatCString(aHost),
                      nsDependentCString(aType),
                      nsIPermissionManager::UNKNOWN_ACTION,
+                     0,
+                     nsIPermissionManager::EXPIRE_NEVER,
                      0,
                      eNotify,
                      eWriteToDB);
@@ -452,7 +517,11 @@ nsPermissionManager::RemoveAllInternal()
   if (mDBConn) {
     nsresult rv = mDBConn->ExecuteSimpleSQL(NS_LITERAL_CSTRING("DELETE FROM moz_hosts"));
     if (NS_FAILED(rv)) {
-      NS_WARNING("db delete failed");
+      mStmtInsert = nsnull;
+      mStmtDelete = nsnull;
+      mStmtUpdate = nsnull;
+      mDBConn = nsnull;
+      rv = InitDB(PR_TRUE);
       return rv;
     }
   }
@@ -500,7 +569,7 @@ nsPermissionManager::CommonTestPermission(nsIURI     *aURI,
 
   nsHostEntry *entry = GetHostEntry(host, typeIndex, aExactHostMatch);
   if (entry)
-    *aPermission = entry->GetPermission(typeIndex);
+    *aPermission = entry->GetPermission(typeIndex).mPermission;
 
   return NS_OK;
 }
@@ -515,10 +584,18 @@ nsPermissionManager::GetHostEntry(const nsAFlatCString &aHost,
 {
   PRUint32 offset = 0;
   nsHostEntry *entry;
+  PRInt64 now = PR_Now() / 1000;
+
   do {
     entry = mHostTable.GetEntry(aHost.get() + offset);
     if (entry) {
-      if (entry->GetPermission(aType) != nsIPermissionManager::UNKNOWN_ACTION)
+      nsPermissionEntry permEntry = entry->GetPermission(aType);
+
+      // if the entry is expired, remove and keep looking for others.
+      if (permEntry.mExpireType == nsIPermissionManager::EXPIRE_TIME &&
+          permEntry.mExpireTime <= now)
+        Remove(aHost, mTypeArray[aType].get());
+      else if (permEntry.mPermission != nsIPermissionManager::UNKNOWN_ACTION)
         break;
 
       // reset entry, to be able to return null on failure
@@ -546,7 +623,7 @@ struct nsGetEnumeratorData
   const nsTArray<nsCString> *types;
 };
 
-PR_STATIC_CALLBACK(PLDHashOperator)
+static PLDHashOperator
 AddPermissionsToList(nsHostEntry *entry, void *arg)
 {
   nsGetEnumeratorData *data = static_cast<nsGetEnumeratorData *>(arg);
@@ -556,7 +633,9 @@ AddPermissionsToList(nsHostEntry *entry, void *arg)
 
     nsPermission *perm = new nsPermission(entry->GetHost(), 
                                           data->types->ElementAt(permEntry.mType),
-                                          permEntry.mPermission);
+                                          permEntry.mPermission,
+                                          permEntry.mExpireType,
+                                          permEntry.mExpireTime);
 
     data->array->AppendObject(perm);
   }
@@ -589,7 +668,7 @@ NS_IMETHODIMP nsPermissionManager::Observe(nsISupports *aSubject, const char *aT
   }  
   else if (!nsCRT::strcmp(aTopic, "profile-do-change")) {
     // the profile has already changed; init the db from the new location
-    InitDB();
+    InitDB(PR_FALSE);
   }
 
   return NS_OK;
@@ -637,15 +716,18 @@ nsPermissionManager::GetTypeIndex(const char *aType,
   return mTypeArray.Length() - 1;
 }
 
-// wrapper function for mangling (host,type,perm) triplet into an nsIPermission.
+// wrapper function for mangling (host,type,perm,expireType,expireTime)
+// set into an nsIPermission.
 void
 nsPermissionManager::NotifyObserversWithPermission(const nsACString &aHost,
                                                    const nsCString  &aType,
                                                    PRUint32          aPermission,
+                                                   PRUint32          aExpireType,
+                                                   PRInt64           aExpireTime,
                                                    const PRUnichar  *aData)
 {
   nsCOMPtr<nsIPermission> permission =
-    new nsPermission(aHost, aType, aPermission);
+    new nsPermission(aHost, aType, aPermission, aExpireType, aExpireTime);
   if (permission)
     NotifyObservers(permission, aData);
 }
@@ -671,15 +753,37 @@ nsPermissionManager::Read()
 {
   nsresult rv;
 
+  // delete expired permissions before we read in the db
+  {
+    // this deletion has its own scope so the write lock is released when done.
+    nsCOMPtr<mozIStorageStatement> stmtDeleteExpired;
+    rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
+          "DELETE FROM moz_hosts WHERE expireType = ?1 AND expireTime <= ?2"),
+          getter_AddRefs(stmtDeleteExpired));
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    rv = stmtDeleteExpired->BindInt32Parameter(0, nsIPermissionManager::EXPIRE_TIME);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    rv = stmtDeleteExpired->BindInt64Parameter(1, PR_Now() / 1000);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    PRBool hasResult;
+    rv = stmtDeleteExpired->ExecuteStep(&hasResult);
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
+
   nsCOMPtr<mozIStorageStatement> stmt;
   rv = mDBConn->CreateStatement(NS_LITERAL_CSTRING(
-    "SELECT id, host, type, permission "
+    "SELECT id, host, type, permission, expireType, expireTime "
     "FROM moz_hosts"), getter_AddRefs(stmt));
   NS_ENSURE_SUCCESS(rv, rv);
 
   PRInt64 id;
   nsCAutoString host, type;
   PRUint32 permission;
+  PRUint32 expireType;
+  PRInt64 expireTime;
   PRBool hasResult;
   while (NS_SUCCEEDED(stmt->ExecuteStep(&hasResult)) && hasResult) {
     // explicitly set our entry id counter for use in AddInternal(),
@@ -695,8 +799,13 @@ nsPermissionManager::Read()
     NS_ENSURE_SUCCESS(rv, rv);
 
     permission = stmt->AsInt32(3);
+    expireType = stmt->AsInt32(4);
 
-    rv = AddInternal(host, type, permission, id, eDontNotify, eNoDBOperation);
+    // convert into PRInt64 value (milliseconds)
+    expireTime = stmt->AsInt64(5);
+
+    rv = AddInternal(host, type, permission, id, expireType, expireTime,
+                     eDontNotify, eNoDBOperation);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
@@ -743,27 +852,28 @@ nsPermissionManager::Import()
       continue;
     }
 
-    nsCStringArray lineArray;
+    nsTArray<nsCString> lineArray;
 
     // Split the line at tabs
-    lineArray.ParseString(buffer.get(), "\t");
+    ParseString(buffer, '\t', lineArray);
     
-    if (lineArray[0]->EqualsLiteral(kMatchTypeHost) &&
-        lineArray.Count() == 4) {
+    if (lineArray[0].EqualsLiteral(kMatchTypeHost) &&
+        lineArray.Length() == 4) {
       
       PRInt32 error;
-      PRUint32 permission = lineArray[2]->ToInteger(&error);
+      PRUint32 permission = lineArray[2].ToInteger(&error);
       if (error)
         continue;
 
       // hosts might be encoded in UTF8; switch them to ACE to be consistent
-      if (!IsASCII(*lineArray[3])) {
-        rv = NormalizeToACE(*lineArray[3]);
+      if (!IsASCII(lineArray[3])) {
+        rv = NormalizeToACE(lineArray[3]);
         if (NS_FAILED(rv))
           continue;
       }
 
-      rv = AddInternal(*lineArray[3], *lineArray[1], permission, 0, eDontNotify, eWriteToDB);
+      rv = AddInternal(lineArray[3], lineArray[1], permission, 0, 
+                       nsIPermissionManager::EXPIRE_NEVER, 0, eDontNotify, eWriteToDB);
       NS_ENSURE_SUCCESS(rv, rv);
     }
   }
@@ -807,7 +917,9 @@ nsPermissionManager::UpdateDB(OperationType         aOp,
                               PRInt64               aID,
                               const nsACString     &aHost,
                               const nsACString     &aType,
-                              PRUint32              aPermission)
+                              PRUint32              aPermission,
+                              PRUint32              aExpireType,
+                              PRInt64               aExpireTime)
 {
   nsresult rv;
 
@@ -828,6 +940,12 @@ nsPermissionManager::UpdateDB(OperationType         aOp,
       if (NS_FAILED(rv)) break;
 
       rv = aStmt->BindInt32Parameter(3, aPermission);
+      if (NS_FAILED(rv)) break;
+
+      rv = aStmt->BindInt32Parameter(4, aExpireType);
+      if (NS_FAILED(rv)) break;
+
+      rv = aStmt->BindInt64Parameter(5, aExpireTime);
       break;
     }
 
@@ -843,6 +961,12 @@ nsPermissionManager::UpdateDB(OperationType         aOp,
       if (NS_FAILED(rv)) break;
 
       rv = aStmt->BindInt32Parameter(1, aPermission);
+      if (NS_FAILED(rv)) break;
+
+      rv = aStmt->BindInt32Parameter(2, aExpireType);
+      if (NS_FAILED(rv)) break;
+
+      rv = aStmt->BindInt64Parameter(3, aExpireTime);
       break;
     }
 

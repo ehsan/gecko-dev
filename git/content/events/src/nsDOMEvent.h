@@ -77,6 +77,7 @@ public:
     eDOMEvents_load,
     eDOMEvents_beforeunload,
     eDOMEvents_unload,
+    eDOMEvents_hashchange,
     eDOMEvents_abort,
     eDOMEvents_error,
     eDOMEvents_submit,
@@ -84,7 +85,6 @@ public:
     eDOMEvents_change,
     eDOMEvents_select,
     eDOMEvents_input,
-    eDOMEvents_paint,
     eDOMEvents_text,
     eDOMEvents_compositionstart,
     eDOMEvents_compositionend,
@@ -103,6 +103,9 @@ public:
     eDOMEvents_draggesture,
     eDOMEvents_drag,
     eDOMEvents_dragend,
+    eDOMEvents_dragstart,
+    eDOMEvents_dragleave,
+    eDOMEvents_drop,
     eDOMEvents_resize,
     eDOMEvents_scroll,
     eDOMEvents_overflow,
@@ -121,21 +124,54 @@ public:
     eDOMEvents_pageshow,
     eDOMEvents_pagehide,
     eDOMEvents_DOMMouseScroll,
+    eDOMEvents_MozMousePixelScroll,
     eDOMEvents_offline,
     eDOMEvents_online,
     eDOMEvents_copy,
     eDOMEvents_cut,
-    eDOMEvents_paste
+    eDOMEvents_paste,
 #ifdef MOZ_SVG
-   ,
     eDOMEvents_SVGLoad,
     eDOMEvents_SVGUnload,
     eDOMEvents_SVGAbort,
     eDOMEvents_SVGError,
     eDOMEvents_SVGResize,
     eDOMEvents_SVGScroll,
-    eDOMEvents_SVGZoom
+    eDOMEvents_SVGZoom,
 #endif // MOZ_SVG
+#ifdef MOZ_MEDIA
+    eDOMEvents_loadstart,
+    eDOMEvents_progress,
+    eDOMEvents_suspend,
+    eDOMEvents_emptied,
+    eDOMEvents_stalled,
+    eDOMEvents_play,
+    eDOMEvents_pause,
+    eDOMEvents_loadedmetadata,
+    eDOMEvents_loadeddata,
+    eDOMEvents_waiting,
+    eDOMEvents_playing,
+    eDOMEvents_canplay,
+    eDOMEvents_canplaythrough,
+    eDOMEvents_seeking,
+    eDOMEvents_seeked,
+    eDOMEvents_timeupdate,
+    eDOMEvents_ended,
+    eDOMEvents_ratechange,
+    eDOMEvents_durationchange,
+    eDOMEvents_volumechange,
+#endif
+    eDOMEvents_afterpaint,
+    eDOMEvents_MozSwipeGesture,
+    eDOMEvents_MozMagnifyGestureStart,
+    eDOMEvents_MozMagnifyGestureUpdate,
+    eDOMEvents_MozMagnifyGesture,
+    eDOMEvents_MozRotateGestureStart,
+    eDOMEvents_MozRotateGestureUpdate,
+    eDOMEvents_MozRotateGesture,
+    eDOMEvents_MozTapGesture,
+    eDOMEvents_MozPressTapGesture,
+    eDOMEvents_MozScrolledAreaChanged
   };
 
   nsDOMEvent(nsPresContext* aPresContext, nsEvent* aEvent);
@@ -153,11 +189,8 @@ public:
   // nsIPrivateDOMEvent interface
   NS_IMETHOD    DuplicatePrivateData();
   NS_IMETHOD    SetTarget(nsIDOMEventTarget* aTarget);
-  NS_IMETHOD    SetCurrentTarget(nsIDOMEventTarget* aCurrentTarget);
-  NS_IMETHOD    SetOriginalTarget(nsIDOMEventTarget* aOriginalTarget);
-  NS_IMETHOD    IsDispatchStopped(PRBool* aIsDispatchStopped);
-  NS_IMETHOD    GetInternalNSEvent(nsEvent** aNSEvent);
-  NS_IMETHOD    HasOriginalTarget(PRBool* aResult);
+  NS_IMETHOD_(PRBool)    IsDispatchStopped();
+  NS_IMETHOD_(nsEvent*)    GetInternalNSEvent();
   NS_IMETHOD    SetTrusted(PRBool aTrusted);
 
   static PopupControlState GetEventPopupControlState(nsEvent *aEvent);
@@ -166,17 +199,19 @@ public:
 
   static void Shutdown();
 
+  static const char* GetEventName(PRUint32 aEventType);
 protected:
 
   // Internal helper functions
   nsresult SetEventType(const nsAString& aEventTypeArg);
-  static const char* GetEventName(PRUint32 aEventType);
   already_AddRefed<nsIDOMEventTarget> GetTargetFromFrame();
+  nsresult ReportWrongPropertyAccessWarning(const char* aPropertyName);
 
   nsEvent*                    mEvent;
   nsCOMPtr<nsPresContext>     mPresContext;
   nsCOMPtr<nsIDOMEventTarget> mTmpRealOriginalTarget;
   nsCOMPtr<nsIDOMEventTarget> mExplicitOriginalTarget;
+  nsString                    mCachedType;
   PRPackedBool                mEventIsInternal;
   PRPackedBool                mPrivateDataDuplicated;
 };

@@ -43,12 +43,12 @@
 
 static PLHashTable *g_NodeLookupTable;
 
-static PLHashNumber PR_CALLBACK HashFunction(const void *key)
+static PLHashNumber HashFunction(const void *key)
 {
     return (PRUint32) key;
 }
 
-PRIntn PR_CALLBACK HashComparator(const void *v1, const void *v2)
+PRIntn HashComparator(const void *v1, const void *v2)
 {
     if (v1 == v2)
     {
@@ -148,7 +148,7 @@ CIEHtmlDomNode::~CIEHtmlDomNode()
         WrapperType::CreateInstance(&pWrapper); \
         if (!pWrapper) \
         { \
-            NS_ASSERTION(0, errorMsg); \
+            NS_ERROR(errorMsg); \
             return E_OUTOFMEMORY; \
         } \
         if (FAILED(pWrapper->QueryInterface(IID_IUnknown, (void**)pNode))) \

@@ -64,6 +64,7 @@
 #include "editline.h"
 #include <signal.h>
 #include <ctype.h>
+#include <unistd.h>
 
 /*
 **  Manifest constants.
@@ -154,14 +155,12 @@ int		rl_meta_chars = 0;
 **  Declarations.
 */
 STATIC CHAR	*editinput();
-extern int	read();
-extern int	write();
 #if	defined(USE_TERMCAP)
-extern char	*getenv();
-extern char	*tgetstr();
-extern int	tgetent();
+#include <stdlib.h>
+#include <curses.h>
+#include <term.h>
 #endif	/* defined(USE_TERMCAP) */
-
+
 /*
 **  TTY input/output functions.
 */
@@ -302,7 +301,7 @@ TTYinfo()
 	TTYrows = SCREEN_ROWS;
     }
 }
-
+
 
 STATIC void
 reposition()
@@ -516,7 +515,7 @@ toggle_meta_mode()
     rl_meta_chars = ! rl_meta_chars;
     return redisplay();
 }
-
+
 
 STATIC CHAR *
 next_hist()
@@ -967,6 +966,9 @@ editinput()
 	case CSstay:
 	    break;
 	}
+    if (strlen(Line))
+        return Line;
+    free(Line);
     return NULL;
 }
 
@@ -1053,7 +1055,7 @@ add_history(p)
 #endif	/* defined(UNIQUE_HISTORY) */
     hist_add((CHAR *)p);
 }
-
+
 
 STATIC STATUS
 beg_line()

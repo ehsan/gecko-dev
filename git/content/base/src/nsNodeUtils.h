@@ -74,6 +74,19 @@ public:
                                    CharacterDataChangeInfo* aInfo);
 
   /**
+   * Send AttributeWillChange notifications to nsIMutationObservers.
+   * @param aContent      Node whose data will change
+   * @param aNameSpaceID  Namespace of changing attribute
+   * @param aAttribute    Local-name of changing attribute
+   * @param aModType      Type of change (add/change/removal)
+   * @see nsIMutationObserver::AttributeWillChange
+   */
+  static void AttributeWillChange(nsIContent* aContent,
+                                  PRInt32 aNameSpaceID,
+                                  nsIAtom* aAttribute,
+                                  PRInt32 aModType);
+
+  /**
    * Send AttributeChanged notifications to nsIMutationObservers.
    * @param aContent      Node whose data changed
    * @param aNameSpaceID  Namespace of changed attribute
@@ -154,8 +167,7 @@ public:
                         nsIDOMNode **aResult)
   {
     return CloneAndAdopt(aNode, PR_TRUE, aDeep, aNewNodeInfoManager, nsnull,
-                         nsnull, nsnull, aNodesWithProperties, nsnull,
-                         aResult);
+                         nsnull, nsnull, aNodesWithProperties, aResult);
   }
 
   /**
@@ -183,10 +195,8 @@ public:
                         JSObject *aNewScope,
                         nsCOMArray<nsINode> &aNodesWithProperties)
   {
-    nsCOMPtr<nsIDOMNode> dummy;
     return CloneAndAdopt(aNode, PR_FALSE, PR_TRUE, aNewNodeInfoManager, aCx,
-                         aOldScope, aNewScope, aNodesWithProperties,
-                         nsnull, getter_AddRefs(dummy));
+                         aOldScope, aNewScope, aNodesWithProperties, nsnull);
   }
 
   /**
@@ -270,7 +280,7 @@ public:
   static void UnlinkUserData(nsINode *aNode);
 
 private:
-  friend PLDHashOperator PR_CALLBACK
+  friend PLDHashOperator
     AdoptFunc(nsAttrHashKey::KeyType aKey, nsIDOMNode *aData, void* aUserArg);
 
   /**
@@ -299,17 +309,44 @@ private:
    *                             descendants) with properties. If aClone is
    *                             PR_TRUE every node will be followed by its
    *                             clone.
-   * @param aParent If aClone is PR_TRUE the cloned node will be appended to
-   *                aParent's children. May be null.
-   * @param aResult *aResult will contain the cloned node (if aClone is
-   *                PR_TRUE).
+   * @param aResult If aClone is PR_FALSE then aResult must be null, else
+   *                *aResult will contain the cloned node.
    */
   static nsresult CloneAndAdopt(nsINode *aNode, PRBool aClone, PRBool aDeep,
                                 nsNodeInfoManager *aNewNodeInfoManager,
                                 JSContext *aCx, JSObject *aOldScope,
                                 JSObject *aNewScope,
                                 nsCOMArray<nsINode> &aNodesWithProperties,
-                                nsINode *aParent, nsIDOMNode **aResult);
+                                nsIDOMNode **aResult)
+  {
+    NS_ASSERTION(!aClone == !aResult,
+                 "aResult must be null when adopting and non-null when "
+                 "cloning");
+
+    nsCOMPtr<nsINode> clone;
+    nsresult rv = CloneAndAdopt(aNode, aClone, aDeep, aNewNodeInfoManager,
+                                aCx, aOldScope, aNewScope, aNodesWithProperties,
+                                nsnull, getter_AddRefs(clone));
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    return clone ? CallQueryInterface(clone, aResult) : NS_OK;
+  }
+
+  /**
+   * See above for arguments that aren't described here.
+   *
+   * @param aParent If aClone is PR_TRUE the cloned node will be appended to
+   *                aParent's children. May be null. If not null then aNode
+   *                must be an nsIContent.
+   * @param aResult If aClone is PR_TRUE then *aResult will contain the cloned
+   *                node.
+   */
+  static nsresult CloneAndAdopt(nsINode *aNode, PRBool aClone, PRBool aDeep,
+                                nsNodeInfoManager *aNewNodeInfoManager,
+                                JSContext *aCx, JSObject *aOldScope,
+                                JSObject *aNewScope,
+                                nsCOMArray<nsINode> &aNodesWithProperties,
+                                nsINode *aParent, nsINode **aResult);
 };
 
 #endif // nsNodeUtils_h___

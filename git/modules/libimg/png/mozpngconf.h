@@ -19,6 +19,7 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s): Tim Rowley <tor@cs.brown.edu>
+ *                 Glenn Randers-Pehrson <glennrp+bmo at gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -51,6 +52,7 @@
 #define PNG_NO_READ_PACK
 #define PNG_NO_READ_PACKSWAP
 #define PNG_NO_READ_FILLER
+#define PNG_NO_READ_SWAP
 #define PNG_NO_READ_SWAP_ALPHA
 #define PNG_NO_READ_INVERT_ALPHA
 #define PNG_NO_READ_RGB_TO_GRAY
@@ -82,6 +84,7 @@
 #define PNG_NO_WRITE_PACK
 #define PNG_NO_WRITE_PACKSWAP
 #define PNG_NO_WRITE_FILLER
+#define PNG_NO_WRITE_SWAP
 #define PNG_NO_WRITE_SWAP_ALPHA
 #define PNG_NO_WRITE_INVERT_ALPHA
 #define PNG_NO_WRITE_RGB_TO_GRAY
@@ -114,7 +117,6 @@
 #define PNG_NO_FIXED_POINT_SUPPORTED
 #define PNG_NO_MNG_FEATURES
 #define PNG_NO_USER_TRANSFORM_PTR
-#define PNG_NO_HANDLE_AS_UNKNOWN
 #define PNG_NO_CONSOLE_IO
 #define PNG_NO_ZALLOC_ZERO
 #define PNG_NO_ERROR_NUMBERS
@@ -411,7 +413,7 @@
 #define png_set_tRNS                    MOZ_PNG_set_tRNS
 #define png_set_tRNS_to_alpha           MOZ_PNG_set_tRNS_to_alpha
 #define png_set_text                    MOZ_PNG_set_text
-#define png_set_text_2                  MOZ_PNG_set_text-2
+#define png_set_text_2                  MOZ_PNG_set_text_2
 #define png_set_unknown_chunk_location  MOZ_PNG_set_unknown_chunk_loc
 #define png_set_unknown_chunks          MOZ_PNG_set_unknown_chunks
 #define png_set_user_transform_info     MOZ_PNG_set_user_transform_info
@@ -476,6 +478,40 @@
 
 /* libpng-1.2.22 addition */
 #define png_err                         MOZ_PNG_err
+
+/* APNG additions */
+#define png_handle_acTL                 MOZ_APNG_handle_acTL
+#define png_handle_fcTL                 MOZ_APNG_handle_fcTL
+#define png_handle_fdAT                 MOZ_APNG_handle_fdAT
+#define png_have_info                   MOZ_APNG_have_info
+#define png_progressive_read_reset      MOZ_APNG_prog_read_reset
+#define png_read_reinit                 MOZ_APNG_read_reinit
+#define png_read_reset                  MOZ_APNG_read_reset
+#define png_ensure_sequence_number      MOZ_APNG_ensure_seqno
+#define png_write_frame_head            MOZ_APNG_write_frame_head
+#define png_write_frame_tail            MOZ_APNG_write_frame_tail
+#define png_set_progressive_frame_fn    MOZ_APNG_set_prog_frame_fn
+#define png_set_acTL                    MOZ_APNG_set_acTL
+#define png_get_num_frames              MOZ_APNG_set_num_frames
+#define png_get_num_plays               MOZ_APNG_set_num_plays
+#define png_get_next_frame_fcTL         MOZ_APNG_get_next_frame_fcTL
+#define png_set_next_frame_fcTL         MOZ_APNG_set_next_frame_fcTL
+#define png_ensure_fcTL_is_valid        MOZ_APNG_ensure_fcTL_is_valid
+#define png_get_next_frame_width        MOZ_APNG_get_next_frame_width
+#define png_get_next_frame_height       MOZ_APNG_get_next_frame_height
+#define png_get_next_frame_x_offset     MOZ_APNG_get_next_frame_x_offset
+#define png_get_next_frame_y_offset     MOZ_APNG_get_next_frame_y_offset
+#define png_get_next_frame_delay_num    MOZ_APNG_get_next_frame_delay_num
+#define png_get_next_frame_delay_den    MOZ_APNG_get_next_frame_delay_den
+#define png_get_next_frame_dispose_op   MOZ_APNG_get_next_frame_dispose_op
+#define png_get_next_frame_blend_op     MOZ_APNG_get_next_frame_blend_op
+#define png_get_first_frame_is_hidden   MOZ_APNG_get_first_frame_is_hidden
+#define png_set_first_frame_is_hidden   MOZ_APNG_set_first_frame_is_hidden
+#define png_write_acTL                  MOZ_APNG_write_acTL
+#define png_write_reset                 MOZ_APNG_write_reset
+#define png_write_reinit                MOZ_APNG_write_reinit
+#define png_write_fcTL                  MOZ_APNG_write_fcTL
+#define png_read_frame_head             MOZ_APNG_read_frame_head
 
 #ifndef PR_LOGGING
   #define MOZ_PNG_warning(s1,s2) ""

@@ -47,6 +47,7 @@
 #include "nsIDOMHTMLCollection.h"
 #include "nsIScriptElement.h"
 #include "jsapi.h"
+#include "nsTArray.h"
 
 #include "pldhash.h"
 #include "nsIHttpChannel.h"
@@ -122,8 +123,6 @@ public:
  
   virtual NS_HIDDEN_(nsContentList*) GetFormControls();
  
-  virtual PRBool IsCaseSensitive();
-
   // nsIDOMDocument interface
   NS_DECL_NSIDOMDOCUMENT
 
@@ -177,18 +176,11 @@ public:
   virtual void RemovedForm();
   virtual PRInt32 GetNumFormsSynchronous();
   virtual void TearingDownEditor(nsIEditor *aEditor);
-
-  PRBool IsXHTML()
+  virtual void SetIsXHTML(PRBool aXHTML) { mIsRegularHTML = !aXHTML; }
+  virtual void SetDocWriteDisabled(PRBool aDisabled)
   {
-    return !mIsRegularHTML;
+    mDisableDocWrite = aDisabled;
   }
-
-#ifdef DEBUG
-  virtual nsresult CreateElem(nsIAtom *aName, nsIAtom *aPrefix,
-                              PRInt32 aNamespaceID,
-                              PRBool aDocumentDefaultType,
-                              nsIContent** aResult);
-#endif
 
   nsresult ChangeContentEditableCount(nsIContent *aElement, PRInt32 aChange);
 
@@ -197,11 +189,32 @@ public:
     return mEditingState;
   }
 
+  virtual void DisableCookieAccess()
+  {
+    mDisableCookieAccess = PR_TRUE;
+  }
+
   virtual nsIContent* GetBodyContentExternal();
+  
+  class nsAutoEditingState {
+  public:
+    nsAutoEditingState(nsHTMLDocument* aDoc, EditingState aState)
+      : mDoc(aDoc), mSavedState(aDoc->mEditingState)
+    {
+      aDoc->mEditingState = aState;
+    }
+    ~nsAutoEditingState() {
+      mDoc->mEditingState = mSavedState;
+    }
+  private:
+    nsHTMLDocument* mDoc;
+    EditingState    mSavedState;
+  };
+  friend class nsAutoEditingState;
 
   void EndUpdate(nsUpdateType aUpdateType);
 
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(nsHTMLDocument, nsDocument)
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsHTMLDocument, nsDocument)
 
   virtual already_AddRefed<nsIParser> GetFragmentParser() {
     return mFragmentParser.forget();
@@ -211,6 +224,10 @@ public:
   }
 
   virtual nsresult SetEditingState(EditingState aState);
+
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
+
+  virtual NS_HIDDEN_(void) RemovedFromDocShell();
 
 protected:
   nsresult GetBodySize(PRInt32* aWidth,
@@ -229,28 +246,25 @@ protected:
 
   static void DocumentWriteTerminationFunc(nsISupports *aRef);
 
-  // Get the root <html> element, or return null if there isn't one (e.g.
-  // if the root isn't <html>)
-  nsIContent* GetHtmlContent();
-  // Get the canonical <body> element, or return null if there isn't one (e.g.
-  // if the root isn't <html> or if the <body> isn't there)
-  nsIContent* GetBodyContent();
-
   void GetDomainURI(nsIURI **uri);
 
   nsresult WriteCommon(const nsAString& aText,
                        PRBool aNewlineTerminate);
-  nsresult ScriptWriteCommon(PRBool aNewlineTerminate);
   nsresult OpenCommon(const nsACString& aContentType, PRBool aReplace);
 
   nsresult CreateAndAddWyciwygChannel(void);
   nsresult RemoveWyciwygChannel(void);
 
+  /**
+   * Like IsEditingOn(), but will flush as needed first.
+   */
+  PRBool IsEditingOnAfterFlush();
+
   void *GenerateParserKey(void);
 
   virtual PRInt32 GetDefaultNamespaceID() const
   {
-    return mIsRegularHTML ? kNameSpaceID_None : kNameSpaceID_XHTML;
+    return kNameSpaceID_XHTML;
   }
 
   nsCOMArray<nsIDOMHTMLMapElement> mImageMaps;
@@ -319,7 +333,7 @@ protected:
   // finishes processing that script.
   PRUint32 mWriteLevel;
 
-  nsSmallVoidArray mPendingScripts;
+  nsAutoTArray<nsIScriptElement*, 1> mPendingScripts;
 
   // Load flags of the document's channel
   PRUint32 mLoadFlags;
@@ -327,6 +341,8 @@ protected:
   PRPackedBool mIsFrameset;
 
   PRPackedBool mTooDeepWriteRecursion;
+
+  PRPackedBool mDisableDocWrite;
 
   nsCOMPtr<nsIWyciwygChannel> mWyciwygChannel;
 
@@ -337,6 +353,7 @@ protected:
 
   nsresult TurnEditingOff();
   nsresult EditingStateChanged();
+  void MaybeEditingStateChanged();
 
   PRUint32 mContentEditableCount;
   EditingState mEditingState;
@@ -345,8 +362,17 @@ protected:
   static jsval       sCutCopyInternal_id;
   static jsval       sPasteInternal_id;
 
+  // When false, the .cookies property is completely disabled
+  PRBool mDisableCookieAccess;
+
   // Parser used for constructing document fragments.
   nsCOMPtr<nsIParser> mFragmentParser;
 };
+
+#define NS_HTML_DOCUMENT_INTERFACE_TABLE_BEGIN(_class)                        \
+    NS_DOCUMENT_INTERFACE_TABLE_BEGIN(_class)                                 \
+    NS_INTERFACE_TABLE_ENTRY(_class, nsIHTMLDocument)                         \
+    NS_INTERFACE_TABLE_ENTRY(_class, nsIDOMHTMLDocument)                      \
+    NS_INTERFACE_TABLE_ENTRY(_class, nsIDOMNSHTMLDocument)
 
 #endif /* nsHTMLDocument_h___ */

@@ -43,20 +43,24 @@
 #define nsCSSDataBlock_h__
 
 #include "nsCSSStruct.h"
+#include "nsCSSProps.h"
+#include "nsCSSPropertySet.h"
 
 struct nsRuleData;
 
 class nsCSSExpandedDataBlock;
+class nsCSSDeclaration;
 
 /**
- * An |nsCSSCompressedDataBlock| holds an immutable chunk of
+ * An |nsCSSCompressedDataBlock| holds a usually-immutable chunk of
  * property-value data for a CSS declaration block (which we misname a
  * |nsCSSDeclaration|).  Mutation is accomplished through
- * |nsCSSExpandedDataBlock|.
+ * |nsCSSExpandedDataBlock| or in some cases via direct slot access.
  */
 class nsCSSCompressedDataBlock {
 public:
     friend class nsCSSExpandedDataBlock;
+    friend class nsCSSDeclaration;
 
     /**
      * Do what |nsIStyleRule::MapRuleInfoInto| needs to do for a style
@@ -71,8 +75,46 @@ public:
      * |nsCSSValueList**|, etc.
      *
      * Inefficient (by design).
+     *
+     * Must not be called for shorthands.
      */
     const void* StorageFor(nsCSSProperty aProperty) const;
+
+    /**
+     * A set of slightly more typesafe helpers for the above.  All
+     * return null if the value is not present.
+     */
+    const nsCSSValue* ValueStorageFor(nsCSSProperty aProperty) const {
+      NS_ABORT_IF_FALSE(nsCSSProps::kTypeTable[aProperty] == eCSSType_Value,
+                        "type mismatch");
+      return static_cast<const nsCSSValue*>(StorageFor(aProperty));
+    }
+    const nsCSSRect* RectStorageFor(nsCSSProperty aProperty) const {
+      NS_ABORT_IF_FALSE(nsCSSProps::kTypeTable[aProperty] == eCSSType_Rect,
+                        "type mismatch");
+      return static_cast<const nsCSSRect*>(StorageFor(aProperty));
+    }
+    const nsCSSValuePair* ValuePairStorageFor(nsCSSProperty aProperty) const {
+      NS_ABORT_IF_FALSE(nsCSSProps::kTypeTable[aProperty] ==
+                          eCSSType_ValuePair,
+                        "type mismatch");
+      return static_cast<const nsCSSValuePair*>(StorageFor(aProperty));
+    }
+    const nsCSSValueList*const*
+    ValueListStorageFor(nsCSSProperty aProperty) const {
+      NS_ABORT_IF_FALSE(nsCSSProps::kTypeTable[aProperty] ==
+                          eCSSType_ValueList,
+                        "type mismatch");
+      return static_cast<const nsCSSValueList*const*>(StorageFor(aProperty));
+    }
+    const nsCSSValuePairList*const*
+    ValuePairListStorageFor(nsCSSProperty aProperty) const {
+      NS_ABORT_IF_FALSE(nsCSSProps::kTypeTable[aProperty] ==
+                          eCSSType_ValuePairList,
+                        "type mismatch");
+      return static_cast<const nsCSSValuePairList*const*>(
+               StorageFor(aProperty));
+    }
 
     /**
      * Clone this block, or return null on out-of-memory.
@@ -116,6 +158,12 @@ private:
     const char* Block() const { return mBlock_; }
     const char* BlockEnd() const { return mBlockEnd; }
     ptrdiff_t DataSize() const { return BlockEnd() - Block(); }
+
+    // Direct slot access to our values.  See StorageFor above.  Can
+    // return null.  Must not be called for shorthand properties.
+    void* SlotForValue(nsCSSProperty aProperty) {
+      return const_cast<void*>(StorageFor(aProperty));
+    }
 };
 
 class nsCSSExpandedDataBlock {
@@ -210,24 +258,17 @@ private:
 
     static const PropertyOffsetInfo kOffsetTable[];
 
-    typedef PRUint8 property_set_type;
-    enum { kPropertiesSetChunkSize = 8 }; // number of bits in
-                                          // |property_set_type|.
-    // number of |property_set_type|s in the set
-    enum { kPropertiesSetChunkCount =
-             (eCSSProperty_COUNT_no_shorthands + (kPropertiesSetChunkSize-1)) /
-             kPropertiesSetChunkSize };
     /*
      * mPropertiesSet stores a bit for every property that is present,
      * to optimize compression of blocks with small numbers of
      * properties (the norm) and to allow quickly checking whether a
      * property is set in this block.
      */
-    property_set_type mPropertiesSet[kPropertiesSetChunkCount];
+    nsCSSPropertySet mPropertiesSet;
     /*
      * mPropertiesImportant indicates which properties are '!important'.
      */
-    property_set_type mPropertiesImportant[kPropertiesSetChunkCount];
+    nsCSSPropertySet mPropertiesImportant;
 
 public:
     /*
@@ -260,51 +301,33 @@ public:
                                (cssstruct + offsets.ruledata_member_offset);
     }
 
-    void AssertInSetRange(nsCSSProperty aProperty) {
-        NS_ASSERTION(0 <= aProperty &&
-                     aProperty < eCSSProperty_COUNT_no_shorthands,
-                     "out of bounds");
-    }
-
     void SetPropertyBit(nsCSSProperty aProperty) {
-        AssertInSetRange(aProperty);
-        mPropertiesSet[aProperty / kPropertiesSetChunkSize] |=
-            property_set_type(1 << (aProperty % kPropertiesSetChunkSize));
+        mPropertiesSet.AddProperty(aProperty);
     }
 
     void ClearPropertyBit(nsCSSProperty aProperty) {
-        AssertInSetRange(aProperty);
-        mPropertiesSet[aProperty / kPropertiesSetChunkSize] &=
-            ~property_set_type(1 << (aProperty % kPropertiesSetChunkSize));
+        mPropertiesSet.RemoveProperty(aProperty);
     }
 
     PRBool HasPropertyBit(nsCSSProperty aProperty) {
-        AssertInSetRange(aProperty);
-        return (mPropertiesSet[aProperty / kPropertiesSetChunkSize] &
-                (1 << (aProperty % kPropertiesSetChunkSize))) != 0;
+        return mPropertiesSet.HasProperty(aProperty);
     }
 
     void SetImportantBit(nsCSSProperty aProperty) {
-        AssertInSetRange(aProperty);
-        mPropertiesImportant[aProperty / kPropertiesSetChunkSize] |=
-            property_set_type(1 << (aProperty % kPropertiesSetChunkSize));
+        mPropertiesImportant.AddProperty(aProperty);
     }
 
     void ClearImportantBit(nsCSSProperty aProperty) {
-        AssertInSetRange(aProperty);
-        mPropertiesImportant[aProperty / kPropertiesSetChunkSize] &=
-            ~property_set_type(1 << (aProperty % kPropertiesSetChunkSize));
+        mPropertiesImportant.RemoveProperty(aProperty);
     }
 
     PRBool HasImportantBit(nsCSSProperty aProperty) {
-        AssertInSetRange(aProperty);
-        return (mPropertiesImportant[aProperty / kPropertiesSetChunkSize] &
-                (1 << (aProperty % kPropertiesSetChunkSize))) != 0;
+        return mPropertiesImportant.HasProperty(aProperty);
     }
 
     void ClearSets() {
-        memset(mPropertiesSet, 0, sizeof(mPropertiesSet));
-        memset(mPropertiesImportant, 0, sizeof(mPropertiesImportant));
+        mPropertiesSet.Empty();
+        mPropertiesImportant.Empty();
     }
 };
 

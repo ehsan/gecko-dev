@@ -19,6 +19,8 @@
  *
  * Contributor(s):
  *   Myk Melez <myk@mozilla.org>
+ *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
+ *   Geoff Lankow <geoff@darktrojan.net>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -126,32 +128,64 @@ ContentPrefService.prototype = {
   //**************************************************************************//
   // nsIContentPrefService
 
-  getPref: function ContentPrefService_getPref(aURI, aName) {
-    if (aURI) {
-      var group = this.grouper.group(aURI);
+  getPref: function ContentPrefService_getPref(aGroup, aName) {
+    if (!aName)
+      throw Components.Exception("aName cannot be null or an empty string",
+                                 Cr.NS_ERROR_ILLEGAL_VALUE);
+
+    if (aGroup == null)
+      return this._selectGlobalPref(aName);
+    if (aGroup.constructor.name == "String")
+      return this._selectPref(aGroup.toString(), aName);
+    if (aGroup instanceof Ci.nsIURI) {
+      var group = this.grouper.group(aGroup);
       return this._selectPref(group, aName);
     }
 
-    return this._selectGlobalPref(aName);
+    throw Components.Exception("aGroup is not a string, nsIURI or null",
+                               Cr.NS_ERROR_ILLEGAL_VALUE);
   },
 
-  setPref: function ContentPrefService_setPref(aURI, aName, aValue) {
+  setPref: function ContentPrefService_setPref(aGroup, aName, aValue) {
     // If the pref is already set to the value, there's nothing more to do.
-    var currentValue = this.getPref(aURI, aName);
-    if (typeof currentValue != "undefined" && currentValue == aValue)
-      return;
+    var currentValue = this.getPref(aGroup, aName);
+    if (typeof currentValue != "undefined") {
+      if (currentValue == aValue)
+        return;
+    }
+    else {
+      // If we are in private browsing mode, refuse to set new prefs
+      var inPrivateBrowsing = false;
+      try { // The Private Browsing service might not be available.
+        var pbs = Cc["@mozilla.org/privatebrowsing;1"].
+                  getService(Ci.nsIPrivateBrowsingService);
+        inPrivateBrowsing = pbs.privateBrowsingEnabled;
+      } catch (e) {}
+      if (inPrivateBrowsing)
+        return;
+    }
 
     var settingID = this._selectSettingID(aName) || this._insertSetting(aName);
     var group, groupID, prefID;
-    if (aURI) {
-      group = this.grouper.group(aURI);
+    if (aGroup == null) {
+      group = null;
+      groupID = null;
+      prefID = this._selectGlobalPrefID(settingID);
+    }
+    else if (aGroup.constructor.name == "String") {
+      group = aGroup.toString();
+      groupID = this._selectGroupID(group) || this._insertGroup(group);
+      prefID = this._selectPrefID(groupID, settingID);
+    }
+    else if (aGroup instanceof Ci.nsIURI) {
+      group = this.grouper.group(aGroup);
       groupID = this._selectGroupID(group) || this._insertGroup(group);
       prefID = this._selectPrefID(groupID, settingID);
     }
     else {
-      group = null;
-      groupID = null;
-      prefID = this._selectGlobalPrefID(settingID);
+      // Should never get here, due to earlier getPref call
+      throw Components.Exception("aGroup is not a string, nsIURI or null",
+                                 Cr.NS_ERROR_ILLEGAL_VALUE);
     }
 
     // Update the existing record, if any, or create a new one.
@@ -170,28 +204,38 @@ ContentPrefService.prototype = {
     }
   },
 
-  hasPref: function ContentPrefService_hasPref(aURI, aName) {
+  hasPref: function ContentPrefService_hasPref(aGroup, aName) {
     // XXX If consumers end up calling this method regularly, then we should
     // optimize this to query the database directly.
-    return (typeof this.getPref(aURI, aName) != "undefined");
+    return (typeof this.getPref(aGroup, aName) != "undefined");
   },
 
-  removePref: function ContentPrefService_removePref(aURI, aName) {
+  removePref: function ContentPrefService_removePref(aGroup, aName) {
     // If there's no old value, then there's nothing to remove.
-    if (!this.hasPref(aURI, aName))
+    if (!this.hasPref(aGroup, aName))
       return;
 
     var settingID = this._selectSettingID(aName);
     var group, groupID, prefID;
-    if (aURI) {
-      group = this.grouper.group(aURI);
+    if (aGroup == null) {
+      group = null;
+      groupID = null;
+      prefID = this._selectGlobalPrefID(settingID);
+    }
+    else if (aGroup.constructor.name == "String") {
+      group = aGroup.toString();
+      groupID = this._selectGroupID(group);
+      prefID = this._selectPrefID(groupID, settingID);
+    }
+    else if (aGroup instanceof Ci.nsIURI) {
+      group = this.grouper.group(aGroup);
       groupID = this._selectGroupID(group);
       prefID = this._selectPrefID(groupID, settingID);
     }
     else {
-      group = null;
-      groupID = null;
-      prefID = this._selectGlobalPrefID(settingID);
+      // Should never get here, due to earlier hasPref call
+      throw Components.Exception("aGroup is not a string, nsIURI or null",
+                                 Cr.NS_ERROR_ILLEGAL_VALUE);
     }
 
     this._deletePref(prefID);
@@ -201,23 +245,85 @@ ContentPrefService.prototype = {
     if (groupID)
       this._deleteGroupIfUnused(groupID);
 
-    for each (var observer in this._getObservers(aName)) {
-      try {
-        observer.onContentPrefRemoved(group, aName);
-      }
-      catch(ex) {
-        Cu.reportError(ex);
-      }
+    this._notifyPrefRemoved(group, aName);
+  },
+
+  removeGroupedPrefs: function ContentPrefService_removeGroupedPrefs() {
+    this._dbConnection.beginTransaction();
+    try {
+      this._dbConnection.executeSimpleSQL("DELETE FROM prefs WHERE groupID IS NOT NULL");
+      this._dbConnection.executeSimpleSQL("DELETE FROM groups");
+      this._dbConnection.commitTransaction();
+    }
+    catch(ex) {
+      this._dbConnection.rollbackTransaction();
+      throw ex;
     }
   },
 
-  getPrefs: function ContentPrefService_getPrefs(aURI) {
-    if (aURI) {
-      var group = this.grouper.group(aURI);
-      return this._selectPrefs(group);
+  removePrefsByName: function ContentPrefService_removePrefsByName(aName) {
+    if (!aName)
+      throw Components.Exception("aName cannot be null or an empty string",
+                                 Cr.NS_ERROR_ILLEGAL_VALUE);
+
+    var settingID = this._selectSettingID(aName);
+    if (!settingID)
+      return;
+    
+    var selectGroupsStmt = this._dbCreateStatement(
+      "SELECT groups.name AS groupName " +
+      "FROM prefs " +
+      "JOIN groups ON prefs.groupID = groups.id " +
+      "WHERE prefs.settingID = :setting "
+    );
+    
+    try {
+      selectGroupsStmt.params.setting = settingID;
+    
+      var groups = [];
+      while (selectGroupsStmt.executeStep()) {
+        groups.push(selectGroupsStmt.row["groupName"]);
+      }
+    }
+    finally {
+      selectGroupsStmt.reset();
+    }
+    
+    if (this.hasPref(null, aName)) {
+      groups.push(null);
     }
 
-    return this._selectGlobalPrefs();
+    this._dbConnection.executeSimpleSQL("DELETE FROM prefs WHERE settingID = " + settingID);
+    this._dbConnection.executeSimpleSQL("DELETE FROM settings WHERE id = " + settingID);
+
+    for (var i = 0; i < groups.length; i++) {
+      this._notifyPrefRemoved(groups[i], aName);
+      if (groups[i])
+        this._deleteGroupIfUnused(groups[i]);
+    }
+  },
+
+  getPrefs: function ContentPrefService_getPrefs(aGroup) {
+    if (aGroup == null)
+      return this._selectGlobalPrefs();
+    if (aGroup.constructor.name == "String") {
+      group = aGroup.toString();
+      return this._selectPrefs(group);
+    }
+    if (aGroup instanceof Ci.nsIURI) {
+      var group = this.grouper.group(aGroup);
+      return this._selectPrefs(group);
+    }
+    throw Components.Exception("aGroup is not a string, nsIURI or null",
+                               Cr.NS_ERROR_ILLEGAL_VALUE);
+  },
+
+  getPrefsByName: function ContentPrefService_getPrefsByName(aName) {
+    if (!aName)
+      throw Components.Exception("aName cannot be null or an empty string",
+                                 Cr.NS_ERROR_ILLEGAL_VALUE);
+
+    return this._selectPrefsByName(aName);
   },
 
   // A hash of arrays of observers, indexed by setting name.
@@ -270,6 +376,17 @@ ContentPrefService.prototype = {
 
     return observers;
   },
+  
+  _notifyPrefRemoved: function ContentPrefService__notifyPrefRemoved(aGroup, aName) {
+    for each (var observer in this._getObservers(aName)) {
+      try {
+        observer.onContentPrefRemoved(aGroup, aName);
+      }
+      catch(ex) {
+        Cu.reportError(ex);
+      }
+    }
+  },
 
   _grouper: null,
   get grouper ContentPrefService_get_grouper() {
@@ -309,7 +426,7 @@ ContentPrefService.prototype = {
       this._stmtSelectPref.params.group = aGroup;
       this._stmtSelectPref.params.setting = aSetting;
 
-      if (this._stmtSelectPref.step())
+      if (this._stmtSelectPref.executeStep())
         value = this._stmtSelectPref.row["value"];
     }
     finally {
@@ -339,7 +456,7 @@ ContentPrefService.prototype = {
     try {
       this._stmtSelectGlobalPref.params.name = aName;
 
-      if (this._stmtSelectGlobalPref.step())
+      if (this._stmtSelectGlobalPref.executeStep())
         value = this._stmtSelectGlobalPref.row["value"];
     }
     finally {
@@ -367,7 +484,7 @@ ContentPrefService.prototype = {
     try {
       this._stmtSelectGroupID.params.name = aName;
 
-      if (this._stmtSelectGroupID.step())
+      if (this._stmtSelectGroupID.executeStep())
         id = this._stmtSelectGroupID.row["id"];
     }
     finally {
@@ -409,7 +526,7 @@ ContentPrefService.prototype = {
     try {
       this._stmtSelectSettingID.params.name = aName;
 
-      if (this._stmtSelectSettingID.step())
+      if (this._stmtSelectSettingID.executeStep())
         id = this._stmtSelectSettingID.row["id"];
     }
     finally {
@@ -452,7 +569,7 @@ ContentPrefService.prototype = {
       this._stmtSelectPrefID.params.groupID = aGroupID;
       this._stmtSelectPrefID.params.settingID = aSettingID;
 
-      if (this._stmtSelectPrefID.step())
+      if (this._stmtSelectPrefID.executeStep())
         id = this._stmtSelectPrefID.row["id"];
     }
     finally {
@@ -478,7 +595,7 @@ ContentPrefService.prototype = {
     try {
       this._stmtSelectGlobalPrefID.params.settingID = aSettingID;
 
-      if (this._stmtSelectGlobalPrefID.step())
+      if (this._stmtSelectGlobalPrefID.executeStep())
         id = this._stmtSelectGlobalPrefID.row["id"];
     }
     finally {
@@ -591,7 +708,7 @@ ContentPrefService.prototype = {
     try {
       this._stmtSelectPrefs.params.group = aGroup;
 
-      while (this._stmtSelectPrefs.step())
+      while (this._stmtSelectPrefs.executeStep())
         prefs.setProperty(this._stmtSelectPrefs.row["name"],
                           this._stmtSelectPrefs.row["value"]);
     }
@@ -620,12 +737,49 @@ ContentPrefService.prototype = {
                 createInstance(Ci.nsIWritablePropertyBag);
 
     try {
-      while (this._stmtSelectGlobalPrefs.step())
+      while (this._stmtSelectGlobalPrefs.executeStep())
         prefs.setProperty(this._stmtSelectGlobalPrefs.row["name"],
                           this._stmtSelectGlobalPrefs.row["value"]);
     }
     finally {
       this._stmtSelectGlobalPrefs.reset();
+    }
+
+    return prefs;
+  },
+
+  __stmtSelectPrefsByName: null,
+  get _stmtSelectPrefsByName ContentPrefService_get__stmtSelectPrefsByName() {
+    if (!this.__stmtSelectPrefsByName)
+      this.__stmtSelectPrefsByName = this._dbCreateStatement(
+        "SELECT groups.name AS groupName, prefs.value AS value " +
+        "FROM prefs " +
+        "JOIN groups ON prefs.groupID = groups.id " +
+        "JOIN settings ON prefs.settingID = settings.id " +
+        "WHERE settings.name = :setting "
+      );
+
+    return this.__stmtSelectPrefsByName;
+  },
+
+  _selectPrefsByName: function ContentPrefService__selectPrefsByName(aName) {
+    var prefs = Cc["@mozilla.org/hash-property-bag;1"].
+                createInstance(Ci.nsIWritablePropertyBag);
+
+    try {
+      this._stmtSelectPrefsByName.params.setting = aName;
+
+      while (this._stmtSelectPrefsByName.executeStep())
+        prefs.setProperty(this._stmtSelectPrefsByName.row["groupName"],
+                          this._stmtSelectPrefsByName.row["value"]);
+    }
+    finally {
+      this._stmtSelectPrefsByName.reset();
+    }
+    
+    var global = this._selectGlobalPref(aName);
+    if (typeof global != "undefined") {
+      prefs.setProperty(null, global);
     }
 
     return prefs;
@@ -679,10 +833,7 @@ ContentPrefService.prototype = {
       throw ex;
     }
 
-    var wrappedStatement = Cc["@mozilla.org/storage/statement-wrapper;1"].
-                           createInstance(Ci.mozIStorageStatementWrapper);
-    wrappedStatement.initialize(statement);
-    return wrappedStatement;
+    return statement;
   },
 
   // _dbInit and the methods it calls (_dbCreate, _dbMigrate, and version-

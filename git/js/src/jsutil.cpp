@@ -1,4 +1,4 @@
-/* -*- Mode: C; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*-
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -41,15 +41,23 @@
 /*
  * PR assertion checker.
  */
-#include "jsstddef.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include "jstypes.h"
+#include "jsstdint.h"
 #include "jsutil.h"
 
 #ifdef WIN32
 #    include <windows.h>
+#else
+#    include <signal.h>
 #endif
+
+/*
+ * Checks the assumption that JS_FUNC_TO_DATA_PTR and JS_DATA_TO_FUNC_PTR
+ * macros uses to implement casts between function and data pointers.
+ */
+JS_STATIC_ASSERT(sizeof(void *) == sizeof(void (*)()));
 
 JS_PUBLIC_API(void) JS_Assert(const char *s, const char *file, JSIntn ln)
 {
@@ -57,10 +65,10 @@ JS_PUBLIC_API(void) JS_Assert(const char *s, const char *file, JSIntn ln)
 #if defined(WIN32)
     DebugBreak();
     exit(3);
-#elif defined(XP_OS2) || (defined(__GNUC__) && defined(__i386))
-    asm("int $3");
+#else
+    /* In GDB, you can continue from here with the command "signal 0". */
+    raise(SIGABRT);
 #endif
-    abort();
 }
 
 #ifdef JS_BASIC_STATS
@@ -89,7 +97,7 @@ BinToVal(uintN logscale, uintN bin)
     if (logscale == 2)
         return JS_BIT(bin);
     JS_ASSERT(logscale == 10);
-    return (uint32) pow(10, (double) bin);
+    return (uint32) pow(10.0, (double) bin);
 }
 
 static uintN
@@ -210,7 +218,7 @@ JS_DumpHistogram(JSBasicStats *bs, FILE *fp)
 
 #endif /* JS_BASIC_STATS */
 
-#if defined DEBUG_notme && defined XP_UNIX
+#if defined(DEBUG_notme) && defined(XP_UNIX)
 
 #define __USE_GNU 1
 #include <dlfcn.h>
@@ -250,7 +258,7 @@ CallTree(void **bp)
 
         csp = &parent->kids;
         while ((site = *csp) != NULL) {
-            if (site->pc == pc) {
+            if (site->pc == (uint32)pc) {
                 /* Put the most recently used site at the front of siblings. */
                 *csp = site->siblings;
                 site->siblings = parent->kids;
@@ -264,7 +272,7 @@ CallTree(void **bp)
 
         /* Check for recursion: see if pc is on our ancestor line. */
         for (site = parent; site; site = site->parent) {
-            if (site->pc == pc)
+            if (site->pc == (uint32)pc)
                 goto upward;
         }
 
@@ -291,12 +299,12 @@ CallTree(void **bp)
             return NULL;
 
         /* Create a new callsite record. */
-        site = (JSCallsite *) malloc(sizeof(JSCallsite));
+        site = (JSCallsite *) js_malloc(sizeof(JSCallsite));
         if (!site)
             return NULL;
 
         /* Insert the new site into the tree. */
-        site->pc = pc;
+        site->pc = (uint32)pc;
         site->name = method;
         site->library = info.dli_fname;
         site->offset = offset;
@@ -314,7 +322,7 @@ CallTree(void **bp)
     return site;
 }
 
-JSCallsite *
+JS_FRIEND_API(JSCallsite *)
 JS_Backtrace(int skip)
 {
     void **bp, **bpdown;
@@ -342,4 +350,14 @@ JS_Backtrace(int skip)
     return CallTree(bp);
 }
 
-#endif /* DEBUG_notme && XP_UNIX */
+JS_FRIEND_API(void)
+JS_DumpBacktrace(JSCallsite *trace)
+{
+    while (trace) {
+        fprintf(stdout, "%s [%s +0x%X]\n", trace->name, trace->library,
+                trace->offset);
+        trace = trace->parent;
+    }
+}
+
+#endif /* defined(DEBUG_notme) && defined(XP_UNIX) */

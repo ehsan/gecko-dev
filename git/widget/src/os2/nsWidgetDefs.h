@@ -40,7 +40,6 @@
 // OS/2 defines; for user messages & warp4 stuff, plus module-global data
 
 #include "nsIWidget.h"
-#include "nsVoidArray.h"
 
 #define INCL_PM
 #define INCL_NLS
@@ -109,8 +108,6 @@ typedef struct _tagOFN {
 
 extern "C" BOOL APIENTRY DaxOpenSave(BOOL, LONG *, LPOPENFILENAME, PFNWP);
 #endif
-
-#define SUPPORT_NON_XPFE /* support for viewer.exe */
 
 class nsDragService;
 class nsIAppShell;

@@ -45,7 +45,6 @@
 #include "nsGkAtoms.h"
 #include "nsINameSpaceManager.h"
 
-#include "nsIWidget.h"
 #include "nsPresContext.h"
 #include "nsIDocShell.h"
 #include "nsIDocShellTreeItem.h"
@@ -54,6 +53,7 @@
 #include "nsPIDOMWindow.h"
 #include "nsGUIEvent.h"
 #include "nsEventDispatcher.h"
+#include "nsContentUtils.h"
 
 //
 // NS_NewResizerFrame
@@ -64,7 +64,9 @@ nsIFrame*
 NS_NewResizerFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsResizerFrame(aPresShell, aContext);
-} // NS_NewResizerFrame
+}
+
+NS_IMPL_FRAMEARENA_HELPERS(nsResizerFrame)
 
 nsResizerFrame::nsResizerFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 :nsTitleBarFrame(aPresShell, aContext)
@@ -76,6 +78,11 @@ nsResizerFrame::HandleEvent(nsPresContext* aPresContext,
                             nsGUIEvent* aEvent,
                             nsEventStatus* aEventStatus)
 {
+  NS_ENSURE_ARG_POINTER(aEventStatus);
+  if (nsEventStatus_eConsumeNoDefault == *aEventStatus) {
+    return NS_OK;
+  }
+
   nsWeakFrame weakFrame(this);
   PRBool doDefault = PR_TRUE;
 
@@ -104,8 +111,7 @@ nsResizerFrame::HandleEvent(nsPresContext* aPresContext,
            mTrackingMouseMove = PR_TRUE;
 
            // start capture.
-           aEvent->widget->CaptureMouse(PR_TRUE);
-           CaptureMouseEvents(aPresContext,PR_TRUE);
+           nsIPresShell::SetCapturingContent(GetContent(), CAPTURE_IGNOREALLOWED);
 
            // remember current mouse coordinates.
            mLastPoint = aEvent->refPoint;
@@ -129,8 +135,7 @@ nsResizerFrame::HandleEvent(nsPresContext* aPresContext,
          mTrackingMouseMove = PR_FALSE;
 
          // end capture
-         aEvent->widget->CaptureMouse(PR_FALSE);
-         CaptureMouseEvents(aPresContext,PR_FALSE);
+         nsIPresShell::SetCapturingContent(nsnull, 0);
 
          *aEventStatus = nsEventStatus_eConsumeNoDefault;
          doDefault = PR_FALSE;
@@ -223,12 +228,14 @@ nsResizerFrame::GetDirection()
     {&nsGkAtoms::topleft,    &nsGkAtoms::top,    &nsGkAtoms::topright,
      &nsGkAtoms::left,                           &nsGkAtoms::right,
      &nsGkAtoms::bottomleft, &nsGkAtoms::bottom, &nsGkAtoms::bottomright,
+                                                 &nsGkAtoms::bottomend,
      nsnull};
 
   static const Direction directions[] =
     {{-1, -1}, {0, -1}, {1, -1},
      {-1,  0},          {1,  0},
-     {-1,  1}, {0,  1}, {1,  1}
+     {-1,  1}, {0,  1}, {1,  1},
+                        {1,  1}
     };
 
   if (!GetContent())
@@ -239,18 +246,21 @@ nsResizerFrame::GetDirection()
                                                 strings, eCaseMatters);
   if(index < 0)
     return directions[0]; // default: topleft
-  else
-    return directions[index];
+  else if (index >= 8 && GetStyleVisibility()->mDirection == NS_STYLE_DIRECTION_RTL) {
+    // Directions 8 and higher are RTL-aware directions and should reverse the
+    // horizontal component if RTL.
+    Direction direction = directions[index];
+    direction.mHorizontal *= -1;
+    return direction;
+  }
+  return directions[index];
 }
 
 void
 nsResizerFrame::MouseClicked(nsPresContext* aPresContext, nsGUIEvent *aEvent)
 {
   // Execute the oncommand event handler.
-  nsEventStatus status = nsEventStatus_eIgnore;
-
-  nsXULCommandEvent event(aEvent ? NS_IS_TRUSTED_EVENT(aEvent) : PR_FALSE,
-                          NS_XUL_COMMAND, nsnull);
-
-  nsEventDispatcher::Dispatch(mContent, aPresContext, &event, nsnull, &status);
+  nsContentUtils::DispatchXULCommand(mContent,
+                                     aEvent ?
+                                       NS_IS_TRUSTED_EVENT(aEvent) : PR_FALSE);
 }

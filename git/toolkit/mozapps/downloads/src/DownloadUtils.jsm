@@ -65,8 +65,13 @@ var EXPORTED_SYMBOLS = [ "DownloadUtils" ];
 
 const Cc = Components.classes;
 const Ci = Components.interfaces;
-const Cu = Components.utils
-Cu.import("resource://gre/modules/PluralForm.jsm");
+const Cu = Components.utils;
+
+__defineGetter__("PluralForm", function() {
+  delete this.PluralForm;
+  Cu.import("resource://gre/modules/PluralForm.jsm");
+  return PluralForm;
+});
 
 const kDownloadProperties =
   "chrome://mozapps/locale/downloads/downloads.properties";
@@ -163,11 +168,11 @@ let DownloadUtils = {
   getDownloadStatus: function DU_getDownloadStatus(aCurrBytes, aMaxBytes,
                                                    aSpeed, aLastSec)
   {
-    if (isNil(aMaxBytes))
+    if (aMaxBytes == null)
       aMaxBytes = -1;
-    if (isNil(aSpeed))
+    if (aSpeed == null)
       aSpeed = -1;
-    if (isNil(aLastSec))
+    if (aLastSec == null)
       aLastSec = Infinity;
 
     // Calculate the time remaining if we have valid values
@@ -211,7 +216,7 @@ let DownloadUtils = {
    */
   getTransferTotal: function DU_getTransferTotal(aCurrBytes, aMaxBytes)
   {
-    if (isNil(aMaxBytes))
+    if (aMaxBytes == null)
       aMaxBytes = -1;
 
     let [progress, progressUnits] = DownloadUtils.convertByteUnits(aCurrBytes);
@@ -248,7 +253,7 @@ let DownloadUtils = {
    */
   getTimeLeft: function DU_getTimeLeft(aSeconds, aLastSec)
   {
-    if (isNil(aLastSec))
+    if (aLastSec == null)
       aLastSec = Infinity;
 
     if (aSeconds < 0)
@@ -296,8 +301,9 @@ let DownloadUtils = {
       let pair2 = replaceInsert(gStr.timePair, 1, time2);
       pair2 = replaceInsert(pair2, 2, unit2);
 
-      // Only show minutes for under 1 hour or the second pair is 0
-      if (aSeconds < 3600 || time2 == 0) {
+      // Only show minutes for under 1 hour unless there's a few minutes left;
+      // or the second pair is 0.
+      if ((aSeconds < 3600 && time1 >= 4) || time2 == 0) {
         timeLeft = replaceInsert(gStr.timeLeftSingle, 1, pair1);
       } else {
         // We've got 2 pairs of times to display
@@ -485,18 +491,6 @@ function convertTimeUnitsUnits(aTime, aIndex)
 function replaceInsert(aText, aIndex, aValue)
 {
   return aText.replace("#" + aIndex, aValue);
-}
-
-/**
- * Private helper function to determine if an argument is null or undefined
- *
- * @param aArg
- *        The argument to check for nullness or undefinedness
- * @return true if null or undefined, false otherwise
- */
-function isNil(aArg)
-{
-  return (aArg == null) || (aArg == undefined);
 }
 
 /**

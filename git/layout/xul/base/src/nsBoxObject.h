@@ -45,14 +45,16 @@
 #include "nsAutoPtr.h"
 #include "nsHashKeys.h"
 #include "nsInterfaceHashtable.h"
+#include "nsCycleCollectionParticipant.h"
 
 class nsIFrame;
 class nsIDocShell;
-struct nsRect;
+struct nsIntRect;
 
 class nsBoxObject : public nsPIBoxObject
 {
-  NS_DECL_ISUPPORTS
+  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+  NS_DECL_CYCLE_COLLECTION_CLASS(nsBoxObject)
   NS_DECL_NSIBOXOBJECT
 
 public:
@@ -66,7 +68,7 @@ public:
 
   nsIFrame* GetFrame(PRBool aFlushLayout);
   nsIPresShell* GetPresShell(PRBool aFlushLayout);
-  nsresult GetOffsetRect(nsRect& aRect);
+  nsresult GetOffsetRect(nsIntRect& aRect);
   nsresult GetScreenPosition(nsIntPoint& aPoint);
 
   // Given a parent frame and a child frame, find the frame whose

@@ -92,7 +92,16 @@ public:
         /* [optional][in] */ VARIANT varChild,
         /* [retval][out] */ BSTR __RPC_FAR *pszValue);
 
-    NS_IMETHOD FireAnchorJumpEvent();
+  // nsDocAccessibleWrap
+
+  /**
+   * Find an accessible by the given child ID in cached documents.
+   *
+   * @param  aVarChild    [in] variant pointing to the child ID
+   * @param  aAccessible  [out] the found accessible
+   */
+  static void GetXPAccessibleForChildID(const VARIANT& aVarChild,
+                                        nsIAccessible **aAccessible);
 };
 
 #endif

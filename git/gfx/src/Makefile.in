@@ -48,31 +48,15 @@ EXPORT_LIBRARY = 1
 GRE_MODULE	= 1
 LIBXUL_LIBRARY = 1
 
-PACKAGE_FILE = gfx.pkg
 
-REQUIRES	= xpcom \
-		  string \
-		  widget \
-		  locale \
-		  view \
-		  unicharutil \
-		  thebes \
-		  $(NULL)
-
-DIRS        = shared thebes
+DIRS        = thebes
 
 ifdef MOZ_ENABLE_POSTSCRIPT
 DIRS        += psshared
 endif
 
-ifdef MOZ_ENABLE_PHOTON
-DIRS        += photon
-endif
-
 CPPSRCS = \
         nsColor.cpp \
-        nsColorNames.cpp \
-        nsDeviceContext.cpp \
         nsFont.cpp \
         nsRect.cpp \
         nsRegion.cpp \
@@ -80,14 +64,11 @@ CPPSRCS = \
         nsScriptableRegion.cpp \
         $(NULL)
 
-ifeq (,$(filter windows,$(MOZ_WIDGET_TOOLKIT)))
-REQUIRES += uconv
-endif
 
 EXTRA_DSO_LDOPTS = \
-        $(DEPTH)/modules/libutil/src/$(LIB_PREFIX)mozutil_s.$(LIB_SUFFIX) \
         $(MOZ_UNICHARUTIL_LIBS) \
         $(MOZ_COMPONENT_LIBS) \
+        $(MOZ_JS_LIBS) \
         $(NULL)
 
 ifneq (,$(filter cocoa,$(MOZ_WIDGET_TOOLKIT)))

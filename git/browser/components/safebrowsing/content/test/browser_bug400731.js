@@ -1,37 +1,38 @@
 /* Check for the intended visibility of the "Ignore this warning" text*/
-var newBrowser
 
 function test() {
   waitForExplicitFinish();
   
-  var newTab = gBrowser.addTab();
-  gBrowser.selectedTab = newTab;
-  newBrowser = gBrowser.getBrowserForTab(newTab);
+  gBrowser.selectedTab = gBrowser.addTab();
   
   // Navigate to malware site.  Can't use an onload listener here since
   // error pages don't fire onload
-  newBrowser.contentWindow.location = 'http://www.mozilla.com/firefox/its-an-attack.html';
-  window.setTimeout(testMalware, 2000);
+  window.addEventListener("DOMContentLoaded", testMalware, true);
+  content.location = "http://www.mozilla.com/firefox/its-an-attack.html";
 }
 
 function testMalware() {
+  window.removeEventListener("DOMContentLoaded", testMalware, true);
+
   // Confirm that "Ignore this warning" is visible - bug 422410
-  var el = newBrowser.contentDocument.getElementById("ignoreWarningButton");
+  var el = content.document.getElementById("ignoreWarningButton");
   ok(el, "Ignore warning button should be present for malware");
   
-  var style = newBrowser.contentWindow.getComputedStyle(el, null);
+  var style = content.getComputedStyle(el, null);
   is(style.display, "-moz-box", "Ignore Warning button should be display:-moz-box for malware");
   
   // Now launch the phishing test
-  newBrowser.contentWindow.location = 'http://www.mozilla.com/firefox/its-a-trap.html';
-  window.setTimeout(testPhishing, 2000);
+  window.addEventListener("DOMContentLoaded", testPhishing, true);
+  content.location = "http://www.mozilla.com/firefox/its-a-trap.html";
 }
 
 function testPhishing() {
-  var el = newBrowser.contentDocument.getElementById("ignoreWarningButton");
+  window.removeEventListener("DOMContentLoaded", testPhishing, true);
+  
+  var el = content.document.getElementById("ignoreWarningButton");
   ok(el, "Ignore warning button should be present for phishing");
   
-  var style = newBrowser.contentWindow.getComputedStyle(el, null);
+  var style = content.getComputedStyle(el, null);
   is(style.display, "-moz-box", "Ignore Warning button should be display:-moz-box for phishing");
   
   gBrowser.removeCurrentTab();

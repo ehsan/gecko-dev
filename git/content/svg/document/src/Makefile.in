@@ -45,22 +45,6 @@ include $(DEPTH)/config/autoconf.mk
 MODULE		= content
 LIBRARY_NAME	= gkconsvgdoc_s
 LIBXUL_LIBRARY	= 1
-REQUIRES	= \
-		  layout \
-		  widget \
-		  xpcom \
-		  string \
-		  gfx \
-		  thebes \
-		  dom \
-		  webshell \
-		  htmlparser \
-		  necko \
-		  pref \
-		  js \
-		  caps \
-		  locale \
-		  $(NULL)
 
 CPPSRCS		= \
 		nsSVGDocument.cpp \

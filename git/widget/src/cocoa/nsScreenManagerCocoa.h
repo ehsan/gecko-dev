@@ -41,10 +41,9 @@
 
 #import <Cocoa/Cocoa.h>
 
-#include "nsCOMArray.h"
-
+#include "nsTArray.h"
+#include "nsAutoPtr.h"
 #include "nsIScreenManager.h"
-
 #include "nsScreenCocoa.h"
 
 class nsScreenManagerCocoa : public nsIScreenManager
@@ -61,7 +60,7 @@ private:
 
     nsScreenCocoa *ScreenForCocoaScreen (NSScreen *screen);
 
-    nsCOMArray<nsScreenCocoa> mScreenList;
+    nsTArray< nsRefPtr<nsScreenCocoa> > mScreenList;
 };
 
 #endif // nsScreenManagerCocoa_h_

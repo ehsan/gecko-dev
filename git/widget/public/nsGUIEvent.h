@@ -22,6 +22,7 @@
  * Contributor(s):
  *   Makoto Kato  <m_kato@ga2.so-net.ne.jp>
  *   Dean Tessman <dean_tessman@hotmail.com>
+ *   Thomas K. Dyas <tdyas@zecador.org> (simple gestures support)
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -42,22 +43,18 @@
 
 #include "nsPoint.h"
 #include "nsRect.h"
+#include "nsRegion.h"
 #include "nsEvent.h"
 #include "nsStringGlue.h"
-
-// nsIDOMEvent contains a long enum which includes a member called ERROR,
-// which conflicts with something that Windows defines somewhere.
-// So, undefine it:
-#ifdef WIN32
-#undef ERROR
-#endif
 #include "nsCOMPtr.h"
 #include "nsIAtom.h"
 #include "nsIDOMKeyEvent.h"
+#include "nsIDOMDataTransfer.h"
 #include "nsWeakPtr.h"
 #include "nsIWidget.h"
 #include "nsTArray.h"
 #include "nsTraceRefcnt.h"
+#include "nsITransferable.h"
 
 class nsIRenderingContext;
 class nsIRegion;
@@ -65,7 +62,6 @@ class nsIMenuItem;
 class nsIAccessible;
 class nsIContent;
 class nsIURI;
-class nsIDOMEvent;
 class nsHashKey;
 
 /**
@@ -85,7 +81,6 @@ class nsHashKey;
 #define NS_SCRIPT_ERROR_EVENT             12
 #define NS_TEXT_EVENT                     13
 #define NS_COMPOSITION_EVENT              14
-#define NS_RECONVERSION_EVENT             15
 #define NS_MOUSE_SCROLL_EVENT             16
 #define NS_SCROLLPORT_EVENT               18
 #define NS_MUTATION_EVENT                 19 // |nsMutationEvent| in content
@@ -94,17 +89,25 @@ class nsHashKey;
 #define NS_FOCUS_EVENT                    22
 #define NS_POPUP_EVENT                    23
 #define NS_COMMAND_EVENT                  24
-#define NS_POPUPBLOCKED_EVENT             25
-#define NS_BEFORE_PAGE_UNLOAD_EVENT       26
+#define NS_SCROLLAREA_EVENT               25
+
+
 #define NS_UI_EVENT                       27
-#define NS_QUERYCARETRECT_EVENT           28
-#define NS_PAGETRANSITION_EVENT           29
 #ifdef MOZ_SVG
 #define NS_SVG_EVENT                      30
 #define NS_SVGZOOM_EVENT                  31
 #endif // MOZ_SVG
-#define NS_XUL_COMMAND_EVENT              32
+
 #define NS_QUERY_CONTENT_EVENT            33
+#ifdef MOZ_MEDIA
+#define NS_MEDIA_EVENT                    34
+#endif // MOZ_MEDIA
+#define NS_DRAG_EVENT                     35
+#define NS_NOTIFYPAINT_EVENT              36
+#define NS_SIMPLE_GESTURE_EVENT           37
+#define NS_SELECTION_EVENT                38
+#define NS_CONTENT_COMMAND_EVENT          39
+#define NS_GESTURENOTIFY_EVENT            40
 
 // These flags are sort of a mess. They're sort of shared between event
 // listener flags and event flags, but only some of them. You've been
@@ -123,6 +126,17 @@ class nsHashKey;
 // Event has been dispatched at least once
 #define NS_EVENT_DISPATCHED               0x0400
 #define NS_EVENT_FLAG_DISPATCHING         0x0800
+// When an event is synthesized for testing, this flag will be set.
+// Note that this is currently used only with mouse events, because this
+// flag is not needed on other events now.  It could be added to other
+// events.
+#define NS_EVENT_FLAG_SYNTHETIC_TEST_EVENT 0x1000
+
+// Use this flag if the event should be dispatched only to chrome.
+#define NS_EVENT_FLAG_ONLY_CHROME_DISPATCH 0x2000
+
+// A flag for drag&drop handling.
+#define NS_EVENT_FLAG_NO_DEFAULT_CALLED_IN_CONTENT 0x4000
 
 #define NS_PRIV_EVENT_UNTRUSTED_PERMITTED 0x8000
 
@@ -150,16 +164,14 @@ class nsHashKey;
 #define NS_SIZE                         (NS_WINDOW_START + 3)
 // Widget size mode was changed
 #define NS_SIZEMODE                     (NS_WINDOW_START + 4)
-// Widget gained focus
-#define NS_GOTFOCUS                     (NS_WINDOW_START + 5)
-// Widget lost focus
-#define NS_LOSTFOCUS                    (NS_WINDOW_START + 6)
 // Widget got activated
 #define NS_ACTIVATE                     (NS_WINDOW_START + 7)
 // Widget got deactivated
 #define NS_DEACTIVATE                   (NS_WINDOW_START + 8)
 // top-level window z-level change request
 #define NS_SETZLEVEL                    (NS_WINDOW_START + 9)
+// Widget will need to be painted
+#define NS_WILL_PAINT                   (NS_WINDOW_START + 29)
 // Widget needs to be repainted
 #define NS_PAINT                        (NS_WINDOW_START + 30)
 // Key is pressed within a window
@@ -230,6 +242,7 @@ class nsHashKey;
 #define NS_STREAM_EVENT_START           1100
 #define NS_LOAD                         (NS_STREAM_EVENT_START)
 #define NS_PAGE_UNLOAD                  (NS_STREAM_EVENT_START + 1)
+#define NS_HASHCHANGE                   (NS_STREAM_EVENT_START + 2)
 #define NS_IMAGE_ABORT                  (NS_STREAM_EVENT_START + 3)
 #define NS_LOAD_ERROR                   (NS_STREAM_EVENT_START + 4)
 #define NS_BEFORE_PAGE_UNLOAD           (NS_STREAM_EVENT_START + 6)
@@ -247,17 +260,19 @@ class nsHashKey;
 #define NS_FOCUS_CONTENT                (NS_FOCUS_EVENT_START)
 #define NS_BLUR_CONTENT                 (NS_FOCUS_EVENT_START + 1)
 
-
 #define NS_DRAGDROP_EVENT_START         1400
 #define NS_DRAGDROP_ENTER               (NS_DRAGDROP_EVENT_START)
 #define NS_DRAGDROP_OVER                (NS_DRAGDROP_EVENT_START + 1)
 #define NS_DRAGDROP_EXIT                (NS_DRAGDROP_EVENT_START + 2)
-#define NS_DRAGDROP_DROP                (NS_DRAGDROP_EVENT_START + 3)
+#define NS_DRAGDROP_DRAGDROP            (NS_DRAGDROP_EVENT_START + 3)
 #define NS_DRAGDROP_GESTURE             (NS_DRAGDROP_EVENT_START + 4)
 #define NS_DRAGDROP_DRAG                (NS_DRAGDROP_EVENT_START + 5)
 #define NS_DRAGDROP_END                 (NS_DRAGDROP_EVENT_START + 6)
+#define NS_DRAGDROP_START               (NS_DRAGDROP_EVENT_START + 7)
+#define NS_DRAGDROP_DROP                (NS_DRAGDROP_EVENT_START + 8)
 #define NS_DRAGDROP_OVER_SYNTH          (NS_DRAGDROP_EVENT_START + 1)
 #define NS_DRAGDROP_EXIT_SYNTH          (NS_DRAGDROP_EVENT_START + 2)
+#define NS_DRAGDROP_LEAVE_SYNTH         (NS_DRAGDROP_EVENT_START + 9)
 
 // Events for popups
 #define NS_XUL_EVENT_START            1500
@@ -273,6 +288,7 @@ class nsHashKey;
 // Scroll events
 #define NS_MOUSE_SCROLL_START         1600
 #define NS_MOUSE_SCROLL               (NS_MOUSE_SCROLL_START)
+#define NS_MOUSE_PIXEL_SCROLL         (NS_MOUSE_SCROLL_START + 1)
 
 #define NS_SCROLLPORT_START           1700
 #define NS_SCROLLPORT_UNDERFLOW       (NS_SCROLLPORT_START)
@@ -291,11 +307,6 @@ class nsHashKey;
 #define NS_COMPOSITION_EVENT_START    2200
 #define NS_COMPOSITION_START          (NS_COMPOSITION_EVENT_START)
 #define NS_COMPOSITION_END            (NS_COMPOSITION_EVENT_START + 1)
-#define NS_COMPOSITION_QUERY          (NS_COMPOSITION_EVENT_START + 2)
-
-// reconversion events
-#define NS_RECONVERSION_START         2300
-#define NS_RECONVERSION_QUERY         (NS_RECONVERSION_START)
 
 // text events
 #define NS_TEXT_START                 2400
@@ -307,10 +318,6 @@ class nsHashKey;
 #define NS_UI_ACTIVATE             (NS_UI_EVENT_START)
 #define NS_UI_FOCUSIN              (NS_UI_EVENT_START + 1)
 #define NS_UI_FOCUSOUT             (NS_UI_EVENT_START + 2)
-
-// query caret rect events
-#define NS_QUERYCARETRECT_START    2600
-#define NS_QUERYCARETRECT          (NS_QUERYCARETRECT_START)
 
 // pagetransition events
 #define NS_PAGETRANSITION_START    2700
@@ -349,28 +356,102 @@ class nsHashKey;
 #define NS_QUERY_SELECTED_TEXT          (NS_QUERY_CONTENT_EVENT_START)
 // Query for the text content of specified range, it returns actual lengh (if
 // the specified range is too long) and the text of the specified range.
+// Returns the entire text if requested length > actual length.
 #define NS_QUERY_TEXT_CONTENT           (NS_QUERY_CONTENT_EVENT_START + 1)
-// Query for the character rect of nth character. If there is no character at
-// the offset, the query will be failed. The offset of the result is relative
-// position from the top level widget.
-#define NS_QUERY_CHARACTER_RECT         (NS_QUERY_CONTENT_EVENT_START + 2)
 // Query for the caret rect of nth insertion point. The offset of the result is
 // relative position from the top level widget.
 #define NS_QUERY_CARET_RECT             (NS_QUERY_CONTENT_EVENT_START + 3)
+// Query for the bounding rect of a range of characters. This works on any
+// valid character range given offset and length. Result is relative to top
+// level widget coordinates
+#define NS_QUERY_TEXT_RECT              (NS_QUERY_CONTENT_EVENT_START + 4)
+// Query for the bounding rect of the current focused frame. Result is relative
+// to top level widget coordinates
+#define NS_QUERY_EDITOR_RECT            (NS_QUERY_CONTENT_EVENT_START + 5)
+// Query for the current state of the content. The particular members of
+// mReply that are set for each query content event will be valid on success.
+#define NS_QUERY_CONTENT_STATE          (NS_QUERY_CONTENT_EVENT_START + 6)
+// Query for the selection in the form of a nsITransferable.
+#define NS_QUERY_SELECTION_AS_TRANSFERABLE (NS_QUERY_CONTENT_EVENT_START + 7)
+// Query for character at a point.  This returns the character offset and its
+// rect.  The point is specified by nsEvent::refPoint.
+#define NS_QUERY_CHARACTER_AT_POINT     (NS_QUERY_CONTENT_EVENT_START + 8)
+
+// Video events
+#ifdef MOZ_MEDIA
+#define NS_MEDIA_EVENT_START            3300
+#define NS_LOADSTART           (NS_MEDIA_EVENT_START)
+#define NS_PROGRESS            (NS_MEDIA_EVENT_START+1)
+#define NS_SUSPEND             (NS_MEDIA_EVENT_START+2)
+#define NS_EMPTIED             (NS_MEDIA_EVENT_START+3)
+#define NS_STALLED             (NS_MEDIA_EVENT_START+4)
+#define NS_PLAY                (NS_MEDIA_EVENT_START+5)
+#define NS_PAUSE               (NS_MEDIA_EVENT_START+6)
+#define NS_LOADEDMETADATA      (NS_MEDIA_EVENT_START+7)
+#define NS_LOADEDDATA          (NS_MEDIA_EVENT_START+8)
+#define NS_WAITING             (NS_MEDIA_EVENT_START+9)
+#define NS_PLAYING             (NS_MEDIA_EVENT_START+10)
+#define NS_CANPLAY             (NS_MEDIA_EVENT_START+11)
+#define NS_CANPLAYTHROUGH      (NS_MEDIA_EVENT_START+12)
+#define NS_SEEKING             (NS_MEDIA_EVENT_START+13)
+#define NS_SEEKED              (NS_MEDIA_EVENT_START+14)
+#define NS_TIMEUPDATE          (NS_MEDIA_EVENT_START+15)
+#define NS_ENDED               (NS_MEDIA_EVENT_START+16)
+#define NS_RATECHANGE          (NS_MEDIA_EVENT_START+17)
+#define NS_DURATIONCHANGE      (NS_MEDIA_EVENT_START+18)
+#define NS_VOLUMECHANGE        (NS_MEDIA_EVENT_START+19)
+#define NS_MEDIA_ABORT         (NS_MEDIA_EVENT_START+20)
+#define NS_MEDIA_ERROR         (NS_MEDIA_EVENT_START+21)
+#endif // MOZ_MEDIA
+
+// paint notification events
+#define NS_NOTIFYPAINT_START    3400
+#define NS_AFTERPAINT           (NS_NOTIFYPAINT_START)
+
+// Simple gesture events
+#define NS_SIMPLE_GESTURE_EVENT_START    3500
+#define NS_SIMPLE_GESTURE_SWIPE          (NS_SIMPLE_GESTURE_EVENT_START)
+#define NS_SIMPLE_GESTURE_MAGNIFY_START  (NS_SIMPLE_GESTURE_EVENT_START+1)
+#define NS_SIMPLE_GESTURE_MAGNIFY_UPDATE (NS_SIMPLE_GESTURE_EVENT_START+2)
+#define NS_SIMPLE_GESTURE_MAGNIFY        (NS_SIMPLE_GESTURE_EVENT_START+3)
+#define NS_SIMPLE_GESTURE_ROTATE_START   (NS_SIMPLE_GESTURE_EVENT_START+4)
+#define NS_SIMPLE_GESTURE_ROTATE_UPDATE  (NS_SIMPLE_GESTURE_EVENT_START+5)
+#define NS_SIMPLE_GESTURE_ROTATE         (NS_SIMPLE_GESTURE_EVENT_START+6)
+#define NS_SIMPLE_GESTURE_TAP            (NS_SIMPLE_GESTURE_EVENT_START+7)
+#define NS_SIMPLE_GESTURE_PRESSTAP       (NS_SIMPLE_GESTURE_EVENT_START+8)
+
+// Plug-in event. This is used when a plug-in has focus and when the native
+// event needs to be passed to the focused plug-in directly.
+#define NS_PLUGIN_EVENT_START   3600
+#define NS_PLUGIN_EVENT         (NS_PLUGIN_EVENT_START)
+
+// Events to manipulate selection (nsSelectionEvent)
+#define NS_SELECTION_EVENT_START        3700
+// Clear any previous selection and set the given range as the selection
+#define NS_SELECTION_SET                (NS_SELECTION_EVENT_START)
+
+// Events of commands for the contents
+#define NS_CONTENT_COMMAND_EVENT_START  3800
+#define NS_CONTENT_COMMAND_CUT          (NS_CONTENT_COMMAND_EVENT_START)
+#define NS_CONTENT_COMMAND_COPY         (NS_CONTENT_COMMAND_EVENT_START+1)
+#define NS_CONTENT_COMMAND_PASTE        (NS_CONTENT_COMMAND_EVENT_START+2)
+#define NS_CONTENT_COMMAND_DELETE       (NS_CONTENT_COMMAND_EVENT_START+3)
+#define NS_CONTENT_COMMAND_UNDO         (NS_CONTENT_COMMAND_EVENT_START+4)
+#define NS_CONTENT_COMMAND_REDO         (NS_CONTENT_COMMAND_EVENT_START+5)
+
+// Event to gesture notification
+#define NS_GESTURENOTIFY_EVENT_START 3900
+
+#define NS_ORIENTATION_EVENT         4000
+
+#define NS_SCROLLAREA_EVENT_START    4100
+#define NS_SCROLLEDAREACHANGED       (NS_SCROLLAREA_EVENT_START)
+
 
 /**
  * Return status for event processors, nsEventStatus, is defined in
  * nsEvent.h.
  */
-
-/**
- * sizemode is an adjunct to widget size
- */
-enum nsSizeMode {
-  nsSizeMode_Normal = 0,
-  nsSizeMode_Minimized,
-  nsSizeMode_Maximized
-};
 
 /**
  * different types of (top-level) window z-level positioning
@@ -421,7 +502,7 @@ public:
   // See GUI MESSAGES,
   PRUint32    message;
   // In widget relative coordinates, not modified by layout code.
-  nsPoint     refPoint;
+  nsIntPoint  refPoint;
   // Elapsed time, in milliseconds, from a platform-specific zero time
   // to the time the message was created
   PRUint32    time;
@@ -447,21 +528,22 @@ class nsGUIEvent : public nsEvent
 protected:
   nsGUIEvent(PRBool isTrusted, PRUint32 msg, nsIWidget *w, PRUint8 structType)
     : nsEvent(isTrusted, msg, structType),
-      widget(w), nativeMsg(nsnull)
+      widget(w), pluginEvent(nsnull)
   {
   }
 
 public:
   nsGUIEvent(PRBool isTrusted, PRUint32 msg, nsIWidget *w)
     : nsEvent(isTrusted, msg, NS_GUI_EVENT),
-      widget(w), nativeMsg(nsnull)
+      widget(w), pluginEvent(nsnull)
   {
   }
 
   /// Originator of the event
-  nsCOMPtr<nsIWidget> widget;           
-  /// Internal platform specific message.
-  void* nativeMsg;        
+  nsCOMPtr<nsIWidget> widget;
+
+  /// Event for NPAPI plugin
+  void* pluginEvent;
 };
 
 /**
@@ -482,17 +564,6 @@ public:
   const PRUnichar*  fileName;
 };
 
-class nsBeforePageUnloadEvent : public nsEvent
-{
-public:
-  nsBeforePageUnloadEvent(PRBool isTrusted, PRUint32 msg)
-    : nsEvent(isTrusted, msg, NS_BEFORE_PAGE_UNLOAD_EVENT)
-  {
-  }
-
-  nsString text;
-};
-
 /**
  * Window resize event
  */
@@ -507,7 +578,7 @@ public:
   }
 
   /// x,y width, height in pixels (client area)
-  nsRect          *windowSize;    
+  nsIntRect       *windowSize;
   /// width of entire window (in pixels)
   PRInt32         mWinWidth;    
   /// height of entire window (in pixels)
@@ -569,7 +640,7 @@ public:
   /// area to paint  (should be used instead of rect)
   nsIRegion           *region;
   /// x,y, width, height in pixels of area to paint
-  nsRect              *rect;      
+  nsIntRect           *rect;
 };
 
 /**
@@ -607,6 +678,17 @@ public:
   orientType orient;
 };
 
+class nsScrollAreaEvent : public nsGUIEvent
+{
+public:
+  nsScrollAreaEvent(PRBool isTrusted, PRUint32 msg, nsIWidget *w)
+    : nsGUIEvent(isTrusted, msg, w, NS_SCROLLAREA_EVENT)
+  {
+  }
+
+  nsRect mArea;
+};
+
 class nsInputEvent : public nsGUIEvent
 {
 protected:
@@ -642,12 +724,16 @@ class nsMouseEvent_base : public nsInputEvent
 {
 public:
   nsMouseEvent_base(PRBool isTrusted, PRUint32 msg, nsIWidget *w, PRUint8 type)
-  : nsInputEvent(isTrusted, msg, w, type), button(0) {}
+  : nsInputEvent(isTrusted, msg, w, type), button(0), pressure(0) {}
 
   /// The possible related target
   nsCOMPtr<nsISupports> relatedTarget;
 
   PRInt16               button;
+
+  // Finger or touch pressure of event
+  // ranges between 0.0 and 1.0
+  float                 pressure;
 };
 
 class nsMouseEvent : public nsMouseEvent_base
@@ -658,11 +744,25 @@ public:
   enum contextType { eNormal, eContextMenuKey };
   enum exitType    { eChild, eTopLevel };
 
+protected:
+  nsMouseEvent(PRBool isTrusted, PRUint32 msg, nsIWidget *w,
+               PRUint8 structType, reasonType aReason)
+    : nsMouseEvent_base(isTrusted, msg, w, structType),
+      acceptActivation(PR_FALSE), ignoreRootScrollFrame(PR_FALSE),
+      reason(aReason), context(eNormal), exit(eChild), clickCount(0)
+  {
+    if (msg == NS_MOUSE_MOVE) {
+      flags |= NS_EVENT_FLAG_CANT_CANCEL;
+    }
+  }
+
+public:
+
   nsMouseEvent(PRBool isTrusted, PRUint32 msg, nsIWidget *w,
                reasonType aReason, contextType aContext = eNormal)
     : nsMouseEvent_base(isTrusted, msg, w, NS_MOUSE_EVENT),
-      acceptActivation(PR_FALSE), reason(aReason), context(aContext),
-      exit(eChild), clickCount(0)
+      acceptActivation(PR_FALSE), ignoreRootScrollFrame(PR_FALSE),
+      reason(aReason), context(aContext), exit(eChild), clickCount(0)
   {
     if (msg == NS_MOUSE_MOVE) {
       flags |= NS_EVENT_FLAG_CANT_CANCEL;
@@ -682,12 +782,38 @@ public:
   /// Special return code for MOUSE_ACTIVATE to signal
   /// if the target accepts activation (1), or denies it (0)
   PRPackedBool acceptActivation;
+  // Whether the event should ignore scroll frame bounds
+  // during dispatch.
+  PRPackedBool ignoreRootScrollFrame;
+
   reasonType   reason : 4;
   contextType  context : 4;
   exitType     exit;
 
   /// The number of mouse clicks
   PRUint32     clickCount;
+};
+
+/**
+ * Drag event
+ */
+
+class nsDragEvent : public nsMouseEvent
+{
+public:
+  nsDragEvent(PRBool isTrusted, PRUint32 msg, nsIWidget *w)
+    : nsMouseEvent(isTrusted, msg, w, NS_DRAG_EVENT, eReal),
+      userCancelled(PR_FALSE)
+  {
+    if (msg == NS_DRAGDROP_EXIT_SYNTH ||
+        msg == NS_DRAGDROP_LEAVE_SYNTH ||
+        msg == NS_DRAGDROP_END) {
+      flags |= NS_EVENT_FLAG_CANT_CANCEL;
+    }
+  }
+
+  nsCOMPtr<nsIDOMDataTransfer> dataTransfer;
+  PRPackedBool userCancelled;
 };
 
 /**
@@ -743,6 +869,108 @@ public:
 /**
  * IME Related Events
  */
+ 
+struct nsTextRangeStyle
+{
+  enum {
+    LINESTYLE_NONE   = 0,
+    LINESTYLE_SOLID  = 1,
+    LINESTYLE_DOTTED = 2,
+    LINESTYLE_DASHED = 3,
+    LINESTYLE_DOUBLE = 4,
+    LINESTYLE_WAVY   = 5
+  };
+
+  enum {
+    DEFINED_NONE             = 0x00,
+    DEFINED_LINESTYLE        = 0x01,
+    DEFINED_FOREGROUND_COLOR = 0x02,
+    DEFINED_BACKGROUND_COLOR = 0x04,
+    DEFINED_UNDERLINE_COLOR  = 0x08
+  };
+
+  // Initialize all members, because nsTextRange instances may be compared by
+  // memcomp.
+  nsTextRangeStyle()
+  {
+    Clear();
+  }
+
+  void Clear()
+  {
+    mDefinedStyles = DEFINED_NONE;
+    mLineStyle = LINESTYLE_NONE;
+    mIsBoldLine = PR_FALSE;
+    mForegroundColor = mBackgroundColor = mUnderlineColor = NS_RGBA(0, 0, 0, 0);
+  }
+
+  PRBool IsDefined() const { return mDefinedStyles != DEFINED_NONE; }
+
+  PRBool IsLineStyleDefined() const
+  {
+    return (mDefinedStyles & DEFINED_LINESTYLE) != 0;
+  }
+
+  PRBool IsForegroundColorDefined() const
+  {
+    return (mDefinedStyles & DEFINED_FOREGROUND_COLOR) != 0;
+  }
+
+  PRBool IsBackgroundColorDefined() const
+  {
+    return (mDefinedStyles & DEFINED_BACKGROUND_COLOR) != 0;
+  }
+
+  PRBool IsUnderlineColorDefined() const
+  {
+    return (mDefinedStyles & DEFINED_UNDERLINE_COLOR) != 0;
+  }
+
+  PRBool IsNoChangeStyle() const
+  {
+    return !IsForegroundColorDefined() && !IsBackgroundColorDefined() &&
+           IsLineStyleDefined() && mLineStyle == LINESTYLE_NONE;
+  }
+
+  PRBool Equals(const nsTextRangeStyle& aOther)
+  {
+    if (mDefinedStyles != aOther.mDefinedStyles)
+      return PR_FALSE;
+    if (IsLineStyleDefined() && (mLineStyle != aOther.mLineStyle ||
+                                 !mIsBoldLine != !aOther.mIsBoldLine))
+      return PR_FALSE;
+    if (IsForegroundColorDefined() &&
+        (mForegroundColor != aOther.mForegroundColor))
+      return PR_FALSE;
+    if (IsBackgroundColorDefined() &&
+        (mBackgroundColor != aOther.mBackgroundColor))
+      return PR_FALSE;
+    if (IsUnderlineColorDefined() &&
+        (mUnderlineColor != aOther.mUnderlineColor))
+      return PR_FALSE;
+    return PR_TRUE;
+  }
+
+  PRBool operator !=(const nsTextRangeStyle &aOther)
+  {
+    return !Equals(aOther);
+  }
+
+  PRBool operator ==(const nsTextRangeStyle &aOther)
+  {
+    return Equals(aOther);
+  }
+
+  PRUint8 mDefinedStyles;
+  PRUint8 mLineStyle;        // DEFINED_LINESTYLE
+
+  PRPackedBool mIsBoldLine;  // DEFINED_LINESTYLE
+
+  nscolor mForegroundColor;  // DEFINED_FOREGROUND_COLOR
+  nscolor mBackgroundColor;  // DEFINED_BACKGROUND_COLOR
+  nscolor mUnderlineColor;   // DEFINED_UNDERLINE_COLOR
+};
+
 struct nsTextRange
 {
   nsTextRange()
@@ -753,19 +981,24 @@ struct nsTextRange
   PRUint32 mStartOffset;
   PRUint32 mEndOffset;
   PRUint32 mRangeType;
+
+  nsTextRangeStyle mRangeStyle;
 };
 
 typedef nsTextRange* nsTextRangeArray;
 
+// XXX We should drop this struct because the results are provided by query
+// content events now, so, this struct finished the role.
 struct nsTextEventReply
 {
   nsTextEventReply()
-    : mCursorIsCollapsed(PR_FALSE)
+    : mCursorIsCollapsed(PR_FALSE), mReferenceWidget(nsnull)
   {
   }
 
-  nsRect mCursorPosition;
+  nsIntRect mCursorPosition;
   PRBool mCursorIsCollapsed;
+  nsIWidget* mReferenceWidget;
 };
 
 typedef struct nsTextEventReply nsTextEventReply;
@@ -775,13 +1008,16 @@ class nsTextEvent : public nsInputEvent
 public:
   nsTextEvent(PRBool isTrusted, PRUint32 msg, nsIWidget *w)
     : nsInputEvent(isTrusted, msg, w, NS_TEXT_EVENT),
-      theText(nsnull), rangeCount(0), rangeArray(nsnull), isChar(PR_FALSE)
+      rangeCount(0), rangeArray(nsnull), isChar(PR_FALSE)
   {
   }
 
-  const PRUnichar*  theText;
-  nsTextEventReply  theReply;
+  nsString          theText;
+  nsTextEventReply  theReply; // OBSOLETE
   PRUint32          rangeCount;
+  // Note that the range array may not specify a caret position; in that
+  // case there will be no range of type NS_TEXTRANGE_CARETPOSITION in the
+  // array.
   nsTextRangeArray  rangeArray;
   PRBool            isChar;
 };
@@ -794,8 +1030,45 @@ public:
   {
   }
 
-  nsTextEventReply theReply;
+  nsTextEventReply theReply; // OBSOLETE
 };
+
+/* Mouse Scroll Events: Line Scrolling, Pixel Scrolling and Common Event Flows
+ *
+ * There are two common event flows:
+ *  (1) Normal line scrolling:
+ *      1. An NS_MOUSE_SCROLL event without kHasPixels is dispatched to Gecko.
+ *      2. A DOMMouseScroll event is sent into the DOM.
+ *      3. A MozMousePixelScroll event is sent into the DOM.
+ *      4. If neither event has been consumed, the default handling of the
+ *         NS_MOUSE_SCROLL event is executed.
+ *
+ *  (2) Pixel scrolling:
+ *      1. An NS_MOUSE_SCROLL event with kHasPixels is dispatched to Gecko.
+ *      2. A DOMMouseScroll event is sent into the DOM.
+ *      3. No scrolling takes place in the default handler.
+ *      4. An NS_MOUSE_PIXEL_SCROLL event is dispatched to Gecko.
+ *      5. A MozMousePixelScroll event is sent into the DOM.
+ *      6. If neither the NS_MOUSE_PIXELSCROLL event nor the preceding
+ *         NS_MOUSE_SCROLL event have been consumed, the default handler scrolls.
+ *      7. Steps 4.-6. are repeated for every pixel scroll that belongs to
+ *         the announced line scroll. Once enough pixels have been sent to
+ *         complete a line, a new NS_MOUSE_SCROLL event is sent (goto step 1.).
+ *
+ * If a DOMMouseScroll event has been preventDefaulted, the associated
+ * following MozMousePixelScroll events are still sent - they just don't result
+ * in any scrolling (their default handler isn't executed).
+ *
+ * How many pixel scrolls make up one line scroll is decided in the widget layer
+ * where the NS_MOUSE(_PIXEL)_SCROLL events are created.
+ *
+ * This event flow model satisfies several requirements:
+ *  - DOMMouseScroll handlers don't need to be aware of the existence of pixel
+ *    scrolling.
+ *  - preventDefault on a DOMMouseScroll event results in no scrolling.
+ *  - DOMMouseScroll events aren't polluted with a kHasPixels flag.
+ *  - You can make use of pixel scroll DOM events (MozMousePixelScroll).
+ */
 
 class nsMouseScrollEvent : public nsMouseEvent_base
 {
@@ -804,59 +1077,65 @@ public:
     kIsFullPage =   1 << 0,
     kIsVertical =   1 << 1,
     kIsHorizontal = 1 << 2,
-    kIsPixels =     1 << 3
+    kHasPixels =    1 << 3, // Marks line scroll events that are provided as
+                            // a fallback for pixel scroll events.
+                            // These scroll events are used by things that can't
+                            // be scrolled pixel-wise, like trees. You should
+                            // ignore them when processing pixel scroll events
+                            // to avoid double-processing the same scroll gesture.
+                            // When kHasPixels is set, the event is guaranteed to
+                            // be followed up by an event that contains pixel
+                            // scrolling information.
+    kNoLines =      1 << 4, // Marks pixel scroll events that will not be
+                            // followed by a line scroll events. EventStateManager
+                            // will compute the appropriate height/width based on
+                            // view lineHeight and generate line scroll events
+                            // as needed.
+    kNoDefer =      1 << 5  // For scrollable views, indicates scroll should not
+                            // occur asynchronously.
   };
 
   nsMouseScrollEvent(PRBool isTrusted, PRUint32 msg, nsIWidget *w)
     : nsMouseEvent_base(isTrusted, msg, w, NS_MOUSE_SCROLL_EVENT),
-      scrollFlags(0), delta(0)
+      scrollFlags(0), delta(0), scrollOverflow(0)
   {
   }
 
   PRInt32               scrollFlags;
   PRInt32               delta;
+  PRInt32               scrollOverflow;
 };
 
-struct nsReconversionEventReply {
-  nsReconversionEventReply()
-    : mReconversionString(nsnull)
-  {
-  }
-
-  PRUnichar *mReconversionString;
-};
-
-class nsReconversionEvent : public nsInputEvent
+/*
+ * Gesture Notify Event:
+ *
+ * This event is the first event generated when the user touches
+ * the screen with a finger, and it's meant to decide what kind
+ * of action we'll use for that touch interaction.
+ *
+ * The event is dispatched to the layout and based on what is underneath
+ * the initial contact point it's then decided if we should pan
+ * (finger scrolling) or drag the target element.
+ */
+class nsGestureNotifyEvent : public nsGUIEvent
 {
 public:
-  nsReconversionEvent(PRBool isTrusted, PRUint32 msg, nsIWidget *w)
-    : nsInputEvent(isTrusted, msg, w, NS_RECONVERSION_EVENT)
+  enum ePanDirection {
+    ePanNone,
+    ePanVertical,
+    ePanHorizontal,
+    ePanBoth
+  };
+  
+  ePanDirection panDirection;
+  PRPackedBool  displayPanFeedback;
+  
+  nsGestureNotifyEvent(PRBool aIsTrusted, PRUint32 aMsg, nsIWidget *aWidget):
+    nsGUIEvent(aIsTrusted, aMsg, aWidget, NS_GESTURENOTIFY_EVENT),
+    panDirection(ePanNone),
+    displayPanFeedback(PR_FALSE)
   {
   }
-
-  nsReconversionEventReply  theReply;
-};
-
-struct nsQueryCaretRectEventReply
-{
-  nsQueryCaretRectEventReply()
-    : mRectIsValid(PR_FALSE)
-  {
-  }
-
-  PRBool mRectIsValid;
-  nsRect mCaretRect;
-};
-
-class nsQueryCaretRectEvent : public nsInputEvent
-{
-public:
-  nsQueryCaretRectEvent(PRBool isTrusted, PRUint32 msg, nsIWidget *w)
-    : nsInputEvent(isTrusted, msg, w, NS_QUERYCARETRECT_EVENT)
-  {
-  }
-
-  nsQueryCaretRectEventReply theReply;
 };
 
 class nsQueryContentEvent : public nsGUIEvent
@@ -876,18 +1155,19 @@ public:
     mInput.mLength = aLength;
   }
 
-  void InitForQueryCharacterRect(PRUint32 aOffset)
-  {
-    NS_ASSERTION(message == NS_QUERY_CHARACTER_RECT,
-                 "wrong initializer is called");
-    mInput.mOffset = aOffset;
-  }
-
   void InitForQueryCaretRect(PRUint32 aOffset)
   {
     NS_ASSERTION(message == NS_QUERY_CARET_RECT,
                  "wrong initializer is called");
     mInput.mOffset = aOffset;
+  }
+
+  void InitForQueryTextRect(PRUint32 aOffset, PRUint32 aLength)
+  {
+    NS_ASSERTION(message == NS_QUERY_TEXT_RECT,
+                 "wrong initializer is called");
+    mInput.mOffset = aOffset;
+    mInput.mLength = aLength;
   }
 
   PRBool mSucceeded;
@@ -899,8 +1179,62 @@ public:
     void* mContentsRoot;
     PRUint32 mOffset;
     nsString mString;
-    nsRect mRect; // Finally, the coordinates is system coordinates.
+    nsIntRect mRect; // Finally, the coordinates is system coordinates.
+    // The return widget has the caret. This is set at all query events.
+    nsIWidget* mFocusedWidget;
+    PRPackedBool mReversed; // true if selection is reversed (end < start)
+    PRPackedBool mHasSelection; // true if the selection exists
+    // used by NS_QUERY_SELECTION_AS_TRANSFERABLE
+    nsCOMPtr<nsITransferable> mTransferable;
   } mReply;
+
+  enum {
+    NOT_FOUND = PR_UINT32_MAX
+  };
+};
+
+class nsFocusEvent : public nsEvent
+{
+public:
+  nsFocusEvent(PRBool isTrusted, PRUint32 msg)
+    : nsEvent(isTrusted, msg, NS_FOCUS_EVENT),
+      fromRaise(PR_FALSE)
+  {
+  }
+
+  PRPackedBool fromRaise;
+};
+
+class nsSelectionEvent : public nsGUIEvent
+{
+public:
+  nsSelectionEvent(PRBool aIsTrusted, PRUint32 aMsg, nsIWidget *aWidget) :
+    nsGUIEvent(aIsTrusted, aMsg, aWidget, NS_SELECTION_EVENT),
+    mSucceeded(PR_FALSE)
+  {
+  }
+
+  PRUint32 mOffset; // start offset of selection
+  PRUint32 mLength; // length of selection
+  PRPackedBool mReversed; // selection "anchor" should be in front
+  PRPackedBool mSucceeded;
+};
+
+class nsContentCommandEvent : public nsGUIEvent
+{
+public:
+  nsContentCommandEvent(PRBool aIsTrusted, PRUint32 aMsg, nsIWidget *aWidget,
+                        PRBool aOnlyEnabledCheck = PR_FALSE) :
+    nsGUIEvent(aIsTrusted, aMsg, aWidget, NS_CONTENT_COMMAND_EVENT),
+    mOnlyEnabledCheck(PRPackedBool(aOnlyEnabledCheck)),
+    mSucceeded(PR_FALSE), mIsEnabled(PR_FALSE)
+  {
+  }
+
+  PRPackedBool mOnlyEnabledCheck;                          // [in]
+
+  PRPackedBool mSucceeded;                                 // [out]
+  PRPackedBool mIsEnabled;                                 // [out]
 };
 
 /**
@@ -943,21 +1277,6 @@ public:
 };
 
 /**
-* Focus event
-*/
-class nsFocusEvent : public nsGUIEvent
-{
-public:
-  nsFocusEvent(PRBool isTrusted, PRUint32 msg, nsIWidget *w)
-    : nsGUIEvent(isTrusted, msg, w, NS_FOCUS_EVENT),
-      isMozWindowTakingFocus(PR_FALSE)
-  {
-  }
-
-  PRBool isMozWindowTakingFocus;
-};
-
-/**
  * Command event
  *
  * Custom commands for example from the operating system.
@@ -978,24 +1297,6 @@ public:
 };
 
 /**
- * blocked popup window event
- */
-class nsPopupBlockedEvent : public nsEvent
-{
-public:
-  nsPopupBlockedEvent(PRBool isTrusted, PRUint32 msg)
-    : nsEvent(isTrusted, msg, NS_POPUPBLOCKED_EVENT),
-      mPopupWindowURI(nsnull)
-  {
-  }
-
-  nsWeakPtr mRequestingWindow;
-  nsIURI* mPopupWindowURI;      // owning reference
-  nsString mPopupWindowFeatures;
-  nsString mPopupWindowName;
-};
-
-/**
  * DOM UIEvent
  */
 class nsUIEvent : public nsEvent
@@ -1011,32 +1312,20 @@ public:
 };
 
 /**
- * PageTransition event
+ * Simple gesture event
  */
-class nsPageTransitionEvent : public nsEvent
+class nsSimpleGestureEvent : public nsMouseEvent_base
 {
 public:
-  nsPageTransitionEvent(PRBool isTrusted, PRUint32 msg, PRBool p)
-    : nsEvent(isTrusted, msg, NS_PAGETRANSITION_EVENT),
-      persisted(p)
+  nsSimpleGestureEvent(PRBool isTrusted, PRUint32 msg, nsIWidget* w,
+                         PRUint32 directionArg, PRFloat64 deltaArg)
+    : nsMouseEvent_base(isTrusted, msg, w, NS_SIMPLE_GESTURE_EVENT),
+      direction(directionArg), delta(deltaArg)
   {
   }
 
-  PRBool persisted;
-};
-
-/**
- * XUL command event
- */
-class nsXULCommandEvent : public nsInputEvent
-{
-public:
-  nsXULCommandEvent(PRBool isTrusted, PRUint32 msg, nsIWidget *w)
-    : nsInputEvent(isTrusted, msg, w, NS_XUL_COMMAND_EVENT)
-  {
-  }
-
-  nsCOMPtr<nsIDOMEvent> sourceEvent;
+  PRUint32 direction;   // See nsIDOMSimpleGestureEvent for values
+  PRFloat64 delta;      // Delta for magnify and rotate events
 };
 
 /**
@@ -1078,10 +1367,13 @@ enum nsDragDropEventStatus {
        (((evnt)->message == NS_DRAGDROP_ENTER) || \
         ((evnt)->message == NS_DRAGDROP_OVER) || \
         ((evnt)->message == NS_DRAGDROP_EXIT) || \
-        ((evnt)->message == NS_DRAGDROP_DROP) || \
+        ((evnt)->message == NS_DRAGDROP_DRAGDROP) || \
         ((evnt)->message == NS_DRAGDROP_GESTURE) || \
-        ((evnt)->message == NS_DRAGDROP_OVER_SYNTH) || \
-        ((evnt)->message == NS_DRAGDROP_EXIT_SYNTH))
+        ((evnt)->message == NS_DRAGDROP_DRAG) || \
+        ((evnt)->message == NS_DRAGDROP_END) || \
+        ((evnt)->message == NS_DRAGDROP_START) || \
+        ((evnt)->message == NS_DRAGDROP_DROP) || \
+        ((evnt)->message == NS_DRAGDROP_LEAVE_SYNTH))
 
 #define NS_IS_KEY_EVENT(evnt) \
        (((evnt)->message == NS_KEY_DOWN) ||  \
@@ -1091,23 +1383,36 @@ enum nsDragDropEventStatus {
 #define NS_IS_IME_EVENT(evnt) \
        (((evnt)->message == NS_TEXT_TEXT) ||  \
         ((evnt)->message == NS_COMPOSITION_START) ||  \
-        ((evnt)->message == NS_COMPOSITION_END) || \
-        ((evnt)->message == NS_RECONVERSION_QUERY) || \
-        ((evnt)->message == NS_QUERYCARETRECT) || \
-        ((evnt)->message == NS_COMPOSITION_QUERY))
+        ((evnt)->message == NS_COMPOSITION_END))
 
-#define NS_IS_FOCUS_EVENT(evnt) \
-       (((evnt)->message == NS_GOTFOCUS) ||  \
-        ((evnt)->message == NS_LOSTFOCUS) ||  \
-        ((evnt)->message == NS_ACTIVATE) || \
+#define NS_IS_ACTIVATION_EVENT(evnt) \
+       (((evnt)->message == NS_ACTIVATE) || \
         ((evnt)->message == NS_DEACTIVATE) || \
         ((evnt)->message == NS_PLUGIN_ACTIVATE))
 
 #define NS_IS_QUERY_CONTENT_EVENT(evnt) \
        (((evnt)->message == NS_QUERY_SELECTED_TEXT) || \
         ((evnt)->message == NS_QUERY_TEXT_CONTENT) || \
-        ((evnt)->message == NS_QUERY_CHARACTER_RECT) || \
-        ((evnt)->message == NS_QUERY_CARET_RECT))
+        ((evnt)->message == NS_QUERY_CARET_RECT) || \
+        ((evnt)->message == NS_QUERY_TEXT_RECT) || \
+        ((evnt)->message == NS_QUERY_EDITOR_RECT) || \
+        ((evnt)->message == NS_QUERY_CONTENT_STATE) || \
+        ((evnt)->message == NS_QUERY_SELECTION_AS_TRANSFERABLE) || \
+        ((evnt)->message == NS_QUERY_CHARACTER_AT_POINT))
+
+#define NS_IS_SELECTION_EVENT(evnt) \
+       (((evnt)->message == NS_SELECTION_SET))
+
+#define NS_IS_CONTENT_COMMAND_EVENT(evnt) \
+       (((evnt)->message == NS_CONTENT_COMMAND_CUT) || \
+        ((evnt)->message == NS_CONTENT_COMMAND_COPY) || \
+        ((evnt)->message == NS_CONTENT_COMMAND_PASTE) || \
+        ((evnt)->message == NS_CONTENT_COMMAND_DELETE) || \
+        ((evnt)->message == NS_CONTENT_COMMAND_UNDO) || \
+        ((evnt)->message == NS_CONTENT_COMMAND_REDO))
+
+#define NS_IS_PLUGIN_EVENT(evnt) \
+       (((evnt)->message == NS_PLUGIN_EVENT))
 
 #define NS_IS_TRUSTED_EVENT(event) \
   (((event)->flags & NS_EVENT_FLAG_TRUSTED) != 0)
@@ -1259,12 +1564,12 @@ enum nsDragDropEventStatus {
 
 #define NS_VK_META           nsIDOMKeyEvent::DOM_VK_META
 
-// IME Constants  -- keep in synch with nsIDOMTextRange.h
-#define NS_TEXTRANGE_CARETPOSITION				0x01
-#define NS_TEXTRANGE_RAWINPUT					0X02
-#define NS_TEXTRANGE_SELECTEDRAWTEXT			0x03
-#define NS_TEXTRANGE_CONVERTEDTEXT				0x04
-#define NS_TEXTRANGE_SELECTEDCONVERTEDTEXT		0x05
+// IME Constants  -- keep in synch with nsIPrivateTextRange.h
+#define NS_TEXTRANGE_CARETPOSITION         0x01
+#define NS_TEXTRANGE_RAWINPUT              0x02
+#define NS_TEXTRANGE_SELECTEDRAWTEXT       0x03
+#define NS_TEXTRANGE_CONVERTEDTEXT         0x04
+#define NS_TEXTRANGE_SELECTEDCONVERTEDTEXT 0x05
 
 inline PRBool NS_TargetUnfocusedEventToLastFocusedContent(nsEvent* aEvent)
 {
@@ -1289,10 +1594,28 @@ inline PRBool NS_TargetUnfocusedEventToLastFocusedContent(nsEvent* aEvent)
   // doesn't have focus and event is key event or IME event, we should
   // send the events to pre-focused element.
 
-  return NS_IS_KEY_EVENT(aEvent) || NS_IS_IME_EVENT(aEvent);
+  return NS_IS_KEY_EVENT(aEvent) || NS_IS_IME_EVENT(aEvent) ||
+         NS_IS_PLUGIN_EVENT(aEvent) || NS_IS_CONTENT_COMMAND_EVENT(aEvent);
 #else
   return PR_FALSE;
 #endif
+}
+
+inline PRBool NS_IsEventUsingCoordinates(nsEvent* aEvent)
+{
+  return !NS_IS_KEY_EVENT(aEvent) && !NS_IS_IME_EVENT(aEvent) &&
+         !NS_IS_CONTEXT_MENU_KEY(aEvent) && !NS_IS_ACTIVATION_EVENT(aEvent) &&
+         !NS_IS_QUERY_CONTENT_EVENT(aEvent) && !NS_IS_PLUGIN_EVENT(aEvent) &&
+         !NS_IS_SELECTION_EVENT(aEvent) &&
+         !NS_IS_CONTENT_COMMAND_EVENT(aEvent) &&
+         aEvent->eventStructType != NS_ACCESSIBLE_EVENT;
+}
+
+inline PRBool NS_IsEventTargetedAtFocusedWindow(nsEvent* aEvent)
+{
+  return NS_IS_KEY_EVENT(aEvent) || NS_IS_IME_EVENT(aEvent) ||
+         NS_IS_QUERY_CONTENT_EVENT(aEvent) || NS_IS_SELECTION_EVENT(aEvent) ||
+         NS_IS_CONTEXT_MENU_KEY(aEvent) || NS_IS_CONTENT_COMMAND_EVENT(aEvent);
 }
 
 #endif // nsGUIEvent_h__

@@ -21,7 +21,7 @@
   color: -moz-win-mediatext;
 }
 
-#placesMenu:-moz-system-metric(windows-default-theme) > menu > label {
+#placesMenu > menu > .menubar-text:-moz-system-metric(windows-default-theme) {
   -moz-padding-end: 15px;
   background-image: url(chrome://browser/skin/places/dropDown.png);
 }
@@ -58,4 +58,10 @@
 #placesList:-moz-system-metric(windows-default-theme),
 #placeContent:-moz-system-metric(windows-default-theme) {
   background-color: #EEF3FA;
+}
+
+/**** Vista default theme: Library's search box needs to be vertically centered ****/
+#searchFilter:-moz-system-metric(windows-default-theme) {
+  padding-top: 3px;
+  padding-bottom: 2px;
 }

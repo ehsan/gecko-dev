@@ -24,15 +24,16 @@
           href="chrome://browser/skin/feeds/subscribe.css"
           type="text/css"
           media="all"/>
-    <script type="application/x-javascript"
+    <script type="application/javascript"
             src="chrome://browser/content/feeds/subscribe.js"/>
   </head>
   <body onload="SubscribeHandler.writeContent();" onunload="SubscribeHandler.uninit();">
     <div id="feedHeaderContainer">
       <div id="feedHeader" dir="&locale.dir;">
-        <div id="feedIntroText"
-          ><xul:description id="feedSubscriptionInfo1" /><xul:description id="feedSubscriptionInfo2"
-        /></div>
+        <div id="feedIntroText">
+          <p id="feedSubscriptionInfo1" />
+          <p id="feedSubscriptionInfo2" />
+        </div>
 
 <!-- XXXmano this can't have any whitespace in it.  Otherwise you would see
      how much XUL-in-XHTML sucks, see bug 348830 -->
@@ -59,7 +60,7 @@
       ></div>
     </div>
 
-    <script type="application/x-javascript">
+    <script type="application/javascript">
       SubscribeHandler.init();
     </script>
 

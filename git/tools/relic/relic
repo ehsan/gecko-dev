@@ -188,7 +188,6 @@ _g_skip_files = [
     "gfx/cairo/cairo/COPYING-MPL-1.1",
     
     # Files containing global licensing information
-    "xpfe/global/resources/content/license.html",
     "toolkit/content/license.html",
     
     # Ben Bucksch - files are tri-licensed with an extra clause.
@@ -339,7 +338,6 @@ _g_basename_to_comment_info = {
     "awk_pkginfo-sparc": (["#"], ),
     "pkgdepend_64bit": (["#"], ),
     "WIN32": (["#"], ),
-    "WIN16": (["#"], ),
     "Makefile.linux": (["#"], ),
 
     "README": ([""], ["#"]),

@@ -49,6 +49,7 @@
 
 
 #include "nsSVGDataParser.h"
+#include "nsContentUtils.h"
 #include "prdtoa.h"
 #include "nsSVGUtils.h"
 #include <stdlib.h>
@@ -151,10 +152,12 @@ nsresult nsSVGDataParser::MatchNonNegativeNumber(float* aX)
   }
 
   char* end;
-  *aX = (float) PR_strtod(pos, &end);
-  NS_ASSERTION(end == mTokenPos, "number parse error");
+  *aX = float(PR_strtod(pos, &end));
+  if (pos != end && NS_FloatIsFinite(*aX)) {
+    return NS_OK;
+  }
   
-  return NS_OK;
+  return NS_ERROR_FAILURE;
 }
 
 PRBool nsSVGDataParser::IsTokenNonNegativeNumberStarter()
@@ -181,10 +184,16 @@ nsresult nsSVGDataParser::MatchNumber(float* aX)
   }
 
   char* end;
-  *aX = (float) PR_strtod(pos, &end);
-  NS_ASSERTION(end == mTokenPos, "number parse error");
-               
-  return NS_OK;
+  /* PR_strtod is not particularily fast. We only need a float and not a double so
+   * we could probably use something faster here if needed. The CSS parser uses
+   * nsCSSScanner::ParseNumber() instead of PR_strtod. See bug 516396 for some
+   * additional info. */
+  *aX = float(PR_strtod(pos, &end));
+  if (pos != end && NS_FloatIsFinite(*aX)) {
+    return NS_OK;
+  }
+  
+  return NS_ERROR_FAILURE;
 }
 
 PRBool nsSVGDataParser::IsTokenNumberStarter()

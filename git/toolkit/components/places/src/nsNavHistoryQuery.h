@@ -78,6 +78,15 @@ public:
   PRBool AnnotationIsNot() { return mAnnotationIsNot; }
   const nsCString& Annotation() { return mAnnotation; }
   const nsTArray<PRInt64>& Folders() const { return mFolders; }
+  const nsTArray<nsString>& Tags() const { return mTags; }
+  nsresult SetTags(const nsTArray<nsString>& aTags)
+  {
+    if (!mTags.ReplaceElementsAt(0, mTags.Length(), aTags))
+      return NS_ERROR_OUT_OF_MEMORY;
+
+    return NS_OK;
+  }
+  PRBool TagsAreNot() { return mTagsAreNot; }
 
 private:
   ~nsNavHistoryQuery() {}
@@ -99,6 +108,8 @@ protected:
   PRBool mAnnotationIsNot;
   nsCString mAnnotation;
   nsTArray<PRInt64> mFolders;
+  nsTArray<nsString> mTags;
+  PRBool mTagsAreNot;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsNavHistoryQuery, NS_NAVHISTORYQUERY_IID)
@@ -117,7 +128,7 @@ public:
                                mExcludeReadOnlyFolders(PR_FALSE),
                                mExpandQueries(PR_TRUE),
                                mIncludeHidden(PR_FALSE),
-                               mShowSessions(PR_FALSE),
+                               mRedirectsMode(nsINavHistoryQueryOptions::REDIRECTS_MODE_ALL),
                                mMaxResults(0),
                                mQueryType(nsINavHistoryQueryOptions::QUERY_TYPE_HISTORY)
   { }
@@ -134,7 +145,7 @@ public:
   PRBool ExcludeReadOnlyFolders() const { return mExcludeReadOnlyFolders; }
   PRBool ExpandQueries() const { return mExpandQueries; }
   PRBool IncludeHidden() const { return mIncludeHidden; }
-  PRBool ShowSessions() const { return mShowSessions; }
+  PRUint16 RedirectsMode() const { return mRedirectsMode; }
   PRUint32 MaxResults() const { return mMaxResults; }
   PRUint16 QueryType() const { return mQueryType; }
 
@@ -158,7 +169,7 @@ private:
   PRPackedBool mExcludeReadOnlyFolders;
   PRPackedBool mExpandQueries;
   PRPackedBool mIncludeHidden;
-  PRPackedBool mShowSessions;
+  PRUint16 mRedirectsMode;
   PRUint32 mMaxResults;
   PRUint16 mQueryType;
 };

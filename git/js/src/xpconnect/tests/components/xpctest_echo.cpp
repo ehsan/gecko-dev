@@ -483,7 +483,7 @@ xpctestEcho::PrintArgTypes(void)
         else if (JSVAL_IS_VOID(argv[i]))
             type = "void";
 
-        printf(type);
+        fputs(type, stdout);
 
         if(i < argc-1)
             printf(", ");
@@ -517,8 +517,6 @@ xpctestEcho::ThrowArg(void)
         return NS_ERROR_FAILURE;
 
     JS_SetPendingException(cx, argv[0]);
-    cc->SetExceptionWasThrown(JS_TRUE);
-        
     return NS_OK;
 }
 

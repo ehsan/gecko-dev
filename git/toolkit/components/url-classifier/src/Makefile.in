@@ -12,15 +12,6 @@ LIBXUL_LIBRARY = 1
 FORCE_STATIC_LIB = 1
 
 
-REQUIRES = docshell \
-           necko \
-           storage \
-           string \
-           uriloader \
-           xpcom \
-           pipnss \
-           $(ZLIB_REQUIRES) \
-           $(NULL)
 
 CPPSRCS = \
           nsUrlClassifierDBService.cpp \
@@ -31,6 +22,7 @@ CPPSRCS = \
 
 LOCAL_INCLUDES = \
                  -I$(srcdir)/../../build \
+                 $(SQLITE_CFLAGS) \
                  $(NULL)
 
 

@@ -40,24 +40,44 @@
 #define _nsXULColorPickerAccessible_H_
 
 // NOTE: alphabetically ordered
-#include "nsFormControlAccessible.h"
+#include "nsAccessibleWrap.h"
 
-class nsXULColorPickerTileAccessible : public nsFormControlAccessible
+/**
+ * Used for color button in colorpicker palette.
+ */
+class nsXULColorPickerTileAccessible : public nsAccessibleWrap
 {
 public:
   nsXULColorPickerTileAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell);
-  NS_IMETHOD GetRole(PRUint32 *_retval);
-  NS_IMETHOD GetState(PRUint32 *aState, PRUint32 *aExtraState);
-  NS_IMETHOD GetName(nsAString& _retval);
+
+  // nsIAccessible
   NS_IMETHOD GetValue(nsAString& _retval);
+
+  // nsAccessible
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
+  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 };
 
+
+/**
+ * Used for colorpicker button (xul:colorpicker@type="button").
+ */
 class nsXULColorPickerAccessible : public nsXULColorPickerTileAccessible
 {
 public:
   nsXULColorPickerAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell);
-  NS_IMETHOD GetState(PRUint32 *aState, PRUint32 *aExtraState);
-  NS_IMETHOD GetRole(PRUint32 *_retval);
+
+  // nsAccessNode
+  virtual nsresult Init();
+
+  // nsAccessible
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
+  virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
+
+protected:
+
+  // nsAccessible
+  virtual void CacheChildren();
 };
 
 #endif  

@@ -40,11 +40,6 @@
 #include "nsSVGAnimatedTransformList.h"
 #include "nsCOMPtr.h"
 #include "nsGkAtoms.h"
-#include "nsSVGAnimatedRect.h"
-#include "nsSVGRect.h"
-#include "nsSVGMatrix.h"
-#include "nsSVGAnimatedPreserveAspectRatio.h"
-#include "nsSVGPreserveAspectRatio.h"
 #include "nsSVGPatternElement.h"
 #include "nsIFrame.h"
 
@@ -83,15 +78,11 @@ NS_IMPL_NS_NEW_SVG_ELEMENT(Pattern)
 NS_IMPL_ADDREF_INHERITED(nsSVGPatternElement,nsSVGPatternElementBase)
 NS_IMPL_RELEASE_INHERITED(nsSVGPatternElement,nsSVGPatternElementBase)
 
-NS_INTERFACE_MAP_BEGIN(nsSVGPatternElement)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMNode)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMElement)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGElement)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGFitToViewBox)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGURIReference)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGPatternElement)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMSVGUnitTypes)
-  NS_INTERFACE_MAP_ENTRY(nsIMutationObserver)
+NS_INTERFACE_TABLE_HEAD(nsSVGPatternElement)
+  NS_NODE_INTERFACE_TABLE7(nsSVGPatternElement, nsIDOMNode, nsIDOMElement,
+                           nsIDOMSVGElement, nsIDOMSVGFitToViewBox,
+                           nsIDOMSVGURIReference, nsIDOMSVGPatternElement,
+                           nsIDOMSVGUnitTypes)
   NS_INTERFACE_MAP_ENTRY_CONTENT_CLASSINFO(SVGPatternElement)
 NS_INTERFACE_MAP_END_INHERITING(nsSVGPatternElementBase)
 
@@ -101,7 +92,6 @@ NS_INTERFACE_MAP_END_INHERITING(nsSVGPatternElementBase)
 nsSVGPatternElement::nsSVGPatternElement(nsINodeInfo* aNodeInfo)
   : nsSVGPatternElementBase(aNodeInfo)
 {
-  AddMutationObserver(this);
 }
 
 nsresult
@@ -124,34 +114,6 @@ nsSVGPatternElement::Init()
     NS_ENSURE_SUCCESS(rv,rv);
   }
 
-  // nsIDOMSVGFitToViewBox properties
-
-  // DOM property: viewBox
-  {
-    nsCOMPtr<nsIDOMSVGRect> viewbox;
-    rv = NS_NewSVGRect(getter_AddRefs(viewbox));
-    NS_ENSURE_SUCCESS(rv,rv);
-    rv = NS_NewSVGAnimatedRect(getter_AddRefs(mViewBox), viewbox);
-    NS_ENSURE_SUCCESS(rv,rv);
-    rv = AddMappedSVGValue(nsGkAtoms::viewBox, mViewBox);
-    NS_ENSURE_SUCCESS(rv,rv);
-  }
-
-  // DOM property: preserveAspectRatio
-  {
-    nsCOMPtr<nsIDOMSVGPreserveAspectRatio> preserveAspectRatio;
-    rv = NS_NewSVGPreserveAspectRatio(getter_AddRefs(preserveAspectRatio));
-    NS_ENSURE_SUCCESS(rv,rv);
-    rv = NS_NewSVGAnimatedPreserveAspectRatio(
-                                          getter_AddRefs(mPreserveAspectRatio),
-                                          preserveAspectRatio);
-    NS_ENSURE_SUCCESS(rv,rv);
-    rv = AddMappedSVGValue(nsGkAtoms::preserveAspectRatio,
-                           mPreserveAspectRatio);
-    NS_ENSURE_SUCCESS(rv,rv);
-  }
-
-
   return NS_OK;
 }
 
@@ -166,18 +128,15 @@ NS_IMPL_ELEMENT_CLONE_WITH_INIT(nsSVGPatternElement)
 /* readonly attribute nsIDOMSVGAnimatedRect viewBox; */
 NS_IMETHODIMP nsSVGPatternElement::GetViewBox(nsIDOMSVGAnimatedRect * *aViewBox)
 {
-  *aViewBox = mViewBox;
-  NS_ADDREF(*aViewBox);
-  return NS_OK;
+  return mViewBox.ToDOMAnimatedRect(aViewBox, this);
 }
 
 /* readonly attribute nsIDOMSVGAnimatedPreserveAspectRatio preserveAspectRatio; */
 NS_IMETHODIMP
-nsSVGPatternElement::GetPreserveAspectRatio(nsIDOMSVGAnimatedPreserveAspectRatio * *aPreserveAspectRatio)
+nsSVGPatternElement::GetPreserveAspectRatio(nsIDOMSVGAnimatedPreserveAspectRatio
+                                            **aPreserveAspectRatio)
 {
-  *aPreserveAspectRatio = mPreserveAspectRatio;
-  NS_ADDREF(*aPreserveAspectRatio);
-  return NS_OK;
+  return mPreserveAspectRatio.ToDOMAnimatedPreserveAspectRatio(aPreserveAspectRatio, this);
 }
 
 //----------------------------------------------------------------------
@@ -276,6 +235,18 @@ nsSVGPatternElement::GetEnumInfo()
                             NS_ARRAY_LENGTH(sEnumInfo));
 }
 
+nsSVGViewBox *
+nsSVGPatternElement::GetViewBox()
+{
+  return &mViewBox;
+}
+
+nsSVGPreserveAspectRatio *
+nsSVGPatternElement::GetPreserveAspectRatio()
+{
+  return &mPreserveAspectRatio;
+}
+
 nsSVGElement::StringAttributesInfo
 nsSVGPatternElement::GetStringInfo()
 {
@@ -283,65 +254,3 @@ nsSVGPatternElement::GetStringInfo()
                               NS_ARRAY_LENGTH(sStringInfo));
 }
 
-//----------------------------------------------------------------------
-// nsIMutationObserver methods
-
-void
-nsSVGPatternElement::PushUpdate()
-{
-  nsIFrame *frame = GetPrimaryFrame();
-
-  if (frame) {
-    nsISVGValue *value = nsnull;
-    CallQueryInterface(frame, &value);
-    if (value) {
-      value->BeginBatchUpdate();
-      value->EndBatchUpdate();
-    }
-  }
-}
-
-void
-nsSVGPatternElement::CharacterDataChanged(nsIDocument *aDocument,
-                                          nsIContent *aContent,
-                                          CharacterDataChangeInfo *aInfo)
-{
-  PushUpdate();
-}
-
-void
-nsSVGPatternElement::AttributeChanged(nsIDocument *aDocument,
-                                      nsIContent *aContent,
-                                      PRInt32 aNameSpaceID,
-                                      nsIAtom *aAttribute,
-                                      PRInt32 aModType,
-                                      PRUint32 aStateMask)
-{
-  PushUpdate();
-}
-
-void
-nsSVGPatternElement::ContentAppended(nsIDocument *aDocument,
-                                     nsIContent *aContainer,
-                                     PRInt32 aNewIndexInContainer)
-{
-  PushUpdate();
-}
-
-void
-nsSVGPatternElement::ContentInserted(nsIDocument *aDocument,
-                                     nsIContent *aContainer,
-                                     nsIContent *aChild,
-                                     PRInt32 aIndexInContainer)
-{
-  PushUpdate();
-}
-
-void
-nsSVGPatternElement::ContentRemoved(nsIDocument *aDocument,
-                                    nsIContent *aContainer,
-                                    nsIContent *aChild,
-                                    PRInt32 aIndexInContainer)
-{
-  PushUpdate();
-}

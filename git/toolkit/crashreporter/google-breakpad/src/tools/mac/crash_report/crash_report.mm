@@ -99,6 +99,12 @@ static void PrintStack(const CallStack *stack, const string &cpu) {
       int maxStr = 20;
       buffer[maxStr] = 0;
       printf("%-*s", maxStr, buffer);
+
+      strcpy(buffer, module->version().c_str());
+      buffer[maxStr] = 0;
+
+      printf("%-*s",maxStr, buffer);
+      
       u_int64_t instruction = frame->instruction;
 
       // PPC only: Adjust the instruction to match that of Crash reporter.  The
@@ -184,6 +190,36 @@ static void PrintRegisters(const CallStack *stack, const string &cpu) {
   printf("\n");
 }
 
+static void PrintModules(const CodeModules *modules) {
+  if (!modules)
+    return;
+        
+  printf("\n");
+  printf("Loaded modules:\n");
+        
+  u_int64_t main_address = 0;
+  const CodeModule *main_module = modules->GetMainModule();
+  if (main_module) {
+    main_address = main_module->base_address();
+  }
+        
+  unsigned int module_count = modules->module_count();
+  for (unsigned int module_sequence = 0;
+       module_sequence < module_count;
+       ++module_sequence) {
+    const CodeModule *module = modules->GetModuleAtSequence(module_sequence);
+    assert(module);
+    u_int64_t base_address = module->base_address();
+    printf("0x%08llx - 0x%08llx  %s  %s%s  %s\n",
+           base_address, base_address + module->size() - 1,
+           PathnameStripper::File(module->code_file()).c_str(),
+           module->version().empty() ? "???" : module->version().c_str(),
+           main_module != NULL && base_address == main_address ?
+           "  (main)" : "",
+           module->code_file().c_str());
+  }
+}
+
 //=============================================================================
 static void Start(Options *options) {
   string minidump_file([options->minidumpPath fileSystemRepresentation]);
@@ -252,6 +288,9 @@ static void Start(Options *options) {
     printf("\nThread %d:", requesting_thread);
     PrintRegisters(process_state.threads()->at(requesting_thread), cpu);
   }
+        
+  // Print information about modules
+  PrintModules(process_state.modules());
 }
 
 //=============================================================================

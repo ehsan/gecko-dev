@@ -42,13 +42,12 @@
 #include "nsIDOMBeforeUnloadEvent.h"
 #include "nsDOMEvent.h"
 
-class nsDOMBeforeUnloadEvent : public nsIDOMBeforeUnloadEvent,
-                               public nsDOMEvent
+class nsDOMBeforeUnloadEvent : public nsDOMEvent,
+                               public nsIDOMBeforeUnloadEvent
 {
 public:
-  nsDOMBeforeUnloadEvent(nsPresContext* aPresContext,
-                         nsBeforePageUnloadEvent* aEvent);
-  virtual ~nsDOMBeforeUnloadEvent();
+  nsDOMBeforeUnloadEvent(nsPresContext* aPresContext, nsEvent* aEvent)
+  : nsDOMEvent(aPresContext, aEvent) {}
 
   NS_DECL_ISUPPORTS_INHERITED
 
@@ -57,6 +56,8 @@ public:
 
   // nsIDOMBeforeUnloadEvent Interface
   NS_DECL_NSIDOMBEFOREUNLOADEVENT
+protected:
+  nsString mText;
 };
 
 #endif // nsDOMBeforeUnloadEvent_h__

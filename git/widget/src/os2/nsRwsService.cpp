@@ -89,7 +89,7 @@
 //  function prototypes
 //------------------------------------------------------------------------
 
-static nsresult IsDescendedFrom(PRUint32 wpsFilePtr, char *pszClassname);
+static nsresult IsDescendedFrom(PRUint32 wpsFilePtr, const char *pszClassname);
 static nsresult CreateFileForExtension(const char *aFileExt, nsACString& aPath);
 static nsresult DeleteFileForExtension(const char *aPath);
 static void     AssignNLSString(const PRUnichar *aKey, nsAString& _retval);
@@ -464,7 +464,7 @@ nsRwsService::HandlerFromPath(const char *aPath, PRUint32 *aHandle,
     nsAutoString classViewer;
     AssignNLSString(NS_LITERAL_STRING("classViewerOS2").get(), classViewer);
     int pos = -1;
-    if ((pos = classViewer.Find("%S")) > -1);
+    if ((pos = classViewer.Find("%S")) > -1)
       classViewer.Replace(pos, 2, buffer.Elements());
     _retval.Assign(classViewer);
     rv = NS_OK;
@@ -682,7 +682,7 @@ nsRwsService::Observe(nsISupports *aSubject, const char *aTopic,
 
 // this wrapper for somIsA() makes HandlerFromPath() easier to read
 
-static nsresult IsDescendedFrom(PRUint32 wpsFilePtr, char *pszClassname)
+static nsresult IsDescendedFrom(PRUint32 wpsFilePtr, const char *pszClassname)
 {
   PRWSHDR   pHdr = 0;
   nsresult  rv = NS_ERROR_FAILURE;
@@ -850,7 +850,7 @@ ExtCache::ExtCache() : mCount(0), mSize(0), mExtInfo(0)
     ERRMSG(rc, "DosCreateMutexSem")
 }
 
-ExtCache::~ExtCache() {};
+ExtCache::~ExtCache() {}
 
 //------------------------------------------------------------------------
 

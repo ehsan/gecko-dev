@@ -40,17 +40,41 @@
 const nsIDownloadManager = Ci.nsIDownloadManager;
 const dm = Cc["@mozilla.org/download-manager;1"].getService(nsIDownloadManager);
 
-const resultFileName = "test" + Date.now() + ".doc";
+// Make sure Unicode is supported:
+// U+00E3 : LATIN SMALL LETTER A WITH TILDE
+// U+041B : CYRILLIC CAPITAL LETTER EL
+// U+3056 : HIRAGANA LETTER ZA
+const resultFileName = "test\u00e3\u041b\u3056" + Date.now() + ".doc";
+
+// Milliseconds between polls.
+const POLL_REGISTRY_TIMEOUT = 200;
+// Max number of polls.
+const POLL_REGISTRY_MAX_LOOPS = 25;
 
 function checkResult() {
-  do_check_true(checkRecentDocsFor(resultFileName));
-
-  // delete the saved file
-  var resultFile = dirSvc.get("ProfD", Ci.nsIFile);
-  resultFile.append(resultFileName);
+  // delete the saved file (this doesn't affect the "recent documents" list)
+  var resultFile = do_get_file(resultFileName);
   resultFile.remove(false);
 
-  do_test_finished();
+  // Need to poll RecentDocs value because the SHAddToRecentDocs call
+  // doesn't update the registry immediately.
+  do_timeout(POLL_REGISTRY_TIMEOUT, pollRecentDocs);
+}
+
+var gPollsCount = 0;
+function pollRecentDocs() {
+  if (++gPollsCount > POLL_REGISTRY_MAX_LOOPS) {
+    do_throw("Maximum time elapsed while polling RecentDocs.");
+    do_test_finished();
+    return;
+  }
+
+  if (checkRecentDocsFor(resultFileName)) {
+    print("Document found in RecentDocs");
+    do_test_finished();
+  }
+  else
+    do_timeout(POLL_REGISTRY_TIMEOUT, pollRecentDocs);
 }
 
 function checkRecentDocsFor(aFileName) {
@@ -66,11 +90,15 @@ function checkRecentDocsFor(aFileName) {
     var valueName = recentDocsKey.getValueName(i);
     var binValue = recentDocsKey.readBinaryValue(valueName);
 
-    // "fields" in the data are separated by double nulls, use only the first
-    var fileName = binValue.split("\0\0")[0];
+    // "fields" in the data are separated by \0 wide characters, which are
+    // returned as two \0 "bytes" by readBinaryValue. Use only the first field.
+    var fileNameRaw = binValue.split("\0\0")[0];
 
-    // Remove any embeded single nulls
-    fileName = fileName.replace(/\x00/g, "");
+    // Convert the filename from UTF-16LE.
+    var fileName = "";
+    for (var c = 0; c < fileNameRaw.length; c += 2)
+      fileName += String.fromCharCode(fileNameRaw.charCodeAt(c) |
+                                      fileNameRaw.charCodeAt(c+1) * 256);
 
     if (aFileName == fileName)
       return true;
@@ -92,15 +120,13 @@ function run_test()
   do_test_pending();
 
   httpserv = new nsHttpServer();
-  httpserv.registerDirectory("/", dirSvc.get("ProfD", Ci.nsILocalFile));
+  httpserv.registerDirectory("/", do_get_cwd());
   httpserv.start(4444);
 
   var listener = {
     onDownloadStateChange: function test_401430_odsc(aState, aDownload) {
       if (aDownload.state == Ci.nsIDownloadManager.DOWNLOAD_FINISHED) {
-        // Need to run this from a timeout, because the SHAddToRecentDocs call
-        // doesn't update the registry immediately.
-        do_timeout(1000, "checkResult();");
+        checkResult();
       }
     },
     onStateChange: function(a, b, c, d, e) { },
@@ -111,7 +137,9 @@ function run_test()
   dm.addListener(listener);
   dm.addListener(getDownloadListener());
 
-  var dl = addDownload(resultFileName);
-
-  cleanup();
+  // need to save the file to the CWD, because the profile dir is in $TEMP,
+  // and Windows apparently doesn't like putting things from $TEMP into
+  // the recent files list.
+  var dl = addDownload({resultFileName: resultFileName,
+			targetFile: do_get_file(resultFileName, true)});
 }

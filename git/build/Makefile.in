@@ -44,7 +44,6 @@ VPATH		= @srcdir@
 include $(DEPTH)/config/autoconf.mk
 
 MODULE = build
-PACKAGE_FILE = build.pkg
 
 ifeq (,$(filter WINCE WINNT OS2,$(OS_ARCH)))
 DIRS		= unix
@@ -54,64 +53,32 @@ ifeq (WINNT,$(OS_ARCH))
 DIRS = win32
 endif
 
+ifdef WINCE
+# We need jemalloc built before the shunt
+ifdef MOZ_MEMORY
+DIRS += wince/tools $(DEPTH)/memory/jemalloc wince/shunt
+else
+DIRS += wince/tools wince/shunt
+endif
+endif
+
 DIRS += pgo
 
 include $(topsrcdir)/config/rules.mk
 
-
-ifeq ($(USE_SHORT_LIBNAME), 1)
-PROGRAM = $(MOZ_APP_NAME)$(BIN_SUFFIX)
-else
-PROGRAM = $(MOZ_APP_NAME)-bin$(BIN_SUFFIX)
-endif
-
-ifeq ($(MOZ_BUILD_APP),camino)
-browser_path = \"$(DIST)/Camino.app/Contents/MacOS/Camino\"
-else
-ifeq ($(OS_ARCH),Darwin)
-ifdef MOZ_DEBUG
-browser_path = \"$(DIST)/$(MOZ_APP_DISPLAYNAME)Debug.app/Contents/MacOS/$(PROGRAM)\"
-else
-browser_path = \"$(DIST)/$(MOZ_APP_DISPLAYNAME).app/Contents/MacOS/$(PROGRAM)\"
-endif
-else
-browser_path = \"$(DIST)/bin/$(PROGRAM)\"
-endif
-endif
-
-AUTOMATION_PPARGS = 	\
-			-DBROWSER_PATH=$(browser_path) \
-			-DXPC_BIN_PATH=\"$(DIST)/bin\" \
-			$(NULL)
-
-ifeq ($(OS_ARCH),Darwin)
-AUTOMATION_PPARGS += -DIS_MAC=1
-else
-AUTOMATION_PPARGS += -DIS_MAC=0
-endif
-
-ifeq ($(MOZ_BUILD_APP),camino)
-AUTOMATION_PPARGS += -DIS_CAMINO=1
-else
-AUTOMATION_PPARGS += -DIS_CAMINO=0
-endif
-
-ifeq ($(host_os), cygwin)
-AUTOMATION_PPARGS += -DIS_CYGWIN=1
-endif
+# we install to _leaktest/
+TARGET_DEPTH = ..
+include $(srcdir)/automation-build.mk
 
 _LEAKTEST_DIR = $(DEPTH)/_leaktest
 
 _LEAKTEST_FILES =    \
 		automation.py \
+		$(CURDIR)/automationutils.py \
 		leaktest.py \
 		bloatcycle.html \
 		$(topsrcdir)/build/pgo/server-locations.txt \
 		$(NULL)
-
-automation.py: $(topsrcdir)/build/pgo/automation.py.in
-	$(PYTHON) $(topsrcdir)/config/Preprocessor.py \
-	$(AUTOMATION_PPARGS) $(DEFINES) $(ACDEFINES) $^ > $@
 
 leaktest.py: leaktest.py.in
 	$(PYTHON) $(topsrcdir)/config/Preprocessor.py $^ > $@
@@ -130,4 +97,73 @@ libs:: bloaturls.txt
 # autocycling of URLs.
 libs:: bloatcycle.html
 	$(INSTALL) $< $(DIST)/bin/res
+
+ifeq ($(OS_ARCH),Darwin)
+libs:: $(topsrcdir)/tools/rb/fix-macosx-stack.pl
+	$(INSTALL) $< $(DIST)/bin
+
+# Basic unit tests for some stuff in the unify script
+check::
+# build ppc/i386 binaries, and unify them
+	rm -f unify-test-ppc unify-test-i386 unify-test-universal
+	$(HOST_CC) -arch ppc $(srcdir)/unify-test.c -o unify-test-ppc
+	$(HOST_CC) -arch i386 $(srcdir)/unify-test.c -o unify-test-i386
+	@if ! $(srcdir)/macosx/universal/unify ./unify-test-ppc ./unify-test-i386 \
+          ./unify-test-universal; then \
+          echo "TEST-UNEXPECTED-FAIL | build/ | unify failed to produce a universal binary!"; \
+          false; \
+        fi
+	@if ! test -f ./unify-test-universal; then \
+          echo "TEST-UNEXPECTED-FAIL | build/ | unify failed to produce a universal binary!"; \
+          false; \
+        fi
+	@if ! file -b ./unify-test-universal | head -n1 | grep -q "^Mach-O universal binary"; then \
+          echo "TEST-UNEXPECTED-FAIL | build/ | unify failed to produce a universal binary!"; \
+          false; \
+        else \
+          echo "TEST-PASS | build/ | unify produced a universal binary!"; \
+        fi
+# try unifying two identical Java class files
+	rm -f unifytesta.class unifytestb.class unifytestc.class
+	cp $(srcdir)/unifytest.class ./unifytesta.class
+	cp $(srcdir)/unifytest.class ./unifytestb.class
+	@if ! $(srcdir)/macosx/universal/unify ./unifytesta.class ./unifytestb.class \
+          ./unifytestc.class; then \
+          echo "TEST-UNEXPECTED-FAIL | build/ | unify failed to unify a Java class file!"; \
+          false; \
+        fi
+	@if ! test -f ./unifytestc.class; then \
+          echo "TEST-UNEXPECTED-FAIL | build/ | unify failed to unify a Java class file!"; \
+          false; \
+        fi
+	@if ! diff -q ./unifytesta.class ./unifytestc.class; then \
+          echo "TEST-UNEXPECTED-FAIL | build/ | unify failed to unify a Java class file!"; \
+          false; \
+        else \
+          echo "TEST-PASS | build/ | unify unified a Java class file!"; \
+        fi
+# try unifying some files that differ only in line ordering
+	rm -rf unify-sort-test
+	mkdir unify-sort-test unify-sort-test/a unify-sort-test/b
+	printf "lmn\nabc\nxyz\n" > unify-sort-test/a/file.foo
+	printf "xyz\nlmn\nabc\n" > unify-sort-test/b/file.foo
+	printf "abc\nlmn\nxyz\n" > unify-sort-test/expected-result
+	@if ! $(srcdir)/macosx/universal/unify --unify-with-sort "\.foo$$" \
+          ./unify-sort-test/a ./unify-sort-test/b \
+          ./unify-sort-test/c; then \
+          echo "TEST-UNEXPECTED-FAIL | build/ | unify failed to unify files with differing line ordering!"; \
+          false; \
+        fi
+	@if ! diff -q ./unify-sort-test/expected-result ./unify-sort-test/c/file.foo; then \
+          echo "TEST-UNEXPECTED-FAIL | build/ | unify failed to unify files with differing line ordering!"; \
+          false; \
+        else \
+          echo "TEST-PASS | build/ | unify unified files with differing line ordering!"; \
+        fi
 endif
+
+ifeq ($(OS_ARCH),Linux)
+libs:: $(topsrcdir)/tools/rb/fix-linux-stack.pl
+	$(INSTALL) $< $(DIST)/bin
+endif
+endif # ENABLE_TESTS

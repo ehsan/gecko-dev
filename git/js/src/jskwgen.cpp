@@ -1,4 +1,4 @@
-/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  * vim: set sw=4 ts=8 et tw=80:
  *
  * ***** BEGIN LICENSE BLOCK *****
@@ -38,7 +38,7 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "jsstddef.h"
+#include <stddef.h>
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -46,7 +46,7 @@
 #include <stdarg.h>
 #include <ctype.h>
 
-#include "jsconfig.h"
+#include "jsversion.h"
 
 const char * const keyword_list[] = {
 #define JS_KEYWORD(keyword, type, op, version) #keyword,

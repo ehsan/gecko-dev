@@ -42,7 +42,8 @@
 
 #include "nsHttp.h"
 #include "nsError.h"
-#include "nsVoidArray.h"
+#include "nsTArray.h"
+#include "nsAutoPtr.h"
 #include "nsAString.h"
 #include "nsString.h"
 #include "nsCOMPtr.h"
@@ -155,6 +156,7 @@ private:
 
     friend class nsHttpAuthNode;
     friend class nsHttpAuthCache;
+    friend class nsAutoPtr<nsHttpAuthEntry>; // needs to call the destructor
 };
 
 //-----------------------------------------------------------------------------
@@ -184,10 +186,10 @@ private:
 
     void ClearAuthEntry(const char *realm);
 
-    PRUint32 EntryCount() { return (PRUint32) mList.Count(); }
+    PRUint32 EntryCount() { return mList.Length(); }
 
 private:
-    nsVoidArray mList; // list of nsHttpAuthEntry objects
+    nsTArray<nsAutoPtr<nsHttpAuthEntry> > mList;
 
     friend class nsHttpAuthCache;
 };
@@ -253,10 +255,10 @@ private:
                                    nsCString  &key);
 
     // hash table allocation functions
-    static void*        PR_CALLBACK AllocTable(void *, PRSize size);
-    static void         PR_CALLBACK FreeTable(void *, void *item);
-    static PLHashEntry* PR_CALLBACK AllocEntry(void *, const void *key);
-    static void         PR_CALLBACK FreeEntry(void *, PLHashEntry *he, PRUintn flag);
+    static void*        AllocTable(void *, PRSize size);
+    static void         FreeTable(void *, void *item);
+    static PLHashEntry* AllocEntry(void *, const void *key);
+    static void         FreeEntry(void *, PLHashEntry *he, PRUintn flag);
 
     static PLHashAllocOps gHashAllocOps;
     
