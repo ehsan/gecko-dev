@@ -122,6 +122,9 @@
 #include "nsIDOMMediaList.h"
 #include "nsIDOMChromeWindow.h"
 #include "nsIDOMConstructor.h"
+#include "nsIDOMPerformanceTiming.h"
+#include "nsIDOMPerformanceNavigation.h"
+#include "nsIDOMPerformance.h"
 #include "nsClientRect.h"
 
 // DOM core includes
@@ -684,6 +687,12 @@ static nsDOMClassInfoData sClassInfoData[] = {
   NS_DEFINE_CLASSINFO_DATA(History, nsHistorySH,
                            ARRAY_SCRIPTABLE_FLAGS |
                            nsIXPCScriptable::WANT_PRECREATE)
+  NS_DEFINE_CLASSINFO_DATA(PerformanceTiming, nsDOMGenericSH,
+                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
+  NS_DEFINE_CLASSINFO_DATA(PerformanceNavigation, nsDOMGenericSH,
+                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
+  NS_DEFINE_CLASSINFO_DATA(Performance, nsDOMGenericSH,
+                           DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(Screen, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(DOMPrototype, nsDOMConstructorSH,
@@ -2377,26 +2386,53 @@ nsDOMClassInfo::Init()
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (nsGlobalWindow::HasIndexedDBSupport()) {
-    DOM_CLASSINFO_MAP_BEGIN(Window, nsIDOMWindow)
-      DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindow)
-      DOM_CLASSINFO_MAP_ENTRY(nsIDOMJSWindow)
-      DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindowInternal)
-      DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSEventTarget)
-      DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
-      DOM_CLASSINFO_MAP_ENTRY(nsIDOMStorageWindow)
-      DOM_CLASSINFO_MAP_ENTRY(nsIDOMStorageIndexedDB)
-      DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindow_2_0_BRANCH)
-    DOM_CLASSINFO_MAP_END
+    if (nsGlobalWindow::HasPerformanceSupport()) {
+      DOM_CLASSINFO_MAP_BEGIN(Window, nsIDOMWindow)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindow)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMJSWindow)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindowInternal)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSEventTarget)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMStorageWindow)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMStorageIndexedDB)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindow_2_0_BRANCH)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindowPerformance)
+      DOM_CLASSINFO_MAP_END
+    } else {
+      DOM_CLASSINFO_MAP_BEGIN(Window, nsIDOMWindow)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindow)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMJSWindow)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindowInternal)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSEventTarget)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMStorageWindow)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMStorageIndexedDB)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindow_2_0_BRANCH)
+      DOM_CLASSINFO_MAP_END
+    }
   } else {
-    DOM_CLASSINFO_MAP_BEGIN(Window, nsIDOMWindow)
-      DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindow)
-      DOM_CLASSINFO_MAP_ENTRY(nsIDOMJSWindow)
-      DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindowInternal)
-      DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSEventTarget)
-      DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
-      DOM_CLASSINFO_MAP_ENTRY(nsIDOMStorageWindow)
-      DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindow_2_0_BRANCH)
-    DOM_CLASSINFO_MAP_END
+    if (nsGlobalWindow::HasPerformanceSupport()) {
+      DOM_CLASSINFO_MAP_BEGIN(Window, nsIDOMWindow)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindow)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMJSWindow)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindowInternal)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSEventTarget)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMStorageWindow)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindow_2_0_BRANCH)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindowPerformance)
+      DOM_CLASSINFO_MAP_END
+    } else {
+      DOM_CLASSINFO_MAP_BEGIN(Window, nsIDOMWindow)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindow)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMJSWindow)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindowInternal)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMNSEventTarget)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMEventTarget)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMStorageWindow)
+        DOM_CLASSINFO_MAP_ENTRY(nsIDOMWindow_2_0_BRANCH)
+      DOM_CLASSINFO_MAP_END
+    }
   }
 
   DOM_CLASSINFO_MAP_BEGIN(WindowUtils, nsIDOMWindowUtils)
@@ -2444,6 +2480,21 @@ nsDOMClassInfo::Init()
 
   DOM_CLASSINFO_MAP_BEGIN(History, nsIDOMHistory)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMHistory)
+  DOM_CLASSINFO_MAP_END
+
+  DOM_CLASSINFO_MAP_BEGIN_MAYBE_DISABLE(PerformanceTiming, nsIDOMPerformanceTiming,
+                                        !nsGlobalWindow::HasPerformanceSupport())
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMPerformanceTiming)
+  DOM_CLASSINFO_MAP_END
+
+  DOM_CLASSINFO_MAP_BEGIN_MAYBE_DISABLE(PerformanceNavigation, nsIDOMPerformanceNavigation,
+                                        !nsGlobalWindow::HasPerformanceSupport())
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMPerformanceNavigation)
+  DOM_CLASSINFO_MAP_END
+
+  DOM_CLASSINFO_MAP_BEGIN_MAYBE_DISABLE(Performance, nsIDOMPerformance,
+                                        !nsGlobalWindow::HasPerformanceSupport())
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMPerformance)
   DOM_CLASSINFO_MAP_END
 
   DOM_CLASSINFO_MAP_BEGIN(Screen, nsIDOMScreen)
@@ -6816,6 +6867,57 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
     return NS_OK;
   }
 
+  if (id == sLocation_id) {
+    // This must be done even if we're just getting the value of
+    // window.location (i.e. no checking flags & JSRESOLVE_ASSIGNING
+    // here) since we must define window.location to prevent the
+    // getter from being overriden (for security reasons).
+
+    // Note: Because we explicitly don't forward to the inner window
+    // above, we have to ensure here that our window has a current
+    // inner window so that the location object we return will work.
+
+    if (win->IsOuterWindow()) {
+      win->EnsureInnerWindow();
+    }
+
+    nsCOMPtr<nsIDOMLocation> location;
+    rv = win->GetLocation(getter_AddRefs(location));
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    // Make sure we wrap the location object in the inner window's
+    // scope if we've got an inner window.
+    JSObject *scope = nsnull;
+    if (win->IsOuterWindow()) {
+      nsGlobalWindow *innerWin = win->GetCurrentInnerWindowInternal();
+
+      if (innerWin) {
+        scope = innerWin->GetGlobalJSObject();
+      }
+    }
+
+    if (!scope) {
+      wrapper->GetJSObject(&scope);
+    }
+
+    nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
+    jsval v;
+    rv = WrapNative(cx, scope, location, &NS_GET_IID(nsIDOMLocation), PR_TRUE,
+                    &v, getter_AddRefs(holder));
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    JSBool ok = JS_WrapValue(cx, &v) &&
+                JS_DefinePropertyById(cx, obj, id, v, nsnull, nsnull,
+                                      JSPROP_PERMANENT | JSPROP_ENUMERATE);
+
+    if (!ok) {
+      return NS_ERROR_FAILURE;
+    }
+
+    *objp = obj;
+
+    return NS_OK;
+  }
 
   // Hmm, we do an awful lot of QIs here; maybe we should add a
   // method on an interface that would let us just call into the
@@ -6915,58 +7017,6 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
                                  nsnull,
                                  JSPROP_ENUMERATE | JSPROP_GETTER |
                                  JSPROP_SHARED)) {
-      return NS_ERROR_FAILURE;
-    }
-
-    *objp = obj;
-
-    return NS_OK;
-  }
-
-  if (id == sLocation_id) {
-    // This must be done even if we're just getting the value of
-    // window.location (i.e. no checking flags & JSRESOLVE_ASSIGNING
-    // here) since we must define window.location to prevent the
-    // getter from being overriden (for security reasons).
-
-    // Note: Because we explicitly don't forward to the inner window
-    // above, we have to ensure here that our window has a current
-    // inner window so that the location object we return will work.
-
-    if (win->IsOuterWindow()) {
-      win->EnsureInnerWindow();
-    }
-
-    nsCOMPtr<nsIDOMLocation> location;
-    rv = win->GetLocation(getter_AddRefs(location));
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    // Make sure we wrap the location object in the inner window's
-    // scope if we've got an inner window.
-    JSObject *scope = nsnull;
-    if (win->IsOuterWindow()) {
-      nsGlobalWindow *innerWin = win->GetCurrentInnerWindowInternal();
-
-      if (innerWin) {
-        scope = innerWin->GetGlobalJSObject();
-      }
-    }
-
-    if (!scope) {
-      wrapper->GetJSObject(&scope);
-    }
-
-    nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
-    jsval v;
-    rv = WrapNative(cx, scope, location, &NS_GET_IID(nsIDOMLocation), PR_TRUE,
-                    &v, getter_AddRefs(holder));
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    JSBool ok = JS_WrapValue(cx, &v) &&
-                JS_DefinePropertyById(cx, obj, id, v, nsnull, nsnull,
-                                      JSPROP_PERMANENT | JSPROP_ENUMERATE);
-
-    if (!ok) {
       return NS_ERROR_FAILURE;
     }
 
