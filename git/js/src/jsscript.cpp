@@ -67,6 +67,7 @@
 #include "jsxdrapi.h"
 #endif
 #include "methodjit/MethodJIT.h"
+#include "ion/IonCode.h"
 
 #include "jsobjinlines.h"
 #include "jsscriptinlines.h"
@@ -1395,6 +1396,10 @@ DestroyScript(JSContext *cx, JSScript *script, JSObject *owner)
         PurgeScriptFragments(script->compartment->traceMonitor(), script);
 #endif
 
+#ifdef JS_ION
+    ion::IonScript::Destroy(cx, script);
+#endif
+
 #ifdef JS_METHODJIT
     mjit::ReleaseScriptCode(cx, script);
 #endif
@@ -1463,6 +1468,10 @@ js_TraceScript(JSTracer *trc, JSScript *script, JSObject *owner)
 
     if (IS_GC_MARKING_TRACER(trc) && script->filename)
         js_MarkScriptFilename(script->filename);
+
+#ifdef JS_ION
+    ion::IonScript::Trace(trc, script);
+#endif
 
     script->bindings.trace(trc);
 }
