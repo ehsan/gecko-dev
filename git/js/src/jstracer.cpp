@@ -217,12 +217,12 @@ public:
     {
         switch (v) {
           case LIR_i2f:
-            if (s0->oprnd1()->isCall() && s0->imm8() == F_doubleToInt32)
-                return callArgN(s0->oprnd1(), 1);
+            if (s0->oprnd1()->isCall() && s0->oprnd1()->fid() == F_doubleToInt32)
+                return callArgN(s0->oprnd1(), 0);
             break;
           case LIR_u2f:
-            if (s0->oprnd1()->isCall() && s0->imm8() == F_doubleToUint32)
-                return callArgN(s0->oprnd1(), 1);
+            if (s0->oprnd1()->isCall() && s0->oprnd1()->fid() == F_doubleToUint32)
+                return callArgN(s0->oprnd1(), 0);
             break;
           case LIR_fneg:
               if (isPromoteInt(s0)) {
@@ -1102,7 +1102,6 @@ js_LoopEdge(JSContext* cx)
                     /* setup the VM-private FragmentInfo structure for this fragment */
                     fi = new VMFragmentInfo(); // TODO: deallocate when fragment dies
                     f->vmprivate = fi;
-
                     /* create the list of global properties we want to intern */
                     int internableGlobals = findInternableGlobals(cx, cx->fp, NULL);
                     if (internableGlobals < 0)
@@ -1111,8 +1110,7 @@ js_LoopEdge(JSContext* cx)
                     if ((fi->ngslots = findInternableGlobals(cx, cx->fp, fi->gslots)) < 0)
                         return false;
                     fi->globalShape = OBJ_SCOPE(JS_GetGlobalForObject(cx, 
-                                                                      cx->fp->scopeChain))->shape;
-
+                            cx->fp->scopeChain))->shape;
                     /* determine the native frame layout at the entry point */
                     unsigned entryNativeFrameSlots = nativeFrameSlots(fi->ngslots,
                             cx->fp, cx->fp, *cx->fp->regs);
@@ -1121,11 +1119,9 @@ js_LoopEdge(JSContext* cx)
                             (cx->fp->regs->sp - cx->fp->spbase)) * sizeof(double);
                     fi->maxNativeFrameSlots = entryNativeFrameSlots;
                     fi->maxCallDepth = 0;
-
                     /* build the entry type map */
                     fi->typeMap = (uint8*)malloc(fi->entryNativeFrameSlots * sizeof(uint8));
                     uint8* m = fi->typeMap;
-
                     /* remember the coerced type of each active slot in the type map */
                     FORALL_SLOTS_IN_PENDING_FRAMES(cx, fi->ngslots, fi->gslots, cx->fp, cx->fp,
                         *m++ = getCoercedType(*vp)
