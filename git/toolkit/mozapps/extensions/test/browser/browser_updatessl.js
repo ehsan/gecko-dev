@@ -49,7 +49,7 @@ function add_update_test(mainURL, redirectURL, expectedStatus) {
 }
 
 function run_update_tests(callback) {
-  function run_next_update_test() {
+  function run_next_update_test(pos) {
     if (gTests.length == 0) {
       callback();
       return;
@@ -71,7 +71,7 @@ function run_update_tests(callback) {
     AddonUpdateChecker.checkForUpdates("addon1@tests.mozilla.org", "extension",
                                        null, url, {
       onUpdateCheckComplete: function(updates) {
-        is(updates.length, 1, "Should be the right number of results");
+        is(updates.length, 1);
         is(SUCCESS, expectedStatus, message);
         info("Update test ran in " + (Date.now() - gLast) + "ms");
         run_next_update_test();

@@ -2292,6 +2292,9 @@ nsWindow::OnExposeEvent(GtkWidget *aWidget, GdkEventExpose *aEvent)
         if (NS_LIKELY(!mIsDestroyed)) {
             if (status != nsEventStatus_eIgnore) {
                 nsRefPtr<gfxPattern> pattern = ctx->PopGroup();
+                ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
+                ctx->SetPattern(pattern);
+                ctx->Paint();
 
                 nsRefPtr<gfxImageSurface> img =
                     new gfxImageSurface(gfxIntSize(boundsRect.width, boundsRect.height),
@@ -2310,10 +2313,6 @@ nsWindow::OnExposeEvent(GtkWidget *aWidget, GdkEventExpose *aEvent)
                                                                    boundsRect.width, boundsRect.height),
                                                          img->Data(), img->Stride());
                 }
-
-                ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
-                ctx->SetPattern(pattern);
-                ctx->Paint();
             }
         }
     }

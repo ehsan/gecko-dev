@@ -243,16 +243,14 @@ nsMathMLContainerFrame::GetPreferredStretchSize(nsRenderingContext& aRenderingCo
   }
   else {
     // compute a size that doesn't include embellishements
-    PRBool stretchAll =
-      NS_MATHML_WILL_STRETCH_ALL_CHILDREN_VERTICALLY(mPresentationData.flags) ||
-      NS_MATHML_WILL_STRETCH_ALL_CHILDREN_HORIZONTALLY(mPresentationData.flags);
     NS_ASSERTION(NS_MATHML_IS_EMBELLISH_OPERATOR(mEmbellishData.flags) ||
-                 stretchAll,
+                 NS_MATHML_WILL_STRETCH_ALL_CHILDREN_HORIZONTALLY(mPresentationData.flags) ||
+                 NS_MATHML_WILL_STRETCH_ALL_CHILDREN_VERTICALLY(mPresentationData.flags),
                  "invalid call to GetPreferredStretchSize");
     PRBool firstTime = PR_TRUE;
     nsBoundingMetrics bm, bmChild;
-    nsIFrame* childFrame =
-      stretchAll ? GetFirstChild(nsnull) : mPresentationData.baseFrame;
+    // XXXrbs need overloaded FirstChild() and clean integration of <maction> throughout
+    nsIFrame* childFrame = GetFirstChild(nsnull);
     while (childFrame) {
       // initializations in case this child happens not to be a MathML frame
       nsIMathMLFrame* mathMLFrame = do_QueryFrame(childFrame);
@@ -282,9 +280,9 @@ nsMathMLContainerFrame::GetPreferredStretchSize(nsRenderingContext& aRenderingCo
       if (firstTime) {
         firstTime = PR_FALSE;
         bm = bmChild;
-        if (!stretchAll) {
-          // we may get here for cases such as <msup><mo>...</mo> ... </msup>,
-          // or <maction>...<mo>...</mo></maction>.
+        if (!NS_MATHML_WILL_STRETCH_ALL_CHILDREN_HORIZONTALLY(mPresentationData.flags) &&
+            !NS_MATHML_WILL_STRETCH_ALL_CHILDREN_VERTICALLY(mPresentationData.flags)) {
+          // we may get here for cases such as <msup><mo>...</mo> ... </msup>
           break;
         }
       }

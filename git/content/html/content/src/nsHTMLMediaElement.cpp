@@ -2234,9 +2234,6 @@ ImageContainer* nsHTMLMediaElement::GetImageContainer()
     return nsnull;
 
   mImageContainer = manager->CreateImageContainer();
-  if (manager->IsCompositingCheap()) {
-    mImageContainer->SetDelayedConversion(PR_TRUE);
-  }
   return mImageContainer;
 }
 

@@ -138,22 +138,20 @@ static PRBool IsFixedFrame(nsIFrame* aFrame)
   return aFrame && aFrame->GetParent() && !aFrame->GetParent()->GetParent();
 }
 
-static PRBool IsFixedItem(nsDisplayItem *aItem, nsDisplayListBuilder* aBuilder,
-                          PRBool* aIsFixedBackground)
+static PRBool IsFixedItem(nsDisplayItem *aItem, nsDisplayListBuilder* aBuilder)
 {
   nsIFrame* activeScrolledRoot =
-    nsLayoutUtils::GetActiveScrolledRootFor(aItem, aBuilder, aIsFixedBackground);
+    nsLayoutUtils::GetActiveScrolledRootFor(aItem, aBuilder);
   return activeScrolledRoot &&
          !nsLayoutUtils::ScrolledByViewportScrolling(activeScrolledRoot,
                                                      aBuilder);
 }
 
 static PRBool ForceVisiblityForFixedItem(nsDisplayListBuilder* aBuilder,
-                                         nsDisplayItem* aItem,
-                                         PRBool* aIsFixedBackground)
+                                         nsDisplayItem* aItem)
 {
-  return aBuilder->GetDisplayPort() && aBuilder->GetHasFixedItems() &&
-         IsFixedItem(aItem, aBuilder, aIsFixedBackground);
+  return aBuilder->GetHasDisplayPort() && aBuilder->GetHasFixedItems() &&
+         IsFixedItem(aItem, aBuilder);
 }
 
 void nsDisplayListBuilder::MarkOutOfFlowFrameForDisplay(nsIFrame* aDirtyFrame,
@@ -436,26 +434,6 @@ TreatAsOpaque(nsDisplayItem* aItem, nsDisplayListBuilder* aBuilder,
   return opaque;
 }
 
-static nsRect GetDisplayPortBounds(nsDisplayListBuilder* aBuilder,
-                                   nsDisplayItem* aItem,
-                                   PRBool aIgnoreTransform)
-{
-  nsIFrame* frame = aItem->GetUnderlyingFrame();
-  nscoord auPerDevPixel = frame->PresContext()->AppUnitsPerDevPixel();
-  gfxMatrix transform;
-
-  if (!aIgnoreTransform) {
-    transform = nsLayoutUtils::GetTransformToAncestor(frame,
-                  aBuilder->ReferenceFrame());
-    transform.Invert();
-  }
-
-  const nsRect* displayport = aBuilder->GetDisplayPort();
-  return nsLayoutUtils::MatrixTransformRect(
-           nsRect(0, 0, displayport->width, displayport->height),
-           transform, auPerDevPixel);
-}
-
 PRBool
 nsDisplayList::ComputeVisibilityForSublist(nsDisplayListBuilder* aBuilder,
                                            nsRegion* aVisibleRegion,
@@ -499,13 +477,12 @@ nsDisplayList::ComputeVisibilityForSublist(nsDisplayListBuilder* aBuilder,
     nsRect bounds = item->GetBounds(aBuilder);
 
     nsRegion itemVisible;
-    PRBool isFixedBackground;
-    if (ForceVisiblityForFixedItem(aBuilder, item, &isFixedBackground)) {
-      itemVisible.And(GetDisplayPortBounds(aBuilder, item, isFixedBackground), bounds);
-    } else {
-      itemVisible.And(*aVisibleRegion, bounds);
-    }
+    itemVisible.And(*aVisibleRegion, bounds);
     item->mVisibleRect = itemVisible.GetBounds();
+
+    if (ForceVisiblityForFixedItem(aBuilder, item)) {
+      item->mVisibleRect = bounds;
+    }
 
     PRBool containsRootContentDocBG = PR_FALSE;
     if (item->ComputeVisibility(aBuilder, aVisibleRegion, aAllowVisibleRegionExpansion,
@@ -831,13 +808,12 @@ PRBool nsDisplayItem::RecomputeVisibility(nsDisplayListBuilder* aBuilder,
   nsRect bounds = GetBounds(aBuilder);
 
   nsRegion itemVisible;
-  PRBool isFixedBackground;
-  if (ForceVisiblityForFixedItem(aBuilder, this, &isFixedBackground)) {
-    itemVisible.And(GetDisplayPortBounds(aBuilder, this, isFixedBackground), bounds);
-  } else {
-    itemVisible.And(*aVisibleRegion, bounds);
-  }
+  itemVisible.And(*aVisibleRegion, bounds);
   mVisibleRect = itemVisible.GetBounds();
+
+  if (ForceVisiblityForFixedItem(aBuilder, this)) {
+    mVisibleRect = bounds;
+  }
 
   // When we recompute visibility within layers we don't need to
   // expand the visible region for content behind plugins (the plugin
@@ -852,8 +828,32 @@ PRBool nsDisplayItem::RecomputeVisibility(nsDisplayListBuilder* aBuilder,
   return PR_TRUE;
 }
 
-void nsDisplaySolidColor::Paint(nsDisplayListBuilder* aBuilder,
-                                nsRenderingContext* aCtx) {
+// Note that even if the rectangle we draw and snap is smaller than aRect,
+// it's OK to call this to get a bounding rect for what we'll draw, because
+// snapping a rectangle which is contained in R always gives you a
+// rectangle which is contained in the snapped R.
+static nsRect
+SnapBounds(PRBool aSnappingEnabled, nsPresContext* aPresContext,
+           const nsRect& aRect) {
+  nsRect r = aRect;
+  if (aSnappingEnabled) {
+    nscoord appUnitsPerDevPixel = aPresContext->AppUnitsPerDevPixel();
+    r = r.ToNearestPixels(appUnitsPerDevPixel).ToAppUnits(appUnitsPerDevPixel);
+  }
+  return r;
+}
+
+nsRect
+nsDisplaySolidColor::GetBounds(nsDisplayListBuilder* aBuilder)
+{
+  nsPresContext* presContext = mFrame->PresContext();
+  return SnapBounds(mSnappingEnabled, presContext, mBounds);
+}
+
+void
+nsDisplaySolidColor::Paint(nsDisplayListBuilder* aBuilder,
+                           nsRenderingContext* aCtx)
+{
   aCtx->SetColor(mColor);
   aCtx->FillRect(mVisibleRect);
 }
@@ -1047,21 +1047,6 @@ nsDisplayBackground::ComputeVisibility(nsDisplayListBuilder* aBuilder,
   nsStyleContext* bgSC;
   return mIsThemed ||
     nsCSSRendering::FindBackground(mFrame->PresContext(), mFrame, &bgSC);
-}
-
-// Note that even if the rectangle we draw and snap is smaller than aRect,
-// it's OK to call this to get a bounding rect for what we'll draw, because
-// snapping a rectangle which is contained in R always gives you a
-// rectangle which is contained in the snapped R.
-static nsRect
-SnapBounds(PRBool aSnappingEnabled, nsPresContext* aPresContext,
-           const nsRect& aRect) {
-  nsRect r = aRect;
-  if (aSnappingEnabled) {
-    nscoord appUnitsPerDevPixel = aPresContext->AppUnitsPerDevPixel();
-    r = r.ToNearestPixels(appUnitsPerDevPixel).ToAppUnits(appUnitsPerDevPixel);
-  }
-  return r;
 }
 
 nsRegion
