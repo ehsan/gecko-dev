@@ -11,7 +11,6 @@
 #include <MApplicationService>
 #endif
 #include "prenv.h"
-#include "nsXPCOMPrivate.h"
 #include <stdlib.h>
 
 QApplication *nsQAppInstance::sQAppInstance = nullptr;
@@ -30,7 +29,6 @@ void nsQAppInstance::AddRef(int& aArgc, char** aArgv, bool aDefaultProcess) {
       QApplication::setGraphicsSystem(QString(graphicsSystem));
     }
 #endif
-    mozilla::SetICUMemoryFunctions();
     sQAppInstance = new QApplication(aArgc, aArgv);
   }
   sQAppRefCount++;

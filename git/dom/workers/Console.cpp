@@ -321,13 +321,18 @@ private:
       stackValue = JS::ObjectValue(*stackObj);
     }
 
-    JS::AutoValueArray<3> args(cx);
-    args[0].set(methodValue);
-    args[1].set(argumentsValue);
-    args[2].set(stackValue);
+    JS::AutoValueVector argv(cx);
+    if (!argv.resize(3)) {
+      return;
+    }
+
+    argv[0] = methodValue;
+    argv[1] = argumentsValue;
+    argv[2] = stackValue;
 
     JS::Rooted<JS::Value> ret(cx);
-    JS_CallFunctionName(cx, consoleObj, "queueCall", args, ret.address());
+    JS_CallFunctionName(cx, consoleObj, "queueCall", argv.length(),
+                        argv.begin(), ret.address());
   }
 
   WorkerConsole* mConsole;
@@ -487,7 +492,6 @@ void
 WorkerConsole::Trace(JSContext* aCx)
 {
   Sequence<JS::Value> data;
-  SequenceRooter<JS::Value> rooter(aCx, &data);
   Method(aCx, "trace", data, DEFAULT_MAX_STACKTRACE_DEPTH);
 }
 
@@ -496,7 +500,6 @@ WorkerConsole::Dir(JSContext* aCx,
                    const Optional<JS::Handle<JS::Value>>& aValue)
 {
   Sequence<JS::Value> data;
-  SequenceRooter<JS::Value> rooter(aCx, &data);
 
   if (aValue.WasPassed()) {
     data.AppendElement(aValue.Value());
@@ -514,7 +517,6 @@ WorkerConsole::Time(JSContext* aCx,
                     const Optional<JS::Handle<JS::Value>>& aTimer)
 {
   Sequence<JS::Value> data;
-  SequenceRooter<JS::Value> rooter(aCx, &data);
 
   if (aTimer.WasPassed()) {
     data.AppendElement(aTimer.Value());
@@ -528,7 +530,6 @@ WorkerConsole::TimeEnd(JSContext* aCx,
                        const Optional<JS::Handle<JS::Value>>& aTimer)
 {
   Sequence<JS::Value> data;
-  SequenceRooter<JS::Value> rooter(aCx, &data);
 
   if (aTimer.WasPassed()) {
     data.AppendElement(aTimer.Value());

@@ -171,18 +171,20 @@ nsLocaleService::nsLocaleService(void)
 
     nsAutoTArray<UniChar, 32> buffer;
     int size = ::CFStringGetLength(userLocaleStr);
-    buffer.SetLength(size + 1);
-    CFRange range = ::CFRangeMake(0, size);
-    ::CFStringGetCharacters(userLocaleStr, range, buffer.Elements());
-    buffer[size] = 0;
+    if (buffer.SetLength(size + 1))
+    {
+        CFRange range = ::CFRangeMake(0, size);
+        ::CFStringGetCharacters(userLocaleStr, range, buffer.Elements());
+        buffer[size] = 0;
 
-    // Convert the locale string to the format that Mozilla expects
-    nsAutoString xpLocale(reinterpret_cast<char16_t*>(buffer.Elements()));
-    xpLocale.ReplaceChar('_', '-');
+        // Convert the locale string to the format that Mozilla expects
+        nsAutoString xpLocale(reinterpret_cast<char16_t*>(buffer.Elements()));
+        xpLocale.ReplaceChar('_', '-');
 
-    nsresult rv = NewLocale(xpLocale, getter_AddRefs(mSystemLocale));
-    if (NS_SUCCEEDED(rv)) {
-        mApplicationLocale = mSystemLocale;
+        nsresult rv = NewLocale(xpLocale, getter_AddRefs(mSystemLocale));
+        if (NS_SUCCEEDED(rv)) {
+            mApplicationLocale = mSystemLocale;
+        }
     }
 
     ::CFRelease(userLocaleStr);

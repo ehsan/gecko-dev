@@ -501,9 +501,11 @@ js::InitializeCommonTypeDescriptorProperties(JSContext *cx,
             return false;
         }
     } else {
+        RootedValue undef(cx, UndefinedValue());
+
         // byteLength
         if (!JSObject::defineProperty(cx, obj, cx->names().byteLength,
-                                      UndefinedHandleValue,
+                                      undef,
                                       nullptr, nullptr,
                                       JSPROP_READONLY | JSPROP_PERMANENT))
         {
@@ -512,7 +514,7 @@ js::InitializeCommonTypeDescriptorProperties(JSContext *cx,
 
         // byteAlignment
         if (!JSObject::defineProperty(cx, obj, cx->names().byteAlignment,
-                                      UndefinedHandleValue,
+                                      undef,
                                       nullptr, nullptr,
                                       JSPROP_READONLY | JSPROP_PERMANENT))
         {
@@ -618,8 +620,9 @@ ArrayMetaTypeDescr::construct(JSContext *cx, unsigned argc, Value *vp)
         return false;
 
     // Add `length` property, which is undefined for an unsized array.
+    RootedValue lengthVal(cx, UndefinedValue());
     if (!JSObject::defineProperty(cx, obj, cx->names().length,
-                                  UndefinedHandleValue, nullptr, nullptr,
+                                  lengthVal, nullptr, nullptr,
                                   JSPROP_READONLY | JSPROP_PERMANENT))
         return nullptr;
 

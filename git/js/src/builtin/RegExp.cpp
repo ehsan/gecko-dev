@@ -23,6 +23,7 @@ js::CreateRegExpMatchResult(JSContext *cx, HandleString input_, const jschar *ch
                             MatchPairs &matches, MutableHandleValue rval)
 {
     RootedString input(cx, input_);
+    RootedValue undefinedValue(cx, UndefinedValue());
 
     /*
      * Create the (slow) result array for a match.
@@ -52,7 +53,7 @@ js::CreateRegExpMatchResult(JSContext *cx, HandleString input_, const jschar *ch
 
         if (pair.isUndefined()) {
             JS_ASSERT(i != 0); /* Since we had a match, first pair must be present. */
-            elements.infallibleAppend(UndefinedHandleValue);
+            elements.infallibleAppend(undefinedValue);
         } else {
             JSLinearString *str = js_NewDependentString(cx, input, pair.start, pair.length());
             if (!str)

@@ -971,11 +971,10 @@ MapIteratorObject::next_impl(JSContext *cx, CallArgs args)
             break;
 
           case MapObject::Entries: {
-            JS::AutoValueArray<2> pair(cx);
-            pair[0].set(range->front().key.get());
-            pair[1].set(range->front().value);
+            Value pair[2] = { range->front().key.get(), range->front().value };
+            AutoValueArray root(cx, pair, ArrayLength(pair));
 
-            JSObject *pairobj = NewDenseCopiedArray(cx, pair.length(), pair.begin());
+            JSObject *pairobj = NewDenseCopiedArray(cx, ArrayLength(pair), pair);
             if (!pairobj)
                 return false;
             value.setObject(*pairobj);
@@ -1562,11 +1561,10 @@ SetIteratorObject::next_impl(JSContext *cx, CallArgs args)
             break;
 
           case SetObject::Entries: {
-            JS::AutoValueArray<2> pair(cx);
-            pair[0].set(range->front().get());
-            pair[1].set(range->front().get());
+            Value pair[2] = { range->front().get(), range->front().get() };
+            AutoValueArray root(cx, pair, 2);
 
-            JSObject *pairObj = NewDenseCopiedArray(cx, 2, pair.begin());
+            JSObject *pairObj = NewDenseCopiedArray(cx, 2, pair);
             if (!pairObj)
               return false;
             value.setObject(*pairObj);

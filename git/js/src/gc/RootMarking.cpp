@@ -466,12 +466,8 @@ AutoGCRooter::trace(JSTracer *trc)
       }
 
       case VALARRAY: {
-        /*
-         * We don't know the template size parameter, but we can safely treat it
-         * as an AutoValueArray<1> because the length is stored separately.
-         */
-        AutoValueArray<1> *array = static_cast<AutoValueArray<1> *>(this);
-        MarkValueRootRange(trc, array->length(), array->begin(), "js::AutoValueArray");
+        AutoValueArray *array = static_cast<AutoValueArray *>(this);
+        MarkValueRootRange(trc, array->length(), array->start(), "js::AutoValueArray");
         return;
       }
 

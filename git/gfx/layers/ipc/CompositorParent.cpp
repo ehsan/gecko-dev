@@ -515,7 +515,7 @@ CompositorParent::NotifyShadowTreeTransaction(uint64_t aId, bool aIsFirstPaint, 
     AutoResolveRefLayers resolve(mCompositionManager);
     mApzcTreeManager->UpdatePanZoomControllerTree(this, mLayerManager->GetRoot(), aIsFirstPaint, aId);
 
-    mLayerManager->NotifyShadowTreeTransaction();
+    mCompositor->NotifyLayersTransaction();
   }
   if (aScheduleComposite) {
     ScheduleComposition();
@@ -731,7 +731,7 @@ CompositorParent::ShadowLayersUpdated(LayerTransactionParent* aLayerTree,
   if (aScheduleComposite) {
     ScheduleComposition();
   }
-  mLayerManager->NotifyShadowTreeTransaction();
+  mCompositor->NotifyLayersTransaction();
 }
 
 void
