@@ -632,18 +632,6 @@ TiltUtils.destroyObject = function TU_destroyObject(aScope)
 };
 
 /**
- * Gets the most recent browser window.
- *
- * @return {Window} the window
- */
-TiltUtils.getBrowserWindow = function TU_getBrowserWindow()
-{
-  return Cc["@mozilla.org/appshell/window-mediator;1"]
-    .getService(Ci.nsIWindowMediator)
-    .getMostRecentWindow("navigator:browser");
-};
-
-/**
  * Retrieve the unique ID of a window object.
  *
  * @param {Window} aWindow
@@ -668,8 +656,11 @@ TiltUtils.getWindowId = function TU_getWindowId(aWindow)
  * @return {Number} the zoom ammount
  */
 TiltUtils.getDocumentZoom = function TU_getDocumentZoom() {
-  return TiltUtils.getBrowserWindow()
-                  .gBrowser.selectedBrowser.markupDocumentViewer.fullZoom;
+  let browserWindow = Cc["@mozilla.org/appshell/window-mediator;1"]
+    .getService(Ci.nsIWindowMediator)
+    .getMostRecentWindow("navigator:browser");
+
+  return browserWindow.gBrowser.selectedBrowser.markupDocumentViewer.fullZoom;
 };
 
 /**
@@ -677,10 +668,13 @@ TiltUtils.getDocumentZoom = function TU_getDocumentZoom() {
  */
 TiltUtils.gc = function TU_gc()
 {
-  TiltUtils.getBrowserWindow()
-           .QueryInterface(Ci.nsIInterfaceRequestor)
-           .getInterface(Ci.nsIDOMWindowUtils)
-           .garbageCollect();
+  let browserWindow = Cc["@mozilla.org/appshell/window-mediator;1"]
+    .getService(Ci.nsIWindowMediator)
+    .getMostRecentWindow("navigator:browser");
+
+  browserWindow.QueryInterface(Ci.nsIInterfaceRequestor)
+               .getInterface(Ci.nsIDOMWindowUtils)
+               .garbageCollect();
 };
 
 /**
