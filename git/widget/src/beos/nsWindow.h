@@ -102,6 +102,8 @@ public:
 	                               nsIToolkit *aToolkit = nsnull,
 	                               nsWidgetInitData *aInitData = nsnull);
 
+	NS_IMETHOD              PreCreateWidget(nsWidgetInitData *aWidgetInitData);
+
 	gfxASurface*            GetThebesSurface();
 
 	NS_IMETHOD              Destroy();

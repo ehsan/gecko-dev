@@ -497,7 +497,9 @@ oggz_read_sync (OGGZ * oggz)
     }
 
     /* If we've got a stop already, don't read more data in */
-    if (cb_ret < 0 || cb_ret == OGGZ_STOP_OK) 
+    if (cb_ret == OGGZ_STOP_OK || 
+	cb_ret == OGGZ_STOP_ERR || 
+	cb_ret == OGGZ_ERR_HOLE_IN_DATA) 
       return cb_ret;
 
     if(oggz_read_get_next_page (oggz, &og) < 0)

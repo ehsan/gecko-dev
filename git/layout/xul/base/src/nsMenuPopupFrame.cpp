@@ -489,8 +489,8 @@ nsMenuPopupFrame::InitializePopup(nsIContent* aAnchorContent,
       mPopupAlignment = POPUPALIGNMENT_TOPLEFT;
     }
     else if (position.EqualsLiteral("after_pointer")) {
-      mPopupAnchor = POPUPALIGNMENT_TOPLEFT;
-      mPopupAlignment = POPUPALIGNMENT_TOPLEFT;
+      mPopupAnchor = POPUPALIGNMENT_NONE;
+      mPopupAlignment = POPUPALIGNMENT_NONE;
       // XXXndeakin this is supposed to anchor vertically after, but with the
       // horizontal position as the mouse pointer.
       mYPos += 21;

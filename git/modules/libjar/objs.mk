@@ -47,6 +47,7 @@ MODULES_LIBJAR_LCPPSRCS = \
 		$(NULL)
 
 MODULES_LIBJAR_LEXPORTS = \
+		zipfile.h \
 		zipstruct.h \
 		$(NULL)
 

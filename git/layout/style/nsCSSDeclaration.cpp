@@ -136,22 +136,14 @@ PRBool nsCSSDeclaration::AppendValueToString(nsCSSProperty aProperty, nsAString&
   nsCSSCompressedDataBlock *data = GetValueIsImportant(aProperty)
                                       ? mImportantData : mData;
   const void *storage = data->StorageFor(aProperty);
-  return nsCSSDeclaration::AppendStorageToString(aProperty, storage, aResult);
-}
-
-/* static */ PRBool
-nsCSSDeclaration::AppendStorageToString(nsCSSProperty aProperty,
-                                        const void* aStorage,
-                                        nsAString& aResult)
-{
-  if (aStorage) {
+  if (storage) {
     switch (nsCSSProps::kTypeTable[aProperty]) {
       case eCSSType_Value: {
-        const nsCSSValue *val = static_cast<const nsCSSValue*>(aStorage);
+        const nsCSSValue *val = static_cast<const nsCSSValue*>(storage);
         AppendCSSValueToString(aProperty, *val, aResult);
       } break;
       case eCSSType_Rect: {
-        const nsCSSRect *rect = static_cast<const nsCSSRect*>(aStorage);
+        const nsCSSRect *rect = static_cast<const nsCSSRect*>(storage);
         const nsCSSUnit topUnit = rect->mTop.GetUnit();
         if (topUnit == eCSSUnit_Inherit ||
             topUnit == eCSSUnit_Initial ||
@@ -178,7 +170,7 @@ nsCSSDeclaration::AppendStorageToString(nsCSSProperty aProperty,
         }
       } break;
       case eCSSType_ValuePair: {
-        const nsCSSValuePair *pair = static_cast<const nsCSSValuePair*>(aStorage);
+        const nsCSSValuePair *pair = static_cast<const nsCSSValuePair*>(storage);
         AppendCSSValueToString(aProperty, pair->mXValue, aResult);
         if (pair->mYValue != pair->mXValue ||
             ((aProperty == eCSSProperty_background_position ||
@@ -200,7 +192,7 @@ nsCSSDeclaration::AppendStorageToString(nsCSSProperty aProperty,
       } break;
       case eCSSType_ValueList: {
         const nsCSSValueList* val =
-            *static_cast<nsCSSValueList*const*>(aStorage);
+            *static_cast<nsCSSValueList*const*>(storage);
         do {
           AppendCSSValueToString(aProperty, val->mValue, aResult);
           val = val->mNext;
@@ -214,7 +206,7 @@ nsCSSDeclaration::AppendStorageToString(nsCSSProperty aProperty,
       } break;
       case eCSSType_ValuePairList: {
         const nsCSSValuePairList* item =
-            *static_cast<nsCSSValuePairList*const*>(aStorage);
+            *static_cast<nsCSSValuePairList*const*>(storage);
         do {
           NS_ASSERTION(item->mXValue.GetUnit() != eCSSUnit_Null,
                        "unexpected null unit");
@@ -236,7 +228,7 @@ nsCSSDeclaration::AppendStorageToString(nsCSSProperty aProperty,
       } break;
     }
   }
-  return aStorage != nsnull;
+  return storage != nsnull;
 }
 
 /* static */ PRBool

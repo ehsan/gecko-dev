@@ -834,11 +834,6 @@ InitSystemMetrics()
     sSystemMetrics->AppendElement(do_GetAtom("images-in-menus"));
   }
 
-  lookAndFeel->GetMetric(nsILookAndFeel::eMetric_ImagesInButtons, metricResult);
-  if (metricResult) {
-    sSystemMetrics->AppendElement(do_GetAtom("images-in-buttons"));
-  }
-
   rv = lookAndFeel->GetMetric(nsILookAndFeel::eMetric_WindowsDefaultTheme, metricResult);
   if (NS_SUCCEEDED(rv) && metricResult) {
     sSystemMetrics->AppendElement(do_GetAtom("windows-default-theme"));
@@ -864,11 +859,6 @@ InitSystemMetrics()
     sSystemMetrics->AppendElement(do_GetAtom("touch-enabled"));
   }
  
-  rv = lookAndFeel->GetMetric(nsILookAndFeel::eMetric_MaemoClassic, metricResult);
-  if (NS_SUCCEEDED(rv) && metricResult) {
-    sSystemMetrics->AppendElement(do_GetAtom("maemo-classic"));
-  }
-
   return PR_TRUE;
 }
 
@@ -966,7 +956,7 @@ RuleProcessorData::RuleProcessorData(nsPresContext* aPresContext,
     // NOTE: optimization: cannot be an XLink if no attributes (since it needs an 
     if(!mIsLink &&
        mHasAttributes && 
-       !(mIsHTMLContent || aContent->IsXUL()) && 
+       !(mIsHTMLContent || aContent->IsNodeOfType(nsINode::eXUL)) && 
        nsStyleUtil::IsLink(aContent, linkHandler, &mLinkState)) {
       mIsLink = PR_TRUE;
     } 
@@ -1022,7 +1012,7 @@ const nsString* RuleProcessorData::GetLang()
         // XHTML1 section C.7).
         PRBool hasAttr = content->GetAttr(kNameSpaceID_XML, nsGkAtoms::lang,
                                           *mLanguage);
-        if (!hasAttr && content->IsHTML()) {
+        if (!hasAttr && content->IsNodeOfType(nsINode::eHTML)) {
           hasAttr = content->GetAttr(kNameSpaceID_None, nsGkAtoms::lang,
                                      *mLanguage);
         }
@@ -1441,7 +1431,7 @@ static PRBool SelectorMatches(RuleProcessorData &data,
       if (element) {
         do {
           child = element->GetChildAt(++index);
-          if (child && child->IsHTML() &&
+          if (child && child->IsNodeOfType(nsINode::eHTML) &&
               child->Tag() == nsGkAtoms::param &&
               child->AttrValueIs(kNameSpaceID_None, nsGkAtoms::name,
                                  NS_LITERAL_STRING("pluginurl"), eIgnoreCase)) {
@@ -1631,36 +1621,6 @@ static PRBool SelectorMatches(RuleProcessorData &data,
         } else if (dirString.EqualsLiteral("ltr")) {
           result = !docIsRTL;
         }
-      }
-      else {
-        result = PR_FALSE;
-      }
-    }
-    else if (nsCSSPseudoClasses::mozLWTheme == pseudoClass->mAtom) {
-      nsIDocument* doc = data.mContent ? data.mContent->GetOwnerDoc() : nsnull;
-
-      if (doc) {
-        result = doc->GetDocumentLWTheme() > nsIDocument::Doc_Theme_None;
-      }
-      else {
-        result = PR_FALSE;
-      }
-    }
-    else if (nsCSSPseudoClasses::mozLWThemeBrightText == pseudoClass->mAtom) {
-      nsIDocument* doc = data.mContent ? data.mContent->GetOwnerDoc() : nsnull;
-
-      if (doc) {
-        result = doc->GetDocumentLWTheme() == nsIDocument::Doc_Theme_Bright;
-      }
-      else {
-        result = PR_FALSE;
-      }
-    }
-    else if (nsCSSPseudoClasses::mozLWThemeDarkText == pseudoClass->mAtom) {
-      nsIDocument* doc = data.mContent ? data.mContent->GetOwnerDoc() : nsnull;
-
-      if (doc) {
-        result = doc->GetDocumentLWTheme() == nsIDocument::Doc_Theme_Dark;
       }
       else {
         result = PR_FALSE;
@@ -2186,10 +2146,8 @@ nsCSSRuleProcessor::HasAttributeDependentStyle(AttributeRuleProcessorData* aData
   // XXXbz now that :link and :visited are also states, do we need a
   // similar optimization in HasStateDependentStyle?
 
-  // check for the localedir, lwtheme and lwthemetextcolor attribute on root XUL elements
-  if ((aData->mAttribute == nsGkAtoms::localedir ||
-       aData->mAttribute == nsGkAtoms::lwtheme ||
-       aData->mAttribute == nsGkAtoms::lwthemetextcolor) &&
+  // check for the localedir attribute on root XUL elements
+  if (aData->mAttribute == nsGkAtoms::localedir &&
       aData->mNameSpaceID == kNameSpaceID_XUL &&
       aData->mContent == aData->mContent->GetOwnerDoc()->GetRootContent())
   {

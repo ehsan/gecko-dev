@@ -478,7 +478,6 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID,PRInt32 &aMetric)
 
     case eMetric_WindowsDefaultTheme:
     case eMetric_TouchEnabled:
-    case eMetric_MaemoClassic:
       aMetric = 0;
       res = NS_ERROR_NOT_IMPLEMENTED;
       break;

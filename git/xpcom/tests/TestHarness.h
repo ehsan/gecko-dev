@@ -235,7 +235,7 @@ _PlatformDeinitProfiler()
 
 //-----------------------------------------------------------------------------
 
-class ScopedXPCOM : public nsIDirectoryServiceProvider2
+class ScopedXPCOM : public nsIDirectoryServiceProvider
 {
   public:
     NS_DECL_ISUPPORTS
@@ -252,7 +252,6 @@ class ScopedXPCOM : public nsIDirectoryServiceProvider2
       {
         fail("NS_InitXPCOM2 returned failure code 0x%x", rv);
         mServMgr = NULL;
-        return;
       }
     }
 
@@ -343,21 +342,6 @@ class ScopedXPCOM : public nsIDirectoryServiceProvider2
       return NS_ERROR_FAILURE;
     }
 
-    ////////////////////////////////////////////////////////////////////////////
-    //// nsIDirectoryServiceProvider2
-
-    NS_IMETHODIMP GetFiles(const char *aProperty, nsISimpleEnumerator **_enum)
-    {
-      // If we were supplied a directory service provider, ask it first.
-      nsCOMPtr<nsIDirectoryServiceProvider2> provider =
-        do_QueryInterface(mDirSvcProvider);
-      if (provider && NS_SUCCEEDED(provider->GetFiles(aProperty, _enum))) {
-        return NS_OK;
-      }
-
-     return NS_ERROR_FAILURE;
-   }
-
   private:
     const char* mTestName;
     nsIServiceManager* mServMgr;
@@ -365,10 +349,9 @@ class ScopedXPCOM : public nsIDirectoryServiceProvider2
     nsCOMPtr<nsIFile> mProfD;
 };
 
-NS_IMPL_QUERY_INTERFACE2(
+NS_IMPL_QUERY_INTERFACE1(
   ScopedXPCOM,
-  nsIDirectoryServiceProvider,
-  nsIDirectoryServiceProvider2
+  nsIDirectoryServiceProvider
 )
 
 NS_IMETHODIMP_(nsrefcnt)

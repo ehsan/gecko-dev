@@ -167,7 +167,8 @@ public:
                         nsIDOMNode **aResult)
   {
     return CloneAndAdopt(aNode, PR_TRUE, aDeep, aNewNodeInfoManager, nsnull,
-                         nsnull, nsnull, aNodesWithProperties, aResult);
+                         nsnull, nsnull, aNodesWithProperties, nsnull,
+                         aResult);
   }
 
   /**
@@ -198,7 +199,7 @@ public:
     nsCOMPtr<nsIDOMNode> dummy;
     return CloneAndAdopt(aNode, PR_FALSE, PR_TRUE, aNewNodeInfoManager, aCx,
                          aOldScope, aNewScope, aNodesWithProperties,
-                         getter_AddRefs(dummy));
+                         nsnull, getter_AddRefs(dummy));
   }
 
   /**
@@ -311,6 +312,8 @@ private:
    *                             descendants) with properties. If aClone is
    *                             PR_TRUE every node will be followed by its
    *                             clone.
+   * @param aParent If aClone is PR_TRUE the cloned node will be appended to
+   *                aParent's children. May be null.
    * @param aResult *aResult will contain the cloned node (if aClone is
    *                PR_TRUE).
    */
@@ -319,30 +322,7 @@ private:
                                 JSContext *aCx, JSObject *aOldScope,
                                 JSObject *aNewScope,
                                 nsCOMArray<nsINode> &aNodesWithProperties,
-                                nsIDOMNode **aResult)
-  {
-    nsCOMPtr<nsINode> clone;
-    nsresult rv = CloneAndAdopt(aNode, aClone, aDeep, aNewNodeInfoManager,
-                                aCx, aOldScope, aNewScope, aNodesWithProperties,
-                                nsnull, getter_AddRefs(clone));
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    return clone ? CallQueryInterface(clone, aResult) : NS_OK;
-  }
-
-  /**
-   * See above for arguments that aren't described here.
-   *
-   * @param aParent If aClone is PR_TRUE the cloned node will be appended to
-   *                aParent's children. May be null. If not null then aNode
-   *                must be an nsIContent.
-   */
-  static nsresult CloneAndAdopt(nsINode *aNode, PRBool aClone, PRBool aDeep,
-                                nsNodeInfoManager *aNewNodeInfoManager,
-                                JSContext *aCx, JSObject *aOldScope,
-                                JSObject *aNewScope,
-                                nsCOMArray<nsINode> &aNodesWithProperties,
-                                nsINode *aParent, nsINode **aResult);
+                                nsINode *aParent, nsIDOMNode **aResult);
 };
 
 #endif // nsNodeUtils_h___

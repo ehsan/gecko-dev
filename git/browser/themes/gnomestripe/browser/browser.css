@@ -70,13 +70,13 @@
   padding-top: 0;
 }
 
-#urlbar:-moz-lwtheme:not([focused="true"]),
-#searchbar:-moz-lwtheme > textbox:not([focused="true"]),
-.tabbrowser-tab:-moz-lwtheme:not([selected="true"]) {
+#main-window[lwtheme="true"] #urlbar:not([focused="true"]),
+#main-window[lwtheme="true"] #searchbar > textbox:not([focused="true"]),
+#main-window[lwtheme="true"] .tabbrowser-tab:not([selected="true"]) {
   opacity: .85;
 }
 
-.tabbrowser-tab:-moz-lwtheme {
+#main-window[lwtheme="true"] .tabbrowser-tab {
   text-shadow: none;
 }
 

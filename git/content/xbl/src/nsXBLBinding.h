@@ -116,6 +116,7 @@ public:
   PRBool HasStyleSheets() const;
   PRBool InheritsStyle() const;
   PRBool ImplementsInterface(REFNSIID aIID) const;
+  PRBool ShouldBuildChildFrames() const;
 
   void GenerateAnonymousContent();
   void InstallAnonymousContent(nsIContent* aAnonParent, nsIContent* aElement);

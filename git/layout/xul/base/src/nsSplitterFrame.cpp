@@ -874,7 +874,8 @@ nsSplitterFrameInner::UpdateState()
     // Find the splitter's immediate sibling.
     nsIFrame* splitterSibling;
     if (newState == CollapsedBefore || mState == CollapsedBefore) {
-      splitterSibling = mOuter->GetPrevSibling();
+      splitterSibling =
+        mOuter->GetParent()->GetChildList(nsnull).GetPrevSiblingFor(mOuter);
     } else {
       splitterSibling = mOuter->GetNextSibling();
     }

@@ -375,6 +375,13 @@ NS_INTERFACE_MAP_END_INHERITING(nsBaseContentList)
 NS_IMPL_ADDREF_INHERITED(nsContentList, nsBaseContentList)
 NS_IMPL_RELEASE_INHERITED(nsContentList, nsBaseContentList)
 
+
+nsISupports *
+nsContentList::GetParentObject()
+{
+  return mRootNode;
+}
+  
 PRUint32
 nsContentList::Length(PRBool aDoFlush)
 {

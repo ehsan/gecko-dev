@@ -265,7 +265,7 @@ nsIContent*
 nsFocusManager::GetRedirectedFocus(nsIContent* aContent)
 {
 #ifdef MOZ_XUL
-  if (aContent->IsXUL()) {
+  if (aContent->IsNodeOfType(nsINode::eXUL)) {
     nsCOMPtr<nsIDOMNode> inputField;
 
     nsCOMPtr<nsIDOMXULTextBoxElement> textbox = do_QueryInterface(aContent);
@@ -930,7 +930,7 @@ nsFocusManager::FireDelayedEvents(nsIDocument* aDocument)
       nsCOMPtr<nsPIDOMEventTarget> target = mDelayedBlurFocusEvents[i].mTarget;
       nsCOMPtr<nsIPresShell> presShell = mDelayedBlurFocusEvents[i].mPresShell;
       mDelayedBlurFocusEvents.RemoveElementAt(i);
-      SendFocusOrBlurEvent(type, presShell, aDocument, target, 0, PR_FALSE);
+      SendFocusOrBlurEvent(type, presShell, aDocument, target, 0);
       --i;
     }
   }
@@ -1262,7 +1262,7 @@ nsFocusManager::CheckIfFocusable(nsIContent* aContent, PRUint32 aFlags)
   if (!frame)
     return nsnull;
 
-  if (aContent->Tag() == nsGkAtoms::area && aContent->IsHTML()) {
+  if (aContent->Tag() == nsGkAtoms::area && aContent->IsNodeOfType(nsINode::eHTML)) {
     // HTML areas do not have their own frame, and the img frame we get from
     // GetPrimaryFrameFor() is not relevant as to whether it is focusable or
     // not, so we have to do all the relevant checks manually for them.
@@ -1386,7 +1386,7 @@ nsFocusManager::Blur(nsPIDOMWindow* aWindowToClear,
       window->UpdateCommands(NS_LITERAL_STRING("focus"));
 
     SendFocusOrBlurEvent(NS_BLUR_CONTENT, presShell,
-                         content->GetCurrentDoc(), content, 1, PR_FALSE);
+                         content->GetCurrentDoc(), content, 1);
   }
 
   // if we are leaving the document or the window was lowered, make the caret
@@ -1421,9 +1421,9 @@ nsFocusManager::Blur(nsPIDOMWindow* aWindowToClear,
     // the document isn't null in case someone closed it during the blur above
     nsCOMPtr<nsIDocument> doc = do_QueryInterface(window->GetExtantDocument());
     if (doc)
-      SendFocusOrBlurEvent(NS_BLUR_CONTENT, presShell, doc, doc, 1, PR_FALSE);
+      SendFocusOrBlurEvent(NS_BLUR_CONTENT, presShell, doc, doc, 1);
     if (mFocusedWindow == nsnull)
-      SendFocusOrBlurEvent(NS_BLUR_CONTENT, presShell, doc, window, 1, PR_FALSE);
+      SendFocusOrBlurEvent(NS_BLUR_CONTENT, presShell, doc, window, 1);
 
     // check if a different window was focused
     result = (mFocusedWindow == nsnull && mActiveWindow);
@@ -1527,10 +1527,10 @@ nsFocusManager::Focus(nsPIDOMWindow* aWindow,
     nsCOMPtr<nsIDocument> doc = do_QueryInterface(aWindow->GetExtantDocument());
     if (doc)
       SendFocusOrBlurEvent(NS_FOCUS_CONTENT, presShell, doc,
-                           doc, aFlags & FOCUSMETHOD_MASK, aWindowRaised);
+                           doc, aFlags & FOCUSMETHOD_MASK);
     if (mFocusedWindow == aWindow && mFocusedContent == nsnull)
       SendFocusOrBlurEvent(NS_FOCUS_CONTENT, presShell, doc,
-                           aWindow, aFlags & FOCUSMETHOD_MASK, aWindowRaised);
+                           aWindow, aFlags & FOCUSMETHOD_MASK);
   }
 
   // check to ensure that the element is still focusable, and that nothing
@@ -1572,7 +1572,7 @@ nsFocusManager::Focus(nsPIDOMWindow* aWindow,
         aWindow->UpdateCommands(NS_LITERAL_STRING("focus"));
 
       SendFocusOrBlurEvent(NS_FOCUS_CONTENT, presShell, aContent->GetCurrentDoc(),
-                           aContent, aFlags & FOCUSMETHOD_MASK, aWindowRaised);
+                           aContent, aFlags & FOCUSMETHOD_MASK);
 
       nsIMEStateManager::OnTextStateFocus(presContext, aContent);
     }
@@ -1605,8 +1605,7 @@ nsFocusManager::SendFocusOrBlurEvent(PRUint32 aType,
                                      nsIPresShell* aPresShell,
                                      nsIDocument* aDocument,
                                      nsISupports* aTarget,
-                                     PRUint32 aFocusMethod,
-                                     PRBool aWindowRaised)
+                                     PRUint32 aFocusMethod)
 {
   NS_ASSERTION(aType == NS_FOCUS_CONTENT || aType == NS_BLUR_CONTENT,
                "Wrong event type for SendFocusOrBlurEvent");
@@ -1617,10 +1616,6 @@ nsFocusManager::SendFocusOrBlurEvent(PRUint32 aType,
   // handling on the document is suppressed, queue the event and fire it
   // later. For blur events, a non-zero value would be set for aFocusMethod.
   if (aFocusMethod && aDocument && aDocument->EventHandlingSuppressed()) {
-    // aFlags is always 0 when aWindowRaised is true so this won't be called
-    // on a window raise.
-    NS_ASSERTION(!aWindowRaised, "aWindowRaised should not be set");
-
     for (PRUint32 i = mDelayedBlurFocusEvents.Length(); i > 0; --i) {
       // if this event was already queued, remove it and append it to the end
       if (mDelayedBlurFocusEvents[i - 1].mType == aType &&
@@ -1639,9 +1634,8 @@ nsFocusManager::SendFocusOrBlurEvent(PRUint32 aType,
   nsCOMPtr<nsPresContext> presContext = aPresShell->GetPresContext();
 
   nsEventStatus status = nsEventStatus_eIgnore;
-  nsFocusEvent event(PR_TRUE, aType);
+  nsEvent event(PR_TRUE, aType);
   event.flags |= NS_EVENT_FLAG_CANT_BUBBLE;
-  event.fromRaise = aWindowRaised;
 
   nsEventDispatcher::Dispatch(aTarget, presContext, &event, nsnull, &status);
 }
@@ -2089,7 +2083,7 @@ nsFocusManager::DetermineElementToMoveFocus(nsPIDOMWindow* aWindow,
   if (startContent) {
     nsIFrame* frame = presShell->GetPrimaryFrameFor(startContent);
     if (startContent->Tag() == nsGkAtoms::area &&
-        startContent->IsHTML())
+        startContent->IsNodeOfType(nsINode::eHTML))
       startContent->IsFocusable(&tabIndex);
     else if (frame)
       frame->IsFocusable(&tabIndex, 0);
@@ -2369,7 +2363,7 @@ nsFocusManager::GetNextTabbableContent(nsIPresShell* aPresShell,
         frameTraversal->Last();
     }
     else if (!aStartContent || aStartContent->Tag() != nsGkAtoms::area ||
-             !aStartContent->IsHTML()) {
+             !aStartContent->IsNodeOfType(nsINode::eHTML)) {
       // Need to do special check in case we're in an imagemap which has multiple
       // content nodes per frame, so don't skip over the starting frame.
       if (aForward)
@@ -2653,7 +2647,7 @@ nsFocusManager::GetRootForFocus(nsPIDOMWindow* aWindow,
       for (PRUint32 i = 0; i < childCount; ++i) {
         nsIContent *childContent = rootContent->GetChildAt(i);
         nsINodeInfo *ni = childContent->NodeInfo();
-        if (childContent->IsHTML() &&
+        if (childContent->IsNodeOfType(nsINode::eHTML) &&
             ni->Equals(nsGkAtoms::frameset))
           return nsnull;
       }

@@ -34,8 +34,6 @@
 #include "nptest_platform.h"
 #include <CoreServices/CoreServices.h>
 
- using namespace std;
-
 #ifdef __LP64__
 // 64-bit requires the Cocoa event model
 #define USE_COCOA_NPAPI 1
@@ -379,8 +377,4 @@ int32_t pluginGetClipRegionRectEdge(InstanceData* instanceData,
     return w->clipRect.bottom + COCOA_TITLEBAR_HEIGHT;
   }
   return NPTEST_INT32_ERROR;
-}
-
-void pluginDoInternalConsistencyCheck(InstanceData* instanceData, string& error)
-{
 }

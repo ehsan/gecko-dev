@@ -314,9 +314,9 @@ ResizeSlots(JSContext *cx, JSObject *obj, uint32 oldlen, uint32 newlen)
     jsval *slots, *newslots;
 
     if (newlen == 0) {
-        if (DSLOTS_IS_NOT_NULL(obj)) {
+        if (obj->dslots) {
             cx->free(obj->dslots - 1);
-            obj->dslots = DSLOTS_NULL_RESIZE_SLOTS;
+            obj->dslots = NULL;
         }
         return JS_TRUE;
     }
@@ -326,8 +326,8 @@ ResizeSlots(JSContext *cx, JSObject *obj, uint32 oldlen, uint32 newlen)
         return JS_FALSE;
     }
 
-    slots = DSLOTS_IS_NOT_NULL(obj) ? obj->dslots - 1 : NULL;
-    newslots = (jsval *) cx->realloc(slots, (size_t(newlen) + 1) * sizeof(jsval));
+    slots = obj->dslots ? obj->dslots - 1 : NULL;
+    newslots = (jsval *) cx->realloc(slots, (newlen + 1) * sizeof(jsval));
     if (!newslots)
         return JS_FALSE;
 
@@ -1195,9 +1195,9 @@ slowarray_enumerate(JSContext *cx, JSObject *obj, JSIterateOp enum_op,
 static void
 array_finalize(JSContext *cx, JSObject *obj)
 {
-    if (DSLOTS_IS_NOT_NULL(obj))
+    if (obj->dslots)
         cx->free(obj->dslots - 1);
-    obj->dslots = DSLOTS_NULL_ARRAY_FINALIZE;
+    obj->dslots = NULL;
 }
 
 static void
@@ -1811,7 +1811,7 @@ array_reverse(JSContext *cx, uintN argc, jsval *vp)
 
     if (OBJ_IS_DENSE_ARRAY(cx, obj) && !js_PrototypeHasIndexedProperties(cx, obj)) {
         /* An empty array or an array with no elements is already reversed. */
-        if (len == 0 || !DSLOTS_IS_NOT_NULL(obj))
+        if (len == 0 || !obj->dslots)
             return JS_TRUE;
 
         /*
@@ -2538,7 +2538,7 @@ array_shift(JSContext *cx, uintN argc, jsval *vp)
 
         if (OBJ_IS_DENSE_ARRAY(cx, obj) && !js_PrototypeHasIndexedProperties(cx, obj) &&
             length < js_DenseArrayCapacity(obj)) {
-            if (JS_LIKELY(DSLOTS_IS_NOT_NULL(obj))) {
+            if (JS_LIKELY(obj->dslots != NULL)) {
                 *vp = obj->dslots[0];
                 if (*vp == JSVAL_HOLE)
                     *vp = JSVAL_VOID;
@@ -3391,7 +3391,7 @@ js_NewEmptyArray(JSContext* cx, JSObject* proto)
 {
     JS_ASSERT(OBJ_IS_ARRAY(cx, proto));
 
-    JSObject* obj = js_NewGCObject(cx);
+    JSObject* obj = js_NewGCObject(cx, GCX_OBJECT);
     if (!obj)
         return NULL;
 
@@ -3405,7 +3405,7 @@ js_NewEmptyArray(JSContext* cx, JSObject* proto)
     obj->fslots[JSSLOT_ARRAY_COUNT] = 0;
     for (unsigned i = JSSLOT_ARRAY_COUNT + 1; i != JS_INITIAL_NSLOTS; ++i)
         obj->fslots[i] = JSVAL_VOID;
-    obj->dslots = DSLOTS_NULL_NEW_EMPTY_ARRAY;
+    obj->dslots = NULL;
     return obj;
 }
 #ifdef JS_TRACER
@@ -3463,7 +3463,7 @@ js_NewArrayObject(JSContext *cx, jsuint length, jsval *vector, JSBool holey)
     JS_POP_TEMP_ROOT(cx, &tvr);
 
     /* Set/clear newborn root, in case we lost it.  */
-    cx->weakRoots.newbornObject = obj;
+    cx->weakRoots.newborn[GCX_OBJECT] = obj;
     return obj;
 }
 

@@ -425,7 +425,12 @@ nsHtml5Parser::Terminate(void)
   // @see bug 108049
   CancelParsingEvents();
   
-  return mExecutor->DidBuildModel(PR_TRUE);
+#ifdef DEBUG
+  PRBool ready =
+#endif
+  mExecutor->ReadyToCallDidBuildModel(PR_TRUE);
+  NS_ASSERTION(ready, "Should always be ready to call DidBuildModel here.");
+  return mExecutor->DidBuildModel();
 }
 
 NS_IMETHODIMP
@@ -588,9 +593,9 @@ nsHtml5Parser::ParseUntilSuspend()
           case STREAM_ENDING:
             if (mStreamParser && !mStreamParser->IsDone()) { // may still have stream data left
               mStreamParser->ParseUntilSuspend();            
-            } else {
+            } else if (mExecutor->ReadyToCallDidBuildModel(PR_FALSE)) {
               // no more data and not expecting more
-              mExecutor->DidBuildModel(PR_FALSE);
+              mExecutor->DidBuildModel();
             }
             return;
           default:

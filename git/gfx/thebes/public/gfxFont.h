@@ -344,7 +344,7 @@ protected:
 
     PRBool ReadOtherFamilyNamesForFace(AddOtherFamilyNameFunctor& aOtherFamilyFunctor,
                                        gfxFontEntry *aFontEntry,
-                                       PRBool useFullName = PR_FALSE);
+                                       PRBool useFullName);
 
     nsString mName;
     nsTArray<nsRefPtr<gfxFontEntry> >  mAvailableFonts;

@@ -239,9 +239,3 @@ nsIdleService::StopTimer()
         mTimer->Cancel();
     }
 }
-
-void
-nsIdleService::IdleTimeWasModified()
-{
-    StartTimer(0);
-}

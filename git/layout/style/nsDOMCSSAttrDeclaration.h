@@ -74,7 +74,7 @@ public:
                                             nsICSSParser** aCSSParser);
   NS_IMETHOD GetParentRule(nsIDOMCSSRule **aParent);
 
-  virtual nsINode *GetParentObject()
+  virtual nsISupports *GetParentObject()
   {
     return mContent;
   }

@@ -1722,14 +1722,14 @@ nsCSSFrameConstructor::CreateGeneratedContent(nsFrameConstructorState& aState,
         attrNameSpace = nameSpaceVal.ToInteger(&error, 10);
         contentString.Cut(0, barIndex + 1);
         if (contentString.Length()) {
-          if (mDocument->IsHTML() && aParentContent->IsHTML()) {
+          if (mDocument->IsHTML() && aParentContent->IsNodeOfType(nsINode::eHTML)) {
             ToLowerCase(contentString);
           }
           attrName = do_GetAtom(contentString);
         }
       }
       else {
-        if (mDocument->IsHTML() && aParentContent->IsHTML()) {
+        if (mDocument->IsHTML() && aParentContent->IsNodeOfType(nsINode::eHTML)) {
           ToLowerCase(contentString);
         }
         attrName = do_GetAtom(contentString);
@@ -1802,7 +1802,7 @@ nsCSSFrameConstructor::CreateGeneratedContent(nsFrameConstructorState& aState,
         return content.forget();
       }
 
-      if (aParentContent->IsHTML() &&
+      if (aParentContent->IsNodeOfType(nsINode::eHTML) &&
           aParentContent->NodeInfo()->Equals(nsGkAtoms::input)) {
         if (aParentContent->HasAttr(kNameSpaceID_None, nsGkAtoms::value)) {
           nsCOMPtr<nsIContent> content;
@@ -2014,11 +2014,14 @@ static void
 PullOutCaptionFrames(nsFrameItems& aItems, nsFrameItems& aCaptions)
 {
   nsIFrame *child = aItems.FirstChild();
+  nsIFrame* prev = nsnull;
   while (child) {
     nsIFrame *nextSibling = child->GetNextSibling();
     if (nsGkAtoms::tableCaptionFrame == child->GetType()) {
-      aItems.RemoveFrame(child);
+      aItems.RemoveFrame(child, prev);
       aCaptions.AddChild(child);
+    } else {
+      prev = child;
     }
     child = nextSibling;
   }
@@ -2406,7 +2409,7 @@ nsCSSFrameConstructor::PropagateScrollToViewport()
   // of the viewport
   // XXX what about XHTML?
   nsCOMPtr<nsIDOMHTMLDocument> htmlDoc(do_QueryInterface(mDocument));
-  if (!htmlDoc || !docElement->IsHTML()) {
+  if (!htmlDoc || !docElement->IsNodeOfType(nsINode::eHTML)) {
     return nsnull;
   }
   
@@ -2539,7 +2542,7 @@ nsCSSFrameConstructor::ConstructDocElementFrame(nsIContent*              aDocEle
 
   // Check whether we need to build a XUL box or SVG root frame
 #ifdef MOZ_XUL
-  if (aDocElement->IsXUL()) {
+  if (aDocElement->IsNodeOfType(nsINode::eXUL)) {
     contentFrame = NS_NewDocElementBoxFrame(mPresShell, styleContext);
     if (NS_UNLIKELY(!contentFrame)) {
       return NS_ERROR_OUT_OF_MEMORY;
@@ -2798,7 +2801,7 @@ nsCSSFrameConstructor::SetUpDocElementContainingBlock(nsIContent* aDocElement)
         
   if (!isPaginated) {
 #ifdef MOZ_XUL
-    if (aDocElement->IsXUL())
+    if (aDocElement->IsNodeOfType(nsINode::eXUL))
     {
       // pass a temporary stylecontext, the correct one will be set later
       rootFrame = NS_NewRootBoxFrame(mPresShell, viewportPseudoStyle);
@@ -2837,11 +2840,11 @@ nsCSSFrameConstructor::SetUpDocElementContainingBlock(nsIContent* aDocElement)
   //  3) nsIScrollable::Scrollbar_Always = scrollbars always
   // Only need to create a scroll frame/view for cases 2 and 3.
 
-  PRBool isHTML = aDocElement->IsHTML();
+  PRBool isHTML = aDocElement->IsNodeOfType(nsINode::eHTML);
   PRBool isXUL = PR_FALSE;
 
   if (!isHTML) {
-    isXUL = aDocElement->IsXUL();
+    isXUL = aDocElement->IsNodeOfType(nsINode::eXUL);
   }
 
   // Never create scrollbars for XUL documents
@@ -3460,15 +3463,17 @@ nsCSSFrameConstructor::ConstructFieldSetFrame(nsFrameConstructorState& aState,
   nsFrameItems fieldsetKids;
   fieldsetKids.AddChild(blockFrame);
 
-  for (nsFrameList::Enumerator e(childItems); !e.AtEnd(); e.Next()) {
-    nsLegendFrame* legendFrame = do_QueryFrame(e.get());
+  for (nsFrameList::FrameLinkEnumerator link(childItems);
+       !link.AtEnd();
+       link.Next()) {
+    nsLegendFrame* legendFrame = do_QueryFrame(link.NextFrame());
     if (legendFrame) {
       // We want the legend to be the first frame in the fieldset child list.
       // That way the EventStateManager will do the right thing when tabbing
       // from a selection point within the legend (bug 236071), which is
       // used for implementing legend access keys (bug 81481).
       // GetAdjustedParentFrame() below depends on this frame order.
-      childItems.RemoveFrame(legendFrame);
+      childItems.RemoveFrame(link.NextFrame(), link.PrevFrame());
       // Make sure to reparent the legend so it has the fieldset as the parent.
       fieldsetKids.InsertFrame(newFrame, nsnull, legendFrame);
       break;
@@ -3653,7 +3658,7 @@ nsCSSFrameConstructor::FindHTMLData(nsIContent* aContent,
   // Ignore the tag if it's not HTML content and if it doesn't extend (via XBL)
   // a valid HTML namespace.  This check must match the one in
   // ShouldHaveFirstLineStyle.
-  if (!aContent->IsHTML() &&
+  if (!aContent->IsNodeOfType(nsINode::eHTML) &&
       aNameSpaceID != kNameSpaceID_XHTML) {
     return nsnull;
   }
@@ -3669,7 +3674,7 @@ nsCSSFrameConstructor::FindHTMLData(nsIContent* aContent,
         aParentFrame->GetStyleContext()->GetPseudoType() !=
           nsCSSAnonBoxes::fieldsetContent) ||
        !aContent->GetParent() ||
-       !aContent->GetParent()->IsHTML() ||
+       !aContent->GetParent()->IsNodeOfType(nsINode::eHTML) ||
        aContent->GetParent()->Tag() != nsGkAtoms::fieldset ||
        aStyleContext->GetStyleDisplay()->IsFloating() ||
        aStyleContext->GetStyleDisplay()->IsAbsolutelyPositioned())) {
@@ -3965,7 +3970,7 @@ nsCSSFrameConstructor::ConstructFrameFromItemInternal(FrameConstructionItem& aIt
             break;
         }
 
-        childItems.RemoveFrame(f);
+        childItems.RemoveFrame(f, nsnull);
         if (wrapFrame) {
           currentBlock.AddChild(f);
         } else {
@@ -4493,7 +4498,7 @@ nsCSSFrameConstructor::FindDisplayData(const nsStyleDisplay* aDisplay,
   // make this function static.
   PRBool propagatedScrollToViewport = PR_FALSE;
   if (aContent->NodeInfo()->Equals(nsGkAtoms::body) &&
-      aContent->IsHTML()) {
+      aContent->IsNodeOfType(nsINode::eHTML)) {
     propagatedScrollToViewport =
       PropagateScrollToViewport() == aContent;
   }
@@ -5695,7 +5700,7 @@ FindAppendPrevSibling(nsIFrame* aParentFrame, nsIFrame* aAfterFrame)
 {
   if (aAfterFrame) {
     NS_ASSERTION(aAfterFrame->GetParent() == aParentFrame, "Wrong parent");
-    return aAfterFrame->GetPrevSibling();
+    return aParentFrame->GetChildList(nsnull).GetPrevSiblingFor(aAfterFrame);
   }
 
   return aParentFrame->GetLastChild(nsnull);
@@ -6060,7 +6065,7 @@ static PRBool
 IsSpecialFramesetChild(nsIContent* aContent)
 {
   // IMPORTANT: This must match the conditions in nsHTMLFramesetFrame::Init.
-  return aContent->IsHTML() &&
+  return aContent->IsNodeOfType(nsINode::eHTML) &&
     (aContent->Tag() == nsGkAtoms::frameset ||
      aContent->Tag() == nsGkAtoms::frame);
 }
@@ -6077,8 +6082,8 @@ MaybeGetListBoxBodyFrame(nsIContent* aContainer, nsIContent* aChild)
   if (!aContainer)
     return nsnull;
 
-  if (aContainer->IsXUL() &&
-      aChild->IsXUL() &&
+  if (aContainer->IsNodeOfType(nsINode::eXUL) &&
+      aChild->IsNodeOfType(nsINode::eXUL) &&
       aContainer->Tag() == nsGkAtoms::listbox &&
       aChild->Tag() == nsGkAtoms::listitem) {
     nsCOMPtr<nsIDOMXULElement> xulElement = do_QueryInterface(aContainer);
@@ -7552,7 +7557,7 @@ InvalidateCanvasIfNeeded(nsIPresShell* presShell, nsIContent* node)
 
     // Check whether it's an HTML body
     if (node->Tag() != nsGkAtoms::body ||
-        !node->IsHTML()) {
+        !node->IsNodeOfType(nsINode::eHTML)) {
       return;
     }
   }
@@ -8831,7 +8836,7 @@ nsCSSFrameConstructor::GetInsertionPoint(nsIFrame*     aParentFrame,
   // have to look at insertionElement here...
   if (aMultiple && !*aMultiple) {
     nsIContent* content = insertionElement ? insertionElement : container;
-    if (content->IsHTML() &&
+    if (content->IsNodeOfType(nsINode::eHTML) &&
         content->Tag() == nsGkAtoms::fieldset) {
       *aMultiple = PR_TRUE;
     }
@@ -9192,7 +9197,7 @@ nsCSSFrameConstructor::ShouldHaveFirstLineStyle(nsIContent* aContent,
     // This check must match the one in FindHTMLData.
     hasFirstLine = tag != nsGkAtoms::fieldset ||
       (namespaceID != kNameSpaceID_XHTML &&
-       !aContent->IsHTML());
+       !aContent->IsNodeOfType(nsINode::eHTML));
   }
 
   return hasFirstLine;
@@ -9553,7 +9558,8 @@ nsCSSFrameConstructor::ProcessChildren(nsFrameConstructorState& aState,
                               itemsToConstruct);
   }
 
-  if (!aFrame->IsLeaf()) {
+  if (!aFrame->IsLeaf() &&
+      mDocument->BindingManager()->ShouldBuildChildFrames(aContent)) {
     // :before/:after content should have the same style context parent
     // as normal kids.
     // Note that we don't use this style context for looking up things like
@@ -10177,7 +10183,7 @@ nsCSSFrameConstructor::WrapFramesInFirstLetterFrame(
     if (parentFrame == aBlockFrame) {
       // Take textFrame out of the block's frame list and substitute the
       // letter frame(s) instead.
-      aBlockFrames.DestroyFrame(textFrame);
+      aBlockFrames.DestroyFrame(textFrame, prevFrame);
       aBlockFrames.InsertFrames(nsnull, prevFrame, letterFrames);
     }
     else {
@@ -10338,7 +10344,18 @@ nsCSSFrameConstructor::RemoveFloatingFirstLetterFrames(
     frameToDelete = nextFrameToDelete;
   }
 
-  nsIFrame* prevSibling = placeholderFrame->GetPrevSibling();
+  // First find out where (in the content) the placeholder frames
+  // text is and its previous sibling frame, if any.  Note that:
+  // 1)  The placeholder had better be in the principal child list of
+  //     parentFrame.
+  // 2)  It's probably near the beginning (since we're a first-letter frame),
+  //     so just doing a linear search for the prevSibling is ok.
+  // 3)  Trying to use FindPreviousSibling will fail if the first-letter is in
+  //     anonymous content (eg generated content).
+  const nsFrameList& siblingList(parentFrame->GetChildList(nsnull));
+  NS_ASSERTION(siblingList.ContainsFrame(placeholderFrame),
+               "Placeholder not in parent's principal child list?");
+  nsIFrame* prevSibling = siblingList.GetPrevSiblingFor(placeholderFrame);
 
   // Now that everything is set...
 #ifdef NOISY_FIRST_LETTER

@@ -246,8 +246,8 @@ private:
 
 // IID for the nsINode interface
 #define NS_INODE_IID \
-{ 0xc6485d02, 0x7c8a, 0x42fd, \
- { 0x97, 0x15, 0x0f, 0x67, 0xfd, 0x69, 0xd5, 0x3e } }
+{ 0xfc22c6df, 0x3e8e, 0x47c3, \
+  { 0x96, 0xa6, 0xaf, 0x14, 0x3c, 0x05, 0x88, 0x68 } }
  
 /**
  * An internal interface that abstracts some DOMNode-related parts that both
@@ -293,22 +293,28 @@ public:
     ePROCESSING_INSTRUCTION = 1 << 5,
     /** comment nodes */
     eCOMMENT             = 1 << 6,
+    /** html elements */
+    eHTML                = 1 << 7,
     /** form control elements */
-    eHTML_FORM_CONTROL   = 1 << 7,
+    eHTML_FORM_CONTROL   = 1 << 8,
+    /** XUL elements */
+    eXUL                 = 1 << 9,
     /** svg elements */
-    eSVG                 = 1 << 8,
+    eSVG                 = 1 << 10,
     /** document fragments */
-    eDOCUMENT_FRAGMENT   = 1 << 9,
+    eDOCUMENT_FRAGMENT   = 1 << 11,
     /** data nodes (comments, PIs, text). Nodes of this type always
      returns a non-null value for nsIContent::GetText() */
-    eDATA_NODE           = 1 << 10,
+    eDATA_NODE           = 1 << 12,
+    /** nsMathMLElement */
+    eMATHML              = 1 << 13,
     /** nsHTMLMediaElement */
-    eMEDIA               = 1 << 11
+    eMEDIA               = 1 << 14
   };
 
   /**
    * API for doing a quick check if a content is of a given
-   * type, such as Text, Document, Comment ...  Use this when you can instead of
+   * type, such as HTML, XUL, Text, ...  Use this when you can instead of
    * checking the tag.
    *
    * @param aFlags what types you want to test for (see above)

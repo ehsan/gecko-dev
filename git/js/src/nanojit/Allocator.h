@@ -53,7 +53,7 @@ namespace nanojit
     class Allocator {
     public:
         Allocator();
-        ~Allocator();
+        virtual ~Allocator();
         void reset();
 
         /** alloc memory, never return null. */
@@ -67,7 +67,7 @@ namespace nanojit
             return allocSlow(nbytes);
         }
 
-    protected:
+    private:
         void* allocSlow(size_t nbytes);
         void fill(size_t minbytes);
 
@@ -81,8 +81,8 @@ namespace nanojit
         char* current_top;
         char* current_limit;
 
-        // allocator SPI
-
+    // allocator SPI
+    private:
         /** allocate another block from a host provided allocator */
         void* allocChunk(size_t nbytes);
 

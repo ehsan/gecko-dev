@@ -53,9 +53,6 @@ include css-mediaqueries/reftest.list
 # css namespaces
 include css-namespace/reftest.list
 
-# css transitions
-include css-transitions/reftest.list
-
 # css values and units
 include css-valuesandunits/reftest.list
 

@@ -502,12 +502,6 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
            (touchCapabilities & (NID_EXTERNAL_TOUCH | NID_INTEGRATED_TOUCH))) {
             aMetric = 1;
         }
-#elif defined(WINCE_WINDOWS_MOBILE)
-        WCHAR platformType[MAX_PATH];
-        SystemParametersInfo(SPI_GETPLATFORMTYPE, sizeof(platformType),
-                             platformType, 0);
-        if (!wcscmp(platformType, L"PocketPC"))
-            aMetric = 1;
 #endif
         break;
     case eMetric_WindowsDefaultTheme:
@@ -551,7 +545,6 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
         }
         break;
     case eMetric_MacGraphiteTheme:
-    case eMetric_MaemoClassic:
         aMetric = 0;
         res = NS_ERROR_NOT_IMPLEMENTED;
         break;

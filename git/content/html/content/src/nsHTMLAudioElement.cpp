@@ -84,7 +84,7 @@ NS_NewHTMLAudioElement(nsINodeInfo *aNodeInfo, PRBool aFromParser)
     NS_ENSURE_TRUE(doc, nsnull);
 
     nodeInfo = doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::audio, nsnull,
-                                                   kNameSpaceID_XHTML);
+                                                   kNameSpaceID_None);
     NS_ENSURE_TRUE(nodeInfo, nsnull);
   }
 

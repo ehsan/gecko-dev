@@ -213,8 +213,16 @@ extern JSBool
 js_InitRuntimeScriptState(JSRuntime *rt);
 
 /*
+ * On last context destroy for rt, if script filenames are all GC'd, free the
+ * script filename table and its lock.
+ */
+extern void
+js_FinishRuntimeScriptState(JSRuntime *rt);
+
+/*
  * On JS_DestroyRuntime(rt), forcibly free script filename prefixes and any
- * script filename table entries that have not been GC'd.
+ * script filename table entries that have not been GC'd, the latter using
+ * js_FinishRuntimeScriptState.
  *
  * This allows script filename prefixes to outlive any context in rt.
  */

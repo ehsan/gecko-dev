@@ -107,10 +107,6 @@ namespace nanojit
     typedef SeqBuilder<NIns*> NInsList;
     typedef HashMap<NIns*, LIns*> NInsMap;
 
-#ifdef VTUNE
-    class avmplus::CodegenLIR;
-#endif
-
     class LabelState
     {
     public:
@@ -170,13 +166,10 @@ namespace nanojit
             LogControl* _logc;
             size_t codeBytes;
             size_t exitBytes;
-            #endif // NJ_VERBOSE
-
-            #ifdef VTUNE
-            avmplus::CodegenLIR *cgen;
             #endif
 
             Assembler(CodeAlloc& codeAlloc, Allocator& alloc, AvmCore* core, LogControl* logc);
+            ~Assembler() {}
 
             void        endAssembly(Fragment* frag);
             void        assemble(Fragment* frag);
@@ -260,9 +253,6 @@ namespace nanojit
             NIns*       _nExitIns;      // current instruction in exit fragment page
             NIns*       _epilogue;
             AssmError   _err;           // 0 = means assemble() appears ok, otherwise it failed
-        #if PEDANTIC
-            NIns*       pedanticTop;
-        #endif
 
             AR          _activation;
             RegAlloc    _allocator;

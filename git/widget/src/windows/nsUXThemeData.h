@@ -44,7 +44,7 @@
 #include <dwmapi.h>
 #endif
 
-#if defined(WINCE) || (MOZ_WINSDK_TARGETVER == MOZ_NTDDI_WS03)
+#ifdef WINCE
 struct MARGINS
 {
   int cxLeftWidth;
@@ -63,11 +63,6 @@ struct MARGINS
 #ifndef WM_DWMSENDICONICTHUMBNAIL
 #define WM_DWMSENDICONICTHUMBNAIL 0x0323
 #define WM_DWMSENDICONICLIVEPREVIEWBITMAP 0x0326
-#endif
-
-#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
-#define DWMWA_FORCE_ICONIC_REPRESENTATION 7
-#define DWMWA_HAS_ICONIC_BITMAP           10
 #endif
 
 enum nsUXThemeClass {

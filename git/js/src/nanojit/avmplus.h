@@ -36,11 +36,19 @@
 #ifndef avm_h___
 #define avm_h___
 
-#if defined(HAVE_CONFIG_H) && defined(NANOJIT_CENTRAL)
-#include "config.h"
+#include <assert.h>
+#include <string.h>
+#include <stdio.h>
+#include <ctype.h>
+#include <stdlib.h>
+
+#if defined(AVMPLUS_UNIX) || defined(AVMPLUS_OS2)
+#include <unistd.h>
+#include <sys/mman.h>
 #endif
 
-#include "VMPI.h"
+#include "jstypes.h"
+#include "jsstdint.h"
 
 #if !defined(AVMPLUS_LITTLE_ENDIAN) && !defined(AVMPLUS_BIG_ENDIAN)
 #ifdef IS_BIG_ENDIAN
@@ -96,15 +104,17 @@ void NanoAssertFail();
 #define AvmAssertMsg(x, y)
 #define AvmDebugLog(x) printf x
 
-#if defined(_M_IX86) || defined(_M_AMD64)
-// Visual C++ for x86 and x64 uses compiler intrinsics
-static inline unsigned __int64 rdtsc(void)
+#if defined(AVMPLUS_IA32)
+#if defined(_MSC_VER)
+__declspec(naked) static inline __int64 rdtsc()
 {
-    return __rdtsc();
+    __asm
+    {
+        rdtsc;
+        ret;
+    }
 }
-
-#elif defined(AVMPLUS_IA32)
-#if defined(SOLARIS)
+#elif defined(SOLARIS)
 static inline unsigned long long rdtsc(void)
 {
     unsigned long long int x;
@@ -166,6 +176,20 @@ struct JSContext;
 # define PERFM_NTPROF(n)
 # define PERFM_TPROF_END()
 #endif
+
+#define VMPI_strlen strlen
+#define VMPI_strcat strcat
+#define VMPI_strncat strncat
+#define VMPI_strcpy strcpy
+#define VMPI_sprintf sprintf
+#define VMPI_memset memset
+#define VMPI_isdigit isdigit
+#define VMPI_getDate()
+
+extern void VMPI_setPageProtection(void *address,
+                                   size_t size,
+                                   bool executableFlag,
+                                   bool writeableFlag);
 
 namespace avmplus {
 

@@ -1426,7 +1426,7 @@ public:
        nsIContent* root = aContent->GetCurrentDoc()->GetRootContent();
        while (aContent && aContent->IsInNativeAnonymousSubtree()) {
          nsIContent* parent = aContent->GetParent();
-         if (parent == root && aContent->IsXUL()) {
+         if (parent == root && aContent->IsNodeOfType(nsINode::eXUL)) {
            nsIAtom* tag = aContent->Tag();
            return tag == nsGkAtoms::scrollbar || tag == nsGkAtoms::scrollcorner;
          }
@@ -3747,7 +3747,8 @@ PresShell::GoToAnchor(const nsAString& aAnchorName, PRBool aScroll)
         // Ensure it's an anchor element
         content = do_QueryInterface(node);
         if (content) {
-          if (content->Tag() == nsGkAtoms::a && content->IsHTML()) {
+          if (content->Tag() == nsGkAtoms::a &&
+              content->IsNodeOfType(nsINode::eHTML)) {
             break;
           }
           content = nsnull;
@@ -4461,33 +4462,25 @@ PresShell::ClearMouseCapture(nsIView* aView)
       if (doc) {
         nsIPresShell *shell = doc->GetPrimaryShell();
         if (shell) {
-          // not much can happen if frames are being destroyed so just return.
-          if (shell->FrameManager()->IsDestroyingFrames())
-            return;
-
           frame = shell->GetPrimaryFrameFor(gCaptureInfo.mContent);
         }
       }
 
       if (frame) {
         nsIView* view = frame->GetClosestView();
-        // if there is no view, capturing won't be handled any more, so
-        // just release the capture.
-        if (view) {
-          do {
-            if (view == aView) {
-              NS_RELEASE(gCaptureInfo.mContent);
-              // the view containing the captured content likely disappeared so
-              // disable capture for now.
-              gCaptureInfo.mAllowed = PR_FALSE;
-              break;
-            }
+        while (view) {
+          if (view == aView) {
+            NS_RELEASE(gCaptureInfo.mContent);
+            // the view containing the captured content likely disappeared so
+            // disable capture for now.
+            gCaptureInfo.mAllowed = PR_FALSE;
+            break;
+          }
 
-            view = view->GetParent();
-          } while (view);
-          // return if the view wasn't found
-          return;
+          view = view->GetParent();
         }
+        // return if the view wasn't found
+        return;
       }
     }
 
@@ -5346,8 +5339,8 @@ PresShell::RenderDocument(const nsRect& aRect, PRUint32 aFlags,
       rc->Init(devCtx, aThebesContext);
 
       nsRegion region(rect);
-      list.ComputeVisibility(&builder, &region);
-      list.Paint(&builder, rc);
+      list.OptimizeVisibility(&builder, &region);
+      list.Paint(&builder, rc, rect);
       // Flush the list so we don't trigger the IsEmpty-on-destruction assertion
       list.DeleteAll();
 
@@ -5635,9 +5628,7 @@ PresShell::PaintRangePaintInfo(nsTArray<nsAutoPtr<RangePaintInfo> >* aItems,
       translate(rc, rangeInfo->mRootOffset.x, rangeInfo->mRootOffset.y);
 
     aArea.MoveBy(-rangeInfo->mRootOffset.x, -rangeInfo->mRootOffset.y);
-    nsRegion visible(aArea);
-    rangeInfo->mList.ComputeVisibility(&rangeInfo->mBuilder, &visible);
-    rangeInfo->mList.Paint(&rangeInfo->mBuilder, rc);
+    rangeInfo->mList.Paint(&rangeInfo->mBuilder, rc, aArea);
     aArea.MoveBy(rangeInfo->mRootOffset.x, rangeInfo->mRootOffset.y);
   }
 
@@ -5998,7 +5989,7 @@ PresShell::HandleEvent(nsIView         *aView,
 
   if (mIsDestroying || !nsContentUtils::IsSafeToRunScript() ||
       (sDisableNonTestMouseEvents && NS_IS_MOUSE_EVENT(aEvent) &&
-       !(aEvent->flags & NS_EVENT_FLAG_SYNTHETIC_TEST_EVENT))) {
+       !(aEvent->flags & NS_EVENT_FLAG_SYNTETIC_TEST_EVENT))) {
     return NS_OK;
   }
 
@@ -6113,7 +6104,7 @@ PresShell::HandleEvent(nsIView         *aView,
   // view that has a frame.
   if (!frame &&
       (dispatchUsingCoordinates || NS_IS_KEY_EVENT(aEvent) ||
-       NS_IS_IME_EVENT(aEvent) || aEvent->message == NS_PLUGIN_ACTIVATE)) {
+       NS_IS_IME_EVENT(aEvent))) {
     nsIView* targetView = aView;
     while (targetView && !targetView->GetClientData()) {
       targetView = targetView->GetParent();
@@ -6165,7 +6156,7 @@ PresShell::HandleEvent(nsIView         *aView,
       // special case for <select> as it needs to capture on the dropdown list,
       // so get the frame for the dropdown list instead.
       if (!captureRetarget && capturingContent->Tag() == nsGkAtoms::select &&
-          capturingContent->IsHTML()) {
+          capturingContent->IsNodeOfType(nsINode::eHTML)) {
         nsIFrame* selectFrame = GetPrimaryFrameFor(capturingContent);
         if (selectFrame) {
           nsIFrame* childframe = selectFrame->GetChildList(nsGkAtoms::selectPopupList).FirstChild();
@@ -6289,7 +6280,7 @@ PresShell::HandleEvent(nsIView         *aView,
 #endif
     PopCurrentEventInfo();
   } else {
-    // Activation events need to be dispatched even if no frame was found, since
+    // Focus events need to be dispatched even if no frame was found, since
     // we don't want the focus to be out of sync.
 
     if (!NS_EVENT_NEEDS_FRAME(aEvent)) {
@@ -7226,7 +7217,7 @@ PresShell::PostReflowEventOffTimer()
     mReflowContinueTimer = do_CreateInstance("@mozilla.org/timer;1");
     if (!mReflowContinueTimer ||
         NS_FAILED(mReflowContinueTimer->
-                    InitWithFuncCallback(sReflowContinueCallback, this, 30,
+                    InitWithFuncCallback(sReflowContinueCallback, this, 0,
                                          nsITimer::TYPE_ONE_SHOT))) {
       return PR_FALSE;
     }
@@ -7237,11 +7228,6 @@ PresShell::PostReflowEventOffTimer()
 PRBool
 PresShell::DoReflow(nsIFrame* target, PRBool aInterruptible)
 {
-  if (mReflowContinueTimer) {
-    mReflowContinueTimer->Cancel();
-    mReflowContinueTimer = nsnull;
-  }
-
   nsIFrame* rootFrame = FrameManager()->GetRootFrame();
 
   nsCOMPtr<nsIRenderingContext> rcx;

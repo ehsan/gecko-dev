@@ -228,7 +228,7 @@ nsTreeBodyFrame::GetMinSize(nsBoxLayoutState& aBoxLayoutState)
     desiredRows = 0;
   }
   else if (baseElement->Tag() == nsGkAtoms::select &&
-           baseElement->IsHTML()) {
+           baseElement->IsNodeOfType(nsINode::eHTML)) {
     min.width = CalcMaxRowWidth();
     nsAutoString size;
     baseElement->GetAttr(kNameSpaceID_None, nsGkAtoms::size, size);
@@ -1825,7 +1825,7 @@ nsTreeBodyFrame::MarkDirtyIfSelect()
   nsIContent* baseElement = GetBaseElement();
 
   if (baseElement && baseElement->Tag() == nsGkAtoms::select &&
-      baseElement->IsHTML()) {
+      baseElement->IsNodeOfType(nsINode::eHTML)) {
     // If we are an intrinsically sized select widget, we may need to
     // resize, if the widest item was removed or a new item was added.
     // XXX optimize this more
@@ -2175,10 +2175,8 @@ nsTreeBodyFrame::GetImage(PRInt32 aRowIndex, nsTreeColumn* aCol, PRBool aUseCont
     imgIRequest *imgReq = entry.request;
     imgReq->GetImageStatus(&status);
     imgReq->GetImage(aResult); // We hand back the image here.  The GetImage call addrefs *aResult.
-    PRBool animated = PR_TRUE; // Assuming animated is the safe option
-
-    // We can only call GetAnimated if we're decoded
-    if (*aResult && (status & imgIRequest::STATUS_DECODE_COMPLETE))
+    PRBool animated = PR_FALSE;
+    if (*aResult)
       (*aResult)->GetAnimated(&animated);
 
     if ((!(status & imgIRequest::STATUS_LOAD_COMPLETE)) || animated) {
@@ -4310,7 +4308,7 @@ nsTreeBodyFrame::GetBaseElement()
 
       if (ni->Equals(nsGkAtoms::tree, kNameSpaceID_XUL) ||
           (ni->Equals(nsGkAtoms::select) &&
-           content->IsHTML()))
+           content->IsNodeOfType(nsINode::eHTML)))
         return content;
     }
 

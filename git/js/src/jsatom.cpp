@@ -454,7 +454,8 @@ js_string_uninterner(JSDHashTable *table, JSDHashEntryHdr *hdr,
     JS_ASSERT(entry->keyAndFlags != 0);
     str = (JSString *)ATOM_ENTRY_KEY(entry);
 
-    js_FinalizeStringRT(rt, str);
+    /* Pass null as context. */
+    js_FinalizeStringRT(rt, str, js_GetExternalStringGCType(str), NULL);
     return JS_DHASH_NEXT;
 }
 

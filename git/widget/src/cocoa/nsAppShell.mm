@@ -59,8 +59,6 @@
 #include "nsChildView.h"
 #include "nsToolkit.h"
 
-#include "npapi.h"
-
 // defined in nsChildView.mm
 extern nsIRollupListener * gRollupListener;
 extern nsIWidget         * gRollupWidget;
@@ -348,9 +346,7 @@ nsAppShell::Init()
 
   rv = nsBaseAppShell::Init();
 
-#ifndef NP_NO_CARBON
   NS_InstallPluginKeyEventsHandler();
-#endif
 
   gCocoaAppModalWindowList = new nsCocoaAppModalWindowList;
   if (!gAppShellMethodsSwizzled) {
@@ -792,9 +788,7 @@ nsAppShell::Exit(void)
   delete gCocoaAppModalWindowList;
   gCocoaAppModalWindowList = NULL;
 
-#ifndef NP_NO_CARBON
   NS_RemovePluginKeyEventsHandler();
-#endif
 
   // Quoting from Apple's doc on the [NSApplication stop:] method (from their
   // doc on the NSApplication class):  "If this method is invoked during a

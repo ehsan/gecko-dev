@@ -1734,7 +1734,9 @@ var gApplicationsPane = {
                       "chrome,modal,centerscreen,titlebar,dialog=yes",
                       params);
 
-    if (this.isValidHandlerApp(params.handlerApp)) {
+    if (params.handlerApp && 
+        params.handlerApp.executable && 
+        params.handlerApp.executable.isFile()) {
       handlerApp = params.handlerApp;
 
       // Add the app to the type's list of possible handlers.

@@ -796,15 +796,15 @@ public:
   }
 #endif
 
-  virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsIRenderingContext* aCtx);
+  virtual void Paint(nsDisplayListBuilder* aBuilder, nsIRenderingContext* aCtx,
+     const nsRect& aDirtyRect);
   NS_DISPLAY_DECL_NAME("SelectionOverlay")
 private:
   PRInt16 mSelectionValue;
 };
 
 void nsDisplaySelectionOverlay::Paint(nsDisplayListBuilder* aBuilder,
-                                      nsIRenderingContext* aCtx)
+     nsIRenderingContext* aCtx, const nsRect& aDirtyRect)
 {
   nscolor color = NS_RGB(255, 255, 255);
   
@@ -829,8 +829,9 @@ void nsDisplaySelectionOverlay::Paint(nsDisplayListBuilder* aBuilder,
   gfxContext *ctx = aCtx->ThebesContext();
   ctx->SetColor(c);
 
-  nsIntRect pxRect =
-    mVisibleRect.ToOutsidePixels(mFrame->PresContext()->AppUnitsPerDevPixel());
+  nsRect rect(aBuilder->ToReferenceFrame(mFrame), mFrame->GetSize());
+  rect.IntersectRect(rect, aDirtyRect);
+  nsIntRect pxRect = rect.ToOutsidePixels(mFrame->PresContext()->AppUnitsPerDevPixel());
   ctx->NewPath();
   ctx->Rectangle(gfxRect(pxRect.x, pxRect.y, pxRect.width, pxRect.height), PR_TRUE);
   ctx->Fill();
@@ -1286,7 +1287,7 @@ nsIFrame::BuildDisplayListForStackingContext(nsDisplayListBuilder* aBuilder,
   }
   // We didn't use overflowClip to restrict the dirty rect, since some of the
   // descendants may not be clipped by it. Even if we end up with unnecessary
-  // display items, they'll be pruned during ComputeVisibility.  
+  // display items, they'll be pruned during OptimizeVisibility.  
 
   nsDisplayList resultList;
   // Now follow the rules of http://www.w3.org/TR/CSS21/zindex.html
@@ -1485,7 +1486,7 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
     ApplyOverflowClipping(aBuilder, aChild, disp, &overflowClip);
   // Don't use overflowClip to restrict the dirty rect, since some of the
   // descendants may not be clipped by it. Even if we end up with unnecessary
-  // display items, they'll be pruned during ComputeVisibility. Note that
+  // display items, they'll be pruned during OptimizeVisibility. Note that
   // this overflow-clipping here only applies to overflow:-moz-hidden-unscrollable;
   // overflow:hidden etc creates an nsHTML/XULScrollFrame which does its own
   // clipping.
@@ -1587,6 +1588,12 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
   // but it means that sort routine needs to do less work.
   aLists.PositionedDescendants()->AppendToTop(&extraPositionedDescendants);
   return NS_OK;
+}
+
+nsresult
+nsIFrame::CreateWidgetForView(nsIView* aView)
+{
+  return aView->CreateWidget(kWidgetCID);
 }
 
 NS_IMETHODIMP  
@@ -3940,7 +3947,8 @@ nsIFrame::CheckInvalidateSizeChange(const nsRect& aOldRect,
                                     const nsRect& aOldOverflowRect,
                                     const nsSize& aNewDesiredSize)
 {
-  if (aNewDesiredSize == aOldRect.Size())
+  if (aNewDesiredSize.width == aOldRect.width &&
+      aNewDesiredSize.height == aOldRect.height)
     return;
 
   // Below, we invalidate the old frame area (or, in the case of
@@ -3984,25 +3992,13 @@ nsIFrame::CheckInvalidateSizeChange(const nsRect& aOldRect,
     }
   }
 
+  // Invalidate the old frame background if the frame has a background
+  // whose position depends on the size of the frame
   const nsStyleBackground *bg = GetStyleBackground();
-  if (!bg->IsTransparent()) {
-    // Invalidate the old frame background if the frame has a background
-    // whose position depends on the size of the frame
-    NS_FOR_VISIBLE_BACKGROUND_LAYERS_BACK_TO_FRONT(i, bg) {
-      const nsStyleBackground::Layer &layer = bg->mLayers[i];
-      if (!layer.mImage.IsEmpty() &&
-          (layer.mPosition.mXIsPercent || layer.mPosition.mYIsPercent)) {
-        Invalidate(nsRect(0, 0, aOldRect.width, aOldRect.height));
-        return;
-      }
-    }
-
-    // Invalidate the old frame background if the frame has a background
-    // that is being clipped by border-radius, since the old or new area
-    // clipped off by the radius is not necessarily in the area that has
-    // already been invalidated (even if only the top-left corner has a
-    // border radius).
-    if (nsLayoutUtils::HasNonZeroCorner(border->mBorderRadius)) {
+  NS_FOR_VISIBLE_BACKGROUND_LAYERS_BACK_TO_FRONT(i, bg) {
+    const nsStyleBackground::Layer &layer = bg->mLayers[i];
+    if (!layer.mImage.IsEmpty() &&
+        (layer.mPosition.mXIsPercent || layer.mPosition.mYIsPercent)) {
       Invalidate(nsRect(0, 0, aOldRect.width, aOldRect.height));
       return;
     }
@@ -4770,10 +4766,11 @@ FindBlockFrameOrBR(nsIFrame* aFrame, nsDirection aDirection)
 
   // Iterate over children and call ourselves recursively
   if (aDirection == eDirPrevious) {
-    nsIFrame* child = aFrame->GetChildList(nsnull).LastChild();
+    const nsFrameList& children(aFrame->GetChildList(nsnull));
+    nsIFrame* child = children.LastChild();
     while(child && !result.mContent) {
       result = FindBlockFrameOrBR(child, aDirection);
-      child = child->GetPrevSibling();
+      child = children.GetPrevSiblingFor(child);
     }
   } else { // eDirNext
     nsIFrame* child = aFrame->GetFirstChild(nsnull);
@@ -4806,10 +4803,11 @@ nsIFrame::PeekOffsetParagraph(nsPeekOffsetStruct *aPos)
         reachedBlockAncestor = PR_TRUE;
         break;
       }
-      nsIFrame* sibling = frame->GetPrevSibling();
+      const nsFrameList& siblings(parent->GetChildList(nsnull));
+      nsIFrame* sibling = siblings.GetPrevSiblingFor(frame);
       while (sibling && !blockFrameOrBR.mContent) {
         blockFrameOrBR = FindBlockFrameOrBR(sibling, eDirPrevious);
-        sibling = sibling->GetPrevSibling();
+        sibling = siblings.GetPrevSiblingFor(sibling);
       }
       if (blockFrameOrBR.mContent) {
         aPos->mResultContent = blockFrameOrBR.mContent;
@@ -5976,7 +5974,7 @@ nsIFrame::IsFocusable(PRInt32 *aTabIndex, PRBool aWithMouse)
       isFocusable = mContent->IsFocusable(&tabIndex);
       if (!isFocusable && !aWithMouse &&
           GetType() == nsGkAtoms::scrollFrame &&
-          mContent->IsHTML() &&
+          mContent->IsNodeOfType(nsINode::eHTML) &&
           !mContent->IsRootOfNativeAnonymousSubtree() &&
           mContent->GetParent() &&
           !mContent->HasAttr(kNameSpaceID_None, nsGkAtoms::tabindex)) {

@@ -152,7 +152,6 @@ imgContainer::imgContainer() :
   mDiscardTimer(nsnull),
   mHasSourceData(PR_FALSE),
   mDecoded(PR_FALSE),
-  mHasBeenDecoded(PR_FALSE),
   mDecoder(nsnull),
   mWorker(nsnull),
   mBytesDecoded(0),
@@ -300,7 +299,6 @@ NS_IMETHODIMP imgContainer::ExtractFrame(PRUint32 aWhichFrame,
   img->Init(nsnull, "", INIT_FLAG_NONE);
   img->SetSize(aRegion.width, aRegion.height);
   img->mDecoded = PR_TRUE; // Also, we need to mark the image as decoded
-  img->mHasBeenDecoded = PR_TRUE;
 
   // If a synchronous decode was requested, do it
   if (aFlags & FLAG_SYNC_DECODE) {
@@ -485,20 +483,8 @@ NS_IMETHODIMP imgContainer::GetAnimated(PRBool *aAnimated)
 
   NS_ENSURE_ARG_POINTER(aAnimated);
 
-  // If we have mAnim, we can know for sure
-  if (mAnim) {
-    *aAnimated = PR_TRUE;
-    return NS_OK;
-  }
-
-  // Otherwise, we need to have been decoded to know for sure, since if we were
-  // decoded at least once mAnim would have been created for animated images
-  if (!mHasBeenDecoded)
-    return NS_ERROR_NOT_AVAILABLE;
-
-  // We know for sure
-  *aAnimated = PR_FALSE;
-
+  *aAnimated = (mAnim != nsnull);
+  
   return NS_OK;
 }
 
@@ -846,7 +832,7 @@ NS_IMETHODIMP imgContainer::EnsureCleanFrame(PRUint32 aFrameNum, PRInt32 aX, PRI
 /* void frameUpdated (in unsigned long framenumber, in nsIntRect rect); */
 NS_IMETHODIMP imgContainer::FrameUpdated(PRUint32 aFrameNum, nsIntRect &aUpdatedRect)
 {
-  NS_ASSERTION(aFrameNum < mFrames.Length(), "Invalid frame index!");
+  NS_ABORT_IF_FALSE(aFrameNum < mFrames.Length(), "Invalid frame index!");
   if (aFrameNum >= mFrames.Length())
     return NS_ERROR_INVALID_ARG;
 
@@ -967,7 +953,6 @@ NS_IMETHODIMP imgContainer::DecodingComplete(void)
   // XXX - these should probably be combined when we fix animated image
   // discarding with bug 500402.
   mDecoded = PR_TRUE;
-  mHasBeenDecoded = PR_TRUE;
   if (mAnim)
     mAnim->doneDecoding = PR_TRUE;
 
