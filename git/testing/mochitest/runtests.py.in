@@ -394,18 +394,18 @@ Are you executing $objdir/_tests/testing/mochitest/runtests.py?"""
         # Check for leaks.
         if bytesLeaked < 0 or bytesLeaked > threshold:
           prefix = "TEST-UNEXPECTED-FAIL"
-          leakLog = "TEST-UNEXPECTED-FAIL | runtests-leaks | leaked " + \
-                     str(bytesLeaked) + " bytes during test execution"
+          leakLog = "TEST-UNEXPECTED-FAIL | runtests-leaks | leaked" \
+                    " %d bytes during test execution" % bytesLeaked
         elif bytesLeaked > 0:
-          leakLog = "TEST-PASS | runtests-leaks | WARNING leaked " + \
-                     str(bytesLeaked) + " bytes during test execution"
+          leakLog = "TEST-PASS | runtests-leaks | WARNING leaked" \
+                    " %d bytes during test execution" % bytesLeaked
         else:
           leakLog = "TEST-PASS | runtests-leaks | no leaks detected!"
         # Remind the threshold if it is not 0, which is the goal.
         if threshold != 0:
           leakLog += (threshold == INFINITY) \
                      and (" (no threshold set)") \
-                     or  (" (threshold set at " + str(threshold) + " bytes)")
+                     or  (" (threshold set at %d bytes)" % threshold)
         # Log the information.
         log.info(leakLog)
       else:
