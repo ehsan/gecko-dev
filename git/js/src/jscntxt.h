@@ -141,6 +141,7 @@ typedef struct JSTraceMonitor {
     JSFragmentCacheEntry    fcache[JS_FRAGMENT_CACHE_SIZE];
     jsval                   *recoveryDoublePool;
     jsval                   *recoveryDoublePoolPtr;
+    uint32                  jitCacheGen;
 } JSTraceMonitor;
 
 #ifdef JS_TRACER
@@ -489,6 +490,15 @@ struct JSRuntime {
     ((((shape) >> NATIVE_ENUM_CACHE_LOG2) ^ (shape)) & NATIVE_ENUM_CACHE_MASK)
 
     jsuword             nativeEnumCache[NATIVE_ENUM_CACHE_SIZE];
+
+    /*
+     * Runtime-wide flag set to true when any Array prototype has an indexed
+     * property defined on it, creating a hazard for code reading or writing
+     * over a hole from a dense Array instance that is not prepared to look up
+     * the proto chain (the writing case must involve a check for a read-only
+     * element, which cannot be shadowed).
+     */
+    JSBool              anyArrayProtoHasElement;
 
     /*
      * Various metering fields are defined at the end of JSRuntime. In this
@@ -922,13 +932,15 @@ class JSAutoTempValueRooter
         JS_POP_TEMP_ROOT(mContext, &mTvr);
     }
 
+  protected:
+    JSContext *mContext;
+
   private:
 #ifndef AIX
     static void *operator new(size_t);
     static void operator delete(void *, size_t);
 #endif
 
-    JSContext *mContext;
     JSTempValueRooter mTvr;
 };
 

@@ -40,6 +40,7 @@
 #define _MOZSTORAGEHELPER_H_
 
 #include "mozIStorageConnection.h"
+#include "mozIStorageStatement.h"
 
 
 /**
@@ -68,13 +69,9 @@ public:
       mCommitOnComplete(aCommitOnComplete),
       mCompleted(PR_FALSE)
   {
-    if (mConnection) {
-      PRBool transactionInProgress = PR_FALSE;
-      mConnection->GetTransactionInProgress(&transactionInProgress);
-      mHasTransaction = ! transactionInProgress;
-      if (mHasTransaction)
-        mConnection->BeginTransactionAs(aType);
-    }
+    // We won't try to get a transaction if one is already in progress.
+    if (mConnection)
+      mHasTransaction = NS_SUCCEEDED(mConnection->BeginTransactionAs(aType));
   }
   ~mozStorageTransaction()
   {

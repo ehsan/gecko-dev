@@ -616,20 +616,30 @@ nsDOMStyleSheetList::GetLength(PRUint32* aLength)
   return NS_OK;
 }
 
+nsIStyleSheet*
+nsDOMStyleSheetList::GetItemAt(PRUint32 aIndex)
+{
+  if (!mDocument || aIndex >= (PRUint32)mDocument->GetNumberOfStyleSheets()) {
+    return nsnull;
+  }
+
+  nsIStyleSheet *sheet = mDocument->GetStyleSheetAt(aIndex);
+  NS_ASSERTION(sheet, "Must have a sheet");
+
+  return sheet;
+}
+
 NS_IMETHODIMP
 nsDOMStyleSheetList::Item(PRUint32 aIndex, nsIDOMStyleSheet** aReturn)
 {
-  *aReturn = nsnull;
-  if (mDocument) {
-    PRInt32 count = mDocument->GetNumberOfStyleSheets();
-    if (aIndex < (PRUint32)count) {
-      nsIStyleSheet *sheet = mDocument->GetStyleSheetAt(aIndex);
-      NS_ASSERTION(sheet, "Must have a sheet");
-      return CallQueryInterface(sheet, aReturn);
-    }
+  nsIStyleSheet *sheet = GetItemAt(aIndex);
+  if (!sheet) {
+      *aReturn = nsnull;
+
+      return NS_OK;
   }
 
-  return NS_OK;
+  return CallQueryInterface(sheet, aReturn);
 }
 
 void
@@ -806,14 +816,15 @@ nsExternalResourceEnumArgs
   void *data;
 };
 
-PR_STATIC_CALLBACK(PLDHashOperator)
+static PLDHashOperator
 ExternalResourceEnumerator(nsIURI* aKey,
                            nsExternalResourceMap::ExternalResource* aData,
                            void* aClosure)
 {
   nsExternalResourceEnumArgs* args =
     static_cast<nsExternalResourceEnumArgs*>(aClosure);
-  PRBool next = args->callback(aData->mDocument, args->data);
+  PRBool next =
+    aData->mDocument ? args->callback(aData->mDocument, args->data) : PR_TRUE;
   return next ? PL_DHASH_NEXT : PL_DHASH_STOP;
 }
 
@@ -825,7 +836,7 @@ nsExternalResourceMap::EnumerateResources(nsIDocument::nsSubDocEnumFunc aCallbac
   mMap.EnumerateRead(ExternalResourceEnumerator, &args);
 }
 
-PR_STATIC_CALLBACK(PLDHashOperator)
+static PLDHashOperator
 ExternalResourceTraverser(nsIURI* aKey,
                           nsExternalResourceMap::ExternalResource* aData,
                           void* aClosure)

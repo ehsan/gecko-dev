@@ -423,6 +423,29 @@ NS_ScriptErrorReporter(JSContext *cx,
                        const char *message,
                        JSErrorReport *report)
 {
+  JSStackFrame * fp = nsnull;
+  while ((fp = JS_FrameIterator(cx, &fp))) {
+    if (!JS_IsNativeFrame(cx, fp)) {
+      return;
+    }
+  }
+
+  nsIXPConnect* xpc = nsContentUtils::XPConnect();
+  if (xpc) {
+    nsAXPCNativeCallContext *cc = nsnull;
+    xpc->GetCurrentNativeCallContext(&cc);
+    if (cc) {
+      nsAXPCNativeCallContext *prev = cc;
+      while (NS_SUCCEEDED(prev->GetPreviousCallContext(&prev)) && prev) {
+        PRUint16 lang;
+        if (NS_SUCCEEDED(prev->GetLanguage(&lang)) &&
+          lang == nsAXPCNativeCallContext::LANG_JS) {
+          return;
+        }
+      }
+    }
+  }
+
   // XXX this means we are not going to get error reports on non DOM contexts
   nsIScriptContext *context = nsJSUtils::GetDynamicScriptContext(cx);
 
@@ -1149,6 +1172,12 @@ nsJSContext::JSOptionChangedCallback(const char *pref, void *data)
   PRBool useJIT = nsContentUtils::GetBoolPref(chromeWindow ?
                                               js_jit_chrome_str :
                                               js_jit_content_str);
+
+#ifdef MOZ_JSDEBUGGER
+  if (context->mContext->debugHooks->debuggerHandler)
+    useJIT = PR_FALSE;
+#endif
+
   if (useJIT)
     newDefaultJSOptions |= JSOPTION_JIT;
   else
@@ -1927,39 +1956,6 @@ nsJSContext::CallEventHandler(nsISupports* aTarget, void *aScope, void *aHandler
 
   // check if the event handler can be run on the object in question
   rv = sSecurityManager->CheckFunctionAccess(mContext, aHandler, target);
-  if (NS_SUCCEEDED(rv)) {
-    // We're not done yet!  Some event listeners are confused about their
-    // script context, so check whether we might actually be the wrong script
-    // context.  To be safe, do CheckFunctionAccess checks for both.
-    nsCOMPtr<nsIContent> content = do_QueryInterface(aTarget);
-    if (content) {
-      // XXXbz XBL2/sXBL issue
-      nsIDocument* ownerDoc = content->GetOwnerDoc();
-      if (ownerDoc) {
-        nsIScriptGlobalObject* global = ownerDoc->GetScriptGlobalObject();
-        if (global) {
-          nsIScriptContext* context =
-            global->GetScriptContext(JAVASCRIPT);
-          if (context && context != this) {
-            JSContext* cx =
-              static_cast<JSContext*>(context->GetNativeContext());
-            rv = stack->Push(cx);
-            if (NS_SUCCEEDED(rv)) {
-              rv = sSecurityManager->CheckFunctionAccess(cx, aHandler,
-                                                         target);
-              // Here we lose no matter what; we don't want to leave the wrong
-              // cx on the stack.  I guess default to leaving mContext, to
-              // cover those cases when we really do have a different context
-              // for the handler and the node.  That's probably safer.
-              if (NS_FAILED(stack->Pop(nsnull))) {
-                return NS_ERROR_FAILURE;
-              }
-            }
-          }
-        }
-      }
-    }
-  }
 
   nsJSContext::TerminationFuncHolder holder(this);
 
@@ -2323,9 +2319,10 @@ nsJSContext::ConnectToInner(nsIScriptGlobalObject *aNewInner, void *aOuterGlobal
   JSObject *newInnerJSObject = (JSObject *)aNewInner->GetScriptGlobal(JAVASCRIPT);
   JSObject *myobject = (JSObject *)aOuterGlobal;
 
-  // *Don't* call JS_ClearScope here since it's unnecessary
-  // and it confuses the JS engine as to which Function is
-  // on which window. See bug 343966.
+  // Call ClearScope to nuke any properties (e.g. Function and Object) on the
+  // outer object. From now on, anybody asking the outer object for these
+  // properties will be forwarded to the inner window.
+  ::JS_ClearScope(mContext, myobject);
 
   // Make the inner and outer window both share the same
   // prototype. The prototype we share is the outer window's
@@ -3310,7 +3307,9 @@ nsJSContext::ScriptEvaluated(PRBool aTerminated)
     MaybeGC(mContext);
   }
 
-  mOperationCallbackTime = LL_ZERO;
+  if (aTerminated) {
+    mOperationCallbackTime = LL_ZERO;
+  }
 }
 
 nsresult

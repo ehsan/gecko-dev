@@ -39,7 +39,8 @@
 
 // NOTE: alphabetically ordered
 #include "nsAccessibilityAtoms.h"
-#include "nsAccessibilityUtils.h"
+#include "nsCoreUtils.h"
+#include "nsAccUtils.h"
 #include "nsBaseWidgetAccessible.h"
 #include "nsIDOMXULDescriptionElement.h"
 #include "nsINameSpaceManager.h"
@@ -89,7 +90,7 @@ nsXULTextAccessible::GetAccessibleRelated(PRUint32 aRelationType,
     return NS_OK;
   }
 
-  nsIContent *content = GetRoleContent(mDOMNode);
+  nsIContent *content = nsCoreUtils::GetRoleContent(mDOMNode);
   if (!content)
     return NS_ERROR_FAILURE;
 
@@ -99,9 +100,8 @@ nsXULTextAccessible::GetAccessibleRelated(PRUint32 aRelationType,
     if (parent && parent->Tag() == nsAccessibilityAtoms::caption) {
       nsCOMPtr<nsIAccessible> parentAccessible;
       GetParent(getter_AddRefs(parentAccessible));
-      if (Role(parentAccessible) == nsIAccessibleRole::ROLE_GROUPING) {
+      if (nsAccUtils::Role(parentAccessible) == nsIAccessibleRole::ROLE_GROUPING)
         parentAccessible.swap(*aRelated);
-      }
     }
   }
 

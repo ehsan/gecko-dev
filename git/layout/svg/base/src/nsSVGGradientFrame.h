@@ -65,7 +65,7 @@ public:
                                   float aGraphicOpacity);
 
   // nsIFrame interface:
-  NS_IMETHOD DidSetStyleContext();
+  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
 
   NS_IMETHOD AttributeChanged(PRInt32         aNameSpaceID,
                               nsIAtom*        aAttribute,
@@ -78,12 +78,6 @@ public:
     return MakeFrameName(NS_LITERAL_STRING("SVGGradient"), aResult);
   }
 #endif // DEBUG
-
-  // nsISVGChildFrame interface:
-  NS_IMETHOD PaintSVG(gfxContext* aContext)
-  {
-    return NS_OK;  // override - our frames don't directly render
-  }
 
 private:
 

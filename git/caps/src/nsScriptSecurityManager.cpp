@@ -98,6 +98,7 @@ static NS_DEFINE_CID(kZipReaderCID, NS_ZIPREADER_CID);
 
 nsIIOService    *nsScriptSecurityManager::sIOService = nsnull;
 nsIXPConnect    *nsScriptSecurityManager::sXPConnect = nsnull;
+nsIThreadJSContextStack *nsScriptSecurityManager::sJSContextStack = nsnull;
 nsIStringBundle *nsScriptSecurityManager::sStrBundle = nsnull;
 JSRuntime       *nsScriptSecurityManager::sRuntime   = 0;
 PRBool nsScriptSecurityManager::sStrictFileOriginPolicy = PR_TRUE;
@@ -305,14 +306,8 @@ JSContext *
 nsScriptSecurityManager::GetCurrentJSContext()
 {
     // Get JSContext from stack.
-    if (!mJSContextStack)
-    {
-        mJSContextStack = do_GetService("@mozilla.org/js/xpc/ContextStack;1");
-        if (!mJSContextStack)
-            return nsnull;
-    }
     JSContext *cx;
-    if (NS_FAILED(mJSContextStack->Peek(&cx)))
+    if (NS_FAILED(sJSContextStack->Peek(&cx)))
         return nsnull;
     return cx;
 }
@@ -321,14 +316,8 @@ JSContext *
 nsScriptSecurityManager::GetSafeJSContext()
 {
     // Get JSContext from stack.
-    if (!mJSContextStack) {
-        mJSContextStack = do_GetService("@mozilla.org/js/xpc/ContextStack;1");
-        if (!mJSContextStack)
-            return nsnull;
-    }
-
     JSContext *cx;
-    if (NS_FAILED(mJSContextStack->GetSafeJSContext(&cx)))
+    if (NS_FAILED(sJSContextStack->GetSafeJSContext(&cx)))
         return nsnull;
     return cx;
 }
@@ -388,6 +377,20 @@ nsScriptSecurityManager::GetCxSubjectPrincipal(JSContext *cx)
 
     nsresult rv = NS_ERROR_FAILURE;
     nsIPrincipal *principal = GetSubjectPrincipal(cx, &rv);
+    if (NS_FAILED(rv))
+        return nsnull;
+
+    return principal;
+}
+
+NS_IMETHODIMP_(nsIPrincipal *)
+nsScriptSecurityManager::GetCxSubjectPrincipalAndFrame(JSContext *cx, JSStackFrame **fp)
+{
+    NS_ASSERTION(cx == GetCurrentJSContext(),
+                 "Uh, cx is not the current JS context!");
+
+    nsresult rv = NS_ERROR_FAILURE;
+    nsIPrincipal *principal = GetPrincipalAndFrame(cx, fp, &rv);
     if (NS_FAILED(rv))
         return nsnull;
 
@@ -2000,27 +2003,6 @@ nsScriptSecurityManager::GetCodebasePrincipal(nsIURI *aURI,
         //-- Check to see if we already have this principal.
         nsCOMPtr<nsIPrincipal> fromTable;
         mPrincipals.Get(principal, getter_AddRefs(fromTable));
-        if (!fromTable)
-        {
-            //-- Check to see if we have a more general principal
-
-            // XXXbz if only GetOrigin returned a URI!  Or better yet if the
-            // HashKey function on principals were smarter.  As it is, we can
-            // have cases where two principals will have different hashkeys but
-            // test equal via KeyEquals, which is absolutely silly.  That's
-            // what we're working around here.
-            nsXPIDLCString originUrl;
-            rv = principal->GetOrigin(getter_Copies(originUrl));
-            if (NS_FAILED(rv)) return rv;
-            nsCOMPtr<nsIURI> newURI;
-            rv = NS_NewURI(getter_AddRefs(newURI), originUrl, nsnull, sIOService);
-            if (NS_FAILED(rv)) return rv;
-            nsCOMPtr<nsIPrincipal> principal2;
-            rv = CreateCodebasePrincipal(newURI, getter_AddRefs(principal2));
-            if (NS_FAILED(rv)) return rv;
-            mPrincipals.Get(principal2, getter_AddRefs(fromTable));
-        }
-
         if (fromTable) {
             // We found an existing codebase principal.  But it might have a
             // generic codebase for this origin on it.  Install our particular
@@ -3235,6 +3217,12 @@ nsScriptSecurityManager::nsScriptSecurityManager(void)
 
 nsresult nsScriptSecurityManager::Init()
 {
+    nsresult rv = CallGetService(nsIXPConnect::GetCID(), &sXPConnect);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    rv = CallGetService("@mozilla.org/js/xpc/ContextStack;1", &sJSContextStack);
+    NS_ENSURE_SUCCESS(rv, rv);
+
     JSContext* cx = GetSafeJSContext();
     if (!cx) return NS_ERROR_FAILURE;   // this can happen of xpt loading fails
     
@@ -3243,13 +3231,10 @@ nsresult nsScriptSecurityManager::Init()
         sEnabledID = STRING_TO_JSVAL(::JS_InternString(cx, "enabled"));
     ::JS_EndRequest(cx);
 
-    nsresult rv = InitPrefs();
+    rv = InitPrefs();
     NS_ENSURE_SUCCESS(rv, rv);
 
     rv = CallGetService(NS_IOSERVICE_CONTRACTID, &sIOService);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    rv = CallGetService(nsIXPConnect::GetCID(), &sXPConnect);
     NS_ENSURE_SUCCESS(rv, rv);
 
     nsCOMPtr<nsIStringBundleService> bundleService = do_GetService(NS_STRINGBUNDLE_CONTRACTID, &rv);
@@ -3318,6 +3303,7 @@ nsScriptSecurityManager::Shutdown()
 
     NS_IF_RELEASE(sIOService);
     NS_IF_RELEASE(sXPConnect);
+    NS_IF_RELEASE(sJSContextStack);
     NS_IF_RELEASE(sStrBundle);
 }
 
@@ -3419,7 +3405,7 @@ nsScriptSecurityManager::InitPolicies()
     // Get a JS context - we need it to create internalized strings later.
     JSContext* cx = GetSafeJSContext();
     NS_ASSERTION(cx, "failed to get JS context");
-    AutoCxPusher autoPusher(mJSContextStack, cx);
+    AutoCxPusher autoPusher(sJSContextStack, cx);
     rv = InitDomainPolicy(cx, "default", mDefaultPolicy);
     NS_ENSURE_SUCCESS(rv, rv);
 
