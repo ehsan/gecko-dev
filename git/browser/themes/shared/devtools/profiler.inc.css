@@ -4,40 +4,21 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 %endif
 
-.profiler-sidebar {
-  min-width: 196px;
-}
-
-.profiler-sidebar + .devtools-side-splitter {
-  -moz-border-start-color: transparent;
-}
-
-.profiler-sidebar-item {
-  padding: 3px 5px;
-}
-
-.profiler-sidebar-item > h3 {
+.profile-name {
   font-size: 13px;
-  display: block;
+  padding: 8px;
 }
 
-.profiler-sidebar-item > span {
-  margin-top: 2px;
-  color: rgb(140, 152, 165);
+#profiles-list > li {
+  width: 180px;
+  cursor: pointer;
 }
 
-.selected .profiler-sidebar-item > span {
-  color: rgb(128, 195, 228);
-}
-
-.devtools-toolbar {
-  height: 26px;
-  padding: 3px;
-}
-
-.devtools-toolbar .devtools-toolbarbutton {
-  min-width: 48px;
-  min-height: 0;
-  font-size: 11px;
-  padding: 0px 8px;
+.splitview-nav-container button {
+  color: white;
+  background-clip: padding-box;
+  border-bottom: 1px solid hsla(210,16%,76%,.1);
+  box-shadow: inset 0 -1px 0 hsla(210,8%,5%,.25);
+  -moz-padding-end: 8px;
+  -moz-box-align: center;
 }

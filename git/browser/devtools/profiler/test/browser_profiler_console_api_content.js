@@ -17,20 +17,18 @@ function test() {
     openProfiler(tab, (toolbox) => {
       gToolbox = toolbox;
       loadUrl(PAGE, tab, () => {
-        gPanel.sidebar.on("stateChanged", (_, item) => {
-          if (item.attachment.state !== PROFILE_COMPLETED)
-            return;
-
-          runTests();
-        });
+        gPanel.on("profileCreated", runTests);
       });
     });
  });
 }
 
 function runTests() {
-  is(getSidebarItem(1).attachment.state, PROFILE_IDLE);
-  is(getSidebarItem(2).attachment.state, PROFILE_COMPLETED);
+  let getTitle = (uid) =>
+    gPanel.document.querySelector("li#profile-" + uid + " > h1").textContent;
+
+  is(getTitle(1), "Profile 1", "Profile 1 doesn't have a star next to it.");
+  is(getTitle(2), "Profile 2", "Profile 2 doesn't have a star next to it.");
 
   gPanel.once("parsed", () => {
     function assertSampleAndFinish() {
@@ -51,6 +49,5 @@ function runTests() {
     assertSampleAndFinish();
   });
 
-  let profile = gPanel.profiles.get(2);
-  gPanel.sidebar.selectedItem = gPanel.sidebar.getItemByProfile(profile);
+  gPanel.switchToProfile(gPanel.profiles.get(2));
 }

@@ -49,9 +49,6 @@ gcli.addCommand({
   params: [],
 
   exec: function (args, context) {
-    if (!getPanel(context, "jsprofiler"))
-      return;
-
     return gDevTools.closeToolbox(context.environment.target)
       .then(function () null);
   }
@@ -86,15 +83,7 @@ gcli.addCommand({
         throw gcli.lookup("profilerAlreadyFinished");
       }
 
-      let item = panel.sidebar.getItemByProfile(profile);
-
-      if (panel.sidebar.selectedItem === item) {
-        profile.start();
-      } else {
-        panel.on("profileSwitched", () => profile.start());
-        panel.sidebar.selectedItem = item;
-      }
-
+      panel.switchToProfile(profile, function () profile.start());
       return gcli.lookup("profilerStarting2");
     }
 
@@ -135,15 +124,7 @@ gcli.addCommand({
         throw gcli.lookup("profilerNotStarted2");
       }
 
-      let item = panel.sidebar.getItemByProfile(profile);
-
-      if (panel.sidebar.selectedItem === item) {
-        profile.stop();
-      } else {
-        panel.on("profileSwitched", () => profile.stop());
-        panel.sidebar.selectedItem = item;
-      }
-
+      panel.switchToProfile(profile, function () profile.stop());
       return gcli.lookup("profilerStopping2");
     }
 
@@ -212,7 +193,7 @@ gcli.addCommand({
       throw gcli.lookup("profilerNotFound");
     }
 
-    panel.sidebar.selectedItem = panel.sidebar.getItemByProfile(profile);
+    panel.switchToProfile(profile);
   }
 });
 
