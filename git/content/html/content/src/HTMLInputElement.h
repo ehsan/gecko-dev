@@ -257,7 +257,6 @@ public:
   bool     IsRangeOverflow() const;
   bool     IsRangeUnderflow() const;
   bool     HasStepMismatch() const;
-  bool     HasBadInput() const;
   void     UpdateTooLongValidityState();
   void     UpdateValueMissingValidityState();
   void     UpdateTypeMismatchValidityState();
@@ -265,7 +264,6 @@ public:
   void     UpdateRangeOverflowValidityState();
   void     UpdateRangeUnderflowValidityState();
   void     UpdateStepMismatchValidityState();
-  void     UpdateBadInputValidityState();
   void     UpdateAllValidityStates(bool aNotify);
   void     UpdateBarredFromConstraintValidation();
   nsresult GetValidationMessage(nsAString& aValidationMessage,
