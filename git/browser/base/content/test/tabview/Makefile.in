@@ -51,7 +51,6 @@ _BROWSER_FILES = \
                  browser_tabview_bug587043.js \
                  browser_tabview_bug587231.js \
                  browser_tabview_bug587351.js \
-                 browser_tabview_bug587503.js \
                  browser_tabview_bug587990.js \
                  browser_tabview_bug589324.js \
                  browser_tabview_bug590606.js \
@@ -73,7 +72,6 @@ _BROWSER_FILES = \
                  browser_tabview_bug606905.js \
                  browser_tabview_bug608037.js \
                  browser_tabview_bug608158.js \
-                 browser_tabview_bug610242.js \
                  browser_tabview_bug618828.js \
                  browser_tabview_bug619937.js \
                  browser_tabview_dragdrop.js \
