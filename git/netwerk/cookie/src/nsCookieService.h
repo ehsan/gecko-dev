@@ -50,8 +50,6 @@
 
 #include "nsCookie.h"
 #include "nsString.h"
-#include "nsAutoPtr.h"
-#include "nsHashKeys.h"
 #include "nsTHashtable.h"
 #include "mozIStorageStatement.h"
 #include "mozIStorageConnection.h"
@@ -72,14 +70,13 @@ class nsCookieEntry : public PLDHashEntryHdr
 {
   public:
     // Hash methods
-    typedef const nsCString& KeyType;
-    typedef const nsCString* KeyTypePointer;
-    typedef nsTArray< nsRefPtr<nsCookie> > ArrayType;
-    typedef ArrayType::index_type IndexType;
+    typedef const char* KeyType;
+    typedef const char* KeyTypePointer;
 
+    // do nothing with aHost - we require mHead to be set before we're live!
     explicit
-    nsCookieEntry(KeyTypePointer aBaseDomain)
-     : mBaseDomain(*aBaseDomain)
+    nsCookieEntry(KeyTypePointer aHost)
+     : mHead(nsnull)
     {
     }
 
@@ -92,35 +89,55 @@ class nsCookieEntry : public PLDHashEntryHdr
 
     ~nsCookieEntry()
     {
+      // walk the linked list, and de-link everything by releasing & nulling.
+      // this allows the parent host entry to be deleted by the hashtable.
+      // note: we know mHead cannot be null here - we always set mHead to a
+      // valid nsCookie (if it were null, the hashtable wouldn't be able to find
+      // this entry, because the key string is provided by mHead).
+      nsCookie *current = mHead, *next;
+      do {
+        next = current->Next();
+        NS_RELEASE(current);
+      } while ((current = next));
     }
 
     KeyType GetKey() const
     {
-      return mBaseDomain;
+      return HostPtr();
     }
 
     PRBool KeyEquals(KeyTypePointer aKey) const
     {
-      return mBaseDomain == *aKey;
+      return !strcmp(HostPtr(), aKey);
     }
 
     static KeyTypePointer KeyToPointer(KeyType aKey)
     {
-      return &aKey;
+      return aKey;
     }
 
     static PLDHashNumber HashKey(KeyTypePointer aKey)
     {
-      return HashString(*aKey);
+      // PL_DHashStringKey doesn't use the table parameter, so we can safely
+      // pass nsnull
+      return PL_DHashStringKey(nsnull, aKey);
     }
 
     enum { ALLOW_MEMMOVE = PR_TRUE };
 
-    inline ArrayType& GetCookies() { return mCookies; }
+    // get methods
+    inline const nsDependentCString Host() const { return mHead->Host(); }
+
+    // linked list management helper
+    inline nsCookie*& Head() { return mHead; }
+
+    inline KeyTypePointer HostPtr() const
+    {
+      return mHead->Host().get();
+    }
 
   private:
-    nsCString mBaseDomain;
-    ArrayType mCookies;
+    nsCookie *mHead;
 };
 
 // encapsulates in-memory and on-disk DB states, so we can
@@ -168,26 +185,24 @@ class nsCookieService : public nsICookieService
     nsresult                      CreateTable();
     void                          CloseDB();
     nsresult                      Read();
-    nsresult                      GetBaseDomain(nsIURI *aHostURI, nsCString &aBaseDomain, PRBool &aIsIPAddress);
-    nsresult                      GetBaseDomainFromHost(const nsACString &aHost, nsCString &aBaseDomain);
     void                          GetCookieInternal(nsIURI *aHostURI, nsIChannel *aChannel, PRBool aHttpBound, char **aCookie);
     nsresult                      SetCookieStringInternal(nsIURI *aHostURI, nsIPrompt *aPrompt, const char *aCookieHeader, const char *aServerTime, nsIChannel *aChannel, PRBool aFromHttp);
-    PRBool                        SetCookieInternal(nsIURI *aHostURI, nsIChannel *aChannel, const nsCString& aBaseDomain, PRBool aIsIPAddress, nsDependentCString &aCookieHeader, PRInt64 aServerTime, PRBool aFromHttp);
-    void                          AddInternal(const nsCString& aBaseDomain, nsCookie *aCookie, PRInt64 aCurrentTimeInUsec, nsIURI *aHostURI, const char *aCookieHeader, PRBool aFromHttp);
-    void                          RemoveCookieFromList(const nsListIter &aIter);
-    PRBool                        AddCookieToList(const nsCString& aBaseDomain, nsCookie *aCookie, PRBool aWriteToDB = PR_TRUE);
+    PRBool                        SetCookieInternal(nsIURI *aHostURI, nsIChannel *aChannel, nsDependentCString &aCookieHeader, PRInt64 aServerTime, PRBool aFromHttp);
+    void                          AddInternal(nsCookie *aCookie, PRInt64 aCurrentTimeInUsec, nsIURI *aHostURI, const char *aCookieHeader, PRBool aFromHttp);
+    void                          RemoveCookieFromList(nsListIter &aIter);
+    PRBool                        AddCookieToList(nsCookie *aCookie, PRBool aWriteToDB = PR_TRUE);
     void                          UpdateCookieInList(nsCookie *aCookie, PRInt64 aLastAccessed);
     static PRBool                 GetTokenValue(nsASingleFragmentCString::const_char_iterator &aIter, nsASingleFragmentCString::const_char_iterator &aEndIter, nsDependentCSubstring &aTokenString, nsDependentCSubstring &aTokenValue, PRBool &aEqualsFound);
     static PRBool                 ParseAttributes(nsDependentCString &aCookieHeader, nsCookieAttributes &aCookie);
-    PRBool                        IsForeign(const nsCString &aBaseDomain, PRBool aHostIsIPAddress, nsIURI *aFirstURI);
-    PRUint32                      CheckPrefs(nsIURI *aHostURI, nsIChannel *aChannel, const nsCString &aBaseDomain, PRBool aIsIPAddress, const char *aCookieHeader);
-    PRBool                        CheckDomain(nsCookieAttributes &aCookie, nsIURI *aHostURI, const nsCString &aBaseDomain, PRBool aIsIPAddress);
+    PRBool                        IsForeign(nsIURI *aHostURI, nsIURI *aFirstURI);
+    PRUint32                      CheckPrefs(nsIURI *aHostURI, nsIChannel *aChannel, const char *aCookieHeader);
+    PRBool                        CheckDomain(nsCookieAttributes &aCookie, nsIURI *aHostURI);
     static PRBool                 CheckPath(nsCookieAttributes &aCookie, nsIURI *aHostURI);
     static PRBool                 GetExpiry(nsCookieAttributes &aCookie, PRInt64 aServerTime, PRInt64 aCurrentTime);
     void                          RemoveAllFromMemory();
     void                          PurgeCookies(PRInt64 aCurrentTimeInUsec);
-    PRBool                        FindCookie(const nsCString& aBaseDomain, const nsAFlatCString &aHost, const nsAFlatCString &aName, const nsAFlatCString &aPath, nsListIter &aIter, PRInt64 aCurrentTime);
-    PRUint32                      CountCookiesFromHostInternal(const nsCString &aBaseDomain, nsEnumerationData &aData);
+    PRBool                        FindCookie(const nsAFlatCString &aHost, const nsAFlatCString &aName, const nsAFlatCString &aPath, nsListIter &aIter, PRInt64 aCurrentTime);
+    PRUint32                      CountCookiesFromHostInternal(const nsACString &aHost, nsEnumerationData &aData);
     void                          NotifyRejected(nsIURI *aHostURI);
     void                          NotifyChanged(nsISupports *aSubject, const PRUnichar *aData);
 

@@ -81,8 +81,6 @@
 #define _PR_SI_ARCHITECTURE "s390"
 #elif defined(__sh__)
 #define _PR_SI_ARCHITECTURE "sh"
-#elif defined(__avr32__)
-#define _PR_SI_ARCHITECTURE "avr32"
 #else
 #error "Unknown CPU architecture"
 #endif

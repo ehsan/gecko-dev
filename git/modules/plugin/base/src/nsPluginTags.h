@@ -45,7 +45,7 @@
 #include "nsCOMPtr.h"
 #include "nsIPluginTag.h"
 #include "nsIPlugin.h"
-#include "nsNPAPIPluginInstance.h"
+#include "nsIPluginInstance.h"
 #include "nsISupportsArray.h"
 
 class nsPluginHost;
@@ -111,6 +111,7 @@ public:
   PRLibrary     *mLibrary;
   nsCOMPtr<nsIPlugin> mEntryPoint;
   PRPackedBool  mCanUnloadLibrary;
+  PRPackedBool  mXPConnected;
   PRPackedBool  mIsJavaPlugin;
   PRPackedBool  mIsNPRuntimeEnabledJavaPlugin;
   nsCString     mFileName; // UTF-8
@@ -128,8 +129,11 @@ struct nsPluginInstanceTag
   nsPluginInstanceTag*   mNext;
   char*                  mURL;
   nsRefPtr<nsPluginTag>  mPluginTag;
-  nsNPAPIPluginInstance* mInstance; // this must always be valid
+  nsIPluginInstance*     mInstance;
+  PRTime                 mllStopTime;
+  PRPackedBool           mStopped;
   PRPackedBool           mDefaultPlugin;
+  PRPackedBool           mXPConnected;
   // Array holding all opened stream listeners for this entry
   nsCOMPtr <nsISupportsArray> mStreams; 
   
@@ -138,6 +142,8 @@ struct nsPluginInstanceTag
                       const char * url,
                       PRBool aDefaultPlugin);
   ~nsPluginInstanceTag();
+  
+  void setStopped(PRBool stopped);
 };
 
 class nsPluginInstanceTagList

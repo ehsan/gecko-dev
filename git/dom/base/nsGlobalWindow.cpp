@@ -6231,22 +6231,6 @@ nsGlobalWindow::ShowModalDialog(const nsAString& aURI, nsIVariant *aArgs,
   return NS_OK;
 }
 
-class CommandDispatcher : public nsRunnable
-{
-public:
-  CommandDispatcher(nsIDOMXULCommandDispatcher* aDispatcher,
-                    const nsAString& aAction)
-  : mDispatcher(aDispatcher), mAction(aAction) {}
-
-  NS_IMETHOD Run()
-  {
-    return mDispatcher->UpdateCommands(mAction);
-  }
-
-  nsCOMPtr<nsIDOMXULCommandDispatcher> mDispatcher;
-  nsString                             mAction;
-};
-
 NS_IMETHODIMP
 nsGlobalWindow::UpdateCommands(const nsAString& anAction)
 {
@@ -6261,10 +6245,7 @@ nsGlobalWindow::UpdateCommands(const nsAString& anAction)
     // Retrieve the command dispatcher and call updateCommands on it.
     nsCOMPtr<nsIDOMXULCommandDispatcher> xulCommandDispatcher;
     xulDoc->GetCommandDispatcher(getter_AddRefs(xulCommandDispatcher));
-    if (xulCommandDispatcher) {
-      nsContentUtils::AddScriptRunner(new CommandDispatcher(xulCommandDispatcher,
-                                                            anAction));
-    }
+    xulCommandDispatcher->UpdateCommands(anAction);
   }
 
   return NS_OK;

@@ -239,8 +239,7 @@ function run_test() {
     runBatched: function (aUserData) {
       var batchChange = [{isDetails: true, uri: "http://foo.com/changeme2",
                           title: "moz", lastVisit: jan7_800},
-                         {isDetails: true, uri: "http://foo.com/begin.html",
-                          isPageAnnotation: true,
+                         {isPageAnnotation: true, uri: "http://foo.com/begin.html",
                           annoName: badAnnoName, annoVal: val}];
       populateDB(batchChange);
     }

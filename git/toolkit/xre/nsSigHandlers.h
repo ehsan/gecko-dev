@@ -1,3 +1,4 @@
+/* -*- Mode: C++; tab-width: 40; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -11,15 +12,15 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is the Application Update Service.
+ * The Original Code is mozilla.org code.
  *
  * The Initial Developer of the Original Code is
- * Robert Strong <robert.bugzilla@gmail.com>.
- *
- * Portions created by the Initial Developer are Copyright (C) 2008
- * the Mozilla Foundation <http://www.mozilla.org/>. All Rights Reserved.
+ *   Mozilla Corp
+ * Portions created by the Initial Developer are Copyright (C) 2009
+ * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
+ *  Andreas Gal <gal@uci.edu>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -33,26 +34,39 @@
  * the provisions above, a recipient may use your version of this file under
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
- * ***** END LICENSE BLOCK *****
+ * ***** END LICENSE BLOCK ***** */
+
+#if defined(_M_IA32) || defined(_M_X86) || defined(__i386__) || defined(__amd64__)
+
+/*
+ * x87 FPU Control Word:
+ *
+ * 0 -> IM  Invalid Operation
+ * 1 -> DM  Denormalized Operand
+ * 2 -> ZM  Zero Divide
+ * 3 -> OM  Overflow
+ * 4 -> UM  Underflow
+ * 5 -> PM  Precision
  */
+#define FPU_EXCEPTION_MASK 0x3f
 
-/* General Update Service Tests */
+/*
+ * x86 FPU Status Word:
+ *
+ * 0..5  ->      Exception flags  (see x86 FPU Control Word)
+ * 6     -> SF   Stack Fault
+ * 7     -> ES   Error Summary Status
+ */
+#define FPU_STATUS_FLAGS 0xff
 
-function run_test() {
-  // Verify write access to the custom app dir
-  dump("Testing: write access is required to the application directory\n");
-  removeUpdateDirsAndFiles();
-  var testFile = getCurrentProcessDir();
-  testFile.append("update_write_access_test");
-  testFile.create(AUS_Ci.nsIFile.NORMAL_FILE_TYPE, 0644);
-  do_check_true(testFile.exists());
-  testFile.remove(false);
-  do_check_false(testFile.exists());
+/*
+ * MXCSR Control and Status Register:
+ *
+ * 0..5  ->      Exception flags (see x86 FPU Control Word)
+ * 6     -> DAZ  Denormals Are Zero
+ * 7..12 ->      Exception mask (see x86 FPU Control Word)
+ */
+#define SSE_STATUS_FLAGS   FPU_EXCEPTION_MASK
+#define SSE_EXCEPTION_MASK (FPU_EXCEPTION_MASK << 7)
 
-  startAUS();
-
-  // Check if the update dir can be written to
-  dump("Testing: nsIApplicationUpdateService:canUpdate\n");
-  do_check_true(gAUS.canUpdate);
-  cleanUp();
-}
+#endif

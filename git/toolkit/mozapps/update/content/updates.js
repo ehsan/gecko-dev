@@ -626,7 +626,7 @@ var gIncompatibleCheckPage = {
    */
   onPageShow: function() {
     var aus = CoC["@mozilla.org/updates/update-service;1"].
-              getService(CoI.nsIApplicationUpdateService);
+              getService(CoI.nsIApplicationUpdateService2);
     // Display the manual update page if the user is unable to apply the update
     if (!aus.canApplyUpdates) {
       gUpdates.wiz.currentPage.setAttribute("next", "manualUpdate");

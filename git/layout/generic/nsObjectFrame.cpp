@@ -3614,6 +3614,8 @@ nsresult nsPluginInstanceOwner::ScrollPositionDidChange(nsIScrollableView* aScro
       pluginWidget->EndDrawPlugin();
     }
   }
+
+  StartTimer(PR_TRUE);
 #endif
   return NS_OK;
 }
