@@ -12,6 +12,8 @@
 #include "nsDebug.h"                    // for NS_WARNING
 #include "nsISupportsImpl.h"            // for MOZ_COUNT_CTOR
 
+class gfxASurface;
+
 #ifndef MOZILLA_LAYERS_SHAREDPLANARYCBCRIMAGE_H
 #define MOZILLA_LAYERS_SHAREDPLANARYCBCRIMAGE_H
 

@@ -12,6 +12,7 @@
 #include "gfxXlibNativeRenderer.h"
 #endif
 
+class gfxASurface;
 class gfxContext;
 
 /**

@@ -34,6 +34,5 @@ DIRS += [
 A11Y_MANIFESTS += [
     'a11y.ini',
     'events/a11y.ini',
-    'textrange/a11y.ini',
     'tree/a11y.ini',
 ]

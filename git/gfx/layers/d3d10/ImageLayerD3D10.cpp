@@ -4,6 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ImageLayerD3D10.h"
+#include "gfxImageSurface.h"
 #include "gfxD2DSurface.h"
 #include "gfxWindowsSurface.h"
 #include "yuv_convert.h"

@@ -25,7 +25,6 @@
 #include "nsHtml5StreamParser.h"
 #include "nsHtml5AtomTable.h"
 #include "nsWeakReference.h"
-#include "nsHtml5StreamListener.h"
 
 class nsHtml5Parser : public nsIParser,
                       public nsSupportsWeakReference
@@ -240,10 +239,9 @@ class nsHtml5Parser : public nsIParser,
 
     void DropStreamParser()
     {
-      if (GetStreamParser()) {
-        GetStreamParser()->DropTimer();
-        mStreamListener->DropDelegate();
-        mStreamListener = nullptr;
+      if (mStreamParser) {
+        mStreamParser->DropTimer();
+        mStreamParser = nullptr;
       }
     }
     
@@ -253,10 +251,7 @@ class nsHtml5Parser : public nsIParser,
 
     nsHtml5StreamParser* GetStreamParser()
     {
-      if (!mStreamListener) {
-        return nullptr;
-      }
-      return mStreamListener->GetDelegate();
+      return mStreamParser;
     }
 
     /**
@@ -339,9 +334,9 @@ class nsHtml5Parser : public nsIParser,
     nsAutoPtr<nsHtml5Tokenizer>   mDocWriteSpeculativeTokenizer;
 
     /**
-     * The stream listener holding the stream parser.
+     * The stream parser.
      */
-    nsRefPtr<nsHtml5StreamListener>     mStreamListener;
+    nsRefPtr<nsHtml5StreamParser>       mStreamParser;
 
     /**
      *

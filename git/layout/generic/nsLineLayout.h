@@ -94,7 +94,8 @@ public:
 
   bool TrimTrailingWhiteSpace();
 
-  void InlineDirAlignFrames(nsLineBox* aLine, bool aIsLastLine);
+  void InlineDirAlignFrames(nsRect& aLineBounds, bool aIsLastLine,
+                             int32_t aFrameCount);
 
   /**
    * Handle all the relative positioning in the line, compute the

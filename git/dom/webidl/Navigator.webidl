@@ -273,6 +273,8 @@ partial interface Navigator {
   readonly attribute MozVoicemail mozVoicemail;
 };
 
+// nsIMozNavigatorIccManager
+interface MozIccManager;
 partial interface Navigator {
   [Throws, Func="Navigator::HasIccManagerSupport"]
   readonly attribute MozIccManager? mozIccManager;

@@ -16,9 +16,6 @@
 
 #include "prlink.h"
 
-#include "mozilla/layers/ImageBridgeChild.h"
-#include "mozilla/layers/CompositorParent.h"
-
 #include "nsCycleCollector.h"
 #include "nsObserverList.h"
 #include "nsObserverService.h"

@@ -272,11 +272,13 @@ JS_TraceShapeCycleCollectorChildren(JSTracer *trc, void *shape)
 static bool
 DefineHelpProperty(JSContext *cx, HandleObject obj, const char *prop, const char *value)
 {
-    RootedAtom atom(cx, Atomize(cx, value, strlen(value)));
+    JSAtom *atom = Atomize(cx, value, strlen(value));
     if (!atom)
         return false;
-    return JS_DefineProperty(cx, obj, prop, atom, JSPROP_READONLY | JSPROP_PERMANENT,
-                             JS_PropertyStub, JS_StrictPropertyStub);
+    jsval v = STRING_TO_JSVAL(atom);
+    return JS_DefineProperty(cx, obj, prop, v,
+                             JS_PropertyStub, JS_StrictPropertyStub,
+                             JSPROP_READONLY | JSPROP_PERMANENT);
 }
 
 JS_FRIEND_API(bool)

@@ -2119,7 +2119,7 @@ CallMethodHelper::ConvertIndependentParam(uint8_t i)
     if (type_tag == nsXPTType::T_JSVAL) {
         // Root the value.
         dp->val.j = JSVAL_VOID;
-        if (!js::AddRawValueRoot(mCallContext, &dp->val.j, "XPCWrappedNative::CallMethod param"))
+        if (!JS_AddValueRoot(mCallContext, &dp->val.j))
             return false;
     }
 
@@ -2313,7 +2313,7 @@ CallMethodHelper::CleanupParam(nsXPTCMiniVariant& param, nsXPTType& type)
 
     switch (type.TagPart()) {
         case nsXPTType::T_JSVAL:
-            js::RemoveRawValueRoot(mCallContext, (jsval*)&param.val);
+            JS_RemoveValueRoot(mCallContext, (jsval*)&param.val);
             break;
         case nsXPTType::T_INTERFACE:
         case nsXPTType::T_INTERFACE_IS:

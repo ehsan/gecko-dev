@@ -11,6 +11,8 @@
 #include "nsISupportsImpl.h"            // for MOZ_COUNT_CTOR, etc
 #include "mozilla/gfx/Types.h"
 
+class gfxASurface;
+
 namespace mozilla {
 namespace layers {
 

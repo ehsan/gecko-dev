@@ -7,6 +7,8 @@
 #include "nsIImageLoadingContent.h"
 #include "nsExpirationTracker.h"
 #include "imgIRequest.h"
+#include "gfxASurface.h"
+#include "gfxPoint.h"
 #include "mozilla/dom/Element.h"
 #include "nsTHashtable.h"
 #include "mozilla/dom/HTMLCanvasElement.h"

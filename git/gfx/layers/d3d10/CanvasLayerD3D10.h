@@ -10,6 +10,8 @@
 
 #include "mozilla/Preferences.h"
 
+class gfxASurface;
+
 namespace mozilla {
 
 namespace gl {

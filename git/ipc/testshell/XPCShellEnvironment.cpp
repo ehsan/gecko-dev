@@ -546,10 +546,10 @@ XPCShellEnvironment::Init()
 
     backstagePass->SetGlobalObject(globalObj);
 
-    JS::Rooted<Value> privateVal(cx, PrivateValue(this));
     if (!JS_DefineProperty(cx, globalObj, "__XPCShellEnvironment",
-                           privateVal, JSPROP_READONLY | JSPROP_PERMANENT,
-                           JS_PropertyStub, JS_StrictPropertyStub) ||
+                           PRIVATE_TO_JSVAL(this), JS_PropertyStub,
+                           JS_StrictPropertyStub,
+                           JSPROP_READONLY | JSPROP_PERMANENT) ||
         !JS_DefineFunctions(cx, globalObj, gGlobalFunctions) ||
         !JS_DefineProfilingFunctions(cx, globalObj))
     {

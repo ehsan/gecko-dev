@@ -13,6 +13,7 @@
 #include "mozilla/RefPtr.h"
 
 class gfxContext;
+class gfxImageSurface;
 struct gfxRect;
 struct gfxRGBA;
 class gfxCornerSizes;

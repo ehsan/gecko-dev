@@ -55,29 +55,12 @@ GetOCSPResponseForType(OCSPResponseType aORT, CERTCertificate *aCert,
     PrintPRError("CERT_FindCertIssuer failed");
     return nullptr;
   }
-  if (aORT == ORTGoodOtherCA || aORT == ORTDelegatedIncluded ||
-      aORT == ORTDelegatedIncludedLast || aORT == ORTDelegatedMissing ||
-      aORT == ORTDelegatedMissingMultiple) {
+  if (aORT == ORTGoodOtherCA) {
     context.signerCert = PK11_FindCertFromNickname(aAdditionalCertName,
                                                    nullptr);
     if (!context.signerCert) {
       PrintPRError("PK11_FindCertFromNickname failed");
       return nullptr;
-    }
-  }
-  if (aORT == ORTDelegatedIncluded) {
-    context.includedCertificates[0] =
-      CERT_DupCertificate(context.signerCert.get());
-  }
-  if (aORT == ORTDelegatedIncludedLast || aORT == ORTDelegatedMissingMultiple) {
-    context.includedCertificates[0] =
-      CERT_DupCertificate(context.issuerCert.get());
-    context.includedCertificates[1] = CERT_DupCertificate(context.cert.get());
-    context.includedCertificates[2] =
-      CERT_DupCertificate(context.issuerCert.get());
-    if (aORT != ORTDelegatedMissingMultiple) {
-      context.includedCertificates[3] =
-        CERT_DupCertificate(context.signerCert.get());
     }
   }
   switch (aORT) {

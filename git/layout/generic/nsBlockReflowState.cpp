@@ -47,8 +47,6 @@ nsBlockReflowState::nsBlockReflowState(const nsHTMLReflowState& aReflowState,
           IS_TRUE_OVERFLOW_CONTAINER(aFrame));
 
   const nsMargin& borderPadding = BorderPadding();
-  mContainerWidth = aReflowState.ComputedWidth() +
-                    aReflowState.ComputedPhysicalBorderPadding().LeftRight();
 
   if (aTopMarginRoot || 0 != aReflowState.ComputedPhysicalBorderPadding().top) {
     SetFlag(BRS_ISTOPMARGINROOT, true);

@@ -14,7 +14,6 @@
 #include "nsBidiPresUtils.h"
 #endif
 #include "nsIFrameInlines.h"
-#include "WritingModes.h"
 #include "mozilla/Assertions.h"
 #include "mozilla/Likely.h"
 #include "nsPrintfCString.h"
@@ -29,13 +28,8 @@ int32_t nsLineBox::GetCtorCount() { return ctorCount; }
 const uint32_t nsLineBox::kMinChildCountForHashtable;
 #endif
 
-using namespace mozilla;
-
 nsLineBox::nsLineBox(nsIFrame* aFrame, int32_t aCount, bool aIsBlock)
   : mFirstChild(aFrame)
-  , mContainerWidth(-1)
-  , mBounds(WritingMode()) // mBounds will be initialized with the correct
-                           // writing mode when it is set
 // NOTE: memory is already zeroed since we allocate with AllocateByObjectID.
 {
   MOZ_COUNT_CTOR(nsLineBox);
@@ -81,7 +75,6 @@ NS_NewLineBox(nsIPresShell* aPresShell, nsLineBox* aFromLine,
 {
   nsLineBox* newLine = new (aPresShell) nsLineBox(aFrame, aCount, false);
   newLine->NoteFramesMovedFrom(aFromLine);
-  newLine->mContainerWidth = aFromLine->mContainerWidth;
   return newLine;
 }
 
@@ -248,12 +241,11 @@ nsLineBox::List(FILE* out, const char* aPrefix, uint32_t aFlags) const
   if (IsBlock() && !GetCarriedOutBottomMargin().IsZero()) {
     str += nsPrintfCString("bm=%d ", GetCarriedOutBottomMargin().get());
   }
-  nsRect bounds = GetPhysicalBounds();
   str += nsPrintfCString("{%d,%d,%d,%d} ",
-          bounds.x, bounds.y, bounds.width, bounds.height);
+          mBounds.x, mBounds.y, mBounds.width, mBounds.height);
   if (mData &&
-      (!mData->mOverflowAreas.VisualOverflow().IsEqualEdges(bounds) ||
-       !mData->mOverflowAreas.ScrollableOverflow().IsEqualEdges(bounds))) {
+      (!mData->mOverflowAreas.VisualOverflow().IsEqualEdges(mBounds) ||
+       !mData->mOverflowAreas.ScrollableOverflow().IsEqualEdges(mBounds))) {
     str += nsPrintfCString("vis-overflow=%d,%d,%d,%d scr-overflow=%d,%d,%d,%d ",
             mData->mOverflowAreas.VisualOverflow().x,
             mData->mOverflowAreas.VisualOverflow().y,
@@ -448,7 +440,7 @@ nsLineBox::SetCarriedOutBottomMargin(nsCollapsingMargin aValue)
   if (IsBlock()) {
     if (!aValue.IsZero()) {
       if (!mBlockData) {
-        mBlockData = new ExtraBlockData(GetPhysicalBounds());
+        mBlockData = new ExtraBlockData(mBounds);
       }
       changed = aValue != mBlockData->mCarriedOutBottomMargin;
       mBlockData->mCarriedOutBottomMargin = aValue;
@@ -465,8 +457,7 @@ nsLineBox::SetCarriedOutBottomMargin(nsCollapsingMargin aValue)
 void
 nsLineBox::MaybeFreeData()
 {
-  nsRect bounds = GetPhysicalBounds();
-  if (mData && mData->mOverflowAreas == nsOverflowAreas(bounds, bounds)) {
+  if (mData && mData->mOverflowAreas == nsOverflowAreas(mBounds, mBounds)) {
     if (IsInline()) {
       if (mInlineData->mFloats.IsEmpty()) {
         delete mInlineData;
@@ -508,7 +499,7 @@ nsLineBox::AppendFloats(nsFloatCacheFreeList& aFreeList)
   if (IsInline()) {
     if (aFreeList.NotEmpty()) {
       if (!mInlineData) {
-        mInlineData = new ExtraInlineData(GetPhysicalBounds());
+        mInlineData = new ExtraInlineData(mBounds);
       }
       mInlineData->mFloats.Append(aFreeList);
     }
@@ -542,15 +533,14 @@ nsLineBox::SetOverflowAreas(const nsOverflowAreas& aOverflowAreas)
     NS_ASSERTION(aOverflowAreas.Overflow(otype).height >= 0,
                  "illegal height for combined area");
   }
-  nsRect bounds = GetPhysicalBounds();
-  if (!aOverflowAreas.VisualOverflow().IsEqualInterior(bounds) ||
-      !aOverflowAreas.ScrollableOverflow().IsEqualEdges(bounds)) {
+  if (!aOverflowAreas.VisualOverflow().IsEqualInterior(mBounds) ||
+      !aOverflowAreas.ScrollableOverflow().IsEqualEdges(mBounds)) {
     if (!mData) {
       if (IsInline()) {
-        mInlineData = new ExtraInlineData(bounds);
+        mInlineData = new ExtraInlineData(mBounds);
       }
       else {
-        mBlockData = new ExtraBlockData(bounds);
+        mBlockData = new ExtraBlockData(mBounds);
       }
     }
     mData->mOverflowAreas = aOverflowAreas;
@@ -654,7 +644,7 @@ nsLineIterator::GetLine(int32_t aLineNumber,
   nsLineBox* line = mLines[aLineNumber];
   *aFirstFrameOnLine = line->mFirstChild;
   *aNumFramesOnLine = line->GetChildCount();
-  aLineBounds = line->GetPhysicalBounds();
+  aLineBounds = line->mBounds;
 
   uint32_t flags = 0;
   if (line->IsBlock()) {
@@ -737,7 +727,7 @@ nsLineIterator::FindFrameAt(int32_t aLineNumber,
     return NS_OK;
   }
 
-  if (line->ISize() == 0 && line->BSize() == 0)
+  if (line->mBounds.width == 0 && line->mBounds.height == 0)
     return NS_ERROR_FAILURE;
 
   nsIFrame* frame = line->mFirstChild;

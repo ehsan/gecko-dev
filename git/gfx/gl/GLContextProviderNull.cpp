@@ -15,12 +15,6 @@ GLContextProviderNull::CreateForWindow(nsIWidget*)
 }
 
 already_AddRefed<GLContext>
-GLContextProviderNull::CreateWrappingExisting(void*, void*)
-{
-    return nullptr;
-}
-
-already_AddRefed<GLContext>
 GLContextProviderNull::CreateOffscreen(const gfxIntSize&,
                                        const SurfaceCaps&,
                                        ContextFlags)
