@@ -6,8 +6,6 @@
 #ifndef GFX_FT2FONTLIST_H
 #define GFX_FT2FONTLIST_H
 
-#include "mozilla/MemoryReporting.h"
-
 #ifdef XP_WIN
 #include "gfxWindowsPlatform.h"
 #include <windows.h>
@@ -76,9 +74,9 @@ public:
     // accordingly so that we avoid using bad font tables
     void CheckForBrokenFont(gfxFontFamily *aFamily);
 
-    virtual void SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+    virtual void SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf,
                                      FontListSizes*    aSizes) const;
-    virtual void SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+    virtual void SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
                                      FontListSizes*    aSizes) const;
 
     FT_Face mFTFace;

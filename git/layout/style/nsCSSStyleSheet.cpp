@@ -10,7 +10,6 @@
 
 #include "nsIAtom.h"
 #include "nsCSSRuleProcessor.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/css/NameSpaceRule.h"
 #include "mozilla/css/GroupRule.h"
@@ -846,7 +845,7 @@ nsCSSStyleSheet::RebuildChildList(css::Rule* aRule, void* aBuilder)
 }
 
 size_t
-nsCSSStyleSheet::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
+nsCSSStyleSheet::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = 0;
   const nsCSSStyleSheet* s = this;
@@ -988,7 +987,7 @@ nsCSSStyleSheetInner::CreateNamespaceMap()
 }
 
 size_t
-nsCSSStyleSheetInner::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
+nsCSSStyleSheetInner::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = aMallocSizeOf(this);
   n += mOrderedRules.SizeOfExcludingThis(css::Rule::SizeOfCOMArrayElementIncludingThis,

@@ -9,7 +9,6 @@
 
 #include "nsCSSRules.h"
 #include "nsCSSValue.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/css/ImportRule.h"
 #include "mozilla/css/NameSpaceRule.h"
 
@@ -118,7 +117,7 @@ Rule::GetParentStyleSheet(nsIDOMCSSStyleSheet** aSheet)
 
 size_t
 Rule::SizeOfCOMArrayElementIncludingThis(css::Rule* aElement,
-                                         MallocSizeOf aMallocSizeOf,
+                                         nsMallocSizeOfFun aMallocSizeOf,
                                          void* aData)
 {
   return aElement->SizeOfIncludingThis(aMallocSizeOf);
@@ -329,7 +328,7 @@ CharsetRule::GetParentRule(nsIDOMCSSRule** aParentRule)
 }
 
 /* virtual */ size_t
-CharsetRule::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
+CharsetRule::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   return aMallocSizeOf(this);
 
@@ -505,7 +504,7 @@ ImportRule::GetStyleSheet(nsIDOMCSSStyleSheet * *aStyleSheet)
 }
 
 /* virtual */ size_t
-ImportRule::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
+ImportRule::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   return aMallocSizeOf(this);
 
@@ -767,7 +766,7 @@ GroupRule::DeleteRule(uint32_t aIndex)
 }
 
 /* virtual */ size_t
-GroupRule::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const
+GroupRule::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   return mRules.SizeOfExcludingThis(Rule::SizeOfCOMArrayElementIncludingThis,
                                     aMallocSizeOf);
@@ -971,7 +970,7 @@ MediaRule::UseForPresentation(nsPresContext* aPresContext,
 }
 
 /* virtual */ size_t
-MediaRule::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
+MediaRule::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = aMallocSizeOf(this);
   n += GroupRule::SizeOfExcludingThis(aMallocSizeOf);
@@ -1201,7 +1200,7 @@ DocumentRule::URL::~URL()
 }
 
 /* virtual */ size_t
-DocumentRule::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
+DocumentRule::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = aMallocSizeOf(this);
   n += GroupRule::SizeOfExcludingThis(aMallocSizeOf);
@@ -1362,7 +1361,7 @@ NameSpaceRule::GetParentRule(nsIDOMCSSRule** aParentRule)
 }
 
 /* virtual */ size_t
-NameSpaceRule::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
+NameSpaceRule::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   return aMallocSizeOf(this);
 
@@ -1902,7 +1901,7 @@ nsCSSFontFaceRule::GetDesc(nsCSSFontDesc aDescID, nsCSSValue & aValue)
 }
 
 /* virtual */ size_t
-nsCSSFontFaceRule::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
+nsCSSFontFaceRule::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   return aMallocSizeOf(this);
 
@@ -2156,7 +2155,7 @@ nsCSSFontFeatureValuesRule::AddValueList(int32_t aVariantAlternate,
 
 size_t
 nsCSSFontFeatureValuesRule::SizeOfIncludingThis(
-  MallocSizeOf aMallocSizeOf) const
+  nsMallocSizeOfFun aMallocSizeOf) const
 {
   return aMallocSizeOf(this);
 }
@@ -2425,7 +2424,7 @@ nsCSSKeyframeRule::ChangeDeclaration(css::Declaration* aDeclaration)
 }
 
 /* virtual */ size_t
-nsCSSKeyframeRule::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
+nsCSSKeyframeRule::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   return aMallocSizeOf(this);
 
@@ -2640,7 +2639,7 @@ nsCSSKeyframesRule::UseForPresentation(nsPresContext* aPresContext,
 }
 
 /* virtual */ size_t
-nsCSSKeyframesRule::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
+nsCSSKeyframesRule::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = aMallocSizeOf(this);
   n += GroupRule::SizeOfExcludingThis(aMallocSizeOf);
@@ -2871,7 +2870,7 @@ nsCSSPageRule::ChangeDeclaration(css::Declaration* aDeclaration)
 }
 
 /* virtual */ size_t
-nsCSSPageRule::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
+nsCSSPageRule::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   return aMallocSizeOf(this);
 }
@@ -3006,7 +3005,7 @@ CSSSupportsRule::SetConditionText(const nsAString& aConditionText)
 }
 
 /* virtual */ size_t
-CSSSupportsRule::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
+CSSSupportsRule::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = aMallocSizeOf(this);
   n += css::GroupRule::SizeOfExcludingThis(aMallocSizeOf);

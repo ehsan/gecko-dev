@@ -6,7 +6,6 @@
 #ifndef GFX_DWRITEFONTLIST_H
 #define GFX_DWRITEFONTLIST_H
 
-#include "mozilla/MemoryReporting.h"
 #include "gfxDWriteCommon.h"
 
 #include "gfxFont.h"
@@ -49,9 +48,9 @@ public:
 
     void SetForceGDIClassic(bool aForce) { mForceGDIClassic = aForce; }
 
-    virtual void SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+    virtual void SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf,
                                      FontListSizes*    aSizes) const;
-    virtual void SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+    virtual void SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
                                      FontListSizes*    aSizes) const;
 
 protected:
@@ -153,9 +152,9 @@ public:
     void SetForceGDIClassic(bool aForce) { mForceGDIClassic = aForce; }
     bool GetForceGDIClassic() { return mForceGDIClassic; }
 
-    virtual void SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+    virtual void SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf,
                                      FontListSizes*    aSizes) const;
-    virtual void SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+    virtual void SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
                                      FontListSizes*    aSizes) const;
 
 protected:
@@ -366,9 +365,9 @@ public:
 
     gfxFloat GetForceGDIClassicMaxFontSize() { return mForceGDIClassicMaxFontSize; }
 
-    virtual void SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+    virtual void SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf,
                                      FontListSizes*    aSizes) const;
-    virtual void SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+    virtual void SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
                                      FontListSizes*    aSizes) const;
 
 private:

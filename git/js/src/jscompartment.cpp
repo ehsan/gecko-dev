@@ -7,7 +7,6 @@
 #include "jscompartment.h"
 
 #include "mozilla/DebugOnly.h"
-#include "mozilla/MemoryReporting.h"
 
 #include "jscntxt.h"
 #include "jsgc.h"
@@ -826,7 +825,7 @@ JSCompartment::clearTraps(FreeOp *fop)
 }
 
 void
-JSCompartment::sizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf, size_t *compartmentObject,
+JSCompartment::sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf, size_t *compartmentObject,
                                    JS::TypeInferenceSizes *tiSizes, size_t *shapesCompartmentTables,
                                    size_t *crossCompartmentWrappersArg, size_t *regexpCompartment,
                                    size_t *debuggeesSet, size_t *baselineStubsOptimized)

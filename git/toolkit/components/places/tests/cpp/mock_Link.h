@@ -11,7 +11,6 @@
 #ifndef mock_Link_h__
 #define mock_Link_h__
 
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/dom/Link.h"
 
 class mock_Link : public mozilla::dom::Link
@@ -42,7 +41,7 @@ public:
     mDeathGrip = 0;
   }
 
-  virtual size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+  virtual size_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
   {
     return 0;   // the value shouldn't matter
   }
@@ -109,7 +108,7 @@ Link::GetURI() const
 }
 
 size_t
-Link::SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+Link::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   NS_NOTREACHED("Unexpected call to Link::SizeOfExcludingThis");
   return 0;

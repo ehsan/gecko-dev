@@ -22,7 +22,6 @@
 # include <string>
 #endif  // ANDROID
 
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/Util.h"
 
 #include "jstypes.h"
@@ -107,7 +106,7 @@ NewObjectCache::clearNurseryObjects(JSRuntime *rt)
 }
 
 void
-JSRuntime::sizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf, JS::RuntimeSizes *rtSizes)
+JSRuntime::sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf, JS::RuntimeSizes *rtSizes)
 {
     rtSizes->object = mallocSizeOf(this);
 
@@ -1493,7 +1492,7 @@ JSContext::updateJITEnabled()
 }
 
 size_t
-JSContext::sizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf) const
+JSContext::sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf) const
 {
     /*
      * There are other JSContext members that could be measured; the following

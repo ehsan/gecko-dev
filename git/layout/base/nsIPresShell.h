@@ -20,7 +20,6 @@
 #ifndef nsIPresShell_h___
 #define nsIPresShell_h___
 
-#include "mozilla/MemoryReporting.h"
 #include "nsTHashtable.h"
 #include "nsHashKeys.h"
 #include "nsISupports.h"
@@ -1284,7 +1283,7 @@ public:
   virtual bool IsVisible() = 0;
   virtual void DispatchSynthMouseMove(nsGUIEvent *aEvent, bool aFlushOnHoverChange) = 0;
 
-  virtual void SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+  virtual void SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
                                    nsArenaMemoryStats *aArenaObjectsSize,
                                    size_t *aPresShellSize,
                                    size_t *aStyleSetsSize,

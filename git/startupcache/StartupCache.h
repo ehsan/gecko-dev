@@ -16,7 +16,6 @@
 #include "nsIOutputStream.h"
 #include "nsIFile.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/MemoryReporting.h"
 
 /**
  * The StartupCache is a persistent cache of simple key-value pairs,
@@ -83,7 +82,7 @@ struct CacheEntry
   {
   }
 
-  size_t SizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf) {
+  size_t SizeOfExcludingThis(nsMallocSizeOfFun mallocSizeOf) {
     return mallocSizeOf(data);
   }
 };
@@ -130,7 +129,7 @@ public:
 
   // This measures all the heap memory used by the StartupCache, i.e. it
   // excludes the mapping.
-  size_t HeapSizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf);
+  size_t HeapSizeOfIncludingThis(nsMallocSizeOfFun mallocSizeOf);
 
   size_t SizeOfMapping();
 
@@ -156,7 +155,7 @@ private:
 
   static size_t SizeOfEntryExcludingThis(const nsACString& key,
                                          const nsAutoPtr<CacheEntry>& data,
-                                         mozilla::MallocSizeOf mallocSizeOf,
+                                         nsMallocSizeOfFun mallocSizeOf,
                                          void *);
 
   nsClassHashtable<nsCStringHashKey, CacheEntry> mTable;

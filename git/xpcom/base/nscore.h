@@ -28,6 +28,12 @@
 
 #include "mozilla/NullPtr.h"
 
+/*
+ * This is for functions that are like malloc_usable_size.  Such functions are
+ * used for measuring the size of data structures.
+ */
+typedef size_t(*nsMallocSizeOfFun)(const void *p);
+
 /* Core XPCOM declarations. */
 
 /*----------------------------------------------------------------------*/

@@ -11,7 +11,6 @@
 #include "nsContentUtils.h"
 #include "nsCycleCollectionNoteRootCallback.h"
 #include "nsPrincipal.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/Preferences.h"
 
 #include "mozilla/dom/BindingUtils.h"
@@ -776,7 +775,7 @@ XPCWrappedNativeScope::DebugDump(int16_t depth)
 }
 
 size_t
-XPCWrappedNativeScope::SizeOfAllScopesIncludingThis(MallocSizeOf mallocSizeOf)
+XPCWrappedNativeScope::SizeOfAllScopesIncludingThis(nsMallocSizeOfFun mallocSizeOf)
 {
     XPCJSRuntime *rt = nsXPConnect::GetRuntimeInstance();
     XPCAutoLock lock(rt->GetMapLock());
@@ -789,7 +788,7 @@ XPCWrappedNativeScope::SizeOfAllScopesIncludingThis(MallocSizeOf mallocSizeOf)
 }
 
 size_t
-XPCWrappedNativeScope::SizeOfIncludingThis(MallocSizeOf mallocSizeOf)
+XPCWrappedNativeScope::SizeOfIncludingThis(nsMallocSizeOfFun mallocSizeOf)
 {
     size_t n = 0;
     n += mallocSizeOf(this);

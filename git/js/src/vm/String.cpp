@@ -4,9 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "vm/String-inl.h"
+#include "vm/String.h"
 
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/PodOperations.h"
 #include "mozilla/RangedPtr.h"
 
@@ -14,9 +13,7 @@
 
 #include "jscompartmentinlines.h"
 
-#ifdef JSGC_GENERATIONAL
-#include "vm/Shape-inl.h"
-#endif
+#include "String-inl.h"
 
 using namespace js;
 
@@ -43,7 +40,7 @@ JSString::isExternal() const
 }
 
 size_t
-JSString::sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf)
+JSString::sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf)
 {
     // JSRope: do nothing, we'll count all children chars when we hit the leaf strings.
     if (isRope())

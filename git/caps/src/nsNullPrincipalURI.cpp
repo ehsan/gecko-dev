@@ -4,7 +4,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/MemoryReporting.h"
 #include "nsNullPrincipalURI.h"
 #include "nsNetUtil.h"
 #include "nsEscape.h"
@@ -273,14 +272,14 @@ nsNullPrincipalURI::SchemeIs(const char *aScheme, bool *_schemeIs)
 //// nsISizeOf
 
 size_t
-nsNullPrincipalURI::SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+nsNullPrincipalURI::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   return mScheme.SizeOfExcludingThisIfUnshared(aMallocSizeOf) +
          mPath.SizeOfExcludingThisIfUnshared(aMallocSizeOf);
 }
 
 size_t
-nsNullPrincipalURI::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const {
+nsNullPrincipalURI::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const {
   return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
 }
 

@@ -63,7 +63,6 @@
 #include "nsISimpleEnumerator.h"
 #include "nsCharTraits.h"
 
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Telemetry.h"
 
@@ -424,7 +423,7 @@ MacOSFontEntry::HasFontTable(uint32_t aTableTag)
 }
 
 void
-MacOSFontEntry::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf,
+MacOSFontEntry::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
                                     FontListSizes*    aSizes) const
 {
     aSizes->mFontListSize += aMallocSizeOf(this);

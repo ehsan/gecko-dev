@@ -8,7 +8,6 @@
 #ifndef _nsDiskCacheBinding_h_
 #define _nsDiskCacheBinding_h_
 
-#include "mozilla/MemoryReporting.h"
 #include "nspr.h"
 #include "pldhash.h"
 
@@ -106,7 +105,7 @@ public:
     void                    RemoveBinding(nsDiskCacheBinding * binding);
     bool                    ActiveBindings();
 
-    size_t                 SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf);
+    size_t                 SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf);
 
 private:
     nsresult                AddBinding(nsDiskCacheBinding * binding);

@@ -3,7 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/dom/HTMLLinkElement.h"
 
 #include "mozilla/dom/HTMLLinkElementBinding.h"
@@ -405,7 +404,7 @@ HTMLLinkElement::IntrinsicState() const
 }
 
 size_t
-HTMLLinkElement::SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+HTMLLinkElement::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   return nsGenericHTMLElement::SizeOfExcludingThis(aMallocSizeOf) +
          Link::SizeOfExcludingThis(aMallocSizeOf);

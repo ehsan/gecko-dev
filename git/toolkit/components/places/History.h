@@ -8,7 +8,6 @@
 #define mozilla_places_History_h_
 
 #include "mozilla/IHistory.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/Mutex.h"
 #include "mozIAsyncHistory.h"
 #include "nsIDownloadHistory.h"
@@ -83,7 +82,7 @@ public:
    * Get the number of bytes of memory this History object is using,
    * including sizeof(*this))
    */
-  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf);
+  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf);
 
   /**
    * Obtains a pointer to this service.
@@ -193,7 +192,7 @@ private:
    * SizeOfIncludingThis().
    */
   static size_t SizeOfEntryExcludingThis(KeyClass* aEntry,
-                                         mozilla::MallocSizeOf aMallocSizeOf,
+                                         nsMallocSizeOfFun aMallocSizeOf,
                                          void*);
 
   nsTHashtable<KeyClass> mObservers;

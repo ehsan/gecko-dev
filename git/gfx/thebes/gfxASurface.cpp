@@ -8,7 +8,6 @@
 #include "mozilla/Base64.h"
 #include "mozilla/CheckedInt.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/MemoryReporting.h"
 
 #include "gfxASurface.h"
 #include "gfxContext.h"
@@ -672,14 +671,14 @@ gfxASurface::RecordMemoryFreed()
 }
 
 size_t
-gfxASurface::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const
+gfxASurface::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
     // We don't measure mSurface because cairo doesn't allow it.
     return 0;
 }
 
 size_t
-gfxASurface::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
+gfxASurface::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
     return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
 }

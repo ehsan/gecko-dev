@@ -1635,9 +1635,8 @@ nsSVGUtils::GetStrokeWidth(nsIFrame* aFrame, gfxTextObjectPaint *aObjectPaint)
 }
 
 void
-nsSVGUtils::SetupCairoStrokeBBoxGeometry(nsIFrame* aFrame,
-                                         gfxContext *aContext,
-                                         gfxTextObjectPaint *aObjectPaint)
+nsSVGUtils::SetupCairoStrokeGeometry(nsIFrame* aFrame, gfxContext *aContext,
+                                     gfxTextObjectPaint *aObjectPaint)
 {
   float width = GetStrokeWidth(aFrame, aObjectPaint);
   if (width <= 0)
@@ -1741,10 +1740,10 @@ GetStrokeDashData(nsIFrame* aFrame,
 }
 
 void
-nsSVGUtils::SetupCairoStrokeGeometry(nsIFrame* aFrame, gfxContext* aContext,
-                                     gfxTextObjectPaint *aObjectPaint)
+nsSVGUtils::SetupCairoStrokeHitGeometry(nsIFrame* aFrame, gfxContext* aContext,
+                                        gfxTextObjectPaint *aObjectPaint)
 {
-  SetupCairoStrokeBBoxGeometry(aFrame, aContext, aObjectPaint);
+  SetupCairoStrokeGeometry(aFrame, aContext, aObjectPaint);
 
   AutoFallibleTArray<gfxFloat, 10> dashes;
   gfxFloat dashOffset;
@@ -1819,7 +1818,7 @@ nsSVGUtils::SetupCairoStroke(nsIFrame* aFrame, gfxContext* aContext,
   if (!HasStroke(aFrame, aObjectPaint)) {
     return false;
   }
-  SetupCairoStrokeGeometry(aFrame, aContext, aObjectPaint);
+  SetupCairoStrokeHitGeometry(aFrame, aContext, aObjectPaint);
 
   return SetupCairoStrokePaint(aFrame, aContext, aObjectPaint);
 }

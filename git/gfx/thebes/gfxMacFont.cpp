@@ -3,7 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/MemoryReporting.h"
 #include "gfxMacFont.h"
 #include "gfxCoreTextShaper.h"
 #include "gfxHarfBuzzShaper.h"
@@ -411,7 +410,7 @@ gfxMacFont::GetScaledFont(DrawTarget *aTarget)
 }
 
 void
-gfxMacFont::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf,
+gfxMacFont::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf,
                                 FontCacheSizes*   aSizes) const
 {
     gfxFont::SizeOfExcludingThis(aMallocSizeOf, aSizes);
@@ -420,7 +419,7 @@ gfxMacFont::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf,
 }
 
 void
-gfxMacFont::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf,
+gfxMacFont::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
                                 FontCacheSizes*   aSizes) const
 {
     aSizes->mFontInstances += aMallocSizeOf(this);

@@ -55,7 +55,6 @@
 // traversed.
 
 #include "mozilla/CycleCollectedJSRuntime.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/dom/BindingUtils.h"
 #include "mozilla/dom/DOMJSClass.h"
 #include "jsfriendapi.h"
@@ -481,7 +480,7 @@ CycleCollectedJSRuntime::~CycleCollectedJSRuntime()
 }
 
 size_t
-CycleCollectedJSRuntime::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const
+CycleCollectedJSRuntime::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = 0;
 

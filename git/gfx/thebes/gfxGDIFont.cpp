@@ -3,7 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/MemoryReporting.h"
 #include "gfxGDIFont.h"
 #include "gfxGDIShaper.h"
 #include "gfxUniscribeShaper.h"
@@ -552,7 +551,7 @@ gfxGDIFont::GetGlyphWidth(gfxContext *aCtx, uint16_t aGID)
 }
 
 void
-gfxGDIFont::SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+gfxGDIFont::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf,
                                 FontCacheSizes*   aSizes) const
 {
     gfxFont::SizeOfExcludingThis(aMallocSizeOf, aSizes);
@@ -561,7 +560,7 @@ gfxGDIFont::SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf,
 }
 
 void
-gfxGDIFont::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+gfxGDIFont::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
                                 FontCacheSizes*   aSizes) const
 {
     aSizes->mFontInstances += aMallocSizeOf(this);

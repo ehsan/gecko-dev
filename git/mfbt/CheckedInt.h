@@ -604,7 +604,7 @@ class CheckedInt
                         "This type is not supported by CheckedInt");
     }
 
-    friend struct detail::NegateImpl<T>;
+    friend class detail::NegateImpl<T>;
 
   public:
     /**

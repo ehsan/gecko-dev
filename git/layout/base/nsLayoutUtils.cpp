@@ -5,7 +5,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "base/basictypes.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/Util.h"
 
 #include "nsLayoutUtils.h"
@@ -711,17 +710,6 @@ nsLayoutUtils::GetStyleFrame(nsIFrame* aFrame)
   }
 
   return aFrame;
-}
-
-nsIFrame*
-nsLayoutUtils::GetStyleFrame(const nsIContent* aContent)
-{
-  nsIFrame *frame = aContent->GetPrimaryFrame();
-  if (!frame) {
-    return nullptr;
-  }
-
-  return nsLayoutUtils::GetStyleFrame(frame);
 }
 
 nsIFrame*
@@ -4889,7 +4877,7 @@ nsLayoutUtils::GetFontFacesForText(nsIFrame* aFrame,
 /* static */
 size_t
 nsLayoutUtils::SizeOfTextRunsForFrames(nsIFrame* aFrame,
-                                       MallocSizeOf aMallocSizeOf,
+                                       nsMallocSizeOfFun aMallocSizeOf,
                                        bool clear)
 {
   NS_PRECONDITION(aFrame, "NULL frame pointer");

@@ -258,9 +258,8 @@ enum VarContext { HoistVars, DontHoistVars };
 enum FunctionType { Getter, Setter, Normal };
 
 template <typename ParseHandler>
-class Parser : private AutoGCRooter, public StrictModeGetter
+struct Parser : private AutoGCRooter, public StrictModeGetter
 {
-  public:
     JSContext           *const context; /* FIXME Bug 551291: use AutoGCRooter::context? */
     TokenStream         tokenStream;
     LifoAlloc::Mark     tempPoolMark;

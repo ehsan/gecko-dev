@@ -8,7 +8,6 @@
 #define mozilla_imagelib_FrameBlender_h_
 
 #include "nsTArray.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/TimeStamp.h"
 #include "gfxASurface.h"
 
@@ -58,7 +57,7 @@ public:
   void SetSize(nsIntSize aSize) { mSize = aSize; }
 
   size_t SizeOfDecodedWithComputedFallbackIfHeap(gfxASurface::MemoryLocation aLocation,
-                                                 mozilla::MallocSizeOf aMallocSizeOf) const;
+                                                 nsMallocSizeOfFun aMallocSizeOf) const;
 
   void ResetAnimation();
 

@@ -12,7 +12,6 @@
 
 #include <string.h>
 
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/PodOperations.h"
 
 #include "jstypes.h"
@@ -1357,7 +1356,7 @@ ScriptSource::destroy()
 }
 
 size_t
-ScriptSource::sizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf)
+ScriptSource::sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf)
 {
     // |data| is a union, but both members are pointers to allocated memory,
     // |emptySource|, or NULL, so just using |data.compressed| will work.
@@ -1954,7 +1953,7 @@ JSScript::computedSizeOfData()
 }
 
 size_t
-JSScript::sizeOfData(mozilla::MallocSizeOf mallocSizeOf)
+JSScript::sizeOfData(JSMallocSizeOfFun mallocSizeOf)
 {
     return mallocSizeOf(data);
 }

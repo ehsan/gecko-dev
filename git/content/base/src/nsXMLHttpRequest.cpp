@@ -4,7 +4,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/Util.h"
 
 #include "nsXMLHttpRequest.h"
@@ -535,7 +534,7 @@ nsXMLHttpRequest::DisconnectFromOwner()
 
 size_t
 nsXMLHttpRequest::SizeOfEventTargetIncludingThis(
-  MallocSizeOf aMallocSizeOf) const
+  nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = aMallocSizeOf(this);
   n += mResponseBody.SizeOfExcludingThisIfUnshared(aMallocSizeOf);

@@ -10,7 +10,6 @@
 #include "pldhash.h"
 #include "nsDebug.h"
 #include NEW_H
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/fallible.h"
 
 // helper function for nsTHashtable::Clear()
@@ -257,7 +256,7 @@ public:
    * @return    summed size of the things pointed to by the entries
    */
   typedef size_t (* SizeOfEntryExcludingThisFun)(EntryType* aEntry,
-                                                 mozilla::MallocSizeOf mallocSizeOf,
+                                                 nsMallocSizeOfFun mallocSizeOf,
                                                  void *arg);
 
   /**
@@ -273,7 +272,7 @@ public:
    * @return    the summed size of all the entries
    */
   size_t SizeOfExcludingThis(SizeOfEntryExcludingThisFun sizeOfEntryExcludingThis,
-                             mozilla::MallocSizeOf mallocSizeOf, void *userArg = NULL) const
+                             nsMallocSizeOfFun mallocSizeOf, void *userArg = NULL) const
   {
     if (!IsInitialized()) {
       return 0;
@@ -356,7 +355,7 @@ protected:
   };
   
   static size_t s_SizeOfStub(PLDHashEntryHdr *entry,
-                             mozilla::MallocSizeOf mallocSizeOf,
+                             nsMallocSizeOfFun mallocSizeOf,
                              void *arg);
 
 private:
@@ -490,7 +489,7 @@ nsTHashtable<EntryType>::s_EnumStub(PLDHashTable    *table,
 template<class EntryType>
 size_t
 nsTHashtable<EntryType>::s_SizeOfStub(PLDHashEntryHdr *entry,
-                                      mozilla::MallocSizeOf mallocSizeOf,
+                                      nsMallocSizeOfFun mallocSizeOf,
                                       void *arg)
 {
   // dereferences the function-pointer to the user's enumeration function

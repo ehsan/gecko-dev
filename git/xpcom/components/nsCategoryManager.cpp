@@ -28,7 +28,6 @@
 #include "nsQuickSort.h"
 #include "nsEnumeratorUtils.h"
 #include "nsThreadUtils.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/Services.h"
 
 #include "ManifestParser.h"
@@ -313,7 +312,7 @@ CategoryNode::Enumerate(nsISimpleEnumerator **_retval)
 }
 
 size_t
-CategoryNode::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf)
+CategoryNode::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf)
 {
     // We don't measure the strings pointed to by the entries because the
     // pointers are non-owning.
@@ -500,7 +499,7 @@ nsCategoryManager::GetCategoryManagerSize()
 static size_t
 SizeOfCategoryManagerTableEntryExcludingThis(nsDepCharHashKey::KeyType aKey,
                                              const nsAutoPtr<CategoryNode> &aData,
-                                             MallocSizeOf aMallocSizeOf,
+                                             nsMallocSizeOfFun aMallocSizeOf,
                                              void* aUserArg)
 {
     // We don't measure the string pointed to by aKey because it's a non-owning
@@ -509,7 +508,7 @@ SizeOfCategoryManagerTableEntryExcludingThis(nsDepCharHashKey::KeyType aKey,
 }
 
 size_t
-nsCategoryManager::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf)
+nsCategoryManager::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf)
 {
   size_t n = aMallocSizeOf(this);
 

@@ -23,7 +23,6 @@
 #include "nsIAtom.h"
 #include "pldhash.h"
 #include "nsICSSPseudoComparator.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/css/StyleRule.h"
 #include "mozilla/css/GroupRule.h"
 #include "nsIDocument.h"
@@ -457,8 +456,8 @@ public:
   void EnumerateAllRules(Element* aElement, ElementDependentRuleProcessorData* aData,
                          NodeMatchContext& aNodeMatchContext);
 
-  size_t SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const;
-  size_t SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const;
+  size_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
+  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
 protected:
   typedef nsTArray<RuleValue> RuleValueList;
@@ -795,14 +794,14 @@ void RuleHash::EnumerateAllRules(Element* aElement, ElementDependentRuleProcesso
 }
 
 static size_t
-SizeOfRuleHashTableEntry(PLDHashEntryHdr* aHdr, MallocSizeOf aMallocSizeOf, void *)
+SizeOfRuleHashTableEntry(PLDHashEntryHdr* aHdr, nsMallocSizeOfFun aMallocSizeOf, void *)
 {
   RuleHashTableEntry* entry = static_cast<RuleHashTableEntry*>(aHdr);
   return entry->mRules.SizeOfExcludingThis(aMallocSizeOf);
 }
 
 size_t
-RuleHash::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const
+RuleHash::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = 0;
 
@@ -836,7 +835,7 @@ RuleHash::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const
 }
 
 size_t
-RuleHash::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
+RuleHash::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
 }
@@ -960,7 +959,7 @@ struct RuleCascadeData {
     }
   }
 
-  size_t SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const;
+  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
   RuleHash                 mRuleHash;
   RuleHash*
@@ -993,14 +992,14 @@ struct RuleCascadeData {
 };
 
 static size_t
-SizeOfSelectorsEntry(PLDHashEntryHdr* aHdr, MallocSizeOf aMallocSizeOf, void *)
+SizeOfSelectorsEntry(PLDHashEntryHdr* aHdr, nsMallocSizeOfFun aMallocSizeOf, void *)
 {
   AtomSelectorEntry* entry = static_cast<AtomSelectorEntry*>(aHdr);
   return entry->mSelectors.SizeOfExcludingThis(aMallocSizeOf);
 }
 
 size_t
-RuleCascadeData::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
+RuleCascadeData::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = aMallocSizeOf(this);
 
@@ -2701,7 +2700,7 @@ nsCSSRuleProcessor::MediumFeaturesChanged(nsPresContext* aPresContext)
 }
 
 /* virtual */ size_t
-nsCSSRuleProcessor::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const
+nsCSSRuleProcessor::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   size_t n = 0;
   n += mSheets.SizeOfExcludingThis(aMallocSizeOf);
@@ -2714,7 +2713,7 @@ nsCSSRuleProcessor::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const
 }
 
 /* virtual */ size_t
-nsCSSRuleProcessor::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
+nsCSSRuleProcessor::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
 }

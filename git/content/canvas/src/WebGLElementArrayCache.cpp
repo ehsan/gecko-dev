@@ -7,7 +7,6 @@
 
 #include "nsTArray.h"
 #include "mozilla/Assertions.h"
-#include "mozilla/MemoryReporting.h"
 
 #include <cstdlib>
 #include <cstring>
@@ -307,7 +306,7 @@ public:
 
   void Update();
 
-  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
   {
     return aMallocSizeOf(this) + mTreeData.SizeOfExcludingThis(aMallocSizeOf);
   }
@@ -559,7 +558,7 @@ bool WebGLElementArrayCache::Validate(GLenum type, uint32_t maxAllowed, size_t f
   return false;
 }
 
-size_t WebGLElementArrayCache::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const {
+size_t WebGLElementArrayCache::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const {
   size_t uint8TreeSize  = mUint8Tree  ? mUint8Tree->SizeOfIncludingThis(aMallocSizeOf) : 0;
   size_t uint16TreeSize = mUint16Tree ? mUint16Tree->SizeOfIncludingThis(aMallocSizeOf) : 0;
   size_t uint32TreeSize = mUint32Tree ? mUint32Tree->SizeOfIncludingThis(aMallocSizeOf) : 0;

@@ -10,7 +10,6 @@
 #define nsCSSStyleSheet_h_
 
 #include "mozilla/Attributes.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/dom/Element.h"
 
 #include "nscore.h"
@@ -67,7 +66,7 @@ private:
   // Create a new namespace map
   nsresult CreateNamespaceMap();
 
-  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
   nsAutoTArray<nsCSSStyleSheet*, 8> mSheets;
   nsCOMPtr<nsIURI>       mSheetURI; // for error reports, etc.
@@ -244,7 +243,7 @@ public:
   // list after we clone a unique inner for ourselves.
   static bool RebuildChildList(mozilla::css::Rule* aRule, void* aBuilder);
 
-  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const MOZ_OVERRIDE;
+  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const MOZ_OVERRIDE;
 
   // Get this style sheet's CORS mode
   mozilla::CORSMode GetCORSMode() const { return mInner->mCORSMode; }

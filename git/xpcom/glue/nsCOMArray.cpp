@@ -3,7 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/MemoryReporting.h"
 #include "nsCOMArray.h"
 #include "nsCOMPtr.h"
 
@@ -265,7 +264,7 @@ nsCOMArray_base::SetCount(int32_t aNewCount)
 size_t
 nsCOMArray_base::SizeOfExcludingThis(
                    nsBaseArraySizeOfElementIncludingThisFunc aSizeOfElementIncludingThis,
-                   mozilla::MallocSizeOf aMallocSizeOf, void* aData) const
+                   nsMallocSizeOfFun aMallocSizeOf, void* aData) const
 {
     size_t n = mArray.SizeOfExcludingThis(aMallocSizeOf);
 

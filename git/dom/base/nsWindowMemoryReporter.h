@@ -12,7 +12,6 @@
 #include "nsDataHashtable.h"
 #include "nsWeakReference.h"
 #include "nsAutoPtr.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/TimeStamp.h"
 #include "nsArenaMemoryStats.h"
 #include "mozilla/Attributes.h"
@@ -22,15 +21,15 @@
 // SizeOfExcludingThis from its super-class.  SizeOfIncludingThis() need not be
 // defined, it is inherited from nsINode.
 #define NS_DECL_SIZEOF_EXCLUDING_THIS \
-  virtual size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+  virtual size_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
 class nsWindowSizes {
 public:
-  nsWindowSizes(mozilla::MallocSizeOf aMallocSizeOf) {
+  nsWindowSizes(nsMallocSizeOfFun aMallocSizeOf) {
     memset(this, 0, sizeof(nsWindowSizes));
     mMallocSizeOf = aMallocSizeOf;
   }
-  mozilla::MallocSizeOf mMallocSizeOf;
+  nsMallocSizeOfFun mMallocSizeOf;
   nsArenaMemoryStats mArenaStats;
   size_t mDOMElementNodes;
   size_t mDOMTextNodes;

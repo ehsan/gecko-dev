@@ -18,7 +18,6 @@
 #include "nsTObserverArray.h"
 #include "nsGUIEvent.h"
 #include "nsIJSEventListener.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/dom/EventTarget.h"
 #include "mozilla/dom/EventListenerBinding.h"
 
@@ -401,7 +400,7 @@ public:
 
   bool MayHaveMouseEnterLeaveEventListener() { return mMayHaveMouseEnterLeaveEventListener; }
 
-  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
 
   void MarkForCC();
 

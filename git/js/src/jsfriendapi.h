@@ -7,8 +7,6 @@
 #ifndef jsfriendapi_h
 #define jsfriendapi_h
 
-#include "mozilla/MemoryReporting.h"
-
 #include "jsclass.h"
 #include "jspubtd.h"
 #include "jsprvtd.h"
@@ -309,7 +307,7 @@ IterateGrayObjects(JS::Zone *zone, GCThingCallback cellCallback, void *data);
 
 #ifdef JS_HAS_CTYPES
 extern JS_FRIEND_API(size_t)
-SizeOfDataIfCDataObject(mozilla::MallocSizeOf mallocSizeOf, JSObject *obj);
+SizeOfDataIfCDataObject(JSMallocSizeOfFun mallocSizeOf, JSObject *obj);
 #endif
 
 extern JS_FRIEND_API(JSCompartment *)

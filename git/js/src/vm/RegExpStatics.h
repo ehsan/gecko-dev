@@ -7,8 +7,6 @@
 #ifndef vm_RegExpStatics_h
 #define vm_RegExpStatics_h
 
-#include "mozilla/MemoryReporting.h"
-
 #include <stddef.h>
 
 #include "jspubtd.h"
@@ -20,7 +18,7 @@ namespace js {
 class PreserveRegExpStatics;
 class RegExpStatics;
 
-size_t SizeOfRegExpStaticsData(const JSObject *obj, mozilla::MallocSizeOf mallocSizeOf);
+size_t SizeOfRegExpStaticsData(const JSObject *obj, JSMallocSizeOfFun mallocSizeOf);
 
 } /* namespace js */
 

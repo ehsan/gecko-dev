@@ -13,11 +13,9 @@
 # error "Generational GC requires exact rooting."
 #endif
 
-#include "jsalloc.h"
 #include "jsgc.h"
+#include "jsalloc.h"
 #include "jsobj.h"
-
-#include "gc/Nursery.h"
 
 namespace js {
 namespace gc {

@@ -4,7 +4,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/dom/HTMLAreaElement.h"
 #include "mozilla/dom/HTMLAreaElementBinding.h"
 #include "base/compiler_specific.h"
@@ -233,7 +232,7 @@ HTMLAreaElement::IntrinsicState() const
 }
 
 size_t
-HTMLAreaElement::SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+HTMLAreaElement::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
 {
   return nsGenericHTMLElement::SizeOfExcludingThis(aMallocSizeOf) +
          Link::SizeOfExcludingThis(aMallocSizeOf);

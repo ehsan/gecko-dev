@@ -9,7 +9,6 @@
 
 #include "mozilla/Attributes.h"
 #include "mozilla/GuardObjects.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/Util.h"
 
 #include "jscntxt.h"
@@ -260,7 +259,7 @@ struct Zone : private JS::shadow::Zone,
 
     void discardJitCode(js::FreeOp *fop, bool discardConstraints);
 
-    void sizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf, size_t *typePool);
+    void sizeOfIncludingThis(JSMallocSizeOfFun mallocSizeOf, size_t *typePool);
 
     void setGCLastBytes(size_t lastBytes, js::JSGCInvocationKind gckind);
     void reduceGCTriggerBytes(size_t amount);

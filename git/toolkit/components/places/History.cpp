@@ -6,7 +6,6 @@
 
 #include "mozilla/Attributes.h"
 #include "mozilla/DebugOnly.h"
-#include "mozilla/MemoryReporting.h"
 #include "mozilla/Util.h"
 
 #include "mozilla/dom/ContentChild.h"
@@ -2222,13 +2221,13 @@ History::FetchPageInfo(VisitData& _place, bool* _exists)
 }
 
 /* static */ size_t
-History::SizeOfEntryExcludingThis(KeyClass* aEntry, mozilla::MallocSizeOf aMallocSizeOf, void *)
+History::SizeOfEntryExcludingThis(KeyClass* aEntry, nsMallocSizeOfFun aMallocSizeOf, void *)
 {
   return aEntry->array.SizeOfExcludingThis(aMallocSizeOf);
 }
 
 size_t
-History::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOfThis)
+History::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOfThis)
 {
   return aMallocSizeOfThis(this) +
          mObservers.SizeOfExcludingThis(SizeOfEntryExcludingThis, aMallocSizeOfThis);
