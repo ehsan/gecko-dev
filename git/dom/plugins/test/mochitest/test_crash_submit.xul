@@ -18,6 +18,7 @@
 <script class="testbody" type="application/javascript">
 <![CDATA[
 SimpleTest.waitForExplicitFinish();
+SimpleTest.expectChildProcessCrash();
 
 Components.utils.import("resource://gre/modules/NetUtil.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
