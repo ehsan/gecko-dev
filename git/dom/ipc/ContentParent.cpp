@@ -26,6 +26,7 @@
 #include "IndexedDatabaseManager.h"
 #include "mozIApplication.h"
 #include "mozilla/ClearOnShutdown.h"
+#include "mozilla/dom/asmjscache/AsmJSCache.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/dom/ExternalHelperAppParent.h"
 #include "mozilla/dom/PMemoryReportRequestParent.h"
@@ -2448,6 +2449,22 @@ ContentParent::DeallocPFMRadioParent(PFMRadioParent* aActor)
 #endif
 }
 
+asmjscache::PAsmJSCacheEntryParent*
+ContentParent::AllocPAsmJSCacheEntryParent(
+                                          const asmjscache::OpenMode& aOpenMode,
+                                          const int64_t& aSizeToWrite,
+                                          const IPC::Principal& aPrincipal)
+{
+  return asmjscache::AllocEntryParent(aOpenMode, aSizeToWrite, aPrincipal);
+}
+
+bool
+ContentParent::DeallocPAsmJSCacheEntryParent(PAsmJSCacheEntryParent* aActor)
+{
+  asmjscache::DeallocEntryParent(aActor);
+  return true;
+}
+
 PSpeechSynthesisParent*
 ContentParent::AllocPSpeechSynthesisParent()
 {
@@ -2741,7 +2758,8 @@ ContentParent::RecvSyncMessage(const nsString& aMsg,
                                InfallibleTArray<nsString>* aRetvals)
 {
   nsIPrincipal* principal = aPrincipal;
-  if (principal && !AssertAppPrincipal(this, principal)) {
+  if (!Preferences::GetBool("geo.testing.ignore_ipc_principal", false) &&
+      principal && !AssertAppPrincipal(this, principal)) {
     return false;
   }
 
@@ -2764,7 +2782,8 @@ ContentParent::AnswerRpcMessage(const nsString& aMsg,
                                 InfallibleTArray<nsString>* aRetvals)
 {
   nsIPrincipal* principal = aPrincipal;
-  if (principal && !AssertAppPrincipal(this, principal)) {
+  if (!Preferences::GetBool("geo.testing.ignore_ipc_principal", false) &&
+      principal && !AssertAppPrincipal(this, principal)) {
     return false;
   }
 
@@ -2785,7 +2804,8 @@ ContentParent::RecvAsyncMessage(const nsString& aMsg,
                                 const IPC::Principal& aPrincipal)
 {
   nsIPrincipal* principal = aPrincipal;
-  if (principal && !AssertAppPrincipal(this, principal)) {
+  if (!Preferences::GetBool("geo.testing.ignore_ipc_principal", false) &&
+      principal && !AssertAppPrincipal(this, principal)) {
     return false;
   }
 

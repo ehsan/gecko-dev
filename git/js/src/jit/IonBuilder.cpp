@@ -148,11 +148,12 @@ IonBuilder::clearForBackEnd()
     JS_ASSERT(!analysisContext);
     baselineFrame_ = nullptr;
 
-    // The GSN cache allocates data from the malloc heap. Release this before
+    // The caches below allocate data from the malloc heap. Release this before
     // later phases of compilation to avoid leaks, as the top level IonBuilder
     // is not explicitly destroyed. Note that builders for inner scripts are
     // constructed on the stack and will release this memory on destruction.
     gsn.purge();
+    scopeCoordinateNameCache.purge();
 }
 
 bool
@@ -3552,7 +3553,7 @@ IonBuilder::processReturn(JSOp op)
     MReturn *ret = MReturn::New(alloc(), def);
     current->end(ret);
 
-    if (!graph().addExit(current))
+    if (!graph().addReturn(current))
         return ControlStatus_Error;
 
     // Make sure no one tries to use this block now.
@@ -3563,10 +3564,6 @@ IonBuilder::processReturn(JSOp op)
 IonBuilder::ControlStatus
 IonBuilder::processThrow()
 {
-    // JSOP_THROW can't be compiled within inlined frames.
-    if (isInlineBuilder())
-        return ControlStatus_Abort;
-
     MDefinition *def = current->pop();
 
     if (graph().hasTryBlock()) {
@@ -3600,9 +3597,6 @@ IonBuilder::processThrow()
 
     MThrow *ins = MThrow::New(alloc(), def);
     current->end(ins);
-
-    if (!graph().addExit(current))
-        return ControlStatus_Error;
 
     // Make sure no one tries to use this block now.
     setCurrent(nullptr);
@@ -3788,20 +3782,20 @@ IonBuilder::jsop_notearg()
     return true;
 }
 
-class AutoAccumulateExits
+class AutoAccumulateReturns
 {
     MIRGraph &graph_;
-    MIRGraphExits *prev_;
+    MIRGraphReturns *prev_;
 
   public:
-    AutoAccumulateExits(MIRGraph &graph, MIRGraphExits &exits)
+    AutoAccumulateReturns(MIRGraph &graph, MIRGraphReturns &returns)
       : graph_(graph)
     {
-        prev_ = graph_.exitAccumulator();
-        graph_.setExitAccumulator(&exits);
+        prev_ = graph_.returnAccumulator();
+        graph_.setReturnAccumulator(&returns);
     }
-    ~AutoAccumulateExits() {
-        graph_.setExitAccumulator(prev_);
+    ~AutoAccumulateReturns() {
+        graph_.setReturnAccumulator(prev_);
     }
 };
 
@@ -3867,8 +3861,8 @@ IonBuilder::inlineScriptedCall(CallInfo &callInfo, JSFunction *target)
     if (!info)
         return false;
 
-    MIRGraphExits saveExits(alloc());
-    AutoAccumulateExits aae(graph(), saveExits);
+    MIRGraphReturns returns(alloc());
+    AutoAccumulateReturns aar(graph(), returns);
 
     // Build the graph.
     JS_ASSERT_IF(analysisContext, !analysisContext->isExceptionPending());
@@ -3910,14 +3904,13 @@ IonBuilder::inlineScriptedCall(CallInfo &callInfo, JSFunction *target)
     returnBlock->pop();
 
     // Accumulate return values.
-    MIRGraphExits &exits = *inlineBuilder.graph().exitAccumulator();
-    if (exits.length() == 0) {
+    if (returns.length() == 0) {
         // Inlining of functions that have no exit is not supported.
         calleeScript->uninlineable = true;
         abortReason_ = AbortReason_Inlining;
         return false;
     }
-    MDefinition *retvalDefn = patchInlinedReturns(callInfo, exits, returnBlock);
+    MDefinition *retvalDefn = patchInlinedReturns(callInfo, returns, returnBlock);
     if (!retvalDefn)
         return false;
     returnBlock->push(retvalDefn);
@@ -3962,22 +3955,22 @@ IonBuilder::patchInlinedReturn(CallInfo &callInfo, MBasicBlock *exit, MBasicBloc
 }
 
 MDefinition *
-IonBuilder::patchInlinedReturns(CallInfo &callInfo, MIRGraphExits &exits, MBasicBlock *bottom)
+IonBuilder::patchInlinedReturns(CallInfo &callInfo, MIRGraphReturns &returns, MBasicBlock *bottom)
 {
     // Replaces MReturns with MGotos, returning the MDefinition
     // representing the return value, or nullptr.
-    JS_ASSERT(exits.length() > 0);
+    JS_ASSERT(returns.length() > 0);
 
-    if (exits.length() == 1)
-        return patchInlinedReturn(callInfo, exits[0], bottom);
+    if (returns.length() == 1)
+        return patchInlinedReturn(callInfo, returns[0], bottom);
 
     // Accumulate multiple returns with a phi.
     MPhi *phi = MPhi::New(alloc(), bottom->stackDepth());
-    if (!phi->reserveLength(exits.length()))
+    if (!phi->reserveLength(returns.length()))
         return nullptr;
 
-    for (size_t i = 0; i < exits.length(); i++) {
-        MDefinition *rdef = patchInlinedReturn(callInfo, exits[i], bottom);
+    for (size_t i = 0; i < returns.length(); i++) {
+        MDefinition *rdef = patchInlinedReturn(callInfo, returns[i], bottom);
         if (!rdef)
             return nullptr;
         phi->addInput(rdef);
@@ -4053,22 +4046,13 @@ IonBuilder::makeInliningDecision(JSFunction *target, CallInfo &callInfo)
             return false;
         }
 
-        // Caller must be... somewhat hot. Ignore use counts when inlining for
-        // the definite properties analysis, as the caller has not run yet.
-        uint32_t callerUses = script()->getUseCount();
-        if (callerUses < js_IonOptions.usesBeforeInlining() &&
+        // Callee must have been called a few times to have somewhat stable
+        // type information, except for definite properties analysis,
+        // as the caller has not run yet.
+        if (targetScript->getUseCount() < js_IonOptions.usesBeforeInlining() &&
             info().executionMode() != DefinitePropertiesAnalysis)
         {
-            IonSpew(IonSpew_Inlining, "%s:%d - Vetoed: caller is insufficiently hot.",
-                    targetScript->filename(), targetScript->lineno);
-            return false;
-        }
-
-        // Callee must be hot relative to the caller.
-        if (targetScript->getUseCount() * js_IonOptions.inlineUseCountRatio < callerUses &&
-            info().executionMode() != DefinitePropertiesAnalysis)
-        {
-            IonSpew(IonSpew_Inlining, "%s:%d - Vetoed: callee is not hot.",
+            IonSpew(IonSpew_Inlining, "%s:%d - Vetoed: callee is insufficiently hot.",
                     targetScript->filename(), targetScript->lineno);
             return false;
         }
@@ -9388,7 +9372,7 @@ IonBuilder::jsop_getaliasedvar(ScopeCoordinate sc)
 {
     JSObject *call = nullptr;
     if (hasStaticScopeObject(sc, &call) && call) {
-        PropertyName *name = ScopeCoordinateName(script(), pc);
+        PropertyName *name = ScopeCoordinateName(scopeCoordinateNameCache, script(), pc);
         bool succeeded;
         if (!getStaticName(call, name, &succeeded))
             return false;
@@ -9428,7 +9412,7 @@ IonBuilder::jsop_setaliasedvar(ScopeCoordinate sc)
                 return false;
         }
         MDefinition *value = current->pop();
-        PropertyName *name = ScopeCoordinateName(script(), pc);
+        PropertyName *name = ScopeCoordinateName(scopeCoordinateNameCache, script(), pc);
 
         if (call) {
             // Push the object on the stack to match the bound object expected in
@@ -9729,7 +9713,8 @@ IonBuilder::loadTypedObjectElements(MDefinition *typedObj,
 
     // Scale to a different unit for compat with typed array MIRs.
     if (unit != 1) {
-        MDiv *scaledOffset = MDiv::NewAsmJS(alloc(), ownerOffset, constantInt(unit), MIRType_Int32);
+        MDiv *scaledOffset = MDiv::NewAsmJS(alloc(), ownerOffset, constantInt(unit), MIRType_Int32,
+                                            /* unsignd = */ false);
         current->add(scaledOffset);
         *ownerScaledOffset = scaledOffset;
     } else {
