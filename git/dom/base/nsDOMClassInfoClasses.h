@@ -12,9 +12,6 @@ DOMCI_CLASS(MimeType)
 DOMCI_CLASS(MimeTypeArray)
 DOMCI_CLASS(BarProp)
 DOMCI_CLASS(History)
-DOMCI_CLASS(PerformanceTiming)
-DOMCI_CLASS(PerformanceNavigation)
-DOMCI_CLASS(Performance)
 DOMCI_CLASS(Screen)
 DOMCI_CLASS(DOMPrototype)
 DOMCI_CLASS(DOMConstructor)
@@ -526,11 +523,15 @@ DOMCI_CLASS(MozWifiConnectionInfoEvent)
 DOMCI_CLASS(Telephony)
 DOMCI_CLASS(TelephonyCall)
 DOMCI_CLASS(CallEvent)
+DOMCI_CLASS(MozVoicemail)
+DOMCI_CLASS(MozVoicemailEvent)
 #endif
 
 #ifdef MOZ_B2G_BT
 DOMCI_CLASS(BluetoothManager)
 DOMCI_CLASS(BluetoothAdapter)
+DOMCI_CLASS(BluetoothDevice)
+DOMCI_CLASS(BluetoothDeviceEvent)
 #endif
 
 DOMCI_CLASS(DOMError)

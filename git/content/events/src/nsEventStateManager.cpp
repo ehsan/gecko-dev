@@ -266,6 +266,7 @@ enum {
 #define NS_MODIFIER_CONTROL  2
 #define NS_MODIFIER_ALT      4
 #define NS_MODIFIER_META     8
+#define NS_MODIFIER_OS       16
 
 static nsIDocument *
 GetDocumentFromWindow(nsIDOMWindow *aWindow)
@@ -290,6 +291,7 @@ GetAccessModifierMaskFromPref(PRInt32 aItemType)
     case nsIDOMKeyEvent::DOM_VK_CONTROL: return NS_MODIFIER_CONTROL;
     case nsIDOMKeyEvent::DOM_VK_ALT:     return NS_MODIFIER_ALT;
     case nsIDOMKeyEvent::DOM_VK_META:    return NS_MODIFIER_META;
+    case nsIDOMKeyEvent::DOM_VK_WIN:     return NS_MODIFIER_OS;
     default:                             return 0;
   }
 
@@ -1167,6 +1169,8 @@ nsEventStateManager::PreHandleEvent(nsPresContext* aPresContext,
         modifierMask |= NS_MODIFIER_ALT;
       if (keyEvent->IsMeta())
         modifierMask |= NS_MODIFIER_META;
+      if (keyEvent->IsOS())
+        modifierMask |= NS_MODIFIER_OS;
 
       // Prevent keyboard scrolling while an accesskey modifier is in use.
       if (modifierMask && (modifierMask == sChromeAccessModifier ||
@@ -1524,6 +1528,10 @@ nsEventStateManager::GetAccessKeyLabelPrefix(nsAString& aPrefix)
     nsContentUtils::GetMetaText(modifierText);
     aPrefix.Append(modifierText + separator);
   }
+  if (modifier & NS_MODIFIER_OS) {
+    nsContentUtils::GetOSText(modifierText);
+    aPrefix.Append(modifierText + separator);
+  }
   if (modifier & NS_MODIFIER_ALT) {
     nsContentUtils::GetAltText(modifierText);
     aPrefix.Append(modifierText + separator);
@@ -1635,28 +1643,40 @@ nsEventStateManager::HandleAccessKey(nsPresContext* aPresContext,
   }// if end. bubble up process
 }// end of HandleAccessKey
 
-void
-nsEventStateManager::DispatchCrossProcessEvent(nsEvent* aEvent, nsIFrameLoader* frameLoader) {
-  nsFrameLoader* fml = static_cast<nsFrameLoader*>(frameLoader);
-  PBrowserParent* remoteBrowser = fml->GetRemoteBrowser();
+bool
+nsEventStateManager::DispatchCrossProcessEvent(nsEvent* aEvent,
+                                               nsFrameLoader* aFrameLoader,
+                                               nsEventStatus *aStatus) {
+  PBrowserParent* remoteBrowser = aFrameLoader->GetRemoteBrowser();
   TabParent* remote = static_cast<TabParent*>(remoteBrowser);
   if (!remote) {
-    return;
+    return false;
   }
 
-  if (aEvent->eventStructType == NS_MOUSE_EVENT) {
+  switch (aEvent->eventStructType) {
+  case NS_MOUSE_EVENT: {
     nsMouseEvent* mouseEvent = static_cast<nsMouseEvent*>(aEvent);
-    remote->SendRealMouseEvent(*mouseEvent);
+    return remote->SendRealMouseEvent(*mouseEvent);
   }
-
-  if (aEvent->eventStructType == NS_KEY_EVENT) {
+  case NS_KEY_EVENT: {
     nsKeyEvent* keyEvent = static_cast<nsKeyEvent*>(aEvent);
-    remote->SendRealKeyEvent(*keyEvent);
+    return remote->SendRealKeyEvent(*keyEvent);
   }
-
-  if (aEvent->eventStructType == NS_MOUSE_SCROLL_EVENT) {
+  case NS_MOUSE_SCROLL_EVENT: {
     nsMouseScrollEvent* scrollEvent = static_cast<nsMouseScrollEvent*>(aEvent);
-    remote->SendMouseScrollEvent(*scrollEvent);
+    return remote->SendMouseScrollEvent(*scrollEvent);
+  }
+  case NS_TOUCH_EVENT: {
+    // Let the child process synthesize a mouse event if needed, and
+    // ensure we don't synthesize one in this process.
+    *aStatus = nsEventStatus_eConsumeNoDefault;
+    nsTouchEvent* touchEvent = static_cast<nsTouchEvent*>(aEvent);
+    return remote->SendRealTouchEvent(*touchEvent);
+  }
+  default: {
+    MOZ_NOT_REACHED("Attempt to send non-whitelisted event?");
+    return false;
+  }
   }
 }
 
@@ -1688,58 +1708,148 @@ nsEventStateManager::IsRemoteTarget(nsIContent* target) {
   return false;
 }
 
+bool
+CrossProcessSafeEvent(const nsEvent& aEvent)
+{
+  switch (aEvent.eventStructType) {
+  case NS_KEY_EVENT:
+  case NS_MOUSE_SCROLL_EVENT:
+    return true;
+  case NS_MOUSE_EVENT:
+    switch (aEvent.message) {
+    case NS_MOUSE_BUTTON_DOWN:
+    case NS_MOUSE_BUTTON_UP:
+    case NS_MOUSE_MOVE:
+      return true;
+    default:
+      return false;
+    }
+  case NS_TOUCH_EVENT:
+    switch (aEvent.message) {
+    case NS_TOUCH_START:
+    case NS_TOUCH_MOVE:
+    case NS_TOUCH_END:
+    case NS_TOUCH_CANCEL:
+      return true;
+    default:
+      return false;
+    }
+  default:
+    return false;
+  }
+}
 
 bool
 nsEventStateManager::HandleCrossProcessEvent(nsEvent *aEvent,
                                              nsIFrame* aTargetFrame,
                                              nsEventStatus *aStatus) {
-
-  switch (aEvent->eventStructType) {
-    case NS_KEY_EVENT:
-    case NS_MOUSE_SCROLL_EVENT:
-      break;
-    case NS_MOUSE_EVENT:
-      if (aEvent->message == NS_MOUSE_BUTTON_DOWN ||
-          aEvent->message == NS_MOUSE_BUTTON_UP ||
-          aEvent->message == NS_MOUSE_MOVE) {
-        break;
-      }
-    default:
-      return false;
-  }
-
-  nsIContent* target = mCurrentTargetContent;
-  if (!target && aTargetFrame) {
-    target = aTargetFrame->GetContent();
-  }
-
   if (*aStatus == nsEventStatus_eConsumeNoDefault ||
-      !target ||
-      !IsRemoteTarget(target)) {
+      !CrossProcessSafeEvent(*aEvent)) {
     return false;
   }
 
-  nsCOMPtr<nsIFrameLoaderOwner> loaderOwner = do_QueryInterface(target);
-  if (!loaderOwner) {
+  // Collect the remote event targets we're going to forward this
+  // event to.
+  //
+  // NB: the elements of |targets| must be unique, for correctness.
+  nsAutoTArray<nsCOMPtr<nsIContent>, 1> targets;
+  if (aEvent->eventStructType != NS_TOUCH_EVENT ||
+      aEvent->message == NS_TOUCH_START) {
+    // If this event only has one target, and it's remote, add it to
+    // the array.
+    nsIContent* target = mCurrentTargetContent;
+    if (!target && aTargetFrame) {
+      target = aTargetFrame->GetContent();
+    }
+    if (IsRemoteTarget(target)) {
+      targets.AppendElement(target);
+    }
+  } else {
+    // This is a touch event with possibly multiple touch points.
+    // Each touch point may have its own target.  So iterate through
+    // all of them and collect the unique set of targets for event
+    // forwarding.
+    //
+    // This loop is similar to the one used in
+    // PresShell::DispatchTouchEvent().
+    nsTouchEvent* touchEvent = static_cast<nsTouchEvent*>(aEvent);
+    const nsTArray<nsCOMPtr<nsIDOMTouch> >& touches = touchEvent->touches;
+    for (PRUint32 i = 0; i < touches.Length(); ++i) {
+      nsIDOMTouch* touch = touches[i];
+      // NB: the |mChanged| check is an optimization, subprocesses can
+      // compute this for themselves.  If the touch hasn't changed, we
+      // may be able to avoid forwarding the event entirely (which is
+      // not free).
+      if (!touch || !touch->mChanged) {
+        continue;
+      }
+      nsCOMPtr<nsIDOMEventTarget> targetPtr;
+      touch->GetTarget(getter_AddRefs(targetPtr));
+      if (!targetPtr) {
+        continue;
+      }
+      nsCOMPtr<nsIContent> target = do_QueryInterface(targetPtr);
+      if (IsRemoteTarget(target) && !targets.Contains(target)) {
+        targets.AppendElement(target);
+      }
+    }
+  }
+
+  if (targets.Length() == 0) {
     return false;
   }
 
-  nsRefPtr<nsFrameLoader> frameLoader = loaderOwner->GetFrameLoader();
-  if (!frameLoader) {
-    return false;
+  // Look up the frame loader for all the remote targets we found, and
+  // then dispatch the event to the remote content they represent.
+  bool dispatched = false;
+  for (PRUint32 i = 0; i < targets.Length(); ++i) {
+    nsIContent* target = targets[i];
+    nsCOMPtr<nsIFrameLoaderOwner> loaderOwner = do_QueryInterface(target);
+    if (!loaderOwner) {
+      continue;
+    }
+
+    nsRefPtr<nsFrameLoader> frameLoader = loaderOwner->GetFrameLoader();
+    if (!frameLoader) {
+      continue;
+    }
+
+    PRUint32 eventMode;
+    frameLoader->GetEventMode(&eventMode);
+    if (eventMode == nsIFrameLoader::EVENT_MODE_DONT_FORWARD_TO_CHILD) {
+      continue;
+    }
+
+    // The "toplevel widget" in content processes is always at position
+    // 0,0.  Map the event coordinates to match that.
+    if (aEvent->eventStructType != NS_TOUCH_EVENT) {
+      nsPoint pt = nsLayoutUtils::GetEventCoordinatesRelativeTo(aEvent,
+                                                                aTargetFrame);
+      aEvent->refPoint =
+        pt.ToNearestPixels(mPresContext->AppUnitsPerDevPixel());
+    } else {
+      nsIFrame* targetFrame = frameLoader->GetPrimaryFrameOfOwningContent();
+      aEvent->refPoint = nsIntPoint();
+      // Find out how far we're offset from the nearest widget.
+      nsPoint offset =
+        nsLayoutUtils::GetEventCoordinatesRelativeTo(aEvent, targetFrame);
+      nsIntPoint intOffset =
+        offset.ToNearestPixels(mPresContext->AppUnitsPerDevPixel());
+      nsTouchEvent* touchEvent = static_cast<nsTouchEvent*>(aEvent);
+      // Then offset all the touch points by that distance, to put them
+      // in the space where top-left is 0,0.
+      const nsTArray<nsCOMPtr<nsIDOMTouch> >& touches = touchEvent->touches;
+      for (PRUint32 i = 0; i < touches.Length(); ++i) {
+        nsIDOMTouch* touch = touches[i];
+        if (touch) {
+          touch->mRefPoint += intOffset;
+        }
+      }
+    }
+
+    dispatched |= DispatchCrossProcessEvent(aEvent, frameLoader, aStatus);
   }
-
-  PRUint32 eventMode;
-  frameLoader->GetEventMode(&eventMode);
-  if (eventMode == nsIFrameLoader::EVENT_MODE_DONT_FORWARD_TO_CHILD) {
-    return false;
-  }
-
-  nsPoint pt = nsLayoutUtils::GetEventCoordinatesRelativeTo(aEvent, aTargetFrame);
-  aEvent->refPoint = pt.ToNearestPixels(mPresContext->AppUnitsPerDevPixel());
-
-  DispatchCrossProcessEvent(aEvent, frameLoader);
-  return true;
+  return dispatched;
 }
 
 //

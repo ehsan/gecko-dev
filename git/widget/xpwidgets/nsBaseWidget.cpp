@@ -145,7 +145,7 @@ void nsBaseWidget::DestroyCompositor()
 nsBaseWidget::~nsBaseWidget()
 {
   if (mLayerManager &&
-      mLayerManager->GetBackendType() == LayerManager::LAYERS_BASIC) {
+      mLayerManager->GetBackendType() == LAYERS_BASIC) {
     static_cast<BasicLayerManager*>(mLayerManager.get())->ClearRetainerWidget();
   }
 
@@ -179,9 +179,9 @@ void nsBaseWidget::BaseCreate(nsIWidget *aParent,
 {
   static bool gDisableNativeThemeCached = false;
   if (!gDisableNativeThemeCached) {
-    mozilla::Preferences::AddBoolVarCache(&gDisableNativeTheme,
-                                          "mozilla.widget.disable-native-theme",
-                                          gDisableNativeTheme);
+    Preferences::AddBoolVarCache(&gDisableNativeTheme,
+                                 "mozilla.widget.disable-native-theme",
+                                 gDisableNativeTheme);
     gDisableNativeThemeCached = true;
   }
 
@@ -737,7 +737,7 @@ nsBaseWidget::AutoLayerManagerSetup::AutoLayerManagerSetup(
   BasicLayerManager* manager =
     static_cast<BasicLayerManager*>(mWidget->GetLayerManager());
   if (manager) {
-    NS_ASSERTION(manager->GetBackendType() == LayerManager::LAYERS_BASIC,
+    NS_ASSERTION(manager->GetBackendType() == LAYERS_BASIC,
       "AutoLayerManagerSetup instantiated for non-basic layer backend!");
     manager->SetDefaultTarget(aTarget, aDoubleBuffering);
   }
@@ -748,7 +748,7 @@ nsBaseWidget::AutoLayerManagerSetup::~AutoLayerManagerSetup()
   BasicLayerManager* manager =
     static_cast<BasicLayerManager*>(mWidget->GetLayerManager());
   if (manager) {
-    NS_ASSERTION(manager->GetBackendType() == LayerManager::LAYERS_BASIC,
+    NS_ASSERTION(manager->GetBackendType() == LAYERS_BASIC,
       "AutoLayerManagerSetup instantiated for non-basic layer backend!");
     manager->SetDefaultTarget(nsnull, BasicLayerManager::BUFFER_NONE);
   }
@@ -878,11 +878,11 @@ void nsBaseWidget::CreateCompositor()
   mCompositorChild->Open(parentChannel, childMessageLoop, childSide);
   PRInt32 maxTextureSize;
   PLayersChild* shadowManager;
-  if (mUseAcceleratedRendering) {
-    shadowManager = mCompositorChild->SendPLayersConstructor(LayerManager::LAYERS_OPENGL, &maxTextureSize);
-  } else {
-    shadowManager = mCompositorChild->SendPLayersConstructor(LayerManager::LAYERS_BASIC, &maxTextureSize);
-  }
+  mozilla::layers::LayersBackend backendHint =
+    mUseAcceleratedRendering ? mozilla::layers::LAYERS_OPENGL : mozilla::layers::LAYERS_BASIC;
+  mozilla::layers::LayersBackend parentBackend;
+  shadowManager = mCompositorChild->SendPLayersConstructor(
+    backendHint, 0, &parentBackend, &maxTextureSize);
 
   if (shadowManager) {
     ShadowLayerForwarder* lf = lm->AsShadowForwarder();
@@ -892,10 +892,7 @@ void nsBaseWidget::CreateCompositor()
       return;
     }
     lf->SetShadowManager(shadowManager);
-    if (mUseAcceleratedRendering)
-      lf->SetParentBackendType(LayerManager::LAYERS_OPENGL);
-    else
-      lf->SetParentBackendType(LayerManager::LAYERS_BASIC);
+    lf->SetParentBackendType(parentBackend);
     lf->SetMaxTextureSize(maxTextureSize);
 
     mLayerManager = lm;
@@ -1317,7 +1314,7 @@ PRUint32
 nsBaseWidget::GetGLFrameBufferFormat()
 {
   if (mLayerManager &&
-      mLayerManager->GetBackendType() == LayerManager::LAYERS_OPENGL) {
+      mLayerManager->GetBackendType() == LAYERS_OPENGL) {
     // Assume that the default framebuffer has RGBA format.  Specific
     // backends that know differently will override this method.
     return LOCAL_GL_RGBA;

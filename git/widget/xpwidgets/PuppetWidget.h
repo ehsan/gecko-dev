@@ -21,21 +21,28 @@
 #include "nsThreadUtils.h"
 #include "nsWeakReference.h"
 #include "mozilla/Attributes.h"
+#include "LayersBackend.h"
 
 class gfxASurface;
 
 namespace mozilla {
+
+namespace dom {
+class TabChild;
+}
+
 namespace widget {
 
 class PuppetWidget : public nsBaseWidget, public nsSupportsWeakReference
 {
+  typedef mozilla::dom::TabChild TabChild;
   typedef nsBaseWidget Base;
 
   // The width and height of the "widget" are clamped to this.
   static const size_t kMaxDimension;
 
 public:
-  PuppetWidget(PBrowserChild *aTabChild);
+  PuppetWidget(TabChild* aTabChild);
   virtual ~PuppetWidget();
 
   NS_DECL_ISUPPORTS_INHERITED
@@ -129,7 +136,7 @@ public:
 //NS_IMETHOD              CaptureMouse(bool aCapture);
   virtual LayerManager*
   GetLayerManager(PLayersChild* aShadowManager = nsnull,
-                  LayersBackend aBackendHint = LayerManager::LAYERS_NONE,
+                  LayersBackend aBackendHint = mozilla::layers::LAYERS_NONE,
                   LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT,
                   bool* aAllowRetaining = nsnull);
 //  virtual nsDeviceContext* GetDeviceContext();
@@ -176,12 +183,12 @@ private:
   };
 
   // TabChild normally holds a strong reference to this PuppetWidget
-  // or its root ancestor, but each PuppetWidget also needs a reference
-  // back to TabChild (e.g. to delegate nsIWidget IME calls to chrome)
-  // So we hold a weak reference to TabChild (PBrowserChild) here.
-  // Since it's possible for TabChild to outlive the PuppetWidget,
-  // we clear this weak reference in Destroy()
-  PBrowserChild *mTabChild;
+  // or its root ancestor, but each PuppetWidget also needs a
+  // reference back to TabChild (e.g. to delegate nsIWidget IME calls
+  // to chrome) So we hold a weak reference to TabChild here.  Since
+  // it's possible for TabChild to outlive the PuppetWidget, we clear
+  // this weak reference in Destroy()
+  TabChild* mTabChild;
   // The "widget" to which we delegate events if we don't have an
   // event handler.
   nsRefPtr<PuppetWidget> mChild;

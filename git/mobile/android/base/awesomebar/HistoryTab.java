@@ -36,8 +36,6 @@ import java.util.Map;
 import java.util.List;
 import java.util.Date;
 
-import org.json.JSONArray;
-
 import org.mozilla.gecko.AwesomeBar.ContextMenuSubject;
 import org.mozilla.gecko.db.BrowserContract.Combined;
 import org.mozilla.gecko.db.BrowserDB;
@@ -185,11 +183,9 @@ public class HistoryTab extends AwesomeBarTab {
             // The bookmark id will be 0 (null in database) when the url
             // is not a bookmark. Reading list items are irrelevant in history
             // tab. We should never show any sign or them.
-            Log.i(LOGTAG, "xxx vis: " + bookmarkId + " " + display + " " + Combined.DISPLAY_READER);
             int visibility = (bookmarkId != 0 && display != Combined.DISPLAY_READER ?
                               View.VISIBLE : View.GONE);
 
-            Log.i(LOGTAG, "xxx vh: " + viewHolder.bookmarkIconView);
             viewHolder.bookmarkIconView.setVisibility(visibility);
             viewHolder.bookmarkIconView.setImageResource(R.drawable.ic_awesomebar_star);
 

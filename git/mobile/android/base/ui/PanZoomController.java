@@ -8,7 +8,7 @@ package org.mozilla.gecko.ui;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.mozilla.gecko.gfx.FloatSize;
+
 import org.mozilla.gecko.gfx.LayerController;
 import org.mozilla.gecko.gfx.PointUtils;
 import org.mozilla.gecko.gfx.ViewportMetrics;
@@ -1065,5 +1065,12 @@ public class PanZoomController
 
         bounce(finalMetrics);
         return true;
+    }
+
+    /** This function must be called from the UI thread. */
+    public void abortPanning() {
+        checkMainThread();
+        mState = PanZoomState.NOTHING;
+        bounce();
     }
 }

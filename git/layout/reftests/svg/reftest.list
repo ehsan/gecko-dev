@@ -137,6 +137,7 @@ fails-if(Android) == filter-extref-differentOrigin-01.svg pass.svg # Bug 695385
 == filter-in-mask-01.svg pass.svg
 == filter-invalidation-01.svg pass.svg
 == filter-scaled-01.svg pass.svg
+== filter-scaled-02.html filter-scaled-02-ref.html
 == filter-translated-01.svg filter-translated-01-ref.svg
 == filters-and-group-opacity-01.svg filters-and-group-opacity-01-ref.svg
 == foreignObject-01.svg pass.svg
@@ -302,6 +303,7 @@ random-if(/^Windows\x20NT\x205\.1/.test(http.oscpu)) == tspan-rotate-06.svg tspa
 == viewBox-and-pattern-01.svg pass.svg
 == viewBox-invalid-01.svg pass.svg
 == viewBox-valid-01.svg pass.svg
+== viewBox-valid-02.xhtml pass.svg
 == viewport-percent-graphic-user-01.svg pass.svg
 
 == svg-effects-area-unzoomed.xhtml svg-effects-area-unzoomed-ref.xhtml
