@@ -29,7 +29,7 @@
 
 #include "nsMemoryImpl.h"
 #include "nsDebugImpl.h"
-#include "nsTraceRefcnt.h"
+#include "nsTraceRefcntImpl.h"
 #include "nsErrorService.h"
 
 #include "nsSupportsArray.h"
@@ -74,7 +74,7 @@ extern nsresult nsStringInputStreamConstructor(nsISupports *, REFNSIID, void **)
 
 #include "nsAtomService.h"
 #include "nsAtomTable.h"
-#include "nsISupportsImpl.h"
+#include "nsTraceRefcnt.h"
 
 #include "nsHashPropertyBag.h"
 

@@ -2999,8 +2999,6 @@ public:
   nsDisplayTransform(nsDisplayListBuilder* aBuilder, nsIFrame *aFrame,
                      nsDisplayList *aList, uint32_t aIndex = 0);
   nsDisplayTransform(nsDisplayListBuilder* aBuilder, nsIFrame *aFrame,
-                     nsDisplayItem *aItem, uint32_t aIndex = 0);
-  nsDisplayTransform(nsDisplayListBuilder* aBuilder, nsIFrame *aFrame,
                      nsDisplayList *aList, ComputeTransformFunction aTransformGetter, uint32_t aIndex = 0);
 
 #ifdef NS_BUILD_REFCNT_LOGGING

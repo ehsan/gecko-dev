@@ -16,7 +16,8 @@
 #include "mozilla/Monitor.h"            // for Monitor
 #include "nsAutoPtr.h"                  // for nsRefPtr
 #include "nsCOMPtr.h"                   // for already_AddRefed
-#include "nsISupportsImpl.h"            // for MOZ_COUNT_CTOR, etc
+#include "nsISupportsImpl.h"
+#include "nsTraceRefcnt.h"              // for MOZ_COUNT_CTOR, etc
 #include "mozilla/Vector.h"             // for mozilla::Vector
 #include "nsTArray.h"                   // for nsTArray, nsTArray_Impl, etc
 

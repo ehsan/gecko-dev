@@ -10,7 +10,7 @@
 #include "mozilla/CheckedInt.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/MemoryReporting.h"
-#include "nsISupportsImpl.h"
+#include "nsTraceRefcnt.h"
 #include "mozilla/gfx/2D.h"
 
 #include "gfxASurface.h"

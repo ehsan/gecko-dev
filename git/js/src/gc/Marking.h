@@ -17,7 +17,6 @@ namespace js {
 class ArgumentsObject;
 class ArrayBufferObject;
 class ArrayBufferViewObject;
-class SharedArrayBufferObject;
 class BaseShape;
 class DebugScopeObject;
 struct GCMarker;
@@ -98,7 +97,6 @@ DeclMarker(JitCode, jit::JitCode)
 DeclMarker(Object, ArgumentsObject)
 DeclMarker(Object, ArrayBufferObject)
 DeclMarker(Object, ArrayBufferViewObject)
-DeclMarker(Object, SharedArrayBufferObject)
 DeclMarker(Object, DebugScopeObject)
 DeclMarker(Object, GlobalObject)
 DeclMarker(Object, JSObject)

@@ -46,7 +46,7 @@
 #include "mozilla/Mutex.h"
 #include "SpecialSystemDirectory.h"
 
-#include "nsTraceRefcnt.h"
+#include "nsTraceRefcntImpl.h"
 #include "nsXPCOMCIDInternal.h"
 #include "nsThreadUtils.h"
 #include "nsXULAppAPI.h"
@@ -2226,7 +2226,7 @@ nsLocalFile::Load(PRLibrary * *_retval)
         return NS_ERROR_FILE_IS_DIRECTORY;
 
 #ifdef NS_BUILD_REFCNT_LOGGING
-    nsTraceRefcnt::SetActivityIsLegal(false);
+    nsTraceRefcntImpl::SetActivityIsLegal(false);
 #endif
 
     PRLibSpec libSpec;
@@ -2235,7 +2235,7 @@ nsLocalFile::Load(PRLibrary * *_retval)
     *_retval =  PR_LoadLibraryWithFlags(libSpec, 0);
 
 #ifdef NS_BUILD_REFCNT_LOGGING
-    nsTraceRefcnt::SetActivityIsLegal(true);
+    nsTraceRefcntImpl::SetActivityIsLegal(true);
 #endif
 
     if (*_retval)

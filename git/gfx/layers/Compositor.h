@@ -14,7 +14,7 @@
 #include "mozilla/gfx/Types.h"          // for Float
 #include "mozilla/layers/CompositorTypes.h"  // for DiagnosticTypes, etc
 #include "mozilla/layers/LayersTypes.h"  // for LayersBackend
-#include "nsISupportsImpl.h"            // for MOZ_COUNT_CTOR, etc
+#include "nsTraceRefcnt.h"              // for MOZ_COUNT_CTOR, etc
 #include "nsRegion.h"
 #include <vector>
 

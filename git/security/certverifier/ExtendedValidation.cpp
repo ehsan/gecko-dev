@@ -9,7 +9,6 @@
 #include "cert.h"
 #include "certdb.h"
 #include "base64.h"
-#include "insanity/nullptr.h"
 #include "pk11pub.h"
 #include "secerr.h"
 #include "prerror.h"
@@ -791,7 +790,6 @@ register_oid(const SECItem* oid_item, const char* oid_name)
   return SECOID_AddEntry(&od);
 }
 
-#ifndef NSS_NO_LIBPKIX
 static void
 addToCertListIfTrusted(CERTCertList* certList, CERTCertificate* cert) {
   CERTCertTrust nssTrust;
@@ -804,7 +802,6 @@ addToCertListIfTrusted(CERTCertList* certList, CERTCertificate* cert) {
     CERT_AddCertToListTail(certList, CERT_DupCertificate(cert));
   }
 }
-#endif
 
 static bool
 isEVPolicy(SECOidTag policyOIDTag)
@@ -821,7 +818,6 @@ isEVPolicy(SECOidTag policyOIDTag)
 
 namespace mozilla { namespace psm {
 
-#ifndef NSS_NO_LIBPKIX
 CERTCertList*
 GetRootsForOid(SECOidTag oid_tag)
 {
@@ -837,28 +833,6 @@ GetRootsForOid(SECOidTag oid_tag)
   }
 
   return certList;
-}
-#endif
-
-bool
-CertIsAuthoritativeForEVPolicy(const CERTCertificate* cert,
-                               SECOidTag policyOidTag)
-{
-  PR_ASSERT(cert);
-  PR_ASSERT(policyOidTag != SEC_OID_UNKNOWN);
-  if (!cert || !policyOidTag) {
-    return false;
-  }
-
-  for (size_t iEV = 0; iEV < PR_ARRAY_SIZE(myTrustedEVInfos); ++iEV) {
-    nsMyTrustedEVInfo& entry = myTrustedEVInfos[iEV];
-    if (entry.oid_tag == policyOidTag && entry.cert &&
-        CERT_CompareCerts(cert, entry.cert)) {
-      return true;
-    }
-  }
-
-  return false;
 }
 
 static PRStatus

@@ -41,15 +41,5 @@ this.Utils = Object.freeze({
     let prevChar = host[index - 1];
     return (index == (host.length - domain.length)) &&
            (prevChar == "." || prevChar == "/");
-  },
-
-  shallowCopy: function (obj) {
-    let retval = {};
-
-    for (let key of Object.keys(obj)) {
-      retval[key] = obj[key];
-    }
-
-    return retval;
   }
 });

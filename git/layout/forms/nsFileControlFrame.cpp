@@ -10,7 +10,6 @@
 #include "nsIDocument.h"
 #include "nsINodeInfo.h"
 #include "mozilla/dom/Element.h"
-#include "mozilla/dom/DataTransfer.h"
 #include "mozilla/dom/HTMLButtonElement.h"
 #include "mozilla/dom/HTMLInputElement.h"
 #include "nsNodeInfoManager.h"

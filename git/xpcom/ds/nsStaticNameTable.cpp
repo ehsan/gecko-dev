@@ -10,7 +10,7 @@
 
 #include "nscore.h"
 #include "mozilla/HashFunctions.h"
-#include "nsISupportsImpl.h"
+#include "nsTraceRefcnt.h"
 
 #define PL_ARENA_CONST_ALIGN_MASK 3
 #include "nsStaticNameTable.h"

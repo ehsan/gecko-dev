@@ -8,7 +8,7 @@
 
 #include "nsCSSScanner.h"
 #include "nsStyleUtil.h"
-#include "nsISupportsImpl.h"
+#include "nsTraceRefcnt.h"
 #include "mozilla/ArrayUtils.h"
 #include "mozilla/css/ErrorReporter.h"
 #include "mozilla/Likely.h"

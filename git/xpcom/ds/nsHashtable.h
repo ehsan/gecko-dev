@@ -24,7 +24,7 @@
 #include "pldhash.h"
 #include "nscore.h"
 #include "nsISupports.h"
-#include "nsISupportsImpl.h"
+#include "nsTraceRefcnt.h"
 #include "nsStringFwd.h"
 
 class nsIObjectInputStream;

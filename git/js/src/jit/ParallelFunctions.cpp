@@ -201,7 +201,7 @@ jit::CheckOverRecursedPar(ForkJoinContext *cx)
     if (cx->isMainThread())
         realStackLimit = GetNativeStackLimit(cx);
     else
-        realStackLimit = cx->perThreadData->jitStackLimit;
+        realStackLimit = cx->perThreadData->ionStackLimit;
 
     if (!JS_CHECK_STACK_SIZE(realStackLimit, &stackDummy_)) {
         cx->bailoutRecord->setCause(ParallelBailoutOverRecursed);

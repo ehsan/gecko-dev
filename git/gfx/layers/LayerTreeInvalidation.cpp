@@ -25,6 +25,7 @@
 #include "nsPoint.h"                    // for nsIntPoint
 #include "nsRect.h"                     // for nsIntRect
 #include "nsTArray.h"                   // for nsAutoTArray, nsTArray_Impl
+#include "nsTraceRefcnt.h"              // for MOZ_COUNT_CTOR, etc
 
 namespace mozilla {
 namespace layers {

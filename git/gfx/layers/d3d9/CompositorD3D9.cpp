@@ -15,7 +15,6 @@
 #include "gfxFailure.h"
 #include "mozilla/layers/PCompositorParent.h"
 #include "mozilla/layers/LayerManagerComposite.h"
-#include "gfxPrefs.h"
 
 using namespace mozilla::gfx;
 
@@ -404,7 +403,7 @@ CompositorD3D9::DrawQuad(const gfx::Rect &aRect,
     break;
   case EFFECT_COMPONENT_ALPHA:
     {
-      MOZ_ASSERT(gfxPrefs::ComponentAlphaEnabled());
+      MOZ_ASSERT(gfxPlatform::ComponentAlphaEnabled());
       EffectComponentAlpha* effectComponentAlpha =
         static_cast<EffectComponentAlpha*>(aEffectChain.mPrimaryEffect.get());
       TextureSourceD3D9* sourceOnWhite = effectComponentAlpha->mOnWhite->AsSourceD3D9();

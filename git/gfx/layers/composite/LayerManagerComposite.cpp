@@ -21,7 +21,7 @@
 #include "Units.h"                      // for ScreenIntRect
 #include "gfx2DGlue.h"                  // for ToMatrix4x4
 #include "gfx3DMatrix.h"                // for gfx3DMatrix
-#include "gfxPrefs.h"                   // for gfxPrefs
+#include "gfxPlatform.h"                // for gfxPlatform
 #ifdef XP_MACOSX
 #include "gfxPlatformMac.h"
 #endif
@@ -389,7 +389,7 @@ static uint16_t sFrameCount = 0;
 void
 LayerManagerComposite::RenderDebugOverlay(const Rect& aBounds)
 {
-  if (gfxPrefs::LayersDrawFPS()) {
+  if (gfxPlatform::GetPrefLayersDrawFPS()) {
     if (!mFPS) {
       mFPS = new FPSState();
     }
@@ -400,7 +400,7 @@ LayerManagerComposite::RenderDebugOverlay(const Rect& aBounds)
     mFPS = nullptr;
   }
 
-  if (gfxPrefs::DrawFrameCounter()) {
+  if (gfxPlatform::DrawFrameCounter()) {
     profiler_set_frame_number(sFrameCount);
 
     uint16_t frameNumber = sFrameCount;
@@ -437,7 +437,7 @@ LayerManagerComposite::Render()
     return;
   }
 
-  if (gfxPrefs::LayersDump()) {
+  if (gfxPlatform::GetPrefLayersDump()) {
     this->Dump();
   }
 
@@ -447,7 +447,7 @@ LayerManagerComposite::Render()
   if (composer2D && composer2D->TryRender(mRoot, mWorldMatrix)) {
     if (mFPS) {
       double fps = mFPS->mCompositionFps.AddFrameAndGetFps(TimeStamp::Now());
-      if (gfxPrefs::LayersDrawFPS()) {
+      if (gfxPlatform::GetPrefLayersDrawFPS()) {
         printf_stderr("HWComposer: FPS is %g\n", fps);
       }
     }
@@ -655,7 +655,7 @@ LayerManagerComposite::ComputeRenderIntegrity()
 {
   // We only ever have incomplete rendering when progressive tiles are enabled.
   Layer* root = GetRoot();
-  if (!gfxPrefs::UseProgressiveTilePainting() || !root) {
+  if (!gfxPlatform::UseProgressiveTilePainting() || !root) {
     return 1.f;
   }
 

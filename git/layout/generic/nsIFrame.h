@@ -1158,15 +1158,13 @@ public:
 
   /**
    * Returns whether this frame will attempt to preserve the 3d transforms of its
-   * children. This requires transform-style: preserve-3d, as well as no clipping
-   * or svg effects.
+   * children. This is a direct indicator of -moz-transform-style: preserve-3d.
    */
   bool Preserves3DChildren() const;
 
   /**
-   * Returns whether this frame has a parent that Preserves3DChildren() and has
-   * its own transform (or hidden backface) to be combined with the parent's
-   * transform.
+   * Returns whether this frame has a parent that Preserves3DChildren() and
+   * can respect this. Returns false if the frame is clipped.
    */
   bool Preserves3D() const;
 
