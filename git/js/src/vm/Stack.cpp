@@ -484,16 +484,11 @@ StackSpace::markFrameSlots(JSTracer *trc, StackFrame *fp, Value *slotsEnd, jsbyt
     for (Value *vp = slotsBegin; vp < fixedEnd; vp++) {
         uint32_t slot = analyze::LocalSlot(script, vp - slotsBegin);
 
-        /*
-         * Will this slot be synced by the JIT? If not, replace with a dummy
-         * value with the same type tag.
-         */
+        /* Will this slot be synced by the JIT? */
         if (!analysis->trackSlot(slot) || analysis->liveness(slot).live(offset))
             gc::MarkValueRoot(trc, vp, "vm_stack");
-        else if (vp->isObject())
-            *vp = ObjectValue(fp->scopeChain().global());
-        else if (vp->isString())
-            *vp = StringValue(trc->runtime->atomState.nullAtom);
+        else
+            *vp = UndefinedValue();
     }
 
     gc::MarkValueRootRange(trc, fixedEnd, slotsEnd, "vm_stack");
