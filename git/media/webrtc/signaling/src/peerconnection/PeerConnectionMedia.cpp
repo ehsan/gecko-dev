@@ -178,12 +178,12 @@ nsresult PeerConnectionMedia::Init(const std::vector<NrIceStunServer>& stun_serv
     CSFLogError(logTag, "%s: Failed to get dns resolver", __FUNCTION__);
     return rv;
   }
-  mIceCtx->SignalGatheringStateChange.connect(
-      this,
-      &PeerConnectionMedia::IceGatheringStateChange);
-  mIceCtx->SignalConnectionStateChange.connect(
-      this,
-      &PeerConnectionMedia::IceConnectionStateChange);
+  mIceCtx->SignalGatheringCompleted.connect(this,
+                                            &PeerConnectionMedia::IceGatheringCompleted);
+  mIceCtx->SignalCompleted.connect(this,
+                                   &PeerConnectionMedia::IceCompleted);
+  mIceCtx->SignalFailed.connect(this,
+                                &PeerConnectionMedia::IceFailed);
 
   // Create three streams to start with.
   // One each for audio, video and DataChannel
@@ -424,17 +424,24 @@ PeerConnectionMedia::AddRemoteStreamHint(int aIndex, bool aIsVideo)
 
 
 void
-PeerConnectionMedia::IceGatheringStateChange(NrIceCtx* ctx,
-                                             NrIceCtx::GatheringState state)
+PeerConnectionMedia::IceGatheringCompleted(NrIceCtx *aCtx)
 {
-  SignalIceGatheringStateChange(ctx, state);
+  MOZ_ASSERT(aCtx);
+  SignalIceGatheringCompleted(aCtx);
 }
 
 void
-PeerConnectionMedia::IceConnectionStateChange(NrIceCtx* ctx,
-                                              NrIceCtx::ConnectionState state)
+PeerConnectionMedia::IceCompleted(NrIceCtx *aCtx)
 {
-  SignalIceConnectionStateChange(ctx, state);
+  MOZ_ASSERT(aCtx);
+  SignalIceCompleted(aCtx);
+}
+
+void
+PeerConnectionMedia::IceFailed(NrIceCtx *aCtx)
+{
+  MOZ_ASSERT(aCtx);
+  SignalIceFailed(aCtx);
 }
 
 void

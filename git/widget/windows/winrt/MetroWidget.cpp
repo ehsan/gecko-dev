@@ -1631,5 +1631,7 @@ MetroWidget::Observe(nsISupports *subject, const char *topic, const PRUnichar *d
     ScrollableLayerGuid guid = ScrollableLayerGuid(mRootLayerTreeId, presShellId, viewId);
     APZController::sAPZC->UpdateZoomConstraints(guid, false, CSSToScreenScale(1.0f), CSSToScreenScale(1.0f));
   }
-  return NS_OK;
+  else {
+    return NS_OK;
+  }
 }

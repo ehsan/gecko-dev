@@ -558,17 +558,6 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
   },
 
   /**
-   * Removes all network requests and closes the sidebar if open.
-   */
-  clear: function() {
-    NetMonitorView.Sidebar.toggle(false);
-    $("#details-pane-toggle").disabled = true;
-
-    this.empty();
-    this.refreshSummary();
-  },
-
-  /**
    * Predicates used when filtering items.
    *
    * @param object aItem

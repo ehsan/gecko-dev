@@ -788,11 +788,9 @@ NS_IMETHODIMP nsPluginStreamListenerPeer::OnDataAvailable(nsIRequest *request,
                                                           uint64_t sourceOffset,
                                                           uint32_t aLength)
 {
-  if (mRequests.IndexOfObject(GetBaseRequest(request)) == -1) {
-    MOZ_ASSERT(false, "Received OnDataAvailable for untracked request.");
-    return NS_ERROR_UNEXPECTED;
-  }
-
+  NS_ASSERTION(mRequests.IndexOfObject(GetBaseRequest(request)) != -1,
+               "Received OnDataAvailable for untracked request.");
+  
   if (mRequestFailed)
     return NS_ERROR_FAILURE;
   

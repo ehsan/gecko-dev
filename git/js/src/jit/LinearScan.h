@@ -59,8 +59,7 @@ class LinearScanVirtualRegister : public VirtualRegister
     }
 };
 
-class LinearScanAllocator
-  : private LiveRangeAllocator<LinearScanVirtualRegister, /* forLSRA = */ true>
+class LinearScanAllocator : public LiveRangeAllocator<LinearScanVirtualRegister>
 {
     friend class C1Spewer;
     friend class JSONSpewer;
@@ -125,7 +124,7 @@ class LinearScanAllocator
 
   public:
     LinearScanAllocator(MIRGenerator *mir, LIRGenerator *lir, LIRGraph &graph)
-      : LiveRangeAllocator<LinearScanVirtualRegister, /* forLSRA = */ true>(mir, lir, graph)
+      : LiveRangeAllocator<LinearScanVirtualRegister>(mir, lir, graph, /* forLSRA = */ true)
     {
     }
 

@@ -29,13 +29,13 @@ addMessageListener("ss-test:getStyleSheets", function (msg) {
 
 addMessageListener("ss-test:enableStyleSheetsForSet", function (msg) {
   content.document.enableStyleSheetsForSet(msg.data);
-  sendAsyncMessage("ss-test:enableStyleSheetsForSet");
+  sendSyncMessage("ss-test:enableStyleSheetsForSet");
 });
 
 addMessageListener("ss-test:enableSubDocumentStyleSheetsForSet", function (msg) {
   let iframe = content.document.getElementById(msg.data.id);
   iframe.contentDocument.enableStyleSheetsForSet(msg.data.set);
-  sendAsyncMessage("ss-test:enableSubDocumentStyleSheetsForSet");
+  sendSyncMessage("ss-test:enableSubDocumentStyleSheetsForSet");
 });
 
 addMessageListener("ss-test:getAuthorStyleDisabled", function (msg) {

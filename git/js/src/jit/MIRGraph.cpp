@@ -95,11 +95,11 @@ MIRGraph::removeBlock(MBasicBlock *block)
     if (block == osrBlock_)
         osrBlock_ = nullptr;
 
-    if (returnAccumulator_) {
+    if (exitAccumulator_) {
         size_t i = 0;
-        while (i < returnAccumulator_->length()) {
-            if ((*returnAccumulator_)[i] == block)
-                returnAccumulator_->erase(returnAccumulator_->begin() + i);
+        while (i < exitAccumulator_->length()) {
+            if ((*exitAccumulator_)[i] == block)
+                exitAccumulator_->erase(exitAccumulator_->begin() + i);
             else
                 i++;
         }
@@ -1203,12 +1203,6 @@ MIRGraph::dump(FILE *fp)
 }
 
 void
-MIRGraph::dump()
-{
-    dump(stderr);
-}
-
-void
 MBasicBlock::dump(FILE *fp)
 {
 #ifdef DEBUG
@@ -1219,10 +1213,4 @@ MBasicBlock::dump(FILE *fp)
         iter->dump(fp);
     }
 #endif
-}
-
-void
-MBasicBlock::dump()
-{
-    dump(stderr);
 }

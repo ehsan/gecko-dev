@@ -291,15 +291,6 @@ SymbolicBound::print(Sprinter &sp) const
     sum.print(sp);
 }
 
-void
-SymbolicBound::dump() const
-{
-    Sprinter sp(GetIonContext()->cx);
-    sp.init();
-    print(sp);
-    fprintf(stderr, "%s\n", sp.string());
-}
-
 // Test whether the given range's exponent tells us anything that its lower
 // and upper bound values don't.
 static bool
@@ -372,12 +363,6 @@ Range::dump(FILE *fp) const
     sp.init();
     print(sp);
     fprintf(fp, "%s\n", sp.string());
-}
-
-void
-Range::dump() const
-{
-    dump(stderr);
 }
 
 Range *
@@ -1148,10 +1133,10 @@ MUrsh::computeRange()
     // the same result. Since we lack support for full uint32 ranges, we use
     // the second interpretation, though it does cause us to be conservative.
     left.wrapAroundToInt32();
-    right.wrapAroundToShiftCount();
 
     MDefinition *rhs = getOperand(1);
     if (!rhs->isConstant()) {
+        right.wrapAroundToShiftCount();
         setRange(Range::ursh(&left, &right));
     } else {
         int32_t c = rhs->toConstant()->value().toInt32();
@@ -1244,41 +1229,6 @@ MMod::computeRange()
     if (rhs.lower() <= 0 && rhs.upper() >= 0)
         return;
 
-    // If both operands are non-negative integers, we can optimize this to an
-    // unsigned mod.
-    if (specialization() == MIRType_Int32 && lhs.lower() >= 0 && rhs.lower() > 0 &&
-        !lhs.canHaveFractionalPart() && !rhs.canHaveFractionalPart())
-    {
-        unsigned_ = true;
-    }
-
-    // For unsigned mod, we have to convert both operands to unsigned.
-    // Note that we handled the case of a zero rhs above.
-    if (unsigned_) {
-        // The result of an unsigned mod will never be unsigned-greater than
-        // either operand.
-        uint32_t lhsBound = Max<uint32_t>(lhs.lower(), lhs.upper());
-        uint32_t rhsBound = Max<uint32_t>(rhs.lower(), rhs.upper());
-
-        // If either range crosses through -1 as a signed value, it could be
-        // the maximum unsigned value when interpreted as unsigned. If the range
-        // doesn't include -1, then the simple max value we computed above is
-        // correct.
-        if (lhs.lower() <= -1 && lhs.upper() >= -1)
-            lhsBound = UINT32_MAX;
-        if (rhs.lower() <= -1 && rhs.upper() >= -1)
-            rhsBound = UINT32_MAX;
-
-        // The result will never be equal to the rhs, and we shouldn't have
-        // any rounding to worry about.
-        JS_ASSERT(!lhs.canHaveFractionalPart() && !rhs.canHaveFractionalPart());
-        --rhsBound;
-
-        // This gives us two upper bounds, so we can take the best one.
-        setRange(Range::NewUInt32Range(0, Min(lhsBound, rhsBound)));
-        return;
-    }
-
     // Math.abs(lhs % rhs) == Math.abs(lhs) % Math.abs(rhs).
     // First, the absolute value of the result will always be less than the
     // absolute value of rhs. (And if rhs is zero, the result is NaN).
@@ -1326,22 +1276,8 @@ MDiv::computeRange()
 
     // Something simple for now: When dividing by a positive rhs, the result
     // won't be further from zero than lhs.
-    if (lhs.lower() >= 0 && rhs.lower() >= 1) {
+    if (rhs.lower() > 0 && lhs.lower() >= 0)
         setRange(new Range(0, lhs.upper(), true, lhs.exponent()));
-
-        // Also, we can optimize by converting this to an unsigned div.
-        if (specialization() == MIRType_Int32 &&
-            !lhs.canHaveFractionalPart() && !rhs.canHaveFractionalPart())
-        {
-            unsigned_ = true;
-        }
-    } else if (unsigned_ && rhs.lower() >= 1) {
-        // We shouldn't set the unsigned flag if the inputs can have
-        // fractional parts.
-        JS_ASSERT(!lhs.canHaveFractionalPart() && !rhs.canHaveFractionalPart());
-        // Unsigned division by a non-zero rhs will return a uint32 value.
-        setRange(Range::NewUInt32Range(0, UINT32_MAX));
-    }
 }
 
 void
@@ -2009,29 +1945,22 @@ RangeAnalysis::analyze()
                 return false;
         }
 
-        // First pass at collecting range info - while the beta nodes are still
-        // around and before truncation.
-        for (MInstructionIterator iter(block->begin()); iter != block->end(); iter++) {
-            iter->collectRangeInfoPreTrunc();
-
-            // Would have been nice to implement this using collectRangeInfoPreTrunc()
-            // methods but it needs the minAsmJSHeapLength().
-            if (mir->compilingAsmJS()) {
-                uint32_t minHeapLength = mir->minAsmJSHeapLength();
-                if (iter->isAsmJSLoadHeap()) {
-                    MAsmJSLoadHeap *ins = iter->toAsmJSLoadHeap();
+        if (mir->compilingAsmJS()) {
+            for (MInstructionIterator i = block->begin(); i != block->end(); i++) {
+                if (i->isAsmJSLoadHeap()) {
+                    MAsmJSLoadHeap *ins = i->toAsmJSLoadHeap();
                     Range *range = ins->ptr()->range();
                     if (range && range->hasInt32LowerBound() && range->lower() >= 0 &&
-                        range->hasInt32UpperBound() && (uint32_t) range->upper() < minHeapLength) {
+                        range->hasInt32UpperBound() &&
+                        (uint32_t) range->upper() < mir->minAsmJSHeapLength())
                         ins->setSkipBoundsCheck(true);
-                    }
-                } else if (iter->isAsmJSStoreHeap()) {
-                    MAsmJSStoreHeap *ins = iter->toAsmJSStoreHeap();
+                } else if (i->isAsmJSStoreHeap()) {
+                    MAsmJSStoreHeap *ins = i->toAsmJSStoreHeap();
                     Range *range = ins->ptr()->range();
                     if (range && range->hasInt32LowerBound() && range->lower() >= 0 &&
-                        range->hasInt32UpperBound() && (uint32_t) range->upper() < minHeapLength) {
+                        range->hasInt32UpperBound() &&
+                        (uint32_t) range->upper() < mir->minAsmJSHeapLength())
                         ins->setSkipBoundsCheck(true);
-                    }
                 }
             }
         }
@@ -2463,6 +2392,22 @@ RangeAnalysis::truncate()
         AdjustTruncatedInputs(alloc(), ins);
     }
 
+    // Collect range information as soon as the truncate phased is finished to
+    // ensure that we do not collect information from any operand out-side the
+    // scope of the Range Analysis.
+    //
+    // As the range is attached to the MIR nodes and we remove the bit-ops, we
+    // cannot safely access any information of the range of any operands.
+    //
+    // Example of ranges:
+    //   (x >>> 0)               range() == [0 .. +inf[
+    //   ((x >>> 0) | 0)         range() == [INT32_MIN .. INT32_MAX]
+    //   ((x >>> 0) | 0) % -1    Check   lhs->range()->lower() > 0
+    for (ReversePostorderIterator block(graph_.rpoBegin()); block != graph_.rpoEnd(); block++) {
+        for (MInstructionIterator iter(block->begin()); iter != block->end(); iter++)
+            iter->collectRangeInfo();
+    }
+
     // Fold any unnecessary bitops in the graph, such as (x | 0) on an integer
     // input. This is done after range analysis rather than during GVN as the
     // presence of the bitop can change which instructions are truncated.
@@ -2481,74 +2426,51 @@ RangeAnalysis::truncate()
 ///////////////////////////////////////////////////////////////////////////////
 
 void
-MInArray::collectRangeInfoPreTrunc()
+MInArray::collectRangeInfo()
 {
     Range indexRange(index());
-    if (indexRange.isFiniteNonNegative())
-        needsNegativeIntCheck_ = false;
+    needsNegativeIntCheck_ = !indexRange.isFiniteNonNegative();
 }
 
 void
-MLoadElementHole::collectRangeInfoPreTrunc()
+MLoadElementHole::collectRangeInfo()
 {
     Range indexRange(index());
-    if (indexRange.isFiniteNonNegative())
-        needsNegativeIntCheck_ = false;
+    needsNegativeIntCheck_ = !indexRange.isFiniteNonNegative();
 }
 
 void
-MMod::collectRangeInfoPreTrunc()
+MMod::collectRangeInfo()
 {
     Range lhsRange(lhs());
-    if (lhsRange.isFiniteNonNegative())
-        canBeNegativeDividend_ = false;
+    canBeNegativeDividend_ = !lhsRange.isFiniteNonNegative();
 }
 
 void
-MBoundsCheckLower::collectRangeInfoPreTrunc()
+MBoundsCheckLower::collectRangeInfo()
 {
     Range indexRange(index());
-    if (indexRange.hasInt32LowerBound() && indexRange.lower() >= minimum_)
-        fallible_ = false;
+    fallible_ = !indexRange.hasInt32LowerBound() || indexRange.lower() < minimum_;
 }
 
 void
-MCompare::collectRangeInfoPreTrunc()
+MCompare::collectRangeInfo()
 {
-    if (!Range(lhs()).canBeNaN() && !Range(rhs()).canBeNaN())
-        operandsAreNeverNaN_ = true;
+    operandsAreNeverNaN_ = !Range(lhs()).canBeNaN() && !Range(rhs()).canBeNaN();
 }
 
 void
-MNot::collectRangeInfoPreTrunc()
+MNot::collectRangeInfo()
 {
-    if (!Range(operand()).canBeNaN())
-        operandIsNeverNaN_ = true;
+    operandIsNeverNaN_ = !Range(operand()).canBeNaN();
 }
 
 void
-MPowHalf::collectRangeInfoPreTrunc()
+MPowHalf::collectRangeInfo()
 {
     Range inputRange(input());
-    if (!inputRange.canBeInfiniteOrNaN() || inputRange.hasInt32LowerBound())
-        operandIsNeverNegativeInfinity_ = true;
-    if (!inputRange.canBeZero())
-        operandIsNeverNegativeZero_ = true;
-    if (!inputRange.canBeNaN())
-        operandIsNeverNaN_ = true;
-}
-
-void
-MUrsh::collectRangeInfoPreTrunc()
-{
-    Range lhsRange(lhs()), rhsRange(rhs());
-
-    // As in MUrsh::computeRange(), convert the inputs.
-    lhsRange.wrapAroundToInt32();
-    rhsRange.wrapAroundToShiftCount();
-
-    // If the most significant bit of our result is always going to be zero,
-    // we can optimize by disabling bailout checks for enforcing an int32 range.
-    if (lhsRange.lower() >= 0 || rhsRange.lower() >= 1)
-        bailoutsDisabled_ = true;
+    operandIsNeverNegativeInfinity_ = !inputRange.canBeInfiniteOrNaN() ||
+                                      inputRange.hasInt32LowerBound();
+    operandIsNeverNegativeZero_ = !inputRange.canBeZero();
+    operandIsNeverNaN_ = !inputRange.canBeNaN();
 }

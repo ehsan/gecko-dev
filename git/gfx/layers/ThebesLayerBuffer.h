@@ -3,8 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef ROTATEDBUFFER_H_
-#define ROTATEDBUFFER_H_
+#ifndef THEBESLAYERBUFFER_H_
+#define THEBESLAYERBUFFER_H_
 
 #include <stdint.h>                     // for uint32_t
 #include "gfxASurface.h"                // for gfxASurface, etc
@@ -16,6 +16,7 @@
 #include "nsAutoPtr.h"                  // for nsRefPtr
 #include "nsCOMPtr.h"                   // for already_AddRefed
 #include "nsDebug.h"                    // for NS_RUNTIMEABORT
+#include "nsISupportsImpl.h"            // for gfxContext::AddRef, etc
 #include "nsPoint.h"                    // for nsIntPoint
 #include "nsRect.h"                     // for nsIntRect
 #include "nsRegion.h"                   // for nsIntRegion
@@ -54,6 +55,15 @@ class RotatedBuffer {
 public:
   typedef gfxContentType ContentType;
 
+  RotatedBuffer(gfxASurface* aBuffer, gfxASurface* aBufferOnWhite,
+                const nsIntRect& aBufferRect,
+                const nsIntPoint& aBufferRotation)
+    : mBuffer(aBuffer)
+    , mBufferOnWhite(aBufferOnWhite)
+    , mBufferRect(aBufferRect)
+    , mBufferRotation(aBufferRotation)
+    , mDidSelfCopy(false)
+  { }
   RotatedBuffer(gfx::DrawTarget* aDTBuffer, gfx::DrawTarget* aDTBufferOnWhite,
                 const nsIntRect& aBufferRect,
                 const nsIntPoint& aBufferRotation)
@@ -75,6 +85,11 @@ public:
     BUFFER_WHITE, // The buffer with white background, only valid with component alpha.
     BUFFER_BOTH // The combined black/white buffers, only valid for writing operations, not reading.
   };
+  void DrawBufferWithRotation(gfxContext* aTarget, ContextSource aSource,
+                              float aOpacity = 1.0,
+                              gfxASurface* aMask = nullptr,
+                              const gfxMatrix* aMaskTransform = nullptr) const;
+
   void DrawBufferWithRotation(gfx::DrawTarget* aTarget, ContextSource aSource,
                               float aOpacity = 1.0,
                               gfx::CompositionOp aOperator = gfx::OP_OVER,
@@ -83,14 +98,14 @@ public:
 
   /**
    * |BufferRect()| is the rect of device pixels that this
-   * RotatedBuffer covers.  That is what DrawBufferWithRotation()
+   * ThebesLayerBuffer covers.  That is what DrawBufferWithRotation()
    * will paint when it's called.
    */
   const nsIntRect& BufferRect() const { return mBufferRect; }
   const nsIntPoint& BufferRotation() const { return mBufferRotation; }
 
-  virtual bool HaveBuffer() const { return mDTBuffer; }
-  virtual bool HaveBufferOnWhite() const { return mDTBufferOnWhite; }
+  virtual bool HaveBuffer() const { return mBuffer || mDTBuffer; }
+  virtual bool HaveBufferOnWhite() const { return mBufferOnWhite || mDTBufferOnWhite; }
 
 protected:
 
@@ -109,6 +124,11 @@ protected:
    * buffer. aMaskTransform must be non-null if aMask is non-null, and is used
    * to adjust the coordinate space of the mask.
    */
+  void DrawBufferQuadrant(gfxContext* aTarget, XSide aXSide, YSide aYSide,
+                          ContextSource aSource,
+                          float aOpacity,
+                          gfxASurface* aMask,
+                          const gfxMatrix* aMaskTransform) const;
   void DrawBufferQuadrant(gfx::DrawTarget* aTarget, XSide aXSide, YSide aYSide,
                           ContextSource aSource,
                           float aOpacity,
@@ -116,6 +136,8 @@ protected:
                           gfx::SourceSurface* aMask,
                           const gfx::Matrix* aMaskTransform) const;
 
+  nsRefPtr<gfxASurface> mBuffer;
+  nsRefPtr<gfxASurface> mBufferOnWhite;
   RefPtr<gfx::DrawTarget> mDTBuffer;
   RefPtr<gfx::DrawTarget> mDTBufferOnWhite;
   /** The area of the ThebesLayer that is covered by the buffer as a whole */
@@ -140,7 +162,7 @@ protected:
  * This class encapsulates the buffer used to retain ThebesLayer contents,
  * i.e., the contents of the layer's GetVisibleRegion().
  */
-class RotatedContentBuffer : public RotatedBuffer {
+class ThebesLayerBuffer : public RotatedBuffer {
 public:
   typedef gfxContentType ContentType;
 
@@ -156,16 +178,16 @@ public:
     ContainsVisibleBounds
   };
 
-  RotatedContentBuffer(BufferSizePolicy aBufferSizePolicy)
+  ThebesLayerBuffer(BufferSizePolicy aBufferSizePolicy)
     : mBufferProvider(nullptr)
     , mBufferProviderOnWhite(nullptr)
     , mBufferSizePolicy(aBufferSizePolicy)
   {
-    MOZ_COUNT_CTOR(RotatedContentBuffer);
+    MOZ_COUNT_CTOR(ThebesLayerBuffer);
   }
-  virtual ~RotatedContentBuffer()
+  virtual ~ThebesLayerBuffer()
   {
-    MOZ_COUNT_DTOR(RotatedContentBuffer);
+    MOZ_COUNT_DTOR(ThebesLayerBuffer);
   }
 
   /**
@@ -174,6 +196,8 @@ public:
    */
   void Clear()
   {
+    mBuffer = nullptr;
+    mBufferOnWhite = nullptr;
     mDTBuffer = nullptr;
     mDTBufferOnWhite = nullptr;
     mBufferProvider = nullptr;
@@ -184,7 +208,7 @@ public:
   /**
    * This is returned by BeginPaint. The caller should draw into mContext.
    * mRegionToDraw must be drawn. mRegionToInvalidate has been invalidated
-   * by RotatedContentBuffer and must be redrawn on the screen.
+   * by ThebesLayerBuffer and must be redrawn on the screen.
    * mRegionToInvalidate is set when the buffer has changed from
    * opaque to transparent or vice versa, since the details of rendering can
    * depend on the buffer type.  mDidSelfCopy is true if we kept our buffer
@@ -240,13 +264,18 @@ public:
    */
   virtual void
   CreateBuffer(ContentType aType, const nsIntRect& aRect, uint32_t aFlags,
+               gfxASurface** aBlackSurface, gfxASurface** aWhiteSurface,
                RefPtr<gfx::DrawTarget>* aBlackDT, RefPtr<gfx::DrawTarget>* aWhiteDT) = 0;
+  virtual bool SupportsAzureContent() const 
+  { return false; }
 
   /**
    * Get the underlying buffer, if any. This is useful because we can pass
    * in the buffer as the default "reference surface" if there is one.
    * Don't use it for anything else!
    */
+  gfxASurface* GetBuffer() { return mBuffer; }
+  gfxASurface* GetBufferOnWhite() { return mBufferOnWhite; }
   gfx::DrawTarget* GetDTBuffer() { return mDTBuffer; }
   gfx::DrawTarget* GetDTBufferOnWhite() { return mDTBufferOnWhite; }
 
@@ -259,11 +288,35 @@ public:
               gfxASurface* aMask, const gfxMatrix* aMaskTransform);
 
 protected:
+  // If this buffer is currently using Azure.
+  bool IsAzureBuffer();
+
+  already_AddRefed<gfxASurface>
+  SetBuffer(gfxASurface* aBuffer,
+            const nsIntRect& aBufferRect, const nsIntPoint& aBufferRotation)
+  {
+    MOZ_ASSERT(!SupportsAzureContent());
+    nsRefPtr<gfxASurface> tmp = mBuffer.forget();
+    mBuffer = aBuffer;
+    mBufferRect = aBufferRect;
+    mBufferRotation = aBufferRotation;
+    return tmp.forget();
+  }
+
+  already_AddRefed<gfxASurface>
+  SetBufferOnWhite(gfxASurface* aBuffer)
+  {
+    MOZ_ASSERT(!SupportsAzureContent());
+    nsRefPtr<gfxASurface> tmp = mBufferOnWhite.forget();
+    mBufferOnWhite = aBuffer;
+    return tmp.forget();
+  }
+
   TemporaryRef<gfx::DrawTarget>
   SetDTBuffer(gfx::DrawTarget* aBuffer,
-              const nsIntRect& aBufferRect,
-              const nsIntPoint& aBufferRotation)
+            const nsIntRect& aBufferRect, const nsIntPoint& aBufferRotation)
   {
+    MOZ_ASSERT(SupportsAzureContent());
     RefPtr<gfx::DrawTarget> tmp = mDTBuffer.forget();
     mDTBuffer = aBuffer;
     mBufferRect = aBufferRect;
@@ -274,6 +327,7 @@ protected:
   TemporaryRef<gfx::DrawTarget>
   SetDTBufferOnWhite(gfx::DrawTarget* aBuffer)
   {
+    MOZ_ASSERT(SupportsAzureContent());
     RefPtr<gfx::DrawTarget> tmp = mDTBufferOnWhite.forget();
     mDTBufferOnWhite = aBuffer;
     return tmp.forget();
@@ -286,7 +340,7 @@ protected:
    *
    * It's the caller's responsibility to ensure |aClient| is valid
    * for the duration of operations it requests of this
-   * RotatedContentBuffer.  It's also the caller's responsibility to
+   * ThebesLayerBuffer.  It's also the caller's responsibility to
    * unset the provider when inactive, by calling
    * SetBufferProvider(nullptr).
    */
@@ -294,10 +348,11 @@ protected:
   {
     // Only this buffer provider can give us a buffer.  If we
     // already have one, something has gone wrong.
-    MOZ_ASSERT(!aClient || !mDTBuffer);
+    MOZ_ASSERT(!aClient || (!mBuffer && !mDTBuffer));
 
     mBufferProvider = aClient;
     if (!mBufferProvider) {
+      mBuffer = nullptr;
       mDTBuffer = nullptr;
     } 
   }
@@ -306,10 +361,11 @@ protected:
   {
     // Only this buffer provider can give us a buffer.  If we
     // already have one, something has gone wrong.
-    MOZ_ASSERT(!aClient || !mDTBufferOnWhite);
+    MOZ_ASSERT(!aClient || (!mBufferOnWhite && !mDTBufferOnWhite));
 
     mBufferProviderOnWhite = aClient;
     if (!mBufferProviderOnWhite) {
+      mBufferOnWhite = nullptr;
       mDTBufferOnWhite = nullptr;
     } 
   }
@@ -326,6 +382,9 @@ protected:
   static bool IsClippingCheap(gfxContext* aTarget, const nsIntRegion& aRegion);
 
 protected:
+  // Buffer helpers.  Don't use mBuffer directly; instead use one of
+  // these helpers.
+
   /**
    * Return the buffer's content type.  Requires a valid buffer or
    * buffer provider.
@@ -345,7 +404,7 @@ protected:
   virtual bool HaveBufferOnWhite() const;
 
   /**
-   * These members are only set transiently.  They're used to map mDTBuffer
+   * These members are only set transiently.  They're used to map mBuffer
    * when we're using surfaces that require explicit map/unmap. Only one
    * may be used at a time.
    */
@@ -358,4 +417,4 @@ protected:
 }
 }
 
-#endif /* ROTATEDBUFFER_H_ */
+#endif /* THEBESLAYERBUFFER_H_ */

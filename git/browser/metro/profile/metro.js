@@ -26,6 +26,7 @@ pref("app.crashreporter.autosubmit", true);
 pref("app.crashreporter.prompted", false);
 
 // Debug prefs, see input.js
+pref("metro.debug.treatmouseastouch", false);
 pref("metro.debug.colorizeInputOverlay", false);
 pref("metro.debug.selection.displayRanges", false);
 pref("metro.debug.selection.dumpRanges", false);

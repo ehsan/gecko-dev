@@ -474,7 +474,6 @@ class MBasicBlock : public TempObject, public InlineListNode<MBasicBlock>
     void dumpStack(FILE *fp);
 
     void dump(FILE *fp);
-    void dump();
 
     // Track bailouts by storing the current pc in MIR instruction added at this
     // cycle. This is also used for tracking calls when profiling.
@@ -533,13 +532,13 @@ typedef InlineListIterator<MBasicBlock> MBasicBlockIterator;
 typedef InlineListIterator<MBasicBlock> ReversePostorderIterator;
 typedef InlineListReverseIterator<MBasicBlock> PostorderIterator;
 
-typedef Vector<MBasicBlock *, 1, IonAllocPolicy> MIRGraphReturns;
+typedef Vector<MBasicBlock *, 1, IonAllocPolicy> MIRGraphExits;
 
 class MIRGraph
 {
     InlineList<MBasicBlock> blocks_;
     TempAllocator *alloc_;
-    MIRGraphReturns *returnAccumulator_;
+    MIRGraphExits *exitAccumulator_;
     uint32_t blockIdGen_;
     uint32_t idGen_;
     MBasicBlock *osrBlock_;
@@ -551,7 +550,7 @@ class MIRGraph
   public:
     MIRGraph(TempAllocator *alloc)
       : alloc_(alloc),
-        returnAccumulator_(nullptr),
+        exitAccumulator_(nullptr),
         blockIdGen_(0),
         idGen_(0),
         osrBlock_(nullptr),
@@ -574,18 +573,18 @@ class MIRGraph
 
     void unmarkBlocks();
 
-    void setReturnAccumulator(MIRGraphReturns *accum) {
-        returnAccumulator_ = accum;
+    void setExitAccumulator(MIRGraphExits *accum) {
+        exitAccumulator_ = accum;
     }
-    MIRGraphReturns *returnAccumulator() const {
-        return returnAccumulator_;
+    MIRGraphExits *exitAccumulator() const {
+        return exitAccumulator_;
     }
 
-    bool addReturn(MBasicBlock *returnBlock) {
-        if (!returnAccumulator_)
+    bool addExit(MBasicBlock *exitBlock) {
+        if (!exitAccumulator_)
             return true;
 
-        return returnAccumulator_->append(returnBlock);
+        return exitAccumulator_->append(exitBlock);
     }
 
     MBasicBlock *entryBlock() {
@@ -684,7 +683,6 @@ class MIRGraph
     MDefinition *forkJoinSlice();
 
     void dump(FILE *fp);
-    void dump();
 };
 
 class MDefinitionIterator

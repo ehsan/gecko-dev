@@ -82,7 +82,7 @@ const kPinned = [
 ];
 
 this.CharsetMenu = Object.freeze({
-  build: function BuildCharsetMenu(event, showAccessKeys) {
+  build: function BuildCharsetMenu(event) {
     let parent = event.target;
     if (parent.lastChild.localName != "menuseparator") {
       // Detector menu or charset menu already built
@@ -100,13 +100,11 @@ this.CharsetMenu = Object.freeze({
         // Localization error but put *something* in the menu to recover.
         menuItem.setAttribute("label", encoding);
       }
-      if (showAccessKeys) {
-        try {
-          menuItem.setAttribute("accesskey",
-                                gBundle.GetStringFromName(encoding + ".key"));
-        } catch (e) {
-          // Some items intentionally don't have an accesskey
-        }
+      try {
+        menuItem.setAttribute("accesskey",
+                              gBundle.GetStringFromName(encoding + ".key"));
+      } catch (e) {
+        // Some items intentionally don't have an accesskey
       }
       menuItem.setAttribute("id", "charset." + encoding);
       return menuItem;

@@ -131,8 +131,6 @@ private:
         nsRefPtr<TabParent> tabParent;
         mTabParent.swap(tabParent);
 
-        using mozilla::ipc::FileDescriptor;
-
         FileDescriptor::PlatformHandleType handle =
             FileDescriptor::PlatformHandleType(PR_FileDesc2NativeHandle(mFD));
 
@@ -777,8 +775,7 @@ TabParent::RecvSyncMessage(const nsString& aMessage,
 {
   nsIPrincipal* principal = aPrincipal;
   ContentParent* parent = static_cast<ContentParent*>(Manager());
-  if (!Preferences::GetBool("geo.testing.ignore_ipc_principal", false) &&
-      principal && !AssertAppPrincipal(parent, principal)) {
+  if (principal && !AssertAppPrincipal(parent, principal)) {
     return false;
   }
 
@@ -796,8 +793,7 @@ TabParent::AnswerRpcMessage(const nsString& aMessage,
 {
   nsIPrincipal* principal = aPrincipal;
   ContentParent* parent = static_cast<ContentParent*>(Manager());
-  if (!Preferences::GetBool("geo.testing.ignore_ipc_principal", false) &&
-      principal && !AssertAppPrincipal(parent, principal)) {
+  if (principal && !AssertAppPrincipal(parent, principal)) {
     return false;
   }
 
@@ -814,8 +810,7 @@ TabParent::RecvAsyncMessage(const nsString& aMessage,
 {
   nsIPrincipal* principal = aPrincipal;
   ContentParent* parent = static_cast<ContentParent*>(Manager());
-  if (!Preferences::GetBool("geo.testing.ignore_ipc_principal", false) &&
-      principal && !AssertAppPrincipal(parent, principal)) {
+  if (principal && !AssertAppPrincipal(parent, principal)) {
     return false;
   }
 

@@ -28,7 +28,8 @@ var APZCObserver = {
     }
 
     let os = Services.obs;
-    os.addObserver(this, "apzc-transform-begin", false);
+    os.addObserver(this, "apzc-handle-pan-begin", false);
+    os.addObserver(this, "apzc-handle-pan-end", false);
 
     // Fired by ContentAreaObserver
     window.addEventListener("SizeChanged", this, true);
@@ -44,7 +45,8 @@ var APZCObserver = {
     }
 
     let os = Services.obs;
-    os.removeObserver(this, "apzc-transform-begin");
+    os.removeObserver(this, "apzc-handle-pan-begin");
+    os.removeObserver(this, "apzc-handle-pan-end");
 
     window.removeEventListener("SizeChanged", this, true);
 
@@ -84,7 +86,7 @@ var APZCObserver = {
   },
 
   observe: function ao_observe(aSubject, aTopic, aData) {
-    if (aTopic == "apzc-transform-begin") {
+    if (aTopic == "apzc-handle-pan-begin") {
       // When we're panning, hide the main scrollbars by setting imprecise
       // input (which sets a property on the browser which hides the scrollbar
       // via CSS).  This reduces jittering from left to right. We may be able

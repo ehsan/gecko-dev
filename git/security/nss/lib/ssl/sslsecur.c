@@ -277,7 +277,7 @@ SSL_ReHandshake(PRFileDesc *fd, PRBool flushCache)
 
     /* SSL v2 protocol does not support subsequent handshakes. */
     if (ss->version < SSL_LIBRARY_VERSION_3_0) {
-	PORT_SetError(SSL_ERROR_FEATURE_NOT_SUPPORTED_FOR_SSL2);
+	PORT_SetError(SEC_ERROR_INVALID_ARGS);
 	rv = SECFailure;
     } else {
 	ssl_GetSSL3HandshakeLock(ss);
@@ -1237,6 +1237,7 @@ int
 ssl_SecureSend(sslSocket *ss, const unsigned char *buf, int len, int flags)
 {
     int rv = 0;
+    PRBool falseStart = PR_FALSE;
 
     SSL_TRC(2, ("%d: SSL[%d]: SecureSend: sending %d bytes",
 		SSL_GETPID(), ss->fd, len));
@@ -1271,7 +1272,6 @@ ssl_SecureSend(sslSocket *ss, const unsigned char *buf, int len, int flags)
     	ss->writerThread = PR_GetCurrentThread();
     /* If any of these is non-zero, the initial handshake is not done. */
     if (!ss->firstHsDone) {
-	PRBool falseStart = PR_FALSE;
 	ssl_Get1stHandshakeLock(ss);
 	if (ss->opt.enableFalseStart &&
 	    ss->version >= SSL_LIBRARY_VERSION_3_0) {

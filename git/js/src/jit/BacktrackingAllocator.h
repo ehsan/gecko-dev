@@ -36,7 +36,7 @@ struct VirtualRegisterGroup : public TempObject
     // Spill location to be shared by registers in the group.
     LAllocation spill;
 
-    explicit VirtualRegisterGroup(TempAllocator &alloc)
+    VirtualRegisterGroup(TempAllocator &alloc)
       : registers(alloc), allocation(LUse(0, LUse::ANY)), spill(LUse(0, LUse::ANY))
     {}
 
@@ -67,7 +67,7 @@ class BacktrackingVirtualRegister : public VirtualRegister
     VirtualRegisterGroup *group_;
 
   public:
-    explicit BacktrackingVirtualRegister(TempAllocator &alloc)
+    BacktrackingVirtualRegister(TempAllocator &alloc)
       : VirtualRegister(alloc)
     {}
     void setMustCopyInput() {
@@ -108,8 +108,7 @@ class BacktrackingVirtualRegister : public VirtualRegister
 // where to split.
 typedef js::Vector<CodePosition, 4, SystemAllocPolicy> SplitPositionVector;
 
-class BacktrackingAllocator
-  : private LiveRangeAllocator<BacktrackingVirtualRegister, /* forLSRA = */ false>
+class BacktrackingAllocator : public LiveRangeAllocator<BacktrackingVirtualRegister>
 {
     // Priority queue element: either an interval or group of intervals and the
     // associated priority.
@@ -178,7 +177,7 @@ class BacktrackingAllocator
 
   public:
     BacktrackingAllocator(MIRGenerator *mir, LIRGenerator *lir, LIRGraph &graph)
-      : LiveRangeAllocator<BacktrackingVirtualRegister, /* forLSRA = */ false>(mir, lir, graph)
+      : LiveRangeAllocator<BacktrackingVirtualRegister>(mir, lir, graph, /* forLSRA = */ false)
     { }
 
     bool go();

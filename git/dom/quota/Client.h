@@ -14,9 +14,6 @@
 class nsIOfflineStorage;
 class nsIRunnable;
 
-#define IDB_DIRECTORY_NAME "idb"
-#define ASMJSCACHE_DIRECTORY_NAME "asmjs"
-
 BEGIN_QUOTA_NAMESPACE
 
 class OriginOrPatternString;
@@ -38,7 +35,6 @@ public:
     IDB = 0,
     //LS,
     //APPCACHE,
-    ASMJS,
     TYPE_MAX
   };
 
@@ -50,11 +46,7 @@ public:
   {
     switch (aType) {
       case IDB:
-        aText.AssignLiteral(IDB_DIRECTORY_NAME);
-        break;
-
-      case ASMJS:
-        aText.AssignLiteral(ASMJSCACHE_DIRECTORY_NAME);
+        aText.AssignLiteral("idb");
         break;
 
       case TYPE_MAX:
@@ -69,11 +61,8 @@ public:
   static nsresult
   TypeFromText(const nsAString& aText, Type& aType)
   {
-    if (aText.EqualsLiteral(IDB_DIRECTORY_NAME)) {
+    if (aText.EqualsLiteral("idb")) {
       aType = IDB;
-    }
-    else if (aText.EqualsLiteral(ASMJSCACHE_DIRECTORY_NAME)) {
-      aType = ASMJS;
     }
     else {
       return NS_ERROR_FAILURE;

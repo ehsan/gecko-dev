@@ -16,28 +16,12 @@ const PREF_EM_MIN_COMPAT_PLATFORM_VERSION = "extensions.minCompatiblePlatformVer
 // Forcibly end the test if it runs longer than 15 minutes
 const TIMEOUT_MS = 900000;
 
+Components.utils.import("resource://gre/modules/AddonManager.jsm");
 Components.utils.import("resource://gre/modules/AddonRepository.jsm");
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/FileUtils.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
 Components.utils.import("resource://gre/modules/NetUtil.jsm");
-
-// We need some internal bits of AddonManager
-let AMscope = Components.utils.import("resource://gre/modules/AddonManager.jsm");
-let AddonManager = AMscope.AddonManager;
-let AddonManagerInternal = AMscope.AddonManagerInternal;
-// Mock out AddonManager's reference to the AsyncShutdown module so we can shut
-// down AddonManager from the test
-let MockAsyncShutdown = {
-  hook: null,
-  profileBeforeChange: {
-    addBlocker: function(aName, aBlocker) {
-      do_print("Mock profileBeforeChange blocker for '" + aName + "'");
-      MockAsyncShutdown.hook = aBlocker;
-    }
-  }
-};
-AMscope.AsyncShutdown = MockAsyncShutdown;
 
 var gInternalManager = null;
 var gAppInfo = null;
@@ -419,16 +403,11 @@ function shutdownManager() {
   let shutdownDone = false;
 
   Services.obs.notifyObservers(null, "quit-application-granted", null);
-  MockAsyncShutdown.hook().then(
-    () => shutdownDone = true,
-    err => shutdownDone = true);
-
-  let thr = Services.tm.mainThread;
-
-  // Wait until we observe the shutdown notifications
-  while (!shutdownDone) {
-    thr.processNextEvent(true);
-  }
+  let scope = Components.utils.import("resource://gre/modules/AddonManager.jsm");
+  scope.AddonManagerInternal.shutdown()
+    .then(
+        () => shutdownDone = true,
+        err => shutdownDone = true);
 
   gInternalManager = null;
 
@@ -438,13 +417,20 @@ function shutdownManager() {
   // Clear any crash report annotations
   gAppInfo.annotations = {};
 
+  let thr = Services.tm.mainThread;
+
+  // Wait until we observe the shutdown notifications
+  while (!shutdownDone) {
+    thr.processNextEvent(true);
+  }
+
   // Force the XPIProvider provider to reload to better
   // simulate real-world usage.
-  let XPIscope = Components.utils.import("resource://gre/modules/XPIProvider.jsm");
+  scope = Components.utils.import("resource://gre/modules/XPIProvider.jsm");
   // This would be cleaner if I could get it as the rejection reason from
   // the AddonManagerInternal.shutdown() promise
-  gXPISaveError = XPIscope.XPIProvider._shutdownError;
-  AddonManagerPrivate.unregisterProvider(XPIscope.XPIProvider);
+  gXPISaveError = scope.XPIProvider._shutdownError;
+  AddonManagerPrivate.unregisterProvider(scope.XPIProvider);
   Components.utils.unload("resource://gre/modules/XPIProvider.jsm");
 }
 
@@ -1104,24 +1090,16 @@ if ("nsIWindowsRegKey" in AM_Ci) {
   var MockRegistry = {
     LOCAL_MACHINE: {},
     CURRENT_USER: {},
-    CLASSES_ROOT: {},
-
-    getRoot: function(aRoot) {
-      switch (aRoot) {
-      case AM_Ci.nsIWindowsRegKey.ROOT_KEY_LOCAL_MACHINE:
-        return MockRegistry.LOCAL_MACHINE;
-      case AM_Ci.nsIWindowsRegKey.ROOT_KEY_CURRENT_USER:
-        return MockRegistry.CURRENT_USER;
-      case AM_Ci.nsIWindowsRegKey.ROOT_KEY_CLASSES_ROOT:
-        return MockRegistry.CLASSES_ROOT;
-      default:
-        do_throw("Unknown root " + aRootKey);
-        return null;
-      }
-    },
 
     setValue: function(aRoot, aPath, aName, aValue) {
-      let rootKey = MockRegistry.getRoot(aRoot);
+      switch (aRoot) {
+      case AM_Ci.nsIWindowsRegKey.ROOT_KEY_LOCAL_MACHINE:
+        var rootKey = MockRegistry.LOCAL_MACHINE;
+        break
+      case AM_Ci.nsIWindowsRegKey.ROOT_KEY_CURRENT_USER:
+        rootKey = MockRegistry.CURRENT_USER;
+        break
+      }
 
       if (!(aPath in rootKey)) {
         rootKey[aPath] = [];
@@ -1163,7 +1141,14 @@ if ("nsIWindowsRegKey" in AM_Ci) {
 
     // --- Overridden nsIWindowsRegKey interface functions ---
     open: function(aRootKey, aRelPath, aMode) {
-      let rootKey = MockRegistry.getRoot(aRootKey);
+      switch (aRootKey) {
+      case AM_Ci.nsIWindowsRegKey.ROOT_KEY_LOCAL_MACHINE:
+        var rootKey = MockRegistry.LOCAL_MACHINE;
+        break
+      case AM_Ci.nsIWindowsRegKey.ROOT_KEY_CURRENT_USER:
+        rootKey = MockRegistry.CURRENT_USER;
+        break
+      }
 
       if (!(aRelPath in rootKey))
         rootKey[aRelPath] = [];
@@ -1413,9 +1398,9 @@ function changeXPIDBVersion(aNewVersion) {
 }
 
 /**
- * Load a file into a string
+ * Raw load of a JSON file
  */
-function loadFile(aFile) {
+function loadJSON(aFile) {
   let data = "";
   let fstream = Components.classes["@mozilla.org/network/file-input-stream;1"].
           createInstance(Components.interfaces.nsIFileInputStream);
@@ -1431,14 +1416,6 @@ function loadFile(aFile) {
     } while (read != 0);
   }
   cstream.close();
-  return data;
-}
-
-/**
- * Raw load of a JSON file
- */
-function loadJSON(aFile) {
-  let data = loadFile(aFile);
   do_print("Loaded JSON file " + aFile.path);
   return(JSON.parse(data));
 }
