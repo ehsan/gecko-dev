@@ -58,8 +58,7 @@ AudioNodeExternalInputStream::GetTrackMapEntry(const StreamBuffer::Track& aTrack
   // Create a speex resampler with the same sample rate and number of channels
   // as the track.
   SpeexResamplerState* resampler = nullptr;
-  uint32_t channelCount = std::min((*ci).mChannelData.Length(),
-                                   WebAudioUtils::MaxChannelCount);
+  uint32_t channelCount = (*ci).mChannelData.Length();
   if (aTrack.GetRate() != mSampleRate) {
     resampler = speex_resampler_init(channelCount,
       aTrack.GetRate(), mSampleRate, SPEEX_RESAMPLER_QUALITY_DEFAULT, nullptr);
@@ -413,7 +412,7 @@ AudioNodeExternalInputStream::ProcessInput(GraphTime aFrom, GraphTime aTo,
                               std::min(inputTrackEndPoint, inputEndTicks));
         }
         // Pad if we're looking past the end of the track
-        segment.AppendNullData(ticks - segment.GetDuration());
+        segment.AppendNullData(std::max<TrackTicks>(0, inputEndTicks - inputTrackEndPoint));
       }
     }
 
@@ -437,22 +436,19 @@ AudioNodeExternalInputStream::ProcessInput(GraphTime aFrom, GraphTime aTo,
     }
   }
 
-  uint32_t accumulateIndex = 0;
-  if (inputChannels) {
+  uint32_t outputChannels = ComputeFinalOuputChannelCount(inputChannels);
+
+  if (outputChannels) {
+    AllocateAudioBlock(outputChannels, &mLastChunks[0]);
     nsAutoTArray<float,GUESS_AUDIO_CHANNELS*WEBAUDIO_BLOCK_SIZE> downmixBuffer;
     for (uint32_t i = 0; i < audioSegments.Length(); ++i) {
       AudioChunk tmpChunk;
       ConvertSegmentToAudioBlock(&audioSegments[i], &tmpChunk);
       if (!tmpChunk.IsNull()) {
-        if (accumulateIndex == 0) {
-          AllocateAudioBlock(inputChannels, &mLastChunks[0]);
-        }
-        AccumulateInputChunk(accumulateIndex, tmpChunk, &mLastChunks[0], &downmixBuffer);
-        accumulateIndex++;
+        AccumulateInputChunk(i, tmpChunk, &mLastChunks[0], &downmixBuffer);
       }
     }
-  }
-  if (accumulateIndex == 0) {
+  } else {
     mLastChunks[0].SetNull(WEBAUDIO_BLOCK_SIZE);
   }
   mCurrentOutputPosition += WEBAUDIO_BLOCK_SIZE;

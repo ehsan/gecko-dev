@@ -25,7 +25,7 @@ extern PRLogModuleInfo* GetDataChannelLog();
 #include "nsIDOMFile.h"
 #include "nsIDOMDataChannel.h"
 #include "nsIDOMMessageEvent.h"
-#include "mozilla/DOMEventTargetHelper.h"
+#include "nsDOMEventTargetHelper.h"
 
 #include "nsError.h"
 #include "nsAutoPtr.h"
@@ -66,24 +66,24 @@ nsDOMDataChannel::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsDOMDataChannel)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsDOMDataChannel,
-                                                  DOMEventTargetHelper)
+                                                  nsDOMEventTargetHelper)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsDOMDataChannel,
-                                                DOMEventTargetHelper)
+                                                nsDOMEventTargetHelper)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
-NS_IMPL_ADDREF_INHERITED(nsDOMDataChannel, DOMEventTargetHelper)
-NS_IMPL_RELEASE_INHERITED(nsDOMDataChannel, DOMEventTargetHelper)
+NS_IMPL_ADDREF_INHERITED(nsDOMDataChannel, nsDOMEventTargetHelper)
+NS_IMPL_RELEASE_INHERITED(nsDOMDataChannel, nsDOMEventTargetHelper)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsDOMDataChannel)
   NS_INTERFACE_MAP_ENTRY(nsIDOMDataChannel)
-NS_INTERFACE_MAP_END_INHERITING(DOMEventTargetHelper)
+NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
 
 nsDOMDataChannel::nsDOMDataChannel(already_AddRefed<mozilla::DataChannel>& aDataChannel,
                                    nsPIDOMWindow* aWindow)
-  : DOMEventTargetHelper(aWindow && aWindow->IsOuterWindow() ?
-                           aWindow->GetCurrentInnerWindow() : aWindow)
+  : nsDOMEventTargetHelper(aWindow && aWindow->IsOuterWindow() ?
+                             aWindow->GetCurrentInnerWindow() : aWindow)
   , mDataChannel(aDataChannel)
   , mBinaryType(DC_BINARY_TYPE_BLOB)
 {

@@ -4,14 +4,13 @@
 
 package org.mozilla.gecko.tests.components;
 
-import static org.mozilla.gecko.tests.helpers.AssertionHelper.fAssertNotNull;
-import static org.mozilla.gecko.tests.helpers.AssertionHelper.fAssertNotSame;
-import static org.mozilla.gecko.tests.helpers.AssertionHelper.fAssertTrue;
+import static org.mozilla.gecko.tests.helpers.AssertionHelper.*;
 
-import org.mozilla.gecko.R;
+import org.mozilla.gecko.tests.helpers.*;
 import org.mozilla.gecko.tests.UITestContext;
-import org.mozilla.gecko.tests.helpers.FrameworkHelper;
-import org.mozilla.gecko.tests.helpers.WaitHelper;
+import org.mozilla.gecko.R;
+
+import com.jayway.android.robotium.solo.Condition;
 
 import android.content.Context;
 import android.content.ContextWrapper;
@@ -21,8 +20,6 @@ import android.view.View;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
 import android.view.inputmethod.InputMethodManager;
-
-import com.jayway.android.robotium.solo.Condition;
 
 /**
  * A class representing any interactions that take place on GeckoView.

@@ -4,10 +4,7 @@
 
 package org.mozilla.gecko.tests;
 
-import static org.mozilla.gecko.tests.helpers.AssertionHelper.fAssertArrayEquals;
-import static org.mozilla.gecko.tests.helpers.AssertionHelper.fAssertEquals;
-import static org.mozilla.gecko.tests.helpers.AssertionHelper.fAssertNotNull;
-import static org.mozilla.gecko.tests.helpers.AssertionHelper.fFail;
+import static org.mozilla.gecko.tests.helpers.AssertionHelper.*;
 
 import java.io.UnsupportedEncodingException;
 import java.security.GeneralSecurityException;
@@ -16,7 +13,7 @@ import java.security.NoSuchAlgorithmException;
 
 import org.mozilla.gecko.background.nativecode.NativeCrypto;
 import org.mozilla.gecko.sync.Utils;
-import org.mozilla.gecko.tests.helpers.GeckoHelper;
+import org.mozilla.gecko.tests.helpers.*;
 
 import android.os.SystemClock;
 

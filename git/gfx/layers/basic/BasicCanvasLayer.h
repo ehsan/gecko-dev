@@ -34,7 +34,9 @@ public:
     CanvasLayer::SetVisibleRegion(aRegion);
   }
   
-  virtual void Paint(gfx::DrawTarget* aDT, Layer* aMaskLayer) MOZ_OVERRIDE;
+  virtual void Paint(gfx::DrawTarget* aTarget,
+                     gfx::SourceSurface* aMaskSurface);
+  virtual void DeprecatedPaint(gfxContext* aContext, Layer* aMaskLayer);
  
 protected:
   BasicLayerManager* BasicManager()

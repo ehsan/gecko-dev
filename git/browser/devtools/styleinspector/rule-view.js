@@ -7,7 +7,7 @@
 "use strict";
 
 const {Cc, Ci, Cu} = require("chrome");
-const {Promise: promise} = Cu.import("resource://gre/modules/Promise.jsm", {});
+const promise = require("sdk/core/promise");
 const {CssLogic} = require("devtools/styleinspector/css-logic");
 const {InplaceEditor, editableField, editableItem} = require("devtools/shared/inplace-editor");
 const {ELEMENT_STYLE, PSEUDO_ELEMENTS} = require("devtools/server/actors/styles");
@@ -129,6 +129,16 @@ function ElementStyle(aElement, aStore, aPageStyle) {
   if (!("disabled" in this.store)) {
     this.store.disabled = new WeakMap();
   }
+
+  // To figure out how shorthand properties are interpreted by the
+  // engine, we will set properties on a dummy element and observe
+  // how their .style attribute reflects them as computed values.
+  this.dummyElementPromise = createDummyDocument().then(document => {
+    this.dummyElement = document.createElementNS(this.element.namespaceURI,
+                                                 this.element.tagName);
+    document.documentElement.appendChild(this.dummyElement);
+    return this.dummyElement;
+  }).then(null, promiseWarn);
 }
 
 // We're exporting _ElementStyle for unit tests.
@@ -141,19 +151,6 @@ ElementStyle.prototype = {
   // Empty, unconnected element of the same type as this node, used
   // to figure out how shorthand properties will be parsed.
   dummyElement: null,
-
-  init: function()
-  {
-    // To figure out how shorthand properties are interpreted by the
-    // engine, we will set properties on a dummy element and observe
-    // how their .style attribute reflects them as computed values.
-    return this.dummyElementPromise = createDummyDocument().then(document => {
-      this.dummyElement = document.createElementNS(this.element.namespaceURI,
-                                                   this.element.tagName);
-      document.documentElement.appendChild(this.dummyElement);
-      return this.dummyElement;
-    }).then(null, promiseWarn);
-  },
 
   destroy: function() {
     this.dummyElement = null;
@@ -1386,9 +1383,7 @@ CssRuleView.prototype = {
     }
 
     this._elementStyle = new ElementStyle(aElement, this.store, this.pageStyle);
-    return this._elementStyle.init().then(() => {
-      return this._populate();
-    }).then(() => {
+    return this._populate().then(() => {
       // A new node may already be selected, in which this._elementStyle will
       // be null.
       if (this._elementStyle) {

@@ -62,7 +62,6 @@ var SelectionHandler = {
 
     BrowserApp.deck.addEventListener("pagehide", this, false);
     BrowserApp.deck.addEventListener("blur", this, true);
-    BrowserApp.deck.addEventListener("scroll", this, true);
   },
 
   _removeObservers: function sh_removeObservers() {
@@ -76,7 +75,6 @@ var SelectionHandler = {
 
     BrowserApp.deck.removeEventListener("pagehide", this);
     BrowserApp.deck.removeEventListener("blur", this);
-    BrowserApp.deck.removeEventListener("scroll", this);
   },
 
   observe: function sh_observe(aSubject, aTopic, aData) {
@@ -203,11 +201,6 @@ var SelectionHandler = {
 
   handleEvent: function sh_handleEvent(aEvent) {
     switch (aEvent.type) {
-      case "scroll":
-        // Maintain position when top-level document is scrolled
-        this._positionHandles();
-        break;
-
       case "pagehide":
       case "blur":
         this._closeSelection();

@@ -11,7 +11,15 @@ function test()
 {
   waitForExplicitFinish();
 
-  addTabAndOpenStyleEditors(2, panel => runTests(panel.UI));
+  addTabAndOpenStyleEditor(function(panel) {
+    let UI = panel.UI;
+    UI.on("editor-added", function(event, editor) {
+      if (editor == UI.editors[1]) {
+        // wait until both editors are added
+        runTests(UI);
+      }
+    });
+  });
 
   content.location = TESTCASE_URI;
 }

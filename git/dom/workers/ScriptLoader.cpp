@@ -717,7 +717,7 @@ ScriptExecutorRunnable::WorkerRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
     JS::CompileOptions options(aCx);
     options.setFileAndLine(filename.get(), 1);
     if (!JS::Evaluate(aCx, global, options, loadInfo.mScriptText.get(),
-                      loadInfo.mScriptText.Length())) {
+                      loadInfo.mScriptText.Length(), nullptr)) {
       return true;
     }
 

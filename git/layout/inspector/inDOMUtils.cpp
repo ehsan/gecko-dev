@@ -27,7 +27,7 @@
 #include "nsBindingManager.h"
 #include "ChildIterator.h"
 #include "nsComputedDOMStyle.h"
-#include "mozilla/EventStateManager.h"
+#include "nsEventStateManager.h"
 #include "nsIAtom.h"
 #include "nsRange.h"
 #include "nsContentList.h"
@@ -692,8 +692,7 @@ inDOMUtils::SetContentState(nsIDOMElement *aElement, nsEventStates::InternalType
 {
   NS_ENSURE_ARG_POINTER(aElement);
 
-  nsRefPtr<EventStateManager> esm =
-    inLayoutUtils::GetEventStateManagerFor(aElement);
+  nsRefPtr<nsEventStateManager> esm = inLayoutUtils::GetEventStateManagerFor(aElement);
   if (esm) {
     nsCOMPtr<nsIContent> content;
     content = do_QueryInterface(aElement);

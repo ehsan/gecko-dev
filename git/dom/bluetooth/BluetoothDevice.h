@@ -8,9 +8,9 @@
 #define mozilla_dom_bluetooth_bluetoothdevice_h__
 
 #include "mozilla/Attributes.h"
-#include "mozilla/DOMEventTargetHelper.h"
 #include "BluetoothCommon.h"
 #include "BluetoothPropertyContainer.h"
+#include "nsDOMEventTargetHelper.h"
 #include "nsString.h"
 
 BEGIN_BLUETOOTH_NAMESPACE
@@ -20,7 +20,7 @@ class BluetoothValue;
 class BluetoothSignal;
 class BluetoothSocket;
 
-class BluetoothDevice : public DOMEventTargetHelper
+class BluetoothDevice : public nsDOMEventTargetHelper
                       , public BluetoothSignalObserver
                       , public BluetoothPropertyContainer
 {
@@ -28,7 +28,7 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
 
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_INHERITED(BluetoothDevice,
-                                                         DOMEventTargetHelper)
+                                                         nsDOMEventTargetHelper)
 
   static already_AddRefed<BluetoothDevice>
   Create(nsPIDOMWindow* aOwner, const nsAString& aAdapterPath,

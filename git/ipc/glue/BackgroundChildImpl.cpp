@@ -35,28 +35,6 @@ class TestChild MOZ_FINAL : public mozilla::ipc::PBackgroundTestChild
 namespace mozilla {
 namespace ipc {
 
-// -----------------------------------------------------------------------------
-// BackgroundChildImpl::ThreadLocal
-// -----------------------------------------------------------------------------
-
-BackgroundChildImpl::
-ThreadLocal::ThreadLocal()
-{
-  // May happen on any thread!
-  MOZ_COUNT_CTOR(mozilla::ipc::BackgroundChildImpl::ThreadLocal);
-}
-
-BackgroundChildImpl::
-ThreadLocal::~ThreadLocal()
-{
-  // May happen on any thread!
-  MOZ_COUNT_DTOR(mozilla::ipc::BackgroundChildImpl::ThreadLocal);
-}
-
-// -----------------------------------------------------------------------------
-// BackgroundChildImpl
-// -----------------------------------------------------------------------------
-
 BackgroundChildImpl::BackgroundChildImpl()
 {
   // May happen on any thread!

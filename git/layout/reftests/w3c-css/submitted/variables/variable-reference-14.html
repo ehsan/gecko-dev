@@ -9,12 +9,12 @@
 <link rel="match" href="support/color-green-ref.html">
 <style>
 #a {
-  --a: green !important;
+  var-a: green !important;
 }
 p {
   color: red;
-  --a: crimson;
-  color: var(--a);
+  var-a: crimson;
+  color: var(a);
 }
 </style>
 <p id=a>This text must be green.</p>

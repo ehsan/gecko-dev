@@ -571,10 +571,7 @@ nsMathMLmmultiscriptsFrame::PlaceMultiScript(nsPresContext*      aPresContext,
                                                dx),
                            dy, 0);
         dx += bmBase.width;
-      } else if (prescriptsFrame == childFrame) {
-        // Clear reflow flags of prescripts frame.
-        prescriptsFrame->DidReflow(aPresContext, nullptr, nsDidReflowStatus::FINISHED);
-      } else {
+      } else if (prescriptsFrame != childFrame) {
         // process each sup/sub pair
         if (0 == count) {
           subScriptFrame = childFrame;

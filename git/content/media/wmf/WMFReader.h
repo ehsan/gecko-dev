@@ -49,7 +49,6 @@ public:
                 int64_t aCurrentTime) MOZ_OVERRIDE;
 private:
 
-  HRESULT CreateSourceReader();
   HRESULT ConfigureAudioDecoder();
   HRESULT ConfigureVideoDecoder();
   HRESULT ConfigureVideoFrameGeometry(IMFMediaType* aMediaType);

@@ -7,11 +7,11 @@
 BEGIN_TEST(test_BindCallable)
 {
   JS::RootedValue v(cx);
-  EVAL("({ somename : 1717 })", &v);
+  EVAL("({ somename : 1717 })", v.address());
   CHECK(v.isObject());
 
   JS::RootedValue func(cx);
-  EVAL("(function() { return this.somename; })", &func);
+  EVAL("(function() { return this.somename; })", func.address());
   CHECK(func.isObject());
 
   JS::RootedObject funcObj(cx, JSVAL_TO_OBJECT(func));

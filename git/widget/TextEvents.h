@@ -27,7 +27,7 @@
 
 enum
 {
-#include "mozilla/VirtualKeyCodeList.h"
+#include "nsVKList.h"
 };
 
 #undef NS_DEFINE_VK

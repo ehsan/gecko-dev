@@ -296,18 +296,6 @@
     "n_buckets": 50,
     "description": "Time spent sweeping slowest compartment SCC (ms)"
   },
-  "GEOLOCATION_ACCURACY": {
-    "expires_in_version": "never",
-    "kind": "linear",
-    "high": "18000",
-    "n_buckets": 200,  
-    "description": "Location accuracy"
-  },
-  "GEOLOCATION_ERROR": {
-    "expires_in_version": "never",
-    "kind": "flag",
-    "description": "Has seen location error"
-  },
   "TELEMETRY_PING": {
     "expires_in_version": "never",
     "kind": "exponential",
@@ -3266,11 +3254,6 @@
     "n_buckets": 20,
     "extended_statistics_ok": true,
     "description": "Firefox: Time taken to load a page (ms)"
-  },
-  "FX_TOTAL_TOP_VISITS": {
-    "expires_in_version": "never",
-    "kind": "boolean",
-    "description": "Count the number of times a new top page was starting to load"
   },
   "FX_THUMBNAILS_CAPTURE_TIME_MS": {
     "expires_in_version": "never",

@@ -37,7 +37,7 @@ typedef uint16_t Modifiers;
 
 enum KeyNameIndex
 {
-#include "mozilla/KeyNameList.h"
+#include "nsDOMKeyNameList.h"
   // If a DOM keyboard event is synthesized by script, this is used.  Then,
   // specified key name should be stored and use it as .key value.
   KEY_NAME_INDEX_USE_STRING

@@ -11,10 +11,10 @@
 #include "js/RootingAPI.h"
 #include "mozilla/Assertions.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/DOMEventTargetHelper.h"
 #include "nsAutoPtr.h"
 #include "nsCycleCollectionNoteChild.h"
 #include "nsCycleCollectionParticipant.h"
+#include "nsDOMEventTargetHelper.h"
 #include "nsISupports.h"
 #include "nsTArray.h"
 
@@ -30,7 +30,7 @@ namespace dom {
 
 class MediaSource;
 
-class SourceBufferList MOZ_FINAL : public DOMEventTargetHelper
+class SourceBufferList MOZ_FINAL : public nsDOMEventTargetHelper
 {
 public:
   /** WebIDL Methods. */
@@ -40,8 +40,7 @@ public:
   /** End WebIDL methods. */
 
   NS_DECL_ISUPPORTS_INHERITED
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(SourceBufferList,
-                                           DOMEventTargetHelper)
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(SourceBufferList, nsDOMEventTargetHelper)
 
   explicit SourceBufferList(MediaSource* aMediaSource);
 

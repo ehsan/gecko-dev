@@ -17,6 +17,7 @@
 #include "nsNameSpaceManager.h"
 #include "nsIScriptContext.h"
 #include "nsIDocument.h"
+#include "nsIJSEventListener.h"
 #include "nsIController.h"
 #include "nsIControllers.h"
 #include "nsIDOMXULElement.h"
@@ -42,7 +43,6 @@
 #include "nsXBLSerialize.h"
 #include "nsJSUtils.h"
 #include "mozilla/BasicEvents.h"
-#include "mozilla/JSEventHandler.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/dom/EventHandlerBinding.h"
 
@@ -273,7 +273,7 @@ nsXBLPrototypeHandler::ExecuteHandler(EventTarget* aTarget,
     scriptTarget = aTarget;
   }
 
-  // We're about to create a new JSEventHandler, which means that we're
+  // We're about to create a new nsJSEventListener, which means that we're
   // responsible for pushing the context of the event target. See the similar
   // comment in nsEventManagerListener.cpp.
   nsCxPusher pusher;
@@ -322,18 +322,18 @@ nsXBLPrototypeHandler::ExecuteHandler(EventTarget* aTarget,
   nsRefPtr<EventHandlerNonNull> handlerCallback =
     new EventHandlerNonNull(bound, /* aIncumbentGlobal = */ nullptr);
 
-  TypedEventHandler typedHandler(handlerCallback);
+  nsEventHandler eventHandler(handlerCallback);
 
   // Execute it.
-  nsCOMPtr<JSEventHandler> jsEventHandler;
-  rv = NS_NewJSEventHandler(scriptTarget, onEventAtom,
-                            typedHandler,
-                            getter_AddRefs(jsEventHandler));
+  nsCOMPtr<nsIJSEventListener> eventListener;
+  rv = NS_NewJSEventListener(scriptTarget, onEventAtom,
+                             eventHandler,
+                             getter_AddRefs(eventListener));
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Handle the event.
-  jsEventHandler->HandleEvent(aEvent);
-  jsEventHandler->Disconnect();
+  eventListener->HandleEvent(aEvent);
+  eventListener->Disconnect();
   return NS_OK;
 }
 
@@ -667,7 +667,7 @@ static const keyCodeData gKeyCodes[] = {
 
 #define NS_DEFINE_VK(aDOMKeyName, aDOMKeyCode) \
   { #aDOMKeyName, sizeof(#aDOMKeyName) - 1, aDOMKeyCode }
-#include "mozilla/VirtualKeyCodeList.h"
+#include "nsVKList.h"
 #undef NS_DEFINE_VK
 };
 

@@ -1,8 +1,24 @@
 package org.mozilla.gecko.tests;
 
-import org.mozilla.gecko.Actions;
+import org.mozilla.gecko.*;
+
+import android.graphics.drawable.Drawable;
+import android.widget.EditText;
+import android.widget.CheckedTextView;
+import android.widget.TextView;
+import android.text.InputType;
+import android.util.DisplayMetrics;
+import android.view.View;
+import android.util.Log;
+
+import org.json.JSONObject;
 
 public class testPromptGridInput extends BaseTest {
+    @Override
+    protected int getTestType() {
+        return TEST_MOCHITEST;
+    }
+
     protected int index = 1;
     public void testPromptGridInput() {
         blockForGeckoReady();

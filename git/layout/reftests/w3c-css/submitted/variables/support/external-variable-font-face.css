@@ -1,6 +1,6 @@
 @font-face {
-  --a: MyTestFontName;
-  font-family: var(--a);
+  var-a: MyTestFontName;
+  font-family: var(a);
   src: url(../../../../fonts/Ahem.ttf);
 }
 @font-face {

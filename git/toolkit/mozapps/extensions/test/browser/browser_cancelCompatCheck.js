@@ -186,16 +186,12 @@ function promise_window_close(aWindow) {
 function promise_page(aWindow, aPageId) {
   let deferred = Promise.defer();
   var page = aWindow.document.getElementById(aPageId);
-  if (aWindow.document.getElementById("updateWizard").currentPage === page) {
-    deferred.resolve(aWindow);
-  } else {
-    page.addEventListener("pageshow", function() {
-      page.removeEventListener("pageshow", arguments.callee, false);
-      executeSoon(function() {
-        deferred.resolve(aWindow);
-      });
-    }, false);
-  }
+  page.addEventListener("pageshow", function() {
+    page.removeEventListener("pageshow", arguments.callee, false);
+    executeSoon(function() {
+      deferred.resolve(aWindow);
+    });
+  }, false);
   return deferred.promise;
 }
 

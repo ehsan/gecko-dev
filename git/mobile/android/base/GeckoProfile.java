@@ -30,7 +30,6 @@ public final class GeckoProfile {
     // Used to "lock" the guest profile, so that we'll always restart in it
     private static final String LOCK_FILE_NAME = ".active_lock";
     public static final String DEFAULT_PROFILE = "default";
-    private static final String GUEST_PROFILE = "guest";
 
     private static HashMap<String, GeckoProfile> sProfileCache = new HashMap<String, GeckoProfile>();
     private static String sDefaultProfileName = null;
@@ -153,21 +152,12 @@ public final class GeckoProfile {
     }
 
     public static boolean removeProfile(Context context, String profileName) {
-        final boolean success;
         try {
-            success = new GeckoProfile(context, profileName).remove();
+            return new GeckoProfile(context, profileName).remove();
         } catch (NoMozillaDirectoryException e) {
             Log.w(LOGTAG, "Unable to remove profile: no Mozilla directory.", e);
             return true;
         }
-
-        if (success) {
-            // Clear all shared prefs for the given profile.
-            GeckoSharedPrefs.forProfileName(context, profileName)
-                            .edit().clear().commit();
-        }
-
-        return success;
     }
 
     public static GeckoProfile createGuestProfile(Context context) {
@@ -203,7 +193,7 @@ public final class GeckoProfile {
         if (sGuestProfile == null) {
             File guestDir = getGuestDir(context);
             if (guestDir.exists()) {
-                sGuestProfile = get(context, GUEST_PROFILE, guestDir);
+                sGuestProfile = get(context, "guest", guestDir);
                 sGuestProfile.mInGuestMode = true;
             }
         }
@@ -228,20 +218,13 @@ public final class GeckoProfile {
     }
 
     private static void removeGuestProfile(Context context) {
-        boolean success = false;
         try {
             File guestDir = getGuestDir(context);
             if (guestDir.exists()) {
-                success = delete(guestDir);
+                delete(guestDir);
             }
         } catch (Exception ex) {
             Log.e(LOGTAG, "Error removing guest profile", ex);
-        }
-
-        if (success) {
-            // Clear all shared prefs for the guest profile.
-            GeckoSharedPrefs.forProfileName(context, GUEST_PROFILE)
-                            .edit().clear().commit();
         }
     }
 

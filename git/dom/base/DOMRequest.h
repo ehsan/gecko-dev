@@ -8,8 +8,8 @@
 #define mozilla_dom_domrequest_h__
 
 #include "nsIDOMDOMRequest.h"
+#include "nsDOMEventTargetHelper.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/DOMEventTargetHelper.h"
 #include "mozilla/dom/DOMRequestBinding.h"
 
 #include "nsCOMPtr.h"
@@ -17,7 +17,7 @@
 namespace mozilla {
 namespace dom {
 
-class DOMRequest : public DOMEventTargetHelper,
+class DOMRequest : public nsDOMEventTargetHelper,
                    public nsIDOMDOMRequest
 {
 protected:
@@ -28,10 +28,10 @@ protected:
 public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIDOMDOMREQUEST
-  NS_REALLY_FORWARD_NSIDOMEVENTTARGET(DOMEventTargetHelper)
+  NS_REALLY_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetHelper)
 
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_INHERITED(DOMRequest,
-                                                         DOMEventTargetHelper)
+                                                         nsDOMEventTargetHelper)
 
   // WrapperCache
   nsPIDOMWindow* GetParentObject() const

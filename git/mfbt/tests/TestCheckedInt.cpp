@@ -8,6 +8,10 @@
 #include <iostream>
 #include <climits>
 
+#ifndef MOZ_CHECKEDINT_USE_MFBT
+#  error "MOZ_CHECKEDINT_USE_MFBT should be defined by CheckedInt.h"
+#endif
+
 using namespace mozilla;
 
 int gIntegerTypesTested = 0;
@@ -38,7 +42,7 @@ void verifyImplFunction(bool x, bool expected,
     __FILE__, \
     __LINE__, \
     sizeof(T), \
-    IsSigned<T>::value)
+    detail::IsSigned<T>::value)
 
 #define VERIFY(x)            VERIFY_IMPL(x, true)
 #define VERIFY_IS_FALSE(x)   VERIFY_IMPL(x, false)
@@ -54,8 +58,8 @@ struct testTwiceBiggerType
       VERIFY(detail::IsSupported<typename detail::TwiceBiggerType<T>::Type>::value);
       VERIFY(sizeof(typename detail::TwiceBiggerType<T>::Type)
                == 2 * sizeof(T));
-      VERIFY(bool(IsSigned<typename detail::TwiceBiggerType<T>::Type>::value)
-               == bool(IsSigned<T>::value));
+      VERIFY(bool(detail::IsSigned<typename detail::TwiceBiggerType<T>::Type>::value)
+               == bool(detail::IsSigned<T>::value));
     }
 };
 
@@ -82,18 +86,18 @@ void test()
   alreadyRun = true;
 
   VERIFY(detail::IsSupported<T>::value);
-  const bool isTSigned = IsSigned<T>::value;
+  const bool isTSigned = detail::IsSigned<T>::value;
   VERIFY(bool(isTSigned) == !bool(T(-1) > T(0)));
 
   testTwiceBiggerType<T>::run();
 
-  typedef typename MakeUnsigned<T>::Type unsignedT;
+  typedef typename detail::UnsignedType<T>::Type unsignedT;
 
   VERIFY(sizeof(unsignedT) == sizeof(T));
-  VERIFY(IsSigned<unsignedT>::value == false);
+  VERIFY(detail::IsSigned<unsignedT>::value == false);
 
-  const CheckedInt<T> max(MaxValue<T>::value);
-  const CheckedInt<T> min(MinValue<T>::value);
+  const CheckedInt<T> max(detail::MaxValue<T>::value);
+  const CheckedInt<T> min(detail::MinValue<T>::value);
 
   // Check MinValue and MaxValue, since they are custom implementations and a mistake there
   // could potentially NOT be caught by any other tests... while making everything wrong!
@@ -443,17 +447,17 @@ void test()
 
   #define VERIFY_CONSTRUCTION_FROM_INTEGER_TYPE2(U,V,PostVExpr) \
   { \
-    bool isUSigned = IsSigned<U>::value; \
+    bool isUSigned = detail::IsSigned<U>::value; \
     VERIFY_IS_VALID(CheckedInt<T>(V(  0)PostVExpr)); \
     VERIFY_IS_VALID(CheckedInt<T>(V(  1)PostVExpr)); \
     VERIFY_IS_VALID(CheckedInt<T>(V(100)PostVExpr)); \
     if (isUSigned) \
       VERIFY_IS_VALID_IF(CheckedInt<T>(V(-1)PostVExpr), isTSigned); \
     if (sizeof(U) > sizeof(T)) \
-      VERIFY_IS_INVALID(CheckedInt<T>(V(MaxValue<T>::value)PostVExpr + one.value())); \
-    VERIFY_IS_VALID_IF(CheckedInt<T>(MaxValue<U>::value), \
+      VERIFY_IS_INVALID(CheckedInt<T>(V(detail::MaxValue<T>::value)PostVExpr + one.value())); \
+    VERIFY_IS_VALID_IF(CheckedInt<T>(detail::MaxValue<U>::value), \
       (sizeof(T) > sizeof(U) || ((sizeof(T) == sizeof(U)) && (isUSigned || !isTSigned)))); \
-    VERIFY_IS_VALID_IF(CheckedInt<T>(MinValue<U>::value), \
+    VERIFY_IS_VALID_IF(CheckedInt<T>(detail::MinValue<U>::value), \
       isUSigned == false ? 1 \
                          : bool(isTSigned) == false ? 0 \
                                                     : sizeof(T) >= sizeof(U)); \

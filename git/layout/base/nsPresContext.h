@@ -53,6 +53,7 @@ class nsIFrame;
 class nsFrameManager;
 class nsILinkHandler;
 class nsIAtom;
+class nsEventStateManager;
 class nsICSSPseudoComparator;
 struct nsStyleBackground;
 struct nsStyleBorder;
@@ -69,7 +70,6 @@ class nsIWidget;
 class nsDeviceContext;
 
 namespace mozilla {
-class EventStateManager;
 class RestyleManager;
 namespace dom {
 class MediaQueryList;
@@ -517,7 +517,7 @@ public:
   void SetPrintPreviewScale(float aScale) { mPPScale = aScale; }
 
   nsDeviceContext* DeviceContext() { return mDeviceContext; }
-  mozilla::EventStateManager* EventStateManager() { return mEventManager; }
+  nsEventStateManager* EventStateManager() { return mEventManager; }
   nsIAtom* GetLanguageFromCharset() { return mLanguage; }
 
   float TextZoom() { return mTextZoom; }
@@ -1170,7 +1170,7 @@ protected:
                                             // Cannot reintroduce cycles
                                             // since there is no dependency
                                             // from gfx back to layout.
-  nsRefPtr<mozilla::EventStateManager> mEventManager;
+  nsRefPtr<nsEventStateManager> mEventManager;
   nsRefPtr<nsRefreshDriver> mRefreshDriver;
   nsRefPtr<nsTransitionManager> mTransitionManager;
   nsRefPtr<nsAnimationManager> mAnimationManager;

@@ -12,14 +12,15 @@ function test()
 {
   waitForExplicitFinish();
 
-  addTabAndOpenStyleEditors(2, function(panel) {
+  addTabAndOpenStyleEditor(function(panel) {
     gUI = panel.UI;
 
     // First test that identifiers are correcly generated. If not other tests
     // are likely to fail.
     testIndentifierGeneration();
 
-    saveFirstInlineStyleSheet()
+    waitForEditors(2)
+    .then(saveFirstInlineStyleSheet)
     .then(testFriendlyNamesAfterSave)
     .then(reloadPage)
     .then(testFriendlyNamesAfterSave)
@@ -92,9 +93,10 @@ function navigateToAnotherPage() {
 
   gUI = null;
 
-  addTabAndOpenStyleEditors(2, function(panel) {
+  addTabAndOpenStyleEditor(function(panel) {
     gUI = panel.UI;
-    deferred.resolve();
+
+    waitForEditors(2).then(deferred.resolve);
   });
 
   content.location = SECOND_TEST_PAGE;

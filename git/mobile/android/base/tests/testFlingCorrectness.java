@@ -1,7 +1,6 @@
 package org.mozilla.gecko.tests;
 
-import org.mozilla.gecko.Actions;
-import org.mozilla.gecko.PaintedSurface;
+import org.mozilla.gecko.*;
 
 /**
  * Basic fling correctness test.
@@ -10,6 +9,11 @@ import org.mozilla.gecko.PaintedSurface;
  * - Fling the page downwards so we get back to the top and verify.
  */
 public class testFlingCorrectness extends PixelTest {
+    @Override
+    protected int getTestType() {
+        return TEST_MOCHITEST;
+    }
+
     public void testFlingCorrectness() {
         String url = getAbsoluteUrl("/robocop/robocop_boxes.html");
 

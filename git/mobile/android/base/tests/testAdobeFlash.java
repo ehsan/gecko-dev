@@ -1,9 +1,11 @@
 package org.mozilla.gecko.tests;
 
-import org.json.JSONObject;
-import org.mozilla.gecko.PaintedSurface;
-
 import android.os.Build;
+
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import org.mozilla.gecko.*;
 
 /**
  * Tests that Flash is working
@@ -11,6 +13,11 @@ import android.os.Build;
  * - verifies it rendered properly
  */
 public class testAdobeFlash extends PixelTest {
+    @Override
+    protected int getTestType() {
+        return TEST_MOCHITEST;
+    }
+
     public void testLoad() {
         // This test only works on ICS and higher
         if (Build.VERSION.SDK_INT < 15) {

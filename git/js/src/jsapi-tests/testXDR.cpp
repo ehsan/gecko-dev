@@ -136,7 +136,7 @@ JSScript *createScriptViaXDR(JSPrincipals *orig, int testCase)
     }
 
     JS::RootedValue v(cx);
-    bool ok = JS_ExecuteScript(cx, global, script, &v);
+    bool ok = JS_ExecuteScript(cx, global, script, v.address());
     if (!ok || !v.isObject())
         return nullptr;
     JS::RootedObject funobj(cx, &v.toObject());
@@ -172,13 +172,13 @@ BEGIN_TEST(testXDR_bug506491)
 
     // execute
     JS::RootedValue v2(cx);
-    CHECK(JS_ExecuteScript(cx, global, script, &v2));
+    CHECK(JS_ExecuteScript(cx, global, script, v2.address()));
 
     // try to break the Block object that is the parent of f
     JS_GC(rt);
 
     // confirm
-    EVAL("f() === 'ok';\n", &v2);
+    EVAL("f() === 'ok';\n", v2.address());
     JS::RootedValue trueval(cx, JSVAL_TRUE);
     CHECK_SAME(v2, trueval);
     return true;
@@ -197,7 +197,7 @@ BEGIN_TEST(testXDR_bug516827)
     CHECK(script);
 
     // execute with null result meaning no result wanted
-    CHECK(JS_ExecuteScript(cx, global, script));
+    CHECK(JS_ExecuteScript(cx, global, script, nullptr));
     return true;
 }
 END_TEST(testXDR_bug516827)

@@ -58,7 +58,7 @@ enum nsCSSProperty {
   eCSSPropertyExtra_x_none_value,
   eCSSPropertyExtra_x_auto_value,
 
-  // Extra value to represent custom properties (--*).
+  // Extra value to represent custom properties (var-*).
   eCSSPropertyExtra_variable
 };
 

@@ -11,6 +11,7 @@
 #include "nsIPresShell.h"
 #include "nsNumberControlFrame.h"
 #include "nsPresContext.h"
+#include "nsEventStateManager.h"
 #include "nsString.h"
 #include "nsNameSpaceManager.h"
 #include "nsIDOMHTMLInputElement.h"

@@ -102,6 +102,7 @@ UNIFIED_SOURCES += [
     'builtin/SIMD.cpp',
     'builtin/TestingFunctions.cpp',
     'builtin/TypedObject.cpp',
+    'builtin/TypeRepresentation.cpp',
     'devtools/sharkctl.cpp',
     'ds/LifoAlloc.cpp',
     'frontend/BytecodeCompiler.cpp',

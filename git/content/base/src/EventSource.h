@@ -14,7 +14,7 @@
 #define mozilla_dom_EventSource_h
 
 #include "mozilla/Attributes.h"
-#include "mozilla/DOMEventTargetHelper.h"
+#include "nsDOMEventTargetHelper.h"
 #include "nsIObserver.h"
 #include "nsIStreamListener.h"
 #include "nsIChannelEventSink.h"
@@ -36,7 +36,7 @@ namespace dom {
 class AsyncVerifyRedirectCallbackFwr;
 struct EventSourceInit;
 
-class EventSource : public DOMEventTargetHelper
+class EventSource : public nsDOMEventTargetHelper
                   , public nsIObserver
                   , public nsIStreamListener
                   , public nsIChannelEventSink
@@ -49,8 +49,8 @@ public:
   EventSource(nsPIDOMWindow* aOwnerWindow);
   virtual ~EventSource();
   NS_DECL_ISUPPORTS_INHERITED
-  NS_DECL_CYCLE_COLLECTION_SKIPPABLE_SCRIPT_HOLDER_CLASS_INHERITED(
-    EventSource, DOMEventTargetHelper)
+  NS_DECL_CYCLE_COLLECTION_SKIPPABLE_SCRIPT_HOLDER_CLASS_INHERITED(EventSource,
+                                                                   nsDOMEventTargetHelper)
 
   NS_DECL_NSIOBSERVER
   NS_DECL_NSISTREAMLISTENER

@@ -25,10 +25,10 @@ USING_BLUETOOTH_NAMESPACE
 
 // QueryInterface implementation for BluetoothManager
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(BluetoothManager)
-NS_INTERFACE_MAP_END_INHERITING(DOMEventTargetHelper)
+NS_INTERFACE_MAP_END_INHERITING(nsDOMEventTargetHelper)
 
-NS_IMPL_ADDREF_INHERITED(BluetoothManager, DOMEventTargetHelper)
-NS_IMPL_RELEASE_INHERITED(BluetoothManager, DOMEventTargetHelper)
+NS_IMPL_ADDREF_INHERITED(BluetoothManager, nsDOMEventTargetHelper)
+NS_IMPL_RELEASE_INHERITED(BluetoothManager, nsDOMEventTargetHelper)
 
 class GetAdapterTask : public BluetoothReplyRunnable
 {
@@ -99,7 +99,7 @@ private:
 };
 
 BluetoothManager::BluetoothManager(nsPIDOMWindow *aWindow)
-  : DOMEventTargetHelper(aWindow)
+  : nsDOMEventTargetHelper(aWindow)
   , BluetoothPropertyContainer(BluetoothObjectType::TYPE_MANAGER)
 {
   MOZ_ASSERT(aWindow);
@@ -122,7 +122,7 @@ BluetoothManager::~BluetoothManager()
 void
 BluetoothManager::DisconnectFromOwner()
 {
-  DOMEventTargetHelper::DisconnectFromOwner();
+  nsDOMEventTargetHelper::DisconnectFromOwner();
 
   BluetoothService* bs = BluetoothService::Get();
   NS_ENSURE_TRUE_VOID(bs);

@@ -200,14 +200,14 @@ TypeDescrSet::allOfKind(TypeDescr::Kind aKind)
 }
 
 bool
-TypeDescrSet::allHaveSameSize(int32_t *out)
+TypeDescrSet::allHaveSameSize(size_t *out)
 {
     if (empty())
         return false;
 
     JS_ASSERT(TypeDescr::isSized(kind()));
 
-    int32_t size = get(0)->as<SizedTypeDescr>().size();
+    size_t size = get(0)->as<SizedTypeDescr>().size();
     for (size_t i = 1; i < length(); i++) {
         if (get(i)->as<SizedTypeDescr>().size() != size)
             return false;
@@ -268,7 +268,7 @@ TypeDescrSet::x4Type(X4TypeDescr::Type *out)
 }
 
 bool
-TypeDescrSet::hasKnownArrayLength(int32_t *l)
+TypeDescrSet::hasKnownArrayLength(size_t *l)
 {
     switch (kind()) {
       case TypeDescr::UnsizedArray:
@@ -317,7 +317,7 @@ TypeDescrSet::arrayElementType(IonBuilder &builder, TypeDescrSet *out)
 bool
 TypeDescrSet::fieldNamed(IonBuilder &builder,
                          jsid id,
-                         int32_t *offset,
+                         size_t *offset,
                          TypeDescrSet *out,
                          size_t *index)
 {
@@ -330,7 +330,7 @@ TypeDescrSet::fieldNamed(IonBuilder &builder,
     *out = TypeDescrSet();
 
     // Remember offset of the first field.
-    int32_t offset0;
+    size_t offset0;
     size_t index0;
     TypeDescrSetBuilder fieldTypes;
     {

@@ -34,7 +34,7 @@
 #include "nsIDOMXULSelectCntrlItemEl.h"
 #include "nsIDocument.h"
 #include "mozilla/EventListenerManager.h"
-#include "mozilla/EventStateManager.h"
+#include "nsEventStateManager.h"
 #include "nsFocusManager.h"
 #include "nsHTMLStyleSheet.h"
 #include "nsIJSRuntimeService.h"
@@ -552,7 +552,7 @@ nsXULElement::IsFocusableInternal(int32_t *aTabIndex, bool aWithMouse)
   // the focus.
   if (aWithMouse &&
       IsNonList(mNodeInfo) && 
-      !EventStateManager::IsRemoteTarget(this))
+      !nsEventStateManager::IsRemoteTarget(this))
   {
     return false;
   }

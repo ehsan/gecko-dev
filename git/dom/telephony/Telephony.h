@@ -24,7 +24,7 @@ namespace dom {
 
 class OwningTelephonyCallOrTelephonyCallGroup;
 
-class Telephony MOZ_FINAL : public DOMEventTargetHelper
+class Telephony MOZ_FINAL : public nsDOMEventTargetHelper
 {
   /**
    * Class Telephony doesn't actually inherit nsITelephonyListener.
@@ -55,9 +55,9 @@ class Telephony MOZ_FINAL : public DOMEventTargetHelper
 public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSITELEPHONYLISTENER
-  NS_REALLY_FORWARD_NSIDOMEVENTTARGET(DOMEventTargetHelper)
+  NS_REALLY_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetHelper)
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(Telephony,
-                                           DOMEventTargetHelper)
+                                           nsDOMEventTargetHelper)
 
   nsPIDOMWindow*
   GetParentObject() const

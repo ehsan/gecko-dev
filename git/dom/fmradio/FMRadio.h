@@ -6,12 +6,12 @@
 #ifndef mozilla_dom_FMRadio_h
 #define mozilla_dom_FMRadio_h
 
-#include "AudioChannelAgent.h"
 #include "FMRadioCommon.h"
-#include "mozilla/DOMEventTargetHelper.h"
-#include "mozilla/HalTypes.h"
+#include "nsDOMEventTargetHelper.h"
 #include "nsCycleCollectionParticipant.h"
+#include "mozilla/HalTypes.h"
 #include "nsWeakReference.h"
+#include "AudioChannelAgent.h"
 
 class nsPIDOMWindow;
 class nsIScriptContext;
@@ -20,7 +20,7 @@ BEGIN_FMRADIO_NAMESPACE
 
 class DOMRequest;
 
-class FMRadio MOZ_FINAL : public DOMEventTargetHelper
+class FMRadio MOZ_FINAL : public nsDOMEventTargetHelper
                         , public hal::SwitchObserver
                         , public FMRadioEventObserver
                         , public nsSupportsWeakReference
@@ -36,7 +36,7 @@ public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIAUDIOCHANNELAGENTCALLBACK
 
-  NS_REALLY_FORWARD_NSIDOMEVENTTARGET(DOMEventTargetHelper)
+  NS_REALLY_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetHelper)
 
   void Init(nsPIDOMWindow *aWindow);
   void Shutdown();

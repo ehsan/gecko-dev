@@ -42,7 +42,7 @@ BEGIN_TEST(testTrap_gc)
 
     // execute
     JS::RootedValue v2(cx);
-    CHECK(JS_ExecuteScript(cx, global, script, &v2));
+    CHECK(JS_ExecuteScript(cx, global, script, v2.address()));
     CHECK(v2.isObject());
     CHECK_EQUAL(emptyTrapCallCount, 0);
 
@@ -73,7 +73,7 @@ BEGIN_TEST(testTrap_gc)
     }
 
     // execute
-    CHECK(JS_ExecuteScript(cx, global, script, &v2));
+    CHECK(JS_ExecuteScript(cx, global, script, v2.address()));
     CHECK_EQUAL(emptyTrapCallCount, 11);
 
     JS_GC(rt);

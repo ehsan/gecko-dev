@@ -4,7 +4,9 @@
 
 package org.mozilla.gecko.tests.helpers;
 
-import static org.mozilla.gecko.tests.helpers.AssertionHelper.fFail;
+import static org.mozilla.gecko.tests.helpers.AssertionHelper.*;
+
+import org.mozilla.gecko.tests.UITestContext;
 
 import java.lang.reflect.Field;
 

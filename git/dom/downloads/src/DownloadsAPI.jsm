@@ -96,7 +96,7 @@ let DownloadsAPI = {
     };
 
     if (aDownload.error) {
-      res.error = aDownload.error;
+      res.error = aDownload.error.name;
     }
 
     res.id = this.downloadId(aDownload);

@@ -1,6 +1,11 @@
 package org.mozilla.gecko.tests;
 
 public class testAwesomebar extends BaseTest {
+    @Override
+    protected int getTestType() {
+        return TEST_MOCHITEST;
+    }
+
     public void testAwesomebar() {
         blockForGeckoReady();
 

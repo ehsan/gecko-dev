@@ -61,7 +61,9 @@ public:
    * set up to account for all the properties of the layer (transform,
    * opacity, etc).
    */
-  virtual void Paint(gfx::DrawTarget* aDT, Layer* aMaskLayer) {}
+  virtual void Paint(gfx::DrawTarget* aTarget,
+                     gfx::SourceSurface* aMaskSurface) {}
+  virtual void DeprecatedPaint(gfxContext* aContext, Layer* aMaskLayer) {}
 
   /**
    * Like Paint() but called for ThebesLayers with the additional parameters
@@ -120,7 +122,6 @@ public:
   virtual bool GetAsSurface(gfxASurface** aSurface,
                             SurfaceDescriptor* aDescriptor)
   { return false; }
-  virtual TemporaryRef<gfx::SourceSurface> GetAsSourceSurface() { return nullptr; }
 
   bool GetClipToVisibleRegion() { return mClipToVisibleRegion; }
   void SetClipToVisibleRegion(bool aClip) { mClipToVisibleRegion = aClip; }

@@ -8,8 +8,8 @@
 #define mozilla_dom_voicemail_voicemail_h__
 
 #include "mozilla/Attributes.h"
-#include "mozilla/DOMEventTargetHelper.h"
 #include "mozilla/ErrorResult.h"
+#include "nsDOMEventTargetHelper.h"
 #include "nsIVoicemailProvider.h"
 
 class JSObject;
@@ -21,7 +21,7 @@ class nsIDOMMozVoicemailStatus;
 namespace mozilla {
 namespace dom {
 
-class Voicemail MOZ_FINAL : public DOMEventTargetHelper
+class Voicemail MOZ_FINAL : public nsDOMEventTargetHelper
 {
   /**
    * Class Voicemail doesn't actually inherit nsIVoicemailListener. Instead, it
@@ -35,7 +35,7 @@ class Voicemail MOZ_FINAL : public DOMEventTargetHelper
 public:
   NS_DECL_NSIVOICEMAILLISTENER
 
-  NS_REALLY_FORWARD_NSIDOMEVENTTARGET(DOMEventTargetHelper)
+  NS_REALLY_FORWARD_NSIDOMEVENTTARGET(nsDOMEventTargetHelper)
 
   Voicemail(nsPIDOMWindow* aWindow, nsIVoicemailProvider* aProvider);
 

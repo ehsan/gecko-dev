@@ -66,7 +66,7 @@ CellBroadcast::Create(nsPIDOMWindow* aWindow, ErrorResult& aRv)
 
 CellBroadcast::CellBroadcast(nsPIDOMWindow *aWindow,
                              nsICellBroadcastProvider *aProvider)
-  : DOMEventTargetHelper(aWindow)
+  : nsDOMEventTargetHelper(aWindow)
   , mProvider(aProvider)
 {
   mListener = new Listener(this);

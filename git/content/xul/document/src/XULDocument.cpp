@@ -3679,7 +3679,8 @@ XULDocument::ExecuteScript(nsIScriptContext * aContext,
     JS::ExposeObjectToActiveJS(global);
     xpc_UnmarkGrayScript(aScriptObject);
     JSAutoCompartment ac(cx, global);
-    if (!JS_ExecuteScript(cx, global, aScriptObject))
+    JS::Rooted<JS::Value> unused(cx);
+    if (!JS_ExecuteScript(cx, global, aScriptObject, unused.address()))
         nsJSUtils::ReportPendingException(cx);
     return NS_OK;
 }

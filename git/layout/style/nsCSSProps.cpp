@@ -348,6 +348,9 @@ nsCSSProps::ReleaseTable(void)
   }
 }
 
+// Length of the "var-" custom property name prefix.
+#define VAR_PREFIX_LENGTH 4
+
 /* static */ bool
 nsCSSProps::IsInherited(nsCSSProperty aProperty)
 {
@@ -360,16 +363,16 @@ nsCSSProps::IsInherited(nsCSSProperty aProperty)
 /* static */ bool
 nsCSSProps::IsCustomPropertyName(const nsACString& aProperty)
 {
-  // Custom properties don't need to have a character after the "--" prefix.
-  return aProperty.Length() >= CSS_CUSTOM_NAME_PREFIX_LENGTH &&
-         StringBeginsWith(aProperty, NS_LITERAL_CSTRING("--"));
+  // Custom properties must have at least one character after the "var-" prefix.
+  return aProperty.Length() >= (VAR_PREFIX_LENGTH + 1) &&
+         StringBeginsWith(aProperty, NS_LITERAL_CSTRING("var-"));
 }
 
 /* static */ bool
 nsCSSProps::IsCustomPropertyName(const nsAString& aProperty)
 {
-  return aProperty.Length() >= CSS_CUSTOM_NAME_PREFIX_LENGTH &&
-         StringBeginsWith(aProperty, NS_LITERAL_STRING("--"));
+  return aProperty.Length() >= (VAR_PREFIX_LENGTH + 1) &&
+         StringBeginsWith(aProperty, NS_LITERAL_STRING("var-"));
 }
 
 nsCSSProperty
