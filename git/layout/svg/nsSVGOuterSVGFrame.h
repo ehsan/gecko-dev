@@ -11,7 +11,6 @@
 #include "nsSVGContainerFrame.h"
 #include "nsRegion.h"
 
-class gfxContext;
 class nsSVGForeignObjectFrame;
 
 ////////////////////////////////////////////////////////////////////////
@@ -115,7 +114,7 @@ public:
   virtual void NotifyViewportOrTransformChanged(uint32_t aFlags) MOZ_OVERRIDE;
 
   // nsISVGChildFrame methods:
-  virtual nsresult PaintSVG(gfxContext& aContext,
+  virtual nsresult PaintSVG(nsRenderingContext* aContext,
                             const gfxMatrix& aTransform,
                             const nsIntRect* aDirtyRect = nullptr) MOZ_OVERRIDE;
   virtual SVGBBox GetBBoxContribution(const Matrix &aToBBoxUserspace,

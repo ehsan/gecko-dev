@@ -143,7 +143,6 @@ protected:
   bool IsParentScrollbarRolledOver(nsIFrame* aFrame);
 
 private:
-  NSButtonCell* mDisclosureButtonCell;
   NSButtonCell* mHelpButtonCell;
   NSButtonCell* mPushButtonCell;
   NSButtonCell* mRadioButtonCell;

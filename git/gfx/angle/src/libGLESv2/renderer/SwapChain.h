@@ -40,7 +40,6 @@ class SwapChain
     virtual void recreate() = 0;
 
     virtual HANDLE getShareHandle() {return mShareHandle;};
-    virtual void* getKeyedMutex() {return NULL;};
 
   protected:
     rx::NativeWindow mNativeWindow;  // Handler for the Window that the surface is created for.

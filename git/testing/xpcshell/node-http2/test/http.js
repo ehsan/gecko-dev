@@ -11,10 +11,10 @@ process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 var options = {
   key: fs.readFileSync(path.join(__dirname, '../example/localhost.key')),
   cert: fs.readFileSync(path.join(__dirname, '../example/localhost.crt')),
-  log: util.serverLog
+  log: util.log
 };
 
-http2.globalAgent = new http2.Agent({ log: util.clientLog });
+http2.globalAgent = new http2.Agent({ log: util.log });
 
 describe('http.js', function() {
   describe('Server', function() {
@@ -55,7 +55,7 @@ describe('http.js', function() {
   describe('Agent', function() {
     describe('property `maxSockets`', function() {
       it('should be a proxy for the backing HTTPS agent\'s `maxSockets` property', function() {
-        var agent = new http2.Agent({ log: util.clientLog });
+        var agent = new http2.Agent({ log: util.log });
         var backingAgent = agent._httpsAgent;
         var newMaxSockets = backingAgent.maxSockets + 1;
         agent.maxSockets = newMaxSockets;
@@ -66,7 +66,7 @@ describe('http.js', function() {
     describe('method `request(options, [callback])`', function() {
       it('should throw when trying to use with \'http\' scheme', function() {
         expect(function() {
-          var agent = new http2.Agent({ log: util.clientLog });
+          var agent = new http2.Agent({ log: util.log });
           agent.request({ protocol: 'http:' });
         }).to.throw(Error);
       });
@@ -239,16 +239,16 @@ describe('http.js', function() {
         var path = '/x';
         var message = 'Hello world';
 
-        var server = http2.raw.createServer({
+        var server = http2.createServer({
           plain: true,
-          log: util.serverLog
+          log: util.log
         }, function(request, response) {
           expect(request.url).to.equal(path);
           response.end(message);
         });
 
         server.listen(1237, function() {
-          var request = http2.raw.request({
+          var request = http2.request({
             plain: true,
             host: 'localhost',
             port: 1237,

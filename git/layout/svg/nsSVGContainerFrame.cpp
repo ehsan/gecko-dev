@@ -248,7 +248,7 @@ nsSVGDisplayContainerFrame::IsSVGTransformed(gfx::Matrix *aOwnTransform,
 // nsISVGChildFrame methods
 
 nsresult
-nsSVGDisplayContainerFrame::PaintSVG(gfxContext& aContext,
+nsSVGDisplayContainerFrame::PaintSVG(nsRenderingContext* aContext,
                                      const gfxMatrix& aTransform,
                                      const nsIntRect *aDirtyRect)
 {
