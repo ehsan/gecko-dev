@@ -559,7 +559,7 @@ Function .onInit
 FunctionEnd
 
 Function un.onInit
-  ${un.GetParent} "$INSTDIR" $INSTDIR
+  GetFullPathName $INSTDIR "$INSTDIR\.."
   ${un.GetLongPath} "$INSTDIR" $INSTDIR
   ${Unless} ${FileExists} "$INSTDIR\${FileMainEXE}"
     Abort
