@@ -200,10 +200,13 @@ window.Group = function(listOfEls, options) {
       self.$title
         .css({"background":"none"})
         .animate({
-          "paddingLeft": 1
+          "padding-left": 1
         }, {
-          duration: 350,
-          easing: 'tabcandyBounce'
+          duration: 200,
+          easing: 'tabcandyBounce',
+          complete: function(){
+            window.aza = self.$title;
+          }
         });
     }
   };
@@ -274,10 +277,11 @@ window.Group = function(listOfEls, options) {
     
   // ___ Stack Expander
   this.$expander = iQ("<img/>")
-    .attr('src', 'chrome://tabcandy/content/img/app/stack-expander.png')
     .addClass("stackExpander")
     .appendTo($container)
     .hide(); 
+  // TODO: Shouldn't there be an .attr for iQ?
+  this.$expander.get(0).src = 'chrome://tabcandy/content/img/app/stack-expander.png';    
   
   // ___ locking
   if(this.locked.bounds)
@@ -1181,7 +1185,7 @@ window.Group.prototype = iQ.extend(new Item(), new Subscribable(), {
       iQ(container).draggable(this.dragOptions);
     
     iQ(container)
-      .mousedown(function(e){
+      .mousedown(function(e){        
         self._mouseDown = {
           location: new Point(e.clientX, e.clientY),
           className: e.target.className
@@ -1223,7 +1227,7 @@ window.Group.prototype = iQ.extend(new Item(), new Subscribable(), {
     
     iQ(container).droppable(this.dropOptions);
     
-    this.$expander.click(function(){
+    this.$expander.mousedown(function(){
       self.expand();
     });
   },
