@@ -280,7 +280,7 @@ var Scratchpad = {
       scriptError.initWithWindowID(ex.message + "\n" + ex.stack, ex.fileName,
                                    "", ex.lineNumber, 0, scriptError.errorFlag,
                                    "content javascript",
-                                   this.getInnerWindowId(contentWindow));
+                                   this.getWindowId(contentWindow));
 
       Services.console.logMessage(scriptError);
     }
@@ -633,16 +633,16 @@ var Scratchpad = {
   },
 
   /**
-   * Gets the ID of the inner window of the given DOM window object.
+   * Gets the ID of the outer window of the given DOM window object.
    *
    * @param nsIDOMWindow aWindow
    * @return integer
-   *         the inner window ID
+   *         the outer window ID
    */
-  getInnerWindowId: function SP_getInnerWindowId(aWindow)
+  getWindowId: function SP_getWindowId(aWindow)
   {
     return aWindow.QueryInterface(Ci.nsIInterfaceRequestor).
-           getInterface(Ci.nsIDOMWindowUtils).currentInnerWindowID;
+           getInterface(Ci.nsIDOMWindowUtils).outerWindowID;
   },
 
   /**

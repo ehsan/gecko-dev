@@ -123,12 +123,12 @@ public:
   nsresult UnlockImage();
   nsresult RequestDecode();
 
-  inline void SetInnerWindowID(PRUint64 aInnerWindowId) {
-    mInnerWindowId = aInnerWindowId;
+  inline void SetWindowID(PRUint64 aWindowId) {
+    mWindowId = aWindowId;
   }
 
-  inline PRUint64 InnerWindowID() const {
-    return mInnerWindowId;
+  inline PRUint64 WindowID() const {
+    return mWindowId;
   }
 
   // Set the cache validation information (expiry time, whether we must
@@ -257,8 +257,8 @@ private:
   nsCOMPtr<nsIAsyncVerifyRedirectCallback> mRedirectCallback;
   nsCOMPtr<nsIChannel> mNewRedirectChannel;
 
-  // The ID of the inner window origin, used for error reporting.
-  PRUint64 mInnerWindowId;
+  // Originating outer window ID. Used for error reporting.
+  PRUint64 mWindowId;
 
   // The CORS mode (defined in imgIRequest) this image was loaded with. By
   // default, imgIRequest::CORS_NONE.

@@ -810,6 +810,7 @@ var FormHelperUI = {
         if (focusedElement && focusedElement.localName == "browser")
           return;
 
+        Browser.keySender.handleEvent(aEvent);
         break;
 
       case "SizeChanged":

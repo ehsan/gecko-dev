@@ -75,11 +75,8 @@ function deleteLocalstore() {
   var directoryService =  Components.classes[nsIDirectoryServiceContractID]
                                     .getService(nsIProperties);
   var localstoreFile = directoryService.get("LStoreS", Components.interfaces.nsIFile);
-  try {
+  if (localstoreFile.exists())
     localstoreFile.remove(false);
-  } catch(e) {
-    Components.utils.reportError(e);
-  }
 }
 
 function disableAddons() {

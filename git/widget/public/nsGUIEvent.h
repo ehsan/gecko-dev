@@ -66,9 +66,6 @@ namespace dom {
   class PBrowserParent;
   class PBrowserChild;
 }
-namespace plugins {
-  class PPluginInstanceChild;
-}
 }
 
 #ifdef ACCESSIBILITY
@@ -1125,7 +1122,6 @@ class nsTextEvent : public nsInputEvent
 private:
   friend class mozilla::dom::PBrowserParent;
   friend class mozilla::dom::PBrowserChild;
-  friend class mozilla::plugins::PPluginInstanceChild;
 
   nsTextEvent()
   {

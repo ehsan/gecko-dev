@@ -780,8 +780,8 @@ void nsBuiltinDecoder::SeekingStoppedAtEnd()
       seekWasAborted = PR_TRUE;
     } else {
       UnpinForSeek();
-      fireEnded = PR_TRUE;
-      ChangeState(PLAY_STATE_ENDED);
+      fireEnded = mNextState != PLAY_STATE_PLAYING;
+      ChangeState(fireEnded ? PLAY_STATE_ENDED : mNextState);
     }
   }
 

@@ -73,7 +73,8 @@ HttpChannelParent::HttpChannelParent(PBrowserParent* iframeEmbedding)
   CallGetService(NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX "http", &handler);
   NS_ASSERTION(handler, "no http handler");
 
-  mTabParent = do_QueryObject(static_cast<TabParent*>(iframeEmbedding));
+  mTabParent = do_QueryInterface(static_cast<nsITabParent*>(
+      static_cast<TabParent*>(iframeEmbedding)));
 }
 
 HttpChannelParent::~HttpChannelParent()
