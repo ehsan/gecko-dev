@@ -66,6 +66,8 @@ public:
 
   virtual void RenderLayer(int aPreviousFrameBuffer,
                            const nsIntPoint& aOffset);
+private:
+  GLuint mTexture;
 };
 
 } /* layers */

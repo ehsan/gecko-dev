@@ -1,6 +1,5 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- *
- * ***** BEGIN LICENSE BLOCK *****
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
@@ -13,8 +12,7 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is Mozilla Communicator client code, released
- * March 31, 1998.
+ * The Original Code is mozilla.org code.
  *
  * The Initial Developer of the Original Code is
  * Netscape Communications Corporation.
@@ -22,7 +20,6 @@
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
- *   John Bandhauer <jband@netscape.com> (original author)
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -37,32 +34,32 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
+#ifndef nsITextTransform_h__
+#define nsITextTransform_h__
 
-#include "xpcprivate.h"
 
-nsresult
-xpcModuleCtor()
-{
-    nsXPConnect::InitStatics();
-    nsXPCException::InitStatics();
-    XPCWrappedNativeScope::InitStatics();
-    XPCPerThreadData::InitStatics();
+#include "nsISupports.h"
+#include "nsStringGlue.h"
+#include "nscore.h"
 
-#ifdef XPC_IDISPATCH_SUPPORT
-    XPCIDispatchExtension::InitStatics();
-#endif
+// {CCD4D371-CCDC-11d2-B3B1-00805F8A6670}
+#define NS_ITEXTTRANSFORM_IID \
+{ 0xccd4d371, 0xccdc, 0x11d2, \
+    { 0xb3, 0xb1, 0x0, 0x80, 0x5f, 0x8a, 0x66, 0x70 } }
 
-    return NS_OK;
-}
+#define NS_TEXTTRANSFORM_CONTRACTID_BASE "@mozilla.org/intl/texttransform;1?type="
 
-void
-xpcModuleDtor()
-{
-    // Release our singletons
-    nsXPConnect::ReleaseXPConnectSingleton();
-    xpc_DestroyJSxIDClassObjects();
-#ifdef XPC_IDISPATCH_SUPPORT
-    nsDispatchSupport::FreeSingleton();
-    XPCIDispatchClassInfo::FreeSingleton();
-#endif
-}
+class nsITextTransform : public nsISupports {
+
+public: 
+
+  NS_DECLARE_STATIC_IID_ACCESSOR(NS_ITEXTTRANSFORM_IID)
+
+  NS_IMETHOD Change( const PRUnichar* aText, PRInt32 aTextLength, nsString& aResult) = 0;
+  NS_IMETHOD Change( nsString& aText, nsString& aResult) = 0;
+
+};
+
+NS_DEFINE_STATIC_IID_ACCESSOR(nsITextTransform, NS_ITEXTTRANSFORM_IID)
+
+#endif  /* nsITextTransform_h__ */

@@ -524,6 +524,8 @@ MAKEFILES_xpcom="
 
 MAKEFILES_xpcom_tests="
   xpcom/tests/Makefile
+  xpcom/tests/dynamic/Makefile
+  xpcom/tests/services/Makefile
   xpcom/tests/windows/Makefile
   xpcom/tests/static-checker/Makefile
 "

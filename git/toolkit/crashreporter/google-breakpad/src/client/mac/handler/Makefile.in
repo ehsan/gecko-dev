@@ -53,10 +53,6 @@ CPPSRCS	= \
   dynamic_images.cc \
   $(NULL)
 
-ifeq (x86_64,$(TARGET_CPU))
-CPPSRCS += breakpad_nlist_64.cc
-endif
-
 # need static lib
 FORCE_STATIC_LIB = 1
 

@@ -89,14 +89,14 @@ static NS_METHOD streamParse (nsIInputStream* in,
   char parseBuf[2048], loc[2048], lineBuf[2048];
   char *loc_t, *loc_t2;
   int i = 0;
-  const char *tmp;
+  char *tmp;
 
   if(!globalStream.IsEmpty()) {
     globalStream.Append(fromRawSegment);
-    tmp = globalStream.get();
+    tmp = ToNewCString(globalStream);
     //printf("\n>>NOW:\n^^^^^\n%s\n^^^^^^^^^^^^^^", tmp);
   } else {
-    tmp = fromRawSegment;
+    tmp = (char *)fromRawSegment;
   }
 
   while(i < (int)count) {
