@@ -407,16 +407,11 @@ public class BrowserDB {
         public boolean moveToPosition(int position) {
             mIndex = position;
 
-            // Move the real cursor as if we were stepping through it to this position.
-            // Account for pinned sites, and be careful to update its position to the
-            // minimum or maximum position, even if we're moving beyond its bounds.
+            // move the real cursor as  if we were stepping through it to this position
+            // be careful not to move it to far, and to account for any pinned sites
             int before = getPinnedBefore(position);
             int p2 = position - before;
-            if (p2 <= -1) {
-                super.moveToPosition(-1);
-            } else if (p2 >= mCursor.getCount()) {
-                super.moveToPosition(mCursor.getCount());
-            } else {
+            if (p2 >= -1 && p2 <= mCursor.getCount()) {
                 super.moveToPosition(p2);
             }
 

@@ -692,7 +692,8 @@ ThreadActor.prototype = {
       }
       packet.why = aReason;
 
-      this.sources.getOriginalLocation(packet.frame.where).then(aOrigPosition => {
+      let { url, line, column } = packet.frame.where;
+      this.sources.getOriginalLocation(url, line, column).then(aOrigPosition => {
         packet.frame.where = aOrigPosition;
         resolve(onPacket(packet))
           .then(null, error => {
@@ -703,7 +704,7 @@ ThreadActor.prototype = {
             };
           })
           .then(packet => {
-            this.conn.send(packet);
+            this.conn.send(packet)
           });
       });
 
@@ -771,11 +772,10 @@ ThreadActor.prototype = {
       // Define the JS hook functions for stepping.
 
       let onEnterFrame = aFrame => {
-        let { url } = this.synchronize(this.sources.getOriginalLocation({
-          url: aFrame.script.url,
-          line: aFrame.script.getOffsetLine(aFrame.offset),
-          column: getOffsetColumn(aFrame.offset, aFrame.script)
-        }));
+        let { url } = this.synchronize(this.sources.getOriginalLocation(
+          aFrame.script.url,
+          aFrame.script.getOffsetLine(aFrame.offset),
+          getOffsetColumn(aFrame.offset, aFrame.script)));
 
         return this.sources.isBlackBoxed(url)
           ? undefined
@@ -787,11 +787,10 @@ ThreadActor.prototype = {
       let onPop = function TA_onPop(aCompletion) {
         // onPop is called with 'this' set to the current frame.
 
-        let { url } = thread.synchronize(thread.sources.getOriginalLocation({
-          url: this.script.url,
-          line: this.script.getOffsetLine(this.offset),
-          column: getOffsetColumn(this.offset, this.script)
-        }));
+        let { url } = thread.synchronize(thread.sources.getOriginalLocation(
+          this.script.url,
+          this.script.getOffsetLine(this.offset),
+          getOffsetColumn(this.offset, this.script)));
 
         if (thread.sources.isBlackBoxed(url)) {
           return undefined;
@@ -819,11 +818,10 @@ ThreadActor.prototype = {
       let onStep = function TA_onStep() {
         // onStep is called with 'this' set to the current frame.
 
-        let { url } = thread.synchronize(thread.sources.getOriginalLocation({
-          url: this.script.url,
-          line: this.script.getOffsetLine(this.offset),
-          column: getOffsetColumn(this.offset, this.script)
-        }));
+        let { url } = thread.synchronize(thread.sources.getOriginalLocation(
+          this.script.url,
+          this.script.getOffsetLine(this.offset),
+          getOffsetColumn(this.offset, this.script)));
 
         if (thread.sources.isBlackBoxed(url)) {
           return undefined;
@@ -1031,7 +1029,7 @@ ThreadActor.prototype = {
     if (this.state !== "paused") {
       return { error: "wrongState",
                message: "Debuggee must be paused to evaluate code." };
-    }
+    };
 
     let frame = this._requestFrame(aRequest.frame);
     if (!frame) {
@@ -1042,7 +1040,7 @@ ThreadActor.prototype = {
     if (!frame.environment) {
       return { error: "notDebuggee",
                message: "cannot access the environment of this frame." };
-    }
+    };
 
     // We'll clobber the youngest frame if the eval causes a pause, so
     // save our frame now to be restored after eval returns.
@@ -1093,7 +1091,8 @@ ThreadActor.prototype = {
       form.depth = i;
       frames.push(form);
 
-      let promise = this.sources.getOriginalLocation(form.where)
+      let { url, line, column } = form.where;
+      let promise = this.sources.getOriginalLocation(url, line, column)
         .then((aOrigLocation) => {
           form.where = aOrigLocation;
           let source = this.sources.source(form.where.url);
@@ -1143,7 +1142,9 @@ ThreadActor.prototype = {
           line: originalLine,
           column: originalColumn } = aRequest.location;
 
-    let locationPromise = this.sources.getGeneratedLocation(aRequest.location);
+    let locationPromise = this.sources.getGeneratedLocation(originalSource,
+                                                            originalLine,
+                                                            originalColumn);
     return locationPromise.then(({url, line, column}) => {
       if (line == null ||
           line < 0 ||
@@ -1159,17 +1160,16 @@ ThreadActor.prototype = {
       // If the original location of our generated location is different from
       // the original location we attempted to set the breakpoint on, we will
       // need to know so that we can set actualLocation on the response.
-      let originalLocation = this.sources.getOriginalLocation({
-        url: url,
-        line: line,
-        column: column
-      });
+      let originalLocation = this.sources.getOriginalLocation(url, line, column);
 
       return all([response, originalLocation])
         .then(([aResponse, {url, line}]) => {
           if (aResponse.actualLocation) {
-            let actualOrigLocation = this.sources.getOriginalLocation(aResponse.actualLocation);
-            return actualOrigLocation.then(({ url, line, column }) => {
+            let actualOrigLocation = this.sources.getOriginalLocation(
+              aResponse.actualLocation.url,
+              aResponse.actualLocation.line,
+              aResponse.actualLocation.column);
+            return actualOrigLocation.then(function ({ url, line, column }) {
               if (url !== originalSource
                   || line !== originalLine
                   || column !== originalColumn) {
@@ -1505,7 +1505,7 @@ ThreadActor.prototype = {
       return {
         error: "notImplemented",
         message: "eventListeners request is only supported in content debugging"
-      };
+      }
     }
 
     let els = Cc["@mozilla.org/eventlistenerservice;1"]
@@ -1940,11 +1940,10 @@ ThreadActor.prototype = {
   onDebuggerStatement: function TA_onDebuggerStatement(aFrame) {
     // Don't pause if we are currently stepping (in or over) or the frame is
     // black-boxed.
-    let { url } = this.synchronize(this.sources.getOriginalLocation({
-      url: aFrame.script.url,
-      line: aFrame.script.getOffsetLine(aFrame.offset),
-      column: getOffsetColumn(aFrame.offset, aFrame.script)
-    }));
+    let { url } = this.synchronize(this.sources.getOriginalLocation(
+      aFrame.script.url,
+      aFrame.script.getOffsetLine(aFrame.offset),
+      getOffsetColumn(aFrame.offset, aFrame.script)));
 
     return this.sources.isBlackBoxed(url) || aFrame.onStep
       ? undefined
@@ -1961,11 +1960,10 @@ ThreadActor.prototype = {
    *        The exception that was thrown.
    */
   onExceptionUnwind: function TA_onExceptionUnwind(aFrame, aValue) {
-    let { url } = this.synchronize(this.sources.getOriginalLocation({
-      url: aFrame.script.url,
-      line: aFrame.script.getOffsetLine(aFrame.offset),
-      column: getOffsetColumn(aFrame.offset, aFrame.script)
-    }));
+    let { url } = this.synchronize(this.sources.getOriginalLocation(
+      aFrame.script.url,
+      aFrame.script.getOffsetLine(aFrame.offset),
+      getOffsetColumn(aFrame.offset, aFrame.script)));
 
     if (this.sources.isBlackBoxed(url)) {
       return undefined;
@@ -2250,21 +2248,21 @@ SourceActor.prototype = {
     // source because we can't guarantee that the cache has the most up to date
     // content for this source like we can if it isn't source mapped.
     return fetch(this._url, { loadFromCache: !this._sourceMap })
-      .then(({ content, contentType }) => {
+      .then((aSource) => {
+        return this.threadActor.createValueGrip(
+          aSource, this.threadActor.threadLifetimePool);
+      })
+      .then((aSourceGrip) => {
         return {
           from: this.actorID,
-          source: this.threadActor.createValueGrip(
-            content, this.threadActor.threadLifetimePool),
-          contentType: contentType
+          source: aSourceGrip
         };
-      })
-      .then(null, (aError) => {
+      }, (aError) => {
         reportError(aError, "Got an exception during SA_onSource: ");
         return {
           "from": this.actorID,
           "error": "loadSourceError",
-          "message": "Could not load the source for " + this._url + ".\n"
-            + safeErrorString(aError)
+          "message": "Could not load the source for " + this._url + "."
         };
       });
   },
@@ -3012,11 +3010,10 @@ BreakpointActor.prototype = {
     // Don't pause if we are currently stepping (in or over) or the frame is
     // black-boxed.
     let { url } = this.threadActor.synchronize(
-      this.threadActor.sources.getOriginalLocation({
-        url: this.location.url,
-        line: this.location.line,
-        column: this.location.column
-      }));
+      this.threadActor.sources.getOriginalLocation(
+        this.location.url,
+        this.location.line,
+        this.location.column));
 
     if (this.threadActor.sources.isBlackBoxed(url) || aFrame.onStep) {
       return undefined;
@@ -3486,8 +3483,8 @@ ThreadSources.prototype = {
       return this._sourceMaps[aAbsSourceMapURL];
     }
 
-    let promise = fetch(aAbsSourceMapURL).then(({ content }) => {
-      let map = new SourceMapConsumer(content);
+    let promise = fetch(aAbsSourceMapURL).then(rawSourceMap => {
+      let map = new SourceMapConsumer(rawSourceMap);
       this._setSourceMapRoot(map, aAbsSourceMapURL, aScriptURL);
       return map;
     });
@@ -3518,27 +3515,28 @@ ThreadSources.prototype = {
    * Returns a promise of the location in the original source if the source is
    * source mapped, otherwise a promise of the same location.
    */
-  getOriginalLocation: function TS_getOriginalLocation({ url, line, column }) {
-    if (url in this._sourceMapsByGeneratedSource) {
-      return this._sourceMapsByGeneratedSource[url]
-        .then((aSourceMap) => {
-          let { source: aSourceURL, line: aLine, column: aColumn } = aSourceMap.originalPositionFor({
-            line: line,
-            column: column
-          });
-          return {
-            url: aSourceURL,
+  getOriginalLocation:
+  function TS_getOriginalLocation(aSourceUrl, aLine, aColumn) {
+    if (aSourceUrl in this._sourceMapsByGeneratedSource) {
+      return this._sourceMapsByGeneratedSource[aSourceUrl]
+        .then(function (aSourceMap) {
+          let { source, line, column } = aSourceMap.originalPositionFor({
             line: aLine,
             column: aColumn
+          });
+          return {
+            url: source,
+            line: line,
+            column: column
           };
         });
     }
 
     // No source map
     return resolve({
-      url: url,
-      line: line,
-      column: column
+      url: aSourceUrl,
+      line: aLine,
+      column: aColumn
     });
   },
 
@@ -3551,28 +3549,29 @@ ThreadSources.prototype = {
    * the tables this function uses; thus, it won't know that S's original
    * source URLs map to S until P is resolved.
    */
-  getGeneratedLocation: function TS_getGeneratedLocation({ url, line, column }) {
-    if (url in this._sourceMapsByOriginalSource) {
-      return this._sourceMapsByOriginalSource[url]
+  getGeneratedLocation:
+  function TS_getGeneratedLocation(aSourceUrl, aLine, aColumn) {
+    if (aSourceUrl in this._sourceMapsByOriginalSource) {
+      return this._sourceMapsByOriginalSource[aSourceUrl]
         .then((aSourceMap) => {
-          let { line: aLine, column: aColumn } = aSourceMap.generatedPositionFor({
-            source: url,
-            line: line,
-            column: column == null ? Infinity : column
+          let { line, column } = aSourceMap.generatedPositionFor({
+            source: aSourceUrl,
+            line: aLine,
+            column: aColumn == null ? Infinity : aColumn
           });
           return {
-            url: this._generatedUrlsByOriginalUrl[url],
-            line: aLine,
-            column: aColumn
+            url: this._generatedUrlsByOriginalUrl[aSourceUrl],
+            line: line,
+            column: column
           };
         });
     }
 
     // No source map
     return resolve({
-      url: url,
-      line: line,
-      column: column
+      url: aSourceUrl,
+      line: aLine,
+      column: aColumn
     });
   },
 
@@ -3699,7 +3698,6 @@ function fetch(aURL, aOptions={ loadFromCache: true }) {
   let scheme;
   let url = aURL.split(" -> ").pop();
   let charset;
-  let contentType;
 
   try {
     scheme = Services.io.extractScheme(url);
@@ -3716,14 +3714,13 @@ function fetch(aURL, aOptions={ loadFromCache: true }) {
     case "chrome":
     case "resource":
       try {
-        NetUtil.asyncFetch(url, function onFetch(aStream, aStatus, aRequest) {
+        NetUtil.asyncFetch(url, function onFetch(aStream, aStatus) {
           if (!Components.isSuccessCode(aStatus)) {
             deferred.reject(new Error("Request failed: " + url));
             return;
           }
 
           let source = NetUtil.readInputStreamToString(aStream, aStream.available());
-          contentType = aRequest.contentType;
           deferred.resolve(source);
           aStream.close();
         });
@@ -3759,7 +3756,6 @@ function fetch(aURL, aOptions={ loadFromCache: true }) {
           }
 
           charset = channel.contentCharset;
-          contentType = channel.contentType;
           deferred.resolve(chunks.join(""));
         }
       };
@@ -3771,11 +3767,8 @@ function fetch(aURL, aOptions={ loadFromCache: true }) {
       break;
   }
 
-  return deferred.promise.then(source => {
-    return {
-      content: convertToUnicode(source, charset),
-      contentType: contentType
-    };
+  return deferred.promise.then(function (source) {
+    return convertToUnicode(source, charset);
   });
 }
 

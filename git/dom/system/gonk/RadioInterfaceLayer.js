@@ -2487,7 +2487,6 @@ RadioInterface.prototype = {
         this._updateCallingLineIdRestrictionPref(response.clirMode);
       }
       target.sendAsyncMessage("RIL:SetCallingLineIdRestriction", response);
-      return false;
     }).bind(this));
   },
 

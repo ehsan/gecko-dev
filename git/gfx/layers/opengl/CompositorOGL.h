@@ -35,8 +35,6 @@
 #include "nsTraceRefcnt.h"              // for MOZ_COUNT_CTOR, etc
 #include "nsXULAppAPI.h"                // for XRE_GetProcessType
 #include "nscore.h"                     // for NS_IMETHOD
-#include "VBOArena.h"                   // for gl::VBOArena
-
 class gfx3DMatrix;
 class nsIWidget;
 struct gfxMatrix;
@@ -235,11 +233,6 @@ private:
    *  including vertex coords and texcoords for both
    *  flipped and unflipped textures */
   GLuint mQuadVBO;
-
-  /**
-   * When we can't use mQuadVBO, we allocate VBOs from this arena instead.
-   */
-  gl::VBOArena mVBOs;
 
   bool mHasBGRA;
 

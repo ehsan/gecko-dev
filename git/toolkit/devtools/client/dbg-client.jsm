@@ -1993,9 +1993,8 @@ SourceClient.prototype = {
         return;
       }
 
-      let { contentType, source } = aResponse;
       let longString = this._client.activeThread.threadLongString(
-        source);
+        aResponse.source);
       longString.substring(0, longString.length, function (aResponse) {
         if (aResponse.error) {
           aCallback(aResponse);
@@ -2003,8 +2002,7 @@ SourceClient.prototype = {
         }
 
         aCallback({
-          source: aResponse.substring,
-          contentType: contentType
+          source: aResponse.substring
         });
       });
     }.bind(this));
