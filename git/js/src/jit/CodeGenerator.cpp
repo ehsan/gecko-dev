@@ -233,13 +233,13 @@ CodeGenerator::visitValueToDouble(LValueToDouble *lir)
 
     if (hasNull) {
         masm.bind(&isNull);
-        masm.loadConstantDouble(DoubleZero, output);
+        masm.loadStaticDouble(&DoubleZero, output);
         masm.jump(&done);
     }
 
     if (hasUndefined) {
         masm.bind(&isUndefined);
-        masm.loadConstantDouble(js_NaN, output);
+        masm.loadStaticDouble(&js_NaN, output);
         masm.jump(&done);
     }
 
@@ -290,14 +290,16 @@ CodeGenerator::visitValueToFloat32(LValueToFloat32 *lir)
         return false;
 
     if (hasNull) {
+        static float DoubleZeroFloat = DoubleZero;
         masm.bind(&isNull);
-        masm.loadConstantFloat32((float)DoubleZero, output);
+        masm.loadStaticFloat32(&DoubleZeroFloat, output);
         masm.jump(&done);
     }
 
     if (hasUndefined) {
+        static float js_NaN_float = js_NaN;
         masm.bind(&isUndefined);
-        masm.loadConstantFloat32((float)js_NaN, output);
+        masm.loadStaticFloat32(&js_NaN_float, output);
         masm.jump(&done);
     }
 
@@ -1355,10 +1357,12 @@ CodeGenerator::visitTypeBarrierV(LTypeBarrierV *lir)
     ValueOperand operand = ToValue(lir, LTypeBarrierV::Input);
     Register scratch = ToTempRegisterOrInvalid(lir->temp());
 
-    Label miss;
-    masm.guardTypeSet(operand, lir->mir()->resultTypeSet(), scratch, &miss);
+    Label matched, miss;
+    masm.guardTypeSet(operand, lir->mir()->resultTypeSet(), scratch, &matched, &miss);
+    masm.jump(&miss);
     if (!bailoutFrom(&miss, lir->snapshot()))
         return false;
+    masm.bind(&matched);
     return true;
 }
 
@@ -1368,10 +1372,12 @@ CodeGenerator::visitTypeBarrierO(LTypeBarrierO *lir)
     Register obj = ToRegister(lir->object());
     Register scratch = ToTempRegisterOrInvalid(lir->temp());
 
-    Label miss;
-    masm.guardObjectType(obj, lir->mir()->resultTypeSet(), scratch, &miss);
+    Label matched, miss;
+    masm.guardObjectType(obj, lir->mir()->resultTypeSet(), scratch, &matched, &miss);
+    masm.jump(&miss);
     if (!bailoutFrom(&miss, lir->snapshot()))
         return false;
+    masm.bind(&matched);
     return true;
 }
 
@@ -1382,9 +1388,11 @@ CodeGenerator::visitMonitorTypes(LMonitorTypes *lir)
     Register scratch = ToTempUnboxRegister(lir->temp());
 
     Label matched, miss;
-    masm.guardTypeSet(operand, lir->mir()->typeSet(), scratch, &miss);
+    masm.guardTypeSet(operand, lir->mir()->typeSet(), scratch, &matched, &miss);
+    masm.jump(&miss);
     if (!bailoutFrom(&miss, lir->snapshot()))
         return false;
+    masm.bind(&matched);
     return true;
 }
 
@@ -2315,7 +2323,10 @@ CodeGenerator::generateArgumentsChecks()
         // ... * sizeof(Value)          - Scale by value size.
         // ArgToStackOffset(...)        - Compute displacement within arg vector.
         int32_t offset = ArgToStackOffset((i - info.startArgSlot()) * sizeof(Value));
-        masm.guardTypeSet(Address(StackPointer, offset), types, temp, &miss);
+        Label matched;
+        masm.guardTypeSet(Address(StackPointer, offset), types, temp, &matched, &miss);
+        masm.jump(&miss);
+        masm.bind(&matched);
     }
 
     if (miss.used() && !bailoutFrom(&miss, graph.entrySnapshot()))

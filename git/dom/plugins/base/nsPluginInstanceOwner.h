@@ -320,8 +320,6 @@ private:
   nsresult DispatchKeyToPlugin(nsIDOMEvent* aKeyEvent);
   nsresult DispatchMouseToPlugin(nsIDOMEvent* aMouseEvent);
   nsresult DispatchFocusToPlugin(nsIDOMEvent* aFocusEvent);
-
-  int mLastMouseDownButtonType;
   
   nsresult EnsureCachedAttrParamArrays();
   

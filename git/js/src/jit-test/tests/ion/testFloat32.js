@@ -27,7 +27,7 @@
     })();
     //
     (function() {
-        if (typeof ParallelArray !== "undefined")
+        if (ParallelArray !== undefined)
         ParallelArray([1606], Math.fround)
     })();
     //

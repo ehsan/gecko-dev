@@ -10,7 +10,6 @@ import org.mozilla.gecko.db.BrowserContract.Bookmarks;
 import org.mozilla.gecko.db.BrowserContract.Combined;
 import org.mozilla.gecko.db.BrowserContract.URLColumns;
 import org.mozilla.gecko.home.HomePager.OnUrlOpenListener;
-import org.mozilla.gecko.util.StringUtils;
 
 import android.content.Context;
 import android.content.res.TypedArray;
@@ -127,6 +126,9 @@ public class HomeListView extends ListView
      */
     public static class HomeContextMenuInfo extends AdapterContextMenuInfo {
 
+        // URL to Title replacement regex.
+        private static final String REGEX_URL_TO_TITLE = "^([a-z]+://)?(www\\.)?";
+
         public int bookmarkId;
         public int historyId;
         public String url;
@@ -198,8 +200,7 @@ public class HomeListView extends ListView
         }
 
         public String getDisplayTitle() {
-            return TextUtils.isEmpty(title) ?
-                StringUtils.stripCommonSubdomains(StringUtils.stripScheme(url, StringUtils.UrlFlags.STRIP_HTTPS)) : title;
+            return TextUtils.isEmpty(title) ? url.replaceAll(REGEX_URL_TO_TITLE, "") : title;
         }
     }
 }

@@ -626,6 +626,7 @@ bool ExceptionHandler::InstallHandler() {
   if (gProtectedData.handler != NULL) {
     return false;
   }
+#if TARGET_OS_IPHONE
   if (!IsOutOfProcess()) {
     struct sigaction sa;
     memset(&sa, 0, sizeof(sa));
@@ -645,6 +646,7 @@ bool ExceptionHandler::InstallHandler() {
     mprotect(gProtectedData.protected_buffer, PAGE_SIZE, PROT_READ);
 #endif
   }
+#endif
 
   try {
 #if USE_PROTECTED_ALLOCATIONS

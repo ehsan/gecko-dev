@@ -327,15 +327,11 @@ XPCOMUtils.defineLazyModuleGetter(this, "AppCacheUtils",
           let name = representAddon(addon);
           let message = "";
 
-          // If the addon is not disabled or is set to "click to play" then
-          // disable it. Otherwise display the message "Add-on is already
-          // disabled."
-          if (!addon.userDisabled ||
-              addon.userDisabled === AddonManager.STATE_ASK_TO_ACTIVATE) {
+          if (addon.userDisabled) {
+            message = gcli.lookupFormat("addonAlreadyDisabled", [name]);
+          } else {
             addon.userDisabled = true;
             message = gcli.lookupFormat("addonDisabled", [name]);
-          } else {
-            message = gcli.lookupFormat("addonAlreadyDisabled", [name]);
           }
           this.resolve(message);
         }

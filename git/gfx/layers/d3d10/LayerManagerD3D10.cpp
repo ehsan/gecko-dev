@@ -25,9 +25,9 @@
 #include "../d3d9/Nv3DVUtils.h"
 
 #include "gfxCrashReporterUtils.h"
-#include "nsWindowsHelpers.h"
 #ifdef MOZ_METRO
 #include "DXGI1_2.h"
+#include "nsWindowsHelpers.h"
 #endif
 
 using namespace std;
@@ -640,15 +640,17 @@ LayerManagerD3D10::VerifyBufferSize()
     }
 
     mRTView = nullptr;
-    if (IsRunningInWindowsMetro()) {
+    if (gfxWindowsPlatform::IsOptimus()) { 
+      mSwapChain->ResizeBuffers(1, rect.width, rect.height,
+                                DXGI_FORMAT_B8G8R8A8_UNORM,
+                                0);
+#ifdef MOZ_METRO
+    } else if (IsRunningInWindowsMetro()) {
       mSwapChain->ResizeBuffers(2, rect.width, rect.height,
                                 DXGI_FORMAT_B8G8R8A8_UNORM,
                                 0);
       mDisableSequenceForNextFrame = true;
-    } else if (gfxWindowsPlatform::IsOptimus()) {
-      mSwapChain->ResizeBuffers(1, rect.width, rect.height,
-                                DXGI_FORMAT_B8G8R8A8_UNORM,
-                                0);
+#endif
     } else {
       mSwapChain->ResizeBuffers(1, rect.width, rect.height,
                                 DXGI_FORMAT_B8G8R8A8_UNORM,

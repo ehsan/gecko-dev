@@ -67,8 +67,3 @@ LIBXUL_LIBRARY = True
 
 LIBRARY_NAME = 'gkconsmil_s'
 
-LOCAL_INCLUDES += [
-    '../base/src',
-    '../events/src',
-    '/layout/style',
-]
