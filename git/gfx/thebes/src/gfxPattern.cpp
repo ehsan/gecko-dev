@@ -41,7 +41,6 @@
 #include "gfxPlatform.h"
 
 #include "cairo.h"
-#include "lcms.h"
 
 gfxPattern::gfxPattern(cairo_pattern_t *aPattern)
 {
@@ -154,15 +153,15 @@ gfxPattern::Extend() const
 }
 
 void
-gfxPattern::SetFilter(int filter)
+gfxPattern::SetFilter(GraphicsFilter filter)
 {
     cairo_pattern_set_filter(mPattern, (cairo_filter_t)filter);
 }
 
-int
+gfxPattern::GraphicsFilter
 gfxPattern::Filter() const
 {
-    return (int)cairo_pattern_get_filter(mPattern);
+    return (GraphicsFilter)cairo_pattern_get_filter(mPattern);
 }
 
 PRBool

@@ -114,8 +114,15 @@ nsTextEditRules::~nsTextEditRules()
  *  XPCOM Cruft
  ********************************************************/
 
-NS_IMPL_ISUPPORTS1(nsTextEditRules, nsIEditRules)
+NS_IMPL_CYCLE_COLLECTION_2(nsTextEditRules, mBogusNode, mCachedSelectionNode)
 
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsTextEditRules)
+  NS_INTERFACE_MAP_ENTRY(nsIEditRules)
+  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIEditRules)
+NS_INTERFACE_MAP_END
+
+NS_IMPL_CYCLE_COLLECTING_ADDREF(nsTextEditRules)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(nsTextEditRules)
 
 /********************************************************
  *  Public methods 
@@ -180,6 +187,13 @@ nsTextEditRules::Init(nsPlaintextEditor *aEditor, PRUint32 aFlags)
   mDeleteBidiImmediately = deleteBidiImmediately;
 
   return res;
+}
+
+NS_IMETHODIMP
+nsTextEditRules::DetachEditor()
+{
+  mEditor = nsnull;
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -888,6 +902,9 @@ nsTextEditRules::WillDeleteSelection(nsISelection *aSelection,
 
   if (mFlags & nsIPlaintextEditor::eEditorPasswordMask)
   {
+    res = mEditor->ExtendSelectionForDelete(aSelection, &aCollapsedAction);
+    NS_ENSURE_SUCCESS(res, res);
+
     // manage the password buffer
     PRUint32 start, end;
     mEditor->GetTextSelectionOffsets(aSelection, start, end);
@@ -918,25 +935,22 @@ nsTextEditRules::WillDeleteSelection(nsISelection *aSelection,
     res = aSelection->GetIsCollapsed(&bCollapsed);
     if (NS_FAILED(res)) return res;
   
-    if (bCollapsed)
-    {
-      // Test for distance between caret and text that will be deleted
-      res = CheckBidiLevelForDeletion(aSelection, startNode, startOffset, aCollapsedAction, aCancel);
-      if (NS_FAILED(res)) return res;
-      if (*aCancel) return NS_OK;
+    if (!bCollapsed) return NS_OK;
 
-      res = mEditor->ExtendSelectionForDelete(aSelection, &aCollapsedAction);
-      NS_ENSURE_SUCCESS(res, res);
+    // Test for distance between caret and text that will be deleted
+    res = CheckBidiLevelForDeletion(aSelection, startNode, startOffset, aCollapsedAction, aCancel);
+    if (NS_FAILED(res)) return res;
+    if (*aCancel) return NS_OK;
 
-      res = mEditor->DeleteSelectionImpl(aCollapsedAction);
-      NS_ENSURE_SUCCESS(res, res);
-
-      *aHandled = PR_TRUE;
-      return NS_OK;
-    }
+    res = mEditor->ExtendSelectionForDelete(aSelection, &aCollapsedAction);
+    NS_ENSURE_SUCCESS(res, res);
   }
 
-  return res;
+  res = mEditor->DeleteSelectionImpl(aCollapsedAction);
+  NS_ENSURE_SUCCESS(res, res);
+
+  *aHandled = PR_TRUE;
+  return NS_OK;
 }
 
 nsresult
@@ -1040,7 +1054,7 @@ nsTextEditRules::DidRedo(nsISelection *aSelection, nsresult aResult)
       if (!theRoot) return NS_ERROR_FAILURE;
       
       nsCOMPtr<nsIDOMNodeList> nodeList;
-      res = theRoot->GetElementsByTagName(NS_LITERAL_STRING("div"),
+      res = theRoot->GetElementsByTagName(NS_LITERAL_STRING("br"),
                                           getter_AddRefs(nodeList));
       if (NS_FAILED(res)) return res;
       if (nodeList)
@@ -1048,7 +1062,7 @@ nsTextEditRules::DidRedo(nsISelection *aSelection, nsresult aResult)
         PRUint32 len;
         nodeList->GetLength(&len);
         
-        if (len != 1) return NS_OK;  // only in the case of one div could there be the bogus node
+        if (len != 1) return NS_OK;  // only in the case of one br could there be the bogus node
         nsCOMPtr<nsIDOMNode> node;
         nodeList->Item(0, getter_AddRefs(node));
         if (!node) return NS_ERROR_NULL_POINTER;

@@ -44,7 +44,6 @@
 #include "prprf.h"
 #include "prlog.h"
 #include "prtime.h"
-#include "prnetdb.h"
 
 #include "nsFTPChannel.h"
 #include "nsFtpConnectionThread.h"
@@ -96,6 +95,7 @@ nsFtpState::nsFtpState()
     , mRetryPass(PR_FALSE)
     , mStorReplyReceived(PR_FALSE)
     , mInternalError(NS_OK)
+    , mReconnectAndLoginAgain(PR_FALSE)
     , mPort(21)
     , mAddressChecked(PR_FALSE)
     , mServerIsIPv6(PR_FALSE)
@@ -240,7 +240,12 @@ nsFtpState::OnControlError(nsresult status)
          this, mControlConnection.get(), status, mTryingCachedControl));
 
     mControlStatus = status;
-    if (mTryingCachedControl && NS_SUCCEEDED(mInternalError)) {
+    if (mReconnectAndLoginAgain && NS_SUCCEEDED(mInternalError)) {
+        mReconnectAndLoginAgain = PR_FALSE;
+        mAnonymous = PR_FALSE;
+        mControlStatus = NS_OK;
+        Connect();
+    } else if (mTryingCachedControl && NS_SUCCEEDED(mInternalError)) {
         mTryingCachedControl = PR_FALSE;
         Connect();
     } else {
@@ -259,7 +264,9 @@ nsFtpState::EstablishControlConnection()
         
     // Look to see if we can use a cached control connection:
     nsFtpControlConnection *connection = nsnull;
-    gFtpHandler->RemoveConnection(mChannel->URI(), &connection);
+    // Don't use cached control if anonymous (bug #473371)
+    if (!mChannel->HasLoadFlag(nsIRequest::LOAD_ANONYMOUS))
+        gFtpHandler->RemoveConnection(mChannel->URI(), &connection);
 
     if (connection) {
         mControlConnection.swap(connection);
@@ -370,6 +377,12 @@ nsFtpState::Process()
                 // Fire it back up, unless we were trying to login
                 // in which case the server might just be telling us
                 // that the max number of users has been reached...
+                mState = FTP_COMMAND_CONNECT;
+            } else if (mAnonymous && 
+                       mInternalError == NS_ERROR_FTP_LOGIN) {
+                // If the login was anonymous, and it failed, try again with a username
+                // Don't reuse old control connection, see #386167
+                mAnonymous = PR_FALSE;
                 mState = FTP_COMMAND_CONNECT;
             } else {
                 LOG(("FTP:(%x) FTP_ERROR - calling StopProcessing\n", this));
@@ -658,10 +671,19 @@ nsFtpState::S_user() {
     nsresult rv;
     nsCAutoString usernameStr("USER ");
 
+    mResponseMsg = "";
+
     if (mAnonymous) {
+        mReconnectAndLoginAgain = PR_TRUE;
         usernameStr.AppendLiteral("anonymous");
     } else {
+        mReconnectAndLoginAgain = PR_FALSE;
         if (mUsername.IsEmpty()) {
+
+            // No prompt for anonymous requests (bug #473371)
+            if (mChannel->HasLoadFlag(nsIRequest::LOAD_ANONYMOUS))
+              return NS_ERROR_FAILURE;
+
             nsCOMPtr<nsIAuthPrompt2> prompter;
             NS_QueryAuthPrompt2(static_cast<nsIChannel*>(mChannel),
                                 getter_AddRefs(prompter));
@@ -694,6 +716,7 @@ nsFtpState::S_user() {
 
 FTP_STATE
 nsFtpState::R_user() {
+    mReconnectAndLoginAgain = PR_FALSE;
     if (mResponseCode/100 == 3) {
         // send off the password
         return FTP_S_PASS;
@@ -708,13 +731,6 @@ nsFtpState::R_user() {
         return FTP_ERROR;
     }
     // LOGIN FAILED
-    if (mAnonymous) {
-        // we just tried to login anonymously and failed.
-        // kick back out to S_user() and try again after
-        // gathering uname/pwd info from the user.
-        mAnonymous = PR_FALSE;
-        return FTP_S_USER;
-    }
     return FTP_ERROR;
 }
 
@@ -752,6 +768,11 @@ nsFtpState::S_pass() {
         }
     } else {
         if (mPassword.IsEmpty() || mRetryPass) {
+            
+            // No prompt for anonymous requests (bug #473371)
+            if (mChannel->HasLoadFlag(nsIRequest::LOAD_ANONYMOUS))
+                return NS_ERROR_FAILURE;
+
             nsCOMPtr<nsIAuthPrompt2> prompter;
             NS_QueryAuthPrompt2(static_cast<nsIChannel*>(mChannel),
                                 getter_AddRefs(prompter));
@@ -805,13 +826,9 @@ nsFtpState::R_pass() {
         // There is no difference between a too-many-users error,
         // a wrong-password error, or any other sort of error
 
-        // If the login was anonymous, and it failed, try again with a username
-        if (mAnonymous) {
-            mAnonymous = PR_FALSE;
-            return FTP_S_USER;
-        }
+        if (!mAnonymous)
+            mRetryPass = PR_TRUE;
 
-        mRetryPass = PR_TRUE;
         return FTP_ERROR;
     }
     // unexpected response code
@@ -1253,18 +1270,34 @@ nsFtpState::S_pasv() {
     if (!mAddressChecked) {
         // Find socket address
         mAddressChecked = PR_TRUE;
+        PR_InitializeNetAddr(PR_IpAddrAny, 0, &mServerAddress);
+
         nsITransport *controlSocket = mControlConnection->Transport();
         if (!controlSocket)
             return FTP_ERROR;
 
         nsCOMPtr<nsISocketTransport> sTrans = do_QueryInterface(controlSocket);
         if (sTrans) {
-            PRNetAddr addr;
-            nsresult rv = sTrans->GetPeerAddr(&addr);
+            nsresult rv = sTrans->GetPeerAddr(&mServerAddress);
             if (NS_SUCCEEDED(rv)) {
-                mServerIsIPv6 = addr.raw.family == PR_AF_INET6 &&
-                                !PR_IsNetAddrType(&addr, PR_IpAddrV4Mapped);
-                PR_NetAddrToString(&addr, mServerAddress, sizeof(mServerAddress));
+                if (!PR_IsNetAddrType(&mServerAddress, PR_IpAddrAny))
+                    mServerIsIPv6 = mServerAddress.raw.family == PR_AF_INET6 &&
+                        !PR_IsNetAddrType(&mServerAddress, PR_IpAddrV4Mapped);
+                else {
+                    /*
+                     * In case of SOCKS5 remote DNS resolution, we do
+                     * not know the remote IP address. Still, if it is
+                     * an IPV6 host, then the external address of the
+                     * socks server should also be IPv6, and this is the
+                     * self address of the transport.
+                     */
+                    PRNetAddr selfAddress;
+                    rv = sTrans->GetSelfAddr(&selfAddress);
+                    if (NS_SUCCEEDED(rv))
+                        mServerIsIPv6 = selfAddress.raw.family == PR_AF_INET6
+                            && !PR_IsNetAddrType(&selfAddress,
+                                                 PR_IpAddrV4Mapped);
+                }
             }
         }
     }
@@ -1387,14 +1420,32 @@ nsFtpState::R_pasv() {
             return FTP_ERROR;
        
         nsCOMPtr<nsISocketTransport> strans;
-        rv = sts->CreateTransport(nsnull, 0, nsDependentCString(mServerAddress),
-                                  port, mChannel->ProxyInfo(),
-                                  getter_AddRefs(strans)); // the data socket
+
+        nsCAutoString host;
+        if (!PR_IsNetAddrType(&mServerAddress, PR_IpAddrAny)) {
+            char buf[64];
+            PR_NetAddrToString(&mServerAddress, buf, sizeof(buf));
+            host.Assign(buf);
+        } else {
+            /*
+             * In case of SOCKS5 remote DNS resolving, the peer address
+             * fetched previously will be invalid (0.0.0.0): it is unknown
+             * to us. But we can pass on the original hostname to the
+             * connect for the data connection.
+             */
+            rv = mChannel->URI()->GetAsciiHost(host);
+            if (NS_FAILED(rv))
+                return FTP_ERROR;
+        }
+
+        rv =  sts->CreateTransport(nsnull, 0, host,
+                                   port, mChannel->ProxyInfo(),
+                                   getter_AddRefs(strans)); // the data socket
         if (NS_FAILED(rv))
             return FTP_ERROR;
         mDataTransport = strans;
         
-        LOG(("FTP:(%x) created DT (%s:%x)\n", this, mServerAddress, port));
+        LOG(("FTP:(%x) created DT (%s:%x)\n", this, host.get(), port));
         
         // hook ourself up as a proxy for status notifications
         rv = mDataTransport->SetEventSink(this, NS_GetCurrentThread());
@@ -1719,8 +1770,12 @@ nsFtpState::KillControlConnection()
         mControlConnection->mServerType = mServerType;           
         mControlConnection->mPassword = mPassword;
         mControlConnection->mPwd = mPwd;
-        nsresult rv = gFtpHandler->InsertConnection(mChannel->URI(),
-                                                    mControlConnection);
+        
+        nsresult rv = NS_OK;
+        // Don't cache controlconnection if anonymous (bug #473371)
+        if (!mChannel->HasLoadFlag(nsIRequest::LOAD_ANONYMOUS))
+            rv = gFtpHandler->InsertConnection(mChannel->URI(),
+                                               mControlConnection);
         // Can't cache it?  Kill it then.  
         mControlConnection->Disconnect(rv);
     } else {

@@ -168,7 +168,11 @@ inline nsISupports*
 XPCCallContext::GetIdentityObject() const
 {
     CHECK_STATE(HAVE_OBJECT);
-    return mWrapper->GetIdentityObject();
+    if(mWrapper)
+        return mWrapper->GetIdentityObject();
+    return mCurrentJSObject ?
+           static_cast<nsISupports*>(xpc_GetJSPrivate(mCurrentJSObject)) :
+           nsnull;
 }
 
 inline XPCWrappedNative*
@@ -179,6 +183,15 @@ XPCCallContext::GetWrapper() const
 
     CHECK_STATE(HAVE_OBJECT);
     return mWrapper;
+}
+
+inline XPCWrappedNativeProto*
+XPCCallContext::GetProto() const
+{
+    CHECK_STATE(HAVE_OBJECT);
+    if(mWrapper)
+        return mWrapper->GetProto();
+    return mCurrentJSObject ? GetSlimWrapperProto(mCurrentJSObject) : nsnull;
 }
 
 inline JSBool
@@ -533,8 +546,12 @@ XPCNativeSet::HasInterface(XPCNativeInterface* aInterface) const
 inline JSBool
 XPCNativeSet::HasInterfaceWithAncestor(XPCNativeInterface* aInterface) const
 {
-    const nsIID* iid = aInterface->GetIID();
+    return HasInterfaceWithAncestor(aInterface->GetIID());
+}
 
+inline JSBool
+XPCNativeSet::HasInterfaceWithAncestor(const nsIID* iid) const
+{
     // We can safely skip the first interface which is *always* nsISupports.
     XPCNativeInterface* const * pp = mInterfaces+1;
     for(int i = (int) mInterfaceCount; i > 1; i--, pp++)
@@ -662,12 +679,6 @@ XPCWrappedNativeTearOff::~XPCWrappedNativeTearOff()
 /***************************************************************************/
 
 inline JSBool
-XPCWrappedNative::HasInterfaceNoQI(XPCNativeInterface* aInterface)
-{
-    return GetSet()->HasInterface(aInterface);
-}
-
-inline JSBool
 XPCWrappedNative::HasInterfaceNoQI(const nsIID& iid)
 {
     return nsnull != GetSet()->FindInterfaceWithIID(iid);
@@ -708,15 +719,12 @@ XPCWrappedNative::SweepTearOffs()
 inline JSBool
 xpc_ForcePropertyResolve(JSContext* cx, JSObject* obj, jsval idval)
 {
-    JSProperty* prop;
-    JSObject* obj2;
-    jsid id;    
+    jsval prop;
+    jsid id;
 
     if(!JS_ValueToId(cx, idval, &id) ||
-       !OBJ_LOOKUP_PROPERTY(cx, obj, id, &obj2, &prop))
+       !JS_LookupPropertyById(cx, obj, id, &prop))
         return JS_FALSE;
-    if(prop)
-        OBJ_DROP_PROPERTY(cx, obj2, prop);
     return JS_TRUE;
 }
 
@@ -726,6 +734,27 @@ xpc_NewSystemInheritingJSObject(JSContext *cx, JSClass *clasp, JSObject *proto,
 {
     return JS_NewSystemObject(cx, clasp, proto, parent,
                               JS_IsSystemObject(cx, parent));
+}
+
+inline JSBool
+xpc_SameScope(XPCWrappedNativeScope *objectscope, XPCWrappedNativeScope *xpcscope,
+              JSBool *sameOrigin)
+{
+    if (objectscope == xpcscope)
+    {
+        *sameOrigin = JS_TRUE;
+        return JS_TRUE;
+    }
+
+    nsIPrincipal *objectprincipal = objectscope->GetPrincipal();
+    nsIPrincipal *xpcprincipal = xpcscope->GetPrincipal();
+    if(!objectprincipal || !xpcprincipal ||
+       NS_FAILED(objectprincipal->Equals(xpcprincipal, sameOrigin)))
+    {
+        *sameOrigin = JS_FALSE;
+    }
+
+    return JS_FALSE;
 }
 
 inline jsval

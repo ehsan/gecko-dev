@@ -46,12 +46,12 @@
 #include "gfxFont.h"
 #include "gfxMatrix.h"
 #include "gfxFontUtils.h"
+#include "gfxUserFontSet.h"
 
 #include "nsDataHashtable.h"
 
 #include <usp10.h>
 #include <cairo-win32.h>
-
 
 /**
  * List of different types of fonts we support on Windows.
@@ -110,13 +110,19 @@ private:
 class FontEntry : public gfxFontEntry
 {
 public:
-    FontEntry(const nsAString& aFaceName) : 
-        gfxFontEntry(aFaceName), mFontType(GFX_FONT_TYPE_UNKNOWN),
+    FontEntry(const nsAString& aFaceName, gfxWindowsFontType aFontType,
+              PRBool aItalic, PRUint16 aWeight, gfxUserFontData *aUserFontData) : 
+        gfxFontEntry(aFaceName), mFontType(aFontType),
         mForceGDI(PR_FALSE), mUnknownCMAP(PR_FALSE),
+        mUnicodeFont(PR_FALSE), mSymbolFont(PR_FALSE),
         mCharset(0), mUnicodeRanges(0)
     {
-        mUnicodeFont = PR_FALSE;
-        mSymbolFont = PR_FALSE;
+        mUserFontData = aUserFontData;
+        mItalic = aItalic;
+        mWeight = aWeight;
+        if (IsType1())
+            mForceGDI = PR_TRUE;
+        mIsUserFont = aUserFontData != nsnull;
     }
 
     FontEntry(const FontEntry& aFontEntry) :
@@ -126,17 +132,38 @@ public:
         mFontType(aFontEntry.mFontType),
         mForceGDI(aFontEntry.mForceGDI),
         mUnknownCMAP(aFontEntry.mUnknownCMAP),
+        mUnicodeFont(aFontEntry.mUnicodeFont),
+        mSymbolFont(aFontEntry.mSymbolFont),
         mCharset(aFontEntry.mCharset),
         mUnicodeRanges(aFontEntry.mUnicodeRanges)
     {
 
     }
+    static void InitializeFontEmbeddingProcs();
 
-    static FontEntry* CreateFontEntry(const nsAString& aName, gfxWindowsFontType aFontType, PRBool aItalic, PRUint16 aWeight, gfxUserFontData* aUserFontData, HDC hdc = 0, LOGFONTW *aLogFont = nsnull);
+    // create a font entry from downloaded font data
+    static FontEntry* LoadFont(const gfxProxyFontEntry &aProxyEntry,
+                               nsISupports *aLoader,
+                               const PRUint8 *aFontData,
+                               PRUint32 aLength);
 
-    static void FillLogFont(LOGFONTW *aLogFont, FontEntry *aFontEntry, gfxFloat aSize, PRBool aItalic);
+    // create a font entry for a font with a given name
+    static FontEntry* CreateFontEntry(const nsAString& aName, 
+                                      gfxWindowsFontType aFontType, 
+                                      PRBool aItalic, PRUint16 aWeight, 
+                                      gfxUserFontData* aUserFontData, 
+                                      HDC hdc = 0, LOGFONTW *aLogFont = nsnull);
 
-    static gfxWindowsFontType DetermineFontType(const NEWTEXTMETRICW& metrics, DWORD fontType)
+    // create a font entry for a font referenced by its fullname
+    static FontEntry* LoadLocalFont(const gfxProxyFontEntry &aProxyEntry,
+                                    const nsAString& aFullname);
+
+    static void FillLogFont(LOGFONTW *aLogFont, const nsAString& aName, 
+                            gfxWindowsFontType aFontType, PRBool aItalic, 
+                            PRUint16 aWeight, gfxFloat aSize);
+
+    static gfxWindowsFontType DetermineFontType(const NEWTEXTMETRICW& metrics, 
+                                                DWORD fontType)
     {
         gfxWindowsFontType feType;
         if (metrics.ntmFlags & NTM_TYPE1)
@@ -264,6 +291,8 @@ public:
     gfxWindowsFontType mFontType;
     PRPackedBool mForceGDI    : 1;
     PRPackedBool mUnknownCMAP : 1;
+    PRPackedBool mUnicodeFont : 1;
+    PRPackedBool mSymbolFont  : 1;
 
     std::bitset<256> mCharset;
     std::bitset<128> mUnicodeRanges;
@@ -277,7 +306,8 @@ public:
 
 class gfxWindowsFont : public gfxFont {
 public:
-    gfxWindowsFont(FontEntry *aFontEntry, const gfxFontStyle *aFontStyle);
+    gfxWindowsFont(FontEntry *aFontEntry, const gfxFontStyle *aFontStyle,
+                   cairo_antialias_t anAntialiasOption = CAIRO_ANTIALIAS_DEFAULT);
     virtual ~gfxWindowsFont();
 
     virtual const gfxFont::Metrics& GetMetrics();
@@ -294,6 +324,12 @@ public:
                       gfxContext *aContext, PRBool aDrawToPath, gfxPoint *aBaselineOrigin,
                       Spacing *aSpacing);
 
+    virtual RunMetrics Measure(gfxTextRun *aTextRun,
+                               PRUint32 aStart, PRUint32 aEnd,
+                               BoundingBoxType aBoundingBoxType,
+                               gfxContext *aContextForTightBoundingBox,
+                               Spacing *aSpacing);
+
     virtual PRUint32 GetSpaceGlyph() {
         GetMetrics(); // ensure that the metrics are computed but don't recompute them
         return mSpaceGlyph;
@@ -303,7 +339,8 @@ public:
     FontEntry *GetFontEntry();
 
     static already_AddRefed<gfxWindowsFont>
-    GetOrMakeFont(FontEntry *aFontEntry, const gfxFontStyle *aStyle);
+    GetOrMakeFont(FontEntry *aFontEntry, const gfxFontStyle *aStyle,
+                  PRBool aNeedsBold = PR_FALSE);
 
 protected:
     HFONT MakeHFONT();
@@ -324,6 +361,8 @@ private:
     gfxFont::Metrics *mMetrics;
 
     LOGFONTW mLogFont;
+
+    cairo_antialias_t mAntialiasOption;
 
     virtual PRBool SetupCairoFont(gfxContext *aContext);
 };
@@ -364,12 +403,15 @@ public:
 
     virtual gfxWindowsFont *GetFontAt(PRInt32 i);
 
-    void GroupFamilyListToArrayList(nsTArray<nsRefPtr<FontEntry> > *list);
+    void GroupFamilyListToArrayList(nsTArray<nsRefPtr<FontEntry> > *list,
+                                    nsTArray<PRPackedBool> *aNeedsBold);
     void FamilyListToArrayList(const nsString& aFamilies,
                                const nsCString& aLangGroup,
                                nsTArray<nsRefPtr<FontEntry> > *list);
 
     void UpdateFontList();
+    virtual gfxFloat GetUnderlineOffset();
+
 
 protected:
     void InitFontList();
@@ -389,6 +431,7 @@ private:
 
     nsCString mGenericFamily;
     nsTArray<nsRefPtr<FontEntry> > mFontEntries;
+    nsTArray<PRPackedBool> mFontNeedsBold;
 
     const char *mItemLangGroup;  // used by pref-lang handling code
 

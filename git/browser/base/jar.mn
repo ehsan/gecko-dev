@@ -24,9 +24,6 @@ browser.jar:
 *       content/browser/browser.xul                   (content/browser.xul)
 *       content/browser/browser-tabPreviews.xml       (content/browser-tabPreviews.xml)
 *       content/browser/credits.xhtml                 (content/credits.xhtml)
-*       content/browser/EULA.js                       (content/EULA.js)
-*       content/browser/EULA.xhtml                    (content/EULA.xhtml)
-*       content/browser/EULA.xul                      (content/EULA.xul)
 *       content/browser/metaData.js                   (content/metaData.js)
 *       content/browser/metaData.xul                  (content/metaData.xul)
 *       content/browser/pageinfo/pageInfo.xul         (content/pageinfo/pageInfo.xul)
@@ -43,6 +40,8 @@ browser.jar:
 *       content/browser/safeMode.xul                  (content/safeMode.xul)
 *       content/browser/sanitize.js                   (content/sanitize.js)
 *       content/browser/sanitize.xul                  (content/sanitize.xul)
+*       content/browser/sanitizeDialog.js             (content/sanitizeDialog.js)
+        content/browser/sanitizeDialog.css            (content/sanitizeDialog.css)
 *       content/browser/tabbrowser.css                (content/tabbrowser.css)
 *       content/browser/tabbrowser.xml                (content/tabbrowser.xml)
 *       content/browser/urlbarBindings.xml            (content/urlbarBindings.xml)
@@ -60,23 +59,7 @@ browser.jar:
 *       content/browser/jsConsoleOverlay.xul          (content/jsConsoleOverlay.xul)
 *       content/browser/softwareUpdateOverlay.xul  (content/softwareUpdateOverlay.xul)
 #endif
-#ifdef TOOLBAR_CUSTOMIZATION_SHEET
-*       content/browser/customizeToolbarSheet.js          (content/customizeToolbarSheet.js)
-#endif
 *       content/browser/viewSourceOverlay.xul         (content/viewSourceOverlay.xul)
-#ifdef MOZ_USE_GENERIC_BRANDING
-% content branding %content/branding/ xpcnativewrappers=yes
-  content/branding/about.png                     (branding/about.png)
-  content/branding/aboutCredits.png              (branding/aboutCredits.png)
-  content/branding/aboutFooter.png               (branding/aboutFooter.png)
-  content/branding/icon48.png                    (branding/icon48.png)
-  content/branding/icon64.png                    (branding/icon64.png)
-#endif
 # the following files are browser-specific overrides
 *       content/browser/license.html                  (/toolkit/content/license.html)
 % override chrome://global/content/license.html chrome://browser/content/license.html
-
-#ifdef TOOLBAR_CUSTOMIZATION_SHEET
-toolkit.jar:
-*+      content/global/customizeToolbar.xul           (content/customizeToolbarSheet.xul)
-#endif

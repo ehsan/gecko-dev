@@ -93,16 +93,16 @@ void nsFrameWindow::SetWindowListVisibility( PRBool bState)
 
 // Called in the PM thread.
 void nsFrameWindow::RealDoCreate( HWND hwndP, nsWindow *aParent,
-                                  const nsRect &aRect,
+                                  const nsIntRect &aRect,
                                   EVENT_CALLBACK aHandleEventFunction,
                                   nsIDeviceContext *aContext,
                                   nsIAppShell *aAppShell,
                                   nsWidgetInitData *aInitData, HWND hwndO)
 {
-   nsRect rect = aRect;
+   nsIntRect rect = aRect;
    if( aParent)  // Offset rect by position of owner
    {
-      nsRect clientRect;
+      nsIntRect clientRect;
       aParent->GetBounds(rect);
       aParent->GetClientBounds(clientRect);
       rect.x += aRect.x + clientRect.x;
@@ -190,7 +190,7 @@ void nsFrameWindow::RealDoCreate( HWND hwndP, nsWindow *aParent,
    // Frames have a minimum height based on the pieces they are created with,
    // such as titlebar, menubar, frame borders, etc.  We need this minimum
    // height so we can correctly set the frame position (coordinate flipping).
-   nsRect frameRect = rect;
+   nsIntRect frameRect = rect;
    long minheight; 
 
    if ( fcfFlags & FCF_SIZEBORDER) {
@@ -225,7 +225,7 @@ void nsFrameWindow::RealDoCreate( HWND hwndP, nsWindow *aParent,
 
       rc = CallCreateInstance(kDeviceContextCID, &mContext);
       if( NS_SUCCEEDED(rc))
-         mContext->Init( (nsNativeWidget) mWnd);
+         mContext->Init(this);
 #ifdef DEBUG
       else
          printf( "Couldn't find DC instance for nsWindow\n");
@@ -270,7 +270,7 @@ void nsFrameWindow::UpdateClientSize()
    mSizeBorder.height = (mBounds.height - mSizeClient.height) / 2;
 }
 
-nsresult nsFrameWindow::GetClientBounds( nsRect &aRect)
+nsresult nsFrameWindow::GetClientBounds( nsIntRect &aRect)
 {
    RECTL rcl = { 0, 0, mBounds.width, mBounds.height };
    WinCalcFrameRect( mFrameWnd, &rcl, TRUE); // provided == frame rect
@@ -331,7 +331,7 @@ MRESULT EXPENTRY fnwpFrame( HWND hwnd, ULONG msg, MPARAM mp1, MPARAM mp2)
           msg == WM_BUTTON1DOWN || msg == WM_BUTTON2DOWN || msg == WM_BUTTON3DOWN) {
          // Rollup if the event is outside the popup
          if (PR_FALSE == nsWindow::EventIsInsideWindow((nsWindow*)gRollupWidget)) {
-            gRollupListener->Rollup(nsnull);
+            gRollupListener->Rollup(PR_UINT32_MAX, nsnull);
 
             // if we are supposed to be consuming events and it is
             // a Mouse Button down, let it go through
@@ -468,14 +468,13 @@ MRESULT nsFrameWindow::FrameMessage( ULONG msg, MPARAM mp1, MPARAM mp2)
             }
          }
          break;
-
       case WM_ACTIVATE:
-        DEBUGFOCUS(frame WM_ACTIVATE);
-        if (SHORT1FROMMP(mp1) &&
-            !(WinQueryWindowULong(mFrameWnd, QWL_STYLE) & WS_MINIMIZED)) {
-           bDone = DispatchFocus(NS_GOTFOCUS, PR_TRUE);
-        }
-        break;
+         DEBUGFOCUS(frame WM_ACTIVATE);
+         if (SHORT1FROMMP(mp1) &&
+             !(WinQueryWindowULong(mFrameWnd, QWL_STYLE) & WS_MINIMIZED)) {
+            bDone = DispatchFocus(NS_ACTIVATE);
+         }
+         break;
    }
 
    if( !bDone)

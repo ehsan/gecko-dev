@@ -282,10 +282,7 @@ nsXULMenuitemAccessible::GetStateInternal(PRUint32 *aState,
                                           PRUint32 *aExtraState)
 {
   nsresult rv = nsAccessible::GetStateInternal(aState, aExtraState);
-  NS_ENSURE_SUCCESS(rv, rv);
-  if (!mDOMNode) {
-    return NS_OK;
-  }
+  NS_ENSURE_A11Y_SUCCESS(rv, rv);
 
   // Focused?
   nsCOMPtr<nsIDOMElement> element(do_QueryInterface(mDOMNode));
@@ -428,9 +425,8 @@ nsXULMenuitemAccessible::GetKeyboardShortcut(nsAString& aAccessKey)
 
     nsCOMPtr<nsIAccessible> parentAccessible(GetParent());
     if (parentAccessible) {
-      PRUint32 role;
-      parentAccessible->GetRole(&role);
-      if (role == nsIAccessibleRole::ROLE_MENUBAR) {
+      if (nsAccUtils::RoleInternal(parentAccessible) ==
+          nsIAccessibleRole::ROLE_MENUBAR) {
         // If top level menu item, add Alt+ or whatever modifier text to string
         // No need to cache pref service, this happens rarely
         if (gMenuAccesskeyModifier == -1) {
@@ -476,7 +472,8 @@ nsXULMenuitemAccessible::GetDefaultKeyBinding(nsAString& aKeyBinding)
   return NS_OK;
 }
 
-NS_IMETHODIMP nsXULMenuitemAccessible::GetRole(PRUint32 *aRole)
+nsresult
+nsXULMenuitemAccessible::GetRoleInternal(PRUint32 *aRole)
 {
   nsCOMPtr<nsIDOMXULContainerElement> xulContainer(do_QueryInterface(mDOMNode));
   if (xulContainer) {
@@ -518,12 +515,11 @@ nsXULMenuitemAccessible::GetAttributesInternal(nsIPersistentProperties *aAttribu
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsXULMenuitemAccessible::GetAllowsAnonChildAccessibles(PRBool *aAllowsAnonChildren)
+PRBool
+nsXULMenuitemAccessible::GetAllowsAnonChildAccessibles()
 {
   // That indicates we don't walk anonymous children for menuitems
-  *aAllowsAnonChildren = PR_FALSE;
-  return NS_OK;
+  return PR_FALSE;
 }
 
 NS_IMETHODIMP nsXULMenuitemAccessible::DoAction(PRUint8 index)
@@ -566,10 +562,7 @@ nsXULMenuSeparatorAccessible::GetStateInternal(PRUint32 *aState,
 {
   // Isn't focusable, but can be offscreen/invisible -- only copy those states
   nsresult rv = nsXULMenuitemAccessible::GetStateInternal(aState, aExtraState);
-  NS_ENSURE_SUCCESS(rv, rv);
-  if (!mDOMNode) {
-    return NS_OK;
-  }
+  NS_ENSURE_A11Y_SUCCESS(rv, rv);
 
   *aState &= (nsIAccessibleStates::STATE_OFFSCREEN | 
               nsIAccessibleStates::STATE_INVISIBLE);
@@ -583,9 +576,10 @@ nsXULMenuSeparatorAccessible::GetNameInternal(nsAString& aName)
   return NS_OK;
 }
 
-NS_IMETHODIMP nsXULMenuSeparatorAccessible::GetRole(PRUint32 *_retval)
+nsresult
+nsXULMenuSeparatorAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  *_retval = nsIAccessibleRole::ROLE_SEPARATOR;
+  *aRole = nsIAccessibleRole::ROLE_SEPARATOR;
   return NS_OK;
 }
 
@@ -619,10 +613,7 @@ nsXULMenupopupAccessible::GetStateInternal(PRUint32 *aState,
                                            PRUint32 *aExtraState)
 {
   nsresult rv = nsAccessible::GetStateInternal(aState, aExtraState);
-  NS_ENSURE_SUCCESS(rv, rv);
-  if (!mDOMNode) {
-    return NS_OK;
-  }
+  NS_ENSURE_A11Y_SUCCESS(rv, rv);
 
 #ifdef DEBUG_A11Y
   // We are onscreen if our parent is active
@@ -703,7 +694,8 @@ nsXULMenupopupAccessible::GetNameInternal(nsAString& aName)
   return NS_OK;
 }
 
-NS_IMETHODIMP nsXULMenupopupAccessible::GetRole(PRUint32 *aRole)
+nsresult
+nsXULMenupopupAccessible::GetRoleInternal(PRUint32 *aRole)
 {
   nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
   if (!content) {
@@ -737,10 +729,7 @@ nsXULMenubarAccessible::GetStateInternal(PRUint32 *aState,
                                          PRUint32 *aExtraState)
 {
   nsresult rv = nsAccessible::GetStateInternal(aState, aExtraState);
-  NS_ENSURE_SUCCESS(rv, rv);
-  if (!mDOMNode) {
-    return NS_OK;
-  }
+  NS_ENSURE_A11Y_SUCCESS(rv, rv);
 
   // Menu bar iteself is not actually focusable
   *aState &= ~nsIAccessibleStates::STATE_FOCUSABLE;
@@ -755,9 +744,10 @@ nsXULMenubarAccessible::GetNameInternal(nsAString& aName)
   return NS_OK;
 }
 
-NS_IMETHODIMP nsXULMenubarAccessible::GetRole(PRUint32 *_retval)
+nsresult
+nsXULMenubarAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  *_retval = nsIAccessibleRole::ROLE_MENUBAR;
+  *aRole = nsIAccessibleRole::ROLE_MENUBAR;
   return NS_OK;
 }
 

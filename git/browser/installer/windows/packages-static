@@ -18,7 +18,6 @@ bin\chrome\@AB_CD@.manifest
 bin\defaults\pref\firefox-l10n.js
 bin\defaults\existing-profile-defaults.js
 bin\browserconfig.properties
-bin\old-homepage-default.properties
 bin\searchplugins\*
 bin\defaults\profile\bookmarks.html
 bin\defaults\profile\localstore.rdf
@@ -26,6 +25,7 @@ bin\defaults\profile\prefs.js
 bin\defaults\profile\mimeTypes.rdf
 bin\defaults\profile\chrome\*
 bin\uninstall\helper.exe
+bin\update.locale
 bin\updater.ini
 bin\dictionaries\*
 
@@ -155,9 +155,7 @@ bin\components\necko_http.xpt
 bin\components\necko_res.xpt
 bin\components\necko_socket.xpt
 bin\components\necko_viewsource.xpt
-#ifdef MOZ_OJI
-bin\components\oji.xpt
-#endif
+bin\components\necko_wifi.xpt
 bin\components\loginmgr.xpt
 bin\components\places.xpt
 bin\components\plugin.xpt
@@ -215,6 +213,7 @@ bin\components\nsTryToClose.js
 bin\components\nsHelperAppDlg.js
 bin\components\nsDownloadManagerUI.js
 bin\components\nsProxyAutoConfig.js
+bin\components\NetworkGeolocationProvider.js
 bin\components\nsSearchService.js
 bin\components\nsSearchSuggestions.js
 bin\components\nsSidebar.js
@@ -223,7 +222,6 @@ bin\components\nsBlocklistService.js
 bin\components\nsUpdateService.js
 bin\components\nsMicrosummaryService.js
 bin\components\nsPlacesTransactionsService.js
-bin\components\nsPostUpdateWin.js
 bin\components\nsPrivateBrowsingService.js
 bin\components\nsLoginInfo.js
 bin\components\nsLoginManager.js
@@ -246,6 +244,7 @@ bin\components\txEXSLTRegExFunctions.js
 bin\components\nsLivemarkService.js
 bin\components\nsTaggingService.js
 bin\components\nsPlacesDBFlush.js
+bin\components\nsPlacesAutoComplete.js
 bin\components\nsDefaultCLH.js
 bin\components\nsContentPrefService.js
 bin\components\nsContentDispatchChooser.js
@@ -255,6 +254,7 @@ bin\components\aboutRights.js
 bin\components\aboutRobots.js
 bin\components\aboutCertError.js
 bin\components\nsBadCertHandler.js
+bin\components\nsFormAutoComplete.js
 
 ; Modules
 bin\modules\*
@@ -323,8 +323,8 @@ bin\res\grabber.gif
 bin\res\viewsource.css
 bin\res\mathml.css
 bin\res\arrow.gif
-bin\res\loading-image.gif
-bin\res\broken-image.gif
+bin\res\loading-image.png
+bin\res\broken-image.png
 bin\res\fonts\*
 bin\res\dtd\*
 bin\res\html\*
@@ -338,6 +338,9 @@ bin\res\entityTables\*
 ; svg
 bin\res\svg.css
 bin\components\dom_svg.xpt
+#ifdef MOZ_SMIL
+bin\components\dom_smil.xpt
+#endif
 
 ; [Personal Security Manager]
 ;

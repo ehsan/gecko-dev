@@ -360,6 +360,13 @@ LoginManager.prototype = {
                 case "blur":
                     var acInputField = event.target;
                     var acForm = acInputField.form;
+
+                    // If the username is blank, bail out now -- we don't want
+                    // fillForm() to try filling in a login without a username
+                    // to filter on (bug 471906).
+                    if (!acInputField.value)
+                        return;
+
                     // Make sure the username field fillForm will use is the
                     // same field as the autocomplete was activated on. If
                     // not, the DOM has been altered and we'll just give up.
@@ -510,6 +517,21 @@ LoginManager.prototype = {
 
 
     /*
+     * searchLogins
+     *
+     * Public wrapper around _searchLogins to convert the nsIPropertyBag to a
+     * JavaScript object and decrypt the results.
+     *
+     * Returns an array of decrypted nsILoginInfo.
+     */
+    searchLogins : function(count, matchData) {
+       this.log("Searching for logins");
+
+        return this._storage.searchLogins(count, matchData);
+    },
+
+
+    /*
      * countLogins
      *
      * Search for the known logins for entries matching the specified criteria,
@@ -573,9 +595,11 @@ LoginManager.prototype = {
 
         var result = null;
 
-        if (aPreviousResult) {
+        if (aPreviousResult &&
+                aSearchString.substr(0, aPreviousResult.searchString.length) == aPreviousResult.searchString) {
             this.log("Using previous autocomplete result");
             result = aPreviousResult;
+            result.wrappedJSObject.searchString = aSearchString;
 
             // We have a list of results for a shorter search string, so just
             // filter them further based on the new search string.
@@ -603,9 +627,13 @@ LoginManager.prototype = {
             var logins = this.findLogins({}, origin, actionOrigin, null);
             var matchingLogins = [];
 
+            // Filter out logins that don't match the search prefix. Also
+            // filter logins without a username, since that's confusing to see
+            // in the dropdown and we can't autocomplete them anyway.
             for (i = 0; i < logins.length; i++) {
                 var username = logins[i].username.toLowerCase();
-                if (aSearchString.length <= username.length &&
+                if (username &&
+                    aSearchString.length <= username.length &&
                     aSearchString.toLowerCase() ==
                         username.substr(0, aSearchString.length))
                 {
@@ -640,15 +668,17 @@ LoginManager.prototype = {
         // Locate the password fields in the form.
         var pwFields = [];
         for (var i = 0; i < form.elements.length; i++) {
-            if (form.elements[i].type != "password")
+            var element = form.elements[i];
+            if (!(element instanceof Ci.nsIDOMHTMLInputElement) ||
+                element.type != "password")
                 continue;
 
-            if (skipEmptyFields && !form.elements[i].value)
+            if (skipEmptyFields && !element.value)
                 continue;
 
             pwFields[pwFields.length] = {
                                             index   : i,
-                                            element : form.elements[i]
+                                            element : element
                                         };
         }
 
@@ -1063,7 +1093,7 @@ LoginManager.prototype = {
         if (passwordField.maxLength >= 0)
             maxPasswordLen = passwordField.maxLength;
 
-        logins = foundLogins.filter(function (l) {
+        var logins = foundLogins.filter(function (l) {
                 var fit = (l.username.length <= maxUsernameLen &&
                            l.password.length <= maxPasswordLen);
                 if (!fit)
@@ -1078,6 +1108,11 @@ LoginManager.prototype = {
             return [false, foundLogins];
 
 
+        // The reason we didn't end up filling the form, if any.  We include
+        // this in the formInfo object we send with the passwordmgr-found-logins
+        // notification.  See the _notifyFoundLogins docs for possible values.
+        var didntFillReason = null;
+
         // Attach autocomplete stuff to the username field, if we have
         // one. This is normally used to select from multiple accounts,
         // but even with one account we should refill if the user edits.
@@ -1085,8 +1120,12 @@ LoginManager.prototype = {
             this._attachToInput(usernameField);
 
         // Don't clobber an existing password.
-        if (passwordField.value)
+        if (passwordField.value) {
+            didntFillReason = "existingPassword";
+            this._notifyFoundLogins(didntFillReason, usernameField,
+                                    passwordField, foundLogins, null);
             return [false, foundLogins];
+        }
 
         // If the form has an autocomplete=off attribute in play, don't
         // fill in the login automatically. We check this after attaching
@@ -1109,34 +1148,35 @@ LoginManager.prototype = {
         if (usernameField && usernameField.value) {
             // If username was specified in the form, only fill in the
             // password if we find a matching login.
-
             var username = usernameField.value.toLowerCase();
 
-            var matchingLogin;
-            var found = logins.some(function(l) {
-                                matchingLogin = l;
-                                return (l.username.toLowerCase() == username);
-                            });
-            if (found)
-                selectedLogin = matchingLogin;
-            else
+            let matchingLogins = logins.filter(function(l)
+                                     l.username.toLowerCase() == username);
+            if (matchingLogins.length) {
+                selectedLogin = matchingLogins[0];
+            } else {
+                didntFillReason = "existingUsername";
                 this.log("Password not filled. None of the stored " +
                          "logins match the username already present.");
-
-        } else if (usernameField && logins.length == 2) {
-            // Special case, for sites which have a normal user+pass
-            // login *and* a password-only login (eg, a PIN)...
-            // When we have a username field and 1 of 2 available
-            // logins is password-only, go ahead and prefill the
-            // one with a username.
-            if (!logins[0].username && logins[1].username)
-                selectedLogin = logins[1];
-            else if (!logins[1].username && logins[0].username)
-                selectedLogin = logins[0];
+            }
         } else if (logins.length == 1) {
             selectedLogin = logins[0];
         } else {
-            this.log("Multiple logins for form, so not filling any.");
+            // We have multiple logins. Handle a special case here, for sites
+            // which have a normal user+pass login *and* a password-only login
+            // (eg, a PIN). Prefer the login that matches the type of the form
+            // (user+pass or pass-only) when there's exactly one that matches.
+            let matchingLogins;
+            if (usernameField)
+                matchingLogins = logins.filter(function(l) l.username);
+            else
+                matchingLogins = logins.filter(function(l) !l.username);
+            if (matchingLogins.length == 1) {
+                selectedLogin = matchingLogins[0];
+            } else {
+                didntFillReason = "multipleLogins";
+                this.log("Multiple logins for form, so not filling any.");
+            }
         }
 
         var didFillForm = false;
@@ -1149,18 +1189,78 @@ LoginManager.prototype = {
         } else if (selectedLogin && !autofillForm) {
             // For when autofillForm is false, but we still have the information
             // to fill a form, we notify observers.
-            this._observerService.notifyObservers(form, "passwordmgr-found-form", "noAutofillForms");
+            didntFillReason = "noAutofillForms";
+            this._observerService.notifyObservers(form, "passwordmgr-found-form", didntFillReason);
             this.log("autofillForms=false but form can be filled; notified observers");
         } else if (selectedLogin && isFormDisabled) {
             // For when autocomplete is off, but we still have the information
             // to fill a form, we notify observers.
-            this._observerService.notifyObservers(form, "passwordmgr-found-form", "autocompleteOff");
+            didntFillReason = "autocompleteOff";
+            this._observerService.notifyObservers(form, "passwordmgr-found-form", didntFillReason);
             this.log("autocomplete=off but form can be filled; notified observers");
         }
+
+        this._notifyFoundLogins(didntFillReason, usernameField, passwordField,
+                                foundLogins, selectedLogin);
 
         return [didFillForm, foundLogins];
     },
 
+    /**
+     * Notify observers about an attempt to fill a form that resulted in some
+     * saved logins being found for the form.
+     *
+     * This does not get called if the login manager attempts to fill a form
+     * but does not find any saved logins.  It does, however, get called when
+     * the login manager does find saved logins whether or not it actually
+     * fills the form with one of them.
+     *
+     * @param didntFillReason {String}
+     *        the reason the login manager didn't fill the form, if any;
+     *        if the value of this parameter is null, then the form was filled;
+     *        otherwise, this parameter will be one of these values:
+     *          existingUsername: the username field already contains a username
+     *                            that doesn't match any stored usernames
+     *          existingPassword: the password field already contains a password
+     *          autocompleteOff:  autocomplete has been disabled for the form
+     *                            or its username or password fields
+     *          multipleLogins:   we have multiple logins for the form
+     *          noAutofillForms:  the autofillForms pref is set to false
+     *
+     * @param usernameField   {HTMLInputElement}
+     *        the username field detected by the login manager, if any;
+     *        otherwise null
+     *
+     * @param passwordField   {HTMLInputElement}
+     *        the password field detected by the login manager
+     *
+     * @param foundLogins     {Array}
+     *        an array of nsILoginInfos that can be used to fill the form
+     *
+     * @param selectedLogin   {nsILoginInfo}
+     *        the nsILoginInfo that was/would be used to fill the form, if any;
+     *        otherwise null; whether or not it was actually used depends on
+     *        the value of the didntFillReason parameter
+     */
+    _notifyFoundLogins : function (didntFillReason, usernameField,
+                                   passwordField, foundLogins, selectedLogin) {
+        // We need .setProperty(), which is a method on the original
+        // nsIWritablePropertyBag. Strangley enough, nsIWritablePropertyBag2
+        // doesn't inherit from that, so the additional QI is needed.
+        let formInfo = Cc["@mozilla.org/hash-property-bag;1"].
+                       createInstance(Ci.nsIWritablePropertyBag2).
+                       QueryInterface(Ci.nsIWritablePropertyBag);
+
+        formInfo.setPropertyAsACString("didntFillReason", didntFillReason);
+        formInfo.setPropertyAsInterface("usernameField", usernameField);
+        formInfo.setPropertyAsInterface("passwordField", passwordField);
+        formInfo.setProperty("foundLogins", foundLogins.concat());
+        formInfo.setPropertyAsInterface("selectedLogin", selectedLogin);
+
+        this._observerService.notifyObservers(formInfo,
+                                              "passwordmgr-found-logins",
+                                              null);
+    },
 
     /*
      * fillForm
@@ -1224,6 +1324,12 @@ UserAutoCompleteResult.prototype = {
 
     // private
     logins : null,
+
+    // Allow autoCompleteSearch to get at the JS object so it can
+    // modify some readonly properties for internal use.
+    get wrappedJSObject() {
+        return this;
+    },
 
     // Interfaces from idl...
     searchString : null,

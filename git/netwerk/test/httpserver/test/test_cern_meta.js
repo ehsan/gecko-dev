@@ -58,12 +58,12 @@ function run_test()
 {
   var srv = createServer();
 
-  var cernDir = do_get_file("netwerk/test/httpserver/test/data/cern_meta/");
+  var cernDir = do_get_file("data/cern_meta/");
   srv.registerDirectory("/", cernDir);
 
   srv.start(4444);
 
-  runHttpTests(tests, function() { srv.stop(); });
+  runHttpTests(tests, testComplete(srv));
 }
 
 

@@ -45,9 +45,7 @@ ifdef MOZ_EXTENSIONS
 tier_app_dirs += extensions
 endif
 
-ifdef MOZ_BRANDING_DIRECTORY
 tier_app_dirs += $(MOZ_BRANDING_DIRECTORY)
-endif
 
 tier_app_dirs += browser
 
@@ -75,15 +73,8 @@ upload::
 ifdef ENABLE_TESTS
 # Implemented in testing/testsuite-targets.mk
 
-# Browser tests live in a slightly different location, so we correct the path
-ifdef TEST_PATH
-BROWSER_TEST_PATH = --test-path=../browser/$(TEST_PATH)
-else
-BROWSER_TEST_PATH =
-endif
-
 mochitest-browser-chrome:
-	$(RUN_MOCHITEST) --browser-chrome $(BROWSER_TEST_PATH)
+	$(RUN_MOCHITEST) --browser-chrome
 	$(CHECK_TEST_ERROR)
 
 mochitest:: mochitest-browser-chrome

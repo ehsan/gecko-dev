@@ -21,6 +21,9 @@
  *
  * Contributor(s):
  *   Asaf Romano <mano@mozilla.com> (Original Author)
+ *   Dietrich Ayala <dietrich@mozilla.com>
+ *   Marco Bonardo <mak77@bonardo.net>
+ *   Drew Willcoxon <adw@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -39,8 +42,9 @@
 const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cr = Components.results;
+const Cu = Components.utils;
 
-Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
 const NH_CONTRACTID = "@mozilla.org/browser/nav-history-service;1";
 const BMS_CONTRACTID = "@mozilla.org/browser/nav-bookmarks-service;1";
@@ -55,15 +59,14 @@ var gIoService = Cc[IO_CONTRACTID].getService(Ci.nsIIOService);
  * The Places Tagging Service
  */
 function TaggingService() {
+  this._bms = Cc[BMS_CONTRACTID].getService(Ci.nsINavBookmarksService);
+  this._bms.addObserver(this, false);
+
+  this._obss = Cc[OBSS_CONTRACTID].getService(Ci.nsIObserverService);
+  this._obss.addObserver(this, "xpcom-shutdown", false);
 }
 
 TaggingService.prototype = {
-  get _bms() {
-    if (!this.__bms)
-      this.__bms = Cc[BMS_CONTRACTID].getService(Ci.nsINavBookmarksService);
-    return this.__bms;
-  },
-
   get _history() {
     if (!this.__history)
       this.__history = Cc[NH_CONTRACTID].getService(Ci.nsINavHistoryService);
@@ -76,22 +79,6 @@ TaggingService.prototype = {
     return this.__annos;
   },
 
-  get _tagsResult() {
-    if (!this.__tagsResult) {
-      var options = this._history.getNewQueryOptions();
-      var query = this._history.getNewQuery();
-      query.setFolders([this._bms.tagsFolder], 1);
-      this.__tagsResult = this._history.executeQuery(query, options);
-      this.__tagsResult.root.containerOpen = true;
-      this.__tagsResult.viewer = this;
-
-      // we need to null out the result on shutdown
-      var observerSvc = Cc[OBSS_CONTRACTID].getService(Ci.nsIObserverService);
-      observerSvc.addObserver(this, "xpcom-shutdown", false);
-    }
-    return this.__tagsResult;
-  },
-
   // Feed XPCOMUtils
   classDescription: "Places Tagging Service",
   contractID: "@mozilla.org/browser/tagging-service;1",
@@ -99,41 +86,47 @@ TaggingService.prototype = {
 
   // nsISupports
   QueryInterface: XPCOMUtils.generateQI([Ci.nsITaggingService,
+                                         Ci.nsINavBookmarkObserver,
                                          Ci.nsIObserver]),
 
   /**
-   * If there's no tag with the given name, null is returned;
+   * If there's no tag with the given name or id, null is returned;
    */
-  _getTagNode: function TS__getTagIndex(aTagNameOrId) {
+  _getTagResult: function TS__getTagResult(aTagNameOrId) {
     if (!aTagNameOrId)
       throw Cr.NS_ERROR_INVALID_ARG;
 
-    var nameLower = null;
+    var tagId = null;
     if (typeof(aTagNameOrId) == "string")
-      nameLower = aTagNameOrId.toLowerCase();
+      tagId = this._getItemIdForTag(aTagNameOrId);
+    else
+      tagId = aTagNameOrId;
 
-    var root = this._tagsResult.root;
-    var cc = root.childCount;
-    for (var i=0; i < cc; i++) {
-      var child = root.getChild(i);
-      if ((nameLower && child.title.toLowerCase() == nameLower) ||
-          child.itemId === aTagNameOrId)
-        return child;
-    }
+    if (tagId == -1)
+      return null;
 
-    return null;
+    var options = this._history.getNewQueryOptions();
+    var query = this._history.getNewQuery();
+    query.setFolders([tagId], 1);
+    var result = this._history.executeQuery(query, options);
+    return result;
   },
 
   /**
    * Creates a tag container under the tags-root with the given name.
    *
-   * @param aName
-   *        the name for the new container.
-   * @returns the id of the new container.
+   * @param aTagName
+   *        the name for the new tag.
+   * @returns the id of the new tag container.
    */
-  _createTag: function TS__createTag(aName) {
-    return this._bms.createFolder(this._bms.tagsFolder, aName,
-                                  this._bms.DEFAULT_INDEX);
+  _createTag: function TS__createTag(aTagName) {
+    var newFolderId = this._bms.createFolder(this._bms.tagsFolder, aTagName,
+                                             this._bms.DEFAULT_INDEX);
+    // Add the folder to our local cache, so we can avoid doing this in the
+    // observer that would have to check itemType.
+    this._tagFolders[newFolderId] = aTagName;
+
+    return newFolderId;
   },
 
   /**
@@ -141,23 +134,36 @@ TaggingService.prototype = {
    *
    * @param [in] aURI
    *        url to check for
-   * @param [in] aTagId
-   *        id of the folder representing the tag to check
-   * @param [out] aItemId
-   *        the id of the item found under the tag container
-   * @returns true if the given uri is tagged with the given tag, false
+   * @param [in] aTagName
+   *        the tag to check for
+   * @returns the item id if the URI is tagged with the given tag, -1
    *          otherwise.
    */
-  _isURITaggedInternal: function TS__uriTagged(aURI, aTagId, aItemId) {
+  _getItemIdForTaggedURI: function TS__getItemIdForTaggedURI(aURI, aTagName) {
+    var tagId = this._getItemIdForTag(aTagName);
+    if (tagId == -1)
+      return -1;
     var bookmarkIds = this._bms.getBookmarkIdsForURI(aURI, {});
     for (var i=0; i < bookmarkIds.length; i++) {
       var parent = this._bms.getFolderIdForItem(bookmarkIds[i]);
-      if (parent == aTagId) {
-        aItemId.value = bookmarkIds[i];
-        return true;
-      }
+      if (parent == tagId)
+        return bookmarkIds[i];
     }
-    return false;
+    return -1;
+  },
+
+  /**
+   * Returns the folder id for a tag, or -1 if not found.
+   * @param [in] aTag
+   *        string tag to search for
+   * @returns integer id for the bookmark folder for the tag
+   */
+  _getItemIdForTag: function TS_getItemIdForTag(aTagName) {
+    for (var i in this._tagFolders) {
+      if (aTagName.toLowerCase() == this._tagFolders[i].toLowerCase())
+        return parseInt(i);
+    }
+    return -1;
   },
 
   // nsITaggingService
@@ -165,46 +171,61 @@ TaggingService.prototype = {
     if (!aURI || !aTags)
       throw Cr.NS_ERROR_INVALID_ARG;
 
-    for (var i=0; i < aTags.length; i++) {
-      var tagNode = this._getTagNode(aTags[i]);
-      if (!tagNode) {
-        if (typeof(aTags[i]) == "number")
-          throw Cr.NS_ERROR_INVALID_ARG;
+    this._bms.runInBatchMode({
+      _self: this,
+      runBatched: function(aUserData) {
+        for (var i = 0; i < aTags.length; i++) {
+          var tag = aTags[i];
+          var tagId = null;
+          if (typeof(tag) == "number") {
+            // is it a tag folder id?
+            if (this._self._tagFolders[tag]) {
+              tagId = tag;
+              tag = this._self._tagFolders[tagId];
+            }
+            else
+              throw Cr.NS_ERROR_INVALID_ARG;
+          }
+          else {
+            tagId = this._self._getItemIdForTag(tag);
+            if (tagId == -1)
+              tagId = this._self._createTag(tag);
+          }
 
-        var tagId = this._createTag(aTags[i]);
-        this._bms.insertBookmark(tagId, aURI, this._bms.DEFAULT_INDEX, null);
-      }
-      else {
-        var tagId = tagNode.itemId;
-        if (!this._isURITaggedInternal(aURI, tagNode.itemId, {}))
-          this._bms.insertBookmark(tagId, aURI, this._bms.DEFAULT_INDEX, null);
+          var itemId = this._self._getItemIdForTaggedURI(aURI, tag);
+          if (itemId == -1)
+            this._self._bms.insertBookmark(tagId, aURI,
+                                           this._self._bms.DEFAULT_INDEX, null);
 
-        // _getTagNode ignores case sensitivity
-        // rename the tag container so the places view would match the
-        // user-typed values
-        if (typeof(aTags[i]) == "string" && tagNode.title != aTags[i])
-          this._bms.setItemTitle(tagNode.itemId, aTags[i]);
+          // Rename the tag container so the Places view would match the
+          // most-recent user-typed values.
+          var currentTagTitle = this._self._bms.getItemTitle(tagId);
+          if (currentTagTitle != tag) {
+            this._self._bms.setItemTitle(tagId, tag);
+            this._self._tagFolders[tagId] = tag;
+          }
+        }
       }
-    }
+    }, null);
   },
 
   /**
-   * Removes the tag container from the tags-root if the given tag is empty.
+   * Removes the tag container from the tags root if the given tag is empty.
    *
    * @param aTagId
-   *        the item-id of the tag element under the tags root
+   *        the itemId of the tag element under the tags root
    */
   _removeTagIfEmpty: function TS__removeTagIfEmpty(aTagId) {
-    var node = this._getTagNode(aTagId).QueryInterface(Ci.nsINavHistoryContainerResultNode);
-    var wasOpen = node.containerOpen;
-    if (!wasOpen)
-      node.containerOpen = true;
+    var result = this._getTagResult(aTagId);
+    if (!result)
+      return;
+    var node = result.root;
+    node.QueryInterface(Ci.nsINavHistoryContainerResultNode);
+    node.containerOpen = true;
     var cc = node.childCount;
-    if (wasOpen)
-      node.containerOpen = false;
-    if (cc == 0) {
+    node.containerOpen = false;
+    if (cc == 0)
       this._bms.removeFolder(node.itemId);
-    }
   },
 
   // nsITaggingService
@@ -218,28 +239,45 @@ TaggingService.prototype = {
       aTags = this.getTagsForURI(aURI, { });
     }
 
-    for (var i=0; i < aTags.length; i++) {
-      var tagNode = this._getTagNode(aTags[i]);
-      if (tagNode) {
-        var itemId = { };
-        if (this._isURITaggedInternal(aURI, tagNode.itemId, itemId)) {
-          this._bms.removeItem(itemId.value);
-          this._removeTagIfEmpty(tagNode.itemId);
+    this._bms.runInBatchMode({
+      _self: this,
+      runBatched: function(aUserData) {
+        for (var i = 0; i < aTags.length; i++) {
+          var tag = aTags[i];
+          var tagId = null;
+          if (typeof(tag) == "number") {
+            // is it a tag folder id?
+            if (this._self._tagFolders[tag]) {
+              tagId = tag;
+              tag = this._self._tagFolders[tagId];
+            }
+            else
+              throw Cr.NS_ERROR_INVALID_ARG;
+          }
+          else
+            tagId = this._self._getItemIdForTag(tag);
+
+          if (tagId != -1) {
+            var itemId = this._self._getItemIdForTaggedURI(aURI, tag);
+            if (itemId != -1) {
+              this._self._bms.removeItem(itemId);
+              this._self._removeTagIfEmpty(tagId);
+            }
+          }
         }
       }
-      else if (typeof(aTags[i]) == "number")
-        throw Cr.NS_ERROR_INVALID_ARG;
-    }
+    }, null);
   },
 
   // nsITaggingService
   getURIsForTag: function TS_getURIsForTag(aTag) {
-    if (aTag.length == 0)
+    if (!aTag || aTag.length == 0)
       throw Cr.NS_ERROR_INVALID_ARG;
 
     var uris = [];
-    var tagNode = this._getTagNode(aTag);
-    if (tagNode) {
+    var tagResult = this._getTagResult(aTag);
+    if (tagResult) {
+      var tagNode = tagResult.root;
       tagNode.QueryInterface(Ci.nsINavHistoryContainerResultNode);
       tagNode.containerOpen = true;
       var cc = tagNode.childCount;
@@ -263,65 +301,173 @@ TaggingService.prototype = {
 
     var tags = [];
     var bookmarkIds = this._bms.getBookmarkIdsForURI(aURI, {});
-    var root = this._tagsResult.root;
-    var cc = root.childCount;
     for (var i=0; i < bookmarkIds.length; i++) {
-      var parent = this._bms.getFolderIdForItem(bookmarkIds[i]);
-      for (var j=0; j < cc; j++) {
-        var child = root.getChild(j);
-        if (child.itemId == parent)
-          tags.push(child.title);
-      }
+      var folderId = this._bms.getFolderIdForItem(bookmarkIds[i]);
+      if (this._tagFolders[folderId])
+        tags.push(this._tagFolders[folderId]);
     }
 
     // sort the tag list
-    tags.sort();
+    tags.sort(function(a, b) {
+        return a.toLowerCase().localeCompare(b.toLowerCase());
+      });
     aCount.value = tags.length;
     return tags;
   },
 
-  // nsITaggingService
-  _allTags: null,
-  get allTags() {
-    if (!this._allTags) {
-      this._allTags = [];
-      var root = this._tagsResult.root;
+  __tagFolders: null, 
+  get _tagFolders() {
+    if (!this.__tagFolders) {
+      this.__tagFolders = [];
+      var options = this._history.getNewQueryOptions();
+      var query = this._history.getNewQuery();
+      query.setFolders([this._bms.tagsFolder], 1);
+      var tagsResult = this._history.executeQuery(query, options);
+      var root = tagsResult.root;
+      root.containerOpen = true;
       var cc = root.childCount;
-      for (var j=0; j < cc; j++) {
-        var child = root.getChild(j);
-        this._allTags.push(child.title);
+      for (var i=0; i < cc; i++) {
+        var child = root.getChild(i);
+        this.__tagFolders[child.itemId] = child.title;
       }
-
-      // sort the tag list
-      this.allTags.sort();
+      root.containerOpen = false;
     }
-    return this._allTags;
+
+    return this.__tagFolders;
+  },
+
+  // nsITaggingService
+  get allTags() {
+    var allTags = [];
+    for (var i in this._tagFolders)
+      allTags.push(this._tagFolders[i]);
+    // sort the tag list
+    allTags.sort(function(a, b) {
+        return a.toLowerCase().localeCompare(b.toLowerCase());
+      });
+    return allTags;
   },
 
   // nsIObserver
   observe: function TS_observe(aSubject, aTopic, aData) {
     if (aTopic == "xpcom-shutdown") {
-      this.__tagsResult.root.containerOpen = false;
-      this.__tagsResult.viewer = null;
-      this.__tagsResult = null;
-      var observerSvc = Cc[OBSS_CONTRACTID].getService(Ci.nsIObserverService);
-      observerSvc.removeObserver(this, "xpcom-shutdown");
+      this._bms.removeObserver(this);
+      this._obss.removeObserver(this, "xpcom-shutdown");
     }
   },
 
-  // nsINavHistoryResultViewer
-  // Used to invalidate the cached tag list
-  itemInserted: function() this._allTags = null,
-  itemRemoved: function() this._allTags = null,
-  itemMoved: function() {},
-  itemChanged: function() {},
-  itemReplaced: function() {},
-  containerOpened: function() {},
-  containerClosed: function() {},
-  invalidateContainer: function() this._allTags = null,
-  invalidateAll: function() this._allTags = null,
-  sortingChanged: function() {},
-  result: null
+  /**
+   * If the only bookmark items associated with aURI are contained in tag
+   * folders, returns the IDs of those tag folders.  This can be the case if
+   * the URI was bookmarked and tagged at some point, but the bookmark was
+   * removed, leaving only the bookmark items in tag folders.  Returns null
+   * if the URI is either properly bookmarked or not tagged.
+   *
+   * @param   aURI
+   *          A URI (string) that may or may not be bookmarked
+   * @returns null or an array of tag IDs
+   */
+  _getTagsIfUnbookmarkedURI: function TS__getTagsIfUnbookmarkedURI(aURI) {
+    var tagIds = [];
+    var isBookmarked = false;
+    var itemIds = this._bms.getBookmarkIdsForURI(aURI, {});
+
+    for (let i = 0; !isBookmarked && i < itemIds.length; i++) {
+      var parentId = this._bms.getFolderIdForItem(itemIds[i]);
+      if (this._tagFolders[parentId])
+        tagIds.push(parentId);
+      else
+        isBookmarked = true;
+    }
+
+    return !isBookmarked && tagIds.length > 0 ? tagIds : null;
+  },
+
+  // boolean to indicate if we're in a batch
+  _inBatch: false,
+
+  // maps the IDs of bookmarks in the process of being removed to their URIs
+  _itemsInRemoval: {},
+
+  // nsINavBookmarkObserver
+  onBeginUpdateBatch: function() {
+    this._inBatch = true;
+  },
+  onEndUpdateBatch: function() {
+    this._inBatch = false;
+  },
+
+  onItemAdded: function(aItemId, aFolderId, aIndex) {
+    // Nothing to do if this is not a tag.
+    if (aFolderId != this._bms.tagsFolder)
+      return;
+
+    // If we are correctly called through createTag the itemId will be added
+    // to _tagFolders just after onItemAdded is called.  To avoid an useless
+    // call to getItemType we enqueue this check, so that when it runs the hash
+    // has already been updated.
+    // TODO: once bug 494380 is fixed, this 'workaround' can go away.
+    var self = this;
+    var tm = Cc["@mozilla.org/thread-manager;1"].
+             getService(Ci.nsIThreadManager);
+    tm.mainThread.dispatch({
+      run: function() {
+        try {
+          if (!self._tagFolders[aItemId] &&
+              self._bms.getItemType(aItemId) == self._bms.TYPE_FOLDER)
+            self._tagFolders[aItemId] = self._bms.getItemTitle(aItemId);
+        }
+        catch(ex) {
+          // Could happen that the tag is removed just after it is added, for
+          // example with transactions.  in such a case getting item type
+          // will fail and there's no reason to register the addition.
+        }
+      }
+    }, Ci.nsIThread.DISPATCH_NORMAL);
+  },
+
+  onBeforeItemRemoved: function(aItemId) {
+    // Remember the bookmark's URI, because it will be gone by the time
+    // onItemRemoved() is called.  getBookmarkURI() will throw if the item is
+    // not a bookmark, which is fine.
+    try {
+      this._itemsInRemoval[aItemId] = this._bms.getBookmarkURI(aItemId);
+    }
+    catch (e) {}
+  },
+
+  onItemRemoved: function(aItemId, aFolderId, aIndex) {
+    var itemURI = this._itemsInRemoval[aItemId];
+    delete this._itemsInRemoval[aItemId];
+
+    // Item is a tag folder.
+    if (aFolderId == this._bms.tagsFolder && this._tagFolders[aItemId])
+      delete this._tagFolders[aItemId];
+
+    // Item is a bookmark that was removed from a non-tag folder.
+    else if (itemURI && !this._tagFolders[aFolderId]) {
+
+      // If the only bookmark items now associated with the bookmark's URI are
+      // contained in tag folders, the URI is no longer properly bookmarked, so
+      // untag it.
+      var tagIds = this._getTagsIfUnbookmarkedURI(itemURI);
+      if (tagIds)
+        this.untagURI(itemURI, tagIds);
+    }
+  },
+
+  onItemChanged: function(aItemId, aProperty, aIsAnnotationProperty, aValue) {
+    if (aProperty == "title" && this._tagFolders[aItemId])
+      this._tagFolders[aItemId] = this._bms.getItemTitle(aItemId);
+  },
+
+  onItemVisited: function(aItemId, aVisitID, time) {},
+
+  onItemMoved: function(aItemId, aOldParent, aOldIndex, aNewParent, aNewIndex) {
+    if (this._tagFolders[aItemId] && this._bms.tagFolder == aOldParent &&
+        this._bms.tagFolder != aNewParent)
+      delete this._tagFolders[aItemId];
+  }
 };
 
 // Implements nsIAutoCompleteResult
@@ -487,21 +633,33 @@ TagAutoCompleteSearch.prototype = {
         if (self._stopped)
           yield false;
         // for each match, prepend what the user has typed so far
-        var pattern = new RegExp("(^" + searchResults[i] + "$|" + searchResults[i] + "(,|;))");
-        if (searchResults[i].indexOf(searchString) == 0 &&
-            !pattern.test(before)) {
+        if (searchResults[i].toLowerCase()
+                            .indexOf(searchString.toLowerCase()) == 0 &&
+            comments.indexOf(searchResults[i]) == -1) {
           results.push(before + searchResults[i]);
           comments.push(searchResults[i]);
         }
     
         ++i;
+
+        /* TODO: bug 481451
+         * For each yield we pass a new result to the autocomplete
+         * listener. The listener appends instead of replacing previous results,
+         * causing invalid matchCount values.
+         *
+         * As a workaround, all tags are searched through in a single batch,
+         * making this synchronous until the above issue is fixed.
+         */
+
+        /*
         // 100 loops per yield
         if ((i % 100) == 0) {
           var newResult = new TagAutoCompleteResult(searchString,
             Ci.nsIAutoCompleteResult.RESULT_SUCCESS_ONGOING, 0, "", results, comments);
           listener.onSearchResult(self, newResult);
           yield true;
-        } 
+        }
+        */
       }
 
       var newResult = new TagAutoCompleteResult(searchString,
@@ -510,28 +668,13 @@ TagAutoCompleteSearch.prototype = {
       yield false;
     }
     
-    // chunk the search results via a generator
+    // chunk the search results via the generator
     var gen = doSearch();
-    function driveGenerator() {
-      if (gen.next()) { 
-        var timer = Cc["@mozilla.org/timer;1"]
-          .createInstance(Components.interfaces.nsITimer);
-        self._callback = driveGenerator;
-        timer.initWithCallback(self, 0, timer.TYPE_ONE_SHOT);
-      }
-      else {
-        gen.close();	
-      }
-    }
-    driveGenerator();
+    while (gen.next());
+    gen.close();
   },
 
-  notify: function PTACS_notify(timer) {
-    if (this._callback) 
-      this._callback();
-  },
-
-  /*
+  /**
    * Stop an asynchronous search that is in progress
    */
   stopSearch: function PTACS_stopSearch() {

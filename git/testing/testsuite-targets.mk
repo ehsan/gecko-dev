@@ -19,6 +19,7 @@
 # the Initial Developer. All Rights Reserved.
 #
 # Contributor(s):
+#	Serge Gautherie <sgautherie.bz@free.fr>
 #	Ted Mielczarek <ted.mielczarek@gmail.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
@@ -35,13 +36,28 @@
 #
 # ***** END LICENSE BLOCK *****
 
+
+# Shortcut for mochitest* and xpcshell-tests targets,
+# replaces 'EXTRA_TEST_ARGS=--test-path=...'.
+ifdef TEST_PATH
+TEST_PATH_ARG := --test-path=$(TEST_PATH)
+else
+TEST_PATH_ARG :=
+endif
+
+
+# Usage: |make [TEST_PATH=...] [EXTRA_TEST_ARGS=...] mochitest*|.
 mochitest:: mochitest-plain mochitest-chrome mochitest-a11y
 
-RUN_MOCHITEST = rm -f ./test-output.log && $(PYTHON) _tests/testing/mochitest/runtests.py --autorun --close-when-done --console-level=INFO  --log-file=./test-output.log --file-level=INFO
+RUN_MOCHITEST = \
+	rm -f ./$@.log && \
+	$(PYTHON) _tests/testing/mochitest/runtests.py --autorun --close-when-done \
+	  --console-level=INFO --log-file=./$@.log --file-level=INFO \
+	  $(TEST_PATH_ARG) $(EXTRA_TEST_ARGS)
 
 ifndef NO_FAIL_ON_TEST_ERRORS
 define CHECK_TEST_ERROR
-  @errors=`grep "TEST-UNEXPECTED-" test-output.log` ;\
+  @errors=`grep "TEST-UNEXPECTED-" $@.log` ;\
   if test "$$errors" ; then \
 	  echo "$@ failed:"; \
 	  echo "$$errors"; \
@@ -52,22 +68,66 @@ define CHECK_TEST_ERROR
 endef
 endif
 
-ifdef TEST_PATH
-MOCHITEST_PATH = --test-path=$(TEST_PATH)
-else
-MOCHITEST_PATH =
-endif
-
 mochitest-plain:
-	$(RUN_MOCHITEST) $(MOCHITEST_PATH)
+	$(RUN_MOCHITEST)
 	$(CHECK_TEST_ERROR)
 
 mochitest-chrome:
-	$(RUN_MOCHITEST) --chrome $(MOCHITEST_PATH)
+	$(RUN_MOCHITEST) --chrome
 	$(CHECK_TEST_ERROR)
 
 mochitest-a11y:
-	$(RUN_MOCHITEST) --a11y $(MOCHITEST_PATH)
+	$(RUN_MOCHITEST) --a11y
 	$(CHECK_TEST_ERROR)
 
-.PHONY: mochitest mochitest-plain mochitest-chrome mochitest-a11y
+
+# Usage: |make [EXTRA_TEST_ARGS=...] *test|.
+RUN_REFTEST = rm -f ./$@.log && $(PYTHON) _tests/reftest/runreftest.py $(EXTRA_TEST_ARGS) $(1) | tee ./$@.log
+
+reftest:
+	$(call RUN_REFTEST,$(topsrcdir)/layout/reftests/reftest.list)
+	$(CHECK_TEST_ERROR)
+
+crashtest:
+	$(call RUN_REFTEST,$(topsrcdir)/testing/crashtest/crashtests.list)
+	$(CHECK_TEST_ERROR)
+
+
+# Execute all xpcshell tests in the directories listed in the manifest.
+# See also config/rules.mk 'xpcshell-tests' target for local execution.
+# Usage: |make [TEST_PATH=...] [EXTRA_TEST_ARGS=...] xpcshell-tests|.
+xpcshell-tests:
+	$(PYTHON) -u $(topsrcdir)/config/pythonpath.py \
+	  -I$(topsrcdir)/build \
+	  $(topsrcdir)/testing/xpcshell/runxpcshelltests.py \
+	  --manifest=$(DEPTH)/_tests/xpcshell/all-test-dirs.list \
+	  $(TEST_PATH_ARG) $(EXTRA_TEST_ARGS) \
+	  $(DIST)/bin/xpcshell
+
+
+# Package up the tests and test harnesses
+include $(topsrcdir)/toolkit/mozapps/installer/package-name.mk
+
+PKG_STAGE = $(DIST)/test-package-stage
+
+package-tests: stage-mochitest stage-reftest stage-xpcshell
+	@(cd $(PKG_STAGE) && tar $(TAR_CREATE_FLAGS) - *) | bzip2 -f > $(DIST)/$(PKG_PATH)$(TEST_PACKAGE)
+
+make-stage-dir:
+	rm -rf $(PKG_STAGE) && $(NSINSTALL) -D $(PKG_STAGE) && $(NSINSTALL) -D $(PKG_STAGE)/bin && $(NSINSTALL) -D $(PKG_STAGE)/bin/components && $(NSINSTALL) -D $(PKG_STAGE)/certs
+
+stage-mochitest: make-stage-dir
+	$(MAKE) -C $(DEPTH)/testing/mochitest stage-package
+
+stage-reftest: make-stage-dir
+	$(MAKE) -C $(DEPTH)/layout/tools/reftest stage-package
+
+stage-xpcshell: make-stage-dir
+	$(MAKE) -C $(DEPTH)/testing/xpcshell stage-package
+
+
+.PHONY: \
+  mochitest mochitest-plain mochitest-chrome mochitest-a11y \
+  reftest crashtest \
+  xpcshell-tests \
+  package-tests make-stage-dir stage-mochitest stage-reftest stage-xpcshell

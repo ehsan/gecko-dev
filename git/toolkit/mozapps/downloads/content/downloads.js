@@ -504,6 +504,15 @@ let gDownloadObserver = {
         break;
       case "private-browsing":
         if (aData == "enter" || aData == "exit") {
+          // We need to reset the title here, because otherwise the title of
+          // the download manager would still reflect the progress of current
+          // active downloads, if any, after switching the private browsing
+          // mode, even though the downloads will no longer be accessible.
+          // If any download is auto-started after switching the private
+          // browsing mode, the title will be updated as needed by the progress
+          // listener.
+          document.title = document.documentElement.getAttribute("statictitle");
+
           // We might get this notification before the download manager
           // service, so the new database connection might not be ready
           // yet.  Defer this until all private-browsing notifications
@@ -665,29 +674,26 @@ function buildContextMenu(aEvent)
 
 var gDownloadDNDObserver =
 {
-  onDragOver: function (aEvent, aFlavour, aDragSession)
+  onDragOver: function (aEvent)
   {
-    aDragSession.canDrop = true;
+    var types = aEvent.dataTransfer.types;
+    if (types.contains("text/uri-list") ||
+        types.contains("text/x-moz-url") ||
+        types.contains("text/plain"))
+      aEvent.preventDefault();
   },
 
-  onDrop: function(aEvent, aXferData, aDragSession)
+  onDrop: function(aEvent)
   {
-    var split = aXferData.data.split("\n");
-    var url = split[0];
-    if (url != aXferData.data) {  //do nothing, not a valid URL
-      var name = split[1];
-      saveURL(url, name, null, true, true);
+    var dt = aEvent.dataTransfer;
+    var url = dt.getData("URL");
+    var name;
+    if (!url) {
+      url = dt.getData("text/x-moz-url") || dt.getData("text/plain");
+      [url, name] = url.split("\n");
     }
-  },
-  _flavourSet: null,
-  getSupportedFlavours: function ()
-  {
-    if (!this._flavourSet) {
-      this._flavourSet = new FlavourSet();
-      this._flavourSet.appendFlavour("text/x-moz-url");
-      this._flavourSet.appendFlavour("text/unicode");
-    }
-    return this._flavourSet;
+    if (url)
+      saveURL(url, name ? name : url, null, true, true);
   }
 }
 
@@ -1289,7 +1295,7 @@ function downloadMatchesSearch(aItem)
 
   // Make sure each of the terms are found
   for each (let term in gSearchTerms)
-    if (combinedSearch.search(term) == -1)
+    if (combinedSearch.indexOf(term) == -1)
       return false;
 
   return true;

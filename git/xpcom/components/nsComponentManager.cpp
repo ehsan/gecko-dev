@@ -84,6 +84,8 @@
 #include "xptinfo.h" // this after nsISupports, to pick up IID so that xpt stuff doesn't try to define it itself...
 #include "nsThreadUtils.h"
 #include "prthread.h"
+#include "private/pprthred.h"
+#include "nsTArray.h"
 
 #include "nsInt64.h"
 #include "nsManifestLineReader.h"
@@ -328,9 +330,9 @@ private:
     ~PLDHashTableEnumeratorImpl();
     void ReleaseElements();
 
-    nsVoidArray   mElements;
-    PRInt32       mCount, mCurrent;
-    PRMonitor*    mMonitor;
+    nsTArray<nsISupports*> mElements;
+    PRInt32                mCount, mCurrent;
+    PRMonitor*             mMonitor;
 
     struct Closure {
         PRBool                        succeeded;
@@ -400,9 +402,7 @@ void
 PLDHashTableEnumeratorImpl::ReleaseElements()
 {
     for (PRInt32 i = 0; i < mCount; i++) {
-        nsISupports *supports = reinterpret_cast<nsISupports *>
-                                                (mElements[i]);
-        NS_IF_RELEASE(supports);
+        NS_IF_RELEASE(mElements[i]);
     }
 }
 
@@ -475,7 +475,7 @@ PLDHashTableEnumeratorImpl::CurrentItem(nsISupports **retval)
     if (!mCount || mCurrent == mCount)
         return NS_ERROR_FAILURE;
 
-    *retval = reinterpret_cast<nsISupports *>(mElements[mCurrent]);
+    *retval = mElements[mCurrent];
     if (*retval)
         NS_ADDREF(*retval);
 
@@ -1163,9 +1163,9 @@ ClassIDWriter(PLDHashTable *table,
                (location   ? location   : ""));
 
     if (contractID)
-        PR_Free(contractID);
+        NS_Free(contractID);
     if (className)
-        PR_Free(className);
+        NS_Free(className);
 
     return PL_DHASH_NEXT;
 }
@@ -1298,7 +1298,7 @@ nsComponentManagerImpl::HashContractID(const char *aContractID,
     if(!aContractID || !aContractIDLen)
         return NS_ERROR_NULL_POINTER;
 
-    nsAutoMonitor mon(mMon);
+    NS_ABORT_IF_FALSE(PR_InMonitor(mMon), "called from outside mMon");
 
     nsContractIDTableEntry* contractIDTableEntry =
         static_cast<nsContractIDTableEntry*>
@@ -1426,7 +1426,7 @@ nsComponentManagerImpl::GetClassObject(const nsCID &aClass, const nsIID &aIID,
         char *buf = aClass.ToString();
         PR_LogPrint("nsComponentManager: GetClassObject(%s)", buf);
         if (buf)
-            PR_Free(buf);
+            NS_Free(buf);
     }
 #endif
 
@@ -1449,6 +1449,9 @@ nsComponentManagerImpl::GetClassObjectByContractID(const char *contractID,
                                                    const nsIID &aIID,
                                                    void **aResult)
 {
+    NS_ENSURE_ARG_POINTER(aResult);
+    NS_ENSURE_ARG_POINTER(contractID);
+
     nsresult rv;
 
     nsCOMPtr<nsIFactory> factory;
@@ -1459,8 +1462,6 @@ nsComponentManagerImpl::GetClassObjectByContractID(const char *contractID,
         PR_LogPrint("nsComponentManager: GetClassObject(%s)", contractID);
     }
 #endif
-
-    PR_ASSERT(aResult != nsnull);
 
     rv = FindFactory(contractID, strlen(contractID), getter_AddRefs(factory));
     if (NS_FAILED(rv)) return rv;
@@ -1482,13 +1483,8 @@ nsComponentManagerImpl::GetClassObjectByContractID(const char *contractID,
 NS_IMETHODIMP
 nsComponentManagerImpl::ContractIDToClassID(const char *aContractID, nsCID *aClass)
 {
-    NS_PRECONDITION(aContractID != nsnull, "null ptr");
-    if (!aContractID)
-        return NS_ERROR_NULL_POINTER;
-
-    NS_PRECONDITION(aClass != nsnull, "null ptr");
-    if (!aClass)
-        return NS_ERROR_NULL_POINTER;
+    NS_ENSURE_ARG_POINTER(aContractID);
+    NS_ENSURE_ARG_POINTER(aClass);
 
     nsresult rv = NS_ERROR_FACTORY_NOT_REGISTERED;
 
@@ -1506,7 +1502,7 @@ nsComponentManagerImpl::ContractIDToClassID(const char *aContractID, nsCID *aCla
                ("nsComponentManager: ContractIDToClassID(%s)->%s", aContractID,
                 NS_SUCCEEDED(rv) ? buf : "[FAILED]"));
         if (buf)
-            PR_Free(buf);
+            NS_Free(buf);
     }
 #endif
     return rv;
@@ -1536,7 +1532,7 @@ nsComponentManagerImpl::CLSIDToContractID(const nsCID &aClass,
                ("nsComponentManager: CLSIDToContractID(%s)->%s", buf,
                 NS_SUCCEEDED(rv) ? *aContractID : "[FAILED]"));
         if (buf)
-            PR_Free(buf);
+            NS_Free(buf);
     }
 #endif
     return rv;
@@ -1618,7 +1614,7 @@ nsComponentManagerImpl::CreateInstance(const nsCID &aClass,
                ("nsComponentManager: CreateInstance(%s) %s", buf,
                 NS_SUCCEEDED(rv) ? "succeeded" : "FAILED"));
         if (buf)
-            PR_Free(buf);
+            NS_Free(buf);
     }
 #endif
 
@@ -1640,6 +1636,8 @@ nsComponentManagerImpl::CreateInstanceByContractID(const char *aContractID,
                                                    const nsIID &aIID,
                                                    void **aResult)
 {
+    NS_ENSURE_ARG_POINTER(aContractID);
+
     // test this first, since there's no point in creating a component during
     // shutdown -- whether it's available or not would depend on the order it
     // occurs in the list
@@ -1821,7 +1819,6 @@ nsComponentManagerImpl::GetService(const nsCID& aClass,
 
     nsAutoMonitor mon(mMon);
 
-    nsIDKey key(aClass);
     nsFactoryEntry* entry = nsnull;
     nsFactoryTableEntry* factoryTableEntry =
         static_cast<nsFactoryTableEntry*>
@@ -2000,6 +1997,7 @@ NS_IMETHODIMP
 nsComponentManagerImpl::RegisterService(const char* aContractID,
                                         nsISupports* aService)
 {
+    NS_ENSURE_ARG_POINTER(aContractID);
 
     nsAutoMonitor mon(mMon);
 
@@ -2466,7 +2464,7 @@ nsComponentManagerImpl::RegisterFactory(const nsCID &aClass,
                ("nsComponentManager: RegisterFactory(%s, %s)", buf,
                 (aContractID ? aContractID : "(null)")));
         if (buf)
-            PR_Free(buf);
+            NS_Free(buf);
     }
 #endif
     nsFactoryEntry *entry = nsnull;
@@ -2615,7 +2613,6 @@ nsComponentManagerImpl::RegisterComponentCommon(const nsCID &aClass,
 {
     nsresult rv;
 
-    nsIDKey key(aClass);
     nsAutoMonitor mon(mMon);
 
     nsFactoryEntry *entry = GetFactoryEntry(aClass);
@@ -2632,7 +2629,7 @@ nsComponentManagerImpl::RegisterComponentCommon(const nsCID &aClass,
                 contractID ? contractID : "(null)",
                 aRegistryName, aType));
         if (buf)
-            PR_Free(buf);
+            NS_Free(buf);
     }
 #endif
     if (entry && !aReplace) {
@@ -2830,7 +2827,7 @@ nsComponentManagerImpl::UnregisterFactory(const nsCID &aClass,
         PR_LOG(nsComponentManagerLog, PR_LOG_WARNING,
                ("nsComponentManager: UnregisterFactory(%s)", buf));
         if (buf)
-            PR_Free(buf);
+            NS_Free(buf);
     }
 #endif
     nsFactoryEntry *old;
@@ -3459,6 +3456,7 @@ NS_IMETHODIMP
 nsComponentManagerImpl::IsContractIDRegistered(const char *aClass,
                                                PRBool *_retval)
 {
+    NS_ENSURE_ARG_POINTER(aClass);
     nsFactoryEntry *entry = GetFactoryEntry(aClass, strlen(aClass));
 
     if (entry)

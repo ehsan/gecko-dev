@@ -39,6 +39,7 @@
 
 #include "jsapi.h"
 #include "jsdtoa.h"
+#include "jsprvtd.h"
 #include "jsnum.h"
 #include "jsbool.h"
 #include "jsarena.h"
@@ -243,7 +244,7 @@ nsJSON::EncodeInternal(nsJSONWriter *writer)
     return NS_ERROR_INVALID_ARG;
   }
 
-  ok = JS_Stringify(cx, vp, NULL, &WriteCallback, writer);
+  ok = JS_Stringify(cx, vp, NULL, JSVAL_NULL, WriteCallback, writer);
   if (!ok)
     return NS_ERROR_FAILURE;
     
@@ -529,7 +530,7 @@ nsJSONListener::OnStopRequest(nsIRequest *aRequest, nsISupports *aContext,
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  JSBool ok = JS_FinishJSONParse(mCx, mJSONParser);
+  JSBool ok = JS_FinishJSONParse(mCx, mJSONParser, JSVAL_NULL);
   mJSONParser = nsnull;
 
   if (!ok)
@@ -651,7 +652,7 @@ nsJSONListener::ConsumeConverted(const char* aBuffer, PRUint32 aByteLength)
 void nsJSONListener::Cleanup()
 {
   if (mJSONParser)
-    JS_FinishJSONParse(mCx, mJSONParser);
+    JS_FinishJSONParse(mCx, mJSONParser, JSVAL_NULL);
   mJSONParser = nsnull;
 }
 

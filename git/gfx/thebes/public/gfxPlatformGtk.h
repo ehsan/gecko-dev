@@ -41,6 +41,7 @@
 
 #include "gfxPlatform.h"
 #include "nsAutoRef.h"
+#include "nsTArray.h"
 
 extern "C" {
     typedef struct _GdkDrawable GdkDrawable;
@@ -74,7 +75,7 @@ public:
 
     nsresult GetFontList(const nsACString& aLangGroup,
                          const nsACString& aGenericFamily,
-                         nsStringArray& aListOfFonts);
+                         nsTArray<nsString>& aListOfFonts);
 
     nsresult UpdateFontList();
 
@@ -87,6 +88,31 @@ public:
     gfxFontGroup *CreateFontGroup(const nsAString &aFamilies,
                                   const gfxFontStyle *aStyle,
                                   gfxUserFontSet *aUserFontSet);
+
+#ifdef MOZ_PANGO
+    /**
+     * Look up a local platform font using the full font face name (needed to
+     * support @font-face src local() )
+     */
+    virtual gfxFontEntry* LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
+                                          const nsAString& aFontName);
+
+    /**
+     * Activate a platform font (needed to support @font-face src url() )
+     *
+     */
+    virtual gfxFontEntry* MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
+                                           nsISupports *aLoader,
+                                           const PRUint8 *aFontData,
+                                           PRUint32 aLength);
+
+    /**
+     * Check whether format is supported on a platform or not (if unclear,
+     * returns true).
+     */
+    virtual PRBool IsFontFormatSupported(nsIURI *aFontURI,
+                                         PRUint32 aFormatFlags);
+#endif
 
 #ifndef MOZ_PANGO
     FontFamily *FindFontFamily(const nsAString& aName);
@@ -116,7 +142,7 @@ protected:
     static gfxFontconfigUtils *sFontconfigUtils;
 
 private:
-    virtual cmsHPROFILE GetPlatformCMSOutputProfile();
+    virtual qcms_profile *GetPlatformCMSOutputProfile();
 };
 
 #endif /* GFX_PLATFORM_GTK_H */

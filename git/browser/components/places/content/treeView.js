@@ -294,10 +294,14 @@ PlacesTreeView.prototype = {
       var min = { }, max = { };
       selection.getRangeAt(rangeIndex, min, max);
       var lastIndex = Math.min(max.value, startReplacement + replaceCount -1);
-      if (min.value < startReplacement || min.value > lastIndex)
+      // if this range does not overlap the replaced chunk we don't need to
+      // persist the selection.
+      if (max.value < startReplacement || min.value > lastIndex)
         continue;
-
-      for (var nodeIndex = min.value; nodeIndex <= lastIndex; nodeIndex++)
+      // if this range starts before the replaced chunk we should persist from
+      // startReplacement to lastIndex
+      var firstIndex = Math.max(min.value, startReplacement);
+      for (var nodeIndex = firstIndex; nodeIndex <= lastIndex; nodeIndex++)
         previouslySelectedNodes.push(
           { node: this._visibleElements[nodeIndex].node, oldIndex: nodeIndex });
     }
@@ -309,7 +313,8 @@ PlacesTreeView.prototype = {
     // Building the new list will set the new elements' visible indices.
     var newElements = [];
     var toOpenElements = [];
-    this._buildVisibleSection(aContainer, newElements, toOpenElements, startReplacement);
+    this._buildVisibleSection(aContainer,
+                              newElements, toOpenElements, startReplacement);
 
     // actually update the visible list
     this._visibleElements =
@@ -320,7 +325,7 @@ PlacesTreeView.prototype = {
     // If the new area has a different size, we'll have to renumber the
     // elements following the area.
     if (replaceCount != newElements.length) {
-      for (i = startReplacement + newElements.length;
+      for (var i = startReplacement + newElements.length;
            i < this._visibleElements.length; i ++) {
         this._visibleElements[i].node.viewIndex = i;
       }
@@ -399,25 +404,22 @@ PlacesTreeView.prototype = {
 
   _convertPRTimeToString: function PTV__convertPRTimeToString(aTime) {
     var timeInMilliseconds = aTime / 1000; // PRTime is in microseconds
+
+    // Date is calculated starting from midnight, so the modulo with a day are
+    // milliseconds from today's midnight.
+    // getTimezoneOffset corrects that based on local time.
+    // 86400000 = 24 * 60 * 60 * 1000 = 1 day
+    // 60000 = 60 * 1000 = 1 minute
+    var dateObj = new Date();
+    var timeZoneOffsetInMs = dateObj.getTimezoneOffset() * 60000;
+    var now = dateObj.getTime() - timeZoneOffsetInMs;
+    var midnight = now - (now % (86400000));
+
+    var dateFormat = timeInMilliseconds - timeZoneOffsetInMs >= midnight ?
+                      Ci.nsIScriptableDateFormat.dateFormatNone :
+                      Ci.nsIScriptableDateFormat.dateFormatShort;
+
     var timeObj = new Date(timeInMilliseconds);
-
-    // Check if it is today and only display the time.  Only bother
-    // checking for today if it's within the last 24 hours, since
-    // computing midnight is not really cheap. Sometimes we may get dates
-    // in the future, so always show those.
-    var ago = new Date(Date.now() - timeInMilliseconds);
-    var dateFormat = Ci.nsIScriptableDateFormat.dateFormatShort;
-    if (ago > -10000 && ago < (1000 * 24 * 60 * 60)) {
-      var midnight = new Date(timeInMilliseconds);
-      midnight.setHours(0);
-      midnight.setMinutes(0);
-      midnight.setSeconds(0);
-      midnight.setMilliseconds(0);
-
-      if (timeInMilliseconds > midnight.getTime())
-        dateFormat = Ci.nsIScriptableDateFormat.dateFormatNone;
-    }
-
     return (this._dateService.FormatDateTime("", dateFormat,
       Ci.nsIScriptableDateFormat.timeFormatNoSeconds,
       timeObj.getFullYear(), timeObj.getMonth() + 1,
@@ -806,6 +808,8 @@ PlacesTreeView.prototype = {
     // object which is already set for this viewer. At that point,
     // we should do nothing.
     if (this._result != val) {
+      if (this._result)
+        this._result.root.containerOpen = false;
       this._result = val;
       this._finishInit();
     }
@@ -879,6 +883,10 @@ PlacesTreeView.prototype = {
     else
       var columnType = aColumn.id;
 
+    // Set the "ltr" property on url cells
+    if (columnType == "url")
+      aProperties.AppendElement(this._getAtomFor("ltr"));
+
     if (columnType != "title")
       return;
 
@@ -901,27 +909,24 @@ PlacesTreeView.prototype = {
         }
         else if (nodeType == Ci.nsINavHistoryResultNode.RESULT_TYPE_FOLDER ||
                  nodeType == Ci.nsINavHistoryResultNode.RESULT_TYPE_FOLDER_SHORTCUT) {
-          if (PlacesUtils.annotations.itemHasAnnotation(itemId,
-                                                        LMANNO_FEEDURI))
+          if (PlacesUtils.nodeIsLivemarkContainer(node))
             properties.push(this._getAtomFor("livemark"));
         }
 
         if (itemId != -1) {
-          var oqAnno;
-          try {
-            oqAnno = PlacesUtils.annotations
-                                .getItemAnnotation(itemId,
-                                                   ORGANIZER_QUERY_ANNO);
-            properties.push(this._getAtomFor("OrganizerQuery_" + oqAnno));
-          }
-          catch (ex) { /* not a special query */ }
+          var queryName = PlacesUIUtils.getLeftPaneQueryNameFromId(itemId);
+          if (queryName)
+            properties.push(this._getAtomFor("OrganizerQuery_" + queryName));
         }
       }
       else if (nodeType == Ci.nsINavHistoryResultNode.RESULT_TYPE_SEPARATOR)
         properties.push(this._getAtomFor("separator"));
-      else if (itemId != -1) { // bookmark nodes
-        if (PlacesUtils.nodeIsLivemarkContainer(node.parent))
-          properties.push(this._getAtomFor("livemarkItem"));
+      else if (PlacesUtils.nodeIsURI(node)) {
+        properties.push(this._getAtomFor(PlacesUIUtils.guessUrlSchemeForUI(node.uri)));
+        if (itemId != -1) {
+          if (PlacesUtils.nodeIsLivemarkContainer(node.parent))
+            properties.push(this._getAtomFor("livemarkItem"));
+        }
       }
 
       this._visibleElements[aRow].properties = properties;
@@ -1175,9 +1180,13 @@ PlacesTreeView.prototype = {
           return PlacesUtils.bookmarks.getKeywordForBookmark(node.itemId);
         return "";
       case this.COLUMN_TYPE_DESCRIPTION:
-        const annos = PlacesUtils.annotations;
-        if (annos.itemHasAnnotation(node.itemId, DESCRIPTION_ANNO))
-          return annos.getItemAnnotation(node.itemId, DESCRIPTION_ANNO)
+        if (node.itemId != -1) {
+          try {
+            return PlacesUtils.annotations.
+                               getItemAnnotation(node.itemId, DESCRIPTION_ANNO);
+          }
+          catch (ex) { /* has no description */ }
+        }
         return "";
       case this.COLUMN_TYPE_DATEADDED:
         if (node.dateAdded)

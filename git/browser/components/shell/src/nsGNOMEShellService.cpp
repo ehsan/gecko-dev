@@ -47,7 +47,6 @@
 #include "nsIGConfService.h"
 #include "nsIGnomeVFSService.h"
 #include "nsIStringBundle.h"
-#include "gfxIImageFrame.h"
 #include "nsIOutputStream.h"
 #include "nsIProcess.h"
 #include "nsNetUtil.h"
@@ -55,7 +54,6 @@
 #include "nsIImageLoadingContent.h"
 #include "imgIRequest.h"
 #include "imgIContainer.h"
-#include "nsIImage.h"
 #include "prprf.h"
 #ifdef MOZ_WIDGET_GTK2
 #include "nsIImageToPixbuf.h"
@@ -63,7 +61,7 @@
 
 #include <glib.h>
 #include <glib-object.h>
-#include <gtk/gtkversion.h>
+#include <gtk/gtk.h>
 #include <gdk/gdk.h>
 #include <gdk-pixbuf/gdk-pixbuf.h>
 #include <limits.h>
@@ -349,12 +347,8 @@ nsGNOMEShellService::SetShouldCheckDefaultBrowser(PRBool aShouldCheck)
 }
 
 static nsresult
-WriteImage(const nsCString& aPath, gfxIImageFrame* aImage)
+WriteImage(const nsCString& aPath, imgIContainer* aImage)
 {
-  nsCOMPtr<nsIImage> img(do_GetInterface(aImage));
-  if (!img)
-      return NS_ERROR_NOT_AVAILABLE;
-
 #ifndef MOZ_WIDGET_GTK2
   return NS_ERROR_NOT_AVAILABLE;
 #else
@@ -363,7 +357,7 @@ WriteImage(const nsCString& aPath, gfxIImageFrame* aImage)
   if (!imgToPixbuf)
       return NS_ERROR_NOT_AVAILABLE;
 
-  GdkPixbuf* pixbuf = imgToPixbuf->ConvertImageToPixbuf(img);
+  GdkPixbuf* pixbuf = imgToPixbuf->ConvertImageToPixbuf(aImage);
   if (!pixbuf)
       return NS_ERROR_NOT_AVAILABLE;
 
@@ -379,8 +373,6 @@ nsGNOMEShellService::SetDesktopBackground(nsIDOMElement* aElement,
                                           PRInt32 aPosition)
 {
   nsresult rv;
-  nsCOMPtr<gfxIImageFrame> gfxFrame;
-
   nsCOMPtr<nsIImageLoadingContent> imageContent = do_QueryInterface(aElement, &rv);
   if (!imageContent) return rv;
 
@@ -392,12 +384,6 @@ nsGNOMEShellService::SetDesktopBackground(nsIDOMElement* aElement,
   nsCOMPtr<imgIContainer> container;
   rv = request->GetImage(getter_AddRefs(container));
   if (!container) return rv;
-
-  // get the current frame, which holds the image data
-  container->GetCurrentFrame(getter_AddRefs(gfxFrame));
-
-  if (!gfxFrame)
-    return NS_ERROR_FAILURE;
 
   // Write the background file to the home directory.
   nsCAutoString filePath(PR_GetEnv("HOME"));
@@ -423,7 +409,7 @@ nsGNOMEShellService::SetDesktopBackground(nsIDOMElement* aElement,
   filePath.Append("_wallpaper.png");
 
   // write the image to a file in the home dir
-  rv = WriteImage(filePath, gfxFrame);
+  rv = WriteImage(filePath, container);
 
   // if the file was written successfully, set it as the system wallpaper
   nsCOMPtr<nsIGConfService> gconf = do_GetService(NS_GCONFSERVICE_CONTRACTID);
@@ -451,7 +437,7 @@ nsGNOMEShellService::SetDesktopBackground(nsIDOMElement* aElement,
 }
 
 #define COLOR_16_TO_8_BIT(_c) ((_c) >> 8)
-#define COLOR_8_TO_16_BIT(_c) ((_c) << 8)
+#define COLOR_8_TO_16_BIT(_c) ((_c) << 8 | (_c))
 
 NS_IMETHODIMP
 nsGNOMEShellService::GetDesktopBackgroundColor(PRUint32 *aColor)
@@ -480,37 +466,25 @@ nsGNOMEShellService::GetDesktopBackgroundColor(PRUint32 *aColor)
 static void
 ColorToCString(PRUint32 aColor, nsCString& aResult)
 {
-#if GTK_CHECK_VERSION(2,12,0)
-  GdkColor color;
-  color.red = COLOR_8_TO_16_BIT(aColor >> 16);
-  color.green = COLOR_8_TO_16_BIT((aColor >> 8) & 0xff);
-  color.blue = COLOR_8_TO_16_BIT(aColor & 0xff);
-
-  gchar *colorString = gdk_color_to_string(&color);
-  aResult.Assign(colorString);
-  g_free(colorString);
-
-#else // GTK 2.12.0
-
   // The #rrrrggggbbbb format is used to match gdk_color_to_string()
   char *buf = aResult.BeginWriting(13);
   if (!buf)
     return;
 
-  PRUint8 red = (aColor >> 16);
-  PRUint8 green = (aColor >> 8) & 0xff;
-  PRUint8 blue = aColor & 0xff;
+  PRUint16 red = COLOR_8_TO_16_BIT((aColor >> 16) & 0xff);
+  PRUint16 green = COLOR_8_TO_16_BIT((aColor >> 8) & 0xff);
+  PRUint16 blue = COLOR_8_TO_16_BIT(aColor & 0xff);
 
-  PR_snprintf(buf, 14, "#%02x00%02x00%02x00", red, green, blue);
-#endif // GTK 2.12.0
+  PR_snprintf(buf, 14, "#%04x%04x%04x", red, green, blue);
 }
 
 NS_IMETHODIMP
 nsGNOMEShellService::SetDesktopBackgroundColor(PRUint32 aColor)
 {
+  NS_ASSERTION(aColor <= 0xffffff, "aColor has extra bits");
   nsCOMPtr<nsIGConfService> gconf = do_GetService(NS_GCONFSERVICE_CONTRACTID);
 
-  nsCString colorString;
+  nsCAutoString colorString;
   ColorToCString(aColor, colorString);
 
   gconf->SetString(NS_LITERAL_CSTRING(kDesktopColorKey), colorString);
@@ -587,8 +561,7 @@ nsGNOMEShellService::OpenApplicationWithURI(nsILocalFile* aApplication, const ns
 
   const nsCString spec(aURI);
   const char* specStr = spec.get();
-  PRUint32 pid;
-  return process->Run(PR_FALSE, &specStr, 1, &pid);
+  return process->Run(PR_FALSE, &specStr, 1);
 }
 
 NS_IMETHODIMP

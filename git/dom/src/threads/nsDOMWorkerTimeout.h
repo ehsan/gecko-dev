@@ -44,9 +44,11 @@
 
 // Other includes
 #include "jsapi.h"
+#include "nsAutoJSValHolder.h"
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
 #include "nsStringGlue.h"
+#include "nsTArray.h"
 
 // DOMWorker includes
 #include "nsDOMWorker.h"
@@ -59,7 +61,7 @@
  * needs a weak reference to the timeout so that it can be canceled if the
  * worker is canceled (in the event that the page falls out of the fastback
  * cache or the application is exiting, for instance). The only thing that holds
- * the timeout alive is it's mTimer via the nsITimerCallback interface. If the
+ * the timeout alive is its mTimer via the nsITimerCallback interface. If the
  * timer is single-shot and has run already or if the timer is canceled then
  * this object should die.
  */
@@ -145,10 +147,9 @@ private:
     virtual nsresult Run(nsDOMWorkerTimeout* aTimeout,
                          JSContext* aCx);
   protected:
-    jsval mCallback;
-    jsval* mCallbackArgs;
+    nsAutoJSValHolder mCallback;
+    nsTArray<nsAutoJSValHolder> mCallbackArgs;
     PRUint32 mCallbackArgsLength;
-    JSRuntime* mRuntime;
   };
 
   class ExpressionCallback : public CallbackBase
@@ -162,10 +163,9 @@ private:
     virtual nsresult Run(nsDOMWorkerTimeout* aTimeout,
                          JSContext* aCx);
   protected:
-    JSString* mExpression;
-    nsString mFileName;
+    nsAutoJSValHolder mExpression;
+    nsCString mFileName;
     PRUint32 mLineNumber;
-    JSRuntime* mRuntime;
   };
 
   // Hold this object alive!

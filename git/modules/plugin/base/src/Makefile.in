@@ -67,7 +67,6 @@ REQUIRES	= xpcom \
 		  content \
 		  widget \
 		  mimetype \
-		  oji \
 		  exthandler \
 		  docshell \
 		  windowwatcher \
@@ -84,11 +83,9 @@ endif
 CPPSRCS		= \
 		nsNPAPIPlugin.cpp \
 		nsNPAPIPluginInstance.cpp \
-		nsPluginHostImpl.cpp \
+		nsPluginHost.cpp \
 		nsPluginModule.cpp \
-		nsPluginInstancePeer.cpp \
 		nsJSNPRuntime.cpp \
-		nsJVMAuthTools.cpp \
 		$(NULL)
 
 ifeq ($(OS_ARCH), BeOS)
@@ -159,5 +156,5 @@ endif
 ifdef MOZ_ENABLE_GTK2
 CXXFLAGS        += $(MOZ_GTK2_CFLAGS)
 CFLAGS          += $(MOZ_GTK2_CFLAGS)
-EXTRA_DSO_LDOPTS += -lgtkxtbin $(XLDFLAGS) $(XT_LIBS) $(MOZ_GTK2_LIBS) $(XLIBS)
+EXTRA_DSO_LDOPTS += -lgtkxtbin $(XLDFLAGS) $(XT_LIBS) $(MOZ_GTK2_LIBS) $(XLIBS) $(XEXT_LIBS) $(XCOMPOSITE_LIBS)
 endif           #MOZ_ENABLE_GTK2

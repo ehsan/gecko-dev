@@ -192,7 +192,7 @@ nsFileProtocolHandler::ReadURLFile(nsIFile* aFile, nsIURI** aURI)
     return rv;
 }
 
-#elif defined(XP_UNIX)
+#elif defined(XP_UNIX) && !defined(__SYMBIAN32__)
 NS_IMETHODIMP
 nsFileProtocolHandler::ReadURLFile(nsIFile* aFile, nsIURI** aURI)
 {
@@ -251,7 +251,7 @@ nsFileProtocolHandler::GetDefaultPort(PRInt32 *result)
 NS_IMETHODIMP
 nsFileProtocolHandler::GetProtocolFlags(PRUint32 *result)
 {
-    *result = URI_NOAUTH | URI_IS_LOCAL_FILE;
+    *result = URI_NOAUTH | URI_IS_LOCAL_FILE | URI_IS_LOCAL_RESOURCE;
     return NS_OK;
 }
 

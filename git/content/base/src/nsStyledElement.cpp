@@ -44,7 +44,7 @@
 #include "nsGenericElement.h"
 #include "nsMutationEvent.h"
 #include "nsDOMCSSDeclaration.h"
-#include "nsICSSOMFactory.h"
+#include "nsDOMCSSAttrDeclaration.h"
 #include "nsServiceManagerUtils.h"
 #include "nsIDocument.h"
 #include "nsICSSStyleRule.h"
@@ -89,10 +89,6 @@ nsStyledElement::ParseAttribute(PRInt32 aNamespaceID, nsIAtom* aAttribute,
     }
     if (aAttribute == nsGkAtoms::_class) {
       SetFlags(NODE_MAY_HAVE_CLASS);
-#ifdef MOZ_SVG
-      NS_ASSERTION(!nsCOMPtr<nsIDOMSVGStylable>(do_QueryInterface(this)),
-                   "SVG code should have handled this 'class' attribute!");
-#endif
       aResult.ParseAtomArray(aValue);
       return PR_TRUE;
     }
@@ -133,7 +129,7 @@ nsStyledElement::SetInlineStyleRule(nsICSSStyleRule* aStyleRule, PRBool aNotify)
 
   return SetAttrAndNotify(kNameSpaceID_None, nsGkAtoms::style, nsnull,
                           oldValueStr, attrValue, modification, hasListeners,
-                          aNotify);
+                          aNotify, nsnull);
 }
 
 nsICSSStyleRule*
@@ -171,9 +167,6 @@ nsStyledElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 // ---------------------------------------------------------------
 // Others and helpers
 
-static nsICSSOMFactory* gCSSOMFactory = nsnull;
-static NS_DEFINE_CID(kCSSOMFactoryCID, NS_CSSOMFACTORY_CID);
-
 nsresult
 nsStyledElement::GetStyle(nsIDOMCSSStyleDeclaration** aStyle)
 {
@@ -184,15 +177,8 @@ nsStyledElement::GetStyle(nsIDOMCSSStyleDeclaration** aStyle)
     // Just in case...
     ReparseStyleAttribute(PR_TRUE);
 
-    nsresult rv;
-    if (!gCSSOMFactory) {
-      rv = CallGetService(kCSSOMFactoryCID, &gCSSOMFactory);
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
-
-    rv = gCSSOMFactory->CreateDOMCSSAttributeDeclaration(this,
-                                                 getter_AddRefs(slots->mStyle));
-    NS_ENSURE_SUCCESS(rv, rv);
+    slots->mStyle = new nsDOMCSSAttributeDeclaration(this);
+    NS_ENSURE_TRUE(slots->mStyle, NS_ERROR_OUT_OF_MEMORY);
     SetFlags(NODE_MAY_HAVE_STYLE);
   }
 
@@ -268,11 +254,4 @@ nsStyledElement::ParseStyleAttribute(nsIContent* aContent,
   }
 
   aResult.SetTo(aValue);
-}
-
-
-/* static */ void
-nsStyledElement::Shutdown()
-{
-  NS_IF_RELEASE(gCSSOMFactory);
 }

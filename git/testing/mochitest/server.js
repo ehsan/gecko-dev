@@ -41,6 +41,14 @@
 // and because they're constants it's not safe to redefine them.  Scope leakage
 // sucks.
 
+// Disable automatic network detection, so tests work correctly when
+// not connected to a network.
+let (ios = Cc["@mozilla.org/network/io-service;1"]
+           .getService(Ci.nsIIOService2)) {
+  ios.manageOfflineStatus = false;
+  ios.offline = false;
+}
+
 const SERVER_PORT = 8888;
 var server; // for use in the shutdown handler, if necessary
 
@@ -106,6 +114,14 @@ function makeTags() {
   }
 }
 
+var _quitting = false;
+
+/** Quit when all activity has completed. */
+function serverStopped()
+{
+  _quitting = true;
+}
+
 // only run the "main" section if httpd.js was loaded ahead of us
 if (this["nsHttpServer"]) {
   //
@@ -113,10 +129,16 @@ if (this["nsHttpServer"]) {
   //
   runServer();
 
-  // We can only have gotten here if the /server/shutdown path was requested,
-  // and we can shut down the xpcshell now that all testing requests have been
-  // served.
-  quit(0);
+  // We can only have gotten here if the /server/shutdown path was requested.
+  if (_quitting)
+  {
+    dumpn("HTTP server stopped, all pending requests complete");
+    quit(0);
+  }
+
+  // Impossible as the stop callback should have been called, but to be safe...
+  dumpn("TEST-UNEXPECTED-FAIL | failure to correctly shut down HTTP server");
+  quit(1);
 }
 
 var serverBasePath;
@@ -126,15 +148,7 @@ var serverBasePath;
 //
 function runServer()
 {
-  serverBasePath = Cc["@mozilla.org/file/local;1"]
-                     .createInstance(Ci.nsILocalFile);
-  var procDir = Cc["@mozilla.org/file/directory_service;1"]
-                  .getService(Ci.nsIProperties).get("CurProcD", Ci.nsIFile);
-  serverBasePath.initWithPath(procDir.parent.parent.path);
-  serverBasePath.append("_tests");
-  serverBasePath.append("testing");
-  serverBasePath.append("mochitest");
-
+  serverBasePath = __LOCATION__.parent;
   server = createMochitestServer(serverBasePath);
   server.start(SERVER_PORT);
 
@@ -185,6 +199,10 @@ function createMochitestServer(serverBasePath)
   server.registerDirectory("/", serverBasePath);
   server.registerPathHandler("/server/shutdown", serverShutdown);
   server.registerContentType("sjs", "sjs"); // .sjs == CGI-like functionality
+  server.registerContentType("jar", "application/x-jar");
+  server.registerContentType("ogg", "application/ogg");
+  server.registerContentType("ogv", "video/ogg");
+  server.registerContentType("oga", "audio/ogg");
   server.setIndexHandler(defaultDirHandler);
 
   processLocations(server);
@@ -275,8 +293,8 @@ function serverShutdown(metadata, response)
   var body = "Server shut down.";
   response.bodyOutputStream.write(body, body.length);
 
-  // Note: this doesn't disrupt the current request.
-  server.stop();
+  dumpn("Server shutting down now...");
+  server.stop(serverStopped);
 }
 
 //
@@ -399,20 +417,45 @@ function linksToListItems(links)
 /**
  * Transform nested hashtables of paths to a flat table rows.
  */
-function linksToTableRows(links)
+function linksToTableRows(links, recursionLevel)
 {
   var response = "";
   for (var [link, value] in links) {
     var classVal = (!isTest(link) && !(value instanceof Object))
       ? "non-test invisible"
       : "";
+
+    spacer = "padding-left: " + (10 * recursionLevel) + "px";
+
     if (value instanceof Object) {
       response += TR({class: "dir", id: "tr-" + link },
-                     TD({colspan: "3"},"&#160;"));
-      response += linksToTableRows(value);
+                     TD({colspan: "3"}, "&#160;"),
+                     TD({style: spacer},
+                        A({href: link}, link)));
+      response += linksToTableRows(value, recursionLevel + 1);
     } else {
-      response += TR({class: classVal, id: "tr-" + link},
-                     TD("0"), TD("0"), TD("0"));
+      var bug_title = link.match(/test_bug\S+/);
+      var bug_num = null;
+      if (bug_title != null) {
+          bug_num = bug_title[0].match(/\d+/);
+      }
+      if ((bug_title == null) || (bug_num == null)) {
+        response += TR({class: classVal, id: "tr-" + link },
+                       TD("0"),
+                       TD("0"),
+                       TD("0"),
+                       TD({style: spacer},
+                          A({href: link}, link)));
+      } else {
+        var bug_url = "https://bugzilla.mozilla.org/show_bug.cgi?id=" + bug_num;
+        response += TR({class: classVal, id: "tr-" + link },
+                       TD("0"),
+                       TD("0"),
+                       TD("0"),
+                       TD({style: spacer},
+                          A({href: link}, link), " - ",
+                          A({href: bug_url}, "Bug " + bug_num)));
+      }
     }
   }
   return response;
@@ -524,15 +567,8 @@ function testListing(metadata, response)
           ),
     
           TABLE({cellpadding: 0, cellspacing: 0, id: "test-table"},
-            TR(TD("Passed"), TD("Failed"), TD("Todo"), 
-                TD({rowspan: count+1},
-                   UL({class: "top"},
-                      LI(B("Test Files")),        
-                      linksToListItems(links)
-                      )
-                )
-            ),
-            linksToTableRows(links)
+            TR(TD("Passed"), TD("Failed"), TD("Todo"), TD("Test Files")),
+            linksToTableRows(links, 0)
           ),
           DIV({class: "clear"})
         )

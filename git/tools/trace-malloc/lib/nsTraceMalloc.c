@@ -230,7 +230,7 @@ static uint32 tracing_enabled = 0;
 #endif
 
 static TM_TLS_INDEX_TYPE tls_index;
-static tm_thread main_thread; /* 0-initialization is correct */
+static PRBool tls_index_initialized = PR_FALSE;
 
 /* FIXME (maybe): This is currently unused; we leak the thread-local data. */
 #if 0
@@ -257,8 +257,16 @@ tm_get_thread(void)
     tm_thread *t;
     tm_thread stack_tm_thread;
 
-    if (!tmlock) {
-        return &main_thread;
+    if (!tls_index_initialized) {
+        /**
+         * Assume that the first call to |malloc| will occur before
+         * there are multiple threads.  (If that's not the case, we
+         * probably need to do the necessary synchronization without
+         * using NSPR primitives.  See discussion in
+         * https://bugzilla.mozilla.org/show_bug.cgi?id=442192
+         */
+        TM_CREATE_TLS_INDEX(tls_index);
+        tls_index_initialized = PR_TRUE;
     }
 
     t = TM_GET_TLS_DATA(tls_index);
@@ -732,7 +740,7 @@ calltree(void **stack, size_t num_stack_entries, tm_thread *t)
                 if (library) {
                     library_serial = ++library_serial_generator;
                     he = PL_HashTableRawAdd(libraries, hep, hash, library,
-                                            (void*) library_serial);
+                                            NS_INT32_TO_PTR(library_serial));
                 }
                 if (!he) {
                     tmstats.btmalloc_failures++;
@@ -779,7 +787,7 @@ calltree(void **stack, size_t num_stack_entries, tm_thread *t)
             if (filename) {
                 filename_serial = ++filename_serial_generator;
                 he = PL_HashTableRawAdd(filenames, hep, hash, filename,
-                                        (void*) filename_serial);
+                                        NS_INT32_TO_PTR(filename_serial));
             }
             if (!he) {
                 tmstats.btmalloc_failures++;
@@ -826,7 +834,7 @@ calltree(void **stack, size_t num_stack_entries, tm_thread *t)
             if (method) {
                 method_serial = ++method_serial_generator;
                 he = PL_HashTableRawAdd(methods, hep, hash, method,
-                                        (void*) method_serial);
+                                        NS_INT32_TO_PTR(method_serial));
             }
             if (!he) {
                 tmstats.btmalloc_failures++;
@@ -913,14 +921,19 @@ stack_callback(void *pc, void *closure)
 
 /*
  * The caller MUST NOT be holding tmlock when calling backtrace.
+ * On return, if *immediate_abort is set, then the return value is NULL
+ * and the thread is in a very dangerous situation (e.g. holding
+ * sem_pool_lock in Mac OS X pthreads); the caller should bail out
+ * without doing anything (such as acquiring locks).
  */
 callsite *
-backtrace(tm_thread *t, int skip)
+backtrace(tm_thread *t, int skip, int *immediate_abort)
 {
     callsite *site;
     stack_buffer_info *info = &t->backtrace_buf;
     void ** new_stack_buffer;
     size_t new_stack_buffer_size;
+    nsresult rv;
 
     t->suppress_tracing++;
 
@@ -935,7 +948,12 @@ backtrace(tm_thread *t, int skip)
     /* skip == 0 means |backtrace| should show up, so don't use skip + 1 */
     /* NB: this call is repeated below if the buffer is too small */
     info->entries = 0;
-    NS_StackWalk(stack_callback, skip, info);
+    rv = NS_StackWalk(stack_callback, skip, info);
+    *immediate_abort = rv == NS_ERROR_UNEXPECTED;
+    if (rv == NS_ERROR_UNEXPECTED || info->entries == 0) {
+        t->suppress_tracing--;
+        return NULL;
+    }
 
     /*
      * To avoid allocating in stack_callback (which, on Windows, is
@@ -957,11 +975,6 @@ backtrace(tm_thread *t, int skip)
         NS_StackWalk(stack_callback, skip, info);
 
         PR_ASSERT(info->entries * 2 == new_stack_buffer_size); /* same stack */
-    }
-
-    if (info->entries == 0) {
-        t->suppress_tracing--;
-        return NULL;
     }
 
     site = calltree(info->buffer, info->entries, t);
@@ -1309,17 +1322,8 @@ NS_TraceMallocStartup(int logfd)
 
     atexit(NS_TraceMallocShutdown);
 
-    /*
-     * We only allow one thread until NS_TraceMallocStartup is called.
-     * When it is, we have to initialize tls_index before allocating tmlock
-     * since get_tm_index uses NULL-tmlock to detect tls_index being
-     * uninitialized.
-     */
-    main_thread.suppress_tracing++;
-    TM_CREATE_TLS_INDEX(tls_index);
-    TM_SET_TLS_DATA(tls_index, &main_thread);
     tmlock = PR_NewLock();
-    main_thread.suppress_tracing--;
+    (void) tm_get_thread(); /* ensure index initialization while it's easy */
 
     if (tracing_enabled)
         StartupHooker();
@@ -1707,8 +1711,9 @@ NS_TraceStack(int skip, FILE *ofp)
 {
     callsite *site;
     tm_thread *t = tm_get_thread();
+    int immediate_abort;
 
-    site = backtrace(t, skip + 1);
+    site = backtrace(t, skip + 1, &immediate_abort);
     while (site) {
         if (site->name || site->parent) {
             fprintf(ofp, "%s[%s +0x%X]\n",
@@ -1788,11 +1793,14 @@ MallocCallback(void *ptr, size_t size, PRUint32 start, PRUint32 end, tm_thread *
     callsite *site;
     PLHashEntry *he;
     allocation *alloc;
+    int immediate_abort;
 
     if (!tracing_enabled || t->suppress_tracing != 0)
         return;
 
-    site = backtrace(t, 2);
+    site = backtrace(t, 2, &immediate_abort);
+    if (immediate_abort)
+        return;
 
     TM_SUPPRESS_TRACING_AND_ENTER_LOCK(t);
     tmstats.malloc_calls++;
@@ -1822,11 +1830,14 @@ CallocCallback(void *ptr, size_t count, size_t size, PRUint32 start, PRUint32 en
     callsite *site;
     PLHashEntry *he;
     allocation *alloc;
+    int immediate_abort;
 
     if (!tracing_enabled || t->suppress_tracing != 0)
         return;
 
-    site = backtrace(t, 2);
+    site = backtrace(t, 2, &immediate_abort);
+    if (immediate_abort)
+        return;
 
     TM_SUPPRESS_TRACING_AND_ENTER_LOCK(t);
     tmstats.calloc_calls++;
@@ -1861,11 +1872,14 @@ ReallocCallback(void * oldptr, void *ptr, size_t size,
     PLHashEntry **hep, *he;
     allocation *alloc;
     FILE *trackfp = NULL;
+    int immediate_abort;
 
     if (!tracing_enabled || t->suppress_tracing != 0)
         return;
 
-    site = backtrace(t, 2);
+    site = backtrace(t, 2, &immediate_abort);
+    if (immediate_abort)
+        return;
 
     TM_SUPPRESS_TRACING_AND_ENTER_LOCK(t);
     tmstats.realloc_calls++;
@@ -1944,6 +1958,12 @@ FreeCallback(void * ptr, PRUint32 start, PRUint32 end, tm_thread *t)
     if (!tracing_enabled || t->suppress_tracing != 0)
         return;
 
+    /*
+     * FIXME: Perhaps we should call backtrace() so we can check for
+     * immediate_abort. However, the only current contexts where
+     * immediate_abort will be true do not call free(), so for now,
+     * let's avoid the cost of backtrace().  See bug 478195.
+     */
     TM_SUPPRESS_TRACING_AND_ENTER_LOCK(t);
     tmstats.free_calls++;
     if (!ptr) {
@@ -1976,9 +1996,12 @@ PR_IMPLEMENT(nsTMStackTraceID)
 NS_TraceMallocGetStackTrace(void)
 {
     callsite *site;
+    int dummy;
     tm_thread *t = tm_get_thread();
 
-    site = backtrace(t, 2);
+    PR_ASSERT(t->suppress_tracing == 0);
+
+    site = backtrace(t, 2, &dummy);
     return (nsTMStackTraceID) site;
 }
 

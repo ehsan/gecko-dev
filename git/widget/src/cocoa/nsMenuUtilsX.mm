@@ -44,40 +44,64 @@
 #include "nsCocoaUtils.h"
 #include "nsCocoaWindow.h"
 #include "nsWidgetAtoms.h"
+#include "nsIDocument.h"
+#include "nsIDOMDocumentEvent.h"
+#include "nsIDOMEventTarget.h"
+#include "nsIDOMXULCommandEvent.h"
+#include "nsIPrivateDOMEvent.h"
+#include "nsPIDOMWindow.h"
+#include "nsIDOMAbstractView.h"
 
-#import <Carbon/Carbon.h>
-
-nsEventStatus nsMenuUtilsX::DispatchCommandTo(nsIContent* aTargetContent)
+void nsMenuUtilsX::DispatchCommandTo(nsIContent* aTargetContent)
 {
   NS_PRECONDITION(aTargetContent, "null ptr");
 
-  nsEventStatus status = nsEventStatus_eConsumeNoDefault;
-  nsXULCommandEvent event(PR_TRUE, NS_XUL_COMMAND, nsnull);
+  nsIDocument* doc = aTargetContent->GetOwnerDoc();
+  nsCOMPtr<nsIDOMDocumentEvent> docEvent = do_QueryInterface(doc);
+  nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(aTargetContent);
+  if (docEvent && target) {
+    nsCOMPtr<nsIDOMEvent> event;
+    docEvent->CreateEvent(NS_LITERAL_STRING("xulcommandevent"),
+                          getter_AddRefs(event));
+    nsCOMPtr<nsIDOMXULCommandEvent> command = do_QueryInterface(event);
+    nsCOMPtr<nsIPrivateDOMEvent> pEvent = do_QueryInterface(command);
+    nsCOMPtr<nsIDOMAbstractView> view = do_QueryInterface(doc->GetWindow());
 
-  // FIXME: Should probably figure out how to init this with the actual
-  // pressed keys, but this is a big old edge case anyway. -dwh
-
-  aTargetContent->DispatchDOMEvent(&event, nsnull, nsnull, &status);
-  return status;
+    // FIXME: Should probably figure out how to init this with the actual
+    // pressed keys, but this is a big old edge case anyway. -dwh
+    if (pEvent &&
+        NS_SUCCEEDED(command->InitCommandEvent(NS_LITERAL_STRING("command"),
+                                               PR_TRUE, PR_TRUE, view, 0,
+                                               PR_FALSE, PR_FALSE, PR_FALSE,
+                                               PR_FALSE, nsnull))) {
+      pEvent->SetTrusted(PR_TRUE);
+      PRBool dummy;
+      target->DispatchEvent(event, &dummy);
+    }
+  }
 }
 
-
-NSString* nsMenuUtilsX::CreateTruncatedCocoaLabel(const nsString& itemLabel)
+NSString* nsMenuUtilsX::GetTruncatedCocoaLabel(const nsString& itemLabel)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
 
+#ifdef __LP64__
+  // Don't do anything on 64-bit Mac OS X for now, there is no API that does
+  // what we want. We'll probably need to roll our own solution.
+  return [NSString stringWithCharacters:itemLabel.get() length:itemLabel.Length()];
+#else
   // ::TruncateThemeText() doesn't take the number of characters to truncate to, it takes a pixel with
   // to fit the string in. Ugh. I talked it over with sfraser and we couldn't come up with an 
   // easy way to compute what this should be given the system font, etc, so we're just going
   // to hard code it to something reasonable and bigger fonts will just have to deal.
   const short kMaxItemPixelWidth = 300;
-  NSMutableString *label = [[NSMutableString stringWithCharacters:itemLabel.get() length:itemLabel.Length()] retain];
+  NSMutableString *label = [NSMutableString stringWithCharacters:itemLabel.get() length:itemLabel.Length()];
   ::TruncateThemeText((CFMutableStringRef)label, kThemeMenuItemFont, kThemeStateActive, kMaxItemPixelWidth, truncMiddle, NULL);
-  return label; // caller releases
+  return label;
+#endif
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
-
 
 PRUint8 nsMenuUtilsX::GeckoModifiersForNodeAttribute(const nsString& modifiersAttribute)
 {
@@ -103,7 +127,6 @@ PRUint8 nsMenuUtilsX::GeckoModifiersForNodeAttribute(const nsString& modifiersAt
   return modifiers;
 }
 
-
 unsigned int nsMenuUtilsX::MacModifiersForGeckoModifiers(PRUint8 geckoModifiers)
 {
   unsigned int macModifiers = 0;
@@ -120,7 +143,6 @@ unsigned int nsMenuUtilsX::MacModifiersForGeckoModifiers(PRUint8 geckoModifiers)
   return macModifiers;
 }
 
-
 nsMenuBarX* nsMenuUtilsX::GetHiddenWindowMenuBar()
 {
   nsIWidget* hiddenWindowWidgetNoCOMPtr = nsCocoaUtils::GetHiddenWindowWidget();
@@ -130,17 +152,18 @@ nsMenuBarX* nsMenuUtilsX::GetHiddenWindowMenuBar()
     return nsnull;
 }
 
-
 // It would be nice if we could localize these edit menu names.
-static NSMenuItem* standardEditMenuItem = nil;
 NSMenuItem* nsMenuUtilsX::GetStandardEditMenuItem()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
 
-  if (standardEditMenuItem)
-    return standardEditMenuItem;
-
-  standardEditMenuItem = [[NSMenuItem alloc] initWithTitle:@"Edit" action:nil keyEquivalent:@""];
+  // In principle we should be able to allocate this once and then always
+  // return the same object.  But wierd interactions happen between native
+  // app-modal dialogs and Gecko-modal dialogs that open above them.  So what
+  // we return here isn't always released before it needs to be added to
+  // another menu.  See bmo bug 468393.
+  NSMenuItem* standardEditMenuItem =
+    [[[NSMenuItem alloc] initWithTitle:@"Edit" action:nil keyEquivalent:@""] autorelease];
   NSMenu* standardEditMenu = [[NSMenu alloc] initWithTitle:@"Edit"];
   [standardEditMenuItem setSubmenu:standardEditMenu];
   [standardEditMenu release];
@@ -188,7 +211,6 @@ NSMenuItem* nsMenuUtilsX::GetStandardEditMenuItem()
   NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
 
-
 PRBool nsMenuUtilsX::NodeIsHiddenOrCollapsed(nsIContent* inContent)
 {
   return (inContent->AttrValueIs(kNameSpaceID_None, nsWidgetAtoms::hidden,
@@ -197,43 +219,41 @@ PRBool nsMenuUtilsX::NodeIsHiddenOrCollapsed(nsIContent* inContent)
                                  nsWidgetAtoms::_true, eCaseMatters));
 }
 
-
 // Determines how many items are visible among the siblings in a menu that are
-// before the given child. Note that this will not count the application menu.
-nsresult nsMenuUtilsX::CountVisibleBefore(nsMenuObjectX* aParentMenu, nsMenuObjectX* aChild, PRUint32* outVisibleBefore)
+// before the given child. This will not count the application menu.
+int nsMenuUtilsX::CalculateNativeInsertionPoint(nsMenuObjectX* aParent,
+                                                nsMenuObjectX* aChild)
 {
-  NS_ASSERTION(outVisibleBefore, "bad index param in nsMenuX::CountVisibleBefore");
-
-  nsMenuObjectTypeX parentType = aParentMenu->MenuObjectType();
+  int insertionPoint = 0;
+  nsMenuObjectTypeX parentType = aParent->MenuObjectType();
   if (parentType == eMenuBarObjectType) {
-    *outVisibleBefore = 0;
-    nsMenuBarX* menubarParent = static_cast<nsMenuBarX*>(aParentMenu);
+    nsMenuBarX* menubarParent = static_cast<nsMenuBarX*>(aParent);
     PRUint32 numMenus = menubarParent->GetMenuCount();
     for (PRUint32 i = 0; i < numMenus; i++) {
       nsMenuX* currMenu = menubarParent->GetMenuAt(i);
       if (currMenu == aChild)
-        return NS_OK; // we found ourselves, break out
-      if (currMenu) {
-        nsIContent* menuContent = currMenu->Content();
-        if (menuContent->GetChildCount() > 0 &&
-            !nsMenuUtilsX::NodeIsHiddenOrCollapsed(menuContent)) {
-          ++(*outVisibleBefore);
-        }
-      }
+        return insertionPoint; // we found ourselves, break out
+      if (currMenu && [currMenu->NativeMenuItem() menu])
+        insertionPoint++;
     }
   }
   else if (parentType == eSubmenuObjectType) {
-    *outVisibleBefore = 0;
-    nsMenuX* menuParent = static_cast<nsMenuX*>(aParentMenu);
+    nsMenuX* menuParent = static_cast<nsMenuX*>(aParent);
     PRUint32 numItems = menuParent->GetItemCount();
     for (PRUint32 i = 0; i < numItems; i++) {
       // Using GetItemAt instead of GetVisibleItemAt to avoid O(N^2)
       nsMenuObjectX* currItem = menuParent->GetItemAt(i);
       if (currItem == aChild)
-        return NS_OK; // we found ourselves, break out
-      if (!nsMenuUtilsX::NodeIsHiddenOrCollapsed(currItem->Content()))
-        ++(*outVisibleBefore);
+        return insertionPoint; // we found ourselves, break out
+      NSMenuItem* nativeItem = nil;
+      nsMenuObjectTypeX currItemType = currItem->MenuObjectType();
+      if (currItemType == eSubmenuObjectType)
+        nativeItem = static_cast<nsMenuX*>(currItem)->NativeMenuItem();
+      else
+        nativeItem = (NSMenuItem*)(currItem->NativeData());
+      if ([nativeItem menu])
+        insertionPoint++;
     }
   }
-  return NS_ERROR_FAILURE;
+  return insertionPoint;
 }

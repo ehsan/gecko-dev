@@ -37,7 +37,7 @@
  */
 const URI_EXTENSION_BLOCKLIST_DIALOG = "chrome://mozapps/content/extensions/blocklist.xul";
 
-do_import_script("netwerk/test/httpserver/httpd.js");
+do_load_httpd_js();
 
 var ADDONS = [{
   id: "test_bug449027_1@tests.mozilla.org",
@@ -550,7 +550,7 @@ function run_test() {
   startupEM();
 
   gTestserver = new nsHttpServer();
-  gTestserver.registerDirectory("/data/", do_get_file("toolkit/mozapps/extensions/test/unit/data"));
+  gTestserver.registerDirectory("/data/", do_get_file("data"));
   gTestserver.start(4444);
 
   do_test_pending();
@@ -597,6 +597,5 @@ function run_test_pt3() {
 function check_test_pt3() {
   dump("Checking pt 3\n");
   check_state("appBlocks", "toolkitBlocks");
-  gTestserver.stop();
-  do_test_finished();
+  gTestserver.stop(do_test_finished);
 }

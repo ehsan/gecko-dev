@@ -49,23 +49,27 @@ function SignonsStartup() {
   kSignonBundle = document.getElementById("signonBundle");
   document.getElementById("togglePasswords").label = kSignonBundle.getString("showPasswords");
   document.getElementById("togglePasswords").accessKey = kSignonBundle.getString("showPasswordsAccessKey");
-  document.getElementById("signonsIntro").value = kSignonBundle.getString("loginsSpielAll");
+  document.getElementById("signonsIntro").textContent = kSignonBundle.getString("loginsSpielAll");
   LoadSignons();
 
   // filter the table if requested by caller
-  if (window.arguments && window.arguments[0] &&
-      window.arguments[0].filterString) {
-    document.getElementById("filter").value = window.arguments[0].filterString;
-    _filterPasswords();
-  }
+  if (window.arguments &&
+      window.arguments[0] &&
+      window.arguments[0].filterString)
+    setFilter(window.arguments[0].filterString);
 
   FocusFilterBox();
+}
+
+function setFilter(aFilterString) {
+  document.getElementById("filter").value = aFilterString;
+  _filterPasswords();
 }
 
 var signonsTreeView = {
   _filterSet : [],
   _lastSelectedRanges : [],
-  selection: null, 
+  selection: null,
 
   rowCount : 0,
   setTree : function(tree) {},
@@ -93,7 +97,10 @@ var signonsTreeView = {
   cycleHeader : function(column) {},
   getRowProperties : function(row,prop) {},
   getColumnProperties : function(column,prop) {},
-  getCellProperties : function(row,column,prop) {}
+  getCellProperties : function(row,column,prop) {
+    if (column.element.getAttribute("id") == "siteCol")
+      prop.AppendElement(kLTRAtom);
+  }
  };
 
 
@@ -120,7 +127,7 @@ function LoadSignons() {
     element.removeAttribute("disabled");
     toggle.removeAttribute("disabled");
   }
- 
+
   return true;
 }
 
@@ -160,14 +167,19 @@ function DeleteAllSignons() {
 }
 
 function TogglePasswordVisible() {
-  if (!showingPasswords && !ConfirmShowPasswords())
-    return;
+  if (showingPasswords || ConfirmShowPasswords()) {
+    showingPasswords = !showingPasswords;
+    document.getElementById("togglePasswords").label = kSignonBundle.getString(showingPasswords ? "hidePasswords" : "showPasswords");
+    document.getElementById("togglePasswords").accessKey = kSignonBundle.getString(showingPasswords ? "hidePasswordsAccessKey" : "showPasswordsAccessKey");
+    document.getElementById("passwordCol").hidden = !showingPasswords;
+    _filterPasswords();
+  }
 
-  showingPasswords = !showingPasswords;
-  document.getElementById("togglePasswords").label = kSignonBundle.getString(showingPasswords ? "hidePasswords" : "showPasswords");
-  document.getElementById("togglePasswords").accessKey = kSignonBundle.getString(showingPasswords ? "hidePasswordsAccessKey" : "showPasswordsAccessKey");
-  document.getElementById("passwordCol").hidden = !showingPasswords;
-  _filterPasswords();
+  // Notify observers that the password visibility toggling is
+  // completed.  (Mostly useful for tests)
+  Components.classes["@mozilla.org/observer-service;1"]
+            .getService(Components.interfaces.nsIObserverService)
+            .notifyObservers(null, "passwordmgr-password-toggle-complete", null);
 }
 
 function AskUserShowPasswords() {
@@ -249,11 +261,11 @@ function SignonClearFilter() {
   lastSignonSortColumn = "";
   lastSignonSortAscending = false;
   LoadSignons();
-    
+
   // Restore selection
   if (singleSelection) {
     signonsTreeView.selection.clearSelection();
-    for (i = 0; i < signonsTreeView._lastSelectedRanges.length; ++i) {
+    for (let i = 0; i < signonsTreeView._lastSelectedRanges.length; ++i) {
       var range = signonsTreeView._lastSelectedRanges[i];
       signonsTreeView.selection.rangedSelect(range.min, range.max, true);
     }
@@ -262,7 +274,7 @@ function SignonClearFilter() {
   }
   signonsTreeView._lastSelectedRanges = [];
 
-  document.getElementById("signonsIntro").value = kSignonBundle.getString("loginsSpielAll");
+  document.getElementById("signonsIntro").textContent = kSignonBundle.getString("loginsSpielAll");
 }
 
 function FocusFilterBox() {
@@ -315,13 +327,15 @@ function _filterPasswords()
   var newFilterSet = FilterPasswords(filter, signonsTreeView);
   if (!signonsTreeView._filterSet.length) {
     // Save Display Info for the Non-Filtered mode when we first
-    // enter Filtered mode. 
+    // enter Filtered mode.
     SignonSaveState();
   }
   signonsTreeView._filterSet = newFilterSet;
 
   // Clear the display
-  signonsTree.treeBoxObject.rowCountChanged(0, -signonsTreeView.rowCount);
+  let oldRowCount = signonsTreeView.rowCount;
+  signonsTreeView.rowCount = 0;
+  signonsTree.treeBoxObject.rowCountChanged(0, -oldRowCount);
   // Set up the filtered display
   signonsTreeView.rowCount = signonsTreeView._filterSet.length;
   signonsTree.treeBoxObject.rowCountChanged(0, signonsTreeView.rowCount);
@@ -330,5 +344,5 @@ function _filterPasswords()
   if (signonsTreeView.rowCount > 0)
     signonsTreeView.selection.select(0);
 
-  document.getElementById("signonsIntro").value = kSignonBundle.getString("loginsSpielFiltered");
+  document.getElementById("signonsIntro").textContent = kSignonBundle.getString("loginsSpielFiltered");
 }

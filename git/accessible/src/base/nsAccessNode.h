@@ -74,6 +74,20 @@ class nsIDocShellTreeItem;
 typedef nsInterfaceHashtable<nsVoidPtrHashKey, nsIAccessNode>
         nsAccessNodeHashtable;
 
+#define NS_OK_DEFUNCT_OBJECT \
+NS_ERROR_GENERATE_SUCCESS(NS_ERROR_MODULE_GENERAL, 0x22)
+
+#define NS_ENSURE_A11Y_SUCCESS(res, ret)                                  \
+  PR_BEGIN_MACRO                                                          \
+    nsresult __rv = res; /* Don't evaluate |res| more than once */        \
+    if (NS_FAILED(__rv)) {                                                \
+      NS_ENSURE_SUCCESS_BODY(res, ret)                                    \
+      return ret;                                                         \
+    }                                                                     \
+    if (__rv == NS_OK_DEFUNCT_OBJECT)                                     \
+      return ret;                                                         \
+  PR_END_MACRO
+
 #define NS_ACCESSNODE_IMPL_CID                          \
 {  /* 13555f6e-0c0f-4002-84f6-558d47b8208e */           \
   0x13555f6e,                                           \
@@ -126,7 +140,7 @@ class nsAccessNode: public nsIAccessNode
     /**
      * Returns true when the accessible is defunct.
      */
-    virtual PRBool IsDefunct() { return !mDOMNode; }
+    virtual PRBool IsDefunct();
 
     /**
      * Initialize the access node object, add it to the cache.
@@ -160,21 +174,21 @@ protected:
     /**
      * Notify global nsIObserver's that a11y is getting init'd or shutdown
      */
-    static void NotifyA11yInitOrShutdown();
+    static void NotifyA11yInitOrShutdown(PRBool aIsInit);
 
     // Static data, we do our own refcounting for our static data
     static nsIStringBundle *gStringBundle;
     static nsIStringBundle *gKeyStringBundle;
     static nsITimer *gDoCommandTimer;
+#ifdef DEBUG
     static PRBool gIsAccessibilityActive;
-    static PRBool gIsShuttingDownApp;
+#endif
     static PRBool gIsCacheDisabled;
     static PRBool gIsFormFillEnabled;
 
     static nsAccessNodeHashtable gGlobalDocAccessibleCache;
 
 private:
-  static nsIAccessibilityService *sAccService;
   static nsApplicationAccessibleWrap *gApplicationAccessible;
 };
 

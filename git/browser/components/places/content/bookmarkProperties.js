@@ -87,6 +87,7 @@
  *     - "feedLocation"
  *     - "siteLocation"
  *     - "folderPicker" - hides both the tree and the menu.
+ *   @ readOnly (Boolean) - optional, states if the panel should be read-only
  *
  * window.arguments[0].performed is set to true if any transaction has
  * been performed by the dialog.
@@ -127,6 +128,7 @@ var BookmarkPropertiesPanel = {
   _defaultInsertionPoint: null,
   _hiddenRows: [],
   _batching: false,
+  _readOnly: false,
 
   /**
    * This method returns the correct label for the dialog's "accept"
@@ -217,6 +219,7 @@ var BookmarkPropertiesPanel = {
 
           if ("keyword" in dialogInfo) {
             this._keyword = dialogInfo.keyword;
+            this._isAddKeywordDialog = true;
             if ("postData" in dialogInfo)
               this._postData = dialogInfo.postData;
             if ("charSet" in dialogInfo)
@@ -263,6 +266,7 @@ var BookmarkPropertiesPanel = {
       this._title = PlacesUtils.bookmarks.getItemTitle(this._itemId);
       // Don't show folderPicker when editing
       this._hiddenRows.push("folderPicker");
+      this._readOnly = !!dialogInfo.readOnly;
 
       switch (dialogInfo.type) {
         case "bookmark":
@@ -279,7 +283,7 @@ var BookmarkPropertiesPanel = {
           break;
 
         case "folder":
-          if (PlacesUtils.livemarks.isLivemark(this._itemId)) {
+          if (PlacesUtils.itemIsLivemark(this._itemId)) {
             this._itemType = LIVEMARK_CONTAINER;
             this._feedURI = PlacesUtils.livemarks.getFeedURI(this._itemId);
             this._siteURI = PlacesUtils.livemarks.getSiteURI(this._itemId);
@@ -333,6 +337,7 @@ var BookmarkPropertiesPanel = {
     switch (this._action) {
       case ACTION_EDIT:
         this._fillEditProperties();
+        acceptButton.disabled = this._readOnly;
         break;
       case ACTION_ADD:
         this._fillAddProperties();
@@ -349,59 +354,72 @@ var BookmarkPropertiesPanel = {
     // sizeToContent is not usable due to bug 90276, so we'll use resizeTo
     // instead and cache the element size. See WSucks in the legacy
     // UI code (addBookmark2.js).
-    this._resizeListener = {
-      _elementsHeight: [],
-      handleEvent: function(event) {
+    if (!this._element("tagsRow").collapsed) {
+      this._element("tagsSelectorRow")
+          .addEventListener("DOMAttrModified", this, false);
+    }
+    if (!this._element("folderRow").collapsed) {
+      this._element("folderTreeRow")
+          .addEventListener("DOMAttrModified", this, false);
+    }
+
+    if (!this._readOnly) {
+      // Listen on uri fields to enable accept button if input is valid
+      if (this._itemType == BOOKMARK_ITEM) {
+        this._element("locationField")
+            .addEventListener("input", this, false);
+        if (this._isAddKeywordDialog) {
+          this._element("keywordField")
+              .addEventListener("input", this, false);
+        }
+      }
+      else if (this._itemType == LIVEMARK_CONTAINER) {
+        this._element("feedLocationField")
+            .addEventListener("input", this, false);
+        this._element("siteLocationField")
+            .addEventListener("input", this, false);
+      }
+    }
+
+    window.sizeToContent();
+  },
+
+  // nsIDOMEventListener
+  _elementsHeight: [],
+  handleEvent: function BPP_handleEvent(aEvent) {
+    var target = aEvent.target;
+    switch (aEvent.type) {
+      case "input":
+        if (target.id == "editBMPanel_locationField" ||
+            target.id == "editBMPanel_feedLocationField" ||
+            target.id == "editBMPanel_siteLocationField" ||
+            target.id == "editBMPanel_keywordField") {
+          // Check uri fields to enable accept button if input is valid
+          document.documentElement
+                  .getButton("accept").disabled = !this._inputIsValid();
+        }
+        break;
+
+      case "DOMAttrModified":
         // this is called when collapsing a node, but also its direct children,
         // we only need to resize when the original node changes.
-        if (event.attrName == "collapsed" &&
-            event.target == event.originalTarget) {
-          var element = event.target;
-          var id = element.id;
+        if ((target.id == "editBMPanel_tagsSelectorRow" ||
+             target.id == "editBMPanel_folderTreeRow") &&
+            aEvent.attrName == "collapsed" &&
+            target == aEvent.originalTarget) {
+          var id = target.id;
           var newHeight = window.outerHeight;
-          if (event.newValue) // is collapsed
+          if (aEvent.newValue) // is collapsed
             newHeight -= this._elementsHeight[id];
           else {
-            this._elementsHeight[id] = element.boxObject.height;
+            this._elementsHeight[id] = target.boxObject.height;
             newHeight += this._elementsHeight[id];
           }
 
           window.resizeTo(window.outerWidth, newHeight);
         }
-      }
-    };
-
-    if (!this._element("tagsRow").collapsed) {
-      this._element("tagsSelector")
-          .addEventListener("DOMAttrModified", this._resizeListener, false);
+        break;
     }
-    if (!this._element("folderRow").collapsed) {
-      this._element("folderTree")
-          .addEventListener("DOMAttrModified", this._resizeListener, false);
-      this._element("newFolderBox")
-          .addEventListener("DOMAttrModified", this._resizeListener, false);
-    }
-
-    // Listen on uri fields to enable accept button if input is valid
-    this._inputListener = {
-      _self: this,
-      handleEvent: function(event) {
-        document.documentElement.getButton("accept").disabled =
-          !this._self._inputIsValid();
-      }
-    };
-    if (this._itemType == BOOKMARK_ITEM) {
-      this._element("locationField")
-          .addEventListener("input", this._inputListener, false);
-    }
-    else if (this._itemType == LIVEMARK_CONTAINER) {
-      this._element("feedLocationField")
-          .addEventListener("input", this._inputListener, false);
-      this._element("siteLocationField")
-          .addEventListener("input", this._inputListener, false);
-    }
-
-    window.sizeToContent();
   },
 
   _beginBatch: function BPP__beginBatch() {
@@ -410,17 +428,6 @@ var BookmarkPropertiesPanel = {
 
     PlacesUIUtils.ptm.beginBatch();
     this._batching = true;
-
-    // XXXmano hack: We push a no-op transaction on the stack so it's always
-    // safe for the Cancel button to call undoTransaction after endBatch.
-    // Otherwise, if no changes were done in the edit-item panel, the last
-    // transaction on the undo stack may be the initial createItem transaction,
-    // or worse, the batched editing of some other item.
-    PlacesUIUtils.ptm.doTransaction({ doTransaction: function() { },
-                                      undoTransaction: function() { },
-                                      redoTransaction: function() { },
-                                      isTransient: false,
-                                      merge: function() { return false; } });
   },
 
   _endBatch: function BPP__endBatch() {
@@ -433,7 +440,8 @@ var BookmarkPropertiesPanel = {
 
   _fillEditProperties: function BPP__fillEditProperties() {
     gEditItemOverlay.initPanel(this._itemId,
-                               { hiddenRows: this._hiddenRows });
+                               { hiddenRows: this._hiddenRows,
+                                 forceReadOnly: this._readOnly });
   },
 
   _fillAddProperties: function BPP__fillAddProperties() {
@@ -449,41 +457,52 @@ var BookmarkPropertiesPanel = {
       locationField.value = "";
   },
 
+  // nsISupports
   QueryInterface: function BPP_QueryInterface(aIID) {
-    if (aIID.equals(Ci.nsISupports))
+    if (aIID.equals(Ci.nsIDOMEventListener) ||
+        aIID.equals(Ci.nsISupports))
       return this;
 
-    throw Cr.NS_ERROR_NO_INTERFACE;
+    throw Cr.NS_NOINTERFACE;
   },
 
   _element: function BPP__element(aID) {
-    return gEditItemOverlay._element(aID);
+    return document.getElementById("editBMPanel_" + aID);
   },
 
   onDialogUnload: function BPP_onDialogUnload() {
-    gEditItemOverlay.uninitPanel(true);
+    // gEditItemOverlay does not exist anymore here, so don't rely on it.
     // Calling removeEventListener with arguments which do not identify any
     // currently registered EventListener on the EventTarget has no effect.
-    this._element("tagsSelector")
-        .removeEventListener("DOMAttrModified", this._resizeListener, false);
-    this._element("folderTree")
-        .removeEventListener("DOMAttrModified", this._resizeListener, false);
-    this._element("newFolderBox")
-        .removeEventListener("DOMAttrModified", this._resizeListener, false);
+    this._element("tagsSelectorRow")
+        .removeEventListener("DOMAttrModified", this, false);
+    this._element("folderTreeRow")
+        .removeEventListener("DOMAttrModified", this, false);
     this._element("locationField")
-        .removeEventListener("input", this._inputListener, false);
+        .removeEventListener("input", this, false);
     this._element("feedLocationField")
-        .removeEventListener("input", this._inputListener, false);
+        .removeEventListener("input", this, false);
     this._element("siteLocationField")
-        .removeEventListener("input", this._inputListener, false);
+        .removeEventListener("input", this, false);
   },
 
   onDialogAccept: function BPP_onDialogAccept() {
+    // We must blur current focused element to save its changes correctly
+    document.commandDispatcher.focusedElement.blur();
+    // The order here is important! We have to uninit the panel first, otherwise
+    // late changes could force it to commit more transactions.
+    gEditItemOverlay.uninitPanel(true);
+    gEditItemOverlay = null;
     this._endBatch();
     window.arguments[0].performed = true;
   },
 
   onDialogCancel: function BPP_onDialogCancel() {
+    // The order here is important! We have to uninit the panel first, otherwise
+    // changes done as part of Undo may change the panel contents and by
+    // that force it to commit more transactions.
+    gEditItemOverlay.uninitPanel(true);
+    gEditItemOverlay = null;
     this._endBatch();
     PlacesUIUtils.ptm.undoTransaction();
     window.arguments[0].performed = false;
@@ -497,6 +516,8 @@ var BookmarkPropertiesPanel = {
   _inputIsValid: function BPP__inputIsValid() {
     if (this._itemType == BOOKMARK_ITEM &&
         !this._containsValidURI("locationField"))
+      return false;
+    if (this._isAddKeywordDialog && !this._element("keywordField").value.length)
       return false;
 
     // Feed Location has to be a valid URI;
@@ -533,68 +554,6 @@ var BookmarkPropertiesPanel = {
   },
 
   /**
-   * XXXmano todo:
-   *  1. Make setAnnotationsForURI unset a given annotation if the value field
-   *     is not set.
-   *  2. Replace PlacesEditItemDescriptionTransaction and
-   *     PlacesSetLoadInSidebarTransaction transaction with a generic
-   *     transaction to set/unset an annotation object.
-   *  3. Use the two helpers below with this new generic transaction in
-   *     _saveChanges.
-   */
-
-  /**
-   * Returns an object which could then be used to set/unset the
-   * description annotation for an item (any type).
-   *
-   * @param aDescription
-   *        The description of the item.
-   * @returns an object representing the annotation which could then be used
-   *          with get/setAnnotationsForURI of PlacesUtils.
-   */
-  _getDescriptionAnnotation:
-  function BPP__getDescriptionAnnotation(aDescription) {
-    var anno = { name: DESCRIPTION_ANNO,
-                 type: Ci.nsIAnnotationService.TYPE_STRING,
-                 flags: 0,
-                 value: aDescription,
-                 expires: Ci.nsIAnnotationService.EXPIRE_NEVER };
-
-    /**
-     * See todo note above
-     * if (aDescription)
-     *   anno.value = aDescription;
-     */
-    return anno;
-  },
-
-  /**
-   * Returns an object which could then be used to set/unset the
-   * load-in-sidebar annotation for a bookmark item.
-   *
-   * @param aLoadInSidebar
-   *        Whether to load the bookmark item in the sidebar in default
-   *        conditions.
-   * @returns an object representing the annotation which could then be used
-   *          with get/setAnnotationsForURI of PlacesUtils.
-   */
-  _getLoadInSidebarAnnotation:
-  function BPP__getLoadInSidebarAnnotation(aLoadInSidebar) {
-    var anno = { name: LOAD_IN_SIDEBAR_ANNO,
-                 type: Ci.nsIAnnotationService.TYPE_INT32,
-                 flags: 0,
-                 value: aLoadInSidebar,
-                 expires: Ci.nsIAnnotationService.EXPIRE_NEVER };
-
-    /**
-     * See todo note above
-     * if (anno)
-     *   anno.value = aLoadInSidebar;
-     */
-    return anno;
-  },
-
-  /**
    * [New Item Mode] Get the insertion point details for the new item, given
    * dialog state and opening arguments.
    *
@@ -615,12 +574,18 @@ var BookmarkPropertiesPanel = {
   _getCreateNewBookmarkTransaction:
   function BPP__getCreateNewBookmarkTransaction(aContainer, aIndex) {
     var annotations = [];
-    if (this._description)
-      annotations.push(this._getDescriptionAnnotation(this._description));
-    if (this._loadInSidebar)
-      annotations.push(this._getLoadInSidebarAnnotation(true));
-
     var childTransactions = [];
+
+    if (this._description) {
+      childTransactions.push(
+        PlacesUIUtils.ptm.editItemDescription(-1, this._description));
+    }
+
+    if (this._loadInSidebar) {
+      childTransactions.push(
+        PlacesUIUtils.ptm.setLoadInSidebar(-1, this._loadInSidebar));
+    }
+
     if (this._postData) {
       childTransactions.push(
         PlacesUIUtils.ptm.editBookmarkPostData(-1, this._postData));
@@ -703,37 +668,5 @@ var BookmarkPropertiesPanel = {
 
     PlacesUIUtils.ptm.doTransaction(txn);
     this._itemId = PlacesUtils.bookmarks.getIdForItemAt(container, index);
-  },
-
-  _getFolderIdFromMenuList:
-  function BPP__getFolderIdFromMenuList() {
-    var selectedItem = this._element("folderPicker").selectedItem;
-    NS_ASSERT("folderId" in selectedItem,
-              "Invalid menuitem in the folders-menulist");
-    return selectedItem.folderId;
-  },
-
-  /**
-   * Get the corresponding menu-item in the folder-menu-list for a bookmarks
-   * folder if such an item exists. Otherwise, this creates a menu-item for the
-   * folder. If the items-count limit (see MAX_FOLDERS_IN_MENU_LIST) is reached,
-   * the new item replaces the last menu-item.
-   * @param aFolderId
-   *        The identifier of the bookmarks folder.
-   */
-  _getFolderMenuItem:
-  function BPP__getFolderMenuItem(aFolderId) {
-    var menupopup = this._folderMenuList.menupopup;
-
-    for (var i = 0; i < menupopup.childNodes.length; i++) {
-      if (menupopup.childNodes[i].folderId == aFolderId)
-        return menupopup.childNodes[i];
-    }
-
-    // 2 special folders + separator + folder-items-count limit
-    if (menupopup.childNodes.length == 3 + MAX_FOLDER_ITEM_IN_MENU_LIST)
-      menupopup.removeChild(menupopup.lastChild);
-
-    return this._appendFolderItemToMenupopup(menupopup, aFolderId);
   }
 };

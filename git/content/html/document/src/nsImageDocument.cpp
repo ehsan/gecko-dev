@@ -68,12 +68,13 @@
 #include "nsIDOMElement.h"
 #include "nsIDOMNSHTMLElement.h"
 #include "nsContentErrors.h"
-#include "ImageErrors.h"
+#include "nsURILoader.h"
 #include "nsIDocShell.h"
 #include "nsIContentViewer.h"
 #include "nsIMarkupDocumentViewer.h"
 
 #define AUTOMATIC_IMAGE_RESIZING_PREF "browser.enable_automatic_image_resizing"
+#define CLICK_IMAGE_RESIZING_PREF "browser.enable_click_image_resizing"
 
 class nsImageDocument;
 
@@ -118,6 +119,8 @@ public:
   // nsIDOMEventListener
   NS_IMETHOD HandleEvent(nsIDOMEvent* aEvent);
 
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsImageDocument, nsMediaDocument)
+
   friend class ImageListener;
 protected:
   virtual nsresult CreateSyntheticDocument();
@@ -144,6 +147,7 @@ protected:
   PRInt32                       mImageHeight;
 
   PRPackedBool                  mResizeImageByDefault;
+  PRPackedBool                  mClickResizingEnabled;
   PRPackedBool                  mImageIsOverflowing;
   // mImageIsResized is true if the image is currently resized
   PRPackedBool                  mImageIsResized;
@@ -233,9 +237,9 @@ ImageListener::OnStopRequest(nsIRequest* request, nsISupports *ctxt,
     imageLoader->RemoveObserver(imgDoc);
   }
 
-  // |status| is NS_IMAGELIB_ERROR_LOAD_ABORTED if the image was found in
-  // the cache (bug 177747 comment 51).
-  if (status == NS_IMAGELIB_ERROR_LOAD_ABORTED) {
+  // |status| is NS_ERROR_PARSED_DATA_CACHED if the image was found in
+  // the cache (bug 177747 comment 51, bug 475344).
+  if (status == NS_ERROR_PARSED_DATA_CACHED) {
     status = NS_OK;
   }
 
@@ -272,8 +276,16 @@ nsImageDocument::~nsImageDocument()
 {
 }
 
-// XXXbz shouldn't this participate in cycle collection?  It's got
-// mImageContent!
+NS_IMPL_CYCLE_COLLECTION_CLASS(nsImageDocument)
+
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsImageDocument, nsMediaDocument)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mImageContent)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsImageDocument, nsMediaDocument)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mImageContent)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+
 NS_IMPL_ADDREF_INHERITED(nsImageDocument, nsMediaDocument)
 NS_IMPL_RELEASE_INHERITED(nsImageDocument, nsMediaDocument)
 
@@ -297,6 +309,8 @@ nsImageDocument::Init()
 
   mResizeImageByDefault =
     nsContentUtils::GetBoolPref(AUTOMATIC_IMAGE_RESIZING_PREF);
+  mClickResizingEnabled =
+    nsContentUtils::GetBoolPref(CLICK_IMAGE_RESIZING_PREF);
   mShouldResize = mResizeImageByDefault;
   mFirstResize = PR_TRUE;
 
@@ -469,12 +483,8 @@ nsImageDocument::ScrollImageTo(PRInt32 aX, PRInt32 aY, PRBool restoreImage)
   nsIPresShell *shell = GetPrimaryShell();
   if (!shell)
     return NS_OK;
-
-  nsPresContext* context = shell->GetPresContext();
-  if (!context)
-    return NS_OK;
-
-  nsIViewManager* vm = context->GetViewManager();
+  
+  nsIViewManager* vm = shell->GetViewManager();
   if (!vm)
     return NS_OK;
 
@@ -554,7 +564,7 @@ nsImageDocument::HandleEvent(nsIDOMEvent* aEvent)
   if (eventType.EqualsLiteral("resize")) {
     CheckOverflowing(PR_FALSE);
   }
-  else if (eventType.EqualsLiteral("click")) {
+  else if (eventType.EqualsLiteral("click") && mClickResizingEnabled) {
     SetZoomLevel(1.0);
     mShouldResize = PR_TRUE;
     if (mImageIsResized) {
@@ -621,7 +631,7 @@ nsImageDocument::CreateSyntheticDocument()
 
   nsCOMPtr<nsINodeInfo> nodeInfo;
   nodeInfo = mNodeInfoManager->GetNodeInfo(nsGkAtoms::img, nsnull,
-                                           kNameSpaceID_None);
+                                           kNameSpaceID_XHTML);
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
   mImageContent = NS_NewHTMLImageElement(nodeInfo);

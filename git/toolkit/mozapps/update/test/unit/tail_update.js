@@ -36,17 +36,6 @@
  * ***** END LICENSE BLOCK *****
  */
 
-if (gXHR) {
-  gXHRCallback = null;
-  // null out the event handlers to prevent a mFreeCount leak of 1
-  gXHR.onerror = null;
-  gXHR.onload = null;
-  gXHR.onprogress = null;
-  gXHR = null;
-}
-
-gUpdateChecker = null;
-gAUS = null;
-gPrefs = null;
-gTestserver = null;
-remove_dirs_and_files();
+// Initially moved to head_update since check-interactive was executing this
+// prior to _execute_test(); being executed (bug 384339). It hasn't been moved
+// back since it is easier to comment out the call to cleanUp when needed.

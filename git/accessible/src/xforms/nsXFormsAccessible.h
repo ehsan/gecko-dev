@@ -89,13 +89,9 @@ public:
   // that it is bound to.
   virtual nsresult GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState);
 
-  // Appends ARIA 'datatype' property based on datatype of instance node that
-  // element is bound to.
-  virtual nsresult GetAttributesInternal(nsIPersistentProperties *aAttributes);
-
   // Denies accessible nodes in anonymous content of xforms element by
   // always returning PR_FALSE value.
-  NS_IMETHOD GetAllowsAnonChildAccessibles(PRBool *aAllowsAnonChildren);
+  virtual PRBool GetAllowsAnonChildAccessibles();
 
 protected:
   // Returns value of first child xforms element by tagname that is bound to
@@ -131,12 +127,12 @@ class nsXFormsContainerAccessible : public nsXFormsAccessible
 public:
   nsXFormsContainerAccessible(nsIDOMNode* aNode, nsIWeakReference* aShell);
 
-  // Returns ROLE_GROUP.
-  NS_IMETHOD GetRole(PRUint32 *aRole);
+  // nsAccessible
+  virtual nsresult GetRoleInternal(PRUint32 *aRole);
 
   // Allows accessible nodes in anonymous content of xforms element by
   // always returning PR_TRUE value.
-  NS_IMETHOD GetAllowsAnonChildAccessibles(PRBool *aAllowsAnonChildren);
+  virtual PRBool GetAllowsAnonChildAccessibles();
 };
 
 

@@ -206,7 +206,7 @@ public:
       , next(aOther.next ? new URL(*aOther.next) : nsnull)
     {
     }
-    ~URL() { delete next; }
+    ~URL();
   };
 
   void SetURLs(URL *aURLs) { mURLs = aURLs; }
@@ -276,6 +276,13 @@ public:
 protected:
   friend class nsCSSFontFaceStyleDecl;
   nsCSSFontFaceStyleDecl mDecl;
+};
+
+// nsFontFaceRuleContainer - used for associating sheet type with 
+// specific @font-face rules
+struct nsFontFaceRuleContainer {
+  nsRefPtr<nsCSSFontFaceRule> mRule;
+  PRUint8 mSheetType;
 };
 
 inline nsCSSFontFaceRule*

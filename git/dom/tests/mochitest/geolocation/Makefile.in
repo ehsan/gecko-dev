@@ -45,7 +45,6 @@ include $(DEPTH)/config/autoconf.mk
 include $(topsrcdir)/config/rules.mk
 
 _TEST_FILES	= \
-		test_lastPosition.html \
 		test_manyWindows.html \
 		test_allowCurrent.html \
 		test_allowWatch.html \
@@ -53,12 +52,11 @@ _TEST_FILES	= \
 		test_cancelWatch.html \
 		test_clearWatch.html \
 		test_clearWatch_invalid.html \
-		test_geoPrompt.html \
 		test_timeoutWatch.html \
-		prompt_common.js       \
 		geolocation_common.js  \
 		geolocation.html \
 		test_optional_api_params.html \
+                network_geolocation.sjs \
 		$(NULL)
 
 

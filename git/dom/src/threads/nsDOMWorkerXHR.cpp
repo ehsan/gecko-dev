@@ -51,7 +51,6 @@
 #include "nsContentUtils.h"
 #include "nsIClassInfoImpl.h"
 #include "nsJSUtils.h"
-#include "nsProxyRelease.h"
 #include "nsThreadUtils.h"
 
 // DOMWorker includes
@@ -337,6 +336,24 @@ nsDOMWorkerXHR::nsDOMWorkerXHR(nsDOMWorker* aWorker)
   NS_ASSERTION(aWorker, "Must have a worker!");
 }
 
+nsDOMWorkerXHR::~nsDOMWorkerXHR()
+{
+  if (mXHRProxy) {
+    if (!NS_IsMainThread()) {
+      nsCOMPtr<nsIRunnable> runnable =
+        NS_NEW_RUNNABLE_METHOD(nsDOMWorkerXHRProxy, mXHRProxy.get(), Destroy);
+
+      if (runnable) {
+        mXHRProxy = nsnull;
+        NS_DispatchToMainThread(runnable, NS_DISPATCH_NORMAL);
+      }
+    }
+    else {
+      mXHRProxy->Destroy();
+    }
+  }
+}
+
 // Tricky! We use the AddRef/Release method of nsDOMWorkerFeature (to make sure
 // we properly remove ourselves from the worker array) but inherit the QI of
 // nsDOMWorkerXHREventTarget.
@@ -371,12 +388,15 @@ nsDOMWorkerXHR::Trace(nsIXPConnectWrappedNative* /* aWrapper */,
                       JSTracer* aTracer,
                       JSObject* /*aObj */)
 {
+  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+
   if (!mCanceled) {
     nsDOMWorkerMessageHandler::Trace(aTracer);
     if (mUpload) {
       mUpload->Trace(aTracer);
     }
   }
+
   return NS_OK;
 }
 
@@ -385,10 +405,14 @@ nsDOMWorkerXHR::Finalize(nsIXPConnectWrappedNative* /* aWrapper */,
                          JSContext* /* aCx */,
                          JSObject* /* aObj */)
 {
+  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+
   nsDOMWorkerMessageHandler::ClearAllListeners();
+
   if (mUpload) {
     mUpload->ClearAllListeners();
   }
+
   return NS_OK;
 }
 
@@ -436,6 +460,7 @@ nsDOMWorkerXHR::Cancel()
 
   if (mXHRProxy) {
     mXHRProxy->Destroy();
+    mXHRProxy = nsnull;
   }
 
   mWorker = nsnull;
@@ -674,6 +699,12 @@ nsDOMWorkerXHR::Send(nsIVariant* aBody)
     return NS_ERROR_ABORT;
   }
 
+  if (mWorker->IsClosing() && !mXHRProxy->mSyncRequest) {
+    // Cheat and don't start this request since we know we'll never be able to
+    // use the data.
+    return NS_OK;
+  }
+
   nsresult rv = mXHRProxy->Send(aBody);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -687,6 +718,12 @@ nsDOMWorkerXHR::SendAsBinary(const nsAString& aBody)
 
   if (mCanceled) {
     return NS_ERROR_ABORT;
+  }
+
+  if (mWorker->IsClosing() && !mXHRProxy->mSyncRequest) {
+    // Cheat and don't start this request since we know we'll never be able to
+    // use the data.
+    return NS_OK;
   }
 
   nsresult rv = mXHRProxy->SendAsBinary(aBody);
@@ -804,7 +841,8 @@ nsDOMWorkerXHR::SetMozBackgroundRequest(PRBool aMozBackgroundRequest)
 NS_IMETHODIMP
 nsDOMWorkerXHR::Init(nsIPrincipal* aPrincipal,
                      nsIScriptContext* aScriptContext,
-                     nsPIDOMWindow* aOwnerWindow)
+                     nsPIDOMWindow* aOwnerWindow,
+                     nsIURI* aBaseURI)
 {
   NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
   NS_NOTREACHED("No one should be calling this!");

@@ -46,7 +46,6 @@
 #include "nsPlaceholderFrame.h"
 #include "nsILineIterator.h"
 
-class nsSpaceManager;
 class nsLineBox;
 class nsFloatCache;
 class nsFloatCacheList;
@@ -66,12 +65,6 @@ public:
   nsFloatCache* Next() const { return mNext; }
 
   nsPlaceholderFrame* mPlaceholder;     // nsPlaceholderFrame
-
-  // Region in the spacemanager impacted by this float; the
-  // coordinates are relative to the containing block frame. The
-  // region includes the margins around the float, but doesn't
-  // include the relative offsets.
-  nsRect mRegion;
 
 protected:
   nsFloatCache* mNext;
@@ -672,22 +665,22 @@ class nsLineList_iterator {
     // to keep AIX happy.
     PRBool operator==(const iterator_self_type aOther) const
     {
-      NS_ASSERTION(mListLink == aOther.mListLink, "comparing iterators over different lists");
+      NS_ABORT_IF_FALSE(mListLink == aOther.mListLink, "comparing iterators over different lists");
       return mCurrent == aOther.mCurrent;
     }
     PRBool operator!=(const iterator_self_type aOther) const
     {
-      NS_ASSERTION(mListLink == aOther.mListLink, "comparing iterators over different lists");
+      NS_ABORT_IF_FALSE(mListLink == aOther.mListLink, "comparing iterators over different lists");
       return mCurrent != aOther.mCurrent;
     }
     PRBool operator==(const iterator_self_type aOther)
     {
-      NS_ASSERTION(mListLink == aOther.mListLink, "comparing iterators over different lists");
+      NS_ABORT_IF_FALSE(mListLink == aOther.mListLink, "comparing iterators over different lists");
       return mCurrent == aOther.mCurrent;
     }
     PRBool operator!=(const iterator_self_type aOther)
     {
-      NS_ASSERTION(mListLink == aOther.mListLink, "comparing iterators over different lists");
+      NS_ABORT_IF_FALSE(mListLink == aOther.mListLink, "comparing iterators over different lists");
       return mCurrent != aOther.mCurrent;
     }
 

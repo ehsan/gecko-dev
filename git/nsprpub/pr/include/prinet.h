@@ -42,8 +42,7 @@
  *     This file serves the following purposes:
  *     - A cross-platform, "get-everything" socket header file.  On
  *       Unix, socket support is scattered in several header files,
- *       while Windows and Mac have a "get-everything" socket header
- *       file[2].
+ *       while Windows has a "get-everything" socket header file[2].
  *     - NSPR needs the following macro definitions and function
  *       prototype declarations from these header files:
  *           AF_INET
@@ -117,14 +116,6 @@ struct sockaddr_dl;
  * the <windows.h> inclusion at customer's request, which created
  * an unfortunate inconsistency with other platforms.
  */
-
-#elif defined(WIN16)
-
-#include <winsock.h>
-
-#elif defined(XP_MAC)
-
-#include "macsocket.h"
 
 #else
 

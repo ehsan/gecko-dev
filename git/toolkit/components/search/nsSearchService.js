@@ -92,7 +92,7 @@ const CACHE_INVALIDATION_DELAY = 1000;
 
 // Current cache version. This should be incremented if the format of the cache
 // file is modified.
-const CACHE_VERSION = 2;
+const CACHE_VERSION = 5;
 
 const ICON_DATAURL_PREFIX = "data:image/x-icon;base64,";
 
@@ -131,6 +131,7 @@ const MOZSEARCH_LOCALNAME = "SearchPlugin";
 
 const URLTYPE_SUGGEST_JSON = "application/x-suggestions+json";
 const URLTYPE_SEARCH_HTML  = "text/html";
+const URLTYPE_OPENSEARCH   = "application/opensearchdescription+xml";
 
 // Empty base document used to serialize engines to file.
 const EMPTY_DOC = "<?xml version=\"1.0\"?>\n" +
@@ -825,6 +826,7 @@ function EngineURL(aType, aMethod, aTemplate) {
   this.type     = type;
   this.method   = method;
   this.params   = [];
+  this.rels     = [];
   // Don't serialize expanded mozparams
   this.mozparams = {};
 
@@ -892,9 +894,14 @@ EngineURL.prototype = {
     return new Submission(makeURI(url), postData);
   },
 
+  _hasRelation: function SRC_EURL__hasRelation(aRel)
+    this.rels.some(function(e) e == aRel.toLowerCase()),
+
   _initWithJSON: function SRC_EURL__initWithJSON(aJson, aEngine) {
     if (!aJson.params)
       return;
+
+    this.rels = aJson.rels;
 
     for (let i = 0; i < aJson.params.length; ++i) {
       let param = aJson.params[i];
@@ -922,6 +929,7 @@ EngineURL.prototype = {
   _serializeToJSON: function SRCH_EURL__serializeToJSON() {
     var json = {
       template: this.template,
+      rels: this.rels
     };
 
     if (this.type != URLTYPE_SEARCH_HTML)
@@ -950,6 +958,8 @@ EngineURL.prototype = {
     url.setAttribute("type", this.type);
     url.setAttribute("method", this.method);
     url.setAttribute("template", this.template);
+    if (this.rels.length)
+      url.setAttribute("rel", this.rels.join(" "));
 
     for (var i = 0; i < this.params.length; ++i) {
       var param = aDoc.createElementNS(OPENSEARCH_NS_11, "Param");
@@ -1045,7 +1055,17 @@ Engine.prototype = {
   // The name of the charset used to submit the search terms.
   _queryCharset: null,
   // A URL string pointing to the engine's search form.
-  _searchForm: null,
+  __searchForm: null,
+  get _searchForm() {
+    return this.__searchForm;
+  },
+  set _searchForm(aValue) {
+    if (/^https?:/i.test(aValue))
+      this.__searchForm = aValue;
+    else
+      LOG("_searchForm: Invalid URL dropped for " + this._name ||
+          "the current engine");
+  },
   // The URI object from which the engine was retrieved.
   // This is null for local plugins, and is used for error messages and logging.
   _uri: null,
@@ -1066,6 +1086,17 @@ Engine.prototype = {
   _iconUpdateURL: null,
   // A reference to the timer used for lazily serializing the engine to file
   _serializeTimer: null,
+  // Whether this engine has been used since the cache was last recreated.
+  __used: null,
+  get _used() {
+    if (!this.__used)
+      this.__used = !!engineMetadataService.getAttr(this, "used");
+    return this.__used;
+  },
+  set _used(aValue) {
+    this.__used = aValue
+    engineMetadataService.setAttr(this, "used", aValue);
+  },
 
   /**
    * Retrieves the data from the engine's file. If the engine's dataType is
@@ -1299,6 +1330,29 @@ Engine.prototype = {
       engineMetadataService.setAttr(aEngine, "updatelastmodified",
                                     (new Date()).toUTCString());
 
+      // If we're updating an app-shipped engine, ensure that the updateURLs
+      // are the same.
+      if (engineToUpdate._isInAppDir) {
+        let oldUpdateURL = engineToUpdate._updateURL;
+        let newUpdateURL = aEngine._updateURL;
+        let oldSelfURL = engineToUpdate._getURLOfType(URLTYPE_OPENSEARCH);
+        if (oldSelfURL && oldSelfURL._hasRelation("self")) {
+          oldUpdateURL = oldSelfURL.template;
+          let newSelfURL = aEngine._getURLOfType(URLTYPE_OPENSEARCH);
+          if (!newSelfURL || !newSelfURL._hasRelation("self")) {
+            LOG("_onLoad: updateURL missing in updated engine for " +
+                aEngine.name + " aborted");
+            return;
+          }
+          newUpdateURL = newSelfURL.template;
+        }
+
+        if (oldUpdateURL != newUpdateURL) {
+          LOG("_onLoad: updateURLs do not match! Update of " + aEngine.name + " aborted");
+          return;
+        }
+      }
+
       // Set the new engine's icon, if it doesn't yet have one.
       if (!aEngine._iconURI && engineToUpdate._iconURI)
         aEngine._iconURI = engineToUpdate._iconURI;
@@ -1308,10 +1362,12 @@ Engine.prototype = {
       aEngine._useNow = false;
     }
 
-    // Write the engine to file
-    aEngine._serializeToFile();
+    // Write the engine to file. For readOnly engines, they'll be stored in the
+    // cache following the notification below.
+    if (!aEngine._readOnly)
+      aEngine._serializeToFile();
 
-    // Notify the search service of the sucessful load. It will deal with
+    // Notify the search service of the successful load. It will deal with
     // updates by checking aEngine._engineToUpdate.
     notifyAction(aEngine, SEARCH_ENGINE_LOADED);
   },
@@ -1375,8 +1431,9 @@ Engine.prototype = {
             // The engine might not have a file yet, if it's being downloaded,
             // because the request for the engine file itself (_onLoad) may not
             // yet be complete. In that case, this change will be written to
-            // file when _onLoad is called.
-            if (aEngine._file)
+            // file when _onLoad is called. For readonly engines, we'll store
+            // the changes in the cache once notified below.
+            if (aEngine._file && !aEngine._readOnly)
               aEngine._serializeToFile();
 
             notifyAction(aEngine, SEARCH_ENGINE_CHANGED);
@@ -1482,6 +1539,9 @@ Engine.prototype = {
       FAIL("_parseURL: failed to add " + template + " as a URL",
            Cr.NS_ERROR_FAILURE);
     }
+
+    if (aElement.hasAttribute("rel"))
+      url.rels = aElement.getAttribute("rel").toLowerCase().split(/\s+/);
 
     for (var i = 0; i < aElement.childNodes.length; ++i) {
       var param = aElement.childNodes[i];
@@ -1933,7 +1993,7 @@ Engine.prototype = {
     this._hidden = aJson.hidden || null;
     this._type = aJson.type || SEARCH_TYPE_MOZSEARCH;
     this._queryCharset = aJson.queryCharset || DEFAULT_QUERY_CHARSET;
-    this._searchForm = aJson.searchForm;
+    this.__searchForm = aJson.__searchForm;
     this.__installLocation = aJson._installLocation || SEARCH_APP_DIR;
     this._updateInterval = aJson._updateInterval || null;
     this._updateURL = aJson._updateURL || null;
@@ -1965,7 +2025,7 @@ Engine.prototype = {
       _name: this._name,
       description: this.description,
       filePath: this._file.QueryInterface(Ci.nsILocalFile).persistentDescriptor,
-      searchForm: this.searchForm,
+      __searchForm: this.__searchForm,
       _iconURL: this._iconURL,
       _urls: [url._serializeToJSON() for each(url in this._urls)] 
     };
@@ -1973,7 +2033,7 @@ Engine.prototype = {
     if (this._installLocation != SEARCH_APP_DIR || !aFilter)
       json._installLocation = this._installLocation;
     if (this._updateInterval || !aFilter)
-      json.updateInterval = this._updateInterval;
+      json._updateInterval = this._updateInterval;
     if (this._updateURL || !aFilter)
       json._updateURL = this._updateURL;
     if (this._iconUpdateURL || !aFilter)
@@ -2216,7 +2276,9 @@ Engine.prototype = {
 
   get _hasUpdates() {
     // Whether or not the engine has an update URL
-    return !!(this._updateURL || this._iconUpdateURL);
+    let selfURL = this._getURLOfType(URLTYPE_OPENSEARCH);
+    return !!(this._updateURL || this._iconUpdateURL || (selfURL &&
+              selfURL._hasRelation("self")));
   },
 
   get name() {
@@ -2270,6 +2332,12 @@ Engine.prototype = {
   getSubmission: function SRCH_ENG_getSubmission(aData, aResponseType) {
     if (!aResponseType)
       aResponseType = URLTYPE_SEARCH_HTML;
+
+    // Check for updates on the first use of an app-shipped engine
+    if (this._isInAppDir && aResponseType == URLTYPE_SEARCH_HTML && !this._used) {
+      this._used = true;
+      engineUpdateService.update(this);
+    }
 
     var url = this._getURLOfType(aResponseType);
 
@@ -2359,8 +2427,8 @@ SearchService.prototype = {
     // Now that all engines are loaded, build the sorted engine list
     this._buildSortedEngineList();
 
-    selectedEngineName = getLocalizedPref(BROWSER_SEARCH_PREF +
-                                          "selectedEngine");
+    let selectedEngineName = getLocalizedPref(BROWSER_SEARCH_PREF +
+                                              "selectedEngine");
     this._currentEngine = this.getEngineByName(selectedEngineName) ||
                           this.defaultEngine;
   },
@@ -2385,15 +2453,17 @@ SearchService.prototype = {
     cache.buildID = buildID;
     cache.locale = locale;
 
+    cache.directories = {};
+
     for each (let engine in this._engines) {
-      let parent = engine._file.parent.path;
-      if (!cache[parent]) {
+      let parent = engine._file.parent;
+      if (!cache.directories[parent.path]) {
         let cacheEntry = {};
         cacheEntry.lastModifiedTime = parent.lastModifiedTime;
         cacheEntry.engines = [];
-        cache[parent] = cacheEntry;
+        cache.directories[parent.path] = cacheEntry;
       }
-      cache[parent].engines.push(engine._serializeToJSON(true));
+      cache.directories[parent.path].engines.push(engine._serializeToJSON(true));
     }
 
     let json = Cc["@mozilla.org/dom/json;1"].createInstance(Ci.nsIJSON);
@@ -2428,29 +2498,45 @@ SearchService.prototype = {
         cache = this._readCacheFile(cacheFile);
     }
 
+    let loadDirs = [];
     let locations = getDir(NS_APP_SEARCH_DIR_LIST, Ci.nsISimpleEnumerator);
-    let locale = getLocale();
-    let buildID = Cc["@mozilla.org/xre/app-info;1"].
-                  getService(Ci.nsIXULAppInfo).platformBuildID;
-
-    // loop through our directories and check the cache object
-    let rebuildCache = false;
     while (locations.hasMoreElements()) {
       let dir = locations.getNext().QueryInterface(Ci.nsIFile);
-      let path = dir.path;
-      if (!cache[path] || cache[path].lastModifiedTime < dir.lastModifiedTime ||
-          cache.locale != locale || cache.buildID != buildID ||
-          cache.version != CACHE_VERSION) {
-        LOG("_loadEngines: Absent or outdated cache. Loading engines from disk.");
-        this._loadEnginesFromDir(dir);
-        rebuildCache = true;
-      } else {
-        this._loadEnginesFromCache(cache[path]);
-      }
+      if (dir.directoryEntries.hasMoreElements())
+        loadDirs.push(dir);
     }
 
-    if (rebuildCache && cacheEnabled)
-      this._buildCache();
+    function modifiedDir(aDir) {
+      return (!cache.directories[aDir.path] ||
+              cache.directories[aDir.path].lastModifiedTime != aDir.lastModifiedTime);
+    }
+
+    function notInLoadDirs(aCachePath, aIndex)
+      aCachePath != loadDirs[aIndex].path;
+
+    let buildID = Cc["@mozilla.org/xre/app-info;1"].
+                  getService(Ci.nsIXULAppInfo).platformBuildID;
+    let cachePaths = [path for (path in cache.directories)];
+
+    let rebuildCache = !cache.directories ||
+                       cache.version != CACHE_VERSION ||
+                       cache.locale != getLocale() ||
+                       cache.buildID != buildID ||
+                       cachePaths.length != loadDirs.length ||
+                       cachePaths.some(notInLoadDirs) ||
+                       loadDirs.some(modifiedDir);
+
+    if (!cacheEnabled || rebuildCache) {
+      LOG("_loadEngines: Absent or outdated cache. Loading engines from disk.");
+      loadDirs.forEach(this._loadEnginesFromDir, this);
+
+      if (cacheEnabled)
+        this._buildCache();
+      return;
+    }
+
+    for each (let dir in cache.directories)
+      this._loadEnginesFromCache(dir);
   },
 
   _readCacheFile: function SRCH_SVC__readCacheFile(aFile) {
@@ -2604,6 +2690,8 @@ SearchService.prototype = {
       try {
         addedEngine = new Engine(file, dataType, !isWritable);
         addedEngine._initFromFile();
+        if (addedEngine._used)
+          addedEngine._used = false;
       } catch (ex) {
         LOG("_loadEnginesFromDir: Failed to load " + file.path + "!\n" + ex);
         continue;
@@ -3112,8 +3200,7 @@ SearchService.prototype = {
     var currentEnginePref = BROWSER_SEARCH_PREF + "selectedEngine";
 
     if (this._currentEngine == this.defaultEngine) {
-      if (gPrefSvc.prefHasUserValue(currentEnginePref))
-        gPrefSvc.clearUserPref(currentEnginePref);
+      gPrefSvc.clearUserPref(currentEnginePref);
     }
     else {
       setLocalizedPref(currentEnginePref, this._currentEngine.name);
@@ -3322,6 +3409,49 @@ var engineUpdateService = {
                                   Date.now() + milliseconds);
   },
 
+  update: function eus_Update(aEngine) {
+    let engine = aEngine.wrappedJSObject;
+    ULOG("update called for " + aEngine._name);
+    if (!getBoolPref(BROWSER_SEARCH_PREF + "update", true) || !engine._hasUpdates)
+      return;
+
+    // We use the cache to store updated app engines, so refuse to update if the
+    // cache is disabled.
+    if (engine._readOnly &&
+        !getBoolPref(BROWSER_SEARCH_PREF + "cache.enabled", true))
+      return;
+
+    let testEngine = null;
+    let updateURL = engine._getURLOfType(URLTYPE_OPENSEARCH);
+    let updateURI = (updateURL && updateURL._hasRelation("self")) ? 
+                     updateURL.getSubmission("", engine).uri :
+                     makeURI(engine._updateURL);
+    if (updateURI) {
+      if (engine._isDefault && !updateURI.schemeIs("https")) {
+        ULOG("Invalid scheme for default engine update");
+        return;
+      }
+
+      let dataType = engineMetadataService.getAttr(engine, "updatedatatype");
+      if (!dataType) {
+        ULOG("No loadtype to update engine!");
+        return;
+      }
+
+      ULOG("updating " + engine.name + " from " + updateURI.spec);
+      testEngine = new Engine(updateURI, dataType, false);
+      testEngine._engineToUpdate = engine;
+      testEngine._initFromURI();
+    } else
+      ULOG("invalid updateURI");
+
+    if (engine._iconUpdateURL) {
+      // If we're updating the engine too, use the new engine object,
+      // otherwise use the existing engine object.
+      (testEngine || engine)._setIcon(engine._iconUpdateURL, true);
+    }
+  },
+
   notify: function eus_Notify(aTimer) {
     ULOG("notify called");
 
@@ -3336,16 +3466,14 @@ var engineUpdateService = {
     ULOG("currentTime: " + currentTime);
     for each (engine in searchService.getEngines({})) {
       engine = engine.wrappedJSObject;
-      if (!engine._hasUpdates || engine._readOnly)
+      if (!engine._hasUpdates)
         continue;
 
       ULOG("checking " + engine.name);
 
       var expirTime = engineMetadataService.getAttr(engine, "updateexpir");
-      var updateURL = engine._updateURL;
-      var iconUpdateURL = engine._iconUpdateURL;
-      ULOG("expirTime: " + expirTime + "\nupdateURL: " + updateURL +
-           "\niconUpdateURL: " + iconUpdateURL);
+      ULOG("expirTime: " + expirTime + "\nupdateURL: " + engine._updateURL +
+           "\niconUpdateURL: " + engine._iconUpdateURL);
 
       var engineExpired = expirTime <= currentTime;
 
@@ -3356,27 +3484,7 @@ var engineUpdateService = {
 
       ULOG(engine.name + " has expired");
 
-      var testEngine = null;
-
-      var updateURI = makeURI(updateURL);
-      if (updateURI) {
-        var dataType = engineMetadataService.getAttr(engine, "updatedatatype")
-        if (!dataType) {
-          ULOG("No loadtype to update engine!");
-          continue;
-        }
-
-        testEngine = new Engine(updateURI, dataType, false);
-        testEngine._engineToUpdate = engine;
-        testEngine._initFromURI();
-      } else
-        ULOG("invalid updateURI");
-
-      if (iconUpdateURL) {
-        // If we're updating the engine too, use the new engine object,
-        // otherwise use the existing engine object.
-        (testEngine || engine)._setIcon(iconUpdateURL, true);
-      }
+      this.update(engine);
 
       // Schedule the next update
       this.scheduleNextUpdate(engine);

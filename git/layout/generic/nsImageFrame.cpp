@@ -47,8 +47,6 @@
 #include "nsPresContext.h"
 #include "nsIRenderingContext.h"
 #include "nsIPresShell.h"
-#include "nsIImage.h"
-#include "nsIWidget.h"
 #include "nsGkAtoms.h"
 #include "nsIDocument.h"
 #include "nsINodeInfo.h"
@@ -94,7 +92,6 @@
 #include "nsCSSFrameConstructor.h"
 #include "nsIPrefBranch2.h"
 #include "nsIPrefService.h"
-#include "gfxIImageFrame.h"
 #include "nsIDOMRange.h"
 
 #include "nsIContentPolicy.h"
@@ -186,18 +183,9 @@ nsImageFrame::~nsImageFrame()
 {
 }
 
-NS_IMETHODIMP
-nsImageFrame::QueryInterface(const nsIID& aIID, void** aInstancePtr)
-{
-  NS_PRECONDITION(aInstancePtr, "null out param");
-
-  if (aIID.Equals(NS_GET_IID(nsIImageFrame))) {
-    *aInstancePtr = static_cast<nsIImageFrame*>(this);
-    return NS_OK;
-  }
-
-  return ImageFrameSuper::QueryInterface(aIID, aInstancePtr);
-}
+NS_QUERYFRAME_HEAD(nsImageFrame)
+  NS_QUERYFRAME_ENTRY(nsIImageFrame)
+NS_QUERYFRAME_TAIL_INHERITING(ImageFrameSuper)
 
 #ifdef ACCESSIBILITY
 NS_IMETHODIMP nsImageFrame::GetAccessible(nsIAccessible** aAccessible)
@@ -211,18 +199,6 @@ NS_IMETHODIMP nsImageFrame::GetAccessible(nsIAccessible** aAccessible)
   return NS_ERROR_FAILURE;
 }
 #endif
-
-NS_IMETHODIMP_(nsrefcnt) nsImageFrame::AddRef(void)
-{
-  NS_WARNING("not supported for frames");
-  return 1;
-}
-
-NS_IMETHODIMP_(nsrefcnt) nsImageFrame::Release(void)
-{
-  NS_WARNING("not supported for frames");
-  return 1;
-}
 
 void
 nsImageFrame::Destroy()
@@ -303,7 +279,7 @@ nsImageFrame::UpdateIntrinsicSize(imgIContainer* aImage)
   PRBool intrinsicSizeChanged = PR_FALSE;
   
   if (aImage) {
-    nsSize imageSizeInPx;
+    nsIntSize imageSizeInPx;
     aImage->GetWidth(&imageSizeInPx.width);
     aImage->GetHeight(&imageSizeInPx.height);
     nsSize newSize(nsPresContext::CSSPixelsToAppUnits(imageSizeInPx.width),
@@ -318,7 +294,7 @@ nsImageFrame::UpdateIntrinsicSize(imgIContainer* aImage)
 }
 
 void
-nsImageFrame::RecalculateTransform()
+nsImageFrame::RecalculateTransform(PRBool aInnerAreaChanged)
 {
   // In any case, we need to translate this over appropriately.  Set
   // translation _before_ setting scaling so that it does not get
@@ -327,15 +303,19 @@ nsImageFrame::RecalculateTransform()
   // XXXbz does this introduce rounding errors because of the cast to
   // float?  Should we just manually add that stuff in every time
   // instead?
-  nsRect innerArea = GetInnerArea();
-  mTransform.SetToTranslate(float(innerArea.x),
-                            float(innerArea.y - GetContinuationOffset()));
+  if (aInnerAreaChanged) {
+    nsRect innerArea = GetInnerArea();
+    mTransform.SetToTranslate(float(innerArea.x),
+                              float(innerArea.y - GetContinuationOffset()));
+  }
   
   // Set the scale factors
   if (mIntrinsicSize.width != 0 && mIntrinsicSize.height != 0 &&
       mIntrinsicSize != mComputedSize) {
-    mTransform.AddScale(float(mComputedSize.width)  / float(mIntrinsicSize.width),
+    mTransform.SetScale(float(mComputedSize.width)  / float(mIntrinsicSize.width),
                         float(mComputedSize.height) / float(mIntrinsicSize.height));
+  } else {
+    mTransform.SetScale(1.0f, 1.0f);
   }
 }
 
@@ -387,7 +367,7 @@ nsImageFrame::IsPendingLoad(imgIContainer* aContainer) const
 }
 
 nsRect
-nsImageFrame::SourceRectToDest(const nsRect& aRect)
+nsImageFrame::SourceRectToDest(const nsIntRect& aRect)
 {
   // When scaling the image, row N of the source image may (depending on
   // the scaling function) be used to draw any row in the destination image
@@ -515,14 +495,24 @@ nsImageFrame::OnStartContainer(imgIRequest *aRequest, imgIContainer *aImage)
   
   UpdateIntrinsicSize(aImage);
 
-  // Now we need to reflow if we have an unconstrained size and have
-  // already gotten the initial reflow
-  if (!(mState & IMAGE_SIZECONSTRAINED) && (mState & IMAGE_GOTINITIALREFLOW)) { 
-    nsIPresShell *presShell = presContext->GetPresShell();
-    NS_ASSERTION(presShell, "No PresShell.");
-    if (presShell) { 
-      presShell->FrameNeedsReflow(this, nsIPresShell::eStyleChange,
-                                  NS_FRAME_IS_DIRTY);
+  if (mState & IMAGE_GOTINITIALREFLOW) {
+    // If we previously set the intrinsic size (in EnsureIntrinsicSize)
+    // to the size of the loading-image icon and reflowed the frame,
+    // we'll have an mTransform computed from that intrinsic size.  But
+    // if we still have that transform when we get OnDataAvailable
+    // calls, we'll invalidate the wrong area.  So update the transform
+    // now.
+    RecalculateTransform(PR_FALSE);
+
+    // Now we need to reflow if we have an unconstrained size and have
+    // already gotten the initial reflow
+    if (!(mState & IMAGE_SIZECONSTRAINED)) { 
+      nsIPresShell *presShell = presContext->GetPresShell();
+      NS_ASSERTION(presShell, "No PresShell.");
+      if (presShell) { 
+        presShell->FrameNeedsReflow(this, nsIPresShell::eStyleChange,
+                                    NS_FRAME_IS_DIRTY);
+      }
     }
   }
 
@@ -531,8 +521,8 @@ nsImageFrame::OnStartContainer(imgIRequest *aRequest, imgIContainer *aImage)
 
 nsresult
 nsImageFrame::OnDataAvailable(imgIRequest *aRequest,
-                              gfxIImageFrame *aFrame,
-                              const nsRect *aRect)
+                              PRBool aCurrentFrame,
+                              const nsIntRect *aRect)
 {
   // XXX do we need to make sure that the reflow from the
   // OnStartContainer has been processed before we start calling
@@ -563,16 +553,8 @@ nsImageFrame::OnDataAvailable(imgIRequest *aRequest,
 
   // Don't invalidate if the current visible frame isn't the one the data is
   // from
-  nsCOMPtr<imgIContainer> container;
-  aRequest->GetImage(getter_AddRefs(container));
-  if (container) {
-    nsCOMPtr<gfxIImageFrame> currentFrame;
-    container->GetCurrentFrame(getter_AddRefs(currentFrame));
-    if (aFrame != currentFrame) {
-      // just bail
-      return NS_OK;
-    }
-  }
+  if (!aCurrentFrame)
+    return NS_OK;
 
 #ifdef DEBUG_decode
   printf("Source rect (%d,%d,%d,%d) -> invalidate dest rect (%d,%d,%d,%d)\n",
@@ -642,9 +624,7 @@ nsImageFrame::OnStopDecode(imgIRequest *aRequest,
 }
 
 nsresult
-nsImageFrame::FrameChanged(imgIContainer *aContainer,
-                           gfxIImageFrame *aNewFrame,
-                           nsRect *aDirtyRect)
+nsImageFrame::FrameChanged(imgIContainer *aContainer, nsIntRect *aDirtyRect)
 {
   if (!GetStyleVisibility()->IsVisible()) {
     return NS_OK;
@@ -800,7 +780,7 @@ nsImageFrame::Reflow(nsPresContext*          aPresContext,
 
   mComputedSize = 
     nsSize(aReflowState.ComputedWidth(), aReflowState.ComputedHeight());
-  RecalculateTransform();
+  RecalculateTransform(PR_TRUE);
 
   aMetrics.width = mComputedSize.width;
   aMetrics.height = mComputedSize.height;
@@ -952,6 +932,11 @@ nsImageFrame::DisplayAltText(nsPresContext*      aPresContext,
   const PRUnichar* str = aAltText.get();
   PRInt32          strLen = aAltText.Length();
   nscoord          y = aRect.y;
+
+  if (!aPresContext->BidiEnabled() && HasRTLChars(aAltText)) {
+    aPresContext->SetBidiEnabled();
+  }
+
   // Always show the first line, even if we have to clip it below
   PRBool firstLine = PR_TRUE;
   while ((strLen > 0) && (firstLine || (y + maxDescent) < aRect.YMost())) {
@@ -1069,7 +1054,8 @@ nsImageFrame::DisplayAltFeedback(nsIRenderingContext& aRenderingContext,
         nsRect dest((vis->mDirection == NS_STYLE_DIRECTION_RTL) ?
                     inner.XMost() - size : inner.x,
                     inner.y, size, size);
-        nsLayoutUtils::DrawSingleImage(&aRenderingContext, imgCon, dest, aDirtyRect);
+        nsLayoutUtils::DrawSingleImage(&aRenderingContext, imgCon,
+          nsLayoutUtils::GetGraphicsFilterForFrame(this), dest, aDirtyRect);
         iconUsed = PR_TRUE;
       }
     }
@@ -1177,7 +1163,8 @@ nsImageFrame::PaintImage(nsIRenderingContext& aRenderingContext, nsPoint aPt,
   nsRect dest(inner.TopLeft(), mComputedSize);
   dest.y -= GetContinuationOffset();
 
-  nsLayoutUtils::DrawSingleImage(&aRenderingContext, aImage, dest, aDirtyRect);
+  nsLayoutUtils::DrawSingleImage(&aRenderingContext, aImage,
+    nsLayoutUtils::GetGraphicsFilterForFrame(this), dest, aDirtyRect);
 
   nsPresContext* presContext = PresContext();
   nsImageMap* map = GetImageMap(presContext);
@@ -1381,7 +1368,7 @@ nsImageFrame::GetAnchorHREFTargetAndNode(nsIURI** aHref, nsString& aTarget,
        content; content = content->GetParent()) {
     nsCOMPtr<nsILink> link(do_QueryInterface(content));
     if (link) {
-      link->GetHrefURI(aHref);
+      *aHref = content->GetHrefURI().get();
       status = (*aHref != nsnull);
 
       nsCOMPtr<nsIDOMHTMLAnchorElement> anchor(do_QueryInterface(content));
@@ -1698,8 +1685,8 @@ nsresult nsImageFrame::LoadIcons(nsPresContext *aPresContext)
 {
   NS_ASSERTION(!gIconLoad, "called LoadIcons twice");
 
-  NS_NAMED_LITERAL_STRING(loadingSrc,"resource://gre/res/loading-image.gif"); 
-  NS_NAMED_LITERAL_STRING(brokenSrc,"resource://gre/res/broken-image.gif");
+  NS_NAMED_LITERAL_STRING(loadingSrc,"resource://gre/res/loading-image.png");
+  NS_NAMED_LITERAL_STRING(brokenSrc,"resource://gre/res/broken-image.png");
 
   gIconLoad = new IconLoad(mListener);
   if (!gIconLoad) 
@@ -1834,13 +1821,13 @@ NS_IMETHODIMP nsImageListener::OnStartContainer(imgIRequest *aRequest,
 }
 
 NS_IMETHODIMP nsImageListener::OnDataAvailable(imgIRequest *aRequest,
-                                               gfxIImageFrame *aFrame,
-                                               const nsRect *aRect)
+                                               PRBool aCurrentFrame,
+                                               const nsIntRect *aRect)
 {
   if (!mFrame)
     return NS_ERROR_FAILURE;
 
-  return mFrame->OnDataAvailable(aRequest, aFrame, aRect);
+  return mFrame->OnDataAvailable(aRequest, aCurrentFrame, aRect);
 }
 
 NS_IMETHODIMP nsImageListener::OnStopDecode(imgIRequest *aRequest,
@@ -1854,13 +1841,12 @@ NS_IMETHODIMP nsImageListener::OnStopDecode(imgIRequest *aRequest,
 }
 
 NS_IMETHODIMP nsImageListener::FrameChanged(imgIContainer *aContainer,
-                                            gfxIImageFrame *newframe,
-                                            nsRect * dirtyRect)
+                                            nsIntRect * dirtyRect)
 {
   if (!mFrame)
     return NS_ERROR_FAILURE;
 
-  return mFrame->FrameChanged(aContainer, newframe, dirtyRect);
+  return mFrame->FrameChanged(aContainer, dirtyRect);
 }
 
 static PRBool

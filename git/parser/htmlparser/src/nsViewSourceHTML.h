@@ -95,6 +95,8 @@ public:
     virtual void SetVerification(PRBool aEnable);
 
 private:
+    nsresult HandleToken(CToken* aToken);
+
     nsresult WriteTag(PRInt32 tagType,
                       const nsSubstring &aText,
                       PRInt32 attrCount,
@@ -126,10 +128,15 @@ private:
     PRBool IsTokenValueTrimmableCharacter(PRUnichar ch);
     nsresult GetBaseURI(nsIURI **result);
     nsresult SetBaseURI(const nsAString& baseSpec);
+    static void ExpandEntities(const nsAString& textIn, nsString& textOut);
+    static void CopyPossibleEntity(nsAString::const_iterator& iter,
+                                   const nsAString::const_iterator& end,
+                                   nsAString& textBuffer);
+    static PRInt32 ToUnicode(const nsString &strNum, PRInt32 radix, PRInt32 fallback);
 
 protected:
 
-    nsParser*           mParser;
+    nsCString           mCharset;
     nsIHTMLContentSink* mSink;
     PRInt32             mLineNumber;
     nsITokenizer*       mTokenizer; // weak

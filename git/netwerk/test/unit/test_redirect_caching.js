@@ -1,4 +1,4 @@
-do_import_script("netwerk/test/httpserver/httpd.js");
+do_load_httpd_js();
 
 var httpserver = null;
 // Need to randomize, because apparently no one clears our cache
@@ -30,15 +30,14 @@ function firstTimeThrough(request, buffer)
 {
   do_check_eq(buffer, responseBody);
   var chan = make_channel(randomURI);
-  chan.loadFlags |= Ci.nsICachingChannel.LOAD_ONLY_FROM_CACHE;
+  chan.loadFlags |= Ci.nsICachingChannel.LOAD_FROM_CACHE;
   chan.asyncOpen(new ChannelListener(finish_test, null), null);
 }
 
 function finish_test(request, buffer)
 {
-  httpserver.stop();
   do_check_eq(buffer, responseBody);
-  do_test_finished();
+  httpserver.stop(do_test_finished);
 }
 
 function run_test()

@@ -568,18 +568,27 @@ function gczeal(z)
   javascriptoptions.setIntPref('gczeal', Number(z));
 }
 
+var gJit = { content: undefined, chrome: undefined };
+
 function jit(on)
 {
-  var javascriptoptions = new Preferences('javascript.options.jit.');
+  var jitoptions = new Preferences('javascript.options.jit.');
+
+  if (typeof gJit.content == 'undefined')
+  {
+    gJit.content = jitoptions.getBoolPref('content');
+    gJit.chrome  = jitoptions.getBoolPref('chrome');
+  }
+
   if (on)
   {
-    javascriptoptions.setBoolPref('content', true);
-    javascriptoptions.setBoolPref('chrome', true);
+    jitoptions.setBoolPref('content', true);
+    jitoptions.setBoolPref('chrome', false);
   }
   else
   {
-    javascriptoptions.setBoolPref('content', false);
-    javascriptoptions.setBoolPref('chrome', false);
+    jitoptions.setBoolPref('content', false);
+    jitoptions.setBoolPref('chrome', false);
   }
 }
 
@@ -601,74 +610,84 @@ function jsTestDriverBrowserInit()
     return;
   }
 
-  var re = /test=([^;]+);language=(language|type);([a-zA-Z0-9.=;\/]+)/;
-  var matches = re.exec(document.location.search);
-
-  // testpath http://machine/path-to-suite/sub-suite/test.js
-  var testpath  = matches[1];
-  var attribute = matches[2];
-  var value     = matches[3];
-
-  if (testpath)
+  var properties = {};
+  var fields = document.location.search.slice(1).split(';');
+  for (var ifield = 0; ifield < fields.length; ifield++)
   {
-    testpath = decodeURIComponent(testpath);
-    gTestPath = testpath;
-  }
-
-  var ise4x = /e4x\//.test(testpath);
-
-  var gczealmatches = /gczeal=([0-9]*)/.exec(document.location.search);
-
-  if (gczealmatches)
-  {
-    var zeal = Number(gczealmatches[1]);
-    gczeal(zeal);
-  }
-
-  var jitmatches = /;jit/.exec(document.location.search);
-
-  if (jitmatches)
-  {
-    jit(true);
-  }
-
-  var versionmatches = /version=([.0-9]*)/.exec(value);
-
-  if (!versionmatches)
-  {
-    value = 'text/javascript;version=';
-    if (testpath.match(/^js1_6/))
+    var propertycaptures = /^([^=]+)=(.*)$/.exec(fields[ifield]);
+    if (!propertycaptures)
     {
-      gVersion = 160;
-      value += '1.6';
-    }
-    else if (testpath.match(/^js1_7/))
-    {
-      gVersion = 170;
-      value += '1.7';
-    }
-    else if (testpath.match(/^js1_8/))
-    {
-      gVersion = 180;
-      value += '1.8';
-    }
-    else if (testpath.match(/^js1_8_1/))
-    {
-      gVersion = 180;
-      value += '1.8';
+      properties[fields[ifield]] = true;
     }
     else
     {
-      gVersion = 150;
-      value += '1.5';
+      properties[propertycaptures[1]] = decodeURIComponent(propertycaptures[2]);
+      if (propertycaptures[1] == 'language')
+      {
+        // language=(type|language);mimetype
+        properties.mimetype = fields[ifield+1];
+      }
     }
   }
-  else
+
+  if (properties.language != 'type')
   {
-    gVersion = 10*parseInt(versionmatches[1].replace(/\./g, ''));
+    try
+    {
+      properties.version = /javascript([.0-9]+)/.exec(properties.mimetype)[1];
+    }
+    catch(ex)
+    {
+    }
   }
 
-  var testpathparts = testpath.split(/\//);
+  if (!properties.version && navigator.userAgent.indexOf('Gecko/') != -1)
+  {
+    // If the version is not specified, and the browser is Gecko,
+    // adjust the version to match the suite version.
+    if (properties.test.match(/^js1_6/))
+    {
+      properties.version = '1.6';
+    }
+    else if (properties.test.match(/^js1_7/))
+    {
+      properties.version = '1.7';
+    }
+    else if (properties.test.match(/^js1_8/))
+    {
+      properties.version = '1.8';
+    }
+    else if (properties.test.match(/^js1_8_1/))
+    {
+      properties.version = '1.8';
+    }
+    else
+    {
+      properties.version = '1.5';
+    }
+  }
+
+  gTestPath = properties.test;
+
+  gVersion = 10*parseInt(properties.version.replace(/\./g, ''));
+
+  if (properties.gczeal)
+  {
+    gczeal(Number(properties.gczeal));
+  }
+
+  /*
+   * since the default setting of jit changed from false to true
+   * in http://hg.mozilla.org/tracemonkey/rev/685e00e68be9
+   * bisections which depend upon jit settings can be thrown off.
+   * default jit(false) to make bisections depending upon jit settings
+   * consistent over time. This is not needed in shell tests as the default
+   * jit setting has not changed there.
+   */
+
+  jit(properties.jit);
+
+  var testpathparts = properties.test.split(/\//);
 
   if (testpathparts.length < 3)
   {
@@ -679,52 +698,55 @@ function jsTestDriverBrowserInit()
   var subsuite = testpathparts[testpathparts.length - 2];
   var test     = testpathparts[testpathparts.length - 1];
 
-  outputscripttag(suitepath + '/shell.js', attribute, value,
-                  ise4x);
-  outputscripttag(suitepath + '/browser.js', attribute, value,
-                  ise4x);
-  outputscripttag(suitepath + '/' + subsuite + '/shell.js', attribute, value,
-                  ise4x);
-  outputscripttag(suitepath + '/' + subsuite + '/browser.js', attribute, value,
-                  ise4x);
-  outputscripttag(suitepath + '/' + subsuite + '/' + test, attribute, value,
-                  ise4x);
+  outputscripttag(suitepath + '/shell.js', properties);
+  outputscripttag(suitepath + '/browser.js', properties);
+  outputscripttag(suitepath + '/' + subsuite + '/shell.js', properties);
+  outputscripttag(suitepath + '/' + subsuite + '/browser.js', properties);
+  outputscripttag(suitepath + '/' + subsuite + '/' + test, properties,
+  	properties.e4x || /e4x\//.test(properties.test));
 
-  document.write('<title>' + suitepath + '/' + subsuite + '/' + test +
-                 '<\/title>');
+  document.write('<title>' + suitepath + '/' + subsuite + '/' + test + '<\/title>');
 
-  outputscripttag('js-test-driver-end.js', attribute, value,
-                  false);
+  outputscripttag('js-test-driver-end.js', properties);
   return;
 }
 
-function outputscripttag(src, attribute, value, ise4x)
+function outputscripttag(src, properties, e4x)
 {
   if (!src)
   {
     return;
   }
 
-  var s = '<script src="' +  src + '" ';
-
-  if (ise4x)
+  if (e4x)
   {
-    if (attribute == 'type')
-    {
-      value += ';e4x=1 ';
-    }
-    else
-    {
-      s += ' type="text/javascript';
-      if (gVersion != 150)
-      {
-        s += ';version=' + gVersion/100;
-      }
-      s += ';e4x=1" ';
-    }
+    // e4x requires type=mimetype;e4x=1
+    properties.language = 'type';
   }
 
-  s +=  attribute + '="' + value + '"><\/script>';
+  var s = '<script src="' +  src + '" ';
+
+  if (properties.language != 'type')
+  {
+    s += 'language="javascript';
+    if (properties.version)
+    {
+      s += properties.version;
+    }
+  }
+  else
+  {
+    s += 'type="' + properties.mimetype;
+    if (properties.version)
+    {
+      s += ';version=' + properties.version;
+    }
+    if (e4x)
+    {
+      s += ';e4x=1';
+    }
+  }
+  s += '"><\/script>';
 
   document.write(s);
 }
@@ -750,6 +772,18 @@ function jsTestDriverEnd()
   {
     var javascriptoptions = new Preferences('javascript.options.');
     javascriptoptions.clearPref('gczeal');
+
+    var jitoptions = new Preferences('javascript.options.jit.');
+    if (typeof gJit.content != 'undefined')
+    {
+      jitoptions.setBoolPref('content', gJit.content);
+    }
+
+    if (typeof gJit.chrome != 'undefined')
+    {
+      jitoptions.setBoolPref('chrome', gJit.chrome);
+    }
+
     optionsReset();
   }
   catch(ex)

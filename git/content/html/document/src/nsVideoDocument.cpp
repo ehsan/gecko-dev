@@ -40,6 +40,7 @@
 #include "nsNodeInfoManager.h"
 #include "nsContentCreatorFunctions.h"
 #include "nsHTMLMediaElement.h"
+#include "nsIDocShellTreeItem.h"
 
 class nsVideoDocument : public nsMediaDocument
 {
@@ -53,6 +54,10 @@ public:
                                      nsIContentSink*     aSink = nsnull);
 
 protected:
+
+  // Sets document <title> to reflect the file name and description.
+  void UpdateTitle(nsIChannel* aChannel);
+
   nsresult CreateSyntheticVideoDocument(nsIChannel* aChannel,
                                         nsIStreamListener** aListener);
 
@@ -104,19 +109,44 @@ nsVideoDocument::CreateSyntheticVideoDocument(nsIChannel* aChannel,
   // make content
   nsCOMPtr<nsINodeInfo> nodeInfo;
   nodeInfo = mNodeInfoManager->GetNodeInfo(nsGkAtoms::video, nsnull,
-                                           kNameSpaceID_None);
+                                           kNameSpaceID_XHTML);
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_FAILURE);
 
   nsRefPtr<nsHTMLMediaElement> element =
     static_cast<nsHTMLMediaElement*>(NS_NewHTMLVideoElement(nodeInfo, PR_FALSE));
   if (!element)
     return NS_ERROR_OUT_OF_MEMORY;
-
   element->SetAutoplay(PR_TRUE);
   element->SetControls(PR_TRUE);
   element->LoadWithChannel(aChannel, aListener);
+  UpdateTitle(aChannel);
+
+  nsCOMPtr<nsISupports> container = GetContainer();
+  nsCOMPtr<nsIDocShellTreeItem> docShellAsItem(do_QueryInterface(container));
+  nsCOMPtr<nsIDocShellTreeItem> sameTypeParent;
+  if (docShellAsItem) {
+    docShellAsItem->GetSameTypeParent(getter_AddRefs(sameTypeParent));
+  }
+  if (sameTypeParent) {
+    // Video documents that aren't toplevel should fill their frames and
+    // not have margins
+    element->SetAttr(kNameSpaceID_None, nsGkAtoms::style,
+        NS_LITERAL_STRING("position:absolute; top:0; left:0; width:100%; height:100%"),
+        PR_TRUE);
+  }
 
   return body->AppendChildTo(element, PR_FALSE);
+}
+
+void
+nsVideoDocument::UpdateTitle(nsIChannel* aChannel)
+{
+  if (!aChannel)
+    return;
+
+  nsAutoString fileName;
+  GetFileName(fileName);
+  SetTitle(fileName);
 }
 
 nsresult

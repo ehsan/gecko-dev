@@ -35,7 +35,7 @@
 /* #undef HAVE_SPEEX_1_1 */
 
 /* Define to 1 if you have the <stdint.h> header file. */
-#define HAVE_STDINT_H 1
+/* #define HAVE_STDINT_H 1 */
 
 /* Define to 1 if you have the <stdlib.h> header file. */
 #define HAVE_STDLIB_H 1
@@ -104,3 +104,8 @@
 #undef HAVE_VORBISENC
 #define HAVE_VORBISENC 0
 #undef DEBUG
+
+#include "prcpucfg.h"
+#ifdef IS_BIG_ENDIAN
+#define WORDS_BIGENDIAN
+#endif

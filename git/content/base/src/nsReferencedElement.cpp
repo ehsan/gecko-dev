@@ -211,7 +211,9 @@ nsReferencedElement::HaveNewDocument(nsIDocument* aDocument, PRBool aWatch,
 void
 nsReferencedElement::Traverse(nsCycleCollectionTraversalCallback* aCB)
 {
+  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*aCB, "mWatchDocument");
   aCB->NoteXPCOMChild(mWatchDocument);
+  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*aCB, "mContent");
   aCB->NoteXPCOMChild(mContent);
 }
 
@@ -223,6 +225,7 @@ nsReferencedElement::Unlink()
   }
   if (mPendingNotification) {
     mPendingNotification->Clear();
+    mPendingNotification = nsnull;
   }
   mWatchDocument = nsnull;
   mWatchID = nsnull;

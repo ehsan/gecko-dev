@@ -145,10 +145,7 @@ public:
     NS_DECL_NSIMUTATIONOBSERVER_CONTENTINSERTED
     NS_DECL_NSIMUTATIONOBSERVER_CONTENTREMOVED
     NS_DECL_NSIMUTATIONOBSERVER_ATTRIBUTECHANGED
-
-    virtual void AttributeWillChange(nsIContent* aChild,
-                                     PRInt32 aNameSpaceID,
-                                     nsIAtom* aAttribute);
+    NS_DECL_NSIMUTATIONOBSERVER_ATTRIBUTEWILLCHANGE
 
     // nsIXULDocument interface
     NS_IMETHOD AddElementForID(nsIContent* aElement);
@@ -184,6 +181,10 @@ public:
                                 nsresult aStatus);
 
     virtual void EndUpdate(nsUpdateType aUpdateType);
+
+    virtual PRBool IsDocumentRightToLeft();
+
+    virtual void ResetDocumentDirection() { mDocDirection = Direction_Uninitialized; }
 
     static PRBool
     MatchAttribute(nsIContent* aContent,
@@ -247,7 +248,8 @@ protected:
         return kNameSpaceID_XUL;
     }
 
-protected:
+    static NS_HIDDEN_(int) DirectionChanged(const char* aPrefName, void* aData);
+
     // pseudo constants
     static PRInt32 gRefCnt;
 
@@ -328,6 +330,17 @@ protected:
      */
 
     nsCOMPtr<nsIDOMNode>    mTooltipNode;          // [OWNER] element triggering the tooltip
+
+    /**
+     * document direction for use with the -moz-locale-dir property
+     */
+    enum DocumentDirection {
+      Direction_Uninitialized, // not determined yet
+      Direction_LeftToRight,
+      Direction_RightToLeft
+    };
+
+    DocumentDirection               mDocDirection;
 
     /**
      * Context stack, which maintains the state of the Builder and allows
@@ -704,18 +717,39 @@ protected:
       nsDelayedBroadcastUpdate(nsIDOMElement* aBroadcaster,
                                nsIDOMElement* aListener,
                                const nsAString &aAttr)
-      : mBroadcaster(aBroadcaster), mListener(aListener), mAttr(aAttr) {}
+      : mBroadcaster(aBroadcaster), mListener(aListener), mAttr(aAttr),
+        mSetAttr(PR_FALSE), mNeedsAttrChange(PR_FALSE) {}
+
+      nsDelayedBroadcastUpdate(nsIDOMElement* aBroadcaster,
+                               nsIDOMElement* aListener,
+                               nsIAtom* aAttrName,
+                               const nsAString &aAttr,
+                               PRBool aSetAttr,
+                               PRBool aNeedsAttrChange)
+      : mBroadcaster(aBroadcaster), mListener(aListener), mAttr(aAttr),
+        mAttrName(aAttrName), mSetAttr(aSetAttr),
+        mNeedsAttrChange(aNeedsAttrChange) {}
 
       nsDelayedBroadcastUpdate(const nsDelayedBroadcastUpdate& aOther)
       : mBroadcaster(aOther.mBroadcaster), mListener(aOther.mListener),
-        mAttr(aOther.mAttr) {}
+        mAttr(aOther.mAttr), mAttrName(aOther.mAttrName),
+        mSetAttr(aOther.mSetAttr), mNeedsAttrChange(aOther.mNeedsAttrChange) {}
 
       nsCOMPtr<nsIDOMElement> mBroadcaster;
       nsCOMPtr<nsIDOMElement> mListener;
+      // Note if mAttrName isn't used, this is the name of the attr, otherwise
+      // this is the value of the attribute.
       nsString                mAttr;
+      nsCOMPtr<nsIAtom>       mAttrName;
+      PRPackedBool            mSetAttr;
+      PRPackedBool            mNeedsAttrChange;
     };
 
     nsTArray<nsDelayedBroadcastUpdate> mDelayedBroadcasters;
+    nsTArray<nsDelayedBroadcastUpdate> mDelayedAttrChangeBroadcasts;
+    PRBool                             mHandlingDelayedAttrChange;
+
+    void MaybeBroadcast();
 private:
     // helpers
 

@@ -56,6 +56,10 @@
 #ifdef MOZ_SVG
 #include "nsSVGIntegrationUtils.h"
 #endif
+#include "nsLayoutUtils.h"
+
+#include "imgIContainer.h"
+#include "nsIInterfaceRequestorUtils.h"
 
 nsDisplayListBuilder::nsDisplayListBuilder(nsIFrame* aReferenceFrame,
     PRBool aIsForEvents, PRBool aBuildCaret)
@@ -66,7 +70,9 @@ nsDisplayListBuilder::nsDisplayListBuilder(nsIFrame* aReferenceFrame,
       mBuildCaret(aBuildCaret),
       mEventDelivery(aIsForEvents),
       mIsAtRootOfPseudoStackingContext(PR_FALSE),
-      mPaintAllFrames(PR_FALSE) {
+      mPaintAllFrames(PR_FALSE),
+      mAccurateVisibleRegions(PR_FALSE),
+      mInTransform(PR_FALSE) {
   PL_InitArenaPool(&mPool, "displayListArena", 1024, sizeof(void*)-1);
 
   nsPresContext* pc = aReferenceFrame->PresContext();
@@ -149,6 +155,13 @@ nsDisplayListBuilder::~nsDisplayListBuilder() {
   PL_FinishArenaPool(&mPool);
 }
 
+PRBool
+nsDisplayListBuilder::IsMovingFrame(nsIFrame* aFrame)
+{
+  return mMovingFrame &&
+     nsLayoutUtils::IsAncestorFrameCrossDoc(mMovingFrame, aFrame, mReferenceFrame);
+}
+
 nsCaret *
 nsDisplayListBuilder::GetCaret() {
   nsRefPtr<nsCaret> caret;
@@ -165,6 +178,8 @@ nsDisplayListBuilder::EnterPresShell(nsIFrame* aReferenceFrame,
   state->mPresShell = aReferenceFrame->PresContext()->PresShell();
   state->mCaretFrame = nsnull;
   state->mFirstFrameMarkedForDisplay = mFramesMarkedForDisplay.Length();
+
+  state->mPresShell->UpdateCanvasBackground();
 
   if (!mBuildCaret)
     return;
@@ -187,8 +202,7 @@ nsDisplayListBuilder::EnterPresShell(nsIFrame* aReferenceFrame,
 
 void
 nsDisplayListBuilder::LeavePresShell(nsIFrame* aReferenceFrame,
-                                     const nsRect& aDirtyRect)
-{
+                                     const nsRect& aDirtyRect) {
   if (CurrentPresShellState()->mPresShell != aReferenceFrame->PresContext()->PresShell()) {
     // Must have not allocated a state for this presshell, presumably due
     // to OOM.
@@ -206,12 +220,12 @@ nsDisplayListBuilder::LeavePresShell(nsIFrame* aReferenceFrame,
 }
 
 void
-nsDisplayListBuilder::MarkFramesForDisplayList(nsIFrame* aDirtyFrame, nsIFrame* aFrames,
+nsDisplayListBuilder::MarkFramesForDisplayList(nsIFrame* aDirtyFrame,
+                                               const nsFrameList& aFrames,
                                                const nsRect& aDirtyRect) {
-  while (aFrames) {
-    mFramesMarkedForDisplay.AppendElement(aFrames);
-    MarkOutOfFlowFrameForDisplay(aDirtyFrame, aFrames, aDirtyRect);
-    aFrames = aFrames->GetNextSibling();
+  for (nsFrameList::Enumerator e(aFrames); !e.AtEnd(); e.Next()) {
+    mFramesMarkedForDisplay.AppendElement(e.get());
+    MarkOutOfFlowFrameForDisplay(aDirtyFrame, e.get(), aDirtyRect);
   }
 }
 
@@ -242,18 +256,21 @@ nsDisplayItem::OptimizeVisibility(nsDisplayListBuilder* aBuilder,
 
   nsIFrame* f = GetUnderlyingFrame();
   NS_ASSERTION(f, "GetUnderlyingFrame() must return non-null for leaf items");
-  PRBool isMoving = aBuilder->IsMovingFrame(f);
 
   if (IsOpaque(aBuilder)) {
     nsRect opaqueArea = bounds;
-    if (isMoving) {
+    if (aBuilder->IsMovingFrame(f)) {
       // The display list should include items for both the before and after
       // states (see nsLayoutUtils::ComputeRepaintRegionForCopy. So the
-      // only area we want to cover is the the area that was opaque in the
+      // only area we want to cover is the area that was opaque in the
       // before state and in the after state.
       opaqueArea.IntersectRect(bounds - aBuilder->GetMoveDelta(), bounds);
     }
-    aVisibleRegion->SimpleSubtract(opaqueArea);
+    if (aBuilder->GetAccurateVisibleRegions()) {
+      aVisibleRegion->Sub(*aVisibleRegion, opaqueArea);
+    } else {
+      aVisibleRegion->SimpleSubtract(opaqueArea);
+    }
   }
 
   return PR_TRUE;
@@ -486,6 +503,42 @@ void nsDisplayList::Sort(nsDisplayListBuilder* aBuilder,
   ::Sort(this, Count(), aCmp, aClosure);
 }
 
+void nsDisplaySolidColor::Paint(nsDisplayListBuilder* aBuilder,
+     nsIRenderingContext* aCtx, const nsRect& aDirtyRect) {
+  nsRect dirty;
+  dirty.IntersectRect(GetBounds(aBuilder), aDirtyRect);
+  aCtx->SetColor(mColor);
+  aCtx->FillRect(dirty);
+}
+
+// Returns TRUE if aContainedRect is guaranteed to be contained in
+// the rounded rect defined by aRoundedRect and aRadii. Complex cases are
+// handled conservatively by returning FALSE in some situations where
+// a more thorough analysis could return TRUE.
+static PRBool RoundedRectContainsRect(const nsRect& aRoundedRect,
+                                      const nscoord aRadii[8],
+                                      const nsRect& aContainedRect) {
+  // rectFullHeight and rectFullWidth together will approximately contain
+  // the total area of the frame minus the rounded corners.
+  nsRect rectFullHeight = aRoundedRect;
+  nscoord xDiff = PR_MAX(aRadii[NS_CORNER_TOP_LEFT_X], aRadii[NS_CORNER_BOTTOM_LEFT_X]);
+  rectFullHeight.x += xDiff;
+  rectFullHeight.width -= PR_MAX(aRadii[NS_CORNER_TOP_RIGHT_X],
+                                 aRadii[NS_CORNER_BOTTOM_RIGHT_X]) + xDiff;
+  if (rectFullHeight.Contains(aContainedRect))
+    return PR_TRUE;
+
+  nsRect rectFullWidth = aRoundedRect;
+  nscoord yDiff = PR_MAX(aRadii[NS_CORNER_TOP_LEFT_Y], aRadii[NS_CORNER_TOP_RIGHT_Y]);
+  rectFullWidth.y += yDiff;
+  rectFullWidth.height -= PR_MAX(aRadii[NS_CORNER_BOTTOM_LEFT_Y],
+                                 aRadii[NS_CORNER_BOTTOM_RIGHT_Y]) + yDiff;
+  if (rectFullWidth.Contains(aContainedRect))
+    return PR_TRUE;
+
+  return PR_FALSE;
+}
+
 PRBool
 nsDisplayBackground::IsOpaque(nsDisplayListBuilder* aBuilder) {
   // theme background overrides any other background
@@ -493,15 +546,38 @@ nsDisplayBackground::IsOpaque(nsDisplayListBuilder* aBuilder) {
     return PR_FALSE;
 
   const nsStyleBackground* bg;
-  PRBool isCanvas; // not used
-  PRBool hasBG =
-    nsCSSRendering::FindBackground(mFrame->PresContext(), mFrame,
-                                   &bg, &isCanvas);
 
-  return (hasBG && NS_GET_A(bg->mBackgroundColor) == 255 &&
-          bg->mBackgroundClip == NS_STYLE_BG_CLIP_BORDER &&
-          !nsLayoutUtils::HasNonZeroCorner(mFrame->GetStyleBorder()->
-                                         mBorderRadius));
+  if (!nsCSSRendering::FindBackground(mFrame->PresContext(), mFrame, &bg))
+    return PR_FALSE;
+
+  const nsStyleBackground::Layer& bottomLayer = bg->BottomLayer();
+
+  // bottom layer's clip is used for the color
+  if (bottomLayer.mClip != NS_STYLE_BG_CLIP_BORDER ||
+      nsLayoutUtils::HasNonZeroCorner(mFrame->GetStyleBorder()->mBorderRadius))
+    return PR_FALSE;
+
+  if (NS_GET_A(bg->mBackgroundColor) == 255 &&
+      !nsCSSRendering::IsCanvasFrame(mFrame))
+    return PR_TRUE;
+
+  if (bottomLayer.mRepeat == NS_STYLE_BG_REPEAT_XY) {
+    if (bottomLayer.mImage.GetType() == eBackgroundImage_Image) {
+      nsCOMPtr<imgIContainer> container;
+      bottomLayer.mImage.GetImageData()->GetImage(getter_AddRefs(container));
+      if (container) {
+        PRBool animated;
+        container->GetAnimated(&animated);
+        if (!animated) {
+          PRBool isOpaque;
+          if (NS_SUCCEEDED(container->GetCurrentFrameIsOpaque(&isOpaque)))
+            return isOpaque;
+        }
+      }
+    }
+  }
+
+  return PR_FALSE;
 }
 
 PRBool
@@ -510,15 +586,15 @@ nsDisplayBackground::IsUniform(nsDisplayListBuilder* aBuilder) {
   if (mIsThemed)
     return PR_FALSE;
 
-  PRBool isCanvas;
   const nsStyleBackground* bg;
   PRBool hasBG =
-    nsCSSRendering::FindBackground(mFrame->PresContext(), mFrame, &bg, &isCanvas);
+    nsCSSRendering::FindBackground(mFrame->PresContext(), mFrame, &bg);
   if (!hasBG)
     return PR_TRUE;
-  if ((bg->mBackgroundFlags & NS_STYLE_BG_IMAGE_NONE) &&
+  if (bg->BottomLayer().mImage.GetType() == eBackgroundImage_Null &&
+      bg->mImageCount == 1 &&
       !nsLayoutUtils::HasNonZeroCorner(mFrame->GetStyleBorder()->mBorderRadius) &&
-      bg->mBackgroundClip == NS_STYLE_BG_CLIP_BORDER)
+      bg->BottomLayer().mClip == NS_STYLE_BG_CLIP_BORDER)
     return PR_TRUE;
   return PR_FALSE;
 }
@@ -530,10 +606,9 @@ nsDisplayBackground::IsVaryingRelativeToMovingFrame(nsDisplayListBuilder* aBuild
               "IsVaryingRelativeToMovingFrame called on non-moving frame!");
 
   nsPresContext* presContext = mFrame->PresContext();
-  PRBool isCanvas;
   const nsStyleBackground* bg;
   PRBool hasBG =
-    nsCSSRendering::FindBackground(presContext, mFrame, &bg, &isCanvas);
+    nsCSSRendering::FindBackground(presContext, mFrame, &bg);
   if (!hasBG)
     return PR_FALSE;
   if (!bg->HasFixedBackground())
@@ -553,9 +628,15 @@ void
 nsDisplayBackground::Paint(nsDisplayListBuilder* aBuilder,
      nsIRenderingContext* aCtx, const nsRect& aDirtyRect) {
   nsPoint offset = aBuilder->ToReferenceFrame(mFrame);
+  PRUint32 flags = 0;
+  nsDisplayItem* nextItem = GetAbove();
+  if (nextItem && nextItem->GetUnderlyingFrame() == mFrame &&
+      nextItem->GetType() == TYPE_BORDER) {
+    flags |= nsCSSRendering::PAINT_WILL_PAINT_BORDER;
+  }
   nsCSSRendering::PaintBackground(mFrame->PresContext(), *aCtx, mFrame,
                                   aDirtyRect, nsRect(offset, mFrame->GetSize()),
-                                  mFrame->HonorPrintBackgroundSettings());
+                                  flags);
 }
 
 nsRect
@@ -647,16 +728,49 @@ nsDisplayBorder::Paint(nsDisplayListBuilder* aBuilder,
 }
 
 void
-nsDisplayBoxShadow::Paint(nsDisplayListBuilder* aBuilder,
+nsDisplayBoxShadowOuter::Paint(nsDisplayListBuilder* aBuilder,
      nsIRenderingContext* aCtx, const nsRect& aDirtyRect) {
   nsPoint offset = aBuilder->ToReferenceFrame(mFrame);
-  nsCSSRendering::PaintBoxShadow(mFrame->PresContext(), *aCtx,
-                                 mFrame, offset);
+  nsCSSRendering::PaintBoxShadowOuter(mFrame->PresContext(), *aCtx, mFrame,
+                                      nsRect(offset, mFrame->GetSize()), aDirtyRect);
 }
 
 nsRect
-nsDisplayBoxShadow::GetBounds(nsDisplayListBuilder* aBuilder) {
+nsDisplayBoxShadowOuter::GetBounds(nsDisplayListBuilder* aBuilder) {
   return mFrame->GetOverflowRect() + aBuilder->ToReferenceFrame(mFrame);
+}
+
+PRBool
+nsDisplayBoxShadowOuter::OptimizeVisibility(nsDisplayListBuilder* aBuilder,
+                                            nsRegion* aVisibleRegion) {
+  if (!nsDisplayItem::OptimizeVisibility(aBuilder, aVisibleRegion))
+    return PR_FALSE;
+
+  nsPoint origin = aBuilder->ToReferenceFrame(mFrame);
+  nsRect frameRect(origin, mFrame->GetSize());
+  const nsRect visibleBounds = aVisibleRegion->GetBounds();
+  if (!frameRect.Contains(visibleBounds))
+    return PR_TRUE;
+
+  // the visible region is entirely inside the border-rect, and box shadows
+  // never render within the border-rect (unless there's a border radius).
+  nscoord twipsRadii[8];
+  PRBool hasBorderRadii =
+     nsCSSRendering::GetBorderRadiusTwips(mFrame->GetStyleBorder()->mBorderRadius,
+                                          frameRect.width,
+                                          twipsRadii);
+  if (!hasBorderRadii)
+    return PR_FALSE;
+
+  return !RoundedRectContainsRect(frameRect, twipsRadii, visibleBounds);
+}
+
+void
+nsDisplayBoxShadowInner::Paint(nsDisplayListBuilder* aBuilder,
+     nsIRenderingContext* aCtx, const nsRect& aDirtyRect) {
+  nsPoint offset = aBuilder->ToReferenceFrame(mFrame);
+  nsCSSRendering::PaintBoxShadowInner(mFrame->PresContext(), *aCtx, mFrame,
+                                      nsRect(offset, mFrame->GetSize()), aDirtyRect);
 }
 
 nsDisplayWrapList::nsDisplayWrapList(nsIFrame* aFrame, nsDisplayList* aList)
@@ -914,7 +1028,11 @@ PRBool nsDisplayClip::OptimizeVisibility(nsDisplayListBuilder* aBuilder,
   PRBool anyVisible = nsDisplayWrapList::OptimizeVisibility(aBuilder, &rNew);
   nsRegion subtracted;
   subtracted.Sub(clipped, rNew);
-  aVisibleRegion->SimpleSubtract(subtracted);
+  if (aBuilder->GetAccurateVisibleRegions()) {
+    aVisibleRegion->Sub(*aVisibleRegion, subtracted);
+  } else {
+    aVisibleRegion->SimpleSubtract(subtracted);
+  }
   return anyVisible;
 }
 
@@ -944,7 +1062,7 @@ nsDisplayWrapList* nsDisplayClip::WrapWithClone(nsDisplayListBuilder* aBuilder,
 // Write #define UNIFIED_CONTINUATIONS here to have the transform property try
 // to transform content with continuations as one unified block instead of
 // several smaller ones.  This is currently disabled because it doesn't work
-// correctly, since when the frames are initially being reflown, their
+// correctly, since when the frames are initially being reflowed, their
 // continuations all compute their bounding rects independently of each other
 // and consequently get the wrong value.  Write #define DEBUG_HIT here to have
 // the nsDisplayTransform class dump out a bunch of information about hit

@@ -56,20 +56,27 @@ typedef int (OggPlayDataCallback)(OggPlay *player, int num_records,
 #include <oggplay/oggplay_callback_info.h>
 #include <oggplay/oggplay_tools.h>
 #include <oggplay/oggplay_seek.h>
-/*
-#include <oggplay/oggplay_retrieve.h>
-#include <oggplay/oggplay_cmml.h>
-*/
 
-OggPlay *
-oggplay_init(void);
-
-OggPlayErrorCode
-oggplay_set_reader(OggPlay *OS, OggPlayReader *OSR);
-
+/**
+ * Create an OggPlay handle associated with the given reader.
+ * The functions creates a new OggPlay handle and associates with
+ * the given OggPlayReader and initialises the buffer.
+ * 
+ *
+ * @param reader an OggPlayReader handle associated with the Ogg content
+ * @return A new OggPlay handle
+ * @retval NULL in case of error.
+ */
 OggPlay *
 oggplay_open_with_reader(OggPlayReader *reader);
 
+/**
+ * Create a new OggPlay handle associated with the given reader.
+ *
+ * \param reader OggPlayReader handle associated with the Ogg content
+ * \return A new OggPlay handle
+ * \retval NULL in case of error.
+ */
 OggPlay *
 oggplay_new_with_reader(OggPlayReader *reader);
 
@@ -85,6 +92,9 @@ oggplay_set_data_callback(OggPlay *me, OggPlayDataCallback callback,
 
 OggPlayErrorCode
 oggplay_set_callback_num_frames(OggPlay *me, int stream, int frames);
+
+OggPlayErrorCode
+oggplay_set_callback_period(OggPlay *me, int stream, int milliseconds);
 
 OggPlayErrorCode
 oggplay_set_offset(OggPlay *me, int track, ogg_int64_t offset);
@@ -105,10 +115,22 @@ OggPlayErrorCode
 oggplay_get_video_fps(OggPlay *me, int track, int* fps_denom, int* fps_num);
 
 OggPlayErrorCode
+oggplay_get_video_aspect_ratio(OggPlay *me, int track, int* aspect_denom, int* aspect_num);
+
+OggPlayErrorCode
+oggplay_convert_video_to_rgb(OggPlay *me, int track, int convert);
+
+OggPlayErrorCode
 oggplay_get_kate_category(OggPlay *me, int track, const char** category);
 
 OggPlayErrorCode
 oggplay_get_kate_language(OggPlay *me, int track, const char** language);
+
+OggPlayErrorCode
+oggplay_set_kate_tiger_rendering(OggPlay *me, int track, int use_tiger);
+
+OggPlayErrorCode
+oggplay_overlay_kate_track_on_video(OggPlay *me, int kate_track, int video_track);
 
 OggPlayErrorCode
 oggplay_start_decoding(OggPlay *me);
@@ -128,6 +150,13 @@ oggplay_buffer_release(OggPlay *player, OggPlayCallbackInfo **track_info);
 void
 oggplay_prepare_for_close(OggPlay *me);
 
+/**
+ * @brief Destroys the OggPlay handle along with the associated OggPlayReader
+ * and clears out the buffer and shuts down the callback function. 
+ *
+ * @param player an OggPlay handle
+ * @retval E_OGGPLAY_OK on success 
+ */
 OggPlayErrorCode
 oggplay_close(OggPlay *player);
 

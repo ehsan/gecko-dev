@@ -43,17 +43,27 @@
 enum ColorName {
   headerStartGrey,
   headerEndGrey,
-  headerBorderGrey
+  headerBorderGrey,
+  toolbarTopBorderGrey,
+  statusbarFirstTopBorderGrey,
+  statusbarSecondTopBorderGrey,
+  statusbarGradientStartGrey,
+  statusbarGradientEndGrey
 };
 
 static const int sLeopardThemeColors[][2] = {
   /* { active window, inactive window } */
-  // unified titlebar and toolbar gradient:
+  // titlebar and toolbar:
   { 0xC5, 0xE9 }, // start grey
   { 0x96, 0xCA }, // end grey
-  { 0x42, 0x89 }  // separator line
+  { 0x42, 0x89 }, // bottom separator line
+  { 0xC0, 0xE2 }, // top separator line
+  // statusbar:
+  { 0x42, 0x86 }, // first top border
+  { 0xD8, 0xEE }, // second top border
+  { 0xBD, 0xE4 }, // gradient start
+  { 0x96, 0xCF }  // gradient end
 };
-
 
 static int NativeGreyColorAsInt(ColorName name, BOOL isMain)
 {
@@ -65,9 +75,12 @@ static float NativeGreyColorAsFloat(ColorName name, BOOL isMain)
   return NativeGreyColorAsInt(name, isMain) / 255.0f;
 }
 
-static NSColor* NativeGreyColorAsNSColor(ColorName name, BOOL isMain)
+static void DrawNativeGreyColorInRect(CGContextRef context, ColorName name,
+                                      CGRect rect, BOOL isMain)
 {
-  return [NSColor colorWithDeviceWhite:NativeGreyColorAsFloat(name, isMain) alpha:1.0f];
+  float grey = NativeGreyColorAsFloat(name, isMain);
+  CGContextSetRGBFillColor(context, grey, grey, grey, 1.0f);
+  CGContextFillRect(context, rect);
 }
 
 #endif // nsNativeThemeColors_h_

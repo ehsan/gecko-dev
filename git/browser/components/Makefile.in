@@ -63,7 +63,6 @@ DIRS = \
 	certerror \
 	dirprovider \
 	microsummaries \
-	migration \
 	preferences \
 	search \
 	sessionstore \
@@ -74,13 +73,17 @@ DIRS = \
 	privatebrowsing \
 	$(NULL)
 
+ifndef WINCE
+DIRS += migration
+endif
+
 ifdef MOZ_SAFE_BROWSING
 DIRS += safebrowsing
 endif
 
 DIRS += build
 
-ifneq (,$(BUILD_OFFICIAL)$(MOZILLA_OFFICIAL))
+ifdef MOZILLA_OFFICIAL
 DEFINES += -DOFFICIAL_BUILD=1
 endif
 

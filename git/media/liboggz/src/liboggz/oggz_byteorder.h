@@ -33,11 +33,7 @@
 #ifndef __OGGZ_BYTEORDER_H__
 #define __OGGZ_BYTEORDER_H__
 
-#ifdef WIN32
-#include "config_win32.h"
-#else
 #include "config.h"
-#endif
 
 #ifdef _UNUSED_
 static  unsigned short
@@ -115,6 +111,12 @@ _le_64 (ogg_int64_t l)
 
 #endif
   return (*(ogg_int64_t *)ucptr);
+}
+
+static ogg_int32_t
+int32_be_at (unsigned char *c)
+{
+  return (c [0] <<  24) + (c [1] <<  16) + (c [2] <<  8) + c [3] ;
 }
 
 #endif /* __OGGZ_BYTEORDER_H__ */

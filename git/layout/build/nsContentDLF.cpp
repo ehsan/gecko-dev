@@ -64,9 +64,7 @@
 #include "nsIParser.h"
 
 // plugins
-#include "nsIPluginManager.h"
 #include "nsIPluginHost.h"
-static NS_DEFINE_CID(kPluginManagerCID, NS_PLUGINMANAGER_CID);
 static NS_DEFINE_CID(kPluginDocumentCID, NS_PLUGINDOCUMENT_CID);
 
 // Factory code for creating variations on html documents
@@ -164,6 +162,11 @@ nsContentDLF::CreateInstance(const char* aCommand,
                              nsIStreamListener** aDocListener,
                              nsIContentViewer** aDocViewer)
 {
+  // Declare "type" here.  This is because although the variable itself only
+  // needs limited scope, we need to use the raw string memory -- as returned
+  // by "type.get()" farther down in the function.
+  nsCAutoString type;
+
   // Are we viewing source?
 #ifdef MOZ_VIEW_SOURCE
   nsCOMPtr<nsIViewSourceChannel> viewSourceChannel = do_QueryInterface(aChannel);
@@ -175,7 +178,6 @@ nsContentDLF::CreateInstance(const char* aCommand,
     // view-source channel normally returns.  Get the actual content
     // type of the data.  If it's known, use it; otherwise use
     // text/plain.
-    nsCAutoString type;
     viewSourceChannel->GetOriginalContentType(type);
     PRBool knownType = PR_FALSE;
     PRInt32 typeIndex;
@@ -210,6 +212,10 @@ nsContentDLF::CreateInstance(const char* aCommand,
 
     if (knownType) {
       viewSourceChannel->SetContentType(type);
+    } else if (IsImageContentType(type.get())) {
+      // If it's an image, we want to display it the same way we normally would.
+      // Also note the lifetime of "type" allows us to safely use "get()" here.
+      aContentType = type.get();
     } else {
       viewSourceChannel->SetContentType(NS_LITERAL_CSTRING("text/plain"));
     }
@@ -267,7 +273,7 @@ nsContentDLF::CreateInstance(const char* aCommand,
   }
 
 #ifdef MOZ_MEDIA
-  if (nsHTMLMediaElement::CanHandleMediaType(aContentType)) {
+  if (nsHTMLMediaElement::ShouldHandleMediaType(aContentType)) {
     return CreateDocument(aCommand, 
                           aChannel, aLoadGroup,
                           aContainer, kVideoDocumentCID,
@@ -276,17 +282,14 @@ nsContentDLF::CreateInstance(const char* aCommand,
 #endif
 
   // Try image types
-  nsCOMPtr<imgILoader> loader(do_GetService("@mozilla.org/image/loader;1"));
-  PRBool isReg = PR_FALSE;
-  loader->SupportImageWithMimeType(aContentType, &isReg);
-  if (isReg) {
+  if (IsImageContentType(aContentType)) {
     return CreateDocument(aCommand, 
                           aChannel, aLoadGroup,
                           aContainer, kImageDocumentCID,
                           aDocListener, aDocViewer);
   }
 
-  nsCOMPtr<nsIPluginHost> ph (do_GetService(kPluginManagerCID));
+  nsCOMPtr<nsIPluginHost> ph (do_GetService(MOZ_PLUGIN_HOST_CONTRACTID));
   if(ph && NS_SUCCEEDED(ph->IsPluginEnabledForType(aContentType))) {
     return CreateDocument(aCommand,
                           aChannel, aLoadGroup,
@@ -353,15 +356,15 @@ nsContentDLF::CreateBlankDocument(nsILoadGroup *aLoadGroup,
     nsCOMPtr<nsINodeInfo> htmlNodeInfo;
 
     // generate an html html element
-    htmlNodeInfo = nim->GetNodeInfo(nsGkAtoms::html, 0, kNameSpaceID_None);
+    htmlNodeInfo = nim->GetNodeInfo(nsGkAtoms::html, 0, kNameSpaceID_XHTML);
     nsCOMPtr<nsIContent> htmlElement = NS_NewHTMLHtmlElement(htmlNodeInfo);
 
     // generate an html head element
-    htmlNodeInfo = nim->GetNodeInfo(nsGkAtoms::head, 0, kNameSpaceID_None);
+    htmlNodeInfo = nim->GetNodeInfo(nsGkAtoms::head, 0, kNameSpaceID_XHTML);
     nsCOMPtr<nsIContent> headElement = NS_NewHTMLHeadElement(htmlNodeInfo);
 
     // generate an html body element
-    htmlNodeInfo = nim->GetNodeInfo(nsGkAtoms::body, 0, kNameSpaceID_None);
+    htmlNodeInfo = nim->GetNodeInfo(nsGkAtoms::body, 0, kNameSpaceID_XHTML);
     nsCOMPtr<nsIContent> bodyElement = NS_NewHTMLBodyElement(htmlNodeInfo);
 
     // blat in the structure
@@ -602,4 +605,11 @@ nsContentDLF::UnregisterDocumentFactories(nsIComponentManager* aCompMgr,
   } while (PR_FALSE);
 
   return rv;
+}
+
+PRBool nsContentDLF::IsImageContentType(const char* aContentType) {
+  nsCOMPtr<imgILoader> loader(do_GetService("@mozilla.org/image/loader;1"));
+  PRBool isDecoderAvailable = PR_FALSE;
+  loader->SupportImageWithMimeType(aContentType, &isDecoderAvailable);
+  return isDecoderAvailable;
 }

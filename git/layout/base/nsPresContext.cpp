@@ -21,6 +21,7 @@
  *
  * Contributor(s):
  *   L. David Baron <dbaron@dbaron.org>, Mozilla Corporation
+ *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -47,7 +48,6 @@
 #include "nsIContentViewer.h"
 #include "nsIDocumentViewer.h"
 #include "nsPIDOMWindow.h"
-#include "nsIFocusController.h"
 #include "nsStyleSet.h"
 #include "nsImageLoader.h"
 #include "nsIContent.h"
@@ -84,7 +84,20 @@
 #include "nsRuleNode.h"
 #include "nsEventDispatcher.h"
 #include "gfxUserFontSet.h"
+#include "gfxPlatform.h"
+#include "nsCSSRules.h"
+#include "nsFontFaceLoader.h"
 #include "nsIEventListenerManager.h"
+#include "nsStyleStructInlines.h"
+#include "nsIAppShell.h"
+#include "prenv.h"
+#include "nsIPrivateDOMEvent.h"
+#include "nsIDOMEventTarget.h"
+#include "nsObjectFrame.h"
+
+#ifdef MOZ_SMIL
+#include "nsSMILAnimationController.h"
+#endif // MOZ_SMIL
 
 #ifdef IBMBIDI
 #include "nsBidiPresUtils.h"
@@ -151,7 +164,7 @@ IsVisualCharset(const nsCString& aCharset)
 
 
 static PLDHashOperator
-destroy_loads(const void * aKey, nsCOMPtr<nsImageLoader>& aData, void* closure)
+destroy_loads(const void * aKey, nsRefPtr<nsImageLoader>& aData, void* closure)
 {
   aData->Destroy();
   return PL_DHASH_NEXT;
@@ -170,19 +183,24 @@ nsPresContext::nsPresContext(nsIDocument* aDocument, nsPresContextType aType)
     mImageAnimationModePref(imgIContainer::kNormalAnimMode),
     // Font sizes default to zero; they will be set in GetFontPreferences
     mDefaultVariableFont("serif", NS_FONT_STYLE_NORMAL, NS_FONT_VARIANT_NORMAL,
-                         NS_FONT_WEIGHT_NORMAL, 0, 0),
+                         NS_FONT_WEIGHT_NORMAL, NS_FONT_STRETCH_NORMAL, 0, 0),
     mDefaultFixedFont("monospace", NS_FONT_STYLE_NORMAL,
-                      NS_FONT_VARIANT_NORMAL, NS_FONT_WEIGHT_NORMAL, 0, 0),
+                      NS_FONT_VARIANT_NORMAL, NS_FONT_WEIGHT_NORMAL,
+                      NS_FONT_STRETCH_NORMAL, 0, 0),
     mDefaultSerifFont("serif", NS_FONT_STYLE_NORMAL, NS_FONT_VARIANT_NORMAL,
-                      NS_FONT_WEIGHT_NORMAL, 0, 0),
+                      NS_FONT_WEIGHT_NORMAL, NS_FONT_STRETCH_NORMAL, 0, 0),
     mDefaultSansSerifFont("sans-serif", NS_FONT_STYLE_NORMAL,
-                          NS_FONT_VARIANT_NORMAL, NS_FONT_WEIGHT_NORMAL, 0, 0),
+                          NS_FONT_VARIANT_NORMAL, NS_FONT_WEIGHT_NORMAL,
+                          NS_FONT_STRETCH_NORMAL, 0, 0),
     mDefaultMonospaceFont("monospace", NS_FONT_STYLE_NORMAL,
-                          NS_FONT_VARIANT_NORMAL, NS_FONT_WEIGHT_NORMAL, 0, 0),
+                          NS_FONT_VARIANT_NORMAL, NS_FONT_WEIGHT_NORMAL,
+                          NS_FONT_STRETCH_NORMAL, 0, 0),
     mDefaultCursiveFont("cursive", NS_FONT_STYLE_NORMAL,
-                        NS_FONT_VARIANT_NORMAL, NS_FONT_WEIGHT_NORMAL, 0, 0),
+                        NS_FONT_VARIANT_NORMAL, NS_FONT_WEIGHT_NORMAL,
+                        NS_FONT_STRETCH_NORMAL, 0, 0),
     mDefaultFantasyFont("fantasy", NS_FONT_STYLE_NORMAL,
-                        NS_FONT_VARIANT_NORMAL, NS_FONT_WEIGHT_NORMAL, 0, 0),
+                        NS_FONT_VARIANT_NORMAL, NS_FONT_WEIGHT_NORMAL,
+                        NS_FONT_STRETCH_NORMAL, 0, 0),
     mCanPaginatedScroll(PR_FALSE),
     mIsRootPaginatedDocument(PR_FALSE), mSupressResizeReflow(PR_FALSE)
 {
@@ -213,8 +231,6 @@ nsPresContext::nsPresContext(nsIDocument* aDocument, nsPresContextType aType)
   if (aType == eContext_Galley) {
     mMedium = nsGkAtoms::screen;
   } else {
-    SetBackgroundImageDraw(PR_FALSE);
-    SetBackgroundColorDraw(PR_FALSE);
     mMedium = nsGkAtoms::print;
     mPaginated = PR_TRUE;
   }
@@ -228,12 +244,13 @@ nsPresContext::nsPresContext(nsIDocument* aDocument, nsPresContextType aType)
   }
   NS_ASSERTION(mDocument, "Null document");
   mUserFontSet = nsnull;
+  mUserFontSetDirty = PR_TRUE;
 }
 
 nsPresContext::~nsPresContext()
 {
-  mImageLoaders.Enumerate(destroy_loads, nsnull);
-  mBorderImageLoaders.Enumerate(destroy_loads, nsnull);
+  for (PRUint32 i = 0; i < IMAGE_LOAD_TYPE_COUNT; ++i)
+    mImageLoaders[i].Enumerate(destroy_loads, nsnull);
 
   NS_PRECONDITION(!mShell, "Presshell forgot to clear our mShell pointer");
   SetShell(nsnull);
@@ -282,12 +299,13 @@ nsPresContext::~nsPresContext()
   nsContentUtils::UnregisterPrefCallback("layout.css.dpi",
                                          nsPresContext::PrefChangedCallback,
                                          this);
+  nsContentUtils::UnregisterPrefCallback("layout.css.devPixelsPerPx",
+                                         nsPresContext::PrefChangedCallback,
+                                         this);
 
   NS_IF_RELEASE(mDeviceContext);
   NS_IF_RELEASE(mLookAndFeel);
   NS_IF_RELEASE(mLangGroup);
-  
-  SetUserFontSet(nsnull);
 }
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsPresContext)
@@ -301,7 +319,7 @@ NS_IMPL_CYCLE_COLLECTING_ADDREF(nsPresContext)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsPresContext)
 
 static PLDHashOperator
-TraverseImageLoader(const void * aKey, nsCOMPtr<nsImageLoader>& aData,
+TraverseImageLoader(const void * aKey, nsRefPtr<nsImageLoader>& aData,
                     void* aClosure)
 {
   nsCycleCollectionTraversalCallback *cb =
@@ -319,8 +337,8 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsPresContext)
   // NS_IMPL_CYCLE_COLLECTION_TRAVERSE_RAWPTR(mLookAndFeel); // a service
   // NS_IMPL_CYCLE_COLLECTION_TRAVERSE_RAWPTR(mLangGroup); // an atom
 
-  tmp->mImageLoaders.Enumerate(TraverseImageLoader, &cb);
-  tmp->mBorderImageLoaders.Enumerate(TraverseImageLoader, &cb);
+  for (PRUint32 i = 0; i < IMAGE_LOAD_TYPE_COUNT; ++i)
+    tmp->mImageLoaders[i].Enumerate(TraverseImageLoader, &cb);
 
   // NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mTheme); // a service
   // NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mLangService); // a service
@@ -342,10 +360,10 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsPresContext)
   // NS_RELEASE(tmp->mLookAndFeel); // a service
   // NS_RELEASE(tmp->mLangGroup); // an atom
 
-  tmp->mImageLoaders.Enumerate(destroy_loads, nsnull);
-  tmp->mImageLoaders.Clear();
-  tmp->mBorderImageLoaders.Enumerate(destroy_loads, nsnull);
-  tmp->mBorderImageLoaders.Clear();
+  for (PRUint32 i = 0; i < IMAGE_LOAD_TYPE_COUNT; ++i) {
+    tmp->mImageLoaders[i].Enumerate(destroy_loads, nsnull);
+    tmp->mImageLoaders[i].Clear();
+  }
 
   // NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mTheme); // a service
   // NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mLangService); // a service
@@ -371,6 +389,10 @@ static const char* const kGenericFont[] = {
   ".cursive.",
   ".fantasy."
 };
+
+// whether no native theme service exists;
+// if this gets set to true, we'll stop asking for it.
+static PRBool sNoTheme = PR_FALSE;
 
 // Set to true when LookAndFeelChanged needs to be called.  This is used
 // because the look and feel is a service, so there's no need to notify it from
@@ -730,7 +752,8 @@ void
 nsPresContext::PreferenceChanged(const char* aPrefName)
 {
   nsDependentCString prefName(aPrefName);
-  if (prefName.EqualsLiteral("layout.css.dpi")) {
+  if (prefName.EqualsLiteral("layout.css.dpi") ||
+      prefName.EqualsLiteral("layout.css.devPixelsPerPx")) {
     PRInt32 oldAppUnitsPerDevPixel = AppUnitsPerDevPixel();
     if (mDeviceContext->CheckDPIChange() && mShell) {
       mDeviceContext->FlushFontCache();
@@ -738,7 +761,7 @@ nsPresContext::PreferenceChanged(const char* aPrefName)
       // Re-fetch the view manager's window dimensions in case there's a deferred
       // resize which hasn't affected our mVisibleArea yet
       nscoord oldWidthAppUnits, oldHeightAppUnits;
-      nsIViewManager* vm = GetViewManager();
+      nsIViewManager* vm = mShell->GetViewManager();
       vm->GetWindowDimensions(&oldWidthAppUnits, &oldHeightAppUnits);
       float oldWidthDevPixels = oldWidthAppUnits/oldAppUnitsPerDevPixel;
       float oldHeightDevPixels = oldHeightAppUnits/oldAppUnitsPerDevPixel;
@@ -762,6 +785,13 @@ nsPresContext::PreferenceChanged(const char* aPrefName)
     // probably also requires clearing the text run cache, so don't
     // bother (yet, anyway).
     mPrefChangePendingNeedsReflow = PR_TRUE;
+  }
+  if (StringBeginsWith(prefName, NS_LITERAL_CSTRING("bidi."))) {
+    // Changes to bidi prefs need to trigger a reflow (see bug 443629)
+    mPrefChangePendingNeedsReflow = PR_TRUE;
+
+    // Changes to bidi.numeral also needs to empty the text run cache.
+    // This is handled in gfxTextRunWordCache.cpp.
   }
   // we use a zero-delay timer to coalesce multiple pref updates
   if (!mPrefChangedTimer)
@@ -818,11 +848,9 @@ nsPresContext::Init(nsIDeviceContext* aDeviceContext)
     mDeviceContext->FlushFontCache();
   mCurAppUnitsPerDevPixel = AppUnitsPerDevPixel();
 
-  if (!mImageLoaders.Init())
-    return NS_ERROR_OUT_OF_MEMORY;
-  
-  if (!mBorderImageLoaders.Init())
-    return NS_ERROR_OUT_OF_MEMORY;
+  for (PRUint32 i = 0; i < IMAGE_LOAD_TYPE_COUNT; ++i)
+    if (!mImageLoaders[i].Init())
+      return NS_ERROR_OUT_OF_MEMORY;
   
   // Get the look and feel service here; default colors will be initialized
   // from calling GetUserPreferences() when we get a presshell.
@@ -869,6 +897,9 @@ nsPresContext::Init(nsIDeviceContext* aDeviceContext)
   nsContentUtils::RegisterPrefCallback("layout.css.dpi",
                                        nsPresContext::PrefChangedCallback,
                                        this);
+  nsContentUtils::RegisterPrefCallback("layout.css.devPixelsPerPx",
+                                       nsPresContext::PrefChangedCallback,
+                                       this);
 
   rv = mEventManager->Init();
   NS_ENSURE_SUCCESS(rv, rv);
@@ -891,6 +922,12 @@ nsPresContext::Init(nsIDeviceContext* aDeviceContext)
 void
 nsPresContext::SetShell(nsIPresShell* aShell)
 {
+  if (mUserFontSet) {
+    // Clear out user font set if we have one
+    mUserFontSet->Destroy();
+    NS_RELEASE(mUserFontSet);
+  }
+
   if (mShell) {
     // Remove ourselves as the charset observer from the shell's doc, because
     // this shell may be going away for good.
@@ -989,7 +1026,7 @@ nsPresContext::Observe(nsISupports* aSubject,
 }
 
 // We may want to replace this with something faster, maybe caching the root prescontext
-nsPresContext*
+nsRootPresContext*
 nsPresContext::RootPresContext()
 {
   nsPresContext* pc = this;
@@ -1004,7 +1041,7 @@ nsPresContext::RootPresContext()
         }
       }
     }
-    return pc;
+    return static_cast<nsRootPresContext*>(pc);
   }
 }
 
@@ -1033,10 +1070,13 @@ static void SetImgAnimModeOnImgReq(imgIRequest* aImgReq, PRUint16 aMode)
 
  // Enumeration call back for HashTable
 static PLDHashOperator
-set_animation_mode(const void * aKey, nsCOMPtr<nsImageLoader>& aData, void* closure)
+set_animation_mode(const void * aKey, nsRefPtr<nsImageLoader>& aData, void* closure)
 {
-  imgIRequest* imgReq = aData->GetRequest();
-  SetImgAnimModeOnImgReq(imgReq, (PRUint16)NS_PTR_TO_INT32(closure));
+  for (nsImageLoader *loader = aData; loader;
+       loader = loader->GetNextLoader()) {
+    imgIRequest* imgReq = loader->GetRequest();
+    SetImgAnimModeOnImgReq(imgReq, (PRUint16)NS_PTR_TO_INT32(closure));
+  }
   return PL_DHASH_NEXT;
 }
 
@@ -1061,6 +1101,30 @@ void nsPresContext::SetImgAnimations(nsIContent *aParent, PRUint16 aMode)
   }
 }
 
+#ifdef MOZ_SMIL
+void
+nsPresContext::SetSMILAnimations(nsIDocument *aDoc, PRUint16 aNewMode,
+                                 PRUint16 aOldMode)
+{
+  nsSMILAnimationController *controller = aDoc->GetAnimationController();
+  if (controller) {
+    switch (aNewMode)
+    {
+      case imgIContainer::kNormalAnimMode:
+      case imgIContainer::kLoopOnceAnimMode:
+        if (aOldMode == imgIContainer::kDontAnimMode)
+          controller->Resume(nsSMILTimeContainer::PAUSE_USERPREF);
+        break;
+
+      case imgIContainer::kDontAnimMode:
+        if (aOldMode != imgIContainer::kDontAnimMode)
+          controller->Pause(nsSMILTimeContainer::PAUSE_USERPREF);
+        break;
+    }
+  }
+}
+#endif // MOZ_SMIL
+
 void
 nsPresContext::SetImageAnimationModeInternal(PRUint16 aMode)
 {
@@ -1073,8 +1137,8 @@ nsPresContext::SetImageAnimationModeInternal(PRUint16 aMode)
     return;
 
   // Set the mode on the image loaders.
-  mImageLoaders.Enumerate(set_animation_mode, NS_INT32_TO_PTR(aMode));
-  mBorderImageLoaders.Enumerate(set_animation_mode, NS_INT32_TO_PTR(aMode));
+  for (PRUint32 i = 0; i < IMAGE_LOAD_TYPE_COUNT; ++i)
+    mImageLoaders[i].Enumerate(set_animation_mode, NS_INT32_TO_PTR(aMode));
 
   // Now walk the content tree and set the animation mode 
   // on all the images.
@@ -1085,6 +1149,10 @@ nsPresContext::SetImageAnimationModeInternal(PRUint16 aMode)
       if (rootContent) {
         SetImgAnimations(rootContent, aMode);
       }
+
+#ifdef MOZ_SMIL
+      SetSMILAnimations(doc, aMode, mImageAnimationMode);
+#endif // MOZ_SMIL
     }
   }
 
@@ -1098,10 +1166,12 @@ nsPresContext::SetImageAnimationModeExternal(PRUint16 aMode)
 }
 
 already_AddRefed<nsIFontMetrics>
-nsPresContext::GetMetricsFor(const nsFont& aFont)
+nsPresContext::GetMetricsFor(const nsFont& aFont, PRBool aUseUserFontSet)
 {
   nsIFontMetrics* metrics = nsnull;
-  mDeviceContext->GetMetricsFor(aFont, mLangGroup, metrics);
+  mDeviceContext->GetMetricsFor(aFont, mLangGroup,
+                                aUseUserFontSet ? GetUserFontSet() : nsnull,
+                                metrics);
   return metrics;
 }
 
@@ -1144,13 +1214,13 @@ nsPresContext::GetDefaultFont(PRUint8 aFontID) const
 void
 nsPresContext::SetFullZoom(float aZoom)
 {
-  if (!mShell || mFullZoom == aZoom) {
+  if (!mShell || mFullZoom == aZoom || !IsDynamic()) {
     return;
   }
   // Re-fetch the view manager's window dimensions in case there's a deferred
   // resize which hasn't affected our mVisibleArea yet
   nscoord oldWidthAppUnits, oldHeightAppUnits;
-  GetViewManager()->GetWindowDimensions(&oldWidthAppUnits, &oldHeightAppUnits);
+  mShell->GetViewManager()->GetWindowDimensions(&oldWidthAppUnits, &oldHeightAppUnits);
   float oldWidthDevPixels = oldWidthAppUnits / float(mCurAppUnitsPerDevPixel);
   float oldHeightDevPixels = oldHeightAppUnits / float(mCurAppUnitsPerDevPixel);
   if (mDeviceContext->SetPixelScale(aZoom)) {
@@ -1161,76 +1231,68 @@ nsPresContext::SetFullZoom(float aZoom)
   mSupressResizeReflow = PR_TRUE;
 
   mFullZoom = aZoom;
-  GetViewManager()->SetWindowDimensions(NSToCoordRound(oldWidthDevPixels * AppUnitsPerDevPixel()),
-                                        NSToCoordRound(oldHeightDevPixels * AppUnitsPerDevPixel()));
-  MediaFeatureValuesChanged(PR_TRUE);
-  RebuildAllStyleData(NS_STYLE_HINT_REFLOW);
+  mShell->GetViewManager()->
+    SetWindowDimensions(NSToCoordRound(oldWidthDevPixels * AppUnitsPerDevPixel()),
+                        NSToCoordRound(oldHeightDevPixels * AppUnitsPerDevPixel()));
+  if (HasCachedStyleData()) {
+    MediaFeatureValuesChanged(PR_TRUE);
+    RebuildAllStyleData(NS_STYLE_HINT_REFLOW);
+  }
 
   mSupressResizeReflow = PR_FALSE;
 
   mCurAppUnitsPerDevPixel = AppUnitsPerDevPixel();
 }
 
-imgIRequest*
-nsPresContext::DoLoadImage(nsPresContext::ImageLoaderTable& aTable,
-                           imgIRequest* aImage,
-                           nsIFrame* aTargetFrame,
-                           PRBool aReflowOnLoad)
+void
+nsPresContext::SetImageLoaders(nsIFrame* aTargetFrame,
+                               ImageLoadType aType,
+                               nsImageLoader* aImageLoaders)
 {
-  // look and see if we have a loader for the target frame.
-  nsCOMPtr<nsImageLoader> loader;
-  aTable.Get(aTargetFrame, getter_AddRefs(loader));
+  nsRefPtr<nsImageLoader> oldLoaders;
+  mImageLoaders[aType].Get(aTargetFrame, getter_AddRefs(oldLoaders));
 
-  if (!loader) {
-    loader = new nsImageLoader();
-    if (!loader)
-      return nsnull;
-
-    loader->Init(aTargetFrame, this, aReflowOnLoad);
-    aTable.Put(aTargetFrame, loader);
+  if (aImageLoaders) {
+    mImageLoaders[aType].Put(aTargetFrame, aImageLoaders);
+  } else if (oldLoaders) {
+    mImageLoaders[aType].Remove(aTargetFrame);
   }
 
-  loader->Load(aImage);
-
-  imgIRequest *request = loader->GetRequest();
-
-  return request;
+  if (oldLoaders)
+    oldLoaders->Destroy();
 }
 
-imgIRequest*
-nsPresContext::LoadImage(imgIRequest* aImage, nsIFrame* aTargetFrame)
+void
+nsPresContext::SetupBackgroundImageLoaders(nsIFrame* aFrame,
+                                     const nsStyleBackground* aStyleBackground)
 {
-  return DoLoadImage(mImageLoaders, aImage, aTargetFrame, PR_FALSE);
+  nsRefPtr<nsImageLoader> loaders;
+  NS_FOR_VISIBLE_BACKGROUND_LAYERS_BACK_TO_FRONT(i, aStyleBackground) {
+    if (aStyleBackground->mLayers[i].mImage.GetType() == eBackgroundImage_Image) {
+      imgIRequest *image = aStyleBackground->mLayers[i].mImage.GetImageData();
+      loaders = nsImageLoader::Create(aFrame, image, PR_FALSE, loaders);
+    }
+  }
+  SetImageLoaders(aFrame, BACKGROUND_IMAGE, loaders);
 }
 
-imgIRequest*
-nsPresContext::LoadBorderImage(imgIRequest* aImage, nsIFrame* aTargetFrame)
+void
+nsPresContext::SetupBorderImageLoaders(nsIFrame* aFrame,
+                                       const nsStyleBorder* aStyleBorder)
 {
-  return DoLoadImage(mBorderImageLoaders, aImage, aTargetFrame,
-                     aTargetFrame->GetStyleBorder()->ImageBorderDiffers());
+  nsRefPtr<nsImageLoader> loader =
+    nsImageLoader::Create(aFrame, aStyleBorder->GetBorderImage(),
+                          aStyleBorder->ImageBorderDiffers(), nsnull);
+  SetImageLoaders(aFrame, BORDER_IMAGE, loader);
 }
 
 void
 nsPresContext::StopImagesFor(nsIFrame* aTargetFrame)
 {
-  StopBackgroundImageFor(aTargetFrame);
-  StopBorderImageFor(aTargetFrame);
+  for (PRUint32 i = 0; i < IMAGE_LOAD_TYPE_COUNT; ++i)
+    SetImageLoaders(aTargetFrame, ImageLoadType(i), nsnull);
 }
 
-void
-nsPresContext::DoStopImageFor(nsPresContext::ImageLoaderTable& aTable,
-                              nsIFrame* aTargetFrame)
-{
-  nsCOMPtr<nsImageLoader> loader;
-  aTable.Get(aTargetFrame, getter_AddRefs(loader));
-
-  if (loader) {
-    loader->Destroy();
-
-    aTable.Remove(aTargetFrame);
-  }
-}
-  
 void
 nsPresContext::SetContainer(nsISupports* aHandler)
 {
@@ -1341,10 +1403,10 @@ nsPresContext::GetBidi() const
 nsITheme*
 nsPresContext::GetTheme()
 {
-  if (!mNoTheme && !mTheme) {
+  if (!sNoTheme && !mTheme) {
     mTheme = do_GetService("@mozilla.org/chrome/chrome-native-theme;1");
     if (!mTheme)
-      mNoTheme = PR_TRUE;
+      sNoTheme = PR_TRUE;
   }
 
   return mTheme;
@@ -1435,17 +1497,20 @@ nsPresContext::RebuildAllStyleData(nsChangeHint aExtraHint)
     // We must have been torn down. Nothing to do here.
     return;
   }
+
+  RebuildUserFontSet();
+
   mShell->FrameConstructor()->RebuildAllStyleData(aExtraHint);
 }
 
 void
-nsPresContext::PostRebuildAllStyleDataEvent()
+nsPresContext::PostRebuildAllStyleDataEvent(nsChangeHint aExtraHint)
 {
   if (!mShell) {
     // We must have been torn down. Nothing to do here.
     return;
   }
-  mShell->FrameConstructor()->PostRebuildAllStyleDataEvent();
+  mShell->FrameConstructor()->PostRebuildAllStyleDataEvent(aExtraHint);
 }
 
 void
@@ -1496,7 +1561,7 @@ nsPresContext::SetPrintSettings(nsIPrintSettings *aPrintSettings)
 }
 
 PRBool
-nsPresContext::EnsureVisible(PRBool aUnsuppressFocus)
+nsPresContext::EnsureVisible()
 {
   nsCOMPtr<nsIDocShell> docShell(do_QueryReferent(mContainer));
   if (docShell) {
@@ -1508,22 +1573,8 @@ nsPresContext::EnsureVisible(PRBool aUnsuppressFocus)
       nsCOMPtr<nsPresContext> currentPresContext;
       docV->GetPresContext(getter_AddRefs(currentPresContext));
       if (currentPresContext == this) {
-        // OK, this is us.  We want to call Show() on the content viewer.  But
-        // first, we need to suppress focus changes; otherwise the focus will
-        // get sent to the wrong place (toplevel window).
-        nsCOMPtr<nsPIDOMWindow> privWindow = do_GetInterface(docShell);
-        // XXXbz privWindow should never really be null!
-        nsIFocusController* fc =
-          privWindow ? privWindow->GetRootFocusController() : nsnull;
-        if (fc) {
-          fc->SetSuppressFocus(PR_TRUE,
-                               "nsPresContext::EnsureVisible Suppression");
-        }
+        // OK, this is us.  We want to call Show() on the content viewer.
         cv->Show();
-        if (fc && aUnsuppressFocus) {
-          fc->SetSuppressFocus(PR_FALSE,
-                               "nsPresContext::EnsureVisible Suppression");
-        }
         return PR_TRUE;
       }
     }
@@ -1563,46 +1614,354 @@ nsPresContext::IsChrome() const
 /* virtual */ PRBool
 nsPresContext::HasAuthorSpecifiedRules(nsIFrame *aFrame, PRUint32 ruleTypeMask) const
 {
-  return nsRuleNode::
-    HasAuthorSpecifiedRules(aFrame->GetStyleContext(), ruleTypeMask);
+  return
+    nsRuleNode::HasAuthorSpecifiedRules(aFrame->GetStyleContext(),
+                                        ruleTypeMask,
+                                        UseDocumentColors());
 }
 
-gfxUserFontSet* 
-nsPresContext::GetUserFontSet() {
+static void
+InsertFontFaceRule(nsCSSFontFaceRule *aRule, gfxUserFontSet* aFontSet,
+                   PRUint8 aSheetType)
+{
+  PRInt32 type;
+  NS_ABORT_IF_FALSE(NS_SUCCEEDED(aRule->GetType(type)) 
+                    && type == nsICSSRule::FONT_FACE_RULE, 
+                    "InsertFontFaceRule passed a non-fontface CSS rule");
+
+  // aRule->List();
+
+  nsAutoString fontfamily;
+  nsCSSValue val;
+
+  PRUint32 unit;
+  PRUint32 weight = NS_STYLE_FONT_WEIGHT_NORMAL;
+  PRUint32 stretch = NS_STYLE_FONT_STRETCH_NORMAL;
+  PRUint32 italicStyle = FONT_STYLE_NORMAL;
+
+  // set up family name
+  aRule->GetDesc(eCSSFontDesc_Family, val);
+  unit = val.GetUnit();
+  if (unit == eCSSUnit_String) {
+    val.GetStringValue(fontfamily);
+  } else {
+    NS_ASSERTION(unit == eCSSUnit_Null,
+                 "@font-face family name has unexpected unit");
+    // If there is no family name, this rule cannot contribute a
+    // usable font, so there is no point in processing it further.
+    return;
+  }
+
+  // set up weight
+  aRule->GetDesc(eCSSFontDesc_Weight, val);
+  unit = val.GetUnit();
+  if (unit == eCSSUnit_Integer || unit == eCSSUnit_Enumerated) {
+    weight = val.GetIntValue();
+  } else if (unit == eCSSUnit_Normal) {
+    weight = NS_STYLE_FONT_WEIGHT_NORMAL;
+  } else {
+    NS_ASSERTION(unit == eCSSUnit_Null,
+                 "@font-face weight has unexpected unit");
+  }
+
+  // set up stretch
+  aRule->GetDesc(eCSSFontDesc_Stretch, val);
+  unit = val.GetUnit();
+  if (unit == eCSSUnit_Enumerated) {
+    stretch = val.GetIntValue();
+  } else if (unit == eCSSUnit_Normal) {
+    stretch = NS_STYLE_FONT_STRETCH_NORMAL;
+  } else {
+    NS_ASSERTION(unit == eCSSUnit_Null,
+                 "@font-face stretch has unexpected unit");
+  }
+
+  // set up font style
+  aRule->GetDesc(eCSSFontDesc_Style, val);
+  unit = val.GetUnit();
+  if (unit == eCSSUnit_Enumerated) {
+    italicStyle = val.GetIntValue();
+  } else if (unit == eCSSUnit_Normal) {
+    italicStyle = FONT_STYLE_NORMAL;
+  } else {
+    NS_ASSERTION(unit == eCSSUnit_Null,
+                 "@font-face style has unexpected unit");
+  }
+
+  // set up src array
+  nsTArray<gfxFontFaceSrc> srcArray;
+
+  aRule->GetDesc(eCSSFontDesc_Src, val);
+  unit = val.GetUnit();
+  if (unit == eCSSUnit_Array) {
+    nsCSSValue::Array *srcArr = val.GetArrayValue();
+    PRUint32 i, numSrc = srcArr->Count();
+    
+    for (i = 0; i < numSrc; i++) {
+      val = srcArr->Item(i);
+      unit = val.GetUnit();
+      gfxFontFaceSrc *face = srcArray.AppendElements(1);
+      if (!face)
+        return;
+            
+      switch (unit) {
+       
+      case eCSSUnit_Local_Font:
+        val.GetStringValue(face->mLocalName);
+        face->mIsLocal = PR_TRUE;
+        face->mURI = nsnull;
+        face->mFormatFlags = 0;
+        break;
+      case eCSSUnit_URL:
+        face->mIsLocal = PR_FALSE;
+        face->mURI = val.GetURLValue();
+        NS_ASSERTION(face->mURI, "null url in @font-face rule");
+        face->mReferrer = val.GetURLStructValue()->mReferrer;
+        face->mOriginPrincipal = val.GetURLStructValue()->mOriginPrincipal;
+        NS_ASSERTION(face->mOriginPrincipal, "null origin principal in @font-face rule");
+        
+        // agent and user stylesheets are treated slightly differently,
+        // the same-site origin check and access control headers are
+        // enforced against the sheet principal rather than the document
+        // principal to allow user stylesheets to include @font-face rules
+        face->mUseOriginPrincipal = (aSheetType == nsStyleSet::eUserSheet ||
+                                     aSheetType == nsStyleSet::eAgentSheet);
+                                     
+        face->mLocalName.Truncate();
+        face->mFormatFlags = 0;
+        while (i + 1 < numSrc && (val = srcArr->Item(i+1), 
+                 val.GetUnit() == eCSSUnit_Font_Format)) {
+          nsDependentString valueString(val.GetStringBufferValue());
+          if (valueString.LowerCaseEqualsASCII("opentype")) {
+            face->mFormatFlags |= gfxUserFontSet::FLAG_FORMAT_OPENTYPE; 
+          } else if (valueString.LowerCaseEqualsASCII("truetype")) {
+            face->mFormatFlags |= gfxUserFontSet::FLAG_FORMAT_TRUETYPE; 
+          } else if (valueString.LowerCaseEqualsASCII("truetype-aat")) {
+            face->mFormatFlags |= gfxUserFontSet::FLAG_FORMAT_TRUETYPE_AAT; 
+          } else if (valueString.LowerCaseEqualsASCII("embedded-opentype")) {
+            face->mFormatFlags |= gfxUserFontSet::FLAG_FORMAT_EOT;   
+          } else if (valueString.LowerCaseEqualsASCII("svg")) {
+            face->mFormatFlags |= gfxUserFontSet::FLAG_FORMAT_SVG;   
+          } else {
+            // unknown format specified, mark to distinguish from the 
+            // case where no format hints are specified
+            face->mFormatFlags |= gfxUserFontSet::FLAG_FORMAT_UNKNOWN;
+          }
+          i++;
+        }
+        break;
+      default:
+        NS_ASSERTION(unit == eCSSUnit_Local_Font || unit == eCSSUnit_URL,
+                     "strange unit type in font-face src array");
+        break;
+      }
+     }
+  } else {
+    NS_ASSERTION(unit == eCSSUnit_Null, "@font-face src has unexpected unit");
+  }
+  
+  if (!fontfamily.IsEmpty() && srcArray.Length() > 0) {
+    aFontSet->AddFontFace(fontfamily, srcArray, weight, stretch, italicStyle);
+  }
+}
+
+gfxUserFontSet*
+nsPresContext::GetUserFontSetInternal()
+{
+  // We want to initialize the user font set lazily the first time the
+  // user asks for it, rather than building it too early and forcing
+  // rule cascade creation.  Thus we try to enforce the invariant that
+  // we *never* build the user font set until the first call to
+  // GetUserFontSet.  However, once it's been requested, we can't wait
+  // for somebody to call GetUserFontSet in order to rebuild it (see
+  // comments below in RebuildUserFontSet for why).
+#ifdef DEBUG
+  PRBool userFontSetGottenBefore = mGetUserFontSetCalled;
+#endif
+  // Set mGetUserFontSetCalled up front, so that FlushUserFontSet will actually
+  // flush.
+  mGetUserFontSetCalled = PR_TRUE;
+  if (mUserFontSetDirty) {
+    // If this assertion fails, and there have actually been changes to
+    // @font-face rules, then we will call StyleChangeReflow in
+    // FlushUserFontSet.  If we're in the middle of reflow,
+    // that's a bad thing to do, and the caller was responsible for
+    // flushing first.  If we're not (e.g., in frame construction), it's
+    // ok.
+#ifdef DEBUG
+    {
+      PRBool inReflow;
+      NS_ASSERTION(!userFontSetGottenBefore ||
+                   (NS_SUCCEEDED(mShell->IsReflowLocked(&inReflow)) &&
+                    !inReflow),
+                   "FlushUserFontSet should have been called first");
+    }
+#endif
+    FlushUserFontSet();
+  }
+
   return mUserFontSet;
 }
 
-void 
-nsPresContext::SetUserFontSet(gfxUserFontSet *aUserFontSet)
+gfxUserFontSet*
+nsPresContext::GetUserFontSetExternal()
 {
-  NS_IF_RELEASE(mUserFontSet);
-  mUserFontSet = aUserFontSet;
-  NS_IF_ADDREF(mUserFontSet);
+  return GetUserFontSetInternal();
+}
+
+void
+nsPresContext::FlushUserFontSet()
+{
+  if (!mShell)
+    return; // we've been torn down
+
+  if (!mGetUserFontSetCalled) {
+    return; // No one cares about this font set yet, but we want to be careful
+            // to not unset our mUserFontSetDirty bit, so when someone really
+            // does we'll create it.
+  }
+
+  if (mUserFontSetDirty) {
+    if (gfxPlatform::GetPlatform()->DownloadableFontsEnabled()) {
+      nsRefPtr<gfxUserFontSet> oldUserFontSet = mUserFontSet;
+
+      nsTArray<nsFontFaceRuleContainer> rules;
+      if (!mShell->StyleSet()->AppendFontFaceRules(this, rules))
+        return;
+
+      PRBool differ;
+      if (rules.Length() == mFontFaceRules.Length()) {
+        differ = PR_FALSE;
+        for (PRUint32 i = 0, i_end = rules.Length(); i < i_end; ++i) {
+          if (rules[i].mRule != mFontFaceRules[i].mRule ||
+              rules[i].mSheetType != mFontFaceRules[i].mSheetType) {
+            differ = PR_TRUE;
+            break;
+          }
+        }
+      } else {
+        differ = PR_TRUE;
+      }
+
+      // Only rebuild things if the set of @font-face rules is different.
+      if (differ) {
+        if (mUserFontSet) {
+          mUserFontSet->Destroy();
+          NS_RELEASE(mUserFontSet);
+        }
+
+        if (rules.Length() > 0) {
+          nsUserFontSet *fs = new nsUserFontSet(this);
+          if (!fs)
+            return;
+          mUserFontSet = fs;
+          NS_ADDREF(mUserFontSet);
+
+          for (PRUint32 i = 0, i_end = rules.Length(); i < i_end; ++i) {
+            InsertFontFaceRule(rules[i].mRule, fs, rules[i].mSheetType);
+          }
+        }
+      }
+
+#ifdef DEBUG
+      PRBool success =
+#endif
+        rules.SwapElements(mFontFaceRules);
+      NS_ASSERTION(success, "should never fail given both are heap arrays");
+
+      if (mGetUserFontSetCalled && oldUserFontSet != mUserFontSet) {
+        // If we've changed, created, or destroyed a user font set, we
+        // need to trigger a style change reflow.
+        // We need to enqueue a style change reflow (for later) to
+        // reflect that we're dropping @font-face rules.  (However,
+        // without a reflow, nothing will happen to start any downloads
+        // that are needed.)
+        UserFontSetUpdated();
+      }
+    }
+
+    mUserFontSetDirty = PR_FALSE;
+  }
+}
+
+void
+nsPresContext::RebuildUserFontSet()
+{
+  if (!mGetUserFontSetCalled) {
+    // We want to lazily build the user font set the first time it's
+    // requested (so we don't force creation of rule cascades too
+    // early), so don't do anything now.
+    return;
+  }
+
+  mUserFontSetDirty = PR_TRUE;
+
+  // Somebody has already asked for the user font set, so we need to
+  // post an event to rebuild it.  Setting the user font set to be dirty
+  // and lazily rebuilding it isn't sufficient, since it is only the act
+  // of rebuilding it that will trigger the style change reflow that
+  // calls GetUserFontSet.  (This reflow causes rebuilding of text runs,
+  // which starts font loads, whose completion causes another style
+  // change reflow).
+  if (!mPostedFlushUserFontSet) {
+    nsCOMPtr<nsIRunnable> ev =
+      new nsRunnableMethod<nsPresContext>(this,
+                                     &nsPresContext::HandleRebuildUserFontSet);
+    if (NS_SUCCEEDED(NS_DispatchToCurrentThread(ev))) {
+      mPostedFlushUserFontSet = PR_TRUE;
+    }
+  }    
+}
+
+void
+nsPresContext::UserFontSetUpdated()
+{
+  if (!mShell)
+    return;
+
+  // Changes to the set of available fonts can cause updates to layout by:
+  //
+  //   1. Changing the font used for text, which changes anything that
+  //      depends on text measurement, including line breaking and
+  //      intrinsic widths, and any other parts of layout that depend on
+  //      font metrics.  This requires a style change reflow to update.
+  //
+  //   2. Changing the value of the 'ex' and 'ch' units in style data,
+  //      which also depend on font metrics.  Updating this information
+  //      requires rebuilding the rule tree from the top, avoiding the
+  //      reuse of cached data even when no style rules have changed.
+
+  PostRebuildAllStyleDataEvent(NS_STYLE_HINT_REFLOW);
 }
 
 void
 nsPresContext::FireDOMPaintEvent()
 {
-  nsCOMPtr<nsPIDOMWindow> ourWindow = mDocument->GetWindow();
+  nsPIDOMWindow* ourWindow = mDocument->GetWindow();
   if (!ourWindow)
     return;
 
-  nsISupports* eventTarget = ourWindow;
+  nsCOMPtr<nsIDOMEventTarget> dispatchTarget = do_QueryInterface(ourWindow);
+  nsCOMPtr<nsIDOMEventTarget> eventTarget = dispatchTarget;
   if (mSameDocDirtyRegion.IsEmpty() && !IsChrome()) {
     // Don't tell the window about this event, it should not know that
     // something happened in a subdocument. Tell only the chrome event handler.
     // (Events sent to the window get propagated to the chrome event handler
     // automatically.)
-    eventTarget = ourWindow->GetChromeEventHandler();
-    if (!eventTarget) {
+    dispatchTarget = do_QueryInterface(ourWindow->GetChromeEventHandler());
+    if (!dispatchTarget) {
       return;
     }
   }
   // Events sent to the window get propagated to the chrome event handler
   // automatically.
+  nsCOMPtr<nsIDOMEvent> event;
+  NS_NewDOMNotifyPaintEvent(getter_AddRefs(event), this, nsnull,
+                            NS_AFTERPAINT,
+                            &mSameDocDirtyRegion, &mCrossDocDirtyRegion);
+  nsCOMPtr<nsIPrivateDOMEvent> pEvent = do_QueryInterface(event);
+  if (!pEvent) return;
 
-  nsNotifyPaintEvent event(PR_TRUE, NS_AFTERPAINT, mSameDocDirtyRegion,
-                           mCrossDocDirtyRegion);
   // Empty our regions now in case dispatching the event causes more damage
   // (hopefully it won't, or we're likely to get an infinite loop! At least
   // it won't be blocking app execution though).
@@ -1611,8 +1970,9 @@ nsPresContext::FireDOMPaintEvent()
   // Even if we're not telling the window about the event (so eventTarget is
   // the chrome event handler, not the window), the window is still
   // logically the event target.
-  event.target = do_QueryInterface(ourWindow);
-  nsEventDispatcher::Dispatch(eventTarget, this, &event);
+  pEvent->SetTarget(eventTarget);
+  pEvent->SetTrusted(PR_TRUE);
+  nsEventDispatcher::DispatchDOMEvent(dispatchTarget, nsnull, event, this, nsnull);
 }
 
 static PRBool MayHavePaintEventListener(nsPIDOMWindow* aInnerWindow)
@@ -1626,11 +1986,6 @@ static PRBool MayHavePaintEventListener(nsPIDOMWindow* aInnerWindow)
   if (!chromeEventHandler)
     return PR_FALSE;
 
-  nsCOMPtr<nsIEventListenerManager> manager;
-  chromeEventHandler->GetListenerManager(PR_FALSE, getter_AddRefs(manager));
-  if (manager && manager->MayHavePaintEventListener())
-    return PR_TRUE;
-
   nsCOMPtr<nsINode> node = do_QueryInterface(chromeEventHandler);
   if (node)
     return MayHavePaintEventListener(node->GetOwnerDoc()->GetInnerWindow());
@@ -1638,6 +1993,11 @@ static PRBool MayHavePaintEventListener(nsPIDOMWindow* aInnerWindow)
   nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(chromeEventHandler);
   if (window)
     return MayHavePaintEventListener(window);
+
+  nsIEventListenerManager* manager =
+    chromeEventHandler->GetListenerManager(PR_FALSE);
+  if (manager && manager->MayHavePaintEventListener())
+    return PR_TRUE;
 
   return PR_FALSE;
 }
@@ -1654,7 +2014,7 @@ nsPresContext::NotifyInvalidation(const nsRect& aRect, PRBool aIsCrossDoc)
       !MayHavePaintEventListener(mDocument->GetInnerWindow()))
     return;
 
-  if (mSameDocDirtyRegion.IsEmpty() && mCrossDocDirtyRegion.IsEmpty()) {
+  if (!IsDOMPaintEventPending()) {
     // No event is pending. Dispatch one now.
     nsCOMPtr<nsIRunnable> ev =
       new nsRunnableMethod<nsPresContext>(this,
@@ -1665,4 +2025,325 @@ nsPresContext::NotifyInvalidation(const nsRect& aRect, PRBool aIsCrossDoc)
   nsRegion* r = aIsCrossDoc ? &mCrossDocDirtyRegion : &mSameDocDirtyRegion;
   r->Or(*r, aRect);
   r->SimplifyOutward(10);
+}
+
+PRBool
+nsPresContext::HasCachedStyleData()
+{
+  return mShell && mShell->StyleSet()->HasCachedStyleData();
+}
+
+static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
+static PRBool sGotInterruptEnv = PR_FALSE;
+static PRUint32 sInterruptSeed = 1;
+static PRUint32 sInterruptChecksToSkip = 200;
+enum InterruptMode {
+  ModeRandom,
+  ModeCounter,
+  ModeEvent
+};
+static InterruptMode sInterruptMode = ModeEvent;
+static PRUint32 sInterruptCounter;
+static PRUint32 sInterruptMaxCounter = 10;
+
+static void GetInterruptEnv()
+{
+  char *ev = PR_GetEnv("GECKO_REFLOW_INTERRUPT_MODE");
+  if (ev) {
+#ifndef XP_WIN
+    if (PL_strcasecmp(ev, "random") == 0) {
+      ev = PR_GetEnv("GECKO_REFLOW_INTERRUPT_SEED");
+      if (ev) {
+        sInterruptSeed = atoi(ev);
+      }
+      srandom(sInterruptSeed);
+      sInterruptMode = ModeRandom;
+    } else
+#endif
+      if (PL_strcasecmp(ev, "counter") == 0) {
+      ev = PR_GetEnv("GECKO_REFLOW_INTERRUPT_FREQUENCY");
+      if (ev) {
+        sInterruptMaxCounter = atoi(ev);
+      }
+      sInterruptCounter = 0;
+      sInterruptMode = ModeCounter;
+    }
+  }
+  ev = PR_GetEnv("GECKO_REFLOW_INTERRUPT_CHECKS_TO_SKIP");
+  if (ev) {
+    sInterruptChecksToSkip = atoi(ev);
+  }
+}
+
+PRBool
+nsPresContext::HavePendingInputEvent()
+{
+  switch (sInterruptMode) {
+#ifndef XP_WIN
+    case ModeRandom:
+      return (random() & 1);
+#endif
+    case ModeCounter:
+      if (sInterruptCounter < sInterruptMaxCounter) {
+        ++sInterruptCounter;
+        return PR_FALSE;
+      }
+      sInterruptCounter = 0;
+      return PR_TRUE;
+    default:
+    case ModeEvent: {
+      nsIFrame* f = PresShell()->GetRootFrame();
+      if (f) {
+        nsIWidget* w = f->GetWindow();
+        if (w) {
+          return w->HasPendingInputEvent();
+        }
+      }
+      return PR_FALSE;
+    }
+  }
+}
+
+void
+nsPresContext::ReflowStarted(PRBool aInterruptible)
+{
+  // We don't support interrupting in paginated contexts, since page
+  // sequences only handle initial reflow
+  mInterruptsEnabled = aInterruptible && !IsPaginated();
+
+  // Don't set mHasPendingInterrupt based on HavePendingInputEvent() here.  If
+  // we ever change that, then we need to update the code in
+  // PresShell::DoReflow to only add the just-reflown root to dirty roots if
+  // it's actually dirty.  Otherwise we can end up adding a root that has no
+  // interruptible descendants, just because we detected an interrupt at reflow
+  // start.
+  mHasPendingInterrupt = PR_FALSE;
+
+  mInterruptChecksToSkip = sInterruptChecksToSkip;
+}
+
+PRBool
+nsPresContext::CheckForInterrupt(nsIFrame* aFrame)
+{
+  if (mHasPendingInterrupt) {
+    mShell->FrameNeedsToContinueReflow(aFrame);
+    return PR_TRUE;
+  }
+
+  if (!sGotInterruptEnv) {
+    sGotInterruptEnv = PR_TRUE;
+    GetInterruptEnv();
+  }
+
+  if (!mInterruptsEnabled) {
+    return PR_FALSE;
+  }
+
+  if (mInterruptChecksToSkip > 0) {
+    --mInterruptChecksToSkip;
+    return PR_FALSE;
+  }
+  mInterruptChecksToSkip = sInterruptChecksToSkip;
+
+  mHasPendingInterrupt = HavePendingInputEvent();
+  if (mHasPendingInterrupt) {
+#ifdef NOISY_INTERRUPTIBLE_REFLOW
+    printf("*** DETECTED pending interrupt (time=%lld)\n", PR_Now());
+#endif /* NOISY_INTERRUPTIBLE_REFLOW */
+    mShell->FrameNeedsToContinueReflow(aFrame);
+  }
+  return mHasPendingInterrupt;
+}
+
+nsRootPresContext::nsRootPresContext(nsIDocument* aDocument,
+                                     nsPresContextType aType)
+  : nsPresContext(aDocument, aType)
+{
+  mRegisteredPlugins.Init();
+}  
+
+nsRootPresContext::~nsRootPresContext()
+{
+  NS_ASSERTION(mRegisteredPlugins.Count() == 0,
+               "All plugins should have been unregistered");
+}
+
+void
+nsRootPresContext::RegisterPluginForGeometryUpdates(nsObjectFrame* aPlugin)
+{
+  mRegisteredPlugins.PutEntry(aPlugin);
+}
+
+void
+nsRootPresContext::UnregisterPluginForGeometryUpdates(nsObjectFrame* aPlugin)
+{
+  mRegisteredPlugins.RemoveEntry(aPlugin);
+}
+
+struct PluginGeometryClosure {
+  nsIFrame* mRootFrame;
+  nsIFrame* mChangedSubtree;
+  nsRect    mChangedRect;
+  nsTHashtable<nsPtrHashKey<nsObjectFrame> > mAffectedPlugins;
+  nsRect    mAffectedPluginBounds;
+  nsTArray<nsIWidget::Configuration>* mOutputConfigurations;
+};
+static PLDHashOperator
+PluginBoundsEnumerator(nsPtrHashKey<nsObjectFrame>* aEntry, void* userArg)
+{
+  PluginGeometryClosure* closure = static_cast<PluginGeometryClosure*>(userArg);
+  nsObjectFrame* f = aEntry->GetKey();
+  nsRect fBounds = f->GetContentRect() +
+      f->GetParent()->GetOffsetTo(closure->mRootFrame);
+  // We're identifying the plugins that may have been affected by changes
+  // to the frame subtree rooted at aChangedRoot. Any plugin that overlaps
+  // the overflow area of aChangedRoot could have its clip region affected
+  // because it might be covered (or uncovered) by changes to the subtree.
+  // Plugins in the subtree might have changed position and/or size, and
+  // they might not be in aChangedRoot's overflow area (because they're
+  // being clipped by an ancestor in the subtree).
+  if (fBounds.Intersects(closure->mChangedRect) ||
+      nsLayoutUtils::IsAncestorFrameCrossDoc(closure->mChangedSubtree, f)) {
+    closure->mAffectedPluginBounds.UnionRect(
+        closure->mAffectedPluginBounds, fBounds);
+    closure->mAffectedPlugins.PutEntry(f);
+  }
+  return PL_DHASH_NEXT;
+}
+
+static PLDHashOperator
+PluginHideEnumerator(nsPtrHashKey<nsObjectFrame>* aEntry, void* userArg)
+{
+  PluginGeometryClosure* closure = static_cast<PluginGeometryClosure*>(userArg);
+  nsObjectFrame* f = aEntry->GetKey();
+  f->GetEmptyClipConfiguration(closure->mOutputConfigurations);
+  return PL_DHASH_NEXT;
+}
+
+static void
+RecoverPluginGeometry(nsDisplayListBuilder* aBuilder,
+    nsDisplayList* aList, PluginGeometryClosure* aClosure)
+{
+  for (nsDisplayItem* i = aList->GetBottom(); i; i = i->GetAbove()) {
+    switch (i->GetType()) {
+    case nsDisplayItem::TYPE_PLUGIN: {
+      nsDisplayPlugin* displayPlugin = static_cast<nsDisplayPlugin*>(i);
+      nsObjectFrame* f = static_cast<nsObjectFrame*>(
+          displayPlugin->GetUnderlyingFrame());
+      // Ignore plugins which aren't supposed to be affected by this
+      // operation --- their bounds will not have been included in the
+      // display list computations so the visible region computed for them
+      // would be incorrect
+      nsPtrHashKey<nsObjectFrame>* entry =
+        aClosure->mAffectedPlugins.GetEntry(f);
+      if (entry) {
+        displayPlugin->GetWidgetConfiguration(aBuilder,
+                                              aClosure->mOutputConfigurations);
+        // we've dealt with this plugin now
+        aClosure->mAffectedPlugins.RawRemoveEntry(entry);
+      }
+      break;
+    }
+    default: {
+      nsDisplayList* sublist = i->GetList();
+      if (sublist) {
+        RecoverPluginGeometry(aBuilder, sublist, aClosure);
+      }
+      break;
+    }
+    }
+  }
+}
+
+#ifdef DEBUG
+#include <stdio.h>
+
+static PRBool gDumpPluginList = PR_FALSE;
+#endif
+
+void
+nsRootPresContext::GetPluginGeometryUpdates(nsIFrame* aChangedSubtree,
+                                            nsTArray<nsIWidget::Configuration>* aConfigurations)
+{
+  if (mRegisteredPlugins.Count() == 0)
+    return;
+
+  PluginGeometryClosure closure;
+  closure.mRootFrame = mShell->FrameManager()->GetRootFrame();
+  closure.mChangedSubtree = aChangedSubtree;
+  closure.mChangedRect = aChangedSubtree->GetOverflowRect() +
+      aChangedSubtree->GetOffsetTo(closure.mRootFrame);
+  closure.mAffectedPlugins.Init();
+  closure.mOutputConfigurations = aConfigurations;
+  // Fill in closure.mAffectedPlugins and closure.mAffectedPluginBounds
+  mRegisteredPlugins.EnumerateEntries(PluginBoundsEnumerator, &closure);
+
+  nsRect bounds;
+  if (bounds.IntersectRect(closure.mAffectedPluginBounds,
+                           closure.mRootFrame->GetRect())) {
+    // It's OK to disable GetUsedX assertions because after a reflow,
+    // any changed geometry will cause UpdatePluginGeometry to happen
+    // again.
+    nsAutoDisableGetUsedXAssertions disableAssertions;
+
+    nsDisplayListBuilder builder(closure.mRootFrame, PR_FALSE, PR_FALSE);
+    builder.SetAccurateVisibleRegions();
+    nsDisplayList list;
+
+    builder.EnterPresShell(closure.mRootFrame, bounds);
+    closure.mRootFrame->BuildDisplayListForStackingContext(
+        &builder, bounds, &list);
+    builder.LeavePresShell(closure.mRootFrame, bounds);
+
+#ifdef DEBUG
+    if (gDumpPluginList) {
+      fprintf(stderr, "Plugins --- before optimization (bounds %d,%d,%d,%d):\n",
+          bounds.x, bounds.y, bounds.width, bounds.height);
+      nsIFrameDebug::PrintDisplayList(&builder, list);
+    }
+#endif
+  
+    nsRegion visibleRegion(bounds);
+    list.OptimizeVisibility(&builder, &visibleRegion);
+
+#ifdef DEBUG
+    if (gDumpPluginList) {
+      fprintf(stderr, "Plugins --- after optimization:\n");
+      nsIFrameDebug::PrintDisplayList(&builder, list);
+    }
+#endif
+
+    RecoverPluginGeometry(&builder, &list, &closure);
+    list.DeleteAll();
+  }
+
+  // Plugins that we didn't find in the display list are not visible
+  closure.mAffectedPlugins.EnumerateEntries(PluginHideEnumerator, &closure);
+}
+
+void
+nsRootPresContext::UpdatePluginGeometry(nsIFrame* aChangedSubtree)
+{
+  nsTArray<nsIWidget::Configuration> configurations;
+  GetPluginGeometryUpdates(aChangedSubtree, &configurations);
+  if (configurations.IsEmpty())
+    return;
+  nsIWidget* widget = configurations[0].mChild->GetParent();
+  NS_ASSERTION(widget, "Plugin must have a parent");
+  widget->ConfigureChildren(configurations);
+  DidApplyPluginGeometryUpdates();
+}
+
+static PLDHashOperator
+PluginDidSetGeometryEnumerator(nsPtrHashKey<nsObjectFrame>* aEntry, void* userArg)
+{
+  nsObjectFrame* f = aEntry->GetKey();
+  f->DidSetWidgetGeometry();
+  return PL_DHASH_NEXT;
+}
+
+void
+nsRootPresContext::DidApplyPluginGeometryUpdates()
+{
+  mRegisteredPlugins.EnumerateEntries(PluginDidSetGeometryEnumerator, nsnull);
 }

@@ -42,6 +42,7 @@ searchplugins/
 components/@DLL_PREFIX@jar50@DLL_SUFFIX@
 #ifdef XP_WIN
 components/jsd3250.dll
+components/nsPostUpdateWin.js
 components/xpinstal.dll
 #else
 components/@DLL_PREFIX@jsd@DLL_SUFFIX@
@@ -118,6 +119,7 @@ searchplugins/netex.xml
 searchplugins/nosaltres.xml
 searchplugins/pbi-pl.xml
 searchplugins/taobao.xml
+searchplugins/wikipedia-en-CN.xml
 searchplugins/wikipedia-zh.xml
 searchplugins/yahoo-jp-shopping.xml
 searchplugins/yahoo-ru.xml
@@ -607,6 +609,19 @@ init.d/README
 redo-prebinding.sh
 res/viewer.properties
 res/bloatcycle.html
+res/broken-image.gif
+res/loading-image.gif
+components/browsersearch.xpt
+components/nsResetPref.js
+plugins/Default Plugin.plugin/Contents/Info.plist
+plugins/Default Plugin.plugin/Contents/MacOS/Default Plugin
+plugins/Default Plugin.plugin/Contents/PkgInfo
+plugins/Default Plugin.plugin/Contents/Resources/Default Plugin.rsrc
+plugins/Default Plugin.plugin/Contents/Resources/English.lproj/InfoPlist.strings
+res/cursors/CVS/Entries
+res/cursors/CVS/Repository
+res/cursors/CVS/Root
+res/cursors/CVS/Tag
 #endif
 #ifdef XP_UNIX
 #ifndef XP_MACOSX
@@ -614,6 +629,7 @@ readme.txt
 chrome/icons/default/default.xpm
 dictionaries/PL.dic
 dictionaries/PL.aff
+libjemalloc.so
 #endif
 #endif
 #ifdef XP_WIN
@@ -625,7 +641,8 @@ msvcr80.dll
 #else
 mozcrt19.dll
 #endif
-xpicleanup.exe
-#else
-xpicleanup
 #endif
+xpicleanup@BIN_SUFFIX@
+chrome.manifest
+install.rdf
+@DLL_PREFIX@jsj@DLL_SUFFIX@

@@ -41,6 +41,7 @@
 
 #include "gfxPlatform.h"
 #include "nsDataHashtable.h"
+#include "nsTArray.h"
 
 typedef struct FT_LibraryRec_ *FT_Library;
 
@@ -62,7 +63,7 @@ public:
 
     nsresult GetFontList(const nsACString& aLangGroup,
                          const nsACString& aGenericFamily,
-                         nsStringArray& aListOfFonts);
+                         nsTArray<nsString>& aListOfFonts);
 
     nsresult UpdateFontList();
 
@@ -96,7 +97,7 @@ protected:
     static gfxFontconfigUtils *sFontconfigUtils;
 
 private:
-    virtual cmsHPROFILE GetPlatformCMSOutputProfile();
+    virtual qcms_profile *GetPlatformCMSOutputProfile();
 };
 
 #endif /* GFX_PLATFORM_QT_H */

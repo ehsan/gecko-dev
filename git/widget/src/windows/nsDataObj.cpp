@@ -51,7 +51,6 @@
 #include "IEnumFE.h"
 #include "nsPrimitiveHelpers.h"
 #include "nsXPIDLString.h"
-#include "nsIImage.h"
 #include "nsImageClipboard.h"
 #include "nsCRT.h"
 #include "nsPrintfCString.h"
@@ -395,9 +394,7 @@ nsDataObj::~nsDataObj()
 {
   NS_IF_RELEASE(mTransferable);
 
-  for (PRInt32 i = 0; i < mDataFlavors.Count(); ++i) {
-    delete reinterpret_cast<nsCString *>(mDataFlavors.ElementAt(i));
-  }
+  mDataFlavors.Clear();
 
   m_enumFE->Release();
 
@@ -483,10 +480,8 @@ STDMETHODIMP nsDataObj::GetData(LPFORMATETC pFE, LPSTGMEDIUM pSTM)
   static CLIPFORMAT fileDescriptorFlavorW = ::RegisterClipboardFormat( CFSTR_FILEDESCRIPTORW ); 
   static CLIPFORMAT uniformResourceLocatorA = ::RegisterClipboardFormat( CFSTR_INETURLA );
   static CLIPFORMAT uniformResourceLocatorW = ::RegisterClipboardFormat( CFSTR_INETURLW );
-#ifndef WINCE
   static CLIPFORMAT fileFlavor = ::RegisterClipboardFormat( CFSTR_FILECONTENTS ); 
   static CLIPFORMAT PreferredDropEffect = ::RegisterClipboardFormat( CFSTR_PREFERREDDROPEFFECT );
-#endif
 
   // Arbitrary system formats
   LPDATAENTRY pde;
@@ -499,54 +494,51 @@ STDMETHODIMP nsDataObj::GetData(LPFORMATETC pFE, LPSTGMEDIUM pSTM)
   ULONG count;
   FORMATETC fe;
   m_enumFE->Reset();
-  while (NOERROR == m_enumFE->Next(1, &fe, &count)) {
-    nsCString * df = reinterpret_cast<nsCString*>(mDataFlavors.SafeElementAt(dfInx));
-    if ( df ) {
-      if (FormatsMatch(fe, *pFE)) {
-        pSTM->pUnkForRelease = NULL;        // caller is responsible for deleting this data
-        CLIPFORMAT format = pFE->cfFormat;
-        switch(format) {
+  while (NOERROR == m_enumFE->Next(1, &fe, &count)
+         && dfInx < mDataFlavors.Length()) {
+    nsCString& df = mDataFlavors.ElementAt(dfInx);
+    if (FormatsMatch(fe, *pFE)) {
+      pSTM->pUnkForRelease = NULL;        // caller is responsible for deleting this data
+      CLIPFORMAT format = pFE->cfFormat;
+      switch(format) {
 
-        // Someone is asking for plain or unicode text
-        case CF_TEXT:
-        case CF_UNICODETEXT:
-        return GetText(*df, *pFE, *pSTM);
+      // Someone is asking for plain or unicode text
+      case CF_TEXT:
+      case CF_UNICODETEXT:
+      return GetText(df, *pFE, *pSTM);
 
-        // Some 3rd party apps that receive drag and drop files from the browser
-        // window require support for this.
-        case CF_HDROP:
-          return GetFile(*pFE, *pSTM);
+      // Some 3rd party apps that receive drag and drop files from the browser
+      // window require support for this.
+      case CF_HDROP:
+        return GetFile(*pFE, *pSTM);
 
-        // Someone is asking for an image
-        case CF_DIB:
-          return GetDib(*df, *pFE, *pSTM);
-                                              
-        // ... not yet implemented ...
-        //case CF_BITMAP:
-        //  return GetBitmap(*pFE, *pSTM);
-        //case CF_METAFILEPICT:
-        //  return GetMetafilePict(*pFE, *pSTM);
-            
-        default:
-          if ( format == fileDescriptorFlavorA )
-            return GetFileDescriptor ( *pFE, *pSTM, PR_FALSE );
-          if ( format == fileDescriptorFlavorW )
-            return GetFileDescriptor ( *pFE, *pSTM, PR_TRUE);
-          if ( format == uniformResourceLocatorA )
-            return GetUniformResourceLocator( *pFE, *pSTM, PR_FALSE);
-          if ( format == uniformResourceLocatorW )
-            return GetUniformResourceLocator( *pFE, *pSTM, PR_TRUE);
-#ifndef WINCE
-          if ( format == fileFlavor )
-            return GetFileContents ( *pFE, *pSTM );
-          if ( format == PreferredDropEffect )
-            return GetPreferredDropEffect( *pFE, *pSTM );
-#endif
-          PRNTDEBUG2("***** nsDataObj::GetData - Unknown format %u\n", format);
-          return GetText(*df, *pFE, *pSTM);
-        } //switch
-      } // if
-    }
+      // Someone is asking for an image
+      case CF_DIB:
+        return GetDib(df, *pFE, *pSTM);
+
+      // ... not yet implemented ...
+      //case CF_BITMAP:
+      //  return GetBitmap(*pFE, *pSTM);
+      //case CF_METAFILEPICT:
+      //  return GetMetafilePict(*pFE, *pSTM);
+
+      default:
+        if ( format == fileDescriptorFlavorA )
+          return GetFileDescriptor ( *pFE, *pSTM, PR_FALSE );
+        if ( format == fileDescriptorFlavorW )
+          return GetFileDescriptor ( *pFE, *pSTM, PR_TRUE);
+        if ( format == uniformResourceLocatorA )
+          return GetUniformResourceLocator( *pFE, *pSTM, PR_FALSE);
+        if ( format == uniformResourceLocatorW )
+          return GetUniformResourceLocator( *pFE, *pSTM, PR_TRUE);
+        if ( format == fileFlavor )
+          return GetFileContents ( *pFE, *pSTM );
+        if ( format == PreferredDropEffect )
+          return GetPreferredDropEffect( *pFE, *pSTM );
+        PRNTDEBUG2("***** nsDataObj::GetData - Unknown format %u\n", format);
+        return GetText(df, *pFE, *pSTM);
+      } //switch
+    } // if
     dfInx++;
   } // while
 
@@ -629,7 +621,6 @@ IUnknown* nsDataObj::GetCanonicalIUnknown(IUnknown *punk)
 STDMETHODIMP nsDataObj::SetData(LPFORMATETC pFE, LPSTGMEDIUM pSTM, BOOL fRelease)
 {
   PRNTDEBUG("nsDataObj::SetData\n");
-#ifndef WINCE
   static CLIPFORMAT PerformedDropEffect = ::RegisterClipboardFormat( CFSTR_PERFORMEDDROPEFFECT );  
 
   if (pFE && pFE->cfFormat == PerformedDropEffect) {
@@ -639,8 +630,6 @@ STDMETHODIMP nsDataObj::SetData(LPFORMATETC pFE, LPSTGMEDIUM pSTM, BOOL fRelease
       mCachedTempFile = NULL;
     }
   }
-#endif
-
   // Store arbitrary system formats
   LPDATAENTRY pde;
   HRESULT hres = FindFORMATETC(pFE, &pde, TRUE); // add
@@ -869,24 +858,21 @@ nsDataObj::GetBitmap ( const nsACString& , FORMATETC&, STGMEDIUM& )
 // GetDIB
 //
 // Someone is asking for a bitmap. The data in the transferable will be a straight
-// nsIImage, so just QI it.
+// imgIContainer, so just QI it.
 //
 HRESULT 
 nsDataObj :: GetDib ( const nsACString& inFlavor, FORMATETC &, STGMEDIUM & aSTG )
 {
   PRNTDEBUG("nsDataObj::GetDib\n");
   ULONG result = E_FAIL;
-#ifndef WINCE  
-  
   PRUint32 len = 0;
   nsCOMPtr<nsISupports> genericDataWrapper;
   mTransferable->GetTransferData(PromiseFlatCString(inFlavor).get(), getter_AddRefs(genericDataWrapper), &len);
-  nsCOMPtr<nsIImage> image ( do_QueryInterface(genericDataWrapper) );
+  nsCOMPtr<imgIContainer> image ( do_QueryInterface(genericDataWrapper) );
   if ( !image ) {
-    // In the 0.9.4 timeframe, I had some embedding clients put the nsIImage directly into the
-    // transferable. Newer code, however, wraps the nsIImage in a nsISupportsInterfacePointer.
-    // We should be backwards compatibile with code already out in the field. If we can't find
-    // the image directly out of the transferable,  unwrap the image from its wrapper.
+    // Check if the image was put in an nsISupportsInterfacePointer wrapper.
+    // This might not be necessary any more, but could be useful for backwards
+    // compatibility.
     nsCOMPtr<nsISupportsInterfacePointer> ptr(do_QueryInterface(genericDataWrapper));
     if ( ptr )
       ptr->GetData(getter_AddRefs(image));
@@ -906,8 +892,6 @@ nsDataObj :: GetDib ( const nsACString& inFlavor, FORMATETC &, STGMEDIUM & aSTG 
   } // if we have an image
   else  
     NS_WARNING ( "Definitely not an image on clipboard" );
-
-#endif
 	return ResultFromScode(result);
 }
 
@@ -943,7 +927,6 @@ nsDataObj :: GetFileDescriptor ( FORMATETC& aFE, STGMEDIUM& aSTG, PRBool aIsUnic
     NS_WARNING ( "Not yet implemented\n" );
   
 	return res;
-	
 } // GetFileDescriptor
 
 
@@ -1088,9 +1071,6 @@ GetLocalizedString(const PRUnichar * aName, nsXPIDLString & aString)
 HRESULT
 nsDataObj :: GetFileDescriptorInternetShortcutA ( FORMATETC& aFE, STGMEDIUM& aSTG )
 {
-#ifdef WINCE
-  return E_FAIL;
-#else
   // get the title of the shortcut
   nsAutoString title;
   if ( NS_FAILED(ExtractShortcutTitle(title)) )
@@ -1127,15 +1107,11 @@ nsDataObj :: GetFileDescriptorInternetShortcutA ( FORMATETC& aFE, STGMEDIUM& aST
   aSTG.tymed = TYMED_HGLOBAL;
 
   return S_OK;
-#endif
 } // GetFileDescriptorInternetShortcutA
 
 HRESULT
 nsDataObj :: GetFileDescriptorInternetShortcutW ( FORMATETC& aFE, STGMEDIUM& aSTG )
 {
-#ifdef WINCE
-  return E_FAIL;
-#else
   // get the title of the shortcut
   nsAutoString title;
   if ( NS_FAILED(ExtractShortcutTitle(title)) )
@@ -1172,7 +1148,6 @@ nsDataObj :: GetFileDescriptorInternetShortcutW ( FORMATETC& aFE, STGMEDIUM& aST
   aSTG.tymed = TYMED_HGLOBAL;
 
   return S_OK;
-#endif
 } // GetFileDescriptorInternetShortcutW
 
 
@@ -1185,9 +1160,6 @@ nsDataObj :: GetFileDescriptorInternetShortcutW ( FORMATETC& aFE, STGMEDIUM& aST
 HRESULT
 nsDataObj :: GetFileContentsInternetShortcut ( FORMATETC& aFE, STGMEDIUM& aSTG )
 {
-#ifdef WINCE
-  return E_FAIL;
-#else
   nsAutoString url;
   if ( NS_FAILED(ExtractShortcutURL(url)) )
     return E_OUTOFMEMORY;
@@ -1222,7 +1194,6 @@ nsDataObj :: GetFileContentsInternetShortcut ( FORMATETC& aFE, STGMEDIUM& aSTG )
   aSTG.tymed = TYMED_HGLOBAL;
 
   return S_OK;
-#endif  
 } // GetFileContentsInternetShortcut
 
 // check if specified flavour is present in the transferable
@@ -1394,10 +1365,10 @@ HRESULT nsDataObj::GetFile(FORMATETC& aFE, STGMEDIUM& aSTG)
   FORMATETC fe;
   m_enumFE->Reset();
   PRBool found = PR_FALSE;
-  while (NOERROR == m_enumFE->Next(1, &fe, &count)) {
-    nsCString * df = reinterpret_cast<nsCString*>(mDataFlavors.SafeElementAt(dfInx));
+  while (NOERROR == m_enumFE->Next(1, &fe, &count)
+         && dfInx < mDataFlavors.Length()) {
     dfInx++;
-    if (df && df->EqualsLiteral(kNativeImageMime)) {
+    if (mDataFlavors[dfInx].EqualsLiteral(kNativeImageMime)) {
       found = PR_TRUE;
       break;
     }
@@ -1411,13 +1382,12 @@ HRESULT nsDataObj::GetFile(FORMATETC& aFE, STGMEDIUM& aSTG)
   nsCOMPtr<nsISupports> genericDataWrapper;
 
   mTransferable->GetTransferData(kNativeImageMime, getter_AddRefs(genericDataWrapper), &len);
-  nsCOMPtr<nsIImage> image ( do_QueryInterface(genericDataWrapper) );
+  nsCOMPtr<imgIContainer> image ( do_QueryInterface(genericDataWrapper) );
   
   if (!image) {
-    // In the 0.9.4 timeframe, I had some embedding clients put the nsIImage directly into the
-    // transferable. Newer code, however, wraps the nsIImage in a nsISupportsInterfacePointer.
-    // We should be backwards compatibile with code already out in the field. If we can't find
-    // the image directly out of the transferable,  unwrap the image from its wrapper.
+    // Check if the image was put in an nsISupportsInterfacePointer wrapper.
+    // This might not be necessary any more, but could be useful for backwards
+    // compatibility.
     nsCOMPtr<nsISupportsInterfacePointer> ptr(do_QueryInterface(genericDataWrapper));
     if (ptr)
       ptr->GetData(getter_AddRefs(image));
@@ -1609,7 +1579,7 @@ void nsDataObj::AddDataFlavor(const char* aDataFlavor, LPFORMATETC aFE)
   // Later, OLE will tell us it needs a certain type of FORMATETC (text, unicode, etc)
   // unicode, etc), so we will look up the data flavor that corresponds to
   // the FE and then ask the transferable for that type of data.
-  mDataFlavors.AppendElement(new nsCString(aDataFlavor));
+  mDataFlavors.AppendElement(aDataFlavor);
   m_enumFE->AddFE(aFE);
 }
 
@@ -2028,7 +1998,7 @@ HRESULT nsDataObj::GetFileContents_IStream(FORMATETC& aFE, STGMEDIUM& aSTG)
 
   aSTG.tymed = TYMED_ISTREAM;
   aSTG.pstm = pStream;
-  aSTG.pUnkForRelease = pStream;
+  aSTG.pUnkForRelease = NULL;
 
   return S_OK;
 }

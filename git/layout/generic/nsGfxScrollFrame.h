@@ -46,7 +46,6 @@
 #include "nsIScrollableFrame.h"
 #include "nsIScrollPositionListener.h"
 #include "nsIStatefulFrame.h"
-#include "nsGUIEvent.h"
 #include "nsThreadUtils.h"
 #include "nsIScrollableView.h"
 #include "nsIView.h"
@@ -66,8 +65,8 @@ class nsGfxScrollFrameInner : public nsIScrollPositionListener,
                               public nsIReflowCallback {
 public:
   NS_IMETHOD QueryInterface(REFNSIID aIID, void** aInstancePtr);
-  NS_IMETHOD_(nsrefcnt) AddRef(void);
-  NS_IMETHOD_(nsrefcnt) Release(void);
+  NS_IMETHOD_(nsrefcnt) AddRef(void) { return 2; }
+  NS_IMETHOD_(nsrefcnt) Release(void) { return 1; }
 
   nsGfxScrollFrameInner(nsContainerFrame* aOuter, PRBool aIsRoot,
                         PRBool aIsXUL);
@@ -80,7 +79,6 @@ public:
   // reload our child frame list.
   // We need this if a scrollbar frame is recreated.
   void ReloadChildFrames();
-  PRBool NeedsClipWidget() const;
   void CreateScrollableView();
 
   nsresult CreateAnonymousContent(nsTArray<nsIContent*>& aElements);
@@ -99,7 +97,8 @@ public:
   // nsIScrollPositionListener
 
   NS_IMETHOD ScrollPositionWillChange(nsIScrollableView* aScrollable, nscoord aX, nscoord aY);
-  virtual void ViewPositionDidChange(nsIScrollableView* aScrollable);
+  virtual void ViewPositionDidChange(nsIScrollableView* aScrollable,
+                                     nsTArray<nsIWidget::Configuration>* aConfigurations);
   NS_IMETHOD ScrollPositionDidChange(nsIScrollableView* aScrollable, nscoord aX, nscoord aY);
 
   // This gets called when the 'curpos' attribute on one of the scrollbars changes
@@ -230,6 +229,9 @@ public:
   PRPackedBool mVerticalOverflow:1;
   PRPackedBool mPostedReflowCallback:1;
   PRPackedBool mMayHaveDirtyFixedChildren:1;
+  // If true, need to actually update our scrollbar attributes in the
+  // reflow callback.
+  PRPackedBool mUpdateScrollbarAttributes:1;
 };
 
 /**
@@ -248,12 +250,12 @@ class nsHTMLScrollFrame : public nsHTMLContainerFrame,
 public:
   friend nsIFrame* NS_NewHTMLScrollFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRBool aIsRoot);
 
-  NS_DECL_ISUPPORTS
+  NS_DECL_QUERYFRAME
 
   // Called to set the child frames. We typically have three: the scroll area,
   // the vertical scrollbar, and the horizontal scrollbar.
   NS_IMETHOD SetInitialChildList(nsIAtom*        aListName,
-                                 nsIFrame*       aChildList);
+                                 nsFrameList&    aChildList);
 
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                               const nsRect&           aDirtyRect,
@@ -289,10 +291,10 @@ public:
   // Because there can be only one child frame, these two function return
   // NS_ERROR_FAILURE
   NS_IMETHOD AppendFrames(nsIAtom*        aListName,
-                          nsIFrame*       aFrameList);
+                          nsFrameList&    aFrameList);
   NS_IMETHOD InsertFrames(nsIAtom*        aListName,
                           nsIFrame*       aPrevFrame,
-                          nsIFrame*       aFrameList);
+                          nsFrameList&    aFrameList);
 
   virtual void Destroy();
 
@@ -433,12 +435,14 @@ class nsXULScrollFrame : public nsBoxFrame,
                          public nsIAnonymousContentCreator,
                          public nsIStatefulFrame {
 public:
+  NS_DECL_QUERYFRAME
+
   friend nsIFrame* NS_NewXULScrollFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRBool aIsRoot);
 
   // Called to set the child frames. We typically have three: the scroll area,
   // the vertical scrollbar, and the horizontal scrollbar.
   NS_IMETHOD SetInitialChildList(nsIAtom*        aListName,
-                                 nsIFrame*       aChildList);
+                                 nsFrameList&    aChildList);
 
   NS_IMETHOD BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                               const nsRect&           aDirtyRect,
@@ -454,10 +458,10 @@ public:
   // Because there can be only one child frame, these two function return
   // NS_ERROR_FAILURE
   NS_IMETHOD AppendFrames(nsIAtom*        aListName,
-                          nsIFrame*       aFrameList);
+                          nsFrameList&    aFrameList);
   NS_IMETHOD InsertFrames(nsIAtom*        aListName,
                           nsIFrame*       aPrevFrame,
-                          nsIFrame*       aFrameList);
+                          nsFrameList&    aFrameList);
 
   virtual void Destroy();
 
@@ -492,9 +496,6 @@ public:
 
   // nsIAnonymousContentCreator
   virtual nsresult CreateAnonymousContent(nsTArray<nsIContent*>& aElements);
-
-  // nsIBox methods
-  NS_DECL_ISUPPORTS
 
   virtual nsSize GetMinSize(nsBoxLayoutState& aBoxLayoutState);
   virtual nsSize GetPrefSize(nsBoxLayoutState& aBoxLayoutState);

@@ -55,6 +55,14 @@
 #include "nsContentCreatorFunctions.h"
 #include "nsBoxLayoutState.h"
 #include "nsBoxFrame.h"
+#include "nsImageFrame.h"
+#include "nsIImageLoadingContent.h"
+
+#ifdef ACCESSIBILITY
+#include "nsIServiceManager.h"
+#include "nsIAccessible.h"
+#include "nsIAccessibilityService.h"
+#endif
 
 nsIFrame*
 NS_NewHTMLVideoFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
@@ -71,42 +79,60 @@ nsVideoFrame::~nsVideoFrame()
 {
 }
 
-NS_INTERFACE_MAP_BEGIN(nsVideoFrame)
-  NS_INTERFACE_MAP_ENTRY(nsIAnonymousContentCreator)
-#ifdef NS_DEBUG
-  NS_INTERFACE_MAP_ENTRY(nsIFrameDebug)
+NS_QUERYFRAME_HEAD(nsVideoFrame)
+  NS_QUERYFRAME_ENTRY(nsIAnonymousContentCreator)
+#ifdef DEBUG
+  NS_QUERYFRAME_ENTRY(nsIFrameDebug)
 #endif
-NS_INTERFACE_MAP_END_INHERITING(nsContainerFrame)
-
-NS_IMETHODIMP_(nsrefcnt) 
-nsVideoFrame::AddRef(void)
-{
-  return NS_OK;
-}
-
-NS_IMETHODIMP_(nsrefcnt)
-nsVideoFrame::Release(void)
-{
-    return NS_OK;
-}
+NS_QUERYFRAME_TAIL_INHERITING(nsContainerFrame)
 
 nsresult
 nsVideoFrame::CreateAnonymousContent(nsTArray<nsIContent*>& aElements)
 {
+  nsNodeInfoManager *nodeInfoManager = GetContent()->GetCurrentDoc()->NodeInfoManager();
+  nsCOMPtr<nsINodeInfo> nodeInfo;
+  if (HasVideoElement()) {
+    // Create an anonymous image element as a child to hold the poster
+    // image. We may not have a poster image now, but one could be added
+    // before we load, or on a subsequent load.
+    nodeInfo = nodeInfoManager->GetNodeInfo(nsGkAtoms::img,
+                                            nsnull,
+                                            kNameSpaceID_None);
+    NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
+    mPosterImage = NS_NewHTMLImageElement(nodeInfo);
+    NS_ENSURE_TRUE(mPosterImage, NS_ERROR_OUT_OF_MEMORY);
+    
+    // Set the nsImageLoadingContent::ImageState() to 0. This means that the
+    // image will always report its state as 0, so it will never be reframed
+    // to show frames for loading or the broken image icon. This is important,
+    // as the image is native anonymous, and so can't be reframed (currently).
+    nsCOMPtr<nsIImageLoadingContent> imgContent = do_QueryInterface(mPosterImage);
+    NS_ENSURE_TRUE(imgContent, NS_ERROR_FAILURE);
+
+    imgContent->ForceImageState(PR_TRUE, 0);    
+
+    nsresult res = UpdatePosterSource(PR_FALSE);
+    NS_ENSURE_SUCCESS(res,res);
+    
+    if (!aElements.AppendElement(mPosterImage))
+      return NS_ERROR_OUT_OF_MEMORY;
+  } 
+
   // Set up "videocontrols" XUL element which will be XBL-bound to the
   // actual controls.
-  nsPresContext* presContext = PresContext();
-  nsNodeInfoManager *nodeInfoManager =
-    presContext->Document()->NodeInfoManager();
-  nsCOMPtr<nsINodeInfo> nodeInfo;
-  nodeInfo = nodeInfoManager->GetNodeInfo(nsGkAtoms::videocontrols, nsnull,
+  nodeInfo = nodeInfoManager->GetNodeInfo(nsGkAtoms::videocontrols,
+                                          nsnull,
                                           kNameSpaceID_XUL);
   NS_ENSURE_TRUE(nodeInfo, NS_ERROR_OUT_OF_MEMORY);
 
-  nsresult rv = NS_NewElement(getter_AddRefs(mVideoControls), kNameSpaceID_XUL, nodeInfo, PR_FALSE);
+  nsresult rv = NS_NewElement(getter_AddRefs(mVideoControls),
+                              kNameSpaceID_XUL,
+                              nodeInfo,
+                              PR_FALSE);
   NS_ENSURE_SUCCESS(rv, rv);
   if (!aElements.AppendElement(mVideoControls))
     return NS_ERROR_OUT_OF_MEMORY;
+
   return NS_OK;
 }
 
@@ -114,6 +140,7 @@ void
 nsVideoFrame::Destroy()
 {
   nsContentUtils::DestroyAnonymousContent(&mVideoControls);
+  nsContentUtils::DestroyAnonymousContent(&mPosterImage);
   nsContainerFrame::Destroy();
 }
 
@@ -123,23 +150,41 @@ nsVideoFrame::IsLeaf() const
   return PR_TRUE;
 }
 
+// Return the largest rectangle that fits in aRect and has the
+// same aspect ratio as aRatio, centered at the center of aRect
+static gfxRect
+CorrectForAspectRatio(const gfxRect& aRect, const nsIntSize& aRatio)
+{
+  NS_ASSERTION(aRatio.width > 0 && aRatio.height > 0 && !aRect.IsEmpty(),
+               "Nothing to draw");
+  // Choose scale factor that scales aRatio to just fit into aRect
+  gfxFloat scale =
+    PR_MIN(aRect.Width()/aRatio.width, aRect.Height()/aRatio.height);
+  gfxSize scaledRatio(scale*aRatio.width, scale*aRatio.height);
+  gfxPoint topLeft((aRect.Width() - scaledRatio.width)/2,
+                   (aRect.Height() - scaledRatio.height)/2);
+  return gfxRect(aRect.TopLeft() + topLeft, scaledRatio);
+}
+
 void
 nsVideoFrame::PaintVideo(nsIRenderingContext& aRenderingContext,
                          const nsRect& aDirtyRect, nsPoint aPt) 
 {
-  gfxContext* ctx = static_cast<gfxContext*>(aRenderingContext.GetNativeGraphicData(nsIRenderingContext::NATIVE_THEBES_CONTEXT));
-  // TODO: handle the situation where the frame size is not the same as the
-  // video size, by drawing to the largest rectangle that fits in the frame
-  // whose aspect ratio equals the video's aspect ratio
   nsRect area = GetContentRect() - GetPosition() + aPt;
+  nsHTMLVideoElement* element = static_cast<nsHTMLVideoElement*>(GetContent());
+  nsIntSize videoSize = element->GetVideoSize(nsIntSize(0, 0));
+  if (videoSize.width <= 0 || videoSize.height <= 0 || area.IsEmpty())
+    return;
+
+  gfxContext* ctx = static_cast<gfxContext*>(aRenderingContext.GetNativeGraphicData(nsIRenderingContext::NATIVE_THEBES_CONTEXT));
   nsPresContext* presContext = PresContext();
   gfxRect r = gfxRect(presContext->AppUnitsToGfxUnits(area.x), 
                       presContext->AppUnitsToGfxUnits(area.y), 
                       presContext->AppUnitsToGfxUnits(area.width), 
                       presContext->AppUnitsToGfxUnits(area.height));
 
-  nsHTMLVideoElement* element = static_cast<nsHTMLVideoElement*>(GetContent());
-  element->Paint(ctx, r);
+  r = CorrectForAspectRatio(r, videoSize);
+  element->Paint(ctx, nsLayoutUtils::GetGraphicsFilterForFrame(this), r);
 }
 
 NS_IMETHODIMP
@@ -167,16 +212,46 @@ nsVideoFrame::Reflow(nsPresContext*           aPresContext,
   aMetrics.width += mBorderPadding.left + mBorderPadding.right;
   aMetrics.height += mBorderPadding.top + mBorderPadding.bottom;
 
-  nsIFrame* child = mFrames.FirstChild();
-  if (child) {
-    NS_ASSERTION(child->GetContent() == mVideoControls,
-                 "What is this child doing here?");
-    nsBoxLayoutState boxState(PresContext(), aReflowState.rendContext);
-    nsBoxFrame::LayoutChildAt(boxState, child,
-                              nsRect(mBorderPadding.left, mBorderPadding.right,
-                                     aReflowState.ComputedWidth(), aReflowState.ComputedHeight()));
+  // Reflow the child frames. We may have up to two, an image frame
+  // which is the poster, and a box frame, which is the video controls.
+  for (nsIFrame *child = mFrames.FirstChild();
+       child;
+       child = child->GetNextSibling()) {
+    if (child->GetType() == nsGkAtoms::imageFrame) {
+      // Reflow the poster frame.
+      nsImageFrame* imageFrame = static_cast<nsImageFrame*>(child);
+      nsHTMLReflowMetrics kidDesiredSize;
+      nsSize availableSize = nsSize(aReflowState.availableWidth,
+                                    aReflowState.availableHeight);
+      nsHTMLReflowState kidReflowState(aPresContext,
+                                       aReflowState,
+                                       imageFrame,
+                                       availableSize,
+                                       aMetrics.width,
+                                       aMetrics.height);
+      if (ShouldDisplayPoster()) {
+        kidReflowState.SetComputedWidth(aReflowState.ComputedWidth());
+        kidReflowState.SetComputedHeight(aReflowState.ComputedHeight());
+      } else {
+        kidReflowState.SetComputedWidth(0);
+        kidReflowState.SetComputedHeight(0);      
+      }
+      ReflowChild(imageFrame, aPresContext, kidDesiredSize, kidReflowState,
+                  mBorderPadding.left, mBorderPadding.top, 0, aStatus);
+      FinishReflowChild(imageFrame, aPresContext,
+                        &kidReflowState, kidDesiredSize,
+                        mBorderPadding.left, mBorderPadding.top, 0);
+    } else if (child->GetType() == nsGkAtoms::boxFrame) {
+      // Reflow the video controls frame.
+      nsBoxLayoutState boxState(PresContext(), aReflowState.rendContext);
+      nsBoxFrame::LayoutChildAt(boxState,
+                                child,
+                                nsRect(mBorderPadding.left,
+                                       mBorderPadding.top,
+                                       aReflowState.ComputedWidth(),
+                                       aReflowState.ComputedHeight()));
+    }
   }
-
   aMetrics.mOverflowArea.SetRect(0, 0, aMetrics.width, aMetrics.height);
 
   FinishAndStoreOverflow(&aMetrics);
@@ -221,13 +296,30 @@ nsVideoFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   nsresult rv = DisplayBorderBackgroundOutline(aBuilder, aLists);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = aLists.Content()->AppendNewToTop(new (aBuilder) nsDisplayGeneric(this, ::PaintVideo, "Video"));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (mFrames.FirstChild()) {
-    rv = mFrames.FirstChild()->BuildDisplayListForStackingContext(aBuilder, aDirtyRect, aLists.Content());
+  if (!ShouldDisplayPoster() && HasVideoData()) {
+    rv = aLists.Content()->AppendNewToTop(new (aBuilder) nsDisplayGeneric(this, ::PaintVideo, "Video"));
+    NS_ENSURE_SUCCESS(rv, rv);
   }
-  return rv;
+
+  // Add child frames to display list. We expect up to two children, an image
+  // frame for the poster, and the box frame for the video controls.
+  for (nsIFrame *child = mFrames.FirstChild();
+       child;
+       child = child->GetNextSibling()) {
+    if (child->GetType() == nsGkAtoms::imageFrame && ShouldDisplayPoster()) {
+      rv = child->BuildDisplayListForStackingContext(aBuilder,
+                                                     aDirtyRect - child->GetOffsetTo(this),
+                                                     aLists.Content());
+      NS_ENSURE_SUCCESS(rv,rv);
+    } else if (child->GetType() == nsGkAtoms::boxFrame) {
+      rv = child->BuildDisplayListForStackingContext(aBuilder,
+                                                     aDirtyRect - child->GetOffsetTo(this),
+                                                     aLists.Content());
+      NS_ENSURE_SUCCESS(rv,rv);
+    }
+  }
+
+  return NS_OK;
 }
 
 nsIAtom*
@@ -240,7 +332,12 @@ nsVideoFrame::GetType() const
 NS_IMETHODIMP
 nsVideoFrame::GetAccessible(nsIAccessible** aAccessible)
 {
-  return NS_ERROR_FAILURE;
+  nsCOMPtr<nsIAccessibilityService> accService =
+    do_GetService("@mozilla.org/accessibilityService;1");
+  NS_ENSURE_STATE(accService);
+
+  return accService->CreateHTMLMediaAccessible(static_cast<nsIFrame*>(this),
+                                               aAccessible);
 }
 #endif
 
@@ -260,7 +357,7 @@ nsSize nsVideoFrame::ComputeSize(nsIRenderingContext *aRenderingContext,
                                      nsSize aPadding,
                                      PRBool aShrinkWrap)
 {
-  nsSize size = GetVideoSize();
+  nsSize size = GetIntrinsicSize(aRenderingContext);
 
   IntrinsicSize intrinsicSize;
   intrinsicSize.width.SetCoordValue(size.width);
@@ -280,53 +377,127 @@ nsSize nsVideoFrame::ComputeSize(nsIRenderingContext *aRenderingContext,
 
 nscoord nsVideoFrame::GetMinWidth(nsIRenderingContext *aRenderingContext)
 {
-  // XXX The caller doesn't account for constraints of the height,
-  // min-height, and max-height properties.
-  nscoord result = GetVideoSize().width;
+  nscoord result = GetIntrinsicSize(aRenderingContext).width;
   DISPLAY_MIN_WIDTH(this, result);
   return result;
 }
 
 nscoord nsVideoFrame::GetPrefWidth(nsIRenderingContext *aRenderingContext)
 {
-  // XXX The caller doesn't account for constraints of the height,
-  // min-height, and max-height properties.
-  nscoord result = GetVideoSize().width;
+  nscoord result = GetIntrinsicSize(aRenderingContext).width;
   DISPLAY_PREF_WIDTH(this, result);
   return result;
 }
 
 nsSize nsVideoFrame::GetIntrinsicRatio()
 {
-  return GetVideoSize();
+  return GetIntrinsicSize(nsnull);
 }
 
-nsSize nsVideoFrame::GetVideoSize()
+PRBool nsVideoFrame::ShouldDisplayPoster()
+{
+  if (!HasVideoElement())
+    return PR_FALSE;
+
+  nsHTMLVideoElement* element = static_cast<nsHTMLVideoElement*>(GetContent());
+  if (element->GetPlayedOrSeeked() && HasVideoData())
+    return PR_FALSE;
+
+  nsCOMPtr<nsIImageLoadingContent> imgContent = do_QueryInterface(mPosterImage);
+  NS_ENSURE_TRUE(imgContent, PR_FALSE);
+  
+  nsCOMPtr<imgIRequest> request;
+  nsresult res = imgContent->GetRequest(nsIImageLoadingContent::CURRENT_REQUEST,
+                                        getter_AddRefs(request));
+  if (NS_FAILED(res) || !request) {
+    return PR_FALSE;
+  }
+
+  PRUint32 status = 0;
+  res = request->GetImageStatus(&status);
+  if (NS_FAILED(res) || (status & imgIRequest::STATUS_ERROR))
+    return PR_FALSE;  
+  
+  return PR_TRUE;
+}
+
+nsSize nsVideoFrame::GetIntrinsicSize(nsIRenderingContext *aRenderingContext)
 {
   // Defaulting size to 300x150 if no size given.
   nsIntSize size(300,150);
 
-  nsHTMLVideoElement* element = static_cast<nsHTMLVideoElement*>(GetContent());
-  if (element) {
-    nsresult rv;
-
-    size = element->GetVideoSize(size);
-    if (element->HasAttr(kNameSpaceID_None, nsGkAtoms::width)) {
-      PRInt32 width = -1;
-      rv = element->GetWidth(&width);
-      if (NS_SUCCEEDED(rv)) {
-        size.width = width;
-      }
-    }
-    if (element->HasAttr(kNameSpaceID_None, nsGkAtoms::height)) {
-      PRInt32 height = -1;
-      rv = element->GetHeight(&height);
-      if (NS_SUCCEEDED(rv)) {
-        size.height = height;
-      }
+  if (ShouldDisplayPoster()) {
+    // Use the poster image frame's size.
+    nsIFrame *child = mFrames.FirstChild();
+    if (child && child->GetType() == nsGkAtoms::imageFrame) {
+      nsImageFrame* imageFrame = static_cast<nsImageFrame*>(child);
+      nsSize imgsize;
+      imageFrame->GetIntrinsicImageSize(imgsize);
+      return imgsize;
     }
   }
 
+  if (!HasVideoData()) {
+    if (!aRenderingContext || !mFrames.FirstChild()) {
+      // We just want our intrinsic ratio, but audio elements need no
+      // intrinsic ratio, so just return "no ratio". Also, if there's
+      // no controls frame, we prefer to be zero-sized.
+      return nsSize(0, 0);
+    }
+
+    // Ask the controls frame what its preferred height is
+    nsBoxLayoutState boxState(PresContext(), aRenderingContext, 0);
+    nscoord prefHeight = mFrames.LastChild()->GetPrefSize(boxState).height;
+    return nsSize(nsPresContext::CSSPixelsToAppUnits(size.width), prefHeight);
+  }
+
+  nsHTMLVideoElement* element = static_cast<nsHTMLVideoElement*>(GetContent());
+  size = element->GetVideoSize(size);
+
   return nsSize(nsPresContext::CSSPixelsToAppUnits(size.width), 
                 nsPresContext::CSSPixelsToAppUnits(size.height));
+}
+
+nsresult
+nsVideoFrame::UpdatePosterSource(PRBool aNotify)
+{
+  NS_ASSERTION(HasVideoElement(), "Only call this on <video> elements.");
+  nsHTMLVideoElement* element = static_cast<nsHTMLVideoElement*>(GetContent());
+
+  nsAutoString posterStr;
+  element->GetPoster(posterStr);
+  nsresult res = mPosterImage->SetAttr(kNameSpaceID_None,
+                                       nsGkAtoms::src,
+                                       posterStr,
+                                       aNotify);
+  NS_ENSURE_SUCCESS(res,res);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsVideoFrame::AttributeChanged(PRInt32 aNameSpaceID,
+                               nsIAtom* aAttribute,
+                               PRInt32 aModType)
+{
+  if (aAttribute == nsGkAtoms::poster && HasVideoElement()) {
+    nsresult res = UpdatePosterSource(PR_TRUE);
+    NS_ENSURE_SUCCESS(res,res);
+  }
+  return nsContainerFrame::AttributeChanged(aNameSpaceID,
+                                            aAttribute,
+                                            aModType);
+}
+
+PRBool nsVideoFrame::HasVideoElement() {
+  nsCOMPtr<nsIDOMHTMLVideoElement> videoDomElement = do_QueryInterface(mContent);
+  return videoDomElement != nsnull;
+}
+
+PRBool nsVideoFrame::HasVideoData()
+{
+  if (!HasVideoElement())
+    return PR_FALSE;
+  nsHTMLVideoElement* element = static_cast<nsHTMLVideoElement*>(GetContent());
+  nsIntSize size = element->GetVideoSize(nsIntSize(0,0));    
+  return size != nsIntSize(0,0);
 }

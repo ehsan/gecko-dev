@@ -96,6 +96,7 @@ nsWindow::nsWindow()
 {
   mClientWidget    = nsnull;
   mIsTooSmall      = PR_FALSE;
+  mIsDestroying    = PR_FALSE;
   mBorderStyle     = eBorderStyle_default;
   mWindowType      = eWindowType_child;
 	mLastMenu				 = nsnull;
@@ -650,13 +651,13 @@ int nsWindow::WindowWMHandler( PtWidget_t *widget, void *data, PtCallbackInfo_t 
 		case Ph_WM_CONSWITCH:
 			gConsoleRectValid = PR_FALSE; /* force a call tp PhWindowQueryVisible() next time, since we might have moved this window into a different console */
       /* rollup the menus */
-      if( gRollupWidget && gRollupListener ) gRollupListener->Rollup(nsnull);
+      if( gRollupWidget && gRollupListener ) gRollupListener->Rollup(nsnull, nsnull);
 			break;
 
 		case Ph_WM_FOCUS:
 			if( we->event_state == Ph_WM_EVSTATE_FOCUSLOST ) {
       	/* rollup the menus */
-      	if( gRollupWidget && gRollupListener ) gRollupListener->Rollup(nsnull);
+      	if( gRollupWidget && gRollupListener ) gRollupListener->Rollup(nsnull, nsnull);
 
 				if( sFocusWidget ) sFocusWidget->DispatchStandardEvent(NS_DEACTIVATE);
 				}
@@ -901,7 +902,7 @@ NS_METHOD nsWindow::Move( PRInt32 aX, PRInt32 aY ) {
 int nsWindow::MenuRegionCallback( PtWidget_t *widget, void *data, PtCallbackInfo_t *cbinfo ) {
 	if( gRollupWidget && gRollupListener ) {
 		/* rollup the menu */
-		gRollupListener->Rollup(nsnull);
+		gRollupListener->Rollup(nsnull, nsnull);
 		}
 	return Pt_CONTINUE;
 	}

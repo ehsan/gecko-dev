@@ -259,6 +259,30 @@ long oggz_seek_packets (OGGZ * oggz, long serialno, long packets, int whence);
  */
 
 /**
+ * Retrieve the preroll of a logical bitstream.
+ * \param oggz An OGGZ handle
+ * \param serialno Identify the logical bitstream in \a oggz
+ * \returns The preroll of the specified logical bitstream.
+ * \retval OGGZ_ERR_BAD_SERIALNO \a serialno does not identify an existing
+ * logical bitstream in \a oggz.
+ * \retval OGGZ_ERR_BAD_OGGZ \a oggz does not refer to an existing OGGZ
+ */
+int oggz_get_preroll (OGGZ * oggz, long serialno);
+
+/**
+ * Specify the preroll of a logical bitstream.
+ * \param oggz An OGGZ handle
+ * \param serialno Identify the logical bitstream in \a oggz to attach
+ * this preroll to.
+ * \param preroll The preroll
+ * \returns 0 Success
+ * \retval OGGZ_ERR_BAD_SERIALNO \a serialno does not identify an existing
+ * logical bitstream in \a oggz.
+ * \retval OGGZ_ERR_BAD_OGGZ \a oggz does not refer to an existing OGGZ
+ */
+int oggz_set_preroll (OGGZ * oggz, long serialno, int preroll);
+
+/**
  * Retrieve the granuleshift of a logical bitstream.
  * \param oggz An OGGZ handle
  * \param serialno Identify the logical bitstream in \a oggz
@@ -424,6 +448,8 @@ typedef int (*OggzOrder) (OGGZ * oggz, ogg_packet * op, void * target,
  * \retval 0 Success
  * \retval OGGZ_ERR_BAD_OGGZ \a oggz does not refer to an existing OGGZ
  * \retval OGGZ_ERR_INVALID Operation not suitable for this OGGZ
+ * \retval OGGZ_ERR_BAD_SERIALNO \a serialno does not identify an existing
+ *                               logical bitstream in \a oggz, and is not -1
  */
 int oggz_set_order (OGGZ * oggz, long serialno, OggzOrder order,
 		    void * user_data);
@@ -448,5 +474,37 @@ long oggz_seek_byorder (OGGZ * oggz, void * target);
 int oggz_set_data_start (OGGZ * oggz, oggz_off_t offset);
 /** \}
  */
+
+/**
+ * Seeks Oggz to time unit_target, but with the bounds of the offset range
+ * [offset_begin, offset_end]. This is useful when seeking in network streams
+ * where only parts of a media are buffered, and retrieving unbuffered
+ * parts is expensive.
+ * \param oggz An OGGZ handle previously opened for reading
+ * \param unit_target The seek target, in milliseconds, or custom units
+ * \param offset_begin Start of offset range to seek inside, in bytes
+ * \param offset_end End of offset range to seek inside, in bytes,
+          pass -1 for end of media
+ * \returns The new position, in milliseconds or custom units
+ * \retval -1 on failure (unit_target is not within range)
+ */
+ogg_int64_t
+oggz_bounded_seek_set (OGGZ * oggz,
+                       ogg_int64_t unit_target,
+                       ogg_int64_t offset_begin,
+                       ogg_int64_t offset_end);
+
+/**
+ * Seeks to the first key frame before unit_target, in the range
+ * [offset_begin, offset_end]. serial_nos contains an array of size serial_nos
+ * of serialnos of the streams which need to be seeked.
+ */
+ogg_int64_t
+oggz_keyframe_seek_set(OGGZ * oggz,
+                       long* serial_nos,
+                       int num_serialno,
+                       ogg_int64_t unit_target,
+                       ogg_int64_t offset_begin,
+                       ogg_int64_t offset_end);
 
 #endif /* __OGGZ_SEEK_H__ */

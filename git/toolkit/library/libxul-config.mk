@@ -41,8 +41,8 @@ CPPSRCS += \
 	nsStaticXULComponents.cpp \
 	$(NULL)
 
-ifeq ($(OS_ARCH),WINNT)
-REQUIRES += libreg widget gfx
+ifeq (,$(filter-out WINCE WINNT,$(OS_ARCH)))
+REQUIRES += widget gfx
 CPPSRCS += \
 	nsDllMain.cpp \
 	$(NULL)
@@ -65,11 +65,12 @@ LOCAL_INCLUDES += -I$(topsrcdir)/widget/src/windows
 endif
 
 ifneq (,$(filter WINNT OS2,$(OS_ARCH)))
+REQUIRES += libreg
 DEFINES	+= -DZLIB_DLL=1
 endif
 
 ifeq ($(OS_ARCH),OS2)
-REQUIRES += libreg widget gfx
+REQUIRES += widget gfx
 
 CPPSRCS += \
 	dlldeps.cpp \
@@ -94,14 +95,15 @@ STATIC_LIBS += \
 	xpcom_core \
 	ucvutil_s \
 	gkgfx \
-	gfxshared_s \
 	$(NULL)
 
 #ifndef MOZ_EMBEDDING_LEVEL_DEFAULT
+ifndef WINCE
 ifdef MOZ_XPINSTALL
 STATIC_LIBS += \
 	mozreg_s \
 	$(NULL)
+endif
 endif
 #endif
 
@@ -171,6 +173,12 @@ COMPONENT_LIBS += \
         unixproxy \
         $(NULL)
 endif
+endif
+
+ifneq (,$(filter windows,$(MOZ_WIDGET_TOOLKIT)))
+COMPONENT_LIBS += \
+	windowsproxy \
+	$(NULL)
 endif
 
 ifdef MOZ_PERF_METRICS
@@ -263,7 +271,6 @@ ifdef MOZ_MORK
 ifdef MOZ_XUL
 COMPONENT_LIBS += \
 	mork \
-	tkhstory \
 	$(NULL)
 endif
 endif
@@ -292,11 +299,6 @@ ifdef MOZ_ENABLE_GTK2
 ifdef MOZ_X11
 STATIC_LIBS += gtkxtbin
 endif
-endif
-
-ifdef MOZ_IPCD
-DEFINES += -DMOZ_IPCD
-COMPONENT_LIBS += ipcdc
 endif
 
 ifdef MOZ_ENABLE_POSTSCRIPT
@@ -334,11 +336,6 @@ ifdef MOZ_ENABLE_PHOTON
 COMPONENT_LIBS += widget_photon
 endif
 
-ifdef MOZ_OJI
-STATIC_LIBS += jsj
-COMPONENT_LIBS += oji
-endif
-
 ifdef ACCESSIBILITY
 COMPONENT_LIBS += accessibility
 endif
@@ -364,3 +361,10 @@ endif
 ifdef GC_LEAK_DETECTOR
 EXTRA_DSO_LIBS += boehm
 endif
+
+ifdef MOZ_ENABLE_CANVAS3D
+ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
+EXTRA_DSO_LDOPTS += -framework OpenGL
+endif
+endif
+

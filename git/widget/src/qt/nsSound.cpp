@@ -43,6 +43,7 @@
 #include "prlink.h"
 
 #include "nsSound.h"
+#include "nsString.h"
 
 #include "nsIURL.h"
 #include "nsIFileURL.h"
@@ -377,8 +378,11 @@ NS_METHOD nsSound::Play(nsIURL *aURL)
 
 NS_IMETHODIMP nsSound::PlaySystemSound(const nsAString &aSoundAlias)
 {
-    if (aSoundAlias.EqualsLiteral("_moz_mailbeep")) {
+    if (NS_IsMozAliasSound(aSoundAlias)) {
+      NS_WARNING("nsISound::playSystemSound is called with \"_moz_\" events, they are obsolete, use nsISound::playEventSound instead");
+      if (aSoundAlias.Equals(NS_SYSSOUND_MAIL_BEEP))
         return Beep();
+      return NS_OK;
     }
 
     nsresult rv;
@@ -400,3 +404,9 @@ NS_IMETHODIMP nsSound::PlaySystemSound(const nsAString &aSoundAlias)
     return rv;
 
 }
+
+NS_IMETHODIMP nsSound::PlayEventSound(PRUint32 aEventId)
+{
+    return aEventId == EVENT_NEW_MAIL_RECEIVED ? Beep() : NS_OK;
+}
+

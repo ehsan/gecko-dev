@@ -36,10 +36,12 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-do_import_script("netwerk/test/httpserver/httpd.js");
+do_load_httpd_js();
 
 // if these tests fail, we'll want the debug output
 DEBUG = true;
+
+const Timer = CC("@mozilla.org/timer;1", "nsITimer", "initWithCallback");
 
 
 /**
@@ -159,10 +161,142 @@ function expectLines(iter, expectedLines)
   }
 }
 
+/**
+ * Spew a bunch of HTTP metadata from request into the body of response.
+ *
+ * @param request : nsIHttpRequestMetadata
+ *   the request whose metadata should be output
+ * @param response : nsIHttpResponse
+ *   the response to which the metadata is written
+ */
+function writeDetails(request, response)
+{
+  response.write("Method:  " + request.method + "\r\n");
+  response.write("Path:    " + request.path + "\r\n");
+  response.write("Query:   " + request.queryString + "\r\n");
+  response.write("Version: " + request.httpVersion + "\r\n");
+  response.write("Scheme:  " + request.scheme + "\r\n");
+  response.write("Host:    " + request.host + "\r\n");
+  response.write("Port:    " + request.port);
+}
+
+/**
+ * Advances iter past all non-blank lines and a single blank line, after which
+ * point the body of the response will be returned next from the iterator.
+ *
+ * @param iter : Iterator
+ *   an iterator over the CRLF-delimited lines in an HTTP response, currently
+ *   just after the Request-Line
+ */
+function skipHeaders(iter)
+{
+  var line = iter.next();
+  while (line !== "")
+    line = iter.next();
+}
+
+/**
+ * Checks that the exception e (which may be an XPConnect-created exception
+ * object or a raw nsresult number) is the given nsresult.
+ *
+ * @param e : Exception or nsresult
+ *   the actual exception
+ * @param code : nsresult
+ *   the expected exception
+ */
+function isException(e, code)
+{
+  if (e !== code && e.result !== code)
+    do_throw("unexpected error: " + e);
+}
+
+/**
+ * Pending timers used by callLater, which must store them to avoid the timer
+ * being canceled and destroyed.  Stupid API...
+ */
+var __pendingTimers = [];
+
+/**
+ * Date.now() is not necessarily monotonically increasing (insert sob story
+ * about times not being the right tool to use for measuring intervals of time,
+ * robarnold can tell all), so be wary of error by erring by at least
+ * __timerFuzz ms.
+ */
+const __timerFuzz = 15;
+
+/**
+ * Calls the given function at least the specified number of milliseconds later.
+ * The callback will not undershoot the given time, but it might overshoot --
+ * don't expect precision!
+ *
+ * @param milliseconds : uint
+ *   the number of milliseconds to delay
+ * @param callback : function() : void
+ *   the function to call
+ */
+function callLater(msecs, callback)
+{
+  do_check_true(msecs >= 0);
+
+  var start = Date.now();
+
+  function checkTime()
+  {
+    var index = __pendingTimers.indexOf(timer);
+    do_check_true(index >= 0); // sanity
+    __pendingTimers.splice(index, 1);
+    do_check_eq(__pendingTimers.indexOf(timer), -1);
+
+    // The current nsITimer implementation can undershoot, but even if it
+    // couldn't, paranoia is probably a virtue here given the potential for
+    // random orange on tinderboxen.
+    var end = Date.now();
+    var elapsed = end - start;
+    if (elapsed >= msecs)
+    {
+      dumpn("*** TIMER FIRE " + elapsed + "ms (" + msecs + "ms requested)");
+      try
+      {
+        callback();
+      }
+      catch (e)
+      {
+        do_throw("exception thrown from callLater callback: " + e);
+      }
+      return;
+    }
+
+    // Timer undershot, retry with a little overshoot to try to avoid more
+    // undershoots.
+    var newDelay = msecs - elapsed;
+    dumpn("*** TIMER UNDERSHOOT " + newDelay + "ms " +
+          "(" + msecs + "ms requested, delaying)");
+
+    callLater(newDelay, callback);
+  }
+
+  var timer =
+    new Timer(checkTime, msecs + __timerFuzz, Ci.nsITimer.TYPE_ONE_SHOT);
+  __pendingTimers.push(timer);
+}
+
 
 /*******************************************************
  * SIMPLE SUPPORT FOR LOADING/TESTING A SERIES OF URLS *
  *******************************************************/
+
+/**
+ * Create a completion callback which will stop the given server and end the
+ * test, assuming nothing else remains to be done at that point.
+ */
+function testComplete(srv)
+{
+  return function complete()
+  {
+    do_test_pending();
+    srv.stop(function quit() { do_test_finished(); });
+  };
+}
 
 /**
  * Represents a path to load from the tested HTTP server, along with actions to
@@ -210,7 +344,14 @@ function runHttpTests(testArray, done)
   {
     if (++testIndex == testArray.length)
     {
-      done();
+      try
+      {
+        done();
+      }
+      catch (e)
+      {
+        do_throw("error running test-completion callback: " + e);
+      }
       return;
     }
 
@@ -218,7 +359,18 @@ function runHttpTests(testArray, done)
 
     var test = testArray[testIndex];
     var ch = makeChannel(test.path);
-    test.initChannel(ch);
+    try
+    {
+      test.initChannel(ch);
+    }
+    catch (e)
+    {
+      try
+      {
+        do_throw("testArray[" + testIndex + "].initChannel(ch) failed: " + e);
+      }
+      catch (e) { /* swallow and let tests continue */ }
+    }
 
     ch.asyncOpen(listener, null);
   }
@@ -238,7 +390,22 @@ function runHttpTests(testArray, done)
                         .QueryInterface(Ci.nsIHttpChannelInternal);
 
         this._data.length = 0;
-        testArray[testIndex].onStartRequest(ch, cx);
+        try
+        {
+          try
+          {
+            testArray[testIndex].onStartRequest(ch, cx);
+          }
+          catch (e)
+          {
+            do_throw("testArray[" + testIndex + "].onStartRequest: " + e);
+          }
+        }
+        catch (e)
+        {
+          dumpn("!!! swallowing onStartRequest exception so onStopRequest is " +
+                "called...");
+        }
       },
       onDataAvailable: function(request, cx, inputStream, offset, count)
       {
@@ -296,9 +463,11 @@ function runHttpTests(testArray, done)
  *   the host to which a connection should be made
  * @param port : PRUint16
  *   the port to use for the connection
- * @param data : string
- *   the raw data to send, as a string of characters with codes in the range
- *   0-255
+ * @param data : string or [string...]
+ *   either:
+ *     - the raw data to send, as a string of characters with codes in the
+ *       range 0-255, or
+ *     - an array of such strings whose concatenation forms the raw data
  * @param responseCheck : function(string) : void
  *   a function which is provided with the data sent by the remote host which
  *   conducts whatever tests it wants on that data; useful for tweaking the test
@@ -308,8 +477,12 @@ function RawTest(host, port, data, responseCheck)
 {
   if (0 > port || 65535 < port || port % 1 !== 0)
     throw "bad port";
-  if (!/^[\x00-\xff]*$/.test(data))
-    throw "bad data contains non-byte-valued character";
+  if (!(data instanceof Array))
+    data = [data];
+  if (data.length <= 0)
+    throw "bad data length";
+  if (!data.every(function(v) { return /^[\x00-\xff]*$/.test(data); }))
+    throw "bad data contained non-byte-valued character";
 
   this.host = host;
   this.port = port;
@@ -342,7 +515,14 @@ function runRawTests(testArray, done)
     if (++testIndex == testArray.length)
     {
       do_test_finished();
-      done();
+      try
+      {
+        done();
+      }
+      catch (e)
+      {
+        do_throw("error running test-completion callback: " + e);
+      }
       return;
     }
 
@@ -372,14 +552,17 @@ function runRawTests(testArray, done)
 
   function waitToWriteOutput(stream)
   {
-    stream.asyncWait(writer, 0, testArray[testIndex].data.length - dataIndex,
+    stream.asyncWait(writer, 0, testArray[testIndex].data[dataIndex].length,
                      currentThread);
   }
 
   /** Index of the test being run. */
   var testIndex = -1;
 
-  /** Index of remaining data to be written to the socket in current test. */
+  /**
+   * Index of remaining data strings to be written to the socket in current
+   * test.
+   */
   var dataIndex = 0;
 
   /** Data received so far from the server. */
@@ -428,13 +611,16 @@ function runRawTests(testArray, done)
     {
       onOutputStreamReady: function(stream)
       {
-        var data = testArray[testIndex].data.substring(dataIndex);
+        var data = testArray[testIndex].data[dataIndex];
 
         var written = 0;
         try
         {
           written = stream.write(data, data.length);
-          dataIndex += written;
+          if (written == data.length)
+            dataIndex++;
+          else
+            testArray[testIndex].data = data.substring(written);
         }
         catch (e) { /* stream could have been closed, just ignore */ }
 

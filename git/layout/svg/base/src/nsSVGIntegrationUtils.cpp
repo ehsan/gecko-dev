@@ -42,7 +42,6 @@
 #include "nsRegion.h"
 #include "nsLayoutUtils.h"
 #include "nsDisplayList.h"
-#include "nsSVGMatrix.h"
 #include "nsSVGFilterPaintCallback.h"
 #include "nsSVGFilterFrame.h"
 #include "nsSVGClipPathFrame.h"
@@ -126,9 +125,9 @@ nsSVGIntegrationUtils::ComputeFrameEffectsRect(nsIFrame* aFrame,
   nsRect r = GetSVGBBox(firstFrame, aFrame, aOverflowRect, userSpaceRect);
   // r is relative to user space
   PRUint32 appUnitsPerDevPixel = aFrame->PresContext()->AppUnitsPerDevPixel();
-  r.ScaleRoundOutInverse(appUnitsPerDevPixel);
-  r = filterFrame->GetFilterBBox(firstFrame, &r);
-  r.ScaleRoundOut(appUnitsPerDevPixel);
+  nsIntRect p = r.ToOutsidePixels(appUnitsPerDevPixel);
+  p = filterFrame->GetFilterBBox(firstFrame, &p);
+  r = p.ToAppUnits(appUnitsPerDevPixel);
   // Make it relative to aFrame again
   return r + userSpaceRect.TopLeft() - aFrame->GetOffsetTo(firstFrame);
 }
@@ -141,17 +140,25 @@ nsSVGIntegrationUtils::GetInvalidAreaForChangedSource(nsIFrame* aFrame,
   // already have been set up during reflow/ComputeFrameEffectsRect
   nsIFrame* firstFrame =
     nsLayoutUtils::GetFirstContinuationOrSpecialSibling(aFrame);
-  nsSVGFilterFrame* filterFrame = nsSVGEffects::GetFilterFrame(firstFrame);
-  if (!filterFrame)
+  nsSVGEffects::EffectProperties effectProperties =
+    nsSVGEffects::GetEffectProperties(firstFrame);
+  if (!effectProperties.mFilter)
     return aInvalidRect;
+  nsSVGFilterFrame* filterFrame = nsSVGEffects::GetFilterFrame(firstFrame);
+  if (!filterFrame) {
+    // The frame is either not there or not currently available,
+    // perhaps because we're in the middle of tearing stuff down.
+    // Be conservative.
+    return aFrame->GetOverflowRect();
+  }
 
   PRInt32 appUnitsPerDevPixel = aFrame->PresContext()->AppUnitsPerDevPixel();
   nsRect userSpaceRect = GetNonSVGUserSpace(firstFrame);
   nsPoint offset = aFrame->GetOffsetTo(firstFrame) - userSpaceRect.TopLeft();
   nsRect r = aInvalidRect + offset;
-  r.ScaleRoundOutInverse(appUnitsPerDevPixel);
-  r = filterFrame->GetInvalidationBBox(firstFrame, r);
-  r.ScaleRoundOut(appUnitsPerDevPixel);
+  nsIntRect p = r.ToOutsidePixels(appUnitsPerDevPixel);
+  p = filterFrame->GetInvalidationBBox(firstFrame, p);
+  r = p.ToAppUnits(appUnitsPerDevPixel);
   return r - offset;
 }
 
@@ -172,9 +179,9 @@ nsSVGIntegrationUtils::GetRequiredSourceForInvalidArea(nsIFrame* aFrame,
   nsRect userSpaceRect = GetNonSVGUserSpace(firstFrame);
   nsPoint offset = aFrame->GetOffsetTo(firstFrame) - userSpaceRect.TopLeft();
   nsRect r = aDamageRect + offset;
-  r.ScaleRoundOutInverse(appUnitsPerDevPixel);
-  r = filterFrame->GetSourceForInvalidArea(firstFrame, r);
-  r.ScaleRoundOut(appUnitsPerDevPixel);
+  nsIntRect p = r.ToOutsidePixels(appUnitsPerDevPixel);
+  p = filterFrame->GetSourceForInvalidArea(firstFrame, p);
+  r = p.ToAppUnits(appUnitsPerDevPixel);
   return r - offset;
 }
 
@@ -201,20 +208,10 @@ public:
                      const nsIntRect* aDirtyRect)
   {
     nsIRenderingContext* ctx = aContext->GetRenderingContext(aTarget);
-    gfxContext* gfxCtx = aContext->GetGfxContext();
-
-    // We're expected to paint with 1 unit equal to 1 CSS pixel. But
-    // mInnerList->Paint expects 1 unit to equal 1 device pixel. So
-    // adjust.
-    gfxFloat scale =
-      nsPresContext::AppUnitsToFloatCSSPixels(aTarget->PresContext()->AppUnitsPerDevPixel());
-    gfxCtx->Scale(scale, scale);
-
     nsIRenderingContext::AutoPushTranslation push(ctx, -mOffset.x, -mOffset.y);
     nsRect dirty;
     if (aDirtyRect) {
-      dirty = *aDirtyRect;
-      dirty.ScaleRoundOut(nsIDeviceContext::AppUnitsPerCSSPixel());
+      dirty = aDirtyRect->ToAppUnits(nsIDeviceContext::AppUnitsPerCSSPixel());
       dirty += mOffset;
     } else {
       dirty = mInnerList->GetBounds(mBuilder);
@@ -236,10 +233,9 @@ nsSVGIntegrationUtils::PaintFramesWithEffects(nsIRenderingContext* aCtx,
                                               nsDisplayList* aInnerList)
 {
 #ifdef DEBUG
-  nsISVGChildFrame *svgChildFrame;
-  CallQueryInterface(aEffectsFrame, &svgChildFrame);
-#endif
+  nsISVGChildFrame *svgChildFrame = do_QueryFrame(aEffectsFrame);
   NS_ASSERTION(!svgChildFrame, "Should never be called on an SVG frame");
+#endif
 
   float opacity = aEffectsFrame->GetStyleDisplay()->mOpacity;
   if (opacity == 0.0f)
@@ -284,11 +280,10 @@ nsSVGIntegrationUtils::PaintFramesWithEffects(nsIRenderingContext* aCtx,
 
   nsRect userSpaceRect = GetNonSVGUserSpace(firstFrame) + aBuilder->ToReferenceFrame(firstFrame);
   PRInt32 appUnitsPerDevPixel = aEffectsFrame->PresContext()->AppUnitsPerDevPixel();
-  userSpaceRect.ScaleRoundPreservingCentersInverse(appUnitsPerDevPixel);
-  userSpaceRect.ScaleRoundOut(appUnitsPerDevPixel);
+  userSpaceRect = userSpaceRect.ToNearestPixels(appUnitsPerDevPixel).ToAppUnits(appUnitsPerDevPixel);
   aCtx->Translate(userSpaceRect.x, userSpaceRect.y);
 
-  nsCOMPtr<nsIDOMSVGMatrix> matrix = GetInitialMatrix(aEffectsFrame);
+  gfxMatrix matrix = GetInitialMatrix(aEffectsFrame);
 
   PRBool complexEffects = PR_FALSE;
   /* Check if we need to do additional operations on this child's
@@ -310,8 +305,7 @@ nsSVGIntegrationUtils::PaintFramesWithEffects(nsIRenderingContext* aCtx,
   /* Paint the child */
   if (filterFrame) {
     RegularFramePaintCallback paint(aBuilder, aInnerList, userSpaceRect.TopLeft());
-    nsRect r = aDirtyRect - userSpaceRect.TopLeft();
-    r.ScaleRoundOutInverse(appUnitsPerDevPixel);
+    nsIntRect r = (aDirtyRect - userSpaceRect.TopLeft()).ToOutsidePixels(appUnitsPerDevPixel);
     filterFrame->FilterPaint(&svgContext, aEffectsFrame, &paint, &r);
   } else {
     gfx->SetMatrix(savedCTM);
@@ -364,19 +358,18 @@ nsSVGIntegrationUtils::PaintFramesWithEffects(nsIRenderingContext* aCtx,
   gfx->SetMatrix(savedCTM);
 }
 
-already_AddRefed<nsIDOMSVGMatrix>
+gfxMatrix
 nsSVGIntegrationUtils::GetInitialMatrix(nsIFrame* aNonSVGFrame)
 {
   NS_ASSERTION(!aNonSVGFrame->IsFrameOfType(nsIFrame::eSVG),
                "SVG frames should not get here");
   PRInt32 appUnitsPerDevPixel = aNonSVGFrame->PresContext()->AppUnitsPerDevPixel();
-  nsCOMPtr<nsIDOMSVGMatrix> matrix;
   float devPxPerCSSPx =
     1 / nsPresContext::AppUnitsToFloatCSSPixels(appUnitsPerDevPixel);
-  NS_NewSVGMatrix(getter_AddRefs(matrix),
-                  devPxPerCSSPx, 0.0f,
-                  0.0f, devPxPerCSSPx);
-  return matrix.forget();
+
+  return gfxMatrix(devPxPerCSSPx, 0.0,
+                   0.0, devPxPerCSSPx,
+                   0.0, 0.0);
 }
 
 gfxRect

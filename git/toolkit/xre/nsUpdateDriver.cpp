@@ -111,6 +111,9 @@ static const char kUpdaterINI[] = "updater.ini";
 #ifdef XP_MACOSX
 static const char kUpdaterApp[] = "updater.app";
 #endif
+#if defined(XP_UNIX) && !defined(XP_MACOSX)
+static const char kUpdaterPNG[] = "updater.png";
+#endif
 
 static nsresult
 GetCurrentWorkingDir(char *buf, size_t size)
@@ -122,12 +125,11 @@ GetCurrentWorkingDir(char *buf, size_t size)
   if (DosQueryPathInfo( ".", FIL_QUERYFULLNAME, buf, size))
     return NS_ERROR_FAILURE;
 #elif defined(XP_WIN)
-  wchar_t *wpath = _wgetcwd(NULL, size);
-  if (!wpath)
+  wchar_t wpath[MAX_PATH];
+  if (!_wgetcwd(wpath, size))
     return NS_ERROR_FAILURE;
   NS_ConvertUTF16toUTF8 path(wpath);
   strncpy(buf, path.get(), size);
-  free(wpath);
 #else
   if(!getcwd(buf, size))
     return NS_ERROR_FAILURE;
@@ -300,6 +302,11 @@ IsOlderVersion(nsILocalFile *versionFile, const char *&appVersion)
   if (!result)
     return PR_TRUE;
 
+  // Trim off any trailing newline
+  int len = strlen(result);
+  if (len > 0 && result[len - 1] == '\n')
+    result[len - 1] = '\0';
+
   // If the update xml doesn't provide the application version the file will
   // contain the string "null" and it is assumed that the update is not older.
   const char kNull[] = "null";
@@ -354,7 +361,13 @@ CopyUpdaterIntoUpdateDir(nsIFile *greDir, nsIFile *appDir, nsIFile *updateDir,
     return PR_FALSE;
 #endif
   CopyFileIntoUpdateDir(appDir, kUpdaterINI, updateDir);
-
+#if defined(XP_UNIX) && !defined(XP_MACOSX)
+  nsCOMPtr<nsIFile> iconDir;
+  appDir->Clone(getter_AddRefs(iconDir));
+  iconDir->AppendNative(NS_LITERAL_CSTRING("icons"));
+  if (!CopyFileIntoUpdateDir(iconDir, kUpdaterPNG, updateDir))
+    return PR_FALSE;
+#endif
   // Finally, return the location of the updater binary.
   nsresult rv = updateDir->Clone(getter_AddRefs(updater));
   if (NS_FAILED(rv))
@@ -513,7 +526,7 @@ ApplyUpdate(nsIFile *greDir, nsIFile *updateDir, nsILocalFile *statusFile,
 #elif defined(XP_WIN)
   _wchdir(applyToDir.get());
 
-  if (!WinLaunchChild(updaterPathW.get(), appArgc + 4, argv, 0))
+  if (!WinLaunchChild(updaterPathW.get(), appArgc + 4, argv))
     return;
   _exit(0);
 #else

@@ -19,13 +19,13 @@ bin/@PREF_DIR@/firefox-l10n.js
 bin/defaults/existing-profile-defaults.js
 ; If you add a new directory you must explicitly call addDirectory in ab-CD.jst
 bin/browserconfig.properties
-bin/old-homepage-default.properties
 bin/searchplugins/*
 bin/defaults/profile/bookmarks.html
 bin/defaults/profile/localstore.rdf
 bin/defaults/profile/prefs.js
 bin/defaults/profile/mimeTypes.rdf
 bin/defaults/profile/chrome/*
+bin/update.locale
 bin/updater.ini
 bin/dictionaries/*
 
@@ -54,7 +54,6 @@ bin/run-mozilla.sh
 bin/plugins/libnullplugin.so
 bin/libsqlite3.so
 bin/README.txt
-bin/libjemalloc.so
 bin/blocklist.xml
 
 ; [Components]
@@ -148,10 +147,8 @@ bin/components/necko_res.xpt
 bin/components/necko_socket.xpt
 bin/components/necko_strconv.xpt
 bin/components/necko_viewsource.xpt
+bin/components/necko_wifi.xpt
 bin/components/necko.xpt
-#ifdef MOZ_OJI
-bin/components/oji.xpt
-#endif
 bin/components/loginmgr.xpt
 bin/components/places.xpt
 bin/components/plugin.xpt
@@ -219,6 +216,7 @@ bin/components/nsFilePicker.js
 bin/components/nsHelperAppDlg.js
 bin/components/nsDownloadManagerUI.js
 bin/components/nsProxyAutoConfig.js
+bin/components/NetworkGeolocationProvider.js
 bin/components/nsSidebar.js
 bin/components/nsExtensionManager.js
 bin/components/nsBlocklistService.js
@@ -239,6 +237,7 @@ bin/components/txEXSLTRegExFunctions.js
 bin/components/nsLivemarkService.js
 bin/components/nsTaggingService.js
 bin/components/nsPlacesDBFlush.js
+bin/components/nsPlacesAutoComplete.js
 bin/components/nsDefaultCLH.js
 bin/components/nsContentPrefService.js
 bin/components/nsContentDispatchChooser.js
@@ -249,6 +248,7 @@ bin/components/aboutRights.js
 bin/components/aboutRobots.js
 bin/components/aboutCertError.js
 bin/components/nsBadCertHandler.js
+bin/components/nsFormAutoComplete.js
 
 ; Modules
 bin/modules/*
@@ -327,8 +327,8 @@ bin/res/grabber.gif
 bin/res/viewsource.css
 bin/res/mathml.css
 bin/res/arrow.gif
-bin/res/loading-image.gif
-bin/res/broken-image.gif
+bin/res/loading-image.png
+bin/res/broken-image.png
 bin/res/fonts/*
 bin/res/dtd/*
 bin/res/html/*
@@ -342,6 +342,9 @@ bin/res/entityTables/*
 ; svg
 bin/res/svg.css
 bin/components/dom_svg.xpt
+#ifdef MOZ_SMIL
+bin/components/dom_smil.xpt
+#endif
 
 ; [Personal Security Manager]
 ;

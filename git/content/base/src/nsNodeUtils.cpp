@@ -98,6 +98,18 @@ nsNodeUtils::CharacterDataChanged(nsIContent* aContent,
 }
 
 void
+nsNodeUtils::AttributeWillChange(nsIContent* aContent,
+                                 PRInt32 aNameSpaceID,
+                                 nsIAtom* aAttribute,
+                                 PRInt32 aModType)
+{
+  nsIDocument* doc = aContent->GetOwnerDoc();
+  IMPL_MUTATION_NOTIFICATION(AttributeWillChange, aContent,
+                             (doc, aContent, aNameSpaceID, aAttribute,
+                              aModType));
+}
+
+void
 nsNodeUtils::AttributeChanged(nsIContent* aContent,
                               PRInt32 aNameSpaceID,
                               nsIAtom* aAttribute,
@@ -222,9 +234,8 @@ nsNodeUtils::LastRelease(nsINode* aNode)
   if (aNode->HasFlag(NODE_HAS_LISTENERMANAGER)) {
 #ifdef DEBUG
     if (nsContentUtils::IsInitialized()) {
-      nsCOMPtr<nsIEventListenerManager> manager;
-      nsContentUtils::GetListenerManager(aNode, PR_FALSE,
-                                         getter_AddRefs(manager));
+      nsIEventListenerManager* manager =
+        nsContentUtils::GetListenerManager(aNode, PR_FALSE);
       if (!manager) {
         NS_ERROR("Huh, our bit says we have a listener manager list, "
                  "but there's nothing in the hash!?!!");
@@ -242,6 +253,8 @@ nsNodeUtils::LastRelease(nsINode* aNode)
       ownerDoc->ClearBoxObjectFor(static_cast<nsIContent*>(aNode));
     }
   }
+
+  nsContentUtils::ReleaseWrapper(aNode, aNode);
 
   delete aNode;
 }
@@ -520,14 +533,15 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, PRBool aClone, PRBool aDeep,
     // Don't allow importing/adopting nodes from non-privileged "scriptable"
     // documents to "non-scriptable" documents.
     nsIDocument* newDoc = nodeInfoManager->GetDocument();
-    nsIDocument* currentDoc = aNode->GetOwnerDoc();
-    NS_ENSURE_STATE(newDoc && currentDoc);
+    NS_ENSURE_STATE(newDoc);
     PRBool hasHadScriptHandlingObject = PR_FALSE;
     if (!newDoc->GetScriptHandlingObject(hasHadScriptHandlingObject) &&
         !hasHadScriptHandlingObject) {
-      NS_ENSURE_STATE(nsContentUtils::IsChromeDoc(currentDoc) ||
-                      (!currentDoc->GetScriptHandlingObject(hasHadScriptHandlingObject) &&
-                       !hasHadScriptHandlingObject));
+      nsIDocument* currentDoc = aNode->GetOwnerDoc();
+      NS_ENSURE_STATE(currentDoc &&
+                      (nsContentUtils::IsChromeDoc(currentDoc) ||
+                       (!currentDoc->GetScriptHandlingObject(hasHadScriptHandlingObject) &&
+                        !hasHadScriptHandlingObject)));
     }
 
     newNodeInfo = nodeInfoManager->GetNodeInfo(nodeInfo->NameAtom(),
@@ -565,18 +579,24 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, PRBool aClone, PRBool aDeep,
   }
   else if (nodeInfoManager) {
     nsIDocument* oldDoc = aNode->GetOwnerDoc();
+    PRBool wasRegistered = PR_FALSE;
     if (oldDoc && aNode->IsNodeOfType(nsINode::eELEMENT)) {
-      oldDoc->ClearBoxObjectFor(static_cast<nsIContent*>(aNode));
+      nsIContent* content = static_cast<nsIContent*>(aNode);
+      oldDoc->ClearBoxObjectFor(content);
+      wasRegistered = oldDoc->UnregisterFreezableElement(content);
     }
 
     aNode->mNodeInfo.swap(newNodeInfo);
 
     nsIDocument* newDoc = aNode->GetOwnerDoc();
     if (newDoc) {
+      if (wasRegistered) {
+        newDoc->RegisterFreezableElement(static_cast<nsIContent*>(aNode));
+      }
+
       nsPIDOMWindow* window = newDoc->GetInnerWindow();
       if (window) {
-        nsCOMPtr<nsIEventListenerManager> elm;
-        aNode->GetListenerManager(PR_FALSE, getter_AddRefs(elm));
+        nsIEventListenerManager* elm = aNode->GetListenerManager(PR_FALSE);
         if (elm) {
           window->SetMutationListeners(elm->MutationListenerBits());
           if (elm->MayHavePaintEventListener()) {

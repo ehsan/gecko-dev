@@ -80,7 +80,7 @@ nsPageFrame::~nsPageFrame()
 {
 }
 
-NS_IMETHODIMP nsPageFrame::Reflow(nsPresContext*          aPresContext,
+NS_IMETHODIMP nsPageFrame::Reflow(nsPresContext*           aPresContext,
                                   nsHTMLReflowMetrics&     aDesiredSize,
                                   const nsHTMLReflowState& aReflowState,
                                   nsReflowStatus&          aStatus)
@@ -500,13 +500,16 @@ nsPageFrame::PaintHeaderFooter(nsIRenderingContext& aRenderingContext,
   nsRect rect(aPt.x, aPt.y, mRect.width - mPD->mShadowSize.width,
               mRect.height - mPD->mShadowSize.height);
 
-  aRenderingContext.SetFont(*mPD->mHeadFootFont, nsnull);
   aRenderingContext.SetColor(NS_RGB(0,0,0));
 
   // Get the FontMetrics to determine width.height of strings
   nsCOMPtr<nsIFontMetrics> fontMet;
   pc->DeviceContext()->GetMetricsFor(*mPD->mHeadFootFont, nsnull,
+                                     pc->GetUserFontSet(),
                                      *getter_AddRefs(fontMet));
+
+  aRenderingContext.SetFont(fontMet);
+
   nscoord ascent = 0;
   nscoord visibleHeight = 0;
   if (fontMet) {
@@ -573,7 +576,7 @@ nsPageFrame::PaintPageContent(nsIRenderingContext& aRenderingContext,
 
   nsRect backgroundRect = nsRect(nsPoint(0, 0), pageContentFrame->GetSize());
   nsCSSRendering::PaintBackground(PresContext(), aRenderingContext, this,
-                                  rect, backgroundRect, PR_TRUE);
+                                  rect, backgroundRect, 0);
 
   nsLayoutUtils::PaintFrame(&aRenderingContext, pageContentFrame,
                             nsRegion(rect), NS_RGBA(0,0,0,0));
@@ -625,7 +628,7 @@ nsPageBreakFrame::GetIntrinsicHeight()
 }
 
 nsresult 
-nsPageBreakFrame::Reflow(nsPresContext*          aPresContext,
+nsPageBreakFrame::Reflow(nsPresContext*           aPresContext,
                          nsHTMLReflowMetrics&     aDesiredSize,
                          const nsHTMLReflowState& aReflowState,
                          nsReflowStatus&          aStatus)
@@ -655,4 +658,10 @@ nsPageBreakFrame::GetType() const
   return nsGkAtoms::pageBreakFrame; 
 }
 
-
+#ifdef DEBUG
+NS_IMETHODIMP
+nsPageBreakFrame::GetFrameName(nsAString& aResult) const
+{
+  return MakeFrameName(NS_LITERAL_STRING("PageBreak"), aResult);
+}
+#endif

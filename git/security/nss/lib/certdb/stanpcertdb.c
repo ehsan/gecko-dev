@@ -37,7 +37,6 @@
 #include "prtime.h"
 
 #include "cert.h"
-#include "mcom_db.h"
 #include "certdb.h"
 #include "secitem.h"
 #include "secder.h"
@@ -64,7 +63,7 @@
 #include "dev.h"
 
 PRBool
-SEC_CertNicknameConflict(char *nickname, SECItem *derSubject,
+SEC_CertNicknameConflict(const char *nickname, SECItem *derSubject,
 			 CERTCertDBHandle *handle)
 {
     CERTCertificate *cert;

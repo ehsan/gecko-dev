@@ -99,17 +99,14 @@ public:
   virtual nsIFrame* GetLastInFlow() const;
 
   // Remove the frame from the flow. Connects the frame's prev-in-flow
-  // and its next-in-flow
+  // and its next-in-flow. This should only be called in frame Destroy() methods.
   static void RemoveFromFlow(nsIFrame* aFrame);
-  
-  // Detach from previous frame in flow
-  static void BreakFromPrevFlow(nsIFrame* aFrame);
 
 protected:
   nsSplittableFrame(nsStyleContext* aContext) : nsFrame(aContext) {}
 
 #ifdef DEBUG
-  virtual void DumpBaseRegressionData(nsPresContext* aPresContext, FILE* out, PRInt32 aIndent, PRBool aIncludeStyleData);
+  virtual void DumpBaseRegressionData(nsPresContext* aPresContext, FILE* out, PRInt32 aIndent);
 #endif
 
   nsIFrame*   mPrevContinuation;

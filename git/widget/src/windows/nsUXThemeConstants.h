@@ -41,7 +41,7 @@
 /* 
  * The following constants are used to determine how a widget is drawn using
  * Windows' Theme API. For more information on theme parts and states see
- * http://msdn.microsoft.com/library/default.asp?url=/library/en-us/shellcc/platform/commctls/userex/topics/partsandstates.asp
+ * http://msdn.microsoft.com/en-us/library/bb773210(VS.85).aspx
  */
 #define THEME_COLOR 204
 #define THEME_FONT  210
@@ -69,6 +69,7 @@
 #define BP_BUTTON    1
 #define BP_RADIO     2
 #define BP_CHECKBOX  3
+#define BP_GROUPBOX  4
 
 // Textfield constants
 /* This is the EP_EDITTEXT part */

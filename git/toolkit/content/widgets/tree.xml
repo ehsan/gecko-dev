@@ -1,8 +1,6 @@
 <?xml version="1.0"?>
 
 <!DOCTYPE bindings [
-<!ENTITY % globalDTD SYSTEM "chrome://global/locale/global.dtd">
-%globalDTD;
 <!ENTITY % treeDTD SYSTEM "chrome://global/locale/tree.dtd">
 %treeDTD;
 ]>
@@ -32,7 +30,7 @@
   </binding>
 
   <binding id="tree" extends="chrome://global/content/bindings/tree.xml#tree-base">
-    <content hidevscroll="true" hidehscroll="true" chromedir="&locale.dir;">
+    <content hidevscroll="true" hidehscroll="true">
       <children includes="treecols"/>
       <xul:stack class="tree-stack" flex="1">
         <xul:treerows class="tree-rows" flex="1" xbl:inherits="hidevscroll">
@@ -105,6 +103,11 @@
         true
 #endif
       </field>
+      <property name="keepCurrentInView"
+                onget="return (this.getAttribute('keepcurrentinview') == 'true');"
+                onset="if (val) this.setAttribute('keepcurrentinview', 'true');
+                       else this.removeAttribute('keepcurrentinview'); return val;"/>
+
       <property name="enableColumnDrag"
                 onget="return this.hasAttribute('enableColumnDrag');"
                 onset="if (val) this.setAttribute('enableColumnDrag', 'true');
@@ -204,25 +207,35 @@
         <parameter name="aThresh"/>
         <parameter name="aPos"/>
         <body><![CDATA[
-          if (aPos) aPos.value = "before";
+          var isRTL = document.defaultView.getComputedStyle(this, "")
+                              .direction == "rtl";
 
+          if (aPos)
+            aPos.value = isRTL ? "after" : "before";
+
+          var columns = [];
           var col = this.columns.getFirstColumn();
-          var lastCol = null;
+          while (col) {
+            columns.push(col);
+            col = col.getNext();
+          }
+          if (isRTL)
+            columns.reverse();
           var currentX = this.boxObject.x;
           var adjustedX = aX + this.treeBoxObject.horizontalPosition;
-          while (col) {
+          for (var i = 0; i < columns.length; ++i) {
+            col = columns[i];
             var cw = col.element.boxObject.width;
             if (cw > 0) {
               currentX += cw;
               if (currentX - (cw * aThresh) > adjustedX)
                 return col.element;
             }
-            lastCol = col;
-            col = col.getNext();
           }
 
-          if (aPos) aPos.value = "after";
-          return lastCol.element;
+          if (aPos)
+            aPos.value = isRTL ? "before" : "after";
+          return columns.pop().element;
         ]]></body>
       </method>
 
@@ -341,23 +354,37 @@
             var box = this.treeBoxObject;
             box.ensureCellIsVisible(row, column);
 
-            var outx = {}, outy = {}, outwidth = {}, outheight = {};
+            // Get the coordinates of the text inside the cell.
+            var textx = {}, texty = {}, textwidth = {}, textheight = {};
             var coords = box.getCoordsForCellItem(row, column, "text",
-                                                  outx, outy, outwidth, outheight);
+                                                  textx, texty, textwidth, textheight);
 
+            // Get the coordinates of the cell itself.
+            var cellx = {}, cellwidth = {};
+            coords = box.getCoordsForCellItem(row, column, "cell",
+                                              cellx, {}, cellwidth, {});
+
+            // Calculate the top offset of the textbox.
             var style = window.getComputedStyle(input, "");
             var topadj = parseInt(style.borderTopWidth) + parseInt(style.paddingTop);
-            input.top = outy.value - topadj;
+            input.top = texty.value - topadj;
 
-            var left = outx.value;
+            // The leftside of the textbox is aligned to the left side of the text
+            // in LTR mode, and left side of the cell in RTL mode.
+            var left, widthdiff;
+            if (style.direction == "rtl") {
+              left = cellx.value;
+              widthdiff = cellx.value + cellwidth.value - textx.value - textwidth.value;
+            } else {
+              left = textx.value;
+              widthdiff = textx.value - cellx.value;
+            }
+
             input.left = left;
-            input.height = outheight.value + topadj +
+            input.height = textheight.value + topadj +
                            parseInt(style.borderBottomWidth) +
                            parseInt(style.paddingBottom);
-
-            coords = box.getCoordsForCellItem(row, column, "cell",
-                                              outx, outy, outwidth, outheight);
-            input.width = outwidth.value - (left - outx.value);
+            input.width = cellwidth.value - widthdiff;
             input.hidden = false;
 
             input.value = this.view.getCellText(row, column);
@@ -630,7 +657,7 @@
     </implementation>
     
     <handlers>
-      <handler event="DOMMouseScroll" phase="capturing">
+      <handler event="DOMMouseScroll">
         <![CDATA[
           if (this._editingColumn)
             return;
@@ -644,6 +671,22 @@
             this.treeBoxObject.scrollByPages(1);
           else
             this.treeBoxObject.scrollByLines(rows);
+        ]]>
+      </handler>
+      <handler event="MozSwipeGesture">
+        <![CDATA[
+          // Figure out which row to show
+          let targetRow = 0;
+
+          // Only handle swipe gestures up and down
+          switch (event.direction) {
+            case event.DIRECTION_DOWN:
+              targetRow = this.view.rowCount - 1;
+              // Fall through for actual action
+            case event.DIRECTION_UP:
+              this.treeBoxObject.ensureRowIsVisible(targetRow);
+              break;
+          }
         ]]>
       </handler>
       <handler event="select" phase="target"
@@ -668,11 +711,13 @@
           if (this._editingColumn) {
             this.stopEditing(true);
             this.focus();
-            event.stopPropagation();
           }
           else {
-            this.changeOpenState(this.currentIndex);
+            if (!this.changeOpenState(this.currentIndex))
+              return; // don't consume the event if the open state wasn't changed
           }
+          event.stopPropagation();
+          event.preventDefault();
         ]]>
       </handler>
       <handler event="keypress" keycode="VK_RETURN">
@@ -680,11 +725,13 @@
           if (this._editingColumn) {
             this.stopEditing(true);
             this.focus();
-            event.stopPropagation();
           }
           else {
-            this.changeOpenState(this.currentIndex);
+            if (!this.changeOpenState(this.currentIndex))
+              return; // don't consume the event if the open state wasn't changed
           }
+          event.stopPropagation();
+          event.preventDefault();
         ]]>
       </handler>
       <handler event="keypress" keycode="VK_ESCAPE">
@@ -693,6 +740,7 @@
             this.stopEditing(false);
             this.focus();
             event.stopPropagation();
+            event.preventDefault();
           }
         ]]>
       </handler>
@@ -1283,6 +1331,13 @@
         <![CDATA[
           if (event.target != event.originalTarget)
             return;
+
+#ifdef XP_WIN
+          // On Windows multiple clicking on tree columns only cycles one time
+          // every 2 clicks.
+          if (event.detail % 2 == 0)
+            return;
+#endif
 
           var tree = this.parentNode.parentNode;
           var column = tree.columns.getColumnFor(this);

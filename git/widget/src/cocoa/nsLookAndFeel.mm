@@ -38,7 +38,6 @@
 
 #include "nsLookAndFeel.h"
 #include "nsObjCExceptions.h"
-#include "nsIInternetConfigService.h"
 #include "nsIServiceManager.h"
 #include "nsNativeThemeColors.h"
 
@@ -53,23 +52,21 @@ nsLookAndFeel::~nsLookAndFeel()
 {
 }
 
+static nscolor GetColorFromNSColor(NSColor* aColor)
+{
+  NSColor* deviceColor = [aColor colorUsingColorSpaceName:NSDeviceRGBColorSpace];
+  return NS_RGB((unsigned int)([deviceColor redComponent] * 255.0),
+                (unsigned int)([deviceColor greenComponent] * 255.0),
+                (unsigned int)([deviceColor blueComponent] * 255.0));
+}
+
 nsresult nsLookAndFeel::NativeGetColor(const nsColorID aID, nscolor &aColor)
 {
   nsresult res = NS_OK;
   
   switch (aID) {
     case eColor_WindowBackground:
-    {
-      nsCOMPtr<nsIInternetConfigService> icService_wb (do_GetService(NS_INTERNETCONFIGSERVICE_CONTRACTID));
-      if (icService_wb) {
-        res = icService_wb->GetColor(nsIInternetConfigService::eICColor_WebBackgroundColour, &aColor);
-        if (NS_SUCCEEDED(res))
-          return res;
-      }
-      
-      aColor = NS_RGB(0xff,0xff,0xff); // default to white if we didn't find it in internet config
-      res = NS_OK;
-    }
+      aColor = NS_RGB(0xff,0xff,0xff);
       break;
     case eColor_WindowForeground:
       aColor = NS_RGB(0x00,0x00,0x00);        
@@ -95,17 +92,8 @@ nsresult nsLookAndFeel::NativeGetColor(const nsColorID aID, nscolor &aColor)
     case eColor_TextBackground:
       aColor = NS_RGB(0xff,0xff,0xff);
       break;
-    case eColor_TextForeground: 
-    {
-      nsCOMPtr<nsIInternetConfigService> icService_tf (do_GetService(NS_INTERNETCONFIGSERVICE_CONTRACTID));
-      if (icService_tf) {
-        res = icService_tf->GetColor(nsIInternetConfigService::eICColor_WebTextColor, &aColor);
-        if (NS_SUCCEEDED(res))
-          return res;
-      }
+    case eColor_TextForeground:
       aColor = NS_RGB(0x00,0x00,0x00);
-      res = NS_OK;
-    }
       break;
     case eColor_TextSelectBackground:
       res = GetMacBrushColor(kThemeBrushPrimaryHighlightColor, aColor, NS_RGB(0x00,0x00,0x00));
@@ -147,7 +135,10 @@ nsresult nsLookAndFeel::NativeGetColor(const nsColorID aID, nscolor &aColor)
     case eColor_IMESelectedConvertedTextUnderline:
       aColor = NS_SAME_AS_FOREGROUND_COLOR;
       break;
-      
+    case eColor_SpellCheckerUnderline:
+      aColor = NS_RGB(0xff, 0, 0);
+      break;
+
       //
       // css2 system colors http://www.w3.org/TR/REC-CSS2/ui.html#system-colors
       //
@@ -168,6 +159,7 @@ nsresult nsLookAndFeel::NativeGetColor(const nsColorID aID, nscolor &aColor)
       res = GetMacTextColor(kThemeTextColorWindowHeaderActive, aColor, NS_RGB(0x00,0x00,0x00));
       break;
     case eColor_menutext:
+    case eColor__moz_menubartext:
       res = GetMacTextColor(kThemeTextColorMenuItemActive, aColor, NS_RGB(0x00,0x00,0x00));
       break;
     case eColor_infotext:
@@ -209,7 +201,7 @@ nsresult nsLookAndFeel::NativeGetColor(const nsColorID aID, nscolor &aColor)
       res = GetMacBrushColor(kThemeBrushButtonActiveDarkShadow, aColor, NS_RGB(0x77,0x77,0x77));
       break;
     case eColor_graytext:
-      res = GetMacTextColor(kThemeTextColorDialogInactive, aColor, NS_RGB(0x77,0x77,0x77));
+      aColor = GetColorFromNSColor([NSColor disabledControlTextColor]);
       break;
     case eColor_inactiveborder:
       //ScrollBar DelimiterInactive looks like an odd constant to use, but gives the right colour in most themes, 
@@ -261,9 +253,11 @@ nsresult nsLookAndFeel::NativeGetColor(const nsColorID aID, nscolor &aColor)
       res = GetMacBrushColor(kThemeBrushDocumentWindowBackground, aColor, NS_RGB(0xFF,0xFF,0xFF));        
       break;
     case eColor__moz_field:
+    case eColor__moz_combobox:
       aColor = NS_RGB(0xff,0xff,0xff);
       break;
     case eColor__moz_fieldtext:
+    case eColor__moz_comboboxtext:
       // XXX There may be a better color for this, but I'm making it
       // the same as WindowText since that's what's currently used where
       // I will use -moz-FieldText.
@@ -294,8 +288,8 @@ nsresult nsLookAndFeel::NativeGetColor(const nsColorID aID, nscolor &aColor)
     }
       break;
     case eColor__moz_mac_focusring:
-      //default to lavender if not available
-      res = GetMacBrushColor(kThemeBrushFocusHighlight, aColor, NS_RGB(0x63,0x63,0xCE));
+      aColor = [NSColor currentControlTint] == NSGraphiteControlTint ?
+               NS_RGB(0x5F,0x70,0x82) : NS_RGB(0x53,0x90,0xD2);
       break;
     case eColor__moz_mac_menushadow:
       res = GetMacBrushColor(kThemeBrushBevelActiveDark, aColor, NS_RGB(0x88,0x88,0x88));
@@ -306,6 +300,9 @@ nsresult nsLookAndFeel::NativeGetColor(const nsColorID aID, nscolor &aColor)
     case eColor__moz_mac_menutextselect:
       res = GetMacTextColor(kThemeTextColorMenuItemSelected, aColor, NS_RGB(0xFF,0xFF,0xFF));
       break;      
+    case eColor__moz_mac_disabledtoolbartext:
+      aColor = NS_RGB(0x3F,0x3F,0x3F);
+      break;
     case eColor__moz_mac_accentlightesthighlight:
       //get this colour by querying variation table, ows. default to Platinum/Lavendar
       res = GetMacAccentColor(eColorOffset_mac_accentlightesthighlight, aColor, NS_RGB(0xEE,0xEE,0xEE));
@@ -549,9 +546,6 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
     case eMetric_SkipNavigatingDisabledMenuItem:
       aMetric = 1;
       break;
-    case eMetric_DragFullWindow:
-      aMetric = 1;
-      break;        
     case eMetric_DragThresholdX:
     case eMetric_DragThresholdY:
       aMetric = 4;
@@ -657,6 +651,9 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
     case eMetric_IMESelectedConvertedTextUnderline:
       aMetric = NS_UNDERLINE_STYLE_SOLID;
       break;
+    case eMetric_SpellCheckerUnderlineStyle:
+      aMetric = NS_UNDERLINE_STYLE_DOTTED;
+      break;
     default:
       aMetric = 0;
       res = NS_ERROR_FAILURE;
@@ -699,6 +696,9 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricFloatID aID, float & aMetri
       aMetric = 0.5f;
       break;
     case eMetricFloat_IMEUnderlineRelativeSize:
+      aMetric = 2.0f;
+      break;
+    case eMetricFloat_SpellCheckerUnderlineRelativeSize:
       aMetric = 2.0f;
       break;
     default:

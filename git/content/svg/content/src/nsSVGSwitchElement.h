@@ -36,6 +36,9 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#ifndef __NS_SVGSWITCHELEMENT_H__
+#define __NS_SVGSWITCHELEMENT_H__
+
 #include "nsSVGGraphicElement.h"
 #include "nsIDOMSVGSwitchElement.h"
 
@@ -51,13 +54,15 @@ protected:
   nsSVGSwitchElement(nsINodeInfo *aNodeInfo);
 
 public:
-  nsIContent * GetActiveChild()
+  nsIContent * GetActiveChild() const
   { return mActiveChild; }
   void MaybeInvalidate();
     
   // interfaces:
 
   NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsSVGSwitchElement,
+                                           nsSVGSwitchElementBase)
   NS_DECL_NSIDOMSVGSWITCHELEMENT
 
   // xxx I wish we could use virtual inheritance
@@ -68,7 +73,7 @@ public:
   // nsINode
   virtual nsresult InsertChildAt(nsIContent* aKid, PRUint32 aIndex,
                                  PRBool aNotify);
-  virtual nsresult RemoveChildAt(PRUint32 aIndex, PRBool aNotify);
+  virtual nsresult RemoveChildAt(PRUint32 aIndex, PRBool aNotify, PRBool aMutationEvent = PR_TRUE);
 
   // nsIContent
   NS_IMETHOD_(PRBool) IsAttributeMapped(const nsIAtom* aAttribute) const;
@@ -76,8 +81,12 @@ public:
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
 private:
-  void UpdateActiveChild();
+  void UpdateActiveChild()
+  { mActiveChild = FindActiveChild(); }
+  nsIContent* FindActiveChild() const;
 
   // only this child will be displayed
   nsCOMPtr<nsIContent> mActiveChild;
 };
+
+#endif // __NS_SVGSWITCHELEMENT_H__

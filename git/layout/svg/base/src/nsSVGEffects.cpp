@@ -1,3 +1,4 @@
+
 /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -43,6 +44,7 @@
 #include "nsSVGMaskFrame.h"
 #include "nsSVGTextPathFrame.h"
 #include "nsCSSFrameConstructor.h"
+#include "nsFrameManager.h"
 
 NS_IMPL_ISUPPORTS1(nsSVGRenderingObserver, nsIMutationObserver)
 
@@ -74,20 +76,27 @@ nsIFrame*
 nsSVGRenderingObserver::GetReferencedFrame()
 {
   if (mReferencedFrame && !mReferencedFramePresShell->IsDestroying()) {
-    NS_ASSERTION(mElement.get() &&
-                 static_cast<nsGenericElement*>(mElement.get())->GetPrimaryFrame() == mReferencedFrame,
-                 "Cached frame is incorrect!");
+    // Don't test this assertion if it's not a good time to call
+    // GetPrimaryFrame
+    if (!mReferencedFramePresShell->FrameManager()->IsDestroyingFrames()) {
+      NS_ASSERTION(mElement.get() &&
+                   static_cast<nsGenericElement*>(mElement.get())->GetPrimaryFrame() == mReferencedFrame,
+                   "Cached frame is incorrect!");
+    }
     return mReferencedFrame;
   }
 
   if (mElement.get()) {
-    nsIFrame *frame =
-      static_cast<nsGenericElement*>(mElement.get())->GetPrimaryFrame();
-    if (frame) {
-      mReferencedFrame = frame;
-      mReferencedFramePresShell = mReferencedFrame->PresContext()->PresShell();
-      nsSVGEffects::AddRenderingObserver(mReferencedFrame, this);
-      return frame;
+    nsIDocument* doc = mElement.get()->GetCurrentDoc();
+    nsIPresShell* shell = doc ? doc->GetPrimaryShell() : nsnull;
+    if (shell && !shell->FrameManager()->IsDestroyingFrames()) {
+      nsIFrame* frame = shell->GetPrimaryFrameFor(mElement.get());
+      if (frame) {
+        mReferencedFrame = frame;
+        mReferencedFramePresShell = shell;
+        nsSVGEffects::AddRenderingObserver(mReferencedFrame, this);
+        return frame;
+      }
     }
   }
   return nsnull;
@@ -216,17 +225,14 @@ nsSVGMarkerProperty::DoUpdate()
   if (!mFrame)
     return;
 
-  if (mFrame->IsFrameOfType(nsIFrame::eSVG)) {
-    if (!(mFrame->GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)) {
-      nsSVGOuterSVGFrame *outerSVGFrame = nsSVGUtils::GetOuterSVGFrame(mFrame);
-      if (outerSVGFrame) {
-        // marker changes can change the covered region
-        outerSVGFrame->UpdateAndInvalidateCoveredRegion(mFrame);
-      }
-    }
-  } else {
-    InvalidateAllContinuations(mFrame);
-  }
+  NS_ASSERTION(mFrame->IsFrameOfType(nsIFrame::eSVG), "SVG frame expected");
+
+  // Repaint asynchronously
+  nsChangeHint changeHint =
+    nsChangeHint(nsChangeHint_RepaintFrame | nsChangeHint_UpdateEffects);
+
+  mFramePresShell->FrameConstructor()->PostRestyleEvent(
+    mFrame->GetContent(), nsReStyleHint(0), changeHint);
 }
 
 void
@@ -252,10 +258,7 @@ nsSVGPaintingProperty::DoUpdate()
     return;
 
   if (mFrame->IsFrameOfType(nsIFrame::eSVG)) {
-    nsSVGOuterSVGFrame *outerSVGFrame = nsSVGUtils::GetOuterSVGFrame(mFrame);
-    if (outerSVGFrame) {
-      outerSVGFrame->InvalidateCoveredRegion(mFrame);
-    }
+    nsSVGUtils::InvalidateCoveredRegion(mFrame);
   } else {
     InvalidateAllContinuations(mFrame);
   }
@@ -366,9 +369,18 @@ nsSVGEffects::UpdateEffects(nsIFrame *aFrame)
 
   // Ensure that the filter is repainted correctly
   // We can't do that in DoUpdate as the referenced frame may not be valid
-  const nsStyleSVGReset *style = aFrame->GetStyleSVGReset();
-  if (style->mFilter) {
-    GetEffectProperty(style->mFilter, aFrame, nsGkAtoms::filter, CreateFilterProperty);
+  GetEffectProperty(aFrame->GetStyleSVGReset()->mFilter,
+                    aFrame, nsGkAtoms::filter, CreateFilterProperty);
+
+  if (aFrame->IsFrameOfType(nsIFrame::eSVG)) {
+    // Set marker properties here to avoid reference loops
+    const nsStyleSVG *style = aFrame->GetStyleSVG();
+    GetEffectProperty(style->mMarkerStart, aFrame, nsGkAtoms::marker_start,
+                      CreateMarkerProperty);
+    GetEffectProperty(style->mMarkerMid, aFrame, nsGkAtoms::marker_mid,
+                      CreateMarkerProperty);
+    GetEffectProperty(style->mMarkerEnd, aFrame, nsGkAtoms::marker_end,
+                      CreateMarkerProperty);
   }
 }
 
@@ -414,6 +426,15 @@ GetObserverList(nsIFrame *aFrame)
   return static_cast<nsSVGRenderingObserverList*>(aFrame->GetProperty(nsGkAtoms::observer));
 }
 
+static void
+DeleteObserverList(void    *aObject,
+                   nsIAtom *aPropertyName,
+                   void    *aPropertyValue,
+                   void    *aData)
+{
+  delete static_cast<nsSVGRenderingObserverList*>(aPropertyValue);
+}
+
 void
 nsSVGEffects::AddRenderingObserver(nsIFrame *aFrame, nsSVGRenderingObserver *aObserver)
 {
@@ -427,7 +448,7 @@ nsSVGEffects::AddRenderingObserver(nsIFrame *aFrame, nsSVGRenderingObserver *aOb
     for (nsIFrame* f = aFrame; f; f = f->GetNextContinuation()) {
       f->AddStateBits(NS_FRAME_MAY_BE_TRANSFORMED_OR_HAVE_RENDERING_OBSERVERS);
     }
-    aFrame->SetProperty(nsGkAtoms::observer, observerList);
+    aFrame->SetProperty(nsGkAtoms::observer, observerList, DeleteObserverList);
   }
   observerList->Add(aObserver);
 }

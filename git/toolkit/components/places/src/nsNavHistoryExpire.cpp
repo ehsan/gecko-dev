@@ -47,6 +47,7 @@
 #include "nsNetUtil.h"
 #include "nsIAnnotationService.h"
 #include "nsPrintfCString.h"
+#include "nsPlacesMacros.h"
 
 struct nsNavHistoryExpireRecord {
   nsNavHistoryExpireRecord(mozIStorageStatement* statement);
@@ -75,10 +76,10 @@ struct nsNavHistoryExpireRecord {
 // actually better. If expiration takes an unusually long period of time, it
 // will interfere with video playback in the browser, for example. Such a blip
 // is not likely to be noticable when the page has just appeared.
-#define PARTIAL_EXPIRATION_TIMEOUT 3500
+#define PARTIAL_EXPIRATION_TIMEOUT (3.5 * PR_MSEC_PER_SEC)
 
 // The time in ms to wait after the initial expiration run for additional ones
-#define SUBSEQUENT_EXPIRATION_TIMEOUT 20000
+#define SUBSEQUENT_EXPIRATION_TIMEOUT (20 * PR_MSEC_PER_SEC)
 
 // Number of expirations we'll do after the most recent page is loaded before
 // stopping. We don't want to keep the computer chugging forever expiring
@@ -96,12 +97,6 @@ struct nsNavHistoryExpireRecord {
 const PRTime EXPIRATION_POLICY_DAYS = ((PRTime)7 * 86400 * PR_USEC_PER_SEC);
 const PRTime EXPIRATION_POLICY_WEEKS = ((PRTime)30 * 86400 * PR_USEC_PER_SEC);
 const PRTime EXPIRATION_POLICY_MONTHS = ((PRTime)180 * 86400 * PR_USEC_PER_SEC);
-
-// Expiration policy for embedded links (bug #401722)
-const PRTime EMBEDDED_LINK_LIFETIME = ((PRTime)1 * 86400 * PR_USEC_PER_SEC);
-
-// Expiration cap for embedded visits
-#define EXPIRATION_CAP_EMBEDDED 500
 
 // Expiration cap for dangling moz_places records
 #define EXPIRATION_CAP_PLACES 500
@@ -201,35 +196,20 @@ nsNavHistoryExpire::OnQuit()
   if (NS_FAILED(rv))
     NS_WARNING("ExpireForDegenerateRuns failed.");
 
-  // Expire embedded links
-  // NOTE: This must come before ExpireHistoryParanoid, or the moz_places
-  // records won't be immediately deleted.
-  rv = ExpireEmbeddedLinks(connection);
-  if (NS_FAILED(rv))
-    NS_WARNING("ExpireEmbeddedLinks failed.");
-
   // Determine whether we can skip partially expiration of dangling entries
   // because we be doing a full expiration on shutdown in ClearHistory()
   nsCOMPtr<nsIPrefBranch> prefs(do_GetService("@mozilla.org/preferences-service;1"));
-  PRBool sanitizeOnShutdown, sanitizeHistory;
-  prefs->GetBoolPref(PREF_SANITIZE_ON_SHUTDOWN, &sanitizeOnShutdown);
-  prefs->GetBoolPref(PREF_SANITIZE_ITEM_HISTORY, &sanitizeHistory);
+  PRBool sanitizeOnShutdown = PR_FALSE;
+  PRBool sanitizeHistory = PR_FALSE;
+  (void)prefs->GetBoolPref(PREF_SANITIZE_ON_SHUTDOWN, &sanitizeOnShutdown);
+  (void)prefs->GetBoolPref(PREF_SANITIZE_ITEM_HISTORY, &sanitizeHistory);
   if (sanitizeHistory && sanitizeOnShutdown)
     return;
 
-  // vacuum up dangling items
-  rv = ExpireHistoryParanoid(connection, EXPIRATION_CAP_PLACES);
+  // Get rid of all records orphaned due to expiration.
+  rv = ExpireOrphans(EXPIRATION_CAP_PLACES);
   if (NS_FAILED(rv))
-    NS_WARNING("ExpireHistoryParanoid failed.");
-  rv = ExpireFaviconsParanoid(connection);
-  if (NS_FAILED(rv))
-    NS_WARNING("ExpireFaviconsParanoid failed.");
-  rv = ExpireAnnotationsParanoid(connection);
-  if (NS_FAILED(rv))
-    NS_WARNING("ExpireAnnotationsParanoid failed.");
-  rv = ExpireInputHistoryParanoid(connection);
-  if (NS_FAILED(rv))
-    NS_WARNING("ExpireInputHistoryParanoid failed.");
+    NS_WARNING("ExpireOrphans failed.");
 }
 
 
@@ -300,7 +280,8 @@ nsNavHistoryExpire::ClearHistory()
   // forcibly call the "on idle" timer here to do a little work
   // but the rest will happen on idle.
 
-  ENUMERATE_WEAKARRAY(mHistory->mObservers, nsINavHistoryObserver,
+  ENUMERATE_OBSERVERS(mHistory->canNotify(), mHistory->mCacheObservers,
+                      mHistory->mObservers, nsINavHistoryObserver,
                       OnClearHistory())
 
   return NS_OK;
@@ -405,7 +386,8 @@ nsNavHistoryExpire::ExpireItems(PRUint32 aNumToExpire, PRBool* aKeepGoing)
     // FIXME bug 325241 provide a way to observe hidden elements
     if (expiredVisits[i].hidden) continue;
 
-    ENUMERATE_WEAKARRAY(mHistory->mObservers, nsINavHistoryObserver,
+    ENUMERATE_OBSERVERS(mHistory->canNotify(), mHistory->mCacheObservers,
+                        mHistory->mObservers, nsINavHistoryObserver,
                         OnPageExpired(uri, expiredVisits[i].visitDate,
                                       expiredVisits[i].erased));
   }
@@ -430,6 +412,37 @@ nsNavHistoryExpire::ExpireItems(PRUint32 aNumToExpire, PRBool* aKeepGoing)
   return NS_OK;
 }
 
+// nsNavHistoryExpire::ExpireOrphans
+//
+//    Try to expire aNumToExpire items that are orphans.  aNumToExpire only
+//    limits how many moz_places we worry about.  Everything else (favicons,
+//    annotations, and input history) is completely expired.
+
+nsresult
+nsNavHistoryExpire::ExpireOrphans(PRUint32 aNumToExpire)
+{
+  mozIStorageConnection* connection = mHistory->GetStorageConnection();
+  NS_ENSURE_TRUE(connection, NS_ERROR_OUT_OF_MEMORY);
+
+  mozStorageTransaction transaction(connection, PR_FALSE);
+
+  nsresult rv = ExpireHistoryParanoid(connection, aNumToExpire);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = ExpireFaviconsParanoid(connection);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = ExpireAnnotationsParanoid(connection);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = ExpireInputHistoryParanoid(connection);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = transaction.Commit();
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  return NS_OK;
+}
 
 // nsNavHistoryExpireRecord::nsNavHistoryExpireRecord
 //
@@ -472,38 +485,25 @@ nsNavHistoryExpire::FindVisits(PRTime aExpireThreshold, PRUint32 aNumToExpire,
   // Select a limited number of visits older than a time
   nsCOMPtr<mozIStorageStatement> selectStatement;
   nsresult rv = aConnection->CreateStatement(NS_LITERAL_CSTRING(
-      "SELECT * FROM ( "
-        "SELECT v.id, v.place_id, v.visit_date, h.url, h.favicon_id, h.hidden, "
-          "(SELECT fk FROM moz_bookmarks WHERE fk = h.id) "
-        "FROM moz_places h "
-        "JOIN moz_historyvisits AS v ON h.id = v.place_id "
-        "WHERE visit_date < ?1 "      
-        "ORDER BY v.visit_date ASC LIMIT ?2 "
-      ") UNION ALL "
-        "SELECT * FROM ( "
-        "SELECT v.id, v.place_id, v.visit_date, h.url, h.favicon_id, h.hidden, "
-          "(SELECT fk FROM moz_bookmarks WHERE fk = h.id)"
-        "FROM moz_places_temp h "
-        "JOIN moz_historyvisits AS v ON h.id = v.place_id "
-        "WHERE visit_date < ?1 "
-        "ORDER BY v.visit_date ASC LIMIT ?2 "
-      ") UNION ALL "
-      "SELECT * FROM ( "
-        "SELECT v.id, v.place_id, v.visit_date, h.url, h.favicon_id, h.hidden, "
-          "(SELECT fk FROM moz_bookmarks WHERE fk = h.id) "
-        "FROM moz_places h "
-        "JOIN moz_historyvisits_temp AS v ON h.id = v.place_id "
-        "WHERE visit_date < ?1 "
-        "ORDER BY v.visit_date ASC LIMIT ?2 "
-      ") UNION ALL "
-      "SELECT * FROM ( "
-        "SELECT v.id, v.place_id, v.visit_date, h.url, h.favicon_id, h.hidden, "
-          "(SELECT fk FROM moz_bookmarks WHERE fk = h.id) "
-        "FROM moz_places_temp h "
-        "JOIN moz_historyvisits_temp AS v ON h.id = v.place_id "
-        "WHERE visit_date < ?1 "
-        "ORDER BY v.visit_date ASC LIMIT ?2 "
-      ") GROUP BY 1 ORDER BY 3 ASC LIMIT ?2"),
+      "SELECT v.id, v.place_id, v.visit_date, IFNULL(h_t.url, h.url), "
+             "IFNULL(h_t.favicon_id, h.favicon_id), "
+             "IFNULL(h_t.hidden, h.hidden), b.fk "
+      "FROM moz_historyvisits_temp v "
+      "LEFT JOIN moz_places_temp AS h_t ON h_t.id = v.place_id "
+      "LEFT JOIN moz_places AS h ON h.id = v.place_id "
+      "LEFT JOIN moz_bookmarks b ON b.fk = v.place_id "
+      "WHERE visit_date < ?1 "
+      "UNION ALL "
+      "SELECT v.id, v.place_id, v.visit_date, IFNULL(h_t.url, h.url), "
+             "IFNULL(h_t.favicon_id, h.favicon_id), "
+             "IFNULL(h_t.hidden, h.hidden), b.fk "
+      "FROM moz_historyvisits v "
+      "LEFT JOIN moz_places_temp AS h_t ON h_t.id = v.place_id "
+      "LEFT JOIN moz_places AS h ON h.id = v.place_id "
+      "LEFT JOIN moz_bookmarks b ON b.fk = v.place_id "
+      "WHERE visit_date < ?1 "
+      "ORDER BY v.visit_date ASC "
+      "LIMIT ?2 "),
     getter_AddRefs(selectStatement));
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -699,7 +699,7 @@ nsNavHistoryExpire::EraseHistory(mozIStorageConnection* aConnection,
             "(SELECT id FROM moz_historyvisits_temp WHERE place_id = h.id LIMIT 1) "
           "AND NOT EXISTS "
             "(SELECT id FROM moz_bookmarks WHERE fk = h.id LIMIT 1) "
-          "AND SUBSTR(h.url,0,6) <> 'place:' "
+          "AND SUBSTR(h.url, 1, 6) <> 'place:' "
         "UNION ALL "
         "SELECT h.id "
         "FROM moz_places_temp h "
@@ -710,7 +710,7 @@ nsNavHistoryExpire::EraseHistory(mozIStorageConnection* aConnection,
             "(SELECT id FROM moz_historyvisits_temp WHERE place_id = h.id LIMIT 1) "
           "AND NOT EXISTS "
             "(SELECT id FROM moz_bookmarks WHERE fk = h.id LIMIT 1) "
-          "AND SUBSTR(h.url,0,6) <> 'place:' "
+          "AND SUBSTR(h.url, 1, 6) <> 'place:' "
       ")"));
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -896,48 +896,6 @@ nsNavHistoryExpire::ExpireAnnotations(mozIStorageConnection* aConnection)
   return NS_OK;
 }
 
-
-// nsNavHistoryExpire::ExpireEmbeddedLinks
-
-nsresult
-nsNavHistoryExpire::ExpireEmbeddedLinks(mozIStorageConnection* aConnection)
-{
-  PRTime maxEmbeddedAge = PR_Now() - EMBEDDED_LINK_LIFETIME;
-  nsCOMPtr<mozIStorageStatement> expireEmbeddedLinksStatement;
-  // Note: This query also removes visit_type = 0 entries, for bug #375777.
-  nsresult rv = aConnection->CreateStatement(NS_LITERAL_CSTRING(
-      "DELETE FROM moz_historyvisits_view WHERE id IN ("
-        "SELECT * FROM ( "
-          "SELECT id FROM moz_historyvisits_temp "
-          "WHERE visit_date < ?1 "
-          "AND visit_type IN (") +
-            nsPrintfCString("%d", nsINavHistoryService::TRANSITION_EMBED) +
-            NS_LITERAL_CSTRING(", 0) "
-          "LIMIT ?2 "
-        ") "
-        "UNION ALL "
-        "SELECT * FROM ( "
-          "SELECT id FROM moz_historyvisits "
-          "WHERE visit_date < ?1 "
-          "AND visit_type IN (") +
-            nsPrintfCString("%d", nsINavHistoryService::TRANSITION_EMBED) +
-            NS_LITERAL_CSTRING(", 0) "
-          "LIMIT ?2 "
-        ") "
-        "LIMIT ?2 "
-      ")"),
-    getter_AddRefs(expireEmbeddedLinksStatement));
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = expireEmbeddedLinksStatement->BindInt64Parameter(0, maxEmbeddedAge);
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = expireEmbeddedLinksStatement->BindInt32Parameter(1, EXPIRATION_CAP_EMBEDDED);
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = expireEmbeddedLinksStatement->Execute();
-  NS_ENSURE_SUCCESS(rv, rv);
-  return NS_OK;
-}
-
-
 // nsNavHistoryExpire::ExpireHistoryParanoid
 //
 //    Deletes any dangling history entries that aren't associated with any
@@ -959,7 +917,7 @@ nsNavHistoryExpire::ExpireHistoryParanoid(mozIStorageConnection* aConnection,
       "WHERE v.id IS NULL "
         "AND v_t.id IS NULL "
         "AND b.id IS NULL "
-        "AND SUBSTR(h.url,0,6) <> 'place:' "
+        "AND SUBSTR(h.url, 1, 6) <> 'place:' "
       "UNION ALL "
       "SELECT h.id FROM moz_places_temp h "
       "LEFT JOIN moz_historyvisits v ON h.id = v.place_id "
@@ -968,7 +926,7 @@ nsNavHistoryExpire::ExpireHistoryParanoid(mozIStorageConnection* aConnection,
       "WHERE v.id IS NULL "
         "AND v_t.id IS NULL "
         "AND b.id IS NULL "
-        "AND SUBSTR(h.url,0,6) <> 'place:'");
+        "AND SUBSTR(h.url, 1, 6) <> 'place:'");
   if (aMaxRecords != -1) {
     query.AppendLiteral(" LIMIT ");
     query.AppendInt(aMaxRecords);
@@ -1055,7 +1013,7 @@ nsNavHistoryExpire::ExpireAnnotationsParanoid(mozIStorageConnection* aConnection
 
 // nsNavHistoryExpire::ExpireInputHistoryParanoid
 //
-//    Deletes dangling input history, decay potentially unused entries
+//    Deletes dangling input history
 
 nsresult
 nsNavHistoryExpire::ExpireInputHistoryParanoid(mozIStorageConnection* aConnection)
@@ -1069,13 +1027,6 @@ nsNavHistoryExpire::ExpireInputHistoryParanoid(mozIStorageConnection* aConnectio
         "WHERE h.id IS NULL "
           "AND h_t.id IS NULL "
       ")"));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  // Decay potentially unused entries (e.g. those that are at 1) to allow
-  // better chances for new entries that will start at 1
-  rv = aConnection->ExecuteSimpleSQL(NS_LITERAL_CSTRING(
-      "UPDATE moz_inputhistory "
-      "SET use_count = use_count * .9"));
   NS_ENSURE_SUCCESS(rv, rv);
 
   return NS_OK;

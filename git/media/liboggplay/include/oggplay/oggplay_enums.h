@@ -62,12 +62,18 @@ typedef enum OggPlayErrorCode {
   E_OGGPLAY_TIMEOUT           = -17,
   E_OGGPLAY_CANT_SEEK         = -18,
   E_OGGPLAY_NO_KATE_SUPPORT   = -19,
+  E_OGGPLAY_NO_TIGER_SUPPORT  = -20,
+  E_OGGPLAY_OUT_OF_MEMORY     = -21,
+  E_OGGPLAY_TYPE_OVERFLOW     = -22,  /**< Integer overflow detected */
+  
+  E_OGGPLAY_TRACK_IS_UNKNOWN  = -23,  /**< The selected track's content type is UNKNOWN */
   E_OGGPLAY_NOTCHICKENPAYBACK = -777
 } OggPlayErrorCode;
 
 typedef enum OggPlayDataType {
   OGGPLAY_INACTIVE      = -1,
   OGGPLAY_YUV_VIDEO     = 0,
+  OGGPLAY_RGBA_VIDEO    = 1,
   OGGPLAY_SHORTS_AUDIO  = 1000,
   OGGPLAY_FLOATS_AUDIO  = 1001,
   OGGPLAY_CMML          = 2000,

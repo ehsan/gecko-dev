@@ -85,7 +85,7 @@ nsAutoCompleteController::nsAutoCompleteController() :
   mIsIMEComposing(PR_FALSE),
   mIgnoreHandleText(PR_FALSE),
   mIsOpen(PR_FALSE),
-  mSearchStatus(0),
+  mSearchStatus(nsAutoCompleteController::STATUS_NONE),
   mRowCount(0),
   mSearchesOngoing(0),
   mFirstSearchResult(PR_FALSE)
@@ -194,7 +194,7 @@ nsAutoCompleteController::StartSearch(const nsAString &aSearchString)
 }
 
 NS_IMETHODIMP
-nsAutoCompleteController::HandleText(PRBool aIgnoreSelection)
+nsAutoCompleteController::HandleText()
 {
   if (!mInput) {
     // Stop all searches in case they are async.
@@ -254,12 +254,6 @@ nsAutoCompleteController::HandleText(PRBool aIgnoreSelection)
   } else
     mBackspaced = PR_FALSE;
 
-  if (mRowCount == 0)
-    // XXX Handle the case where we have no results because of an ignored prefix.
-    // This is just a hack. I have no idea what I'm doing. Hewitt, fix this the right
-    // way when you get a chance. -dwh
-    ClearResults();
-
   mSearchString = newValue;
 
   // Don't search if the value is empty
@@ -268,18 +262,7 @@ nsAutoCompleteController::HandleText(PRBool aIgnoreSelection)
     return NS_OK;
   }
 
-  if (aIgnoreSelection) {
-    StartSearchTimer();
-  } else {
-    // Kick off the search only if the cursor is at the end of the textbox
-  PRInt32 selectionStart;
-  input->GetSelectionStart(&selectionStart);
-  PRInt32 selectionEnd;
-  input->GetSelectionEnd(&selectionEnd);
-
-  if (selectionStart == selectionEnd && selectionStart == (PRInt32) mSearchString.Length())
-    StartSearchTimer();
-  }
+  StartSearchTimer();
 
   return NS_OK;
 }
@@ -379,7 +362,7 @@ nsAutoCompleteController::HandleEndComposition()
   SetSearchString(EmptyString());
   if (!value.IsEmpty()) {
     // Show the popup with a filtered result set
-    HandleText(PR_TRUE);
+    HandleText();
   } else if (forceOpenPopup) {
     PRBool cancel;
     HandleKeyNavigation(nsIDOMKeyEvent::DOM_VK_DOWN, &cancel);
@@ -509,10 +492,27 @@ nsAutoCompleteController::HandleKeyNavigation(PRUint32 aKey, PRBool *_retval)
     if (isOpen) {
       PRInt32 selectedIndex;
       popup->GetSelectedIndex(&selectedIndex);
+      PRBool shouldComplete;
+      input->GetCompleteDefaultIndex(&shouldComplete);
       if (selectedIndex >= 0) {
         // The pop-up is open and has a selection, take its value
         nsAutoString value;
         if (NS_SUCCEEDED(GetResultValueAt(selectedIndex, PR_TRUE, value))) {
+          input->SetTextValue(value);
+          input->SelectTextRange(value.Length(), value.Length());
+        }
+      }
+      else if (shouldComplete) {
+        // We usually try to preserve the casing of what user has typed, but
+        // if he wants to autocomplete, we will replace the value with the
+        // actual autocomplete result.
+        // The user wants explicitely to use that result, so this ensures
+        // association of the result with the autocompleted text.
+        nsAutoString value;
+        nsAutoString inputValue;
+        input->GetTextValue(inputValue);
+        if (NS_SUCCEEDED(GetDefaultCompleteValue(selectedIndex, PR_FALSE, value)) &&
+            value.Equals(inputValue, nsCaseInsensitiveStringComparator())) {
           input->SetTextValue(value);
           input->SelectTextRange(value.Length(), value.Length());
         }
@@ -544,7 +544,7 @@ nsAutoCompleteController::HandleDelete(PRBool *_retval)
   input->GetPopupOpen(&isOpen);
   if (!isOpen || mRowCount <= 0) {
     // Nothing left to delete, proceed as normal
-    HandleText(PR_FALSE);
+    HandleText();
     return NS_OK;
   }
 
@@ -904,13 +904,14 @@ nsAutoCompleteController::IsSorted(PRBool *_retval)
 }
 
 NS_IMETHODIMP
-nsAutoCompleteController::CanDrop(PRInt32 index, PRInt32 orientation, PRBool *_retval)
+nsAutoCompleteController::CanDrop(PRInt32 index, PRInt32 orientation,
+                                  nsIDOMDataTransfer* dataTransfer, PRBool *_retval)
 {
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsAutoCompleteController::Drop(PRInt32 row, PRInt32 orientation)
+nsAutoCompleteController::Drop(PRInt32 row, PRInt32 orientation, nsIDOMDataTransfer* dataTransfer)
 {
   return NS_OK;
 }
@@ -979,7 +980,7 @@ nsAutoCompleteController::StartSearch()
   mDefaultIndexCompleted = PR_FALSE;
 
   // Cache the current results so that we can pass these through to all the
-  // searches without loosing them
+  // searches without losing them
   nsCOMArray<nsIAutoCompleteResult> resultCache;
   if (!resultCache.AppendObjects(mResults)) {
     return NS_ERROR_OUT_OF_MEMORY;
@@ -1001,7 +1002,8 @@ nsAutoCompleteController::StartSearch()
       PRUint16 searchResult;
       result->GetSearchResult(&searchResult);
       if (searchResult != nsIAutoCompleteResult::RESULT_SUCCESS &&
-          searchResult != nsIAutoCompleteResult::RESULT_SUCCESS_ONGOING)
+          searchResult != nsIAutoCompleteResult::RESULT_SUCCESS_ONGOING &&
+          searchResult != nsIAutoCompleteResult::RESULT_NOMATCH)
         result = nsnull;
     }
 
@@ -1101,6 +1103,8 @@ nsAutoCompleteController::EnterMatch(PRBool aIsPopupSelection)
   nsAutoString value;
   popup->GetOverrideValue(value);
   if (value.IsEmpty()) {
+    PRBool shouldComplete;
+    mInput->GetCompleteDefaultIndex(&shouldComplete);
     PRBool completeSelection;
     input->GetCompleteSelectedIndex(&completeSelection);
 
@@ -1112,6 +1116,19 @@ nsAutoCompleteController::EnterMatch(PRBool aIsPopupSelection)
     popup->GetSelectedIndex(&selectedIndex);
     if (selectedIndex >= 0 && (!completeSelection || aIsPopupSelection))
       GetResultValueAt(selectedIndex, PR_TRUE, value);
+    else if (shouldComplete) {
+      // We usually try to preserve the casing of what user has typed, but
+      // if he wants to autocomplete, we will replace the value with the
+      // actual autocomplete result.
+      // The user wants explicitely to use that result, so this ensures
+      // association of the result with the autocompleted text.
+      nsAutoString defaultIndexValue;
+      nsAutoString inputValue;
+      input->GetTextValue(inputValue);
+      if (NS_SUCCEEDED(GetDefaultCompleteValue(selectedIndex, PR_FALSE, defaultIndexValue)) &&
+          defaultIndexValue.Equals(inputValue, nsCaseInsensitiveStringComparator()))
+        value = defaultIndexValue;
+    }
 
     if (forceComplete && value.IsEmpty()) {
       // Since nothing was selected, and forceComplete is specified, that means
@@ -1348,20 +1365,67 @@ nsAutoCompleteController::CompleteDefaultIndex(PRInt32 aSearchIndex)
   if (!shouldComplete)
     return NS_OK;
 
-  nsIAutoCompleteResult *result = mResults.SafeObjectAt(aSearchIndex);
+  nsAutoString resultValue;
+  if (NS_SUCCEEDED(GetDefaultCompleteValue(aSearchIndex, PR_TRUE, resultValue)))
+    CompleteValue(resultValue);
+
+  mDefaultIndexCompleted = PR_TRUE;
+
+  return NS_OK;
+}
+
+nsresult
+nsAutoCompleteController::GetDefaultCompleteValue(PRInt32 aSearchIndex,
+                                                  PRBool aPreserveCasing,
+                                                  nsAString &_retval)
+{
+  PRInt32 defaultIndex = -1;
+  PRInt32 index = aSearchIndex;
+  if (index < 0) {
+    PRUint32 count = mResults.Count();
+    for (PRUint32 i = 0; i < count; ++i) {
+      nsIAutoCompleteResult *result = mResults[i];
+      if (result && NS_SUCCEEDED(result->GetDefaultIndex(&defaultIndex)) &&
+          defaultIndex >= 0) {
+        index = i;
+        break;
+      }
+    }
+  }
+  NS_ENSURE_TRUE(index >= 0, NS_ERROR_FAILURE);
+
+  nsIAutoCompleteResult *result = mResults.SafeObjectAt(index);
   NS_ENSURE_TRUE(result != nsnull, NS_ERROR_FAILURE);
 
-  // The search must explicitly provide a default index in order
-  // for us to be able to complete
-  PRInt32 defaultIndex;
-  result->GetDefaultIndex(&defaultIndex);
-  NS_ENSURE_TRUE(defaultIndex >= 0, NS_OK);
+  if (defaultIndex < 0) {
+    // The search must explicitly provide a default index in order
+    // for us to be able to complete.
+    result->GetDefaultIndex(&defaultIndex);
+  }
+  NS_ENSURE_TRUE(defaultIndex >= 0, NS_ERROR_FAILURE);
 
   nsAutoString resultValue;
   result->GetValueAt(defaultIndex, resultValue);
-  CompleteValue(resultValue);
-
-  mDefaultIndexCompleted = PR_TRUE;
+  if (aPreserveCasing &&
+      StringBeginsWith(resultValue, mSearchString,
+                       nsCaseInsensitiveStringComparator())) {
+    // We try to preserve user casing, otherwise we would end up changing
+    // the case of what he typed, if we have a result with a different casing.
+    // For example if we have result "Test", and user starts writing "tuna",
+    // after digiting t, we would convert it to T trying to autocomplete "Test".
+    // We will still complete to cased "Test" if the user explicitely choose
+    // that result, by either selecting it in the results popup, or with
+    // keyboard navigation or if autocompleting in the middle.
+    nsAutoString casedResultValue;
+    casedResultValue.Assign(mSearchString);
+    // Use what the user has typed so far.
+    casedResultValue.Append(Substring(resultValue,
+                                      mSearchString.Length(),
+                                      resultValue.Length()));
+    _retval = casedResultValue;
+  }
+  else
+    _retval = resultValue;
 
   return NS_OK;
 }

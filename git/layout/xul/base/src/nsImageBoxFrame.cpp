@@ -58,7 +58,6 @@
 #include "nsPresContext.h"
 #include "nsIRenderingContext.h"
 #include "nsIPresShell.h"
-#include "nsIImage.h"
 #include "nsIDocument.h"
 #include "nsIHTMLDocument.h"
 #include "nsStyleConsts.h"
@@ -182,10 +181,10 @@ nsImageBoxFrame::AttributeChanged(PRInt32 aNameSpaceID,
 
 nsImageBoxFrame::nsImageBoxFrame(nsIPresShell* aShell, nsStyleContext* aContext):
   nsLeafBoxFrame(aShell, aContext),
-  mUseSrcAttr(PR_FALSE),
-  mSuppressStyleCheck(PR_FALSE),
   mIntrinsicSize(0,0),
-  mLoadFlags(nsIRequest::LOAD_NORMAL)
+  mLoadFlags(nsIRequest::LOAD_NORMAL),
+  mUseSrcAttr(PR_FALSE),
+  mSuppressStyleCheck(PR_FALSE)
 {
   MarkIntrinsicWidthsDirty();
 }
@@ -207,7 +206,7 @@ nsImageBoxFrame::Destroy()
 {
   // Release image loader first so that it's refcnt can go to zero
   if (mImageRequest)
-    mImageRequest->Cancel(NS_ERROR_FAILURE);
+    mImageRequest->CancelAndForgetObserver(NS_ERROR_FAILURE);
 
   if (mListener)
     reinterpret_cast<nsImageBoxListener*>(mListener.get())->SetFrame(nsnull); // set the frame to null so we don't send messages to a dead object.
@@ -379,6 +378,7 @@ nsImageBoxFrame::PaintImage(nsIRenderingContext& aRenderingContext,
   if (imgCon) {
     PRBool hasSubRect = !mUseSrcAttr && (mSubRect.width > 0 || mSubRect.height > 0);
     nsLayoutUtils::DrawSingleImage(&aRenderingContext, imgCon,
+        nsLayoutUtils::GetGraphicsFilterForFrame(this),
         rect, dirty, hasSubRect ? &mSubRect : nsnull);
   }
 }
@@ -542,8 +542,7 @@ NS_IMETHODIMP nsImageBoxFrame::OnStopDecode(imgIRequest *request,
 }
 
 NS_IMETHODIMP nsImageBoxFrame::FrameChanged(imgIContainer *container,
-                                            gfxIImageFrame *newframe,
-                                            nsRect * dirtyRect)
+                                            nsIntRect *dirtyRect)
 {
   nsBoxLayoutState state(PresContext());
   this->Redraw(state);
@@ -590,12 +589,11 @@ NS_IMETHODIMP nsImageBoxListener::OnStopDecode(imgIRequest *request,
 }
 
 NS_IMETHODIMP nsImageBoxListener::FrameChanged(imgIContainer *container,
-                                               gfxIImageFrame *newframe,
-                                               nsRect * dirtyRect)
+                                               nsIntRect *dirtyRect)
 {
   if (!mFrame)
     return NS_ERROR_FAILURE;
 
-  return mFrame->FrameChanged(container, newframe, dirtyRect);
+  return mFrame->FrameChanged(container, dirtyRect);
 }
 

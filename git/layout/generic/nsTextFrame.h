@@ -59,6 +59,10 @@
 class nsTextPaintStyle;
 class PropertyProvider;
 
+// This bit is set while the frame is registered as a blinking frame or if
+// frame is within a non-dynamic PresContext.
+#define TEXT_BLINK_ON_OR_PRINTING  0x20000000
+
 // This state bit is set on frames that have some non-collapsed characters after
 // reflow
 #define TEXT_HAS_NONCOLLAPSED_CHARACTERS 0x80000000
@@ -86,9 +90,7 @@ public:
   NS_IMETHOD GetCursor(const nsPoint& aPoint,
                        nsIFrame::Cursor& aCursor);
   
-  NS_IMETHOD CharacterDataChanged(nsPresContext* aPresContext,
-                                  nsIContent*     aChild,
-                                  PRBool          aAppend);
+  NS_IMETHOD CharacterDataChanged(CharacterDataChangeInfo* aInfo);
                                   
   virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
   
@@ -149,13 +151,24 @@ public:
 #endif
   
   virtual ContentOffsets CalcContentOffsetsFromFramePoint(nsPoint aPoint);
-   
-  NS_IMETHOD SetSelected(nsPresContext* aPresContext,
-                         nsIDOMRange *aRange,
-                         PRBool aSelected,
-                         nsSpread aSpread,
-                         SelectionType aType);
-  
+  ContentOffsets GetCharacterOffsetAtFramePoint(const nsPoint &aPoint);
+
+  /**
+   * This is called only on the primary text frame. It indicates that
+   * the selection state of the given character range has changed.
+   * Text in the range is unconditionally invalidated
+   * (nsTypedSelection::Repaint depends on this).
+   * @param aSelected true if the selection has been added to the range,
+   * false otherwise
+   * @param aType the type of selection added or removed
+   */
+  virtual void SetSelected(PRBool        aSelected,
+                           SelectionType aType);
+  void SetSelectedRange(PRUint32 aStart,
+                        PRUint32 aEnd,
+                        PRBool aSelected,
+                        SelectionType aType);
+
   virtual PRBool PeekOffsetNoAmount(PRBool aForward, PRInt32* aOffset);
   virtual PRBool PeekOffsetCharacter(PRBool aForward, PRInt32* aOffset);
   virtual PRBool PeekOffsetWord(PRBool aForward, PRBool aWordSelectEatSpace, PRBool aIsKeyboardSelect,
@@ -353,9 +366,17 @@ public:
   TrimmedOffsets GetTrimmedOffsets(const nsTextFragment* aFrag,
                                    PRBool aTrimAfter);
 
+  const nsTextFragment* GetFragment() const
+  {
+    return !(GetStateBits() & TEXT_BLINK_ON_OR_PRINTING) ?
+      mContent->GetText() : GetFragmentInternal();
+  }
+
 protected:
   virtual ~nsTextFrame();
-  
+
+  const nsTextFragment* GetFragmentInternal() const;
+
   nsIFrame*   mNextContinuation;
   // The key invariant here is that mContentOffset never decreases along
   // a next-continuation chain. And of course mContentOffset is always <= the
@@ -430,10 +451,15 @@ protected:
   };
   TextDecorations GetTextDecorations(nsPresContext* aPresContext);
 
-  PRBool HasSelectionOverflowingDecorations(nsPresContext* aPresContext,
-                                            float* aRatio = nsnull);
+  // Set non empty rect to aRect, it should be overflow rect or frame rect.
+  // If the result rect is larger than the given rect, this returns PR_TRUE.
+  PRBool CombineSelectionUnderlineRect(nsPresContext* aPresContext,
+                                       nsRect& aRect);
 
   PRBool IsFloatingFirstLetterChild();
+
+  ContentOffsets GetCharacterOffsetAtFramePointInternal(const nsPoint &aPoint,
+                   PRBool aForInsertionPoint);
 };
 
 #endif

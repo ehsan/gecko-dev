@@ -53,8 +53,7 @@ class nsDeckFrame : public nsBoxFrame
 public:
 
   friend nsIFrame* NS_NewDeckFrame(nsIPresShell* aPresShell,
-                                   nsStyleContext* aContext,
-                                   nsIBoxLayout* aLayoutManager);
+                                   nsStyleContext* aContext);
 
   NS_IMETHOD AttributeChanged(PRInt32         aNameSpaceID,
                               nsIAtom*        aAttribute,
@@ -74,9 +73,17 @@ public:
                   nsIFrame*        aParent,
                   nsIFrame*        aPrevInFlow);
 
-  virtual nsIAtom* GetType() const;
+  // Override SetInitialChildList/AppendFrames/InsertFrames to
+  // create views for our child frames if necessary
+  NS_IMETHOD  SetInitialChildList(nsIAtom*        aListName,
+                                  nsFrameList&    aChildList);
+  NS_IMETHOD AppendFrames(nsIAtom*        aListName,
+                          nsFrameList&    aFrameList);
+  NS_IMETHOD InsertFrames(nsIAtom*        aListName,
+                          nsIFrame*       aPrevFrame,
+                          nsFrameList&    aFrameList);
 
-  virtual PRBool ChildrenMustHaveWidgets() const { return PR_TRUE; }
+  virtual nsIAtom* GetType() const;
 
 #ifdef NS_DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const
@@ -85,9 +92,7 @@ public:
   }
 #endif
 
-  nsDeckFrame(nsIPresShell* aPresShell,
-              nsStyleContext* aContext,
-              nsIBoxLayout* aLayout = nsnull);
+  nsDeckFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
 protected:
 

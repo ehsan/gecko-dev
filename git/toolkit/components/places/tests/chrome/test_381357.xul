@@ -59,6 +59,7 @@ var observer =
       SimpleTest.finish();
     }
   },
+  onBeforeItemRemoved: function(itemId){},
   onItemRemoved: function(itemId, folder, index){},
   onItemChanged: function(itemId, property, isAnnotationProperty, value){},
   onItemVisited: function(itemId, aVisitID, time){},
@@ -66,7 +67,6 @@ var observer =
 
 };
 
-var root = bmsvc.bookmarksRoot;
 const FEEDSPEC = "http://localhost:8888/tests/toolkit/components/places/tests/chrome/rss_as_html.rss";
 
 gLivemarkId = lmsvc.createLivemarkFolderOnly(toolbarFolderId, "foo",

@@ -58,7 +58,6 @@
 #include "nsIDOMCDATASection.h"
 #include "nsDOMDocumentType.h"
 #include "nsHTMLParts.h"
-#include "nsVoidArray.h"
 #include "nsCRT.h"
 #include "nsICSSLoader.h"
 #include "nsICSSStyleSheet.h"
@@ -168,6 +167,7 @@ nsXMLContentSink::Init(nsIDocument* aDoc,
   NS_ENSURE_SUCCESS(rv, rv);
 
   aDoc->AddObserver(this);
+  mIsDocumentObserver = PR_TRUE;
 
   if (!mDocShell) {
     mPrettyPrintXML = PR_FALSE;
@@ -211,7 +211,7 @@ nsXMLContentSink::WillParse(void)
 }
 
 NS_IMETHODIMP
-nsXMLContentSink::WillBuildModel(void)
+nsXMLContentSink::WillBuildModel(nsDTDMode aDTDMode)
 {
   WillBuildModelImpl();
 
@@ -248,6 +248,7 @@ nsXMLContentSink::MaybePrettyPrint()
 
   // stop observing in order to avoid crashing when replacing content
   mDocument->RemoveObserver(this);
+  mIsDocumentObserver = PR_FALSE;
 
   // Reenable the CSSLoader so that the prettyprinting stylesheets can load
   if (mCSSLoader) {
@@ -316,6 +317,7 @@ nsXMLContentSink::DidBuildModel()
   if (mXSLTProcessor) {
     // stop observing in order to avoid crashing when replacing content
     mDocument->RemoveObserver(this);
+    mIsDocumentObserver = PR_FALSE;
 
     // Check for xslt-param and xslt-param-namespace PIs
     PRUint32 i;
@@ -374,6 +376,7 @@ nsXMLContentSink::DidBuildModel()
     }
 
     mDocument->RemoveObserver(this);
+    mIsDocumentObserver = PR_FALSE;
 
     mDocument->EndLoad();
   }
@@ -381,6 +384,12 @@ nsXMLContentSink::DidBuildModel()
   DropParserAndPerfHint();
 
   return NS_OK;
+}
+
+PRBool
+nsXMLContentSink::ReadyToCallDidBuildModel(PRBool aTerminated)
+{
+  return ReadyToCallDidBuildModelImpl(aTerminated);
 }
 
 NS_IMETHODIMP
@@ -838,6 +847,12 @@ nsXMLContentSink::GetTarget()
   return mDocument;
 }
 
+PRBool
+nsXMLContentSink::IsScriptExecuting()
+{
+  return IsScriptExecutingImpl();
+}
+
 nsresult
 nsXMLContentSink::FlushText(PRBool aReleaseTextNode)
 {
@@ -994,6 +1009,12 @@ nsXMLContentSink::SetDocElement(PRInt32 aNameSpaceID,
     // find a parent content node to append to, which is fine.
     return PR_FALSE;
   }
+
+  if (aTagName == nsGkAtoms::html &&
+      aNameSpaceID == kNameSpaceID_XHTML) {
+    ProcessOfflineManifest(aContent);
+  }
+
   return PR_TRUE;
 }
 
@@ -1179,7 +1200,11 @@ nsXMLContentSink::HandleEndElement(const PRUnichar *aName,
 #ifdef MOZ_SVG
   if (mDocument &&
       content->GetNameSpaceID() == kNameSpaceID_SVG &&
-      content->HasAttr(kNameSpaceID_None, nsGkAtoms::onload)) {
+      (
+#ifdef MOZ_SMIL
+       content->Tag() == nsGkAtoms::svg ||
+#endif
+       content->HasAttr(kNameSpaceID_None, nsGkAtoms::onload))) {
     FlushTags();
 
     nsEvent event(PR_TRUE, NS_SVG_LOAD);
@@ -1273,7 +1298,7 @@ nsXMLContentSink::HandleDoctypeDecl(const nsAString & aSubset,
     nsCOMPtr<nsIURI> uri(do_QueryInterface(aCatalogData));
     if (uri) {
       nsCOMPtr<nsICSSStyleSheet> sheet;
-      mCSSLoader->LoadSheetSync(uri, PR_TRUE, getter_AddRefs(sheet));
+      mCSSLoader->LoadSheetSync(uri, PR_TRUE, PR_TRUE, getter_AddRefs(sheet));
       
 #ifdef NS_DEBUG
       nsCAutoString uriStr;
@@ -1374,10 +1399,9 @@ nsXMLContentSink::HandleProcessingInstruction(const PRUnichar *aTarget,
 
   nsAutoString href, title, media;
   PRBool isAlternate = PR_FALSE;
-  ParsePIData(data, href, title, media, isAlternate);
 
   // If there was no href, we can't do anything with this PI
-  if (href.IsEmpty()) {
+  if (!ParsePIData(data, href, title, media, isAlternate)) {
       return DidProcessATokenImpl();
   }
 
@@ -1386,16 +1410,14 @@ nsXMLContentSink::HandleProcessingInstruction(const PRUnichar *aTarget,
 }
 
 /* static */
-void
+PRBool
 nsXMLContentSink::ParsePIData(const nsString &aData, nsString &aHref,
                               nsString &aTitle, nsString &aMedia,
                               PRBool &aIsAlternate)
 {
-  nsParserUtils::GetQuotedAttributeValue(aData, nsGkAtoms::href, aHref);
-
   // If there was no href, we can't do anything with this PI
-  if (aHref.IsEmpty()) {
-    return;
+  if (!nsParserUtils::GetQuotedAttributeValue(aData, nsGkAtoms::href, aHref)) {
+    return PR_FALSE;
   }
 
   nsParserUtils::GetQuotedAttributeValue(aData, nsGkAtoms::title, aTitle);
@@ -1406,33 +1428,8 @@ nsXMLContentSink::ParsePIData(const nsString &aData, nsString &aHref,
   nsParserUtils::GetQuotedAttributeValue(aData, nsGkAtoms::alternate, alternate);
 
   aIsAlternate = alternate.EqualsLiteral("yes");
-}
 
-/*
- * Extends nsContentSink::ProcessMETATag to grab the 'viewport' meta tag. This
- * information is ignored by the generic content sink because it only stores
- * http-equiv meta tags. We need it in the XMLContentSink for XHTML documents.
- *
- * Initially implemented for bug #436083
- */
-nsresult
-nsXMLContentSink::ProcessMETATag(nsIContent *aContent) {
-
-  /* Call the superclass method. */
-  nsContentSink::ProcessMETATag(aContent);
-
-  nsresult rv = NS_OK;
-
-  /* Look for the viewport meta tag. If we find it, process it and put the
-   * data into the document header. */
-  if (aContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::name,
-                            nsGkAtoms::viewport, eIgnoreCase)) {
-    nsAutoString value;
-    aContent->GetAttr(kNameSpaceID_None, nsGkAtoms::content, value);
-    rv = nsContentUtils::ProcessViewportInfo(mDocument, value);
-  }
-
-  return rv;
+  return PR_TRUE;
 }
 
 NS_IMETHODIMP
@@ -1465,6 +1462,7 @@ nsXMLContentSink::ReportError(const PRUnichar* aErrorText,
 
   // stop observing in order to avoid crashing when removing content
   mDocument->RemoveObserver(this);
+  mIsDocumentObserver = PR_FALSE;
 
   // Clear the current content and
   // prepare to set <parsererror> as the document root
@@ -1494,6 +1492,10 @@ nsXMLContentSink::ReportError(const PRUnichar* aErrorText,
   // release the nodes on stack
   mContentStack.Clear();
   mNotifyLevel = 0;
+
+  rv = HandleProcessingInstruction(NS_LITERAL_STRING("xml-stylesheet").get(),
+                                   NS_LITERAL_STRING("href=\"chrome://global/locale/intl.css\" type=\"text/css\"").get());
+  NS_ENSURE_SUCCESS(rv, rv);
 
   const PRUnichar* noAtts[] = { 0, 0 };
 
@@ -1623,13 +1625,17 @@ nsXMLContentSink::FlushPendingNotifications(mozFlushType aType)
   // Only flush tags if we're not doing the notification ourselves
   // (since we aren't reentrant)
   if (!mInNotification) {
-    if (aType >= Flush_ContentAndNotify) {
-      FlushTags();
+    if (mIsDocumentObserver) {
+      // Only flush if we're still a document observer (so that our child
+      // counts should be correct).
+      if (aType >= Flush_ContentAndNotify) {
+        FlushTags();
+      }
+      else {
+        FlushText(PR_FALSE);
+      }
     }
-    else {
-      FlushText(PR_FALSE);
-    }
-    if (aType >= Flush_Layout) {
+    if (aType >= Flush_InterruptibleLayout) {
       // Make sure that layout has started so that the reflow flush
       // will actually happen.
       MaybeStartLayout(PR_TRUE);

@@ -35,8 +35,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-
 /*
  * Test the fix for bug 441778 to ensure site-specific page zoom doesn't get
  * modified by sub-document loads of content from a different domain.
@@ -53,9 +51,8 @@ function test() {
   let zoomLevel;
 
   // Prepare the test tab
-  let testTab = gBrowser.addTab();
-  gBrowser.selectedTab = testTab;
-  let testBrowser = gBrowser.getBrowserForTab(testTab);
+  gBrowser.selectedTab = gBrowser.addTab();
+  let testBrowser = gBrowser.selectedBrowser;
 
   let finishTest = function() {
     testBrowser.removeProgressListener(progressListener);
@@ -77,9 +74,6 @@ function test() {
   };
 
   let continueTest = function() {
-    // Remove the load listener so it doesn't get called for the sub-document.
-    testBrowser.removeEventListener("load", continueTest, true);
-
     // Change the zoom level and then save it so we can compare it to the level
     // after loading the sub-document.
     FullZoom.enlarge();
@@ -97,7 +91,12 @@ function test() {
   // Note: in order for the sub-document load to trigger a location change
   // the way it does under real world usage scenarios, we have to continue
   // the test in a timeout for some unknown reason.
-  let continueListener = function() { window.setTimeout(continueTest, 0) };
+  let continueListener = function() {
+    window.setTimeout(continueTest, 0);
+    
+    // Remove the load listener so it doesn't get called for the sub-document.
+    testBrowser.removeEventListener("load", continueListener, true);
+  };
   testBrowser.addEventListener("load", continueListener, true);
 
   // Start the test by loading the test page.

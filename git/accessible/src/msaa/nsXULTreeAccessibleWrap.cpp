@@ -37,6 +37,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "nsXULTreeAccessibleWrap.h"
+
 #include "nsTextFormatter.h"
 #include "nsIFrame.h"
 
@@ -49,7 +50,8 @@ nsXULTreeAccessible(aDOMNode, aShell)
 {
 }
 
-NS_IMETHODIMP nsXULTreeAccessibleWrap::GetRole(PRUint32 *aRole)
+nsresult
+nsXULTreeAccessibleWrap::GetRoleInternal(PRUint32 *aRole)
 {
   NS_ENSURE_STATE(mTree);
 
@@ -80,7 +82,8 @@ nsXULTreeitemAccessible(aParent, aDOMNode, aShell, aRow, aColumn)
 {
 }
 
-NS_IMETHODIMP nsXULTreeitemAccessibleWrap::GetRole(PRUint32 *aRole)
+nsresult
+nsXULTreeitemAccessibleWrap::GetRoleInternal(PRUint32 *aRole)
 {
   // No primary column means we're in a list
   // In fact, history and mail turn off the primary flag when switching to a flat view
@@ -93,22 +96,42 @@ NS_IMETHODIMP nsXULTreeitemAccessibleWrap::GetRole(PRUint32 *aRole)
   return NS_OK;
 }
 
-NS_IMETHODIMP nsXULTreeitemAccessibleWrap::GetBounds(PRInt32 *x, PRInt32 *y, PRInt32 *width, PRInt32 *height)
+NS_IMETHODIMP
+nsXULTreeitemAccessibleWrap::GetBounds(PRInt32 *aX, PRInt32 *aY,
+                                       PRInt32 *aWidth, PRInt32 *aHeight)
 {
-  nsresult rv = nsXULTreeitemAccessible::GetBounds(x, y, width, height);
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
-  nsIFrame *frame = GetFrame();
-  if (frame) {
-    // Will subtract first cell's start x from total width
-    PRInt32 cellStartX, cellStartY;
-    NS_ENSURE_STATE(mTree);
-    mTree->GetCoordsForCellItem(mRow, mColumn, EmptyCString(), &cellStartX, &cellStartY, width, height);
-    // Use entire row width, not just key column's width
-    *width = GetPresContext()->AppUnitsToDevPixels(frame->GetRect().width) -
-             cellStartX;
-  }
+  NS_ENSURE_ARG_POINTER(aX);
+  *aX = 0;
+  NS_ENSURE_ARG_POINTER(aY);
+  *aY = 0;
+  NS_ENSURE_ARG_POINTER(aWidth);
+  *aWidth = 0;
+  NS_ENSURE_ARG_POINTER(aHeight);
+  *aHeight = 0;
+
+  if (IsDefunct())
+    return NS_ERROR_FAILURE;
+
+  // Get x coordinate and width from treechildren element, get y coordinate and
+  // height from tree cell.
+
+  nsCOMPtr<nsIBoxObject> boxObj = nsCoreUtils::GetTreeBodyBoxObject(mTree);
+  NS_ENSURE_STATE(boxObj);
+
+  PRInt32 cellStartX, cellWidth;
+  nsresult rv = mTree->GetCoordsForCellItem(mRow, mColumn, EmptyCString(),
+                                            &cellStartX, aY,
+                                            &cellWidth, aHeight);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  boxObj->GetWidth(aWidth);
+
+  PRInt32 tcX = 0, tcY = 0;
+  boxObj->GetScreenX(&tcX);
+  boxObj->GetScreenY(&tcY);
+
+  *aX = tcX;
+  *aY += tcY;
 
   return NS_OK;
 }

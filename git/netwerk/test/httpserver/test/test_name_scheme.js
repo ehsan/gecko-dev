@@ -79,14 +79,14 @@ function run_test()
 
   // make sure underscores work in directories "mounted" in directories with
   // folders starting with _
-  var nameDir = do_get_file("netwerk/test/httpserver/test/data/name-scheme/");
+  var nameDir = do_get_file("data/name-scheme/");
   srv.registerDirectory("/", nameDir);
   srv.registerDirectory("/foo/", nameDir);
   srv.registerDirectory("/end-caret^/", nameDir);
 
   srv.start(4444);
 
-  runHttpTests(tests, function() { srv.stop(); });
+  runHttpTests(tests, testComplete(srv));
 }
 
 

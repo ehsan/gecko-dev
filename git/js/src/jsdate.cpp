@@ -1,4 +1,4 @@
-/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  * vim: set ts=8 sw=4 et tw=78:
  *
  * ***** BEGIN LICENSE BLOCK *****
@@ -51,13 +51,13 @@
  * Frederick Brooks, 'The Second-System Effect'.
  */
 
-#include "jsstddef.h"
 #include <ctype.h>
 #include <locale.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
 #include "jstypes.h"
+#include "jsstdint.h"
 #include "jsprf.h"
 #include "prmjtime.h"
 #include "jsutil.h" /* Added by JSIFY */
@@ -416,8 +416,13 @@ DaylightSavingTA(jsdouble t)
     return result;
 }
 
-
-#define AdjustTime(t)   fmod(LocalTZA + DaylightSavingTA(t), msPerDay)
+static jsdouble
+AdjustTime(jsdouble date)
+{
+    jsdouble t = DaylightSavingTA(date) + LocalTZA;
+    t = (LocalTZA >= 0) ? fmod(t, msPerDay) : -fmod(msPerDay - t, msPerDay);
+    return t;
+}
 
 #define LocalTime(t)    ((t) + AdjustTime(t))
 
@@ -489,7 +494,7 @@ JSClass js_DateClass = {
     JSCLASS_HAS_RESERVED_SLOTS(DATE_RESERVED_SLOTS) |
     JSCLASS_HAS_CACHED_PROTO(JSProto_Date),
     JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,
-    JS_EnumerateStub, JS_ResolveStub,   JS_ConvertStub,   JS_FinalizeStub,
+    JS_EnumerateStub, JS_ResolveStub,   JS_ConvertStub,   NULL,
     JSCLASS_NO_OPTIONAL_MEMBERS
 };
 
@@ -643,7 +648,7 @@ date_parseString(JSString *str, jsdouble *result)
     int temp;
     JSBool seenmonthname = JS_FALSE;
 
-    JSSTRING_CHARS_AND_LENGTH(str, s, limit);
+    str->getCharsAndLength(s, limit);
     if (limit == 0)
         goto syntax;
     while (i < limit) {
@@ -913,17 +918,23 @@ date_parse(JSContext *cx, uintN argc, jsval *vp)
     return js_NewNumberInRootedValue(cx, result, vp);
 }
 
+static inline jsdouble
+NowAsMillis()
+{
+    return (jsdouble) (PRMJ_Now() / PRMJ_USEC_PER_MSEC);
+}
+
 static JSBool
 date_now(JSContext *cx, uintN argc, jsval *vp)
 {
-    return js_NewDoubleInRootedValue(cx, PRMJ_Now() / PRMJ_USEC_PER_MSEC, vp);
+    return js_NewDoubleInRootedValue(cx, NowAsMillis(), vp);
 }
 
 #ifdef JS_TRACER
 static jsdouble FASTCALL
 date_now_tn(JSContext*)
 {
-    return PRMJ_Now() / PRMJ_USEC_PER_MSEC;
+    return NowAsMillis();
 }
 #endif
 
@@ -1950,7 +1961,7 @@ date_toSource(JSContext *cx, uintN argc, jsval *vp)
 
     str = JS_NewString(cx, bytes, strlen(bytes));
     if (!str) {
-        free(bytes);
+        js_free(bytes);
         return JS_FALSE;
     }
     *vp = STRING_TO_JSVAL(str);
@@ -2012,8 +2023,6 @@ date_valueOf(JSContext *cx, uintN argc, jsval *vp)
     return date_toString(cx, argc, vp);
 }
 
-JS_DEFINE_CALLINFO_2(extern, OBJECT, js_FastNewDate, CONTEXT, OBJECT, 0, 0)
-
 // Don't really need an argument here, but we don't support arg-less builtins
 JS_DEFINE_TRCINFO_1(date_now,
     (1, (static, DOUBLE, date_now_tn, CONTEXT, 0, 0)))
@@ -2026,7 +2035,7 @@ static JSFunctionSpec date_static_methods[] = {
 };
 
 JS_DEFINE_TRCINFO_1(date_valueOf,
-    (3, (static, JSVAL_FAIL, date_valueOf_tn, CONTEXT, THIS, STRING, 0, 0)))
+    (3, (static, JSVAL_RETRY, date_valueOf_tn, CONTEXT, THIS, STRING, 0, 0)))
 
 static JSFunctionSpec date_methods[] = {
     JS_FN("getTime",             date_getTime,            0,0),
@@ -2104,17 +2113,15 @@ js_Date(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     jsdouble d;
 
     /* Date called as function. */
-    if (!(cx->fp->flags & JSFRAME_CONSTRUCTING)) {
-        return date_format(cx, PRMJ_Now() / PRMJ_USEC_PER_MSEC,
-                           FORMATSPEC_FULL, rval);
-    }
+    if (!JS_IsConstructing(cx))
+        return date_format(cx, NowAsMillis(), FORMATSPEC_FULL, rval);
 
     /* Date called as constructor. */
     if (argc == 0) {
         date = date_constructor(cx, obj);
         if (!date)
             return JS_FALSE;
-        *date = PRMJ_Now() / PRMJ_USEC_PER_MSEC;
+        *date = NowAsMillis();
     } else if (argc == 1) {
         if (!JSVAL_IS_STRING(argv[0])) {
             /* the argument is a millisecond number */
@@ -2160,41 +2167,6 @@ js_Date(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     return JS_TRUE;
 }
 
-JS_STATIC_ASSERT(JSSLOT_PRIVATE == JSSLOT_UTC_TIME);
-JS_STATIC_ASSERT(JSSLOT_UTC_TIME + 1 == JSSLOT_LOCAL_TIME);
-
-#ifdef JS_TRACER
-JSObject* FASTCALL
-js_FastNewDate(JSContext* cx, JSObject* proto)
-{
-    JS_ASSERT(JS_ON_TRACE(cx));
-    JSObject* obj = (JSObject*) js_NewGCThing(cx, GCX_OBJECT, sizeof(JSObject));
-    if (!obj)
-        return NULL;
-
-    JSClass* clasp = &js_DateClass;
-    obj->classword = jsuword(clasp);
-
-    obj->fslots[JSSLOT_PROTO] = OBJECT_TO_JSVAL(proto);
-    obj->fslots[JSSLOT_PARENT] = proto->fslots[JSSLOT_PARENT];
-
-    jsdouble* date = js_NewWeaklyRootedDouble(cx, 0.0);
-    if (!date)
-        return NULL;
-    *date = date_now_tn(cx);
-    obj->fslots[JSSLOT_UTC_TIME] = DOUBLE_TO_JSVAL(date);
-    obj->fslots[JSSLOT_LOCAL_TIME] = DOUBLE_TO_JSVAL(cx->runtime->jsNaN);
-    for (unsigned i = JSSLOT_LOCAL_TIME + 1; i != JS_INITIAL_NSLOTS; ++i)
-        obj->fslots[i] = JSVAL_VOID;
-    
-    JS_ASSERT(!clasp->getObjectOps);
-    JS_ASSERT(proto->map->ops == &js_ObjectOps);
-    obj->map = js_HoldObjectMap(cx, proto->map);
-    obj->dslots = NULL;
-    return obj;    
-}
-#endif
-
 JSObject *
 js_InitDateClass(JSContext *cx, JSObject *obj)
 {
@@ -2203,7 +2175,7 @@ js_InitDateClass(JSContext *cx, JSObject *obj)
 
     /* set static LocalTZA */
     LocalTZA = -(PRMJ_LocalGMTDifference() * msPerSecond);
-    proto = JS_InitClass(cx, obj, NULL, &js_DateClass, js_Date, MAXARGS,
+    proto = js_InitClass(cx, obj, NULL, &js_DateClass, js_Date, MAXARGS,
                          NULL, date_methods, NULL, date_static_methods);
     if (!proto)
         return NULL;
@@ -2227,7 +2199,7 @@ js_NewDateObjectMsec(JSContext *cx, jsdouble msec_time)
     JSObject *obj;
     jsdouble *date;
 
-    obj = js_NewObject(cx, &js_DateClass, NULL, NULL, 0);
+    obj = js_NewObject(cx, &js_DateClass, NULL, NULL);
     if (!obj)
         return NULL;
 
@@ -2473,3 +2445,21 @@ js_DateGetMsecSinceEpoch(JSContext *cx, JSObject *obj)
         return 0;
     return utctime;
 }
+
+#ifdef JS_THREADSAFE
+#include "prinrval.h"
+
+JS_FRIEND_API(uint32)
+js_IntervalNow()
+{
+    return uint32(PR_IntervalToMilliseconds(PR_IntervalNow()));
+}
+
+#else /* !JS_THREADSAFE */
+
+JS_FRIEND_API(uint32)
+js_IntervalNow()
+{
+    return uint32(PRMJ_Now() / PRMJ_USEC_PER_MSEC);
+}
+#endif

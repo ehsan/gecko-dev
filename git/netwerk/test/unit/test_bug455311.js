@@ -7,10 +7,10 @@ const isLinux = ("@mozilla.org/gnome-gconf-service;1" in Cc);
 function getLinkFile()
 {
   if (isWindows) {
-    return do_get_file("netwerk/test/unit/test_link.url");
+    return do_get_file("test_link.url");
   }
   if (isLinux) {
-    return do_get_file("netwerk/test/unit/test_link.desktop");
+    return do_get_file("test_link.desktop");
   }
   do_throw("Unexpected platform");
   return null;
@@ -46,8 +46,8 @@ NotificationCallbacks.prototype = {
     do_check_eq(oldChan.URI, this._origURI);
     do_check_eq(oldChan.originalURI.spec, this._origURI.spec);
     do_check_eq(oldChan.originalURI, this._origURI);
-    do_check_eq(newChan.originalURI.spec, this._origURI.spec);
-    do_check_eq(newChan.originalURI, this._origURI);
+    do_check_eq(newChan.originalURI.spec, this._newURI.spec);
+    do_check_eq(newChan.originalURI, newChan.URI);
     do_check_eq(newChan.URI.spec, this._newURI.spec);
     throw Cr.NS_ERROR_ABORT;
   }

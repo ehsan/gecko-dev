@@ -1,4 +1,4 @@
-/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -41,9 +41,13 @@
 /*
  * JS number type and wrapper class.
  */
-#include "jsstddef.h"
 #if defined(XP_WIN) || defined(XP_OS2)
 #include <float.h>
+#endif
+#ifdef XP_OS2
+#define _PC_53  PC_53
+#define _MCW_EM MCW_EM
+#define _MCW_PC MCW_PC
 #endif
 #include <locale.h>
 #include <limits.h>
@@ -51,6 +55,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "jstypes.h"
+#include "jsstdint.h"
 #include "jsutil.h" /* Added by JSIFY */
 #include "jsapi.h"
 #include "jsatom.h"
@@ -66,6 +71,7 @@
 #include "jsprf.h"
 #include "jsscope.h"
 #include "jsstr.h"
+#include "jsvector.h"
 
 static JSBool
 num_isNaN(JSContext *cx, uintN argc, jsval *vp)
@@ -113,7 +119,7 @@ num_parseFloat(JSContext *cx, uintN argc, jsval *vp)
     str = js_ValueToString(cx, vp[2]);
     if (!str)
         return JS_FALSE;
-    JSSTRING_CHARS_AND_END(str, bp, end);
+    str->getCharsAndEnd(bp, end);
     if (!js_strtod(cx, bp, end, &ep, &d))
         return JS_FALSE;
     if (ep == bp) {
@@ -132,7 +138,7 @@ ParseFloat(JSContext* cx, JSString* str)
     const jschar* ep;
     jsdouble d;
 
-    JSSTRING_CHARS_AND_END(str, bp, end);
+    str->getCharsAndEnd(bp, end);
     if (!js_strtod(cx, bp, end, &ep, &d) || ep == bp)
         return js_NaN;
     return d;
@@ -172,7 +178,7 @@ num_parseInt(JSContext *cx, uintN argc, jsval *vp)
     str = js_ValueToString(cx, vp[2]);
     if (!str)
         return JS_FALSE;
-    JSSTRING_CHARS_AND_END(str, bp, end);
+    str->getCharsAndEnd(bp, end);
     if (!js_strtointeger(cx, bp, end, &ep, radix, &d))
         return JS_FALSE;
     if (ep == bp) {
@@ -191,7 +197,7 @@ ParseInt(JSContext* cx, JSString* str)
     const jschar* ep;
     jsdouble d;
 
-    JSSTRING_CHARS_AND_END(str, bp, end);
+    str->getCharsAndEnd(bp, end);
     if (!js_strtointeger(cx, bp, end, &ep, 0, &d) || ep == bp)
         return js_NaN;
     return d;
@@ -236,7 +242,7 @@ JSClass js_NumberClass = {
     js_Number_str,
     JSCLASS_HAS_PRIVATE | JSCLASS_HAS_CACHED_PROTO(JSProto_Number),
     JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,
-    JS_EnumerateStub, JS_ResolveStub,   JS_ConvertStub,   JS_FinalizeStub,
+    JS_EnumerateStub, JS_ResolveStub,   JS_ConvertStub,   NULL,
     JSCLASS_NO_OPTIONAL_MEMBERS
 };
 
@@ -261,7 +267,7 @@ Number(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     } else {
         v = JSVAL_ZERO;
     }
-    if (!(cx->fp->flags & JSFRAME_CONSTRUCTING)) {
+    if (!JS_IsConstructing(cx)) {
         *rval = v;
         return JS_TRUE;
     }
@@ -298,8 +304,8 @@ num_toSource(JSContext *cx, uintN argc, jsval *vp)
 #endif
 
 /* The buf must be big enough for MIN_INT to fit including '-' and '\0'. */
-char *
-js_IntToCString(jsint i, jsint base, char *buf, size_t bufSize)
+static char *
+IntToCString(jsint i, jsint base, char *buf, size_t bufSize)
 {
     char *cp;
     jsuint u;
@@ -363,7 +369,7 @@ num_toString(JSContext *cx, uintN argc, jsval *vp)
             return JS_FALSE;
         if (base < 2 || base > 36) {
             char numBuf[12];
-            char *numStr = js_IntToCString(base, 10, numBuf, sizeof numBuf);
+            char *numStr = IntToCString(base, 10, numBuf, sizeof numBuf);
             JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_BAD_RADIX,
                                  numStr);
             return JS_FALSE;
@@ -378,7 +384,7 @@ num_toString(JSContext *cx, uintN argc, jsval *vp)
             return JS_FALSE;
         }
         str = JS_NewStringCopyZ(cx, dStr);
-        free(dStr);
+        js_free(dStr);
     }
     if (!str)
         return JS_FALSE;
@@ -454,7 +460,7 @@ num_toLocaleString(JSContext *cx, uintN argc, jsval *vp)
     }
     tmpGroup--;
 
-    buf = (char *)JS_malloc(cx, size + 1);
+    buf = (char *)cx->malloc(size + 1);
     if (!buf)
         return JS_FALSE;
 
@@ -486,7 +492,7 @@ num_toLocaleString(JSContext *cx, uintN argc, jsval *vp)
 
     str = JS_NewString(cx, buf, size);
     if (!str) {
-        JS_free(cx, buf);
+        cx->free(buf);
         return JS_FALSE;
     }
 
@@ -650,7 +656,7 @@ jsdouble js_NaN;
  * to 53 bit mantissa.
  * On Alpha platform this is handled via Compiler option.
  */
-#define FIX_FPU() _control87(MCW_EM | PC_53, MCW_EM | MCW_PC)
+#define FIX_FPU() _control87(_MCW_EM | _PC_53, _MCW_EM | _MCW_PC)
 
 #else
 
@@ -733,9 +739,9 @@ js_FinishRuntimeNumberState(JSContext *cx)
     rt->jsNegativeInfinity = NULL;
     rt->jsPositiveInfinity = NULL;
 
-    JS_free(cx, (void *)rt->thousandsSeparator);
-    JS_free(cx, (void *)rt->decimalSeparator);
-    JS_free(cx, (void *)rt->numGrouping);
+    cx->free((void *)rt->thousandsSeparator);
+    cx->free((void *)rt->decimalSeparator);
+    cx->free((void *)rt->numGrouping);
     rt->thousandsSeparator = rt->decimalSeparator = rt->numGrouping = NULL;
 }
 
@@ -787,15 +793,32 @@ js_NewNumberInRootedValue(JSContext *cx, jsdouble d, jsval *vp)
     return js_NewDoubleInRootedValue(cx, d, vp);
 }
 
-char *
-js_NumberToCString(JSContext *cx, jsdouble d, jsint base, char *buf, size_t bufSize)
+JSBool
+js_NewWeaklyRootedNumber(JSContext *cx, jsdouble d, jsval *rval)
+{
+    jsint i;
+    if (JSDOUBLE_IS_INT(d, i) && INT_FITS_IN_JSVAL(i)) {
+        *rval = INT_TO_JSVAL(i);
+        return JS_TRUE;
+    }
+    return JS_NewDoubleValue(cx, d, rval);
+}
+
+/*
+ * Convert a number to C string. The buf must be large enough to accommodate
+ * the result, including '-' and '\0', if base == 10 or d is an integer that
+ * fits in 32 bits. The caller must free the resulting pointer if it does not
+ * point into buf.
+ */
+static char *
+NumberToCString(JSContext *cx, jsdouble d, jsint base, char *buf, size_t bufSize)
 {
     jsint i;
     char *numStr;
 
     JS_ASSERT(bufSize >= DTOSTR_STANDARD_BUFFER_SIZE);
     if (JSDOUBLE_IS_INT(d, i)) {
-        numStr = js_IntToCString(i, base, buf, bufSize);
+        numStr = IntToCString(i, base, buf, bufSize);
     } else {
         if (base == 10)
             numStr = JS_dtostr(buf, bufSize, DTOSTR_STANDARD, 0, d);
@@ -812,21 +835,66 @@ js_NumberToCString(JSContext *cx, jsdouble d, jsint base, char *buf, size_t bufS
 static JSString * JS_FASTCALL
 NumberToStringWithBase(JSContext *cx, jsdouble d, jsint base)
 {
-    char buf[DTOSTR_STANDARD_BUFFER_SIZE];
+    /*
+     * The longest possible result here that would need to fit in buf is
+     * (-0x80000000).toString(2), which has length 33.  (This can produce
+     * longer results, but in those cases buf is not used; see comment at
+     * NumberToCString.)
+     */
+    char buf[34];
     char *numStr;
+    JSString *s;
 
     if (base < 2 || base > 36)
         return NULL;
-    numStr = js_NumberToCString(cx, d, base, buf, sizeof buf);
+    numStr = NumberToCString(cx, d, base, buf, sizeof buf);
     if (!numStr)
         return NULL;
-    return JS_NewStringCopyZ(cx, numStr);
+    s = JS_NewStringCopyZ(cx, numStr);
+    if (!(numStr >= buf && numStr < buf + sizeof buf))
+        js_free(numStr);
+    return s;
 }
 
 JSString * JS_FASTCALL
 js_NumberToString(JSContext *cx, jsdouble d)
 {
     return NumberToStringWithBase(cx, d, 10);
+}
+
+JSBool JS_FASTCALL
+js_NumberValueToStringBuffer(JSContext *cx, jsval v, JSTempVector<jschar> &buf)
+{
+    /* Convert to C-string. */
+    static const size_t arrSize = DTOSTR_STANDARD_BUFFER_SIZE;
+    char arr[arrSize];
+    const char *cstr;
+    if (JSVAL_IS_INT(v)) {
+        cstr = IntToCString(JSVAL_TO_INT(v), 10, arr, arrSize);
+    } else {
+        JS_ASSERT(JSVAL_IS_DOUBLE(v));
+        cstr = JS_dtostr(arr, arrSize, DTOSTR_STANDARD, 0, *JSVAL_TO_DOUBLE(v));
+    }
+    if (!cstr)
+        return JS_FALSE;
+
+    /*
+     * Inflate to jschar string.  The input C-string characters are < 127, so
+     * even if jschars are UTF-8, all chars should map to one jschar.
+     */
+    size_t cstrlen = strlen(cstr);
+    JS_ASSERT(cstrlen < arrSize);
+    size_t sizeBefore = buf.size();
+    if (!buf.growBy(cstrlen))
+        return JS_FALSE;
+    jschar *appendBegin = buf.begin() + sizeBefore;
+#ifdef DEBUG
+    size_t oldcstrlen = cstrlen;
+    JSBool ok =
+#endif
+        js_InflateStringToBuffer(cx, cstr, cstrlen, appendBegin, &cstrlen);
+    JS_ASSERT(ok && cstrlen == oldcstrlen);
+    return JS_TRUE;
 }
 
 jsdouble
@@ -855,7 +923,7 @@ js_ValueToNumber(JSContext *cx, jsval *vp)
              * passed to js_strtointeger (which would interpret them as
              * octal).
              */
-            JSSTRING_CHARS_AND_END(str, bp, end);
+            str->getCharsAndEnd(bp, end);
             if ((!js_strtod(cx, bp, end, &ep, &d) ||
                  js_SkipWhiteSpace(ep, end) != end) &&
                 (!js_strtointeger(cx, bp, end, &ep, 0, &d) ||
@@ -933,9 +1001,92 @@ js_ValueToECMAInt32(JSContext *cx, jsval *vp)
     return js_DoubleToECMAInt32(d);
 }
 
+/*
+ * From the ES3 spec, 9.5
+ *  2.  If Result(1) is NaN, +0, -0, +Inf, or -Inf, return +0.
+ *  3.  Compute sign(Result(1)) * floor(abs(Result(1))).
+ *  4.  Compute Result(3) modulo 2^32; that is, a finite integer value k of Number
+ *      type with positive sign and less than 2^32 in magnitude such the mathematical
+ *      difference of Result(3) and k is mathematically an integer multiple of 2^32.
+ *  5.  If Result(4) is greater than or equal to 2^31, return Result(4)- 2^32,
+ *  otherwise return Result(4).
+ */
 int32
 js_DoubleToECMAInt32(jsdouble d)
 {
+#ifdef __i386__
+    jsdpun du, duh, two32;
+    uint32 di_h, u_tmp, expon, shift_amount;
+    int32 mask32;
+
+    /*
+     * Algorithm Outline
+     *  Step 1. If d is NaN, +/-Inf or |d|>=2^84 or |d|<1, then return 0
+     *          All of this is implemented based on an exponent comparison.
+     *  Step 2. If |d|<2^31, then return (int)d
+     *          The cast to integer (conversion in RZ mode) returns the correct result.
+     *  Step 3. If |d|>=2^32, d:=fmod(d, 2^32) is taken  -- but without a call
+     *  Step 4. If |d|>=2^31, then the fractional bits are cleared before
+     *          applying the correction by 2^32:  d - sign(d)*2^32
+     *  Step 5. Return (int)d
+     */
+
+    du.d = d;
+    di_h = du.s.hi;
+
+    u_tmp = (di_h & 0x7ff00000) - 0x3ff00000;
+    if (u_tmp >= (0x45300000-0x3ff00000)) {
+        // d is Nan, +/-Inf or +/-0, or |d|>=2^(32+52) or |d|<1, in which case result=0
+        return 0;
+    }
+
+    if (u_tmp < 0x01f00000) {
+        // |d|<2^31
+        return int32_t(d);
+    }
+
+    if (u_tmp > 0x01f00000) {
+        // |d|>=2^32
+        expon = u_tmp >> 20;
+        shift_amount = expon - 21;
+        duh.u64 = du.u64;
+        mask32 = 0x80000000;
+        if (shift_amount < 32) {
+            mask32 >>= shift_amount;
+            duh.s.hi = du.s.hi & mask32;
+            duh.s.lo = 0;
+        } else {
+            mask32 >>= (shift_amount-32);
+            duh.s.hi = du.s.hi;
+            duh.s.lo = du.s.lo & mask32;
+        }
+        du.d -= duh.d;
+    }
+
+    di_h = du.s.hi;
+
+    // eliminate fractional bits
+    u_tmp = (di_h & 0x7ff00000);
+    if (u_tmp >= 0x41e00000) {
+        // |d|>=2^31
+        expon = u_tmp >> 20;
+        shift_amount = expon - (0x3ff - 11);
+        mask32 = 0x80000000;
+        if (shift_amount < 32) {
+            mask32 >>= shift_amount;
+            du.s.hi &= mask32;
+            du.s.lo = 0;
+        } else {
+            mask32 >>= (shift_amount-32);
+            du.s.lo &= mask32;
+        }
+        two32.s.hi = 0x41f00000 ^ (du.s.hi & 0x80000000);
+        two32.s.lo = 0;
+        du.d -= two32.d;
+    }
+
+    return int32(du.d);
+#else
     int32 i;
     jsdouble two32, two31;
 
@@ -951,6 +1102,7 @@ js_DoubleToECMAInt32(jsdouble d)
     d = fmod(d, two32);
     d = (d >= 0) ? floor(d) : ceil(d) + two32;
     return (int32) (d >= two31 ? d - two32 : d);
+#endif
 }
 
 uint32
@@ -1099,7 +1251,7 @@ js_strtod(JSContext *cx, const jschar *s, const jschar *send,
 
     /* Use cbuf to avoid malloc */
     if (length >= sizeof cbuf) {
-        cstr = (char *) JS_malloc(cx, length + 1);
+        cstr = (char *) cx->malloc(length + 1);
         if (!cstr)
            return JS_FALSE;
     } else {
@@ -1140,7 +1292,7 @@ js_strtod(JSContext *cx, const jschar *s, const jschar *send,
 
     i = estr - cstr;
     if (cstr != cbuf)
-        JS_free(cx, cstr);
+        cx->free(cstr);
     *ep = i ? s1 + i : s;
     *dp = d;
     return JS_TRUE;
@@ -1171,7 +1323,8 @@ static intN GetNextBinaryDigit(struct BinaryDigitReader *bdr)
             bdr->digit = c - '0';
         else if ('a' <= c && c <= 'z')
             bdr->digit = c - 'a' + 10;
-        else bdr->digit = c - 'A' + 10;
+        else
+            bdr->digit = c - 'A' + 10;
         bdr->digitMask = bdr->base >> 1;
     }
     bit = (bdr->digit & bdr->digitMask) != 0;
@@ -1252,7 +1405,7 @@ js_strtointeger(JSContext *cx, const jschar *s, const jschar *send,
              */
             size_t i;
             size_t length = s1 - start;
-            char *cstr = (char *) JS_malloc(cx, length + 1);
+            char *cstr = (char *) cx->malloc(length + 1);
             char *estr;
             int err=0;
 
@@ -1265,12 +1418,12 @@ js_strtointeger(JSContext *cx, const jschar *s, const jschar *send,
             value = JS_strtod(cstr, &estr, &err);
             if (err == JS_DTOA_ENOMEM) {
                 JS_ReportOutOfMemory(cx);
-                JS_free(cx, cstr);
+                cx->free(cstr);
                 return JS_FALSE;
             }
             if (err == JS_DTOA_ERANGE && value == HUGE_VAL)
                 value = *cx->runtime->jsPositiveInfinity;
-            JS_free(cx, cstr);
+            cx->free(cstr);
         } else if ((base & (base - 1)) == 0) {
             /*
              * The number may also be inaccurate for power-of-two bases.  This

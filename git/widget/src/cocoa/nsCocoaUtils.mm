@@ -63,14 +63,12 @@ float nsCocoaUtils::MenuBarScreenHeight()
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(0.0);
 }
 
-
 float nsCocoaUtils::FlippedScreenY(float y)
 {
   return MenuBarScreenHeight() - y;
 }
 
-
-NSRect nsCocoaUtils::GeckoRectToCocoaRect(const nsRect &geckoRect)
+NSRect nsCocoaUtils::GeckoRectToCocoaRect(const nsIntRect &geckoRect)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
 
@@ -84,18 +82,18 @@ NSRect nsCocoaUtils::GeckoRectToCocoaRect(const nsRect &geckoRect)
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NSMakeRect(0.0, 0.0, 0.0, 0.0));
 }
 
-
-nsRect nsCocoaUtils::CocoaRectToGeckoRect(const NSRect &cocoaRect)
+nsIntRect nsCocoaUtils::CocoaRectToGeckoRect(const NSRect &cocoaRect)
 {
   // We only need to change the Y coordinate by starting with the primary screen
   // height and subtracting both the cocoa y origin and the height of the
   // cocoa rect.
-  return nsRect((nscoord)cocoaRect.origin.x,
-                (nscoord)(MenuBarScreenHeight() - (cocoaRect.origin.y + cocoaRect.size.height)),
-                (nscoord)cocoaRect.size.width,
-                (nscoord)cocoaRect.size.height);
+  nsIntRect rect;
+  rect.x = NSToIntRound(cocoaRect.origin.x);
+  rect.y = NSToIntRound(FlippedScreenY(cocoaRect.origin.y + cocoaRect.size.height));
+  rect.width = NSToIntRound(cocoaRect.origin.x + cocoaRect.size.width) - rect.x;
+  rect.height = NSToIntRound(FlippedScreenY(cocoaRect.origin.y)) - rect.y;
+  return rect;
 }
-
 
 NSPoint nsCocoaUtils::ScreenLocationForEvent(NSEvent* anEvent)
 {
@@ -106,7 +104,6 @@ NSPoint nsCocoaUtils::ScreenLocationForEvent(NSEvent* anEvent)
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NSMakePoint(0.0, 0.0));
 }
 
-
 BOOL nsCocoaUtils::IsEventOverWindow(NSEvent* anEvent, NSWindow* aWindow)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
@@ -116,7 +113,6 @@ BOOL nsCocoaUtils::IsEventOverWindow(NSEvent* anEvent, NSWindow* aWindow)
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NO);
 }
 
-
 NSPoint nsCocoaUtils::EventLocationForWindow(NSEvent* anEvent, NSWindow* aWindow)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
@@ -125,7 +121,6 @@ NSPoint nsCocoaUtils::EventLocationForWindow(NSEvent* anEvent, NSWindow* aWindow
 
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NSMakePoint(0.0, 0.0));
 }
-
 
 NSWindow* nsCocoaUtils::FindWindowUnderPoint(NSPoint aPoint)
 {
@@ -151,6 +146,36 @@ NSWindow* nsCocoaUtils::FindWindowUnderPoint(NSPoint aPoint)
   return nil;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
+}
+
+void nsCocoaUtils::HideOSChromeOnScreen(PRBool aShouldHide, NSScreen* aScreen)
+{
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
+  // Keep track of how many hiding requests have been made, so that they can
+  // be nested.
+  static int sMenuBarHiddenCount = 0, sDockHiddenCount = 0;
+
+  // Always hide the Dock, since it's not necessarily on the primary screen.
+  sDockHiddenCount += aShouldHide ? 1 : -1;
+  NS_ASSERTION(sMenuBarHiddenCount >= 0, "Unbalanced HideMenuAndDockForWindow calls");
+
+  // Only hide the menu bar if the window is on the same screen.
+  // The menu bar is always on the first screen in the screen list.
+  if (aScreen == [[NSScreen screens] objectAtIndex:0]) {
+    sMenuBarHiddenCount += aShouldHide ? 1 : -1;
+    NS_ASSERTION(sDockHiddenCount >= 0, "Unbalanced HideMenuAndDockForWindow calls");
+  }
+
+  if (sMenuBarHiddenCount > 0) {
+    ::SetSystemUIMode(kUIModeAllHidden, 0);
+  } else if (sDockHiddenCount > 0) {
+    ::SetSystemUIMode(kUIModeContentHidden, 0);
+  } else {
+    ::SetSystemUIMode(kUIModeNormal, 0);
+  }
+
+  NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
 
@@ -185,7 +210,6 @@ nsIWidget* nsCocoaUtils::GetHiddenWindowWidget()
   
   return hiddenWindowWidget;
 }
-
 
 void nsCocoaUtils::PrepareForNativeAppModalDialog()
 {
@@ -222,7 +246,6 @@ void nsCocoaUtils::PrepareForNativeAppModalDialog()
   
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
-
 
 void nsCocoaUtils::CleanUpAfterNativeAppModalDialog()
 {
@@ -294,4 +317,3 @@ NSUInteger nsCocoaUtils::GetCocoaEventModifierFlags(NSEvent *theEvent)
   }
   return modifierFlags;
 }
-

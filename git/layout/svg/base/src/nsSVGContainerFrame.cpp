@@ -38,16 +38,17 @@
 #include "nsSVGUtils.h"
 #include "nsSVGOuterSVGFrame.h"
 
-//----------------------------------------------------------------------
-// nsISupports methods
+NS_QUERYFRAME_HEAD(nsSVGContainerFrame)
+  NS_QUERYFRAME_ENTRY(nsSVGContainerFrame)
+NS_QUERYFRAME_TAIL_INHERITING(nsSVGContainerFrameBase)
 
-NS_INTERFACE_MAP_BEGIN(nsSVGDisplayContainerFrame)
-  NS_INTERFACE_MAP_ENTRY(nsISVGChildFrame)
-NS_INTERFACE_MAP_END_INHERITING(nsSVGContainerFrame)
+NS_QUERYFRAME_HEAD(nsSVGDisplayContainerFrame)
+  NS_QUERYFRAME_ENTRY(nsSVGDisplayContainerFrame)
+  NS_QUERYFRAME_ENTRY(nsISVGChildFrame)
+NS_QUERYFRAME_TAIL_INHERITING(nsSVGContainerFrame)
 
 nsIFrame*
 NS_NewSVGContainerFrame(nsIPresShell* aPresShell,
-                        nsIContent* aContent,
                         nsStyleContext* aContext)
 {
   return new (aPresShell) nsSVGContainerFrame(aContext);
@@ -55,7 +56,7 @@ NS_NewSVGContainerFrame(nsIPresShell* aPresShell,
 
 NS_IMETHODIMP
 nsSVGContainerFrame::AppendFrames(nsIAtom* aListName,
-                                  nsIFrame* aFrameList)
+                                  nsFrameList& aFrameList)
 {
   return InsertFrames(aListName, mFrames.LastChild(), aFrameList);  
 }
@@ -63,7 +64,7 @@ nsSVGContainerFrame::AppendFrames(nsIAtom* aListName,
 NS_IMETHODIMP
 nsSVGContainerFrame::InsertFrames(nsIAtom* aListName,
                                   nsIFrame* aPrevFrame,
-                                  nsIFrame* aFrameList)
+                                  nsFrameList& aFrameList)
 {
   NS_ASSERTION(!aListName, "unexpected child list");
   NS_ASSERTION(!aPrevFrame || aPrevFrame->GetParent() == this,
@@ -109,14 +110,14 @@ nsSVGDisplayContainerFrame::Init(nsIContent* aContent,
 NS_IMETHODIMP
 nsSVGDisplayContainerFrame::InsertFrames(nsIAtom* aListName,
                                          nsIFrame* aPrevFrame,
-                                         nsIFrame* aFrameList)
+                                         nsFrameList& aFrameList)
 {
-  // memorize last new frame
-  nsIFrame* lastNewFrame = nsnull;
-  {
-    nsFrameList tmpList(aFrameList);
-    lastNewFrame = tmpList.LastChild();
-  }
+  // memorize first old frame after insertion point
+  // XXXbz once again, this would work a lot better if the nsIFrame
+  // methods returned framelist iterators....
+  nsIFrame* firstOldFrame = aPrevFrame ?
+    aPrevFrame->GetNextSibling() : GetChildList(aListName).FirstChild();
+  nsIFrame* firstNewFrame = aFrameList.FirstChild();
   
   // Insert the new frames
   nsSVGContainerFrame::InsertFrames(aListName, aPrevFrame, aFrameList);
@@ -124,14 +125,9 @@ nsSVGDisplayContainerFrame::InsertFrames(nsIAtom* aListName,
   // Call InitialUpdate on the new frames ONLY if our nsSVGOuterSVGFrame has had
   // its initial reflow (our NS_FRAME_FIRST_REFLOW bit is clear) - bug 399863.
   if (!(GetStateBits() & NS_FRAME_FIRST_REFLOW)) {
-    nsIFrame* end = nsnull;
-    if (lastNewFrame)
-      end = lastNewFrame->GetNextSibling();
-
-    for (nsIFrame* kid = aFrameList; kid != end;
+    for (nsIFrame* kid = firstNewFrame; kid != firstOldFrame;
          kid = kid->GetNextSibling()) {
-      nsISVGChildFrame* SVGFrame = nsnull;
-      CallQueryInterface(kid, &SVGFrame);
+      nsISVGChildFrame* SVGFrame = do_QueryFrame(kid);
       if (SVGFrame) {
         SVGFrame->InitialUpdate(); 
       }
@@ -145,12 +141,7 @@ NS_IMETHODIMP
 nsSVGDisplayContainerFrame::RemoveFrame(nsIAtom* aListName,
                                         nsIFrame* aOldFrame)
 {
-  if (!(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)) {
-    nsSVGOuterSVGFrame* outerSVGFrame = nsSVGUtils::GetOuterSVGFrame(this);
-    NS_ASSERTION(outerSVGFrame, "no outer svg frame");
-    if (outerSVGFrame)
-      outerSVGFrame->InvalidateCoveredRegion(aOldFrame);
-  }
+  nsSVGUtils::InvalidateCoveredRegion(aOldFrame);
 
   nsresult rv = nsSVGContainerFrame::RemoveFrame(aListName, aOldFrame);
 
@@ -197,8 +188,7 @@ nsSVGDisplayContainerFrame::UpdateCoveredRegion()
 {
   for (nsIFrame* kid = mFrames.FirstChild(); kid;
        kid = kid->GetNextSibling()) {
-    nsISVGChildFrame* SVGFrame = nsnull;
-    CallQueryInterface(kid, &SVGFrame);
+    nsISVGChildFrame* SVGFrame = do_QueryFrame(kid);
     if (SVGFrame) {
       SVGFrame->UpdateCoveredRegion();
     }
@@ -215,8 +205,7 @@ nsSVGDisplayContainerFrame::InitialUpdate()
 
   for (nsIFrame* kid = mFrames.FirstChild(); kid;
        kid = kid->GetNextSibling()) {
-    nsISVGChildFrame* SVGFrame = nsnull;
-    CallQueryInterface(kid, &SVGFrame);
+    nsISVGChildFrame* SVGFrame = do_QueryFrame(kid);
     if (SVGFrame) {
       SVGFrame->InitialUpdate();
     }
@@ -246,8 +235,7 @@ nsSVGDisplayContainerFrame::NotifyRedrawSuspended()
 {
   for (nsIFrame* kid = mFrames.FirstChild(); kid;
        kid = kid->GetNextSibling()) {
-    nsISVGChildFrame* SVGFrame=nsnull;
-    CallQueryInterface(kid, &SVGFrame);
+    nsISVGChildFrame* SVGFrame = do_QueryFrame(kid);
     if (SVGFrame) {
       SVGFrame->NotifyRedrawSuspended();
     }
@@ -260,8 +248,7 @@ nsSVGDisplayContainerFrame::NotifyRedrawUnsuspended()
 {
   for (nsIFrame* kid = mFrames.FirstChild(); kid;
        kid = kid->GetNextSibling()) {
-    nsISVGChildFrame* SVGFrame = nsnull;
-    CallQueryInterface(kid, &SVGFrame);
+    nsISVGChildFrame* SVGFrame = do_QueryFrame(kid);
     if (SVGFrame) {
       SVGFrame->NotifyRedrawUnsuspended();
     }
@@ -269,10 +256,30 @@ nsSVGDisplayContainerFrame::NotifyRedrawUnsuspended()
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsSVGDisplayContainerFrame::GetBBox(nsIDOMSVGRect **_retval)
+gfxRect
+nsSVGDisplayContainerFrame::GetBBoxContribution(const gfxMatrix &aToBBoxUserspace)
 {
-  return nsSVGUtils::GetBBox(&mFrames, _retval);
+  gfxRect bboxUnion(0.0, 0.0, 0.0, 0.0);
+
+  nsIFrame* kid = mFrames.FirstChild();
+  while (kid) {
+    nsISVGChildFrame* svgKid = do_QueryFrame(kid);
+    if (svgKid) {
+      gfxMatrix transform = aToBBoxUserspace;
+      // nsSVGGlyphFrame's mContent is a nsTextNode!
+      if (kid->GetType() != nsGkAtoms::svgGlyphFrame) {
+        nsIContent *content = kid->GetContent();
+        if (content->IsNodeOfType(nsINode::eSVG)) {
+          transform = static_cast<nsSVGElement*>(content)->
+                        PrependLocalTransformTo(aToBBoxUserspace);
+        }
+      }
+      bboxUnion = bboxUnion.Union(svgKid->GetBBoxContribution(transform));
+    }
+    kid = kid->GetNextSibling();
+  }
+
+  return bboxUnion;
 }
 
 NS_IMETHODIMP

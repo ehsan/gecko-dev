@@ -54,6 +54,7 @@
 #include "nsIDOMRange.h"
 #include "nsIDOMViewCSS.h"
 #include "nsIDOMWindowInternal.h"
+#include "nsIDOMXULElement.h"
 #include "nsIDocShell.h"
 #include "nsIDocumentViewer.h"
 #include "nsIContentViewer.h"
@@ -77,8 +78,8 @@ PRBool
 nsCoreUtils::HasListener(nsIContent *aContent, const nsAString& aEventType)
 {
   NS_ENSURE_TRUE(aContent, PR_FALSE);
-  nsCOMPtr<nsIEventListenerManager> listenerManager;
-  aContent->GetListenerManager(PR_FALSE, getter_AddRefs(listenerManager));
+  nsIEventListenerManager* listenerManager =
+    aContent->GetListenerManager(PR_FALSE);
 
   return listenerManager && listenerManager->HasListenersFor(aEventType);  
 }
@@ -190,6 +191,31 @@ nsCoreUtils::GetDOMElementFor(nsIDOMNode *aNode)
   }
 
   return element;
+}
+
+already_AddRefed<nsIDOMNode>
+nsCoreUtils::GetDOMNodeFromDOMPoint(nsIDOMNode *aNode, PRUint32 aOffset)
+{
+  nsIDOMNode *resultNode = nsnull;
+
+  nsCOMPtr<nsIContent> content(do_QueryInterface(aNode));
+  if (content && content->IsNodeOfType(nsINode::eELEMENT)) {
+
+    PRUint32 childCount = content->GetChildCount();
+    NS_ASSERTION(aOffset >= 0 && aOffset <= childCount,
+                 "Wrong offset of the DOM point!");
+
+    // The offset can be after last child of container node that means DOM point
+    // is placed immediately after the last child. In this case use the DOM node
+    // from the given DOM point is used as result node.
+    if (aOffset != childCount) {
+      CallQueryInterface(content->GetChildAt(aOffset), &resultNode);
+      return resultNode;
+    }
+  }
+
+  NS_IF_ADDREF(resultNode = aNode);
+  return resultNode;
 }
 
 nsIContent*
@@ -306,8 +332,7 @@ nsCoreUtils::ScrollFrameToPoint(nsIFrame *aScrollableFrame,
                                 nsIFrame *aFrame,
                                 const nsIntPoint& aPoint)
 {
-  nsIScrollableFrame *scrollableFrame = nsnull;
-  CallQueryInterface(aScrollableFrame, &scrollableFrame);
+  nsIScrollableFrame *scrollableFrame = do_QueryFrame(aScrollableFrame);
   if (!scrollableFrame)
     return;
 
@@ -719,6 +744,117 @@ nsCoreUtils::GetLanguageFor(nsIContent *aContent, nsIContent *aRootContent,
 }
 
 void
+nsCoreUtils::GetElementsByIDRefsAttr(nsIContent *aContent, nsIAtom *aAttr,
+                                     nsIArray **aRefElements)
+{
+  *aRefElements = nsnull;
+
+  nsAutoString ids;
+  if (!aContent->GetAttr(kNameSpaceID_None, aAttr, ids))
+    return;
+
+  ids.CompressWhitespace(PR_TRUE, PR_TRUE);
+
+  nsCOMPtr<nsIDOMDocument> document = do_QueryInterface(aContent->GetOwnerDoc());
+  NS_ASSERTION(document, "The given node is not in document!");
+  if (!document)
+    return;
+
+  nsCOMPtr<nsIDOMDocumentXBL> xblDocument;
+  if (aContent->IsInAnonymousSubtree())
+    xblDocument = do_QueryInterface(document);
+
+  nsCOMPtr<nsIMutableArray> refElms = do_CreateInstance(NS_ARRAY_CONTRACTID);
+
+  while (!ids.IsEmpty()) {
+    nsAutoString id;
+    PRInt32 idLength = ids.FindChar(' ');
+    NS_ASSERTION(idLength != 0,
+                 "Should not be 0 because of CompressWhitespace() call above");
+
+    if (idLength == kNotFound) {
+      id = ids;
+      ids.Truncate();
+    } else {
+      id = Substring(ids, 0, idLength);
+      ids.Cut(0, idLength + 1);
+    }
+
+    // If content is anonymous subtree then use "anonid" attribute to get
+    // elements, otherwise search elements in DOM by ID attribute.
+    nsCOMPtr<nsIDOMElement> refElement;
+    if (xblDocument) {
+      nsCOMPtr<nsIDOMElement> elm =
+        do_QueryInterface(aContent->GetBindingParent());
+      xblDocument->GetAnonymousElementByAttribute(elm,
+                                                  NS_LITERAL_STRING("anonid"),
+                                                  id,
+                                                  getter_AddRefs(refElement));
+    } else {
+      document->GetElementById(id, getter_AddRefs(refElement));
+    }
+
+    if (!refElement)
+      continue;
+
+    refElms->AppendElement(refElement, PR_FALSE);
+  }
+
+  NS_ADDREF(*aRefElements = refElms);
+  return;
+}
+
+void
+nsCoreUtils::GetElementsHavingIDRefsAttr(nsIContent *aRootContent,
+                                         nsIContent *aContent,
+                                         nsIAtom *aIDRefsAttr,
+                                         nsIArray **aElements)
+{
+  *aElements = nsnull;
+
+  nsAutoString id;
+  if (!GetID(aContent, id))
+    return;
+
+  nsCAutoString idWithSpaces(' ');
+  LossyAppendUTF16toASCII(id, idWithSpaces);
+  idWithSpaces += ' ';
+
+  nsCOMPtr<nsIMutableArray> elms = do_CreateInstance(NS_ARRAY_CONTRACTID);
+  if (!elms)
+    return;
+
+  GetElementsHavingIDRefsAttrImpl(aRootContent, idWithSpaces, aIDRefsAttr,
+                                  elms);
+  NS_ADDREF(*aElements = elms);
+}
+
+void
+nsCoreUtils::GetElementsHavingIDRefsAttrImpl(nsIContent *aRootContent,
+                                             nsCString& aIdWithSpaces,
+                                             nsIAtom *aIDRefsAttr,
+                                             nsIMutableArray *aElements)
+{
+  PRUint32 childCount = aRootContent->GetChildCount();
+  for (PRUint32 index = 0; index < childCount; index++) {
+    nsIContent* child = aRootContent->GetChildAt(index);
+    nsAutoString idList;
+    if (child->GetAttr(kNameSpaceID_None, aIDRefsAttr, idList)) {
+      idList.Insert(' ', 0);  // Surround idlist with spaces for search
+      idList.Append(' ');
+      // idList is now a set of id's with spaces around each, and id also has
+      // spaces around it. If id is a substring of idList then we have a match.
+      if (idList.Find(aIdWithSpaces) != -1) {
+        aElements->AppendElement(child, PR_FALSE);
+        continue; // Do not search inside children.
+      }
+    }
+    GetElementsHavingIDRefsAttrImpl(child, aIdWithSpaces,
+                                    aIDRefsAttr, aElements);
+  }
+}
+
+void
 nsCoreUtils::GetComputedStyleDeclaration(const nsAString& aPseudoElt,
                                          nsIDOMNode *aNode,
                                          nsIDOMCSSStyleDeclaration **aCssDecl)
@@ -740,4 +876,18 @@ nsCoreUtils::GetComputedStyleDeclaration(const nsAString& aPseudoElt,
     return;
 
   viewCSS->GetComputedStyle(domElement, aPseudoElt, aCssDecl);
+}
+
+already_AddRefed<nsIBoxObject>
+nsCoreUtils::GetTreeBodyBoxObject(nsITreeBoxObject *aTreeBoxObj)
+{
+  nsCOMPtr<nsIDOMElement> tcElm;
+  aTreeBoxObj->GetTreeBody(getter_AddRefs(tcElm));
+  nsCOMPtr<nsIDOMXULElement> tcXULElm(do_QueryInterface(tcElm));
+  if (!tcXULElm)
+    return nsnull;
+
+  nsIBoxObject *boxObj = nsnull;
+  tcXULElm->GetBoxObject(&boxObj);
+  return boxObj;
 }

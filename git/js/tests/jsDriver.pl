@@ -43,7 +43,6 @@
 # Branched 11/01/99
 
 use strict;
-use Getopt::Mixed "nextOption";
 use File::Temp qw/ tempfile tempdir /;
 use POSIX qw(sys_wait_h);
 
@@ -84,8 +83,10 @@ my $options = "b=s bugurl>b c=s classpath>c e=s engine>e f=s file>f " .
   "h help>h i j=s javapath>j k confail>k K linefail>K R report>R l=s list>l " .
   "L=s neglist>L o=s opt>o p=s testpath>p s=s shellpath>s t trace>t " .
   "T=s timeout>T u=s lxrurl>u " .
-  "x noexitmunge>x n:s narcissus>n " .
+  "x noexitmunge>x n=s narcissus>n " .
   "Q noquitinthandler>Q";
+
+my $last_option;
 
 if ($os_type eq "MAC") {
     $opt_suite_path = `directory`;
@@ -502,15 +503,47 @@ sub write_results {
 
 }
 
+sub next_option {
+    my ($key, $val, $implied);
+
+    return if @ARGV == 0;
+
+    &dd ("ARGV is now: @ARGV\n");
+
+    $key = shift @ARGV;
+    if ($key =~ s/^--?(.*)/$1/) {
+        $implied = 0;
+    } else {
+        $implied = 1;
+        $val = $key;
+        $key = $last_option;
+    }
+
+    if ($key =~ /\w+/ and $options =~ /\b$key>(\w+)/) {
+        $key = $1;
+    }
+
+    if ($options =~ /\b$key=s\b/) {
+        if (!$implied) {
+            die "option '$key' requires an argument" if @ARGV == 0;
+            $val = shift @ARGV;
+        }
+    } elsif ($options =~ /(^|\s)$key(\s|$)/) {
+        die "option '$key' doesn't take an argument" if $implied;
+        $val = 1;
+    } else {
+        die "can't figure out option '$key'";
+    }
+    $last_option = $key;
+    return ($key, $val);
+}
+
 sub parse_args {
     my ($option, $value, $lastopt);
 
     &dd ("checking command line options.");
 
-    Getopt::Mixed::init ($options);
-    $Getopt::Mixed::order = $Getopt::Mixed::RETURN_IN_ORDER;
-
-    while (($option, $value) = nextOption()) {
+    while (($option, $value) = next_option()) {
 
         if ($option eq "b") {
             &dd ("opt: setting bugurl to '$value'.");
@@ -625,8 +658,6 @@ sub parse_args {
 
     }
 
-    Getopt::Mixed::cleanup();
-
     if ($#opt_engine_list == -1) {
         die "You must select a shell to test in.\n";
     }
@@ -644,7 +675,7 @@ sub usage {
        "(-c|--classpath)          Classpath (Rhino only.)\n" .
        "(-e|--engine) <type> ...  Specify the type of engine(s) to test.\n" .
        "                          <type> is one or more of\n" .
-       "                          (smopt|smdebug|lcopt|lcdebug|xpcshell|" .
+       "                          (smopt|smdebug|xpcshell|" .
        "rhino|rhinoi|rhinoms|rhinomsi|rhino9|rhinoms9).\n" .
        "(-f|--file) <file>        Redirect output to file named <file>.\n" .
        "                          (default is " .
@@ -718,9 +749,6 @@ sub get_engine_command {
     } elsif ($opt_engine_type eq "xpcshell") {
         &dd ("getting xpcshell engine command.");
         $retval = &get_xpc_engine_command;
-    } elsif ($opt_engine_type =~ /^lc(opt|debug)$/) {
-        &dd ("getting liveconnect engine command.");
-        $retval = &get_lc_engine_command;  
     } elsif ($opt_engine_type =~ /^sm(opt|debug)$/) {
         &dd ("getting spidermonkey engine command.");
         $retval = &get_sm_engine_command;
@@ -969,63 +997,6 @@ sub get_ep_engine_command {
     }
 
     return $retval;
-}
-
-#
-# get the shell command used to run the liveconnect shell
-#
-sub get_lc_engine_command {
-    my $retval;
-
-    if ($opt_shell_path) {
-        $retval = $opt_shell_path;
-    } else {
-        if ($os_type eq "MAC") {
-            die "Don't know how to run the lc shell on the mac yet.\n";
-        } else {
-            $retval = $opt_suite_path . "../src/liveconnect/";
-            opendir (SRC_DIR_FILES, $retval);
-            my @src_dir_files = readdir(SRC_DIR_FILES);
-            closedir (SRC_DIR_FILES);
-
-            my ($dir, $object_dir);
-            my $pattern = ($opt_engine_type eq "lcdebug") ?
-              'DBG.OBJ' : 'OPT.OBJ';
-
-            foreach $dir (@src_dir_files) {
-                if ($dir =~ $pattern) {
-                    $object_dir = $dir;
-                    last;
-                }
-            }
-
-            if (!$object_dir) {
-                die ("Could not locate an object directory in $retval " .
-                     "matching the pattern *$pattern.  Have you built the " .
-                     "engine?\n");
-            }
-
-            $retval .= $object_dir . "/";
-
-            if ($os_type eq "WIN") {
-                $retval .= "lcshell.exe";
-            } else {
-                $retval .= "lcshell";
-            }
-        } # mac/ not mac
-
-        $retval = &xp_path($retval);
-
-    } # (user provided a path)
-
-
-    if (($os_type ne "MAC") && !(-x $retval)) {
-        # mac doesn't seem to deal with -x correctly
-        die ("$retval is not a valid executable on this system.\n");
-    }
-
-    return $retval;
-
 }
 
 sub get_os_type {

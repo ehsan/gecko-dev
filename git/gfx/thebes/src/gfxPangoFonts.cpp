@@ -49,6 +49,7 @@
 #include "gfxTypes.h"
 
 #include "nsMathUtils.h"
+#include "nsTArray.h"
 #include "nsServiceManagerUtils.h"
 #include "nsILanguageAtomService.h"
 
@@ -56,6 +57,7 @@
 #include "gfxPlatformGtk.h"
 #include "gfxPangoFonts.h"
 #include "gfxFontconfigUtils.h"
+#include "gfxUserFontSet.h"
 
 #include <freetype/tttables.h>
 
@@ -66,7 +68,9 @@
 #include <pango/pango.h>
 #include <pango/pangofc-fontmap.h>
 
-#include <gdk/gdkscreen.h>
+#ifdef MOZ_WIDGET_GTK2
+#include <gdk/gdk.h>
+#endif
 
 #include <math.h>
 
@@ -96,22 +100,412 @@ static cairo_scaled_font_t *CreateScaledFont(FcPattern *aPattern);
 
 static PangoFontMap *gPangoFontMap;
 static PangoFontMap *GetPangoFontMap();
+static PRBool gUseFontMapProperty;
 
+static FT_Library gFTLibrary;
 static nsILanguageAtomService* gLangService;
 
 NS_SPECIALIZE_TEMPLATE
 class nsAutoRefTraits<PangoFont> : public gfxGObjectRefTraits<PangoFont> { };
 
-// stub class until fuller implementation is flushed out
-class gfxPangoFontEntry : public gfxFontEntry {
+NS_SPECIALIZE_TEMPLATE
+class nsAutoRefTraits<PangoCoverage>
+    : public nsPointerRefTraits<PangoCoverage> {
 public:
-    gfxPangoFontEntry(const nsAString& aName)
-        : gfxFontEntry(aName)
-    { }
-
-    ~gfxPangoFontEntry() {}
-        
+    static void Release(PangoCoverage *aPtr) { pango_coverage_unref(aPtr); }
+    static void AddRef(PangoCoverage *aPtr) { pango_coverage_ref(aPtr); }
 };
+
+
+// FC_FAMILYLANG and FC_FULLNAME were introduced in fontconfig-2.2.97
+// and so fontconfig-2.3.0 (2005).
+#ifndef FC_FAMILYLANG
+#define FC_FAMILYLANG "familylang"
+#endif
+#ifndef FC_FULLNAME
+#define FC_FULLNAME "fullname"
+#endif
+
+// Rounding and truncation functions for a FreeType fixed point number 
+// (FT26Dot6) stored in a 32bit integer with high 26 bits for the integer
+// part and low 6 bits for the fractional part. 
+#define FLOAT_FROM_26_6(x) ((x) / 64.0)
+#define FLOAT_FROM_16_16(x) ((x) / 65536.0)
+#define ROUND_26_6_TO_INT(x) ((x) >= 0 ?  ((32 + (x)) >> 6) \
+                                       : -((32 - (x)) >> 6))
+// aScale is intended for a 16.16 x/y_scale of an FT_Size_Metrics
+static inline FT_Long
+ScaleRoundDesignUnits(FT_Short aDesignMetric, FT_Fixed aScale)
+{
+    FT_Long fixed26dot6 = FT_MulFix(aDesignMetric, aScale);
+    return ROUND_26_6_TO_INT(fixed26dot6);
+}
+
+static PRFuncPtr
+FindFunctionSymbol(const char *name)
+{
+    PRLibrary *lib = nsnull;
+    PRFuncPtr result = PR_FindFunctionSymbolAndLibrary(name, &lib);
+    if (lib) {
+        PR_UnloadLibrary(lib);
+    }
+
+    return result;
+}
+
+// A namespace for @font-face family names in FcPatterns so that fontconfig
+// aliases do not pick up families from @font-face rules and so that
+// fontconfig rules can distinguish between web fonts and platform fonts.
+// http://lists.freedesktop.org/archives/fontconfig/2008-November/003037.html
+#define FONT_FACE_FAMILY_PREFIX "@font-face:"
+
+/**
+ * gfxFcFontEntry:
+ *
+ * An abstract class for objects in a gfxUserFontSet that can provide
+ * FcPattern* handles to fonts.
+ *
+ * Separate implementations of this class support local fonts from src:local()
+ * and web fonts from src:url().
+ */
+
+// There is a one-to-one correspondence between gfxFcFontEntry objects and
+// @font-face rules, but sometimes a one-to-many correspondence between font
+// entries and font patterns.
+//
+// http://www.w3.org/TR/2002/WD-css3-webfonts-20020802#font-descriptions
+// provided a font-size descriptor to specify the sizes supported by the face,
+// but the "Editor's Draft 27 June 2008"
+// http://dev.w3.org/csswg/css3-fonts/#font-resources does not provide such a
+// descriptor, and Mozilla does not recognize such a descriptor.
+//
+// Font face names used in src:local() also do not usually specify a size.
+//
+// PCF format fonts have each size in a different file, and each of these
+// files is referenced by its own pattern, but really these are each
+// different sizes of one face with one name.
+//
+// Multiple patterns in an entry also effectively deals with a set of
+// PostScript Type 1 font files that all have the same face name but are in
+// several files because of the limit on the number of glyphs in a Type 1 font
+// file.  (e.g. Computer Modern.)
+
+class gfxFcFontEntry : public gfxFontEntry {
+public:
+    const nsTArray< nsCountedRef<FcPattern> >& GetPatterns()
+    {
+        return mPatterns;
+    }
+
+protected:
+    gfxFcFontEntry(const gfxProxyFontEntry &aProxyEntry)
+        // store the family name
+        : gfxFontEntry(aProxyEntry.mFamily->Name())
+    {
+        mItalic = aProxyEntry.mItalic;
+        mWeight = aProxyEntry.mWeight;
+        mStretch = aProxyEntry.mStretch;
+        mIsUserFont = PR_TRUE;
+    }
+
+    // Helper function to change a pattern so that it matches the CSS style
+    // descriptors and so gets properly sorted in font selection.  This also
+    // avoids synthetic style effects being added by the renderer when the
+    // style of the font itself does not match the descriptor provided by the
+    // author.
+    void AdjustPatternToCSS(FcPattern *aPattern);
+
+    nsAutoTArray<nsCountedRef<FcPattern>,1> mPatterns;
+};
+
+void
+gfxFcFontEntry::AdjustPatternToCSS(FcPattern *aPattern)
+{
+    int fontWeight = -1;
+    FcPatternGetInteger(aPattern, FC_WEIGHT, 0, &fontWeight);
+    int cssWeight = gfxFontconfigUtils::FcWeightForBaseWeight(mWeight / 100);
+    if (cssWeight != fontWeight) {
+        FcPatternDel(aPattern, FC_WEIGHT);
+        FcPatternAddInteger(aPattern, FC_WEIGHT, cssWeight);
+    }
+
+    int fontSlant;
+    FcResult res = FcPatternGetInteger(aPattern, FC_SLANT, 0, &fontSlant);
+    // gfxFontEntry doesn't understand the difference between oblique
+    // and italic.
+    if (res != FcResultMatch ||
+        IsItalic() != (fontSlant != FC_SLANT_ROMAN)) {
+        FcPatternDel(aPattern, FC_SLANT);
+        FcPatternAddInteger(aPattern, FC_SLANT,
+                            IsItalic() ? FC_SLANT_OBLIQUE : FC_SLANT_ROMAN);
+    }
+
+    // Ensure that there is a fullname property (if there is a family
+    // property) so that fontconfig rules can identify the real name of the
+    // font, because the family property will be replaced.
+    FcChar8 *unused;
+    if (FcPatternGetString(aPattern,
+                           FC_FULLNAME, 0, &unused) == FcResultNoMatch) {
+        nsCAutoString fullname;
+        if (gfxFontconfigUtils::GetFullnameFromFamilyAndStyle(aPattern,
+                                                              &fullname)) {
+            FcPatternAddString(aPattern, FC_FULLNAME,
+                               gfxFontconfigUtils::ToFcChar8(fullname));
+        }
+    }
+
+    nsCAutoString family;
+    family.Append(FONT_FACE_FAMILY_PREFIX);
+    AppendUTF16toUTF8(Name(), family);
+
+    FcPatternDel(aPattern, FC_FAMILY);
+    FcPatternDel(aPattern, FC_FAMILYLANG);
+    FcPatternAddString(aPattern, FC_FAMILY,
+                       gfxFontconfigUtils::ToFcChar8(family));
+}
+
+/**
+ * gfxLocalFcFontEntry:
+ *
+ * An implementation of gfxFcFontEntry for local fonts from src:local().
+ */
+
+class gfxLocalFcFontEntry : public gfxFcFontEntry {
+public:
+    gfxLocalFcFontEntry(const gfxProxyFontEntry &aProxyEntry,
+                        const nsTArray< nsCountedRef<FcPattern> >& aPatterns)
+        : gfxFcFontEntry(aProxyEntry)
+    {
+        if (!mPatterns.SetCapacity(aPatterns.Length()))
+            return; // OOM
+
+        for (PRUint32 i = 0; i < aPatterns.Length(); ++i) {
+            FcPattern *pattern = FcPatternDuplicate(aPatterns.ElementAt(i));
+            if (!pattern)
+                return; // OOM
+
+            AdjustPatternToCSS(pattern);
+
+            mPatterns.AppendElement();
+            mPatterns[i].own(pattern);
+        }
+    }
+};
+
+/**
+ * gfxDownloadedFcFontEntry:
+ *
+ * An implementation of gfxFcFontEntry for web fonts from src:url().
+ */
+
+class gfxDownloadedFcFontEntry : public gfxFcFontEntry {
+public:
+    // This takes ownership of the face.
+    gfxDownloadedFcFontEntry(const gfxProxyFontEntry &aProxyEntry,
+                             nsISupports *aLoader, FT_Face aFace)
+        : gfxFcFontEntry(aProxyEntry), mLoader(aLoader), mFace(aFace)
+    {
+        NS_PRECONDITION(aFace != NULL, "aFace is NULL!");
+        InitPattern();
+    }
+
+    virtual ~gfxDownloadedFcFontEntry();
+
+    // Returns a PangoCoverage owned by the FontEntry.  The caller must add a
+    // reference if it wishes to keep the PangoCoverage longer than the
+    // lifetime of the FontEntry.
+    PangoCoverage *GetPangoCoverage();
+
+protected:
+    virtual void InitPattern();
+
+    // mLoader holds a reference to memory used by mFace.
+    nsCOMPtr<nsISupports> mLoader;
+    FT_Face mFace;
+    // mPangoCoverage is the charset property of the pattern translated to a
+    // format that Pango understands.  A reference is kept here so that it can
+    // be shared by multiple PangoFonts (of different sizes).
+    nsAutoRef<PangoCoverage> mPangoCoverage;
+};
+
+// A property for recording gfxDownloadedFcFontEntrys on FcPatterns.
+static const char *kFontEntryFcProp = "-moz-font-entry";
+
+static FcBool AddDownloadedFontEntry(FcPattern *aPattern,
+                                     gfxDownloadedFcFontEntry *aFontEntry)
+{
+    FcValue value;
+    value.type = FcTypeFTFace; // void* field of union
+    value.u.f = aFontEntry;
+
+    return FcPatternAdd(aPattern, kFontEntryFcProp, value, FcFalse);
+}
+
+static FcBool DelDownloadedFontEntry(FcPattern *aPattern)
+{
+    return FcPatternDel(aPattern, kFontEntryFcProp);
+}
+
+static gfxDownloadedFcFontEntry *GetDownloadedFontEntry(FcPattern *aPattern)
+{
+    FcValue value;
+    if (FcPatternGet(aPattern, kFontEntryFcProp, 0, &value) != FcResultMatch)
+        return nsnull;
+
+    if (value.type != FcTypeFTFace) {
+        NS_NOTREACHED("Wrong type for -moz-font-entry font property");
+        return nsnull;
+    }
+
+    return static_cast<gfxDownloadedFcFontEntry*>(value.u.f);
+}
+
+gfxDownloadedFcFontEntry::~gfxDownloadedFcFontEntry()
+{
+    if (mPatterns.Length() != 0) {
+        // Remove back reference to this font entry and the face in case
+        // anyone holds a reference to the pattern.
+        NS_ASSERTION(mPatterns.Length() == 1,
+                     "More than one pattern in gfxDownloadedFcFontEntry!");
+        DelDownloadedFontEntry(mPatterns[0]);
+        FcPatternDel(mPatterns[0], FC_FT_FACE);
+    }
+    FT_Done_Face(mFace);
+}
+
+typedef FcPattern* (*QueryFaceFunction)(const FT_Face face,
+                                        const FcChar8 *file, int id,
+                                        FcBlanks *blanks);
+
+void
+gfxDownloadedFcFontEntry::InitPattern()
+{
+    static QueryFaceFunction sQueryFacePtr =
+        reinterpret_cast<QueryFaceFunction>
+        (FindFunctionSymbol("FcFreeTypeQueryFace"));
+    FcPattern *pattern;
+
+    // FcFreeTypeQueryFace is the same function used to construct patterns for
+    // system fonts and so is the preferred function to use for this purpose.
+    // This will set up the langset property, which helps with sorting, and
+    // the foundry, fullname, and fontversion properties, which properly
+    // identify the font to fontconfig rules.  However, FcFreeTypeQueryFace is
+    // available only from fontconfig-2.4.2 (December 2006).  (CentOS 5.0 has
+    // fontconfig-2.4.1.)
+    if (sQueryFacePtr) {
+        // The "file" argument cannot be NULL (in fontconfig-2.6.0 at least).
+        // The dummy file passed here is removed below.
+        //
+        // When fontconfig scans the system fonts, FcConfigGetBlanks(NULL) is
+        // passed as the "blanks" argument, which provides that unexpectedly
+        // blank glyphs are elided.  Here, however, we pass NULL for "blanks",
+        // effectively assuming that, if the font has a blank glyph, then the
+        // author intends any associated character to be rendered blank.
+        pattern =
+            (*sQueryFacePtr)(mFace, gfxFontconfigUtils::ToFcChar8(""), 0, NULL);
+        if (!pattern)
+            // Either OOM, or fontconfig chose to skip this font because it
+            // has "no encoded characters", which I think means "BDF and PCF
+            // fonts which are not in Unicode (or the effectively equivalent
+            // ISO Latin-1) encoding".
+            return;
+
+        // These properties don't make sense for this face without a file.
+        FcPatternDel(pattern, FC_FILE);
+        FcPatternDel(pattern, FC_INDEX);
+
+    } else {
+        // Do the minimum necessary to construct a pattern for sorting.
+
+        // FC_CHARSET is vital to determine which characters are supported.
+        nsAutoRef<FcCharSet> charset(FcFreeTypeCharSet(mFace, NULL));
+        // If there are no characters then assume we don't know how to read
+        // this font.
+        if (!charset || FcCharSetCount(charset) == 0)
+            return;
+
+        pattern = FcPatternCreate();
+        FcPatternAddCharSet(pattern, FC_CHARSET, charset);
+
+        // FC_PIXEL_SIZE can be important for font selection of fixed-size
+        // fonts.
+        if (!(mFace->face_flags & FT_FACE_FLAG_SCALABLE)) {
+            for (FT_Int i = 0; i < mFace->num_fixed_sizes; ++i) {
+#if HAVE_FT_BITMAP_SIZE_Y_PPEM
+                double size = FLOAT_FROM_26_6(mFace->available_sizes[i].y_ppem);
+#else
+                double size = mFace->available_sizes[i].height;
+#endif
+                FcPatternAddDouble (pattern, FC_PIXEL_SIZE, size);
+            }
+
+            // Not sure whether this is important;
+            // imitating FcFreeTypeQueryFace:
+            FcPatternAddBool (pattern, FC_ANTIALIAS, FcFalse);
+        }
+
+        // Setting up the FC_LANGSET property is very difficult with the APIs
+        // available prior to FcFreeTypeQueryFace.  Having no FC_LANGSET
+        // property seems better than having a property with an empty LangSet.
+        // With no FC_LANGSET property, fontconfig sort functions will
+        // consider this face to have the same priority as (otherwise equal)
+        // faces that have support for the primary requested language, but
+        // will not consider any language to have been satisfied (and so will
+        // continue to look for a face with language support in fallback
+        // fonts).
+    }
+
+    AdjustPatternToCSS(pattern);
+
+    FcPatternAddFTFace(pattern, FC_FT_FACE, mFace);
+    AddDownloadedFontEntry(pattern, this);
+
+    // There is never more than one pattern
+    mPatterns.AppendElement();
+    mPatterns[0].own(pattern);
+}
+
+static PangoCoverage *NewPangoCoverage(FcPattern *aFont)
+{
+    // This uses g_slice_alloc which will abort on OOM rather than return NULL.
+    PangoCoverage *coverage = pango_coverage_new();
+
+    FcCharSet *charset;
+    if (FcPatternGetCharSet(aFont, FC_CHARSET, 0, &charset) != FcResultMatch)
+        return coverage; // empty
+
+    FcChar32 base;
+    FcChar32 map[FC_CHARSET_MAP_SIZE];
+    FcChar32 next;
+    for (base = FcCharSetFirstPage(charset, map, &next);
+         base != FC_CHARSET_DONE;
+         base = FcCharSetNextPage(charset, map, &next)) {
+        for (PRUint32 i = 0; i < FC_CHARSET_MAP_SIZE; ++i) {
+            PRUint32 offset = 0;
+            FcChar32 bitmap = map[i];
+            for (; bitmap; bitmap >>= 1) {
+                if (bitmap & 1) {
+                    pango_coverage_set(coverage, base + offset,
+                                       PANGO_COVERAGE_EXACT);
+                }
+                ++offset;
+            }
+            base += 32;
+        }
+    }
+    return coverage;
+}
+
+PangoCoverage *
+gfxDownloadedFcFontEntry::GetPangoCoverage()
+{
+    NS_ASSERTION(mPatterns.Length() != 0,
+                 "Can't get coverage without a pattern!");
+    if (!mPangoCoverage) {
+        mPangoCoverage.own(NewPangoCoverage(mPatterns[0]));
+    }
+    return mPangoCoverage;
+}
 
 /*
  * gfxFcFont
@@ -138,6 +532,7 @@ public:
     }
 
     cairo_scaled_font_t *CairoScaledFont() { return mCairoFont; }
+    PRUint32 GetGlyph(PRUint32 aCharCode);
     void GetGlyphExtents(PRUint32 aGlyph, cairo_text_extents_t* aExtents);
 
 protected:
@@ -148,7 +543,7 @@ protected:
     PRPackedBool mHasMetrics;
 
     gfxFcFont(cairo_scaled_font_t *aCairoFont,
-              gfxPangoFontEntry *aFontEntry, const gfxFontStyle *aFontStyle);
+              gfxFontEntry *aFontEntry, const gfxFontStyle *aFontStyle);
 
     virtual PRBool SetupCairoFont(gfxContext *aContext);
 
@@ -171,6 +566,21 @@ public:
         }
     }
 
+    FT_Face get()
+    {
+        return mFace;
+    }
+
+    /**
+     * Get the glyph id for a Unicode character representable by a single
+     * glyph, or return zero if there is no such glyph.  This does no caching,
+     * so you probably want gfxFcFont::GetGlyph.
+     */
+    PRUint32 GetGlyph(PRUint32 aCharCode);
+
+    void GetMetrics(gfxFont::Metrics* aMetrics, PRUint32* aSpaceGlyph);
+
+private:
     /**
      * Get extents for a simple character representable by a single glyph.
      * The return value is the glyph id of that glyph or zero if no such glyph
@@ -178,9 +588,6 @@ public:
      */
     PRUint32 GetCharExtents(char aChar, cairo_text_extents_t* aExtents);
 
-    void GetMetrics(gfxFont::Metrics* aMetrics, PRUint32* aSpaceGlyph);
-
-private:
     nsRefPtr<gfxFcFont> mGfxFont;
     FT_Face mFace;
 };
@@ -212,6 +619,7 @@ struct gfxPangoFcFont {
     PangoFcFont parent_instance;
 
     FcPattern *mRequestedPattern;
+    PangoCoverage *mCoverage;
     gfxFcFont *mGfxFont;
 
     static nsReturnRef<PangoFont>
@@ -238,11 +646,25 @@ struct gfxPangoFcFont {
         FcPatternReference(aRequestedPattern);
         font->mRequestedPattern = aRequestedPattern;
 
-        // pango_fc_font::get_coverage wants a FcFontMap.  (PangoFcFontMap
-        // usually sets this after calling PangoFcFontMap::create_font().)
+        // PangoFcFont::get_coverage wants a PangoFcFontMap.  (PangoFcFontMap
+        // would usually set this after calling PangoFcFontMap::create_font()
+        // or new_font().)
+        PangoFontMap *fontmap = GetPangoFontMap();
+        // In Pango-1.24.4, we can use the "fontmap" property; by setting the
+        // property, the PangoFcFont base class manages the pointer (as a weak
+        // reference).
         PangoFcFont *fc_font = &font->parent_instance;
-        fc_font->fontmap = GetPangoFontMap();
-        g_object_ref(fc_font->fontmap);
+        if (gUseFontMapProperty) {
+            g_object_set(font, "fontmap", fontmap, NULL);
+        } else {
+            // In Pango versions up to 1.20.5, the parent class will decrement
+            // the reference count of the fontmap during shutdown() or
+            // finalize() of the font.  In Pango versions from 1.22.0 this no
+            // longer happens, so we'll end up leaking the (singleton)
+            // fontmap.
+            fc_font->fontmap = fontmap;
+            g_object_ref(fc_font->fontmap);
+        }
 
         return nsReturnRef<PangoFont>(PANGO_FONT(font));
     }
@@ -315,11 +737,38 @@ gfx_pango_fc_font_finalize(GObject *object)
 
     if (self->mRequestedPattern)
         FcPatternDestroy(self->mRequestedPattern);
+    if (self->mCoverage)
+        pango_coverage_unref(self->mCoverage);
     NS_IF_RELEASE(self->mGfxFont);
 
-    // The parent class removes the reference to parent_instance->fontmap.
-
     G_OBJECT_CLASS(gfx_pango_fc_font_parent_class)->finalize(object);
+}
+
+static PangoCoverage *
+gfx_pango_fc_font_get_coverage(PangoFont *font, PangoLanguage *lang)
+{
+    gfxPangoFcFont *self = GFX_PANGO_FC_FONT(font);
+
+    // The coverage is requested often enough that it is worth holding a
+    // reference on the font.
+    if (!self->mCoverage) {
+        FcPattern *pattern = self->parent_instance.font_pattern;
+        gfxDownloadedFcFontEntry *downloadedFontEntry =
+            GetDownloadedFontEntry(pattern);
+        // The parent class implementation requires the font pattern to have
+        // a file and caches results against that filename.  This is not
+        // suitable for web fonts.
+        if (!downloadedFontEntry) {
+            self->mCoverage =
+                PANGO_FONT_CLASS(gfx_pango_fc_font_parent_class)->
+                get_coverage(font, lang);
+        } else {
+            self->mCoverage =
+                pango_coverage_ref(downloadedFontEntry->GetPangoCoverage());
+        }
+    }
+
+    return pango_coverage_ref(self->mCoverage);
 }
 
 static PangoFontDescription *
@@ -455,6 +904,16 @@ gfx_pango_fc_font_unlock_face(PangoFcFont *font)
     cairo_ft_scaled_font_unlock_face(gfxPangoFcFont::CairoFont(self));
 }
 
+static guint
+gfx_pango_fc_font_get_glyph(PangoFcFont *font, gunichar wc)
+{
+    gfxPangoFcFont *self = GFX_PANGO_FC_FONT(font);
+    gfxFcFont *gfxFont = gfxPangoFcFont::GfxFont(self);
+    return gfxFont->GetGlyph(wc);
+}
+
+typedef int (*PangoVersionFunction)();
+
 static void
 gfx_pango_fc_font_class_init (gfxPangoFcFontClass *klass)
 {
@@ -464,11 +923,7 @@ gfx_pango_fc_font_class_init (gfxPangoFcFontClass *klass)
 
     object_class->finalize = gfx_pango_fc_font_finalize;
 
-#if 0
-    // This will need overriding for user fonts to defeat the PangoFcFontMap
-    // caching, unless each user font is guaranteed to have a unique filename.
     font_class->get_coverage = gfx_pango_fc_font_get_coverage;
-#endif
     // describe is called on errors in pango_shape.
     font_class->describe = gfx_pango_fc_font_describe;
     font_class->get_glyph_extents = gfx_pango_fc_font_get_glyph_extents;
@@ -478,9 +933,22 @@ gfx_pango_fc_font_class_init (gfxPangoFcFontClass *klass)
     font_class->describe_absolute = gfx_pango_fc_font_describe_absolute;
     // font_class->find_shaper,get_font_map are inherited from PangoFcFontClass
 
-    // fc_font_class->has_char,get_glyph are inherited
+    // fc_font_class->has_char is inherited
     fc_font_class->lock_face = gfx_pango_fc_font_lock_face;
     fc_font_class->unlock_face = gfx_pango_fc_font_unlock_face;
+    fc_font_class->get_glyph = gfx_pango_fc_font_get_glyph;
+
+    // The "fontmap" property on PangoFcFont was introduced for Pango-1.24.0
+    // but versions prior to Pango-1.24.4 leaked weak pointers for every font,
+    // which would causes crashes when shutting down the FontMap.  For the
+    // early Pango-1.24.x versions we're better off setting the fontmap member
+    // ourselves, which will not create weak pointers to leak, and instead
+    // we'll leak the FontMap on shutdown.  pango_version() and
+    // PANGO_VERSION_ENCODE require Pango-1.16.
+    PangoVersionFunction pango_version =
+        reinterpret_cast<PangoVersionFunction>
+        (FindFunctionSymbol("pango_version"));
+    gUseFontMapProperty = pango_version && (*pango_version)() >= 12404;
 }
 
 /**
@@ -529,8 +997,9 @@ class gfxFcPangoFontSet {
 public:
     THEBES_INLINE_DECL_REFCOUNTING(gfxFcPangoFontSet)
     
-    explicit gfxFcPangoFontSet(FcPattern *aPattern)
-        : mSortPattern(aPattern),
+    explicit gfxFcPangoFontSet(FcPattern *aPattern,
+                               gfxUserFontSet *aUserFontSet)
+        : mSortPattern(aPattern), mUserFontSet(aUserFontSet),
           mFcFontSet(SortPreferredFonts()), mFcFontsTrimmed(0),
           mHaveFallbackFonts(PR_FALSE)
     {
@@ -584,6 +1053,8 @@ public:
 private:
     // The requested pattern
     nsCountedRef<FcPattern> mSortPattern;
+    // Fonts from @font-face rules
+    nsRefPtr<gfxUserFontSet> mUserFontSet;
     // A (trimmed) list of font patterns and PangoFonts that is built up as
     // required.
     nsTArray<FontEntry> mFonts;
@@ -602,28 +1073,50 @@ private:
     PRPackedBool mHaveFallbackFonts;
 };
 
+// Find the FcPattern for an @font-face font suitable for CSS family |aFamily|
+// and style |aStyle| properties.
+static const nsTArray< nsCountedRef<FcPattern> >*
+FindFontPatterns(gfxUserFontSet *mUserFontSet,
+                const nsACString &aFamily, PRUint8 aStyle, PRUint16 aWeight)
+{
+    // Convert to UTF16
+    NS_ConvertUTF8toUTF16 utf16Family(aFamily);
+
+    // needsBold is not used here.  Instead synthetic bold is enabled through
+    // FcFontRenderPrepare when the weight in the requested pattern is
+    // compared against the weight in the font pattern.
+    PRBool needsBold;
+
+    gfxFontStyle style;
+    style.style = aStyle;
+    style.weight = aWeight;
+
+    gfxFcFontEntry *fontEntry = static_cast<gfxFcFontEntry*>
+        (mUserFontSet->FindFontEntry(utf16Family, style, needsBold));
+
+    // Accept synthetic oblique for italic and oblique.
+    if (!fontEntry && aStyle != FONT_STYLE_NORMAL) {
+        style.style = FONT_STYLE_NORMAL;
+        fontEntry = static_cast<gfxFcFontEntry*>
+            (mUserFontSet->FindFontEntry(utf16Family, style, needsBold));
+    }
+
+    if (!fontEntry)
+        return NULL;
+
+    return &fontEntry->GetPatterns();
+}
+
 typedef FcBool (*FcPatternRemoveFunction)(FcPattern *p, const char *object,
                                           int id);
 
-static FcPatternRemoveFunction
-GetFcPatternRemove()
-{
-    PRLibrary *lib = nsnull;
-    PRFuncPtr result =
-        PR_FindFunctionSymbolAndLibrary("FcPatternRemove", &lib);
-    if (lib) {
-        PR_UnloadLibrary(lib);
-    }
-
-    return reinterpret_cast<FcPatternRemoveFunction>(result);
-}
-
 // FcPatternRemove is available in fontconfig-2.3.0 (2005)
-// CentOS 5 has fontconfig-2.4.1
 static FcBool
 moz_FcPatternRemove(FcPattern *p, const char *object, int id)
 {
-    static FcPatternRemoveFunction sFcPatternRemovePtr = GetFcPatternRemove();
+    static FcPatternRemoveFunction sFcPatternRemovePtr =
+        reinterpret_cast<FcPatternRemoveFunction>
+        (FindFunctionSymbol("FcPatternRemove"));
 
     if (!sFcPatternRemovePtr)
         return FcFalse;
@@ -740,11 +1233,38 @@ gfxFcPangoFontSet::SortPreferredFonts()
     for (int v = 0;
          FcPatternGetString(mSortPattern,
                             FC_FAMILY, v, &family) == FcResultMatch; ++v) {
-        const nsTArray< nsCountedRef<FcPattern> >& familyFonts =
-            utils->GetFontsForFamily(family);
+        const nsTArray< nsCountedRef<FcPattern> > *familyFonts = nsnull;
 
-        if (familyFonts.Length() == 0) {
-            // There are no fonts matching this family, so there is not point
+        // Is this an @font-face family?
+        PRBool isUserFont = PR_FALSE;
+        if (mUserFontSet) {
+            // Have some @font-face definitions
+
+            nsDependentCString cFamily(gfxFontconfigUtils::ToCString(family));
+            NS_NAMED_LITERAL_CSTRING(userPrefix, FONT_FACE_FAMILY_PREFIX);
+
+            if (StringBeginsWith(cFamily, userPrefix)) {
+                isUserFont = PR_TRUE;
+
+                // Trim off the prefix
+                nsDependentCSubstring cssFamily(cFamily, userPrefix.Length());
+
+                PRUint8 thebesStyle =
+                    gfxFontconfigUtils::FcSlantToThebesStyle(requestedSlant);
+                PRUint16 thebesWeight =
+                    gfxFontconfigUtils::GetThebesWeight(mSortPattern);
+
+                familyFonts = FindFontPatterns(mUserFontSet, cssFamily,
+                                               thebesStyle, thebesWeight);
+            }
+        }
+
+        if (!isUserFont) {
+            familyFonts = &utils->GetFontsForFamily(family);
+        }
+
+        if (!familyFonts || familyFonts->Length() == 0) {
+            // There are no fonts matching this family, so there is no point
             // in searching for this family in the FontSort.
             //
             // Perhaps the original pattern should be retained for
@@ -771,10 +1291,12 @@ gfxFcPangoFontSet::SortPreferredFonts()
             entry->mKey = family; // initialize new entry
         }
 
-        for (PRUint32 f = 0; f < familyFonts.Length(); ++f) {
-            FcPattern *font = familyFonts[f];
+        for (PRUint32 f = 0; f < familyFonts->Length(); ++f) {
+            FcPattern *font = familyFonts->ElementAt(f);
 
-            if (!SlantIsAcceptable(font, requestedSlant))
+            // User fonts are already filtered by slant (but not size) in
+            // mUserFontSet->FindFontEntry().
+            if (!isUserFont && !SlantIsAcceptable(font, requestedSlant))
                 continue;
             if (requestedSize != -1.0 && !SizeIsAcceptable(font, requestedSize))
                 continue;
@@ -843,8 +1365,15 @@ gfxFcPangoFontSet::SortPreferredFonts()
 
     FcFontSet *sets[1] = { fontSet };
     FcResult result;
+#ifdef SOLARIS
+    // Get around a crash of FcFontSetSort when FcConfig is NULL
+    // Solaris's FcFontSetSort needs an FcConfig (bug 474758)
+    fontSet.own(FcFontSetSort(FcConfigGetCurrent(), sets, 1, mSortPattern,
+                              FcFalse, NULL, &result));
+#else
     fontSet.own(FcFontSetSort(NULL, sets, 1, mSortPattern,
                               FcFalse, NULL, &result));
+#endif
 
     if (truncateMarker != NULL && fontSet) {
         nsAutoRef<FcFontSet> truncatedSet(FcFontSetCreate());
@@ -1254,10 +1783,14 @@ gfx_pango_font_map_get_resolution(PangoFcFontMap *fcfontmap,
     return gfxPlatformGtk::DPI();
 }
 
+#ifdef MOZ_WIDGET_GTK2
+static void ApplyGdkScreenFontOptions(FcPattern *aPattern);
+#endif
+
 // Apply user settings and defaults to pattern in preparation for matching.
 static void
 PrepareSortPattern(FcPattern *aPattern, double aFallbackSize,
-                   double aSizeAdjustFactor)
+                   double aSizeAdjustFactor, PRBool aIsPrinterFont)
 {
     FcConfigSubstitute(NULL, aPattern, FcMatchPattern);
 
@@ -1269,10 +1802,22 @@ PrepareSortPattern(FcPattern *aPattern, double aFallbackSize,
     // setting for that option.  We could get the default setting by creating
     // an xlib surface once, recording its font_options, and then merging the
     // gdk options.
-    const cairo_font_options_t *options =
-        gdk_screen_get_font_options(gdk_screen_get_default());
-
-    cairo_ft_font_options_substitute(options, aPattern);
+    //
+    // Using an xlib surface would also be an option to get Screen font
+    // options for non-GTK X11 toolkits, but less efficient than using GDK to
+    // pick up dynamic changes.
+    if(aIsPrinterFont) {
+       cairo_font_options_t *options = cairo_font_options_create();
+       cairo_font_options_set_hint_style (options, CAIRO_HINT_STYLE_NONE);
+       cairo_font_options_set_antialias (options, CAIRO_ANTIALIAS_GRAY);
+       cairo_ft_font_options_substitute(options, aPattern);
+       cairo_font_options_destroy(options);
+    }
+#ifdef MOZ_WIDGET_GTK2
+    else {
+       ApplyGdkScreenFontOptions(aPattern);
+    }
+#endif
 
     // Protect against any fontconfig settings that may have incorrectly
     // modified the pixelsize, and consider aSizeAdjustFactor.
@@ -1287,21 +1832,17 @@ PrepareSortPattern(FcPattern *aPattern, double aFallbackSize,
 }
 
 static void
-gfx_pango_font_map_context_substitute(PangoFcFontMap *fontmap,
-                                      PangoContext *context,
+gfx_pango_font_map_default_substitute(PangoFcFontMap *fontmap,
                                       FcPattern *pattern)
 {
-    // owned by the context
-    PangoFontDescription *desc = pango_context_get_font_description(context);
-    double size = pango_font_description_get_size(desc) / FLOAT_PANGO_SCALE;
-    PrepareSortPattern(pattern, size, 1.0);
+    // The context is not available here but most of our rendering is for the
+    // screen so aIsPrinterFont is set to FALSE.
+    PrepareSortPattern(pattern, 18.0, 1.0, FALSE);
 }
 
 static PangoFcFont *
-gfx_pango_font_map_create_font(PangoFcFontMap *fontmap,
-                               PangoContext *context,
-                               const PangoFontDescription *desc,
-                               FcPattern *pattern)
+gfx_pango_font_map_new_font(PangoFcFontMap *fontmap,
+                            FcPattern *pattern)
 {
     return PANGO_FC_FONT(g_object_new(GFX_TYPE_PANGO_FC_FONT,
                                       "pattern", pattern, NULL));
@@ -1324,15 +1865,29 @@ gfx_pango_font_map_class_init(gfxPangoFontMapClass *klass)
     // context_key_* virtual functions are only necessary if we want to
     // dynamically respond to changes in the screen cairo_font_options_t.
 
-    // context_substitute and get_font are not likely to be used but
-    //   implemented because the class makes them available.
-    fcfontmap_class->context_substitute = gfx_pango_font_map_context_substitute;
-    fcfontmap_class->create_font = gfx_pango_font_map_create_font;
+    // The APIs for context_substitute/fontset_key_substitute and create_font
+    //   changed between Pango 1.22 and 1.24 so default_substitute and
+    //   new_font are provided instead.
+    // default_substitute and new_font are not likely to be used but
+    //   implemented because the class makes them available and an
+    //   implementation should provide either create_font or new_font.
+    fcfontmap_class->default_substitute = gfx_pango_font_map_default_substitute;
+    fcfontmap_class->new_font = gfx_pango_font_map_new_font;
 }
 
 /**
  ** gfxPangoFontGroup
  **/
+
+struct FamilyCallbackData {
+    FamilyCallbackData(nsTArray<nsString> *aFcFamilyList,
+                       gfxUserFontSet *aUserFontSet)
+        : mFcFamilyList(aFcFamilyList), mUserFontSet(aUserFontSet)
+    {
+    }
+    nsTArray<nsString> *mFcFamilyList;
+    const gfxUserFontSet *mUserFontSet;
+};
 
 static int
 FFRECountHyphens (const nsAString &aFFREName)
@@ -1347,17 +1902,51 @@ FFRECountHyphens (const nsAString &aFFREName)
 }
 
 static PRBool
-FontCallback (const nsAString& fontName, const nsACString& genericName,
-              void *closure)
+FamilyCallback (const nsAString& fontName, const nsACString& genericName,
+                void *closure)
 {
-    nsStringArray *sa = static_cast<nsStringArray*>(closure);
+    FamilyCallbackData *data = static_cast<FamilyCallbackData*>(closure);
+    nsTArray<nsString> *list = data->mFcFamilyList;
 
     // We ignore prefs that have three hypens since they are X style prefs.
     if (genericName.Length() && FFRECountHyphens(fontName) >= 3)
         return PR_TRUE;
 
-    if (sa->IndexOf(fontName) < 0) {
-        sa->AppendString(fontName);
+    if (!list->Contains(fontName)) {
+        // The family properties of FcPatterns for @font-face fonts have a
+        // namespace to identify them among system fonts.  (see
+        // FONT_FACE_FAMILY_PREFIX.)  The CSS family name can match either the
+        // @font-face family or the system font family so both names are added
+        // here.
+        //
+        // http://www.w3.org/TR/2002/WD-css3-webfonts-20020802 required
+        // looking for locally-installed fonts matching requested properties
+        // before checking the src descriptor in @font-face rules.
+        // http://www.w3.org/TR/2008/REC-CSS2-20080411/fonts.html#algorithm
+        // also only checks src descriptors if there is no local font matching
+        // the requested properties.
+        //
+        // Similarly "Editor's Draft 27 June 2008"
+        // http://dev.w3.org/csswg/css3-fonts/#font-matching says "The user
+        // agent attempts to find the family name among fonts available on the
+        // system and then among fonts defined via @font-face rules."
+        // However, this is contradicted by "if [the name from the font-family
+        // descriptor] is the same as a font family available in a given
+        // user's environment, it effectively hides the underlying font for
+        // documents that use the stylesheet."
+        //
+        // Windows and Mac code currently prioritizes fonts from @font-face
+        // rules.  The order of families here reflects the priorities on those
+        // platforms.
+        const gfxUserFontSet *userFontSet = data->mUserFontSet;
+        if (genericName.Length() == 0 &&
+            userFontSet && userFontSet->HasFamily(fontName)) {
+            nsAutoString userFontName =
+                NS_LITERAL_STRING(FONT_FACE_FAMILY_PREFIX) + fontName;
+            list->AppendElement(userFontName);
+        }
+
+        list->AppendElement(fontName);
     }
 
     return PR_TRUE;
@@ -1384,13 +1973,14 @@ gfxPangoFontGroup::Copy(const gfxFontStyle *aStyle)
 
 // An array of family names suitable for fontconfig
 void
-gfxPangoFontGroup::GetFcFamilies(nsStringArray *aFcFamilyList,
+gfxPangoFontGroup::GetFcFamilies(nsTArray<nsString> *aFcFamilyList,
                                  const nsACString& aLangGroup)
 {
+    FamilyCallbackData data(aFcFamilyList, mUserFontSet);
     // Leave non-existing fonts in the list so that fontconfig can get the
     // best match.
     ForEachFontInternal(mFamilies, aLangGroup, PR_TRUE, PR_FALSE,
-                        FontCallback, aFcFamilyList);
+                        FamilyCallback, &data);
 }
 
 PangoFont *
@@ -1401,6 +1991,14 @@ gfxPangoFontGroup::GetBasePangoFont()
 
 gfxFont *
 gfxPangoFontGroup::GetFontAt(PRInt32 i) {
+    // If it turns out to be hard for all clients that cache font
+    // groups to call UpdateFontList at appropriate times, we could
+    // instead consider just calling UpdateFontList from someplace
+    // more central (such as here).
+    NS_ASSERTION(!mUserFontSet || mCurrGeneration == GetGeneration(),
+                 "Whoever was caching this font group should have "
+                 "called UpdateFontList on it");
+
     NS_PRECONDITION(i == 0, "Only have one font");
 
     if (!mFonts[0]) {
@@ -1409,6 +2007,21 @@ gfxPangoFontGroup::GetFontAt(PRInt32 i) {
     }
 
     return mFonts[0];
+}
+
+void
+gfxPangoFontGroup::UpdateFontList()
+{
+    if (!mUserFontSet)
+        return;
+
+    PRUint64 newGeneration = mUserFontSet->GetGeneration();
+    if (newGeneration == mCurrGeneration)
+        return;
+
+    mFonts[0] = NULL;
+    mFontSets.Clear();
+    mCurrGeneration = newGeneration;
 }
 
 already_AddRefed<gfxFcPangoFontSet>
@@ -1432,7 +2045,7 @@ gfxPangoFontGroup::MakeFontSet(PangoLanguage *aLang, gfxFloat aSizeAdjustFactor,
         }
     }
 
-    nsStringArray fcFamilyList;
+    nsAutoTArray<nsString, 20> fcFamilyList;
     GetFcFamilies(&fcFamilyList,
                   langGroup ? nsDependentCString(langGroup) : mStyle.langGroup);
 
@@ -1442,9 +2055,10 @@ gfxPangoFontGroup::MakeFontSet(PangoLanguage *aLang, gfxFloat aSizeAdjustFactor,
     nsAutoRef<FcPattern> pattern
         (gfxFontconfigUtils::NewPattern(fcFamilyList, mStyle, lang));
 
-    PrepareSortPattern(pattern, mStyle.size, aSizeAdjustFactor);
+    PrepareSortPattern(pattern, mStyle.size, aSizeAdjustFactor, mStyle.printerFont);
 
-    nsRefPtr<gfxFcPangoFontSet> fontset = new gfxFcPangoFontSet(pattern);
+    nsRefPtr<gfxFcPangoFontSet> fontset =
+        new gfxFcPangoFontSet(pattern, mUserFontSet);
 
     if (aMatchPattern)
         aMatchPattern->steal(pattern);
@@ -1486,7 +2100,7 @@ gfxPangoFontGroup::GetFontSet(PangoLanguage *aLang)
 cairo_user_data_key_t gfxFcFont::sGfxFontKey;
 
 gfxFcFont::gfxFcFont(cairo_scaled_font_t *aCairoFont,
-                     gfxPangoFontEntry *aFontEntry,
+                     gfxFontEntry *aFontEntry,
                      const gfxFontStyle *aFontStyle)
     : gfxFont(aFontEntry, aFontStyle),
       mCairoFont(aCairoFont),
@@ -1508,15 +2122,116 @@ gfxPangoFontGroup::Shutdown()
     if (gPangoFontMap) {
         if (PANGO_IS_FC_FONT_MAP (gPangoFontMap)) {
             // This clears circular references from the fontmap to itself
-            // through its fonts.
+            // through its fonts.  (This is actually unnecessary with Pango
+            // versions >= 1.22.)
             pango_fc_font_map_shutdown(PANGO_FC_FONT_MAP(gPangoFontMap));
         }
         g_object_unref(gPangoFontMap);
         gPangoFontMap = NULL;
     }
 
+    // Resetting gFTLibrary in case this is wanted again after a
+    // cairo_debug_reset_static_data.
+    gFTLibrary = NULL;
+
     NS_IF_RELEASE(gLangService);
 }
+
+/* static */ gfxFontEntry *
+gfxPangoFontGroup::NewFontEntry(const gfxProxyFontEntry &aProxyEntry,
+                                const nsAString& aFullname)
+{
+    gfxFontconfigUtils *utils = gfxFontconfigUtils::GetFontconfigUtils();
+    if (!utils)
+        return nsnull;
+
+    // The font face name from @font-face { src: local() } is not well
+    // defined.
+    //
+    // On MS Windows, this name gets compared with
+    // ENUMLOGFONTEXW::elfFullName, which for OpenType fonts seems to be the
+    // full font name from the name table.  For CFF OpenType fonts this is the
+    // same as the PostScript name, but for TrueType fonts it is usually
+    // different.
+    //
+    // On Mac, the font face name is compared with the PostScript name, even
+    // for TrueType fonts.
+    //
+    // Fontconfig only records the full font names, so the behavior here
+    // follows that on MS Windows.  However, to provide the possibility
+    // of aliases to compensate for variations, the font face name is passed
+    // through FcConfigSubstitute.
+
+    nsAutoRef<FcPattern> pattern(FcPatternCreate());
+    if (!pattern)
+        return nsnull;
+
+    NS_ConvertUTF16toUTF8 fullname(aFullname);
+    FcPatternAddString(pattern, FC_FULLNAME,
+                       gfxFontconfigUtils::ToFcChar8(fullname));
+    FcConfigSubstitute(NULL, pattern, FcMatchPattern);
+
+    FcChar8 *name;
+    for (int v = 0;
+         FcPatternGetString(pattern, FC_FULLNAME, v, &name) == FcResultMatch;
+         ++v) {
+        const nsTArray< nsCountedRef<FcPattern> >& fonts =
+            utils->GetFontsForFullname(name);
+
+        if (fonts.Length() != 0)
+            return new gfxLocalFcFontEntry(aProxyEntry, fonts);
+    }
+
+    return nsnull;
+}
+
+static FT_Library
+GetFTLibrary()
+{
+    if (!gFTLibrary) {
+        // Use cairo's FT_Library so that cairo takes care of shutdown of the
+        // FT_Library after it has destroyed its font_faces, and FT_Done_Face
+        // has been called on each FT_Face, at least until this bug is fixed:
+        // https://bugs.freedesktop.org/show_bug.cgi?id=18857
+        //
+        // Cairo's FT_Library can be obtained from any cairo_scaled_font.  The
+        // font properties requested here are chosen to get an FT_Face that is
+        // likely to be also used elsewhere.
+        gfxFontStyle style;
+        nsRefPtr<gfxPangoFontGroup> fontGroup =
+            new gfxPangoFontGroup(NS_LITERAL_STRING("sans-serif"),
+                                  &style, nsnull);
+
+        gfxFcFont *font = static_cast<gfxFcFont*>(fontGroup->GetFontAt(0));
+        if (!font)
+            return NULL;
+
+        LockedFTFace face(font);
+        if (!face.get())
+            return NULL;
+
+        gFTLibrary = face.get()->glyph->library;
+    }
+
+    return gFTLibrary;
+}
+
+/* static */ gfxFontEntry *
+gfxPangoFontGroup::NewFontEntry(const gfxProxyFontEntry &aProxyEntry,
+                                nsISupports *aLoader,
+                                const PRUint8 *aFontData, PRUint32 aLength)
+{
+    // Using face_index = 0 for the first face in the font, as we have no
+    // other information.  FT_New_Memory_Face checks for a NULL FT_Library.
+    FT_Face face;
+    FT_Error error =
+        FT_New_Memory_Face(GetFTLibrary(), aFontData, aLength, 0, &face);
+    if (error != 0)
+        return nsnull;
+
+    return new gfxDownloadedFcFontEntry(aProxyEntry, aLoader, face);
+}
+
 
 static double
 GetPixelSize(FcPattern *aPattern)
@@ -1564,39 +2279,43 @@ gfxFcFont::GetOrMakeFont(FcPattern *aPattern)
         // one particular language to choose and converting the set to a
         // string through FcNameUnparse() is more trouble than it's worth.
         NS_NAMED_LITERAL_CSTRING(langGroup, "x-unicode");
-        gfxFontStyle fontStyle(style, weight, size, langGroup, 0.0,
-                               PR_TRUE, PR_FALSE);
+        // FIXME: Pass a real stretch based on aPattern!
+        gfxFontStyle fontStyle(style, weight, NS_FONT_STRETCH_NORMAL,
+                               size, langGroup, 0.0,
+                               PR_TRUE, PR_FALSE, PR_FALSE);
 
-        FcChar8 *fc_file; // unsigned char
-        const char *file; // signed for Mozilla string APIs
+        nsRefPtr<gfxFontEntry> fe;
+        FcChar8 *fc_file;
         if (FcPatternGetString(aPattern,
                                FC_FILE, 0, &fc_file) == FcResultMatch) {
-            file = gfxFontconfigUtils::ToCString(fc_file);
+            int index;
+            if (FcPatternGetInteger(aPattern,
+                                    FC_INDEX, 0, &index) != FcResultMatch) {
+                // cairo won't know what to do with this pattern.
+                NS_NOTREACHED("No index in pattern for font face from file");
+                index = 0;
+            }
+
+            // Get a unique name for the font face data from the file and id.
+            nsAutoString name;
+            AppendUTF8toUTF16(gfxFontconfigUtils::ToCString(fc_file), name);
+            if (index != 0) {
+                name.AppendLiteral("/");
+                name.AppendInt(index);
+            }
+
+            fe = new gfxFontEntry(name);
         } else {
-            // cairo won't know which font to open without a file.
-            // (We don't create fonts from an FT_Face.)
-            NS_NOTREACHED("Fonts without a file are not supported");
-            static const char *noFile = "NO FILE";
-            file = noFile;
-        }
-        int index;
-        if (FcPatternGetInteger(aPattern, FC_INDEX, 0, &index)
-            != FcResultMatch) {
-            // cairo won't know what to do here either.
-            NS_NOTREACHED("No index in pattern");
-            index = 0;
-        }
-        // Get a unique face name from the file and id.
-        nsAutoString name;
-        AppendUTF8toUTF16(file, name);
-        if (index != 0) {
-            name.AppendLiteral("/");
-            name.AppendInt(index);
+            fe = GetDownloadedFontEntry(aPattern);
+            if (!fe) {
+                // cairo won't know which font to open without a file.
+                // (We don't create fonts from an FT_Face.)
+                NS_NOTREACHED("Fonts without a file is not a web font!?");
+                fe = new gfxFontEntry(nsString());
+            }
         }
 
-        nsRefPtr<gfxPangoFontEntry> fe = new gfxPangoFontEntry(name);
-
-        // Note that the unique face in the name/fe and the gfxFontStyle are
+        // Note that a file/index pair (or FT_Face) and the gfxFontStyle are
         // not necessarily enough to provide a key that will describe a unique
         // font.  cairoFont contains information from aPattern, which is a
         // fully resolved pattern from FcFontRenderPrepare.
@@ -1656,7 +2375,7 @@ gfxPangoFontGroup::GetBaseFontSet()
                 FcPatternDel(pattern, FC_PIXEL_SIZE);
                 FcPatternAddDouble(pattern, FC_PIXEL_SIZE, size);
 
-                fontSet = new gfxFcPangoFontSet(pattern);
+                fontSet = new gfxFcPangoFontSet(pattern, mUserFontSet);
             }
         }
     }
@@ -1672,6 +2391,68 @@ gfxPangoFontGroup::GetBaseFontSet()
     mFontSets.AppendElement(FontSetByLangEntry(pangoLang, fontSet));
 
     return fontSet;
+}
+
+PRUint32
+gfxFcFont::GetGlyph(PRUint32 aCharCode)
+{
+    // FcFreeTypeCharIndex needs to lock the FT_Face and can end up searching
+    // through all the postscript glyph names in the font.  Therefore use a
+    // lightweight cache, which is stored on the cairo_font_face_t.
+
+    cairo_font_face_t *face =
+        cairo_scaled_font_get_font_face(CairoScaledFont());
+
+    if (cairo_font_face_status(face) != CAIRO_STATUS_SUCCESS)
+        return 0;
+
+    // This cache algorithm and size is based on what is done in
+    // cairo_scaled_font_text_to_glyphs and pango_fc_font_real_get_glyph.  I
+    // think the concept is that adjacent characters probably come mostly from
+    // one Unicode block.  This assumption is probably not so valid with
+    // scripts with large character sets as used for East Asian languages.
+
+    struct CmapCacheSlot {
+        PRUint32 mCharCode;
+        PRUint32 mGlyphIndex;
+    };
+    const PRUint32 kNumSlots = 256;
+    static cairo_user_data_key_t sCmapCacheKey;
+
+    CmapCacheSlot *slots = static_cast<CmapCacheSlot*>
+        (cairo_font_face_get_user_data(face, &sCmapCacheKey));
+
+    if (!slots) {
+        // cairo's caches can keep some cairo_font_faces alive past our last
+        // destroy, so the destroy function (free) for the cache must be
+        // callable from cairo without any assumptions about what other
+        // modules have not been shutdown.
+        slots = static_cast<CmapCacheSlot*>
+            (calloc(kNumSlots, sizeof(CmapCacheSlot)));
+        if (!slots)
+            return 0;
+
+        cairo_status_t status =
+            cairo_font_face_set_user_data(face, &sCmapCacheKey, slots, free);
+        if (status != CAIRO_STATUS_SUCCESS) { // OOM
+            free(slots);
+            return 0;
+        }
+
+        // Invalidate slot 0 by setting its char code to something that would
+        // never end up in slot 0.  All other slots are already invalid
+        // because they have mCharCode = 0 and a glyph for char code 0 will
+        // always be in the slot 0.
+        slots[0].mCharCode = 1;
+    }
+
+    CmapCacheSlot *slot = &slots[aCharCode % kNumSlots];
+    if (slot->mCharCode != aCharCode) {
+        slot->mCharCode = aCharCode;
+        slot->mGlyphIndex = LockedFTFace(this).GetGlyph(aCharCode);
+    }
+
+    return slot->mGlyphIndex;
 }
 
 void
@@ -1692,6 +2473,26 @@ gfxFcFont::GetGlyphExtents(PRUint32 aGlyph, cairo_text_extents_t* aExtents)
 }
 
 PRUint32
+LockedFTFace::GetGlyph(PRUint32 aCharCode)
+{
+    if (NS_UNLIKELY(!mFace))
+        return 0;
+
+    // FcFreeTypeCharIndex will search starting from the most recently
+    // selected charmap.  This can cause non-determistic behavior when more
+    // than one charmap supports a character but with different glyphs, as
+    // with older versions of MS Gothic, for example.  Always prefer a Unicode
+    // charmap, if there is one.  (FcFreeTypeCharIndex usually does the
+    // appropriate Unicode conversion, but some fonts have non-Roman glyphs
+    // for FT_ENCODING_APPLE_ROMAN characters.)
+    if (!mFace->charmap || mFace->charmap->encoding != FT_ENCODING_UNICODE) {
+        FT_Select_Charmap(mFace, FT_ENCODING_UNICODE);
+    }
+
+    return FcFreeTypeCharIndex(mFace, aCharCode);
+}
+
+PRUint32
 LockedFTFace::GetCharExtents(char aChar,
                              cairo_text_extents_t* aExtents)
 {
@@ -1700,36 +2501,12 @@ LockedFTFace::GetCharExtents(char aChar,
     if (!mFace)
         return 0;
 
-    // pango_fc_font_real_get_glyph uses FcFreeTypeCharIndex which may change
-    // the charmap currently selected on the FT_Face, so, while
-    // pango_fc_font_real_get_glyph might be used, we should use the same
-    // function so as to search the charmaps.
-    //
-    // Unfortunately this considers the mac/roman cmap even when there is a
-    // unicode cmap, which will be bad for symbol fonts, so we should do this
-    // ourselves, perhaps with a lightweight cache like
-    // pango_fc_font_real_get_glyph uses.
-    FT_UInt gid = FcFreeTypeCharIndex(mFace, aChar); // glyph id
+    FT_UInt gid = mGfxFont->GetGlyph(aChar);
     if (gid) {
         mGfxFont->GetGlyphExtents(gid, aExtents);
     }
 
     return gid;
-}
-
-// rounding and truncation functions for a Freetype fixed point number 
-// (FT26Dot6) stored in a 32bit integer with high 26 bits for the integer
-// part and low 6 bits for the fractional part. 
-#define FLOAT_FROM_26_6(x) ((x) / 64.0)
-#define FLOAT_FROM_16_16(x) ((x) / 65536.0)
-#define ROUND_26_6_TO_INT(x) ((x) >= 0 ?  ((32 + (x)) >> 6) \
-                                       : -((32 - (x)) >> 6))
-// aScale is intended for a 16.16 x/y_scale of an FT_Size_Metrics
-static inline FT_Long
-ScaleRoundDesignUnits(FT_Short aDesignMetric, FT_Fixed aScale)
-{
-    FT_Long fixed26dot6 = FT_MulFix(aDesignMetric, aScale);
-    return ROUND_26_6_TO_INT(fixed26dot6);
 }
 
 // Snap a line to pixels while keeping the center and size of the line as
@@ -2037,6 +2814,7 @@ gfxTextRun *
 gfxPangoFontGroup::MakeTextRun(const PRUint8 *aString, PRUint32 aLength,
                                const Parameters *aParams, PRUint32 aFlags)
 {
+    NS_ASSERTION(aLength > 0, "should use MakeEmptyTextRun for zero-length text");
     NS_ASSERTION(aFlags & TEXT_IS_8BIT, "8bit should have been set");
     gfxTextRun *run = gfxTextRun::Create(aParams, aString, aLength, this, aFlags);
     if (!run)
@@ -2077,11 +2855,10 @@ gfxTextRun *
 gfxPangoFontGroup::MakeTextRun(const PRUnichar *aString, PRUint32 aLength,
                                const Parameters *aParams, PRUint32 aFlags)
 {
+    NS_ASSERTION(aLength > 0, "should use MakeEmptyTextRun for zero-length text");
     gfxTextRun *run = gfxTextRun::Create(aParams, aString, aLength, this, aFlags);
     if (!run)
         return nsnull;
-
-    run->RecordSurrogates(aString);
 
     nsCAutoString utf8;
     PRInt32 headerLen = AppendDirectionalIndicatorUTF8(run->IsRightToLeft(), utf8);
@@ -2123,11 +2900,41 @@ gfxPangoFontGroup::InitTextRun(gfxTextRun *aTextRun, const gchar *aUTF8Text,
 #endif
 }
 
+static void ReleaseDownloadedFontEntry(void *data)
+{
+    gfxDownloadedFcFontEntry *downloadedFontEntry =
+        static_cast<gfxDownloadedFcFontEntry*>(data);
+    NS_RELEASE(downloadedFontEntry);
+}
+
 // This will fetch an existing scaled_font if one exists.
 static cairo_scaled_font_t *
 CreateScaledFont(FcPattern *aPattern)
 {
     cairo_font_face_t *face = cairo_ft_font_face_create_for_pattern(aPattern);
+
+    // If the face is created from a web font entry, hold a reference to the
+    // font entry to keep the font face data.
+    gfxDownloadedFcFontEntry *downloadedFontEntry =
+        GetDownloadedFontEntry(aPattern);
+    if (downloadedFontEntry &&
+        cairo_font_face_status(face) == CAIRO_STATUS_SUCCESS) {
+        static cairo_user_data_key_t sFontEntryKey;
+
+        // Check whether this is a new cairo face
+        void *currentEntry =
+            cairo_font_face_get_user_data(face, &sFontEntryKey);
+        if (!currentEntry) {
+            NS_ADDREF(downloadedFontEntry);
+            cairo_font_face_set_user_data(face, &sFontEntryKey,
+                                          downloadedFontEntry,
+                                          ReleaseDownloadedFontEntry);
+        } else {
+            NS_ASSERTION(currentEntry == downloadedFontEntry,
+                         "Unexpected cairo font face!");
+        }
+    }
+
     double size = GetPixelSize(aPattern);
         
     cairo_matrix_t fontMatrix;
@@ -2629,7 +3436,6 @@ gfxPangoFontGroup::CreateGlyphRunsFast(gfxTextRun *aTextRun,
 {
     const gchar *p = aUTF8;
     PangoFont *pangofont = GetBasePangoFont();
-    PangoFcFont *fcfont = PANGO_FC_FONT (pangofont);
     gfxFcFont *gfxFont = gfxPangoFcFont::GfxFont(GFX_PANGO_FC_FONT(pangofont));
     PRUint32 utf16Offset = 0;
     gfxTextRun::CompressedGlyph g;
@@ -2651,7 +3457,7 @@ gfxPangoFontGroup::CreateGlyphRunsFast(gfxTextRun *aTextRun,
             aTextRun->SetMissingGlyph(utf16Offset, 0);
         } else {
             NS_ASSERTION(!IsInvalidChar(ch), "Invalid char detected");
-            FT_UInt glyph = pango_fc_font_get_glyph (fcfont, ch);
+            FT_UInt glyph = gfxFont->GetGlyph(ch);
             if (!glyph)                  // character not in font,
                 return NS_ERROR_FAILURE; // fallback to CreateGlyphRunsItemizing
 
@@ -2809,3 +3615,36 @@ GuessPangoLanguage(const nsACString& aLangGroup)
 
     return pango_language_from_string(lang.get());
 }
+
+#ifdef MOZ_WIDGET_GTK2
+/***************************************************************************
+ *
+ * This function must be last in the file because it uses the system cairo
+ * library.  Above this point the cairo library used is the tree cairo if
+ * MOZ_TREE_CAIRO.
+ */
+
+#if MOZ_TREE_CAIRO
+// Tree cairo symbols have different names.  Disable their activation through
+// preprocessor macros.
+#undef cairo_ft_font_options_substitute
+
+// The system cairo functions are not declared because the include paths cause
+// the gdk headers to pick up the tree cairo.h.
+extern "C" {
+NS_VISIBILITY_DEFAULT void
+cairo_ft_font_options_substitute (const cairo_font_options_t *options,
+                                  FcPattern                  *pattern);
+}
+#endif
+
+static void
+ApplyGdkScreenFontOptions(FcPattern *aPattern)
+{
+    const cairo_font_options_t *options =
+        gdk_screen_get_font_options(gdk_screen_get_default());
+
+    cairo_ft_font_options_substitute(options, aPattern);
+}
+
+#endif // MOZ_WIDGET_GTK2

@@ -61,10 +61,26 @@ struct nsCSSRendering {
    */
   static void Shutdown();
   
-  static void PaintBoxShadow(nsPresContext* aPresContext,
-                             nsIRenderingContext& aRenderingContext,
-                             nsIFrame* aForFrame,
-                             const nsPoint& aForFramePt);
+  static void PaintBoxShadowInner(nsPresContext* aPresContext,
+                                  nsIRenderingContext& aRenderingContext,
+                                  nsIFrame* aForFrame,
+                                  const nsRect& aFrameArea,
+                                  const nsRect& aDirtyRect);
+
+  static void PaintBoxShadowOuter(nsPresContext* aPresContext,
+                                  nsIRenderingContext& aRenderingContext,
+                                  nsIFrame* aForFrame,
+                                  const nsRect& aFrameArea,
+                                  const nsRect& aDirtyRect);
+
+  /**
+   * Get the size, in app units, of the border radii. It returns FALSE iff all
+   * returned radii == 0 (so no border radii), TRUE otherwise.
+   * For the aRadii indexes, use the NS_CORNER_* constants in nsStyleConsts.h
+   */
+  static PRBool GetBorderRadiusTwips(const nsStyleCorners& aBorderRadius,
+                                     const nscoord& aFrameWidth,
+                                     nscoord aRadii[8]);
 
   /**
    * Render the border for an element using css rendering rules
@@ -112,26 +128,63 @@ struct nsCSSRendering {
                          nscolor aColor);
 
   /**
-   * Fill in an nsStyleBackground to be used to paint the background for
-   * an element.  The nsStyleBackground should first be initialized
-   * using the pres context.  This applies the rules for propagating
+   * Render a gradient for an element.
+   */
+  static void PaintGradient(nsPresContext* aPresContext,
+                            nsIRenderingContext& aRenderingContext,
+                            nsStyleGradient* aGradient,
+                            const nsRect& aDirtyRect,
+                            const nsRect& aOneCellArea,
+                            const nsRect& aFillArea,
+                            PRBool aRepeat);
+
+  /**
+   * Gets the root frame for the frame
+   */
+  static nsIFrame* FindRootFrame(nsIFrame* aForFrame);
+
+  /**
+   * @return PR_TRUE if |aFrame| is a canvas frame, in the CSS sense.
+   */
+  static PRBool IsCanvasFrame(nsIFrame* aFrame);
+
+  /**
+   * Fill in an nsStyleBackground to be used to paint the background
+   * for an element.  This applies the rules for propagating
    * backgrounds between BODY, the root element, and the canvas.
    * @return PR_TRUE if there is some meaningful background.
    */
   static PRBool FindBackground(nsPresContext* aPresContext,
                                nsIFrame* aForFrame,
-                               const nsStyleBackground** aBackground,
-                               PRBool* aIsCanvas);
-                               
+                               const nsStyleBackground** aBackground);
+
   /**
-   * Find a non-transparent background, for various table-related and
-   * HR-related backwards-compatibility hacks.  Be very hesitant if
-   * you're considering calling this function -- it's usually not what
-   * you want.
+   * As FindBackground, but the passed-in frame is known to be a root frame
+   * (returned from nsCSSFrameConstructor::GetRootElementStyleFrame())
+   * and there is always some meaningful background returned.
    */
-  static const nsStyleBackground*
+  static const nsStyleBackground* FindRootFrameBackground(nsIFrame* aForFrame);
+
+  /**
+   * Find a style context containing a non-transparent background,
+   * for various table-related and HR-related backwards-compatibility hacks.
+   * This function will also stop if it finds a -moz-appearance value, as
+   * the theme may draw a widget as a background.
+   *
+   * Be very hesitant if you're considering calling this function -- it's
+   * usually not what you want.
+   */
+  static nsStyleContext*
   FindNonTransparentBackground(nsStyleContext* aContext,
                                PRBool aStartAtParent = PR_FALSE);
+
+  /**
+   * Determine the background color to draw taking into account print settings.
+   */
+  static nscolor
+  DetermineBackgroundColor(nsPresContext* aPresContext,
+                           const nsStyleBackground& aBackground,
+                           nsIFrame* aFrame);
 
   /**
    * Render the background for an element using css rendering rules
@@ -140,12 +193,19 @@ struct nsCSSRendering {
    * Both aDirtyRect and aBorderArea are in the local coordinate space
    * of aForFrame
    */
+  enum {
+    /**
+     * When this flag is passed, the element's nsDisplayBorder will be
+     * painted immediately on top of this background.
+     */
+    PAINT_WILL_PAINT_BORDER = 0x01
+  };
   static void PaintBackground(nsPresContext* aPresContext,
                               nsIRenderingContext& aRenderingContext,
                               nsIFrame* aForFrame,
                               const nsRect& aDirtyRect,
                               const nsRect& aBorderArea,
-                              PRBool aUsePrintSettings,
+                              PRUint32 aFlags,
                               nsRect* aBGClipRect = nsnull);
 
   /**
@@ -158,9 +218,9 @@ struct nsCSSRendering {
                                     nsIFrame* aForFrame,
                                     const nsRect& aDirtyRect,
                                     const nsRect& aBorderArea,
-                                    const nsStyleBackground& aColor,
+                                    const nsStyleBackground& aBackground,
                                     const nsStyleBorder& aBorder,
-                                    PRBool aUsePrintSettings = PR_FALSE,
+                                    PRUint32 aFlags,
                                     nsRect* aBGClipRect = nsnull);
 
   /**
@@ -182,6 +242,15 @@ struct nsCSSRendering {
                                      PRUint8              aEndBevelSide = 0,
                                      nscoord              aEndBevelOffset = 0);
 
+  enum {
+    DECORATION_STYLE_NONE   = 0,
+    DECORATION_STYLE_SOLID  = 1,
+    DECORATION_STYLE_DOTTED = 2,
+    DECORATION_STYLE_DASHED = 3,
+    DECORATION_STYLE_DOUBLE = 4,
+    DECORATION_STYLE_WAVY   = 5
+  };
+
   /**
    * Function for painting the decoration lines for the text.
    * NOTE: aPt, aLineSize, aAscent and aOffset are non-rounded device pixels,
@@ -200,11 +269,19 @@ struct nsCSSRendering {
    *                              NS_STYLE_TEXT_DECORATION_UNDERLINE or
    *                              NS_STYLE_TEXT_DECORATION_OVERLINE or
    *                              NS_STYLE_TEXT_DECORATION_LINE_THROUGH.
-   *     @param aStyle            the style of the decoration line. The value
-   *                              can be NS_STYLE_BORDER_STYLE_SOLID or
-   *                              NS_STYLE_BORDER_STYLE_DOTTED or
-   *                              NS_STYLE_BORDER_STYLE_DASHED or
-   *                              NS_STYLE_BORDER_STYLE_DOUBLE.
+   *     @param aStyle            the style of the decoration line (See above
+   *                              enum names).
+   *     @param aDescentLimit     If aDescentLimit is zero or larger and the
+   *                              underline overflows from the descent space,
+   *                              the underline should be lifted up as far as
+   *                              possible.  Note that this does not mean the
+   *                              underline never overflows from this
+   *                              limitation.  Because if the underline is
+   *                              positioned to the baseline or upper, it causes
+   *                              unreadability.  Note that if this is zero
+   *                              or larger, the underline rect may be shrunken
+   *                              if it's possible.  Therefore, this value is
+   *                              used for strikeout line and overline too.
    */
   static void PaintDecorationLine(gfxContext* aGfxContext,
                                   const nscolor aColor,
@@ -213,7 +290,8 @@ struct nsCSSRendering {
                                   const gfxFloat aAscent,
                                   const gfxFloat aOffset,
                                   const PRUint8 aDecoration,
-                                  const PRUint8 aStyle);
+                                  const PRUint8 aStyle,
+                                  const gfxFloat aDescentLimit = -1.0);
 
   /**
    * Function for getting the decoration line rect for the text.
@@ -231,11 +309,19 @@ struct nsCSSRendering {
    *                              NS_STYLE_TEXT_DECORATION_UNDERLINE or
    *                              NS_STYLE_TEXT_DECORATION_OVERLINE or
    *                              NS_STYLE_TEXT_DECORATION_LINE_THROUGH.
-   *     @param aStyle            the style of the decoration line. The value
-   *                              can be NS_STYLE_BORDER_STYLE_SOLID or
-   *                              NS_STYLE_BORDER_STYLE_DOTTED or
-   *                              NS_STYLE_BORDER_STYLE_DASHED or
-   *                              NS_STYLE_BORDER_STYLE_DOUBLE.
+   *     @param aStyle            the style of the decoration line (See above
+   *                              enum names).
+   *     @param aDescentLimit     If aDescentLimit is zero or larger and the
+   *                              underline overflows from the descent space,
+   *                              the underline should be lifted up as far as
+   *                              possible.  Note that this does not mean the
+   *                              underline never overflows from this
+   *                              limitation.  Because if the underline is
+   *                              positioned to the baseline or upper, it causes
+   *                              unreadability.  Note that if this is zero
+   *                              or larger, the underline rect may be shrunken
+   *                              if it's possible.  Therefore, this value is
+   *                              used for strikeout line and overline too.
    *   output:
    *     @return                  the decoration line rect for the input,
    *                              the each values are app units.
@@ -245,7 +331,17 @@ struct nsCSSRendering {
                                       const gfxFloat aAscent,
                                       const gfxFloat aOffset,
                                       const PRUint8 aDecoration,
-                                      const PRUint8 aStyle);
+                                      const PRUint8 aStyle,
+                                      const gfxFloat aDescentLimit = -1.0);
+
+protected:
+  static gfxRect GetTextDecorationRectInternal(const gfxPoint& aPt,
+                                               const gfxSize& aLineSize,
+                                               const gfxFloat aAscent,
+                                               const gfxFloat aOffset,
+                                               const PRUint8 aDecoration,
+                                               const PRUint8 aStyle,
+                                               const gfxFloat aDscentLimit);
 };
 
 /*
@@ -288,6 +384,9 @@ public:
    *                             set the color on this context before
    *                             calling Init().
    *
+   * @param aDirtyRect           The absolute dirty rect in app units. Used to
+   *                             optimize the temporary surface size and speed up blur.
+   *
    * @return            A blank 8-bit alpha-channel-only graphics context to
    *                    draw on, or null on error. Must not be freed. The
    *                    context has a device offset applied to it given by
@@ -302,7 +401,8 @@ public:
    * directly on it instead of any temporary surface created in this class.
    */
   gfxContext* Init(const gfxRect& aRect, nscoord aBlurRadius,
-                   PRInt32 aAppUnitsPerDevPixel, gfxContext* aDestinationCtx);
+                   PRInt32 aAppUnitsPerDevPixel, gfxContext* aDestinationCtx,
+                   const gfxRect& aDirtyRect);
 
   /**
    * Does the actual blurring and mask applying. Users of this object *must*

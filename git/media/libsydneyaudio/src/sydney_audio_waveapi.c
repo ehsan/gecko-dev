@@ -45,7 +45,7 @@
 
 // FIX ME: block size and block should be determined based on the OggPlay offset 
 // for audio track
-#define BLOCK_SIZE  2560
+#define BLOCK_SIZE  1024
 #define BLOCK_COUNT 32
 #define DEFAULT_DEVICE_NAME "Default WAVE Device"
 #define DEFAULT_DEVICE WAVE_MAPPER
@@ -152,7 +152,7 @@ int sa_stream_create_pcm(sa_stream_t **s,
     return SA_ERROR_NOT_SUPPORTED;
   }
 
-  if ((_s = (sa_stream_t*)malloc(sizeof(sa_stream_t))) == NULL) {
+  if ((_s = (sa_stream_t*)calloc(1, sizeof(sa_stream_t))) == NULL) {
     return SA_ERROR_OOM;
   }
    
@@ -203,7 +203,7 @@ int sa_stream_get_write_size(sa_stream_t *s, size_t *size) {
   ERROR_IF_NO_INIT(s);
 
   EnterCriticalSection(&(s->waveCriticalSection));
-  avail = s->waveFreeBlockCount * BLOCK_SIZE;
+  avail = (s->waveFreeBlockCount-1) * BLOCK_SIZE;
   if (s->waveFreeBlockCount != BLOCK_COUNT) {
     current = &(s->waveBlocks[s->waveCurrentBlock]);
     avail += BLOCK_SIZE - current->dwUser;
@@ -421,19 +421,24 @@ int openAudio(sa_stream_t *s) {
   if (supported == MMSYSERR_NOERROR) { // audio device opened sucessfully 
     status = waveOutOpen((LPHWAVEOUT)&(s->hWaveOut), WAVE_MAPPER, &wfx, 
 	  (DWORD_PTR)waveOutProc, (DWORD_PTR)s, CALLBACK_FUNCTION);
-    HANDLE_WAVE_ERROR(status, "opening audio device for playback");
-		printf("Audio device sucessfully opened\n");
+    if (status != MMSYSERR_NOERROR) {
+      freeBlocks(s->waveBlocks);
+      s->waveBlocks = NULL;
+      HANDLE_WAVE_ERROR(status, "opening audio device for playback");
+    }
   } 
   else if (supported == WAVERR_BADFORMAT) {
-    printf("Requested format not supported...\n");
-	  // clean up the memory
-	  freeBlocks(s->waveBlocks);
+    printf("Requested format not supported.\n");
+    // clean up the memory
+    freeBlocks(s->waveBlocks);
+    s->waveBlocks = NULL;
     return SA_ERROR_NOT_SUPPORTED;
   } 
   else {
-    printf("Error opening default audio device. Exiting...\n");
-	  // clean up the memory
-	  freeBlocks(s->waveBlocks);
+    printf("Error opening default audio device.\n");
+    // clean up the memory
+    freeBlocks(s->waveBlocks);
+    s->waveBlocks = NULL;
     return SA_ERROR_SYSTEM;
   }
   // create notification for data written to a device
@@ -449,33 +454,45 @@ int openAudio(sa_stream_t *s) {
  * \return - completion status
  */
 int closeAudio(sa_stream_t * s) {
-  int status, i;
+  int status, i, result;
   
+  result = SA_SUCCESS;
+
   // reseting audio device and flushing buffers
   status = waveOutReset(s->hWaveOut);    
-  HANDLE_WAVE_ERROR(status, "resetting audio device");
+  if (status != MMSYSERR_NOERROR) {
+    result = getSAErrorCode(status);
+  }
   
-  /* wait for all blocks to complete */  
-  while(s->waveFreeBlockCount < BLOCK_COUNT)
-	  Sleep(10);
-
-  /* unprepare any blocks that are still prepared */  
-  for(i = 0; i < s->waveFreeBlockCount; i++) {
-    if(s->waveBlocks[i].dwFlags & WHDR_PREPARED) {
-	    status = waveOutUnprepareHeader(s->hWaveOut, &(s->waveBlocks[i]), sizeof(WAVEHDR));
-      HANDLE_WAVE_ERROR(status, "closing audio device");
+  if (s->waveBlocks) {
+    /* wait for all blocks to complete */  
+    while(s->waveFreeBlockCount < BLOCK_COUNT) {
+      Sleep(10);
     }
-  }    
 
-  freeBlocks(s->waveBlocks);  
+    /* unprepare any blocks that are still prepared */  
+    for(i = 0; i < s->waveFreeBlockCount; i++) {
+      if(s->waveBlocks[i].dwFlags & WHDR_PREPARED) {
+	status = waveOutUnprepareHeader(s->hWaveOut, &(s->waveBlocks[i]), sizeof(WAVEHDR));
+	if (status != MMSYSERR_NOERROR) {
+	  result = getSAErrorCode(status);
+	}
+      }
+    }    
+
+    freeBlocks(s->waveBlocks);  
+    s->waveBlocks = NULL;
+  }
+
   status = waveOutClose(s->hWaveOut);    
-  HANDLE_WAVE_ERROR(status, "closing audio device");
+  if (status != MMSYSERR_NOERROR) {
+    result = getSAErrorCode(status);
+  }
 
   DeleteCriticalSection(&(s->waveCriticalSection));
   CloseHandle(s->callbackEvent);
-  printf("[audio] audio resources cleanup completed\n");
   
-  return SA_SUCCESS;
+  return result;
 }
 /**
  * \brief - writes PCM audio samples to audio device
@@ -490,8 +507,14 @@ int writeAudio(sa_stream_t *s, LPSTR data, int bytes) {
   int remain;
 
   current = &(s->waveBlocks[s->waveCurrentBlock]);
-  
+
   while(bytes > 0) {
+     /*
+     * wait for a block to become free
+     */
+    while (!(s->waveFreeBlockCount))
+      WaitForSingleObject(s->callbackEvent, INFINITE);
+
     /* first make sure the header we're going to use is unprepared */
     if(current->dwFlags & WHDR_PREPARED) {      
         status = waveOutUnprepareHeader(s->hWaveOut, current, sizeof(WAVEHDR));         
@@ -503,7 +526,7 @@ int writeAudio(sa_stream_t *s, LPSTR data, int bytes) {
       current->dwUser += bytes;
       break;
     }
-	
+
     /* remain is even as BLOCK_SIZE and dwUser are even too */
     remain = BLOCK_SIZE - current->dwUser;      
   	memcpy(current->lpData + current->dwUser, data, remain);
@@ -518,15 +541,7 @@ int writeAudio(sa_stream_t *s, LPSTR data, int bytes) {
     EnterCriticalSection(&(s->waveCriticalSection));
     s->waveFreeBlockCount--;
     LeaveCriticalSection(&(s->waveCriticalSection));
-    /*
-     * wait for a block to become free
-     */
-    while (!(s->waveFreeBlockCount)) {
-        //printf("All audio buffer blocks empty\n");        
-      WaitForSingleObject(s->callbackEvent, INFINITE);
-        //Sleep(10);
-    }		  
-		
+
     /*
      * point to the next block
      */

@@ -46,6 +46,7 @@ LIBRARY_NAME	= oggz
 FORCE_STATIC_LIB= 1
 
 CSRCS		= \
+		dirac.c \
 		metric_internal.c \
 		oggz.c \
 		oggz_auto.c \
@@ -61,3 +62,5 @@ CSRCS		= \
 		$(NULL)
 
 include $(topsrcdir)/config/rules.mk
+
+LOCAL_INCLUDES += -I$(srcdir)/../../include/oggz

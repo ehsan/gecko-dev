@@ -88,10 +88,12 @@
     <command id="cmd_popupDef"      oncommand="onCheckboxClick('popup');"/>
     <command id="cmd_cookieDef"     oncommand="onCheckboxClick('cookie');"/>
     <command id="cmd_installDef"    oncommand="onCheckboxClick('install');"/>
+    <command id="cmd_geoDef"        oncommand="onCheckboxClick('geo');"/>
     <command id="cmd_imageToggle"   oncommand="onRadioClick('image');"/>
     <command id="cmd_popupToggle"   oncommand="onRadioClick('popup');"/>
     <command id="cmd_cookieToggle"  oncommand="onRadioClick('cookie');"/>
     <command id="cmd_installToggle" oncommand="onRadioClick('install');"/>
+    <command id="cmd_geoToggle"     oncommand="onRadioClick('geo');"/>
   </commandset>
 
   <keyset>
@@ -112,22 +114,20 @@
     <menuitem id="menu_copy"      label="&copy.label;"      command="cmd_copy"      accesskey="&copy.accesskey;"/>
   </menupopup>
 
-  <windowdragbox orient="vertical">
-    <stack id="topStackBar">
-      <radiogroup id="viewGroup" class="viewSelector chromeclass-toolbar" orient="horizontal">
-        <radio id="generalTab"  label="&generalTab;"  accesskey="&generalTab.accesskey;"
-             oncommand="showTab('general');"/>
-        <radio id="mediaTab"    label="&mediaTab;"    accesskey="&mediaTab.accesskey;"
-             oncommand="showTab('media'); ensureSelection(gImageView)" hidden="true"/>
-        <radio id="feedTab"     label="&feedTab;"     accesskey="&feedTab.accesskey;"
-             oncommand="showTab('feed');" hidden="true"/>
-        <radio id="permTab"     label="&permTab;"     accesskey="&permTab.accesskey;"
-             oncommand="showTab('perm');"/>
-        <radio id="securityTab" label="&securityTab;" accesskey="&securityTab.accesskey;"
-             oncommand="showTab('security');"/>
-        <!-- Others added by overlay -->
-      </radiogroup>
-    </stack>
+  <windowdragbox id="topBar" class="viewGroupWrapper">
+    <radiogroup id="viewGroup" class="chromeclass-toolbar" orient="horizontal">
+      <radio id="generalTab"  label="&generalTab;"  accesskey="&generalTab.accesskey;"
+           oncommand="showTab('general');"/>
+      <radio id="mediaTab"    label="&mediaTab;"    accesskey="&mediaTab.accesskey;"
+           oncommand="showTab('media'); ensureSelection(gImageView)" hidden="true"/>
+      <radio id="feedTab"     label="&feedTab;"     accesskey="&feedTab.accesskey;"
+           oncommand="showTab('feed');" hidden="true"/>
+      <radio id="permTab"     label="&permTab;"     accesskey="&permTab.accesskey;"
+           oncommand="showTab('perm');"/>
+      <radio id="securityTab" label="&securityTab;" accesskey="&securityTab.accesskey;"
+           oncommand="showTab('security');"/>
+      <!-- Others added by overlay -->
+    </radiogroup>
   </windowdragbox>
 
   <deck id="mainDeck" flex="1">
@@ -213,7 +213,7 @@
     <!-- Media information -->
     <vbox id="mediaPanel">
       <tree id="imagetree" onselect="onImageSelect();" contextmenu="picontext"
-            ondraggesture="onBeginLinkDrag(event,'image-address','image-alt')">
+            ondragstart="onBeginLinkDrag(event,'image-address','image-alt')">
         <treecols>
           <treecol sortSeparators="true" persist="hidden width" flex="10"
                         width="10" id="image-address" label="&mediaAddress;"/>
@@ -289,7 +289,7 @@
             <image id="thepreviewimage"/>
           </hbox>
           <hbox id="brokenimagecontainer" pack="center" collapsed="true">
-            <image id="brokenimage" src="resource:///res/broken-image.gif"/>
+            <image id="brokenimage" src="resource:///res/broken-image.png"/>
           </hbox>
         </vbox>
       </vbox>
@@ -315,8 +315,8 @@
 
       <vbox id="permList" flex="1">
         <vbox>
-          <label value="&permImage;" control="permImageGroup imageRadioGroup"/>
-          <hbox id="permImageGroup" role="group">
+          <label id="permImageLabel" value="&permImage;" control="imageRadioGroup"/>
+          <hbox role="group" aria-labelledby="permImageLabel">
             <checkbox id="imageDef" command="cmd_imageDef" label="&permUseDefault;"/>
             <spacer flex="1"/>
             <radiogroup id="imageRadioGroup" orient="horizontal">
@@ -326,8 +326,8 @@
           </hbox>
         </vbox>
         <vbox>
-          <label value="&permPopup;" control="permPopupGroup popupRadioGroup"/>
-          <hbox id="permPopupGroup" role="group">
+          <label id="permPopupLabel" value="&permPopup;" control="popupRadioGroup"/>
+          <hbox role="group" aria-labelledby="permPopupLabel">
             <checkbox id="popupDef" command="cmd_popupDef" label="&permUseDefault;"/>
             <spacer flex="1"/>
             <radiogroup id="popupRadioGroup" orient="horizontal">
@@ -337,8 +337,8 @@
           </hbox>
         </vbox>
         <vbox>
-          <label value="&permCookie;" control="permCookieGroup cookieRadioGroup"/>
-          <hbox id="permCookieGroup" role="group">
+          <label id="permCookieLabel" value="&permCookie;" control="cookieRadioGroup"/>
+          <hbox role="group" aria-labelledby="permCookieLabel">
             <checkbox id="cookieDef" command="cmd_cookieDef" label="&permUseDefault;"/>
             <spacer flex="1"/>
             <radiogroup id="cookieRadioGroup" orient="horizontal">
@@ -349,13 +349,25 @@
           </hbox>
         </vbox>
         <vbox>
-          <label value="&permInstall;" control="permInstallGroup installRadioGroup"/>
-          <hbox id="permInstallGroup" role="group">
+          <label id="permInstallLabel" value="&permInstall;" control="installRadioGroup"/>
+          <hbox role="group" aria-labelledby="permInstallLabel">
             <checkbox id="installDef" command="cmd_installDef" label="&permUseDefault;"/>
             <spacer flex="1"/>
             <radiogroup id="installRadioGroup" orient="horizontal">
               <radio id="install#1" command="cmd_installToggle" label="&permAllow;"/>
               <radio id="install#2" command="cmd_installToggle" label="&permBlock;"/>
+            </radiogroup>
+          </hbox>
+        </vbox>
+
+        <vbox>
+          <label id="permGeoLabel" value="&permGeo;" control="geoRadioGroup"/>
+          <hbox role="group" aria-labelledby="permGeoLabel">
+            <checkbox id="geoDef" command="cmd_geoDef" label="&permAskAlways;"/>
+            <spacer flex="1"/>
+            <radiogroup id="geoRadioGroup" orient="horizontal">
+              <radio id="geo#1" command="cmd_geoToggle" label="&permAllow;"/>
+              <radio id="geo#2" command="cmd_geoToggle" label="&permBlock;"/>
             </radiogroup>
           </hbox>
         </vbox>
@@ -400,9 +412,7 @@
           </rows>
         </grid>
         <spacer flex="1"/>
-        <hbox align="center"><!-- Cert button -->
-          <description id="security-view-text" class="fieldLabel"
-                 control="security-view-cert" flex="1"/>
+        <hbox pack="end"><!-- Cert button -->
           <button id="security-view-cert" label="&securityView.certView;"
                   accesskey="&securityView.accesskey;"
                   oncommand="security.viewCert();"/>

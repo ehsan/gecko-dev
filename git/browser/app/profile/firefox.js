@@ -84,7 +84,7 @@ pref("extensions.blocklist.interval", 86400);
 // blocking them.
 pref("extensions.blocklist.level", 2);
 pref("extensions.blocklist.url", "https://addons.mozilla.org/blocklist/3/%APP_ID%/%APP_VERSION%/%PRODUCT%/%BUILD_ID%/%BUILD_TARGET%/%LOCALE%/%CHANNEL%/%OS_VERSION%/%DISTRIBUTION%/%DISTRIBUTION_VERSION%/");
-pref("extensions.blocklist.detailsURL", "http://%LOCALE%.www.mozilla.com/%LOCALE%/blocklist/");
+pref("extensions.blocklist.detailsURL", "https://www.mozilla.com/%LOCALE%/blocklist/");
 
 // Dictionary download preference
 pref("browser.dictionaries.download.url", "https://%LOCALE%.add-ons.mozilla.com/%LOCALE%/firefox/%VERSION%/dictionaries/");
@@ -197,7 +197,6 @@ pref("browser.startup.homepage",            "resource:/browserconfig.properties"
 pref("browser.enable_automatic_image_resizing", true);
 pref("browser.chrome.site_icons", true);
 pref("browser.chrome.favicons", true);
-pref("browser.formfill.enable", true);
 pref("browser.warnOnQuit", true);
 pref("browser.warnOnRestart", true);
 pref("browser.fullscreen.autohide", true);
@@ -214,26 +213,19 @@ pref("browser.urlbar.doubleClickSelectsAll", true);
 pref("browser.urlbar.doubleClickSelectsAll", false);
 #endif
 pref("browser.urlbar.autoFill", false);
-pref("browser.urlbar.matchOnlyTyped", false);
 // 0: Match anywhere (e.g., middle of words)
 // 1: Match on word boundaries and then try matching anywhere
 // 2: Match only on word boundaries (e.g., after / or .)
 // 3: Match at the beginning of the url or title
 pref("browser.urlbar.matchBehavior", 1);
-// 0: Search nothing
-// 1: Search history (visited pages)
-// 2: Search bookmarks
-// 3: Search both history and bookmarks
-pref("browser.urlbar.search.sources", 3);
 pref("browser.urlbar.filter.javascript", true);
 
 // the maximum number of results to show in autocomplete when doing richResults
 pref("browser.urlbar.maxRichResults", 12);
-// Size of "chunks" affects the number of places to process between each search
-// timeout (ms). Too big and the UI will be unresponsive; too small and we'll
-// be waiting on the timeout too often without many results.
-pref("browser.urlbar.search.chunkSize", 1000);
-pref("browser.urlbar.search.timeout", 100);
+// The amount of time (ms) to wait after the user has stopped typing
+// before starting to perform autocomplete.  50 is the default set in
+// autocomplete.xml.
+pref("browser.urlbar.delay", 50);
 
 // The special characters below can be typed into the urlbar to either restrict
 // the search to visited history, bookmarked, tagged pages; or force a match on
@@ -241,8 +233,17 @@ pref("browser.urlbar.search.timeout", 100);
 pref("browser.urlbar.restrict.history", "^");
 pref("browser.urlbar.restrict.bookmark", "*");
 pref("browser.urlbar.restrict.tag", "+");
+pref("browser.urlbar.restrict.typed", "~");
 pref("browser.urlbar.match.title", "#");
 pref("browser.urlbar.match.url", "@");
+
+// The default behavior for the urlbar can be configured to use any combination
+// of the restrict or match filters with each additional filter restricting
+// more (intersection). Add the following values to set the behavior as the
+// default: 1: history, 2: bookmark, 4: tag, 8: title, 16: url, 32: typed
+// E.g., 0 = show all results (no filtering), 1 = only visited pages in history,
+// 2 = only bookmarks, 3 = visited bookmarks, 1+16 = history matching in the url
+pref("browser.urlbar.default.behavior", 0);
 
 // Number of milliseconds to wait for the http headers (and thus
 // the Content-Disposition filename) before giving up and falling back to 
@@ -251,7 +252,14 @@ pref("browser.urlbar.match.url", "@");
 pref("browser.download.saveLinkAsFilenameTimeout", 1000);
 
 pref("browser.download.useDownloadDir", true);
-pref("browser.download.folderList", 0);
+
+#ifdef WINCE
+pref("browser.download.folderList", 2);
+// Bug 499807: use Hard Disk filesystem because Desktop is short on space.
+pref("browser.download.dir", "\\Hard Disk");
+#else
+pref("browser.download.folderList", 1);
+#endif
 pref("browser.download.manager.showAlertOnComplete", true);
 pref("browser.download.manager.showAlertInterval", 2000);
 pref("browser.download.manager.retention", 2);
@@ -272,9 +280,6 @@ pref("browser.search.defaultenginename",      "chrome://browser-region/locale/re
 
 // disable logging for the search service by default
 pref("browser.search.log", false);
-
-// serialize search plugin XML
-pref("browser.search.cache.enabled", true);
 
 // Ordering of Search Engines in the Engine list. 
 pref("browser.search.order.1",                "chrome://browser-region/locale/region.properties");
@@ -299,7 +304,6 @@ pref("browser.microsummary.updateGenerators", true);
 // enable search suggestions by default
 pref("browser.search.suggest.enabled", true);
 
-pref("browser.history.grouping", "day");
 pref("browser.history.showSessions", false);
 pref("browser.sessionhistory.max_entries", 50);
 pref("browser.history_expire_days", 180);
@@ -316,7 +320,11 @@ pref("browser.link.open_newwindow", 3);
 pref("browser.link.open_newwindow.restriction", 2);
 
 // Tabbed browser
+#ifndef WINCE
 pref("browser.tabs.autoHide", false);
+#else
+pref("browser.tabs.autoHide", true);
+#endif
 pref("browser.tabs.closeWindowWithLastTab", true);
 pref("browser.tabs.warnOnClose", true);
 pref("browser.tabs.warnOnOpen", true);
@@ -344,7 +352,8 @@ pref("browser.tabs.closeButtons", 1);
 // false  return to the adjacent tab (old default)
 pref("browser.tabs.selectOwnerOnClose", true);
 
-pref("browser.ctrlTab.previews", true);
+pref("browser.allTabs.previews", false);
+pref("browser.ctrlTab.previews", false);
 pref("browser.ctrlTab.recentlyUsedLimit", 7);
 
 // Default bookmark sorting
@@ -371,6 +380,11 @@ pref("general.warnOnAboutConfig",                 false);
 pref("javascript.options.showInConsole",          false);
 #endif
 
+#ifdef WINCE
+// Set the threshold higher to avoid some slow script warnings
+pref("dom.max_script_run_time",                   20);
+#endif
+
 // Make the status bar reliably present and unaffected by pages
 pref("dom.disable_window_open_feature.status",    true);
 // This is the pref to control the location bar, change this to true to 
@@ -390,16 +404,28 @@ pref("privacy.popups.policy",               1);
 pref("privacy.popups.usecustom",            true);
 pref("privacy.popups.firstTime",            true);
 pref("privacy.popups.showBrowserMessage",   true);
- 
-pref("privacy.item.history",     true);
-pref("privacy.item.formdata",    true);
-pref("privacy.item.passwords",   false);
-pref("privacy.item.downloads",   true);
-pref("privacy.item.cookies",     false);
-pref("privacy.item.cache",       true);
-pref("privacy.item.siteprefs",   false);
-pref("privacy.item.sessions",    true);
-pref("privacy.item.offlineApps", false);
+
+pref("privacy.item.cookies",                false);
+
+pref("privacy.clearOnShutdown.history",     true);
+pref("privacy.clearOnShutdown.formdata",    true);
+pref("privacy.clearOnShutdown.passwords",   false);
+pref("privacy.clearOnShutdown.downloads",   true);
+pref("privacy.clearOnShutdown.cookies",     true);
+pref("privacy.clearOnShutdown.cache",       true);
+pref("privacy.clearOnShutdown.sessions",    true);
+pref("privacy.clearOnShutdown.offlineApps", false);
+pref("privacy.clearOnShutdown.siteSettings", false);
+
+pref("privacy.cpd.history",                 true);
+pref("privacy.cpd.formdata",                true);
+pref("privacy.cpd.passwords",               false);
+pref("privacy.cpd.downloads",               true);
+pref("privacy.cpd.cookies",                 true);
+pref("privacy.cpd.cache",                   true);
+pref("privacy.cpd.sessions",                true);
+pref("privacy.cpd.offlineApps",             false);
+pref("privacy.cpd.siteSettings",            false);
 
 // What default should we use for the time span in the sanitizer:
 // 0 - Clear everything
@@ -407,9 +433,10 @@ pref("privacy.item.offlineApps", false);
 // 2 - Last 2 Hours
 // 3 - Last 4 Hours
 // 4 - Today
-pref("privacy.sanitize.timeSpan", 0);
+pref("privacy.sanitize.timeSpan", 1);
 pref("privacy.sanitize.sanitizeOnShutdown", false);
-pref("privacy.sanitize.promptOnSanitize", true);
+
+pref("privacy.sanitize.migrateFx3Prefs",    false);
 
 pref("network.proxy.share_proxy_settings",  false); // use the same proxy settings for all protocols
 
@@ -423,23 +450,34 @@ pref("intl.charsetmenu.browser.more2",  "chrome://global/locale/intl.properties"
 pref("intl.charsetmenu.browser.more3",  "chrome://global/locale/intl.properties");
 pref("intl.charsetmenu.browser.more4",  "chrome://global/locale/intl.properties");
 pref("intl.charsetmenu.browser.more5",  "chrome://global/locale/intl.properties");
-pref("intl.charsetmenu.browser.unicode",  "chrome://global/locale/intl.properties");
+pref("intl.charsetmenu.browser.unicode",  "UTF-8, UTF-16LE, UTF-16BE, UTF-32, UTF-32LE, UTF-32BE");
 pref("intl.charset.detector", "chrome://global/locale/intl.properties");
 pref("intl.charset.default",  "chrome://global-platform/locale/intl.properties");
 pref("font.language.group", "chrome://global/locale/intl.properties");
 pref("intl.menuitems.alwaysappendaccesskeys","chrome://global/locale/intl.properties");
 pref("intl.menuitems.insertseparatorbeforeaccesskeys","chrome://global/locale/intl.properties");
 
+// simple gestures support
 pref("browser.gesture.swipe.left", "Browser:BackOrBackDuplicate");
 pref("browser.gesture.swipe.right", "Browser:ForwardOrForwardDuplicate");
 pref("browser.gesture.swipe.up", "cmd_scrollTop");
 pref("browser.gesture.swipe.down", "cmd_scrollBottom");
+#ifdef XP_MACOSX
+pref("browser.gesture.pinch.latched", true);
+pref("browser.gesture.pinch.threshold", 150);
+#else
+pref("browser.gesture.pinch.latched", false);
+pref("browser.gesture.pinch.threshold", 25);
+#endif
 pref("browser.gesture.pinch.out", "cmd_fullZoomEnlarge");
 pref("browser.gesture.pinch.in", "cmd_fullZoomReduce");
 pref("browser.gesture.pinch.out.shift", "cmd_fullZoomReset");
 pref("browser.gesture.pinch.in.shift", "cmd_fullZoomReset");
-pref("browser.gesture.twist.right", "Browser:NextTab");
-pref("browser.gesture.twist.left", "Browser:PrevTab");
+pref("browser.gesture.twist.latched", false);
+pref("browser.gesture.twist.threshold", 25);
+pref("browser.gesture.twist.right", "");
+pref("browser.gesture.twist.left", "");
+pref("browser.gesture.tap", "cmd_fullZoomReset");
 
 // 0=lines, 1=pages, 2=history , 3=text size
 #ifdef XP_MACOSX
@@ -539,10 +577,6 @@ pref("browser.preferences.animateFadeIn", false);
 pref("browser.download.show_plugins_in_list", true);
 pref("browser.download.hide_plugins_without_extensions", true);
 
-// Setting this pref to |true| forces BiDi UI menu items and keyboard shortcuts
-// to be exposed. By default, only expose it for bidi-associated system locales.
-pref("bidi.browser.ui", false);
-
 // Backspace and Shift+Backspace behavior
 // 0 goes Back/Forward
 // 1 act like PgUp/PgDown
@@ -617,6 +651,25 @@ pref("gecko.handlerService.schemes.mailto.2.uriTemplate", "chrome://browser-regi
 pref("gecko.handlerService.schemes.mailto.3.name", "chrome://browser-region/locale/region.properties");
 pref("gecko.handlerService.schemes.mailto.3.uriTemplate", "chrome://browser-region/locale/region.properties");
 
+// irc
+pref("gecko.handlerService.schemes.irc.0.name", "chrome://browser-region/locale/region.properties");
+pref("gecko.handlerService.schemes.irc.0.uriTemplate", "chrome://browser-region/locale/region.properties");
+pref("gecko.handlerService.schemes.irc.1.name", "chrome://browser-region/locale/region.properties");
+pref("gecko.handlerService.schemes.irc.1.uriTemplate", "chrome://browser-region/locale/region.properties");
+pref("gecko.handlerService.schemes.irc.2.name", "chrome://browser-region/locale/region.properties");
+pref("gecko.handlerService.schemes.irc.2.uriTemplate", "chrome://browser-region/locale/region.properties");
+pref("gecko.handlerService.schemes.irc.3.name", "chrome://browser-region/locale/region.properties");
+pref("gecko.handlerService.schemes.irc.3.uriTemplate", "chrome://browser-region/locale/region.properties");
+
+// ircs
+pref("gecko.handlerService.schemes.ircs.0.name", "chrome://browser-region/locale/region.properties");
+pref("gecko.handlerService.schemes.ircs.0.uriTemplate", "chrome://browser-region/locale/region.properties");
+pref("gecko.handlerService.schemes.ircs.1.name", "chrome://browser-region/locale/region.properties");
+pref("gecko.handlerService.schemes.ircs.1.uriTemplate", "chrome://browser-region/locale/region.properties");
+pref("gecko.handlerService.schemes.ircs.2.name", "chrome://browser-region/locale/region.properties");
+pref("gecko.handlerService.schemes.ircs.2.uriTemplate", "chrome://browser-region/locale/region.properties");
+pref("gecko.handlerService.schemes.ircs.3.name", "chrome://browser-region/locale/region.properties");
+pref("gecko.handlerService.schemes.ircs.3.uriTemplate", "chrome://browser-region/locale/region.properties");
 
 // By default, we don't want protocol/content handlers to be registered from a different host, see bug 402287
 pref("gecko.handlerService.allowRegisterFromDifferentHost", false);
@@ -640,11 +693,6 @@ pref("browser.safebrowsing.provider.0.keyURL", "https://sb-ssl.google.com/safebr
 pref("browser.safebrowsing.provider.0.reportURL", "http://safebrowsing.clients.google.com/safebrowsing/report?");
 pref("browser.safebrowsing.provider.0.gethashURL", "http://safebrowsing.clients.google.com/safebrowsing/gethash?client={moz:client}&appver={moz:version}&pver=2.2");
 
-// privacy policy -- Both url and fallbackurl must exist, although they may
-// point to the same file.  fallbackurl must be a chrome url
-pref("browser.safebrowsing.provider.0.privacy.url", "http://www.google.com/tools/firefox/firefox_privacy.html?hl=%LOCALE%");
-pref("browser.safebrowsing.provider.0.privacy.fallbackurl", "chrome://browser/content/preferences/phishEULA.xhtml");
-
 // HTML report pages
 pref("browser.safebrowsing.provider.0.reportGenericURL", "http://{moz:locale}.phish-generic.mozilla.com/?hl={moz:locale}");
 pref("browser.safebrowsing.provider.0.reportErrorURL", "http://{moz:locale}.phish-error.mozilla.com/?hl={moz:locale}");
@@ -652,8 +700,9 @@ pref("browser.safebrowsing.provider.0.reportPhishURL", "http://{moz:locale}.phis
 pref("browser.safebrowsing.provider.0.reportMalwareURL", "http://{moz:locale}.malware-report.mozilla.com/?hl={moz:locale}");
 pref("browser.safebrowsing.provider.0.reportMalwareErrorURL", "http://{moz:locale}.malware-error.mozilla.com/?hl={moz:locale}");
 
-// FAQ URL
+// FAQ URLs
 pref("browser.safebrowsing.warning.infoURL", "http://%LOCALE%.www.mozilla.com/%LOCALE%/firefox/phishing-protection/");
+pref("browser.geolocation.warning.infoURL", "http://%LOCALE%.www.mozilla.com/%LOCALE%/firefox/geolocation/");
 
 // Name of the about: page contributed by safebrowsing to handle display of error
 // pages on phishing/malware hits.  (bug 399233)
@@ -711,6 +760,9 @@ pref("browser.sessionstore.postdata", 0);
 pref("browser.sessionstore.privacy_level", 1);
 // how many tabs can be reopened (per window)
 pref("browser.sessionstore.max_tabs_undo", 10);
+// how many windows can be reopened (per session) - on non-OS X platforms this
+// pref may be ignored when dealing with pop-up windows to ensure proper startup
+pref("browser.sessionstore.max_windows_undo", 3);
 // number of crashes that can occur before the about:sessionrestore page is displayed
 // (this pref has no effect if more than 6 hours have passed since the last crash)
 pref("browser.sessionstore.max_resumed_crashes", 1);
@@ -721,18 +773,6 @@ pref("accessibility.blockautorefresh", false);
 // the (maximum) number of the recent visits to sample
 // when calculating frecency
 pref("places.frecency.numVisits", 10);
-
-// Number of records to update frecency for when idle.
-pref("places.frecency.numCalcOnIdle", 50);
-
-// Number of records to update frecency for when migrating from
-// a pre-frecency build.
-pref("places.frecency.numCalcOnMigrate", 50);
-
-// Perform frecency recalculation after this amount of idle, repeating.
-// A value of zero disables updating of frecency on idle.
-// Default is 1 minute (60000ms).
-pref("places.frecency.updateIdleTime", 60000);
 
 // buckets (in days) for frecency calculation
 pref("places.frecency.firstBucketCutoff", 4);
@@ -751,7 +791,7 @@ pref("places.frecency.defaultBucketWeight", 10);
 pref("places.frecency.embedVisitBonus", 0);
 pref("places.frecency.linkVisitBonus", 100);
 pref("places.frecency.typedVisitBonus", 2000);
-pref("places.frecency.bookmarkVisitBonus", 150);
+pref("places.frecency.bookmarkVisitBonus", 75);
 pref("places.frecency.downloadVisitBonus", 0);
 pref("places.frecency.permRedirectVisitBonus", 0);
 pref("places.frecency.tempRedirectVisitBonus", 0);
@@ -771,7 +811,7 @@ pref("browser.ssl_override_behavior", 2);
 // 0 - do not show domain
 // 1 - show effectiveTLD + 1 (e.g. mozilla.org)
 // 2 - show full domain (e.g. bugzilla.mozilla.org)
-pref("browser.identity.ssl_domain_display", 0);
+pref("browser.identity.ssl_domain_display", 1);
 
 // True if the user should be prompted when a web application supports
 // offline apps.
@@ -782,6 +822,9 @@ pref("browser.zoom.full", true);
 
 // Whether or not to save and restore zoom levels on a per-site basis.
 pref("browser.zoom.siteSpecific", true);
+
+// Whether or not to update background tabs to the current zoom level.
+pref("browser.zoom.updateBackgroundTabs", true);
 
 // replace newlines with spaces when pasting into <input type="text"> fields
 pref("editor.singleLine.pasteNewlines", 2);
@@ -800,3 +843,48 @@ pref("browser.privatebrowsing.autostart", false);
 
 // Whether we should skip prompting before starting the private browsing mode
 pref("browser.privatebrowsing.dont_prompt_on_enter", false);
+
+// Don't try to alter this pref, it'll be reset the next time you use the
+// bookmarking dialog
+pref("browser.bookmarks.editDialog.firstEditField", "namePicker");
+
+// base url for the wifi geolocation network provider
+pref("geo.wifi.uri", "https://www.google.com/loc/json");
+
+#ifdef WINCE
+
+// tweak awesomebar -- increase the delay until a search happens.
+pref("browser.urlbar.delay", 1000);
+
+// disable safe browsing, due to perf hit
+pref("browser.safebrowsing.enabled", false);
+pref("browser.safebrowsing.malware.enabled", false);
+
+// don't check for default browser
+pref("browser.shell.checkDefaultBrowser", false);
+
+// disable bfcache for memory
+pref("browser.sessionhistory.max_total_viewers", 0);
+
+// tweak default content sink prefs
+pref("content.sink.interactive_deflect_count", 10); /* default 0 */
+pref("content.sink.perf_deflect_count", 50); /* default 200 */
+pref("content.sink.interactive_parse_time", 5000); /* default 3000 */
+pref("content.sink.perf_parse_time", 150000); /* default 360000 */
+pref("content.sink.pending_event_mode", 0); /* default 1 */
+pref("content.sink.event_probe_rate", 1); /* default 1 */
+pref("content.sink.interactive_time", 750000); /* default 750000 */
+pref("content.sink.initial_perf_time", 500000); /* default 2000000 */
+pref("content.sink.enable_perf_mode", 0); /* default 0; 0 == switch, 1 == stay interactive, 2 == stay perf */
+
+// Write sessionstore.js less often
+pref("browser.sessionstore.interval", 60000);
+
+#endif /* WINCE */
+
+// Whether to use a panel that looks like an OS X sheet for customization
+#ifdef XP_MACOSX
+pref("toolbar.customization.usesheet", true);
+#else
+pref("toolbar.customization.usesheet", false);
+#endif

@@ -143,18 +143,6 @@ NS_IMETHODIMP nsScrollPortView::RemoveScrollPositionListener(nsIScrollPositionLi
   return NS_ERROR_FAILURE;
 }
 
-NS_IMETHODIMP nsScrollPortView::CreateScrollControls(nsNativeWidget aNative)
-{
-  nsWidgetInitData  initData;
-  initData.clipChildren = PR_TRUE;
-  initData.clipSiblings = PR_TRUE;
-
-  CreateWidget(kWidgetCID, &initData,
-               mWindow ? nsnull : aNative);
-  
-  return NS_OK;
-}
-
 NS_IMETHODIMP nsScrollPortView::GetContainerSize(nscoord *aWidth, nscoord *aHeight) const
 {
   if (!aWidth || !aHeight)
@@ -208,7 +196,7 @@ static void ComputeVelocities(PRInt32 aCurVelocity, nscoord aCurPos, nscoord aDs
 }
   
 static nsresult ClampScrollValues(nscoord& aX, nscoord& aY, nsScrollPortView* aThis) {
-  // make sure the new position in in bounds
+  // make sure the new position is in bounds
   nsView* scrolledView = aThis->GetScrolledView();
   if (!scrolledView) return NS_ERROR_FAILURE;
   
@@ -243,19 +231,11 @@ static nsresult ClampScrollValues(nscoord& aX, nscoord& aY, nsScrollPortView* aT
 NS_IMETHODIMP nsScrollPortView::ScrollTo(nscoord aDestinationX, nscoord aDestinationY,
                                          PRUint32 aUpdateFlags)
 {
-  // do nothing if the we aren't scrolling.
-  if (aDestinationX == mDestinationX && aDestinationY == mDestinationY) {
-    // kill any in-progress smooth scroll
-    delete mAsyncScroll;
-    mAsyncScroll = nsnull;
-    return NS_OK;
-  }
-
   mDestinationX = aDestinationX;
   mDestinationY = aDestinationY;
   ClampScrollValues(mDestinationX, mDestinationY, this);
 
-  if (!(aUpdateFlags & NS_VMREFRESH_DEFERRED)) {
+  if (!(aUpdateFlags & (NS_VMREFRESH_DEFERRED | NS_VMREFRESH_SMOOTHSCROLL))) {
     // Asynchronous scrolling is not allowed, so we'll kill any existing
     // async-scrolling process and do an instant scroll
     delete mAsyncScroll;
@@ -338,9 +318,9 @@ static void AdjustChildWidgets(nsView *aView,
         widget->Show(PR_TRUE);
       }
     }
+    // Don't recurse if the view has a widget, because we adjusted the view's
+    // widget position, and its child widgets are relative to its position
   } else {
-    // Don't recurse if the view haLs a widget, because we adjusted the view's
-    // widget position, and its child widgets are relative to its positon
     nsPoint widgetToViewOrigin = aWidgetToParentViewOrigin
       + aView->GetPosition();
 
@@ -380,18 +360,6 @@ NS_IMETHODIMP nsScrollPortView::GetScrollPosition(nscoord &aX, nscoord &aY) cons
   return NS_OK;
 }
 
-NS_IMETHODIMP nsScrollPortView::SetScrollProperties(PRUint32 aProperties)
-{
-  mScrollProperties = aProperties;
-  return NS_OK;
-}
-
-NS_IMETHODIMP nsScrollPortView::GetScrollProperties(PRUint32 *aProperties)
-{
-  *aProperties = mScrollProperties;
-  return NS_OK;
-}
-
 NS_IMETHODIMP nsScrollPortView::SetLineHeight(nscoord aHeight)
 {
   mLineHeight = aHeight;
@@ -404,11 +372,62 @@ NS_IMETHODIMP nsScrollPortView::GetLineHeight(nscoord *aHeight)
   return NS_OK;
 }
 
-NS_IMETHODIMP nsScrollPortView::ScrollByLines(PRInt32 aNumLinesX, PRInt32 aNumLinesY,
+nsresult
+nsScrollPortView::CalcScrollOverflow(nscoord aX, nscoord aY,
+                                     PRInt32& aPixelOverflowX, PRInt32& aPixelOverflowY)
+{
+  // make sure the new position is in bounds
+  nsView* scrolledView = GetScrolledView();
+  if (!scrolledView) return NS_ERROR_FAILURE;
+  
+  nsRect scrolledRect;
+  scrolledView->GetDimensions(scrolledRect);
+  
+  nsSize portSize;
+  this->GetDimensions(portSize);
+  
+  nscoord maxX = scrolledRect.XMost() - portSize.width;
+  nscoord maxY = scrolledRect.YMost() - portSize.height;
+  
+  nsCOMPtr<nsIDeviceContext> dev;
+  mViewManager->GetDeviceContext(*getter_AddRefs(dev));
+  float p2a = (float)dev->AppUnitsPerDevPixel();
+
+  if (maxX != 0 && aX > maxX)
+    aPixelOverflowX = NSAppUnitsToIntPixels(aX - maxX, p2a);
+
+  if (maxY != 0 && aY > maxY)
+    aPixelOverflowY = NSAppUnitsToIntPixels(aY - maxY, p2a);
+
+  if (maxX != 0 && aX < scrolledRect.x)
+    aPixelOverflowX = NSAppUnitsToIntPixels(scrolledRect.x - aX, p2a);
+
+  if (maxY != 0 && aY < scrolledRect.y)
+    aPixelOverflowY = NSAppUnitsToIntPixels(scrolledRect.y - aY, p2a);
+  
+  return NS_OK;
+}
+
+NS_IMETHODIMP nsScrollPortView::ScrollByLines(PRInt32 aNumLinesX,
+                                              PRInt32 aNumLinesY,
                                               PRUint32 aUpdateFlags)
 {
   nscoord dx = mLineHeight*aNumLinesX;
   nscoord dy = mLineHeight*aNumLinesY;
+
+  return ScrollTo(mDestinationX + dx, mDestinationY + dy, aUpdateFlags);
+}
+
+NS_IMETHODIMP nsScrollPortView::ScrollByLinesWithOverflow(PRInt32 aNumLinesX,
+                                                          PRInt32 aNumLinesY,
+                                                          PRInt32& aOverflowX,
+                                                          PRInt32& aOverflowY,
+                                                          PRUint32 aUpdateFlags)
+{
+  nscoord dx = mLineHeight*aNumLinesX;
+  nscoord dy = mLineHeight*aNumLinesY;
+
+  CalcScrollOverflow(mDestinationX + dx, mDestinationY + dy, aOverflowX, aOverflowY);
 
   return ScrollTo(mDestinationX + dx, mDestinationY + dy, aUpdateFlags);
 }
@@ -459,6 +478,8 @@ NS_IMETHODIMP nsScrollPortView::ScrollByWhole(PRBool aTop,
 
 NS_IMETHODIMP nsScrollPortView::ScrollByPixels(PRInt32 aNumPixelsX,
                                                PRInt32 aNumPixelsY,
+                                               PRInt32& aOverflowX,
+                                               PRInt32& aOverflowY,
                                                PRUint32 aUpdateFlags)
 {
   nsCOMPtr<nsIDeviceContext> dev;
@@ -468,6 +489,8 @@ NS_IMETHODIMP nsScrollPortView::ScrollByPixels(PRInt32 aNumPixelsX,
   nscoord dx = NSIntPixelsToAppUnits(aNumPixelsX, p2a);
   nscoord dy = NSIntPixelsToAppUnits(aNumPixelsY, p2a);
 
+  CalcScrollOverflow(mDestinationX + dx, mDestinationY + dy, aOverflowX, aOverflowY);
+  
   return ScrollTo(mDestinationX + dx, mDestinationY + dy, aUpdateFlags);
 }
 
@@ -518,8 +541,9 @@ NS_IMETHODIMP nsScrollPortView::CanScroll(PRBool aHorizontal,
   return NS_OK;
 }
 
-void nsScrollPortView::Scroll(nsView *aScrolledView, nsPoint aTwipsDelta, nsPoint aPixDelta,
-                              PRInt32 aP2A)
+void nsScrollPortView::Scroll(nsView *aScrolledView, nsPoint aTwipsDelta,
+                              nsIntPoint aPixDelta, PRInt32 aP2A,
+                              const nsTArray<nsIWidget::Configuration>& aConfigurations)
 {
   if (aTwipsDelta.x != 0 || aTwipsDelta.y != 0)
   {
@@ -529,37 +553,20 @@ void nsScrollPortView::Scroll(nsView *aScrolledView, nsPoint aTwipsDelta, nsPoin
     if (aScrolledView->NeedsInvalidateFrameOnScroll())
       GetViewManager()->GetViewObserver()->InvalidateFrameForView(aScrolledView);
     
-    nsIWidget *scrollWidget = GetWidget();
+    nsPoint nearestWidgetOffset;
+    nsIWidget *nearestWidget = GetNearestWidget(&nearestWidgetOffset);
     nsRegion updateRegion;
-    PRBool canBitBlit = scrollWidget &&
-                        ((mScrollProperties & NS_SCROLL_PROPERTY_ALWAYS_BLIT) ||
-                         mViewManager->CanScrollWithBitBlt(aScrolledView, aTwipsDelta, &updateRegion));
+    PRBool canBitBlit = nearestWidget &&
+                        mViewManager->CanScrollWithBitBlt(aScrolledView, aTwipsDelta, &updateRegion) &&
+                        nearestWidget->GetTransparencyMode() != eTransparencyTransparent;
 
-    if (canBitBlit) {
-      // We're going to bit-blit.  Let the viewmanager know so it can
-      // adjust dirty regions appropriately.
-      mViewManager->WillBitBlit(this, aTwipsDelta);
-    }
-    
-    if (!scrollWidget)
-    {
-      NS_ASSERTION(!canBitBlit, "Someone screwed up");
-      nsPoint offsetToWidget;
-      GetNearestWidget(&offsetToWidget);
-      // We're moving the child widgets because we are scrolling. But
-      // the child widgets may stick outside our bounds, so their area
-      // may include area that's not supposed to be scrolled. We need
-      // to invalidate to ensure that any such area is properly
-      // repainted back to the right rendering.
-      AdjustChildWidgets(aScrolledView, offsetToWidget, aP2A, PR_TRUE);
-      // If we don't have a scroll widget then we must just update.
-      // We should call this after fixing up the widget positions to be
-      // consistent with the view hierarchy.
-      mViewManager->UpdateView(this, NS_VMREFRESH_DEFERRED);
-    } else if (!canBitBlit) {
+    if (!canBitBlit) {
       // We can't blit for some reason.
       // Just update the view and adjust widgets
       // Recall that our widget's origin is at our bounds' top-left
+      if (nearestWidget) {
+        nearestWidget->ConfigureChildren(aConfigurations);
+      }
       nsRect bounds(GetBounds());
       nsPoint topLeft(bounds.x, bounds.y);
       AdjustChildWidgets(aScrolledView,
@@ -567,35 +574,45 @@ void nsScrollPortView::Scroll(nsView *aScrolledView, nsPoint aTwipsDelta, nsPoin
       // We should call this after fixing up the widget positions to be
       // consistent with the view hierarchy.
       mViewManager->UpdateView(this, NS_VMREFRESH_DEFERRED);
-    } else { // if we can blit and have a scrollwidget then scroll.
-      nsRect* toScrollPtr = nsnull;
+    } else {
+      // We're going to bit-blit.  Let the viewmanager know so it can
+      // adjust dirty regions appropriately.
+      mViewManager->WillBitBlit(this, aTwipsDelta);
 
-#ifdef XP_WIN
-      nsRect toScroll;
-      if (!updateRegion.IsEmpty()) {
-        nsRegion regionToScroll;
-        regionToScroll.Sub(nsRect(nsPoint(0,0), GetBounds().Size()),
-                           updateRegion);
-        nsRegionRectIterator iter(regionToScroll);
-        nsRect biggestRect(0,0,0,0);
-        const nsRect* r;
-        for (r = iter.Next(); r; r = iter.Next()) {
-          if (r->width*r->height > biggestRect.width*biggestRect.height) {
-            biggestRect = *r;
-          }
+      // Compute the region that needs to be updated by the bit-blit scroll
+      nsRect bounds(nsPoint(0,0), GetBounds().Size());
+      nsRegion regionToScroll;
+      regionToScroll.Sub(bounds, updateRegion);
+      // Only the area corresponding to the widget bounds, translated
+      // by the scroll amount, will actually be filled by the blit
+      regionToScroll.And(regionToScroll, bounds - aTwipsDelta);
+      // Find the largest rectangle in that region
+      nsRegionRectIterator iter(regionToScroll);
+      nsRect biggestRect(0,0,0,0);
+      const nsRect* r;
+      for (r = iter.Next(); r; r = iter.Next()) {
+        if (PRInt64(r->width)*PRInt64(r->height) > PRInt64(biggestRect.width)*PRInt64(biggestRect.height)) {
+          biggestRect = *r;
         }
-        toScrollPtr = &toScroll;
-        biggestRect.ScaleRoundIn(1.0/aP2A);
-        toScroll = biggestRect;
-        biggestRect *= aP2A;
-        regionToScroll.Sub(regionToScroll, biggestRect);
-        updateRegion.Or(updateRegion, regionToScroll);
       }
-#endif
+      // Convert the largest rectangle to widget device pixel coordinates
+      nsIntRect destScroll = (biggestRect + nearestWidgetOffset).ToInsidePixels(aP2A);
+      // Convert it back to view-relative appunits, since we shrank it in
+      // ToInsidePixels
+      biggestRect = destScroll.ToAppUnits(aP2A) - nearestWidgetOffset;
+      // Make sure we repaint the area we've decided not to bit-blit to
+      regionToScroll.Sub(regionToScroll, biggestRect);
+      updateRegion.Or(updateRegion, regionToScroll);
 
-      // Scroll the contents of the widget by the specified amount, and scroll
-      // the child widgets
-      scrollWidget->Scroll(aPixDelta.x, aPixDelta.y, toScrollPtr);
+      // Compute the area that's being exposed by the scroll operation
+      // and make sure it gets repainted
+      nsRegion exposedArea;
+      exposedArea.Sub(bounds, bounds - aTwipsDelta);
+      updateRegion.Or(updateRegion, exposedArea);
+
+      nearestWidget->Scroll(aPixDelta, destScroll - aPixDelta,
+                            aConfigurations);
+      AdjustChildWidgets(aScrolledView, nearestWidgetOffset, aP2A, PR_TRUE);
       mViewManager->UpdateViewAfterScroll(this, updateRegion);
     }
   }
@@ -622,7 +639,7 @@ NS_IMETHODIMP nsScrollPortView::ScrollToImpl(nscoord aX, nscoord aY)
   aX = NSIntPixelsToAppUnits(xPixels, p2a);
   aY = NSIntPixelsToAppUnits(yPixels, p2a);
   
-  // do nothing if the we aren't scrolling.
+  // do nothing if we aren't scrolling.
   // this needs to be rechecked because of the clamping and
   // rounding
   if (aX == mOffsetX && aY == mOffsetY) {
@@ -652,16 +669,15 @@ NS_IMETHODIMP nsScrollPortView::ScrollToImpl(nscoord aX, nscoord aY)
   if (!scrolledView) return NS_ERROR_FAILURE;
 
   // move the scrolled view to the new location
-  // Note that child widgets may be scrolled by the native widget scrolling,
-  // so don't update their positions
   scrolledView->SetPositionIgnoringChildWidgets(-aX, -aY);
       
   // notify the listeners.
+  nsTArray<nsIWidget::Configuration> configurations;
   if (nsnull != mListeners) {
     if (NS_SUCCEEDED(mListeners->Count(&listenerCount))) {
       for (PRUint32 i = 0; i < listenerCount; i++) {
         if (NS_SUCCEEDED(mListeners->QueryElementAt(i, kScrollPositionListenerIID, (void**)&listener))) {
-          listener->ViewPositionDidChange(this);
+          listener->ViewPositionDidChange(this, &configurations);
           NS_RELEASE(listener);
         }
       }
@@ -674,7 +690,7 @@ NS_IMETHODIMP nsScrollPortView::ScrollToImpl(nscoord aX, nscoord aY)
   mOffsetX = aX;
   mOffsetY = aY;
 
-  Scroll(scrolledView, twipsDelta, nsPoint(dxPx, dyPx), p2a);
+  Scroll(scrolledView, twipsDelta, nsIntPoint(dxPx, dyPx), p2a, configurations);
 
   mViewManager->SynthesizeMouseMove(PR_TRUE);
   

@@ -138,9 +138,8 @@ public:
   virtual nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
                            nsIAtom* aPrefix, const nsAString& aValue,
                            PRBool aNotify);
-
-  // XXXbz What about UnsetAttr?  We don't seem to unload images when
-  // that happens...
+  virtual nsresult UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
+                             PRBool aNotify);
 
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                               nsIContent* aBindingParent,
@@ -149,6 +148,7 @@ public:
   virtual PRInt32 IntrinsicState() const;
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
+  void MaybeLoadImage();
 protected:
   nsPoint GetXY();
   nsSize GetWidthHeight();
@@ -531,6 +531,17 @@ nsHTMLImageElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom* aName,
 }
 
 nsresult
+nsHTMLImageElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
+                              PRBool aNotify)
+{
+  if (aNameSpaceID == kNameSpaceID_None && aAttribute == nsGkAtoms::src) {
+    CancelImageRequests(aNotify);
+  }
+
+  return nsGenericHTMLElement::UnsetAttr(aNameSpaceID, aAttribute, aNotify);
+}
+
+nsresult
 nsHTMLImageElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                                nsIContent* aBindingParent,
                                PRBool aCompileEventHandlers)
@@ -540,16 +551,28 @@ nsHTMLImageElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
                                                  aCompileEventHandlers);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // Our base URI may have changed; claim that our URI changed, and the
-  // nsImageLoadingContent will decide whether a new image load is warranted.
-  nsAutoString uri;
-  if (GetAttr(kNameSpaceID_None, nsGkAtoms::src, uri)) {
-    // Note: no need to notify here; since we're just now being bound
-    // we don't have any frames or anything yet.
-    LoadImage(uri, PR_FALSE, PR_FALSE);
+  if (HasAttr(kNameSpaceID_None, nsGkAtoms::src)) {
+    ClearBrokenState();
+    nsContentUtils::AddScriptRunner(
+      new nsRunnableMethod<nsHTMLImageElement>(this,
+                                               &nsHTMLImageElement::MaybeLoadImage));
   }
 
   return rv;
+}
+
+void
+nsHTMLImageElement::MaybeLoadImage()
+{
+  // Our base URI may have changed; claim that our URI changed, and the
+  // nsImageLoadingContent will decide whether a new image load is warranted.
+  // Note, check LoadingEnabled() after LoadImage call.
+  nsAutoString uri;
+  if (GetAttr(kNameSpaceID_None, nsGkAtoms::src, uri) &&
+      (NS_FAILED(LoadImage(uri, PR_FALSE, PR_TRUE)) ||
+       !LoadingEnabled())) {
+    CancelImageRequests(PR_TRUE);
+  }
 }
 
 PRInt32

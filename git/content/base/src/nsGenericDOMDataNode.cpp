@@ -80,11 +80,19 @@ nsGenericDOMDataNode::~nsGenericDOMDataNode()
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsGenericDOMDataNode)
 
+NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsGenericDOMDataNode)
+  NS_IMPL_CYCLE_COLLECTION_TRACE_PRESERVED_WRAPPER
+NS_IMPL_CYCLE_COLLECTION_TRACE_END
+
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsGenericDOMDataNode)
+  // Always need to traverse script objects, so do that before we check
+  // if we're uncollectable.
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
+
   nsIDocument* currentDoc = tmp->GetCurrentDoc();
   if (currentDoc && nsCCUncollectableMarker::InGeneration(
-                      currentDoc->GetMarkedCCGeneration())) {
-    return NS_OK;
+                      cb, currentDoc->GetMarkedCCGeneration())) {
+    return NS_SUCCESS_INTERRUPTED_TRAVERSE;
   }
 
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mNodeInfo)
@@ -96,13 +104,15 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsGenericDOMDataNode)
 
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_LISTENERMANAGER
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_USERDATA
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE_PRESERVED_WRAPPER
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+
+NS_IMPL_CYCLE_COLLECTION_ROOT_BEGIN(nsGenericDOMDataNode)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
+NS_IMPL_CYCLE_COLLECTION_ROOT_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsGenericDOMDataNode)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_LISTENERMANAGER
   NS_IMPL_CYCLE_COLLECTION_UNLINK_USERDATA
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_INTERFACE_MAP_BEGIN(nsGenericDOMDataNode)
@@ -120,6 +130,8 @@ NS_INTERFACE_MAP_BEGIN(nsGenericDOMDataNode)
   NS_INTERFACE_MAP_ENTRY_TEAROFF(nsISupportsWeakReference,
                                  new nsNodeSupportsWeakRefTearoff(this))
   NS_INTERFACE_MAP_ENTRY_TEAROFF(nsIDOM3Node, new nsNode3Tearoff(this))
+  NS_INTERFACE_MAP_ENTRY_TEAROFF(nsIDOMXPathNSResolver,
+                                 new nsNode3Tearoff(this))
   // nsNodeSH::PreCreate() depends on the identity pointer being the
   // same as nsINode (which nsIContent inherits), so if you change the
   // below line, make sure nsNodeSH::PreCreate() still does the right
@@ -143,77 +155,6 @@ nsGenericDOMDataNode::SetNodeValue(const nsAString& aNodeValue)
 {
   return SetTextInternal(0, mText.GetLength(), aNodeValue.BeginReading(),
                          aNodeValue.Length(), PR_TRUE);
-}
-
-nsresult
-nsGenericDOMDataNode::GetParentNode(nsIDOMNode** aParentNode)
-{
-  *aParentNode = nsnull;
-  nsINode *parent = GetNodeParent();
-
-  return parent ? CallQueryInterface(parent, aParentNode) : NS_OK;
-}
-
-nsresult
-nsGenericDOMDataNode::GetPreviousSibling(nsIDOMNode** aPrevSibling)
-{
-  *aPrevSibling = nsnull;
-
-  nsINode *parent = GetNodeParent();
-  if (!parent) {
-    return NS_OK;
-  }
-
-  PRInt32 pos = parent->IndexOf(this);
-  nsIContent *sibling = parent->GetChildAt(pos - 1);
-
-  return sibling ? CallQueryInterface(sibling, aPrevSibling) : NS_OK;
-}
-
-nsresult
-nsGenericDOMDataNode::GetNextSibling(nsIDOMNode** aNextSibling)
-{
-  *aNextSibling = nsnull;
-
-  nsINode *parent = GetNodeParent();
-  if (!parent) {
-    return NS_OK;
-  }
-
-  PRInt32 pos = parent->IndexOf(this);
-  nsIContent *sibling = parent->GetChildAt(pos + 1);
-
-  return sibling ? CallQueryInterface(sibling, aNextSibling) : NS_OK;
-}
-
-nsresult
-nsGenericDOMDataNode::GetChildNodes(nsIDOMNodeList** aChildNodes)
-{
-  *aChildNodes = nsnull;
-  nsDataSlots *slots = GetDataSlots();
-  NS_ENSURE_TRUE(slots, NS_ERROR_OUT_OF_MEMORY);
-
-  if (!slots->mChildNodes) {
-    slots->mChildNodes = new nsChildContentList(this);
-    NS_ENSURE_TRUE(slots->mChildNodes, NS_ERROR_OUT_OF_MEMORY);
-    NS_ADDREF(slots->mChildNodes);
-  }
-
-  NS_ADDREF(*aChildNodes = slots->mChildNodes);
-  return NS_OK;
-}
-
-nsresult
-nsGenericDOMDataNode::GetOwnerDocument(nsIDOMDocument** aOwnerDocument)
-{
-  nsIDocument *document = GetOwnerDoc();
-  if (document) {
-    return CallQueryInterface(document, aOwnerDocument);
-  }
-
-  *aOwnerDocument = nsnull;
-
-  return NS_OK;
 }
 
 nsresult
@@ -612,12 +553,11 @@ nsGenericDOMDataNode::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 
     NS_ASSERTION(IsRootOfNativeAnonymousSubtree() ||
                  !HasFlag(NODE_IS_IN_ANONYMOUS_SUBTREE) ||
-                 aBindingParent->IsInNativeAnonymousSubtree(),
+                 (aParent && aParent->IsInNativeAnonymousSubtree()),
                  "Trying to re-bind content from native anonymous subtree to "
                  "non-native anonymous parent!");
     slots->mBindingParent = aBindingParent; // Weak, so no addref happens.
-    if (IsRootOfNativeAnonymousSubtree() ||
-        aParent->IsInNativeAnonymousSubtree()) {
+    if (aParent->IsInNativeAnonymousSubtree()) {
       SetFlags(NODE_IS_IN_ANONYMOUS_SUBTREE);
     }
   }
@@ -657,6 +597,10 @@ nsGenericDOMDataNode::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 void
 nsGenericDOMDataNode::UnbindFromTree(PRBool aDeep, PRBool aNullParent)
 {
+  // Unset frame flags; if we need them again later, they'll get set again.
+  UnsetFlags(NS_CREATE_FRAME_IF_NON_WHITESPACE |
+             NS_REFRAME_IF_WHITESPACE);
+  
   nsIDocument *document = GetCurrentDoc();
   if (document) {
     // Notify XBL- & nsIAnonymousContentCreator-generated
@@ -752,46 +696,37 @@ nsGenericDOMDataNode::DispatchDOMEvent(nsEvent* aEvent,
                                              aPresContext, aEventStatus);
 }
 
-nsresult
-nsGenericDOMDataNode::GetListenerManager(PRBool aCreateIfNotFound,
-                                         nsIEventListenerManager** aResult)
+nsIEventListenerManager*
+nsGenericDOMDataNode::GetListenerManager(PRBool aCreateIfNotFound)
 {
-  return nsContentUtils::GetListenerManager(this, aCreateIfNotFound, aResult);
+  return nsContentUtils::GetListenerManager(this, aCreateIfNotFound);
 }
 
 nsresult
 nsGenericDOMDataNode::AddEventListenerByIID(nsIDOMEventListener *aListener,
                                             const nsIID& aIID)
 {
-  nsCOMPtr<nsIEventListenerManager> elm;
-  nsresult rv = GetListenerManager(PR_TRUE, getter_AddRefs(elm));
-  if (elm) {
-    return elm->AddEventListenerByIID(aListener, aIID, NS_EVENT_FLAG_BUBBLE);
-  }
-  return rv;
+  nsIEventListenerManager* elm = GetListenerManager(PR_TRUE);
+  NS_ENSURE_STATE(elm);
+  return elm->AddEventListenerByIID(aListener, aIID, NS_EVENT_FLAG_BUBBLE);
 }
 
 nsresult
 nsGenericDOMDataNode::RemoveEventListenerByIID(nsIDOMEventListener *aListener,
                                                const nsIID& aIID)
 {
-  nsCOMPtr<nsIEventListenerManager> elm;
-  GetListenerManager(PR_FALSE, getter_AddRefs(elm));
-  if (elm) {
-    return elm->RemoveEventListenerByIID(aListener, aIID, NS_EVENT_FLAG_BUBBLE);
-  }
-  return NS_OK;
+  nsIEventListenerManager* elm = GetListenerManager(PR_FALSE);
+  return elm ?
+    elm->RemoveEventListenerByIID(aListener, aIID, NS_EVENT_FLAG_BUBBLE) :
+    NS_OK;
 }
 
 nsresult
 nsGenericDOMDataNode::GetSystemEventGroup(nsIDOMEventGroup** aGroup)
 {
-  nsCOMPtr<nsIEventListenerManager> elm;
-  nsresult rv = GetListenerManager(PR_TRUE, getter_AddRefs(elm));
-  if (elm) {
-    return elm->GetSystemEventGroupLM(aGroup);
-  }
-  return rv;
+  nsIEventListenerManager* elm = GetListenerManager(PR_TRUE);
+  NS_ENSURE_STATE(elm);
+  return elm->GetSystemEventGroupLM(aGroup);
 }
 
 PRUint32
@@ -807,8 +742,9 @@ nsGenericDOMDataNode::GetChildAt(PRUint32 aIndex) const
 }
 
 nsIContent * const *
-nsGenericDOMDataNode::GetChildArray() const
+nsGenericDOMDataNode::GetChildArray(PRUint32* aChildCount) const
 {
+  *aChildCount = 0;
   return nsnull;
 }
 
@@ -826,7 +762,7 @@ nsGenericDOMDataNode::InsertChildAt(nsIContent* aKid, PRUint32 aIndex,
 }
 
 nsresult
-nsGenericDOMDataNode::RemoveChildAt(PRUint32 aIndex, PRBool aNotify)
+nsGenericDOMDataNode::RemoveChildAt(PRUint32 aIndex, PRBool aNotify, PRBool aMutationEvent)
 {
   return NS_OK;
 }
@@ -862,7 +798,7 @@ nsGenericDOMDataNode::DestroyContent()
 {
   // XXX We really should let cycle collection do this, but that currently still
   //     leaks (see https://bugzilla.mozilla.org/show_bug.cgi?id=406684).
-  ReleaseWrapper();
+  nsContentUtils::ReleaseWrapper(this, this);
 }
 
 #ifdef DEBUG

@@ -58,11 +58,9 @@ nsXULColumnsAccessible::
 {
 }
 
-NS_IMETHODIMP
-nsXULColumnsAccessible::GetRole(PRUint32 *aRole)
+nsresult
+nsXULColumnsAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  NS_ENSURE_ARG_POINTER(aRole);
-
   *aRole = nsIAccessibleRole::ROLE_LIST;
   return NS_OK;
 }
@@ -72,10 +70,20 @@ nsXULColumnsAccessible::GetStateInternal(PRUint32 *aState,
                                          PRUint32 *aExtraState)
 {
   NS_ENSURE_ARG_POINTER(aState);
-  *aState = nsIAccessibleStates::STATE_READONLY;
-  if (aExtraState) {
-    *aExtraState = mDOMNode ? 0 : nsIAccessibleStates::EXT_STATE_DEFUNCT ;
+  *aState = 0;
+
+  if (IsDefunct()) {
+    if (aExtraState)
+      *aExtraState = nsIAccessibleStates::EXT_STATE_DEFUNCT;
+
+    return NS_OK_DEFUNCT_OBJECT;
   }
+
+  *aState = nsIAccessibleStates::STATE_READONLY;
+
+  if (aExtraState)
+    *aExtraState = 0;
+
   return NS_OK;
 }
 
@@ -88,11 +96,9 @@ nsXULColumnItemAccessible::
 {
 }
 
-NS_IMETHODIMP
-nsXULColumnItemAccessible::GetRole(PRUint32 *aRole)
+nsresult
+nsXULColumnItemAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  NS_ENSURE_ARG_POINTER(aRole);
-
   *aRole = nsIAccessibleRole::ROLE_COLUMNHEADER;
   return NS_OK;
 }
@@ -102,17 +108,19 @@ nsXULColumnItemAccessible::GetStateInternal(PRUint32 *aState,
                                             PRUint32 *aExtraState)
 {
   NS_ENSURE_ARG_POINTER(aState);
-  *aState = nsIAccessibleStates::STATE_READONLY;
-  if (aExtraState) {
-    *aExtraState = mDOMNode ? 0 : nsIAccessibleStates::EXT_STATE_DEFUNCT ;
-  }
-  return NS_OK;
-}
 
-nsresult
-nsXULColumnItemAccessible::GetNameInternal(nsAString& aName)
-{
-  return GetXULName(aName);
+  if (IsDefunct()) {
+    if (aExtraState)
+      *aExtraState = nsIAccessibleStates::EXT_STATE_DEFUNCT;
+
+    return NS_OK_DEFUNCT_OBJECT;
+  }
+
+  *aState = nsIAccessibleStates::STATE_READONLY;
+  if (aExtraState)
+    *aExtraState = 0;
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -196,10 +204,7 @@ nsXULListboxAccessible::GetStateInternal(PRUint32 *aState,
 
   // Get focus status from base class
   nsresult rv = nsAccessible::GetStateInternal(aState, aExtraState);
-  NS_ENSURE_SUCCESS(rv, rv);
-  if (!mDOMNode) {
-    return NS_OK;
-  }
+  NS_ENSURE_A11Y_SUCCESS(rv, rv);
 
 // see if we are multiple select if so set ourselves as such
   nsCOMPtr<nsIDOMElement> element (do_QueryInterface(mDOMNode));
@@ -230,7 +235,8 @@ NS_IMETHODIMP nsXULListboxAccessible::GetValue(nsAString& _retval)
   return NS_ERROR_FAILURE;
 }
 
-NS_IMETHODIMP nsXULListboxAccessible::GetRole(PRUint32 *aRole)
+nsresult
+nsXULListboxAccessible::GetRoleInternal(PRUint32 *aRole)
 {
   nsCOMPtr<nsIContent> content = do_QueryInterface(mDOMNode);
   if (content) {
@@ -878,10 +884,8 @@ nsXULListitemAccessible::GetNameInternal(nsAString& aName)
   return GetXULName(aName);
 }
 
-/**
-  *
-  */
-NS_IMETHODIMP nsXULListitemAccessible::GetRole(PRUint32 *aRole)
+nsresult
+nsXULListitemAccessible::GetRoleInternal(PRUint32 *aRole)
 {
   nsCOMPtr<nsIAccessible> listAcc = GetListAccessible();
   NS_ENSURE_STATE(listAcc);
@@ -909,12 +913,14 @@ nsXULListitemAccessible::GetStateInternal(PRUint32 *aState,
   }
 
   *aState = 0;
-  if (!mDOMNode) {
-    if (aExtraState) {
+
+  if (IsDefunct()) {
+    if (aExtraState)
       *aExtraState = nsIAccessibleStates::EXT_STATE_DEFUNCT;
-    }
-    return NS_OK;
+
+    return NS_OK_DEFUNCT_OBJECT;
   }
+
   if (aExtraState)
     *aExtraState = 0;
 
@@ -953,12 +959,11 @@ NS_IMETHODIMP nsXULListitemAccessible::GetActionName(PRUint8 aIndex, nsAString& 
   return NS_ERROR_INVALID_ARG;
 }
 
-NS_IMETHODIMP
-nsXULListitemAccessible::GetAllowsAnonChildAccessibles(PRBool *aAllowsAnonChildren)
+PRBool
+nsXULListitemAccessible::GetAllowsAnonChildAccessibles()
 {
   // That indicates we should walk anonymous children for listitems
-  *aAllowsAnonChildren = PR_TRUE;
-  return NS_OK;
+  return PR_TRUE;
 }
 
 nsresult
@@ -986,11 +991,9 @@ nsXULListCellAccessible::
 {
 }
 
-NS_IMETHODIMP
-nsXULListCellAccessible::GetRole(PRUint32 *aRole)
+nsresult
+nsXULListCellAccessible::GetRoleInternal(PRUint32 *aRole)
 {
-  NS_ENSURE_ARG_POINTER(aRole);
-
   *aRole = nsIAccessibleRole::ROLE_CELL;
   return NS_OK;
 }
@@ -1016,7 +1019,8 @@ nsXULComboboxAccessible::Init()
 }
 
 /** We are a combobox */
-NS_IMETHODIMP nsXULComboboxAccessible::GetRole(PRUint32 *aRole)
+nsresult
+nsXULComboboxAccessible::GetRoleInternal(PRUint32 *aRole)
 {
   nsCOMPtr<nsIContent> content = do_QueryInterface(mDOMNode);
   if (!content) {
@@ -1045,10 +1049,7 @@ nsXULComboboxAccessible::GetStateInternal(PRUint32 *aState,
 {
   // Get focus status from base class
   nsresult rv = nsAccessible::GetStateInternal(aState, aExtraState);
-  NS_ENSURE_SUCCESS(rv, rv);
-  if (!mDOMNode) {
-    return NS_OK;
-  }
+  NS_ENSURE_A11Y_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIDOMXULMenuListElement> menuList(do_QueryInterface(mDOMNode));
   if (menuList) {
@@ -1104,13 +1105,13 @@ NS_IMETHODIMP nsXULComboboxAccessible::GetDescription(nsAString& aDescription)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsXULComboboxAccessible::GetAllowsAnonChildAccessibles(PRBool *aAllowsAnonChildren)
+PRBool
+nsXULComboboxAccessible::GetAllowsAnonChildAccessibles()
 {
-  if (!mDOMNode)
-    return NS_ERROR_FAILURE;
-
   nsCOMPtr<nsIContent> content = do_QueryInterface(mDOMNode);
+  NS_ASSERTION(content, "No content during accessible tree building!");
+  if (!content)
+    return PR_FALSE;
 
   if (content->NodeInfo()->Equals(nsAccessibilityAtoms::textbox, kNameSpaceID_XUL) ||
       content->AttrValueIs(kNameSpaceID_None, nsAccessibilityAtoms::editable,
@@ -1118,13 +1119,12 @@ nsXULComboboxAccessible::GetAllowsAnonChildAccessibles(PRBool *aAllowsAnonChildr
     // Both the XUL <textbox type="autocomplete"> and <menulist editable="true"> widgets
     // use nsXULComboboxAccessible. We need to walk the anonymous children for these
     // so that the entry field is a child
-    *aAllowsAnonChildren = PR_TRUE;
-  } else {
-    // Argument of PR_FALSE indicates we don't walk anonymous children for
-    // menuitems
-    *aAllowsAnonChildren = PR_FALSE;
+    return PR_TRUE;
   }
-  return NS_OK;
+
+  // Argument of PR_FALSE indicates we don't walk anonymous children for
+  // menuitems
+  return PR_FALSE;
 }
 
 /** Just one action ( click ). */

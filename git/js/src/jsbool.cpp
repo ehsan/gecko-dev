@@ -1,4 +1,4 @@
-/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  *
  * ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
@@ -40,30 +40,33 @@
 /*
  * JS boolean implementation.
  */
-#include "jsstddef.h"
 #include "jstypes.h"
+#include "jsstdint.h"
 #include "jsutil.h" /* Added by JSIFY */
 #include "jsapi.h"
 #include "jsatom.h"
 #include "jsbool.h"
 #include "jscntxt.h"
 #include "jsversion.h"
-#include "jsinterp.h"
 #include "jslock.h"
 #include "jsnum.h"
 #include "jsobj.h"
 #include "jsstr.h"
+#include "jsvector.h"
 
 /* Check pseudo-booleans values. */
-JS_STATIC_ASSERT(JSVAL_VOID == JSVAL_TRUE + JSVAL_ALIGN);
-JS_STATIC_ASSERT(JSVAL_HOLE == JSVAL_VOID + JSVAL_ALIGN);
-JS_STATIC_ASSERT(JSVAL_ARETURN == JSVAL_HOLE + JSVAL_ALIGN);
+JS_STATIC_ASSERT(!(JSVAL_TRUE & JSVAL_HOLE_FLAG));
+JS_STATIC_ASSERT(!(JSVAL_FALSE & JSVAL_HOLE_FLAG));
+JS_STATIC_ASSERT(!(JSVAL_VOID & JSVAL_HOLE_FLAG));
+JS_STATIC_ASSERT((JSVAL_HOLE & JSVAL_HOLE_FLAG));
+JS_STATIC_ASSERT((JSVAL_HOLE & ~JSVAL_HOLE_FLAG) == JSVAL_VOID);
+JS_STATIC_ASSERT(!(JSVAL_ARETURN & JSVAL_HOLE_FLAG));
 
 JSClass js_BooleanClass = {
     "Boolean",
     JSCLASS_HAS_PRIVATE | JSCLASS_HAS_CACHED_PROTO(JSProto_Boolean),
     JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,  JS_PropertyStub,
-    JS_EnumerateStub, JS_ResolveStub,   JS_ConvertStub,   JS_FinalizeStub,
+    JS_EnumerateStub, JS_ResolveStub,   JS_ConvertStub,   NULL,
     JSCLASS_NO_OPTIONAL_MEMBERS
 };
 
@@ -133,7 +136,7 @@ Boolean(JSContext *cx, JSObject *obj, uintN argc, jsval *argv, jsval *rval)
     bval = (argc != 0)
            ? BOOLEAN_TO_JSVAL(js_ValueToBoolean(argv[0]))
            : JSVAL_FALSE;
-    if (!(cx->fp->flags & JSFRAME_CONSTRUCTING)) {
+    if (!JS_IsConstructing(cx)) {
         *rval = bval;
         return JS_TRUE;
     }
@@ -160,6 +163,16 @@ js_BooleanToString(JSContext *cx, JSBool b)
     return ATOM_TO_STRING(cx->runtime->atomState.booleanAtoms[b ? 1 : 0]);
 }
 
+/* This function implements E-262-3 section 9.8, toString. */
+JSBool
+js_BooleanToStringBuffer(JSContext *cx, JSBool b, JSTempVector<jschar> &buf)
+{
+    static const jschar trueChars[] = { 't', 'r', 'u', 'e' },
+                        falseChars[] = { 'f', 'a', 'l', 's', 'e' };
+    return b ? buf.pushBack(trueChars, trueChars + JS_ARRAY_LENGTH(trueChars))
+             : buf.pushBack(falseChars, falseChars + JS_ARRAY_LENGTH(falseChars));
+}
+
 JSBool
 js_ValueToBoolean(jsval v)
 {
@@ -168,7 +181,7 @@ js_ValueToBoolean(jsval v)
     if (JSVAL_IS_OBJECT(v))
         return JS_TRUE;
     if (JSVAL_IS_STRING(v))
-        return JSSTRING_LENGTH(JSVAL_TO_STRING(v)) != 0;
+        return JSVAL_TO_STRING(v)->length() != 0;
     if (JSVAL_IS_INT(v))
         return JSVAL_TO_INT(v) != 0;
     if (JSVAL_IS_DOUBLE(v)) {

@@ -86,11 +86,21 @@ NS_IMETHODIMP nsLeafAccessible::GetChildCount(PRInt32 *_retval)
   return NS_OK;
 }
 
-/* readonly attribute boolean allowsAnonChildAccessibles; */
-NS_IMETHODIMP
-nsLeafAccessible::GetAllowsAnonChildAccessibles(PRBool *aAllowsAnonChildren)
+// nsAccessible::GetAllowsAnonChildAccessibles()
+PRBool
+nsLeafAccessible::GetAllowsAnonChildAccessibles()
 {
-  *aAllowsAnonChildren = PR_FALSE;
+  return PR_FALSE;
+}
+
+// nsAccessible::GetChildAtPoint()
+nsresult
+nsLeafAccessible::GetChildAtPoint(PRInt32 aX, PRInt32 aY,
+                                  PRBool aDeepestChild,
+                                  nsIAccessible **aChild)
+{
+  // Don't walk into leaf accessibles.
+  NS_ADDREF(*aChild = this);
   return NS_OK;
 }
 
@@ -126,7 +136,7 @@ nsLinkableAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
 {
   nsresult rv = nsHyperTextAccessibleWrap::GetStateInternal(aState,
                                                             aExtraState);
-  NS_ENSURE_SUCCESS(rv, rv);
+  NS_ENSURE_A11Y_SUCCESS(rv, rv);
 
   if (mIsLink) {
     *aState |= nsIAccessibleStates::STATE_LINKED;
@@ -319,3 +329,10 @@ nsEnumRoleAccessible::nsEnumRoleAccessible(nsIDOMNode* aNode, nsIWeakReference* 
 }
 
 NS_IMPL_ISUPPORTS_INHERITED0(nsEnumRoleAccessible, nsAccessible)
+
+nsresult
+nsEnumRoleAccessible::GetRoleInternal(PRUint32 *aRole)
+{
+  *aRole = mRole;
+  return NS_OK;
+}

@@ -39,7 +39,6 @@
 
 #include "nsStyleConsts.h"
 #include "nsPresContext.h"
-#include "nsIImage.h"
 #include "nsIFrame.h"
 #include "nsPoint.h"
 #include "nsRect.h"
@@ -56,7 +55,6 @@
 #include "nsIScrollableFrame.h"
 #include "imgIRequest.h"
 #include "imgIContainer.h"
-#include "gfxIImageFrame.h"
 #include "nsCSSRendering.h"
 #include "nsCSSColorUtils.h"
 #include "nsITheme.h"
@@ -99,10 +97,6 @@ static void ComputeBorderCornerDimensions(const gfxRect& aOuterRect,
                                           const gfxRect& aInnerRect,
                                           const gfxCornerSizes& aRadii,
                                           gfxCornerSizes *aDimsResult);
-
-static void ComputeInnerRadii(const gfxCornerSizes& radii,
-                              const gfxFloat *borderSizes,
-                              gfxCornerSizes *innerRadii);
 
 // given a side index, get the previous and next side index
 #define NEXT_SIDE(_s) (((_s) + 1) & 3)
@@ -176,14 +170,14 @@ nsCSSBorderRenderer::nsCSSBorderRenderer(PRInt32 aAppUnitsPerPixel,
                                          nsBorderColors* const* aCompositeColors,
                                          PRIntn aSkipSides,
                                          nscolor aBackgroundColor)
-  : mAUPP(aAppUnitsPerPixel),
-    mContext(aDestContext),
+  : mContext(aDestContext),
     mOuterRect(aOuterRect),
     mBorderStyles(aBorderStyles),
     mBorderWidths(aBorderWidths),
     mBorderRadii(aBorderRadii),
     mBorderColors(aBorderColors),
     mCompositeColors(aCompositeColors),
+    mAUPP(aAppUnitsPerPixel),
     mSkipSides(aSkipSides),
     mBackgroundColor(aBackgroundColor)
 {
@@ -201,10 +195,10 @@ nsCSSBorderRenderer::nsCSSBorderRenderer(PRInt32 aAppUnitsPerPixel,
   mNoBorderRadius = AllCornersZeroSize(mBorderRadii);
 }
 
-void
-ComputeInnerRadii(const gfxCornerSizes& aRadii,
-                  const gfxFloat *aBorderSizes,
-                  gfxCornerSizes *aInnerRadiiRet)
+/* static */ void
+nsCSSBorderRenderer::ComputeInnerRadii(const gfxCornerSizes& aRadii,
+                                       const gfxFloat *aBorderSizes,
+                                       gfxCornerSizes *aInnerRadiiRet)
 {
   gfxCornerSizes& iRadii = *aInnerRadiiRet;
 

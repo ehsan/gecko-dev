@@ -40,7 +40,7 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-/* $Id: sslsock.c,v 1.55 2008/03/06 20:16:22 wtc%google.com Exp $ */
+/* $Id: sslsock.c,v 1.57 2009/04/09 01:46:22 nelson%bolyard.com Exp $ */
 #include "seccomon.h"
 #include "cert.h"
 #include "keyhi.h"
@@ -101,6 +101,7 @@ static cipherPolicy ssl_ciphers[] = {	   /*   Export           France   */
  {  TLS_DHE_DSS_WITH_CAMELLIA_256_CBC_SHA,  SSL_NOT_ALLOWED, SSL_NOT_ALLOWED },
  {  TLS_DHE_RSA_WITH_CAMELLIA_256_CBC_SHA,  SSL_NOT_ALLOWED, SSL_NOT_ALLOWED },
  {  TLS_RSA_WITH_CAMELLIA_256_CBC_SHA, 	    SSL_NOT_ALLOWED, SSL_NOT_ALLOWED },
+ {  TLS_RSA_WITH_SEED_CBC_SHA,		    SSL_NOT_ALLOWED, SSL_NOT_ALLOWED },
  {  TLS_RSA_EXPORT1024_WITH_DES_CBC_SHA,    SSL_ALLOWED,     SSL_NOT_ALLOWED },
  {  TLS_RSA_EXPORT1024_WITH_RC4_56_SHA,     SSL_ALLOWED,     SSL_NOT_ALLOWED },
 #ifdef NSS_ENABLE_ECC
@@ -1557,8 +1558,13 @@ SSL_SetSockPeerID(PRFileDesc *fd, char *peerID)
 	return SECFailure;
     }
 
-    ss->peerID = PORT_Strdup(peerID);
-    return SECSuccess;
+    if (ss->peerID) {
+    	PORT_Free(ss->peerID);
+	ss->peerID = NULL;
+    }
+    if (peerID)
+	ss->peerID = PORT_Strdup(peerID);
+    return (ss->peerID || !peerID) ? SECSuccess : SECFailure;
 }
 
 #define PR_POLL_RW (PR_POLL_WRITE | PR_POLL_READ)

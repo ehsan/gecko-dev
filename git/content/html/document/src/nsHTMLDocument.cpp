@@ -140,6 +140,9 @@
 #include "nsIInlineSpellChecker.h"
 #include "nsRange.h"
 #include "mozAutoDocUpdate.h"
+#include "nsCCUncollectableMarker.h"
+#include "nsHtml5Module.h"
+#include "prprf.h"
 
 #define NS_MAX_DOCUMENT_WRITE_DEPTH 20
 
@@ -235,6 +238,8 @@ nsHTMLDocument::nsHTMLDocument()
 NS_IMPL_CYCLE_COLLECTION_CLASS(nsHTMLDocument)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsHTMLDocument, nsDocument)
+  NS_ASSERTION(!nsCCUncollectableMarker::InGeneration(cb, tmp->GetMarkedCCGeneration()),
+               "Shouldn't traverse nsHTMLDocument!");
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMARRAY(mImageMaps)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mImages)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR(mApplets)
@@ -650,6 +655,11 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
                                   PRBool aReset,
                                   nsIContentSink* aSink)
 {
+  PRBool loadAsHtml5 = nsHtml5Module::sEnabled;
+  if (aSink) {
+    loadAsHtml5 = PR_FALSE;
+  }
+
   nsCAutoString contentType;
   aChannel->GetContentType(contentType);
 
@@ -659,6 +669,11 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
 
     mIsRegularHTML = PR_FALSE;
     mCompatMode = eCompatibility_FullStandards;
+    loadAsHtml5 = PR_FALSE;
+  }
+  
+  if (!(contentType.EqualsLiteral("text/html") && aCommand && !nsCRT::strcmp(aCommand, "view"))) {
+    loadAsHtml5 = PR_FALSE;
   }
 #ifdef DEBUG
   else {
@@ -705,8 +720,12 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
   }
 
   if (needsParser) {
-    mParser = do_CreateInstance(kCParserCID, &rv);
-    NS_ENSURE_SUCCESS(rv, rv);
+    if (loadAsHtml5) {
+      mParser = nsHtml5Module::NewHtml5Parser();
+    } else {
+      mParser = do_CreateInstance(kCParserCID, &rv);
+      NS_ENSURE_SUCCESS(rv, rv);
+    }
   }
 
   PRInt32 textType = GET_BIDI_OPTION_TEXTTYPE(GetBidiOptions());
@@ -921,9 +940,10 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
     // create the content sink
     nsCOMPtr<nsIContentSink> sink;
 
-    if (aSink)
+    if (aSink) {
+      NS_ASSERTION(!loadAsHtml5, "Panic: We are loading as HTML5 and someone tries to set an external sink!");
       sink = aSink;
-    else {
+    } else {
       if (IsXHTML()) {
         nsCOMPtr<nsIXMLContentSink> xmlsink;
         rv = NS_NewXMLContentSink(getter_AddRefs(xmlsink), this, uri,
@@ -931,12 +951,17 @@ nsHTMLDocument::StartDocumentLoad(const char* aCommand,
 
         sink = xmlsink;
       } else {
-        nsCOMPtr<nsIHTMLContentSink> htmlsink;
+        if (loadAsHtml5) {
+          nsHtml5Module::Initialize(mParser, this, uri, docShell, aChannel);
+          sink = mParser->GetContentSink();
+        } else {
+          nsCOMPtr<nsIHTMLContentSink> htmlsink;
 
-        rv = NS_NewHTMLContentSink(getter_AddRefs(htmlsink), this, uri,
-                                   docShell, aChannel);
+          rv = NS_NewHTMLContentSink(getter_AddRefs(htmlsink), this, uri,
+                                     docShell, aChannel);
 
-        sink = htmlsink;
+          sink = htmlsink;
+        }
       }
       NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1207,7 +1232,7 @@ nsHTMLDocument::CreateElement(const nsAString& aTagName,
   nsCOMPtr<nsIAtom> name = do_GetAtom(tagName);
 
   nsCOMPtr<nsIContent> content;
-  rv = CreateElem(name, nsnull, GetDefaultNamespaceID(), PR_TRUE,
+  rv = CreateElem(name, nsnull, kNameSpaceID_XHTML, PR_TRUE,
                   getter_AddRefs(content));
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1588,7 +1613,7 @@ NS_IMETHODIMP
 nsHTMLDocument::GetImages(nsIDOMHTMLCollection** aImages)
 {
   if (!mImages) {
-    mImages = new nsContentList(this, nsGkAtoms::img, GetDefaultNamespaceID());
+    mImages = new nsContentList(this, nsGkAtoms::img, kNameSpaceID_XHTML);
     if (!mImages) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
@@ -1604,8 +1629,7 @@ NS_IMETHODIMP
 nsHTMLDocument::GetApplets(nsIDOMHTMLCollection** aApplets)
 {
   if (!mApplets) {
-    mApplets = new nsContentList(this, nsGkAtoms::applet,
-                                 GetDefaultNamespaceID());
+    mApplets = new nsContentList(this, nsGkAtoms::applet, kNameSpaceID_XHTML);
     if (!mApplets) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
@@ -1638,10 +1662,9 @@ nsHTMLDocument::MatchLinks(nsIContent *aContent, PRInt32 aNamespaceID,
 #endif
 
     nsINodeInfo *ni = aContent->NodeInfo();
-    PRInt32 namespaceID = doc->GetDefaultNamespaceID();
 
     nsIAtom *localName = ni->NameAtom();
-    if (ni->NamespaceID() == namespaceID &&
+    if (ni->NamespaceID() == kNameSpaceID_XHTML &&
         (localName == nsGkAtoms::a || localName == nsGkAtoms::area)) {
       return aContent->HasAttr(kNameSpaceID_None, nsGkAtoms::href);
     }
@@ -1683,8 +1706,7 @@ nsHTMLDocument::MatchAnchors(nsIContent *aContent, PRInt32 aNamespaceID,
   }
 #endif
 
-  PRInt32 namespaceID = aContent->GetCurrentDoc()->GetDefaultNamespaceID();
-  if (aContent->NodeInfo()->Equals(nsGkAtoms::a, namespaceID)) {
+  if (aContent->NodeInfo()->Equals(nsGkAtoms::a, kNameSpaceID_XHTML)) {
     return aContent->HasAttr(kNameSpaceID_None, nsGkAtoms::name);
   }
 
@@ -1783,6 +1805,8 @@ nsHTMLDocument::OpenCommon(const nsACString& aContentType, PRBool aReplace)
     return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
   }
 
+  PRBool loadAsHtml5 = nsHtml5Module::sEnabled;
+
   nsresult rv = NS_OK;
 
   // If we already have a parser we ignore the document.open call.
@@ -1815,35 +1839,26 @@ nsHTMLDocument::OpenCommon(const nsACString& aContentType, PRBool aReplace)
 
   // Note: We want to use GetDocumentFromContext here because this document
   // should inherit the security information of the document that's opening us,
-  // (since if it's secure, then it's presumeably trusted).
+  // (since if it's secure, then it's presumably trusted).
   nsCOMPtr<nsIDocument> callerDoc =
     do_QueryInterface(nsContentUtils::GetDocumentFromContext());
-
-  // Grab a reference to the calling documents security info (if any)
-  // and URIs as they may be lost in the call to Reset().
-  nsCOMPtr<nsISupports> securityInfo;
-  nsCOMPtr<nsIURI> uri, baseURI;
-  if (callerDoc) {
-    securityInfo = callerDoc->GetSecurityInfo();
-    uri = callerDoc->GetDocumentURI();
-    baseURI = callerDoc->GetBaseURI();
-  }
-
-  nsCOMPtr<nsIPrincipal> callerPrincipal;
-  nsIScriptSecurityManager *secMan = nsContentUtils::GetSecurityManager();
-
-  secMan->GetSubjectPrincipal(getter_AddRefs(callerPrincipal));
-
-  if (!callerPrincipal) {
-    // If we're called from C++ we can't do a document.open w/o
-    // changing the principal of the document to something like
-    // about:blank (as that's the only sane thing to do when we don't
-    // know the origin of this call), and since we can't change the
-    // principals of a document for security reasons we'll have to
+  if (!callerDoc) {
+    // If we're called from C++ or in some other way without an originating
+    // document we can't do a document.open w/o changing the principal of the
+    // document to something like about:blank (as that's the only sane thing to
+    // do when we don't know the origin of this call), and since we can't
+    // change the principals of a document for security reasons we'll have to
     // refuse to go ahead with this call.
 
     return NS_ERROR_DOM_SECURITY_ERR;
   }
+
+  // Grab a reference to the calling documents security info (if any)
+  // and URIs as they may be lost in the call to Reset().
+  nsCOMPtr<nsISupports> securityInfo = callerDoc->GetSecurityInfo();
+  nsCOMPtr<nsIURI> uri = callerDoc->GetDocumentURI();
+  nsCOMPtr<nsIURI> baseURI = callerDoc->GetBaseURI();
+  nsCOMPtr<nsIPrincipal> callerPrincipal = callerDoc->NodePrincipal();
 
   // We're called from script. Make sure the script is from the same
   // origin, not just that the caller can access the document. This is
@@ -1923,62 +1938,10 @@ nsHTMLDocument::OpenCommon(const nsACString& aContentType, PRBool aReplace)
     }
   }
 
-  // XXX This is a nasty workaround for a scrollbar code bug
-  // (http://bugzilla.mozilla.org/show_bug.cgi?id=55334).
-
-  // Hold on to our root element
-  nsCOMPtr<nsIContent> root = GetRootContent();
-
-  if (root) {
-    PRInt32 rootIndex = mChildren.IndexOfChild(root);
-    NS_ASSERTION(rootIndex >= 0, "Root must be in list!");
-    
-    PRUint32 count = root->GetChildCount();
-
-    // Remove all the children from the root.
-    while (count-- > 0) {
-      root->RemoveChildAt(count, PR_TRUE);
-    }
-
-    count = root->GetAttrCount();
-
-    // Remove all attributes from the root element
-    while (count-- > 0) {
-      const nsAttrName* name = root->GetAttrNameAt(count);
-      // Hold a strong reference here so that the atom doesn't go away during
-      // UnsetAttr.
-      nsCOMPtr<nsIAtom> localName = name->LocalName();
-      root->UnsetAttr(name->NamespaceID(), localName, PR_FALSE);
-    }
-
-    // Remove the root from the childlist
-    mChildren.RemoveChildAt(rootIndex);
-    mCachedRootContent = nsnull;
-  }
-
-  // Call Reset(), this will now do the full reset, except removing
-  // the root from the document, doing that confuses the scrollbar
-  // code in mozilla since the document in the root element and all
-  // the anonymous content (i.e. scrollbar elements) is set to
-  // null.
-
+  // Call Reset(), this will now do the full reset
   Reset(channel, group);
   if (baseURI) {
     mDocumentBaseURI = baseURI;
-  }
-
-  if (root) {
-    // Tear down the frames for the root element.
-    MOZ_AUTO_DOC_UPDATE(this, UPDATE_CONTENT_MODEL, PR_TRUE);
-    nsNodeUtils::ContentRemoved(this, root, 0);
-
-    // Put the root element back into the document, we don't notify
-    // the document about this insertion since the sink will do that
-    // for us and that'll create frames for the root element and the
-    // scrollbars work as expected (since the document in the root
-    // element was never set to null)
-
-    mChildren.AppendChild(root);
   }
 
   if (IsEditingOn()) {
@@ -1995,7 +1958,12 @@ nsHTMLDocument::OpenCommon(const nsACString& aContentType, PRBool aReplace)
   // resetting the document.
   mSecurityInfo = securityInfo;
 
-  mParser = do_CreateInstance(kCParserCID, &rv);
+  if (loadAsHtml5) {
+    mParser = nsHtml5Module::NewHtml5Parser();
+    rv = NS_OK;
+  } else {
+    mParser = do_CreateInstance(kCParserCID, &rv);  
+  }
 
   // This will be propagated to the parser when someone actually calls write()
   mContentType = aContentType;
@@ -2003,18 +1971,22 @@ nsHTMLDocument::OpenCommon(const nsACString& aContentType, PRBool aReplace)
   mWriteState = eDocumentOpened;
 
   if (NS_SUCCEEDED(rv)) {
-    nsCOMPtr<nsIHTMLContentSink> sink;
+    if (loadAsHtml5) {
+      nsHtml5Module::Initialize(mParser, this, uri, shell, channel);
+    } else {
+      nsCOMPtr<nsIHTMLContentSink> sink;
 
-    rv = NS_NewHTMLContentSink(getter_AddRefs(sink), this, uri, shell,
-                               channel);
-    if (NS_FAILED(rv)) {
-      // Don't use a parser without a content sink.
-      mParser = nsnull;
-      mWriteState = eNotWriting;
-      return rv;
+      rv = NS_NewHTMLContentSink(getter_AddRefs(sink), this, uri, shell,
+                                 channel);
+      if (NS_FAILED(rv)) {
+        // Don't use a parser without a content sink.
+        mParser = nsnull;
+        mWriteState = eNotWriting;
+        return rv;
+      }
+
+      mParser->SetContentSink(sink);
     }
-
-    mParser->SetContentSink(sink);
   }
 
   // Prepare the docshell and the document viewer for the impending
@@ -2089,9 +2061,7 @@ nsHTMLDocument::Close()
   if (mParser && mWriteState == eDocumentOpened) {
     mPendingScripts.RemoveElement(GenerateParserKey());
 
-    mWriteState = mPendingScripts.Count() == 0
-                  ? eDocumentClosed
-                  : ePendingClose;
+    mWriteState = mPendingScripts.IsEmpty() ? eDocumentClosed : ePendingClose;
 
     ++mWriteLevel;
     rv = mParser->Parse(EmptyString(), mParser->GetRootContextKey(),
@@ -2156,7 +2126,7 @@ nsHTMLDocument::WriteCommon(const nsAString& aText,
   void *key = GenerateParserKey();
   if (mWriteState == eDocumentClosed ||
       (mWriteState == ePendingClose &&
-       mPendingScripts.IndexOf(key) == kNotFound)) {
+       !mPendingScripts.Contains(key))) {
     mWriteState = eDocumentClosed;
     mParser->Terminate();
     NS_ASSERTION(!mParser, "mParser should have been null'd out");
@@ -2313,13 +2283,7 @@ nsHTMLDocument::GetElementsByTagNameNS(const nsAString& aNamespaceURI,
                                        const nsAString& aLocalName,
                                        nsIDOMNodeList** aReturn)
 {
-  nsAutoString tmp(aLocalName);
-
-  if (!IsXHTML()) {
-    ToLowerCase(tmp); // HTML elements are lower case internally.
-  }
-
-  return nsDocument::GetElementsByTagNameNS(aNamespaceURI, tmp, aReturn);
+  return nsDocument::GetElementsByTagNameNS(aNamespaceURI, aLocalName, aReturn);
 }
 
 NS_IMETHODIMP
@@ -2335,8 +2299,10 @@ nsHTMLDocument::MatchNameAttribute(nsIContent* aContent, PRInt32 aNamespaceID,
 {
   NS_PRECONDITION(aContent, "Must have content node to work with!");
   nsString* elementName = static_cast<nsString*>(aData);
-  return aContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::name,
-                               *elementName, eCaseMatters);
+  return
+    aContent->GetNameSpaceID() == kNameSpaceID_XHTML &&
+    aContent->AttrValueIs(kNameSpaceID_None, nsGkAtoms::name,
+                          *elementName, eCaseMatters);
 }
 
 NS_IMETHODIMP
@@ -2376,7 +2342,7 @@ nsHTMLDocument::ScriptExecuted(nsIScriptElement *aScript)
   }
 
   mPendingScripts.RemoveElement(aScript);
-  if (mPendingScripts.Count() == 0 && mWriteState == ePendingClose) {
+  if (mPendingScripts.IsEmpty() && mWriteState == ePendingClose) {
     // The last pending script just finished, terminate our parser now.
     mWriteState = eDocumentClosed;
   }
@@ -2457,15 +2423,8 @@ nsHTMLDocument::GetAlinkColor(nsAString& aAlinkColor)
   aAlinkColor.Truncate();
 
   nsCOMPtr<nsIDOMHTMLBodyElement> body = do_QueryInterface(GetBodyContent());
-
   if (body) {
     body->GetALink(aAlinkColor);
-  } else if (mAttrStyleSheet) {
-    nscolor color;
-    nsresult rv = mAttrStyleSheet->GetActiveLinkColor(color);
-    if (NS_SUCCEEDED(rv)) {
-      NS_RGBToHex(color, aAlinkColor);
-    }
   }
 
   return NS_OK;
@@ -2475,16 +2434,8 @@ NS_IMETHODIMP
 nsHTMLDocument::SetAlinkColor(const nsAString& aAlinkColor)
 {
   nsCOMPtr<nsIDOMHTMLBodyElement> body = do_QueryInterface(GetBodyContent());
-
   if (body) {
     body->SetALink(aAlinkColor);
-  } else if (mAttrStyleSheet) {
-    nsAttrValue value;
-    if (value.ParseColor(aAlinkColor, this)) {
-      nscolor color;
-      value.GetColorValue(color);
-      mAttrStyleSheet->SetActiveLinkColor(color);
-    }
   }
 
   return NS_OK;
@@ -2496,15 +2447,8 @@ nsHTMLDocument::GetLinkColor(nsAString& aLinkColor)
   aLinkColor.Truncate();
 
   nsCOMPtr<nsIDOMHTMLBodyElement> body = do_QueryInterface(GetBodyContent());
-
   if (body) {
     body->GetLink(aLinkColor);
-  } else if (mAttrStyleSheet) {
-    nscolor color;
-    nsresult rv = mAttrStyleSheet->GetLinkColor(color);
-    if (NS_SUCCEEDED(rv)) {
-      NS_RGBToHex(color, aLinkColor);
-    }
   }
 
   return NS_OK;
@@ -2514,16 +2458,8 @@ NS_IMETHODIMP
 nsHTMLDocument::SetLinkColor(const nsAString& aLinkColor)
 {
   nsCOMPtr<nsIDOMHTMLBodyElement> body = do_QueryInterface(GetBodyContent());
-
   if (body) {
     body->SetLink(aLinkColor);
-  } else if (mAttrStyleSheet) {
-    nsAttrValue value;
-    if (value.ParseColor(aLinkColor, this)) {
-      nscolor color;
-      value.GetColorValue(color);
-      mAttrStyleSheet->SetLinkColor(color);
-    }
   }
 
   return NS_OK;
@@ -2535,15 +2471,8 @@ nsHTMLDocument::GetVlinkColor(nsAString& aVlinkColor)
   aVlinkColor.Truncate();
 
   nsCOMPtr<nsIDOMHTMLBodyElement> body = do_QueryInterface(GetBodyContent());
-
   if (body) {
     body->GetVLink(aVlinkColor);
-  } else if (mAttrStyleSheet) {
-    nscolor color;
-    nsresult rv = mAttrStyleSheet->GetVisitedLinkColor(color);
-    if (NS_SUCCEEDED(rv)) {
-      NS_RGBToHex(color, aVlinkColor);
-    }
   }
 
   return NS_OK;
@@ -2553,16 +2482,8 @@ NS_IMETHODIMP
 nsHTMLDocument::SetVlinkColor(const nsAString& aVlinkColor)
 {
   nsCOMPtr<nsIDOMHTMLBodyElement> body = do_QueryInterface(GetBodyContent());
-
   if (body) {
     body->SetVLink(aVlinkColor);
-  } else if (mAttrStyleSheet) {
-    nsAttrValue value;
-    if (value.ParseColor(aVlinkColor, this)) {
-      nscolor color;
-      value.GetColorValue(color);
-      mAttrStyleSheet->SetVisitedLinkColor(color);
-    }
   }
 
   return NS_OK;
@@ -2574,7 +2495,6 @@ nsHTMLDocument::GetBgColor(nsAString& aBgColor)
   aBgColor.Truncate();
 
   nsCOMPtr<nsIDOMHTMLBodyElement> body = do_QueryInterface(GetBodyContent());
-
   if (body) {
     body->GetBgColor(aBgColor);
   }
@@ -2586,11 +2506,9 @@ NS_IMETHODIMP
 nsHTMLDocument::SetBgColor(const nsAString& aBgColor)
 {
   nsCOMPtr<nsIDOMHTMLBodyElement> body = do_QueryInterface(GetBodyContent());
-
   if (body) {
     body->SetBgColor(aBgColor);
   }
-  // XXXldb And otherwise?
 
   return NS_OK;
 }
@@ -2601,7 +2519,6 @@ nsHTMLDocument::GetFgColor(nsAString& aFgColor)
   aFgColor.Truncate();
 
   nsCOMPtr<nsIDOMHTMLBodyElement> body = do_QueryInterface(GetBodyContent());
-
   if (body) {
     body->GetText(aFgColor);
   }
@@ -2613,11 +2530,9 @@ NS_IMETHODIMP
 nsHTMLDocument::SetFgColor(const nsAString& aFgColor)
 {
   nsCOMPtr<nsIDOMHTMLBodyElement> body = do_QueryInterface(GetBodyContent());
-
   if (body) {
     body->SetText(aFgColor);
   }
-  // XXXldb And otherwise?
 
   return NS_OK;
 }
@@ -2627,7 +2542,7 @@ NS_IMETHODIMP
 nsHTMLDocument::GetEmbeds(nsIDOMHTMLCollection** aEmbeds)
 {
   if (!mEmbeds) {
-    mEmbeds = new nsContentList(this, nsGkAtoms::embed, GetDefaultNamespaceID());
+    mEmbeds = new nsContentList(this, nsGkAtoms::embed, kNameSpaceID_XHTML);
     if (!mEmbeds) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
@@ -2960,7 +2875,7 @@ nsContentList*
 nsHTMLDocument::GetForms()
 {
   if (!mForms)
-    mForms = new nsContentList(this, nsGkAtoms::form, GetDefaultNamespaceID());
+    mForms = new nsContentList(this, nsGkAtoms::form, kNameSpaceID_XHTML);
 
   return mForms;
 }
@@ -3087,13 +3002,24 @@ nsHTMLDocument::GetDesignMode(nsAString & aDesignMode)
 }
 
 void
+nsHTMLDocument::MaybeEditingStateChanged()
+{
+  if (mUpdateNestLevel == 0 && mContentEditableCount > 0 != IsEditingOn()) {
+    if (nsContentUtils::IsSafeToRunScript()) {
+      EditingStateChanged();
+    } else if (!mInDestructor) {
+      nsContentUtils::AddScriptRunner(
+        NS_NEW_RUNNABLE_METHOD(nsHTMLDocument, this, MaybeEditingStateChanged));
+    }
+  }
+}
+
+void
 nsHTMLDocument::EndUpdate(nsUpdateType aUpdateType)
 {
   nsDocument::EndUpdate(aUpdateType);
 
-  if (mUpdateNestLevel == 0 && mContentEditableCount > 0 != IsEditingOn()) {
-    EditingStateChanged();
-  }
+  MaybeEditingStateChanged();
 }
 
 nsresult
@@ -3167,7 +3093,7 @@ DocAllResultMatch(nsIContent* aContent, PRInt32 aNamespaceID, nsIAtom* aAtom,
   }
 
   nsGenericHTMLElement* elm = nsGenericHTMLElement::FromContent(aContent);
-  if (!elm || aContent->GetNameSpaceID() != kNameSpaceID_None) {
+  if (!elm) {
     return PR_FALSE;
   }
 
@@ -3200,16 +3126,8 @@ nsHTMLDocument::GetDocumentAllResult(const nsAString& aID, nsISupports** aResult
   *aResult = nsnull;
 
   nsCOMPtr<nsIAtom> id = do_GetAtom(aID);
-  nsIdentifierMapEntry *entry;
-  if (IdTableIsLive()) {
-    entry = mIdentifierMap.GetEntry(id);
-    // If we did a lookup and it failed, there are no items with this id
-    if (!entry)
-      return NS_OK;
-  } else {
-    entry = mIdentifierMap.PutEntry(id);
-    NS_ENSURE_TRUE(entry, NS_ERROR_OUT_OF_MEMORY);
-  }
+  nsIdentifierMapEntry *entry = mIdentifierMap.PutEntry(id);
+  NS_ENSURE_TRUE(entry, NS_ERROR_OUT_OF_MEMORY);
 
   nsIContent* root = GetRootContent();
   if (!root) {
@@ -3260,12 +3178,13 @@ void
 nsHTMLDocument::TearingDownEditor(nsIEditor *aEditor)
 {
   if (IsEditingOn()) {
+    EditingState oldState = mEditingState;
     mEditingState = eTearingDown;
 
     nsCOMPtr<nsIEditorStyleSheets> editorss = do_QueryInterface(aEditor);
     if (editorss) {
       editorss->RemoveOverrideStyleSheet(NS_LITERAL_STRING("resource://gre/res/contenteditable.css"));
-      if (mEditingState == eDesignMode)
+      if (oldState == eDesignMode)
         editorss->RemoveOverrideStyleSheet(NS_LITERAL_STRING("resource://gre/res/designmode.css"));
     }
   }
@@ -3364,6 +3283,7 @@ nsHTMLDocument::EditingStateChanged()
   nsCOMPtr<nsIEditor> editor;
 
   {
+    EditingState oldState = mEditingState;
     nsAutoEditingState push(this, eSettingUp);
 
     if (makeWindowEditable) {
@@ -3402,9 +3322,9 @@ nsHTMLDocument::EditingStateChanged()
       NS_ENSURE_SUCCESS(rv, rv);
 
       updateState = PR_TRUE;
-      spellRecheckAll = mEditingState == eContentEditable;
+      spellRecheckAll = oldState == eContentEditable;
     }
-    else if (mEditingState == eDesignMode) {
+    else if (oldState == eDesignMode) {
       // designMode is being turned off (contentEditable is still on).
       editorss->RemoveOverrideStyleSheet(NS_LITERAL_STRING("resource://gre/res/designmode.css"));
 
@@ -4096,31 +4016,6 @@ nsHTMLDocument::QueryCommandValue(const nsAString & commandID,
   return rv;
 }
 
-#ifdef DEBUG
-nsresult
-nsHTMLDocument::CreateElem(nsIAtom *aName, nsIAtom *aPrefix,
-                           PRInt32 aNamespaceID, PRBool aDocumentDefaultType,
-                           nsIContent** aResult)
-{
-  NS_ASSERTION(!aDocumentDefaultType || IsXHTML() ||
-               aNamespaceID == kNameSpaceID_None,
-               "HTML elements in an HTML document should have "
-               "kNamespaceID_None as their namespace ID.");
-
-  if (IsXHTML() &&
-      (aDocumentDefaultType || aNamespaceID == kNameSpaceID_XHTML)) {
-    nsCAutoString name, lcName;
-    aName->ToUTF8String(name);
-    ToLowerCase(name, lcName);
-    NS_ASSERTION(lcName.Equals(name),
-                 "aName should be lowercase, fix caller.");
-  }
-
-  return nsDocument::CreateElem(aName, aPrefix, aNamespaceID,
-                                aDocumentDefaultType, aResult);
-}
-#endif
-
 nsresult
 nsHTMLDocument::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
 {
@@ -4149,4 +4044,11 @@ nsHTMLDocument::IsEditingOnAfterFlush()
   }
 
   return IsEditingOn();
+}
+
+void
+nsHTMLDocument::RemovedFromDocShell()
+{
+  mEditingState = eOff;
+  nsDocument::RemovedFromDocShell();
 }

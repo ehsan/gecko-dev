@@ -62,7 +62,8 @@ const LMANNO_FEEDURI = "livemark/feedURI";
 const LMANNO_SITEURI = "livemark/siteURI";
 const ORGANIZER_FOLDER_ANNO = "PlacesOrganizer/OrganizerFolder";
 const ORGANIZER_QUERY_ANNO = "PlacesOrganizer/OrganizerQuery";
-const ORGANIZER_LEFTPANE_VERSION = 4;
+const ORGANIZER_LEFTPANE_VERSION = 6;
+const EXCLUDE_FROM_BACKUP_ANNO = "places/excludeFromBackup";
 
 #ifdef XP_MACOSX
 // On Mac OSX, the transferable system converts "\r\n" to "\n\n", where we
@@ -126,6 +127,12 @@ var PlacesUIUtils = {
                getService(Ci.nsIPrefBranch);
     return this.ellipsis = pref.getComplexValue("intl.ellipsis",
                                                 Ci.nsIPrefLocalizedString).data;
+  },
+
+  get privateBrowsing() {
+    delete this.privateBrowsing;
+    return this.privateBrowsing = Cc["@mozilla.org/privatebrowsing;1"].
+                                  getService(Ci.nsIPrivateBrowsingService);
   },
 
   /**
@@ -385,8 +392,9 @@ var PlacesUIUtils = {
         break;
       default:
         if (type == PlacesUtils.TYPE_X_MOZ_URL ||
-            type == PlacesUtils.TYPE_UNICODE) {
-          var title = (type == PlacesUtils.TYPE_X_MOZ_URL) ? data.title :
+            type == PlacesUtils.TYPE_UNICODE ||
+            type == TAB_DROP_TYPE) {
+          var title = (type != PlacesUtils.TYPE_UNICODE) ? data.title :
                                                              data.uri;
           return this.ptm.createItem(PlacesUtils._uri(data.uri),
                                      container, index, title);
@@ -527,8 +535,9 @@ var PlacesUIUtils = {
 
     if (typeof(aKeyword) == "string") {
       info.keyword = aKeyword;
-      // hide the Tags field if we are adding a keyword
+      // Hide the Tags field if we are adding a keyword.
       info.hiddenRows.push("tags");
+      // Keyword related params.
       if (typeof(aPostData) == "string")
         info.postData = aPostData;
       if (typeof(aCharSet) == "string")
@@ -659,13 +668,16 @@ var PlacesUIUtils = {
    *        item identifier for which the properties are to be shown
    * @param aType
    *        item type, either "bookmark" or "folder"
+   * @param [optional] aReadOnly
+   *        states if properties dialog should be readonly
    * @return true if any transaction has been performed.
    */
-  showItemProperties: function PU_showItemProperties(aItemId, aType) {
+  showItemProperties: function PU_showItemProperties(aItemId, aType, aReadOnly) {
     var info = {
       action: "edit",
       type: aType,
-      itemId: aItemId
+      itemId: aItemId,
+      readOnly: aReadOnly
     };
     return this._showBookmarkDialog(info);
   },
@@ -887,6 +899,9 @@ var PlacesUIUtils = {
     * {uri: string, isBookmark: boolean}
     */
   _openTabset: function PU__openTabset(aItemsToOpen, aEvent) {
+    if (!aItemsToOpen.length)
+      return;
+
     var urls = [];
     for (var i = 0; i < aItemsToOpen.length; i++) {
       var item = aItemsToOpen[i];
@@ -977,6 +992,20 @@ var PlacesUIUtils = {
   },
 
   /**
+   * Helper for guessing scheme from an url string.
+   * Used to avoid nsIURI overhead in frequently called UI functions.
+   *
+   * @param aUrlString the url to guess the scheme from.
+   * 
+   * @return guessed scheme for this url string.
+   *
+   * @note this is not supposed be perfect, so use it only for UI purposes.
+   */
+  guessUrlSchemeForUI: function PUU_guessUrlSchemeForUI(aUrlString) {
+    return aUrlString.substr(0, aUrlString.indexOf(":"));
+  },
+
+  /**
    * Helper for the toolbar and menu views
    */
   createMenuItemForNode:
@@ -994,6 +1023,7 @@ var PlacesUIUtils = {
       if (PlacesUtils.uriTypes.indexOf(type) != -1) {
         element = document.createElement("menuitem");
         element.className = "menuitem-iconic bookmark-item";
+        element.setAttribute("scheme", this.guessUrlSchemeForUI(aNode.uri));
       }
       else if (PlacesUtils.containerTypes.indexOf(type) != -1) {
         element = document.createElement("menu");
@@ -1119,123 +1149,197 @@ var PlacesUIUtils = {
     return this.leftPaneQueries;
   },
 
-  // get the folder id for the organizer left-pane folder
+  // Get the folder id for the organizer left-pane folder.
   get leftPaneFolderId() {
     var leftPaneRoot = -1;
     var allBookmarksId;
-    var items = PlacesUtils.annotations
-                           .getItemsWithAnnotation(ORGANIZER_FOLDER_ANNO, {});
-    if (items.length != 0 && items[0] != -1) {
+
+    // Shortcuts to services.
+    var bs = PlacesUtils.bookmarks;
+    var as = PlacesUtils.annotations;
+
+    // Get all items marked as being the left pane folder.  We should only have
+    // one of them.
+    var items = as.getItemsWithAnnotation(ORGANIZER_FOLDER_ANNO, {});
+    if (items.length > 1) {
+      // Something went wrong, we cannot have more than one left pane folder,
+      // remove all left pane folders and continue.  We will create a new one.
+      items.forEach(bs.removeItem);
+    }
+    else if (items.length == 1 && items[0] != -1) {
       leftPaneRoot = items[0];
-      // check organizer left pane version
-      var version = PlacesUtils.annotations
-                               .getItemAnnotation(leftPaneRoot, ORGANIZER_FOLDER_ANNO);
+      // Check organizer left pane version.
+      var version = as.getItemAnnotation(leftPaneRoot, ORGANIZER_FOLDER_ANNO);
       if (version != ORGANIZER_LEFTPANE_VERSION) {
         // If version is not valid we must rebuild the left pane.
-        PlacesUtils.bookmarks.removeFolder(leftPaneRoot);
+        bs.removeItem(leftPaneRoot);
         leftPaneRoot = -1;
       }
     }
 
+    var queriesTitles = {
+      "PlacesRoot": "",
+      "History": this.getString("OrganizerQueryHistory"),
+      // TODO: Bug 489681, Tags needs its own string in places.properties
+      "Tags": bs.getItemTitle(PlacesUtils.tagsFolderId),
+      "AllBookmarks": this.getString("OrganizerQueryAllBookmarks"),
+      "Downloads": this.getString("OrganizerQueryDownloads"),
+      "BookmarksToolbar": null,
+      "BookmarksMenu": null,
+      "UnfiledBookmarks": null
+    };
+
     if (leftPaneRoot != -1) {
-      // Build the leftPaneQueries Map
+      // A valid left pane folder has been found.
+      // Build the leftPaneQueries Map.  This is used to quickly access them
+      // associating a mnemonic name to the real item ids.
       delete this.leftPaneQueries;
       this.leftPaneQueries = {};
-      var items = PlacesUtils.annotations
-                             .getItemsWithAnnotation(ORGANIZER_QUERY_ANNO, {});
-      for (var i=0; i < items.length; i++) {
-        var queryName = PlacesUtils.annotations
-                                   .getItemAnnotation(items[i], ORGANIZER_QUERY_ANNO);
+      var items = as.getItemsWithAnnotation(ORGANIZER_QUERY_ANNO, {});
+      // While looping through queries we will also check for titles validity.
+      for (var i = 0; i < items.length; i++) {
+        var queryName = as.getItemAnnotation(items[i], ORGANIZER_QUERY_ANNO);
         this.leftPaneQueries[queryName] = items[i];
+        // Titles could have been corrupted or the user could have changed his
+        // locale.  Check title is correctly set and eventually fix it.
+        if (bs.getItemTitle(items[i]) != queriesTitles[queryName])
+          bs.setItemTitle(items[i], queriesTitles[queryName]);
       }
       delete this.leftPaneFolderId;
       return this.leftPaneFolderId = leftPaneRoot;
     }
 
     var self = this;
-    const EXPIRE_NEVER = PlacesUtils.annotations.EXPIRE_NEVER;
     var callback = {
-      runBatched: function(aUserData) {
+      // Helper to create an organizer special query.
+      create_query: function CB_create_query(aQueryName, aParentId, aQueryUrl) {
+        let itemId = bs.insertBookmark(aParentId,
+                                       PlacesUtils._uri(aQueryUrl),
+                                       bs.DEFAULT_INDEX,
+                                       queriesTitles[aQueryName]);
+        // Mark as special organizer query.
+        as.setItemAnnotation(itemId, ORGANIZER_QUERY_ANNO, aQueryName,
+                             0, as.EXPIRE_NEVER);
+        // We should never backup this, since it changes between profiles.
+        as.setItemAnnotation(itemId, EXCLUDE_FROM_BACKUP_ANNO, 1,
+                             0, as.EXPIRE_NEVER);
+        // Add to the queries map.
+        self.leftPaneQueries[aQueryName] = itemId;
+        return itemId;
+      },
+
+      // Helper to create an organizer special folder.
+      create_folder: function CB_create_folder(aFolderName, aParentId, aIsRoot) {
+              // Left Pane Root Folder.
+        let folderId = bs.createFolder(aParentId,
+                                       queriesTitles[aFolderName],
+                                       bs.DEFAULT_INDEX);
+        // We should never backup this, since it changes between profiles.
+        as.setItemAnnotation(folderId, EXCLUDE_FROM_BACKUP_ANNO, 1,
+                             0, as.EXPIRE_NEVER);
+        // Disallow manipulating this folder within the organizer UI.
+        bs.setFolderReadonly(folderId, true);
+
+        if (aIsRoot) {
+          // Mark as special left pane root.
+          as.setItemAnnotation(folderId, ORGANIZER_FOLDER_ANNO,
+                               ORGANIZER_LEFTPANE_VERSION,
+                               0, as.EXPIRE_NEVER);
+        }
+        else {
+          // Mark as special organizer folder.
+          as.setItemAnnotation(folderId, ORGANIZER_QUERY_ANNO, aFolderName,
+                           0, as.EXPIRE_NEVER);
+          self.leftPaneQueries[aFolderName] = folderId;
+        }
+        return folderId;
+      },
+
+      runBatched: function CB_runBatched(aUserData) {
         delete self.leftPaneQueries;
         self.leftPaneQueries = { };
 
-        // Left Pane Root Folder
-        leftPaneRoot = PlacesUtils.bookmarks.createFolder(PlacesUtils.placesRootId, "", -1);
-        // ensure immediate children can't be removed
-        PlacesUtils.bookmarks.setFolderReadonly(leftPaneRoot, true);
+        // Left Pane Root Folder.
+        leftPaneRoot = this.create_folder("PlacesRoot", bs.placesRoot, true);
 
-        // History Query
-        let uri = PlacesUtils._uri("place:sort=4&");
-        let title = self.getString("OrganizerQueryHistory");
-        let itemId = PlacesUtils.bookmarks.insertBookmark(leftPaneRoot, uri, -1, title);
-        PlacesUtils.annotations.setItemAnnotation(itemId, ORGANIZER_QUERY_ANNO,
-                                                  "History", 0, EXPIRE_NEVER);
-        self.leftPaneQueries["History"] = itemId;
+        // History Query.
+        this.create_query("History", leftPaneRoot,
+                          "place:type=" +
+                          Ci.nsINavHistoryQueryOptions.RESULTS_AS_DATE_QUERY +
+                          "&sort=" +
+                          Ci.nsINavHistoryQueryOptions.SORT_BY_DATE_DESCENDING);
 
-        // XXX: Downloads
+        // XXX: Downloads.
 
-        // Tags Query
-        uri = PlacesUtils._uri("place:type=" +
+        // Tags Query.
+        this.create_query("Tags", leftPaneRoot,
+                          "place:type=" +
                           Ci.nsINavHistoryQueryOptions.RESULTS_AS_TAG_QUERY +
                           "&sort=" +
                           Ci.nsINavHistoryQueryOptions.SORT_BY_TITLE_ASCENDING);
-        title = PlacesUtils.bookmarks.getItemTitle(PlacesUtils.tagsFolderId);
-        itemId = PlacesUtils.bookmarks.insertBookmark(leftPaneRoot, uri, -1, title);
-        PlacesUtils.annotations.setItemAnnotation(itemId, ORGANIZER_QUERY_ANNO,
-                                                  "Tags", 0, EXPIRE_NEVER);
-        self.leftPaneQueries["Tags"] = itemId;
 
-        // All Bookmarks Folder
-        title = self.getString("OrganizerQueryAllBookmarks");
-        itemId = PlacesUtils.bookmarks.createFolder(leftPaneRoot, title, -1);
-        allBookmarksId = itemId;
-        PlacesUtils.annotations.setItemAnnotation(itemId, ORGANIZER_QUERY_ANNO,
-                                                  "AllBookmarks", 0, EXPIRE_NEVER);
-        self.leftPaneQueries["AllBookmarks"] = itemId;
+        // All Bookmarks Folder.
+        allBookmarksId = this.create_folder("AllBookmarks", leftPaneRoot, false);
 
-        // disallow manipulating this folder within the organizer UI
-        PlacesUtils.bookmarks.setFolderReadonly(allBookmarksId, true);
+        // All Bookmarks->Bookmarks Toolbar Query.
+        this.create_query("BookmarksToolbar", allBookmarksId,
+                          "place:folder=TOOLBAR");
 
-        // All Bookmarks->Bookmarks Toolbar Query
-        uri = PlacesUtils._uri("place:folder=TOOLBAR");
-        itemId = PlacesUtils.bookmarks.insertBookmark(allBookmarksId, uri, -1, null);
-        PlacesUtils.annotations.setItemAnnotation(itemId, ORGANIZER_QUERY_ANNO,
-                                                  "BookmarksToolbar", 0, EXPIRE_NEVER);
-        self.leftPaneQueries["BookmarksToolbar"] = itemId;
+        // All Bookmarks->Bookmarks Menu Query.
+        this.create_query("BookmarksMenu", allBookmarksId,
+                          "place:folder=BOOKMARKS_MENU");
 
-        // All Bookmarks->Bookmarks Menu Query
-        uri = PlacesUtils._uri("place:folder=BOOKMARKS_MENU");
-        itemId = PlacesUtils.bookmarks.insertBookmark(allBookmarksId, uri, -1, null);
-        PlacesUtils.annotations.setItemAnnotation(itemId, ORGANIZER_QUERY_ANNO,
-                                                  "BookmarksMenu", 0, EXPIRE_NEVER);
-        self.leftPaneQueries["BookmarksMenu"] = itemId;
-
-        // All Bookmarks->Unfiled bookmarks
-        uri = PlacesUtils._uri("place:folder=UNFILED_BOOKMARKS");
-        itemId = PlacesUtils.bookmarks.insertBookmark(allBookmarksId, uri, -1, null);
-        PlacesUtils.annotations.setItemAnnotation(itemId, ORGANIZER_QUERY_ANNO,
-                                                  "UnfiledBookmarks", 0,
-                                                  EXPIRE_NEVER);
-        self.leftPaneQueries["UnfiledBookmarks"] = itemId;
-
-        // disallow manipulating this folder within the organizer UI
-        PlacesUtils.bookmarks.setFolderReadonly(leftPaneRoot, true);
+        // All Bookmarks->Unfiled Bookmarks Query.
+        this.create_query("UnfiledBookmarks", allBookmarksId,
+                          "place:folder=UNFILED_BOOKMARKS");
       }
     };
-    PlacesUtils.bookmarks.runInBatchMode(callback, null);
-    PlacesUtils.annotations.setItemAnnotation(leftPaneRoot,
-                                              ORGANIZER_FOLDER_ANNO,
-                                              ORGANIZER_LEFTPANE_VERSION,
-                                              0, EXPIRE_NEVER);
+    bs.runInBatchMode(callback, null);
+
     delete this.leftPaneFolderId;
     return this.leftPaneFolderId = leftPaneRoot;
   },
 
+  /**
+   * Get the folder id for the organizer left-pane folder.
+   */
   get allBookmarksFolderId() {
     // ensure the left-pane root is initialized;
     this.leftPaneFolderId;
     delete this.allBookmarksFolderId;
     return this.allBookmarksFolderId = this.leftPaneQueries["AllBookmarks"];
+  },
+
+  /**
+   * If an item is a left-pane query, returns the name of the query
+   * or an empty string if not.
+   *
+   * @param aItemId id of a container
+   * @returns the name of the query, or empty string if not a left-pane query
+   */
+  getLeftPaneQueryNameFromId: function PU_getLeftPaneQueryNameFromId(aItemId) {
+    var queryName = "";
+    // If the let pane hasn't been built, use the annotation service
+    // directly, to avoid building the left pane too early.
+    if (this.__lookupGetter__("leftPaneFolderId")) {
+      try {
+        queryName = PlacesUtils.annotations.
+                                getItemAnnotation(itemId, ORGANIZER_QUERY_ANNO);
+      }
+      catch (ex) {
+        // doesn't have the annotation
+        queryName = "";
+      }
+    }
+    else {
+      // If the left pane has already been built, use the name->id map
+      // cached in PlacesUIUtils.
+      for (let [name, id] in Iterator(this.leftPaneQueries)) {
+        if (aItemId == id)
+          queryName = name;
+      }
+    }
+    return queryName; 
   },
 
   /**
@@ -1262,7 +1366,7 @@ var PlacesUIUtils = {
       aPopup._lmStatusMenuItem.setAttribute("label", this.getString(lmStatus));
       aPopup._lmStatusMenuItem.setAttribute("disabled", true);
       aPopup.insertBefore(aPopup._lmStatusMenuItem,
-                          aPopup.childNodes[aPopup._startMarker + 1]);
+                          aPopup.childNodes.item(aPopup._startMarker + 1));
       aPopup._startMarker++;
     }
     else if (lmStatus &&

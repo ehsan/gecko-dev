@@ -67,8 +67,7 @@
 }
 
 #placesToolbar {
-  margin-top: -3px;
-  padding: 0 4px;
+  padding: 0 4px 3px;
 }
 
 #placesView {
@@ -97,7 +96,7 @@
   border-right: none;
 }
 
-#back-button[chromedir="rtl"] {
+#back-button:-moz-locale-dir(rtl) {
   -moz-image-region: rect(0px, 67px, 23px, 34px);
 }
 
@@ -105,7 +104,7 @@
  -moz-image-region: rect(23px, 34px, 46px, 0px) !important;
 }
 
-#back-button[disabled="true"][chromedir="rtl"] {
+#back-button[disabled="true"]:-moz-locale-dir(rtl) {
  -moz-image-region: rect(23px, 67px, 46px, 34px) !important;
 }
 
@@ -115,9 +114,9 @@
   -moz-image-region: rect(46px, 34px, 69px, 0px);
 }
 
-#back-button:hover:active[chromedir="rtl"],
-#back-button[buttondown="true"][chromedir="rtl"],
-#back-button[open="true"][chromedir="rtl"] {
+#back-button:hover:active:-moz-locale-dir(rtl),
+#back-button[buttondown="true"]:-moz-locale-dir(rtl),
+#back-button[open="true"]:-moz-locale-dir(rtl) {
   -moz-image-region: rect(46px, 67px, 69px, 34px);
 }
 
@@ -137,7 +136,7 @@
   border-right: none;
 }
 
-#forward-button[chromedir="rtl"] {
+#forward-button:-moz-locale-dir(rtl) {
   -moz-image-region: rect(0px, 34px, 23px, 0px);
 }
 
@@ -145,7 +144,7 @@
   -moz-image-region: rect(23px, 67px, 46px, 34px) !important;
 }
 
-#forward-button[disabled="true"][chromedir="rtl"] {
+#forward-button[disabled="true"]:-moz-locale-dir(rtl) {
   -moz-image-region: rect(23px, 34px, 46px, 0px) !important;
 }
 
@@ -155,9 +154,9 @@
   -moz-image-region: rect(46px, 67px, 69px, 34px);
 }
 
-#forward-button:hover:active[chromedir="rtl"],
-#forward-button[buttondown="true"][chromedir="rtl"],
-#forward-button[open="true"][chromedir="rtl"] {
+#forward-button:hover:active:-moz-locale-dir(rtl),
+#forward-button[buttondown="true"]:-moz-locale-dir(rtl),
+#forward-button[open="true"]:-moz-locale-dir(rtl) {
   -moz-image-region: rect(46px, 34px, 69px, 0px);
 }
 
@@ -170,10 +169,10 @@
   background: url("chrome://browser/skin/places/menubutton-end-pressed.png") right center no-repeat;
 }
 
-#placesToolbar[chromedir="rtl"] > toolbarbutton[type="menu"] {
+#placesToolbar:-moz-locale-dir(rtl) > toolbarbutton[type="menu"] {
   background: url("chrome://browser/skin/places/menubutton-end-rtl.png") left center no-repeat;
 }
-#placesToolbar[chromedir="rtl"] > toolbarbutton[type="menu"][open="true"] {
+#placesToolbar:-moz-locale-dir(rtl) > toolbarbutton[type="menu"][open="true"] {
   background: url("chrome://browser/skin/places/menubutton-end-pressed-rtl.png") left center no-repeat;
 }
 
@@ -193,10 +192,10 @@
   background: url("chrome://browser/skin/places/menubutton-start-pressed.png") left center no-repeat;
 }
 
-#placesToolbar[chromedir="rtl"] > toolbarbutton[type="menu"] > .toolbarbutton-icon {
+#placesToolbar:-moz-locale-dir(rtl) > toolbarbutton[type="menu"] > .toolbarbutton-icon {
   background: url("chrome://browser/skin/places/menubutton-start-rtl.png") right center no-repeat;
 }
-#placesToolbar[chromedir="rtl"] > toolbarbutton[type="menu"][open="true"] > .toolbarbutton-icon {
+#placesToolbar:-moz-locale-dir(rtl) > toolbarbutton[type="menu"][open="true"] > .toolbarbutton-icon {
   background: url("chrome://browser/skin/places/menubutton-start-pressed-rtl.png") right center no-repeat;
 }
 
@@ -284,7 +283,6 @@
 }
 
 .small {
-  font-size: x-small;
   min-width: 0px;
   padding: 0px 4px 0px 4px;
   margin: 0px;  
@@ -330,6 +328,7 @@
 }
 
 #organizerScopeBar {
+  -moz-appearance: none;
   background: url("chrome://global/skin/icons/find-bar-background.png") repeat-x top center #D0D0D0;
   color: #474747;
   font-size: 105%;
@@ -397,68 +396,10 @@
   list-style-image: url("chrome://browser/skin/places/minus-active.png") !important;
 }
 
-menulist {
-  -moz-appearance: none;
-  margin: 0px 3px 0px 5px !important;
-  padding: 2px 0px 2px 0px;
-  background: url("chrome://global/skin/icons/round-button-leftcap.png") no-repeat center left;
-}
-
-menulist:active,
-menulist[open="true"]  {
- background: url("chrome://global/skin/icons/round-button-active-leftcap.png") no-repeat center left !important;
-}
-  
-.menulist-label-box {
-  -moz-appearance: none;
-  margin: 0px 0px 0px 8px !important;
-  padding: 2px 0 2px 0px;
-  background: url("chrome://global/skin/icons/round-button-dropmarker.png") no-repeat center right;
-  border: none;
-}
-menulist:active > .menulist-label-box,
-menulist[open="true"] > .menulist-label-box {
-  background: url("chrome://global/skin/icons/round-button-active-dropmarker.png") no-repeat center right !important;
-}
-
-.menulist-label {
-  -moz-appearance: none;
-  margin: 0px 14px 0px 0px !important;
-  padding: 2px 0px 2px 0px;
-  background: url("chrome://global/skin/icons/round-button-middle.png") repeat-x center left;
-  border: none;
-}
-menulist:active > .menulist-label-box .menulist-label,
-menulist[open="true"] > .menulist-label-box  .menulist-label {
-  background: url("chrome://global/skin/icons/round-button-active-middle.png") repeat-x center left !important;
-}
-
-#editBMPanel_namePicker {
-  background: none !important;
-  margin: 0px !important;
-  padding:  0px !important;
-}
-#editBMPanel_namePicker[droppable="false"] > .menulist-editable-box {
-  -moz-appearance: textfield;
-  cursor: text;
-  margin: 4px 4px;
-  border: 3px solid;
-  -moz-border-top-colors: transparent #888888 #000000;
-  -moz-border-right-colors: transparent #FFFFFF #000000;
-  -moz-border-bottom-colors: transparent #FFFFFF #000000;
-  -moz-border-left-colors: transparent #888888 #000000;
-  -moz-border-radius-topright: 2px;
-  -moz-border-radius-bottomleft: 2px;
-  padding: 0;
-  background-color: -moz-Field;
-  color: -moz-FieldText;
-}
-
 #saveSearch {
   -moz-appearance: none;
   margin: 0;
-  padding: 4px 0 3px 0;
-  -moz-padding-start: 7px;
+  padding: 4px 0 3px 8px;
   background: url("chrome://global/skin/icons/round-button-leftcap.png") no-repeat center left;
   border: none;
 }
@@ -469,7 +410,7 @@ menulist[open="true"] > .menulist-label-box  .menulist-label {
 
 #saveSearch .button-text {
   margin: 0 !important;
-  padding: 2px 8px 2px 1px !important;
+  padding: 2px 8px 2px 0 !important;
   background: url("chrome://global/skin/icons/round-button-right.png") no-repeat center right;
   font-size: 12px;
 }
@@ -612,6 +553,10 @@ menulist[open="true"] > .menulist-label-box  .menulist-label {
   margin: 0;
   padding: 0;
   max-width: 0;
+}
+
+#infoBoxExpanderLabel {
+  display: none;
 }
 
 #infoBox[minimal="true"] #infoBoxExpander {

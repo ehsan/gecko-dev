@@ -57,8 +57,10 @@
         // Note: unsetting the result's viewer also unsets
         // the viewer's reference to our treeBoxObject.
         var result = this.getResult();
-        if (result)
+        if (result) {
           result.viewer = null;
+          result.root.containerOpen = false;
+        }
         this.view = null;
       ]]></destructor>
 
@@ -95,6 +97,14 @@
           var queryNode = asQuery(this.getResultNode());
           var options = queryNode.queryOptions.clone();
 
+          // Make sure we're getting uri results.
+          // We do not yet support searching into grouped queries or into
+          // tag containers, so we must fall to the default case.
+          if (PlacesUtils.nodeIsHistoryContainer(queryNode) ||
+              options.resultType == options.RESULTS_AS_TAG_QUERY ||
+              options.resultType == options.RESULTS_AS_TAG_CONTENTS)
+            options.resultType = options.RESULT_TYPE_URI;
+
           var query = PlacesUtils.history.getNewQuery();
           query.searchTerms = filterString;
 
@@ -111,8 +121,14 @@
         <parameter name="queries"/>
         <parameter name="options"/>
         <body><![CDATA[
-          var result = PlacesUtils.history.executeQueries(queries, queries.length, 
-                                                          options);
+          // Cleanup old result if exists.
+          var oldResult = this.getResult();
+          if (oldResult)
+            oldResult.root.containerOpen = false;
+
+          var result = PlacesUtils.history
+                                  .executeQueries(queries, queries.length,
+                                                  options);
           var callback;
           if (this.flatList) {
             var onOpenFlatContainer = this.onOpenFlatContainer;
@@ -404,7 +420,7 @@
       </method>
       
       <!-- nsIPlacesView -->
-      <method name="getDragableSelection">
+      <method name="getDraggableSelection">
         <body><![CDATA[
           return this.getSelectionNodes();
         ]]></body>
@@ -585,6 +601,9 @@
           // Array of nodes found by findNodes which are to be selected
           var nodes = [];
 
+          // Array of nodes found by findNodes which should be opened
+          var nodesToOpen = [];
+
           // A set of URIs of container-nodes that were previously searched,
           // and thus shouldn't be searched again. This is empty at the initial
           // start of the recursion and gets filled in as the recursion
@@ -639,12 +658,18 @@
 
             // If we didn't find any additional matches in this node's
             // subtree, revert the node to its previous openness.
-            if (!foundOne)
-              node.containerOpen = previousOpenness;
+            if (foundOne)
+              nodesToOpen.unshift(node);
+            node.containerOpen = previousOpenness;
             return foundOne;
           }
 
+          // Null the viewer while looking for nodes
+          var result = this.getResult();
+          var oldViewer = result.viewer;
+          result.viewer = null;
           findNodes(this.getResultNode());
+          result.viewer = oldViewer;
 
           // For all the nodes we've found, highlight the corresponding
           // index in the tree.
@@ -652,7 +677,11 @@
           var selection = this.view.selection;
           selection.selectEventsSuppressed = true;
           selection.clearSelection();
-          for (var i=0; i < nodes.length; i++) {
+          // Open nodes containing found items
+          for (var i = 0; i < nodesToOpen.length; i++) {
+            nodesToOpen[i].containerOpen = true;
+          }
+          for (var i = 0; i < nodes.length; i++) {
             var index = resultview.treeIndexForNode(nodes[i]);
             selection.rangedSelect(index, index, true);
           }
@@ -731,7 +760,7 @@
             orientation = Ci.nsITreeView.DROP_ON;
           }
 
-          return this.view.canDrop(row.value, orientation);
+          return this.view.canDrop(row.value, orientation, aEvent.dataTransfer);
         ]]></body>
       </method>
       
@@ -740,8 +769,8 @@
         <parameter name="aEvent"/>
         <parameter name="aFlavour"/>
         <parameter name="aDragSession"/>
-        <body><![CDATA[      
-          if (!this.canDrop(aEvent, aDragSession))
+        <body><![CDATA[
+          if (!this.canDrop(aEvent, aDragSession, aEvent.dataTransfer))
             aEvent.dataTransfer.effectAllowed = "none";
         ]]></body>
       </method>

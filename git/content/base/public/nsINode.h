@@ -45,10 +45,14 @@
 #include "nsINodeInfo.h"
 #include "nsCOMPtr.h"
 #include "nsWrapperCache.h"
+#include "nsIProgrammingLanguage.h" // for ::JAVASCRIPT
 
 class nsIContent;
 class nsIDocument;
 class nsIDOMEvent;
+class nsIDOMNode;
+class nsIDOMNodeList;
+class nsINodeList;
 class nsIPresShell;
 class nsPresContext;
 class nsEventChainVisitor;
@@ -56,7 +60,6 @@ class nsEventChainPreVisitor;
 class nsEventChainPostVisitor;
 class nsIEventListenerManager;
 class nsIPrincipal;
-class nsVoidArray;
 class nsIMutationObserver;
 class nsChildContentList;
 class nsNodeWeakReference;
@@ -74,59 +77,80 @@ enum {
   // Whether this node has had any properties set on it
   NODE_HAS_PROPERTIES =          0x00000004U,
 
-  // Whether this node is anonymous
+  // Whether this node is the root of an anonymous subtree.  Note that this
+  // need not be a native anonymous subtree.  Any anonymous subtree, including
+  // XBL-generated ones, will do.  This flag is set-once: once a node has it,
+  // it must not be removed.
   // NOTE: Should only be used on nsIContent nodes
   NODE_IS_ANONYMOUS =            0x00000008U,
-  
+
+  // Whether the node has some ancestor, possibly itself, that is native
+  // anonymous.  This includes ancestors crossing XBL scopes, in cases when an
+  // XBL binding is attached to an element which has a native anonymous
+  // ancestor.  This flag is set-once: once a node has it, it must not be
+  // removed.
+  // NOTE: Should only be used on nsIContent nodes
   NODE_IS_IN_ANONYMOUS_SUBTREE = 0x00000010U,
+
+  // Whether this node is the root of a native anonymous (from the perspective
+  // of its parent) subtree.  This flag is set-once: once a node has it, it
+  // must not be removed.
+  // NOTE: Should only be used on nsIContent nodes
+  NODE_IS_NATIVE_ANONYMOUS_ROOT = 0x00000020U,
 
   // Whether this node may have a frame
   // NOTE: Should only be used on nsIContent nodes
-  NODE_MAY_HAVE_FRAME =          0x00000020U,
+  NODE_MAY_HAVE_FRAME =          0x00000040U,
 
   // Forces the XBL code to treat this node as if it were
   // in the document and therefore should get bindings attached.
-  NODE_FORCE_XBL_BINDINGS =      0x00000040U,
+  NODE_FORCE_XBL_BINDINGS =      0x00000080U,
 
   // Whether a binding manager may have a pointer to this
-  NODE_MAY_BE_IN_BINDING_MNGR =  0x00000080U,
+  NODE_MAY_BE_IN_BINDING_MNGR =  0x00000100U,
 
-  NODE_IS_EDITABLE =             0x00000100U,
+  NODE_IS_EDITABLE =             0x00000200U,
 
   // Optimizations to quickly check whether element may have ID, class or style
   // attributes. Not all element implementations may use these!
-  NODE_MAY_HAVE_ID =             0x00000200U,
+  NODE_MAY_HAVE_ID =             0x00000400U,
   // For all Element nodes, NODE_MAY_HAVE_CLASS is guaranteed to be set if the
   // node in fact has a class, but may be set even if it doesn't.
-  NODE_MAY_HAVE_CLASS =          0x00000400U,
-  NODE_MAY_HAVE_STYLE =          0x00000800U,
+  NODE_MAY_HAVE_CLASS =          0x00000800U,
+  NODE_MAY_HAVE_STYLE =          0x00001000U,
 
-  NODE_IS_INSERTION_PARENT =     0x00001000U,
+  NODE_IS_INSERTION_PARENT =     0x00002000U,
 
   // Node has an :empty or :-moz-only-whitespace selector
-  NODE_HAS_EMPTY_SELECTOR =      0x00002000U,
+  NODE_HAS_EMPTY_SELECTOR =      0x00004000U,
 
   // A child of the node has a selector such that any insertion,
   // removal, or appending of children requires restyling the parent.
-  NODE_HAS_SLOW_SELECTOR =       0x00004000U,
+  NODE_HAS_SLOW_SELECTOR =       0x00008000U,
 
   // A child of the node has a :first-child, :-moz-first-node,
   // :only-child, :last-child or :-moz-last-node selector.
-  NODE_HAS_EDGE_CHILD_SELECTOR = 0x00008000U,
+  NODE_HAS_EDGE_CHILD_SELECTOR = 0x00010000U,
 
   // A child of the node has a selector such that any insertion or
   // removal of children requires restyling the parent (but append is
   // OK).
   NODE_HAS_SLOW_SELECTOR_NOAPPEND
-                               = 0x00010000U,
+                               = 0x00020000U,
 
   NODE_ALL_SELECTOR_FLAGS =      NODE_HAS_EMPTY_SELECTOR |
                                  NODE_HAS_SLOW_SELECTOR |
                                  NODE_HAS_EDGE_CHILD_SELECTOR |
                                  NODE_HAS_SLOW_SELECTOR_NOAPPEND,
 
+  NODE_MAY_HAVE_CONTENT_EDITABLE_ATTR
+                               = 0x00040000U,
+
+  NODE_ATTACH_BINDING_ON_POSTCREATE
+                               = 0x00080000U,
+
   // Four bits for the script-type ID
-  NODE_SCRIPT_TYPE_OFFSET =               17,
+  NODE_SCRIPT_TYPE_OFFSET =               20,
 
   NODE_SCRIPT_TYPE_SIZE =                  4,
 
@@ -148,12 +172,83 @@ inline nsINode* NODE_FROM(C& aContent, D& aDocument)
   return static_cast<nsINode*>(aDocument);
 }
 
+/**
+ * Class used to detect unexpected mutations. To use the class create an
+ * nsMutationGuard on the stack before unexpected mutations could occur.
+ * You can then at any time call Mutated to check if any unexpected mutations
+ * have occured.
+ *
+ * When a guard is instantiated sMutationCount is set to 300. It is then
+ * decremented by every mutation (capped at 0). This means that we can only
+ * detect 300 mutations during the lifetime of a single guard, however that
+ * should be more then we ever care about as we usually only care if more then
+ * one mutation has occured.
+ *
+ * When the guard goes out of scope it will adjust sMutationCount so that over
+ * the lifetime of the guard the guard itself has not affected sMutationCount,
+ * while mutations that happened while the guard was alive still will. This
+ * allows a guard to be instantiated even if there is another guard higher up
+ * on the callstack watching for mutations.
+ *
+ * The only thing that has to be avoided is for an outer guard to be used
+ * while an inner guard is alive. This can be avoided by only ever
+ * instantiating a single guard per scope and only using the guard in the
+ * current scope.
+ */
+class nsMutationGuard {
+public:
+  nsMutationGuard()
+  {
+    mDelta = eMaxMutations - sMutationCount;
+    sMutationCount = eMaxMutations;
+  }
+  ~nsMutationGuard()
+  {
+    sMutationCount =
+      mDelta > sMutationCount ? 0 : sMutationCount - mDelta;
+  }
+
+  /**
+   * Returns true if any unexpected mutations have occured. You can pass in
+   * an 8-bit ignore count to ignore a number of expected mutations.
+   */
+  PRBool Mutated(PRUint8 aIgnoreCount)
+  {
+    return sMutationCount < static_cast<PRUint32>(eMaxMutations - aIgnoreCount);
+  }
+
+  // This function should be called whenever a mutation that we want to keep
+  // track of happen. For now this is only done when children are added or
+  // removed, but we might do it for attribute changes too in the future.
+  static void DidMutate()
+  {
+    if (sMutationCount) {
+      --sMutationCount;
+    }
+  }
+
+private:
+  // mDelta is the amount sMutationCount was adjusted when the guard was
+  // initialized. It is needed so that we can undo that adjustment once
+  // the guard dies.
+  PRUint32 mDelta;
+
+  // The value 300 is not important, as long as it is bigger then anything
+  // ever passed to Mutated().
+  enum { eMaxMutations = 300 };
+
+  
+  // sMutationCount is a global mutation counter which is decreased by one at
+  // every mutation. It is capped at 0 to avoid wrapping.
+  // Its value is always between 0 and 300, inclusive.
+  static PRUint32 sMutationCount;
+};
 
 // IID for the nsINode interface
 #define NS_INODE_IID \
-{ 0x0f7b2557, 0xa09d, 0x468f, \
-  { 0x93, 0x92, 0xf1, 0xf1, 0xd1, 0xfa, 0x31, 0x78 } }
-
+{ 0xfc22c6df, 0x3e8e, 0x47c3, \
+  { 0x96, 0xa6, 0xaf, 0x14, 0x3c, 0x05, 0x88, 0x68 } }
+ 
 /**
  * An internal interface that abstracts some DOMNode-related parts that both
  * nsIContent and nsIDocument share.  An instance of this interface has a list
@@ -212,7 +307,9 @@ public:
      returns a non-null value for nsIContent::GetText() */
     eDATA_NODE           = 1 << 12,
     /** nsMathMLElement */
-    eMATHML              = 1 << 13
+    eMATHML              = 1 << 13,
+    /** nsHTMLMediaElement */
+    eMEDIA               = 1 << 14
   };
 
   /**
@@ -244,9 +341,10 @@ public:
    * mutates (no attribute changes, not DOM tree changes, no script execution,
    * NOTHING), and will never ever peform an out-of-bounds access here.  This
    * method may return null if there are no children, or it may return a
-   * garbage pointer..
+   * garbage pointer.  In all cases the out param will be set to the number of
+   * children.
    */
-  virtual nsIContent * const * GetChildArray() const = 0;
+  virtual nsIContent * const * GetChildArray(PRUint32* aChildCount) const = 0;
 
   /**
    * Get the index of a child within this content
@@ -344,10 +442,13 @@ public:
    * @param aNotify whether to notify the document (current document for
    *        nsIContent, and |this| for nsIDocument) that the remove has
    *        occurred
+   * @param aMutationEvent whether to fire a mutation event
    *
    * Note: If there is no child at aIndex, this method will simply do nothing.
    */
-  virtual nsresult RemoveChildAt(PRUint32 aIndex, PRBool aNotify) = 0;
+  virtual nsresult RemoveChildAt(PRUint32 aIndex, 
+                                 PRBool aNotify, 
+                                 PRBool aMutationEvent = PR_TRUE) = 0;
 
   /**
    * Get a property associated with this node.
@@ -637,7 +738,11 @@ public:
 
   void SetFlags(PtrBits aFlagsToSet)
   {
-    NS_ASSERTION(!(aFlagsToSet & (NODE_IS_ANONYMOUS | NODE_MAY_HAVE_FRAME)) ||
+    NS_ASSERTION(!(aFlagsToSet & (NODE_IS_ANONYMOUS |
+                                  NODE_MAY_HAVE_FRAME |
+                                  NODE_IS_NATIVE_ANONYMOUS_ROOT |
+                                  NODE_IS_IN_ANONYMOUS_SUBTREE |
+                                  NODE_ATTACH_BINDING_ON_POSTCREATE)) ||
                  IsNodeOfType(eCONTENT),
                  "Flag only permitted on nsIContent nodes");
     PtrBits* flags = HasSlots() ? &FlagsAsSlots()->mFlags :
@@ -647,6 +752,11 @@ public:
 
   void UnsetFlags(PtrBits aFlagsToUnset)
   {
+    NS_ASSERTION(!(aFlagsToUnset &
+                   (NODE_IS_ANONYMOUS |
+                    NODE_IS_IN_ANONYMOUS_SUBTREE |
+                    NODE_IS_NATIVE_ANONYMOUS_ROOT)),
+                 "Trying to unset write-only flags");
     PtrBits* flags = HasSlots() ? &FlagsAsSlots()->mFlags :
                                   &mFlagsOrSlots;
     *flags &= ~aFlagsToUnset;
@@ -672,6 +782,22 @@ public:
   }
 
   /**
+   * Returns PR_TRUE if |this| or any of its ancestors is native anonymous.
+   */
+  PRBool IsInNativeAnonymousSubtree() const
+  {
+#ifdef DEBUG
+    if (HasFlag(NODE_IS_IN_ANONYMOUS_SUBTREE)) {
+      return PR_TRUE;
+    }
+    CheckNotNativeAnonymous();
+    return PR_FALSE;
+#else
+    return HasFlag(NODE_IS_IN_ANONYMOUS_SUBTREE);
+#endif
+  }
+
+  /**
    * Get the root content of an editor. So, this node must be a descendant of
    * an editor. Note that this should be only used for getting input or textarea
    * editor's root content. This method doesn't support HTML editors.
@@ -687,6 +813,81 @@ public:
    */
   nsIContent* GetSelectionRootContent(nsIPresShell* aPresShell);
 
+  virtual nsINodeList* GetChildNodesList();
+  nsIContent* GetSibling(PRInt32 aOffset)
+  {
+    nsINode *parent = GetNodeParent();
+    if (!parent) {
+      return nsnull;
+    }
+
+    return parent->GetChildAt(parent->IndexOf(this) + aOffset);
+  }
+  nsIContent* GetLastChild() const
+  {
+    PRUint32 count;
+    nsIContent* const* children = GetChildArray(&count);
+
+    return count > 0 ? children[count - 1] : nsnull;
+  }
+
+  /**
+   * Implementation is in nsIDocument.h, because it needs to cast from
+   * nsIDocument* to nsINode*.
+   */
+  nsIDocument* GetOwnerDocument() const;
+
+  /**
+   * Iterator that can be used to easily iterate over the children.  This has
+   * the same restrictions on its use as GetChildArray does.
+   */
+  class ChildIterator {
+  public:
+    ChildIterator(const nsINode* aNode) { Init(aNode); }
+    ChildIterator(const nsINode* aNode, PRUint32 aOffset) {
+      Init(aNode);
+      Advance(aOffset);
+    }
+    ~ChildIterator() {
+      NS_ASSERTION(!mGuard.Mutated(0), "Unexpected mutations happened");
+    }
+
+    PRBool IsDone() const { return mCur == mEnd; }
+    operator nsIContent* const () { return *mCur; }
+    void Next() { NS_PRECONDITION(mCur != mEnd, "Check IsDone"); ++mCur; }
+    void Advance(PRUint32 aOffset) {
+      NS_ASSERTION(mCur + aOffset <= mEnd, "Unexpected offset");
+      mCur += aOffset;
+    }
+  private:
+    void Init(const nsINode* aNode) {
+      NS_PRECONDITION(aNode, "Must have node here!");
+      PRUint32 childCount;
+      mCur = aNode->GetChildArray(&childCount);
+      mEnd = mCur + childCount;
+    }
+#ifdef DEBUG
+    nsMutationGuard mGuard;
+#endif
+    nsIContent* const * mCur;
+    nsIContent* const * mEnd;
+  };
+
+  /**
+   * The default script type (language) ID for this node.
+   * All nodes must support fetching the default script language.
+   */
+  virtual PRUint32 GetScriptTypeID() const
+  { return nsIProgrammingLanguage::JAVASCRIPT; }
+
+  /**
+   * Not all nodes support setting a new default language.
+   */
+  NS_IMETHOD SetScriptTypeID(PRUint32 aLang)
+  {
+    NS_NOTREACHED("SetScriptTypeID not implemented");
+    return NS_ERROR_NOT_IMPLEMENTED;
+  }
 protected:
 
   // Override this function to create a custom slots class.
@@ -733,6 +934,20 @@ protected:
     return IsEditableInternal();
   }
 
+#ifdef DEBUG
+  // Note: virtual so that IsInNativeAnonymousSubtree can be called accross
+  // module boundaries.
+  virtual void CheckNotNativeAnonymous() const;
+#endif
+
+  nsresult GetParentNode(nsIDOMNode** aParentNode);
+  nsresult GetChildNodes(nsIDOMNodeList** aChildNodes);
+  nsresult GetFirstChild(nsIDOMNode** aFirstChild);
+  nsresult GetLastChild(nsIDOMNode** aLastChild);
+  nsresult GetPreviousSibling(nsIDOMNode** aPrevSibling);
+  nsresult GetNextSibling(nsIDOMNode** aNextSibling);
+  nsresult GetOwnerDocument(nsIDOMDocument** aOwnerDocument);
+
   nsCOMPtr<nsINodeInfo> mNodeInfo;
 
   enum { PARENT_BIT_INDOCUMENT = 1 << 0, PARENT_BIT_PARENT_IS_CONTENT = 1 << 1 };
@@ -776,7 +991,8 @@ extern const nsIID kThisPtrOffsetsSID;
 // nsINode, so if you change the nsISupports line  below, make sure
 // nsNodeSH::PreCreate() still does the right thing!
 #define NS_NODE_OFFSET_AND_INTERFACE_TABLE_BEGIN(_class)                      \
-  NS_OFFSET_AND_INTERFACE_TABLE_BEGIN_AMBIGUOUS(_class, nsINode)
+  NS_OFFSET_AND_INTERFACE_TABLE_BEGIN_AMBIGUOUS(_class, nsINode)              \
+    NS_INTERFACE_TABLE_ENTRY(_class, nsINode)                       
 
 #define NS_NODE_INTERFACE_TABLE2(_class, _i1, _i2)                            \
   NS_NODE_OFFSET_AND_INTERFACE_TABLE_BEGIN(_class)                            \
@@ -853,11 +1069,11 @@ extern const nsIID kThisPtrOffsetsSID;
 NS_DEFINE_STATIC_IID_ACCESSOR(nsINode, NS_INODE_IID)
 
 
-#define NS_IMPL_CYCLE_COLLECTION_TRAVERSE_PRESERVED_WRAPPER \
-   tmp->TraverseWrapper(cb);
+#define NS_IMPL_CYCLE_COLLECTION_TRACE_PRESERVED_WRAPPER \
+  nsContentUtils::TraceWrapper(tmp, aCallback, aClosure);
 
 #define NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER \
-  tmp->ReleaseWrapper();
+  nsContentUtils::ReleaseWrapper(s, tmp);
 
 
 #endif /* nsINode_h___ */

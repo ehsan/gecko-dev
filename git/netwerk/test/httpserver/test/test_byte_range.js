@@ -72,12 +72,12 @@ var tests =
 function run_test()
 {
   var srv = createServer();
-  var dir = do_get_file("netwerk/test/httpserver/test/data/ranges/");
+  var dir = do_get_file("data/ranges/");
   srv.registerDirectory("/", dir);
 
   srv.start(4444);
 
-  runHttpTests(tests, function() { srv.stop(); });
+  runHttpTests(tests, testComplete(srv));
 }
 
 function start_normal(ch, cx)

@@ -38,25 +38,23 @@
 #ifndef nsNPAPIPlugin_h_
 #define nsNPAPIPlugin_h_
 
-#include "nsIFactory.h"
 #include "nsIPlugin.h"
-#include "nsIPluginInstancePeer.h"
-#include "nsIWindowlessPlugInstPeer.h"
 #include "prlink.h"
 #include "npfunctions.h"
-#include "nsPluginHostImpl.h"
+#include "nsPluginHost.h"
 
 /*
  * Use this macro before each exported function
  * (between the return address and the function
  * itself), to ensure that the function has the
- * right calling conventions on Win16.
+ * right calling conventions on OS/2.
  */
 #ifdef XP_OS2
 #define NP_CALLBACK _System
 #else
 #define NP_CALLBACK
 #endif
+
 #if defined(XP_WIN)
 #define NS_NPAPIPLUGIN_CALLBACK(_type, _name) _type (__stdcall * _name)
 #elif defined(XP_OS2)
@@ -78,16 +76,14 @@ class nsNPAPIPlugin : public nsIPlugin
 public:
   nsNPAPIPlugin(NPPluginFuncs* callbacks, PRLibrary* aLibrary,
                 NP_PLUGINSHUTDOWN aShutdown);
-  virtual ~nsNPAPIPlugin(void);
+  virtual ~nsNPAPIPlugin();
 
   NS_DECL_ISUPPORTS
-  NS_DECL_NSIFACTORY
   NS_DECL_NSIPLUGIN
 
-  // Constructs and initializes an nsNPAPIPlugin object
-  static nsresult CreatePlugin(const char* aFileName,
-                               const char* aFullPath,
-                               PRLibrary* aLibrary,
+  // Constructs and initializes an nsNPAPIPlugin object. A NULL file path
+  // will prevent this from calling NP_Initialize.
+  static nsresult CreatePlugin(const char* aFilePath, PRLibrary* aLibrary,
                                nsIPlugin** aResult);
 #ifdef XP_MACOSX
   void SetPluginRefNum(short aRefNum);
@@ -108,7 +104,7 @@ protected:
 
   NP_PLUGINSHUTDOWN fShutdownEntry;
 
-  // The browser-side callbacks that a 4.x-style plugin calls.
+  // Browser-side callbacks that the plugin calls.
   static NPNetscapeFuncs CALLBACKS;
 };
 
@@ -189,6 +185,36 @@ _releasevariantvalue(NPVariant *variant);
 
 void NP_CALLBACK
 _setexception(NPObject* npobj, const NPUTF8 *message);
+
+void NP_CALLBACK
+_pushpopupsenabledstate(NPP npp, NPBool enabled);
+
+void NP_CALLBACK
+_poppopupsenabledstate(NPP npp);
+
+typedef void(*PluginThreadCallback)(void *);
+void NP_CALLBACK
+_pluginthreadasynccall(NPP instance, PluginThreadCallback func,
+                       void *userData);
+
+NPError NP_CALLBACK
+_getvalueforurl(NPP instance, NPNURLVariable variable, const char *url,
+                char **value, uint32_t *len);
+NPError NP_CALLBACK
+_setvalueforurl(NPP instance, NPNURLVariable variable, const char *url,
+                const char *value, uint32_t len);
+
+NPError NP_CALLBACK
+_getauthenticationinfo(NPP instance, const char *protocol, const char *host,
+                       int32_t port, const char *scheme, const char *realm,
+                       char **username, uint32_t *ulen, char **password,
+                       uint32_t *plen);
+
+uint32_t NP_CALLBACK
+_scheduletimer(NPP instance, uint32_t interval, NPBool repeat, void (*timerFunc)(NPP npp, uint32_t timerID));
+
+void NP_CALLBACK
+_unscheduletimer(NPP instance, uint32_t timerID);
 
 PR_END_EXTERN_C
 

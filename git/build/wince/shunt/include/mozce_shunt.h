@@ -35,20 +35,71 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-
 #ifndef MOZCE_SHUNT_H
 #define MOZCE_SHUNT_H
 
-#ifdef MOZCE_SHUNT_EXPORTS
-#define MOZCE_SHUNT_API __declspec(dllexport)
-#else
-#define MOZCE_SHUNT_API __declspec(dllimport)
+#ifdef __cplusplus
+extern "C" {
 #endif
+
+#ifndef _WCHAR_T_DEFINED
+typedef unsigned short wchar_t;
+#define _WCHAR_T_DEFINED
+#endif
+
+#ifdef __cplusplus
+}   //extern "C" 
+#endif
+
+#ifdef MOZ_MEMORY
+
+#ifdef __cplusplus
+#define _NEW_
+void * operator new(size_t _Size);
+void operator delete(void * ptr);
+void *operator new[](size_t size);
+void operator delete[](void *ptr);
+
+extern "C" {
+#endif
+
+#undef _strdup
+#undef strdup
+#undef _strndup
+#undef strndup
+#undef _wcsdup
+#undef wcsdup
+#undef _wcsndup
+#undef wcsndup
+
+char * __cdecl
+_strdup(const char*);
+
+wchar_t * __cdecl
+_wcsdup(const wchar_t *);
+
+char * __cdecl
+_strndup(const char *, unsigned int);
+
+wchar_t * __cdecl
+_wcsndup(const wchar_t *, unsigned int);
   
+#ifdef __cplusplus
+}   //extern "C" 
+#endif
+
+#endif
+
 #define strdup  _strdup
+#define strndup _strndup
+#define wcsdup _wcsdup
+#define wcsndup _wcsndup
+
+
 #define strcmpi _stricmp
 #define stricmp _stricmp
 #define wgetcwd _wgetcwd
+#define vsnprintf _vsnprintf
 
 #define SHGetSpecialFolderPathW SHGetSpecialFolderPath
 #define SHGetPathFromIDListW    SHGetPathFromIDList
@@ -59,45 +110,65 @@ extern "C" {
 #endif
 
 /* errno and family */
-extern MOZCE_SHUNT_API int errno;
-MOZCE_SHUNT_API char* strerror(int);
+extern int errno;
+char* strerror(int);
 
 /* abort */
-MOZCE_SHUNT_API void abort(void);
+void abort(void);
   
 /* Environment stuff */
-MOZCE_SHUNT_API char* getenv(const char* inName);
-MOZCE_SHUNT_API int putenv(const char *a);
-MOZCE_SHUNT_API char SetEnvironmentVariableW(const unsigned short * name, const unsigned short * value );
-MOZCE_SHUNT_API char GetEnvironmentVariableW(const unsigned short * lpName, unsigned short* lpBuffer, unsigned long nSize);
+char* getenv(const char* inName);
+int putenv(const char *a);
+char SetEnvironmentVariableW(const unsigned short * name, const unsigned short * value );
+char GetEnvironmentVariableW(const unsigned short * lpName, unsigned short* lpBuffer, unsigned long nSize);
   
+unsigned int ExpandEnvironmentStringsW(const unsigned short* lpSrc,
+				       unsigned short* lpDst,
+				       unsigned int nSize);
+
 /* File system stuff */
-MOZCE_SHUNT_API unsigned short * _wgetcwd(unsigned short* dir, unsigned long size);
-MOZCE_SHUNT_API unsigned short *_wfullpath( unsigned short *absPath, const unsigned short *relPath, unsigned long maxLength );
-MOZCE_SHUNT_API int _unlink(const char *filename );
+unsigned short * _wgetcwd(unsigned short* dir, unsigned long size);
+unsigned short *_wfullpath( unsigned short *absPath, const unsigned short *relPath, unsigned long maxLength );
+int _unlink(const char *filename );
+int _wchdir(const unsigned short* path);
   
 /* The time stuff should be defined here, but it can't be because it
    is already defined in time.h.
   
- MOZCE_SHUNT_API size_t strftime(char *, size_t, const char *, const struct tm *)
- MOZCE_SHUNT_API struct tm* localtime(const time_t* inTimeT)
- MOZCE_SHUNT_API struct tm* mozce_gmtime_r(const time_t* inTimeT, struct tm* outRetval)
- MOZCE_SHUNT_API struct tm* gmtime(const time_t* inTimeT)
- MOZCE_SHUNT_API time_t mktime(struct tm* inTM)
- MOZCE_SHUNT_API time_t time(time_t *)
- MOZCE_SHUNT_API clock_t clock() 
+ size_t strftime(char *, size_t, const char *, const struct tm *)
+ struct tm* localtime(const time_t* inTimeT)
+ struct tm* mozce_gmtime_r(const time_t* inTimeT, struct tm* outRetval)
+ struct tm* gmtime(const time_t* inTimeT)
+ time_t mktime(struct tm* inTM)
+ time_t time(time_t *)
+ clock_t clock() 
   
 */
-  
+
+struct tm;
+
+#ifndef _TIME_T_DEFINED
+typedef long time_t;
+#define _TIME_T_DEFINED
+#endif
+
+struct tm* gmtime_r(const time_t* inTimeT, struct tm* outRetval);
+struct tm* localtime_r(const time_t* inTimeT, struct tm* outRetval);
+
 /* Locale Stuff */
   
 /* The locale stuff should be defined here, but it can't be because it
    is already defined in locale.h.
   
- MOZCE_SHUNT_API struct lconv * localeconv(void)
+ struct lconv * localeconv(void)
   
 */
 
+
+unsigned short* mozce_GetEnvironmentCL();
+
+  /* square root of 1/2, missing from math.h */ 
+#define M_SQRT1_2  0.707106781186547524401
 
 #ifdef __cplusplus
 };

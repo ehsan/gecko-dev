@@ -18,7 +18,8 @@
         </xul:hbox>
       </xul:vbox>
       <xul:vbox flex="1">
-        <xul:browser class="remoteContent" type="content" flex="1"/>
+        <xul:browser class="remoteContent" type="content" disablehistory="true"
+                     flex="1"/>
       </xul:vbox>
       <xul:stringbundle anonid="strings" 
                         src="chrome://mozapps/locale/update/updates.properties"/>
@@ -107,6 +108,10 @@
           return this.getAttribute("url");
         ]]></getter>
         <setter><![CDATA[
+          if (this._remoteProgressListener) 
+            this._content.webProgress
+                .removeProgressListener(this._remoteProgressListener);
+
           var self = this;
 
           this._remoteProgressListener = {
@@ -182,9 +187,8 @@
     <content>
       <xul:hbox>
         <xul:label class="update-name" xbl:inherits="value=name" flex="1" crop="right"/>
-        <xul:link xbl:inherits="href=detailsURL" class="update-details-link">
-          <xul:label>&update.details.label;</xul:label>
-        </xul:link>
+        <xul:label xbl:inherits="href=detailsURL" class="text-link"
+                   value="&update.details.label;"/>
       </xul:hbox>
       <xul:label class="update-type" xbl:inherits="value=type"/>
       <xul:grid>

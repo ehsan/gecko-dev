@@ -1,8 +1,6 @@
 <?xml version="1.0"?>
 
 <!DOCTYPE bindings [
-  <!ENTITY % globalDTD SYSTEM "chrome://global/locale/global.dtd">
-  %globalDTD;
   <!ENTITY % textcontextDTD SYSTEM "chrome://global/locale/textcontext.dtd" >
   %textcontextDTD;
 ]>
@@ -15,6 +13,7 @@
 
   <binding id="textbox" extends="xul:box">
     <resources>
+      <stylesheet src="chrome://global/content/textbox.css"/>
       <stylesheet src="chrome://global/skin/textbox.css"/>
     </resources>
 
@@ -54,7 +53,7 @@
       </property>
 
       <property name="value"
-                onget="return this.hasAttribute('empty') ? '' : this.inputField.value;">
+                onget="return this.hasAttribute('isempty') ? '' : this.inputField.value;">
         <setter><![CDATA[
           if (val) {
             // clear the emptyText _before_ setting a new non-empty value
@@ -128,7 +127,7 @@
 
       <property name="controllers"    readonly="true" onget="return this.inputField.controllers"/>
       <property name="textLength"     readonly="true"
-                                      onget="return this.hasAttribute('empty') ?
+                                      onget="return this.hasAttribute('isempty') ?
                                                     0 : this.inputField.textLength;"/>
       <property name="selectionStart" onset="this.inputField.selectionStart = val; return val;"
                                       onget="return this.inputField.selectionStart;"/>
@@ -166,32 +165,40 @@
           if (!this.hasAttribute("focused") &&
               !this.value &&
               this.emptyText) {
-            // This section is a wee bit hacky; without the timeout, the CSS
-            // style corresponding to the "empty" attribute doesn't kick in
-            // until the text has changed, leading to an unpleasant moment
-            // where the emptyText flashes black before turning gray.
-            this.setAttribute("empty", true);
 
-            setTimeout(function (textbox) {
-              if (textbox.hasAttribute("empty")) {
-                try {
-                  textbox.editor.transactionManager.beginBatch();
-                } catch (e) {}
-                textbox.inputField.value = textbox.emptyText;
-              }
-            }, 0, this);
+            if (!this.hasAttribute("isempty")) {
+              this.setAttribute("isempty", "true");
+
+              // Hide the emptytext for a bit, in case the textbox will be focused subsequently
+              this.inputField.setAttribute("emptytextdelay", "true");
+              setTimeout(function (textbox) {
+                textbox.inputField.removeAttribute("emptytextdelay");
+              }, 100, this);
+
+              try {
+                this.editor.transactionManager.beginBatch();
+              } catch (e) {}
+            }
+
+            this.inputField.value = this.emptyText;
           }
         ]]></body>
       </method>
 
       <method name="_clearEmptyText">
         <body><![CDATA[
-          if (this.hasAttribute("empty")) {
+          if (this.hasAttribute("isempty")) {
             this.inputField.value = "";
             try {
-              this.editor.transactionManager.endBatch();
+              var transactionManager = this.editor.transactionManager;
+              transactionManager.endBatch();
+
+              // Clear undo stack if there have been no user edits
+              if (transactionManager.numberOfUndoItems == 1 &&
+                  transactionManager.numberOfRedoItems == 0)
+                transactionManager.clear();
             } catch (e) {}
-            this.removeAttribute("empty");
+            this.removeAttribute("isempty");
           }
         ]]></body>
       </method>
@@ -203,13 +210,8 @@
           this.boxObject.removeProperty("value");
         }
 
-        // this.editor may not be initialized yet in
-        // bindings that inherit from xul:textbox, so
-        // do this after construction
-        setTimeout(function (a) {
-          a._updateVisibleText();
-          a._setNewlineHandling();
-        }, 0, this);
+        this._updateVisibleText();
+        this._setNewlineHandling();
       ]]></constructor>
 
       <destructor>
@@ -225,27 +227,34 @@
     <handlers>
       <handler event="focus" phase="capturing">
         <![CDATA[
-          this._clearEmptyText();
+          if (this.hasAttribute("focused"))
+            return;
 
-          if (!this.hasAttribute("focused")) {
-            if (event.originalTarget == this)
-              this.inputField.focus(); // Forward focus to actual HTML input
-            else if (event.originalTarget != this.inputField)
-              return; // Allow other children (e.g. URL bar buttons) to get focus
-            else if (this.mIgnoreFocus)
-              this.mIgnoreFocus = false;
-            else if (this.clickSelectsAll) {
-              try {
-                const nsIEditorIMESupport =
-                        Components.interfaces.nsIEditorIMESupport;
-                var imeEditor = this.editor.QueryInterface(nsIEditorIMESupport);
-                if (!imeEditor || !imeEditor.composing)
-                  this.editor.selectAll();
-              } catch (e) {}
-            }
+          switch (event.originalTarget) {
+            case this:
+              // Forward focus to actual HTML input
+              this.inputField.focus();
+              break;
+            case this.inputField:
+              this._clearEmptyText();
 
-            this.setAttribute("focused", "true");
+              if (this.mIgnoreFocus) {
+                this.mIgnoreFocus = false;
+              } else if (this.clickSelectsAll) {
+                try {
+                  const nsIEditorIMESupport =
+                          Components.interfaces.nsIEditorIMESupport;
+                  let imeEditor = this.editor.QueryInterface(nsIEditorIMESupport);
+                  if (!imeEditor || !imeEditor.composing)
+                    this.editor.selectAll();
+                } catch (e) {}
+              }
+              break;
+            default:
+              // Allow other children (e.g. URL bar buttons) to get focus
+              return;
           }
+          this.setAttribute("focused", "true");
         ]]>
       </handler>
 
@@ -253,6 +262,12 @@
         <![CDATA[
           this.removeAttribute('focused');
           this._updateVisibleText();
+
+          // don't trigger clickSelectsAll when switching application windows
+          if (window == window.top &&
+              window.constructor == ChromeWindow &&
+              document.activeElement == this.inputField)
+            this.mIgnoreFocus = true;
         ]]>
       </handler>
 
@@ -281,6 +296,7 @@
       <handler event="click">
         <![CDATA[
           if (!this.mIgnoreClick && this.clickSelectsAll &&
+              document.activeElement == this.inputField &&
               this.inputField.selectionStart == this.inputField.selectionEnd)
             this.editor.selectAll();
         ]]>
@@ -307,7 +323,7 @@
                 onset="this.setAttribute('timeout', val); return val;"
                 onget="return parseInt(this.getAttribute('timeout')) || 0;"/>
       <property name="value"
-                onget="return this.hasAttribute('empty') ? '' : this.inputField.value;">
+                onget="return this.hasAttribute('isempty') ? '' : this.inputField.value;">
         <setter><![CDATA[
           if (val) {
             // clear the emptyText _before_ setting a new non-empty value
@@ -361,12 +377,10 @@
         <xul:deck class="textbox-search-icons" anonid="search-icons">
           <xul:image class="textbox-search-icon"
                      onclick="document.getBindingParent(this)._iconClick();"
-                     xbl:inherits="src=image,searchbutton,disabled"
-                     chromedir="&locale.dir;"/>
+                     xbl:inherits="src=image,searchbutton,disabled"/>
           <xul:image class="textbox-search-clear"
                      onclick="document.getBindingParent(this)._clearSearch();"
-                     xbl:inherits="disabled"
-                     chromedir="&locale.dir;"/>
+                     xbl:inherits="disabled"/>
         </xul:deck>
       </xul:hbox>
     </content>
@@ -379,11 +393,20 @@
                 onset="this.setAttribute('timeout', val); return val;"
                 onget="return parseInt(this.getAttribute('timeout')) || 500;"/>
       <property name="searchButton"
-                onget="return this.hasAttribute('searchbutton');"
-                onset="if (val) this.setAttribute('searchbutton', 'true');
-                       else this.removeAttribute('searchbutton'); return val;"/>
+                onget="return this.getAttribute('searchbutton') == 'true';">
+        <setter><![CDATA[
+          if (val) {
+            this.setAttribute("searchbutton", "true");
+            this.removeAttribute("aria-autocomplete");
+          } else {
+            this.removeAttribute("searchbutton");
+            this.setAttribute("aria-autocomplete", "list");
+          }
+          return val;
+        ]]></setter>
+      </property>
       <property name="value"
-                onget="return this.hasAttribute('empty') ? '' : this.inputField.value;">
+                onget="return this.hasAttribute('isempty') ? '' : this.inputField.value;">
         <setter><![CDATA[
           if (val) {
             // clear the emptyText _before_ setting a new non-empty value
@@ -401,6 +424,12 @@
           return val;
         ]]></setter>
       </property>
+      <constructor><![CDATA[
+        if (this.searchButton)
+          this.removeAttribute("aria-autocomplete");
+        else
+          this.setAttribute("aria-autocomplete", "list");
+      ]]></constructor>
       <method name="_fireCommand">
         <parameter name="me"/>
         <body><![CDATA[
@@ -483,6 +512,7 @@
     <content context="_child">
       <children/>
       <xul:menupopup anonid="input-box-contextmenu"
+                     class="textbox-contextmenu"
                      onpopupshowing="if (document.commandDispatcher.focusedElement != this.parentNode.firstChild)
                                        this.parentNode.firstChild.focus();
                                      this.parentNode._doPopupItemEnabling(this);"
@@ -544,6 +574,7 @@
     <content context="_child">
       <children/>
       <xul:menupopup anonid="input-box-contextmenu"
+                     class="textbox-contextmenu"
                      onpopupshowing="if (document.commandDispatcher.focusedElement != this.parentNode.firstChild)
                                        this.parentNode.firstChild.focus();
                                      this.parentNode._doPopupItemEnablingSpell(this);"

@@ -46,14 +46,14 @@ WindowDraggingElement.prototype = {
   mouseDownCheck: function(e) { return true; },
   dragTags: ["box", "hbox", "vbox", "spacer", "label", "statusbarpanel", "stack",
              "toolbaritem", "toolbarseparator", "toolbarspring", "toolbarspacer",
-             "radiogroup"],
+             "radiogroup", "deck"],
   handleEvent: function(aEvent) {
     switch (aEvent.type) {
       case "mousedown":
         if (aEvent.button != 0 || !this.mouseDownCheck.call(this._elem, aEvent))
           return;
 
-        let target = aEvent.target, parent = aEvent.target;
+        let target = aEvent.originalTarget, parent = aEvent.originalTarget;
         while (parent != this._elem) {
           let mousethrough = parent.getAttribute("mousethrough");
           if (mousethrough == "always")

@@ -48,14 +48,15 @@ const PORT = 4444;
 function run_test()
 {
   var srv = createServer();
-  var sjsDir = do_get_file("netwerk/test/httpserver/test/data/sjs/");
+  var sjsDir = do_get_file("data/sjs/");
   srv.registerDirectory("/", sjsDir);
   srv.registerContentType("sjs", "sjs");
   srv.start(PORT);
 
   function done()
   {
-    srv.stop();
+    do_test_pending();
+    srv.stop(function() { do_test_finished(); });
     do_check_eq(gStartCount, TEST_RUNS);
     do_check_true(lastPassed);
   }

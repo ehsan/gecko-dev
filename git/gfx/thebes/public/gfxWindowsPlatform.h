@@ -39,13 +39,25 @@
 #ifndef GFX_WINDOWS_PLATFORM_H
 #define GFX_WINDOWS_PLATFORM_H
 
+#if defined(WINCE)
+#define MOZ_FT2_FONTS 1
+#endif
+
 #include "gfxFontUtils.h"
 #include "gfxWindowsSurface.h"
+#ifdef MOZ_FT2_FONTS
+#include "gfxFT2Fonts.h"
+#else
 #include "gfxWindowsFonts.h"
+#endif
 #include "gfxPlatform.h"
 
-#include "nsVoidArray.h"
+#include "nsTArray.h"
 #include "nsDataHashtable.h"
+
+#ifdef MOZ_FT2_FONTS
+typedef struct FT_LibraryRec_ *FT_Library;
+#endif
 
 #include <windows.h>
 
@@ -60,9 +72,35 @@ public:
     already_AddRefed<gfxASurface> CreateOffscreenSurface(const gfxIntSize& size,
                                                          gfxASurface::gfxImageFormat imageFormat);
 
+    enum RenderMode {
+        /* Use GDI and windows surfaces */
+        RENDER_GDI = 0,
+
+        /* Use 32bpp image surfaces and call StretchDIBits */
+        RENDER_IMAGE_STRETCH32,
+
+        /* Use 32bpp image surfaces, and do 32->24 conversion before calling StretchDIBits */
+        RENDER_IMAGE_STRETCH24,
+
+        /* Use DirectDraw on Windows CE */
+        RENDER_DDRAW,
+
+        /* Use 24bpp image surfaces, with final DirectDraw 16bpp blt on Windows CE */
+        RENDER_IMAGE_DDRAW16,
+
+        /* Use DirectDraw with OpenGL on Windows CE */
+        RENDER_DDRAW_GL,
+
+        /* max */
+        RENDER_MODE_MAX
+    };
+
+    RenderMode GetRenderMode() { return mRenderMode; }
+    void SetRenderMode(RenderMode rmode) { mRenderMode = rmode; }
+
     nsresult GetFontList(const nsACString& aLangGroup,
                          const nsACString& aGenericFamily,
-                         nsStringArray& aListOfFonts);
+                         nsTArray<nsString>& aListOfFonts);
 
     nsresult UpdateFontList();
 
@@ -81,12 +119,16 @@ public:
     /**
      * Look up a local platform font using the full font face name (needed to support @font-face src local() )
      */
-    virtual gfxFontEntry* LookupLocalFont(const nsAString& aFontName);
+    virtual gfxFontEntry* LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
+                                          const nsAString& aFontName);
 
     /**
      * Activate a platform font (needed to support @font-face src url() )
      */
-    virtual gfxFontEntry* MakePlatformFont(const gfxFontEntry *aProxyEntry, const PRUint8 *aFontData, PRUint32 aLength);
+    virtual gfxFontEntry* MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
+                                           nsISupports *aLoader,
+                                           const PRUint8 *aFontData,
+                                           PRUint32 aLength);
 
     /**
      * Check whether format is supported on a platform or not (if unclear, returns true)
@@ -100,7 +142,8 @@ public:
      * code points they support as well as looking at things like the font
      * family, style, weight, etc.
      */
-    already_AddRefed<gfxWindowsFont> FindFontForChar(PRUint32 aCh, gfxWindowsFont *aFont);
+    already_AddRefed<gfxFont>
+    FindFontForChar(PRUint32 aCh, gfxFont *aFont);
 
     /* Find a FontFamily/FontEntry object that represents a font on your system given a name */
     FontFamily *FindFontFamily(const nsAString& aName);
@@ -109,7 +152,19 @@ public:
     PRBool GetPrefFontEntries(const nsCString& aLangGroup, nsTArray<nsRefPtr<FontEntry> > *array);
     void SetPrefFontEntries(const nsCString& aLangGroup, nsTArray<nsRefPtr<FontEntry> >& array);
 
+    void ClearPrefFonts() { mPrefFonts.Clear(); }
+
     typedef nsDataHashtable<nsStringHashKey, nsRefPtr<FontFamily> > FontTable;
+
+#ifdef MOZ_FT2_FONTS
+    FT_Library GetFTLibrary();
+private:
+    void AppendFacesFromFontFile(const PRUnichar *aFileName);
+    void FindFonts();
+#endif
+
+protected:
+    RenderMode mRenderMode;
 
 private:
     void Init();
@@ -143,7 +198,7 @@ private:
                                                nsRefPtr<FontFamily>& aFontFamily,
                                                void* userArg);
 
-    virtual cmsHPROFILE GetPlatformCMSOutputProfile();
+    virtual qcms_profile* GetPlatformCMSOutputProfile();
 
     static int PrefChangedCallback(const char*, void*);
 
@@ -155,7 +210,7 @@ private:
     FontTable mFonts;
     FontTable mFontAliases;
     FontTable mFontSubstitutes;
-    nsStringArray mNonExistingFonts;
+    nsTArray<nsString> mNonExistingFonts;
 
     // when system-wide font lookup fails for a character, cache it to skip future searches
     gfxSparseBitSet mCodepointsWithNoFonts;

@@ -22,6 +22,7 @@
  *
  * Contributor(s):
  *   Stuart Parmenter <pavlov@netscape.com>
+ *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -46,6 +47,7 @@
 #include "nsAutoPtr.h"
 #include "prtypes.h"
 #include "imgRequest.h"
+#include "nsIObserverService.h"
 
 #ifdef LOADER_THREADSAFE
 #include "prlock.h"
@@ -56,16 +58,18 @@ class imgRequestProxy;
 class imgIRequest;
 class imgIDecoderObserver;
 class nsILoadGroup;
+class nsIPrefBranch;
 
 class imgCacheEntry
 {
 public:
   imgCacheEntry(imgRequest *request, PRBool mustValidateIfExpired = PR_FALSE);
+  ~imgCacheEntry();
 
   nsrefcnt AddRef()
   {
     NS_PRECONDITION(PRInt32(mRefCnt) >= 0, "illegal refcnt");
-    NS_ASSERT_OWNINGTHREAD(imgCacheEntry);
+    NS_ABORT_IF_FALSE(_mOwningThread.GetThread() == PR_GetCurrentThread(), "imgCacheEntry addref isn't thread-safe!");
     ++mRefCnt;
     NS_LOG_ADDREF(this, mRefCnt, "imgCacheEntry", sizeof(*this));
     return mRefCnt;
@@ -74,7 +78,7 @@ public:
   nsrefcnt Release()
   {
     NS_PRECONDITION(0 != mRefCnt, "dup release");
-    NS_ASSERT_OWNINGTHREAD(imgCacheEntry);
+    NS_ABORT_IF_FALSE(_mOwningThread.GetThread() == PR_GetCurrentThread(), "imgCacheEntry release isn't thread-safe!");
     --mRefCnt;
     NS_LOG_RELEASE(this, mRefCnt, "imgCacheEntry");
     if (mRefCnt == 0) {
@@ -143,6 +147,11 @@ public:
     return &mExpirationState;
   }
 
+  PRBool HasNoProxies() const
+  {
+    return mHasNoProxies;
+  }
+
 private: // methods
   friend class imgLoader;
   friend class imgCacheQueue;
@@ -152,6 +161,10 @@ private: // methods
   {
     mEvicted = evict;
   }
+  void SetHasNoProxies(PRBool hasNoProxies);
+
+  // Private, unimplemented copy constructor.
+  imgCacheEntry(const imgCacheEntry &);
 
 private: // data
   nsAutoRefCnt mRefCnt;
@@ -162,8 +175,9 @@ private: // data
   PRInt32 mTouchedTime;
   PRInt32 mExpiryTime;
   nsExpirationState mExpirationState;
-  PRBool mMustValidateIfExpired;
-  PRBool mEvicted;
+  PRPackedBool mMustValidateIfExpired : 1;
+  PRPackedBool mEvicted : 1;
+  PRPackedBool mHasNoProxies : 1;
 };
 
 #include <vector>
@@ -207,16 +221,20 @@ private:
 class imgLoader : public imgILoader,
                   public nsIContentSniffer,
                   public imgICache,
-                  public nsSupportsWeakReference
+                  public nsSupportsWeakReference,
+                  public nsIObserver
 {
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_IMGILOADER
   NS_DECL_NSICONTENTSNIFFER
   NS_DECL_IMGICACHE
+  NS_DECL_NSIOBSERVER
 
   imgLoader();
   virtual ~imgLoader();
+
+  nsresult Init();
 
   static nsresult GetMimeTypeFromContent(const char* aContents, PRUint32 aLength, nsACString& aContentType);
 
@@ -224,6 +242,7 @@ public:
 
   static nsresult ClearChromeImageCache();
   static nsresult ClearImageCache();
+  static void MinimizeCaches();
 
   static nsresult InitCache();
 
@@ -232,23 +251,45 @@ public:
 
   static PRBool PutIntoCache(nsIURI *key, imgCacheEntry *entry);
 
-  // Returns true if |one| is less than |two|
+  // Returns true if we should prefer evicting cache entry |two| over cache
+  // entry |one|.
   // This mixes units in the worst way, but provides reasonable results.
   inline static bool CompareCacheEntries(const nsRefPtr<imgCacheEntry> &one,
-                                  const nsRefPtr<imgCacheEntry> &two)
+                                         const nsRefPtr<imgCacheEntry> &two)
   {
     if (!one)
       return false;
     if (!two)
       return true;
 
-    const PRFloat64 sizeweight = 1.0 - sCacheTimeWeight;
-    PRInt32 diffsize = PRInt32(two->GetDataSize()) - PRInt32(one->GetDataSize());
-    PRInt32 difftime = one->GetTouchedTime() - two->GetTouchedTime();
-    return difftime * sCacheTimeWeight + diffsize * sizeweight < 0;
+    const double sizeweight = 1.0 - sCacheTimeWeight;
+
+    // We want large, old images to be evicted first (depending on their
+    // relative weights). Since a larger time is actually newer, we subtract
+    // time's weight, so an older image has a larger weight.
+    double oneweight = double(one->GetDataSize()) * sizeweight -
+                       double(one->GetTouchedTime()) * sCacheTimeWeight;
+    double twoweight = double(two->GetDataSize()) * sizeweight -
+                       double(two->GetTouchedTime()) * sCacheTimeWeight;
+
+    return oneweight < twoweight;
   }
 
   static void VerifyCacheSizes();
+
+  // The image loader maintains a hash table of all imgCacheEntries. However,
+  // only some of them will be evicted from the cache: those who have no
+  // imgRequestProxies watching their imgRequests. 
+  //
+  // Once an imgRequest has no imgRequestProxies, it should notify us by
+  // calling HasNoObservers(), and null out its cache entry pointer.
+  // 
+  // Upon having a proxy start observing again, it should notify us by calling
+  // HasObservers(). The request's cache entry will be re-set before this
+  // happens, by calling imgRequest::SetCacheEntry() when an entry with no
+  // observers is re-requested.
+  static PRBool SetHasNoProxies(nsIURI *key, imgCacheEntry *entry);
+  static PRBool SetHasProxies(nsIURI *key);
 
 private: // methods
 
@@ -274,10 +315,13 @@ private: // methods
                                     nsLoadFlags aLoadFlags, imgIRequest *aRequestProxy,
                                     imgIRequest **_retval);
 
+  void ReadAcceptHeaderPref(nsIPrefBranch *aBranch);
+
 
   typedef nsRefPtrHashtable<nsCStringHashKey, imgCacheEntry> imgCacheTable;
 
-  static nsresult EvictEntries(imgCacheTable &aCacheToClear, imgCacheQueue &aQueueToClear);
+  static nsresult EvictEntries(imgCacheTable &aCacheToClear);
+  static nsresult EvictEntries(imgCacheQueue &aQueueToClear);
 
   static imgCacheTable &GetCache(nsIURI *aURI);
   static imgCacheQueue &GetCacheQueue(nsIURI *aURI);
@@ -294,6 +338,8 @@ private: // data
   static imgCacheQueue sChromeCacheQueue;
   static PRFloat64 sCacheTimeWeight;
   static PRUint32 sCacheMaxSize;
+
+  nsCString mAcceptHeader;
 };
 
 

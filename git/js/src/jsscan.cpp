@@ -1,4 +1,4 @@
-/* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
  * vim: set sw=4 ts=8 et tw=78:
  *
  * ***** BEGIN LICENSE BLOCK *****
@@ -41,7 +41,6 @@
 /*
  * JS lexical scanner.
  */
-#include "jsstddef.h"
 #include <stdio.h>      /* first to avoid trouble on some systems */
 #include <errno.h>
 #include <limits.h>
@@ -53,7 +52,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include "jstypes.h"
+#include "jsstdint.h"
 #include "jsarena.h" /* Added by JSIFY */
+#include "jsbit.h"
 #include "jsutil.h" /* Added by JSIFY */
 #include "jsdtoa.h"
 #include "jsprf.h"
@@ -156,9 +157,10 @@ JSBool
 js_IsIdentifier(JSString *str)
 {
     size_t length;
-    jschar c, *chars, *end;
+    jschar c;
+    const jschar *chars, *end;
 
-    JSSTRING_CHARS_AND_LENGTH(str, chars, length);
+    str->getCharsAndLength(chars, length);
     if (length == 0)
         return JS_FALSE;
     c = *chars;
@@ -186,14 +188,14 @@ GrowTokenBuf(JSStringBuffer *sb, size_t newlength)
 
     cx = (JSContext*) sb->data;
     base = sb->base;
-    offset = PTRDIFF(sb->ptr, base, jschar);
+    offset = sb->ptr - base;
     pool = &cx->tempPool;
     if (!base) {
         tbsize = TBMIN * sizeof(jschar);
         length = TBMIN - 1;
         JS_ARENA_ALLOCATE_CAST(base, jschar *, pool, tbsize);
     } else {
-        length = PTRDIFF(sb->limit, base, jschar);
+        length = sb->limit - base;
         if ((size_t)length >= ~(size_t)0 / sizeof(jschar)) {
             base = NULL;
         } else {
@@ -256,7 +258,7 @@ void
 js_CloseTokenStream(JSContext *cx, JSTokenStream *ts)
 {
     if (ts->flags & TSF_OWNFILENAME)
-        JS_free(cx, (void *) ts->filename);
+        cx->free((void *) ts->filename);
 }
 
 JS_FRIEND_API(int)
@@ -300,13 +302,13 @@ GetChar(JSTokenStream *ts)
         c = ts->ungetbuf[--ts->ungetpos];
     } else {
         if (ts->linebuf.ptr == ts->linebuf.limit) {
-            len = PTRDIFF(ts->userbuf.limit, ts->userbuf.ptr, jschar);
+            len = ts->userbuf.limit - ts->userbuf.ptr;
             if (len <= 0) {
                 if (!ts->file) {
                     ts->flags |= TSF_EOF;
                     return EOF;
                 }
-        
+
                 /* Fill ts->userbuf so that \r and \r\n convert to \n. */
                 crflag = (ts->flags & TSF_CRFLAG) != 0;
                 len = js_fgets(cbuf, JS_LINE_LIMIT - crflag, ts->file);
@@ -334,7 +336,7 @@ GetChar(JSTokenStream *ts)
                 ts->listener(ts->filename, ts->lineno, ts->userbuf.ptr, len,
                              &ts->listenerTSData, ts->listenerData);
             }
-        
+
             nl = ts->saveEOL;
             if (!nl) {
                 /*
@@ -360,13 +362,13 @@ GetChar(JSTokenStream *ts)
                     }
                 }
             }
-        
+
             /*
              * If there was a line terminator, copy thru it into linebuf.
              * Else copy JS_LINE_LIMIT-1 bytes into linebuf.
              */
             if (nl < ts->userbuf.limit)
-                len = PTRDIFF(nl, ts->userbuf.ptr, jschar) + 1;
+                len = (nl - ts->userbuf.ptr) + 1;
             if (len >= JS_LINE_LIMIT) {
                 len = JS_LINE_LIMIT - 1;
                 ts->saveEOL = nl;
@@ -376,7 +378,7 @@ GetChar(JSTokenStream *ts)
             js_strncpy(ts->linebuf.base, ts->userbuf.ptr, len);
             ts->userbuf.ptr += len;
             olen = len;
-        
+
             /*
              * Make sure linebuf contains \n for EOL (don't do this in
              * userbuf because the user's string might be readonly).
@@ -418,11 +420,11 @@ GetChar(JSTokenStream *ts)
                     ts->linebuf.base[len-1] = '\n';
                 }
             }
-        
+
             /* Reset linebuf based on adjusted segment length. */
             ts->linebuf.limit = ts->linebuf.base + len;
             ts->linebuf.ptr = ts->linebuf.base;
-        
+
             /* Update position of linebuf within physical userbuf line. */
             if (!(ts->flags & TSF_NLFLAG))
                 ts->linepos += ts->linelen;
@@ -432,7 +434,7 @@ GetChar(JSTokenStream *ts)
                 ts->flags |= TSF_NLFLAG;
             else
                 ts->flags &= ~TSF_NLFLAG;
-        
+
             /* Update linelen from original segment length. */
             ts->linelen = olen;
         }
@@ -559,8 +561,8 @@ js_ReportCompileErrorNumber(JSContext *cx, JSTokenStream *ts, JSParseNode *pn,
         tp = &ts->tokens[ts->cursor].pos;
     }
     report.lineno = ts->lineno;
-    linelength = PTRDIFF(ts->linebuf.limit, ts->linebuf.base, jschar);
-    linechars = (jschar *)JS_malloc(cx, (linelength + 1) * sizeof(jschar));
+    linelength = ts->linebuf.limit - ts->linebuf.base;
+    linechars = (jschar *)cx->malloc((linelength + 1) * sizeof(jschar));
     if (!linechars) {
         warning = JS_FALSE;
         goto out;
@@ -649,21 +651,21 @@ js_ReportCompileErrorNumber(JSContext *cx, JSTokenStream *ts, JSParseNode *pn,
 
   out:
     if (linebytes)
-        JS_free(cx, linebytes);
+        cx->free(linebytes);
     if (linechars)
-        JS_free(cx, linechars);
+        cx->free(linechars);
     if (message)
-        JS_free(cx, message);
+        cx->free(message);
     if (report.ucmessage)
-        JS_free(cx, (void *)report.ucmessage);
+        cx->free((void *)report.ucmessage);
 
     if (report.messageArgs) {
         if (!(flags & JSREPORT_UC)) {
             i = 0;
             while (report.messageArgs[i])
-                JS_free(cx, (void *)report.messageArgs[i++]);
+                cx->free((void *)report.messageArgs[i++]);
         }
-        JS_free(cx, (void *)report.messageArgs);
+        cx->free((void *)report.messageArgs);
     }
 
     if (!JSREPORT_IS_WARNING(flags)) {
@@ -675,27 +677,41 @@ js_ReportCompileErrorNumber(JSContext *cx, JSTokenStream *ts, JSParseNode *pn,
 }
 
 static JSBool
-GrowStringBuffer(JSStringBuffer *sb, size_t newlength)
+GrowStringBuffer(JSStringBuffer *sb, size_t amount)
 {
-    ptrdiff_t offset;
-    jschar *bp;
-
-    offset = PTRDIFF(sb->ptr, sb->base, jschar);
+    ptrdiff_t offset = sb->ptr - sb->base;
     JS_ASSERT(offset >= 0);
-    newlength += offset + 1;
-    if ((size_t)offset < newlength && newlength < ~(size_t)0 / sizeof(jschar))
-        bp = (jschar *) realloc(sb->base, newlength * sizeof(jschar));
-    else
-        bp = NULL;
-    if (!bp) {
-        free(sb->base);
-        sb->base = STRING_BUFFER_ERROR_BASE;
-        return JS_FALSE;
+
+    /*
+     * This addition needs an overflow check, but we can defer bounding against
+     * ~size_t(0) / sizeof(jschar) till later to consolidate that test.
+     */
+    size_t newlength = offset + amount + 1;
+    if (size_t(offset) < newlength) {
+        /* Grow by powers of two until 16MB, then grow by that chunk size. */
+        const size_t CHUNK_SIZE_MASK = JS_BITMASK(24);
+
+        if (newlength <= CHUNK_SIZE_MASK)
+            newlength = JS_BIT(JS_CeilingLog2(newlength));
+        else if (newlength & CHUNK_SIZE_MASK)
+            newlength = (newlength | CHUNK_SIZE_MASK) + 1;
+
+        /* Now do the full overflow check. */
+        if (size_t(offset) < newlength && newlength < ~size_t(0) / sizeof(jschar)) {
+            jschar *bp = (jschar *) js_realloc(sb->base, newlength * sizeof(jschar));
+            if (bp) {
+                sb->base = bp;
+                sb->ptr = bp + offset;
+                sb->limit = bp + newlength - 1;
+                return true;
+            }
+        }
     }
-    sb->base = bp;
-    sb->ptr = bp + offset;
-    sb->limit = bp + newlength - 1;
-    return JS_TRUE;
+
+    /* Either newlength overflow or realloc failure: poison the well. */
+    js_free(sb->base);
+    sb->base = STRING_BUFFER_ERROR_BASE;
+    return false;
 }
 
 static void
@@ -703,7 +719,7 @@ FreeStringBuffer(JSStringBuffer *sb)
 {
     JS_ASSERT(STRING_BUFFER_OK(sb));
     if (sb->base)
-        free(sb->base);
+        js_free(sb->base);
 }
 
 void
@@ -719,19 +735,6 @@ void
 js_FinishStringBuffer(JSStringBuffer *sb)
 {
     sb->free(sb);
-}
-
-#define ENSURE_STRING_BUFFER(sb,n) \
-    ((sb)->ptr + (n) <= (sb)->limit || sb->grow(sb, n))
-
-static void
-FastAppendChar(JSStringBuffer *sb, jschar c)
-{
-    if (!STRING_BUFFER_OK(sb))
-        return;
-    if (!ENSURE_STRING_BUFFER(sb, 1))
-        return;
-    *sb->ptr++ = c;
 }
 
 void
@@ -802,7 +805,7 @@ js_AppendCString(JSStringBuffer *sb, const char *asciiz)
 void
 js_AppendJSString(JSStringBuffer *sb, JSString *str)
 {
-    js_AppendUCString(sb, JSSTRING_CHARS(str), JSSTRING_LENGTH(str));
+    js_AppendUCString(sb, str->chars(), str->length());
 }
 
 static JSBool
@@ -816,8 +819,8 @@ GetXMLEntity(JSContext *cx, JSTokenStream *ts)
     JSErrNum msg;
 
     /* Put the entity, including the '&' already scanned, in ts->tokenbuf. */
-    offset = PTRDIFF(ts->tokenbuf.ptr, ts->tokenbuf.base, jschar);
-    FastAppendChar(&ts->tokenbuf, '&');
+    offset = ts->tokenbuf.ptr - ts->tokenbuf.base;
+    js_FastAppendChar(&ts->tokenbuf, '&');
     if (!STRING_BUFFER_OK(&ts->tokenbuf))
         return JS_FALSE;
     while ((c = GetChar(ts)) != ';') {
@@ -826,13 +829,13 @@ GetXMLEntity(JSContext *cx, JSTokenStream *ts)
                                         JSMSG_END_OF_XML_ENTITY);
             return JS_FALSE;
         }
-        FastAppendChar(&ts->tokenbuf, (jschar) c);
+        js_FastAppendChar(&ts->tokenbuf, (jschar) c);
         if (!STRING_BUFFER_OK(&ts->tokenbuf))
             return JS_FALSE;
     }
 
     /* Let length be the number of jschars after the '&', including the ';'. */
-    length = PTRDIFF(ts->tokenbuf.ptr, ts->tokenbuf.base, jschar) - offset;
+    length = (ts->tokenbuf.ptr - ts->tokenbuf.base) - offset;
     bp = ts->tokenbuf.base + offset;
     c = d = 0;
     ispair = JS_FALSE;
@@ -915,13 +918,13 @@ badncr:
 bad:
     /* No match: throw a TypeError per ECMA-357 10.3.2.1 step 8(a). */
     JS_ASSERT(STRING_BUFFER_OK(&ts->tokenbuf));
-    JS_ASSERT(PTRDIFF(ts->tokenbuf.ptr, bp, jschar) >= 1);
+    JS_ASSERT((ts->tokenbuf.ptr - bp) >= 1);
     bytes = js_DeflateString(cx, bp + 1,
-                             PTRDIFF(ts->tokenbuf.ptr, bp, jschar) - 1);
+                             (ts->tokenbuf.ptr - bp) - 1);
     if (bytes) {
         js_ReportCompileErrorNumber(cx, ts, NULL, JSREPORT_ERROR,
                                     msg, bytes);
-        JS_free(cx, bytes);
+        cx->free(bytes);
     }
     return JS_FALSE;
 }
@@ -989,7 +992,7 @@ NewToken(JSTokenStream *ts, ptrdiff_t adjust)
     tp = &CURRENT_TOKEN(ts);
     tp->ptr = ts->linebuf.ptr + adjust;
     tp->pos.begin.index = ts->linepos +
-                          PTRDIFF(tp->ptr, ts->linebuf.base, jschar) -
+                          (tp->ptr - ts->linebuf.base) -
                           ts->ungetpos;
     tp->pos.begin.lineno = tp->pos.end.lineno = (uint16)ts->lineno;
     return tp;
@@ -1020,7 +1023,7 @@ js_GetToken(JSContext *cx, JSTokenStream *ts)
 #endif
 
 #define INIT_TOKENBUF()     (ts->tokenbuf.ptr = ts->tokenbuf.base)
-#define TOKENBUF_LENGTH()   PTRDIFF(ts->tokenbuf.ptr, ts->tokenbuf.base, jschar)
+#define TOKENBUF_LENGTH()   (ts->tokenbuf.ptr - ts->tokenbuf.base)
 #define TOKENBUF_OK()       STRING_BUFFER_OK(&ts->tokenbuf)
 #define TOKENBUF_TO_ATOM()  (TOKENBUF_OK()                                    \
                              ? js_AtomizeChars(cx,                            \
@@ -1028,7 +1031,11 @@ js_GetToken(JSContext *cx, JSTokenStream *ts)
                                                TOKENBUF_LENGTH(),             \
                                                0)                             \
                              : NULL)
-#define ADD_TO_TOKENBUF(c)  FastAppendChar(&ts->tokenbuf, (jschar) (c))
+#define ADD_TO_TOKENBUF(c)  JS_BEGIN_MACRO                                    \
+                                js_FastAppendChar(&ts->tokenbuf, jschar(c));  \
+                                if (!TOKENBUF_OK())                           \
+                                    goto error;                               \
+                            JS_END_MACRO
 
 /* The following 4 macros should only be used when TOKENBUF_OK() is true. */
 #define TOKENBUF_BASE()     (ts->tokenbuf.base)
@@ -1560,10 +1567,19 @@ retry:
          * https://bugzilla.mozilla.org/show_bug.cgi?id=309712
          * https://bugzilla.mozilla.org/show_bug.cgi?id=310993
          *
-         * So without JSOPTION_XML, we never scan an XML comment or CDATA
-         * literal.  We always scan <! as the start of an HTML comment hack
-         * to end of line, used since Netscape 2 to hide script tag content
-         * from script-unaware browsers.
+         * So without JSOPTION_XML, we changed around Firefox 1.5 never to scan
+         * an XML comment or CDATA literal.  Instead, we always scan <! as the
+         * start of an HTML comment hack to end of line, used since Netscape 2
+         * to hide script tag content from script-unaware browsers.
+         *
+         * But this still leaves XML resources with certain internal structure
+         * vulnerable to being loaded as script cross-origin, and some internal
+         * data stolen, so for Firefox 3.5 and beyond, we reject programs whose
+         * source consists only of XML literals. See:
+         *
+         * https://bugzilla.mozilla.org/show_bug.cgi?id=336551
+         *
+         * The check for this is in jsparse.cpp, JSCompiler::compileScript.
          */
         if ((ts->flags & TSF_OPERAND) &&
             (JS_HAS_XML_OPTION(cx) || PeekChar(ts) != '!')) {
@@ -1772,7 +1788,7 @@ retry:
                         if (c == '\n') {
                             if (i > 0) {
                                 if (ts->flags & TSF_OWNFILENAME)
-                                    JS_free(cx, (void *) ts->filename);
+                                    cx->free((void *) ts->filename);
                                 ts->filename = JS_strdup(cx, filename);
                                 if (!ts->filename)
                                     goto error;
@@ -1802,6 +1818,7 @@ skipline:
         }
 
         if (MatchChar(ts, '*')) {
+            uintN lineno = ts->lineno;
             while ((c = GetChar(ts)) != EOF &&
                    !(c == '*' && MatchChar(ts, '/'))) {
                 /* Ignore all characters until comment close. */
@@ -1811,12 +1828,17 @@ skipline:
                                             JSMSG_UNTERMINATED_COMMENT);
                 goto error;
             }
+            if ((ts->flags & TSF_NEWLINES) && lineno != ts->lineno) {
+                ts->flags &= ~TSF_DIRTYLINE;
+                tt = TOK_EOL;
+                goto eol_out;
+            }
             ts->cursor = (ts->cursor - 1) & NTOKENS_MASK;
             goto retry;
         }
 
         if (ts->flags & TSF_OPERAND) {
-            uintN flags;
+            uintN flags, length;
             JSBool inCharClass = JS_FALSE;
 
             INIT_TOKENBUF();
@@ -1841,15 +1863,15 @@ skipline:
                 }
                 ADD_TO_TOKENBUF(c);
             }
-            for (flags = 0; ; ) {
+            for (flags = 0, length = TOKENBUF_LENGTH() + 1; ; length++) {
                 c = PeekChar(ts);
-                if (c == 'g')
+                if (c == 'g' && !(flags & JSREG_GLOB))
                     flags |= JSREG_GLOB;
-                else if (c == 'i')
+                else if (c == 'i' && !(flags & JSREG_FOLD))
                     flags |= JSREG_FOLD;
-                else if (c == 'm')
+                else if (c == 'm' && !(flags & JSREG_MULTILINE))
                     flags |= JSREG_MULTILINE;
-                else if (c == 'y')
+                else if (c == 'y' && !(flags & JSREG_STICKY))
                     flags |= JSREG_STICKY;
                 else
                     break;
@@ -1857,9 +1879,11 @@ skipline:
             }
             c = PeekChar(ts);
             if (JS7_ISLET(c)) {
-                tp->ptr = ts->linebuf.ptr - 1;
+                char buf[2] = { '\0' };
+                tp->pos.begin.index += length + 1;
+                buf[0] = (char)c;
                 js_ReportCompileErrorNumber(cx, ts, NULL, JSREPORT_ERROR,
-                                            JSMSG_BAD_REGEXP_FLAG);
+                                            JSMSG_BAD_REGEXP_FLAG, buf);
                 (void) GetChar(ts);
                 goto error;
             }
@@ -1978,7 +2002,7 @@ eol_out:
         tt = TOK_ERROR;
     JS_ASSERT(tt < TOK_LIMIT);
     tp->pos.end.index = ts->linepos +
-                        PTRDIFF(ts->linebuf.ptr, ts->linebuf.base, jschar) -
+                        (ts->linebuf.ptr - ts->linebuf.base) -
                         ts->ungetpos;
     tp->type = tt;
     return tt;

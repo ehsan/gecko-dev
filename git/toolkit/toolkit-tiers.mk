@@ -70,9 +70,7 @@ endif
 tier_external_dirs += modules/libmar
 endif
 
-ifndef MOZ_NATIVE_LCMS
-tier_external_dirs	+= modules/lcms
-endif
+tier_external_dirs	+= gfx/qcms
 
 #
 # tier "gecko" - core components
@@ -87,10 +85,6 @@ ifdef MOZ_ENABLE_GTK2
 ifdef MOZ_X11
 tier_gecko_dirs     += widget/src/gtkxtbin
 endif
-endif
-
-ifdef MOZ_IPCD
-tier_gecko_dirs += ipc/ipcd
 endif
 
 tier_gecko_dirs	+= \
@@ -139,12 +133,9 @@ tier_gecko_dirs	+= \
 		uriloader \
 		modules/libimg \
 		caps \
-		parser/expat \
-		parser/xml \
-		parser/htmlparser \
+		parser \
 		gfx \
 		modules/libpr0n \
-		sun-java \
 		modules/plugin \
 		dom \
 		view \
@@ -158,11 +149,6 @@ tier_gecko_dirs	+= \
 		xpfe/appshell \
 		$(NULL)
 
-# Java Embedding Plugin
-ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
-tier_gecko_dirs += plugin/oji/JEP
-endif
-
 ifdef MOZ_XMLEXTRAS
 tier_gecko_dirs += extensions/xmlextras
 endif
@@ -173,13 +159,6 @@ endif
 
 ifdef MOZ_UNIVERSALCHARDET
 tier_gecko_dirs += extensions/universalchardet
-endif
-
-ifdef MOZ_OJI
-tier_gecko_dirs	+= \
-		js/src/liveconnect \
-		modules/oji \
-		$(NULL)
 endif
 
 ifdef ACCESSIBILITY
@@ -199,10 +178,6 @@ tier_toolkit_dirs += chrome profile
 # This must preceed xpfe
 ifdef MOZ_JPROF
 tier_toolkit_dirs        += tools/jprof
-endif
-
-ifneq (,$(filter mac cocoa,$(MOZ_WIDGET_TOOLKIT)))
-tier_toolkit_dirs       += xpfe/bootstrap/appleevents
 endif
 
 tier_toolkit_dirs	+= \
@@ -275,4 +250,8 @@ endif
 
 ifdef ENABLE_TESTS
 tier_toolkit_dirs	+= testing/mochitest
+endif
+
+ifdef MOZ_TREE_FREETYPE
+tier_external_dirs	+= modules/freetype2
 endif

@@ -130,7 +130,8 @@ nsXREDirProvider::Initialize(nsIFile *aXULAppDir,
     if (app) {
       PRBool per = PR_FALSE;
       app->GetFile(NS_APP_USER_PROFILE_50_DIR, &per, getter_AddRefs(mProfileDir));
-      NS_ASSERTION(per, "NS_APP_USER_PROFILE_50_DIR no defined! This shouldn't happen!"); 
+      NS_ASSERTION(per, "NS_APP_USER_PROFILE_50_DIR must be persistent!"); 
+      NS_ASSERTION(mProfileDir, "NS_APP_USER_PROFILE_50_DIR not defined! This shouldn't happen!"); 
     }
   }
 
@@ -771,6 +772,14 @@ nsXREDirProvider::GetFilesInternal(const char* aProperty,
                       kAppendPlugins,
                       directories);
 
+    if (mProfileDir) {
+      nsCOMArray<nsIFile> profileDir;
+      profileDir.AppendObject(mProfileDir);
+      LoadDirsIntoArray(profileDir,
+                        kAppendPlugins,
+                        directories);
+    }
+
     rv = NS_NewArrayEnumerator(aResult, directories);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -875,26 +884,45 @@ nsXREDirProvider::DoShutdown()
 static nsresult
 GetShellFolderPath(int folder, nsAString& _retval)
 {
+  PRUnichar* buf;
+  PRUint32 bufLength = _retval.GetMutableData(&buf, MAXPATHLEN + 3);
+  NS_ENSURE_TRUE(bufLength >= (MAXPATHLEN + 3), NS_ERROR_OUT_OF_MEMORY);
+
+  nsresult rv = NS_OK;
+
+#if defined(WINCE) && !defined(WINCE_WINDOWS_MOBILE)
+  if (folder == CSIDL_APPDATA || folder == CSIDL_LOCAL_APPDATA)
+    folder = CSIDL_PROFILE;
+
+  BOOL ok = SHGetSpecialFolderPath(NULL, buf, folder, true);
+  if (!ok) {
+    _retval.SetLength(0);
+    return NS_ERROR_FAILURE;
+  }
+
+  buf[bufLength - 1] = L'\0';
+  _retval.SetLength(wcslen(buf));
+
+  // sometimes CSIDL_PROFILE shows up without a root slash
+  if (folder == CSIDL_PROFILE && buf[0] != '\\') {
+    _retval.Insert('\\', 0);
+  }
+#else
   LPITEMIDLIST pItemIDList = NULL;
 
-  PRUnichar* buf;
-  PRUint32 bufLength = _retval.GetMutableData(&buf, MAXPATHLEN);
-  NS_ENSURE_TRUE(bufLength >= MAXPATHLEN, NS_ERROR_OUT_OF_MEMORY);
-
-  nsresult rv;
   if (SUCCEEDED(SHGetSpecialFolderLocation(NULL, folder, &pItemIDList)) &&
       SHGetPathFromIDListW(pItemIDList, buf)) {
     // We're going to use wcslen (wcsnlen not available in msvc7.1) so make
     // sure to null terminate.
     buf[bufLength - 1] = L'\0';
     _retval.SetLength(wcslen(buf));
-    rv = NS_OK;
   } else {
     _retval.SetLength(0);
     rv = NS_ERROR_NOT_AVAILABLE;
   }
 
   CoTaskMemFree(pItemIDList);
+#endif
 
   return rv;
 }
@@ -916,6 +944,9 @@ nsXREDirProvider::GetUpdateRootDir(nsIFile* *aResult)
   PRUint32 bufLength = longPath.GetMutableData(&buf, MAXPATHLEN);
   NS_ENSURE_TRUE(bufLength >= MAXPATHLEN, NS_ERROR_OUT_OF_MEMORY);
 
+#ifdef WINCE
+  longPath.Assign(appPath);
+#else
   DWORD len = GetLongPathNameW(appPath.get(), buf, bufLength);
 
   // Failing GetLongPathName() is not fatal.
@@ -923,7 +954,7 @@ nsXREDirProvider::GetUpdateRootDir(nsIFile* *aResult)
     longPath.Assign(appPath);
   else
     longPath.SetLength(len);
-
+#endif
   // Use <UserLocalDataDir>\updates\<relative path to app dir from
   // Program Files> if app dir is under Program Files to avoid the
   // folder virtualization mess on Windows Vista

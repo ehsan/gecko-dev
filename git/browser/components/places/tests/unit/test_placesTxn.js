@@ -74,6 +74,14 @@ try {
   do_throw("Could not get tagging service\n");
 }
 
+// Get annotations service
+try {
+  var annosvc = Cc["@mozilla.org/browser/annotation-service;1"].
+                getService(Ci.nsIAnnotationService);
+} catch(ex) {
+  do_throw("Could not get annotations service\n");
+}
+
 // create and add bookmarks observer
 var observer = {
   onBeginUpdateBatch: function() {
@@ -86,6 +94,8 @@ var observer = {
     this._itemAddedId = id;
     this._itemAddedParent = folder;
     this._itemAddedIndex = index;
+  },
+  onBeforeItemRemoved: function(id) {
   },
   onItemRemoved: function(id, folder, index) {
     this._itemRemovedId = id;
@@ -128,22 +138,26 @@ function run_test() {
   // get bookmarks root index
   var root = bmsvc.bookmarksMenuFolder;
 
-  const DESCRIPTION_ANNO = "bookmarkProperties/description";
-  var testDescription = "this is my test description";
-  var annotationService = Cc["@mozilla.org/browser/annotation-service;1"].
-                          getService(Ci.nsIAnnotationService);
-
   //Test creating a folder with a description
+  const DESCRIPTION_ANNO = "bookmarkProperties/description";
+  const TEST_DESCRIPTION = "this is my test description";
   var annos = [{ name: DESCRIPTION_ANNO,
-                 type: Ci.nsIAnnotationService.TYPE_STRING,
+                 type: annosvc.TYPE_STRING,
                 flags: 0,
-                value: testDescription,
-              expires: Ci.nsIAnnotationService.EXPIRE_NEVER }];
+                value: TEST_DESCRIPTION,
+              expires: annosvc.EXPIRE_NEVER }];
   var txn1 = ptSvc.createFolder("Testing folder", root, bmStartIndex, annos);
-  txn1.doTransaction();
+  ptSvc.doTransaction(txn1);
+
+  // the check check that calling undoTransaction on an "empty batch" doesn't undo
+  // the previous transaction
+  ptSvc.beginBatch();
+  ptSvc.endBatch();
+  ptSvc.undoTransaction();
+
   var folderId = bmsvc.getChildFolder(root, "Testing folder");
-  do_check_eq(testDescription, 
-              annotationService.getItemAnnotation(folderId, DESCRIPTION_ANNO));
+  do_check_eq(TEST_DESCRIPTION, 
+              annosvc.getItemAnnotation(folderId, DESCRIPTION_ANNO));
   do_check_eq(observer._itemAddedIndex, bmStartIndex);
   do_check_eq(observer._itemAddedParent, root);
   do_check_eq(observer._itemAddedId, folderId);
@@ -163,7 +177,7 @@ function run_test() {
   // Test creating an item
   // Create to Root
   var txn2 = ptSvc.createItem(uri("http://www.example.com"), root, bmStartIndex, "Testing1");
-  ptSvc.doTransaction(txn2); //Also testing doTransaction
+  ptSvc.doTransaction(txn2); // Also testing doTransaction
   var b = (bmsvc.getBookmarkIdsForURI(uri("http://www.example.com"), {}))[0];
   do_check_eq(observer._itemAddedId, b);
   do_check_eq(observer._itemAddedIndex, bmStartIndex);
@@ -408,45 +422,129 @@ function run_test() {
   do_check_eq(observer._itemChangedProperty, "keyword");
   do_check_eq(observer._itemChangedValue, ""); 
 
-  var txn12 = ptSvc.createLivemark(uri("http://feeduri.com"), uri("http://siteuri.com"), "Livemark1", root);
+  // Testing create livemark
+  var txn12 = ptSvc.createLivemark(uri("http://feeduri.com"),
+                                   uri("http://siteuri.com"),
+                                   "Livemark1", root);
   txn12.doTransaction();
-  do_check_true(lmsvc.isLivemark(observer._itemAddedId));
-  do_check_eq(lmsvc.getSiteURI(observer._itemAddedId).spec, "http://siteuri.com/");
-  do_check_eq(lmsvc.getFeedURI(observer._itemAddedId).spec, "http://feeduri.com/");
   var lvmkId = observer._itemAddedId;
+  do_check_true(lmsvc.isLivemark(lvmkId));
+  do_check_eq(lmsvc.getSiteURI(lvmkId).spec, "http://siteuri.com/");
+  do_check_eq(lmsvc.getFeedURI(lvmkId).spec, "http://feeduri.com/");
+  txn12.undoTransaction();
+  do_check_false(lmsvc.isLivemark(lvmkId));
+  txn12.redoTransaction();
+  lvmkId = observer._itemAddedId;
+  do_check_true(lmsvc.isLivemark(lvmkId));
+  do_check_eq(lmsvc.getSiteURI(lvmkId).spec, "http://siteuri.com/");
+  do_check_eq(lmsvc.getFeedURI(lvmkId).spec, "http://feeduri.com/");
 
   // editLivemarkSiteURI
-  var txn13 = ptSvc.editLivemarkSiteURI(lvmkId, uri("http://NEWsiteuri.com/"));
+  var txn13 = ptSvc.editLivemarkSiteURI(lvmkId, uri("http://new-siteuri.com/"));
   txn13.doTransaction();
   do_check_eq(observer._itemChangedId, lvmkId);
   do_check_eq(observer._itemChangedProperty, "livemark/siteURI");
-
+  do_check_eq(lmsvc.getSiteURI(lvmkId).spec, "http://new-siteuri.com/");
   txn13.undoTransaction();
   do_check_eq(observer._itemChangedId, lvmkId);
   do_check_eq(observer._itemChangedProperty, "livemark/siteURI");
   do_check_eq(observer._itemChangedValue, "");
+  do_check_eq(lmsvc.getSiteURI(lvmkId).spec, "http://siteuri.com/");
+  txn13.redoTransaction();
+  do_check_eq(observer._itemChangedId, lvmkId);
+  do_check_eq(observer._itemChangedProperty, "livemark/siteURI");
+  do_check_eq(lmsvc.getSiteURI(lvmkId).spec, "http://new-siteuri.com/");
+  txn13.undoTransaction();
+  do_check_eq(observer._itemChangedId, lvmkId);
+  do_check_eq(observer._itemChangedProperty, "livemark/siteURI");
+  do_check_eq(observer._itemChangedValue, "");
+  do_check_eq(lmsvc.getSiteURI(lvmkId).spec, "http://siteuri.com/");
 
   // editLivemarkFeedURI
-  var txn14 = ptSvc.editLivemarkFeedURI(lvmkId, uri("http://NEWfeeduri.com/"));
+  var txn14 = ptSvc.editLivemarkFeedURI(lvmkId, uri("http://new-feeduri.com/"));
   txn14.doTransaction();
   do_check_eq(observer._itemChangedId, lvmkId);
   do_check_eq(observer._itemChangedProperty, "livemark/feedURI");
-
+  do_check_eq(lmsvc.getFeedURI(lvmkId).spec, "http://new-feeduri.com/");
   txn14.undoTransaction();
   do_check_eq(observer._itemChangedId, lvmkId);
   do_check_eq(observer._itemChangedProperty, "livemark/feedURI");
   do_check_eq(observer._itemChangedValue, "");
+  do_check_eq(lmsvc.getFeedURI(lvmkId).spec, "http://feeduri.com/");
+  txn14.redoTransaction();
+  do_check_eq(observer._itemChangedId, lvmkId);
+  do_check_eq(observer._itemChangedProperty, "livemark/feedURI");
+  do_check_eq(observer._itemChangedValue, "");
+  do_check_eq(lmsvc.getFeedURI(lvmkId).spec, "http://new-feeduri.com/");
+  txn14.undoTransaction();
+  do_check_eq(observer._itemChangedId, lvmkId);
+  do_check_eq(observer._itemChangedProperty, "livemark/feedURI");
+  do_check_eq(observer._itemChangedValue, "");
+  do_check_eq(lmsvc.getFeedURI(lvmkId).spec, "http://feeduri.com/");
+
+  // Testing remove livemark
+  // Set an annotation and check that we don't lose it on undo
+  annosvc.setItemAnnotation(lvmkId, "livemark/testAnno", "testAnno",
+                            0, annosvc.EXPIRE_NEVER);
+  var txn15 = ptSvc.removeItem(lvmkId);
+  txn15.doTransaction();
+  do_check_false(lmsvc.isLivemark(lvmkId));
+  do_check_eq(observer._itemRemovedId, lvmkId);
+  txn15.undoTransaction();
+  lvmkId = observer._itemAddedId;
+  do_check_true(lmsvc.isLivemark(lvmkId));
+  do_check_eq(lmsvc.getSiteURI(lvmkId).spec, "http://siteuri.com/");
+  do_check_eq(lmsvc.getFeedURI(lvmkId).spec, "http://feeduri.com/");
+  do_check_eq(annosvc.getItemAnnotation(lvmkId, "livemark/testAnno"), "testAnno");
+  txn15.redoTransaction();
+  do_check_false(lmsvc.isLivemark(lvmkId));
+  do_check_eq(observer._itemRemovedId, lvmkId);
 
   // Test setLoadInSidebar
+  const LOAD_IN_SIDEBAR_ANNO = "bookmarkProperties/loadInSidebar";
   var txn16 = ptSvc.setLoadInSidebar(bkmk1Id, true);
   txn16.doTransaction();
   do_check_eq(observer._itemChangedId, bkmk1Id);
-  do_check_eq(observer._itemChangedProperty, "bookmarkProperties/loadInSidebar");
+  do_check_eq(observer._itemChangedProperty, LOAD_IN_SIDEBAR_ANNO);
   do_check_eq(observer._itemChanged_isAnnotationProperty, true);
   txn16.undoTransaction();
   do_check_eq(observer._itemChangedId, bkmk1Id);
-  do_check_eq(observer._itemChangedProperty, "bookmarkProperties/loadInSidebar");
+  do_check_eq(observer._itemChangedProperty, LOAD_IN_SIDEBAR_ANNO);
   do_check_eq(observer._itemChanged_isAnnotationProperty, true);
+
+  // Test generic item annotation
+  var itemAnnoObj = { name: "testAnno/testInt",
+                      type: Ci.nsIAnnotationService.TYPE_INT32,
+                      flags: 0,
+                      value: 123,
+                      expires: Ci.nsIAnnotationService.EXPIRE_NEVER };
+  var genItemAnnoTxn = ptSvc.setItemAnnotation(bkmk1Id, itemAnnoObj);
+  genItemAnnoTxn.doTransaction();
+  do_check_eq(observer._itemChangedId, bkmk1Id);
+  do_check_eq(observer._itemChangedProperty, "testAnno/testInt");
+  do_check_eq(observer._itemChanged_isAnnotationProperty, true);
+  genItemAnnoTxn.undoTransaction();
+  do_check_eq(observer._itemChangedId, bkmk1Id);
+  do_check_eq(observer._itemChangedProperty, "testAnno/testInt");
+  do_check_eq(observer._itemChanged_isAnnotationProperty, true);
+  genItemAnnoTxn.redoTransaction();
+  do_check_eq(observer._itemChangedId, bkmk1Id);
+  do_check_eq(observer._itemChangedProperty, "testAnno/testInt");
+  do_check_eq(observer._itemChanged_isAnnotationProperty, true);
+
+  // Test generic page annotation
+  var pageAnnoObj = { name: "testAnno/testInt",
+                      type: Ci.nsIAnnotationService.TYPE_INT32,
+                      flags: 0,
+                      value: 123,
+                      expires: Ci.nsIAnnotationService.EXPIRE_NEVER };
+  var genPageAnnoTxn = ptSvc.setPageAnnotation(uri("http://www.mozilla.org/"), pageAnnoObj);
+  genPageAnnoTxn.doTransaction();
+  do_check_true(annosvc.pageHasAnnotation(uri("http://www.mozilla.org/"), "testAnno/testInt"));
+  genPageAnnoTxn.undoTransaction();
+  do_check_false(annosvc.pageHasAnnotation(uri("http://www.mozilla.org/"), "testAnno/testInt"));
+  genPageAnnoTxn.redoTransaction();
+  do_check_true(annosvc.pageHasAnnotation(uri("http://www.mozilla.org/"), "testAnno/testInt"));
 
   // sortFolderByName
   ptSvc.doTransaction(ptSvc.createFolder("Sorting folder", root, bmStartIndex, [], null));
@@ -505,10 +603,10 @@ function run_test() {
   var postDataId = (bmsvc.getBookmarkIdsForURI(postDataURI,{}))[0];
   var postDataTxn = ptSvc.editBookmarkPostData(postDataId, postData);
   postDataTxn.doTransaction();
-  do_check_true(annotationService.itemHasAnnotation(postDataId, POST_DATA_ANNO))
-  do_check_eq(annotationService.getItemAnnotation(postDataId, POST_DATA_ANNO), postData);
+  do_check_true(annosvc.itemHasAnnotation(postDataId, POST_DATA_ANNO))
+  do_check_eq(annosvc.getItemAnnotation(postDataId, POST_DATA_ANNO), postData);
   postDataTxn.undoTransaction();
-  do_check_false(annotationService.itemHasAnnotation(postDataId, POST_DATA_ANNO))
+  do_check_false(annosvc.itemHasAnnotation(postDataId, POST_DATA_ANNO))
 
   // Test editing item date added
   var oldAdded = bmsvc.getItemDateAdded(bkmk1Id);
@@ -566,6 +664,8 @@ function run_test() {
   do_check_eq(bmsvc.getItemIndex(bkmk3_1Id), -1);
   do_check_eq(bmsvc.getItemIndex(bkmk3_2Id), -1);
   do_check_eq(bmsvc.getItemIndex(bkmk3_3Id), -1);
+  // Check last removed item id.
+  do_check_eq(observer._itemRemovedId, bkmk3Id);
 
   txn.undoTransaction();
   var newBkmk1Id = bmsvc.getIdForItemAt(root, 0);
@@ -587,6 +687,9 @@ function run_test() {
   do_check_eq(bmsvc.getFolderIdForItem(newBkmk3_3Id), newBkmk3Id);
   do_check_eq(bmsvc.getItemType(newBkmk3_3Id), bmsvc.TYPE_FOLDER);
   do_check_eq(bmsvc.getItemTitle(newBkmk3_3Id), "folder");
+  // Check last added back item id.
+  // Notice items are restored in reverse order.
+  do_check_eq(observer._itemAddedId, newBkmk1Id);
 
   txn.redoTransaction();
   do_check_eq(bmsvc.getItemIndex(newBkmk1Id), -1);
@@ -595,6 +698,8 @@ function run_test() {
   do_check_eq(bmsvc.getItemIndex(newBkmk3_1Id), -1);
   do_check_eq(bmsvc.getItemIndex(newBkmk3_2Id), -1);
   do_check_eq(bmsvc.getItemIndex(newBkmk3_3Id), -1);
+  // Check last removed item id.
+  do_check_eq(observer._itemRemovedId, newBkmk3Id);
 
   txn.undoTransaction();
   newBkmk1Id = bmsvc.getIdForItemAt(root, 0);
@@ -616,4 +721,72 @@ function run_test() {
   do_check_eq(bmsvc.getFolderIdForItem(newBkmk3_3Id), newBkmk3Id);
   do_check_eq(bmsvc.getItemType(newBkmk3_3Id), bmsvc.TYPE_FOLDER);
   do_check_eq(bmsvc.getItemTitle(newBkmk3_3Id), "folder");
+  // Check last added back item id.
+  // Notice items are restored in reverse order.
+  do_check_eq(observer._itemAddedId, newBkmk1Id);
+
+  // Test creating an item with child transactions.
+  var childTxns = [];
+  var newDateAdded = Date.now() - 20000;
+  childTxns.push(ptSvc.editItemDateAdded(null, newDateAdded));
+  var itemChildAnnoObj = { name: "testAnno/testInt",
+                           type: Ci.nsIAnnotationService.TYPE_INT32,
+                           flags: 0,
+                           value: 123,
+                           expires: Ci.nsIAnnotationService.EXPIRE_NEVER };
+  childTxns.push(ptSvc.setItemAnnotation(null, itemChildAnnoObj));
+  var itemWChildTxn = ptSvc.createItem(uri("http://www.example.com"), root,
+                                       bmStartIndex, "Testing1", null, null,
+                                       childTxns);
+  try {
+    ptSvc.doTransaction(itemWChildTxn); // Also testing doTransaction
+    var itemId = (bmsvc.getBookmarkIdsForURI(uri("http://www.example.com"), {}))[0];
+    do_check_eq(observer._itemAddedId, itemId);
+    do_check_eq(newDateAdded, bmsvc.getItemDateAdded(itemId));
+    do_check_eq(observer._itemChangedProperty, "testAnno/testInt");
+    do_check_eq(observer._itemChanged_isAnnotationProperty, true);
+    do_check_true(annosvc.itemHasAnnotation(itemId, itemChildAnnoObj.name))
+    do_check_eq(annosvc.getItemAnnotation(itemId, itemChildAnnoObj.name),
+                itemChildAnnoObj.value);
+    itemWChildTxn.undoTransaction();
+    do_check_eq(observer._itemRemovedId, itemId);
+    itemWChildTxn.redoTransaction();
+    do_check_true(bmsvc.isBookmarked(uri("http://www.example.com")));
+    var newId = (bmsvc.getBookmarkIdsForURI(uri("http://www.example.com"), {}))[0];
+    do_check_eq(newDateAdded, bmsvc.getItemDateAdded(newId));
+    do_check_eq(observer._itemAddedId, newId);
+    do_check_eq(observer._itemChangedProperty, "testAnno/testInt");
+    do_check_eq(observer._itemChanged_isAnnotationProperty, true);
+    do_check_true(annosvc.itemHasAnnotation(newId, itemChildAnnoObj.name))
+    do_check_eq(annosvc.getItemAnnotation(newId, itemChildAnnoObj.name),
+                itemChildAnnoObj.value);
+    itemWChildTxn.undoTransaction();
+    do_check_eq(observer._itemRemovedId, newId);
+  } catch (ex) {
+    do_throw("Setting a child transaction in a createItem transaction did throw: " + ex);
+  }
+
+  // Create a folder with child item transactions.
+  var childItemTxn = ptSvc.createItem(uri("http://www.childItem.com"), root, bmStartIndex, "childItem");
+  var folderWChildItemTxn = ptSvc.createFolder("Folder", root, bmStartIndex, null, [childItemTxn]);
+  try {
+    ptSvc.doTransaction(folderWChildItemTxn);
+    var childItemId = (bmsvc.getBookmarkIdsForURI(uri("http://www.childItem.com"), {}))[0];
+    do_check_eq(observer._itemAddedId, childItemId);
+    do_check_eq(observer._itemAddedIndex, 0);
+    do_check_true(bmsvc.isBookmarked(uri("http://www.childItem.com")));
+    folderWChildItemTxn.undoTransaction();
+    do_check_false(bmsvc.isBookmarked(uri("http://www.childItem.com")));
+    folderWChildItemTxn.redoTransaction();
+    newchildItemId = (bmsvc.getBookmarkIdsForURI(uri("http://www.childItem.com"), {}))[0];
+    do_check_eq(observer._itemAddedIndex, 0);
+    do_check_eq(observer._itemAddedId, newchildItemId);
+    do_check_true(bmsvc.isBookmarked(uri("http://www.childItem.com")));
+    folderWChildItemTxn.undoTransaction();
+    do_check_false(bmsvc.isBookmarked(uri("http://www.childItem.com")));
+  } catch (ex) {
+    do_throw("Setting a child item transaction in a createFolder transaction did throw: " + ex);
+  }
+
+  bmsvc.removeObserver(observer, false);
 }

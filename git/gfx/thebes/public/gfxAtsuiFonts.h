@@ -40,6 +40,8 @@
 #ifndef GFX_ATSUIFONTS_H
 #define GFX_ATSUIFONTS_H
 
+#ifndef __LP64__ /* ATSUI not available on 64-bit */
+
 #include "cairo.h"
 #include "gfxTypes.h"
 #include "gfxFont.h"
@@ -66,7 +68,7 @@ public:
     float GetCharWidth(PRUnichar c, PRUint32 *aGlyphID = nsnull);
     float GetCharHeight(PRUnichar c);
 
-    ATSUFontID GetATSUFontID();
+    ATSFontRef GetATSFontRef();
 
     cairo_font_face_t *CairoFontFace() { return mFontFace; }
     cairo_scaled_font_t *CairoScaledFont() { return mScaledFont; }
@@ -133,10 +135,18 @@ public:
                              PRBool aWrapped, gfxTextRun *aTextRun);
 
     gfxAtsuiFont* GetFontAt(PRInt32 aFontIndex) {
+        // If it turns out to be hard for all clients that cache font
+        // groups to call UpdateFontList at appropriate times, we could
+        // instead consider just calling UpdateFontList from someplace
+        // more central (such as here).
+        NS_ASSERTION(!mUserFontSet || mCurrGeneration == GetGeneration(),
+                     "Whoever was caching this font group should have "
+                     "called UpdateFontList on it");
+
         return static_cast<gfxAtsuiFont*>(static_cast<gfxFont*>(mFonts[aFontIndex]));
     }
 
-    PRBool HasFont(ATSUFontID fid);
+    PRBool HasFont(ATSFontRef aFontRef);
 
     inline gfxAtsuiFont* WhichFontSupportsChar(nsTArray< nsRefPtr<gfxFont> >& aFontList, 
                                                PRUint32 aCh)
@@ -185,6 +195,12 @@ protected:
                        const PRUnichar *aString, PRUint32 aLength,
                        PRUint32 aLayoutStart, PRUint32 aLayoutLength,
                        PRUint32 aOffsetInTextRun, PRUint32 aLengthInTextRun);
+
+    /**
+     * Function to reinitialize our mFonts array and any other data
+     * that depends on mFonts.
+     */
+    void InitFontList();
     
     // cache the most recent pref font to avoid general pref font lookup
     nsRefPtr<MacOSFamilyEntry>    mLastPrefFamily;
@@ -193,4 +209,7 @@ protected:
     PRBool                        mLastPrefFirstFont;  // is this the first font in the list of pref fonts for this lang group?
     eFontPrefLang                 mPageLang;
 };
+
+#endif /* not __LP64__ */
+
 #endif /* GFX_ATSUIFONTS_H */

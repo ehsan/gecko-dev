@@ -38,6 +38,7 @@
 #define __NS_SVGGEOMETRYFRAME_H__
 
 #include "nsFrame.h"
+#include "gfxMatrix.h"
 
 class nsSVGPaintServerFrame;
 class gfxContext;
@@ -67,7 +68,7 @@ public:
   }
 
   // nsSVGGeometryFrame methods:
-  NS_IMETHOD GetCanvasTM(nsIDOMSVGMatrix * *aCanvasTM) = 0;
+  virtual gfxMatrix GetCanvasTM() = 0;
   PRUint16 GetClipRule();
   PRBool IsClipChild(); 
 
@@ -79,15 +80,17 @@ public:
    */
   PRBool SetupCairoFill(gfxContext *aContext);
   /*
-   * Set up a cairo context for measuring a stroked path
    * @return PR_FALSE if there is no stroke
    */
-  PRBool SetupCairoStrokeGeometry(gfxContext *aContext);
+  PRBool HasStroke(gfxContext *aContext);
+  /*
+   * Set up a cairo context for measuring a stroked path
+   */
+  void SetupCairoStrokeGeometry(gfxContext *aContext);
   /*
    * Set up a cairo context for hit testing a stroked path
-   * @return PR_FALSE if there is no stroke
    */
-  PRBool SetupCairoStrokeHitGeometry(gfxContext *aContext);
+  void SetupCairoStrokeHitGeometry(gfxContext *aContext);
   /*
    * Set up a cairo context for stroking a path
    * @return PR_FALSE to skip rendering

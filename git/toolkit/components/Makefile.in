@@ -56,10 +56,12 @@ DIRS += \
 	apppicker \
 	filepicker \
 	console \
+	cookie \
 	exthelper \
 	viewconfig \
 	typeaheadfind \
 	parentalcontrols \
+	passwordmgr \
 	$(NULL)
 
 ifneq (,$(filter cocoa, $(MOZ_WIDGET_TOOLKIT)))
@@ -84,12 +86,6 @@ ifdef MOZ_VIEW_SOURCE
 DIRS +=	viewsource
 endif
 
-ifndef MOZ_SUITE
-ifndef MOZ_THUNDERBIRD
-DIRS +=	search
-endif
-endif
-
 ifdef MOZ_XUL
 DIRS += \
 	autocomplete \
@@ -97,27 +93,20 @@ DIRS += \
 endif
 
 ifndef MOZ_THUNDERBIRD
-DIRS +=	\
-	cookie \
-	$(NULL)
+
+ifndef MOZ_SUITE
+DIRS +=	search
+endif
 
 ifdef MOZ_XUL
 DIRS += satchel
-endif # MOZ_XUL
+endif
 
-ifdef MOZ_SUITE
-# Suite can't use passwordmgr because mail still depends on wallet (bug 239131)
-DIRS += passwordmgr/public
-else
-DIRS += passwordmgr
-endif # MOZ_SUITE
 endif # MOZ_THUNDERBIRD
 
-ifndef SUITE_USING_XPFE_DM
 ifdef MOZ_RDF
 DIRS +=	downloads
 endif
-endif # SUITE_USING_XPFE_DM
 
 ifdef MOZ_URL_CLASSIFIER
 DIRS += url-classifier

@@ -275,8 +275,70 @@ nsTokenEventRunnable::Run()
   return nssComponent->DispatchEvent(mType, mTokenName);
 }
 
+// We must ensure that the nsNSSComponent has been loaded before
+// creating any other components.
+PRBool EnsureNSSInitialized(EnsureNSSOperator op)
+{
+  static PRBool loading = PR_FALSE;
+  static PRInt32 haveLoaded = 0;
+
+  switch (op)
+  {
+    // In following 4 cases we are protected by monitor of XPCOM component
+    // manager - we are inside of do_GetService call for nss component, so it is
+    // safe to move with the flags here.
+  case nssLoading:
+    if (loading)
+      return PR_FALSE; // We are reentered during nss component creation
+    loading = PR_TRUE;
+    return PR_TRUE;
+
+  case nssInitSucceeded:
+    NS_ASSERTION(loading, "Bad call to EnsureNSSInitialized(nssInitSucceeded)");
+    loading = PR_FALSE;
+    PR_AtomicSet(&haveLoaded, 1);
+    return PR_TRUE;
+
+  case nssInitFailed:
+    NS_ASSERTION(loading, "Bad call to EnsureNSSInitialized(nssInitFailed)");
+    loading = PR_FALSE;
+    // no break
+
+  case nssShutdown:
+    PR_AtomicSet(&haveLoaded, 0);
+    return PR_FALSE;
+
+    // In this case we are called from a component to ensure nss initilization.
+    // If the component has not yet been loaded and is not currently loading
+    // call do_GetService for nss component to ensure it.
+  case nssEnsure:
+    // We are reentered during nss component creation or nss component is already up
+    if (PR_AtomicAdd(&haveLoaded, 0) || loading)
+      return PR_TRUE;
+
+    {
+    nsCOMPtr<nsINSSComponent> nssComponent
+      = do_GetService(PSM_COMPONENT_CONTRACTID);
+
+    // Nss component failed to initialize, inform the caller of that fact.
+    // Flags are appropriately set by component constructor itself.
+    if (!nssComponent)
+      return PR_FALSE;
+
+    PRBool isInitialized;
+    nsresult rv = nssComponent->IsNSSInitialized(&isInitialized);
+    return NS_SUCCEEDED(rv) && isInitialized;
+    }
+
+  default:
+    NS_ASSERTION(PR_FALSE, "Bad operator to EnsureNSSInitialized");
+    return PR_FALSE;
+  }
+}
+
 nsNSSComponent::nsNSSComponent()
-  :mNSSInitialized(PR_FALSE), mThreadList(nsnull)
+  :mNSSInitialized(PR_FALSE), mThreadList(nsnull),
+   mSSLThread(NULL), mCertVerificationThread(NULL)
 {
   mutex = PR_NewLock();
   
@@ -296,19 +358,11 @@ nsNSSComponent::nsNSSComponent()
   // registering all identity data until first needed.
   memset(&mIdentityInfoCallOnce, 0, sizeof(PRCallOnceType));
 
-  nsSSLIOLayerHelpers::Init();
-  
   NS_ASSERTION( (0 == mInstanceCount), "nsNSSComponent is a singleton, but instantiated multiple times!");
   ++mInstanceCount;
   hashTableCerts = nsnull;
   mShutdownObjectList = nsNSSShutDownList::construct();
   mIsNetworkDown = PR_FALSE;
-  mSSLThread = new nsSSLThread();
-  if (mSSLThread)
-    mSSLThread->startThread();
-  mCertVerificationThread = new nsCertVerificationThread();
-  if (mCertVerificationThread)
-    mCertVerificationThread->startThread();
 }
 
 nsNSSComponent::~nsNSSComponent()
@@ -356,6 +410,10 @@ nsNSSComponent::~nsNSSComponent()
     PR_DestroyLock(mutex);
     mutex = nsnull;
   }
+
+  // We are being freed, drop the haveLoaded flag to re-enable
+  // potential nss initialization later.
+  EnsureNSSInitialized(nssShutdown);
 
   PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("nsNSSComponent::dtor finished\n"));
 }
@@ -1470,9 +1528,6 @@ nsNSSComponent::InitializeNSS(PRBool showWarningBox)
       return NS_ERROR_FAILURE;
     }
     
-    hashTableCerts = PL_NewHashTable( 0, certHashtable_keyHash, certHashtable_keyCompare, 
-      certHashtable_valueCompare, 0, 0 );
-
     nsresult rv;
     nsCAutoString profileStr;
     nsCOMPtr<nsIFile> profilePath;
@@ -1520,6 +1575,9 @@ nsNSSComponent::InitializeNSS(PRBool showWarningBox)
     rv = profilePath->GetNativePath(profileStr);
     if (NS_FAILED(rv)) 
       return rv;
+
+    hashTableCerts = PL_NewHashTable( 0, certHashtable_keyHash, certHashtable_keyCompare,
+      certHashtable_valueCompare, 0, 0 );
 
   #if defined(XP_MACOSX)
     // function may modify the parameters
@@ -1627,6 +1685,7 @@ nsNSSComponent::InitializeNSS(PRBool showWarningBox)
 
       // Set up OCSP //
       setOCSPOptions(mPrefBranch);
+      RegisterMyOCSPAIAInfoCallback();
 
       mHttpForNSS.initTable();
       mHttpForNSS.registerHttpClient();
@@ -1676,6 +1735,7 @@ nsNSSComponent::ShutdownNSS()
 
     PK11_SetPasswordFunc((PK11PasswordFunc)nsnull);
     mHttpForNSS.unregisterHttpClient();
+    UnregisterMyOCSPAIAInfoCallback();
 
     if (mPrefBranch) {
       nsCOMPtr<nsIPrefBranch2> pbi = do_QueryInterface(mPrefBranch);
@@ -1684,10 +1744,14 @@ nsNSSComponent::ShutdownNSS()
 
     ShutdownSmartCardThreads();
     SSL_ClearSessionCache();
+    if (mClientAuthRememberService) {
+      mClientAuthRememberService->ClearRememberedDecisions();
+    }
     UnloadLoadableRoots();
     CleanupIdentityInfo();
     PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("evaporating psm resources\n"));
     mShutdownObjectList->evaporateAllNSSResources();
+    EnsureNSSInitialized(nssShutdown);
     if (SECSuccess != ::NSS_Shutdown()) {
       PR_LOG(gPIPNSSLog, PR_LOG_ALWAYS, ("NSS SHUTDOWN FAILURE\n"));
       rv = NS_ERROR_FAILURE;
@@ -1710,8 +1774,7 @@ nsNSSComponent::Init()
 
   PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("Beginning NSS initialization\n"));
 
-  if (!mutex || !mShutdownObjectList || 
-      !mSSLThread || !mCertVerificationThread)
+  if (!mutex || !mShutdownObjectList)
   {
     PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("NSS init, out of memory in constructor\n"));
     return NS_ERROR_OUT_OF_MEMORY;
@@ -1747,7 +1810,32 @@ nsNSSComponent::Init()
   rv = InitializeNSS(PR_TRUE); // ok to show a warning box on failure
   if (NS_FAILED(rv)) {
     PR_LOG(gPIPNSSLog, PR_LOG_ERROR, ("Unable to Initialize NSS.\n"));
+
+    DeregisterObservers();
+    mPIPNSSBundle = nsnull;
     return rv;
+  }
+
+  nsSSLIOLayerHelpers::Init();
+
+  mClientAuthRememberService = new nsClientAuthRememberService;
+  if (mClientAuthRememberService)
+    mClientAuthRememberService->Init();
+
+  mSSLThread = new nsSSLThread();
+  if (mSSLThread)
+    mSSLThread->startThread();
+  mCertVerificationThread = new nsCertVerificationThread();
+  if (mCertVerificationThread)
+    mCertVerificationThread->startThread();
+
+  if (!mSSLThread || !mCertVerificationThread)
+  {
+    PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("NSS init, could not create threads\n"));
+
+    DeregisterObservers();
+    mPIPNSSBundle = nsnull;
+    return NS_ERROR_OUT_OF_MEMORY;
   }
 
   InitializeCRLUpdateTimer();
@@ -2152,6 +2240,10 @@ nsresult nsNSSComponent::LogoutAuthenticatedPK11()
     cos->RemoveAllTemporaryOverrides();
   }
 
+  if (mClientAuthRememberService) {
+    mClientAuthRememberService->ClearRememberedDecisions();
+  }
+
   return mShutdownObjectList->doPK11Logout();
 }
 
@@ -2182,6 +2274,31 @@ nsNSSComponent::RegisterObservers()
     observerService->AddObserver(this, PROFILE_AFTER_CHANGE_TOPIC, PR_FALSE);
     observerService->AddObserver(this, PROFILE_CHANGE_NET_TEARDOWN_TOPIC, PR_FALSE);
     observerService->AddObserver(this, PROFILE_CHANGE_NET_RESTORE_TOPIC, PR_FALSE);
+  }
+  return NS_OK;
+}
+
+nsresult
+nsNSSComponent::DeregisterObservers()
+{
+  if (!mObserversRegistered)
+    return NS_OK;
+
+  nsCOMPtr<nsIObserverService> observerService(do_GetService("@mozilla.org/observer-service;1"));
+  NS_ASSERTION(observerService, "could not get observer service");
+  if (observerService) {
+    mObserversRegistered = PR_FALSE;
+    PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("nsNSSComponent: removing observers\n"));
+
+    observerService->RemoveObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID);
+
+    observerService->RemoveObserver(this, PROFILE_APPROVE_CHANGE_TOPIC);
+    observerService->RemoveObserver(this, PROFILE_CHANGE_TEARDOWN_TOPIC);
+    observerService->RemoveObserver(this, PROFILE_CHANGE_TEARDOWN_VETO_TOPIC);
+    observerService->RemoveObserver(this, PROFILE_BEFORE_CHANGE_TOPIC);
+    observerService->RemoveObserver(this, PROFILE_AFTER_CHANGE_TOPIC);
+    observerService->RemoveObserver(this, PROFILE_CHANGE_NET_TEARDOWN_TOPIC);
+    observerService->RemoveObserver(this, PROFILE_CHANGE_NET_RESTORE_TOPIC);
   }
   return NS_OK;
 }
@@ -2412,19 +2529,56 @@ nsNSSComponent::DoProfileChangeNetRestore()
   mIsNetworkDown = PR_FALSE;
 }
 
+NS_IMETHODIMP
+nsNSSComponent::GetClientAuthRememberService(nsClientAuthRememberService **cars)
+{
+  NS_ENSURE_ARG_POINTER(cars);
+  NS_IF_ADDREF(*cars = mClientAuthRememberService);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsNSSComponent::IsNSSInitialized(PRBool *initialized)
+{
+  nsAutoLock lock(mutex);
+  *initialized = mNSSInitialized;
+  return NS_OK;
+}
+
 //---------------------------------------------
 // Implementing nsICryptoHash
 //---------------------------------------------
 
 nsCryptoHash::nsCryptoHash()
   : mHashContext(nsnull)
+  , mInitialized(PR_FALSE)
 {
 }
 
 nsCryptoHash::~nsCryptoHash()
 {
+  nsNSSShutDownPreventionLock locker;
+
+  if (isAlreadyShutDown())
+    return;
+
+  destructorSafeDestroyNSSReference();
+  shutdown(calledFromObject);
+}
+
+void nsCryptoHash::virtualDestroyNSSReference()
+{
+  destructorSafeDestroyNSSReference();
+}
+
+void nsCryptoHash::destructorSafeDestroyNSSReference()
+{
+  if (isAlreadyShutDown())
+    return;
+
   if (mHashContext)
     HASH_Destroy(mHashContext);
+  mHashContext = nsnull;
 }
 
 NS_IMPL_ISUPPORTS1(nsCryptoHash, nsICryptoHash)
@@ -2432,14 +2586,30 @@ NS_IMPL_ISUPPORTS1(nsCryptoHash, nsICryptoHash)
 NS_IMETHODIMP 
 nsCryptoHash::Init(PRUint32 algorithm)
 {
-  if (mHashContext)
-    HASH_Destroy(mHashContext);
+  nsNSSShutDownPreventionLock locker;
 
-  mHashContext = HASH_Create((HASH_HashType) algorithm);
+  HASH_HashType hashType = (HASH_HashType)algorithm;
+  if (mHashContext)
+  {
+    if ((!mInitialized) && (HASH_GetType(mHashContext) == hashType))
+    {
+      mInitialized = PR_TRUE;
+      HASH_Begin(mHashContext);
+      return NS_OK;
+    }
+
+    // Destroy current hash context if the type was different
+    // or Finish method wasn't called.
+    HASH_Destroy(mHashContext);
+    mInitialized = PR_FALSE;
+  }
+
+  mHashContext = HASH_Create(hashType);
   if (!mHashContext)
     return NS_ERROR_INVALID_ARG;
 
   HASH_Begin(mHashContext);
+  mInitialized = PR_TRUE;
   return NS_OK; 
 }
 
@@ -2470,7 +2640,9 @@ nsCryptoHash::InitWithString(const nsACString & aAlgorithm)
 NS_IMETHODIMP
 nsCryptoHash::Update(const PRUint8 *data, PRUint32 len)
 {
-  if (!mHashContext)
+  nsNSSShutDownPreventionLock locker;
+  
+  if (!mInitialized)
     return NS_ERROR_NOT_INITIALIZED;
 
   HASH_Update(mHashContext, data, len);
@@ -2480,7 +2652,7 @@ nsCryptoHash::Update(const PRUint8 *data, PRUint32 len)
 NS_IMETHODIMP
 nsCryptoHash::UpdateFromStream(nsIInputStream *data, PRUint32 len)
 {
-  if (!mHashContext)
+  if (!mInitialized)
     return NS_ERROR_NOT_INITIALIZED;
 
   if (!data)
@@ -2528,7 +2700,9 @@ nsCryptoHash::UpdateFromStream(nsIInputStream *data, PRUint32 len)
 NS_IMETHODIMP
 nsCryptoHash::Finish(PRBool ascii, nsACString & _retval)
 {
-  if (!mHashContext)
+  nsNSSShutDownPreventionLock locker;
+  
+  if (!mInitialized)
     return NS_ERROR_NOT_INITIALIZED;
   
   PRUint32 hashLen = 0;
@@ -2536,9 +2710,8 @@ nsCryptoHash::Finish(PRBool ascii, nsACString & _retval)
   unsigned char* pbuffer = buffer;
 
   HASH_End(mHashContext, pbuffer, &hashLen, HASH_LENGTH_MAX);
-  HASH_Destroy(mHashContext);
 
-  mHashContext = nsnull;
+  mInitialized = PR_FALSE;
 
   if (ascii)
   {
@@ -2569,13 +2742,35 @@ nsCryptoHMAC::nsCryptoHMAC()
 
 nsCryptoHMAC::~nsCryptoHMAC()
 {
+  nsNSSShutDownPreventionLock locker;
+
+  if (isAlreadyShutDown())
+    return;
+
+  destructorSafeDestroyNSSReference();
+  shutdown(calledFromObject);
+}
+
+void nsCryptoHMAC::virtualDestroyNSSReference()
+{
+  destructorSafeDestroyNSSReference();
+}
+
+void nsCryptoHMAC::destructorSafeDestroyNSSReference()
+{
+  if (isAlreadyShutDown())
+    return;
+
   if (mHMACContext)
     PK11_DestroyContext(mHMACContext, PR_TRUE);
+  mHMACContext = nsnull;
 }
 
 /* void init (in unsigned long aAlgorithm, in nsIKeyObject aKeyObject); */
 NS_IMETHODIMP nsCryptoHMAC::Init(PRUint32 aAlgorithm, nsIKeyObject *aKeyObject)
 {
+  nsNSSShutDownPreventionLock locker;
+
   if (mHMACContext)
   {
     PK11_DestroyContext(mHMACContext, PR_TRUE);
@@ -2632,6 +2827,8 @@ NS_IMETHODIMP nsCryptoHMAC::Init(PRUint32 aAlgorithm, nsIKeyObject *aKeyObject)
 /* void update ([array, size_is (aLen), const] in octet aData, in unsigned long aLen); */
 NS_IMETHODIMP nsCryptoHMAC::Update(const PRUint8 *aData, PRUint32 aLen)
 {
+  nsNSSShutDownPreventionLock locker;
+
   if (!mHMACContext)
     return NS_ERROR_NOT_INITIALIZED;
 
@@ -2697,6 +2894,8 @@ NS_IMETHODIMP nsCryptoHMAC::UpdateFromStream(nsIInputStream *aStream, PRUint32 a
 /* ACString finish (in PRBool aASCII); */
 NS_IMETHODIMP nsCryptoHMAC::Finish(PRBool aASCII, nsACString & _retval)
 {
+  nsNSSShutDownPreventionLock locker;
+
   if (!mHMACContext)
     return NS_ERROR_NOT_INITIALIZED;
   
@@ -2724,6 +2923,8 @@ NS_IMETHODIMP nsCryptoHMAC::Finish(PRBool aASCII, nsACString & _retval)
 /* void reset (); */
 NS_IMETHODIMP nsCryptoHMAC::Reset()
 {
+  nsNSSShutDownPreventionLock locker;
+
   SECStatus ss = PK11_DigestBegin(mHMACContext);
   NS_ENSURE_TRUE(ss == SECSuccess, NS_ERROR_FAILURE);
 
@@ -3181,4 +3382,3 @@ PSMContentListener::SetParentContentListener(nsIURIContentListener * aContentLis
   mParentContentListener = aContentListener;
   return NS_OK;
 }
-

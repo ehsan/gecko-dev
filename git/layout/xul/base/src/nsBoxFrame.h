@@ -59,15 +59,17 @@ class nsBoxLayoutState;
 #define NS_STATE_CURRENTLY_IN_DEBUG      0x02000000
 //#define NS_STATE_SET_TO_DEBUG            0x04000000  moved to nsBox.h
 //#define NS_STATE_DEBUG_WAS_SET           0x08000000  moved to nsBox.h
-#define NS_STATE_IS_COLLAPSED            0x10000000
+//                                         0x10000000  not used anymore
 #define NS_STATE_BOX_WRAPS_KIDS_IN_BLOCK 0x20000000
 #define NS_STATE_EQUAL_SIZE              0x40000000
 //#define NS_STATE_IS_DIRECTION_NORMAL     0x80000000  moved to nsIFrame.h
 
 nsIFrame* NS_NewBoxFrame(nsIPresShell* aPresShell,
                          nsStyleContext* aContext,
-                         PRBool aIsRoot = PR_FALSE,
-                         nsIBoxLayout* aLayoutManager = nsnull);
+                         PRBool aIsRoot,
+                         nsIBoxLayout* aLayoutManager);
+nsIFrame* NS_NewBoxFrame(nsIPresShell* aPresShell,
+                         nsStyleContext* aContext);
 
 class nsBoxFrame : public nsContainerFrame
 {
@@ -77,6 +79,8 @@ public:
                                   nsStyleContext* aContext,
                                   PRBool aIsRoot,
                                   nsIBoxLayout* aLayoutManager);
+  friend nsIFrame* NS_NewBoxFrame(nsIPresShell* aPresShell,
+                                  nsStyleContext* aContext);
 
   // gets the rect inside our border and debug border. If you wish to paint inside a box
   // call this method to get the rect so you don't draw on the debug border or outer border.
@@ -125,11 +129,11 @@ public:
                     nsReflowStatus&          aStatus);
 
   NS_IMETHOD  AppendFrames(nsIAtom*        aListName,
-                           nsIFrame*       aFrameList);
+                           nsFrameList&    aFrameList);
 
   NS_IMETHOD  InsertFrames(nsIAtom*        aListName,
                            nsIFrame*       aPrevFrame,
-                           nsIFrame*       aFrameList);
+                           nsFrameList&    aFrameList);
 
   NS_IMETHOD  RemoveFrame(nsIAtom*        aListName,
                           nsIFrame*       aOldFrame);
@@ -137,7 +141,7 @@ public:
   virtual nsIFrame* GetContentInsertionFrame();
 
   NS_IMETHOD  SetInitialChildList(nsIAtom*        aListName,
-                                  nsIFrame*       aChildList);
+                                  nsFrameList&    aChildList);
 
   virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
 
@@ -172,7 +176,7 @@ public:
 
   virtual ~nsBoxFrame();
   
-  nsBoxFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRBool aIsRoot = nsnull, nsIBoxLayout* aLayoutManager = nsnull);
+  nsBoxFrame(nsIPresShell* aPresShell, nsStyleContext* aContext, PRBool aIsRoot = PR_FALSE, nsIBoxLayout* aLayoutManager = nsnull);
 
   // if aIsPopup is true, then the view is for a popup. In this case,
   // the view is added a child of the root view, and is initially hidden
@@ -214,6 +218,12 @@ public:
                                  const nsDisplayListSet& aIn,
                                  const nsDisplayListSet& aOut);
 
+  /**
+   * This defaults to true, but some box frames (nsListBoxBodyFrame for
+   * example) don't support ordinals in their children.
+   */
+  virtual PRBool SupportsOrdinalsInChildren();
+
 protected:
 #ifdef DEBUG_LAYOUT
     virtual void GetBoxName(nsAutoString& aName);
@@ -222,9 +232,6 @@ protected:
     void PaintXULDebugOverlay(nsIRenderingContext& aRenderingContext,
                               nsPoint aPt);
 #endif
-
-    virtual PRBool GetWasCollapsed(nsBoxLayoutState& aState);
-    virtual void SetWasCollapsed(nsBoxLayoutState& aState, PRBool aWas);
 
     virtual PRBool GetInitialEqualSize(PRBool& aEqualSize); 
     virtual void GetInitialOrientation(PRBool& aIsHorizontal);

@@ -58,7 +58,6 @@ typedef struct _nsCocoaWindowList {
   nsCocoaWindow *window; // Weak
 } nsCocoaWindowList;
 
-
 @interface NSWindow (Undocumented)
 
 // If a window has been explicitly removed from the "window cache" (to
@@ -75,7 +74,6 @@ typedef struct _nsCocoaWindowList {
 
 @end
 
-
 @interface PopupWindow : NSWindow
 {
 @private
@@ -89,7 +87,6 @@ typedef struct _nsCocoaWindowList {
 
 @end
 
-
 @interface BorderlessWindow : NSWindow
 {
 }
@@ -99,12 +96,11 @@ typedef struct _nsCocoaWindowList {
 
 @end
 
-
 @interface WindowDelegate : NSObject
 {
   nsCocoaWindow* mGeckoWindow; // [WEAK] (we are owned by the window)
-  // Used to avoid duplication when we send NS_ACTIVATE/NS_GOTFOCUS and
-  // NS_DEACTIVATE/NS_LOSTFOCUS to Gecko for toplevel widgets.  Starts out
+  // Used to avoid duplication when we send NS_ACTIVATE and
+  // NS_DEACTIVATE to Gecko for toplevel widgets.  Starts out
   // PR_FALSE.
   PRBool mToplevelActiveState;
 }
@@ -156,13 +152,11 @@ struct UnifiedGradientInfo {
 {
   TitlebarAndBackgroundColor *mColor;
   float mUnifiedToolbarHeight;
-  BOOL mSuppressPainting;
 }
 - (void)setTitlebarColor:(NSColor*)aColor forActiveWindow:(BOOL)aActive;
 - (void)setUnifiedToolbarHeight:(float)aToolbarHeight;
 - (float)unifiedToolbarHeight;
 - (float)titlebarHeight;
-- (BOOL)isPaintingSuppressed;
 // This method is also available on NSWindows (via a category), and is the 
 // preferred way to check the background color of a window.
 - (NSColor*)windowBackgroundColor;
@@ -183,7 +177,7 @@ public:
     NS_DECL_NSPIWIDGETCOCOA
       
     NS_IMETHOD              Create(nsNativeWidget aParent,
-                                   const nsRect &aRect,
+                                   const nsIntRect &aRect,
                                    EVENT_CALLBACK aHandleEventFunction,
                                    nsIDeviceContext *aContext,
                                    nsIAppShell *aAppShell = nsnull,
@@ -191,7 +185,7 @@ public:
                                    nsWidgetInitData *aInitData = nsnull);
 
     NS_IMETHOD              Create(nsIWidget* aParent,
-                                   const nsRect &aRect,
+                                   const nsIntRect &aRect,
                                    EVENT_CALLBACK aHandleEventFunction,
                                    nsIDeviceContext *aContext,
                                    nsIAppShell *aAppShell = nsnull,
@@ -199,17 +193,6 @@ public:
                                    nsWidgetInitData *aInitData = nsnull);
 
     NS_IMETHOD              Destroy();
-     // Utility method for implementing both Create(nsIWidget ...) and
-     // Create(nsNativeWidget...)
-
-    virtual nsresult        StandardCreate(nsIWidget *aParent,
-                                    const nsRect &aRect,
-                                    EVENT_CALLBACK aHandleEventFunction,
-                                    nsIDeviceContext *aContext,
-                                    nsIAppShell *aAppShell,
-                                    nsIToolkit *aToolkit,
-                                    nsWidgetInitData *aInitData,
-                                    nsNativeWidget aNativeWindow = nsnull);
 
     NS_IMETHOD              Show(PRBool aState);
     virtual nsIWidget*      GetSheetWindowParent(void);
@@ -219,11 +202,7 @@ public:
     NS_IMETHOD              SetModal(PRBool aState);
     NS_IMETHOD              IsVisible(PRBool & aState);
     NS_IMETHOD              SetFocus(PRBool aState=PR_FALSE);
-    NS_IMETHOD              SetMenuBar(void* aMenuBar);
-    virtual nsMenuBarX*     GetMenuBar();
-    NS_IMETHOD              ShowMenuBar(PRBool aShow);
-    NS_IMETHOD WidgetToScreen(const nsRect& aOldRect, nsRect& aNewRect);
-    NS_IMETHOD ScreenToWidget(const nsRect& aOldRect, nsRect& aNewRect);
+    virtual nsIntPoint WidgetToScreenOffset();
     
     virtual void* GetNativeData(PRUint32 aDataType) ;
 
@@ -233,30 +212,30 @@ public:
     NS_IMETHOD              PlaceBehind(nsTopLevelWidgetZPlacement aPlacement,
                                         nsIWidget *aWidget, PRBool aActivate);
     NS_IMETHOD              SetSizeMode(PRInt32 aMode);
-
+    NS_IMETHOD              HideWindowChrome(PRBool aShouldHide);
+    NS_IMETHOD              MakeFullScreen(PRBool aFullScreen);
     NS_IMETHOD              Resize(PRInt32 aWidth,PRInt32 aHeight, PRBool aRepaint);
     NS_IMETHOD              Resize(PRInt32 aX, PRInt32 aY, PRInt32 aWidth, PRInt32 aHeight, PRBool aRepaint);
-    NS_IMETHOD              GetScreenBounds(nsRect &aRect);
+    NS_IMETHOD              GetScreenBounds(nsIntRect &aRect);
     virtual PRBool          OnPaint(nsPaintEvent &event);
     void                    ReportSizeEvent(NSRect *overrideRect = nsnull);
 
     NS_IMETHOD              SetTitle(const nsAString& aTitle);
 
-    NS_IMETHOD Invalidate(const nsRect & aRect, PRBool aIsSynchronous);
+    NS_IMETHOD Invalidate(const nsIntRect &aRect, PRBool aIsSynchronous);
     NS_IMETHOD Invalidate(PRBool aIsSynchronous);
     NS_IMETHOD Update();
-    NS_IMETHOD Scroll(PRInt32 aDx, PRInt32 aDy, nsRect *alCipRect) { return NS_OK; }
-    NS_IMETHOD SetColorMap(nsColorMap *aColorMap) { return NS_OK; }
-    NS_IMETHOD BeginResizingChildren(void) { return NS_OK; }
-    NS_IMETHOD EndResizingChildren(void) { return NS_OK; }
-    NS_IMETHOD GetPreferredSize(PRInt32& aWidth, PRInt32& aHeight) { return NS_OK; }
-    NS_IMETHOD SetPreferredSize(PRInt32 aWidth, PRInt32 aHeight) { return NS_OK; }
+    virtual nsresult ConfigureChildren(const nsTArray<Configuration>& aConfigurations);
+    virtual void Scroll(const nsIntPoint& aDelta, const nsIntRect& aSource,
+                        const nsTArray<Configuration>& aConfigurations);
     NS_IMETHOD DispatchEvent(nsGUIEvent* event, nsEventStatus & aStatus) ;
     NS_IMETHOD CaptureRollupEvents(nsIRollupListener * aListener, PRBool aDoCapture, PRBool aConsumeRollupEvent);
     NS_IMETHOD GetAttention(PRInt32 aCycleCount);
+    virtual PRBool HasPendingInputEvent();
     virtual nsTransparencyMode GetTransparencyMode();
     virtual void SetTransparencyMode(nsTransparencyMode aMode);
     NS_IMETHOD SetWindowShadowStyle(PRInt32 aStyle);
+    virtual void SetShowsToolbarButton(PRBool aShow);
     NS_IMETHOD SetWindowTitlebarColor(nscolor aColor, PRBool aActive);
 
     // dispatch an NS_SIZEMODE event on miniaturize or deminiaturize
@@ -275,6 +254,9 @@ public:
     PRBool HasModalDescendents() { return mNumModalDescendents > 0; }
     NSWindow *GetCocoaWindow() { return mWindow; }
 
+    void SetMenuBar(nsMenuBarX* aMenuBar);
+    nsMenuBarX *GetMenuBar();
+
     // nsIKBStateControl interface
     NS_IMETHOD ResetInputState();
     
@@ -286,7 +268,27 @@ public:
     static void UnifiedShading(void* aInfo, const float* aIn, float* aOut);
 
 protected:
-  
+
+  // Utility method for implementing both Create(nsIWidget ...) and
+  // Create(nsNativeWidget...)
+  nsresult             StandardCreate(nsIWidget *aParent,
+                                      const nsIntRect &aRect,
+                                      EVENT_CALLBACK aHandleEventFunction,
+                                      nsIDeviceContext *aContext,
+                                      nsIAppShell *aAppShell,
+                                      nsIToolkit *aToolkit,
+                                      nsWidgetInitData *aInitData,
+                                      nsNativeWidget aNativeWindow = nsnull);
+  nsresult             CreateNativeWindow(const NSRect &aRect,
+                                          nsBorderStyle aBorderStyle,
+                                          PRBool aRectIsFrameRect);
+  nsresult             CreatePopupContentView(const nsIntRect &aRect,
+                                              EVENT_CALLBACK aHandleEventFunction,
+                                              nsIDeviceContext *aContext,
+                                              nsIAppShell *aAppShell,
+                                              nsIToolkit *aToolkit);
+  void                 DestroyNativeWindow();
+
   nsIWidget*           mParent;         // if we're a popup, this is our parent [WEAK]
   NSWindow*            mWindow;         // our cocoa window [STRONG]
   WindowDelegate*      mDelegate;       // our delegate for processing window msgs [STRONG]
@@ -298,10 +300,10 @@ protected:
   PRPackedBool         mWindowMadeHere; // true if we created the window, false for embedding
   PRPackedBool         mSheetNeedsShow; // if this is a sheet, are we waiting to be shown?
                                         // this is used for sibling sheet contention only
+  PRPackedBool         mFullScreen;
   PRPackedBool         mModal;
 
   PRInt32              mNumModalDescendents;
 };
-
 
 #endif // nsCocoaWindow_h_

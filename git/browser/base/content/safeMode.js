@@ -90,8 +90,7 @@ function disableAddons() {
   // Select the default theme
   var prefB = Components.classes["@mozilla.org/preferences-service;1"]
                         .getService(Components.interfaces.nsIPrefBranch);
-  if (prefB.prefHasUserValue("general.skins.selectedSkin"))
-    prefB.clearUserPref("general.skins.selectedSkin");
+  prefB.clearUserPref("general.skins.selectedSkin");
 
   // Disable plugins
   var phs = Components.classes["@mozilla.org/plugin/host;1"]
@@ -112,7 +111,7 @@ function onOK() {
   try {
     if (document.getElementById("resetUserPrefs").checked)
       clearAllPrefs();
-    if (document.getElementById("resetBookmarks").checked)
+    if (document.getElementById("deleteBookmarks").checked)
       restoreDefaultBookmarks();
     if (document.getElementById("resetToolbars").checked)
       deleteLocalstore();
@@ -140,7 +139,7 @@ function onLoad() {
 function UpdateOKButtonState() {
   document.documentElement.getButton("accept").disabled = 
     !document.getElementById("resetUserPrefs").checked &&
-    !document.getElementById("resetBookmarks").checked &&
+    !document.getElementById("deleteBookmarks").checked &&
     !document.getElementById("resetToolbars").checked &&
     !document.getElementById("disableAddons").checked &&
     !document.getElementById("restoreSearch").checked;

@@ -37,6 +37,9 @@
 /**
  * Test for bug 395161 that allows special searches that restrict results to
  * history/bookmark/tagged items and title/url matches.
+ *
+ * Test 485122 by making sure results don't have tags when restricting result
+ * to just history either by default behavior or dynamic query restrict.
  */
 
 // Define some shared uris and titles (each page needs its own uri)
@@ -79,15 +82,16 @@ addPageBook(11, 1, 1, [1]); // title and url
 
 // Remove pages from history to treat them as unvisited, so pages that do have
 // visits are 0,1,2,3,5,10
-for each (let uri in [4,6,7,8,9,11])
-  histsvc.removePage(toURI(kURIs[uri]));
+removePages([4,6,7,8,9,11]);
+// Set some pages as typed
+markTyped([0,3,10]);
 
 // Provide for each test: description; search terms; array of gPages indices of
 // pages that should match; optional function to be run before the test
 let gTests = [
   // Test restricting searches
   ["0: History restrict",
-   "^", [0,1,2,3,5,10]],
+   "^", [0,1,2,3,5,10], ignoreTags],
   ["1: Star restrict",
    "*", [4,5,6,7,8,9,10,11]],
   ["2: Tag restrict",
@@ -95,15 +99,15 @@ let gTests = [
 
   // Test specials as any word position
   ["3: Special as first word",
-   "^ foo bar", [1,2,3,5,10]],
+   "^ foo bar", [1,2,3,5,10], ignoreTags],
   ["4: Special as middle word",
-   "foo ^ bar", [1,2,3,5,10]],
+   "foo ^ bar", [1,2,3,5,10], ignoreTags],
   ["5: Special as last word",
-   "foo bar ^", [1,2,3,5,10]],
+   "foo bar ^", [1,2,3,5,10], ignoreTags],
 
   // Test restricting and matching searches with a term
   ["6: foo ^ -> history",
-   "foo ^", [1,2,3,5,10]],
+   "foo ^", [1,2,3,5,10], ignoreTags],
   ["7: foo * -> is star",
    "foo *", [5,6,7,8,9,10,11]],
   ["8: foo # -> in title",
@@ -112,38 +116,62 @@ let gTests = [
    "foo @", [2,3,6,7,10,11]],
   ["10: foo + -> is tag",
    "foo +", [8,9,10,11]],
+  ["10.1: foo ~ -> is typed",
+   "foo ~", [3,10]],
 
   // Test various pairs of special searches
   ["11: foo ^ * -> history, is star",
    "foo ^ *", [5,10]],
   ["12: foo ^ # -> history, in title",
-   "foo ^ #", [1,3,5,10]],
+   "foo ^ #", [1,3,5,10], ignoreTags],
   ["13: foo ^ @ -> history, in url",
-   "foo ^ @", [2,3,10]],
+   "foo ^ @", [2,3,10], ignoreTags],
   ["14: foo ^ + -> history, is tag",
    "foo ^ +", [10]],
+  ["14.1: foo ^ ~ -> history, is typed",
+   "foo ^ ~", [3,10], ignoreTags],
   ["15: foo * # -> is star, in title",
    "foo * #", [5,7,8,9,10,11]],
   ["16: foo * @ -> is star, in url",
    "foo * @", [6,7,10,11]],
   ["17: foo * + -> same as +",
    "foo * +", [8,9,10,11]],
+  ["17.1: foo * ~ -> is star, is typed",
+   "foo * ~", [10]],
   ["18: foo # @ -> in title, in url",
    "foo # @", [3,7,10,11]],
   ["19: foo # + -> in title, is tag",
    "foo # +", [8,9,10,11]],
+  ["19.1: foo # ~ -> in title, is typed",
+   "foo # ~", [3,10]],
   ["20: foo @ + -> in url, is tag",
    "foo @ +", [10,11]],
+  ["20.1: foo @ ~ -> in url, is typed",
+   "foo @ ~", [3,10]],
+  ["20.2: foo + ~ -> is tag, is typed",
+   "foo + ~", [10]],
 
-  // Test default usage by making the special search empty
+  // Test default usage by setting certain bits of default.behavior to 1
   ["21: foo -> default history",
-   "foo", [1,2,3,5,10], function() makeDefault("restrict.history")],
+   "foo", [1,2,3,5,10], function() makeDefault(1)],
   ["22: foo -> default history, is star",
-   "foo", [5,10], function() makeDefault("restrict.bookmark")],
+   "foo", [5,10], function() makeDefault(3)],
+  ["22.1: foo -> default history, is star, is typed",
+   "foo", [10], function() makeDefault(35)],
   ["23: foo -> default history, is star, in url",
-   "foo", [10], function() makeDefault("match.url")],
+   "foo", [10], function() makeDefault(19)],
+
+  // Change the default to be less restrictive to make sure we find more
+  ["24: foo -> default is star, in url",
+   "foo", [6,7,10,11], function() makeDefault(18)],
+  ["25: foo -> default in url",
+   "foo", [2,3,6,7,10,11], function() makeDefault(16)],
 ];
 
-function makeDefault(pref) {
-  prefs.setCharPref("browser.urlbar." + pref, "");
+function makeDefault(aDefault) {
+  // We want to ignore tags if we're restricting to history unless we're showing
+  if ((aDefault & 1) && !((aDefault & 2) || (aDefault & 4)))
+    ignoreTags();
+
+  prefs.setIntPref("browser.urlbar.default.behavior", aDefault);
 }

@@ -54,6 +54,7 @@ var observer =
     bmsvc.removeObserver(this);
   },
   onItemAdded: function(itemId, folder, index) {},
+  onBeforeItemRemoved: function(itemId){},
   onItemRemoved: function(itemId, folder, index){},
   onItemChanged: function(itemId, property, isAnnotationProperty, value){},
   onItemVisited: function(itemId, aVisitID, time){},
@@ -82,7 +83,6 @@ function runTest() {
   SimpleTest.finish();
 }
 
-var root = bmsvc.bookmarksRoot;
 const FEEDSPEC = "http://localhost:8888/tests/toolkit/components/places/tests/chrome/bad_links.atom";
 
 gLivemarkId = lmsvc.createLivemarkFolderOnly(toolbarFolderId, "foo",

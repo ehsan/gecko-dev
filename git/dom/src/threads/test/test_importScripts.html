@@ -5,7 +5,7 @@ Tests of DOM Worker Threads (Bug 437152)
 -->
 <head>
   <title>Test for DOM Worker Threads (Bug 437152)</title>
-  <script type="text/javascript" src="/MochiKit/MochiKit.js"></script>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 </head>
@@ -26,16 +26,17 @@ Tests of DOM Worker Threads (Bug 437152)
         worker.postMessage("stop");
         break;
       case "stopped":
+        ok(true, "worker correctly stopped");
         SimpleTest.finish();
         break;
       default:
-        ok(false, "Unexpected message:" + message);
+        ok(false, "Unexpected message:" + event.data);
         SimpleTest.finish();
     }
   };
 
   worker.onerror = function(event) {
-    ok(false, "Worker had an error:" + event.data);
+    ok(false, "Worker had an error:" + event.message);
     SimpleTest.finish();
   }
 
@@ -47,4 +48,3 @@ Tests of DOM Worker Threads (Bug 437152)
 </pre>
 </body>
 </html>
-

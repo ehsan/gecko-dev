@@ -88,6 +88,7 @@ public:
         }
     }
     PRBool test(PRUint32 aIndex) {
+        NS_ASSERTION(mBlocks.DebugGetHeader(), "mHdr is null, this is bad");
         PRUint32 blockIndex = aIndex/BLOCK_SIZE_BITS;
         if (blockIndex >= mBlocks.Length())
             return PR_FALSE;
@@ -289,6 +290,16 @@ public:
     nsTArray< nsAutoPtr<Block> > mBlocks;
 };
 
+#define TRUETYPE_TAG(a, b, c, d) ((a) << 24 | (b) << 16 | (c) << 8 | (d))
+
+// used for overlaying name changes without touching original font data
+struct FontDataOverlay {
+    // overlaySrc != 0 ==> use overlay
+    PRUint32  overlaySrc;    // src offset from start of font data
+    PRUint32  overlaySrcLen; // src length
+    PRUint32  overlayDest;   // dest offset from start of font data
+};
+    
 class THEBES_API gfxFontUtils {
 
 public:
@@ -327,24 +338,61 @@ public:
     static nsresult
     ReadCMAP(PRUint8 *aBuf, PRUint32 aBufLength, gfxSparseBitSet& aCharacterMap,
              PRPackedBool& aUnicodeFont, PRPackedBool& aSymbolFont);
-      
+
 #ifdef XP_WIN
+
     // given a TrueType/OpenType data file, produce a EOT-format header
     // for use with Windows T2Embed API AddFontResource type API's
     // effectively hide existing fonts with matching names aHeaderLen is
     // the size of the header buffer on input, the actual size of the
-    // EOT header on output aIsCFF returns whether the font has PS style
-    // glyphs or not (as opposed to TrueType glyphs)
+    // EOT header on output
     static nsresult
     MakeEOTHeader(const PRUint8 *aFontData, PRUint32 aFontDataLength,
-                            nsTArray<PRUint8> *aHeader, PRBool *aIsCFF);
+                  nsTArray<PRUint8> *aHeader, FontDataOverlay *aOverlay);
 #endif
 
     // checks for valid SFNT table structure, returns true if valid
     // does *not* guarantee that all font data is valid
     static PRBool
-    ValidateSFNTHeaders(const PRUint8 *aFontData, PRUint32 aFontDataLength);
+    ValidateSFNTHeaders(const PRUint8 *aFontData, PRUint32 aFontDataLength,
+                        PRBool *aIsCFF = nsnull);
     
+    // create a new name table and build a new font with that name table
+    // appended on the end, returns true on success
+    static nsresult
+    RenameFont(const nsAString& aName, const PRUint8 *aFontData, 
+               PRUint32 aFontDataLength, nsTArray<PRUint8> *aNewFont);
+    
+    // constansts used with name table read methods
+    enum {
+        PLATFORM_ALL = -1,
+        PLATFORM_UNICODE = 0,
+        PLATFORM_MACINTOSH = 1,
+        PLATFORM_MICROSOFT = 3,
+        
+        NAME_LANG_ALL = -1,
+        
+        // name record id's
+        NAME_ID_FAMILY = 1,
+        NAME_ID_STYLE = 2,
+        NAME_ID_UNIQUE = 3,
+        NAME_ID_FULL = 4,  // used as key to GDI CreateFontIndirect
+        NAME_ID_VERSION = 5,
+        NAME_ID_POSTSCRIPT = 6,
+        NAME_ID_PREFERRED_FAMILY = 16       
+    };
+
+    // read all names matching aNameID, returning in aNames array
+    static nsresult
+    ReadNames(nsTArray<PRUint8>& aNameTable, PRUint32 aNameID, 
+              PRInt32 aPlatformID, nsTArray<nsString>& aNames);
+      
+    // reads English or first name matching aNameID, returning in aName
+    // platform based on OS
+    static nsresult
+    ReadCanonicalName(nsTArray<PRUint8>& aNameTable, PRUint32 aNameID, 
+                      nsString& aName);
+      
     static inline bool IsJoiner(PRUint32 ch) {
         return (ch == 0x200C ||
                 ch == 0x200D ||
@@ -360,6 +408,14 @@ public:
     // for a given font list pref name, set up a list of font names
     static void GetPrefsFontList(const char *aPrefName, 
                                  nsTArray<nsString>& aFontList);
+
+    // generate a unique font name
+    static nsresult MakeUniqueUserFontName(nsAString& aName);
+
+protected:
+    static nsresult
+    ReadNames(nsTArray<PRUint8>& aNameTable, PRUint32 aNameID, 
+              PRInt32 aLangID, PRInt32 aPlatformID, nsTArray<nsString>& aNames);
 
 };
 

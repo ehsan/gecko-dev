@@ -36,9 +36,16 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+/**
+ * Using Places services on quit-application or later is not reliable, so make
+ * sure to do shutdown work on quit-application-granted, or history
+ * synchronization could fail, losing latest changes.
+ */
+ 
 #include "nsISupports.idl"
 #include "nsIArray.idl"
 #include "nsIURI.idl"
+#include "nsIVariant.idl"
 
 interface nsIFile;
 interface nsINavHistoryContainerResultNode;
@@ -179,6 +186,9 @@ interface nsINavHistoryResultNode : nsISupports
   /**
    * If the node is an item (bookmark, folder or a separator) this value is the 
    * time that the item was last modified. For other nodes, this value is 0.
+   *
+   *  @note When an item is added lastModified is set to the same value as
+   *        dateAdded.
    */
   readonly attribute PRTime lastModified;
 
@@ -607,6 +617,13 @@ interface nsINavHistoryResult : nsISupports
   /**
    * This is the root of the results. Remember that you need to open all
    * containers for their contents to be valid.
+   *
+   * When a result goes out of scope it will continue to observe changes till
+   * it is cycle collected.  While the result waits to be collected it will stay
+   * in memory, and continue to update itself, potentially causing unwanted
+   * additional work.  When you close the root node the result will stop
+   * observing changes, so it is good practice to close the root node when you
+   * are done with a result, since that will avoid unwanted performance hits.
    */
   readonly attribute nsINavHistoryContainerResultNode root;
 };
@@ -619,7 +636,7 @@ interface nsINavHistoryResult : nsISupports
  * DANGER! If you are in the middle of a batch transaction, there may be a
  * database transaction active. You can still access the DB, but be careful.
  */
-[scriptable, uuid(eacb76eb-3eeb-419b-a963-9b3a9d65f356)]
+[scriptable, uuid(14065711-8a91-4d96-ba32-59512f5401b6)]
 interface nsINavHistoryObserver : nsISupports
 {
   /**
@@ -674,6 +691,15 @@ interface nsINavHistoryObserver : nsISupports
   void onTitleChanged(in nsIURI aURI, in AString aPageTitle);
 
   /**
+   * This page and all of its visits are about to be deleted.  Note: the page
+   * may not necessarily have actually existed for this function to be called.
+   *
+   * @param aURI
+   *        The URI being deleted.
+   */
+  void onBeforeDeleteURI(in nsIURI aURI);
+
+  /**
    * This page and all of its visits are being deleted. Note: the page may not
    * necessarily have actually existed for this function to be called.
    *
@@ -698,7 +724,7 @@ interface nsINavHistoryObserver : nsISupports
   void onPageChanged(in nsIURI aURI, in unsigned long aWhat, in AString aValue);
 
   /**
-   * Called when a history entry expires. You will recieve notifications that
+   * Called when a history entry expires. You will receive notifications that
    * a specific visit has expired with the time of that visit. When the last
    * visit for a history entry expires, the history entry itself is deleted
    * and aWholeEntry is set. (If your observer only cares about URLs and not
@@ -723,7 +749,7 @@ interface nsINavHistoryObserver : nsISupports
  * can be non-negligible.
  */
 
-[scriptable, uuid(53B51AFE-9DE8-40AD-9C81-F2CC1701F1FF)]
+[scriptable, uuid(6f5668f0-da8e-4069-a0de-6680e5cd8570)]
 interface nsINavHistoryQuery : nsISupports
 {
   /**
@@ -836,6 +862,25 @@ interface nsINavHistoryQuery : nsISupports
   readonly attribute boolean hasAnnotation;
 
   /**
+   * Limit results to items that are tagged with all of the given tags.  This
+   * attribute must be set to an array of strings.  When called as a getter it
+   * will return an array of strings sorted ascending in lexicographical order.
+   * The array may be empty in either case.  Duplicate tags may be specified
+   * when setting the attribute, but the getter returns only unique tags.
+   *
+   * To search for items that are tagged with any given tags rather than all,
+   * multiple queries may be passed to nsINavHistoryService.executeQueries().
+   */
+  attribute nsIVariant tags;
+
+  /**
+   * If 'tagsAreNot' is true, the results are instead limited to items that
+   * are not tagged with any of the given tags.  This attribute is used in
+   * conjunction with the 'tags' attribute.
+   */
+  attribute boolean tagsAreNot;
+
+  /**
    * Limit results to items that are in all of the given folders.
    */
   void getFolders(out unsigned long count,
@@ -859,7 +904,7 @@ interface nsINavHistoryQuery : nsISupports
 /**
  * This object represents the global options for executing a query.
  */
-[scriptable, uuid(a46c132e-35f3-4e1e-bb3d-4e3043657248)]
+[scriptable, uuid(b3d5de06-f8ef-4433-84c2-b8b237403b2a)]
 interface nsINavHistoryQueryOptions : nsISupports
 {
   /**
@@ -939,6 +984,7 @@ interface nsINavHistoryQueryOptions : nsISupports
    * This returns nsINavHistoryQueryResultNode nodes for each tag.
    * The node contains information how to load its content:
    * - list of bookmarks with the given tag will be loaded.
+   * Setting this resultType will force queryType to QUERY_TYPE_BOOKMARKS.
    */
   const unsigned short RESULTS_AS_TAG_QUERY = 6;
 
@@ -946,6 +992,7 @@ interface nsINavHistoryQueryOptions : nsISupports
    * This is a container with an URI result type that contains the last
    * modified bookmarks for the given tag.
    * Tag folder id must be defined in the query.
+   * Setting this resultType will force queryType to QUERY_TYPE_BOOKMARKS.
    */
   const unsigned short RESULTS_AS_TAG_CONTENTS = 7;
 
@@ -970,7 +1017,7 @@ interface nsINavHistoryQueryOptions : nsISupports
    * This option excludes all URIs and separators from a bookmarks query.
    * This would be used if you just wanted a list of bookmark folders and
    * queries (such as the left pane of the places page).
-   * Ignored for queries over history. Defaults to false.
+   * Defaults to false.
    */
   attribute boolean excludeItems;
 
@@ -1022,6 +1069,29 @@ interface nsINavHistoryQueryOptions : nsISupports
   attribute boolean includeHidden;
 
   /**
+   * Include both redirected-from and redirected-to pages into results.
+   */
+  const unsigned short REDIRECTS_MODE_ALL = 0;
+  /**
+   * Query results will not include redirected-to pages, but will include
+   * redirected-from pages.
+   */
+  const unsigned short REDIRECTS_MODE_SOURCE = 1;
+  /**
+   * Query results will not include redirected-from pages but will include
+   * redirected-to pages.
+   */
+  const unsigned short REDIRECTS_MODE_TARGET = 2;
+
+  /**
+   * Defines how redirects should be handled, see REDIRECTS_MODE_* constants
+   * above.
+   * Defaults to REDIRECTS_MODE_ALL.
+   * Note: this option is effective only on QUERY_TYPE_HISTORY.
+   */
+  attribute unsigned short redirectsMode;
+
+  /**
    * Separate/group history items based on session information.  Only
    * matters when sorting by date.
    */
@@ -1060,6 +1130,16 @@ interface nsINavHistoryQueryOptions : nsISupports
 [scriptable, uuid(437f539b-d541-4a0f-a200-6f9a6d45cce2)]
 interface nsINavHistoryService : nsISupports
 {
+  /**
+   * System Notifications:
+   *
+   * places-init-complete - Sent once the History service is completely
+   *                        initialized successfully.
+   * places-database-locked - Sent if initialization of the History service
+   *                          failed due to the inability to open the places.sqlite
+   *                          for access reasons.
+   */
+
   /**
    * This transition type means the user followed a link and got a new toplevel
    * window.
@@ -1117,6 +1197,11 @@ interface nsINavHistoryService : nsISupports
    * Set when database was corrupt and we replaced it
    */
   const unsigned short DATABASE_STATUS_CORRUPT = 2;
+
+  /**
+   * Set when database schema has been upgraded
+   */
+  const unsigned short DATABASE_STATUS_UPGRADED = 3;
 
   /**
    * Returns the current database status

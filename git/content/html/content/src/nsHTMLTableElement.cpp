@@ -240,7 +240,7 @@ TableRowsCollection::Init()
         } while (0);                                                 \
       }                                                              \
     }                                                                \
-  } while (0);
+  } while (0)
 
 static PRUint32
 CountRowsInRowGroup(nsIDOMHTMLCollection* rows)
@@ -293,7 +293,7 @@ GetItemOrCountInRowGroup(nsIDOMHTMLCollection* rows,
 nsISupports* 
 TableRowsCollection::GetNodeAt(PRUint32 aIndex, nsresult *aResult)
 {
-  nsresult rv;
+  nsresult rv = NS_OK;
   DO_FOR_EACH_ROWGROUP(
     PRUint32 count;
     nsINode* node = GetItemOrCountInRowGroup(rows, aIndex, &count);
@@ -753,7 +753,7 @@ nsHTMLTableElement::InsertRow(PRInt32 aIndex, nsIDOMHTMLElement** aValue)
 {
   /* get the ref row at aIndex
      if there is one, 
-       get it's parent
+       get its parent
        insert the new row just before the ref row
      else
        get the first row group

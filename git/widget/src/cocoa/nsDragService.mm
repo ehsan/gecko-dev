@@ -50,8 +50,6 @@
 #include "nsIDOMNode.h"
 #include "nsRect.h"
 #include "nsPoint.h"
-#include "nsIWidget.h"
-#include "nsIImage.h"
 #include "nsICharsetConverterManager.h"
 #include "nsIIOService.h"
 #include "nsNetUtil.h"
@@ -78,6 +76,7 @@ extern PRLogModuleInfo* sCocoaLog;
 extern NSPasteboard* globalDragPboard;
 extern NSView* gLastDragView;
 extern NSEvent* gLastDragEvent;
+extern PRBool gUserCancelledDrag;
 
 // This global makes the transferable array available to Cocoa's promised
 // file destination callback.
@@ -93,7 +92,6 @@ nsDragService::nsDragService()
   mNativeDragView = nil;
   mNativeDragEvent = nil;
 }
-
 
 nsDragService::~nsDragService()
 {
@@ -138,11 +136,14 @@ static nsresult SetUpDragClipboard(nsISupportsArray* aTransferableArray)
       NSString* currentKey = [types objectAtIndex:i];
       id currentValue = [pasteboardOutputDict valueForKey:currentKey];
       if (currentKey == NSStringPboardType ||
-          currentKey == NSHTMLPboardType ||
           currentKey == kCorePboardType_url ||
           currentKey == kCorePboardType_urld ||
           currentKey == kCorePboardType_urln) {
         [dragPBoard setString:currentValue forType:currentKey];
+      }
+      else if (currentKey == NSHTMLPboardType) {
+        [dragPBoard setString:(nsClipboard::WrapHtmlForSystemPasteboard(currentValue))
+                      forType:currentKey];
       }
       else if (currentKey == NSTIFFPboardType) {
         [dragPBoard setData:currentValue forType:currentKey];
@@ -158,10 +159,9 @@ static nsresult SetUpDragClipboard(nsISupportsArray* aTransferableArray)
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
-
 NSImage*
 nsDragService::ConstructDragImage(nsIDOMNode* aDOMNode,
-                                  nsRect* aDragRect,
+                                  nsIntRect* aDragRect,
                                   nsIScriptableRegion* aRegion)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
@@ -265,7 +265,7 @@ nsDragService::InvokeDragSession(nsIDOMNode* aDOMNode, nsISupportsArray* aTransf
   if (NS_FAILED(SetUpDragClipboard(aTransferableArray)))
     return NS_ERROR_FAILURE;
 
-  nsRect dragRect(0, 0, 20, 20);
+  nsIntRect dragRect(0, 0, 20, 20);
   NSImage* image = ConstructDragImage(aDOMNode, &dragRect, aDragRgn);
   if (!image) {
     // if no image was returned, just draw a rectangle
@@ -305,6 +305,7 @@ nsDragService::InvokeDragSession(nsIDOMNode* aDOMNode, nsISupportsArray* aTransf
   mNativeDragView = [gLastDragView retain];
   mNativeDragEvent = [gLastDragEvent retain];
 
+  gUserCancelledDrag = PR_FALSE;
   [mNativeDragView dragImage:image
                           at:localPoint
                       offset:NSMakeSize(0,0)
@@ -312,6 +313,7 @@ nsDragService::InvokeDragSession(nsIDOMNode* aDOMNode, nsISupportsArray* aTransf
                   pasteboard:[NSPasteboard pasteboardWithName:NSDragPboard]
                       source:mNativeDragView
                    slideBack:YES];
+  gUserCancelledDrag = PR_FALSE;
 
   if (mDoingDrag)
     nsBaseDragService::EndDragSession(PR_FALSE);
@@ -320,7 +322,6 @@ nsDragService::InvokeDragSession(nsIDOMNode* aDOMNode, nsISupportsArray* aTransf
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
-
 
 NS_IMETHODIMP
 nsDragService::GetData(nsITransferable* aTransferable, PRUint32 aItemIndex)
@@ -465,7 +466,6 @@ nsDragService::GetData(nsITransferable* aTransferable, PRUint32 aItemIndex)
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
-
 NS_IMETHODIMP
 nsDragService::IsDataFlavorSupported(const char *aDataFlavor, PRBool *_retval)
 {
@@ -538,7 +538,6 @@ nsDragService::IsDataFlavorSupported(const char *aDataFlavor, PRBool *_retval)
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
-
 NS_IMETHODIMP
 nsDragService::GetNumDropItems(PRUint32* aNumItems)
 {
@@ -569,7 +568,6 @@ nsDragService::GetNumDropItems(PRUint32* aNumItems)
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
-
 NS_IMETHODIMP
 nsDragService::EndDragSession(PRBool aDoneDrag)
 {
@@ -583,6 +581,8 @@ nsDragService::EndDragSession(PRBool aDoneDrag)
     [mNativeDragEvent release];
     mNativeDragEvent = nil;
   }
+
+  mUserCancelled = gUserCancelledDrag;
 
   nsresult rv = nsBaseDragService::EndDragSession(aDoneDrag);
   mDataItems = nsnull;

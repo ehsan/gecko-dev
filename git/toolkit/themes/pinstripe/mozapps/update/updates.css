@@ -21,12 +21,8 @@ link > label {
   text-decoration: underline !important;
 }
 
-link:hover:active {
-  color: red;
-}
-
 link:focus {
-  border: 1px dotted black;
+  border: 1px dotted -moz-DialogText;
 }
 
 .wizard-page-box {
@@ -35,7 +31,7 @@ link:focus {
 
 remotecontent {
   margin-top: 1px;
-  margin-bottom: 2px;
+  margin-bottom: 4px;
   -moz-margin-start: 6px;
   -moz-margin-end: 5px;
   -moz-appearance: listbox;

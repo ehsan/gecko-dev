@@ -49,11 +49,7 @@
 #include "prprf.h"
 #include "prnetdb.h"
 
-#ifndef XP_MAC
 #include "private/pprio.h"
-#else
-#include "pprio.h"
-#endif
 
 #define CLIENT_LOOPS	5
 #define BUF_SIZE		128
@@ -61,6 +57,16 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+
+#ifdef WINCE
+
+int main(int argc, char **argv)
+{
+    fprintf(stderr, "Invalid/Broken Test for WinCE/WinMobile\n");
+    exit(1);
+}
+
+#else
 
 static void
 clientThreadFunc(void *arg)
@@ -372,3 +378,6 @@ int main(int argc, char **argv)
     PR_Cleanup();
     return 0;
 }
+
+
+#endif   /* ifdef WINCE */

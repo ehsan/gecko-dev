@@ -40,7 +40,7 @@
 #define GFX_PLATFORM_H
 
 #include "prtypes.h"
-#include "nsVoidArray.h"
+#include "nsTArray.h"
 
 #include "nsIObserver.h"
 
@@ -48,12 +48,10 @@
 #include "gfxASurface.h"
 #include "gfxColor.h"
 
+#include "qcms.h"
 #ifdef XP_OS2
 #undef OS2EMX_PLAIN_CHAR
 #endif
-
-typedef void* cmsHPROFILE;
-typedef void* cmsHTRANSFORM;
 
 class gfxImageSurface;
 class gfxFont;
@@ -61,6 +59,7 @@ class gfxFontGroup;
 struct gfxFontStyle;
 class gfxUserFontSet;
 class gfxFontEntry;
+class gfxProxyFontEntry;
 class nsIURI;
 
 // pref lang id's for font prefs
@@ -157,7 +156,7 @@ public:
      */
     virtual nsresult GetFontList(const nsACString& aLangGroup,
                                  const nsACString& aGenericFamily,
-                                 nsStringArray& aListOfFonts);
+                                 nsTArray<nsString>& aListOfFonts);
 
     /**
      * Rebuilds the any cached system font lists
@@ -192,15 +191,26 @@ public:
                                           
                                           
     /**
-     * Look up a local platform font using the full font face name (needed to support @font-face src local() )
+     * Look up a local platform font using the full font face name.
+     * (Needed to support @font-face src local().)
+     * Ownership of the returned gfxFontEntry is passed to the caller,
+     * who must either AddRef() or delete.
      */
-    virtual gfxFontEntry* LookupLocalFont(const nsAString& aFontName) { return nsnull; }
+    virtual gfxFontEntry* LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
+                                          const nsAString& aFontName)
+    { return nsnull; }
 
     /**
-     * Activate a platform font (needed to support @font-face src url() )
-     *
+     * Activate a platform font.  (Needed to support @font-face src url().)
+     * aFontData must persist as long as a reference is held to aLoader.
+     * Ownership of the returned gfxFontEntry is passed to the caller,
+     * who must either AddRef() or delete.
      */
-    virtual gfxFontEntry* MakePlatformFont(const gfxFontEntry *aProxyEntry, const PRUint8 *aFontData, PRUint32 aLength) { return nsnull; }
+    virtual gfxFontEntry* MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
+                                           nsISupports *aLoader,
+                                           const PRUint8 *aFontData,
+                                           PRUint32 aLength)
+    { return nsnull; }
 
     /**
      * Whether to allow downloadable fonts via @font-face rules
@@ -257,39 +267,39 @@ public:
      *
      * Sets 'out' to 'in' if transform is NULL.
      */
-    static void TransformPixel(const gfxRGBA& in, gfxRGBA& out, cmsHTRANSFORM transform);
+    static void TransformPixel(const gfxRGBA& in, gfxRGBA& out, qcms_transform *transform);
 
     /**
      * Return the output device ICC profile.
      */
-    static cmsHPROFILE GetCMSOutputProfile();
+    static qcms_profile* GetCMSOutputProfile();
 
     /**
      * Return the sRGB ICC profile.
      */
-    static cmsHPROFILE GetCMSsRGBProfile();
+    static qcms_profile* GetCMSsRGBProfile();
 
     /**
      * Return sRGB -> output device transform.
      */
-    static cmsHTRANSFORM GetCMSRGBTransform();
+    static qcms_transform* GetCMSRGBTransform();
 
     /**
      * Return output -> sRGB device transform.
      */
-    static cmsHTRANSFORM GetCMSInverseRGBTransform();
+    static qcms_transform* GetCMSInverseRGBTransform();
 
     /**
      * Return sRGBA -> output device transform.
      */
-    static cmsHTRANSFORM GetCMSRGBATransform();
+    static qcms_transform* GetCMSRGBATransform();
 
 protected:
     gfxPlatform() { }
     virtual ~gfxPlatform();
 
 private:
-    virtual cmsHPROFILE GetPlatformCMSOutputProfile();
+    virtual qcms_profile* GetPlatformCMSOutputProfile();
 
     nsCOMPtr<nsIObserver> overrideObserver;
 };

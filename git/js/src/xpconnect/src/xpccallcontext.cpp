@@ -75,8 +75,6 @@ XPCCallContext::XPCCallContext(XPCContext::LangType callerLanguage,
     if(!mXPC)
         return;
 
-    NS_ADDREF(mXPC);
-
     mThreadData = XPCPerThreadData::GetData(mJSContext);
 
     if(!mThreadData)
@@ -87,7 +85,8 @@ XPCCallContext::XPCCallContext(XPCContext::LangType callerLanguage,
 
     if(!stack || NS_FAILED(stack->Peek(&topJSContext)))
     {
-        NS_ERROR("bad!");
+        // If we don't have a stack we're probably in shutdown.
+        NS_ASSERTION(!stack, "Bad, Peek failed!");
         mJSContext = nsnull;
         return;
     }
@@ -130,6 +129,11 @@ XPCCallContext::XPCCallContext(XPCContext::LangType callerLanguage,
     // hook into call context chain for our thread
     mPrevCallContext = mThreadData->SetCallContext(this);
 
+    // We only need to addref xpconnect once so only do it if this is the first
+    // context in the chain.
+    if(!mPrevCallContext)
+        NS_ADDREF(mXPC);
+
     mState = HAVE_CONTEXT;
 
     if(!obj)
@@ -145,17 +149,27 @@ XPCCallContext::XPCCallContext(XPCContext::LangType callerLanguage,
                                                             funobj,
                                                             &mCurrentJSObject,
                                                             &mTearOff);
-    if(!mWrapper)
-        return;
+    if(mWrapper)
+    {
+        DEBUG_CheckWrapperThreadSafety(mWrapper);
 
-    DEBUG_CheckWrapperThreadSafety(mWrapper);
+        mFlattenedJSObject = mWrapper->GetFlatJSObject();
 
-    mFlattenedJSObject = mWrapper->GetFlatJSObject();
-
-    if(mTearOff)
-        mScriptableInfo = nsnull;
+        if(mTearOff)
+            mScriptableInfo = nsnull;
+        else
+            mScriptableInfo = mWrapper->GetScriptableInfo();
+    }
     else
-        mScriptableInfo = mWrapper->GetScriptableInfo();
+    {
+        if(!mCurrentJSObject)
+            return;
+
+        NS_ASSERTION(IS_SLIM_WRAPPER(mCurrentJSObject),
+                     "What kind of wrapper is this?");
+
+        mFlattenedJSObject = mCurrentJSObject;
+    }
 
     if(name)
         SetName(name);
@@ -214,6 +228,8 @@ void
 XPCCallContext::SetCallInfo(XPCNativeInterface* iface, XPCNativeMember* member,
                             JSBool isSetter)
 {
+    CHECK_STATE(HAVE_CONTEXT);
+
     // We are going straight to the method info and need not do a lookup
     // by id.
 
@@ -294,6 +310,8 @@ XPCCallContext::~XPCCallContext()
 {
     // do cleanup...
 
+    PRBool shouldReleaseXPC = PR_FALSE;
+
     if(mXPCContext)
     {
         mXPCContext->SetCallingLangType(mPrevCallerLanguage);
@@ -304,6 +322,8 @@ XPCCallContext::~XPCCallContext()
 #else
         (void) mThreadData->SetCallContext(mPrevCallContext);
 #endif
+
+        shouldReleaseXPC = mPrevCallContext == nsnull;
     }
 
     if(mContextPopRequired)
@@ -330,7 +350,7 @@ XPCCallContext::~XPCCallContext()
         if(mDestroyJSContextInDestructor)
         {
 #ifdef DEBUG_xpc_hacker
-            printf("!xpc - doing deferred destruction of JSContext @ %0x\n", 
+            printf("!xpc - doing deferred destruction of JSContext @ %p\n", 
                    mJSContext);
 #endif
             NS_ASSERTION(!mThreadData->GetJSContextStack() || 
@@ -345,7 +365,7 @@ XPCCallContext::~XPCCallContext()
             // Don't clear newborns if JS frames (compilation or execution)
             // are active!  Doing so violates ancient invariants in the JS
             // engine, and it's not necessary to fix JS component leaks.
-            if(!mJSContext->fp)
+            if(!JS_IsRunning(mJSContext))
                 JS_ClearNewbornRoots(mJSContext);
         }
     }
@@ -363,7 +383,8 @@ XPCCallContext::~XPCCallContext()
     }
 #endif
 
-    NS_IF_RELEASE(mXPC);
+    if(shouldReleaseXPC && mXPC)
+        NS_RELEASE(mXPC);
 }
 
 XPCReadableJSStringWrapper *
@@ -519,6 +540,8 @@ void
 XPCCallContext::SetIDispatchInfo(XPCNativeInterface* iface, 
                                  void * member)
 {
+    CHECK_STATE(HAVE_CONTEXT);
+
     // We are going straight to the method info and need not do a lookup
     // by id.
 

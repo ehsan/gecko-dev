@@ -230,7 +230,8 @@ NS_NewXULPrototypeDocument(nsXULPrototypeDocument** aResult)
 
 // Helper method that shares a system global among all prototype documents
 // that have the system principal as their security principal.   Called by
-// nsXULPrototypeDocument::Read and nsXULPDGlobalObject::GetGlobalObject.
+// nsXULPrototypeDocument::Read and
+// nsXULPrototypeDocument::GetScriptGlobalObject.
 // This method greatly reduces the number of nsXULPDGlobalObjects and their
 // nsIScriptContexts in apps that load many XUL documents via chrome: URLs.
 
@@ -692,6 +693,7 @@ nsXULPDGlobalObject::SetScriptContext(PRUint32 lang_id, nsIScriptContext *aScrip
   void *script_glob = nsnull;
 
   if (aScriptContext) {
+    aScriptContext->SetGCOnDestruction(PR_FALSE);
     aScriptContext->DidInitializeContext();
     script_glob = aScriptContext->GetNativeGlobal();
     NS_ASSERTION(script_glob, "GetNativeGlobal returned NULL!");

@@ -40,7 +40,7 @@
 gPrefs.setBoolPref("extensions.checkUpdateSecurity", false);
 
 // Get the HTTP server.
-do_import_script("netwerk/test/httpserver/httpd.js");
+do_load_httpd_js();
 var testserver;
 
 var next_test = null;
@@ -142,7 +142,7 @@ var updateListener = {
 function run_test() {
   createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "2", "2");
 
-  const dataDir = do_get_file("toolkit/mozapps/extensions/test/unit/data");
+  const dataDir = do_get_file("data");
 
   // Create and configure the HTTP server.
   testserver = new nsHttpServer();
@@ -160,7 +160,7 @@ function run_test() {
   gEM.disableItem(ADDONS[0].id);
   restartEM();
 
-  var items = gEM.getIncompatibleItemList("", "3", "3", Ci.nsIUpdateItem.TYPE_ANY,
+  var items = gEM.getIncompatibleItemList("3", "3", Ci.nsIUpdateItem.TYPE_ANY,
                                           false, { });
 
   // Verify only items incompatible with the next app version are returned
@@ -183,6 +183,5 @@ function run_test() {
 }
 
 function test_complete() {
-  testserver.stop();
-  do_test_finished();
+  testserver.stop(do_test_finished);
 }

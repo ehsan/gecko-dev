@@ -50,7 +50,6 @@
 #include "nsIFormSubmission.h"
 #include "nsIObjectFrame.h"
 #include "nsIPluginInstance.h"
-#include "nsIPluginInstanceInternal.h"
 
 class nsHTMLObjectElement : public nsGenericHTMLFormElement,
                             public nsObjectLoadingContent,
@@ -91,6 +90,8 @@ public:
   virtual nsresult SetAttr(PRInt32 aNameSpaceID, nsIAtom *aName,
                            nsIAtom *aPrefix, const nsAString &aValue,
                            PRBool aNotify);
+  virtual nsresult UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
+                             PRBool aNotify);
 
   virtual PRBool IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex);
   virtual PRUint32 GetDesiredIMEState();
@@ -122,8 +123,10 @@ public:
 
   virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
+  void StartObjectLoad() { StartObjectLoad(PR_TRUE); }
+
   NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED_NO_UNLINK(nsHTMLObjectElement,
-                                                     nsGenericHTMLElement)
+                                                     nsGenericHTMLFormElement)
 
 private:
   /**
@@ -143,10 +146,12 @@ nsHTMLObjectElement::nsHTMLObjectElement(nsINodeInfo *aNodeInfo,
   : nsGenericHTMLFormElement(aNodeInfo),
     mIsDoneAddingChildren(!aFromParser)
 {
+  RegisterFreezableElement();
 }
 
 nsHTMLObjectElement::~nsHTMLObjectElement()
 {
+  UnregisterFreezableElement();
   DestroyImageLoadingContent();
 }
 
@@ -220,9 +225,9 @@ nsHTMLObjectElement::BindToTree(nsIDocument *aDocument,
 
   // If we already have all the children, start the load.
   if (mIsDoneAddingChildren) {
-    // Don't need to notify: We have no frames yet, since we weren't in a
-    // document
-    StartObjectLoad(PR_FALSE);
+    nsContentUtils::AddScriptRunner(
+      new nsRunnableMethod<nsHTMLObjectElement>(this,
+                                                &nsHTMLObjectElement::StartObjectLoad));
   }
 
   return NS_OK;
@@ -263,6 +268,17 @@ nsHTMLObjectElement::SetAttr(PRInt32 aNameSpaceID, nsIAtom *aName,
                                            aValue, aNotify);
 }
 
+nsresult
+nsHTMLObjectElement::UnsetAttr(PRInt32 aNameSpaceID, nsIAtom* aAttribute,
+                               PRBool aNotify)
+{
+  if (aNameSpaceID == kNameSpaceID_None && aAttribute == nsGkAtoms::data) {
+    Fallback(aNotify);
+  }
+
+  return nsGenericHTMLFormElement::UnsetAttr(aNameSpaceID, aAttribute, aNotify);
+}
+
 PRBool
 nsHTMLObjectElement::IsHTMLFocusable(PRBool *aIsFocusable, PRInt32 *aTabIndex)
 {
@@ -285,7 +301,7 @@ PRUint32
 nsHTMLObjectElement::GetDesiredIMEState()
 {
   if (Type() == eType_Plugin) {
-    return nsIContent::IME_STATUS_ENABLE;
+    return nsIContent::IME_STATUS_PLUGIN;
   }
    
   return nsGenericHTMLFormElement::GetDesiredIMEState();
@@ -310,11 +326,7 @@ nsHTMLObjectElement::SubmitNamesValues(nsIFormSubmission *aFormSubmission,
 
   nsIFrame* frame = GetPrimaryFrame();
 
-  nsIObjectFrame *objFrame = nsnull;
-  if (frame) {
-    CallQueryInterface(frame, &objFrame);
-  }
-
+  nsIObjectFrame *objFrame = do_QueryFrame(frame);
   if (!objFrame) {
     // No frame, nothing to submit.
 
@@ -323,17 +335,11 @@ nsHTMLObjectElement::SubmitNamesValues(nsIFormSubmission *aFormSubmission,
 
   nsCOMPtr<nsIPluginInstance> pi;
   objFrame->GetPluginInstance(*getter_AddRefs(pi));
-
-  nsCOMPtr<nsIPluginInstanceInternal> pi_internal(do_QueryInterface(pi));
-
-  if (!pi_internal) {
-    // No plugin, nothing to submit.
-
+  if (!pi)
     return NS_OK;
-  }
 
   nsAutoString value;
-  nsresult rv = pi_internal->GetFormValue(value);
+  nsresult rv = pi->GetFormValue(value);
   NS_ENSURE_SUCCESS(rv, rv);
 
   return aFormSubmission->AddNameValuePair(this, name, value);

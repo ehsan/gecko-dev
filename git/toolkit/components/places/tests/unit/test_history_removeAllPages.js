@@ -51,8 +51,28 @@ let as = Cc["@mozilla.org/browser/annotation-service;1"].
          getService(Ci.nsIAnnotationService);
 let os = Cc["@mozilla.org/observer-service;1"].
          getService(Ci.nsIObserverService);
+let lms = Cc["@mozilla.org/browser/livemark-service;2"].
+          getService(Ci.nsILivemarkService);
 
 const kSyncFinished = "places-sync-finished";
+// Number of expected sync notifications, we expect one per bookmark.
+const EXPECTED_SYNCS = 4;
+
+function add_fake_livemark() {
+  let lmId = lms.createLivemarkFolderOnly(bs.toolbarFolder,
+                                          "Livemark",
+                                          uri("http://www.mozilla.org/"),
+                                          uri("http://www.mozilla.org/test.xml"),
+                                          bs.DEFAULT_INDEX);
+  // add a visited child
+  bs.insertBookmark(lmId, uri("http://visited.livemark.com/"),
+                    bs.DEFAULT_INDEX, "visited");
+  hs.addVisit(uri("http://visited.livemark.com/"), Date.now(), null,
+              hs.TRANSITION_BOOKMARK, false, 0);
+  // add an unvisited child
+  bs.insertBookmark(lmId, uri("http://unvisited.livemark.com/"),
+                    bs.DEFAULT_INDEX, "unvisited");
+}
 
 let observer = {
   onBeginUpdateBatch: function() {
@@ -62,6 +82,8 @@ let observer = {
   onVisit: function(aURI, aVisitID, aTime, aSessionID, aReferringID, aTransitionType) {
   },
   onTitleChanged: function(aURI, aPageTitle) {
+  },
+  onBeforeDeleteURI: function(aURI) {
   },
   onDeleteURI: function(aURI) {
   },
@@ -122,9 +144,9 @@ hs.addObserver(observer, false);
 let syncObserver = {
   _runCount: 0,
   observe: function (aSubject, aTopic, aData) {
-    if (++this._runCount < 2)
+    if (++this._runCount < EXPECTED_SYNCS)
       return;
-    if (this._runCount == 2) {
+    if (this._runCount == EXPECTED_SYNCS) {
       bh.removeAllPages();
       return;
     }
@@ -158,7 +180,7 @@ let syncObserver = {
 
     // Check that all moz_places entries except bookmarks and place: have been removed
     stmt = mDBConn.createStatement(
-      "SELECT h.id FROM moz_places h WHERE SUBSTR(h.url,0,6) <> 'place:' "+
+      "SELECT h.id FROM moz_places h WHERE SUBSTR(h.url, 1, 6) <> 'place:' "+
         "AND NOT EXISTS (SELECT id FROM moz_bookmarks WHERE fk = h.id) LIMIT 1");
     do_check_false(stmt.executeStep());
     stmt.finalize();
@@ -187,7 +209,18 @@ let syncObserver = {
     // Check that place:uris have frecency 0
     stmt = mDBConn.createStatement(
       "SELECT h.id FROM moz_places h " +
-      "WHERE SUBSTR(h.url,0,6) = 'place:' AND h.frecency <> 0 LIMIT 1");
+      "WHERE SUBSTR(h.url, 1, 6) = 'place:' AND h.frecency <> 0 LIMIT 1");
+    do_check_false(stmt.executeStep());
+    stmt.finalize();
+
+    // Check that livemarks children don't have frecency <> 0
+    stmt = mDBConn.createStatement(
+      "SELECT h.id FROM moz_places h " +
+      "JOIN moz_bookmarks b ON h.id = b.fk " +
+      "JOIN moz_bookmarks bp ON bp.id = b.parent " +
+      "JOIN moz_items_annos t ON t.item_id = bp.id " +
+      "JOIN moz_anno_attributes n ON t.anno_attribute_id = n.id " +
+      "WHERE n.name = 'livemark/feedURI' AND h.frecency <> 0 LIMIT 1");
     do_check_false(stmt.executeStep());
     stmt.finalize();
 
@@ -199,6 +232,9 @@ os.addObserver(syncObserver, kSyncFinished, false);
 
 // main
 function run_test() {
+  // Add a livemark with a visited and an unvisited child
+  add_fake_livemark();
+
   // Add a bunch of visits
   hs.addVisit(uri("http://typed.mozilla.org"), Date.now(), null,
               hs.TRANSITION_TYPED, false, 0);

@@ -43,13 +43,13 @@
 #include "nsXPIDLString.h"
 #include "nsPrimitiveHelpers.h"
 #include "nsMemory.h"
-#include "nsIImage.h"
 #include "nsILocalFile.h"
 #include "nsStringStream.h"
 #include "nsDragService.h"
 #include "nsEscape.h"
 #include "nsPrintfCString.h"
 #include "nsObjCExceptions.h"
+#include "imgIContainer.h"
 
 // Screenshots use the (undocumented) png pasteboard type.
 #define IMAGE_PASTEBOARD_TYPES NSTIFFPboardType, @"Apple PNG pasteboard type", nil
@@ -63,17 +63,14 @@
 extern PRLogModuleInfo* sCocoaLog;
 #endif
 
-
 nsClipboard::nsClipboard() : nsBaseClipboard()
 {
   mChangeCount = 0;
 }
 
-
 nsClipboard::~nsClipboard()
 {
 }
-
 
 // We separate this into its own function because after an @try, all local
 // variables within that function get marked as volatile, and our C++ type 
@@ -90,7 +87,6 @@ GetDataFromPasteboard(NSPasteboard* aPasteboard, NSString* aType)
   }
   return data;
 }
-
 
 NS_IMETHODIMP
 nsClipboard::SetNativeClipboardData(PRInt32 aWhichClipboard)
@@ -115,13 +111,16 @@ nsClipboard::SetNativeClipboardData(PRInt32 aWhichClipboard)
     NSString* currentKey = [outputKeys objectAtIndex:i];
     id currentValue = [pasteboardOutputDict valueForKey:currentKey];
     if (currentKey == NSStringPboardType ||
-        currentKey == NSHTMLPboardType ||
         currentKey == kCorePboardType_url ||
         currentKey == kCorePboardType_urld ||
-        currentKey == kCorePboardType_urln)
+        currentKey == kCorePboardType_urln) {
       [generalPBoard setString:currentValue forType:currentKey];
-    else
+    } else if (currentKey == NSHTMLPboardType) {
+      [generalPBoard setString:(nsClipboard::WrapHtmlForSystemPasteboard(currentValue))
+                       forType:currentKey];
+    } else {
       [generalPBoard setData:currentValue forType:currentKey];
+    }
   }
 
   mChangeCount = [generalPBoard changeCount];
@@ -132,7 +131,6 @@ nsClipboard::SetNativeClipboardData(PRInt32 aWhichClipboard)
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
-
 
 NS_IMETHODIMP
 nsClipboard::GetNativeClipboardData(nsITransferable* aTransferable, PRInt32 aWhichClipboard)
@@ -299,7 +297,6 @@ nsClipboard::GetNativeClipboardData(nsITransferable* aTransferable, PRInt32 aWhi
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
-
 // returns true if we have *any* of the passed in flavors available for pasting
 NS_IMETHODIMP
 nsClipboard::HasDataMatchingFlavors(const char** aFlavorList, PRUint32 aLength,
@@ -367,7 +364,6 @@ nsClipboard::HasDataMatchingFlavors(const char** aFlavorList, PRUint32 aLength,
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
-
 // This function converts anything that other applications might understand into the system format
 // and puts it into a dictionary which it returns.
 // static
@@ -429,18 +425,19 @@ nsClipboard::PasteboardDictFromTransferable(nsITransferable* aTransferable)
       nsCOMPtr<nsISupports> primitiveData;
       ptrPrimitive->GetData(getter_AddRefs(primitiveData));
 
-      nsCOMPtr<nsIImage> image(do_QueryInterface(primitiveData));
+      nsCOMPtr<imgIContainer> image(do_QueryInterface(primitiveData));
       if (!image) {
-        NS_WARNING("Image isn't an nsIImage in transferable");
+        NS_WARNING("Image isn't an imgIContainer in transferable");
         continue;
       }
 
-      if (NS_FAILED(image->LockImagePixels(PR_FALSE)))
+      nsRefPtr<gfxImageSurface> currentFrame;
+      if (NS_FAILED(image->CopyCurrentFrame(getter_AddRefs(currentFrame))))
         continue;
 
-      PRInt32 height = image->GetHeight();
-      PRInt32 stride = image->GetLineStride();
-      PRInt32 width = image->GetWidth();
+      PRInt32 height = currentFrame->Height();
+      PRInt32 stride = currentFrame->Stride();
+      PRInt32 width = currentFrame->Width();
       if ((stride % 4 != 0) || (height < 1) || (width < 1))
         continue;
 
@@ -448,7 +445,7 @@ nsClipboard::PasteboardDictFromTransferable(nsITransferable* aTransferable)
       // the alpha ordering and endianness of the machine so we don't have to
       // touch the bits ourselves.
       CGDataProviderRef dataProvider = CGDataProviderCreateWithData(NULL,
-                                                                    image->GetBits(),
+                                                                    currentFrame->Data(),
                                                                     stride * height,
                                                                     NULL);
       CGColorSpaceRef colorSpace = CGColorSpaceCreateWithName(kCGColorSpaceGenericRGB);
@@ -479,7 +476,7 @@ nsClipboard::PasteboardDictFromTransferable(nsITransferable* aTransferable)
       if (destRef)
         CFRelease(destRef);
 
-      if (NS_FAILED(image->UnlockImagePixels(PR_FALSE)) || !successfullyConverted) {
+      if (!successfullyConverted) {
         if (tiffData)
           CFRelease(tiffData);
         continue;
@@ -551,4 +548,19 @@ PRBool nsClipboard::IsStringType(const nsCString& aMIMEType, const NSString** aP
   } else {
     return PR_FALSE;
   }
+}
+
+NSString* nsClipboard::WrapHtmlForSystemPasteboard(NSString* aString)
+{
+  NSString* wrapped =
+    [NSString stringWithFormat:
+      @"<html>"
+         "<head>"
+           "<meta http-equiv=\"content-type\" content=\"text/html; charset=utf-8\">"
+         "</head>"
+         "<body>"
+           "%@"
+         "</body>"
+       "</html>", aString];
+  return wrapped;
 }

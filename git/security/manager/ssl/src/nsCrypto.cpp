@@ -233,7 +233,7 @@ private:
 NS_INTERFACE_MAP_BEGIN(nsCrypto)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCrypto)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
-  NS_INTERFACE_MAP_ENTRY_DOM_CLASSINFO(Crypto)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(Crypto)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_ADDREF(nsCrypto)
@@ -243,7 +243,7 @@ NS_IMPL_RELEASE(nsCrypto)
 NS_INTERFACE_MAP_BEGIN(nsCRMFObject)
   NS_INTERFACE_MAP_ENTRY(nsIDOMCRMFObject)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
-  NS_INTERFACE_MAP_ENTRY_DOM_CLASSINFO(CRMFObject)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(CRMFObject)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_ADDREF(nsCRMFObject)
@@ -251,9 +251,8 @@ NS_IMPL_RELEASE(nsCRMFObject)
 
 // QueryInterface implementation for nsPkcs11
 NS_INTERFACE_MAP_BEGIN(nsPkcs11)
-  NS_INTERFACE_MAP_ENTRY(nsIDOMPkcs11)
+  NS_INTERFACE_MAP_ENTRY(nsIPKCS11)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
-  NS_INTERFACE_MAP_ENTRY_DOM_CLASSINFO(Pkcs11)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_ADDREF(nsPkcs11)
@@ -2263,7 +2262,6 @@ nsCrypto::ImportUserCertificates(const nsAString& aNickname,
 {
   nsNSSShutDownPreventionLock locker;
   char *nickname=nsnull, *cmmfResponse=nsnull;
-  char *retString=nsnull;
   CMMFCertRepContent *certRepContent = nsnull;
   int numResponses = 0;
   nsIX509Cert **certArr = nsnull;
@@ -2382,8 +2380,6 @@ nsCrypto::ImportUserCertificates(const nsAString& aNickname,
   //nickname (This way we don't free it twice and avoid crashing.
   //That would be a good thing.
 
-  retString = "";
-
   //Import the root chain into the cert db.
   caPubs = CMMF_CertRepContentGetCAPubs(certRepContent);
   if (caPubs) {
@@ -2440,7 +2436,7 @@ nsCrypto::ImportUserCertificates(const nsAString& aNickname,
     }
     delete []certArr;
   }
-  aReturn.Assign(NS_ConvertASCIItoUTF16(retString));
+  aReturn.Assign(EmptyString());
   if (nickname) {
     NS_Free(nickname);
   }
@@ -2860,15 +2856,6 @@ nsCrypto::SignText(const nsAString& aStringToSign, const nsAString& aCaOption,
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsCrypto::Alert(const nsAString& aMessage)
-{
-  PRUnichar *message = ToNewUnicode(aMessage);
-  alertUser(message);
-  nsMemory::Free(message);
-  return NS_OK;
-}
-
 //Logout out of all installed PKCS11 tokens.
 NS_IMETHODIMP
 nsCrypto::Logout()
@@ -2943,12 +2930,13 @@ confirm_user(const PRUnichar *message)
   if (prompter) {
     nsPSMUITracker tracker;
     if (!tracker.isUIForbidden()) {
+      PRBool checkState;
       prompter->ConfirmEx(0, message,
                           (nsIPrompt::BUTTON_DELAY_ENABLE) +
                           (nsIPrompt::BUTTON_POS_1_DEFAULT) +
                           (nsIPrompt::BUTTON_TITLE_OK * nsIPrompt::BUTTON_POS_0) +
                           (nsIPrompt::BUTTON_TITLE_CANCEL * nsIPrompt::BUTTON_POS_1),
-                          nsnull, nsnull, nsnull, nsnull, nsnull, &buttonPressed);
+                          nsnull, nsnull, nsnull, nsnull, &checkState, &buttonPressed);
     }
   }
 
@@ -2957,33 +2945,18 @@ confirm_user(const PRUnichar *message)
 
 //Delete a PKCS11 module from the user's profile.
 NS_IMETHODIMP
-nsPkcs11::Deletemodule(const nsAString& aModuleName, PRInt32* aReturn)
+nsPkcs11::DeleteModule(const nsAString& aModuleName)
 {
   nsNSSShutDownPreventionLock locker;
   nsresult rv;
   nsString errorMessage;
 
   nsCOMPtr<nsINSSComponent> nssComponent(do_GetService(kNSSComponentCID, &rv));
+  if (NS_FAILED(rv))
+    return rv;
+
   if (aModuleName.IsEmpty()) {
-    *aReturn = JS_ERR_BAD_MODULE_NAME;
-    nssComponent->GetPIPNSSBundleString("DelModuleBadName", errorMessage);
-    alertUser(errorMessage.get());
-    return NS_OK;
-  }
-  nsString final;
-  nsAutoString temp;
-  //Make sure the user knows we're trying to do this.
-  nssComponent->GetPIPNSSBundleString("DelModuleWarning", final);
-  final.Append(NS_LITERAL_STRING("\n").get());
-  PRUnichar *tempUni = ToNewUnicode(aModuleName);
-  const PRUnichar *formatStrings[1] = { tempUni };
-  rv = nssComponent->PIPBundleFormatStringFromName("AddModuleName",
-                                                   formatStrings, 1, temp);
-  nsMemory::Free(tempUni);
-  final.Append(temp);
-  if (!confirm_user(final.get())) {
-    *aReturn = JS_ERR_USER_CANCEL_ACTION;
-    return NS_OK;
+    return NS_ERROR_ILLEGAL_VALUE;
   }
   
   char *modName = ToNewCString(aModuleName);
@@ -2995,69 +2968,25 @@ nsPkcs11::Deletemodule(const nsAString& aModuleName, PRInt32* aReturn)
       nssComponent->ShutdownSmartCardThread(module);
       SECMOD_DestroyModule(module);
     }
-    if (modType == SECMOD_EXTERNAL) {
-      nssComponent->GetPIPNSSBundleString("DelModuleExtSuccess", errorMessage);
-      *aReturn = JS_OK_DEL_EXTERNAL_MOD;
-    } else {
-      nssComponent->GetPIPNSSBundleString("DelModuleIntSuccess", errorMessage);
-      *aReturn = JS_OK_DEL_INTERNAL_MOD;
-    }
+    rv = NS_OK;
   } else {
-    *aReturn = JS_ERR_DEL_MOD;
-    nssComponent->GetPIPNSSBundleString("DelModuleError", errorMessage);
+    rv = NS_ERROR_FAILURE;
   }
-  alertUser(errorMessage.get());
-  return NS_OK;
+  NS_Free(modName);
+  return rv;
 }
 
 //Add a new PKCS11 module to the user's profile.
 NS_IMETHODIMP
-nsPkcs11::Addmodule(const nsAString& aModuleName, 
+nsPkcs11::AddModule(const nsAString& aModuleName, 
                     const nsAString& aLibraryFullPath, 
                     PRInt32 aCryptoMechanismFlags, 
-                    PRInt32 aCipherFlags, PRInt32* aReturn)
+                    PRInt32 aCipherFlags)
 {
   nsNSSShutDownPreventionLock locker;
   nsresult rv;
   nsCOMPtr<nsINSSComponent> nssComponent(do_GetService(kNSSComponentCID, &rv));
-  nsString final;
-  nsAutoString temp;
 
-  rv = nssComponent->GetPIPNSSBundleString("AddModulePrompt", final);
-  if (NS_FAILED(rv))
-    return rv;
-
-  final.Append(NS_LITERAL_STRING("\n").get());
-  
-  PRUnichar *tempUni = ToNewUnicode(aModuleName); 
-  const PRUnichar *formatStrings[1] = { tempUni };
-  rv = nssComponent->PIPBundleFormatStringFromName("AddModuleName",
-                                                   formatStrings, 1, temp);
-  nsMemory::Free(tempUni);
-
-  if (NS_FAILED(rv))
-    return rv;
-
-  final.Append(temp);
-  final.Append(NS_LITERAL_STRING("\n").get());
-
-  tempUni = ToNewUnicode(aLibraryFullPath);
-  formatStrings[0] = tempUni;
-  rv = nssComponent->PIPBundleFormatStringFromName("AddModulePath",
-                                                   formatStrings, 1, temp);
-  nsMemory::Free(tempUni);
-  if (NS_FAILED(rv))
-    return rv;
-
-  final.Append(temp);
-  final.Append(NS_LITERAL_STRING("\n").get());
- 
-  if (!confirm_user(final.get())) {
-    // The user has canceled. So let's return now.
-    *aReturn = JS_ERR_USER_CANCEL_ACTION;
-    return NS_OK;
-  }
-  
   char *moduleName = ToNewCString(aModuleName);
   char *fullPath   = ToNewCString(aLibraryFullPath);
   PRUint32 mechFlags = SECMOD_PubMechFlagstoInternal(aCryptoMechanismFlags);
@@ -3079,22 +3008,13 @@ nsPkcs11::Addmodule(const nsAString& aModuleName,
   // what the return value for SEDMOD_AddNewModule is
   switch (srv) {
   case SECSuccess:
-    nssComponent->GetPIPNSSBundleString("AddModuleSuccess", final);
-    *aReturn = JS_OK_ADD_MOD;
-    break;
+    return NS_OK;
   case SECFailure:
-    nssComponent->GetPIPNSSBundleString("AddModuleFailure", final);
-    *aReturn = JS_ERR_ADD_MOD;
-    break;
-  case -2:
-    nssComponent->GetPIPNSSBundleString("AddModuleDup", final);
-    *aReturn = JS_ERR_ADD_DUPLICATE_MOD;
-    break;
-  default:
-    NS_ASSERTION(0,"Bogus return value, this should never happen");
     return NS_ERROR_FAILURE;
+  case -2:
+    return NS_ERROR_ILLEGAL_VALUE;
   }
-  alertUser(final.get());
-  return NS_OK;
+  NS_ASSERTION(0,"Bogus return value, this should never happen");
+  return NS_ERROR_FAILURE;
 }
 

@@ -48,7 +48,6 @@
 #include "nsIInputStream.h"
 
 #include "imgIContainerObserver.h"
-#include "nsIImage.h"
 #include "nsIInterfaceRequestorUtils.h"
 
 #include "gfxColor.h"
@@ -89,35 +88,39 @@ nsPNGDecoder::~nsPNGDecoder()
   if (interlacebuf)
     nsMemory::Free(interlacebuf);
   if (mInProfile) {
-    cmsCloseProfile(mInProfile);
+    qcms_profile_release(mInProfile);
 
     /* mTransform belongs to us only if mInProfile is non-null */
     if (mTransform)
-      cmsDeleteTransform(mTransform);
+      qcms_transform_release(mTransform);
   }
 }
 
 // CreateFrame() is used for both simple and animated images
 void nsPNGDecoder::CreateFrame(png_uint_32 x_offset, png_uint_32 y_offset, 
-                                PRInt32 width, PRInt32 height, gfx_format format)
+                               PRInt32 width, PRInt32 height,
+                               gfxASurface::gfxImageFormat format)
 {
-  mFrame = do_CreateInstance("@mozilla.org/gfx/image/frame;2");
-  if (!mFrame)
-    longjmp(mPNG->jmpbuf, 5); // NS_ERROR_OUT_OF_MEMORY
-
-  nsresult rv = mFrame->Init(x_offset, y_offset, width, height, format, 24);
+  PRUint32 imageDataLength;
+  nsresult rv = mImage->AppendFrame(x_offset, y_offset, width, height, format,
+                                    &mImageData, &imageDataLength);
   if (NS_FAILED(rv))
     longjmp(mPNG->jmpbuf, 5); // NS_ERROR_OUT_OF_MEMORY
 
+  mFrameRect.x = x_offset;
+  mFrameRect.y = y_offset;
+  mFrameRect.width = width;
+  mFrameRect.height = height;
+
   if (png_get_valid(mPNG, mInfo, PNG_INFO_acTL))
     SetAnimFrameInfo();
-  
-  mImage->AppendFrame(mFrame);
-  
-  if (mObserver)
-    mObserver->OnStartFrame(nsnull, mFrame);
 
- 
+  PRUint32 numFrames = 0;
+  mImage->GetNumFrames(&numFrames);
+
+  if (mObserver)
+    mObserver->OnStartFrame(nsnull, numFrames - 1);
+
   PR_LOG(gPNGDecoderAccountingLog, PR_LOG_DEBUG,
          ("PNGDecoderAccounting: nsPNGDecoder::CreateFrame -- created image frame with %dx%d pixels in container %p",
           width, height,
@@ -141,7 +144,7 @@ void nsPNGDecoder::SetAnimFrameInfo()
   blend_op = png_get_next_frame_blend_op(mPNG, mInfo);
 
   if (delay_num == 0) {
-    timeout = 0; // gfxImageFrame::SetTimeout() will set to a minimum
+    timeout = 0; // SetFrameTimeout() will set to a minimum
   } else {
     if (delay_den == 0)
       delay_den = 100; // so says the APNG spec
@@ -151,54 +154,49 @@ void nsPNGDecoder::SetAnimFrameInfo()
     timeout = static_cast<PRInt32>
                          (static_cast<PRFloat64>(delay_num) * 1000 / delay_den);
   }
-  mFrame->SetTimeout(timeout);
+
+  PRUint32 numFrames = 0;
+  mImage->GetNumFrames(&numFrames);
+
+  mImage->SetFrameTimeout(numFrames - 1, timeout);
   
   if (dispose_op == PNG_DISPOSE_OP_PREVIOUS)
-      mFrame->SetFrameDisposalMethod(imgIContainer::kDisposeRestorePrevious);
+      mImage->SetFrameDisposalMethod(numFrames - 1, imgIContainer::kDisposeRestorePrevious);
   else if (dispose_op == PNG_DISPOSE_OP_BACKGROUND)
-      mFrame->SetFrameDisposalMethod(imgIContainer::kDisposeClear);
+      mImage->SetFrameDisposalMethod(numFrames - 1, imgIContainer::kDisposeClear);
   else
-      mFrame->SetFrameDisposalMethod(imgIContainer::kDisposeKeep);
+      mImage->SetFrameDisposalMethod(numFrames - 1, imgIContainer::kDisposeKeep);
   
   if (blend_op == PNG_BLEND_OP_SOURCE)
-      mFrame->SetBlendMethod(imgIContainer::kBlendSource);
-  /*else // 'over' is the default for a gfxImageFrame
-      mFrame->SetBlendMethod(imgIContainer::kBlendOver); */
+      mImage->SetFrameBlendMethod(numFrames - 1, imgIContainer::kBlendSource);
+  /*else // 'over' is the default
+      mImage->SetFrameBlendMethod(numFrames - 1, imgIContainer::kBlendOver); */
 }
 
 // set timeout and frame disposal method for the current frame
 void nsPNGDecoder::EndImageFrame()
 {
-  if (mFrameHasNoAlpha) {
-    nsCOMPtr<nsIImage> img(do_GetInterface(mFrame));
-    img->SetHasNoAlpha();
-  }
-
-  // First tell the container that this frame is complete
-  PRInt32 timeout = 100;
   PRUint32 numFrames = 0;
-  mFrame->GetTimeout(&timeout);
   mImage->GetNumFrames(&numFrames);
 
   // We can't use mPNG->num_frames_read as it may be one ahead.
   if (numFrames > 1) {
     // Tell the image renderer that the frame is complete
-    PRInt32 width, height;
-    mFrame->GetWidth(&width);
-    mFrame->GetHeight(&height);
+    if (mFrameHasNoAlpha)
+      mImage->SetFrameHasNoAlpha(numFrames - 1);
 
-    nsIntRect r(0, 0, width, height);
-    nsCOMPtr<nsIImage> img(do_GetInterface(mFrame));
-    if (NS_FAILED(img->ImageUpdated(nsnull, nsImageUpdateFlags_kBitsChanged, &r))) {
+    if (NS_FAILED(mImage->FrameUpdated(numFrames - 1, mFrameRect))) {
       mError = PR_TRUE;
       // allow the call out to the observers.
     }
-    mObserver->OnDataAvailable(nsnull, mFrame, &r);
+    PRUint32 curFrame;
+    mImage->GetCurrentFrameIndex(&curFrame);
+    mObserver->OnDataAvailable(nsnull, curFrame == numFrames - 1, &mFrameRect);
   }
 
-  mImage->EndFrameDecode(numFrames, timeout);
+  mImage->EndFrameDecode(numFrames - 1);
   if (mObserver)
-    mObserver->OnStopFrame(nsnull, mFrame);
+    mObserver->OnStopFrame(nsnull, numFrames - 1);
 }
 
 
@@ -265,7 +263,7 @@ NS_IMETHODIMP nsPNGDecoder::Init(imgILoad *aLoad)
    */
   mImageLoad->GetImage(getter_AddRefs(mImage));
   if (!mImage) {
-    mImage = do_CreateInstance("@mozilla.org/image/container;1");
+    mImage = do_CreateInstance("@mozilla.org/image/container;2");
     if (!mImage)
       return NS_ERROR_OUT_OF_MEMORY;
       
@@ -397,12 +395,12 @@ PNGDoGammaCorrection(png_structp png_ptr, png_infop info_ptr)
 }
 
 // Adapted from http://www.littlecms.com/pngchrm.c example code
-static cmsHPROFILE
+static qcms_profile *
 PNGGetColorProfile(png_structp png_ptr, png_infop info_ptr,
-                   int color_type, PRUint32 *inType, PRUint32 *intent)
+                   int color_type, qcms_data_type *inType, PRUint32 *intent)
 {
-  cmsHPROFILE profile = nsnull;
-  *intent = INTENT_PERCEPTUAL; // Our default
+  qcms_profile *profile = nsnull;
+  *intent = QCMS_INTENT_PERCEPTUAL; // Our default
 
   // First try to see if iCCP chunk is present
   if (png_get_valid(png_ptr, info_ptr, PNG_INFO_iCCP)) {
@@ -413,38 +411,40 @@ PNGGetColorProfile(png_structp png_ptr, png_infop info_ptr,
     png_get_iCCP(png_ptr, info_ptr, &profileName, &compression,
                  &profileData, &profileLen);
 
-    profile = cmsOpenProfileFromMem(profileData, profileLen);
-    PRUint32 profileSpace = cmsGetColorSpace(profile);
+    profile = qcms_profile_from_memory(profileData, profileLen);
+    if (profile) {
+      PRUint32 profileSpace = qcms_profile_get_color_space(profile);
 
-    PRBool mismatch = PR_FALSE;
-    if (color_type & PNG_COLOR_MASK_COLOR) {
-      if (profileSpace != icSigRgbData)
-        mismatch = PR_TRUE;
-    } else {
-      if (profileSpace == icSigRgbData)
-        png_set_gray_to_rgb(png_ptr);
-      else if (profileSpace != icSigGrayData)
-        mismatch = PR_TRUE;
-    }
+      PRBool mismatch = PR_FALSE;
+      if (color_type & PNG_COLOR_MASK_COLOR) {
+        if (profileSpace != icSigRgbData)
+          mismatch = PR_TRUE;
+      } else {
+        if (profileSpace == icSigRgbData)
+          png_set_gray_to_rgb(png_ptr);
+        else if (profileSpace != icSigGrayData)
+          mismatch = PR_TRUE;
+      }
 
-    if (mismatch) {
-      cmsCloseProfile(profile);
-      profile = nsnull;
-    } else {
-      *intent = cmsTakeRenderingIntent(profile);
+      if (mismatch) {
+        qcms_profile_release(profile);
+        profile = nsnull;
+      } else {
+        *intent = qcms_profile_get_rendering_intent(profile);
+      }
     }
   }
 
   // Check sRGB chunk
   if (!profile && png_get_valid(png_ptr, info_ptr, PNG_INFO_sRGB)) {
-    profile = cmsCreate_sRGBProfile();
+    profile = qcms_profile_sRGB();
 
     if (profile) {
       int fileIntent;
       png_set_gray_to_rgb(png_ptr); 
       png_get_sRGB(png_ptr, info_ptr, &fileIntent);
-      PRUint32 map[] = { INTENT_PERCEPTUAL, INTENT_RELATIVE_COLORIMETRIC,
-                         INTENT_SATURATION, INTENT_ABSOLUTE_COLORIMETRIC };
+      PRUint32 map[] = { QCMS_INTENT_PERCEPTUAL, QCMS_INTENT_RELATIVE_COLORIMETRIC,
+                         QCMS_INTENT_SATURATION, QCMS_INTENT_ABSOLUTE_COLORIMETRIC };
       *intent = map[fileIntent];
     }
   }
@@ -453,49 +453,40 @@ PNGGetColorProfile(png_structp png_ptr, png_infop info_ptr,
   if (!profile && 
        png_get_valid(png_ptr, info_ptr, PNG_INFO_gAMA) &&
        png_get_valid(png_ptr, info_ptr, PNG_INFO_cHRM)) {
-    cmsCIExyYTRIPLE primaries;
-    cmsCIExyY whitePoint;
+    qcms_CIE_xyYTRIPLE primaries;
+    qcms_CIE_xyY whitePoint;
 
     png_get_cHRM(png_ptr, info_ptr,
                  &whitePoint.x, &whitePoint.y,
-                 &primaries.Red.x,   &primaries.Red.y,
-                 &primaries.Green.x, &primaries.Green.y,
-                 &primaries.Blue.x,  &primaries.Blue.y);
+                 &primaries.red.x,   &primaries.red.y,
+                 &primaries.green.x, &primaries.green.y,
+                 &primaries.blue.x,  &primaries.blue.y);
     whitePoint.Y =
-      primaries.Red.Y = primaries.Green.Y = primaries.Blue.Y = 1.0;
+      primaries.red.Y = primaries.green.Y = primaries.blue.Y = 1.0;
 
     double gammaOfFile;
-    LPGAMMATABLE gammaTable[3];
 
     png_get_gAMA(png_ptr, info_ptr, &gammaOfFile);
 
-    gammaTable[0] = gammaTable[1] = gammaTable[2] =
-      cmsBuildGamma(256, 1/gammaOfFile);
-
-    if (!gammaTable[0])
-      return nsnull;
-
-    profile = cmsCreateRGBProfile(&whitePoint, &primaries, gammaTable);
+    profile = qcms_profile_create_rgb_with_gamma(whitePoint, primaries, 1/gammaOfFile);
 
     if (profile)
       png_set_gray_to_rgb(png_ptr);
-
-    cmsFreeGamma(gammaTable[0]);
   }
 
   if (profile) {
-    PRUint32 profileSpace = cmsGetColorSpace(profile);
+    PRUint32 profileSpace = qcms_profile_get_color_space(profile);
     if (profileSpace == icSigGrayData) {
       if (color_type & PNG_COLOR_MASK_ALPHA)
-        *inType = TYPE_GRAYA_8;
+        *inType = QCMS_DATA_GRAYA_8;
       else
-        *inType = TYPE_GRAY_8;
+        *inType = QCMS_DATA_GRAY_8;
     } else {
       if (color_type & PNG_COLOR_MASK_ALPHA ||
           png_get_valid(png_ptr, info_ptr, PNG_INFO_tRNS))
-        *inType = TYPE_RGBA_8;
+        *inType = QCMS_DATA_RGBA_8;
       else
-        *inType = TYPE_RGB_8;
+        *inType = QCMS_DATA_RGB_8;
     }
   }
 
@@ -556,35 +547,29 @@ info_callback(png_structp png_ptr, png_infop info_ptr)
   if (bit_depth == 16)
     png_set_strip_16(png_ptr);
 
-  PRUint32 inType, intent, pIntent;
+  qcms_data_type inType;
+  PRUint32 intent, pIntent;
   if (gfxPlatform::GetCMSMode() != eCMSMode_Off) {
     intent = gfxPlatform::GetRenderingIntent();
     decoder->mInProfile = PNGGetColorProfile(png_ptr, info_ptr,
                                              color_type, &inType, &pIntent);
     /* If we're not mandating an intent, use the one from the image. */
-    if (intent == -1)
+    if (intent == PRUint32(-1))
       intent = pIntent;
   }
   if (decoder->mInProfile && gfxPlatform::GetCMSOutputProfile()) {
-    PRUint32 outType;
-    PRUint32 dwFlags = 0;
+    qcms_data_type outType;
 
     if (color_type & PNG_COLOR_MASK_ALPHA || num_trans)
-      outType = TYPE_RGBA_8;
+      outType = QCMS_DATA_RGBA_8;
     else
-      outType = TYPE_RGB_8;
+      outType = QCMS_DATA_RGB_8;
 
-    /* Determine if we can use the optimized floating point path. */
-    if ((inType == outType) && 
-        ((inType == TYPE_RGB_8) || (inType == TYPE_RGBA_8)))
-      dwFlags |= cmsFLAGS_FLOATSHAPER;
-
-    decoder->mTransform = cmsCreateTransform(decoder->mInProfile,
+    decoder->mTransform = qcms_transform_create(decoder->mInProfile,
                                              inType,
                                              gfxPlatform::GetCMSOutputProfile(),
                                              outType,
-                                             intent,
-                                             dwFlags);
+                                             (qcms_intent)intent);
   } else {
     png_set_gray_to_rgb(png_ptr);
     PNGDoGammaCorrection(png_ptr, info_ptr);
@@ -643,22 +628,17 @@ info_callback(png_structp png_ptr, png_infop info_ptr)
   if (containerWidth == 0 && containerHeight == 0) {
     // the image hasn't been inited yet
     decoder->mImage->Init(width, height, decoder->mObserver);
-  } else if (containerWidth != width || containerHeight != height) {
+  } else if (containerWidth != PRInt32(width) || containerHeight != PRInt32(height)) {
     longjmp(decoder->mPNG->jmpbuf, 5); // NS_ERROR_UNEXPECTED
   }
 
   if (decoder->mObserver)
     decoder->mObserver->OnStartContainer(nsnull, decoder->mImage);
 
-  if (channels == 1 || channels == 3) {
-    decoder->format = gfxIFormats::RGB;
-  } else if (channels == 2 || channels == 4) {
-    if (alpha_bits == 8) {
-      decoder->format = gfxIFormats::RGB_A8;
-    } else if (alpha_bits == 1) {
-      decoder->format = gfxIFormats::RGB_A1;
-    }
-  }
+  if (channels == 1 || channels == 3)
+    decoder->format = gfxASurface::ImageFormatRGB24;
+  else if (channels == 2 || channels == 4)
+    decoder->format = gfxASurface::ImageFormatARGB32;
 
   if (png_get_valid(png_ptr, info_ptr, PNG_INFO_acTL))
     png_set_progressive_frame_fn(png_ptr, frame_info_callback, NULL);
@@ -686,8 +666,12 @@ info_callback(png_structp png_ptr, png_infop info_ptr)
     }
   }
   
-  if (png_get_first_frame_is_hidden(png_ptr, info_ptr))
-    decoder->mFrame = nsnull;
+  /* Reject any ancillary chunk after IDAT with a bad CRC (bug #397593).
+   * It would be better to show the default frame (if one has already been
+   * successfully decoded) before bailing, but it's simpler to just bail
+   * out with an error message.
+   */
+  png_set_crc_action(png_ptr, NULL, PNG_CRC_ERROR_QUIT);
   
   return;
 }
@@ -730,9 +714,8 @@ row_callback(png_structp png_ptr, png_bytep new_row,
     return;
 
   if (new_row) {
-    PRInt32 width;
-    decoder->mFrame->GetWidth(&width);
-    PRUint32 iwidth = width;
+    PRInt32 width = decoder->mFrameRect.width;
+    PRUint32 iwidth = decoder->mFrameRect.width;
 
     png_bytep line = new_row;
     if (decoder->interlacebuf) {
@@ -740,16 +723,13 @@ row_callback(png_structp png_ptr, png_bytep new_row,
       png_progressive_combine_row(png_ptr, line, new_row);
     }
 
-    // we're thebes. we can write stuff directly to the data
-    PRUint8 *imageData;
-    PRUint32 imageDataLength, bpr = width * sizeof(PRUint32);
-    decoder->mFrame->GetImageData(&imageData, &imageDataLength);
-    PRUint32 *cptr32 = (PRUint32*)(imageData + (row_num*bpr));
+    PRUint32 bpr = width * sizeof(PRUint32);
+    PRUint32 *cptr32 = (PRUint32*)(decoder->mImageData + (row_num*bpr));
     PRBool rowHasNoAlpha = PR_TRUE;
 
     if (decoder->mTransform) {
       if (decoder->mCMSLine) {
-        cmsDoTransform(decoder->mTransform, line, decoder->mCMSLine, iwidth);
+        qcms_transform_data(decoder->mTransform, line, decoder->mCMSLine, iwidth);
         /* copy alpha over */
         PRUint32 channels = decoder->mChannels;
         if (channels == 2 || channels == 4) {
@@ -758,12 +738,12 @@ row_callback(png_structp png_ptr, png_bytep new_row,
         }
         line = decoder->mCMSLine;
       } else {
-        cmsDoTransform(decoder->mTransform, line, line, iwidth);
+        qcms_transform_data(decoder->mTransform, line, line, iwidth);
        }
      }
 
     switch (decoder->format) {
-    case gfxIFormats::RGB:
+      case gfxASurface::ImageFormatRGB24:
       {
         // counter for while() loops below
         PRUint32 idx = iwidth;
@@ -790,17 +770,7 @@ row_callback(png_structp png_ptr, png_bytep new_row,
         }
       }
       break;
-    case gfxIFormats::RGB_A1:
-      {
-        for (PRUint32 x=iwidth; x>0; --x) {
-          *cptr32++ = GFX_PACKED_PIXEL(line[3]?0xFF:0x00, line[0], line[1], line[2]);
-          if (line[3] == 0)
-            rowHasNoAlpha = PR_FALSE;
-          line += 4;
-        }
-      }
-      break;
-    case gfxIFormats::RGB_A8:
+      case gfxASurface::ImageFormatARGB32:
       {
         for (PRUint32 x=width; x>0; --x) {
           *cptr32++ = GFX_PACKED_PIXEL(line[3], line[0], line[1], line[2]);
@@ -810,6 +780,10 @@ row_callback(png_structp png_ptr, png_bytep new_row,
         }
       }
       break;
+      default:
+        NS_ERROR("Unknown PNG format!");
+        NS_ABORT();
+        break;
     }
 
     if (!rowHasNoAlpha)
@@ -820,12 +794,13 @@ row_callback(png_structp png_ptr, png_bytep new_row,
     if (numFrames <= 1) {
       // Only do incremental image display for the first frame
       nsIntRect r(0, row_num, width, 1);
-      nsCOMPtr<nsIImage> img(do_GetInterface(decoder->mFrame));
-      if (NS_FAILED(img->ImageUpdated(nsnull, nsImageUpdateFlags_kBitsChanged, &r))) {
+      if (NS_FAILED(decoder->mImage->FrameUpdated(numFrames - 1, r))) {
         decoder->mError = PR_TRUE;  /* bail */
         return;
       }
-      decoder->mObserver->OnDataAvailable(nsnull, decoder->mFrame, &r);
+      PRUint32 curFrame;
+      decoder->mImage->GetCurrentFrameIndex(&curFrame);
+      decoder->mObserver->OnDataAvailable(nsnull, curFrame == numFrames - 1, &r);
     }
   }
 }

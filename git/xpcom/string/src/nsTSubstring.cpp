@@ -59,7 +59,7 @@ nsTSubstring_CharT::nsTSubstring_CharT(const substring_tuple_type& tuple)
 }
 
 nsTSubstring_CharT::nsTSubstring_CharT()
-: mData(const_cast<char_type*>(char_traits::sEmptyBuffer)),
+: mData(char_traits::sEmptyBuffer),
   mLength(0),
   mFlags(F_TERMINATED) {}
 
@@ -434,8 +434,17 @@ nsTSubstring_CharT::Assign( const substring_tuple_type& tuple )
 
     size_type length = tuple.Length();
 
-    if (ReplacePrep(0, mLength, length) && length)
+    // don't use ReplacePrep here because it changes the length
+    char_type* oldData;
+    PRUint32 oldFlags;
+    if (MutatePrep(length, &oldData, &oldFlags)) {
+      if (oldData)
+        ::ReleaseData(oldData, oldFlags);
+
       tuple.WriteTo(mData, length);
+      mData[length] = 0;
+      mLength = length;
+    }
   }
 
 void
@@ -554,7 +563,7 @@ nsTSubstring_CharT::SetCapacity( size_type capacity )
     if (capacity == 0)
       {
         ::ReleaseData(mData, mFlags);
-        mData = const_cast<char_type*>(char_traits::sEmptyBuffer);
+        mData = char_traits::sEmptyBuffer;
         mLength = 0;
         SetDataFlags(F_TERMINATED);
       }

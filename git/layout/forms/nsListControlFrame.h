@@ -63,9 +63,6 @@ class nsIDOMHTMLOptionsCollection;
 class nsIDOMHTMLOptionElement;
 class nsIComboboxControlFrame;
 class nsPresContext;
-class nsVoidArray;
-
-class nsVoidArray;
 class nsListEventListener;
 
 /**
@@ -80,8 +77,7 @@ class nsListControlFrame : public nsHTMLScrollFrame,
 public:
   friend nsIFrame* NS_NewListControlFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
-   // nsISupports
-  NS_IMETHOD QueryInterface(const nsIID& aIID, void** aInstancePtr);
+  NS_DECL_QUERYFRAME
 
     // nsIFrame
   NS_IMETHOD HandleEvent(nsPresContext* aPresContext,
@@ -89,7 +85,7 @@ public:
                          nsEventStatus* aEventStatus);
   
   NS_IMETHOD SetInitialChildList(nsIAtom*        aListName,
-                                 nsIFrame*       aChildList);
+                                 nsFrameList&    aChildList);
 
   virtual nscoord GetPrefWidth(nsIRenderingContext *aRenderingContext);
   virtual nscoord GetMinWidth(nsIRenderingContext *aRenderingContext);
@@ -190,8 +186,8 @@ public:
   virtual void OnContentReset();
 
   // nsISelectControlFrame
-  NS_IMETHOD AddOption(nsPresContext* aPresContext, PRInt32 index);
-  NS_IMETHOD RemoveOption(nsPresContext* aPresContext, PRInt32 index);
+  NS_IMETHOD AddOption(PRInt32 index);
+  NS_IMETHOD RemoveOption(PRInt32 index);
   NS_IMETHOD GetOptionSelected(PRInt32 aIndex, PRBool* aValue);
   NS_IMETHOD DoneAddingChildren(PRBool aIsDone);
 
@@ -199,9 +195,7 @@ public:
    * Gets the content (an option) by index and then set it as
    * being selected or not selected.
    */
-  NS_IMETHOD OnOptionSelected(nsPresContext* aPresContext,
-                              PRInt32 aIndex,
-                              PRBool aSelected);
+  NS_IMETHOD OnOptionSelected(PRInt32 aIndex, PRBool aSelected);
   NS_IMETHOD OnSetSelectedIndex(PRInt32 aOldIndex, PRInt32 aNewIndex);
 
   // mouse event listeners (both might destroy |this|)
@@ -373,9 +367,8 @@ protected:
   PRInt32  GetIndexFromContent(nsIContent *aContent);
   PRBool   IsLeftButton(nsIDOMEvent* aMouseEvent);
 
-  // aNumOptions is the number of options we have; if we have none,
-  // we'll just guess at a row height based on our own style.
-  nscoord  CalcFallbackRowHeight(PRInt32 aNumOptions);
+  // guess at a row height based on our own style.
+  nscoord  CalcFallbackRowHeight();
 
   // CalcIntrinsicHeight computes our intrinsic height (taking the "size"
   // attribute into account).  This should only be called in non-dropdown mode.
@@ -455,9 +448,6 @@ protected:
 #endif
 
 private:
-  NS_IMETHOD_(nsrefcnt) AddRef() { return NS_OK; }
-  NS_IMETHOD_(nsrefcnt) Release() { return NS_OK; }
-
   // for incremental typing navigation
   static nsAString& GetIncrementalString ();
   static DOMTimeStamp gLastKeyTime;

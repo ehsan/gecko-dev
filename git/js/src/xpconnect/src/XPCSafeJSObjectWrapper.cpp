@@ -41,6 +41,7 @@
 #include "jsdbgapi.h"
 #include "jsscript.h" // for js_ScriptClass
 #include "XPCWrapper.h"
+#include "jsregexp.h"
 
 static JSBool
 XPC_SJOW_AddProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp);
@@ -78,6 +79,10 @@ XPC_SJOW_Call(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
 JSBool
 XPC_SJOW_Construct(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
                    jsval *rval);
+
+static JSBool
+XPC_SJOW_Create(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
+                jsval *rval);
 
 static JSBool
 XPC_SJOW_Equality(JSContext *cx, JSObject *obj, jsval v, JSBool *bp);
@@ -195,7 +200,7 @@ JSExtendedClass sXPC_SJOW_JSClass = {
     XPC_SJOW_Enumerate,   (JSResolveOp)XPC_SJOW_NewResolve,
     XPC_SJOW_Convert,     XPC_SJOW_Finalize,
     nsnull,               XPC_SJOW_CheckAccess,
-    XPC_SJOW_Call,        XPC_SJOW_Construct,
+    XPC_SJOW_Call,        XPC_SJOW_Create,
     nsnull,               nsnull,
     nsnull,               nsnull
   },
@@ -396,10 +401,11 @@ UnwrapJSValue(jsval val)
 // create a new one and cache it in that same slot. The source of the
 // script is passed in funScript, and the resulting (new or cached)
 // scripted function is returned through scriptedFunVal.
+/* Keep GetScriptedFunction prototype in sync with corresponding macro */
 static JSBool
 GetScriptedFunction(JSContext *cx, JSObject *obj, JSObject *unsafeObj,
                     uint32 slotIndex, const nsAFlatCString& funScript,
-                    jsval *scriptedFunVal)
+                    jsval *scriptedFunVal, uintN lineno)
 {
   if (!::JS_GetReservedSlot(cx, obj, slotIndex, scriptedFunVal)) {
     return JS_FALSE;
@@ -442,7 +448,7 @@ GetScriptedFunction(JSContext *cx, JSObject *obj, JSObject *unsafeObj,
                                         jsprin, nsnull, 0, nsnull,
                                         funScript.get(), funScript.Length(),
                                         "XPCSafeJSObjectWrapper.cpp",
-                                        __LINE__);
+                                        lineno);
 
     JSPRINCIPALS_DROP(cx, jsprin);
 
@@ -461,6 +467,8 @@ GetScriptedFunction(JSContext *cx, JSObject *obj, JSObject *unsafeObj,
   return JS_TRUE;
 }
 
+#define GetScriptedFunction(cx, obj, unsafeObj, slotIndex, funScript, scriptedFunVal) \
+  (GetScriptedFunction)(cx, obj, unsafeObj, slotIndex, funScript, scriptedFunVal, __LINE__)
 
 static JSBool
 XPC_SJOW_AddProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
@@ -480,7 +488,7 @@ XPC_SJOW_AddProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
   jsval isResolving;
   JSBool ok = ::JS_GetReservedSlot(cx, obj, XPC_SJOW_SLOT_IS_RESOLVING,
                                    &isResolving);
-  if (!ok || JSVAL_TO_BOOLEAN(isResolving)) {
+  if (!ok || HAS_FLAGS(isResolving, FLAG_RESOLVING)) {
     return ok;
   }
 
@@ -495,7 +503,7 @@ XPC_SJOW_AddProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
     return JS_FALSE;
   }
 
-  return XPCWrapper::AddProperty(cx, obj, unsafeObj, id, vp);
+  return XPCWrapper::AddProperty(cx, obj, JS_FALSE, unsafeObj, id, vp);
 }
 
 static JSBool
@@ -515,6 +523,19 @@ XPC_SJOW_DelProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
   return XPCWrapper::DelProperty(cx, unsafeObj, id, vp);
 }
 
+static inline JSBool
+CallWithoutStatics(JSContext *cx, JSObject *obj, jsval fval, uintN argc,
+                   jsval *argv, jsval *rval)
+{
+  JSRegExpStatics statics;
+  JSTempValueRooter tvr;
+  js_SaveRegExpStatics(cx, &statics, &tvr);
+  JS_ClearRegExpStatics(cx);
+  JSBool ok = ::JS_CallFunctionValue(cx, obj, fval, argc, argv, rval);
+  js_RestoreRegExpStatics(cx, &statics, &tvr);
+  return ok;
+}
+
 // Call wrapper to help with wrapping calls to functions or callable
 // objects in a scripted function (see XPC_SJOW_Call()). The first
 // argument passed to this method is the unsafe function to call, the
@@ -529,7 +550,7 @@ XPC_SJOW_CallWrapper(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
     return ThrowException(NS_ERROR_INVALID_ARG, cx);
   }
 
-  return ::JS_CallFunctionValue(cx, obj, argv[0], argc - 1, argv + 1, rval);
+  return CallWithoutStatics(cx, obj, argv[0], argc - 1, argv + 1, rval);
 }
 
 static JSBool
@@ -581,9 +602,8 @@ XPC_SJOW_GetOrSetProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp,
   }
 
   jsval val;
-  JSBool ok = ::JS_CallFunctionValue(cx, unsafeObj, scriptedFunVal,
-                                     aIsSet ? 2 : 1, args, &val);
-
+  JSBool ok = CallWithoutStatics(cx, unsafeObj, scriptedFunVal,
+                                 aIsSet ? 2 : 1, args, &val);
   return ok && WrapJSValue(cx, obj, val, vp);
 }
 
@@ -658,7 +678,7 @@ XPC_SJOW_NewResolve(JSContext *cx, JSObject *obj, jsval id, uintN flags,
                              XPC_SJOW_toString, 0, 0) != nsnull;
   }
 
-  return XPCWrapper::NewResolve(cx, obj, unsafeObj, id, flags, objp);
+  return XPCWrapper::NewResolve(cx, obj, JS_FALSE, unsafeObj, id, flags, objp);
 }
 
 static JSBool
@@ -853,8 +873,8 @@ XPC_SJOW_Call(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
   }
 
   jsval val;
-  JSBool ok = ::JS_CallFunctionValue(cx, callThisObj, scriptedFunVal, argc + 2,
-                                     args, &val);
+  JSBool ok = CallWithoutStatics(cx, callThisObj, scriptedFunVal, argc + 2,
+                                 args, &val);
 
   if (args != argsBuf) {
     nsMemory::Free(args);
@@ -898,6 +918,11 @@ XPC_SJOW_Construct(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
     return ThrowException(NS_ERROR_INVALID_ARG, cx);
   }
 
+  SLIM_LOG_WILL_MORPH(cx, objToWrap);
+  if(IS_SLIM_WRAPPER(objToWrap) && !MorphSlimWrapper(cx, objToWrap)) {
+    return ThrowException(NS_ERROR_FAILURE, cx);
+  }
+
   if (STOBJ_GET_CLASS(objToWrap) == &sXPC_XOW_JSClass.base) {
     // We're being asked to wrap a XOW. By using XPCWrapper::Unwrap,
     // we guarantee that the wrapped object is same-origin to us. If
@@ -936,13 +961,32 @@ XPC_SJOW_Construct(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
   }
 
   if (!::JS_SetReservedSlot(cx, wrapperObj, XPC_SJOW_SLOT_IS_RESOLVING,
-                            BOOLEAN_TO_JSVAL(JS_FALSE))) {
+                            JSVAL_ZERO)) {
     return JS_FALSE;
   }
 
   *rval = OBJECT_TO_JSVAL(wrapperObj);
 
   return JS_TRUE;
+}
+
+static JSBool
+XPC_SJOW_Create(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
+                jsval *rval)
+{
+  JSObject *callee = JSVAL_TO_OBJECT(argv[-2]);
+  NS_ASSERTION(GetUnsafeObject(callee), "How'd we get here?");
+  JSObject *unsafeObj = GetUnsafeObject(callee);
+
+  // Check that the caller can access the unsafe object.
+  if (!CanCallerAccess(cx, unsafeObj)) {
+    // CanCallerAccess() already threw for us.
+    return JS_FALSE;
+  }
+
+  JSBool ok = CallWithoutStatics(cx, obj, OBJECT_TO_JSVAL(callee), argc, argv,
+                                 rval);
+  return ok && WrapJSValue(cx, callee, *rval, rval);
 }
 
 static JSBool
@@ -1004,7 +1048,7 @@ XPC_SJOW_Iterator(JSContext *cx, JSObject *obj, JSBool keysonly)
   }
 
   if (!::JS_SetReservedSlot(cx, wrapperIter, XPC_SJOW_SLOT_IS_RESOLVING,
-                            BOOLEAN_TO_JSVAL(JS_FALSE))) {
+                            JSVAL_ZERO)) {
     return nsnull;
   }
 
@@ -1063,9 +1107,8 @@ XPC_SJOW_toString(JSContext *cx, JSObject *obj, uintN argc, jsval *argv,
   }
 
   jsval val;
-  JSBool ok = ::JS_CallFunctionValue(cx, unsafeObj, scriptedFunVal, 0, nsnull,
-                                     &val);
-
+  JSBool ok = CallWithoutStatics(cx, unsafeObj, scriptedFunVal, 0, nsnull,
+                                 &val);
   return ok && WrapJSValue(cx, obj, val, rval);
 }
 

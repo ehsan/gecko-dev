@@ -49,7 +49,6 @@
 #include "nsGkAtoms.h"
 #include "nsLayoutUtils.h"
 #include "nsCSSAnonBoxes.h"
-#include "nsIWidget.h"
 #include "nsILinkHandler.h"
 #include "nsGUIEvent.h"
 #include "nsIDocument.h"
@@ -202,10 +201,12 @@ nsDisplayTextShadow::Paint(nsDisplayListBuilder* aBuilder,
   gfxRect shadowRect = gfxRect(pt.x, pt.y, innerWidthInAppUnits, mFrame->GetSize().height);
   gfxContext* thebesCtx = aCtx->ThebesContext();
 
+  gfxRect dirtyRect(aDirtyRect.x, aDirtyRect.y, aDirtyRect.width, aDirtyRect.height);
+
   nsContextBoxBlur contextBoxBlur;
   gfxContext* shadowCtx = contextBoxBlur.Init(shadowRect, mBlurRadius,
                                               mFrame->PresContext()->AppUnitsPerDevPixel(),
-                                              thebesCtx);
+                                              thebesCtx, dirtyRect);
   if (!shadowCtx)
     return;
 
@@ -360,7 +361,7 @@ nsHTMLContainerFrame::PaintTextDecorationLine(
               PresContext()->AppUnitsToGfxUnits(bp.top + aPt.y));
   gfxSize size(PresContext()->AppUnitsToGfxUnits(innerWidth), aSize);
   nsCSSRendering::PaintDecorationLine(aCtx, aColor, pt, size, aAscent, aOffset,
-                                      aDecoration, NS_STYLE_BORDER_STYLE_SOLID);
+                    aDecoration, nsCSSRendering::DECORATION_STYLE_SOLID);
 }
 
 void
@@ -520,6 +521,12 @@ ReparentFrameViewTo(nsIFrame*       aFrame,
 
   // Does aFrame have a view?
   if (aFrame->HasView()) {
+#ifdef MOZ_XUL
+    if (aFrame->GetType() == nsGkAtoms::menuPopupFrame) {
+      // This view must be parented by the root view, don't reparent it.
+      return NS_OK;
+    }
+#endif
     nsIView* view = aFrame->GetView();
     // Verify that the current parent view is what we think it is
     //nsIView*  parentView;
@@ -610,12 +617,12 @@ nsHTMLContainerFrame::ReparentFrameView(nsPresContext* aPresContext,
 }
 
 nsresult
-nsHTMLContainerFrame::ReparentFrameViewList(nsPresContext* aPresContext,
-                                            nsIFrame*       aChildFrameList,
-                                            nsIFrame*       aOldParentFrame,
-                                            nsIFrame*       aNewParentFrame)
+nsHTMLContainerFrame::ReparentFrameViewList(nsPresContext*     aPresContext,
+                                            const nsFrameList& aChildFrameList,
+                                            nsIFrame*          aOldParentFrame,
+                                            nsIFrame*          aNewParentFrame)
 {
-  NS_PRECONDITION(aChildFrameList, "null child frame list");
+  NS_PRECONDITION(aChildFrameList.NotEmpty(), "empty child frame list");
   NS_PRECONDITION(aOldParentFrame, "null old parent frame pointer");
   NS_PRECONDITION(aNewParentFrame, "null new parent frame pointer");
   NS_PRECONDITION(aOldParentFrame != aNewParentFrame, "same old and new parent frame");
@@ -664,9 +671,8 @@ nsHTMLContainerFrame::ReparentFrameViewList(nsPresContext* aPresContext,
     nsIViewManager* viewManager = oldParentView->GetViewManager();
 
     // They're not so we need to reparent any child views
-    for (nsIFrame* f = aChildFrameList; f; f = f->GetNextSibling()) {
-      ReparentFrameViewTo(f, viewManager, newParentView,
-                          oldParentView);
+    for (nsFrameList::Enumerator e(aChildFrameList); !e.AtEnd(); e.Next()) {
+      ReparentFrameViewTo(e.get(), viewManager, newParentView, oldParentView);
     }
   }
 
@@ -675,7 +681,6 @@ nsHTMLContainerFrame::ReparentFrameViewList(nsPresContext* aPresContext,
 
 nsresult
 nsHTMLContainerFrame::CreateViewForFrame(nsIFrame* aFrame,
-                                         nsIFrame* aContentParentFrame,
                                          PRBool aForce)
 {
   if (aFrame->HasView()) {

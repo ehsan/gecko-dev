@@ -36,11 +36,7 @@
  * Conrad Parker <conrad@annodex.net>
  */
 
-#ifdef WIN32
-#include "config_win32.h"
-#else
 #include "config.h"
-#endif
 
 #if OGGZ_CONFIG_READ
 
@@ -124,6 +120,8 @@ oggz_seek_raw (OGGZ * oggz, oggz_off_t offset, int whence)
 
   oggz_vector_foreach(oggz->streams, oggz_seek_reset_stream);
   
+  reader->current_page_bytes = 0;
+  
   return offset_at;
 }
 
@@ -205,43 +203,38 @@ oggz_get_next_page (OGGZ * oggz, ogg_page * og)
   OggzReader * reader = &oggz->x.reader;
   char * buffer;
   long bytes = 0, more;
-  oggz_off_t page_offset = 0, ret;
+  oggz_off_t page_offset = 0;
   int found = 0;
+
+  /* Increment oggz->offset by length of the last page processed */
+  oggz->offset += reader->current_page_bytes;
 
   do {
     more = ogg_sync_pageseek (&reader->ogg_sync, og);
 
     if (more == 0) {
-      page_offset = 0;
-
       buffer = ogg_sync_buffer (&reader->ogg_sync, CHUNKSIZE);
       if ((bytes = (long) oggz_io_read (oggz, buffer, CHUNKSIZE)) == 0) {
-	if (oggz->file && feof (oggz->file)) {
+        if (oggz->file && feof (oggz->file)) {
 #ifdef DEBUG_VERBOSE
-	  printf ("get_next_page: feof (oggz->file), returning -2\n");
+          printf ("get_next_page: feof (oggz->file), returning -2\n");
 #endif
-	  clearerr (oggz->file);
-	  return -2;
-	}
+          clearerr (oggz->file);
+          reader->current_page_bytes = 0;
+          return -2;
+        }
       }
       if (bytes == OGGZ_ERR_SYSTEM) {
-	  /*oggz_set_error (oggz, OGGZ_ERR_SYSTEM);*/
-	  return -1;
+        reader->current_page_bytes = 0;
+        return -1;
       }
 
       if (bytes == 0) {
 #ifdef DEBUG_VERBOSE
-	printf ("get_next_page: bytes == 0, returning -2\n");
+        printf ("get_next_page: bytes == 0, returning -2\n");
 #endif
-	return -2;
-#if 0
-      } else if (oggz->file && feof (oggz->file)) {
-#ifdef DEBUG_VERBOSE
-	printf ("get_next_page: feof (oggz->file), returning -2\n");
-#endif
-	clearerr (oggz->file);
-	return -2;
-#endif
+        reader->current_page_bytes = 0;
+        return -2;
       }
 
       ogg_sync_wrote(&reader->ogg_sync, bytes);
@@ -250,27 +243,20 @@ oggz_get_next_page (OGGZ * oggz, ogg_page * og)
 #ifdef DEBUG_VERBOSE
       printf ("get_next_page: skipped %ld bytes\n", -more);
 #endif
-      page_offset -= more;
+      page_offset += (-more);
     } else {
 #ifdef DEBUG_VERBOSE
       printf ("get_next_page: page has %ld bytes\n", more);
 #endif
+      reader->current_page_bytes = more;
       found = 1;
     }
 
   } while (!found);
 
-  /* Calculate the byte offset of the page which was found */
-  if (bytes > 0) {
-    oggz->offset = oggz_tell_raw (oggz) - bytes + page_offset;
-  } else {
-    /* didn't need to do any reading -- accumulate the page_offset */
-    oggz->offset += page_offset;
-  }
-  
-  ret = oggz->offset + more;
+  oggz->offset += page_offset;
 
-  return ret;
+  return oggz->offset;
 }
 
 static oggz_off_t
@@ -491,8 +477,8 @@ oggz_scan_for_page (OGGZ * oggz, ogg_page * og, ogg_int64_t unit_target,
 #else
       do {
         offset_at = oggz_get_prev_start_page(oggz, og, &granule_at, &serialno);
-        if (offset_at == -1)
-          return -1;
+	if (offset_at < 0)
+	  break;
         unit_at = oggz_get_unit(oggz, serialno, granule_at);
       } while (unit_at > unit_target);
       return offset_at;
@@ -520,9 +506,15 @@ guess (ogg_int64_t unit_at, ogg_int64_t unit_target,
 
   if (unit_at == unit_begin) return offset_begin;
 
-  guess_ratio =
-    GUESS_MULTIPLIER * (unit_target - unit_begin) /
-    (unit_at - unit_begin);
+  if (unit_end != -1) {
+    guess_ratio =
+      GUESS_MULTIPLIER * (unit_target - unit_begin) /
+      (unit_end - unit_begin);
+  } else {
+    guess_ratio =
+      GUESS_MULTIPLIER * (unit_target - unit_begin) /
+      (unit_at - unit_begin);
+  }
 
 #ifdef DEBUG
   printf ("oggz_seek::guess: guess_ratio %lld = (%lld - %lld) / (%lld - %lld)\n",
@@ -559,9 +551,6 @@ oggz_seek_guess (ogg_int64_t unit_at, ogg_int64_t unit_target,
 			  offset_begin, offset_end);
   }
 
-  if (offset_end != -1 && guess >= offset_end)
-    offset_guess = offset_begin + (offset_end - offset_begin)/2;
-
 #ifdef DEBUG
     printf ("oggz_seek_guess: guessed %" PRI_OGGZ_OFF_T "d\n", offset_guess);
 #endif
@@ -572,11 +561,14 @@ oggz_seek_guess (ogg_int64_t unit_at, ogg_int64_t unit_target,
 static oggz_off_t
 oggz_offset_end (OGGZ * oggz)
 {
+#ifndef WINCE
   int fd;
   struct stat statbuf;
+#endif
   oggz_off_t offset_end = -1;
 
   if (oggz->file != NULL) {
+#ifndef WINCE
     if ((fd = fileno (oggz->file)) == -1) {
       /*oggz_set_error (oggz, OGGZ_ERR_SYSTEM);*/
       return -1;
@@ -598,6 +590,12 @@ oggz_offset_end (OGGZ * oggz)
       /* XXX: should be able to just carry on and guess, as per io */
       /*return -1;*/
     }
+#else
+    int current = ftell(oggz->file);
+    fseek (oggz->file, 0, SEEK_END);
+    offset_end = ftell (oggz->file);
+    fseek (oggz->file, current, SEEK_SET);
+#endif
   } else {
     oggz_off_t offset_save;
 
@@ -620,14 +618,17 @@ oggz_offset_end (OGGZ * oggz)
   return offset_end;
 }
 
-static ogg_int64_t
-oggz_seek_set (OGGZ * oggz, ogg_int64_t unit_target)
+ogg_int64_t
+oggz_bounded_seek_set (OGGZ * oggz,
+                       ogg_int64_t unit_target,
+                       ogg_int64_t offset_begin,
+                       ogg_int64_t offset_end)
 {
-  OggzReader * reader = &oggz->x.reader;
+  OggzReader * reader;
   oggz_off_t offset_orig, offset_at, offset_guess;
-  oggz_off_t offset_begin, offset_end = -1, offset_next;
+  oggz_off_t offset_next;
   ogg_int64_t granule_at;
-  ogg_int64_t unit_at, unit_begin = 0, unit_end = -1, unit_last_iter = -1;
+  ogg_int64_t unit_at, unit_begin = -1, unit_end = -1, unit_last_iter = -1;
   long serialno;
   ogg_page * og;
   int hit_eof = 0;
@@ -638,21 +639,23 @@ oggz_seek_set (OGGZ * oggz, ogg_int64_t unit_target)
 
   if (unit_target > 0 && !oggz_has_metrics (oggz)) {
 #ifdef DEBUG
-    printf ("oggz_seek_set: No metric defined, FAIL\n");
+    printf ("oggz_bounded_seek_set: No metric defined, FAIL\n");
+#endif
+    return -1;
+  }
+  
+  if (offset_end == -1 && (offset_end = oggz_offset_end (oggz)) == -1) {
+#ifdef DEBUG
+    printf ("oggz_bounded_seek_set: oggz_offset_end == -1, FAIL\n");
 #endif
     return -1;
   }
 
-  if ((offset_end = oggz_offset_end (oggz)) == -1) {
-#ifdef DEBUG
-    printf ("oggz_seek_set: oggz_offset_end == -1, FAIL\n");
-#endif
-    return -1;
-  }
+  reader = &oggz->x.reader;
 
   if (unit_target == reader->current_unit) {
 #ifdef DEBUG
-    printf ("oggz_seek_set: unit_target == reader->current_unit, SKIP\n");
+    printf ("oggz_bounded_seek_set: unit_target == reader->current_unit, SKIP\n");
 #endif
     return (long)reader->current_unit;
   }
@@ -668,11 +671,41 @@ oggz_seek_set (OGGZ * oggz, ogg_int64_t unit_target)
 
   offset_orig = oggz->offset;
 
-  offset_begin = 0;
-
   unit_at = reader->current_unit;
-  unit_begin = 0;
-  unit_end = -1;
+
+  og = &oggz->current_page;
+
+  if (unit_end == -1 && oggz_seek_raw (oggz, offset_end, SEEK_SET) >= 0) {
+    ogg_int64_t granulepos;
+
+    if (oggz_get_prev_start_page (oggz, og, &granulepos, &serialno) >= 0) {
+      unit_end = oggz_get_unit (oggz, serialno, granulepos);
+    }
+  }
+
+  if (unit_begin == -1 && oggz_seek_raw (oggz, offset_begin, SEEK_SET) >= 0) {
+    ogg_int64_t granulepos;
+    if (oggz_get_next_start_page (oggz, og) >= 0) {
+      serialno = ogg_page_serialno (og);
+      granulepos = ogg_page_granulepos (og);
+      unit_begin = oggz_get_unit (oggz, serialno, granulepos);
+    }
+  }
+
+  /* Fail if target isn't in specified range. */
+  if (unit_target < unit_begin || unit_target > unit_end)
+    return -1;
+
+  /* Reduce the search range if possible using read cursor position. */
+  if (unit_at > unit_begin && unit_at < unit_end) {
+    if (unit_target < unit_at) {
+      unit_end = unit_at;
+      offset_end = offset_at;
+    } else {
+      unit_begin = unit_at;
+      offset_begin = offset_at;
+    }
+  }
 
   og = &oggz->current_page;
 
@@ -682,7 +715,7 @@ oggz_seek_set (OGGZ * oggz, ogg_int64_t unit_target)
     hit_eof = 0;
 
 #ifdef DEBUG
-    printf ("oggz_seek_set: [A] want u%lld: (u%lld - u%lld) [@%" PRI_OGGZ_OFF_T "d - @%" PRI_OGGZ_OFF_T "d]\n",
+    printf ("oggz_bounded_seek_set: [A] want u%lld: (u%lld - u%lld) [@%" PRI_OGGZ_OFF_T "d - @%" PRI_OGGZ_OFF_T "d]\n",
 	    unit_target, unit_begin, unit_end, offset_begin, offset_end);
 #endif
 
@@ -697,59 +730,26 @@ oggz_seek_set (OGGZ * oggz, ogg_int64_t unit_target)
       break;
     }
 
-    offset_at = oggz_seek_raw (oggz, offset_guess, SEEK_SET);
-    if (offset_at == -1) {
-      goto notfound;
-    }
-
-    offset_next = oggz_get_next_start_page (oggz, og);
-
-#ifdef DEBUG
-    printf ("oggz_seek_set: offset_next %" PRI_OGGZ_OFF_T "d\n", offset_next);
-#endif
-
-    if (/*unit_end == -1 &&*/ offset_next == -2) { /* reached eof, backtrack */
-      hit_eof = 1;
-      offset_next = oggz_get_prev_start_page (oggz, og, &granule_at,
-					      &serialno);
-      unit_end = oggz_get_unit (oggz, serialno, granule_at);
-#ifdef DEBUG
-      printf ("oggz_seek_set: [C] offset_next @%" PRI_OGGZ_OFF_T "d, g%lld, (s%ld)\n",
-	      offset_next, granule_at, serialno);
-      printf ("oggz_seek_set: [c] u%lld\n",
-	      oggz_get_unit (oggz, serialno, granule_at));
-#endif
+    if (offset_guess > offset_end) {
+      offset_guess = offset_end;
+      offset_at = oggz_seek_raw (oggz, offset_guess, SEEK_SET);
+      offset_next = oggz_get_prev_start_page (oggz, og, &granule_at, &serialno);
     } else {
+      offset_at = oggz_seek_raw (oggz, offset_guess, SEEK_SET);
+      offset_next = oggz_get_next_start_page (oggz, og);
       serialno = ogg_page_serialno (og);
       granule_at = ogg_page_granulepos (og);
     }
-
-    if (offset_next < 0) {
-      goto notfound;
-    }
-
-    if (hit_eof || offset_next > offset_end) {
-      offset_next =
-	oggz_scan_for_page (oggz, og, unit_target, offset_begin, offset_end);
-      if (offset_next < 0) goto notfound;
-
-      offset_at = offset_next;
-      serialno = ogg_page_serialno (og);
-      granule_at = ogg_page_granulepos (og);
-
-      unit_at = oggz_get_unit (oggz, serialno, granule_at);
-
-      goto found;
-    }
-
-    offset_at = offset_next;
 
     unit_at = oggz_get_unit (oggz, serialno, granule_at);
 
+#ifdef DEBUG
+    printf ("oggz_bounded_seek_set: offset_next %" PRI_OGGZ_OFF_T "d\n", offset_next);
+#endif
     if (unit_at == unit_last_iter) break;
 
 #ifdef DEBUG
-    printf ("oggz_seek_set: [D] want u%lld, got page u%lld @%" PRI_OGGZ_OFF_T "d g%lld\n",
+    printf ("oggz_bounded_seek_set: [D] want u%lld, got page u%lld @%" PRI_OGGZ_OFF_T "d g%lld\n",
 	    unit_target, unit_at, offset_at, granule_at);
 #endif
 
@@ -766,10 +766,9 @@ oggz_seek_set (OGGZ * oggz, ogg_int64_t unit_target)
     }
   }
 
- found:
   do {
     offset_at = oggz_get_prev_start_page (oggz, og, &granule_at, &serialno);
-    if (offset_at == -1)
+    if (offset_at < 0)
       break;
     unit_at = oggz_get_unit (oggz, serialno, granule_at);
   } while (unit_at > unit_target);
@@ -783,19 +782,10 @@ oggz_seek_set (OGGZ * oggz, ogg_int64_t unit_target)
   if (offset_at == -1) return -1;
 
 #ifdef DEBUG
-  printf ("oggz_seek_set: FOUND (%lld)\n", unit_at);
+  printf ("oggz_bounded_seek_set: FOUND (%lld)\n", unit_at);
 #endif
 
   return (long)reader->current_unit;
-
- notfound:
-#ifdef DEBUG
-  printf ("oggz_seek_set: NOT FOUND\n");
-#endif
-
-  oggz_reset (oggz, offset_orig, -1, SEEK_SET);
-
-  return -1;
 }
 
 static ogg_int64_t
@@ -828,13 +818,13 @@ oggz_seek_end (OGGZ * oggz, ogg_int64_t unit_offset)
 	  unit_end, offset_end, granulepos);
 #endif
 
-  return oggz_seek_set (oggz, unit_end + unit_offset);
+  return oggz_bounded_seek_set (oggz, unit_end + unit_offset, 0, -1);
 }
 
 off_t
 oggz_seek (OGGZ * oggz, oggz_off_t offset, int whence)
 {
-  OggzReader * reader = &oggz->x.reader;
+  OggzReader * reader;
   ogg_int64_t units = -1;
 
   if (oggz == NULL) return -1;
@@ -844,7 +834,9 @@ oggz_seek (OGGZ * oggz, oggz_off_t offset, int whence)
   }
 
   if (offset == 0 && whence == SEEK_SET) units = 0;
-  
+
+  reader = &oggz->x.reader;
+
   if (!(offset == 0 && whence == SEEK_CUR)) {
     /* Invalidate current_unit */
     reader->current_unit = -1;
@@ -856,7 +848,7 @@ oggz_seek (OGGZ * oggz, oggz_off_t offset, int whence)
 ogg_int64_t
 oggz_seek_units (OGGZ * oggz, ogg_int64_t units, int whence)
 {
-  OggzReader * reader = &oggz->x.reader;
+  OggzReader * reader;
 
   ogg_int64_t r;
 
@@ -881,13 +873,15 @@ oggz_seek_units (OGGZ * oggz, ogg_int64_t units, int whence)
     return -1;
   }
 
+  reader = &oggz->x.reader;
+
   switch (whence) {
   case SEEK_SET:
-    r = oggz_seek_set (oggz, units);
+    r = oggz_bounded_seek_set (oggz, units, 0, -1);
     break;
   case SEEK_CUR:
     units += reader->current_unit;
-    r = oggz_seek_set (oggz, units);
+    r = oggz_bounded_seek_set (oggz, units, 0, -1);
     break;
   case SEEK_END:
     r = oggz_seek_end (oggz, units);
@@ -944,3 +938,126 @@ oggz_seek_packets (OGGZ * oggz, long serialno, long packets, int whence)
 }
 
 #endif
+
+// Returns 1 if any of the elements of array |a|, which is of length |n|,
+// contain the value |val|. Otherwise returns 0.
+static int
+is_any(ogg_int64_t* a, int n, ogg_int64_t val)
+{
+  int i;
+  for (i=0; i<n; i++) {
+    if (a[i] == val) {
+      return 1;
+    }
+  }
+  return 0;    
+}
+
+// Returns the index of the element in array |a|, which is of length |n|,
+// which contains the value |val|, or -1 of it's not present.
+static int
+find(long* a, int n, ogg_int64_t val)
+{
+  int i;
+  for (i=0; i<n; i++) {
+    if (a[i] == val) {
+      return i;
+    }
+  }
+  return -1;    
+}
+
+// Returns the element with the smallest value in array |a|, which is
+// of length |n|.
+static ogg_int64_t
+minimum(ogg_int64_t* a, int n) {
+  ogg_int64_t m = 0x7FFFFFFFFFFFFFFF;
+  int i;
+  for (i=0; i<n; i++) {
+    if (a[i] < m) {
+      m = a[i];
+    }
+  }
+  return m;
+}
+
+ogg_int64_t
+oggz_keyframe_seek_set(OGGZ * oggz,
+                       long* serial_nos,
+                       int num_serialno,
+                       ogg_int64_t unit_target,
+                       ogg_int64_t offset_begin,
+                       ogg_int64_t offset_end)
+{
+  oggz_off_t offset_at;
+  oggz_off_t offset_next;
+  ogg_int64_t granule_at;
+  ogg_int64_t unit_at;
+  ogg_int64_t key_granule_at, key_unit_at;
+  long serialno;
+  ogg_page * og;
+  int granule_shift = 0, idx;
+  ogg_int64_t* key_frames = 0;
+  
+  unit_at = oggz_bounded_seek_set(oggz,
+                                  unit_target,
+                                  offset_begin,
+                                  offset_end);
+  // Time isn't in the specified offset range, fail.
+  if (unit_at == -1)
+    return -1;
+
+  // We've seeked to beginning, we're at a key frame.
+  if (unit_at == 0)
+    return 0; 
+
+  // Backup this, in case we need to fail.
+  offset_at = oggz->offset;
+
+  key_frames = oggz_malloc(sizeof(ogg_int64_t) * num_serialno);
+  if (!key_frames) {
+    // Malloc failure. We can still exit with the seek finishing at a non
+    // key frame.
+    return unit_at;
+  }
+  memset(key_frames, -1, sizeof(ogg_int64_t) * num_serialno);
+
+  // Find the key frame offset for every stream.
+  og = &oggz->current_page;
+  while (is_any(key_frames, num_serialno, -1)) {
+    do {
+      offset_next = oggz_get_prev_start_page (oggz, og, &granule_at, &serialno);
+      if (offset_next <= 0 || granule_at == 0) {
+        // At beginning of file, or some other failure. Return with
+        // non-key frame seek if possible.
+        oggz_free(key_frames);
+        offset_at = oggz_reset (oggz, offset_at, unit_at, SEEK_SET);
+        return (offset_at == -1) ? -1 : unit_at;
+      }
+    } while (granule_at < 0);
+
+    idx = find(serial_nos, num_serialno, serialno);
+    if (idx == -1 || key_frames[idx] != -1)
+      continue;
+
+    granule_shift = oggz_get_granuleshift(oggz, serialno);
+    key_granule_at = (granule_at >> granule_shift) << granule_shift;
+    key_unit_at = oggz_get_unit(oggz, serialno, key_granule_at);
+
+    if (key_unit_at < unit_target)
+      key_frames[idx] = key_unit_at;
+  }
+
+  // Seek to 100ms before the earliest of all the streams' key frames.
+  // This is so that after the seek, the decoder will defintately return frames
+  // at or before get the key frame. Without this, some decoders will return
+  // frames which start after the specified time - after the key frame.
+  key_unit_at = minimum(key_frames, num_serialno);
+  unit_at = oggz_bounded_seek_set(oggz,
+                                  MAX((key_unit_at - 100), 0),
+                                  offset_begin,
+                                  offset_end);
+  oggz_free(key_frames);
+
+  return unit_at;
+}

@@ -181,6 +181,15 @@ public:
   void ProcessPendingRequests();
 
   /**
+   * Check whether it's OK to load a script from aURI in
+   * aDocument.
+   */
+  static nsresult ShouldLoadScript(nsIDocument* aDocument,
+                                   nsISupports* aContext,
+                                   nsIURI* aURI,
+                                   const nsAString &aType);
+
+  /**
    * Check whether it's OK to execute a script loaded via aChannel in
    * aDocument.
    */
@@ -194,16 +203,29 @@ public:
   void BeginDeferringScripts()
   {
     mDeferEnabled = PR_TRUE;
+    if (mDocument) {
+      mDocument->BlockOnload();
+    }
   }
 
   /**
-   * Stops defering scripts and immediately processes the mDeferredRequests
-   * queue.
+   * Notifies the script loader that parsing is done.  If aTerminated is true,
+   * this will drop any pending scripts that haven't run yet.  Otherwise, it
+   * will stops deferring scripts and immediately processes the
+   * mDeferredRequests queue.
    *
-   * WARNING: This function will syncronously execute content scripts, so be
+   * WARNING: This function will synchronously execute content scripts, so be
    * prepared that the world might change around you.
    */
-  void EndDeferringScripts();
+  void ParsingComplete(PRBool aTerminated);
+
+  /**
+   * Returns the number of pending scripts, deferred or not.
+   */
+  PRUint32 HasPendingOrCurrentScripts()
+  {
+    return mCurrentScript || GetFirstPendingRequest();
+  }
 
   /**
    * Adds aURI to the preload list and starts loading it.
@@ -219,9 +241,10 @@ protected:
   /**
    * Helper function to check the content policy for a given request.
    */
-  nsresult CheckContentPolicy(nsScriptLoadRequest *aRequest,
-                              nsISupports *aContext,
-                              const nsAString &aType);
+  static nsresult CheckContentPolicy(nsIDocument* aDocument,
+                                     nsISupports *aContext,
+                                     nsIURI *aURI,
+                                     const nsAString &aType);
 
   /**
    * Start a load for aRequest's URI.
@@ -229,9 +252,11 @@ protected:
   nsresult StartLoad(nsScriptLoadRequest *aRequest, const nsAString &aType);
 
   /**
-   * Process any pending requests asyncronously (i.e. off an event) if there
+   * Process any pending requests asynchronously (i.e. off an event) if there
    * are any. Note that this is a no-op if there aren't any currently pending
    * requests.
+   *
+   * This function is virtual to allow cross-library calls to SetEnabled()
    */
   virtual void ProcessPendingRequestsAsync();
 
@@ -300,6 +325,7 @@ protected:
   PRUint32 mBlockerCount;
   PRPackedBool mEnabled;
   PRPackedBool mDeferEnabled;
+  PRPackedBool mUnblockOnloadWhenDoneProcessing;
 };
 
 #endif //__nsScriptLoader_h__

@@ -58,11 +58,18 @@ struct xpc_qsFunctionSpec {
     uintN arity;
 };
 
+struct xpc_qsTraceableSpec {
+    const char *name;
+    JSNative native;
+    uintN arity;
+};
+
 /** A table mapping interfaces to quick stubs. */
 struct xpc_qsHashEntry {
     nsID iid;
     const xpc_qsPropertySpec *properties;
     const xpc_qsFunctionSpec *functions;
+    const xpc_qsTraceableSpec *traceables;
     // These last two fields index to other entries in the same table.
     // XPC_QS_NULL_ENTRY indicates there are no more entries in the chain.
     size_t parentInterface;
@@ -106,6 +113,11 @@ xpc_qsThrowMethodFailed(JSContext *cx, nsresult rv, jsval *vp);
 JSBool
 xpc_qsThrowMethodFailedWithCcx(XPCCallContext &ccx, nsresult rv);
 
+void
+xpc_qsThrowMethodFailedWithDetails(JSContext *cx, nsresult rv,
+                                   const char *ifaceName,
+                                   const char *memberName);
+
 /**
  * Fail after converting a method argument fails.
  *
@@ -116,6 +128,10 @@ xpc_qsThrowBadArg(JSContext *cx, nsresult rv, jsval *vp, uintN paramnum);
 
 void
 xpc_qsThrowBadArgWithCcx(XPCCallContext &ccx, nsresult rv, uintN paramnum);
+
+void
+xpc_qsThrowBadArgWithDetails(JSContext *cx, nsresult rv, uintN paramnum,
+                             const char *ifaceName, const char *memberName);
 
 /**
  * Fail after converting a setter argument fails.
@@ -273,25 +289,16 @@ struct xpc_qsSelfRef
     nsISupports* ptr;
 };
 
-struct xpc_qsTempRoot
+template<size_t N>
+struct xpc_qsArgValArray
 {
-  public:
-    explicit xpc_qsTempRoot(JSContext *cx)
-        : mContext(cx) {
-        JS_PUSH_SINGLE_TEMP_ROOT(cx, JSVAL_NULL, &mTvr);
+    xpc_qsArgValArray(JSContext *cx) : tvr(cx, N, array)
+    {
+        memset(array, 0, N * sizeof(jsval));
     }
 
-    ~xpc_qsTempRoot() {
-        JS_POP_TEMP_ROOT(mContext, &mTvr);
-    }
-
-    jsval * addr() {
-        return &mTvr.u.value;
-    }
-
-  private:
-    JSContext *mContext;
-    JSTempValueRooter mTvr;
+    JSAutoTempValueRooter tvr;
+    jsval array[N];
 };
 
 /**
@@ -383,22 +390,37 @@ xpc_qsUnwrapThisFromCcx(XPCCallContext &ccx,
 }
 
 nsresult
-xpc_qsUnwrapArgImpl(JSContext *cx, jsval v, const nsIID &iid, void **ppArg);
+xpc_qsUnwrapArgImpl(JSContext *cx, jsval v, const nsIID &iid, void **ppArg,
+                    nsISupports **ppArgRef, jsval *vp);
 
 /** Convert a jsval to an XPCOM pointer. */
 template <class T>
 inline nsresult
-xpc_qsUnwrapArg(JSContext *cx, jsval v, T **ppArg)
+xpc_qsUnwrapArg(JSContext *cx, jsval v, T **ppArg, nsISupports **ppArgRef,
+                jsval *vp)
 {
     return xpc_qsUnwrapArgImpl(cx, v, NS_GET_TEMPLATE_IID(T),
-                               reinterpret_cast<void **>(ppArg));
+                               reinterpret_cast<void **>(ppArg), ppArgRef, vp);
+}
+
+inline nsWrapperCache*
+xpc_qsGetWrapperCache(nsWrapperCache *cache)
+{
+    return cache;
+}
+
+inline nsWrapperCache*
+xpc_qsGetWrapperCache(void *p)
+{
+    return nsnull;
 }
 
 /** Convert an XPCOM pointer to jsval. Return JS_TRUE on success. */
 JSBool
 xpc_qsXPCOMObjectToJsval(XPCCallContext &ccx,
                          nsISupports *p,
-                         const nsIID &iid,
+                         nsWrapperCache *cache,
+                         XPCNativeInterface *iface,
                          jsval *rval);
 
 /**
@@ -413,23 +435,29 @@ xpc_qsVariantToJsval(XPCCallContext &ccx,
                      uintN paramNum,
                      jsval *rval);
 
-/**
- * Use this as the setter for readonly attributes. (The IDL readonly
- * keyword does not map to JSPROP_READONLY. Semantic mismatch.)
- *
- * Always fails, with the same error as setting a property that has
- * JSPROP_GETTER but not JSPROP_SETTER.
- */
-JSBool
-xpc_qsReadOnlySetter(JSContext *cx, JSObject *obj, jsval id, jsval *vp);
-
 #ifdef DEBUG
 void
 xpc_qsAssertContextOK(JSContext *cx);
+
+inline PRBool
+xpc_qsSameResult(nsISupports *result1, nsISupports *result2)
+{
+    return SameCOMIdentity(result1, result2);
+}
 
 #define XPC_QS_ASSERT_CONTEXT_OK(cx) xpc_qsAssertContextOK(cx)
 #else
 #define XPC_QS_ASSERT_CONTEXT_OK(cx) ((void) 0)
 #endif
+
+#define XPC_QS_DEFINE_XPCNATIVEINTERFACE_GETTER(_iface, _iface_cache)         \
+inline XPCNativeInterface*                                                    \
+_iface##_Interface(XPCCallContext& ccx)                                       \
+{                                                                             \
+    if(!(_iface_cache))                                                       \
+        (_iface_cache) =                                                      \
+            XPCNativeInterface::GetNewOrUsed(ccx, &NS_GET_IID(_iface));       \
+    return (_iface_cache);                                                    \
+}
 
 #endif /* xpcquickstubs_h___ */

@@ -51,9 +51,15 @@
 #include "nsIAtom.h"
 #include "nsCompatibility.h"
 #include "nsTObserverArray.h"
+#include "nsTHashtable.h"
+#include "nsHashKeys.h"
 #include "nsNodeInfoManager.h"
 #include "nsIStreamListener.h"
 #include "nsIObserver.h"
+#include "nsAutoPtr.h"
+#ifdef MOZ_SMIL
+class nsSMILAnimationController;
+#endif // MOZ_SMIL
 
 class nsIContent;
 class nsPresContext;
@@ -66,6 +72,7 @@ class nsIViewManager;
 class nsIScriptGlobalObject;
 class nsPIDOMWindow;
 class nsIDOMEvent;
+class nsIDOMEventTarget;
 class nsIDeviceContext;
 class nsIParser;
 class nsIDOMNode;
@@ -94,11 +101,12 @@ class nsIDOMNodeList;
 class mozAutoSubtreeModified;
 struct JSObject;
 class nsFrameLoader;
+class nsIBoxObject;
 
 // IID for the nsIDocument interface
 #define NS_IDOCUMENT_IID      \
-{ 0x92b19d1c, 0x8f37, 0x4d4b, \
-  { 0xa3, 0x42, 0xb5, 0xc6, 0x8b, 0x54, 0xde, 0x6c } }
+{ 0xe0ca6723, 0x1efa, 0x4819, \
+  { 0x84, 0xbb, 0xfa, 0x48, 0x39, 0xe8, 0xef, 0x19 } }
 
 // Flag for AddStyleSheet().
 #define NS_STYLESHEET_FROM_CATALOG                (1 << 0)
@@ -121,8 +129,12 @@ public:
       mCompatMode(eCompatibility_FullStandards),
       mIsInitialDocumentInWindow(PR_FALSE),
       mMayStartLayout(PR_TRUE),
-      mPartID(0),
-      mJSObject(nsnull)
+      // mAllowDNSPrefetch starts true, so that we can always reliably && it
+      // with various values that might disable it.  Since we never prefetch
+      // unless we get a window, and in that case the docshell value will get
+      // &&-ed in, this is safe.
+      mAllowDNSPrefetch(PR_TRUE),
+      mPartID(0)
   {
     mParentPtrBits |= PARENT_BIT_INDOCUMENT;
   }
@@ -620,6 +632,11 @@ public:
   virtual void EndUpdate(nsUpdateType aUpdateType) = 0;
   virtual void BeginLoad() = 0;
   virtual void EndLoad() = 0;
+
+  enum ReadyState { READYSTATE_UNINITIALIZED = 0, READYSTATE_LOADING = 1, READYSTATE_INTERACTIVE = 3, READYSTATE_COMPLETE = 4};
+  virtual void SetReadyStateInternal(ReadyState rs) = 0;
+  virtual ReadyState GetReadyStateEnum() = 0;
+
   // notify that one or two content nodes changed state
   // either may be nsnull, but not both
   virtual void ContentStatesChanged(nsIContent* aContent1,
@@ -635,13 +652,6 @@ public:
                               nsIStyleRule* aStyleRule) = 0;
   virtual void StyleRuleRemoved(nsIStyleSheet* aStyleSheet,
                                 nsIStyleRule* aStyleRule) = 0;
-
-  /**
-   * Notify document of pending attribute change
-   */
-  virtual void AttributeWillChange(nsIContent* aChild,
-                                   PRInt32 aNameSpaceID,
-                                   nsIAtom* aAttribute) = 0;
 
   /**
    * Flush notifications for this document and its parent documents
@@ -845,9 +855,14 @@ public:
    * or to the page's presentation being restored into an existing DOM window.
    * This notification fires applicable DOM events to the content window.  See
    * nsIDOMPageTransitionEvent.idl for a description of the |aPersisted|
-   * parameter.
+   * parameter. If aDispatchStartTarget is null, the pageshow event is
+   * dispatched on the ScriptGlobalObject for this document, otherwise it's
+   * dispatched on aDispatchStartTarget.
+   * Note: if aDispatchStartTarget isn't null, the showing state of the
+   * document won't be altered.
    */
-  virtual void OnPageShow(PRBool aPersisted) = 0;
+  virtual void OnPageShow(PRBool aPersisted,
+                          nsIDOMEventTarget* aDispatchStartTarget) = 0;
 
   /**
    * Notification that the page has been hidden, for documents which are loaded
@@ -855,9 +870,14 @@ public:
    * to the document's presentation being saved but removed from an existing
    * DOM window.  This notification fires applicable DOM events to the content
    * window.  See nsIDOMPageTransitionEvent.idl for a description of the
-   * |aPersisted| parameter.
+   * |aPersisted| parameter. If aDispatchStartTarget is null, the pagehide
+   * event is dispatched on the ScriptGlobalObject for this document,
+   * otherwise it's dispatched on aDispatchStartTarget.
+   * Note: if aDispatchStartTarget isn't null, the showing state of the
+   * document won't be altered.
    */
-  virtual void OnPageHide(PRBool aPersisted) = 0;
+  virtual void OnPageHide(PRBool aPersisted,
+                          nsIDOMEventTarget* aDispatchStartTarget) = 0;
   
   /*
    * We record the set of links in the document that are relevant to
@@ -887,6 +907,12 @@ public:
    * @param aElement canonical nsIContent pointer of the box object's element
    */
   virtual void ClearBoxObjectFor(nsIContent *aContent) = 0;
+
+  /**
+   * Get the box object for an element. This is not exposed through a
+   * scriptable interface except for XUL documents.
+   */
+  NS_IMETHOD GetBoxObjectFor(nsIDOMElement* aElement, nsIBoxObject** aResult) = 0;
 
   /**
    * Get the compatibility mode for this document
@@ -975,16 +1001,6 @@ public:
   void SetMayStartLayout(PRBool aMayStartLayout)
   {
     mMayStartLayout = aMayStartLayout;
-  }
-
-  JSObject* GetJSObject() const
-  {
-    return mJSObject;
-  }
-
-  void SetJSObject(JSObject *aJSObject)
-  {
-    mJSObject = aJSObject;
   }
 
   // This method should return an addrefed nsIParser* or nsnull. Implementations
@@ -1097,7 +1113,58 @@ public:
    */
   virtual void EnumerateExternalResources(nsSubDocEnumFunc aCallback,
                                           void* aData) = 0;
-  
+
+  /**
+   * Return whether the document is currently showing (in the sense of
+   * OnPageShow() having been called already and OnPageHide() not having been
+   * called yet.
+   */
+  PRBool IsShowing() { return mIsShowing; }
+
+  void RegisterFreezableElement(nsIContent* aContent);
+  PRBool UnregisterFreezableElement(nsIContent* aContent);
+  typedef void (* FreezableElementEnumerator)(nsIContent*, void*);
+  void EnumerateFreezableElements(FreezableElementEnumerator aEnumerator,
+                                  void* aData);
+
+#ifdef MOZ_SMIL
+  // Getter for this document's SMIL Animation Controller
+  virtual nsSMILAnimationController* GetAnimationController() = 0;
+#endif // MOZ_SMIL
+
+  /**
+   * Prevents user initiated events from being dispatched to the document and
+   * subdocuments.
+   */
+  virtual void SuppressEventHandling(PRUint32 aIncrease = 1) = 0;
+
+  /**
+   * Unsuppress event handling.
+   * @param aFireEvents If PR_TRUE, delayed events (focus/blur) will be fired
+   *                    asynchronously.
+   */
+  virtual void UnsuppressEventHandlingAndFireEvents(PRBool aFireEvents) = 0;
+
+  PRUint32 EventHandlingSuppressed() const { return mEventsSuppressed; }
+
+  PRBool IsDNSPrefetchAllowed() const { return mAllowDNSPrefetch; }
+
+  /**
+   * Called by nsParser to preload images. Can be removed and code moved
+   * to nsPreloadURIs::PreloadURIs() in file nsParser.cpp whenever the
+   * parser-module is linked with gklayout-module.
+   */
+  virtual void MaybePreLoadImage(nsIURI* uri) = 0;
+
+  /**
+   * Returns true if the locale used for the document specifies a direction of
+   * right to left. For chrome documents, this comes from the chrome registry.
+   * This is used to determine the current state for the :-moz-locale-dir pseudoclass
+   * so once can know whether a document is expected to be rendered left-to-right
+   * or right-to-left.
+   */
+  virtual PRBool IsDocumentRightToLeft() { return PR_FALSE; }
+
 protected:
   ~nsIDocument()
   {
@@ -1141,6 +1208,12 @@ protected:
   nsNodeInfoManager* mNodeInfoManager; // [STRONG]
   nsICSSLoader* mCSSLoader; // [STRONG]
 
+  // The set of all object, embed, applet, video and audio elements for
+  // which this is the owner document. (They might not be in the document.)
+  // These are non-owning pointers, the elements are responsible for removing
+  // themselves when they go away.
+  nsAutoPtr<nsTHashtable<nsPtrHashKey<nsIContent> > > mFreezableElements;
+
   // Table of element properties for this document.
   nsPropertyTable mPropertyTable;
 
@@ -1171,6 +1244,13 @@ protected:
   // True iff we've ever fired a DOMTitleChanged event for this document
   PRPackedBool mHaveFiredTitleChange;
 
+  // True iff IsShowing() should be returning true
+  PRPackedBool mIsShowing;
+
+  // True iff DNS prefetch is allowed for this document.  Note that if the
+  // document has no window, DNS prefetch won't be performed no matter what.
+  PRPackedBool mAllowDNSPrefetch;
+  
   // The bidi options for this document.  What this bitfield means is
   // defined in nsBidiUtils.h
   PRUint32 mBidiOptions;
@@ -1199,11 +1279,7 @@ protected:
   // go to.
   nsCOMPtr<nsIDocument> mDisplayDocument;
 
-private:
-  // JSObject cache. Only to be used for performance
-  // optimizations. This will be set once this document is touched
-  // from JS, and it will be unset once the JSObject is finalized.
-  JSObject *mJSObject;
+  PRUint32 mEventsSuppressed;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIDocument, NS_IDOCUMENT_IID)
@@ -1288,5 +1364,13 @@ NS_NewDOMDocument(nsIDOMDocument** aInstancePtrResult,
                   PRBool aLoadedAsData);
 nsresult
 NS_NewPluginDocument(nsIDocument** aInstancePtrResult);
+
+inline nsIDocument*
+nsINode::GetOwnerDocument() const
+{
+  nsIDocument* ownerDoc = GetOwnerDoc();
+
+  return ownerDoc != this ? ownerDoc : nsnull;
+}
 
 #endif /* nsIDocument_h___ */
