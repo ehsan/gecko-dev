@@ -1352,7 +1352,7 @@ TraceRecorder::emitTreeCall(Fragment* inner, GuardRecord* lr)
     if (callDepth > 0) {
         /* Calculate the amount we have to lift the native stack pointer by to compensate for
            any outer frames that the inner tree doesn't expect but the outer tree has. */
-        ptrdiff_t sp_adj = nativeStackOffset(&cx->fp->argv[-1]);
+        ptrdiff_t sp_adj = nativeStackOffset(&cx->fp->argv[-2]);
         /* Calculate the amount we have to lift the call stack by */
         ptrdiff_t rp_adj = callDepth * sizeof(FrameInfo);
         /* Guard that we have enough stack space for the tree we are trying to call on top
@@ -3148,12 +3148,6 @@ TraceRecorder::record_JSOP_VOID()
     return true;
 }
 
-JSBool
-js_num_parseFloat(JSContext* cx, uintN argc, jsval* vp);
-
-JSBool
-js_num_parseInt(JSContext* cx, uintN argc, jsval* vp);
-
 bool
 TraceRecorder::record_JSOP_INCNAME()
 {
@@ -3558,8 +3552,6 @@ TraceRecorder::record_JSOP_CALL()
                                                                "TC",  "s",    FAIL_VOID,   NULL },
         { js_obj_propertyIsEnumerable, F_Object_p_propertyIsEnumerable,
                                                                "TC",  "s",    FAIL_VOID,   NULL },
-        { js_num_parseInt,             F_ParseInt,             "C",   "s",    INFALLIBLE,  NULL },
-        { js_num_parseFloat,           F_ParseFloat,           "C",   "s",    INFALLIBLE,  NULL },
     };
 
     for (uintN i = 0; i < JS_ARRAY_LENGTH(knownNatives); i++) {
