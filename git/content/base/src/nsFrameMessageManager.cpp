@@ -98,8 +98,6 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsFrameMessageManager)
                                      !mChrome && !mIsProcessManager)
   /* Message managers in child process support nsISyncMessageSender. */
   NS_INTERFACE_MAP_ENTRY_CONDITIONAL(nsISyncMessageSender, !mChrome)
-  /* Message managers in chrome process support nsITreeItemFrameMessageManager. */
-  NS_INTERFACE_MAP_ENTRY_CONDITIONAL(nsITreeItemFrameMessageManager, mChrome)
   /* Process message manager doesn't support nsIChromeFrameMessageManager. */
   NS_INTERFACE_MAP_ENTRY_CONDITIONAL(nsIChromeFrameMessageManager,
                                      mChrome && !mIsProcessManager)
@@ -322,24 +320,6 @@ NS_IMETHODIMP
 nsFrameMessageManager::GetDocShell(nsIDocShell** aDocShell)
 {
   *aDocShell = nsnull;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsFrameMessageManager::GetChildCount(PRUint32* aChildCount)
-{
-  *aChildCount = static_cast<PRUint32>(mChildManagers.Count()); 
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsFrameMessageManager::GetChildAt(PRUint32 aIndex, 
-                                  nsITreeItemFrameMessageManager** aMM)
-{
-  *aMM = nsnull;
-  nsCOMPtr<nsITreeItemFrameMessageManager> mm =
-    do_QueryInterface(mChildManagers.SafeObjectAt(static_cast<PRUint32>(aIndex)));
-  mm.swap(*aMM);
   return NS_OK;
 }
 
@@ -843,7 +823,7 @@ bool SendAsyncMessageToChildProcess(void* aCallbackData,
                                     const nsAString& aJSON)
 {
   mozilla::dom::ContentParent* cp =
-    static_cast<mozilla::dom::ContentParent*>(aCallbackData);
+    mozilla::dom::ContentParent::GetSingleton(PR_FALSE);
   NS_WARN_IF_FALSE(cp, "No child process!");
   if (cp) {
     return cp->SendAsyncMessage(nsString(aMessage), nsString(aJSON));
@@ -877,7 +857,6 @@ bool SendAsyncMessageToParentProcess(void* aCallbackData,
   return true;
 }
 
-// This creates the global parent process message manager.
 nsresult
 NS_NewParentProcessMessageManager(nsIFrameMessageManager** aResult)
 {
@@ -886,9 +865,9 @@ NS_NewParentProcessMessageManager(nsIFrameMessageManager** aResult)
   NS_ENSURE_TRUE(IsChromeProcess(), NS_ERROR_NOT_AVAILABLE);
   nsFrameMessageManager* mm = new nsFrameMessageManager(PR_TRUE,
                                                         nsnull,
+                                                        SendAsyncMessageToChildProcess,
                                                         nsnull,
-                                                        nsnull,
-                                                        nsnull,
+                                                        &nsFrameMessageManager::sParentProcessManager,
                                                         nsnull,
                                                         nsnull,
                                                         PR_FALSE,
@@ -898,25 +877,6 @@ NS_NewParentProcessMessageManager(nsIFrameMessageManager** aResult)
   return CallQueryInterface(mm, aResult);
 }
 
-nsFrameMessageManager*
-nsFrameMessageManager::NewProcessMessageManager(mozilla::dom::ContentParent* aProcess)
-{
-  if (!nsFrameMessageManager::sParentProcessManager) {
-     nsCOMPtr<nsIFrameMessageManager> dummy;
-     NS_NewParentProcessMessageManager(getter_AddRefs(dummy));
-  }
-
-  nsFrameMessageManager* mm = new nsFrameMessageManager(PR_TRUE,
-                                                        nsnull,
-                                                        SendAsyncMessageToChildProcess,
-                                                        nsnull,
-                                                        aProcess,
-                                                        nsFrameMessageManager::sParentProcessManager,
-                                                        nsnull,
-                                                        PR_FALSE,
-                                                        PR_TRUE);
-  return mm;
-}
 
 nsresult
 NS_NewChildProcessMessageManager(nsISyncMessageSender** aResult)

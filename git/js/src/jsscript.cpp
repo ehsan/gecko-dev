@@ -46,7 +46,6 @@
 #include "jstypes.h"
 #include "jsstdint.h"
 #include "jsutil.h"
-#include "jscrashreport.h"
 #include "jsprf.h"
 #include "jsapi.h"
 #include "jsatom.h"
@@ -69,7 +68,6 @@
 #include "jsxdrapi.h"
 #endif
 #include "methodjit/MethodJIT.h"
-#include "vm/Debugger.h"
 
 #include "jsobjinlines.h"
 #include "jsscriptinlines.h"
@@ -290,25 +288,43 @@ Bindings::trace(JSTracer *trc)
 } /* namespace js */
 
 static void
+volatile_memcpy(volatile char *dst, void *src, size_t n)
+{
+    for (size_t i = 0; i < n; i++)
+        dst[i] = ((char *)src)[i];
+}
+
+static void
 CheckScript(JSScript *script, JSScript *prev)
 {
-#ifdef JS_CRASH_DIAGNOSTICS
+    volatile char dbg1[sizeof(JSScript)], dbg2[sizeof(JSScript)];
     if (script->cookie1 != JS_SCRIPT_COOKIE || script->cookie2 != JS_SCRIPT_COOKIE) {
-        crash::StackBuffer<sizeof(JSScript), 0x87> buf1(script);
-        crash::StackBuffer<sizeof(JSScript), 0x88> buf2(prev);
-        JS_OPT_ASSERT(false);
+        volatile_memcpy(dbg1, script, sizeof(JSScript));
+        if (prev)
+            volatile_memcpy(dbg2, prev, sizeof(JSScript));
     }
-#endif
+    JS_OPT_ASSERT(script->cookie1 == JS_SCRIPT_COOKIE && script->cookie2 == JS_SCRIPT_COOKIE);
 }
 
 static void
 CheckScriptOwner(JSScript *script, JSObject *owner)
 {
-#ifdef JS_CRASH_DIAGNOSTICS
+    if (script->ownerObject != owner) {
+        volatile char scriptData[sizeof(JSScript)];
+        volatile char owner1Data[sizeof(JSObject)], owner2Data[sizeof(JSObject)];
+        volatile char savedOwner[sizeof(JSObject *)];
+
+        volatile_memcpy(scriptData, script, sizeof(JSScript));
+        volatile_memcpy(savedOwner, &owner, sizeof(JSObject *));
+        if (script->ownerObject != JS_NEW_SCRIPT && script->ownerObject != JS_CACHED_SCRIPT)
+            volatile_memcpy(owner1Data, script->ownerObject, sizeof(JSObject));
+        if (owner != JS_NEW_SCRIPT && owner != JS_CACHED_SCRIPT)
+            volatile_memcpy(owner2Data, owner, sizeof(JSObject));
+    }
     JS_OPT_ASSERT(script->ownerObject == owner);
+
     if (owner != JS_NEW_SCRIPT && owner != JS_CACHED_SCRIPT)
         JS_OPT_ASSERT(script->compartment == owner->compartment());
-#endif
 }
 
 #if JS_HAS_XDR
@@ -965,10 +981,8 @@ JSScript::NewScript(JSContext *cx, uint32 length, uint32 nsrcnotes, uint32 natom
         return NULL;
 
     PodZero(script);
-#ifdef JS_CRASH_DIAGNOSTICS
     script->cookie1 = script->cookie2 = JS_SCRIPT_COOKIE;
     script->ownerObject = JS_NEW_SCRIPT;
-#endif
     script->length = length;
     script->version = version;
     new (&script->bindings) Bindings(cx, emptyCallShape);
@@ -1195,12 +1209,8 @@ JSScript::NewScriptFromCG(JSContext *cx, JSCodeGenerator *cg)
         script->hasSharps = true;
     if (cg->flags & TCF_STRICT_MODE_CODE)
         script->strictModeCode = true;
-    if (cg->flags & TCF_COMPILE_N_GO) {
+    if (cg->flags & TCF_COMPILE_N_GO)
         script->compileAndGo = true;
-        const StackFrame *fp = cg->parser->callerFrame;
-        if (fp && fp->isFunctionFrame())
-            script->savedCallerFun = true;
-    }
     if (cg->callsEval())
         script->usesEval = true;
     if (cg->flags & TCF_FUN_USES_ARGUMENTS)
@@ -1230,12 +1240,12 @@ JSScript::NewScriptFromCG(JSContext *cx, JSCodeGenerator *cg)
 
     script->bindings.transfer(cx, &cg->bindings);
 
+    /*
+     * We initialize fun->u.script to be the script constructed above
+     * so that the debugger has a valid FUN_SCRIPT(fun).
+     */
     fun = NULL;
     if (cg->inFunction()) {
-        /*
-         * We initialize fun->u.i.script to be the script constructed above
-         * so that the debugger has a valid fun->script().
-         */
         fun = cg->fun();
         JS_ASSERT(fun->isInterpreted());
         JS_ASSERT(!fun->script());
@@ -1252,30 +1262,15 @@ JSScript::NewScriptFromCG(JSContext *cx, JSCodeGenerator *cg)
 #endif
         if (cg->flags & TCF_FUN_HEAVYWEIGHT)
             fun->flags |= JSFUN_HEAVYWEIGHT;
-    } else {
-        /*
-         * Initialize script->object, if necessary, so that the debugger has a
-         * valid holder object.
-         */
-        if ((cg->flags & TCF_NEED_SCRIPT_OBJECT) && !js_NewScriptObject(cx, script))
-            goto bad;
     }
 
     /* Tell the debugger about this compiled script. */
     js_CallNewScriptHook(cx, script, fun);
-    if (!cg->parent) {
-        Debugger::onNewScript(cx, script,
-                              fun ? fun : (script->u.object ? script->u.object : cg->scopeChain()),
-                              (fun || script->u.object)
-                              ? Debugger::NewHeldScript
-                              : Debugger::NewNonHeldScript);
-    }
 
     return script;
 
 bad:
-    if (!script->u.object)
-        js_DestroyScript(cx, script, 2);
+    js_DestroyScript(cx, script, 2);
     return NULL;
 }
 
@@ -1291,10 +1286,8 @@ JSScript::totalSize()
 void
 JSScript::setOwnerObject(JSObject *owner)
 {
-#ifdef JS_CRASH_DIAGNOSTICS
     CheckScriptOwner(this, JS_NEW_SCRIPT);
     ownerObject = owner;
-#endif
 }
 
 /*
@@ -1332,9 +1325,24 @@ js_CallDestroyScriptHook(JSContext *cx, JSScript *script)
     hook = cx->debugHooks->destroyScriptHook;
     if (hook)
         hook(cx, script, cx->debugHooks->destroyScriptHookData);
-    Debugger::onDestroyScript(script);
     JS_ClearScriptTraps(cx, script);
 }
+
+namespace js {
+
+void
+CheckCompartmentScripts(JSCompartment *comp)
+{
+    JSScript *prev = NULL;
+    for (JSScript *script = (JSScript *)comp->scripts.next;
+         &script->links != &comp->scripts;
+         prev = script, script = (JSScript *)script->links.next)
+    {
+        CheckScript(script, prev);
+    }
+}
+
+} /* namespace js */
 
 static void
 DestroyScript(JSContext *cx, JSScript *script, JSObject *owner, uint32 caller)
@@ -1400,7 +1408,7 @@ DestroyScript(JSContext *cx, JSScript *script, JSObject *owner, uint32 caller)
     if (script->sourceMap)
         cx->free_(script->sourceMap);
 
-    JS_POISON(script, 0xdb, sizeof(JSScript));
+    memset(script, 0xdb, script->totalSize());
     *(uint32 *)script = caller;
     cx->free_(script);
 }
@@ -1435,10 +1443,9 @@ js_TraceScript(JSTracer *trc, JSScript *script, JSObject *owner)
     if (owner)
         CheckScriptOwner(script, owner);
 
-#ifdef JS_CRASH_DIAGNOSTICS
     JSRuntime *rt = trc->context->runtime;
-    JS_OPT_ASSERT_IF(rt->gcCheckCompartment, script->compartment == rt->gcCheckCompartment);
-#endif
+    if (rt->gcCheckCompartment && script->compartment != rt->gcCheckCompartment)
+        JS_Assert("compartment mismatch in GC", __FILE__, __LINE__);
 
     JSAtomMap *map = &script->atomMap;
     MarkAtomRange(trc, map->length, map->vector, "atomMap");

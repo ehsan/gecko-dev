@@ -133,7 +133,7 @@ public:
 
     nsresult addStripSpaceTest(txStripSpaceTest* aStripSpaceTest);
 
-    nsTArray<txStripSpaceTest*> mStripSpaceTests;
+    nsTPtrArray<txStripSpaceTest> mStripSpaceTests;
 };
 
 // xsl:template

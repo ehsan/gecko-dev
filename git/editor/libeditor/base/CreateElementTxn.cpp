@@ -40,6 +40,7 @@
 #include "nsIDOMDocument.h"
 #include "nsIDOMNodeList.h"
 #include "nsISelection.h"
+#include "nsIDOMText.h"
 #include "nsIDOMElement.h"
 #include "nsReadableUtils.h"
 

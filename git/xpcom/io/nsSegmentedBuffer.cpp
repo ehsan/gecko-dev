@@ -168,7 +168,7 @@ nsSegmentedBuffer::Empty()
 }
 
 #if 0
-void
+NS_COM void
 TestSegmentedBuffer()
 {
     nsSegmentedBuffer* buf = new nsSegmentedBuffer();

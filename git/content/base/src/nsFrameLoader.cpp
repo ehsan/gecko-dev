@@ -1791,7 +1791,7 @@ nsFrameLoader::TryRemoteBrowser()
     return false;
   }
 
-  ContentParent* parent = ContentParent::GetNewOrUsed();
+  ContentParent* parent = ContentParent::GetSingleton();
   NS_ASSERTION(parent->IsAlive(), "Process parent should be alive; something is very wrong!");
   mRemoteBrowser = parent->CreateTab(chromeFlags);
   if (mRemoteBrowser) {

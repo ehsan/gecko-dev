@@ -51,18 +51,15 @@ CPPSRCS = \
   selfTest.cpp \
   testArgumentsObject.cpp \
   testBug604087.cpp \
-  testChromeBuffer.cpp \
   testClassGetter.cpp \
   testCloneScript.cpp \
   testConservativeGC.cpp \
   testContexts.cpp \
-  testCustomIterator.cpp \
   testDebugger.cpp \
   testDeepFreeze.cpp \
   testDefineGetterSetterNonEnumerable.cpp \
   testDefineProperty.cpp \
   testExtendedEq.cpp \
-  testExternalStrings.cpp \
   testFuncCallback.cpp \
   testFunctionProperties.cpp \
   testGCChunkAlloc.cpp \
@@ -89,6 +86,9 @@ CPPSRCS = \
   testUTF8.cpp \
   testVersion.cpp \
   testXDR.cpp \
+  testCustomIterator.cpp \
+  testExternalStrings.cpp \
+  testChromeBuffer.cpp \
   $(NULL)
 
 # Disabled: an entirely unrelated test seems to cause this to fail.  Moreover,

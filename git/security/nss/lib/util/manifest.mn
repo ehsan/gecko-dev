@@ -70,7 +70,6 @@ EXPORTS = \
 	$(NULL)
 
 PRIVATE_EXPORTS = \
-	errstrs.h \
 	templates.c \
 	$(NULL)
 
@@ -81,7 +80,6 @@ CSRCS = \
 	derenc.c \
 	dersubr.c \
 	dertime.c \
-	errstrs.c \
 	nssb64d.c \
 	nssb64e.c \
 	nssrwlk.c \

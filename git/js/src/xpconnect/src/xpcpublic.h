@@ -219,15 +219,13 @@ struct CompartmentStats
     PRInt64 tjitCode;
     PRInt64 tjitDataAllocatorsMain;
     PRInt64 tjitDataAllocatorsReserve;
-    PRInt64 tjitDataNonAllocators;
 #endif
 };
 
 struct IterateData
 {
     IterateData()
-      : atomsTableSize(0),
-        stackSize(0),
+      : stackSize(0),
         gcHeapChunkTotal(0),
         gcHeapChunkCleanUnused(0),
         gcHeapChunkDirtyUnused(0),
@@ -237,7 +235,6 @@ struct IterateData
         compartmentStatsVector(),
         currCompartmentStats(NULL) { }
 
-    PRInt64 atomsTableSize;
     PRInt64 stackSize;
     PRInt64 gcHeapChunkTotal;
     PRInt64 gcHeapChunkCleanUnused;

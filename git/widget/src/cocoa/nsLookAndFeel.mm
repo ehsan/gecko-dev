@@ -389,9 +389,6 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
     case eMetric_MacGraphiteTheme:
       aMetric = [NSColor currentControlTint] == NSGraphiteControlTint;
       break;
-    case eMetric_MacLionTheme:
-      aMetric = nsToolkit::OnLionOrLater();
-      break;
     case eMetric_TabFocusModel:
     {
       // we should probably cache this

@@ -40,14 +40,13 @@
  * the terms of any one of the MPL, the GPL or the LGPL.
  *
  * ***** END LICENSE BLOCK ***** */
-/* $Id: sslsock.c,v 1.72 2011/08/17 14:41:16 emaldona%redhat.com Exp $ */
+/* $Id: sslsock.c,v 1.67.2.3 2011/07/26 14:42:57 wtc%google.com Exp $ */
 #include "seccomon.h"
 #include "cert.h"
 #include "keyhi.h"
 #include "ssl.h"
 #include "sslimpl.h"
 #include "sslproto.h"
-#include "sslutil.h"
 #include "nspr.h"
 #include "private/pprio.h"
 #include "blapi.h"
@@ -872,12 +871,6 @@ SSL_EnableDefault(int which, PRBool on)
 SECStatus
 SSL_OptionSetDefault(PRInt32 which, PRBool on)
 {
-    SECStatus status = ssl_Init();
-
-    if (status != SECSuccess) {
-	return status;
-    }
-
     ssl_SetDefaultsFromEnvironment();
 
     switch (which) {
@@ -1050,11 +1043,7 @@ SSL_SetPolicy(long which, int policy)
 SECStatus
 SSL_CipherPolicySet(PRInt32 which, PRInt32 policy)
 {
-    SECStatus rv = ssl_Init();
-
-    if (rv != SECSuccess) {
-	return rv;
-    }
+    SECStatus rv;
 
     if (ssl_IsRemovedCipherSuite(which)) {
     	rv = SECSuccess;
@@ -1109,11 +1098,7 @@ SSL_EnableCipher(long which, PRBool enabled)
 SECStatus
 SSL_CipherPrefSetDefault(PRInt32 which, PRBool enabled)
 {
-    SECStatus rv = ssl_Init();
-
-    if (rv != SECSuccess) {
-	return rv;
-    }
+    SECStatus rv;
 
     if (ssl_IsRemovedCipherSuite(which))
     	return SECSuccess;
@@ -1254,11 +1239,6 @@ SSL_ImportFD(PRFileDesc *model, PRFileDesc *fd)
     sslSocket * ns = NULL;
     PRStatus    rv;
     PRNetAddr   addr;
-    SECStatus	status = ssl_Init();
-
-    if (status != SECSuccess) {
-	return NULL;
-    }
 
     if (model == NULL) {
 	/* Just create a default socket if we're given NULL for the model */
@@ -2199,9 +2179,7 @@ ssl_PushIOLayer(sslSocket *ns, PRFileDesc *stack, PRDescIdentity id)
     PRStatus    status;
 
     if (!ssl_inited) {
-	status = PR_CallOnce(&initIoLayerOnce, &ssl_InitIOLayer);
-	if (status != PR_SUCCESS)
-	    goto loser;
+	PR_CallOnce(&initIoLayerOnce, &ssl_InitIOLayer);
     }
 
     if (ns == NULL)

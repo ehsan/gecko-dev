@@ -683,26 +683,11 @@ static JSBool
 Version(JSContext *cx, uintN argc, jsval *vp)
 {
     jsval *argv = JS_ARGV(cx, vp);
-    if (argc == 0 || JSVAL_IS_VOID(argv[0])) {
-        /* Get version. */
+    if (argc > 0 && JSVAL_IS_INT(argv[0]))
+        *vp = INT_TO_JSVAL(JS_SetVersion(cx, (JSVersion) JSVAL_TO_INT(argv[0])));
+    else
         *vp = INT_TO_JSVAL(JS_GetVersion(cx));
-    } else {
-        /* Set version. */
-        int32 v = -1;
-        if (JSVAL_IS_INT(argv[0])) {
-            v = JSVAL_TO_INT(argv[0]);
-        } else if (JSVAL_IS_DOUBLE(argv[0])) {
-            jsdouble fv = JSVAL_TO_DOUBLE(argv[0]);
-            if (int32(fv) == fv)
-                v = int32(fv);
-        }
-        if (v < 0 || v > JSVERSION_LATEST) {
-            JS_ReportErrorNumber(cx, my_GetErrorMessage, NULL, JSSMSG_INVALID_ARGS, "version");
-            return false;
-        }
-        *vp = INT_TO_JSVAL(JS_SetVersion(cx, JSVersion(v)));
-    }
-    return true;
+    return JS_TRUE;
 }
 
 static JSBool
@@ -1554,7 +1539,7 @@ ValueToScript(JSContext *cx, jsval v)
         } else if (clasp == Jsvalify(&js_GeneratorClass)) {
             JSGenerator *gen = (JSGenerator *) JS_GetPrivate(cx, obj);
             fun = gen->floatingFrame()->fun();
-            script = fun->script();
+            script = FUN_SCRIPT(fun);
         }
     }
 
@@ -1562,7 +1547,7 @@ ValueToScript(JSContext *cx, jsval v)
         fun = JS_ValueToFunction(cx, v);
         if (!fun)
             return NULL;
-        script = fun->maybeScript();
+        script = FUN_SCRIPT(fun);
         if (!script) {
             JS_ReportErrorNumber(cx, my_GetErrorMessage, NULL,
                                  JSSMSG_SCRIPTS_ONLY);
@@ -1589,10 +1574,9 @@ SetDebug(JSContext *cx, uintN argc, jsval *vp)
      * In the future, this restriction may be lifted.
      */
 
-    JSBool ok = JS_SetDebugMode(cx, JSVAL_TO_BOOLEAN(argv[0]));
-    if (ok)
-        JS_SET_RVAL(cx, vp, JSVAL_TRUE);
-    return ok;
+    JSBool rv = JS_SetDebugMode(cx, JSVAL_TO_BOOLEAN(argv[0]));
+    JS_SET_RVAL(cx, vp, rv ? JSVAL_TRUE : JSVAL_FALSE);
+    return JS_TRUE;
 }
 
 static JSBool
@@ -1992,7 +1976,7 @@ DisassembleValue(JSContext *cx, jsval v, bool lines, bool recursive, Sprinter *s
     JSScript *script = ValueToScript(cx, v);
     if (!script)
         return false;
-    if (!JSVAL_IS_PRIMITIVE(v) && JSVAL_TO_OBJECT(v)->isFunction()) {
+    if (VALUE_IS_FUNCTION(cx, v)) {
         JSFunction *fun = JS_ValueToFunction(cx, v);
         if (fun && (fun->flags & ~7U)) {
             uint16 flags = fun->flags;
@@ -2007,10 +1991,10 @@ DisassembleValue(JSContext *cx, jsval v, bool lines, bool recursive, Sprinter *s
 
 #undef SHOW_FLAG
 
-            if (fun->isInterpreted()) {
-                if (fun->isNullClosure())
+            if (FUN_INTERPRETED(fun)) {
+                if (FUN_NULL_CLOSURE(fun))
                     Sprint(sp, " NULL_CLOSURE");
-                else if (fun->isFlatClosure())
+                else if (FUN_FLAT_CLOSURE(fun))
                     Sprint(sp, " FLAT_CLOSURE");
 
                 JSScript *script = fun->script();
@@ -2682,47 +2666,24 @@ Clone(JSContext *cx, uintN argc, jsval *vp)
 {
     JSObject *funobj, *parent, *clone;
 
-    if (!argc) {
-        JS_ReportError(cx, "Invalid arguments to clone");
+    if (!argc)
         return JS_FALSE;
-    }
 
     jsval *argv = JS_ARGV(cx, vp);
-    {
-        JSAutoEnterCompartment ac;
-        if (!JSVAL_IS_PRIMITIVE(argv[0]) &&
-            JSVAL_TO_OBJECT(argv[0])->isCrossCompartmentWrapper())
-        {
-            JSObject *obj = JSVAL_TO_OBJECT(argv[0])->unwrap();
-            if (!ac.enter(cx, obj))
-                return JS_FALSE;
-            argv[0] = OBJECT_TO_JSVAL(obj);
-        }
-        if (!JSVAL_IS_PRIMITIVE(argv[0]) && JSVAL_TO_OBJECT(argv[0])->isFunction()) {
-            funobj = JSVAL_TO_OBJECT(argv[0]);
-        } else {
-            JSFunction *fun = JS_ValueToFunction(cx, argv[0]);
-            if (!fun)
-                return JS_FALSE;
-            funobj = JS_GetFunctionObject(fun);
-        }
-    }
-    if (funobj->compartment() != cx->compartment) {
-        JSFunction *fun = funobj->getFunctionPrivate();
-        if (fun->isInterpreted() && fun->u.i.script->compileAndGo) {
-            JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_UNEXPECTED_TYPE,
-                                 "function", "compile-and-go");
+    if (VALUE_IS_FUNCTION(cx, argv[0])) {
+        funobj = JSVAL_TO_OBJECT(argv[0]);
+    } else {
+        JSFunction *fun = JS_ValueToFunction(cx, argv[0]);
+        if (!fun)
             return JS_FALSE;
-        }
+        funobj = JS_GetFunctionObject(fun);
     }
-
     if (argc > 1) {
         if (!JS_ValueToObject(cx, argv[1], &parent))
             return JS_FALSE;
     } else {
-        parent = JS_GetParent(cx, JSVAL_TO_OBJECT(JS_CALLEE(cx, vp)));
+        parent = JS_GetParent(cx, funobj);
     }
-
     clone = JS_CloneFunctionObject(cx, funobj, parent);
     if (!clone)
         return JS_FALSE;
@@ -4199,6 +4160,19 @@ static JSFunctionSpec shell_functions[] = {
     JS_FN("evalInFrame",    EvalInFrame,    2,0),
     JS_FN("shapeOf",        ShapeOf,        1,0),
     JS_FN("resolver",       Resolver,       1,0),
+    JS_FN("pauseProfilers", js_PauseProfilers, 0,0),
+    JS_FN("resumeProfilers", js_ResumeProfilers, 0,0),
+#ifdef MOZ_CALLGRIND
+    JS_FN("startCallgrind", js_StartCallgrind,  0,0),
+    JS_FN("stopCallgrind",  js_StopCallgrind,   0,0),
+    JS_FN("dumpCallgrind",  js_DumpCallgrind,   1,0),
+#endif
+#ifdef MOZ_VTUNE
+    JS_FN("startVtune",     js_StartVtune,    1,0),
+    JS_FN("stopVtune",      js_StopVtune,     0,0),
+    JS_FN("pauseVtune",     js_PauseVtune,    0,0),
+    JS_FN("resumeVtune",    js_ResumeVtune,   0,0),
+#endif
 #ifdef MOZ_TRACEVIS
     JS_FN("startTraceVis",  StartTraceVisNative, 1,0),
     JS_FN("stopTraceVis",   StopTraceVisNative,  0,0),
@@ -4326,6 +4300,19 @@ static const char *const shell_help_messages[] = {
 "shapeOf(obj)             Get the shape of obj (an implementation detail)",
 "resolver(src[, proto])   Create object with resolve hook that copies properties\n"
 "                         from src. If proto is omitted, use Object.prototype.",
+"pauseProfilers()         Pause all profilers that can be paused",
+"resumeProfilers()        Resume profilers if they are paused",
+#ifdef MOZ_CALLGRIND
+"startCallgrind()         Start callgrind instrumentation",
+"stopCallgrind()          Stop callgrind instrumentation",
+"dumpCallgrind([name])    Dump callgrind counters",
+#endif
+#ifdef MOZ_VTUNE
+"startVtune([filename])   Start vtune instrumentation",
+"stopVtune()              Stop vtune instrumentation",
+"pauseVtune()             Pause vtune collection",
+"resumeVtune()            Resume vtune collection",
+#endif
 #ifdef MOZ_TRACEVIS
 "startTraceVis(filename)  Start TraceVis recording (stops any current recording)",
 "stopTraceVis()           Stop TraceVis recording",
@@ -4368,50 +4355,20 @@ static const char *const shell_help_messages[] = {
 
 /* Keep these last: see the static assertion below. */
 #ifdef MOZ_PROFILING
-"startProfiling([profileName])\n"
-"                         Start a profiling session\n"
+"startProfiling()         Start a profiling session.\n"
 "                         Profiler must be running with programatic sampling",
-"stopProfiling([profileName])\n"
-"                         Stop a running profiling session",
-"pauseProfilers([profileName])\n"
-"                         Pause a running profiling session",
-"resumeProfilers([profileName])\n"
-"                         Resume a paused profiling session",
-"dumpProfile([outfile[, profileName]])\n"
-"                         Dump out current profile info (only valid for callgrind)",
-# ifdef MOZ_CALLGRIND
-"startCallgrind()         Start Callgrind instrumentation",
-"stopCallgrind()          Stop Callgrind instrumentation",
-"dumpCallgrind([outfile]) Dump current Callgrind counters to file or stdout",
-# endif
-# ifdef MOZ_VTUNE
-"startVtune()             Start Vtune instrumentation",
-"stopVtune()              Stop Vtune instrumentation",
-"pauseVtune()             Pause Vtune collection",
-"resumeVtune()            Resume Vtune collection",
-# endif
+"stopProfiling()          Stop a running profiling session\n"
 #endif
 };
 
 #ifdef MOZ_PROFILING
-# define PROFILING_FUNCTION_COUNT 5
-# ifdef MOZ_CALLGRIND
-#  define CALLGRIND_FUNCTION_COUNT 3
-# else
-#  define CALLGRIND_FUNCTION_COUNT 0
-# endif
-# ifdef MOZ_VTUNE
-#  define VTUNE_FUNCTION_COUNT 4
-# else
-#  define VTUNE_FUNCTION_COUNT 0
-# endif
-# define EXTERNAL_FUNCTION_COUNT (PROFILING_FUNCTION_COUNT + CALLGRIND_FUNCTION_COUNT + VTUNE_FUNCTION_COUNT)
+#define PROFILING_FUNCTION_COUNT 2
 #else
-# define EXTERNAL_FUNCTION_COUNT 0
+#define PROFILING_FUNCTION_COUNT 0
 #endif
 
 /* Help messages must match shell functions. */
-JS_STATIC_ASSERT(JS_ARRAY_LENGTH(shell_help_messages) - EXTERNAL_FUNCTION_COUNT ==
+JS_STATIC_ASSERT(JS_ARRAY_LENGTH(shell_help_messages) - PROFILING_FUNCTION_COUNT ==
                  JS_ARRAY_LENGTH(shell_functions) - 1 /* JS_FS_END */);
 
 #ifdef DEBUG
@@ -4422,7 +4379,7 @@ CheckHelpMessages()
     const char *lp;
 
     /* Messages begin with "function_name(" prefix and don't end with \n. */
-    for (m = shell_help_messages; m != JS_ARRAY_END(shell_help_messages) - EXTERNAL_FUNCTION_COUNT; ++m) {
+    for (m = shell_help_messages; m != JS_ARRAY_END(shell_help_messages) - PROFILING_FUNCTION_COUNT; ++m) {
         lp = strchr(*m, '(');
         JS_ASSERT(lp);
         JS_ASSERT(memcmp(shell_functions[m - shell_help_messages].name,
@@ -4435,9 +4392,6 @@ CheckHelpMessages()
 #endif
 
 #undef PROFILING_FUNCTION_COUNT
-#undef CALLGRIND_FUNCTION_COUNT
-#undef VTUNE_FUNCTION_COUNT
-#undef EXTERNAL_FUNCTION_COUNT
 
 static JSBool
 Help(JSContext *cx, uintN argc, jsval *vp)
@@ -5240,8 +5194,6 @@ NewGlobalObject(JSContext *cx, CompartmentKind compartment)
 #endif
         if (!JS_InitReflect(cx, glob))
             return NULL;
-        if (!JS_DefineDebuggerObject(cx, glob))
-            return NULL;
         if (!JS::RegisterPerfMeasurement(cx, glob))
             return NULL;
         if (!JS_DefineFunctions(cx, glob, shell_functions) ||
@@ -5278,14 +5230,7 @@ BindScriptArgs(JSContext *cx, JSObject *obj, OptionParser *op)
     JSObject *scriptArgs = JS_NewArrayObject(cx, 0, NULL);
     if (!scriptArgs)
         return false;
-
-    /* 
-     * Script arguments are bound as a normal |arguments| property on the
-     * global object. It has no special significance, like |arguments| in
-     * function scope does -- this identifier is used de-facto across shell
-     * implementations, see bug 675269.
-     */
-    if (!JS_DefineProperty(cx, obj, "arguments", OBJECT_TO_JSVAL(scriptArgs), NULL, NULL, 0))
+    if (!JS_DefineProperty(cx, obj, "scriptArgs", OBJECT_TO_JSVAL(scriptArgs), NULL, NULL, 0))
         return false;
 
     for (size_t i = 0; !msr.empty(); msr.popFront(), ++i) {
@@ -5340,8 +5285,10 @@ ProcessArgs(JSContext *cx, JSObject *obj, OptionParser *op)
     if (op->getBoolOption('b'))
         printTiming = true;
 
-    if (op->getBoolOption('D'))
+    if (op->getBoolOption('D')) {
         enableDisassemblyDumps = true;
+        JS_ToggleOptions(cx, JSOPTION_PCCOUNT);
+    }
 
     /* |scriptArgs| gets bound on the global before any code is run. */
     if (!BindScriptArgs(cx, obj, op))
@@ -5467,7 +5414,7 @@ Shell(JSContext *cx, OptionParser *op, char **envp)
 #endif  /* JSDEBUGGER */
 
     if (enableDisassemblyDumps)
-        JS_DumpCompartmentBytecode(cx);
+        JS_DumpAllProfiles(cx);
  
     return result;
 }
@@ -5603,7 +5550,7 @@ main(int argc, char **argv, char **envp)
 #endif
         || !op.addOptionalStringArg("script", "A script to execute (after all options)")
         || !op.addOptionalMultiStringArg("scriptArgs",
-                                         "String arguments to bind as |arguments| in the "
+                                         "String arguments to bind as |scriptArgs| in the "
                                          "shell's global")) {
         return EXIT_FAILURE;
     }
@@ -5661,10 +5608,6 @@ main(int argc, char **argv, char **envp)
 
     JS_SetGCParameter(rt, JSGC_MODE, JSGC_MODE_COMPARTMENT);
     JS_SetGCParameterForThread(cx, JSGC_MAX_CODE_CACHE_BYTES, 16 * 1024 * 1024);
-
-    /* Must be done before creating the global object */
-    if (op.getBoolOption('D'))
-        JS_ToggleOptions(cx, JSOPTION_PCCOUNT);
 
     result = Shell(cx, &op, envp);
 

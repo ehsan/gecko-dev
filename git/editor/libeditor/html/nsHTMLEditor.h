@@ -270,7 +270,7 @@ public:
   NS_IMETHOD SetHTMLBackgroundColor(const nsAString& aColor);
 
   /* ------------ Block methods moved from nsEditor -------------- */
-  static already_AddRefed<nsIDOMNode> GetBlockNodeParent(nsIDOMNode *aNode);
+  static nsCOMPtr<nsIDOMNode> GetBlockNodeParent(nsIDOMNode *aNode);
   /** Determines the bounding nodes for the block section containing aNode.
     * The calculation is based on some nodes intrinsically being block elements
     * acording to HTML.  Style sheets are not considered in this calculation.
@@ -304,7 +304,7 @@ public:
   static nsresult GetBlockSectionsForRange(nsIDOMRange      *aRange, 
                                            nsCOMArray<nsIDOMRange>& aSections);
 
-  static already_AddRefed<nsIDOMNode> NextNodeInBlock(nsIDOMNode *aNode, IterDirection aDir);
+  static nsCOMPtr<nsIDOMNode> NextNodeInBlock(nsIDOMNode *aNode, IterDirection aDir);
   nsresult IsNextCharWhitespace(nsIDOMNode *aParentNode, 
                                 PRInt32 aOffset, 
                                 PRBool *outIsSpace, 
@@ -393,7 +393,7 @@ public:
                               nsCOMPtr<nsIDOMNode> *ioParent, 
                               PRInt32 *ioOffset, 
                               PRBool aNoEmptyNodes);
-  already_AddRefed<nsIDOMNode> FindUserSelectAllNode(nsIDOMNode* aNode);
+  nsCOMPtr<nsIDOMNode> FindUserSelectAllNode(nsIDOMNode *aNode);
                                 
 
   /** returns the absolute position of the end points of aSelection
@@ -458,6 +458,9 @@ protected:
   // @return    If the editor has focus, this returns the focused node.
   //            Otherwise, returns null.
   already_AddRefed<nsINode> GetFocusedNode();
+  // Get an active editor's editing host in DOM window.  If this editor isn't
+  // active in the DOM window, this returns NULL.
+  nsIContent* GetActiveEditingHost();
 
   // Return TRUE if aElement is a table-related elemet and caret was set
   PRBool SetCaretInTableCell(nsIDOMElement* aElement);

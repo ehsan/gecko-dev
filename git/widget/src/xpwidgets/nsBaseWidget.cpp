@@ -828,29 +828,21 @@ nsBaseWidget::GetShouldAccelerate()
   if (xr)
     xr->GetInSafeMode(&safeMode);
 
-  bool whitelisted = false;
-
-  // bug 655578: on X11 at least, we must always call GetFeatureStatus (even if we don't need that information)
-  // as that's what causes GfxInfo initialization which kills the zombie 'glxtest' process.
-  nsCOMPtr<nsIGfxInfo> gfxInfo = do_GetService("@mozilla.org/gfx/info;1");
-  if (gfxInfo) {
-    PRInt32 status;
-    if (NS_SUCCEEDED(gfxInfo->GetFeatureStatus(nsIGfxInfo::FEATURE_OPENGL_LAYERS, &status))) {
-      if (status == nsIGfxInfo::FEATURE_NO_INFO) {
-        whitelisted = true;
-      }
-    }
-  }
-
   if (disableAcceleration || safeMode)
     return PR_FALSE;
 
   if (forceAcceleration)
     return PR_TRUE;
-  
-  if (!whitelisted) {
-    NS_WARNING("OpenGL-accelerated layers are not supported on this system.");
-    return PR_FALSE;
+
+  nsCOMPtr<nsIGfxInfo> gfxInfo = do_GetService("@mozilla.org/gfx/info;1");
+  if (gfxInfo) {
+    PRInt32 status;
+    if (NS_SUCCEEDED(gfxInfo->GetFeatureStatus(nsIGfxInfo::FEATURE_OPENGL_LAYERS, &status))) {
+      if (status != nsIGfxInfo::FEATURE_NO_INFO) {
+        NS_WARNING("OpenGL-accelerated layers are not supported on this system.");
+        return PR_FALSE;
+      }
+    }
   }
 
   if (accelerateByDefault)
@@ -860,9 +852,7 @@ nsBaseWidget::GetShouldAccelerate()
   return mUseAcceleratedRendering;
 }
 
-LayerManager* nsBaseWidget::GetLayerManager(PLayersChild* aShadowManager,
-                                            LayersBackend aBackendHint,
-                                            LayerManagerPersistence aPersistence,
+LayerManager* nsBaseWidget::GetLayerManager(LayerManagerPersistence,
                                             bool* aAllowRetaining)
 {
   if (!mLayerManager) {
@@ -870,7 +860,8 @@ LayerManager* nsBaseWidget::GetLayerManager(PLayersChild* aShadowManager,
     mUseAcceleratedRendering = GetShouldAccelerate();
 
     if (mUseAcceleratedRendering) {
-      nsRefPtr<LayerManagerOGL> layerManager = new LayerManagerOGL(this);
+      nsRefPtr<LayerManagerOGL> layerManager =
+        new mozilla::layers::LayerManagerOGL(this);
       /**
        * XXX - On several OSes initialization is expected to fail for now.
        * If we'd get a none-basic layer manager they'd crash. This is ok though

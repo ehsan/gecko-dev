@@ -2762,7 +2762,8 @@ nsLayoutUtils::ComputeAutoSizeWithIntrinsicDimensions(nscoord minWidth, nscoord 
     if (heightAtMinWidth > maxHeight)
       heightAtMinWidth = maxHeight;
   } else {
-    heightAtMaxWidth = heightAtMinWidth = NS_CSS_MINMAX(tentHeight, minHeight, maxHeight);
+    heightAtMaxWidth = tentHeight;
+    heightAtMinWidth = tentHeight;
   }
 
   if (tentHeight > 0) {
@@ -2773,7 +2774,8 @@ nsLayoutUtils::ComputeAutoSizeWithIntrinsicDimensions(nscoord minWidth, nscoord 
     if (widthAtMinHeight > maxWidth)
       widthAtMinHeight = maxWidth;
   } else {
-    widthAtMaxHeight = widthAtMinHeight = NS_CSS_MINMAX(tentWidth, minWidth, maxWidth);
+    widthAtMaxHeight = tentWidth;
+    widthAtMinHeight = tentWidth;
   }
 
   // The table at http://www.w3.org/TR/CSS21/visudet.html#min-max-widths :
@@ -2875,20 +2877,20 @@ DarkenColor(nscolor aColor)
   return aColor;
 }
 
-// Check whether we should darken text/decoration colors. We need to do this if
+// Check whether we should darken text colors. We need to do this if
 // background images and colors are being suppressed, because that means
 // light text will not be visible against the (presumed light-colored) background.
 static PRBool
 ShouldDarkenColors(nsPresContext* aPresContext)
 {
   return !aPresContext->GetBackgroundColorDraw() &&
-         !aPresContext->GetBackgroundImageDraw();
+    !aPresContext->GetBackgroundImageDraw();
 }
 
 nscolor
-nsLayoutUtils::GetColor(nsIFrame* aFrame, nsCSSProperty aProperty)
+nsLayoutUtils::GetTextColor(nsIFrame* aFrame)
 {
-  nscolor color = aFrame->GetVisitedDependentColor(aProperty);
+  nscolor color = aFrame->GetVisitedDependentColor(eCSSProperty_color);
   if (ShouldDarkenColors(aFrame->PresContext())) {
     color = DarkenColor(color);
   }
@@ -3671,6 +3673,16 @@ nsLayoutUtils::GetWholeImageDestination(const nsIntSize& aWholeImageSize,
   nscoord wholeSizeY = NSToCoordRound(aWholeImageSize.height*appUnitsPerCSSPixel*scaleY);
   return nsRect(aDestArea.TopLeft() - nsPoint(destOffsetX, destOffsetY),
                 nsSize(wholeSizeX, wholeSizeY));
+}
+
+void
+nsLayoutUtils::SetFontFromStyle(nsRenderingContext* aRC, nsStyleContext* aSC)
+{
+  const nsStyleFont* font = aSC->GetStyleFont();
+  const nsStyleVisibility* visibility = aSC->GetStyleVisibility();
+
+  aRC->SetFont(font->mFont, visibility->mLanguage,
+               aSC->PresContext()->GetUserFontSet());
 }
 
 static PRBool NonZeroStyleCoord(const nsStyleCoord& aCoord)

@@ -910,16 +910,9 @@ DrawTargetD2D::PushClip(const Path *aPath)
   mTransformDirty = true;
 
   if (mClipsArePushed) {
-    D2D1_LAYER_OPTIONS options = D2D1_LAYER_OPTIONS_NONE;
-
-    if (mFormat == FORMAT_B8G8R8X8) {
-      options = D2D1_LAYER_OPTIONS_INITIALIZE_FOR_CLEARTYPE;
-    }
-
     mRT->PushLayer(D2D1::LayerParameters(D2D1::InfiniteRect(), pathD2D->mGeometry,
                                          D2D1_ANTIALIAS_MODE_PER_PRIMITIVE,
-                                         clip.mTransform, 1.0f, NULL,
-                                         options), layer);
+                                         clip.mTransform), layer);
   }
 }
 
@@ -1198,10 +1191,6 @@ DrawTargetD2D::InitD2DRenderTarget()
 
   mRT->Clear(D2D1::ColorF(0, 0));
 
-  if (mFormat == FORMAT_B8G8R8X8) {
-    mRT->SetTextAntialiasMode(D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE);
-  }
-
   return InitD3D10Data();
 }
 
@@ -1215,16 +1204,9 @@ DrawTargetD2D::PrepareForDrawing(ID2D1RenderTarget *aRT)
       mRT->SetTransform(D2D1::IdentityMatrix());
       for (std::vector<PushedClip>::iterator iter = mPushedClips.begin();
            iter != mPushedClips.end(); iter++) {
-        D2D1_LAYER_OPTIONS options = D2D1_LAYER_OPTIONS_NONE;
-
-        if (mFormat == FORMAT_B8G8R8X8) {
-          options = D2D1_LAYER_OPTIONS_INITIALIZE_FOR_CLEARTYPE;
-        }
-
         aRT->PushLayer(D2D1::LayerParameters(D2D1::InfiniteRect(), iter->mPath->mGeometry,
                                              D2D1_ANTIALIAS_MODE_PER_PRIMITIVE,
-                                             iter->mTransform, 1.0f, NULL,
-                                             options), iter->mLayer);
+                                             iter->mTransform), iter->mLayer);
       }
       if (aRT == mRT) {
         mClipsArePushed = true;
@@ -1493,14 +1475,8 @@ DrawTargetD2D::CreateRTForTexture(ID3D10Texture2D *aTexture)
   D3D10_TEXTURE2D_DESC desc;
   aTexture->GetDesc(&desc);
 
-  D2D1_ALPHA_MODE alphaMode = D2D1_ALPHA_MODE_PREMULTIPLIED;
-
-  if (mFormat == FORMAT_B8G8R8X8) {
-    alphaMode = D2D1_ALPHA_MODE_IGNORE;
-  }
-
   D2D1_RENDER_TARGET_PROPERTIES props =
-    D2D1::RenderTargetProperties(D2D1_RENDER_TARGET_TYPE_DEFAULT, D2D1::PixelFormat(desc.Format, alphaMode));
+    D2D1::RenderTargetProperties(D2D1_RENDER_TARGET_TYPE_DEFAULT, D2D1::PixelFormat(desc.Format, D2D1_ALPHA_MODE_PREMULTIPLIED));
   hr = factory()->CreateDxgiSurfaceRenderTarget(surface, props, byRef(rt));
 
   if (FAILED(hr)) {

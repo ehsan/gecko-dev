@@ -511,8 +511,7 @@ js_DestroyContext(JSContext *cx, JSDestroyContextMode mode)
             js_FinishCommonAtoms(cx);
 
             /* Clear debugging state to remove GC roots. */
-            for (JSCompartment **c = rt->compartments.begin(); c != rt->compartments.end(); c++)
-                (*c)->clearTraps(cx, NULL);
+            JS_ClearAllTraps(cx);
             JS_ClearAllWatchPoints(cx);
         }
 
@@ -1083,7 +1082,7 @@ js_ReportMissingArg(JSContext *cx, const Value &v, uintN arg)
     JS_snprintf(argbuf, sizeof argbuf, "%u", arg);
     bytes = NULL;
     if (IsFunctionObject(v)) {
-        atom = v.toObject().getFunctionPrivate()->atom;
+        atom = GET_FUNCTION_PRIVATE(cx, &v.toObject())->atom;
         bytes = DecompileValueGenerator(cx, JSDVG_SEARCH_STACK,
                                         v, atom);
         if (!bytes)

@@ -1495,7 +1495,7 @@ nsLineLayout::VerticalAlignLine()
 
       if (vAlign.GetUnit() != eStyleUnit_Enumerated ||
           vAlign.GetIntValue() != NS_STYLE_VERTICAL_ALIGN_BASELINE) {
-        const nscoord offset = baselineY - pfd->mBounds.y;
+        const nscoord offset = baselineY - (pfd->mBounds.y);
         f->Properties().Set(nsIFrame::LineBaselineOffset(),
                             NS_INT32_TO_PTR(offset));
       }
@@ -1588,9 +1588,10 @@ nsLineLayout::VerticalAlignFrames(PerSpanData* psd)
   nsIFrame* spanFrame = spanFramePFD->mFrame;
 
   // Get the parent frame's font for all of the frames in this span
-  nsRefPtr<nsFontMetrics> fm;
-  nsLayoutUtils::GetFontMetricsForFrame(spanFrame, getter_AddRefs(fm));
-  mBlockReflowState->rendContext->SetFont(fm);
+  nsStyleContext* styleContext = spanFrame->GetStyleContext();
+  nsRenderingContext* rc = mBlockReflowState->rendContext;
+  nsLayoutUtils::SetFontFromStyle(mBlockReflowState->rendContext, styleContext);
+  nsFontMetrics* fm = rc->FontMetrics();
 
   PRBool preMode = mStyleText->WhiteSpaceIsSignificant();
 
@@ -2560,6 +2561,15 @@ nsLineLayout::RelativePositionFrames(PerSpanData* psd, nsOverflowAreas& aOverflo
 
     overflowAreas.ScrollableOverflow().UnionRect(
       psd->mFrame->mOverflowAreas.ScrollableOverflow(), adjustedBounds);
+
+    // Text-shadow overflow
+    if (mPresContext->CompatibilityMode() != eCompatibility_NavQuirks) {
+      nsRect shadowRect = nsLayoutUtils::GetTextShadowRectsUnion(adjustedBounds,
+                                                                 psd->mFrame->mFrame);
+      adjustedBounds.UnionRect(adjustedBounds, shadowRect);
+    }
+
+    // Text shadow is only part of visual overflow and not scrollable overflow.
     overflowAreas.VisualOverflow().UnionRect(
       psd->mFrame->mOverflowAreas.VisualOverflow(), adjustedBounds);
   }

@@ -202,12 +202,8 @@
 #include "nsDOMTouchEvent.h"
 
 #include "mozilla/Preferences.h"
-#include "nsFrame.h"
 
 #include "imgILoader.h"
-
-#include "nsDOMCaretPosition.h"
-#include "nsIDOMHTMLTextAreaElement.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -5924,13 +5920,6 @@ nsDocument::SetXmlStandalone(PRBool aXmlStandalone)
 }
 
 NS_IMETHODIMP
-nsDocument::GetMozSyntheticDocument(PRBool *aSyntheticDocument)
-{
-  *aSyntheticDocument = mIsSyntheticDocument;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 nsDocument::GetXmlVersion(nsAString& aXmlVersion)
 {
   if (IsHTML()) {
@@ -6125,7 +6114,7 @@ nsDocument::AdoptNode(nsIDOMNode *aAdoptedNode, nsIDOMNode **aResult)
       } while ((doc = doc->GetParentDocument()));
 
       // Remove from parent.
-      nsCOMPtr<nsINode> parent = adoptedNode->GetNodeParent();
+      nsINode* parent = adoptedNode->GetNodeParent();
       if (parent) {
         rv = parent->RemoveChildAt(parent->IndexOf(adoptedNode), PR_TRUE);
         NS_ENSURE_SUCCESS(rv, rv);
@@ -8395,58 +8384,6 @@ nsDocument::CreateTouchList(nsIVariant* aPoints,
   }
 
   *aRetVal = retval.forget().get();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDocument::CaretPositionFromPoint(float aX, float aY, nsIDOMCaretPosition** aCaretPos)
-{
-  NS_ENSURE_ARG_POINTER(aCaretPos);
-  *aCaretPos = nsnull;
-  
-  nscoord x = nsPresContext::CSSPixelsToAppUnits(aX);
-  nscoord y = nsPresContext::CSSPixelsToAppUnits(aY);
-  nsPoint pt(x, y);
-
-  nsIPresShell *ps = GetShell();
-  if (!ps) {
-    return NS_OK;
-  }
-
-  nsIFrame *rootFrame = ps->GetRootFrame();
-
-  // XUL docs, unlike HTML, have no frame tree until everything's done loading
-  if (!rootFrame) {
-    return NS_OK; // return null to premature XUL callers as a reminder to wait
-  }
-
-  nsIFrame *ptFrame = nsLayoutUtils::GetFrameForPoint(rootFrame, pt, PR_TRUE,
-                                                      PR_FALSE);
-  if (!ptFrame) {
-    return NS_OK;
-  }
-
-  nsFrame::ContentOffsets offsets = ptFrame->GetContentOffsetsFromPoint(pt);
-  nsCOMPtr<nsIDOMNode> node = do_QueryInterface(offsets.content);
-  nsIContent* ptContent = offsets.content;
-  PRInt32 offset = offsets.offset;
-  if (ptContent && ptContent->IsInNativeAnonymousSubtree()) {
-    nsIContent* nonanon = ptContent->FindFirstNonNativeAnonymous();
-    nsCOMPtr<nsIDOMHTMLInputElement> input = do_QueryInterface(nonanon);
-    nsCOMPtr<nsIDOMHTMLTextAreaElement> textArea = do_QueryInterface(nonanon);
-    PRBool isText;
-    if (textArea || (input &&
-                     NS_SUCCEEDED(input->MozIsTextField(PR_FALSE, &isText)) && 
-                     isText)) {
-      node = do_QueryInterface(nonanon);
-    } else {
-      node = nsnull;
-      offset = 0;
-    }
-  }
-
-  *aCaretPos = new nsDOMCaretPosition(node, offset);
-  NS_ADDREF(*aCaretPos);
   return NS_OK;
 }
 

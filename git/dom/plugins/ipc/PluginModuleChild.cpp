@@ -44,7 +44,6 @@
 #endif
 
 #include "mozilla/plugins/PluginModuleChild.h"
-#include "mozilla/ipc/SyncChannel.h"
 
 #ifdef MOZ_WIDGET_GTK2
 #include <gtk/gtk.h>
@@ -129,7 +128,6 @@ PluginModuleChild::PluginModuleChild()
     memset(&mFunctions, 0, sizeof(mFunctions));
     memset(&mSavedData, 0, sizeof(mSavedData));
     gInstance = this;
-    mUserAgent.SetIsVoid(PR_TRUE);
 #ifdef XP_MACOSX
     mac_plugin_interposing::child::SetUpCocoaInterposing();
 #endif
@@ -516,24 +514,6 @@ PluginModuleChild::ExitedCxxStack()
 #endif
 
 bool
-PluginModuleChild::RecvSetParentHangTimeout(const uint32_t& aSeconds)
-{
-#ifdef XP_WIN
-    SetReplyTimeoutMs(((aSeconds > 0) ? (1000 * aSeconds) : 0));
-#endif
-    return true;
-}
-
-bool
-PluginModuleChild::ShouldContinueFromReplyTimeout()
-{
-#ifdef XP_WIN
-    NS_RUNTIMEABORT("terminating child process");
-#endif
-    return true;
-}
-
-bool
 PluginModuleChild::InitGraphics()
 {
 #if defined(MOZ_WIDGET_GTK2)
@@ -730,7 +710,7 @@ PluginModuleChild::CleanUp()
 const char*
 PluginModuleChild::GetUserAgent()
 {
-    if (mUserAgent.IsVoid() && !CallNPN_UserAgent(&mUserAgent))
+    if (!CallNPN_UserAgent(&mUserAgent))
         return NULL;
 
     return NullableStringGet(mUserAgent);

@@ -240,9 +240,9 @@ nsMathMLmfracFrame::PlaceInternal(nsRenderingContext& aRenderingContext,
   nsPresContext* presContext = PresContext();
   nscoord onePixel = nsPresContext::CSSPixelsToAppUnits(1);
 
-  nsRefPtr<nsFontMetrics> fm;
-  nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm));
-  aRenderingContext.SetFont(fm);
+  aRenderingContext.SetFont(GetStyleFont()->mFont,
+                            presContext->GetUserFontSet());
+  nsFontMetrics* fm = aRenderingContext.FontMetrics();
 
   nscoord defaultRuleThickness, axisHeight;
   GetRuleThickness(aRenderingContext, fm, defaultRuleThickness);

@@ -51,6 +51,7 @@
 #include "nsIDOMDocumentFragment.h"
 #include "nsIDOMNSElement.h"
 #include "nsILinkHandler.h"
+#include "nsContentUtils.h"
 #include "nsNodeUtils.h"
 #include "nsAttrAndChildArray.h"
 #include "mozFlushType.h"
@@ -62,8 +63,6 @@
 #include "nsIDOMXPathNSResolver.h"
 #include "nsPresContext.h"
 #include "nsIDOMDOMStringMap.h"
-#include "nsContentList.h"
-#include "nsDOMClassInfoID.h" // DOMCI_DATA
 
 #ifdef MOZ_SMIL
 #include "nsISMILAttr.h"
@@ -257,8 +256,15 @@ public:
   virtual nsresult InsertChildAt(nsIContent* aKid, PRUint32 aIndex,
                                  PRBool aNotify);
   virtual nsresult RemoveChildAt(PRUint32 aIndex, PRBool aNotify);
-  NS_IMETHOD GetTextContent(nsAString &aTextContent);
-  NS_IMETHOD SetTextContent(const nsAString& aTextContent);
+  NS_IMETHOD GetTextContent(nsAString &aTextContent)
+  {
+    nsContentUtils::GetNodeTextContent(this, PR_TRUE, aTextContent);
+    return NS_OK;
+  }
+  NS_IMETHOD SetTextContent(const nsAString& aTextContent)
+  {
+    return nsContentUtils::SetNodeTextContent(this, aTextContent, PR_FALSE);
+  }
 
   // nsIContent interface methods
   virtual void UpdateEditableState(PRBool aNotify);
@@ -584,7 +590,10 @@ public:
 
   // nsIDOMNSElement methods
   nsresult GetElementsByClassName(const nsAString& aClasses,
-                                  nsIDOMNodeList** aReturn);
+                                  nsIDOMNodeList** aReturn)
+  {
+    return nsContentUtils::GetElementsByClassName(this, aClasses, aReturn);
+  }
   nsresult GetClientRects(nsIDOMClientRectList** aResult);
   nsresult GetBoundingClientRect(nsIDOMClientRect** aResult);
   PRInt32 GetScrollTop();

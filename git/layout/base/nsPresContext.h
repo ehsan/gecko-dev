@@ -69,6 +69,7 @@
 #include "nsTArray.h"
 #include "nsAutoPtr.h"
 #include "nsThreadUtils.h"
+#include "nsContentUtils.h"
 #include "nsIWidget.h"
 #include "mozilla/TimeStamp.h"
 #include "nsIContent.h"
@@ -322,6 +323,17 @@ public:
     if (mShell)
       mShell->FreeMisc(aSize, aFreeChunk);
   }
+
+  /**
+   * Get the font metrics for a given font.
+   *
+   * If aUseUserFontSet is false, don't build or use the user font set.
+   * This is intended only for nsRuleNode::CalcLengthWithInitialFont
+   * (which is used from media query matching, which is in turn called
+   * when building the user font set).
+   */
+  NS_HIDDEN_(already_AddRefed<nsFontMetrics>)
+  GetMetricsFor(const nsFont& aFont, PRBool aUseUserFontSet = PR_TRUE);
 
   /**
    * Get the default font corresponding to the given ID.  This object is
@@ -580,7 +592,7 @@ public:
   }
   
   static PRInt32 AppUnitsPerCSSPixel() { return nsDeviceContext::AppUnitsPerCSSPixel(); }
-  PRUint32 AppUnitsPerDevPixel() const  { return mDeviceContext->AppUnitsPerDevPixel(); }
+  PRInt32 AppUnitsPerDevPixel() const  { return mDeviceContext->AppUnitsPerDevPixel(); }
   static PRInt32 AppUnitsPerCSSInch() { return nsDeviceContext::AppUnitsPerCSSInch(); }
 
   static nscoord CSSPixelsToAppUnits(PRInt32 aPixels)
@@ -971,8 +983,6 @@ public:
     PropertyTable()->DeleteAllFor(aFrame);
   }
   inline void ForgetUpdatePluginGeometryFrame(nsIFrame* aFrame);
-
-  void DestroyImageLoaders();
 
   PRBool GetContainsUpdatePluginGeometryFrame()
   {

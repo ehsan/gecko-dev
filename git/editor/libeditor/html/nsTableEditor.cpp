@@ -39,7 +39,9 @@
 #include "nscore.h"
 #include "nsIDOMDocument.h"
 #include "nsEditor.h"
+#include "nsIDOMText.h"
 #include "nsIDOMElement.h"
+#include "nsIDOMAttr.h"
 #include "nsIDOMNode.h"
 #include "nsIDOMNodeList.h"
 #include "nsIDOMRange.h"
@@ -51,6 +53,8 @@
 #include "nsIContent.h"
 #include "nsIContentIterator.h"
 #include "nsIAtom.h"
+#include "nsIDOMHTMLTableElement.h"
+#include "nsIDOMHTMLTableCellElement.h"
 #include "nsITableCellLayout.h" // For efficient access to table cell
 #include "nsITableLayout.h"     //  data owned by the table and cell frames
 #include "nsHTMLEditor.h"

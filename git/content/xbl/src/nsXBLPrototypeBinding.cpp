@@ -55,6 +55,8 @@
 #include "nsIXMLContentSink.h"
 #include "nsContentCID.h"
 #include "nsXMLDocument.h"
+#include "nsIDOMElement.h"
+#include "nsIDOMText.h"
 #include "nsXBLService.h"
 #include "nsXBLBinding.h"
 #include "nsXBLInsertionPoint.h"
@@ -328,7 +330,7 @@ PRBool nsXBLPrototypeBinding::CompareBindingURI(nsIURI* aURI) const
   return equal;
 }
 
-static PRBool
+static PRIntn
 TraverseInsertionPoint(nsHashKey* aKey, void* aData, void* aClosure)
 {
   nsCycleCollectionTraversalCallback &cb = 
@@ -1213,7 +1215,7 @@ nsXBLPrototypeBinding::ConstructInsertionTable(nsIContent* aContent)
   PRInt32 i;
   for (i = 0; i < count; i++) {
     nsIContent* child = childrenElements[i];
-    nsCOMPtr<nsIContent> parent = child->GetParent(); 
+    nsIContent* parent = child->GetParent(); 
 
     // Create an XBL insertion point entry.
     nsXBLInsertionPointEntry* xblIns = nsXBLInsertionPointEntry::Create(parent);

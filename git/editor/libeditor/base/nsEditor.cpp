@@ -486,26 +486,6 @@ nsEditor::SetFlags(PRUint32 aFlags)
 }
 
 NS_IMETHODIMP
-nsEditor::GetIsSelectionEditable(PRBool *aIsSelectionEditable)
-{
-  NS_ENSURE_ARG_POINTER(aIsSelectionEditable);
-
-  // get current selection
-  nsCOMPtr<nsISelection> selection;
-  nsresult res = GetSelection(getter_AddRefs(selection));
-  NS_ENSURE_SUCCESS(res, res);
-  NS_ENSURE_TRUE(selection, NS_ERROR_NULL_POINTER);
-
-  // XXX we just check that the anchor node is editable at the moment
-  //     we should check that all nodes in the selection are editable
-  nsCOMPtr<nsIDOMNode> anchorNode;
-  selection->GetAnchorNode(getter_AddRefs(anchorNode));
-  *aIsSelectionEditable = anchorNode && IsEditable(anchorNode);
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 nsEditor::GetIsDocumentEditable(PRBool *aIsDocumentEditable)
 {
   NS_ENSURE_ARG_POINTER(aIsDocumentEditable);
@@ -775,6 +755,7 @@ nsEditor::Undo(PRUint32 aCount)
     }
   }
 
+  NotifyEditorObservers();  
   return result;
 }
 
@@ -826,6 +807,7 @@ nsEditor::Redo(PRUint32 aCount)
     }
   }
 
+  NotifyEditorObservers();  
   return result;
 }
 
@@ -3411,52 +3393,54 @@ nsEditor::GetNextNodeImpl(nsIDOMNode  *aCurrentNode,
 }
 
 
-already_AddRefed<nsIDOMNode>
+nsCOMPtr<nsIDOMNode>
 nsEditor::GetRightmostChild(nsIDOMNode *aCurrentNode, 
                             PRBool bNoBlockCrossing)
 {
   NS_ENSURE_TRUE(aCurrentNode, nsnull);
-  nsCOMPtr<nsIDOMNode> resultNode, temp = aCurrentNode;
+  nsCOMPtr<nsIDOMNode> resultNode, temp=aCurrentNode;
   PRBool hasChildren;
   aCurrentNode->HasChildNodes(&hasChildren);
-  while (hasChildren) {
+  while (hasChildren)
+  {
     temp->GetLastChild(getter_AddRefs(resultNode));
-    if (resultNode) {
-      if (bNoBlockCrossing && IsBlockNode(resultNode)) {
-        return resultNode.forget();
-      }
+    if (resultNode)
+    {
+      if (bNoBlockCrossing && IsBlockNode(resultNode))
+         return resultNode;
       resultNode->HasChildNodes(&hasChildren);
       temp = resultNode;
-    } else {
-      hasChildren = PR_FALSE;
     }
+    else 
+      hasChildren = PR_FALSE;
   }
 
-  return resultNode.forget();
+  return resultNode;
 }
 
-already_AddRefed<nsIDOMNode>
+nsCOMPtr<nsIDOMNode>
 nsEditor::GetLeftmostChild(nsIDOMNode *aCurrentNode,
                            PRBool bNoBlockCrossing)
 {
   NS_ENSURE_TRUE(aCurrentNode, nsnull);
-  nsCOMPtr<nsIDOMNode> resultNode, temp = aCurrentNode;
+  nsCOMPtr<nsIDOMNode> resultNode, temp=aCurrentNode;
   PRBool hasChildren;
   aCurrentNode->HasChildNodes(&hasChildren);
-  while (hasChildren) {
+  while (hasChildren)
+  {
     temp->GetFirstChild(getter_AddRefs(resultNode));
-    if (resultNode) {
-      if (bNoBlockCrossing && IsBlockNode(resultNode)) {
-        return resultNode.forget();
-      }
+    if (resultNode)
+    {
+      if (bNoBlockCrossing && IsBlockNode(resultNode))
+         return resultNode;
       resultNode->HasChildNodes(&hasChildren);
       temp = resultNode;
-    } else {
-      hasChildren = PR_FALSE;
     }
+    else 
+      hasChildren = PR_FALSE;
   }
 
-  return resultNode.forget();
+  return resultNode;
 }
 
 PRBool 
@@ -5327,14 +5311,5 @@ nsEditor::BeginKeypressHandling(nsIDOMNSEvent* aEvent)
     PRBool isTrusted = PR_FALSE;
     aEvent->GetIsTrusted(&isTrusted);
     mLastKeypressEventWasTrusted = isTrusted ? eTriTrue : eTriFalse;
-  }
-}
-
-void
-nsEditor::OnFocus(nsIDOMEventTarget* aFocusEventTarget)
-{
-  InitializeSelection(aFocusEventTarget);
-  if (mInlineSpellChecker) {
-    mInlineSpellChecker->UpdateCurrentDictionary();
   }
 }

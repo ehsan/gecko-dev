@@ -141,14 +141,10 @@ struct RuleValue : RuleSelectorPair {
 
 // Uses any of the sets of ops below.
 struct RuleHashTableEntry : public PLDHashEntryHdr {
-  // If you add members that have heap allocated memory be sure to change the
-  // logic in RuleHashTableSizeOfEnumerator.
   nsTArray<RuleValue> mRules;
 };
 
 struct RuleHashTagTableEntry : public RuleHashTableEntry {
-  // If you add members that have heap allocated memory be sure to change the
-  // logic in RuleHash::SizeOf.
   nsCOMPtr<nsIAtom> mTag;
 };
 
@@ -738,12 +734,6 @@ RuleHash::SizeOf() const
 
   n += mUniversalRules.SizeOf();
 
-  const PLArena* current = &mArena.first;
-  while (current) {
-    n += current->limit - current->base;
-    current = current->next;
-  }
-
   return n;
 }
 
@@ -1108,11 +1098,6 @@ InitSystemMetrics()
     sSystemMetrics->AppendElement(nsGkAtoms::mac_graphite_theme);
   }
 
-  rv = lookAndFeel->GetMetric(nsILookAndFeel::eMetric_MacLionTheme, metricResult);
-  if (NS_SUCCEEDED(rv) && metricResult) {
-    sSystemMetrics->AppendElement(nsGkAtoms::mac_lion_theme);
-  }
-
   rv = lookAndFeel->GetMetric(nsILookAndFeel::eMetric_DWMCompositor, metricResult);
   if (NS_SUCCEEDED(rv) && metricResult) {
     sSystemMetrics->AppendElement(nsGkAtoms::windows_compositor);
@@ -1199,6 +1184,29 @@ nsCSSRuleProcessor::GetWindowsThemeIdentifier()
   return sWinThemeId;
 }
 #endif
+
+// If we have a useful @lang, then aLang will end up nonempty.
+static void GetLang(nsIContent* aContent, nsString& aLang)
+{
+  for (nsIContent* content = aContent; content;
+       content = content->GetParent()) {
+    if (content->GetAttrCount() > 0) {
+      // xml:lang has precedence over lang on HTML elements (see
+      // XHTML1 section C.7).
+      PRBool hasAttr = content->GetAttr(kNameSpaceID_XML, nsGkAtoms::lang,
+                                        aLang);
+      if (!hasAttr && content->IsHTML()) {
+        hasAttr = content->GetAttr(kNameSpaceID_None, nsGkAtoms::lang,
+                                   aLang);
+      }
+      NS_ASSERTION(hasAttr || aLang.IsEmpty(),
+                   "GetAttr that returns false should not make string non-empty");
+      if (hasAttr) {
+        return;
+      }
+    }
+  }
+}
 
 /* static */
 nsEventStates
@@ -1679,7 +1687,7 @@ static PRBool SelectorMatches(Element* aElement,
           // from the parent we have to be prepared to look at all parent
           // nodes.  The language itself is encoded in the LANG attribute.
           nsAutoString language;
-          aElement->GetLang(language);
+          GetLang(aElement, language);
           if (!language.IsEmpty()) {
             if (!nsStyleUtil::DashMatchCompare(language,
                                                nsDependentString(pseudoClass->u.mString),

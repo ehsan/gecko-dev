@@ -322,12 +322,6 @@ var Browser = {
     os.addObserver(SessionHistoryObserver, "browser:purge-session-history", false);
     os.addObserver(ContentCrashObserver, "ipc:content-shutdown", false);
     os.addObserver(MemoryObserver, "memory-pressure", false);
-    os.addObserver(ActivityObserver, "application-background", false);
-    os.addObserver(ActivityObserver, "application-foreground", false);
-    os.addObserver(ActivityObserver, "system-active", false);
-    os.addObserver(ActivityObserver, "system-idle", false);
-    os.addObserver(ActivityObserver, "system-display-on", false);
-    os.addObserver(ActivityObserver, "system-display-off", false);
 
     // Listens for change in the viewable area
 #if MOZ_PLATFORM_MAEMO == 6
@@ -361,12 +355,10 @@ var Browser = {
         // Initial window resizes call functions that assume a tab is in the tab list
         // and restored tabs are added too late. We add a dummy to to satisfy the resize
         // code and then remove the dummy after the session has been restored.
-        let dummy = this.addTab("about:blank", true);
+        let dummy = this.addTab("about:blank");
         let dummyCleanup = {
-          observe: function(aSubject, aTopic, aData) {
+          observe: function() {
             Services.obs.removeObserver(dummyCleanup, "sessionstore-windows-restored");
-            if (aData == "fail")
-              Browser.addTab(commandURL || Browser.getHomePage(), true);
             dummy.chromeTab.ignoreUndo = true;
             Browser.closeTab(dummy, { forceClose: true });
           }
@@ -387,12 +379,17 @@ var Browser = {
     messageManager.addMessageListener("scroll", this);
     messageManager.addMessageListener("Browser:CertException", this);
     messageManager.addMessageListener("Browser:BlockedSite", this);
-    messageManager.addMessageListener("Browser:ErrorPage", this);
 
     // Broadcast a UIReady message so add-ons know we are finished with startup
     let event = document.createEvent("Events");
     event.initEvent("UIReady", true, false);
     window.dispatchEvent(event);
+
+    // If we have an opener this was not the first window opened and will not
+    // receive an initial resize event. instead we fire the resize handler manually
+    // Bug 610834
+    if (window.opener)
+      resizeHandler({ target: window });
   },
 
   _alertShown: function _alertShown() {
@@ -484,7 +481,6 @@ var Browser = {
     messageManager.removeMessageListener("scroll", this);
     messageManager.removeMessageListener("Browser:CertException", this);
     messageManager.removeMessageListener("Browser:BlockedSite", this);
-    messageManager.removeMessageListener("Browser:ErrorPage", this);
 
     var os = Services.obs;
     os.removeObserver(XPInstallObserver, "addon-install-blocked");
@@ -492,12 +488,6 @@ var Browser = {
     os.removeObserver(SessionHistoryObserver, "browser:purge-session-history");
     os.removeObserver(ContentCrashObserver, "ipc:content-shutdown");
     os.removeObserver(MemoryObserver, "memory-pressure");
-    os.removeObserver(ActivityObserver, "application-background", false);
-    os.removeObserver(ActivityObserver, "application-foreground", false);
-    os.removeObserver(ActivityObserver, "system-active", false);
-    os.removeObserver(ActivityObserver, "system-idle", false);
-    os.removeObserver(ActivityObserver, "system-display-on", false);
-    os.removeObserver(ActivityObserver, "system-display-off", false);
 
     window.controllers.removeController(this);
     window.controllers.removeController(BrowserUI);
@@ -944,14 +934,6 @@ var Browser = {
   },
 
   /**
-   * Handle error page message from the content.
-   */
-  _handleErrorPage: function _handleErrorPage(aMessage) {
-    let tab = this.getTabForBrowser(aMessage.target);
-    tab.updateThumbnail({ force: true });
-  },
-
-  /**
    * Compute the sidebar percentage visibility.
    *
    * @param [optional] dx
@@ -1240,9 +1222,6 @@ var Browser = {
         break;
       case "Browser:BlockedSite":
         this._handleBlockedSite(aMessage);
-        break;
-      case "Browser:ErrorPage":
-        this._handleErrorPage(aMessage);
         break;
     }
   }
@@ -1650,6 +1629,7 @@ nsBrowserAccess.prototype = {
       if (isExternal)
         tab.closeOnExit = true;
       browser = tab.browser;
+      BrowserUI.hidePanel();
     } else if (aWhere == OPEN_APPTAB) {
       Browser.tabs.forEach(function(aTab) {
         if ("appURI" in aTab.browser && aTab.browser.appURI.spec == aURI.spec) {
@@ -1667,6 +1647,7 @@ nsBrowserAccess.prototype = {
         // Just use the existing browser, but return null to keep the system from trying to load the URI again
         browser = null;
       }
+      BrowserUI.hidePanel();
     } else { // OPEN_CURRENTWINDOW and illegal values
       browser = Browser.selectedBrowser;
     }
@@ -1683,10 +1664,7 @@ nsBrowserAccess.prototype = {
       browser.focus();
     } catch(e) { }
 
-    // We are loading web content into this window, so make sure content is visible
-    BrowserUI.hidePanel();
     BrowserUI.closeAutoComplete();
-    Browser.hideSidebars();
     return browser;
   },
 
@@ -2597,34 +2575,6 @@ var MemoryObserver = {
   }
 };
 
-var ActivityObserver = {
-  _inBackground : false,
-  _notActive : false,
-  _isDisplayOff : false,
-  observe: function ao_observe(aSubject, aTopic, aData) {
-    if (aTopic == "application-background") {
-      this._inBackground = true;
-    } else if (aTopic == "application-foreground") {
-      this._inBackground = false;
-    } else if (aTopic == "system-idle") {
-      this._notActive = true;
-    } else if (aTopic == "system-active") {
-      this._notActive = false;
-    } else if (aTopic == "system-display-on") {
-      this._isDisplayOff = false;
-    } else if (aTopic == "system-display-off") {
-      this._isDisplayOff = true;
-    }
-    let activeTabState = !this._inBackground && !this._notActive && !this._isDisplayOff;
-    if (Browser.selectedTab.active != activeTabState) {
-      // On Maemo all backgrounded applications getting portrait orientation
-      // so if browser had landscape mode then we need timeout in order
-      // to finish last rotate/paint operation and have nice lookine browser in TS
-      setTimeout(function() { Browser.selectedTab.active = activeTabState; }, 0);
-    }
-  }
-};
-
 function getNotificationBox(aBrowser) {
   return Browser.getNotificationBox(aBrowser);
 }
@@ -2970,7 +2920,8 @@ Tab.prototype = {
     if (isDefault) {
       if (browser.scale != this._defaultZoomLevel) {
         browser.scale = this._defaultZoomLevel;
-      } else {
+      }
+      else {
         // If the scale level has not changed we want to be sure the content
         // render correctly since the page refresh process could have been
         // stalled during page load. In this case if the page has the exact
@@ -3018,8 +2969,7 @@ Tab.prototype = {
     return this.metadata.allowZoom && !Util.isURLEmpty(this.browser.currentURI.spec);
   },
 
-  updateThumbnail: function updateThumbnail(options) {
-    let options = options || {};
+  updateThumbnail: function updateThumbnail() {
     let browser = this._browser;
 
     if (this._loading) {
@@ -3027,11 +2977,9 @@ Tab.prototype = {
       return;
     }
 
-    let forceUpdate = ("force" in options && options.force);
-
     // Do not repaint thumbnail if we already painted for this load. Bad things
     // happen when we do async canvas draws in quick succession.
-    if (!forceUpdate && (!browser || this._thumbnailWindowId == browser.contentWindowId))
+    if (!browser || this._thumbnailWindowId == browser.contentWindowId)
       return;
 
     // Do not try to paint thumbnails if contentWindowWidth/Height have not been

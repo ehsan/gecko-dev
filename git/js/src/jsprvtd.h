@@ -158,7 +158,6 @@ struct TokenPtr;
 class UpvarCookie;
 
 class TempAllocPolicy;
-class RuntimeAllocPolicy;
 
 template <class T,
           size_t MinInlineCapacity = 0,
@@ -199,11 +198,6 @@ typedef InlineMap<JSAtom *, jsatomid, 24> AtomIndexMap;
 typedef InlineMap<JSAtom *, DefnOrHeader, 24> AtomDOHMap;
 typedef Vector<UpvarCookie, 8> UpvarCookies;
 
-class Breakpoint;
-class BreakpointSite;
-typedef HashMap<jsbytecode *, BreakpointSite *, DefaultHasher<jsbytecode *>, RuntimeAllocPolicy>
-    BreakpointSiteMap;
-class Debugger;
 class WatchpointMap;
 
 } /* namespace js */

@@ -26,7 +26,6 @@
  *   Masayuki Nakano <masayuki@d-toybox.com>
  *   David Gardiner <david.gardiner@unisa.edu.au>
  *   Kyle Huey <me@kylehuey.com>
- *   Jim Mathies <jmathies@mozilla.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -65,7 +64,6 @@
 #include "prtypes.h"
 #include "nsDirectoryServiceDefs.h"
 #include "nsITimer.h"
-#include "nsThreadUtils.h"
 
 // XXX Duped from profile/src/nsProfile.cpp.
 #include <stdlib.h>
@@ -90,14 +88,18 @@ MakeRandomString(char *buf, PRInt32 bufLen)
     }
     *buf = 0;
 }
+// XXX
 
-NS_IMPL_ISUPPORTS1(nsDataObj::CStream, nsIStreamListener)
+// XXX for older version of PSDK where IAsyncOperation and related stuff is not available
+// but this should be removed when parocles config is updated
+// IAsyncOperation interface GUID
+#ifndef __IAsyncOperation_INTERFACE_DEFINED__
+  const IID IID_IAsyncOperation = {0x3D8B0590, 0xF691, 0x11d2, {0x8E, 0xA9, 0x00, 0x60, 0x97, 0xDF, 0x5B, 0xD4}};
+#endif
 
 //-----------------------------------------------------------------------------
 // CStream implementation
-nsDataObj::CStream::CStream() :
-  mChannelRead(false),
-  mStreamRead(0)
+nsDataObj::CStream::CStream() : mRefCount(1)
 {
 }
 
@@ -111,18 +113,17 @@ nsDataObj::CStream::~CStream()
 nsresult nsDataObj::CStream::Init(nsIURI *pSourceURI)
 {
   nsresult rv;
-  rv = NS_NewChannel(getter_AddRefs(mChannel), pSourceURI,
-                     nsnull, nsnull, nsnull,
-                     nsIRequest::LOAD_FROM_CACHE);
+  rv = NS_NewChannel(getter_AddRefs(mChannel), pSourceURI);
   NS_ENSURE_SUCCESS(rv, rv);
-  rv = mChannel->AsyncOpen(this, nsnull);
+
+  rv = mChannel->Open(getter_AddRefs(mInputStream));
   NS_ENSURE_SUCCESS(rv, rv);
+
   return NS_OK;
 }
 
 //-----------------------------------------------------------------------------
-// IUnknown's QueryInterface, nsISupport's AddRef and Release are shared by
-// IUnknown and nsIStreamListener.
+// IUnknown
 STDMETHODIMP nsDataObj::CStream::QueryInterface(REFIID refiid, void** ppvResult)
 {
   *ppvResult = NULL;
@@ -142,64 +143,23 @@ STDMETHODIMP nsDataObj::CStream::QueryInterface(REFIID refiid, void** ppvResult)
   return E_NOINTERFACE;
 }
 
-// nsIStreamListener implementation
-NS_IMETHODIMP nsDataObj::CStream::OnDataAvailable(nsIRequest *aRequest,
-                                                  nsISupports *aContext,
-                                                  nsIInputStream *aInputStream,
-                                                  PRUint32 aOffset, // offset within the stream
-                                                  PRUint32 aCount) // bytes available on this call
+//-----------------------------------------------------------------------------
+STDMETHODIMP_(ULONG) nsDataObj::CStream::AddRef(void)
 {
-    // Extend the write buffer for the incoming data.
-    PRUint8* buffer = mChannelData.AppendElements(aCount);
-    if (buffer == NULL)
-      return NS_ERROR_OUT_OF_MEMORY;
-    NS_ASSERTION((mChannelData.Length() == (aOffset + aCount)),
-      "stream length mismatch w/write buffer");
-
-    // Read() may not return aCount on a single call, so loop until we've
-    // accumulated all the data OnDataAvailable has promised.
-    nsresult rv;
-    PRUint32 odaBytesReadTotal = 0;
-    do {
-      PRUint32 bytesReadByCall = 0;
-      rv = aInputStream->Read((char*)(buffer + odaBytesReadTotal),
-                              aCount, &bytesReadByCall);
-      odaBytesReadTotal += bytesReadByCall;
-    } while (aCount < odaBytesReadTotal && NS_SUCCEEDED(rv));
-    return rv;
+  return ++mRefCount;
 }
 
-NS_IMETHODIMP nsDataObj::CStream::OnStartRequest(nsIRequest *aRequest,
-                                                 nsISupports *aContext)
+//-----------------------------------------------------------------------------
+STDMETHODIMP_(ULONG) nsDataObj::CStream::Release(void)
 {
-    mChannelResult = NS_OK;
-    return NS_OK;
-}
-
-NS_IMETHODIMP nsDataObj::CStream::OnStopRequest(nsIRequest *aRequest,
-                                                nsISupports *aContext,
-                                                nsresult aStatusCode)
-{
-    mChannelRead = true;
-    mChannelResult = aStatusCode;
-    return NS_OK;
-}
-
-// Pumps thread messages while waiting for the async listener operation to
-// complete. Failing this call will fail the stream incall from Windows
-// and cancel the operation.
-nsresult nsDataObj::CStream::WaitForCompletion()
-{
-  // We are guaranteed OnStopRequest will get called, so this should be ok.
-  while (!mChannelRead) {
-    // Pump messages
-    NS_ProcessNextEvent(nsnull, PR_TRUE);
+  ULONG nCount = --mRefCount;
+  if (nCount == 0)
+  {
+    delete this;
+    return (ULONG)0;
   }
 
-  if (!mChannelData.Length())
-    mChannelResult = NS_ERROR_FAILURE;
-
-  return mChannelResult;
+  return mRefCount;
 }
 
 //-----------------------------------------------------------------------------
@@ -237,19 +197,20 @@ STDMETHODIMP nsDataObj::CStream::Read(void* pvBuffer,
                                       ULONG nBytesToRead,
                                       ULONG* nBytesRead)
 {
-  // Wait for the write into our buffer to complete via the stream listener.
-  // We can't respond to this by saying "call us back later".
-  if (NS_FAILED(WaitForCompletion()))
-    return E_FAIL;
+  NS_ENSURE_TRUE(mInputStream, E_FAIL);
 
-  // Bytes left for Windows to read out of our buffer
-  ULONG bytesLeft = mChannelData.Length() - mStreamRead;
-  // Let Windows know what we will hand back, usually this is the entire buffer
-  *nBytesRead = NS_MIN(bytesLeft, nBytesToRead);
-  // Copy the buffer data over
-  memcpy(pvBuffer, ((char*)mChannelData.Elements() + mStreamRead), *nBytesRead);
-  // Update our bytes read tracking
-  mStreamRead += *nBytesRead;
+  nsresult rv;
+  PRUint32 read;
+  *nBytesRead = 0;
+
+  do {
+    read = 0;
+    rv = mInputStream->Read((char*)pvBuffer + *nBytesRead, nBytesToRead - *nBytesRead, &read);
+    NS_ENSURE_SUCCESS(rv, S_FALSE);
+
+    *nBytesRead += read;
+  } while ((*nBytesRead < nBytesToRead) && read);
+
   return S_OK;
 }
 
@@ -289,7 +250,7 @@ STDMETHODIMP nsDataObj::CStream::Stat(STATSTG* statstg, DWORD dwFlags)
   if (statstg == NULL)
     return STG_E_INVALIDPOINTER;
 
-  if (!mChannel || NS_FAILED(WaitForCompletion()))
+  if (!mChannel)
     return E_FAIL;
 
   memset((void*)statstg, 0, sizeof(STATSTG));
@@ -329,7 +290,14 @@ STDMETHODIMP nsDataObj::CStream::Stat(STATSTG* statstg, DWORD dwFlags)
   SystemTimeToFileTime((const SYSTEMTIME*)&st, (LPFILETIME)&statstg->mtime);
   statstg->ctime = statstg->atime = statstg->mtime;
 
-  statstg->cbSize.LowPart = (DWORD)mChannelData.Length();
+  PRInt32 nLength = 0;
+  if (mChannel)
+    mChannel->GetContentLength(&nLength);
+
+  if (nLength < 0) 
+    nLength = 0;
+
+  statstg->cbSize.LowPart = (DWORD)nLength;
   statstg->grfMode = STGM_READ;
   statstg->grfLocksSupported = LOCK_ONLYONCE;
   statstg->clsid = CLSID_NULL;
@@ -368,8 +336,6 @@ HRESULT nsDataObj::CreateStream(IStream **outStream)
 
   nsDataObj::CStream *pStream = new nsDataObj::CStream();
   NS_ENSURE_TRUE(pStream, E_OUTOFMEMORY);
-
-  pStream->AddRef();
 
   rv = pStream->Init(sourceURI);
   if (NS_FAILED(rv))
@@ -569,8 +535,7 @@ STDMETHODIMP nsDataObj::GetData(LPFORMATETC aFormat, LPSTGMEDIUM pSTM)
           return GetFileContents ( *aFormat, *pSTM );
         if ( format == PreferredDropEffect )
           return GetPreferredDropEffect( *aFormat, *pSTM );
-        //PR_LOG(gWindowsLog, PR_LOG_ALWAYS, 
-        //       ("***** nsDataObj::GetData - Unknown format %u\n", format));
+        //printf("***** nsDataObj::GetData - Unknown format %u\n", format);
         return GetText(df, *aFormat, *pSTM);
       } //switch
     } // if

@@ -197,6 +197,7 @@
 #include "nsISelectionDisplay.h"
 
 #include "nsIGlobalHistory2.h"
+#include "nsIGlobalHistory3.h"
 
 #ifdef DEBUG_DOCSHELL_FOCUS
 #include "nsEventStateManager.h"
@@ -214,14 +215,6 @@
 
 #include "nsPluginError.h"
 #include "nsContentUtils.h"
-#include "nsContentErrors.h"
-#include "nsIChannelPolicy.h"
-#include "nsIContentSecurityPolicy.h"
-
-#include "nsXULAppAPI.h"
-
-#include "nsDOMNavigationTiming.h"
-#include "nsITimedChannel.h"
 
 static NS_DEFINE_CID(kDOMScriptObjectFactoryCID,
                      NS_DOM_SCRIPT_OBJECT_FACTORY_CID);
@@ -231,6 +224,15 @@ static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
 //#define DEBUG_DOCSHELL_FOCUS
 #define DEBUG_PAGE_CACHE
 #endif
+
+#include "nsContentErrors.h"
+#include "nsIChannelPolicy.h"
+#include "nsIContentSecurityPolicy.h"
+
+#include "nsXULAppAPI.h"
+
+#include "nsDOMNavigationTiming.h"
+#include "nsITimedChannel.h"
 
 using namespace mozilla;
 
@@ -920,8 +922,7 @@ NS_IMETHODIMP nsDocShell::GetInterface(const nsIID & aIID, void **aSink)
         *aSink = mScriptGlobal;
     }
     else if ((aIID.Equals(NS_GET_IID(nsPIDOMWindow)) ||
-              aIID.Equals(NS_GET_IID(nsIDOMWindow)) ||
-              aIID.Equals(NS_GET_IID(nsIDOMWindowInternal))) &&
+              aIID.Equals(NS_GET_IID(nsIDOMWindow))) &&
              NS_SUCCEEDED(EnsureScriptEnvironment())) {
         return mScriptGlobal->QueryInterface(aIID, aSink);
     }
@@ -8452,13 +8453,13 @@ nsDocShell::InternalLoad(nsIURI * aURI,
             GetCurScrollPos(ScrollOrientation_X, &cx);
             GetCurScrollPos(ScrollOrientation_Y, &cy);
 
-            // ScrollToAnchor doesn't necessarily cause us to scroll the window;
-            // the function decides whether a scroll is appropriate based on the
-            // arguments it receives.  But even if we don't end up scrolling,
-            // ScrollToAnchor performs other important tasks, such as informing
-            // the presShell that we have a new hash.  See bug 680257.
-            rv = ScrollToAnchor(curHash, newHash, aLoadType);
-            NS_ENSURE_SUCCESS(rv, rv);
+            // We scroll whenever we're not doing a history load.  Note that
+            // sometimes we might scroll even if we don't fire a hashchange
+            // event!  See bug 653741.
+            if (!aSHEntry) {
+                rv = ScrollToAnchor(curHash, newHash, aLoadType);
+                NS_ENSURE_SUCCESS(rv, rv);
+            }
 
             mLoadType = aLoadType;
             mURIResultedInDocument = PR_TRUE;

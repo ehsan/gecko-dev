@@ -30,6 +30,8 @@ function test() {
 }
 
 function end_test() {
+  Services.prefs.clearUserPref("extensions.update.url");
+
   // Test generates a lot of available installs so just cancel them all
   AddonManager.getAllInstalls(function(aInstalls) {
     aInstalls.forEach(function(aInstall) {
@@ -44,7 +46,7 @@ function install_test_addons(aCallback) {
   var installs = [];
 
   // Use a blank update URL
-  Services.prefs.setCharPref(PREF_UPDATEURL, TESTROOT + "missing.rdf");
+  Services.prefs.setCharPref("extensions.update.url", TESTROOT + "missing.rdf");
 
   ["browser_bug557956_1",
    "browser_bug557956_2",
@@ -67,7 +69,7 @@ function install_test_addons(aCallback) {
       this.installCount++;
       if (this.installCount == installs.length) {
         // Switch to the test update URL
-        Services.prefs.setCharPref(PREF_UPDATEURL, TESTROOT + "browser_bug557956.rdf");
+        Services.prefs.setCharPref("extensions.update.url", TESTROOT + "browser_bug557956.rdf");
 
         aCallback();
       }

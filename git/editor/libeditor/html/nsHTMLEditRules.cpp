@@ -185,26 +185,27 @@ mDocChangeRange(nsnull)
 ,mUtilRange(nsnull)
 ,mJoinOffset(0)
 {
+  nsString emptyString;
   // populate mCachedStyles
-  mCachedStyles[0] = StyleCache(nsEditProperty::b, EmptyString(), EmptyString());
-  mCachedStyles[1] = StyleCache(nsEditProperty::i, EmptyString(), EmptyString());
-  mCachedStyles[2] = StyleCache(nsEditProperty::u, EmptyString(), EmptyString());
-  mCachedStyles[3] = StyleCache(nsEditProperty::font, NS_LITERAL_STRING("face"), EmptyString());
-  mCachedStyles[4] = StyleCache(nsEditProperty::font, NS_LITERAL_STRING("size"), EmptyString());
-  mCachedStyles[5] = StyleCache(nsEditProperty::font, NS_LITERAL_STRING("color"), EmptyString());
-  mCachedStyles[6] = StyleCache(nsEditProperty::tt, EmptyString(), EmptyString());
-  mCachedStyles[7] = StyleCache(nsEditProperty::em, EmptyString(), EmptyString());
-  mCachedStyles[8] = StyleCache(nsEditProperty::strong, EmptyString(), EmptyString());
-  mCachedStyles[9] = StyleCache(nsEditProperty::dfn, EmptyString(), EmptyString());
-  mCachedStyles[10] = StyleCache(nsEditProperty::code, EmptyString(), EmptyString());
-  mCachedStyles[11] = StyleCache(nsEditProperty::samp, EmptyString(), EmptyString());
-  mCachedStyles[12] = StyleCache(nsEditProperty::var, EmptyString(), EmptyString());
-  mCachedStyles[13] = StyleCache(nsEditProperty::cite, EmptyString(), EmptyString());
-  mCachedStyles[14] = StyleCache(nsEditProperty::abbr, EmptyString(), EmptyString());
-  mCachedStyles[15] = StyleCache(nsEditProperty::acronym, EmptyString(), EmptyString());
-  mCachedStyles[16] = StyleCache(nsEditProperty::cssBackgroundColor, EmptyString(), EmptyString());
-  mCachedStyles[17] = StyleCache(nsEditProperty::sub, EmptyString(), EmptyString());
-  mCachedStyles[18] = StyleCache(nsEditProperty::sup, EmptyString(), EmptyString());
+  mCachedStyles[0] = StyleCache(nsEditProperty::b, emptyString, emptyString);
+  mCachedStyles[1] = StyleCache(nsEditProperty::i, emptyString, emptyString);
+  mCachedStyles[2] = StyleCache(nsEditProperty::u, emptyString, emptyString);
+  mCachedStyles[3] = StyleCache(nsEditProperty::font, NS_LITERAL_STRING("face"), emptyString);
+  mCachedStyles[4] = StyleCache(nsEditProperty::font, NS_LITERAL_STRING("size"), emptyString);
+  mCachedStyles[5] = StyleCache(nsEditProperty::font, NS_LITERAL_STRING("color"), emptyString);
+  mCachedStyles[6] = StyleCache(nsEditProperty::tt, emptyString, emptyString);
+  mCachedStyles[7] = StyleCache(nsEditProperty::em, emptyString, emptyString);
+  mCachedStyles[8] = StyleCache(nsEditProperty::strong, emptyString, emptyString);
+  mCachedStyles[9] = StyleCache(nsEditProperty::dfn, emptyString, emptyString);
+  mCachedStyles[10] = StyleCache(nsEditProperty::code, emptyString, emptyString);
+  mCachedStyles[11] = StyleCache(nsEditProperty::samp, emptyString, emptyString);
+  mCachedStyles[12] = StyleCache(nsEditProperty::var, emptyString, emptyString);
+  mCachedStyles[13] = StyleCache(nsEditProperty::cite, emptyString, emptyString);
+  mCachedStyles[14] = StyleCache(nsEditProperty::abbr, emptyString, emptyString);
+  mCachedStyles[15] = StyleCache(nsEditProperty::acronym, emptyString, emptyString);
+  mCachedStyles[16] = StyleCache(nsEditProperty::cssBackgroundColor, emptyString, emptyString);
+  mCachedStyles[17] = StyleCache(nsEditProperty::sub, emptyString, emptyString);
+  mCachedStyles[18] = StyleCache(nsEditProperty::sup, emptyString, emptyString);
 }
 
 nsHTMLEditRules::~nsHTMLEditRules()
@@ -4723,10 +4724,6 @@ nsHTMLEditRules::WillAlign(nsISelection *aSelection,
   {
     // here's where we actually figure out what to do
     nsCOMPtr<nsIDOMNode> curNode = arrayOfNodes[i];
-
-    // Ignore all non-editable nodes.  Leave them be.
-    if (!mHTMLEditor->IsEditable(curNode)) continue;
-
     PRInt32 offset;
     res = nsEditor::GetNodeLocation(curNode, address_of(curParent), &offset);
     NS_ENSURE_SUCCESS(res, res);
@@ -5004,8 +5001,8 @@ nsHTMLEditRules::CheckForInvisibleBR(nsIDOMNode *aBlock,
 
   if (aWhere == kBlockEnd)
   {
-    nsCOMPtr<nsIDOMNode> rightmostNode =
-      mHTMLEditor->GetRightmostChild(aBlock, PR_TRUE); // no block crossing
+    nsCOMPtr<nsIDOMNode> rightmostNode;
+    rightmostNode = mHTMLEditor->GetRightmostChild(aBlock, PR_TRUE); // no block crossing
 
     if (rightmostNode)
     {
@@ -6789,12 +6786,6 @@ nsHTMLEditRules::ReturnInListItem(nsISelection *aSelection,
   NS_ENSURE_SUCCESS(res, res);
   if (isEmpty && (rootNode != list) && mReturnInEmptyLIKillsList)
   {
-    // get the list offset now -- before we might eventually split the list
-    nsCOMPtr<nsIDOMNode> listparent;
-    PRInt32 offset;
-    res = nsEditor::GetNodeLocation(list, address_of(listparent), &offset);
-    NS_ENSURE_SUCCESS(res, res);
-
     // are we the last list item in the list?
     PRBool bIsLast;
     res = mHTMLEditor->IsLastEditableChild(aListItem, &bIsLast);
@@ -6808,6 +6799,10 @@ nsHTMLEditRules::ReturnInListItem(nsISelection *aSelection,
     }
 
     // are we in a sublist?
+    nsCOMPtr<nsIDOMNode> listparent;
+    PRInt32 offset;
+    res = nsEditor::GetNodeLocation(list, address_of(listparent), &offset);
+    NS_ENSURE_SUCCESS(res, res);
     if (nsHTMLEditUtils::IsList(listparent))  //in a sublist
     {
       // if so, move this list item out of this list and into the grandparent list
@@ -8709,23 +8704,7 @@ nsHTMLEditRules::RemoveAlignment(nsIDOMNode * aNode, const nsAString & aAlignTyp
     res = mHTMLEditor->NodeIsBlockStatic(child, &isBlock);
     NS_ENSURE_SUCCESS(res, res);
 
-    if (nsEditor::NodeIsType(child, nsEditProperty::center))
-    {
-      // the current node is a CENTER element
-      // first remove children's alignment
-      res = RemoveAlignment(child, aAlignType, PR_TRUE);
-      NS_ENSURE_SUCCESS(res, res);
-
-      // we may have to insert BRs in first and last position of element's children
-      // if the nodes before/after are not blocks and not BRs
-      res = MakeSureElemStartsOrEndsOnCR(child);
-      NS_ENSURE_SUCCESS(res, res);
-
-      // now remove the CENTER container
-      res = mHTMLEditor->RemoveContainer(child);
-      NS_ENSURE_SUCCESS(res, res);
-    }
-    else if (isBlock || nsHTMLEditUtils::IsHR(child))
+    if ((isBlock && !nsHTMLEditUtils::IsDiv(child)) || nsHTMLEditUtils::IsHR(child))
     {
       // the current node is a block element
       nsCOMPtr<nsIDOMElement> curElem = do_QueryInterface(child);
@@ -8752,6 +8731,47 @@ nsHTMLEditRules::RemoveAlignment(nsIDOMNode * aNode, const nsAString & aAlignTyp
       {
         // unless this is a table, look at children
         res = RemoveAlignment(child, aAlignType, PR_TRUE);
+        NS_ENSURE_SUCCESS(res, res);
+      }
+    }
+    else if (nsEditor::NodeIsType(child, nsEditProperty::center)
+             || nsHTMLEditUtils::IsDiv(child))
+    {
+      // this is a CENTER or a DIV element and we have to remove it
+      // first remove children's alignment
+      res = RemoveAlignment(child, aAlignType, PR_TRUE);
+      NS_ENSURE_SUCCESS(res, res);
+
+      if (useCSS && nsHTMLEditUtils::IsDiv(child))
+      {
+        // if we are in CSS mode and if the element is a DIV, let's remove it
+        // if it does not carry any style hint (style attr, class or ID)
+        nsAutoString dummyCssValue;
+        res = mHTMLEditor->mHTMLCSSUtils->RemoveCSSInlineStyle(child, nsEditProperty::cssTextAlign, dummyCssValue);
+        NS_ENSURE_SUCCESS(res, res);
+        nsCOMPtr<nsIDOMElement> childElt = do_QueryInterface(child);
+        PRBool hasStyleOrIdOrClass;
+        res = mHTMLEditor->HasStyleOrIdOrClass(childElt, &hasStyleOrIdOrClass);
+        NS_ENSURE_SUCCESS(res, res);
+        if (!hasStyleOrIdOrClass)
+        {
+          // we may have to insert BRs in first and last position of DIV's children
+          // if the nodes before/after are not blocks and not BRs
+          res = MakeSureElemStartsOrEndsOnCR(child);
+          NS_ENSURE_SUCCESS(res, res);
+          res = mHTMLEditor->RemoveContainer(child);
+          NS_ENSURE_SUCCESS(res, res);
+        }
+      }
+      else
+      {
+        // we may have to insert BRs in first and last position of element's children
+        // if the nodes before/after are not blocks and not BRs
+        res = MakeSureElemStartsOrEndsOnCR(child);
+        NS_ENSURE_SUCCESS(res, res);
+
+        // in HTML mode, let's remove the element
+        res = mHTMLEditor->RemoveContainer(child);
         NS_ENSURE_SUCCESS(res, res);
       }
     }
@@ -9263,7 +9283,4 @@ nsHTMLEditRules::DocumentModifiedWorker()
 
   // Try to recreate the bogus node if needed.
   CreateBogusNodeIfNeeded(selection);
-
-  // Reset the spell checker
-  mEditor->SyncRealTimeSpell();
 }

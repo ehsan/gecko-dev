@@ -42,6 +42,10 @@ interface nsIInputStream;
 interface nsIOutputStream;
 interface nsIScriptGlobalObject;
 
+%{ C++
+#include "jspubtd.h"
+%}
+
 [ptr] native JSValPtr(jsval);
 [ptr] native JSContext(JSContext);
 

@@ -5,17 +5,12 @@ import os
 
 class DeviceManagerADB(DeviceManager):
 
-  def __init__(self, host = None, port = 20701, retrylimit = 5, packageName = None):
+  def __init__(self, host = None, port = 20701, retrylimit = 5, packageName = "org.mozilla.fennec_unofficial"):
     self.host = host
     self.port = port
     self.retrylimit = retrylimit
     self.retries = 0
     self._sock = None
-    if packageName == None:
-      if os.getenv('USER'):
-        packageName = 'org.mozilla.fennec_' + os.getenv('USER')
-      else:
-        packageName = 'org.mozilla.fennec_'
     self.Init(packageName)
 
   def Init(self, packageName):
@@ -32,11 +27,7 @@ class DeviceManagerADB(DeviceManager):
       self.tmpDir = None
     try:
       # a test to see if we have root privs
-      files = self.listFiles("/data/data")
-      if (len(files) == 1):
-        if (files[0].find("Permission denied") != -1):
-          print "NOT running as root"
-          raise Exception("not running as root")
+      self.checkCmd(["shell", "ls", "/sbin"])
     except:
       try:
         self.checkCmd(["root"])
@@ -107,7 +98,7 @@ class DeviceManagerADB(DeviceManager):
     try:
       if (not self.dirExists(remoteDir)):
         self.mkDirs(remoteDir+"/x")
-      for root, dirs, files in os.walk(localDir, followlinks='true'):
+      for root, dirs, files in os.walk(localDir):
         relRoot = os.path.relpath(root, localDir)
         for file in files:
           localFile = os.path.join(root, file)
@@ -143,12 +134,8 @@ class DeviceManagerADB(DeviceManager):
   #  success: True
   #  failure: False
   def fileExists(self, filepath):
-    p = self.runCmd(["shell", "ls", "-a", filepath])
-    data = p.stdout.readlines()
-    if (len(data) == 1):
-      if (data[0].rstrip() == filepath):
-        return True
-    return False
+    self.checkCmd(["shell", "ls", filepath])
+    return True
 
   def removeFile(self, filename):
     return self.runCmd(["shell", "rm", filename]).stdout.read()
@@ -394,11 +381,18 @@ class DeviceManagerADB(DeviceManager):
       return devroot + '/fennec'
     elif (self.dirExists(devroot + '/firefox')):
       return devroot + '/firefox'
-    elif (self.packageName and self.dirExists('/data/data/' + self.packageName)):
-      return '/data/data/' + self.packageName
+    elif (self.dirExists('/data/data/org.mozilla.fennec')):
+      return '/data/data/org.mozilla.fennec'
+    elif (self.dirExists('/data/data/org.mozilla.firefox')):
+      return '/data/data/org.mozilla.firefox'
+    elif (self.dirExists('/data/data/org.mozilla.fennec_unofficial')):
+      return '/data/data/org.mozilla.fennec_unofficial'
+    elif (self.dirExists('/data/data/org.mozilla.fennec_aurora')):
+      return '/data/data/org.mozilla.fennec_aurora'
+    elif (self.dirExists('/data/data/org.mozilla.firefox_beta')):
+      return '/data/data/org.mozilla.firefox_beta'
 
     # Failure (either not installed or not a recognized platform)
-    print "devicemanagerADB: getAppRoot failed"
     return None
 
   # Gets the directory location on the device for a specific test type

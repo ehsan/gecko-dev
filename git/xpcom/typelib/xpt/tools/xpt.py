@@ -141,11 +141,10 @@ class Type(object):
         'jsval',
         )
 
-    def __init__(self, pointer=False, reference=False):
+    def __init__(self, pointer=False, unique_pointer=False, reference=False):
         self.pointer = pointer
+        self.unique_pointer = unique_pointer
         self.reference = reference
-        if reference and not pointer:
-            raise Exception("If reference is True pointer must be True too")
 
     @staticmethod
     def decodeflags(byte):
@@ -158,6 +157,7 @@ class Type(object):
         
         """
         return {'pointer': bool(byte & 0x80),
+                'unique_pointer': bool(byte & 0x40),
                 'reference': bool(byte & 0x20),
                 }
 
@@ -169,6 +169,8 @@ class Type(object):
         flags = 0
         if self.pointer:
             flags |= 0x80
+        if self.unique_pointer:
+            flags |= 0x40
         if self.reference:
             flags |= 0x20
         return flags
@@ -515,7 +517,6 @@ class Param(object):
         flags. Params default to "in".
 
         """
-
         self.type = type
         self.in_ = in_
         self.out = out
@@ -641,8 +642,6 @@ class Method(object):
         self.optargc = optargc
         self.implicit_jscontext = implicit_jscontext
         self.params = list(params)
-        if result and not isinstance(result, Param):
-            raise Exception("result must be a Param!")
         self.result = result
 
     def read_params(self, typelib, map, data_pool, offset, num_args):

@@ -10,7 +10,7 @@ function test() {
   registerCleanupFunction(function() {
     if (gBrowser.tabs.length > 1)
       gBrowser.removeTab(gBrowser.tabs[1]);
-    hideTabView();
+    hideTabView(function() {});
   });
 
   showTabView(function() {
@@ -25,7 +25,6 @@ function test1() {
   is(groupItems.length, 1, "there is one groupItem");
 
   whenTabViewIsHidden(function() {
-    gBrowser.selectedTab = gBrowser.tabs[0];
     is(groupItems.length, 2, "there are two groupItems");
     closeGroupItem(groupItems[1], finish);
   });

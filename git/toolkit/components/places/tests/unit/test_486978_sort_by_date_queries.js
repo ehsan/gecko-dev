@@ -165,4 +165,6 @@ function run_test() {
   // Kick off tests.
   while (gTests.length)
     (gTests.shift())();
+
+  hs.QueryInterface(Ci.nsIBrowserHistory).removeAllPages();
 }

@@ -2986,12 +2986,6 @@ PresShell::FireResizeEvent()
 void
 PresShell::SetIgnoreFrameDestruction(PRBool aIgnore)
 {
-  if (mPresContext) {
-    // We need to destroy the image loaders first, as they won't be
-    // notified when frames are destroyed once this setting takes effect.
-    // (See bug 673984)
-    mPresContext->DestroyImageLoaders();
-  }
   mIgnoreFrameDestruction = aIgnore;
 }
 
@@ -9005,13 +8999,7 @@ void ReflowCountMgr::PaintCount(const char*     aName,
                   NS_FONT_WEIGHT_NORMAL, NS_FONT_STRETCH_NORMAL, 0,
                   nsPresContext::CSSPixelsToAppUnits(11));
 
-      nsRefPtr<nsFontMetrics> fm;
-      aPresContext->DeviceContext()->GetMetricsFor(font,
-        // We have one frame, therefore we must have a root...
-        aPresContext->FrameManager()->GetRootFrame()->
-          GetStyleVisibility()->mLanguage,
-        aPresContext->GetUserFontSet(), *getter_AddRefs(fm));
-
+      nsRefPtr<nsFontMetrics> fm = aPresContext->GetMetricsFor(font);
       aRenderingContext->SetFont(fm);
       char buf[16];
       sprintf(buf, "%d", counter->mCount);
@@ -9411,16 +9399,6 @@ SetExternalResourceIsActive(nsIDocument* aDocument, void* aClosure)
   return PR_TRUE;
 }
 
-static void
-SetPluginIsActive(nsIContent* aContent, void* aClosure)
-{
-  nsIFrame *frame = aContent->GetPrimaryFrame();
-  nsIObjectFrame *objectFrame = do_QueryFrame(frame);
-  if (objectFrame) {
-    objectFrame->SetIsDocumentActive(*static_cast<PRBool*>(aClosure));
-  }
-}
-
 nsresult
 PresShell::SetIsActive(PRBool aIsActive)
 {
@@ -9435,8 +9413,6 @@ PresShell::SetIsActive(PRBool aIsActive)
 
   // Propagate state-change to my resource documents' PresShells
   mDocument->EnumerateExternalResources(SetExternalResourceIsActive,
-                                        &aIsActive);
-  mDocument->EnumerateFreezableElements(SetPluginIsActive,
                                         &aIsActive);
   nsresult rv = UpdateImageLockingState();
 #ifdef ACCESSIBILITY

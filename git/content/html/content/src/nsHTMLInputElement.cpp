@@ -120,6 +120,12 @@
 #include "nsContentUtils.h"
 #include "nsRadioVisitor.h"
 
+#include "nsTextEditRules.h"
+
+// JS headers are needed for the pattern attribute.
+#include "jsapi.h"
+#include "jscntxt.h"
+
 using namespace mozilla::dom;
 
 // XXX align=left, hspace, vspace, border? other nav4 attrs
@@ -2510,12 +2516,12 @@ nsHTMLInputElement::SanitizeValue(nsAString& aValue)
     case NS_FORM_INPUT_SEARCH:
     case NS_FORM_INPUT_TEL:
     case NS_FORM_INPUT_PASSWORD:
+    case NS_FORM_INPUT_EMAIL:
       {
         PRUnichar crlf[] = { PRUnichar('\r'), PRUnichar('\n'), 0 };
         aValue.StripChars(crlf);
       }
       break;
-    case NS_FORM_INPUT_EMAIL:
     case NS_FORM_INPUT_URL:
       {
         PRUnichar crlf[] = { PRUnichar('\r'), PRUnichar('\n'), 0 };

@@ -223,6 +223,7 @@ private:
     const nsDependentCSubstring Filename(); // see below
     const nsDependentCSubstring Basename()  { return Segment(mBasename); }
     const nsDependentCSubstring Extension() { return Segment(mExtension); }
+    const nsDependentCSubstring Param()     { return Segment(mParam); }
     const nsDependentCSubstring Query()     { return Segment(mQuery); }
     const nsDependentCSubstring Ref()       { return Segment(mRef); }
 
@@ -235,7 +236,8 @@ private:
     void ShiftFromFilepath(PRInt32 diff)  { mFilepath.mPos += diff; ShiftFromDirectory(diff); }
     void ShiftFromDirectory(PRInt32 diff) { mDirectory.mPos += diff; ShiftFromBasename(diff); }
     void ShiftFromBasename(PRInt32 diff)  { mBasename.mPos += diff; ShiftFromExtension(diff); }
-    void ShiftFromExtension(PRInt32 diff) { mExtension.mPos += diff; ShiftFromQuery(diff); }
+    void ShiftFromExtension(PRInt32 diff) { mExtension.mPos += diff; ShiftFromParam(diff); }
+    void ShiftFromParam(PRInt32 diff)     { mParam.mPos += diff; ShiftFromQuery(diff); }
     void ShiftFromQuery(PRInt32 diff)     { mQuery.mPos += diff; ShiftFromRef(diff); }
     void ShiftFromRef(PRInt32 diff)       { mRef.mPos += diff; }
 
@@ -265,6 +267,7 @@ private:
     URLSegment mDirectory;
     URLSegment mBasename;
     URLSegment mExtension;
+    URLSegment mParam;
     URLSegment mQuery;
     URLSegment mRef;
 

@@ -75,9 +75,7 @@ CSRCS := \
 
 libs:: $(CSRCS:.c=.$(OBJ_SUFFIX))
 
-WRAP_MALLOC_CFLAGS=
-WRAP_MALLOC_LIB=
-
+ifndef CROSS_COMPILE
 test$(DLL_SUFFIX): test.$(OBJ_SUFFIX) elfhack $(CSRCS:.c=.$(OBJ_SUFFIX))
 	$(MKSHLIB) $(LDFLAGS) $<
 	@echo ===
@@ -94,13 +92,6 @@ test$(DLL_SUFFIX): test.$(OBJ_SUFFIX) elfhack $(CSRCS:.c=.$(OBJ_SUFFIX))
 
 .PRECIOUS: test$(DLL_SUFFIX)
 
-CSRCS += test.c
-
-GARBAGE += test$(DLL_SUFFIX) test$(DLL_SUFFIX).bak
-
-libs:: test$(DLL_SUFFIX)
-
-ifndef CROSS_COMPILE
 dummy: dummy.$(OBJ_SUFFIX) test$(DLL_SUFFIX)
 	$(CC) -o $@ $^ $(LDFLAGS)
 
@@ -108,9 +99,9 @@ libs:: dummy
 	# Will either crash or return exit code 1 if elfhack is broken
 	LD_LIBRARY_PATH=$(CURDIR) $(CURDIR)/dummy
 
-CSRCS += dummy.c
+CSRCS += test.c dummy.c
 
-GARBAGE += dummy
+GARBAGE += dummy test$(DLL_SUFFIX) test$(DLL_SUFFIX).bak
 endif
 
 inject:

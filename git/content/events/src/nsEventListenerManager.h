@@ -84,10 +84,10 @@ public:
 
   NS_DECL_CYCLE_COLLECTION_NATIVE_CLASS(nsEventListenerManager)
 
-  void AddEventListener(const nsAString& aType,
-                        nsIDOMEventListener* aListener,
-                        PRBool aUseCapture,
-                        PRBool aWantsUntrusted);
+  nsresult AddEventListener(const nsAString& aType,
+                            nsIDOMEventListener* aListener,
+                            PRBool aUseCapture,
+                            PRBool aWantsUntrusted);
   void RemoveEventListener(const nsAString& aType,
                            nsIDOMEventListener* aListener,
                            PRBool aUseCapture);
@@ -96,9 +96,9 @@ public:
   * Sets events listeners of all types. 
   * @param an event listener
   */
-  void AddEventListenerByType(nsIDOMEventListener *aListener,
-                              const nsAString& type,
-                              PRInt32 aFlags);
+  nsresult AddEventListenerByType(nsIDOMEventListener *aListener,
+                                  const nsAString& type,
+                                  PRInt32 aFlags);
   void RemoveEventListenerByType(nsIDOMEventListener *aListener,
                                  const nsAString& type,
                                  PRInt32 aFlags);
@@ -210,10 +210,10 @@ protected:
                               void *aScopeGlobal,
                               nsIAtom* aName, PRBool aIsString,
                               PRBool aPermitUntrustedEvents);
-  void AddEventListener(nsIDOMEventListener *aListener, 
-                        PRUint32 aType,
-                        nsIAtom* aTypeAtom,
-                        PRInt32 aFlags);
+  nsresult AddEventListener(nsIDOMEventListener *aListener, 
+                            PRUint32 aType,
+                            nsIAtom* aTypeAtom,
+                            PRInt32 aFlags);
   void RemoveEventListener(nsIDOMEventListener *aListener,
                            PRUint32 aType,
                            nsIAtom* aUserType,

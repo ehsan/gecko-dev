@@ -141,9 +141,6 @@ public:
   bool
   SetRequestHeader(JSContext* aCx, JSString* aHeader, JSString* aValue);
 
-  bool
-  OverrideMimeType(JSContext* aCx, JSString* aMimeType);
-
 private:
   void
   ReleaseProxy();
@@ -157,12 +154,6 @@ private:
   bool
   DispatchPrematureAbortEvent(JSContext* aCx, JSObject* aTarget,
                               PRUint64 aEventType, bool aUploadTarget);
-
-  bool
-  SendInProgress() const
-  {
-    return mJSObjectRootCount != 0;
-  }
 };
 
 }  // namespace xhr

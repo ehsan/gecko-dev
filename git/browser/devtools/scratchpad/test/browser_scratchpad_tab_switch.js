@@ -58,7 +58,8 @@ function runTests()
   is(statusbar.getAttribute("label"), contentMenu.getAttribute("label"),
      "statusbar label is correct");
 
-  sp.setText("window.foosbug653108 = 'aloha';");
+  ok(sp.textbox, "textbox exists");
+  sp.textbox.value = "window.foosbug653108 = 'aloha';";
 
   ok(!content.wrappedJSObject.foosbug653108,
      "no content.foosbug653108");
@@ -77,12 +78,12 @@ function runTests2() {
 
   ok(!window.foosbug653108, "no window.foosbug653108");
 
-  sp.setText("window.foosbug653108");
+  sp.textbox.value = "window.foosbug653108";
   let result = sp.run();
 
   isnot(result, "aloha", "window.foosbug653108 is not aloha");
 
-  sp.setText("window.foosbug653108 = 'ahoyhoy';");
+  sp.textbox.value = "window.foosbug653108 = 'ahoyhoy';";
   sp.run();
 
   is(content.wrappedJSObject.foosbug653108, "ahoyhoy",
@@ -96,7 +97,7 @@ function runTests3() {
   gBrowser.selectedBrowser.removeEventListener("load", runTests3, true);
   // Check that the sandbox is not cached.
 
-  sp.setText("typeof foosbug653108;");
+  sp.textbox.value = "typeof foosbug653108;";
   is(sp.run()[1], "undefined", "global variable does not exist");
 
   gScratchpadWindow.close();

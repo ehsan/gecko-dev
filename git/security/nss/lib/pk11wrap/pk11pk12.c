@@ -448,6 +448,15 @@ loser:
 }
 
 SECStatus
+PK11_ImportPrivateKey(PK11SlotInfo *slot, SECKEYRawPrivateKey *lpk, 
+	SECItem *nickname, SECItem *publicValue, PRBool isPerm, 
+	PRBool isPrivate, unsigned int keyUsage, void *wincx) 
+{
+    return PK11_ImportAndReturnPrivateKey(slot, lpk, nickname, publicValue,
+	isPerm, isPrivate, keyUsage, NULL, wincx);
+}
+
+SECStatus
 PK11_ImportPrivateKeyInfoAndReturnKey(PK11SlotInfo *slot,
 	SECKEYPrivateKeyInfo *pki, SECItem *nickname, SECItem *publicValue,
 	PRBool isPerm, PRBool isPrivate, unsigned int keyUsage,
@@ -458,7 +467,7 @@ PK11_ImportPrivateKeyInfoAndReturnKey(PK11SlotInfo *slot,
     SECKEYRawPrivateKey *lpk = NULL;
     const SEC_ASN1Template *keyTemplate, *paramTemplate;
     void *paramDest = NULL;
-    PRArenaPool *arena = NULL;
+    PRArenaPool *arena;
 
     arena = PORT_NewArena(2048);
     if(!arena) {
@@ -531,7 +540,7 @@ PK11_ImportPrivateKeyInfoAndReturnKey(PK11SlotInfo *slot,
 
 
 loser:
-    if (arena != NULL) {
+    if (lpk!= NULL) {
 	PORT_FreeArena(arena, PR_TRUE);
     }
 

@@ -56,10 +56,10 @@ public:
     }
 
 
-    nsresult Init(PRUint32 segmentSize, PRUint32 maxSize,
+    NS_COM nsresult Init(PRUint32 segmentSize, PRUint32 maxSize,
                   nsIMemory* allocator = nsnull);
 
-    char* AppendNewSegment();   // pushes at end
+    NS_COM char* AppendNewSegment();   // pushes at end
 
     // returns true if no more segments remain:
     PRBool DeleteFirstSegment();  // pops from beginning
@@ -71,7 +71,7 @@ public:
     // consumption when data is not an exact multiple of segment size.
     PRBool ReallocLastSegment(size_t newSize);
 
-    void Empty();               // frees all segments
+    NS_COM void Empty();               // frees all segments
 
     inline PRUint32 GetSegmentCount() {
         if (mFirstSegmentIndex <= mLastSegmentIndex)

@@ -74,7 +74,7 @@
    * ASCII case-insensitive comparator.  (for Unicode case-insensitive
    * comparision, see nsUnicharUtils.h)
    */
-class nsCaseInsensitiveCStringComparator
+class NS_COM nsCaseInsensitiveCStringComparator
     : public nsCStringComparator
   {
     public:

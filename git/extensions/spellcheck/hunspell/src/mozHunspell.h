@@ -77,8 +77,6 @@
 { 0x56c778e4, 0x1bee, 0x45f3, \
   { 0xa6, 0x89, 0x88, 0x66, 0x92, 0xa9, 0x7f, 0xe7 } }
 
-class nsIMemoryReporter;
-
 class mozHunspell : public mozISpellCheckingEngine,
                    public nsIObserver,
                    public nsSupportsWeakReference
@@ -89,7 +87,7 @@ public:
   NS_DECL_NSIOBSERVER
   NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(mozHunspell, mozISpellCheckingEngine)
 
-  mozHunspell() : mHunspell(nsnull), mHunspellReporter(nsnull) { }
+  mozHunspell() : mHunspell(nsnull) { }
   virtual ~mozHunspell();
 
   nsresult Init();
@@ -111,8 +109,6 @@ protected:
   nsString  mLanguage;
 
   Hunspell  *mHunspell;
-
-  nsIMemoryReporter* mHunspellReporter;
 };
 
 #endif

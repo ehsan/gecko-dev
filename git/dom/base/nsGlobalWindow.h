@@ -538,7 +538,15 @@ public:
     return sWindowsById;
   }
 
-  PRInt64 SizeOf() const;
+  PRInt64 SizeOf() const {
+    PRInt64 size = sizeof(*this);
+
+    if (IsInnerWindow() && mDoc) {
+      size += mDoc->SizeOf();
+    }
+
+    return size;
+  }
 
 private:
   // Enable updates for the accelerometer.
@@ -967,7 +975,6 @@ protected:
   static nsIDOMStorageList* sGlobalStorageList;
 
   static WindowByIdTable* sWindowsById;
-  static bool sWarnedAboutWindowInternal;
 };
 
 /*
@@ -1068,8 +1075,6 @@ public:
   nsresult RefreshMIMEArray();
 
   static bool HasDesktopNotificationSupport();
-
-  PRInt64 SizeOf() const;
 
 protected:
   nsRefPtr<nsMimeTypeArray> mMimeTypes;

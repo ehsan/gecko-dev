@@ -75,10 +75,6 @@ const PRIVACY_FULL = 2;
 const NOTIFY_WINDOWS_RESTORED = "sessionstore-windows-restored";
 const NOTIFY_BROWSER_STATE_RESTORED = "sessionstore-browser-state-restored";
 
-// Maximum number of tabs to restore simultaneously. Previously controlled by
-// the browser.sessionstore.max_concurrent_tabs pref.
-const MAX_CONCURRENT_TAB_RESTORES = 3;
-
 // global notifications observed
 const OBSERVING = [
   "domwindowopened", "domwindowclosed",
@@ -196,7 +192,7 @@ SessionStoreService.prototype = {
 
   // During the initial restore and setBrowserState calls tracks the number of
   // windows yet to be restored
-  _restoreCount: -1,
+  _restoreCount: 0,
 
   // whether a setBrowserState call is in progress
   _browserSetState: false,
@@ -233,9 +229,9 @@ SessionStoreService.prototype = {
   _tabsToRestore: { visible: [], hidden: [] },
   _tabsRestoringCount: 0,
 
-  // overrides MAX_CONCURRENT_TAB_RESTORES and _restoreHiddenTabs when true
-  _restoreOnDemand: false,
-
+  // number of tabs to restore concurrently, pref controlled.
+  _maxConcurrentTabRestores: null,
+  
   // whether to restore hidden tabs or not, pref controlled.
   _restoreHiddenTabs: null,
 
@@ -285,10 +281,7 @@ SessionStoreService.prototype = {
     var pbs = Cc["@mozilla.org/privatebrowsing;1"].
               getService(Ci.nsIPrivateBrowsingService);
     this._inPrivateBrowsing = pbs.privateBrowsingEnabled;
-
-    // Do pref migration before we store any values and start observing changes
-    this._migratePrefs();
-
+    
     // observe prefs changes so we can modify stored data to match
     this._prefBranch.addObserver("sessionstore.max_tabs_undo", this, true);
     this._prefBranch.addObserver("sessionstore.max_windows_undo", this, true);
@@ -297,9 +290,9 @@ SessionStoreService.prototype = {
     this._sessionhistory_max_entries =
       this._prefBranch.getIntPref("sessionhistory.max_entries");
 
-    this._restoreOnDemand =
-      this._prefBranch.getBoolPref("sessionstore.restore_on_demand");
-    this._prefBranch.addObserver("sessionstore.restore_on_demand", this, true);
+    this._maxConcurrentTabRestores =
+      this._prefBranch.getIntPref("sessionstore.max_concurrent_tabs");
+    this._prefBranch.addObserver("sessionstore.max_concurrent_tabs", this, true);
 
     this._restoreHiddenTabs =
       this._prefBranch.getBoolPref("sessionstore.restore_hidden_tabs");
@@ -371,9 +364,6 @@ SessionStoreService.prototype = {
           delete this._initialState.windows[0].hidden;
           // Since nothing is hidden in the first window, it cannot be a popup
           delete this._initialState.windows[0].isPopup;
-          // We don't want to minimize and then open a window at startup.
-          if (this._initialState.windows[0].sizemode == "minimized")
-            this._initialState.windows[0].sizemode = "normal";
         }
       }
       catch (ex) { debug("The session file is invalid: " + ex); }
@@ -447,19 +437,6 @@ SessionStoreService.prototype = {
     if (this._saveTimer) {
       this._saveTimer.cancel();
       this._saveTimer = null;
-    }
-  },
-
-  _migratePrefs: function sss__migratePrefs() {
-    // Added For Firefox 8
-    // max_concurrent_tabs is going away. We're going to hard code a max value
-    // (MAX_CONCURRENT_TAB_RESTORES) and start using a boolean pref restore_on_demand.
-    if (this._prefBranch.prefHasUserValue("sessionstore.max_concurrent_tabs") &&
-        !this._prefBranch.prefHasUserValue("sessionstore.restore_on_demand")) {
-      let maxConcurrentTabs =
-        this._prefBranch.getIntPref("sessionstore.max_concurrent_tabs");
-      this._prefBranch.setBoolPref("sessionstore.restore_on_demand", maxConcurrentTabs == 0);
-      this._prefBranch.clearUserPref("sessionstore.max_concurrent_tabs");
     }
   },
 
@@ -652,9 +629,9 @@ SessionStoreService.prototype = {
           this._clearDisk();
         this.saveState(true);
         break;
-      case "sessionstore.restore_on_demand":
-        this._restoreOnDemand =
-          this._prefBranch.getBoolPref("sessionstore.restore_on_demand");
+      case "sessionstore.max_concurrent_tabs":
+        this._maxConcurrentTabRestores =
+          this._prefBranch.getIntPref("sessionstore.max_concurrent_tabs");
         break;
       case "sessionstore.restore_hidden_tabs":
         this._restoreHiddenTabs =
@@ -785,7 +762,7 @@ SessionStoreService.prototype = {
     aWindow.__SSi = "window" + Date.now();
 
     // and create its data object
-    this._windows[aWindow.__SSi] = { tabs: [], selected: 0, _closedTabs: [], busy: false };
+    this._windows[aWindow.__SSi] = { tabs: [], selected: 0, _closedTabs: [] };
     if (!this._isWindowLoaded(aWindow))
       this._windows[aWindow.__SSi]._restoring = true;
     if (!aWindow.toolbar.visible)
@@ -969,9 +946,6 @@ SessionStoreService.prototype = {
       // save the window if it has multiple tabs or a single saveable tab
       if (winData.tabs.length > 1 ||
           (winData.tabs.length == 1 && this._shouldSaveTabState(winData.tabs[0]))) {
-        // we don't want to save the busy state
-        delete winData.busy;
-
         this._closedWindows.unshift(winData);
         this._capClosedWindows();
       }
@@ -1268,7 +1242,7 @@ SessionStoreService.prototype = {
       throw (Components.returnCode = Cr.NS_ERROR_INVALID_ARG);
     
     var window = aTab.ownerDocument.defaultView;
-    this._setWindowStateBusy(window);
+    this._sendWindowStateEvent(window, "Busy");
     this.restoreHistoryPrecursor(window, [aTab], [tabState], 0, 0, 0);
   },
 
@@ -1284,7 +1258,7 @@ SessionStoreService.prototype = {
     tabState.index = Math.max(1, Math.min(tabState.index, tabState.entries.length));
     tabState.pinned = false;
 
-    this._setWindowStateBusy(aWindow);
+    this._sendWindowStateEvent(aWindow, "Busy");
     let newTab = aTab == aWindow.gBrowser.selectedTab ?
       aWindow.gBrowser.addTab(null, {relatedToCurrent: true, ownerTab: aTab}) :
       aWindow.gBrowser.addTab();
@@ -1327,7 +1301,7 @@ SessionStoreService.prototype = {
     let closedTab = closedTabs.splice(aIndex, 1).shift();
     let closedTabState = closedTab.state;
 
-    this._setWindowStateBusy(aWindow);
+    this._sendWindowStateEvent(aWindow, "Busy");
     // create a new tab
     let browser = aWindow.gBrowser;
     let tab = browser.addTab();
@@ -2537,7 +2511,7 @@ SessionStoreService.prototype = {
 
     // We're not returning from this before we end up calling restoreHistoryPrecursor
     // for this window, so make sure we send the SSWindowStateBusy event.
-    this._setWindowStateBusy(aWindow);
+    this._sendWindowStateEvent(aWindow, "Busy");
 
     if (root._closedWindows)
       this._closedWindows = root._closedWindows;
@@ -2724,7 +2698,7 @@ SessionStoreService.prototype = {
     if (aTabs.length == 0) {
       // this is normally done in restoreHistory() but as we're returning early
       // here we need to take care of it.
-      this._setWindowStateReady(aWindow);
+      this._sendWindowStateEvent(aWindow, "Ready");
       return;
     }
 
@@ -2869,7 +2843,7 @@ SessionStoreService.prototype = {
     if (aTabs.length == 0) {
       // At this point we're essentially ready for consumers to read/write data
       // via the sessionstore API so we'll send the SSWindowStateReady event.
-      this._setWindowStateReady(aWindow);
+      this._sendWindowStateEvent(aWindow, "Ready");
       return; // no more tabs to restore
     }
     
@@ -2929,7 +2903,7 @@ SessionStoreService.prototype = {
       _this.restoreHistory(aWindow, aTabs, aTabData, aIdMap, aDocIdentMap);
     }, 0);
 
-    // This could cause us to ignore MAX_CONCURRENT_TAB_RESTORES a bit, but
+    // This could cause us to ignore the max_concurrent_tabs pref a bit, but
     // it ensures each window will have its selected tab loaded.
     if (aWindow.gBrowser.selectedBrowser == browser) {
       this.restoreTab(tab);
@@ -3065,8 +3039,8 @@ SessionStoreService.prototype = {
       return;
 
     // If it's not possible to restore anything, then just bail out.
-    if (this._restoreOnDemand ||
-        this._tabsRestoringCount >= MAX_CONCURRENT_TAB_RESTORES)
+    if (this._maxConcurrentTabRestores >= 0 &&
+        this._tabsRestoringCount >= this._maxConcurrentTabRestores)
       return;
 
     // Look in visible, then hidden
@@ -3995,59 +3969,16 @@ SessionStoreService.prototype = {
   },
 
   _sendRestoreCompletedNotifications: function sss_sendRestoreCompletedNotifications() {
-    // not all windows restored, yet
-    if (this._restoreCount > 1) {
+    if (this._restoreCount) {
       this._restoreCount--;
-      return;
+      if (this._restoreCount == 0) {
+        // This was the last window restored at startup, notify observers.
+        Services.obs.notifyObservers(null,
+          this._browserSetState ? NOTIFY_BROWSER_STATE_RESTORED : NOTIFY_WINDOWS_RESTORED,
+          "");
+        this._browserSetState = false;
+      }
     }
-
-    // observers were already notified
-    if (this._restoreCount == -1)
-      return;
-
-    // This was the last window restored at startup, notify observers.
-    Services.obs.notifyObservers(null,
-      this._browserSetState ? NOTIFY_BROWSER_STATE_RESTORED : NOTIFY_WINDOWS_RESTORED,
-      "");
-
-    this._browserSetState = false;
-    this._restoreCount = -1;
-  },
-
-   /**
-   * Set the given window's busy state
-   * @param aWindow the window
-   * @param aValue the window's busy state
-   */
-  _setWindowStateBusyValue:
-    function sss__changeWindowStateBusyValue(aWindow, aValue) {
-
-    this._windows[aWindow.__SSi].busy = aValue;
-
-    // Keep the to-be-restored state in sync because that is returned by
-    // getWindowState() as long as the window isn't loaded, yet.
-    if (!this._isWindowLoaded(aWindow)) {
-      let stateToRestore = this._statesToRestore[aWindow.__SS_restoreID].windows[0];
-      stateToRestore.busy = aValue;
-    }
-  },
-
-  /**
-   * Set the given window's state to 'not busy'.
-   * @param aWindow the window
-   */
-  _setWindowStateReady: function sss__setWindowStateReady(aWindow) {
-    this._setWindowStateBusyValue(aWindow, false);
-    this._sendWindowStateEvent(aWindow, "Ready");
-  },
-
-  /**
-   * Set the given window's state to 'busy'.
-   * @param aWindow the window
-   */
-  _setWindowStateBusy: function sss__setWindowStateBusy(aWindow) {
-    this._setWindowStateBusyValue(aWindow, true);
-    this._sendWindowStateEvent(aWindow, "Busy");
   },
 
   /**

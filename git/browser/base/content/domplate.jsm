@@ -1631,7 +1631,7 @@ BaseTemplates.AttrTag =
     "&nbsp;",
     domplate.SPAN({"class": "nodeName editable"}, "$attr.nodeName"),
     "=&quot;",
-    domplate.SPAN({"class": "nodeValue editable", "data-attributeName": "$attr.nodeName"}, "$attr.nodeValue"),
+    domplate.SPAN({"class": "nodeValue editable"}, "$attr.nodeValue"),
     "&quot;");
 
 BaseTemplates.TextTag =

@@ -39,6 +39,7 @@
 # This file contains makefiles that will be generated for every XUL app.
 
 MAKEFILES_db="
+  db/Makefile
   db/sqlite3/src/Makefile
 "
 
@@ -48,6 +49,7 @@ MAKEFILES_dom="
   ipc/glue/Makefile
   ipc/ipdl/Makefile
   dom/Makefile
+  dom/public/coreEvents/Makefile
   dom/interfaces/base/Makefile
   dom/interfaces/canvas/Makefile
   dom/interfaces/core/Makefile
@@ -321,6 +323,7 @@ MAKEFILES_libvorbis="
 MAKEFILES_libtremor="
   media/libtremor/Makefile
   media/libtremor/lib/Makefile
+  media/libtremor/include/Makefile
   media/libtremor/include/tremor/Makefile
 "
 

@@ -69,7 +69,6 @@
 #include "nsIStringBundle.h"
 #include "nsCExternalHandlerService.h"
 #include "nsIFileStreams.h"
-#include "nsContentUtils.h"
 
 static void
 SendJSWarning(nsIDocument* aDocument,

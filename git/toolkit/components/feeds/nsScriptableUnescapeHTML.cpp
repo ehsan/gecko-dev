@@ -47,7 +47,7 @@
 #include "nsNetCID.h"
 #include "nsNetUtil.h"
 #include "nsParserCIID.h"
-#include "nsContentUtils.h"
+#include "nsParserCIID.h"
 #include "nsIContentSink.h"
 #include "nsIHTMLToTextSink.h"
 #include "nsIDocumentEncoder.h"
@@ -66,6 +66,7 @@
 #include "nsScriptableUnescapeHTML.h"
 #include "nsAutoPtr.h"
 #include "nsTreeSanitizer.h"
+#include "nsAHtml5FragmentParser.h"
 #include "nsHtml5Module.h"
 
 #define XHTML_DIV_TAG "div xmlns=\"http://www.w3.org/1999/xhtml\""

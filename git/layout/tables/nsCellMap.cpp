@@ -268,7 +268,7 @@ void
 nsTableCellMap::Synchronize(nsTableFrame* aTableFrame)
 {
   nsTableFrame::RowGroupArray orderedRowGroups;
-  nsAutoTArray<nsCellMap*, 8> maps;
+  nsAutoTPtrArray<nsCellMap, 8> maps;
 
   aTableFrame->OrderRowGroups(orderedRowGroups);
   if (!orderedRowGroups.Length()) {

@@ -326,7 +326,7 @@ nsProxyObjectManager::GetClass(REFNSIID aIID, nsProxyEventClass **aResult)
  * themselves every single time, thus making the calling code more
  * readable.
  */
-nsresult
+NS_COM nsresult
 NS_GetProxyForObject(nsIEventTarget *target, 
                      REFNSIID aIID, 
                      nsISupports* aObj, 

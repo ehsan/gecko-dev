@@ -52,7 +52,6 @@
 #include "nsNetUtil.h"
 #include "nsComponentManagerUtils.h"
 #include "nsNullPrincipal.h"
-#include "nsContentUtils.h"
 
 //
 // Thanks to Mark Pilgrim and Sam Ruby for the initial whitelist
@@ -1196,7 +1195,7 @@ nsTreeSanitizer::SanitizeAttributes(mozilla::dom::Element* aElement,
     rv = NS_OK;
     const nsAttrName* attrName = aElement->GetAttrNameAt(i);
     PRInt32 attrNs = attrName->NamespaceID();
-    nsCOMPtr<nsIAtom> attrLocal = attrName->LocalName();
+    nsIAtom* attrLocal = attrName->LocalName();
 
     if (kNameSpaceID_None == attrNs) {
       if (aAllowStyle && nsGkAtoms::style == attrLocal) {
@@ -1293,7 +1292,6 @@ nsTreeSanitizer::SanitizeAttributes(mozilla::dom::Element* aElement,
     i = ac; // i will be decremented immediately thanks to the for loop
   }
 
-#ifdef MOZ_MEDIA
   // If we've got HTML audio or video, add the controls attribute, because
   // otherwise the content is unplayable with scripts removed.
   if (aElement->IsHTML(nsGkAtoms::video) ||
@@ -1303,7 +1301,6 @@ nsTreeSanitizer::SanitizeAttributes(mozilla::dom::Element* aElement,
                       EmptyString(),
                       PR_FALSE);
   }
-#endif
 }
 
 PRBool

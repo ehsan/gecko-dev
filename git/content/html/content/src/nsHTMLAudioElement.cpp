@@ -65,7 +65,6 @@
 
 #include "nsEventDispatcher.h"
 #include "nsIDOMProgressEvent.h"
-#include "nsContentUtils.h"
 
 using namespace mozilla::dom;
 
@@ -226,7 +225,7 @@ nsHTMLAudioElement::MozWriteAudio(const jsval &aData, JSContext *aCx, PRUint32 *
   // Don't write more than can be written without blocking.
   PRUint32 writeLen = NS_MIN(mAudioStream->Available(), dataLength);
 
-  nsresult rv = mAudioStream->Write(JS_GetTypedArrayData(tsrc), writeLen);
+  nsresult rv = mAudioStream->Write(JS_GetTypedArrayData(tsrc), writeLen, PR_TRUE);
   if (NS_FAILED(rv)) {
     return rv;
   }

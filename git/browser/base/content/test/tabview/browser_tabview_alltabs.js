@@ -1,16 +1,15 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
+Cu.import("resource:///modules/tabview/AllTabs.jsm");
+
 function test() {
   waitForExplicitFinish();
 
-  let AllTabs;
   let newTab = gBrowser.addTab();
 
   // TabPinned
-  let pinned = function (event) {
-    let tab = event.target;
-
+  let pinned = function(tab) {
     is(tab, newTab, "The tabs are the same after the tab is pinned");
     ok(tab.pinned, "The tab gets pinned");
 
@@ -18,9 +17,7 @@ function test() {
   };
 
   // TabUnpinned
-  let unpinned = function (event) {
-    let tab = event.target;
-
+  let unpinned = function(tab) {
     AllTabs.unregister("pinned", pinned);
     AllTabs.unregister("unpinned", unpinned);
 
@@ -29,17 +26,13 @@ function test() {
 
     // clean up and finish
     gBrowser.removeTab(tab);
-    hideTabView(finish);
+    finish();
   };
 
-  showTabView(function () {
-    AllTabs = TabView.getContentWindow().AllTabs;
+  AllTabs.register("pinned", pinned);
+  AllTabs.register("unpinned", unpinned);
 
-    AllTabs.register("pinned", pinned);
-    AllTabs.register("unpinned", unpinned);
-
-    ok(!newTab.pinned, "The tab is not pinned");
-    gBrowser.pinTab(newTab);
-  });
+  ok(!newTab.pinned, "The tab is not pinned");
+  gBrowser.pinTab(newTab);
 }
 

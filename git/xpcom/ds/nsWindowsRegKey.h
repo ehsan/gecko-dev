@@ -53,7 +53,7 @@
  * This function may be used to instantiate a windows registry key object prior
  * to XPCOM being initialized.
  */
-extern "C" nsresult
+extern "C" NS_COM nsresult
 NS_NewWindowsRegKey(nsIWindowsRegKey **result);
 
 //-----------------------------------------------------------------------------

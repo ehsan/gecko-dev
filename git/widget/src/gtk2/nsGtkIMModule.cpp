@@ -342,7 +342,7 @@ nsGtkIMModule::OnFocusWindow(nsWindow* aWindow)
 
     PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
         ("GtkIMModule(%p): OnFocusWindow, aWindow=%p, mLastFocusedWindow=%p",
-         this, aWindow, mLastFocusedWindow));
+         this, aWindow));
     mLastFocusedWindow = aWindow;
     Focus();
 }
@@ -550,8 +550,7 @@ nsGtkIMModule::SetInputMode(nsWindow* aCaller, const IMEContext* aContext)
 
     PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
         ("GtkIMModule(%p): SetInputMode, aCaller=%p, aState=%s mHTMLInputType=%s",
-         this, aCaller, GetEnabledStateName(aContext->mStatus),
-         NS_ConvertUTF16toUTF8(aContext->mHTMLInputType).get()));
+         this, aCaller, GetEnabledStateName(aContext->mStatus), aContext->mHTMLInputType.get()));
 
     if (aCaller != mLastFocusedWindow) {
         PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
@@ -727,7 +726,8 @@ nsGtkIMModule::Focus()
     GtkIMContext *im = GetContext();
     if (!im) {
         PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
-            ("    FAILED, there are no context"));
+            ("    FAILED, there are no context",
+             this));
         return;
     }
 
@@ -1119,7 +1119,7 @@ nsGtkIMModule::DispatchCompositionStart()
     }
 
     PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
-        ("    mCompositionStart=%u", mCompositionStart));
+        ("    mCompositionStart=%lu", mCompositionStart));
     mIsComposing = PR_TRUE;
     nsCompositionEvent compEvent(PR_TRUE, NS_COMPOSITION_START,
                                  mLastFocusedWindow);
@@ -1329,7 +1329,7 @@ nsGtkIMModule::SetTextRangeList(nsTArray<nsTextRange> &aTextRangeList)
         aTextRangeList.AppendElement(range);
 
         PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
-            ("    mStartOffset=%u, mEndOffset=%u, mRangeType=%s",
+            ("    mStartOffset=%lu, mEndOffset=%lu, mRangeType=%s",
              range.mStartOffset, range.mEndOffset,
              GetRangeTypeName(range.mRangeType)));
     } while (pango_attr_iterator_next(iter));
@@ -1347,7 +1347,7 @@ nsGtkIMModule::SetTextRangeList(nsTArray<nsTextRange> &aTextRangeList)
     aTextRangeList.AppendElement(range);
 
     PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
-        ("    mStartOffset=%u, mEndOffset=%u, mRangeType=%s",
+        ("    mStartOffset=%lu, mEndOffset=%lu, mRangeType=%s",
          range.mStartOffset, range.mEndOffset,
          GetRangeTypeName(range.mRangeType)));
 
@@ -1360,7 +1360,7 @@ void
 nsGtkIMModule::SetCursorPosition(PRUint32 aTargetOffset)
 {
     PR_LOG(gGtkIMLog, PR_LOG_ALWAYS,
-        ("GtkIMModule(%p): SetCursorPosition, aTargetOffset=%u",
+        ("GtkIMModule(%p): SetCursorPosition, aTargetOffset=%lu",
          this, aTargetOffset));
 
     if (aTargetOffset == PR_UINT32_MAX) {

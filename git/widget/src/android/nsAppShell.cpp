@@ -74,7 +74,6 @@ PRLogModuleInfo *gWidgetLog = nsnull;
 
 nsDeviceMotionSystem *gDeviceMotionSystem = nsnull;
 nsIGeolocationUpdate *gLocationCallback = nsnull;
-nsAutoPtr<mozilla::AndroidGeckoEvent> gLastSizeChange;
 
 nsAppShell *nsAppShell::gAppShell = nsnull;
 
@@ -328,7 +327,6 @@ nsAppShell::ProcessNextNativeEvent(PRBool mayWait)
             mozilla::services::GetObserverService();
         NS_NAMED_LITERAL_STRING(minimize, "heap-minimize");
         obsServ->NotifyObservers(nsnull, "memory-pressure", minimize.get());
-        obsServ->NotifyObservers(nsnull, "application-background", nsnull);
 
         break;
     }
@@ -360,14 +358,6 @@ nsAppShell::ProcessNextNativeEvent(PRBool mayWait)
         break;
     }
 
-    case AndroidGeckoEvent::ACTIVITY_START: {
-        nsCOMPtr<nsIObserverService> obsServ =
-            mozilla::services::GetObserverService();
-        obsServ->NotifyObservers(nsnull, "application-foreground", nsnull);
-
-        break;
-    }
-
     case AndroidGeckoEvent::LOAD_URI: {
         nsCOMPtr<nsICommandLineRunner> cmdline
             (do_CreateInstance("@mozilla.org/toolkit/command-line;1"));
@@ -390,15 +380,6 @@ nsAppShell::ProcessNextNativeEvent(PRBool mayWait)
         break;
     }
 
-    case AndroidGeckoEvent::SIZE_CHANGED: {
-        // store the last resize event to dispatch it to new windows with a FORCED_RESIZE event
-        if (curEvent != gLastSizeChange) {
-            gLastSizeChange = new AndroidGeckoEvent(curEvent);
-        }
-        nsWindow::OnGlobalAndroidEvent(curEvent);
-        break;
-    }
-
     default:
         nsWindow::OnGlobalAndroidEvent(curEvent);
     }
@@ -406,13 +387,6 @@ nsAppShell::ProcessNextNativeEvent(PRBool mayWait)
     EVLOG("nsAppShell: -- done event %p %d", (void*)curEvent.get(), curEvent->Type());
 
     return true;
-}
-
-void
-nsAppShell::ResendLastResizeEvent(nsWindow* aDest) {
-    if (gLastSizeChange) {
-        nsWindow::OnGlobalAndroidEvent(gLastSizeChange);
-    }
 }
 
 AndroidGeckoEvent*

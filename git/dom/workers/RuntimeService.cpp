@@ -1,5 +1,4 @@
 /* -*- Mode: c++; c-basic-offset: 2; indent-tabs-mode: nil; tab-width: 40 -*- */
-/* vim: set ts=2 et sw=2 tw=80: */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -43,7 +42,6 @@
 #include "nsIDocument.h"
 #include "nsIEffectiveTLDService.h"
 #include "nsIObserverService.h"
-#include "nsIPlatformCharset.h"
 #include "nsIPrincipal.h"
 #include "nsIJSContextStack.h"
 #include "nsIMemoryReporter.h"
@@ -79,13 +77,8 @@ using namespace mozilla::xpconnect::memory;
 // The size of the worker runtime heaps in bytes.
 #define WORKER_RUNTIME_HEAPSIZE 32 * 1024 * 1024
 
-// The C stack size. We use the same stack size on all platforms for
-// consistency.
-#define WORKER_STACK_SIZE 256 * sizeof(size_t) * 1024
-
-// The stack limit the JS engine will check. Half the size of the
-// actual C stack, to be safe.
-#define WORKER_CONTEXT_NATIVE_STACK_LIMIT 128 * sizeof(size_t) * 1024
+// The size of the C stack in bytes.
+#define WORKER_CONTEXT_NATIVE_STACK_LIMIT sizeof(size_t) * 32 * 1024
 
 // The maximum number of threads to use for workers, overridable via pref.
 #define MAX_WORKERS_PER_DOMAIN 10
@@ -249,6 +242,15 @@ CreateJSContextForWorker(WorkerPrivate* aWorkerPrivate)
     NS_WARNING("Could not create new runtime!");
     return nsnull;
   }
+
+  // ChromeWorker has extra clone callbacks for passing threadsafe XPCOM
+  // components.
+  JSStructuredCloneCallbacks* callbacks =
+    aWorkerPrivate->IsChromeWorker() ?
+    ChromeWorkerStructuredCloneCallbacks() :
+    WorkerStructuredCloneCallbacks();
+
+  JS_SetStructuredCloneCallbacks(runtime, callbacks);
 
   JSContext* workerCx = JS_NewContext(runtime, 0);
   if (!workerCx) {
@@ -796,8 +798,7 @@ RuntimeService::ScheduleWorker(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
   }
 
   if (!thread) {
-    if (NS_FAILED(NS_NewThread(getter_AddRefs(thread), nsnull,
-                               WORKER_STACK_SIZE))) {
+    if (NS_FAILED(NS_NewThread(getter_AddRefs(thread), nsnull))) {
       UnregisterWorker(aCx, aWorkerPrivate);
       JS_ReportError(aCx, "Could not create new thread!");
       return false;
@@ -928,15 +929,6 @@ RuntimeService::Init()
   PRInt32 maxPerDomain = Preferences::GetInt(PREF_WORKERS_MAX_PER_DOMAIN,
                                              MAX_WORKERS_PER_DOMAIN);
   gMaxWorkersPerDomain = NS_MAX(0, maxPerDomain);
-
-  mDetectorName = Preferences::GetLocalizedCString("intl.charset.detector");
-
-  nsCOMPtr<nsIPlatformCharset> platformCharset =
-    do_GetService(NS_PLATFORMCHARSET_CONTRACTID, &rv);
-  if (NS_SUCCEEDED(rv)) {
-    rv = platformCharset->GetCharset(kPlatformCharsetSel_PlainTextInFile,
-                                     mSystemCharset);
-  }
 
   return NS_OK;
 }

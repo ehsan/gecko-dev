@@ -294,39 +294,11 @@ case "$target" in
     fi
 
     if test -z "$android_toolchain" ; then
-        AC_MSG_CHECKING([for android toolchain directory])
-
-        kernel_name=`uname -s | tr "[[:upper:]]" "[[:lower:]]"`
-
-        android_toolchain="$android_ndk"/build/prebuilt/$kernel_name-x86/arm-eabi-4.4.0
-
-        # With newer NDK, the toolchain path has changed.
-        if ! test -d "$android_toolchain" ; then
-            android_toolchain="$android_ndk"/toolchains/arm-$kernel_name-androideabi-4.4.3/prebuilt/$kernel_name-x86
-        fi
-
-        if test -d "$android_toolchain" ; then
-            AC_MSG_RESULT([$android_toolchain])
-        else
-            AC_MSG_ERROR([not found. You have to specify --with-android-toolchain=/path/to/ndk/toolchain.])
-        fi
+        android_toolchain="$android_ndk"/build/prebuilt/`uname -s | tr "[[:upper:]]" "[[:lower:]]"`-x86/arm-eabi-4.4.0
     fi
 
     if test -z "$android_platform" ; then
-        AC_MSG_CHECKING([for android platform directory])
-
-        android_platform="$android_ndk"/build/platforms/android-"$android_version"/arch-"$target_cpu"
-
-        # With newer NDK, the platform path has changed.
-        if ! test -d "$android_platform" ; then
-            android_platform="$android_ndk"/platforms/android-"$android_version"/arch-"$target_cpu"
-        fi
-
-        if test -d "$android_platform" ; then
-            AC_MSG_RESULT([$android_platform])
-        else
-            AC_MSG_ERROR([not found. You have to specify --with-android-platform=/path/to/ndk/platform.])
-        fi
+       android_platform="$android_ndk"/build/platforms/android-"$android_version"/arch-"$target_cpu"
     fi
 
     dnl set up compilers
@@ -362,7 +334,7 @@ case "$target" in
     CPPFLAGS="-I$android_platform/usr/include $STLPORT_CPPFLAGS $CPPFLAGS"
     CFLAGS="-mandroid -I$android_platform/usr/include -fno-short-enums -fno-exceptions $CFLAGS"
     CXXFLAGS="-mandroid -I$android_platform/usr/include -fno-short-enums -fno-exceptions $CXXFLAGS"
-    LIBS="$LIBS $STLPORT_LIBS"
+    LIBS="$LIBS $STLPORT_LIBS -static-libstdc++"
 
     dnl Add -llog by default, since we use it all over the place.
     dnl Add --allow-shlib-undefined, because libGLESv2 links to an
@@ -385,8 +357,8 @@ case "$target" in
     fi
 
     ANDROID_NDK="${android_ndk}"
-    ANDROID_TOOLCHAIN="${android_toolchain}"
-    ANDROID_PLATFORM="${android_platform}"
+    ANDROID_TOOLCHAIN="{android_toolchain}"
+    ANDROID_PLATFORM="{android_platform}"
     ANDROID_SDK="${android_sdk}"
     ANDROID_PLATFORM_TOOLS="${android_platform_tools}"
     ANDROID_VERSION="${android_version}"
@@ -1367,6 +1339,8 @@ OSF1)
 OS_2)
     HOST_OS_ARCH=OS2
     ;;
+QNX)
+    ;;
 SCO_SV)
     HOST_OS_ARCH=SCOOS
     ;;
@@ -1459,6 +1433,14 @@ OS_2)
     OS_ARCH=OS2
     OS_TARGET=OS2
     OS_RELEASE=`uname -v`
+    ;;
+QNX)
+    if test "$OS_TARGET" != "NTO"; then
+        changequote(,)
+        OS_RELEASE=`uname -v | sed 's/^\([0-9]\)\([0-9]*\)$/\1.\2/'`
+        changequote([,])
+    fi
+    OS_TEST=x86
     ;;
 SCO_SV)
     OS_ARCH=SCOOS
@@ -2012,8 +1994,6 @@ case "$target" in
     # logging code in nsObjCExceptions.h. Currently we only use that in debug
     # builds.
     MOZ_DEBUG_LDFLAGS="$MOZ_DEBUG_LDFLAGS -framework ExceptionHandling"
-    # Debug builds should always have frame pointers
-    MOZ_DEBUG_FLAGS="-g -fno-omit-frame-pointer"
 
     if test "x$lto_is_enabled" = "xyes"; then
         echo "Skipping -dead_strip because lto is enabled."
@@ -2162,8 +2142,6 @@ ia64*-hpux*)
     fi
     # The Maemo builders don't know about this flag
     MOZ_ARM_VFP_FLAGS="-mfpu=vfp"
-    # Debug builds should always have frame pointers
-    MOZ_DEBUG_FLAGS="-g -fno-omit-frame-pointer"
     ;;
 
 *-*linux*)
@@ -2189,8 +2167,7 @@ ia64*-hpux*)
         fi
         MOZ_PGO_OPTIMIZE_FLAGS="-O3 $MOZ_FRAMEPTR_FLAGS"
         MOZ_OPTIMIZE_FLAGS="-Os -freorder-blocks $MOZ_OPTIMIZE_SIZE_TWEAK $MOZ_FRAMEPTR_FLAGS"
-        # Debug builds should always have frame pointers
-        MOZ_DEBUG_FLAGS="-g -fno-omit-frame-pointer"
+        MOZ_DEBUG_FLAGS="-g"
     fi
 
     TARGET_NSPR_MDCPUCFG='\"md/_linux.cfg\"'
@@ -2306,8 +2283,7 @@ ia64*-hpux*)
         CFLAGS="$CFLAGS -we4553"
         CXXFLAGS="$CXXFLAGS -we4553"
         LIBS="$LIBS kernel32.lib user32.lib gdi32.lib winmm.lib wsock32.lib advapi32.lib"
-        # Debug builds should always have frame pointers
-        MOZ_DEBUG_FLAGS='-Zi -Oy-'
+        MOZ_DEBUG_FLAGS='-Zi'
         MOZ_DEBUG_LDFLAGS='-DEBUG -DEBUGTYPE:CV'
         WARNINGS_AS_ERRORS='-WX'
         # If we're building with --enable-profiling, we need -Oy-, which forces a frame pointer.
@@ -2445,6 +2421,32 @@ ia64*-hpux*)
     MKCSHLIB='$(CC) $(CFLAGS) $(DSO_PIC_CFLAGS) $(DSO_LDOPTS) -Wl,-soname,lib$(LIBRARY_NAME)$(DLL_SUFFIX) -o $@'
     ;;
 
+*-nto*) 
+	AC_DEFINE(NTO)	
+	AC_DEFINE(_QNX_SOURCE)
+	AC_DEFINE(_i386)
+	OS_TARGET=NTO
+	WARNINGS_AS_ERRORS=''
+	MOZ_OPTIMIZE_FLAGS="-O"
+	MOZ_DEBUG_FLAGS="-gstabs"
+	USE_PTHREADS=1
+	_PEDANTIC=
+	LIBS="$LIBS -lsocket -lstdc++"
+	_DEFINES_CFLAGS='-include $(DEPTH)/js-confdefs.h -DMOZILLA_CLIENT -D_POSIX_C_SOURCE=199506'
+	_DEFINES_CXXFLAGS='-DMOZILLA_CLIENT -include $(DEPTH)/js-confdefs.h -D_POSIX_C_SOURCE=199506'
+	if test "$with_x" != "yes"
+	then
+		_PLATFORM_DEFAULT_TOOLKIT="photon"
+	    TK_CFLAGS='-I/usr/include/photon'
+		TK_LIBS='-lph'
+	fi
+	case "${target_cpu}" in
+	ppc*)
+	AC_DEFINE(HAVE_VA_LIST_AS_ARRAY)	
+	;;
+	esac
+	;;
+
 *-openbsd*)
     DLL_SUFFIX=".so.1.0"
     DSO_CFLAGS=''
@@ -2543,6 +2545,20 @@ alpha*-*-osf*)
       COMPAQ_CXX=1
     fi
     AC_DEFINE(NEED_USLEEP_PROTOTYPE)
+    ;;
+
+*-qnx*) 
+    DIRENT_INO=d_stat.st_ino
+    dnl Solves the problems the QNX compiler has with nsCOMPtr.h.
+    AC_DEFINE(NSCAP_DISABLE_TEST_DONTQUERY_CASES)
+    AC_DEFINE(NSCAP_DISABLE_DEBUG_PTR_TYPES)
+    dnl Explicit set STDC_HEADERS to workaround QNX 6.0's failing of std test
+    AC_DEFINE(STDC_HEADERS)
+    if test "$no_x" = "yes"; then
+	    _PLATFORM_DEFAULT_TOOLKIT='photon'
+	    TK_CFLAGS='-I/usr/nto/include/photon'
+	    TK_LIBS='-lphoton -lphrender'
+    fi
     ;;
 
 *-sco*) 
@@ -3498,6 +3514,53 @@ then
 			;;
 	esac
     LDFLAGS="${_PTHREAD_LDFLAGS} ${LDFLAGS}"
+fi
+
+dnl ========================================================
+dnl See if mmap sees writes
+dnl For cross compiling, just define it as no, which is a safe default
+dnl ========================================================
+AC_MSG_CHECKING(whether mmap() sees write()s)
+
+changequote(,)
+mmap_test_prog='
+    #include <stdlib.h>
+    #include <unistd.h>
+    #include <sys/mman.h>
+    #include <sys/types.h>
+    #include <sys/stat.h>
+    #include <fcntl.h>
+
+    char fname[] = "conftest.file";
+    char zbuff[1024]; /* Fractional page is probably worst case */
+
+    int main() {
+	char *map;
+	int fd;
+	int i;
+	unlink(fname);
+	fd = open(fname, O_RDWR | O_CREAT, 0660);
+	if(fd<0) return 1;
+	unlink(fname);
+	write(fd, zbuff, sizeof(zbuff));
+	lseek(fd, 0, SEEK_SET);
+	map = (char*)mmap(0, sizeof(zbuff), PROT_READ, MAP_SHARED, fd, 0);
+	if(map==(char*)-1) return 2;
+	for(i=0; fname[i]; i++) {
+	    int rc = write(fd, &fname[i], 1);
+	    if(map[i]!=fname[i]) return 4;
+	}
+	return 0;
+    }
+'
+changequote([,])
+
+AC_TRY_RUN($mmap_test_prog , result="yes", result="no", result="yes")
+
+AC_MSG_RESULT("$result")
+
+if test "$result" = "no"; then
+    AC_DEFINE(MMAP_MISSES_WRITES)
 fi
 
 
@@ -4979,18 +5042,6 @@ MOZ_ARG_ENABLE_BOOL(gczeal,
     JS_GC_ZEAL= )
 if test -n "$JS_GC_ZEAL"; then
     AC_DEFINE(JS_GC_ZEAL)
-fi
-
-dnl ========================================================
-dnl JS opt-mode assertions and minidump instrumentation
-dnl ========================================================
-MOZ_ARG_ENABLE_BOOL(js-diagnostics,
-[  --enable-js-diagnostics
-                          Enable JS diagnostic assertions and breakpad data],
-    JS_CRASH_DIAGNOSTICS=1,
-    JS_CRASH_DIAGNOSTICS= )
-if test -n "$JS_CRASH_DIAGNOSTICS"; then
-    AC_DEFINE(JS_CRASH_DIAGNOSTICS)
 fi
 
 dnl ======================================================

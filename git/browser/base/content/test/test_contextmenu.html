@@ -2,6 +2,7 @@
 <html>
 <head>
   <title>Tests for browser context menu</title>
+  <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>  
   <script type="text/javascript" src="/tests/SimpleTest/EventUtils.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
@@ -49,10 +50,9 @@ function executeCopyCommand(command, expectedValue)
   is(input.value, expectedValue, "paste for command " + command);
 }
 
-function invokeItemAction(generatedItemId)
+function invokeItemAction(ident)
 {
-  var item = contextMenu.getElementsByAttribute("generateditemid",
-                                                generatedItemId)[0];
+  var item = contextMenu.getElementsByAttribute("ident", ident)[0];
   ok(item, "Got generated XUL menu item");
   item.doCommand();
   is(pagemenu.hasAttribute("hopeless"), false, "attribute got removed");
@@ -70,7 +70,7 @@ function getVisibleMenuItems(aMenu, aData) {
         if (key)
             key = key.toLowerCase();
 
-        var isGenerated = item.hasAttribute("generateditemid");
+        var isGenerated = item.hasAttribute("generated");
 
         if (item.nodeName == "menuitem") {
             var isSpellSuggestion = item.className == "spell-suggestion";
@@ -476,7 +476,6 @@ function runTest(testNum) {
         // Context menu for element with assigned content context menu
         checkContextMenu(["+Plain item",          {type: "", icon: "", checked: false, disabled: false},
                           "+Disabled item",       {type: "", icon: "", checked: false, disabled: true},
-                          "+Item w/ textContent", {type: "", icon: "", checked: false, disabled: false},
                           "---",                  null,
                           "+Checkbox",            {type: "checkbox", icon: "", checked: true, disabled: false},
                           "---",                  null,
@@ -589,7 +588,6 @@ function startTest() {
     iframe = subwindow.document.getElementById("test-iframe");
     textarea = subwindow.document.getElementById("test-textarea");
     contenteditable = subwindow.document.getElementById("test-contenteditable");
-    contenteditable.focus(); // content editable needs to be focused to enable spellcheck
     inputspell = subwindow.document.getElementById("test-input-spellcheck");
     pagemenu = subwindow.document.getElementById("test-pagemenu");
 

@@ -49,15 +49,11 @@ function onTabViewLoadedAndShown() {
     groupTitles[a] = gi.getTitle();
   }
 
-  contentWindow.gPrefBranch.setBoolPref("animate_zoom", false);
-
   // Create a second tab
   gBrowser.addTab("about:robots");
   is(gBrowser.tabs.length, 2, "we now have 2 tabs");
-
   registerCleanupFunction(function() {
     gBrowser.removeTab(gBrowser.tabs[1]);
-    contentWindow.gPrefBranch.clearUserPref("animate_zoom");
   });
 
   afterAllTabsLoaded(function() {
@@ -69,13 +65,13 @@ function onTabViewLoadedAndShown() {
     verifyNormal();
 
     // go into private browsing and make sure Tab View becomes hidden
-    togglePrivateBrowsing(function() {
+    togglePBAndThen(function() {
       whenTabViewIsHidden(function() {
         ok(!TabView.isVisible(), "Tab View is no longer visible");
         verifyPB();
 
         // exit private browsing and make sure Tab View is shown again
-        togglePrivateBrowsing(function() {
+        togglePBAndThen(function() {
           whenTabViewIsShown(function() {
             ok(TabView.isVisible(), "Tab View is visible again");
             verifyNormal();
@@ -93,12 +89,12 @@ function onTabViewHidden() {
   ok(!TabView.isVisible(), "Tab View is not visible");
   
   // go into private browsing and make sure Tab View remains hidden
-  togglePrivateBrowsing(function() {
+  togglePBAndThen(function() {
     ok(!TabView.isVisible(), "Tab View is still not visible");
     verifyPB();
     
     // turn private browsing back off
-    togglePrivateBrowsing(function() {
+    togglePBAndThen(function() {
       verifyNormal();
       
       // end game
@@ -156,4 +152,18 @@ function verifyNormal() {
     ok(tab._tabViewTabItem.parent == groupItem,
         prefix + "tab " + a + " is in group " + a);
   }
+}
+
+// ----------
+function togglePBAndThen(callback) {
+  function pbObserver(aSubject, aTopic, aData) {
+    if (aTopic != "private-browsing-transition-complete")
+      return;
+
+    Services.obs.removeObserver(pbObserver, "private-browsing-transition-complete");
+    afterAllTabsLoaded(callback);
+  }
+
+  Services.obs.addObserver(pbObserver, "private-browsing-transition-complete", false);
+  pb.privateBrowsingEnabled = !pb.privateBrowsingEnabled;
 }

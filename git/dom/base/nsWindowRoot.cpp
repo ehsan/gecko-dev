@@ -146,8 +146,7 @@ nsWindowRoot::AddEventListener(const nsAString& aType,
 
   nsEventListenerManager* elm = GetListenerManager(PR_TRUE);
   NS_ENSURE_STATE(elm);
-  elm->AddEventListener(aType, aListener, aUseCapture, aWantsUntrusted);
-  return NS_OK;
+  return elm->AddEventListener(aType, aListener, aUseCapture, aWantsUntrusted);
 }
 
 nsEventListenerManager*

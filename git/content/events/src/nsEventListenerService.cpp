@@ -280,8 +280,7 @@ nsEventListenerService::AddSystemEventListener(nsIDOMEventTarget *aTarget,
                                 NS_EVENT_FLAG_SYSTEM_EVENT :
                                 NS_EVENT_FLAG_BUBBLE |
                                 NS_EVENT_FLAG_SYSTEM_EVENT;
-  manager->AddEventListenerByType(aListener, aType, flags);
-  return NS_OK;
+  return manager->AddEventListenerByType(aListener, aType, flags);
 }
 
 NS_IMETHODIMP

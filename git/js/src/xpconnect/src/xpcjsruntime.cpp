@@ -1315,14 +1315,6 @@ GetCompartmentTjitDataAllocatorsReserveSize(JSCompartment *c)
          : 0;
 }
 
-PRInt64
-GetCompartmentTjitDataTraceMonitorSize(JSCompartment *c)
-{
-    return c->hasTraceMonitor()
-         ? c->traceMonitor()->getTraceMonitorSize()
-         : 0;
-}
-
 #endif  // JS_TRACER
 
 void
@@ -1345,7 +1337,6 @@ CompartmentCallback(JSContext *cx, void *vdata, JSCompartment *compartment)
     curr->tjitCode = GetCompartmentTjitCodeSize(compartment);
     curr->tjitDataAllocatorsMain = GetCompartmentTjitDataAllocatorsMainSize(compartment);
     curr->tjitDataAllocatorsReserve = GetCompartmentTjitDataAllocatorsReserveSize(compartment);
-    curr->tjitDataNonAllocators = GetCompartmentTjitDataTraceMonitorSize(compartment);
 #endif
 }
 
@@ -1578,30 +1569,22 @@ CompartmentStats::CompartmentStats(JSContext *cx, JSCompartment *c)
     {
         if(c->principals->codebase)
         {
+            // A hack: replace forward slashes with '\\' so they aren't
+            // treated as path separators.  Users of the reporters
+            // (such as about:memory) have to undo this change.
             name.Assign(c->principals->codebase);
+            name.ReplaceChar('/', '\\');
 
             // If it's the system compartment, append the address.
             // This means that multiple system compartments (and there
             // can be many) can be distinguished.
             if(c->isSystemCompartment)
             {
-                if (c->data && 
-                    !((xpc::CompartmentPrivate*)c->data)->location.IsEmpty())
-                {
-                    name.AppendLiteral(", ");
-                    name.Append(((xpc::CompartmentPrivate*)c->data)->location);
-                }
-
                 // ample; 64-bit address max is 18 chars
                 static const int maxLength = 31;
                 nsPrintfCString address(maxLength, ", 0x%llx", PRUint64(c));
                 name.Append(address);
             }
-
-            // A hack: replace forward slashes with '\\' so they aren't
-            // treated as path separators.  Users of the reporters
-            // (such as about:memory) have to undo this change.
-            name.ReplaceChar('/', '\\');
         }
         else
         {
@@ -1641,8 +1624,6 @@ CollectCompartmentStatsForRuntime(JSRuntime *rt, IterateData *data)
 
         for(js::ThreadDataIter i(rt); !i.empty(); i.popFront())
             data->stackSize += i.threadData()->stackSpace.committedSize();
-
-        data->atomsTableSize += rt->atomState.atoms.tableSize();
     }
 
     JS_DestroyContextNoGC(cx);
@@ -1820,15 +1801,6 @@ ReportCompartmentStats(const CompartmentStats &stats,
     "Memory used by the trace JIT and held in reserve for the compartment's "
     "VMAllocators in case of OOM.",
                        callback, closure);
-
-    ReportMemoryBytes0(MakeMemoryReporterPath(pathPrefix, stats.name,
-                                              "tjit-data/trace-monitor"),
-                       nsIMemoryReporter::KIND_HEAP,
-                       stats.tjitDataNonAllocators,
-    "Memory used by the trace JIT that is stored in the TraceMonitor.  This "
-    "includes the TraceMonitor object itself, plus its TraceNativeStorage, "
-    "RecordAttemptMap, and LoopProfileMap.",
-                       callback, closure);
 #endif
 }
 
@@ -1844,16 +1816,6 @@ ReportJSRuntimeStats(const IterateData &data, const nsACString &pathPrefix,
         ReportCompartmentStats(data.compartmentStatsVector[index], pathPrefix,
                                callback, closure);
     }
-
-    ReportMemoryBytes(pathPrefix + NS_LITERAL_CSTRING("runtime/runtime-object"),
-                      nsIMemoryReporter::KIND_NONHEAP, sizeof(JSRuntime),
-    "Memory used by the JSRuntime object.",
-                      callback, closure);
-
-    ReportMemoryBytes(pathPrefix + NS_LITERAL_CSTRING("runtime/atoms-table"),
-                      nsIMemoryReporter::KIND_NONHEAP, data.atomsTableSize,
-    "Memory used by the atoms table.",
-                      callback, closure);
 
     ReportMemoryBytes(pathPrefix + NS_LITERAL_CSTRING("stack"),
                       nsIMemoryReporter::KIND_NONHEAP, data.stackSize,

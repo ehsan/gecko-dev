@@ -218,7 +218,7 @@ JSObject::methodReadBarrier(JSContext *cx, const js::Shape &shape, js::Value *vp
     JSObject *funobj = &vp->toObject();
     JSFunction *fun = funobj->getFunctionPrivate();
     JS_ASSERT(fun == funobj);
-    JS_ASSERT(fun->isNullClosure());
+    JS_ASSERT(FUN_NULL_CLOSURE(fun));
 
     funobj = CloneFunctionObject(cx, fun, funobj->getParent());
     if (!funobj)
@@ -285,13 +285,6 @@ JSObject::getReservedSlot(uintN index) const
     return (index < numSlots()) ? getSlot(index) : js::UndefinedValue();
 }
 
-inline void
-JSObject::setReservedSlot(uintN index, const js::Value &v)
-{
-    JS_ASSERT(index < JSSLOT_FREE(getClass()));
-    setSlot(index, v);
-}
-
 inline bool
 JSObject::canHaveMethodBarrier() const
 {
@@ -350,14 +343,14 @@ inline uint32
 JSObject::getArrayLength() const
 {
     JS_ASSERT(isArray());
-    return (uint32)(uintptr_t) getPrivate();
+    return (uint32)(size_t) getPrivate();
 }
 
 inline void
 JSObject::setArrayLength(uint32 length)
 {
     JS_ASSERT(isArray());
-    setPrivate((void*)(uintptr_t) length);
+    setPrivate((void*) length);
 }
 
 inline uint32
@@ -550,7 +543,7 @@ inline void
 JSObject::setFlatClosureUpvars(js::Value *upvars)
 {
     JS_ASSERT(isFunction());
-    JS_ASSERT(getFunctionPrivate()->isFlatClosure());
+    JS_ASSERT(FUN_FLAT_CLOSURE(getFunctionPrivate()));
     setSlot(JSSLOT_FLAT_CLOSURE_UPVARS, PrivateValue(upvars));
 }
 
@@ -645,12 +638,12 @@ JSObject::setNamespaceDeclared(jsval decl)
     setSlot(JSSLOT_NAMESPACE_DECLARED, js::Valueify(decl));
 }
 
-inline JSAtom *
+inline JSLinearString *
 JSObject::getQNameLocalName() const
 {
     JS_ASSERT(isQName());
     const js::Value &v = getSlot(JSSLOT_QNAME_LOCAL_NAME);
-    return !v.isUndefined() ? &v.toString()->asAtom() : NULL;
+    return !v.isUndefined() ? &v.toString()->asLinear() : NULL;
 }
 
 inline jsval
@@ -661,7 +654,7 @@ JSObject::getQNameLocalNameVal() const
 }
 
 inline void
-JSObject::setQNameLocalName(JSAtom *name)
+JSObject::setQNameLocalName(JSLinearString *name)
 {
     JS_ASSERT(isQName());
     setSlot(JSSLOT_QNAME_LOCAL_NAME, name ? js::StringValue(name) : js::UndefinedValue());
@@ -1395,28 +1388,6 @@ DefineConstructorAndPrototype(JSContext *cx, GlobalObject *global,
     global->setSlot(key, ObjectValue(*ctor));
     global->setSlot(key + JSProto_LIMIT, ObjectValue(*proto));
     global->setSlot(key + JSProto_LIMIT * 2, ObjectValue(*ctor));
-    return true;
-}
-
-bool
-PropDesc::checkGetter(JSContext *cx)
-{
-    if (hasGet && !js_IsCallable(get) && !get.isUndefined()) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_BAD_GET_SET_FIELD,
-                             js_getter_str);
-        return false;
-    }
-    return true;
-}
-
-bool
-PropDesc::checkSetter(JSContext *cx)
-{
-    if (hasSet && !js_IsCallable(set) && !set.isUndefined()) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_BAD_GET_SET_FIELD,
-                             js_setter_str);
-        return false;
-    }
     return true;
 }
 

@@ -190,7 +190,6 @@ toolbarbutton.urlbar-button {
 #urlbar-favicon {
   width: 32px;
   height: 32px;
-  image-rendering: -moz-crisp-edges;
 }
 
 #urlbar-favicon[src=""] {
@@ -324,7 +323,7 @@ toolbarbutton.urlbar-button {
   list-style-image: url("chrome://browser/skin/images/bookmark-default-hdpi.png");
 }
 
-.tool-star[starred="true"] {
+#tool-star[starred="true"] {
   list-style-image: url("chrome://browser/skin/images/bookmark-starred-hdpi.png");
 }
 
@@ -697,7 +696,6 @@ placeitem > .bookmark-manage > image {
   width: 32px;
   height: 32px;
   max-height: 32px;
-  image-rendering: -moz-crisp-edges;
   /* margin-top = (1 - title's line-height) * title's font-size */
   margin-top: @autocomplete_item_container_image_padding@;
   margin-bottom: 0;
@@ -983,16 +981,11 @@ documenttab[reload="true"] > stack > .documenttab-reload {
   display: none;
 }
 
-#bookmark-popup-title {
-  background-color: @color_background_default@;
-}
-
 /* Identity popup   -------------------------------------------------------- */
 #identity-popup-container {
   background-color: @color_background_panel@;
   padding: @padding_normal@; /* core spacing */
   padding-bottom: @padding_xxxnormal@;
-  color: @color_text_panel@;
 }
 
 /* Popup Icons */
@@ -1178,7 +1171,6 @@ pageaction:not([image]) > hbox >.pageaction-image {
 }
 
 #share-title,
-#bookmark-popup-title,
 #context-hint {
   color: @color_text_default@;
   font-size: @font_small@;

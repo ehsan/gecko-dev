@@ -38,6 +38,7 @@
 #define nsTableFrame_h__
 
 #include "nscore.h"
+#include "nsTPtrArray.h"
 #include "nsHTMLContainerFrame.h"
 #include "nsStyleCoord.h"
 #include "nsStyleConsts.h"
@@ -614,7 +615,7 @@ protected:
 
   nsIFrame* GetFirstBodyRowGroupFrame();
 public:
-  typedef nsAutoTArray<nsTableRowGroupFrame*, 8> RowGroupArray;
+  typedef nsAutoTPtrArray<nsTableRowGroupFrame, 8> RowGroupArray;
   /**
    * Push all our child frames from the aRowGroups array, in order, starting
    * from the frame at aPushFrom to the end of the array. The frames are put on
@@ -775,7 +776,7 @@ protected:
   void DumpRowGroup(nsIFrame* aChildFrame);
 #endif
   // DATA MEMBERS
-  nsAutoTArray<nsTableColFrame*, 8> mColFrames;
+  nsAutoTPtrArray<nsTableColFrame, 8> mColFrames;
 
   struct TableBits {
     PRUint32 mHaveReflowedColGroups:1; // have the col groups gotten their initial reflow

@@ -37,46 +37,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 TestRunner.logEnabled = true;
-TestRunner.logger = LogController;
-
-/* Helper function */
-parseQueryString = function(encodedString, useArrays) {
-  // strip a leading '?' from the encoded string
-  var qstr = (encodedString[0] == "?") ? encodedString.substring(1) : 
-                                         encodedString;
-  var pairs = qstr.replace(/\+/g, "%20").split(/(\&amp\;|\&\#38\;|\&#x26;|\&)/);
-  var o = {};
-  var decode;
-  if (typeof(decodeURIComponent) != "undefined") {
-    decode = decodeURIComponent;
-  } else {
-    decode = unescape;
-  }
-  if (useArrays) {
-    for (var i = 0; i < pairs.length; i++) {
-      var pair = pairs[i].split("=");
-      if (pair.length !== 2) {
-        continue;
-      }
-      var name = decode(pair[0]);
-      var arr = o[name];
-      if (!(arr instanceof Array)) {
-        arr = [];
-        o[name] = arr;
-      }
-      arr.push(decode(pair[1]));
-    }
-  } else {
-    for (i = 0; i < pairs.length; i++) {
-      pair = pairs[i].split("=");
-      if (pair.length !== 2) {
-        continue;
-      }
-      o[decode(pair[0])] = decode(pair[1]);
-    }
-  }
-  return o;
-};
+TestRunner.logger = new Logger();
 
 // Check the query string for arguments
 var params = parseQueryString(location.search.substring(1), true);
@@ -234,7 +195,7 @@ function isVisible(elem) {
 
 function toggleNonTests (e) {
   e.preventDefault();
-  var elems = document.getElementsClassName("non-test");
+  var elems = getElementsByTagAndClassName("*", "non-test");
   for (var i="0"; i<elems.length; i++) {
     toggleVisible(elems[i]);
   }
@@ -247,8 +208,8 @@ function toggleNonTests (e) {
 
 // hook up our buttons
 function hookup() {
-  document.getElementById('runtests').onclick = RunSet.reloadAndRunAll;
-  document.getElementById('toggleNonTests').onclick = toggleNonTests; 
+  connect("runtests", "onclick", RunSet, "reloadAndRunAll");
+  connect("toggleNonTests", "onclick", toggleNonTests);
   // run automatically if autorun specified
   if (params.autorun) {
     RunSet.runall();

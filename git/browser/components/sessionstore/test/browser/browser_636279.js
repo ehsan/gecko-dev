@@ -13,18 +13,19 @@ let statePinned = {windows:[{tabs:[
 let state = {windows:[{tabs:[
   {entries:[{url:"http://example.com#1"}]},
   {entries:[{url:"http://example.com#2"}]},
-  {entries:[{url:"http://example.com#3"}]},
-  {entries:[{url:"http://example.com#4"}]},
+  {entries:[{url:"http://example.com#3"}]}
 ]}]};
 
 function test() {
   waitForExplicitFinish();
 
   registerCleanupFunction(function () {
+    Services.prefs.clearUserPref("browser.sessionstore.max_concurrent_tabs");
     TabsProgressListener.uninit();
     ss.setBrowserState(stateBackup);
   });
 
+  Services.prefs.setIntPref("browser.sessionstore.max_concurrent_tabs", 2);
 
   TabsProgressListener.init();
 
@@ -36,9 +37,9 @@ function test() {
     TabsProgressListener.setCallback(function (needsRestore, isRestoring) {
       if (firstProgress) {
         firstProgress = false;
-        is(isRestoring, 3, "restoring 3 tabs concurrently");
+        is(isRestoring, 2, "restoring 2 tabs concurrently");
       } else {
-        ok(isRestoring <= 3, "restoring max. 2 tabs concurrently");
+        ok(isRestoring < 3, "restoring max. 2 tabs concurrently");
       }
 
       if (0 == needsRestore) {

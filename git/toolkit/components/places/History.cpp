@@ -56,7 +56,6 @@
 #include "nsThreadUtils.h"
 #include "nsNetUtil.h"
 #include "nsIXPConnect.h"
-#include "mozilla/unused.h"
 #include "mozilla/Util.h"
 #include "nsContentUtils.h"
 
@@ -67,7 +66,6 @@
 #define TOPIC_UPDATEPLACES_COMPLETE "places-updatePlaces-complete"
 
 using namespace mozilla::dom;
-using mozilla::unused;
 
 namespace mozilla {
 namespace places {
@@ -1290,11 +1288,10 @@ History::NotifyVisited(nsIURI* aURI)
   nsAutoScriptBlocker scriptBlocker;
 
   if (XRE_GetProcessType() == GeckoProcessType_Default) {
-    nsTArray<ContentParent*> cplist;
-    ContentParent::GetAll(cplist);
-    for (PRUint32 i = 0; i < cplist.Length(); ++i) {
-      unused << cplist[i]->SendNotifyVisited(aURI);
-    }
+    mozilla::dom::ContentParent* cpp = 
+      mozilla::dom::ContentParent::GetSingleton(PR_FALSE);
+    if (cpp)
+      (void)cpp->SendNotifyVisited(aURI);
   }
 
   // If the hash table has not been initialized, then we have nothing to notify

@@ -134,6 +134,7 @@ static NS_DEFINE_CID(kXTFServiceCID, NS_XTFSERVICE_CID);
 #include "nsAttrName.h"
 #include "nsIDOMUserDataHandler.h"
 #include "nsContentCreatorFunctions.h"
+#include "nsTPtrArray.h"
 #include "nsGUIEvent.h"
 #include "nsMutationEvent.h"
 #include "nsIMEStateManager.h"
@@ -176,6 +177,7 @@ static NS_DEFINE_CID(kXTFServiceCID, NS_XTFSERVICE_CID);
 #include "nsTextEditorState.h"
 #include "nsIPluginHost.h"
 #include "nsICategoryManager.h"
+#include "nsAHtml5FragmentParser.h"
 #include "nsIViewManager.h"
 
 #ifdef IBMBIDI
@@ -263,7 +265,7 @@ nsString* nsContentUtils::sModifierSeparator = nsnull;
 
 PRBool nsContentUtils::sInitialized = PR_FALSE;
 
-nsHtml5Parser* nsContentUtils::sHTMLFragmentParser = nsnull;
+nsAHtml5FragmentParser* nsContentUtils::sHTMLFragmentParser = nsnull;
 nsIParser* nsContentUtils::sXMLFragmentParser = nsnull;
 nsIFragmentContentSink* nsContentUtils::sXMLFragmentSink = nsnull;
 
@@ -1556,7 +1558,7 @@ nsContentUtils::GetCommonAncestor(nsINode* aNode1,
   }
 
   // Build the chain of parents
-  nsAutoTArray<nsINode*, 30> parents1, parents2;
+  nsAutoTPtrArray<nsINode, 30> parents1, parents2;
   do {
     parents1.AppendElement(aNode1);
     aNode1 = aNode1->GetNodeParent();
@@ -3595,7 +3597,7 @@ nsContentUtils::ParseFragmentHTML(const nsAString& aSourceBuffer,
 {
   if (!sHTMLFragmentParser) {
     sHTMLFragmentParser =
-      static_cast<nsHtml5Parser*>(nsHtml5Module::NewHtml5Parser().get());
+      static_cast<nsAHtml5FragmentParser*>(nsHtml5Module::NewHtml5Parser().get());
     // Now sHTMLFragmentParser owns the object
   }
   sHTMLFragmentParser->ParseHtml5Fragment(aSourceBuffer,

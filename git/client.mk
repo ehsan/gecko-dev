@@ -278,7 +278,6 @@ EXTRA_CONFIG_DEPS := \
 	$(NULL)
 
 $(CONFIGURES): %: %.in $(EXTRA_CONFIG_DEPS)
-	@$(PYTHON) $(TOPSRCDIR)/js/src/config/check-sync-dirs.py $(TOPSRCDIR)/js/src/build $(TOPSRCDIR)/build
 	@echo Generating $@ using autoconf
 	cd $(@D); $(AUTOCONF)
 
@@ -347,7 +346,6 @@ endif
 # Build it
 
 realbuild::  $(OBJDIR)/Makefile $(OBJDIR)/config.status
-	@$(PYTHON) $(TOPSRCDIR)/js/src/config/check-sync-dirs.py $(TOPSRCDIR)/js/src/config $(TOPSRCDIR)/config
 	$(MOZ_MAKE)
 
 ####################################

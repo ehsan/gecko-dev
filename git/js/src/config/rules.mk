@@ -153,20 +153,6 @@ xpcshell-tests:
 	  $(LIBXUL_DIST)/bin/xpcshell \
 	  $(foreach dir,$(XPCSHELL_TESTS),$(testxpcobjdir)/$(relativesrcdir)/$(dir))
 
-xpcshell-tests-remote: DM_TRANS?=adb
-xpcshell-tests-remote:
-	$(PYTHON) -u $(topsrcdir)/config/pythonpath.py \
-	  -I$(topsrcdir)/build \
-	  -I$(topsrcdir)/build/mobile \
-	  $(topsrcdir)/testing/xpcshell/remotexpcshelltests.py \
-	  --symbols-path=$(DIST)/crashreporter-symbols \
-	  --build-info-json=$(DEPTH)/mozinfo.json \
-	  $(EXTRA_TEST_ARGS) \
-	  --dm_trans=$(DM_TRANS) \
-	  --deviceIP=${TEST_DEVICE} \
-	  --objdir=$(DEPTH) \
-	  $(foreach dir,$(XPCSHELL_TESTS),$(testxpcobjdir)/$(relativesrcdir)/$(dir))
-
 # Execute a single test, specified in $(SOLO_FILE), but don't automatically
 # start the test. Instead, present the xpcshell prompt so the user can
 # attach a debugger and then start the test.
@@ -196,23 +182,6 @@ check-one:
 	  $(LIBXUL_DIST)/bin/xpcshell \
 	  $(foreach dir,$(XPCSHELL_TESTS),$(testxpcobjdir)/$(relativesrcdir)/$(dir))
 
-check-one-remote: DM_TRANS?=adb
-check-one-remote:
-	$(PYTHON) -u $(topsrcdir)/config/pythonpath.py \
-	  -I$(topsrcdir)/build \
-	  -I$(topsrcdir)/build/mobile \
-	  $(testxpcsrcdir)/remotexpcshelltests.py \
-	  --symbols-path=$(DIST)/crashreporter-symbols \
-	  --build-info-json=$(DEPTH)/mozinfo.json \
-	  --test-path=$(SOLO_FILE) \
-	  --profile-name=$(MOZ_APP_NAME) \
-	  --verbose \
-	  $(EXTRA_TEST_ARGS) \
-	  --dm_trans=$(DM_TRANS) \
-	  --deviceIP=${TEST_DEVICE} \
-	  --objdir=$(DEPTH) \
-          --noSetup \
-	  $(foreach dir,$(XPCSHELL_TESTS),$(testxpcobjdir)/$(relativesrcdir)/$(dir))
 endif # XPCSHELL_TESTS
 
 ifdef CPP_UNIT_TESTS
@@ -464,7 +433,7 @@ endif
 
 define SUBMAKE # $(call SUBMAKE,target,directory)
 +@$(UPDATE_TITLE)
-+$(MAKE) $(if $(2),-C $(2)) $(1)
++@$(MAKE) $(if $(2),-C $(2)) $(1)
 
 endef # The extra line is important here! don't delete it
 
@@ -930,7 +899,7 @@ ifdef SHARED_LIBRARY
 endif
 endif # SHARED_LIBRARY || PROGRAM
 endif # WINNT_
-endif # MOZ_PROFILE_USE
+endif # MOZ_PROFILE_GENERATE || MOZ_PROFILE_USE
 ifdef MOZ_PROFILE_GENERATE
 # Clean up profiling data during PROFILE_GENERATE phase
 export::
@@ -1112,7 +1081,6 @@ endif
 
 ifdef DTRACE_PROBE_OBJ
 EXTRA_DEPS += $(DTRACE_PROBE_OBJ)
-OBJS += $(DTRACE_PROBE_OBJ)
 endif
 
 $(filter %.$(LIB_SUFFIX),$(LIBRARY)): $(OBJS) $(LOBJS) $(SHARED_LIBRARY_LIBS_DEPS) $(EXTRA_DEPS) $(GLOBAL_DEPS)
@@ -1153,9 +1121,8 @@ ifdef HAVE_DTRACE
 ifndef XP_MACOSX
 ifdef DTRACE_PROBE_OBJ
 ifndef DTRACE_LIB_DEPENDENT
-NON_DTRACE_OBJS := $(filter-out $(DTRACE_PROBE_OBJ),$(OBJS))
-$(DTRACE_PROBE_OBJ): $(NON_DTRACE_OBJS)
-	dtrace -G -C -s $(MOZILLA_DTRACE_SRC) -o $(DTRACE_PROBE_OBJ) $(NON_DTRACE_OBJS)
+$(DTRACE_PROBE_OBJ): $(OBJS)
+	dtrace -G -C -s $(MOZILLA_DTRACE_SRC) -o $(DTRACE_PROBE_OBJ) $(OBJS)
 endif
 endif
 endif
@@ -1177,7 +1144,7 @@ endif
 	$(EXPAND_MKSHLIB) $(SHLIB_LDSTARTFILE) $(OBJS) $(LOBJS) $(SUB_SHLOBJS) $(DTRACE_PROBE_OBJ) $(MOZILLA_PROBE_LIBS) $(RESFILE) $(LDFLAGS) $(SHARED_LIBRARY_LIBS) $(EXTRA_DSO_LDOPTS) $(OS_LIBS) $(EXTRA_LIBS) $(DEF_FILE) $(SHLIB_LDENDFILE)
 	@$(RM) $(DTRACE_PROBE_OBJ)
 else # ! DTRACE_LIB_DEPENDENT
-	$(EXPAND_MKSHLIB) $(SHLIB_LDSTARTFILE) $(OBJS) $(LOBJS) $(SUB_SHLOBJS) $(RESFILE) $(LDFLAGS) $(SHARED_LIBRARY_LIBS) $(EXTRA_DSO_LDOPTS) $(OS_LIBS) $(EXTRA_LIBS) $(DEF_FILE) $(SHLIB_LDENDFILE)
+	$(EXPAND_MKSHLIB) $(SHLIB_LDSTARTFILE) $(OBJS) $(DTRACE_PROBE_OBJ) $(LOBJS) $(SUB_SHLOBJS) $(RESFILE) $(LDFLAGS) $(SHARED_LIBRARY_LIBS) $(EXTRA_DSO_LDOPTS) $(OS_LIBS) $(EXTRA_LIBS) $(DEF_FILE) $(SHLIB_LDENDFILE)
 endif # DTRACE_LIB_DEPENDENT
 	@$(call CHECK_STDCXX,$@)
 
@@ -1551,6 +1518,9 @@ export:: FORCE
 	@echo; sleep 2; false
 endif
 
+$(IDL_DIR)::
+	$(NSINSTALL) -D $@
+
 # generate .h files from into $(XPIDL_GEN_DIR), then export to $(DIST)/include;
 # warn against overriding existing .h file. 
 $(XPIDL_GEN_DIR)/.done:
@@ -1562,7 +1532,6 @@ $(XPIDL_GEN_DIR)/.done:
 
 XPIDL_DEPS = \
   $(topsrcdir)/xpcom/idl-parser/header.py \
-  $(topsrcdir)/xpcom/idl-parser/typelib.py \
   $(topsrcdir)/xpcom/idl-parser/xpidl.py \
   $(NULL)
 
@@ -1578,13 +1547,9 @@ $(XPIDL_GEN_DIR)/%.h: %.idl $(XPIDL_DEPS) $(XPIDL_GEN_DIR)/.done
 ifndef NO_GEN_XPT
 # generate intermediate .xpt files into $(XPIDL_GEN_DIR), then link
 # into $(XPIDL_MODULE).xpt and export it to $(FINAL_TARGET)/components.
-$(XPIDL_GEN_DIR)/%.xpt: %.idl $(XPIDL_DEPS) $(XPIDL_GEN_DIR)/.done
+$(XPIDL_GEN_DIR)/%.xpt: %.idl $(XPIDL_COMPILE) $(XPIDL_GEN_DIR)/.done
 	$(REPORT_BUILD)
-	$(PYTHON_PATH) \
-	  -I$(topsrcdir)/other-licenses/ply \
-	  -I$(topsrcdir)/xpcom/idl-parser \
-	  -I$(topsrcdir)/xpcom/typelib/xpt/tools \
-	  $(topsrcdir)/xpcom/idl-parser/typelib.py --cachedir=$(topsrcdir)/xpcom/idl-parser $(XPIDL_FLAGS) $(_VPATH_SRCS) -d $(MDDEPDIR)/$(@F).pp -o $@
+	$(ELOG) $(XPIDL_COMPILE) -m typelib -w $(XPIDL_FLAGS) -e $@ -d $(MDDEPDIR)/$(@F).pp $(_VPATH_SRCS)
 
 # no need to link together if XPIDLSRCS contains only XPIDL_MODULE
 ifneq ($(XPIDL_MODULE).idl,$(strip $(XPIDLSRCS)))
@@ -1621,8 +1586,14 @@ endif # XPIDLSRCS
 
 
 
+#
 # General rules for exporting idl files.
-$(IDL_DIR):
+#
+# WORK-AROUND ONLY, for mozilla/tools/module-deps/bootstrap.pl build.
+# Bug to fix idl dependency problems w/o this extra build pass is
+#   http://bugzilla.mozilla.org/show_bug.cgi?id=145777
+#
+$(IDL_DIR)::
 	$(NSINSTALL) -D $@
 
 export-idl:: $(SUBMAKEFILES) $(MAKE_DIRS)
@@ -2089,6 +2060,7 @@ showhost:
 	@echo "HOST_LIBRARY       = $(HOST_LIBRARY)"
 
 showbuildmods::
+	@echo "Build Modules	= $(BUILD_MODULES)"
 	@echo "Module dirs	= $(BUILD_MODULE_DIRS)"
 
 documentation:

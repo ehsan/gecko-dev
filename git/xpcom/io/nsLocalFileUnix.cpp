@@ -132,7 +132,7 @@ static nsresult MacErrorMapper(OSErr inErr);
     PR_END_MACRO
 
 /* directory enumerator */
-class
+class NS_COM
 nsDirEnumeratorUnix : public nsISimpleEnumerator,
                       public nsIDirectoryEnumerator
 {

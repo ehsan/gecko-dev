@@ -42,7 +42,6 @@
 #include "nsIDOMSVGPoint.h"
 #include "nsDOMError.h"
 #include "nsIDOMSVGMatrix.h"
-#include "nsContentUtils.h" // NS_ENSURE_FINITE
 
 // See the architecture comment in DOMSVGPointList.h.
 

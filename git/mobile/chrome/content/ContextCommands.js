@@ -29,13 +29,6 @@ var ContextCommands = {
     }
   },
 
-  pasteAndGo: function cc_pasteAndGo() {
-    let target = ContextHelper.popupState.target;
-    target.editor.selectAll();
-    target.editor.paste(Ci.nsIClipboard.kGlobalClipboard);
-    BrowserUI.goToURI();
-  },
-
   selectAll: function cc_selectAll() {
     let target = ContextHelper.popupState.target;
     if (target.localName == "browser") {
@@ -51,6 +44,11 @@ var ContextCommands = {
 
   openInNewTab: function cc_openInNewTab() {
     Browser.addTab(ContextHelper.popupState.linkURL, false, Browser.selectedTab);
+  },
+
+  saveLink: function cc_saveLink() {
+    let browser = ContextHelper.popupState.target;
+    ContentAreaUtils.saveURL(ContextHelper.popupState.linkURL, null, "SaveLinkTitle", false, true, browser.documentURI);
   },
 
   saveImage: function cc_saveImage() {
@@ -113,7 +111,28 @@ var ContextCommands = {
   },
 
   shortcutBookmark: function cc_shortcutBookmark() {
+    const kIconSize = 64;
+
     let target = ContextHelper.popupState.target;
-    BookmarkHelper.createShortcut(target.getAttribute("title"), target.getAttribute("uri"), target.getAttribute("src"));
+    let canvas = document.createElementNS("http://www.w3.org/1999/xhtml", "canvas");
+    canvas.setAttribute("style", "display: none");
+
+    let self = this;
+    let image = new Image();
+    image.onload = function() {
+      canvas.width = canvas.height = kIconSize; // clears the canvas
+      let ctx = canvas.getContext("2d");
+      ctx.drawImage(image, 0, 0, kIconSize, kIconSize);
+      let icon = canvas.toDataURL("image/png", "");
+      canvas = null;
+      try {
+        let shell = Cc["@mozilla.org/browser/shell-service;1"].createInstance(Ci.nsIShellService);
+        shell.createShortcut(target.getAttribute("title"), target.getAttribute("uri"), icon, "bookmark");
+      } catch(e) {
+        Cu.reportError(e);
+      }
+    }
+
+    image.src = target.getAttribute("src");
   }
 };

@@ -113,36 +113,6 @@ struct NS_COM_GLUE nsTArrayHeader
   PRUint32 mIsAutoArray : 1;
 };
 
-// This class provides a SafeElementAt method to nsTArray<T*> which does
-// not take a second default value parameter.
-template <class E, class Derived>
-struct nsTArray_SafeElementAtHelper
-{
-  typedef E*       elem_type;
-  typedef PRUint32 index_type;
-
-  // No implementation is provided for these two methods, and that is on
-  // purpose, since we don't support these functions on non-pointer type
-  // instantiations.
-  elem_type& SafeElementAt(index_type i);
-  const elem_type& SafeElementAt(index_type i) const;
-};
-
-template <class E, class Derived>
-struct nsTArray_SafeElementAtHelper<E*, Derived>
-{
-  typedef E*       elem_type;
-  typedef PRUint32 index_type;
-
-  elem_type SafeElementAt(index_type i) {
-    return static_cast<Derived*> (this)->SafeElementAt(i, nsnull);
-  }
-
-  const elem_type SafeElementAt(index_type i) const {
-    return static_cast<const Derived*> (this)->SafeElementAt(i, nsnull);
-  }
-};
-
 
 //
 // This class serves as a base class for nsTArray.  It shouldn't be used
@@ -379,8 +349,7 @@ public:
 // infallible allocator.
 //
 template<class E, class Alloc=nsTArrayDefaultAllocator>
-class nsTArray : public nsTArray_base<Alloc>,
-                 public nsTArray_SafeElementAtHelper<E, nsTArray<E, Alloc> >
+class nsTArray : public nsTArray_base<Alloc>
 {
 public:
   typedef nsTArray_base<Alloc>           base_type;
@@ -389,9 +358,6 @@ public:
   typedef E                              elem_type;
   typedef nsTArray<E, Alloc>             self_type;
   typedef nsTArrayElementTraits<E>       elem_traits;
-  typedef nsTArray_SafeElementAtHelper<E, self_type> safeelementat_helper_type;
-
-  using safeelementat_helper_type::SafeElementAt;
 
   // A special value that is used to indicate an invalid or unknown index
   // into the array.

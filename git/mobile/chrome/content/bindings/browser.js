@@ -5,6 +5,8 @@ let Cu = Components.utils;
 
 Cu.import("resource://gre/modules/Services.jsm");
 
+dump("!! remote browser loaded\n");
+
 let WebProgressListener = {
   init: function() {
     let flags = Ci.nsIWebProgress.NOTIFY_LOCATION |
@@ -254,13 +256,8 @@ let WebNavigation =  {
     if (aEntry.docshellID)
       shEntry.docshellID = aEntry.docshellID;
 
-    if (aEntry.structuredCloneState && aEntry.structuredCloneVersion) {
-      shEntry.stateData =
-        Cc["@mozilla.org/docshell/structured-clone-container;1"].
-        createInstance(Ci.nsIStructuredCloneContainer);
-
-      shEntry.stateData.initFromBase64(aEntry.structuredCloneState, aEntry.structuredCloneVersion);
-    }
+    if (aEntry.stateData)
+      shEntry.stateData = aEntry.stateData;
 
     if (aEntry.scroll) {
       let scrollPos = aEntry.scroll.split(",");
@@ -269,15 +266,23 @@ let WebNavigation =  {
     }
 
     if (aEntry.docIdentifier) {
-      // If we have a serialized document identifier, try to find an SHEntry
-      // which matches that doc identifier and adopt that SHEntry's
-      // BFCacheEntry.  If we don't find a match, insert shEntry as the match
-      // for the document identifier.
-      let matchingEntry = aDocIdentMap[aEntry.docIdentifier];
-      if (!matchingEntry) {
-        aDocIdentMap[aEntry.docIdentifier] = shEntry;
+      // Get a new document identifier for this entry to ensure that history
+      // entries after a session restore are considered to have different
+      // documents from the history entries before the session restore.
+      // Document identifiers are 64-bit ints, so JS will loose precision and
+      // start assigning all entries the same doc identifier if these ever get
+      // large enough.
+      //
+      // It's a potential security issue if document identifiers aren't
+      // globally unique, but shEntry.setUniqueDocIdentifier() below guarantees
+      // that we won't re-use a doc identifier within a given instance of the
+      // application.
+      let ident = aDocIdentMap[aEntry.docIdentifier];
+      if (!ident) {
+        shEntry.setUniqueDocIdentifier();
+        aDocIdentMap[aEntry.docIdentifier] = shEntry.docIdentifier;
       } else {
-        shEntry.adoptBFCacheEntry(matchingEntry);
+        shEntry.docIdentifier = ident;
       }
     }
 
@@ -362,12 +367,11 @@ let WebNavigation =  {
       } catch (e) { dump(e); }
     }
 
-    entry.docIdentifier = aEntry.BFCacheEntry.ID;
+    if (aEntry.docIdentifier)
+      entry.docIdentifier = aEntry.docIdentifier;
 
-    if (aEntry.stateData != null) {
-      entry.structuredCloneState = aEntry.stateData.getDataAsBase64();
-      entry.structuredCloneVersion = aEntry.stateData.formatVersion;
-    }
+    if (aEntry.stateData)
+      entry.stateData = aEntry.stateData;
 
     if (!(aEntry instanceof Ci.nsISHContainer))
       return entry;
@@ -621,13 +625,6 @@ let ContentScroll =  {
           height: aEvent.height,
           left: aEvent.x
         });
-
-        // Send event only after painting to make sure content views in the parent process have
-        // been updated.
-        addEventListener("MozAfterPaint", function afterPaint() {
-          removeEventListener("MozAfterPaint", afterPaint, false);
-          sendAsyncMessage("Content:UpdateDisplayPort");
-        }, false);
 
         break;
       }

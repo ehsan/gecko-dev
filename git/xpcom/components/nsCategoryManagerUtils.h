@@ -40,7 +40,7 @@
 
 #include "nsICategoryManager.h"
 
-void
+NS_COM void
 NS_CreateServicesFromCategory(const char *category,
                               nsISupports *origin,
                               const char *observerTopic);

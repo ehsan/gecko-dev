@@ -305,7 +305,6 @@ nsPluginInstanceOwner::nsPluginInstanceOwner()
   mContentFocused = PR_FALSE;
   mWidgetVisible = PR_TRUE;
   mPluginWindowVisible = PR_FALSE;
-  mPluginDocumentActiveState = PR_TRUE;
   mNumCachedAttrs = 0;
   mNumCachedParams = 0;
   mCachedAttrParamNames = nsnull;
@@ -1943,8 +1942,7 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
                   presContext->AppUnitsToDevPixels(pt.y));
 #ifndef NP_NO_CARBON
   nsIntPoint geckoScreenCoords = mWidget->WidgetToScreenOffset();
-  ::Point carbonPt = { static_cast<short>(ptPx.y + geckoScreenCoords.y),
-                       static_cast<short>(ptPx.x + geckoScreenCoords.x) };
+  ::Point carbonPt = { ptPx.y + geckoScreenCoords.y, ptPx.x + geckoScreenCoords.x };
   if (eventModel == NPEventModelCarbon) {
     if (event && anEvent.eventStructType == NS_MOUSE_EVENT) {
       static_cast<EventRecord*>(event)->where = carbonPt;
@@ -3242,7 +3240,7 @@ void nsPluginInstanceOwner::UpdateWindowPositionAndClipRect(PRBool aSetWindow)
   mPluginWindow->clipRect.left = 0;
   mPluginWindow->clipRect.top = 0;
 
-  if (mPluginWindowVisible && mPluginDocumentActiveState) {
+  if (mPluginWindowVisible) {
     mPluginWindow->clipRect.right = mPluginWindow->width;
     mPluginWindow->clipRect.bottom = mPluginWindow->height;
   } else {
@@ -3270,12 +3268,6 @@ nsPluginInstanceOwner::UpdateWindowVisibility(PRBool aVisible)
   UpdateWindowPositionAndClipRect(PR_TRUE);
 }
 
-void
-nsPluginInstanceOwner::UpdateDocumentActiveState(PRBool aIsActive)
-{
-  mPluginDocumentActiveState = aIsActive;
-  UpdateWindowPositionAndClipRect(PR_TRUE);
-}
 #endif // XP_MACOSX
 
 void

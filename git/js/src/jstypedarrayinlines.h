@@ -84,7 +84,7 @@ TypedArray::getBuffer(JSObject *obj) {
 
 inline void *
 TypedArray::getDataOffset(JSObject *obj) {
-    return (void *)obj->getPrivate();
+    return (void *)((uint8*)obj->getSlot(FIELD_DATA).toPrivate() + getByteOffset(obj));
 }
 }
 #endif /* jstypedarrayinlines_h */

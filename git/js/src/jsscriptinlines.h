@@ -120,15 +120,8 @@ JSScript::getFunction(size_t index)
     JS_ASSERT(funobj->isFunction());
     JS_ASSERT(funobj == (JSObject *) funobj->getPrivate());
     JSFunction *fun = (JSFunction *) funobj;
-    JS_ASSERT(fun->isInterpreted());
+    JS_ASSERT(FUN_INTERPRETED(fun));
     return fun;
-}
-
-inline JSFunction *
-JSScript::getCallerFunction()
-{
-    JS_ASSERT(savedCallerFun);
-    return getFunction(0);
 }
 
 inline JSObject *

@@ -58,8 +58,7 @@ NS_IMPL_ISUPPORTS1(nsDownloadHistory, nsIDownloadHistory)
 NS_IMETHODIMP
 nsDownloadHistory::AddDownload(nsIURI *aSource,
                                nsIURI *aReferrer,
-                               PRTime aStartTime,
-                               nsIURI *aDestination)
+                               PRTime aStartTime)
 {
   NS_ENSURE_ARG_POINTER(aSource);
 

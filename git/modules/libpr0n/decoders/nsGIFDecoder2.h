@@ -69,7 +69,7 @@ private:
    * frame size information, etc. */
 
   void      BeginGIF();
-  nsresult  BeginImageFrame(PRUint16 aDepth);
+  nsresult  BeginImageFrame(gfx_depth aDepth);
   void      EndImageFrame();
   void      FlushImageData();
   void      FlushImageData(PRUint32 fromRow, PRUint32 rows);
