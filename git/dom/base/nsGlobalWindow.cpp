@@ -3762,7 +3762,7 @@ nsGlobalWindow::GetScriptableContent(JSContext* aCx, JS::Value* aVal)
   ErrorResult rv;
   JS::Rooted<JSObject*> content(aCx, GetContent(aCx, rv));
   if (!rv.Failed()) {
-    *aVal = JS::ObjectOrNullValue(content);
+    *aVal = JS::ObjectValue(*content);
   }
 
   return rv.ErrorCode();

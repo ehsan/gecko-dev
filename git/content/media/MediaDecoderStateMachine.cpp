@@ -1307,6 +1307,8 @@ void MediaDecoderStateMachine::StopPlayback()
 {
   LOG(PR_LOG_DEBUG, ("%p StopPlayback()", mDecoder.get()));
 
+  NS_ASSERTION(OnStateMachineThread() || OnDecodeThread(),
+               "Should be on state machine thread or the decoder thread.");
   mDecoder->GetReentrantMonitor().AssertCurrentThreadIn();
 
   mDecoder->NotifyPlaybackStopped();

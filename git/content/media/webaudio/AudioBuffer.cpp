@@ -131,7 +131,7 @@ AudioBuffer::CopyFromChannel(const Float32Array& aDestination, uint32_t aChannel
   const float* sourceData = mSharedChannels ?
     mSharedChannels->GetData(aChannelNumber) :
     JS_GetFloat32ArrayData(mJSChannels[aChannelNumber]);
-  PodMove(aDestination.Data(), sourceData + aStartInChannel, length);
+  PodCopy(aDestination.Data(), sourceData + aStartInChannel, length);
 }
 
 void
@@ -159,7 +159,7 @@ AudioBuffer::CopyToChannel(JSContext* aJSContext, const Float32Array& aSource,
     return;
   }
 
-  PodMove(JS_GetFloat32ArrayData(mJSChannels[aChannelNumber]) + aStartInChannel,
+  PodCopy(JS_GetFloat32ArrayData(mJSChannels[aChannelNumber]) + aStartInChannel,
           aSource.Data(), length);
 }
 

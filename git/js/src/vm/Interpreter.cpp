@@ -1067,11 +1067,9 @@ AddOperation(JSContext *cx, MutableHandleValue lhs, MutableHandleValue rhs, Valu
 {
     if (lhs.isInt32() && rhs.isInt32()) {
         int32_t l = lhs.toInt32(), r = rhs.toInt32();
-        int32_t t;
-        if (JS_LIKELY(SafeAdd(l, r, &t))) {
-            res->setInt32(t);
-            return true;
-        }
+        double d = double(l) + double(r);
+        res->setNumber(d);
+        return true;
     }
 
     if (!ToPrimitive(cx, lhs))

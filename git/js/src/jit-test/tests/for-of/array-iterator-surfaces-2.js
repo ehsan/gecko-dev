@@ -4,10 +4,6 @@ load(libdir + "iteration.js");
 
 var proto = Object.getPrototypeOf([][std_iterator]());
 assertEq(Object.getPrototypeOf(proto), Iterator.prototype);
-proto = Object.getPrototypeOf([].keys());
-assertEq(Object.getPrototypeOf(proto), Iterator.prototype);
-proto = Object.getPrototypeOf([].entries());
-assertEq(Object.getPrototypeOf(proto), Iterator.prototype);
 
 function check(it) {
     assertEq(typeof it, 'object');
@@ -25,7 +21,3 @@ function check(it) {
 
 check([][std_iterator]());
 check(Array.prototype[std_iterator].call({}));
-check([].keys());
-check(Array.prototype.keys.call({}));
-check([].entries());
-check(Array.prototype.entries.call({}));
