@@ -16,7 +16,6 @@
 
 #include "jsinfer.h"
 
-#include "jit/Bailouts.h"
 #include "jit/CompilerRoot.h"
 #include "jit/FixedList.h"
 #include "jit/InlineList.h"
@@ -26,6 +25,7 @@
 #include "jit/TypePolicy.h"
 #include "jit/TypeRepresentationSet.h"
 #include "vm/ScopeObject.h"
+#include "vm/TypedArrayObject.h"
 
 namespace js {
 
@@ -2849,9 +2849,7 @@ class MAsmJSUnsignedToDouble
 // Converts a primitive (either typed or untyped) to an int32. If the input is
 // not primitive at runtime, a bailout occurs. If the input cannot be converted
 // to an int32 without loss (i.e. "5.5" or undefined) then a bailout occurs.
-class MToInt32
-  : public MUnaryInstruction,
-    public NoFloatPolicy<0>
+class MToInt32 : public MUnaryInstruction
 {
     bool canBeNegativeZero_;
 
@@ -2891,9 +2889,9 @@ class MToInt32
     }
     void computeRange();
 
-    TypePolicy *typePolicy() {
-        return this;
-    }
+#ifdef DEBUG
+    bool isConsistentFloat32Use() const { return true; }
+#endif
 };
 
 // Converts a value or typed input to a truncated int32, for use with bitwise
@@ -8944,6 +8942,8 @@ bool PropertyReadNeedsTypeBarrier(JSContext *cx, types::TypeObject *object, Prop
                                   types::StackTypeSet *observed, bool updateObserved, bool *result);
 bool PropertyReadNeedsTypeBarrier(JSContext *cx, MDefinition *obj, PropertyName *name,
                                   types::StackTypeSet *observed, bool *result);
+bool PropertyReadOnPrototypeNeedsTypeBarrier(JSContext *cx, MDefinition *obj, PropertyName *name,
+                                             types::TemporaryTypeSet *observed, bool *result);
 bool PropertyReadIsIdempotent(JSContext *cx, MDefinition *obj, PropertyName *name, bool *result);
 bool AddObjectsForPropertyRead(JSContext *cx, MDefinition *obj, PropertyName *name,
                                types::StackTypeSet *observed);
