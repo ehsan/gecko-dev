@@ -184,7 +184,20 @@ js_StringToInt32(JSContext* cx, JSString* str)
     JSSTRING_CHARS_AND_END(str, bp, end);
     if (!js_strtod(cx, bp, end, &ep, &d) || js_SkipWhiteSpace(ep, end) != end)
         return 0;
-    return (int32)d;
+    return js_DoubleToECMAInt32(d);
+}
+
+static inline JSBool
+js_Int32ToId(JSContext* cx, int32 index, jsid* id)
+{
+    if (index <= JSVAL_INT_MAX) {
+        *id = INT_TO_JSID(index);
+        return JS_TRUE;
+    }
+    JSString* str = js_NumberToString(cx, index);
+    if (!str)
+        return JS_FALSE;
+    return js_ValueToStringId(cx, STRING_TO_JSVAL(str), id);
 }
 
 jsval FASTCALL
@@ -214,9 +227,7 @@ js_Any_getelem(JSContext* cx, JSObject* obj, int32 index)
 {
     jsval v;
     jsid id;
-    if (index < 0)
-        return JSVAL_ERROR_COOKIE;
-    if (!js_IndexToId(cx, index, &id))
+    if (!js_Int32ToId(cx, index, &id))
         return JSVAL_ERROR_COOKIE;
     if (!OBJ_GET_PROPERTY(cx, obj, id, &v))
         return JSVAL_ERROR_COOKIE;
@@ -227,10 +238,8 @@ JSBool FASTCALL
 js_Any_setelem(JSContext* cx, JSObject* obj, int32 index, jsval v)
 {
     jsid id;
-    if (index < 0)
+    if (!js_Int32ToId(cx, index, &id))
         return JSVAL_ERROR_COOKIE;
-    if (!js_IndexToId(cx, index, &id))
-        return JS_FALSE;
     return OBJ_SET_PROPERTY(cx, obj, id, &v);
 }
 
@@ -393,8 +402,24 @@ JSBool FASTCALL
 js_HasNamedProperty(JSContext* cx, JSObject* obj, JSString* idstr)
 {
     jsid id;
-    if (!js_ValueToStringId(cx, STRING_TO_JSVAL(idstr), &id))
-        return JS_FALSE;
+    if (!obj || !js_ValueToStringId(cx, STRING_TO_JSVAL(idstr), &id))
+        return JSVAL_TO_BOOLEAN(JSVAL_VOID);
+
+    JSObject* obj2;
+    JSProperty* prop;
+    if (!OBJ_LOOKUP_PROPERTY(cx, obj, id, &obj2, &prop))
+        return JSVAL_TO_BOOLEAN(JSVAL_VOID);
+    if (prop)
+        OBJ_DROP_PROPERTY(cx, obj2, prop);
+    return prop != NULL;
+}
+
+JSBool FASTCALL
+js_HasNamedPropertyInt32(JSContext* cx, JSObject* obj, int32 index)
+{
+    jsid id;
+    if (!obj || !js_Int32ToId(cx, index, &id))
+        return JSVAL_TO_BOOLEAN(JSVAL_VOID);
 
     JSObject* obj2;
     JSProperty* prop;

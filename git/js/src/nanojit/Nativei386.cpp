@@ -1024,18 +1024,8 @@ namespace nanojit
 		RegisterMask allow = GpRegs;
 		bool forceReg = (op == LIR_mul || !rhs->isconst());
 
-#ifdef NANOJIT_ARM
-		// Arm can't do an immediate op with immediates
-		// outside of +/-255 (for AND) r outside of
-		// 0..255 for others.
-		if (!forceReg)
-		{
-			if (rhs->isconst() && !isU8(rhs->constval()))
-				forceReg = true;
-		}
-#endif
-
-		if (lhs != rhs && forceReg)
+        /* Even if lhs == rhs && forceReg, shift instructions require ECX on the rhs. */
+		if ((lhs != rhs || (op == LIR_lsh || op == LIR_rsh || op == LIR_ush)) && forceReg)
 		{
 			if ((rb = asm_binop_rhs_reg(ins)) == UnknownReg) {
 				rb = findRegFor(rhs, allow);

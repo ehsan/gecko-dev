@@ -650,10 +650,9 @@ public:
 
 class FuncFilter: public LirWriter
 {
-    TraceRecorder& recorder;
 public:
-    FuncFilter(LirWriter* out, TraceRecorder& _recorder):
-        LirWriter(out), recorder(_recorder)
+    FuncFilter(LirWriter* out):
+        LirWriter(out)
     {
     }
 
@@ -683,21 +682,6 @@ public:
                 if (v != LIR_eq)
                     v = LOpcode(v + (LIR_ult - LIR_lt)); // cmp -> ucmp
                 return out->ins2(v, demote(out, s0), demote(out, s1));
-            }
-        } else if (v == LIR_fadd || v == LIR_fsub) {
-            /* demoting multiplication seems to be tricky since it can quickly overflow the
-               value range of int32 */
-            if (isPromoteInt(s0) && isPromoteInt(s1)) {
-                // demote fop to op
-                v = (LOpcode)((int)v & ~LIR64);
-                LIns* d0;
-                LIns* d1;
-                LIns* result = out->ins2(v, d0 = demote(out, s0), d1 = demote(out, s1));
-                if (!overflowSafe(d0) || !overflowSafe(d1)) {
-                    out->insGuard(LIR_xt, out->ins1(LIR_ov, result),
-                                  recorder.snapshot(OVERFLOW_EXIT));
-                }
-                return out->ins1(LIR_i2f, result);
             }
         } else if (v == LIR_or &&
                    s0->isop(LIR_lsh) && isconst(s0->oprnd2(), 16) &&
@@ -753,7 +737,7 @@ public:
         } else if (ci == &js_DoubleToInt32_ci) {
             if (s0->isconstq())
                 return out->insImm(js_DoubleToECMAInt32(s0->constvalf()));
-            if (s0->isop(LIR_fadd) || s0->isop(LIR_fsub) || s0->isop(LIR_fmul)) {
+            if (s0->isop(LIR_fadd) || s0->isop(LIR_fsub)) {
                 LInsp lhs = s0->oprnd1();
                 LInsp rhs = s0->oprnd2();
                 if (isPromote(lhs) && isPromote(rhs)) {
@@ -1018,7 +1002,7 @@ TraceRecorder::TraceRecorder(JSContext* cx, VMSideExit* _anchor, Fragment* _frag
 #endif
     lir = cse_filter = new (&gc) CseFilter(lir, &gc);
     lir = expr_filter = new (&gc) ExprFilter(lir);
-    lir = func_filter = new (&gc) FuncFilter(lir, *this);
+    lir = func_filter = new (&gc) FuncFilter(lir);
     lir->ins0(LIR_start);
 
     if (!nanojit::AvmCore::config.tree_opt || fragment->root == fragment) 
@@ -1059,6 +1043,14 @@ TraceRecorder::~TraceRecorder()
 {
     JS_ASSERT(nextRecorderToAbort == NULL);
     JS_ASSERT(treeInfo && (fragment || wasDeepAborted()));
+#ifdef DEBUG
+    TraceRecorder* tr = JS_TRACE_MONITOR(cx).abortStack;
+    while (tr != NULL)
+    {
+        JS_ASSERT(this != tr);
+        tr = tr->nextRecorderToAbort;
+    }
+#endif
     if (fragment) {
         if (wasRootFragment && !fragment->root->code()) {
             JS_ASSERT(!fragment->root->vmprivate);
@@ -1236,10 +1228,6 @@ ValueToNative(JSContext* cx, jsval v, uint8 type, double* slot)
         debug_only_v(printf("boolean<%d> ", *(JSBool*)slot);)
         return;
       case JSVAL_STRING:
-        if (v == JSVAL_VOID) {
-            *(JSString**)slot = ATOM_TO_STRING(cx->runtime->atomState.typeAtoms[JSTYPE_VOID]); 
-            return;
-        } 
         JS_ASSERT(tag == JSVAL_STRING);
         *(JSString**)slot = JSVAL_TO_STRING(v);
         debug_only_v(printf("string<%p> ", *(JSString**)slot);)
@@ -2305,7 +2293,7 @@ TraceRecorder::closeLoop(Fragmento* fragmento, bool& demote, unsigned *demotes)
             exit->target = peer;
             debug_only_v(printf("Joining type-unstable trace to target fragment %p.\n", peer);)
             stable = true;
-            ((TreeInfo*)peer->vmprivate)->dependentTrees.addUnique(fragment);
+            ((TreeInfo*)peer->vmprivate)->dependentTrees.addUnique(fragment->root);
         }
 
         compile(fragmento);
@@ -2672,7 +2660,7 @@ static inline bool
 js_CheckGlobalObjectShape(JSContext* cx, JSTraceMonitor* tm, JSObject* globalObj)
 {
     /* Check the global shape. */
-    if (tm->globalSlots->length() && (OBJ_SHAPE(globalObj) != tm->globalShape)) {
+    if (OBJ_SHAPE(globalObj) != tm->globalShape) {
         AUDIT(globalShapeMismatchAtEntry);
         debug_only_v(printf("Global shape mismatch (%u vs. %u), flushing cache.\n",
                             OBJ_SHAPE(globalObj), tm->globalShape);)
@@ -2899,6 +2887,8 @@ js_SynthesizeFrame(JSContext* cx, const FrameInfo& fi)
 bool
 js_RecordTree(JSContext* cx, JSTraceMonitor* tm, Fragment* f, Fragment* outer, unsigned* demotes)
 {
+    JS_ASSERT(cx->fp->regs->pc == f->ip && f->root == f);
+    
     /* Avoid recording loops in overlarge scripts. */
     if (cx->fp->script->length >= SCRIPT_PC_ADJ_LIMIT) {
         js_AbortRecording(cx, "script too large");
@@ -3090,7 +3080,8 @@ js_CloseLoop(JSContext* cx)
     Fragmento* fragmento = tm->fragmento;
     TraceRecorder* r = tm->recorder;
     JS_ASSERT(fragmento && r);
-
+    bool walkedOutOfLoop = r->walkedOutOfLoop();
+    
     if (fragmento->assm()->error()) {
         js_AbortRecording(cx, "Error during recording");
 
@@ -3107,7 +3098,12 @@ js_CloseLoop(JSContext* cx)
     r->closeLoop(fragmento, demote, demotes);
     JS_ASSERT(!demote || NUM_UNDEMOTE_SLOTS(demotes));
     js_DeleteRecorder(cx);
-    if (demote)
+    
+    /*
+     * If we just walked out of a thin loop, we can't immediately start the 
+     * compiler again here since we didn't return to the loop header.
+     */
+    if (demote && !walkedOutOfLoop)
         return js_RecordTree(cx, tm, f, NULL, demotes);
     return false;
 }
@@ -3261,7 +3257,7 @@ js_IsEntryTypeCompatible(jsval* vp, uint8* m)
         debug_only_v(printf("bool != tag%u", tag);)
         return false;
       case JSVAL_STRING:
-        if (*vp == JSVAL_VOID || tag == JSVAL_STRING)
+        if (tag == JSVAL_STRING)
             return true;
         debug_only_v(printf("string != tag%u", tag);)
         return false;
@@ -4126,12 +4122,64 @@ TraceRecorder::stack(int n, LIns* i)
     set(&stackval(n), i, n >= 0);
 }
 
-LIns* TraceRecorder::f2i(LIns* f)
+LIns*
+TraceRecorder::alu(LOpcode v, jsdouble v0, jsdouble v1, LIns* s0, LIns* s1)
+{
+    if (v == LIR_fadd || v == LIR_fsub) {
+        jsdouble r;
+        if (v == LIR_fadd)
+            r = v0 + v1;
+        else
+            r = v0 - v1;
+        /*
+         * Calculate the result of the addition for the current values. If the
+         * value is not within the integer range, don't even try to demote 
+         * here.
+         */
+        if (!JSDOUBLE_IS_NEGZERO(r) && (jsint(r) == r) && isPromoteInt(s0) && isPromoteInt(s1)) {
+            LIns* d0 = ::demote(lir, s0);
+            LIns* d1 = ::demote(lir, s1);
+            /*
+             * If the inputs are constant, generate an integer constant for 
+             * this operation.
+             */
+            if (d0->isconst() && d1->isconst()) 
+                return lir->ins1(LIR_i2f, lir->insImm(jsint(r)));
+            /*
+             * Speculatively generate code that will perform the addition over
+             * the integer inputs as an integer addition/subtraction and exit
+             * if that fails.
+             */
+            v = (LOpcode)((int)v & ~LIR64);
+            LIns* result = lir->ins2(v, d0, d1);
+            if (!overflowSafe(d0) || !overflowSafe(d1)) {
+                lir->insGuard(LIR_xt, lir->ins1(LIR_ov, result),
+                              snapshot(OVERFLOW_EXIT));
+            }
+            return lir->ins1(LIR_i2f, result);
+        }
+        /*
+         * The result doesn't fit into the integer domain, so either generate
+         * a floating point constant or a floating point operation.
+         */
+        if (s0->isconst() && s1->isconst()) {
+            jsdpun u;
+            u.d = r;
+            return lir->insImmq(u.u64);
+        }
+        return lir->ins2(v, s0, s1);
+    }
+    return lir->ins2(v, s0, s1);
+}
+
+LIns*
+TraceRecorder::f2i(LIns* f)
 {
     return lir->insCall(&js_DoubleToInt32_ci, &f);
 }
 
-LIns* TraceRecorder::makeNumberInt32(LIns* f)
+LIns*
+TraceRecorder::makeNumberInt32(LIns* f)
 {
     JS_ASSERT(f->isQuad());
     LIns* x;
@@ -4158,6 +4206,7 @@ TraceRecorder::stringify(jsval& v)
     } else if (JSVAL_TAG(v) == JSVAL_BOOLEAN) {
         ci = &js_BooleanOrUndefinedToString_ci;
     } else {
+        /* We can't stringify objects here (use imacros instead), just return NULL. */
         return NULL;
     }
     v_ins = lir->insCall(ci, args);
@@ -4171,11 +4220,12 @@ TraceRecorder::call_imacro(jsbytecode* imacro)
     JSStackFrame* fp = cx->fp;
     JSFrameRegs* regs = fp->regs;
 
-    JS_ASSERT(!fp->imacpc);
-    fp->imacpc = regs->pc;
-    fp->flags |= JSFRAME_IMACRO_START;
-    regs->pc = imacro;
-    atoms = COMMON_ATOMS_START(&cx->runtime->atomState);
+    if (!fp->imacpc) {
+        fp->imacpc = regs->pc;
+        fp->flags |= JSFRAME_IMACRO_START;
+        regs->pc = imacro;
+        atoms = COMMON_ATOMS_START(&cx->runtime->atomState);
+    }
     return false;
 }
 
@@ -4281,7 +4331,7 @@ TraceRecorder::inc(jsval& v, LIns*& v_ins, jsint incr, bool pre)
     jsdpun u;
     u.d = jsdouble(incr);
 
-    LIns* v_after = lir->ins2(LIR_fadd, v_ins, lir->insImmq(u.u64));
+    LIns* v_after = alu(LIR_fadd, asNumber(v), incr, v_ins, lir->insImmq(u.u64));
 
     const JSCodeSpec& cs = js_CodeSpec[*cx->fp->regs->pc];
     JS_ASSERT(cs.ndefs == 1);
@@ -4450,12 +4500,10 @@ TraceRecorder::cmp(LOpcode op, int flags)
         x = INS_CONST(negate);
         cond = negate;
     } else if (JSVAL_IS_STRING(l) || JSVAL_IS_STRING(r)) {
-        // The following cases always produce a constant false (or true if negated):
-        // - comparing a string against null
-        // - comparing a string against any boolean (including undefined)
-        if ((JSVAL_IS_NULL(l) && l_ins->isconst()) ||
-            (JSVAL_IS_NULL(r) && r_ins->isconst()) ||
-            (JSVAL_TAG(l) == JSVAL_BOOLEAN || JSVAL_TAG(r) == JSVAL_BOOLEAN)) {
+        // Comparing equality of a string against null always produces false.
+        if (op == LIR_feq &&
+            ((JSVAL_IS_NULL(l) && l_ins->isconst()) ||
+             (JSVAL_IS_NULL(r) && r_ins->isconst()))) {
             x = INS_CONST(negate);
             cond = negate;
         } else {
@@ -4482,7 +4530,7 @@ TraceRecorder::cmp(LOpcode op, int flags)
         LIns* args[] = { l_ins, cx_ins };
         if (l == JSVAL_NULL && l_ins->isconst()) {
             jsdpun u;
-            u.d = js_NaN;
+            u.d = (op == LIR_feq) ? js_NaN : 0.0;
             l_ins = lir->insImmq(u.u64);
         } else if (JSVAL_IS_STRING(l)) {
             l_ins = lir->insCall(&js_StringToNumber_ci, args);
@@ -4502,9 +4550,9 @@ TraceRecorder::cmp(LOpcode op, int flags)
 
         args[0] = r_ins;
         args[1] = cx_ins;
-        if (r == JSVAL_NULL) {
+        if (r == JSVAL_NULL && r_ins->isconst()) {
             jsdpun u;
-            u.d = js_NaN;
+            u.d = (op == LIR_feq) ? js_NaN : 0.0;
             r_ins = lir->insImmq(u.u64);
         } else if (JSVAL_IS_STRING(r)) {
             r_ins = lir->insCall(&js_StringToNumber_ci, args);
@@ -4623,7 +4671,13 @@ TraceRecorder::binary(LOpcode op)
     bool intop = !(op & LIR64);
     LIns* a = get(&l);
     LIns* b = get(&r);
-    bool leftNumber = isNumber(l), rightNumber = isNumber(r);
+
+    bool leftIsNumber = isNumber(l);
+    jsdouble lnum = leftIsNumber ? asNumber(l) : 0;
+    
+    bool rightIsNumber = isNumber(r);
+    jsdouble rnum = rightIsNumber ? asNumber(r) : 0;
+    
     if ((op >= LIR_sub && op <= LIR_ush) ||  // sub, mul, (callh), or, xor, (not,) lsh, rsh, ush
         (op >= LIR_fsub && op <= LIR_fdiv)) { // fsub, fmul, fdiv
         LIns* args[2];
@@ -4631,32 +4685,36 @@ TraceRecorder::binary(LOpcode op)
             args[0] = a;
             args[1] = cx_ins;
             a = lir->insCall(&js_StringToNumber_ci, args);
-            leftNumber = true;
+            lnum = js_StringToNumber(cx, JSVAL_TO_STRING(l));
+            leftIsNumber = true;
         }
         if (JSVAL_IS_STRING(r)) {
             args[0] = b;
             args[1] = cx_ins;
             b = lir->insCall(&js_StringToNumber_ci, args);
-            rightNumber = true;
+            rnum = js_StringToNumber(cx, JSVAL_TO_STRING(r));
+            rightIsNumber = true;
         }
     }
     if (JSVAL_TAG(l) == JSVAL_BOOLEAN) {
         LIns* args[] = { a, cx_ins };
         a = lir->insCall(&js_BooleanOrUndefinedToNumber_ci, args);
-        leftNumber = true;
+        lnum = js_BooleanOrUndefinedToNumber(cx, JSVAL_TO_BOOLEAN(l));
+        leftIsNumber = true;
     }
     if (JSVAL_TAG(r) == JSVAL_BOOLEAN) {
         LIns* args[] = { b, cx_ins };
         b = lir->insCall(&js_BooleanOrUndefinedToNumber_ci, args);
-        rightNumber = true;
+        rnum = js_BooleanOrUndefinedToNumber(cx, JSVAL_TO_BOOLEAN(r));
+        rightIsNumber = true;
     }
-    if (leftNumber && rightNumber) {
+    if (leftIsNumber && rightIsNumber) {
         if (intop) {
             LIns *args[] = { a };
             a = lir->insCall(op == LIR_ush ? &js_DoubleToUint32_ci : &js_DoubleToInt32_ci, args);
             b = f2i(b);
         }
-        a = lir->ins2(op, a, b);
+        a = alu(op, lnum, rnum, a, b);
         if (intop)
             a = lir->ins1(op == LIR_ush ? LIR_u2f : LIR_i2f, a);
         set(&l, a);
@@ -5548,7 +5606,9 @@ TraceRecorder::record_JSOP_NOT()
         return true;
     } 
     if (isNumber(v)) {
-        set(&v, lir->ins2(LIR_feq, get(&v), lir->insImmq(0)));
+        LIns* v_ins = get(&v);
+        set(&v, lir->ins2(LIR_or, lir->ins2(LIR_feq, v_ins, lir->insImmq(0)),
+                                  lir->ins_eq0(lir->ins2(LIR_feq, v_ins, v_ins))));
         return true;
     } 
     if (JSVAL_IS_OBJECT(v)) {
@@ -6031,7 +6091,7 @@ TraceRecorder::record_JSOP_ELEMINC()
 bool
 TraceRecorder::record_JSOP_NAMEDEC()
 {
-    return incName(-1, true);
+    return incName(-1, false);
 }
 
 bool
@@ -7154,81 +7214,39 @@ bool
 TraceRecorder::record_JSOP_IN()
 {
     jsval& rval = stackval(-1);
+    jsval& lval = stackval(-2);
+
     if (JSVAL_IS_PRIMITIVE(rval))
         ABORT_TRACE("JSOP_IN on non-object right operand");
-
-    jsval& lval = stackval(-2);
-    if (!JSVAL_IS_PRIMITIVE(lval))
-        ABORT_TRACE("JSOP_IN on E4X QName left operand");
-
-    jsid id;
-    if (JSVAL_IS_INT(lval)) {
-        id = INT_JSVAL_TO_JSID(lval);
-    } else {
-        if (!JSVAL_IS_STRING(lval))
-            ABORT_TRACE("non-string left operand to JSOP_IN");
-        if (!js_ValueToStringId(cx, lval, &id))
-            return false;
-    }
-
-    // Expect what we see at trace recording time (hit or miss) to be the same
-    // when executing the trace. Use a builtin helper for named properties, as
-    // the for-in tracing code does. First, handle indexes in dense arrays as a
-    // special case.
     JSObject* obj = JSVAL_TO_OBJECT(rval);
     LIns* obj_ins = get(&rval);
 
-    bool cond;
+    jsid id;
     LIns* x;
-    do {
-        if (guardDenseArray(obj, obj_ins, BRANCH_EXIT)) {
-            if (JSVAL_IS_INT(lval)) {
-                jsint idx = JSVAL_TO_INT(lval);
-                LIns* idx_ins = f2i(get(&lval));
-                LIns* dslots_ins = lir->insLoad(LIR_ldp, obj_ins, offsetof(JSObject, dslots));
-                if (!guardDenseArrayIndex(obj, idx, obj_ins, dslots_ins, idx_ins, MISMATCH_EXIT))
-                    ABORT_TRACE("dense array index out of bounds");
-
-                // We can't "see through" a hole to a possible Array.prototype
-                // property, so we must abort/guard.
-                if (obj->dslots[idx] == JSVAL_HOLE)
-                    ABORT_TRACE("can't see through hole in dense array");
-
-                LIns* addr_ins = lir->ins2(LIR_piadd, dslots_ins,
-                                           lir->ins2i(LIR_pilsh, idx_ins,
-                                                      (sizeof(jsval) == 4) ? 2 : 3));
-                guard(false,
-                      lir->ins2(LIR_eq, lir->insLoad(LIR_ldp, addr_ins, 0), INS_CONST(JSVAL_HOLE)),
-                      MISMATCH_EXIT);
-
-                cond = true;
-                x = INS_CONST(cond);
-                break;
-            }
-
-            // Not an index id, but a dense array -- go up to the proto. */
-            obj = STOBJ_GET_PROTO(obj);
-            obj_ins = stobj_get_fslot(obj_ins, JSSLOT_PROTO);
-        } else {
-            if (JSVAL_IS_INT(id))
-                ABORT_TRACE("INT in OBJ where OBJ is not a dense array");
-        }
-
-        JSObject* obj2;
-        JSProperty* prop;
-        if (!OBJ_LOOKUP_PROPERTY(cx, obj, id, &obj2, &prop))
-            ABORT_TRACE("OBJ_LOOKUP_PROPERTY failed in JSOP_IN");
-
-        cond = prop != NULL;
-        if (prop)
-            OBJ_DROP_PROPERTY(cx, obj2, prop);
-
+    if (JSVAL_IS_INT(lval)) {
+        id = INT_JSVAL_TO_JSID(lval);
+        LIns* args[] = { makeNumberInt32(get(&lval)), obj_ins, cx_ins };
+        x = lir->insCall(&js_HasNamedPropertyInt32_ci, args);
+    } else if (JSVAL_IS_STRING(lval)) {
+        if (!js_ValueToStringId(cx, lval, &id))
+            ABORT_TRACE("left operand of JSOP_IN didn't convert to a string-id");
         LIns* args[] = { get(&lval), obj_ins, cx_ins };
         x = lir->insCall(&js_HasNamedProperty_ci, args);
-        guard(false, lir->ins2i(LIR_eq, x, JSVAL_TO_BOOLEAN(JSVAL_VOID)), OOM_EXIT);
-        x = lir->ins2i(LIR_eq, x, 1);
-    } while (0);
+    } else {
+        ABORT_TRACE("string or integer expected");
+    }        
 
+    guard(false, lir->ins2i(LIR_eq, x, JSVAL_TO_BOOLEAN(JSVAL_VOID)), OOM_EXIT);
+    x = lir->ins2i(LIR_eq, x, 1);
+
+    JSObject* obj2;
+    JSProperty* prop;
+    if (!OBJ_LOOKUP_PROPERTY(cx, obj, id, &obj2, &prop))
+        ABORT_TRACE("OBJ_LOOKUP_PROPERTY failed in JSOP_IN");
+    bool cond = prop != NULL;
+    if (prop)
+        OBJ_DROP_PROPERTY(cx, obj2, prop);
+    
     /* The interpreter fuses comparisons and the following branch,
        so we have to do that here as well. */
     fuseIf(cx->fp->regs->pc + 1, cond, x);
@@ -7801,6 +7819,10 @@ TraceRecorder::record_JSOP_CALLPROP()
         obj = JSVAL_TO_OBJECT(l);
         obj_ins = get(&l);
         this_ins = obj_ins; // |this| for subsequent call
+        if (JSVAL_IS_NULL(l))
+            ABORT_TRACE("callprop on null");
+        if (!this_ins->isconstp())
+            guard(false, lir->ins_eq0(this_ins), MISMATCH_EXIT);
     } else {
         jsint i;
         debug_only(const char* protoname = NULL;)
