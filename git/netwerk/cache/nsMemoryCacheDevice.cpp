@@ -69,8 +69,7 @@ nsMemoryCacheDevice::nsMemoryCacheDevice()
       mTotalSize(0),
       mInactiveSize(0),
       mEntryCount(0),
-      mMaxEntryCount(0),
-      mMaxEntrySize(-1) // -1 means "no limit"
+      mMaxEntryCount(0)
 {
     for (int i=0; i<kQueueCount; ++i)
         PR_INIT_CLIST(&mEvictionList[i]);
@@ -298,13 +297,7 @@ nsMemoryCacheDevice::GetFileForEntry( nsCacheEntry *    entry,
 bool
 nsMemoryCacheDevice::EntryIsTooBig(PRInt64 entrySize)
 {
-    CACHE_LOG_DEBUG(("nsMemoryCacheDevice::EntryIsTooBig "
-                     "[size=%d max=%d soft=%d]\n",
-                     entrySize, mMaxEntrySize, mSoftLimit));
-    if (mMaxEntrySize == -1)
-        return entrySize > mSoftLimit;
-    else
-        return (entrySize > mSoftLimit || entrySize > mMaxEntrySize);
+    return entrySize > mSoftLimit;
 }
 
 
@@ -495,16 +488,6 @@ nsMemoryCacheDevice::SetCapacity(PRInt32  capacity)
     AdjustMemoryLimits(softLimit, hardLimit);
 }
 
-void
-nsMemoryCacheDevice::SetMaxEntrySize(PRInt32 maxSizeInKilobytes)
-{
-    // Internal unit is bytes. Changing this only takes effect *after* the
-    // change and has no consequences for existing cache-entries
-    if (maxSizeInKilobytes >= 0)
-        mMaxEntrySize = maxSizeInKilobytes * 1024;
-    else
-        mMaxEntrySize = -1;
-}
 
 #ifdef DEBUG
 static PLDHashOperator

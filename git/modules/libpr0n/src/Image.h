@@ -128,8 +128,6 @@ public:
   }
   PRUint64 WindowID() const { return mWindowId; }
 
-  PRBool HasError() { return mError; }
-
 protected:
   Image(imgStatusTracker* aStatusTracker);
 

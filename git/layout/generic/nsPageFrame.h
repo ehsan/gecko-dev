@@ -81,10 +81,8 @@ public:
 
   virtual void SetSharedPageData(nsSharedPageData* aPD);
 
-  // We must allow Print Preview UI to have a background, no matter what the
-  // user's settings
-  virtual PRBool HonorPrintBackgroundSettings() { return PR_FALSE; }
-
+  void PaintPrintPreviewBackground(nsRenderingContext& aRenderingContext,
+                                   nsPoint aPt);
   void PaintHeaderFooter(nsRenderingContext& aRenderingContext,
                          nsPoint aPt);
   void PaintPageContent(nsRenderingContext& aRenderingContext,

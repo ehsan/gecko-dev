@@ -69,6 +69,8 @@ public:
   static gfxASurface* Lookup(nsIDOMElement* aImage,
                              nsHTMLCanvasElement* aCanvas,
                              gfxIntSize* aSize);
+
+  static void Shutdown();
 };
 
 }

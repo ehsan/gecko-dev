@@ -48,7 +48,6 @@
 #include "jsstr.h"
 #include "jsprvtd.h"
 #include "jstl.h"
-#include "vm/String.h"
 #include "assembler/wtf/Platform.h"
 #include "assembler/jit/ExecutableAllocator.h"
 

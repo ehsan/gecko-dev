@@ -87,11 +87,7 @@ nsNthIndexCache::IndexDetermined(nsIContent* aSibling, Element* aChild,
       NS_ASSERTION(siblingIndex != 0,
                    "How can a non-anonymous node have an anonymous sibling?");
       if (siblingIndex > 0) {
-        // At this point, aResult is a count of how many elements matching
-        // aChild we have seen after aSibling, including aChild itself.  So if
-        // |siblingIndex| is the index of aSibling, we need to add aResult to
-        // get the right answer here.
-        aResult = siblingIndex + aResult;
+        aResult = siblingIndex + 1;
         return true;
       }
     }

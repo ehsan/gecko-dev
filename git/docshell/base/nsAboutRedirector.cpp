@@ -82,6 +82,8 @@ static RedirEntry kRedirMap[] = {
       nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT },
     { "license", "chrome://global/content/license.html",
       nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT },
+    { "licence", "chrome://global/content/license.html",
+      nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT },
     { "neterror", "chrome://global/content/netError.xhtml",
       nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT |
       nsIAboutModule::ALLOW_SCRIPT |

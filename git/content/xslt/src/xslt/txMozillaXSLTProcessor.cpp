@@ -1265,8 +1265,7 @@ txMozillaXSLTProcessor::Initialize(nsISupports* aOwner, JSContext* cx,
     nsIScriptSecurityManager* secMan = nsContentUtils::GetSecurityManager();
     NS_ENSURE_TRUE(secMan, NS_ERROR_UNEXPECTED);
 
-    nsresult rv = secMan->GetSubjectPrincipal(getter_AddRefs(prin));
-    NS_ENSURE_SUCCESS(rv, rv);
+    secMan->GetSubjectPrincipal(getter_AddRefs(prin));
     NS_ENSURE_TRUE(prin, NS_ERROR_UNEXPECTED);
 
     return Init(prin);

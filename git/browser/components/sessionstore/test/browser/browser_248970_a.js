@@ -152,6 +152,9 @@ function test() {
     }, true);
   }
 
+  // sessionstore service
+  let ss = Cc["@mozilla.org/browser/sessionstore;1"].
+           getService(Ci.nsISessionStore);
   // Remove the sessionstore.js file before setting the interval to 0
   let sessionStoreJS = getSessionstoreFile();
   if (sessionStoreJS.exists())

@@ -10,38 +10,26 @@
 #include "jsgcchunk.h"
 #include "jscntxt.h"
 
-/* We allow to allocate 2 (system/user) chunks. */
-
-/* XXX: using pool[0] and pool[1] is a hack;  bug 669123 will fix this. */
+/* We allow to allocate only single chunk. */
 
 class CustomGCChunkAllocator: public js::GCChunkAllocator {
   public:
-    CustomGCChunkAllocator() { pool[0] = NULL; pool[1] = NULL; }
-    void *pool[2];
+    CustomGCChunkAllocator() : pool(NULL) {}
+    void *pool;
     
   private:
 
     virtual void *doAlloc() {
-        if (!pool[0] && !pool[1])
+        if (!pool)
             return NULL;
-        void *chunk = NULL;
-        if (pool[0]) {
-            chunk = pool[0];
-            pool[0] = NULL;
-        } else {
-            chunk = pool[1];
-            pool[1] = NULL;
-        }
+        void *chunk = pool;
+        pool = NULL;
         return chunk;
     }
         
     virtual void doFree(void *chunk) {
-        JS_ASSERT(!pool[0] || !pool[1]);
-        if (!pool[0]) {
-            pool[0] = chunk;
-        } else {
-            pool[1] = chunk;
-        }
+        JS_ASSERT(!pool);
+        pool = chunk;
     }
 };
 
@@ -80,9 +68,8 @@ BEGIN_TEST(testGCChunkAlloc)
     /* Check that we get OOM. */
     CHECK(!ok);
     CHECK(!JS_IsExceptionPending(cx));
-    CHECK_EQUAL(errorCount, 1);
-    CHECK(!customGCChunkAllocator.pool[0]);
-    CHECK(!customGCChunkAllocator.pool[1]);
+    CHECK(errorCount == 1);
+    CHECK(!customGCChunkAllocator.pool);
     JS_GC(cx);
     JS_ToggleOptions(cx, JSOPTION_JIT);
     EVAL("(function() {"
@@ -92,7 +79,7 @@ BEGIN_TEST(testGCChunkAlloc)
          "        array.push({});"
          "    }"
          "})();", root.addr());
-    CHECK_EQUAL(errorCount, 1);
+    CHECK(errorCount == 1);
     return true;
 }
 
@@ -105,10 +92,8 @@ virtual JSRuntime * createRuntime() {
     if (!rt)
         return NULL;
 
-    customGCChunkAllocator.pool[0] = js::AllocGCChunk();
-    customGCChunkAllocator.pool[1] = js::AllocGCChunk();
-    JS_ASSERT(customGCChunkAllocator.pool[0]);
-    JS_ASSERT(customGCChunkAllocator.pool[1]);
+    customGCChunkAllocator.pool = js::AllocGCChunk();
+    JS_ASSERT(customGCChunkAllocator.pool);
 
     rt->setCustomGCChunkAllocator(&customGCChunkAllocator);
     return rt;
@@ -118,12 +103,9 @@ virtual void destroyRuntime() {
     JS_DestroyRuntime(rt);
 
     /* We should get the initial chunk back at this point. */
-    JS_ASSERT(customGCChunkAllocator.pool[0]);
-    JS_ASSERT(customGCChunkAllocator.pool[1]);
-    js::FreeGCChunk(customGCChunkAllocator.pool[0]);
-    js::FreeGCChunk(customGCChunkAllocator.pool[1]);
-    customGCChunkAllocator.pool[0] = NULL;
-    customGCChunkAllocator.pool[1] = NULL;
+    JS_ASSERT(customGCChunkAllocator.pool);
+    js::FreeGCChunk(customGCChunkAllocator.pool);
+    customGCChunkAllocator.pool = NULL;
 }
 
 END_TEST(testGCChunkAlloc)

@@ -60,8 +60,10 @@
   <separator />
   <description>&certmgr.editsslcert.edittrust;</description>
   <radiogroup id="sslTrustGroup">
-    <radio label="&certmgr.editsslcert.dotrust;" value="true"/>
-    <radio label="&certmgr.editsslcert.donttrust;" value="false"/>
+    <radio label="&certmgr.editsslcert.dotrust;"
+           id="trustSSLCert"/>
+    <radio label="&certmgr.editsslcert.donttrust;"
+           id="dontTrustSSLCert"/>
   </radiogroup>
   <hbox>
     <button id="editca-button" label="&certmgr.editca.label;"

@@ -120,6 +120,9 @@ mjit::Compiler::Compiler(JSContext *cx, StackFrame *fp)
 #endif
     oomInVector(false),
     applyTricks(NoApplyTricks)
+#if defined DEBUG
+    ,pcProfile(NULL)
+#endif
 {
 }
 
@@ -197,6 +200,15 @@ mjit::Compiler::performCompilation(JITScript **jitp)
         jumpMap[i] = Label();
 #endif
 
+#if defined(JS_METHODJIT_SPEW) && defined(DEBUG)
+    if (IsJaegerSpewChannelActive(JSpew_PCProf)) {
+        pcProfile = (int *)cx->malloc_(sizeof(int) * script->length);
+        if (!pcProfile)
+            return Compile_Error;
+        memset(pcProfile, 0, script->length * sizeof(int));
+    }
+#endif
+    
 #ifdef JS_METHODJIT_SPEW
     Profiler prof;
     prof.start();
@@ -219,6 +231,12 @@ mjit::Compiler::performCompilation(JITScript **jitp)
     CHECK_STATUS(generateEpilogue());
     CHECK_STATUS(finishThisUp(jitp));
 
+#if defined(JS_METHODJIT_SPEW) && defined(DEBUG)
+    /* Transfer ownership to JITScript */
+    (*jitp)->pcProfile = pcProfile;
+    pcProfile = NULL;
+#endif
+
 #ifdef JS_METHODJIT_SPEW
     prof.stop();
     JaegerSpew(JSpew_Prof, "compilation took %d us\n", prof.time_us());
@@ -234,6 +252,10 @@ mjit::Compiler::performCompilation(JITScript **jitp)
 
 mjit::Compiler::~Compiler()
 {
+#ifdef DEBUG
+    if (pcProfile)
+        cx->free_(pcProfile);
+#endif
     cx->free_(jumpMap);
     cx->free_(savedTraps);
 }
@@ -247,9 +269,6 @@ mjit::TryCompile(JSContext *cx, StackFrame *fp)
     if (fp->script()->hasSharps)
         return Compile_Abort;
 #endif
-    bool ok = cx->compartment->ensureJaegerCompartmentExists(cx);
-    if (!ok)
-        return Compile_Abort;
 
     // Ensure that constructors have at least one slot.
     if (fp->isConstructing() && !fp->script()->nslots)
@@ -379,10 +398,8 @@ mjit::Compiler::generatePrologue()
     if (isConstructing)
         constructThis();
 
-    if (debugMode())
+    if (debugMode() || Probes::callTrackingActive(cx))
         INLINE_STUBCALL(stubs::ScriptDebugPrologue);
-    else if (Probes::callTrackingActive(cx))
-        INLINE_STUBCALL(stubs::ScriptProbeOnlyPrologue);
 
     return Compile_Okay;
 }
@@ -416,7 +433,7 @@ mjit::Compiler::finishThisUp(JITScript **jitp)
 
     JSC::ExecutablePool *execPool;
     uint8 *result =
-        (uint8 *)script->compartment->jaegerCompartment()->execAlloc()->alloc(codeSize, &execPool);
+        (uint8 *)script->compartment->jaegerCompartment->execAlloc()->alloc(codeSize, &execPool);
     if (!result) {
         js_ReportOutOfMemory(cx);
         return Compile_Error;
@@ -818,6 +835,9 @@ mjit::Compiler::finishThisUp(JITScript **jitp)
 
     *jitp = jit;
 
+    /* We tolerate a race in the stats. */
+    cx->runtime->mjitDataSize += dataSize;
+
     return Compile_Okay;
 }
 
@@ -882,6 +902,24 @@ mjit::Compiler::generateMethod()
         JSOp op = JSOp(*PC);
         int trap = stubs::JSTRAP_NONE;
         if (op == JSOP_TRAP) {
+
+#if defined(JS_METHODJIT_SPEW) && defined(DEBUG)
+        if (IsJaegerSpewChannelActive(JSpew_PCProf)) {
+            RegisterID r1 = frame.allocReg();
+            RegisterID r2 = frame.allocReg();
+
+            if (IsJaegerSpewChannelActive(JSpew_PCProf)) {
+                masm.move(ImmPtr(pcProfile), r1);
+                Address pcCounter(r1, sizeof(int) * (PC - script->code));
+                masm.load32(pcCounter, r2);
+                masm.add32(Imm32(1), r2);
+                masm.store32(r2, pcCounter);
+            }
+
+            frame.freeReg(r1);
+            frame.freeReg(r2);
+        }
+#endif
             if (!trapper.untrap(PC))
                 return Compile_Error;
             op = JSOp(*PC);
@@ -889,20 +927,6 @@ mjit::Compiler::generateMethod()
         }
         if (script->singleStepMode && scanner.firstOpInLine(PC - script->code))
             trap |= stubs::JSTRAP_SINGLESTEP;
-
-        if (cx->hasRunOption(JSOPTION_PCCOUNT) && script->pcCounters) {
-            RegisterID r1 = frame.allocReg();
-            RegisterID r2 = frame.allocReg();
-
-            masm.move(ImmPtr(&script->pcCounters.get(JSRUNMODE_METHODJIT, PC - script->code)), r1);
-            Address pcCounter(r1);
-            masm.load32(pcCounter, r2);
-            masm.add32(Imm32(1), r2);
-            masm.store32(r2, pcCounter);
-
-            frame.freeReg(r1);
-            frame.freeReg(r2);
-        }
 
         analyze::Bytecode *opinfo = analysis->maybeCode(PC);
 

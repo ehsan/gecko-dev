@@ -46,14 +46,7 @@ printBugNumber(BUGNUMBER);
 START(summary);
 
 var o = new Number(0);
-try
-{
-    o.__proto__ = XML();
-}
-catch (e)
-{
-    assertEq(e instanceof TypeError, true);
-}
+o.__proto__ = XML();
 
 try
 { 

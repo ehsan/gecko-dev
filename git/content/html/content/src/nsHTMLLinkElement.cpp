@@ -36,6 +36,7 @@
  * ***** END LICENSE BLOCK ***** */
 #include "nsIDOMHTMLLinkElement.h"
 #include "nsIDOMLinkStyle.h"
+#include "nsIDOMEventTarget.h"
 #include "nsGenericHTMLElement.h"
 #include "nsILink.h"
 #include "nsGkAtoms.h"
@@ -397,6 +398,7 @@ nsHTMLLinkElement::GetStyleSheetURL(PRBool* aIsInline)
   *aIsInline = PR_FALSE;
   nsAutoString href;
   GetAttr(kNameSpaceID_None, nsGkAtoms::href, href);
+  href.Trim(" \t\n\r\f"); // trim HTML5 whitespace
   if (href.IsEmpty()) {
     return nsnull;
   }

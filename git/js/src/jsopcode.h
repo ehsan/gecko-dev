@@ -522,17 +522,20 @@ CallResultEscapes(jsbytecode *pc);
 }
 #endif
 
-#if defined(DEBUG) && defined(__cplusplus)
+#ifdef DEBUG
 /*
  * Disassemblers, for debugging only.
  */
+#include <stdio.h>
+#ifdef __cplusplus
 extern JS_FRIEND_API(JSBool)
-js_Disassemble(JSContext *cx, JSScript *script, JSBool lines, js::Sprinter *sp);
+js_Disassemble(JSContext *cx, JSScript *script, JSBool lines, js::Sprinter *sp, int *counts = NULL);
 
 extern JS_FRIEND_API(uintN)
 js_Disassemble1(JSContext *cx, JSScript *script, jsbytecode *pc, uintN loc,
-                JSBool lines, js::Sprinter *sp);
+                JSBool lines, js::Sprinter *sp, int *counts = NULL);
 #endif
+#endif /* DEBUG */
 
 /*
  * Given bytecode address pc in script's main program code, return the operand

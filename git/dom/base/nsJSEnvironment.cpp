@@ -1022,7 +1022,7 @@ nsJSContext::nsJSContext(JSRuntime *aRuntime)
 
   ++sContextCount;
 
-  mDefaultJSOptions = JSOPTION_PRIVATE_IS_NSISUPPORTS;
+  mDefaultJSOptions = JSOPTION_PRIVATE_IS_NSISUPPORTS | JSOPTION_ANONFUNFIX;
 
   mContext = ::JS_NewContext(aRuntime, gStackSize);
   if (mContext) {
@@ -3520,10 +3520,9 @@ nsJSContext::ReportPendingException()
   // set aside the frame chain, since it has nothing to do with the
   // exception we're reporting.
   if (mIsInitialized && ::JS_IsExceptionPending(mContext)) {
-    PRBool saved = ::JS_SaveFrameChain(mContext);
+    JSStackFrame* frame = JS_SaveFrameChain(mContext);
     ::JS_ReportPendingException(mContext);
-    if (saved)
-        ::JS_RestoreFrameChain(mContext);
+    JS_RestoreFrameChain(mContext, frame);
   }
 }
 

@@ -7,7 +7,6 @@
 
 #include "tests.h"
 #include "jsstr.h"
-#include "vm/String.h"
 
 using namespace js;
 

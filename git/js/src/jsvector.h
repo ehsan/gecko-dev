@@ -158,8 +158,7 @@ struct VectorImpl<T, N, AP, true>
     static inline bool growTo(Vector<T,N,AP> &v, size_t newcap) {
         JS_ASSERT(!v.usingInlineStorage());
         size_t bytes = sizeof(T) * newcap;
-        size_t oldBytes = sizeof(T) * v.mCapacity;
-        T *newbuf = reinterpret_cast<T *>(v.realloc_(v.mBegin, oldBytes, bytes));
+        T *newbuf = reinterpret_cast<T *>(v.realloc_(v.mBegin, bytes));
         if (!newbuf)
             return false;
         v.mBegin = newbuf;
@@ -182,7 +181,7 @@ struct VectorImpl<T, N, AP, true>
  * N requirements:
  *  - any value, however, N is clamped to min/max values
  * AllocPolicy:
- *  - see "Allocation policies" in jsalloc.h (default js::TempAllocPolicy)
+ *  - see "Allocation policies" in jsalloc.h (default js::ContextAllocPolicy)
  *
  * N.B: Vector is not reentrant: T member functions called during Vector member
  *      functions must not call back into the same object.
@@ -378,9 +377,6 @@ class Vector : private AllocPolicy
 
     /* Shorthand for shrinkBy(length()). */
     void clear();
-
-    /* Clears and releases any heap-allocated storage. */
-    void clearAndFree();
 
     /* Potentially fallible append operations. */
     bool append(const T &t);
@@ -655,23 +651,6 @@ Vector<T,N,AP>::clear()
     REENTRANCY_GUARD_ET_AL;
     Impl::destroy(beginNoCheck(), endNoCheck());
     mLength = 0;
-}
-
-template <class T, size_t N, class AP>
-inline void
-Vector<T,N,AP>::clearAndFree()
-{
-    clear();
-
-    if (usingInlineStorage())
-        return;
-
-    this->free_(beginNoCheck());
-    mBegin = (T *)storage.addr();
-    mCapacity = sInlineCapacity;
-#ifdef DEBUG
-    mReserved = 0;
-#endif
 }
 
 template <class T, size_t N, class AP>

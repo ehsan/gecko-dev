@@ -64,8 +64,6 @@ protected:
   virtual bool DeallocPWyciwygChannel(PWyciwygChannelParent*);
   virtual PFTPChannelParent* AllocPFTPChannel();
   virtual bool DeallocPFTPChannel(PFTPChannelParent*);
-  virtual PWebSocketParent* AllocPWebSocket(PBrowserParent* browser);
-  virtual bool DeallocPWebSocket(PWebSocketParent*);
   virtual bool RecvHTMLDNSPrefetch(const nsString& hostname,
                                    const PRUint16& flags);
 };

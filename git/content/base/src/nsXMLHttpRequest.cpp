@@ -69,6 +69,7 @@
 #include "nsIVariant.h"
 #include "xpcprivate.h"
 #include "nsIParser.h"
+#include "nsLoadListenerProxy.h"
 #include "nsStringStream.h"
 #include "nsIStreamConverterService.h"
 #include "nsICachingChannel.h"
@@ -453,9 +454,7 @@ nsXMLHttpRequest::~nsXMLHttpRequest()
 void
 nsXMLHttpRequest::RootResultArrayBuffer()
 {
-  nsContentUtils::PreserveWrapper(
-    static_cast<nsIDOMEventTarget*>(
-      static_cast<nsDOMEventTargetHelper*>(this)), this);
+  nsContentUtils::PreserveWrapper(static_cast<nsPIDOMEventTarget*>(this), this);
 }
 
 /**
@@ -482,8 +481,7 @@ nsXMLHttpRequest::Init()
   nsIScriptSecurityManager *secMan = nsContentUtils::GetSecurityManager();
   nsCOMPtr<nsIPrincipal> subjectPrincipal;
   if (secMan) {
-    nsresult rv = secMan->GetSubjectPrincipal(getter_AddRefs(subjectPrincipal));
-    NS_ENSURE_SUCCESS(rv, rv);
+    secMan->GetSubjectPrincipal(getter_AddRefs(subjectPrincipal));
   }
   NS_ENSURE_STATE(subjectPrincipal);
   mPrincipal = subjectPrincipal;
@@ -615,6 +613,8 @@ DOMCI_DATA(XMLHttpRequest, nsXMLHttpRequest)
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(nsXMLHttpRequest)
   NS_INTERFACE_MAP_ENTRY(nsIXMLHttpRequest)
   NS_INTERFACE_MAP_ENTRY(nsIJSXMLHttpRequest)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMLoadListener)
+  NS_INTERFACE_MAP_ENTRY(nsIDOMEventListener)
   NS_INTERFACE_MAP_ENTRY(nsIRequestObserver)
   NS_INTERFACE_MAP_ENTRY(nsIStreamListener)
   NS_INTERFACE_MAP_ENTRY(nsIChannelEventSink)
@@ -867,9 +867,9 @@ nsresult nsXMLHttpRequest::CreateResponseArrayBuffer(JSContext *aCx)
   }
 
   if (dataLen > 0) {
-    JSObject *abuf = js::ArrayBuffer::getArrayBuffer(mResultArrayBuffer);
+    js::ArrayBuffer *abuf = js::ArrayBuffer::fromJSObject(mResultArrayBuffer);
     NS_ASSERTION(abuf, "What happened?");
-    memcpy(JS_GetArrayBufferData(abuf), mResponseBody.BeginReading(), dataLen);
+    memcpy(abuf->data, mResponseBody.BeginReading(), dataLen);
   }
 
   return NS_OK;
@@ -1275,7 +1275,7 @@ nsXMLHttpRequest::CreateReadystatechangeEvent(nsIDOMEvent** aDOMEvent)
 }
 
 void
-nsXMLHttpRequest::DispatchProgressEvent(nsDOMEventTargetHelper* aTarget,
+nsXMLHttpRequest::DispatchProgressEvent(nsPIDOMEventTarget* aTarget,
                                         const nsAString& aType,
                                         PRBool aUseLSEventWrapper,
                                         PRBool aLengthComputable,
@@ -1616,25 +1616,8 @@ void nsXMLHttpRequest::CreateResponseBlob(nsIRequest *request)
   if (file) {
     nsCAutoString contentType;
     mChannel->GetContentType(contentType);
-    nsCOMPtr<nsISupports> cacheToken;
-    if (cc) {
-      cc->GetCacheToken(getter_AddRefs(cacheToken));
-    }
-
-    NS_ConvertASCIItoUTF16 wideContentType(contentType);
-
-    nsCOMPtr<nsIDOMBlob> blob =
-      new nsDOMFile(file, wideContentType, cacheToken);
-
-    // XXXkhuey this is a complete hack ... but we need to get 6 out the door
-    // The response blob here should not be a File object, it should only
-    // be a Blob.  Unfortunately, because nsDOMFile has grown through
-    // accretion over the years and is in dangerous need of a refactoring,
-    // slicing it is the easiest way to get there ...
-    PRUint64 size = 0;
-    blob->GetSize(&size);
-    blob->MozSlice(0, size, wideContentType, 2, getter_AddRefs(mResponseBlob));
-    
+    mResponseBlob = new nsDOMFile(file,
+                                  NS_ConvertASCIItoUTF16(contentType));
     mResponseBody.Truncate();
     mResponseBodyUnicode.SetIsVoid(PR_TRUE);
   }
@@ -1647,6 +1630,10 @@ nsXMLHttpRequest::OnDataAvailable(nsIRequest *request, nsISupports *ctxt, nsIInp
   NS_ENSURE_ARG_POINTER(inStr);
 
   NS_ABORT_IF_FALSE(mContext.get() == ctxt,"start context different from OnDataAvailable context");
+
+  if (mResponseType == XML_HTTP_RESPONSE_TYPE_BLOB && !mResponseBlob) {
+    CreateResponseBlob(request);
+  }
 
   PRUint32 totalRead;
   return inStr->ReadSegments(nsXMLHttpRequest::StreamReaderFunc, (void*)this, count, &totalRead);
@@ -1802,6 +1789,23 @@ nsXMLHttpRequest::OnStartRequest(nsIRequest *request, nsISupports *ctxt)
       }
     }
 
+    // Register as a load listener on the document
+    nsCOMPtr<nsPIDOMEventTarget> target(do_QueryInterface(mResponseXML));
+    if (target) {
+      nsWeakPtr requestWeak =
+        do_GetWeakReference(static_cast<nsIXMLHttpRequest*>(this));
+      nsCOMPtr<nsIDOMEventListener> proxy = new nsLoadListenerProxy(requestWeak);
+      if (!proxy) return NS_ERROR_OUT_OF_MEMORY;
+
+      // This will addref the proxy
+      rv = target->AddEventListenerByIID(static_cast<nsIDOMEventListener*>
+                                                    (proxy),
+                                         NS_GET_IID(nsIDOMLoadListener));
+      NS_ENSURE_SUCCESS(rv, rv);
+    }
+
+
+
     nsCOMPtr<nsIStreamListener> listener;
     nsCOMPtr<nsILoadGroup> loadGroup;
     channel->GetLoadGroup(getter_AddRefs(loadGroup));
@@ -1876,7 +1880,7 @@ nsXMLHttpRequest::OnStopRequest(nsIRequest *request, nsISupports *ctxt, nsresult
   if (mState & XML_HTTP_REQUEST_PARSEBODY && mXMLParserStreamListener) {
     parser = do_QueryInterface(mXMLParserStreamListener);
     NS_ABORT_IF_FALSE(parser, "stream listener was expected to be a parser");
-    mXMLParserStreamListener->OnStopRequest(request, ctxt, status);
+    rv = mXMLParserStreamListener->OnStopRequest(request, ctxt, status);
   }
 
   mXMLParserStreamListener = nsnull;
@@ -1888,6 +1892,9 @@ nsXMLHttpRequest::OnStopRequest(nsIRequest *request, nsISupports *ctxt, nsresult
 
   if (NS_SUCCEEDED(status) && mResponseType == XML_HTTP_RESPONSE_TYPE_BLOB) {
     if (!mResponseBlob) {
+      CreateResponseBlob(request);
+    }
+    if (!mResponseBlob) {
       // Smaller files may be written in cache map instead of separate files.
       // Also, no-store response cannot be written in persistent cache.
       nsCAutoString contentType;
@@ -1898,20 +1905,9 @@ nsXMLHttpRequest::OnStopRequest(nsIRequest *request, nsISupports *ctxt, nsresult
       void *blobData = PR_Malloc(blobLen);
       if (blobData) {
         memcpy(blobData, mResponseBody.BeginReading(), blobLen);
-
-        NS_ConvertASCIItoUTF16 wideContentType(contentType);
-        nsCOMPtr<nsIDOMBlob> blob =
+        mResponseBlob =
           new nsDOMMemoryFile(blobData, blobLen, EmptyString(),
-                              wideContentType);
-
-        // XXXkhuey this is a complete hack ... but we need to get 6 out the door
-        // The response blob here should not be a File object, it should only
-        // be a Blob.  Unfortunately, because nsDOMFile has grown through
-        // accretion over the years and is in dangerous need of a refactoring,
-        // slicing it is the easiest way to get there ...
-        blob->MozSlice(0, blobLen, wideContentType,
-                       2, getter_AddRefs(mResponseBlob));
-
+                              NS_ConvertASCIItoUTF16(contentType));
         mResponseBody.Truncate();
       }
       NS_ASSERTION(mResponseBodyUnicode.IsVoid(),
@@ -1924,18 +1920,43 @@ nsXMLHttpRequest::OnStopRequest(nsIRequest *request, nsISupports *ctxt, nsresult
   mChannelEventSink = nsnull;
   mProgressEventSink = nsnull;
 
-  mState &= ~XML_HTTP_REQUEST_SYNCLOOPING;
-
   if (NS_FAILED(status)) {
     // This can happen if the server is unreachable. Other possible
     // reasons are that the user leaves the page or hits the ESC key.
+    Error(nsnull);
 
-    mErrorLoad = PR_TRUE;
-    mResponseXML = nsnull;
+    // By nulling out channel here we make it so that Send() can test
+    // for that and throw. Also calling the various status
+    // methods/members will not throw.
+    // This matches what IE does.
+    mChannel = nsnull;
+  } else if (!parser || parser->IsParserEnabled()) {
+    // If we don't have a parser, we never attempted to parse the
+    // incoming data, and we can proceed to call RequestCompleted().
+    // Alternatively, if we do have a parser, its possible that we
+    // have given it some data and this caused it to block e.g. by a
+    // by a xml-stylesheet PI. In this case, we will have to wait till
+    // it gets enabled again and RequestCompleted() must be called
+    // later, when we get the load event from the document. If the
+    // parser is enabled, it is not blocked and we can still go ahead
+    // and call RequestCompleted() and expect everything to get
+    // cleaned up immediately.
+    RequestCompleted();
+  } else {
+    ChangeState(XML_HTTP_REQUEST_STOPPED, PR_FALSE);
   }
 
-  NS_ASSERTION(!parser || parser->IsParserEnabled(),
-               "Parser blocked somehow?");
+  mState &= ~XML_HTTP_REQUEST_SYNCLOOPING;
+
+  return rv;
+}
+
+nsresult
+nsXMLHttpRequest::RequestCompleted()
+{
+  nsresult rv = NS_OK;
+
+  mState &= ~XML_HTTP_REQUEST_SYNCLOOPING;
 
   // If we're uninitialized at this point, we encountered an error
   // earlier and listeners have already been notified. Also we do
@@ -1972,19 +1993,12 @@ nsXMLHttpRequest::OnStopRequest(nsIRequest *request, nsISupports *ctxt, nsresult
                           mUploadTransferred, mUploadTotal);
   }
 
-  if (mErrorLoad) {
-    // By nulling out channel here we make it so that Send() can test
-    // for that and throw. Also calling the various status
-    // methods/members will not throw.
-    // This matches what IE does.
-    mChannel = nsnull;
-  }
-  else if (!(mState & XML_HTTP_REQUEST_GOT_FINAL_STOP)) {
+  if (!(mState & XML_HTTP_REQUEST_GOT_FINAL_STOP)) {
     // We're a multipart request, so we're not done. Reset to opened.
     ChangeState(XML_HTTP_REQUEST_OPENED);
   }
 
-  return NS_OK;
+  return rv;
 }
 
 NS_IMETHODIMP
@@ -2514,11 +2528,6 @@ nsXMLHttpRequest::SetRequestHeader(const nsACString& header,
     }
   }
 
-  PRUint16 state;
-  rv = GetReadyState(&state);
-  if (NS_FAILED(rv) || state != OPENED)
-    return NS_ERROR_IN_PROGRESS;
-
   if (!mChannel)             // open() initializes mChannel, and open()
     return NS_ERROR_FAILURE; // must be called before first setRequestHeader()
 
@@ -2581,16 +2590,7 @@ nsXMLHttpRequest::SetRequestHeader(const nsACString& header,
   }
 
   // We need to set, not add to, the header.
-  rv = httpChannel->SetRequestHeader(header, value, PR_FALSE);
-  if (NS_SUCCEEDED(rv)) {
-    // We'll want to duplicate this header for any replacement channels (eg. on redirect)
-    RequestHeader reqHeader = {
-      nsCString(header), nsCString(value)
-    };
-    mModifiedRequestHeaders.AppendElement(reqHeader);
-  }
-
-  return rv;
+  return httpChannel->SetRequestHeader(header, value, PR_FALSE);
 }
 
 /* readonly attribute long readyState; */
@@ -2715,6 +2715,77 @@ nsXMLHttpRequest::SetWithCredentials(PRBool aWithCredentials)
   return NS_OK;
 }
 
+
+// nsIDOMEventListener
+nsresult
+nsXMLHttpRequest::HandleEvent(nsIDOMEvent* aEvent)
+{
+  return NS_OK;
+}
+
+
+// nsIDOMLoadListener
+nsresult
+nsXMLHttpRequest::Load(nsIDOMEvent* aEvent)
+{
+  // If we had an XML error in the data, the parser terminated and
+  // we received the load event, even though we might still be
+  // loading data into responseBody/responseText. We will delay
+  // sending the load event until OnStopRequest(). In normal case
+  // there is no harm done, we will get OnStopRequest() immediately
+  // after the load event.
+  //
+  // However, if the data we were loading caused the parser to stop,
+  // for example when loading external stylesheets, we can receive
+  // the OnStopRequest() call before the parser has finished building
+  // the document. In that case, we obviously should not fire the event
+  // in OnStopRequest(). For those documents, we must wait for the load
+  // event from the document to fire our RequestCompleted().
+  if (mState & XML_HTTP_REQUEST_STOPPED) {
+    RequestCompleted();
+  }
+  return NS_OK;
+}
+
+nsresult
+nsXMLHttpRequest::Unload(nsIDOMEvent* aEvent)
+{
+  return NS_OK;
+}
+
+nsresult
+nsXMLHttpRequest::BeforeUnload(nsIDOMEvent* aEvent)
+{
+  return NS_OK;
+}
+
+nsresult
+nsXMLHttpRequest::Abort(nsIDOMEvent* aEvent)
+{
+  Abort();
+
+  return NS_OK;
+}
+
+nsresult
+nsXMLHttpRequest::Error(nsIDOMEvent* aEvent)
+{
+  mResponseXML = nsnull;
+  ChangeState(XML_HTTP_REQUEST_DONE);
+
+  mState &= ~XML_HTTP_REQUEST_SYNCLOOPING;
+
+  DispatchProgressEvent(this, NS_LITERAL_STRING(ERROR_STR), PR_FALSE,
+                        mResponseBody.Length(), 0);
+  if (mUpload && !mUploadComplete) {
+    mUploadComplete = PR_TRUE;
+    DispatchProgressEvent(mUpload, NS_LITERAL_STRING(ERROR_STR), PR_TRUE,
+                          mUploadTransferred, mUploadTotal);
+  }
+
+  return NS_OK;
+}
+
 nsresult
 nsXMLHttpRequest::ChangeState(PRUint32 aState, PRBool aBroadcast)
 {
@@ -2777,7 +2848,7 @@ private:
 NS_IMPL_CYCLE_COLLECTION_CLASS(AsyncVerifyRedirectCallbackForwarder)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(AsyncVerifyRedirectCallbackForwarder)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mXHR, nsIXMLHttpRequest)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_NSCOMPTR_AMBIGUOUS(mXHR, nsIDOMEventListener)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(AsyncVerifyRedirectCallbackForwarder)
@@ -2849,22 +2920,10 @@ nsXMLHttpRequest::OnRedirectVerifyCallback(nsresult result)
   NS_ASSERTION(mRedirectCallback, "mRedirectCallback not set in callback");
   NS_ASSERTION(mNewRedirectChannel, "mNewRedirectChannel not set in callback");
 
-  if (NS_SUCCEEDED(result)) {
+  if (NS_SUCCEEDED(result))
     mChannel = mNewRedirectChannel;
-
-    nsCOMPtr<nsIHttpChannel> httpChannel(do_QueryInterface(mChannel));
-    if (httpChannel) {
-      // Ensure all original headers are duplicated for the new channel (bug #553888)
-      for (PRUint32 i = mModifiedRequestHeaders.Length(); i > 0; ) {
-        --i;
-        httpChannel->SetRequestHeader(mModifiedRequestHeaders[i].header,
-                                      mModifiedRequestHeaders[i].value,
-                                      PR_FALSE);
-      }
-    }
-  } else {
+  else
     mErrorLoad = PR_TRUE;
-  }
 
   mNewRedirectChannel = nsnull;
 

@@ -94,7 +94,6 @@ public:
      */
     void                    SetCacheParentDirectory(nsILocalFile * parentDir);
     void                    SetCapacity(PRUint32  capacity);
-    void                    SetMaxEntrySize(PRInt32  maxSizeInKilobytes);
 
 /* private: */
 
@@ -136,7 +135,6 @@ private:
     nsCOMPtr<nsILocalFile>  mCacheDirectory;
     nsDiskCacheBindery      mBindery;
     PRUint32                mCacheCapacity;     // Unit is KiB's
-    PRInt32                 mMaxEntrySize;      // Unit is bytes internally
     // XXX need soft/hard limits, currentTotal
     nsDiskCacheMap          mCacheMap;
     PRPackedBool            mInitialized;

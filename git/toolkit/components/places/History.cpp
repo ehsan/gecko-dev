@@ -56,7 +56,6 @@
 #include "nsNetUtil.h"
 #include "nsIXPConnect.h"
 #include "mozilla/Util.h"
-#include "nsContentUtils.h"
 
 // Initial size for the cache holding visited status observers.
 #define VISIT_OBSERVERS_INITIAL_CACHE_SIZE 128
@@ -465,7 +464,7 @@ public:
         mPlace.transitionType != nsINavHistoryService::TRANSITION_FRAMED_LINK) {
       navHistory->NotifyOnVisit(uri, mPlace.visitId, mPlace.visitTime,
                                 mPlace.sessionId, mReferrer.visitId,
-                                mPlace.transitionType, mPlace.guid);
+                                mPlace.transitionType);
     }
 
     nsCOMPtr<nsIObserverService> obsService =
@@ -500,11 +499,9 @@ public:
    *        The new title to notify about.
    */
   NotifyTitleObservers(const nsCString& aSpec,
-                       const nsString& aTitle,
-                       const nsCString& aGUID)
+                       const nsString& aTitle)
   : mSpec(aSpec)
   , mTitle(aTitle)
-  , mGUID(aGUID)
   {
   }
 
@@ -517,14 +514,13 @@ public:
     NS_ENSURE_TRUE(navHistory, NS_ERROR_OUT_OF_MEMORY);
     nsCOMPtr<nsIURI> uri;
     (void)NS_NewURI(getter_AddRefs(uri), mSpec);
-    navHistory->NotifyTitleChange(uri, mTitle, mGUID);
+    navHistory->NotifyTitleChange(uri, mTitle);
 
     return NS_OK;
   }
 private:
   const nsCString mSpec;
   const nsString mTitle;
-  const nsCString mGUID;
 };
 
 /**
@@ -701,7 +697,7 @@ public:
 
       // Notify about title change if needed.
       if ((!known && !place.title.IsVoid()) || place.titleChanged) {
-        event = new NotifyTitleObservers(place.spec, place.title, place.guid);
+        event = new NotifyTitleObservers(place.spec, place.title);
         rv = NS_DispatchToMainThread(event);
         NS_ENSURE_SUCCESS(rv, rv);
       }
@@ -805,9 +801,8 @@ private:
       NS_ENSURE_SUCCESS(rv, rv);
 
       // We need the place id and guid of the page we just inserted when we
-      // have a callback or when the GUID isn't known.  No point in doing the
-      // disk I/O if we do not need it.
-      if (mCallback || aPlace.guid.IsEmpty()) {
+      // have a callback.  No point in doing the disk I/O if we do not need it.
+      if (mCallback) {
         bool exists = mHistory->FetchPageInfo(aPlace);
         if (!exists) {
           NS_NOTREACHED("should have an entry in moz_places");
@@ -1170,7 +1165,7 @@ public:
     }
 
     nsCOMPtr<nsIRunnable> event =
-      new NotifyTitleObservers(mPlace.spec, mPlace.title, mPlace.guid);
+      new NotifyTitleObservers(mPlace.spec, mPlace.title);
     nsresult rv = NS_DispatchToMainThread(event);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1279,8 +1274,6 @@ History::NotifyVisited(nsIURI* aURI)
 {
   NS_ASSERTION(aURI, "Ruh-roh!  A NULL URI was passed to us!");
 
-  nsAutoScriptBlocker scriptBlocker;
-
   if (XRE_GetProcessType() == GeckoProcessType_Default) {
     mozilla::dom::ContentParent* cpp = 
       mozilla::dom::ContentParent::GetSingleton(PR_FALSE);
@@ -1301,18 +1294,14 @@ History::NotifyVisited(nsIURI* aURI)
     return;
   }
 
-  // Update status of each Link node.
-  {
-    // RemoveEntry will destroy the array, this iterator should not survive it.
-    ObserverArray::ForwardIterator iter(key->array);
-    while (iter.HasMore()) {
-      Link* link = iter.GetNext();
-      link->SetLinkState(eLinkState_Visited);
-      // Verify that the observers hash doesn't mutate while looping through
-      // the links associated with this URI.
-      NS_ABORT_IF_FALSE(key == mObservers.GetEntry(aURI),
-                        "The URIs hash mutated!");
-    }
+  // Walk through the array, and update each Link node.
+  const ObserverArray& observers = key->array;
+  ObserverArray::index_type len = observers.Length();
+  for (ObserverArray::index_type i = 0; i < len; i++) {
+    Link* link = observers[i];
+    link->SetLinkState(eLinkState_Visited);
+    NS_ASSERTION(len == observers.Length(),
+                 "Calling SetLinkState added or removed an observer!");
   }
 
   // All the registered nodes can now be removed for this URI.

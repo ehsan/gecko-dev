@@ -38,6 +38,8 @@
 #ifndef GFX_CANVASLAYEROGL_H
 #define GFX_CANVASLAYEROGL_H
 
+#include "mozilla/layers/PLayers.h"
+#include "mozilla/layers/ShadowLayers.h"
 
 #include "LayerManagerOGL.h"
 #include "gfxASurface.h"
@@ -108,7 +110,7 @@ public:
 
   // CanvasLayer impl
   virtual void Initialize(const Data& aData);
-  virtual void Init(const SurfaceDescriptor& aNewFront, const nsIntSize& aSize, bool needYFlip);
+  virtual void Init(const SurfaceDescriptor& aNewFront, const nsIntSize& aSize);
 
   // This isn't meaningful for shadow canvas.
   virtual void Updated(const nsIntRect&) {}
@@ -131,7 +133,6 @@ private:
   nsRefPtr<TextureImage> mTexImage;
 
   SurfaceDescriptor mDeadweight;
-  PRPackedBool mNeedsYFlip;
 };
 
 } /* layers */

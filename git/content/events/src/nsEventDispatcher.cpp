@@ -37,7 +37,7 @@
 
 #include "nsEventDispatcher.h"
 #include "nsDOMEvent.h"
-#include "nsIDOMEventTarget.h"
+#include "nsPIDOMEventTarget.h"
 #include "nsPresContext.h"
 #include "nsIPrivateDOMEvent.h"
 #include "nsEventListenerManager.h"
@@ -64,12 +64,12 @@ static nsEventTargetChainItem* gCachedETCI = nsnull;
 class nsEventTargetChainItem
 {
 private:
-  nsEventTargetChainItem(nsIDOMEventTarget* aTarget,
+  nsEventTargetChainItem(nsPIDOMEventTarget* aTarget,
                          nsEventTargetChainItem* aChild = nsnull);
 
 public:
   static nsEventTargetChainItem* Create(nsFixedSizeAllocator* aAllocator, 
-                                        nsIDOMEventTarget* aTarget,
+                                        nsPIDOMEventTarget* aTarget,
                                         nsEventTargetChainItem* aChild = nsnull)
   {
     void* place = nsnull;
@@ -109,12 +109,12 @@ public:
     return !!(mTarget);
   }
 
-  nsIDOMEventTarget* GetNewTarget()
+  nsPIDOMEventTarget* GetNewTarget()
   {
     return mNewTarget;
   }
 
-  void SetNewTarget(nsIDOMEventTarget* aNewTarget)
+  void SetNewTarget(nsPIDOMEventTarget* aNewTarget)
   {
     mNewTarget = aNewTarget;
   }
@@ -161,7 +161,7 @@ public:
     return !!(mFlags & NS_TARGET_CHAIN_MAY_HAVE_MANAGER);
   }
   
-  nsIDOMEventTarget* CurrentTarget()
+  nsPIDOMEventTarget* CurrentTarget()
   {
     return mTarget;
   }
@@ -186,7 +186,7 @@ public:
 
   /**
    * If the current item in the event target chain has an event listener
-   * manager, this method calls nsEventListenerManager::HandleEvent().
+   * manager, this method calls nsIEventListenerManager::HandleEvent().
    */
   nsresult HandleEvent(nsEventChainPostVisitor& aVisitor, PRUint32 aFlags,
                        PRBool aMayHaveNewListenerManagers,
@@ -232,7 +232,7 @@ public:
     sMaxEtciCount = 0;
   }
 
-  nsCOMPtr<nsIDOMEventTarget>       mTarget;
+  nsCOMPtr<nsPIDOMEventTarget>      mTarget;
   nsEventTargetChainItem*           mChild;
   union {
     nsEventTargetChainItem*         mParent;
@@ -243,7 +243,7 @@ public:
   PRUint16                          mItemFlags;
   nsCOMPtr<nsISupports>             mItemData;
   // Event retargeting must happen whenever mNewTarget is non-null.
-  nsCOMPtr<nsIDOMEventTarget>       mNewTarget;
+  nsCOMPtr<nsPIDOMEventTarget>      mNewTarget;
   // Cache mTarget's event listener manager.
   nsRefPtr<nsEventListenerManager>  mManager;
 
@@ -254,7 +254,7 @@ public:
 PRUint32 nsEventTargetChainItem::sMaxEtciCount = 0;
 PRUint32 nsEventTargetChainItem::sCurrentEtciCount = 0;
 
-nsEventTargetChainItem::nsEventTargetChainItem(nsIDOMEventTarget* aTarget,
+nsEventTargetChainItem::nsEventTargetChainItem(nsPIDOMEventTarget* aTarget,
                                                nsEventTargetChainItem* aChild)
 : mChild(aChild), mParent(nsnull), mFlags(0), mItemFlags(0)
 {
@@ -298,7 +298,7 @@ nsEventTargetChainItem::HandleEventTargetChain(nsEventChainPostVisitor& aVisitor
 {
   PRUint32 createdELMs = nsEventListenerManager::sCreatedCount;
   // Save the target so that it can be restored later.
-  nsCOMPtr<nsIDOMEventTarget> firstTarget = aVisitor.mEvent->target;
+  nsCOMPtr<nsPIDOMEventTarget> firstTarget = aVisitor.mEvent->target;
 
   // Capture
   nsEventTargetChainItem* item = this;
@@ -318,7 +318,7 @@ nsEventTargetChainItem::HandleEventTargetChain(nsEventChainPostVisitor& aVisitor
       // item is at anonymous boundary. Need to retarget for the child items.
       nsEventTargetChainItem* nextTarget = item->mChild;
       while (nextTarget) {
-        nsIDOMEventTarget* newTarget = nextTarget->GetNewTarget();
+        nsPIDOMEventTarget* newTarget = nextTarget->GetNewTarget();
         if (newTarget) {
           aVisitor.mEvent->target = newTarget;
           break;
@@ -351,7 +351,7 @@ nsEventTargetChainItem::HandleEventTargetChain(nsEventChainPostVisitor& aVisitor
   aVisitor.mEvent->flags &= ~NS_EVENT_FLAG_CAPTURE;
   item = item->mParent;
   while (item) {
-    nsIDOMEventTarget* newTarget = item->GetNewTarget();
+    nsPIDOMEventTarget* newTarget = item->GetNewTarget();
     if (newTarget) {
       // Item is at anonymous boundary. Need to retarget for the current item
       // and for parent items.
@@ -468,7 +468,7 @@ nsEventDispatcher::Dispatch(nsISupports* aTarget,
                             nsIDOMEvent* aDOMEvent,
                             nsEventStatus* aEventStatus,
                             nsDispatchingCallback* aCallback,
-                            nsCOMArray<nsIDOMEventTarget>* aTargets)
+                            nsCOMArray<nsPIDOMEventTarget>* aTargets)
 {
   NS_ASSERTION(aEvent, "Trying to dispatch without nsEvent!");
   NS_ENSURE_TRUE(!NS_IS_EVENT_IN_DISPATCH(aEvent),
@@ -487,22 +487,7 @@ nsEventDispatcher::Dispatch(nsISupports* aTarget,
                            timer_event_name ? timer_event_name : "<other>");
 #endif
 
-  nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(aTarget);
-
-  PRBool retargeted = PR_FALSE;
-
-  if (aEvent->flags & NS_EVENT_RETARGET_TO_NON_NATIVE_ANONYMOUS) {
-    nsCOMPtr<nsIContent> content = do_QueryInterface(target);
-    if (content && content->IsInNativeAnonymousSubtree()) {
-      nsCOMPtr<nsPIDOMEventTarget> newTarget =
-        do_QueryInterface(content->FindFirstNonNativeAnonymous());
-      NS_ENSURE_STATE(newTarget);
-
-      aEvent->originalTarget = target;
-      target = newTarget;
-      retargeted = PR_TRUE;
-    }
-  }
+  nsCOMPtr<nsPIDOMEventTarget> target = do_QueryInterface(aTarget);
 
   if (aEvent->flags & NS_EVENT_FLAG_ONLY_CHROME_DISPATCH) {
     nsCOMPtr<nsINode> node = do_QueryInterface(aTarget);
@@ -518,14 +503,14 @@ nsEventDispatcher::Dispatch(nsISupports* aTarget,
     if (!nsContentUtils::IsChromeDoc(doc)) {
       nsPIDOMWindow* win = doc ? doc->GetInnerWindow() : nsnull;
       // If we can't dispatch the event to chrome, do nothing.
-      nsIDOMEventTarget* piTarget = win ? win->GetChromeEventHandler() : nsnull;
+      nsPIDOMEventTarget* piTarget = win ? win->GetChromeEventHandler() : nsnull;
       NS_ENSURE_TRUE(piTarget, NS_OK);
 
       nsCOMPtr<nsIFrameLoaderOwner> flo = do_QueryInterface(piTarget);
       if (flo) {
         nsRefPtr<nsFrameLoader> fl = flo->GetFrameLoader();
         if (fl) {
-          nsIDOMEventTarget* t = fl->GetTabChildGlobalAsEventTarget();
+          nsPIDOMEventTarget* t = fl->GetTabChildGlobalAsEventTarget();
           piTarget = t ? t : piTarget;
         }
       }
@@ -594,16 +579,7 @@ nsEventDispatcher::Dispatch(nsISupports* aTarget,
     aEvent->target = aEvent->target->GetTargetForEventTargetChain();
     NS_ENSURE_STATE(aEvent->target);
   }
-
-  if (retargeted) {
-    aEvent->originalTarget =
-      aEvent->originalTarget->GetTargetForEventTargetChain();
-    NS_ENSURE_STATE(aEvent->originalTarget);
-  }
-  else {
-    aEvent->originalTarget = aEvent->target;
-  }
-
+  aEvent->originalTarget = aEvent->target;
   nsCOMPtr<nsIContent> content = do_QueryInterface(aEvent->originalTarget);
   PRBool isInAnon = (content && content->IsInAnonymousSubtree());
 
@@ -619,7 +595,7 @@ nsEventDispatcher::Dispatch(nsISupports* aTarget,
   if (preVisitor.mCanHandle) {
     // At least the original target can handle the event.
     // Setting the retarget to the |target| simplifies retargeting code.
-    nsCOMPtr<nsIDOMEventTarget> t = aEvent->target;
+    nsCOMPtr<nsPIDOMEventTarget> t = do_QueryInterface(aEvent->target);
     targetEtci->SetNewTarget(t);
     nsEventTargetChainItem* topEtci = targetEtci;
     while (preVisitor.mParentTarget) {
@@ -802,9 +778,11 @@ nsEventDispatcher::CreateEvent(nsPresContext* aPresContext,
     case NS_TRANSITION_EVENT:
       return NS_NewDOMTransitionEvent(aDOMEvent, aPresContext,
                                       static_cast<nsTransitionEvent*>(aEvent));
+#ifdef MOZ_CSS_ANIMATIONS
     case NS_ANIMATION_EVENT:
       return NS_NewDOMAnimationEvent(aDOMEvent, aPresContext,
                                      static_cast<nsAnimationEvent*>(aEvent));
+#endif
     }
 
     // For all other types of events, create a vanilla event object.
@@ -835,8 +813,6 @@ nsEventDispatcher::CreateEvent(nsPresContext* aPresContext,
     return NS_NewDOMPopupBlockedEvent(aDOMEvent, aPresContext, nsnull);
   if (aEventType.LowerCaseEqualsLiteral("deviceorientationevent"))
     return NS_NewDOMDeviceOrientationEvent(aDOMEvent, aPresContext, nsnull);
-  if (aEventType.LowerCaseEqualsLiteral("devicemotionevent"))
-    return NS_NewDOMDeviceMotionEvent(aDOMEvent, aPresContext, nsnull);
   if (aEventType.LowerCaseEqualsLiteral("uievent") ||
       aEventType.LowerCaseEqualsLiteral("uievents"))
     return NS_NewDOMUIEvent(aDOMEvent, aPresContext, nsnull);
@@ -884,8 +860,10 @@ nsEventDispatcher::CreateEvent(nsPresContext* aPresContext,
   // is probably wrong!
   if (aEventType.LowerCaseEqualsLiteral("transitionevent"))
     return NS_NewDOMTransitionEvent(aDOMEvent, aPresContext, nsnull);
+#ifdef MOZ_CSS_ANIMATIONS
   if (aEventType.LowerCaseEqualsLiteral("animationevent"))
     return NS_NewDOMAnimationEvent(aDOMEvent, aPresContext, nsnull);
+#endif
   if (aEventType.LowerCaseEqualsLiteral("popstateevent"))
     return NS_NewDOMPopStateEvent(aDOMEvent, aPresContext, nsnull);
   if (aEventType.LowerCaseEqualsLiteral("mozaudioavailableevent"))

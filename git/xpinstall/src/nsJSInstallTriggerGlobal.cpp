@@ -256,9 +256,8 @@ InstallTriggerGlobalInstall(JSContext *cx, JSObject *obj, uintN argc, jsval *arg
   }
   // get the principal.  if it doesn't exist, die.
   nsCOMPtr<nsIPrincipal> principal;
-  nsresult rv = secman->GetSubjectPrincipal(getter_AddRefs(principal));
-
-  if (NS_FAILED(rv) || !principal)
+  secman->GetSubjectPrincipal(getter_AddRefs(principal));
+  if (!principal)
   {
     JS_ReportError(cx, "Could not get the Subject Principal during InstallTrigger.Install()");
     return JS_FALSE;
@@ -370,7 +369,7 @@ InstallTriggerGlobalInstall(JSContext *cx, JSObject *obj, uintN argc, jsval *arg
             }
 
             // Make sure we're allowed to load this URL and the icon URL
-            rv = InstallTriggerCheckLoadURIFromScript(cx, xpiURL);
+            nsresult rv = InstallTriggerCheckLoadURIFromScript(cx, xpiURL);
             if (NS_FAILED(rv))
                 abortLoad = PR_TRUE;
 
@@ -405,8 +404,8 @@ InstallTriggerGlobalInstall(JSContext *cx, JSObject *obj, uintN argc, jsval *arg
     if (!abortLoad && trigger->Size() > 0)
     {
         nsCOMPtr<nsIURI> checkuri;
-        rv = nativeThis->GetOriginatingURI(globalObject,
-                                           getter_AddRefs(checkuri));
+        nsresult rv = nativeThis->GetOriginatingURI(globalObject,
+                                                    getter_AddRefs(checkuri));
         if (NS_SUCCEEDED(rv))
         {
             nsCOMPtr<nsIDOMWindowInternal> win(do_QueryInterface(globalObject));

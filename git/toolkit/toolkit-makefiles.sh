@@ -311,6 +311,7 @@ MAKEFILES_libreg="
   modules/libreg/Makefile
   modules/libreg/include/Makefile
   modules/libreg/src/Makefile
+  modules/libreg/standalone/Makefile
 "
 
 MAKEFILES_libpref="
@@ -558,6 +559,11 @@ MAKEFILES_embedding="
   embedding/Makefile
   embedding/base/Makefile
   embedding/browser/Makefile
+  embedding/browser/activex/src/Makefile
+  embedding/browser/activex/src/common/Makefile
+  embedding/browser/activex/src/control/Makefile
+  embedding/browser/activex/src/control_kicker/Makefile
+  embedding/browser/activex/src/plugin/Makefile
   embedding/browser/build/Makefile
   embedding/browser/webBrowser/Makefile
   embedding/components/Makefile
@@ -681,10 +687,6 @@ MAKEFILES_jsctypes="
   toolkit/components/ctypes/tests/Makefile
 "
 
-MAKEFILES_jsreflect="
-  toolkit/components/reflect/Makefile
-"
-
 MAKEFILES_libpr0n="
   modules/libpr0n/Makefile
   modules/libpr0n/build/Makefile
@@ -751,7 +753,6 @@ add_makefiles "
   $MAKEFILES_jsipc
   $MAKEFILES_jsdebugger
   $MAKEFILES_jsctypes
-  $MAKEFILES_jsreflect
   $MAKEFILES_content
   $MAKEFILES_layout
   $MAKEFILES_libimg
@@ -946,16 +947,11 @@ if [ "$MOZ_ZIPWRITER" ]; then
   "
 fi
 
-if [ "$MOZ_MORKREADER" ]; then
-  add_makefiles "
-    db/morkreader/Makefile
-    db/morkreader/external/Makefile
-  "
-fi
-
 if [ "$MOZ_STORAGE" ]; then
   add_makefiles "
     db/sqlite3/src/Makefile
+    db/morkreader/Makefile
+    db/morkreader/external/Makefile
     storage/Makefile
     storage/public/Makefile
     storage/src/Makefile
@@ -1126,6 +1122,12 @@ if [ "$MOZ_XTF" ]; then
     content/xtf/Makefile
     content/xtf/public/Makefile
     content/xtf/src/Makefile
+  "
+fi
+
+if [ "$MOZ_STATIC_COMPONENTS" ]; then
+  add_makefiles "
+    modules/staticmod/Makefile
   "
 fi
 
