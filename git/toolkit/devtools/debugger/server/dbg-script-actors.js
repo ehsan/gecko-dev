@@ -19,19 +19,22 @@
  *        An object with preNest and postNest methods for calling when entering
  *        and exiting a nested event loop, addToParentPool and
  *        removeFromParentPool methods for handling the lifetime of actors that
- *        will outlive the thread, like breakpoints.
- * @param aGlobal object [optional]
- *        An optional (for content debugging only) reference to the content
- *        window.
+ *        will outlive the thread, like breakpoints, and also an optional (for
+ *        content debugging) browser property for getting a reference to the
+ *        content window.
  */
-function ThreadActor(aHooks, aGlobal)
+function ThreadActor(aHooks)
 {
   this._state = "detached";
   this._frameActors = [];
   this._environmentActors = [];
   this._hooks = {};
-  this._hooks = aHooks;
-  this.global = aGlobal;
+  if (aHooks) {
+    this._hooks = aHooks;
+    if (aHooks.browser) {
+      this.global = aHooks.browser.contentWindow.wrappedJSObject;
+    }
+  }
   this._scripts = {};
   this.findGlobals = this.globalManager.findGlobals.bind(this);
   this.onNewGlobal = this.globalManager.onNewGlobal.bind(this);

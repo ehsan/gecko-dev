@@ -451,13 +451,11 @@ nsGenericHTMLElement::GetAccessKeyLabel(nsAString& aLabel)
 {
   nsPresContext *presContext = GetPresContext();
 
-  if (presContext) {
-    nsAutoString suffix;
-    GetAccessKey(suffix);
-    if (!suffix.IsEmpty() && 
-        presContext->EventStateManager()->GetAccessKeyLabelPrefix(aLabel)) {
+  if (presContext &&
+    presContext->EventStateManager()->GetAccessKeyLabelPrefix(aLabel)) {
+      nsAutoString suffix;
+      GetAccessKey(suffix);
       aLabel.Append(suffix);
-    }
   }
 
   return NS_OK;
