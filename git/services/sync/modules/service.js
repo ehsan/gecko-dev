@@ -1347,7 +1347,7 @@ Sync11Service.prototype = {
     try {
       let collectionURL = this.storageURL + "meta/fxa_credentials";
       let cryptoWrapper = this.recordManager.get(collectionURL);
-      if (!cryptoWrapper || !cryptoWrapper.payload) {
+      if (!cryptoWrapper.payload) {
         // nothing to decrypt - .decrypt is noisy in that case, so just bail
         // now.
         return Promise.resolve(null);

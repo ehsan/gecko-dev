@@ -23,7 +23,6 @@ const {Task} = Cu.import("resource://gre/modules/Task.jsm", {});
 const {RuntimeScanners, RuntimeTypes} = require("devtools/webide/runtimes");
 const {NetUtil} = Cu.import("resource://gre/modules/NetUtil.jsm", {});
 const Telemetry = require("devtools/shared/telemetry");
-const {ProjectBuilding} = require("./build");
 
 const Strings = Services.strings.createBundle("chrome://browser/locale/devtools/webide.properties");
 
@@ -454,8 +453,6 @@ let AppManager = exports.AppManager = {
     return Task.spawn(function* () {
       let self = AppManager;
 
-      let packageDir = yield ProjectBuilding.build(project);
-
       yield self.validateProject(project);
 
       if (project.errorsCount > 0) {
@@ -471,11 +468,8 @@ let AppManager = exports.AppManager = {
 
       let response;
       if (project.type == "packaged") {
-        packageDir = packageDir || project.location;
-        console.log("Installing app from " + packageDir);
-
-        response = yield self._appsFront.installPackaged(packageDir,
-                                                         project.packagedAppOrigin);
+        response = yield self._appsFront.installPackaged(project.location,
+                                                             project.packagedAppOrigin);
 
         // If the packaged app specified a custom origin override,
         // we need to update the local project origin

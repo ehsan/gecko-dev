@@ -77,7 +77,6 @@ let TimelineController = {
   _endTime: 0,
   _markers: [],
   _memory: [],
-  _frames: [],
 
   /**
    * Initialization function, called when the tool is started.
@@ -86,10 +85,8 @@ let TimelineController = {
     this._onRecordingTick = this._onRecordingTick.bind(this);
     this._onMarkers = this._onMarkers.bind(this);
     this._onMemory = this._onMemory.bind(this);
-    this._onFrames = this._onFrames.bind(this);
     gFront.on("markers", this._onMarkers);
     gFront.on("memory", this._onMemory);
-    gFront.on("frames", this._onFrames);
   },
 
   /**
@@ -98,7 +95,6 @@ let TimelineController = {
   destroy: function() {
     gFront.off("markers", this._onMarkers);
     gFront.off("memory", this._onMemory);
-    gFront.off("frames", this._onFrames);
   },
 
   /**
@@ -123,16 +119,6 @@ let TimelineController = {
    */
   getMemory: function() {
     return this._memory;
-  },
-
-  /**
-   * Gets stack frame array reported by the actor.  The marker "stack"
-   * and "endStack" properties are indices into this array.  See
-   * actors/utils/stack.js for more details.
-   * @return array
-   */
-  getFrames: function() {
-    return this._frames;
   },
 
   /**
@@ -177,7 +163,6 @@ let TimelineController = {
     this._endTime = startTime;
     this._markers = [];
     this._memory = [];
-    this._frames = [];
     this._updateId = setInterval(this._onRecordingTick, OVERVIEW_UPDATE_INTERVAL);
   },
 
@@ -239,18 +224,6 @@ let TimelineController = {
    */
   _onMemory: function(delta, measurement) {
     this._memory.push({ delta, value: measurement.total / 1024 / 1024 });
-  },
-
-  /**
-   * Callback handling the "frames" event on the timeline front.
-   *
-   * @param number delta
-   *        The number of milliseconds elapsed since epoch.
-   * @param object frames
-   *        Newly generated frame objects.
-   */
-  _onFrames: function(delta, frames) {
-    Array.prototype.push.apply(this._frames, frames);
   },
 
   /**
@@ -345,11 +318,7 @@ let TimelineView = {
    */
   _onMarkerSelected: function(event, marker) {
     if (event == "selected") {
-      this.markerDetails.render({
-        toolbox: gToolbox,
-        marker: marker,
-        frames: TimelineController.getFrames()
-      });
+      this.markerDetails.render(marker);
     }
     if (event == "unselected") {
       this.markerDetails.empty();
