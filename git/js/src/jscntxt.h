@@ -721,11 +721,7 @@ struct JSClassProtoCache {
 #endif
 };
 
-namespace js {
-
-typedef Vector<JSGCChunkInfo *, 32, SystemAllocPolicy> GCChunks;
-
-} /* namespace js */
+typedef js::Vector<JSGCChunkInfo*, 0, js::SystemAllocPolicy> GCEmptyChunks;
 
 struct JSRuntime {
     /* Runtime state, synchronized by the stateChange/gcLock condvar/lock. */
@@ -749,11 +745,8 @@ struct JSRuntime {
     uint32              protoHazardShape;
 
     /* Garbage collector state, used by jsgc.c. */
-    js::GCChunks        gcChunks;
-    size_t              gcChunkCursor;
-#ifdef DEBUG
-    JSGCArena           *gcEmptyArenaList;
-#endif
+    JSGCChunkInfo       *gcChunkList;
+    GCEmptyChunks       gcEmptyChunks;
     JSGCArenaList       gcArenaList[FINALIZE_LIMIT];
     JSGCDoubleArenaList gcDoubleArenaList;
     JSDHashTable        gcRootsHash;
