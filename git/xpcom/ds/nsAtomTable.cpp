@@ -554,6 +554,11 @@ RegisterStaticAtoms(const nsStaticAtom* aAtoms, uint32_t aAtomCount)
   
   if (!gStaticAtomTable && !gStaticAtomTableSealed) {
     gStaticAtomTable = new nsDataHashtable<nsStringHashKey, nsIAtom*>();
+    if (!gStaticAtomTable) {
+      delete gStaticAtomTable;
+      gStaticAtomTable = nullptr;
+      return NS_ERROR_OUT_OF_MEMORY;
+    }
     gStaticAtomTable->Init();
   }
   

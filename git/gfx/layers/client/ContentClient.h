@@ -136,10 +136,8 @@ public:
                                                      const nsIntRect& aRect,
                                                      uint32_t aFlags,
                                                      gfxASurface**) MOZ_OVERRIDE;
-  virtual TemporaryRef<gfx::DrawTarget> CreateDTBuffer(ContentType aType,
-                                                       const nsIntRect& aRect,
-                                                       uint32_t aFlags,
-                                                       RefPtr<gfx::DrawTarget>* aWhiteDT);
+  virtual TemporaryRef<gfx::DrawTarget>
+    CreateDTBuffer(ContentType aType, const nsIntRect& aRect, uint32_t aFlags);
 
   virtual TextureInfo GetTextureInfo() const MOZ_OVERRIDE
   {
@@ -223,10 +221,12 @@ public:
                                                      gfxASurface** aWhiteSurface) MOZ_OVERRIDE;
   virtual TemporaryRef<gfx::DrawTarget> CreateDTBuffer(ContentType aType,
                                                        const nsIntRect& aRect,
-                                                       uint32_t aFlags,
-                                                       RefPtr<gfx::DrawTarget>* aWhiteDT) MOZ_OVERRIDE;
+                                                       uint32_t aFlags) MOZ_OVERRIDE;
 
-  virtual bool SupportsAzureContent() const MOZ_OVERRIDE;
+  virtual bool SupportsAzureContent() const MOZ_OVERRIDE
+  {
+    return gfxPlatform::GetPlatform()->SupportsAzureContent();
+  }
 
   void DestroyBuffers();
 

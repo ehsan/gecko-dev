@@ -6,7 +6,6 @@
 #include "nsByteBuffer.h"
 #include "nsIInputStream.h"
 #include "nsCRT.h"
-#include "nsAutoPtr.h"
 
 #define MIN_BUFFER_SIZE 32
 
@@ -24,7 +23,7 @@ ByteBufferImpl::Init(uint32_t aBufferSize)
   mSpace = aBufferSize;
   mLength = 0;
   mBuffer = new char[aBufferSize];
-  return NS_OK;
+  return mBuffer ? NS_OK : NS_ERROR_OUT_OF_MEMORY;
 }
 
 NS_IMPL_ISUPPORTS1(ByteBufferImpl,nsIByteBuffer)
@@ -44,9 +43,14 @@ ByteBufferImpl::Create(nsISupports *aOuter, REFNSIID aIID, void **aResult)
   if (aOuter)
     return NS_ERROR_NO_AGGREGATION;
 
-  nsRefPtr<ByteBufferImpl> it = new ByteBufferImpl();
+  ByteBufferImpl* it = new ByteBufferImpl();
+  if (nullptr == it) 
+    return NS_ERROR_OUT_OF_MEMORY;
 
-  return it->QueryInterface(aIID, (void**)aResult);
+  NS_ADDREF(it);
+  nsresult rv = it->QueryInterface(aIID, (void**)aResult);
+  NS_RELEASE(it);
+  return rv;
 }
 
 NS_IMETHODIMP_(uint32_t)
@@ -74,12 +78,15 @@ ByteBufferImpl::Grow(uint32_t aNewSize)
     aNewSize = MIN_BUFFER_SIZE;
   }
   char* newbuf = new char[aNewSize];
-  if (0 != mLength) {
-    memcpy(newbuf, mBuffer, mLength);
+  if (nullptr != newbuf) {
+    if (0 != mLength) {
+      memcpy(newbuf, mBuffer, mLength);
+    }
+    delete[] mBuffer;
+    mBuffer = newbuf;
+    return true;
   }
-  delete[] mBuffer;
-  mBuffer = newbuf;
-  return true;
+  return false;
 }
 
 NS_IMETHODIMP_(int32_t)

@@ -80,16 +80,10 @@ Sampler::GetThreadHandle(PlatformData* aData)
 
 class SamplerThread : public Thread {
  public:
-  SamplerThread(double interval, Sampler* sampler)
+  SamplerThread(int interval, Sampler* sampler)
       : Thread("SamplerThread")
       , interval_(interval)
-      , sampler_(sampler)
-  {
-    interval_ = floor(interval + 0.5);
-    if (interval_ <= 0) {
-      interval_ = 1;
-    }
-  }
+      , sampler_(sampler) {}
 
   static void StartSampler(Sampler* sampler) {
     if (instance_ == NULL) {
@@ -182,7 +176,7 @@ class SamplerThread : public Thread {
   }
 
   Sampler* sampler_;
-  int interval_; // units: ms
+  const int interval_;
 
   // Protects the process wide state below.
   static SamplerThread* instance_;
@@ -193,7 +187,7 @@ class SamplerThread : public Thread {
 SamplerThread* SamplerThread::instance_ = NULL;
 
 
-Sampler::Sampler(double interval, bool profiling, int entrySize)
+Sampler::Sampler(int interval, bool profiling, int entrySize)
     : interval_(interval),
       profiling_(profiling),
       paused_(false),

@@ -12,8 +12,8 @@
 
 #include "gc/Marking.h"
 #ifdef JS_ION
-#include "jit/BaselineFrame.h"
-#include "jit/IonCompartment.h"
+#include "ion/BaselineFrame.h"
+#include "ion/IonCompartment.h"
 #endif
 #include "vm/Interpreter-inl.h"
 #include "vm/Probes-inl.h"

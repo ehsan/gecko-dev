@@ -30,7 +30,6 @@
 # vim: sw=2
 */
 #include <stdio.h>
-#include <math.h>
 
 #include <pthread.h>
 #include <semaphore.h>
@@ -282,16 +281,15 @@ static void* SignalSender(void* arg) {
     // Convert ms to us and subtract 100 us to compensate delays
     // occuring during signal delivery.
     // TODO measure and confirm this.
-    int interval = floor(SamplerRegistry::sampler->interval() * 1000 + 0.5) - 100;
-    if (interval <= 0) {
-      interval = 1;
-    }
-    OS::SleepMicro(interval);
+    const useconds_t interval =
+      SamplerRegistry::sampler->interval() * 1000 - 100;
+    //int result = usleep(interval);
+    usleep(interval);
   }
   return initialize_atfork; // which is guaranteed to be NULL
 }
 
-Sampler::Sampler(double interval, bool profiling, int entrySize)
+Sampler::Sampler(int interval, bool profiling, int entrySize)
     : interval_(interval),
       profiling_(profiling),
       paused_(false),
@@ -436,9 +434,4 @@ void OS::RegisterStartHandler()
   }
 }
 #endif
-
-void OS::SleepMicro(int microseconds)
-{
-  usleep(microseconds);
-}
 

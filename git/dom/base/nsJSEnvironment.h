@@ -50,6 +50,17 @@ public:
                                   bool aCoerceToString,
                                   JS::Value* aRetValue) MOZ_OVERRIDE;
 
+  virtual nsresult CompileScript(const PRUnichar* aText,
+                                 int32_t aTextLength,
+                                 nsIPrincipal *principal,
+                                 const char *aURL,
+                                 uint32_t aLineNo,
+                                 uint32_t aVersion,
+                                 JS::MutableHandle<JSScript*> aScriptObject,
+                                 bool aSaveSource = false) MOZ_OVERRIDE;
+  virtual nsresult ExecuteScript(JSScript* aScriptObject,
+                                 JSObject* aScopeObject) MOZ_OVERRIDE;
+
   virtual nsresult BindCompiledEventHandler(nsISupports *aTarget,
                                             JS::Handle<JSObject*> aScope,
                                             JS::Handle<JSObject*> aHandler,
@@ -71,6 +82,8 @@ public:
 
   virtual bool GetProcessingScriptTag() MOZ_OVERRIDE;
   virtual void SetProcessingScriptTag(bool aResult) MOZ_OVERRIDE;
+
+  virtual bool GetExecutingScript() MOZ_OVERRIDE;
 
   virtual nsresult InitClasses(JS::Handle<JSObject*> aGlobalObj) MOZ_OVERRIDE;
 
@@ -177,6 +190,7 @@ private:
   bool mGCOnDestruction;
   bool mProcessingScriptTag;
 
+  uint32_t mExecuteDepth;
   uint32_t mDefaultJSOptions;
   PRTime mOperationCallbackTime;
 
@@ -192,7 +206,7 @@ private:
 
   static int JSOptionChangedCallback(const char *pref, void *data);
 
-  static bool DOMOperationCallback(JSContext *cx);
+  static JSBool DOMOperationCallback(JSContext *cx);
 };
 
 class nsIJSRuntimeService;
@@ -249,9 +263,9 @@ JSObject* NS_DOMReadStructuredClone(JSContext* cx,
                                     JSStructuredCloneReader* reader, uint32_t tag,
                                     uint32_t data, void* closure);
 
-bool NS_DOMWriteStructuredClone(JSContext* cx,
-                                JSStructuredCloneWriter* writer,
-                                JS::Handle<JSObject*> obj, void *closure);
+JSBool NS_DOMWriteStructuredClone(JSContext* cx,
+                                  JSStructuredCloneWriter* writer,
+                                  JS::Handle<JSObject*> obj, void *closure);
 
 void NS_DOMStructuredCloneError(JSContext* cx, uint32_t errorid);
 

@@ -248,7 +248,7 @@ typedef union jsval_layout
         union {
             int32_t        i32;
             uint32_t       u32;
-            uint32_t       boo;     // Don't use |bool| -- it must be four bytes.
+            JSBool         boo;
             JSString       *str;
             JSObject       *obj;
             void           *ptr;
@@ -295,7 +295,7 @@ typedef union jsval_layout
         union {
             int32_t        i32;
             uint32_t       u32;
-            uint32_t       boo;     // Don't use |bool| -- it must be four bytes.
+            JSBool         boo;
             JSString       *str;
             JSObject       *obj;
             void           *ptr;
@@ -349,7 +349,7 @@ BUILD_JSVAL(JSValueTag tag, uint32_t payload)
     return l;
 }
 
-static inline bool
+static inline JSBool
 JSVAL_IS_DOUBLE_IMPL(jsval_layout l)
 {
     return (uint32_t)l.s.tag <= (uint32_t)JSVAL_TAG_CLEAR;
@@ -364,7 +364,7 @@ DOUBLE_TO_JSVAL_IMPL(double d)
     return l;
 }
 
-static inline bool
+static inline JSBool
 JSVAL_IS_INT32_IMPL(jsval_layout l)
 {
     return l.s.tag == JSVAL_TAG_INT32;
@@ -385,7 +385,7 @@ INT32_TO_JSVAL_IMPL(int32_t i)
     return l;
 }
 
-static inline bool
+static inline JSBool
 JSVAL_IS_NUMBER_IMPL(jsval_layout l)
 {
     JSValueTag tag = l.s.tag;
@@ -393,13 +393,13 @@ JSVAL_IS_NUMBER_IMPL(jsval_layout l)
     return (uint32_t)tag <= (uint32_t)JSVAL_UPPER_INCL_TAG_OF_NUMBER_SET;
 }
 
-static inline bool
+static inline JSBool
 JSVAL_IS_UNDEFINED_IMPL(jsval_layout l)
 {
     return l.s.tag == JSVAL_TAG_UNDEFINED;
 }
 
-static inline bool
+static inline JSBool
 JSVAL_IS_STRING_IMPL(jsval_layout l)
 {
     return l.s.tag == JSVAL_TAG_STRING;
@@ -421,46 +421,47 @@ JSVAL_TO_STRING_IMPL(jsval_layout l)
     return l.s.payload.str;
 }
 
-static inline bool
+static inline JSBool
 JSVAL_IS_BOOLEAN_IMPL(jsval_layout l)
 {
     return l.s.tag == JSVAL_TAG_BOOLEAN;
 }
 
-static inline bool
+static inline JSBool
 JSVAL_TO_BOOLEAN_IMPL(jsval_layout l)
 {
     return l.s.payload.boo;
 }
 
 static inline jsval_layout
-BOOLEAN_TO_JSVAL_IMPL(bool b)
+BOOLEAN_TO_JSVAL_IMPL(JSBool b)
 {
     jsval_layout l;
+    MOZ_ASSERT(b == JS_TRUE_DEPRECATED || b == JS_FALSE_DEPRECATED);
     l.s.tag = JSVAL_TAG_BOOLEAN;
     l.s.payload.boo = b;
     return l;
 }
 
-static inline bool
+static inline JSBool
 JSVAL_IS_MAGIC_IMPL(jsval_layout l)
 {
     return l.s.tag == JSVAL_TAG_MAGIC;
 }
 
-static inline bool
+static inline JSBool
 JSVAL_IS_OBJECT_IMPL(jsval_layout l)
 {
     return l.s.tag == JSVAL_TAG_OBJECT;
 }
 
-static inline bool
+static inline JSBool
 JSVAL_IS_PRIMITIVE_IMPL(jsval_layout l)
 {
     return (uint32_t)l.s.tag < (uint32_t)JSVAL_UPPER_EXCL_TAG_OF_PRIMITIVE_SET;
 }
 
-static inline bool
+static inline JSBool
 JSVAL_IS_OBJECT_OR_NULL_IMPL(jsval_layout l)
 {
     MOZ_ASSERT((uint32_t)l.s.tag <= (uint32_t)JSVAL_TAG_OBJECT);
@@ -483,7 +484,7 @@ OBJECT_TO_JSVAL_IMPL(JSObject *obj)
     return l;
 }
 
-static inline bool
+static inline JSBool
 JSVAL_IS_NULL_IMPL(jsval_layout l)
 {
     return l.s.tag == JSVAL_TAG_NULL;
@@ -506,7 +507,7 @@ JSVAL_TO_PRIVATE_PTR_IMPL(jsval_layout l)
     return l.s.payload.ptr;
 }
 
-static inline bool
+static inline JSBool
 JSVAL_IS_GCTHING_IMPL(jsval_layout l)
 {
     /* gcc sometimes generates signed < without explicit casts. */
@@ -519,7 +520,7 @@ JSVAL_TO_GCTHING_IMPL(jsval_layout l)
     return l.s.payload.ptr;
 }
 
-static inline bool
+static inline JSBool
 JSVAL_IS_TRACEABLE_IMPL(jsval_layout l)
 {
     return l.s.tag == JSVAL_TAG_STRING || l.s.tag == JSVAL_TAG_OBJECT;
@@ -528,19 +529,19 @@ JSVAL_IS_TRACEABLE_IMPL(jsval_layout l)
 static inline uint32_t
 JSVAL_TRACE_KIND_IMPL(jsval_layout l)
 {
-    return (uint32_t)(bool)JSVAL_IS_STRING_IMPL(l);
+    return (uint32_t)(JSBool)JSVAL_IS_STRING_IMPL(l);
 }
 
-static inline bool
+static inline JSBool
 JSVAL_IS_SPECIFIC_INT32_IMPL(jsval_layout l, int32_t i32)
 {
     return l.s.tag == JSVAL_TAG_INT32 && l.s.payload.i32 == i32;
 }
 
-static inline bool
-JSVAL_IS_SPECIFIC_BOOLEAN(jsval_layout l, bool b)
+static inline JSBool
+JSVAL_IS_SPECIFIC_BOOLEAN(jsval_layout l, JSBool b)
 {
-    return (l.s.tag == JSVAL_TAG_BOOLEAN) && (l.s.payload.boo == uint32_t(b));
+    return (l.s.tag == JSVAL_TAG_BOOLEAN) && (l.s.payload.boo == b);
 }
 
 static inline jsval_layout
@@ -552,7 +553,7 @@ MAGIC_TO_JSVAL_IMPL(JSWhyMagic why)
     return l;
 }
 
-static inline bool
+static inline JSBool
 JSVAL_SAME_TYPE_IMPL(jsval_layout lhs, jsval_layout rhs)
 {
     JSValueTag ltag = lhs.s.tag, rtag = rhs.s.tag;
@@ -577,7 +578,7 @@ BUILD_JSVAL(JSValueTag tag, uint64_t payload)
     return l;
 }
 
-static inline bool
+static inline JSBool
 JSVAL_IS_DOUBLE_IMPL(jsval_layout l)
 {
     return l.asBits <= JSVAL_SHIFTED_TAG_MAX_DOUBLE;
@@ -592,7 +593,7 @@ DOUBLE_TO_JSVAL_IMPL(double d)
     return l;
 }
 
-static inline bool
+static inline JSBool
 JSVAL_IS_INT32_IMPL(jsval_layout l)
 {
     return (uint32_t)(l.asBits >> JSVAL_TAG_SHIFT) == JSVAL_TAG_INT32;
@@ -612,19 +613,19 @@ INT32_TO_JSVAL_IMPL(int32_t i32)
     return l;
 }
 
-static inline bool
+static inline JSBool
 JSVAL_IS_NUMBER_IMPL(jsval_layout l)
 {
     return l.asBits < JSVAL_UPPER_EXCL_SHIFTED_TAG_OF_NUMBER_SET;
 }
 
-static inline bool
+static inline JSBool
 JSVAL_IS_UNDEFINED_IMPL(jsval_layout l)
 {
     return l.asBits == JSVAL_SHIFTED_TAG_UNDEFINED;
 }
 
-static inline bool
+static inline JSBool
 JSVAL_IS_STRING_IMPL(jsval_layout l)
 {
     return (uint32_t)(l.asBits >> JSVAL_TAG_SHIFT) == JSVAL_TAG_STRING;
@@ -647,46 +648,47 @@ JSVAL_TO_STRING_IMPL(jsval_layout l)
     return (JSString *)(l.asBits & JSVAL_PAYLOAD_MASK);
 }
 
-static inline bool
+static inline JSBool
 JSVAL_IS_BOOLEAN_IMPL(jsval_layout l)
 {
     return (uint32_t)(l.asBits >> JSVAL_TAG_SHIFT) == JSVAL_TAG_BOOLEAN;
 }
 
-static inline bool
+static inline JSBool
 JSVAL_TO_BOOLEAN_IMPL(jsval_layout l)
 {
-    return (bool)(l.asBits & JSVAL_PAYLOAD_MASK);
+    return (JSBool)l.asBits;
 }
 
 static inline jsval_layout
-BOOLEAN_TO_JSVAL_IMPL(bool b)
+BOOLEAN_TO_JSVAL_IMPL(JSBool b)
 {
     jsval_layout l;
+    MOZ_ASSERT(b == JS_TRUE_DEPRECATED || b == JS_FALSE_DEPRECATED);
     l.asBits = ((uint64_t)(uint32_t)b) | JSVAL_SHIFTED_TAG_BOOLEAN;
     return l;
 }
 
-static inline bool
+static inline JSBool
 JSVAL_IS_MAGIC_IMPL(jsval_layout l)
 {
     return (l.asBits >> JSVAL_TAG_SHIFT) == JSVAL_TAG_MAGIC;
 }
 
-static inline bool
+static inline JSBool
 JSVAL_IS_PRIMITIVE_IMPL(jsval_layout l)
 {
     return l.asBits < JSVAL_UPPER_EXCL_SHIFTED_TAG_OF_PRIMITIVE_SET;
 }
 
-static inline bool
+static inline JSBool
 JSVAL_IS_OBJECT_IMPL(jsval_layout l)
 {
     MOZ_ASSERT((l.asBits >> JSVAL_TAG_SHIFT) <= JSVAL_SHIFTED_TAG_OBJECT);
     return l.asBits >= JSVAL_SHIFTED_TAG_OBJECT;
 }
 
-static inline bool
+static inline JSBool
 JSVAL_IS_OBJECT_OR_NULL_IMPL(jsval_layout l)
 {
     MOZ_ASSERT((l.asBits >> JSVAL_TAG_SHIFT) <= JSVAL_TAG_OBJECT);
@@ -712,13 +714,13 @@ OBJECT_TO_JSVAL_IMPL(JSObject *obj)
     return l;
 }
 
-static inline bool
+static inline JSBool
 JSVAL_IS_NULL_IMPL(jsval_layout l)
 {
     return l.asBits == JSVAL_SHIFTED_TAG_NULL;
 }
 
-static inline bool
+static inline JSBool
 JSVAL_IS_GCTHING_IMPL(jsval_layout l)
 {
     return l.asBits >= JSVAL_LOWER_INCL_SHIFTED_TAG_OF_GCTHING_SET;
@@ -732,7 +734,7 @@ JSVAL_TO_GCTHING_IMPL(jsval_layout l)
     return (void *)ptrBits;
 }
 
-static inline bool
+static inline JSBool
 JSVAL_IS_TRACEABLE_IMPL(jsval_layout l)
 {
     return JSVAL_IS_GCTHING_IMPL(l) && !JSVAL_IS_NULL_IMPL(l);
@@ -741,7 +743,7 @@ JSVAL_IS_TRACEABLE_IMPL(jsval_layout l)
 static inline uint32_t
 JSVAL_TRACE_KIND_IMPL(jsval_layout l)
 {
-    return (uint32_t)(bool)!(JSVAL_IS_OBJECT_IMPL(l));
+    return (uint32_t)(JSBool)!(JSVAL_IS_OBJECT_IMPL(l));
 }
 
 static inline jsval_layout
@@ -762,14 +764,14 @@ JSVAL_TO_PRIVATE_PTR_IMPL(jsval_layout l)
     return (void *)(l.asBits << 1);
 }
 
-static inline bool
+static inline JSBool
 JSVAL_IS_SPECIFIC_INT32_IMPL(jsval_layout l, int32_t i32)
 {
     return l.asBits == (((uint64_t)(uint32_t)i32) | JSVAL_SHIFTED_TAG_INT32);
 }
 
-static inline bool
-JSVAL_IS_SPECIFIC_BOOLEAN(jsval_layout l, bool b)
+static inline JSBool
+JSVAL_IS_SPECIFIC_BOOLEAN(jsval_layout l, JSBool b)
 {
     return l.asBits == (((uint64_t)(uint32_t)b) | JSVAL_SHIFTED_TAG_BOOLEAN);
 }
@@ -782,7 +784,7 @@ MAGIC_TO_JSVAL_IMPL(JSWhyMagic why)
     return l;
 }
 
-static inline bool
+static inline JSBool
 JSVAL_SAME_TYPE_IMPL(jsval_layout lhs, jsval_layout rhs)
 {
     uint64_t lbits = lhs.asBits, rbits = rhs.asBits;
@@ -1165,6 +1167,7 @@ class Value
     void staticAssertions() {
         JS_STATIC_ASSERT(sizeof(JSValueType) == 1);
         JS_STATIC_ASSERT(sizeof(JSValueTag) == 4);
+        JS_STATIC_ASSERT(sizeof(JSBool) == 4);
         JS_STATIC_ASSERT(sizeof(JSWhyMagic) <= 4);
         JS_STATIC_ASSERT(sizeof(Value) == 8);
     }
@@ -1666,19 +1669,19 @@ static_assert(sizeof(jsval_layout) == sizeof(JS::Value),
 
 /************************************************************************/
 
-static inline bool
+static inline JSBool
 JSVAL_IS_NULL(jsval v)
 {
     return JSVAL_IS_NULL_IMPL(JSVAL_TO_IMPL(v));
 }
 
-static inline bool
+static inline JSBool
 JSVAL_IS_VOID(jsval v)
 {
     return JSVAL_IS_UNDEFINED_IMPL(JSVAL_TO_IMPL(v));
 }
 
-static inline bool
+static inline JSBool
 JSVAL_IS_INT(jsval v)
 {
     return JSVAL_IS_INT32_IMPL(JSVAL_TO_IMPL(v));
@@ -1697,7 +1700,7 @@ INT_TO_JSVAL(int32_t i)
     return IMPL_TO_JSVAL(INT32_TO_JSVAL_IMPL(i));
 }
 
-static inline bool
+static inline JSBool
 JSVAL_IS_DOUBLE(jsval v)
 {
     return JSVAL_IS_DOUBLE_IMPL(JSVAL_TO_IMPL(v));
@@ -1737,13 +1740,13 @@ UINT_TO_JSVAL(uint32_t i)
     return DOUBLE_TO_JSVAL((double)i);
 }
 
-static inline bool
+static inline JSBool
 JSVAL_IS_NUMBER(jsval v)
 {
     return JSVAL_IS_NUMBER_IMPL(JSVAL_TO_IMPL(v));
 }
 
-static inline bool
+static inline JSBool
 JSVAL_IS_STRING(jsval v)
 {
     return JSVAL_IS_STRING_IMPL(JSVAL_TO_IMPL(v));
@@ -1777,13 +1780,13 @@ OBJECT_TO_JSVAL(JSObject *obj)
     return IMPL_TO_JSVAL(BUILD_JSVAL(JSVAL_TAG_NULL, 0));
 }
 
-static inline bool
+static inline JSBool
 JSVAL_IS_BOOLEAN(jsval v)
 {
     return JSVAL_IS_BOOLEAN_IMPL(JSVAL_TO_IMPL(v));
 }
 
-static inline bool
+static inline JSBool
 JSVAL_TO_BOOLEAN(jsval v)
 {
     MOZ_ASSERT(JSVAL_IS_BOOLEAN(v));
@@ -1791,18 +1794,18 @@ JSVAL_TO_BOOLEAN(jsval v)
 }
 
 static inline jsval
-BOOLEAN_TO_JSVAL(bool b)
+BOOLEAN_TO_JSVAL(JSBool b)
 {
     return IMPL_TO_JSVAL(BOOLEAN_TO_JSVAL_IMPL(b));
 }
 
-static inline bool
+static inline JSBool
 JSVAL_IS_PRIMITIVE(jsval v)
 {
     return JSVAL_IS_PRIMITIVE_IMPL(JSVAL_TO_IMPL(v));
 }
 
-static inline bool
+static inline JSBool
 JSVAL_IS_GCTHING(jsval v)
 {
     return JSVAL_IS_GCTHING_IMPL(JSVAL_TO_IMPL(v));

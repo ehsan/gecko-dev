@@ -18,7 +18,7 @@
 
 #include "gc/Marking.h"
 #ifdef JS_ION
-#include "jit/IonCompartment.h"
+#include "ion/IonCompartment.h"
 #endif
 #include "js/RootingAPI.h"
 #include "vm/StopIterationObject.h"
@@ -418,21 +418,25 @@ JSCompartment::wrap(JSContext *cx, StrictPropertyOp *propp)
 }
 
 bool
-JSCompartment::wrap(JSContext *cx, MutableHandle<PropertyDescriptor> desc)
+JSCompartment::wrap(JSContext *cx, PropertyDescriptor *desc)
 {
-    if (!wrap(cx, desc.object().address()))
+    if (!wrap(cx, &desc->obj))
         return false;
 
-    if (desc.hasGetterObject()) {
-        if (!wrap(cx, &desc.getter()))
+    if (desc->attrs & JSPROP_GETTER) {
+        if (!wrap(cx, &desc->getter))
             return false;
     }
-    if (desc.hasSetterObject()) {
-        if (!wrap(cx, &desc.setter()))
+    if (desc->attrs & JSPROP_SETTER) {
+        if (!wrap(cx, &desc->setter))
             return false;
     }
 
-    return wrap(cx, desc.value());
+    RootedValue value(cx, desc->value);
+    if (!wrap(cx, &value))
+        return false;
+    desc->value = value.get();
+    return true;
 }
 
 bool

@@ -11,6 +11,7 @@
 
 class nsIContent;
 class nsIAtom;
+class nsIScriptContext;
 class nsSupportsHashtable;
 class nsXBLPrototypeResources;
 class nsXBLPrototypeBinding;

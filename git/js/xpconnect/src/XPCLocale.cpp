@@ -73,32 +73,32 @@ struct XPCLocaleCallbacks : public JSLocaleCallbacks
     return ths;
   }
 
-  static bool
+  static JSBool
   LocaleToUpperCase(JSContext *cx, HandleString src, MutableHandleValue rval)
   {
     return ChangeCase(cx, src, rval, ToUpperCase);
   }
 
-  static bool
+  static JSBool
   LocaleToLowerCase(JSContext *cx, HandleString src, MutableHandleValue rval)
   {
     return ChangeCase(cx, src, rval, ToLowerCase);
   }
 
-  static bool
+  static JSBool
   LocaleToUnicode(JSContext* cx, const char* src, MutableHandleValue rval)
   {
     return This(JS_GetRuntime(cx))->ToUnicode(cx, src, rval);
   }
 
-  static bool
+  static JSBool
   LocaleCompare(JSContext *cx, HandleString src1, HandleString src2, MutableHandleValue rval)
   {
     return This(JS_GetRuntime(cx))->Compare(cx, src1, src2, rval);
   }
 
 private:
-  static bool
+  static JSBool
   ChangeCase(JSContext* cx, HandleString src, MutableHandleValue rval,
              void(*changeCaseFnc)(const nsAString&, nsAString&))
   {
@@ -120,7 +120,7 @@ private:
     return true;
   }
 
-  bool
+  JSBool
   Compare(JSContext *cx, HandleString src1, HandleString src2, MutableHandleValue rval)
   {
     nsresult rv;
@@ -167,7 +167,7 @@ private:
     return true;
   }
 
-  bool
+  JSBool
   ToUnicode(JSContext* cx, const char* src, MutableHandleValue rval)
   {
     nsresult rv;

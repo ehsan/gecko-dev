@@ -33,6 +33,7 @@ class systemMessageCallback;
 #endif
 
 #ifdef MOZ_B2G_RIL
+class nsIDOMTelephony;
 class nsIDOMMozMobileConnection;
 class nsIDOMMozCellBroadcast;
 class nsIDOMMozVoicemail;
@@ -84,12 +85,6 @@ class Connection;
 class MobileConnection;
 #endif
 } // namespace Connection;
-
-#ifdef MOZ_B2G_RIL
-namespace telephony {
-class Telephony;
-} // namespace Telephony;
-#endif
 
 namespace power {
 class PowerManager;
@@ -219,7 +214,7 @@ public:
                             ErrorResult& aRv);
   bool MozHasPendingMessage(const nsAString& aType, ErrorResult& aRv);
 #ifdef MOZ_B2G_RIL
-  telephony::Telephony* GetMozTelephony(ErrorResult& aRv);
+  nsIDOMTelephony* GetMozTelephony(ErrorResult& aRv);
   nsIDOMMozMobileConnection* GetMozMobileConnection(ErrorResult& aRv);
   nsIDOMMozCellBroadcast* GetMozCellBroadcast(ErrorResult& aRv);
   nsIDOMMozVoicemail* GetMozVoicemail(ErrorResult& aRv);
@@ -314,7 +309,7 @@ private:
   nsRefPtr<power::PowerManager> mPowerManager;
   nsRefPtr<MobileMessageManager> mMobileMessageManager;
 #ifdef MOZ_B2G_RIL
-  nsRefPtr<telephony::Telephony> mTelephony;
+  nsCOMPtr<nsIDOMTelephony> mTelephony;
   nsCOMPtr<nsIDOMMozVoicemail> mVoicemail;
 #endif
   nsRefPtr<network::Connection> mConnection;

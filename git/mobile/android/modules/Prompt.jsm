@@ -120,7 +120,7 @@ Prompt.prototype = {
   },
 
   _innerShow: function() {
-    Services.androidBridge.handleGeckoMessage(JSON.stringify(this.msg));
+    this.bridge.handleGeckoMessage(JSON.stringify(this.msg));
   },
 
   observe: function(aSubject, aTopic, aData) {
@@ -177,6 +177,10 @@ Prompt.prototype = {
   setMultiChoiceItems: function(aItems) {
     this.msg.multiple = true;
     return this._setListItems(aItems);
+  },
+
+  get bridge() {
+    return Cc["@mozilla.org/android/bridge;1"].getService(Ci.nsIAndroidBridge);
   },
 
 }

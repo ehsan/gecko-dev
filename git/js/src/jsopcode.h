@@ -784,12 +784,12 @@ GetNextPc(jsbytecode *pc)
 /*
  * Disassemblers, for debugging only.
  */
-bool
-js_Disassemble(JSContext *cx, JS::Handle<JSScript*> script, bool lines, js::Sprinter *sp);
+JSBool
+js_Disassemble(JSContext *cx, JS::Handle<JSScript*> script, JSBool lines, js::Sprinter *sp);
 
 unsigned
 js_Disassemble1(JSContext *cx, JS::Handle<JSScript*> script, jsbytecode *pc, unsigned loc,
-                bool lines, js::Sprinter *sp);
+                JSBool lines, js::Sprinter *sp);
 
 #endif
 

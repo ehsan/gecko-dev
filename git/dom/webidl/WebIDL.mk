@@ -437,10 +437,7 @@ endif
 
 ifdef MOZ_B2G_RIL
 webidl_files += \
-  CallsList.webidl \
   MozStkCommandEvent.webidl \
-  Telephony.webidl \
-  TelephonyCall.webidl \
   $(NULL)
 endif
 

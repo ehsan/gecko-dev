@@ -133,62 +133,62 @@ typedef JS::Handle<SpecialId> HandleSpecialId;
 
 /* js::Class operation signatures. */
 
-typedef bool
+typedef JSBool
 (* LookupGenericOp)(JSContext *cx, HandleObject obj, HandleId id,
                     MutableHandleObject objp, MutableHandleShape propp);
-typedef bool
+typedef JSBool
 (* LookupPropOp)(JSContext *cx, HandleObject obj, HandlePropertyName name,
                  MutableHandleObject objp, MutableHandleShape propp);
-typedef bool
+typedef JSBool
 (* LookupElementOp)(JSContext *cx, HandleObject obj, uint32_t index,
                     MutableHandleObject objp, MutableHandleShape propp);
-typedef bool
+typedef JSBool
 (* LookupSpecialOp)(JSContext *cx, HandleObject obj, HandleSpecialId sid,
                     MutableHandleObject objp, MutableHandleShape propp);
-typedef bool
+typedef JSBool
 (* DefineGenericOp)(JSContext *cx, HandleObject obj, HandleId id, HandleValue value,
                     PropertyOp getter, StrictPropertyOp setter, unsigned attrs);
-typedef bool
+typedef JSBool
 (* DefinePropOp)(JSContext *cx, HandleObject obj, HandlePropertyName name, HandleValue value,
                  PropertyOp getter, StrictPropertyOp setter, unsigned attrs);
-typedef bool
+typedef JSBool
 (* DefineElementOp)(JSContext *cx, HandleObject obj, uint32_t index, HandleValue value,
                     PropertyOp getter, StrictPropertyOp setter, unsigned attrs);
-typedef bool
+typedef JSBool
 (* DefineSpecialOp)(JSContext *cx, HandleObject obj, HandleSpecialId sid, HandleValue value,
                     PropertyOp getter, StrictPropertyOp setter, unsigned attrs);
-typedef bool
+typedef JSBool
 (* GenericIdOp)(JSContext *cx, HandleObject obj, HandleObject receiver, HandleId id, MutableHandleValue vp);
-typedef bool
+typedef JSBool
 (* PropertyIdOp)(JSContext *cx, HandleObject obj, HandleObject receiver, HandlePropertyName name, MutableHandleValue vp);
-typedef bool
+typedef JSBool
 (* ElementIdOp)(JSContext *cx, HandleObject obj, HandleObject receiver, uint32_t index, MutableHandleValue vp);
-typedef bool
+typedef JSBool
 (* ElementIfPresentOp)(JSContext *cx, HandleObject obj, HandleObject receiver, uint32_t index, MutableHandleValue vp, bool* present);
-typedef bool
+typedef JSBool
 (* SpecialIdOp)(JSContext *cx, HandleObject obj, HandleObject receiver, HandleSpecialId sid, MutableHandleValue vp);
-typedef bool
-(* StrictGenericIdOp)(JSContext *cx, HandleObject obj, HandleId id, MutableHandleValue vp, bool strict);
-typedef bool
-(* StrictPropertyIdOp)(JSContext *cx, HandleObject obj, HandlePropertyName name, MutableHandleValue vp, bool strict);
-typedef bool
-(* StrictElementIdOp)(JSContext *cx, HandleObject obj, uint32_t index, MutableHandleValue vp, bool strict);
-typedef bool
-(* StrictSpecialIdOp)(JSContext *cx, HandleObject obj, HandleSpecialId sid, MutableHandleValue vp, bool strict);
-typedef bool
+typedef JSBool
+(* StrictGenericIdOp)(JSContext *cx, HandleObject obj, HandleId id, MutableHandleValue vp, JSBool strict);
+typedef JSBool
+(* StrictPropertyIdOp)(JSContext *cx, HandleObject obj, HandlePropertyName name, MutableHandleValue vp, JSBool strict);
+typedef JSBool
+(* StrictElementIdOp)(JSContext *cx, HandleObject obj, uint32_t index, MutableHandleValue vp, JSBool strict);
+typedef JSBool
+(* StrictSpecialIdOp)(JSContext *cx, HandleObject obj, HandleSpecialId sid, MutableHandleValue vp, JSBool strict);
+typedef JSBool
 (* GenericAttributesOp)(JSContext *cx, HandleObject obj, HandleId id, unsigned *attrsp);
-typedef bool
+typedef JSBool
 (* PropertyAttributesOp)(JSContext *cx, HandleObject obj, HandlePropertyName name, unsigned *attrsp);
-typedef bool
+typedef JSBool
 (* ElementAttributesOp)(JSContext *cx, HandleObject obj, uint32_t index, unsigned *attrsp);
-typedef bool
+typedef JSBool
 (* SpecialAttributesOp)(JSContext *cx, HandleObject obj, HandleSpecialId sid, unsigned *attrsp);
-typedef bool
-(* DeletePropertyOp)(JSContext *cx, HandleObject obj, HandlePropertyName name, bool *succeeded);
-typedef bool
-(* DeleteElementOp)(JSContext *cx, HandleObject obj, uint32_t index, bool *succeeded);
-typedef bool
-(* DeleteSpecialOp)(JSContext *cx, HandleObject obj, HandleSpecialId sid, bool *succeeded);
+typedef JSBool
+(* DeletePropertyOp)(JSContext *cx, HandleObject obj, HandlePropertyName name, JSBool *succeeded);
+typedef JSBool
+(* DeleteElementOp)(JSContext *cx, HandleObject obj, uint32_t index, JSBool *succeeded);
+typedef JSBool
+(* DeleteSpecialOp)(JSContext *cx, HandleObject obj, HandleSpecialId sid, JSBool *succeeded);
 
 
 typedef JSObject *

@@ -22,6 +22,7 @@
 class nsIAtom;
 class nsIContent;
 class nsIDocument;
+class nsIScriptContext;
 class nsSupportsHashtable;
 class nsXBLProtoImplField;
 class nsXBLBinding;

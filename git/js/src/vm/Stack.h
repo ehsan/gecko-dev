@@ -13,7 +13,7 @@
 #include "jsfun.h"
 #include "jsscript.h"
 
-#include "jit/IonFrameIterator.h"
+#include "ion/IonFrameIterator.h"
 
 struct JSContext;
 struct JSCompartment;

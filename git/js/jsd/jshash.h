@@ -93,7 +93,7 @@ JS_HashTableRawRemove(JSHashTable *ht, JSHashEntry **hep, JSHashEntry *he);
 extern JSHashEntry *
 JS_HashTableAdd(JSHashTable *ht, const void *key, void *value);
 
-extern bool
+extern JSBool
 JS_HashTableRemove(JSHashTable *ht, const void *key);
 
 extern int

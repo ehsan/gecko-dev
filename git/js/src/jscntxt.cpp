@@ -42,7 +42,7 @@
 
 #include "gc/Marking.h"
 #ifdef JS_ION
-#include "jit/Ion.h"
+#include "ion/Ion.h"
 #endif
 #include "js/CharacterEncoding.h"
 #include "js/MemoryMetrics.h"
@@ -488,14 +488,14 @@ checkReportFlags(JSContext *cx, unsigned *flags)
     return false;
 }
 
-bool
+JSBool
 js_ReportErrorVA(JSContext *cx, unsigned flags, const char *format, va_list ap)
 {
     char *message;
     jschar *ucmessage;
     size_t messagelen;
     JSErrorReport report;
-    bool warning;
+    JSBool warning;
 
     if (checkReportFlags(cx, &flags))
         return true;
@@ -630,7 +630,7 @@ js::PrintError(JSContext *cx, FILE *file, const char *message, JSErrorReport *re
  *
  * Returns true if the expansion succeeds (can fail if out of memory).
  */
-bool
+JSBool
 js_ExpandErrorArguments(JSContext *cx, JSErrorCallback callback,
                         void *userRef, const unsigned errorNumber,
                         char **messagep, JSErrorReport *reportp,
@@ -792,14 +792,14 @@ error:
     return false;
 }
 
-bool
+JSBool
 js_ReportErrorNumberVA(JSContext *cx, unsigned flags, JSErrorCallback callback,
                        void *userRef, const unsigned errorNumber,
                        ErrorArgumentsType argumentsType, va_list ap)
 {
     JSErrorReport report;
     char *message;
-    bool warning;
+    JSBool warning;
 
     if (checkReportFlags(cx, &flags))
         return true;
@@ -899,12 +899,12 @@ js_ReportIsNotDefined(JSContext *cx, const char *name)
     JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_NOT_DEFINED, name);
 }
 
-bool
+JSBool
 js_ReportIsNullOrUndefined(JSContext *cx, int spindex, HandleValue v,
                            HandleString fallback)
 {
     char *bytes;
-    bool ok;
+    JSBool ok;
 
     bytes = DecompileValueGenerator(cx, spindex, v, fallback);
     if (!bytes)
@@ -955,13 +955,13 @@ js_ReportMissingArg(JSContext *cx, HandleValue v, unsigned arg)
     js_free(bytes);
 }
 
-bool
+JSBool
 js_ReportValueErrorFlags(JSContext *cx, unsigned flags, const unsigned errorNumber,
                          int spindex, HandleValue v, HandleString fallback,
                          const char *arg1, const char *arg2)
 {
     char *bytes;
-    bool ok;
+    JSBool ok;
 
     JS_ASSERT(js_ErrorFormatString[errorNumber].argCount >= 1);
     JS_ASSERT(js_ErrorFormatString[errorNumber].argCount <= 3);
@@ -990,7 +990,7 @@ js_GetErrorMessage(void *userRef, const char *locale, const unsigned errorNumber
     return NULL;
 }
 
-bool
+JSBool
 js_InvokeOperationCallback(JSContext *cx)
 {
     JS_ASSERT_REQUEST_DEPTH(cx);

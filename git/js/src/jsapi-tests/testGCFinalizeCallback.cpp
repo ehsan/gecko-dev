@@ -17,7 +17,7 @@ static JSFinalizeStatus StatusBuffer[BufferSize];
 static bool IsCompartmentGCBuffer[BufferSize];
 
 static void
-FinalizeCallback(JSFreeOp *fop, JSFinalizeStatus status, bool isCompartmentGC)
+FinalizeCallback(JSFreeOp *fop, JSFinalizeStatus status, JSBool isCompartmentGC)
 {
     if (FinalizeCalls < BufferSize) {
         StatusBuffer[FinalizeCalls] = status;

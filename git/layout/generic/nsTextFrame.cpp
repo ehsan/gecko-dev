@@ -4578,7 +4578,7 @@ nsTextFrame::GetTextDecorations(
         // to undo the accumulation to bring the transform out of the block's
         // coordinate space
         baselineOffset =
-          frameTopOffset - fChild->GetNormalPosition().y
+          frameTopOffset - (fChild->GetRect().y - fChild->GetRelativeOffset().y)
           - NS_PTR_TO_INT32(
               fChild->Properties().Get(nsIFrame::LineBaselineOffset()));
       }
@@ -4588,7 +4588,7 @@ nsTextFrame::GetTextDecorations(
     }
 
     nearestBlockFound = nearestBlockFound || firstBlock;
-    frameTopOffset += f->GetNormalPosition().y;
+    frameTopOffset += f->GetRect().y - f->GetRelativeOffset().y;
 
     const uint8_t style = styleText->GetDecorationStyle();
     if (textDecorations) {

@@ -106,7 +106,7 @@ let Keyboard = {
 
     switch (msg.name) {
       case 'Forms:Input':
-        this.handleFocusChange(msg);
+        this.forwardEvent('Keyboard:FocusChange', msg);
         break;
       case 'Forms:SelectionChange':
       case 'Forms:GetText:Result:OK':
@@ -163,17 +163,6 @@ let Keyboard = {
     ppmm.broadcastAsyncMessage(newEventName, msg.data);
   },
 
-  handleFocusChange: function keyboardHandleFocusChange(msg) {
-    this.forwardEvent('Keyboard:FocusChange', msg);
-
-    let browser = Services.wm.getMostRecentWindow("navigator:browser");
-
-    browser.shell.sendChromeEvent({
-      type: 'inputmethod-contextchange',
-      inputType: msg.data.type
-    });
-  },
-
   setSelectedOption: function keyboardSetSelectedOption(msg) {
     this.messageManager.sendAsyncMessage('Forms:Select:Choice', msg.data);
   },
@@ -202,14 +191,14 @@ let Keyboard = {
   showInputMethodPicker: function keyboardShowInputMethodPicker() {
     let browser = Services.wm.getMostRecentWindow("navigator:browser");
     browser.shell.sendChromeEvent({
-      type: "inputmethod-showall"
+      type: "input-method-show-picker"
     });
   },
 
   switchToNextInputMethod: function keyboardSwitchToNextInputMethod() {
     let browser = Services.wm.getMostRecentWindow("navigator:browser");
     browser.shell.sendChromeEvent({
-      type: "inputmethod-next"
+      type: "input-method-switch-to-next"
     });
   },
 

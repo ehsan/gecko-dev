@@ -371,13 +371,13 @@ private:
 
     bool SubjectIsPrivileged();
 
-    static bool
+    static JSBool
     CheckObjectAccess(JSContext *cx, JS::Handle<JSObject*> obj,
                       JS::Handle<jsid> id, JSAccessMode mode,
                       JS::MutableHandle<JS::Value> vp);
     
     // Decides, based on CSP, whether or not eval() and stuff can be executed.
-    static bool
+    static JSBool
     ContentSecurityPolicyPermitsJSAction(JSContext *cx);
 
     // Returns null if a principal cannot be found; generally callers

@@ -153,9 +153,9 @@ private:
     static const Type StateTable[tTypeCount][tTypeCount-1];
 
 public:
-    static bool GetTypeForArray(JSContext* cx, HandleObject array,
-                                uint32_t length,
-                                nsXPTType* resultType, nsID* resultID);
+    static JSBool GetTypeForArray(JSContext* cx, HandleObject array,
+                                  uint32_t length,
+                                  nsXPTType* resultType, nsID* resultID);
 };
 
 
@@ -177,7 +177,7 @@ XPCArrayHomogenizer::StateTable[tTypeCount][tTypeCount-1] = {
 /* tUnk  */{tNull,tInt ,tDbl ,tBool,tStr ,tID  ,tVar ,tISup }};
 
 // static
-bool
+JSBool
 XPCArrayHomogenizer::GetTypeForArray(JSContext* cx, HandleObject array,
                                      uint32_t length,
                                      nsXPTType* resultType, nsID* resultID)
@@ -268,7 +268,7 @@ XPCArrayHomogenizer::GetTypeForArray(JSContext* cx, HandleObject array,
     return true;
 }
 
-bool XPCVariant::InitializeData(JSContext* cx)
+JSBool XPCVariant::InitializeData(JSContext* cx)
 {
     JS_CHECK_RECURSION(cx, return false);
 
@@ -372,7 +372,7 @@ XPCVariant::GetAsJSVal(jsval* result)
 }
 
 // static
-bool
+JSBool
 XPCVariant::VariantDataToJS(nsIVariant* variant,
                             nsresult* pErr, jsval* pJSVal)
 {

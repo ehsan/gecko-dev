@@ -64,7 +64,7 @@ BEGIN_TEST(testIndexToString)
         if (!js::StaticStrings::hasUint(u))
             CHECK(cx->compartment()->dtoaCache.lookup(10, u) == str);
 
-        bool match = false;
+        JSBool match = false;
         CHECK(JS_StringEqualsAscii(cx, str, tests[i].expected, &match));
         CHECK(match);
     }

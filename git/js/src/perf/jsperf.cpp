@@ -18,7 +18,7 @@ static PerfMeasurement* GetPMFromThis(JSContext* cx, jsval* vp);
 // Property access
 
 #define GETTER(name)                                                    \
-    static bool                                                         \
+    static JSBool                                                       \
     pm_get_##name(JSContext* cx, JS::HandleObject obj, JS::HandleId /*unused*/, JS::MutableHandleValue vp) \
     {                                                                   \
         PerfMeasurement* p = GetPM(cx, obj, #name);                     \

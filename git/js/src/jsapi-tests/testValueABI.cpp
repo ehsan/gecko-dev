@@ -16,7 +16,7 @@
 
 extern "C" {
 
-extern bool
+extern JSBool
 C_ValueToObject(JSContext *cx, jsval v, JSObject **obj);
 
 extern jsval
@@ -33,7 +33,7 @@ BEGIN_TEST(testValueABI_retparam)
     jsval v = OBJECT_TO_JSVAL(obj);
     obj = NULL;
     CHECK(C_ValueToObject(cx, v, obj.address()));
-    bool equal;
+    JSBool equal;
     CHECK(JS_StrictlyEqual(cx, v, OBJECT_TO_JSVAL(obj), &equal));
     CHECK(equal);
 

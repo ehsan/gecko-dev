@@ -20,7 +20,7 @@ using namespace mozilla;
 // XPCNativeMember
 
 // static
-bool
+JSBool
 XPCNativeMember::GetCallInfo(JSObject* funobj,
                              XPCNativeInterface** pInterface,
                              XPCNativeMember**    pMember)
@@ -35,7 +35,7 @@ XPCNativeMember::GetCallInfo(JSObject* funobj,
     return true;
 }
 
-bool
+JSBool
 XPCNativeMember::NewFunctionObject(XPCCallContext& ccx,
                                    XPCNativeInterface* iface, HandleObject parent,
                                    jsval* pval)
@@ -46,7 +46,7 @@ XPCNativeMember::NewFunctionObject(XPCCallContext& ccx,
     return Resolve(ccx, iface, parent, pval);
 }
 
-bool
+JSBool
 XPCNativeMember::Resolve(XPCCallContext& ccx, XPCNativeInterface* iface,
                          HandleObject parent, jsval *vp)
 {
@@ -233,7 +233,7 @@ XPCNativeInterface::NewInstance(nsIInterfaceInfo* aInfo)
     XPCNativeMember* members = nullptr;
 
     int i;
-    bool failed = false;
+    JSBool failed = false;
     uint16_t constCount;
     uint16_t methodCount;
     uint16_t totalCount;

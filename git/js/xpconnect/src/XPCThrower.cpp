@@ -10,7 +10,7 @@
 #include "xpcpublic.h"
 #include "XPCWrapper.h"
 
-bool XPCThrower::sVerbose = true;
+JSBool XPCThrower::sVerbose = true;
 
 // static
 void
@@ -41,7 +41,7 @@ Throw(JSContext *cx, nsresult rv)
  * should be the current call context.
  */
 // static
-bool
+JSBool
 XPCThrower::CheckForPendingException(nsresult result, JSContext *cx)
 {
     nsCOMPtr<nsIException> e;
@@ -172,7 +172,7 @@ XPCThrower::Verbosify(XPCCallContext& ccx,
 void
 XPCThrower::BuildAndThrowException(JSContext* cx, nsresult rv, const char* sz)
 {
-    bool success = false;
+    JSBool success = false;
 
     /* no need to set an expection if the security manager already has */
     if (rv == NS_ERROR_XPC_SECURITY_MANAGER_VETO && JS_IsExceptionPending(cx))
@@ -222,10 +222,10 @@ IsCallerChrome(JSContext* cx)
 }
 
 // static
-bool
+JSBool
 XPCThrower::ThrowExceptionObject(JSContext* cx, nsIException* e)
 {
-    bool success = false;
+    JSBool success = false;
     if (e) {
         nsCOMPtr<nsIXPCException> xpcEx;
         JS::RootedValue thrown(cx);

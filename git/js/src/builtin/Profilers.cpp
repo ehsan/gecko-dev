@@ -74,10 +74,10 @@ StartOSXProfiling(const char *profileName = NULL)
 }
 #endif
 
-JS_PUBLIC_API(bool)
+JS_PUBLIC_API(JSBool)
 JS_StartProfiling(const char *profileName)
 {
-    bool ok = true;
+    JSBool ok = true;
 #ifdef __APPLE__
     ok = StartOSXProfiling(profileName);
 #endif
@@ -88,10 +88,10 @@ JS_StartProfiling(const char *profileName)
     return ok;
 }
 
-JS_PUBLIC_API(bool)
+JS_PUBLIC_API(JSBool)
 JS_StopProfiling(const char *profileName)
 {
-    bool ok = true;
+    JSBool ok = true;
 #ifdef __APPLE__
 #ifdef MOZ_SHARK
     Shark::Stop();
@@ -111,10 +111,10 @@ JS_StopProfiling(const char *profileName)
  * Start or stop whatever platform- and configuration-specific profiling
  * backends are available.
  */
-static bool
+static JSBool
 ControlProfilers(bool toState)
 {
-    bool ok = true;
+    JSBool ok = true;
 
     if (! Probes::ProfilingActive && toState) {
 #ifdef __APPLE__
@@ -169,22 +169,22 @@ ControlProfilers(bool toState)
  * profilers' pause/resume functions, because only overall state is
  * tracked, not the state of each profiler.
  */
-JS_PUBLIC_API(bool)
+JS_PUBLIC_API(JSBool)
 JS_PauseProfilers(const char *profileName)
 {
     return ControlProfilers(false);
 }
 
-JS_PUBLIC_API(bool)
+JS_PUBLIC_API(JSBool)
 JS_ResumeProfilers(const char *profileName)
 {
     return ControlProfilers(true);
 }
 
-JS_PUBLIC_API(bool)
+JS_PUBLIC_API(JSBool)
 JS_DumpProfile(const char *outfile, const char *profileName)
 {
-    bool ok = true;
+    JSBool ok = true;
 #ifdef MOZ_CALLGRIND
     js_DumpCallgrind(outfile);
 #endif
@@ -378,7 +378,7 @@ static const JSFunctionSpec profiling_functions[] = {
 
 #endif
 
-JS_PUBLIC_API(bool)
+JS_PUBLIC_API(JSBool)
 JS_DefineProfilingFunctions(JSContext *cx, JSObject *objArg)
 {
     RootedObject obj(cx, objArg);
@@ -393,7 +393,7 @@ JS_DefineProfilingFunctions(JSContext *cx, JSObject *objArg)
 
 #ifdef MOZ_CALLGRIND
 
-JS_FRIEND_API(bool)
+JS_FRIEND_API(JSBool)
 js_StartCallgrind()
 {
     JS_SILENCE_UNUSED_VALUE_IN_EXPR(CALLGRIND_START_INSTRUMENTATION);
@@ -401,14 +401,14 @@ js_StartCallgrind()
     return true;
 }
 
-JS_FRIEND_API(bool)
+JS_FRIEND_API(JSBool)
 js_StopCallgrind()
 {
     JS_SILENCE_UNUSED_VALUE_IN_EXPR(CALLGRIND_STOP_INSTRUMENTATION);
     return true;
 }
 
-JS_FRIEND_API(bool)
+JS_FRIEND_API(JSBool)
 js_DumpCallgrind(const char *outfile)
 {
     if (outfile) {
@@ -452,7 +452,7 @@ js_DumpCallgrind(const char *outfile)
 static bool perfInitialized = false;
 static pid_t perfPid = 0;
 
-bool js_StartPerf()
+JSBool js_StartPerf()
 {
     const char *outfile = "mozperf.data";
 
@@ -528,7 +528,7 @@ bool js_StartPerf()
     }
 }
 
-bool js_StopPerf()
+JSBool js_StopPerf()
 {
     if (perfPid == 0) {
         UnsafeError("js_StopPerf: perf is not running.\n");

@@ -215,7 +215,7 @@ public:
             const bool& stickDocument) MOZ_OVERRIDE;
     virtual bool DeallocPOfflineCacheUpdateParent(POfflineCacheUpdateParent* actor);
 
-    bool GetGlobalJSObject(JSContext* cx, JSObject** globalp);
+    JSBool GetGlobalJSObject(JSContext* cx, JSObject** globalp);
 
     NS_DECL_ISUPPORTS
     NS_DECL_NSIAUTHPROMPTPROVIDER

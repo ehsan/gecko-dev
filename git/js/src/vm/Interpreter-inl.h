@@ -17,8 +17,8 @@
 #include "jsnum.h"
 #include "jsstr.h"
 
-#include "jit/Ion.h"
-#include "jit/IonCompartment.h"
+#include "ion/Ion.h"
+#include "ion/IonCompartment.h"
 #include "vm/ForkJoin.h"
 
 #include "jsatominlines.h"

@@ -40,7 +40,7 @@ DOMProxyShadows(JSContext* cx, JS::Handle<JSObject*> proxy, JS::Handle<jsid> id)
 {
   JS::Value v = js::GetProxyExtra(proxy, JSPROXYSLOT_EXPANDO);
   if (v.isObject()) {
-    bool hasOwn;
+    JSBool hasOwn;
     if (!JS_AlreadyHasOwnPropertyById(cx, &v.toObject(), id, &hasOwn))
       return js::ShadowCheckFailed;
 
@@ -161,12 +161,12 @@ DOMProxyHandler::preventExtensions(JSContext *cx, JS::Handle<JSObject*> proxy)
 
 bool
 DOMProxyHandler::getPropertyDescriptor(JSContext* cx, JS::Handle<JSObject*> proxy, JS::Handle<jsid> id,
-                                       MutableHandle<JSPropertyDescriptor> desc, unsigned flags)
+                                       JSPropertyDescriptor* desc, unsigned flags)
 {
   if (!getOwnPropertyDescriptor(cx, proxy, id, desc, flags)) {
     return false;
   }
-  if (desc.object()) {
+  if (desc->obj) {
     return true;
   }
 
@@ -175,18 +175,18 @@ DOMProxyHandler::getPropertyDescriptor(JSContext* cx, JS::Handle<JSObject*> prox
     return false;
   }
   if (!proto) {
-    desc.object().set(nullptr);
+    desc->obj = NULL;
     return true;
   }
 
-  return JS_GetPropertyDescriptorById(cx, proto, id, 0, desc.address());
+  return JS_GetPropertyDescriptorById(cx, proto, id, 0, desc);
 }
 
 bool
 DOMProxyHandler::defineProperty(JSContext* cx, JS::Handle<JSObject*> proxy, JS::Handle<jsid> id,
-                                MutableHandle<JSPropertyDescriptor> desc, bool* defined)
+                                JSPropertyDescriptor* desc, bool* defined)
 {
-  if (desc.hasGetterObject() && desc.setter() == JS_StrictPropertyStub) {
+  if ((desc->attrs & JSPROP_GETTER) && desc->setter == JS_StrictPropertyStub) {
     return JS_ReportErrorFlagsAndNumber(cx,
                                         JSREPORT_WARNING | JSREPORT_STRICT |
                                         JSREPORT_STRICT_MODE_ERROR,
@@ -203,8 +203,8 @@ DOMProxyHandler::defineProperty(JSContext* cx, JS::Handle<JSObject*> proxy, JS::
     return false;
   }
 
-  bool dummy;
-  return js_DefineOwnProperty(cx, expando, id, desc, &dummy);
+  JSBool dummy;
+  return js_DefineOwnProperty(cx, expando, id, *desc, &dummy);
 }
 
 bool
@@ -252,7 +252,7 @@ DOMProxyHandler::has(JSContext* cx, JS::Handle<JSObject*> proxy, JS::Handle<jsid
   if (!proto) {
     return true;
   }
-  bool protoHasProp;
+  JSBool protoHasProp;
   bool ok = JS_HasPropertyById(cx, proto, id, &protoHasProp);
   if (ok) {
     *bp = protoHasProp;

@@ -9,9 +9,9 @@
 #include "jsgc.h"
 
 #ifdef JS_ION
-#include "jit/BaselineJIT.h"
-#include "jit/Ion.h"
-#include "jit/IonCompartment.h"
+#include "ion/BaselineJIT.h"
+#include "ion/Ion.h"
+#include "ion/IonCompartment.h"
 #endif
 #include "vm/Debugger.h"
 #include "vm/Runtime.h"

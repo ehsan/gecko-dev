@@ -43,9 +43,10 @@ class TestShellCommandParent : public PTestShellCommandParent
 public:
   TestShellCommandParent() : mCx(NULL) { }
 
-  bool SetCallback(JSContext* aCx, JS::Value aCallback);
+  JSBool SetCallback(JSContext* aCx,
+                     JS::Value aCallback);
 
-  bool RunCallback(const nsString& aResponse);
+  JSBool RunCallback(const nsString& aResponse);
 
   void ReleaseCallback();
 

@@ -125,7 +125,7 @@ ValueHasISupportsPrivate(const JS::Value &v)
 // contents of the callee's reserved slots.  If the property was defined,
 // *installed will be true, and idp will be set to the property name that was
 // defined.
-static bool
+static JSBool
 InstallXBLField(JSContext* cx,
                 JS::Handle<JSObject*> callee, JS::Handle<JSObject*> thisObj,
                 JS::MutableHandle<jsid> idp, bool* installed)
@@ -323,7 +323,7 @@ nsXBLProtoImplField::InstallAccessors(JSContext* aCx,
   // Properties/Methods have historically taken precendence over fields. We
   // install members first, so just bounce here if the property is already
   // defined.
-  bool found = false;
+  JSBool found = false;
   if (!JS_AlreadyHasOwnPropertyById(aCx, aTargetClassObject, id, &found))
     return NS_ERROR_FAILURE;
   if (found)
@@ -407,6 +407,9 @@ nsXBLProtoImplField::InstallField(nsIScriptContext* aContext,
   NS_ASSERTION(!::JS_IsExceptionPending(cx),
                "Shouldn't get here when an exception is pending!");
 
+  // compile the literal string
+  nsCOMPtr<nsIScriptContext> context = aContext;
+
   // First, enter the xbl scope, wrap the node, and use that as the scope for
   // the evaluation.
   JS::Rooted<JSObject*> scopeObject(cx, xpc::GetXBLScope(cx, aBoundNode));
@@ -421,11 +424,11 @@ nsXBLProtoImplField::InstallField(nsIScriptContext* aContext,
   JS::CompileOptions options(cx);
   options.setFileAndLine(uriSpec.get(), mLineNumber)
          .setVersion(JSVERSION_LATEST);
-  rv = aContext->EvaluateString(nsDependentString(mFieldText,
-                                                  mFieldTextLength),
-                                wrappedNode, options,
-                                /* aCoerceToString = */ false,
-                                result.address());
+  rv = context->EvaluateString(nsDependentString(mFieldText,
+                                                 mFieldTextLength),
+                               wrappedNode, options,
+                               /* aCoerceToString = */ false,
+                               result.address());
   if (NS_FAILED(rv)) {
     return rv;
   }
@@ -448,7 +451,8 @@ nsXBLProtoImplField::InstallField(nsIScriptContext* aContext,
 }
 
 nsresult
-nsXBLProtoImplField::Read(nsIObjectInputStream* aStream)
+nsXBLProtoImplField::Read(nsIScriptContext* aContext,
+                          nsIObjectInputStream* aStream)
 {
   nsAutoString name;
   nsresult rv = aStream->ReadString(name);
@@ -469,7 +473,8 @@ nsXBLProtoImplField::Read(nsIObjectInputStream* aStream)
 }
 
 nsresult
-nsXBLProtoImplField::Write(nsIObjectOutputStream* aStream)
+nsXBLProtoImplField::Write(nsIScriptContext* aContext,
+                           nsIObjectOutputStream* aStream)
 {
   XBLBindingSerializeDetails type = XBLBinding_Serialize_Field;
 

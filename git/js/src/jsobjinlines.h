@@ -23,7 +23,7 @@
 #include "vm/ObjectImpl-inl.h"
 #include "vm/Shape-inl.h"
 
-/* static */ inline bool
+/* static */ inline JSBool
 JSObject::setGenericAttributes(JSContext *cx, js::HandleObject obj,
                                js::HandleId id, unsigned *attrsp)
 {
@@ -32,7 +32,7 @@ JSObject::setGenericAttributes(JSContext *cx, js::HandleObject obj,
     return (op ? op : js::baseops::SetAttributes)(cx, obj, id, attrsp);
 }
 
-/* static */ inline bool
+/* static */ inline JSBool
 JSObject::setPropertyAttributes(JSContext *cx, js::HandleObject obj,
                                 js::PropertyName *name, unsigned *attrsp)
 {
@@ -40,7 +40,7 @@ JSObject::setPropertyAttributes(JSContext *cx, js::HandleObject obj,
     return setGenericAttributes(cx, obj, id, attrsp);
 }
 
-/* static */ inline bool
+/* static */ inline JSBool
 JSObject::setElementAttributes(JSContext *cx, js::HandleObject obj,
                                uint32_t index, unsigned *attrsp)
 {
@@ -48,7 +48,7 @@ JSObject::setElementAttributes(JSContext *cx, js::HandleObject obj,
     return (op ? op : js::baseops::SetElementAttributes)(cx, obj, index, attrsp);
 }
 
-/* static */ inline bool
+/* static */ inline JSBool
 JSObject::setSpecialAttributes(JSContext *cx, js::HandleObject obj,
                                js::SpecialId sid, unsigned *attrsp)
 {
@@ -65,7 +65,7 @@ JSObject::changePropertyAttributes(JSContext *cx, js::HandleObject obj,
 
 /* static */ inline bool
 JSObject::deleteProperty(JSContext *cx, js::HandleObject obj, js::HandlePropertyName name,
-                         bool *succeeded)
+                         JSBool *succeeded)
 {
     JS::RootedId id(cx, js::NameToId(name));
     js::types::AddTypePropertyId(cx, obj, id, js::types::Type::UndefinedType());
@@ -75,7 +75,7 @@ JSObject::deleteProperty(JSContext *cx, js::HandleObject obj, js::HandleProperty
 }
 
 /* static */ inline bool
-JSObject::deleteElement(JSContext *cx, js::HandleObject obj, uint32_t index, bool *succeeded)
+JSObject::deleteElement(JSContext *cx, js::HandleObject obj, uint32_t index, JSBool *succeeded)
 {
     JS::RootedId id(cx);
     if (!js::IndexToId(cx, index, &id))
@@ -88,7 +88,7 @@ JSObject::deleteElement(JSContext *cx, js::HandleObject obj, uint32_t index, boo
 
 /* static */ inline bool
 JSObject::deleteSpecial(JSContext *cx, js::HandleObject obj, js::HandleSpecialId sid,
-                        bool *succeeded)
+                        JSBool *succeeded)
 {
     JS::RootedId id(cx, SPECIALID_TO_JSID(sid));
     js::types::AddTypePropertyId(cx, obj, id, js::types::Type::UndefinedType());
@@ -690,7 +690,7 @@ JSObject::nativeSetSlotWithType(js::ExclusiveContext *cx, js::HandleObject obj, 
     js::types::AddTypePropertyId(cx, obj, shape->propid(), value);
 }
 
-/* static */ inline bool
+/* static */ inline JSBool
 JSObject::getElement(JSContext *cx, js::HandleObject obj, js::HandleObject receiver,
                      uint32_t index, js::MutableHandleValue vp)
 {
@@ -704,7 +704,7 @@ JSObject::getElement(JSContext *cx, js::HandleObject obj, js::HandleObject recei
     return getGeneric(cx, obj, receiver, id, vp);
 }
 
-/* static */ inline bool
+/* static */ inline JSBool
 JSObject::getElementNoGC(JSContext *cx, JSObject *obj, JSObject *receiver,
                          uint32_t index, js::Value *vp)
 {
@@ -718,7 +718,7 @@ JSObject::getElementNoGC(JSContext *cx, JSObject *obj, JSObject *receiver,
     return getGenericNoGC(cx, obj, receiver, id, vp);
 }
 
-/* static */ inline bool
+/* static */ inline JSBool
 JSObject::getElementIfPresent(JSContext *cx, js::HandleObject obj, js::HandleObject receiver,
                               uint32_t index, js::MutableHandleValue vp,
                               bool *present)
@@ -750,7 +750,7 @@ JSObject::getElementIfPresent(JSContext *cx, js::HandleObject obj, js::HandleObj
     return getGeneric(cx, obj, receiver, id, vp);
 }
 
-/* static */ inline bool
+/* static */ inline JSBool
 JSObject::getElementAttributes(JSContext *cx, js::HandleObject obj,
                                uint32_t index, unsigned *attrsp)
 {
@@ -1235,7 +1235,7 @@ LookupProperty(ExclusiveContext *cx, HandleObject obj, PropertyName *name,
     return LookupProperty<CanGC>(cx, obj, id, objp, propp);
 }
 
-inline bool
+inline JSBool
 DefineProperty(ExclusiveContext *cx, HandleObject obj, PropertyName *name, HandleValue value,
                JSPropertyOp getter, JSStrictPropertyOp setter, unsigned attrs)
 {

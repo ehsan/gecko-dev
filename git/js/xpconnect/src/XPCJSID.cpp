@@ -915,7 +915,7 @@ xpc_JSObjectToID(JSContext *cx, JSObject* obj)
     return nullptr;
 }
 
-bool
+JSBool
 xpc_JSObjectIsID(JSContext *cx, JSObject* obj)
 {
     NS_ASSERTION(cx && obj, "bad param");

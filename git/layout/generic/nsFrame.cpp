@@ -5047,16 +5047,17 @@ ComputeOutlineAndEffectsRect(nsIFrame* aFrame,
 }
 
 nsPoint
-nsIFrame::GetNormalPosition() const
+nsIFrame::GetRelativeOffset(const nsStyleDisplay* aDisplay) const
 {
-  // It might be faster to first check
-  // StyleDisplay()->IsRelativelyPositionedStyle().
-  nsPoint* normalPosition = static_cast<nsPoint*>
-    (Properties().Get(NormalPositionProperty()));
-  if (normalPosition) {
-    return *normalPosition;
+  if (!aDisplay ||
+      aDisplay->IsRelativelyPositioned(this)) {
+    nsPoint *offsets = static_cast<nsPoint*>
+      (Properties().Get(ComputedOffsetProperty()));
+    if (offsets) {
+      return *offsets;
+    }
   }
-  return GetPosition();
+  return nsPoint(0,0);
 }
 
 nsRect

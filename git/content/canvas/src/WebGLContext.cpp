@@ -741,6 +741,9 @@ WebGLContext::GetInputStream(const char* aMimeType,
     const char encoderPrefix[] = "@mozilla.org/image/encoder;2?type=";
     nsAutoArrayPtr<char> conid(new char[strlen(encoderPrefix) + strlen(aMimeType) + 1]);
 
+    if (!conid)
+        return NS_ERROR_OUT_OF_MEMORY;
+
     strcpy(conid, encoderPrefix);
     strcat(conid, aMimeType);
 

@@ -92,13 +92,14 @@ public:
   
   virtual nsresult InstallMember(JSContext* aCx,
                                  JS::Handle<JSObject*> aTargetClassObject) MOZ_OVERRIDE;
-  virtual nsresult CompileMember(const nsCString& aClassStr,
+  virtual nsresult CompileMember(nsIScriptContext* aContext,
+                                 const nsCString& aClassStr,
                                  JS::Handle<JSObject*> aClassObject) MOZ_OVERRIDE;
 
   virtual void Trace(const TraceCallbacks& aCallbacks, void *aClosure) MOZ_OVERRIDE;
 
-  nsresult Read(nsIObjectInputStream* aStream);
-  virtual nsresult Write(nsIObjectOutputStream* aStream) MOZ_OVERRIDE;
+  nsresult Read(nsIScriptContext* aContext, nsIObjectInputStream* aStream);
+  virtual nsresult Write(nsIScriptContext* aContext, nsIObjectOutputStream* aStream) MOZ_OVERRIDE;
 
   bool IsCompiled() const
   {
@@ -146,7 +147,8 @@ public:
   }
 
   using nsXBLProtoImplMethod::Write;
-  nsresult Write(nsIObjectOutputStream* aStream,
+  nsresult Write(nsIScriptContext* aContext,
+                 nsIObjectOutputStream* aStream,
                  XBLBindingSerializeDetails aType);
 };
 

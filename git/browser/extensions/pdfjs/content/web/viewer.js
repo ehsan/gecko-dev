@@ -17,7 +17,7 @@
 /* globals PDFJS, PDFBug, FirefoxCom, Stats, Cache, PDFFindBar, CustomStyle,
            PDFFindController, ProgressBar, TextLayerBuilder, DownloadManager,
            getFileName, getOutputScale, scrollIntoView, getPDFFileNameFromURL,
-           PDFHistory, noContextMenuHandler */
+           PDFHistory */
 
 'use strict';
 
@@ -152,13 +152,6 @@ function scrollIntoView(element, spot) {
   if (spot)
     offsetY += spot.top;
   parent.scrollTop = offsetY;
-}
-
-/**
- * Event handler to suppress context menu.
- */
-function noContextMenuHandler(e) {
-  e.preventDefault();
 }
 
 /**
@@ -927,9 +920,9 @@ var PDFHistory = {
   initialDestination: null,
 
   initialize: function pdfHistoryInitialize(fingerprint) {
-    if (PDFJS.disableHistory || PDFView.isViewerEmbedded) {
+    if (PDFJS.disableHistory || window.parent !== window) {
       // The browsing history is only enabled when the viewer is standalone,
-      // i.e. not when it is embedded in a web page.
+      // i.e. not when it is embedded in a page.
       return;
     }
     this.initialized = true;
@@ -1265,7 +1258,6 @@ var PDFView = {
   mouseScrollDelta: 0,
   lastScroll: 0,
   previousPageNumber: 1,
-  isViewerEmbedded: (window.parent !== window),
 
   // called once when the document is loaded
   initialize: function pdfViewInitialize() {
@@ -1958,10 +1950,10 @@ var PDFView = {
       self.setInitialView(storedHash, scale);
 
       // Make all navigation keys work on document load,
-      // unless the viewer is embedded in a web page.
-      if (!self.isViewerEmbedded) {
-        self.container.focus();
-        self.container.blur();
+      // unless the viewer is embedded in another page.
+      if (window.parent === window) {
+        PDFView.container.focus();
+        PDFView.container.blur();
       }
     });
 
@@ -2038,11 +2030,6 @@ var PDFView = {
     // updated if the zoom level stayed the same.
     this.currentScale = 0;
     this.currentScaleValue = null;
-    // When opening a new file (when one is already loaded in the viewer):
-    // Reset 'currentPageNumber', since otherwise the page's scale will be wrong
-    // if 'currentPageNumber' is larger than the number of pages in the file.
-    document.getElementById('pageNumber').value = currentPageNumber = 1;
-
     if (PDFHistory.initialDestination) {
       this.navigateTo(PDFHistory.initialDestination);
       PDFHistory.initialDestination = null;
@@ -2566,11 +2553,8 @@ var PageView = function pageView(container, id, scale,
   };
 
   this.update = function pageViewUpdate(scale, rotation) {
-    if (this.renderTask) {
-      this.renderTask.cancel();
-    }
-    this.resume = null;
     this.renderingState = RenderingStates.INITIAL;
+    this.resume = null;
 
     if (typeof rotation !== 'undefined') {
       this.rotation = rotation;
@@ -2832,15 +2816,9 @@ var PageView = function pageView(container, id, scale,
     // Rendering area
 
     var self = this;
+    var renderingWasReset = false;
     function pageViewDrawCallback(error) {
-      // The renderTask may have been replaced by a new one, so only remove the
-      // reference to the renderTask if it matches the one that is triggering
-      // this callback.
-      if (renderTask === self.renderTask) {
-        self.renderTask = null;
-      }
-
-      if (error === 'cancelled') {
+      if (renderingWasReset) {
         return;
       }
 
@@ -2892,6 +2870,12 @@ var PageView = function pageView(container, id, scale,
       viewport: this.viewport,
       textLayer: textLayer,
       continueCallback: function pdfViewcContinueCallback(cont) {
+        if (self.renderingState === RenderingStates.INITIAL) {
+          // The page update() was called, we just need to abort any rendering.
+          renderingWasReset = true;
+          return;
+        }
+
         if (PDFView.highestPriorityPage !== 'page' + self.id) {
           self.renderingState = RenderingStates.PAUSED;
           self.resume = function resumeCallback() {
@@ -2903,9 +2887,7 @@ var PageView = function pageView(container, id, scale,
         cont();
       }
     };
-    var renderTask = this.renderTask = this.pdfPage.render(renderContext);
-
-    this.renderTask.then(
+    this.pdfPage.render(renderContext).then(
       function pdfPageRenderCallback() {
         pageViewDrawCallback(null);
       },
@@ -3571,8 +3553,9 @@ var DocumentOutlineView = function documentOutlineView(outline) {
 
 document.addEventListener('DOMContentLoaded', function webViewerLoad(evt) {
   PDFView.initialize();
+  var params = PDFView.parseQueryString(document.location.search.substring(1));
 
-  var file = window.location.href.split('#')[0];
+  var file = window.location.toString()
 
   document.getElementById('openFile').setAttribute('hidden', 'true');
 
@@ -3646,9 +3629,6 @@ document.addEventListener('DOMContentLoaded', function webViewerLoad(evt) {
     }
   });
 
-  // Suppress context menus for some controls
-  document.getElementById('scaleSelect').oncontextmenu = noContextMenuHandler;
-
   var mainContainer = document.getElementById('mainContainer');
   var outerContainer = document.getElementById('outerContainer');
   mainContainer.addEventListener('transitionend', function(e) {
@@ -3704,6 +3684,10 @@ document.addEventListener('DOMContentLoaded', function webViewerLoad(evt) {
       PDFView.presentationMode();
     });
 
+  document.getElementById('openFile').addEventListener('click',
+    function() {
+      document.getElementById('fileInput').click();
+    });
 
   document.getElementById('print').addEventListener('click',
     function() {
@@ -3831,10 +3815,9 @@ function updateViewarea() {
 window.addEventListener('resize', function webViewerResize(evt) {
   if (PDFView.initialized &&
       (document.getElementById('pageWidthOption').selected ||
-       document.getElementById('pageFitOption').selected ||
-       document.getElementById('pageAutoOption').selected)) {
-    PDFView.parseScale(document.getElementById('scaleSelect').value);
-  }
+      document.getElementById('pageFitOption').selected ||
+      document.getElementById('pageAutoOption').selected))
+      PDFView.parseScale(document.getElementById('scaleSelect').value);
   updateViewarea();
 });
 
@@ -3909,11 +3892,11 @@ window.addEventListener('scalechange', function scalechange(evt) {
   customScaleOption.selected = false;
 
   if (!evt.resetAutoSettings &&
-      (document.getElementById('pageWidthOption').selected ||
-       document.getElementById('pageFitOption').selected ||
-       document.getElementById('pageAutoOption').selected)) {
-    updateViewarea();
-    return;
+       (document.getElementById('pageWidthOption').selected ||
+        document.getElementById('pageFitOption').selected ||
+        document.getElementById('pageAutoOption').selected)) {
+      updateViewarea();
+      return;
   }
 
   var predefinedValueFound = selectScaleOption('' + evt.scale);
