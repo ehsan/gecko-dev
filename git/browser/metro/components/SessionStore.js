@@ -843,15 +843,7 @@ SessionStore.prototype = {
     }
 
     try {
-      let channel = NetUtil.newChannel2(this._sessionFileBackup,
-                                        null,
-                                        null,
-                                        null,      // aLoadingNode
-                                        Services.scriptSecurityManager.getSystemPrincipal(),
-                                        null,      // aTriggeringPrincipal
-                                        Ci.nsILoadInfo.SEC_NORMAL,
-                                        Ci.nsIContentPolicy.TYPE_OTHER);
-
+      let channel = NetUtil.newChannel(this._sessionFileBackup);
       channel.contentType = "application/json";
       NetUtil.asyncFetch(channel, function(aStream, aResult) {
         if (!Components.isSuccessCode(aResult)) {

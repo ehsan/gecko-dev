@@ -616,8 +616,7 @@ class NodeBuilder
 
     bool exportBatchSpecifier(TokenPos *pos, MutableHandleValue dst);
 
-    bool classDefinition(bool expr, HandleValue name, HandleValue heritage, HandleValue block, TokenPos *pos,
-                         MutableHandleValue dst);
+    bool classStatement(HandleValue name, HandleValue heritage, HandleValue block, TokenPos *pos, MutableHandleValue dst);
     bool classMethods(NodeVector &methods, MutableHandleValue dst);
     bool classMethod(HandleValue name, HandleValue body, PropKind kind, bool isStatic, TokenPos *pos, MutableHandleValue dst);
 
@@ -1752,15 +1751,14 @@ NodeBuilder::classMethods(NodeVector &methods, MutableHandleValue dst)
 }
 
 bool
-NodeBuilder::classDefinition(bool expr, HandleValue name, HandleValue heritage, HandleValue block,
-                             TokenPos *pos, MutableHandleValue dst)
+NodeBuilder::classStatement(HandleValue name, HandleValue heritage, HandleValue block,
+                            TokenPos *pos, MutableHandleValue dst)
 {
-    ASTType type = expr ? AST_CLASS_EXPR : AST_CLASS_STMT;
-    RootedValue cb(cx, callbacks[type]);
+    RootedValue cb(cx, callbacks[AST_CLASS_STMT]);
     if (!cb.isNull())
         return callback(cb, name, heritage, block, pos, dst);
 
-    return newNode(type, pos,
+    return newNode(AST_CLASS_STMT, pos,
                    "name", name,
                    "heritage", heritage,
                    "body", block,
@@ -1805,7 +1803,6 @@ class ASTSerializer
     bool importSpecifier(ParseNode *pn, MutableHandleValue dst);
     bool exportDeclaration(ParseNode *pn, MutableHandleValue dst);
     bool exportSpecifier(ParseNode *pn, MutableHandleValue dst);
-    bool classDefinition(ParseNode *pn, bool expr, MutableHandleValue dst);
 
     bool optStatement(ParseNode *pn, MutableHandleValue dst) {
         if (!pn) {
@@ -2415,23 +2412,6 @@ ASTSerializer::forIn(ParseNode *loop, ParseNode *head, HandleValue var, HandleVa
 }
 
 bool
-ASTSerializer::classDefinition(ParseNode *pn, bool expr, MutableHandleValue dst)
-{
-    RootedValue className(cx, MagicValue(JS_SERIALIZE_NO_NODE));
-    RootedValue heritage(cx);
-    RootedValue classBody(cx);
-
-    if (pn->pn_kid1) {
-        if (!identifier(pn->pn_kid1->as<ClassNames>().innerBinding(), &className))
-            return false;
-    }
-
-    return optExpression(pn->pn_kid2, &heritage) &&
-           statement(pn->pn_kid3, &classBody) &&
-           builder.classDefinition(expr, className, heritage, classBody, &pn->pn_pos, dst);
-}
-
-bool
 ASTSerializer::statement(ParseNode *pn, MutableHandleValue dst)
 {
     JS_CHECK_RECURSION(cx, return false);
@@ -2634,7 +2614,15 @@ ASTSerializer::statement(ParseNode *pn, MutableHandleValue dst)
         return builder.debuggerStatement(&pn->pn_pos, dst);
 
       case PNK_CLASS:
-        return classDefinition(pn, false, dst);
+      {
+         RootedValue className(cx);
+         RootedValue heritage(cx);
+         RootedValue classBody(cx);
+         return identifier(pn->pn_kid1->as<ClassNames>().innerBinding(), &className) &&
+                optExpression(pn->pn_kid2, &heritage) &&
+                statement(pn->pn_kid3, &classBody) &&
+                builder.classStatement(className, heritage, classBody, &pn->pn_pos, dst);
+      }
 
       case PNK_CLASSMETHODLIST:
       {
@@ -3170,9 +3158,6 @@ ASTSerializer::expression(ParseNode *pn, MutableHandleValue dst)
 
       case PNK_LETEXPR:
         return let(pn, true, dst);
-
-      case PNK_CLASS:
-        return classDefinition(pn, true, dst);
 
       default:
         LOCAL_NOT_REACHED("unexpected expression type");

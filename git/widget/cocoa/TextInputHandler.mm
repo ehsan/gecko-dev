@@ -3367,10 +3367,6 @@ IMEInputHandler::OnDestroyWidget(nsChildView* aDestroyingWidget)
     sFocusedIMEHandler->OnDestroyWidget(aDestroyingWidget);
   }
 
-  if (!TextInputHandlerBase::OnDestroyWidget(aDestroyingWidget)) {
-    return false;
-  }
-
   if (IsIMEComposing()) {
     // If our view is in the composition, we should clean up it.
     CancelIMEComposition();

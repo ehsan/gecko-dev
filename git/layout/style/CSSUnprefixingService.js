@@ -142,7 +142,7 @@ CSSUnprefixingService.prototype = {
       let newRightHalf = aRightHalfOfDecl;
       for (let strToReplace in propInfo.stringMap) {
         let replacement = propInfo.stringMap[strToReplace];
-        newRightHalf = newRightHalf.split(strToReplace).join(replacement);
+        newRightHalf = newRightHalf.replace(strToReplace, replacement, "g");
       }
       aUnprefixedDecl.value = propInfo.unprefixedPropName + ":" + newRightHalf;
 

@@ -11,10 +11,10 @@ XPCOMUtils.defineLazyModuleGetter(this, "Task",
 XPCOMUtils.defineLazyModuleGetter(this, "PlacesUtils",
   "resource://gre/modules/PlacesUtils.jsm");
 
-function waitForCondition(condition, nextTest, errorMsg, numTries = 30) {
+function waitForCondition(condition, nextTest, errorMsg) {
   var tries = 0;
   var interval = setInterval(function() {
-    if (tries >= numTries) {
+    if (tries >= 30) {
       ok(false, errorMsg);
       moveOn();
     }

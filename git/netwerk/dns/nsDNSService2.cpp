@@ -610,7 +610,8 @@ nsDNSService::Init()
 
     nsCOMPtr<nsIIDNService> idn = do_GetService(NS_IDNSERVICE_CONTRACTID);
 
-    nsCOMPtr<nsIObserverService> obs = services::GetObserverService();
+    nsCOMPtr<nsIObserverService> obs =
+        do_GetService(NS_OBSERVERSERVICE_CONTRACTID);
 
     nsRefPtr<nsHostResolver> res;
     nsresult rv = nsHostResolver::Create(maxCacheEntries,

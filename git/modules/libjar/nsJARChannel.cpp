@@ -234,6 +234,7 @@ NS_IMPL_ISUPPORTS_INHERITED(nsJARChannel,
                             nsIChannel,
                             nsIStreamListener,
                             nsIRequestObserver,
+                            nsIDownloadObserver,
                             nsIRemoteOpenFileListener,
                             nsIThreadRetargetableRequest,
                             nsIThreadRetargetableStreamListener,
@@ -273,21 +274,16 @@ nsresult
 nsJARChannel::CreateJarInput(nsIZipReaderCache *jarCache, nsJARInputThunk **resultInput)
 {
     MOZ_ASSERT(resultInput);
-    MOZ_ASSERT(mJarFile || mTempMem);
 
     // important to pass a clone of the file since the nsIFile impl is not
     // necessarily MT-safe
     nsCOMPtr<nsIFile> clonedFile;
-    nsresult rv = NS_OK;
-    if (mJarFile) {
-        rv = mJarFile->Clone(getter_AddRefs(clonedFile));
-        if (NS_FAILED(rv))
-            return rv;
-    }
+    nsresult rv = mJarFile->Clone(getter_AddRefs(clonedFile));
+    if (NS_FAILED(rv))
+        return rv;
 
     nsCOMPtr<nsIZipReader> reader;
     if (jarCache) {
-        MOZ_ASSERT(mJarFile);
         if (mInnerJarEntry.IsEmpty())
             rv = jarCache->GetZip(clonedFile, getter_AddRefs(reader));
         else
@@ -299,12 +295,7 @@ nsJARChannel::CreateJarInput(nsIZipReaderCache *jarCache, nsJARInputThunk **resu
         if (NS_FAILED(rv))
             return rv;
 
-        if (mJarFile) {
-            rv = outerReader->Open(clonedFile);
-        } else {
-            rv = outerReader->OpenMemory(mTempMem->Elements(),
-                                         mTempMem->Length());
-        }
+        rv = outerReader->Open(clonedFile);
         if (NS_FAILED(rv))
             return rv;
 
@@ -875,24 +866,26 @@ nsJARChannel::AsyncOpen(nsIStreamListener *listener, nsISupports *ctx)
     if (!mJarFile) {
         // Not a local file...
         // kick off an async download of the base URI...
-        nsCOMPtr<nsIStreamListener> downloader = new MemoryDownloader(this);
-        // Since we might not have a loadinfo on all channels yet
-        // we have to provide default arguments in case mLoadInfo is null;
-        uint32_t loadFlags =
-            mLoadFlags & ~(LOAD_DOCUMENT_URI | LOAD_CALL_CONTENT_SNIFFERS);
-        rv = NS_NewChannelInternal(getter_AddRefs(channel),
-                                   mJarBaseURI,
-                                   mLoadInfo,
-                                   mLoadGroup,
-                                   mCallbacks,
-                                   loadFlags);
-        if (NS_FAILED(rv)) {
-            mIsPending = false;
-            mListenerContext = nullptr;
-            mListener = nullptr;
-            return rv;
+        rv = NS_NewDownloader(getter_AddRefs(mDownloader), this);
+        if (NS_SUCCEEDED(rv)) {
+            // Since we might not have a loadinfo on all channels yet
+            // we have to provide default arguments in case mLoadInfo is null;
+            uint32_t loadFlags =
+              mLoadFlags & ~(LOAD_DOCUMENT_URI | LOAD_CALL_CONTENT_SNIFFERS);
+            rv = NS_NewChannelInternal(getter_AddRefs(channel),
+                                       mJarBaseURI,
+                                       mLoadInfo,
+                                       mLoadGroup,
+                                       mCallbacks,
+                                       loadFlags);
+            if (NS_FAILED(rv)) {
+              mIsPending = false;
+              mListenerContext = nullptr;
+              mListener = nullptr;
+              return rv;
+            }
+            channel->AsyncOpen(mDownloader, nullptr);
         }
-        rv = channel->AsyncOpen(downloader, nullptr);
     } else if (mOpeningRemote) {
         // nothing to do: already asked parent to open file.
     } else {
@@ -971,15 +964,15 @@ nsJARChannel::EnsureChildFd()
 }
 
 //-----------------------------------------------------------------------------
-// mozilla::net::MemoryDownloader::IObserver
+// nsIDownloadObserver
 //-----------------------------------------------------------------------------
 
-void
-nsJARChannel::OnDownloadComplete(MemoryDownloader* aDownloader,
+NS_IMETHODIMP
+nsJARChannel::OnDownloadComplete(nsIDownloader *downloader,
                                  nsIRequest    *request,
                                  nsISupports   *context,
                                  nsresult       status,
-                                 MemoryDownloader::Data aData)
+                                 nsIFile       *file)
 {
     nsresult rv;
 
@@ -1057,7 +1050,7 @@ nsJARChannel::OnDownloadComplete(MemoryDownloader* aDownloader,
     }
 
     if (NS_SUCCEEDED(status)) {
-        mTempMem = Move(aData);
+        mJarFile = file;
 
         nsRefPtr<nsJARInputThunk> input;
         rv = CreateJarInput(nullptr, getter_AddRefs(input));
@@ -1073,6 +1066,8 @@ nsJARChannel::OnDownloadComplete(MemoryDownloader* aDownloader,
     if (NS_FAILED(status)) {
         NotifyError(status);
     }
+
+    return NS_OK;
 }
 
 //-----------------------------------------------------------------------------
@@ -1157,6 +1152,7 @@ nsJARChannel::OnStopRequest(nsIRequest *req, nsISupports *ctx, nsresult status)
 
     mPump = 0;
     mIsPending = false;
+    mDownloader = 0; // this may delete the underlying jar file
 
     // Drop notification callbacks to prevent cycles.
     mCallbacks = 0;

@@ -491,11 +491,6 @@ class ObjectGroup : public gc::TenuredCell
     /* Get a property only if it already exists. */
     inline HeapTypeSet *maybeGetProperty(jsid id);
 
-    /*
-     * Iterate through the group's properties. getPropertyCount overapproximates
-     * in the hash case (see SET_ARRAY_SIZE in TypeInference-inl.h), and
-     * getProperty may return nullptr.
-     */
     inline unsigned getPropertyCount();
     inline Property *getProperty(unsigned i);
 
@@ -564,9 +559,8 @@ class ObjectGroup : public gc::TenuredCell
         return Addendum_OriginalUnboxedGroup << OBJECT_FLAG_ADDENDUM_SHIFT;
     }
 
-    inline uint32_t basePropertyCount();
-
   private:
+    inline uint32_t basePropertyCount();
     inline void setBasePropertyCount(uint32_t count);
 
     static void staticAsserts() {

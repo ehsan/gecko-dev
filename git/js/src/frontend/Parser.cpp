@@ -5825,11 +5825,9 @@ Parser<ParseHandler>::debuggerStatement()
 
 template <>
 ParseNode *
-Parser<FullParseHandler>::classDefinition(ClassContext classContext)
+Parser<FullParseHandler>::classStatement()
 {
     MOZ_ASSERT(tokenStream.isCurrentTokenType(TOK_CLASS));
-
-    bool savedStrictness = setLocalStrictMode(true);
 
     TokenKind tt;
     if (!tokenStream.getToken(&tt))
@@ -5842,13 +5840,10 @@ Parser<FullParseHandler>::classDefinition(ClassContext classContext)
         if (!checkYieldNameValidity())
             return null();
         name = tokenStream.currentName();
-    } else if (classContext == ClassStatement) {
+    } else {
         // Class statements must have a bound name
         report(ParseError, false, null(), JSMSG_UNNAMED_CLASS_STMT);
         return null();
-    } else {
-        // Make sure to put it back, whatever it was
-        tokenStream.ungetToken();
     }
 
     if (name == context->names().let) {
@@ -5856,72 +5851,49 @@ Parser<FullParseHandler>::classDefinition(ClassContext classContext)
         return null();
     }
 
-    ParseNode *classBlock = null();
-    StmtInfoPC classStmt(context);
-    if (name) {
-        classBlock = pushLexicalScope(&classStmt);
-        if (!classBlock)
-            return null();
-    }
-
     // Because the binding definitions keep track of their blockId, we need to
     // create at least the inner binding later. Keep track of the name's position
     // in order to provide it for the nodes created later.
     TokenPos namePos = pos();
 
-    ParseNode *classHeritage = null();
-    bool hasHeritage;
-    if (!tokenStream.matchToken(&hasHeritage, TOK_EXTENDS))
-        return null();
-    if (hasHeritage) {
-        if (!tokenStream.getToken(&tt))
-            return null();
-        classHeritage = memberExpr(tt, true);
-        if (!classHeritage)
-            return null();
-    }
-
     MUST_MATCH_TOKEN(TOK_LC, JSMSG_CURLY_BEFORE_CLASS);
+
+    bool savedStrictness = setLocalStrictMode(true);
+
+    StmtInfoPC classStmt(context);
+    ParseNode *classBlock = pushLexicalScope(&classStmt);
+    if (!classBlock)
+        return null();
 
     ParseNode *classMethods = propertyList(ClassBody);
     if (!classMethods)
         return null();
+    handler.setLexicalScopeBody(classBlock, classMethods);
 
-    ParseNode *nameNode = null();
-    ParseNode *methodsOrBlock = classMethods;
-    if (name) {
-        ParseNode *innerBinding = makeInitializedLexicalBinding(name, true, namePos);
-        if (!innerBinding)
-            return null();
+    ParseNode *innerBinding = makeInitializedLexicalBinding(name, true, namePos);
+    if (!innerBinding)
+        return null();
 
-        MOZ_ASSERT(classBlock);
-        handler.setLexicalScopeBody(classBlock, classMethods);
-        methodsOrBlock = classBlock;
+    PopStatementPC(tokenStream, pc);
 
-        PopStatementPC(tokenStream, pc);
+    ParseNode *outerBinding = makeInitializedLexicalBinding(name, false, namePos);
+    if (!outerBinding)
+        return null();
 
-        ParseNode *outerBinding = null();
-        if (classContext == ClassStatement) {
-            outerBinding = makeInitializedLexicalBinding(name, false, namePos);
-            if (!outerBinding)
-                return null();
-        }
-
-        nameNode = handler.newClassNames(outerBinding, innerBinding, namePos);
-        if (!nameNode)
-            return null();
-    }
+    ParseNode *nameNode = handler.newClassNames(outerBinding, innerBinding, namePos);
+    if (!nameNode)
+        return null();
 
     MOZ_ALWAYS_TRUE(setLocalStrictMode(savedStrictness));
 
-    return handler.newClass(nameNode, classHeritage, methodsOrBlock);
+    return handler.newClass(nameNode, null(), classBlock);
 }
 
 template <>
 SyntaxParseHandler::Node
-Parser<SyntaxParseHandler>::classDefinition(ClassContext classContext)
+Parser<SyntaxParseHandler>::classStatement()
 {
-    MOZ_ALWAYS_FALSE(abortIfSyntaxParser());
+    JS_ALWAYS_FALSE(abortIfSyntaxParser());
     return SyntaxParseHandler::NodeFailure;
 }
 
@@ -5995,7 +5967,7 @@ Parser<ParseHandler>::statement(bool canHaveDirectives)
       case TOK_CLASS:
         if (!abortIfSyntaxParser())
             return null();
-        return classDefinition(ClassStatement);
+        return classStatement();
 
 
       /* TOK_CATCH and TOK_FINALLY are both handled in the TOK_TRY case */
@@ -8356,9 +8328,6 @@ Parser<ParseHandler>::primaryExpr(TokenKind tt, InvokedPrediction invoked)
     switch (tt) {
       case TOK_FUNCTION:
         return functionExpr(invoked);
-
-      case TOK_CLASS:
-        return classDefinition(ClassExpression);
 
       case TOK_LB:
         return arrayInitializer();

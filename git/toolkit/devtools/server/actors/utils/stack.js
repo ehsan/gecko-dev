@@ -111,8 +111,6 @@ let StackFrameCache = Class({
    *   source: <filename string for this frame>,
    *   functionDisplayName: <this frame's inferred function name function or null>,
    *   parent: <frame ID -- an index into the concatenated array mentioned above>
-   *   asyncCause: the async cause, or null
-   *   asyncParent: <frame ID -- an index into the concatenated array mentioned above>
    * }
    *
    * The intent of this approach is to make it simpler to efficiently
@@ -153,7 +151,6 @@ let StackFrameCache = Class({
 
     if (frame) {
       this._assignFrameIndices(frame.parent);
-      this._assignFrameIndices(frame.asyncParent);
     }
 
     const index = this._framesToIndices.size;
@@ -178,12 +175,9 @@ let StackFrameCache = Class({
         column: frame.column,
         source: frame.source,
         functionDisplayName: frame.functionDisplayName,
-        parent: this._framesToIndices.get(frame.parent),
-        asyncParent: this._framesToIndices.get(frame.asyncParent),
-        asyncCause: frame.asyncCause
+        parent: this._framesToIndices.get(frame.parent)
       };
       this._createFrameForms(frame.parent);
-      this._createFrameForms(frame.asyncParent);
     }
 
     this._framesToForms.set(frame, form);

@@ -762,7 +762,7 @@ private:
     RecvBackUpXResources(const FileDescriptor& aXSocketFd) MOZ_OVERRIDE;
 
     virtual bool
-    RecvOpenAnonymousTemporaryFile(FileDescOrError* aFD) MOZ_OVERRIDE;
+    RecvOpenAnonymousTemporaryFile(FileDescriptor* aFD) MOZ_OVERRIDE;
 
     virtual bool
     RecvKeygenProcessValue(const nsString& oldValue, const nsString& challenge,

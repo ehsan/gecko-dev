@@ -23,4 +23,3 @@ let server = devtools.require("devtools/server/main");
 
 this.DebuggerServer = server.DebuggerServer;
 this.ActorPool = server.ActorPool;
-this.OriginalLocation = server.OriginalLocation;

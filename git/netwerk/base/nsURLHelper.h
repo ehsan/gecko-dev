@@ -227,11 +227,4 @@ bool net_IsValidIPv4Addr(const char *addr, int32_t addrLen);
  */
 bool net_IsValidIPv6Addr(const char *addr, int32_t addrLen);
 
-
-/**
- * Returns the max length of a URL. The default is 2083.
- * Can be changed by pref "network.standard-url.max-length"
- */
-int32_t net_GetURLMaxLength();
-
 #endif // !nsURLHelper_h__

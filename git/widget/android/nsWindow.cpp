@@ -76,7 +76,6 @@ static gfxIntSize gAndroidScreenBounds;
 #include "mozilla/layers/CompositorParent.h"
 #include "mozilla/layers/LayerTransactionParent.h"
 #include "mozilla/Mutex.h"
-#include "mozilla/Services.h"
 #include "nsThreadUtils.h"
 
 class ContentCreationNotifier;
@@ -101,8 +100,8 @@ public:
             ContentParent* cp = static_cast<ContentParent*>(cpo.get());
             unused << cp->SendScreenSizeChanged(gAndroidScreenBounds);
         } else if (!strcmp(aTopic, "xpcom-shutdown")) {
-            nsCOMPtr<nsIObserverService> obs =
-                mozilla::services::GetObserverService();
+            nsCOMPtr<nsIObserverService>
+                obs(do_GetService("@mozilla.org/observer-service;1"));
             if (obs) {
                 obs->RemoveObserver(static_cast<nsIObserver*>(this),
                                     "xpcom-shutdown");
@@ -824,8 +823,7 @@ nsWindow::OnGlobalAndroidEvent(AndroidGeckoEvent *ae)
 
             // If the content process is not created yet, wait until it's
             // created and then tell it the screen size.
-            nsCOMPtr<nsIObserverService> obs =
-                mozilla::services::GetObserverService();
+            nsCOMPtr<nsIObserverService> obs = do_GetService("@mozilla.org/observer-service;1");
             if (!obs)
                 break;
 

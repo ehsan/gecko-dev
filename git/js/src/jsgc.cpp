@@ -4102,7 +4102,6 @@ GCRuntime::markWeakReferences(gcstats::Phase phase)
             markedAny |= WeakMapBase::markCompartmentIteratively(c, &marker);
         }
         markedAny |= Debugger::markAllIteratively(&marker);
-        markedAny |= jit::JitRuntime::MarkJitcodeGlobalTableIteratively(&marker);
 
         if (!markedAny)
             break;
@@ -4152,6 +4151,15 @@ void
 GCRuntime::markAllGrayReferences(gcstats::Phase phase)
 {
     markGrayReferences<GCZonesIter, GCCompartmentsIter>(phase);
+}
+
+void
+GCRuntime::markJitcodeGlobalTable()
+{
+    gcstats::AutoPhase ap(stats, gcstats::PHASE_SWEEP_MARK_JITCODE_GLOBAL_TABLE);
+    jit::JitRuntime::MarkJitcodeGlobalTable(&marker);
+    SliceBudget budget;
+    marker.drainMarkStack(budget);
 }
 
 #ifdef DEBUG
@@ -4271,6 +4279,7 @@ js::gc::MarkingValidator::nonIncrementalMark()
     {
         gcstats::AutoPhase ap1(gc->stats, gcstats::PHASE_SWEEP);
         gcstats::AutoPhase ap2(gc->stats, gcstats::PHASE_SWEEP_MARK);
+        gc->markJitcodeGlobalTable();
 
         gc->markAllWeakReferences(gcstats::PHASE_SWEEP_MARK_WEAK);
 
@@ -4813,6 +4822,8 @@ void
 GCRuntime::endMarkingZoneGroup()
 {
     gcstats::AutoPhase ap(stats, gcstats::PHASE_SWEEP_MARK);
+
+    markJitcodeGlobalTable();
 
     /*
      * Mark any incoming black pointers from previously swept compartments

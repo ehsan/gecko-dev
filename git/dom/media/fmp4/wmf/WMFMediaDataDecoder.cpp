@@ -139,14 +139,12 @@ WMFMediaDataDecoder::Flush()
 void
 WMFMediaDataDecoder::ProcessDrain()
 {
-  if (mDecoder) {
-    // Order the decoder to drain...
-    if (FAILED(mDecoder->SendMFTMessage(MFT_MESSAGE_COMMAND_DRAIN, 0))) {
-      NS_WARNING("Failed to send DRAIN command to MFT");
-    }
-    // Then extract all available output.
-    ProcessOutput();
+  // Order the decoder to drain...
+  if (FAILED(mDecoder->SendMFTMessage(MFT_MESSAGE_COMMAND_DRAIN, 0))) {
+    NS_WARNING("Failed to send DRAIN command to MFT");
   }
+  // Then extract all available output.
+  ProcessOutput();
   mCallback->DrainComplete();
 }
 
