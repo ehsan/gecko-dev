@@ -29,13 +29,7 @@ function run_test()
 
 function test_exit_frame_whys()
 {
-  gClient.addListener("traces", (aEvent, { traces }) => {
-    for (let t of traces) {
-      if (t.type == "exitedFrame") {
-        check_trace(t);
-      }
-    }
-  });
+  gTraceClient.addListener("exitedFrame", check_packet);
 
   start_trace()
     .then(eval_code)
@@ -89,7 +83,7 @@ function stop_trace()
   return deferred.promise;
 }
 
-function check_trace(aEvent, { sequence, why })
+function check_packet(aEvent, { sequence, why })
 {
   switch(sequence) {
   case 3:

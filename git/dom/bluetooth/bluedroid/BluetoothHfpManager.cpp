@@ -386,7 +386,7 @@ BluetoothHfpManager::Init()
   hal::RegisterBatteryObserver(this);
 
   mListener = new BluetoothRilListener();
-  NS_ENSURE_TRUE(mListener->Listen(true), false);
+  NS_ENSURE_TRUE(mListener->StartListening(), false);
 
   nsCOMPtr<nsISettingsService> settings =
     do_GetService("@mozilla.org/settingsService;1");
@@ -427,7 +427,7 @@ BluetoothHfpManager::InitHfpInterface()
 
 BluetoothHfpManager::~BluetoothHfpManager()
 {
-  if (!mListener->Listen(false)) {
+  if (!mListener->StopListening()) {
     BT_WARNING("Failed to stop listening RIL");
   }
   mListener = nullptr;
@@ -815,20 +815,17 @@ BluetoothHfpManager::HandleVolumeChanged(const nsAString& aData)
 }
 
 void
-BluetoothHfpManager::HandleVoiceConnectionChanged(uint32_t aClientId)
+BluetoothHfpManager::HandleVoiceConnectionChanged()
 {
   nsCOMPtr<nsIMobileConnectionProvider> connection =
     do_GetService(NS_RILCONTENTHELPER_CONTRACTID);
   NS_ENSURE_TRUE_VOID(connection);
 
   nsCOMPtr<nsIDOMMozMobileConnectionInfo> voiceInfo;
-  connection->GetVoiceConnectionInfo(aClientId, getter_AddRefs(voiceInfo));
+  connection->GetVoiceConnectionInfo(0, getter_AddRefs(voiceInfo));
   NS_ENSURE_TRUE_VOID(voiceInfo);
 
-  nsString type;
-  voiceInfo->GetType(type);
-  mPhoneType = GetPhoneType(type);
-
+  // Roam
   bool roaming;
   voiceInfo->GetRoaming(&roaming);
   mRoam = (roaming) ? 1 : 0;
@@ -870,14 +867,14 @@ BluetoothHfpManager::HandleVoiceConnectionChanged(uint32_t aClientId)
 }
 
 void
-BluetoothHfpManager::HandleIccInfoChanged(uint32_t aClientId)
+BluetoothHfpManager::HandleIccInfoChanged()
 {
   nsCOMPtr<nsIIccProvider> icc =
     do_GetService(NS_RILCONTENTHELPER_CONTRACTID);
   NS_ENSURE_TRUE_VOID(icc);
 
   nsCOMPtr<nsIDOMMozIccInfo> iccInfo;
-  icc->GetIccInfo(aClientId, getter_AddRefs(iccInfo));
+  icc->GetIccInfo(0, getter_AddRefs(iccInfo));
   NS_ENSURE_TRUE_VOID(iccInfo);
 
   nsCOMPtr<nsIDOMMozGsmIccInfo> gsmIccInfo = do_QueryInterface(iccInfo);
