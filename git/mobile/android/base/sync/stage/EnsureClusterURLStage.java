@@ -16,7 +16,6 @@ import org.mozilla.gecko.background.common.log.Logger;
 import org.mozilla.gecko.sync.NodeAuthenticationException;
 import org.mozilla.gecko.sync.NullClusterURLException;
 import org.mozilla.gecko.sync.ThreadPool;
-import org.mozilla.gecko.sync.delegates.NodeAssignmentCallback;
 import org.mozilla.gecko.sync.net.BaseResource;
 import org.mozilla.gecko.sync.net.BaseResourceDelegate;
 
@@ -25,8 +24,6 @@ import ch.boye.httpclientandroidlib.HttpResponse;
 import ch.boye.httpclientandroidlib.client.ClientProtocolException;
 
 public class EnsureClusterURLStage extends AbstractNonRepositorySyncStage {
-  private static final String LOG_TAG = EnsureClusterURLStage.class.getSimpleName();
-
   public interface ClusterURLFetchDelegate {
     /**
      * 200 - Success.
@@ -53,12 +50,7 @@ public class EnsureClusterURLStage extends AbstractNonRepositorySyncStage {
     public void handleError(Exception e);
   }
 
-  protected final NodeAssignmentCallback callback;
-
-  public EnsureClusterURLStage(NodeAssignmentCallback callback) {
-    super();
-    this.callback = callback;
-  }
+  protected static final String LOG_TAG = "EnsureClusterURLStage";
 
   // TODO: if cluster URL has changed since last time, we need to ensure that we do
   // a fresh start. This takes place at the GlobalSession level. Verify!
@@ -181,7 +173,7 @@ public class EnsureClusterURLStage extends AbstractNonRepositorySyncStage {
 
   public void execute() throws NoSuchStageException {
     final URI oldClusterURL = session.config.getClusterURL();
-    final boolean wantNodeAssignment = callback.wantNodeAssignment();
+    final boolean wantNodeAssignment = session.callback.wantNodeAssignment();
 
     if (!wantNodeAssignment && oldClusterURL != null) {
       Logger.info(LOG_TAG, "Cluster URL is already set and not stale. Continuing with sync.");
@@ -198,12 +190,12 @@ public class EnsureClusterURLStage extends AbstractNonRepositorySyncStage {
 
         if (oldClusterURL != null && oldClusterURL.equals(url)) {
           // Our cluster URL is marked as stale and the fresh cluster URL is the same -- this is the user's problem.
-          callback.informNodeAuthenticationFailed(session, url);
+          session.callback.informNodeAuthenticationFailed(session, url);
           session.abort(new NodeAuthenticationException(), "User password has changed.");
           return;
         }
 
-        callback.informNodeAssigned(session, oldClusterURL, url); // No matter what, we're getting a new node/weave clusterURL.
+        session.callback.informNodeAssigned(session, oldClusterURL, url); // No matter what, we're getting a new node/weave clusterURL.
         session.config.setClusterURL(url);
 
         ThreadPool.run(new Runnable() {
@@ -224,12 +216,7 @@ public class EnsureClusterURLStage extends AbstractNonRepositorySyncStage {
         int statusCode = response.getStatusLine().getStatusCode();
         Logger.warn(LOG_TAG, "Got HTTP failure fetching node assignment: " + statusCode);
         if (statusCode == 404) {
-          URI serverURL = null;
-          try {
-            serverURL = new URI(callback.nodeWeaveURL());
-          } catch (URISyntaxException e) {
-            // Fall through to abort.
-          }
+          URI serverURL = session.config.serverURL;
           if (serverURL != null) {
             Logger.info(LOG_TAG, "Using serverURL <" + serverURL.toASCIIString() + "> as clusterURL.");
             session.config.setClusterURL(serverURL);
@@ -237,7 +224,7 @@ public class EnsureClusterURLStage extends AbstractNonRepositorySyncStage {
             return;
           }
           Logger.warn(LOG_TAG, "No serverURL set to use as fallback cluster URL. Aborting sync.");
-          // Fall through to abort.
+          // Fallthrough to abort.
         } else {
           session.interpretHTTPFailure(response);
         }
@@ -254,7 +241,7 @@ public class EnsureClusterURLStage extends AbstractNonRepositorySyncStage {
       @Override
       public void run() {
         try {
-          fetchClusterURL(callback.nodeWeaveURL(), delegate);
+          fetchClusterURL(session.config.nodeWeaveURL(), delegate);
         } catch (URISyntaxException e) {
           session.abort(e, "Invalid URL for node/weave.");
         }
