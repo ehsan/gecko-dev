@@ -34,6 +34,7 @@
 #include "nsIXPConnect.h"
 #include "nsIXPCScriptable.h"
 
+#include "nsContentUtils.h"
 #include "nsCxPusher.h"
 #include "nsJSUtils.h"
 #include "nsJSPrincipals.h"

@@ -9,8 +9,6 @@
 
 #ifdef JS_ION
 
-#include "mozilla/Alignment.h"
-
 #include "jit/BaselineFrame.h"
 #include "jit/BaselineJIT.h"
 #include "jit/BaselineRegisters.h"

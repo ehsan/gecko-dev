@@ -232,6 +232,10 @@ public:
   SetPairingConfirmationInternal(const nsAString& aDeviceAddress, bool aConfirm,
                                  BluetoothReplyRunnable* aRunnable) = 0;
 
+  virtual bool
+  SetAuthorizationInternal(const nsAString& aDeviceAddress, bool aAllow,
+                           BluetoothReplyRunnable* aRunnable) = 0;
+
   virtual void
   Connect(const nsAString& aDeviceAddress,
           uint16_t aProfileId,
@@ -289,11 +293,6 @@ public:
   virtual nsresult
   SendSinkMessage(const nsAString& aDeviceAddresses,
                   const nsAString& aMessage) = 0;
-
-  virtual nsresult
-  SendInputMessage(const nsAString& aDeviceAddresses,
-                   const nsAString& aMessage,
-                   BluetoothReplyRunnable* aRunnable) = 0;
 
   bool
   IsEnabled() const

@@ -7,6 +7,7 @@
 #include "DOMWheelEvent.h"
 #include "nsGUIEvent.h"
 #include "nsIContent.h"
+#include "nsContentUtils.h"
 #include "prtime.h"
 
 namespace mozilla {

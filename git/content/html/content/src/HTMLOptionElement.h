@@ -112,7 +112,12 @@ public:
     aRv = SetText(aValue);
   }
 
-  int32_t Index();
+  int32_t GetIndex(ErrorResult& aRv)
+  {
+    int32_t id = 0;
+    aRv = GetIndex(&id);
+    return id;
+  }
 
 protected:
   virtual JSObject* WrapNode(JSContext* aCx,

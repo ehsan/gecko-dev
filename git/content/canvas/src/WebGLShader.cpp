@@ -8,6 +8,7 @@
 #include "WebGLContext.h"
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/dom/WebGLRenderingContextBinding.h"
+#include "nsContentUtils.h"
 
 using namespace mozilla;
 

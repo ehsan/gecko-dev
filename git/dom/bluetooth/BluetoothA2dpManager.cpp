@@ -125,7 +125,10 @@ BluetoothA2dpManager::Get()
   }
 
   // If we're in shutdown, don't create a new instance
-  NS_ENSURE_FALSE(sInShutdown, nullptr);
+  if (sInShutdown) {
+    NS_WARNING("BluetoothA2dpManager can't be created during shutdown");
+    return nullptr;
+  }
 
   // Create a new instance, register, and return
   BluetoothA2dpManager* manager = new BluetoothA2dpManager();
@@ -150,8 +153,15 @@ BluetoothA2dpManager::Connect(const nsAString& aDeviceAddress)
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(!aDeviceAddress.IsEmpty());
 
-  NS_ENSURE_FALSE(sInShutdown, false);
-  NS_ENSURE_FALSE(mA2dpConnected, false);
+  if (sInShutdown) {
+    NS_WARNING("Connect called while in shutdown!");
+    return false;
+  }
+
+  if (mA2dpConnected) {
+    NS_WARNING("BluetoothA2dpManager is connected");
+    return false;
+  }
 
   mDeviceAddress = aDeviceAddress;
 
@@ -166,7 +176,10 @@ BluetoothA2dpManager::Connect(const nsAString& aDeviceAddress)
 void
 BluetoothA2dpManager::Disconnect()
 {
-  NS_ENSURE_TRUE_VOID(mA2dpConnected);
+  if (!mA2dpConnected) {
+    NS_WARNING("BluetoothA2dpManager has been disconnected");
+    return;
+  }
 
   MOZ_ASSERT(!mDeviceAddress.IsEmpty());
 
@@ -190,28 +203,22 @@ BluetoothA2dpManager::HandleSinkPropertyChanged(const BluetoothSignal& aSignal)
   if (name.EqualsLiteral("Connected")) {
     // Indicates if a stream is setup to a A2DP sink on the remote device.
     MOZ_ASSERT(value.type() == BluetoothValue::Tbool);
-    MOZ_ASSERT(mA2dpConnected != value.get_bool());
-
     mA2dpConnected = value.get_bool();
     NotifyConnectionStatusChanged();
     DispatchConnectionStatusChanged();
   } else if (name.EqualsLiteral("Playing")) {
     // Indicates if a stream is active to a A2DP sink on the remote device.
     MOZ_ASSERT(value.type() == BluetoothValue::Tbool);
-    MOZ_ASSERT(mPlaying != value.get_bool());
-
     mPlaying = value.get_bool();
   } else if (name.EqualsLiteral("State")) {
     MOZ_ASSERT(value.type() == BluetoothValue::TnsString);
-    MOZ_ASSERT(mSinkState != StatusStringToSinkState(value.get_nsString()));
-
     HandleSinkStateChanged(StatusStringToSinkState(value.get_nsString()));
   } else {
     NS_WARNING("Unknown sink property");
   }
 }
 
-/* HandleSinkStateChanged updates sink state in A2dp
+/* HandleSinkPropertyChanged update sink state in A2dp
  *
  * Possible values: "disconnected", "connecting", "connected", "playing"
  *

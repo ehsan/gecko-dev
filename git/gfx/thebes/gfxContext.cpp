@@ -8,7 +8,6 @@
 #endif
 #include <math.h>
 
-#include "mozilla/Alignment.h"
 #include "mozilla/Constants.h"
 
 #include "cairo.h"

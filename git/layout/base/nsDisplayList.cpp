@@ -40,7 +40,6 @@
 #include "BasicLayers.h"
 #include "nsBoxFrame.h"
 #include "nsViewportFrame.h"
-#include "nsSubDocumentFrame.h"
 #include "nsSVGEffects.h"
 #include "nsSVGElement.h"
 #include "nsSVGClipPathFrame.h"
@@ -1271,17 +1270,6 @@ GetMouseThrough(const nsIFrame* aFrame)
   return false;
 }
 
-static bool
-IsFrameReceivingPointerEvents(nsIFrame* aFrame)
-{
-  nsSubDocumentFrame* frame = do_QueryFrame(aFrame);
-  if (frame && frame->PassPointerEventsToChildren()) {
-    return true;
-  }
-  return NS_STYLE_POINTER_EVENTS_NONE !=
-    aFrame->StyleVisibility()->GetEffectivePointerEvents(aFrame);
-}
-
 // A list of frames, and their z depth. Used for sorting
 // the results of hit testing.
 struct FramesWithDepth
@@ -1364,7 +1352,8 @@ void nsDisplayList::HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
       for (uint32_t j = 0; j < outFrames.Length(); j++) {
         nsIFrame *f = outFrames.ElementAt(j);
         // Handle the XUL 'mousethrough' feature and 'pointer-events'.
-        if (!GetMouseThrough(f) && IsFrameReceivingPointerEvents(f)) {
+        if (!GetMouseThrough(f) &&
+            f->StyleVisibility()->GetEffectivePointerEvents(f) != NS_STYLE_POINTER_EVENTS_NONE) {
           writeFrames->AppendElement(f);
         }
       }

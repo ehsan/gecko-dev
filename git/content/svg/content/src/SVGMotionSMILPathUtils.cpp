@@ -5,7 +5,7 @@
 
 #include "SVGMotionSMILPathUtils.h"
 #include "nsCharSeparatedTokenizer.h"
-#include "nsContentUtils.h" // for NS_ENSURE_FINITE2
+#include "nsContentUtils.h"
 #include "SVGContentUtils.h"
 #include "SVGLength.h"
 

@@ -12,6 +12,7 @@
 #include "nsIDocument.h"
 #include "nsIPrincipal.h"
 #include "nsCSSProps.h"
+#include "nsContentUtils.h"
 #include "nsStyleUtil.h"
 #include "CSSCalc.h"
 #include "nsNetUtil.h"

@@ -82,8 +82,10 @@ const RIL_IPC_MSG_NAMES = [
   "RIL:CardLockResult",
   "RIL:CardLockRetryCount",
   "RIL:USSDReceived",
-  "RIL:SendMMI",
-  "RIL:CancelMMI",
+  "RIL:SendMMI:Return:OK",
+  "RIL:SendMMI:Return:KO",
+  "RIL:CancelMMI:Return:OK",
+  "RIL:CancelMMI:Return:KO",
   "RIL:StkCommand",
   "RIL:StkSessionEnd",
   "RIL:DataError",
@@ -1519,8 +1521,10 @@ RILContentHelper.prototype = {
                            [data.message, data.sessionEnded]);
         break;
       }
-      case "RIL:SendMMI":
-      case "RIL:CancelMMI":
+      case "RIL:SendMMI:Return:OK":
+      case "RIL:CancelMMI:Return:OK":
+      case "RIL:SendMMI:Return:KO":
+      case "RIL:CancelMMI:Return:KO":
         this.handleSendCancelMMI(msg.json);
         break;
       case "RIL:StkCommand":
@@ -1747,7 +1751,7 @@ RILContentHelper.prototype = {
 
     if (changed) {
       this._deliverEvent("_voicemailListeners",
-                         "notifyStatusChanged",
+                         "voicemailNotification",
                          [this.voicemailStatus]);
     }
   },

@@ -5,13 +5,12 @@
 
 #include "mozilla/dom/HTMLOutputElement.h"
 
-#include "mozAutoDocUpdate.h"
-#include "mozilla/dom/HTMLFormElement.h"
 #include "mozilla/dom/HTMLOutputElementBinding.h"
-#include "nsContentUtils.h"
+#include "nsFormSubmission.h"
 #include "nsDOMSettableTokenList.h"
 #include "nsEventStates.h"
-#include "nsFormSubmission.h"
+#include "mozAutoDocUpdate.h"
+#include "mozilla/dom/HTMLFormElement.h"
 
 NS_IMPL_NS_NEW_HTML_ELEMENT(Output)
 
@@ -139,12 +138,6 @@ HTMLOutputElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
   UpdateState(false);
 
   return rv;
-}
-
-void
-HTMLOutputElement::GetValue(nsAString& aValue)
-{
-  nsContentUtils::GetNodeTextContent(this, true, aValue);
 }
 
 void

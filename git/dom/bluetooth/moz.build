@@ -37,7 +37,6 @@ if CONFIG['MOZ_B2G_BT']:
         'BluetoothUnixSocketConnector.cpp',
         'BluetoothA2dpManager.cpp',
         'BluetoothHfpManager.cpp',
-        'BluetoothHidManager.cpp',
         'BluetoothOppManager.cpp',
         'ObexBase.cpp',
         'BluetoothUuid.cpp',

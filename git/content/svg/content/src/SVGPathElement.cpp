@@ -13,6 +13,7 @@
 #include "gfxPath.h"
 #include "mozilla/dom/SVGPathElementBinding.h"
 #include "nsCOMPtr.h"
+#include "nsContentUtils.h"
 #include "nsGkAtoms.h"
 
 class gfxContext;

@@ -14,6 +14,8 @@
 #include "mozilla/dom/ContentParent.h"
 #include "mozilla/dom/quota/Client.h"
 #include "mozilla/dom/quota/QuotaManager.h"
+#include "nsContentUtils.h"
+#include "nsDOMClassInfo.h"
 #include "nsDOMLists.h"
 #include "nsJSUtils.h"
 #include "nsProxyRelease.h"

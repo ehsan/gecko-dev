@@ -13,6 +13,7 @@
 #include "SmsSegmentInfo.h"
 #include "DictionaryHelpers.h"
 #include "nsJSUtils.h"
+#include "nsContentUtils.h"
 #include "nsCxPusher.h"
 #include "mozilla/dom/MobileMessageManagerBinding.h"
 #include "mozilla/dom/MozMmsMessageBinding.h"

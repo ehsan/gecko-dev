@@ -763,24 +763,24 @@ struct ParamTraits<nsIntRect>
   }
 };
 
-template<typename Region, typename Rect, typename Iter>
-struct RegionParamTraits
+template<>
+struct ParamTraits<nsIntRegion>
 {
-  typedef Region paramType;
+  typedef nsIntRegion paramType;
 
   static void Write(Message* msg, const paramType& param)
   {
-    Iter it(param);
-    while (const Rect* r = it.Next())
+    nsIntRegionRectIterator it(param);
+    while (const nsIntRect* r = it.Next())
       WriteParam(msg, *r);
     // empty rects are sentinel values because nsRegions will never
     // contain them
-    WriteParam(msg, Rect());
+    WriteParam(msg, nsIntRect());
   }
 
   static bool Read(const Message* msg, void** iter, paramType* result)
   {
-    Rect rect;
+    nsIntRect rect;
     while (ReadParam(msg, iter, &rect)) {
       if (rect.IsEmpty())
         return true;
@@ -789,11 +789,6 @@ struct RegionParamTraits
     return false;
   }
 };
-
-template<>
-struct ParamTraits<nsIntRegion>
-  : RegionParamTraits<nsIntRegion, nsIntRect, nsIntRegionRectIterator>
-{};
 
 template<>
 struct ParamTraits<nsIntSize>
@@ -992,11 +987,6 @@ struct ParamTraits<nsRect>
             ReadParam(msg, iter, &result->height));
   }
 };
-
-template<>
-struct ParamTraits<nsRegion>
-  : RegionParamTraits<nsRegion, nsRect, nsRegionRectIterator>
-{};
 
 template<>
 struct ParamTraits<nsID>
