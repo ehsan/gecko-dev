@@ -262,7 +262,7 @@ MarionetteDriverActor.prototype = {
             default:
               break;
           }
-          let code = error.hasOwnProperty('code') ? e.code : 500;
+          code = error.hasOwnProperty('code') ? e.code : 500;
           this.sendError(error.toString(), code, error.stack, commandId);
         }
       }

@@ -897,8 +897,7 @@ class IDLInterface(IDLObjectWithScope):
             elif (identifier == "PrefControlled" or
                   identifier == "Pref" or
                   identifier == "NeedNewResolve" or
-                  identifier == "JSImplementation" or
-                  identifier == "HeaderFile"):
+                  identifier == "JSImplementation"):
                 # Known attributes that we don't need to do anything with here
                 pass
             else:

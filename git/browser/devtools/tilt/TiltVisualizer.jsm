@@ -80,7 +80,6 @@ this.TiltVisualizer = function TiltVisualizer(aProperties)
    * Save a reference to the top-level window.
    */
   this.chromeWindow = aProperties.chromeWindow;
-  this.tab = aProperties.tab;
 
   /**
    * The canvas element used for rendering the visualization.
@@ -100,6 +99,8 @@ this.TiltVisualizer = function TiltVisualizer(aProperties)
     aProperties.onError || null,
     aProperties.onLoad || null);
 
+  this.bindToInspector(aProperties.tab);
+
   /**
    * Visualization mouse and keyboard controller.
    */
@@ -109,12 +110,11 @@ this.TiltVisualizer = function TiltVisualizer(aProperties)
 TiltVisualizer.prototype = {
 
   /**
-   * Initializes the visualizer.
+   * Initializes the visualizer
    */
   init: function TV_init()
   {
     this.presenter.init();
-    this.bindToInspector(this.tab);
   },
 
   /**

@@ -6,7 +6,6 @@
 
 interface MozObserver;
 
-[HeaderFile="mozilla/dom/DesktopNotification.h"]
 interface DesktopNotificationCenter
 {
   [Creator]

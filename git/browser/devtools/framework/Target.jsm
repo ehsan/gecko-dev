@@ -320,7 +320,6 @@ TabTarget.prototype = {
       let event = Object.create(null);
       event.url = aPacket.url;
       event.title = aPacket.title;
-      event.nativeConsoleAPI = aPacket.nativeConsoleAPI;
       // Send any stored event payload (DOMWindow or nsIRequest) for backwards
       // compatibility with non-remotable tools.
       if (aPacket.state == "start") {

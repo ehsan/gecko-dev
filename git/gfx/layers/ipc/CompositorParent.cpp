@@ -67,6 +67,18 @@ struct LayerTreeState {
   TargetConfig mTargetConfig;
 };
 
+static uint8_t sPanZoomUserDataKey;
+struct PanZoomUserData : public LayerUserData {
+  PanZoomUserData(AsyncPanZoomController* aController)
+    : mController(aController)
+  { }
+
+  // We don't keep a strong ref here because PanZoomUserData is only
+  // set transiently, and APZC is thread-safe refcounted so
+  // AddRef/Release is expensive.
+  AsyncPanZoomController* mController;
+};
+
 /**
  * Lookup the indirect shadow tree for |aId| and return it if it
  * exists.  Otherwise null is returned.  This must only be called on
@@ -492,11 +504,12 @@ private:
           if (OP == Resolve) {
             ref->ConnectReferentLayer(referent);
             if (AsyncPanZoomController* apzc = state->mController) {
-              referent->SetAsyncPanZoomController(apzc);
+              referent->SetUserData(&sPanZoomUserDataKey,
+                                    new PanZoomUserData(apzc));
             }
           } else {
             ref->DetachReferentLayer(referent);
-            referent->SetAsyncPanZoomController(nullptr);
+            referent->RemoveUserData(&sPanZoomUserDataKey);
           }
         }
       }
@@ -842,7 +855,16 @@ CompositorParent::ApplyAsyncContentTransformToTree(TimeStamp aCurrentFrame,
     return appliedTransform;
   }
 
-  if (AsyncPanZoomController* controller = aLayer->GetAsyncPanZoomController()) {
+  AsyncPanZoomController* controller = nullptr;
+  // Check if an AsyncPanZoomController is attached to this layer.
+  if (LayerUserData* data = aLayer->GetUserData(&sPanZoomUserDataKey)) {
+    controller = static_cast<PanZoomUserData*>(data)->mController;
+  } else {
+    // Check if a derived implementation provides a default AsyncPanZoomController.
+    controller = GetDefaultPanZoomController();
+  }
+
+  if (controller) {
     ShadowLayer* shadow = aLayer->AsShadowLayer();
 
     ViewTransform treeTransform;

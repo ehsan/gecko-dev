@@ -113,19 +113,6 @@ function getBaseWindow(window) {
 }
 exports.getBaseWindow = getBaseWindow;
 
-/**
- * Returns the `nsIDOMWindow` toplevel window for any child/inner window
- */
-function getToplevelWindow(window) {
-  return window.QueryInterface(Ci.nsIInterfaceRequestor)
-               .getInterface(Ci.nsIWebNavigation)
-               .QueryInterface(Ci.nsIDocShellTreeItem)
-               .rootTreeItem
-               .QueryInterface(Ci.nsIInterfaceRequestor)
-               .getInterface(Ci.nsIDOMWindow);
-}
-exports.getToplevelWindow = getToplevelWindow;
-
 function getWindowDocShell(window) window.gBrowser.docShell;
 exports.getWindowDocShell = getWindowDocShell;
 
@@ -353,12 +340,6 @@ function getFrames(window) {
   }, [])
 }
 exports.getFrames = getFrames;
-
-function getScreenPixelsPerCSSPixel(window) {
-  return window.QueryInterface(Ci.nsIInterfaceRequestor).
-                getInterface(Ci.nsIDOMWindowUtils).screenPixelsPerCSSPixel;
-}
-exports.getScreenPixelsPerCSSPixel = getScreenPixelsPerCSSPixel;
 
 function getOwnerBrowserWindow(node) {
   /**

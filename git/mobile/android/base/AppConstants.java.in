@@ -86,11 +86,4 @@ public class AppConstants {
 #else
     false;
 #endif
-
-    public static final boolean MOZ_ANDROID_BEAM =
-#ifdef MOZ_ANDROID_BEAM
-    true;
-#else
-    false;
-#endif
 }
