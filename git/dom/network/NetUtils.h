@@ -11,7 +11,6 @@
 #define NetUtils_h
 
 #include "arpa/inet.h"
-#include "mozilla/Mutex.h"
 
 // Copied from ifc.h
 #define RESET_IPV4_ADDRESSES 0x01
@@ -24,8 +23,6 @@ class NetUtils
 {
 public:
   static void* GetSharedLibrary();
-
-  NetUtils();
 
   int32_t do_ifc_enable(const char *ifname);
   int32_t do_ifc_disable(const char *ifname);
@@ -59,9 +56,6 @@ public:
                              char* vendorinfo);
 
   static int32_t SdkVersion();
-
-private:
-  mozilla::Mutex mIfcMutex;
 };
 
 // Defines a function type with the right arguments and return type.

@@ -30,14 +30,9 @@ function AppsService()
 
 AppsService.prototype = {
 
-  getManifestCSPByLocalId: function getCSPByLocalId(localId) {
-    debug("GetManifestCSPByLocalId( " + localId + " )");
-    return DOMApplicationRegistry.getManifestCSPByLocalId(localId);
-  },
-
-  getDefaultCSPByLocalId: function getCSPByLocalId(localId) {
-    debug("GetDefaultCSPByLocalId( " + localId + " )");
-    return DOMApplicationRegistry.getDefaultCSPByLocalId(localId);
+  getCSPByLocalId: function getCSPByLocalId(localId) {
+    debug("GetCSPByLocalId( " + localId + " )");
+    return DOMApplicationRegistry.getCSPByLocalId(localId);
   },
 
   getAppByManifestURL: function getAppByManifestURL(aManifestURL) {

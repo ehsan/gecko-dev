@@ -190,7 +190,6 @@ struct Animation {
 
 // Change a layer's attributes
 struct CommonLayerAttributes {
-  nsIntRect layerBounds;
   nsIntRegion visibleRegion;
   EventRegions eventRegions;
   TransformMatrix transform;

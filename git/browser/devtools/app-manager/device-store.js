@@ -112,7 +112,6 @@ DeviceStore.prototype = {
         permissionsArray.push({
           name: name,
           app: permissionsTable[name].app,
-          trusted: permissionsTable[name].trusted,
           privileged: permissionsTable[name].privileged,
           certified: permissionsTable[name].certified,
         });
