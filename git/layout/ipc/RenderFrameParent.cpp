@@ -95,7 +95,7 @@ struct ViewTransform {
   operator gfx3DMatrix() const
   {
     return
-      gfx3DMatrix::Scale(mXScale, mYScale, 1) *
+      gfx3DMatrix::ScalingMatrix(mXScale, mYScale, 1) *
       gfx3DMatrix::Translation(mTranslation.x, mTranslation.y, 0);
   }
 
@@ -563,6 +563,7 @@ BuildBackgroundPatternFor(ContainerLayer* aContainer,
 
 RenderFrameParent::RenderFrameParent(nsFrameLoader* aFrameLoader)
   : mFrameLoader(aFrameLoader)
+  , mFrameLoaderDestroyed(false)
 {
   if (aFrameLoader) {
     mContentViews[FrameMetrics::ROOT_SCROLL_ID] =
@@ -585,6 +586,8 @@ RenderFrameParent::Destroy()
       static_cast<ShadowLayersParent*>(ManagedPLayersParent()[0]);
     layers->Destroy();
   }
+
+  mFrameLoaderDestroyed = true;
 }
 
 nsContentView*
@@ -723,7 +726,7 @@ RenderFrameParent::ActorDestroy(ActorDestroyReason why)
 PLayersParent*
 RenderFrameParent::AllocPLayers(LayerManager::LayersBackend* aBackendType)
 {
-  if (!mFrameLoader) {
+  if (!mFrameLoader || mFrameLoaderDestroyed) {
     *aBackendType = LayerManager::LAYERS_NONE;
     return nsnull;
   }
@@ -811,11 +814,12 @@ RenderFrameParent::BuildDisplayList(nsDisplayListBuilder* aBuilder,
   // We're the subdoc for <browser remote="true"> and it has
   // painted content.  Display its shadow layer tree.
   nsDisplayList shadowTree;
-  if (aBuilder->IsForEventDelivery()) {
+  ContainerLayer* container = GetRootLayer();
+  if (aBuilder->IsForEventDelivery() && container) {
     nsRect bounds = aFrame->EnsureInnerView()->GetBounds();
     ViewTransform offset =
       ViewTransform(GetRootFrameOffset(aFrame, aBuilder), 1, 1);
-    BuildListForLayer(GetRootLayer(), mFrameLoader, offset,
+    BuildListForLayer(container, mFrameLoader, offset,
                       aBuilder, shadowTree, aFrame);
   } else {
     shadowTree.AppendToTop(

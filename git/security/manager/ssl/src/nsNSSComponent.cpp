@@ -1089,18 +1089,6 @@ static CipherPref CipherPrefs[] = {
  {NULL, 0} /* end marker */
 };
 
-nsresult nsNSSComponent::GetNSSCipherIDFromPrefString(const nsACString &aPrefString, PRUint16 &aCipherId)
-{
-  for (CipherPref* cp = CipherPrefs; cp->pref; ++cp) {
-    if (nsDependentCString(cp->pref) == aPrefString) {
-      aCipherId = (PRUint16) cp->id;
-      return NS_OK;
-    }
-  }
-  
-  return NS_ERROR_NOT_AVAILABLE;
-}
-
 static void
 setNonPkixOcspEnabled(PRInt32 ocspEnabled, nsIPrefBranch * pref)
 {
@@ -1700,6 +1688,15 @@ nsNSSComponent::InitializeNSS(PRBool showWarningBox)
   #else
       rv = profilePath->GetNativePath(profileStr);
   #endif
+      if (NS_FAILED(rv)) {
+        nsPSMInitPanic::SetPanic();
+        return rv;
+      }
+    }
+
+    {
+      nsCOMPtr<nsICertOverrideService> icos =
+        do_GetService("@mozilla.org/security/certoverride;1", &rv);
       if (NS_FAILED(rv)) {
         nsPSMInitPanic::SetPanic();
         return rv;
@@ -2439,7 +2436,7 @@ void nsNSSComponent::ShowAlert(AlertIdentifier ai)
 
 nsresult nsNSSComponent::LogoutAuthenticatedPK11()
 {
-  nsCOMPtr<nsICertOverrideService> icos = 
+  nsCOMPtr<nsICertOverrideService> icos =
     do_GetService("@mozilla.org/security/certoverride;1");
   if (icos) {
     icos->ClearValidityOverride(

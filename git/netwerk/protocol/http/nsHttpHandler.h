@@ -54,7 +54,6 @@
 #include "nsIIOService.h"
 #include "nsIObserver.h"
 #include "nsIObserverService.h"
-#include "nsIProxyObjectManager.h"
 #include "nsIPrivateBrowsingService.h"
 #include "nsIStreamConverterService.h"
 #include "nsICacheSession.h"
@@ -230,7 +229,6 @@ private:
     nsresult SetAccept(const char *);
     nsresult SetAcceptLanguages(const char *);
     nsresult SetAcceptEncodings(const char *);
-    nsresult SetAcceptCharsets(const char *);
 
     nsresult InitConnectionMgr();
 
@@ -297,7 +295,6 @@ private:
     nsCString mAccept;
     nsCString mAcceptLanguages;
     nsCString mAcceptEncodings;
-    nsCString mAcceptCharsets;
 
     nsXPIDLCString mDefaultSocketType;
 
