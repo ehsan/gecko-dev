@@ -3863,10 +3863,9 @@ var XULBrowserWindow = {
       // and progress bars and such
       if (aRequest) {
         let msg = "";
-        let location;
         // Get the URI either from a channel or a pseudo-object
         if (aRequest instanceof nsIChannel || "URI" in aRequest) {
-          location = aRequest.URI;
+          let location = aRequest.URI;
 
           // For keyword URIs clear the user typed value since they will be changed into real URIs
           if (location.scheme == "keyword" && aWebProgress.DOMWindow == content)

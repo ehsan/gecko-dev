@@ -1362,7 +1362,7 @@ var PlacesControllerDragHelper = {
 
     // check for special folders, etc
     if (PlacesUtils.nodeIsContainer(aNode) &&
-        !this.canMoveContainer(aNode.itemId, parentId))
+        !this.canMoveContainer(concreteId, parentId))
       return false;
 
     return true;
