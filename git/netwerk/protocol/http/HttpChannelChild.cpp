@@ -49,6 +49,8 @@
 #include "nsMimeTypes.h"
 #include "nsNetUtil.h"
 
+using mozilla::MutexAutoLock;
+
 class Callback
 {
  public:
@@ -66,6 +68,7 @@ HttpChannelChild::HttpChannelChild()
   , mState(HCC_NEW)
   , mIPCOpen(false)
   , mShouldBuffer(true)
+  , mBufferLock("mozilla.net.HttpChannelChild.mBufferLock")
 {
   LOG(("Creating HttpChannelChild @%x\n", this));
 }
@@ -153,6 +156,7 @@ HttpChannelChild::RecvOnStartRequest(const nsHttpResponseHead& responseHead,
   if (mResponseHead)
     SetCookie(mResponseHead->PeekHeader(nsHttp::Set_Cookie));
 
+  MutexAutoLock lock(mBufferLock);
   bool ret = true;
   nsCOMPtr<nsIHttpChannel> kungFuDeathGrip(this);
   for (PRUint32 i = 0; i < mBufferedCallbacks.Length(); i++) {
@@ -385,8 +389,14 @@ bool
 HttpChannelChild::BufferOrDispatch(Callback* callback)
 {
   if (mShouldBuffer) {
+    MutexAutoLock lock(mBufferLock);
+    // If we can't grab the lock immediately, that means we're currently
+    // emptying the buffer. Therefore, the following condition should now
+    // be false, and we can resume immediate message processing.
+    if (mShouldBuffer) {
       mBufferedCallbacks.AppendElement(callback);
       return true;
+    }
   }
 
   bool result = callback->Run();
