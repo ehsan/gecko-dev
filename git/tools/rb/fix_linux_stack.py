@@ -318,8 +318,7 @@ def fixSymbols(line):
             if fileline == "??:0" or fileline == "??:?":
                 fileline = file
 
-            nl = '\n' if line[-1] == '\n' else ''
-            return "%s%s (%s)%s%s" % (before, name, fileline, after, nl)
+            return "%s%s (%s)%s\n" % (before, name, fileline, after)
         else:
             sys.stderr.write("Warning: File \"" + file + "\" does not exist.\n")
             return line

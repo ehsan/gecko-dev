@@ -6,7 +6,7 @@
 
 DIRS += ['stub']
 
-Program('jprof')
+PROGRAM = 'jprof'
 
 SOURCES += [
     'bfd.cpp',

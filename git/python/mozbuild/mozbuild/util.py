@@ -304,9 +304,6 @@ class StrictOrderingOnAppendList(list):
     """
     @staticmethod
     def ensure_sorted(l):
-        if isinstance(l, StrictOrderingOnAppendList):
-            return
-
         srtd = sorted(l, key=lambda x: x.lower())
 
         if srtd != l:

@@ -5,12 +5,14 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 if CONFIG['OS_TARGET'] != 'WINNT' and CONFIG['MOZ_WIDGET_TOOLKIT'] != 'gonk':
-    CppUnitTests([
+    CPP_UNIT_TESTS += [
         'mediaconduit_unittests',
         'mediapipeline_unittest',
         'sdp_unittests',
         'signaling_unittests',
-    ])
+    ]
+
+SOURCES += sorted('%s.cpp' % t for t in CPP_UNIT_TESTS)
 
 include('/ipc/chromium/chromium-config.mozbuild')
 

@@ -94,7 +94,7 @@ ImageListener::OnStartRequest(nsIRequest* request, nsISupports *ctxt)
   nsIScriptSecurityManager* secMan = nsContentUtils::GetSecurityManager();
   nsCOMPtr<nsIPrincipal> channelPrincipal;
   if (secMan) {
-    secMan->GetChannelResultPrincipal(channel, getter_AddRefs(channelPrincipal));
+    secMan->GetChannelPrincipal(channel, getter_AddRefs(channelPrincipal));
   }
 
   int16_t decision = nsIContentPolicy::ACCEPT;

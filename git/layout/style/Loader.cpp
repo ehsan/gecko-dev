@@ -861,7 +861,7 @@ SheetLoadData::OnStreamComplete(nsIUnicharStreamLoader* aLoader,
     if (mUseSystemPrincipal) {
       result = secMan->GetSystemPrincipal(getter_AddRefs(principal));
     } else {
-      result = secMan->GetChannelResultPrincipal(channel, getter_AddRefs(principal));
+      result = secMan->GetChannelPrincipal(channel, getter_AddRefs(principal));
     }
   }
 

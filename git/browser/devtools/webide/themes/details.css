@@ -55,8 +55,7 @@ header {
 
 header > div {
   vertical-align: top;
-  display: flex;
-  flex-direction: column;
+  display: inline-block;
 }
 
 #icon {
@@ -74,9 +73,6 @@ h1, #type {
 
 h1 {
   font-size: 20px;
-  overflow-x: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
 }
 
 #type {

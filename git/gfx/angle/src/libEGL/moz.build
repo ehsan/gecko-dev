@@ -54,7 +54,8 @@ DISABLE_STL_WRAPPING = True
 LOCAL_INCLUDES += [ '../../include', '../../src' ]
 USE_LIBS += [ 'libGLESv2' ]
 
-SharedLibrary('libEGL')
+LIBRARY_NAME = 'libEGL'
+FORCE_SHARED_LIB = True
 
 RCFILE = SRCDIR + '/libEGL.rc'
 DEFFILE = SRCDIR + '/libEGL.def'

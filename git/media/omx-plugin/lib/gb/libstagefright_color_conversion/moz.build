@@ -10,7 +10,9 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] != 'gonk':
         'libstagefright_color_conversion.cpp',
     ]
 
-SharedLibrary('stagefright_color_conversion')
+LIBRARY_NAME = 'stagefright_color_conversion'
+
+FORCE_SHARED_LIB = True
 
 LOCAL_INCLUDES += [
     '/media/omx-plugin/include/gb',

@@ -41,7 +41,7 @@ public:
   typedef const int64_t& KeyType;
   typedef const int64_t* KeyTypePointer;
 
-  explicit nsTrimInt64HashKey(KeyTypePointer aKey) : mValue(*aKey) { }
+  nsTrimInt64HashKey(KeyTypePointer aKey) : mValue(*aKey) { }
   nsTrimInt64HashKey(const nsTrimInt64HashKey& toCopy) : mValue(toCopy.mValue) { }
   ~nsTrimInt64HashKey() { }
 
@@ -135,7 +135,7 @@ public:
 
 public:
   // two-stage init, use NewHistoryResult to construct
-  explicit nsNavHistoryResult(nsNavHistoryContainerResultNode* mRoot);
+  nsNavHistoryResult(nsNavHistoryContainerResultNode* mRoot);
   nsresult Init(nsINavHistoryQuery** aQueries,
                 uint32_t aQueryCount,
                 nsNavHistoryQueryOptions *aOptions);

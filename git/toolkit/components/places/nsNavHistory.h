@@ -537,7 +537,7 @@ protected:
   class VisitHashKey : public nsURIHashKey
   {
   public:
-    explicit VisitHashKey(const nsIURI* aURI)
+    VisitHashKey(const nsIURI* aURI)
     : nsURIHashKey(aURI)
     {
     }
