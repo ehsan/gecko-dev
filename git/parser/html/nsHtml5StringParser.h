@@ -86,8 +86,7 @@ class nsHtml5StringParser : public nsParserBase
      *
      */
     nsresult ParseDocument(const nsAString& aSourceBuffer,
-                           nsIDocument* aTargetDoc,
-                           bool aScriptingEnabledForNoscriptParsing);
+                           nsIDocument* aTargetDoc);
 
   private:
 

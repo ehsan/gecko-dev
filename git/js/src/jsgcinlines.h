@@ -349,7 +349,7 @@ class CellIter : public CellIterImpl
     size_t *counter;
 #endif
   public:
-    CellIter(JSCompartment *comp, AllocKind kind)
+    CellIter(JSContext *cx, JSCompartment *comp, AllocKind kind)
       : lists(&comp->arenas),
         kind(kind)
     {
@@ -363,7 +363,7 @@ class CellIter : public CellIterImpl
             lists->copyFreeListToArena(kind);
         }
 #ifdef DEBUG
-        counter = &comp->rt->noGCOrAllocationCheck;
+        counter = &cx->runtime->noGCOrAllocationCheck;
         ++*counter;
 #endif
         init(comp, kind);

@@ -40,6 +40,7 @@
 #include "nsIDocument.h"
 #include "nsString.h"
 #include "nsTArray.h"
+#include "nsIUGenCategory.h"
 
 //#define DEBUG_SPELLCHECK
 
@@ -116,12 +117,14 @@ public:
   nsIDOMDocument* GetDOMDocument() const { return mDOMDocument; }
   nsIDocument* GetDocument() const { return mDocument; }
   nsINode* GetRootNode() { return mRootNode; }
+  nsIUGenCategory* GetCategories() { return mCategories; }
   
 private:
 
   // cached stuff for the editor, set by Init
   nsCOMPtr<nsIDOMDocument> mDOMDocument;
   nsCOMPtr<nsIDocument>         mDocument;
+  nsCOMPtr<nsIUGenCategory>     mCategories;
 
   // range to check, see SetPosition and SetEnd
   nsINode*    mRootNode;

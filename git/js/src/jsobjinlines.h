@@ -80,10 +80,8 @@
 #include "jsscriptinlines.h"
 
 #include "gc/Barrier-inl.h"
-
-#include "vm/ObjectImpl-inl.h"
-#include "vm/RegExpStatics-inl.h"
 #include "vm/String-inl.h"
+#include "vm/RegExpStatics-inl.h"
 
 inline bool
 JSObject::hasPrivate() const
@@ -101,7 +99,7 @@ JSObject::privateRef(uint32_t nfixed) const
      */
     JS_ASSERT(nfixed == numFixedSlots());
     JS_ASSERT(hasPrivate());
-    js::HeapSlot *end = &fixedSlots()[nfixed];
+    js::HeapValue *end = &fixedSlots()[nfixed];
     return *reinterpret_cast<void**>(end);
 }
 
@@ -186,7 +184,7 @@ JSObject::setSpecial(JSContext *cx, js::SpecialId sid, js::Value *vp, JSBool str
 }
 
 inline JSBool
-JSObject::setGenericAttributes(JSContext *cx, jsid id, unsigned *attrsp)
+JSObject::setGenericAttributes(JSContext *cx, jsid id, uintN *attrsp)
 {
     js::types::MarkTypePropertyConfigured(cx, this, id);
     js::GenericAttributesOp op = getOps()->setGenericAttributes;
@@ -194,20 +192,20 @@ JSObject::setGenericAttributes(JSContext *cx, jsid id, unsigned *attrsp)
 }
 
 inline JSBool
-JSObject::setPropertyAttributes(JSContext *cx, js::PropertyName *name, unsigned *attrsp)
+JSObject::setPropertyAttributes(JSContext *cx, js::PropertyName *name, uintN *attrsp)
 {
     return setGenericAttributes(cx, ATOM_TO_JSID(name), attrsp);
 }
 
 inline JSBool
-JSObject::setElementAttributes(JSContext *cx, uint32_t index, unsigned *attrsp)
+JSObject::setElementAttributes(JSContext *cx, uint32_t index, uintN *attrsp)
 {
     js::ElementAttributesOp op = getOps()->setElementAttributes;
     return (op ? op : js_SetElementAttributes)(cx, this, index, attrsp);
 }
 
 inline JSBool
-JSObject::setSpecialAttributes(JSContext *cx, js::SpecialId sid, unsigned *attrsp)
+JSObject::setSpecialAttributes(JSContext *cx, js::SpecialId sid, uintN *attrsp)
 {
     return setGenericAttributes(cx, SPECIALID_TO_JSID(sid), attrsp);
 }
@@ -365,6 +363,20 @@ JSObject::dynamicSlotIndex(size_t slot)
     return slot - numFixedSlots();
 }
 
+/*static*/ inline size_t
+JSObject::dynamicSlotsCount(size_t nfixed, size_t span)
+{
+    if (span <= nfixed)
+        return 0;
+    span -= nfixed;
+    if (span <= SLOT_CAPACITY_MIN)
+        return SLOT_CAPACITY_MIN;
+
+    size_t slots = js::RoundUpPow2(span);
+    JS_ASSERT(slots >= span);
+    return slots;
+}
+
 inline size_t
 JSObject::numDynamicSlots() const
 {
@@ -406,7 +418,7 @@ JSObject::canRemoveLastProperty()
         && previous->getObjectFlags() == lastProperty()->getObjectFlags();
 }
 
-inline const js::HeapSlot *
+inline const js::HeapValue *
 JSObject::getRawSlots()
 {
     JS_ASSERT(isGlobal());
@@ -414,31 +426,24 @@ JSObject::getRawSlots()
 }
 
 inline const js::Value &
-JSObject::getReservedSlot(unsigned index) const
+JSObject::getReservedSlot(uintN index) const
 {
     JS_ASSERT(index < JSSLOT_FREE(getClass()));
     return getSlot(index);
 }
 
-inline js::HeapSlot &
-JSObject::getReservedSlotRef(unsigned index)
+inline js::HeapValue &
+JSObject::getReservedSlotRef(uintN index)
 {
     JS_ASSERT(index < JSSLOT_FREE(getClass()));
     return getSlotRef(index);
 }
 
 inline void
-JSObject::setReservedSlot(unsigned index, const js::Value &v)
+JSObject::setReservedSlot(uintN index, const js::Value &v)
 {
     JS_ASSERT(index < JSSLOT_FREE(getClass()));
     setSlot(index, v);
-}
-
-inline void
-JSObject::initReservedSlot(unsigned index, const js::Value &v)
-{
-    JS_ASSERT(index < JSSLOT_FREE(getClass()));
-    initSlot(index, v);
 }
 
 inline bool
@@ -456,7 +461,7 @@ inline void
 JSObject::prepareSlotRangeForOverwrite(size_t start, size_t end)
 {
     for (size_t i = start; i < end; i++)
-        getSlotAddressUnchecked(i)->js::HeapSlot::~HeapSlot();
+        getSlotAddressUnchecked(i)->js::HeapValue::~HeapValue();
 }
 
 inline void
@@ -465,7 +470,7 @@ JSObject::prepareElementRangeForOverwrite(size_t start, size_t end)
     JS_ASSERT(isDenseArray());
     JS_ASSERT(end <= getDenseArrayInitializedLength());
     for (size_t i = start; i < end; i++)
-        elements[i].js::HeapSlot::~HeapSlot();
+        elements[i].js::HeapValue::~HeapValue();
 }
 
 inline uint32_t
@@ -536,68 +541,68 @@ JSObject::ensureElements(JSContext *cx, uint32_t capacity)
     return true;
 }
 
-inline js::HeapSlotArray
+inline js::HeapValueArray
 JSObject::getDenseArrayElements()
 {
     JS_ASSERT(isDenseArray());
-    return js::HeapSlotArray(elements);
+    return js::HeapValueArray(elements);
 }
 
 inline const js::Value &
-JSObject::getDenseArrayElement(unsigned idx)
+JSObject::getDenseArrayElement(uintN idx)
 {
     JS_ASSERT(isDenseArray() && idx < getDenseArrayInitializedLength());
     return elements[idx];
 }
 
 inline void
-JSObject::setDenseArrayElement(unsigned idx, const js::Value &val)
+JSObject::setDenseArrayElement(uintN idx, const js::Value &val)
 {
     JS_ASSERT(isDenseArray() && idx < getDenseArrayInitializedLength());
-    elements[idx].set(this, idx, val);
+    elements[idx] = val;
 }
 
 inline void
-JSObject::initDenseArrayElement(unsigned idx, const js::Value &val)
+JSObject::initDenseArrayElement(uintN idx, const js::Value &val)
 {
     JS_ASSERT(isDenseArray() && idx < getDenseArrayInitializedLength());
-    elements[idx].init(this, idx, val);
+    elements[idx].init(val);
 }
 
 inline void
-JSObject::setDenseArrayElementWithType(JSContext *cx, unsigned idx, const js::Value &val)
+JSObject::setDenseArrayElementWithType(JSContext *cx, uintN idx, const js::Value &val)
 {
     js::types::AddTypePropertyId(cx, this, JSID_VOID, val);
     setDenseArrayElement(idx, val);
 }
 
 inline void
-JSObject::initDenseArrayElementWithType(JSContext *cx, unsigned idx, const js::Value &val)
+JSObject::initDenseArrayElementWithType(JSContext *cx, uintN idx, const js::Value &val)
 {
     js::types::AddTypePropertyId(cx, this, JSID_VOID, val);
     initDenseArrayElement(idx, val);
 }
 
 inline void
-JSObject::copyDenseArrayElements(unsigned dstStart, const js::Value *src, unsigned count)
+JSObject::copyDenseArrayElements(uintN dstStart, const js::Value *src, uintN count)
 {
     JS_ASSERT(dstStart + count <= getDenseArrayCapacity());
     JSCompartment *comp = compartment();
     for (unsigned i = 0; i < count; ++i)
-        elements[dstStart + i].set(comp, this, dstStart + i, src[i]);
+        elements[dstStart + i].set(comp, src[i]);
 }
 
 inline void
-JSObject::initDenseArrayElements(unsigned dstStart, const js::Value *src, unsigned count)
+JSObject::initDenseArrayElements(uintN dstStart, const js::Value *src, uintN count)
 {
     JS_ASSERT(dstStart + count <= getDenseArrayCapacity());
     JSCompartment *comp = compartment();
     for (unsigned i = 0; i < count; ++i)
-        elements[dstStart + i].init(comp, this, dstStart + i, src[i]);
+        elements[dstStart + i].init(comp, src[i]);
 }
 
 inline void
-JSObject::moveDenseArrayElements(unsigned dstStart, unsigned srcStart, unsigned count)
+JSObject::moveDenseArrayElements(uintN dstStart, uintN srcStart, uintN count)
 {
     JS_ASSERT(dstStart + count <= getDenseArrayCapacity());
     JS_ASSERT(srcStart + count <= getDenseArrayInitializedLength());
@@ -614,26 +619,25 @@ JSObject::moveDenseArrayElements(unsigned dstStart, unsigned srcStart, unsigned 
      * write barrier is invoked here on B, despite the fact that it exists in
      * the array before and after the move.
     */
-    JSCompartment *comp = compartment();
-    if (comp->needsBarrier()) {
+    if (compartment()->needsBarrier()) {
         if (dstStart < srcStart) {
-            js::HeapSlot *dst = elements + dstStart;
-            js::HeapSlot *src = elements + srcStart;
+            js::HeapValue *dst = elements + dstStart;
+            js::HeapValue *src = elements + srcStart;
             for (unsigned i = 0; i < count; i++, dst++, src++)
-                dst->set(comp, this, dst - elements, *src);
+                *dst = *src;
         } else {
-            js::HeapSlot *dst = elements + dstStart + count - 1;
-            js::HeapSlot *src = elements + srcStart + count - 1;
+            js::HeapValue *dst = elements + dstStart + count - 1;
+            js::HeapValue *src = elements + srcStart + count - 1;
             for (unsigned i = 0; i < count; i++, dst--, src--)
-                dst->set(comp, this, dst - elements, *src);
+                *dst = *src;
         }
     } else {
-        memmove(elements + dstStart, elements + srcStart, count * sizeof(js::HeapSlot));
+        memmove(elements + dstStart, elements + srcStart, count * sizeof(js::Value));
     }
 }
 
 inline void
-JSObject::moveDenseArrayElementsUnbarriered(unsigned dstStart, unsigned srcStart, unsigned count)
+JSObject::moveDenseArrayElementsUnbarriered(uintN dstStart, uintN srcStart, uintN count)
 {
     JS_ASSERT(!compartment()->needsBarrier());
 
@@ -862,6 +866,11 @@ inline bool JSObject::setSystem(JSContext *cx)
     return setFlag(cx, js::BaseShape::SYSTEM);
 }
 
+inline bool JSObject::isDelegate() const
+{
+    return lastProperty()->hasObjectFlag(js::BaseShape::DELEGATE);
+}
+
 inline bool JSObject::setDelegate(JSContext *cx)
 {
     return setFlag(cx, js::BaseShape::DELEGATE, GENERATE_SHAPE);
@@ -890,6 +899,11 @@ inline bool JSObject::hasUncacheableProto() const
 inline bool JSObject::setUncacheableProto(JSContext *cx)
 {
     return setFlag(cx, js::BaseShape::UNCACHEABLE_PROTO, GENERATE_SHAPE);
+}
+
+inline bool JSObject::isExtensible() const
+{
+    return !lastProperty()->hasObjectFlag(js::BaseShape::NOT_EXTENSIBLE);
 }
 
 inline bool JSObject::isBoundFunction() const
@@ -979,62 +993,30 @@ JSObject::isQName() const
 }
 
 inline void
-JSObject::getSlotRangeUnchecked(size_t start, size_t length,
-                                js::HeapSlot **fixedStart, js::HeapSlot **fixedEnd,
-                                js::HeapSlot **slotsStart, js::HeapSlot **slotsEnd)
-{
-    JS_ASSERT(!isDenseArray());
-
-    size_t fixed = numFixedSlots();
-    if (start < fixed) {
-        if (start + length < fixed) {
-            *fixedStart = &fixedSlots()[start];
-            *fixedEnd = &fixedSlots()[start + length];
-            *slotsStart = *slotsEnd = NULL;
-        } else {
-            size_t localCopy = fixed - start;
-            *fixedStart = &fixedSlots()[start];
-            *fixedEnd = &fixedSlots()[start + localCopy];
-            *slotsStart = &slots[0];
-            *slotsEnd = &slots[length - localCopy];
-        }
-    } else {
-        *fixedStart = *fixedEnd = NULL;
-        *slotsStart = &slots[start - fixed];
-        *slotsEnd = &slots[start - fixed + length];
-    }
-}
-
-inline void
-JSObject::getSlotRange(size_t start, size_t length,
-                       js::HeapSlot **fixedStart, js::HeapSlot **fixedEnd,
-                       js::HeapSlot **slotsStart, js::HeapSlot **slotsEnd)
-{
-    JS_ASSERT(slotInRange(start + length, SENTINEL_ALLOWED));
-    getSlotRangeUnchecked(start, length, fixedStart, fixedEnd, slotsStart, slotsEnd);
-}
-
-inline void
 JSObject::initializeSlotRange(size_t start, size_t length)
 {
     /*
      * No bounds check, as this is used when the object's shape does not
      * reflect its allocated slots (updateSlotsForSpan).
      */
-    js::HeapSlot *fixedStart, *fixedEnd, *slotsStart, *slotsEnd;
-    getSlotRangeUnchecked(start, length, &fixedStart, &fixedEnd, &slotsStart, &slotsEnd);
-
-    JSCompartment *comp = compartment();
-    size_t offset = start;
-    for (js::HeapSlot *sp = fixedStart; sp != fixedEnd; sp++)
-        sp->init(comp, this, offset++, js::UndefinedValue());
-    for (js::HeapSlot *sp = slotsStart; sp != slotsEnd; sp++)
-        sp->init(comp, this, offset++, js::UndefinedValue());
+    JS_ASSERT(!isDenseArray());
+    size_t fixed = numFixedSlots();
+    if (start < fixed) {
+        if (start + length < fixed) {
+            js::InitValueRange(fixedSlots() + start, length, false);
+        } else {
+            size_t localClear = fixed - start;
+            js::InitValueRange(fixedSlots() + start, localClear, false);
+            js::InitValueRange(slots, length - localClear, false);
+        }
+    } else {
+        js::InitValueRange(slots + start - fixed, length, false);
+    }
 }
 
 /* static */ inline JSObject *
 JSObject::create(JSContext *cx, js::gc::AllocKind kind,
-                 js::HandleShape shape, js::HandleTypeObject type, js::HeapSlot *slots)
+                 js::HandleShape shape, js::HandleTypeObject type, js::HeapValue *slots)
 {
     /*
      * Callers must use dynamicSlotsCount to size the initial slot array of the
@@ -1108,7 +1090,7 @@ JSObject::finish(JSContext *cx)
 }
 
 inline bool
-JSObject::hasProperty(JSContext *cx, jsid id, bool *foundp, unsigned flags)
+JSObject::hasProperty(JSContext *cx, jsid id, bool *foundp, uintN flags)
 {
     JSObject *pobj;
     JSProperty *prop;
@@ -1142,8 +1124,8 @@ JSObject::slotSpan() const
     return lastProperty()->slotSpan();
 }
 
-inline js::HeapSlot &
-JSObject::nativeGetSlotRef(unsigned slot)
+inline js::HeapValue &
+JSObject::nativeGetSlotRef(uintN slot)
 {
     JS_ASSERT(isNative());
     JS_ASSERT(slot < slotSpan());
@@ -1151,7 +1133,7 @@ JSObject::nativeGetSlotRef(unsigned slot)
 }
 
 inline const js::Value &
-JSObject::nativeGetSlot(unsigned slot) const
+JSObject::nativeGetSlot(uintN slot) const
 {
     JS_ASSERT(isNative());
     JS_ASSERT(slot < slotSpan());
@@ -1175,7 +1157,7 @@ JSObject::nativeGetMethod(const js::Shape *shape) const
 }
 
 inline void
-JSObject::nativeSetSlot(unsigned slot, const js::Value &value)
+JSObject::nativeSetSlot(uintN slot, const js::Value &value)
 {
     JS_ASSERT(isNative());
     JS_ASSERT(slot < slotSpan());
@@ -1187,6 +1169,12 @@ JSObject::nativeSetSlotWithType(JSContext *cx, const js::Shape *shape, const js:
 {
     nativeSetSlot(shape->slot(), value);
     js::types::AddTypePropertyId(cx, this, shape->propid(), value);
+}
+
+inline bool
+JSObject::isNative() const
+{
+    return lastProperty()->isNative();
 }
 
 inline bool
@@ -1207,6 +1195,12 @@ JSObject::nativeEmpty() const
     return lastProperty()->isEmptyShape();
 }
 
+inline bool
+JSObject::inDictionaryMode() const
+{
+    return lastProperty()->inDictionary();
+}
+
 inline uint32_t
 JSObject::propertyCount() const
 {
@@ -1217,6 +1211,12 @@ inline bool
 JSObject::hasPropertyTable() const
 {
     return lastProperty()->hasTable();
+}
+
+inline size_t
+JSObject::sizeOfThis() const
+{
+    return arenaHeader()->getThingSize();
 }
 
 inline size_t
@@ -1277,7 +1277,7 @@ inline JSBool
 JSObject::defineGeneric(JSContext *cx, jsid id, const js::Value &value,
                         JSPropertyOp getter /* = JS_PropertyStub */,
                         JSStrictPropertyOp setter /* = JS_StrictPropertyStub */,
-                        unsigned attrs /* = JSPROP_ENUMERATE */)
+                        uintN attrs /* = JSPROP_ENUMERATE */)
 {
     js::DefineGenericOp op = getOps()->defineGeneric;
     return (op ? op : js_DefineProperty)(cx, this, id, &value, getter, setter, attrs);
@@ -1287,7 +1287,7 @@ inline JSBool
 JSObject::defineProperty(JSContext *cx, js::PropertyName *name, const js::Value &value,
                         JSPropertyOp getter /* = JS_PropertyStub */,
                         JSStrictPropertyOp setter /* = JS_StrictPropertyStub */,
-                        unsigned attrs /* = JSPROP_ENUMERATE */)
+                        uintN attrs /* = JSPROP_ENUMERATE */)
 {
     return defineGeneric(cx, ATOM_TO_JSID(name), value, getter, setter, attrs);
 }
@@ -1296,7 +1296,7 @@ inline JSBool
 JSObject::defineElement(JSContext *cx, uint32_t index, const js::Value &value,
                         JSPropertyOp getter /* = JS_PropertyStub */,
                         JSStrictPropertyOp setter /* = JS_StrictPropertyStub */,
-                        unsigned attrs /* = JSPROP_ENUMERATE */)
+                        uintN attrs /* = JSPROP_ENUMERATE */)
 {
     js::DefineElementOp op = getOps()->defineElement;
     return (op ? op : js_DefineElement)(cx, this, index, &value, getter, setter, attrs);
@@ -1306,7 +1306,7 @@ inline JSBool
 JSObject::defineSpecial(JSContext *cx, js::SpecialId sid, const js::Value &value,
                         JSPropertyOp getter /* = JS_PropertyStub */,
                         JSStrictPropertyOp setter /* = JS_StrictPropertyStub */,
-                        unsigned attrs /* = JSPROP_ENUMERATE */)
+                        uintN attrs /* = JSPROP_ENUMERATE */)
 {
     return defineGeneric(cx, SPECIALID_TO_JSID(sid), value, getter, setter, attrs);
 }
@@ -1381,20 +1381,20 @@ JSObject::getSpecial(JSContext *cx, JSObject *receiver, js::SpecialId sid, js::V
 }
 
 inline JSBool
-JSObject::getGenericAttributes(JSContext *cx, jsid id, unsigned *attrsp)
+JSObject::getGenericAttributes(JSContext *cx, jsid id, uintN *attrsp)
 {
     js::GenericAttributesOp op = getOps()->getGenericAttributes;
-    return (op ? op : js_GetAttributes)(cx, this, id, attrsp);
+    return (op ? op : js_GetAttributes)(cx, this, id, attrsp);    
 }
 
 inline JSBool
-JSObject::getPropertyAttributes(JSContext *cx, js::PropertyName *name, unsigned *attrsp)
+JSObject::getPropertyAttributes(JSContext *cx, js::PropertyName *name, uintN *attrsp)
 {
     return getGenericAttributes(cx, ATOM_TO_JSID(name), attrsp);
 }
 
 inline JSBool
-JSObject::getElementAttributes(JSContext *cx, uint32_t index, unsigned *attrsp)
+JSObject::getElementAttributes(JSContext *cx, uint32_t index, uintN *attrsp)
 {
     jsid id;
     if (!js::IndexToId(cx, index, &id))
@@ -1403,7 +1403,7 @@ JSObject::getElementAttributes(JSContext *cx, uint32_t index, unsigned *attrsp)
 }
 
 inline JSBool
-JSObject::getSpecialAttributes(JSContext *cx, js::SpecialId sid, unsigned *attrsp)
+JSObject::getSpecialAttributes(JSContext *cx, js::SpecialId sid, uintN *attrsp)
 {
     return getGenericAttributes(cx, SPECIALID_TO_JSID(sid), attrsp);
 }
@@ -1853,13 +1853,13 @@ NewObjectGCKind(JSContext *cx, js::Class *clasp)
  * may or may not need dynamic slots.
  */
 inline bool
-PreallocateObjectDynamicSlots(JSContext *cx, Shape *shape, HeapSlot **slots)
+PreallocateObjectDynamicSlots(JSContext *cx, Shape *shape, HeapValue **slots)
 {
     if (size_t count = JSObject::dynamicSlotsCount(shape->numFixedSlots(), shape->slotSpan())) {
-        *slots = (HeapSlot *) cx->malloc_(count * sizeof(HeapSlot));
+        *slots = (HeapValue *) cx->malloc_(count * sizeof(HeapValue));
         if (!*slots)
             return false;
-        Debug_SetSlotRangeToCrashOnTouch(*slots, count);
+        Debug_SetValueRangeToCrashOnTouch(*slots, count);
         return true;
     }
     *slots = NULL;
@@ -1966,7 +1966,7 @@ ValueIsSpecial(JSObject *obj, Value *propval, SpecialId *sidp, JSContext *cx)
 JSObject *
 DefineConstructorAndPrototype(JSContext *cx, HandleObject obj, JSProtoKey key, HandleAtom atom,
                               JSObject *protoProto, Class *clasp,
-                              Native constructor, unsigned nargs,
+                              Native constructor, uintN nargs,
                               JSPropertySpec *ps, JSFunctionSpec *fs,
                               JSPropertySpec *static_ps, JSFunctionSpec *static_fs,
                               JSObject **ctorp = NULL,
@@ -1976,7 +1976,7 @@ DefineConstructorAndPrototype(JSContext *cx, HandleObject obj, JSProtoKey key, H
 
 extern JSObject *
 js_InitClass(JSContext *cx, js::HandleObject obj, JSObject *parent_proto,
-             js::Class *clasp, JSNative constructor, unsigned nargs,
+             js::Class *clasp, JSNative constructor, uintN nargs,
              JSPropertySpec *ps, JSFunctionSpec *fs,
              JSPropertySpec *static_ps, JSFunctionSpec *static_fs,
              JSObject **ctorp = NULL,
@@ -2006,14 +2006,14 @@ js_PurgeScopeChain(JSContext *cx, JSObject *obj, jsid id)
 }
 
 inline void
-JSObject::setSlot(unsigned slot, const js::Value &value)
+JSObject::setSlot(uintN slot, const js::Value &value)
 {
     JS_ASSERT(slotInRange(slot));
-    getSlotRef(slot).set(this, slot, value);
+    getSlotRef(slot).set(compartment(), value);
 }
 
 inline void
-JSObject::initSlot(unsigned slot, const js::Value &value)
+JSObject::initSlot(uintN slot, const js::Value &value)
 {
     JS_ASSERT(getSlot(slot).isUndefined() || getSlot(slot).isMagic(JS_ARRAY_HOLE));
     JS_ASSERT(slotInRange(slot));
@@ -2021,23 +2021,76 @@ JSObject::initSlot(unsigned slot, const js::Value &value)
 }
 
 inline void
-JSObject::initSlotUnchecked(unsigned slot, const js::Value &value)
+JSObject::initSlotUnchecked(uintN slot, const js::Value &value)
 {
-    getSlotAddressUnchecked(slot)->init(this, slot, value);
+    getSlotAddressUnchecked(slot)->init(value);
 }
 
 inline void
-JSObject::setFixedSlot(unsigned slot, const js::Value &value)
+JSObject::setFixedSlot(uintN slot, const js::Value &value)
 {
     JS_ASSERT(slot < numFixedSlots());
-    fixedSlots()[slot].set(this, slot, value);
+    fixedSlots()[slot] = value;
 }
 
 inline void
-JSObject::initFixedSlot(unsigned slot, const js::Value &value)
+JSObject::initFixedSlot(uintN slot, const js::Value &value)
 {
     JS_ASSERT(slot < numFixedSlots());
-    fixedSlots()[slot].init(this, slot, value);
+    fixedSlots()[slot].init(value);
+}
+
+inline void
+JSObject::privateWriteBarrierPre(void **old)
+{
+#ifdef JSGC_INCREMENTAL
+    JSCompartment *comp = compartment();
+    if (comp->needsBarrier()) {
+        if (*old && getClass()->trace)
+            getClass()->trace(comp->barrierTracer(), this);
+    }
+#endif
+}
+
+inline void
+JSObject::privateWriteBarrierPost(void **old)
+{
+}
+
+inline void
+JSObject::writeBarrierPre(JSObject *obj)
+{
+#ifdef JSGC_INCREMENTAL
+    /*
+     * This would normally be a null test, but TypeScript::global uses 0x1 as a
+     * special value.
+     */
+    if (uintptr_t(obj) < 32)
+        return;
+
+    JSCompartment *comp = obj->compartment();
+    if (comp->needsBarrier()) {
+        JS_ASSERT(!comp->rt->gcRunning);
+        MarkObjectUnbarriered(comp->barrierTracer(), obj, "write barrier");
+    }
+#endif
+}
+
+inline void
+JSObject::readBarrier(JSObject *obj)
+{
+#ifdef JSGC_INCREMENTAL
+    JSCompartment *comp = obj->compartment();
+    if (comp->needsBarrier()) {
+        JS_ASSERT(!comp->rt->gcRunning);
+        MarkObjectUnbarriered(comp->barrierTracer(), obj, "read barrier");
+    }
+#endif
+}
+
+inline void
+JSObject::writeBarrierPost(JSObject *obj, void *addr)
+{
 }
 
 #endif /* jsobjinlines_h___ */

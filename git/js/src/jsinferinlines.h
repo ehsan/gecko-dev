@@ -639,7 +639,8 @@ TypeScript::Monitor(JSContext *cx, const js::Value &rval)
 }
 
 /* static */ inline void
-TypeScript::MonitorAssign(JSContext *cx, JSObject *obj, jsid id)
+TypeScript::MonitorAssign(JSContext *cx, JSScript *script, jsbytecode *pc,
+                          JSObject *obj, jsid id, const js::Value &rval)
 {
     if (cx->typeInferenceEnabled() && !obj->hasSingletonType()) {
         /*

@@ -193,7 +193,7 @@ using mozilla::dom::workers::exceptions::ThrowDOMExceptionForCode;
 
 namespace {
 
-inline int
+inline intN
 GetDOMExceptionCodeFromResult(nsresult aResult)
 {
   if (NS_SUCCEEDED(aResult)) {
@@ -724,11 +724,11 @@ private:
   class ResponseRunnable : public MainThreadProxyRunnable
   {
     PRUint32 mSyncQueueKey;
-    int mErrorCode;
+    intN mErrorCode;
 
   public:
     ResponseRunnable(WorkerPrivate* aWorkerPrivate, Proxy* aProxy,
-                     PRUint32 aSyncQueueKey, int aErrorCode)
+                     PRUint32 aSyncQueueKey, intN aErrorCode)
     : MainThreadProxyRunnable(aWorkerPrivate, SkipWhenClearing, aProxy),
       mSyncQueueKey(aSyncQueueKey), mErrorCode(aErrorCode)
     {
@@ -783,7 +783,7 @@ public:
     return true;
   }
 
-  virtual int
+  virtual intN
   MainThreadRun() = 0;
 
   NS_IMETHOD
@@ -794,7 +794,7 @@ public:
     PRUint32 oldSyncQueueKey = mProxy->mSyncEventResponseSyncQueueKey;
     mProxy->mSyncEventResponseSyncQueueKey = mSyncQueueKey;
 
-    int rv = MainThreadRun();
+    intN rv = MainThreadRun();
 
     nsRefPtr<ResponseRunnable> response =
       new ResponseRunnable(mWorkerPrivate, mProxy, mSyncQueueKey, rv);
@@ -818,7 +818,7 @@ public:
   : WorkerThreadProxySyncRunnable(aWorkerPrivate, aProxy), mValue(aValue)
   { }
 
-  int
+  intN
   MainThreadRun()
   {
     return GetDOMExceptionCodeFromResult(mProxy->mXHR->SetMultipart(mValue));
@@ -835,7 +835,7 @@ public:
   : WorkerThreadProxySyncRunnable(aWorkerPrivate, aProxy), mValue(aValue)
   { }
 
-  int
+  intN
   MainThreadRun()
   {
     nsresult rv = mProxy->mXHR->SetMozBackgroundRequest(mValue);
@@ -853,7 +853,7 @@ public:
   : WorkerThreadProxySyncRunnable(aWorkerPrivate, aProxy), mValue(aValue)
   { }
 
-  int
+  intN
   MainThreadRun()
   {
     nsresult rv = mProxy->mXHR->SetWithCredentials(mValue);
@@ -872,7 +872,7 @@ public:
     mResponseType(aResponseType)
   { }
 
-  int
+  intN
   MainThreadRun()
   {
     nsresult rv = mProxy->mXHR->SetResponseType(mResponseType);
@@ -896,7 +896,7 @@ public:
   : WorkerThreadProxySyncRunnable(aWorkerPrivate, aProxy)
   { }
 
-  int
+  intN
   MainThreadRun()
   {
     mProxy->mInnerChannelId++;
@@ -925,7 +925,7 @@ public:
     mResponseHeaders(aResponseHeaders)
   { }
 
-  int
+  intN
   MainThreadRun()
   {
     nsresult rv =
@@ -946,7 +946,7 @@ public:
     mValue(aValue)
   { }
 
-  int
+  intN
   MainThreadRun()
   {
     nsresult rv = mProxy->mXHR->GetResponseHeader(mHeader, mValue);
@@ -974,19 +974,19 @@ public:
     mBackgroundRequest(aBackgroundRequest), mWithCredentials(aWithCredentials)
   { }
 
-  int
+  intN
   MainThreadRun()
   {
     WorkerPrivate* oldWorker = mProxy->mWorkerPrivate;
     mProxy->mWorkerPrivate = mWorkerPrivate;
 
-    int retval = MainThreadRunInternal();
+    intN retval = MainThreadRunInternal();
 
     mProxy->mWorkerPrivate = oldWorker;
     return retval;
   }
 
-  int
+  intN
   MainThreadRunInternal()
   {
     if (!mProxy->Init()) {
@@ -1043,7 +1043,7 @@ public:
     mBody.swap(aBody);
   }
 
-  int
+  intN
   MainThreadRun()
   {
     NS_ASSERTION(!mProxy->mWorkerPrivate, "Should be null!");
@@ -1060,7 +1060,7 @@ public:
 
       RuntimeService::AutoSafeJSContext cx;
 
-      int error = 0;
+      intN error = 0;
 
       jsval body;
       if (mBody.read(cx, &body)) {
@@ -1114,7 +1114,7 @@ public:
     mSyncQueueKey(aSyncQueueKey), mHasUploadListeners(aHasUploadListeners)
   { }
 
-  int
+  intN
   MainThreadRun()
   {
     NS_ASSERTION(!mProxy->mWorkerPrivate, "Should be null!");
@@ -1156,7 +1156,7 @@ public:
     mValue(aValue)
   { }
 
-  int
+  intN
   MainThreadRun()
   {
     nsresult rv = mProxy->mXHR->SetRequestHeader(mHeader, mValue);
@@ -1174,7 +1174,7 @@ public:
   : WorkerThreadProxySyncRunnable(aWorkerPrivate, aProxy), mMimeType(aMimeType)
   { }
 
-  int
+  intN
   MainThreadRun()
   {
     nsresult rv = mProxy->mXHR->OverrideMimeType(mMimeType);

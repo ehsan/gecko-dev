@@ -89,6 +89,7 @@
 #include "nsWeakReference.h"
 
 class nsICharsetConverterManager;
+class nsICharsetAlias;
 class nsIDTD;
 class nsScanner;
 class nsIThreadPool;
@@ -356,6 +357,10 @@ class nsParser : public nsIParser,
      */
     void HandleParserContinueEvent(class nsParserContinueEvent *);
 
+    static nsICharsetAlias* GetCharsetAliasService() {
+      return sCharsetAliasService;
+    }
+
     static nsICharsetConverterManager* GetCharsetConverterManager() {
       return sCharsetConverterManager;
     }
@@ -460,6 +465,7 @@ protected:
 
     bool                mProcessingNetworkData;
 
+    static nsICharsetAlias*            sCharsetAliasService;
     static nsICharsetConverterManager* sCharsetConverterManager;
 };
 

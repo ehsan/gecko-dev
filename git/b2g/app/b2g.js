@@ -55,9 +55,8 @@ pref("browser.viewport.scaleRatio", -1);
 pref("browser.ignoreNativeFrameTextSelection", true);
 
 /* cache prefs */
-pref("browser.cache.disk.enable", true);
-pref("browser.cache.disk.capacity", 55000); // kilobytes
-pref("browser.cache.disk.parent_directory", "/cache");
+pref("browser.cache.disk.enable", false);
+pref("browser.cache.disk.capacity", 0); // kilobytes
 pref("browser.cache.disk.smart_size.enabled", false);
 pref("browser.cache.disk.smart_size.first_run", false);
 
@@ -107,7 +106,6 @@ pref("mozilla.widget.force-24bpp", true);
 pref("mozilla.widget.use-buffer-pixmap", true);
 pref("mozilla.widget.disable-native-theme", true);
 pref("layout.reflow.synthMouseMove", false);
-pref("dom.send_after_paint_to_content", true);
 
 /* download manager (don't show the window or alert) */
 pref("browser.download.useDownloadDir", true);
@@ -355,6 +353,9 @@ pref("urlclassifier.gethashtables", "goog-phish-shavar,goog-malware-shavar");
 // the database.
 pref("urlclassifier.confirm-age", 2700);
 
+// Maximum size of the sqlite3 cache during an update, in bytes
+pref("urlclassifier.updatecachemax", 4194304);
+
 // URL for checking the reason for a malware warning.
 pref("browser.safebrowsing.malware.reportURL", "http://safebrowsing.clients.google.com/safebrowsing/diagnostic?client=%NAME%&hl=%LOCALE%&site=");
 #endif
@@ -391,7 +392,6 @@ pref("layers.acceleration.force-enabled", true);
 // screen.enabled and screen.brightness properties.
 pref("dom.screenEnabledProperty.enabled", true);
 pref("dom.screenBrightnessProperty.enabled", true);
-pref("dom.mozScreenWhitelist", "http://localhost:7777");
 
 // handle links targeting new windows
 // 1=current window/tab, 2=new window, 3=new tab in most recent window
@@ -409,10 +409,6 @@ pref("dom.mozBrowserFramesWhitelist", "http://localhost:7777");
 // Temporary permission hack for WebSMS
 pref("dom.sms.enabled", true);
 pref("dom.sms.whitelist", "file://,http://localhost:7777");
-
-// Temporary permission hack for WebContacts
-pref("dom.mozContacts.enabled", true);
-pref("dom.mozContacts.whitelist", "http://localhost:7777");
 
 // Ignore X-Frame-Options headers.
 pref("b2g.ignoreXFrameOptions", true);
@@ -433,10 +429,6 @@ pref("layout.frame_rate.precise", true);
 // Temporary remote js console hack
 pref("b2g.remote-js.enabled", true);
 pref("b2g.remote-js.port", 9999);
-
-// Handle hardware buttons in the b2g chrome package
-pref("b2g.keys.menu.enabled", true);
-pref("b2g.keys.search.enabled", false);
 
 // Screen timeout in minutes
 pref("power.screen.timeout", 60);

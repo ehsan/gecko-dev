@@ -125,17 +125,17 @@ class MathCache;
  */
 class DtoaCache {
     double        d;
-    int         base;
+    jsint         base;
     JSFixedString *s;      // if s==NULL, d and base are not valid
   public:
     DtoaCache() : s(NULL) {}
     void purge() { s = NULL; }
 
-    JSFixedString *lookup(int base, double d) {
+    JSFixedString *lookup(jsint base, double d) {
         return this->s && base == this->base && d == this->d ? this->s : NULL;
     }
 
-    void cache(int base, double d, JSFixedString *s) {
+    void cache(jsint base, double d, JSFixedString *s) {
         this->base = base;
         this->d = d;
         this->s = s;
@@ -193,6 +193,7 @@ struct JSCompartment
     js::gc::ArenaLists           arenas;
 
     bool                         needsBarrier_;
+    js::BarrierGCMarker          barrierMarker_;
 
     bool needsBarrier() {
         return needsBarrier_;
@@ -200,7 +201,7 @@ struct JSCompartment
 
     js::GCMarker *barrierTracer() {
         JS_ASSERT(needsBarrier_);
-        return &rt->gcMarker;
+        return &barrierMarker_;
     }
 
     size_t                       gcBytes;
@@ -230,6 +231,7 @@ struct JSCompartment
 
     void                         *data;
     bool                         active;  // GC flag, whether there are active frames
+    bool                         hasDebugModeCodeToDrop;
     js::WrapperMap               crossCompartmentWrappers;
 
 #ifdef JS_METHODJIT
@@ -260,7 +262,8 @@ struct JSCompartment
     js::RegExpCompartment        regExps;
 
     size_t sizeOfShapeTable(JSMallocSizeOfFun mallocSizeOf);
-    void sizeOfTypeInferenceData(JS::TypeInferenceSizes *stats, JSMallocSizeOfFun mallocSizeOf);
+    void sizeOfTypeInferenceData(JSContext *cx, JS::TypeInferenceSizes *stats,
+                                 JSMallocSizeOfFun mallocSizeOf);
 
     /*
      * Shared scope property tree, and arena-pool for allocating its nodes.
@@ -269,10 +272,10 @@ struct JSCompartment
 
 #ifdef DEBUG
     /* Property metering. */
-    unsigned                     livePropTreeNodes;
-    unsigned                     totalPropTreeNodes;
-    unsigned                     propTreeKidsChunks;
-    unsigned                     liveDictModeNodes;
+    jsrefcount                   livePropTreeNodes;
+    jsrefcount                   totalPropTreeNodes;
+    jsrefcount                   propTreeKidsChunks;
+    jsrefcount                   liveDictModeNodes;
 #endif
 
     /* Set of all unowned base shapes in the compartment. */
@@ -301,7 +304,7 @@ struct JSCompartment
   private:
     enum { DebugFromC = 1, DebugFromJS = 2 };
 
-    unsigned                        debugModeBits;  // see debugMode() below
+    uintN                        debugModeBits;  // see debugMode() below
     
     /*
      * Malloc counter to measure memory pressure for GC scheduling. It runs
@@ -338,7 +341,7 @@ struct JSCompartment
     void markTypes(JSTracer *trc);
     void discardJitCode(JSContext *cx);
     void sweep(JSContext *cx, bool releaseTypes);
-    void purge();
+    void purge(JSContext *cx);
 
     void setGCLastBytes(size_t lastBytes, js::JSGCInvocationKind gckind);
     void reduceGCTriggerBytes(size_t amount);
@@ -385,8 +388,12 @@ struct JSCompartment
      */
     bool debugMode() const { return !!debugModeBits; }
 
-    /* True if any scripts from this compartment are on the JS stack. */
-    bool hasScriptsOnStack();
+    /*
+     * True if any scripts from this compartment are on the JS stack in the
+     * calling thread. cx is a context in the calling thread, and it is assumed
+     * that no other thread is using this compartment.
+     */
+    bool hasScriptsOnStack(JSContext *cx);
 
   private:
     /* This is called only when debugMode() has just toggled. */

@@ -47,7 +47,6 @@
 #include "gfxFont.h"
 #include "nsTextFragment.h"
 
-class nsRenderingContext;
 class nsSVGTextFrame;
 class nsSVGTextPathFrame;
 class nsSVGGlyphFrame;
@@ -173,7 +172,7 @@ public:
 
   // nsISVGChildFrame interface:
   // These four always use the global transform, even if NS_STATE_NONDISPLAY_CHILD
-  NS_IMETHOD PaintSVG(nsRenderingContext *aContext,
+  NS_IMETHOD PaintSVG(nsSVGRenderState *aContext,
                       const nsIntRect *aDirtyRect);
   NS_IMETHOD_(nsIFrame*) GetFrameForPoint(const nsPoint &aPoint);
   NS_IMETHOD UpdateCoveredRegion();

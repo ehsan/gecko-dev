@@ -360,6 +360,17 @@ XPCWrappedNativeScope::TraceJS(JSTracer* trc, XPCJSRuntime* rt)
     }
 }
 
+struct SuspectClosure
+{
+    SuspectClosure(JSContext *aCx, nsCycleCollectionTraversalCallback& aCb)
+        : cx(aCx), cb(aCb)
+    {
+    }
+
+    JSContext* cx;
+    nsCycleCollectionTraversalCallback& cb;
+};
+
 static JSDHashOperator
 WrappedNativeSuspecter(JSDHashTable *table, JSDHashEntryHdr *hdr,
                        uint32_t number, void *arg)
@@ -367,9 +378,8 @@ WrappedNativeSuspecter(JSDHashTable *table, JSDHashEntryHdr *hdr,
     XPCWrappedNative* wrapper = ((Native2WrappedNativeMap::Entry*)hdr)->value;
 
     if (wrapper->HasExternalReference()) {
-        nsCycleCollectionTraversalCallback *cb =
-            static_cast<nsCycleCollectionTraversalCallback *>(arg);
-        XPCJSRuntime::SuspectWrappedNative(wrapper, *cb);
+        SuspectClosure* closure = static_cast<SuspectClosure*>(arg);
+        XPCJSRuntime::SuspectWrappedNative(closure->cx, wrapper, closure->cb);
     }
 
     return JS_DHASH_NEXT;
@@ -377,13 +387,14 @@ WrappedNativeSuspecter(JSDHashTable *table, JSDHashEntryHdr *hdr,
 
 // static
 void
-XPCWrappedNativeScope::SuspectAllWrappers(XPCJSRuntime* rt,
+XPCWrappedNativeScope::SuspectAllWrappers(XPCJSRuntime* rt, JSContext* cx,
                                           nsCycleCollectionTraversalCallback& cb)
 {
     XPCAutoLock lock(rt->GetMapLock());
 
+    SuspectClosure closure(cx, cb);
     for (XPCWrappedNativeScope* cur = gScopes; cur; cur = cur->mNext) {
-        cur->mWrappedNativeMap->Enumerate(WrappedNativeSuspecter, &cb);
+        cur->mWrappedNativeMap->Enumerate(WrappedNativeSuspecter, &closure);
     }
 }
 
@@ -738,7 +749,7 @@ XPCWrappedNativeScope::FindInJSObjectScope(JSContext* cx, JSObject* obj,
     obj = JS_GetGlobalForObject(cx, obj);
 
     if (js::GetObjectClass(obj)->flags & JSCLASS_XPCONNECT_GLOBAL) {
-        scope = XPCWrappedNativeScope::GetNativeScope(obj);
+        scope = XPCWrappedNativeScope::GetNativeScope(cx, obj);
         if (scope)
             return scope;
     }

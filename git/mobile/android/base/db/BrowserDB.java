@@ -77,7 +77,9 @@ public class BrowserDB {
 
         public void clearHistory(ContentResolver cr);
 
-        public Cursor getBookmarksInFolder(ContentResolver cr, long folderId);
+        public Cursor getMobileBookmarks(ContentResolver cr);
+
+        public Cursor getDesktopBookmarks(ContentResolver cr);
 
         public boolean isBookmark(ContentResolver cr, String uri);
 
@@ -144,8 +146,12 @@ public class BrowserDB {
         sDb.clearHistory(cr);
     }
 
-    public static Cursor getBookmarksInFolder(ContentResolver cr, long folderId) {
-        return sDb.getBookmarksInFolder(cr, folderId);
+    public static Cursor getMobileBookmarks(ContentResolver cr) {
+        return sDb.getMobileBookmarks(cr);
+    }
+
+    public static Cursor getDesktopBookmarks(ContentResolver cr) {
+        return sDb.getDesktopBookmarks(cr);
     }
 
     public static String getUrlForKeyword(ContentResolver cr, String keyword) {

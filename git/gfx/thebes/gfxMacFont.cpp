@@ -46,6 +46,7 @@
 #endif
 #include "gfxPlatformMac.h"
 #include "gfxContext.h"
+#include "gfxUnicodeProperties.h"
 #include "gfxFontUtils.h"
 
 #include "cairo-quartz.h"

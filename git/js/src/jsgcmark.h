@@ -114,26 +114,18 @@ MarkValueRootRange(JSTracer *trc, Value *begin, Value *end, const char *name)
     MarkValueRootRange(trc, end - begin, begin, name);
 }
 
-/*** Slot Marking ***/
+/*** Special Cases ***/
 
+/* Direct value access used by the write barriers and the methodjit */
 void
-MarkSlot(JSTracer *trc, HeapSlot *s, const char *name);
-
-void
-MarkSlotRange(JSTracer *trc, size_t len, HeapSlot *vec, const char *name);
+MarkValueUnbarriered(JSTracer *trc, Value *v, const char *name);
 
 /*
  * Mark a value that may be in a different compartment from the compartment
  * being GC'd. (Although it won't be marked if it's in the wrong compartment.)
  */
 void
-MarkCrossCompartmentSlot(JSTracer *trc, HeapSlot *s, const char *name);
-
-/*** Special Cases ***/
-
-/* Direct value access used by the write barriers and the methodjit. */
-void
-MarkValueUnbarriered(JSTracer *trc, Value *v, const char *name);
+MarkCrossCompartmentValue(JSTracer *trc, HeapValue *v, const char *name);
 
 /*
  * MarkChildren<JSObject> is exposed solely for preWriteBarrier on

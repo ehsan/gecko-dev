@@ -853,12 +853,6 @@ nsAccessible::ChildAtPoint(PRInt32 aX, PRInt32 aY,
   // the DOM parent chain.
   nsDocAccessible* contentDocAcc = GetAccService()->
     GetDocAccessible(content->OwnerDoc());
-
-  // contentDocAcc in some circumstances can be NULL. See bug 729861
-  NS_ASSERTION(contentDocAcc, "could not get the document accessible");
-  if (!contentDocAcc)
-    return fallbackAnswer;
-
   nsAccessible* accessible = contentDocAcc->GetAccessibleOrContainer(content);
   if (!accessible)
     return fallbackAnswer;
@@ -969,8 +963,10 @@ void nsAccessible::GetBoundsRect(nsRect& aTotalBounds, nsIFrame** aBoundingFrame
     *aBoundingFrame = ancestorFrame;
     // If any other frame type, we only need to deal with the primary frame
     // Otherwise, there may be more frames attached to the same content node
-    if (ancestorFrame->GetType() != nsGkAtoms::inlineFrame &&
-        ancestorFrame->GetType() != nsGkAtoms::textFrame)
+    if (!nsCoreUtils::IsCorrectFrameType(ancestorFrame,
+                                         nsGkAtoms::inlineFrame) &&
+        !nsCoreUtils::IsCorrectFrameType(ancestorFrame,
+                                         nsGkAtoms::textFrame))
       break;
     ancestorFrame = ancestorFrame->GetParent();
   }
@@ -994,7 +990,8 @@ void nsAccessible::GetBoundsRect(nsRect& aTotalBounds, nsIFrame** aBoundingFrame
 
     nsIFrame *iterNextFrame = nsnull;
 
-    if (iterFrame->GetType() == nsGkAtoms::inlineFrame) {
+    if (nsCoreUtils::IsCorrectFrameType(iterFrame,
+                                        nsGkAtoms::inlineFrame)) {
       // Only do deeper bounds search if we're on an inline frame
       // Inline frames can contain larger frames inside of them
       iterNextFrame = iterFrame->GetFirstPrincipalChild();

@@ -289,14 +289,9 @@ nsContextMenu.prototype = {
     this.showItem("context-viewvideo", this.onVideo && (!this.inSyntheticDoc || this.inFrame));
     this.setItemAttr("context-viewvideo",  "disabled", !this.mediaURL);
 
-    // View background image depends on whether there is one, but don't make
-    // background images of a stand-alone media document available.
-    this.showItem("context-viewbgimage", shouldShow &&
-                                         !this._hasMultipleBGImages &&
-                                         !this.inSyntheticDoc);
-    this.showItem("context-sep-viewbgimage", shouldShow &&
-                                             !this._hasMultipleBGImages &&
-                                             !this.inSyntheticDoc);
+    // View background image depends on whether there is one.
+    this.showItem("context-viewbgimage", shouldShow && !this._hasMultipleBGImages);
+    this.showItem("context-sep-viewbgimage", shouldShow && !this._hasMultipleBGImages);
     document.getElementById("context-viewbgimage")
             .disabled = !this.hasBGImage;
 
@@ -392,9 +387,7 @@ nsContextMenu.prototype = {
     this.showItem("context-delete", this.onTextInput);
     this.showItem("context-sep-paste", this.onTextInput);
     this.showItem("context-selectall", !(this.onLink || this.onImage ||
-                                         this.onVideo || this.onAudio ||
-                                         this.inSyntheticDoc) ||
-                                       this.isDesignMode);
+                  this.onVideo || this.onAudio) || this.isDesignMode);
     this.showItem("context-sep-selectall", this.isContentSelected );
 
     // XXX dr

@@ -46,7 +46,7 @@
 #include "VideoUtils.h"
 
 #include "mozilla/mozalloc.h"
-#include "mozilla/StandardInteger.h"
+#include "mozilla/StdInt.h"
 
 using namespace mozilla;
 using mozilla::layers::ImageContainer;

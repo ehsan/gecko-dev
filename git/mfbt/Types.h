@@ -53,7 +53,7 @@
  * the right __STDC_*_MACRO has been defined for each).  These are all usable
  * throughout mfbt code, and throughout Mozilla code more generally.
  */
-#include "mozilla/StandardInteger.h"
+#include "mozilla/StdInt.h"
 
 /* Also expose size_t. */
 #include <stddef.h>
@@ -101,7 +101,7 @@
  * depending upon the compilation mode.
  */
 #ifdef _WIN32
-#  if defined(__MWERKS__)
+#  if defined(__MWERKS__) || defined(__GNUC__)
 #    define MOZ_IMPORT_API(x)    x
 #  else
 #    define MOZ_IMPORT_API(x)    __declspec(dllimport) x

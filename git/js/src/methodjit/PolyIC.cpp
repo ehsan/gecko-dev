@@ -408,7 +408,7 @@ class SetPropCompiler : public PICStubCompiler
             Jump escapedFrame = masm.branchTestPtr(Assembler::Zero, pic.shapeReg, pic.shapeReg);
 
             {
-                Address addr(pic.shapeReg, shape->setterOp() == CallObject::setArgOp
+                Address addr(pic.shapeReg, shape->setterOp() == SetCallArg
                                            ? StackFrame::offsetOfFormalArg(fun, slot)
                                            : StackFrame::offsetOfFixed(slot));
                 masm.storeValue(pic.u.vr, addr);
@@ -417,7 +417,7 @@ class SetPropCompiler : public PICStubCompiler
 
             escapedFrame.linkTo(masm.label(), &masm);
             {
-                if (shape->setterOp() == CallObject::setVarOp)
+                if (shape->setterOp() == SetCallVar)
                     slot += fun->nargs;
 
                 slot += CallObject::RESERVED_SLOTS;
@@ -575,7 +575,7 @@ class SetPropCompiler : public PICStubCompiler
             const Shape *initialShape = obj->lastProperty();
             uint32_t slots = obj->numDynamicSlots();
 
-            unsigned flags = 0;
+            uintN flags = 0;
             PropertyOp getter = clasp->getProperty;
 
             if (pic.kind == ic::PICInfo::SETMETHOD) {
@@ -655,8 +655,8 @@ class SetPropCompiler : public PICStubCompiler
         } else {
             if (shape->hasSetterValue())
                 return disable("scripted setter");
-            if (shape->setterOp() != CallObject::setArgOp &&
-                shape->setterOp() != CallObject::setVarOp) {
+            if (shape->setterOp() != SetCallArg &&
+                shape->setterOp() != SetCallVar) {
                 return disable("setter");
             }
             JS_ASSERT(obj->isCall());
@@ -679,7 +679,7 @@ class SetPropCompiler : public PICStubCompiler
                     return error();
                 {
                     types::AutoEnterTypeInference enter(cx);
-                    if (shape->setterOp() == CallObject::setArgOp)
+                    if (shape->setterOp() == SetCallArg)
                         pic.rhsTypes->addSubset(cx, types::TypeScript::ArgTypes(script, slot));
                     else
                         pic.rhsTypes->addSubset(cx, types::TypeScript::LocalTypes(script, slot));
@@ -1548,9 +1548,9 @@ class ScopeNameCompiler : public PICStubCompiler
 
         CallObjPropKind kind;
         const Shape *shape = getprop.shape;
-        if (shape->getterOp() == CallObject::getArgOp) {
+        if (shape->getterOp() == GetCallArg) {
             kind = ARG;
-        } else if (shape->getterOp() == CallObject::getVarOp) {
+        } else if (shape->getterOp() == GetCallVar) {
             kind = VAR;
         } else {
             return disable("unhandled callobj sprop getter");

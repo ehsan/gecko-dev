@@ -109,8 +109,6 @@ template <class Key, class Value> class DefaultTracePolicy;
 // The value for the next pointer for maps not in the map list.
 static WeakMapBase * const WeakMapNotInList = reinterpret_cast<WeakMapBase *>(1);
 
-typedef Vector<WeakMapBase *, 0, SystemAllocPolicy> WeakMapVector;
-
 // Common base class for all WeakMap specializations. The collector uses this to call
 // their markIteratively and sweep methods.
 class WeakMapBase {
@@ -162,10 +160,6 @@ class WeakMapBase {
 
     // Remove everything from the live weak map list.
     static void resetWeakMapList(JSRuntime *rt);
-
-    // Save and restore the live weak map list to a vector.
-    static bool saveWeakMapList(JSRuntime *rt, WeakMapVector &vector);
-    static void restoreWeakMapList(JSRuntime *rt, WeakMapVector &vector);
 
   protected:
     // Instance member functions called by the above. Instantiations of WeakMap override

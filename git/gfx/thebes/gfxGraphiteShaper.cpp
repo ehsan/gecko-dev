@@ -40,6 +40,7 @@
 #include "nsString.h"
 #include "nsBidiUtils.h"
 #include "nsMathUtils.h"
+#include "nsHashSets.h"
 
 #include "gfxTypes.h"
 
@@ -47,6 +48,7 @@
 #include "gfxPlatform.h"
 #include "gfxGraphiteShaper.h"
 #include "gfxFontUtils.h"
+#include "gfxUnicodeProperties.h"
 
 #include "graphite2/Font.h"
 #include "graphite2/Segment.h"

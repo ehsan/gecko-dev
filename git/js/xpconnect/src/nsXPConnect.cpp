@@ -228,17 +228,21 @@ nsXPConnect::ReleaseXPConnectSingleton()
         // force a dump of the JavaScript gc heap if JS is still alive
         // if requested through XPC_SHUTDOWN_HEAP_DUMP environment variable
         {
-            const char* dumpName = getenv("XPC_SHUTDOWN_HEAP_DUMP");
-            if (dumpName) {
-                FILE* dumpFile = (*dumpName == '\0' ||
-                                  strcmp(dumpName, "stdout") == 0)
-                                 ? stdout
-                                 : fopen(dumpName, "w");
-                if (dumpFile) {
-                    JS_DumpHeap(xpc->GetRuntime()->GetJSRuntime(), dumpFile, nsnull,
-                                JSTRACE_OBJECT, nsnull, static_cast<size_t>(-1), nsnull);
-                    if (dumpFile != stdout)
-                        fclose(dumpFile);
+            // autoscope
+            XPCCallContext ccx(NATIVE_CALLER);
+            if (ccx.IsValid()) {
+                const char* dumpName = getenv("XPC_SHUTDOWN_HEAP_DUMP");
+                if (dumpName) {
+                    FILE* dumpFile = (*dumpName == '\0' ||
+                                      strcmp(dumpName, "stdout") == 0)
+                                     ? stdout
+                                     : fopen(dumpName, "w");
+                    if (dumpFile) {
+                        JS_DumpHeap(ccx, dumpFile, nsnull, JSTRACE_OBJECT, nsnull,
+                                    static_cast<size_t>(-1), nsnull);
+                        if (dumpFile != stdout)
+                            fclose(dumpFile);
+                    }
                 }
             }
         }
@@ -495,11 +499,11 @@ TraceWeakMappingChild(JSTracer *trc, void **thingp, JSGCTraceKind kind)
 
 struct NoteWeakMapsTracer : public js::WeakMapTracer
 {
-    NoteWeakMapsTracer(JSRuntime *rt, js::WeakMapTraceCallback cb,
+    NoteWeakMapsTracer(JSContext *cx, js::WeakMapTraceCallback cb,
                        nsCycleCollectionTraversalCallback &cccb)
-      : js::WeakMapTracer(rt, cb), mCb(cccb), mChildTracer(cccb)
+      : js::WeakMapTracer(js::GetRuntime(cx), cb), mCb(cccb), mChildTracer(cccb)
     {
-        JS_TracerInit(&mChildTracer, rt, TraceWeakMappingChild);
+        JS_TracerInit(&mChildTracer, cx, TraceWeakMappingChild);
     }
     nsCycleCollectionTraversalCallback &mCb;
     NoteWeakMapChildrenTracer mChildTracer;
@@ -560,7 +564,9 @@ nsXPConnect::BeginCycleCollection(nsCycleCollectionTraversalCallback &cb,
 
     static bool gcHasRun = false;
     if (!gcHasRun) {
-        JSRuntime* rt = GetRuntime()->GetJSRuntime();
+        JSRuntime* rt = JS_GetRuntime(mCycleCollectionContext->GetJSContext());
+        if (!rt)
+            NS_RUNTIMEABORT("Failed to get JS runtime!");
         uint32_t gcNumber = JS_GetGCParameter(rt, JSGC_NUMBER);
         if (!gcNumber)
             NS_RUNTIMEABORT("Cannot cycle collect if GC has not run first!");
@@ -592,9 +598,10 @@ nsXPConnect::BeginCycleCollection(nsCycleCollectionTraversalCallback &cb,
     NS_ASSERTION(!explainLiveExpectedGarbage, "Didn't call nsXPConnect::Collect()?");
 #endif
 
-    GetRuntime()->AddXPConnectRoots(cb);
+    GetRuntime()->AddXPConnectRoots(mCycleCollectionContext->GetJSContext(), cb);
  
-    NoteWeakMapsTracer trc(GetRuntime()->GetJSRuntime(), TraceWeakMapping, cb);
+    NoteWeakMapsTracer trc(mCycleCollectionContext->GetJSContext(),
+                           TraceWeakMapping, cb);
     js::TraceWeakMaps(&trc);
 
     return NS_OK;
@@ -719,7 +726,7 @@ UnmarkGrayChildren(JSTracer *trc, void **thingp, JSGCTraceKind kind)
 {
     void *thing = *thingp;
     int stackDummy;
-    if (!JS_CHECK_STACK_SIZE(js::GetNativeStackLimit(trc->runtime), &stackDummy)) {
+    if (!JS_CHECK_STACK_SIZE(js::GetContextStackLimit(trc->context), &stackDummy)) {
         /*
          * If we run out of stack, we take a more drastic measure: require that
          * we GC again before the next CC.
@@ -748,9 +755,17 @@ xpc_UnmarkGrayObjectRecursive(JSObject *obj)
     // Unmark.
     js::gc::AsCell(obj)->unmark(js::gc::GRAY);
 
+    // Tracing requires a JSContext...
+    JSContext *cx;
+    nsXPConnect* xpc = nsXPConnect::GetXPConnect();
+    if (!xpc || NS_FAILED(xpc->GetSafeJSContext(&cx)) || !cx) {
+        NS_ERROR("Failed to get safe JSContext!");
+        return;
+    }
+
     // Trace children.
     JSTracer trc;
-    JS_TracerInit(&trc, JS_GetObjectRuntime(obj), UnmarkGrayChildren);
+    JS_TracerInit(&trc, cx, UnmarkGrayChildren);
     JS_TraceChildren(&trc, obj, JSTRACE_OBJECT);
 }
 
@@ -848,6 +863,8 @@ WrapperIsNotMainThreadOnly(XPCWrappedNative *wrapper)
 NS_IMETHODIMP
 nsXPConnect::Traverse(void *p, nsCycleCollectionTraversalCallback &cb)
 {
+    JSContext *cx = mCycleCollectionContext->GetJSContext();
+
     JSGCTraceKind traceKind = js_GetGCThingTraceKind(p);
     JSObject *obj = nsnull;
     js::Class *clazz = nsnull;
@@ -955,7 +972,7 @@ nsXPConnect::Traverse(void *p, nsCycleCollectionTraversalCallback &cb)
 
     TraversalTracer trc(cb);
 
-    JS_TracerInit(&trc, GetRuntime()->GetJSRuntime(), NoteJSChild);
+    JS_TracerInit(&trc, cx, NoteJSChild);
     trc.eagerlyTraceWeakMaps = false;
     JS_TraceChildren(&trc, p, traceKind);
 
@@ -1139,7 +1156,8 @@ CreateNewCompartment(JSContext *cx, JSClass *clasp, nsIPrincipal *principal,
     *global = tempGlobal;
     *compartment = js::GetObjectCompartment(tempGlobal);
 
-    JS_SetCompartmentPrivate(*compartment, priv_holder.forget());
+    js::AutoSwitchCompartment sc(cx, *compartment);
+    JS_SetCompartmentPrivate(cx, *compartment, priv_holder.forget());
     return true;
 }
 
@@ -1170,7 +1188,9 @@ TraceXPCGlobal(JSTracer *trc, JSObject *obj)
     }
 #endif
 
-    if (XPCWrappedNativeScope *scope = XPCWrappedNativeScope::GetNativeScope(obj))
+    XPCWrappedNativeScope *scope =
+        XPCWrappedNativeScope::GetNativeScope(trc->context, obj);
+    if (scope)
         scope->TraceDOMPrototypes(trc);
 }
 
@@ -1207,7 +1227,7 @@ xpc_CreateGlobalObject(JSContext *cx, JSClass *clasp,
 #ifdef DEBUG
     if (clasp->flags & JSCLASS_XPCONNECT_GLOBAL) {
         VerifyTraceXPCGlobalCalledTracer trc;
-        JS_TracerInit(&trc.base, JS_GetRuntime(cx), VerifyTraceXPCGlobalCalled);
+        JS_TracerInit(&trc.base, cx, VerifyTraceXPCGlobalCalled);
         trc.ok = false;
         JS_TraceChildren(&trc.base, *global, JSTRACE_OBJECT);
         NS_ABORT_IF_FALSE(trc.ok, "Trace hook needs to call TraceXPCGlobal if JSCLASS_XPCONNECT_GLOBAL is set.");
@@ -1755,16 +1775,8 @@ MoveWrapper(XPCCallContext& ccx, XPCWrappedNative *wrapper,
             XPCWrappedNative::GetWrappedNativeOfJSObject(ccx, newParent);
 
         rv = MoveWrapper(ccx, parentWrapper, newScope, oldScope);
-        NS_ENSURE_SUCCESS(rv, rv);
 
-        // If the parent wanted to stay in the old scope, we have to stay with
-        // it. This can happen when doing document.write when the old detached
-        // about:blank document is still floating around in the scope. Leave it
-        // behind to die.
-        if (parentWrapper->GetScope() == oldScope)
-            return NS_OK;
-        NS_ASSERTION(parentWrapper->GetScope() == newScope,
-                     "A _third_ scope? Oh dear...");
+        NS_ENSURE_SUCCESS(rv, rv);
 
         newParent = parentWrapper->GetFlatJSObject();
     } else
@@ -2764,12 +2776,13 @@ void
 DumpJSHeap(FILE* file)
 {
     NS_ABORT_IF_FALSE(NS_IsMainThread(), "Must dump GC heap on main thread.");
+    JSContext *cx;
     nsXPConnect* xpc = nsXPConnect::GetXPConnect();
-    if (!xpc) {
-        NS_ERROR("Failed to get nsXPConnect instance!");
+    if (!xpc || NS_FAILED(xpc->GetSafeJSContext(&cx)) || !cx) {
+        NS_ERROR("Failed to get safe JSContext!");
         return;
     }
-    js::DumpHeapComplete(xpc->GetRuntime()->GetJSRuntime(), file);
+    js::DumpHeapComplete(cx, file);
 }
 #endif
 
@@ -2791,7 +2804,7 @@ nsXPConnect::GetTelemetryValue(JSContext *cx, jsval *rval)
     if (!obj)
         return NS_ERROR_OUT_OF_MEMORY;
 
-    unsigned attrs = JSPROP_ENUMERATE | JSPROP_READONLY | JSPROP_PERMANENT;
+    uintN attrs = JSPROP_ENUMERATE | JSPROP_READONLY | JSPROP_PERMANENT;
 
     size_t i = JS_GetE4XObjectsCreated(cx);
     jsval v = DOUBLE_TO_JSVAL(i);

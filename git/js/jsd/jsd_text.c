@@ -73,12 +73,12 @@ _appendText(JSDContext* jsdc, JSDSourceText* jsdsrc,
 {
 #define MEMBUF_GROW 1000
 
-    unsigned neededSize = jsdsrc->textLength + length;
+    uintN neededSize = jsdsrc->textLength + length;
 
     if( neededSize > jsdsrc->textSpace )
     {
         char* newBuf;
-        unsigned iNewSize;
+        uintN iNewSize;
 
         /* if this is the first alloc, the req might be all that's needed*/
         if( ! jsdsrc->textSpace )
@@ -295,7 +295,7 @@ jsd_GetSourceURL(JSDContext* jsdc, JSDSourceText* jsdsrc)
 
 JSBool
 jsd_GetSourceText(JSDContext* jsdc, JSDSourceText* jsdsrc,
-                  const char** ppBuf, int* pLen )
+                  const char** ppBuf, intN* pLen )
 {
     *ppBuf = jsdsrc->text;
     *pLen  = jsdsrc->textLength;
@@ -330,13 +330,13 @@ jsd_SetSourceDirty(JSDContext* jsdc, JSDSourceText* jsdsrc, JSBool dirty)
     jsdsrc->dirty = dirty;
 }
 
-unsigned
+uintN
 jsd_GetSourceAlterCount(JSDContext* jsdc, JSDSourceText* jsdsrc)
 {
     return jsdsrc->alterCount;
 }
 
-unsigned
+uintN
 jsd_IncrementSourceAlterCount(JSDContext* jsdc, JSDSourceText* jsdsrc)
 {
     return jsdsrc->alterCount = jsdc->sourceAlterCount++;

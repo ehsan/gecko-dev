@@ -1497,16 +1497,21 @@ nsHTMLTableAccessible::IsProbablyForLayout(bool *aIsProbablyForLayout)
   // Check for styled background color across rows (alternating background
   // color is a common feature for data tables).
   PRUint32 childCount = GetChildCount();
-  nscolor rowColor, prevRowColor;
+  nsAutoString rowColor, prevRowColor;
   for (PRUint32 childIdx = 0; childIdx < childCount; childIdx++) {
     nsAccessible* child = GetChildAt(childIdx);
     if (child->Role() == roles::ROW) {
-      prevRowColor = rowColor;
-      nsIFrame* rowFrame = child->GetFrame();
-      rowColor = rowFrame->GetStyleBackground()->mBackgroundColor;
-
-      if (childIdx > 0 && prevRowColor != rowColor)
-        RETURN_LAYOUT_ANSWER(false, "2 styles of row background color, non-bordered");
+      nsCOMPtr<nsIDOMCSSStyleDeclaration> styleDecl =
+        nsCoreUtils::GetComputedStyleDeclaration(EmptyString(),
+                                                 child->GetContent());
+      if (styleDecl) {
+        prevRowColor = rowColor;
+        styleDecl->GetPropertyValue(NS_LITERAL_STRING("background-color"),
+                                    rowColor);
+        if (childIdx > 0 && !prevRowColor.Equals(rowColor)) {
+          RETURN_LAYOUT_ANSWER(false, "2 styles of row background color, non-bordered");
+        }
+      }
     }
   }
 

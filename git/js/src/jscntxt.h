@@ -86,7 +86,7 @@ struct JSSharpInfo {
 typedef js::HashMap<JSObject *, JSSharpInfo> JSSharpTable;
 
 struct JSSharpObjectMap {
-    unsigned     depth;
+    jsrefcount   depth;
     uint32_t     sharpgen;
     JSSharpTable table;
 
@@ -293,7 +293,7 @@ struct JSRuntime : js::RuntimeFriendFields
 
     js::RootedValueMap  gcRootsHash;
     js::GCLocks         gcLocksHash;
-    unsigned            gcKeepAtoms;
+    jsrefcount          gcKeepAtoms;
     size_t              gcBytes;
     size_t              gcMaxBytes;
     size_t              gcMaxMallocBytes;
@@ -304,7 +304,7 @@ struct JSRuntime : js::RuntimeFriendFields
      * in MaybeGC.
      */
     volatile uint32_t   gcNumArenasFreeCommitted;
-    js::GCMarker        gcMarker;
+    js::FullGCMarker    gcMarker;
     void                *gcVerifyData;
     bool                gcChunkAllocationSinceLastGC;
     int64_t             gcNextFullGCTime;
@@ -437,7 +437,6 @@ struct JSRuntime : js::RuntimeFriendFields
 
     JSGCCallback        gcCallback;
     js::GCSliceCallback gcSliceCallback;
-    JSFinalizeCallback  gcFinalizeCallback;
 
   private:
     /*
@@ -458,9 +457,6 @@ struct JSRuntime : js::RuntimeFriendFields
     JSTraceDataOp       gcGrayRootsTraceOp;
     void                *gcGrayRootsData;
 
-    /* Stack of thread-stack-allocated GC roots. */
-    js::AutoGCRooter   *autoGCRooters;
-
     /* Strong references on scripts held for PCCount profiling API. */
     js::ScriptOpcodeCountsVector *scriptPCCounters;
 
@@ -479,7 +475,7 @@ struct JSRuntime : js::RuntimeFriendFields
     }
 
     /* Per runtime debug hooks -- see jsprvtd.h and jsdbgapi.h. */
-    JSDebugHooks        debugHooks;
+    JSDebugHooks        globalDebugHooks;
 
     /* If true, new compartments are initially in debug mode. */
     bool                debugMode;
@@ -693,7 +689,9 @@ struct JSRuntime : js::RuntimeFriendFields
     }
 
     void sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf, size_t *normal, size_t *temporary,
-                             size_t *regexpCode, size_t *stackCommitted, size_t *gcMarker);
+                             size_t *regexpCode, size_t *stackCommitted);
+
+    void purge(JSContext *cx);
 };
 
 /* Common macros to access thread-local caches in JSRuntime. */
@@ -715,6 +713,8 @@ struct JSArgumentFormatMap {
     JSArgumentFormatMap *next;
 };
 #endif
+
+extern const JSDebugHooks js_NullDebugHooks;  /* defined in jsdbgapi.cpp */
 
 namespace js {
 
@@ -745,9 +745,9 @@ OptionsSameVersionFlags(uint32_t self, uint32_t other)
  * become invalid.
  */
 namespace VersionFlags {
-static const unsigned MASK         = 0x0FFF; /* see JSVersion in jspubtd.h */
-static const unsigned HAS_XML      = 0x1000; /* flag induced by XML option */
-static const unsigned FULL_MASK    = 0x3FFF;
+static const uintN MASK         = 0x0FFF; /* see JSVersion in jspubtd.h */
+static const uintN HAS_XML      = 0x1000; /* flag induced by XML option */
+static const uintN FULL_MASK    = 0x3FFF;
 }
 
 static inline JSVersion
@@ -787,16 +787,16 @@ VersionHasFlags(JSVersion version)
     return !!VersionExtractFlags(version);
 }
 
-static inline unsigned
+static inline uintN
 VersionFlagsToOptions(JSVersion version)
 {
-    unsigned copts = VersionHasXML(version) ? JSOPTION_XML : 0;
+    uintN copts = VersionHasXML(version) ? JSOPTION_XML : 0;
     JS_ASSERT((copts & JSCOMPILEOPTION_MASK) == copts);
     return copts;
 }
 
 static inline JSVersion
-OptionFlagsToVersion(unsigned options, JSVersion version)
+OptionFlagsToVersion(uintN options, JSVersion version)
 {
     return VersionSetXML(version, OptionsHasXML(options));
 }
@@ -833,7 +833,7 @@ struct JSContext : js::ContextFriendFields
     js::Value           exception;          /* most-recently-thrown exception */
 
     /* Per-context run options. */
-    unsigned               runOptions;            /* see jsapi.h for JSOPTION_* */
+    uintN               runOptions;            /* see jsapi.h for JSOPTION_* */
 
   public:
     int32_t             reportGranularity;  /* see jsprobes.h */
@@ -847,7 +847,7 @@ struct JSContext : js::ContextFriendFields
      * True if generating an error, to prevent runaway recursion.
      * NB: generatingError packs with throwing below.
      */
-    bool        generatingError;
+    JSPackedBool        generatingError;
 
     /* GC heap compartment. */
     JSCompartment       *compartment;
@@ -959,19 +959,19 @@ struct JSContext : js::ContextFriendFields
      */
     inline JSVersion findVersion() const;
 
-    void setRunOptions(unsigned ropts) {
+    void setRunOptions(uintN ropts) {
         JS_ASSERT((ropts & JSRUNOPTION_MASK) == ropts);
         runOptions = ropts;
     }
 
     /* Note: may override the version. */
-    inline void setCompileOptions(unsigned newcopts);
+    inline void setCompileOptions(uintN newcopts);
 
-    unsigned getRunOptions() const { return runOptions; }
-    inline unsigned getCompileOptions() const;
-    inline unsigned allOptions() const;
+    uintN getRunOptions() const { return runOptions; }
+    inline uintN getCompileOptions() const;
+    inline uintN allOptions() const;
 
-    bool hasRunOption(unsigned ropt) const {
+    bool hasRunOption(uintN ropt) const {
         JS_ASSERT((ropt & JSRUNOPTION_MASK) == ropt);
         return !!(runOptions & ropt);
     }
@@ -987,8 +987,11 @@ struct JSContext : js::ContextFriendFields
     unsigned            outstandingRequests;/* number of JS_BeginRequest calls
                                                without the corresponding
                                                JS_EndRequest. */
+    JSCList             threadLinks;        /* JSThread contextList linkage */
 #endif
 
+    /* Stack of thread-stack-allocated GC roots. */
+    js::AutoGCRooter   *autoGCRooters;
 
 #ifdef JSGC_ROOT_ANALYSIS
 
@@ -1012,11 +1015,14 @@ struct JSContext : js::ContextFriendFields
 
 #endif /* JSGC_ROOT_ANALYSIS */
 
+    /* Debug hooks associated with the current context. */
+    const JSDebugHooks  *debugHooks;
+
     /* Security callbacks that override any defined on the runtime. */
     JSSecurityCallbacks *securityCallbacks;
 
     /* Stored here to avoid passing it around as a parameter. */
-    unsigned               resolveFlags;
+    uintN               resolveFlags;
 
     /* Random number generator state, used by jsmath.cpp. */
     int64_t             rngSeed;
@@ -1126,7 +1132,7 @@ struct JSContext : js::ContextFriendFields
     void purge();
 
     /* For DEBUG. */
-    inline void assertValidStackDepth(unsigned depth);
+    inline void assertValidStackDepth(uintN depth);
 
     bool isExceptionPending() {
         return throwing;
@@ -1149,7 +1155,7 @@ struct JSContext : js::ContextFriendFields
      * When there are compilations active for the context, the GC must not
      * purge the ParseMapPool.
      */
-    unsigned activeCompilations;
+    uintN activeCompilations;
 
 #ifdef DEBUG
     /*
@@ -1329,7 +1335,7 @@ class AutoReleaseNullablePtr {
 class JSAutoResolveFlags
 {
   public:
-    JSAutoResolveFlags(JSContext *cx, unsigned flags
+    JSAutoResolveFlags(JSContext *cx, uintN flags
                        JS_GUARD_OBJECT_NOTIFIER_PARAM)
       : mContext(cx), mSaved(cx->resolveFlags)
     {
@@ -1341,45 +1347,31 @@ class JSAutoResolveFlags
 
   private:
     JSContext *mContext;
-    unsigned mSaved;
+    uintN mSaved;
     JS_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
 namespace js {
 
 /*
- * Enumerate all contexts in a runtime.
+ * Enumerate all contexts in a runtime that are in the same thread as a given
+ * context.
  */
-class ContextIter {
+class ThreadContextRange {
     JSCList *begin;
     JSCList *end;
 
 public:
-    explicit ContextIter(JSRuntime *rt) {
-        end = &rt->contextList;
+    explicit ThreadContextRange(JSContext *cx) {
+        end = &cx->runtime->contextList;
         begin = end->next;
     }
 
-    bool done() const {
-        return begin == end;
-    }
+    bool empty() const { return begin == end; }
+    void popFront() { JS_ASSERT(!empty()); begin = begin->next; }
 
-    void next() {
-        JS_ASSERT(!done());
-        begin = begin->next;
-    }
-
-    JSContext *get() const {
-        JS_ASSERT(!done());
+    JSContext *front() const {
         return JSContext::fromLinkField(begin);
-    }
-
-    operator JSContext *() const {
-        return get();
-    }
-
-    JSContext *operator ->() const {
-        return get();
     }
 };
 
@@ -1402,18 +1394,25 @@ typedef enum JSDestroyContextMode {
 extern void
 js_DestroyContext(JSContext *cx, JSDestroyContextMode mode);
 
+/*
+ * If unlocked, acquire and release rt->gcLock around *iterp update; otherwise
+ * the caller must be holding rt->gcLock.
+ */
+extern JSContext *
+js_ContextIterator(JSRuntime *rt, JSBool unlocked, JSContext **iterp);
+
 #ifdef va_start
 extern JSBool
-js_ReportErrorVA(JSContext *cx, unsigned flags, const char *format, va_list ap);
+js_ReportErrorVA(JSContext *cx, uintN flags, const char *format, va_list ap);
 
 extern JSBool
-js_ReportErrorNumberVA(JSContext *cx, unsigned flags, JSErrorCallback callback,
-                       void *userRef, const unsigned errorNumber,
+js_ReportErrorNumberVA(JSContext *cx, uintN flags, JSErrorCallback callback,
+                       void *userRef, const uintN errorNumber,
                        JSBool charArgs, va_list ap);
 
 extern JSBool
 js_ExpandErrorArguments(JSContext *cx, JSErrorCallback callback,
-                        void *userRef, const unsigned errorNumber,
+                        void *userRef, const uintN errorNumber,
                         char **message, JSErrorReport *reportp,
                         bool charArgs, va_list ap);
 #endif
@@ -1438,11 +1437,11 @@ js_ReportIsNotDefined(JSContext *cx, const char *name);
  * Report an attempt to access the property of a null or undefined value (v).
  */
 extern JSBool
-js_ReportIsNullOrUndefined(JSContext *cx, int spindex, const js::Value &v,
+js_ReportIsNullOrUndefined(JSContext *cx, intN spindex, const js::Value &v,
                            JSString *fallback);
 
 extern void
-js_ReportMissingArg(JSContext *cx, const js::Value &v, unsigned arg);
+js_ReportMissingArg(JSContext *cx, const js::Value &v, uintN arg);
 
 /*
  * Report error using js_DecompileValueGenerator(cx, spindex, v, fallback) as
@@ -1450,8 +1449,8 @@ js_ReportMissingArg(JSContext *cx, const js::Value &v, unsigned arg);
  * then 3 arguments, use null for arg1 or arg2.
  */
 extern JSBool
-js_ReportValueErrorFlags(JSContext *cx, unsigned flags, const unsigned errorNumber,
-                         int spindex, const js::Value &v, JSString *fallback,
+js_ReportValueErrorFlags(JSContext *cx, uintN flags, const uintN errorNumber,
+                         intN spindex, const js::Value &v, JSString *fallback,
                          const char *arg1, const char *arg2);
 
 #define js_ReportValueError(cx,errorNumber,spindex,v,fallback)                \

@@ -46,6 +46,7 @@ import org.mozilla.gecko.gfx.LayerView;
 import java.io.*;
 import java.lang.reflect.*;
 import java.nio.*;
+import java.nio.channels.*;
 import java.text.*;
 import java.util.*;
 import java.util.zip.*;
@@ -178,6 +179,21 @@ public class GeckoAppShell
     public static native void freeDirectBuffer(ByteBuffer buf);
     public static native void bindWidgetTexture();
 
+    // A looper thread, accessed by GeckoAppShell.getHandler
+    private static class LooperThread extends Thread {
+        public SynchronousQueue<Handler> mHandlerQueue =
+            new SynchronousQueue<Handler>();
+        
+        public void run() {
+            setName("GeckoLooper Thread");
+            Looper.prepare();
+            try {
+                mHandlerQueue.put(new Handler());
+            } catch (InterruptedException ie) {}
+            Looper.loop();
+        }
+    }
+
     private static class GeckoMediaScannerClient implements MediaScannerConnectionClient {
         private String mFile = "";
         private String mMimeType = "";
@@ -208,8 +224,19 @@ public class GeckoAppShell
         return GeckoApp.mAppContext.mMainHandler;
     }
 
+    private static Handler sHandler = null;
+
+    // Get a Handler for a looper thread, or create one if it doesn't exist yet
     public static Handler getHandler() {
-        return GeckoBackgroundThread.getHandler();
+        if (sHandler == null) {
+            LooperThread lt = new LooperThread();
+            lt.start();
+            try {
+                sHandler = lt.mHandlerQueue.take();
+            } catch (InterruptedException ie) {}
+
+        }
+        return sHandler;
     }
 
     public static File getCacheDir() {
@@ -236,15 +263,106 @@ public class GeckoAppShell
         return sFreeSpace;
     }
 
+    static boolean moveFile(File inFile, File outFile)
+    {
+        Log.i(LOGTAG, "moving " + inFile + " to " + outFile);
+        if (outFile.isDirectory())
+            outFile = new File(outFile, inFile.getName());
+        try {
+            if (inFile.renameTo(outFile))
+                return true;
+        } catch (SecurityException se) {
+            Log.w(LOGTAG, "error trying to rename file", se);
+        }
+        try {
+            long lastModified = inFile.lastModified();
+            outFile.createNewFile();
+            // so copy it instead
+            FileChannel inChannel = new FileInputStream(inFile).getChannel();
+            FileChannel outChannel = new FileOutputStream(outFile).getChannel();
+            long size = inChannel.size();
+            long transferred = inChannel.transferTo(0, size, outChannel);
+            inChannel.close();
+            outChannel.close();
+            outFile.setLastModified(lastModified);
+
+            if (transferred == size)
+                inFile.delete();
+            else
+                return false;
+        } catch (Exception e) {
+            Log.e(LOGTAG, "exception while moving file: ", e);
+            try {
+                outFile.delete();
+            } catch (SecurityException se) {
+                Log.w(LOGTAG, "error trying to delete file", se);
+            }
+            return false;
+        }
+        return true;
+    }
+
+    static boolean moveDir(File from, File to) {
+        try {
+            to.mkdirs();
+            if (from.renameTo(to))
+                return true;
+        } catch (SecurityException se) {
+            Log.w(LOGTAG, "error trying to rename file", se);
+        }
+        File[] files = from.listFiles();
+        boolean retVal = true;
+        if (files == null)
+            return false;
+        try {
+            Iterator<File> fileIterator = Arrays.asList(files).iterator();
+            while (fileIterator.hasNext()) {
+                File file = fileIterator.next();
+                File dest = new File(to, file.getName());
+                if (file.isDirectory())
+                    retVal = moveDir(file, dest) ? retVal : false;
+                else
+                    retVal = moveFile(file, dest) ? retVal : false;
+            }
+            from.delete();
+        } catch(Exception e) {
+            Log.e(LOGTAG, "error trying to move file", e);
+        }
+        return retVal;
+    }
+
     // java-side stuff
     public static boolean loadLibsSetup(String apkName) {
         // The package data lib directory isn't placed in ld.so's
         // search path, so we have to manually load libraries that
         // libxul will depend on.  Not ideal.
         GeckoApp geckoApp = GeckoApp.mAppContext;
-        GeckoProfile profile = geckoApp.getProfile();
-        profile.moveProfilesToAppInstallLocation();
+        String homeDir;
+        sHomeDir = GeckoDirProvider.getFilesDir(geckoApp);
+        homeDir = sHomeDir.getPath();
 
+        // handle the application being moved to phone from sdcard
+        File profileDir = new File(homeDir, "mozilla");
+        File oldHome = new File("/data/data/" + 
+                    GeckoApp.mAppContext.getPackageName() + "/mozilla");
+        if (oldHome.exists())
+            moveDir(oldHome, profileDir);
+
+        if (Build.VERSION.SDK_INT < 8 ||
+            geckoApp.getApplication().getPackageResourcePath().startsWith("/data") ||
+            geckoApp.getApplication().getPackageResourcePath().startsWith("/system")) {
+            if (Build.VERSION.SDK_INT >= 8) {
+                File extHome =  geckoApp.getExternalFilesDir(null);
+                File extProf = new File (extHome, "mozilla");
+                if (extHome != null && extProf != null && extProf.exists())
+                    moveDir(extProf, profileDir);
+            }
+        } else {
+            File intHome =  geckoApp.getFilesDir();
+            File intProf = new File(intHome, "mozilla");
+            if (intHome != null && intProf != null && intProf.exists())
+                moveDir(intProf, profileDir);
+        }
         try {
             String[] dirs = GeckoApp.mAppContext.getPluginDirectories();
             StringBuffer pluginSearchPath = new StringBuffer();
@@ -258,7 +376,7 @@ public class GeckoAppShell
             Log.i(LOGTAG, "exception getting plugin dirs", ex);
         }
 
-        GeckoAppShell.putenv("HOME=" + profile.getFilesDir().getPath());
+        GeckoAppShell.putenv("HOME=" + homeDir);
         GeckoAppShell.putenv("GRE_HOME=" + GeckoApp.sGREDir.getPath());
         Intent i = geckoApp.getIntent();
         String env = i.getStringExtra("env0");
@@ -281,10 +399,7 @@ public class GeckoAppShell
         GeckoAppShell.putenv("EXTERNAL_STORAGE=" + f.getPath());
 
         File cacheFile = getCacheDir();
-        String linkerCache = System.getenv("MOZ_LINKER_CACHE");
-        if (System.getenv("MOZ_LINKER_CACHE") == null) {
-            GeckoAppShell.putenv("MOZ_LINKER_CACHE=" + cacheFile.getPath());
-        }
+        GeckoAppShell.putenv("MOZ_LINKER_CACHE=" + cacheFile.getPath());
 
         File pluginDataDir = GeckoApp.mAppContext.getDir("plugins", 0);
         GeckoAppShell.putenv("ANDROID_PLUGIN_DATADIR=" + pluginDataDir.getPath());
@@ -455,13 +570,10 @@ public class GeckoAppShell
                                         final int width, final int height) {
         getHandler().post(new Runnable() {
             public void run() {
-                final Tab tab = Tabs.getInstance().getTab(tabId);
-                if (tab == null)
-                    return;
-
                 Bitmap b = Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565);
                 b.copyPixelsFromBuffer(data);
                 freeDirectBuffer(data);
+                final Tab tab = Tabs.getInstance().getTab(tabId);
                 GeckoApp.mAppContext.processThumbnail(tab, b, null);
             }
         });
@@ -580,12 +692,6 @@ public class GeckoAppShell
 
     public static void returnIMEQueryResult(String result, int selectionStart, int selectionLength) {
         mInputConnection.returnIMEQueryResult(result, selectionStart, selectionLength);
-    }
-
-    public static void resetIMESelection() {
-        if (mInputConnection != null) {
-            mInputConnection.resetSelection();
-        }
     }
 
     static void onXreExit() {
@@ -788,12 +894,10 @@ public class GeckoAppShell
                                    String aClassName, String aAction, String aTitle) {
         Intent intent = getIntentForActionString(aAction);
         if (aAction.equalsIgnoreCase(Intent.ACTION_SEND)) {
-            Intent shareIntent = getIntentForActionString(aAction);
-            shareIntent.putExtra(Intent.EXTRA_TEXT, aUriSpec);
-            shareIntent.putExtra(Intent.EXTRA_SUBJECT, aTitle);
+            intent.putExtra(Intent.EXTRA_TEXT, aUriSpec);
+            intent.putExtra(Intent.EXTRA_SUBJECT, aTitle);
             if (aMimeType != null && aMimeType.length() > 0)
-                shareIntent.setType(aMimeType);
-            intent = Intent.createChooser(shareIntent, GeckoApp.mAppContext.getResources().getString(R.string.share_title)); 
+                intent.setType(aMimeType);
         } else if (aMimeType.length() > 0) {
             intent.setDataAndType(Uri.parse(aUriSpec), aMimeType);
         } else {
@@ -1635,25 +1739,14 @@ public class GeckoAppShell
             if (mEventListeners == null)
                 return "";
 
-            ArrayList<GeckoEventListener> listeners = mEventListeners.get(type);
-            if (listeners == null)
+            if (!mEventListeners.containsKey(type))
                 return "";
-
-            String response = null;
-
-            for (GeckoEventListener listener : listeners) {
-                listener.handleMessage(type, geckoObject);
-                if (listener instanceof GeckoEventResponder) {
-                    String newResponse = ((GeckoEventResponder)listener).getResponse();
-                    if (response != null && newResponse != null) {
-                        Log.e(LOGTAG, "Received two responses for message of type " + type);
-                    }
-                    response = newResponse;
-                }
+            
+            ArrayList<GeckoEventListener> listeners = mEventListeners.get(type);
+            Iterator<GeckoEventListener> items = listeners.iterator();
+            while (items.hasNext()) {
+                items.next().handleMessage(type, geckoObject);
             }
-
-            if (response != null)
-                return response;
 
         } catch (Exception e) {
             Log.i(LOGTAG, "handleGeckoMessage throws " + e);

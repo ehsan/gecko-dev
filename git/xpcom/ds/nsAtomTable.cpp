@@ -85,11 +85,11 @@ static bool gStaticAtomTableSealed = false;
 
 class AtomImpl : public nsIAtom {
 public:
-  AtomImpl(const nsAString& aString, PLDHashNumber aKeyHash);
+  AtomImpl(const nsAString& aString);
 
   // This is currently only used during startup when creating a permanent atom
   // from NS_RegisterStaticAtoms
-  AtomImpl(nsStringBuffer* aData, PRUint32 aLength, PLDHashNumber aKeyHash);
+  AtomImpl(nsStringBuffer* aData, PRUint32 aLength);
 
 protected:
   // This is only intended to be used when a normal atom is turned into a
@@ -132,12 +132,11 @@ public:
 
 class PermanentAtomImpl : public AtomImpl {
 public:
-  PermanentAtomImpl(const nsAString& aString, PLDHashNumber aKeyHash)
-    : AtomImpl(aString, aKeyHash)
+  PermanentAtomImpl(const nsAString& aString)
+    : AtomImpl(aString)
   {}
-  PermanentAtomImpl(nsStringBuffer* aData, PRUint32 aLength,
-                    PLDHashNumber aKeyHash)
-    : AtomImpl(aData, aLength, aKeyHash)
+  PermanentAtomImpl(nsStringBuffer* aData, PRUint32 aLength)
+    : AtomImpl(aData, aLength)
   {}
   PermanentAtomImpl()
   {}
@@ -323,7 +322,7 @@ NS_PurgeAtomTable()
   }
 }
 
-AtomImpl::AtomImpl(const nsAString& aString, PLDHashNumber aKeyHash)
+AtomImpl::AtomImpl(const nsAString& aString)
 {
   mLength = aString.Length();
   nsStringBuffer* buf = nsStringBuffer::FromString(aString);
@@ -338,28 +337,19 @@ AtomImpl::AtomImpl(const nsAString& aString, PLDHashNumber aKeyHash)
     mString[mLength] = PRUnichar(0);
   }
 
-  // The low bit of aKeyHash is generally useless, so shift it out
-  MOZ_ASSERT(sizeof(mHash) == sizeof(PLDHashNumber));
-  mHash = aKeyHash >> 1;
-
   NS_ASSERTION(mString[mLength] == PRUnichar(0), "null terminated");
   NS_ASSERTION(buf && buf->StorageSize() >= (mLength+1) * sizeof(PRUnichar),
                "enough storage");
   NS_ASSERTION(Equals(aString), "correct data");
 }
 
-AtomImpl::AtomImpl(nsStringBuffer* aStringBuffer, PRUint32 aLength,
-                   PLDHashNumber aKeyHash)
+AtomImpl::AtomImpl(nsStringBuffer* aStringBuffer, PRUint32 aLength)
 {
   mLength = aLength;
   mString = static_cast<PRUnichar*>(aStringBuffer->Data());
   // Technically we could currently avoid doing this addref by instead making
   // the static atom buffers have an initial refcount of 2.
   aStringBuffer->AddRef();
-
-  // The low bit of aKeyHash is generally useless, so shift it out
-  MOZ_ASSERT(sizeof(mHash) == sizeof(PLDHashNumber));
-  mHash = aKeyHash >> 1;
 
   NS_ASSERTION(mString[mLength] == PRUnichar(0), "null terminated");
   NS_ASSERTION(aStringBuffer &&
@@ -589,8 +579,7 @@ NS_RegisterStaticAtoms(const nsStaticAtom* aAtoms, PRUint32 aAtomCount)
     }
     else {
       AtomImpl* atom = new PermanentAtomImpl(aAtoms[i].mStringBuffer,
-                                             stringLen,
-                                             he->keyHash);
+                                             stringLen);
       he->mAtom = atom;
       *aAtoms[i].mAtom = atom;
 
@@ -639,10 +628,9 @@ NS_NewAtom(const nsACString& aUTF8String)
 
   // This results in an extra addref/release of the nsStringBuffer.
   // Unfortunately there doesn't seem to be any APIs to avoid that.
-  // Actually, now there is, sort of: ForgetSharedBuffer.
   nsString str;
   CopyUTF8toUTF16(aUTF8String, str);
-  AtomImpl* atom = new AtomImpl(str, he->keyHash);
+  AtomImpl* atom = new AtomImpl(str);
 
   he->mAtom = atom;
   NS_ADDREF(atom);
@@ -669,7 +657,7 @@ NS_NewAtom(const nsAString& aUTF16String)
     return atom;
   }
 
-  AtomImpl* atom = new AtomImpl(aUTF16String, he->keyHash);
+  AtomImpl* atom = new AtomImpl(aUTF16String);
   he->mAtom = atom;
   NS_ADDREF(atom);
 
@@ -689,7 +677,7 @@ NS_NewPermanentAtom(const nsAString& aUTF16String)
     }
   }
   else {
-    atom = new PermanentAtomImpl(aUTF16String, he->keyHash);
+    atom = new PermanentAtomImpl(aUTF16String);
     he->mAtom = atom;
   }
 

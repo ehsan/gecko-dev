@@ -159,9 +159,9 @@ frontend::CompileScript(JSContext *cx, JSObject *scopeChain, StackFrame *callerF
                         JSPrincipals *principals, JSPrincipals *originPrincipals,
                         uint32_t tcflags,
                         const jschar *chars, size_t length,
-                        const char *filename, unsigned lineno, JSVersion version,
+                        const char *filename, uintN lineno, JSVersion version,
                         JSString *source /* = NULL */,
-                        unsigned staticLevel /* = 0 */)
+                        uintN staticLevel /* = 0 */)
 {
     TokenKind tt;
     ParseNode *pn;
@@ -346,7 +346,7 @@ bool
 frontend::CompileFunctionBody(JSContext *cx, JSFunction *fun,
                               JSPrincipals *principals, JSPrincipals *originPrincipals,
                               Bindings *bindings, const jschar *chars, size_t length,
-                              const char *filename, unsigned lineno, JSVersion version)
+                              const char *filename, uintN lineno, JSVersion version)
 {
     Parser parser(cx, principals, originPrincipals);
     if (!parser.init(chars, length, filename, lineno, version))
@@ -371,7 +371,7 @@ frontend::CompileFunctionBody(JSContext *cx, JSFunction *fun,
         fn->pn_body = NULL;
         fn->pn_cookie.makeFree();
 
-        unsigned nargs = fun->nargs;
+        uintN nargs = fun->nargs;
         if (nargs) {
             /*
              * NB: do not use AutoLocalNameArray because it will release space
@@ -381,7 +381,7 @@ frontend::CompileFunctionBody(JSContext *cx, JSFunction *fun,
             if (!funbce.bindings.getLocalNameArray(cx, &names)) {
                 fn = NULL;
             } else {
-                for (unsigned i = 0; i < nargs; i++) {
+                for (uintN i = 0; i < nargs; i++) {
                     if (!DefineArg(fn, names[i], i, &funbce)) {
                         fn = NULL;
                         break;

@@ -21,7 +21,6 @@ public class ComputeKeyVerificationStage extends JPakeStage {
     if (jClient.myKeyBundle == null) {
       Logger.error(LOG_TAG, "KeyBundle has not been set; aborting.");
       jClient.abort(Constants.JPAKE_ERROR_INTERNAL);
-      return;
     }
     try {
       jClient.jOutgoing = computeKeyVerification(jClient.myKeyBundle, jClient.mySignerId);

@@ -52,8 +52,9 @@
 #include "nsContainerFrame.h"
 #include "nsInlineFrame.h"
 #include "nsPlaceholderFrame.h"
+#include "nsContainerFrame.h"
 #include "nsFirstLetterFrame.h"
-#include "nsUnicodeProperties.h"
+#include "gfxUnicodeProperties.h"
 #include "nsTextFrame.h"
 
 #undef NOISY_BIDI
@@ -62,7 +63,6 @@
 using namespace mozilla;
 
 static const PRUnichar kSpace            = 0x0020;
-static const PRUnichar kZWSP             = 0x200B;
 static const PRUnichar kLineSeparator    = 0x2028;
 static const PRUnichar kObjectSubstitute = 0xFFFC;
 static const PRUnichar kLRE              = 0x202A;
@@ -1092,10 +1092,7 @@ nsBidiPresUtils::TraverseFrames(nsBlockFrame*              aBlockFrame,
         // other frame type -- see the Unicode Bidi Algorithm:
         // "...inline objects (such as graphics) are treated as if they are ...
         // U+FFFC"
-        // <wbr>, however, is treated as U+200B ZERO WIDTH SPACE. See
-        // http://dev.w3.org/html5/spec/Overview.html#phrasing-content-1
-        aBpd->AppendUnichar(content->IsHTML(nsGkAtoms::wbr) ?
-                            kZWSP : kObjectSubstitute);
+        aBpd->AppendUnichar(kObjectSubstitute);
         if (!frame->GetStyleContext()->GetStyleDisplay()->IsInlineOutside()) {
           // if it is not inline, end the paragraph
           ResolveParagraphWithinBlock(aBlockFrame, aBpd);
@@ -2004,28 +2001,44 @@ void nsBidiPresUtils::WriteReverse(const PRUnichar* aSrc,
                                    PRUint32 aSrcLength,
                                    PRUnichar* aDest)
 {
-  PRUnichar* dest = aDest + aSrcLength;
-  mozilla::unicode::ClusterIterator iter(aSrc, aSrcLength);
+  const PRUnichar* src = aSrc + aSrcLength;
+  PRUnichar* dest = aDest;
+  PRUint32 UTF32Char;
 
-  while (!iter.AtEnd()) {
-    iter.Next();
-    for (const PRUnichar *cp = iter; cp > aSrc; ) {
-      // Here we rely on the fact that there are no non-BMP mirrored pairs
-      // currently in Unicode, so we don't need to look for surrogates
-      *--dest = mozilla::unicode::GetMirroredChar(*--cp);
+  while (--src >= aSrc) {
+    if (NS_IS_LOW_SURROGATE(*src)) {
+      if (src > aSrc && NS_IS_HIGH_SURROGATE(*(src - 1))) {
+        UTF32Char = SURROGATE_TO_UCS4(*(src - 1), *src);
+        --src;
+      } else {
+        UTF32Char = UCS2_REPLACEMENT_CHAR;
+      }
+    } else if (NS_IS_HIGH_SURROGATE(*src)) {
+      // paired high surrogates are handled above, so this is a lone high surrogate
+      UTF32Char = UCS2_REPLACEMENT_CHAR;
+    } else {
+      UTF32Char = *src;
     }
-    aSrc = iter;
+
+    UTF32Char = gfxUnicodeProperties::GetMirroredChar(UTF32Char);
+
+    if (IS_IN_BMP(UTF32Char)) {
+      *(dest++) = UTF32Char;
+    } else {
+      *(dest++) = H_SURROGATE(UTF32Char);
+      *(dest++) = L_SURROGATE(UTF32Char);
+    }
   }
 
-  NS_ASSERTION(dest == aDest, "Whole string not copied");
+  NS_ASSERTION(dest - aDest == aSrcLength, "Whole string not copied");
 }
 
 /* static */
 bool nsBidiPresUtils::WriteLogicalToVisual(const PRUnichar* aSrc,
-                                           PRUint32 aSrcLength,
-                                           PRUnichar* aDest,
-                                           nsBidiLevel aBaseDirection,
-                                           nsBidi* aBidiEngine)
+                                             PRUint32 aSrcLength,
+                                             PRUnichar* aDest,
+                                             nsBidiLevel aBaseDirection,
+                                             nsBidi* aBidiEngine)
 {
   const PRUnichar* src = aSrc;
   nsresult rv = aBidiEngine->SetPara(src, aSrcLength, aBaseDirection, nsnull);

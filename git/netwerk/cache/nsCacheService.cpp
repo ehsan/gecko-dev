@@ -2324,13 +2324,7 @@ nsCacheService::OnDataSizeChange(nsCacheEntry * entry, PRInt32 deltaSize)
 void
 nsCacheService::Lock()
 {
-    if (NS_IsMainThread()) {
-        Telemetry::AutoTimer<Telemetry::CACHE_SERVICE_LOCK_WAIT_MAINTHREAD> timer;
-        gService->mLock.Lock();
-    } else {
-        Telemetry::AutoTimer<Telemetry::CACHE_SERVICE_LOCK_WAIT> timer;
-        gService->mLock.Lock();
-    }
+    gService->mLock.Lock();
 }
 
 void

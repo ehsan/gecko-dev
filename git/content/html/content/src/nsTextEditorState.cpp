@@ -849,11 +849,15 @@ nsTextInputListener::EditAction()
   nsCOMPtr<nsIEditor> editor;
   frame->GetEditor(getter_AddRefs(editor));
 
+  nsCOMPtr<nsITransactionManager> manager;
+  editor->GetTransactionManager(getter_AddRefs(manager));
+  NS_ENSURE_TRUE(manager, NS_ERROR_FAILURE);
+
   // Get the number of undo / redo items
   PRInt32 numUndoItems = 0;
   PRInt32 numRedoItems = 0;
-  editor->GetNumberOfUndoItems(&numUndoItems);
-  editor->GetNumberOfRedoItems(&numRedoItems);
+  manager->GetNumberOfUndoItems(&numUndoItems);
+  manager->GetNumberOfRedoItems(&numRedoItems);
   if ((numUndoItems && !mHadUndoItems) || (!numUndoItems && mHadUndoItems) ||
       (numRedoItems && !mHadRedoItems) || (!numRedoItems && mHadRedoItems)) {
     // Modify the menu if undo or redo items are different

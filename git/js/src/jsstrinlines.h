@@ -107,9 +107,9 @@ class StringBuffer
         cb.infallibleAppendN(c, n);
     }
 
-    JSAtom *atomize(unsigned flags = 0);
-    static JSAtom *atomize(JSContext *cx, const CharBuffer &cb, unsigned flags = 0);
-    static JSAtom *atomize(JSContext *cx, const jschar *begin, size_t length, unsigned flags = 0);
+    JSAtom *atomize(uintN flags = 0);
+    static JSAtom *atomize(JSContext *cx, const CharBuffer &cb, uintN flags = 0);
+    static JSAtom *atomize(JSContext *cx, const jschar *begin, size_t length, uintN flags = 0);
 
     void replaceRawBuffer(jschar *chars, size_t len) { cb.replaceRawBuffer(chars, len); }
     jschar *begin() { return cb.begin(); }
@@ -117,7 +117,7 @@ class StringBuffer
     const jschar *begin() const { return cb.begin(); }
     const jschar *end() const { return cb.end(); }
     bool empty() const { return cb.empty(); }
-    inline int length() const;
+    inline jsint length() const;
 
     /*
      * Creates a string from the characters in this buffer, then (regardless
@@ -216,12 +216,12 @@ StringBuffer::appendInflated(const char *cstr, size_t cstrlen)
     return true;
 }
 
-inline int
+inline jsint
 StringBuffer::length() const
 {
-    JS_STATIC_ASSERT(int(JSString::MAX_LENGTH) == JSString::MAX_LENGTH);
+    JS_STATIC_ASSERT(jsint(JSString::MAX_LENGTH) == JSString::MAX_LENGTH);
     JS_ASSERT(cb.length() <= JSString::MAX_LENGTH);
-    return int(cb.length());
+    return jsint(cb.length());
 }
 
 inline bool

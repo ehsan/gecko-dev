@@ -871,11 +871,10 @@ refChildCB(AtkObject *aAtkObj, gint aChildIndex)
     if (!childAtkObj)
         return nsnull;
     g_object_ref(childAtkObj);
-
-  if (aAtkObj != childAtkObj->accessible_parent)
+    
+    //this will addref parent
     atk_object_set_parent(childAtkObj, aAtkObj);
-
-  return childAtkObj;
+    return childAtkObj;
 }
 
 gint

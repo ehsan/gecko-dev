@@ -95,7 +95,6 @@ fails == anim-fillcolor-1.svg      anim-standard-ref.svg # bug 436296
 == anim-length-reset-01.svg lime.svg
 == anim-nonpixel-length-reset-01.svg lime.svg
 == anim-use-length-01.svg lime.svg
-== anim-use-length-02.svg lime.svg
 
 # animate some <number> attributes:
 == anim-feComponentTransfer-01.svg lime.svg
@@ -172,7 +171,6 @@ fuzzy-if(/^Windows\x20NT\x205\.1/.test(http.oscpu),2,1) == anim-path-d-01.svg an
 == anim-remove-7.svg anim-standard-ref.svg
 == anim-remove-8css.svg anim-standard-ref.svg
 == anim-remove-8xml.svg anim-standard-ref.svg
-== anim-remove-9.svg anim-standard-ref.svg
 == anim-retarget-1.svg anim-standard-ref.svg
 == anim-retarget-2.svg anim-standard-ref.svg
 == anim-retarget-3.svg anim-standard-ref.svg

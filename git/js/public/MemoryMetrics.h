@@ -61,7 +61,7 @@ struct TypeInferenceSizes
     size_t temporary;
 };
 
-typedef void* (* GetNameCallback)(JSRuntime *rt, JSCompartment *c);
+typedef void* (* GetNameCallback)(JSContext *cx, JSCompartment *c);
 typedef void (* DestroyNameCallback)(void *string);
 
 struct CompartmentStats
@@ -128,7 +128,6 @@ struct RuntimeStats
       , runtimeTemporary(0)
       , runtimeRegexpCode(0)
       , runtimeStackCommitted(0)
-      , runtimeGCMarker(0)
       , gcHeapChunkTotal(0)
       , gcHeapChunkCleanUnused(0)
       , gcHeapChunkDirtyUnused(0)
@@ -160,7 +159,6 @@ struct RuntimeStats
     size_t runtimeTemporary;
     size_t runtimeRegexpCode;
     size_t runtimeStackCommitted;
-    size_t runtimeGCMarker;
     size_t gcHeapChunkTotal;
     size_t gcHeapChunkCleanUnused;
     size_t gcHeapChunkDirtyUnused;
@@ -192,8 +190,9 @@ struct RuntimeStats
 extern JS_PUBLIC_API(bool)
 CollectRuntimeStats(JSRuntime *rt, RuntimeStats *rtStats);
 
-extern JS_PUBLIC_API(int64_t)
-GetExplicitNonHeapForRuntime(JSRuntime *rt, JSMallocSizeOfFun mallocSizeOf);
+extern JS_PUBLIC_API(bool)
+GetExplicitNonHeapForRuntime(JSRuntime *rt, int64_t *amount,
+                             JSMallocSizeOfFun mallocSizeOf);
 
 #endif /* JS_THREADSAFE */
 

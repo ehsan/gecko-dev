@@ -244,7 +244,7 @@ CompileRegExpObject(JSContext *cx, RegExpObjectBuilder &builder, CallArgs args)
          */
         JSObject &sourceObj = sourceValue.toObject();
 
-        if (args.hasDefined(1)) {
+        if (args.length() >= 2 && !args[1].isUndefined()) {
             JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_NEWREGEXP_FLAGGED);
             return false;
         }
@@ -255,11 +255,11 @@ CompileRegExpObject(JSContext *cx, RegExpObjectBuilder &builder, CallArgs args)
          */
         RegExpFlag flags;
         {
-            RegExpGuard g;
-            if (!RegExpToShared(cx, sourceObj, &g))
+            RegExpShared *shared = RegExpToShared(cx, sourceObj);
+            if (!shared)
                 return false;
 
-            flags = g->getFlags();
+            flags = shared->getFlags();
         }
 
         /*
@@ -293,7 +293,7 @@ CompileRegExpObject(JSContext *cx, RegExpObjectBuilder &builder, CallArgs args)
     }
 
     RegExpFlag flags = RegExpFlag(0);
-    if (args.hasDefined(1)) {
+    if (args.length() > 1 && !args[1].isUndefined()) {
         JSString *flagStr = ToString(cx, args[1]);
         if (!flagStr)
             return false;
@@ -319,7 +319,7 @@ CompileRegExpObject(JSContext *cx, RegExpObjectBuilder &builder, CallArgs args)
 }
 
 static JSBool
-regexp_compile(JSContext *cx, unsigned argc, Value *vp)
+regexp_compile(JSContext *cx, uintN argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
@@ -333,7 +333,7 @@ regexp_compile(JSContext *cx, unsigned argc, Value *vp)
 }
 
 static JSBool
-regexp_construct(JSContext *cx, unsigned argc, Value *vp)
+regexp_construct(JSContext *cx, uintN argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
@@ -343,9 +343,8 @@ regexp_construct(JSContext *cx, unsigned argc, Value *vp)
          * Otherwise, delegate to the standard constructor.
          * See ECMAv5 15.10.3.1.
          */
-        if (args.hasDefined(0) &&
-            IsObjectWithClass(args[0], ESClass_RegExp, cx) &&
-            !args.hasDefined(1))
+        if (args.length() >= 1 && IsObjectWithClass(args[0], ESClass_RegExp, cx) &&
+            (args.length() == 1 || args[1].isUndefined()))
         {
             args.rval() = args[0];
             return true;
@@ -357,7 +356,7 @@ regexp_construct(JSContext *cx, unsigned argc, Value *vp)
 }
 
 static JSBool
-regexp_toString(JSContext *cx, unsigned argc, Value *vp)
+regexp_toString(JSContext *cx, uintN argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
@@ -543,18 +542,18 @@ StartsWithGreedyStar(JSAtom *source)
 #endif
 }
 
-static inline bool
-GetSharedForGreedyStar(JSContext *cx, JSAtom *source, RegExpFlag flags, RegExpGuard *g)
+static inline RegExpShared *
+GetSharedForGreedyStar(JSContext *cx, JSAtom *source, RegExpFlag flags)
 {
-    if (cx->compartment->regExps.lookupHack(source, flags, cx, g))
-        return true;
+    if (RegExpShared *hit = cx->compartment->regExps.lookupHack(cx, source, flags))
+        return hit;
 
     JSAtom *hackedSource = js_AtomizeChars(cx, source->chars() + ArrayLength(GreedyStarChars),
                                            source->length() - ArrayLength(GreedyStarChars));
     if (!hackedSource)
-        return false;
+        return NULL;
 
-    return cx->compartment->regExps.getHack(cx, source, hackedSource, flags, g);
+    return cx->compartment->regExps.getHack(cx, source, hackedSource, flags);
 }
 
 /*
@@ -564,7 +563,7 @@ GetSharedForGreedyStar(JSContext *cx, JSAtom *source, RegExpFlag flags, RegExpGu
  * |execType| to perform this optimization.
  */
 static bool
-ExecuteRegExp(JSContext *cx, Native native, unsigned argc, Value *vp)
+ExecuteRegExp(JSContext *cx, Native native, uintN argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
@@ -576,15 +575,16 @@ ExecuteRegExp(JSContext *cx, Native native, unsigned argc, Value *vp)
 
     RegExpObject &reobj = obj->asRegExp();
 
-    RegExpGuard re;
-    if (StartsWithGreedyStar(reobj.getSource())) {
-        if (!GetSharedForGreedyStar(cx, reobj.getSource(), reobj.getFlags(), &re))
-            return false;
-    } else {
-        if (!reobj.getShared(cx, &re))
-            return false;
-    }
+    RegExpShared *shared;
+    if (StartsWithGreedyStar(reobj.getSource()))
+        shared = GetSharedForGreedyStar(cx, reobj.getSource(), reobj.getFlags());
+    else
+        shared = reobj.getShared(cx);
 
+    if (!shared)
+        return false;
+
+    RegExpShared::Guard re(*shared);
     RegExpStatics *res = cx->regExpStatics();
 
     /* Step 2. */
@@ -603,7 +603,7 @@ ExecuteRegExp(JSContext *cx, Native native, unsigned argc, Value *vp)
     const Value &lastIndex = reobj.getLastIndex();
 
     /* Step 5. */
-    double i;
+    jsdouble i;
     if (!ToInteger(cx, lastIndex, &i))
         return false;
 
@@ -639,14 +639,14 @@ ExecuteRegExp(JSContext *cx, Native native, unsigned argc, Value *vp)
 
 /* ES5 15.10.6.2. */
 JSBool
-js::regexp_exec(JSContext *cx, unsigned argc, Value *vp)
+js::regexp_exec(JSContext *cx, uintN argc, Value *vp)
 {
     return ExecuteRegExp(cx, regexp_exec, argc, vp);
 }
 
 /* ES5 15.10.6.3. */
 JSBool
-js::regexp_test(JSContext *cx, unsigned argc, Value *vp)
+js::regexp_test(JSContext *cx, uintN argc, Value *vp)
 {
     if (!ExecuteRegExp(cx, regexp_test, argc, vp))
         return false;

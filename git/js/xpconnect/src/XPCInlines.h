@@ -279,7 +279,7 @@ XPCCallContext::GetStaticMemberIsLocal() const
     return mStaticMemberIsLocal;
 }
 
-inline unsigned
+inline uintN
 XPCCallContext::GetArgc() const
 {
     CHECK_STATE(READY_TO_CALL);
@@ -676,14 +676,14 @@ xpc_NewSystemInheritingJSObject(JSContext *cx, JSClass *clasp, JSObject *proto,
 }
 
 inline jsid
-GetRTIdByIndex(JSContext *cx, unsigned index)
+GetRTIdByIndex(JSContext *cx, uintN index)
 {
   XPCJSRuntime *rt = nsXPConnect::FastGetXPConnect()->GetRuntime();
   return rt->GetStringID(index);
 }
 
 inline
-JSBool ThrowBadParam(nsresult rv, unsigned paramNum, XPCCallContext& ccx)
+JSBool ThrowBadParam(nsresult rv, uintN paramNum, XPCCallContext& ccx)
 {
     XPCThrower::ThrowBadParam(rv, paramNum, ccx);
     return false;

@@ -240,14 +240,6 @@ LoginManagerCrypto_SDR.prototype = {
 
 
     /*
-     * defaultEncType
-     */
-    get defaultEncType() {
-        return Ci.nsILoginManagerCrypto.ENCTYPE_SDR;
-    },
-
-
-    /*
      * _notifyObservers
      */
     _notifyObservers : function(topic) {

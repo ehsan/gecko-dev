@@ -186,7 +186,7 @@ function fixupSearchText(aURIString)
  * This will return the default value provided if no pref is set.
  *
  * @param aPrefBranch
- *        The nsIPrefBranch containing the required preference
+ *        The nsIPrefBranch2 containing the required preference
  * @param aName
  *        A preference name
  * @param aDefault
@@ -876,7 +876,8 @@ nsPlacesAutoComplete.prototype = {
     }
     // register observer
     if (aRegisterObserver) {
-      this._prefs.addObserver("", this, false);
+      let pb = this._prefs.QueryInterface(Ci.nsIPrefBranch2);
+      pb.addObserver("", this, false);
     }
   },
 
@@ -1478,10 +1479,6 @@ urlInlineComplete.prototype = {
   },
 
   //////////////////////////////////////////////////////////////////////////////
-  //// nsIAutoCompleteSearchDescriptor
-  get searchType() Ci.nsIAutoCompleteSearchDescriptor.SEARCH_TYPE_IMMEDIATE,
-
-  //////////////////////////////////////////////////////////////////////////////
   //// mozIStorageStatementCallback
 
   handleResult: function UIC_handleResult(aResultSet)
@@ -1613,7 +1610,6 @@ urlInlineComplete.prototype = {
 
   QueryInterface: XPCOMUtils.generateQI([
     Ci.nsIAutoCompleteSearch,
-    Ci.nsIAutoCompleteSearchDescriptor,
     Ci.mozIStorageStatementCallback,
     Ci.nsIObserver,
     Ci.nsISupportsWeakReference,

@@ -63,11 +63,6 @@
 #include "Layers.h"
 
 #include "CheckedInt.h"
-#include "nsDataHashtable.h"
-
-#ifdef XP_MACOSX
-#include "ForceDiscreteGPUHelperCGL.h"
-#endif
 
 /* 
  * Minimum value constants defined in 6.2 State Tables of OpenGL ES - 2.0.25
@@ -750,7 +745,6 @@ protected:
     enum WebGLExtensionID {
         WebGL_OES_texture_float,
         WebGL_OES_standard_derivatives,
-        WebGL_EXT_texture_filter_anisotropic,
         WebGL_MOZ_WEBGL_lose_context,
         WebGLExtensionID_Max
     };
@@ -947,16 +941,6 @@ protected:
     ContextStatus mContextStatus;
     bool mContextLostErrorSet;
     bool mContextLostDueToTest;
-
-#ifdef XP_MACOSX
-    // see bug 713305. This RAII helper guarantees that we're on the discrete GPU, during its lifetime
-    // Debouncing note: we don't want to switch GPUs too frequently, so try to not create and destroy
-    // these objects at high frequency. Having WebGLContext's hold one such object seems fine,
-    // because WebGLContext objects only go away during GC, which shouldn't happen too frequently.
-    // If in the future GC becomes much more frequent, we may have to revisit then (maybe use a timer).
-    ForceDiscreteGPUHelperCGL mForceDiscreteGPUHelper;
-#endif
-
 
 public:
     // console logging helpers
@@ -1628,25 +1612,16 @@ public:
     }
 };
 
-struct WebGLMappedIdentifier {
-    nsCString original, mapped; // ASCII strings
-    WebGLMappedIdentifier(const nsACString& o, const nsACString& m) : original(o), mapped(m) {}
-};
-
 class WebGLShader MOZ_FINAL
     : public nsIWebGLShader
     , public WebGLRefCountedObject<WebGLShader>
     , public WebGLContextBoundObject
 {
-    friend class WebGLContext;
-    friend class WebGLProgram;
-
 public:
     WebGLShader(WebGLContext *context, WebGLenum stype)
         : WebGLContextBoundObject(context)
         , mType(stype)
         , mNeedsTranslation(true)
-        , mAttribMaxNameLength(0)
     {
         mContext->MakeContextCurrent();
         mGLName = mContext->gl->fCreateShader(mType);
@@ -1703,44 +1678,10 @@ protected:
     WebGLuint mGLName;
     WebGLenum mType;
     nsString mSource;
-    nsCString mTranslationLog; // The translation log should contain only ASCII characters
+    nsCString mTranslationLog;
     bool mNeedsTranslation;
     WebGLMonotonicHandle mMonotonicHandle;
-    nsTArray<WebGLMappedIdentifier> mAttributes;
-    nsTArray<WebGLMappedIdentifier> mUniforms;
-    int mAttribMaxNameLength;
 };
-
-/** Takes an ASCII string like "foo[i]", turns it into "foo" and returns "[i]" in bracketPart
-  * 
-  * \param string input/output: the string to split, becomes the string without the bracket part
-  * \param bracketPart output: gets the bracket part.
-  * 
-  * Notice that if there are multiple brackets like "foo[i].bar[j]", only the last bracket is split.
-  */
-static bool SplitLastSquareBracket(nsACString& string, nsCString& bracketPart)
-{
-    NS_ABORT_IF_FALSE(bracketPart.Length() == 0, "SplitLastSquareBracket must be called with empty bracketPart string");
-    char *string_start = string.BeginWriting();
-    char *s = string_start + string.Length() - 1;
-
-    if (*s != ']')
-        return false;
-
-    while (*s != '[' && s != string_start)
-        s--;
-
-    if (*s != '[')
-        return false;
-
-    bracketPart.Assign(s);
-    *s = 0;
-    string.EndWriting();
-    string.SetLength(s - string_start);
-    return true;
-}
-
-typedef nsDataHashtable<nsCStringHashKey, nsCString> CStringHash;
 
 class WebGLProgram MOZ_FINAL
     : public nsIWebGLProgram
@@ -1752,7 +1693,10 @@ public:
         : WebGLContextBoundObject(context)
         , mLinkStatus(false)
         , mGeneration(0)
+        , mUniformMaxNameLength(0)
         , mAttribMaxNameLength(0)
+        , mUniformCount(0)
+        , mAttribCount(0)
     {
         mContext->MakeContextCurrent();
         mGLName = mContext->gl->fCreateProgram();
@@ -1831,106 +1775,14 @@ public:
     }
 
     /* Called only after LinkProgram */
-    bool UpdateInfo();
+    bool UpdateInfo(gl::GLContext *gl);
 
     /* Getters for cached program info */
+    WebGLint UniformMaxNameLength() const { return mUniformMaxNameLength; }
+    WebGLint AttribMaxNameLength() const { return mAttribMaxNameLength; }
+    WebGLint UniformCount() const { return mUniformCount; }
+    WebGLint AttribCount() const { return mAttribCount; }
     bool IsAttribInUse(unsigned i) const { return mAttribsInUse[i]; }
-
-    /* Maps identifier |name| to the mapped identifier |*mappedName|
-     * Both are ASCII strings.
-     */
-    void MapIdentifier(const nsACString& name, nsCString *mappedName) {
-        if (!mIdentifierMap) {
-            // if the identifier map doesn't exist yet, build it now
-            mIdentifierMap = new CStringHash;
-            mIdentifierMap->Init();
-            for (size_t i = 0; i < mAttachedShaders.Length(); i++) {
-                for (size_t j = 0; j < mAttachedShaders[i]->mAttributes.Length(); j++) {
-                    const WebGLMappedIdentifier& attrib = mAttachedShaders[i]->mAttributes[j];
-                    mIdentifierMap->Put(attrib.original, attrib.mapped);
-                }
-                for (size_t j = 0; j < mAttachedShaders[i]->mUniforms.Length(); j++) {
-                    const WebGLMappedIdentifier& uniform = mAttachedShaders[i]->mUniforms[j];
-                    mIdentifierMap->Put(uniform.original, uniform.mapped);
-                }
-            }
-        }
-
-        nsCString mutableName(name);
-        nsCString bracketPart;
-        bool hadBracketPart = SplitLastSquareBracket(mutableName, bracketPart);
-        if (hadBracketPart)
-            mutableName.AppendLiteral("[0]");
-
-        if (mIdentifierMap->Get(mutableName, mappedName)) {
-            if (hadBracketPart) {
-                nsCString mappedBracketPart;
-                bool mappedHadBracketPart = SplitLastSquareBracket(*mappedName, mappedBracketPart);
-                if (mappedHadBracketPart)
-                    mappedName->Append(bracketPart);
-            }
-            return;
-        }
-
-        // not found? We might be in the situation we have a uniform array name and the GL's glGetActiveUniform
-        // returned its name without [0], as is allowed by desktop GL but not in ES. Let's then try with [0].
-        mutableName.AppendLiteral("[0]");
-        if (mIdentifierMap->Get(mutableName, mappedName))
-            return;
-
-        // not found? return name unchanged. This case happens e.g. on bad user input, or when
-        // we're not using identifier mapping, or if we didn't store an identifier in the map because
-        // e.g. its mapping is trivial (as happens for short identifiers)
-        mappedName->Assign(name);
-    }
-
-    /* Un-maps mapped identifier |name| to the original identifier |*reverseMappedName|
-     * Both are ASCII strings.
-     */
-    void ReverseMapIdentifier(const nsACString& name, nsCString *reverseMappedName) {
-        if (!mIdentifierReverseMap) {
-            // if the identifier reverse map doesn't exist yet, build it now
-            mIdentifierReverseMap = new CStringHash;
-            mIdentifierReverseMap->Init();
-            for (size_t i = 0; i < mAttachedShaders.Length(); i++) {
-                for (size_t j = 0; j < mAttachedShaders[i]->mAttributes.Length(); j++) {
-                    const WebGLMappedIdentifier& attrib = mAttachedShaders[i]->mAttributes[j];
-                    mIdentifierReverseMap->Put(attrib.mapped, attrib.original);
-                }
-                for (size_t j = 0; j < mAttachedShaders[i]->mUniforms.Length(); j++) {
-                    const WebGLMappedIdentifier& uniform = mAttachedShaders[i]->mUniforms[j];
-                    mIdentifierReverseMap->Put(uniform.mapped, uniform.original);
-                }
-            }
-        }
-
-        nsCString mutableName(name);
-        nsCString bracketPart;
-        bool hadBracketPart = SplitLastSquareBracket(mutableName, bracketPart);
-        if (hadBracketPart)
-            mutableName.AppendLiteral("[0]");
-
-        if (mIdentifierReverseMap->Get(mutableName, reverseMappedName)) {
-            if (hadBracketPart) {
-                nsCString reverseMappedBracketPart;
-                bool reverseMappedHadBracketPart = SplitLastSquareBracket(*reverseMappedName, reverseMappedBracketPart);
-                if (reverseMappedHadBracketPart)
-                    reverseMappedName->Append(bracketPart);
-            }
-            return;
-        }
-
-        // not found? We might be in the situation we have a uniform array name and the GL's glGetActiveUniform
-        // returned its name without [0], as is allowed by desktop GL but not in ES. Let's then try with [0].
-        mutableName.AppendLiteral("[0]");
-        if (mIdentifierReverseMap->Get(mutableName, reverseMappedName))
-            return;
-
-        // not found? return name unchanged. This case happens e.g. on bad user input, or when
-        // we're not using identifier mapping, or if we didn't store an identifier in the map because
-        // e.g. its mapping is trivial (as happens for short identifiers)
-        reverseMappedName->Assign(name);
-    }
 
     NS_DECL_ISUPPORTS
     NS_DECL_NSIWEBGLPROGRAM
@@ -1944,10 +1796,13 @@ protected:
     CheckedUint32 mGeneration;
 
     // post-link data
+
+    GLint mUniformMaxNameLength;
+    GLint mAttribMaxNameLength;
+    GLint mUniformCount;
+    GLint mAttribCount;
     std::vector<bool> mAttribsInUse;
     WebGLMonotonicHandle mMonotonicHandle;
-    nsAutoPtr<CStringHash> mIdentifierMap, mIdentifierReverseMap;
-    int mAttribMaxNameLength;
 };
 
 class WebGLRenderbuffer MOZ_FINAL
@@ -2496,11 +2351,12 @@ class WebGLActiveInfo MOZ_FINAL
     : public nsIWebGLActiveInfo
 {
 public:
-    WebGLActiveInfo(WebGLint size, WebGLenum type, const nsACString& name) :
+    WebGLActiveInfo(WebGLint size, WebGLenum type, const char *nameptr, PRUint32 namelength) :
         mSize(size),
-        mType(type),
-        mName(NS_ConvertASCIItoUTF16(name))
-    {}
+        mType(type)
+    {
+        mName.AssignASCII(nameptr, namelength);
+    }
 
     NS_DECL_ISUPPORTS
     NS_DECL_NSIWEBGLACTIVEINFO

@@ -50,29 +50,29 @@ namespace js {
 class NumberObject : public JSObject
 {
     /* Stores this Number object's [[PrimitiveValue]]. */
-    static const unsigned PRIMITIVE_VALUE_SLOT = 0;
+    static const uintN PRIMITIVE_VALUE_SLOT = 0;
 
   public:
-    static const unsigned RESERVED_SLOTS = 1;
+    static const uintN RESERVED_SLOTS = 1;
 
     /*
      * Creates a new Number object boxing the given number.  The object's
      * [[Prototype]] is determined from context.
      */
-    static inline NumberObject *create(JSContext *cx, double d);
+    static inline NumberObject *create(JSContext *cx, jsdouble d);
 
     /*
      * Identical to create(), but uses |proto| as [[Prototype]].  This method
      * must not be used to create |Number.prototype|.
      */
-    static inline NumberObject *createWithProto(JSContext *cx, double d, JSObject &proto);
+    static inline NumberObject *createWithProto(JSContext *cx, jsdouble d, JSObject &proto);
 
     double unbox() const {
         return getFixedSlot(PRIMITIVE_VALUE_SLOT).toNumber();
     }
 
   private:
-    inline void setPrimitiveValue(double d) {
+    inline void setPrimitiveValue(jsdouble d) {
         setFixedSlot(PRIMITIVE_VALUE_SLOT, NumberValue(d));
     }
 

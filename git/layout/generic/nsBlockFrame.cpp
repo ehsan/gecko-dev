@@ -525,12 +525,12 @@ nsBlockFrame::InvalidateInternal(const nsRect& aDamageRect,
   // be able to invalidate areas outside the 'clip'.
   if (aForChild) {
     const nsStyleDisplay* disp = GetStyleDisplay();
-    nsRect clipRect;
-    if (GetClipPropClipRect(disp, &clipRect, GetSize())) {
+    nsRect absPosClipRect;
+    if (GetAbsPosClipRect(disp, &absPosClipRect, GetSize())) {
       // Restrict the invalidated area to abs-pos clip rect
       // abs-pos clipping clips everything in the frame
       nsRect r;
-      if (r.IntersectRect(aDamageRect, clipRect - nsPoint(aX, aY))) {
+      if (r.IntersectRect(aDamageRect, absPosClipRect - nsPoint(aX, aY))) {
         nsBlockFrameSuper::InvalidateInternal(r, aX, aY, this, aFlags);
       }
       return;

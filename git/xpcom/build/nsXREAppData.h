@@ -40,7 +40,7 @@
 #ifndef nsXREAppData_h
 #define nsXREAppData_h
 
-#include "mozilla/StandardInteger.h"
+#include "mozilla/StdInt.h"
 
 class nsILocalFile;
 

@@ -82,7 +82,6 @@ class nsIScrollableFrame;
 class nsAttrValueOrString;
 class nsContentList;
 class nsDOMTokenList;
-class ContentUnbinder;
 struct nsRect;
 
 typedef PRUptrdiff PtrBits;
@@ -247,7 +246,7 @@ public:
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
 
-  NS_DECL_SIZEOF_EXCLUDING_THIS
+  NS_DECL_DOM_MEMORY_REPORTER_SIZEOF
 
   /**
    * Called during QueryInterface to give the binding manager a chance to
@@ -438,12 +437,8 @@ public:
   // nsIDOMElement method implementation
   NS_DECL_NSIDOMELEMENT
 
-  nsresult CloneNode(bool aDeep, PRUint8 aOptionalArgc, nsIDOMNode **aResult)
+  nsresult CloneNode(bool aDeep, nsIDOMNode **aResult)
   {
-    if (!aOptionalArgc) {
-      aDeep = true;
-    }
-    
     return nsNodeUtils::CloneNodeImpl(this, aDeep, true, aResult);
   }
 
@@ -597,7 +592,7 @@ public:
   nsIContent* GetLastElementChild();
   nsIContent* GetPreviousElementSibling();
   nsIContent* GetNextElementSibling();
-  nsDOMTokenList* GetClassList(nsresult *aResult);
+  nsIDOMDOMTokenList* GetClassList(nsresult *aResult);
   bool MozMatchesSelector(const nsAString& aSelector, nsresult* aResult);
 
   /**
@@ -795,10 +790,6 @@ protected:
     return this;
   }
 
-  nsresult GetAttributeNodeNSInternal(const nsAString& aNamespaceURI,
-                                      const nsAString& aLocalName,
-                                      nsIDOMAttr** aReturn);
-
 public:
   // Because of a bug in MS C++ compiler nsDOMSlots must be declared public,
   // otherwise nsXULElement::nsXULSlots doesn't compile.
@@ -957,7 +948,6 @@ protected:
    */
   virtual void GetLinkTarget(nsAString& aTarget);
 
-  friend class ContentUnbinder;
   /**
    * Array containing all attributes and children for this element
    */

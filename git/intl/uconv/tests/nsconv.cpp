@@ -46,6 +46,8 @@
 #include "nsIUnicodeEncoder.h"
 #include "nsIUnicodeDecoder.h"
 
+#include "nsICharsetAlias.h"
+
 static NS_DEFINE_CID(kCharsetConverterManagerCID, NS_ICHARSETCONVERTERMANAGER_CID);
 
 #include <stdio.h>
@@ -88,6 +90,15 @@ int main(int argc, const char** argv)
     return -1;
   }
 
+  // Get the charset alias manager
+  nsCOMPtr<nsICharsetAlias> aliasmgr =
+      do_GetService(NS_CHARSETALIAS_CONTRACTID, &res);
+  if (NS_FAILED(res))
+  {
+    fprintf(stderr, "Cannot get Charset Alias Manager %x\n", res);
+    return -1;
+  }
+
   int i;
   if(argc > 4)
   {
@@ -100,7 +111,7 @@ int main(int argc, const char** argv)
 
         // First check if a charset alias was given, 
         // and convert to the canonical name
-        res = ccMain->GetCharsetAlias(argv[i+1], str);
+        res = aliasmgr->GetPreferred(nsDependentCString(argv[i+1]), str);
         if (NS_FAILED(res))
         {
           fprintf(stderr, "Cannot get charset alias for %s %x\n",
@@ -125,7 +136,7 @@ int main(int argc, const char** argv)
 
         // First check if a charset alias was given, 
         // and convert to the canonical name
-        res = ccMain->GetCharsetAlias(argv[i+1], str);
+        res = aliasmgr->GetPreferred(nsDependentCString(argv[i+1]), str);
         if (NS_FAILED(res))
         {
           fprintf(stderr, "Cannot get charset alias for %s %x\n",

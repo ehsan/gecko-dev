@@ -149,30 +149,59 @@ IsSVGWhitespace(PRUnichar aChar)
  */
 bool NS_SMILEnabled();
 
-
 // GRRR WINDOWS HATE HATE HATE
 #undef CLIP_MASK
 
-class NS_STACK_CLASS SVGAutoRenderState
+class nsSVGRenderState
 {
 public:
   enum RenderMode { NORMAL, CLIP, CLIP_MASK };
 
-  SVGAutoRenderState(nsRenderingContext *aContext, RenderMode aMode);
-  ~SVGAutoRenderState();
+  /**
+   * Render SVG to a legacy rendering context
+   */
+  nsSVGRenderState(nsRenderingContext *aContext);
+  /**
+   * Render SVG to a modern rendering context
+   */
+  nsSVGRenderState(gfxContext *aContext);
+  /**
+   * Render SVG to a temporary surface
+   */
+  nsSVGRenderState(gfxASurface *aSurface);
 
-  void SetPaintingToWindow(bool aPaintingToWindow);
+  nsRenderingContext *GetRenderingContext(nsIFrame *aFrame);
+  gfxContext *GetGfxContext() { return mGfxContext; }
 
-  static RenderMode GetRenderMode(nsRenderingContext *aContext);
-  static bool IsPaintingToWindow(nsRenderingContext *aContext);
+  void SetRenderMode(RenderMode aMode) { mRenderMode = aMode; }
+  RenderMode GetRenderMode() { return mRenderMode; }
+
+  void SetPaintingToWindow(bool aPaintingToWindow) {
+    mPaintingToWindow = aPaintingToWindow;
+  }
+  bool IsPaintingToWindow() { return mPaintingToWindow; }
 
 private:
-  nsRenderingContext *mContext;
-  void *mOriginalRenderState;
-  RenderMode mMode;
-  bool mPaintingToWindow;
+  RenderMode                    mRenderMode;
+  nsRefPtr<nsRenderingContext> mRenderingContext;
+  nsRefPtr<gfxContext>          mGfxContext;
+  bool                          mPaintingToWindow;
 };
 
+class nsAutoSVGRenderMode
+{
+public:
+  nsAutoSVGRenderMode(nsSVGRenderState *aState,
+                      nsSVGRenderState::RenderMode aMode) : mState(aState) {
+    mOriginalMode = aState->GetRenderMode();
+    aState->SetRenderMode(aMode);
+  }
+  ~nsAutoSVGRenderMode() { mState->SetRenderMode(mOriginalMode); }
+
+private:
+  nsSVGRenderState            *mState;
+  nsSVGRenderState::RenderMode mOriginalMode;
+};
 
 #define NS_ISVGFILTERPROPERTY_IID \
 { 0x9744ee20, 0x1bcf, 0x4c62, \
@@ -372,7 +401,7 @@ public:
   /* Paint SVG frame with SVG effects - aDirtyRect is the area being
    * redrawn, in device pixel coordinates relative to the outer svg */
   static void
-  PaintFrameWithEffects(nsRenderingContext *aContext,
+  PaintFrameWithEffects(nsSVGRenderState *aContext,
                         const nsIntRect *aDirtyRect,
                         nsIFrame *aFrame);
 

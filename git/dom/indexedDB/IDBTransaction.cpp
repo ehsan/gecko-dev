@@ -119,9 +119,7 @@ IDBTransaction::Create(IDBDatabase* aDatabase,
 
   transaction->mScriptContext = aDatabase->GetScriptContext();
   transaction->mOwner = aDatabase->GetOwner();
-  if (!transaction->SetScriptOwner(aDatabase->GetScriptOwner())) {
-    return nsnull;
-  }
+  transaction->mScriptOwner = aDatabase->GetScriptOwner();
 
   transaction->mDatabase = aDatabase;
   transaction->mMode = aMode;

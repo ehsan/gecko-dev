@@ -23,7 +23,7 @@
  *
  * Contributor(s):
  *  Gijs Kruitbosch <gijskruitbosch@gmail.com>
- *  Mike Kristoffersen <mozstuff@mikek.dk>
+ *  Mike Kristoffersen <moz@mikek.dk>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -128,17 +128,10 @@ public:
   NS_IMETHOD RemoveIdleObserver(nsIObserver* aObserver, PRUint32 aIdleTime);
   NS_IMETHOD GetIdleTime(PRUint32* idleTime);
 
-  /**
-   * Function that resets the idle time in the service, in other words it
-   * sets the time for the last user interaction to now, or now-idleDelta
-   *
-   * @param idleDelta the time (in milliseconds) since the last user inter
-   *                  action
-   **/
-  void ResetIdleTimeOut(PRUint32 idleDeltaInMS = 0);
+  void ResetIdleTimeOut();
 
 protected:
-  virtual ~nsIdleService();
+  ~nsIdleService();
 
   /**
    * If there is a platform specific function to poll the system idel time
@@ -165,21 +158,29 @@ protected:
    */
   virtual bool UsePollMode();
 
+  /**
+   * Send expired events and start timers.
+   *
+   * @param aNewObserver
+   *        Whether there are new observers to check.
+   */
+  void CheckAwayState(bool aNewObserver);
+
 private:
   /**
-   * Ensure that the timer is expiring at least at the given time
+   * Start the internal timer, restart it if it is allready running.
    *
-   * The function might not restart the timer if there is one running currently
-   *
-   * @param aNextTimeoutInPR
-   *        The last absolute time the timer should expire
+   * @param aDelay
+   *        The time in seconds that should pass before the next timeout.
    */
-  void SetTimerExpiryIfBefore(PRTime aNextTimeoutInPR);
+
+  void StartTimer(PRUint32 aDelay);
 
   /**
-   * Stores the next timeout time, 0 means timer not running
+   * Stop the internal timer, it is safe to call this function, even when
+   * there are no timers running.
    */
-  PRTime mCurrentlySetToTimeoutAtInPR;
+  void StopTimer();
 
   /**
    * mTimer holds the internal timer used by this class to detect when to poll
@@ -198,43 +199,62 @@ private:
   nsRefPtr<nsIdleServiceDaily> mDailyIdle;
 
   /**
-   * Boolean indicating if any observers are in idle mode
+   * Contains the time of the last idle reset or 0 if there haven't been a
+   * reset.
+   * <p>
+   * Time is kept in seconds since the epoch at midnight, January 1, 1970 UTC.
    */
-  bool mAnyObserverIdle;
+  PRUint32 mLastIdleReset;
 
   /**
-   * Delta time from last non idle time to when the next observer should switch
-   * to idle mode
-   *
-   * Time in seconds
-   *
-   * If this value is 0 it means there are no active observers
+   * The time since the last handled activity (which might be different than
+   * mLastIdleReset, since the activity that reset the idle timer could just
+   * have happend, and not handled yet).
+   * <p>
+   * Time is kept in seconds since the epoch at midnight, January 1, 1970 UTC.
    */
-  PRUint32 mDeltaToNextIdleSwitchInS;
-
-  /**
-   * Absolute value for when the last user interaction took place.
-   */
-  PRTime mLastUserInteractionInPR;
-
-
-  /**
-   * Function that ensures the timer is running with at least the minimum time
-   * needed.  It will kill the timer if there are no active observers.
-   */
-  void ReconfigureTimer(void);
+  PRUint32 mLastHandledActivity;
 
   /**
    * Callback function that is called when the internal timer expires.
-   *
-   * This in turn calls the IdleTimerCallback that does the real processing
    */
-  static void StaticIdleTimerCallback(nsITimer* aTimer, void* aClosure);
+  static void IdleTimerCallback(nsITimer* aTimer, void* aClosure);
 
   /**
-   * Function that handles when a timer has expired
+   * Whether the idle time calculated in the last call to GetIdleTime is
+   * actually valid (see nsIdleService.idl - we return 0 when it isn't).
    */
-  void IdleTimerCallback(void);
+  bool mPolledIdleTimeIsValid;
+
+  /**
+   * Check if any listeners were in idle state, notify them that user
+   * is back and change them to non-idle state.
+   *
+   * @param aIdleTime
+   *        The idle time in seconds.
+   *
+   * @return true if any listeners were notified.
+   */
+  bool TryNotifyBackState(PRUint32 aIdleTime);
+
+  /**
+   * Check if any listeners were in non-idle state, notify them that user
+   * is idle and change them to idle state.
+   *
+   * @param aIdleTime
+   *        The idle time in seconds.
+   *
+   * @return true if any listeners were notified.
+   */
+  bool TryNotifyIdleState(PRUint32 aIdleTime);
+
+  /**
+   * Reschedule the idle timer to fire on next checkpoint.
+   *
+   * @param aIdleTime
+   *        The idle time has passed in seconds.
+   */
+  void RescheduleIdleTimer(PRUint32 aIdleTime);
 };
 
 #endif // nsIdleService_h__

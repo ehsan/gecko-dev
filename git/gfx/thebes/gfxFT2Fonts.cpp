@@ -59,6 +59,7 @@
 #ifdef MOZ_GRAPHITE
 #include "gfxGraphiteShaper.h"
 #endif
+#include "gfxUnicodeProperties.h"
 #include "gfxAtoms.h"
 #include "nsTArray.h"
 #include "nsUnicodeRange.h"

@@ -40,8 +40,6 @@
 #include "nsISVGSVGFrame.h"
 #include "gfxMatrix.h"
 
-class nsRenderingContext;
-
 typedef nsSVGDisplayContainerFrame nsSVGInnerSVGFrameBase;
 
 class nsSVGInnerSVGFrame : public nsSVGInnerSVGFrameBase,
@@ -83,7 +81,7 @@ public:
                                PRInt32         aModType);
 
   // nsISVGChildFrame interface:
-  NS_IMETHOD PaintSVG(nsRenderingContext *aContext, const nsIntRect *aDirtyRect);
+  NS_IMETHOD PaintSVG(nsSVGRenderState *aContext, const nsIntRect *aDirtyRect);
   virtual void NotifySVGChanged(PRUint32 aFlags);
   NS_IMETHOD_(nsIFrame*) GetFrameForPoint(const nsPoint &aPoint);
 

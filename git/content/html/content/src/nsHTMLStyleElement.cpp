@@ -47,6 +47,7 @@
 #include "nsNetUtil.h"
 #include "nsIDocument.h"
 #include "nsUnicharUtils.h"
+#include "nsParserUtils.h"
 #include "nsThreadUtils.h"
 #include "nsContentUtils.h"
 
@@ -346,7 +347,7 @@ nsHTMLStyleElement::GetStyleSheetInfo(nsAString& aTitle,
 
   nsAutoString mimeType;
   nsAutoString notUsed;
-  nsContentUtils::SplitMimeType(aType, mimeType, notUsed);
+  nsParserUtils::SplitMimeType(aType, mimeType, notUsed);
   if (!mimeType.IsEmpty() && !mimeType.LowerCaseEqualsLiteral("text/css")) {
     return;
   }

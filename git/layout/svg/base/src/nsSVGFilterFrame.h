@@ -40,7 +40,7 @@
 #include "nsRect.h"
 #include "nsSVGContainerFrame.h"
 
-class nsRenderingContext;
+class nsSVGRenderState;
 class nsSVGFilterPaintCallback;
 
 typedef nsSVGContainerFrame nsSVGFilterFrameBase;
@@ -58,7 +58,7 @@ public:
                               nsIAtom*        aAttribute,
                               PRInt32         aModType);
 
-  nsresult FilterPaint(nsRenderingContext *aContext,
+  nsresult FilterPaint(nsSVGRenderState *aContext,
                        nsIFrame *aTarget, nsSVGFilterPaintCallback *aPaintCallback,
                        const nsIntRect* aDirtyRect);
 

@@ -43,7 +43,6 @@
 #include "jsapi.h"
 #include "jsproxy.h"
 #include "xpcpublic.h"
-#include "nsString.h"
 
 namespace mozilla {
 namespace dom {
@@ -180,7 +179,7 @@ private:
     struct Methods {
         jsid &id;
         JSNative native;
-        unsigned nargs;
+        uintN nargs;
     };
 
     static Properties sProtoProperties[];
@@ -213,11 +212,7 @@ public:
     static JSObject *create(JSContext *cx, XPCWrappedNativeScope *scope, ListType *list,
                             nsWrapperCache* cache, bool *triedToWrap);
 
-    static JSObject *getPrototype(JSContext *cx, XPCWrappedNativeScope *scope, bool *enabled)
-    {
-        *enabled = true;
-        return getPrototype(cx, scope);
-    }
+    static JSObject *getPrototype(JSContext *cx, XPCWrappedNativeScope *scope, bool *enabled);
 
     bool getPropertyDescriptor(JSContext *cx, JSObject *proxy, jsid id, bool set,
                                JSPropertyDescriptor *desc);
@@ -238,7 +233,7 @@ public:
     bool set(JSContext *cx, JSObject *proxy, JSObject *receiver, jsid id, bool strict,
              JS::Value *vp);
     bool keys(JSContext *cx, JSObject *proxy, JS::AutoIdVector &props);
-    bool iterate(JSContext *cx, JSObject *proxy, unsigned flags, JS::Value *vp);
+    bool iterate(JSContext *cx, JSObject *proxy, uintN flags, JS::Value *vp);
 
     /* Spidermonkey extensions. */
     bool hasInstance(JSContext *cx, JSObject *proxy, const JS::Value *vp, bool *bp);

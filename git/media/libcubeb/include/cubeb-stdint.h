@@ -1,1 +1,1 @@
-#include "mozilla/StandardInteger.h"
+#include "mozilla/StdInt.h"

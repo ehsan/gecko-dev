@@ -81,6 +81,7 @@ NS_CYCLE_COLLECTION_CLASSNAME(XPCWrappedNative)::Unlink(void *p)
 
 struct TraverseExpandoObjectClosure
 {
+    JSContext *cx;
     XPCWrappedNative *wn;
     nsCycleCollectionTraversalCallback &cb;
 };
@@ -90,7 +91,7 @@ TraverseExpandoObjects(xpc::PtrAndPrincipalHashKey *aKey, JSCompartment *compart
 {
     TraverseExpandoObjectClosure *closure = static_cast<TraverseExpandoObjectClosure*>(aClosure);
     xpc::CompartmentPrivate *priv =
-        static_cast<xpc::CompartmentPrivate *>(JS_GetCompartmentPrivate(compartment));
+        (xpc::CompartmentPrivate *)JS_GetCompartmentPrivate(closure->cx, compartment);
 
     NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(closure->cb, "XPCWrappedNative expando object");
     closure->cb.NoteScriptChild(nsIProgrammingLanguage::JAVASCRIPT,
@@ -141,7 +142,11 @@ NS_CYCLE_COLLECTION_CLASSNAME(XPCWrappedNative)::Traverse(void *p,
 
     if (tmp->MightHaveExpandoObject()) {
         XPCJSRuntime *rt = tmp->GetRuntime();
-        TraverseExpandoObjectClosure closure = { tmp, cb };
+        TraverseExpandoObjectClosure closure = {
+             rt->GetXPConnect()->GetCycleCollectionContext()->GetJSContext(),
+             tmp,
+             cb
+        };
         rt->GetCompartmentMap().EnumerateRead(TraverseExpandoObjects, &closure);
     }
 
@@ -2019,7 +2024,7 @@ XPCWrappedNative::InitTearOffJSObject(XPCCallContext& ccx,
 
 /***************************************************************************/
 
-static JSBool Throw(unsigned errNum, XPCCallContext& ccx)
+static JSBool Throw(uintN errNum, XPCCallContext& ccx)
 {
     XPCThrower::Throw(errNum, ccx);
     return false;
@@ -2469,7 +2474,7 @@ CallMethodHelper::QueryInterfaceFastPath() const
     }
 
     jsval v = JSVAL_NULL;
-    unsigned err;
+    uintN err;
     JSBool success =
         XPCConvert::NativeData2JS(mCallContext, &v, &qiresult,
                                   nsXPTType::T_INTERFACE_IS,
@@ -2635,7 +2640,7 @@ CallMethodHelper::ConvertIndependentParam(uint8_t i)
         return false;
     }
 
-    unsigned err;
+    uintN err;
     if (!XPCConvert::JSData2Native(mCallContext, &dp->val, src, type,
                                    true, &param_iid, &err)) {
         ThrowBadParam(err, i, mCallContext);
@@ -2733,7 +2738,7 @@ CallMethodHelper::ConvertDependentParam(uint8_t i)
         !GetInterfaceTypeFromParam(i, datum_type, &param_iid))
         return false;
 
-    unsigned err;
+    uintN err;
 
     if (isArray || isSizedString) {
         if (!GetArraySizeFromParam(i, &array_count))

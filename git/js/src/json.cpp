@@ -86,7 +86,7 @@ Class js::JSONClass = {
 
 /* ES5 15.12.2. */
 JSBool
-js_json_parse(JSContext *cx, unsigned argc, Value *vp)
+js_json_parse(JSContext *cx, uintN argc, Value *vp)
 {
     /* Step 1. */
     JSLinearString *linear;
@@ -110,7 +110,7 @@ js_json_parse(JSContext *cx, unsigned argc, Value *vp)
 
 /* ES5 15.12.3. */
 JSBool
-js_json_stringify(JSContext *cx, unsigned argc, Value *vp)
+js_json_stringify(JSContext *cx, uintN argc, Value *vp)
 {
     *vp = (argc >= 1) ? vp[2] : UndefinedValue();
     JSObject *replacer = (argc >= 2 && vp[3].isObject())
@@ -709,7 +709,7 @@ js_Stringify(JSContext *cx, Value *vp, JSObject *replacer, Value space, StringBu
     if (space.isObject()) {
         JSObject &spaceObj = space.toObject();
         if (ObjectClassIs(spaceObj, ESClass_Number, cx)) {
-            double d;
+            jsdouble d;
             if (!ToNumber(cx, space, &d))
                 return false;
             space = NumberValue(d);
@@ -725,7 +725,7 @@ js_Stringify(JSContext *cx, Value *vp, JSObject *replacer, Value space, StringBu
 
     if (space.isNumber()) {
         /* Step 6. */
-        double d;
+        jsdouble d;
         JS_ALWAYS_TRUE(ToInteger(cx, space, &d));
         d = JS_MIN(10, d);
         if (d >= 1 && !gap.appendN(' ', uint32_t(d)))
@@ -909,7 +909,7 @@ ParseJSONWithReviver(JSContext *cx, const jschar *chars, size_t length, const Va
 
 #if JS_HAS_TOSOURCE
 static JSBool
-json_toSource(JSContext *cx, unsigned argc, Value *vp)
+json_toSource(JSContext *cx, uintN argc, Value *vp)
 {
     vp->setString(CLASS_ATOM(cx, JSON));
     return JS_TRUE;

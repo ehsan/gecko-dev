@@ -113,7 +113,6 @@
 #include <process.h>
 #include <commctrl.h>
 #include <unknwn.h>
-#include <psapi.h>
 
 #include "prlog.h"
 #include "prtime.h"
@@ -419,14 +418,18 @@ nsWindow::nsWindow() : nsBaseWidget()
   mBrush                = ::CreateSolidBrush(NSRGB_2_COLOREF(mBackground));
   mForeground           = ::GetSysColor(COLOR_WINDOWTEXT);
 
+#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_WIN7
   mTaskbarPreview = nsnull;
   mHasTaskbarIconBeenCreated = false;
+#endif
 
   // Global initialization
   if (!sInstanceCount) {
+#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_WIN7
     // Global app registration id for Win7 and up. See
     // WinTaskbar.cpp for details.
     mozilla::widget::WinTaskbar::RegisterAppUserModelID();
+#endif
 
     gKbdLayout.LoadLayout(::GetKeyboardLayout(0));
 
@@ -1289,7 +1292,7 @@ void nsWindow::SetThemeRegion()
     RECT rect = {0,0,mBounds.width,mBounds.height};
     
     HDC dc = ::GetDC(mWnd);
-    GetThemeBackgroundRegion(nsUXThemeData::GetTheme(eUXTooltip), dc, TTP_STANDARD, TS_NORMAL, &rect, &hRgn);
+    nsUXThemeData::getThemeBackgroundRegion(nsUXThemeData::GetTheme(eUXTooltip), dc, TTP_STANDARD, TS_NORMAL, &rect, &hRgn);
     if (hRgn) {
       if (!SetWindowRgn(mWnd, hRgn, false)) // do not delete or alter hRgn if accepted.
         DeleteObject(hRgn);
@@ -3233,7 +3236,7 @@ nsWindow::GetLayerManager(PLayersChild* aShadowManager,
       if (!prefs.mPreferD3D9 && !prefs.mPreferOpenGL) {
         nsRefPtr<mozilla::layers::LayerManagerD3D10> layerManager =
           new mozilla::layers::LayerManagerD3D10(this);
-        if (layerManager->Initialize(prefs.mForceAcceleration)) {
+        if (layerManager->Initialize()) {
           mLayerManager = layerManager;
         }
       }
@@ -3242,7 +3245,7 @@ nsWindow::GetLayerManager(PLayersChild* aShadowManager,
       if (!prefs.mPreferOpenGL && !mLayerManager && sAllowD3D9) {
         nsRefPtr<mozilla::layers::LayerManagerD3D9> layerManager =
           new mozilla::layers::LayerManagerD3D9(this);
-        if (layerManager->Initialize(prefs.mForceAcceleration)) {
+        if (layerManager->Initialize()) {
           mLayerManager = layerManager;
         }
       }
@@ -5325,12 +5328,14 @@ bool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
     *aRetValue = TABLET_ROTATE_GESTURE_ENABLE;
     break;
 
+#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_WIN7
   case WM_TOUCH:
     result = OnTouch(wParam, lParam);
     if (result) {
       *aRetValue = 0;
     }
     break;
+#endif
 
   case WM_GESTURE:
     result = OnGesture(wParam, lParam);
@@ -5450,8 +5455,10 @@ bool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
         nsTextStore::OnTextChangeMsg();
       }
 #endif //NS_ENABLE_TSF
+#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_WIN7
       if (msg == nsAppShell::GetTaskbarButtonCreatedMessage())
         SetHasTaskbarIconBeenCreated();
+#endif
       if (msg == sOOPPPluginFocusEvent) {
         if (wParam == 1) {
           // With OOPP, the plugin window exists in another process and is a child of
@@ -6195,6 +6202,7 @@ void nsWindow::UserActivity()
   }
 }
 
+#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_WIN7
 bool nsWindow::OnTouch(WPARAM wParam, LPARAM lParam)
 {
   PRUint32 cInputs = LOWORD(wParam);
@@ -6231,6 +6239,7 @@ bool nsWindow::OnTouch(WPARAM wParam, LPARAM lParam)
   mGesture.CloseTouchInputHandle((HTOUCHINPUT)lParam);
   return true;
 }
+#endif
 
 // Gesture event processing. Handles WM_GESTURE events.
 bool nsWindow::OnGesture(WPARAM wParam, LPARAM lParam)
@@ -7433,12 +7442,22 @@ bool nsWindow::OnHotKey(WPARAM wParam, LPARAM lParam)
   return true;
 }
 
+typedef DWORD (WINAPI *GetProcessImageFileNameProc)(HANDLE, LPWSTR, DWORD);
+
 // Determine whether the given HWND is the handle for the Elantech helper
 // window.  The helper window cannot be distinguished based on its
 // window class, so we need to check if it is owned by the helper process,
 // ETDCtrl.exe.
 static bool IsElantechHelperWindow(HWND aHWND)
 {
+  static HMODULE hPSAPI = ::LoadLibraryW(L"psapi.dll");
+  static GetProcessImageFileNameProc pGetProcessImageFileName =
+    reinterpret_cast<GetProcessImageFileNameProc>(::GetProcAddress(hPSAPI, "GetProcessImageFileNameW"));
+
+  if (!pGetProcessImageFileName) {
+    return false;
+  }
+
   const PRUnichar* filenameSuffix = L"\\etdctrl.exe";
   const int filenameSuffixLength = 12;
 
@@ -7450,7 +7469,7 @@ static bool IsElantechHelperWindow(HWND aHWND)
   HANDLE hProcess = ::OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, pid);
   if (hProcess) {
     PRUnichar path[256] = {L'\0'};
-    if (GetProcessImageFileName(hProcess, path, ArrayLength(path))) {
+    if (pGetProcessImageFileName(hProcess, path, ArrayLength(path))) {
       int pathLength = lstrlenW(path);
       if (pathLength >= filenameSuffixLength) {
         if (lstrcmpiW(path + pathLength - filenameSuffixLength, filenameSuffix) == 0) {

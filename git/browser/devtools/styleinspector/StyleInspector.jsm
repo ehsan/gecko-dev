@@ -82,7 +82,7 @@ StyleInspector.prototype = {
       this.registrationObject = {
         id: "styleinspector",
         label: this.l10n("style.highlighter.button.label2"),
-        tooltiptext: this.l10n("style.highlighter.button.tooltip2"),
+        tooltiptext: this.l10n("style.highlighter.button.tooltip"),
         accesskey: this.l10n("style.highlighter.accesskey2"),
         context: this,
         get isOpen() isOpen(),
@@ -120,11 +120,6 @@ StyleInspector.prototype = {
         this.cssHtmlTree.highlight(selectedNode);
         this.iframe.removeEventListener("load", boundIframeOnLoad, true);
         this.iframeReady = true;
-
-        // Now that we've loaded, select any node we were previously asked
-        // to show.
-        this.selectNode(this.selectedNode);
-
         Services.obs.notifyObservers(null, "StyleInspector-opened", null);
       }
     }.bind(this);
@@ -220,14 +215,9 @@ StyleInspector.prototype = {
    */
   isOpen: function SI_isOpen()
   {
-    return this.openDocked ? this.IUI.isSidebarOpen &&
+    return this.openDocked ? this.iframeReady && this.IUI.isSidebarOpen &&
             (this.IUI.sidebarDeck.selectedPanel == this.iframe) :
            this.panel && this.panel.state && this.panel.state == "open";
-  },
-
-  isLoaded: function SI_isLoaded()
-  {
-    return this.openDocked ? this.iframeReady : this.iframeReady && this.panelReady;
   },
 
   /**
@@ -252,7 +242,7 @@ StyleInspector.prototype = {
   selectNode: function SI_selectNode(aNode)
   {
     this.selectedNode = aNode;
-    if (this.isLoaded() && !this.dimmed) {
+    if (this.isOpen() && !this.dimmed) {
       this.cssLogic.highlight(aNode);
       this.cssHtmlTree.highlight(aNode);
     }
@@ -263,7 +253,7 @@ StyleInspector.prototype = {
    */
   updateNode: function SI_updateNode()
   {
-    if (this.isLoaded() && !this.dimmed) {
+    if (this.isOpen() && !this.dimmed) {
       this.cssLogic.highlight(this.selectedNode);
       this.cssHtmlTree.refreshPanel();
     }

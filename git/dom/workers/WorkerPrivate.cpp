@@ -1534,13 +1534,11 @@ public:
   bool
   WorkerRun(JSContext* aCx, WorkerPrivate* aWorkerPrivate)
   {
-    JSRuntime *rt = JS_GetRuntime(aCx);
-    if (mIsQuick) {
-      *static_cast<int64_t*>(mData) = JS::GetExplicitNonHeapForRuntime(rt, JsWorkerMallocSizeOf);
-      *mSucceeded = true;
-    } else {
-      *mSucceeded = JS::CollectRuntimeStats(rt, static_cast<JS::RuntimeStats*>(mData));
-    }
+    JSAutoSuspendRequest asr(aCx);
+
+    *mSucceeded = mIsQuick
+      ? JS::GetExplicitNonHeapForRuntime(JS_GetRuntime(aCx), static_cast<int64_t*>(mData), JsWorkerMallocSizeOf)
+      : JS::CollectRuntimeStats(JS_GetRuntime(aCx), static_cast<JS::RuntimeStats*>(mData));
 
     {
       MutexAutoLock lock(mMutex);
@@ -3481,7 +3479,7 @@ WorkerPrivate::ReportError(JSContext* aCx, const char* aMessage,
 }
 
 bool
-WorkerPrivate::SetTimeout(JSContext* aCx, unsigned aArgc, jsval* aVp,
+WorkerPrivate::SetTimeout(JSContext* aCx, uintN aArgc, jsval* aVp,
                           bool aIsInterval)
 {
   AssertIsOnWorkerThread();
@@ -3535,7 +3533,7 @@ WorkerPrivate::SetTimeout(JSContext* aCx, unsigned aArgc, jsval* aVp,
 
   // See if any of the optional arguments were passed.
   if (aArgc > 1) {
-    double intervalMS = 0;
+    jsdouble intervalMS = 0;
     if (!JS_ValueToNumber(aCx, argv[1], &intervalMS)) {
       return false;
     }
@@ -3543,7 +3541,7 @@ WorkerPrivate::SetTimeout(JSContext* aCx, unsigned aArgc, jsval* aVp,
 
     if (aArgc > 2 && JSVAL_IS_OBJECT(newInfo->mTimeoutVal)) {
       nsTArray<jsval> extraArgVals(aArgc - 2);
-      for (unsigned index = 2; index < aArgc; index++) {
+      for (uintN index = 2; index < aArgc; index++) {
         extraArgVals.AppendElement(argv[index]);
       }
       newInfo->mExtraArgVals.SwapElements(extraArgVals);

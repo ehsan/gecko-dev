@@ -39,7 +39,6 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "mozilla/Preferences.h"
 #include "mozilla/Util.h"
 
 #if defined(XP_UNIX)
@@ -70,12 +69,6 @@
 #include "AndroidBridge.h"
 #endif
 #include <android/log.h>
-
-// We only need to explicitly dlopen egltrace
-// on android as we can use LD_PRELOAD or other tricks
-// on other platforms. We look for it in /data/local
-// as that's writeable by all users
-#define APITRACE_LIB "/data/local/egltrace.so"
 #endif
 
 #define EGL_LIB "libEGL.so"
@@ -234,38 +227,6 @@ static EGLint gContextAttribsRobustness[] = {
     LOCAL_EGL_NONE
 };
 
-static PRLibrary* LoadApitraceLibrary()
-{
-    static PRLibrary* sApitraceLibrary = NULL;
-
-    if (sApitraceLibrary)
-        return sApitraceLibrary;
-
-#if defined(ANDROID)
-    nsCString logFile = Preferences::GetCString("gfx.apitrace.logfile");
-
-    if (logFile.IsEmpty()) {
-        logFile = "firefox.trace";
-    }
-
-    // The firefox process can't write to /data/local, but it can write
-    // to $GRE_HOME/
-    nsCAutoString logPath;
-    logPath.AppendPrintf("%s/%s", getenv("GRE_HOME"), logFile.get());
-
-    // apitrace uses the TRACE_FILE environment variable to determine where
-    // to log trace output to
-    printf_stderr("Logging GL tracing output to %s", logPath.get());
-    setenv("TRACE_FILE", logPath.get(), false);
-
-    printf_stderr("Attempting load of %s\n", APITRACE_LIB);
-
-    sApitraceLibrary = PR_LoadLibrary(APITRACE_LIB);
-#endif
-
-    return sApitraceLibrary;
-}
-
 static int
 next_power_of_two(int v)
 {
@@ -306,6 +267,15 @@ is_power_of_two(int v)
 static void BeforeGLCall(const char* glFunction)
 {
     if (GLContext::DebugMode()) {
+        // since the static member variable sCurrentGLContext is not thread-local as it should,
+        // we have to assert that we're in the main thread. Note that sCurrentGLContext is only used
+        // for the OpenGL debug mode.
+        if (!NS_IsMainThread()) {
+            NS_ERROR("OpenGL call from non-main thread. While this is fine in itself, "
+                     "the OpenGL debug mode, which is currently enabled, doesn't support this. "
+                     "It needs to be patched by making GLContext::sCurrentGLContext be thread-local.\n");
+            NS_ABORT();
+        }
         if (GLContext::DebugMode() & GLContext::DebugTrace)
             printf_stderr("[egl] > %s\n", glFunction);
     }
@@ -689,17 +659,12 @@ public:
 #endif
 
         if (!mEGLLibrary) {
-            mEGLLibrary = LoadApitraceLibrary();
-
-            if (!mEGLLibrary) {
-                printf_stderr("Attempting load of %s\n", EGL_LIB);
-                mEGLLibrary = PR_LoadLibrary(EGL_LIB);
+            mEGLLibrary = PR_LoadLibrary(EGL_LIB);
 #if defined(XP_UNIX)
-                if (!mEGLLibrary) {
-                    mEGLLibrary = PR_LoadLibrary(EGL_LIB1);
-                }
-#endif
+            if (!mEGLLibrary) {
+                mEGLLibrary = PR_LoadLibrary(EGL_LIB1);
             }
+#endif
         }
 
         if (!mEGLLibrary) {
@@ -1063,19 +1028,14 @@ public:
 
     bool Init()
     {
-#if defined(ANDROID)
-        // We can't use LoadApitraceLibrary here because the GLContext
-        // expects its own handle to the GL library
-        if (!OpenLibrary(APITRACE_LIB))
-#endif
-            if (!OpenLibrary(GLES2_LIB)) {
+        if (!OpenLibrary(GLES2_LIB)) {
 #if defined(XP_UNIX)
-                if (!OpenLibrary(GLES2_LIB2)) {
-                    NS_WARNING("Couldn't load GLES2 LIB.");
-                    return false;
-                }
-#endif
+            if (!OpenLibrary(GLES2_LIB2)) {
+                NS_WARNING("Couldn't load EGL LIB.");
             }
+#endif
+            return false;
+        }
 
         bool current = MakeCurrent();
         if (!current) {
@@ -2679,7 +2639,11 @@ GLContextProviderEGL::CreateOffscreen(const gfxIntSize& aSize,
     if (!glContext) {
         return nsnull;
     }
-
+    if (!glContext->GetSharedContext()) {
+        // no point in returning anything if sharing failed, we can't
+        // render from this
+        return nsnull;
+    }
     if (!gUseBackingSurface && !glContext->ResizeOffscreenFBO(glContext->OffscreenActualSize(), true)) {
         // we weren't able to create the initial
         // offscreen FBO, so this is dead

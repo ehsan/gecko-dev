@@ -16,7 +16,6 @@ const LocalFile = CC('@mozilla.org/file/local;1',
 
 Cu.import('resource://gre/modules/XPCOMUtils.jsm');
 Cu.import('resource://gre/modules/Services.jsm');
-Cu.import('resource://gre/modules/ContactService.jsm');
 
 XPCOMUtils.defineLazyGetter(Services, 'env', function() {
   return Cc['@mozilla.org/process/environment;1']
@@ -33,31 +32,10 @@ XPCOMUtils.defineLazyGetter(Services, 'idle', function() {
            .getService(Ci.nsIIdleService);
 });
 
-XPCOMUtils.defineLazyGetter(Services, 'audioManager', function() {
-  return Cc['@mozilla.org/telephony/audiomanager;1']
-           .getService(Ci.nsIAudioManager);
-});
-
-XPCOMUtils.defineLazyServiceGetter(Services, 'fm', function() {
-  return Cc['@mozilla.org/focus-manager;1']
+XPCOMUtils.defineLazyServiceGetter(Services, 'fm', function(){
+  return Cc['@mozilla.org/focus-managr;1']
            .getService(Ci.nsFocusManager);
 });
-
-#ifndef MOZ_WIDGET_GONK
-// In order to use http:// scheme instead of file:// scheme
-// (that is much more restricted) the following code kick-off
-// a local http server listening on http://127.0.0.1:7777 and
-// http://localhost:7777.
-function startupHttpd(baseDir, port) {
-  const httpdURL = 'chrome://browser/content/httpd.js';
-  let httpd = {};
-  Services.scriptloader.loadSubScript(httpdURL, httpd);
-  let server = new httpd.nsHttpServer();
-  server.registerDirectory('/', new LocalFile(baseDir));
-  server.registerContentType('appcache', 'text/cache-manifest');
-  server.start(port);
-}
-#endif
 
 // FIXME Bug 707625
 // until we have a proper security model, add some rights to
@@ -65,7 +43,7 @@ function startupHttpd(baseDir, port) {
 // XXX never grant 'content-camera' to non-gaia apps
 function addPermissions(urls) {
   let permissions = [
-    'indexedDB', 'indexedDB-unlimited', 'webapps-manage', 'offline-app', 'content-camera', 'webcontacts-manage'
+    'indexedDB', 'indexedDB-unlimited', 'webapps-manage', 'offline-app', 'content-camera'
   ];
   urls.forEach(function(url) {
     let uri = Services.io.newURI(url, null, null);
@@ -78,6 +56,9 @@ function addPermissions(urls) {
 }
 
 var shell = {
+  // FIXME/bug 678695: this should be a system setting
+  preferredScreenBrightness: 1.0,
+  
   isDebug: false,
 
   get contentBrowser() {
@@ -112,43 +93,19 @@ var shell = {
       return alert(msg);
     }
 
-    ['keydown', 'keypress', 'keyup'].forEach((function listenKey(type) {
-      window.addEventListener(type, this, false, true);
-      window.addEventListener(type, this, true, true);
-    }).bind(this));
-
+    window.controllers.appendController(this);
+    window.addEventListener('keypress', this);
     window.addEventListener('MozApplicationManifest', this);
+    window.addEventListener("AppCommand", this);
     window.addEventListener('mozfullscreenchange', this);
     this.contentBrowser.addEventListener('load', this, true);
-
-    // Until the volume can be set from the content side, set it to a
-    // a specific value when the device starts. This way the front-end
-    // can display a notification when the volume change and show a volume
-    // level modified from this point.
-    try {
-      Services.audioManager.masterVolume = 0.5;
-    } catch(e) {}
 
     try {
       Services.io.offline = false;
 
       let fileScheme = 'file://';
       if (homeURL.substring(0, fileScheme.length) == fileScheme) {
-#ifndef MOZ_WIDGET_GONK
-        homeURL = homeURL.replace(fileScheme, '');
-
-        let baseDir = homeURL.split('/');
-        baseDir.pop();
-        baseDir = baseDir.join('/');
-
-        const SERVER_PORT = 7777;
-        startupHttpd(baseDir, SERVER_PORT);
-
-        let baseHost = 'http://localhost';
-        homeURL = homeURL.replace(baseDir, baseHost + ':' + SERVER_PORT);
-#else
         homeURL = 'http://localhost:7777' + homeURL.replace(fileScheme, '');
-#endif
       }
       addPermissions([homeURL]);
     } catch (e) {
@@ -170,8 +127,35 @@ var shell = {
   },
 
   stop: function shell_stop() {
+    window.controllers.removeController(this);
+    window.removeEventListener('keypress', this);
     window.removeEventListener('MozApplicationManifest', this);
-    window.removeEventListener('mozfullscreenchange', this);
+    window.removeEventListener('AppCommand', this);
+  },
+
+  supportsCommand: function shell_supportsCommand(cmd) {
+    let isSupported = false;
+    switch (cmd) {
+      case 'cmd_close':
+        isSupported = true;
+        break;
+      default:
+        isSupported = false;
+        break;
+    }
+    return isSupported;
+  },
+
+  isCommandEnabled: function shell_isCommandEnabled(cmd) {
+    return true;
+  },
+
+  doCommand: function shell_doCommand(cmd) {
+    switch (cmd) {
+      case 'cmd_close':
+        content.postMessage('appclose', '*');
+        break;
+    }
   },
 
   toggleDebug: function shell_toggleDebug() {
@@ -186,7 +170,9 @@ var shell = {
     }
   },
  
-  changeVolume: function shell_changeVolume(delta) {
+  changeVolume: function shell_changeVolume(aDelta) {
+    let audioManager = Cc["@mozilla.org/telephony/audiomanager;1"].getService(Ci.nsIAudioManager);
+
     let steps = 10;
     try {
       steps = Services.prefs.getIntPref("media.volume.steps");
@@ -194,11 +180,7 @@ var shell = {
         steps = 1;
     } catch(e) {}
 
-    let audioManager = Services.audioManager;
-    if (!audioManager)
-      return;
-
-    let volume = audioManager.masterVolume + delta / steps;
+    let volume = audioManager.masterVolume + aDelta / steps;
     if (volume > 1)
       volume = 1;
     if (volume < 0)
@@ -206,58 +188,42 @@ var shell = {
     audioManager.masterVolume = volume;
   },
 
-  forwardKeyToHomescreen: function shell_forwardKeyToHomescreen(evt) {
-    let generatedEvent = content.document.createEvent('KeyboardEvent');
-    generatedEvent.initKeyEvent(evt.type, true, true, evt.view, evt.ctrlKey,
-                                evt.altKey, evt.shiftKey, evt.metaKey,
-                                evt.keyCode, evt.charCode);
-
-    content.dispatchEvent(generatedEvent);
-  },
-
   handleEvent: function shell_handleEvent(evt) {
     switch (evt.type) {
-      case 'keydown':
-      case 'keyup':
       case 'keypress':
-        // If the home key is pressed, always forward it to the homescreen
-        if (evt.eventPhase == evt.CAPTURING_PHASE) {
-          if (evt.keyCode == evt.VK_DOM_HOME) {
-            window.setTimeout(this.forwardKeyToHomescreen, 0, evt);
-            evt.preventDefault();
-            evt.stopPropagation();
-          } 
-          return;
+        switch (evt.keyCode) {
+          case evt.DOM_VK_HOME:
+            this.sendEvent(content, 'home');
+            break;
+          case evt.DOM_VK_SLEEP:
+            this.toggleScreen();
+
+            let details = {
+              'enabled': screen.mozEnabled
+            };
+            this.sendEvent(content, 'sleep', details);
+            break;
+          case evt.DOM_VK_ESCAPE:
+            if (evt.defaultPrevented)
+              return;
+            this.doCommand('cmd_close');
+            break;
         }
-
-        // If one of the other keys is used in an application and is
-        // cancelled via preventDefault, do nothing.
-        let homescreen = (evt.target.ownerDocument.defaultView == content);
-        if (!homescreen && evt.defaultPrevented)
-          return;
-
-        // If one of the other keys is used in an application and is
-        // not used forward it to the homescreen
-        if (!homescreen)
-          window.setTimeout(this.forwardKeyToHomescreen, 0, evt);
-
-        // For debug purposes and because some of the APIs are not yet exposed
-        // to the content, let's react on some of the keyup events.
-        if (evt.type == 'keyup') {
-          switch (evt.keyCode) {
-            case evt.DOM_VK_F5:
-              if (Services.prefs.getBoolPref('b2g.keys.search.enabled'))
-                this.toggleDebug();
-              break;
-  
-            case evt.DOM_VK_PAGE_DOWN:
-              this.changeVolume(-1);
-              break;
-  
-            case evt.DOM_VK_PAGE_UP:
-              this.changeVolume(1);
-              break;
-          }
+        break;
+      case 'AppCommand':
+        switch (evt.command) {
+          case 'Menu':
+            this.sendEvent(content, 'menu');
+            break;
+          case 'Search':
+            this.toggleDebug();
+            break;
+          case 'VolumeUp':
+            this.changeVolume(1);
+            break;
+          case 'VolumeDown':
+            this.changeVolume(-1);
+            break;
         }
         break;
 
@@ -270,6 +236,7 @@ var shell = {
         break;
       case 'load':
         this.contentBrowser.removeEventListener('load', this, true);
+        this.turnScreenOn();
 
         let chromeWindow = window.QueryInterface(Ci.nsIDOMChromeWindow);
         chromeWindow.browserDOMWindow = new nsBrowserAccess();
@@ -316,6 +283,20 @@ var shell = {
     let event = content.document.createEvent('CustomEvent');
     event.initCustomEvent(type, true, true, details ? details : {});
     content.dispatchEvent(event);
+  },
+  toggleScreen: function shell_toggleScreen() {
+    if (screen.mozEnabled)
+      this.turnScreenOff();
+    else
+      this.turnScreenOn();
+  },
+  turnScreenOff: function shell_turnScreenOff() {
+    screen.mozEnabled = false;
+    screen.mozBrightness = 0.0;
+  },
+  turnScreenOn: function shell_turnScreenOn() {
+    screen.mozEnabled = true;
+    screen.mozBrightness = this.preferredScreenBrightness;
   }
 };
 
@@ -324,7 +305,7 @@ var shell = {
     observe: function(subject, topic, time) {
       if (topic === "idle") {
         // TODO: Check wakelock status. See bug 697132.
-        screen.mozEnabled = false;
+        shell.turnScreenOff();
       }
     },
   }

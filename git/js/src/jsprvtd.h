@@ -71,8 +71,8 @@ JS_BEGIN_EXTERN_C
 #define JS_BITS_PER_UINT32      32
 
 /* The alignment required of objects stored in GC arenas. */
-static const unsigned JS_GCTHING_ALIGN = 8;
-static const unsigned JS_GCTHING_ZEROBITS = 3;
+static const uintN JS_GCTHING_ALIGN = 8;
+static const uintN JS_GCTHING_ZEROBITS = 3;
 
 /* Scalar typedefs. */
 typedef uint8_t     jsbytecode;
@@ -123,7 +123,6 @@ namespace js {
 struct ArgumentsData;
 struct Class;
 
-class RegExpGuard;
 class RegExpObject;
 class RegExpObjectBuilder;
 class RegExpShared;
@@ -371,7 +370,7 @@ typedef JSBool
 typedef void
 (* JSNewScriptHook)(JSContext  *cx,
                     const char *filename,  /* URL of script */
-                    unsigned      lineno,     /* first line */
+                    uintN      lineno,     /* first line */
                     JSScript   *script,
                     JSFunction *fun,
                     void       *callerdata);
@@ -383,7 +382,7 @@ typedef void
                         void      *callerdata);
 
 typedef void
-(* JSSourceHandler)(const char *filename, unsigned lineno, const jschar *str,
+(* JSSourceHandler)(const char *filename, uintN lineno, const jschar *str,
                     size_t length, void **listenerTSData, void *closure);
 
 /*
@@ -462,7 +461,7 @@ typedef JSBool
  * exception, true with current attributes in *attrsp.
  */
 typedef JSBool
-(* JSAttributesOp)(JSContext *cx, JSObject *obj, jsid id, unsigned *attrsp);
+(* JSAttributesOp)(JSContext *cx, JSObject *obj, jsid id, uintN *attrsp);
 
 /*
  * A generic type for functions mapping an object to another object, or null

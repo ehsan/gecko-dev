@@ -125,7 +125,7 @@ abstract public class GeckoApp
     public static Menu sMenu;
     private static GeckoThread sGeckoThread = null;
     public GeckoAppHandler mMainHandler;
-    private GeckoProfile mProfile;
+    private File mProfileDir;
     public static boolean sIsGeckoReady = false;
     public static int mOrientation;
 
@@ -157,6 +157,12 @@ abstract public class GeckoApp
 
     private static final String HANDLER_MSG_TYPE = "type";
     private static final int HANDLER_MSG_TYPE_INITIALIZE = 1;
+
+    public interface OnTabsChangedListener {
+        public void onTabsChanged(Tab tab);
+    }
+    
+    private static ArrayList<OnTabsChangedListener> mTabsChangedListeners;
 
     static class ExtraMenuItem implements MenuItem.OnMenuItemClickListener {
         String label;
@@ -384,7 +390,7 @@ abstract public class GeckoApp
     {
         sMenu = menu;
         MenuInflater inflater = getMenuInflater();
-        inflater.inflate(R.menu.gecko_menu, menu);
+        inflater.inflate(R.layout.gecko_menu, menu);
         return true;
     }
 
@@ -430,6 +436,7 @@ abstract public class GeckoApp
         MenuItem forward = aMenu.findItem(R.id.forward);
         MenuItem share = aMenu.findItem(R.id.share);
         MenuItem saveAsPDF = aMenu.findItem(R.id.save_as_pdf);
+        MenuItem downloads = aMenu.findItem(R.id.downloads);
         MenuItem charEncoding = aMenu.findItem(R.id.char_encoding);
 
         if (tab == null) {
@@ -462,6 +469,10 @@ abstract public class GeckoApp
         // Disable save as PDF for about:home and xul pages
         saveAsPDF.setEnabled(!(tab.getURL().equals("about:home") ||
                                tab.getContentType().equals("application/vnd.mozilla.xul+xml")));
+
+        // DownloadManager support is tied to level 12 and higher
+        if (Build.VERSION.SDK_INT < 12)
+            downloads.setVisible(false);
 
         charEncoding.setVisible(GeckoPreferences.getCharEncodingState());
 
@@ -583,10 +594,9 @@ abstract public class GeckoApp
                 
                 String viewportJSON = viewportMetrics.toJSON();
                 // If the title, uri and viewport haven't changed, the old screenshot is probably valid
-                // Ordering of .equals() below is important since mLast* variables may be null
                 if (viewportJSON.equals(mLastViewport) &&
-                    lastHistoryEntry.mTitle.equals(mLastTitle) &&
-                    lastHistoryEntry.mUri.equals(mLastSnapshotUri))
+                    mLastTitle.equals(lastHistoryEntry.mTitle) &&
+                    mLastSnapshotUri.equals(lastHistoryEntry.mUri))
                     return; 
 
                 mLastViewport = viewportJSON;
@@ -686,7 +696,7 @@ abstract public class GeckoApp
                 if (Tabs.getInstance().isSelectedTab(tab))
                     mBrowserToolbar.setFavicon(tab.getFavicon());
 
-                Tabs.getInstance().notifyListeners(tab, Tabs.TabEvents.FAVICON);
+                onTabsChanged(tab);
             }
         });
 
@@ -745,6 +755,7 @@ abstract public class GeckoApp
                     mBrowserToolbar.setSecurityMode("unknown");
                     mDoorHangerPopup.updatePopup();
                     mBrowserToolbar.setShadowVisibility(!(tab.getURL().startsWith("about:")));
+                    mLayerController.setWaitForTouchListeners(false);
 
                     if (tab != null)
                         hidePlugins(tab, true);
@@ -843,6 +854,21 @@ abstract public class GeckoApp
         }
     }
 
+    public File getProfileDir() {
+        return getProfileDir("default");
+    }
+
+    public File getProfileDir(final String profileName) {
+        if (mProfileDir != null)
+            return mProfileDir;
+        try {
+            mProfileDir = GeckoDirProvider.getProfileDir(mAppContext, profileName);
+        } catch (IOException ex) {
+            Log.e(LOGTAG, "Error getting profile dir.", ex);
+        }
+        return mProfileDir;
+    }
+
     void addTab() {
         showAwesomebar(AwesomeBar.Type.ADD);
     }
@@ -852,6 +878,30 @@ abstract public class GeckoApp
         intent.addFlags(Intent.FLAG_ACTIVITY_NO_HISTORY);
         startActivity(intent);
         overridePendingTransition(R.anim.grow_fade_in, 0);
+    }
+
+    public static void registerOnTabsChangedListener(OnTabsChangedListener listener) {
+        if (mTabsChangedListeners == null)
+            mTabsChangedListeners = new ArrayList<OnTabsChangedListener>();
+        
+        mTabsChangedListeners.add(listener);
+    }
+
+    public static void unregisterOnTabsChangedListener(OnTabsChangedListener listener) {
+        if (mTabsChangedListeners == null)
+            return;
+        
+        mTabsChangedListeners.remove(listener);
+    }
+
+    public void onTabsChanged(Tab tab) {
+        if (mTabsChangedListeners == null)
+            return;
+
+        Iterator<OnTabsChangedListener> items = mTabsChangedListeners.iterator();
+        while (items.hasNext()) {
+            items.next().onTabsChanged(tab);
+        }
     }
 
     public void handleMessage(String event, JSONObject message) {
@@ -1018,6 +1068,7 @@ abstract public class GeckoApp
 
                 final AlertDialog.Builder dialogBuilder = new AlertDialog.Builder(this);
                 dialogBuilder.setSingleChoiceItems(titleArray, selected, new AlertDialog.OnClickListener() {
+                    @Override
                     public void onClick(DialogInterface dialog, int which) {
                         try {
                             JSONObject charset = charsets.getJSONObject(which);
@@ -1029,6 +1080,7 @@ abstract public class GeckoApp
                     }
                 });
                 dialogBuilder.setNegativeButton(R.string.button_cancel, new AlertDialog.OnClickListener() {
+                    @Override
                     public void onClick(DialogInterface dialog, int which) {
                         dialog.dismiss();
                     }
@@ -1246,7 +1298,7 @@ abstract public class GeckoApp
                     if (showProgress)
                         mBrowserToolbar.setProgressVisibility(true);
                 }
-                Tabs.getInstance().notifyListeners(tab, Tabs.TabEvents.START);
+                onTabsChanged(tab);
             }
         });
     }
@@ -1262,7 +1314,7 @@ abstract public class GeckoApp
             public void run() {
                 if (Tabs.getInstance().isSelectedTab(tab))
                     mBrowserToolbar.setProgressVisibility(false);
-                Tabs.getInstance().notifyListeners(tab, Tabs.TabEvents.STOP);
+                onTabsChanged(tab);
             }
         });
 
@@ -1301,7 +1353,7 @@ abstract public class GeckoApp
                 if (Tabs.getInstance().isSelectedTab(tab))
                     mBrowserToolbar.setTitle(tab.getDisplayTitle());
 
-                Tabs.getInstance().notifyListeners(tab, Tabs.TabEvents.LOADED);
+                onTabsChanged(tab);
             }
         });
     }
@@ -1317,7 +1369,7 @@ abstract public class GeckoApp
             public void run() {
                 if (Tabs.getInstance().isSelectedTab(tab))
                     mBrowserToolbar.setTitle(tab.getDisplayTitle());
-                Tabs.getInstance().notifyListeners(tab, Tabs.TabEvents.TITLE);
+                onTabsChanged(tab);
             }
         });
     }
@@ -1667,7 +1719,7 @@ abstract public class GeckoApp
             Pattern p = Pattern.compile("(?:-profile\\s*)(\\w*)(\\s*)");
             Matcher m = p.matcher(args);
             if (m.find()) {
-                mProfile = GeckoProfile.get(this, m.group(1));
+                mProfileDir = new File(m.group(1));
                 mLastTitle = null;
                 mLastViewport = null;
                 mLastScreen = null;
@@ -1689,7 +1741,13 @@ abstract public class GeckoApp
 
         if (passedUri == null || passedUri.equals("about:home")) {
             // show about:home if we aren't restoring previous session
-            if (! getProfile().hasSession()) {
+            Log.w(LOGTAG, "zerdatime " + SystemClock.uptimeMillis() + " - start check sessionstore.js exists");
+            File profileDir = getProfileDir();
+            boolean sessionExists = false;
+            if (profileDir != null)
+                sessionExists = new File(profileDir, "sessionstore.js").exists();
+            Log.w(LOGTAG, "zerdatime " + SystemClock.uptimeMillis() + " - finish check sessionstore.js exists");
+            if (!sessionExists) {
                 mBrowserToolbar.updateTabCount(1);
                 showAboutHome();
             }
@@ -1839,14 +1897,6 @@ abstract public class GeckoApp
         }, 50);
     }
 
-    public GeckoProfile getProfile() {
-        // fall back to default profile if we didn't load a specific one
-        if (mProfile == null) {
-            mProfile = GeckoProfile.get(this);
-        }
-        return mProfile;
-    }
-
     /**
      * Enable Android StrictMode checks (for supported OS versions).
      * http://developer.android.com/reference/android/os/StrictMode.html
@@ -1955,13 +2005,6 @@ abstract public class GeckoApp
             // We're exiting and shouldn't try to do anything else just incase
             // we're hung for some reason we'll force the process to exit
             System.exit(0);
-            return;
-        }
-
-        // if we were previously OOM killed, we can end up here when launching
-        // from external shortcuts, so set this as the intent for initialization
-        if (!mInitialized) {
-            setIntent(intent);
             return;
         }
 
@@ -2086,16 +2129,16 @@ abstract public class GeckoApp
             mMainHandler.sendMessage(message);
         }
 
-        // An Android framework bug can cause an IME crash when focus changes invalidate text
-        // selection offsets. A workaround is to reset selection when the activity resumes.
-        GeckoAppShell.resetIMESelection();
-
         int newOrientation = getResources().getConfiguration().orientation;
 
         if (mOrientation != newOrientation) {
             mOrientation = newOrientation;
             refreshActionBar();
         }
+
+        // Just in case. Normally we start in onNewIntent
+        if (checkLaunchState(LaunchState.Launching))
+            onNewIntent(getIntent());
 
         registerReceiver(mConnectivityReceiver, mConnectivityFilter);
         GeckoNetworkManager.getInstance().start();
@@ -2337,7 +2380,7 @@ abstract public class GeckoApp
     }
 
     private void checkMigrateProfile() {
-        File profileDir = getProfile().getDir();
+        File profileDir = getProfileDir();
         long currentTime = SystemClock.uptimeMillis();
 
         if (profileDir != null) {

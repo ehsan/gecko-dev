@@ -48,6 +48,7 @@
 #include "nsHtml5TreeOpExecutor.h"
 #include "nsHtml5OwningUTF16Buffer.h"
 #include "nsIInputStream.h"
+#include "nsICharsetAlias.h"
 #include "mozilla/Mutex.h"
 #include "nsHtml5AtomTable.h"
 #include "nsHtml5Speculation.h"

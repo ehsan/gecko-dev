@@ -456,14 +456,14 @@ protected:
   struct BackgroundParseState {
     nsCSSValue&  mColor;
     nsCSSValueList* mImage;
-    nsCSSValuePairList* mRepeat;
+    nsCSSValueList* mRepeat;
     nsCSSValueList* mAttachment;
     nsCSSValueList* mClip;
     nsCSSValueList* mOrigin;
     nsCSSValueList* mPosition;
     nsCSSValuePairList* mSize;
     BackgroundParseState(
-        nsCSSValue& aColor, nsCSSValueList* aImage, nsCSSValuePairList* aRepeat,
+        nsCSSValue& aColor, nsCSSValueList* aImage, nsCSSValueList* aRepeat,
         nsCSSValueList* aAttachment, nsCSSValueList* aClip,
         nsCSSValueList* aOrigin, nsCSSValueList* aPosition,
         nsCSSValuePairList* aSize) :
@@ -475,8 +475,6 @@ protected:
   bool ParseBackgroundItem(BackgroundParseState& aState);
 
   bool ParseValueList(nsCSSProperty aPropID); // a single value prop-id
-  bool ParseBackgroundRepeat();
-  bool ParseBackgroundRepeatValues(nsCSSValuePair& aValue);
   bool ParseBackgroundPosition();
 
   // ParseBoxPositionValues parses the CSS 2.1 background-position syntax,
@@ -5463,8 +5461,6 @@ CSSParserImpl::ParsePropertyByFunction(nsCSSProperty aPropID)
   switch (aPropID) {  // handle shorthand or multiple properties
   case eCSSProperty_background:
     return ParseBackground();
-  case eCSSProperty_background_repeat:
-    return ParseBackgroundRepeat();
   case eCSSProperty_background_position:
     return ParseBackgroundPosition();
   case eCSSProperty_background_size:
@@ -5866,8 +5862,7 @@ CSSParserImpl::ParseBackground()
   }
 
   nsCSSValue image, repeat, attachment, clip, origin, position, size;
-  BackgroundParseState state(color, image.SetListValue(), 
-                             repeat.SetPairListValue(),
+  BackgroundParseState state(color, image.SetListValue(), repeat.SetListValue(),
                              attachment.SetListValue(), clip.SetListValue(),
                              origin.SetListValue(), position.SetListValue(),
                              size.SetPairListValue());
@@ -5891,7 +5886,7 @@ CSSParserImpl::ParseBackground()
     // Chain another entry on all the lists.
     state.mImage->mNext = new nsCSSValueList;
     state.mImage = state.mImage->mNext;
-    state.mRepeat->mNext = new nsCSSValuePairList;
+    state.mRepeat->mNext = new nsCSSValueList;
     state.mRepeat = state.mRepeat->mNext;
     state.mAttachment->mNext = new nsCSSValueList;
     state.mAttachment = state.mAttachment->mNext;
@@ -5929,9 +5924,8 @@ CSSParserImpl::ParseBackgroundItem(CSSParserImpl::BackgroundParseState& aState)
   // Fill in the values that the shorthand will set if we don't find
   // other values.
   aState.mImage->mValue.SetNoneValue();
-  aState.mRepeat->mXValue.SetIntValue(NS_STYLE_BG_REPEAT_REPEAT,
-                                      eCSSUnit_Enumerated);
-  aState.mRepeat->mYValue.Reset();
+  aState.mRepeat->mValue.SetIntValue(NS_STYLE_BG_REPEAT_XY,
+                                     eCSSUnit_Enumerated);
   aState.mAttachment->mValue.SetIntValue(NS_STYLE_BG_ATTACHMENT_SCROLL,
                                          eCSSUnit_Enumerated);
   aState.mClip->mValue.SetIntValue(NS_STYLE_BG_CLIP_BORDER,
@@ -5992,13 +5986,11 @@ CSSParserImpl::ParseBackgroundItem(CSSParserImpl::BackgroundParseState& aState)
         if (haveRepeat)
           return false;
         haveRepeat = true;
-        nsCSSValuePair scratch;
-        if (!ParseBackgroundRepeatValues(scratch)) {
+        if (!ParseSingleValueProperty(aState.mRepeat->mValue,
+                                      eCSSProperty_background_repeat)) {
           NS_NOTREACHED("should be able to parse");
           return false;
         }
-        aState.mRepeat->mXValue = scratch.mXValue;
-        aState.mRepeat->mYValue = scratch.mYValue;
       } else if (nsCSSProps::FindKeyword(keyword,
                    nsCSSProps::kBackgroundPositionKTable, dummy)) {
         if (havePosition)
@@ -6017,14 +6009,12 @@ CSSParserImpl::ParseBackgroundItem(CSSParserImpl::BackgroundParseState& aState)
           NS_NOTREACHED("should be able to parse");
           return false;
         }
-        MOZ_STATIC_ASSERT(NS_STYLE_BG_CLIP_BORDER ==
-                          NS_STYLE_BG_ORIGIN_BORDER &&
-                          NS_STYLE_BG_CLIP_PADDING ==
-                          NS_STYLE_BG_ORIGIN_PADDING &&
-                          NS_STYLE_BG_CLIP_CONTENT ==
-                          NS_STYLE_BG_ORIGIN_CONTENT,
-                          "bg-clip and bg-origin style constants must agree");
-
+        PR_STATIC_ASSERT(NS_STYLE_BG_CLIP_BORDER ==
+                         NS_STYLE_BG_ORIGIN_BORDER);
+        PR_STATIC_ASSERT(NS_STYLE_BG_CLIP_PADDING ==
+                         NS_STYLE_BG_ORIGIN_PADDING);
+        PR_STATIC_ASSERT(NS_STYLE_BG_CLIP_CONTENT ==
+                         NS_STYLE_BG_ORIGIN_CONTENT);
         aState.mClip->mValue = aState.mOrigin->mValue;
       } else {
         if (haveColor)
@@ -6108,64 +6098,6 @@ CSSParserImpl::ParseValueList(nsCSSProperty aPropID)
   }
   AppendValue(aPropID, value);
   return true;
-}
-
-bool
-CSSParserImpl::ParseBackgroundRepeat()
-{
-  nsCSSValue value;
-  if (ParseVariant(value, VARIANT_INHERIT, nsnull)) {
-    // 'initial' and 'inherit' stand alone, no list permitted.
-    if (!ExpectEndProperty()) {
-      return false;
-    }
-  } else {
-    nsCSSValuePair valuePair;
-    if (!ParseBackgroundRepeatValues(valuePair)) {
-      return false;
-    }
-    nsCSSValuePairList* item = value.SetPairListValue();
-    for (;;) {
-      item->mXValue = valuePair.mXValue;
-      item->mYValue = valuePair.mYValue;
-      if (CheckEndProperty()) {
-        break;
-      }
-      if (!ExpectSymbol(',', true)) {
-        return false;
-      }
-      if (!ParseBackgroundRepeatValues(valuePair)) {
-        return false;
-      }
-      item->mNext = new nsCSSValuePairList;
-      item = item->mNext;
-    }
-  }
-
-  AppendValue(eCSSProperty_background_repeat, value);
-  return true;
-}
-
-bool
-CSSParserImpl::ParseBackgroundRepeatValues(nsCSSValuePair& aValue) 
-{
-  nsCSSValue& xValue = aValue.mXValue;
-  nsCSSValue& yValue = aValue.mYValue;
-  
-  if (ParseEnum(xValue, nsCSSProps::kBackgroundRepeatKTable)) {
-    PRInt32 value = xValue.GetIntValue();
-    // For single values set yValue as eCSSUnit_Null.
-    if (value == NS_STYLE_BG_REPEAT_REPEAT_X ||
-        value == NS_STYLE_BG_REPEAT_REPEAT_Y ||
-        !ParseEnum(yValue, nsCSSProps::kBackgroundRepeatPartKTable)) {
-      // the caller will fail cases like "repeat-x no-repeat"
-      // by expecting a list separator or an end property.
-      yValue.Reset();
-    }
-    return true;
-  }
-  
-  return false;
 }
 
 // This function is very similar to ParseBackgroundList and ParseBackgroundSize.
@@ -8571,20 +8503,22 @@ bool
 CSSParserImpl::ParseTextDecoration()
 {
   enum {
-    eDecorationNone         = NS_STYLE_TEXT_DECORATION_LINE_NONE,
-    eDecorationUnderline    = NS_STYLE_TEXT_DECORATION_LINE_UNDERLINE,
-    eDecorationOverline     = NS_STYLE_TEXT_DECORATION_LINE_OVERLINE,
-    eDecorationLineThrough  = NS_STYLE_TEXT_DECORATION_LINE_LINE_THROUGH,
-    eDecorationBlink        = NS_STYLE_TEXT_DECORATION_LINE_BLINK,
-    eDecorationPrefAnchors  = NS_STYLE_TEXT_DECORATION_LINE_PREF_ANCHORS
+    eDecorationNone         = 0x00,
+    eDecorationUnderline    = 0x01,
+    eDecorationOverline     = 0x02,
+    eDecorationLineThrough  = 0x04,
+    eDecorationBlink        = 0x08,
+    eDecorationPrefAnchors  = 0x10
   };
-  MOZ_STATIC_ASSERT((eDecorationNone ^ eDecorationUnderline ^
-                     eDecorationOverline ^ eDecorationLineThrough ^
-                     eDecorationBlink ^ eDecorationPrefAnchors) ==
-                    (eDecorationNone | eDecorationUnderline |
-                     eDecorationOverline | eDecorationLineThrough |
-                     eDecorationBlink | eDecorationPrefAnchors),
-                    "text decoration constants need to be bitmasks");
+
+  PR_STATIC_ASSERT(eDecorationUnderline ==
+                   NS_STYLE_TEXT_DECORATION_LINE_UNDERLINE);
+  PR_STATIC_ASSERT(eDecorationOverline ==
+                   NS_STYLE_TEXT_DECORATION_LINE_OVERLINE);
+  PR_STATIC_ASSERT(eDecorationLineThrough ==
+                   NS_STYLE_TEXT_DECORATION_LINE_LINE_THROUGH);
+  PR_STATIC_ASSERT(eDecorationPrefAnchors ==
+                   NS_STYLE_TEXT_DECORATION_LINE_PREF_ANCHORS);
 
   static const PRInt32 kTextDecorationKTable[] = {
     eCSSKeyword_none,                   eDecorationNone,

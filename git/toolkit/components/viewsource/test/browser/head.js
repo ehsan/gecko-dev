@@ -18,17 +18,10 @@ function closeViewSourceWindow(aWindow, aCallback) {
   Services.wm.addListener({
     onCloseWindow: function() {
       Services.wm.removeListener(this);
-      executeSoon(aCallback);
+      aCallback();
     }
   });
   aWindow.close();
-}
-
-function testViewSourceWindow(aURI, aTestCallback, aCloseCallback) {
-  openViewSourceWindow(aURI, function(aWindow) {
-    aTestCallback(aWindow);
-    closeViewSourceWindow(aWindow, aCloseCallback);
-  });
 }
 
 function openViewPartialSourceWindow(aReference, aCallback) {
@@ -52,14 +45,14 @@ registerCleanupFunction(function() {
 });
 
 function openDocument(aURI, aCallback) {
-  let tab = gBrowser.addTab(aURI);
+  let tab = window.gBrowser.addTab(aURI);
   let browser = tab.linkedBrowser;
   browser.addEventListener("DOMContentLoaded", function pageLoadedListener() {
     browser.removeEventListener("DOMContentLoaded", pageLoadedListener, false);
     aCallback(tab);
   }, false);
   registerCleanupFunction(function() {
-    gBrowser.removeTab(tab);
+    window.gBrowser.removeTab(tab);
   });
 }
 

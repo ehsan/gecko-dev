@@ -45,6 +45,7 @@ import org.mozilla.gecko.db.BrowserContract.Images;
 import org.mozilla.gecko.db.BrowserContract.URLColumns;
 import org.mozilla.gecko.db.BrowserContract.SyncColumns;
 import org.mozilla.gecko.db.BrowserDB;
+import org.mozilla.gecko.sqlite.ByteBufferInputStream;
 import org.mozilla.gecko.sqlite.SQLiteBridge;
 import org.mozilla.gecko.sqlite.SQLiteBridgeException;
 
@@ -61,11 +62,10 @@ import android.provider.Browser;
 import android.util.Log;
 import android.net.Uri;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.File;
-import java.io.InputStream;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -220,20 +220,17 @@ public class ProfileMigrator {
             mRerootMap = new HashMap<Long, Long>();
 
             try {
-                Cursor cursor = db.rawQuery(kRootQuery, null);
-                final int rootCol = cursor.getColumnIndex(kRootName);
-                final int folderCol = cursor.getColumnIndex(kRootFolderId);
+                ArrayList<Object[]> queryResult = db.query(kRootQuery);
+                final int rootCol = db.getColumnIndex(kRootName);
+                final int folderCol = db.getColumnIndex(kRootFolderId);
 
-                cursor.moveToFirst();
-                while (!cursor.isAfterLast()) {
-                    String name = cursor.getString(rootCol);
-                    long placesFolderId = cursor.getLong(folderCol);
+                for (Object[] resultRow: queryResult) {
+                    String name = (String)resultRow[rootCol];
+                    long placesFolderId = Integer.parseInt((String)resultRow[folderCol]);
                     mRerootMap.put(placesFolderId, getFolderId(name));
                     Log.v(LOGTAG, "Name: " + name + ", pid=" + placesFolderId
                           + ", nid=" + mRerootMap.get(placesFolderId));
-                    cursor.moveToNext();
                 }
-                cursor.close();
             } catch (SQLiteBridgeException e) {
                 Log.e(LOGTAG, "Failed to get bookmark roots: ", e);
                 return;
@@ -340,15 +337,15 @@ public class ProfileMigrator {
             }
         }
 
-        protected BitmapDrawable decodeImageData(byte[] data) {
-            InputStream byteStream = new ByteArrayInputStream(data);
+        protected BitmapDrawable decodeImageData(ByteBuffer data) {
+            ByteBufferInputStream byteStream = new ByteBufferInputStream(data);
             BitmapDrawable image =
                 (BitmapDrawable)Drawable.createFromStream(byteStream, "src");
             return image;
         }
 
         protected void addFavicon(String url, String faviconUrl, String faviconGuid,
-                                  String mime, byte[] data) {
+                                  String mime, ByteBuffer data) {
             // Some GIFs can cause us to lock up completely
             // without exceptions or anything. Not cool.
             if (mime == null || mime.compareTo("image/gif") == 0) {
@@ -376,7 +373,9 @@ public class ProfileMigrator {
                 } else {
                     // PNG images can be passed directly. Well, aside
                     // from having to convert them into a byte[].
-                    values.put(Images.FAVICON, data);
+                    byte[] byteArray = new byte[data.remaining()];
+                    data.get(byteArray);
+                    values.put(Images.FAVICON, byteArray);
                 }
 
                 values.put(Images.URL, url);
@@ -413,26 +412,26 @@ public class ProfileMigrator {
                      */
                     Integer.toString(BrowserDB.getMaxHistoryCount())
                 };
-                Cursor cursor = db.rawQuery(kHistoryQuery, queryParams);
-                final int urlCol = cursor.getColumnIndex(kHistoryUrl);
-                final int titleCol = cursor.getColumnIndex(kHistoryTitle);
-                final int dateCol = cursor.getColumnIndex(kHistoryDate);
-                final int visitsCol = cursor.getColumnIndex(kHistoryVisits);
-                final int faviconMimeCol = cursor.getColumnIndex(kFaviconMime);
-                final int faviconDataCol = cursor.getColumnIndex(kFaviconData);
-                final int faviconUrlCol = cursor.getColumnIndex(kFaviconUrl);
-                final int faviconGuidCol = cursor.getColumnIndex(kFaviconGuid);
+                ArrayList<Object[]> queryResult =
+                    db.query(kHistoryQuery, queryParams);
+                final int urlCol = db.getColumnIndex(kHistoryUrl);
+                final int titleCol = db.getColumnIndex(kHistoryTitle);
+                final int dateCol = db.getColumnIndex(kHistoryDate);
+                final int visitsCol = db.getColumnIndex(kHistoryVisits);
+                final int faviconMimeCol = db.getColumnIndex(kFaviconMime);
+                final int faviconDataCol = db.getColumnIndex(kFaviconData);
+                final int faviconUrlCol = db.getColumnIndex(kFaviconUrl);
+                final int faviconGuidCol = db.getColumnIndex(kFaviconGuid);
 
-                cursor.moveToFirst();
-                while (!cursor.isAfterLast()) {
-                    String url = cursor.getString(urlCol);
-                    String title = cursor.getString(titleCol);
-                    long date = cursor.getLong(dateCol) / (long)1000;
-                    int visits = cursor.getInt(visitsCol);
-                    byte[] faviconDataBuff = cursor.getBlob(faviconDataCol);
-                    String faviconMime = cursor.getString(faviconMimeCol);
-                    String faviconUrl = cursor.getString(faviconUrlCol);
-                    String faviconGuid = cursor.getString(faviconGuidCol);
+                for (Object[] resultRow: queryResult) {
+                    String url = (String)resultRow[urlCol];
+                    String title = (String)resultRow[titleCol];
+                    long date = Long.parseLong((String)(resultRow[dateCol])) / (long)1000;
+                    int visits = Integer.parseInt((String)(resultRow[visitsCol]));
+                    ByteBuffer faviconDataBuff = (ByteBuffer)resultRow[faviconDataCol];
+                    String faviconMime = (String)resultRow[faviconMimeCol];
+                    String faviconUrl = (String)resultRow[faviconUrlCol];
+                    String faviconGuid = (String)resultRow[faviconGuidCol];
 
                     try {
                         placesHistory.add(url);
@@ -442,9 +441,7 @@ public class ProfileMigrator {
                     } catch (Exception e) {
                         Log.e(LOGTAG, "Error adding history entry: ", e);
                     }
-                    cursor.moveToNext();
                 }
-                cursor.close();
             } catch (SQLiteBridgeException e) {
                 Log.e(LOGTAG, "Failed to get history: ", e);
                 return;
@@ -502,20 +499,20 @@ public class ProfileMigrator {
 
         protected void migrateBookmarks(SQLiteBridge db) {
             try {
-                Cursor cursor = db.rawQuery(kBookmarkQuery, null);
-                final int urlCol = cursor.getColumnIndex(kBookmarkUrl);
-                final int titleCol = cursor.getColumnIndex(kBookmarkTitle);
-                final int guidCol = cursor.getColumnIndex(kBookmarkGuid);
-                final int idCol = cursor.getColumnIndex(kBookmarkId);
-                final int typeCol = cursor.getColumnIndex(kBookmarkType);
-                final int parentCol = cursor.getColumnIndex(kBookmarkParent);
-                final int addedCol = cursor.getColumnIndex(kBookmarkAdded);
-                final int modifiedCol = cursor.getColumnIndex(kBookmarkModified);
-                final int positionCol = cursor.getColumnIndex(kBookmarkPosition);
-                final int faviconMimeCol = cursor.getColumnIndex(kFaviconMime);
-                final int faviconDataCol = cursor.getColumnIndex(kFaviconData);
-                final int faviconUrlCol = cursor.getColumnIndex(kFaviconUrl);
-                final int faviconGuidCol = cursor.getColumnIndex(kFaviconGuid);
+                ArrayList<Object[]> queryResult = db.query(kBookmarkQuery);
+                final int urlCol = db.getColumnIndex(kBookmarkUrl);
+                final int titleCol = db.getColumnIndex(kBookmarkTitle);
+                final int guidCol = db.getColumnIndex(kBookmarkGuid);
+                final int idCol = db.getColumnIndex(kBookmarkId);
+                final int typeCol = db.getColumnIndex(kBookmarkType);
+                final int parentCol = db.getColumnIndex(kBookmarkParent);
+                final int addedCol = db.getColumnIndex(kBookmarkAdded);
+                final int modifiedCol = db.getColumnIndex(kBookmarkModified);
+                final int positionCol = db.getColumnIndex(kBookmarkPosition);
+                final int faviconMimeCol = db.getColumnIndex(kFaviconMime);
+                final int faviconDataCol = db.getColumnIndex(kFaviconData);
+                final int faviconUrlCol = db.getColumnIndex(kFaviconUrl);
+                final int faviconGuidCol = db.getColumnIndex(kFaviconGuid);
 
                 // The keys are places IDs.
                 Set<Long> openFolders = new HashSet<Long>();
@@ -526,9 +523,7 @@ public class ProfileMigrator {
                 // that we can't add, we remember what these are and try again
                 // on the next iteration. The number of iterations scales
                 // according to the depth of the folders.
-                // No need to import root folders for which we have a remapping.
-                Set<Long> processedBookmarks = new HashSet<Long>(mRerootMap.keySet());
-
+                Set<Long> processedBookmarks = new HashSet<Long>();
                 int iterations = 0;
                 do {
                     // Reset the set of missing folders that block us from
@@ -538,38 +533,33 @@ public class ProfileMigrator {
                     int added = 0;
                     int skipped = 0;
 
-                    cursor.moveToFirst();
-                    while (!cursor.isAfterLast()) {
-                        long id = cursor.getLong(idCol);
+                    for (Object[] resultRow: queryResult) {
+                        long id = Long.parseLong((String)resultRow[idCol]);
 
                         // Already processed? if so just skip
-                        if (processedBookmarks.contains(id)) {
-                            cursor.moveToNext();
+                        if (processedBookmarks.contains(id))
                             continue;
-                        }
 
-                        int type = cursor.getInt(typeCol);
-                        long parent = cursor.getLong(parentCol);
+                        int type = Integer.parseInt((String)resultRow[typeCol]);
+                        long parent = Long.parseLong((String)resultRow[parentCol]);
 
                         // Places has an explicit root folder, id=1 parent=0.
                         // Skip that.
-                        if (id == 1 && parent == 0 && type == kPlacesTypeFolder) {
-                            cursor.moveToNext();
+                        if (id == 1 && parent == 0 && type == kPlacesTypeFolder)
                             continue;
-                        }
 
-                        String url = cursor.getString(urlCol);
-                        String title = cursor.getString(titleCol);
-                        String guid = cursor.getString(guidCol);
+                        String url = (String)resultRow[urlCol];
+                        String title = (String)resultRow[titleCol];
+                        String guid = (String)resultRow[guidCol];
                         long dateadded =
-                            cursor.getLong(addedCol) / (long)1000;
+                            Long.parseLong((String)resultRow[addedCol]) / (long)1000;
                         long datemodified =
-                            cursor.getLong(modifiedCol) / (long)1000;
-                        long position = cursor.getLong(positionCol);
-                        byte[] faviconDataBuff = cursor.getBlob(faviconDataCol);
-                        String faviconMime = cursor.getString(faviconMimeCol);
-                        String faviconUrl = cursor.getString(faviconUrlCol);
-                        String faviconGuid = cursor.getString(faviconGuidCol);
+                            Long.parseLong((String)resultRow[modifiedCol]) / (long)1000;
+                        long position = Long.parseLong((String)resultRow[positionCol]);
+                        ByteBuffer faviconDataBuff = (ByteBuffer)resultRow[faviconDataCol];
+                        String faviconMime = (String)resultRow[faviconMimeCol];
+                        String faviconUrl = (String)resultRow[faviconUrlCol];
+                        String faviconGuid = (String)resultRow[faviconGuidCol];
 
                         // Is the parent for this bookmark already added?
                         // If so, we can add the bookmark itself.
@@ -598,7 +588,6 @@ public class ProfileMigrator {
                             openFolders.add(parent);
                             skipped++;
                         }
-                        cursor.moveToNext();
                     }
 
                     // Now check if any of the new folders we added was a folder
@@ -617,8 +606,6 @@ public class ProfileMigrator {
                     Log.i(LOGTAG, "Iteration = " + iterations + ", added " + added +
                           " bookmark(s), skipped " + skipped + " bookmark(s)");
                 } while (!openFolders.isEmpty());
-
-                cursor.close();
             } catch (SQLiteBridgeException e) {
                 Log.e(LOGTAG, "Failed to get bookmarks: ", e);
                 return;

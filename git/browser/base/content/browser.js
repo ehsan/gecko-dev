@@ -1653,6 +1653,12 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
   gPrefService.addObserver(ctrlTab.prefName, ctrlTab, false);
   gPrefService.addObserver(allTabs.prefName, allTabs, false);
 
+  // Delayed initialization of the livemarks update timer.
+  // Livemark updates don't need to start until after bookmark UI
+  // such as the toolbar has initialized. Starting 5 seconds after
+  // delayedStartup in order to stagger this before the download manager starts.
+  setTimeout(function() PlacesUtils.livemarks.start(), 5000);
+
   // Initialize the download manager some time after the app starts so that
   // auto-resume downloads begin (such as after crashing or quitting with
   // active downloads) and speeds up the first-load of the download manager UI.
@@ -1662,14 +1668,12 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
     gDownloadMgr = Cc["@mozilla.org/download-manager;1"].
                    getService(Ci.nsIDownloadManager);
 
-#ifdef XP_WIN
     if (Win7Features) {
       let tempScope = {};
       Cu.import("resource://gre/modules/DownloadTaskbarProgress.jsm",
                 tempScope);
       tempScope.DownloadTaskbarProgress.onBrowserWindowLoad(window);
     }
-#endif
   }, 10000);
 
 #ifndef XP_MACOSX
@@ -3569,6 +3573,7 @@ const BrowserSearch = {
   loadAddEngines: function BrowserSearch_loadAddEngines() {
     var newWindowPref = gPrefService.getIntPref("browser.link.open_newwindow");
     var where = newWindowPref == 3 ? "tab" : "window";
+    var regionBundle = document.getElementById("bundle_browser_region");
     var searchEnginesURL = formatURL("browser.search.searchEnginesURL", true);
     openUILinkIn(searchEnginesURL, where);
   }
@@ -3626,12 +3631,12 @@ function FillHistoryMenu(aParent) {
     item.setAttribute("index", j);
 
     if (j != index) {
-      function FHM_getFaviconURLCallback(aURI) {
-        let iconURL = PlacesUtils.favicons.getFaviconLinkForIcon(aURI).spec;
+      try {
+        let iconURL = Cc["@mozilla.org/browser/favicon-service;1"]
+                         .getService(Ci.nsIFaviconService)
+                         .getFaviconForPage(entry.URI).spec;
         item.style.listStyleImage = "url(" + iconURL + ")";
-      }
-      PlacesUtils.favicons.getFaviconURLForPage(entry.URI,
-                                                FHM_getFaviconURLCallback);
+      } catch (ex) {}
     }
 
     if (j < index) {
@@ -3989,20 +3994,8 @@ var FullScreen = {
     }
   },
 
-  exitDomFullScreen : function() {
+  exitDomFullScreen : function(e) {
     document.mozCancelFullScreen();
-  },
-
-  handleEvent: function (event) {
-    switch (event.type) {
-      case "deactivate":
-        // We must call exitDomFullScreen asynchronously, since "deactivate" is
-        // dispatched in the middle of the focus manager's window lowering code,
-        // and the focus manager gets confused if we exit fullscreen mode in the
-        // middle of window lowering. See bug 729872.
-        setTimeout(this.exitDomFullScreen.bind(this), 0);
-        break;
-    }
   },
 
   enterDomFullScreen : function(event) {
@@ -4051,7 +4044,7 @@ var FullScreen = {
 
     // Exit DOM full-screen mode when the browser window loses focus (ALT+TAB, etc).
     if (gPrefService.getBoolPref("full-screen-api.exit-on-deactivate")) {
-      window.addEventListener("deactivate", this);
+      window.addEventListener("deactivate", this.exitDomFullScreen, true);
     }
 
     // Cancel any "hide the toolbar" animation which is in progress, and make
@@ -4086,7 +4079,7 @@ var FullScreen = {
       gBrowser.tabContainer.removeEventListener("TabOpen", this.exitDomFullScreen);
       gBrowser.tabContainer.removeEventListener("TabClose", this.exitDomFullScreen);
       gBrowser.tabContainer.removeEventListener("TabSelect", this.exitDomFullScreen);
-      window.removeEventListener("deactivate", this);
+      window.removeEventListener("deactivate", this.exitDomFullScreen, true);
     }
   },
 
@@ -6133,114 +6126,103 @@ function charsetLoadListener(event) {
   }
 }
 
+/* Begin Page Style Functions */
+function getAllStyleSheets(frameset) {
+  var styleSheetsArray = Array.slice(frameset.document.styleSheets);
+  for (let i = 0; i < frameset.frames.length; i++) {
+    let frameSheets = getAllStyleSheets(frameset.frames[i]);
+    styleSheetsArray = styleSheetsArray.concat(frameSheets);
+  }
+  return styleSheetsArray;
+}
 
-var gPageStyleMenu = {
+function stylesheetFillPopup(menuPopup) {
+  var noStyle = menuPopup.firstChild;
+  var persistentOnly = noStyle.nextSibling;
+  var sep = persistentOnly.nextSibling;
+  while (sep.nextSibling)
+    menuPopup.removeChild(sep.nextSibling);
 
-  getAllStyleSheets: function (frameset) {
-    var styleSheetsArray = Array.slice(frameset.document.styleSheets);
-    for (let i = 0; i < frameset.frames.length; i++) {
-      let frameSheets = this.getAllStyleSheets(frameset.frames[i]);
-      styleSheetsArray = styleSheetsArray.concat(frameSheets);
-    }
-    return styleSheetsArray;
-  },
+  var styleSheets = getAllStyleSheets(window.content);
+  var currentStyleSheets = {};
+  var styleDisabled = getMarkupDocumentViewer().authorStyleDisabled;
+  var haveAltSheets = false;
+  var altStyleSelected = false;
 
-  stylesheetFillPopup: function (menuPopup) {
-    var noStyle = menuPopup.firstChild;
-    var persistentOnly = noStyle.nextSibling;
-    var sep = persistentOnly.nextSibling;
-    while (sep.nextSibling)
-      menuPopup.removeChild(sep.nextSibling);
+  for (let i = 0; i < styleSheets.length; ++i) {
+    let currentStyleSheet = styleSheets[i];
 
-    var styleSheets = this.getAllStyleSheets(window.content);
-    var currentStyleSheets = {};
-    var styleDisabled = getMarkupDocumentViewer().authorStyleDisabled;
-    var haveAltSheets = false;
-    var altStyleSelected = false;
+    if (!currentStyleSheet.title)
+      continue;
 
-    for (let i = 0; i < styleSheets.length; ++i) {
-      let currentStyleSheet = styleSheets[i];
-
-      if (!currentStyleSheet.title)
+    // Skip any stylesheets whose media attribute doesn't match.
+    if (currentStyleSheet.media.length > 0) {
+      let mediaQueryList = currentStyleSheet.media.mediaText;
+      if (!window.content.matchMedia(mediaQueryList).matches)
         continue;
-
-      // Skip any stylesheets whose media attribute doesn't match.
-      if (currentStyleSheet.media.length > 0) {
-        let mediaQueryList = currentStyleSheet.media.mediaText;
-        if (!window.content.matchMedia(mediaQueryList).matches)
-          continue;
-      }
-
-      if (!currentStyleSheet.disabled)
-        altStyleSelected = true;
-
-      haveAltSheets = true;
-
-      let lastWithSameTitle = null;
-      if (currentStyleSheet.title in currentStyleSheets)
-        lastWithSameTitle = currentStyleSheets[currentStyleSheet.title];
-
-      if (!lastWithSameTitle) {
-        let menuItem = document.createElement("menuitem");
-        menuItem.setAttribute("type", "radio");
-        menuItem.setAttribute("label", currentStyleSheet.title);
-        menuItem.setAttribute("data", currentStyleSheet.title);
-        menuItem.setAttribute("checked", !currentStyleSheet.disabled && !styleDisabled);
-        menuPopup.appendChild(menuItem);
-        currentStyleSheets[currentStyleSheet.title] = menuItem;
-      } else if (currentStyleSheet.disabled) {
-        lastWithSameTitle.removeAttribute("checked");
-      }
     }
 
-    noStyle.setAttribute("checked", styleDisabled);
-    persistentOnly.setAttribute("checked", !altStyleSelected && !styleDisabled);
-    persistentOnly.hidden = (window.content.document.preferredStyleSheetSet) ? haveAltSheets : false;
-    sep.hidden = (noStyle.hidden && persistentOnly.hidden) || !haveAltSheets;
-    return true;
-  },
+    if (!currentStyleSheet.disabled)
+      altStyleSelected = true;
 
-  stylesheetInFrame: function (frame, title) {
-    return Array.some(frame.document.styleSheets,
-                      function (stylesheet) stylesheet.title == title);
-  },
+    haveAltSheets = true;
 
-  stylesheetSwitchFrame: function (frame, title) {
-    var docStyleSheets = frame.document.styleSheets;
+    let lastWithSameTitle = null;
+    if (currentStyleSheet.title in currentStyleSheets)
+      lastWithSameTitle = currentStyleSheets[currentStyleSheet.title];
 
-    for (let i = 0; i < docStyleSheets.length; ++i) {
-      let docStyleSheet = docStyleSheets[i];
-
-      if (title == "_nostyle")
-        docStyleSheet.disabled = true;
-      else if (docStyleSheet.title)
-        docStyleSheet.disabled = (docStyleSheet.title != title);
-      else if (docStyleSheet.disabled)
-        docStyleSheet.disabled = false;
+    if (!lastWithSameTitle) {
+      let menuItem = document.createElement("menuitem");
+      menuItem.setAttribute("type", "radio");
+      menuItem.setAttribute("label", currentStyleSheet.title);
+      menuItem.setAttribute("data", currentStyleSheet.title);
+      menuItem.setAttribute("checked", !currentStyleSheet.disabled && !styleDisabled);
+      menuPopup.appendChild(menuItem);
+      currentStyleSheets[currentStyleSheet.title] = menuItem;
+    } else if (currentStyleSheet.disabled) {
+      lastWithSameTitle.removeAttribute("checked");
     }
-  },
+  }
 
-  stylesheetSwitchAll: function (frameset, title) {
-    if (!title || title == "_nostyle" || this.stylesheetInFrame(frameset, title))
-      this.stylesheetSwitchFrame(frameset, title);
+  noStyle.setAttribute("checked", styleDisabled);
+  persistentOnly.setAttribute("checked", !altStyleSelected && !styleDisabled);
+  persistentOnly.hidden = (window.content.document.preferredStyleSheetSet) ? haveAltSheets : false;
+  sep.hidden = (noStyle.hidden && persistentOnly.hidden) || !haveAltSheets;
+  return true;
+}
 
-    for (let i = 0; i < frameset.frames.length; i++)
-      this.stylesheetSwitchAll(frameset.frames[i], title);
-  },
+function stylesheetInFrame(frame, title) {
+  return Array.some(frame.document.styleSheets,
+                    function (stylesheet) stylesheet.title == title);
+}
 
-  setStyleDisabled: function (disabled) {
-    getMarkupDocumentViewer().authorStyleDisabled = disabled;
-  },
-};
+function stylesheetSwitchFrame(frame, title) {
+  var docStyleSheets = frame.document.styleSheets;
 
-/* Legacy global page-style functions */
-var getAllStyleSheets     = gPageStyleMenu.getAllStyleSheets;
-var stylesheetFillPopup   = gPageStyleMenu.stylesheetFillPopup;
-var stylesheetInFrame     = gPageStyleMenu.stylesheetInFrame;
-var stylesheetSwitchFrame = gPageStyleMenu.stylesheetSwitchFrame;
-var stylesheetSwitchAll   = gPageStyleMenu.stylesheetSwitchAll;
-var setStyleDisabled      = gPageStyleMenu.setStyleDisabled;
+  for (let i = 0; i < docStyleSheets.length; ++i) {
+    let docStyleSheet = docStyleSheets[i];
 
+    if (title == "_nostyle")
+      docStyleSheet.disabled = true;
+    else if (docStyleSheet.title)
+      docStyleSheet.disabled = (docStyleSheet.title != title);
+    else if (docStyleSheet.disabled)
+      docStyleSheet.disabled = false;
+  }
+}
+
+function stylesheetSwitchAll(frameset, title) {
+  if (!title || title == "_nostyle" || stylesheetInFrame(frameset, title))
+    stylesheetSwitchFrame(frameset, title);
+
+  for (let i = 0; i < frameset.frames.length; i++)
+    stylesheetSwitchAll(frameset.frames[i], title);
+}
+
+function setStyleDisabled(disabled) {
+  getMarkupDocumentViewer().authorStyleDisabled = disabled;
+}
+/* End of the Page Style functions */
 
 var BrowserOffline = {
   _inited: false,
@@ -7017,13 +6999,11 @@ function getPluginInfo(pluginElement)
 
 var gPluginHandler = {
 
-#ifdef MOZ_CRASHREPORTER
   get CrashSubmit() {
     delete this.CrashSubmit;
     Cu.import("resource://gre/modules/CrashSubmit.jsm", this);
     return this.CrashSubmit;
   },
-#endif
 
   // Map the plugin's name to a filtered version more suitable for user UI.
   makeNicePluginName : function (aName, aFilename) {
@@ -7163,7 +7143,6 @@ var gPluginHandler = {
     BrowserOpenAddonsMgr("addons://list/plugin");
   },
 
-#ifdef MOZ_CRASHREPORTER
   // Callback for user clicking "submit a report" link
   submitReport : function(pluginDumpID, browserDumpID) {
     // The crash reporter wants a DOM element it can append an IFRAME to,
@@ -7172,7 +7151,6 @@ var gPluginHandler = {
     if (browserDumpID)
       this.CrashSubmit.submit(browserDumpID);
   },
-#endif
 
   // Callback for user clicking a "reload page" link
   reloadPage: function (browser) {

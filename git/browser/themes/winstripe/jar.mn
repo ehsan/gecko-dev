@@ -27,6 +27,7 @@ browser.jar:
         skin/classic/browser/pageInfo.css
         skin/classic/browser/pageInfo.png                            (pageInfo.png)
         skin/classic/browser/page-livemarks.png                      (feeds/feedIcon16.png)
+        skin/classic/browser/livemark-item.png                       (livemark-item.png)
         skin/classic/browser/livemark-folder.png                     (livemark-folder.png)
         skin/classic/browser/Privacy-16.png
         skin/classic/browser/Privacy-48.png
@@ -60,6 +61,7 @@ browser.jar:
         skin/classic/browser/newtab/newTab.css                       (newtab/newTab.css)
         skin/classic/browser/newtab/strip.png                        (newtab/strip.png)
         skin/classic/browser/newtab/toolbar.png                      (newtab/toolbar.png)
+        skin/classic/browser/inspector.css
         skin/classic/browser/places/places.css                       (places/places.css)
 *       skin/classic/browser/places/organizer.css                    (places/organizer.css)
         skin/classic/browser/places/bookmark.png                     (places/bookmark.png)
@@ -78,7 +80,6 @@ browser.jar:
         skin/classic/browser/places/allBookmarks.png                 (places/allBookmarks.png)
         skin/classic/browser/places/unsortedBookmarks.png            (places/unsortedBookmarks.png)
         skin/classic/browser/places/downloads.png                    (places/downloads.png)
-        skin/classic/browser/places/livemark-item.png                (places/livemark-item.png)
         skin/classic/browser/preferences/alwaysAsk.png               (preferences/alwaysAsk.png)
         skin/classic/browser/preferences/application.png             (preferences/application.png)
         skin/classic/browser/preferences/mail.png                    (preferences/mail.png)
@@ -111,11 +112,9 @@ browser.jar:
         skin/classic/browser/devtools/common.css                    (devtools/common.css)
         skin/classic/browser/devtools/arrows.png                    (devtools/arrows.png)
         skin/classic/browser/devtools/commandline.png               (devtools/commandline.png)
-        skin/classic/browser/devtools/alerticon-warning.png         (devtools/alerticon-warning.png)
         skin/classic/browser/devtools/goto-mdn.png                  (devtools/goto-mdn.png)
         skin/classic/browser/devtools/csshtmltree.css               (devtools/csshtmltree.css)
         skin/classic/browser/devtools/gcli.css                      (devtools/gcli.css)
-        skin/classic/browser/devtools/htmlpanel.css                 (devtools/htmlpanel.css)
         skin/classic/browser/devtools/orion.css                     (devtools/orion.css)
         skin/classic/browser/devtools/orion-container.css           (devtools/orion-container.css)
         skin/classic/browser/devtools/orion-task.png                (devtools/orion-task.png)
@@ -197,6 +196,7 @@ browser.jar:
         skin/classic/aero/browser/pageInfo.css
         skin/classic/aero/browser/pageInfo.png                       (pageInfo-aero.png)
         skin/classic/aero/browser/page-livemarks.png                 (feeds/feedIcon16-aero.png)
+        skin/classic/aero/browser/livemark-item.png                  (livemark-item-aero.png)
         skin/classic/aero/browser/livemark-folder.png                (livemark-folder-aero.png)
         skin/classic/aero/browser/Privacy-16.png                     (Privacy-16-aero.png)
         skin/classic/aero/browser/Privacy-48.png                     (Privacy-48-aero.png)
@@ -230,6 +230,7 @@ browser.jar:
         skin/classic/aero/browser/newtab/newTab.css                  (newtab/newTab.css)
         skin/classic/aero/browser/newtab/strip.png                   (newtab/strip.png)
         skin/classic/aero/browser/newtab/toolbar.png                 (newtab/toolbar.png)
+        skin/classic/aero/browser/inspector.css
 *       skin/classic/aero/browser/places/places.css                  (places/places-aero.css)
 *       skin/classic/aero/browser/places/organizer.css               (places/organizer-aero.css)
         skin/classic/aero/browser/places/bookmark.png                (places/bookmark.png)
@@ -248,7 +249,6 @@ browser.jar:
         skin/classic/aero/browser/places/allBookmarks.png            (places/allBookmarks-aero.png)
         skin/classic/aero/browser/places/unsortedBookmarks.png       (places/unsortedBookmarks-aero.png)
         skin/classic/aero/browser/places/downloads.png               (places/downloads.png)
-        skin/classic/aero/browser/places/livemark-item.png           (places/livemark-item.png)
         skin/classic/aero/browser/preferences/alwaysAsk.png          (preferences/alwaysAsk-aero.png)
         skin/classic/aero/browser/preferences/application.png        (preferences/application-aero.png)
         skin/classic/aero/browser/preferences/mail.png               (preferences/mail-aero.png)
@@ -281,11 +281,9 @@ browser.jar:
         skin/classic/aero/browser/devtools/common.css                (devtools/common.css)
         skin/classic/aero/browser/devtools/arrows.png                (devtools/arrows.png)
         skin/classic/aero/browser/devtools/commandline.png           (devtools/commandline.png)
-        skin/classic/aero/browser/devtools/alerticon-warning.png     (devtools/alerticon-warning.png)
         skin/classic/aero/browser/devtools/goto-mdn.png              (devtools/goto-mdn.png)
         skin/classic/aero/browser/devtools/csshtmltree.css           (devtools/csshtmltree.css)
         skin/classic/aero/browser/devtools/gcli.css                  (devtools/gcli.css)
-        skin/classic/aero/browser/devtools/htmlpanel.css             (devtools/htmlpanel.css)
         skin/classic/aero/browser/devtools/orion.css                 (devtools/orion.css)
         skin/classic/aero/browser/devtools/orion-container.css       (devtools/orion-container.css)
         skin/classic/aero/browser/devtools/orion-task.png            (devtools/orion-task.png)

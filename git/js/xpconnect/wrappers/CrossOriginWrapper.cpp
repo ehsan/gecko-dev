@@ -47,7 +47,7 @@
 
 namespace xpc {
 
-NoWaiverWrapper::NoWaiverWrapper(unsigned flags) : js::CrossCompartmentWrapper(flags)
+NoWaiverWrapper::NoWaiverWrapper(uintN flags) : js::CrossCompartmentWrapper(flags)
 {
 }
 
@@ -55,7 +55,7 @@ NoWaiverWrapper::~NoWaiverWrapper()
 {
 }
 
-CrossOriginWrapper::CrossOriginWrapper(unsigned flags) : NoWaiverWrapper(flags)
+CrossOriginWrapper::CrossOriginWrapper(uintN flags) : NoWaiverWrapper(flags)
 {
 }
 
@@ -88,7 +88,7 @@ CrossOriginWrapper::get(JSContext *cx, JSObject *wrapper, JSObject *receiver, js
 }
 
 bool
-CrossOriginWrapper::call(JSContext *cx, JSObject *wrapper, unsigned argc, js::Value *vp)
+CrossOriginWrapper::call(JSContext *cx, JSObject *wrapper, uintN argc, js::Value *vp)
 {
     return CrossCompartmentWrapper::call(cx, wrapper, argc, vp) &&
            WrapperFactory::WaiveXrayAndWrap(cx, vp);
@@ -96,7 +96,7 @@ CrossOriginWrapper::call(JSContext *cx, JSObject *wrapper, unsigned argc, js::Va
 
 bool
 CrossOriginWrapper::construct(JSContext *cx, JSObject *wrapper,
-                              unsigned argc, js::Value *argv, js::Value *rval)
+                              uintN argc, js::Value *argv, js::Value *rval)
 {
     return CrossCompartmentWrapper::construct(cx, wrapper, argc, argv, rval) &&
            WrapperFactory::WaiveXrayAndWrap(cx, rval);

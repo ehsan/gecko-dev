@@ -2323,7 +2323,6 @@ SetVersionHelper::NotifyTransactionComplete(IDBTransaction* aTransaction)
   }
 
   mOpenRequest->SetTransaction(nsnull);
-  mOpenRequest = nsnull;
 
   rv = mOpenHelper->NotifySetVersionFinished();
   mOpenHelper = nsnull;

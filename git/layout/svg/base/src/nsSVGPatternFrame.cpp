@@ -295,18 +295,17 @@ nsSVGPatternFrame::PaintPattern(gfxASurface** surface,
   if (!tmpSurface || tmpSurface->CairoStatus())
     return NS_ERROR_FAILURE;
 
-  nsRenderingContext context;
-  context.Init(aSource->PresContext()->DeviceContext(), tmpSurface);
-  gfxContext* gfx = context.ThebesContext();
+  nsSVGRenderState tmpState(tmpSurface);
+  gfxContext* tmpContext = tmpState.GetGfxContext();
 
   // Fill with transparent black
-  gfx->SetOperator(gfxContext::OPERATOR_CLEAR);
-  gfx->Paint();
-  gfx->SetOperator(gfxContext::OPERATOR_OVER);
+  tmpContext->SetOperator(gfxContext::OPERATOR_CLEAR);
+  tmpContext->Paint();
+  tmpContext->SetOperator(gfxContext::OPERATOR_OVER);
 
   if (aGraphicOpacity != 1.0f) {
-    gfx->Save();
-    gfx->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
+    tmpContext->Save();
+    tmpContext->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
   }
 
   // OK, now render -- note that we use "firstKid", which
@@ -330,7 +329,7 @@ nsSVGPatternFrame::PaintPattern(gfxASurface** surface,
         SVGFrame->NotifySVGChanged(nsISVGChildFrame::SUPPRESS_INVALIDATION |
                                    nsISVGChildFrame::TRANSFORM_CHANGED);
       }
-      nsSVGUtils::PaintFrameWithEffects(&context, nsnull, kid);
+      nsSVGUtils::PaintFrameWithEffects(&tmpState, nsnull, kid);
     }
     patternFrame->RemoveStateBits(NS_FRAME_DRAWING_AS_PAINTSERVER);
   }
@@ -338,9 +337,9 @@ nsSVGPatternFrame::PaintPattern(gfxASurface** surface,
   patternFrame->mSource = nsnull;
 
   if (aGraphicOpacity != 1.0f) {
-    gfx->PopGroupToSource();
-    gfx->Paint(aGraphicOpacity);
-    gfx->Restore();
+    tmpContext->PopGroupToSource();
+    tmpContext->Paint(aGraphicOpacity);
+    tmpContext->Restore();
   }
 
   // caller now owns the surface

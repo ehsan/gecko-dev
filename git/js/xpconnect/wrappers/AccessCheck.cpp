@@ -393,7 +393,7 @@ AccessCheck::isScriptAccessOnly(JSContext *cx, JSObject *wrapper)
 {
     JS_ASSERT(js::IsWrapper(wrapper));
 
-    unsigned flags;
+    uintN flags;
     JSObject *obj = js::UnwrapObject(wrapper, true, &flags);
 
     // If the wrapper indicates script-only access, we are done.

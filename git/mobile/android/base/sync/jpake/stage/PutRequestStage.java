@@ -58,16 +58,13 @@ public class PutRequestStage extends JPakeStage {
 
       @Override
       public void handleFailure(String error) {
-        Logger.error(LOG_TAG, "Got HTTP failure: " + error);
         jClient.abort(error);
-        return;
       }
 
       @Override
       public void handleError(Exception e) {
         Logger.error(LOG_TAG, "HTTP exception.", e);
         jClient.abort(Constants.JPAKE_ERROR_NETWORK);
-        return;
       }
     };
 
@@ -84,9 +81,7 @@ public class PutRequestStage extends JPakeStage {
     try {
       putRequest.put(JPakeClient.jsonEntity(jClient.jOutgoing.object));
     } catch (UnsupportedEncodingException e) {
-      Logger.error(LOG_TAG, "UnsupportedEncodingException", e);
-      jClient.abort(Constants.JPAKE_ERROR_INTERNAL);
-      return;
+      e.printStackTrace();
     }
     Logger.debug(LOG_TAG, "Outgoing message: " + jClient.jOutgoing.toJSONString());
   }

@@ -60,12 +60,14 @@ const PRUnichar* kTaskbarButtonEventId = L"TaskbarButtonCreated";
 
 static UINT sMsgId;
 
+#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_WIN7
 static UINT sTaskbarButtonCreatedMsg;
 
 /* static */
 UINT nsAppShell::GetTaskbarButtonCreatedMessage() {
 	return sTaskbarButtonCreatedMsg;
 }
+#endif
 
 namespace mozilla {
 namespace crashreporter {
@@ -142,8 +144,10 @@ nsAppShell::Init()
   if (!sMsgId)
     sMsgId = RegisterWindowMessageW(kAppShellEventId);
 
+#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_WIN7
   sTaskbarButtonCreatedMsg = ::RegisterWindowMessageW(kTaskbarButtonEventId);
   NS_ASSERTION(sTaskbarButtonCreatedMsg, "Could not register taskbar button creation message");
+#endif
 
   WNDCLASSW wc;
   HINSTANCE module = GetModuleHandle(NULL);

@@ -90,8 +90,6 @@ function runNextTest() {
 
 
 function test_cascade() {
-  Services.prefs.setBoolPref("browser.sessionstore.restore_on_demand", false);
-
   // We have our own progress listener for this test, which we'll attach before our state is set
   let progressListener = {
     onStateChange: function (aBrowser, aWebProgress, aRequest, aStateFlags, aStatus) {
@@ -222,8 +220,6 @@ function test_select() {
 
 
 function test_multiWindowState() {
-  Services.prefs.setBoolPref("browser.sessionstore.restore_on_demand", false);
-
   // We have our own progress listener for this test, which we'll attach before our state is set
   let progressListener = {
     onStateChange: function (aBrowser, aWebProgress, aRequest, aStateFlags, aStatus) {
@@ -301,8 +297,6 @@ function test_multiWindowState() {
 
 
 function test_setWindowStateNoOverwrite() {
-  Services.prefs.setBoolPref("browser.sessionstore.restore_on_demand", false);
-
   // We have our own progress listener for this test, which we'll attach before our state is set
   let progressListener = {
     onStateChange: function (aBrowser, aWebProgress, aRequest, aStateFlags, aStatus) {
@@ -372,8 +366,6 @@ function test_setWindowStateNoOverwrite() {
 
 
 function test_setWindowStateOverwrite() {
-  Services.prefs.setBoolPref("browser.sessionstore.restore_on_demand", false);
-
   // We have our own progress listener for this test, which we'll attach before our state is set
   let progressListener = {
     onStateChange: function (aBrowser, aWebProgress, aRequest, aStateFlags, aStatus) {
@@ -443,8 +435,6 @@ function test_setWindowStateOverwrite() {
 
 
 function test_setBrowserStateInterrupted() {
-  Services.prefs.setBoolPref("browser.sessionstore.restore_on_demand", false);
-
   // We have our own progress listener for this test, which we'll attach before our state is set
   let progressListener = {
     onStateChange: function (aBrowser, aWebProgress, aRequest, aStateFlags, aStatus) {
@@ -637,8 +627,6 @@ function test_reload() {
 // This doesn't actually test anything, just does a cascaded restore with default
 // settings. This really just sets up to test that reloads work.
 function test_reloadCascadeSetup() {
-  Services.prefs.setBoolPref("browser.sessionstore.restore_on_demand", false);
-
   // We have our own progress listener for this test, which we'll attach before our state is set
   let progressListener = {
     onStateChange: function (aBrowser, aWebProgress, aRequest, aStateFlags, aStatus) {

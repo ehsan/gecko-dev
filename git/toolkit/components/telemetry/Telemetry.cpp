@@ -38,7 +38,6 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "base/histogram.h"
-#include "base/pickle.h"
 #include "nsIComponentManager.h"
 #include "nsIServiceManager.h"
 #include "nsCOMPtr.h"
@@ -48,8 +47,6 @@
 #include "jsapi.h" 
 #include "nsStringGlue.h"
 #include "nsITelemetry.h"
-#include "nsIFile.h"
-#include "nsILocalFile.h"
 #include "Telemetry.h" 
 #include "nsTHashtable.h"
 #include "nsHashKeys.h"
@@ -57,7 +54,6 @@
 #include "nsXULAppAPI.h"
 #include "nsThreadUtils.h"
 #include "mozilla/Mutex.h"
-#include "mozilla/FileUtils.h"
 
 namespace {
 
@@ -310,62 +306,41 @@ enum reflectStatus {
 };
 
 enum reflectStatus
-ReflectHistogramAndSamples(JSContext *cx, JSObject *obj, Histogram *h,
-                           const Histogram::SampleSet &ss)
+ReflectHistogramSnapshot(JSContext *cx, JSObject *obj, Histogram *h)
 {
+  Histogram::SampleSet ss;
+  h->SnapshotSample(&ss);
+
   // We don't want to reflect corrupt histograms.
   if (h->FindCorruption(ss) != Histogram::NO_INCONSISTENCIES) {
     return REFLECT_CORRUPT;
   }
 
+  JSObject *counts_array;
+  JSObject *rarray;
+  const size_t count = h->bucket_count();
   if (!(JS_DefineProperty(cx, obj, "min", INT_TO_JSVAL(h->declared_min()), NULL, NULL, JSPROP_ENUMERATE)
         && JS_DefineProperty(cx, obj, "max", INT_TO_JSVAL(h->declared_max()), NULL, NULL, JSPROP_ENUMERATE)
         && JS_DefineProperty(cx, obj, "histogram_type", INT_TO_JSVAL(h->histogram_type()), NULL, NULL, JSPROP_ENUMERATE)
-        && JS_DefineProperty(cx, obj, "sum", DOUBLE_TO_JSVAL(ss.sum()), NULL, NULL, JSPROP_ENUMERATE))) {
-    return REFLECT_FAILURE;
-  }
-
-  const size_t count = h->bucket_count();
-  JSObject *rarray = JS_NewArrayObject(cx, count, nsnull);
-  if (!rarray) {
-    return REFLECT_FAILURE;
-  }
-  JS::AutoObjectRooter aroot(cx, rarray);
-  if (!(FillRanges(cx, rarray, h)
-        && JS_DefineProperty(cx, obj, "ranges", OBJECT_TO_JSVAL(rarray),
-                             NULL, NULL, JSPROP_ENUMERATE))) {
-    return REFLECT_FAILURE;
-  }
-
-  JSObject *counts_array = JS_NewArrayObject(cx, count, NULL);
-  if (!counts_array) {
-    return REFLECT_FAILURE;
-  }
-  JS::AutoObjectRooter croot(cx, counts_array);
-  if (!JS_DefineProperty(cx, obj, "counts", OBJECT_TO_JSVAL(counts_array),
-                         NULL, NULL, JSPROP_ENUMERATE)) {
+        && JS_DefineProperty(cx, obj, "sum", DOUBLE_TO_JSVAL(ss.sum()), NULL, NULL, JSPROP_ENUMERATE)
+        && (rarray = JS_NewArrayObject(cx, count, NULL))
+        && JS_DefineProperty(cx, obj, "ranges", OBJECT_TO_JSVAL(rarray), NULL, NULL, JSPROP_ENUMERATE)
+        && FillRanges(cx, rarray, h)
+        && (counts_array = JS_NewArrayObject(cx, count, NULL))
+        && JS_DefineProperty(cx, obj, "counts", OBJECT_TO_JSVAL(counts_array), NULL, NULL, JSPROP_ENUMERATE)
+        )) {
     return REFLECT_FAILURE;
   }
   for (size_t i = 0; i < count; i++) {
-    if (!JS_DefineElement(cx, counts_array, i, INT_TO_JSVAL(ss.counts(i)),
-                          NULL, NULL, JSPROP_ENUMERATE)) {
+    if (!JS_DefineElement(cx, counts_array, i, INT_TO_JSVAL(ss.counts(i)), NULL, NULL, JSPROP_ENUMERATE)) {
       return REFLECT_FAILURE;
     }
   }
- 
   return REFLECT_OK;
 }
 
-enum reflectStatus
-ReflectHistogramSnapshot(JSContext *cx, JSObject *obj, Histogram *h)
-{
-  Histogram::SampleSet ss;
-  h->SnapshotSample(&ss);
-  return ReflectHistogramAndSamples(cx, obj, h, ss);
-}
-
 JSBool
-JSHistogram_Add(JSContext *cx, unsigned argc, jsval *vp)
+JSHistogram_Add(JSContext *cx, uintN argc, jsval *vp)
 {
   if (!argc) {
     JS_ReportError(cx, "Expected one argument");
@@ -400,7 +375,7 @@ JSHistogram_Add(JSContext *cx, unsigned argc, jsval *vp)
 }
 
 JSBool
-JSHistogram_Snapshot(JSContext *cx, unsigned argc, jsval *vp)
+JSHistogram_Snapshot(JSContext *cx, uintN argc, jsval *vp)
 {
   JSObject *obj = JS_THIS_OBJECT(cx, vp);
   if (!obj) {
@@ -408,10 +383,9 @@ JSHistogram_Snapshot(JSContext *cx, unsigned argc, jsval *vp)
   }
 
   Histogram *h = static_cast<Histogram*>(JS_GetPrivate(obj));
-  JSObject *snapshot = JS_NewObject(cx, nsnull, nsnull, nsnull);
+  JSObject *snapshot = JS_NewObject(cx, NULL, NULL, NULL);
   if (!snapshot)
     return JS_FALSE;
-  JS::AutoObjectRooter sroot(cx, snapshot);
 
   switch (ReflectHistogramSnapshot(cx, snapshot, h)) {
   case REFLECT_FAILURE:
@@ -442,14 +416,10 @@ WrapAndReturnHistogram(Histogram *h, JSContext *cx, jsval *ret)
   JSObject *obj = JS_NewObject(cx, &JSHistogram_class, NULL, NULL);
   if (!obj)
     return NS_ERROR_FAILURE;
-  JS::AutoObjectRooter root(cx, obj);
-  if (!(JS_DefineFunction (cx, obj, "add", JSHistogram_Add, 1, 0)
-        && JS_DefineFunction (cx, obj, "snapshot", JSHistogram_Snapshot, 1, 0))) {
-    return NS_ERROR_FAILURE;
-  }
   *ret = OBJECT_TO_JSVAL(obj);
   JS_SetPrivate(obj, h);
-  return NS_OK;
+  return (JS_DefineFunction (cx, obj, "add", JSHistogram_Add, 1, 0)
+          && JS_DefineFunction (cx, obj, "snapshot", JSHistogram_Snapshot, 1, 0)) ? NS_OK : NS_ERROR_FAILURE;
 }
 
 TelemetryImpl::TelemetryImpl():
@@ -499,11 +469,8 @@ TelemetryImpl::StatementReflector(SlowSQLEntryType *entry, JSContext *cx,
   jsval totalTime = UINT_TO_JSVAL(entry->mData.totalTime);
 
   JSObject *arrayObj = JS_NewArrayObject(cx, 2, nsnull);
-  if (!arrayObj) {
-    return false;
-  }
-  JS::AutoObjectRooter root(cx, arrayObj);
-  return (JS_SetElement(cx, arrayObj, 0, &hitCount)
+  return (arrayObj
+          && JS_SetElement(cx, arrayObj, 0, &hitCount)
           && JS_SetElement(cx, arrayObj, 1, &totalTime)
           && JS_DefineProperty(cx, obj,
                                sql.BeginReading(),
@@ -517,19 +484,18 @@ TelemetryImpl::AddSQLInfo(JSContext *cx, JSObject *rootObj, bool mainThread)
   JSObject *statsObj = JS_NewObject(cx, NULL, NULL, NULL);
   if (!statsObj)
     return false;
-  JS::AutoObjectRooter root(cx, statsObj);
+
+  JSBool ok = JS_DefineProperty(cx, rootObj,
+                                mainThread ? "mainThread" : "otherThreads",
+                                OBJECT_TO_JSVAL(statsObj),
+                                NULL, NULL, JSPROP_ENUMERATE);
+  if (!ok)
+    return false;
 
   AutoHashtable<SlowSQLEntryType> &sqlMap = (mainThread
                                              ? mSlowSQLOnMainThread
                                              : mSlowSQLOnOtherThread);
-  if (!sqlMap.ReflectHashtable(StatementReflector, cx, statsObj)) {
-    return false;
-  }
-
-  return JS_DefineProperty(cx, rootObj,
-                           mainThread ? "mainThread" : "otherThreads",
-                           OBJECT_TO_JSVAL(statsObj),
-                           NULL, NULL, JSPROP_ENUMERATE);
+  return sqlMap.ReflectHashtable(StatementReflector, cx, statsObj);
 }
 
 nsresult
@@ -802,7 +768,6 @@ TelemetryImpl::GetHistogramSnapshots(JSContext *cx, jsval *ret)
     if (!hobj) {
       return NS_ERROR_FAILURE;
     }
-    JS::AutoObjectRooter root(cx, hobj);
     switch (ReflectHistogramSnapshot(cx, hobj, h)) {
     case REFLECT_CORRUPT:
       // We can still hit this case even if ShouldReflectHistograms
@@ -831,11 +796,7 @@ TelemetryImpl::AddonHistogramReflector(AddonHistogramEntryType *entry,
   }
 
   JSObject *snapshot = JS_NewObject(cx, NULL, NULL, NULL);
-  if (!snapshot) {
-    // Just consider this to be skippable.
-    return true;
-  }
-  JS::AutoObjectRooter r(cx, snapshot);
+  js::AutoObjectRooter r(cx, snapshot);
   switch (ReflectHistogramSnapshot(cx, snapshot, entry->mData.h)) {
   case REFLECT_FAILURE:
   case REFLECT_CORRUPT:
@@ -862,7 +823,7 @@ TelemetryImpl::AddonReflector(AddonEntryType *entry,
   if (!subobj) {
     return false;
   }
-  JS::AutoObjectRooter r(cx, subobj);
+  js::AutoObjectRooter r(cx, subobj);
 
   AddonHistogramMapType *map = entry->mData;
   if (!(map->ReflectHashtable(AddonHistogramReflector, cx, subobj)
@@ -883,7 +844,7 @@ TelemetryImpl::GetAddonHistogramSnapshots(JSContext *cx, jsval *ret)
   if (!obj) {
     return NS_ERROR_FAILURE;
   }
-  JS::AutoObjectRooter r(cx, obj);
+  js::AutoObjectRooter r(cx, obj);
 
   if (!mAddonMap.ReflectHashtable(AddonReflector, cx, obj)) {
     return NS_ERROR_FAILURE;
@@ -918,7 +879,6 @@ TelemetryImpl::GetRegisteredHistograms(JSContext *cx, jsval *ret)
   JSObject *info = JS_NewObject(cx, NULL, NULL, NULL);
   if (!info)
     return NS_ERROR_FAILURE;
-  JS::AutoObjectRooter root(cx, info);
 
   for (size_t i = 0; i < count; ++i) {
     JSString *comment = JS_InternString(cx, gHistograms[i].comment);
@@ -944,325 +904,6 @@ TelemetryImpl::GetHistogramById(const nsACString &name, JSContext *cx, jsval *re
     return rv;
 
   return WrapAndReturnHistogram(h, cx, ret);
-}
-
-class TelemetrySessionData : public nsITelemetrySessionData
-{
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSITELEMETRYSESSIONDATA
-
-public:
-  static nsresult LoadFromDisk(nsIFile *, TelemetrySessionData **ptr);
-  static nsresult SaveToDisk(nsIFile *, const nsACString &uuid);
-
-  TelemetrySessionData(const char *uuid);
-  ~TelemetrySessionData();
-
-private:
-  typedef nsBaseHashtableET<nsUint32HashKey, Histogram::SampleSet> EntryType;
-  typedef AutoHashtable<EntryType> SessionMapType;
-  static bool SampleReflector(EntryType *entry, JSContext *cx, JSObject *obj);
-  SessionMapType mSampleSetMap;
-  nsCString mUUID;
-
-  bool DeserializeHistogramData(Pickle &pickle, void **iter);
-  static bool SerializeHistogramData(Pickle &pickle);
-
-  // The file format version.  Should be incremented whenever we change
-  // how individual SampleSets are stored in the file.
-  static const unsigned int sVersion = 1;
-};
-
-NS_IMPL_THREADSAFE_ISUPPORTS1(TelemetrySessionData, nsITelemetrySessionData)
-
-TelemetrySessionData::TelemetrySessionData(const char *uuid)
-  : mUUID(uuid)
-{
-}
-
-TelemetrySessionData::~TelemetrySessionData()
-{
-}
-
-NS_IMETHODIMP
-TelemetrySessionData::GetUuid(nsACString &uuid)
-{
-  uuid = mUUID;
-  return NS_OK;
-}
-
-bool
-TelemetrySessionData::SampleReflector(EntryType *entry, JSContext *cx,
-                                      JSObject *snapshots)
-{
-  // Don't reflect histograms with no data associated with them.
-  if (entry->mData.sum() == 0) {
-    return true;
-  }
-
-  // This has the undesirable effect of creating a histogram for the
-  // current session with the given ID.  But there's no good way to
-  // compute the ranges and buckets from scratch.
-  Histogram *h = nsnull;
-  nsresult rv = GetHistogramByEnumId(Telemetry::ID(entry->GetKey()), &h);
-  if (NS_FAILED(rv)) {
-    return true;
-  }
-
-  JSObject *snapshot = JS_NewObject(cx, NULL, NULL, NULL);
-  if (!snapshot) {
-    return false;
-  }
-  JS::AutoObjectRooter root(cx, snapshot);
-  return (ReflectHistogramAndSamples(cx, snapshot, h, entry->mData)
-          && JS_DefineProperty(cx, snapshots,
-                               h->histogram_name().c_str(),
-                               OBJECT_TO_JSVAL(snapshot), NULL, NULL,
-                               JSPROP_ENUMERATE));
-}
-
-NS_IMETHODIMP
-TelemetrySessionData::GetSnapshots(JSContext *cx, jsval *ret)
-{
-  JSObject *snapshots = JS_NewObject(cx, NULL, NULL, NULL);
-  if (!snapshots) {
-    return NS_ERROR_FAILURE;
-  }
-  JS::AutoObjectRooter root(cx, snapshots);
-
-  if (!mSampleSetMap.ReflectHashtable(SampleReflector, cx, snapshots)) {
-    return NS_ERROR_FAILURE;
-  }
-
-  *ret = OBJECT_TO_JSVAL(snapshots);
-  return NS_OK;
-}
-
-bool
-TelemetrySessionData::DeserializeHistogramData(Pickle &pickle, void **iter)
-{
-  PRUint32 count = 0;
-  if (!pickle.ReadUInt32(iter, &count)) {
-    return false;
-  }
-
-  for (size_t i = 0; i < count; ++i) {
-    int stored_length;
-    const char *name;
-    if (!pickle.ReadData(iter, &name, &stored_length)) {
-      return false;
-    }
-
-    Telemetry::ID id;
-    nsresult rv = TelemetryImpl::GetHistogramEnumId(name, &id);
-    if (NS_FAILED(rv)) {
-      // We serialized a non-static histogram or we serialized a
-      // histogram that is no longer defined in TelemetryHistograms.h.
-      // Just drop its data on the floor.  If we can't deserialize the
-      // data, though, we're in trouble.
-      Histogram::SampleSet ss;
-      if (!ss.Deserialize(iter, pickle)) {
-        return false;
-      }
-    } else {
-      EntryType *entry = mSampleSetMap.GetEntry(id);
-      if (!entry) {
-        entry = mSampleSetMap.PutEntry(id);
-        if (NS_UNLIKELY(!entry)) {
-          return false;
-        }
-        if (!entry->mData.Deserialize(iter, pickle)) {
-          return false;
-        }
-      }
-    }
-  }
-
-  return true;
-}
-
-nsresult
-TelemetrySessionData::LoadFromDisk(nsIFile *file, TelemetrySessionData **ptr)
-{
-  *ptr = nsnull;
-  nsresult rv;
-  nsCOMPtr<nsILocalFile> f(do_QueryInterface(file, &rv));
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
-
-  AutoFDClose fd;
-  rv = f->OpenNSPRFileDesc(PR_RDONLY, 0, &fd);
-  if (NS_FAILED(rv)) {
-    return NS_ERROR_FAILURE;
-  }
-
-  PRInt32 size = PR_Available(fd);
-  if (size == -1) {
-    return NS_ERROR_FAILURE;
-  }
-
-  nsAutoArrayPtr<char> data(new char[size]);
-  PRInt32 amount = PR_Read(fd, data, size);
-  if (amount != size) {
-    return NS_ERROR_FAILURE;
-  }
-
-  Pickle pickle(data, size);
-  void *iter = NULL;
-
-  unsigned int storedVersion;
-  if (!(pickle.ReadUInt32(&iter, &storedVersion)
-        && storedVersion == sVersion)) {
-    return NS_ERROR_FAILURE;
-  }
-
-  const char *uuid;
-  int uuidLength;
-  if (!pickle.ReadData(&iter, &uuid, &uuidLength)) {
-    return NS_ERROR_FAILURE;
-  }
-
-  nsAutoPtr<TelemetrySessionData> sessionData(new TelemetrySessionData(uuid));
-  if (!sessionData->DeserializeHistogramData(pickle, &iter)) {
-    return NS_ERROR_FAILURE;
-  }
-
-  *ptr = sessionData.forget();
-  return NS_OK;
-}
-
-bool
-TelemetrySessionData::SerializeHistogramData(Pickle &pickle)
-{
-  StatisticsRecorder::Histograms hs;
-  StatisticsRecorder::GetHistograms(&hs);
-
-  if (!pickle.WriteUInt32(hs.size())) {
-    return false;
-  }
-
-  for (StatisticsRecorder::Histograms::const_iterator it = hs.begin();
-       it != hs.end();
-       ++it) {
-    const Histogram *h = *it;
-    const char *name = h->histogram_name().c_str();
-
-    Histogram::SampleSet ss;
-    h->SnapshotSample(&ss);
-
-    if (!(pickle.WriteData(name, strlen(name)+1)
-          && ss.Serialize(&pickle))) {
-      return false;
-    }
-  }
-
-  return true;
-}
-
-nsresult
-TelemetrySessionData::SaveToDisk(nsIFile *file, const nsACString &uuid)
-{
-  nsresult rv;
-  nsCOMPtr<nsILocalFile> f(do_QueryInterface(file, &rv));
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
-
-  AutoFDClose fd;
-  rv = f->OpenNSPRFileDesc(PR_WRONLY | PR_CREATE_FILE | PR_TRUNCATE, 0600, &fd);
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
-
-  Pickle pickle;
-  if (!pickle.WriteUInt32(sVersion)) {
-    return NS_ERROR_FAILURE;
-  }
-
-  // Include the trailing NULL for the UUID to make reading easier.
-  const char *data;
-  size_t length = uuid.GetData(&data);
-  if (!(pickle.WriteData(data, length+1)
-        && SerializeHistogramData(pickle))) {
-    return NS_ERROR_FAILURE;
-  }
-
-  PRInt32 amount = PR_Write(fd, static_cast<const char*>(pickle.data()),
-                            pickle.size());
-  if (amount != pickle.size()) {
-    return NS_ERROR_FAILURE;
-  }
-
-  return NS_OK;
-}
-
-class SaveHistogramEvent : public nsRunnable
-{
-public:
-  SaveHistogramEvent(nsIFile *file, const nsACString &uuid,
-                     nsITelemetrySaveSessionDataCallback *callback)
-    : mFile(file), mUUID(uuid), mCallback(callback)
-  {}
-
-  NS_IMETHOD Run()
-  {
-    nsresult rv = TelemetrySessionData::SaveToDisk(mFile, mUUID);
-    mCallback->Handle(!!NS_SUCCEEDED(rv));
-    return rv;
-  }
-
-private:
-  nsCOMPtr<nsIFile> mFile;
-  nsCString mUUID;
-  nsCOMPtr<nsITelemetrySaveSessionDataCallback> mCallback;
-};
-
-NS_IMETHODIMP
-TelemetryImpl::SaveHistograms(nsIFile *file, const nsACString &uuid,
-                              nsITelemetrySaveSessionDataCallback *callback,
-                              bool isSynchronous)
-{
-  nsCOMPtr<nsIRunnable> event = new SaveHistogramEvent(file, uuid, callback);
-  if (isSynchronous) {
-    return event ? event->Run() : NS_ERROR_FAILURE;
-  } else {
-    return NS_DispatchToCurrentThread(event);
-  }
-}
-
-class LoadHistogramEvent : public nsRunnable
-{
-public:
-  LoadHistogramEvent(nsIFile *file,
-                     nsITelemetryLoadSessionDataCallback *callback)
-    : mFile(file), mCallback(callback)
-  {}
-
-  NS_IMETHOD Run()
-  {
-    TelemetrySessionData *sessionData = nsnull;
-    nsresult rv = TelemetrySessionData::LoadFromDisk(mFile, &sessionData);
-    if (NS_FAILED(rv)) {
-      mCallback->Handle(nsnull);
-    } else {
-      nsCOMPtr<nsITelemetrySessionData> data(sessionData);
-      mCallback->Handle(data);
-    }
-    return rv;
-  }
-
-private:
-  nsCOMPtr<nsIFile> mFile;
-  nsCOMPtr<nsITelemetryLoadSessionDataCallback> mCallback;
-};
-
-NS_IMETHODIMP
-TelemetryImpl::LoadHistograms(nsIFile *file,
-                              nsITelemetryLoadSessionDataCallback *callback)
-{
-  nsCOMPtr<nsIRunnable> event = new LoadHistogramEvent(file, callback);
-  return NS_DispatchToCurrentThread(event);
 }
 
 NS_IMETHODIMP

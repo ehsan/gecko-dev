@@ -60,6 +60,7 @@
 #include "pldhash.h"
 #include "nsHashtable.h"
 #include "nsICSSPseudoComparator.h"
+#include "nsCSSRuleProcessor.h"
 #include "mozilla/css/StyleRule.h"
 #include "mozilla/css/GroupRule.h"
 #include "nsIDocument.h"
@@ -1570,10 +1571,8 @@ static const nsEventStates sPseudoClassStates[] = {
   nsEventStates(),
   nsEventStates()
 };
-MOZ_STATIC_ASSERT(NS_ARRAY_LENGTH(sPseudoClassStates) ==
-                  nsCSSPseudoClasses::ePseudoClass_NotPseudoClass + 1,
-                  "ePseudoClass_NotPseudoClass is no longer at the end of"
-                  "sPseudoClassStates");
+PR_STATIC_ASSERT(NS_ARRAY_LENGTH(sPseudoClassStates) ==
+                   nsCSSPseudoClasses::ePseudoClass_NotPseudoClass + 1);
 
 // |aDependence| has two functions:
 //  * when non-null, it indicates that we're processing a negation,

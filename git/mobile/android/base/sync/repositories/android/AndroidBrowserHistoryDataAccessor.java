@@ -39,7 +39,6 @@ package org.mozilla.gecko.sync.repositories.android;
 
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
-import org.mozilla.gecko.db.BrowserContract;
 import org.mozilla.gecko.sync.repositories.domain.HistoryRecord;
 import org.mozilla.gecko.sync.repositories.domain.Record;
 
@@ -63,7 +62,7 @@ public class AndroidBrowserHistoryDataAccessor extends AndroidBrowserRepositoryD
 
   @Override
   protected Uri getUri() {
-    return BrowserContractHelpers.HISTORY_CONTENT_URI;
+    return BrowserContract.History.CONTENT_URI;
   }
 
   @Override
@@ -92,7 +91,7 @@ public class AndroidBrowserHistoryDataAccessor extends AndroidBrowserRepositoryD
 
   @Override
   protected String[] getAllColumns() {
-    return BrowserContractHelpers.HistoryColumns;
+    return BrowserContract.History.HistoryColumns;
   }
   
   @Override

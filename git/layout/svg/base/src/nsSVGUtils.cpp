@@ -196,56 +196,6 @@ NS_SMILEnabled()
   return gSMILEnabled;
 }
 
-// we only take the address of this:
-static mozilla::gfx::UserDataKey sSVGAutoRenderStateKey;
-
-SVGAutoRenderState::SVGAutoRenderState(nsRenderingContext *aContext,
-                                       RenderMode aMode)
-  : mContext(aContext)
-  , mOriginalRenderState(nsnull)
-  , mMode(aMode)
-  , mPaintingToWindow(false)
-{
-  mOriginalRenderState = aContext->RemoveUserData(&sSVGAutoRenderStateKey);
-  // We always remove ourselves from aContext before it dies, so
-  // passing nsnull as the destroy function is okay.
-  aContext->AddUserData(&sSVGAutoRenderStateKey, this, nsnull);
-}
-
-SVGAutoRenderState::~SVGAutoRenderState()
-{
-  mContext->RemoveUserData(&sSVGAutoRenderStateKey);
-  if (mOriginalRenderState) {
-    mContext->AddUserData(&sSVGAutoRenderStateKey, mOriginalRenderState, nsnull);
-  }
-}
-
-void
-SVGAutoRenderState::SetPaintingToWindow(bool aPaintingToWindow)
-{
-  mPaintingToWindow = aPaintingToWindow;
-}
-
-/* static */ SVGAutoRenderState::RenderMode
-SVGAutoRenderState::GetRenderMode(nsRenderingContext *aContext)
-{
-  void *state = aContext->GetUserData(&sSVGAutoRenderStateKey);
-  if (state) {
-    return static_cast<SVGAutoRenderState*>(state)->mMode;
-  }
-  return NORMAL;
-}
-
-/* static */ bool
-SVGAutoRenderState::IsPaintingToWindow(nsRenderingContext *aContext)
-{
-  void *state = aContext->GetUserData(&sSVGAutoRenderStateKey);
-  if (state) {
-    return static_cast<SVGAutoRenderState*>(state)->mPaintingToWindow;
-  }
-  return false;
-}
-
 nsSVGSVGElement*
 nsSVGUtils::GetOuterSVGElement(nsSVGElement *aSVGElement)
 {
@@ -1010,7 +960,7 @@ nsSVGUtils::NotifyRedrawUnsuspended(nsIFrame *aFrame)
 class SVGPaintCallback : public nsSVGFilterPaintCallback
 {
 public:
-  virtual void Paint(nsRenderingContext *aContext, nsIFrame *aTarget,
+  virtual void Paint(nsSVGRenderState *aContext, nsIFrame *aTarget,
                      const nsIntRect* aDirtyRect)
   {
     nsISVGChildFrame *svgChildFrame = do_QueryFrame(aTarget);
@@ -1039,7 +989,7 @@ public:
 };
 
 void
-nsSVGUtils::PaintFrameWithEffects(nsRenderingContext *aContext,
+nsSVGUtils::PaintFrameWithEffects(nsSVGRenderState *aContext,
                                   const nsIntRect *aDirtyRect,
                                   nsIFrame *aFrame)
 {
@@ -1050,12 +1000,6 @@ nsSVGUtils::PaintFrameWithEffects(nsRenderingContext *aContext,
   float opacity = aFrame->GetStyleDisplay()->mOpacity;
   if (opacity == 0.0f)
     return;
-
-  const nsIContent* content = aFrame->GetContent();
-  if (content->IsSVG() &&
-      !static_cast<const nsSVGElement*>(content)->HasValidDimensions()) {
-    return;
-  }
 
   /* Properties are added lazily and may have been removed by a restyle,
      so make sure all applicable ones are set again. */
@@ -1102,7 +1046,7 @@ nsSVGUtils::PaintFrameWithEffects(nsRenderingContext *aContext,
   if (opacity != 1.0f && CanOptimizeOpacity(aFrame))
     opacity = 1.0f;
 
-  gfxContext *gfx = aContext->ThebesContext();
+  gfxContext *gfx = aContext->GetGfxContext();
   bool complexEffects = false;
 
   nsSVGClipPathFrame *clipPathFrame = effectProperties.GetClipPathFrame(&isOK);
@@ -1215,9 +1159,9 @@ nsSVGUtils::HitTestChildren(nsIFrame *aFrame, const nsPoint &aPoint)
        current = current->GetPrevSibling()) {
     nsISVGChildFrame* SVGFrame = do_QueryFrame(current);
     if (SVGFrame) {
-      result = SVGFrame->GetFrameForPoint(aPoint);
-      if (result)
-        break;
+       result = SVGFrame->GetFrameForPoint(aPoint);
+       if (result)
+         break;
     }
   }
 
@@ -1449,18 +1393,13 @@ nsSVGUtils::GetBBox(nsIFrame *aFrame, PRUint32 aFlags)
       }
       svg = do_QueryFrame(aFrame);
     }
-    nsIContent* content = aFrame->GetContent();
-    if (content->IsSVG() &&
-        !static_cast<const nsSVGElement*>(content)->HasValidDimensions()) {
-      return bbox;
-    }
     gfxMatrix matrix;
     if (aFrame->GetType() == nsGkAtoms::svgForeignObjectFrame) {
       // The spec says getBBox "Returns the tight bounding box in *current user
       // space*". So we should really be doing this for all elements, but that
       // needs investigation to check that we won't break too much content.
-      NS_ABORT_IF_FALSE(content->IsSVG(), "bad cast");
-      nsSVGElement *element = static_cast<nsSVGElement*>(content);
+      NS_ABORT_IF_FALSE(aFrame->GetContent()->IsSVG(), "bad cast");
+      nsSVGElement *element = static_cast<nsSVGElement*>(aFrame->GetContent());
       matrix = element->PrependLocalTransformsTo(matrix,
                           nsSVGElement::eChildToUserSpace);
     }
@@ -1639,6 +1578,34 @@ nsSVGUtils::PathExtentsToMaxStrokeExtents(const gfxRect& aPathExtents,
 }
 
 // ----------------------------------------------------------------------
+
+nsSVGRenderState::nsSVGRenderState(nsRenderingContext *aContext) :
+  mRenderMode(NORMAL), mRenderingContext(aContext), mPaintingToWindow(false)
+{
+  mGfxContext = aContext->ThebesContext();
+}
+
+nsSVGRenderState::nsSVGRenderState(gfxContext *aContext) :
+  mRenderMode(NORMAL), mGfxContext(aContext), mPaintingToWindow(false)
+{
+}
+
+nsSVGRenderState::nsSVGRenderState(gfxASurface *aSurface) :
+  mRenderMode(NORMAL), mPaintingToWindow(false)
+{
+  mGfxContext = new gfxContext(aSurface);
+}
+
+nsRenderingContext*
+nsSVGRenderState::GetRenderingContext(nsIFrame *aFrame)
+{
+  if (!mRenderingContext) {
+    mRenderingContext = new nsRenderingContext();
+    mRenderingContext->Init(aFrame->PresContext()->DeviceContext(),
+                            mGfxContext);
+  }
+  return mRenderingContext;
+}
 
 /* static */ bool
 nsSVGUtils::RootSVGElementHasViewbox(const nsIContent *aRootSVGElem)

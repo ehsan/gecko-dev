@@ -73,7 +73,7 @@ AssertIsOnMainThread()
 
 // All of these are implemented in RuntimeService.cpp
 JSBool
-ResolveWorkerClasses(JSContext* aCx, JSObject* aObj, jsid aId, unsigned aFlags,
+ResolveWorkerClasses(JSContext* aCx, JSObject* aObj, jsid aId, uintN aFlags,
                      JSObject** aObjp);
 
 void

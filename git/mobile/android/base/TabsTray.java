@@ -58,7 +58,7 @@ import android.widget.ListView;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 
-public class TabsTray extends Activity implements Tabs.OnTabsChangedListener {
+public class TabsTray extends Activity implements GeckoApp.OnTabsChangedListener {
 
     private static int sPreferredHeight;
     private static int sMaxHeight;
@@ -107,19 +107,18 @@ public class TabsTray extends Activity implements Tabs.OnTabsChangedListener {
         sPreferredHeight = (int) (0.67 * metrics.heightPixels);
         sMaxHeight = (int) (sPreferredHeight + (0.33 * sListItemHeight));
 
-        Tabs tabs = Tabs.getInstance();
-        tabs.registerOnTabsChangedListener(this);
-        tabs.refreshThumbnails();
-        onTabChanged(null, null);
+        GeckoApp.registerOnTabsChangedListener(this);
+        Tabs.getInstance().refreshThumbnails();
+        onTabsChanged(null);
     }
 
     @Override
     public void onDestroy() {
         super.onDestroy();
-        Tabs.getInstance().unregisterOnTabsChangedListener(this);
+        GeckoApp.unregisterOnTabsChangedListener(this);
     }
    
-    public void onTabChanged(Tab tab, Tabs.TabEvents msg) {
+    public void onTabsChanged(Tab tab) {
         if (Tabs.getInstance().getCount() == 1)
             finishActivity();
 

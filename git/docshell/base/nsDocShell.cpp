@@ -785,8 +785,7 @@ nsDocShell::nsDocShell():
   // We're counting the number of |nsDocShells| to help find leaks
   ++gNumberOfDocShells;
   if (!PR_GetEnv("MOZ_QUIET")) {
-      printf("++DOCSHELL %p == %ld [id = %ld]\n", (void*) this,
-             gNumberOfDocShells, mHistoryID);
+      printf("++DOCSHELL %p == %ld\n", (void*) this, gNumberOfDocShells);
   }
 #endif
 }
@@ -814,8 +813,7 @@ nsDocShell::~nsDocShell()
     // We're counting the number of |nsDocShells| to help find leaks
     --gNumberOfDocShells;
     if (!PR_GetEnv("MOZ_QUIET")) {
-        printf("--DOCSHELL %p == %ld [id = %ld]\n", (void*) this,
-               gNumberOfDocShells, mHistoryID);
+        printf("--DOCSHELL %p == %ld\n", (void*) this, gNumberOfDocShells);
     }
 #endif
 }
@@ -2312,6 +2310,34 @@ nsDocShell::HistoryTransactionRemoved(PRInt32 aIndex)
     return NS_OK;
 }
 
+static
+nsresult
+GetPrincipalDomain(nsIPrincipal* aPrincipal, nsACString& aDomain)
+{
+  aDomain.Truncate();
+
+  nsCOMPtr<nsIURI> codebaseURI;
+  nsresult rv = aPrincipal->GetDomain(getter_AddRefs(codebaseURI));
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (!codebaseURI) {
+     rv = aPrincipal->GetURI(getter_AddRefs(codebaseURI));
+     NS_ENSURE_SUCCESS(rv, rv);
+  }
+
+  if (!codebaseURI)
+     return NS_OK;
+
+  nsCOMPtr<nsIURI> innerURI = NS_GetInnermostURI(codebaseURI);
+  NS_ASSERTION(innerURI, "Failed to get innermost URI");
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = innerURI->GetAsciiHost(aDomain);
+  if (NS_FAILED(rv))
+      return rv;
+
+  return NS_OK;
+}
+
 NS_IMETHODIMP
 nsDocShell::GetSessionStorageForPrincipal(nsIPrincipal* aPrincipal,
                                           const nsAString& aDocumentURI,
@@ -2341,15 +2367,15 @@ nsDocShell::GetSessionStorageForPrincipal(nsIPrincipal* aPrincipal,
                                                           aCreate,
                                                           aStorage);
 
-    nsXPIDLCString origin;
-    rv = aPrincipal->GetOrigin(getter_Copies(origin));
+    nsCAutoString currentDomain;
+    rv = GetPrincipalDomain(aPrincipal, currentDomain);
     if (NS_FAILED(rv))
         return rv;
 
-    if (origin.IsEmpty())
+    if (currentDomain.IsEmpty())
         return NS_OK;
 
-    if (!mStorages.Get(origin, aStorage) && aCreate) {
+    if (!mStorages.Get(currentDomain, aStorage) && aCreate) {
         nsCOMPtr<nsIDOMStorage> newstorage =
             do_CreateInstance("@mozilla.org/dom/storage;2");
         if (!newstorage)
@@ -2358,12 +2384,11 @@ nsDocShell::GetSessionStorageForPrincipal(nsIPrincipal* aPrincipal,
         nsCOMPtr<nsPIDOMStorage> pistorage = do_QueryInterface(newstorage);
         if (!pistorage)
             return NS_ERROR_FAILURE;
-
         rv = pistorage->InitAsSessionStorage(aPrincipal, aDocumentURI);
         if (NS_FAILED(rv))
             return rv;
 
-        if (!mStorages.Put(origin, newstorage))
+        if (!mStorages.Put(currentDomain, newstorage))
             return NS_ERROR_OUT_OF_MEMORY;
 
         newstorage.swap(*aStorage);
@@ -2374,32 +2399,22 @@ nsDocShell::GetSessionStorageForPrincipal(nsIPrincipal* aPrincipal,
 #endif
     }
     else if (*aStorage) {
-        nsCOMPtr<nsPIDOMStorage> piStorage = do_QueryInterface(*aStorage);
-        if (piStorage) {
-            nsCOMPtr<nsIPrincipal> storagePrincipal = piStorage->Principal();
-
-            // The origin string used to map items in the hash table is 
-            // an implicit security check. That check is double-confirmed 
-            // by checking the principal a storage was demanded for 
-            // really is the principal for which that storage was originally 
-            // created. Originally, the check was hidden in the CanAccess 
-            // method but it's implementation has changed.
-            bool equals;
-            nsresult rv = aPrincipal->EqualsIgnoringDomain(storagePrincipal, &equals);
-            NS_ASSERTION(NS_SUCCEEDED(rv) && equals,
-                         "GetSessionStorageForPrincipal got a storage "
-                         "that could not be accessed!");
-
-            if (NS_FAILED(rv) || !equals) {
-                NS_RELEASE(*aStorage);
-                return NS_ERROR_DOM_SECURITY_ERR;
-            }
-        }
+      nsCOMPtr<nsPIDOMStorage> piStorage = do_QueryInterface(*aStorage);
+      if (piStorage) {
+          bool canAccess = piStorage->CanAccess(aPrincipal);
+          NS_ASSERTION(canAccess,
+                       "GetSessionStorageForPrincipal got a storage "
+                       "that could not be accessed!");
+          if (!canAccess) {
+              NS_RELEASE(*aStorage);
+              return NS_ERROR_DOM_SECURITY_ERR;
+          }
+      }
 
 #if defined(PR_LOGGING) && defined(DEBUG)
-        PR_LOG(gDocShellLog, PR_LOG_DEBUG,
-               ("nsDocShell[%p]: returns existing sessionStorage %p",
-                this, *aStorage));
+      PR_LOG(gDocShellLog, PR_LOG_DEBUG,
+             ("nsDocShell[%p]: returns existing sessionStorage %p",
+              this, *aStorage));
 #endif
     }
 
@@ -2484,16 +2499,16 @@ nsDocShell::AddSessionStorage(nsIPrincipal* aPrincipal,
     if (topItem) {
         nsCOMPtr<nsIDocShell> topDocShell = do_QueryInterface(topItem);
         if (topDocShell == this) {
-            nsXPIDLCString origin;
-            rv = aPrincipal->GetOrigin(getter_Copies(origin));
+            nsCAutoString currentDomain;
+            rv = GetPrincipalDomain(aPrincipal, currentDomain);
             if (NS_FAILED(rv))
                 return rv;
 
-            if (origin.IsEmpty())
+            if (currentDomain.IsEmpty())
                 return NS_ERROR_FAILURE;
 
             // Do not replace an existing session storage.
-            if (mStorages.GetWeak(origin))
+            if (mStorages.GetWeak(currentDomain))
                 return NS_ERROR_NOT_AVAILABLE;
 
 #if defined(PR_LOGGING) && defined(DEBUG)
@@ -2501,7 +2516,7 @@ nsDocShell::AddSessionStorage(nsIPrincipal* aPrincipal,
                    ("nsDocShell[%p]: was added a sessionStorage %p",
                     this, aStorage));
 #endif
-            if (!mStorages.Put(origin, aStorage))
+            if (!mStorages.Put(currentDomain, aStorage))
                 return NS_ERROR_OUT_OF_MEMORY;
         }
         else {
@@ -11754,20 +11769,5 @@ nsDocShell::GetCanExecuteScripts(bool *aResult)
       } while (treeItem && docshell);
   }
 
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDocShell::GetIsBrowserFrame(bool *aOut)
-{
-  NS_ENSURE_ARG_POINTER(aOut);
-  *aOut = mIsBrowserFrame;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDocShell::SetIsBrowserFrame(bool aValue)
-{
-  mIsBrowserFrame = aValue;
   return NS_OK;
 }

@@ -37,10 +37,11 @@
  
 #include "nsICharsetConverterManager.h"
 #include "nsServiceManagerUtils.h"
-#include "nsCharsetAlias.h"
+#include "nsICharsetAlias.h"
 #include "nsEncoderDecoderUtils.h"
 #include "nsTraceRefcnt.h"
 
+static NS_DEFINE_CID(kCharsetAliasCID, NS_CHARSETALIAS_CID);
 
 void
 nsHtml5MetaScanner::sniff(nsHtml5ByteReadable* bytes, nsIUnicodeDecoder** decoder, nsACString& charset)
@@ -81,7 +82,12 @@ nsHtml5MetaScanner::tryCharset(nsString* charset)
     return true;
   }
   nsCAutoString preferred;
-  res = nsCharsetAlias::GetPreferred(encoding, preferred);
+  nsCOMPtr<nsICharsetAlias> calias(do_GetService(kCharsetAliasCID, &res));
+  if (NS_FAILED(res)) {
+    NS_ERROR("Could not get CharsetAlias service.");
+    return false;
+  }
+  res = calias->GetPreferred(encoding, preferred);
   if (NS_FAILED(res)) {
     return false;
   }

@@ -200,9 +200,9 @@ class Bindings {
     uint16_t countVars() const { return nvars; }
     uint16_t countUpvars() const { return nupvars; }
 
-    unsigned countArgsAndVars() const { return nargs + nvars; }
+    uintN countArgsAndVars() const { return nargs + nvars; }
 
-    unsigned countLocalNames() const { return nargs + nvars + nupvars; }
+    uintN countLocalNames() const { return nargs + nvars + nupvars; }
 
     bool hasUpvars() const { return nupvars > 0; }
     bool hasLocalNames() const { return countLocalNames() > 0; }
@@ -280,7 +280,7 @@ class Bindings {
      * exists, *indexp will receive the index of the corresponding argument or
      * variable.
      */
-    BindingKind lookup(JSContext *cx, JSAtom *name, unsigned *indexp) const;
+    BindingKind lookup(JSContext *cx, JSAtom *name, uintN *indexp) const;
 
     /* Convenience method to check for any binding for a name. */
     bool hasBinding(JSContext *cx, JSAtom *name) const {
@@ -672,7 +672,7 @@ struct JSScript : public js::gc::Cell {
     }
 
     /*
-     * computedSizeOfData() is the in-use size of all the data sections.
+     * computedSizeOfData() is the in-use size of all the data sections. 
      * sizeOfData() is the size of the block allocated to hold all the data sections
      * (which can be larger than the in-use size).
      */
@@ -829,17 +829,12 @@ struct JSScript : public js::gc::Cell {
     static inline void writeBarrierPost(JSScript *script, void *addr);
 
     static inline js::ThingRootKind rootKind() { return js::THING_ROOT_SCRIPT; }
-
-    static JSPrincipals *normalizeOriginPrincipals(JSPrincipals *principals,
-                                                   JSPrincipals *originPrincipals) {
-        return originPrincipals ? originPrincipals : principals;
-    }
 };
 
 /* If this fails, padding_ can be removed. */
 JS_STATIC_ASSERT(sizeof(JSScript) % js::gc::Cell::CellSize == 0);
 
-static JS_INLINE unsigned
+static JS_INLINE uintN
 StackDepth(JSScript *script)
 {
     return script->nslots - script->nfixed;
@@ -902,21 +897,18 @@ CheckScript(JSScript *script, JSScript *prev)
 extern jssrcnote *
 js_GetSrcNoteCached(JSContext *cx, JSScript *script, jsbytecode *pc);
 
-extern jsbytecode *
-js_LineNumberToPC(JSScript *script, unsigned lineno);
+extern uintN
+js_PCToLineNumber(JSContext *cx, JSScript *script, jsbytecode *pc);
 
-extern JS_FRIEND_API(unsigned)
+extern jsbytecode *
+js_LineNumberToPC(JSScript *script, uintN lineno);
+
+extern JS_FRIEND_API(uintN)
 js_GetScriptLineExtent(JSScript *script);
 
 namespace js {
 
-extern unsigned
-PCToLineNumber(JSScript *script, jsbytecode *pc);
-
-extern unsigned
-PCToLineNumber(unsigned startLine, jssrcnote *notes, jsbytecode *code, jsbytecode *pc);
-
-extern unsigned
+extern uintN
 CurrentLine(JSContext *cx);
 
 /*
@@ -934,13 +926,13 @@ enum LineOption {
 };
 
 inline void
-CurrentScriptFileLineOrigin(JSContext *cx, unsigned *linenop, LineOption = NOT_CALLED_FROM_JSOP_EVAL);
+CurrentScriptFileLineOrigin(JSContext *cx, uintN *linenop, LineOption = NOT_CALLED_FROM_JSOP_EVAL);
 
 extern JSScript *
 CloneScript(JSContext *cx, JSScript *script);
 
 /*
- * NB: after a successful JSXDR_DECODE, XDRScript callers must do any
+ * NB: after a successful JSXDR_DECODE, js_XDRScript callers must do any
  * required subsequent set-up of owning function or script object and then call
  * js_CallNewScriptHook.
  */

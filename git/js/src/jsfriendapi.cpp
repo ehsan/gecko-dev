@@ -38,7 +38,7 @@
  * ***** END LICENSE BLOCK ***** */
 
 #include "mozilla/GuardObjects.h"
-#include "mozilla/StandardInteger.h"
+#include "mozilla/StdInt.h"
 
 #include "jscntxt.h"
 #include "jscompartment.h"
@@ -222,9 +222,9 @@ js::IsSystemCompartment(const JSCompartment *c)
 }
 
 JS_FRIEND_API(bool)
-js::IsAtomsCompartment(const JSCompartment *c)
+js::IsAtomsCompartmentFor(const JSContext *cx, const JSCompartment *c)
 {
-    return c == c->rt->atomsCompartment;
+    return c == cx->runtime->atomsCompartment;
 }
 
 JS_FRIEND_API(bool)
@@ -265,7 +265,7 @@ js::IsOriginalScriptFunction(JSFunction *fun)
 
 JS_FRIEND_API(JSFunction *)
 js::DefineFunctionWithReserved(JSContext *cx, JSObject *obj, const char *name, JSNative call,
-                               unsigned nargs, unsigned attrs)
+                               uintN nargs, uintN attrs)
 {
     RootObject objRoot(cx, &obj);
 
@@ -280,7 +280,7 @@ js::DefineFunctionWithReserved(JSContext *cx, JSObject *obj, const char *name, J
 }
 
 JS_FRIEND_API(JSFunction *)
-js::NewFunctionWithReserved(JSContext *cx, JSNative native, unsigned nargs, unsigned flags,
+js::NewFunctionWithReserved(JSContext *cx, JSNative native, uintN nargs, uintN flags,
                             JSObject *parent, const char *name)
 {
     RootObject parentRoot(cx, &parent);
@@ -304,7 +304,7 @@ js::NewFunctionWithReserved(JSContext *cx, JSNative native, unsigned nargs, unsi
 }
 
 JS_FRIEND_API(JSFunction *)
-js::NewFunctionByIdWithReserved(JSContext *cx, JSNative native, unsigned nargs, unsigned flags, JSObject *parent,
+js::NewFunctionByIdWithReserved(JSContext *cx, JSNative native, uintN nargs, uintN flags, JSObject *parent,
                                 jsid id)
 {
     RootObject parentRoot(cx, &parent);
@@ -320,7 +320,7 @@ js::NewFunctionByIdWithReserved(JSContext *cx, JSNative native, unsigned nargs, 
 
 JS_FRIEND_API(JSObject *)
 js::InitClassWithReserved(JSContext *cx, JSObject *obj, JSObject *parent_proto,
-                          JSClass *clasp, JSNative constructor, unsigned nargs,
+                          JSClass *clasp, JSNative constructor, uintN nargs,
                           JSPropertySpec *ps, JSFunctionSpec *fs,
                           JSPropertySpec *static_ps, JSFunctionSpec *static_fs)
 {
@@ -468,32 +468,22 @@ struct DumpingChildInfo {
     {}
 };
 
-typedef HashSet<void *, DefaultHasher<void *>, SystemAllocPolicy> PtrSet;
+typedef HashSet<void *, DefaultHasher<void *>, ContextAllocPolicy> PtrSet;
 
 struct JSDumpHeapTracer : public JSTracer {
     PtrSet visited;
     FILE   *output;
-    Vector<DumpingChildInfo, 0, SystemAllocPolicy> nodes;
+    Vector<DumpingChildInfo, 0, ContextAllocPolicy> nodes;
     char   buffer[200];
     bool   rootTracing;
 
-    JSDumpHeapTracer(FILE *fp)
-      : output(fp)
+    JSDumpHeapTracer(JSContext *cx, FILE *fp)
+        : visited(cx), output(fp), nodes(cx)
     {}
 };
 
 static void
 DumpHeapVisitChild(JSTracer *trc, void **thingp, JSGCTraceKind kind);
-
-static char
-MarkDescriptor(void *thing)
-{
-    gc::Cell *cell = static_cast<gc::Cell*>(thing);
-    if (cell->isMarked(gc::BLACK))
-        return cell->isMarked(gc::GRAY) ? 'G' : 'B';
-    else
-        return cell->isMarked(gc::GRAY) ? 'X' : 'W';
-}
 
 static void
 DumpHeapPushIfNew(JSTracer *trc, void **thingp, JSGCTraceKind kind)
@@ -508,7 +498,7 @@ DumpHeapPushIfNew(JSTracer *trc, void **thingp, JSGCTraceKind kind)
      * already seen thing, for complete root information.
      */
     if (dtrc->rootTracing) {
-        fprintf(dtrc->output, "%p %c %s\n", thing, MarkDescriptor(thing),
+        fprintf(dtrc->output, "%p %s\n", thing,
                 JS_GetTraceEdgeName(dtrc, dtrc->buffer, sizeof(dtrc->buffer)));
     }
 
@@ -525,15 +515,15 @@ DumpHeapVisitChild(JSTracer *trc, void **thingp, JSGCTraceKind kind)
     JS_ASSERT(trc->callback == DumpHeapVisitChild);
     JSDumpHeapTracer *dtrc = static_cast<JSDumpHeapTracer *>(trc);
     const char *edgeName = JS_GetTraceEdgeName(dtrc, dtrc->buffer, sizeof(dtrc->buffer));
-    fprintf(dtrc->output, "> %p %c %s\n", *thingp, MarkDescriptor(*thingp), edgeName);
+    fprintf(dtrc->output, "> %p %s\n", *thingp, edgeName);
     DumpHeapPushIfNew(dtrc, thingp, kind);
 }
 
 void
-js::DumpHeapComplete(JSRuntime *rt, FILE *fp)
+js::DumpHeapComplete(JSContext *cx, FILE *fp)
 {
-    JSDumpHeapTracer dtrc(fp);
-    JS_TracerInit(&dtrc, rt, DumpHeapPushIfNew);
+    JSDumpHeapTracer dtrc(cx, fp);
+    JS_TracerInit(&dtrc, cx, DumpHeapPushIfNew);
     if (!dtrc.visited.init(10000))
         return;
 
@@ -550,12 +540,11 @@ js::DumpHeapComplete(JSRuntime *rt, FILE *fp)
         DumpingChildInfo dci = dtrc.nodes.popCopy();
         JS_PrintTraceThingInfo(dtrc.buffer, sizeof(dtrc.buffer),
                                &dtrc, dci.node, dci.kind, JS_TRUE);
-        fprintf(fp, "%p %c %s\n", dci.node, MarkDescriptor(dci.node), dtrc.buffer);
+        fprintf(fp, "%p %s\n", dci.node, dtrc.buffer);
         JS_TraceChildren(&dtrc, dci.node, dci.kind);
     }
 
     dtrc.visited.finish();
-    fflush(dtrc.output);
 }
 
 #endif
@@ -601,17 +590,17 @@ VersionSetXML(JSVersion version, bool enable)
 JS_FRIEND_API(bool)
 CanCallContextDebugHandler(JSContext *cx)
 {
-    return !!cx->runtime->debugHooks.debuggerHandler;
+    return cx->debugHooks && cx->debugHooks->debuggerHandler;
 }
 
 JS_FRIEND_API(JSTrapStatus)
 CallContextDebugHandler(JSContext *cx, JSScript *script, jsbytecode *bc, Value *rval)
 {
-    if (!cx->runtime->debugHooks.debuggerHandler)
+    if (!CanCallContextDebugHandler(cx))
         return JSTRAP_RETURN;
 
-    return cx->runtime->debugHooks.debuggerHandler(cx, script, bc, rval,
-                                                   cx->runtime->debugHooks.debuggerHandlerData);
+    return cx->debugHooks->debuggerHandler(cx, script, bc, rval,
+                                           cx->debugHooks->debuggerHandlerData);
 }
 
 #ifdef JS_THREADSAFE
@@ -742,12 +731,6 @@ extern JS_FRIEND_API(bool)
 IsIncrementalGCEnabled(JSRuntime *rt)
 {
     return rt->gcIncrementalEnabled;
-}
-
-extern JS_FRIEND_API(void)
-DisableIncrementalGC(JSRuntime *rt)
-{
-    rt->gcIncrementalEnabled = false;
 }
 
 JS_FRIEND_API(bool)

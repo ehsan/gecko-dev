@@ -69,47 +69,19 @@ JS_PUBLIC_DATA(uint32_t) OOM_counter = 0;
  */
 JS_STATIC_ASSERT(sizeof(void *) == sizeof(void (*)()));
 
-static JS_NEVER_INLINE void
-CrashInJS()
-{
-    /*
-     * We write 123 here so that the machine code for this function is
-     * unique. Otherwise the linker, trying to be smart, might use the
-     * same code for CrashInJS and for some other function. That
-     * messes up the signature in minidumps.
-     */
-
-#if defined(WIN32)
-    /*
-     * We used to call DebugBreak() on Windows, but amazingly, it causes
-     * the MSVS 2010 debugger not to be able to recover a call stack.
-     */
-    *((volatile int *) NULL) = 123;
-    exit(3);
-#elif defined(__APPLE__)
-    /*
-     * On Mac OS X, Breakpad ignores signals. Only real Mach exceptions are
-     * trapped.
-     */
-    *((volatile int *) NULL) = 123;  /* To continue from here in GDB: "return" then "continue". */
-    raise(SIGABRT);  /* In case above statement gets nixed by the optimizer. */
-#else
-    raise(SIGABRT);  /* To continue from here in GDB: "signal 0". */
-#endif
-}
-
-JS_PUBLIC_API(void)
-JS_Assert(const char *s, const char *file, int ln)
-{
-    fprintf(stderr, "Assertion failure: %s, at %s:%d\n", s, file, ln);
-    fflush(stderr);
-    CrashInJS();
-}
+/*
+ * |JS_Assert| historically took |JSIntn ln| as its last argument.  We've
+ * boiled |JSIntn ln| down to simply |int ln| so that mfbt may declare the
+ * function without depending on the |JSIntn| typedef, so we must manually
+ * verify that the |JSIntn| typedef is consistent.
+ */
+JS_STATIC_ASSERT((tl::IsSameType<JSIntn, int>::result));
 
 #ifdef JS_BASIC_STATS
 
 #include <math.h>
 #include <string.h>
+#include "jscompat.h"
 
 /*
  * Histogram bins count occurrences of values <= the bin label, as follows:
@@ -121,7 +93,7 @@ JS_Assert(const char *s, const char *file, int ln)
  * We wish to count occurrences of 0 and 1 values separately, always.
  */
 static uint32_t
-BinToVal(unsigned logscale, unsigned bin)
+BinToVal(uintN logscale, uintN bin)
 {
     JS_ASSERT(bin <= 10);
     if (bin <= 1 || logscale == 0)
@@ -133,17 +105,17 @@ BinToVal(unsigned logscale, unsigned bin)
     return uint32_t(pow(10.0, (double) bin));
 }
 
-static unsigned
-ValToBin(unsigned logscale, uint32_t val)
+static uintN
+ValToBin(uintN logscale, uint32_t val)
 {
-    unsigned bin;
+    uintN bin;
 
     if (val <= 1)
         return val;
     bin = (logscale == 10)
-          ? (unsigned) ceil(log10((double) val))
+          ? (uintN) ceil(log10((double) val))
           : (logscale == 2)
-          ? (unsigned) JS_CEILING_LOG2W(val)
+          ? (uintN) JS_CEILING_LOG2W(val)
           : val;
     return JS_MIN(bin, 10);
 }
@@ -151,7 +123,7 @@ ValToBin(unsigned logscale, uint32_t val)
 void
 JS_BasicStatsAccum(JSBasicStats *bs, uint32_t val)
 {
-    unsigned oldscale, newscale, bin;
+    uintN oldscale, newscale, bin;
     double mean;
 
     ++bs->num;
@@ -218,7 +190,7 @@ JS_DumpBasicStats(JSBasicStats *bs, const char *title, FILE *fp)
 void
 JS_DumpHistogram(JSBasicStats *bs, FILE *fp)
 {
-    unsigned bin;
+    uintN bin;
     uint32_t cnt, max;
     double sum, mean;
 
@@ -230,8 +202,8 @@ JS_DumpHistogram(JSBasicStats *bs, FILE *fp)
     }
     mean = sum / cnt;
     for (bin = 0; bin <= 10; bin++) {
-        unsigned val = BinToVal(bs->logscale, bin);
-        unsigned end = (bin == 10) ? 0 : BinToVal(bs->logscale, bin + 1);
+        uintN val = BinToVal(bs->logscale, bin);
+        uintN end = (bin == 10) ? 0 : BinToVal(bs->logscale, bin + 1);
         cnt = bs->hist[bin];
         if (val + 1 == end)
             fprintf(fp, "        [%6u]", val);
@@ -245,7 +217,7 @@ JS_DumpHistogram(JSBasicStats *bs, FILE *fp)
                 cnt = uint32_t(ceil(log10((double) cnt)));
             else if (max > 16 && mean > 8)
                 cnt = JS_CEILING_LOG2W(cnt);
-            for (unsigned i = 0; i < cnt; i++)
+            for (uintN i = 0; i < cnt; i++)
                 putc('*', fp);
         }
         putc('\n', fp);

@@ -108,7 +108,7 @@ CallObject::getCalleeFunction() const
 }
 
 inline const Value &
-CallObject::arguments() const
+CallObject::getArguments() const
 {
     JS_ASSERT(!isForEval());
     return getReservedSlot(ARGUMENTS_SLOT);
@@ -121,29 +121,36 @@ CallObject::setArguments(const Value &v)
     setFixedSlot(ARGUMENTS_SLOT, v);
 }
 
+inline void
+CallObject::initArguments(const Value &v)
+{
+    JS_ASSERT(!isForEval());
+    initFixedSlot(ARGUMENTS_SLOT, v);
+}
+
 inline const Value &
-CallObject::arg(unsigned i) const
+CallObject::arg(uintN i) const
 {
     JS_ASSERT(i < getCalleeFunction()->nargs);
     return getSlot(RESERVED_SLOTS + i);
 }
 
 inline void
-CallObject::setArg(unsigned i, const Value &v)
+CallObject::setArg(uintN i, const Value &v)
 {
     JS_ASSERT(i < getCalleeFunction()->nargs);
     setSlot(RESERVED_SLOTS + i, v);
 }
 
 inline void
-CallObject::initArgUnchecked(unsigned i, const Value &v)
+CallObject::initArgUnchecked(uintN i, const Value &v)
 {
     JS_ASSERT(i < getCalleeFunction()->nargs);
     initSlotUnchecked(RESERVED_SLOTS + i, v);
 }
 
 inline const Value &
-CallObject::var(unsigned i) const
+CallObject::var(uintN i) const
 {
     JSFunction *fun = getCalleeFunction();
     JS_ASSERT(fun->nargs == fun->script()->bindings.countArgs());
@@ -152,7 +159,7 @@ CallObject::var(unsigned i) const
 }
 
 inline void
-CallObject::setVar(unsigned i, const Value &v)
+CallObject::setVar(uintN i, const Value &v)
 {
     JSFunction *fun = getCalleeFunction();
     JS_ASSERT(fun->nargs == fun->script()->bindings.countArgs());
@@ -161,7 +168,7 @@ CallObject::setVar(unsigned i, const Value &v)
 }
 
 inline void
-CallObject::initVarUnchecked(unsigned i, const Value &v)
+CallObject::initVarUnchecked(uintN i, const Value &v)
 {
     JSFunction *fun = getCalleeFunction();
     JS_ASSERT(fun->nargs == fun->script()->bindings.countArgs());
@@ -170,28 +177,28 @@ CallObject::initVarUnchecked(unsigned i, const Value &v)
 }
 
 inline void
-CallObject::copyValues(unsigned nargs, Value *argv, unsigned nvars, Value *slots)
+CallObject::copyValues(uintN nargs, Value *argv, uintN nvars, Value *slots)
 {
     JS_ASSERT(slotInRange(RESERVED_SLOTS + nargs + nvars, SENTINEL_ALLOWED));
     copySlotRange(RESERVED_SLOTS, argv, nargs);
     copySlotRange(RESERVED_SLOTS + nargs, slots, nvars);
 }
 
-inline HeapSlotArray
+inline HeapValueArray
 CallObject::argArray()
 {
     DebugOnly<JSFunction*> fun = getCalleeFunction();
     JS_ASSERT(hasContiguousSlots(RESERVED_SLOTS, fun->nargs));
-    return HeapSlotArray(getSlotAddress(RESERVED_SLOTS));
+    return HeapValueArray(getSlotAddress(RESERVED_SLOTS));
 }
 
-inline HeapSlotArray
+inline HeapValueArray
 CallObject::varArray()
 {
     JSFunction *fun = getCalleeFunction();
     JS_ASSERT(hasContiguousSlots(RESERVED_SLOTS + fun->nargs,
                                  fun->script()->bindings.countVars()));
-    return HeapSlotArray(getSlotAddress(RESERVED_SLOTS + fun->nargs));
+    return HeapValueArray(getSlotAddress(RESERVED_SLOTS + fun->nargs));
 }
 
 inline uint32_t
@@ -218,7 +225,7 @@ BlockObject::slotCount() const
     return propertyCount();
 }
 
-inline HeapSlot &
+inline HeapValue &
 BlockObject::slotValue(unsigned i)
 {
     return getSlotRef(RESERVED_SLOTS + i);
@@ -241,14 +248,14 @@ inline void
 StaticBlockObject::setStackDepth(uint32_t depth)
 {
     JS_ASSERT(getReservedSlot(DEPTH_SLOT).isUndefined());
-    initReservedSlot(DEPTH_SLOT, PrivateUint32Value(depth));
+    getReservedSlotRef(DEPTH_SLOT).init(PrivateUint32Value(depth));
 }
 
 inline void
 StaticBlockObject::setDefinitionParseNode(unsigned i, Definition *def)
 {
     JS_ASSERT(slotValue(i).isUndefined());
-    slotValue(i).init(this, i, PrivateValue(def));
+    slotValue(i).init(PrivateValue(def));
 }
 
 inline Definition *
@@ -261,7 +268,7 @@ StaticBlockObject::maybeDefinitionParseNode(unsigned i)
 inline void
 StaticBlockObject::poisonDefinitionParseNode(unsigned i)
 {
-    slotValue(i).init(this, i, PrivateValue(NULL));
+    slotValue(i).init(PrivateValue(NULL));
 }
 
 inline StaticBlockObject &

@@ -48,6 +48,7 @@
 #include "jsxml.h"
 #include "jsbool.h"
 #include "assembler/assembler/MacroAssemblerCodeRef.h"
+#include "jsiter.h"
 #include "jstypes.h"
 #include "vm/Debugger.h"
 #include "vm/String.h"
@@ -230,12 +231,12 @@ stubs::SetElem(VMFrame &f)
     if (!FetchElementId(f.cx, obj, idval, id, &regs.sp[-2]))
         THROW();
 
-    TypeScript::MonitorAssign(cx, obj, id);
+    TypeScript::MonitorAssign(cx, f.script(), f.pc(), obj, id, rval);
 
     do {
         if (obj->isDenseArray() && JSID_IS_INT(id)) {
             jsuint length = obj->getDenseArrayInitializedLength();
-            int32_t i = JSID_TO_INT(id);
+            jsint i = JSID_TO_INT(id);
             if ((jsuint)i < length) {
                 if (obj->getDenseArrayElement(i).isMagic(JS_ARRAY_HOLE)) {
                     if (js_PrototypeHasIndexedProperties(cx, obj))
@@ -433,7 +434,7 @@ stubs::DefFun(VMFrame &f, JSFunction *fun)
      * ECMA requires functions defined when entering Eval code to be
      * impermanent.
      */
-    unsigned attrs = fp->isEvalFrame()
+    uintN attrs = fp->isEvalFrame()
                   ? JSPROP_ENUMERATE
                   : JSPROP_ENUMERATE | JSPROP_PERMANENT;
 
@@ -844,12 +845,12 @@ stubs::Mod(VMFrame &f)
 void JS_FASTCALL
 stubs::DebuggerStatement(VMFrame &f, jsbytecode *pc)
 {
-    JSDebuggerHandler handler = f.cx->runtime->debugHooks.debuggerHandler;
+    JSDebuggerHandler handler = f.cx->debugHooks->debuggerHandler;
     if (handler || !f.cx->compartment->getDebuggees().empty()) {
         JSTrapStatus st = JSTRAP_CONTINUE;
         Value rval;
         if (handler)
-            st = handler(f.cx, f.script(), pc, &rval, f.cx->runtime->debugHooks.debuggerHandlerData);
+            st = handler(f.cx, f.script(), pc, &rval, f.cx->debugHooks->debuggerHandlerData);
         if (st == JSTRAP_CONTINUE)
             st = Debugger::onDebuggerStatement(f.cx, &rval);
 
@@ -907,9 +908,9 @@ stubs::Trap(VMFrame &f, uint32_t trapTypes)
          * single step mode may be paused without recompiling by
          * setting the interruptHook to NULL.
          */
-        JSInterruptHook hook = f.cx->runtime->debugHooks.interruptHook;
+        JSInterruptHook hook = f.cx->debugHooks->interruptHook;
         if (hook)
-            result = hook(f.cx, f.script(), f.pc(), &rval, f.cx->runtime->debugHooks.interruptHookData);
+            result = hook(f.cx, f.script(), f.pc(), &rval, f.cx->debugHooks->interruptHookData);
 
         if (result == JSTRAP_CONTINUE)
             result = Debugger::onSingleStep(f.cx, &rval);
@@ -1114,7 +1115,7 @@ stubs::LambdaJoinableForInit(VMFrame &f, JSFunction *fun)
 {
     JS_ASSERT(fun->joinable());
     DebugOnly<jsbytecode*> nextpc = f.regs.pc + JSOP_LAMBDA_LENGTH;
-    JS_ASSERT(fun->methodAtom() == f.script()->getAtom(GET_UINT32_INDEX(nextpc)));
+    JS_ASSERT(fun->methodAtom() == f.script()->getAtom(GET_SLOTNO(nextpc)));
     return fun;
 }
 
@@ -1125,7 +1126,7 @@ stubs::LambdaJoinableForSet(VMFrame &f, JSFunction *fun)
     const Value &lref = f.regs.sp[-1];
     if (lref.isObject() && lref.toObject().canHaveMethodBarrier()) {
         DebugOnly<jsbytecode*> nextpc = f.regs.pc + JSOP_LAMBDA_LENGTH;
-        JS_ASSERT(fun->methodAtom() == f.script()->getAtom(GET_UINT32_INDEX(nextpc)));
+        JS_ASSERT(fun->methodAtom() == f.script()->getAtom(GET_SLOTNO(nextpc)));
         return fun;
     }
     return Lambda(f, fun);
@@ -1229,7 +1230,7 @@ stubs::GetPropNoCache(VMFrame &f, PropertyName *name)
 void JS_FASTCALL
 stubs::Iter(VMFrame &f, uint32_t flags)
 {
-    if (!ValueToIterator(f.cx, flags, &f.regs.sp[-1]))
+    if (!js_ValueToIterator(f.cx, flags, &f.regs.sp[-1]))
         THROW();
     JS_ASSERT(!f.regs.sp[-1].isPrimitive());
 }
@@ -1252,7 +1253,7 @@ InitPropOrMethod(VMFrame &f, PropertyName *name, JSOp op)
     /* Get the immediate property name into id. */
     jsid id = ATOM_TO_JSID(name);
 
-    unsigned defineHow = (op == JSOP_INITMETHOD) ? DNP_SET_METHOD : 0;
+    uintN defineHow = (op == JSOP_INITMETHOD) ? DNP_SET_METHOD : 0;
     if (JS_UNLIKELY(name == cx->runtime->atomState.protoAtom)
         ? !js_SetPropertyHelper(cx, obj, id, defineHow, &rval, false)
         : !DefineNativeProperty(cx, obj, id, rval, NULL, NULL,
@@ -1304,7 +1305,7 @@ void JS_FASTCALL
 stubs::EndIter(VMFrame &f)
 {
     JS_ASSERT(f.regs.sp - 1 >= f.fp()->base());
-    if (!CloseIterator(f.cx, &f.regs.sp[-1].toObject()))
+    if (!js_CloseIterator(f.cx, &f.regs.sp[-1].toObject()))
         THROW();
 }
 
@@ -1362,10 +1363,10 @@ stubs::FlatLambda(VMFrame &f, JSFunction *fun)
 void JS_FASTCALL
 stubs::Arguments(VMFrame &f)
 {
-    ArgumentsObject *arguments = js_GetArgsObject(f.cx, f.fp());
-    if (!arguments)
+    Value argsobj;
+    if (!js_GetArgsValue(f.cx, f.fp(), &argsobj))
         THROW();
-    f.regs.sp[0] = ObjectValue(*arguments);
+    f.regs.sp[0] = argsobj;
 }
 
 JSBool JS_FASTCALL
@@ -1517,8 +1518,8 @@ stubs::LookupSwitch(VMFrame &f, jsbytecode *pc)
         if (!str)
             THROWV(NULL);
         for (uint32_t i = 1; i <= npairs; i++) {
-            Value rval = script->getConst(GET_UINT32_INDEX(pc));
-            pc += UINT32_INDEX_LEN;
+            Value rval = script->getConst(GET_INDEX(pc));
+            pc += INDEX_LEN;
             if (rval.isString()) {
                 JSLinearString *rhs = &rval.toString()->asLinear();
                 if (rhs == str || EqualStrings(str, rhs))
@@ -1529,16 +1530,16 @@ stubs::LookupSwitch(VMFrame &f, jsbytecode *pc)
     } else if (lval.isNumber()) {
         double d = lval.toNumber();
         for (uint32_t i = 1; i <= npairs; i++) {
-            Value rval = script->getConst(GET_UINT32_INDEX(pc));
-            pc += UINT32_INDEX_LEN;
+            Value rval = script->getConst(GET_INDEX(pc));
+            pc += INDEX_LEN;
             if (rval.isNumber() && d == rval.toNumber())
                 return FindNativeCode(f, jpc + GET_JUMP_OFFSET(pc));
             pc += JUMP_OFFSET_LEN;
         }
     } else {
         for (uint32_t i = 1; i <= npairs; i++) {
-            Value rval = script->getConst(GET_UINT32_INDEX(pc));
-            pc += UINT32_INDEX_LEN;
+            Value rval = script->getConst(GET_INDEX(pc));
+            pc += INDEX_LEN;
             if (lval == rval)
                 return FindNativeCode(f, jpc + GET_JUMP_OFFSET(pc));
             pc += JUMP_OFFSET_LEN;
@@ -1562,7 +1563,7 @@ stubs::TableSwitch(VMFrame &f, jsbytecode *origPc)
     /* Note: compiler adjusts the stack beforehand. */
     Value rval = f.regs.sp[-1];
 
-    int32_t tableIdx;
+    jsint tableIdx;
     if (rval.isInt32()) {
         tableIdx = rval.toInt32();
     } else if (rval.isDouble()) {
@@ -1570,7 +1571,7 @@ stubs::TableSwitch(VMFrame &f, jsbytecode *origPc)
         if (d == 0) {
             /* Treat -0 (double) as 0. */
             tableIdx = 0;
-        } else if (!JSDOUBLE_IS_INT32(d, &tableIdx)) {
+        } else if (!JSDOUBLE_IS_INT32(d, (int32_t *)&tableIdx)) {
             goto finally;
         }
     } else {
@@ -1578,9 +1579,9 @@ stubs::TableSwitch(VMFrame &f, jsbytecode *origPc)
     }
 
     {
-        int32_t low = GET_JUMP_OFFSET(pc);
+        jsint low = GET_JUMP_OFFSET(pc);
         pc += JUMP_OFFSET_LEN;
-        int32_t high = GET_JUMP_OFFSET(pc);
+        jsint high = GET_JUMP_OFFSET(pc);
         pc += JUMP_OFFSET_LEN;
 
         tableIdx -= low;
@@ -1665,7 +1666,7 @@ stubs::DelElem(VMFrame &f)
 void JS_FASTCALL
 stubs::DefVarOrConst(VMFrame &f, PropertyName *dn)
 {
-    unsigned attrs = JSPROP_ENUMERATE;
+    uintN attrs = JSPROP_ENUMERATE;
     if (!f.fp()->isEvalFrame())
         attrs |= JSPROP_PERMANENT;
     if (JSOp(*f.regs.pc) == JSOP_DEFCONST)
@@ -1928,7 +1929,7 @@ stubs::ConvertToTypedInt(JSContext *cx, Value *vp)
 #ifdef DEBUG
     bool success = 
 #endif
-        StringToNumberType<int32_t>(cx, vp->toString(), &i32);
+        StringToNumberType<jsint>(cx, vp->toString(), &i32);
     JS_ASSERT(success);
 
     return i32;

@@ -50,6 +50,7 @@
 #include "jscntxtinlines.h"
 #include "jscompartment.h"
 #include "jsscope.h"
+#include "jsgcmark.h"
 
 #include "jsgcinlines.h"
 #include "jsinterpinlines.h"

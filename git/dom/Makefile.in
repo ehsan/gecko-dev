@@ -47,7 +47,6 @@ MODULE		= dom
 DIRS = \
   interfaces/base \
   interfaces/canvas \
-  interfaces/contacts \
   interfaces/core \
   interfaces/html \
   interfaces/events \
@@ -78,7 +77,6 @@ endif
 DIRS += \
   base \
   battery \
-  contacts \
   power \
   sms \
   src \

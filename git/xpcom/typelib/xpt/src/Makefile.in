@@ -75,8 +75,3 @@ endif
 ifdef _MSC_VER
 OS_COMPILE_CFLAGS += -Zl
 endif
-
-LOCAL_INCLUDES += \
-                -I../../../ \
-                -I$(topsrcdir)/xpcom/base \
-                $(NULL)

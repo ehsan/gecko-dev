@@ -49,8 +49,7 @@
 #include "gfxPlatform.h"
 #include "gfxHarfBuzzShaper.h"
 #include "gfxFontUtils.h"
-#include "nsUnicodeProperties.h"
-#include "nsUnicodeScriptCodes.h"
+#include "gfxUnicodeProperties.h"
 #include "nsUnicodeNormalizer.h"
 
 #include "harfbuzz/hb-unicode.h"
@@ -73,7 +72,6 @@
                                     : -((32767 - (f)) >> 16))
 
 using namespace mozilla; // for AutoSwap_* types
-using namespace mozilla::unicode; // for Unicode property lookup
 
 /*
  * Creation and destruction; on deletion, release any font tables we're holding
@@ -674,32 +672,32 @@ HBGetHKerning(hb_font_t *font, void *font_data,
 static hb_codepoint_t
 HBGetMirroring(hb_unicode_funcs_t *ufuncs, hb_codepoint_t aCh, void *user_data)
 {
-    return GetMirroredChar(aCh);
+    return gfxUnicodeProperties::GetMirroredChar(aCh);
 }
 
 static hb_unicode_general_category_t
 HBGetGeneralCategory(hb_unicode_funcs_t *ufuncs, hb_codepoint_t aCh, void *user_data)
 {
-    return hb_unicode_general_category_t(GetGeneralCategory(aCh));
+    return hb_unicode_general_category_t(gfxUnicodeProperties::GetGeneralCategory(aCh));
 }
 
 static hb_script_t
 HBGetScript(hb_unicode_funcs_t *ufuncs, hb_codepoint_t aCh, void *user_data)
 {
-    return hb_script_t(GetScriptTagForCode
-        (GetScriptCode(aCh)));
+    return hb_script_t(gfxUnicodeProperties::GetScriptTagForCode
+        (gfxUnicodeProperties::GetScriptCode(aCh)));
 }
 
 static unsigned int
 HBGetCombiningClass(hb_unicode_funcs_t *ufuncs, hb_codepoint_t aCh, void *user_data)
 {
-    return GetCombiningClass(aCh);
+    return gfxUnicodeProperties::GetCombiningClass(aCh);
 }
 
 static unsigned int
 HBGetEastAsianWidth(hb_unicode_funcs_t *ufuncs, hb_codepoint_t aCh, void *user_data)
 {
-    return GetEastAsianWidth(aCh);
+    return gfxUnicodeProperties::GetEastAsianWidth(aCh);
 }
 
 // Hebrew presentation forms with dagesh, for characters 0x05D0..0x05EA;
@@ -1007,7 +1005,7 @@ gfxHarfBuzzShaper::ShapeWord(gfxContext      *aContext,
     PRInt32 scriptCode = aShapedWord->Script();
     hb_script_t scriptTag = (scriptCode <= MOZ_SCRIPT_INHERITED) ?
         HB_SCRIPT_LATIN :
-        hb_script_t(GetScriptTagForCode(scriptCode));
+        hb_script_t(gfxUnicodeProperties::GetScriptTagForCode(scriptCode));
     hb_buffer_set_script(buffer, scriptTag);
 
     hb_language_t language;

@@ -219,7 +219,7 @@ nsSVGTextFrame::NotifyRedrawUnsuspended()
 }
 
 NS_IMETHODIMP
-nsSVGTextFrame::PaintSVG(nsRenderingContext* aContext,
+nsSVGTextFrame::PaintSVG(nsSVGRenderState* aContext,
                          const nsIntRect *aDirtyRect)
 {
   UpdateGlyphPositioning(true);
@@ -325,13 +325,7 @@ nsSVGTextFrame::SetWhitespaceHandling(nsSVGGlyphFrame *aFrame)
     aFrame = aFrame->GetNextGlyphFrame();
   }
 
-  // We're at the last non-whitespace frame so trim off the end
-  // and make sure we set one of the trim bits so that any
-  // further whitespace is compressed to nothing
-  while (aFrame) {
-    aFrame->SetTrimTrailingWhitespace(true);
-    aFrame = aFrame->GetNextGlyphFrame();
-  }
+  lastNonWhitespaceFrame->SetTrimTrailingWhitespace(true);
 }
 
 void

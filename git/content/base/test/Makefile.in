@@ -486,13 +486,8 @@ _TEST_FILES2 = \
 		test_blobbuilder.html \
 		fileutils.js \
 		test_bug338583.html \
-		test_EventSource_redirects.html \
 		eventsource.resource \
 		eventsource.resource^headers^ \
-		eventsource_redirect.resource \
-		eventsource_redirect.resource^headers^ \
-		eventsource_redirect_to.resource \
-		eventsource_redirect_to.resource^headers^ \
 		badContentType.eventsource \
 		badContentType.eventsource^headers^ \
 		badEventFieldName.eventsource \
@@ -560,8 +555,6 @@ _TEST_FILES2 = \
 		file_bug717511_2.html \
 		file_bug717511_2.html^headers^ \
 		test_bug726364.html \
-		test_bug698381.html \
-		test_bug711047.html \
 		$(NULL)
 
 _CHROME_FILES =	\

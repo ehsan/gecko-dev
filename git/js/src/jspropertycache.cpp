@@ -48,7 +48,7 @@
 using namespace js;
 
 PropertyCacheEntry *
-PropertyCache::fill(JSContext *cx, JSObject *obj, unsigned scopeIndex, JSObject *pobj,
+PropertyCache::fill(JSContext *cx, JSObject *obj, uintN scopeIndex, JSObject *pobj,
                     const Shape *shape)
 {
     JS_ASSERT(this == &JS_PROPERTY_CACHE(cx));
@@ -77,10 +77,10 @@ PropertyCache::fill(JSContext *cx, JSObject *obj, unsigned scopeIndex, JSObject 
     JS_ASSERT_IF(obj == pobj, scopeIndex == 0);
 
     JSObject *tmp = obj;
-    for (unsigned i = 0; i < scopeIndex; i++)
+    for (uintN i = 0; i < scopeIndex; i++)
         tmp = &tmp->asScope().enclosingScope();
 
-    unsigned protoIndex = 0;
+    uintN protoIndex = 0;
     while (tmp != pobj) {
         /*
          * Don't cache entries across prototype lookups which can mutate in
@@ -251,7 +251,7 @@ void
 PropertyCache::assertEmpty()
 {
     JS_ASSERT(empty);
-    for (unsigned i = 0; i < SIZE; i++) {
+    for (uintN i = 0; i < SIZE; i++) {
         JS_ASSERT(!table[i].kpc);
         JS_ASSERT(!table[i].kshape);
         JS_ASSERT(!table[i].pshape);
@@ -263,7 +263,7 @@ PropertyCache::assertEmpty()
 #endif
 
 void
-PropertyCache::purge(JSRuntime *rt)
+PropertyCache::purge(JSContext *cx)
 {
     if (empty) {
         assertEmpty();
@@ -279,7 +279,10 @@ PropertyCache::purge(JSRuntime *rt)
         fp = fopen("/tmp/propcache.stats", "w");
     if (fp) {
         fputs("Property cache stats for ", fp);
-        fprintf(fp, "GC %lu\n", (unsigned long)rt->gcNumber);
+#ifdef JS_THREADSAFE
+        fprintf(fp, "thread %lu, ", (unsigned long) cx->thread->id);
+#endif
+        fprintf(fp, "GC %lu\n", (unsigned long)cx->runtime->gcNumber);
 
 # define P(mem) fprintf(fp, "%11s %10lu\n", #mem, (unsigned long)mem)
         P(fills);

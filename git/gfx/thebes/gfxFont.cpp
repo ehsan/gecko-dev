@@ -62,7 +62,7 @@
 #include "gfxUserFontSet.h"
 #include "gfxPlatformFontList.h"
 #include "gfxScriptItemizer.h"
-#include "nsUnicodeProperties.h"
+#include "gfxUnicodeProperties.h"
 #include "nsMathUtils.h"
 #include "nsBidiUtils.h"
 #include "nsUnicodeRange.h"
@@ -83,7 +83,6 @@
 
 using namespace mozilla;
 using namespace mozilla::gfx;
-using namespace mozilla::unicode;
 using mozilla::services::GetObserverService;
 
 gfxFontCache *gfxFontCache::gGlobalCache = nsnull;
@@ -724,7 +723,7 @@ gfxFontFamily::FindFontForChar(FontSearch *aMatchData)
             if (NS_UNLIKELY(log)) {
                 PRUint32 charRange = gfxFontUtils::CharRangeBit(aMatchData->mCh);
                 PRUint32 unicodeRange = FindCharUnicodeRange(aMatchData->mCh);
-                PRUint32 script = GetScriptCode(aMatchData->mCh);
+                PRUint32 script = gfxUnicodeProperties::GetScriptCode(aMatchData->mCh);
                 PR_LOG(log, PR_LOG_DEBUG,\
                        ("(textrun-systemfallback-fonts) char: u+%6.6x "
                         "char-range: %d unicode-range: %d script: %d match: [%s]\n",
@@ -1875,6 +1874,16 @@ gfxFont::Measure(gfxTextRun *aTextRun,
                               // within 1K chars, just chop arbitrarily.
                               // Limiting backtrack here avoids pathological
                               // behavior on long runs with no whitespace.
+
+static bool
+IsClusterExtender(PRUint32 aUSV)
+{
+    PRUint8 category = gfxUnicodeProperties::GetGeneralCategory(aUSV);
+    return ((category >= HB_UNICODE_GENERAL_CATEGORY_SPACING_MARK &&
+             category <= HB_UNICODE_GENERAL_CATEGORY_NON_SPACING_MARK) ||
+            (aUSV >= 0x200c && aUSV <= 0x200d) || // ZWJ, ZWNJ
+            (aUSV >= 0xff9e && aUSV <= 0xff9f));  // katakana sound marks
+}
 
 static bool
 IsBoundarySpace(PRUnichar aChar, PRUnichar aNextChar)
@@ -3323,7 +3332,7 @@ gfxFontGroup::FindFontForChar(PRUint32 aCh, PRUint32 aPrevCh,
         // Don't switch fonts for control characters, regardless of
         // whether they are present in the current font, as they won't
         // actually be rendered (see bug 716229)
-        PRUint8 category = GetGeneralCategory(aCh);
+        PRUint8 category = gfxUnicodeProperties::GetGeneralCategory(aCh);
         if (category == HB_UNICODE_GENERAL_CATEGORY_CONTROL) {
             selectedFont = aPrevMatchedFont;
             return selectedFont.forget();
@@ -3397,7 +3406,7 @@ gfxFontGroup::FindFontForChar(PRUint32 aCh, PRUint32 aPrevCh,
 
     // for known "space" characters, don't do a full system-fallback search;
     // we'll synthesize appropriate-width spaces instead of missing-glyph boxes
-    if (GetGeneralCategory(aCh) ==
+    if (gfxUnicodeProperties::GetGeneralCategory(aCh) ==
             HB_UNICODE_GENERAL_CATEGORY_SPACE_SEPARATOR &&
         GetFontAt(0)->SynthesizeSpaceWidth(aCh) >= 0.0)
     {
@@ -3787,25 +3796,95 @@ gfxShapedWord::SetupClusterBoundaries(CompressedGlyph *aGlyphs,
     gfxTextRun::CompressedGlyph extendCluster;
     extendCluster.SetComplex(false, true, 0);
 
-    ClusterIterator iter(aString, aLength);
+    gfxUnicodeProperties::HSType hangulState = gfxUnicodeProperties::HST_NONE;
 
-    // the ClusterIterator won't be able to tell us if the string
-    // _begins_ with a cluster-extender, so we handle that here
-    if (aLength && IsClusterExtender(*aString)) {
-        *aGlyphs = extendCluster;
-    }
-
-    while (!iter.AtEnd()) {
-        // advance iter to the next cluster-start (or end of text)
-        iter.Next();
-        // step past the first char of the cluster
-        aString++;
-        aGlyphs++;
-        // mark all the rest as cluster-continuations
-        while (aString < iter) {
-            *aGlyphs++ = extendCluster;
-            aString++;
+    for (PRUint32 i = 0; i < aLength; ++i) {
+        bool surrogatePair = false;
+        PRUint32 ch = aString[i];
+        if (NS_IS_HIGH_SURROGATE(ch) &&
+            i < aLength - 1 && NS_IS_LOW_SURROGATE(aString[i+1]))
+        {
+            ch = SURROGATE_TO_UCS4(ch, aString[i+1]);
+            surrogatePair = true;
         }
+
+        PRUint8 category = gfxUnicodeProperties::GetGeneralCategory(ch);
+        gfxUnicodeProperties::HSType hangulType = gfxUnicodeProperties::HST_NONE;
+
+        // combining marks extend the cluster
+        if (IsClusterExtender(ch)) {
+            aGlyphs[i] = extendCluster;
+        } else if (category == HB_UNICODE_GENERAL_CATEGORY_OTHER_LETTER) {
+            // handle special cases in Letter_Other category
+#if 0
+            // Currently disabled. This would follow the UAX#29 specification
+            // for extended grapheme clusters, but this is not favored by
+            // Thai users, at least for editing behavior.
+            // See discussion of equivalent Pango issue in bug 474068 and
+            // upstream at https://bugzilla.gnome.org/show_bug.cgi?id=576156.
+
+            if ((ch & ~0xff) == 0x0e00) {
+                // specific Thai & Lao (U+0Exx) chars that extend the cluster
+                if ( ch == 0x0e30 ||
+                    (ch >= 0x0e32 && ch <= 0x0e33) ||
+                     ch == 0x0e45 ||
+                     ch == 0x0eb0 ||
+                    (ch >= 0x0eb2 && ch <= 0x0eb3))
+                {
+                    if (i > 0) {
+                        aTextRun->SetGlyphs(i, extendCluster, nsnull);
+                    }
+                }
+                else if ((ch >= 0x0e40 && ch <= 0x0e44) ||
+                         (ch >= 0x0ec0 && ch <= 0x0ec4))
+                {
+                    // characters that are prepended to the following cluster
+                    if (i < length - 1) {
+                        aTextRun->SetGlyphs(i+1, extendCluster, nsnull);
+                    }
+                }
+            } else
+#endif
+            if ((ch & ~0xff) == 0x1100 ||
+                (ch >= 0xa960 && ch <= 0xa97f) ||
+                (ch >= 0xac00 && ch <= 0xd7ff))
+            {
+                // no break within Hangul syllables
+                hangulType = gfxUnicodeProperties::GetHangulSyllableType(ch);
+                switch (hangulType) {
+                case gfxUnicodeProperties::HST_L:
+                case gfxUnicodeProperties::HST_LV:
+                case gfxUnicodeProperties::HST_LVT:
+                    if (hangulState == gfxUnicodeProperties::HST_L) {
+                        aGlyphs[i] = extendCluster;
+                    }
+                    break;
+                case gfxUnicodeProperties::HST_V:
+                    if ( (hangulState != gfxUnicodeProperties::HST_NONE) &&
+                        !(hangulState & gfxUnicodeProperties::HST_T))
+                    {
+                        aGlyphs[i] = extendCluster;
+                    }
+                    break;
+                case gfxUnicodeProperties::HST_T:
+                    if (hangulState & (gfxUnicodeProperties::HST_V |
+                                       gfxUnicodeProperties::HST_T))
+                    {
+                        aGlyphs[i] = extendCluster;
+                    }
+                    break;
+                default:
+                    break;
+                }
+            }
+        }
+
+        if (surrogatePair) {
+            ++i;
+            aGlyphs[i] = extendCluster;
+        }
+
+        hangulState = hangulType;
     }
 }
 
@@ -4942,7 +5021,7 @@ gfxTextRun::SetGlyphs(PRUint32 aIndex, CompressedGlyph aGlyph,
 void
 gfxTextRun::SetMissingGlyph(PRUint32 aIndex, PRUint32 aChar)
 {
-    PRUint8 category = GetGeneralCategory(aChar);
+    PRUint8 category = gfxUnicodeProperties::GetGeneralCategory(aChar);
     if (category >= HB_UNICODE_GENERAL_CATEGORY_SPACING_MARK &&
         category <= HB_UNICODE_GENERAL_CATEGORY_NON_SPACING_MARK)
     {

@@ -161,10 +161,8 @@ private:
 };
 
 /* Make sure the CDBValueStorage elements are aligned appropriately. */
-MOZ_STATIC_ASSERT(sizeof(nsCSSCompressedDataBlock) == 8,
-                  "nsCSSCompressedDataBlock's size has changed");
-MOZ_STATIC_ASSERT(NS_ALIGNMENT_OF(CDBValueStorage) <= 8,
-                  "CDBValueStorage needs too much alignment");
+PR_STATIC_ASSERT(sizeof(nsCSSCompressedDataBlock) == 8);
+PR_STATIC_ASSERT(NS_ALIGNMENT_OF(CDBValueStorage) <= 8); 
 
 class nsCSSExpandedDataBlock {
     friend class nsCSSCompressedDataBlock;

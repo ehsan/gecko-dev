@@ -100,7 +100,7 @@ public:
    *
    * \return True is initialization was succesful, false when it was not.
    */
-  bool Initialize(bool force = false);
+  bool Initialize();
 
   /*
    * LayerManager implementation.

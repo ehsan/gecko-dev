@@ -78,7 +78,7 @@ Class js::BooleanClass = {
 
 #if JS_HAS_TOSOURCE
 static JSBool
-bool_toSource(JSContext *cx, unsigned argc, Value *vp)
+bool_toSource(JSContext *cx, uintN argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
@@ -99,7 +99,7 @@ bool_toSource(JSContext *cx, unsigned argc, Value *vp)
 #endif
 
 static JSBool
-bool_toString(JSContext *cx, unsigned argc, Value *vp)
+bool_toString(JSContext *cx, uintN argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
@@ -112,7 +112,7 @@ bool_toString(JSContext *cx, unsigned argc, Value *vp)
 }
 
 static JSBool
-bool_valueOf(JSContext *cx, unsigned argc, Value *vp)
+bool_valueOf(JSContext *cx, uintN argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
@@ -134,7 +134,7 @@ static JSFunctionSpec boolean_methods[] = {
 };
 
 static JSBool
-Boolean(JSContext *cx, unsigned argc, Value *vp)
+Boolean(JSContext *cx, uintN argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
@@ -142,8 +142,6 @@ Boolean(JSContext *cx, unsigned argc, Value *vp)
 
     if (IsConstructing(vp)) {
         JSObject *obj = BooleanObject::create(cx, b);
-        if (!obj)
-            return false;
         args.rval().setObject(*obj);
     } else {
         args.rval().setBoolean(b);
@@ -232,7 +230,7 @@ js_ValueToBoolean(const Value &v)
     if (v.isNullOrUndefined())
         return JS_FALSE;
     if (v.isDouble()) {
-        double d;
+        jsdouble d;
 
         d = v.toDouble();
         return !JSDOUBLE_IS_NaN(d) && d != 0;

@@ -8,7 +8,7 @@
 #define __android_log_print(a, ...)
 #endif
 
-#include "mozilla/StandardInteger.h"
+#include "mozilla/StdInt.h"
 #include "mozilla/Util.h"
 #include "mozilla/unused.h"
 #include "mozilla/TimeStamp.h"
@@ -16,9 +16,7 @@
 #include <vector>
 #define ASSERT(a) MOZ_ASSERT(a)
 #ifdef ANDROID
-#ifdef defined(__arm__) || defined(__thumb__)
 #define ENABLE_SPS_LEAF_DATA
-#endif
 #define LOG(text) __android_log_print(ANDROID_LOG_ERROR, "profiler", "%s", text);
 #else
 #define LOG(text) printf("Profiler: %s\n", text)

@@ -60,7 +60,10 @@ JS_STATIC_ASSERT(StickyFlag == JSREG_STICKY);
 
 RegExpObjectBuilder::RegExpObjectBuilder(JSContext *cx, RegExpObject *reobj)
   : cx(cx), reobj_(reobj)
-{}
+{
+    if (reobj_)
+        reobj_->setShared(cx, NULL);
+}
 
 bool
 RegExpObjectBuilder::getOrCreate()
@@ -100,7 +103,7 @@ RegExpObjectBuilder::build(JSAtom *source, RegExpShared &shared)
     if (!reobj_->init(cx, source, shared.getFlags()))
         return NULL;
 
-    reobj_->setShared(cx, shared);
+    reobj_->setShared(cx, &shared);
     return reobj_;
 }
 
@@ -132,11 +135,11 @@ RegExpObjectBuilder::clone(RegExpObject *other, RegExpObject *proto)
         return build(other->getSource(), newFlags);
     }
 
-    RegExpGuard g;
-    if (!other->getShared(cx, &g))
+    RegExpShared *toShare = other->getShared(cx);
+    if (!toShare)
         return NULL;
 
-    return build(other->getSource(), *g);
+    return build(other->getSource(), *toShare);
 }
 
 /* MatchPairs */
@@ -236,7 +239,7 @@ RegExpCode::reportPCREError(JSContext *cx, int error)
 #endif /* ENABLE_YARR_JIT */
 
 bool
-RegExpCode::compile(JSContext *cx, JSLinearString &pattern, unsigned *parenCount, RegExpFlag flags)
+RegExpCode::compile(JSContext *cx, JSLinearString &pattern, uintN *parenCount, RegExpFlag flags)
 {
 #if ENABLE_YARR_JIT
     /* Parse the pattern. */
@@ -390,15 +393,16 @@ RegExpObject::createNoStatics(JSContext *cx, JSAtom *source, RegExpFlag flags,
     return builder.build(source, flags);
 }
 
-bool
-RegExpObject::createShared(JSContext *cx, RegExpGuard *g)
+RegExpShared *
+RegExpObject::createShared(JSContext *cx)
 {
     JS_ASSERT(!maybeShared());
-    if (!cx->compartment->regExps.get(cx, getSource(), getFlags(), g))
-        return false;
+    RegExpShared *shared = cx->compartment->regExps.get(cx, getSource(), getFlags());
+    if (!shared)
+        return NULL;
 
-    setShared(cx, **g);
-    return true;
+    setShared(cx, shared);
+    return shared;
 }
 
 Shape *
@@ -464,12 +468,7 @@ RegExpObject::init(JSContext *cx, JSAtom *source, RegExpFlag flags)
                                  MULTILINE_FLAG_SLOT);
     JS_ASSERT(nativeLookup(cx, ATOM_TO_JSID(atomState->stickyAtom))->slot() == STICKY_FLAG_SLOT);
 
-    /*
-     * If this is a re-initialization with an existing RegExpShared, 'flags'
-     * may not match getShared()->flags, so forget the RegExpShared.
-     */
-    JSObject::setPrivate(NULL);
-
+    JS_ASSERT(!maybeShared());
     zeroLastIndex();
     setSource(source);
     setGlobal(flags & GlobalFlag);
@@ -483,10 +482,10 @@ RegExpRunStatus
 RegExpObject::execute(JSContext *cx, const jschar *chars, size_t length, size_t *lastIndex,
                       MatchPairs **output)
 {
-    RegExpGuard g;
-    if (!getShared(cx, &g))
+    RegExpShared *shared = getShared(cx);
+    if (!shared)
         return RegExpRunStatus_Error;
-    return g->execute(cx, chars, length, lastIndex, output);
+    return shared->execute(cx, chars, length, lastIndex, output);
 }
 
 JSFlatString *
@@ -628,73 +627,65 @@ RegExpCompartment::sweep(JSRuntime *rt)
     }
 }
 
-inline bool
-RegExpCompartment::get(JSContext *cx, JSAtom *keyAtom, JSAtom *source, RegExpFlag flags, Type type,
-                       RegExpGuard *g)
+inline RegExpShared *
+RegExpCompartment::get(JSContext *cx, JSAtom *keyAtom, JSAtom *source, RegExpFlag flags, Type type)
 {
+    DebugOnly<uint64_t> gcNumberBefore = cx->runtime->gcNumber;
+
     Key key(keyAtom, flags, type);
     Map::AddPtr p = map_.lookupForAdd(key);
-    if (p) {
-        g->init(*p->value);
-        return true;
-    }
+    if (p)
+        return p->value;
 
     RegExpShared *shared = cx->runtime->new_<RegExpShared>(cx->runtime, flags);
-    if (!shared)
-        goto error;
-
-    if (!shared->compile(cx, source))
-        goto error;
-
-    /* Re-lookup in case there was a GC. */
-    if (!map_.relookupOrAdd(p, key, shared))
+    if (!shared || !shared->compile(cx, source))
         goto error;
 
     /*
-     * Since 'error' deletes 'shared', only guard 'shared' on success. This is
-     * safe since 'shared' cannot be deleted by GC until after the call to
-     * map_.add() directly above.
+     * The compilation path only mallocs so cannot GC. Thus, it is safe to add
+     * the regexp directly.
      */
-    g->init(*shared);
-    return true;
+    JS_ASSERT(cx->runtime->gcNumber == gcNumberBefore);
+
+    if (!map_.add(p, key, shared))
+        goto error;
+
+    return shared;
 
   error:
     Foreground::delete_(shared);
     js_ReportOutOfMemory(cx);
-    return false;
+    return NULL;
 }
 
-bool
-RegExpCompartment::get(JSContext *cx, JSAtom *source, RegExpFlag flags, RegExpGuard *g)
+RegExpShared *
+RegExpCompartment::get(JSContext *cx, JSAtom *source, RegExpFlag flags)
 {
-    return get(cx, source, source, flags, Normal, g);
+    return get(cx, source, source, flags, Normal);
 }
 
-bool
-RegExpCompartment::getHack(JSContext *cx, JSAtom *source, JSAtom *hackedSource, RegExpFlag flags,
-                           RegExpGuard *g)
+RegExpShared *
+RegExpCompartment::getHack(JSContext *cx, JSAtom *source, JSAtom *hackedSource, RegExpFlag flags)
 {
-    return get(cx, source, hackedSource, flags, Hack, g);
+    return get(cx, source, hackedSource, flags, Hack);
 }
 
-bool
-RegExpCompartment::lookupHack(JSAtom *source, RegExpFlag flags, JSContext *cx, RegExpGuard *g)
+RegExpShared *
+RegExpCompartment::lookupHack(JSContext *cx, JSAtom *source, RegExpFlag flags)
 {
-    if (Map::Ptr p = map_.lookup(Key(source, flags, Hack))) {
-        g->init(*p->value);
-        return true;
-    }
-    return false;
+    if (Map::Ptr p = map_.lookup(Key(source, flags, Hack)))
+        return p->value;
+    return NULL;
 }
 
-bool
-RegExpCompartment::get(JSContext *cx, JSAtom *atom, JSString *opt, RegExpGuard *g)
+RegExpShared *
+RegExpCompartment::get(JSContext *cx, JSAtom *atom, JSString *opt)
 {
     RegExpFlag flags = RegExpFlag(0);
     if (opt && !ParseRegExpFlags(cx, opt, &flags))
-        return false;
+        return NULL;
 
-    return get(cx, atom, flags, g);
+    return get(cx, atom, flags);
 }
 
 /* Functions */

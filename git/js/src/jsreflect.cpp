@@ -54,6 +54,7 @@
 #include "jsval.h"
 #include "jsinferinlines.h"
 #include "jsobjinlines.h"
+#include "jsobj.h"
 #include "jsarray.h"
 #include "jsnum.h"
 
@@ -189,7 +190,7 @@ class NodeBuilder
 
         if (!userobj) {
             userv.setNull();
-            for (unsigned i = 0; i < AST_LIMIT; i++) {
+            for (uintN i = 0; i < AST_LIMIT; i++) {
                 callbacks[i].setNull();
             }
             return true;
@@ -197,7 +198,7 @@ class NodeBuilder
 
         userv.setObject(*userobj);
 
-        for (unsigned i = 0; i < AST_LIMIT; i++) {
+        for (uintN i = 0; i < AST_LIMIT; i++) {
             Value funv;
 
             const char *name = callbackNames[i];
@@ -639,15 +640,11 @@ NodeBuilder::newNode(ASTType type, TokenPos *pos, JSObject **dst)
 bool
 NodeBuilder::newArray(NodeVector &elts, Value *dst)
 {
-    const size_t len = elts.length();
-    if (len > UINT32_MAX) {
-        js_ReportAllocationOverflow(cx);
-        return false;
-    }
-    JSObject *array = NewDenseAllocatedArray(cx, uint32_t(len));
+    JSObject *array = NewDenseEmptyArray(cx);
     if (!array)
         return false;
 
+    const size_t len = elts.length();
     for (size_t i = 0; i < len; i++) {
         Value val = elts[i];
 

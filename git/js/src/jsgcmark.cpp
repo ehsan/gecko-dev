@@ -356,41 +356,6 @@ MarkValueRootRange(JSTracer *trc, size_t len, Value *vec, const char *name)
     }
 }
 
-/*** Slot Marking ***/
-
-void
-MarkSlot(JSTracer *trc, HeapSlot *s, const char *name)
-{
-    JS_SET_TRACING_NAME(trc, name);
-    MarkValueInternal(trc, s->unsafeGet());
-}
-
-void
-MarkSlotRange(JSTracer *trc, size_t len, HeapSlot *vec, const char *name)
-{
-    for (size_t i = 0; i < len; ++i) {
-        JS_SET_TRACING_INDEX(trc, name, i);
-        MarkValueInternal(trc, vec[i].unsafeGet());
-    }
-}
-
-void
-MarkCrossCompartmentSlot(JSTracer *trc, HeapSlot *s, const char *name)
-{
-    if (s->isMarkable()) {
-        Cell *cell = (Cell *)s->toGCThing();
-        JSRuntime *rt = trc->runtime;
-        if (rt->gcCurrentCompartment && cell->compartment() != rt->gcCurrentCompartment)
-            return;
-
-        /* In case we're called from a write barrier. */
-        if (rt->gcIncrementalCompartment && cell->compartment() != rt->gcIncrementalCompartment)
-            return;
-
-        MarkSlot(trc, s, name);
-    }
-}
-
 /*** Special Marking ***/
 
 /*
@@ -409,6 +374,23 @@ MarkValueUnbarriered(JSTracer *trc, Value *v, const char *name)
 {
     JS_SET_TRACING_NAME(trc, name);
     MarkValueInternal(trc, v);
+}
+
+void
+MarkCrossCompartmentValue(JSTracer *trc, HeapValue *v, const char *name)
+{
+    if (v->isMarkable()) {
+        Cell *cell = (Cell *)v->toGCThing();
+        JSRuntime *rt = trc->runtime;
+        if (rt->gcCurrentCompartment && cell->compartment() != rt->gcCurrentCompartment)
+            return;
+
+        /* In case we're called from a write barrier. */
+        if (rt->gcIncrementalCompartment && cell->compartment() != rt->gcIncrementalCompartment)
+            return;
+
+        MarkValue(trc, v, name);
+    }
 }
 
 /*** Push Mark Stack ***/
@@ -914,21 +896,21 @@ PushArena(GCMarker *gcmarker, ArenaHeader *aheader)
 
 using namespace js::gc;
 
-struct SlotArrayLayout
+struct ValueArrayLayout
 {
     union {
-        HeapSlot *end;
+        HeapValue *end;
         js::Class *clasp;
     };
     union {
-        HeapSlot *start;
+        HeapValue *start;
         uintptr_t index;
     };
     JSObject *obj;
 
     static void staticAsserts() {
         /* This should have the same layout as three mark stack items. */
-        JS_STATIC_ASSERT(sizeof(SlotArrayLayout) == 3 * sizeof(uintptr_t));
+        JS_STATIC_ASSERT(sizeof(ValueArrayLayout) == 3 * sizeof(uintptr_t));
     }
 };
 
@@ -951,16 +933,16 @@ GCMarker::saveValueRanges()
         uintptr_t tag = *--p & StackTagMask;
         if (tag == ValueArrayTag) {
             p -= 2;
-            SlotArrayLayout *arr = reinterpret_cast<SlotArrayLayout *>(p);
+            ValueArrayLayout *arr = reinterpret_cast<ValueArrayLayout *>(p);
             JSObject *obj = arr->obj;
 
             if (obj->getClass() == &ArrayClass) {
-                HeapSlot *vp = obj->getDenseArrayElements();
+                HeapValue *vp = obj->getDenseArrayElements();
                 JS_ASSERT(arr->start >= vp &&
                           arr->end == vp + obj->getDenseArrayInitializedLength());
                 arr->index = arr->start - vp;
             } else {
-                HeapSlot *vp = obj->fixedSlots();
+                HeapValue *vp = obj->fixedSlots();
                 unsigned nfixed = obj->numFixedSlots();
                 if (arr->start >= vp && arr->start < vp + nfixed) {
                     JS_ASSERT(arr->end == vp + Min(nfixed, obj->slotSpan()));
@@ -993,7 +975,7 @@ GCMarker::restoreValueArray(JSObject *obj, void **vpp, void **endp)
             return false;
 
         uint32_t initlen = obj->getDenseArrayInitializedLength();
-        HeapSlot *vp = obj->getDenseArrayElements();
+        HeapValue *vp = obj->getDenseArrayElements();
         if (start < initlen) {
             *vpp = vp + start;
             *endp = vp + initlen;
@@ -1002,7 +984,7 @@ GCMarker::restoreValueArray(JSObject *obj, void **vpp, void **endp)
             *vpp = *endp = vp;
         }
     } else {
-        HeapSlot *vp = obj->fixedSlots();
+        HeapValue *vp = obj->fixedSlots();
         unsigned nfixed = obj->numFixedSlots();
         unsigned nslots = obj->slotSpan();
         if (start < nfixed) {
@@ -1029,7 +1011,7 @@ GCMarker::processMarkStackTop(SliceBudget &budget)
      * object directly. It allows to eliminate the tail recursion and
      * significantly improve the marking performance, see bug 641025.
      */
-    HeapSlot *vp, *end;
+    HeapValue *vp, *end;
     JSObject *obj;
 
     uintptr_t addr = stack.pop();
@@ -1044,8 +1026,8 @@ GCMarker::processMarkStackTop(SliceBudget &budget)
         uintptr_t addr3 = stack.pop();
         JS_ASSERT(addr2 <= addr3);
         JS_ASSERT((addr3 - addr2) % sizeof(Value) == 0);
-        vp = reinterpret_cast<HeapSlot *>(addr2);
-        end = reinterpret_cast<HeapSlot *>(addr3);
+        vp = reinterpret_cast<HeapValue *>(addr2);
+        end = reinterpret_cast<HeapValue *>(addr3);
         goto scan_value_array;
     }
 

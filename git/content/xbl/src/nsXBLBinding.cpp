@@ -116,7 +116,7 @@ XBLFinalize(JSContext *cx, JSObject *obj)
 }
 
 static JSBool
-XBLResolve(JSContext *cx, JSObject *obj, jsid id, unsigned flags,
+XBLResolve(JSContext *cx, JSObject *obj, jsid id, uintN flags,
            JSObject **objp)
 {
   // Note: if we get here, that means that the implementation for some binding

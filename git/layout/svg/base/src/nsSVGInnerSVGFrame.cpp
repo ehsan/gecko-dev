@@ -83,7 +83,7 @@ nsSVGInnerSVGFrame::GetType() const
 // nsISVGChildFrame methods
 
 NS_IMETHODIMP
-nsSVGInnerSVGFrame::PaintSVG(nsRenderingContext *aContext,
+nsSVGInnerSVGFrame::PaintSVG(nsSVGRenderState *aContext,
                              const nsIntRect *aDirtyRect)
 {
   gfxContextAutoSaveRestore autoSR;
@@ -100,7 +100,7 @@ nsSVGInnerSVGFrame::PaintSVG(nsRenderingContext *aContext,
     nsSVGContainerFrame *parent = static_cast<nsSVGContainerFrame*>(mParent);
     gfxMatrix clipTransform = parent->GetCanvasTM();
 
-    gfxContext *gfx = aContext->ThebesContext();
+    gfxContext *gfx = aContext->GetGfxContext();
     autoSR.SetContext(gfx);
     gfxRect clipRect =
       nsSVGUtils::GetClipRectForFrame(this, x, y, width, height);
@@ -164,24 +164,14 @@ nsSVGInnerSVGFrame::AttributeChanged(PRInt32  aNameSpaceID,
     if (aAttribute == nsGkAtoms::width ||
         aAttribute == nsGkAtoms::height) {
 
-      nsSVGSVGElement* svg = static_cast<nsSVGSVGElement*>(mContent);
-      if (svg->mViewBox.IsValid()) {
+      if (static_cast<nsSVGSVGElement*>(mContent)->mViewBox.IsValid()) {
 
         // make sure our cached transform matrix gets (lazily) updated
         mCanvasTM = nsnull;
 
         nsSVGUtils::NotifyChildrenOfSVGChange(this, TRANSFORM_CHANGED);
       } else {
-
-        PRUint32 flags = COORD_CONTEXT_CHANGED;
-
-        if (mCanvasTM && mCanvasTM->IsSingular()) {
-
-          mCanvasTM = nsnull;
-
-          flags |= TRANSFORM_CHANGED;
-        }
-        nsSVGUtils::NotifyChildrenOfSVGChange(this, flags);
+        nsSVGUtils::NotifyChildrenOfSVGChange(this, COORD_CONTEXT_CHANGED);
       }
 
     } else if (aAttribute == nsGkAtoms::transform ||

@@ -43,6 +43,7 @@
 #include "nsContentUtils.h"
 #include "nsDOMClassInfoID.h"
 #include "nsDOMError.h"
+#include "nsICharsetAlias.h"
 #include "nsICharsetDetector.h"
 #include "nsICharsetConverterManager.h"
 #include "nsIConverterInputStream.h"

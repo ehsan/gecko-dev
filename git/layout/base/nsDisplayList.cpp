@@ -2007,11 +2007,6 @@ nsDisplayScrollLayer::TryMerge(nsDisplayListBuilder* aBuilder,
     reinterpret_cast<void*>(GetScrollLayerCount() - 1));
 
   mList.AppendToBottom(&other->mList);
-  // XXX - This ensures that the frame associated with a scroll layer after
-  // merging is the first, rather than the last. This tends to change less,
-  // ensuring we're more likely to retain the associated gfx layer.
-  // See Bug 729534 and Bug 731641.
-  mFrame = other->mFrame;
   return true;
 }
 
@@ -2602,14 +2597,7 @@ nsDisplayTransform::ShouldPrerenderTransformedContent(nsDisplayListBuilder* aBui
     // reference frame size (~viewport), allowing a 1/8th fuzz factor
     // for shadows, borders, etc.
     refSize += nsSize(refSize.width / 8, refSize.height / 8);
-    if (aFrame->GetVisualOverflowRectRelativeToSelf().Size() <= refSize) {
-      // Bug 717521 - pre-render max 4096 x 4096 device pixels.
-      nscoord max = aFrame->PresContext()->DevPixelsToAppUnits(4096);
-      nsRect visual = aFrame->GetVisualOverflowRect();
-      if (visual.width <= max && visual.height <= max) {
-        return true;
-      }
-    }
+    return aFrame->GetVisualOverflowRectRelativeToSelf().Size() <= refSize;
   }
   return false;
 }

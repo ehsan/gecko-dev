@@ -96,7 +96,7 @@ struct PropertyCacheEntry
     bool isPrototypePropertyHit() const { return scopeIndex == 0 && protoIndex == 1; }
 
     void assign(jsbytecode *kpc, const Shape *kshape, const Shape *pshape,
-                const Shape *prop, unsigned scopeIndex, unsigned protoIndex) {
+                const Shape *prop, uintN scopeIndex, uintN protoIndex) {
         JS_ASSERT(scopeIndex <= MaxScopeIndex);
         JS_ASSERT(protoIndex <= MaxProtoIndex);
 
@@ -216,10 +216,10 @@ class PropertyCache
      * Return the filled cache entry or JS_NO_PROP_CACHE_FILL if caching was
      * not possible.
      */
-    PropertyCacheEntry *fill(JSContext *cx, JSObject *obj, unsigned scopeIndex,
+    PropertyCacheEntry *fill(JSContext *cx, JSObject *obj, uintN scopeIndex,
                              JSObject *pobj, const js::Shape *shape);
 
-    void purge(JSRuntime *rt);
+    void purge(JSContext *cx);
 
     /* Restore an entry that may have been purged during a GC. */
     void restore(PropertyCacheEntry *entry);

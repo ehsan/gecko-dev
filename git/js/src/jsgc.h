@@ -1175,7 +1175,7 @@ struct ArenaLists {
         }
     }
 
-    inline void prepareForIncrementalGC(JSRuntime *rt);
+    inline void prepareForIncrementalGC(JSCompartment *comp);
 
     /*
      * Temporarily copy the free list heads to the arenas so the code can see
@@ -1410,7 +1410,7 @@ GCDebugSlice(JSContext *cx, int64_t objCount);
 namespace js {
 
 void
-InitTracer(JSTracer *trc, JSRuntime *rt, JSTraceCallback callback);
+InitTracer(JSTracer *trc, JSRuntime *rt, JSContext *cx, JSTraceCallback callback);
 
 #ifdef JS_THREADSAFE
 
@@ -1572,15 +1572,12 @@ struct MarkStack {
     T *ballast;
     T *ballastLimit;
 
-    size_t sizeLimit;
-
-    MarkStack(size_t sizeLimit)
+    MarkStack()
       : stack(NULL),
         tos(NULL),
         limit(NULL),
         ballast(NULL),
-        ballastLimit(NULL),
-        sizeLimit(sizeLimit) { }
+        ballastLimit(NULL) { }
 
     ~MarkStack() {
         if (stack != ballast)
@@ -1598,23 +1595,10 @@ struct MarkStack {
         if (!ballast)
             return false;
         ballastLimit = ballast + ballastcap;
-        initFromBallast();
-        return true;
-    }
-
-    void initFromBallast() {
         stack = ballast;
         limit = ballastLimit;
-        if (size_t(limit - stack) > sizeLimit)
-            limit = stack + sizeLimit;
         tos = stack;
-    }
-
-    void setSizeLimit(size_t size) {
-        JS_ASSERT(isEmpty());
-
-        sizeLimit = size;
-        reset();
+        return true;
     }
 
     bool push(T item) {
@@ -1656,22 +1640,21 @@ struct MarkStack {
     }
 
     void reset() {
-        if (stack != ballast)
+        if (stack != ballast) {
             js_free(stack);
-        initFromBallast();
-        JS_ASSERT(stack == ballast);
+            stack = ballast;
+            limit = ballastLimit;
+        }
+        tos = stack;
+        JS_ASSERT(limit == ballastLimit);
     }
 
     bool enlarge() {
         size_t tosIndex = tos - stack;
         size_t cap = limit - stack;
-        if (cap == sizeLimit)
-            return false;
         size_t newcap = cap * 2;
         if (newcap == 0)
             newcap = 32;
-        if (newcap > sizeLimit)
-            newcap = sizeLimit;
 
         T *newStack;
         if (stack == ballast) {
@@ -1689,14 +1672,6 @@ struct MarkStack {
         tos = stack + tosIndex;
         limit = newStack + newcap;
         return true;
-    }
-
-    size_t sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf) const {
-        size_t n = 0;
-        if (stack != ballast)
-            n += mallocSizeOf(stack);
-        n += mallocSizeOf(ballast);
-        return n;
     }
 };
 
@@ -1767,12 +1742,9 @@ struct GCMarker : public JSTracer {
 
   public:
     explicit GCMarker();
-    bool init();
+    bool init(bool lazy);
 
-    void setSizeLimit(size_t size) { stack.setSizeLimit(size); }
-    size_t sizeLimit() const { return stack.sizeLimit; }
-
-    void start(JSRuntime *rt);
+    void start(JSRuntime *rt, JSContext *cx);
     void stop();
     void reset();
 
@@ -1834,8 +1806,6 @@ struct GCMarker : public JSTracer {
     void markBufferedGrayRoots();
 
     static void GrayCallback(JSTracer *trc, void **thing, JSGCTraceKind kind);
-
-    size_t sizeOfExcludingThis(JSMallocSizeOfFun mallocSizeOf) const;
 
     MarkStack<uintptr_t> stack;
 
@@ -1910,16 +1880,26 @@ struct GCMarker : public JSTracer {
     Vector<GrayRoot, 0, SystemAllocPolicy> grayRoots;
 };
 
-void
-SetMarkStackLimit(JSRuntime *rt, size_t limit);
+struct BarrierGCMarker : public GCMarker {
+    bool init() {
+        return GCMarker::init(true);
+    }
+};
+
+
+struct FullGCMarker : public GCMarker {
+    bool init() {
+        return GCMarker::init(false);
+    }
+};
 
 void
 MarkStackRangeConservatively(JSTracer *trc, Value *begin, Value *end);
 
-typedef void (*IterateChunkCallback)(JSRuntime *rt, void *data, gc::Chunk *chunk);
-typedef void (*IterateArenaCallback)(JSRuntime *rt, void *data, gc::Arena *arena,
+typedef void (*IterateChunkCallback)(JSContext *cx, void *data, gc::Chunk *chunk);
+typedef void (*IterateArenaCallback)(JSContext *cx, void *data, gc::Arena *arena,
                                      JSGCTraceKind traceKind, size_t thingSize);
-typedef void (*IterateCellCallback)(JSRuntime *rt, void *data, void *thing,
+typedef void (*IterateCellCallback)(JSContext *cx, void *data, void *thing,
                                     JSGCTraceKind traceKind, size_t thingSize);
 
 /*
@@ -1928,7 +1908,7 @@ typedef void (*IterateCellCallback)(JSRuntime *rt, void *data, void *thing,
  * cell in the GC heap.
  */
 extern JS_FRIEND_API(void)
-IterateCompartmentsArenasCells(JSRuntime *rt, void *data,
+IterateCompartmentsArenasCells(JSContext *cx, void *data,
                                JSIterateCompartmentCallback compartmentCallback,
                                IterateArenaCallback arenaCallback,
                                IterateCellCallback cellCallback);
@@ -1937,14 +1917,14 @@ IterateCompartmentsArenasCells(JSRuntime *rt, void *data,
  * Invoke chunkCallback on every in-use chunk.
  */
 extern JS_FRIEND_API(void)
-IterateChunks(JSRuntime *rt, void *data, IterateChunkCallback chunkCallback);
+IterateChunks(JSContext *cx, void *data, IterateChunkCallback chunkCallback);
 
 /*
  * Invoke cellCallback on every in-use object of the specified thing kind for
  * the given compartment or for all compartments if it is null.
  */
 extern JS_FRIEND_API(void)
-IterateCells(JSRuntime *rt, JSCompartment *compartment, gc::AllocKind thingKind,
+IterateCells(JSContext *cx, JSCompartment *compartment, gc::AllocKind thingKind,
              void *data, IterateCellCallback cellCallback);
 
 } /* namespace js */

@@ -43,8 +43,6 @@
 #include "gfxRect.h"
 #include "gfxMatrix.h"
 
-class nsRenderingContext;
-
 typedef nsContainerFrame nsSVGContainerFrameBase;
 
 class nsSVGContainerFrame : public nsSVGContainerFrameBase
@@ -105,7 +103,7 @@ public:
                   nsIFrame*        aPrevInFlow);
 
   // nsISVGChildFrame interface:
-  NS_IMETHOD PaintSVG(nsRenderingContext* aContext,
+  NS_IMETHOD PaintSVG(nsSVGRenderState* aContext,
                       const nsIntRect *aDirtyRect);
   NS_IMETHOD_(nsIFrame*) GetFrameForPoint(const nsPoint &aPoint);
   NS_IMETHOD_(nsRect) GetCoveredRegion();

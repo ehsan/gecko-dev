@@ -40,6 +40,8 @@
 #ifndef __JumpListItem_h__
 #define __JumpListItem_h__
 
+#if MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_WIN7
+
 #include <windows.h>
 #include <shobjidl.h>
 
@@ -157,5 +159,7 @@ protected:
 
 } // namespace widget
 } // namespace mozilla
+
+#endif // MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_WIN7
 
 #endif /* __JumpListItem_h__ */

@@ -39,7 +39,7 @@
 #include <vector>
 #include <string.h>
 #include <stdlib.h>
-#include <mozilla/StandardInteger.h>
+#include <mozilla/StdInt.h>
 
 class SharedLibrary {
 public:

@@ -9,6 +9,7 @@
 #include "js-config.h"
 #include "jsapi.h"
 #include "jsclass.h"
+#include "jscompat.h"
 #include "jscpucfg.h"
 #include "jspubtd.h"
 #include "jstypes.h"

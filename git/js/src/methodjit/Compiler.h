@@ -404,7 +404,7 @@ class Compiler : public BaseCompiler
     analyze::CrossScriptSSA ssa;
 
     GlobalObject *globalObj;
-    const HeapSlot *globalSlots;  /* Original slots pointer. */
+    const HeapValue *globalSlots;  /* Original slots pointer. */
 
     Assembler masm;
     FrameState frame;
@@ -606,6 +606,7 @@ private:
 
     /* Non-emitting helpers. */
     void pushSyncedEntry(uint32_t pushed);
+    uint32_t fullAtomIndex(jsbytecode *pc);
     bool jumpInScript(Jump j, jsbytecode *pc);
     bool compareTwoValues(JSContext *cx, JSOp op, const Value &lhs, const Value &rhs);
     bool canUseApplyTricks();
@@ -613,7 +614,7 @@ private:
     /* Emitting helpers. */
     bool constantFoldBranch(jsbytecode *target, bool taken);
     bool emitStubCmpOp(BoolStub stub, jsbytecode *target, JSOp fused);
-    bool iter(unsigned flags);
+    bool iter(uintN flags);
     void iterNext(ptrdiff_t offset);
     bool iterMore(jsbytecode *target);
     void iterEnd();

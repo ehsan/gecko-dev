@@ -80,13 +80,13 @@ public:
   FromJSObject(JSObject* aObj);
 
   static JSBool
-  AddEventListener(JSContext* aCx, unsigned aArgc, jsval* aVp);
+  AddEventListener(JSContext* aCx, uintN aArgc, jsval* aVp);
 
   static JSBool
-  RemoveEventListener(JSContext* aCx, unsigned aArgc, jsval* aVp);
+  RemoveEventListener(JSContext* aCx, uintN aArgc, jsval* aVp);
 
   static JSBool
-  DispatchEvent(JSContext* aCx, unsigned aArgc, jsval* aVp);
+  DispatchEvent(JSContext* aCx, uintN aArgc, jsval* aVp);
 
   bool
   HasListeners()

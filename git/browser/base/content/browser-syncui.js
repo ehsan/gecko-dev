@@ -291,7 +291,7 @@ let gSyncUI = {
     if (win)
       win.focus();
     else {
-      window.openDialog("chrome://browser/content/sync/setup.xul",
+      window.openDialog("chrome://browser/content/syncSetup.xul",
                         "weaveSetup", "centerscreen,chrome,resizable=no",
                         wizardType);
     }
@@ -305,7 +305,7 @@ let gSyncUI = {
     if (win)
       win.focus();
     else
-      window.openDialog("chrome://browser/content/sync/addDevice.xul",
+      window.openDialog("chrome://browser/content/syncAddDevice.xul",
                         "syncAddDevice", "centerscreen,chrome,resizable=no");
   },
 
@@ -315,7 +315,7 @@ let gSyncUI = {
       win.focus();
     else
       Services.ww.activeWindow.openDialog(
-        "chrome://browser/content/sync/quota.xul", "",
+        "chrome://browser/content/syncQuota.xul", "",
         "centerscreen,chrome,dialog,modal");
   },
 

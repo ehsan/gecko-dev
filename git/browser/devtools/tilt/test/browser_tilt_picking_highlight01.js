@@ -23,7 +23,7 @@ function test() {
         presenter = instance.presenter;
         Services.obs.addObserver(whenHighlighting, HIGHLIGHTING, false);
 
-        presenter._onSetupMesh = function() {
+        presenter.onSetupMesh = function() {
           let contentDocument = presenter.contentWindow.document;
           let div = contentDocument.getElementById("first-law");
 
@@ -37,9 +37,9 @@ function test() {
 function whenHighlighting() {
   ok(presenter._currentSelection > 0,
     "Highlighting a node didn't work properly.");
-  ok(!presenter._highlight.disabled,
+  ok(!presenter.highlight.disabled,
     "After highlighting a node, it should be highlighted. D'oh.");
-  ok(!presenter.controller.arcball._resetInProgress,
+  ok(!presenter.controller.arcball._resetInterval,
     "Highlighting a node that's already visible shouldn't trigger a reset.");
 
   executeSoon(function() {
@@ -51,7 +51,7 @@ function whenHighlighting() {
 function whenUnhighlighting() {
   ok(presenter._currentSelection < 0,
     "Unhighlighting a should remove the current selection.");
-  ok(presenter._highlight.disabled,
+  ok(presenter.highlight.disabled,
     "After unhighlighting a node, it shouldn't be highlighted anymore. D'oh.");
 
   executeSoon(function() {

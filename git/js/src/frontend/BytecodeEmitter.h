@@ -168,20 +168,21 @@ struct StmtInfo {
 #define TCF_IN_FOR_INIT         0x10 /* parsing init expr of for; exclude 'in' */
 #define TCF_FUN_SETS_OUTER_NAME 0x20 /* function set outer name (lexical or free) */
 #define TCF_FUN_PARAM_ARGUMENTS 0x40 /* function has parameter named arguments */
-#define TCF_FUN_LOCAL_ARGUMENTS 0x80 /* function may contain a local named arguments */
-#define TCF_FUN_USES_ARGUMENTS 0x100 /* function uses arguments except as a
+#define TCF_FUN_USES_ARGUMENTS  0x80 /* function uses arguments except as a
                                         parameter name */
-#define TCF_FUN_HEAVYWEIGHT    0x200 /* function needs Call object per call */
-#define TCF_FUN_IS_GENERATOR   0x400 /* parsed yield statement in function */
-#define TCF_FUN_USES_OWN_NAME  0x800 /* named function expression that uses its
+#define TCF_FUN_HEAVYWEIGHT    0x100 /* function needs Call object per call */
+#define TCF_FUN_IS_GENERATOR   0x200 /* parsed yield statement in function */
+#define TCF_FUN_USES_OWN_NAME  0x400 /* named function expression that uses its
                                         own name */
-#define TCF_HAS_FUNCTION_STMT 0x1000 /* block contains a function statement */
-#define TCF_GENEXP_LAMBDA     0x2000 /* flag lambda from generator expression */
-#define TCF_COMPILE_N_GO      0x4000 /* compile-and-go mode of script, can
+#define TCF_HAS_FUNCTION_STMT  0x800 /* block contains a function statement */
+#define TCF_GENEXP_LAMBDA     0x1000 /* flag lambda from generator expression */
+#define TCF_COMPILE_N_GO      0x2000 /* compile-and-go mode of script, can
                                         optimize name references based on scope
                                         chain */
-#define TCF_NO_SCRIPT_RVAL    0x8000 /* API caller does not want result value
+#define TCF_NO_SCRIPT_RVAL    0x4000 /* API caller does not want result value
                                         from global script */
+/* bit 0x8000 is unused */
+
 /*
  * Set when parsing a declaration-like destructuring pattern.  This
  * flag causes PrimaryExpr to create PN_NAME parse nodes for variable
@@ -272,7 +273,6 @@ struct StmtInfo {
 #define TCF_FUN_FLAGS           (TCF_FUN_SETS_OUTER_NAME |                    \
                                  TCF_FUN_USES_ARGUMENTS  |                    \
                                  TCF_FUN_PARAM_ARGUMENTS |                    \
-                                 TCF_FUN_LOCAL_ARGUMENTS |                    \
                                  TCF_FUN_HEAVYWEIGHT     |                    \
                                  TCF_FUN_IS_GENERATOR    |                    \
                                  TCF_FUN_USES_OWN_NAME   |                    \
@@ -337,7 +337,7 @@ struct TreeContext {                /* tree context for semantic checks */
 
     OwnedAtomDefnMapPtr lexdeps;    /* unresolved lexical name dependencies */
     TreeContext     *parent;        /* enclosing function or global context */
-    unsigned           staticLevel;    /* static compilation unit nesting level */
+    uintN           staticLevel;    /* static compilation unit nesting level */
 
     FunctionBox     *funbox;        /* null or box for function we're compiling
                                        if (flags & TCF_IN_FUNCTION) and not in
@@ -372,7 +372,7 @@ struct TreeContext {                /* tree context for semantic checks */
         return decls.init() && lexdeps.ensureMap(cx);
     }
 
-    unsigned blockid() { return topStmt ? topStmt->blockid : bodyid; }
+    uintN blockid() { return topStmt ? topStmt->blockid : bodyid; }
 
     /*
      * True if we are at the topmost level of a entire script or function body.
@@ -434,15 +434,6 @@ struct TreeContext {                /* tree context for semantic checks */
         return flags & TCF_FUN_MUTATES_PARAMETER;
     }
 
-    bool mayOverwriteArguments() const {
-        JS_ASSERT(inFunction());
-        JS_ASSERT_IF(inStrictMode(),
-                     !(flags & (TCF_FUN_PARAM_ARGUMENTS | TCF_FUN_LOCAL_ARGUMENTS)));
-        return !inStrictMode() &&
-               (callsEval() ||
-                flags & (TCF_FUN_PARAM_ARGUMENTS | TCF_FUN_LOCAL_ARGUMENTS));
-    }
-
     void noteArgumentsNameUse(ParseNode *node) {
         JS_ASSERT(inFunction());
         JS_ASSERT(node->isKind(PNK_NAME));
@@ -491,7 +482,7 @@ inline bool TreeContext::needStrictChecks() {
 namespace frontend {
 
 bool
-SetStaticLevel(TreeContext *tc, unsigned staticLevel);
+SetStaticLevel(TreeContext *tc, uintN staticLevel);
 
 bool
 GenerateBlockId(TreeContext *tc, uint32_t &blockid);
@@ -509,7 +500,7 @@ struct CGObjectList {
 
     CGObjectList() : length(0), lastbox(NULL) {}
 
-    unsigned index(ObjectBox *objbox);
+    uintN index(ObjectBox *objbox);
     void finish(JSObjectArray *array);
 };
 
@@ -560,25 +551,25 @@ struct BytecodeEmitter : public TreeContext
         jsbytecode  *limit;         /* one byte beyond end of bytecode */
         jsbytecode  *next;          /* pointer to next free bytecode */
         jssrcnote   *notes;         /* source notes, see below */
-        unsigned       noteCount;      /* number of source notes so far */
-        unsigned       noteLimit;      /* limit number for source notes in notePool */
+        uintN       noteCount;      /* number of source notes so far */
+        uintN       noteLimit;      /* limit number for source notes in notePool */
         ptrdiff_t   lastNoteOffset; /* code offset for last source note */
-        unsigned       currentLine;    /* line number for tree-based srcnote gen */
+        uintN       currentLine;    /* line number for tree-based srcnote gen */
     } prolog, main, *current;
 
     OwnedAtomIndexMapPtr atomIndices; /* literals indexed for mapping */
     AtomDefnMapPtr  roLexdeps;
-    unsigned           firstLine;      /* first line, for JSScript::NewScriptFromEmitter */
+    uintN           firstLine;      /* first line, for JSScript::NewScriptFromEmitter */
 
-    int            stackDepth;     /* current stack depth in script frame */
-    unsigned           maxStackDepth;  /* maximum stack depth so far */
+    intN            stackDepth;     /* current stack depth in script frame */
+    uintN           maxStackDepth;  /* maximum stack depth so far */
 
-    unsigned           ntrynotes;      /* number of allocated so far try notes */
+    uintN           ntrynotes;      /* number of allocated so far try notes */
     TryNode         *lastTryNode;   /* the last allocated try node */
 
-    unsigned           arrayCompDepth; /* stack depth of array in comprehension */
+    uintN           arrayCompDepth; /* stack depth of array in comprehension */
 
-    unsigned           emitLevel;      /* js::frontend::EmitTree recursion level */
+    uintN           emitLevel;      /* js::frontend::EmitTree recursion level */
 
     typedef HashMap<JSAtom *, Value> ConstMap;
     ConstMap        constMap;       /* compile time constants */
@@ -607,7 +598,7 @@ struct BytecodeEmitter : public TreeContext
 
     uint16_t        typesetCount;   /* Number of JOF_TYPESET opcodes generated */
 
-    BytecodeEmitter(Parser *parser, unsigned lineno);
+    BytecodeEmitter(Parser *parser, uintN lineno);
     bool init(JSContext *cx, TreeContext::InitBehavior ib = USED_AS_CODE_GENERATOR);
 
     JSContext *context() {
@@ -689,10 +680,10 @@ struct BytecodeEmitter : public TreeContext
     void switchToProlog() { current = &prolog; }
 
     jssrcnote *notes() const { return current->notes; }
-    unsigned noteCount() const { return current->noteCount; }
-    unsigned noteLimit() const { return current->noteLimit; }
+    uintN noteCount() const { return current->noteCount; }
+    uintN noteLimit() const { return current->noteLimit; }
     ptrdiff_t lastNoteOffset() const { return current->lastNoteOffset; }
-    unsigned currentLine() const { return current->currentLine; }
+    uintN currentLine() const { return current->currentLine; }
 
     inline ptrdiff_t countFinalSourceNotes();
 };
@@ -789,7 +780,7 @@ DefineCompileTimeConstant(JSContext *cx, BytecodeEmitter *bce, JSAtom *atom, Par
  * found. Otherwise return null.
  */
 StmtInfo *
-LexicalLookup(TreeContext *tc, JSAtom *atom, int *slotp, StmtInfo *stmt = NULL);
+LexicalLookup(TreeContext *tc, JSAtom *atom, jsint *slotp, StmtInfo *stmt = NULL);
 
 /*
  * Emit code into bce for the tree rooted at pn.
@@ -954,13 +945,13 @@ namespace frontend {
  * within the array pointed at by bce->current->notes. Return -1 if out of
  * memory.
  */
-int
+intN
 NewSrcNote(JSContext *cx, BytecodeEmitter *bce, SrcNoteType type);
 
-int
+intN
 NewSrcNote2(JSContext *cx, BytecodeEmitter *bce, SrcNoteType type, ptrdiff_t offset);
 
-int
+intN
 NewSrcNote3(JSContext *cx, BytecodeEmitter *bce, SrcNoteType type, ptrdiff_t offset1,
                ptrdiff_t offset2);
 
@@ -1040,12 +1031,12 @@ struct JSSrcNoteSpec {
 };
 
 extern JS_FRIEND_DATA(JSSrcNoteSpec)  js_SrcNoteSpec[];
-extern JS_FRIEND_API(unsigned)         js_SrcNoteLength(jssrcnote *sn);
+extern JS_FRIEND_API(uintN)         js_SrcNoteLength(jssrcnote *sn);
 
 /*
  * Get and set the offset operand identified by which (0 for the first, etc.).
  */
 extern JS_FRIEND_API(ptrdiff_t)
-js_GetSrcNoteOffset(jssrcnote *sn, unsigned which);
+js_GetSrcNoteOffset(jssrcnote *sn, uintN which);
 
 #endif /* BytecodeEmitter_h__ */

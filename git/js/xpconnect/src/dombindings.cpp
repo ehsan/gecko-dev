@@ -431,6 +431,20 @@ interface_hasInstance(JSContext *cx, JSObject *obj, const JS::Value *vp, JSBool 
     return true;
 }
 
+template<class LC>
+JSObject *
+ListBase<LC>::getPrototype(JSContext *cx, XPCWrappedNativeScope *scope, bool *enabled)
+{
+    if (!scope->NewDOMBindingsEnabled()) {
+        *enabled = false;
+        return NULL;
+    }
+
+    *enabled = true;
+
+    return getPrototype(cx, scope);
+}
+
 enum {
     USE_CACHE = 0,
     CHECK_CACHE = 1,
@@ -497,7 +511,7 @@ ListBase<LC>::getPrototype(JSContext *cx, XPCWrappedNativeScope *scope)
     for (size_t n = 0; n < sProtoPropertiesCount; ++n) {
         JS_ASSERT(sProtoProperties[n].getter);
         jsid id = sProtoProperties[n].id;
-        unsigned attrs = JSPROP_ENUMERATE | JSPROP_SHARED;
+        uintN attrs = JSPROP_ENUMERATE | JSPROP_SHARED;
         if (!sProtoProperties[n].setter)
             attrs |= JSPROP_READONLY;
         if (!JS_DefinePropertyById(cx, interfacePrototype, id, JSVAL_VOID,
@@ -589,7 +603,7 @@ IdToInt32(JSContext *cx, jsid id)
     JSAutoRequest ar(cx);
 
     jsval idval;
-    double array_index;
+    jsdouble array_index;
     int32_t i;
     if (!::JS_IdToValue(cx, id, &idval) ||
         !::JS_ValueToNumber(cx, idval, &array_index) ||
@@ -668,7 +682,7 @@ ListBase<LC>::getOwnPropertyDescriptor(JSContext *cx, JSObject *proxy, jsid id, 
 
     JSObject *expando;
     if (!xpc::WrapperFactory::IsXrayWrapper(proxy) && (expando = getExpandoObject(proxy))) {
-        unsigned flags = (set ? JSRESOLVE_ASSIGNING : 0) | JSRESOLVE_QUALIFIED;
+        uintN flags = (set ? JSRESOLVE_ASSIGNING : 0) | JSRESOLVE_QUALIFIED;
         if (!JS_GetPropertyDescriptorById(cx, expando, id, flags, desc))
             return false;
         if (desc->obj) {
@@ -742,7 +756,7 @@ ListBase<LC>::ensureExpandoObject(JSContext *cx, JSObject *obj)
 
         JSCompartment *compartment = js::GetObjectCompartment(obj);
         xpc::CompartmentPrivate *priv =
-            static_cast<xpc::CompartmentPrivate *>(JS_GetCompartmentPrivate(compartment));
+            static_cast<xpc::CompartmentPrivate *>(js_GetCompartmentPrivate(compartment));
         if (!priv->RegisterDOMExpandoObject(expando))
             return NULL;
 
@@ -838,9 +852,8 @@ template<class LC>
 bool
 ListBase<LC>::enumerate(JSContext *cx, JSObject *proxy, AutoIdVector &props)
 {
-    JSObject *proto = JS_GetPrototype(proxy);
-    return getOwnPropertyNames(cx, proxy, props) &&
-           (!proto || js::GetPropertyNames(cx, proto, 0, &props));
+    // FIXME: enumerate proto as well
+    return getOwnPropertyNames(cx, proxy, props);
 }
 
 template<class LC>
@@ -1236,7 +1249,7 @@ ListBase<LC>::keys(JSContext *cx, JSObject *proxy, AutoIdVector &props)
 
 template<class LC>
 bool
-ListBase<LC>::iterate(JSContext *cx, JSObject *proxy, unsigned flags, Value *vp)
+ListBase<LC>::iterate(JSContext *cx, JSObject *proxy, uintN flags, Value *vp)
 {
     if (flags == JSITER_FOR_OF) {
         JSObject *iterobj = JS_NewElementIterator(cx, proxy);

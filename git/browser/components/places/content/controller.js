@@ -44,6 +44,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "NetUtil",
 
 // XXXmano: we should move most/all of these constants to PlacesUtils
 const ORGANIZER_ROOT_BOOKMARKS = "place:folder=BOOKMARKS_MENU&excludeItems=1&queryType=1";
+const ORGANIZER_SUBSCRIPTIONS_QUERY = "place:annotation=livemark%2FfeedURI";
 
 // No change to the view, preserve current selection
 const RELOAD_ACTION_NOTHING = 0;
@@ -157,9 +158,9 @@ PlacesController.prototype = {
   isCommandEnabled: function PC_isCommandEnabled(aCommand) {
     switch (aCommand) {
     case "cmd_undo":
-      return PlacesUtils.transactionManager.numberOfUndoItems > 0;
+      return PlacesUIUtils.ptm.numberOfUndoItems > 0;
     case "cmd_redo":
-      return PlacesUtils.transactionManager.numberOfRedoItems > 0;
+      return PlacesUIUtils.ptm.numberOfRedoItems > 0;
     case "cmd_cut":
     case "placesCmd_cut":
       var nodes = this._view.selectedNodes;
@@ -207,11 +208,15 @@ PlacesController.prototype = {
                  Ci.nsINavHistoryQueryOptions.SORT_BY_NONE;
     case "placesCmd_show:info":
       var selectedNode = this._view.selectedNode;
-      return selectedNode && PlacesUtils.getConcreteItemId(selectedNode) != -1
+      if (selectedNode &&
+          PlacesUtils.getConcreteItemId(selectedNode) != -1  &&
+          !PlacesUtils.nodeIsLivemarkItem(selectedNode))
+        return true;
+      return false;
     case "placesCmd_reload":
       // Livemark containers
       var selectedNode = this._view.selectedNode;
-      return selectedNode && !!selectedNode._feedURI;
+      return selectedNode && PlacesUtils.nodeIsLivemarkContainer(selectedNode);
     case "placesCmd_sortBy:name":
       var selectedNode = this._view.selectedNode;
       return selectedNode &&
@@ -230,10 +235,10 @@ PlacesController.prototype = {
   doCommand: function PC_doCommand(aCommand) {
     switch (aCommand) {
     case "cmd_undo":
-      PlacesUtils.transactionManager.undoTransaction();
+      PlacesUIUtils.ptm.undoTransaction();
       break;
     case "cmd_redo":
-      PlacesUtils.transactionManager.redoTransaction();
+      PlacesUIUtils.ptm.redoTransaction();
       break;
     case "cmd_cut":
     case "placesCmd_cut":
@@ -504,7 +509,7 @@ PlacesController.prototype = {
             if (parentNode) {
               if (PlacesUtils.nodeIsTagQuery(parentNode))
                 nodeData["tagChild"] = true;
-              else if (parentNode._feedURI)
+              else if (PlacesUtils.nodeIsLivemarkContainer(parentNode))
                 nodeData["livemarkChild"] = true;
             }
           }
@@ -729,17 +734,8 @@ PlacesController.prototype = {
    */
   reloadSelectedLivemark: function PC_reloadSelectedLivemark() {
     var selectedNode = this._view.selectedNode;
-    if (selectedNode) {
-      let itemId = selectedNode.itemId;
-      PlacesUtils.livemarks.getLivemark(
-        { id: itemId },
-        (function(aStatus, aLivemark) {
-          if (Components.isSuccessCode(aStatus)) {
-            aLivemark.reload(true);
-          }
-        }).bind(this)
-      );
-    }
+    if (selectedNode && PlacesUtils.nodeIsLivemarkContainer(selectedNode))
+      PlacesUtils.livemarks.reloadLivemarkFolder(selectedNode.itemId);
   },
 
   /**
@@ -785,8 +781,8 @@ PlacesController.prototype = {
     var ip = this._view.insertionPoint;
     if (!ip)
       throw Cr.NS_ERROR_NOT_AVAILABLE;
-    var txn = new PlacesCreateSeparatorTransaction(ip.itemId, ip.index);
-    PlacesUtils.transactionManager.doTransaction(txn);
+    var txn = PlacesUIUtils.ptm.createSeparator(ip.itemId, ip.index);
+    PlacesUIUtils.ptm.doTransaction(txn);
     // select the new item
     var insertedNodeId = PlacesUtils.bookmarks
                                     .getIdForItemAt(ip.itemId, ip.index);
@@ -807,8 +803,8 @@ PlacesController.prototype = {
    */
   sortFolderByName: function PC_sortFolderByName() {
     var itemId = PlacesUtils.getConcreteItemId(this._view.selectedNode);
-    var txn = new PlacesSortFolderByNameTransaction(itemId);
-    PlacesUtils.transactionManager.doTransaction(txn);
+    var txn = PlacesUIUtils.ptm.sortFolderByName(itemId);
+    PlacesUIUtils.ptm.doTransaction(txn);
   },
 
   /**
@@ -872,8 +868,7 @@ PlacesController.prototype = {
         // untag transaction.
         var tagItemId = PlacesUtils.getConcreteItemId(node.parent);
         var uri = NetUtil.newURI(node.uri);
-        let txn = new PlacesUntagURITransaction(uri, [tagItemId]);
-        transactions.push(txn);
+        transactions.push(PlacesUIUtils.ptm.untagURI(uri, [tagItemId]));
       }
       else if (PlacesUtils.nodeIsTagQuery(node) && node.parent &&
                PlacesUtils.nodeIsQuery(node.parent) &&
@@ -885,10 +880,8 @@ PlacesController.prototype = {
         // must only remove the query node.
         var tag = node.title;
         var URIs = PlacesUtils.tagging.getURIsForTag(tag);
-        for (var j = 0; j < URIs.length; j++) {
-          let txn = new PlacesUntagURITransaction(URIs[j], [tag]);
-          transactions.push(txn);
-        }
+        for (var j = 0; j < URIs.length; j++)
+          transactions.push(PlacesUIUtils.ptm.untagURI(URIs[j], [tag]));
       }
       else if (PlacesUtils.nodeIsURI(node) &&
                PlacesUtils.nodeIsQuery(node.parent) &&
@@ -915,8 +908,7 @@ PlacesController.prototype = {
           // to skip nodes that are children of an already removed folder.
           removedFolders.push(node);
         }
-        let txn = new PlacesRemoveItemTransaction(node.itemId);
-        transactions.push(txn);
+        transactions.push(PlacesUIUtils.ptm.removeItem(node.itemId));
       }
     }
   },
@@ -935,8 +927,8 @@ PlacesController.prototype = {
       this._removeRange(ranges[i], transactions, removedFolders);
 
     if (transactions.length > 0) {
-      var txn = new PlacesAggregatedTransaction(txnName, transactions);
-      PlacesUtils.transactionManager.doTransaction(txn);
+      var txn = PlacesUIUtils.ptm.aggregateTransactions(txnName, transactions);
+      PlacesUIUtils.ptm.doTransaction(txn);
     }
   },
 
@@ -1073,12 +1065,10 @@ PlacesController.prototype = {
         addData(PlacesUtils.TYPE_X_MOZ_PLACE, i);
 
         // Drop the feed uri for livemark containers
-        if (node._feedURI) {
-          addURIData(i, node._feedURI.spec);
-        }
-        else if (node.uri) {
+        if (PlacesUtils.nodeIsLivemarkContainer(node))
+          addURIData(i, PlacesUtils.livemarks.getFeedURI(node.itemId).spec);
+        else if (node.uri)
           addURIData(i);
-        }
       }
     }
     finally {
@@ -1148,7 +1138,8 @@ PlacesController.prototype = {
       if (PlacesUtils.nodeIsFolder(node))
         copiedFolders.push(node);
 
-      let overrideURI = node._feedURI ? node._feedURI.spec : null;
+      let overrideURI = PlacesUtils.nodeIsLivemarkContainer(node) ?
+        PlacesUtils.livemarks.getFeedURI(node.itemId).spec : null;
       let resolveShortcuts = !PlacesControllerDragHelper.canMoveNode(node);
 
       contents.forEach(function (content) {
@@ -1282,9 +1273,10 @@ PlacesController.prototype = {
       if (ip.isTag) {
         // Pasting into a tag container means tagging the item, regardless of
         // the requested action.
-        let tagTxn = new PlacesTagURITransaction(NetUtil.newURI(items[i].uri),
-                                                 [ip.itemId]);
-        transactions.push(tagTxn);
+        transactions.push(
+          new PlacesTagURITransaction(NetUtil.newURI(items[i].uri),
+                                      [ip.itemId])
+        );
         continue;
       }
 
@@ -1299,8 +1291,9 @@ PlacesController.prototype = {
       );
     }
  
-    let aggregatedTxn = new PlacesAggregatedTransaction("Paste", transactions);
-    PlacesUtils.transactionManager.doTransaction(aggregatedTxn);
+    PlacesUtils.transactionManager.doTransaction(
+      new PlacesAggregatedTransaction("Paste", transactions)
+    );
 
     // Cut/past operations are not repeatable, so clear the clipboard.
     if (action == "cut") {
@@ -1550,8 +1543,7 @@ let PlacesControllerDragHelper = {
           insertionPoint.orientation == Ci.nsITreeView.DROP_ON) {
         let uri = NetUtil.newURI(unwrapped.uri);
         let tagItemId = insertionPoint.itemId;
-        let tagTxn = new PlacesTagURITransaction(uri, [tagItemId]);
-        transactions.push(tagTxn);
+        transactions.push(PlacesUIUtils.ptm.tagURI(uri,[tagItemId]));
       }
       else {
         transactions.push(PlacesUIUtils.makeTransaction(unwrapped,
@@ -1560,8 +1552,8 @@ let PlacesControllerDragHelper = {
       }
     }
 
-    let txn = new PlacesAggregatedTransaction("DropItems", transactions);
-    PlacesUtils.transactionManager.doTransaction(txn);
+    let txn = PlacesUIUtils.ptm.aggregateTransactions("DropItems", transactions);
+    PlacesUIUtils.ptm.doTransaction(txn);
   },
 
   /**

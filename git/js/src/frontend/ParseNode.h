@@ -589,7 +589,7 @@ struct ParseNode {
             ParseNode   *left;
             ParseNode   *right;
             Value       *pval;          /* switch case value */
-            unsigned       iflags;         /* JSITER_* flags for PNK_FOR node */
+            uintN       iflags;         /* JSITER_* flags for PNK_FOR node */
         } binary;
         struct {                        /* one kid if unary */
             ParseNode   *kid;
@@ -619,7 +619,7 @@ struct ParseNode {
             AtomDefnMapPtr   defnMap;
             ParseNode        *tree;     /* sub-tree containing name uses */
         } nameset;
-        double        dval;             /* aligned numeric literal value */
+        jsdouble        dval;           /* aligned numeric literal value */
         class {
             friend class LoopControlStatement;
             PropertyName     *label;    /* target of break/continue statement */
@@ -753,17 +753,17 @@ struct ParseNode {
 #define PNX_HOLEY      0x400            /* array initialiser has holes */
 #define PNX_NONCONST   0x800            /* initialiser has non-constants */
 
-    unsigned frameLevel() const {
+    uintN frameLevel() const {
         JS_ASSERT(pn_arity == PN_FUNC || pn_arity == PN_NAME);
         return pn_cookie.level();
     }
 
-    unsigned frameSlot() const {
+    uintN frameSlot() const {
         JS_ASSERT(pn_arity == PN_FUNC || pn_arity == PN_NAME);
         return pn_cookie.slot();
     }
 
-    inline bool test(unsigned flag) const;
+    inline bool test(uintN flag) const;
 
     bool isLet() const          { return test(PND_LET); }
     bool isConst() const        { return test(PND_CONST); }
@@ -1480,7 +1480,7 @@ class ParseNodeAllocator {
 };
 
 inline bool
-ParseNode::test(unsigned flag) const
+ParseNode::test(uintN flag) const
 {
     JS_ASSERT(pn_defn || pn_arity == PN_FUNC || pn_arity == PN_NAME);
 #ifdef DEBUG

@@ -142,8 +142,6 @@ class nsDOMMozURLProperty;
 class nsIDOMCrypto;
 #endif
 
-class nsWindowSizes;
-
 namespace mozilla {
 namespace dom {
 class Navigator;
@@ -238,7 +236,7 @@ private:
 class nsOuterWindowProxy : public js::Wrapper
 {
 public:
-  nsOuterWindowProxy() : js::Wrapper((unsigned)0) {}
+  nsOuterWindowProxy() : js::Wrapper((uintN)0) {}
 
   virtual bool isOuterWindow() {
     return true;
@@ -426,16 +424,6 @@ public:
     return FromSupports(wrapper->Native());
   }
 
-  /**
-   * Wrap nsIDOMWindow::GetTop so we can overload the inline GetTop()
-   * implementation below.  (nsIDOMWindow::GetTop simply calls
-   * nsIDOMWindow::GetRealTop().)
-   */
-  nsresult GetTop(nsIDOMWindow **aWindow)
-  {
-    return nsIDOMWindow::GetTop(aWindow);
-  }
-
   inline nsGlobalWindow *GetTop()
   {
     nsCOMPtr<nsIDOMWindow> top;
@@ -588,7 +576,8 @@ public:
     return sWindowsById;
   }
 
-  void SizeOfIncludingThis(nsWindowSizes* aWindowSizes) const;
+  PRInt64 SizeOf() const;
+  size_t SizeOfStyleSheets(nsMallocSizeOfFun aMallocSizeOf) const;
 
   void UnmarkGrayTimers();
 private:
@@ -598,9 +587,6 @@ private:
   // Disables updates for the accelerometer.
   void DisableDeviceMotionUpdates();
 
-  // Implements Get{Real,Scriptable}Top.
-  nsresult GetTopImpl(nsIDOMWindow **aWindow, bool aScriptable);
-
 protected:
   friend class HashchangeCallback;
   friend class nsBarProp;
@@ -609,9 +595,11 @@ protected:
   virtual ~nsGlobalWindow();
   void CleanUp(bool aIgnoreModalDialog);
   void ClearControllers();
+  static void TryClearWindowScope(nsISupports* aWindow);
+  void ClearScopeWhenAllScriptsStop();
   nsresult FinalClose();
 
-  void FreeInnerObjects();
+  void FreeInnerObjects(bool aClearScope);
   nsGlobalWindow *CallerInnerWindow();
 
   nsresult InnerSetNewDocument(nsIDocument* aDocument);
@@ -689,6 +677,7 @@ protected:
                                     nsIDOMWindow **aReturn);
 
   static void CloseWindow(nsISupports* aWindow);
+  static void ClearWindowScope(nsISupports* aWindow);
 
   // Timeout Functions
   // Language agnostic timeout function (all args passed).
@@ -1014,6 +1003,7 @@ protected:
   friend class nsDOMScriptableHelper;
   friend class nsDOMWindowUtils;
   friend class PostMessageEvent;
+  static nsIDOMStorageList* sGlobalStorageList;
 
   static WindowByIdTable* sWindowsById;
   static bool sWarnedAboutWindowInternal;

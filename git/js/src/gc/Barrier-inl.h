@@ -46,51 +46,40 @@
 
 namespace js {
 
-inline void
-EncapsulatedValue::writeBarrierPre(const Value &value)
+static JS_ALWAYS_INLINE void
+ClearValueRange(JSCompartment *comp, HeapValue *vec, uintN len, bool useHoles)
 {
-#ifdef JSGC_INCREMENTAL
-    if (value.isMarkable()) {
-        js::gc::Cell *cell = (js::gc::Cell *)value.toGCThing();
-        writeBarrierPre(cell->compartment(), value);
+    if (useHoles) {
+        for (uintN i = 0; i < len; i++)
+            vec[i].set(comp, MagicValue(JS_ARRAY_HOLE));
+    } else {
+        for (uintN i = 0; i < len; i++)
+            vec[i].set(comp, UndefinedValue());
     }
-#endif
 }
 
-inline void
-EncapsulatedValue::writeBarrierPre(JSCompartment *comp, const Value &value)
+static JS_ALWAYS_INLINE void
+InitValueRange(HeapValue *vec, uintN len, bool useHoles)
 {
-#ifdef JSGC_INCREMENTAL
-    if (comp->needsBarrier()) {
-        Value tmp(value);
-        js::gc::MarkValueUnbarriered(comp->barrierTracer(), &tmp, "write barrier");
-        JS_ASSERT(tmp == value);
+    if (useHoles) {
+        for (uintN i = 0; i < len; i++)
+            vec[i].init(MagicValue(JS_ARRAY_HOLE));
+    } else {
+        for (uintN i = 0; i < len; i++)
+            vec[i].init(UndefinedValue());
     }
-#endif
 }
 
-inline void
-EncapsulatedValue::pre()
+static JS_ALWAYS_INLINE void
+DestroyValueRange(HeapValue *vec, uintN len)
 {
-    writeBarrierPre(value);
-}
-
-inline void
-EncapsulatedValue::pre(JSCompartment *comp)
-{
-    writeBarrierPre(comp, value);
-}
-
-inline
-HeapValue::HeapValue()
-    : EncapsulatedValue(UndefinedValue())
-{
-    post();
+    for (uintN i = 0; i < len; i++)
+        vec[i].~HeapValue();
 }
 
 inline
 HeapValue::HeapValue(const Value &v)
-    : EncapsulatedValue(v)
+    : value(v)
 {
     JS_ASSERT(!IsPoisonedValue(v));
     post();
@@ -98,7 +87,7 @@ HeapValue::HeapValue(const Value &v)
 
 inline
 HeapValue::HeapValue(const HeapValue &v)
-    : EncapsulatedValue(v.value)
+    : value(v.value)
 {
     JS_ASSERT(!IsPoisonedValue(v.value));
     post();
@@ -123,6 +112,61 @@ HeapValue::init(JSCompartment *comp, const Value &v)
 {
     value = v;
     post(comp);
+}
+
+inline void
+HeapValue::writeBarrierPre(const Value &value)
+{
+#ifdef JSGC_INCREMENTAL
+    if (value.isMarkable()) {
+        js::gc::Cell *cell = (js::gc::Cell *)value.toGCThing();
+        writeBarrierPre(cell->compartment(), value);
+    }
+#endif
+}
+
+inline void
+HeapValue::writeBarrierPost(const Value &value, void *addr)
+{
+}
+
+inline void
+HeapValue::writeBarrierPre(JSCompartment *comp, const Value &value)
+{
+#ifdef JSGC_INCREMENTAL
+    if (comp->needsBarrier()) {
+        Value tmp(value);
+        js::gc::MarkValueUnbarriered(comp->barrierTracer(), &tmp, "write barrier");
+        JS_ASSERT(tmp == value);
+    }
+#endif
+}
+
+inline void
+HeapValue::writeBarrierPost(JSCompartment *comp, const Value &value, void *addr)
+{
+}
+
+inline void
+HeapValue::pre()
+{
+    writeBarrierPre(value);
+}
+
+inline void
+HeapValue::post()
+{
+}
+
+inline void
+HeapValue::pre(JSCompartment *comp)
+{
+    writeBarrierPre(comp, value);
+}
+
+inline void
+HeapValue::post(JSCompartment *comp)
+{
 }
 
 inline HeapValue &
@@ -160,109 +204,6 @@ HeapValue::set(JSCompartment *comp, const Value &v)
     JS_ASSERT(!IsPoisonedValue(v));
     value = v;
     post(comp);
-}
-
-inline void
-HeapValue::writeBarrierPost(const Value &value, void *addr)
-{
-}
-
-inline void
-HeapValue::writeBarrierPost(JSCompartment *comp, const Value &value, void *addr)
-{
-}
-
-inline void
-HeapValue::post()
-{
-}
-
-inline void
-HeapValue::post(JSCompartment *comp)
-{
-}
-
-inline
-HeapSlot::HeapSlot(JSObject *obj, uint32_t slot, const Value &v)
-    : EncapsulatedValue(v)
-{
-    JS_ASSERT(!IsPoisonedValue(v));
-    post(obj, slot);
-}
-
-inline
-HeapSlot::HeapSlot(JSObject *obj, uint32_t slot, const HeapSlot &s)
-    : EncapsulatedValue(s.value)
-{
-    JS_ASSERT(!IsPoisonedValue(s.value));
-    post(obj, slot);
-}
-
-inline
-HeapSlot::~HeapSlot()
-{
-    pre();
-}
-
-inline void
-HeapSlot::init(JSObject *obj, uint32_t slot, const Value &v)
-{
-    value = v;
-    post(obj, slot);
-}
-
-inline void
-HeapSlot::init(JSCompartment *comp, JSObject *obj, uint32_t slot, const Value &v)
-{
-    value = v;
-    post(comp, obj, slot);
-}
-
-inline void
-HeapSlot::set(JSObject *obj, uint32_t slot, const Value &v)
-{
-    JS_ASSERT_IF(!obj->isArray(), &obj->getSlotRef(slot) == this);
-    JS_ASSERT_IF(obj->isDenseArray(), &obj->getDenseArrayElement(slot) == (const Value *)this);
-
-    pre();
-    JS_ASSERT(!IsPoisonedValue(v));
-    value = v;
-    post(obj, slot);
-}
-
-inline void
-HeapSlot::set(JSCompartment *comp, JSObject *obj, uint32_t slot, const Value &v)
-{
-    JS_ASSERT_IF(!obj->isArray(), &const_cast<JSObject *>(obj)->getSlotRef(slot) == this);
-    JS_ASSERT_IF(obj->isDenseArray(), &obj->getDenseArrayElement(slot) == (const Value *)this);
-    JS_ASSERT(obj->compartment() == comp);
-
-    pre(comp);
-    JS_ASSERT(!IsPoisonedValue(v));
-    value = v;
-    post(comp, obj, slot);
-}
-
-inline void
-HeapSlot::writeBarrierPost(JSObject *obj, uint32_t slot)
-{
-}
-
-inline void
-HeapSlot::writeBarrierPost(JSCompartment *comp, JSObject *obj, uint32_t slotno)
-{
-}
-
-inline void
-HeapSlot::post(JSObject *owner, uint32_t slot)
-{
-    HeapSlot::writeBarrierPost(owner, slot);
-}
-
-inline void
-HeapSlot::post(JSCompartment *comp, JSObject *owner, uint32_t slot)
-{
-    HeapSlot::writeBarrierPost(comp, owner, slot);
 }
 
 inline
