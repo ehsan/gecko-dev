@@ -66,9 +66,15 @@ pref("browser.cache.disk.smart_size.first_run", true);
 pref("browser.cache.disk.smart_size.enabled", true);
 // Size explicitly set by the user. Used when smart_size.enabled == false
 pref("browser.cache.disk.capacity",         256000);
+// User-controllable max-size for entries in disk-cache. Regardless of this
+// setting, no entries bigger than 1/8 of disk-cache will be cached
+pref("browser.cache.disk.max_entry_size",    5120);
 pref("browser.cache.memory.enable",         true);
-//pref("browser.cache.memory.capacity",     -1);
 // -1 = determine dynamically, 0 = none, n = memory capacity in kilobytes
+//pref("browser.cache.memory.capacity",     -1);
+// User-controllable max-size for entries in mem-cache. Regardless of this
+// setting, no entries bigger than 90% of the mem-cache will be cached
+pref("browser.cache.memory.max_entry_size",  5120);
 pref("browser.cache.disk_cache_ssl",        true);
 // 0 = once-per-session, 1 = each-time, 2 = never, 3 = when-appropriate/automatically
 pref("browser.cache.check_doc_frequency",   3);
@@ -190,14 +196,6 @@ pref("gfx.downloadable_fonts.enabled", true);
 pref("gfx.downloadable_fonts.fallback_delay", 3000);
 pref("gfx.downloadable_fonts.sanitize", true);
 
-// Needed to work around a serious bug in how Apple handles downloaded fonts
-// on the most recent developer previews of OS X 10.7 (Lion, builds 11A480b
-// and 11A494a).  See bug 663688.  On Lion and up this setting overrides
-// gfx.downloadable_fonts.enabled.
-#ifdef XP_MACOSX
-pref("gfx.downloadable_fonts.enabled.lion", false);
-#endif
-
 // see gfx/thebes/gfxUnicodeProperties.h for definitions of script bits
 #ifdef XP_MACOSX
 // use harfbuzz for default (0x01) + arabic (0x02) + hebrew (0x04)
@@ -210,6 +208,10 @@ pref("gfx.font_rendering.harfbuzz.scripts", 3);
 #ifdef XP_WIN
 pref("gfx.font_rendering.directwrite.enabled", false);
 pref("gfx.font_rendering.directwrite.use_gdi_table_loading", true);
+#endif
+
+#ifdef XP_WIN
+pref("gfx.canvas.azure.enabled", true);
 #endif
 
 pref("accessibility.browsewithcaret", false);
@@ -276,6 +278,10 @@ pref("toolkit.scrollbox.clickToScroll.scrollDelay", 150);
 // Telemetry
 pref("toolkit.telemetry.enabled", false);
 pref("toolkit.telemetry.server", "https://data.mozilla.com");
+// Telemetry server owner. Please change if you set toolkit.telemetry.server to a different server
+pref("toolkit.telemetry.server_owner", "Mozilla");
+// Information page about telemetry (temporary ; will be about:telemetry in the end)
+pref("toolkit.telemetry.infoURL", "http://www.mozilla.com/legal/privacy/firefox.html#telemetry");
 
 // view source
 pref("view_source.syntax_highlight", true);
@@ -804,6 +810,11 @@ pref("network.websocket.timeout.ping.response", 10);
 // Defines whether or not to try and negotiate the stream-deflate compression
 // extension with the websocket server
 pref("network.websocket.extensions.stream-deflate", true);
+
+// the maximum number of concurrent websocket sessions. By specification there
+// is never more than one handshake oustanding to an individual host at
+// one time.
+pref("network.websocket.max-connections", 200);
 
 // </ws>
 

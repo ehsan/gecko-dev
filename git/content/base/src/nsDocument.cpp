@@ -1808,11 +1808,10 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(nsDocument)
     else {
       PR_snprintf(name, sizeof(name), "nsDocument %s", uri.get());
     }
-    cb.DescribeNode(RefCounted, tmp->mRefCnt.get(), sizeof(nsDocument), name);
+    cb.DescribeRefCountedNode(tmp->mRefCnt.get(), sizeof(nsDocument), name);
   }
   else {
-    cb.DescribeNode(RefCounted, tmp->mRefCnt.get(), sizeof(nsDocument),
-                    "nsDocument");
+    NS_IMPL_CYCLE_COLLECTION_DESCRIBE(nsDocument, tmp->mRefCnt.get())
   }
 
   // Always need to traverse script objects, so do that before we check
@@ -5774,12 +5773,7 @@ nsDocument::CloneNode(PRBool aDeep, nsIDOMNode** aReturn)
 NS_IMETHODIMP
 nsDocument::Normalize()
 {
-  for (PRUint32 i = 0; i < mChildren.ChildCount(); ++i) {
-    nsCOMPtr<nsIDOMNode> node(do_QueryInterface(mChildren.ChildAt(i)));
-    node->Normalize();
-  }
-
-  return NS_OK;
+  return nsIDocument::Normalize();
 }
 
 NS_IMETHODIMP
@@ -8136,43 +8130,17 @@ nsDocument::FindImageMap(const nsAString& aUseMapValue)
   return nsnull;
 }
 
+#define DEPRECATED_OPERATION(_op) #_op "Warning",
 static const char* kWarnings[] = {
-  "GetAttributeNodeWarning",
-  "SetAttributeNodeWarning",
-  "GetAttributeNodeNSWarning",
-  "SetAttributeNodeNSWarning",
-  "RemoveAttributeNodeWarning",
-  "CreateAttributeWarning",
-  "CreateAttributeNSWarning",
-  "SpecifiedWarning",
-  "OwnerElementWarning",
-  "NodeNameWarning",
-  "NodeValueWarning",
-  "NodeTypeWarning",
-  "ParentNodeWarning",
-  "ChildNodesWarning",
-  "HasChildNodesWarning",
-  "HasAttributesWarning",
-  "FirstChildWarning",
-  "LastChildWarning",
-  "PreviousSiblingWarning",
-  "NextSiblingWarning",
-  "AttributesWarning",
-  "InsertBeforeWarning",
-  "ReplaceChildWarning",
-  "RemoveChildWarning",
-  "AppendChildWarning",
-  "CloneNodeWarning",
-  "GetOwnerDocumentWarning",
-  "IsSupportedWarning",
-  "IsEqualNodeWarning",
-  "TextContentWarning"
+#include "nsDeprecatedOperationList.h"
+  nsnull
 };
+#undef DEPRECATED_OPERATION
 
 void
 nsIDocument::WarnOnceAbout(DeprecatedOperations aOperation)
 {
-  PR_STATIC_ASSERT(NS_ARRAY_LENGTH(kWarnings) < 32);
+  PR_STATIC_ASSERT(eDeprecatedOperationCount <= 32);
   if (mWarnedAbout & (1 << aOperation)) {
     return;
   }

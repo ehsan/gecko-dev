@@ -71,9 +71,10 @@
 #ifdef XP_WIN
 #include "COMMessageFilter.h"
 #include "nsWindowsDllInterceptor.h"
+#include "mozilla/widget/AudioSession.h"
 #endif
 
-#ifdef OS_MACOSX
+#ifdef MOZ_WIDGET_COCOA
 #include "PluginInterposeOSX.h"
 #include "PluginUtilsOSX.h"
 #endif
@@ -253,6 +254,15 @@ PluginModuleChild::Init(const std::string& aPluginFilename,
 #  error Please copy the initialization code from nsNPAPIPlugin.cpp
 
 #endif
+
+#ifdef XP_MACOSX
+    nsPluginInfo info = nsPluginInfo();
+    rv = pluginFile.GetPluginInfo(info, &mLibrary);
+    if (rv == NS_OK) {
+        mozilla::plugins::PluginUtilsOSX::SetProcessName(info.fName);
+    }
+#endif
+
     return true;
 }
 
@@ -594,6 +604,10 @@ PluginModuleChild::AnswerNP_Shutdown(NPError *rv)
 {
     AssertPluginThread();
 
+#if defined XP_WIN && MOZ_WINSDK_TARGETVER >= MOZ_NTDDI_LONGHORN
+    mozilla::widget::StopAudioSession();
+#endif
+
     // the PluginModuleParent shuts down this process after this RPC
     // call pops off its stack
 
@@ -647,6 +661,25 @@ PluginModuleChild::AnswerNPP_GetSitesWithData(InfallibleTArray<nsCString>* aResu
     NS_Free(result);
 
     return true;
+}
+
+bool
+PluginModuleChild::RecvSetAudioSessionData(const nsID& aId,
+                                           const nsString& aDisplayName,
+                                           const nsString& aIconPath)
+{
+    nsresult rv;
+#if !defined XP_WIN || MOZ_WINSDK_TARGETVER < MOZ_NTDDI_LONGHORN
+    NS_RUNTIMEABORT("Not Reached!");
+    return false;
+#else
+    rv = mozilla::widget::RecvAudioSessionData(aId, aDisplayName, aIconPath);
+    NS_ENSURE_SUCCESS(rv, true); // Bail early if this fails
+
+    // Ignore failures here; we can't really do anything about them
+    mozilla::widget::StartAudioSession();
+    return true;
+#endif
 }
 
 void
@@ -1641,7 +1674,7 @@ _popupcontextmenu(NPP instance, NPMenu* menu)
     PLUGIN_LOG_DEBUG_FUNCTION;
     AssertPluginThread();
 
-#ifdef OS_MACOSX
+#ifdef MOZ_WIDGET_COCOA
     double pluginX, pluginY; 
     double screenX, screenY;
 
@@ -2305,7 +2338,7 @@ PluginModuleChild::RecvProcessNativeEventsInRPCCall()
 #endif
 }
 
-#ifdef OS_MACOSX
+#ifdef MOZ_WIDGET_COCOA
 void
 PluginModuleChild::ProcessNativeEvents() {
     CallProcessSomeEvents();    

@@ -54,6 +54,9 @@
 #include <QtGui/QApplication>
 #include <QtGui/QInputContextFactory>
 #include <QtGui/QInputContext>
+#ifdef MOZ_ENABLE_MEEGOTOUCH
+#include <MComponentData>
+#endif // MOZ_ENABLE_MEEGOTOUCH
 #endif // MOZ_WIDGET_QT
 
 #include "mozilla/dom/ContentParent.h"
@@ -2829,7 +2832,6 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
       // see if we have a crashreporter-override.ini in the application directory
       nsCOMPtr<nsIFile> overrideini;
       PRBool exists;
-      static char overrideEnv[MAXPATHLEN];
       if (NS_SUCCEEDED(dirProvider.GetAppDir()->Clone(getter_AddRefs(overrideini))) &&
           NS_SUCCEEDED(overrideini->AppendNative(NS_LITERAL_CSTRING("crashreporter-override.ini"))) &&
           NS_SUCCEEDED(overrideini->Exists(&exists)) &&
@@ -2843,9 +2845,7 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
         overrideini->GetNativePath(overridePath);
 #endif
 
-        sprintf(overrideEnv, "MOZ_CRASHREPORTER_STRINGS_OVERRIDE=%s",
-                overridePath.get());
-        PR_SetEnv(overrideEnv);
+        SaveWordToEnv("MOZ_CRASHREPORTER_STRINGS_OVERRIDE", overridePath);
       }
     }
   }
@@ -3007,6 +3007,11 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
       PR_SetEnv(PR_smprintf("MOZ_QT_GRAPHICSSYSTEM=%s", qgraphicssystemARG));
 
     QScopedPointer<QApplication> app(new QApplication(gArgc, gArgv));
+#ifdef MOZ_ENABLE_MEEGOTOUCH
+    gArgv[gArgc] = strdup("-software");
+    gArgc++;
+    QScopedPointer<MComponentData> meegotouch(new MComponentData(gArgc, gArgv));
+#endif
 
 #if MOZ_PLATFORM_MAEMO > 5
     if (XRE_GetProcessType() == GeckoProcessType_Default) {

@@ -564,6 +564,9 @@ nsContentUtils::InitializeEventTable() {
     { nsGkAtoms::onMozTouchMove,                NS_MOZTOUCH_MOVE, EventNameType_None, NS_MOZTOUCH_EVENT },
     { nsGkAtoms::onMozTouchUp,                  NS_MOZTOUCH_UP, EventNameType_None, NS_MOZTOUCH_EVENT },
 
+    { nsGkAtoms::ondevicemotion,                NS_DEVICE_MOTION, EventNameType_None, NS_EVENT },
+    { nsGkAtoms::ondeviceorientation,           NS_DEVICE_ORIENTATION, EventNameType_None, NS_EVENT },
+
     { nsGkAtoms::ontransitionend,               NS_TRANSITION_END, EventNameType_None, NS_TRANSITION_EVENT },
     { nsGkAtoms::onanimationstart,              NS_ANIMATION_START, EventNameType_None, NS_ANIMATION_EVENT },
     { nsGkAtoms::onanimationend,                NS_ANIMATION_END, EventNameType_None, NS_ANIMATION_EVENT },
@@ -5362,10 +5365,14 @@ public:
     mFlags = WANT_ALL_TRACES;
   }
 
-  NS_IMETHOD_(void) DescribeNode(CCNodeType type,
-                                 nsrefcnt refcount,
-                                 size_t objsz,
-                                 const char* objname)
+  NS_IMETHOD_(void) DescribeRefCountedNode(nsrefcnt refCount,
+                                           size_t objSz,
+                                           const char *objName)
+  {
+  }
+  NS_IMETHOD_(void) DescribeGCedNode(PRBool isMarked,
+                                     size_t objSz,
+                                     const char *objName)
   {
   }
   NS_IMETHOD_(void) NoteXPCOMRoot(nsISupports *root)
