@@ -40,7 +40,7 @@
 
 #include "nsCycleCollectionParticipant.h"
 
-typedef PRUptrdiff PtrBits;
+typedef unsigned long PtrBits;
 
 #define NS_WRAPPERCACHE_IID \
 { 0x3a51ca81, 0xddab, 0x422c, \

@@ -166,11 +166,11 @@ SheetLoadData::SheetLoadData(CSSLoaderImpl* aLoader,
     mMustNotify(PR_FALSE),
     mWasAlternate(aIsAlternate),
     mAllowUnsafeRules(PR_FALSE),
-    mUseSystemPrincipal(PR_FALSE),
     mOwningElement(aOwningElement),
     mObserver(aObserver),
     mLoaderPrincipal(aLoaderPrincipal)
 {
+
   NS_PRECONDITION(mLoader, "Must have a loader!");
   NS_ADDREF(mLoader);
 }
@@ -195,11 +195,11 @@ SheetLoadData::SheetLoadData(CSSLoaderImpl* aLoader,
     mMustNotify(PR_FALSE),
     mWasAlternate(PR_FALSE),
     mAllowUnsafeRules(PR_FALSE),
-    mUseSystemPrincipal(PR_FALSE),
     mOwningElement(nsnull),
     mObserver(aObserver),
     mLoaderPrincipal(aLoaderPrincipal)
 {
+
   NS_PRECONDITION(mLoader, "Must have a loader!");
   NS_ADDREF(mLoader);
   if (mParentData) {
@@ -207,12 +207,8 @@ SheetLoadData::SheetLoadData(CSSLoaderImpl* aLoader,
     mSyncLoad = mParentData->mSyncLoad;
     mIsNonDocumentSheet = mParentData->mIsNonDocumentSheet;
     mAllowUnsafeRules = mParentData->mAllowUnsafeRules;
-    mUseSystemPrincipal = mParentData->mUseSystemPrincipal;
     ++(mParentData->mPendingChildren);
   }
-
-  NS_POSTCONDITION(!mUseSystemPrincipal || mSyncLoad,
-                   "Shouldn't use system principal for async loads");
 }
 
 SheetLoadData::SheetLoadData(CSSLoaderImpl* aLoader,
@@ -220,7 +216,6 @@ SheetLoadData::SheetLoadData(CSSLoaderImpl* aLoader,
                              nsICSSStyleSheet* aSheet,
                              PRBool aSyncLoad,
                              PRBool aAllowUnsafeRules,
-                             PRBool aUseSystemPrincipal,
                              nsICSSLoaderObserver* aObserver,
                              nsIPrincipal* aLoaderPrincipal)
   : mLoader(aLoader),
@@ -237,16 +232,13 @@ SheetLoadData::SheetLoadData(CSSLoaderImpl* aLoader,
     mMustNotify(PR_FALSE),
     mWasAlternate(PR_FALSE),
     mAllowUnsafeRules(aAllowUnsafeRules),
-    mUseSystemPrincipal(aUseSystemPrincipal),
     mOwningElement(nsnull),
     mObserver(aObserver),
     mLoaderPrincipal(aLoaderPrincipal)
 {
+
   NS_PRECONDITION(mLoader, "Must have a loader!");
   NS_ADDREF(mLoader);
-
-  NS_POSTCONDITION(!mUseSystemPrincipal || mSyncLoad,
-                   "Shouldn't use system principal for async loads");
 }
 
 SheetLoadData::~SheetLoadData()
@@ -1280,8 +1272,6 @@ CSSLoaderImpl::LoadSheet(SheetLoadData* aLoadData, StyleSheetState aSheetState)
   NS_PRECONDITION(aLoadData->mURI, "Need a URI to load");
   NS_PRECONDITION(aLoadData->mSheet, "Need a sheet to load into");
   NS_PRECONDITION(aSheetState != eSheetComplete, "Why bother?");
-  NS_PRECONDITION(!aLoadData->mUseSystemPrincipal || aLoadData->mSyncLoad,
-                  "Shouldn't use system principal for async loads");
   NS_ASSERTION(mLoadingDatas.IsInitialized(), "mLoadingDatas should be initialized by now.");
 
   LOG_URI("  Load from: '%s'", aLoadData->mURI);
@@ -1315,16 +1305,10 @@ CSSLoaderImpl::LoadSheet(SheetLoadData* aLoadData, StyleSheetState aSheetState)
 
     NS_ASSERTION(channel, "NS_OpenURI lied?");
     
-    // Get the principal for this sheet
+    // Get the principal for this channel
     nsCOMPtr<nsIPrincipal> principal;
-    if (aLoadData->mUseSystemPrincipal) {
-      rv = nsContentUtils::GetSecurityManager()->
-        GetSystemPrincipal(getter_AddRefs(principal));
-    } else {
-      rv = nsContentUtils::GetSecurityManager()->
-        GetChannelPrincipal(channel, getter_AddRefs(principal));
-    }
-
+    rv = nsContentUtils::GetSecurityManager()->
+      GetChannelPrincipal(channel, getter_AddRefs(principal));
     if (NS_FAILED(rv)) {
       LOG_ERROR(("  Failed to get a principal for the sheet"));
       SheetComplete(aLoadData, rv);
@@ -1989,12 +1973,10 @@ CSSLoaderImpl::LoadChildSheet(nsICSSStyleSheet* aParentSheet,
 
 NS_IMETHODIMP
 CSSLoaderImpl::LoadSheetSync(nsIURI* aURL, PRBool aAllowUnsafeRules,
-                             PRBool aUseSystemPrincipal,
                              nsICSSStyleSheet** aSheet)
 {
   LOG(("CSSLoaderImpl::LoadSheetSync"));
-  return InternalLoadNonDocumentSheet(aURL, aAllowUnsafeRules,
-                                      aUseSystemPrincipal, nsnull,
+  return InternalLoadNonDocumentSheet(aURL, aAllowUnsafeRules, nsnull,
                                       aSheet, nsnull);
 }
 
@@ -2006,8 +1988,7 @@ CSSLoaderImpl::LoadSheet(nsIURI* aURL,
 {
   LOG(("CSSLoaderImpl::LoadSheet(aURL, aObserver, aSheet) api call"));
   NS_PRECONDITION(aSheet, "aSheet is null");
-  return InternalLoadNonDocumentSheet(aURL, PR_FALSE, PR_FALSE,
-                                      aOriginPrincipal,
+  return InternalLoadNonDocumentSheet(aURL, PR_FALSE, aOriginPrincipal,
                                       aSheet, aObserver);
 }
 
@@ -2017,23 +1998,19 @@ CSSLoaderImpl::LoadSheet(nsIURI* aURL,
                          nsICSSLoaderObserver* aObserver)
 {
   LOG(("CSSLoaderImpl::LoadSheet(aURL, aObserver) api call"));
-  return InternalLoadNonDocumentSheet(aURL, PR_FALSE, PR_FALSE,
-                                      aOriginPrincipal,
+  return InternalLoadNonDocumentSheet(aURL, PR_FALSE, aOriginPrincipal,
                                       nsnull, aObserver);
 }
 
 nsresult
 CSSLoaderImpl::InternalLoadNonDocumentSheet(nsIURI* aURL, 
                                             PRBool aAllowUnsafeRules,
-                                            PRBool aUseSystemPrincipal,
                                             nsIPrincipal* aOriginPrincipal,
                                             nsICSSStyleSheet** aSheet,
                                             nsICSSLoaderObserver* aObserver)
 {
   NS_PRECONDITION(aURL, "Must have a URI to load");
   NS_PRECONDITION(aSheet || aObserver, "Sheet and observer can't both be null");
-  NS_PRECONDITION(!aUseSystemPrincipal || !aObserver,
-                  "Shouldn't load system-principal sheets async");
   NS_ASSERTION(mParsingDatas.Length() == 0, "We're in the middle of a parse?");
 
   LOG_URI("  Non-document sheet uri: '%s'", aURL);
@@ -2077,7 +2054,7 @@ CSSLoaderImpl::InternalLoadNonDocumentSheet(nsIURI* aURL,
 
   SheetLoadData* data =
     new SheetLoadData(this, aURL, sheet, syncLoad, aAllowUnsafeRules,
-                      aUseSystemPrincipal, aObserver, aOriginPrincipal);
+                      aObserver, aOriginPrincipal);
 
   if (!data) {
     sheet->SetComplete();

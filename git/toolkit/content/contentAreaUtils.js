@@ -339,7 +339,7 @@ function internalSave(aURL, aDocument, aDefaultFileName, aContentDisposition,
                    saveAsType == kSaveAsType_Text) ?
                   "text/plain" : null,
     target      : fileURL,
-    postData    : isDocument ? getPostData(aDocument) : null,
+    postData    : isDocument ? getPostData() : null,
     bypassCache : aShouldBypassCache
   };
 
@@ -686,13 +686,10 @@ function appendFiltersForContentType(aFilePicker, aContentType, aFileExtension, 
   aFilePicker.appendFilters(Components.interfaces.nsIFilePicker.filterAll);
 }
 
-function getPostData(aDocument)
+function getPostData()
 {
   try {
-    var sessionHistory = aDocument.defaultView
-                                  .QueryInterface(Components.interfaces.nsIInterfaceRequestor)
-                                  .getInterface(Components.interfaces.nsIWebNavigation)
-                                  .sessionHistory;
+    var sessionHistory = getWebNavigation().sessionHistory;
     return sessionHistory.getEntryAtIndex(sessionHistory.index, false)
                          .QueryInterface(Components.interfaces.nsISHEntry)
                          .postData;

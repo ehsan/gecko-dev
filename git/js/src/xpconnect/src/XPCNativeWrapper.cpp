@@ -42,6 +42,7 @@
 #include "XPCNativeWrapper.h"
 #include "XPCWrapper.h"
 #include "jsdbgapi.h"
+#include "jsscope.h"
 
 static JSBool
 XPC_NW_AddProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp);
@@ -357,22 +358,27 @@ XPC_NW_WrapFunction(JSContext* cx, JSObject* funobj, jsval *rval)
 static JSBool
 XPC_NW_AddProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
 {
+  JSProperty *prop;
+  JSObject *pobj;
   jsid idAsId;
-  JSPropertyDescriptor desc;
 
-  if (!JS_ValueToId(cx, id, &idAsId) ||
-      !JS_GetPropertyDescriptorById(cx, obj, idAsId, JSRESOLVE_QUALIFIED,
-                                    &desc)) {
+  if (!::JS_ValueToId(cx, id, &idAsId) ||
+      !OBJ_LOOKUP_PROPERTY(cx, obj, idAsId, &pobj, &prop)) {
     return JS_FALSE;
   }
 
   // Do not allow scripted getters or setters on XPCNativeWrappers.
-  if (desc.attrs & (JSPROP_GETTER | JSPROP_SETTER)) {
+  NS_ASSERTION(prop && pobj == obj, "Wasn't this property just added?");
+  JSScopeProperty *sprop = (JSScopeProperty *) prop;
+  uint8 attrs = sprop->attrs;
+
+  OBJ_DROP_PROPERTY(cx, pobj, prop);
+  if (attrs & (JSPROP_GETTER | JSPROP_SETTER)) {
     return ThrowException(NS_ERROR_ILLEGAL_VALUE, cx);
   }
 
-  jsval flags = JSVAL_VOID;
-  JS_GetReservedSlot(cx, obj, 0, &flags);
+  jsval flags;
+  ::JS_GetReservedSlot(cx, obj, 0, &flags);
   // The purpose of XPC_NW_AddProperty is to wrap any object set on the
   // XPCNativeWrapper by the wrapped object's scriptable helper, so bail
   // here if the scriptable helper is not currently adding a property.
@@ -401,11 +407,11 @@ XPC_NW_DelProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp)
     {
       jsid interned_id;
 
-      if (!JS_ValueToId(cx, id, &interned_id)) {
+      if (!::JS_ValueToId(cx, id, &interned_id)) {
         return JS_FALSE;
       }
 
-      return JS_DeletePropertyById(cx, obj, interned_id);
+      return OBJ_DELETE_PROPERTY(cx, obj, interned_id, vp);
     }
   );
 
@@ -588,8 +594,8 @@ XPC_NW_GetOrSetProperty(JSContext *cx, JSObject *obj, jsval id, jsval *vp,
     }
 
     return aIsSet
-           ? JS_SetPropertyById(cx, nativeObj, interned_id, vp)
-           : JS_GetPropertyById(cx, nativeObj, interned_id, vp);
+           ? OBJ_SET_PROPERTY(cx, nativeObj, interned_id, vp)
+           : OBJ_GET_PROPERTY(cx, nativeObj, interned_id, vp);
   }
 
   if (!aIsSet &&
@@ -709,16 +715,19 @@ XPC_NW_NewResolve(JSContext *cx, JSObject *obj, jsval id, uintN flags,
 
     jsid interned_id;
     JSObject *pobj;
-    jsval val;
-    if (!JS_ValueToId(cx, id, &interned_id) ||
-        !JS_LookupPropertyWithFlagsById(cx, wn->GetFlatJSObject(), interned_id,
-                                        JSRESOLVE_QUALIFIED, &pobj, &val)) {
+    JSProperty *prop;
+
+    if (!::JS_ValueToId(cx, id, &interned_id) ||
+        !OBJ_LOOKUP_PROPERTY(cx, wn->GetFlatJSObject(), interned_id,
+                             &pobj, &prop)) {
       return JS_FALSE;
     }
 
-    if (pobj) {
-      if (!JS_DefinePropertyById(cx, obj, interned_id, JSVAL_VOID, nsnull,
-                                 nsnull, 0)) {
+    if (prop) {
+      OBJ_DROP_PROPERTY(cx, pobj, prop);
+
+      if (!OBJ_DEFINE_PROPERTY(cx, obj, interned_id, JSVAL_VOID,
+                               nsnull, nsnull, 0, nsnull)) {
         return JS_FALSE;
       }
 

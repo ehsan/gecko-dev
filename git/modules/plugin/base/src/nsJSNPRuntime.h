@@ -35,8 +35,8 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef nsJSNPRuntime_h_
-#define nsJSNPRuntime_h_
+#ifndef nsJSNPRuntime_h__
+#define nsJSNPRuntime_h__
 
 #include "nscore.h"
 #include "jsapi.h"
@@ -108,4 +108,4 @@ bool
 JSValToNPVariant(NPP npp, JSContext *cx, jsval val, NPVariant *variant);
 
 
-#endif // nsJSNPRuntime_h_
+#endif // nsJSNPRuntime_h__

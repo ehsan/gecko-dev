@@ -53,23 +53,19 @@ function SignonsStartup() {
   LoadSignons();
 
   // filter the table if requested by caller
-  if (window.arguments &&
-      window.arguments[0] &&
-      window.arguments[0].filterString)
-    setFilter(window.arguments[0].filterString);
+  if (window.arguments && window.arguments[0] &&
+      window.arguments[0].filterString) {
+    document.getElementById("filter").value = window.arguments[0].filterString;
+    _filterPasswords();
+  }
 
   FocusFilterBox();
-}
-
-function setFilter(aFilterString) {
-  document.getElementById("filter").value = aFilterString;
-  _filterPasswords();
 }
 
 var signonsTreeView = {
   _filterSet : [],
   _lastSelectedRanges : [],
-  selection: null,
+  selection: null, 
 
   rowCount : 0,
   setTree : function(tree) {},
@@ -127,7 +123,7 @@ function LoadSignons() {
     element.removeAttribute("disabled");
     toggle.removeAttribute("disabled");
   }
-
+ 
   return true;
 }
 
@@ -256,7 +252,7 @@ function SignonClearFilter() {
   lastSignonSortColumn = "";
   lastSignonSortAscending = false;
   LoadSignons();
-
+    
   // Restore selection
   if (singleSelection) {
     signonsTreeView.selection.clearSelection();
@@ -322,7 +318,7 @@ function _filterPasswords()
   var newFilterSet = FilterPasswords(filter, signonsTreeView);
   if (!signonsTreeView._filterSet.length) {
     // Save Display Info for the Non-Filtered mode when we first
-    // enter Filtered mode.
+    // enter Filtered mode. 
     SignonSaveState();
   }
   signonsTreeView._filterSet = newFilterSet;

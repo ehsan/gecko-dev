@@ -145,7 +145,6 @@ private:
   PRPackedBool     mInCData;
   PRPackedBool     mInInternalSubset;
   PRPackedBool     mInExternalDTD;
-  PRPackedBool     mMadeFinalCallToExpat;
 
   // Whether we're sure that we won't be getting more buffers to parse from
   // Necko
