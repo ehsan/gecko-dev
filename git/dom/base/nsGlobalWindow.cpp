@@ -6804,6 +6804,10 @@ nsGlobalWindow::GetLocalStorage(nsIDOMStorage2 ** aLocalStorage)
 
   NS_ENSURE_ARG(aLocalStorage);
 
+  if (nsDOMStorageManager::gStorageManager &&
+      nsDOMStorageManager::gStorageManager->InPrivateBrowsingMode())
+    return NS_ERROR_DOM_SECURITY_ERR;
+
   if (!mLocalStorage) {
     *aLocalStorage = nsnull;
 
