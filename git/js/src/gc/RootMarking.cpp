@@ -4,7 +4,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/Attributes.h"
 #include "mozilla/DebugOnly.h"
 #include "mozilla/Util.h"
 
@@ -16,7 +15,7 @@
 #include "jswatchpoint.h"
 
 #include "builtin/MapObject.h"
-#include "frontend/Parser.h"
+#include "frontend/BytecodeCompiler.h"
 #include "gc/GCInternals.h"
 #include "gc/Marking.h"
 #ifdef JS_ION
@@ -28,7 +27,6 @@
 
 #include "jsgcinlines.h"
 #include "jsobjinlines.h"
-#include "ion/IonCode.h"
 
 #ifdef MOZ_VALGRIND
 # include <valgrind/memcheck.h>
@@ -275,15 +273,15 @@ MarkRangeConservativelyAndSkipIon(JSTracer *trc, JSRuntime *rt, const uintptr_t 
     const uintptr_t *i = begin;
 
 #if JS_STACK_GROWTH_DIRECTION < 0 && defined(JS_ION)
-    // Walk only regions in between Ion activations. Note that non-volatile
-    // registers are spilled to the stack before the entry Ion frame, ensuring
+    // Walk only regions in between JIT activations. Note that non-volatile
+    // registers are spilled to the stack before the entry frame, ensuring
     // that the conservative scanner will still see them.
-    for (ion::IonActivationIterator ion(rt); ion.more(); ++ion) {
-        uintptr_t *ionMin, *ionEnd;
-        ion.ionStackRange(ionMin, ionEnd);
+    for (ion::JitActivationIterator iter(rt); !iter.done(); ++iter) {
+        uintptr_t *jitMin, *jitEnd;
+        iter.jitStackRange(jitMin, jitEnd);
 
-        MarkRangeConservatively(trc, i, ionMin);
-        i = ionEnd;
+        MarkRangeConservatively(trc, i, jitMin);
+        i = jitEnd;
     }
 #endif
 
@@ -388,7 +386,7 @@ AutoGCRooter::trace(JSTracer *trc)
 {
     switch (tag_) {
       case PARSER:
-        static_cast<frontend::Parser<frontend::FullParseHandler> *>(this)->trace(trc);
+        frontend::MarkParser(trc, this);
         return;
 
       case IDARRAY: {
@@ -581,36 +579,6 @@ AutoGCRooter::traceAllWrappers(JSTracer *trc)
     }
 }
 
-/* static */ void
-JS::CustomAutoRooter::traceObject(JSTracer *trc, JSObject **thingp, const char *name)
-{
-    MarkObjectRoot(trc, thingp, name);
-}
-
-/* static */ void
-JS::CustomAutoRooter::traceScript(JSTracer *trc, JSScript **thingp, const char *name)
-{
-    MarkScriptRoot(trc, thingp, name);
-}
-
-/* static */ void
-JS::CustomAutoRooter::traceString(JSTracer *trc, JSString **thingp, const char *name)
-{
-    MarkStringRoot(trc, thingp, name);
-}
-
-/* static */ void
-JS::CustomAutoRooter::traceId(JSTracer *trc, jsid *thingp, const char *name)
-{
-    MarkIdRoot(trc, thingp, name);
-}
-
-/* static */ void
-JS::CustomAutoRooter::traceValue(JSTracer *trc, JS::Value *thingp, const char *name)
-{
-    MarkValueRoot(trc, thingp, name);
-}
-
 void
 AutoHashableValueRooter::trace(JSTracer *trc)
 {
@@ -769,16 +737,10 @@ js::gc::MarkRuntime(JSTracer *trc, bool useSavedRoots)
             c->debugScopes->mark(trc);
     }
 
-#ifdef JS_METHODJIT
-    /* We need to expand inline frames before stack scanning. */
-    for (ZonesIter zone(rt); !zone.done(); zone.next())
-        mjit::ExpandInlineFrames(zone);
-#endif
-
-    rt->stackSpace.mark(trc);
+    MarkInterpreterActivations(rt, trc);
 
 #ifdef JS_ION
-    ion::MarkIonActivations(rt, trc);
+    ion::MarkJitActivations(rt, trc);
 #endif
 
     for (CompartmentsIter c(rt); !c.done(); c.next())

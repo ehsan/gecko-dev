@@ -220,7 +220,8 @@ private:
   }
 
   static JSBool
-  GetProperty(JSContext* aCx, JSHandleObject aObj, JSHandleId aIdval, JSMutableHandleValue aVp)
+  GetProperty(JSContext* aCx, JS::Handle<JSObject*> aObj, JS::Handle<jsid> aIdval,
+              JS::MutableHandle<JS::Value> aVp)
   {
     JS_ASSERT(JSID_IS_INT(aIdval));
 
@@ -236,7 +237,8 @@ private:
   }
 
   static JSBool
-  GetConstant(JSContext* aCx, JSHandleObject aObj, JSHandleId idval, JSMutableHandleValue aVp)
+  GetConstant(JSContext* aCx, JS::Handle<JSObject*> aObj, JS::Handle<jsid> idval,
+              JS::MutableHandle<JS::Value> aVp)
   {
     JS_ASSERT(JSID_IS_INT(idval));
     JS_ASSERT(JSID_TO_INT(idval) >= CAPTURING_PHASE &&
@@ -388,8 +390,7 @@ class MessageEvent : public Event
   static const JSFunctionSpec sFunctions[];
 
 protected:
-  uint64_t* mData;
-  size_t mDataByteCount;
+  JSAutoStructuredCloneBuffer mBuffer;
   nsTArray<nsCOMPtr<nsISupports> > mClonedObjects;
   bool mMainRuntime;
 
@@ -430,7 +431,7 @@ public:
     SetJSPrivateSafeish(obj, priv);
     InitMessageEventCommon(aCx, obj, priv, type, false, false, NULL, NULL, NULL,
                            true);
-    aData.steal(&priv->mData, &priv->mDataByteCount);
+    priv->mBuffer.swap(aData);
     priv->mClonedObjects.SwapElements(aClonedObjects);
 
     return obj;
@@ -438,7 +439,7 @@ public:
 
 protected:
   MessageEvent(bool aMainRuntime)
-  : mData(NULL), mDataByteCount(0), mMainRuntime(aMainRuntime)
+  : mMainRuntime(aMainRuntime)
   {
     MOZ_COUNT_CTOR(mozilla::dom::workers::MessageEvent);
   }
@@ -446,7 +447,6 @@ protected:
   virtual ~MessageEvent()
   {
     MOZ_COUNT_DTOR(mozilla::dom::workers::MessageEvent);
-    JS_ASSERT(!mData);
   }
 
   enum SLOT {
@@ -503,17 +503,12 @@ private:
   {
     JS_ASSERT(IsThisClass(JS_GetClass(aObj)));
     MessageEvent* priv = GetJSPrivateSafeish<MessageEvent>(aObj);
-    if (priv) {
-      JS_freeop(aFop, priv->mData);
-#ifdef DEBUG
-      priv->mData = NULL;
-#endif
-      delete priv;
-    }
+    delete priv;
   }
 
   static JSBool
-  GetProperty(JSContext* aCx, JSHandleObject aObj, JSHandleId aIdval, JSMutableHandleValue aVp)
+  GetProperty(JSContext* aCx, JS::Handle<JSObject*> aObj, JS::Handle<jsid> aIdval,
+              JS::MutableHandle<JS::Value> aVp)
   {
     JS_ASSERT(JSID_IS_INT(aIdval));
 
@@ -528,12 +523,9 @@ private:
     }
 
     // Deserialize and save the data value if we can.
-    if (slot == SLOT_data && event->mData) {
+    if (slot == SLOT_data && event->mBuffer.data()) {
       JSAutoStructuredCloneBuffer buffer;
-      buffer.adopt(event->mData, event->mDataByteCount);
-
-      event->mData = NULL;
-      event->mDataByteCount = 0;
+      buffer.swap(event->mBuffer);
 
       // Release reference to objects that were AddRef'd for
       // cloning into worker when array goes out of scope.
@@ -723,7 +715,8 @@ private:
   }
 
   static JSBool
-  GetProperty(JSContext* aCx, JSHandleObject aObj, JSHandleId aIdval, JSMutableHandleValue aVp)
+  GetProperty(JSContext* aCx, JS::Handle<JSObject*> aObj, JS::Handle<jsid> aIdval,
+              JS::MutableHandle<JS::Value> aVp)
   {
     JS_ASSERT(JSID_IS_INT(aIdval));
 
@@ -801,7 +794,6 @@ class ProgressEvent : public Event
 {
   static JSClass sClass;
   static const JSPropertySpec sProperties[];
-  static const JSFunctionSpec sFunctions[];
 
 public:
   static JSClass*
@@ -814,7 +806,7 @@ public:
   InitClass(JSContext* aCx, JSObject* aObj, JSObject* aParentProto)
   {
     return JS_InitClass(aCx, aObj, aParentProto, &sClass, Construct, 0,
-                        sProperties, sFunctions, NULL, NULL);
+                        sProperties, NULL, NULL, NULL);
   }
 
   static JSObject*
@@ -903,7 +895,8 @@ private:
   }
 
   static JSBool
-  GetProperty(JSContext* aCx, JSHandleObject aObj, JSHandleId aIdval, JSMutableHandleValue aVp)
+  GetProperty(JSContext* aCx, JS::Handle<JSObject*> aObj, JS::Handle<jsid> aIdval,
+              JS::MutableHandle<JS::Value> aVp)
   {
     JS_ASSERT(JSID_IS_INT(aIdval));
 
@@ -918,33 +911,6 @@ private:
     }
 
     aVp.set(JS_GetReservedSlot(aObj, slot));
-    return true;
-  }
-
-  static JSBool
-  InitProgressEvent(JSContext* aCx, unsigned aArgc, jsval* aVp)
-  {
-    JS::Rooted<JSObject*> obj(aCx, JS_THIS_OBJECT(aCx, aVp));
-    if (!obj) {
-      return false;
-    }
-
-    ProgressEvent* event = GetInstancePrivate(aCx, obj, sFunctions[0].name);
-    if (!event) {
-      return false;
-    }
-
-    JS::Rooted<JSString*> type(aCx);
-    JSBool bubbles, cancelable, lengthComputable;
-    double loaded, total;
-    if (!JS_ConvertArguments(aCx, aArgc, JS_ARGV(aCx, aVp), "Sbbbdd", type.address(),
-                             &bubbles, &cancelable, &lengthComputable, &loaded,
-                             &total)) {
-      return false;
-    }
-
-    InitProgressEventCommon(obj, event, type, bubbles, cancelable,
-                            lengthComputable, loaded, total, false);
     return true;
   }
 };
@@ -964,11 +930,6 @@ const JSPropertySpec ProgressEvent::sProperties[] = {
   { "total", SLOT_total, PROPERTY_FLAGS, JSOP_WRAPPER(GetProperty),
     JSOP_WRAPPER(js_GetterOnlyPropertyStub) },
   { 0, 0, 0, JSOP_NULLWRAPPER, JSOP_NULLWRAPPER }
-};
-
-const JSFunctionSpec ProgressEvent::sFunctions[] = {
-  JS_FN("initProgressEvent", InitProgressEvent, 6, FUNCTION_FLAGS),
-  JS_FS_END
 };
 
 Event*

@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsion_assembler_x86_shared__
-#define jsion_assembler_x86_shared__
+#ifndef ion_shared_Assembler_x86_shared_h
+#define ion_shared_Assembler_x86_shared_h
 #include <cstddef>
 #include "assembler/assembler/X86Assembler.h"
 
@@ -35,8 +35,10 @@ class AssemblerX86Shared
     bool enoughMemory_;
 
     void writeDataRelocation(const Value &val) {
-        if (val.isMarkable())
+        if (val.isMarkable()) {
+            JS_ASSERT(static_cast<gc::Cell*>(val.toGCThing())->isTenured());
             dataRelocations_.writeUnsigned(masm.currentOffset());
+        }
     }
     void writeDataRelocation(const ImmGCPtr &ptr) {
         if (ptr.value)
@@ -562,6 +564,9 @@ class AssemblerX86Shared
 
     void jmp(const Operand &op){
         switch (op.kind()) {
+          case Operand::REG_DISP:
+            masm.jmp_m(op.disp(), op.base());
+            break;
           case Operand::SCALE:
             masm.jmp_m(op.disp(), op.base(), op.index(), op.scale());
             break;
@@ -575,25 +580,27 @@ class AssemblerX86Shared
     void cmpEAX(Label *label) { cmpSrc(label); }
     void bind(Label *label) {
         JSC::MacroAssembler::Label jsclabel;
+        JSC::X86Assembler::JmpDst dst(masm.label());
         if (label->used()) {
             bool more;
             JSC::X86Assembler::JmpSrc jmp(label->offset());
             do {
                 JSC::X86Assembler::JmpSrc next;
                 more = masm.nextJump(jmp, &next);
-                masm.linkJump(jmp, masm.label());
+                masm.linkJump(jmp, dst);
                 jmp = next;
             } while (more);
         }
-        label->bind(masm.label().offset());
+        label->bind(dst.offset());
     }
     void bind(RepatchLabel *label) {
         JSC::MacroAssembler::Label jsclabel;
+        JSC::X86Assembler::JmpDst dst(masm.label());
         if (label->used()) {
             JSC::X86Assembler::JmpSrc jmp(label->offset());
-            masm.linkJump(jmp, masm.label());
+            masm.linkJump(jmp, dst);
         }
-        label->bind(masm.label().offset());
+        label->bind(dst.offset());
     }
     uint32_t currentOffset() {
         return masm.label().offset();
@@ -1097,15 +1104,15 @@ class AssemblerX86Shared
     }
     void psrldq(Imm32 shift, const FloatRegister &dest) {
         JS_ASSERT(HasSSE2());
-        masm.psrldq_rr(dest.code(), shift.value);
+        masm.psrldq_ir(shift.value, dest.code());
     }
     void psllq(Imm32 shift, const FloatRegister &dest) {
         JS_ASSERT(HasSSE2());
-        masm.psllq_rr(dest.code(), shift.value);
+        masm.psllq_ir(shift.value, dest.code());
     }
     void psrlq(Imm32 shift, const FloatRegister &dest) {
         JS_ASSERT(HasSSE2());
-        masm.psrlq_rr(dest.code(), shift.value);
+        masm.psrlq_ir(shift.value, dest.code());
     }
 
     void cvtsi2sd(const Operand &src, const FloatRegister &dest) {
@@ -1351,5 +1358,4 @@ class AssemblerX86Shared
 } // namespace ion
 } // namespace js
 
-#endif // jsion_assembler_x86_shared__
-
+#endif /* ion_shared_Assembler_x86_shared_h */

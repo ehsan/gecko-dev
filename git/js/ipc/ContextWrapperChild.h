@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef mozilla_jsipc_ContextWrapperChild_h__
-#define mozilla_jsipc_ContextWrapperChild_h__
+#ifndef mozilla_jsipc_ContextWrapperChild_h
+#define mozilla_jsipc_ContextWrapperChild_h
 
 #include "mozilla/jsipc/PContextWrapperChild.h"
 #include "mozilla/jsipc/ObjectWrapperChild.h"
@@ -30,11 +30,12 @@ public:
 
     JSContext* GetContext() { return mContext; }
 
-    PObjectWrapperChild* GetOrCreateWrapper(JSObject* obj,
+    PObjectWrapperChild* GetOrCreateWrapper(JSObject* obj_,
                                             bool makeGlobal = false)
     {
-        if (!obj) // Don't wrap nothin'!
+        if (!obj_) // Don't wrap nothin'!
             return NULL;
+        JS::RootedObject obj(mContext, obj_);
         PObjectWrapperChild* wrapper;
         while (!mResidentObjectTable.Get(obj, &wrapper)) {
             wrapper = SendPObjectWrapperConstructor(AllocPObjectWrapper(obj),
@@ -54,7 +55,9 @@ protected:
     }
     
     PObjectWrapperChild* AllocPObjectWrapper(const bool&) {
-        return AllocPObjectWrapper(JS_GetGlobalObject(mContext));
+        // This stuff is unused and billm has a patch to delete it.
+        JSAutoRequest ar(mContext);
+        return AllocPObjectWrapper(JS_GetGlobalForScopeChain(mContext));
     }
 
     bool DeallocPObjectWrapper(PObjectWrapperChild* actor) {
@@ -74,4 +77,4 @@ private:
 
 }}
 
-#endif
+#endif /* mozilla_jsipc_ContextWrapperChild_h */

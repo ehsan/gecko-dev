@@ -103,7 +103,7 @@ public class BrowserHealthReporter implements GeckoEventListener {
      * This method performs IO, so call it from a background thread.
      */
     public JSONObject generateReport() throws JSONException {
-        GeckoProfile profile = GeckoAppShell.getProfile();
+        GeckoProfile profile = GeckoAppShell.getGeckoInterface().getProfile();
         String profilePath = profile.getDir().getAbsolutePath();
 
         long since = System.currentTimeMillis() - MILLISECONDS_PER_SIX_MONTHS;

@@ -4,8 +4,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#if !defined(jsion_baseline_helpers_x64_h__) && defined(JS_ION)
-#define jsion_baseline_helpers_x64_h__
+#ifndef ion_x64_BaselineHelpers_x64_h
+#define ion_x64_BaselineHelpers_x64_h
+
+#ifdef JS_ION
 
 #include "ion/IonMacroAssembler.h"
 #include "ion/BaselineFrame.h"
@@ -47,12 +49,8 @@ EmitEnterTypeMonitorIC(MacroAssembler &masm,
     // is properly initialized to point to the stub.
     masm.movq(Operand(BaselineStubReg, (int32_t) monitorStubOffset), BaselineStubReg);
 
-    // Load stubcode pointer from BaselineStubEntry into BaselineTailCallReg.
-    masm.movq(Operand(BaselineStubReg, (int32_t) ICStub::offsetOfStubCode()),
-              BaselineTailCallReg);
-
     // Jump to the stubcode.
-    masm.jmp(Operand(BaselineTailCallReg));
+    masm.jmp(Operand(BaselineStubReg, (int32_t) ICStub::offsetOfStubCode()));
 }
 
 inline void
@@ -270,17 +268,14 @@ EmitStubGuardFailure(MacroAssembler &masm)
     // Load next stub into BaselineStubReg
     masm.movq(Operand(BaselineStubReg, ICStub::offsetOfNext()), BaselineStubReg);
 
-    // Load stubcode pointer from BaselineStubEntry into BaselineTailCallReg
-    // BaselineTailCallReg will always be unused in the contexts where IC stub guards fail
-    masm.movq(Operand(BaselineStubReg, ICStub::offsetOfStubCode()), BaselineTailCallReg);
-
     // Return address is already loaded, just jump to the next stubcode.
-    masm.jmp(Operand(BaselineTailCallReg));
+    masm.jmp(Operand(BaselineStubReg, ICStub::offsetOfStubCode()));
 }
 
 
 } // namespace ion
 } // namespace js
 
-#endif
+#endif // JS_ION
 
+#endif /* ion_x64_BaselineHelpers_x64_h */

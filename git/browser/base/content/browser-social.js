@@ -88,6 +88,7 @@ SocialUI = {
           this._updateMenuItems();
 
           SocialFlyout.unload();
+          SocialChatBar.closeWindows();
           SocialChatBar.update();
           SocialShare.update();
           SocialSidebar.update();
@@ -347,6 +348,14 @@ SocialUI = {
 SocialChatBar = {
   init: function() {
   },
+  closeWindows: function() {
+    // close all windows of type Social:Chat
+    let windows = Services.wm.getEnumerator("Social:Chat");
+    while (windows.hasMoreElements()) {
+      let win = windows.getNext();
+      win.close();
+    }
+  },
   get chatbar() {
     return document.getElementById("pinnedchats");
   },
@@ -404,16 +413,11 @@ function sizeSocialPanelToContent(panel, iframe) {
   let height = Math.max(computedHeight, PANEL_MIN_HEIGHT);
   let computedWidth = parseInt(cs.marginLeft) + body.offsetWidth + parseInt(cs.marginRight);
   let width = Math.max(computedWidth, PANEL_MIN_WIDTH);
-  let wDiff = width - iframe.getBoundingClientRect().width;
-  // A panel resize will move the right margin - if that is where the anchor
-  // arrow is, the arrow will be mis-aligned from the anchor.  So we move the
-  // popup to compensate for that.  See bug 799014.
-  if (wDiff !== 0 && panel.getAttribute("side") == "right") {
-    let box = panel.boxObject;
-    panel.moveTo(box.screenX - wDiff, box.screenY);
-  }
-  iframe.style.height = height + "px";
   iframe.style.width = width + "px";
+  iframe.style.height = height + "px";
+  // since we do not use panel.sizeTo, we need to adjust the arrow ourselves
+  if (panel.state == "open")
+    panel.adjustArrowPosition();
 }
 
 function DynamicResizeWatcher() {
@@ -452,8 +456,14 @@ SocialFlyout = {
     return document.getElementById("social-flyout-panel");
   },
 
+  get iframe() {
+    if (!this.panel.firstChild)
+      this._createFrame();
+    return this.panel.firstChild;
+  },
+
   dispatchPanelEvent: function(name) {
-    let doc = this.panel.firstChild.contentDocument;
+    let doc = this.iframe.contentDocument;
     let evt = doc.createEvent("CustomEvent");
     evt.initCustomEvent(name, true, true, {});
     doc.documentElement.dispatchEvent(evt);
@@ -474,13 +484,9 @@ SocialFlyout = {
   },
 
   setFlyoutErrorMessage: function SF_setFlyoutErrorMessage() {
-    let iframe = this.panel.firstChild;
-    if (!iframe)
-      return;
-
-    iframe.removeAttribute("src");
-    iframe.webNavigation.loadURI("about:socialerror?mode=compactInfo", null, null, null, null);
-    sizeSocialPanelToContent(this.panel, iframe);
+    this.iframe.removeAttribute("src");
+    this.iframe.webNavigation.loadURI("about:socialerror?mode=compactInfo", null, null, null, null);
+    sizeSocialPanelToContent(this.panel, this.iframe);
   },
 
   unload: function() {
@@ -496,7 +502,7 @@ SocialFlyout = {
 
   onShown: function(aEvent) {
     let panel = this.panel;
-    let iframe = panel.firstChild;
+    let iframe = this.iframe;
     this._dynamicResizer = new DynamicResizeWatcher();
     iframe.docShell.isActive = true;
     iframe.docShell.isAppTab = true;
@@ -520,8 +526,35 @@ SocialFlyout = {
   onHidden: function(aEvent) {
     this._dynamicResizer.stop();
     this._dynamicResizer = null;
-    this.panel.firstChild.docShell.isActive = false;
+    this.iframe.docShell.isActive = false;
     this.dispatchPanelEvent("socialFrameHide");
+  },
+
+  load: function(aURL, cb) {
+    if (!Social.provider)
+      return;
+
+    this.panel.hidden = false;
+    let iframe = this.iframe;
+    // same url with only ref difference does not cause a new load, so we
+    // want to go right to the callback
+    let src = iframe.contentDocument && iframe.contentDocument.documentURIObject;
+    if (!src || !src.equalsExceptRef(Services.io.newURI(aURL, null, null))) {
+      iframe.addEventListener("load", function documentLoaded() {
+        iframe.removeEventListener("load", documentLoaded, true);
+        cb();
+      }, true);
+      // Force a layout flush by calling .clientTop so
+      // that the docShell of this frame is created
+      iframe.clientTop;
+      Social.setErrorListener(iframe, SocialFlyout.setFlyoutErrorMessage.bind(SocialFlyout))
+      iframe.setAttribute("src", aURL);
+    } else {
+      // we still need to set the src to trigger the contents hashchange event
+      // for ref changes
+      iframe.setAttribute("src", aURL);
+      cb();
+    }
   },
 
   open: function(aURL, yOffset, aCallback) {
@@ -531,51 +564,24 @@ SocialFlyout = {
     if (!SocialUI.enabled)
       return;
     let panel = this.panel;
-    if (!panel.firstChild)
-      this._createFrame();
-    panel.hidden = false;
-    let iframe = panel.firstChild;
+    let iframe = this.iframe;
 
-    let src = iframe.getAttribute("src");
-    if (src != aURL) {
-      iframe.addEventListener("load", function documentLoaded() {
-        iframe.removeEventListener("load", documentLoaded, true);
-        if (aCallback) {
-          try {
-            aCallback(iframe.contentWindow);
-          } catch(e) {
-            Cu.reportError(e);
-          }
-        }
-      }, true);
-      iframe.setAttribute("src", aURL);
-    }
-    else if (aCallback) {
-      try {
-        aCallback(iframe.contentWindow);
-      } catch(e) {
-        Cu.reportError(e);
+    this.load(aURL, function() {
+      sizeSocialPanelToContent(panel, iframe);
+      let anchor = document.getElementById("social-sidebar-browser");
+      if (panel.state == "open") {
+        panel.moveToAnchor(anchor, "start_before", 0, yOffset, false);
+      } else {
+        panel.openPopup(anchor, "start_before", 0, yOffset, false, false);
       }
-    }
-
-    sizeSocialPanelToContent(panel, iframe);
-    let anchor = document.getElementById("social-sidebar-browser");
-    if (panel.state == "open") {
-      // this is painful - there is no way to say "move to a new anchor offset",
-      // only "move to new screen pos".  So we remember the last yOffset,
-      // calculate the adjustment needed to the new yOffset, then calc the
-      // screen Y position.
-      let yAdjust = yOffset - this.yOffset;
-      let box = panel.boxObject;
-      panel.moveTo(box.screenX, box.screenY + yAdjust);
-    } else {
-      panel.openPopup(anchor, "start_before", 0, yOffset, false, false);
-      // Force a layout flush by calling .clientTop so
-      // that the docShell of this frame is created
-      panel.firstChild.clientTop;
-      Social.setErrorListener(iframe, this.setFlyoutErrorMessage.bind(this))
-    }
-    this.yOffset = yOffset;
+      if (aCallback) {
+        try {
+          aCallback(iframe.contentWindow);
+        } catch(e) {
+          Cu.reportError(e);
+        }
+      }
+    });
   }
 }
 
@@ -674,43 +680,6 @@ SocialShare = {
 
     if (!aURI || !(aURI.schemeIs('http') || aURI.schemeIs('https')))
       return false;
-
-    // The share button and context menus are disabled if the current tab has
-    // defined no-store. However, a share from other content is still possible
-    // (eg. via mozSocial or future use of web activities).  If the URI is not
-    // the current tab URI, we cannot validate the no-store header on the URI.
-    if (aURI != gBrowser.currentURI)
-      return true;
-
-    // we want to ensure this is a successful load and that the page is locally
-    // cacheable since that is a common mechanism for sensitive pages to avoid
-    // storing sensitive data in cache.
-    let channel = gBrowser.docShell.currentDocumentChannel;
-    let httpChannel;
-    try {
-      httpChannel = channel.QueryInterface(Ci.nsIHttpChannel);
-    } catch (e) {
-      /* Not an HTTP channel. */
-      Cu.reportError("cannot share without httpChannel");
-      return false;
-    }
-
-    // Continue only if we have a 2xx status code.
-    try {
-      if (!httpChannel.requestSucceeded)
-        return false;
-    } catch (e) {
-      // Can't get response information from the httpChannel
-      // because mResponseHead is not available.
-      return false;
-    }
-
-    // Cache-Control: no-store.
-    if (httpChannel.isNoStoreResponse()) {
-      Cu.reportError("cannot share cache-control: no-share");
-      return false;
-    }
-
     return true;
   },
 
@@ -1044,7 +1013,7 @@ SocialToolbar = {
       if (tbi) {
         // SocialMark is the last button allways
         let next = SocialMark.button.previousSibling;
-        while (next != tbi.firstChild) {
+        while (next != this.button) {
           tbi.removeChild(next);
           next = SocialMark.button.previousSibling;
         }

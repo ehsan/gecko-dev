@@ -388,7 +388,7 @@ IonRuntime::generateArgumentsRectifier(JSContext *cx, ExecutionMode mode, void *
 
     // Call the target function.
     // Note that this code assumes the function is JITted.
-    masm.movq(Operand(rax, offsetof(JSFunction, u.i.script_)), rax);
+    masm.movq(Operand(rax, JSFunction::offsetOfNativeOrScript()), rax);
     masm.loadBaselineOrIonRaw(rax, rax, mode, NULL);
     masm.call(rax);
     uint32_t returnOffset = masm.currentOffset();
@@ -528,13 +528,19 @@ IonRuntime::generateVMWrapper(JSContext *cx, const VMFunction &f)
 
       case Type_Handle:
         outReg = regs.takeAny();
-        masm.Push(UndefinedValue());
+        masm.PushEmptyRooted(f.outParamRootType);
         masm.movq(esp, outReg);
         break;
 
       case Type_Int32:
         outReg = regs.takeAny();
         masm.reserveStack(sizeof(int32_t));
+        masm.movq(esp, outReg);
+        break;
+
+      case Type_Pointer:
+        outReg = regs.takeAny();
+        masm.reserveStack(sizeof(uintptr_t));
         masm.movq(esp, outReg);
         break;
 
@@ -554,7 +560,10 @@ IonRuntime::generateVMWrapper(JSContext *cx, const VMFunction &f)
             MoveOperand from;
             switch (f.argProperties(explicitArg)) {
               case VMFunction::WordByValue:
-                masm.passABIArg(MoveOperand(argsBase, argDisp));
+                if (f.argPassedInFloatReg(explicitArg))
+                    masm.passABIArg(MoveOperand(argsBase, argDisp, MoveOperand::FLOAT));
+                else
+                    masm.passABIArg(MoveOperand(argsBase, argDisp));
                 argDisp += sizeof(void *);
                 break;
               case VMFunction::WordByRef:
@@ -596,6 +605,9 @@ IonRuntime::generateVMWrapper(JSContext *cx, const VMFunction &f)
     // Load the outparam and free any allocated stack.
     switch (f.outParam) {
       case Type_Handle:
+        masm.popRooted(f.outParamRootType, ReturnReg, JSReturnOperand);
+        break;
+
       case Type_Value:
         masm.loadValue(Address(esp, 0), JSReturnOperand);
         masm.freeStack(sizeof(Value));
@@ -604,6 +616,11 @@ IonRuntime::generateVMWrapper(JSContext *cx, const VMFunction &f)
       case Type_Int32:
         masm.load32(Address(esp, 0), ReturnReg);
         masm.freeStack(sizeof(int32_t));
+        break;
+
+      case Type_Pointer:
+        masm.loadPtr(Address(esp, 0), ReturnReg);
+        masm.freeStack(sizeof(uintptr_t));
         break;
 
       default:
@@ -641,7 +658,7 @@ IonRuntime::generatePreBarrier(JSContext *cx, MIRType type)
     masm.PushRegsInMask(regs);
 
     JS_ASSERT(PreBarrierReg == rdx);
-    masm.mov(ImmWord(cx->runtime), rcx);
+    masm.mov(ImmWord(cx->runtime()), rcx);
 
     masm.setupUnalignedABICall(2, rax);
     masm.passABIArg(rcx);
@@ -685,7 +702,7 @@ IonRuntime::generateDebugTrapHandler(JSContext *cx)
     masm.movePtr(ImmWord((void *)NULL), BaselineStubReg);
     EmitEnterStubFrame(masm, scratch3);
 
-    IonCompartment *ion = cx->compartment->ionCompartment();
+    IonCompartment *ion = cx->compartment()->ionCompartment();
     IonCode *code = ion->getVMWrapper(HandleDebugTrapInfo);
     if (!code)
         return NULL;

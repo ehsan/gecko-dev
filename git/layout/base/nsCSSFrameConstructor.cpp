@@ -76,6 +76,7 @@
 #include "nsAutoPtr.h"
 #include "nsBoxFrame.h"
 #include "nsBoxLayout.h"
+#include "nsFlexContainerFrame.h"
 #include "nsImageFrame.h"
 #include "nsIObjectLoadingContent.h"
 #include "nsIPrincipal.h"
@@ -93,6 +94,7 @@
 #include "nsTransitionManager.h"
 #include "nsSVGIntegrationUtils.h"
 #include "nsViewportFrame.h"
+#include "nsPageContentFrame.h"
 #include <algorithm>
 
 #ifdef MOZ_XUL
@@ -100,9 +102,6 @@
 #include "nsIDOMXULCommandDispatcher.h"
 #include "nsIDOMXULDocument.h"
 #include "nsIXULDocument.h"
-#endif
-#ifdef MOZ_FLEXBOX
-#include "nsFlexContainerFrame.h"
 #endif
 #ifdef ACCESSIBILITY
 #include "nsAccessibilityService.h"
@@ -329,7 +328,8 @@ nsIFrame*
 NS_NewHTMLScrollFrame (nsIPresShell* aPresShell, nsStyleContext* aContext, bool aIsRoot);
 
 nsIFrame*
-NS_NewXULScrollFrame (nsIPresShell* aPresShell, nsStyleContext* aContext, bool aIsRoot);
+NS_NewXULScrollFrame (nsIPresShell* aPresShell, nsStyleContext* aContext,
+                      bool aIsRoot, bool aClipAllDescendants);
 
 nsIFrame*
 NS_NewSliderFrame (nsIPresShell* aPresShell, nsStyleContext* aContext);
@@ -349,7 +349,6 @@ static int32_t FFWC_recursions=0;
 static int32_t FFWC_nextInFlows=0;
 #endif
 
-#ifdef MOZ_FLEXBOX
 // Returns true if aFrame is an anonymous flex item
 static inline bool
 IsAnonymousFlexItem(const nsIFrame* aFrame)
@@ -357,7 +356,6 @@ IsAnonymousFlexItem(const nsIFrame* aFrame)
   const nsIAtom* pseudoType = aFrame->StyleContext()->GetPseudo();
   return pseudoType == nsCSSAnonBoxes::anonymousFlexItem;
 }
-#endif // MOZ_FLEXBOX
 
 static inline nsIFrame*
 GetFieldSetBlockFrame(nsIFrame* aFieldsetFrame)
@@ -1425,6 +1423,7 @@ nsCSSFrameConstructor::nsCSSFrameConstructor(nsIDocument *aDocument,
   , mHasRootAbsPosContainingBlock(false)
   , mObservingRefreshDriver(false)
   , mInStyleRefresh(false)
+  , mPromoteReflowsToReframeRoot(false)
   , mHoverGeneration(0)
   , mRebuildAllExtraHint(nsChangeHint(0))
   , mAnimationGeneration(0)
@@ -2882,10 +2881,7 @@ nsCSSFrameConstructor::ConstructSelectFrame(nsFrameConstructorState& aState,
   // Construct a frame-based listbox or combobox
   dom::HTMLSelectElement* sel = dom::HTMLSelectElement::FromContent(content);
   MOZ_ASSERT(sel);
-  uint32_t size = sel->Size();
-  bool multipleSelect = sel->Multiple();
-  // Construct a combobox if size=1 or no size is specified and its multiple select
-  if ((1 == size || 0 == size) && !multipleSelect) {
+  if (sel->IsCombobox()) {
     // Construct a frame-based combo box.
     // The frame-based combo box is built out of three parts. A display area, a button and
     // a dropdown list. The display area and button are created through anonymous content.
@@ -4123,8 +4119,11 @@ nsCSSFrameConstructor::BeginBuildingScrollFrame(nsFrameConstructorState& aState,
     // HTMLScrollFrame
     // XXXbz this is the lone remaining consumer of IsXULDisplayType.
     // I wonder whether we can eliminate that somehow.
-    if (IsXULDisplayType(aContentStyle->StyleDisplay())) {
-      gfxScrollFrame = NS_NewXULScrollFrame(mPresShell, contentStyle, aIsRoot);
+    const nsStyleDisplay* displayStyle = aContentStyle->StyleDisplay();
+    if (IsXULDisplayType(displayStyle)) {
+      gfxScrollFrame = NS_NewXULScrollFrame(mPresShell, contentStyle, aIsRoot,
+          displayStyle->mDisplay == NS_STYLE_DISPLAY_STACK ||
+          displayStyle->mDisplay == NS_STYLE_DISPLAY_INLINE_STACK);
     } else {
       gfxScrollFrame = NS_NewHTMLScrollFrame(mPresShell, contentStyle, aIsRoot);
     }
@@ -4285,12 +4284,10 @@ nsCSSFrameConstructor::FindDisplayData(const nsStyleDisplay* aDisplay,
     { NS_STYLE_DISPLAY_INLINE,
       FULL_CTOR_FCDATA(FCDATA_IS_INLINE | FCDATA_IS_LINE_PARTICIPANT,
                        &nsCSSFrameConstructor::ConstructInline) },
-#ifdef MOZ_FLEXBOX
     { NS_STYLE_DISPLAY_FLEX,
       FCDATA_DECL(FCDATA_MAY_NEED_SCROLLFRAME, NS_NewFlexContainerFrame) },
     { NS_STYLE_DISPLAY_INLINE_FLEX,
       FCDATA_DECL(FCDATA_MAY_NEED_SCROLLFRAME, NS_NewFlexContainerFrame) },
-#endif // MOZ_FLEXBOX
     { NS_STYLE_DISPLAY_TABLE,
       FULL_CTOR_FCDATA(0, &nsCSSFrameConstructor::ConstructTable) },
     { NS_STYLE_DISPLAY_INLINE_TABLE,
@@ -4364,6 +4361,10 @@ nsCSSFrameConstructor::ConstructScrollableBlock(nsFrameConstructorState& aState,
   nsIFrame* scrolledFrame =
     NS_NewBlockFormattingContext(mPresShell, styleContext);
 
+  // Make sure to AddChild before we call ConstructBlock so that we
+  // end up before our descendants in fixed-pos lists as needed.
+  aState.AddChild(newFrame, aFrameItems, content, styleContext, aParentFrame);
+
   nsFrameItems blockItem;
   ConstructBlock(aState, scrolledContentStyle->StyleDisplay(), content,
                  newFrame, newFrame, scrolledContentStyle,
@@ -4375,7 +4376,6 @@ nsCSSFrameConstructor::ConstructScrollableBlock(nsFrameConstructorState& aState,
                "Scrollframe's frameItems should be exactly the scrolled frame");
   FinishBuildingScrollFrame(newFrame, scrolledFrame);
 
-  aState.AddChild(newFrame, aFrameItems, content, styleContext, aParentFrame);
   return newFrame;
 }
 
@@ -7725,22 +7725,18 @@ DoApplyRenderingChangeToTree(nsIFrame* aFrame,
 
     // if frame has view, will already be invalidated
     if (aChange & nsChangeHint_RepaintFrame) {
-      if (aFrame->IsFrameOfType(nsIFrame::eSVG) &&
+      // Note that this whole block will be skipped when painting is suppressed
+      // (due to our caller ApplyRendingChangeToTree() discarding the
+      // nsChangeHint_RepaintFrame hint).  If you add handling for any other
+      // hints within this block, be sure that they too should be ignored when
+      // painting is suppressed.
+      needInvalidatingPaint = true;
+      aFrame->InvalidateFrameSubtree();
+      if (aChange & nsChangeHint_UpdateEffects &&
+          aFrame->IsFrameOfType(nsIFrame::eSVG) &&
           !(aFrame->GetStateBits() & NS_STATE_IS_OUTER_SVG)) {
-        if (aChange & nsChangeHint_UpdateEffects) {
-          needInvalidatingPaint = true;
-          nsSVGEffects::InvalidateRenderingObservers(aFrame);
-          // Need to update our overflow rects:
-          nsSVGUtils::ScheduleReflowSVG(aFrame);
-        } else {
-          needInvalidatingPaint = true;
-          // Just invalidate our area:
-          nsSVGEffects::InvalidateRenderingObservers(aFrame);
-          aFrame->InvalidateFrameSubtree();
-        }
-      } else {
-        needInvalidatingPaint = true;
-        aFrame->InvalidateFrameSubtree();
+        // Need to update our overflow rects:
+        nsSVGUtils::ScheduleReflowSVG(aFrame);
       }
     }
     if (aChange & nsChangeHint_UpdateTextPath) {
@@ -8066,6 +8062,17 @@ NeedToReframeForAddingOrRemovingTransform(nsIFrame* aFrame)
   return false;
 }
 
+static nsIFrame*
+FindReflowRootFor(nsIFrame* aFrame)
+{
+  for (nsIFrame* f = aFrame; f; f = f->GetParent()) {
+    if (f->GetStateBits() & NS_FRAME_REFLOW_ROOT) {
+      return f;
+    }
+  }
+  return nullptr;
+}
+
 nsresult
 nsCSSFrameConstructor::ProcessRestyledFrames(nsStyleChangeList& aChangeList)
 {
@@ -8122,6 +8129,21 @@ nsCSSFrameConstructor::ProcessRestyledFrames(nsStyleChangeList& aChangeList)
       frame = nullptr;
       if (!(hint & nsChangeHint_ReconstructFrame)) {
         continue;
+      }
+    }
+
+    if (mPromoteReflowsToReframeRoot &&
+        (hint & (nsChangeHint_ReconstructFrame | nsChangeHint_NeedReflow))) {
+      nsIFrame* reflowRoot = FindReflowRootFor(frame);
+      if (!reflowRoot) {
+        // Reflow root is the viewport. Better reframe the document.
+        // We don't do this for elements which are inside a reflow root --- they
+        // should be OK.
+        nsIContent* root = mDocument->GetRootElement();
+        if (root) {
+          NS_UpdateHint(hint, nsChangeHint_ReconstructFrame);
+          content = root;
+        }
       }
     }
 
@@ -8256,8 +8278,10 @@ nsCSSFrameConstructor::ProcessRestyledFrames(nsStyleChangeList& aChangeList)
           DebugVerifyStyleTree(frame);
         }
       }
-    } else {
-      NS_WARNING("Unable to test style tree integrity -- no content node");
+    } else if (!changeData->mFrame ||
+               changeData->mFrame->GetType() != nsGkAtoms::viewportFrame) {
+      NS_WARNING("Unable to test style tree integrity -- no content node "
+                 "(and not a viewport frame)");
     }
 #endif
   }
@@ -9154,7 +9178,6 @@ nsCSSFrameConstructor::MaybeRecreateContainerForFrameRemoval(nsIFrame* aFrame,
     }
   }
 
-#ifdef MOZ_FLEXBOX
   // Might need to reconstruct things if the removed frame's nextSibling is an
   // anonymous flex item.  The removed frame might've been what divided two
   // runs of inline content into two anonymous flex items, which would now
@@ -9201,7 +9224,6 @@ nsCSSFrameConstructor::MaybeRecreateContainerForFrameRemoval(nsIFrame* aFrame,
                                         true);
     return true;
   }
-#endif // MOZ_FLEXBOX
 
 #ifdef MOZ_XUL
   if (aFrame->GetType() == nsGkAtoms::popupSetFrame) {
@@ -9475,7 +9497,6 @@ nsCSSFrameConstructor::sPseudoParentData[eParentTypeCount] = {
   }
 };
 
-#ifdef MOZ_FLEXBOX
 void
 nsCSSFrameConstructor::CreateNeededAnonFlexItems(
   nsFrameConstructorState& aState,
@@ -9591,7 +9612,6 @@ nsCSSFrameConstructor::CreateNeededAnonFlexItems(
     iter.InsertItem(newItem);
   } while (!iter.IsDone());
 }
-#endif // MOZ_FLEXBOX
 
 /*
  * This function works as follows: we walk through the child list (aItems) and
@@ -9813,11 +9833,9 @@ nsCSSFrameConstructor::ConstructFramesFromItemList(nsFrameConstructorState& aSta
 
   CreateNeededTablePseudos(aState, aItems, aParentFrame);
 
-#ifdef MOZ_FLEXBOX
   if (aParentFrame->GetType() == nsGkAtoms::flexContainerFrame) {
     CreateNeededAnonFlexItems(aState, aItems, aParentFrame);
   }
-#endif // MOZ_FLEXBOX
 
 #ifdef DEBUG
   for (FCItemIterator iter(aItems); !iter.IsDone(); iter.Next()) {
@@ -11315,7 +11333,6 @@ nsCSSFrameConstructor::WipeContainingBlock(nsFrameConstructorState& aState,
 
   nsIFrame* nextSibling = ::GetInsertNextSibling(aFrame, aPrevSibling);
 
-#ifdef MOZ_FLEXBOX
   // Situation #2 is a flex container frame into which we're inserting new
   // inline non-replaced children, adjacent to an existing anonymous flex item.
   if (aFrame->GetType() == nsGkAtoms::flexContainerFrame) {
@@ -11373,7 +11390,6 @@ nsCSSFrameConstructor::WipeContainingBlock(nsFrameConstructorState& aState,
     // If we get here, then everything in |aItems| needs to be wrapped in
     // an anonymous flex item.  That's where it's already going - good!
   }
-#endif // MOZ_FLEXBOX
 
   // Situation #4 is a case when table pseudo-frames don't work out right
   ParentType parentType = GetParentType(aFrame);
@@ -12041,7 +12057,7 @@ nsCSSFrameConstructor::ProcessPendingRestyles()
   // running entirely on the compositor thread) is up-to-date, so that
   // if any style changes we cause trigger transitions, we have the
   // correct old style for starting the transition.
-  if (css::CommonAnimationManager::ThrottlingEnabled() &&
+  if (nsLayoutUtils::AreAsyncAnimationsEnabled() &&
       mPendingRestyles.Count() > 0) {
     ++mAnimationGeneration;
     presContext->TransitionManager()->UpdateAllThrottledStyles();
@@ -12127,6 +12143,7 @@ nsCSSFrameConstructor::PostRebuildAllStyleDataEvent(nsChangeHint aExtraHint)
 
   mRebuildAllStyleData = true;
   NS_UpdateHint(mRebuildAllExtraHint, aExtraHint);
+
   // Get a restyle event posted if necessary
   PostRestyleEventInternal(false);
 }
@@ -12224,7 +12241,6 @@ Iterator::SkipItemsWantingParentType(ParentType aParentType)
   return false;
 }
 
-#ifdef MOZ_FLEXBOX
 bool
 nsCSSFrameConstructor::FrameConstructionItem::
   NeedsAnonFlexItem(const nsFrameConstructorState& aState)
@@ -12275,7 +12291,6 @@ Iterator::SkipItemsThatDontNeedAnonFlexItem(
   }
   return false;
 }
-#endif // MOZ_FLEXBOX
 
 inline bool
 nsCSSFrameConstructor::FrameConstructionItemList::

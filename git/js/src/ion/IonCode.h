@@ -4,12 +4,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsion_coderef_h__
-#define jsion_coderef_h__
+#ifndef ion_IonCode_h
+#define ion_IonCode_h
 
 #include "mozilla/PodOperations.h"
 
 #include "IonTypes.h"
+#include "AsmJS.h"
 #include "gc/Heap.h"
 
 // For RecompileInfo
@@ -176,9 +177,13 @@ struct IonScript
     // Number of times this script bailed out without invalidation.
     uint32_t numBailouts_;
 
-    // Flag set when we bailed out in parallel execution and should ensure its
-    // call targets are compiled.
-    bool hasInvalidatedCallTarget_;
+    // Flag set when it is likely that one of our (transitive) call
+    // targets is not compiled.  Used in ForkJoin.cpp to decide when
+    // we should add call targets to the worklist.
+    bool hasUncompiledCallTarget_;
+
+    // Flag set if IonScript was compiled with SPS profiling enabled.
+    bool hasSPSInstrumentation_;
 
     // Any kind of data needed by the runtime, these can be either cache
     // information or profiling info.
@@ -243,6 +248,10 @@ struct IonScript
     // a LOOPENTRY pc other than osrPc_.
     uint32_t osrPcMismatchCounter_;
 
+    // If non-null, the list of AsmJSModules
+    // that contain an optimized call directly into this IonScript.
+    Vector<DependentAsmJSModuleExit> *dependentAsmJSModules;
+
   private:
     inline uint8_t *bottomBuffer() {
         return reinterpret_cast<uint8_t *>(this);
@@ -282,6 +291,19 @@ struct IonScript
     JSScript **callTargetList() {
         return (JSScript **) &bottomBuffer()[callTargetList_];
     }
+    bool addDependentAsmJSModule(JSContext *cx, DependentAsmJSModuleExit exit);
+    void removeDependentAsmJSModule(DependentAsmJSModuleExit exit) {
+        JS_ASSERT(dependentAsmJSModules);
+        for (size_t i = 0; i < dependentAsmJSModules->length(); i++) {
+            if (dependentAsmJSModules->begin()[i].module == exit.module &&
+                dependentAsmJSModules->begin()[i].exitIndex == exit.exitIndex)
+            {
+                dependentAsmJSModules->erase(dependentAsmJSModules->begin() + i);
+                break;
+            }
+        }
+    }
+    void detachDependentAsmJSModules(FreeOp *fop);
 
   private:
     void trace(JSTracer *trc);
@@ -373,14 +395,23 @@ struct IonScript
     bool bailoutExpected() const {
         return numBailouts_ > 0;
     }
-    void setHasInvalidatedCallTarget() {
-        hasInvalidatedCallTarget_ = true;
+    void setHasUncompiledCallTarget() {
+        hasUncompiledCallTarget_ = true;
     }
-    void clearHasInvalidatedCallTarget() {
-        hasInvalidatedCallTarget_ = false;
+    void clearHasUncompiledCallTarget() {
+        hasUncompiledCallTarget_ = false;
     }
-    bool hasInvalidatedCallTarget() const {
-        return hasInvalidatedCallTarget_;
+    bool hasUncompiledCallTarget() const {
+        return hasUncompiledCallTarget_;
+    }
+    void setHasSPSInstrumentation() {
+        hasSPSInstrumentation_ = true;
+    }
+    void clearHasSPSInstrumentation() {
+        hasSPSInstrumentation_ = false;
+    }
+    bool hasSPSInstrumentation() const {
+        return hasSPSInstrumentation_;
     }
     const uint8_t *snapshots() const {
         return reinterpret_cast<const uint8_t *>(this) + snapshots_;
@@ -693,5 +724,4 @@ IsMarked(const ion::VMFunction *)
 
 } // namespace js
 
-#endif // jsion_coderef_h__
-
+#endif /* ion_IonCode_h */

@@ -36,6 +36,12 @@ LIRGeneratorX64::useBoxFixed(LInstruction *lir, size_t n, MDefinition *mir, Regi
     return true;
 }
 
+LDefinition
+LIRGeneratorX64::tempToUnbox()
+{
+    return temp();
+}
+
 bool
 LIRGeneratorX64::visitBox(MBox *box)
 {
@@ -77,14 +83,6 @@ LIRGeneratorX64::visitReturn(MReturn *ret)
     LReturn *ins = new LReturn;
     ins->setOperand(0, useFixed(opd, JSReturnReg));
     return add(ins);
-}
-
-bool
-LIRGeneratorX64::lowerForFPU(LMathD *ins, MDefinition *mir, MDefinition *lhs, MDefinition *rhs)
-{
-    ins->setOperand(0, useRegisterAtStart(lhs));
-    ins->setOperand(1, use(rhs));
-    return defineReuseInput(ins, mir, 0);
 }
 
 bool

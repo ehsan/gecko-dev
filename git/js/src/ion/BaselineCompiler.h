@@ -4,14 +4,17 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#if !defined(jsion_baseline_compiler_h__) && defined(JS_ION)
-#define jsion_baseline_compiler_h__
+#ifndef ion_BaselineCompiler_h
+#define ion_BaselineCompiler_h
+
+#ifdef JS_ION
 
 #include "jscntxt.h"
 #include "jscompartment.h"
 #include "IonCode.h"
 #include "jsinfer.h"
-#include "jsinterp.h"
+
+#include "vm/Interpreter.h"
 
 #include "IonAllocPolicy.h"
 #include "BaselineJIT.h"
@@ -35,6 +38,7 @@ namespace ion {
     _(JSOP_LABEL)              \
     _(JSOP_NOTEARG)            \
     _(JSOP_POP)                \
+    _(JSOP_POPN)               \
     _(JSOP_DUP)                \
     _(JSOP_DUP2)               \
     _(JSOP_SWAP)               \
@@ -96,7 +100,11 @@ namespace ion {
     _(JSOP_NEWOBJECT)          \
     _(JSOP_NEWINIT)            \
     _(JSOP_INITELEM)           \
+    _(JSOP_INITELEM_GETTER)    \
+    _(JSOP_INITELEM_SETTER)    \
     _(JSOP_INITPROP)           \
+    _(JSOP_INITPROP_GETTER)    \
+    _(JSOP_INITPROP_SETTER)    \
     _(JSOP_ENDINIT)            \
     _(JSOP_GETELEM)            \
     _(JSOP_SETELEM)            \
@@ -143,15 +151,23 @@ namespace ion {
     _(JSOP_INSTANCEOF)         \
     _(JSOP_TYPEOF)             \
     _(JSOP_TYPEOFEXPR)         \
+    _(JSOP_SETCALL)            \
     _(JSOP_THROW)              \
     _(JSOP_TRY)                \
+    _(JSOP_FINALLY)            \
+    _(JSOP_GOSUB)              \
+    _(JSOP_RETSUB)             \
     _(JSOP_ENTERBLOCK)         \
     _(JSOP_ENTERLET0)          \
     _(JSOP_ENTERLET1)          \
     _(JSOP_LEAVEBLOCK)         \
+    _(JSOP_LEAVEBLOCKEXPR)     \
+    _(JSOP_LEAVEFORLETIN)      \
     _(JSOP_EXCEPTION)          \
     _(JSOP_DEBUGGER)           \
     _(JSOP_ARGUMENTS)          \
+    _(JSOP_RUNONCE)            \
+    _(JSOP_REST)               \
     _(JSOP_TOID)               \
     _(JSOP_TABLESWITCH)        \
     _(JSOP_ITER)               \
@@ -169,6 +185,9 @@ class BaselineCompiler : public BaselineCompilerSpecific
 {
     FixedList<Label>            labels_;
     HeapLabel *                 return_;
+#ifdef JSGC_GENERATIONAL
+    HeapLabel *                 postBarrierSlot_;
+#endif
 
     // Native code offset right before the scope chain is initialized.
     CodeOffsetLabel prologueOffset_;
@@ -188,6 +207,9 @@ class BaselineCompiler : public BaselineCompilerSpecific
 
     bool emitPrologue();
     bool emitEpilogue();
+#ifdef JSGC_GENERATIONAL
+    bool emitOutOfLinePostBarrierSlot();
+#endif
     bool emitIC(ICStub *stub, bool isForOp);
     bool emitOpIC(ICStub *stub) {
         return emitIC(stub, true);
@@ -230,17 +252,24 @@ class BaselineCompiler : public BaselineCompilerSpecific
     bool emitAndOr(bool branchIfTrue);
     bool emitCall();
 
+    bool emitInitPropGetterSetter();
+    bool emitInitElemGetterSetter();
+
     bool emitFormalArgAccess(uint32_t arg, bool get);
 
     bool emitEnterBlock();
+    bool emitLeaveBlock();
 
     bool addPCMappingEntry(bool addIndexEntry);
 
+    void getScopeCoordinateObject(Register reg);
+    Address getScopeCoordinateAddressFromObject(Register objReg, Register reg);
     Address getScopeCoordinateAddress(Register reg);
 };
 
 } // namespace ion
 } // namespace js
 
-#endif
+#endif // JS_ION
 
+#endif /* ion_BaselineCompiler_h */

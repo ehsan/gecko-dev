@@ -4,10 +4,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "MIR.h"
+
+#include "mozilla/Casting.h"
+
 #include "BaselineInspector.h"
 #include "IonBuilder.h"
 #include "LICM.h" // For LinearSum
-#include "MIR.h"
 #include "MIRGraph.h"
 #include "EdgeCaseAnalysis.h"
 #include "RangeAnalysis.h"
@@ -20,10 +23,12 @@
 using namespace js;
 using namespace js::ion;
 
+using mozilla::BitwiseCast;
+
 void
 MDefinition::PrintOpcodeName(FILE *fp, MDefinition::Opcode op)
 {
-    static const char *names[] =
+    static const char * const names[] =
     {
 #define NAME(x) #x,
         MIR_OPCODE_LIST(NAME)
@@ -62,7 +67,7 @@ EqualValues(bool useGVN, MDefinition *left, MDefinition *right)
 }
 
 static MConstant *
-EvaluateConstantOperands(MBinaryInstruction *ins)
+EvaluateConstantOperands(MBinaryInstruction *ins, bool *ptypeChange = NULL)
 {
     MDefinition *left = ins->getOperand(0);
     MDefinition *right = ins->getOperand(1);
@@ -115,8 +120,11 @@ EvaluateConstantOperands(MBinaryInstruction *ins)
         return NULL;
     }
 
-    if (ins->type() != MIRTypeFromValue(ret))
+    if (ins->type() != MIRTypeFromValue(ret)) {
+        if (ptypeChange)
+            *ptypeChange = true;
         return NULL;
+    }
 
     return MConstant::New(ret);
 }
@@ -238,6 +246,16 @@ MDefinition::useCount() const
     return count;
 }
 
+size_t
+MDefinition::defUseCount() const
+{
+    size_t count = 0;
+    for (MUseIterator i(uses_.begin()); i != uses_.end(); i++)
+        if ((*i)->consumer()->isDefinition())
+            count++;
+    return count;
+}
+
 MUseIterator
 MDefinition::removeUse(MUseIterator use)
 {
@@ -315,6 +333,12 @@ MDefinition::replaceAllUsesWith(MDefinition *dom)
     }
 }
 
+bool
+MDefinition::emptyResultTypeSet() const
+{
+    return resultTypeSet() && resultTypeSet()->empty();
+}
+
 static inline bool
 IsPowerOfTwo(uint32_t n)
 {
@@ -389,8 +413,8 @@ MConstant::printOpcode(FILE *fp)
         fprintf(fp, "%f", value().toDouble());
         break;
       case MIRType_Object:
-        if (value().toObject().isFunction()) {
-            JSFunction *fun = value().toObject().toFunction();
+        if (value().toObject().is<JSFunction>()) {
+            JSFunction *fun = &value().toObject().as<JSFunction>();
             if (fun->displayAtom()) {
                 fputs("function ", fp);
                 FileEscapedString(fp, fun->displayAtom(), 0);
@@ -843,7 +867,13 @@ MBitNot::infer()
 static inline bool
 IsConstant(MDefinition *def, double v)
 {
-    return def->isConstant() && def->toConstant()->value().toNumber() == v;
+    if (!def->isConstant())
+        return false;
+
+    // Compare the underlying bits to not equate -0 and +0.
+    uint64_t lhs = BitwiseCast<uint64_t>(def->toConstant()->value().toNumber());
+    uint64_t rhs = BitwiseCast<uint64_t>(v);
+    return lhs == rhs;
 }
 
 MDefinition *
@@ -925,7 +955,7 @@ MUrsh::infer(BaselineInspector *inspector, jsbytecode *pc)
         return;
     }
 
-    if (inspector->expectedResultType(pc) == MIRType_Double) {
+    if (inspector->hasSeenDoubleResult(pc)) {
         specialization_ = MIRType_Double;
         setResultType(MIRType_Double);
         return;
@@ -1279,8 +1309,17 @@ MBinaryArithInstruction::infer(BaselineInspector *inspector,
         return inferFallback(inspector, pc);
 
     // If the operation has ever overflowed, use a double specialization.
-    if (overflowed)
+    if (inspector->hasSeenDoubleResult(pc))
         setResultType(MIRType_Double);
+
+    // If the operation will always overflow on its constant operands, use a
+    // double specialization so that it can be constant folded later.
+    if ((isMul() || isDiv()) && lhs == MIRType_Int32 && rhs == MIRType_Int32) {
+        bool typeChange = false;
+        EvaluateConstantOperands(this, &typeChange);
+        if (typeChange)
+            setResultType(MIRType_Double);
+    }
 
     JS_ASSERT(lhs < MIRType_String || lhs == MIRType_Value);
     JS_ASSERT(rhs < MIRType_String || rhs == MIRType_Value);
@@ -1329,6 +1368,16 @@ MBinaryArithInstruction::inferFallback(BaselineInspector *inspector,
         specialization_ = MIRType_Double;
         setResultType(MIRType_Double);
         return;
+    }
+
+    // If we can't specialize because we have no type information at all for
+    // the lhs or rhs, mark the binary instruction as having no possible types
+    // either to avoid degrading subsequent analysis.
+    if (getOperand(0)->emptyResultTypeSet() || getOperand(1)->emptyResultTypeSet()) {
+        LifoAlloc *alloc = GetIonContext()->temp->lifoAlloc();
+        types::StackTypeSet *types = alloc->new_<types::StackTypeSet>();
+        if (types)
+            setResultTypeSet(types);
     }
 }
 
@@ -1426,6 +1475,26 @@ MCompare::inputType()
     }
 }
 
+static inline bool
+MustBeUInt32(MDefinition *def, MDefinition **pwrapped)
+{
+    if (def->isUrsh()) {
+        *pwrapped = def->toUrsh()->getOperand(0);
+        MDefinition *rhs = def->toUrsh()->getOperand(1);
+        return rhs->isConstant()
+            && rhs->toConstant()->value().isInt32()
+            && rhs->toConstant()->value().toInt32() == 0;
+    }
+
+    if (def->isConstant()) {
+        *pwrapped = def;
+        return def->toConstant()->value().isInt32()
+            && def->toConstant()->value().toInt32() >= 0;
+    }
+
+    return false;
+}
+
 void
 MCompare::infer(JSContext *cx, BaselineInspector *inspector, jsbytecode *pc)
 {
@@ -1440,6 +1509,19 @@ MCompare::infer(JSContext *cx, BaselineInspector *inspector, jsbytecode *pc)
     bool looseEq = jsop() == JSOP_EQ || jsop() == JSOP_NE;
     bool strictEq = jsop() == JSOP_STRICTEQ || jsop() == JSOP_STRICTNE;
     bool relationalEq = !(looseEq || strictEq);
+
+    // Comparisons on unsigned integers may be treated as UInt32. Skip any (x >>> 0)
+    // operation coercing the operands to uint32. The type policy will make sure the
+    // now unwrapped operand is an int32.
+    MDefinition *newlhs, *newrhs;
+    if (MustBeUInt32(getOperand(0), &newlhs) && MustBeUInt32(getOperand(1), &newrhs)) {
+        if (newlhs != getOperand(0))
+            replaceOperand(0, newlhs);
+        if (newrhs != getOperand(1))
+            replaceOperand(1, newrhs);
+        compareType_ = Compare_UInt32;
+        return;
+    }
 
     // Integer to integer or boolean to boolean comparisons may be treated as Int32.
     if ((lhs == MIRType_Int32 && rhs == MIRType_Int32) ||
@@ -1967,9 +2049,11 @@ MCompare::evaluateConstantOperands(bool *result)
             *result = (lhsUint >= rhsUint);
             break;
           case JSOP_EQ:
+          case JSOP_STRICTEQ:
             *result = (lhsUint == rhsUint);
             break;
           case JSOP_NE:
+          case JSOP_STRICTNE:
             *result = (lhsUint != rhsUint);
             break;
           default:
@@ -2139,7 +2223,7 @@ InlinePropertyTable::trimTo(AutoObjectVector &targets, Vector<bool> &choiceSet)
         if (choiceSet[i])
             continue;
 
-        JSFunction *target = targets[i]->toFunction();
+        JSFunction *target = &targets[i]->as<JSFunction>();
 
         // Eliminate all entries containing the vetoed function from the map.
         size_t j = 0;
@@ -2167,7 +2251,7 @@ InlinePropertyTable::trimToAndMaybePatchTargets(AutoObjectVector &targets,
         for (size_t j = 0; j < originals.length(); j++) {
             if (entries_[i]->func == originals[j]) {
                 if (entries_[i]->func != targets[j])
-                    entries_[i] = new Entry(entries_[i]->typeObj, targets[j]->toFunction());
+                    entries_[i] = new Entry(entries_[i]->typeObj, &targets[j]->as<JSFunction>());
                 foundFunc = true;
                 break;
             }
@@ -2370,10 +2454,7 @@ ion::DenseNativeElementType(JSContext *cx, MDefinition *obj)
     unsigned count = types->getObjectCount();
 
     for (unsigned i = 0; i < count; i++) {
-        if (types->getSingleObject(i))
-            return MIRType_None;
-
-        if (types::TypeObject *object = types->getTypeObject(i)) {
+        if (types::TypeObject *object = types->getTypeOrSingleObject(cx, i)) {
             if (object->unknownProperties())
                 return MIRType_None;
 
@@ -2397,7 +2478,7 @@ ion::DenseNativeElementType(JSContext *cx, MDefinition *obj)
 
 bool
 ion::PropertyReadNeedsTypeBarrier(JSContext *cx, types::TypeObject *object, PropertyName *name,
-                                  types::StackTypeSet *observed)
+                                  types::StackTypeSet *observed, bool updateObserved)
 {
     // If the object being read from has types for the property which haven't
     // been observed at this access site, the read could produce a new type and
@@ -2409,6 +2490,26 @@ ion::PropertyReadNeedsTypeBarrier(JSContext *cx, types::TypeObject *object, Prop
         return true;
 
     jsid id = name ? types::IdToTypeId(NameToId(name)) : JSID_VOID;
+
+    // If this access has never executed, try to add types to the observed set
+    // according to any property which exists on the object or its prototype.
+    if (updateObserved && observed->empty() && observed->noConstraints() && !JSID_IS_VOID(id)) {
+        JSObject *obj = object->singleton ? object->singleton : object->proto;
+
+        while (obj) {
+            if (!obj->isNative())
+                break;
+
+            Value v;
+            if (HasDataProperty(cx, obj, id, &v)) {
+                if (v.isUndefined())
+                    break;
+                observed->addType(cx, types::GetValueType(cx, v));
+            }
+
+            obj = obj->getProto();
+        }
+    }
 
     types::HeapTypeSet *property = object->getProperty(cx, id, false);
     if (!property)
@@ -2453,18 +2554,10 @@ ion::PropertyReadNeedsTypeBarrier(JSContext *cx, MDefinition *obj, PropertyName 
     if (!types || types->unknownObject())
         return true;
 
+    bool updateObserved = types->getObjectCount() == 1;
     for (size_t i = 0; i < types->getObjectCount(); i++) {
-        types::TypeObject *object = types->getTypeObject(i);
-        if (!object) {
-            JSObject *singleton = types->getSingleObject(i);
-            if (!singleton)
-                continue;
-            object = singleton->getType(cx);
-            if (!object)
-                return true;
-        }
-
-        if (PropertyReadNeedsTypeBarrier(cx, object, name, observed))
+        types::TypeObject *object = types->getTypeOrSingleObject(cx, i);
+        if (object && PropertyReadNeedsTypeBarrier(cx, object, name, observed, updateObserved))
             return true;
     }
 
@@ -2483,10 +2576,7 @@ ion::PropertyReadIsIdempotent(JSContext *cx, MDefinition *obj, PropertyName *nam
         return false;
 
     for (size_t i = 0; i < types->getObjectCount(); i++) {
-        if (types->getSingleObject(i))
-            return false;
-
-        if (types::TypeObject *object = types->getTypeObject(i)) {
+        if (types::TypeObject *object = types->getTypeOrSingleObject(cx, i)) {
             if (object->unknownProperties())
                 return false;
 
@@ -2498,6 +2588,48 @@ ion::PropertyReadIsIdempotent(JSContext *cx, MDefinition *obj, PropertyName *nam
     }
 
     return true;
+}
+
+void
+ion::AddObjectsForPropertyRead(JSContext *cx, MDefinition *obj, PropertyName *name,
+                               types::StackTypeSet *observed)
+{
+    // Add objects to observed which *could* be observed by reading name from obj,
+    // to hopefully avoid unnecessary type barriers and code invalidations.
+
+    JS_ASSERT(observed->noConstraints());
+
+    types::StackTypeSet *types = obj->resultTypeSet();
+    if (!types || types->unknownObject()) {
+        observed->addType(cx, types::Type::AnyObjectType());
+        return;
+    }
+
+    jsid id = name ? types::IdToTypeId(NameToId(name)) : JSID_VOID;
+
+    for (size_t i = 0; i < types->getObjectCount(); i++) {
+        types::TypeObject *object = types->getTypeOrSingleObject(cx, i);
+        if (!object)
+            continue;
+
+        if (object->unknownProperties()) {
+            observed->addType(cx, types::Type::AnyObjectType());
+            return;
+        }
+
+        types::HeapTypeSet *property = object->getProperty(cx, id, false);
+        if (property->unknownObject()) {
+            observed->addType(cx, types::Type::AnyObjectType());
+            return;
+        }
+
+        for (size_t i = 0; i < property->getObjectCount(); i++) {
+            if (types::TypeObject *object = property->getTypeObject(i))
+                observed->addType(cx, types::Type::ObjectType(object));
+            else if (JSObject *object = property->getSingleObject(i))
+                observed->addType(cx, types::Type::ObjectType(object));
+        }
+    }
 }
 
 static bool
@@ -2514,15 +2646,9 @@ TryAddTypeBarrierForWrite(JSContext *cx, MBasicBlock *current, types::StackTypeS
     types::HeapTypeSet *aggregateProperty = NULL;
 
     for (size_t i = 0; i < objTypes->getObjectCount(); i++) {
-        types::TypeObject *object = objTypes->getTypeObject(i);
-        if (!object) {
-            JSObject *singleton = objTypes->getSingleObject(i);
-            if (!singleton)
-                continue;
-            object = singleton->getType(cx);
-            if (!object)
-                return false;
-        }
+        types::TypeObject *object = objTypes->getTypeOrSingleObject(cx, i);
+        if (!object)
+            continue;
 
         if (object->unknownProperties())
             return false;
@@ -2619,19 +2745,8 @@ ion::PropertyWriteNeedsTypeBarrier(JSContext *cx, MBasicBlock *current, MDefinit
 
     bool success = true;
     for (size_t i = 0; i < types->getObjectCount(); i++) {
-        types::TypeObject *object = types->getTypeObject(i);
-        if (!object) {
-            JSObject *singleton = types->getSingleObject(i);
-            if (!singleton)
-                continue;
-            object = singleton->getType(cx);
-            if (!object) {
-                success = false;
-                break;
-            }
-        }
-
-        if (object->unknownProperties())
+        types::TypeObject *object = types->getTypeOrSingleObject(cx, i);
+        if (!object || object->unknownProperties())
             continue;
 
         types::HeapTypeSet *property = object->getProperty(cx, id, false);
@@ -2663,13 +2778,8 @@ ion::PropertyWriteNeedsTypeBarrier(JSContext *cx, MBasicBlock *current, MDefinit
 
     types::TypeObject *excluded = NULL;
     for (size_t i = 0; i < types->getObjectCount(); i++) {
-        types::TypeObject *object = types->getTypeObject(i);
-        if (!object) {
-            if (types->getSingleObject(i))
-                return true;
-            continue;
-        }
-        if (object->unknownProperties())
+        types::TypeObject *object = types->getTypeOrSingleObject(cx, i);
+        if (!object || object->unknownProperties())
             continue;
 
         types::HeapTypeSet *property = object->getProperty(cx, id, false);

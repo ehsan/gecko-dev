@@ -50,7 +50,6 @@ public class TabCounter extends GeckoTextSwitcher
 
         removeAllViews();
         setFactory(this);
-        setCount(0);
 
         if (Build.VERSION.SDK_INT >= 16) {
             // This adds the TextSwitcher to the a11y node tree, where we in turn
@@ -66,18 +65,38 @@ public class TabCounter extends GeckoTextSwitcher
         }
     }
 
-    public void setCount(int count) {
-        if (mCount > count) {
-            setInAnimation(mFlipInBackward);
-            setOutAnimation(mFlipOutForward);
-        } else if (mCount < count) {
-            setInAnimation(mFlipInForward);
-            setOutAnimation(mFlipOutBackward);
-        } else {
+    public void setCountWithAnimation(int count) {
+        // Don't animate from initial state
+        if (mCount == 0) {
+            setCount(count);
             return;
         }
 
+        if (mCount == count) {
+            return;
+        }
+
+        if (count < mCount) {
+            setInAnimation(mFlipInBackward);
+            setOutAnimation(mFlipOutForward);
+        } else {
+            setInAnimation(mFlipInForward);
+            setOutAnimation(mFlipOutBackward);
+        }
+
+        // Eliminate screen artifact. Set explicit In/Out animation pair order. This will always
+        // animate pair in In->Out child order, prevent alternating use of the Out->In case.
+        setDisplayedChild(0);
+
+        // Set In value, trigger animation to Out value
+        setCurrentText(String.valueOf(mCount));
         setText(String.valueOf(count));
+
+        mCount = count;
+    }
+
+    public void setCount(int count) {
+        setCurrentText(String.valueOf(count));
         mCount = count;
     }
 

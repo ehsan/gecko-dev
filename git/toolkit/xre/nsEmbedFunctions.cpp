@@ -282,7 +282,33 @@ XRE_InitChildProcess(int aArgc,
   NS_ENSURE_ARG_MIN(aArgc, 2);
   NS_ENSURE_ARG_POINTER(aArgv);
   NS_ENSURE_ARG_POINTER(aArgv[0]);
-  profiler_init();
+
+#if defined(XP_WIN)
+  // From the --attach-console support in nsNativeAppSupportWin.cpp, but
+  // here we are a content child process, so we always attempt to attach
+  // to the parent's (ie, the browser's) console.
+  // Try to attach console to the parent process.
+  // It will succeed when the parent process is a command line,
+  // so that stdio will be displayed in it.
+  if (AttachConsole(ATTACH_PARENT_PROCESS)) {
+    // Change std handles to refer to new console handles.
+    // Before doing so, ensure that stdout/stderr haven't been
+    // redirected to a valid file
+    if (_fileno(stdout) == -1 ||
+        _get_osfhandle(fileno(stdout)) == -1)
+        freopen("CONOUT$", "w", stdout);
+    // Merge stderr into CONOUT$ since there isn't any `CONERR$`.
+    // http://msdn.microsoft.com/en-us/library/windows/desktop/ms683231%28v=vs.85%29.aspx
+    if (_fileno(stderr) == -1 ||
+        _get_osfhandle(fileno(stderr)) == -1)
+        freopen("CONOUT$", "w", stderr);
+    if (_fileno(stdin) == -1 || _get_osfhandle(fileno(stdin)) == -1)
+        freopen("CONIN$", "r", stdin);
+  }
+#endif
+
+  char aLocal;
+  profiler_init(&aLocal);
   PROFILER_LABEL("Startup", "XRE_InitChildProcess");
 
   sChildProcessType = aProcess;
@@ -716,11 +742,12 @@ XRE_SendTestShellCommand(JSContext* aCx,
                          JSString* aCommand,
                          void* aCallback)
 {
+    JS::RootedString cmd(aCx, aCommand);
     TestShellParent* tsp = GetOrCreateTestShellParent();
     NS_ENSURE_TRUE(tsp, false);
 
     nsDependentJSString command;
-    NS_ENSURE_TRUE(command.init(aCx, aCommand), false);
+    NS_ENSURE_TRUE(command.init(aCx, cmd), false);
 
     if (!aCallback) {
         return tsp->SendExecuteCommand(command);

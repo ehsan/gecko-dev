@@ -402,7 +402,7 @@ nsJSIID::NewResolve(nsIXPConnectWrappedNative *wrapper,
     const nsIID* iid;
     mInfo->GetIIDShared(&iid);
 
-    iface = XPCNativeInterface::GetNewOrUsed(ccx, iid);
+    iface = XPCNativeInterface::GetNewOrUsed(iid);
 
     if (!iface)
         return NS_OK;
@@ -437,7 +437,7 @@ nsJSIID::Enumerate(nsIXPConnectWrappedNative *wrapper,
     const nsIID* iid;
     mInfo->GetIIDShared(&iid);
 
-    iface = XPCNativeInterface::GetNewOrUsed(ccx, iid);
+    iface = XPCNativeInterface::GetNewOrUsed(iid);
 
     if (!iface)
         return NS_OK;
@@ -470,14 +470,13 @@ nsJSIID::Enumerate(nsIXPConnectWrappedNative *wrapper,
  *     there's chrome code that relies on this.
  *
  * This static method handles both complexities, returning either an XPCWN, a
- * slim wrapper, a DOM object, or null. The object may well be cross-compartment
- * from |cx|.
+ * DOM object, or null. The object may well be cross-compartment from |cx|.
  */
 static JSObject *
 FindObjectForHasInstance(JSContext *cx, HandleObject objArg)
 {
     RootedObject obj(cx, objArg), proto(cx);
-    while (obj && !IS_WRAPPER_CLASS(js::GetObjectClass(obj)) && !IsDOMObject(obj)) {
+    while (obj && !IS_WN_REFLECTOR(obj) && !IsDOMObject(obj)) {
         if (js::IsWrapper(obj)) {
             obj = js::CheckedUnwrap(obj, /* stopAtOuter = */ false);
             continue;
@@ -505,7 +504,6 @@ nsJSIID::HasInstance(nsIXPConnectWrappedNative *wrapper,
 
         NS_ASSERTION(obj, "when is an object not an object?");
 
-        nsISupports *identity = nullptr;
         // is this really a native xpcom object with a wrapper?
         const nsIID* iid;
         mInfo->GetIIDShared(&iid);
@@ -514,32 +512,19 @@ nsJSIID::HasInstance(nsIXPConnectWrappedNative *wrapper,
         if (!obj)
             return NS_OK;
 
-        if (IS_SLIM_WRAPPER(obj)) {
-            XPCWrappedNativeProto* proto = GetSlimWrapperProto(obj);
-            if (proto->GetSet()->HasInterfaceWithAncestor(iid)) {
-                *bp = true;
+        if (IsDOMObject(obj)) {
+            // Not all DOM objects implement nsISupports. But if they don't,
+            // there's nothing to do in this HasInstance hook.
+            nsISupports *identity = UnwrapDOMObjectToISupports(obj);
+            if (!identity)
                 return NS_OK;
-            }
-
-#ifdef DEBUG_slimwrappers
-            char foo[NSID_LENGTH];
-            iid->ToProvidedString(foo);
-            SLIM_LOG_WILL_MORPH_FOR_PROP(cx, obj, foo);
-#endif
-            if (!MorphSlimWrapper(cx, obj))
-                return NS_ERROR_FAILURE;
-        } else if (IsDOMObject(obj)) {
-              // Not all DOM objects implement nsISupports. But if they don't,
-              // there's nothing to do in this HasInstance hook.
-              if (!UnwrapDOMObjectToISupports(obj, identity))
-                  return NS_OK;;
-              nsCOMPtr<nsISupports> supp;
-              identity->QueryInterface(*iid, getter_AddRefs(supp));
-              *bp = supp;
-              return NS_OK;
+            nsCOMPtr<nsISupports> supp;
+            identity->QueryInterface(*iid, getter_AddRefs(supp));
+            *bp = supp;
+            return NS_OK;
         }
 
-        MOZ_ASSERT(IS_WN_WRAPPER(obj));
+        MOZ_ASSERT(IS_WN_REFLECTOR(obj));
         XPCWrappedNative* other_wrapper = XPCWrappedNative::Get(obj);
         if (!other_wrapper)
             return NS_OK;
@@ -556,10 +541,10 @@ nsJSIID::HasInstance(nsIXPConnectWrappedNative *wrapper,
         XPCCallContext ccx(JS_CALLER, cx);
 
         AutoMarkingNativeInterfacePtr iface(ccx);
-        iface = XPCNativeInterface::GetNewOrUsed(ccx, iid);
+        iface = XPCNativeInterface::GetNewOrUsed(iid);
 
         nsresult findResult = NS_OK;
-        if (iface && other_wrapper->FindTearOff(ccx, iface, false, &findResult))
+        if (iface && other_wrapper->FindTearOff(iface, false, &findResult))
             *bp = true;
         if (NS_FAILED(findResult) && findResult != NS_ERROR_NO_INTERFACE)
             rv = findResult;
@@ -580,7 +565,7 @@ nsJSIID::CanCreateWrapper(const nsIID * iid, char **_retval)
 NS_IMETHODIMP
 nsJSIID::CanCallMethod(const nsIID * iid, const PRUnichar *methodName, char **_retval)
 {
-    static const char* allowed[] = {"equals", "toString", nullptr};
+    static const char* const allowed[] = {"equals", "toString", nullptr};
 
     *_retval = xpc_CheckAccessList(methodName, allowed);
     return NS_OK;
@@ -590,7 +575,7 @@ nsJSIID::CanCallMethod(const nsIID * iid, const PRUnichar *methodName, char **_r
 NS_IMETHODIMP
 nsJSIID::CanGetProperty(const nsIID * iid, const PRUnichar *propertyName, char **_retval)
 {
-    static const char* allowed[] = {"name", "number", "valid", nullptr};
+    static const char* const allowed[] = {"name", "number", "valid", nullptr};
     *_retval = xpc_CheckAccessList(propertyName, allowed);
     return NS_OK;
 }
@@ -714,10 +699,7 @@ static void
 GetWrapperObject(MutableHandleObject obj)
 {
     obj.set(NULL);
-    nsXPConnect* xpc = nsXPConnect::GetXPConnect();
-    if (!xpc)
-        return;
-
+    nsXPConnect* xpc = nsXPConnect::XPConnect();
     nsAXPCNativeCallContext *ccxp = NULL;
     xpc->GetCurrentNativeCallContext(&ccxp);
     if (!ccxp)
@@ -725,7 +707,7 @@ GetWrapperObject(MutableHandleObject obj)
 
     nsCOMPtr<nsIXPConnectWrappedNative> wrapper;
     ccxp->GetCalleeWrapper(getter_AddRefs(wrapper));
-    wrapper->GetJSObject(obj.address());
+    obj.set(wrapper->GetJSObject());
 }
 
 /* nsISupports createInstance (); */
@@ -742,11 +724,7 @@ nsJSCID::CreateInstance(const JS::Value& iidval, JSContext* cx,
         return NS_ERROR_UNEXPECTED;
     }
 
-    // Do the security check if necessary
-    XPCContext* xpcc = XPCContext::GetXPCContext(cx);
-
-    nsIXPCSecurityManager* sm;
-    sm = xpcc->GetAppropriateSecurityManager(nsIXPCSecurityManager::HOOK_CREATE_INSTANCE);
+    nsIXPCSecurityManager* sm = nsXPConnect::XPConnect()->GetDefaultSecurityManager();
     if (sm && NS_FAILED(sm->CanCreateInstance(cx, mDetails.ID()))) {
         NS_ERROR("how are we not being called from chrome here?");
         return NS_OK;
@@ -769,7 +747,7 @@ nsJSCID::CreateInstance(const JS::Value& iidval, JSContext* cx,
     if (NS_FAILED(rv) || !inst)
         return NS_ERROR_XPC_CI_RETURNED_FAILURE;
 
-    rv = nsXPConnect::GetXPConnect()->WrapNativeToJSVal(cx, obj, inst, nullptr, iid, true, retval, nullptr);
+    rv = nsXPConnect::XPConnect()->WrapNativeToJSVal(cx, obj, inst, nullptr, iid, true, retval, nullptr);
     if (NS_FAILED(rv) || JSVAL_IS_PRIMITIVE(*retval))
         return NS_ERROR_XPC_CANT_CREATE_WN;
     return NS_OK;
@@ -789,11 +767,8 @@ nsJSCID::GetService(const JS::Value& iidval, JSContext* cx,
         return NS_ERROR_UNEXPECTED;
     }
 
-    // Do the security check if necessary
-    XPCContext* xpcc = XPCContext::GetXPCContext(cx);
-
     nsIXPCSecurityManager* sm;
-    sm = xpcc->GetAppropriateSecurityManager(nsIXPCSecurityManager::HOOK_GET_SERVICE);
+    sm = nsXPConnect::XPConnect()->GetDefaultSecurityManager();
     if (sm && NS_FAILED(sm->CanCreateInstance(cx, mDetails.ID()))) {
         NS_ASSERTION(JS_IsExceptionPending(cx),
                      "security manager vetoed GetService without setting exception");
@@ -818,8 +793,10 @@ nsJSCID::GetService(const JS::Value& iidval, JSContext* cx,
 
     RootedObject instJSObj(cx);
     nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
-    rv = nsXPConnect::GetXPConnect()->WrapNative(cx, obj, srvc, *iid, getter_AddRefs(holder));
-    if (NS_FAILED(rv) || !holder || NS_FAILED(holder->GetJSObject(instJSObj.address())))
+    rv = nsXPConnect::XPConnect()->WrapNative(cx, obj, srvc, *iid, getter_AddRefs(holder));
+    if (NS_FAILED(rv) || !holder ||
+        // Assign, not compare
+        !(instJSObj = holder->GetJSObject()))
         return NS_ERROR_XPC_CANT_CREATE_WN;
 
     *retval = OBJECT_TO_JSVAL(instJSObj);
@@ -864,11 +841,9 @@ nsJSCID::HasInstance(nsIXPConnectWrappedNative *wrapper,
         // is this really a native xpcom object with a wrapper?
         nsIClassInfo* ci = nullptr;
         obj = FindObjectForHasInstance(cx, obj);
-        if (!obj || !IS_WRAPPER_CLASS(js::GetObjectClass(obj)))
+        if (!obj || !IS_WN_REFLECTOR(obj))
             return rv;
-        if (IS_SLIM_WRAPPER_OBJECT(obj))
-            ci = GetSlimWrapperProto(obj)->GetClassInfo();
-        else if (XPCWrappedNative* other_wrapper = XPCWrappedNative::Get(obj))
+        if (XPCWrappedNative* other_wrapper = XPCWrappedNative::Get(obj))
             ci = other_wrapper->GetClassInfo();
 
         // We consider CID equality to be the thing that matters here.
@@ -893,7 +868,7 @@ xpc_NewIDObject(JSContext *cx, HandleObject jsobj, const nsID& aID)
     nsCOMPtr<nsIJSID> iid =
             dont_AddRef(static_cast<nsIJSID*>(nsJSID::NewID(aID)));
     if (iid) {
-        nsXPConnect* xpc = nsXPConnect::GetXPConnect();
+        nsXPConnect* xpc = nsXPConnect::XPConnect();
         if (xpc) {
             nsCOMPtr<nsIXPConnectJSObjectHolder> holder;
             nsresult rv = xpc->WrapNative(cx, jsobj,
@@ -901,7 +876,7 @@ xpc_NewIDObject(JSContext *cx, HandleObject jsobj, const nsID& aID)
                                           NS_GET_IID(nsIJSID),
                                           getter_AddRefs(holder));
             if (NS_SUCCEEDED(rv) && holder) {
-                holder->GetJSObject(obj.address());
+                obj = holder->GetJSObject();
             }
         }
     }
@@ -918,7 +893,7 @@ xpc_JSObjectToID(JSContext *cx, JSObject* obj)
     // NOTE: this call does NOT addref
     XPCWrappedNative* wrapper = nullptr;
     obj = js::CheckedUnwrap(obj);
-    if (obj && IS_WN_WRAPPER(obj))
+    if (obj && IS_WN_REFLECTOR(obj))
         wrapper = XPCWrappedNative::Get(obj);
     if (wrapper &&
         (wrapper->HasInterfaceNoQI(NS_GET_IID(nsIJSID))  ||
@@ -936,7 +911,7 @@ xpc_JSObjectIsID(JSContext *cx, JSObject* obj)
     // NOTE: this call does NOT addref
     XPCWrappedNative* wrapper = nullptr;
     obj = js::CheckedUnwrap(obj);
-    if (obj && IS_WN_WRAPPER(obj))
+    if (obj && IS_WN_REFLECTOR(obj))
         wrapper = XPCWrappedNative::Get(obj);
     return wrapper &&
            (wrapper->HasInterfaceNoQI(NS_GET_IID(nsIJSID))  ||

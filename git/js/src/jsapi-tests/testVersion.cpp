@@ -7,7 +7,6 @@
 #include "jscntxt.h"
 
 #include "jscntxtinlines.h"
-#include "jsobjinlines.h"
 
 using namespace js;
 
@@ -36,7 +35,7 @@ struct VersionFixture : public JSAPITest
         JS_SetOptions(cx, JS_GetOptions(cx));
         callbackData = this;
         captured = JSVERSION_UNKNOWN;
-        JS::RootedObject global(cx, JS_GetGlobalObject(cx));
+        JS::RootedObject global(cx, JS_GetGlobalForScopeChain(cx));
         return JS_DefineFunction(cx, global, "callSetVersion17", CallSetVersion17, 0, 0) &&
                JS_DefineFunction(cx, global, "overrideVersion18", OverrideVersion18, 0, 0) &&
                JS_DefineFunction(cx, global, "captureVersion", CaptureVersion, 0, 0) &&
@@ -46,7 +45,7 @@ struct VersionFixture : public JSAPITest
     }
 
     JSScript *fakeScript(const char *contents, size_t length) {
-        JS::RootedObject global(cx, JS_GetGlobalObject(cx));
+        JS::RootedObject global(cx, JS_GetGlobalForScopeChain(cx));
         return JS_CompileScript(cx, global, contents, length, "<test>", 1);
     }
 
@@ -64,7 +63,7 @@ struct VersionFixture : public JSAPITest
     bool evalVersion(const jschar *chars, size_t len, JSVersion version) {
         CHECK(JS_GetVersion(cx) != version);
         jsval rval;
-        JS::RootedObject global(cx, JS_GetGlobalObject(cx));
+        JS::RootedObject global(cx, JS_GetGlobalForScopeChain(cx));
         CHECK(JS_EvaluateUCScriptForPrincipalsVersion(
                 cx, global, NULL, chars, len, "<test>", 0, &rval, version));
         return true;

@@ -4,8 +4,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsion_macro_assembler_h__
-#define jsion_macro_assembler_h__
+#ifndef ion_IonMacroAssembler_h
+#define ion_IonMacroAssembler_h
+
+#ifdef JS_ION
+
+#include "jstypedarray.h"
+#include "jscompartment.h"
 
 #if defined(JS_CPU_X86)
 # include "ion/x86/MacroAssembler-x86.h"
@@ -14,15 +19,12 @@
 #elif defined(JS_CPU_ARM)
 # include "ion/arm/MacroAssembler-arm.h"
 #endif
+#include "ion/AsmJS.h"
 #include "ion/IonCompartment.h"
 #include "ion/IonInstrumentation.h"
 #include "ion/ParallelFunctions.h"
-
+#include "ion/VMFunctions.h"
 #include "vm/ForkJoin.h"
-
-#include "jstypedarray.h"
-#include "jscompartment.h"
-
 #include "vm/Shape.h"
 
 namespace js {
@@ -57,6 +59,7 @@ class MacroAssembler : public MacroAssemblerSpecific
     mozilla::Maybe<IonContext> ionContext_;
     mozilla::Maybe<AutoIonContextAlloc> alloc_;
     bool enoughMemory_;
+    bool embedsNurseryPointers_;
 
   private:
     // This field is used to manage profiling instrumentation output. If
@@ -72,6 +75,7 @@ class MacroAssembler : public MacroAssemblerSpecific
     // instrumentation from being emitted.
     MacroAssembler()
       : enoughMemory_(true),
+        embedsNurseryPointers_(false),
         sps_(NULL)
     {
         JSContext *cx = GetIonContext()->cx;
@@ -93,6 +97,7 @@ class MacroAssembler : public MacroAssemblerSpecific
     // (for example, Trampoline-$(ARCH).cpp and IonCaches.cpp).
     MacroAssembler(JSContext *cx)
       : enoughMemory_(true),
+        embedsNurseryPointers_(false),
         sps_(NULL)
     {
         constructRoot(cx);
@@ -130,6 +135,10 @@ class MacroAssembler : public MacroAssemblerSpecific
     }
     bool oom() const {
         return !enoughMemory_ || MacroAssemblerSpecific::oom();
+    }
+
+    bool embedsNurseryPointers() const {
+        return embedsNurseryPointers_;
     }
 
     // Emits a test of a value against all types in a TypeSet. A scratch
@@ -214,9 +223,10 @@ class MacroAssembler : public MacroAssemblerSpecific
         movePtr(ImmWord(GetIonContext()->runtime), dest);
         loadPtr(Address(dest, offsetof(JSRuntime, mainThread.ionJSContext)), dest);
     }
-    void loadIonActivation(const Register &dest) {
+    void loadJitActivation(const Register &dest) {
         movePtr(ImmWord(GetIonContext()->runtime), dest);
-        loadPtr(Address(dest, offsetof(JSRuntime, mainThread.ionActivation)), dest);
+        size_t offset = offsetof(JSRuntime, mainThread) + PerThreadData::offsetOfActivation();
+        loadPtr(Address(dest, offset), dest);
     }
 
     template<typename T>
@@ -414,6 +424,9 @@ class MacroAssembler : public MacroAssemblerSpecific
         framePushed_ += sizeof(Value);
     }
 
+    void PushEmptyRooted(VMFunction::RootType rootType);
+    void popRooted(VMFunction::RootType rootType, Register cellReg, const ValueOperand &valueReg);
+
     void adjustStack(int amount) {
         if (amount > 0)
             freeStack(amount);
@@ -496,6 +509,10 @@ class MacroAssembler : public MacroAssemblerSpecific
         align(8);
         bind(&done);
     }
+
+    void branchNurseryPtr(Condition cond, const Address &ptr1, const ImmMaybeNurseryPtr &ptr2,
+                          Label *label);
+    void moveNurseryPtr(const ImmMaybeNurseryPtr &ptr, const Register &reg);
 
     void canonicalizeDouble(FloatRegister reg) {
         Label notNaN;
@@ -889,6 +906,8 @@ class MacroAssembler : public MacroAssemblerSpecific
     void copyMem(Register copyFrom, Register copyEnd, Register copyTo, Register temp);
 
     void convertInt32ValueToDouble(const Address &address, Register scratch, Label *done);
+    void convertValueToDouble(ValueOperand value, FloatRegister output, Label *fail);
+    void convertValueToInt32(ValueOperand value, FloatRegister temp, Register output, Label *fail);
 };
 
 static inline Assembler::DoubleCondition
@@ -966,7 +985,6 @@ JSOpToCondition(JSOp op, bool isSigned)
 
 typedef Vector<MIRType, 8> MIRTypeVector;
 
-#ifdef JS_ASMJS
 class ABIArgIter
 {
     ABIArgGenerator gen_;
@@ -986,9 +1004,10 @@ class ABIArgIter
     MIRType mirType() const { JS_ASSERT(!done()); return types_[i_]; }
     uint32_t stackBytesConsumedSoFar() const { return gen_.stackBytesConsumedSoFar(); }
 };
-#endif
 
 } // namespace ion
 } // namespace js
 
-#endif // jsion_macro_assembler_h__
+#endif // JS_ION
+
+#endif /* ion_IonMacroAssembler_h */

@@ -4,8 +4,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsion_ion_compartment_h__
-#define jsion_ion_compartment_h__
+#ifndef ion_IonCompartment_h
+#define ion_IonCompartment_h
+
+#ifdef JS_ION
 
 #include "IonCode.h"
 #include "jsweakcache.h"
@@ -24,11 +26,33 @@ enum EnterJitType {
     EnterJitOptimized = 1
 };
 
-typedef void (*EnterIonCode)(void *code, int argc, Value *argv, StackFrame *fp,
+struct EnterJitData
+{
+    explicit EnterJitData(JSContext *cx)
+      : scopeChain(cx),
+        result(cx)
+    {}
+
+    uint8_t *jitcode;
+    StackFrame *osrFrame;
+
+    void *calleeToken;
+
+    Value *maxArgv;
+    unsigned maxArgc;
+    unsigned numActualArgs;
+    unsigned osrNumStackValues;
+
+    RootedObject scopeChain;
+    RootedValue result;
+
+    bool constructing;
+};
+
+typedef void (*EnterIonCode)(void *code, unsigned argc, Value *argv, StackFrame *fp,
                              CalleeToken calleeToken, JSObject *scopeChain,
                              size_t numStackValues, Value *vp);
 
-class IonActivation;
 class IonBuilder;
 
 typedef Vector<IonBuilder*, 0, SystemAllocPolicy> OffThreadCompilationVector;
@@ -175,7 +199,7 @@ class IonRuntime
 
 class IonCompartment
 {
-    friend class IonActivation;
+    friend class JitActivation;
 
     // Ion state for the compartment's runtime.
     IonRuntime *rt;
@@ -310,83 +334,6 @@ class IonCompartment
     }
 };
 
-class BailoutClosure;
-
-class IonActivation
-{
-  private:
-    JSContext *cx_;
-    JSCompartment *compartment_;
-    IonActivation *prev_;
-    StackFrame *entryfp_;
-    BailoutClosure *bailout_;
-    uint8_t *prevIonTop_;
-    JSContext *prevIonJSContext_;
-
-    // When creating an activation without a StackFrame, this field is used
-    // to communicate the calling pc for ScriptFrameIter.
-    jsbytecode *prevpc_;
-
-  public:
-    IonActivation(JSContext *cx, StackFrame *fp);
-    ~IonActivation();
-
-    StackFrame *entryfp() const {
-        return entryfp_;
-    }
-    IonActivation *prev() const {
-        return prev_;
-    }
-    uint8_t *prevIonTop() const {
-        return prevIonTop_;
-    }
-    jsbytecode *prevpc() const {
-        JS_ASSERT_IF(entryfp_, entryfp_->callingIntoIon());
-        return prevpc_;
-    }
-    void setEntryFp(StackFrame *fp) {
-        JS_ASSERT_IF(fp, !entryfp_);
-        entryfp_ = fp;
-    }
-    void setPrevPc(jsbytecode *pc) {
-        JS_ASSERT_IF(pc, !prevpc_);
-        prevpc_ = pc;
-    }
-    void setBailout(BailoutClosure *bailout) {
-        JS_ASSERT(!bailout_);
-        bailout_ = bailout;
-    }
-    BailoutClosure *maybeTakeBailout() {
-        BailoutClosure *br = bailout_;
-        bailout_ = NULL;
-        return br;
-    }
-    BailoutClosure *takeBailout() {
-        JS_ASSERT(bailout_);
-        return maybeTakeBailout();
-    }
-    BailoutClosure *bailout() const {
-        JS_ASSERT(bailout_);
-        return bailout_;
-    }
-    JSCompartment *compartment() const {
-        return compartment_;
-    }
-    bool empty() const {
-        // If we have an entryfp, this activation is active. However, if
-        // FastInvoke is used, entryfp may be NULL and a non-NULL prevpc
-        // indicates this activation is not empty.
-        return !entryfp_ && !prevpc_;
-    }
-
-    static inline size_t offsetOfPrevPc() {
-        return offsetof(IonActivation, prevpc_);
-    }
-    static inline size_t offsetOfEntryFp() {
-        return offsetof(IonActivation, entryfp_);
-    }
-};
-
 // Called from JSCompartment::discardJitCode().
 void InvalidateAll(FreeOp *fop, JS::Zone *zone);
 void FinishInvalidation(FreeOp *fop, JSScript *script);
@@ -394,5 +341,6 @@ void FinishInvalidation(FreeOp *fop, JSScript *script);
 } // namespace ion
 } // namespace js
 
-#endif // jsion_ion_compartment_h__
+#endif // JS_ION
 
+#endif /* ion_IonCompartment_h */

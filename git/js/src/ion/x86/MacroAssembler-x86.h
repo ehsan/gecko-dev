@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsion_macro_assembler_x86_h__
-#define jsion_macro_assembler_x86_h__
+#ifndef ion_x86_MacroAssembler_x86_h
+#define ion_x86_MacroAssembler_x86_h
 
 #include "ion/shared/MacroAssembler-x86-shared.h"
 #include "ion/IonFrames.h"
@@ -665,7 +665,7 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
             Condition testCond = testMagic(Equal, val);
             j(InvertCondition(testCond), &notmagic);
             // Test magic value
-            branch32(NotEqual, val.payloadReg(), Imm32(static_cast<int32_t>(why)), label);
+            branch32(Equal, val.payloadReg(), Imm32(static_cast<int32_t>(why)), label);
             bind(&notmagic);
         } else {
             Condition testCond = testMagic(NotEqual, val);
@@ -731,7 +731,7 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
         if (dest.isFloat()) {
             Label notInt32, end;
             branchTestInt32(Assembler::NotEqual, src, &notInt32);
-            cvtsi2sd(Operand(src.payloadReg()), dest.fpu());
+            cvtsi2sd(src.payloadReg(), dest.fpu());
             jump(&end);
             bind(&notInt32);
             unboxDouble(src, dest.fpu());
@@ -981,5 +981,4 @@ typedef MacroAssemblerX86 MacroAssemblerSpecific;
 } // namespace ion
 } // namespace js
 
-#endif // jsion_macro_assembler_x86_h__
-
+#endif /* ion_x86_MacroAssembler_x86_h */

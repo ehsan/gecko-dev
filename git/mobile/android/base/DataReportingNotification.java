@@ -15,11 +15,15 @@ import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.graphics.Typeface;
 import android.os.Build;
 import android.os.Bundle;
 import android.preference.PreferenceActivity;
 import android.support.v4.app.NotificationCompat;
 import android.support.v4.app.NotificationCompat.Builder;
+import android.text.Spannable;
+import android.text.SpannableString;
+import android.text.style.StyleSpan;
 import android.util.Log;
 
 public class DataReportingNotification {
@@ -44,16 +48,7 @@ public class DataReportingNotification {
             Intent prefIntent = new Intent(GeckoApp.ACTION_LAUNCH_SETTINGS);
             prefIntent.setClassName(AppConstants.ANDROID_PACKAGE_NAME, AppConstants.BROWSER_INTENT_CLASS);
 
-            // Build launch intent based on Android version.
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.HONEYCOMB) {
-                prefIntent.putExtra("resource", "preferences_datareporting");
-            } else {
-                prefIntent.putExtra(PreferenceActivity.EXTRA_SHOW_FRAGMENT, GeckoPreferenceFragment.class.getName());
-
-                Bundle fragmentArgs = new Bundle();
-                fragmentArgs.putString("resource", "preferences_datareporting");
-                prefIntent.putExtra(PreferenceActivity.EXTRA_SHOW_FRAGMENT_ARGUMENTS, fragmentArgs);
-            }
+            GeckoPreferences.setResourceToOpen(prefIntent, "preferences_datareporting");
             prefIntent.putExtra(ALERT_NAME_DATAREPORTING_NOTIFICATION, true);
 
             PendingIntent contentIntent = PendingIntent.getActivity(context, 0, prefIntent, PendingIntent.FLAG_UPDATE_CURRENT);
@@ -65,10 +60,16 @@ public class DataReportingNotification {
               notificationSummary = context.getResources().getString(R.string.datareporting_notification_action);
             } else {
               // Display partial version of Big Style notification for supporting devices.
-              notificationSummary = context.getResources().getString(R.string.datareporting_notification_summary_short);
+              notificationSummary = context.getResources().getString(R.string.datareporting_notification_summary);
             }
             String notificationAction = context.getResources().getString(R.string.datareporting_notification_action);
             String notificationBigSummary = context.getResources().getString(R.string.datareporting_notification_summary);
+
+            // Make styled ticker text for display in notification bar.
+            String tickerString = context.getResources().getString(R.string.datareporting_notification_ticker_text);
+            SpannableString tickerText = new SpannableString(tickerString);
+            // Bold the notification title of the ticker text, which is the same string as notificationTitle.
+            tickerText.setSpan(new StyleSpan(Typeface.BOLD), 0, notificationTitle.length(), Spannable.SPAN_INCLUSIVE_EXCLUSIVE);
 
             Notification notification = new NotificationCompat.Builder(context)
                                         .setContentTitle(notificationTitle)
@@ -79,6 +80,7 @@ public class DataReportingNotification {
                                         .setStyle(new NotificationCompat.BigTextStyle()
                                                                         .bigText(notificationBigSummary))
                                         .addAction(R.drawable.firefox_settings_alert, notificationAction, contentIntent)
+                                        .setTicker(tickerText)
                                         .build();
 
             NotificationManager notificationManager = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);

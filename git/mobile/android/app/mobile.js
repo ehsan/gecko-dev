@@ -95,6 +95,9 @@ pref("network.http.max-connections", 20);
 pref("network.http.max-persistent-connections-per-server", 6);
 pref("network.http.max-persistent-connections-per-proxy", 20);
 
+// spdy
+pref("network.http.spdy.push-allowance", 32768);
+
 // See bug 545869 for details on why these are set the way they are
 pref("network.buffer.cache.count", 24);
 pref("network.buffer.cache.size",  16384);
@@ -357,11 +360,6 @@ pref("gfx.displayport.strategy_vb.danger_y_incr", -1); // additional danger zone
 // prediction bias strategy options
 pref("gfx.displayport.strategy_pb.threshold", -1); // velocity threshold in inches/frame
 
-// disable Graphite font shaping by default on Android until memory footprint
-// of using the Charis SIL fonts that we ship with the product is addressed
-// (see bug 700023, bug 846832, bug 847344)
-pref("gfx.font_rendering.graphite.enabled", false);
-
 // don't allow JS to move and resize existing windows
 pref("dom.disable_window_move_resize", true);
 
@@ -390,6 +388,7 @@ pref("privacy.item.syncAccount", true);
 
 // enable geo
 pref("geo.enabled", true);
+pref("app.geo.reportdata", 0);
 
 // content sink control -- controls responsiveness during page load
 // see https://bugzilla.mozilla.org/show_bug.cgi?id=481566#c9
@@ -414,6 +413,7 @@ pref("javascript.options.mem.gc_high_frequency_low_limit_mb", 10);
 pref("javascript.options.mem.gc_low_frequency_heap_growth", 105);
 pref("javascript.options.mem.high_water_mark", 16);
 pref("javascript.options.mem.gc_allocation_threshold_mb", 3);
+pref("javascript.options.mem.gc_decommit_threshold_mb", 1);
 #else
 pref("javascript.options.mem.high_water_mark", 32);
 #endif
@@ -437,10 +437,15 @@ pref("browser.ui.touch.top", 48);
 pref("browser.ui.touch.bottom", 16);
 pref("browser.ui.touch.weight.visited", 120); // percentage
 
+// The percentage of the screen that needs to be scrolled before margins are exposed.
+pref("browser.ui.show-margins-threshold", 20);
+
 // plugins
 pref("plugin.disable", false);
 pref("dom.ipc.plugins.enabled", false);
 
+// This pref isn't actually used anymore, but we're leaving this here to avoid changing
+// the default so that we can migrate a user-set pref. See bug 885357.
 pref("plugins.click_to_play", true);
 // The default value for nsIPluginTag.enabledState (STATE_CLICKTOPLAY = 1)
 pref("plugin.default.state", 1);
@@ -470,6 +475,11 @@ pref("app.marketplaceURL", "https://marketplace.mozilla.org/");
 pref("security.alternate_certificate_error_page", "certerror");
 
 pref("security.warn_viewing_mixed", false); // Warning is disabled.  See Bug 616712.
+
+#ifdef NIGHTLY_BUILD
+// Block insecure active content on https pages
+pref("security.mixed_content.block_active_content", true);
+#endif
 
 // Override some named colors to avoid inverse OS themes
 pref("ui.-moz-dialog", "#efebe7");
@@ -647,6 +657,8 @@ pref("accessibility.accessfu.activate", 2);
 pref("accessibility.accessfu.quicknav_modes", "Link,Heading,FormElement,ListItem");
 // Setting for an utterance order (0 - description first, 1 - description last).
 pref("accessibility.accessfu.utterance", 0);
+// Whether to skip images with empty alt text
+pref("accessibility.accessfu.skip_empty_images", true);
 
 // Mobile manages state by autodetection
 pref("network.manage-offline-status", true);
@@ -661,14 +673,12 @@ pref("reader.parse-on-load.enabled", true);
 // Allow reader mode even on low-memory platforms
 pref("reader.parse-on-load.force-enabled", false);
 
-// The default of font size in reader (1-7)
-pref("reader.font_size", 4);
+// The default of font size in reader (1-5)
+pref("reader.font_size", 3);
 
-// The default of margin size in reader (5%-25%)
-pref("reader.margin_size", 5);
-
-// The default color scheme in reader (light, dark, sepia)
-pref("reader.color_scheme", "light");
+// The default color scheme in reader (light, dark, sepia, auto)
+// auto = color automatically adjusts according to ambient light level
+pref("reader.color_scheme", "auto");
 
 // The font type in reader (sans-serif, serif)
 pref("reader.font_type", "sans-serif");
@@ -738,10 +748,6 @@ pref("dom.payment.provider.0.uri", "https://marketplace.firefox.com/mozpay/?req=
 pref("dom.payment.provider.0.type", "mozilla/payments/pay/v1");
 pref("dom.payment.provider.0.requestMethod", "GET");
 #endif
-
-// This needs more tests and stability fixes first, as well as UI.
-pref("media.navigator.enabled", false);
-pref("media.peerconnection.enabled", false);
 
 // Make <audio> and <video> talk to the AudioChannelService.
 pref("media.useAudioChannelService", true);

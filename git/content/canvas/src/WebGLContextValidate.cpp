@@ -4,6 +4,14 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "WebGLContext.h"
+#include "WebGLBuffer.h"
+#include "WebGLVertexAttribData.h"
+#include "WebGLShader.h"
+#include "WebGLProgram.h"
+#include "WebGLUniformLocation.h"
+#include "WebGLFramebuffer.h"
+#include "WebGLRenderbuffer.h"
+#include "WebGLTexture.h"
 
 #include "mozilla/CheckedInt.h"
 #include "mozilla/Preferences.h"
@@ -61,6 +69,18 @@ WebGLProgram::UpdateInfo()
             } else {
                 mContext->GenerateWarning("program exceeds MAX_VERTEX_ATTRIBS");
                 return false;
+            }
+        }
+    }
+
+    if (!mUniformInfoMap) {
+        mUniformInfoMap = new CStringToUniformInfoMap;
+        mUniformInfoMap->Init();
+        for (size_t i = 0; i < mAttachedShaders.Length(); i++) {
+            for (size_t j = 0; j < mAttachedShaders[i]->mUniforms.Length(); j++) {
+	        const WebGLMappedIdentifier& uniform = mAttachedShaders[i]->mUniforms[j];
+	        const WebGLUniformInfo& info = mAttachedShaders[i]->mUniformInfos[j];
+	        mUniformInfoMap->Put(uniform.mapped, info);
             }
         }
     }
@@ -877,6 +897,10 @@ WebGLContext::InitAndValidateGL()
     mDisableExtensions = Preferences::GetBool("webgl.disable-extensions", false);
     mLoseContextOnHeapMinimize = Preferences::GetBool("webgl.lose-context-on-heap-minimize", false);
     mCanLoseContextInForeground = Preferences::GetBool("webgl.can-lose-context-in-foreground", true);
+
+    if (MinCapabilityMode()) {
+      mDisableFragHighP = true;
+    }
 
     mActiveTexture = 0;
     mWebGLError = LOCAL_GL_NO_ERROR;

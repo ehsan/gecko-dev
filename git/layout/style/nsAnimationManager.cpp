@@ -12,6 +12,7 @@
 #include "nsSMILKeySpline.h"
 #include "nsEventDispatcher.h"
 #include "nsCSSFrameConstructor.h"
+#include "nsLayoutUtils.h"
 #include <math.h>
 
 using namespace mozilla;
@@ -202,7 +203,6 @@ ElementAnimations::EnsureStyleRuleFor(TimeStamp aRefreshTime,
   }
 
   if (aIsThrottled) {
-    mStyleRuleRefreshTime = aRefreshTime;
     return;
   }
 
@@ -540,6 +540,11 @@ nsAnimationManager::CheckAnimationRule(nsStyleContext* aStyleContext,
                                        mozilla::dom::Element* aElement)
 {
   if (!mPresContext->IsProcessingAnimationStyleChange()) {
+    if (!mPresContext->IsDynamic()) {
+      // For print or print preview, ignore animations.
+      return nullptr;
+    }
+
     // Everything that causes our animation data to change triggers a
     // style change, which in turn triggers a non-animation restyle.
     // Likewise, when we initially construct frames, we're not in a
@@ -949,6 +954,11 @@ nsAnimationManager::GetAnimationRule(mozilla::dom::Element* aElement,
     aPseudoType == nsCSSPseudoElements::ePseudo_before ||
     aPseudoType == nsCSSPseudoElements::ePseudo_after,
     "forbidden pseudo type");
+
+  if (!mPresContext->IsDynamic()) {
+    // For print or print preview, ignore animations.
+    return nullptr;
+  }
 
   ElementAnimations *ea =
     GetElementAnimations(aElement, aPseudoType, false);

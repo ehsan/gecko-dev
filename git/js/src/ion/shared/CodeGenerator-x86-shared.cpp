@@ -636,17 +636,18 @@ CodeGeneratorX86Shared::visitMulI(LMulI *ins)
 bool
 CodeGeneratorX86Shared::visitAsmJSDivOrMod(LAsmJSDivOrMod *ins)
 {
-    JS_ASSERT(ToRegister(ins->remainder()) == edx);
     JS_ASSERT(ToRegister(ins->lhs()) == eax);
     Register rhs = ToRegister(ins->rhs());
     Register output = ToRegister(ins->output());
+
+    JS_ASSERT_IF(output == eax, ToRegister(ins->remainder()) == edx);
 
     Label afterDiv;
 
     masm.testl(rhs, rhs);
     Label notzero;
     masm.j(Assembler::NonZero, &notzero);
-    masm.movl(Imm32(0), output);
+    masm.xorl(output, output);
     masm.jmp(&afterDiv);
     masm.bind(&notzero);
 
@@ -683,7 +684,7 @@ CodeGeneratorX86Shared::visitDivPowTwoI(LDivPowTwoI *ins)
 {
     Register lhs = ToRegister(ins->numerator());
     Register lhsCopy = ToRegister(ins->numeratorCopy());
-    Register output = ToRegister(ins->output());
+    mozilla::DebugOnly<Register> output = ToRegister(ins->output());
     int32_t shift = ins->shift();
 
     // We use defineReuseInput so these should always be the same, which is

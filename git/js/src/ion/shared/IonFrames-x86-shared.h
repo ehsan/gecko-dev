@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef js_ion_frame_layouts_x86_h__
-#define js_ion_frame_layouts_x86_h__
+#ifndef ion_shared_IonFrames_x86_shared_h
+#define ion_shared_IonFrames_x86_shared_h
 
 #include "ion/shared/IonFrames-shared.h"
 
@@ -147,14 +147,16 @@ class IonExitFooterFrame
     }
 
     // This should only be called for function()->outParam == Type_Handle
-    Value *outVp() {
-        return reinterpret_cast<Value *>(reinterpret_cast<char *>(this) - sizeof(Value));
+    template <typename T>
+    T *outParam() {
+        return reinterpret_cast<T *>(reinterpret_cast<char *>(this) - sizeof(T));
     }
 };
 
 class IonNativeExitFrameLayout;
 class IonOOLNativeGetterExitFrameLayout;
 class IonOOLPropertyOpExitFrameLayout;
+class IonOOLProxyGetExitFrameLayout;
 class IonDOMExitFrameLayout;
 
 class IonExitFrameLayout : public IonCommonFrameLayout
@@ -196,6 +198,9 @@ class IonExitFrameLayout : public IonCommonFrameLayout
     inline bool isOOLPropertyOpExit() {
         return footer()->ionCode() == ION_FRAME_OOL_PROPERTY_OP;
     }
+    inline bool isOOLProxyGetExit() {
+        return footer()->ionCode() == ION_FRAME_OOL_PROXY_GET;
+    }
     inline bool isDomExit() {
         IonCode *code = footer()->ionCode();
         return
@@ -216,6 +221,10 @@ class IonExitFrameLayout : public IonCommonFrameLayout
     inline IonOOLPropertyOpExitFrameLayout *oolPropertyOpExit() {
         JS_ASSERT(isOOLPropertyOpExit());
         return reinterpret_cast<IonOOLPropertyOpExitFrameLayout *>(footer());
+    }
+    inline IonOOLProxyGetExitFrameLayout *oolProxyGetExit() {
+        JS_ASSERT(isOOLProxyGetExit());
+        return reinterpret_cast<IonOOLProxyGetExitFrameLayout *>(footer());
     }
     inline IonDOMExitFrameLayout *DOMExit() {
         JS_ASSERT(isDomExit());
@@ -299,13 +308,13 @@ class IonOOLPropertyOpExitFrameLayout
     IonExitFooterFrame footer_;
     IonExitFrameLayout exit_;
 
-    // Object for JSHandleObject
+    // Object for HandleObject
     JSObject *obj_;
 
-    // id for JSHandleId
+    // id for HandleId
     jsid id_;
 
-    // space for JSMutableHandleValue result
+    // space for MutableHandleValue result
     // use two uint32_t so compiler doesn't align.
     uint32_t vp0_;
     uint32_t vp1_;
@@ -336,6 +345,57 @@ class IonOOLPropertyOpExitFrameLayout
     }
 };
 
+// Proxy::get(JSContext *cx, HandleObject proxy, HandleObject receiver, HandleId id,
+//            MutableHandleValue vp)
+class IonOOLProxyGetExitFrameLayout
+{
+  protected: // only to silence a clang warning about unused private fields
+    IonExitFooterFrame footer_;
+    IonExitFrameLayout exit_;
+
+    // The proxy object.
+    JSObject *proxy_;
+
+    // Object for HandleObject
+    JSObject *receiver_;
+
+    // id for HandleId
+    jsid id_;
+
+    // space for MutableHandleValue result
+    // use two uint32_t so compiler doesn't align.
+    uint32_t vp0_;
+    uint32_t vp1_;
+
+    // pointer to root the stub's IonCode
+    IonCode *stubCode_;
+
+  public:
+    static inline size_t Size() {
+        return sizeof(IonOOLProxyGetExitFrameLayout);
+    }
+
+    static size_t offsetOfResult() {
+        return offsetof(IonOOLProxyGetExitFrameLayout, vp0_);
+    }
+
+    inline IonCode **stubCode() {
+        return &stubCode_;
+    }
+    inline Value *vp() {
+        return reinterpret_cast<Value*>(&vp0_);
+    }
+    inline jsid *id() {
+        return &id_;
+    }
+    inline JSObject **receiver() {
+        return &receiver_;
+    }
+    inline JSObject **proxy() {
+        return &proxy_;
+    }
+};
+
 class IonDOMExitFrameLayout
 {
   protected: // only to silence a clang warning about unused private fields
@@ -343,7 +403,7 @@ class IonDOMExitFrameLayout
     IonExitFrameLayout exit_;
     JSObject *thisObj;
 
-    // We need to split the Value in 2 field of 32 bits, otherwise the C++
+    // We need to split the Value in 2 fields of 32 bits, otherwise the C++
     // compiler may add some padding between the fields.
     uint32_t loCalleeResult_;
     uint32_t hiCalleeResult_;
@@ -362,13 +422,12 @@ class IonDOMExitFrameLayout
     inline JSObject **thisObjAddress() {
         return &thisObj;
     }
-    inline bool isSetterFrame() {
-        return footer_.ionCode() == ION_FRAME_DOMSETTER;
-    }
     inline bool isMethodFrame() {
         return footer_.ionCode() == ION_FRAME_DOMMETHOD;
     }
 };
+
+struct IonDOMMethodExitFrameLayoutTraits;
 
 class IonDOMMethodExitFrameLayout
 {
@@ -378,9 +437,15 @@ class IonDOMMethodExitFrameLayout
     // This must be the last thing pushed, so as to stay common with
     // IonDOMExitFrameLayout.
     JSObject *thisObj_;
+    Value *argv_;
     uintptr_t argc_;
 
-    Value CalleeResult_;
+    // We need to split the Value into 2 fields of 32 bits, otherwise the C++
+    // compiler may add some padding between the fields.
+    uint32_t loCalleeResult_;
+    uint32_t hiCalleeResult_;
+
+    friend struct IonDOMMethodExitFrameLayoutTraits;
 
   public:
     static inline size_t Size() {
@@ -388,12 +453,13 @@ class IonDOMMethodExitFrameLayout
     }
 
     static size_t offsetOfResult() {
-        return offsetof(IonDOMMethodExitFrameLayout, CalleeResult_);
+        return offsetof(IonDOMMethodExitFrameLayout, loCalleeResult_);
     }
+
     inline Value *vp() {
-        JS_STATIC_ASSERT(offsetof(IonDOMMethodExitFrameLayout, CalleeResult_) ==
+        JS_STATIC_ASSERT(offsetof(IonDOMMethodExitFrameLayout, loCalleeResult_) ==
                          (offsetof(IonDOMMethodExitFrameLayout, argc_) + sizeof(uintptr_t)));
-        return &CalleeResult_;
+        return reinterpret_cast<Value*>(&loCalleeResult_);
     }
     inline JSObject **thisObjAddress() {
         return &thisObj_;
@@ -401,6 +467,12 @@ class IonDOMMethodExitFrameLayout
     inline uintptr_t argc() {
         return argc_;
     }
+};
+
+struct IonDOMMethodExitFrameLayoutTraits {
+    static const size_t offsetOfArgcFromArgv =
+        offsetof(IonDOMMethodExitFrameLayout, argc_) -
+        offsetof(IonDOMMethodExitFrameLayout, argv_);
 };
 
 class IonOsrFrameLayout : public IonJSFrameLayout
@@ -463,5 +535,4 @@ class InvalidationBailoutStack
 }
 }
 
-#endif // js_ion_frame_layouts_x86_h__
-
+#endif /* ion_shared_IonFrames_x86_shared_h */

@@ -106,31 +106,18 @@ nsSVGPathGeometryFrame::AttributeChanged(int32_t         aNameSpaceID,
                                          nsIAtom*        aAttribute,
                                          int32_t         aModType)
 {
+  // We don't invalidate for transform changes (the layers code does that).
+  // Also note that SVGTransformableElement::GetAttributeChangeHint will
+  // return nsChangeHint_UpdateOverflow for "transform" attribute changes
+  // and cause DoApplyRenderingChangeToTree to make the SchedulePaint call.
+
   if (aNameSpaceID == kNameSpaceID_None &&
       (static_cast<nsSVGPathGeometryElement*>
                   (mContent)->AttributeDefinesGeometry(aAttribute))) {
     nsSVGEffects::InvalidateRenderingObservers(this);
     nsSVGUtils::ScheduleReflowSVG(this);
-  } else if (aAttribute == nsGkAtoms::transform) {
-    // Don't invalidate (the layers code does that).
-    SchedulePaint();
   }
   return NS_OK;
-}
-
-/* virtual */ void
-nsSVGPathGeometryFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
-{
-  nsSVGPathGeometryFrameBase::DidSetStyleContext(aOldStyleContext);
-
-  // XXX: we'd like to use the style_hint mechanism and the
-  // ContentStateChanged/AttributeChanged functions for style changes
-  // to get slightly finer granularity, but unfortunately the
-  // style_hints don't map very well onto svg. Here seems to be the
-  // best place to deal with style changes:
-
-  nsSVGEffects::InvalidateRenderingObservers(this);
-  nsSVGUtils::ScheduleReflowSVG(this);
 }
 
 nsIAtom *

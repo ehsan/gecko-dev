@@ -6,21 +6,24 @@
 
 #include "Ion.h"
 #include "IonCompartment.h"
-#include "jsinterp.h"
 #include "ion/BaselineFrame-inl.h"
 #include "ion/BaselineIC.h"
 #include "ion/IonFrames.h"
-#include "ion/IonFrames-inl.h" // for GetTopIonJSScript
 
-#include "vm/StringObject-inl.h"
 #include "vm/Debugger.h"
+#include "vm/Interpreter.h"
+#include "vm/StringObject-inl.h"
 
 #include "builtin/ParallelArray.h"
 
-#include "frontend/TokenStream.h"
+#include "frontend/BytecodeCompiler.h"
 
 #include "jsboolinlines.h"
-#include "jsinterpinlines.h"
+
+#include "ion/IonFrames-inl.h" // for GetTopIonJSScript
+
+#include "vm/Interpreter-inl.h"
+#include "vm/StringObject-inl.h"
 
 using namespace js;
 using namespace js::ion;
@@ -44,14 +47,6 @@ VMFunction::addToFunctions()
     functions = this;
 }
 
-static inline bool
-ShouldMonitorReturnType(JSFunction *fun)
-{
-    return fun->isInterpreted() &&
-           (!fun->nonLazyScript()->hasAnalysis() ||
-            !fun->nonLazyScript()->analysis()->ranInference());
-}
-
 bool
 InvokeFunction(JSContext *cx, HandleFunction fun0, uint32_t argc, Value *argv, Value *rval)
 {
@@ -71,13 +66,6 @@ InvokeFunction(JSContext *cx, HandleFunction fun0, uint32_t argc, Value *argv, V
         }
     }
 
-    // TI will return false for monitorReturnTypes, meaning there is no
-    // TypeBarrier or Monitor instruction following this. However, we need to
-    // explicitly monitor if the callee has not been analyzed yet. We special
-    // case this to avoid the cost of ion::GetPcScript if we must take this
-    // path frequently.
-    bool needsMonitor = ShouldMonitorReturnType(fun);
-
     // Data in the argument vector is arranged for a JIT -> JIT call.
     Value thisv = argv[0];
     Value *argvWithoutThis = argv + 1;
@@ -85,16 +73,9 @@ InvokeFunction(JSContext *cx, HandleFunction fun0, uint32_t argc, Value *argv, V
     // For constructing functions, |this| is constructed at caller side and we can just call Invoke.
     // When creating this failed / is impossible at caller site, i.e. MagicValue(JS_IS_CONSTRUCTING),
     // we use InvokeConstructor that creates it at the callee side.
-    bool ok;
     if (thisv.isMagic(JS_IS_CONSTRUCTING))
-        ok = InvokeConstructor(cx, ObjectValue(*fun), argc, argvWithoutThis, rval);
-    else
-        ok = Invoke(cx, thisv, ObjectValue(*fun), argc, argvWithoutThis, rval);
-
-    if (ok && needsMonitor)
-        types::TypeScript::Monitor(cx, *rval);
-
-    return ok;
+        return InvokeConstructor(cx, ObjectValue(*fun), argc, argvWithoutThis, rval);
+    return Invoke(cx, thisv, ObjectValue(*fun), argc, argvWithoutThis, rval);
 }
 
 JSObject *
@@ -120,7 +101,7 @@ CheckOverRecursed(JSContext *cx)
     // CheckOverRecursed.
     JS_CHECK_RECURSION(cx, return false);
 
-    if (cx->runtime->interrupt)
+    if (cx->runtime()->interrupt)
         return InterruptCheck(cx);
 
     return true;
@@ -308,6 +289,23 @@ NewInitObject(JSContext *cx, HandleObject templateObject)
     return obj;
 }
 
+JSObject *
+NewInitObjectWithClassPrototype(JSContext *cx, HandleObject templateObject)
+{
+    JS_ASSERT(!templateObject->hasSingletonType());
+
+    JSObject *obj = NewObjectWithGivenProto(cx,
+                                            templateObject->getClass(),
+                                            templateObject->getProto(),
+                                            cx->global());
+    if (!obj)
+        return NULL;
+
+    obj->setType(templateObject->type());
+
+    return obj;
+}
+
 bool
 ArrayPopDense(JSContext *cx, HandleObject obj, MutableHandleValue rval)
 {
@@ -386,14 +384,10 @@ ArrayConcatDense(JSContext *cx, HandleObject obj1, HandleObject obj2, HandleObje
 bool
 CharCodeAt(JSContext *cx, HandleString str, int32_t index, uint32_t *code)
 {
-    JS_ASSERT(index >= 0 &&
-              static_cast<uint32_t>(index) < str->length());
-
-    const jschar *chars = str->getChars(cx);
-    if (!chars)
+    jschar c;
+    if (!str->getChar(cx, index, &c))
         return false;
-
-    *code = chars[index];
+    *code = c;
     return true;
 }
 
@@ -403,20 +397,29 @@ StringFromCharCode(JSContext *cx, int32_t code)
     jschar c = jschar(code);
 
     if (StaticStrings::hasUnit(c))
-        return cx->runtime->staticStrings.getUnit(c);
+        return cx->runtime()->staticStrings.getUnit(c);
 
     return js_NewStringCopyN<CanGC>(cx, &c, 1);
 }
 
 bool
 SetProperty(JSContext *cx, HandleObject obj, HandlePropertyName name, HandleValue value,
-            bool strict, bool isSetName)
+            bool strict, int jsop)
 {
     RootedValue v(cx, value);
     RootedId id(cx, NameToId(name));
 
+    if (jsop == JSOP_SETALIASEDVAR) {
+        // Aliased var assigns ignore readonly attributes on the property, as
+        // required for initializing 'const' closure variables.
+        Shape *shape = obj->nativeLookup(cx, name);
+        JS_ASSERT(shape && shape->hasSlot());
+        JSObject::nativeSetSlotWithType(cx, obj, shape, value);
+        return true;
+    }
+
     if (JS_LIKELY(!obj->getOps()->setProperty)) {
-        unsigned defineHow = isSetName ? DNP_UNQUALIFIED : 0;
+        unsigned defineHow = (jsop == JSOP_SETNAME || jsop == JSOP_SETGNAME) ? DNP_UNQUALIFIED : 0;
         return baseops::SetPropertyHelper(cx, obj, obj, id, defineHow, &v, strict);
     }
 
@@ -447,9 +450,10 @@ NewSlots(JSRuntime *rt, unsigned nslots)
 }
 
 JSObject *
-NewCallObject(JSContext *cx, HandleShape shape, HandleTypeObject type, HeapSlot *slots)
+NewCallObject(JSContext *cx, HandleScript script,
+              HandleShape shape, HandleTypeObject type, HeapSlot *slots)
 {
-    return CallObject::create(cx, shape, type, slots);
+    return CallObject::create(cx, script, shape, type, slots);
 }
 
 JSObject *
@@ -461,13 +465,13 @@ NewStringObject(JSContext *cx, HandleString str)
 bool
 SPSEnter(JSContext *cx, HandleScript script)
 {
-    return cx->runtime->spsProfiler.enter(cx, script, script->function());
+    return cx->runtime()->spsProfiler.enter(cx, script, script->function());
 }
 
 bool
 SPSExit(JSContext *cx, HandleScript script)
 {
-    cx->runtime->spsProfiler.exit(cx, script, script->function());
+    cx->runtime()->spsProfiler.exit(cx, script, script->function());
     return true;
 }
 
@@ -515,8 +519,8 @@ CreateThis(JSContext *cx, HandleObject callee, MutableHandleValue rval)
 {
     rval.set(MagicValue(JS_IS_CONSTRUCTING));
 
-    if (callee->isFunction()) {
-        JSFunction *fun = callee->toFunction();
+    if (callee->is<JSFunction>()) {
+        JSFunction *fun = &callee->as<JSFunction>();
         if (fun->isInterpreted()) {
             JSScript *script = fun->getOrCreateScript(cx);
             if (!script || !script->ensureHasTypes(cx))
@@ -549,7 +553,7 @@ GetDynamicName(JSContext *cx, JSObject *scopeChain, JSString *str, Value *vp)
         }
     }
 
-    if (!frontend::IsIdentifier(atom) || frontend::FindKeyword(atom->chars(), atom->length())) {
+    if (!frontend::IsIdentifier(atom) || frontend::IsKeyword(atom)) {
         vp->setUndefined();
         return;
     }
@@ -575,9 +579,18 @@ FilterArguments(JSContext *cx, JSString *str)
     if (!chars)
         return false;
 
-    static jschar arguments[] = {'a', 'r', 'g', 'u', 'm', 'e', 'n', 't', 's'};
+    static const jschar arguments[] = {'a', 'r', 'g', 'u', 'm', 'e', 'n', 't', 's'};
     return !StringHasPattern(chars, str->length(), arguments, mozilla::ArrayLength(arguments));
 }
+
+#ifdef JSGC_GENERATIONAL
+void
+PostWriteBarrier(JSRuntime *rt, JSObject *obj)
+{
+    JS_ASSERT(!IsInsideNursery(rt, obj));
+    rt->gcStoreBuffer.putWholeCell(obj);
+}
+#endif
 
 uint32_t
 GetIndexFromString(JSString *str)
@@ -638,13 +651,13 @@ DebugEpilogue(JSContext *cx, BaselineFrame *frame, JSBool ok)
         JS_ASSERT_IF(ok, frame->hasReturnValue());
         DebugScopes::onPopCall(frame, cx);
     } else if (frame->isStrictEvalFrame()) {
-        JS_ASSERT_IF(frame->hasCallObj(), frame->scopeChain()->asCall().isForEval());
+        JS_ASSERT_IF(frame->hasCallObj(), frame->scopeChain()->as<CallObject>().isForEval());
         DebugScopes::onPopStrictEvalScope(frame);
     }
 
     // If the frame has a pushed SPS frame, make sure to pop it.
     if (frame->hasPushedSPSFrame()) {
-        cx->runtime->spsProfiler.exit(cx, frame->script(), frame->maybeFun());
+        cx->runtime()->spsProfiler.exit(cx, frame->script(), frame->maybeFun());
         // Unset the pushedSPSFrame flag because DebugEpilogue may get called before
         // Probes::exitScript in baseline during exception handling, and we don't
         // want to double-pop SPS frames.
@@ -685,6 +698,43 @@ NewArgumentsObject(JSContext *cx, BaselineFrame *frame, MutableHandleValue res)
     return true;
 }
 
+JSObject *
+InitRestParameter(JSContext *cx, uint32_t length, Value *rest, HandleObject templateObj,
+                  HandleObject res)
+{
+    if (res) {
+        JS_ASSERT(res->isArray());
+        JS_ASSERT(!res->getDenseInitializedLength());
+        JS_ASSERT(res->type() == templateObj->type());
+
+        // Fast path: we managed to allocate the array inline; initialize the
+        // slots.
+        if (length > 0) {
+            if (!res->ensureElements(cx, length))
+                return NULL;
+            res->setDenseInitializedLength(length);
+            res->initDenseElements(0, rest, length);
+            res->setArrayLengthInt32(length);
+
+            // Ensure that values in the rest array are represented in the
+            // type of the array.
+            for (unsigned i = 0; i < length; i++)
+                types::AddTypePropertyId(cx, res, JSID_VOID, rest[i]);
+        }
+        return res;
+    }
+
+    JSObject *obj = NewDenseCopiedArray(cx, length, rest, NULL);
+    if (!obj)
+        return NULL;
+    obj->setType(templateObj->type());
+
+    for (unsigned i = 0; i < length; i++)
+        types::AddTypePropertyId(cx, obj, JSID_VOID, rest[i]);
+
+    return obj;
+}
+
 bool
 HandleDebugTrap(JSContext *cx, BaselineFrame *frame, uint8_t *retAddr, JSBool *mustReturn)
 {
@@ -693,16 +743,16 @@ HandleDebugTrap(JSContext *cx, BaselineFrame *frame, uint8_t *retAddr, JSBool *m
     RootedScript script(cx, frame->script());
     jsbytecode *pc = script->baselineScript()->icEntryFromReturnAddress(retAddr).pc(script);
 
-    JS_ASSERT(cx->compartment->debugMode());
+    JS_ASSERT(cx->compartment()->debugMode());
     JS_ASSERT(script->stepModeEnabled() || script->hasBreakpointsAt(pc));
 
     RootedValue rval(cx);
     JSTrapStatus status = JSTRAP_CONTINUE;
-    JSInterruptHook hook = cx->runtime->debugHooks.interruptHook;
+    JSInterruptHook hook = cx->runtime()->debugHooks.interruptHook;
 
     if (hook || script->stepModeEnabled()) {
         if (hook)
-            status = hook(cx, script, pc, rval.address(), cx->runtime->debugHooks.interruptHookData);
+            status = hook(cx, script, pc, rval.address(), cx->runtime()->debugHooks.interruptHookData);
         if (status == JSTRAP_CONTINUE && script->stepModeEnabled())
             status = Debugger::onSingleStep(cx, &rval);
     }
@@ -742,8 +792,8 @@ OnDebuggerStatement(JSContext *cx, BaselineFrame *frame, jsbytecode *pc, JSBool 
     JSTrapStatus status = JSTRAP_CONTINUE;
     RootedValue rval(cx);
 
-    if (JSDebuggerHandler handler = cx->runtime->debugHooks.debuggerHandler)
-        status = handler(cx, script, pc, rval.address(), cx->runtime->debugHooks.debuggerHandlerData);
+    if (JSDebuggerHandler handler = cx->runtime()->debugHooks.debuggerHandler)
+        status = handler(cx, script, pc, rval.address(), cx->runtime()->debugHooks.debuggerHandlerData);
 
     if (status == JSTRAP_CONTINUE)
         status = Debugger::onDebuggerStatement(cx, &rval);

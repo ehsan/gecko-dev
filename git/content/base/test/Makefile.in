@@ -17,16 +17,6 @@ CPP_UNIT_TESTS = \
                  TestPlainTextSerializer.cpp \
                  $(NULL)
 
-
-DISABLED_XPCSHELL_TESTS = \
-               unit \
-               $(NULL)
-# FIXME/bug 575918: out-of-process xpcshell is broken on OS X
-ifneq ($(OS_ARCH),Darwin)
-DISABLED_XPCSHELL_TESTS += unit_ipc
-endif
-
-
 # Split files arbitrarily in three groups to not run into too-long command lines
 # which break on Windows (see bug 563151 and bug 831989)
 MOCHITEST_FILES_A = \
@@ -246,6 +236,7 @@ MOCHITEST_FILES_A = \
 		test_meta_viewport4.html \
 		test_meta_viewport5.html \
 		test_meta_viewport6.html \
+			viewport_helpers.js \
 		test_mutationobservers.html \
 		mutationobserver_dialog.html \
 		test_bug744830.html \
@@ -503,6 +494,8 @@ MOCHITEST_FILES_B = \
 		accesscontrol.resource^headers^ \
 		invalid_accesscontrol.resource \
 		invalid_accesscontrol.resource^headers^ \
+		file_bug869432.eventsource \
+		file_bug869432.eventsource^headers^ \
 		$(NULL)
 
 MOCHITEST_FILES_C= \
@@ -626,7 +619,6 @@ MOCHITEST_FILES_C= \
 		test_xhr_send_readystate.html \
 		test_bug813919.html \
 		test_bug814576.html \
-		test_bug876282.html \
 		test_xhr_withCredentials.html \
 		test_bothCSPheaders.html \
 		file_bothCSPheaders.html \
@@ -634,6 +626,11 @@ MOCHITEST_FILES_C= \
 		badMessageEvent2.eventsource \
 		badMessageEvent2.eventsource^headers^ \
 		test_object.html \
+		test_bug869006.html \
+		test_bug868999.html \
+		test_bug869000.html \
+		test_bug869002.html \
+		test_bug876282.html \
 		$(NULL)
 
 # OOP tests don't work on Windows (bug 763081) or native-fennec
@@ -652,7 +649,7 @@ MOCHITEST_CHROME_FILES =	\
 		$(NULL)
 
 # This test fails on the Mac for some reason
-ifneq (,$(filter gtk2 windows,$(MOZ_WIDGET_TOOLKIT)))
+ifneq (,$(filter gtk2 gtk3 windows,$(MOZ_WIDGET_TOOLKIT)))
 MOCHITEST_FILES_C += \
 		test_copyimage.html \
 		$(NULL)

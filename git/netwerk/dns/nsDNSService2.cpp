@@ -231,7 +231,8 @@ nsDNSRecord::ReportUnusable(uint16_t aPort)
     // ignore the report.
 
     if (mHostRecord->addr_info &&
-        mIterGenCnt == mHostRecord->addr_info_gencnt) {
+        mIterGenCnt == mHostRecord->addr_info_gencnt &&
+        mIter) {
         mHostRecord->ReportUnusable(&mIter->mAddress);
     }
 
@@ -254,7 +255,11 @@ public:
                       uint16_t          af)
         : mResolver(res)
         , mHost(host)
-        , mListener(listener)
+        // Sometimes aListener is a main-thread only object like XPCWrappedJS, and
+        // sometimes it's a threadsafe object like nsSocketTransport. Use a main-
+        // thread pointer holder, but disable strict enforcement of thread invariants.
+        // The AddRef implementation of XPCWrappedJS will assert if we go wrong here.
+        , mListener(new nsMainThreadPtrHolder<nsIDNSListener>(listener, false))
         , mFlags(flags)
         , mAF(af) {}
     ~nsDNSAsyncRequest() {}
@@ -267,7 +272,7 @@ public:
 
     nsRefPtr<nsHostResolver> mResolver;
     nsCString                mHost; // hostname we're resolving
-    nsCOMPtr<nsIDNSListener> mListener;
+    nsMainThreadPtrHandle<nsIDNSListener> mListener;
     uint16_t                 mFlags;
     uint16_t                 mAF;
 };
@@ -291,7 +296,7 @@ nsDNSAsyncRequest::OnLookupComplete(nsHostResolver *resolver,
     MOZ_EVENT_TRACER_DONE(this, "net::dns::lookup");
 
     mListener->OnLookupComplete(this, rec, status);
-    mListener = nullptr;
+    mListener = nsMainThreadPtrHandle<nsIDNSListener>();
 
     // release the reference to ourselves that was added before we were
     // handed off to the host resolver.

@@ -8,7 +8,6 @@ let Cu = Components.utils;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource:///modules/RecentWindow.jsm");
-Cu.import("resource://gre/modules/PushService.jsm");
 
 const nsIWebNavigation = Ci.nsIWebNavigation;
 
@@ -116,10 +115,10 @@ XPCOMUtils.defineLazyGetter(this, "DeveloperToolbar", function() {
   return new tmp.DeveloperToolbar(window, document.getElementById("developer-toolbar"));
 });
 
-XPCOMUtils.defineLazyGetter(this, "DebuggerUI", function() {
+XPCOMUtils.defineLazyGetter(this, "BrowserDebuggerProcess", function() {
   let tmp = {};
-  Cu.import("resource:///modules/devtools/DebuggerUI.jsm", tmp);
-  return new tmp.DebuggerUI(window);
+  Cu.import("resource:///modules/devtools/DebuggerProcess.jsm", tmp);
+  return tmp.BrowserDebuggerProcess;
 });
 
 XPCOMUtils.defineLazyModuleGetter(this, "Social",
@@ -753,9 +752,9 @@ var gBrowserInit = {
 
     // Note that the XBL binding is untrusted
     gBrowser.addEventListener("PluginBindingAttached", gPluginHandler, true, true);
-    gBrowser.addEventListener("PluginScripted",        gPluginHandler, true);
     gBrowser.addEventListener("PluginCrashed",         gPluginHandler, true);
     gBrowser.addEventListener("PluginOutdated",        gPluginHandler, true);
+    gBrowser.addEventListener("PluginInstantiated",    gPluginHandler, true);
 
     gBrowser.addEventListener("NewPluginInstalled", gPluginHandler.newPluginInstalled, true);
 
@@ -806,7 +805,7 @@ var gBrowserInit = {
     // enable global history
     try {
       if (!gMultiProcessBrowser)
-        gBrowser.docShell.QueryInterface(Ci.nsIDocShellHistory).useGlobalHistory = true;
+      gBrowser.docShell.useGlobalHistory = true;
     } catch(ex) {
       Cu.reportError("Places database may be locked: " + ex);
     }
@@ -820,6 +819,10 @@ var gBrowserInit = {
 
     // setup our MozApplicationManifest listener
     gBrowser.addEventListener("MozApplicationManifest",
+                              OfflineApps, false);
+    // listen for offline apps on social
+    let socialBrowser = document.getElementById("social-sidebar-browser");
+    socialBrowser.addEventListener("MozApplicationManifest",
                               OfflineApps, false);
 
     // setup simple gestures support
@@ -1194,17 +1197,8 @@ var gBrowserInit = {
       cmd.removeAttribute("hidden");
     }
 
-    // Enable the Browser Console?
-    if (chromeEnabled) {
-      let cmd = document.getElementById("Tools:BrowserConsole");
-      cmd.removeAttribute("disabled");
-      cmd.removeAttribute("hidden");
-    }
-
     // Enable Error Console?
-    // Temporarily enabled. See bug 798925.
-    let consoleEnabled = true || gPrefService.getBoolPref("devtools.errorconsole.enabled") ||
-                         chromeEnabled;
+    let consoleEnabled = gPrefService.getBoolPref("devtools.errorconsole.enabled");
     if (consoleEnabled) {
       let cmd = document.getElementById("Tools:ErrorConsole");
       cmd.removeAttribute("disabled");
@@ -1275,6 +1269,15 @@ var gBrowserInit = {
     } catch (ex) {
       Cu.reportError("Could not end startup crash tracking: " + ex);
     }
+
+#ifdef XP_WIN
+#ifdef MOZ_METRO
+    gMetroPrefs.prefDomain.forEach(function(prefName) {
+      gMetroPrefs.pushDesktopControlledPrefToMetro(prefName);
+      Services.prefs.addObserver(prefName, gMetroPrefs, false);
+    }, this);
+#endif
+#endif
 
     Services.obs.notifyObservers(window, "browser-delayed-startup-finished", "");
     setTimeout(function () { BrowserChromeTest.markAsReady(); }, 0);
@@ -1356,6 +1359,14 @@ var gBrowserInit = {
       } catch (ex) {
         Cu.reportError(ex);
       }
+
+#ifdef XP_WIN
+#ifdef MOZ_METRO
+      gMetroPrefs.prefDomain.forEach(function(prefName) {
+        Services.prefs.removeObserver(prefName, gMetroPrefs);
+      });
+#endif
+#endif
 
       BrowserOffline.uninit();
       OfflineApps.uninit();
@@ -1513,6 +1524,7 @@ var gBrowserInit = {
     }
   },
 }
+
 
 /* Legacy global init functions */
 var BrowserStartup        = gBrowserInit.onLoad.bind(gBrowserInit);
@@ -2288,10 +2300,23 @@ function BrowserOnAboutPageLoad(doc) {
       Services.prefs.setBoolPref("browser.rights." + currentVersion + ".shown", true);
     }
     docElt.setAttribute("snippetsVersion", AboutHomeUtils.snippetsVersion);
-    docElt.setAttribute("searchEngineName",
-                        AboutHomeUtils.defaultSearchEngine.name);
-    docElt.setAttribute("searchEngineURL",
-                        AboutHomeUtils.defaultSearchEngine.searchURL);
+
+    function updateSearchEngine() {
+      let engine = AboutHomeUtils.defaultSearchEngine;
+      docElt.setAttribute("searchEngineName", engine.name);
+      docElt.setAttribute("searchEngineURL", engine.searchURL);
+    }
+    updateSearchEngine();
+
+    // Listen for the event that's triggered when the user changes search engine.
+    // At this point we simply reload about:home to reflect the change.
+    Services.obs.addObserver(updateSearchEngine, "browser-search-engine-modified", false);
+
+    // Remove the observer when the page is reloaded or closed.
+    doc.defaultView.addEventListener("pagehide", function removeObserver() {
+      doc.defaultView.removeEventListener("pagehide", removeObserver);
+      Services.obs.removeObserver(updateSearchEngine, "browser-search-engine-modified");
+    }, false);
 
 #ifdef MOZ_SERVICES_HEALTHREPORT
     doc.addEventListener("AboutHomeSearchEvent", function onSearch(e) {
@@ -3591,6 +3616,7 @@ function mimeTypeIsTextBased(aMimeType)
          aMimeType.endsWith("+xml") ||
          aMimeType == "application/x-javascript" ||
          aMimeType == "application/javascript" ||
+         aMimeType == "application/json" ||
          aMimeType == "application/xml" ||
          aMimeType == "mozilla.application/cached-xul";
 }
@@ -4293,6 +4319,8 @@ var TabsProgressListener = {
           return;
         aBrowser.removeEventListener("click", BrowserOnClick, true);
         aBrowser.removeEventListener("pagehide", onPageHide, true);
+        if (event.target.documentElement)
+          event.target.documentElement.removeAttribute("hasBrowserHandlers");
       }, true);
 
       // We also want to make changes to page UI for unprivileged about pages.
@@ -4626,6 +4654,9 @@ var TabsInTitlebar = {
   },
 
   _update: function () {
+    function $(id) document.getElementById(id);
+    function rect(ele) ele.getBoundingClientRect();
+
     if (!this._initialized || window.fullScreen)
       return;
 
@@ -4638,12 +4669,9 @@ var TabsInTitlebar = {
     if (allowed == this.enabled)
       return;
 
-    function $(id) document.getElementById(id);
     let titlebar = $("titlebar");
 
     if (allowed) {
-      function rect(ele)   ele.getBoundingClientRect();
-
       let tabsToolbar       = $("TabsToolbar");
 
 #ifdef MENUBAR_CAN_AUTOHIDE
@@ -4840,6 +4868,61 @@ function fireSidebarFocusedEvent() {
   event.initEvent("SidebarFocused", true, false);
   sidebar.contentWindow.dispatchEvent(event);
 }
+
+#ifdef XP_WIN
+#ifdef MOZ_METRO
+/**
+ * Some prefs that have consequences in both Metro and Desktop such as
+ * app-update prefs, are automatically pushed from Desktop here for use
+ * in Metro.
+ */
+var gMetroPrefs = {
+  prefDomain: ["app.update.auto", "app.update.enabled",
+               "app.update.service.enabled",
+               "app.update.metro.enabled"],
+  observe: function (aSubject, aTopic, aPrefName)
+  {
+    if (aTopic != "nsPref:changed")
+      return;
+
+    this.pushDesktopControlledPrefToMetro(aPrefName);
+  },
+
+  /**
+   * Writes the pref to HKCU in the registry and adds a pref-observer to keep
+   * the registry in sync with changes to the value.
+   */
+  pushDesktopControlledPrefToMetro: function(aPrefName) {
+    let registry = Cc["@mozilla.org/windows-registry-key;1"].
+                    createInstance(Ci.nsIWindowsRegKey);
+    try {
+      var prefType = Services.prefs.getPrefType(aPrefName);
+      let prefFunc;
+      if (prefType == Components.interfaces.nsIPrefBranch.PREF_INT)
+        prefFunc = "getIntPref";
+      else if (prefType == Components.interfaces.nsIPrefBranch.PREF_BOOL)
+        prefFunc = "getBoolPref";
+      else if (prefType == Components.interfaces.nsIPrefBranch.PREF_STRING)
+        prefFunc = "getCharPref";
+      else
+        throw "Unsupported pref type";
+
+      let prefValue = Services.prefs[prefFunc](aPrefName);
+      registry.create(Ci.nsIWindowsRegKey.ROOT_KEY_CURRENT_USER,
+                    "Software\\Mozilla\\Firefox\\Metro\\Prefs\\" + prefType,
+                    Ci.nsIWindowsRegKey.ACCESS_WRITE);
+      // Always write as string, but the registry subfolder will determine
+      // how Metro interprets that string value.
+      registry.writeStringValue(aPrefName, prefValue);
+    } catch (ex) {
+      Components.utils.reportError("Couldn't push pref " + aPrefName + ": " + ex);
+    } finally {
+      registry.close();
+    }
+  }
+};
+#endif
+#endif
 
 var gHomeButton = {
   prefDomain: "browser.startup.homepage",
@@ -5543,6 +5626,14 @@ var OfflineApps = {
       if (browser.contentWindow == aContentWindow)
         return browser;
     }
+    // handle other browser/iframe elements that may need popupnotifications
+    let browser = aContentWindow
+                          .QueryInterface(Ci.nsIInterfaceRequestor)
+                          .getInterface(Ci.nsIWebNavigation)
+                          .QueryInterface(Ci.nsIDocShell)
+                          .chromeEventHandler;
+    if (browser.getAttribute("popupnotificationanchor"))
+      return browser;
     return null;
   },
 
@@ -5579,6 +5670,15 @@ var OfflineApps = {
       }
     }
 
+    // is this from a non-tab browser/iframe?
+    browsers = document.querySelectorAll("iframe[popupnotificationanchor] | browser[popupnotificationanchor]");
+    for (let browser of browsers) {
+      uri = this._getManifestURI(browser.contentWindow);
+      if (uri && uri.equals(aCacheUpdate.manifestURI)) {
+        return browser;
+      }
+    }
+
     return null;
   },
 
@@ -5586,25 +5686,20 @@ var OfflineApps = {
     if (!aBrowser)
       return;
 
-    var notificationBox = gBrowser.getNotificationBox(aBrowser);
-    var notification = notificationBox.getNotificationWithValue("offline-app-usage");
-    if (!notification) {
-      var buttons = [{
-          label: gNavigatorBundle.getString("offlineApps.manageUsage"),
-          accessKey: gNavigatorBundle.getString("offlineApps.manageUsageAccessKey"),
-          callback: OfflineApps.manage
-        }];
+    let mainAction = {
+      label: gNavigatorBundle.getString("offlineApps.manageUsage"),
+      accessKey: gNavigatorBundle.getString("offlineApps.manageUsageAccessKey"),
+      callback: OfflineApps.manage
+    };
 
-      var warnQuota = gPrefService.getIntPref("offline-apps.quota.warn");
-      const priority = notificationBox.PRIORITY_WARNING_MEDIUM;
-      var message = gNavigatorBundle.getFormattedString("offlineApps.usage",
-                                                        [ aURI.host,
-                                                          warnQuota / 1024 ]);
+    let warnQuota = gPrefService.getIntPref("offline-apps.quota.warn");
+    let message = gNavigatorBundle.getFormattedString("offlineApps.usage",
+                                                      [ aURI.host,
+                                                        warnQuota / 1024 ]);
 
-      notificationBox.appendNotification(message, "offline-app-usage",
-                                         "chrome://browser/skin/Info.png",
-                                         priority, buttons);
-    }
+    let anchorID = "indexedDB-notification-icon";
+    PopupNotifications.show(aBrowser, "offline-app-usage", message,
+                            anchorID, mainAction);
 
     // Now that we've warned once, prevent the warning from showing up
     // again.
@@ -5940,7 +6035,7 @@ function warnAboutClosingWindow() {
   // Popups aren't considered full browser windows.
   let isPBWindow = PrivateBrowsingUtils.isWindowPrivate(window);
   if (!isPBWindow && !toolbar.visible)
-    return gBrowser.warnAboutClosingTabs(true);
+    return gBrowser.warnAboutClosingTabs(gBrowser.closingTabsEnum.ALL);
 
   // Figure out if there's at least one other browser window around.
   let e = Services.wm.getEnumerator("navigator:browser");
@@ -5975,7 +6070,7 @@ function warnAboutClosingWindow() {
   }
 
   if (nonPopupPresent) {
-    return isPBWindow || gBrowser.warnAboutClosingTabs(true);
+    return isPBWindow || gBrowser.warnAboutClosingTabs(gBrowser.closingTabsEnum.ALL);
   }
 
   let os = Services.obs;
@@ -5993,7 +6088,7 @@ function warnAboutClosingWindow() {
   // OS X doesn't quit the application when the last window is closed, but keeps
   // the session alive. Hence don't prompt users to save tabs, but warn about
   // closing multiple tabs.
-  return isPBWindow || gBrowser.warnAboutClosingTabs(true);
+  return isPBWindow || gBrowser.warnAboutClosingTabs(gBrowser.closingTabsEnum.ALL);
 #else
   return true;
 #endif
@@ -6894,6 +6989,13 @@ var TabContextMenu = {
     // Only one of pin/unpin should be visible
     document.getElementById("context_pinTab").hidden = this.contextTab.pinned;
     document.getElementById("context_unpinTab").hidden = !this.contextTab.pinned;
+
+    // Disable "Close Tabs to the Right" if there are no tabs
+    // following it and hide it when the user rightclicked on a pinned
+    // tab.
+    document.getElementById("context_closeTabsToTheEnd").disabled =
+      gBrowser.getTabsToTheEndFrom(this.contextTab).length == 0;
+    document.getElementById("context_closeTabsToTheEnd").hidden = this.contextTab.pinned;
 
     // Disable "Close other Tabs" if there is only one unpinned tab and
     // hide it when the user rightclicked on a pinned tab.
