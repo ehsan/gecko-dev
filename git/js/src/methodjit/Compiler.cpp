@@ -113,7 +113,6 @@ mjit::Compiler::Compiler(JSContext *cx, StackFrame *fp)
     doubleList(CompilerAllocPolicy(cx, *thisFromCtor())),
     jumpTables(CompilerAllocPolicy(cx, *thisFromCtor())),
     jumpTableOffsets(CompilerAllocPolicy(cx, *thisFromCtor())),
-    rootedObjects(CompilerAllocPolicy(cx, *thisFromCtor())),
     stubcc(cx, *thisFromCtor(), frame, script),
     debugMode_(cx->compartment->debugMode),
 #if defined JS_TRACER
@@ -458,8 +457,7 @@ mjit::Compiler::finishThisUp(JITScript **jitp)
                        sizeof(ic::GetElementIC) * getElemICs.length() +
                        sizeof(ic::SetElementIC) * setElemICs.length() +
 #endif
-                       sizeof(CallSite) * callSites.length() +
-                       sizeof(JSObject *) * rootedObjects.length();
+                       sizeof(CallSite) * callSites.length();
 
     uint8 *cursor = (uint8 *)cx->calloc_(dataSize);
     if (!cursor) {
@@ -821,13 +819,6 @@ mjit::Compiler::finishThisUp(JITScript **jitp)
                             : from.returnOffset;
         to.initialize(codeOffset, from.pc - script->code, from.id);
     }
-
-    /* Build the list of objects rooted by the script. */
-    JSObject **jitRooted = (JSObject **)cursor;
-    jit->nRootedObjects = rootedObjects.length();
-    cursor += sizeof(JSObject *) * jit->nRootedObjects;
-    for (size_t i = 0; i < jit->nRootedObjects; i++)
-        jitRooted[i] = rootedObjects[i];
 
     JS_ASSERT(size_t(cursor - (uint8*)jit) == dataSize);
 
@@ -3249,12 +3240,6 @@ mjit::Compiler::jsop_callprop_str(JSAtom *atom)
     JSObject *obj;
     if (!js_GetClassPrototype(cx, &fp->scopeChain(), JSProto_String, &obj))
         return false;
-
-    /*
-     * Root the proto, since JS_ClearScope might overwrite the global object's
-     * copy.
-     */
-    rootedObjects.append(obj);
 
     /* Force into a register because getprop won't expect a constant. */
     RegisterID reg = frame.allocReg();

@@ -382,7 +382,7 @@ private:
   imgFrame* GetCurrentDrawableImgFrame();
   PRUint32 GetCurrentImgFrameIndex() const;
   
-  inline void EnsureAnimExists()
+  inline Anim* ensureAnimExists()
   {
     if (!mAnim) {
 
@@ -400,6 +400,7 @@ private:
       // is acceptable for the moment.
       LockImage();
     }
+    return mAnim;
   }
   
   /** Function for doing the frame compositing of animations

@@ -1195,7 +1195,7 @@ nsTreeSanitizer::SanitizeAttributes(mozilla::dom::Element* aElement,
     rv = NS_OK;
     const nsAttrName* attrName = aElement->GetAttrNameAt(i);
     PRInt32 attrNs = attrName->NamespaceID();
-    nsIAtom* attrLocal = attrName->LocalName();
+    nsIAtom* attrLocal = attrName->Atom();
 
     if (kNameSpaceID_None == attrNs) {
       if (aAllowStyle && nsGkAtoms::style == attrLocal) {
@@ -1227,12 +1227,7 @@ nsTreeSanitizer::SanitizeAttributes(mozilla::dom::Element* aElement,
         continue;
       }
       if (IsURL(aURLs, attrLocal)) {
-        if (SanitizeURL(aElement, attrNs, attrLocal)) {
-          // in case the attribute removal shuffled the attribute order, start
-          // the loop again.
-          --ac;
-          i = ac; // i will be decremented immediately thanks to the for loop
-        }
+        SanitizeURL(aElement, attrNs, attrLocal);
         continue;
       }
       if (aAllowed->GetEntry(attrLocal) &&
@@ -1257,12 +1252,7 @@ nsTreeSanitizer::SanitizeAttributes(mozilla::dom::Element* aElement,
       // else not allowed
     } else if (kNameSpaceID_XML == attrNs) {
       if (nsGkAtoms::base == attrLocal) {
-        if (SanitizeURL(aElement, attrNs, attrLocal)) {
-          // in case the attribute removal shuffled the attribute order, start
-          // the loop again.
-          --ac;
-          i = ac; // i will be decremented immediately thanks to the for loop
-        }
+        SanitizeURL(aElement, attrNs, attrLocal);
         continue;
       }
       if (nsGkAtoms::lang == attrLocal || nsGkAtoms::space == attrLocal) {
@@ -1271,12 +1261,7 @@ nsTreeSanitizer::SanitizeAttributes(mozilla::dom::Element* aElement,
       // else not allowed
     } else if (aAllowXLink && kNameSpaceID_XLink == attrNs) {
       if (nsGkAtoms::href == attrLocal) {
-        if (SanitizeURL(aElement, attrNs, attrLocal)) {
-          // in case the attribute removal shuffled the attribute order, start
-          // the loop again.
-          --ac;
-          i = ac; // i will be decremented immediately thanks to the for loop
-        }
+        SanitizeURL(aElement, attrNs, attrLocal);
         continue;
       }
       if (nsGkAtoms::type == attrLocal || nsGkAtoms::title == attrLocal
@@ -1303,7 +1288,7 @@ nsTreeSanitizer::SanitizeAttributes(mozilla::dom::Element* aElement,
   }
 }
 
-PRBool
+void
 nsTreeSanitizer::SanitizeURL(mozilla::dom::Element* aElement,
                              PRInt32 aNamespace,
                              nsIAtom* aLocalName)
@@ -1327,9 +1312,7 @@ nsTreeSanitizer::SanitizeURL(mozilla::dom::Element* aElement,
   }
   if (NS_FAILED(rv)) {
     aElement->UnsetAttr(aNamespace, aLocalName, PR_FALSE);
-    return PR_TRUE;
   }
-  return PR_FALSE;
 }
 
 void

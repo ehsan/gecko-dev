@@ -1088,7 +1088,7 @@ class ItemCounterState
   }
 
   PRBool mIsCallerSecure;
-  PRUint32 mCount;
+  PRBool mCount;
  private:
   ItemCounterState(); // Not to be implemented
 };

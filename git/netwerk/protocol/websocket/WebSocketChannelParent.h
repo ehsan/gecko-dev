@@ -71,6 +71,7 @@ class WebSocketChannelParent : public PWebSocketParent,
   bool RecvSendMsg(const nsCString& aMsg);
   bool RecvSendBinaryMsg(const nsCString& aMsg);
   bool RecvDeleteSelf();
+  bool CancelEarly();
 
   void ActorDestroy(ActorDestroyReason why);
 

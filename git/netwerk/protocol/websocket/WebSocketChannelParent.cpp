@@ -83,25 +83,21 @@ WebSocketChannelParent::RecvAsyncOpen(const IPC::URI& aURI,
       do_CreateInstance("@mozilla.org/network/protocol;1?name=ws", &rv);
   }
   if (NS_FAILED(rv))
-    goto fail;
+    return CancelEarly();
 
   rv = mChannel->SetNotificationCallbacks(this);
   if (NS_FAILED(rv))
-    goto fail;
+    return CancelEarly();
 
   rv = mChannel->SetProtocol(aProtocol);
   if (NS_FAILED(rv))
-    goto fail;
+    return CancelEarly();
 
   rv = mChannel->AsyncOpen(aURI, aOrigin, this, nsnull);
   if (NS_FAILED(rv))
-    goto fail;
+    return CancelEarly();
 
   return true;
-
-fail:
-  mChannel = nsnull;
-  return SendOnStop(rv);
 }
 
 bool
@@ -135,6 +131,13 @@ WebSocketChannelParent::RecvSendBinaryMsg(const nsCString& aMsg)
     NS_ENSURE_SUCCESS(rv, true);
   }
   return true;
+}
+
+bool
+WebSocketChannelParent::CancelEarly()
+{
+  LOG(("WebSocketChannelParent::CancelEarly() %p\n", this));
+  return mIPCOpen ? SendAsyncOpenFailed() : true;
 }
 
 NS_IMETHODIMP

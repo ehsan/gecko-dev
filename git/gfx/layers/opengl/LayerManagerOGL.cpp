@@ -945,10 +945,7 @@ LayerManagerOGL::SetupPipeline(int aWidth, int aHeight, WorldTransforPolicy aTra
     viewMatrix = mWorldMatrix * viewMatrix;
   }
 
-  gfx3DMatrix matrix3d = gfx3DMatrix::From2D(viewMatrix);
-  matrix3d._33 = 0.0f;
-
-  SetLayerProgramProjectionMatrix(matrix3d);
+  SetLayerProgramProjectionMatrix(gfx3DMatrix::From2D(viewMatrix));
 }
 
 void

@@ -643,8 +643,9 @@ void
 nsHtml5TreeBuilder::SetDocumentCharset(nsACString& aCharset, 
                                        PRInt32 aCharsetSource)
 {
-  mSpeculativeLoadQueue.AppendElement()->InitSetDocumentCharset(aCharset,
-                                                                aCharsetSource);
+  nsHtml5TreeOperation* treeOp = mOpQueue.AppendElement();
+  NS_ASSERTION(treeOp, "Tree op allocation failed.");
+  treeOp->Init(eTreeOpSetDocumentCharset, aCharset, aCharsetSource);  
 }
 
 void

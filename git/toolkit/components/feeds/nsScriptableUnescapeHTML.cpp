@@ -188,21 +188,19 @@ nsScriptableUnescapeHTML::ParseFragment(const nsAString &aFragment,
                                         PR_FALSE,
                                         PR_TRUE);
       // Now, set the base URI on all subtree roots.
-      if (aBaseURI) {
-        aBaseURI->GetSpec(spec);
-        nsAutoString spec16;
-        CopyUTF8toUTF16(spec, spec16);
-        nsIContent* node = fragment->GetFirstChild();
-        while (node) {
-          if (node->IsElement()) {
-            node->SetAttr(kNameSpaceID_XML,
-                          nsGkAtoms::base,
-                          nsGkAtoms::xml,
-                          spec16,
-                          PR_FALSE);
-          }
-          node = node->GetNextSibling();
+      aBaseURI->GetSpec(spec);
+      nsAutoString spec16;
+      CopyUTF8toUTF16(spec, spec16);
+      nsIContent* node = fragment->GetFirstChild();
+      while (node) {
+        if (node->IsElement()) {
+          node->SetAttr(kNameSpaceID_XML,
+                        nsGkAtoms::base,
+                        nsGkAtoms::xml,
+                        spec16,
+                        PR_FALSE);
         }
+        node = node->GetNextSibling();
       }
     }
     if (fragment) {

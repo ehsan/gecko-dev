@@ -73,6 +73,7 @@ enum eHtml5TreeOperation {
   eTreeOpDoneAddingChildren,
   eTreeOpDoneCreatingElement,
   eTreeOpFlushPendingAppendNotifications,
+  eTreeOpSetDocumentCharset,
   eTreeOpNeedsCharsetSwitchTo,
   eTreeOpUpdateStyleSheet,
   eTreeOpProcessMeta,

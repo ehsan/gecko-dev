@@ -687,9 +687,8 @@ nsHTMLSelectElement::Add(nsIDOMHTMLElement* aElement,
   nsresult rv = aBefore->GetDataType(&dataType);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // aBefore is omitted, undefined or null
-  if (dataType == nsIDataType::VTYPE_EMPTY ||
-      dataType == nsIDataType::VTYPE_VOID) {
+  // aBefore is omitted or null
+  if (dataType == nsIDataType::VTYPE_EMPTY) {
     return Add(aElement);
   }
 

@@ -138,7 +138,8 @@ PlacesController.prototype = {
   },
 
   terminate: function PC_terminate() {
-    this._releaseClipboardOwnership();
+    if (this._cutNodes.length > 0)
+      this._clearClipboard();
   },
 
   supportsCommand: function PC_supportsCommand(aCommand) {
@@ -1127,20 +1128,14 @@ PlacesController.prototype = {
     return action;
   },
 
-  _releaseClipboardOwnership: function PC__releaseClipboardOwnership() {
-    if (this.cutNodes.length > 0) {
-      // This clears the logical clipboard, doesn't remove data.
-      this.clipboard.emptyClipboard(Ci.nsIClipboard.kGlobalClipboard);
-    }
-  },
-
   _clearClipboard: function PC__clearClipboard() {
+    this.clipboard.emptyClipboard(Ci.nsIClipboard.kGlobalClipboard);
+    // Unfortunately just invoking emptyClipboard is not enough, since it
+    // does not act on the native clipboard.
     let xferable = Cc["@mozilla.org/widget/transferable;1"].
                    createInstance(Ci.nsITransferable);
-    // Empty transferables may cause crashes, so just add an unknown type.
-    const TYPE = "text/x-moz-place-empty";
-    xferable.addDataFlavor(TYPE);
-    xferable.setTransferData(TYPE, PlacesUtils.toISupportsString(""), 0);
+    // GTK doesn't like empty transferables, so just add an unknown type.
+    xferable.addDataFlavor("text/x-moz-place-empty");
     this.clipboard.setData(xferable, null, Ci.nsIClipboard.kGlobalClipboard);
   },
 
@@ -1200,15 +1195,11 @@ PlacesController.prototype = {
     // concurrent instances of the application.
     addData(PlacesUtils.TYPE_X_MOZ_PLACE_ACTION, aAction + "," + this.profileName);
 
-    if (hasData) {
-      this.clipboard.setData(xferable,
-                             this.cutNodes.length > 0 ? this : null,
-                             Ci.nsIClipboard.kGlobalClipboard);
-    }
+    if (hasData)
+      this.clipboard.setData(xferable, this, Ci.nsIClipboard.kGlobalClipboard);
   },
 
   _cutNodes: [],
-  get cutNodes() this._cutNodes,
   set cutNodes(aNodes) {
     let self = this;
     function updateCutNodes(aValue) {
