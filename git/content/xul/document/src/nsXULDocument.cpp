@@ -369,6 +369,10 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsXULDocument, nsXMLDocument)
         tmp->mPendingOverlayLoadNotifications.EnumerateRead(TraverseObservers, &cb);
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(nsXULDocument, nsXMLDocument)
+    NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mTooltipNode)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+
 NS_IMPL_ADDREF_INHERITED(nsXULDocument, nsXMLDocument)
 NS_IMPL_RELEASE_INHERITED(nsXULDocument, nsXMLDocument)
 
@@ -440,6 +444,8 @@ nsXULDocument::StartDocumentLoad(const char* aCommand, nsIChannel* aChannel,
     mDocumentTitle.SetIsVoid(PR_TRUE);
 
     mChannel = aChannel;
+
+    mHaveInputEncoding = PR_TRUE;
 
     // Get the URI.  Note that this should match nsDocShell::OnLoadingSite
     nsresult rv =
@@ -1730,6 +1736,14 @@ nsXULDocument::RemoveSubtreeFromDocument(nsIContent* aElement)
     // Do a bunch of cleanup to remove an element from the XUL
     // document.
     nsresult rv;
+
+    if (aElement->NodeInfo()->Equals(nsGkAtoms::keyset, kNameSpaceID_XUL)) {
+        nsCOMPtr<nsIXBLService> xblService(do_GetService("@mozilla.org/xbl;1"));
+        if (xblService) {
+            nsCOMPtr<nsPIDOMEventTarget> piTarget(do_QueryInterface(aElement));
+            xblService->DetachGlobalKeyHandler(piTarget);
+        }
+    }
 
     // 1. Remove any children from the document.
     PRUint32 count = aElement->GetChildCount();

@@ -49,7 +49,6 @@
 #include "nsToolkit.h"
 
 #include "nsIWidget.h"
-#include "nsIKBStateControl.h"
 
 #include "nsIMouseListener.h"
 #include "nsIEventListener.h"
@@ -114,8 +113,7 @@ const LPCSTR kClassNameDialog         = "MozillaDialogClass";
  */
 
 class nsWindow : public nsSwitchToUIThread,
-                 public nsBaseWidget,
-                 public nsIKBStateControl
+                 public nsBaseWidget
 {
 public:
   nsWindow();
@@ -212,18 +210,16 @@ public:
   gfxASurface             *GetThebesSurface();
 
 #ifdef MOZ_XUL
-  NS_IMETHOD              SetHasTransparentBackground(PRBool aTransparent);
-  NS_IMETHOD              GetHasTransparentBackground(PRBool& aTransparent);
+  virtual void            SetTransparencyMode(nsTransparencyMode aMode);
+  virtual nsTransparencyMode GetTransparencyMode();
 private:
-  nsresult                SetWindowTranslucencyInner(PRBool aTransparent);
-  PRBool                  GetWindowTranslucencyInner() { return mIsTransparent; }
+  void                    SetWindowTranslucencyInner(nsTransparencyMode aMode);
+  nsTransparencyMode      GetWindowTranslucencyInner() const { return mTransparencyMode; }
   void                    ResizeTranslucentWindow(PRInt32 aNewWidth, PRInt32 aNewHeight, PRBool force = PR_FALSE);
   nsresult                UpdateTranslucentWindow();
-  nsresult                SetupTranslucentWindowMemoryBitmap(PRBool aTransparent);
+  void                    SetupTranslucentWindowMemoryBitmap(nsTransparencyMode aMode);
 public:
 #endif
-
-  // nsIKBStateControl interface
 
   NS_IMETHOD ResetInputState();
   NS_IMETHOD SetIMEOpenState(PRBool aState);
@@ -331,9 +327,26 @@ protected:
   BOOL                    OnIMEQueryCharPosition(LPARAM aData, LRESULT *oResult);
 
   void                    GetCompositionString(HIMC aHIMC, DWORD aIndex, nsString* aStrUnicode);
-  void                    ResolveIMECaretPos(nsWindow* aClient,
-                                             nsRect&   aEventResult,
-                                             nsRect&   aResult);
+
+  /**
+   *  ResolveIMECaretPos
+   *  Convert the caret rect of a composition event to another widget's
+   *  coordinate system.
+   *
+   *  @param aReferenceWidget The origin widget of aCursorRect.
+   *                          Typically, this is mReferenceWidget of the
+   *                          composing events. If the aCursorRect is in screen
+   *                          coordinates, set nsnull.
+   *  @param aCursorRect      The cursor rect.
+   *  @param aNewOriginWidget aOutRect will be in this widget's coordinates. If
+   *                          this is nsnull, aOutRect will be in screen
+   *                          coordinates.
+   *  @param aOutRect         The converted cursor rect.
+   */
+  void                    ResolveIMECaretPos(nsIWidget* aReferenceWidget,
+                                             nsRect&    aCursorRect,
+                                             nsIWidget* aNewOriginWidget,
+                                             nsRect&    aOutRect);
 
   virtual PRBool          DispatchKeyEvent(PRUint32 aEventType, WORD aCharCode,
                             const nsTArray<nsAlternativeCharCode>* aAlternativeChars,
@@ -399,11 +412,9 @@ protected:
   static PRInt32    sIMECompClauseArrayLength;
   static PRInt32    sIMECompClauseArraySize;
   static long       sIMECursorPosition;
-  static PRUnichar* sIMEReconvertUnicode; // reconvert string
 
   // For describing composing frame
   static RECT*      sIMECompCharPos;
-  static PRInt32    sIMECaretHeight;
 
   static PRBool     sIsInEndSession;
 
@@ -423,13 +434,8 @@ protected:
   nsRefPtr<gfxWindowsSurface> mTransparentSurface;
 
   HDC           mMemoryDC;
-  HBITMAP       mMemoryBitmap;
-  PRUint8*      mMemoryBits;
-  PRUint8*      mAlphaMask;
-  PRPackedBool  mIsTransparent;
-  PRPackedBool  mIsTopTransparent;     // Topmost window itself or any of it's child windows has tranlucency enabled
+  nsTransparencyMode mTransparencyMode;
 #endif
-  PRPackedBool  mHasAeroGlass;
   PRPackedBool  mIsTopWidgetWindow;
   PRPackedBool  mHas3DBorder;
   PRPackedBool  mIsShiftDown;

@@ -228,10 +228,7 @@ SessionStoreService.prototype = {
           this._initialState.session && this._initialState.session.state &&
           this._initialState.session.state == STATE_RUNNING_STR;
         
-        // restore the features of the first window from localstore.rdf
-        WINDOW_ATTRIBUTES.forEach(function(aAttr) {
-          delete this._initialState.windows[0][aAttr];
-        }, this);
+        // make sure that at least the first window doesn't have anything hidden
         delete this._initialState.windows[0].hidden;
       }
       catch (ex) { debug("The session file is invalid: " + ex); }
@@ -2050,19 +2047,6 @@ SessionStoreService.prototype = {
       return dimension;
     }
     return aWindow.document.documentElement.getAttribute(aAttribute) || dimension;
-  },
-
-  /**
-   * Convenience method to get localized string bundles
-   * @param aURI
-   * @returns nsIStringBundle
-   */
-  _getStringBundle: function sss_getStringBundle(aURI) {
-     var bundleService = Cc["@mozilla.org/intl/stringbundle;1"].
-                         getService(Ci.nsIStringBundleService);
-     var appLocale = Cc["@mozilla.org/intl/nslocaleservice;1"].
-                     getService(Ci.nsILocaleService).getApplicationLocale();
-     return bundleService.createBundle(aURI, appLocale);
   },
 
   /**

@@ -71,10 +71,19 @@
 
 gfxPlatform *gPlatform = nsnull;
 int gGlitzState = -1;
+
+// These two may point to the same profile
 static cmsHPROFILE gCMSOutputProfile = nsnull;
+static cmsHPROFILE gCMSsRGBProfile = nsnull;
+
 static cmsHTRANSFORM gCMSRGBTransform = nsnull;
 static cmsHTRANSFORM gCMSInverseRGBTransform = nsnull;
 static cmsHTRANSFORM gCMSRGBATransform = nsnull;
+
+static const char *CMPrefName = "gfx.color_management.mode";
+static const char *CMPrefNameOld = "gfx.color_management.enabled";
+static const char *CMIntentPrefName = "gfx.color_management.rendering_intent";
+static void MigratePrefs();
 
 // this needs to match the list of pref font.default.xx entries listed in all.js!
 // the order *must* match the order in eFontPrefLang
@@ -169,6 +178,9 @@ gfxPlatform::Init()
         return rv;
     }
 
+    /* Pref migration hook. */
+    MigratePrefs();
+
     return NS_OK;
 }
 
@@ -183,6 +195,33 @@ gfxPlatform::Shutdown()
 #if defined(XP_MACOSX)
     gfxQuartzFontCache::Shutdown();
 #endif
+
+    // Free the various non-null transforms and loaded profiles
+    if (gCMSRGBTransform) {
+        cmsDeleteTransform(gCMSRGBTransform);
+        gCMSRGBTransform = nsnull;
+    }
+    if (gCMSInverseRGBTransform) {
+        cmsDeleteTransform(gCMSInverseRGBTransform);
+        gCMSInverseRGBTransform = nsnull;
+    }
+    if (gCMSRGBATransform) {
+        cmsDeleteTransform(gCMSRGBATransform);
+        gCMSRGBATransform = nsnull;
+    }
+    if (gCMSOutputProfile) {
+        cmsCloseProfile(gCMSOutputProfile);
+
+        // handle the aliased case
+        if (gCMSsRGBProfile == gCMSOutputProfile)
+            gCMSsRGBProfile = nsnull;
+        gCMSOutputProfile = nsnull;
+    }
+    if (gCMSsRGBProfile) {
+        cmsCloseProfile(gCMSsRGBProfile);
+        gCMSsRGBProfile = nsnull;
+    }
+    
     delete gPlatform;
     gPlatform = nsnull;
 }
@@ -419,24 +458,64 @@ gfxPlatform::AppendPrefLang(eFontPrefLang aPrefLangs[], PRUint32& aLen, eFontPre
     }
 }
 
-PRBool
-gfxPlatform::IsCMSEnabled()
+eCMSMode
+gfxPlatform::GetCMSMode()
 {
-    static PRBool sEnabled = -1;
-    if (sEnabled == -1) {
-        sEnabled = PR_TRUE;
+    static eCMSMode sMode = eCMSMode_Off;
+    static PRBool initialized = PR_FALSE;
+
+    if (initialized == PR_FALSE) {
+        initialized = PR_TRUE;
         nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
         if (prefs) {
-            PRBool enabled;
+            PRInt32 mode;
             nsresult rv =
-                prefs->GetBoolPref("gfx.color_management.enabled", &enabled);
-            if (NS_SUCCEEDED(rv)) {
-                sEnabled = enabled;
+                prefs->GetIntPref(CMPrefName, &mode);
+            if (NS_SUCCEEDED(rv) && (mode >= 0) && (mode < eCMSMode_AllCount)) {
+                sMode = static_cast<eCMSMode>(mode);
             }
         }
     }
-    return sEnabled;
+    return sMode;
 }
+
+/* Chris Murphy (CM consultant) suggests this as a default in the event that we
+cannot reproduce relative + Black Point Compensation.  BPC brings an
+unacceptable performance overhead, so we go with perceptual. */
+#define INTENT_DEFAULT INTENT_PERCEPTUAL
+
+PRBool
+gfxPlatform::GetRenderingIntent()
+{
+    /* -2 means that we haven't tried querying the pref service yet. */
+    static int sIntent = -2;
+
+    if (sIntent == -2) {
+
+        /* Try to query the pref system for a rendering intent. */
+        nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+        if (prefs) {
+            PRInt32 pIntent;
+            nsresult rv = prefs->GetIntPref(CMIntentPrefName, &pIntent);
+            if (NS_SUCCEEDED(rv)) {
+              
+                /* If the pref is within range, use it as an override. */
+                if ((pIntent >= INTENT_MIN) && (pIntent <= INTENT_MAX))
+                    sIntent = pIntent;
+
+                /* If the pref is out of range, use embedded profile. */
+                else
+                    sIntent = -1;
+            }
+        }
+
+        /* If we didn't get a valid intent from prefs, use the default. */
+        if (sIntent == -2) 
+            sIntent = INTENT_DEFAULT;
+    }
+    return sIntent;
+}
+
 
 cmsHPROFILE
 gfxPlatform::GetPlatformCMSOutputProfile()
@@ -478,11 +557,19 @@ gfxPlatform::GetCMSOutputProfile()
         }
 
         if (!gCMSOutputProfile) {
-            gCMSOutputProfile = cmsCreate_sRGBProfile();
+            gCMSOutputProfile = GetCMSsRGBProfile();
         }
     }
 
     return gCMSOutputProfile;
+}
+
+cmsHPROFILE
+gfxPlatform::GetCMSsRGBProfile()
+{
+    if (!gCMSsRGBProfile)
+        gCMSsRGBProfile = cmsCreate_sRGBProfile();
+    return gCMSsRGBProfile;
 }
 
 cmsHTRANSFORM
@@ -491,7 +578,7 @@ gfxPlatform::GetCMSRGBTransform()
     if (!gCMSRGBTransform) {
         cmsHPROFILE inProfile, outProfile;
         outProfile = GetCMSOutputProfile();
-        inProfile = cmsCreate_sRGBProfile();
+        inProfile = GetCMSsRGBProfile();
 
         if (!inProfile || !outProfile)
             return nsnull;
@@ -510,7 +597,7 @@ gfxPlatform::GetCMSInverseRGBTransform()
     if (!gCMSInverseRGBTransform) {
         cmsHPROFILE inProfile, outProfile;
         inProfile = GetCMSOutputProfile();
-        outProfile = cmsCreate_sRGBProfile();
+        outProfile = GetCMSsRGBProfile();
 
         if (!inProfile || !outProfile)
             return nsnull;
@@ -529,7 +616,7 @@ gfxPlatform::GetCMSRGBATransform()
     if (!gCMSRGBATransform) {
         cmsHPROFILE inProfile, outProfile;
         outProfile = GetCMSOutputProfile();
-        inProfile = cmsCreate_sRGBProfile();
+        inProfile = GetCMSsRGBProfile();
 
         if (!inProfile || !outProfile)
             return nsnull;
@@ -540,4 +627,28 @@ gfxPlatform::GetCMSRGBATransform()
     }
 
     return gCMSRGBATransform;
+}
+
+static void MigratePrefs()
+{
+
+    /* Load the pref service. If we don't get it die quietly since this isn't
+       critical code. */
+    nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
+    if (!prefs)
+        return;
+
+    /* Migrate from the boolean color_management.enabled pref - we now use
+       color_management.mode. */
+    PRBool hasOldCMPref;
+    nsresult rv =
+        prefs->PrefHasUserValue(CMPrefNameOld, &hasOldCMPref);
+    if (NS_SUCCEEDED(rv) && (hasOldCMPref == PR_TRUE)) {
+        PRBool CMWasEnabled;
+        rv = prefs->GetBoolPref(CMPrefNameOld, &CMWasEnabled);
+        if (NS_SUCCEEDED(rv) && (CMWasEnabled == PR_TRUE))
+            prefs->SetIntPref(CMPrefName, eCMSMode_All);
+        prefs->ClearUserPref(CMPrefNameOld);
+    }
+
 }

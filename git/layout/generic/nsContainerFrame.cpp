@@ -70,6 +70,9 @@
 #include "nsIEventStateManager.h"
 #include "nsListControlFrame.h"
 #include "nsIBaseWindow.h"
+#include "nsThemeConstants.h"
+#include "nsCSSFrameConstructor.h"
+#include "nsThemeConstants.h"
 
 #ifdef NS_DEBUG
 #undef NOISY
@@ -495,7 +498,15 @@ SyncFrameViewGeometryDependentProperties(nsPresContext*  aPresContext,
 
     if (aView->HasWidget() && aView == rootView &&
         IsTopLevelWidget(aPresContext)) {
-      aView->GetWidget()->SetHasTransparentBackground(nsLayoutUtils::FrameHasTransparency(aFrame));
+      // The issue here is that the CSS 'background' propagates from the root
+      // element's frame (rootFrame) to the real root frame (nsViewportFrame),
+      // so we need to call GetFrameTransparency on that. But -moz-appearance
+      // does not propagate so we need to check that directly on rootFrame.
+      nsTransparencyMode mode = nsLayoutUtils::GetFrameTransparency(aFrame);
+      nsIFrame *rootFrame = aPresContext->PresShell()->FrameConstructor()->GetRootElementStyleFrame();
+      if(rootFrame && NS_THEME_WIN_GLASS == rootFrame->GetStyleDisplay()->mAppearance)
+        mode = eTransparencyGlass;
+      aView->GetWidget()->SetTransparencyMode(mode);
     }
   }
 }
@@ -666,7 +677,7 @@ nsContainerFrame::DoInlineIntrinsicWidth(nsIRenderingContext *aRenderingContext,
   if (!GetPrevContinuation()) {
     aData->currentLine +=
       GetCoord(stylePadding->mPadding.Get(startSide), 0) +
-      styleBorder->GetBorderWidth(startSide) +
+      styleBorder->GetActualBorderWidth(startSide) +
       GetCoord(styleMargin->mMargin.Get(startSide), 0);
   }
 
@@ -703,7 +714,7 @@ nsContainerFrame::DoInlineIntrinsicWidth(nsIRenderingContext *aRenderingContext,
   if (!lastInFlow->GetNextContinuation()) {
     aData->currentLine +=
       GetCoord(stylePadding->mPadding.Get(endSide), 0) +
-      styleBorder->GetBorderWidth(endSide) +
+      styleBorder->GetActualBorderWidth(endSide) +
       GetCoord(styleMargin->mMargin.Get(endSide), 0);
   }
 }

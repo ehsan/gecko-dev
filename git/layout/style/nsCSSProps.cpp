@@ -68,12 +68,25 @@ const char* const kCSSRawProperties[] = {
 
 static PRInt32 gTableRefCount;
 static nsStaticCaseInsensitiveNameTable* gPropertyTable;
+static nsStaticCaseInsensitiveNameTable* gFontDescTable;
+
+// Keep in sync with enum nsCSSFontDesc in nsCSSProperty.h.
+static const char* const kCSSRawFontDescs[] = {
+  "font-family",
+  "font-style",
+  "font-weight",
+  "font-stretch",
+  "src",
+  "unicode-range"
+};
 
 void
 nsCSSProps::AddRefTable(void) 
 {
   if (0 == gTableRefCount++) {
     NS_ASSERTION(!gPropertyTable, "pre existing array!");
+    NS_ASSERTION(!gFontDescTable, "pre existing array!");
+
     gPropertyTable = new nsStaticCaseInsensitiveNameTable();
     if (gPropertyTable) {
 #ifdef DEBUG
@@ -83,12 +96,29 @@ nsCSSProps::AddRefTable(void)
         nsCAutoString temp1(kCSSRawProperties[index]);
         nsCAutoString temp2(kCSSRawProperties[index]);
         ToLowerCase(temp1);
-        NS_ASSERTION(temp1.Equals(temp2), "upper case char in table");
-        NS_ASSERTION(-1 == temp1.FindChar('_'), "underscore char in table");
+        NS_ASSERTION(temp1.Equals(temp2), "upper case char in prop table");
+        NS_ASSERTION(-1 == temp1.FindChar('_'), "underscore char in prop table");
       }
     }
 #endif      
-      gPropertyTable->Init(kCSSRawProperties, eCSSProperty_COUNT); 
+      gPropertyTable->Init(kCSSRawProperties, eCSSProperty_COUNT);
+    }
+
+    gFontDescTable = new nsStaticCaseInsensitiveNameTable();
+    if (gFontDescTable) {
+#ifdef DEBUG
+    {
+      // let's verify the table...
+      for (PRInt32 index = 0; index < eCSSFontDesc_COUNT; ++index) {
+        nsCAutoString temp1(kCSSRawFontDescs[index]);
+        nsCAutoString temp2(kCSSRawFontDescs[index]);
+        ToLowerCase(temp1);
+        NS_ASSERTION(temp1.Equals(temp2), "upper case char in desc table");
+        NS_ASSERTION(-1 == temp1.FindChar('_'), "underscore char in desc table");
+      }
+    }
+#endif      
+      gFontDescTable->Init(kCSSRawFontDescs, eCSSFontDesc_COUNT); 
     }
   }
 }
@@ -100,6 +130,10 @@ nsCSSProps::ReleaseTable(void)
     if (gPropertyTable) {
       delete gPropertyTable;
       gPropertyTable = nsnull;
+    }
+    if (gFontDescTable) {
+      delete gFontDescTable;
+      gFontDescTable = nsnull;
     }
   }
 }
@@ -160,12 +194,38 @@ nsCSSProps::LookupProperty(const nsAString& aProperty)
   return res;
 }
 
+nsCSSFontDesc 
+nsCSSProps::LookupFontDesc(const nsACString& aFontDesc)
+{
+  NS_ASSERTION(gFontDescTable, "no lookup table, needs addref");
+  return nsCSSFontDesc(gFontDescTable->Lookup(aFontDesc));
+}
+
+nsCSSFontDesc 
+nsCSSProps::LookupFontDesc(const nsAString& aFontDesc)
+{
+  NS_ASSERTION(gFontDescTable, "no lookup table, needs addref");
+  return nsCSSFontDesc(gFontDescTable->Lookup(aFontDesc));
+}
+
 const nsAFlatCString& 
 nsCSSProps::GetStringValue(nsCSSProperty aProperty)
 {
   NS_ASSERTION(gPropertyTable, "no lookup table, needs addref");
   if (gPropertyTable) {
     return gPropertyTable->GetStringValue(PRInt32(aProperty));
+  } else {
+    static nsDependentCString sNullStr("");
+    return sNullStr;
+  }
+}
+
+const nsAFlatCString& 
+nsCSSProps::GetStringValue(nsCSSFontDesc aFontDescID)
+{
+  NS_ASSERTION(gFontDescTable, "no lookup table, needs addref");
+  if (gFontDescTable) {
+    return gFontDescTable->GetStringValue(PRInt32(aFontDescID));
   } else {
     static nsDependentCString sNullStr("");
     return sNullStr;
@@ -231,8 +291,6 @@ const PRInt32 nsCSSProps::kAppearanceKTable[] = {
   eCSSKeyword_scrollbartrack_vertical,      NS_THEME_SCROLLBAR_TRACK_VERTICAL,
   eCSSKeyword_scrollbarthumb_horizontal,    NS_THEME_SCROLLBAR_THUMB_HORIZONTAL,
   eCSSKeyword_scrollbarthumb_vertical,      NS_THEME_SCROLLBAR_THUMB_VERTICAL,
-  eCSSKeyword_scrollbargripper_horizontal,  NS_THEME_SCROLLBAR_GRIPPER_HORIZONTAL,
-  eCSSKeyword_scrollbargripper_vertical,    NS_THEME_SCROLLBAR_GRIPPER_VERTICAL,
   eCSSKeyword_textfield,              NS_THEME_TEXTFIELD,
   eCSSKeyword_textfield_multiline,    NS_THEME_TEXTFIELD_MULTILINE,
   eCSSKeyword_caret,                  NS_THEME_TEXTFIELD_CARET,
@@ -269,6 +327,7 @@ const PRInt32 nsCSSProps::kAppearanceKTable[] = {
   eCSSKeyword__moz_win_media_toolbox, NS_THEME_WIN_MEDIA_TOOLBOX,
   eCSSKeyword__moz_win_communications_toolbox, NS_THEME_WIN_COMMUNICATIONS_TOOLBOX,
   eCSSKeyword__moz_win_browsertabbar_toolbox,  NS_THEME_WIN_BROWSER_TAB_BAR_TOOLBOX,
+  eCSSKeyword__moz_win_glass,         NS_THEME_WIN_GLASS,
   eCSSKeyword_UNKNOWN,-1
 };
 
@@ -349,6 +408,13 @@ const PRInt32 nsCSSProps::kBorderCollapseKTable[] = {
 const PRInt32 nsCSSProps::kBorderColorKTable[] = {
   eCSSKeyword_transparent, NS_STYLE_COLOR_TRANSPARENT,
   eCSSKeyword__moz_use_text_color, NS_STYLE_COLOR_MOZ_USE_TEXT_COLOR,
+  eCSSKeyword_UNKNOWN,-1
+};
+
+const PRInt32 nsCSSProps::kBorderImageKTable[] = {
+  eCSSKeyword_stretch, NS_STYLE_BORDER_IMAGE_STRETCH,
+  eCSSKeyword_repeat, NS_STYLE_BORDER_IMAGE_REPEAT,
+  eCSSKeyword_round, NS_STYLE_BORDER_IMAGE_ROUND,
   eCSSKeyword_UNKNOWN,-1
 };
 
@@ -974,6 +1040,7 @@ const PRInt32 nsCSSProps::kWhitespaceKTable[] = {
   eCSSKeyword_nowrap, NS_STYLE_WHITESPACE_NOWRAP,
   eCSSKeyword_pre_wrap, NS_STYLE_WHITESPACE_PRE_WRAP,
   eCSSKeyword__moz_pre_wrap, NS_STYLE_WHITESPACE_PRE_WRAP,
+  eCSSKeyword_pre_line, NS_STYLE_WHITESPACE_PRE_LINE,
   eCSSKeyword_UNKNOWN,-1
 };
 
@@ -982,6 +1049,12 @@ const PRInt32 nsCSSProps::kWidthKTable[] = {
   eCSSKeyword__moz_min_content, NS_STYLE_WIDTH_MIN_CONTENT,
   eCSSKeyword__moz_fit_content, NS_STYLE_WIDTH_FIT_CONTENT,
   eCSSKeyword__moz_available, NS_STYLE_WIDTH_AVAILABLE,
+  eCSSKeyword_UNKNOWN,-1
+};
+
+const PRInt32 nsCSSProps::kWordwrapKTable[] = {
+  eCSSKeyword_normal, NS_STYLE_WORDWRAP_NORMAL,
+  eCSSKeyword_break_word, NS_STYLE_WORDWRAP_BREAK_WORD,
   eCSSKeyword_UNKNOWN,-1
 };
 
@@ -1592,6 +1665,13 @@ static const nsCSSProperty gOutlineSubpropTable[] = {
   eCSSProperty_outline_color,
   eCSSProperty_outline_style,
   eCSSProperty_outline_width,
+  eCSSProperty_UNKNOWN
+};
+
+static const nsCSSProperty gMozColumnRuleSubpropTable[] = {
+  eCSSProperty__moz_column_rule_width,
+  eCSSProperty__moz_column_rule_style,
+  eCSSProperty__moz_column_rule_color,
   eCSSProperty_UNKNOWN
 };
 
