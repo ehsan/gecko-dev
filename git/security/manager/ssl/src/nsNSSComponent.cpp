@@ -23,7 +23,7 @@
 #include "mozilla/PublicSSL.h"
 #include "mozilla/StaticPtr.h"
 
-#ifndef MOZ_DISABLE_CRYPTOLEGACY
+#ifndef MOZ_NO_SMART_CARDS
 #include "nsSmartCardMonitor.h"
 #endif
 
@@ -213,7 +213,7 @@ GetOCSPBehaviorFromPrefs(/*out*/ CertVerifier::ocsp_download_config* odc,
 nsNSSComponent::nsNSSComponent()
   :mutex("nsNSSComponent.mutex"),
    mNSSInitialized(false),
-#ifndef MOZ_DISABLE_CRYPTOLEGACY
+#ifndef MOZ_NO_SMART_CARDS
    mThreadList(nullptr),
 #endif
    mCertVerificationThread(nullptr)
@@ -357,7 +357,7 @@ nsNSSComponent::GetNSSBundleString(const char* name, nsAString& outString)
   return rv;
 }
 
-#ifndef MOZ_DISABLE_CRYPTOLEGACY
+#ifndef MOZ_NO_SMART_CARDS
 void
 nsNSSComponent::LaunchSmartCardThreads()
 {
@@ -413,7 +413,7 @@ nsNSSComponent::ShutdownSmartCardThreads()
   delete mThreadList;
   mThreadList = nullptr;
 }
-#endif // MOZ_DISABLE_CRYPTOLEGACY
+#endif // MOZ_NO_SMART_CARDS
 
 void
 nsNSSComponent::LoadLoadableRoots()
@@ -1033,7 +1033,7 @@ nsNSSComponent::InitializeNSS()
 
   mHttpForNSS.initTable();
 
-#ifndef MOZ_DISABLE_CRYPTOLEGACY
+#ifndef MOZ_NO_SMART_CARDS
   LaunchSmartCardThreads();
 #endif
 
@@ -1072,7 +1072,7 @@ nsNSSComponent::ShutdownNSS()
       PR_LOG(gPIPNSSLog, PR_LOG_ERROR, ("nsNSSComponent::ShutdownNSS cannot stop observing cipher suite change\n"));
     }
 
-#ifndef MOZ_DISABLE_CRYPTOLEGACY
+#ifndef MOZ_NO_SMART_CARDS
     ShutdownSmartCardThreads();
 #endif
     SSL_ClearSessionCache();
