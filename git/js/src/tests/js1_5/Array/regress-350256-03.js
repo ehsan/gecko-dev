@@ -1,12 +1,10 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- * vim: sw=2 ts=8 et :
- */
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
  * The contents of this file are subject to the Mozilla Public License Version
  * 1.1 (the "License"); you may not use this file except in compliance with
- * the License. You may obtain a copy of the License at:
+ * the License. You may obtain a copy of the License at
  * http://www.mozilla.org/MPL/
  *
  * Software distributed under the License is distributed on an "AS IS" basis,
@@ -14,15 +12,14 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is Mozilla Code.
+ * The Original Code is JavaScript Engine testing utilities.
  *
  * The Initial Developer of the Original Code is
- *   The Mozilla Foundation
- * Portions created by the Initial Developer are Copyright (C) 2011
+ * Mozilla Foundation.
+ * Portions created by the Initial Developer are Copyright (C) 2006
  * the Initial Developer. All Rights Reserved.
  *
- * Contributor(s):
- *   Chris Jones <jones.chris.g@gmail.com>
+ * Contributor(s): Bertrand Le Roy
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -38,30 +35,44 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#ifndef mozilla_layers_ShadowLayerUtilsD3D10_h
-#define mozilla_layers_ShadowLayerUtilsD3D10_h
+//-----------------------------------------------------------------------------
+var BUGNUMBER = 350256;
+var summary = 'Array.apply maximum arguments: 2^19-1024';
+var actual = '';
+var expect = '';
 
-#define MOZ_HAVE_PLATFORM_SPECIFIC_LAYER_BUFFERS
+expectExitCode(0);
+expectExitCode(5);
 
-struct ID3D10Device;
-struct ID3D10Texture2D;
+//-----------------------------------------------------------------------------
+test(Math.pow(2, 19)-1024);
+//-----------------------------------------------------------------------------
 
-namespace mozilla {
-namespace layers {
+function test(length)
+{
+  enterFunc ('test');
+  printBugNumber(BUGNUMBER);
+  printStatus (summary);
 
-class SurfaceDescriptorD3D10;
+  var a = new Array();
+  a[length - 2] = 'length-2';
+  a[length - 1] = 'length-1';
 
-/**
- * Write into |aDescr| a cross-process descriptor of |aTexture|, if
- * possible.  Return true iff |aDescr| was successfully set.
- */
-bool
-GetDescriptor(ID3D10Texture2D* aTexture, SurfaceDescriptorD3D10* aDescr);
+  var b = Array.apply(null, a);
 
-already_AddRefed<ID3D10Texture2D>
-OpenForeign(ID3D10Device* aDevice, const SurfaceDescriptorD3D10& aDescr);
+  expect = length + ',length-2,length-1';
+  actual = b.length + "," + b[length - 2] + "," + b[length - 1];
+  reportCompare(expect, actual, summary);
 
-} // namespace layers
-} // namespace mozilla
+  function f() {
+    return arguments.length + "," + arguments[length - 2] + "," +
+      arguments[length - 1];
+  }
 
-#endif  // mozilla_layers_ShadowLayerUtilsD3D10_h
+  expect = length + ',length-2,length-1';
+  actual = f.apply(null, a);
+
+  reportCompare(expect, actual, summary);
+
+  exitFunc ('test');
+}
