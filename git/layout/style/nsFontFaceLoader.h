@@ -67,7 +67,8 @@ public:
 
   // returns whether create succeeded or not
   static nsresult CreateHandler(gfxFontEntry *aFontToLoad, 
-                                const gfxFontFaceSrc *aFontFaceSrc,
+                                nsIURI *aFontURI,
+                                nsIURI *aReferrerURI,
                                 gfxUserFontSet::LoaderContext *aContext);
                               
 private:

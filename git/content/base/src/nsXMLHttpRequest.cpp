@@ -1738,16 +1738,11 @@ CheckMayLoad(nsIPrincipal* aPrincipal, nsIChannel* aChannel)
 {
   NS_ASSERTION(!IsSystemPrincipal(aPrincipal), "Shouldn't get here!");
 
-  nsCOMPtr<nsIURI> channelURI, originalURI;
+  nsCOMPtr<nsIURI> channelURI;
   nsresult rv = aChannel->GetURI(getter_AddRefs(channelURI));
-  NS_ENSURE_SUCCESS(rv, PR_FALSE);
-  rv = aChannel->GetOriginalURI(getter_AddRefs(originalURI));
   NS_ENSURE_SUCCESS(rv, PR_FALSE);
 
   rv = aPrincipal->CheckMayLoad(channelURI, PR_FALSE);
-  if (NS_SUCCEEDED(rv) && originalURI != channelURI) {
-    rv = aPrincipal->CheckMayLoad(originalURI, PR_FALSE);
-  }
   return NS_SUCCEEDED(rv);
 }
 
@@ -2494,8 +2489,9 @@ nsXMLHttpRequest::Send(nsIVariant *aBody)
           rv = storStream->GetOutputStream(0, getter_AddRefs(output));
           NS_ENSURE_SUCCESS(rv, rv);
 
-          // Make sure to use the encoding we'll send
-          rv = serializer->SerializeToStream(doc, output, charset);
+          // Empty string for encoding means to use document's current
+          // encoding.
+          rv = serializer->SerializeToStream(doc, output, EmptyCString());
           NS_ENSURE_SUCCESS(rv, rv);
 
           output->Close();

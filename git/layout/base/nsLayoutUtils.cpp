@@ -1553,20 +1553,6 @@ nsLayoutUtils::FindNearestBlockAncestor(nsIFrame* aFrame)
 }
 
 nsIFrame*
-nsLayoutUtils::GetNonGeneratedAncestor(nsIFrame* aFrame)
-{
-  if (!(aFrame->GetStateBits() & NS_FRAME_GENERATED_CONTENT))
-    return aFrame;
-
-  nsFrameManager* frameManager = aFrame->PresContext()->FrameManager();
-  nsIFrame* f = aFrame;
-  do {
-    f = GetParentOrPlaceholderFor(frameManager, f);
-  } while (f->GetStateBits() & NS_FRAME_GENERATED_CONTENT);
-  return f;
-}
-
-nsIFrame*
 nsLayoutUtils::GetParentOrPlaceholderFor(nsFrameManager* aFrameManager,
                                          nsIFrame* aFrame)
 {
@@ -3041,18 +3027,6 @@ nsLayoutUtils::GetDeviceContextForScreenInfo(nsIDocShell* aDocShell)
   }
 
   return nsnull;
-}
-
-/* static */ PRBool
-nsLayoutUtils::IsReallyFixedPos(nsIFrame* aFrame)
-{
-  NS_PRECONDITION(aFrame->GetParent(),
-                  "IsReallyFixedPos called on frame not in tree");
-  NS_PRECONDITION(aFrame->GetStyleDisplay()->mPosition ==
-                    NS_STYLE_POSITION_FIXED,
-                  "IsReallyFixedPos called on non-'position:fixed' frame");
-
-  return aFrame->GetParent()->GetType() == nsGkAtoms::viewportFrame;
 }
 
 nsSetAttrRunnable::nsSetAttrRunnable(nsIContent* aContent, nsIAtom* aAttrName,
