@@ -209,7 +209,7 @@ js_StringToInt32(JSContext* cx, JSString* str)
     const jschar* end;
     const jschar* ep;
     jsdouble d;
-
+    
     if (str->length() == 1) {
         jschar c = str->chars()[0];
         if ('0' <= c && c <= '9')
@@ -228,25 +228,64 @@ js_StringToInt32(JSContext* cx, JSString* str)
 }
 JS_DEFINE_CALLINFO_2(extern, INT32, js_StringToInt32, CONTEXT, STRING, 1, 1)
 
+SideExit* FASTCALL
+js_CallTree(InterpState* state, Fragment* f)
+{
+    union { NIns *code; GuardRecord* (FASTCALL *func)(InterpState*, Fragment*); } u;
+
+    u.code = f->code();
+    JS_ASSERT(u.code);
+
+    GuardRecord* rec;
+#if defined(JS_NO_FASTCALL) && defined(NANOJIT_IA32)
+    SIMULATE_FASTCALL(rec, state, NULL, u.func);
+#else
+    rec = u.func(state, NULL);
+#endif
+    VMSideExit* lr = (VMSideExit*)rec->exit;
+
+    if (lr->exitType == NESTED_EXIT) {
+        /* This only occurs once a tree call guard mismatches and we unwind the tree call stack.
+           We store the first (innermost) tree call guard in state and we will try to grow
+           the outer tree the failing call was in starting at that guard. */
+        if (!state->lastTreeCallGuard) {
+            state->lastTreeCallGuard = lr;
+            FrameInfo** rp = (FrameInfo**)state->rp;
+            state->rpAtLastTreeCall = rp + lr->calldepth;
+        }
+    } else {
+        /* If the tree exits on a regular (non-nested) guard, keep updating lastTreeExitGuard
+           with that guard. If we mismatch on a tree call guard, this will contain the last
+           non-nested guard we encountered, which is the innermost loop or branch guard. */
+        state->lastTreeExitGuard = lr;
+    }
+
+    /* Keep updating outermostTreeExit so that InterpState always contains the most recent
+       return value of js_CallTree. */
+    state->outermostTreeExitGuard = lr;
+
+    return lr;
+}
+JS_DEFINE_CALLINFO_2(extern, SIDEEXIT, js_CallTree, INTERPSTATE, FRAGMENT, 0, 0)
+
 JSBool FASTCALL
 js_AddProperty(JSContext* cx, JSObject* obj, JSScopeProperty* sprop)
 {
+    JS_ASSERT(OBJ_IS_NATIVE(obj));
     JS_LOCK_OBJ(cx, obj);
 
-    uint32 slot = sprop->slot;
     JSScope* scope = OBJ_SCOPE(obj);
-    JS_ASSERT(slot == scope->freeslot);
-    JS_ASSERT(sprop->parent == scope->lastProperty());
-
+    uint32 slot;
     if (scope->owned()) {
-        JS_ASSERT(!scope->hasProperty(sprop));
+        JS_ASSERT(!scope->has(sprop));
     } else {
         scope = js_GetMutableScope(cx, obj);
         if (!scope)
             goto exit_trace;
     }
 
-    if (!scope->table) {
+    slot = sprop->slot;
+    if (!scope->table && sprop->parent == scope->lastProp && slot == scope->freeslot) {
         if (slot < STOBJ_NSLOTS(obj) && !OBJ_GET_CLASS(cx, obj)->reserveSlots) {
             JS_ASSERT(JSVAL_IS_VOID(STOBJ_GET_SLOT(obj, scope->freeslot)));
             ++scope->freeslot;
@@ -262,9 +301,10 @@ js_AddProperty(JSContext* cx, JSObject* obj, JSScopeProperty* sprop)
 
         scope->extend(cx, sprop);
     } else {
-        JSScopeProperty *sprop2 =
-            scope->addProperty(cx, sprop->id, sprop->getter, sprop->setter, SPROP_INVALID_SLOT,
-                               sprop->attrs, sprop->flags, sprop->shortid);
+        JSScopeProperty *sprop2 = scope->add(cx, sprop->id,
+                                             sprop->getter, sprop->setter,
+                                             SPROP_INVALID_SLOT, sprop->attrs,
+                                             sprop->flags, sprop->shortid);
         if (sprop2 != sprop)
             goto exit_trace;
     }
@@ -400,11 +440,11 @@ js_PopInterpFrame(JSContext* cx, InterpState* state)
         return JS_FALSE;
     if (cx->fp->imacpc)
         return JS_FALSE;
-
+    
     /* Update display table. */
     if (cx->fp->script->staticLevel < JS_DISPLAY_SIZE)
         cx->display[cx->fp->script->staticLevel] = cx->fp->displaySave;
-
+    
     /* Pop the frame and its memory. */
     cx->fp = cx->fp->down;
     JS_ASSERT(cx->fp->regs == &ifp->callerRegs);

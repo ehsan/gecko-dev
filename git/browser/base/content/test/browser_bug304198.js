@@ -38,6 +38,10 @@
 function test() {
   waitForExplicitFinish();
 
+  waitForFocus(continue_test);
+}
+
+function continue_test() {
   let charsToDelete, deletedURLTab, fullURLTab, partialURLTab, testPartialURL, testURL;
 
   charsToDelete = 5;

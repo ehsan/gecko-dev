@@ -277,7 +277,7 @@ ToDisassemblySource(JSContext *cx, jsval v)
 
         if (clasp == &js_BlockClass) {
             char *source = JS_sprintf_append(NULL, "depth %d {", OBJ_BLOCK_DEPTH(cx, obj));
-            for (JSScopeProperty *sprop = OBJ_SCOPE(obj)->lastProperty();
+            for (JSScopeProperty *sprop = OBJ_SCOPE(obj)->lastProp;
                  sprop;
                  sprop = sprop->parent) {
                 const char *bytes = js_AtomToPrintableString(cx, JSID_TO_ATOM(sprop->id));
@@ -819,20 +819,16 @@ js_printf(JSPrinter *jp, const char *format, ...)
     /* If pretty-printing, expand magic tab into a run of jp->indent spaces. */
     if (*format == '\t') {
         format++;
-        if (jp->pretty && Sprint(&jp->sprinter, "%*s", jp->indent, "") < 0) {
-            va_end(ap);
+        if (jp->pretty && Sprint(&jp->sprinter, "%*s", jp->indent, "") < 0)
             return -1;
-        }
     }
 
     /* Suppress newlines (must be once per format, at the end) if not pretty. */
     fp = NULL;
     if (!jp->pretty && format[cc = strlen(format) - 1] == '\n') {
         fp = JS_strdup(jp->sprinter.context, format);
-        if (!fp) {
-            va_end(ap);
+        if (!fp)
             return -1;
-        }
         fp[cc] = '\0';
         format = fp;
     }
@@ -845,7 +841,6 @@ js_printf(JSPrinter *jp, const char *format, ...)
     }
     if (!bp) {
         JS_ReportOutOfMemory(jp->sprinter.context);
-        va_end(ap);
         return -1;
     }
 
@@ -1316,7 +1311,7 @@ GetLocal(SprintStack *ss, jsint i)
     }
 
     i -= depth;
-    for (sprop = OBJ_SCOPE(obj)->lastProperty(); sprop; sprop = sprop->parent) {
+    for (sprop = OBJ_SCOPE(obj)->lastProp; sprop; sprop = sprop->parent) {
         if (sprop->shortid == i)
             break;
     }
@@ -2634,7 +2629,7 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                 MUST_FLOW_THROUGH("enterblock_out");
 #define LOCAL_ASSERT_OUT(expr) LOCAL_ASSERT_CUSTOM(expr, ok = JS_FALSE; \
                                                    goto enterblock_out)
-                for (sprop = OBJ_SCOPE(obj)->lastProperty(); sprop;
+                for (sprop = OBJ_SCOPE(obj)->lastProp; sprop;
                      sprop = sprop->parent) {
                     if (!(sprop->flags & SPROP_HAS_SHORTID))
                         continue;
@@ -3554,15 +3549,6 @@ Decompile(SprintStack *ss, jsbytecode *pc, intN nb, JSOp nextop)
                     if (Sprint(&ss->sprinter, " + %s", argv[i]) < 0)
                         goto out;
                 }
-
-                /*
-                 * The only way that our next op could be a JSOP_ADD is
-                 * if we are about to concatenate at least one non-string
-                 * literal. Deal with that here in order to avoid extra
-                 * parentheses (because JSOP_ADD is left-associative).
-                 */
-                if (pc[len] == JSOP_ADD)
-                    saveop = JSOP_NOP;
 
                 ok = JS_TRUE;
 
@@ -4921,7 +4907,7 @@ js_DecompileScript(JSPrinter *jp, JSScript *script)
 JSString *
 js_DecompileToString(JSContext *cx, const char *name, JSFunction *fun,
                      uintN indent, JSBool pretty, JSBool grouped, JSBool strict,
-                     JSDecompilerPtr decompiler)
+                     JSBool (*decompiler)(JSPrinter *jp))
 {
     JSPrinter *jp;
     JSString *str;

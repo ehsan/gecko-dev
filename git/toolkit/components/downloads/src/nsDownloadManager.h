@@ -91,9 +91,6 @@ public:
   nsDownloadManager() :
       mDBType(DATABASE_DISK)
     , mInPrivateBrowsing(PR_FALSE)
-#ifdef DOWNLOAD_SCANNER
-    , mScanner(nsnull)
-#endif
   {
   }
 

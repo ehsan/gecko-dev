@@ -82,7 +82,6 @@
 class nsIAppShell;
 
 nsAppShellService::nsAppShellService() : 
-  mXPCOMWillShutDown(PR_FALSE),
   mXPCOMShuttingDown(PR_FALSE),
   mModalWindowCount(0),
   mApplicationProvidedHiddenWindow(PR_FALSE)
@@ -90,10 +89,8 @@ nsAppShellService::nsAppShellService() :
   nsCOMPtr<nsIObserverService> obs
     (do_GetService("@mozilla.org/observer-service;1"));
 
-  if (obs) {
-    obs->AddObserver(this, "xpcom-will-shutdown", PR_FALSE);
+  if (obs)
     obs->AddObserver(this, "xpcom-shutdown", PR_FALSE);
-  }
 }
 
 nsAppShellService::~nsAppShellService()
@@ -300,7 +297,6 @@ nsAppShellService::JustCreateTopWindow(nsIXULWindow *aParent,
                                        nsWebShellWindow **aResult)
 {
   *aResult = nsnull;
-  NS_ENSURE_STATE(!mXPCOMWillShutDown);
 
   nsCOMPtr<nsIXULWindow> parent;
   if (aChromeMask & nsIWebBrowserChrome::CHROME_DEPENDENT)
@@ -566,16 +562,12 @@ NS_IMETHODIMP
 nsAppShellService::Observe(nsISupports* aSubject, const char *aTopic,
                            const PRUnichar *aData)
 {
-  if (!strcmp(aTopic, "xpcom-will-shutdown")) {
-    mXPCOMWillShutDown = PR_TRUE;
-  } else if (!strcmp(aTopic, "xpcom-shutdown")) {
-    mXPCOMShuttingDown = PR_TRUE;
-    if (mHiddenWindow) {
-      ClearXPConnectSafeContext();
-      mHiddenWindow->Destroy();
-    }
-  } else {
-    NS_ERROR("Unexpected observer topic!");
+  NS_ASSERTION(!strcmp(aTopic, "xpcom-shutdown"), "Unexpected observer topic!");
+
+  mXPCOMShuttingDown = PR_TRUE;
+  if (mHiddenWindow) {
+    ClearXPConnectSafeContext();
+    mHiddenWindow->Destroy();
   }
 
   return NS_OK;

@@ -267,15 +267,11 @@ nsPopupSetFrame::RemovePopupFrame(nsIFrame* aPopup)
 nsresult
 nsPopupSetFrame::AddPopupFrameList(nsFrameList& aPopupFrameList)
 {
-  while (!aPopupFrameList.IsEmpty()) {
-    nsIFrame* f = aPopupFrameList.FirstChild();
-    // Clears out prev/next sibling points appropriately. Every frame
-    // in our popup list has null next and prev pointers, they're logically
-    // each in their own list.
-    aPopupFrameList.RemoveFrame(f);
-    nsresult rv = AddPopupFrame(f);
+  for (nsFrameList::Enumerator e(aPopupFrameList); !e.AtEnd(); e.Next()) {
+    nsresult rv = AddPopupFrame(e.get());
     NS_ENSURE_SUCCESS(rv, rv);
   }
+  aPopupFrameList.Clear();
   return NS_OK;
 }
 

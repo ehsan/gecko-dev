@@ -61,7 +61,7 @@ namespace nanojit
 
     const Register Assembler::argRegs[] = { I0, I1, I2, I3, I4, I5 };
     const Register Assembler::retRegs[] = { O0 };
-    const Register Assembler::savedRegs[] = { L1 };
+    const Register Assembler::savedRegs[] = { I0, I1, I2, I3, I4, I5 };
 
     static const int kLinkageAreaSize = 68;
     static const int kcalleeAreaSize = 80; // The max size.
@@ -98,7 +98,7 @@ namespace nanojit
         verbose_only(
         if (_logc->lcbits & LC_Assembly) {
             outputf("        %p:",_nIns);
-            outputf("        patch entry:");
+            output("        patch entry:");
         })
         NIns *patchEntry = _nIns;
 
@@ -275,13 +275,16 @@ namespace nanojit
     }
 
 
-    void Assembler::asm_restore(LInsp i, Register r)
+    void Assembler::asm_restore(LInsp i, Reservation *unused, Register r)
     {
         underrunProtect(24);
         if (i->isop(LIR_alloc)) {
             ADD(FP, L2, r);
             int32_t d = disp(i);
             SET32(d, L2);
+            verbose_only(if (_logc->lcbits & LC_RegAlloc) {
+                outputf("        remat %s size %d", _thisfrag->lirbuf->names->formatRef(i), i->size());
+            })
         }
         else if (i->isconst()) {
             if (!i->getArIndex()) {
@@ -296,6 +299,9 @@ namespace nanojit
             } else {
                 LDSW32(FP, d, r);
             }
+            verbose_only(if (_logc->lcbits & LC_RegAlloc) {
+                outputf("        restore %s", _thisfrag->lirbuf->names->formatRef(i));
+            })
         }
     }
 
@@ -323,7 +329,7 @@ namespace nanojit
                     ra = findRegFor(value, GpRegs);
                     rb = G0;
                 } else {
-                    findRegFor2(GpRegs, value, ra, base, rb);
+                    findRegFor2b(GpRegs, value, ra, base, rb);
                 }
                 STW32(ra, dr, rb);
             }
@@ -550,7 +556,7 @@ namespace nanojit
         else
             {
                 Register ra, rb;
-                findRegFor2(GpRegs, lhs, ra, rhs, rb);
+                findRegFor2b(GpRegs, lhs, ra, rhs, rb);
                 SUBCC(ra, rb, G0);
             }
     }
@@ -784,7 +790,12 @@ namespace nanojit
     {
         uint32_t a = ins->paramArg();
         uint32_t kind = ins->paramKind();
-        prepResultReg(ins, rmask(argRegs[a]));
+        //        prepResultReg(ins, rmask(argRegs[a]));
+        if (kind == 0) {
+            prepResultReg(ins, rmask(argRegs[a]));
+        } else {
+            prepResultReg(ins, rmask(savedRegs[a]));
+        }
     }
 
     void Assembler::asm_int(LInsp ins)
@@ -879,8 +890,12 @@ namespace nanojit
         LDDF32(FP, d, rr);
     }
 
-    Register Assembler::asm_prep_fcall(LInsp ins)
+    Register Assembler::asm_prep_fcall(Reservation *unused, LInsp ins)
     {
+        Register rr;
+        if (ins->isUsed() && (rr = ins->getReg(), isKnownReg(rr)) && (rmask(rr) & FpRegs)) {
+            evict(rr, ins);
+        }
         return prepResultReg(ins, rmask(F0));
     }
 
@@ -981,7 +996,6 @@ namespace nanojit
 
     void Assembler::nativePageSetup()
     {
-        NanoAssert(!_inExit);
         if (!_nIns)
             codeAlloc(codeStart, codeEnd, _nIns verbose_only(, codeBytes));
         if (!_nExitIns)
@@ -1001,9 +1015,11 @@ namespace nanojit
     Assembler::underrunProtect(int n)
     {
         NIns *eip = _nIns;
-        // This may be in a normal code chunk or an exit code chunk.
-        if (eip - n < codeStart) {
-            codeAlloc(codeStart, codeEnd, _nIns verbose_only(, codeBytes));
+        if (eip - n < (_inExit ? exitStart : codeStart)) {
+            if (_inExit)
+                codeAlloc(exitStart, exitEnd, _nIns verbose_only(, exitBytes));
+            else
+                codeAlloc(codeStart, codeEnd, _nIns verbose_only(, codeBytes));
             JMP_long_nocheck((intptr_t)eip);
         }
     }
@@ -1023,13 +1039,6 @@ namespace nanojit
     void Assembler::asm_promote(LIns *) {
         // i2q or u2q
         TODO(asm_promote);
-    }
-
-    void Assembler::swapCodeChunks() {
-        SWAP(NIns*, _nIns, _nExitIns);
-        SWAP(NIns*, codeStart, exitStart);
-        SWAP(NIns*, codeEnd, exitEnd);
-        verbose_only( SWAP(size_t, codeBytes, exitBytes); )
     }
 
 #endif /* FEATURE_NANOJIT */

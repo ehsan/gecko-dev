@@ -1,4 +1,13 @@
 function test() {
+  waitForExplicitFinish();
+
+  if (Cc["@mozilla.org/focus-manager;1"].getService(Ci.nsIFocusManager).activeWindow !=
+      window) {
+    setTimeout(test, 0);
+    window.focus();
+    return;
+  }
+
   gPrefService.setBoolPref("browser.ctrlTab.previews", true);
 
   gBrowser.addTab();
@@ -77,6 +86,8 @@ function test() {
   // cleanup
   if (gPrefService.prefHasUserValue("browser.ctrlTab.previews"))
     gPrefService.clearUserPref("browser.ctrlTab.previews");
+
+  finish();
 
   /* private utility functions */
 
