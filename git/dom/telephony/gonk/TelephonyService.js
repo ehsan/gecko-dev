@@ -10,7 +10,6 @@ const {classes: Cc, interfaces: Ci, utils: Cu, results: Cr} = Components;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/Promise.jsm");
-Cu.import("resource://gre/modules/systemlibs.js");
 
 XPCOMUtils.defineLazyGetter(this, "RIL", function () {
   let obj = {};
@@ -50,8 +49,6 @@ const AUDIO_STATE_NAME = [
   "PHONE_STATE_RINGTONE",
   "PHONE_STATE_IN_CALL"
 ];
-
-const DEFAULT_EMERGENCY_NUMBERS = ["112", "911"];
 
 let DEBUG;
 function debug(s) {
@@ -334,26 +331,6 @@ TelephonyService.prototype = {
   },
 
   /**
-   * Check a given number against the list of emergency numbers provided by the
-   * RIL.
-   *
-   * @param aNumber
-   *        The number to look up.
-   */
-  _isEmergencyNumber: function(aNumber) {
-    // Check ril provided numbers first.
-    let numbers = libcutils.property_get("ril.ecclist") ||
-                  libcutils.property_get("ro.ril.ecclist");
-    if (numbers) {
-      numbers = numbers.split(",");
-    } else {
-      // No ecclist system property, so use our own list.
-      numbers = DEFAULT_EMERGENCY_NUMBERS;
-    }
-    return numbers.indexOf(aNumber) != -1;
-  },
-
-  /**
    * nsITelephonyService interface.
    */
 
@@ -397,71 +374,60 @@ TelephonyService.prototype = {
     aListener.enumerateCallStateComplete();
   },
 
-  _hasCallsOnOtherClient: function(aClientId) {
-    for (let cid = 0; cid < this._numClients; ++cid) {
-      if (cid === aClientId) {
-        continue;
-      }
-      if (Object.keys(this._currentCalls[cid]).length !== 0) {
-        return true;
-      }
-    }
-    return false;
-  },
-
-  // All calls in the conference is regarded as one conference call.
-  _numCallsOnLine: function(aClientId) {
-    let numCalls = 0;
-    let hasConference = false;
-
-    for (let cid in this._currentCalls[aClientId]) {
-      let call = this._currentCalls[aClientId][cid];
-      if (call.isConference) {
-        hasConference = true;
-      } else {
-        numCalls++;
-      }
-    }
-
-    return hasConference ? numCalls + 1 : numCalls;
-  },
-
   isDialing: false,
   dial: function(aClientId, aNumber, aIsEmergency, aTelephonyCallback) {
     if (DEBUG) debug("Dialing " + (aIsEmergency ? "emergency " : "") + aNumber);
 
     if (this.isDialing) {
-      if (DEBUG) debug("Error: Already has a dialing call.");
+      if (DEBUG) debug("Already has a dialing call. Drop.");
       aTelephonyCallback.notifyDialError(DIAL_ERROR_INVALID_STATE_ERROR);
       return;
     }
 
-    // Select a proper clientId for dialEmergency.
-    if (aIsEmergency) {
-      aClientId = gRadioInterfaceLayer.getClientIdForEmergencyCall() ;
-      if (aClientId === -1) {
-        if (DEBUG) debug("Error: No client is avaialble for emergency call.");
-        aTelephonyCallback.notifyDialError(DIAL_ERROR_INVALID_STATE_ERROR);
-        return;
+    function hasCallsOnOtherClient(aClientId) {
+      for (let cid = 0; cid < this._numClients; ++cid) {
+        if (cid === aClientId) {
+          continue;
+        }
+        if (Object.keys(this._currentCalls[cid]).length !== 0) {
+          return true;
+        }
       }
+      return false;
     }
 
     // For DSDS, if there is aleady a call on SIM 'aClientId', we cannot place
     // any new call on other SIM.
-    if (this._hasCallsOnOtherClient(aClientId)) {
-      if (DEBUG) debug("Error: Already has a call on other sim.");
+    if (hasCallsOnOtherClient.call(this, aClientId)) {
+      if (DEBUG) debug("Already has a call on other sim. Drop.");
       aTelephonyCallback.notifyDialError(DIAL_ERROR_OTHER_CONNECTION_IN_USE);
       return;
     }
 
-    // We can only have at most two calls on the same line (client).
-    if (this._numCallsOnLine(aClientId) >= 2) {
-      if (DEBUG) debug("Error: Has more than 2 calls on line.");
+    // All calls in the conference is regarded as one conference call.
+    function numCallsOnLine(aClientId) {
+      let numCalls = 0;
+      let hasConference = false;
+
+      for (let cid in this._currentCalls[aClientId]) {
+        let call = this._currentCalls[aClientId][cid];
+        if (call.isConference) {
+          hasConference = true;
+        } else {
+          numCalls++;
+        }
+      }
+
+      return hasConference ? numCalls + 1 : numCalls;
+    }
+
+    if (numCallsOnLine.call(this, aClientId) >= 2) {
+      if (DEBUG) debug("Has more than 2 calls on line. Drop.");
       aTelephonyCallback.notifyDialError(DIAL_ERROR_INVALID_STATE_ERROR);
       return;
     }
 
-    // We don't try to be too clever here, as the phone is probably in the
+    // we don't try to be too clever here, as the phone is probably in the
     // locked state. Let's just check if it's a number without normalizing
     if (!aIsEmergency) {
       aNumber = gPhoneNumberUtils.normalize(aNumber);
@@ -511,14 +477,9 @@ TelephonyService.prototype = {
       this.notifyCallStateChanged(aClientId, parentCall);
     };
 
-    let isEmergencyNumber = this._isEmergencyNumber(aNumber);
-    let msg = isEmergencyNumber ?
-              "dialEmergencyNumber" :
-              "dialNonEmergencyNumber";
     this.isDialing = true;
-    this._getClient(aClientId).sendWorkerMessage(msg, {
+    this._getClient(aClientId).sendWorkerMessage("dial", {
       number: aNumber,
-      isEmergency: isEmergencyNumber,
       isDialEmergency: aIsEmergency
     }, (function(response) {
       this.isDialing = false;
