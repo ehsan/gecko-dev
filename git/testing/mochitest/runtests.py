@@ -1755,7 +1755,6 @@ class Mochitest(MochitestUtilsMixin):
     options.totalChunks = None
     options.thisChunk = None
     options.chunkByDir = 0
-    result = 1 # default value, if no tests are run.
     inputTestPath = self.getTestPath(options)
     for dir in dirs:
       if inputTestPath and not inputTestPath.startswith(dir):

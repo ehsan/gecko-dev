@@ -11390,9 +11390,6 @@ nsCSSFrameConstructor::ConstructBlock(nsFrameConstructorState& aState,
       ResolveAnonymousBoxStyle(nsCSSAnonBoxes::columnContent, aStyleContext);
     parent = columnSetFrame;
     *aNewFrame = columnSetFrame;
-    if (aPositionedFrameForAbsPosContainer == blockFrame) {
-      aPositionedFrameForAbsPosContainer = columnSetFrame;
-    }
 
     SetInitialSingleChild(columnSetFrame, blockFrame);
   }

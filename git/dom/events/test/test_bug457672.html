@@ -48,8 +48,7 @@ function startTest() {
   // Note, focus/blur don't bubble
   window.addEventListener("focus", listener, false);
   window.addEventListener("blur", listener, false);
-  var subwin = window.open("about:blank", "", "");
-  subwin.addEventListener("focus", function(e) { subwin.close(); }, false);
+  window.open("bug457672.html", "", "");
 }
 
 addLoadEvent(startTest);

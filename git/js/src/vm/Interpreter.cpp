@@ -303,57 +303,37 @@ NameOperation(JSContext *cx, InterpreterFrame *fp, jsbytecode *pc, MutableHandle
     return FetchName<false>(cx, scopeRoot, pobjRoot, nameRoot, shapeRoot, vp);
 }
 
-static bool
-SetObjectProperty(JSContext *cx, JSOp op, HandleValue lval, HandleId id, MutableHandleValue rref)
+static inline bool
+SetPropertyOperation(JSContext *cx, HandleScript script, jsbytecode *pc, HandleValue lval,
+                     HandleValue rval)
 {
-    MOZ_ASSERT(lval.isObject());
+    MOZ_ASSERT(*pc == JSOP_SETPROP || *pc == JSOP_STRICTSETPROP);
 
-    RootedObject obj(cx, &lval.toObject());
+    bool strict = *pc == JSOP_STRICTSETPROP;
 
-    bool strict = op == JSOP_STRICTSETPROP;
+    RootedObject obj(cx, ToObjectFromStack(cx, lval));
+    if (!obj)
+        return false;
+
+    RootedValue rref(cx, rval);
+
+    RootedId id(cx, NameToId(script->getName(pc)));
     if (MOZ_LIKELY(!obj->getOps()->setProperty)) {
         if (!baseops::SetPropertyHelper<SequentialExecution>(cx,
                                                              obj.as<NativeObject>(),
                                                              obj.as<NativeObject>(),
                                                              id,
                                                              baseops::Qualified,
-                                                             rref, strict))
+                                                             &rref, strict))
         {
             return false;
         }
     } else {
-        if (!JSObject::setGeneric(cx, obj, obj, id, rref, strict))
+        if (!JSObject::setGeneric(cx, obj, obj, id, &rref, strict))
             return false;
     }
 
     return true;
-}
-
-static bool
-SetPrimitiveProperty(JSContext *cx, JSOp op, HandleValue lval, HandleId id,
-                     MutableHandleValue rref)
-{
-    MOZ_ASSERT(lval.isPrimitive());
-
-    RootedObject obj(cx, ToObjectFromStack(cx, lval));
-    if (!obj)
-        return false;
-
-    RootedValue receiver(cx, ObjectValue(*obj));
-    return SetObjectProperty(cx, op, receiver, id, rref);
-}
-
-static bool
-SetPropertyOperation(JSContext *cx, JSOp op, HandleValue lval, HandleId id, HandleValue rval)
-{
-    MOZ_ASSERT(op == JSOP_SETPROP || op == JSOP_STRICTSETPROP);
-
-    RootedValue rref(cx, rval);
-
-    if (lval.isPrimitive())
-        return SetPrimitiveProperty(cx, op, lval, id, &rref);
-
-    return SetObjectProperty(cx, op, lval, id, &rref);
 }
 
 bool
@@ -2423,9 +2403,7 @@ CASE(JSOP_STRICTSETPROP)
     HandleValue lval = REGS.stackHandleAt(-2);
     HandleValue rval = REGS.stackHandleAt(-1);
 
-    RootedId &id = rootId0;
-    id = NameToId(script->getName(REGS.pc));
-    if (!SetPropertyOperation(cx, JSOp(*REGS.pc), lval, id, rval))
+    if (!SetPropertyOperation(cx, script, REGS.pc, lval, rval))
         goto error;
 
     REGS.sp[-2] = REGS.sp[-1];

@@ -45,9 +45,9 @@ interface AudioContext : EventTarget {
     StereoPannerNode createStereoPanner();
     [NewObject]
     AnalyserNode createAnalyser();
-    [NewObject, Throws, UnsafeInPrerendering]
+    [NewObject, Throws]
     MediaElementAudioSourceNode createMediaElementSource(HTMLMediaElement mediaElement);
-    [NewObject, Throws, UnsafeInPrerendering]
+    [NewObject, Throws]
     MediaStreamAudioSourceNode createMediaStreamSource(MediaStream mediaStream);
     [NewObject]
     GainNode createGain();

@@ -18,13 +18,11 @@ public:
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(MP4DemuxerBinding);
 
   nsRefPtr<MockMediaResource> resource;
-  Monitor mMonitor;
   nsAutoPtr<MP4Demuxer> demuxer;
 
   explicit MP4DemuxerBinding(const char* aFileName = "dash_dashinit.mp4")
     : resource(new MockMediaResource(aFileName))
-    , mMonitor("TestMP4Demuxer monitor")
-    , demuxer(new MP4Demuxer(new MP4Stream(resource, &mMonitor), &mMonitor))
+    , demuxer(new MP4Demuxer(new MP4Stream(resource)))
   {
     EXPECT_EQ(NS_OK, resource->Open(nullptr));
   }
@@ -38,7 +36,6 @@ private:
 TEST(MP4Demuxer, Seek)
 {
   nsRefPtr<MP4DemuxerBinding> b = new MP4DemuxerBinding();
-  MonitorAutoLock mon(b->mMonitor);
   MP4Demuxer* d = b->demuxer;
 
   EXPECT_TRUE(d->Init());
@@ -90,7 +87,6 @@ ToCryptoString(CryptoSample& aCrypto)
 TEST(MP4Demuxer, CENC)
 {
   nsRefPtr<MP4DemuxerBinding> b = new MP4DemuxerBinding("short-cenc.mp4");
-  MonitorAutoLock mon(b->mMonitor);
   MP4Demuxer* d = b->demuxer;
 
   EXPECT_TRUE(d->Init());
@@ -151,7 +147,6 @@ TEST(MP4Demuxer, CENC)
 TEST(MP4Demuxer, CENCFrag)
 {
   nsRefPtr<MP4DemuxerBinding> b = new MP4DemuxerBinding("gizmo-frag.mp4");
-  MonitorAutoLock mon(b->mMonitor);
   MP4Demuxer* d = b->demuxer;
 
   EXPECT_TRUE(d->Init());

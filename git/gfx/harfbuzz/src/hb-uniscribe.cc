@@ -43,12 +43,6 @@
 #endif
 
 
-static inline uint16_t hb_uint16_swap (const uint16_t v)
-{ return (v >> 8) | (v << 8); }
-static inline uint32_t hb_uint32_swap (const uint32_t v)
-{ return (hb_uint16_swap (v) << 16) | hb_uint16_swap (v >> 16); }
-
-
 typedef HRESULT (WINAPI *SIOT) /*ScriptItemizeOpenType*/(
   const WCHAR *pwcInChars,
   int cInChars,
@@ -251,7 +245,7 @@ retry:
       goto retry;
     }
 
-#ifdef HB_USE_ATEXIT
+#ifdef HAVE_ATEXIT
     atexit (free_uniscribe_funcs); /* First person registers atexit() callback. */
 #endif
   }
@@ -909,7 +903,8 @@ retry:
       FAIL ("ScriptShapeOpenType() set fNoGlyphIndex");
     if (unlikely (hr == E_OUTOFMEMORY))
     {
-      if (unlikely (!buffer->ensure (buffer->allocated * 2)))
+      buffer->ensure (buffer->allocated * 2);
+      if (buffer->in_error)
 	FAIL ("Buffer resize failed");
       goto retry;
     }
@@ -978,7 +973,8 @@ retry:
 
 #undef utf16_index
 
-  if (unlikely (!buffer->ensure (glyphs_len)))
+  buffer->ensure (glyphs_len);
+  if (buffer->in_error)
     FAIL ("Buffer in error");
 
 #undef FAIL

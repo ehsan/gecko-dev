@@ -254,18 +254,8 @@ bool OmxDecoder::AllocateMediaResources()
     NS_ASSERTION(err == OK, "Failed to connect to OMX in mediaserver.");
     sp<IOMX> omx = client.interface();
 
-#if defined(MOZ_WIDGET_GONK) && ANDROID_VERSION >= 21
-    sp<IGraphicBufferProducer> producer;
-    sp<IGonkGraphicBufferConsumer> consumer;
-    GonkBufferQueue::createBufferQueue(&producer, &consumer);
-    mNativeWindow = new GonkNativeWindow(consumer);
-#else
     mNativeWindow = new GonkNativeWindow();
-#endif
-
-#if defined(MOZ_WIDGET_GONK) && ANDROID_VERSION >= 21
-    mNativeWindowClient = new GonkNativeWindowClient(producer);
-#elif defined(MOZ_WIDGET_GONK) && ANDROID_VERSION >= 17
+#if defined(MOZ_WIDGET_GONK) && ANDROID_VERSION >= 17
     mNativeWindowClient = new GonkNativeWindowClient(mNativeWindow->getBufferQueue());
 #else
     mNativeWindowClient = new GonkNativeWindowClient(mNativeWindow);
