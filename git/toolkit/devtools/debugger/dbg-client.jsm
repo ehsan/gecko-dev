@@ -1031,6 +1031,17 @@ ThreadClient.prototype = {
   },
 
   /**
+   * Request the loaded scripts for the current thread.
+   *
+   * @param aOnResponse Function
+   *        Called with the thread's response.
+   */
+  getScripts: function TC_getScripts(aOnResponse) {
+    let packet = { to: this._actor, type: "scripts" };
+    this._client.request(packet, aOnResponse);
+  },
+
+  /**
    * Request the loaded sources for the current thread.
    *
    * @param aOnResponse Function
@@ -1047,10 +1058,7 @@ ThreadClient.prototype = {
     // This is how we should deduct what sources exist from the existing scripts
     // when the server does not support "sources" requests.
     function getSourcesBackwardsCompat(aOnResponse) {
-      this._client.request({
-        to: this._actor,
-        type: "scripts"
-      }, function (aResponse) {
+      this.getScripts(function (aResponse) {
         if (aResponse.error) {
           aOnResponse(aResponse);
           return;
@@ -1093,6 +1101,27 @@ ThreadClient.prototype = {
       aAction();
       this.resume(function() {});
     }.bind(this));
+  },
+
+  /**
+   * Ensure that source scripts have been loaded in the
+   * ThreadClient's source script cache. A scriptsadded event will be
+   * sent when the source script cache is updated.
+   *
+   * @returns true if a scriptsadded notification should be expected.
+   */
+  fillScripts: function TC_fillScripts() {
+    let self = this;
+    this.getScripts(function(aResponse) {
+      for each (let script in aResponse.scripts) {
+        self._scriptCache[script.url] = script;
+      }
+      // If the cache was modified, notify listeners.
+      if (aResponse.scripts && aResponse.scripts.length) {
+        self.notify("scriptsadded");
+      }
+    });
+    return true;
   },
 
   /**
