@@ -32,6 +32,7 @@ IDBFileHandle::IDBFileHandle(FileMode aMode,
   : FileHandleBase(aMode, aRequestMode)
   , mMutableFile(aMutableFile)
 {
+  SetIsDOMBinding();
 }
 
 IDBFileHandle::~IDBFileHandle()

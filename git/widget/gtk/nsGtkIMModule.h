@@ -134,7 +134,7 @@ protected:
     nsString mDispatchedCompositionString;
 
     // mSelectedString is the selected string which was removed by first
-    // compositionchange event.
+    // text event.
     nsString mSelectedString;
 
     // OnKeyEvent() temporarily sets mProcessingKeyEvent to the given native
@@ -148,8 +148,8 @@ protected:
     enum eCompositionState {
         eCompositionState_NotComposing,
         eCompositionState_CompositionStartDispatched,
-        eCompositionState_CompositionChangeEventDispatched,
-        eCompositionState_CommitCompositionChangeEventDispatched
+        eCompositionState_TextEventDispatched,
+        eCompositionState_CommitTextEventDispatched
     };
     eCompositionState mCompositionState;
 
@@ -160,8 +160,7 @@ protected:
 
     bool EditorHasCompositionString()
     {
-        return (mCompositionState ==
-                    eCompositionState_CompositionChangeEventDispatched);
+        return (mCompositionState == eCompositionState_TextEventDispatched);
     }
 
 #ifdef PR_LOGGING
@@ -172,10 +171,10 @@ protected:
                 return "NotComposing";
             case eCompositionState_CompositionStartDispatched:
                 return "CompositionStartDispatched";
-            case eCompositionState_CompositionChangeEventDispatched:
-                return "CompositionChangeEventDispatched";
-            case eCompositionState_CommitCompositionChangeEventDispatched:
-                return "CommitCompositionChangeEventDispatched";
+            case eCompositionState_TextEventDispatched:
+                return "TextEventDispatched";
+            case eCompositionState_CommitTextEventDispatched:
+                return "CommitTextEventDispatched";
             default:
                 return "InvaildState";
         }
@@ -295,7 +294,7 @@ protected:
      *      - CommitCompositionBy
      *      - DispatchCompositionStart
      *      - DispatchCompositionEnd
-     *      - DispatchCompositionChangeEvent
+     *      - DispatchTextEvent
      */
 
     // Commits the current composition by the aString.
@@ -305,11 +304,10 @@ protected:
     bool DispatchCompositionStart();
     bool DispatchCompositionEnd();
 
-    // Dispatches a compositionchange event.  If aIsCommit is TRUE, dispatches
-    // a committed compositionchange event.  Otherwise, dispatches a composing
-    // compositionchange event.
-    bool DispatchCompositionChangeEvent(const nsAString& aCompositionString,
-                                        bool aIsCommit);
+    // Dispatches a text event.  If aIsCommit is TRUE, dispatches a committed
+    // text event.  Otherwise, dispatches a composing text event.
+    bool DispatchTextEvent(const nsAString& aCompositionString,
+                           bool aIsCommit);
 
 };
 

@@ -35,6 +35,8 @@ namespace dom {
 
 HTMLOptionsCollection::HTMLOptionsCollection(HTMLSelectElement* aSelect)
 {
+  SetIsDOMBinding();
+
   // Do not maintain a reference counted reference. When
   // the select goes away, it will let us know.
   mSelect = aSelect;

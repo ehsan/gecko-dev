@@ -60,6 +60,8 @@ IDBCursor::IDBCursor(Type aType,
   MOZ_ASSERT(!aKey.IsUnset());
   MOZ_ASSERT(mScriptOwner);
 
+  SetIsDOMBinding();
+
   if (mScriptOwner) {
     mozilla::HoldJSObjects(this);
     mRooted = true;

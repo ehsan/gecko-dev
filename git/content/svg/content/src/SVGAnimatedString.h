@@ -18,6 +18,7 @@ public:
   explicit SVGAnimatedString(nsSVGElement* aSVGElement)
     : mSVGElement(aSVGElement)
   {
+    SetIsDOMBinding();
   }
 
   virtual JSObject* WrapObject(JSContext* aCx) MOZ_OVERRIDE;

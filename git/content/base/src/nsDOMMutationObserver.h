@@ -37,6 +37,7 @@ public:
   nsDOMMutationRecord(nsIAtom* aType, nsISupports* aOwner)
   : mType(aType), mAttrNamespace(NullString()), mPrevValue(NullString()), mOwner(aOwner)
   {
+    SetIsDOMBinding();
   }
 
   nsISupports* GetParentObject() const
@@ -346,6 +347,7 @@ public:
   : mOwner(aOwner), mLastPendingMutation(nullptr), mPendingMutationCount(0),
     mCallback(&aCb), mWaitingForRun(false), mId(++sCount)
   {
+    SetIsDOMBinding();
   }
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(nsDOMMutationObserver)

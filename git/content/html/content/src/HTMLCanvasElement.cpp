@@ -64,6 +64,7 @@ HTMLCanvasPrintState::HTMLCanvasPrintState(HTMLCanvasElement* aCanvas,
   : mIsDone(false), mPendingNotify(false), mCanvas(aCanvas),
     mContext(aContext), mCallback(aCallback)
 {
+  SetIsDOMBinding();
 }
 
 HTMLCanvasPrintState::~HTMLCanvasPrintState()

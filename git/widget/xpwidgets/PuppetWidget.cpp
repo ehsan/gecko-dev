@@ -291,6 +291,9 @@ PuppetWidget::DispatchEvent(WidgetGUIEvent* event, nsEventStatus& aStatus)
   case eCompositionEventClass:
     seqno = event->AsCompositionEvent()->mSeqno;
     break;
+  case eTextEventClass:
+    seqno = event->AsTextEvent()->mSeqno;
+    break;
   case eSelectionEventClass:
     seqno = event->AsSelectionEvent()->mSeqno;
     break;
@@ -379,27 +382,25 @@ PuppetWidget::IMEEndComposition(bool aCancel)
 #endif
 
   nsEventStatus status;
-  WidgetCompositionEvent compositionChangeEvent(true, NS_COMPOSITION_CHANGE,
-                                                this);
-  InitEvent(compositionChangeEvent, nullptr);
-  compositionChangeEvent.mSeqno = mIMELastReceivedSeqno;
+  WidgetTextEvent textEvent(true, NS_TEXT_TEXT, this);
+  InitEvent(textEvent, nullptr);
+  textEvent.mSeqno = mIMELastReceivedSeqno;
   // SendEndIMEComposition is always called since ResetInputState
   // should always be called even if we aren't composing something.
   if (!mTabChild ||
-      !mTabChild->SendEndIMEComposition(aCancel,
-                                        &compositionChangeEvent.mData)) {
+      !mTabChild->SendEndIMEComposition(aCancel, &textEvent.theText)) {
     return NS_ERROR_FAILURE;
   }
 
   if (!mIMEComposing)
     return NS_OK;
 
-  DispatchEvent(&compositionChangeEvent, status);
+  DispatchEvent(&textEvent, status);
 
-  WidgetCompositionEvent compositionEndEvent(true, NS_COMPOSITION_END, this);
-  InitEvent(compositionEndEvent, nullptr);
-  compositionEndEvent.mSeqno = mIMELastReceivedSeqno;
-  DispatchEvent(&compositionEndEvent, status);
+  WidgetCompositionEvent compEvent(true, NS_COMPOSITION_END, this);
+  InitEvent(compEvent, nullptr);
+  compEvent.mSeqno = mIMELastReceivedSeqno;
+  DispatchEvent(&compEvent, status);
   return NS_OK;
 }
 

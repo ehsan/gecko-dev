@@ -55,6 +55,7 @@ nsLocation::nsLocation(nsPIDOMWindow* aWindow, nsIDocShell *aDocShell)
 {
   MOZ_ASSERT(aDocShell);
   MOZ_ASSERT(mInnerWindow->IsInnerWindow());
+  SetIsDOMBinding();
 
   mDocShell = do_GetWeakReference(aDocShell);
 }

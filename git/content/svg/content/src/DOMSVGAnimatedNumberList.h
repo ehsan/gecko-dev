@@ -107,6 +107,7 @@ private:
     , mElement(aElement)
     , mAttrEnum(aAttrEnum)
   {
+    SetIsDOMBinding();
   }
 
   ~DOMSVGAnimatedNumberList();

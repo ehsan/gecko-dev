@@ -29,6 +29,7 @@ Response::Response(nsISupports* aOwner)
   : mOwner(aOwner)
   , mHeaders(new Headers(aOwner))
 {
+  SetIsDOMBinding();
 }
 
 Response::~Response()

@@ -229,6 +229,8 @@ WebGLContext::WebGLContext()
     : gl(nullptr)
     , mNeedsFakeNoAlpha(false)
 {
+    SetIsDOMBinding();
+
     mGeneration = 0;
     mInvalidated = false;
     mShouldPresent = true;

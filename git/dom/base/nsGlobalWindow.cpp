@@ -1095,7 +1095,7 @@ nsGlobalWindow::nsGlobalWindow(nsGlobalWindow *aOuterWindow)
     mHadOriginalOpener(false),
     mIsPopupSpam(false),
     mBlockScriptedClosingFlag(false),
-    mWasOffline(false),
+    mFireOfflineStatusChangeEventOnThaw(false),
     mNotifyIdleObserversIdleOnThaw(false),
     mNotifyIdleObserversActiveOnThaw(false),
     mCreatingInnerWindow(false),
@@ -1140,6 +1140,8 @@ nsGlobalWindow::nsGlobalWindow(nsGlobalWindow *aOuterWindow)
 
   // Initialize the PRCList (this).
   PR_INIT_CLIST(this);
+
+  SetIsDOMBinding();
 
   if (aOuterWindow) {
     // |this| is an inner window, add this inner window to the outer
@@ -2459,11 +2461,11 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
       newInnerGlobal = newInnerWindow->GetWrapperPreserveColor();
     } else {
       if (thisChrome) {
-        newInnerWindow = nsGlobalChromeWindow::Create(this);
+        newInnerWindow = new nsGlobalChromeWindow(this);
       } else if (mIsModalContentWindow) {
-        newInnerWindow = nsGlobalModalWindow::Create(this);
+        newInnerWindow = new nsGlobalModalWindow(this);
       } else {
-        newInnerWindow = nsGlobalWindow::Create(this);
+        newInnerWindow = new nsGlobalWindow(this);
       }
 
       // Freeze the outer window and null out the inner window so
@@ -10738,22 +10740,12 @@ nsGlobalWindow::GetInterface(JSContext* aCx, nsIJSID* aIID,
 }
 
 void
-nsGlobalWindow::FireOfflineStatusEventIfChanged()
+nsGlobalWindow::FireOfflineStatusEvent()
 {
   if (!IsCurrentInnerWindow())
     return;
-
-  bool isOffline = NS_IsOffline() || NS_IsAppOffline(GetPrincipal());
-
-  // Don't fire an event if the status hasn't changed
-  if (mWasOffline == isOffline) {
-    return;
-  }
-
-  mWasOffline = isOffline;
-
   nsAutoString name;
-  if (isOffline) {
+  if (NS_IsOffline()) {
     name.AssignLiteral("offline");
   } else {
     name.AssignLiteral("online");
@@ -11309,11 +11301,13 @@ nsresult
 nsGlobalWindow::Observe(nsISupports* aSubject, const char* aTopic,
                         const char16_t* aData)
 {
-  if (!nsCRT::strcmp(aTopic, NS_IOSERVICE_OFFLINE_STATUS_TOPIC) ||
-      !nsCRT::strcmp(aTopic, NS_IOSERVICE_APP_OFFLINE_STATUS_TOPIC)) {
-    if (!IsFrozen()) {
-        // Fires an offline status event if the offline status has changed
-        FireOfflineStatusEventIfChanged();
+  if (!nsCRT::strcmp(aTopic, NS_IOSERVICE_OFFLINE_STATUS_TOPIC)) {
+    if (IsFrozen()) {
+      // if an even number of notifications arrive while we're frozen,
+      // we don't need to fire.
+      mFireOfflineStatusChangeEventOnThaw = !mFireOfflineStatusChangeEventOnThaw;
+    } else {
+      FireOfflineStatusEvent();
     }
     return NS_OK;
   }
@@ -11588,8 +11582,10 @@ nsGlobalWindow::FireDelayedDOMEvents()
     static_cast<nsDOMOfflineResourceList*>(mApplicationCache.get())->FirePendingEvents();
   }
 
-  // Fires an offline status event if the offline status has changed
-  FireOfflineStatusEventIfChanged();
+  if (mFireOfflineStatusChangeEventOnThaw) {
+    mFireOfflineStatusChangeEventOnThaw = false;
+    FireOfflineStatusEvent();
+  }
 
   if (mNotifyIdleObserversIdleOnThaw) {
     mNotifyIdleObserversIdleOnThaw = false;
@@ -13367,14 +13363,6 @@ NS_INTERFACE_MAP_END_INHERITING(nsGlobalWindow)
 NS_IMPL_ADDREF_INHERITED(nsGlobalChromeWindow, nsGlobalWindow)
 NS_IMPL_RELEASE_INHERITED(nsGlobalChromeWindow, nsGlobalWindow)
 
-/* static */ already_AddRefed<nsGlobalChromeWindow>
-nsGlobalChromeWindow::Create(nsGlobalWindow *aOuterWindow)
-{
-  nsRefPtr<nsGlobalChromeWindow> window = new nsGlobalChromeWindow(aOuterWindow);
-  window->InitWasOffline();
-  return window.forget();
-}
-
 NS_IMETHODIMP
 nsGlobalChromeWindow::GetWindowState(uint16_t* aWindowState)
 {
@@ -13799,14 +13787,6 @@ nsGlobalWindow::GetDialogArguments(JSContext* aCx,
                         aRetval, aError);
 }
 
-/* static */ already_AddRefed<nsGlobalModalWindow>
-nsGlobalModalWindow::Create(nsGlobalWindow *aOuterWindow)
-{
-  nsRefPtr<nsGlobalModalWindow> window = new nsGlobalModalWindow(aOuterWindow);
-  window->InitWasOffline();
-  return window.forget();
-}
-
 NS_IMETHODIMP
 nsGlobalModalWindow::GetDialogArguments(nsIVariant **aArguments)
 {
@@ -13816,20 +13796,6 @@ nsGlobalModalWindow::GetDialogArguments(nsIVariant **aArguments)
   // This does an internal origin check, and returns undefined if the subject
   // does not subsumes the origin of the arguments.
   return mDialogArguments->Get(nsContentUtils::SubjectPrincipal(), aArguments);
-}
-
-/* static */ already_AddRefed<nsGlobalWindow>
-nsGlobalWindow::Create(nsGlobalWindow *aOuterWindow)
-{
-  nsRefPtr<nsGlobalWindow> window = new nsGlobalWindow(aOuterWindow);
-  window->InitWasOffline();
-  return window.forget();
-}
-
-void
-nsGlobalWindow::InitWasOffline()
-{
-  mWasOffline = NS_IsOffline() || NS_IsAppOffline(GetPrincipal());
 }
 
 void
@@ -14004,6 +13970,7 @@ void
 nsGlobalWindow::ClearDocumentDependentSlots(JSContext* aCx)
 {
   MOZ_ASSERT(IsInnerWindow());
+  MOZ_ASSERT(IsDOMBinding());
   WindowBinding::ClearCachedDocumentValue(aCx, this);
   WindowBinding::ClearCachedPerformanceValue(aCx, this);
 }

@@ -12,6 +12,7 @@
 
 #include "jscntxt.h"
 #include "jsgc.h"
+#include "jsonparser.h"
 #include "jsprf.h"
 #include "jstypes.h"
 #include "jswatchpoint.h"
@@ -24,7 +25,6 @@
 #include "jit/IonMacroAssembler.h"
 #include "js/HashTable.h"
 #include "vm/Debugger.h"
-#include "vm/JSONParser.h"
 #include "vm/PropDesc.h"
 
 #include "jsgcinlines.h"

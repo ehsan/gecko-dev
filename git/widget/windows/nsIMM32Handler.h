@@ -290,9 +290,8 @@ protected:
    *  in the composition string, you need to subtract mCompositionStart from it.
    */
   bool GetTargetClauseRange(uint32_t *aOffset, uint32_t *aLength = nullptr);
-  void DispatchCompositionChangeEvent(nsWindow* aWindow,
-                                      const nsIMEContext &aIMEContext,
-                                      bool aCheckAttr = true);
+  void DispatchTextEvent(nsWindow* aWindow, const nsIMEContext &aIMEContext,
+                         bool aCheckAttr = true);
   already_AddRefed<mozilla::TextRangeArray> CreateTextRangeArray();
 
   nsresult EnsureClauseArray(int32_t aCount);

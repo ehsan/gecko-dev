@@ -139,6 +139,7 @@ Navigator::Navigator(nsPIDOMWindow* aWindow)
   : mWindow(aWindow)
 {
   MOZ_ASSERT(aWindow->IsInnerWindow(), "Navigator must get an inner window!");
+  SetIsDOMBinding();
 }
 
 Navigator::~Navigator()
@@ -584,11 +585,6 @@ Navigator::CookieEnabled()
 bool
 Navigator::OnLine()
 {
-  if (mWindow && mWindow->GetDoc()) {
-    return !NS_IsOffline() &&
-      !NS_IsAppOffline(mWindow->GetDoc()->NodePrincipal());
-  }
-
   return !NS_IsOffline();
 }
 
@@ -1725,7 +1721,8 @@ Navigator::GetConnection(ErrorResult& aRv)
       aRv.Throw(NS_ERROR_UNEXPECTED);
       return nullptr;
     }
-    mConnection = new network::Connection(mWindow);
+    mConnection = new network::Connection();
+    mConnection->Init(mWindow);
   }
 
   return mConnection;

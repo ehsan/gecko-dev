@@ -54,6 +54,8 @@ Attr::Attr(nsDOMAttributeMap *aAttrMap,
 
   // We don't add a reference to our content. It will tell us
   // to drop our reference when it goes away.
+
+  SetIsDOMBinding();
 }
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(Attr)
@@ -386,7 +388,7 @@ Attr::Shutdown()
 }
 
 JSObject*
-Attr::WrapNode(JSContext* aCx)
+Attr::WrapObject(JSContext* aCx)
 {
   return AttrBinding::Wrap(aCx, this);
 }

@@ -320,6 +320,7 @@ public:
     mSubtreeRoot(MOZ_THIS_IN_INITIALIZER_LIST()),
     mSlots(nullptr)
   {
+    SetIsDOMBinding();
   }
 #endif
 
@@ -380,7 +381,11 @@ protected:
    * does some additional checks and fix-up that's common to all nodes. WrapNode
    * should just call the DOM binding's Wrap function.
    */
-  virtual JSObject* WrapNode(JSContext *aCx) = 0;
+  virtual JSObject* WrapNode(JSContext *aCx)
+  {
+    MOZ_ASSERT(!IsDOMBinding(), "Someone forgot to override WrapNode");
+    return nullptr;
+  }
 
   // Subclasses that wish to override the parent behavior should return the
   // result of GetParentObjectIntenral, which handles the XBL scope stuff.

@@ -78,6 +78,7 @@ BluetoothDevice::BluetoothDevice(nsPIDOMWindow* aWindow,
   , mType(BluetoothDeviceType::Unknown)
 {
   MOZ_ASSERT(aWindow);
+  MOZ_ASSERT(IsDOMBinding());
 
   mCod = BluetoothClassOfDevice::Create(aWindow);
 

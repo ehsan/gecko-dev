@@ -63,6 +63,8 @@ Directory::Directory(FileSystemBase* aFileSystem,
   MOZ_ASSERT(aFileSystem, "aFileSystem should not be null.");
   // Remove the trailing "/".
   mPath.Trim(FILESYSTEM_DOM_PATH_SEPARATOR, false, true);
+
+  SetIsDOMBinding();
 }
 
 Directory::~Directory()

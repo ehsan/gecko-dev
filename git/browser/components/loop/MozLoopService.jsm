@@ -85,7 +85,6 @@ let gPushHandler = null;
 let gHawkClient = null;
 let gLocalizedStrings =  null;
 let gInitializeTimer = null;
-let gFxAEnabled = true;
 let gFxAOAuthClientPromise = null;
 let gFxAOAuthClient = null;
 let gFxAOAuthTokenData = null;
@@ -719,8 +718,13 @@ let MozLoopServiceInternal = {
       if (respData.calls && Array.isArray(respData.calls)) {
         respData.calls.forEach((callData) => {
           if (!this.callsData.inUse) {
+            this.callsData.inUse = true;
             callData.sessionType = sessionType;
-            this._startCall(callData, "incoming");
+            this.callsData.data = callData;
+            this.openChatWindow(
+              null,
+              this.localizedStrings["incoming_call_title2"].textContent,
+              "about:loopconversation#incoming/" + callData.callId);
           } else {
             this._returnBusy(callData);
           }
@@ -731,44 +735,6 @@ let MozLoopServiceInternal = {
     } catch (err) {
       log.warn("Error parsing calls info", err);
     }
-  },
-
-  /**
-   * Starts a call, saves the call data, and opens a chat window.
-   *
-   * @param {Object} callData The data associated with the call including an id.
-   * @param {Boolean} conversationType Whether or not the call is "incoming"
-   *                                   or "outgoing"
-   */
-  _startCall: function(callData, conversationType) {
-    this.callsData.inUse = true;
-    this.callsData.data = callData;
-    this.openChatWindow(
-      null,
-      // No title, let the page set that, to avoid flickering.
-      "",
-      "about:loopconversation#" + conversationType + "/" + callData.callId);
-  },
-
-  /**
-   * Starts a direct call to the contact addresses.
-   *
-   * @param {Object} contact The contact to call
-   * @param {String} callType The type of call, e.g. "audio-video" or "audio-only"
-   * @return true if the call is opened, false if it is not opened (i.e. busy)
-   */
-  startDirectCall: function(contact, callType) {
-    if (this.callsData.inUse)
-      return false;
-
-    var callData = {
-      contact: contact,
-      callType: callType,
-      callId: Math.floor((Math.random() * 10))
-    };
-
-    this._startCall(callData, "outgoing");
-    return true;
   },
 
    /**
@@ -1107,13 +1073,6 @@ this.MozLoopService = {
       return;
     }
 
-    if (Services.prefs.getPrefType("loop.fxa.enabled") == Services.prefs.PREF_BOOL) {
-      gFxAEnabled = Services.prefs.getBoolPref("loop.fxa.enabled");
-      if (!gFxAEnabled) {
-        this.logOutFromFxA();
-      }
-    }
-
     // If expiresTime is in the future then kick-off registration.
     if (MozLoopServiceInternal.urlExpiryTimeIsInFuture()) {
       gInitializeTimerFunc();
@@ -1299,10 +1258,6 @@ this.MozLoopService = {
    */
   set doNotDisturb(aFlag) {
     MozLoopServiceInternal.doNotDisturb = aFlag;
-  },
-
-  get fxAEnabled() {
-    return gFxAEnabled;
   },
 
   get userProfile() {
@@ -1537,16 +1492,5 @@ this.MozLoopService = {
   hawkRequest: function(sessionType, path, method, payloadObj) {
     return MozLoopServiceInternal.hawkRequest(sessionType, path, method, payloadObj).catch(
       error => {MozLoopServiceInternal._hawkRequestError(error);});
-  },
-
-    /**
-     * Starts a direct call to the contact addresses.
-     *
-     * @param {Object} contact The contact to call
-     * @param {String} callType The type of call, e.g. "audio-video" or "audio-only"
-     * @return true if the call is opened, false if it is not opened (i.e. busy)
-     */
-  startDirectCall: function(contact, callType) {
-    MozLoopServiceInternal.startDirectCall(contact, callType);
   },
 };

@@ -307,6 +307,7 @@ nsXMLHttpRequest::nsXMLHttpRequest()
     mIsMappedArrayBuffer(false),
     mXPCOMifier(nullptr)
 {
+  SetIsDOMBinding();
 #ifdef DEBUG
   StaticAssertions();
 #endif

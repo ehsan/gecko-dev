@@ -24,6 +24,7 @@ NS_INTERFACE_MAP_END
 ValidityState::ValidityState(nsIConstraintValidation* aConstraintValidation)
   : mConstraintValidation(aConstraintValidation)
 {
+  SetIsDOMBinding();
 }
 
 NS_IMETHODIMP

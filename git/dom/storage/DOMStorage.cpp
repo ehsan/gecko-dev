@@ -52,6 +52,7 @@ DOMStorage::DOMStorage(nsIDOMWindow* aWindow,
 , mIsSessionOnly(false)
 {
   mCache->Preload();
+  SetIsDOMBinding();
 }
 
 DOMStorage::~DOMStorage()

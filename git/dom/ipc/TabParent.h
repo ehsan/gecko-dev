@@ -318,6 +318,7 @@ public:
     static TabParent *GetIMETabParent() { return mIMETabParent; }
     bool HandleQueryContentEvent(mozilla::WidgetQueryContentEvent& aEvent);
     bool SendCompositionEvent(mozilla::WidgetCompositionEvent& event);
+    bool SendTextEvent(mozilla::WidgetTextEvent& event);
     bool SendSelectionEvent(mozilla::WidgetSelectionEvent& event);
 
     static TabParent* GetFrom(nsFrameLoader* aFrameLoader);
@@ -362,8 +363,6 @@ protected:
     virtual bool DeallocPRenderFrameParent(PRenderFrameParent* aFrame) MOZ_OVERRIDE;
 
     virtual bool RecvRemotePaintIsReady() MOZ_OVERRIDE;
-
-    bool SendCompositionChangeEvent(mozilla::WidgetCompositionEvent& event);
 
     // IME
     static TabParent *mIMETabParent;
@@ -427,10 +426,6 @@ private:
     bool mIsDestroyed;
     // Whether we have already sent a FileDescriptor for the app package.
     bool mAppPackageFileDescriptorSent;
-
-    // Whether we need to send the offline status to the TabChild
-    // This is true, until the first call of LoadURL
-    bool mSendOfflineStatus;
 
     uint32_t mChromeFlags;
 

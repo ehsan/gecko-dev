@@ -348,6 +348,7 @@ nsTreeColumns::nsTreeColumns(nsTreeBodyFrame* aTree)
   : mTree(aTree),
     mFirstColumn(nullptr)
 {
+  SetIsDOMBinding();
 }
 
 nsTreeColumns::~nsTreeColumns()

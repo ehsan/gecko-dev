@@ -18,6 +18,7 @@ using namespace mozilla;
 
 nsDOMSerializer::nsDOMSerializer()
 {
+  SetIsDOMBinding();
 }
 
 nsDOMSerializer::~nsDOMSerializer()

@@ -23,6 +23,7 @@ WebGLVertexArray::WebGLVertexArray(WebGLContext* context)
     : WebGLBindableName<VAOBinding>()
     , WebGLContextBoundObject(context)
 {
+    SetIsDOMBinding();
     context->mVertexArrays.insertBack(this);
 }
 

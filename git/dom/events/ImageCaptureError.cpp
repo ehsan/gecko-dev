@@ -24,6 +24,7 @@ ImageCaptureError::ImageCaptureError(nsISupports* aParent,
   , mMessage(aMessage)
   , mCode(aCode)
 {
+  SetIsDOMBinding();
 }
 
 ImageCaptureError::~ImageCaptureError()

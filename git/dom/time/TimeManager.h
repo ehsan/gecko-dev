@@ -36,6 +36,7 @@ public:
   explicit TimeManager(nsPIDOMWindow* aWindow)
     : mWindow(aWindow)
   {
+    SetIsDOMBinding();
   }
 
   nsPIDOMWindow* GetParentObject() const

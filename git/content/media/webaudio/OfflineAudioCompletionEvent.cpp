@@ -25,6 +25,7 @@ OfflineAudioCompletionEvent::OfflineAudioCompletionEvent(AudioContext* aOwner,
                                                          WidgetEvent* aEvent)
   : Event(aOwner, aPresContext, aEvent)
 {
+  SetIsDOMBinding();
 }
 
 OfflineAudioCompletionEvent::~OfflineAudioCompletionEvent()

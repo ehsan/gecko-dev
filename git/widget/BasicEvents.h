@@ -172,16 +172,11 @@
 #define NS_COMPOSITION_EVENT_START    2200
 #define NS_COMPOSITION_START          (NS_COMPOSITION_EVENT_START)
 #define NS_COMPOSITION_END            (NS_COMPOSITION_EVENT_START + 1)
-// NS_COMPOSITION_UPDATE is the message for DOM compositionupdate event.
-// This event should NOT be dispatched from widget since it will be dispatched
-// by mozilla::TextComposition automatically if NS_COMPOSITION_CHANGE event
-// will change composition string.
 #define NS_COMPOSITION_UPDATE         (NS_COMPOSITION_EVENT_START + 2)
-// NS_COMPOSITION_CHANGE is the message for representing a change of
-// composition string.  This should be dispatched from widget even if
-// composition string isn't changed but the ranges are changed.  This causes
-// a DOM "text" event which is a non-standard DOM event.
-#define NS_COMPOSITION_CHANGE         (NS_COMPOSITION_EVENT_START + 3)
+
+// text events
+#define NS_TEXT_START                 2400
+#define NS_TEXT_TEXT                  (NS_TEXT_START)
 
 // UI events
 #define NS_UI_EVENT_START          2500

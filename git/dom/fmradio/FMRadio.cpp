@@ -112,6 +112,8 @@ FMRadio::FMRadio()
   , mIsShutdown(false)
 {
   LOG("FMRadio is initialized.");
+
+  SetIsDOMBinding();
 }
 
 FMRadio::~FMRadio()

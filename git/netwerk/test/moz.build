@@ -47,7 +47,6 @@ SimplePrograms([
 #]
 
 CppUnitTests([
-    'TestBind',
     'TestCookie',
     'TestSTSParser',
     'TestUDPSocket',

@@ -150,6 +150,7 @@ MozNDEFRecord::MozNDEFRecord(JSContext* aCx, nsPIDOMWindow* aWindow,
     mPayload = Uint8Array::Create(aCx, this, payload.Length(), payload.Data());
   }
 
+  SetIsDOMBinding();
   HoldData();
 }
 

@@ -35,6 +35,7 @@ NS_INTERFACE_MAP_END
 IccInfo::IccInfo(nsPIDOMWindow* aWindow)
   : mWindow(aWindow)
 {
+  SetIsDOMBinding();
 }
 
 void
@@ -148,6 +149,7 @@ NS_IMPL_RELEASE_INHERITED(GsmIccInfo, IccInfo)
 GsmIccInfo::GsmIccInfo(nsPIDOMWindow* aWindow)
   : IccInfo(aWindow)
 {
+  SetIsDOMBinding();
 }
 
 void
@@ -187,6 +189,7 @@ NS_IMPL_RELEASE_INHERITED(CdmaIccInfo, IccInfo)
 CdmaIccInfo::CdmaIccInfo(nsPIDOMWindow* aWindow)
   : IccInfo(aWindow)
 {
+  SetIsDOMBinding();
 }
 
 void

@@ -1649,20 +1649,19 @@ nsTextStore::FlushPendingActions()
 
         PR_LOG(sTextStoreLog, PR_LOG_DEBUG,
                ("TSF: 0x%p   nsTextStore::FlushPendingActions(), "
-                "dispatching compositionchange event...", this));
-        WidgetCompositionEvent compositionChange(true, NS_COMPOSITION_CHANGE,
-                                                 mWidget);
-        mWidget->InitEvent(compositionChange);
-        compositionChange.mData = action.mData;
+                "dispatching text event...", this));
+        WidgetTextEvent textEvent(true, NS_TEXT_TEXT, mWidget);
+        mWidget->InitEvent(textEvent);
+        textEvent.theText = action.mData;
         if (action.mRanges->IsEmpty()) {
           TextRange wholeRange;
           wholeRange.mStartOffset = 0;
-          wholeRange.mEndOffset = compositionChange.mData.Length();
+          wholeRange.mEndOffset = textEvent.theText.Length();
           wholeRange.mRangeType = NS_TEXTRANGE_RAWINPUT;
           action.mRanges->AppendElement(wholeRange);
         }
-        compositionChange.mRanges = action.mRanges;
-        mWidget->DispatchWindowEvent(&compositionChange);
+        textEvent.mRanges = action.mRanges;
+        mWidget->DispatchWindowEvent(&textEvent);
         // Be aware, the mWidget might already have been destroyed.
         break;
       }
@@ -1677,12 +1676,11 @@ nsTextStore::FlushPendingActions()
 
         PR_LOG(sTextStoreLog, PR_LOG_DEBUG,
                ("TSF: 0x%p   nsTextStore::FlushPendingActions(), "
-                "dispatching compositionchange event...", this));
-        WidgetCompositionEvent compositionChange(true, NS_COMPOSITION_CHANGE,
-                                                 mWidget);
-        mWidget->InitEvent(compositionChange);
-        compositionChange.mData = action.mData;
-        mWidget->DispatchWindowEvent(&compositionChange);
+                "dispatching text event...", this));
+        WidgetTextEvent textEvent(true, NS_TEXT_TEXT, mWidget);
+        mWidget->InitEvent(textEvent);
+        textEvent.theText = action.mData;
+        mWidget->DispatchWindowEvent(&textEvent);
         if (!mWidget || mWidget->Destroyed()) {
           break;
         }
@@ -1692,7 +1690,7 @@ nsTextStore::FlushPendingActions()
                 "dispatching compositionend event...", this));
         WidgetCompositionEvent compositionEnd(true, NS_COMPOSITION_END,
                                               mWidget);
-        compositionEnd.mData = compositionChange.mData;
+        compositionEnd.data = textEvent.theText;
         mWidget->InitEvent(compositionEnd);
         mWidget->DispatchWindowEvent(&compositionEnd);
         if (!mWidget || mWidget->Destroyed()) {
@@ -2271,7 +2269,7 @@ nsTextStore::RecordCompositionUpdateAction()
   // the attribute, we have to find out all the ranges that have distinct
   // attribute values. Then we query for what the value represents through
   // the display attribute manager and translate that to TextRange to be
-  // sent in NS_COMPOSITION_CHANGE
+  // sent in NS_TEXT_TEXT
 
   nsRefPtr<ITfProperty> attrPropetry;
   HRESULT hr = mContext->GetProperty(GUID_PROP_ATTRIBUTE,
@@ -2320,7 +2318,7 @@ nsTextStore::RecordCompositionUpdateAction()
 
   TextRange newRange;
   // No matter if we have display attribute info or not,
-  // we always pass in at least one range to NS_COMPOSITION_CHANGE
+  // we always pass in at least one range to NS_TEXT_TEXT
   newRange.mStartOffset = 0;
   newRange.mEndOffset = action->mData.Length();
   newRange.mRangeType = NS_TEXTRANGE_RAWINPUT;
@@ -2441,16 +2439,16 @@ nsTextStore::RecordCompositionUpdateAction()
 
 HRESULT
 nsTextStore::SetSelectionInternal(const TS_SELECTION_ACP* pSelection,
-                                  bool aDispatchCompositionChangeEvent)
+                                  bool aDispatchTextEvent)
 {
   PR_LOG(sTextStoreLog, PR_LOG_DEBUG,
          ("TSF: 0x%p   nsTextStore::SetSelectionInternal(pSelection={ "
           "acpStart=%ld, acpEnd=%ld, style={ ase=%s, fInterimChar=%s} }, "
-          "aDispatchCompositionChangeEvent=%s), mComposition.IsComposing()=%s",
+          "aDispatchTextEvent=%s), mComposition.IsComposing()=%s",
           this, pSelection->acpStart, pSelection->acpEnd,
           GetActiveSelEndName(pSelection->style.ase),
           GetBoolName(pSelection->style.fInterimChar),
-          GetBoolName(aDispatchCompositionChangeEvent),
+          GetBoolName(aDispatchTextEvent),
           GetBoolName(mComposition.IsComposing())));
 
   MOZ_ASSERT(IsReadWriteLocked());
@@ -2464,7 +2462,7 @@ nsTextStore::SetSelectionInternal(const TS_SELECTION_ACP* pSelection,
   }
 
   if (mComposition.IsComposing()) {
-    if (aDispatchCompositionChangeEvent) {
+    if (aDispatchTextEvent) {
       HRESULT hr = RestartCompositionIfNecessary();
       if (FAILED(hr)) {
         PR_LOG(sTextStoreLog, PR_LOG_ERROR,
@@ -2482,7 +2480,7 @@ nsTextStore::SetSelectionInternal(const TS_SELECTION_ACP* pSelection,
     }
     // Emulate selection during compositions
     currentSel.SetSelection(*pSelection);
-    if (aDispatchCompositionChangeEvent) {
+    if (aDispatchTextEvent) {
       HRESULT hr = RecordCompositionUpdateAction();
       if (FAILED(hr)) {
         PR_LOG(sTextStoreLog, PR_LOG_ERROR,
@@ -4877,9 +4875,9 @@ nsTextStore::Content::ReplaceTextWith(LONG aStart, LONG aLength,
     if (mComposition.IsComposing()) {
       // Emulate text insertion during compositions, because during a
       // composition, editor expects the whole composition string to
-      // be sent in NS_COMPOSITION_CHANGE, not just the inserted part.
-      // The actual NS_COMPOSITION_CHANGE will be sent in SetSelection
-      // or OnUpdateComposition.
+      // be sent in NS_TEXT_TEXT, not just the inserted part.
+      // The actual NS_TEXT_TEXT will be sent in SetSelection or
+      // OnUpdateComposition.
       MOZ_ASSERT(aStart >= mComposition.mStart);
       MOZ_ASSERT(aStart + aLength <= mComposition.EndOffset());
       mComposition.mString.Replace(

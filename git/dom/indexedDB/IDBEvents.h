@@ -111,6 +111,7 @@ private:
     : Event(aOwner, nullptr, nullptr)
     , mOldVersion(aOldVersion)
   {
+    SetIsDOMBinding();
   }
 
   ~IDBVersionChangeEvent()

@@ -651,14 +651,10 @@ NON_IDL_EVENT(speakerforcedchange,
               eBasicEventClass)
 
 // Events that only have on* attributes on XUL elements
-
- // "text" event is legacy event for modifying composition string in nsEditor.
- // This shouldn't be used by web/xul apps.  "compositionupdate" should be
- // used instead.
 NON_IDL_EVENT(text,
-              NS_COMPOSITION_CHANGE,
+              NS_TEXT_TEXT,
               EventNameType_XUL,
-              eCompositionEventClass)
+              eTextEventClass)
 NON_IDL_EVENT(compositionstart,
               NS_COMPOSITION_START,
               EventNameType_XUL,

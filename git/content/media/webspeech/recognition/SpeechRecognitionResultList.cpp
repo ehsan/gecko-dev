@@ -24,6 +24,7 @@ NS_INTERFACE_MAP_END
 SpeechRecognitionResultList::SpeechRecognitionResultList(SpeechRecognition* aParent)
   : mParent(aParent)
 {
+  SetIsDOMBinding();
 }
 
 SpeechRecognitionResultList::~SpeechRecognitionResultList()

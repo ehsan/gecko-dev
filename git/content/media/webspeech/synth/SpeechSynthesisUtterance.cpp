@@ -35,6 +35,7 @@ SpeechSynthesisUtterance::SpeechSynthesisUtterance(nsPIDOMWindow* aOwnerWindow,
   , mState(STATE_NONE)
   , mPaused(false)
 {
+  SetIsDOMBinding();
 }
 
 SpeechSynthesisUtterance::~SpeechSynthesisUtterance() {}

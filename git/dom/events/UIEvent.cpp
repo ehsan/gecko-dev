@@ -344,7 +344,11 @@ bool
 UIEvent::IsChar() const
 {
   WidgetKeyboardEvent* keyEvent = mEvent->AsKeyboardEvent();
-  return keyEvent ? keyEvent->isChar : false;
+  if (keyEvent) {
+    return keyEvent->isChar;
+  }
+  WidgetTextEvent* textEvent = mEvent->AsTextEvent();
+  return textEvent ? textEvent->isChar : false;
 }
 
 NS_IMETHODIMP

@@ -34,9 +34,11 @@ loop.shared.actions = (function() {
      * Used to trigger gathering of initial call data.
      */
     GatherCallData: Action.define("gatherCallData", {
+      // XXX This may change when bug 1072323 is implemented.
+      // Optional: Specify the calleeId for an outgoing call
+      calleeId: [String, null],
       // Specify the callId for an incoming call.
-      callId: [String, null],
-      outgoing: Boolean
+      callId: [String, null]
     }),
 
     /**

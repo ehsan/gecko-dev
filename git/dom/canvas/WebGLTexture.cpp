@@ -35,6 +35,7 @@ WebGLTexture::WebGLTexture(WebGLContext *context)
     , mImmutable(false)
     , mFakeBlackStatus(WebGLTextureFakeBlackStatus::IncompleteTexture)
 {
+    SetIsDOMBinding();
     mContext->MakeContextCurrent();
     mContext->gl->fGenTextures(1, &mGLName);
     mContext->mTextures.insertBack(this);

@@ -17,6 +17,7 @@ WebGLBuffer::WebGLBuffer(WebGLContext *context)
     , WebGLContextBoundObject(context)
     , mByteLength(0)
 {
+    SetIsDOMBinding();
     mContext->MakeContextCurrent();
     mContext->gl->fGenBuffers(1, &mGLName);
     mContext->mBuffers.insertBack(this);

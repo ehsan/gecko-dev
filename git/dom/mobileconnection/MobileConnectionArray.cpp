@@ -34,6 +34,7 @@ MobileConnectionArray::MobileConnectionArray(nsPIDOMWindow* aWindow)
   : mLengthInitialized(false)
   , mWindow(aWindow)
 {
+  SetIsDOMBinding();
 }
 
 MobileConnectionArray::~MobileConnectionArray()

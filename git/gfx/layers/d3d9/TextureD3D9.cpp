@@ -889,7 +889,7 @@ TextureHostD3D9::SetCompositor(Compositor* aCompositor)
   }
 }
 
-TextureSource*
+NewTextureSource*
 TextureHostD3D9::GetTextureSources()
 {
   MOZ_ASSERT(mIsLocked);
@@ -965,7 +965,7 @@ DXGITextureHostD3D9::OpenSharedHandle()
   return;
 }
 
-TextureSource*
+NewTextureSource*
 DXGITextureHostD3D9::GetTextureSources()
 {
   MOZ_ASSERT(mIsLocked);

@@ -43,6 +43,7 @@ void
 MediaTrack::Init(nsPIDOMWindow* aOwnerWindow)
 {
   BindToOwner(aOwnerWindow);
+  SetIsDOMBinding();
 }
 
 } // namespace dom

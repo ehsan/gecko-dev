@@ -84,6 +84,7 @@ private:
   explicit DOMParser(nsISupports* aOwner) : mOwner(aOwner), mAttemptedInit(false)
   {
     MOZ_ASSERT(aOwner);
+    SetIsDOMBinding();
   }
 
   nsresult InitInternal(nsISupports* aOwner, nsIPrincipal* prin,

@@ -42,6 +42,7 @@ public:
     , mBaseURI(aBaseURI)
   {
     MOZ_ASSERT(aOwner);
+    SetIsDOMBinding();
   }
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS

@@ -16,6 +16,7 @@ nsFormData::nsFormData(nsISupports* aOwner)
   : nsFormSubmission(NS_LITERAL_CSTRING("UTF-8"), nullptr)
   , mOwner(aOwner)
 {
+  SetIsDOMBinding();
 }
 
 // -------------------------------------------------------------------------

@@ -30,6 +30,7 @@ public:
   SVGAngle(nsSVGAngle* aVal, nsSVGElement *aSVGElement, AngleType aType)
     : mVal(aVal), mSVGElement(aSVGElement), mType(aType)
   {
+    SetIsDOMBinding();
   }
 
   // WebIDL
