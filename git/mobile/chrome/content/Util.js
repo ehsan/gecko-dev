@@ -114,9 +114,9 @@ let Util = {
 
     let link = null;
     while (target) {
-      if (target instanceof Ci.nsIDOMHTMLAnchorElement || 
-          target instanceof Ci.nsIDOMHTMLAreaElement ||
-          target instanceof Ci.nsIDOMHTMLLinkElement) {
+      if (target instanceof HTMLAnchorElement || 
+          target instanceof HTMLAreaElement ||
+          target instanceof HTMLLinkElement) {
           if (target.hasAttribute("href"))
             link = target;
       }
@@ -129,13 +129,9 @@ let Util = {
       return null;
   },
 
-  makeURI: function makeURI(aURL, aOriginCharset, aBaseURI) {
-    return gIOService.newURI(aURL, aOriginCharset, aBaseURI);
-  },
-
   makeURLAbsolute: function makeURLAbsolute(base, url) {
     // Note:  makeURI() will throw if url is not a valid URI
-    return this.makeURI(url, null, this.makeURI(base)).spec;
+    return makeURI(url, null, makeURI(base)).spec;
   },
 
   clamp: function(num, min, max) {

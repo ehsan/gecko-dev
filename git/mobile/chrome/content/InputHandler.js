@@ -138,6 +138,7 @@ function InputHandler(browserViewContainer) {
   browserViewContainer.addEventListener("keydown", this, false);
   browserViewContainer.addEventListener("DOMMouseScroll", this, true);
   browserViewContainer.addEventListener("MozMousePixelScroll", this, true);
+  browserViewContainer.addEventListener("contextmenu", this, true);
 
   this.addModule(new MouseModule(this, browserViewContainer));
   this.addModule(new KeyModule(this, browserViewContainer));
@@ -354,15 +355,13 @@ function MouseModule(owner, browserViewContainer) {
   var self = this;
   this._kinetic = new KineticController(Util.bind(this._dragBy, this),
                                         Util.bind(this._kineticStop, this));
-
-  messageManager.addMessageListener("Browser:ContextMenu", this);
 }
 
 
 MouseModule.prototype = {
   handleEvent: function handleEvent(evInfo) {
     let evt = evInfo.event;
-    if (evt.button !== 0)
+    if (evt.button !== 0 && evt.type != "contextmenu")
       return;
 
     switch (evt.type) {
@@ -375,6 +374,17 @@ MouseModule.prototype = {
       case "mouseup":
         this._onMouseUp(evInfo);
         break;
+      case "contextmenu":
+        // TODO: Make "contextmenu" a first class part of InputHandler
+        // Bug 554639
+        if (ContextHelper.popupNode) {
+          if (this._clicker)
+            this._clicker.panBegin();
+          if (this._dragger)
+            this._dragger.dragStop(0, 0, this._targetScrollInterface);
+          this.cancelPending();
+        }
+        break;
       case "MozMagnifyGestureStart":
       case "MozMagnifyGesture":
         // disallow kinetic panning after gesture
@@ -382,19 +392,6 @@ MouseModule.prototype = {
           this._doDragStop(0, 0, true);
         break;
     }
-  },
-
-  receiveMessage: function receiveMessage(aMessage) {
-    // TODO: Make "contextmenu" a first class part of InputHandler
-    // Bug 554639
-    if (aMessage.name != "Browser:ContextMenu" || !ContextHelper.popupState)
-      return;
-
-    if (this._clicker)
-      this._clicker.panBegin();
-    if (this._dragger)
-      this._dragger.dragStop(0, 0, this._targetScrollInterface);
-    this.cancelPending();
   },
 
   /**

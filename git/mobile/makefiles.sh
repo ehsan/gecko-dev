@@ -47,11 +47,13 @@ mobile/chrome/Makefile
 mobile/chrome/tests/Makefile
 mobile/components/Makefile
 mobile/components/phone/Makefile
+mobile/components/protocols/Makefile
 mobile/installer/Makefile
 mobile/locales/Makefile
 mobile/Makefile
+mobile/themes/hildon/Makefile
 mobile/themes/Makefile
-mobile/themes/core/Makefile"
+mobile/themes/wince/Makefile"
 
 if test -n "$MOZ_UPDATE_PACKAGING"; then
    add_makefiles "

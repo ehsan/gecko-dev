@@ -54,6 +54,7 @@ EXTRA_PP_COMPONENTS = \
         $(NULL)
 
 EXTRA_COMPONENTS = \
+        MobileComponents.manifest \
         BrowserStartup.js \
         GeolocationPrompt.js \
         AlertsService.js \
@@ -67,7 +68,8 @@ EXTRA_COMPONENTS = \
         AddonUpdateService.js \
 	$(NULL)
 
-DIRS =  phone \
+DIRS = protocols \
+        phone \
         $(NULL)
 
 include $(topsrcdir)/config/rules.mk
