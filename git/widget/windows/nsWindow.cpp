@@ -106,8 +106,6 @@
 #include "mozilla/Services.h"
 #include "nsNativeThemeWin.h"
 #include "nsWindowsDllInterceptor.h"
-#include "nsLayoutUtils.h"
-#include "nsView.h"
 #include "nsIWindowMediator.h"
 #include "nsIServiceManager.h"
 #include "nsWindowGfx.h"
@@ -144,7 +142,6 @@
 #include "oleidl.h"
 #include <winuser.h>
 #include "nsAccessibilityService.h"
-#include "mozilla/a11y/DocAccessible.h"
 #include "mozilla/a11y/Platform.h"
 #if !defined(WINABLEAPI)
 #include <winable.h>
@@ -5156,7 +5153,7 @@ bool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
       // for details).
       DWORD objId = static_cast<DWORD>(lParam);
       if (objId == OBJID_CLIENT) { // oleacc.dll will be loaded dynamically
-        a11y::Accessible* rootAccessible = GetAccessible(); // Held by a11y cache
+        a11y::Accessible* rootAccessible = GetRootAccessible(); // Held by a11y cache
         if (rootAccessible) {
           IAccessible *msaaAccessible = NULL;
           rootAccessible->GetNativeInterface((void**)&msaaAccessible); // does an addref
@@ -6618,25 +6615,47 @@ nsWindow::GetIMEUpdatePreference()
 #ifdef ACCESSIBILITY
 
 #ifdef DEBUG_WMGETOBJECT
-#define NS_LOG_WMGETOBJECT(aWnd, aHwnd, aAcc)                                  \
-  PR_LOG(gWindowsLog, PR_LOG_ALWAYS,                                           \
-         ("Get the window:\n  {\n     HWND: %d, parent HWND: %d, wndobj: %p,\n",\
-           aHwnd, ::GetParent(aHwnd), aWnd));                                  \
-  PR_LOG(gWindowsLog, PR_LOG_ALWAYS, ("     acc: %p", aAcc));                  \
-  if (aAcc) {                                                                  \
+#define NS_LOG_WMGETOBJECT_WNDACC(aWnd)                                        \
+  a11y::Accessible* acc = aWnd ? aWind->GetAccessible() : nullptr;             \
+  PR_LOG(gWindowsLog, PR_LOG_ALWAYS, ("     acc: %p", acc));                   \
+  if (acc) {                                                                   \
     nsAutoString name;                                                         \
-    aAcc->Name(name);                                                          \
+    acc->GetName(name);                                                        \
     PR_LOG(gWindowsLog, PR_LOG_ALWAYS,                                         \
            (", accname: %s", NS_ConvertUTF16toUTF8(name).get()));              \
-  }                                                                            \
-  PR_LOG(gWindowsLog, PR_LOG_ALWAYS, ("\n }\n"));
+    nsCOMPtr<nsIAccessibleDocument> doc = do_QueryObject(acc);                 \
+    void *hwnd = nullptr;                                                      \
+    doc->GetWindowHandle(&hwnd);                                               \
+    PR_LOG(gWindowsLog, PR_LOG_ALWAYS, (", acc hwnd: %d", hwnd));              \
+  }
 
+#define NS_LOG_WMGETOBJECT_THISWND                                             \
+{                                                                              \
+  PR_LOG(gWindowsLog, PR_LOG_ALWAYS,                                           \
+         ("\n*******Get Doc Accessible*******\nOrig Window: "));               \
+  PR_LOG(gWindowsLog, PR_LOG_ALWAYS,                                           \
+         ("\n  {\n     HWND: %d, parent HWND: %d, wndobj: %p,\n",              \
+          mWnd, ::GetParent(mWnd), this));                                     \
+  NS_LOG_WMGETOBJECT_WNDACC(this)                                              \
+  PR_LOG(gWindowsLog, PR_LOG_ALWAYS, ("\n  }\n"));                             \
+}
+
+#define NS_LOG_WMGETOBJECT_WND(aMsg, aHwnd)                                    \
+{                                                                              \
+  nsWindow* wnd = WinUtils::GetNSWindowPtr(aHwnd);                             \
+  PR_LOG(gWindowsLog, PR_LOG_ALWAYS,                                           \
+         ("Get " aMsg ":\n  {\n     HWND: %d, parent HWND: %d, wndobj: %p,\n", \
+          aHwnd, ::GetParent(aHwnd), wnd));                                    \
+  NS_LOG_WMGETOBJECT_WNDACC(wnd);                                              \
+  PR_LOG(gWindowsLog, PR_LOG_ALWAYS, ("\n }\n"));                              \
+}
 #else
-#define NS_LOG_WMGETOBJECT(aWnd, aHwnd, aAcc)
-#endif
+#define NS_LOG_WMGETOBJECT_THISWND
+#define NS_LOG_WMGETOBJECT_WND(aMsg, aHwnd)
+#endif // DEBUG_WMGETOBJECT
 
 a11y::Accessible*
-nsWindow::GetAccessible()
+nsWindow::GetRootAccessible()
 {
   // If the pref was ePlatformIsDisabled, return null here, disabling a11y.
   if (a11y::PlatformDisabledState() == a11y::ePlatformIsDisabled)
@@ -6646,28 +6665,10 @@ nsWindow::GetAccessible()
     return nullptr;
   }
 
-  // In case of popup window return a popup accessible.
-  nsView* view = nsView::GetViewFor(this);
-  if (view) {
-    nsIFrame* frame = view->GetFrame();
-    if (frame && nsLayoutUtils::IsPopup(frame)) {
-      nsCOMPtr<nsIAccessibilityService> accService =
-        services::GetAccessibilityService();
-      if (accService) {
-        a11y::DocAccessible* docAcc =
-          GetAccService()->GetDocAccessible(frame->PresContext()->PresShell());
-        if (docAcc) {
-          NS_LOG_WMGETOBJECT(this, mWnd,
-                             docAcc->GetAccessible(frame->GetContent()));
-          return docAcc->GetAccessible(frame->GetContent());
-        }
-      }
-    }
-  }
+  NS_LOG_WMGETOBJECT_THISWND
+  NS_LOG_WMGETOBJECT_WND("This Window", mWnd);
 
-  // otherwise root document accessible.
-  NS_LOG_WMGETOBJECT(this, mWnd, GetRootAccessible());
-  return GetRootAccessible();
+  return GetAccessible();
 }
 #endif
 

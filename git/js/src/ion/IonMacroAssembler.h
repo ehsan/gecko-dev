@@ -604,24 +604,8 @@ class MacroAssembler : public MacroAssemblerSpecific
                        const Register &threadContextReg,
                        const Register &tempReg1,
                        const Register &tempReg2,
-                       gc::AllocKind allocKind,
-                       Label *fail);
-    void parNewGCThing(const Register &result,
-                       const Register &threadContextReg,
-                       const Register &tempReg1,
-                       const Register &tempReg2,
                        JSObject *templateObject,
                        Label *fail);
-    void parNewGCString(const Register &result,
-                        const Register &threadContextReg,
-                        const Register &tempReg1,
-                        const Register &tempReg2,
-                        Label *fail);
-    void parNewGCShortString(const Register &result,
-                             const Register &threadContextReg,
-                             const Register &tempReg1,
-                             const Register &tempReg2,
-                             Label *fail);
     void initGCThing(const Register &obj, JSObject *templateObject);
 
     // Compares two strings for equality based on the JSOP.

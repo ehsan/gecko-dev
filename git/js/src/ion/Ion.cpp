@@ -6,40 +6,40 @@
 
 #include "mozilla/MemoryReporting.h"
 
-#include "ion/BaselineJIT.h"
-#include "ion/BaselineCompiler.h"
-#include "ion/BaselineInspector.h"
-#include "ion/Ion.h"
-#include "ion/IonAnalysis.h"
-#include "ion/IonBuilder.h"
-#include "ion/IonLinker.h"
-#include "ion/IonSpewer.h"
-#include "ion/LIR.h"
-#include "ion/AliasAnalysis.h"
-#include "ion/LICM.h"
-#include "ion/ValueNumbering.h"
-#include "ion/EdgeCaseAnalysis.h"
-#include "ion/RangeAnalysis.h"
-#include "ion/LinearScan.h"
-#include "ion/ParallelSafetyAnalysis.h"
+#include "BaselineJIT.h"
+#include "BaselineCompiler.h"
+#include "BaselineInspector.h"
+#include "Ion.h"
+#include "IonAnalysis.h"
+#include "IonBuilder.h"
+#include "IonLinker.h"
+#include "IonSpewer.h"
+#include "LIR.h"
+#include "AliasAnalysis.h"
+#include "LICM.h"
+#include "ValueNumbering.h"
+#include "EdgeCaseAnalysis.h"
+#include "RangeAnalysis.h"
+#include "LinearScan.h"
+#include "ParallelSafetyAnalysis.h"
 #include "jscompartment.h"
 #include "vm/ThreadPool.h"
 #include "vm/ForkJoin.h"
-#include "ion/IonCompartment.h"
-#include "ion/PerfSpewer.h"
-#include "ion/CodeGenerator.h"
+#include "IonCompartment.h"
+#include "PerfSpewer.h"
+#include "CodeGenerator.h"
 #include "jsworkers.h"
-#include "ion/BacktrackingAllocator.h"
-#include "ion/StupidAllocator.h"
-#include "ion/UnreachableCodeElimination.h"
-#include "ion/EffectiveAddressAnalysis.h"
+#include "BacktrackingAllocator.h"
+#include "StupidAllocator.h"
+#include "UnreachableCodeElimination.h"
+#include "EffectiveAddressAnalysis.h"
 
 #if defined(JS_CPU_X86)
-# include "ion/x86/Lowering-x86.h"
+# include "x86/Lowering-x86.h"
 #elif defined(JS_CPU_X64)
-# include "ion/x64/Lowering-x64.h"
+# include "x64/Lowering-x64.h"
 #elif defined(JS_CPU_ARM)
-# include "ion/arm/Lowering-arm.h"
+# include "arm/Lowering-arm.h"
 #endif
 #include "gc/Marking.h"
 
@@ -51,9 +51,9 @@
 #include "vm/Stack-inl.h"
 #include "ion/IonFrames-inl.h"
 #include "ion/CompilerRoot.h"
-#include "ion/ExecutionModeInlines.h"
-#include "ion/AsmJS.h"
-#include "ion/AsmJSModule.h"
+#include "ExecutionModeInlines.h"
+#include "AsmJS.h"
+#include "AsmJSModule.h"
 
 #if JS_TRACE_LOGGING
 #include "TraceLogging.h"
@@ -298,8 +298,7 @@ IonCompartment::IonCompartment(IonRuntime *rt)
   : rt(rt),
     stubCodes_(NULL),
     baselineCallReturnAddr_(NULL),
-    stringConcatStub_(NULL),
-    parallelStringConcatStub_(NULL)
+    stringConcatStub_(NULL)
 {
 }
 
@@ -323,18 +322,10 @@ bool
 IonCompartment::ensureIonStubsExist(JSContext *cx)
 {
     if (!stringConcatStub_) {
-        stringConcatStub_ = generateStringConcatStub(cx, SequentialExecution);
+        stringConcatStub_ = generateStringConcatStub(cx);
         if (!stringConcatStub_)
             return false;
     }
-
-#ifdef JS_THREADSAFE
-    if (!parallelStringConcatStub_) {
-        parallelStringConcatStub_ = generateStringConcatStub(cx, ParallelExecution);
-        if (!parallelStringConcatStub_)
-            return false;
-    }
-#endif
 
     return true;
 }

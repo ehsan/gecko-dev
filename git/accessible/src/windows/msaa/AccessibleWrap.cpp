@@ -1734,13 +1734,14 @@ AccessibleWrap::GetXPAccessibleFor(const VARIANT& aVarChild)
     if (IsDoc())
       return AsDoc()->GetAccessibleByUniqueIDInSubtree(uniqueID);
 
-    // ARIA document and menu popups.
-    if (ARIARole() == roles::DOCUMENT || IsMenuPopup()) {
+    // ARIA document.
+    if (ARIARole() == roles::DOCUMENT) {
       DocAccessible* document = Document();
       Accessible* child =
         document->GetAccessibleByUniqueIDInSubtree(uniqueID);
 
-      // Check whether the accessible for the given ID is a child.
+      // Check whether the accessible for the given ID is a child of ARIA
+      // document.
       Accessible* parent = child ? child->Parent() : nullptr;
       while (parent && parent != document) {
         if (parent == this)

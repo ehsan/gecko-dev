@@ -16,6 +16,10 @@
 #include "ion/MIR.h"
 #include "ion/MIRGraph.h"
 
+#ifdef MOZ_VTUNE
+# include "jitprofiling.h"
+#endif
+
 #include "jsfuninlines.h"
 
 #include "frontend/ParseNode-inl.h"

@@ -57,7 +57,8 @@ this.EventManager.prototype = {
       this.present(Presentation.tabStateChanged(null, 'newtab'));
 
     } catch (x) {
-      Logger.logException(x, 'Failed to start EventManager');
+      Logger.error('Failed to start EventManager');
+      Logger.logException(x);
     }
   },
 
@@ -116,7 +117,8 @@ this.EventManager.prototype = {
       }
       }
     } catch (x) {
-      Logger.logException(x, 'Error handling DOM event');
+      Logger.error('Error handling DOM event');
+      Logger.logException(x);
     }
   },
 
@@ -138,7 +140,7 @@ this.EventManager.prototype = {
         let pivot = aEvent.accessible.
           QueryInterface(Ci.nsIAccessibleDocument).virtualCursor;
         let position = pivot.position;
-        if (position && position.role == Ci.nsIAccessibleRole.ROLE_INTERNAL_FRAME)
+        if (position.role == Ci.nsIAccessibleRole.ROLE_INTERNAL_FRAME)
           break;
         let event = aEvent.
           QueryInterface(Ci.nsIAccessibleVirtualCursorChangeEvent);
@@ -419,7 +421,8 @@ const AccessibilityEventObserver = {
     try {
       eventManager.handleAccEvent(event);
     } catch (x) {
-      Logger.logException(x, 'Error handing accessible event');
+      Logger.error('Error handing accessible event');
+      Logger.logException(x);
     } finally {
       return;
     }

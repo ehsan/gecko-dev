@@ -7,7 +7,7 @@
 #ifndef ion_CompileInfo_h
 #define ion_CompileInfo_h
 
-#include "ion/Registers.h"
+#include "Registers.h"
 
 namespace js {
 namespace ion {

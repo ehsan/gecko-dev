@@ -16,7 +16,6 @@ import traceback
 import platform
 import moznetwork
 import xml.dom.minidom as dom
-from functools import wraps
 
 from manifestparser import TestManifest
 from mozhttpd import MozHttpd
@@ -33,42 +32,12 @@ class MarionetteTestResult(unittest._TextTestResult):
         del kwargs['marionette']
         super(MarionetteTestResult, self).__init__(*args, **kwargs)
         self.passed = 0
-        self.skipped = []
-        self.expectedFailures = []
-        self.unexpectedSuccesses = []
         self.tests_passed = []
 
     def addSuccess(self, test):
         super(MarionetteTestResult, self).addSuccess(test)
         self.passed += 1
         self.tests_passed.append(test)
-
-    def addExpectedFailure(self, test, err):
-        """Called when an expected failure/error occured."""
-        self.expectedFailures.append(
-            (test, self._exc_info_to_string(err, test)))
-        if self.showAll:
-            self.stream.writeln("expected failure")
-        elif self.dots:
-            self.stream.write("x")
-            self.stream.flush()
-
-    def addUnexpectedSuccess(self, test):
-        """Called when a test was expected to fail, but succeed."""
-        self.unexpectedSuccesses.append(test)
-        if self.showAll:
-            self.stream.writeln("unexpected success")
-        elif self.dots:
-            self.stream.write("u")
-            self.stream.flush()
-
-    def addSkip(self, test, reason):
-        self.skipped.append((test, reason))
-        if self.showAll:
-            self.stream.writeln("skipped {0!r}".format(reason))
-        elif self.dots:
-            self.stream.write("s")
-            self.stream.flush()
 
     def getInfo(self, test):
         return test.test_name
@@ -522,16 +491,14 @@ class MarionetteTestRunner(object):
 
             self.failed += len(results.failures) + len(results.errors)
             if hasattr(results, 'skipped'):
-                self.todo += len(results.skipped)
+                self.todo += len(results.skipped) + len(results.expectedFailures)
             self.passed += results.passed
             for failure in results.failures + results.errors:
                 self.failures.append((results.getInfo(failure[0]), failure[1], 'TEST-UNEXPECTED-FAIL'))
-            if hasattr(results, 'unexpectedSuccesses'):
+            if hasattr(results, 'unexpectedSuccess'):
                 self.failed += len(results.unexpectedSuccesses)
                 for failure in results.unexpectedSuccesses:
-                    self.failures.append((results.getInfo(failure), 'TEST-UNEXPECTED-PASS'))
-            if hasattr(results, 'expectedFailures'):
-                self.passed += len(results.expectedFailures)
+                    self.failures.append((results.getInfo(failure[0]), failure[1], 'TEST-UNEXPECTED-PASS'))
 
     def register_handlers(self):
         self.test_handlers.extend([MarionetteTestCase, MarionetteJSTestCase])

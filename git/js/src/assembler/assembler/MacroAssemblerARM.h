@@ -36,8 +36,8 @@
 
 #if ENABLE_ASSEMBLER && WTF_CPU_ARM_TRADITIONAL
 
-#include "assembler/assembler/ARMAssembler.h"
-#include "assembler/assembler/AbstractMacroAssembler.h"
+#include "ARMAssembler.h"
+#include "AbstractMacroAssembler.h"
 
 namespace JSC {
 

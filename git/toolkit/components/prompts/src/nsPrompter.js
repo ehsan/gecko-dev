@@ -377,7 +377,7 @@ function openModalWindow(domWin, uri, args) {
         // a domWin was passed, so we can apply the check for it being hidden.
         let winUtils = domWin.QueryInterface(Ci.nsIInterfaceRequestor)
                              .getInterface(Ci.nsIDOMWindowUtils);
-        if (winUtils && !winUtils.isParentWindowMainWidgetVisible) {
+        if (!winUtils.isParentWindowMainWidgetVisible) {
             throw Components.Exception("Cannot call openModalWindow on a hidden window",
                                        Cr.NS_ERROR_NOT_AVAILABLE);
         }

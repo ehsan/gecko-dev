@@ -9,11 +9,12 @@
 
 #include "jscntxt.h"
 
-#include "ion/IonAllocPolicy.h"
+#include "IonAllocPolicy.h"
 #include "js/Vector.h"
 
 namespace js {
 namespace ion {
+
 
 // Basic information about bytecodes in the script.  Used to help baseline compilation.
 struct BytecodeInfo

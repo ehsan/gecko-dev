@@ -35,8 +35,9 @@
 
 #if ENABLE(ASSEMBLER) && CPU(ARM_THUMB2)
 
-#include "assembler/assembler/AssemblerBuffer.h"
+#include "AssemblerBuffer.h"
 #include "assembler/wtf/Assertions.h"
+#include "assembler/wtf/Vector.h"
 #include <stdint.h>
 
 namespace JSC {

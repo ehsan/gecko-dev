@@ -549,9 +549,6 @@ class PerThreadData : public js::PerThreadDataFriendFields
         return activation_;
     }
 
-    /* State used by jsdtoa.cpp. */
-    DtoaState           *dtoaState;
-
     /*
      * When this flag is non-zero, any attempt to GC will be skipped. It is used
      * to suppress GC when reporting an OOM (see js_ReportOutOfMemory) and in
@@ -563,9 +560,6 @@ class PerThreadData : public js::PerThreadDataFriendFields
     int32_t             suppressGC;
 
     PerThreadData(JSRuntime *runtime);
-    ~PerThreadData();
-
-    bool init();
 
     bool associatedWith(const JSRuntime *rt) { return runtime_ == rt; }
 };
@@ -1297,6 +1291,9 @@ struct JSRuntime : public JS::shadow::Runtime,
     js::EvalCache       evalCache;
     js::LazyScriptCache lazyScriptCache;
 
+    /* State used by jsdtoa.cpp. */
+    DtoaState           *dtoaState;
+
     js::DateTimeInfo    dateTimeInfo;
 
     js::ConservativeGCData conservativeGC;
@@ -1595,9 +1592,6 @@ struct ThreadSafeContext : js::ContextFriendFields,
         return runtime_->gcNursery;
     }
 #endif
-
-    /* Cut outs for string operations. */
-    StaticStrings &staticStrings() { return runtime_->staticStrings; }
 
     /*
      * Allocator used when allocating GCThings on this context. If we are a

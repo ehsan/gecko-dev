@@ -207,7 +207,7 @@ public:
 
 #ifdef ACCESSIBILITY
   // Get the accessible for the window.
-  mozilla::a11y::Accessible* GetRootAccessible();
+  mozilla::a11y::Accessible* GetAccessible();
 #endif
 
   nsPopupLevel PopupLevel() { return mPopupLevel; }

@@ -7,7 +7,7 @@
 #ifndef ion_arm_CodeGenerator_arm_h
 #define ion_arm_CodeGenerator_arm_h
 
-#include "ion/arm/Assembler-arm.h"
+#include "Assembler-arm.h"
 #include "ion/shared/CodeGenerator-shared.h"
 
 namespace js {

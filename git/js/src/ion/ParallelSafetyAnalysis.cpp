@@ -6,13 +6,13 @@
 
 #include <stdio.h>
 
-#include "ion/Ion.h"
-#include "ion/MIR.h"
-#include "ion/MIRGraph.h"
-#include "ion/ParallelSafetyAnalysis.h"
-#include "ion/IonSpewer.h"
-#include "ion/UnreachableCodeElimination.h"
-#include "ion/IonAnalysis.h"
+#include "Ion.h"
+#include "MIR.h"
+#include "MIRGraph.h"
+#include "ParallelSafetyAnalysis.h"
+#include "IonSpewer.h"
+#include "UnreachableCodeElimination.h"
+#include "IonAnalysis.h"
 
 #include "vm/Stack.h"
 
@@ -156,8 +156,7 @@ class ParallelSafetyVisitor : public MInstructionVisitor
     SPECIALIZED_OP(Mul, PERMIT_NUMERIC)
     SPECIALIZED_OP(Div, PERMIT_NUMERIC)
     SPECIALIZED_OP(Mod, PERMIT_NUMERIC)
-    CUSTOM_OP(Concat)
-    SAFE_OP(ParConcat)
+    UNSAFE_OP(Concat)
     UNSAFE_OP(CharCodeAt)
     UNSAFE_OP(FromCharCode)
     SAFE_OP(Return)
@@ -168,7 +167,7 @@ class ParallelSafetyVisitor : public MInstructionVisitor
     SAFE_OP(ToDouble)
     SAFE_OP(ToInt32)
     SAFE_OP(TruncateToInt32)
-    CUSTOM_OP(ToString)
+    UNSAFE_OP(ToString)
     SAFE_OP(NewSlots)
     CUSTOM_OP(NewArray)
     CUSTOM_OP(NewObject)
@@ -554,21 +553,6 @@ bool
 ParallelSafetyVisitor::visitRest(MRest *ins)
 {
     return replace(ins, MParRest::New(parSlice(), ins));
-}
-
-bool
-ParallelSafetyVisitor::visitConcat(MConcat *ins)
-{
-    return replace(ins, MParConcat::New(parSlice(), ins));
-}
-
-bool
-ParallelSafetyVisitor::visitToString(MToString *ins)
-{
-    MIRType inputType = ins->input()->type();
-    if (inputType != MIRType_Int32 && inputType != MIRType_Double)
-        return markUnsafe();
-    return true;
 }
 
 bool

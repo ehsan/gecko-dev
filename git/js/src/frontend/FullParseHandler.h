@@ -9,8 +9,8 @@
 
 #include "mozilla/PodOperations.h"
 
-#include "frontend/ParseNode.h"
-#include "frontend/SharedContext.h"
+#include "ParseNode.h"
+#include "SharedContext.h"
 
 namespace js {
 namespace frontend {

@@ -6,7 +6,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 
-#include "jsapi-tests/tests.h"
+#include "tests.h"
 
 struct ScriptObjectFixture : public JSAPITest {
     static const int code_size;

@@ -36,7 +36,7 @@
 
 #if ENABLE_ASSEMBLER && WTF_CPU_X86_64
 
-#include "assembler/assembler/MacroAssemblerX86Common.h"
+#include "MacroAssemblerX86Common.h"
 
 #define REPTACH_OFFSET_CALL_R11 3
 

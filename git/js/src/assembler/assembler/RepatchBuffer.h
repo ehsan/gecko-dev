@@ -34,8 +34,8 @@
 
 #if ENABLE_ASSEMBLER
 
-#include "assembler/assembler/MacroAssembler.h"
-#include "assembler/moco/MocoStubs.h" //MOCO
+#include <assembler/MacroAssembler.h>
+#include <moco/MocoStubs.h> //MOCO
 
 namespace JSC {
 

@@ -9,7 +9,7 @@
 
 #include "js/Vector.h"
 #include "jsalloc.h"
-#include "ion/IonTypes.h"
+#include "IonTypes.h"
 
 namespace js {
 namespace ion {

@@ -141,36 +141,24 @@ MacroAssembler::PushRegsInMask(RegisterSet set)
     int32_t diffF = set.fpus().size() * sizeof(double);
     int32_t diffG = set.gprs().size() * STACK_SLOT_SIZE;
 
-#if defined(JS_CPU_X86) || defined(JS_CPU_X64)
-    // On x86, always use push to push the integer registers, as it's fast
-    // on modern hardware and it's a small instruction.
-    for (GeneralRegisterBackwardIterator iter(set.gprs()); iter.more(); iter++) {
-        diffG -= STACK_SLOT_SIZE;
-        Push(*iter);
-    }
-#elif defined(JS_CPU_ARM)
+#ifdef JS_CPU_ARM
     if (set.gprs().size() > 1) {
         adjustFrame(diffG);
         startDataTransferM(IsStore, StackPointer, DB, WriteBack);
-        for (GeneralRegisterBackwardIterator iter(set.gprs()); iter.more(); iter++) {
+        for (GeneralRegisterIterator iter(set.gprs()); iter.more(); iter++) {
             diffG -= STACK_SLOT_SIZE;
             transferReg(*iter);
         }
         finishDataTransfer();
-    } else {
+    } else
+#endif
+    {
         reserveStack(diffG);
-        for (GeneralRegisterBackwardIterator iter(set.gprs()); iter.more(); iter++) {
+        for (GeneralRegisterIterator iter(set.gprs()); iter.more(); iter++) {
             diffG -= STACK_SLOT_SIZE;
             storePtr(*iter, Address(StackPointer, diffG));
         }
     }
-#else
-    reserveStack(diffG);
-    for (GeneralRegisterBackwardIterator iter(set.gprs()); iter.more(); iter++) {
-        diffG -= STACK_SLOT_SIZE;
-        storePtr(*iter, Address(StackPointer, diffG));
-    }
-#endif
     JS_ASSERT(diffG == 0);
 
 #ifdef JS_CPU_ARM
@@ -178,7 +166,7 @@ MacroAssembler::PushRegsInMask(RegisterSet set)
     diffF += transferMultipleByRuns(set.fpus(), IsStore, StackPointer, DB);
 #else
     reserveStack(diffF);
-    for (FloatRegisterBackwardIterator iter(set.fpus()); iter.more(); iter++) {
+    for (FloatRegisterIterator iter(set.fpus()); iter.more(); iter++) {
         diffF -= sizeof(double);
         storeDouble(*iter, Address(StackPointer, diffF));
     }
@@ -203,7 +191,7 @@ MacroAssembler::PopRegsInMaskIgnore(RegisterSet set, RegisterSet ignore)
     } else
 #endif
     {
-        for (FloatRegisterBackwardIterator iter(set.fpus()); iter.more(); iter++) {
+        for (FloatRegisterIterator iter(set.fpus()); iter.more(); iter++) {
             diffF -= sizeof(double);
             if (!ignore.has(*iter))
                 loadDouble(Address(StackPointer, diffF), *iter);
@@ -212,21 +200,10 @@ MacroAssembler::PopRegsInMaskIgnore(RegisterSet set, RegisterSet ignore)
     }
     JS_ASSERT(diffF == 0);
 
-#if defined(JS_CPU_X86) || defined(JS_CPU_X64)
-    // On x86, use pop to pop the integer registers, if we're not going to
-    // ignore any slots, as it's fast on modern hardware and it's a small
-    // instruction.
-    if (ignore.empty(false)) {
-        for (GeneralRegisterForwardIterator iter(set.gprs()); iter.more(); iter++) {
-            diffG -= STACK_SLOT_SIZE;
-            Pop(*iter);
-        }
-    } else
-#endif
 #ifdef JS_CPU_ARM
     if (set.gprs().size() > 1 && ignore.empty(false)) {
         startDataTransferM(IsLoad, StackPointer, IA, WriteBack);
-        for (GeneralRegisterBackwardIterator iter(set.gprs()); iter.more(); iter++) {
+        for (GeneralRegisterIterator iter(set.gprs()); iter.more(); iter++) {
             diffG -= STACK_SLOT_SIZE;
             transferReg(*iter);
         }
@@ -235,7 +212,7 @@ MacroAssembler::PopRegsInMaskIgnore(RegisterSet set, RegisterSet ignore)
     } else
 #endif
     {
-        for (GeneralRegisterBackwardIterator iter(set.gprs()); iter.more(); iter++) {
+        for (GeneralRegisterIterator iter(set.gprs()); iter.more(); iter++) {
             diffG -= STACK_SLOT_SIZE;
             if (!ignore.has(*iter))
                 loadPtr(Address(StackPointer, diffG), *iter);
@@ -546,7 +523,7 @@ MacroAssembler::parNewGCThing(const Register &result,
                               const Register &threadContextReg,
                               const Register &tempReg1,
                               const Register &tempReg2,
-                              gc::AllocKind allocKind,
+                              JSObject *templateObject,
                               Label *fail)
 {
     // Similar to ::newGCThing(), except that it allocates from a
@@ -559,6 +536,7 @@ MacroAssembler::parNewGCThing(const Register &result,
     // register as `threadContextReg`.  Then we overwrite that
     // register which messed up the OOL code.
 
+    gc::AllocKind allocKind = templateObject->tenuredGetAllocKind();
     uint32_t thingSize = (uint32_t)gc::Arena::thingSize(allocKind);
 
     // Load the allocator:
@@ -592,41 +570,6 @@ MacroAssembler::parNewGCThing(const Register &result,
     // Update `first`
     // tempReg1->first = tempReg2;
     storePtr(tempReg2, Address(tempReg1, offsetof(gc::FreeSpan, first)));
-}
-
-void
-MacroAssembler::parNewGCThing(const Register &result,
-                              const Register &threadContextReg,
-                              const Register &tempReg1,
-                              const Register &tempReg2,
-                              JSObject *templateObject,
-                              Label *fail)
-{
-    gc::AllocKind allocKind = templateObject->tenuredGetAllocKind();
-    JS_ASSERT(allocKind >= gc::FINALIZE_OBJECT0 && allocKind <= gc::FINALIZE_OBJECT_LAST);
-    JS_ASSERT(!templateObject->hasDynamicElements());
-
-    parNewGCThing(result, threadContextReg, tempReg1, tempReg2, allocKind, fail);
-}
-
-void
-MacroAssembler::parNewGCString(const Register &result,
-                               const Register &threadContextReg,
-                               const Register &tempReg1,
-                               const Register &tempReg2,
-                               Label *fail)
-{
-    parNewGCThing(result, threadContextReg, tempReg1, tempReg2, js::gc::FINALIZE_STRING, fail);
-}
-
-void
-MacroAssembler::parNewGCShortString(const Register &result,
-                                    const Register &threadContextReg,
-                                    const Register &tempReg1,
-                                    const Register &tempReg2,
-                                    Label *fail)
-{
-    parNewGCThing(result, threadContextReg, tempReg1, tempReg2, js::gc::FINALIZE_SHORT_STRING, fail);
 }
 
 void

@@ -542,7 +542,7 @@ var Input = {
     switch (gestureName) {
       case 'dwell1':
       case 'explore1':
-        this.moveCursor('moveToPoint', 'SimpleTouch', 'gesture',
+        this.moveCursor('moveToPoint', 'Simple', 'gesture',
                         aGesture.x, aGesture.y);
         break;
       case 'doubletap1':

@@ -1,5 +1,4 @@
 conformance/extensions/oes-texture-float.html
-conformance/extensions/oes-vertex-array-object.html
 conformance/glsl/functions/glsl-function-abs.html
 conformance/glsl/functions/glsl-function-ceil.html
 conformance/glsl/functions/glsl-function-clamp-float.html

@@ -171,22 +171,23 @@ function clearSelection(aTarget) {
   Asynchronous Metro ui helpers
 =============================================================================*/
 
-// Hides the tab and context app bar if they are visible
 function hideContextUI()
 {
   purgeEventQueue();
 
   return Task.spawn(function() {
-    if (ContextUI.tabbarVisible) {
+    if (ContextUI.isExpanded) {
       let promise = waitForEvent(Elements.tray, "transitionend", null, Elements.tray);
-      if (ContextUI.dismiss()) {
+      if (ContextUI.dismiss())
+      {
+        info("ContextUI dismissed, waiting...");
         yield promise;
       }
     }
 
-    if (ContextUI.contextAppbarVisible) {
+    if (Elements.contextappbar.isShowing) {
       let promise = waitForEvent(Elements.contextappbar, "transitionend", null, Elements.contextappbar);
-      ContextUI.dismissContextAppbar();
+      Elements.contextappbar.dismiss();
       yield promise;
     }
   });
@@ -195,7 +196,7 @@ function hideContextUI()
 function showNavBar()
 {
   let promise = waitForEvent(Elements.navbar, "transitionend");
-  if (!ContextUI.navbarVisible) {
+  if (!ContextUI.isVisible) {
     ContextUI.displayNavbar();
     return promise;
   }

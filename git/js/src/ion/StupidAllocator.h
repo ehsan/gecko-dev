@@ -7,7 +7,7 @@
 #ifndef ion_StupidAllocator_h
 #define ion_StupidAllocator_h
 
-#include "ion/RegisterAllocator.h"
+#include "RegisterAllocator.h"
 
 // Simple register allocator that only carries registers within basic blocks.
 
