@@ -187,11 +187,7 @@ LookupFunction(const char *aContractID, nsIAtom* aName, nsIID &aIID,
             upperNext = true;
         }
         else {
-            MOZ_ASSERT(nsCRT::IsAscii(letter),
-                       "invalid static_cast coming up");
-            methodName.Append(upperNext ?
-                              nsCRT::ToUpper(static_cast<char>(letter)) :
-                              letter);
+            methodName.Append(upperNext ? nsCRT::ToUpper(letter) : letter);
             upperNext = false;
         }
         ++name;

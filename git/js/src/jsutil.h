@@ -54,9 +54,9 @@ class AlignedPtrAndFlag
     uintptr_t bits;
 
   public:
-    AlignedPtrAndFlag(T *t, bool aFlag) {
+    AlignedPtrAndFlag(T *t, bool flag) {
         JS_ASSERT((uintptr_t(t) & 1) == 0);
-        bits = uintptr_t(t) | uintptr_t(aFlag);
+        bits = uintptr_t(t) | uintptr_t(flag);
     }
 
     T *ptr() const {
@@ -80,9 +80,9 @@ class AlignedPtrAndFlag
         bits &= ~uintptr_t(1);
     }
 
-    void set(T *t, bool aFlag) {
+    void set(T *t, bool flag) {
         JS_ASSERT((uintptr_t(t) & 1) == 0);
-        bits = uintptr_t(t) | aFlag;
+        bits = uintptr_t(t) | flag;
     }
 };
 
@@ -162,17 +162,17 @@ class AutoScopedAssign
   public:
     AutoScopedAssign(T *addr, const T &value
                      MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-        : addr_(addr), old(*addr_)
+        : addr(addr), old(*addr)
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-        *addr_ = value;
+        *addr = value;
     }
 
-    ~AutoScopedAssign() { *addr_ = old; }
+    ~AutoScopedAssign() { *addr = old; }
 
   private:
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
-    T *addr_;
+    T *addr;
     T old;
 };
 

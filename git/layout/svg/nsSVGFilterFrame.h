@@ -19,14 +19,9 @@ class nsIPresShell;
 class nsRenderingContext;
 class nsStyleContext;
 class nsSVGFilterPaintCallback;
+class nsSVGFilterElement;
 class nsSVGIntegerPair;
 class nsSVGLength2;
-
-namespace mozilla {
-namespace dom {
-class SVGFilterElement;
-}
-}
 
 typedef nsSVGContainerFrame nsSVGFilterFrameBase;
 
@@ -134,8 +129,8 @@ private:
   {
     return GetLengthValue(aIndex, mContent);
   }
-  const mozilla::dom::SVGFilterElement *GetFilterContent(nsIContent *aDefault);
-  const mozilla::dom::SVGFilterElement *GetFilterContent()
+  const nsSVGFilterElement *GetFilterContent(nsIContent *aDefault);
+  const nsSVGFilterElement *GetFilterContent()
   {
     return GetFilterContent(mContent);
   }

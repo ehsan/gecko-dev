@@ -38,11 +38,6 @@ namespace mozilla {
 namespace dom {
 class CSSValue;
 class SVGSVGElement;
-
-static const unsigned short SVG_UNIT_TYPE_UNKNOWN           = 0;
-static const unsigned short SVG_UNIT_TYPE_USERSPACEONUSE    = 1;
-static const unsigned short SVG_UNIT_TYPE_OBJECTBOUNDINGBOX = 2;
-
 }
 
 class SVGAnimatedNumberList;

@@ -929,7 +929,7 @@ class JSObject : public js::ObjectImpl
 
     static bool thisObject(JSContext *cx, const js::Value &v, js::Value *vp);
 
-    static bool swap(JSContext *cx, JS::HandleObject a, JS::HandleObject b);
+    bool swap(JSContext *cx, JSObject *other);
 
     inline void initArrayClass();
 

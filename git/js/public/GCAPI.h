@@ -121,10 +121,10 @@ enum GCProgress {
 };
 
 struct JS_FRIEND_API(GCDescription) {
-    bool isCompartment_;
+    bool isCompartment;
 
     GCDescription(bool isCompartment)
-      : isCompartment_(isCompartment) {}
+      : isCompartment(isCompartment) {}
 
     jschar *formatMessage(JSRuntime *rt) const;
     jschar *formatJSON(JSRuntime *rt, uint64_t timestamp) const;

@@ -4,28 +4,24 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef mozilla_dom_HTMLOptionElement_h__
-#define mozilla_dom_HTMLOptionElement_h__
+#ifndef nsHTMLOptionElement_h__
+#define nsHTMLOptionElement_h__
 
 #include "nsGenericHTMLElement.h"
 #include "nsIDOMHTMLOptionElement.h"
 #include "nsIJSNativeInitializer.h"
-#include "nsHTMLFormElement.h"
 
 class nsHTMLSelectElement;
 
-namespace mozilla {
-namespace dom {
-
-class HTMLOptionElement : public nsGenericHTMLElement,
-                          public nsIDOMHTMLOptionElement,
-                          public nsIJSNativeInitializer
+class nsHTMLOptionElement : public nsGenericHTMLElement,
+                            public nsIDOMHTMLOptionElement,
+                            public nsIJSNativeInitializer
 {
 public:
-  HTMLOptionElement(already_AddRefed<nsINodeInfo> aNodeInfo);
-  virtual ~HTMLOptionElement();
+  nsHTMLOptionElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  virtual ~nsHTMLOptionElement();
 
-  NS_IMPL_FROMCONTENT_HTML_WITH_TAG(HTMLOptionElement, option)
+  NS_IMPL_FROMCONTENT_HTML_WITH_TAG(nsHTMLOptionElement, option)
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED
@@ -49,7 +45,7 @@ public:
 
   // nsIJSNativeInitializer
   NS_IMETHOD Initialize(nsISupports* aOwner, JSContext* aContext,
-                        JSObject* aObj, uint32_t argc, jsval* argv);
+                        JSObject *aObj, uint32_t argc, jsval *argv);
 
   virtual nsChangeHint GetAttributeChangeHint(const nsIAtom* aAttribute,
                                               int32_t aModType) const;
@@ -69,7 +65,7 @@ public:
   // nsIContent
   virtual nsEventStates IntrinsicState() const;
 
-  virtual nsresult Clone(nsINodeInfo* aNodeInfo, nsINode** aResult) const;
+  virtual nsresult Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const;
 
   nsresult CopyInnerTo(mozilla::dom::Element* aDest);
 
@@ -80,60 +76,7 @@ public:
   virtual bool IsDisabled() const {
     return HasAttr(kNameSpaceID_None, nsGkAtoms::disabled);
   }
-
-  bool Disabled() const
-  {
-    return GetBoolAttr(nsGkAtoms::disabled);
-  }
-
-  void SetDisabled(bool aValue, ErrorResult& aRv)
-  {
-    SetHTMLBoolAttr(nsGkAtoms::disabled, aValue, aRv);
-  }
-
-  nsHTMLFormElement* GetForm();
-
-  // The XPCOM GetLabel is OK for us
-  void SetLabel(const nsAString& aLabel, ErrorResult& aError)
-  {
-    SetHTMLAttr(nsGkAtoms::label, aLabel, aError);
-  }
-
-  // The XPCOM DefaultSelected is OK for us
-  void SetDefaultSelected(bool aValue, ErrorResult& aRv)
-  {
-    SetHTMLBoolAttr(nsGkAtoms::selected, aValue, aRv);
-  }
-
-  // The XPCOM Selected is OK for us
-  void SetSelected(bool aValue, ErrorResult& aRv)
-  {
-    aRv = SetSelected(aValue);
-  }
-
-  // The XPCOM GetValue is OK for us
-  void SetValue(const nsAString& aValue, ErrorResult& aRv)
-  {
-    SetHTMLAttr(nsGkAtoms::value, aValue, aRv);
-  }
-
-  // The XPCOM GetText is OK for us
-  void SetText(const nsAString& aValue, ErrorResult& aRv)
-  {
-    aRv = SetText(aValue);
-  }
-
-  int32_t GetIndex(ErrorResult& aRv)
-  {
-    int32_t id = 0;
-    aRv = GetIndex(&id);
-    return id;
-  }
-
 protected:
-  virtual JSObject* WrapNode(JSContext* aCx, JSObject* aScope,
-                             bool* aTriedToWrap) MOZ_OVERRIDE;
-
   /**
    * Get the select content element that contains this option, this
    * intentionally does not return nsresult, all we care about is if
@@ -149,7 +92,4 @@ protected:
   bool mIsInSetDefaultSelected;
 };
 
-} // namespace dom
-} // namespace mozilla
-
-#endif // mozilla_dom_HTMLOptionElement_h__
+#endif

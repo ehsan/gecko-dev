@@ -419,7 +419,7 @@ MediaDecodeTask::CreateReader()
 
   BufferMediaResource* resource =
     new BufferMediaResource(static_cast<uint8_t*> (mBuffer),
-                            mLength, mPrincipal, mContentType);
+                            mLength, mPrincipal);
 
   MOZ_ASSERT(!mBufferDecoder);
   mBufferDecoder = new BufferDecoder(resource);

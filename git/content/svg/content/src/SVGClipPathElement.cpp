@@ -24,16 +24,17 @@ nsSVGElement::EnumInfo SVGClipPathElement::sEnumInfo[1] =
 {
   { &nsGkAtoms::clipPathUnits,
     sSVGUnitTypesMap,
-    SVG_UNIT_TYPE_USERSPACEONUSE
+    nsIDOMSVGUnitTypes::SVG_UNIT_TYPE_USERSPACEONUSE
   }
 };
 
 //----------------------------------------------------------------------
 // nsISupports methods
 
-NS_IMPL_ISUPPORTS_INHERITED3(SVGClipPathElement, SVGClipPathElementBase,
+NS_IMPL_ISUPPORTS_INHERITED4(SVGClipPathElement, SVGClipPathElementBase,
                              nsIDOMNode, nsIDOMElement,
-                             nsIDOMSVGElement)
+                             nsIDOMSVGElement,
+                             nsIDOMSVGUnitTypes)
 
 //----------------------------------------------------------------------
 // Implementation

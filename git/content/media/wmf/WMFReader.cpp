@@ -8,7 +8,6 @@
 #include "WMFDecoder.h"
 #include "WMFUtils.h"
 #include "WMFByteStream.h"
-#include "WMFSourceReaderCallback.h"
 
 #ifndef MOZ_SAMPLE_TYPE_FLOAT32
 #error We expect 32bit float audio samples on desktop for the Windows Media Foundation media backend.
@@ -88,10 +87,9 @@ WMFReader::Init(MediaDecoderReader* aCloneDonor)
     return NS_ERROR_FAILURE;
   }
 
-  mSourceReaderCallback = new WMFSourceReaderCallback();
-
   // Must be created on main thread.
-  mByteStream = new WMFByteStream(mDecoder->GetResource(), mSourceReaderCallback);
+  mByteStream = new WMFByteStream(mDecoder->GetResource());
+
   return mByteStream->Init();
 }
 
@@ -342,7 +340,7 @@ WMFReader::ConfigureVideoFrameGeometry(IMFMediaType* aMediaType)
   return S_OK;
 }
 
-HRESULT
+void
 WMFReader::ConfigureVideoDecoder()
 {
   NS_ASSERTION(mSourceReader, "Must have a SourceReader before configuring decoders!");
@@ -350,8 +348,7 @@ WMFReader::ConfigureVideoDecoder()
   // Determine if we have video.
   if (!mSourceReader ||
       !SourceReaderHasStream(mSourceReader, MF_SOURCE_READER_FIRST_VIDEO_STREAM)) {
-    // No stream, no error.
-    return S_OK;
+    return;
   }
 
   static const GUID MP4VideoTypes[] = {
@@ -364,7 +361,7 @@ WMFReader::ConfigureVideoDecoder()
                                            NS_ARRAY_LENGTH(MP4VideoTypes));
   if (FAILED(hr)) {
     LOG("Failed to configured video output for MFVideoFormat_YV12");
-    return hr;
+    return;
   }
 
   RefPtr<IMFMediaType> mediaType;
@@ -372,52 +369,49 @@ WMFReader::ConfigureVideoDecoder()
                                           byRef(mediaType));
   if (FAILED(hr)) {
     NS_WARNING("Failed to get configured video media type");
-    return hr;
+    return;
   }
 
   if (FAILED(ConfigureVideoFrameGeometry(mediaType))) {
     NS_WARNING("Failed configured video frame dimensions");
-    return hr;
+    return;
   }
 
   LOG("Successfully configured video stream");
 
   mHasVideo = mInfo.mHasVideo = true;
-
-  return S_OK;
 }
 
-HRESULT
+void
 WMFReader::ConfigureAudioDecoder()
 {
   NS_ASSERTION(mSourceReader, "Must have a SourceReader before configuring decoders!");
 
   if (!mSourceReader ||
       !SourceReaderHasStream(mSourceReader, MF_SOURCE_READER_FIRST_AUDIO_STREAM)) {
-    // No stream, no error.
-    return S_OK;
+    // No audio stream.
+    return;
   }
 
   static const GUID MP4AudioTypes[] = {
     MFAudioFormat_AAC,
     MFAudioFormat_MP3
   };
-  HRESULT hr = ConfigureSourceReaderStream(mSourceReader,
-                                           MF_SOURCE_READER_FIRST_AUDIO_STREAM,
-                                           MFAudioFormat_Float,
-                                           MP4AudioTypes,
-                                           NS_ARRAY_LENGTH(MP4AudioTypes));
-  if (FAILED(hr)) {
+  if (FAILED(ConfigureSourceReaderStream(mSourceReader,
+                                         MF_SOURCE_READER_FIRST_AUDIO_STREAM,
+                                         MFAudioFormat_Float,
+                                         MP4AudioTypes,
+                                         NS_ARRAY_LENGTH(MP4AudioTypes)))) {
     NS_WARNING("Failed to configure WMF Audio decoder for PCM output");
-    return hr;
+    return;
   }
 
   RefPtr<IMFMediaType> mediaType;
-  hr = mSourceReader->GetCurrentMediaType(MF_SOURCE_READER_FIRST_AUDIO_STREAM,
-                                          byRef(mediaType));
+  HRESULT hr = mSourceReader->GetCurrentMediaType(MF_SOURCE_READER_FIRST_AUDIO_STREAM,
+                                                  byRef(mediaType));
   if (FAILED(hr)) {
     NS_WARNING("Failed to get configured audio media type");
-    return hr;
+    return;
   }
 
   mAudioRate = MFGetAttributeUINT32(mediaType, MF_MT_AUDIO_SAMPLES_PER_SECOND, 0);
@@ -430,8 +424,6 @@ WMFReader::ConfigureAudioDecoder()
 
   LOG("Successfully configured audio stream. rate=%u channels=%u bitsPerSample=%u",
       mAudioRate, mAudioChannels, mAudioBytesPerSample);
-
-  return S_OK;
 }
 
 nsresult
@@ -443,21 +435,11 @@ WMFReader::ReadMetadata(VideoInfo* aInfo,
   LOG("WMFReader::ReadMetadata()");
   HRESULT hr;
 
-  RefPtr<IMFAttributes> attr;
-  hr = wmf::MFCreateAttributes(byRef(attr), 1);
+  hr = wmf::MFCreateSourceReaderFromByteStream(mByteStream, NULL, byRef(mSourceReader));
   NS_ENSURE_TRUE(SUCCEEDED(hr), NS_ERROR_FAILURE);
 
-  hr = attr->SetUnknown(MF_SOURCE_READER_ASYNC_CALLBACK, mSourceReaderCallback);
-  NS_ENSURE_TRUE(SUCCEEDED(hr), NS_ERROR_FAILURE);
-
-  hr = wmf::MFCreateSourceReaderFromByteStream(mByteStream, attr, byRef(mSourceReader));
-  NS_ENSURE_TRUE(SUCCEEDED(hr), NS_ERROR_FAILURE);
-
-  hr = ConfigureVideoDecoder();
-  NS_ENSURE_TRUE(SUCCEEDED(hr), NS_ERROR_FAILURE);
-
-  hr = ConfigureAudioDecoder();
-  NS_ENSURE_TRUE(SUCCEEDED(hr), NS_ERROR_FAILURE);
+  ConfigureVideoDecoder();
+  ConfigureAudioDecoder();
 
   // Abort if both video and audio failed to initialize.
   NS_ENSURE_TRUE(mInfo.mHasAudio || mInfo.mHasVideo, NS_ERROR_FAILURE);
@@ -492,39 +474,27 @@ WMFReader::DecodeAudioData()
 {
   NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
 
+  DWORD flags;
+  LONGLONG timestampHns;
   HRESULT hr;
+
+  RefPtr<IMFSample> sample;
   hr = mSourceReader->ReadSample(MF_SOURCE_READER_FIRST_AUDIO_STREAM,
                                  0, // control flags
-                                 0, // read stream index
-                                 nullptr,
-                                 nullptr,
-                                 nullptr);
+                                 nullptr, // read stream index
+                                 &flags,
+                                 &timestampHns,
+                                 byRef(sample));
 
-  if (FAILED(hr)) {
-    LOG("WMFReader::DecodeAudioData() ReadSample failed with hr=0x%x", hr);
-    // End the stream.
-    mAudioQueue.Finish();
-    return false;
-  }
-
-  DWORD flags = 0;
-  LONGLONG timestampHns = 0;
-  RefPtr<IMFSample> sample;
-  hr = mSourceReaderCallback->Wait(&flags, &timestampHns, byRef(sample));
   if (FAILED(hr) ||
       (flags & MF_SOURCE_READERF_ERROR) ||
       (flags & MF_SOURCE_READERF_ENDOFSTREAM) ||
       (flags & MF_SOURCE_READERF_CURRENTMEDIATYPECHANGED)) {
     LOG("WMFReader::DecodeAudioData() ReadSample failed with hr=0x%x flags=0x%x",
         hr, flags);
-    // End the stream.
+    // End of stream.
     mAudioQueue.Finish();
     return false;
-  }
-
-  if (!sample) {
-    // Not enough data? Try again...
-    return true;
   }
 
   RefPtr<IMFMediaBuffer> buffer;
@@ -572,26 +542,17 @@ WMFReader::DecodeVideoFrame(bool &aKeyframeSkip,
   uint32_t parsed = 0, decoded = 0;
   AbstractMediaDecoder::AutoNotifyDecoded autoNotify(mDecoder, parsed, decoded);
 
+  DWORD flags;
+  LONGLONG timestampHns;
   HRESULT hr;
 
+  RefPtr<IMFSample> sample;
   hr = mSourceReader->ReadSample(MF_SOURCE_READER_FIRST_VIDEO_STREAM,
                                  0, // control flags
-                                 0, // read stream index
-                                 nullptr,
-                                 nullptr,
-                                 nullptr);
-  if (FAILED(hr)) {
-    LOG("WMFReader::DecodeVideoData() ReadSample failed with hr=0x%x", hr);
-    // End the stream.
-    mVideoQueue.Finish();
-    return false;
-  }
-
-  DWORD flags = 0;
-  LONGLONG timestampHns = 0;
-  RefPtr<IMFSample> sample;
-  hr = mSourceReaderCallback->Wait(&flags, &timestampHns, byRef(sample));
-
+                                 nullptr, // read stream index
+                                 &flags,
+                                 &timestampHns,
+                                 byRef(sample));
   if (flags & MF_SOURCE_READERF_ERROR) {
     NS_WARNING("WMFReader: Catastrophic failure reading video sample");
     // Future ReadSample() calls will fail, so give up and report end of stream.
@@ -607,7 +568,7 @@ WMFReader::DecodeVideoFrame(bool &aKeyframeSkip,
   if (!sample) {
     if ((flags & MF_SOURCE_READERF_ENDOFSTREAM)) {
       LOG("WMFReader; Null sample after video decode, at end of stream");
-      // End the stream.
+      // End of stream.
       mVideoQueue.Finish();
       return false;
     }

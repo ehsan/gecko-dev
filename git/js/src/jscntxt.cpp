@@ -284,7 +284,6 @@ js::CloneFunctionAtCallsite(JSContext *cx, HandleFunction fun, HandleScript scri
         return NULL;
 
     Key key;
-    SkipRoot skipKey(cx, &key); /* Stop the analysis complaining about unrooted key. */
     key.script = script;
     key.offset = pc - script->code;
     key.original = fun;

@@ -17,6 +17,7 @@ XPIDL_MODULE	= dom_svg
 
 XPIDLSRCS	= \
 		nsIDOMGetSVGDocument.idl \
+		nsIDOMSVGAElement.idl \
 		nsIDOMSVGAnimatedEnum.idl \
 		nsIDOMSVGAnimatedInteger.idl \
 		nsIDOMSVGAnimatedLength.idl \
@@ -26,11 +27,16 @@ XPIDLSRCS	= \
 		nsIDOMSVGDocument.idl \
 		nsIDOMSVGElement.idl \
 		nsIDOMSVGEvent.idl \
+		nsIDOMSVGFilterElement.idl \
 		nsIDOMSVGFilters.idl \
+		nsIDOMSVGImageElement.idl \
 		nsIDOMSVGLength.idl \
+		nsIDOMSVGMarkerElement.idl \
+		nsIDOMSVGMaskElement.idl \
 		nsIDOMSVGNumber.idl \
 		nsIDOMSVGRect.idl \
 		nsIDOMSVGStringList.idl \
+		nsIDOMSVGTitleElement.idl \
 		nsIDOMSVGURIReference.idl \
 		nsIDOMSVGUnitTypes.idl \
 		nsIDOMSVGZoomEvent.idl \

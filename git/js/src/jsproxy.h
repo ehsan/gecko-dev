@@ -53,7 +53,7 @@ class JS_FRIEND_API(BaseProxyHandler) {
     bool mHasPrototype;
   protected:
     // Subclasses may set this in their constructor.
-    void setHasPrototype(bool aHasPrototype) { mHasPrototype = aHasPrototype; }
+    void setHasPrototype(bool hasPrototype) { mHasPrototype = hasPrototype; }
 
   public:
     explicit BaseProxyHandler(void *family);

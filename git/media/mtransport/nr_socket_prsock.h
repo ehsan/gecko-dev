@@ -55,7 +55,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "nsASocketHandler.h"
 #include "nsISocketTransportService.h"
 #include "nsXPCOM.h"
-#include "nsIEventTarget.h"
 
 #include "m_cpp_utils.h"
 
@@ -107,7 +106,7 @@ private:
   nr_transport_addr my_addr_;
   NR_async_cb cbs_[NR_ASYNC_WAIT_WRITE + 1];
   void *cb_args_[NR_ASYNC_WAIT_WRITE + 1];
-  nsCOMPtr<nsIEventTarget> ststhread_;
+  nsCOMPtr<nsISocketTransportService> stservice_;
 };
 
 int nr_praddr_to_transport_addr(const PRNetAddr *praddr,

@@ -45,12 +45,8 @@ Telephony::Telephony()
 
 Telephony::~Telephony()
 {
-  if (mRILTelephonyCallback) {
-    mRILTelephonyCallback->Disable();
-
-    if (mRIL) {
-      mRIL->UnregisterTelephonyCallback(mRILTelephonyCallback);
-    }
+  if (mRIL && mRILTelephonyCallback) {
+    mRIL->UnregisterTelephonyCallback(mRILTelephonyCallback);
   }
 
   if (mRooted) {

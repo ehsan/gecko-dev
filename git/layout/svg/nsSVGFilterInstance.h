@@ -22,13 +22,8 @@
 class gfxASurface;
 class gfxImageSurface;
 class nsIFrame;
+class nsSVGFilterElement;
 class nsSVGFilterPaintCallback;
-
-namespace mozilla {
-namespace dom {
-class SVGFilterElement;
-}
-}
 
 /**
  * This class performs all filter processing.
@@ -78,7 +73,7 @@ public:
    */
   nsSVGFilterInstance(nsIFrame *aTargetFrame,
                       nsSVGFilterPaintCallback *aPaintCallback,
-                      const mozilla::dom::SVGFilterElement *aFilterElement,
+                      const nsSVGFilterElement *aFilterElement,
                       const gfxRect &aTargetBBox,
                       const gfxRect& aFilterRegion,
                       const nsIntSize& aFilterSpaceSize,
@@ -391,7 +386,7 @@ private:
   nsIFrame*               mTargetFrame;
 
   nsSVGFilterPaintCallback* mPaintCallback;
-  const mozilla::dom::SVGFilterElement* mFilterElement;
+  const nsSVGFilterElement* mFilterElement;
 
   /**
    * The SVG bbox of the element that is being filtered, in user space.

@@ -108,7 +108,7 @@ class JS_PUBLIC_API(AutoGCRooter) {
      * below.  Any other negative value indicates some deeper problem such as
      * memory corruption.
      */
-    ptrdiff_t tag_;
+    ptrdiff_t tag;
 
     enum {
         JSVAL =        -1, /* js::AutoValueRooter */
@@ -177,27 +177,27 @@ class AutoValueRooter : private AutoGCRooter
      */
 
     void set(Value v) {
-        JS_ASSERT(tag_ == JSVAL);
+        JS_ASSERT(tag == JSVAL);
         val = v;
     }
 
     const Value &value() const {
-        JS_ASSERT(tag_ == JSVAL);
+        JS_ASSERT(tag == JSVAL);
         return val;
     }
 
     Value *addr() {
-        JS_ASSERT(tag_ == JSVAL);
+        JS_ASSERT(tag == JSVAL);
         return &val;
     }
 
     const Value &jsval_value() const {
-        JS_ASSERT(tag_ == JSVAL);
+        JS_ASSERT(tag == JSVAL);
         return val;
     }
 
     Value *jsval_addr() {
-        JS_ASSERT(tag_ == JSVAL);
+        JS_ASSERT(tag == JSVAL);
         return &val;
     }
 
@@ -213,27 +213,27 @@ class AutoObjectRooter : private AutoGCRooter
   public:
     AutoObjectRooter(JSContext *cx, JSObject *obj = NULL
                      MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-      : AutoGCRooter(cx, OBJECT), obj_(obj)
+      : AutoGCRooter(cx, OBJECT), obj(obj)
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
     }
 
     void setObject(JSObject *obj) {
-        obj_ = obj;
+        this->obj = obj;
     }
 
     JSObject * object() const {
-        return obj_;
+        return obj;
     }
 
     JSObject ** addr() {
-        return &obj_;
+        return &obj;
     }
 
     friend void AutoGCRooter::trace(JSTracer *trc);
 
   private:
-    JSObject *obj_;
+    JSObject *obj;
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
@@ -241,31 +241,31 @@ class AutoStringRooter : private AutoGCRooter {
   public:
     AutoStringRooter(JSContext *cx, JSString *str = NULL
                      MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-      : AutoGCRooter(cx, STRING), str_(str)
+      : AutoGCRooter(cx, STRING), str(str)
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
     }
 
     void setString(JSString *str) {
-        str_ = str;
+        this->str = str;
     }
 
     JSString * string() const {
-        return str_;
+        return str;
     }
 
     JSString ** addr() {
-        return &str_;
+        return &str;
     }
 
     JSString * const * addr() const {
-        return &str_;
+        return &str;
     }
 
     friend void AutoGCRooter::trace(JSTracer *trc);
 
   private:
-    JSString *str_;
+    JSString *str;
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
 
@@ -276,12 +276,12 @@ class AutoArrayRooter : private AutoGCRooter {
       : AutoGCRooter(cx, len), array(vec), skip(cx, array, len)
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-        JS_ASSERT(tag_ >= 0);
+        JS_ASSERT(tag >= 0);
     }
 
     void changeLength(size_t newLength) {
-        tag_ = ptrdiff_t(newLength);
-        JS_ASSERT(tag_ >= 0);
+        tag = ptrdiff_t(newLength);
+        JS_ASSERT(tag >= 0);
     }
 
     void changeArray(Value *newArray, size_t newLength) {
@@ -293,12 +293,12 @@ class AutoArrayRooter : private AutoGCRooter {
 
     MutableHandleValue handleAt(size_t i)
     {
-        JS_ASSERT(i < size_t(tag_));
+        JS_ASSERT(i < size_t(tag));
         return MutableHandleValue::fromMarkedLocation(&array[i]);
     }
     HandleValue handleAt(size_t i) const
     {
-        JS_ASSERT(i < size_t(tag_));
+        JS_ASSERT(i < size_t(tag));
         return HandleValue::fromMarkedLocation(&array[i]);
     }
 
@@ -707,13 +707,13 @@ class CallReceiver
         return argv_ - 1;
     }
 
-    void setCallee(Value aCalleev) const {
+    void setCallee(Value calleev) const {
         clearUsedRval();
-        argv_[-2] = aCalleev;
+        argv_[-2] = calleev;
     }
 
-    void setThis(Value aThisv) const {
-        argv_[-1] = aThisv;
+    void setThis(Value thisv) const {
+        argv_[-1] = thisv;
     }
 };
 
@@ -1509,9 +1509,9 @@ namespace JS {
 class AutoIdRooter : private AutoGCRooter
 {
   public:
-    explicit AutoIdRooter(JSContext *cx, jsid aId = INT_TO_JSID(0)
+    explicit AutoIdRooter(JSContext *cx, jsid id = INT_TO_JSID(0)
                           MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-      : AutoGCRooter(cx, ID), id_(aId)
+      : AutoGCRooter(cx, ID), id_(id)
     {
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
     }
@@ -4996,15 +4996,15 @@ JS_SetRuntimeThread(JSRuntime *rt);
 
 class JSAutoSetRuntimeThread
 {
-    JSRuntime *runtime_;
+    JSRuntime *runtime;
 
   public:
-    JSAutoSetRuntimeThread(JSRuntime *runtime) : runtime_(runtime) {
-        JS_SetRuntimeThread(runtime_);
+    JSAutoSetRuntimeThread(JSRuntime *runtime) : runtime(runtime) {
+        JS_SetRuntimeThread(runtime);
     }
 
     ~JSAutoSetRuntimeThread() {
-        JS_ClearRuntimeThread(runtime_);
+        JS_ClearRuntimeThread(runtime);
     }
 };
 

@@ -3,17 +3,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "HTMLMenuItemElement.h"
-#include "mozilla/dom/HTMLMenuItemElementBinding.h"
+#include "nsGUIEvent.h"
 #include "nsEventDispatcher.h"
+#include "nsHTMLMenuItemElement.h"
 #include "nsAttrValueInlines.h"
+#include "nsContentUtils.h"
 
-
-NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(MenuItem)
-DOMCI_NODE_DATA(HTMLMenuItemElement, mozilla::dom::HTMLMenuItemElement)
-
-namespace mozilla {
-namespace dom {
+using namespace mozilla::dom;
 
 // First bits are needed for the menuitem type.
 #define NS_CHECKED_IS_TOGGLED (1 << 2)
@@ -50,17 +46,17 @@ public:
    * group, sequentially. If the method returns false then the iteration is
    * stopped.
    */
-  virtual bool Visit(HTMLMenuItemElement* aMenuItem) = 0;
+  virtual bool Visit(nsHTMLMenuItemElement* aMenuItem) = 0;
 };
 
 // Find the selected radio, see GetSelectedRadio().
 class GetCheckedVisitor : public Visitor
 {
 public:
-  GetCheckedVisitor(HTMLMenuItemElement** aResult)
+  GetCheckedVisitor(nsHTMLMenuItemElement** aResult)
     : mResult(aResult)
     { }
-  virtual bool Visit(HTMLMenuItemElement* aMenuItem)
+  virtual bool Visit(nsHTMLMenuItemElement* aMenuItem)
   {
     if (aMenuItem->IsChecked()) {
       *mResult = aMenuItem;
@@ -69,17 +65,17 @@ public:
     return true;
   }
 protected:
-  HTMLMenuItemElement** mResult;
+  nsHTMLMenuItemElement** mResult;
 };
 
 // Deselect all radios except the one passed to the constructor.
 class ClearCheckedVisitor : public Visitor
 {
 public:
-  ClearCheckedVisitor(HTMLMenuItemElement* aExcludeMenuItem)
+  ClearCheckedVisitor(nsHTMLMenuItemElement* aExcludeMenuItem)
     : mExcludeMenuItem(aExcludeMenuItem)
     { }
-  virtual bool Visit(HTMLMenuItemElement* aMenuItem)
+  virtual bool Visit(nsHTMLMenuItemElement* aMenuItem)
   {
     if (aMenuItem != mExcludeMenuItem && aMenuItem->IsChecked()) {
       aMenuItem->ClearChecked();
@@ -87,7 +83,7 @@ public:
     return true;
   }
 protected:
-  HTMLMenuItemElement* mExcludeMenuItem;
+  nsHTMLMenuItemElement* mExcludeMenuItem;
 };
 
 // Get current value of the checked dirty flag. The same value is stored on all
@@ -96,11 +92,11 @@ class GetCheckedDirtyVisitor : public Visitor
 {
 public:
   GetCheckedDirtyVisitor(bool* aCheckedDirty,
-                         HTMLMenuItemElement* aExcludeMenuItem)
+                         nsHTMLMenuItemElement* aExcludeMenuItem)
     : mCheckedDirty(aCheckedDirty),
       mExcludeMenuItem(aExcludeMenuItem)
     { }
-  virtual bool Visit(HTMLMenuItemElement* aMenuItem)
+  virtual bool Visit(nsHTMLMenuItemElement* aMenuItem)
   {
     if (aMenuItem == mExcludeMenuItem) {
       return true;
@@ -110,7 +106,7 @@ public:
   }
 protected:
   bool* mCheckedDirty;
-  HTMLMenuItemElement* mExcludeMenuItem;
+  nsHTMLMenuItemElement* mExcludeMenuItem;
 };
 
 // Set checked dirty to true on all radios in the group.
@@ -119,7 +115,7 @@ class SetCheckedDirtyVisitor : public Visitor
 public:
   SetCheckedDirtyVisitor()
     { }
-  virtual bool Visit(HTMLMenuItemElement* aMenuItem)
+  virtual bool Visit(nsHTMLMenuItemElement* aMenuItem)
   {
     aMenuItem->SetCheckedDirty();
     return true;
@@ -135,7 +131,7 @@ public:
     : mVisitor1(aVisitor1), mVisitor2(aVisitor2),
       mContinue1(true), mContinue2(true)
     { }
-  virtual bool Visit(HTMLMenuItemElement* aMenuItem)
+  virtual bool Visit(nsHTMLMenuItemElement* aMenuItem)
   {
     if (mContinue1) {
       mContinue1 = mVisitor1->Visit(aMenuItem);
@@ -153,7 +149,9 @@ protected:
 };
 
 
-HTMLMenuItemElement::HTMLMenuItemElement(
+NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(MenuItem)
+
+nsHTMLMenuItemElement::nsHTMLMenuItemElement(
   already_AddRefed<nsINodeInfo> aNodeInfo, FromParser aFromParser)
   : nsGenericHTMLElement(aNodeInfo),
     mType(kMenuItemDefaultType->value),
@@ -162,37 +160,38 @@ HTMLMenuItemElement::HTMLMenuItemElement(
     mCheckedDirty(false),
     mChecked(false)
 {
-  SetIsDOMBinding();
   mParserCreating = aFromParser;
 }
 
-HTMLMenuItemElement::~HTMLMenuItemElement()
+nsHTMLMenuItemElement::~nsHTMLMenuItemElement()
 {
 }
 
 
-NS_IMPL_ADDREF_INHERITED(HTMLMenuItemElement, Element)
-NS_IMPL_RELEASE_INHERITED(HTMLMenuItemElement, Element)
+NS_IMPL_ADDREF_INHERITED(nsHTMLMenuItemElement, Element)
+NS_IMPL_RELEASE_INHERITED(nsHTMLMenuItemElement, Element)
 
 
-// QueryInterface implementation for HTMLMenuItemElement
-NS_INTERFACE_TABLE_HEAD(HTMLMenuItemElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE2(HTMLMenuItemElement,
+DOMCI_NODE_DATA(HTMLMenuItemElement, nsHTMLMenuItemElement)
+
+// QueryInterface implementation for nsHTMLMenuItemElement
+NS_INTERFACE_TABLE_HEAD(nsHTMLMenuItemElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE2(nsHTMLMenuItemElement,
                                    nsIDOMHTMLCommandElement,
                                    nsIDOMHTMLMenuItemElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(HTMLMenuItemElement,
+  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLMenuItemElement,
                                                nsGenericHTMLElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLMenuItemElement)
 
-//NS_IMPL_ELEMENT_CLONE(HTMLMenuItemElement)
+//NS_IMPL_ELEMENT_CLONE(nsHTMLMenuItemElement)
 nsresult
-HTMLMenuItemElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
+nsHTMLMenuItemElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
 {
   *aResult = nullptr;
   nsCOMPtr<nsINodeInfo> ni = aNodeInfo;
-  nsRefPtr<HTMLMenuItemElement> it =
-    new HTMLMenuItemElement(ni.forget(), NOT_FROM_PARSER);
-  nsresult rv = const_cast<HTMLMenuItemElement*>(this)->CopyInnerTo(it);
+  nsRefPtr<nsHTMLMenuItemElement> it =
+    new nsHTMLMenuItemElement(ni.forget(), NOT_FROM_PARSER);
+  nsresult rv = const_cast<nsHTMLMenuItemElement*>(this)->CopyInnerTo(it);
   if (NS_SUCCEEDED(rv)) {
     switch (mType) {
       case CMD_TYPE_CHECKBOX:
@@ -213,25 +212,25 @@ HTMLMenuItemElement::Clone(nsINodeInfo *aNodeInfo, nsINode **aResult) const
 }
 
 
-NS_IMPL_ENUM_ATTR_DEFAULT_VALUE(HTMLMenuItemElement, Type, type,
+NS_IMPL_ENUM_ATTR_DEFAULT_VALUE(nsHTMLMenuItemElement, Type, type,
                                 kMenuItemDefaultType->tag)
 // GetText returns a whitespace compressed .textContent value.
-NS_IMPL_STRING_ATTR_WITH_FALLBACK(HTMLMenuItemElement, Label, label, GetText)
-NS_IMPL_URI_ATTR(HTMLMenuItemElement, Icon, icon)
-NS_IMPL_BOOL_ATTR(HTMLMenuItemElement, Disabled, disabled)
-NS_IMPL_BOOL_ATTR(HTMLMenuItemElement, DefaultChecked, checked)
-//NS_IMPL_BOOL_ATTR(HTMLMenuItemElement, Checked, checked)
-NS_IMPL_STRING_ATTR(HTMLMenuItemElement, Radiogroup, radiogroup)
+NS_IMPL_STRING_ATTR_WITH_FALLBACK(nsHTMLMenuItemElement, Label, label, GetText)
+NS_IMPL_URI_ATTR(nsHTMLMenuItemElement, Icon, icon)
+NS_IMPL_BOOL_ATTR(nsHTMLMenuItemElement, Disabled, disabled)
+NS_IMPL_BOOL_ATTR(nsHTMLMenuItemElement, DefaultChecked, checked)
+//NS_IMPL_BOOL_ATTR(nsHTMLMenuItemElement, Checked, checked)
+NS_IMPL_STRING_ATTR(nsHTMLMenuItemElement, Radiogroup, radiogroup)
 
 NS_IMETHODIMP
-HTMLMenuItemElement::GetChecked(bool* aChecked)
+nsHTMLMenuItemElement::GetChecked(bool* aChecked)
 {
   *aChecked = mChecked;
   return NS_OK;
 }
 
 NS_IMETHODIMP
-HTMLMenuItemElement::SetChecked(bool aChecked)
+nsHTMLMenuItemElement::SetChecked(bool aChecked)
 {
   bool checkedChanged = mChecked != aChecked;
 
@@ -260,7 +259,7 @@ HTMLMenuItemElement::SetChecked(bool aChecked)
 }
 
 nsresult
-HTMLMenuItemElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
+nsHTMLMenuItemElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 {
   if (aVisitor.mEvent->message == NS_MOUSE_CLICK) {
 
@@ -295,7 +294,7 @@ HTMLMenuItemElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 }
 
 nsresult
-HTMLMenuItemElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
+nsHTMLMenuItemElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
 {
   // Check to see if the event was cancelled.
   if (aVisitor.mEvent->message == NS_MOUSE_CLICK &&
@@ -321,9 +320,9 @@ HTMLMenuItemElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
 }
 
 nsresult
-HTMLMenuItemElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
-                                nsIContent* aBindingParent,
-                                bool aCompileEventHandlers)
+nsHTMLMenuItemElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
+                                  nsIContent* aBindingParent,
+                                  bool aCompileEventHandlers)
 {
   nsresult rv = nsGenericHTMLElement::BindToTree(aDocument, aParent,
                                                  aBindingParent,
@@ -337,10 +336,10 @@ HTMLMenuItemElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 }
 
 bool
-HTMLMenuItemElement::ParseAttribute(int32_t aNamespaceID,
-                                    nsIAtom* aAttribute,
-                                    const nsAString& aValue,
-                                    nsAttrValue& aResult)
+nsHTMLMenuItemElement::ParseAttribute(int32_t aNamespaceID,
+                                      nsIAtom* aAttribute,
+                                      const nsAString& aValue,
+                                      nsAttrValue& aResult)
 {
   if (aNamespaceID == kNameSpaceID_None) {
     if (aAttribute == nsGkAtoms::type) {
@@ -366,7 +365,7 @@ HTMLMenuItemElement::ParseAttribute(int32_t aNamespaceID,
 }
 
 void
-HTMLMenuItemElement::DoneCreatingElement()
+nsHTMLMenuItemElement::DoneCreatingElement()
 {
   mParserCreating = false;
 
@@ -377,7 +376,7 @@ HTMLMenuItemElement::DoneCreatingElement()
 }
 
 void
-HTMLMenuItemElement::GetText(nsAString& aText)
+nsHTMLMenuItemElement::GetText(nsAString& aText)
 {
   nsAutoString text;
   nsContentUtils::GetNodeTextContent(this, false, text);
@@ -387,8 +386,8 @@ HTMLMenuItemElement::GetText(nsAString& aText)
 }
 
 nsresult
-HTMLMenuItemElement::AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
-                                  const nsAttrValue* aValue, bool aNotify)
+nsHTMLMenuItemElement::AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
+                                    const nsAttrValue* aValue, bool aNotify)
 {
   if (aNameSpaceID == kNameSpaceID_None) {
     if ((aName == nsGkAtoms::radiogroup || aName == nsGkAtoms::type) &&
@@ -416,7 +415,7 @@ HTMLMenuItemElement::AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
 }
 
 void
-HTMLMenuItemElement::WalkRadioGroup(Visitor* aVisitor)
+nsHTMLMenuItemElement::WalkRadioGroup(Visitor* aVisitor)
 {
   nsIContent* parent = GetParent();
   if (!parent) {
@@ -431,7 +430,7 @@ HTMLMenuItemElement::WalkRadioGroup(Visitor* aVisitor)
   for (nsIContent* cur = parent->GetFirstChild();
        cur;
        cur = cur->GetNextSibling()) {
-    HTMLMenuItemElement* menuitem = HTMLMenuItemElement::FromContent(cur);
+    nsHTMLMenuItemElement* menuitem = nsHTMLMenuItemElement::FromContent(cur);
 
     if (!menuitem || menuitem->GetType() != CMD_TYPE_RADIO) {
       continue;
@@ -452,10 +451,10 @@ HTMLMenuItemElement::WalkRadioGroup(Visitor* aVisitor)
   }
 }
 
-HTMLMenuItemElement*
-HTMLMenuItemElement::GetSelectedRadio()
+nsHTMLMenuItemElement*
+nsHTMLMenuItemElement::GetSelectedRadio()
 {
-  HTMLMenuItemElement* result = nullptr;
+  nsHTMLMenuItemElement* result = nullptr;
 
   GetCheckedVisitor visitor(&result);
   WalkRadioGroup(&visitor);
@@ -464,7 +463,7 @@ HTMLMenuItemElement::GetSelectedRadio()
 }
 
 void
-HTMLMenuItemElement::AddedToRadioGroup()
+nsHTMLMenuItemElement::AddedToRadioGroup()
 {
   bool checkedDirty = mCheckedDirty;
   if (mChecked) {
@@ -480,7 +479,7 @@ HTMLMenuItemElement::AddedToRadioGroup()
 }
 
 void
-HTMLMenuItemElement::InitChecked()
+nsHTMLMenuItemElement::InitChecked()
 {
   bool defaultChecked;
   GetDefaultChecked(&defaultChecked);
@@ -490,13 +489,3 @@ HTMLMenuItemElement::InitChecked()
     WalkRadioGroup(&visitor);
   }
 }
-
-JSObject*
-HTMLMenuItemElement::WrapNode(JSContext* aCx, JSObject* aScope,
-                              bool* aTriedToWrap)
-{
-  return HTMLMenuItemElementBinding::Wrap(aCx, aScope, this, aTriedToWrap);
-}
-
-} // namespace dom
-} // namespace mozilla

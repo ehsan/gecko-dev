@@ -4,8 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/dom/HTMLOptionElement.h"
-#include "mozilla/dom/HTMLOptionElementBinding.h"
+#include "nsHTMLOptionElement.h"
 #include "nsHTMLSelectElement.h"
 #include "nsIDOMHTMLOptGroupElement.h"
 #include "nsIDOMHTMLFormElement.h"
@@ -28,16 +27,18 @@
 #include "nsContentCreatorFunctions.h"
 #include "mozAutoDocUpdate.h"
 
+using namespace mozilla::dom;
+
 /**
  * Implementation of &lt;option&gt;
  */
 
 nsGenericHTMLElement*
 NS_NewHTMLOptionElement(already_AddRefed<nsINodeInfo> aNodeInfo,
-                        mozilla::dom::FromParser aFromParser)
+                        FromParser aFromParser)
 {
   /*
-   * HTMLOptionElement's will be created without a nsINodeInfo passed in
+   * nsHTMLOptionElement's will be created without a nsINodeInfo passed in
    * if someone says "var opt = new Option();" in JavaScript, in a case like
    * that we request the nsINodeInfo from the document's nodeinfo list.
    */
@@ -53,67 +54,62 @@ NS_NewHTMLOptionElement(already_AddRefed<nsINodeInfo> aNodeInfo,
     NS_ENSURE_TRUE(nodeInfo, nullptr);
   }
 
-  return new mozilla::dom::HTMLOptionElement(nodeInfo.forget());
+  return new nsHTMLOptionElement(nodeInfo.forget());
 }
 
-DOMCI_NODE_DATA(HTMLOptionElement, mozilla::dom::HTMLOptionElement)
-
-namespace mozilla {
-namespace dom {
-
-HTMLOptionElement::HTMLOptionElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+nsHTMLOptionElement::nsHTMLOptionElement(already_AddRefed<nsINodeInfo> aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo),
     mSelectedChanged(false),
     mIsSelected(false),
     mIsInSetDefaultSelected(false)
 {
-  SetIsDOMBinding();
-
   // We start off enabled
   AddStatesSilently(NS_EVENT_STATE_ENABLED);
 }
 
-HTMLOptionElement::~HTMLOptionElement()
+nsHTMLOptionElement::~nsHTMLOptionElement()
 {
 }
 
 // ISupports
 
 
-NS_IMPL_ADDREF_INHERITED(HTMLOptionElement, Element)
-NS_IMPL_RELEASE_INHERITED(HTMLOptionElement, Element)
+NS_IMPL_ADDREF_INHERITED(nsHTMLOptionElement, Element)
+NS_IMPL_RELEASE_INHERITED(nsHTMLOptionElement, Element)
 
 
-// QueryInterface implementation for HTMLOptionElement
-NS_INTERFACE_TABLE_HEAD(HTMLOptionElement)
-  NS_HTML_CONTENT_INTERFACE_TABLE2(HTMLOptionElement,
+DOMCI_NODE_DATA(HTMLOptionElement, nsHTMLOptionElement)
+
+// QueryInterface implementation for nsHTMLOptionElement
+NS_INTERFACE_TABLE_HEAD(nsHTMLOptionElement)
+  NS_HTML_CONTENT_INTERFACE_TABLE2(nsHTMLOptionElement,
                                    nsIDOMHTMLOptionElement,
                                    nsIJSNativeInitializer)
-  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(HTMLOptionElement,
+  NS_HTML_CONTENT_INTERFACE_TABLE_TO_MAP_SEGUE(nsHTMLOptionElement,
                                                nsGenericHTMLElement)
 NS_HTML_CONTENT_INTERFACE_TABLE_TAIL_CLASSINFO(HTMLOptionElement)
 
 
-NS_IMPL_ELEMENT_CLONE(HTMLOptionElement)
+NS_IMPL_ELEMENT_CLONE(nsHTMLOptionElement)
 
 
 NS_IMETHODIMP
-HTMLOptionElement::GetForm(nsIDOMHTMLFormElement** aForm)
+nsHTMLOptionElement::GetForm(nsIDOMHTMLFormElement** aForm)
 {
   NS_ENSURE_ARG_POINTER(aForm);
-  *aForm = GetForm();
+  *aForm = nullptr;
+
+  nsHTMLSelectElement* selectControl = GetSelect();
+
+  if (selectControl) {
+    selectControl->GetForm(aForm);
+  }
+
   return NS_OK;
 }
 
-nsHTMLFormElement*
-HTMLOptionElement::GetForm()
-{
-  nsHTMLSelectElement* selectControl = GetSelect();
-  return selectControl ? selectControl->GetForm() : nullptr;
-}
-
 void
-HTMLOptionElement::SetSelectedInternal(bool aValue, bool aNotify)
+nsHTMLOptionElement::SetSelectedInternal(bool aValue, bool aNotify)
 {
   mSelectedChanged = true;
   mIsSelected = aValue;
@@ -125,8 +121,8 @@ HTMLOptionElement::SetSelectedInternal(bool aValue, bool aNotify)
   }
 }
 
-NS_IMETHODIMP
-HTMLOptionElement::GetSelected(bool* aValue)
+NS_IMETHODIMP 
+nsHTMLOptionElement::GetSelected(bool* aValue)
 {
   NS_ENSURE_ARG_POINTER(aValue);
   *aValue = Selected();
@@ -134,7 +130,7 @@ HTMLOptionElement::GetSelected(bool* aValue)
 }
 
 NS_IMETHODIMP
-HTMLOptionElement::SetSelected(bool aValue)
+nsHTMLOptionElement::SetSelected(bool aValue)
 {
   // Note: The select content obj maintains all the PresState
   // so defer to it to get the answer
@@ -154,14 +150,14 @@ HTMLOptionElement::SetSelected(bool aValue)
   return NS_OK;
 }
 
-NS_IMPL_BOOL_ATTR(HTMLOptionElement, DefaultSelected, selected)
+NS_IMPL_BOOL_ATTR(nsHTMLOptionElement, DefaultSelected, selected)
 // GetText returns a whitespace compressed .textContent value.
-NS_IMPL_STRING_ATTR_WITH_FALLBACK(HTMLOptionElement, Label, label, GetText)
-NS_IMPL_STRING_ATTR_WITH_FALLBACK(HTMLOptionElement, Value, value, GetText)
-NS_IMPL_BOOL_ATTR(HTMLOptionElement, Disabled, disabled)
+NS_IMPL_STRING_ATTR_WITH_FALLBACK(nsHTMLOptionElement, Label, label, GetText)
+NS_IMPL_STRING_ATTR_WITH_FALLBACK(nsHTMLOptionElement, Value, value, GetText)
+NS_IMPL_BOOL_ATTR(nsHTMLOptionElement, Disabled, disabled)
 
 NS_IMETHODIMP
-HTMLOptionElement::GetIndex(int32_t* aIndex)
+nsHTMLOptionElement::GetIndex(int32_t* aIndex)
 {
   // When the element is not in a list of options, the index is 0.
   *aIndex = 0;
@@ -182,7 +178,7 @@ HTMLOptionElement::GetIndex(int32_t* aIndex)
 }
 
 bool
-HTMLOptionElement::Selected() const
+nsHTMLOptionElement::Selected() const
 {
   // If we haven't been explictly selected or deselected, use our default value
   if (!mSelectedChanged) {
@@ -193,14 +189,14 @@ HTMLOptionElement::Selected() const
 }
 
 bool
-HTMLOptionElement::DefaultSelected() const
+nsHTMLOptionElement::DefaultSelected() const
 {
   return HasAttr(kNameSpaceID_None, nsGkAtoms::selected);
 }
 
 nsChangeHint
-HTMLOptionElement::GetAttributeChangeHint(const nsIAtom* aAttribute,
-                                          int32_t aModType) const
+nsHTMLOptionElement::GetAttributeChangeHint(const nsIAtom* aAttribute,
+                                            int32_t aModType) const
 {
   nsChangeHint retval =
       nsGenericHTMLElement::GetAttributeChangeHint(aAttribute, aModType);
@@ -213,9 +209,9 @@ HTMLOptionElement::GetAttributeChangeHint(const nsIAtom* aAttribute,
 }
 
 nsresult
-HTMLOptionElement::BeforeSetAttr(int32_t aNamespaceID, nsIAtom* aName,
-                                 const nsAttrValueOrString* aValue,
-                                 bool aNotify)
+nsHTMLOptionElement::BeforeSetAttr(int32_t aNamespaceID, nsIAtom* aName,
+                                   const nsAttrValueOrString* aValue,
+                                   bool aNotify)
 {
   nsresult rv = nsGenericHTMLElement::BeforeSetAttr(aNamespaceID, aName,
                                                     aValue, aNotify);
@@ -225,7 +221,7 @@ HTMLOptionElement::BeforeSetAttr(int32_t aNamespaceID, nsIAtom* aName,
       mSelectedChanged) {
     return NS_OK;
   }
-
+  
   // We just changed out selected state (since we look at the "selected"
   // attribute when mSelectedChanged is false).  Let's tell our select about
   // it.
@@ -237,11 +233,11 @@ HTMLOptionElement::BeforeSetAttr(int32_t aNamespaceID, nsIAtom* aName,
   // Note that at this point mSelectedChanged is false and as long as that's
   // true it doesn't matter what value mIsSelected has.
   NS_ASSERTION(!mSelectedChanged, "Shouldn't be here");
-
+  
   bool newSelected = (aValue != nullptr);
   bool inSetDefaultSelected = mIsInSetDefaultSelected;
   mIsInSetDefaultSelected = true;
-
+  
   int32_t index;
   GetIndex(&index);
   // This should end up calling SetSelectedInternal, which we will allow to
@@ -261,7 +257,7 @@ HTMLOptionElement::BeforeSetAttr(int32_t aNamespaceID, nsIAtom* aName,
 }
 
 NS_IMETHODIMP
-HTMLOptionElement::GetText(nsAString& aText)
+nsHTMLOptionElement::GetText(nsAString& aText)
 {
   nsAutoString text;
 
@@ -286,15 +282,15 @@ HTMLOptionElement::GetText(nsAString& aText)
 }
 
 NS_IMETHODIMP
-HTMLOptionElement::SetText(const nsAString& aText)
+nsHTMLOptionElement::SetText(const nsAString& aText)
 {
   return nsContentUtils::SetNodeTextContent(this, aText, true);
 }
 
 nsresult
-HTMLOptionElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
-                              nsIContent* aBindingParent,
-                              bool aCompileEventHandlers)
+nsHTMLOptionElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
+                                nsIContent* aBindingParent,
+                                bool aCompileEventHandlers)
 {
   nsresult rv = nsGenericHTMLElement::BindToTree(aDocument, aParent,
                                                  aBindingParent,
@@ -308,7 +304,7 @@ HTMLOptionElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
 }
 
 void
-HTMLOptionElement::UnbindFromTree(bool aDeep, bool aNullParent)
+nsHTMLOptionElement::UnbindFromTree(bool aDeep, bool aNullParent)
 {
   nsGenericHTMLElement::UnbindFromTree(aDeep, aNullParent);
 
@@ -317,7 +313,7 @@ HTMLOptionElement::UnbindFromTree(bool aDeep, bool aNullParent)
 }
 
 nsEventStates
-HTMLOptionElement::IntrinsicState() const
+nsHTMLOptionElement::IntrinsicState() const
 {
   nsEventStates state = nsGenericHTMLElement::IntrinsicState();
   if (Selected()) {
@@ -349,7 +345,7 @@ HTMLOptionElement::IntrinsicState() const
 
 // Get the select content element that contains this option
 nsHTMLSelectElement*
-HTMLOptionElement::GetSelect()
+nsHTMLOptionElement::GetSelect()
 {
   nsIContent* parent = this;
   while ((parent = parent->GetParent()) &&
@@ -362,16 +358,16 @@ HTMLOptionElement::GetSelect()
       break;
     }
   }
-
+  
   return nullptr;
 }
 
-NS_IMETHODIMP
-HTMLOptionElement::Initialize(nsISupports* aOwner,
-                              JSContext* aContext,
-                              JSObject *aObj,
-                              uint32_t argc,
-                              jsval *argv)
+NS_IMETHODIMP    
+nsHTMLOptionElement::Initialize(nsISupports* aOwner,
+                                JSContext* aContext,
+                                JSObject *aObj,
+                                uint32_t argc, 
+                                jsval *argv)
 {
   nsresult result = NS_OK;
 
@@ -397,7 +393,7 @@ HTMLOptionElement::Initialize(nsISupports* aOwner,
     }
 
     textContent->SetText(chars, length, false);
-
+    
     result = AppendChildTo(textContent, false);
     if (NS_FAILED(result)) {
       return result;
@@ -450,22 +446,14 @@ HTMLOptionElement::Initialize(nsISupports* aOwner,
 }
 
 nsresult
-HTMLOptionElement::CopyInnerTo(Element* aDest)
+nsHTMLOptionElement::CopyInnerTo(Element* aDest)
 {
   nsresult rv = nsGenericHTMLElement::CopyInnerTo(aDest);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (aDest->OwnerDoc()->IsStaticDocument()) {
-    static_cast<HTMLOptionElement*>(aDest)->SetSelected(Selected());
+    static_cast<nsHTMLOptionElement*>(aDest)->SetSelected(Selected());
   }
   return NS_OK;
 }
 
-JSObject*
-HTMLOptionElement::WrapNode(JSContext* aCx, JSObject* aScope, bool* aTriedToWrap)
-{
-  return HTMLOptionElementBinding::Wrap(aCx, aScope, this, aTriedToWrap);
-}
-
-} // namespace dom
-} // namespace mozilla

@@ -153,14 +153,8 @@ ProfileCreationTimeAccessor.prototype = {
           }
         }
       }
-
-      function onStatFailure(e) {
-        // Never mind.
-        self._log.debug("Stat failure: " + CommonUtils.exceptionStr(e));
-      }
-
       return OS.File.stat(entry.path)
-                    .then(onStatSuccess, onStatFailure);
+                    .then(onStatSuccess);
     }
 
     let promise = iterator.forEach(onEntry);
@@ -220,7 +214,7 @@ ProfileMetadataProvider.prototype = {
 
   measurementTypes: [ProfileMetadataMeasurement],
 
-  pullOnly: true,
+  constantOnly: true,
 
   getProfileCreationDays: function () {
     let accessor = new ProfileCreationTimeAccessor(null, this._log);

@@ -1831,14 +1831,6 @@ public class GeckoAppShell
         });
     }
 
-    static void setUriTitle(final String uri, final String title) {    // invoked from native JNI code
-        getHandler().post(new Runnable() {
-            public void run() {
-                GlobalHistory.getInstance().update(uri, title);
-            }
-        });
-    }
-
     static void hideProgressDialog() {
         // unused stub
     }

@@ -309,6 +309,7 @@
 #include "nsIDOMMozBrowserFrame.h"
 
 #include "nsIDOMGetSVGDocument.h"
+#include "nsIDOMSVGAElement.h"
 #include "nsIDOMSVGAnimatedEnum.h"
 #include "nsIDOMSVGAnimatedInteger.h"
 #include "nsIDOMSVGAnimatedLength.h"
@@ -319,10 +320,16 @@
 #include "nsIDOMSVGDocument.h"
 #include "nsIDOMSVGElement.h"
 #include "nsIDOMSVGEvent.h"
+#include "nsIDOMSVGFilterElement.h"
 #include "nsIDOMSVGFilters.h"
+#include "nsIDOMSVGImageElement.h"
 #include "nsIDOMSVGLength.h"
+#include "nsIDOMSVGMarkerElement.h"
+#include "nsIDOMSVGMaskElement.h"
 #include "nsIDOMSVGNumber.h"
 #include "nsIDOMSVGRect.h"
+#include "nsIDOMSVGTitleElement.h"
+#include "nsIDOMSVGUnitTypes.h"
 #include "nsIDOMSVGURIReference.h"
 #include "nsIDOMSVGZoomEvent.h"
 
@@ -1015,6 +1022,8 @@ static nsDOMClassInfoData sClassInfoData[] = {
                            DOCUMENT_SCRIPTABLE_FLAGS)
 
   // SVG element classes
+  NS_DEFINE_CLASSINFO_DATA(SVGAElement, nsElementSH,
+                           ELEMENT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(TimeEvent, nsDOMGenericSH,
                            DOM_DEFAULT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(SVGFEBlendElement, nsElementSH,
@@ -1064,6 +1073,16 @@ static nsDOMClassInfoData sClassInfoData[] = {
   NS_DEFINE_CLASSINFO_DATA(SVGFETileElement, nsElementSH,
                            ELEMENT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA(SVGFETurbulenceElement, nsElementSH,
+                           ELEMENT_SCRIPTABLE_FLAGS)
+  NS_DEFINE_CLASSINFO_DATA(SVGFilterElement, nsElementSH,
+                           ELEMENT_SCRIPTABLE_FLAGS)
+  NS_DEFINE_CLASSINFO_DATA(SVGImageElement, nsElementSH,
+                           ELEMENT_SCRIPTABLE_FLAGS)
+  NS_DEFINE_CLASSINFO_DATA(SVGMarkerElement, nsElementSH,
+                           ELEMENT_SCRIPTABLE_FLAGS)
+  NS_DEFINE_CLASSINFO_DATA(SVGMaskElement, nsElementSH,
+                           ELEMENT_SCRIPTABLE_FLAGS)
+  NS_DEFINE_CLASSINFO_DATA(SVGTitleElement, nsElementSH,
                            ELEMENT_SCRIPTABLE_FLAGS)
   NS_DEFINE_CLASSINFO_DATA_WITH_NAME(SVGUnknownElement, SVGElement, nsElementSH,
                                      ELEMENT_SCRIPTABLE_FLAGS)
@@ -2844,6 +2863,13 @@ nsDOMClassInfo::Init()
   DOM_CLASSINFO_MAP_END
 
   // SVG element classes
+
+  DOM_CLASSINFO_MAP_BEGIN(SVGAElement, nsIDOMSVGAElement)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGAElement)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGURIReference)
+    DOM_CLASSINFO_SVG_GRAPHIC_ELEMENT_MAP_ENTRIES
+  DOM_CLASSINFO_MAP_END
+
   DOM_CLASSINFO_MAP_BEGIN(TimeEvent, nsIDOMTimeEvent)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMTimeEvent)
     DOM_CLASSINFO_EVENT_MAP_ENTRIES
@@ -2983,6 +3009,36 @@ nsDOMClassInfo::Init()
   DOM_CLASSINFO_MAP_BEGIN(SVGFETurbulenceElement, nsIDOMSVGFETurbulenceElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGFETurbulenceElement)
     DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGFilterPrimitiveStandardAttributes)
+    DOM_CLASSINFO_SVG_ELEMENT_MAP_ENTRIES
+  DOM_CLASSINFO_MAP_END
+
+  DOM_CLASSINFO_MAP_BEGIN(SVGFilterElement, nsIDOMSVGFilterElement)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGFilterElement)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGURIReference)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGUnitTypes)
+    DOM_CLASSINFO_SVG_ELEMENT_MAP_ENTRIES
+  DOM_CLASSINFO_MAP_END
+
+  DOM_CLASSINFO_MAP_BEGIN(SVGImageElement, nsIDOMSVGImageElement)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGImageElement)
+    DOM_CLASSINFO_MAP_ENTRY(nsIImageLoadingContent)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGURIReference)
+    DOM_CLASSINFO_SVG_GRAPHIC_ELEMENT_MAP_ENTRIES
+  DOM_CLASSINFO_MAP_END
+
+  DOM_CLASSINFO_MAP_BEGIN(SVGMarkerElement, nsIDOMSVGMarkerElement)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGMarkerElement)
+    DOM_CLASSINFO_SVG_ELEMENT_MAP_ENTRIES
+  DOM_CLASSINFO_MAP_END
+
+  DOM_CLASSINFO_MAP_BEGIN(SVGMaskElement, nsIDOMSVGMaskElement)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGMaskElement)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGUnitTypes)
+    DOM_CLASSINFO_SVG_ELEMENT_MAP_ENTRIES
+  DOM_CLASSINFO_MAP_END
+
+  DOM_CLASSINFO_MAP_BEGIN(SVGTitleElement, nsIDOMSVGTitleElement)
+    DOM_CLASSINFO_MAP_ENTRY(nsIDOMSVGTitleElement)
     DOM_CLASSINFO_SVG_ELEMENT_MAP_ENTRIES
   DOM_CLASSINFO_MAP_END
 

@@ -140,7 +140,6 @@ class TransportTestPeer : public sigslot::has_slots<> {
   void DestroyFlow() {
     loopback_->Disconnect();
     flow_ = nullptr;
-    ice_ctx_ = nullptr;
   }
 
   void SetDtlsAllowAll() {

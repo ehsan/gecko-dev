@@ -664,26 +664,26 @@ class HashTable : private AllocPolicy
         typedef void (Ptr::* ConvertibleToBool)();
         void nonNull() {}
 
-        Entry *entry_;
+        Entry *entry;
 
       protected:
-        Ptr(Entry &entry) : entry_(&entry) {}
+        Ptr(Entry &entry) : entry(&entry) {}
 
       public:
         // Leaves Ptr uninitialized.
         Ptr() {
 #ifdef DEBUG
-            entry_ = (Entry *)0xbad;
+            entry = (Entry *)0xbad;
 #endif
         }
 
-        bool found() const                    { return entry_->isLive(); }
+        bool found() const                    { return entry->isLive(); }
         operator ConvertibleToBool() const    { return found() ? &Ptr::nonNull : 0; }
-        bool operator==(const Ptr &rhs) const { JS_ASSERT(found() && rhs.found()); return entry_ == rhs.entry_; }
+        bool operator==(const Ptr &rhs) const { JS_ASSERT(found() && rhs.found()); return entry == rhs.entry; }
         bool operator!=(const Ptr &rhs) const { return !(*this == rhs); }
 
-        T &operator*() const                  { return entry_->get(); }
-        T *operator->() const                 { return &entry_->get(); }
+        T &operator*() const                  { return entry->get(); }
+        T *operator->() const                 { return &entry->get(); }
     };
 
     // A Ptr that can be used to add a key after a failed lookup.
@@ -924,22 +924,22 @@ class HashTable : private AllocPolicy
             this->reportAllocOverflow();
             return false;
         }
-        uint32_t newCapacity = (length * sInvMaxAlpha) >> 7;
+        uint32_t capacity = (length * sInvMaxAlpha) >> 7;
 
-        if (newCapacity < sMinCapacity)
-            newCapacity = sMinCapacity;
+        if (capacity < sMinCapacity)
+            capacity = sMinCapacity;
 
         // FIXME: use JS_CEILING_LOG2 when PGO stops crashing (bug 543034).
         uint32_t roundUp = sMinCapacity, roundUpLog2 = sMinCapacityLog2;
-        while (roundUp < newCapacity) {
+        while (roundUp < capacity) {
             roundUp <<= 1;
             ++roundUpLog2;
         }
 
-        newCapacity = roundUp;
-        JS_ASSERT(newCapacity <= sMaxCapacity);
+        capacity = roundUp;
+        JS_ASSERT(capacity <= sMaxCapacity);
 
-        table = createTable(*this, newCapacity);
+        table = createTable(*this, capacity);
         if (!table)
             return false;
 
@@ -1364,20 +1364,20 @@ class HashTable : private AllocPolicy
 
         // Changing an entry from removed to live does not affect whether we
         // are overloaded and can be handled separately.
-        if (p.entry_->isRemoved()) {
+        if (p.entry->isRemoved()) {
             METER(stats.addOverRemoved++);
             removedCount--;
             p.keyHash |= sCollisionBit;
         } else {
-            // Preserve the validity of |p.entry_|.
+            // Preserve the validity of |p.entry|.
             RebuildStatus status = checkOverloaded();
             if (status == RehashFailed)
                 return false;
             if (status == Rehashed)
-                p.entry_ = &findFreeEntry(p.keyHash);
+                p.entry = &findFreeEntry(p.keyHash);
         }
 
-        p.entry_->setLive(p.keyHash, rhs);
+        p.entry->setLive(p.keyHash, rhs);
         entryCount++;
         mutationCount++;
         return true;
@@ -1418,7 +1418,7 @@ class HashTable : private AllocPolicy
         p.mutationCount = mutationCount;
         {
             ReentrancyGuard g(*this);
-            p.entry_ = &lookup(l, p.keyHash, sCollisionBit);
+            p.entry = &lookup(l, p.keyHash, sCollisionBit);
         }
         return p.found() || add(p, u);
     }
@@ -1428,7 +1428,7 @@ class HashTable : private AllocPolicy
         JS_ASSERT(table);
         ReentrancyGuard g(*this);
         JS_ASSERT(p.found());
-        remove(*p.entry_);
+        remove(*p.entry);
         checkUnderloaded();
     }
 

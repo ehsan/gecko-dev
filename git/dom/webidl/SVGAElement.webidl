@@ -14,9 +14,6 @@ interface SVGAnimatedString;
 
 interface SVGAElement : SVGGraphicsElement {
   readonly attribute SVGAnimatedString target;
-
-  [SetterThrows]
-  attribute DOMString download;
 };
 
 SVGAElement implements SVGURIReference;

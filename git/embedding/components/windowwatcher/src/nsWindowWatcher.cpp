@@ -1442,8 +1442,8 @@ nsWindowWatcher::URIfromURL(const char *aURL,
 
 #define NS_CALCULATE_CHROME_FLAG_FOR(feature, flag)               \
     prefBranch->GetBoolPref(feature, &forceEnable);               \
-    if (forceEnable && !(aDialog && isCallerChrome) &&            \
-        !(isCallerChrome && aHasChromeParent) && !aChromeURL) {   \
+    if (forceEnable && !(aDialog && isChrome) &&                  \
+        !(isChrome && aHasChromeParent) && !aChromeURL) {         \
       chromeFlags |= flag;                                        \
     } else {                                                      \
       chromeFlags |= WinHasOption(aFeatures, feature,             \
@@ -1494,17 +1494,25 @@ uint32_t nsWindowWatcher::CalculateChromeFlags(nsIDOMWindow *aParent,
 
   /* Next, allow explicitly named options to override the initial settings */
 
-  bool isCallerChrome = nsContentUtils::IsCallerChrome();
+  nsCOMPtr<nsIScriptSecurityManager>
+    securityManager(do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID));
+
+  bool isChrome = false;
+  nsresult rv;
+  if (securityManager) {
+    rv = securityManager->SubjectPrincipalIsSystem(&isChrome);
+    if (NS_FAILED(rv)) {
+      isChrome = false;
+    }
+  }
 
   // Determine whether the window is a private browsing window
-  if (isCallerChrome) {
+  if (isChrome) {
     chromeFlags |= WinHasOption(aFeatures, "private", 0, &presenceFlag) ?
       nsIWebBrowserChrome::CHROME_PRIVATE_WINDOW : 0;
     chromeFlags |= WinHasOption(aFeatures, "non-private", 0, &presenceFlag) ?
       nsIWebBrowserChrome::CHROME_NON_PRIVATE_WINDOW : 0;
   }
-
-  nsresult rv;
 
   nsCOMPtr<nsIPrefBranch> prefBranch;
   nsCOMPtr<nsIPrefService> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID, &rv);
@@ -1587,17 +1595,6 @@ uint32_t nsWindowWatcher::CalculateChromeFlags(nsIDOMWindow *aParent,
   bool disableDialogFeature = false;
   nsCOMPtr<nsIPrefBranch> branch = do_QueryInterface(prefs);
   branch->GetBoolPref("dom.disable_window_open_dialog_feature", &disableDialogFeature);
-
-  bool isFullScreen = false;
-  if (aParent) {
-    aParent->GetFullScreen(&isFullScreen);
-  }
-  if (isFullScreen && !isCallerChrome) {
-    // If the parent window is in fullscreen & the caller context is content,
-    // dialog feature is disabled. (see bug 803675)
-    disableDialogFeature = true;
-  }
-
   if (!disableDialogFeature) {
     chromeFlags |= WinHasOption(aFeatures, "dialog", 0, nullptr) ?
       nsIWebBrowserChrome::CHROME_OPENAS_DIALOG : 0;
@@ -1617,7 +1614,7 @@ uint32_t nsWindowWatcher::CalculateChromeFlags(nsIDOMWindow *aParent,
    */
 
   // Check security state for use in determing window dimensions
-  if (!isCallerChrome || !aHasChromeParent) {
+  if (!nsContentUtils::IsCallerChrome() || (isChrome && !aHasChromeParent)) {
     // If priv check fails (or if we're called from chrome, but the
     // parent is not a chrome window), set all elements to minimum
     // reqs., else leave them alone.

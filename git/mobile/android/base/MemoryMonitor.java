@@ -218,7 +218,7 @@ class MemoryMonitor extends BroadcastReceiver {
 
             BrowserDB.expireHistory(mContext.getContentResolver(),
                                     BrowserContract.ExpirePriority.AGGRESSIVE);
-            BrowserDB.removeThumbnails(mContext.getContentResolver());
+            BrowserDB.removeThumbnails(Tabs.getInstance().getContentResolver());
             // TODO: drop or shrink disk caches
         }
     }

@@ -38,11 +38,11 @@ nsSVGElement::EnumInfo SVGPatternElement::sEnumInfo[2] =
 {
   { &nsGkAtoms::patternUnits,
     sSVGUnitTypesMap,
-    SVG_UNIT_TYPE_OBJECTBOUNDINGBOX
+    nsIDOMSVGUnitTypes::SVG_UNIT_TYPE_OBJECTBOUNDINGBOX
   },
   { &nsGkAtoms::patternContentUnits,
     sSVGUnitTypesMap,
-    SVG_UNIT_TYPE_USERSPACEONUSE
+    nsIDOMSVGUnitTypes::SVG_UNIT_TYPE_USERSPACEONUSE
   }
 };
 
@@ -54,10 +54,11 @@ nsSVGElement::StringInfo SVGPatternElement::sStringInfo[1] =
 //----------------------------------------------------------------------
 // nsISupports methods
 
-NS_IMPL_ISUPPORTS_INHERITED4(SVGPatternElement, SVGPatternElementBase,
+NS_IMPL_ISUPPORTS_INHERITED5(SVGPatternElement, SVGPatternElementBase,
                              nsIDOMNode, nsIDOMElement,
                              nsIDOMSVGElement,
-                             nsIDOMSVGURIReference)
+                             nsIDOMSVGURIReference,
+                             nsIDOMSVGUnitTypes)
 
 //----------------------------------------------------------------------
 // Implementation

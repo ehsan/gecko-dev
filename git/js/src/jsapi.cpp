@@ -1582,7 +1582,7 @@ JS_TransplantObject(JSContext *cx, JSObject *origobjArg, JSObject *targetArg)
         // destination, then we know that we won't find a wrapper in the
         // destination's cross compartment map and that the same
         // object will continue to work.
-        if (!JSObject::swap(cx, origobj, target))
+        if (!origobj->swap(cx, target))
             MOZ_CRASH();
         newIdentity = origobj;
     } else if (WrapperMap::Ptr p = destination->lookupWrapper(origv)) {
@@ -1596,7 +1596,7 @@ JS_TransplantObject(JSContext *cx, JSObject *origobjArg, JSObject *targetArg)
         destination->removeWrapper(p);
         NukeCrossCompartmentWrapper(cx, newIdentity);
 
-        if (!JSObject::swap(cx, newIdentity, target))
+        if (!newIdentity->swap(cx, target))
             MOZ_CRASH();
     } else {
         // Otherwise, we use |target| for the new identity object.
@@ -1615,7 +1615,7 @@ JS_TransplantObject(JSContext *cx, JSObject *origobjArg, JSObject *targetArg)
         if (!JS_WrapObject(cx, newIdentityWrapper.address()))
             MOZ_CRASH();
         JS_ASSERT(Wrapper::wrappedObject(newIdentityWrapper) == newIdentity);
-        if (!JSObject::swap(cx, origobj, newIdentityWrapper))
+        if (!origobj->swap(cx, newIdentityWrapper))
             MOZ_CRASH();
         origobj->compartment()->putWrapper(ObjectValue(*newIdentity), origv);
     }
@@ -1671,7 +1671,7 @@ js_TransplantObjectWithWrapper(JSContext *cx,
         destination->removeWrapper(p);
         NukeCrossCompartmentWrapper(cx, newWrapper);
 
-        if (!JSObject::swap(cx, newWrapper, targetwrapper))
+        if (!newWrapper->swap(cx, targetwrapper))
             MOZ_CRASH();
     } else {
         // Otherwise, use the passed-in wrapper as the same-compartment wrapper.
@@ -1698,7 +1698,7 @@ js_TransplantObjectWithWrapper(JSContext *cx,
         // After the swap we have a possibly-live object that isn't dangerous,
         // and a possibly-dangerous object that isn't live.
         RootedObject reflectorGuts(cx, NewDeadProxyObject(cx, JS_GetGlobalForObject(cx, origobj)));
-        if (!reflectorGuts || !JSObject::swap(cx, origobj, reflectorGuts))
+        if (!reflectorGuts || !origobj->swap(cx, reflectorGuts))
             MOZ_CRASH();
 
         // Turn origwrapper into a CCW to the new object.
@@ -1706,7 +1706,7 @@ js_TransplantObjectWithWrapper(JSContext *cx,
         if (!JS_WrapObject(cx, wrapperGuts.address()))
             MOZ_CRASH();
         JS_ASSERT(Wrapper::wrappedObject(wrapperGuts) == targetobj);
-        if (!JSObject::swap(cx, origwrapper, wrapperGuts))
+        if (!origwrapper->swap(cx, wrapperGuts))
             MOZ_CRASH();
         origwrapper->compartment()->putWrapper(ObjectValue(*targetobj),
                                                ObjectValue(*origwrapper));
@@ -7069,7 +7069,7 @@ JS_CallOnce(JSCallOnceType *once, JSInitCallback func)
 }
 
 AutoGCRooter::AutoGCRooter(JSContext *cx, ptrdiff_t tag)
-  : down(cx->runtime->autoGCRooters), tag_(tag), stackTop(&cx->runtime->autoGCRooters)
+  : down(cx->runtime->autoGCRooters), tag(tag), stackTop(&cx->runtime->autoGCRooters)
 {
     JS_ASSERT(this != *stackTop);
     *stackTop = this;

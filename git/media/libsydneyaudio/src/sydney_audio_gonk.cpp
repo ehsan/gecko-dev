@@ -158,7 +158,7 @@ sa_stream_open(sa_stream_t *s) {
   }
 
   int32_t chanConfig = s->channels == 1 ?
-    AUDIO_CHANNEL_OUT_MONO : AUDIO_CHANNEL_OUT_STEREO;
+    AudioSystem::CHANNEL_OUT_MONO : AudioSystem::CHANNEL_OUT_STEREO;
 
   int frameCount;
   if (AudioTrack::getMinFrameCount(&frameCount, s->streamType,

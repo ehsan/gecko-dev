@@ -23,6 +23,7 @@
 #include "nsGkAtoms.h"
 #include "nsIContent.h"
 #include "nsIDocument.h"
+#include "nsIDOMSVGUnitTypes.h"
 #include "nsIFrame.h"
 #include "nsINameSpaceManager.h"
 #include "nsIPresShell.h"
@@ -1259,7 +1260,7 @@ nsSVGUtils::GetRelativeRect(uint16_t aUnits, const nsSVGLength2 *aXYWH,
                             const gfxRect &aBBox, nsIFrame *aFrame)
 {
   float x, y, width, height;
-  if (aUnits == SVG_UNIT_TYPE_OBJECTBOUNDINGBOX) {
+  if (aUnits == nsIDOMSVGUnitTypes::SVG_UNIT_TYPE_OBJECTBOUNDINGBOX) {
     x = aBBox.X() + ObjectSpace(aBBox, &aXYWH[0]);
     y = aBBox.Y() + ObjectSpace(aBBox, &aXYWH[1]);
     width = ObjectSpace(aBBox, &aXYWH[2]);
@@ -1325,7 +1326,8 @@ nsSVGUtils::AdjustMatrixForUnits(const gfxMatrix &aMatrix,
                                  nsIFrame *aFrame)
 {
   if (aFrame &&
-      aUnits->GetAnimValue() == SVG_UNIT_TYPE_OBJECTBOUNDINGBOX) {
+      aUnits->GetAnimValue() ==
+      nsIDOMSVGUnitTypes::SVG_UNIT_TYPE_OBJECTBOUNDINGBOX) {
     gfxRect bbox = GetBBox(aFrame);
     return gfxMatrix().Scale(bbox.Width(), bbox.Height()) *
            gfxMatrix().Translate(gfxPoint(bbox.X(), bbox.Y())) *

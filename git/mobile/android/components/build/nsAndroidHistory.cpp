@@ -109,14 +109,7 @@ nsAndroidHistory::VisitURI(nsIURI *aURI, nsIURI *aLastVisitedURI, uint32_t aFlag
 NS_IMETHODIMP
 nsAndroidHistory::SetURITitle(nsIURI *aURI, const nsAString& aTitle)
 {
-  AndroidBridge *bridge = AndroidBridge::Bridge();
-  if (bridge) {
-    nsAutoCString uri;
-    nsresult rv = aURI->GetSpec(uri);
-    if (NS_FAILED(rv)) return rv;
-    NS_ConvertUTF8toUTF16 uriString(uri);
-    bridge->SetURITitle(uriString, aTitle);
-  }
+  // we don't do anything with this right now
   return NS_OK;
 }
 

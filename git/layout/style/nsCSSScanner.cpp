@@ -1030,7 +1030,6 @@ nsCSSScanner::NextURL(nsCSSToken& aToken)
 
   } else {
     // Otherwise, this is the start of a non-quoted url (which may be empty).
-    aToken.mSymbol = PRUnichar(0);
     GatherText(IS_URL_CHAR, aToken.mIdent);
   }
 

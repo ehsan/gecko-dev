@@ -41,9 +41,10 @@ SetJsObject(JSContext* aContext,
 
     switch(v.type()) {
       case BluetoothValue::TnsString:
-        jsData = JS_NewUCStringCopyN(aContext,
-                                     v.get_nsString().BeginReading(),
-                                     v.get_nsString().Length());
+        jsData =
+          JS_NewStringCopyN(aContext,
+                            NS_ConvertUTF16toUTF8(v.get_nsString()).get(),
+                            v.get_nsString().Length());
         NS_ENSURE_TRUE(jsData, false);
         val = STRING_TO_JSVAL(jsData);
         break;

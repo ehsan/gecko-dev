@@ -96,10 +96,8 @@ SVGElementFactory::Init()
 void
 SVGElementFactory::Shutdown()
 {
-  if (sTagAtomTable) {
-    PL_HashTableDestroy(sTagAtomTable);
-    sTagAtomTable = nullptr;
-  }
+  PL_HashTableDestroy(sTagAtomTable);
+  sTagAtomTable = nullptr;
 }
 
 nsresult

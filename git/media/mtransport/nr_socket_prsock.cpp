@@ -102,7 +102,6 @@ nrappkit copyright:
 #include "nsISupportsImpl.h"
 #include "nsServiceManagerUtils.h"
 #include "nsXPCOM.h"
-#include "runnable_utils.h"
 
 extern "C" {
 #include "nr_api.h"
@@ -332,11 +331,6 @@ int NrSocket::create(nr_transport_addr *addr) {
     ABORT(R_INTERNAL);
   }
 
-  // Remember our thread.
-  ststhread_ = do_QueryInterface(stservice, &rv);
-  if (!NS_SUCCEEDED(rv))
-    ABORT(R_INTERNAL);
-
   // Finally, register with the STS
   rv = stservice->AttachSocket(fd_, this);
   if (!NS_SUCCEEDED(rv)) {
@@ -352,7 +346,6 @@ abort:
 // This should be called on the STS thread.
 int NrSocket::sendto(const void *msg, size_t len,
                      int flags, nr_transport_addr *to) {
-  ASSERT_ON_THREAD(ststhread_);
   int r,_status;
   PRNetAddr naddr;
   int32_t status;
@@ -379,7 +372,6 @@ abort:
 int NrSocket::recvfrom(void * buf, size_t maxlen,
                                        size_t *len, int flags,
                                        nr_transport_addr *from) {
-  ASSERT_ON_THREAD(ststhread_);
   int r,_status;
   PRNetAddr nfrom;
   int32_t status;
@@ -402,13 +394,11 @@ abort:
 }
 
 int NrSocket::getaddr(nr_transport_addr *addrp) {
-  ASSERT_ON_THREAD(ststhread_);
   return nr_transport_addr_copy(addrp, &my_addr_);
 }
 
 // Close the socket so that the STS will detach and then kill it
 void NrSocket::close() {
-  ASSERT_ON_THREAD(ststhread_);
   mCondition = NS_BASE_STREAM_CLOSED;
 }
 }  // close namespace

@@ -121,9 +121,7 @@ ComparePolicy::adjustInputs(MInstruction *def)
     if (compare->compareType() == MCompare::Compare_Boolean) {
         // Unbox rhs that is definitely Boolean
         MDefinition *rhs = def->getOperand(1);
-        if (rhs->type() != MIRType_Boolean) {
-            if (rhs->type() != MIRType_Value)
-                rhs = boxAt(def, rhs);
+        if (rhs->type() == MIRType_Value) {
             MInstruction *unbox = MUnbox::New(rhs, MIRType_Boolean, MUnbox::Infallible);
             def->block()->insertBefore(def, unbox);
             def->replaceOperand(1, unbox);
@@ -147,9 +145,7 @@ ComparePolicy::adjustInputs(MInstruction *def)
     if (compare->compareType() == MCompare::Compare_StrictString) {
         // Unbox rhs that is definitely String
         MDefinition *rhs = def->getOperand(1);
-        if (rhs->type() != MIRType_String) {
-            if (rhs->type() != MIRType_Value)
-                rhs = boxAt(def, rhs);
+        if (rhs->type() == MIRType_Value) {
             MInstruction *unbox = MUnbox::New(rhs, MIRType_String, MUnbox::Infallible);
             def->block()->insertBefore(def, unbox);
             def->replaceOperand(1, unbox);

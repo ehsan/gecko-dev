@@ -1139,7 +1139,7 @@ Loader::CreateSheet(nsIURI* aURI,
       // Then alternate sheets
       if (!sheet) {
         aSheetState = eSheetPending;
-        loadData = nullptr;
+        SheetLoadData* loadData = nullptr;
         mPendingDatas.Get(&key, &loadData);
         if (loadData) {
           sheet = loadData->mSheet;

@@ -7,6 +7,7 @@
 #define mozilla_dom_SVGAElement_h
 
 #include "Link.h"
+#include "nsIDOMSVGAElement.h"
 #include "nsIDOMSVGURIReference.h"
 #include "nsILink.h"
 #include "nsSVGString.h"
@@ -21,7 +22,7 @@ namespace dom {
 typedef SVGGraphicsElement SVGAElementBase;
 
 class SVGAElement MOZ_FINAL : public SVGAElementBase,
-                              public nsIDOMSVGElement,
+                              public nsIDOMSVGAElement,
                               public nsIDOMSVGURIReference,
                               public nsILink,
                               public Link
@@ -36,6 +37,7 @@ public:
   // interfaces:
 
   NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_NSIDOMSVGAELEMENT
   NS_DECL_NSIDOMSVGURIREFERENCE
 
   // XXX: I wish we could use virtual inheritance
@@ -76,13 +78,13 @@ public:
   virtual nsresult UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
                              bool aNotify);
 
+  virtual nsXPCClassInfo* GetClassInfo();
+
   virtual nsIDOMNode* AsDOMNode() { return this; }
 
   // WebIDL
   already_AddRefed<nsIDOMSVGAnimatedString> Href();
   already_AddRefed<nsIDOMSVGAnimatedString> Target();
-  void GetDownload(nsAString & aDownload);
-  void SetDownload(const nsAString & aDownload, ErrorResult& rv);
 
 protected:
 

@@ -7,6 +7,7 @@
 #define mozilla_dom_SVGTitleElement_h
 
 #include "nsSVGElement.h"
+#include "nsIDOMSVGTitleElement.h"
 #include "nsStubMutationObserver.h"
 
 typedef nsSVGElement SVGTitleElementBase;
@@ -18,7 +19,7 @@ namespace dom {
 
 class SVGTitleElement MOZ_FINAL : public SVGTitleElementBase,
                                   public nsStubMutationObserver,
-                                  public nsIDOMSVGElement
+                                  public nsIDOMSVGTitleElement
 {
 protected:
   friend nsresult (::NS_NewSVGTitleElement(nsIContent **aResult,
@@ -53,6 +54,8 @@ public:
                               bool aNullParent = true);
 
   virtual void DoneAddingChildren(bool aHaveNotified);
+
+  virtual nsXPCClassInfo* GetClassInfo();
 
   virtual nsIDOMNode* AsDOMNode() { return this; }
 private:

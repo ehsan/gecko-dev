@@ -6,6 +6,8 @@
 #include "mozilla/dom/SVGTitleElement.h"
 #include "mozilla/dom/SVGTitleElementBinding.h"
 
+DOMCI_NODE_DATA(SVGTitleElement, mozilla::dom::SVGTitleElement)
+
 NS_IMPL_NS_NEW_NAMESPACED_SVG_ELEMENT(Title)
 
 namespace mozilla {
@@ -20,10 +22,15 @@ SVGTitleElement::WrapNode(JSContext *aCx, JSObject *aScope, bool *aTriedToWrap)
 //----------------------------------------------------------------------
 // nsISupports methods
 
-NS_IMPL_ISUPPORTS_INHERITED4(SVGTitleElement, SVGTitleElementBase,
-                             nsIDOMNode, nsIDOMElement,
-                             nsIDOMSVGElement,
-                             nsIMutationObserver)
+NS_IMPL_ADDREF_INHERITED(SVGTitleElement, SVGTitleElementBase)
+NS_IMPL_RELEASE_INHERITED(SVGTitleElement, SVGTitleElementBase)
+
+NS_INTERFACE_TABLE_HEAD(SVGTitleElement)
+  NS_NODE_INTERFACE_TABLE5(SVGTitleElement, nsIDOMNode, nsIDOMElement,
+                           nsIDOMSVGElement, nsIDOMSVGTitleElement,
+                           nsIMutationObserver)
+  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(SVGTitleElement)
+NS_INTERFACE_MAP_END_INHERITING(SVGTitleElementBase)
 
 //----------------------------------------------------------------------
 // Implementation

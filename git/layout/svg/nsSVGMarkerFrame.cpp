@@ -54,7 +54,8 @@ nsSVGMarkerFrame::Init(nsIContent* aContent,
                        nsIFrame* aParent,
                        nsIFrame* aPrevInFlow)
 {
-  NS_ASSERTION(aContent->IsSVG(nsGkAtoms::marker), "Content is not an SVG marker");
+  nsCOMPtr<nsIDOMSVGMarkerElement> marker = do_QueryInterface(aContent);
+  NS_ASSERTION(marker, "Content is not an SVG marker");
 
   return nsSVGMarkerFrameBase::Init(aContent, aParent, aPrevInFlow);
 }

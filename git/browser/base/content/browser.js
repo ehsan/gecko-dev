@@ -4017,6 +4017,8 @@ var XULBrowserWindow = {
   // Stored Status, Link and Loading values
   status: "",
   defaultStatus: "",
+  jsStatus: "",
+  jsDefaultStatus: "",
   overLink: "",
   startTime: 0,
   statusText: "",
@@ -4074,12 +4076,14 @@ var XULBrowserWindow = {
     delete this.statusText;
   },
 
-  setJSStatus: function () {
-    // unsupported
+  setJSStatus: function (status) {
+    this.jsStatus = status;
+    this.updateStatusField();
   },
 
-  setJSDefaultStatus: function () {
-    // unsupported
+  setJSDefaultStatus: function (status) {
+    this.jsDefaultStatus = status;
+    this.updateStatusField();
   },
 
   setDefaultStatus: function (status) {
@@ -4104,7 +4108,7 @@ var XULBrowserWindow = {
     var text, type, types = ["overLink"];
     if (this._busyUI)
       types.push("status");
-    types.push("defaultStatus");
+    types.push("jsStatus", "jsDefaultStatus", "defaultStatus");
     for (type of types) {
       text = this[type];
       if (text)
@@ -4339,6 +4343,18 @@ var XULBrowserWindow = {
         // Update starring UI
         PlacesStarButton.updateState();
         SocialShareButton.updateShareState();
+      }
+
+      // Filter out anchor navigation, history.push/pop/replaceState and
+      // tab switches.
+      if (aRequest) {
+        // Only need to call locationChange if the PopupNotifications object
+        // for this window has already been initialized (i.e. its getter no
+        // longer exists)
+        // XXX bug 839445: We never tell PopupNotifications about location
+        // changes in background tabs.
+        if (!__lookupGetter__("PopupNotifications"))
+          PopupNotifications.locationChange();
       }
 
       // Show or hide browser chrome based on the whitelist
@@ -4764,12 +4780,6 @@ var TabsProgressListener = {
         aBrowser._clickToPlayPluginsActivated = new Map();
         aBrowser._clickToPlayAllPluginsActivated = false;
         aBrowser._pluginScriptedState = gPluginHandler.PLUGIN_SCRIPTED_STATE_NONE;
-
-        // Only need to call locationChange if the PopupNotifications object
-        // for this window has already been initialized (i.e. its getter no
-        // longer exists)
-        if (!Object.getOwnPropertyDescriptor(window, "PopupNotifications").get)
-          PopupNotifications.locationChange(aBrowser);
       }
       FullZoom.onLocationChange(aLocationURI, false, aBrowser);
     }

@@ -311,7 +311,6 @@ public:
 
     void CheckURIVisited(const nsAString& uri);
     void MarkURIVisited(const nsAString& uri);
-    void SetURITitle(const nsAString& uri, const nsAString& title);
 
     bool InitCamera(const nsCString& contentType, uint32_t camera, uint32_t *width, uint32_t *height, uint32_t *fps);
 
@@ -466,7 +465,6 @@ protected:
     jmethodID jHandleGeckoMessage;
     jmethodID jCheckUriVisited;
     jmethodID jMarkUriVisited;
-    jmethodID jSetUriTitle;
     jmethodID jAddPluginView;
     jmethodID jRemovePluginView;
     jmethodID jCreateSurface;

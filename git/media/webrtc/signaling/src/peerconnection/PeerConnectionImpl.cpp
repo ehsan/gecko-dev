@@ -43,7 +43,7 @@
 #include "nsURLHelper.h"
 #include "nsNetUtil.h"
 #include "mozilla/dom/BindingUtils.h"
-#include "mozilla/dom/RTCConfigurationBinding.h"
+#include "mozilla/dom/RTCIceServerBinding.h"
 #include "MediaStreamList.h"
 #include "nsIScriptGlobalObject.h"
 #include "jsapi.h"
@@ -347,30 +347,43 @@ Warn(JSContext* aCx, const nsCString& aMsg) {
  *                   { url:"turn:user@turn.example.org", credential:"mypass"} ] }
  *
  * This function converts an already-validated jsval that looks like the above
- * into an IceConfiguration object.
+ * into an RTCConfiguration object.
  */
 nsresult
 PeerConnectionImpl::ConvertRTCConfiguration(const JS::Value& aSrc,
-                                            IceConfiguration *aDst,
+                                            RTCConfiguration *aDst,
                                             JSContext* aCx)
 {
 #ifdef MOZILLA_INTERNAL_API
   if (!aSrc.isObject()) {
     return NS_ERROR_FAILURE;
   }
-  JSAutoCompartment ac(aCx, &aSrc.toObject());
-  RTCConfiguration config;
-  if (!(config.Init(aCx, nullptr, aSrc) && config.mIceServers.WasPassed())) {
+  JSObject& config = aSrc.toObject();
+  JSAutoCompartment ac(aCx, &config);
+  JS::Value jsServers;
+  if (!(JS_GetProperty(aCx, &config, "iceServers", &jsServers) && jsServers.isObject())) {
     return NS_ERROR_FAILURE;
   }
-  for (uint32_t i = 0; i < config.mIceServers.Value().Length(); i++) {
-    // XXXbz once this moves to WebIDL, remove RTCConfiguration in DummyBinding.webidl.
-    RTCIceServer& server = config.mIceServers.Value()[i];
+  JSObject& servers = jsServers.toObject();
+  uint32_t len;
+  if (!(IsArrayLike(aCx, &servers) && JS_GetArrayLength(aCx, &servers, &len))) {
+    return NS_ERROR_FAILURE;
+  }
+  for (uint32_t i = 0; i < len; i++) {
+    nsresult rv;
+    // XXXbz once this moves to WebIDL, remove the RTCIceServer hack
+    // in DummyBinding.webidl.
+    RTCIceServer server;
+    {
+      JS::Value v;
+      if (!(JS_GetElement(aCx, &servers, i, &v) && server.Init(aCx, nullptr, v))) {
+        return NS_ERROR_FAILURE;
+      }
+    }
     if (!server.mUrl.WasPassed()) {
       return NS_ERROR_FAILURE;
     }
     nsRefPtr<nsIURI> url;
-    nsresult rv;
     rv = NS_NewURI(getter_AddRefs(url), server.mUrl.Value());
     NS_ENSURE_SUCCESS(rv, rv);
     bool isStun = false, isStuns = false, isTurn = false, isTurns = false;
@@ -437,7 +450,7 @@ PeerConnectionImpl::Initialize(IPeerConnectionObserver* aObserver,
 nsresult
 PeerConnectionImpl::Initialize(IPeerConnectionObserver* aObserver,
                                nsIDOMWindow* aWindow,
-                               const IceConfiguration* aConfiguration,
+                               const RTCConfiguration* aConfiguration,
                                const JS::Value* aRTCConfiguration,
                                nsIThread* aThread,
                                JSContext* aCx)
@@ -487,7 +500,7 @@ PeerConnectionImpl::Initialize(IPeerConnectionObserver* aObserver,
 
   // Initialize the media object.
   if (aRTCConfiguration) {
-    IceConfiguration ic;
+    RTCConfiguration ic;
     res = ConvertRTCConfiguration(*aRTCConfiguration, &ic, aCx);
     NS_ENSURE_SUCCESS(res, res);
     res = mMedia->Init(ic.getServers());
@@ -761,8 +774,8 @@ PeerConnectionImpl::NotifyDataChannel(already_AddRefed<mozilla::DataChannel> aCh
  * Constraints look like this:
  *
  * {
- *   mandatory: {"OfferToReceiveAudio": true, "OfferToReceiveVideo": true },
- *   optional: [{"VoiceActivityDetection": true}, {"FooBar": 10}]
+ *    "mandatory": {"foo":"hello", "bar": false, "baz": 10},
+ *    "optional": [{"hello":"foo"}, {"baz": false}]
  * }
  *
  * Optional constraints are ordered, and hence in an array. This function
@@ -784,7 +797,7 @@ PeerConnectionImpl::ConvertConstraints(
       return NS_ERROR_FAILURE;
     }
 
-    JSObject* opts = &mandatory.toObject();
+    JSObject* opts = JSVAL_TO_OBJECT(mandatory);
     JS::AutoIdArray mandatoryOpts(aCx, JS_Enumerate(aCx, opts));
 
     // Iterate over each property.
@@ -793,7 +806,7 @@ PeerConnectionImpl::ConvertConstraints(
       if (!JS_GetPropertyById(aCx, opts, mandatoryOpts[i], &option) ||
           !JS_IdToValue(aCx, mandatoryOpts[i], &optionName) ||
           // We only support boolean constraints for now.
-          !option.isBoolean()) {
+          !JSVAL_IS_BOOLEAN(option)) {
         return NS_ERROR_FAILURE;
       }
       JSString* optionNameString = JS_ValueToString(aCx, optionName);
@@ -814,39 +827,23 @@ PeerConnectionImpl::ConvertConstraints(
       return NS_ERROR_FAILURE;
     }
 
-    JSObject* array = &optional.toObject();
+    JSObject* opts = JSVAL_TO_OBJECT(optional);
     uint32_t length;
-    if (!JS_GetArrayLength(aCx, array, &length)) {
+    if (!JS_IsArrayObject(aCx, opts) ||
+        !JS_GetArrayLength(aCx, opts, &length)) {
       return NS_ERROR_FAILURE;
     }
     for (uint32_t i = 0; i < length; i++) {
-      JS::Value element;
-      if (!JS_GetElement(aCx, array, i, &element) ||
-          !element.isObject()) {
+      JS::Value val;
+      if (!JS_GetElement(aCx, opts, i, &val) ||
+          !val.isObject()) {
         return NS_ERROR_FAILURE;
       }
-      JSObject* opts = &element.toObject();
-      JS::AutoIdArray optionalOpts(aCx, JS_Enumerate(aCx, opts));
-      // Expect one property per entry.
-      if (optionalOpts.length() != 1) {
-        return NS_ERROR_FAILURE;
-      }
-      JS::Value option, optionName;
-      if (!JS_GetPropertyById(aCx, opts, optionalOpts[0], &option) ||
-          !JS_IdToValue(aCx, optionalOpts[0], &optionName)) {
-        return NS_ERROR_FAILURE;
-      }
-      // Ignore constraints other than boolean, as that's all we support.
-      if (option.isBoolean()) {
-        JSString* optionNameString = JS_ValueToString(aCx, optionName);
-        if (!optionNameString) {
-          return NS_ERROR_OUT_OF_MEMORY;
-        }
-        NS_ConvertUTF16toUTF8 stringVal(JS_GetStringCharsZ(aCx, optionNameString));
-        aObj->setBooleanConstraint(stringVal.get(), JSVAL_TO_BOOLEAN(option), false);
-      }
+      // Extract name & value and store.
+      // FIXME: MediaConstraints does not support optional constraints?
     }
   }
+
   return NS_OK;
 }
 

@@ -39,7 +39,6 @@ EXPORTS_mozilla/dom = \
 		HTMLDivElement.h \
 		HTMLFieldSetElement.h \
 		HTMLFontElement.h \
-		HTMLFrameElement.h \
 		HTMLFrameSetElement.h \
 		HTMLHeadingElement.h \
 		HTMLHRElement.h \
@@ -49,12 +48,9 @@ EXPORTS_mozilla/dom = \
 		HTMLLIElement.h \
 		HTMLLinkElement.h \
 		HTMLMapElement.h \
-		HTMLMenuElement.h \
-		HTMLMenuItemElement.h \
 		HTMLMetaElement.h \
 		HTMLMeterElement.h \
 		HTMLModElement.h \
-		HTMLOptionElement.h \
 		HTMLOptGroupElement.h \
 		HTMLOutputElement.h \
 		HTMLParagraphElement.h \
@@ -97,7 +93,7 @@ CPPSRCS		= \
 		HTMLFieldSetElement.cpp \
 		HTMLFontElement.cpp \
 		nsHTMLFormElement.cpp \
-		HTMLFrameElement.cpp \
+		nsHTMLFrameElement.cpp \
 		HTMLFrameSetElement.cpp \
 		HTMLHRElement.cpp \
 		HTMLHeadingElement.cpp \
@@ -109,14 +105,14 @@ CPPSRCS		= \
 		HTMLLegendElement.cpp \
 		HTMLLinkElement.cpp \
 		HTMLMapElement.cpp \
-		HTMLMenuElement.cpp \
-		HTMLMenuItemElement.cpp \
+		nsHTMLMenuElement.cpp \
+		nsHTMLMenuItemElement.cpp \
 		HTMLMetaElement.cpp \
 		HTMLMeterElement.cpp \
 		HTMLModElement.cpp \
 		HTMLObjectElement.cpp \
 		nsHTMLSharedObjectElement.cpp \
-		HTMLOptionElement.cpp \
+		nsHTMLOptionElement.cpp \
 		HTMLOptGroupElement.cpp \
 		HTMLOutputElement.cpp \
 		HTMLParagraphElement.cpp \

@@ -51,7 +51,7 @@ class SystemAllocPolicy
  */
 class TempAllocPolicy
 {
-    JSContext *const cx_;
+    JSContext *const cx;
 
     /*
      * Non-inline helper to call JSRuntime::onOutOfMemory with minimal
@@ -60,10 +60,10 @@ class TempAllocPolicy
     JS_FRIEND_API(void *) onOutOfMemory(void *p, size_t nbytes);
 
   public:
-    TempAllocPolicy(JSContext *cx) : cx_(cx) {}
+    TempAllocPolicy(JSContext *cx) : cx(cx) {}
 
     JSContext *context() const {
-        return cx_;
+        return cx;
     }
 
     void *malloc_(size_t bytes) {

@@ -2242,16 +2242,16 @@ class RuntimeAllocPolicy
  */
 class ContextAllocPolicy
 {
-    JSContext *const cx_;
+    JSContext *const cx;
 
   public:
-    ContextAllocPolicy(JSContext *cx) : cx_(cx) {}
-    JSContext *context() const { return cx_; }
-    void *malloc_(size_t bytes) { return cx_->malloc_(bytes); }
-    void *calloc_(size_t bytes) { return cx_->calloc_(bytes); }
-    void *realloc_(void *p, size_t oldBytes, size_t bytes) { return cx_->realloc_(p, oldBytes, bytes); }
+    ContextAllocPolicy(JSContext *cx) : cx(cx) {}
+    JSContext *context() const { return cx; }
+    void *malloc_(size_t bytes) { return cx->malloc_(bytes); }
+    void *calloc_(size_t bytes) { return cx->calloc_(bytes); }
+    void *realloc_(void *p, size_t oldBytes, size_t bytes) { return cx->realloc_(p, oldBytes, bytes); }
     void free_(void *p) { js_free(p); }
-    void reportAllocOverflow() const { js_ReportAllocationOverflow(cx_); }
+    void reportAllocOverflow() const { js_ReportAllocationOverflow(cx); }
 };
 
 JSBool intrinsic_ThrowError(JSContext *cx, unsigned argc, Value *vp);

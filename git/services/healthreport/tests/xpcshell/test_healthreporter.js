@@ -171,8 +171,9 @@ add_task(function test_register_providers_from_category_manager() {
   reporter._shutdown();
 });
 
-// Pull-only providers are only initialized at collect time.
-add_task(function test_pull_only_providers() {
+// Constant only providers are only initialized at constant collect
+// time.
+add_task(function test_constant_only_providers() {
   const category = "healthreporter-constant-only";
 
   let cm = Cc["@mozilla.org/categorymanager;1"]
@@ -193,9 +194,9 @@ add_task(function test_pull_only_providers() {
   do_check_neq(reporter.getProvider("DummyProvider"), null);
   do_check_null(reporter.getProvider("DummyConstantProvider"));
 
-  yield reporter.ensurePullOnlyProvidersRegistered();
+  yield reporter.ensureConstantOnlyProvidersRegistered();
   yield reporter.collectMeasurements();
-  yield reporter.ensurePullOnlyProvidersUnregistered();
+  yield reporter.ensureConstantOnlyProvidersUnregistered();
 
   do_check_eq(reporter._collector._providers.size, 1);
   do_check_true(reporter._storage.hasProvider("DummyConstantProvider"));
