@@ -39,9 +39,6 @@ namespace mozilla {
 
 // The value from SensorDevice.h (Android)
 #define DEFAULT_DEVICE_POLL_RATE 200000000 /*200ms*/
-// ProcessOrientation.cpp needs smaller poll rate to detect delay between
-// different orientation angles
-#define ACCELEROMETER_POLL_RATE 66667000 /*66.667ms*/
 
 double radToDeg(double a) {
   return a * (180.0 / M_PI);
@@ -217,13 +214,8 @@ SwitchSensor(bool aActivate, sensor_t aSensor, pthread_t aThreadId)
   sSensorDevice->activate(sSensorDevice, aSensor.handle, aActivate);
 
   if (aActivate) {
-    if (aSensor.type == SENSOR_TYPE_ACCELEROMETER) {
-      sSensorDevice->setDelay(sSensorDevice, aSensor.handle,
-                   ACCELEROMETER_POLL_RATE);
-    } else {
-      sSensorDevice->setDelay(sSensorDevice, aSensor.handle,
+    sSensorDevice->setDelay(sSensorDevice, aSensor.handle,
                    DEFAULT_DEVICE_POLL_RATE);
-    }
   }
 
   if (aActivate) {
