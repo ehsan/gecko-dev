@@ -2152,9 +2152,8 @@ static PRUint32 sInterruptCounter;
 static PRUint32 sInterruptChecksToSkip = 200;
 // Number of milliseconds that a reflow should be allowed to run for before we
 // actually allow interruption.  Controlled by the
-// GECKO_REFLOW_MIN_NOINTERRUPT_DURATION env var.  Can't be initialized here,
-// because TimeDuration/TimeStamp is not safe to use in static constructors..
-static TimeDuration sInterruptTimeout;
+// GECKO_REFLOW_MIN_NOINTERRUPT_DURATION env var.
+static TimeDuration sInterruptTimeout = TimeDuration::FromMilliseconds(100);
 
 static void GetInterruptEnv()
 {
@@ -2185,8 +2184,9 @@ static void GetInterruptEnv()
   }
 
   ev = PR_GetEnv("GECKO_REFLOW_MIN_NOINTERRUPT_DURATION");
-  int duration_ms = ev ? atoi(ev) : 100;
-  sInterruptTimeout = TimeDuration::FromMilliseconds(duration_ms);
+  if (ev) {
+    sInterruptTimeout = TimeDuration::FromMilliseconds(atoi(ev));
+  }
 }
 
 PRBool
