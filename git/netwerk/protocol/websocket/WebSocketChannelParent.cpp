@@ -105,11 +105,11 @@ fail:
 }
 
 bool
-WebSocketChannelParent::RecvClose(const PRUint16& code, const nsCString& reason)
+WebSocketChannelParent::RecvClose()
 {
   LOG(("WebSocketChannelParent::RecvClose() %p\n", this));
   if (mChannel) {
-    nsresult rv = mChannel->Close(code, reason);
+    nsresult rv = mChannel->Close();
     NS_ENSURE_SUCCESS(rv, true);
   }
   return true;
@@ -152,12 +152,11 @@ NS_IMETHODIMP
 WebSocketChannelParent::OnStart(nsISupports *aContext)
 {
   LOG(("WebSocketChannelParent::OnStart() %p\n", this));
-  nsCAutoString protocol, extensions;
+  nsCAutoString protocol;
   if (mChannel) {
     mChannel->GetProtocol(protocol);
-    mChannel->GetExtensions(extensions);
   }
-  if (!mIPCOpen || !SendOnStart(protocol, extensions)) {
+  if (!mIPCOpen || !SendOnStart(protocol)) {
     return NS_ERROR_FAILURE;
   }
   return NS_OK;
@@ -204,11 +203,10 @@ WebSocketChannelParent::OnAcknowledge(nsISupports *aContext, PRUint32 aSize)
 }
 
 NS_IMETHODIMP
-WebSocketChannelParent::OnServerClose(nsISupports *aContext,
-                                      PRUint16 code, const nsACString & reason)
+WebSocketChannelParent::OnServerClose(nsISupports *aContext)
 {
   LOG(("WebSocketChannelParent::OnServerClose() %p\n", this));
-  if (!mIPCOpen || !SendOnServerClose(code, nsCString(reason))) {
+  if (!mIPCOpen || !SendOnServerClose()) {
     return NS_ERROR_FAILURE;
   }
   return NS_OK;

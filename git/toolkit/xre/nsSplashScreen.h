@@ -1,3 +1,4 @@
+/* -*- Mode: C++; tab-width: 40; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -11,14 +12,15 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is bug 578534 test.
+ * The Original Code is Mozilla code.
  *
  * The Initial Developer of the Original Code is
- * Sindre Dammann <sindrebugzilla@gmail.com>
- * Portions created by the Initial Developer are Copyright (C) 2010
+ *   mozilla.org
+ * Portions created by the Initial Developer are Copyright (C) 2009
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
+ *   Vladimir Vukicevic <vladimir@pobox.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -34,28 +36,42 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-function test() {
-  let uriString = "http://example.com/";
-  let cookieBehavior = "network.cookie.cookieBehavior";
-  let uriObj = Services.io.newURI(uriString, null, null)
-  let cp = Components.classes["@mozilla.org/cookie/permission;1"]
-                     .getService(Components.interfaces.nsICookiePermission);
-  
-  Services.prefs.setIntPref(cookieBehavior, 2);
+#ifndef NS_SPLASHSCREEN_H_
+#define NS_SPLASHSCREEN_H_
 
-  cp.setAccess(uriObj, cp.ACCESS_ALLOW);
-  gBrowser.selectedTab = gBrowser.addTab(uriString);
-  waitForExplicitFinish();
-  gBrowser.selectedBrowser.addEventListener("load", onTabLoaded, true);
-  
-  function onTabLoaded() {
-    is(gBrowser.selectedBrowser.contentWindow.navigator.cookieEnabled, true,
-       "navigator.cookieEnabled should be true");
-    // Clean up
-    gBrowser.selectedBrowser.removeEventListener("load", onTabLoaded, true);
-    gBrowser.removeTab(gBrowser.selectedTab);
-    Services.prefs.setIntPref(cookieBehavior, 0);
-    cp.setAccess(uriObj, cp.ACCESS_DEFAULT);
-    finish();
-  }
+#include "prtypes.h"
+
+/* Note: This is not XPCOM!  This class is used before any Gecko/XPCOM
+ * support has been initialized, so any implementations should take care
+ * to use platform-native methods as much as possible.
+ */
+
+class nsSplashScreen {
+public:
+    // An implementation needs to provide these, to either get
+    // an existing splash screen, or create a new one if GetOrCreate is
+    // used.
+    static nsSplashScreen* GetOrCreate();
+    static nsSplashScreen* Get();
+public:
+    // Display the splash screen if it's not already displayed.
+    // Also resets progress to 0 and the message to empty.
+    virtual void Open() = 0;
+    virtual void Close() = 0;
+
+    /* Update the splash screen to the given progress value (0..100) */
+    virtual void Update(PRInt32 progress) = 0;
+
+    PRBool IsOpen() { return mIsOpen; }
+
+protected:
+    nsSplashScreen() : mIsOpen(PR_FALSE) { }
+    PRBool mIsOpen;
+};
+
+extern "C" {
+    nsSplashScreen *NS_GetSplashScreen(PRBool create);
+    typedef nsSplashScreen* (*NS_GetSplashScreenPtr) (PRBool);
 }
+
+#endif /* NS_SPLASHSCREEN_H_ */

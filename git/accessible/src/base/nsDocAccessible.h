@@ -235,19 +235,9 @@ public:
   /**
    * Return whether the given DOM node has an accessible or not.
    */
-  inline bool HasAccessible(nsINode* aNode) const
-    { return GetAccessible(aNode); }
-
-  /**
-   * Return true if the given accessible is in document.
-   */
-  inline bool IsInDocument(nsAccessible* aAccessible) const
+  inline bool HasAccessible(nsINode* aNode)
   {
-    nsAccessible* acc = aAccessible;
-    while (acc && !acc->IsPrimaryForNode())
-      acc = acc->Parent();
-
-    return acc ? mNodeToAccessibleMap.Get(acc->GetNode()) : false;
+    return GetAccessible(aNode);
   }
 
   /**

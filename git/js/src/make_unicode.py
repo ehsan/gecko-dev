@@ -61,33 +61,8 @@ public_domain = """
  */
 """
 
-def read_unicode_data(unicode_file):
-    """
-        If you want to understand how this wonderful file format works checkout
-          Unicode Standard Annex #44 - Unicode Character Database
-          http://www.unicode.org/reports/tr44/
-    """
-    
-    reader = csv.reader(unicode_data, delimiter=';')
-
-    while True:
-        row = reader.next()
-        name = row[1]
-
-        # We need to expand the UAX #44 4.2.3 Code Point Range
-        if name.startswith('<') and name.endswith('First>'): 
-            next_row = reader.next()
-
-            for i in range(int(row[0], 16), int(next_row[0], 16) + 1):
-                row[0] = i
-                row[1] = name[1:-8]
-
-                yield row
-        else:
-            row[0] = int(row[0], 16)
-            yield row
-
 def generate_unicode_stuff(unicode_data, data_file, test_mapping, test_space):
+    reader = csv.reader(unicode_data, delimiter=';')
     dummy = (0, 0, 0)
     table = [dummy]
     cache = {dummy: 0}
@@ -95,13 +70,15 @@ def generate_unicode_stuff(unicode_data, data_file, test_mapping, test_space):
     test_table = {}
     test_space_table = []
 
-    for row in read_unicode_data(unicode_data):
-        code = row[0]
+    for row in reader:
+        code_point = row[0]
         name = row[1]
         category = row[2]
         alias = row[-5]
         uppercase = row[-3]
         lowercase = row[-2]
+
+        code = int(code_point, 16)
         flags = 0
 
         if code > MAX:
@@ -204,6 +181,8 @@ if (typeof reportCompare === "function")
         idx = index2[(idx << shift) + (char & ((1 << shift) - 1))]
 
         assert test == table[idx]
+
+    print(len(index2))
 
 
     comment = """
@@ -381,6 +360,6 @@ if __name__ == '__main__':
 
     print('Generating...')
     generate_unicode_stuff(unicode_data,
-        open('Unicode.cpp', 'w'),
-        open('../tests/ecma_5/String/string-upper-lower-mapping.js', 'w'),
-        open('../tests/ecma_5/String/string-space-trim.js', 'w'))
+        open('vm/Unicode.cpp', 'w'),
+        open('tests/ecma_5/String/string-upper-lower-mapping.js', 'w'),
+        open('tests/ecma_5/String/string-space-trim.js', 'w'))

@@ -41,7 +41,6 @@
 
 #include "nsAutoPtr.h"
 #include "nsITextControlElement.h"
-#include "nsITextControlFrame.h"
 #include "nsCycleCollectionParticipant.h"
 
 class nsTextInputListener;
@@ -52,6 +51,7 @@ class nsISelectionController;
 class nsFrameSelection;
 class nsIEditor;
 class nsITextControlElement;
+struct SelectionState;
 
 /**
  * nsTextEditorState is a class which is responsible for managing the state of
@@ -115,11 +115,6 @@ class nsITextControlElement;
  *    control.  A mutation observer stored in the mMutationObserver has the job of
  *    invalidating this cache when the anonymous contect containing the value is
  *    changed.
- *
- *  * The editor's cached selection properties.  These vales are stored in the
- *    mSelectionProperties member, and include the selection's start, end and
- *    direction. They are only used when there is no frame available for the
- *    text field.
  *
  *
  * As a general rule, nsTextEditorState objects own the value of the text control, and any
@@ -219,24 +214,6 @@ public:
 
   void HideSelectionIfBlurred();
 
-  struct SelectionProperties {
-    SelectionProperties() : mStart(0), mEnd(0),
-      mDirection(nsITextControlFrame::eForward) {}
-    bool IsDefault() const {
-      return mStart == 0 && mEnd == 0 &&
-             mDirection == nsITextControlFrame::eForward;
-    }
-    PRInt32 mStart, mEnd;
-    nsITextControlFrame::SelectionDirection mDirection;
-  };
-
-  PRBool IsSelectionCached() const { return mSelectionCached; }
-  SelectionProperties& GetSelectionProperties() {
-    return mSelectionProperties;
-  }
-  void WillInitEagerly() { mSelectionRestoreEagerInit = PR_TRUE; }
-  PRBool HasNeverInitializedBefore() const { return !mEverInited; }
-
 private:
   friend class RestoreSelectionState;
 
@@ -282,6 +259,7 @@ private:
 
   nsITextControlElement* const mTextCtrlElement;
   nsRefPtr<nsTextInputSelectionImpl> mSelCon;
+  nsAutoPtr<SelectionState> mSelState;
   RestoreSelectionState* mRestoringSelection;
   nsCOMPtr<nsIEditor> mEditor;
   nsCOMPtr<nsIContent> mRootNode;
@@ -291,13 +269,9 @@ private:
   nsAutoPtr<nsCString> mValue;
   nsRefPtr<nsAnonDivObserver> mMutationObserver;
   mutable nsString mCachedValue; // Caches non-hard-wrapped value on a multiline control.
-  PRPackedBool mEverInited; // Have we ever been initialized?
   PRPackedBool mEditorInitialized;
   PRPackedBool mInitializing; // Whether we're in the process of initialization
   PRPackedBool mValueTransferInProgress; // Whether a value is being transferred to the frame
-  PRPackedBool mSelectionCached; // Whether mSelectionProperties is valid
-  mutable PRPackedBool mSelectionRestoreEagerInit; // Whether we're eager initing because of selection restore
-  SelectionProperties mSelectionProperties;
 };
 
 #endif

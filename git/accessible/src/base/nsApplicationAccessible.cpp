@@ -237,10 +237,12 @@ nsApplicationAccessible::TakeFocus()
   return NS_OK;
 }
 
-PRUint8
-nsApplicationAccessible::ActionCount()
+NS_IMETHODIMP
+nsApplicationAccessible::GetNumActions(PRUint8 *aNumActions)
 {
-  return 0;
+  NS_ENSURE_ARG_POINTER(aNumActions);
+  *aNumActions = 0;
+  return NS_OK;
 }
 
 NS_IMETHODIMP

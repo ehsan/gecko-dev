@@ -436,6 +436,11 @@ var BrowserUI = {
     return this._sidebarW = Elements.controls.getBoundingClientRect().width;
   },
 
+  get starButton() {
+    delete this.starButton;
+    return this.starButton = document.getElementById("tool-star");
+  },
+
   sizeControls: function(windowW, windowH) {
     // tabs
     document.getElementById("tabs").resize();
@@ -538,7 +543,6 @@ var BrowserUI = {
       WeaveGlue.init();
 #endif
 
-      Services.prefs.addObserver("browser.ui.layout.tablet", BrowserUI, false);
       Services.obs.addObserver(BrowserSearch, "browser-search-engine-modified", false);
       messageManager.addMessageListener("Browser:MozApplicationManifest", OfflineApps);
 
@@ -597,23 +601,9 @@ var BrowserUI = {
 
   uninit: function() {
     Services.obs.removeObserver(BrowserSearch, "browser-search-engine-modified");
-    Services.prefs.removeObserver("browser.ui.layout.tablet", BrowserUI);
     messageManager.removeMessageListener("Browser:MozApplicationManifest", OfflineApps);
     ExtensionsView.uninit();
     ConsoleView.uninit();
-  },
-
-  observe: function observe(aSubject, aTopic, aData) {
-    if (aTopic == "nsPref:changed" && aData == "browser.ui.layout.tablet")
-      this.updateTabletLayout();
-  },
-
-  updateTabletLayout: function updateTabletLayout() {
-    let tabletPref = Services.prefs.getIntPref("browser.ui.layout.tablet");
-    if (tabletPref == 1 || (tabletPref == -1 && Util.isTablet()))
-      Elements.urlbarState.setAttribute("tablet", "true");
-    else
-      Elements.urlbarState.removeAttribute("tablet");
   },
 
   update: function(aState) {
@@ -763,23 +753,16 @@ var BrowserUI = {
   updateStar: function() {
     let uri = getBrowser().currentURI;
     if (uri.spec == "about:blank") {
-      this._setStar(false);
+      this.starButton.removeAttribute("starred");
       return;
     }
 
-    PlacesUtils.asyncGetBookmarkIds(uri, function(aItemIds) {
-      this._setStar(aItemIds.length > 0)
-    }, this);
-  },
-
-  _setStar: function _setStar(aIsStarred) {
-    let buttons = document.getElementsByClassName("tool-star");
-    for (let i = 0; i < buttons.length; i++) {
-      if (aIsStarred)
-        buttons[i].setAttribute("starred", "true");
+    PlacesUtils.asyncGetBookmarkIds(uri, function (aItemIds) {
+      if (aItemIds.length)
+        this.starButton.setAttribute("starred", "true");
       else
-        buttons[i].removeAttribute("starred");
-    }
+        this.starButton.removeAttribute("starred");
+    }, this);
   },
 
   newTab: function newTab(aURI, aOwner) {
@@ -1156,7 +1139,6 @@ var BrowserUI = {
       case "cmd_quit":
       case "cmd_close":
       case "cmd_menu":
-      case "cmd_showTabs":
       case "cmd_newTab":
       case "cmd_closeTab":
       case "cmd_undoCloseTab":
@@ -1225,7 +1207,8 @@ var BrowserUI = {
       case "cmd_star":
       {
         BookmarkPopup.toggle();
-        this._setStar(true);
+        if (!this.starButton.hasAttribute("starred"))
+          this.starButton.setAttribute("starred", "true");
 
         let bookmarkURI = browser.currentURI;
         PlacesUtils.asyncGetBookmarkIds(bookmarkURI, function (aItemIds) {
@@ -1292,9 +1275,6 @@ var BrowserUI = {
         break;
       case "cmd_menu":
         AppMenu.toggle();
-        break;
-      case "cmd_showTabs":
-        TabsPopup.toggle();
         break;
       case "cmd_newTab":
         this.newTab();

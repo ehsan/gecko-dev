@@ -135,7 +135,8 @@ public:
     return mImageSurface;
   }
 
-  PRUint32 EstimateMemoryUsed(gfxASurface::MemoryLocation aLocation) const;
+  // returns an estimate of the memory used by this imgFrame
+  PRUint32 EstimateMemoryUsed() const;
 
   PRUint8 GetPaletteDepth() const { return mPaletteDepth; }
 

@@ -208,6 +208,7 @@ EnumerateNativeProperties(JSContext *cx, JSObject *obj, JSObject *pobj, uintN fl
         const Shape &shape = r.front();
 
         if (!JSID_IS_DEFAULT_XML_NAMESPACE(shape.propid) &&
+            !shape.isAlias() &&
             !Enumerate(cx, obj, pobj, shape.propid, shape.enumerable(), flags, ht, props))
         {
             return false;
@@ -338,8 +339,6 @@ GetPropertyNames(JSContext *cx, JSObject *obj, uintN flags, AutoIdVector *props)
 
 }
 
-size_t sCustomIteratorCount = 0;
-
 static inline bool
 GetCustomIterator(JSContext *cx, JSObject *obj, uintN flags, Value *vp)
 {
@@ -353,9 +352,6 @@ GetCustomIterator(JSContext *cx, JSObject *obj, uintN flags, Value *vp)
         vp->setUndefined();
         return true;
     }
-
-    if (!cx->runningWithTrustedPrincipals())
-        ++sCustomIteratorCount;
 
     /* Otherwise call it and return that object. */
     LeaveTrace(cx);

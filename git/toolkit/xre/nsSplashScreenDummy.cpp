@@ -1,4 +1,4 @@
-/* -*- Mode: C++; c-basic-offset: 2; indent-tabs-mode: nil; tab-width: 8 -*- */
+/* -*- Mode: C++; tab-width: 40; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
 /* ***** BEGIN LICENSE BLOCK *****
  * Version: MPL 1.1/GPL 2.0/LGPL 2.1
  *
@@ -12,14 +12,15 @@
  * for the specific language governing rights and limitations under the
  * License.
  *
- * The Original Code is Mozilla Firefox.
+ * The Original Code is Mozilla code.
  *
  * The Initial Developer of the Original Code is
- * the Mozilla Foundation <http://www.mozilla.org>.
- * Portions created by the Initial Developer are Copyright (C) 2011
+ *   mozilla.org
+ * Portions created by the Initial Developer are Copyright (C) 2009
  * the Initial Developer. All Rights Reserved.
  *
  * Contributor(s):
+ *   Vladimir Vukicevic <vladimir@pobox.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -35,19 +36,16 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-#include "nsISupports.idl"
+#include "nsSplashScreen.h"
 
-/**
- * Telemetry uses this interface on the @mozilla.org/js/xpc/XPConnect;1 service
- * to extract JS engine stats.
- */
-[scriptable, uuid(5a6ea52b-4e23-402f-93e3-59f29b2f1a88)]
-interface nsIJSEngineTelemetryStats : nsISupports
+nsSplashScreen*
+nsSplashScreen::Get()
 {
-  /**
-   * The value returned by this attribute is included as the 'js' property of
-   * the telemetry ping JSON blob.
-   */
-  [implicit_jscontext]
-  readonly attribute jsval telemetryValue;
-};
+  return NULL;
+}
+
+nsSplashScreen*
+nsSplashScreen::GetOrCreate()
+{
+  return NULL;
+}
