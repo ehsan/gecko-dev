@@ -655,7 +655,6 @@ Makefile: $(DEPTH)/backend.RecursiveMakeBackend.built
 $(DEPTH)/backend.RecursiveMakeBackend.built:
 	@echo "Build configuration changed. Regenerating backend."
 	@cd $(DEPTH) && $(PYTHON) ./config.status
-	@$(TOUCH) $@
 
 include $(DEPTH)/backend.RecursiveMakeBackend.built.pp
 

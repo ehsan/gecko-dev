@@ -10,7 +10,6 @@
 #define __gl_h_
 
 #include <stddef.h>
-#include <stdint.h>
 
 typedef unsigned int GLenum;
 typedef unsigned int GLbitfield;
@@ -32,8 +31,8 @@ typedef void GLvoid;
 
 typedef char GLchar;
 #ifndef __gl2_h_
-typedef intptr_t GLsizeiptr;
-typedef intptr_t GLintptr;
+typedef ptrdiff_t GLsizeiptr;
+typedef ptrdiff_t GLintptr;
 #endif
 
 #endif /* #if !defined(__gltypes_h_) && !defined(__gl_h_) */

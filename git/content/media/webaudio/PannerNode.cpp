@@ -9,10 +9,6 @@
 #include "AudioNodeStream.h"
 #include "AudioListener.h"
 #include "AudioBufferSourceNode.h"
-#include "blink/HRTFPanner.h"
-
-using WebCore::HRTFDatabaseLoader;
-using WebCore::HRTFPanner;
 
 namespace mozilla {
 namespace dom {
@@ -60,10 +56,6 @@ public:
     , mListenerDopplerFactor(0.)
     , mListenerSpeedOfSound(0.)
   {
-    // HRTFDatabaseLoader needs to be fetched on the main thread.
-    TemporaryRef<HRTFDatabaseLoader> loader =
-      HRTFDatabaseLoader::createAndLoadAsynchronouslyIfNecessary(aNode->Context()->SampleRate());
-    mHRTFPanner = new HRTFPanner(aNode->Context()->SampleRate(), loader);
   }
 
   virtual void SetInt32Parameter(uint32_t aIndex, int32_t aParam) MOZ_OVERRIDE
@@ -139,14 +131,16 @@ public:
                                  AudioChunk* aOutput,
                                  bool *aFinished) MOZ_OVERRIDE
   {
+    if (aInput.IsNull()) {
+      *aOutput = aInput;
+      return;
+    }
     (this->*mPanningModelFunction)(aInput, aOutput);
   }
 
   void ComputeAzimuthAndElevation(float& aAzimuth, float& aElevation);
   void DistanceAndConeGain(AudioChunk* aChunk, float aGain);
   float ComputeConeGain();
-  // Compute how much the distance contributes to the gain reduction.
-  float ComputeDistanceGain();
 
   void GainMonoToStereo(const AudioChunk& aInput, AudioChunk* aOutput,
                         float aGainL, float aGainR);
@@ -160,7 +154,6 @@ public:
   float InverseGainFunction(float aDistance);
   float ExponentialGainFunction(float aDistance);
 
-  nsAutoPtr<HRTFPanner> mHRTFPanner;
   PanningModelType mPanningModel;
   typedef void (PannerNodeEngine::*PanningModelFunction)(const AudioChunk& aInput, AudioChunk* aOutput);
   PanningModelFunction mPanningModelFunction;
@@ -252,43 +245,17 @@ void
 PannerNodeEngine::HRTFPanningFunction(const AudioChunk& aInput,
                                       AudioChunk* aOutput)
 {
-  int numChannels = aInput.mChannelData.Length();
-
-  // The output of this node is always stereo, no matter what the inputs are.
-  AllocateAudioBlock(2, aOutput);
-
-  float azimuth, elevation;
-  ComputeAzimuthAndElevation(azimuth, elevation);
-
-  AudioChunk input = aInput;
-  // Gain is applied before the delay and convolution of the HRTF
-  if (!input.IsNull()) {
-    float gain = ComputeConeGain() * ComputeDistanceGain() * aInput.mVolume;
-    if (gain != 1.0f) {
-      AllocateAudioBlock(numChannels, &input);
-      for (int i = 0; i < numChannels; ++i) {
-        const float* src = static_cast<const float*>(aInput.mChannelData[i]);
-        float* dest =
-          static_cast<float*>(const_cast<void*>(input.mChannelData[i]));
-        AudioBlockCopyChannelWithScale(src, gain, dest);
-      }
-    }
-  }
-
-  mHRTFPanner->pan(azimuth, elevation, &input, aOutput, WEBAUDIO_BLOCK_SIZE);
+  // not implemented: noop
+  *aOutput = aInput;
 }
 
 void
 PannerNodeEngine::EqualPowerPanningFunction(const AudioChunk& aInput,
                                             AudioChunk* aOutput)
 {
-  if (aInput.IsNull()) {
-    *aOutput = aInput;
-    return;
-  }
-
-  float azimuth, elevation, gainL, gainR, normalizedAzimuth, distanceGain, coneGain;
+  float azimuth, elevation, gainL, gainR, normalizedAzimuth, distance, distanceGain, coneGain;
   int inputChannels = aInput.mChannelData.Length();
+  ThreeDPoint distanceVec;
 
   // If both the listener are in the same spot, and no cone gain is specified,
   // this node is noop.
@@ -327,7 +294,10 @@ PannerNodeEngine::EqualPowerPanningFunction(const AudioChunk& aInput,
     }
   }
 
-  distanceGain = ComputeDistanceGain();
+  // Compute how much the distance contributes to the gain reduction.
+  distanceVec = mPosition - mListenerPosition;
+  distance = sqrt(distanceVec.DotProduct(distanceVec));
+  distanceGain = (this->*mDistanceModelFunction)(distance);
 
   // Actually compute the left and right gain.
   gainL = cos(0.5 * M_PI * normalizedAzimuth) * aInput.mVolume;
@@ -470,14 +440,6 @@ PannerNodeEngine::ComputeConeGain()
   }
 
   return gain;
-}
-
-float
-PannerNodeEngine::ComputeDistanceGain()
-{
-  ThreeDPoint distanceVec = mPosition - mListenerPosition;
-  float distance = sqrt(distanceVec.DotProduct(distanceVec));
-  return (this->*mDistanceModelFunction)(distance);
 }
 
 float
