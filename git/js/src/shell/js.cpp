@@ -448,14 +448,11 @@ Process(JSContext *cx, JSObject *obj, char *filename, JSBool forceTTY)
         JS_SetOptions(cx, oldopts | JSOPTION_COMPILE_N_GO | JSOPTION_NO_SCRIPT_RVAL);
         script = JS_CompileFileHandle(cx, obj, filename, file);
         JS_SetOptions(cx, oldopts);
-        if (script) {
-            if (!compileOnly) {
-                (void)JS_ExecuteScript(cx, obj, script, NULL);
-                int64 t2 = PRMJ_Now() - t1;
-                if (printTiming)
-                    printf("runtime = %.3f ms\n", double(t2) / PRMJ_USEC_PER_MSEC);
-            }
-            JS_DestroyScript(cx, script);
+        if (script && !compileOnly) {
+            (void)JS_ExecuteScript(cx, obj, script, NULL);
+            int64 t2 = PRMJ_Now() - t1;
+            if (printTiming)
+                printf("runtime = %.3f ms\n", double(t2) / PRMJ_USEC_PER_MSEC);
         }
 
         goto cleanup;
@@ -543,21 +540,18 @@ Process(JSContext *cx, JSObject *obj, char *filename, JSBool forceTTY)
         if (!compileOnly)
             JS_SetOptions(cx, oldopts);
 
-        if (script) {
-            if (!compileOnly) {
-                ok = JS_ExecuteScript(cx, obj, script, &result);
-                if (ok && !JSVAL_IS_VOID(result)) {
-                    str = JS_ValueToSource(cx, result);
-                    ok = !!str;
-                    if (ok) {
-                        JSAutoByteString bytes(cx, str);
-                        ok = !!bytes;
-                        if (ok)
-                            fprintf(gOutFile, "%s\n", bytes.ptr());
-                    }
+        if (script && !compileOnly) {
+            ok = JS_ExecuteScript(cx, obj, script, &result);
+            if (ok && !JSVAL_IS_VOID(result)) {
+                str = JS_ValueToSource(cx, result);
+                ok = !!str;
+                if (ok) {
+                    JSAutoByteString bytes(cx, str);
+                    ok = !!bytes;
+                    if (ok)
+                        fprintf(gOutFile, "%s\n", bytes.ptr());
                 }
             }
-            JS_DestroyScript(cx, script);
         }
         *buffer = '\0';
     } while (!hitEOF && !gQuitting);
@@ -909,7 +903,7 @@ ProcessArgs(JSContext *cx, JSObject *obj, char **argv, int argc)
             break;
 
         case 'd':
-            js_SetDebugMode(cx, JS_TRUE);
+            JS_SetDebugMode(cx, JS_TRUE);
             break;
 
         case 'z':
@@ -1019,7 +1013,6 @@ Load(JSContext *cx, uintN argc, jsval *vp)
     uintN i;
     JSString *str;
     JSScript *script;
-    JSBool ok;
     uint32 oldopts;
 
     JSObject *thisobj = JS_THIS_OBJECT(cx, vp);
@@ -1039,16 +1032,10 @@ Load(JSContext *cx, uintN argc, jsval *vp)
         oldopts = JS_GetOptions(cx);
         JS_SetOptions(cx, oldopts | JSOPTION_COMPILE_N_GO | JSOPTION_NO_SCRIPT_RVAL);
         script = JS_CompileFile(cx, thisobj, filename.ptr());
+        if (!script)
+            return JS_FALSE;
         JS_SetOptions(cx, oldopts);
-        if (!script) {
-            ok = JS_FALSE;
-        } else {
-            ok = !compileOnly
-                 ? JS_ExecuteScript(cx, thisobj, script, NULL)
-                 : JS_TRUE;
-            JS_DestroyScript(cx, script);
-        }
-        if (!ok)
+        if (!compileOnly && !JS_ExecuteScript(cx, thisobj, script, NULL))
             return JS_FALSE;
     }
 
@@ -1084,6 +1071,100 @@ Evaluate(JSContext *cx, uintN argc, jsval *vp)
 
     JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return JS_EvaluateUCScript(cx, thisobj, codeChars, codeLength, "@evaluate", 0, NULL);
+}
+
+static JSString *
+FileAsString(JSContext *cx, const char *pathname)
+{
+    FILE *file;
+    JSString *str = NULL;
+    size_t len, cc;
+    char *buf;
+
+    file = fopen(pathname, "rb");
+    if (!file) {
+        JS_ReportError(cx, "can't open %s: %s", pathname, strerror(errno));
+        return NULL;
+    }
+
+    if (fseek(file, 0, SEEK_END) == EOF) {
+        JS_ReportError(cx, "can't seek end of %s", pathname);
+    } else {
+        len = ftell(file);
+        if (fseek(file, 0, SEEK_SET) == EOF) {
+            JS_ReportError(cx, "can't seek start of %s", pathname);
+        } else {
+            buf = (char*) JS_malloc(cx, len + 1);
+            if (buf) {
+                cc = fread(buf, 1, len, file);
+                if (cc != len) {
+                    JS_ReportError(cx, "can't read %s: %s", pathname,
+                                   (ptrdiff_t(cc) < 0) ? strerror(errno) : "short read");
+                } else {
+                    len = (size_t)cc;
+                    str = JS_NewStringCopyN(cx, buf, len);
+                }
+                JS_free(cx, buf);
+            }
+        }
+    }
+    fclose(file);
+
+    return str;
+}
+
+/*
+ * Function to run scripts and return compilation + execution time. Semantics
+ * are closely modelled after the equivalent function in WebKit, as this is used
+ * to produce benchmark timings by SunSpider.
+ */
+static JSBool
+Run(JSContext *cx, uintN argc, jsval *vp)
+{
+    if (argc != 1) {
+        JS_ReportErrorNumber(cx, my_GetErrorMessage, NULL, JSSMSG_INVALID_ARGS, "run");
+        return false;
+    }
+
+    JSObject *thisobj = JS_THIS_OBJECT(cx, vp);
+    if (!thisobj)
+        return false;
+
+    jsval *argv = JS_ARGV(cx, vp);
+    JSString *str = JS_ValueToString(cx, argv[0]);
+    if (!str)
+        return false;
+    argv[0] = STRING_TO_JSVAL(str);
+    JSAutoByteString filename(cx, str);
+    if (!filename)
+        return false;
+
+    const jschar *ucbuf = NULL;
+    size_t buflen;
+    str = FileAsString(cx, filename.ptr());
+    if (str)
+        ucbuf = JS_GetStringCharsAndLength(cx, str, &buflen);
+    if (!ucbuf)
+        return false;
+
+    JS::Anchor<JSString *> a_str(str);
+    uint32 oldopts = JS_GetOptions(cx);
+    JS_SetOptions(cx, oldopts | JSOPTION_COMPILE_N_GO | JSOPTION_NO_SCRIPT_RVAL);
+
+    int64 startClock = PRMJ_Now();
+    JSScript *script = JS_CompileUCScript(cx, thisobj, ucbuf, buflen, filename.ptr(), 1);
+    JS_SetOptions(cx, oldopts);
+    if (!script)
+        return false;
+
+    JSBool ok = JS_ExecuteScript(cx, thisobj, script, NULL);
+    int64 endClock = PRMJ_Now();
+    JS_DestroyScript(cx, script);
+    if (!ok)
+        return false;
+
+    JS_SET_RVAL(cx, vp, DOUBLE_TO_JSVAL((endClock - startClock) / double(PRMJ_USEC_PER_MSEC)));
+    return true;
 }
 
 /*
@@ -1658,7 +1739,7 @@ SetDebug(JSContext *cx, uintN argc, jsval *vp)
         return JS_FALSE;
     }
     
-    js_SetDebugMode(cx, JSVAL_TO_BOOLEAN(argv[0]));
+    JS_SetDebugMode(cx, JSVAL_TO_BOOLEAN(argv[0]));
     JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return JS_TRUE;
 }
@@ -4105,7 +4186,6 @@ Compile(JSContext *cx, uintN argc, jsval *vp)
     if (!result)
         return JS_FALSE;
 
-    JS_DestroyScript(cx, result);
     JS_SET_RVAL(cx, vp, JSVAL_VOID);
     return JS_TRUE;
 }
@@ -4141,10 +4221,6 @@ Snarf(JSContext *cx, uintN argc, jsval *vp)
     JSString *str;
     const char *pathname;
     JSStackFrame *fp;
-    JSBool ok;
-    size_t cc, len;
-    char *buf;
-    FILE *file;
 
     if (!argc)
         return JS_FALSE;
@@ -4167,45 +4243,13 @@ Snarf(JSContext *cx, uintN argc, jsval *vp)
     pathname = filename.ptr();
 #endif
 
-    ok = JS_FALSE;
-    len = 0;
-    buf = NULL;
-    file = fopen(pathname, "rb");
-    if (!file) {
-        JS_ReportError(cx, "can't open %s: %s", pathname, strerror(errno));
-    } else {
-        if (fseek(file, 0, SEEK_END) == EOF) {
-            JS_ReportError(cx, "can't seek end of %s", pathname);
-        } else {
-            len = ftell(file);
-            if (fseek(file, 0, SEEK_SET) == EOF) {
-                JS_ReportError(cx, "can't seek start of %s", pathname);
-            } else {
-                buf = (char*) JS_malloc(cx, len + 1);
-                if (buf) {
-                    cc = fread(buf, 1, len, file);
-                    if (cc != len) {
-                        JS_ReportError(cx, "can't read %s: %s", pathname,
-                                       (ptrdiff_t(cc) < 0) ? strerror(errno) : "short read");
-                    } else {
-                        len = (size_t)cc;
-                        ok = JS_TRUE;
-                    }
-                }
-            }
-        }
-        fclose(file);
-    }
+    str = FileAsString(cx, pathname);
+#ifdef XP_UNIX
     JS_free(cx, (void*)pathname);
-    if (!ok) {
-        JS_free(cx, buf);
-        return ok;
-    }
-
-    str = JS_NewStringCopyN(cx, buf, len);
-    JS_free(cx, buf);
+#endif
     if (!str)
         return JS_FALSE;
+
     *vp = STRING_TO_JSVAL(str);
     return JS_TRUE;
 }
@@ -4302,6 +4346,7 @@ static JSFunctionSpec shell_functions[] = {
     JS_FN("options",        Options,        0,0),
     JS_FN("load",           Load,           1,0),
     JS_FN("evaluate",       Evaluate,       1,0),
+    JS_FN("run",            Run,            1,0),
     JS_FN("readline",       ReadLine,       0,0),
     JS_FN("print",          Print,          0,0),
     JS_FN("putstr",         PutStr,         0,0),
@@ -4404,6 +4449,9 @@ static const char *const shell_help_messages[] = {
 "options([option ...])    Get or toggle JavaScript options",
 "load(['foo.js' ...])     Load files named by string arguments",
 "evaluate(code)           Evaluate code as though it were the contents of a file",
+"run('foo.js')\n"
+"  Run the file named by the first argument, returning the number of\n"
+"  of milliseconds spent compiling and executing it",
 "readline()               Read a single line from stdin",
 "print([exp ...])         Evaluate and print expressions",
 "putstr([exp])            Evaluate and print expression without newline",

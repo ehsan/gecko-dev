@@ -1001,6 +1001,16 @@ Class js_SlowArrayClass = {
     js_TryValueOf
 };
 
+static bool
+AddLengthProperty(JSContext *cx, JSObject *obj)
+{
+    const jsid lengthId = ATOM_TO_JSID(cx->runtime->atomState.lengthAtom);
+    JS_ASSERT(!obj->nativeLookup(lengthId));
+
+    return obj->addProperty(cx, lengthId, array_length_getter, array_length_setter,
+                            SHAPE_INVALID_SLOT, JSPROP_PERMANENT | JSPROP_SHARED, 0, 0);
+}
+
 /*
  * Convert an array object from fast-and-dense to slow-and-flexible.
  */
@@ -1027,9 +1037,7 @@ JSObject::makeDenseArraySlow(JSContext *cx)
      * Begin with the length property to share more of the property tree.
      * The getter/setter here will directly access the object's private value.
      */
-    if (!addProperty(cx, ATOM_TO_JSID(cx->runtime->atomState.lengthAtom),
-                     array_length_getter, array_length_setter,
-                     SHAPE_INVALID_SLOT, JSPROP_PERMANENT | JSPROP_SHARED, 0, 0)) {
+    if (!AddLengthProperty(cx, this)) {
         setMap(oldMap);
         return false;
     }
@@ -2069,12 +2077,14 @@ js_ArrayCompPush(JSContext *cx, JSObject *obj, const Value &vp)
 JSBool JS_FASTCALL
 js_ArrayCompPush_tn(JSContext *cx, JSObject *obj, ValueArgType v)
 {
+    TraceMonitor *tm = JS_TRACE_MONITOR_ON_TRACE(cx);
+
     if (!ArrayCompPushImpl(cx, obj, ValueArgToConstRef(v))) {
-        SetBuiltinError(cx);
+        SetBuiltinError(tm);
         return JS_FALSE;
     }
 
-    return WasBuiltinSuccessful(cx);
+    return WasBuiltinSuccessful(tm);
 }
 JS_DEFINE_CALLINFO_3(extern, BOOL_FAIL, js_ArrayCompPush_tn, CONTEXT, OBJECT,
                      VALUE, 0, nanojit::ACCSET_STORE_ANY)
@@ -3086,7 +3096,7 @@ JSObject *
 NewSlowEmptyArray(JSContext *cx)
 {
     JSObject *obj = NewNonFunction<WithProto::Class>(cx, &js_SlowArrayClass, NULL, NULL);
-    if (!obj)
+    if (!obj || !AddLengthProperty(cx, obj))
         return NULL;
 
     obj->setArrayLength(0);

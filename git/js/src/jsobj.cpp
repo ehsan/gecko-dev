@@ -3111,7 +3111,7 @@ js_InferFlags(JSContext *cx, uintN defaultFlags)
 {
 #ifdef JS_TRACER
     if (JS_ON_TRACE(cx))
-        return JS_TRACE_MONITOR(cx).bailExit->lookupFlags;
+        return JS_TRACE_MONITOR_ON_TRACE(cx)->bailExit->lookupFlags;
 #endif
 
     JS_ASSERT_NOT_ON_TRACE(cx);
@@ -3254,7 +3254,7 @@ js_NewWithObject(JSContext *cx, JSObject *proto, JSObject *parent, jsint depth)
     JSStackFrame *priv = js_FloatingFrameIfGenerator(cx, cx->fp());
 
     obj->init(cx, &js_WithClass, proto, parent, priv, false);
-    obj->setMap(cx->runtime->emptyWithShape);
+    obj->setMap(cx->compartment->emptyWithShape);
     OBJ_SET_BLOCK_DEPTH(cx, obj, depth);
 
     AutoObjectRooter tvr(cx, obj);
@@ -3280,7 +3280,7 @@ js_NewBlockObject(JSContext *cx)
         return NULL;
 
     blockObj->init(cx, &js_BlockClass, NULL, NULL, NULL, false);
-    blockObj->setMap(cx->runtime->emptyBlockShape);
+    blockObj->setMap(cx->compartment->emptyBlockShape);
     return blockObj;
 }
 
@@ -4447,6 +4447,40 @@ JSObject::freeSlot(JSContext *cx, uint32 slot)
     return false;
 }
 
+JS_FRIEND_API(void)
+js_UnbrandAndClearSlots(JSContext *cx, JSObject *obj)
+{
+    JS_ASSERT(obj->isNative());
+    JS_ASSERT(obj->isGlobal());
+
+    /* This can return false but that doesn't mean it failed. */
+    obj->unbrand(cx);
+
+    /*
+     * Clear the prototype cache. We must not clear the other global
+     * reserved slots, as other code will crash if they are arbitrarily
+     * reset (e.g., regexp statics).
+     */
+    for (int key = JSProto_Null; key < JSRESERVED_GLOBAL_THIS; key++)
+        JS_SetReservedSlot(cx, obj, key, JSVAL_VOID);
+
+    /*
+     * Clear the non-reserved slots.
+     */
+    ClearValueRange(obj->slots + JSCLASS_RESERVED_SLOTS(obj->clasp),
+                    obj->capacity - JSCLASS_RESERVED_SLOTS(obj->clasp),
+                    obj->clasp == &js_ArrayClass);
+
+    /*
+     * We just overwrote all slots to undefined, so the freelist has
+     * been trashed. We need to clear the head pointer or else we will
+     * crash later. This leaks slots but the object is all but dead
+     * anyway.
+     */
+    if (obj->hasPropertyTable())
+        obj->lastProperty()->table->freelist = SHAPE_INVALID_SLOT;
+}
+
 /* JSBOXEDWORD_INT_MAX as a string */
 #define JSBOXEDWORD_INT_MAX_STRING "1073741823"
 
@@ -4636,11 +4670,6 @@ js_DefineNativeProperty(JSContext *cx, JSObject *obj, jsid id, const Value &valu
                         uintN flags, intN shortid, JSProperty **propp,
                         uintN defineHow /* = 0 */)
 {
-    Class *clasp;
-    const Shape *shape;
-    JSBool added;
-    Value valueCopy;
-
     JS_ASSERT((defineHow & ~(JSDNP_CACHE_RESULT | JSDNP_DONT_PURGE | JSDNP_SET_METHOD)) == 0);
     LeaveTraceIfGlobalObject(cx, obj);
 
@@ -4652,7 +4681,7 @@ js_DefineNativeProperty(JSContext *cx, JSObject *obj, jsid id, const Value &valu
      * update the attributes and property ops.  A getter or setter is really
      * only half of a property.
      */
-    shape = NULL;
+    const Shape *shape = NULL;
     if (attrs & (JSPROP_GETTER | JSPROP_SETTER)) {
         JSObject *pobj;
         JSProperty *prop;
@@ -4700,10 +4729,10 @@ js_DefineNativeProperty(JSContext *cx, JSObject *obj, jsid id, const Value &valu
      * member declaration.
      */
     if (obj->isDelegate() && (attrs & (JSPROP_READONLY | JSPROP_SETTER)))
-        cx->runtime->protoHazardShape = js_GenerateShape(cx, false);
+        cx->runtime->protoHazardShape = js_GenerateShape(cx);
 
     /* Use the object's class getter and setter by default. */
-    clasp = obj->getClass();
+    Class *clasp = obj->getClass();
     if (!(defineHow & JSDNP_SET_METHOD)) {
         if (!getter && !(attrs & JSPROP_GETTER))
             getter = clasp->getProperty;
@@ -4715,7 +4744,7 @@ js_DefineNativeProperty(JSContext *cx, JSObject *obj, jsid id, const Value &valu
     if (!obj->ensureClassReservedSlots(cx))
         return false;
 
-    added = false;
+    bool added = false;
     if (!shape) {
         /* Add a new property, or replace an existing one of the same id. */
         if (defineHow & JSDNP_SET_METHOD) {
@@ -4731,7 +4760,13 @@ js_DefineNativeProperty(JSContext *cx, JSObject *obj, jsid id, const Value &valu
             }
         }
 
-        added = !obj->nativeContains(id);
+        if (const Shape *existingShape = obj->nativeLookup(id)) {
+            if (existingShape->hasSlot())
+                AbortRecordingIfUnexpectedGlobalWrite(cx, obj, existingShape->slot);
+        } else {
+            added = true;
+        }
+
         uint32 oldShape = obj->shape();
         shape = obj->putProperty(cx, id, getter, setter, SHAPE_INVALID_SLOT,
                                  attrs, flags, shortid);
@@ -4754,13 +4789,11 @@ js_DefineNativeProperty(JSContext *cx, JSObject *obj, jsid id, const Value &valu
     }
 
     /* Store value before calling addProperty, in case the latter GC's. */
-    if (obj->containsSlot(shape->slot)) {
-        AbortRecordingIfUnexpectedGlobalWrite(cx, obj, shape->slot);
+    if (obj->containsSlot(shape->slot))
         obj->nativeSetSlot(shape->slot, value);
-    }
 
     /* XXXbe called with lock held */
-    valueCopy = value;
+    Value valueCopy = value;
     if (!CallAddPropertyHook(cx, clasp, obj, shape, &valueCopy)) {
         obj->removeProperty(cx, id);
         return false;
@@ -5239,9 +5272,11 @@ js_NativeSet(JSContext *cx, JSObject *obj, const Shape *shape, bool added, Value
 
         /* If shape has a stub setter, keep obj locked and just store *vp. */
         if (shape->hasDefaultSetter()) {
-            if (!added && !obj->methodWriteBarrier(cx, *shape, *vp))
-                return false;
-            AbortRecordingIfUnexpectedGlobalWrite(cx, obj, slot);
+            if (!added) {
+                AbortRecordingIfUnexpectedGlobalWrite(cx, obj, slot);
+                if (!obj->methodWriteBarrier(cx, *shape, *vp))
+                    return false;
+            }
             obj->nativeSetSlot(slot, *vp);
             return true;
         }
@@ -5269,9 +5304,11 @@ js_NativeSet(JSContext *cx, JSObject *obj, const Shape *shape, bool added, Value
     if (obj->containsSlot(slot) &&
         (JS_LIKELY(cx->runtime->propertyRemovals == sample) ||
          obj->nativeContains(*shape))) {
-        if (!added && !obj->methodWriteBarrier(cx, *shape, *vp))
-            return false;
-        AbortRecordingIfUnexpectedGlobalWrite(cx, obj, slot);
+        if (!added) {
+            AbortRecordingIfUnexpectedGlobalWrite(cx, obj, slot);
+            if (!obj->methodWriteBarrier(cx, *shape, *vp))
+                return false;
+        }
         obj->setSlot(slot, *vp);
     }
 
@@ -6501,18 +6538,12 @@ js_TraceObject(JSTracer *trc, JSObject *obj)
     }
     if (clasp->flags & JSCLASS_IS_GLOBAL) {
         JSCompartment *compartment = obj->getCompartment();
-        compartment->marked = true;
+        compartment->mark(trc);
     }
 
     /*
-     * NB: In case clasp->mark mutates something (which would be a bug, but we
-     * want to be defensive), leave this code here -- don't move it up and
-     * unify it with the |if (!traceScope)| section above.
-     *
-     * FIXME: We minimize nslots against obj->slotSpan because native objects
-     * such as Date instances may have failed to advance slotSpan to cover all
-     * reserved slots (this Date issue may be a bug in JSObject::growSlots, but
-     * the general problem occurs in other built-in class implementations).
+     * NB: clasp->mark could mutate something (which would be a bug, but we are
+     * defensive), so don't hoist this above calling clasp->mark.
      */
     uint32 nslots = Min(obj->numSlots(), obj->slotSpan());
     for (uint32 i = 0; i != nslots; ++i) {

@@ -811,19 +811,6 @@ js_NewContext(JSRuntime *rt, size_t stackChunkSize)
             ok = js_InitRuntimeScriptState(rt);
         if (ok)
             ok = js_InitRuntimeNumberState(cx);
-        if (ok) {
-            /*
-             * Ensure that the empty scopes initialized by
-             * Shape::initRuntimeState get the desired special shapes.
-             * (The rt->state dance above guarantees that this abuse of
-             * rt->shapeGen is thread-safe.)
-             */
-            uint32 shapeGen = rt->shapeGen;
-            rt->shapeGen = 0;
-            ok = Shape::initRuntimeState(cx);
-            if (rt->shapeGen < shapeGen)
-                rt->shapeGen = shapeGen;
-        }
 
 #ifdef JS_THREADSAFE
         JS_EndRequest(cx);
@@ -1045,7 +1032,6 @@ js_DestroyContext(JSContext *cx, JSDestroyContextMode mode)
                 JS_BeginRequest(cx);
 #endif
 
-            Shape::finishRuntimeState(cx);
             js_FinishRuntimeNumberState(cx);
 
             /* Unpin all common atoms before final GC. */
@@ -1330,7 +1316,7 @@ js_ReportOutOfMemory(JSContext *cx)
      * If we are in a builtin called directly from trace, don't report an
      * error. We will retry in the interpreter instead.
      */
-    if (JS_ON_TRACE(cx) && !JS_TRACE_MONITOR(cx).bailExit)
+    if (JS_ON_TRACE(cx) && !JS_TRACE_MONITOR_ON_TRACE(cx)->bailExit)
         return;
 #endif
 
@@ -1918,8 +1904,8 @@ js_GetCurrentBytecodePC(JSContext* cx)
 
 #ifdef JS_TRACER
     if (JS_ON_TRACE(cx)) {
-        pc = JS_TRACE_MONITOR(cx).bailExit->pc;
-        imacpc = JS_TRACE_MONITOR(cx).bailExit->imacpc;
+        pc = JS_TRACE_MONITOR_ON_TRACE(cx)->bailExit->pc;
+        imacpc = JS_TRACE_MONITOR_ON_TRACE(cx)->bailExit->imacpc;
     } else
 #endif
     {
@@ -1944,7 +1930,7 @@ js_CurrentPCIsInImacro(JSContext *cx)
 #ifdef JS_TRACER
     VOUCH_DOES_NOT_REQUIRE_STACK();
     if (JS_ON_TRACE(cx))
-        return JS_TRACE_MONITOR(cx).bailExit->imacpc != NULL;
+        return JS_TRACE_MONITOR_ON_TRACE(cx)->bailExit->imacpc != NULL;
     return cx->fp()->hasImacropc();
 #else
     return false;

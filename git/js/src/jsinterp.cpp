@@ -133,29 +133,8 @@ JSStackFrame::pc(JSContext *cx, JSStackFrame *next)
         return next->prevpc_;
 
 #if defined(JS_METHODJIT) && defined(JS_MONOIC)
-    JSScript *script = this->script();
-    js::mjit::JITScript *jit = script->getJIT(isConstructing());
-    size_t low = 0;
-    size_t high = jit->nCallICs;
-    while (high > low + 1) {
-        /* Could overflow here on a script with 2 billion calls. Oh well. */
-        size_t mid = (high + low) / 2;
-        void *entry = jit->callICs[mid].funGuard.executableAddress();
-
-        /*
-         * Use >= here as the return address of the call is likely to be
-         * the start address of the next (possibly IC'ed) operation.
-         */
-        if (entry >= next->ncode_)
-            high = mid;
-        else
-            low = mid;
-    }
-
-    js::mjit::ic::CallICInfo &callIC = jit->callICs[low];
-
-    JS_ASSERT((uint8*)callIC.funGuard.executableAddress() + callIC.joinPointOffset == next->ncode_);
-    return callIC.pc;
+    js::mjit::JITScript *jit = script()->getJIT(isConstructing());
+    return jit->nativeToPC(next->ncode_);
 #else
     JS_NOT_REACHED("Unknown PC for frame");
     return NULL;
@@ -2446,11 +2425,6 @@ Interpret(JSContext *cx, JSStackFrame *entryFrame, uintN inlineCallCount, JSInte
         if (JS_THREAD_DATA(cx)->interruptFlags && !js_HandleExecutionInterrupt(cx)) \
             goto error;                                                       \
     JS_END_MACRO
-
-#ifndef TRACE_RECORDER
-#define TRACE_RECORDER(cx) (false)
-#define TRACE_PROFILER(cx) (false)
-#endif
 
 #if defined(JS_TRACER) && defined(JS_METHODJIT)
 # define LEAVE_ON_SAFE_POINT()                                                \

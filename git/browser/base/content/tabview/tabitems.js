@@ -706,6 +706,8 @@ TabItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       // The scaleCheat of 2 here is a clever way to speed up the zoom-out
       // code. See getZoomTransform() below.
       let transform = this.getZoomTransform(2);
+      TabItems.pausePainting();
+
       $canvas.css({
         '-moz-transform': transform.transform,
         '-moz-transform-origin': transform.transformOrigin
@@ -1103,6 +1105,7 @@ let TabItems = {
    // three times before TabItems will start updating thumbnails again.
    resumePainting: function TabItems_resumePainting() {
      this.paintingPaused--;
+     Utils.assert(this.paintingPaused > -1, "paintingPaused should not go below zero");
      if (!this.isPaintingPaused())
        this.startHeartbeat();
    },
@@ -1349,15 +1352,11 @@ TabCanvas.prototype = {
   // thumbnail canvas.
   _calculateClippingRect: function TabCanvas__calculateClippingRect(origWidth, origHeight) {
     let win = this.tab.linkedBrowser.contentWindow;
-    let body = win.document.body;
 
+    // TODO BUG 631593: retrieve actual scrollbar width
+    // 25px is supposed to be width of the vertical scrollbar
     let maxWidth = win.innerWidth - 25;
     let maxHeight = win.innerHeight;
-
-    if (body) {
-      maxWidth = Math.max(maxWidth, body.scrollWidth - win.scrollX);
-      maxHeight = Math.max(maxHeight, body.scrollHeight - win.scrollY);
-    }
 
     let height = Math.min(maxHeight, Math.floor(origHeight * maxWidth / origWidth));
     let width = Math.floor(origWidth * height / origHeight);
