@@ -88,8 +88,6 @@ CellBroadcast::~CellBroadcast()
   mProvider->UnregisterCellBroadcastMsg(mListener);
 }
 
-NS_IMPL_ISUPPORTS_INHERITED0(CellBroadcast, DOMEventTargetHelper)
-
 JSObject*
 CellBroadcast::WrapObject(JSContext* aCx)
 {

@@ -622,8 +622,7 @@ NS_DEFINE_STATIC_IID_ACCESSOR(nsNavHistoryContainerResultNode,
 //    bookmark notifications.
 
 class nsNavHistoryQueryResultNode : public nsNavHistoryContainerResultNode,
-                                    public nsINavHistoryQueryResultNode,
-                                    public nsINavBookmarkObserver
+                                    public nsINavHistoryQueryResultNode
 {
 public:
   nsNavHistoryQueryResultNode(const nsACString& aTitle,
@@ -706,7 +705,6 @@ protected:
 
 class nsNavHistoryFolderResultNode : public nsNavHistoryContainerResultNode,
                                      public nsINavHistoryQueryResultNode,
-                                     public nsINavBookmarkObserver,
                                      public mozilla::places::AsyncStatementCallback
 {
 public:
@@ -736,8 +734,9 @@ public:
   virtual nsresult OpenContainerAsync();
   NS_DECL_ASYNCSTATEMENTCALLBACK
 
-  // This object implements a bookmark observer interface. This is called from the
-  // result's actual observer and it knows all observers are FolderResultNodes
+  // This object implements a bookmark observer interface without deriving from
+  // the bookmark observers. This is called from the result's actual observer
+  // and it knows all observers are FolderResultNodes
   NS_DECL_NSINAVBOOKMARKOBSERVER
 
   virtual void OnRemoving();

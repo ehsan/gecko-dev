@@ -22,11 +22,10 @@ namespace dom {
 
 class MozVoicemailStatus;
 
-class Voicemail MOZ_FINAL : public DOMEventTargetHelper,
-                            private nsIVoicemailListener
+class Voicemail MOZ_FINAL : public DOMEventTargetHelper
 {
   /**
-   * Class Voicemail doesn't actually expose nsIVoicemailListener. Instead, it
+   * Class Voicemail doesn't actually inherit nsIVoicemailListener. Instead, it
    * owns an nsIVoicemailListener derived instance mListener and passes it to
    * nsIVoicemailProvider. The onreceived events are first delivered to
    * mListener and then forwarded to its owner, Voicemail. See also bug 775997
@@ -34,15 +33,14 @@ class Voicemail MOZ_FINAL : public DOMEventTargetHelper,
    */
   class Listener;
 
-  virtual ~Voicemail();
-
 public:
-  NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIVOICEMAILLISTENER
 
   NS_REALLY_FORWARD_NSIDOMEVENTTARGET(DOMEventTargetHelper)
 
   Voicemail(nsPIDOMWindow* aWindow, nsIVoicemailProvider* aProvider);
+
+  virtual ~Voicemail();
 
   nsPIDOMWindow*
   GetParentObject() const

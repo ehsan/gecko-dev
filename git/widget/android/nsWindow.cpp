@@ -2273,15 +2273,13 @@ nsWindow::DrawWindowUnderlay(LayerManagerComposite* aManager, nsIntRect aRect)
     }
 
     gl::GLContext* gl = static_cast<CompositorOGL*>(aManager->GetCompositor())->gl();
-    bool scissorEnabled = gl->fIsEnabled(LOCAL_GL_SCISSOR_TEST);
-    GLint scissorRect[4];
-    gl->fGetIntegerv(LOCAL_GL_SCISSOR_BOX, scissorRect);
+    gl::ScopedGLState scopedScissorTestState(gl, LOCAL_GL_SCISSOR_TEST);
+    gl::ScopedScissorRect scopedScissorRectState(gl);
 
     client->ActivateProgram();
     if (!mLayerRendererFrame.BeginDrawing(&jniFrame)) return;
     if (!mLayerRendererFrame.DrawBackground(&jniFrame)) return;
-    client->DeactivateProgramAndRestoreState(scissorEnabled,
-        scissorRect[0], scissorRect[1], scissorRect[2], scissorRect[3]);
+    client->DeactivateProgram(); // redundant, but in case somebody adds code after this...
 }
 
 void
@@ -2302,15 +2300,13 @@ nsWindow::DrawWindowOverlay(LayerManagerComposite* aManager, nsIntRect aRect)
     mozilla::widget::android::GeckoLayerClient* client = AndroidBridge::Bridge()->GetLayerClient();
 
     gl::GLContext* gl = static_cast<CompositorOGL*>(aManager->GetCompositor())->gl();
-    bool scissorEnabled = gl->fIsEnabled(LOCAL_GL_SCISSOR_TEST);
-    GLint scissorRect[4];
-    gl->fGetIntegerv(LOCAL_GL_SCISSOR_BOX, scissorRect);
+    gl::ScopedGLState scopedScissorTestState(gl, LOCAL_GL_SCISSOR_TEST);
+    gl::ScopedScissorRect scopedScissorRectState(gl);
 
     client->ActivateProgram();
     if (!mLayerRendererFrame.DrawForeground(&jniFrame)) return;
     if (!mLayerRendererFrame.EndDrawing(&jniFrame)) return;
-    client->DeactivateProgramAndRestoreState(scissorEnabled,
-        scissorRect[0], scissorRect[1], scissorRect[2], scissorRect[3]);
+    client->DeactivateProgram();
     mLayerRendererFrame.Dispose(env);
 }
 

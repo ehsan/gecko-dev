@@ -776,16 +776,6 @@
                   unifiedComplete.registerOpenPage(aLocation);
                   this.mBrowser.registeredOpenURI = aLocation;
                 }
-
-                // It's possible we've moved from a URL that we cannot load remotely
-                // to one that we can. If so, switch to a remote browser. This will
-                // cause us to re-enter this onLocationChange function, but next time,
-                // updateBrowserRemotenessByURL will return false.
-                if (gMultiProcessBrowser &&
-                    this.mTabBrowser.updateBrowserRemotenessByURL(this.mBrowser,
-                                                                  aLocation.spec)) {
-                  this.mTabBrowser.loadURIWithFlags(aLocation.spec, aFlags);
-                }
               }
 
               if (!this.mBlank) {
@@ -1224,15 +1214,6 @@
         // can focus the content area right away, since tab switching is synchronous.
         // If we're using remote tabs, we have to wait until after we've finalized
         // switching the tabs.
-
-        if (newTab._skipContentFocus) {
-          // It's possible the tab we're switching to is ready to focus asynchronously,
-          // when we've already focused something else. In that case, this
-          // _skipContentFocus property can be set so that we skip focusing the
-          // content after we switch tabs.
-          delete newTab._skipContentFocus;
-          return;
-        }
 
         let fm = Cc["@mozilla.org/focus-manager;1"].getService(Ci.nsIFocusManager);
         let focusFlags = fm.FLAG_NOSCROLL;

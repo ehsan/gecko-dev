@@ -26,12 +26,12 @@ StaticRefPtr<SpeakerManagerService> gSpeakerManagerService;
 
 // static
 SpeakerManagerService*
-SpeakerManagerService::GetOrCreateSpeakerManagerService()
+SpeakerManagerService::GetSpeakerManagerService()
 {
   MOZ_ASSERT(NS_IsMainThread());
 
   if (XRE_GetProcessType() != GeckoProcessType_Default) {
-    return SpeakerManagerServiceChild::GetOrCreateSpeakerManagerService();
+    return SpeakerManagerServiceChild::GetSpeakerManagerService();
   }
 
   // If we already exist, exit early
@@ -41,21 +41,9 @@ SpeakerManagerService::GetOrCreateSpeakerManagerService()
 
   // Create new instance, register, return
   nsRefPtr<SpeakerManagerService> service = new SpeakerManagerService();
+  NS_ENSURE_TRUE(service, nullptr);
 
   gSpeakerManagerService = service;
-
-  return gSpeakerManagerService;
-}
-
-SpeakerManagerService*
-SpeakerManagerService::GetSpeakerManagerService()
-{
-  MOZ_ASSERT(NS_IsMainThread());
-
-  if (XRE_GetProcessType() != GeckoProcessType_Default) {
-    return SpeakerManagerServiceChild::GetSpeakerManagerService();
-  }
-
   return gSpeakerManagerService;
 }
 

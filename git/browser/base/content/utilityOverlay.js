@@ -309,8 +309,6 @@ function openLinkIn(url, where, params) {
   // result in a new frontmost window (e.g. "javascript:window.open('');").
   w.focus();
 
-  let newTab;
-
   switch (where) {
   case "current":
     let flags = Ci.nsIWebNavigation.LOAD_FLAGS_NONE;
@@ -333,30 +331,23 @@ function openLinkIn(url, where, params) {
     loadInBackground = !loadInBackground;
     // fall through
   case "tab":
-    newTab = w.gBrowser.loadOneTab(url, {
-      referrerURI: aReferrerURI,
-      charset: aCharset,
-      postData: aPostData,
-      inBackground: loadInBackground,
-      allowThirdPartyFixup: aAllowThirdPartyFixup,
-      relatedToCurrent: aRelatedToCurrent,
-      skipAnimation: aSkipTabAnimation,
-      allowMixedContent: aAllowMixedContent
-    });
+    let browser = w.gBrowser;
+    browser.loadOneTab(url, {
+                       referrerURI: aReferrerURI,
+                       charset: aCharset,
+                       postData: aPostData,
+                       inBackground: loadInBackground,
+                       allowThirdPartyFixup: aAllowThirdPartyFixup,
+                       relatedToCurrent: aRelatedToCurrent,
+                       skipAnimation: aSkipTabAnimation,
+                       allowMixedContent: aAllowMixedContent });
     break;
   }
 
   w.gBrowser.selectedBrowser.focus();
 
-  if (!loadInBackground && w.isBlankPageURL(url)) {
-    if (newTab && gMultiProcessBrowser) {
-      // Remote browsers are switched to asynchronously, and we need to
-      // ensure that the location bar remains focused in that case rather
-      // than the content area being focused.
-      newTab._skipContentFocus = true;
-    }
+  if (!loadInBackground && w.isBlankPageURL(url))
     w.focusAndSelectUrlBar();
-  }
 }
 
 // Used as an onclick handler for UI elements with link-like behavior.

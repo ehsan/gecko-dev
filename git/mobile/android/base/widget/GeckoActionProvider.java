@@ -105,8 +105,7 @@ public class GeckoActionProvider {
         }
 
         for (int i = 0; i < historySize; i++) {
-            view.addActionButton(dataModel.getActivity(i).loadIcon(packageManager), 
-                                 dataModel.getActivity(i).loadLabel(packageManager));
+            view.addActionButton(dataModel.getActivity(i).loadIcon(packageManager));
         }
 
         return view;

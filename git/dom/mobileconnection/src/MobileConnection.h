@@ -17,11 +17,10 @@
 namespace mozilla {
 namespace dom {
 
-class MobileConnection MOZ_FINAL : public DOMEventTargetHelper,
-                                   private nsIMobileConnectionListener
+class MobileConnection MOZ_FINAL : public DOMEventTargetHelper
 {
   /**
-   * Class MobileConnection doesn't actually expose
+   * Class MobileConnection doesn't actually inherit
    * nsIMobileConnectionListener. Instead, it owns an
    * nsIMobileConnectionListener derived instance mListener and passes it to
    * nsIMobileConnectionProvider. The onreceived events are first delivered to

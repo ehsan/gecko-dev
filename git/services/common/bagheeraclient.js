@@ -175,10 +175,6 @@ BagheeraClient.prototype = Object.freeze({
 
     let deferred = Promise.defer();
 
-    // The string converter service used by CommonUtils.convertString()
-    // silently throws away high bytes. We need to convert the string to
-    // consist of only low bytes first.
-    data = CommonUtils.encodeUTF8(data);
     data = CommonUtils.convertString(data, "uncompressed", "deflate");
     if (options.telemetryCompressed) {
       try {
