@@ -695,6 +695,11 @@ TraceForValidWrapper(JSTracer *trc, XPCWrappedNative* wrapper)
 static void
 MarkWrappedNative(JSTracer *trc, JSObject *obj)
 {
+    js::Class* clazz = js::GetObjectClass(obj);
+    if (clazz->flags & JSCLASS_DOM_GLOBAL) {
+        mozilla::dom::bindings::TraceProtoOrIfaceCache(trc, obj);
+    }
+
     JSObject *obj2;
 
     // Pass null for the first JSContext* parameter  to skip any security
@@ -961,7 +966,7 @@ XPC_WN_Helper_DelProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp)
     POST_HELPER_STUB
 }
 
-static JSBool
+JSBool
 XPC_WN_Helper_GetProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp)
 {
     PRE_HELPER_STUB
@@ -969,7 +974,7 @@ XPC_WN_Helper_GetProperty(JSContext *cx, JSObject *obj, jsid id, jsval *vp)
     POST_HELPER_STUB
 }
 
-static JSBool
+JSBool
 XPC_WN_Helper_SetProperty(JSContext *cx, JSObject *obj, jsid id, JSBool strict, jsval *vp)
 {
     PRE_HELPER_STUB

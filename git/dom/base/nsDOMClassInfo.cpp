@@ -7272,6 +7272,12 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
     }
 
     if (id == sJava_id || id == sPackages_id) {
+      nsIDOMDocument* domDoc = win->GetExtantDocument();
+      if (domDoc) {
+        nsCOMPtr<nsIDocument> doc = do_QueryInterface(domDoc);
+        doc->WarnOnceAbout(nsIDocument::eJavaPackages);
+      }
+
       static bool isResolvingJavaProperties;
 
       if (!isResolvingJavaProperties) {
@@ -8674,7 +8680,7 @@ static JSClass sHTMLDocumentAllClass = {
   JS_PropertyStub, JS_PropertyStub, nsHTMLDocumentSH::DocumentAllGetProperty,
   JS_StrictPropertyStub, JS_EnumerateStub,
   (JSResolveOp)nsHTMLDocumentSH::DocumentAllNewResolve, JS_ConvertStub,
-  nsHTMLDocumentSH::ReleaseDocument, nsnull, nsnull,
+  nsHTMLDocumentSH::ReleaseDocument, nsnull,
   nsHTMLDocumentSH::CallToGetPropMapper
 };
 
@@ -8694,7 +8700,7 @@ static JSClass sHTMLDocumentAllTagsClass = {
   JSCLASS_HAS_PRIVATE | JSCLASS_NEW_RESOLVE | JSCLASS_PRIVATE_IS_NSISUPPORTS,
   JS_PropertyStub, JS_PropertyStub, JS_PropertyStub, JS_StrictPropertyStub,
   JS_EnumerateStub, (JSResolveOp)nsHTMLDocumentSH::DocumentAllTagsNewResolve,
-  JS_ConvertStub, nsHTMLDocumentSH::ReleaseDocument, nsnull, nsnull,
+  JS_ConvertStub, nsHTMLDocumentSH::ReleaseDocument, nsnull,
   nsHTMLDocumentSH::CallToGetPropMapper
 };
 
