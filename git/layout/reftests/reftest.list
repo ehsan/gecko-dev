@@ -32,9 +32,6 @@ include canvas/reftest.list
 # columns/
 include columns/reftest.list
 
-# content/
-include ../../content/test/reftest/reftest.list
-
 # counters/
 include counters/reftest.list
 
