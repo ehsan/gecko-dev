@@ -224,9 +224,6 @@ public:
 
   void GetURL(nsString& aURL);
 
-  void ActivateUpdateHitRegion();
-  void DeactivateUpdateHitRegion();
-
 private:
 
   void SetOwnerContent(mozilla::dom::Element* aContent);
