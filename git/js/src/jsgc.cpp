@@ -5561,19 +5561,12 @@ JS::GetGCNumber()
 }
 
 JS::AutoAssertNoGC::AutoAssertNoGC()
-  : runtime(nullptr), gcNumber(0)
+  : runtime(nullptr)
 {
     js::PerThreadData *data = js::TlsPerThreadData.get();
     if (data) {
-        /*
-         * GC's from off-thread will always assert, so off-thread is implicitly
-         * AutoAssertNoGC. We still need to allow AutoAssertNoGC to be used in
-         * code that works from both threads, however. We also use this to
-         * annotate the off thread run loops.
-         */
-        runtime = data->runtimeIfOnOwnerThread();
-        if (runtime)
-            gcNumber = runtime->gcNumber;
+        runtime = data->runtimeFromMainThread();
+        gcNumber = runtime->gcNumber;
     }
 }
 
@@ -5586,5 +5579,7 @@ JS::AutoAssertNoGC::~AutoAssertNoGC()
 {
     if (runtime)
         MOZ_ASSERT(gcNumber == runtime->gcNumber, "GC ran inside an AutoAssertNoGC scope.");
+    else
+        MOZ_ASSERT(!js::TlsPerThreadData.get(), "Runtime created within AutoAssertNoGC scope?");
 }
 #endif

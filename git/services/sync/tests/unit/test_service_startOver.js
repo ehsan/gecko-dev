@@ -28,8 +28,10 @@ function run_test() {
   run_next_test();
 }
 
-add_identity_test(this, function test_resetLocalData() {
-  yield configureIdentity();
+add_test(function test_resetLocalData() {
+  // Set up.
+  setBasicCredentials("foobar", "blablabla", // Law Blog
+                      "abcdeabcdeabcdeabcdeabcdea");
   Service.status.enforceBackoff = true;
   Service.status.backoffInterval = 42;
   Service.status.minimumNextSync = 23;
@@ -59,6 +61,8 @@ add_identity_test(this, function test_resetLocalData() {
   do_check_false(Service.status.enforceBackoff);
   do_check_eq(Service.status.backoffInterval, 0);
   do_check_eq(Service.status.minimumNextSync, 0);
+
+  run_next_test();
 });
 
 add_test(function test_removeClientData() {
