@@ -191,9 +191,6 @@ class IonActivationIterator
         return top_;
     }
     bool more() const;
-
-    // Returns the bottom and top addresses of the current activation.
-    void ionStackRange(uintptr_t *&min, uintptr_t *&end);
 };
 
 class IonJSFrameLayout;

@@ -622,10 +622,10 @@ nsLayoutUtils::IsProperAncestorFrameCrossDoc(nsIFrame* aAncestorFrame, nsIFrame*
 
 // static
 bool
-nsLayoutUtils::IsAncestorFrameCrossDoc(const nsIFrame* aAncestorFrame, const nsIFrame* aFrame,
-                                       const nsIFrame* aCommonAncestor)
+nsLayoutUtils::IsAncestorFrameCrossDoc(nsIFrame* aAncestorFrame, nsIFrame* aFrame,
+                                       nsIFrame* aCommonAncestor)
 {
-  for (const nsIFrame* f = aFrame; f != aCommonAncestor;
+  for (nsIFrame* f = aFrame; f != aCommonAncestor;
        f = GetCrossDocParentFrame(f)) {
     if (f == aAncestorFrame)
       return true;
@@ -872,7 +872,7 @@ nsLayoutUtils::GetScrollableFrameFor(nsIFrame *aScrolledFrame)
 
 nsIFrame*
 nsLayoutUtils::GetActiveScrolledRootFor(nsIFrame* aFrame,
-                                        const nsIFrame* aStopAtAncestor)
+                                        nsIFrame* aStopAtAncestor)
 {
   nsIFrame* f = aFrame;
   while (f != aStopAtAncestor) {
@@ -912,14 +912,14 @@ nsLayoutUtils::GetActiveScrolledRootFor(nsDisplayItem* aItem,
     nsIFrame* viewportFrame =
       nsLayoutUtils::GetClosestFrameOfType(f, nsGkAtoms::viewportFrame);
     NS_ASSERTION(viewportFrame, "no viewport???");
-    return nsLayoutUtils::GetActiveScrolledRootFor(viewportFrame, aBuilder->FindReferenceFrameFor(viewportFrame));
+    return nsLayoutUtils::GetActiveScrolledRootFor(viewportFrame, aBuilder->ReferenceFrame());
   } else {
-    return nsLayoutUtils::GetActiveScrolledRootFor(f, aItem->ReferenceFrame());
+    return nsLayoutUtils::GetActiveScrolledRootFor(f, aBuilder->ReferenceFrame());
   }
 }
 
 bool
-nsLayoutUtils::IsScrolledByRootContentDocumentDisplayportScrolling(const nsIFrame* aActiveScrolledRoot,
+nsLayoutUtils::IsScrolledByRootContentDocumentDisplayportScrolling(nsIFrame* aActiveScrolledRoot,
                                                                    nsDisplayListBuilder* aBuilder)
 {
   nsPresContext* presContext = aActiveScrolledRoot->PresContext()->
@@ -1249,7 +1249,7 @@ nsLayoutUtils::MatrixTransformPoint(const nsPoint &aPoint,
 }
 
 gfx3DMatrix
-nsLayoutUtils::GetTransformToAncestor(nsIFrame *aFrame, const nsIFrame *aAncestor)
+nsLayoutUtils::GetTransformToAncestor(nsIFrame *aFrame, nsIFrame *aAncestor)
 {
   nsIFrame* parent;
   gfx3DMatrix ctm = aFrame->GetTransformMatrix(aAncestor, &parent);
@@ -1274,7 +1274,7 @@ TransformGfxPointFromAncestor(nsIFrame *aFrame,
 static gfxRect
 TransformGfxRectFromAncestor(nsIFrame *aFrame,
                              const gfxRect &aRect,
-                             const nsIFrame *aAncestor)
+                             nsIFrame *aAncestor)
 {
   gfx3DMatrix ctm = nsLayoutUtils::GetTransformToAncestor(aFrame, aAncestor);
   return ctm.Inverse().ProjectRectBounds(aRect);
@@ -1306,7 +1306,7 @@ nsLayoutUtils::TransformRootPointToFrame(nsIFrame *aFrame,
 nsRect 
 nsLayoutUtils::TransformAncestorRectToFrame(nsIFrame* aFrame,
                                             const nsRect &aRect,
-                                            const nsIFrame* aAncestor)
+                                            nsIFrame* aAncestor)
 {
     float factor = aFrame->PresContext()->AppUnitsPerDevPixel();
     gfxRect result(NSAppUnitsToFloatPixels(aRect.x, factor),
@@ -1530,7 +1530,7 @@ PruneDisplayListForExtraPage(nsDisplayListBuilder* aBuilder,
 {
   nsDisplayList newList;
   // The page which we're really constructing a display list for
-  nsIFrame* mainPage = aBuilder->RootReferenceFrame();
+  nsIFrame* mainPage = aBuilder->ReferenceFrame();
 
   while (true) {
     nsDisplayItem* i = aList->RemoveBottom();
@@ -3659,12 +3659,6 @@ ComputeSnappedImageDrawingParameters(gfxContext*     aCtx,
 #endif
   gfxRect fill = devPixelFill;
   bool didSnap = aCtx->UserToDevicePixelSnapped(fill, ignoreScale);
-  gfxMatrix currentMatrix = aCtx->CurrentMatrix();
-  if (didSnap && currentMatrix.HasNonAxisAlignedTransform()) {
-    // currentMatrix must have some rotation by a multiple of 90 degrees.
-    didSnap = false;
-    fill = devPixelFill;
-  }
 
   gfxSize imageSize(aImageSize.width, aImageSize.height);
 
@@ -3686,8 +3680,11 @@ ComputeSnappedImageDrawingParameters(gfxContext*     aCtx,
                        gfxFloat(aAnchor.y)/aAppUnitsPerDevPixel);
   gfxPoint imageSpaceAnchorPoint =
     MapToFloatImagePixels(imageSize, devPixelDest, anchorPoint);
+  gfxMatrix currentMatrix = aCtx->CurrentMatrix();
 
   if (didSnap) {
+    NS_ASSERTION(!currentMatrix.HasNonAxisAlignedTransform(),
+                 "How did we snap, then?");
     imageSpaceAnchorPoint.Round();
     anchorPoint = imageSpaceAnchorPoint;
     anchorPoint = MapToFloatUserPixels(imageSize, devPixelDest, anchorPoint);

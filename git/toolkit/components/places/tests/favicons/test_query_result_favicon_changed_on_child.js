@@ -52,8 +52,7 @@ add_test(function test_query_result_favicon_changed_on_child()
         // data URI.
         PlacesUtils.favicons.setAndFetchFaviconForPage(PAGE_URI,
                                                        SMALLPNG_DATA_URI,
-                                                       false,
-                                                       PlacesUtils.favicons.FAVICON_LOAD_NON_PRIVATE);
+                                                       false);
       }
     },
     nodeIconChanged: function QRFCOC_nodeIconChanged(aNode) {

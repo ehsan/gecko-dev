@@ -1,7 +1,7 @@
 import os
 from setuptools import setup, find_packages
 
-version = '0.4'
+version = '0.3'
 
 # get documentation from the README
 try:
@@ -27,11 +27,6 @@ setup(name='marionette',
       packages=find_packages(exclude=['ez_setup', 'examples', 'tests']),
       include_package_data=True,
       zip_safe=False,
-      entry_points="""
-      # -*- Entry points: -*-
-      [console_scripts]
-      marionette = marionette.runtests:cli
-      """,
       install_requires=deps,
       )
 

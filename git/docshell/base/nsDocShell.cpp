@@ -8152,9 +8152,8 @@ class nsCopyFaviconCallback MOZ_FINAL : public nsIFaviconDataCallback
 public:
     NS_DECL_ISUPPORTS
 
-    nsCopyFaviconCallback(nsIURI *aNewURI, bool aInPrivateBrowsing)
+    nsCopyFaviconCallback(nsIURI *aNewURI)
       : mNewURI(aNewURI)
-      , mInPrivateBrowsing(aInPrivateBrowsing)
     {
     }
 
@@ -8174,28 +8173,23 @@ public:
         NS_ENSURE_STATE(favSvc);
 
         return favSvc->SetAndFetchFaviconForPage(mNewURI, aFaviconURI,
-                                                 false,
-                                                 mInPrivateBrowsing ?
-                                                   nsIFaviconService::FAVICON_LOAD_PRIVATE :
-                                                   nsIFaviconService::FAVICON_LOAD_NON_PRIVATE,
-                                                 nullptr);
+                                                 false, nullptr);
     }
 
 private:
     nsCOMPtr<nsIURI> mNewURI;
-    bool mInPrivateBrowsing;
 };
 
 NS_IMPL_ISUPPORTS1(nsCopyFaviconCallback, nsIFaviconDataCallback)
 
 // Tell the favicon service that aNewURI has the same favicon as aOldURI.
-void CopyFavicon(nsIURI *aOldURI, nsIURI *aNewURI, bool inPrivateBrowsing)
+void CopyFavicon(nsIURI *aOldURI, nsIURI *aNewURI)
 {
     nsCOMPtr<mozIAsyncFavicons> favSvc =
         do_GetService("@mozilla.org/browser/favicon-service;1");
     if (favSvc) {
         nsCOMPtr<nsIFaviconDataCallback> callback =
-            new nsCopyFaviconCallback(aNewURI, inPrivateBrowsing);
+            new nsCopyFaviconCallback(aNewURI);
         favSvc->GetFaviconURLForPage(aOldURI, callback);
     }
 }
@@ -8862,7 +8856,7 @@ nsDocShell::InternalLoad(nsIURI * aURI,
 
             // Inform the favicon service that the favicon for oldURI also
             // applies to aURI.
-            CopyFavicon(oldURI, aURI, mInPrivateBrowsing);
+            CopyFavicon(oldURI, aURI);
 
             return NS_OK;
         }
@@ -10201,7 +10195,7 @@ nsDocShell::AddState(nsIVariant *aData, const nsAString& aTitle,
 
         // Inform the favicon service that our old favicon applies to this new
         // URI.
-        CopyFavicon(oldURI, newURI, mInPrivateBrowsing);
+        CopyFavicon(oldURI, newURI);
     }
     else {
         FireDummyOnLocationChange();

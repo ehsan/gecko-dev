@@ -346,11 +346,6 @@ var gMetadataTests = [
       COMMENTS:"Audio Description"
     }
   },
-  { name:"detodos.opus", tags: {
-      title:"De todos. Para todos.",
-      artist:"Mozilla.org"
-    }
-  },
   { name:"sound.ogg", tags: { } },
   { name:"badtags.ogg", tags: {
       // We list only the valid tags here, and verify

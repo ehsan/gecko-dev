@@ -52,8 +52,7 @@ add_test(function test_null_pageURI()
   try {
     PlacesUtils.favicons.setAndFetchFaviconForPage(
                          null,
-                         FAVICON_URI, true,
-                         PlacesUtils.favicons.FAVICON_LOAD_NON_PRIVATE);
+                         FAVICON_URI, true);
     do_throw("Exception expected because aPageURI is null.");
   } catch (ex) {
     // We expected an exception.
@@ -67,8 +66,7 @@ add_test(function test_null_faviconURI()
   try {
     PlacesUtils.favicons.setAndFetchFaviconForPage(
                          NetUtil.newURI("http://example.com/null_faviconURI"),
-                         null, true,
-                         PlacesUtils.favicons.FAVICON_LOAD_NON_PRIVATE);
+                         null, true);
     do_throw("Exception expected because aFaviconURI is null.");
   } catch (ex) {
     // We expected an exception.
@@ -81,8 +79,7 @@ add_test(function test_aboutURI()
 {
   PlacesUtils.favicons.setAndFetchFaviconForPage(
                        NetUtil.newURI("about:testAboutURI"),
-                       FAVICON_URI, true,
-                       PlacesUtils.favicons.FAVICON_LOAD_NON_PRIVATE);
+                       FAVICON_URI, true);
 
   run_next_test();
 });
@@ -105,8 +102,7 @@ add_test(function test_privateBrowsing_nonBookmarkedURI()
 
     PlacesUtils.favicons.setAndFetchFaviconForPage(
                          pageURI,
-                         FAVICON_URI, true,
-                         PlacesUtils.favicons.FAVICON_LOAD_PRIVATE);
+                         FAVICON_URI, true);
 
     // The setAndFetchFaviconForPage function calls CanAddURI synchronously,
     // thus we can exit Private Browsing Mode immediately.
@@ -124,8 +120,7 @@ add_test(function test_disabledHistory()
 
     PlacesUtils.favicons.setAndFetchFaviconForPage(
                          pageURI,
-                         FAVICON_URI, true,
-                         PlacesUtils.favicons.FAVICON_LOAD_NON_PRIVATE);
+                         FAVICON_URI, true);
 
     // The setAndFetchFaviconForPage function calls CanAddURI synchronously, thus
     // we can set the preference back to true immediately . We don't clear the
@@ -142,8 +137,7 @@ add_test(function test_errorIcon()
   addVisits({ uri: pageURI, transition: TRANSITION_TYPED }, function () {
     PlacesUtils.favicons.setAndFetchFaviconForPage(
                          pageURI,
-                         FAVICON_ERRORPAGE_URI, true,
-                         PlacesUtils.favicons.FAVICON_LOAD_NON_PRIVATE);
+                         FAVICON_ERRORPAGE_URI, true);
 
     run_next_test();
   });
@@ -153,8 +147,7 @@ add_test(function test_nonexistingPage()
 {
   PlacesUtils.favicons.setAndFetchFaviconForPage(
                        NetUtil.newURI("http://example.com/nonexistingPage"),
-                       FAVICON_URI, true,
-                       PlacesUtils.favicons.FAVICON_LOAD_NON_PRIVATE);
+                       FAVICON_URI, true);
 
   run_next_test();
 });
@@ -167,7 +160,6 @@ add_test(function test_finalVerification()
   addVisits({ uri: LAST_PAGE_URI, transition: TRANSITION_TYPED }, function () {
     PlacesUtils.favicons.setAndFetchFaviconForPage(
                          LAST_PAGE_URI,
-                         LAST_FAVICON_URI, true,
-                         PlacesUtils.favicons.FAVICON_LOAD_NON_PRIVATE);
+                         LAST_FAVICON_URI, true);
   });
 });

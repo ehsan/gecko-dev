@@ -59,9 +59,6 @@ private:
   bool mWithCredentials;
   bool mCanceled;
 
-  bool mMozAnon;
-  bool mMozSystem;
-
 protected:
   XMLHttpRequest(JSContext* aCx, WorkerPrivate* aWorkerPrivate);
   virtual ~XMLHttpRequest();
@@ -265,14 +262,14 @@ public:
     mStateData.mResponse = JSVAL_NULL;
   }
 
-  bool MozAnon() const
-  {
-    return mMozAnon;
+  bool MozAnon() {
+    // TODO: bug 761227
+    return false;
   }
 
-  bool MozSystem() const
-  {
-    return mMozSystem;
+  bool MozSystem() {
+    // TODO: bug 761227
+    return false;
   }
 
 private:

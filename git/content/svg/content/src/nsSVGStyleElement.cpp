@@ -10,7 +10,6 @@
 #include "nsIDocument.h"
 #include "nsStyleLinkElement.h"
 #include "nsContentUtils.h"
-#include "nsStubMutationObserver.h"
 
 using namespace mozilla;
 

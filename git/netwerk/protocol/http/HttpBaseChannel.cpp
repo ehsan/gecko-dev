@@ -48,7 +48,9 @@ HttpBaseChannel::HttpBaseChannel()
   , mTracingEnabled(true)
   , mTimingEnabled(false)
   , mAllowSpdy(true)
+  , mPrivateBrowsing(false)
   , mSuspendCount(0)
+  , mProxyResolveFlags(0)
 {
   LOG(("Creating HttpBaseChannel @%x\n", this));
 
@@ -73,7 +75,9 @@ HttpBaseChannel::~HttpBaseChannel()
 nsresult
 HttpBaseChannel::Init(nsIURI *aURI,
                       uint8_t aCaps,
-                      nsProxyInfo *aProxyInfo)
+                      nsProxyInfo *aProxyInfo,
+                      uint32_t aProxyResolveFlags,
+                      nsIURI *aProxyURI)
 {
   LOG(("HttpBaseChannel::Init [this=%p]\n", this));
 
@@ -86,6 +90,8 @@ HttpBaseChannel::Init(nsIURI *aURI,
   mOriginalURI = aURI;
   mDocumentURI = nullptr;
   mCaps = aCaps;
+  mProxyResolveFlags = aProxyResolveFlags;
+  mProxyURI = aProxyURI;
 
   // Construct connection info object
   nsAutoCString host;
@@ -111,11 +117,6 @@ HttpBaseChannel::Init(nsIURI *aURI,
   if (NS_FAILED(rv)) return rv;
   LOG(("uri=%s\n", mSpec.get()));
 
-  mConnectionInfo = new nsHttpConnectionInfo(host, port,
-                                             aProxyInfo, usingSSL);
-  if (!mConnectionInfo)
-    return NS_ERROR_OUT_OF_MEMORY;
-
   // Set default request method
   mRequestHead.SetMethod(nsHttp::Get);
 
@@ -127,8 +128,13 @@ HttpBaseChannel::Init(nsIURI *aURI,
   rv = mRequestHead.SetHeader(nsHttp::Host, hostLine);
   if (NS_FAILED(rv)) return rv;
 
-  rv = gHttpHandler->
-    AddStandardRequestHeaders(&mRequestHead.Headers(), aCaps);
+  rv = gHttpHandler->AddStandardRequestHeaders(&mRequestHead.Headers());
+  if (NS_FAILED(rv)) return rv;
+
+  nsAutoCString type;
+  if (aProxyInfo && NS_SUCCEEDED(aProxyInfo->GetType(type)) &&
+      !type.EqualsLiteral("unknown"))
+    mProxyInfo = aProxyInfo;
 
   return rv;
 }
@@ -137,7 +143,7 @@ HttpBaseChannel::Init(nsIURI *aURI,
 // HttpBaseChannel::nsISupports
 //-----------------------------------------------------------------------------
 
-NS_IMPL_ISUPPORTS_INHERITED10(HttpBaseChannel,
+NS_IMPL_ISUPPORTS_INHERITED9( HttpBaseChannel,
                               nsHashPropertyBag,
                               nsIRequest,
                               nsIChannel,
@@ -147,8 +153,7 @@ NS_IMPL_ISUPPORTS_INHERITED10(HttpBaseChannel,
                               nsIUploadChannel,
                               nsIUploadChannel2,
                               nsISupportsPriority,
-                              nsITraceableChannel,
-                              nsIPrivateBrowsingChannel)
+                              nsITraceableChannel)
 
 //-----------------------------------------------------------------------------
 // HttpBaseChannel::nsIRequest
@@ -189,10 +194,6 @@ HttpBaseChannel::GetLoadGroup(nsILoadGroup **aLoadGroup)
 NS_IMETHODIMP
 HttpBaseChannel::SetLoadGroup(nsILoadGroup *aLoadGroup)
 {
-  if (!CanSetLoadGroup()) {
-    return NS_ERROR_FAILURE;
-  }
-
   mLoadGroup = aLoadGroup;
   mProgressSink = nullptr;
   mPrivateBrowsing = NS_UsePrivateBrowsing(this);
@@ -273,13 +274,10 @@ HttpBaseChannel::GetNotificationCallbacks(nsIInterfaceRequestor **aCallbacks)
 NS_IMETHODIMP
 HttpBaseChannel::SetNotificationCallbacks(nsIInterfaceRequestor *aCallbacks)
 {
-  if (!CanSetCallbacks()) {
-    return NS_ERROR_FAILURE;
-  }
-
   mCallbacks = aCallbacks;
   mProgressSink = nullptr;
 
+  // Will never change unless SetNotificationCallbacks called again, so cache
   mPrivateBrowsing = NS_UsePrivateBrowsing(this);
   return NS_OK;
 }
@@ -1529,7 +1527,9 @@ HttpBaseChannel::SetupReplacementChannel(nsIURI       *newURI,
   // set, then allow the flag to apply to the redirected channel as well.
   // since we force set INHIBIT_PERSISTENT_CACHING on all HTTPS channels,
   // we only need to check if the original channel was using SSL.
-  if (mConnectionInfo->UsingSSL())
+  bool usingSSL = false;
+  nsresult rv = mURI->SchemeIs("https", &usingSSL);
+  if (NS_SUCCEEDED(rv) && usingSSL)
     newLoadFlags &= ~INHIBIT_PERSISTENT_CACHING;
 
   // Do not pass along LOAD_CHECK_OFFLINE_CACHE

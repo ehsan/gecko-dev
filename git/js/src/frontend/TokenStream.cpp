@@ -32,7 +32,6 @@
 
 #include "frontend/Parser.h"
 #include "frontend/TokenStream.h"
-#include "vm/Keywords.h"
 #include "vm/RegExpObject.h"
 #include "vm/StringBuffer.h"
 
@@ -46,11 +45,16 @@ using namespace js;
 using namespace js::frontend;
 using namespace js::unicode;
 
+#define JS_KEYWORD(keyword, type, op, version) \
+    const char js_##keyword##_str[] = #keyword;
+#include "jskeyword.tbl"
+#undef JS_KEYWORD
+
 static const KeywordInfo keywords[] = {
-#define KEYWORD_INFO(keyword, name, type, op, version) \
+#define JS_KEYWORD(keyword, type, op, version) \
     {js_##keyword##_str, type, op, version},
-    FOR_EACH_JAVASCRIPT_KEYWORD(KEYWORD_INFO)
-#undef KEYWORD_INFO
+#include "jskeyword.tbl"
+#undef JS_KEYWORD
 };
 
 const KeywordInfo *
@@ -1041,7 +1045,7 @@ TokenStream::getXMLMarkup(TokenKind *ttp, Token **tpp)
 
         JSAtom *data;
         if (contentIndex < 0) {
-            data = cx->names().empty;
+            data = cx->runtime->atomState.emptyAtom;
         } else {
             data = AtomizeChars(cx, tokenbuf.begin() + contentIndex,
                                 tokenbuf.length() - contentIndex);

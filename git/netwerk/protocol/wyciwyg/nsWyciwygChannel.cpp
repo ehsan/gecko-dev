@@ -83,6 +83,7 @@ nsWyciwygChannel::nsWyciwygChannel()
     mIsPending(false),
     mCharsetAndSourceSet(false),
     mNeedToWriteCharset(false),
+    mPrivateBrowsing(false),
     mCharsetSource(kCharsetUninitialized),
     mContentLength(-1),
     mLoadFlags(LOAD_NORMAL)
@@ -93,14 +94,13 @@ nsWyciwygChannel::~nsWyciwygChannel()
 {
 }
 
-NS_IMPL_THREADSAFE_ISUPPORTS7(nsWyciwygChannel,
+NS_IMPL_THREADSAFE_ISUPPORTS6(nsWyciwygChannel,
                               nsIChannel,
                               nsIRequest,
                               nsIStreamListener,
                               nsIRequestObserver,
-                              nsICacheListener,
-                              nsIWyciwygChannel,
-                              nsIPrivateBrowsingChannel)
+                              nsICacheListener, 
+                              nsIWyciwygChannel)
 
 nsresult
 nsWyciwygChannel::Init(nsIURI* uri)
@@ -188,16 +188,11 @@ nsWyciwygChannel::GetLoadGroup(nsILoadGroup* *aLoadGroup)
 NS_IMETHODIMP
 nsWyciwygChannel::SetLoadGroup(nsILoadGroup* aLoadGroup)
 {
-  if (!CanSetLoadGroup()) {
-    return NS_ERROR_FAILURE;
-  }
-
   mLoadGroup = aLoadGroup;
   NS_QueryNotificationCallbacks(mCallbacks,
                                 mLoadGroup,
                                 NS_GET_IID(nsIProgressEventSink),
                                 getter_AddRefs(mProgressSink));
-  mPrivateBrowsing = NS_UsePrivateBrowsing(this);
   return NS_OK;
 }
 
@@ -271,16 +266,13 @@ nsWyciwygChannel::GetNotificationCallbacks(nsIInterfaceRequestor* *aCallbacks)
 NS_IMETHODIMP
 nsWyciwygChannel::SetNotificationCallbacks(nsIInterfaceRequestor* aNotificationCallbacks)
 {
-  if (!CanSetCallbacks()) {
-    return NS_ERROR_FAILURE;
-  }
-
   mCallbacks = aNotificationCallbacks;
   NS_QueryNotificationCallbacks(mCallbacks,
                                 mLoadGroup,
                                 NS_GET_IID(nsIProgressEventSink),
                                 getter_AddRefs(mProgressSink));
 
+  // Will never change unless SetNotificationCallbacks called again, so cache
   mPrivateBrowsing = NS_UsePrivateBrowsing(this);
 
   return NS_OK;

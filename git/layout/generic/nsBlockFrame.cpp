@@ -4471,14 +4471,17 @@ nsBlockFrame::DrainOverflowLines()
 #ifdef DEBUG
   VerifyOverflowSituation();
 #endif
+  FrameLines* overflowLines = nullptr;
+  FrameLines* ourOverflowLines = nullptr;
 
-  // Steal the prev-in-flow's overflow lines and prepend them.
-  bool didFindOverflow = false;
-  nsBlockFrame* prevBlock = static_cast<nsBlockFrame*>(GetPrevInFlow());
+  // First grab the prev-in-flows overflow lines
+  nsBlockFrame* prevBlock = (nsBlockFrame*) GetPrevInFlow();
   if (prevBlock) {
     prevBlock->ClearLineCursor();
-    FrameLines* overflowLines = prevBlock->RemoveOverflowLines();
+    overflowLines = prevBlock->RemoveOverflowLines();
     if (overflowLines) {
+      NS_ASSERTION(!overflowLines->mLines.empty(),
+                   "overflow lines should never be set and empty");
       // Make all the frames on the overflow line list mine.
       ReparentFrames(overflowLines->mFrames, prevBlock, this);
 
@@ -4488,49 +4491,55 @@ nsBlockFrame::DrainOverflowLines()
         ReparentFrames(oofs.mList, prevBlock, this);
         mFloats.InsertFrames(nullptr, nullptr, oofs.mList);
       }
-
-      if (!mLines.empty()) {
-        // Remember to recompute the margins on the first line. This will
-        // also recompute the correct deltaY if necessary.
-        mLines.front()->MarkPreviousMarginDirty();
-      }
-      // The overflow lines have already been marked dirty and their previous
-      // margins marked dirty also.
-      
-      // Prepend the overflow frames/lines to our principal list.
-      mFrames.InsertFrames(nullptr, nullptr, overflowLines->mFrames);
-      mLines.splice(mLines.begin(), overflowLines->mLines);
-      NS_ASSERTION(overflowLines->mLines.empty(), "splice should empty list");
-      delete overflowLines;
-      didFindOverflow = true;
     }
+    
+    // The lines on the overflow list have already been marked dirty and their
+    // previous margins marked dirty also.
   }
 
-  // Now append our own overflow lines.
-  return DrainSelfOverflowList() || didFindOverflow;
-}
-
-bool
-nsBlockFrame::DrainSelfOverflowList()
-{
-  // No need to reparent frames in our own overflow lines/oofs, because they're
+  // Don't need to reparent frames in our own overflow lines/oofs, because they're
   // already ours. But we should put overflow floats back in mFloats.
-  FrameLines* ourOverflowLines = RemoveOverflowLines();
+  ourOverflowLines = RemoveOverflowLines();
   if (ourOverflowLines) {
     nsAutoOOFFrameList oofs(this);
     if (oofs.mList.NotEmpty()) {
-      // The overflow floats go after our regular floats.
+      // The overflow floats go after our regular floats
       mFloats.AppendFrames(nullptr, oofs.mList);
     }
-  } else {
+  }
+
+  if (!overflowLines && !ourOverflowLines) {
+    // nothing to do; always the case for non-constrained-height reflows
     return false;
   }
 
-  if (!ourOverflowLines->mLines.empty()) {
-    mFrames.AppendFrames(nullptr, ourOverflowLines->mFrames);
-    mLines.splice(mLines.end(), ourOverflowLines->mLines);
+  // Now join the line lists into mLines
+  if (overflowLines) {
+    if (!overflowLines->mLines.empty()) {
+      // Join the line lists
+      if (!mLines.empty()) {
+          // Remember to recompute the margins on the first line. This will
+          // also recompute the correct deltaY if necessary.
+          mLines.front()->MarkPreviousMarginDirty();
+      }
+      
+      // Join the sibling lists together
+      mFrames.InsertFrames(nullptr, nullptr, overflowLines->mFrames);
+
+      // Place overflow lines at the front of our line list
+      mLines.splice(mLines.begin(), overflowLines->mLines);
+      NS_ASSERTION(overflowLines->mLines.empty(), "splice should empty list");
+    }
+    delete overflowLines;
   }
-  delete ourOverflowLines;
+  if (ourOverflowLines) {
+    if (!ourOverflowLines->mLines.empty()) {
+      mFrames.AppendFrames(nullptr, ourOverflowLines->mFrames);
+      mLines.splice(mLines.end(), ourOverflowLines->mLines);
+    }
+    delete ourOverflowLines;
+  }
+
   return true;
 }
 

@@ -8,12 +8,14 @@ package org.mozilla.gecko;
 import org.mozilla.gecko.util.GeckoEventListener;
 
 import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 
 import android.app.AlertDialog;
 import android.app.Dialog;
 import android.content.Context;
 import android.content.DialogInterface;
+import android.content.res.Configuration;
 import android.os.Bundle;
 import android.preference.CheckBoxPreference;
 import android.preference.EditTextPreference;
@@ -51,11 +53,12 @@ public class GeckoPreferences
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         addPreferencesFromResource(R.xml.preferences);
+        registerEventListener("Preferences:Data");
         registerEventListener("Sanitize:Finished");
-    }
+   }
 
-    @Override
-    public void onWindowFocusChanged(boolean hasFocus) {
+   @Override
+   public void onWindowFocusChanged(boolean hasFocus) {
         if (!hasFocus)
             return;
 
@@ -68,12 +71,16 @@ public class GeckoPreferences
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        unregisterEventListener("Preferences:Data");
         unregisterEventListener("Sanitize:Finished");
     }
 
     public void handleMessage(String event, JSONObject message) {
         try {
-            if (event.equals("Sanitize:Finished")) {
+            if (event.equals("Preferences:Data")) {
+                JSONArray jsonPrefs = message.getJSONArray("preferences");
+                refresh(jsonPrefs);
+            } else if (event.equals("Sanitize:Finished")) {
                 boolean success = message.getBoolean("success");
                 final int stringRes = success ? R.string.private_data_success : R.string.private_data_fail;
                 final Context context = this;
@@ -86,6 +93,14 @@ public class GeckoPreferences
         } catch (Exception e) {
             Log.e(LOGTAG, "Exception handling message \"" + event + "\":", e);
         }
+    }
+
+    // Initialize preferences by sending the "Preferences:Get" command to Gecko
+    private void initValues() {
+        JSONArray jsonPrefs = new JSONArray(mPreferencesList);
+
+        GeckoEvent event = GeckoEvent.createBroadcastEvent("Preferences:Get", jsonPrefs.toString());
+        GeckoAppShell.sendEventToGecko(event);
     }
 
     private void initGroups(PreferenceGroup preferences) {
@@ -143,9 +158,7 @@ public class GeckoPreferences
             setCharEncodingState(((String) newValue).equals("true"));
         }
 
-        if (!TextUtils.isEmpty(prefName)) {
-            PrefsHelper.setPref(prefName, newValue);
-        }
+        setPreference(prefName, newValue);
         if (preference instanceof ListPreference) {
             // We need to find the entry for the new value
             int newIndex = ((ListPreference)preference).findIndexOfValue((String) newValue);
@@ -253,7 +266,18 @@ public class GeckoPreferences
                        .setView((View)linearLayout)
                        .setPositiveButton(R.string.button_ok, new DialogInterface.OnClickListener() {  
                             public void onClick(DialogInterface dialog, int which) {
-                                PrefsHelper.setPref("privacy.masterpassword.enabled", input.getText().toString());
+                                try {
+                                    JSONObject jsonPref = new JSONObject();
+                                    jsonPref.put("name", "privacy.masterpassword.enabled");
+                                    jsonPref.put("type", "string");
+                                    jsonPref.put("value", input.getText().toString());
+                        
+                                    GeckoEvent event = GeckoEvent.createBroadcastEvent("Preferences:Set", jsonPref.toString());
+                                    GeckoAppShell.sendEventToGecko(event);
+                                } catch(Exception ex) {
+                                    Log.e(LOGTAG, "Error setting masterpassword", ex);
+                                }
+                                return;
                             }
                         })
                         .setNegativeButton(R.string.button_cancel, new DialogInterface.OnClickListener() {  
@@ -275,35 +299,42 @@ public class GeckoPreferences
         return dialog;
     }
 
-    // Initialize preferences by requesting the preference values from Gecko
-    private void initValues() {
-        JSONArray jsonPrefs = new JSONArray(mPreferencesList);
-        PrefsHelper.getPrefs(jsonPrefs, new PrefsHelper.PrefHandlerBase() {
-            private Preference getField(String prefName) {
-                return (mPreferenceScreen == null ? null : mPreferenceScreen.findPreference(prefName));
+    private void refresh(JSONArray jsonPrefs) {
+        // enable all preferences once we have them from gecko
+        GeckoAppShell.getMainHandler().post(new Runnable() {
+            public void run() {
+                mPreferenceScreen.setEnabled(true);
             }
+        });
 
-            @Override public void prefValue(String prefName, final boolean value) {
-                final Preference pref = getField(prefName);
-                if (pref instanceof CheckBoxPreference) {
+        try {
+            if (mPreferenceScreen == null)
+                return;
+
+            final int length = jsonPrefs.length();
+            for (int i = 0; i < length; i++) {
+                JSONObject jPref = jsonPrefs.getJSONObject(i);
+                final String prefName = jPref.getString("name");
+                final String prefType = jPref.getString("type");
+                final Preference pref = mPreferenceScreen.findPreference(prefName);
+
+                if (pref instanceof CheckBoxPreference && "bool".equals(prefType)) {
+                    final boolean value = jPref.getBoolean("value");
                     GeckoAppShell.getMainHandler().post(new Runnable() {
                         public void run() {
                             if (((CheckBoxPreference)pref).isChecked() != value)
                                 ((CheckBoxPreference)pref).setChecked(value);
                         }
                     });
-                }
-            }
-
-            @Override public void prefValue(String prefName, final String value) {
-                final Preference pref = getField(prefName);
-                if (pref instanceof EditTextPreference) {
+                } else if (pref instanceof EditTextPreference && "string".equals(prefType)) {
+                    final String value = jPref.getString("value");
                     GeckoAppShell.getMainHandler().post(new Runnable() {
                         public void run() {
                             ((EditTextPreference)pref).setText(value);
                         }
                     });
-                } else if (pref instanceof ListPreference) {
+                } else if (pref instanceof ListPreference && "string".equals(prefType)) {
+                    final String value = jPref.getString("value");
                     GeckoAppShell.getMainHandler().post(new Runnable() {
                         public void run() {
                             ((ListPreference)pref).setValue(value);
@@ -314,7 +345,8 @@ public class GeckoPreferences
                     });
                 } else if (pref instanceof FontSizePreference) {
                     final FontSizePreference fontSizePref = (FontSizePreference) pref;
-                    fontSizePref.setSavedFontSize(value);
+                    final String twipValue = jPref.getString("value");
+                    fontSizePref.setSavedFontSize(twipValue);
                     final String fontSizeName = fontSizePref.getSavedFontSizeName();
                     GeckoAppShell.getMainHandler().post(new Runnable() {
                         public void run() {
@@ -322,17 +354,39 @@ public class GeckoPreferences
                         }
                     });
                 }
+
+            }
+        } catch (JSONException e) {
+            Log.e(LOGTAG, "Problem parsing preferences response: ", e);
+        }
+    }
+
+    // send the Preferences:Set message to Gecko
+    public static void setPreference(String pref, Object value) {
+        if (pref == null || pref.length() == 0)
+            return;
+
+        try {
+            JSONObject jsonPref = new JSONObject();
+            jsonPref.put("name", pref);
+            if (value instanceof Boolean) {
+                jsonPref.put("type", "bool");
+                jsonPref.put("value", ((Boolean)value).booleanValue());
+            }
+            else if (value instanceof Integer) {
+                jsonPref.put("type", "int");
+                jsonPref.put("value", ((Integer)value).intValue());
+            }
+            else {
+                jsonPref.put("type", "string");
+                jsonPref.put("value", String.valueOf(value));
             }
 
-            @Override public void finish() {
-                // enable all preferences once we have them from gecko
-                GeckoAppShell.getMainHandler().post(new Runnable() {
-                    public void run() {
-                        mPreferenceScreen.setEnabled(true);
-                    }
-                });
-            }
-        });
+            GeckoEvent event = GeckoEvent.createBroadcastEvent("Preferences:Set", jsonPref.toString());
+            GeckoAppShell.sendEventToGecko(event);
+        } catch (JSONException e) {
+            Log.e(LOGTAG, "JSON exception: ", e);
+        }
     }
 
     private void registerEventListener(String event) {

@@ -105,15 +105,14 @@ const imgICache = Components.interfaces.imgICache;
 const nsISupportsCString = Components.interfaces.nsISupportsCString;
 
 function saveImageURL(aURL, aFileName, aFilePickerTitleKey, aShouldBypassCache,
-                      aSkipPrompt, aReferrer, aDoc)
+                      aSkipPrompt, aReferrer)
 {
   var contentType = null;
   var contentDisposition = null;
   if (!aShouldBypassCache) {
     try {
-      var imageCache = Components.classes["@mozilla.org/image/tools;1"]
-                                 .getService(Components.interfaces.imgITools)
-                                 .getImgCacheForDocument(aDoc);
+      var imageCache = Components.classes["@mozilla.org/image/cache;1"]
+                                 .getService(imgICache);
       var props =
         imageCache.findEntryProperties(makeURI(aURL, getCharsetforSave(null)));
       if (props) {

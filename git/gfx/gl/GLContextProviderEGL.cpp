@@ -1664,7 +1664,7 @@ public:
                                      GraphicBuffer::USAGE_SW_WRITE_OFTEN,
                                      &vaddr) != OK) {
                 LOG("Could not lock GraphicBuffer");
-                return nullptr;
+                return false;
             }
 
             nsRefPtr<gfxImageSurface> surface =

@@ -1411,8 +1411,7 @@ var PlacesUtils = {
             // Create a fake faviconURI to use (FIXME: bug 523932)
             let faviconURI = this._uri("fake-favicon-uri:" + aData.uri);
             this.favicons.replaceFaviconDataFromDataURL(faviconURI, aData.icon, 0);
-            this.favicons.setAndFetchFaviconForPage(this._uri(aData.uri), faviconURI, false,
-              this.favicons.FAVICON_LOAD_NON_PRIVATE);
+            this.favicons.setAndFetchFaviconForPage(this._uri(aData.uri), faviconURI, false);
           } catch (ex) {
             Components.utils.reportError("Failed to import favicon data:"  + ex);
           }
@@ -1421,8 +1420,7 @@ var PlacesUtils = {
           try {
             this.favicons.setAndFetchFaviconForPage(this._uri(aData.uri),
                                                     this._uri(aData.iconUri),
-                                                    false,
-                                                    this.favicons.FAVICON_LOAD_NON_PRIVATE);
+                                                    false);
           } catch (ex) {
             Components.utils.reportError("Failed to import favicon URI:"  + ex);
           }

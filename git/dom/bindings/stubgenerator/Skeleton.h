@@ -8,7 +8,7 @@
 #include "nsCycleCollectionParticipant.h"
 #include "mozilla/Attributes.h"
 
-struct JSContext;
+class JSContext;
 
 namespace mozilla {
 namespace dom {

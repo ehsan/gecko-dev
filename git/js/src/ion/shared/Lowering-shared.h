@@ -80,7 +80,6 @@ class LIRGeneratorShared : public MInstructionVisitor
     inline LAllocation useAnyOrConstant(MDefinition *mir);
     inline LAllocation useKeepaliveOrConstant(MDefinition *mir);
     inline LAllocation useRegisterOrConstant(MDefinition *mir);
-    inline LAllocation useRegisterOrConstantAtStart(MDefinition *mir);
     inline LAllocation useRegisterOrNonDoubleConstant(MDefinition *mir);
 
 #ifdef JS_NUNBOX32

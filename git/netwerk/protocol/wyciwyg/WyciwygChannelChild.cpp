@@ -21,11 +21,10 @@ using namespace mozilla::ipc;
 namespace mozilla {
 namespace net {
 
-NS_IMPL_ISUPPORTS4(WyciwygChannelChild,
+NS_IMPL_ISUPPORTS3(WyciwygChannelChild,
                    nsIRequest,
                    nsIChannel,
-                   nsIWyciwygChannel,
-                   nsIPrivateBrowsingChannel)
+                   nsIWyciwygChannel)
 
 
 WyciwygChannelChild::WyciwygChannelChild()
@@ -385,10 +384,6 @@ WyciwygChannelChild::GetLoadGroup(nsILoadGroup * *aLoadGroup)
 NS_IMETHODIMP
 WyciwygChannelChild::SetLoadGroup(nsILoadGroup * aLoadGroup)
 {
-  if (!CanSetLoadGroup()) {
-    return NS_ERROR_FAILURE;
-  }
-
   mLoadGroup = aLoadGroup;
   NS_QueryNotificationCallbacks(mCallbacks,
                                 mLoadGroup,
@@ -471,10 +466,6 @@ WyciwygChannelChild::GetNotificationCallbacks(nsIInterfaceRequestor * *aCallback
 NS_IMETHODIMP
 WyciwygChannelChild::SetNotificationCallbacks(nsIInterfaceRequestor * aCallbacks)
 {
-  if (!CanSetCallbacks()) {
-    return NS_ERROR_FAILURE;
-  }
-
   mCallbacks = aCallbacks;
   NS_QueryNotificationCallbacks(mCallbacks,
                                 mLoadGroup,

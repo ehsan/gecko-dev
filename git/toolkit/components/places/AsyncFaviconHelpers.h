@@ -133,7 +133,6 @@ public:
   static nsresult start(nsIURI* aFaviconURI,
                         nsIURI* aPageURI,
                         enum AsyncFaviconFetchMode aFetchMode,
-                        uint32_t aFaviconLoadType,
                         nsIFaviconDataCallback* aCallback);
 
   /**
@@ -148,7 +147,6 @@ public:
    */
   AsyncFetchAndSetIconForPage(IconData& aIcon,
                               PageData& aPage,
-                              uint32_t aFaviconLoadType,
                               nsCOMPtr<nsIFaviconDataCallback>& aCallback);
 
   virtual ~AsyncFetchAndSetIconForPage();
@@ -156,7 +154,6 @@ public:
 protected:
   IconData mIcon;
   PageData mPage;
-  const bool mFaviconLoadPrivate;
 };
 
 /**
@@ -189,7 +186,6 @@ public:
    */
   AsyncFetchAndSetIconFromNetwork(IconData& aIcon,
                                   PageData& aPage,
-                                  bool aFaviconLoadPrivate,
                                   nsCOMPtr<nsIFaviconDataCallback>& aCallback);
 
   virtual ~AsyncFetchAndSetIconFromNetwork();
@@ -198,7 +194,6 @@ protected:
   IconData mIcon;
   PageData mPage;
   nsCOMPtr<nsIChannel> mChannel;
-  const bool mFaviconLoadPrivate;
 };
 
 /**

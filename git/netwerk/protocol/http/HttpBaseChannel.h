@@ -30,7 +30,6 @@
 #include "nsILoadContext.h"
 #include "mozilla/net/NeckoCommon.h"
 #include "nsThreadUtils.h"
-#include "PrivateBrowsingChannel.h"
 
 namespace mozilla {
 namespace net {
@@ -51,7 +50,6 @@ class HttpBaseChannel : public nsHashPropertyBag
                       , public nsISupportsPriority
                       , public nsIResumableChannel
                       , public nsITraceableChannel
-                      , public PrivateBrowsingChannel<HttpBaseChannel>
 {
 public:
   NS_DECL_ISUPPORTS_INHERITED
@@ -62,7 +60,9 @@ public:
   HttpBaseChannel();
   virtual ~HttpBaseChannel();
 
-  virtual nsresult Init(nsIURI *aURI, uint8_t aCaps, nsProxyInfo *aProxyInfo);
+  virtual nsresult Init(nsIURI *aURI, uint8_t aCaps, nsProxyInfo *aProxyInfo,
+                        uint32_t aProxyResolveFlags,
+                        nsIURI *aProxyURI);
 
   // nsIRequest
   NS_IMETHOD GetName(nsACString& aName);
@@ -210,8 +210,6 @@ protected:
                                   getter_AddRefs(aResult));
   }
 
-  friend class PrivateBrowsingChannel<HttpBaseChannel>;
-
   nsCOMPtr<nsIURI>                  mURI;
   nsCOMPtr<nsIURI>                  mOriginalURI;
   nsCOMPtr<nsIURI>                  mDocumentURI;
@@ -228,6 +226,7 @@ protected:
   nsCOMPtr<nsIInputStream>          mUploadStream;
   nsAutoPtr<nsHttpResponseHead>     mResponseHead;
   nsRefPtr<nsHttpConnectionInfo>    mConnectionInfo;
+  nsCOMPtr<nsIProxyInfo>            mProxyInfo;
 
   nsCString                         mSpec; // ASCII encoded URL spec
   nsCString                         mContentTypeHint;
@@ -267,11 +266,15 @@ protected:
   // True if timing collection is enabled
   uint32_t                          mTimingEnabled              : 1;
   uint32_t                          mAllowSpdy                  : 1;
+  uint32_t                          mPrivateBrowsing            : 1;
 
   // Current suspension depth for this channel object
   uint32_t                          mSuspendCount;
 
   nsAutoPtr<nsTArray<nsCString> >   mRedirectedCachekeys;
+
+  uint32_t                          mProxyResolveFlags;
+  nsCOMPtr<nsIURI>                  mProxyURI;
 };
 
 // Share some code while working around C++'s absurd inability to handle casting

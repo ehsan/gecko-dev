@@ -141,8 +141,8 @@ LIRGenerator::visitNewCallObject(MNewCallObject *ins)
 bool
 LIRGenerator::visitInitProp(MInitProp *ins)
 {
-    LInitProp *lir = new LInitProp(useRegisterAtStart(ins->getObject()));
-    if (!useBoxAtStart(lir, LInitProp::ValueIndex, ins->getValue()))
+    LInitProp *lir = new LInitProp(useRegister(ins->getObject()));
+    if (!useBox(lir, LInitProp::ValueIndex, ins->getValue()))
         return false;
 
     return add(lir, ins) && assignSafepoint(lir, ins);
@@ -189,8 +189,8 @@ LIRGenerator::visitCreateThis(MCreateThis *ins)
         return define(lir, ins) && assignSafepoint(lir, ins);
     }
 
-    LCreateThisVM *lir = new LCreateThisVM(useRegisterOrConstantAtStart(ins->getCallee()),
-                                           useRegisterOrConstantAtStart(ins->getPrototype()));
+    LCreateThisVM *lir = new LCreateThisVM(useRegisterOrConstant(ins->getCallee()),
+                                           useRegisterOrConstant(ins->getPrototype()));
 
     return defineVMReturn(lir, ins) && assignSafepoint(lir, ins);
 }
@@ -277,8 +277,16 @@ LIRGenerator::visitApplyArgs(MApplyArgs *apply)
         tempFixed(CallTempReg2)); // copy register
 
     MDefinition *self = apply->getThis();
-    if (!useBoxFixed(lir, LApplyArgsGeneric::ThisIndex, self, CallTempReg4, CallTempReg5))
+    size_t index = LApplyArgsGeneric::ThisIndex;
+    if (!ensureDefined(self))
         return false;
+
+#if defined(JS_NUNBOX32)
+    lir->setOperand(index + 0, LUse(CallTempReg4, self->virtualRegister()));
+    lir->setOperand(index + 1, LUse(CallTempReg5, VirtualRegisterOfPayload(self)));
+#elif defined(JS_PUNBOX64)
+    lir->setOperand(index + 0, LUse(CallTempReg4, self->virtualRegister()));
+#endif
 
     // Bailout is only needed in the case of possible non-JSFunction callee.
     if (!target && !assignSnapshot(lir))
@@ -488,9 +496,9 @@ LIRGenerator::visitCompare(MCompare *comp)
     }
 
     LCompareV *lir = new LCompareV();
-    if (!useBoxAtStart(lir, LCompareV::LhsInput, left))
+    if (!useBox(lir, LCompareV::LhsInput, left))
         return false;
-    if (!useBoxAtStart(lir, LCompareV::RhsInput, right))
+    if (!useBox(lir, LCompareV::RhsInput, right))
         return false;
     return defineVMReturn(lir, comp) && assignSafepoint(lir, comp);
 }
@@ -520,9 +528,9 @@ LIRGenerator::lowerBitOp(JSOp op, MInstruction *ins)
     }
 
     LBitOpV *lir = new LBitOpV(op);
-    if (!useBoxAtStart(lir, LBitOpV::LhsInput, lhs))
+    if (!useBox(lir, LBitOpV::LhsInput, lhs))
         return false;
-    if (!useBoxAtStart(lir, LBitOpV::RhsInput, rhs))
+    if (!useBox(lir, LBitOpV::RhsInput, rhs))
         return false;
 
     return defineVMReturn(lir, ins) && assignSafepoint(lir, ins);
@@ -544,9 +552,9 @@ bool
 LIRGenerator::visitToId(MToId *ins)
 {
     LToIdV *lir = new LToIdV();
-    if (!useBoxAtStart(lir, LToIdV::Object, ins->lhs()))
+    if (!useBox(lir, LToIdV::Object, ins->lhs()))
         return false;
-    if (!useBoxAtStart(lir, LToIdV::Index, ins->rhs()))
+    if (!useBox(lir, LToIdV::Index, ins->rhs()))
         return false;
     if (!defineVMReturn(lir, ins))
         return false;
@@ -562,7 +570,7 @@ LIRGenerator::visitBitNot(MBitNot *ins)
         return lowerForALU(new LBitNotI(), ins, input);
 
     LBitNotV *lir = new LBitNotV;
-    if (!useBoxAtStart(lir, LBitNotV::Input, input))
+    if (!useBox(lir, LBitNotV::Input, input))
         return false;
     if (!defineVMReturn(lir, ins))
         return false;
@@ -610,16 +618,20 @@ LIRGenerator::lowerShiftOp(JSOp op, MShiftInstruction *ins)
     JS_ASSERT(ins->specialization() == MIRType_None);
 
     if (op == JSOP_URSH) {
-        // Result is either int32 or double so we have to use BinaryV.
-        return lowerBinaryV(JSOP_URSH, ins);
+        LBinaryV *lir = new LBinaryV(op);
+        if (!useBox(lir, LBinaryV::LhsInput, lhs))
+            return false;
+        if (!useBox(lir, LBinaryV::RhsInput, rhs))
+            return false;
+        return defineVMReturn(lir, ins) && assignSafepoint(lir, ins);
+    } else {
+        LBitOpV *lir = new LBitOpV(op);
+        if (!useBox(lir, LBitOpV::LhsInput, lhs))
+            return false;
+        if (!useBox(lir, LBitOpV::RhsInput, rhs))
+            return false;
+        return defineVMReturn(lir, ins) && assignSafepoint(lir, ins);
     }
-
-    LBitOpV *lir = new LBitOpV(op);
-    if (!useBoxAtStart(lir, LBitOpV::LhsInput, lhs))
-        return false;
-    if (!useBoxAtStart(lir, LBitOpV::RhsInput, rhs))
-        return false;
-    return defineVMReturn(lir, ins) && assignSafepoint(lir, ins);
 }
 
 bool
@@ -713,15 +725,12 @@ LIRGenerator::visitPow(MPow *ins)
     JS_ASSERT(power->type() == MIRType_Int32 || power->type() == MIRType_Double);
 
     if (power->type() == MIRType_Int32) {
-        // Note: useRegisterAtStart here is safe, the temp is a GP register so
-        // it will never get the same register.
-        LPowI *lir = new LPowI(useRegisterAtStart(input), useFixed(power, CallTempReg1),
+        LPowI *lir = new LPowI(useRegister(input), useFixed(power, CallTempReg1),
                                tempFixed(CallTempReg0));
         return defineFixed(lir, ins, LAllocation(AnyRegister(ReturnFloatReg)));
     }
 
-    LPowD *lir = new LPowD(useRegisterAtStart(input), useRegisterAtStart(power),
-                           tempFixed(CallTempReg0));
+    LPowD *lir = new LPowD(useRegister(input), useRegister(power), tempFixed(CallTempReg0));
     return defineFixed(lir, ins, LAllocation(AnyRegister(ReturnFloatReg)));
 }
 
@@ -730,10 +739,7 @@ LIRGenerator::visitMathFunction(MMathFunction *ins)
 {
     JS_ASSERT(ins->type() == MIRType_Double);
     JS_ASSERT(ins->input()->type() == MIRType_Double);
-
-    // Note: useRegisterAtStart is safe here, the temp is not a FP register.
-    LMathFunctionD *lir = new LMathFunctionD(useRegisterAtStart(ins->input()),
-                                             tempFixed(CallTempReg0));
+    LMathFunctionD *lir = new LMathFunctionD(useRegister(ins->input()), tempFixed(CallTempReg0));
     return defineFixed(lir, ins, LAllocation(AnyRegister(ReturnFloatReg)));
 }
 
@@ -840,10 +846,7 @@ LIRGenerator::visitMod(MMod *ins)
     if (ins->specialization() == MIRType_Double) {
         JS_ASSERT(ins->type() == MIRType_Double);
         JS_ASSERT(ins->lhs()->type() == MIRType_Double);
-        JS_ASSERT(ins->rhs()->type() == MIRType_Double);
-
-        // Note: useRegisterAtStart is safe here, the temp is not a FP register.
-        LModD *lir = new LModD(useRegisterAtStart(ins->lhs()), useRegisterAtStart(ins->rhs()),
+        LModD *lir = new LModD(useRegister(ins->lhs()), useRegister(ins->rhs()),
                                tempFixed(CallTempReg0));
         return defineFixed(lir, ins, LAllocation(AnyRegister(ReturnFloatReg)));
     }
@@ -861,9 +864,9 @@ LIRGenerator::lowerBinaryV(JSOp op, MBinaryInstruction *ins)
     JS_ASSERT(rhs->type() == MIRType_Value);
 
     LBinaryV *lir = new LBinaryV(op);
-    if (!useBoxAtStart(lir, LBinaryV::LhsInput, lhs))
+    if (!useBox(lir, LBinaryV::LhsInput, lhs))
         return false;
-    if (!useBoxAtStart(lir, LBinaryV::RhsInput, rhs))
+    if (!useBox(lir, LBinaryV::RhsInput, rhs))
         return false;
     if (!defineVMReturn(lir, ins))
         return false;
@@ -879,7 +882,7 @@ LIRGenerator::visitConcat(MConcat *ins)
     JS_ASSERT(lhs->type() == MIRType_String);
     JS_ASSERT(rhs->type() == MIRType_String);
 
-    LConcat *lir = new LConcat(useRegisterAtStart(lhs), useRegisterAtStart(rhs));
+    LConcat *lir = new LConcat(useRegister(lhs), useRegister(rhs));
     if (!defineVMReturn(lir, ins))
         return false;
     return assignSafepoint(lir, ins);
@@ -1085,7 +1088,7 @@ LIRGenerator::visitToString(MToString *ins)
         break;
 
       case MIRType_Int32: {
-        LIntToString *lir = new LIntToString(useRegisterAtStart(opd));
+        LIntToString *lir = new LIntToString(useRegister(opd));
 
         if (!defineVMReturn(lir, ins))
             return false;
@@ -1116,7 +1119,7 @@ LIRGenerator::visitLambda(MLambda *ins)
         //
         // If UseNewTypeForClone is true, we will assign a singleton type to
         // the clone and we have to clone the script, we can't do that inline.
-        LLambdaForSingleton *lir = new LLambdaForSingleton(useRegisterAtStart(ins->scopeChain()));
+        LLambdaForSingleton *lir = new LLambdaForSingleton(useRegister(ins->scopeChain()));
         return defineVMReturn(lir, ins) && assignSafepoint(lir, ins);
     }
 
@@ -1649,7 +1652,7 @@ bool
 LIRGenerator::visitCallGetProperty(MCallGetProperty *ins)
 {
     LCallGetProperty *lir = new LCallGetProperty();
-    if (!useBoxAtStart(lir, LCallGetProperty::Value, ins->value()))
+    if (!useBox(lir, LCallGetProperty::Value, ins->value()))
         return false;
     return defineVMReturn(lir, ins) && assignSafepoint(lir, ins);
 }
@@ -1661,9 +1664,9 @@ LIRGenerator::visitCallGetElement(MCallGetElement *ins)
     JS_ASSERT(ins->rhs()->type() == MIRType_Value);
 
     LCallGetElement *lir = new LCallGetElement();
-    if (!useBoxAtStart(lir, LCallGetElement::LhsInput, ins->lhs()))
+    if (!useBox(lir, LCallGetElement::LhsInput, ins->lhs()))
         return false;
-    if (!useBoxAtStart(lir, LCallGetElement::RhsInput, ins->rhs()))
+    if (!useBox(lir, LCallGetElement::RhsInput, ins->rhs()))
         return false;
     if (!defineVMReturn(lir, ins))
         return false;
@@ -1673,8 +1676,8 @@ LIRGenerator::visitCallGetElement(MCallGetElement *ins)
 bool
 LIRGenerator::visitCallSetProperty(MCallSetProperty *ins)
 {
-    LInstruction *lir = new LCallSetProperty(useRegisterAtStart(ins->obj()));
-    if (!useBoxAtStart(lir, LCallSetProperty::Value, ins->value()))
+    LInstruction *lir = new LCallSetProperty(useRegister(ins->obj()));
+    if (!useBox(lir, LCallSetProperty::Value, ins->value()))
         return false;
     if (!add(lir, ins))
         return false;
@@ -1685,7 +1688,7 @@ bool
 LIRGenerator::visitDeleteProperty(MDeleteProperty *ins)
 {
     LCallDeleteProperty *lir = new LCallDeleteProperty();
-    if(!useBoxAtStart(lir, LCallDeleteProperty::Value, ins->value()))
+    if(!useBox(lir, LCallDeleteProperty::Value, ins->value()))
         return false;
     return defineVMReturn(lir, ins) && assignSafepoint(lir, ins);
 }
@@ -1720,10 +1723,10 @@ LIRGenerator::visitCallSetElement(MCallSetElement *ins)
     JS_ASSERT(ins->value()->type() == MIRType_Value);
 
     LCallSetElement *lir = new LCallSetElement();
-    lir->setOperand(0, useRegisterAtStart(ins->object()));
-    if (!useBoxAtStart(lir, LCallSetElement::Index, ins->index()))
+    lir->setOperand(0, useRegister(ins->object()));
+    if (!useBox(lir, LCallSetElement::Index, ins->index()))
         return false;
-    if (!useBoxAtStart(lir, LCallSetElement::Value, ins->value()))
+    if (!useBox(lir, LCallSetElement::Value, ins->value()))
         return false;
     return add(lir, ins) && assignSafepoint(lir, ins);
 }
@@ -1733,7 +1736,7 @@ LIRGenerator::visitIteratorStart(MIteratorStart *ins)
 {
     // Call a stub if this is not a simple for-in loop.
     if (ins->flags() != JSITER_ENUMERATE) {
-        LCallIteratorStart *lir = new LCallIteratorStart(useRegisterAtStart(ins->object()));
+        LCallIteratorStart *lir = new LCallIteratorStart(useRegister(ins->object()));
         return defineVMReturn(lir, ins) && assignSafepoint(lir, ins);
     }
 
@@ -1789,7 +1792,7 @@ LIRGenerator::visitThrow(MThrow *ins)
     JS_ASSERT(value->type() == MIRType_Value);
 
     LThrow *lir = new LThrow;
-    if (!useBoxAtStart(lir, LThrow::Value, value))
+    if (!useBox(lir, LThrow::Value, value))
         return false;
     return add(lir, ins) && assignSafepoint(lir, ins);
 }
@@ -1834,7 +1837,7 @@ LIRGenerator::visitSetDOMProperty(MSetDOMProperty *ins)
                                                useFixed(ins->object(), CallTempReg1),
                                                tempFixed(CallTempReg2),
                                                tempFixed(CallTempReg3));
-    if (!useBoxFixed(lir, LSetDOMProperty::Value, val, CallTempReg4, CallTempReg5))
+    if (!useBox(lir, LSetDOMProperty::Value, val))
         return false;
 
     return add(lir, ins) && assignSafepoint(lir, ins);

@@ -268,12 +268,6 @@ public:
                               nsIAtom*        aAttribute,
                               int32_t         aModType);
 
-  /**
-   * Move any frames on our overflow list to the end of our principal list.
-   * @return true if there were any overflow frames
-   */
-  virtual bool DrainSelfOverflowList();
-
   virtual nsresult StealFrame(nsPresContext* aPresContext,
                               nsIFrame*      aChild,
                               bool           aForceNormal = false);

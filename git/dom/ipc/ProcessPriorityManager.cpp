@@ -165,23 +165,23 @@ ProcessPriorityManager::OnContentDocumentGlobalCreated(
   // Get the inner window (the topic of content-document-global-created is
   // the /outer/ window!).
   nsCOMPtr<nsPIDOMWindow> outerWindow = do_QueryInterface(aOuterWindow);
-  NS_ENSURE_TRUE_VOID(outerWindow);
+  NS_ENSURE_TRUE(outerWindow, );
   nsCOMPtr<nsPIDOMWindow> innerWindow = outerWindow->GetCurrentInnerWindow();
-  NS_ENSURE_TRUE_VOID(innerWindow);
+  NS_ENSURE_TRUE(innerWindow, );
 
   // We're only interested in top-level windows.
   nsCOMPtr<nsIDOMWindow> parentOuterWindow;
   innerWindow->GetScriptableParent(getter_AddRefs(parentOuterWindow));
-  NS_ENSURE_TRUE_VOID(parentOuterWindow);
+  NS_ENSURE_TRUE(parentOuterWindow, );
   if (parentOuterWindow != outerWindow) {
     return;
   }
 
   nsCOMPtr<nsIDOMEventTarget> target = do_QueryInterface(innerWindow);
-  NS_ENSURE_TRUE_VOID(target);
+  NS_ENSURE_TRUE(target, );
 
   nsWeakPtr weakWin = do_GetWeakReference(innerWindow);
-  NS_ENSURE_TRUE_VOID(weakWin);
+  NS_ENSURE_TRUE(weakWin, );
 
   if (mWindows.Contains(weakWin)) {
     return;

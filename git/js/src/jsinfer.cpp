@@ -54,44 +54,44 @@ using namespace js::analyze;
 
 static inline jsid
 id_prototype(JSContext *cx) {
-    return NameToId(cx->names().classPrototype);
+    return NameToId(cx->runtime->atomState.classPrototypeAtom);
 }
 
 static inline jsid
 id_arguments(JSContext *cx) {
-    return NameToId(cx->names().arguments);
+    return NameToId(cx->runtime->atomState.argumentsAtom);
 }
 
 static inline jsid
 id_length(JSContext *cx) {
-    return NameToId(cx->names().length);
+    return NameToId(cx->runtime->atomState.lengthAtom);
 }
 
 static inline jsid
 id___proto__(JSContext *cx) {
-    return NameToId(cx->names().proto);
+    return NameToId(cx->runtime->atomState.protoAtom);
 }
 
 static inline jsid
 id_constructor(JSContext *cx) {
-    return NameToId(cx->names().constructor);
+    return NameToId(cx->runtime->atomState.constructorAtom);
 }
 
 static inline jsid
 id_caller(JSContext *cx) {
-    return NameToId(cx->names().caller);
+    return NameToId(cx->runtime->atomState.callerAtom);
 }
 
 static inline jsid
 id_toString(JSContext *cx)
 {
-    return NameToId(cx->names().toString);
+    return NameToId(cx->runtime->atomState.toStringAtom);
 }
 
 static inline jsid
 id_toSource(JSContext *cx)
 {
-    return NameToId(cx->names().toSource);
+    return NameToId(cx->runtime->atomState.toSourceAtom);
 }
 
 #ifdef DEBUG
@@ -3735,14 +3735,13 @@ ScriptAnalysis::analyzeTypesBytecode(JSContext *cx, unsigned offset,
         /*
          * Normally we rely on lazy standard class initialization to fill in
          * the types of global properties the script can access. In a few cases
-         * the method JIT will bypass this, and we need to add the types
-         * directly.
+         * the method JIT will bypass this, and we need to add the types direclty.
          */
-        if (id == NameToId(cx->names().undefined))
+        if (id == NameToId(cx->runtime->atomState.typeAtoms[JSTYPE_VOID]))
             seen->addType(cx, Type::UndefinedType());
-        if (id == NameToId(cx->names().NaN))
+        if (id == NameToId(cx->runtime->atomState.NaNAtom))
             seen->addType(cx, Type::DoubleType());
-        if (id == NameToId(cx->names().Infinity))
+        if (id == NameToId(cx->runtime->atomState.InfinityAtom))
             seen->addType(cx, Type::DoubleType());
 
         TypeObject *global = script->global().getType(cx);
@@ -5699,7 +5698,7 @@ JSObject::makeLazyType(JSContext *cx)
     if (self->isSlowArray())
         type->flags |= OBJECT_FLAG_NON_DENSE_ARRAY | OBJECT_FLAG_NON_PACKED_ARRAY;
 
-    if (IsTypedArrayProtoClass(self->getClass()))
+    if (IsTypedArrayProto(self))
         type->flags |= OBJECT_FLAG_NON_TYPED_ARRAY;
 
     self->type_ = type;

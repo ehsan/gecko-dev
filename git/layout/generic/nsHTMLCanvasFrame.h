@@ -13,7 +13,6 @@
 #include "nsString.h"
 #include "nsAString.h"
 #include "nsIIOService.h"
-#include "FrameLayerBuilder.h"
 
 namespace mozilla {
 namespace layers {
@@ -32,7 +31,6 @@ class nsHTMLCanvasFrame : public nsContainerFrame
 public:
   typedef mozilla::layers::Layer Layer;
   typedef mozilla::layers::LayerManager LayerManager;
-  typedef mozilla::FrameLayerBuilder::ContainerParameters ContainerParameters;
 
   NS_DECL_FRAMEARENA_HELPERS
 
@@ -48,8 +46,7 @@ public:
 
   already_AddRefed<Layer> BuildLayer(nsDisplayListBuilder* aBuilder,
                                      LayerManager* aManager,
-                                     nsDisplayItem* aItem,
-                                     const ContainerParameters& aContainerParameters);
+                                     nsDisplayItem* aItem);
 
   /* get the size of the canvas's image */
   nsIntSize GetCanvasSize();

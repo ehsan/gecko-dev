@@ -10,7 +10,6 @@
 #include "nsIWyciwygChannel.h"
 #include "nsIChannel.h"
 #include "nsIProgressEventSink.h"
-#include "PrivateBrowsingChannel.h"
 
 namespace mozilla {
 namespace net {
@@ -35,7 +34,6 @@ enum WyciwygChannelChildState {
 // Header file contents
 class WyciwygChannelChild : public PWyciwygChannelChild
                           , public nsIWyciwygChannel
-                          , public PrivateBrowsingChannel<WyciwygChannelChild>
 {
 public:
   NS_DECL_ISUPPORTS
@@ -73,8 +71,6 @@ protected:
                        const uint64_t& offset);
   void OnStopRequest(const nsresult& statusCode);
   void CancelEarly(const nsresult& statusCode);
-
-  friend class PrivateBrowsingChannel<WyciwygChannelChild>;
 
 private:
   nsresult                          mStatus;

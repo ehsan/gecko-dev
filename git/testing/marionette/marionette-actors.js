@@ -490,12 +490,7 @@ MarionetteDriverActor.prototype = {
     _chromeSandbox.testUtils = utils;
 
     marionette.exports.forEach(function(fn) {
-      try {
-        _chromeSandbox[fn] = marionette[fn].bind(marionette);
-      }
-      catch(e) {
-        _chromeSandbox[fn] = marionette[fn];
-      }
+      _chromeSandbox[fn] = marionette[fn].bind(marionette);
     });
 
     if (specialPowers == true) {

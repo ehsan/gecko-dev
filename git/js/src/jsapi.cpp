@@ -70,7 +70,6 @@
 
 #include "jsatominlines.h"
 #include "jsinferinlines.h"
-#include "jsinterpinlines.h"
 #include "jsobjinlines.h"
 #include "jsscopeinlines.h"
 #include "jsscriptinlines.h"
@@ -604,7 +603,7 @@ JS_GetTypeName(JSContext *cx, JSType type)
 {
     if ((unsigned)type >= (unsigned)JSTYPE_LIMIT)
         return NULL;
-    return TypeStrings[type];
+    return JS_TYPE_STR(type);
 }
 
 JS_PUBLIC_API(JSBool)
@@ -911,7 +910,7 @@ JSRuntime::init(uint32_t maxbytes)
     atomsCompartment->isSystemCompartment = true;
     atomsCompartment->setGCLastBytes(8192, 8192, GC_NORMAL);
 
-    if (!InitAtoms(this))
+    if (!InitAtomState(this))
         return false;
 
     if (!InitRuntimeNumberState(this))
@@ -989,7 +988,7 @@ JSRuntime::~JSRuntime()
 #endif
 
     FinishRuntimeNumberState(this);
-    FinishAtoms(this);
+    FinishAtomState(this);
 
     if (dtoaState)
         js_DestroyDtoaState(dtoaState);
@@ -1797,7 +1796,7 @@ JS_InitStandardClasses(JSContext *cx, JSObject *objArg)
 #define CLASP(name)                 (&name##Class)
 #define TYPED_ARRAY_CLASP(type)     (&TypedArray::classes[TypedArray::type])
 #define EAGER_ATOM(name)            NAME_OFFSET(name)
-#define EAGER_CLASS_ATOM(name)      NAME_OFFSET(name)
+#define EAGER_CLASS_ATOM(name)      CLASS_NAME_OFFSET(name)
 #define EAGER_ATOM_AND_CLASP(name)  EAGER_CLASS_ATOM(name), CLASP(name)
 
 typedef struct JSStdName {
@@ -1806,7 +1805,7 @@ typedef struct JSStdName {
     Class       *clasp;
 } JSStdName;
 
-static Handle<PropertyName*>
+static PropertyName *
 StdNameToPropertyName(JSContext *cx, JSStdName *stdn)
 {
     return OFFSET_TO_NAME(cx->runtime, stdn->atomOffset);
@@ -1956,7 +1955,7 @@ JS_ResolveStandardClass(JSContext *cx, JSObject *objArg, jsid id, JSBool *resolv
     idstr = JSID_TO_STRING(id);
 
     /* Check whether we're resolving 'undefined', and define it if so. */
-    atom = rt->atomState.undefined;
+    atom = rt->atomState.typeAtoms[JSTYPE_VOID];
     if (idstr == atom) {
         *resolved = true;
         RootedValue undefinedValue(cx, UndefinedValue());
@@ -2049,7 +2048,7 @@ JS_EnumerateStandardClasses(JSContext *cx, JSObject *objArg)
      * Check whether we need to bind 'undefined' and define it if so.
      * Since ES5 15.1.1.3 undefined can't be deleted.
      */
-    HandlePropertyName undefinedName = cx->names().undefined;
+    RootedPropertyName undefinedName(cx, cx->runtime->atomState.typeAtoms[JSTYPE_VOID]);
     RootedValue undefinedValue(cx, UndefinedValue());
     if (!obj->nativeContains(cx, undefinedName) &&
         !JSObject::defineProperty(cx, obj, undefinedName, undefinedValue,
@@ -2158,12 +2157,12 @@ JS_EnumerateResolvedStandardClasses(JSContext *cx, JSObject *objArg, JSIdArray *
     }
 
     /* Check whether 'undefined' has been resolved and enumerate it if so. */
-    ida = EnumerateIfResolved(cx, obj, cx->names().undefined, ida, &i, &found);
+    Rooted<PropertyName*> name(cx, rt->atomState.typeAtoms[JSTYPE_VOID]);
+    ida = EnumerateIfResolved(cx, obj, name, ida, &i, &found);
     if (!ida)
         return NULL;
 
     /* Enumerate only classes that *have* been resolved. */
-    Rooted<PropertyName*> name(cx);
     for (j = 0; standard_class_atoms[j].init; j++) {
         name = OFFSET_TO_NAME(rt, standard_class_atoms[j].atomOffset);
         ida = EnumerateIfResolved(cx, obj, name, ida, &i, &found);
@@ -3374,7 +3373,7 @@ JS_GetConstructor(JSContext *cx, JSObject *protoArg)
     {
         JSAutoResolveFlags rf(cx, JSRESOLVE_QUALIFIED);
 
-        if (!JSObject::getProperty(cx, proto, proto, cx->names().constructor, &cval))
+        if (!JSObject::getProperty(cx, proto, proto, cx->runtime->atomState.constructorAtom, &cval))
             return NULL;
     }
     if (!IsFunctionObject(cval)) {
@@ -6393,8 +6392,8 @@ JS_Stringify(JSContext *cx, jsval *vp, JSObject *replacerArg, jsval space,
         return false;
     *vp = value;
     if (sb.empty()) {
-        HandlePropertyName null = cx->names().null;
-        return callback(null->chars(), null->length(), data);
+        JSAtom *nullAtom = cx->runtime->atomState.nullAtom;
+        return callback(nullAtom->chars(), nullAtom->length(), data);
     }
     return callback(sb.begin(), sb.length(), data);
 }

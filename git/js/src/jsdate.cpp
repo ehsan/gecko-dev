@@ -2609,7 +2609,7 @@ date_toJSON(JSContext *cx, unsigned argc, Value *vp)
 
     /* Step 4. */
     RootedValue toISO(cx);
-    if (!JSObject::getProperty(cx, obj, obj, cx->names().toISOString, &toISO))
+    if (!JSObject::getProperty(cx, obj, obj, cx->runtime->atomState.toISOStringAtom, &toISO))
         return false;
 
     /* Step 5. */
@@ -3160,8 +3160,7 @@ js_InitDateClass(JSContext *cx, JSObject *obj)
         return NULL;
     SetDateToNaN(cx, dateProto);
 
-    RootedFunction ctor(cx);
-    ctor = global->createConstructor(cx, js_Date, cx->names().Date, MAXARGS);
+    RootedFunction ctor(cx, global->createConstructor(cx, js_Date, CLASS_NAME(cx, Date), MAXARGS));
     if (!ctor)
         return NULL;
 
@@ -3179,8 +3178,8 @@ js_InitDateClass(JSContext *cx, JSObject *obj)
     if (!JS_DefineFunctions(cx, dateProto, date_methods))
         return NULL;
     RootedValue toUTCStringFun(cx);
-    RootedId toUTCStringId(cx, NameToId(cx->names().toUTCString));
-    RootedId toGMTStringId(cx, NameToId(cx->names().toGMTString));
+    RootedId toUTCStringId(cx, NameToId(cx->runtime->atomState.toUTCStringAtom));
+    RootedId toGMTStringId(cx, NameToId(cx->runtime->atomState.toGMTStringAtom));
     if (!baseops::GetProperty(cx, dateProto, toUTCStringId, &toUTCStringFun) ||
         !baseops::DefineGeneric(cx, dateProto, toGMTStringId, toUTCStringFun,
                                 JS_PropertyStub, JS_StrictPropertyStub, 0))

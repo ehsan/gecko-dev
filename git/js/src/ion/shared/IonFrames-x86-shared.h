@@ -169,35 +169,20 @@ class IonExitFrameLayout : public IonCommonFrameLayout
         JS_ASSERT(footer()->ionCode() != NULL);
         return top();
     }
-
-    inline bool isWrapperExit() {
-        return footer()->function() != NULL;
-    }
-    inline bool isNativeExit() {
-        return footer()->ionCode() == NULL;
-    }
-    inline bool isDomExit() {
-        IonCode *code = footer()->ionCode();
-        return
-            code == ION_FRAME_DOMGETTER ||
-            code == ION_FRAME_DOMSETTER ||
-            code == ION_FRAME_DOMMETHOD;
-    }
-
     inline IonNativeExitFrameLayout *nativeExit() {
         // see CodeGenerator::visitCallNative
-        JS_ASSERT(isNativeExit());
+        JS_ASSERT(footer()->ionCode() == NULL);
         return reinterpret_cast<IonNativeExitFrameLayout *>(footer());
     }
     inline IonDOMExitFrameLayout *DOMExit() {
-        JS_ASSERT(isDomExit());
+        JS_ASSERT(footer()->ionCode() == ION_FRAME_DOMGETTER ||
+                  footer()->ionCode() == ION_FRAME_DOMSETTER);
         return reinterpret_cast<IonDOMExitFrameLayout *>(footer());
     }
 };
 
 class IonNativeExitFrameLayout
 {
-  protected: // only to silence a clang warning about unused private fields
     IonExitFooterFrame footer_;
     IonExitFrameLayout exit_;
     uintptr_t argc_;
@@ -225,7 +210,6 @@ class IonNativeExitFrameLayout
 
 class IonDOMExitFrameLayout
 {
-  protected: // only to silence a clang warning about unused private fields
     IonExitFooterFrame footer_;
     IonExitFrameLayout exit_;
     JSObject *thisObj;
@@ -259,7 +243,6 @@ class IonDOMExitFrameLayout
 
 class IonDOMMethodExitFrameLayout
 {
-  protected: // only to silence a clang warning about unused private fields
     IonExitFooterFrame footer_;
     IonExitFrameLayout exit_;
     // This must be the last thing pushed, so as to stay common with

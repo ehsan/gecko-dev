@@ -94,8 +94,6 @@
 #include "nsDOMSettableTokenList.h"
 #include "nsThreadUtils.h"
 #include "nsTextFragment.h"
-#include "mozilla/dom/BindingUtils.h"
-#include "mozilla/ErrorResult.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -1819,6 +1817,13 @@ nsGenericHTMLElement::FindAncestorForm(nsHTMLFormElement* aCurrentForm)
   return nullptr;
 }
 
+static bool
+IsArea(nsIContent *aContent)
+{
+  return (aContent->Tag() == nsGkAtoms::area &&
+          aContent->IsHTML());
+}
+
 bool
 nsGenericHTMLElement::CheckHandleEventForAnchorsPreconditions(nsEventChainVisitor& aVisitor)
 {
@@ -1838,7 +1843,7 @@ nsGenericHTMLElement::CheckHandleEventForAnchorsPreconditions(nsEventChainVisito
   nsCOMPtr<nsIContent> target = aVisitor.mPresContext->EventStateManager()->
     GetEventTargetContent(aVisitor.mEvent);
 
-  return !target || !target->IsHTML(nsGkAtoms::area) || IsHTML(nsGkAtoms::area);
+  return !target || !IsArea(target) || IsArea(this);
 }
 
 nsresult
@@ -4163,35 +4168,6 @@ nsGenericHTMLElement::ChangeEditableState(int32_t aChange)
 NS_IMPL_BOOL_ATTR(nsGenericHTMLElement, ItemScope, itemscope)
 NS_IMPL_URI_ATTR(nsGenericHTMLElement, ItemId, itemid)
 
-JS::Value
-nsGenericHTMLElement::GetItemValue(JSContext* aCx, JSObject* aScope,
-                                   ErrorResult& error)
-{
-  if (!HasAttr(kNameSpaceID_None, nsGkAtoms::itemprop)) {
-    return JS::NullValue();
-  }
-
-  bool itemScope;
-  GetItemScope(&itemScope);
-  if (itemScope) {
-    JS::Value v;
-    if (!mozilla::dom::WrapObject(aCx, aScope, this, &v)) {
-      error.Throw(NS_ERROR_FAILURE);
-      return JS::UndefinedValue();
-    }
-    return v;
-  }
-
-  nsString string;
-  GetItemValueText(string);
-  JS::Value v;
-  if (!xpc::NonVoidStringToJsval(aCx, string, &v)) {
-    error.Throw(NS_ERROR_FAILURE);
-    return JS::UndefinedValue();
-  }
-  return v;
-}
-
 NS_IMETHODIMP
 nsGenericHTMLElement::GetItemValue(nsIVariant** aValue)
 {
@@ -4326,23 +4302,23 @@ nsGenericHTMLElement::SetItemType(nsIVariant* aValue)
 }
 
 static void
-HTMLPropertiesCollectionDestructor(void *aObject, nsIAtom *aProperty,
-                                   void *aPropertyValue, void *aData)
+nsIDOMHTMLPropertiesCollectionDestructor(void *aObject, nsIAtom *aProperty,
+                                         void *aPropertyValue, void *aData)
 {
-  HTMLPropertiesCollection* properties = 
-    static_cast<HTMLPropertiesCollection*>(aPropertyValue);
+  nsIDOMHTMLPropertiesCollection* properties = 
+    static_cast<nsIDOMHTMLPropertiesCollection*>(aPropertyValue);
   NS_IF_RELEASE(properties);
 }
 
 NS_IMETHODIMP
 nsGenericHTMLElement::GetProperties(nsIDOMHTMLPropertiesCollection** aReturn)
 {
-  HTMLPropertiesCollection* properties = 
-    static_cast<HTMLPropertiesCollection*>(GetProperty(nsGkAtoms::microdataProperties));
+  nsIDOMHTMLPropertiesCollection* properties = 
+    static_cast<nsIDOMHTMLPropertiesCollection*>(GetProperty(nsGkAtoms::microdataProperties));
   if (!properties) {
      properties = new HTMLPropertiesCollection(this);
      NS_ADDREF(properties);
-     SetProperty(nsGkAtoms::microdataProperties, properties, HTMLPropertiesCollectionDestructor);
+     SetProperty(nsGkAtoms::microdataProperties, properties, nsIDOMHTMLPropertiesCollectionDestructor);
   }
   NS_ADDREF(*aReturn = properties);
   return NS_OK;

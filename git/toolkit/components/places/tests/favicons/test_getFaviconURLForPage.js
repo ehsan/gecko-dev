@@ -19,9 +19,7 @@ add_test(function test_normal()
 
   addVisits(pageURI, function () {
     PlacesUtils.favicons.setAndFetchFaviconForPage(
-      pageURI, SMALLPNG_DATA_URI, true,
-        PlacesUtils.favicons.FAVICON_LOAD_NON_PRIVATE,
-        function () {
+      pageURI, SMALLPNG_DATA_URI, true, function () {
         PlacesUtils.favicons.getFaviconURLForPage(pageURI,
           function (aURI, aDataLen, aData, aMimeType) {
             do_check_true(aURI.equals(SMALLPNG_DATA_URI));

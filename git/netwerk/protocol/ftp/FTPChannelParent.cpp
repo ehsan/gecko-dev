@@ -102,11 +102,6 @@ FTPChannelParent::RecvAsyncOpen(const URIParams& aURI,
 
   if (loadContext.IsNotNull())
     mLoadContext = new LoadContext(loadContext);
-  else if (loadContext.IsPrivateBitValid()) {
-    nsCOMPtr<nsIPrivateBrowsingChannel> pbChannel = do_QueryInterface(chan);
-    if (pbChannel)
-      pbChannel->SetPrivate(loadContext.mUsePrivateBrowsing);
-  }
 
   rv = mChannel->AsyncOpen(this, nullptr);
   if (NS_FAILED(rv))

@@ -31,10 +31,6 @@ endif
 
 PARALLEL_DIRS += locales
 
-ifdef MOZ_DASH
-PARALLEL_DIRS += dash
-endif
-
 DIRS = build
 
 ifdef ENABLE_TESTS

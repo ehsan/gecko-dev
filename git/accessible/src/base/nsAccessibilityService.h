@@ -229,8 +229,7 @@ private:
    */
   already_AddRefed<Accessible>
     CreateHTMLAccessibleByMarkup(nsIFrame* aFrame, nsIContent* aContent,
-                                 DocAccessible* aDoc,
-                                 bool aIsLegalPartOfHTMLTable);
+                                 DocAccessible* aDoc);
 
   /**
    * Create accessible if parent is a deck frame.

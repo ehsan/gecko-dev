@@ -257,15 +257,7 @@ LIRGeneratorShared::useRegisterOrConstant(MDefinition *mir)
 {
     if (mir->isConstant())
         return LAllocation(mir->toConstant()->vp());
-    return useRegister(mir);
-}
-
-LAllocation
-LIRGeneratorShared::useRegisterOrConstantAtStart(MDefinition *mir)
-{
-    if (mir->isConstant())
-        return LAllocation(mir->toConstant()->vp());
-    return useRegisterAtStart(mir);
+    return use(mir, LUse(LUse::REGISTER));
 }
 
 LAllocation
@@ -273,7 +265,7 @@ LIRGeneratorShared::useRegisterOrNonDoubleConstant(MDefinition *mir)
 {
     if (mir->isConstant() && mir->type() != MIRType_Double)
         return LAllocation(mir->toConstant()->vp());
-    return useRegister(mir);
+    return use(mir, LUse(LUse::REGISTER));
 }
 
 #if defined(JS_CPU_ARM)

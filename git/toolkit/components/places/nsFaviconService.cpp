@@ -344,7 +344,6 @@ NS_IMETHODIMP
 nsFaviconService::SetAndLoadFaviconForPage(nsIURI* aPageURI,
                                            nsIURI* aFaviconURI,
                                            bool aForceReload,
-                                           uint32_t aFaviconLoadType,
                                            nsIFaviconDataCallback* aCallback)
 {
   NS_ENSURE_ARG(aPageURI);
@@ -368,7 +367,7 @@ nsFaviconService::SetAndLoadFaviconForPage(nsIURI* aPageURI,
   // Finally associate the icon to the requested page if not yet associated.
   rv = AsyncFetchAndSetIconForPage::start(
     aFaviconURI, aPageURI, aForceReload ? FETCH_ALWAYS : FETCH_IF_MISSING,
-    aFaviconLoadType, aCallback
+    aCallback
   );
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -380,12 +379,10 @@ NS_IMETHODIMP
 nsFaviconService::SetAndFetchFaviconForPage(nsIURI* aPageURI,
                                             nsIURI* aFaviconURI,
                                             bool aForceReload,
-                                            uint32_t aFaviconLoadType,
                                             nsIFaviconDataCallback* aCallback)
 {
   return SetAndLoadFaviconForPage(aPageURI, aFaviconURI,
-                                  aForceReload, aFaviconLoadType,
-                                  aCallback);
+                                  aForceReload, aCallback);
 }
 
 NS_IMETHODIMP

@@ -25,8 +25,6 @@
 #include "nsIHTMLCollection.h"
 #include "nsHTMLStyleSheet.h"
 #include "dombindings.h"
-#include "mozilla/ErrorResult.h"
-#include "mozilla/dom/BindingUtils.h"
 
 using namespace mozilla;
 
@@ -49,9 +47,6 @@ public:
   {
     return mParent;
   }
-
-  virtual JSObject* NamedItem(JSContext* cx, const nsAString& name,
-                              ErrorResult& error);
 
   NS_IMETHOD    ParentDestroyed();
 
@@ -196,7 +191,7 @@ TableRowsCollection::GetLength(uint32_t* aLength)
 // Returns the item at index aIndex if available. If null is returned,
 // then aCount will be set to the number of rows in this row collection.
 // Otherwise, the value of aCount is undefined.
-static nsGenericElement*
+static nsIContent*
 GetItemOrCountInRowGroup(nsIDOMHTMLCollection* rows,
                          uint32_t aIndex, uint32_t* aCount)
 {
@@ -205,20 +200,20 @@ GetItemOrCountInRowGroup(nsIDOMHTMLCollection* rows,
   if (rows) {
     rows->GetLength(aCount);
     if (aIndex < *aCount) {
-      nsIHTMLCollection* list = static_cast<nsIHTMLCollection*>(rows);
-      return list->GetElementAt(aIndex);
+      nsCOMPtr<nsINodeList> list = do_QueryInterface(rows);
+      return list->GetNodeAt(aIndex);
     }
   }
   
   return nullptr;
 }
 
-nsGenericElement*
-TableRowsCollection::GetElementAt(uint32_t aIndex)
+nsIContent*
+TableRowsCollection::GetNodeAt(uint32_t aIndex)
 {
   DO_FOR_EACH_ROWGROUP(
     uint32_t count;
-    nsGenericElement* node = GetItemOrCountInRowGroup(rows, aIndex, &count);
+    nsIContent* node = GetItemOrCountInRowGroup(rows, aIndex, &count);
     if (node) {
       return node; 
     }
@@ -233,7 +228,7 @@ TableRowsCollection::GetElementAt(uint32_t aIndex)
 NS_IMETHODIMP 
 TableRowsCollection::Item(uint32_t aIndex, nsIDOMNode** aReturn)
 {
-  nsISupports* node = GetElementAt(aIndex);
+  nsISupports* node = GetNodeAt(aIndex);
   if (!node) {
     *aReturn = nullptr;
 
@@ -266,27 +261,6 @@ TableRowsCollection::GetNamedItem(const nsAString& aName,
     }
   );
   *aCache = nullptr;
-  return nullptr;
-}
-
-JSObject*
-TableRowsCollection::NamedItem(JSContext* cx, const nsAString& name,
-                               ErrorResult& error)
-{
-  nsWrapperCache* cache;
-  DO_FOR_EACH_ROWGROUP(
-    nsISupports* item = GetNamedItemInRowGroup(rows, name, &cache);
-    if (item) {
-      JSObject* wrapper = GetWrapper();
-      JSAutoCompartment ac(cx, wrapper);
-      JS::Value v;
-      if (!mozilla::dom::WrapObject(cx, wrapper, item, cache, nullptr, &v)) {
-        error.Throw(NS_ERROR_FAILURE);
-        return nullptr;
-      }
-      return &v.toObject();
-    }
-  );
   return nullptr;
 }
 

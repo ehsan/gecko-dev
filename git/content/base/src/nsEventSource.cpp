@@ -1367,13 +1367,13 @@ nsEventSource::DispatchAllMessageEvents()
 
   // Let's play get the JSContext
   nsCOMPtr<nsIScriptGlobalObject> sgo = do_QueryInterface(GetOwner());
-  NS_ENSURE_TRUE_VOID(sgo);
+  NS_ENSURE_TRUE(sgo,);
 
   nsIScriptContext* scriptContext = sgo->GetContext();
-  NS_ENSURE_TRUE_VOID(scriptContext);
+  NS_ENSURE_TRUE(scriptContext,);
 
   JSContext* cx = scriptContext->GetNativeContext();
-  NS_ENSURE_TRUE_VOID(cx);
+  NS_ENSURE_TRUE(cx,);
 
   while (mMessagesToDispatch.GetSize() > 0) {
     nsAutoPtr<Message>
@@ -1387,7 +1387,7 @@ nsEventSource::DispatchAllMessageEvents()
       jsString = JS_NewUCStringCopyN(cx,
                                      message->mData.get(),
                                      message->mData.Length());
-      NS_ENSURE_TRUE_VOID(jsString);
+      NS_ENSURE_TRUE(jsString,);
 
       jsData = STRING_TO_JSVAL(jsString);
     }
