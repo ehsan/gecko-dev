@@ -1509,7 +1509,7 @@ nsLayoutUtils::GetFontMetricsForStyleContext(nsStyleContext* aStyleContext,
   return aStyleContext->PresContext()->DeviceContext()->GetMetricsFor(
                   aStyleContext->GetStyleFont()->mFont,
                   aStyleContext->GetStyleVisibility()->mLangGroup,
-                  fs, *aFontMetrics);
+                  *aFontMetrics, fs);
 }
 
 nsIFrame*
@@ -2914,8 +2914,7 @@ nsLayoutUtils::SetFontFromStyle(nsIRenderingContext* aRC, nsStyleContext* aSC)
   const nsStyleFont* font = aSC->GetStyleFont();
   const nsStyleVisibility* visibility = aSC->GetStyleVisibility();
 
-  aRC->SetFont(font->mFont, visibility->mLangGroup,
-               aSC->PresContext()->GetUserFontSet());
+  aRC->SetFont(font->mFont, visibility->mLangGroup);
 }
 
 static PRBool NonZeroStyleCoord(const nsStyleCoord& aCoord)

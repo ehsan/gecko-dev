@@ -215,7 +215,7 @@ DeviceContextImpl::GetLocaleLangGroup(void)
 }
 
 NS_IMETHODIMP DeviceContextImpl::GetMetricsFor(const nsFont& aFont,
-  nsIAtom* aLangGroup, gfxUserFontSet *aUserFontSet, nsIFontMetrics*& aMetrics)
+  nsIAtom* aLangGroup, nsIFontMetrics*& aMetrics, gfxUserFontSet *aUserFontSet)
 {
   if (nsnull == mFontCache) {
     nsresult  rv = CreateFontCache();
@@ -232,12 +232,12 @@ NS_IMETHODIMP DeviceContextImpl::GetMetricsFor(const nsFont& aFont,
     aLangGroup = mLocaleLangGroup;
   }
 
-  return mFontCache->GetMetricsFor(aFont, aLangGroup, aUserFontSet, aMetrics);
+  return mFontCache->GetMetricsFor(aFont, aLangGroup, aMetrics, aUserFontSet);
 }
 
 NS_IMETHODIMP DeviceContextImpl::GetMetricsFor(const nsFont& aFont, 
-                                               gfxUserFontSet *aUserFontSet,
-                                               nsIFontMetrics*& aMetrics)
+                                               nsIFontMetrics*& aMetrics, 
+                                               gfxUserFontSet *aUserFontSet)
 {
   if (nsnull == mFontCache) {
     nsresult  rv = CreateFontCache();
@@ -248,8 +248,8 @@ NS_IMETHODIMP DeviceContextImpl::GetMetricsFor(const nsFont& aFont,
     // XXX temporary fix for performance problem -- erik
     GetLocaleLangGroup();
   }
-  return mFontCache->GetMetricsFor(aFont, mLocaleLangGroup, aUserFontSet,
-                                   aMetrics);
+  return mFontCache->GetMetricsFor(aFont, mLocaleLangGroup, 
+                                   aMetrics, aUserFontSet);
 }
 
 NS_IMETHODIMP DeviceContextImpl::GetDepth(PRUint32& aDepth)
@@ -474,7 +474,7 @@ nsFontCache::GetDeviceContext(nsIDeviceContext *&aContext) const
 
 nsresult
 nsFontCache::GetMetricsFor(const nsFont& aFont, nsIAtom* aLangGroup,
-  gfxUserFontSet *aUserFontSet, nsIFontMetrics *&aMetrics)
+  nsIFontMetrics *&aMetrics, gfxUserFontSet *aUserFontSet)
 {
   // First check our cache
   // start from the end, which is where we put the most-recent-used element

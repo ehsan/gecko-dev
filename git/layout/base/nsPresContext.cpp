@@ -1104,7 +1104,7 @@ already_AddRefed<nsIFontMetrics>
 nsPresContext::GetMetricsFor(const nsFont& aFont)
 {
   nsIFontMetrics* metrics = nsnull;
-  mDeviceContext->GetMetricsFor(aFont, mLangGroup, GetUserFontSet(), metrics);
+  mDeviceContext->GetMetricsFor(aFont, mLangGroup, metrics);
   return metrics;
 }
 
@@ -1445,13 +1445,13 @@ nsPresContext::RebuildAllStyleData(nsChangeHint aExtraHint)
 }
 
 void
-nsPresContext::PostRebuildAllStyleDataEvent(nsChangeHint aExtraHint)
+nsPresContext::PostRebuildAllStyleDataEvent()
 {
   if (!mShell) {
     // We must have been torn down. Nothing to do here.
     return;
   }
-  mShell->FrameConstructor()->PostRebuildAllStyleDataEvent(aExtraHint);
+  mShell->FrameConstructor()->PostRebuildAllStyleDataEvent();
 }
 
 void
@@ -1708,7 +1708,7 @@ InsertFontFaceRule(nsCSSFontFaceRule *aRule, gfxUserFontSet* aFontSet,
 }
 
 gfxUserFontSet*
-nsPresContext::GetUserFontSetInternal()
+nsPresContext::GetUserFontSet()
 {
   // We want to initialize the user font set lazily the first time the
   // user asks for it, rather than building it too early and forcing
@@ -1738,12 +1738,6 @@ nsPresContext::GetUserFontSetInternal()
 
   mGetUserFontSetCalled = PR_TRUE;
   return mUserFontSet;
-}
-
-gfxUserFontSet*
-nsPresContext::GetUserFontSetExternal()
-{
-  return GetUserFontSetInternal();
 }
 
 void

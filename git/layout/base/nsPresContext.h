@@ -213,18 +213,8 @@ public:
     { return GetPresShell()->FrameManager(); } 
 #endif
 
-  /**
-   * Rebuilds all style data by throwing out the old rule tree and
-   * building a new one, and additionally applying aExtraHint (which
-   * must not contain nsChangeHint_ReconstructFrame) to the root frame.
-   * Also rebuild the user font set.
-   */
   void RebuildAllStyleData(nsChangeHint aExtraHint);
-  /**
-   * Just like RebuildAllStyleData, except (1) asynchronous and (2) it
-   * doesn't rebuild the user font set.
-   */
-  void PostRebuildAllStyleDataEvent(nsChangeHint aExtraHint);
+  void PostRebuildAllStyleDataEvent();
 
   void MediaFeatureValuesChanged(PRBool aCallerWillRebuildStyleData);
   void PostMediaFeatureValuesChangedEvent();
@@ -755,14 +745,7 @@ public:
 
   PRBool           SupressingResizeReflow() const { return mSupressResizeReflow; }
   
-  virtual NS_HIDDEN_(gfxUserFontSet*) GetUserFontSetExternal();
-  NS_HIDDEN_(gfxUserFontSet*) GetUserFontSetInternal();
-#ifdef _IMPL_NS_LAYOUT
-  gfxUserFontSet* GetUserFontSet() { return GetUserFontSetInternal(); }
-#else
-  gfxUserFontSet* GetUserFontSet() { return GetUserFontSetExternal(); }
-#endif
-
+  gfxUserFontSet* GetUserFontSet();
   void FlushUserFontSet();
   void RebuildUserFontSet(); // asynchronously
 
