@@ -693,7 +693,7 @@ PluginInstanceChild::AnswerNPP_HandleEvent_IOSurface(const NPRemoteEvent& event,
     NPCocoaEvent evcopy = event.event;
     nsIOSurface* surf = nsIOSurface::LookupSurface(surfaceid);
     if (!surf) {
-        NS_ERROR("Invalid IOSurface.");
+        NS_ERROR("Invalid IOSurface.\n");
         *handled = false;
         return false;
     }

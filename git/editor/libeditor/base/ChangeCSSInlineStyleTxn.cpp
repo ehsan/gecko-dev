@@ -176,23 +176,23 @@ NS_IMETHODIMP ChangeCSSInlineStyleTxn::DoTransaction(void)
   if (!mEditor || !mElement) { return NS_ERROR_NOT_INITIALIZED; }
 
   nsCOMPtr<nsIDOMElementCSSInlineStyle> inlineStyles = do_QueryInterface(mElement);
-  NS_ENSURE_TRUE(inlineStyles, NS_ERROR_NULL_POINTER);
+  if (!inlineStyles) return NS_ERROR_NULL_POINTER;
 
   nsCOMPtr<nsIDOMCSSStyleDeclaration> cssDecl;
   nsresult result = inlineStyles->GetStyle(getter_AddRefs(cssDecl));
-  NS_ENSURE_SUCCESS(result, result);
-  NS_ENSURE_TRUE(cssDecl, NS_ERROR_NULL_POINTER);
+  if (NS_FAILED(result)) return result;
+  if (!cssDecl) return NS_ERROR_NULL_POINTER;
 
   nsAutoString propertyNameString;
   mProperty->ToString(propertyNameString);
 
   NS_NAMED_LITERAL_STRING(styleAttr, "style");
   result = mElement->HasAttribute(styleAttr, &mUndoAttributeWasSet);
-  NS_ENSURE_SUCCESS(result, result);
+  if (NS_FAILED(result)) return result;
 
   nsAutoString values;
   result = cssDecl->GetPropertyValue(propertyNameString, values);
-  NS_ENSURE_SUCCESS(result, result);     
+  if (NS_FAILED(result)) return result;     
   mUndoValue.Assign(values);
 
   // does this property accept more than 1 value ?
@@ -211,26 +211,26 @@ NS_IMETHODIMP ChangeCSSInlineStyleTxn::DoTransaction(void)
       RemoveValueFromListOfValues(values, mValue);
       if (values.IsEmpty()) {
         result = cssDecl->RemoveProperty(propertyNameString, returnString);
-        NS_ENSURE_SUCCESS(result, result);     
+        if (NS_FAILED(result)) return result;     
       }
       else {
         nsAutoString priority;
         result = cssDecl->GetPropertyPriority(propertyNameString, priority);
-        NS_ENSURE_SUCCESS(result, result);     
+        if (NS_FAILED(result)) return result;     
         result = cssDecl->SetProperty(propertyNameString, values,
                                       priority);
-        NS_ENSURE_SUCCESS(result, result);     
+        if (NS_FAILED(result)) return result;     
       }
     }
     else {
       result = cssDecl->RemoveProperty(propertyNameString, returnString);
-      NS_ENSURE_SUCCESS(result, result);     
+      if (NS_FAILED(result)) return result;     
     }
   }
   else {
     nsAutoString priority;
     result = cssDecl->GetPropertyPriority(propertyNameString, priority);
-    NS_ENSURE_SUCCESS(result, result);
+    if (NS_FAILED(result)) return result;
     if (multiple) {
       // the property can have more than one value, let's add
       // the value we have to add to the others
@@ -243,16 +243,16 @@ NS_IMETHODIMP ChangeCSSInlineStyleTxn::DoTransaction(void)
       values.Assign(mValue);
     result = cssDecl->SetProperty(propertyNameString, values,
                                   priority);
-    NS_ENSURE_SUCCESS(result, result);     
+    if (NS_FAILED(result)) return result;     
   }
 
   // let's be sure we don't keep an empty style attribute
   PRUint32 length;
   result = cssDecl->GetLength(&length);
-  NS_ENSURE_SUCCESS(result, result);     
+  if (NS_FAILED(result)) return result;     
   if (!length) {
     result = mElement->RemoveAttribute(styleAttr);
-    NS_ENSURE_SUCCESS(result, result);     
+    if (NS_FAILED(result)) return result;     
   }
   else
     mRedoAttributeWasSet = PR_TRUE;
@@ -273,11 +273,11 @@ nsresult ChangeCSSInlineStyleTxn::SetStyle(PRBool aAttributeWasSet,
     mProperty->ToString(propertyNameString);
 
     nsCOMPtr<nsIDOMElementCSSInlineStyle> inlineStyles = do_QueryInterface(mElement);
-    NS_ENSURE_TRUE(inlineStyles, NS_ERROR_NULL_POINTER);
+    if (!inlineStyles) return NS_ERROR_NULL_POINTER;
     nsCOMPtr<nsIDOMCSSStyleDeclaration> cssDecl;
     result = inlineStyles->GetStyle(getter_AddRefs(cssDecl));
-    NS_ENSURE_SUCCESS(result, result);
-    NS_ENSURE_TRUE(cssDecl, NS_ERROR_NULL_POINTER);
+    if (NS_FAILED(result)) return result;
+    if (!cssDecl) return NS_ERROR_NULL_POINTER;
 
     if (aValue.IsEmpty()) {
       // an empty value means we have to remove the property
@@ -288,7 +288,7 @@ nsresult ChangeCSSInlineStyleTxn::SetStyle(PRBool aAttributeWasSet,
       // let's recreate the declaration as it was
       nsAutoString priority;
       result = cssDecl->GetPropertyPriority(propertyNameString, priority);
-      NS_ENSURE_SUCCESS(result, result);
+      if (NS_FAILED(result)) return result;
       result = cssDecl->SetProperty(propertyNameString, aValue, priority);
     }
   }

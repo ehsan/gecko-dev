@@ -1600,7 +1600,7 @@ nsNativeAppSupportWin::OpenBrowserWindow()
           }
         }
 
-        NS_ERROR("failed to hand off external URL to extant window");
+        NS_ERROR("failed to hand off external URL to extant window\n");
     } while ( PR_FALSE );
 
     // open a new window if caller requested it or if anything above failed

@@ -132,8 +132,8 @@ NS_IMETHODIMP nsHTMLEditor::SetInlineProperty(nsIAtom *aProperty,
 
   nsCOMPtr<nsISelection>selection;
   nsresult res = GetSelection(getter_AddRefs(selection));
-  NS_ENSURE_SUCCESS(res, res);
-  NS_ENSURE_TRUE(selection, NS_ERROR_NULL_POINTER);
+  if (NS_FAILED(res)) return res;
+  if (!selection) return NS_ERROR_NULL_POINTER;
   nsCOMPtr<nsISelectionPrivate> selPriv(do_QueryInterface(selection));
 
   PRBool isCollapsed;
@@ -154,14 +154,14 @@ NS_IMETHODIMP nsHTMLEditor::SetInlineProperty(nsIAtom *aProperty,
   PRBool cancel, handled;
   nsTextRulesInfo ruleInfo(nsTextEditRules::kSetTextProperty);
   res = mRules->WillDoAction(selection, &ruleInfo, &cancel, &handled);
-  NS_ENSURE_SUCCESS(res, res);
+  if (NS_FAILED(res)) return res;
   if (!cancel && !handled)
   {
     // get selection range enumerator
     nsCOMPtr<nsIEnumerator> enumerator;
     res = selPriv->GetEnumerator(getter_AddRefs(enumerator));
-    NS_ENSURE_SUCCESS(res, res);
-    NS_ENSURE_TRUE(enumerator, NS_ERROR_FAILURE);
+    if (NS_FAILED(res)) return res;
+    if (!enumerator)    return NS_ERROR_FAILURE;
 
     // loop thru the ranges in the selection
     enumerator->First(); 
@@ -169,21 +169,21 @@ NS_IMETHODIMP nsHTMLEditor::SetInlineProperty(nsIAtom *aProperty,
     while ((NS_ENUMERATOR_FALSE == enumerator->IsDone()))
     {
       res = enumerator->CurrentItem(getter_AddRefs(currentItem));
-      NS_ENSURE_SUCCESS(res, res);
-      NS_ENSURE_TRUE(currentItem, NS_ERROR_FAILURE);
+      if (NS_FAILED(res)) return res;
+      if (!currentItem)   return NS_ERROR_FAILURE;
       
       nsCOMPtr<nsIDOMRange> range( do_QueryInterface(currentItem) );
 
       // adjust range to include any ancestors who's children are entirely selected
       res = PromoteInlineRange(range);
-      NS_ENSURE_SUCCESS(res, res);
+      if (NS_FAILED(res)) return res;
       
       // check for easy case: both range endpoints in same text node
       nsCOMPtr<nsIDOMNode> startNode, endNode;
       res = range->GetStartContainer(getter_AddRefs(startNode));
-      NS_ENSURE_SUCCESS(res, res);
+      if (NS_FAILED(res)) return res;
       res = range->GetEndContainer(getter_AddRefs(endNode));
-      NS_ENSURE_SUCCESS(res, res);
+      if (NS_FAILED(res)) return res;
       if ((startNode == endNode) && IsTextNode(startNode))
       {
         PRInt32 startOffset, endOffset;
@@ -191,7 +191,7 @@ NS_IMETHODIMP nsHTMLEditor::SetInlineProperty(nsIAtom *aProperty,
         range->GetEndOffset(&endOffset);
         nsCOMPtr<nsIDOMCharacterData> nodeAsText = do_QueryInterface(startNode);
         res = SetInlinePropertyOnTextNode(nodeAsText, startOffset, endOffset, aProperty, &aAttribute, &aValue);
-        NS_ENSURE_SUCCESS(res, res);
+        if (NS_FAILED(res)) return res;
       }
       else
       {
@@ -208,8 +208,8 @@ NS_IMETHODIMP nsHTMLEditor::SetInlineProperty(nsIAtom *aProperty,
 
         nsCOMPtr<nsIContentIterator> iter =
           do_CreateInstance("@mozilla.org/content/subtree-content-iterator;1", &res);
-        NS_ENSURE_SUCCESS(res, res);
-        NS_ENSURE_TRUE(iter, NS_ERROR_FAILURE);
+        if (NS_FAILED(res)) return res;
+        if (!iter)          return NS_ERROR_FAILURE;
 
         nsCOMArray<nsIDOMNode> arrayOfNodes;
         nsCOMPtr<nsIDOMNode> node;
@@ -225,7 +225,8 @@ NS_IMETHODIMP nsHTMLEditor::SetInlineProperty(nsIAtom *aProperty,
           while (!iter->IsDone())
           {
             node = do_QueryInterface(iter->GetCurrentNode());
-            NS_ENSURE_TRUE(node, NS_ERROR_FAILURE);
+            if (!node)
+              return NS_ERROR_FAILURE;
 
             if (IsEditable(node))
             { 
@@ -246,7 +247,7 @@ NS_IMETHODIMP nsHTMLEditor::SetInlineProperty(nsIAtom *aProperty,
           range->GetStartOffset(&startOffset);
           nodeAsText->GetLength(&textLen);
           res = SetInlinePropertyOnTextNode(nodeAsText, startOffset, textLen, aProperty, &aAttribute, &aValue);
-          NS_ENSURE_SUCCESS(res, res);
+          if (NS_FAILED(res)) return res;
         }
         
         // then loop through the list, set the property on each node
@@ -256,7 +257,7 @@ NS_IMETHODIMP nsHTMLEditor::SetInlineProperty(nsIAtom *aProperty,
         {
           node = arrayOfNodes[j];
           res = SetInlinePropertyOnNode(node, aProperty, &aAttribute, &aValue);
-          NS_ENSURE_SUCCESS(res, res);
+          if (NS_FAILED(res)) return res;
         }
         arrayOfNodes.Clear();
         
@@ -269,7 +270,7 @@ NS_IMETHODIMP nsHTMLEditor::SetInlineProperty(nsIAtom *aProperty,
           PRInt32 endOffset;
           range->GetEndOffset(&endOffset);
           res = SetInlinePropertyOnTextNode(nodeAsText, 0, endOffset, aProperty, &aAttribute, &aValue);
-          NS_ENSURE_SUCCESS(res, res);
+          if (NS_FAILED(res)) return res;
         }
       }
       enumerator->Next();
@@ -293,10 +294,10 @@ nsHTMLEditor::SetInlinePropertyOnTextNode( nsIDOMCharacterData *aTextNode,
                                             const nsAString *aAttribute,
                                             const nsAString *aValue)
 {
-  NS_ENSURE_TRUE(aTextNode, NS_ERROR_NULL_POINTER);
+  if (!aTextNode) return NS_ERROR_NULL_POINTER;
   nsCOMPtr<nsIDOMNode> parent;
   nsresult res = aTextNode->GetParentNode(getter_AddRefs(parent));
-  NS_ENSURE_SUCCESS(res, res);
+  if (NS_FAILED(res)) return res;
 
   nsAutoString tagString;
   aProperty->ToString(tagString);
@@ -339,14 +340,14 @@ nsHTMLEditor::SetInlinePropertyOnTextNode( nsIDOMCharacterData *aTextNode,
   {
     // we need to split off back of text node
     res = SplitNode(node, aEndOffset, getter_AddRefs(tmp));
-    NS_ENSURE_SUCCESS(res, res);
+    if (NS_FAILED(res)) return res;
     node = tmp;  // remember left node
   }
   if ( aStartOffset )
   {
     // we need to split off front of text node
     res = SplitNode(node, aStartOffset, getter_AddRefs(tmp));
-    NS_ENSURE_SUCCESS(res, res);
+    if (NS_FAILED(res)) return res;
   }
   
   // look for siblings that are correct type of node
@@ -382,7 +383,7 @@ nsHTMLEditor::SetInlinePropertyOnNode( nsIDOMNode *aNode,
                                        const nsAString *aAttribute,
                                        const nsAString *aValue)
 {
-  NS_ENSURE_TRUE(aNode && aProperty, NS_ERROR_NULL_POINTER);
+  if (!aNode || !aProperty) return NS_ERROR_NULL_POINTER;
 
   nsresult res = NS_OK;
   nsCOMPtr<nsIDOMNode> tmp;
@@ -416,11 +417,11 @@ nsHTMLEditor::SetInlinePropertyOnNode( nsIDOMNode *aNode,
       // first we have to remove occurences of the same style hint in the
       // children of the aNode
       res = RemoveStyleInside(tmp, aProperty, aAttribute, PR_TRUE);
-      NS_ENSURE_SUCCESS(res, res);
+      if (NS_FAILED(res)) return res;
       PRInt32 count;
       // then we add the css styles corresponding to the HTML style request
       res = mHTMLCSSUtils->SetCSSEquivalentToHTMLStyle(element, aProperty, aAttribute, aValue, &count, PR_FALSE);
-      NS_ENSURE_SUCCESS(res, res);
+      if (NS_FAILED(res)) return res;
 
       nsCOMPtr<nsIDOMNode> nextSibling, previousSibling;
       GetNextHTMLSibling(tmp, address_of(nextSibling));
@@ -429,13 +430,13 @@ nsHTMLEditor::SetInlinePropertyOnNode( nsIDOMNode *aNode,
       {
         nsCOMPtr<nsIDOMNode> mergeParent;
         res = tmp->GetParentNode(getter_AddRefs(mergeParent));
-        NS_ENSURE_SUCCESS(res, res);
+        if (NS_FAILED(res)) return res;
         if (previousSibling &&
             nsEditor::NodeIsType(previousSibling, nsEditProperty::span) &&
             NodesSameType(tmp, previousSibling))
         {
           res = JoinNodes(previousSibling, tmp, mergeParent);
-          NS_ENSURE_SUCCESS(res, res);
+          if (NS_FAILED(res)) return res;
         }
         if (nextSibling &&
             nsEditor::NodeIsType(nextSibling, nsEditProperty::span) &&
@@ -460,7 +461,7 @@ nsHTMLEditor::SetInlinePropertyOnNode( nsIDOMNode *aNode,
     // just set the attribute on it.
     // but first remove any contrary style in it's children.
     res = RemoveStyleInside(aNode, aProperty, aAttribute, PR_TRUE);
-    NS_ENSURE_SUCCESS(res, res);
+    if (NS_FAILED(res)) return res;
     nsCOMPtr<nsIDOMElement> elem = do_QueryInterface(aNode);
     return SetAttribute(elem, *aAttribute, *aValue);
   }
@@ -491,13 +492,13 @@ nsHTMLEditor::SetInlinePropertyOnNode( nsIDOMNode *aNode,
       // ok, chuck it in it's very own container
       res = InsertContainerAbove(aNode, address_of(tmp), tag, aAttribute, aValue);
     }
-    NS_ENSURE_SUCCESS(res, res);
+    if (NS_FAILED(res)) return res;
     return RemoveStyleInside(aNode, aProperty, aAttribute);
   }
   // none of the above?  then cycle through the children.
   nsCOMPtr<nsIDOMNodeList> childNodes;
   res = aNode->GetChildNodes(getter_AddRefs(childNodes));
-  NS_ENSURE_SUCCESS(res, res);
+  if (NS_FAILED(res)) return res;
   if (childNodes)
   {
     PRInt32 j;
@@ -525,7 +526,7 @@ nsHTMLEditor::SetInlinePropertyOnNode( nsIDOMNode *aNode,
       {
         node = arrayOfNodes[j];
         res = SetInlinePropertyOnNode(node, aProperty, aAttribute, aValue);
-        NS_ENSURE_SUCCESS(res, res);
+        if (NS_FAILED(res)) return res;
       }
       arrayOfNodes.Clear();
     }
@@ -538,19 +539,19 @@ nsresult nsHTMLEditor::SplitStyleAboveRange(nsIDOMRange *inRange,
                                             nsIAtom *aProperty, 
                                             const nsAString *aAttribute)
 {
-  NS_ENSURE_TRUE(inRange, NS_ERROR_NULL_POINTER);
+  if (!inRange) return NS_ERROR_NULL_POINTER;
   nsresult res;
   nsCOMPtr<nsIDOMNode> startNode, endNode, origStartNode;
   PRInt32 startOffset, endOffset, origStartOffset;
   
   res = inRange->GetStartContainer(getter_AddRefs(startNode));
-  NS_ENSURE_SUCCESS(res, res);
+  if (NS_FAILED(res)) return res;
   res = inRange->GetStartOffset(&startOffset);
-  NS_ENSURE_SUCCESS(res, res);
+  if (NS_FAILED(res)) return res;
   res = inRange->GetEndContainer(getter_AddRefs(endNode));
-  NS_ENSURE_SUCCESS(res, res);
+  if (NS_FAILED(res)) return res;
   res = inRange->GetEndOffset(&endOffset);
-  NS_ENSURE_SUCCESS(res, res);
+  if (NS_FAILED(res)) return res;
   
   origStartNode = startNode;
   origStartOffset = startOffset;
@@ -559,16 +560,16 @@ nsresult nsHTMLEditor::SplitStyleAboveRange(nsIDOMRange *inRange,
   {
     nsAutoTrackDOMPoint tracker(mRangeUpdater, address_of(endNode), &endOffset);
     res = SplitStyleAbovePoint(address_of(startNode), &startOffset, aProperty, aAttribute);
-    NS_ENSURE_SUCCESS(res, res);
+    if (NS_FAILED(res)) return res;
   }
 
   // second verse, same as the first...
   res = SplitStyleAbovePoint(address_of(endNode), &endOffset, aProperty, aAttribute);
-  NS_ENSURE_SUCCESS(res, res);
+  if (NS_FAILED(res)) return res;
   
   // reset the range
   res = inRange->SetStart(startNode, startOffset);
-  NS_ENSURE_SUCCESS(res, res);
+  if (NS_FAILED(res)) return res;
   res = inRange->SetEnd(endNode, endOffset);
   return res;
 }
@@ -580,7 +581,7 @@ nsresult nsHTMLEditor::SplitStyleAbovePoint(nsCOMPtr<nsIDOMNode> *aNode,
                                            nsCOMPtr<nsIDOMNode> *outLeftNode,
                                            nsCOMPtr<nsIDOMNode> *outRightNode)
 {
-  NS_ENSURE_TRUE(aNode && *aNode && aOffset, NS_ERROR_NULL_POINTER);
+  if (!aNode || !*aNode || !aOffset) return NS_ERROR_NULL_POINTER;
   if (outLeftNode)  *outLeftNode  = nsnull;
   if (outRightNode) *outRightNode = nsnull;
   // split any matching style nodes above the node/offset
@@ -624,7 +625,7 @@ nsresult nsHTMLEditor::SplitStyleAbovePoint(nsCOMPtr<nsIDOMNode> *aNode,
 
 PRBool nsHTMLEditor::NodeIsProperty(nsIDOMNode *aNode)
 {
-  NS_ENSURE_TRUE(aNode, PR_FALSE);
+  if (!aNode)               return PR_FALSE;
   if (!IsContainer(aNode))  return PR_FALSE;
   if (!IsEditable(aNode))   return PR_FALSE;
   if (IsBlockNode(aNode))   return PR_FALSE;
@@ -639,9 +640,10 @@ nsresult nsHTMLEditor::ApplyDefaultProperties()
   for (j=0; j<defcon; j++)
   {
     PropItem *propItem = mDefaultStyles[j];
-    NS_ENSURE_TRUE(propItem, NS_ERROR_NULL_POINTER);
+    if (!propItem) 
+      return NS_ERROR_NULL_POINTER;
     res = SetInlineProperty(propItem->tag, propItem->attr, propItem->value);
-    NS_ENSURE_SUCCESS(res, res);
+    if (NS_FAILED(res)) return res;
   }
   return res;
 }
@@ -651,7 +653,7 @@ nsresult nsHTMLEditor::RemoveStyleInside(nsIDOMNode *aNode,
                                    const nsAString *aAttribute, 
                                    PRBool aChildrenOnly)
 {
-  NS_ENSURE_TRUE(aNode, NS_ERROR_NULL_POINTER);
+  if (!aNode) return NS_ERROR_NULL_POINTER;
   if (IsTextNode(aNode)) return NS_OK;
   nsresult res = NS_OK;
 
@@ -663,7 +665,7 @@ nsresult nsHTMLEditor::RemoveStyleInside(nsIDOMNode *aNode,
     // cache next sibling since we might remove child
     child->GetNextSibling(getter_AddRefs(tmp));
     res = RemoveStyleInside(child, aProperty, aAttribute);
-    NS_ENSURE_SUCCESS(res, res);
+    if (NS_FAILED(res)) return res;
     child = tmp;
   }
 
@@ -691,11 +693,14 @@ nsresult nsHTMLEditor::RemoveStyleInside(nsIDOMNode *aNode,
         nsCOMPtr<nsIDOMNode> spanNode;
         res = InsertContainerAbove(aNode, address_of(spanNode),
                                    NS_LITERAL_STRING("span"));
-        NS_ENSURE_SUCCESS(res, res);
+        if (NS_FAILED(res))
+          return res;
         res = CloneAttribute(styleAttr, spanNode, aNode);
-        NS_ENSURE_SUCCESS(res, res);
+        if (NS_FAILED(res))
+          return res;
         res = CloneAttribute(classAttr, spanNode, aNode);
-        NS_ENSURE_SUCCESS(res, res);
+        if (NS_FAILED(res))
+          return res;
         if (hasStyleAttr)
         {
           // we need to remove the styles property corresponding to
@@ -727,7 +732,7 @@ nsresult nsHTMLEditor::RemoveStyleInside(nsIDOMNode *aNode,
         else
         {
           nsCOMPtr<nsIDOMElement> elem = do_QueryInterface(aNode);
-          NS_ENSURE_TRUE(elem, NS_ERROR_NULL_POINTER);
+          if (!elem) return NS_ERROR_NULL_POINTER;
           res = RemoveAttribute(elem, *aAttribute);
         }
       }
@@ -773,9 +778,9 @@ nsresult nsHTMLEditor::RemoveStyleInside(nsIDOMNode *aNode,
 PRBool nsHTMLEditor::IsOnlyAttribute(nsIDOMNode *aNode, 
                                      const nsAString *aAttribute)
 {
-  NS_ENSURE_TRUE(aNode && aAttribute, PR_FALSE);  // ooops
+  if (!aNode || !aAttribute) return PR_FALSE;  // ooops
   nsCOMPtr<nsIContent> content = do_QueryInterface(aNode);
-  NS_ENSURE_TRUE(content, PR_FALSE);  // ooops
+  if (!content) return PR_FALSE;  // ooops
   
   PRUint32 i, attrCount = content->GetAttrCount();
   for (i = 0; i < attrCount; ++i) {
@@ -800,12 +805,12 @@ PRBool nsHTMLEditor::IsOnlyAttribute(nsIDOMNode *aNode,
 PRBool nsHTMLEditor::HasAttr(nsIDOMNode *aNode, 
                              const nsAString *aAttribute)
 {
-  NS_ENSURE_TRUE(aNode, PR_FALSE);
+  if (!aNode) return PR_FALSE;
   if (!aAttribute || aAttribute->IsEmpty()) return PR_TRUE;  // everybody has the 'null' attribute
   
   // get element
   nsCOMPtr<nsIDOMElement> elem = do_QueryInterface(aNode);
-  NS_ENSURE_TRUE(elem, PR_FALSE);
+  if (!elem) return PR_FALSE;
   
   // get attribute node
   nsCOMPtr<nsIDOMAttr> attNode;
@@ -819,12 +824,12 @@ PRBool nsHTMLEditor::HasAttrVal(nsIDOMNode *aNode,
                                 const nsAString *aAttribute, 
                                 const nsAString *aValue)
 {
-  NS_ENSURE_TRUE(aNode, PR_FALSE);
+  if (!aNode) return PR_FALSE;
   if (!aAttribute || aAttribute->IsEmpty()) return PR_TRUE;  // everybody has the 'null' attribute
   
   // get element
   nsCOMPtr<nsIDOMElement> elem = do_QueryInterface(aNode);
-  NS_ENSURE_TRUE(elem, PR_FALSE);
+  if (!elem) return PR_FALSE;
   
   // get attribute node
   nsCOMPtr<nsIDOMAttr> attNode;
@@ -848,19 +853,19 @@ PRBool nsHTMLEditor::HasAttrVal(nsIDOMNode *aNode,
 
 nsresult nsHTMLEditor::PromoteRangeIfStartsOrEndsInNamedAnchor(nsIDOMRange *inRange)
 {
-  NS_ENSURE_TRUE(inRange, NS_ERROR_NULL_POINTER);
+  if (!inRange) return NS_ERROR_NULL_POINTER;
   nsresult res;
   nsCOMPtr<nsIDOMNode> startNode, endNode, parent, tmp;
   PRInt32 startOffset, endOffset, tmpOffset;
   
   res = inRange->GetStartContainer(getter_AddRefs(startNode));
-  NS_ENSURE_SUCCESS(res, res);
+  if (NS_FAILED(res)) return res;
   res = inRange->GetStartOffset(&startOffset);
-  NS_ENSURE_SUCCESS(res, res);
+  if (NS_FAILED(res)) return res;
   res = inRange->GetEndContainer(getter_AddRefs(endNode));
-  NS_ENSURE_SUCCESS(res, res);
+  if (NS_FAILED(res)) return res;
   res = inRange->GetEndOffset(&endOffset);
-  NS_ENSURE_SUCCESS(res, res);
+  if (NS_FAILED(res)) return res;
 
   tmp = startNode;
   while ( tmp && 
@@ -868,14 +873,14 @@ nsresult nsHTMLEditor::PromoteRangeIfStartsOrEndsInNamedAnchor(nsIDOMRange *inRa
           !nsHTMLEditUtils::IsNamedAnchor(tmp))
   {
     res = GetNodeLocation(tmp, address_of(parent), &tmpOffset);
-    NS_ENSURE_SUCCESS(res, res);
+    if (NS_FAILED(res)) return res;
     tmp = parent;
   }
-  NS_ENSURE_TRUE(tmp, NS_ERROR_NULL_POINTER);
+  if (!tmp) return NS_ERROR_NULL_POINTER;
   if (nsHTMLEditUtils::IsNamedAnchor(tmp))
   {
     res = GetNodeLocation(tmp, address_of(parent), &tmpOffset);
-    NS_ENSURE_SUCCESS(res, res);
+    if (NS_FAILED(res)) return res;
     startNode = parent;
     startOffset = tmpOffset;
   }
@@ -886,39 +891,39 @@ nsresult nsHTMLEditor::PromoteRangeIfStartsOrEndsInNamedAnchor(nsIDOMRange *inRa
           !nsHTMLEditUtils::IsNamedAnchor(tmp))
   {
     res = GetNodeLocation(tmp, address_of(parent), &tmpOffset);
-    NS_ENSURE_SUCCESS(res, res);
+    if (NS_FAILED(res)) return res;
     tmp = parent;
   }
-  NS_ENSURE_TRUE(tmp, NS_ERROR_NULL_POINTER);
+  if (!tmp) return NS_ERROR_NULL_POINTER;
   if (nsHTMLEditUtils::IsNamedAnchor(tmp))
   {
     res = GetNodeLocation(tmp, address_of(parent), &tmpOffset);
-    NS_ENSURE_SUCCESS(res, res);
+    if (NS_FAILED(res)) return res;
     endNode = parent;
     endOffset = tmpOffset + 1;
   }
 
   res = inRange->SetStart(startNode, startOffset);
-  NS_ENSURE_SUCCESS(res, res);
+  if (NS_FAILED(res)) return res;
   res = inRange->SetEnd(endNode, endOffset);
   return res;
 }
 
 nsresult nsHTMLEditor::PromoteInlineRange(nsIDOMRange *inRange)
 {
-  NS_ENSURE_TRUE(inRange, NS_ERROR_NULL_POINTER);
+  if (!inRange) return NS_ERROR_NULL_POINTER;
   nsresult res;
   nsCOMPtr<nsIDOMNode> startNode, endNode, parent;
   PRInt32 startOffset, endOffset;
   
   res = inRange->GetStartContainer(getter_AddRefs(startNode));
-  NS_ENSURE_SUCCESS(res, res);
+  if (NS_FAILED(res)) return res;
   res = inRange->GetStartOffset(&startOffset);
-  NS_ENSURE_SUCCESS(res, res);
+  if (NS_FAILED(res)) return res;
   res = inRange->GetEndContainer(getter_AddRefs(endNode));
-  NS_ENSURE_SUCCESS(res, res);
+  if (NS_FAILED(res)) return res;
   res = inRange->GetEndOffset(&endOffset);
-  NS_ENSURE_SUCCESS(res, res);
+  if (NS_FAILED(res)) return res;
   
   while ( startNode && 
           !nsTextEditUtils::IsBody(startNode) && 
@@ -926,10 +931,10 @@ nsresult nsHTMLEditor::PromoteInlineRange(nsIDOMRange *inRange)
           IsAtFrontOfNode(startNode, startOffset) )
   {
     res = GetNodeLocation(startNode, address_of(parent), &startOffset);
-    NS_ENSURE_SUCCESS(res, res);
+    if (NS_FAILED(res)) return res;
     startNode = parent;
   }
-  NS_ENSURE_TRUE(startNode, NS_ERROR_NULL_POINTER);
+  if (!startNode) return NS_ERROR_NULL_POINTER;
   
   while ( endNode && 
           !nsTextEditUtils::IsBody(endNode) && 
@@ -937,22 +942,22 @@ nsresult nsHTMLEditor::PromoteInlineRange(nsIDOMRange *inRange)
           IsAtEndOfNode(endNode, endOffset) )
   {
     res = GetNodeLocation(endNode, address_of(parent), &endOffset);
-    NS_ENSURE_SUCCESS(res, res);
+    if (NS_FAILED(res)) return res;
     endNode = parent;
     endOffset++;  // we are AFTER this node
   }
-  NS_ENSURE_TRUE(endNode, NS_ERROR_NULL_POINTER);
+  if (!endNode) return NS_ERROR_NULL_POINTER;
   
   res = inRange->SetStart(startNode, startOffset);
-  NS_ENSURE_SUCCESS(res, res);
+  if (NS_FAILED(res)) return res;
   res = inRange->SetEnd(endNode, endOffset);
   return res;
 }
 
 PRBool nsHTMLEditor::IsAtFrontOfNode(nsIDOMNode *aNode, PRInt32 aOffset)
 {
-  NS_ENSURE_TRUE(aNode, PR_FALSE);  // oops
-  NS_ENSURE_TRUE(aOffset, PR_TRUE);
+  if (!aNode) return PR_FALSE;  // oops
+  if (!aOffset) return PR_TRUE;
   
   if (IsTextNode(aNode))
   {
@@ -962,7 +967,7 @@ PRBool nsHTMLEditor::IsAtFrontOfNode(nsIDOMNode *aNode, PRInt32 aOffset)
   {
     nsCOMPtr<nsIDOMNode> firstNode;
     GetFirstEditableChild(aNode, address_of(firstNode));
-    NS_ENSURE_TRUE(firstNode, PR_TRUE); 
+    if (!firstNode) return PR_TRUE; 
     PRInt32 offset;
     nsEditor::GetChildOffset(firstNode, aNode, offset);
     if (offset < aOffset) return PR_FALSE;
@@ -972,7 +977,7 @@ PRBool nsHTMLEditor::IsAtFrontOfNode(nsIDOMNode *aNode, PRInt32 aOffset)
 
 PRBool nsHTMLEditor::IsAtEndOfNode(nsIDOMNode *aNode, PRInt32 aOffset)
 {
-  NS_ENSURE_TRUE(aNode, PR_FALSE);  // oops
+  if (!aNode) return PR_FALSE;  // oops
   PRUint32 len;
   GetLengthOfDOMNode(aNode, len);
   if (aOffset == (PRInt32)len) return PR_TRUE;
@@ -985,7 +990,7 @@ PRBool nsHTMLEditor::IsAtEndOfNode(nsIDOMNode *aNode, PRInt32 aOffset)
   {
     nsCOMPtr<nsIDOMNode> lastNode;
     GetLastEditableChild(aNode, address_of(lastNode));
-    NS_ENSURE_TRUE(lastNode, PR_TRUE); 
+    if (!lastNode) return PR_TRUE; 
     PRInt32 offset;
     nsEditor::GetChildOffset(lastNode, aNode, offset);
     if (offset < aOffset) return PR_TRUE;
@@ -1004,7 +1009,8 @@ nsHTMLEditor::GetInlinePropertyBase(nsIAtom *aProperty,
                              nsAString *outValue,
                              PRBool aCheckDefaults)
 {
-  NS_ENSURE_TRUE(aProperty, NS_ERROR_NULL_POINTER);
+  if (!aProperty)
+    return NS_ERROR_NULL_POINTER;
 
   nsresult result;
   *aAny=PR_FALSE;
@@ -1017,8 +1023,8 @@ nsHTMLEditor::GetInlinePropertyBase(nsIAtom *aProperty,
 
   nsCOMPtr<nsISelection>selection;
   result = GetSelection(getter_AddRefs(selection));
-  NS_ENSURE_SUCCESS(result, result);
-  NS_ENSURE_TRUE(selection, NS_ERROR_NULL_POINTER);
+  if (NS_FAILED(result)) return result;
+  if (!selection) return NS_ERROR_NULL_POINTER;
   nsCOMPtr<nsISelectionPrivate> selPriv(do_QueryInterface(selection));
 
   PRBool isCollapsed;
@@ -1026,8 +1032,8 @@ nsHTMLEditor::GetInlinePropertyBase(nsIAtom *aProperty,
   nsCOMPtr<nsIDOMNode> collapsedNode;
   nsCOMPtr<nsIEnumerator> enumerator;
   result = selPriv->GetEnumerator(getter_AddRefs(enumerator));
-  NS_ENSURE_SUCCESS(result, result);
-  NS_ENSURE_TRUE(enumerator, NS_ERROR_NULL_POINTER);
+  if (NS_FAILED(result)) return result;
+  if (!enumerator) return NS_ERROR_NULL_POINTER;
 
   enumerator->First(); 
   nsCOMPtr<nsISupports> currentItem;
@@ -1042,7 +1048,7 @@ nsHTMLEditor::GetInlinePropertyBase(nsIAtom *aProperty,
     if (isCollapsed)
     {
       range->GetStartContainer(getter_AddRefs(collapsedNode));
-      NS_ENSURE_TRUE(collapsedNode, NS_ERROR_FAILURE);
+      if (!collapsedNode) return NS_ERROR_FAILURE;
       PRBool isSet, theSetting;
       if (aAttribute)
       {
@@ -1087,7 +1093,7 @@ nsHTMLEditor::GetInlinePropertyBase(nsIAtom *aProperty,
     // non-collapsed selection
     nsCOMPtr<nsIContentIterator> iter =
             do_CreateInstance("@mozilla.org/content/post-content-iterator;1");
-    NS_ENSURE_TRUE(iter, NS_ERROR_NULL_POINTER);
+    if (!iter) return NS_ERROR_NULL_POINTER;
 
     iter->Init(range);
     nsAutoString firstValue, theValue;
@@ -1095,9 +1101,9 @@ nsHTMLEditor::GetInlinePropertyBase(nsIAtom *aProperty,
     nsCOMPtr<nsIDOMNode> endNode;
     PRInt32 endOffset;
     result = range->GetEndContainer(getter_AddRefs(endNode));
-    NS_ENSURE_SUCCESS(result, result);
+    if (NS_FAILED(result)) return result;
     result = range->GetEndOffset(&endOffset);
-    NS_ENSURE_SUCCESS(result, result);
+    if (NS_FAILED(result)) return result;
     while (!iter->IsDone())
     {
       nsCOMPtr<nsIContent> content = do_QueryInterface(iter->GetCurrentNode());
@@ -1211,7 +1217,8 @@ NS_IMETHODIMP nsHTMLEditor::GetInlineProperty(nsIAtom *aProperty,
                                               PRBool *aAny, 
                                               PRBool *aAll)
 {
-  NS_ENSURE_TRUE(aProperty && aFirst && aAny && aAll, NS_ERROR_NULL_POINTER);
+  if (!aProperty || !aFirst || !aAny || !aAll)
+    return NS_ERROR_NULL_POINTER;
   const nsAString *att = nsnull;
   if (!aAttribute.IsEmpty())
     att = &aAttribute;
@@ -1230,7 +1237,8 @@ NS_IMETHODIMP nsHTMLEditor::GetInlinePropertyWithAttrValue(nsIAtom *aProperty,
                                               PRBool *aAll,
                                               nsAString &outValue)
 {
-  NS_ENSURE_TRUE(aProperty && aFirst && aAny && aAll, NS_ERROR_NULL_POINTER);
+  if (!aProperty || !aFirst || !aAny || !aAll)
+    return NS_ERROR_NULL_POINTER;
   const nsAString *att = nsnull;
   if (!aAttribute.IsEmpty())
     att = &aAttribute;
@@ -1247,7 +1255,7 @@ NS_IMETHODIMP nsHTMLEditor::RemoveAllInlineProperties()
   nsAutoRules beginRulesSniffing(this, kOpResetTextProperties, nsIEditor::eNext);
 
   nsresult res = RemoveInlinePropertyImpl(nsnull, nsnull);
-  NS_ENSURE_SUCCESS(res, res);
+  if (NS_FAILED(res)) return res;
   return ApplyDefaultProperties();
 }
 
@@ -1258,14 +1266,14 @@ NS_IMETHODIMP nsHTMLEditor::RemoveInlineProperty(nsIAtom *aProperty, const nsASt
 
 nsresult nsHTMLEditor::RemoveInlinePropertyImpl(nsIAtom *aProperty, const nsAString *aAttribute)
 {
-  NS_ENSURE_TRUE(mRules, NS_ERROR_NOT_INITIALIZED);
+  if (!mRules)    return NS_ERROR_NOT_INITIALIZED;
   ForceCompositionEnd();
 
   nsresult res;
   nsCOMPtr<nsISelection>selection;
   res = GetSelection(getter_AddRefs(selection));
-  NS_ENSURE_SUCCESS(res, res);
-  NS_ENSURE_TRUE(selection, NS_ERROR_NULL_POINTER);
+  if (NS_FAILED(res)) return res;
+  if (!selection) return NS_ERROR_NULL_POINTER;
   nsCOMPtr<nsISelectionPrivate> selPriv(do_QueryInterface(selection));
 
   PRBool isCollapsed;
@@ -1294,14 +1302,14 @@ nsresult nsHTMLEditor::RemoveInlinePropertyImpl(nsIAtom *aProperty, const nsAStr
   PRBool cancel, handled;
   nsTextRulesInfo ruleInfo(nsTextEditRules::kRemoveTextProperty);
   res = mRules->WillDoAction(selection, &ruleInfo, &cancel, &handled);
-  NS_ENSURE_SUCCESS(res, res);
+  if (NS_FAILED(res)) return res;
   if (!cancel && !handled)
   {
     // get selection range enumerator
     nsCOMPtr<nsIEnumerator> enumerator;
     res = selPriv->GetEnumerator(getter_AddRefs(enumerator));
-    NS_ENSURE_SUCCESS(res, res);
-    NS_ENSURE_TRUE(enumerator, NS_ERROR_FAILURE);
+    if (NS_FAILED(res)) return res;
+    if (!enumerator)    return NS_ERROR_FAILURE;
 
     // loop thru the ranges in the selection
     enumerator->First(); 
@@ -1309,8 +1317,8 @@ nsresult nsHTMLEditor::RemoveInlinePropertyImpl(nsIAtom *aProperty, const nsAStr
     while ((NS_ENUMERATOR_FALSE == enumerator->IsDone()))
     {
       res = enumerator->CurrentItem(getter_AddRefs(currentItem));
-      NS_ENSURE_SUCCESS(res, res);
-      NS_ENSURE_TRUE(currentItem, NS_ERROR_FAILURE);
+      if (NS_FAILED(res)) return res;
+      if (!currentItem)   return NS_ERROR_FAILURE;
       
       nsCOMPtr<nsIDOMRange> range( do_QueryInterface(currentItem) );
 
@@ -1324,19 +1332,19 @@ nsresult nsHTMLEditor::RemoveInlinePropertyImpl(nsIAtom *aProperty, const nsAStr
         // adjust range to include any ancestors who's children are entirely selected
         res = PromoteInlineRange(range);
       }
-      NS_ENSURE_SUCCESS(res, res);
+      if (NS_FAILED(res)) return res;
 
       // remove this style from ancestors of our range endpoints, 
       // splitting them as appropriate
       res = SplitStyleAboveRange(range, aProperty, aAttribute);
-      NS_ENSURE_SUCCESS(res, res);
+      if (NS_FAILED(res)) return res;
 
       // check for easy case: both range endpoints in same text node
       nsCOMPtr<nsIDOMNode> startNode, endNode;
       res = range->GetStartContainer(getter_AddRefs(startNode));
-      NS_ENSURE_SUCCESS(res, res);
+      if (NS_FAILED(res)) return res;
       res = range->GetEndContainer(getter_AddRefs(endNode));
-      NS_ENSURE_SUCCESS(res, res);
+      if (NS_FAILED(res)) return res;
       if ((startNode == endNode) && IsTextNode(startNode))
       {
         // we're done with this range!
@@ -1372,8 +1380,8 @@ nsresult nsHTMLEditor::RemoveInlinePropertyImpl(nsIAtom *aProperty, const nsAStr
         // not the easy case.  range not contained in single text node. 
         nsCOMPtr<nsIContentIterator> iter =
           do_CreateInstance("@mozilla.org/content/subtree-content-iterator;1", &res);
-        NS_ENSURE_SUCCESS(res, res);
-        NS_ENSURE_TRUE(iter, NS_ERROR_FAILURE);
+        if (NS_FAILED(res)) return res;
+        if (!iter)          return NS_ERROR_FAILURE;
 
         nsCOMArray<nsIDOMNode> arrayOfNodes;
         nsCOMPtr<nsIDOMNode> node;
@@ -1383,7 +1391,8 @@ nsresult nsHTMLEditor::RemoveInlinePropertyImpl(nsIAtom *aProperty, const nsAStr
         while (!iter->IsDone())
         {
           node = do_QueryInterface(iter->GetCurrentNode());
-          NS_ENSURE_TRUE(node, NS_ERROR_FAILURE);
+          if (!node)
+            return NS_ERROR_FAILURE;
 
           if (IsEditable(node))
           { 
@@ -1400,7 +1409,7 @@ nsresult nsHTMLEditor::RemoveInlinePropertyImpl(nsIAtom *aProperty, const nsAStr
         {
           node = arrayOfNodes[j];
           res = RemoveStyleInside(node, aProperty, aAttribute);
-          NS_ENSURE_SUCCESS(res, res);
+          if (NS_FAILED(res)) return res;
           if (useCSS && mHTMLCSSUtils->IsCSSEditableProperty(node, aProperty, aAttribute)) {
             // the HTML style defined by aProperty/aAttribute has a CSS equivalence
             // in this implementation for node
@@ -1459,13 +1468,13 @@ nsHTMLEditor::RelativeFontChange( PRInt32 aSizeChange)
   // Get the selection 
   nsCOMPtr<nsISelection>selection;
   nsresult res = GetSelection(getter_AddRefs(selection));
-  NS_ENSURE_SUCCESS(res, res);
-  NS_ENSURE_TRUE(selection, NS_ERROR_FAILURE);
+  if (NS_FAILED(res)) return res;
+  if (!selection) return NS_ERROR_FAILURE;
   nsCOMPtr<nsISelectionPrivate> selPriv(do_QueryInterface(selection));  
   // Is the selection collapsed?
   PRBool bCollapsed;
   res = selection->GetIsCollapsed(&bCollapsed);
-  NS_ENSURE_SUCCESS(res, res);
+  if (NS_FAILED(res)) return res;
   
   // if it's collapsed set typing state
   if (bCollapsed)
@@ -1481,7 +1490,7 @@ nsHTMLEditor::RelativeFontChange( PRInt32 aSizeChange)
     if (IsTextNode(selectedNode)) {
       nsCOMPtr<nsIDOMNode> parent;
       res = selectedNode->GetParentNode(getter_AddRefs(parent));
-      NS_ENSURE_SUCCESS(res, res);
+      if (NS_FAILED(res)) return res;
       selectedNode = parent;
     }
     nsAutoString tag;
@@ -1501,8 +1510,8 @@ nsHTMLEditor::RelativeFontChange( PRInt32 aSizeChange)
   // get selection range enumerator
   nsCOMPtr<nsIEnumerator> enumerator;
   res = selPriv->GetEnumerator(getter_AddRefs(enumerator));
-  NS_ENSURE_SUCCESS(res, res);
-  NS_ENSURE_TRUE(enumerator, NS_ERROR_FAILURE);
+  if (NS_FAILED(res)) return res;
+  if (!enumerator)    return NS_ERROR_FAILURE;
 
   // loop thru the ranges in the selection
   enumerator->First(); 
@@ -1510,21 +1519,21 @@ nsHTMLEditor::RelativeFontChange( PRInt32 aSizeChange)
   while ((NS_ENUMERATOR_FALSE == enumerator->IsDone()))
   {
     res = enumerator->CurrentItem(getter_AddRefs(currentItem));
-    NS_ENSURE_SUCCESS(res, res);
-    NS_ENSURE_TRUE(currentItem, NS_ERROR_FAILURE);
+    if (NS_FAILED(res)) return res;
+    if (!currentItem)   return NS_ERROR_FAILURE;
     
     nsCOMPtr<nsIDOMRange> range( do_QueryInterface(currentItem) );
 
     // adjust range to include any ancestors who's children are entirely selected
     res = PromoteInlineRange(range);
-    NS_ENSURE_SUCCESS(res, res);
+    if (NS_FAILED(res)) return res;
     
     // check for easy case: both range endpoints in same text node
     nsCOMPtr<nsIDOMNode> startNode, endNode;
     res = range->GetStartContainer(getter_AddRefs(startNode));
-    NS_ENSURE_SUCCESS(res, res);
+    if (NS_FAILED(res)) return res;
     res = range->GetEndContainer(getter_AddRefs(endNode));
-    NS_ENSURE_SUCCESS(res, res);
+    if (NS_FAILED(res)) return res;
     if ((startNode == endNode) && IsTextNode(startNode))
     {
       PRInt32 startOffset, endOffset;
@@ -1532,7 +1541,7 @@ nsHTMLEditor::RelativeFontChange( PRInt32 aSizeChange)
       range->GetEndOffset(&endOffset);
       nsCOMPtr<nsIDOMCharacterData> nodeAsText = do_QueryInterface(startNode);
       res = RelativeFontChangeOnTextNode(aSizeChange, nodeAsText, startOffset, endOffset);
-      NS_ENSURE_SUCCESS(res, res);
+      if (NS_FAILED(res)) return res;
     }
     else
     {
@@ -1549,8 +1558,8 @@ nsHTMLEditor::RelativeFontChange( PRInt32 aSizeChange)
 
       nsCOMPtr<nsIContentIterator> iter =
         do_CreateInstance("@mozilla.org/content/subtree-content-iterator;1", &res);
-      NS_ENSURE_SUCCESS(res, res);
-      NS_ENSURE_TRUE(iter, NS_ERROR_FAILURE);
+      if (NS_FAILED(res)) return res;
+      if (!iter)          return NS_ERROR_FAILURE;
 
       nsCOMArray<nsIDOMNode> arrayOfNodes;
       nsCOMPtr<nsIDOMNode> node;
@@ -1562,7 +1571,8 @@ nsHTMLEditor::RelativeFontChange( PRInt32 aSizeChange)
         while (!iter->IsDone())
         {
           node = do_QueryInterface(iter->GetCurrentNode());
-          NS_ENSURE_TRUE(node, NS_ERROR_FAILURE);
+          if (!node)
+            return NS_ERROR_FAILURE;
 
           if (IsEditable(node))
           { 
@@ -1579,7 +1589,7 @@ nsHTMLEditor::RelativeFontChange( PRInt32 aSizeChange)
         {
           node = arrayOfNodes[j];
           res = RelativeFontChangeOnNode(aSizeChange, node);
-          NS_ENSURE_SUCCESS(res, res);
+          if (NS_FAILED(res)) return res;
         }
         arrayOfNodes.Clear();
       }
@@ -1594,7 +1604,7 @@ nsHTMLEditor::RelativeFontChange( PRInt32 aSizeChange)
         range->GetStartOffset(&startOffset);
         nodeAsText->GetLength(&textLen);
         res = RelativeFontChangeOnTextNode(aSizeChange, nodeAsText, startOffset, textLen);
-        NS_ENSURE_SUCCESS(res, res);
+        if (NS_FAILED(res)) return res;
       }
       if (IsTextNode(endNode) && IsEditable(endNode))
       {
@@ -1602,7 +1612,7 @@ nsHTMLEditor::RelativeFontChange( PRInt32 aSizeChange)
         PRInt32 endOffset;
         range->GetEndOffset(&endOffset);
         res = RelativeFontChangeOnTextNode(aSizeChange, nodeAsText, 0, endOffset);
-        NS_ENSURE_SUCCESS(res, res);
+        if (NS_FAILED(res)) return res;
       }
     }
     enumerator->Next();
@@ -1620,7 +1630,7 @@ nsHTMLEditor::RelativeFontChangeOnTextNode( PRInt32 aSizeChange,
   // Can only change font size by + or - 1
   if ( !( (aSizeChange==1) || (aSizeChange==-1) ) )
     return NS_ERROR_ILLEGAL_VALUE;
-  NS_ENSURE_TRUE(aTextNode, NS_ERROR_NULL_POINTER);
+  if (!aTextNode) return NS_ERROR_NULL_POINTER;
   
   // don't need to do anything if no characters actually selected
   if (aStartOffset == aEndOffset) return NS_OK;
@@ -1628,7 +1638,7 @@ nsHTMLEditor::RelativeFontChangeOnTextNode( PRInt32 aSizeChange,
   nsresult res = NS_OK;
   nsCOMPtr<nsIDOMNode> parent;
   res = aTextNode->GetParentNode(getter_AddRefs(parent));
-  NS_ENSURE_SUCCESS(res, res);
+  if (NS_FAILED(res)) return res;
   if (!CanContainTag(parent, NS_LITERAL_STRING("big"))) return NS_OK;
 
   nsCOMPtr<nsIDOMNode> tmp, node = do_QueryInterface(aTextNode);
@@ -1644,14 +1654,14 @@ nsHTMLEditor::RelativeFontChangeOnTextNode( PRInt32 aSizeChange,
   {
     // we need to split off back of text node
     res = SplitNode(node, aEndOffset, getter_AddRefs(tmp));
-    NS_ENSURE_SUCCESS(res, res);
+    if (NS_FAILED(res)) return res;
     node = tmp;  // remember left node
   }
   if ( aStartOffset )
   {
     // we need to split off front of text node
     res = SplitNode(node, aStartOffset, getter_AddRefs(tmp));
-    NS_ENSURE_SUCCESS(res, res);
+    if (NS_FAILED(res)) return res;
   }
 
   NS_NAMED_LITERAL_STRING(bigSize, "big");
@@ -1694,7 +1704,7 @@ nsHTMLEditor::RelativeFontChangeHelper( PRInt32 aSizeChange,
   // Can only change font size by + or - 1
   if ( !( (aSizeChange==1) || (aSizeChange==-1) ) )
     return NS_ERROR_ILLEGAL_VALUE;
-  NS_ENSURE_TRUE(aNode, NS_ERROR_NULL_POINTER);
+  if (!aNode) return NS_ERROR_NULL_POINTER;
 
   nsresult res = NS_OK;
   nsAutoString tag;
@@ -1711,7 +1721,7 @@ nsHTMLEditor::RelativeFontChangeHelper( PRInt32 aSizeChange,
   {
     // cycle through children and adjust relative font size
     res = aNode->GetChildNodes(getter_AddRefs(childNodes));
-    NS_ENSURE_SUCCESS(res, res);
+    if (NS_FAILED(res)) return res;
     if (childNodes)
     {
       childNodes->GetLength(&childCount);
@@ -1721,7 +1731,7 @@ nsHTMLEditor::RelativeFontChangeHelper( PRInt32 aSizeChange,
         if ((NS_SUCCEEDED(res)) && (childNode))
         {
           res = RelativeFontChangeOnNode(aSizeChange, childNode);
-          NS_ENSURE_SUCCESS(res, res);
+          if (NS_FAILED(res)) return res;
         }
       }
     }
@@ -1730,7 +1740,7 @@ nsHTMLEditor::RelativeFontChangeHelper( PRInt32 aSizeChange,
   childNodes = nsnull;
   // now cycle through the children.
   res = aNode->GetChildNodes(getter_AddRefs(childNodes));
-  NS_ENSURE_SUCCESS(res, res);
+  if (NS_FAILED(res)) return res;
   if (childNodes)
   {
     childNodes->GetLength(&childCount);
@@ -1740,7 +1750,7 @@ nsHTMLEditor::RelativeFontChangeHelper( PRInt32 aSizeChange,
       if ((NS_SUCCEEDED(res)) && (childNode))
       {
         res = RelativeFontChangeHelper(aSizeChange, childNode);
-        NS_ENSURE_SUCCESS(res, res);
+        if (NS_FAILED(res)) return res;
       }
     }
   }
@@ -1756,7 +1766,7 @@ nsHTMLEditor::RelativeFontChangeOnNode( PRInt32 aSizeChange,
   // Can only change font size by + or - 1
   if ( !( (aSizeChange==1) || (aSizeChange==-1) ) )
     return NS_ERROR_ILLEGAL_VALUE;
-  NS_ENSURE_TRUE(aNode, NS_ERROR_NULL_POINTER);
+  if (!aNode) return NS_ERROR_NULL_POINTER;
 
   nsresult res = NS_OK;
   nsCOMPtr<nsIDOMNode> tmp;
@@ -1770,7 +1780,7 @@ nsHTMLEditor::RelativeFontChangeOnNode( PRInt32 aSizeChange,
   {
     // first populate any nested font tags that have the size attr set
     res = RelativeFontChangeHelper(aSizeChange, aNode);
-    NS_ENSURE_SUCCESS(res, res);
+    if (NS_FAILED(res)) return res;
     // in that case, just remove this node and pull up the children
     res = RemoveContainer(aNode);
     return res;
@@ -1780,7 +1790,7 @@ nsHTMLEditor::RelativeFontChangeOnNode( PRInt32 aSizeChange,
   {
     // first populate any nested font tags that have the size attr set
     res = RelativeFontChangeHelper(aSizeChange, aNode);
-    NS_ENSURE_SUCCESS(res, res);
+    if (NS_FAILED(res)) return res;
     // ok, chuck it in.
     // first look at siblings of aNode for matching bigs or smalls.
     // if we find one, move aNode into it.
@@ -1810,7 +1820,7 @@ nsHTMLEditor::RelativeFontChangeOnNode( PRInt32 aSizeChange,
   // each getting their own.  
   nsCOMPtr<nsIDOMNodeList> childNodes;
   res = aNode->GetChildNodes(getter_AddRefs(childNodes));
-  NS_ENSURE_SUCCESS(res, res);
+  if (NS_FAILED(res)) return res;
   if (childNodes)
   {
     PRInt32 j;
@@ -1823,7 +1833,7 @@ nsHTMLEditor::RelativeFontChangeOnNode( PRInt32 aSizeChange,
       if ((NS_SUCCEEDED(res)) && (childNode))
       {
         res = RelativeFontChangeOnNode(aSizeChange, childNode);
-        NS_ENSURE_SUCCESS(res, res);
+        if (NS_FAILED(res)) return res;
       }
     }
   }
@@ -1833,7 +1843,8 @@ nsHTMLEditor::RelativeFontChangeOnNode( PRInt32 aSizeChange,
 NS_IMETHODIMP 
 nsHTMLEditor::GetFontFaceState(PRBool *aMixed, nsAString &outFace)
 {
-  NS_ENSURE_TRUE(aMixed, NS_ERROR_FAILURE);
+  if (!aMixed)
+      return NS_ERROR_FAILURE;
   *aMixed = PR_TRUE;
   outFace.Truncate();
 
@@ -1842,7 +1853,7 @@ nsHTMLEditor::GetFontFaceState(PRBool *aMixed, nsAString &outFace)
   
   NS_NAMED_LITERAL_STRING(attr, "face");
   res = GetInlinePropertyBase(nsEditProperty::font, &attr, nsnull, &first, &any, &all, &outFace);
-  NS_ENSURE_SUCCESS(res, res);
+  if (NS_FAILED(res)) return res;
   if (any && !all) return res; // mixed
   if (all)
   {
@@ -1852,7 +1863,7 @@ nsHTMLEditor::GetFontFaceState(PRBool *aMixed, nsAString &outFace)
   
   // if there is no font face, check for tt
   res = GetInlinePropertyBase(nsEditProperty::tt, nsnull, nsnull, &first, &any, &all,nsnull);
-  NS_ENSURE_SUCCESS(res, res);
+  if (NS_FAILED(res)) return res;
   if (any && !all) return res; // mixed
   if (all)
   {
@@ -1872,7 +1883,8 @@ nsHTMLEditor::GetFontFaceState(PRBool *aMixed, nsAString &outFace)
 NS_IMETHODIMP 
 nsHTMLEditor::GetFontColorState(PRBool *aMixed, nsAString &aOutColor)
 {
-  NS_ENSURE_TRUE(aMixed, NS_ERROR_NULL_POINTER);
+  if (!aMixed)
+      return NS_ERROR_NULL_POINTER;
   *aMixed = PR_TRUE;
   aOutColor.Truncate();
   
@@ -1881,7 +1893,7 @@ nsHTMLEditor::GetFontColorState(PRBool *aMixed, nsAString &aOutColor)
   PRBool first, any, all;
   
   res = GetInlinePropertyBase(nsEditProperty::font, &colorStr, nsnull, &first, &any, &all, &aOutColor);
-  NS_ENSURE_SUCCESS(res, res);
+  if (NS_FAILED(res)) return res;
   if (any && !all) return res; // mixed
   if (all)
   {
@@ -1927,10 +1939,10 @@ nsHTMLEditor::HasStyleOrIdOrClass(nsIDOMElement * aElement, PRBool *aHasStyleOrI
   PRBool isStyleSet;
   *aHasStyleOrIdOrClass = PR_TRUE;
   nsresult res = GetAttributeValue(aElement,  NS_LITERAL_STRING("style"), styleVal, &isStyleSet);
-  NS_ENSURE_SUCCESS(res, res);
+  if (NS_FAILED(res)) return res;
   if (!isStyleSet || styleVal.IsEmpty()) {
     res = mHTMLCSSUtils->HasClassOrID(aElement, *aHasStyleOrIdOrClass);
-    NS_ENSURE_SUCCESS(res, res);
+    if (NS_FAILED(res)) return res;
   }
   return res;
 }

@@ -780,25 +780,6 @@ nsAccessibilityService::CreateHTMLCaptionAccessible(nsIFrame *aFrame,
   return NS_OK;
 }
 
-void
-nsAccessibilityService::PresShellDestroyed(nsIPresShell *aPresShell)
-{
-  // Presshell destruction will automatically destroy shells for descendant
-  // documents, so no need to worry about those. Just shut down the accessible
-  // for this one document. That keeps us from having bad behavior in case of
-  // deep bushy subtrees.
-  // When document subtree containing iframe is hidden then we don't get
-  // pagehide event for the iframe's underlying document and its presshell is
-  // destroyed before we're notified styles were changed. Shutdown the document
-  // accessible early.
-  nsIDocument* doc = aPresShell->GetDocument();
-  if (!doc)
-    return;
-
-  NS_LOG_ACCDOCDESTROY("presshell destroyed", doc)
-  ShutdownDocAccessible(doc);
-}
-
 // nsAccessibilityService protected
 nsAccessible *
 nsAccessibilityService::GetCachedAccessible(nsINode *aNode,
@@ -1013,30 +994,6 @@ nsAccessibilityService::GetStringRelationType(PRUint32 aRelationType,
   }
 
   CopyUTF8toUTF16(kRelationTypeNames[aRelationType], aString);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsAccessibilityService::GetAccessibleFromCache(nsIDOMNode* aNode,
-                                               nsIAccessible** aAccessible)
-{
-  NS_ENSURE_ARG_POINTER(aAccessible);
-
-  // Search for an accessible in each of our per document accessible object
-  // caches. If we don't find it, and the given node is itself a document, check
-  // our cache of document accessibles (document cache). Note usually shutdown
-  // document accessibles are not stored in the document cache, however an
-  // "unofficially" shutdown document (i.e. not from nsAccDocManager) can still
-  // exist in the document cache.
-  nsCOMPtr<nsINode> node(do_QueryInterface(aNode));
-  nsAccessible* accessible = FindAccessibleInCache(static_cast<void*>(node));
-  if (!accessible) {
-    nsCOMPtr<nsIDocument> document(do_QueryInterface(node));
-    if (document)
-      accessible = GetDocAccessibleFromCache(document);
-  }
-
-  NS_IF_ADDREF(*aAccessible = accessible);
   return NS_OK;
 }
 
