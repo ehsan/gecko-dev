@@ -7000,8 +7000,8 @@ class MStoreFixedSlot
     bool needsBarrier() const {
         return needsBarrier_;
     }
-    void setNeedsBarrier(bool needsBarrier = true) {
-        needsBarrier_ = needsBarrier;
+    void setNeedsBarrier() {
+        needsBarrier_ = true;
     }
 };
 

@@ -164,7 +164,7 @@ public:
   nsresult EncodeHeaderBlock(const nsCString &nvInput,
                              const nsACString &method, const nsACString &path,
                              const nsACString &host, const nsACString &scheme,
-                             bool connectForm, nsACString &output);
+                             nsACString &output);
 
   int64_t GetParsedContentLength() { return mParsedContentLength; } // -1 on not found
 

@@ -85,22 +85,6 @@ struct ConservativeGCData
     }
 };
 
-template<typename F>
-struct Callback {
-    F op;
-    void *data;
-
-    Callback()
-      : op(nullptr), data(nullptr)
-    {}
-    Callback(F op, void *data)
-      : op(op), data(data)
-    {}
-};
-
-template<typename F>
-class CallbackVector : public Vector<Callback<F>, 4, SystemAllocPolicy> {};
-
 class GCRuntime
 {
   public:
@@ -155,7 +139,6 @@ class GCRuntime
     void markGrayReferencesInCurrentGroup();
     void beginSweepPhase(bool lastGC);
     void findZoneGroups();
-    bool findZoneEdgesForWeakMaps();
     void getNextZoneGroup();
     void endMarkingZoneGroup();
     void beginSweepingZoneGroup();
@@ -414,10 +397,10 @@ class GCRuntime
     bool                  fullCompartmentChecks;
 
     JSGCCallback          gcCallback;
-    void                  *gcCallbackData;
-
     JS::GCSliceCallback   sliceCallback;
-    CallbackVector<JSFinalizeCallback> finalizeCallbacks;
+    JSFinalizeCallback    finalizeCallback;
+
+    void                  *gcCallbackData;
 
     /*
      * Malloc counter to measure memory pressure for GC scheduling. It runs
@@ -437,8 +420,9 @@ class GCRuntime
      * roots. The black/gray distinction is only relevant to the cycle
      * collector.
      */
-    CallbackVector<JSTraceDataOp> blackRootTracers;
-    Callback<JSTraceDataOp> grayRootTracer;
+    typedef js::Vector<ExtraTracer, 4, js::SystemAllocPolicy> ExtraTracerVector;
+    ExtraTracerVector     blackRootTracers;
+    ExtraTracer           grayRootTracer;
 
     /*
      * The GC can only safely decommit memory when the page size of the

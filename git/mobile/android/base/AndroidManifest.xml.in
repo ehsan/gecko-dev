@@ -75,10 +75,10 @@
                  android:icon="@drawable/icon"
                  android:name="org.mozilla.gecko.GeckoApplication"
                  android:hardwareAccelerated="true"
-#if !defined(MOZILLA_OFFICIAL) || defined(NIGHTLY_BUILD) && defined(MOZ_DEBUG)
-                 android:debuggable="true">
-#else
+#ifdef MOZILLA_OFFICIAL
                  android:debuggable="false">
+#else
+                 android:debuggable="true">
 #endif
 
         <meta-data android:name="com.sec.android.support.multiwindow" android:value="true"/>

@@ -42,10 +42,13 @@ class APZTestData {
   friend class APZTestDataToJSConverter;
 public:
   void StartNewPaint(SequenceNumber aSequenceNumber) {
-    mPaints.insert(DataStore::value_type(aSequenceNumber, Bucket()));
-    // TODO(botond): MOZ_ASSERT() that we didn't already have a paint with this
-    // sequence number once we get rid ofAPZCTreeManager::UpdatePanZoomControllerTree()
-    // calls for repeat transactions (bug 1007728).
+    auto insertResult = mPaints.insert(DataStore::value_type(aSequenceNumber, Bucket()));
+    if (!insertResult.second) {
+      // TODO(botond): Change this to MOZ_ASSERT once we get rid of
+      // APZCTreeManager::UpdatePanZoomControllerTree() calls for repeat
+      // transactions.
+      NS_WARNING("Already have a paint with this sequence number");
+    }
   }
   void LogTestDataForPaint(SequenceNumber aSequenceNumber,
                            ViewID aScrollId,
@@ -93,10 +96,13 @@ private:
     }
     Bucket& bucket = bucketIterator->second;
     ScrollFrameData& scrollFrameData = bucket[aScrollId];  // create if doesn't exist
-    scrollFrameData.insert(ScrollFrameData::value_type(aKey, aValue));
-    // TODO(botond): MOZ_ASSERT() that we don't already have this key once we
-    // get rid of APZCTreeManager::UpdatePanZoomControllerTree() calls for
-    // repeat transactions (bug 1007728).
+    auto insertResult = scrollFrameData.insert(ScrollFrameData::value_type(aKey, aValue));
+    if (!insertResult.second) {
+      // TODO(botond): Change this to MOZ_ASSERT once we get rid of
+      // APZCTreeManager::UpdatePanZoomControllerTree() calls for repeat
+      // transactions.
+      NS_WARNING("Key already present in test data, not overwriting");
+    }
   }
 };
 

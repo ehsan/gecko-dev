@@ -32,9 +32,6 @@
 
 #include "irregexp/RegExpStack.h"
 #include "jit/IonLinker.h"
-#ifdef JS_ION_PERF
-# include "jit/PerfSpewer.h"
-#endif
 #include "vm/MatchPairs.h"
 
 using namespace js;
@@ -436,14 +433,9 @@ NativeRegExpMacroAssembler::GenerateCode(JSContext *cx)
     }
 
     Linker linker(masm);
-    AutoFlushICache afc("RegExp");
     JitCode *code = linker.newCode<NoGC>(cx, JSC::REGEXP_CODE);
     if (!code)
         return RegExpCode();
-
-#ifdef JS_ION_PERF
-    writePerfSpewerJitCodeProfile(code, "RegExp");
-#endif
 
     for (size_t i = 0; i < labelPatches.length(); i++) {
         const LabelPatch &v = labelPatches[i];
@@ -875,16 +867,13 @@ NativeRegExpMacroAssembler::LoadCurrentCharacterUnchecked(int cp_offset, int cha
 {
     IonSpew(SPEW_PREFIX "LoadCurrentCharacterUnchecked(%d, %d)", cp_offset, characters);
 
+    JS_ASSERT(characters == 1);
     if (mode_ == ASCII) {
         MOZ_ASSUME_UNREACHABLE("Ascii loading not implemented");
     } else {
         JS_ASSERT(mode_ == JSCHAR);
-        JS_ASSERT(characters <= 2);
-        BaseIndex address(input_end_pointer, current_position, TimesOne, cp_offset * sizeof(jschar));
-        if (characters == 2)
-            masm.load32(address, current_character);
-        else
-            masm.load16ZeroExtend(address, current_character);
+        masm.load16ZeroExtend(BaseIndex(input_end_pointer, current_position, TimesOne, cp_offset * sizeof(jschar)),
+                              current_character);
     }
 }
 
@@ -1246,7 +1235,9 @@ NativeRegExpMacroAssembler::CheckSpecialCharacterClass(jschar type, Label* on_no
 bool
 NativeRegExpMacroAssembler::CanReadUnaligned()
 {
-    return true;
+    // XXX Bug 1006799 should this be enabled? Unaligned loads can be slow even
+    // on platforms where they are supported.
+    return false;
 }
 
 const uint8_t

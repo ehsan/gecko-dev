@@ -277,12 +277,12 @@ struct AutoPaintSetup {
       mPaint.setXfermodeMode(SkXfermode::kSrcOver_Mode);
       SkPaint temp;
       temp.setXfermodeMode(GfxOpToSkiaOp(aOptions.mCompositionOp));
-      temp.setAlpha(U8CPU(aOptions.mAlpha*255+0.5));
+      temp.setAlpha(U8CPU(aOptions.mAlpha*255));
       //TODO: Get a rect here
       mCanvas->saveLayer(nullptr, &temp);
       mNeedsRestore = true;
     } else {
-      mPaint.setAlpha(U8CPU(aOptions.mAlpha*255.0+0.5));
+      mPaint.setAlpha(U8CPU(aOptions.mAlpha*255.0));
       mAlpha = aOptions.mAlpha;
     }
     mPaint.setFilterLevel(SkPaint::kLow_FilterLevel);
@@ -552,26 +552,21 @@ DrawTargetSkia::MaskSurface(const Pattern &aSource,
   MarkChanged();
   AutoPaintSetup paint(mCanvas.get(), aOptions, aSource);
 
-  TempBitmap bitmap = GetBitmapForSurface(aMask);
-  if (bitmap.mBitmap.colorType() == kAlpha_8_SkColorType) {
-    mCanvas->drawBitmap(bitmap.mBitmap, aOffset.x, aOffset.y, &paint.mPaint);
-  } else {
-    SkPaint maskPaint;
-    TempBitmap tmpBitmap;
-    SetPaintPattern(maskPaint, SurfacePattern(aMask, ExtendMode::CLAMP), tmpBitmap);
+  SkPaint maskPaint;
+  TempBitmap tmpBitmap;
+  SetPaintPattern(maskPaint, SurfacePattern(aMask, ExtendMode::CLAMP), tmpBitmap);
 
-    SkMatrix transform = maskPaint.getShader()->getLocalMatrix();
-    transform.postTranslate(SkFloatToScalar(aOffset.x), SkFloatToScalar(aOffset.y));
-    maskPaint.getShader()->setLocalMatrix(transform);
+  SkMatrix transform = maskPaint.getShader()->getLocalMatrix();
+  transform.postTranslate(SkFloatToScalar(aOffset.x), SkFloatToScalar(aOffset.y));
+  maskPaint.getShader()->setLocalMatrix(transform);
 
-    SkLayerRasterizer *raster = new SkLayerRasterizer();
-    raster->addLayer(maskPaint);
-    SkSafeUnref(paint.mPaint.setRasterizer(raster));
+  SkLayerRasterizer *raster = new SkLayerRasterizer();
+  raster->addLayer(maskPaint);
+  SkSafeUnref(paint.mPaint.setRasterizer(raster));
 
-    IntSize size = aMask->GetSize();
-    Rect rect = Rect(aOffset.x, aOffset.y, size.width, size.height);
-    mCanvas->drawRect(RectToSkRect(rect), paint.mPaint);
-  }
+  IntSize size = aMask->GetSize();
+  Rect rect = Rect(aOffset.x, aOffset.y, size.width, size.height);
+  mCanvas->drawRect(RectToSkRect(rect), paint.mPaint);
 }
 
 TemporaryRef<SourceSurface>

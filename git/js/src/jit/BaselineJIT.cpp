@@ -113,6 +113,7 @@ EnterBaseline(JSContext *cx, EnterJitData &data)
     {
         AssertCompartmentUnchanged pcc(cx);
         JitActivation activation(cx, data.constructing);
+        AutoFlushInhibitor afi(cx->runtime()->jitRuntime());
 
         if (data.osrFrame)
             data.osrFrame->setRunningInJit();
@@ -234,6 +235,7 @@ jit::BaselineCompile(JSContext *cx, JSScript *script)
     if (!compiler.init())
         return Method_Error;
 
+    AutoFlushCache afc("BaselineJIT", cx->runtime()->jitRuntime());
     MethodStatus status = compiler.compile();
 
     JS_ASSERT_IF(status == Method_Compiled, script->hasBaselineScript());
@@ -761,6 +763,12 @@ BaselineScript::toggleDebugTraps(JSScript *script, jsbytecode *pc)
         return;
 
     SrcNoteLineScanner scanner(script->notes(), script->lineno());
+
+    JSRuntime *rt = script->runtimeFromMainThread();
+    IonContext ictx(CompileRuntime::get(rt),
+                    CompileCompartment::get(script->compartment()),
+                    nullptr);
+    AutoFlushCache afc("DebugTraps", rt->jitRuntime());
 
     for (uint32_t i = 0; i < numPCMappingIndexEntries(); i++) {
         PCMappingIndexEntry &entry = pcMappingIndexEntry(i);

@@ -80,7 +80,6 @@ PerThreadData::PerThreadData(JSRuntime *runtime)
 #endif
     activation_(nullptr),
     asmJSActivationStack_(nullptr),
-    autoFlushICache_(nullptr),
 #if defined(JS_ARM_SIMULATOR) || defined(JS_MIPS_SIMULATOR)
     simulator_(nullptr),
     simulatorStackLimit_(0),
@@ -298,7 +297,7 @@ JSRuntime::init(uint32_t maxbytes)
         SetMarkStackLimit(this, atoi(size));
 
     ScopedJSDeletePtr<Zone> atomsZone(new_<Zone>(this));
-    if (!atomsZone || !atomsZone->init())
+    if (!atomsZone)
         return false;
 
     JS::CompartmentOptions options;

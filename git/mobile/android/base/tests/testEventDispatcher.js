@@ -8,25 +8,19 @@ do_register_cleanup(() => {
 do_test_pending();
 
 function send_test_message(type) {
-  let innerObject = {
+  sendMessageToJava({
+    type: type,
     boolean: true,
-    booleanArray: [false, true],
     int: 1,
-    intArray: [2, 3],
     double: 0.5,
-    doubleArray: [1.5, 2.5],
     string: "foo",
-    stringArray: ["bar", "baz"],
-  }
-
-  // Make a copy
-  let outerObject = JSON.parse(JSON.stringify(innerObject));
-
-  outerObject.type = type;
-  outerObject.object = innerObject;
-  outerObject.objectArray = [null, innerObject];
-
-  sendMessageToJava(outerObject);
+    object: {
+      boolean: true,
+      int: 1,
+      double: 0.5,
+      string: "foo",
+    },
+  });
 }
 
 function send_message_for_response(type, response) {
