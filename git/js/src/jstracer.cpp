@@ -102,18 +102,12 @@ Tracker::get(const void* v) const
     JS_ASSERT(p != 0); /* we must have a page for the slot we are looking for */
     LIns* i = p->map[(((long)v) & 0xfff) >> 2];
     JS_ASSERT(i != 0);
-#ifdef DEBUG    
-    //printf("get %p, which is %s\n",v, nanojit::lirNames[i->opcode()]);
-#endif    
     return i;
 }
 
 void
 Tracker::set(const void* v, LIns* ins)
 {
-#ifdef DEBUG    
-    //printf("set %p to %s\n", v, nanojit::lirNames[ins->opcode()]);
-#endif    
     struct Tracker::Page* p = findPage(v);
     if (!p)
         p = addPage(v);
@@ -152,11 +146,11 @@ static struct CallInfo builtins[] = {
 #undef BUILTIN2
 #undef BUILTIN3
 
-void
+bool
 js_StartRecording(JSContext* cx, JSFrameRegs& regs)
 {
     JSTraceMonitor* tm = &JS_TRACE_MONITOR(cx);
-
+    
     if (!tm->fragmento) {
         Fragmento* fragmento = new (&gc) Fragmento(core);
 #ifdef DEBUG        
@@ -166,7 +160,8 @@ js_StartRecording(JSContext* cx, JSFrameRegs& regs)
         tm->fragmento = fragmento;
     }
 
-    memcpy(&tm->entryState, &regs, sizeof(regs));
+    JSTraceRecorder* recorder = new JSTraceRecorder(regs);
+    tm->recorder = recorder;
 
     InterpState state;
     state.ip = NULL;
@@ -186,32 +181,37 @@ js_StartRecording(JSContext* cx, JSFrameRegs& regs)
     fragment->param1 = lir->insImm8(LIR_param, Assembler::argRegs[1], 0);
     JSStackFrame* fp = cx->fp;
 
-    tm->tracker.set(cx, fragment->param0);
+    recorder->tracker.set(cx, lir->insLoadi(fragment->param0, 0));
+    recorder->tracker.set(&recorder->entryState.sp, lir->insLoadi(fragment->param0, 4));
 
-#define LOAD_CONTEXT(p) \
-    tm->tracker.set(p, lir->insLoadi(fragment->param1, STACK_OFFSET(p)))
+#define LOAD_CONTEXT(p)                                                       \
+    recorder->tracker.set(p,                                                  \
+        lir->insLoadi(recorder->tracker.get(&recorder->entryState.sp),        \
+                      STACK_OFFSET(p)))
 
     unsigned n;
     for (n = 0; n < fp->argc; ++n)
         LOAD_CONTEXT(&fp->argv[n]);
-    for (n = 0; n < fp->nvars; ++n)
+    for (n = 0; n < fp->nvars; ++n) 
         LOAD_CONTEXT(&fp->vars[n]);
     for (n = 0; n < (unsigned)(regs.sp - fp->spbase); ++n)
         LOAD_CONTEXT(&fp->spbase[n]);
 
-    tm->fragment = fragment;
-    tm->lir = lir;
+    recorder->fragment = fragment;
+    recorder->lir = lir;
 
-    tm->status = RECORDING;
+    return true;
 }
 
 void
 js_EndRecording(JSContext* cx, JSFrameRegs& regs)
 {
     JSTraceMonitor* tm = &JS_TRACE_MONITOR(cx);
-    if (tm->status == RECORDING) {
-        tm->fragment->lastIns = tm->lir->ins0(LIR_loop);
-        compile(tm->fragmento->assm(), tm->fragment);
+    if (tm->recorder != NULL) {
+        JSTraceRecorder* recorder = tm->recorder;
+        recorder->fragment->lastIns = recorder->lir->ins0(LIR_loop);
+        compile(tm->fragmento->assm(), recorder->fragment);
+        delete recorder;
+        tm->recorder = NULL;
     }
-    tm->status = IDLE;
 }

@@ -62,9 +62,9 @@ class Tracker
     };
     struct Page* pagelist;
     
-    long         getPageBase(const void* v) const;
-    struct Page* findPage(const void* v) const;
-    struct Page* addPage(const void* v);
+    long            getPageBase(const void* v) const;
+    struct Page*    findPage(const void* v) const;
+    struct Page*    addPage(const void* v);
 public:    
     Tracker();
     ~Tracker();
@@ -74,8 +74,16 @@ public:
     void            clear();
 };
 
-enum TraceRecorderStatus {
-    IDLE, RECORDING, ABORTED
+class JSTraceRecorder {
+public:
+    struct JSFrameRegs      entryState;
+    Tracker                 tracker;
+    nanojit::Fragment*      fragment;
+    nanojit::LirWriter*     lir;
+
+    JSTraceRecorder(JSFrameRegs& _entryState) {
+        entryState = _entryState;
+    }
 };
 
 /*
@@ -89,19 +97,15 @@ enum TraceRecorderStatus {
  * a certain number of iterations and we recorded a tree for that loop.
  */
 struct JSTraceMonitor {
-    int                 freq;
-    TraceRecorderStatus status;
-    JSFrameRegs         entryState;
-    Tracker             tracker;
-    nanojit::Fragment*  fragment;
-    nanojit::Fragmento* fragmento;
-    nanojit::LirWriter* lir;
+    int                     freq;
+    nanojit::Fragmento*     fragmento;
+    JSTraceRecorder*        recorder;
 };
 
 #define ENABLE_TRACER      true
 #define TRACE_TRIGGER_MASK 0x3f
 
-extern void
+extern bool
 js_StartRecording(JSContext* cx, JSFrameRegs& regs);
 
 extern void
