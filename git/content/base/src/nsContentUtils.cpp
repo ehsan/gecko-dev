@@ -266,12 +266,6 @@ PRBool nsContentUtils::sInitialized = PR_FALSE;
 nsRefPtrHashtable<nsPrefObserverHashKey, nsPrefOldCallback>
   *nsContentUtils::sPrefCallbackTable = nsnull;
 
-#ifdef MOZ_IPC
-#ifdef ANDROID
-nsFrameLoader *nsContentUtils::sActiveFrameLoader = nsnull;
-#endif
-#endif
-
 static PLDHashTable sEventListenerManagersHash;
 
 class EventListenerManagerMapEntry : public PLDHashEntryHdr
@@ -5795,10 +5789,6 @@ CloneSimpleValues(JSContext* cx,
   // ArrayBuffer objects.
   if (js_IsArrayBuffer(obj)) {
     js::ArrayBuffer* src = js::ArrayBuffer::fromJSObject(obj);
-    if (!src) {
-      return NS_ERROR_FAILURE;
-    }
-
     JSObject* newBuffer = js_CreateArrayBuffer(cx, src->byteLength);
     if (!newBuffer) {
       return NS_ERROR_FAILURE;
@@ -6214,17 +6204,6 @@ nsContentUtils::IsFocusedContent(nsIContent* aContent)
 
   return fm && fm->GetFocusedContent() == aContent;
 }
-
-#ifdef MOZ_IPC
-#ifdef ANDROID
-// static
-already_AddRefed<nsFrameLoader>
-nsContentUtils::GetActiveFrameLoader()
-{
-  return nsCOMPtr<nsFrameLoader>(sActiveFrameLoader).forget();
-}
-#endif
-#endif
 
 void nsContentUtils::RemoveNewlines(nsString &aString)
 {

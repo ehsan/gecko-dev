@@ -120,9 +120,6 @@ include ib-split/reftest.list
 # image/
 include image/reftest.list
 
-# image-element/
-include image-element/reftest.list
-
 # image-rect/
 include image-rect/reftest.list
 

@@ -52,9 +52,7 @@
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsStreamUtils.h"
 #include "nsNetUtil.h"
-#include "RasterImage.h"
-
-using namespace mozilla::imagelib;
+#include "imgContainer.h"
 
 /* ========== imgITools implementation ========== */
 
@@ -78,24 +76,20 @@ NS_IMETHODIMP imgTools::DecodeImageData(nsIInputStream* aInStr,
                                         imgIContainer **aContainer)
 {
   nsresult rv;
-  RasterImage* image;  // convenience alias for *aContainer
 
   NS_ENSURE_ARG_POINTER(aInStr);
-
-  // If the caller didn't provide an imgIContainer, create one.
-  if (*aContainer) {
-    NS_ABORT_IF_FALSE((*aContainer)->GetType() == imgIContainer::TYPE_RASTER,
-                      "wrong type of imgIContainer for decoding into");
-    image = static_cast<RasterImage*>(*aContainer);
-  } else {
-    *aContainer = image = new RasterImage();
-    NS_ADDREF(image);
+  // If the caller didn't provide a container, create one
+  if (!*aContainer) {
+    *aContainer = new imgContainer();
+    if (!*aContainer)
+      return NS_ERROR_OUT_OF_MEMORY;
+    NS_ADDREF(*aContainer);
   }
 
-  // Initialize the Image. If we're using the one from the caller, we
-  // require that it not be initialized.
+  // Initialize the container. If we're using the one from the caller, we
+  // require that it not be initialized
   nsCString mimeType(aMimeType);
-  rv = image->Init(nsnull, mimeType.get(), Image::INIT_FLAG_NONE);
+  rv = (*aContainer)->Init(nsnull, mimeType.get(), imgIContainer::INIT_FLAG_NONE);
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIInputStream> inStream = aInStr;
@@ -111,18 +105,17 @@ NS_IMETHODIMP imgTools::DecodeImageData(nsIInputStream* aInStr,
   rv = inStream->Available(&length);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  // Send the source data to the Image. WriteToRasterImage always
+  // Send the source data to the container. WriteToContainer always
   // consumes everything it gets.
   PRUint32 bytesRead;
-  rv = inStream->ReadSegments(RasterImage::WriteToRasterImage,
-                              static_cast<void*>(image),
+  rv = inStream->ReadSegments(imgContainer::WriteToContainer,
+                              static_cast<void*>(*aContainer),
                               length, &bytesRead);
   NS_ENSURE_SUCCESS(rv, rv);
-  NS_ABORT_IF_FALSE(bytesRead == length, "WriteToRasterImage should consume everything!");
 
 
-  // Let the Image know we've sent all the data
-  rv = image->SourceDataComplete();
+  // Let the container know we've sent all the data
+  rv = (*aContainer)->SourceDataComplete();
   NS_ENSURE_SUCCESS(rv, rv);
 
   // All done
@@ -131,8 +124,8 @@ NS_IMETHODIMP imgTools::DecodeImageData(nsIInputStream* aInStr,
 
 
 NS_IMETHODIMP imgTools::EncodeImage(imgIContainer *aContainer,
-                                    const nsACString& aMimeType,
-                                    nsIInputStream **aStream)
+                                          const nsACString& aMimeType,
+                                          nsIInputStream **aStream)
 {
     return EncodeScaledImage(aContainer, aMimeType, 0, 0, aStream);
 }

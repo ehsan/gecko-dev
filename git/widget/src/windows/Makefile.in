@@ -71,7 +71,6 @@ CPPSRCS		= \
 	TaskbarPreviewButton.cpp \
  	JumpListBuilder.cpp \
  	JumpListItem.cpp \
-	GfxInfo.cpp \
 	$(NULL)
 
 ifdef NS_PRINTING

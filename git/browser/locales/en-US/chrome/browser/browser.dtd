@@ -12,6 +12,11 @@
 <!ENTITY mainWindow.titlePrivateBrowsingSuffix "(Private Browsing)">
 
 <!-- Tab context menu -->
+<!ENTITY  moveTabTo.label                    "Move This Tab To…">
+<!ENTITY  moveTabTo.accesskey                "M">
+<!ENTITY  createNewGroup.label               "Create New Group">
+<!ENTITY  createNewGroup.accesskey           "C">
+<!ENTITY  namedGroups.label                  "Named Groups">
 <!ENTITY  reloadTab.label                    "Reload Tab">
 <!ENTITY  reloadTab.accesskey                "R">
 <!ENTITY  reloadAllTabs.label                "Reload All Tabs">
@@ -24,11 +29,6 @@
 <!ENTITY  pinTab.accesskey                   "p">
 <!ENTITY  unpinTab.label                     "Make into Normal Tab">
 <!ENTITY  unpinTab.accesskey                 "k">
-<!ENTITY  moveToGroup.label                  "Move to Group">
-<!ENTITY  moveToGroup.accesskey              "M">
-<!ENTITY  moveToNewGroup.label               "New Group">
-<!ENTITY  moveToNewGroup.accesskey           "N">
-<!ENTITY  namedGroups.label                  "Named Groups">
 <!ENTITY  bookmarkThisTab.label              "Bookmark This Tab">
 <!ENTITY  bookmarkThisTab.accesskey          "B">
 <!ENTITY  bookmarkAllTabs.label              "Bookmark All Tabs…">
@@ -132,8 +132,8 @@
 
 <!-- Toolbar items --> 
 <!ENTITY  homeButton.label            "Home">
-<!ENTITY tabViewButton2.label         "Tab Groups">
-<!ENTITY tabViewButton2.tooltip       "Group Your Tabs">
+<!ENTITY tabViewButton.label          "Tab Sets">
+<!ENTITY tabViewButton.tooltip        "Open a visual tab interface">
 
 <!ENTITY bookmarksButton.label          "Bookmarks">
 <!ENTITY bookmarksButton.tooltip        "Display your bookmarks">
@@ -193,12 +193,6 @@
 <!ENTITY inspectStyleButton.label     "Style">
 <!ENTITY inspectStyleButton.accesskey "S">
 <!ENTITY inspectStylePanelTitle.label  "Style">
-<!-- LOCALIZATION NOTE (inspectDOMButton.label): This button label
-  -  stands for Document Object Model and appears on the inspector's toolbar.
-  -  It is used to open and closed the DOM panel. There is also a DOM label in
-  -  inspector.properties for the panel titlebar. -->
-<!ENTITY inspectDOMButton.label       "DOM">
-<!ENTITY inspectDOMButton.accesskey       "D">
 
 <!ENTITY fileMenu.label         "File"> 
 <!ENTITY fileMenu.accesskey       "F">
@@ -246,8 +240,8 @@
 
 <!ENTITY viewMenu.label         "View"> 
 <!ENTITY viewMenu.accesskey       "V"> 
-<!ENTITY showTabView2.label     "Group Your Tabs…">
-<!ENTITY showTabView2.accesskey     "G">
+<!ENTITY showTabView.label     "TabView">
+<!ENTITY showTabView.accesskey     "V">
 <!ENTITY viewToolbarsMenu.label       "Toolbars"> 
 <!ENTITY viewToolbarsMenu.accesskey     "T"> 
 <!ENTITY viewSidebarMenu.label "Sidebar">

@@ -94,7 +94,6 @@
 //    kern_return_t result = sender.SendMessage(message, 1000); // timeout 1000ms
 //
 
-namespace google_breakpad {
 #define PRINT_MACH_RESULT(result_, message_) \
   printf(message_" %s (%d)\n", mach_error_string(result_), result_ );
 
@@ -225,7 +224,7 @@ class MachMessage {
   void SetDescriptor(int n, const MachMsgPortDescriptor &desc);
 
   // Returns total message size setting msgh_size in the header to this value
-  mach_msg_size_t CalculateSize();
+  int CalculateSize();
 
   mach_msg_header_t  head;
   mach_msg_body_t    body;
@@ -256,11 +255,11 @@ class MachSendMessage : public MachMessage {
 class ReceivePort {
  public:
   // Creates a new mach port for receiving messages and registers a name for it
-  explicit ReceivePort(const char *receive_port_name);
+  ReceivePort(const char *receive_port_name);
 
   // Given an already existing mach port, use it.  We take ownership of the
   // port and deallocate it in our destructor.
-  explicit ReceivePort(mach_port_t receive_port);
+  ReceivePort(mach_port_t receive_port);
 
   // Create a new mach port for receiving messages
   ReceivePort();
@@ -286,11 +285,11 @@ class ReceivePort {
 class MachPortSender {
  public:
   // get a port with send rights corresponding to a named registered service
-  explicit MachPortSender(const char *receive_port_name);
+  MachPortSender(const char *receive_port_name);
 
 
   // Given an already existing mach port, use it.
-  explicit MachPortSender(mach_port_t send_port);
+  MachPortSender(mach_port_t send_port);
 
   kern_return_t SendMessage(MachSendMessage &message,
                             mach_msg_timeout_t timeout);
@@ -301,7 +300,5 @@ class MachPortSender {
   mach_port_t   send_port_;
   kern_return_t init_result_;
 };
-
-}  // namespace google_breakpad
 
 #endif // MACH_IPC_H__

@@ -58,7 +58,7 @@ function test() {
     gBrowser.removeTab(tabOne);
     gBrowser.removeTab(tabTwo);
     Array.forEach(gBrowser.tabs, function(tab) {
-      gBrowser.showTab(tab);
+      tab.hidden = false;
     });
 
     finish();

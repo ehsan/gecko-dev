@@ -510,7 +510,6 @@ NS_NewGlobalMessageManager(nsIChromeFrameMessageManager** aResult)
 
 nsDataHashtable<nsStringHashKey, nsFrameScriptExecutorJSObjectHolder*>*
   nsFrameScriptExecutor::sCachedScripts = nsnull;
-nsRefPtr<nsScriptCacheCleaner> nsFrameScriptExecutor::sScriptCacheCleaner;
 
 void
 nsFrameScriptExecutor::DidCreateCx()
@@ -520,8 +519,6 @@ nsFrameScriptExecutor::DidCreateCx()
     sCachedScripts =
       new nsDataHashtable<nsStringHashKey, nsFrameScriptExecutorJSObjectHolder*>;
     sCachedScripts->Init();
-
-    sScriptCacheCleaner = new nsScriptCacheCleaner();
   }
 }
 
@@ -567,8 +564,6 @@ nsFrameScriptExecutor::Shutdown()
 
     delete sCachedScripts;
     sCachedScripts = nsnull;
-
-    sScriptCacheCleaner = nsnull;
   }
 }
 
@@ -677,6 +672,3 @@ nsFrameScriptExecutor::LoadFrameScriptInternal(const nsAString& aURL)
     nsContentUtils::ThreadJSContextStack()->Pop(&unused);
   }
 }
-
-NS_IMPL_ISUPPORTS1(nsScriptCacheCleaner, nsIObserver)
-

@@ -111,7 +111,7 @@
     "DELETE FROM moz_places " \
     "WHERE id = OLD.id; " \
     "DELETE FROM moz_openpages_temp " \
-    "WHERE url = OLD.url; " \
+    "WHERE place_id = OLD.id; " \
   "END" \
 )
 
@@ -274,7 +274,7 @@
   "WHEN NEW.open_count = 0 " \
   "BEGIN " \
     "DELETE FROM moz_openpages_temp " \
-    "WHERE url = NEW.url;" \
+    "WHERE place_id = NEW.place_id;" \
   "END" \
 )
 

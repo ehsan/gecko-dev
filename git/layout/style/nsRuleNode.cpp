@@ -955,9 +955,6 @@ static void SetStyleImage(nsStyleContext* aStyleContext,
       }
       break;
     }
-    case eCSSUnit_Element:
-      aResult.SetElementId(aValue.GetStringBufferValue());
-      break;
     case eCSSUnit_None:
       break;
     default:
@@ -3831,7 +3828,7 @@ nsRuleNode::ComputeUserInterfaceData(void* aStartStruct,
             nsCSSValue::Array *arr = list2->mValue.GetArrayValue();
             imgIRequest *req = arr->Item(0).GetImageValue();
             if (req) {
-              item->SetImage(req);
+              item->mImage = req;
               if (arr->Item(1).GetUnit() != eCSSUnit_Null) {
                 item->mHaveHotspot = PR_TRUE;
                 item->mHotspotX = arr->Item(1).GetFloatValue(),
@@ -4949,10 +4946,6 @@ nsRuleNode::ComputeBackgroundData(void* aStartStruct,
                        bg->mSizeCount, fillCount);
   }
 
-  // Now that the dust has settled, register the images with the document
-  for (PRUint32 i = 0; i < bg->mImageCount; ++i)
-    bg->mLayers[i].TrackImages(aContext->PresContext());
-
   COMPUTE_END_RESET(Background, bg)
 }
 
@@ -5847,14 +5840,6 @@ nsRuleNode::ComputeContentData(void* aStartStruct,
            SETCOORD_LH | SETCOORD_AUTO | SETCOORD_INITIAL_AUTO |
              SETCOORD_CALC_LENGTH_ONLY,
            aContext, mPresContext, canStoreInRuleTree);
-
-  // If we ended up with an image, track it.
-  for (PRUint32 i = 0; i < content->ContentCount(); ++i) {
-    if ((content->ContentAt(i).mType == eStyleContentType_Image) &&
-        content->ContentAt(i).mContent.mImage) {
-      content->ContentAt(i).TrackImage(aContext->PresContext());
-    }
-  }
 
   COMPUTE_END_RESET(Content, content)
 }

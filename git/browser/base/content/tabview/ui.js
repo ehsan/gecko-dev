@@ -66,6 +66,10 @@ var UIManager = {
   // If true, a select tab has just been closed in TabView.
   _closedSelectedTabInTabView : false,
 
+  // Variable: _stopZoomPreparation
+  // If true, prevent the next zoom preparation.
+  _stopZoomPreparation : false,
+
   // Variable: _reorderTabItemsOnShow
   // Keeps track of the <GroupItem>s which their tab items' tabs have been moved
   // and re-orders the tab items when switching to TabView.
@@ -103,12 +107,7 @@ var UIManager = {
       this._currentTab = gBrowser.selectedTab;
 
       // ___ Dev Menu
-      // This dev menu is not meant for shipping, nor is it of general
-      // interest, but we still need it for the time being. Change the 
-      // false below to enable; just remember to change back before 
-      // committing. Bug 586721 will track the ultimate removal. 
-      if (false)
-        this._addDevMenu();
+      this._addDevMenu();
 
       // When you click on the background/empty part of TabView,
       // we create a new groupItem.
@@ -125,7 +124,7 @@ var UIManager = {
 
       iQ(window).bind("beforeunload", function() {
         Array.forEach(gBrowser.tabs, function(tab) {
-          gBrowser.showTab(tab);
+          tab.hidden = false;
         });
       });
       iQ(window).bind("unload", function() {
@@ -154,10 +153,6 @@ var UIManager = {
       GroupItems.reconstitute(groupItemsData, groupItemData);
       GroupItems.killNewTabGroup(); // temporary?
 
-      // ___ tabs
-      TabItems.init();
-      TabItems.pausePainting();
-
       if (firstTime) {
         var padding = 10;
         var infoWidth = 350;
@@ -185,14 +180,11 @@ var UIManager = {
         });
 
         // ___ make info item
-        let welcome = "How to organize your tabs";
-        let more = "";
-        let video = "http://videos-cdn.mozilla.net/firefox4beta/tabcandy_howto.webm";
         var html =
           "<div class='intro'>"
-            + "<h1>" + welcome + "</h1>"
-            + ( more && more.length ? "<div>" + more + "</div><br>" : "")
-            + "<video src='" + video + "' "
+            + "<h1>Welcome to Firefox Tab Sets</h1>" // TODO: This needs to be localized if it's kept in
+            + "<div>(more goes here)</div><br>"
+            + "<video src='http://people.mozilla.org/~araskin/movies/tabcandy_howto.webm' "
             + "width='100%' preload controls>"
           + "</div>";
 
@@ -202,6 +194,10 @@ var UIManager = {
         var infoItem = new InfoItem(box);
         infoItem.html(html);
       }
+
+      // ___ tabs
+      TabItems.init();
+      TabItems.pausePainting();
 
       // ___ resizing
       if (this._pageBounds)
@@ -308,7 +304,7 @@ var UIManager = {
 
 #ifdef XP_WIN
     // Restore the full height when showing TabView
-    gTabViewFrame.style.marginTop = "";
+    gTabViewFrame.style.marginTop = 0;
 #endif
     gTabViewDeck.selectedIndex = 1;
     gTabViewFrame.contentWindow.focus();
@@ -436,6 +432,14 @@ var UIManager = {
               tab.tabItem.setZoomPrep(false);
             self.showTabView();
           }
+          // ToDo: When running unit tests, everything happens so quick so
+          // new tabs might be added after a tab is closing. Therefore, this
+          // hack is used. We should look for a better solution.
+          setTimeout(function() { // Marshal event from chrome thread to DOM thread
+            if ((groupItem && groupItem._children.length > 0) ||
+              (groupItem == null && gBrowser.visibleTabs.length > 0))
+              self.hideTabView();
+          }, 1);
         }
       }
     });
@@ -444,9 +448,11 @@ var UIManager = {
       if (tab.ownerDocument.defaultView != gWindow)
         return;
 
-      let activeGroupItem = GroupItems.getActiveGroupItem();
-      if (activeGroupItem)
-        self.setReorderTabItemsOnShow(activeGroupItem);
+      setTimeout(function() { // Marshal event from chrome thread to DOM thread
+        var activeGroupItem = GroupItems.getActiveGroupItem();
+        if (activeGroupItem)
+          self.setReorderTabItemsOnShow(activeGroupItem);
+      }, 1);
     });
 
     AllTabs.register("select", function(tab) {
@@ -483,40 +489,54 @@ var UIManager = {
     this._closedLastVisibleTab = false;
     this._closedSelectedTabInTabView = false;
 
-    // have things have changed while we were in timeout?
-    if (focusTab != self._currentTab)
-      return;
-
-    let newItem = null;
-    if (focusTab && focusTab.tabItem) {
-      newItem = focusTab.tabItem;
-      if (newItem.parent)
-        GroupItems.setActiveGroupItem(newItem.parent);
-      else {
-        GroupItems.setActiveGroupItem(null);
-        GroupItems.setActiveOrphanTab(newItem);
+    setTimeout(function() { // Marshal event from chrome thread to DOM thread
+      // this value is true when TabView is open at browser startup.
+      if (self._stopZoomPreparation) {
+        self._stopZoomPreparation = false;
+        if (focusTab && focusTab.tabItem)
+          self.setActiveTab(focusTab.tabItem);
+        return;
       }
-      GroupItems.updateTabBar();
-    }
 
-    // ___ prepare for when we return to TabView
-    let oldItem = null;
-    if (currentTab && currentTab.tabItem)
-      oldItem = currentTab.tabItem;
+      if (focusTab != self._currentTab) {
+        // things have changed while we were in timeout
+        return;
+      }
 
-    if (newItem != oldItem) {
-      if (oldItem)
-        oldItem.setZoomPrep(false);
+      var visibleTabCount = gBrowser.visibleTabs.length;
 
-      // if the last visible tab is removed, don't set zoom prep because
-      // we should be in the TabView interface.
-      let visibleTabCount = gBrowser.visibleTabs.length;
-      if (visibleTabCount > 0 && newItem && !self._isTabViewVisible())
-        newItem.setZoomPrep(true);
-    }
-    // the tab is already focused so the new and old items are the same.
-    else if (oldItem)
-      oldItem.setZoomPrep(!self._isTabViewVisible());
+      var newItem = null;
+      if (focusTab && focusTab.tabItem) {
+        newItem = focusTab.tabItem;
+        if (newItem.parent)
+          GroupItems.setActiveGroupItem(newItem.parent);
+        else {
+          GroupItems.setActiveGroupItem(null);
+          GroupItems.setActiveOrphanTab(newItem);
+        }
+        GroupItems.updateTabBar();
+      }
+
+      // ___ prepare for when we return to TabView
+      var oldItem = null;
+      if (currentTab && currentTab.tabItem)
+        oldItem = currentTab.tabItem;
+
+      if (newItem != oldItem) {
+        if (oldItem)
+          oldItem.setZoomPrep(false);
+
+        // if the last visible tab is removed, don't set zoom prep because
+        // we shoud be in the TabView interface.
+        if (visibleTabCount > 0 && newItem && !self._isTabViewVisible())
+          newItem.setZoomPrep(true);
+      } else {
+        // the tab is already focused so the new and old items are the
+        // same.
+        if (oldItem)
+          oldItem.setZoomPrep(!self._isTabViewVisible());
+      }
+    }, 1);
   },
 
   // ----------
@@ -616,7 +636,7 @@ var UIManager = {
             !event.ctrlKey) {
 #else
         if (event.ctrlKey && !event.metaKey && !event.shiftKey &&
-            !event.altKey) {
+            event.altKey) {
 #endif
           var activeTab = self.getActiveTab();
           if (activeTab)

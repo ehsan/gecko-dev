@@ -42,7 +42,6 @@
 
 #include "nscore.h"
 #include "nsWinGesture.h"
-#include "nsUXThemeData.h"
 #include "nsIPrefBranch.h"
 #include "nsIPrefService.h"
 #include "nsIServiceManager.h"
@@ -54,6 +53,7 @@
 #endif
 
 const PRUnichar nsWinGesture::kGestureLibraryName[] =  L"user32.dll";
+const PRUnichar nsWinGesture::kThemeLibraryName[] =  L"uxtheme.dll";
 HMODULE nsWinGesture::sLibraryHandle = nsnull;
 nsWinGesture::GetGestureInfoPtr nsWinGesture::getGestureInfo = nsnull;
 nsWinGesture::CloseGestureInfoHandlePtr nsWinGesture::closeGestureInfoHandle = nsnull;
@@ -96,7 +96,7 @@ PRBool nsWinGesture::InitLibrary()
   }
 
   sLibraryHandle = ::LoadLibraryW(kGestureLibraryName);
-  HMODULE hTheme = nsUXThemeData::GetThemeDLL();
+  HMODULE hTheme = ::LoadLibraryW(kThemeLibraryName);
 
   // gesture interfaces
   if (sLibraryHandle) {
