@@ -50,20 +50,19 @@ static const JSFunctionSpec sLibraryFunctions[] = {
 bool
 Library::Name(JSContext* cx, unsigned argc, jsval *vp)
 {
-  CallArgs args = CallArgsFromVp(argc, vp);
-  if (args.length() != 1) {
+  if (argc != 1) {
     JS_ReportError(cx, "libraryName takes one argument");
     return false;
   }
 
-  Value arg = args[0];
+  jsval arg = JS_ARGV(cx, vp)[0];
   JSString* str = nullptr;
   if (JSVAL_IS_STRING(arg)) {
     str = JSVAL_TO_STRING(arg);
   }
   else {
     JS_ReportError(cx, "name argument must be a string");
-    return false;
+      return false;
   }
 
   AutoString resultString;
@@ -76,7 +75,7 @@ Library::Name(JSContext* cx, unsigned argc, jsval *vp)
   if (!result)
     return false;
 
-  args.rval().setString(result);
+  JS_SET_RVAL(cx, vp, STRING_TO_JSVAL(result));
   return true;
 }
 
@@ -199,7 +198,6 @@ Library::Finalize(JSFreeOp *fop, JSObject* obj)
 bool
 Library::Open(JSContext* cx, unsigned argc, jsval *vp)
 {
-  CallArgs args = CallArgsFromVp(argc, vp);
   JSObject* ctypesObj = JS_THIS_OBJECT(cx, vp);
   if (!ctypesObj)
     return false;
@@ -208,23 +206,22 @@ Library::Open(JSContext* cx, unsigned argc, jsval *vp)
     return false;
   }
 
-  if (args.length() != 1 || args[0].isUndefined()) {
+  if (argc != 1 || JSVAL_IS_VOID(JS_ARGV(cx, vp)[0])) {
     JS_ReportError(cx, "open requires a single argument");
     return false;
   }
 
-  JSObject* library = Create(cx, args[0], GetCallbacks(ctypesObj));
+  JSObject* library = Create(cx, JS_ARGV(cx, vp)[0], GetCallbacks(ctypesObj));
   if (!library)
     return false;
 
-  args.rval().setObject(*library);
+  JS_SET_RVAL(cx, vp, OBJECT_TO_JSVAL(library));
   return true;
 }
 
 bool
 Library::Close(JSContext* cx, unsigned argc, jsval* vp)
 {
-  CallArgs args = CallArgsFromVp(argc, vp);
   JSObject* obj = JS_THIS_OBJECT(cx, vp);
   if (!obj)
     return false;
@@ -233,7 +230,7 @@ Library::Close(JSContext* cx, unsigned argc, jsval* vp)
     return false;
   }
 
-  if (args.length() != 0) {
+  if (argc != 0) {
     JS_ReportError(cx, "close doesn't take any arguments");
     return false;
   }
@@ -242,14 +239,13 @@ Library::Close(JSContext* cx, unsigned argc, jsval* vp)
   UnloadLibrary(obj);
   JS_SetReservedSlot(obj, SLOT_LIBRARY, PRIVATE_TO_JSVAL(nullptr));
 
-  args.rval().setUndefined();
+  JS_SET_RVAL(cx, vp, JSVAL_VOID);
   return true;
 }
 
 bool
 Library::Declare(JSContext* cx, unsigned argc, jsval* vp)
 {
-  CallArgs args = CallArgsFromVp(argc, vp);
   RootedObject obj(cx, JS_THIS_OBJECT(cx, vp));
   if (!obj)
     return false;
@@ -274,24 +270,25 @@ Library::Declare(JSContext* cx, unsigned argc, jsval* vp)
   //    This data will be both readable and writable via the usual CData
   //    accessors. If 'type' is a PointerType to a FunctionType, the result will
   //    be a function pointer, as with 1). 
-  if (args.length() < 2) {
+  if (argc < 2) {
     JS_ReportError(cx, "declare requires at least two arguments");
     return false;
   }
 
-  if (!args[0].isString()) {
+  jsval* argv = JS_ARGV(cx, vp);
+  if (!JSVAL_IS_STRING(argv[0])) {
     JS_ReportError(cx, "first argument must be a string");
     return false;
   }
 
   RootedObject fnObj(cx, nullptr);
   RootedObject typeObj(cx);
-  bool isFunction = args.length() > 2;
+  bool isFunction = argc > 2;
   if (isFunction) {
     // Case 1).
     // Create a FunctionType representing the function.
     fnObj = FunctionType::CreateInternal(cx,
-              args[1], args[2], &args.array()[3], args.length() - 3);
+              argv[1], argv[2], &argv[3], argc - 3);
     if (!fnObj)
       return false;
 
@@ -301,14 +298,14 @@ Library::Declare(JSContext* cx, unsigned argc, jsval* vp)
       return false;
   } else {
     // Case 2).
-    if (args[1].isPrimitive() ||
-        !CType::IsCType(args[1].toObjectOrNull()) ||
-        !CType::IsSizeDefined(args[1].toObjectOrNull())) {
+    if (JSVAL_IS_PRIMITIVE(argv[1]) ||
+        !CType::IsCType(JSVAL_TO_OBJECT(argv[1])) ||
+        !CType::IsSizeDefined(JSVAL_TO_OBJECT(argv[1]))) {
       JS_ReportError(cx, "second argument must be a type of defined size");
       return false;
     }
 
-    typeObj = args[1].toObjectOrNull();
+    typeObj = JSVAL_TO_OBJECT(argv[1]);
     if (CType::GetTypeCode(typeObj) == TYPE_pointer) {
       fnObj = PointerType::GetBaseType(typeObj);
       isFunction = fnObj && CType::GetTypeCode(fnObj) == TYPE_function;
@@ -317,7 +314,7 @@ Library::Declare(JSContext* cx, unsigned argc, jsval* vp)
 
   void* data;
   PRFuncPtr fnptr;
-  JSString* nameStr = args[0].toString();
+  JSString* nameStr = JSVAL_TO_STRING(argv[0]);
   AutoCString symbol;
   if (isFunction) {
     // Build the symbol, with mangling if necessary.
@@ -348,7 +345,7 @@ Library::Declare(JSContext* cx, unsigned argc, jsval* vp)
   if (!result)
     return false;
 
-  args.rval().setObject(*result);
+  JS_SET_RVAL(cx, vp, OBJECT_TO_JSVAL(result));
 
   // Seal the CData object, to prevent modification of the function pointer.
   // This permanently associates this object with the library, and avoids

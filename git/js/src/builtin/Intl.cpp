@@ -563,8 +563,7 @@ static const Class CollatorClass = {
 static bool
 collator_toSource(JSContext *cx, unsigned argc, Value *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-    args.rval().setString(cx->names().Collator);
+    vp->setString(cx->names().Collator);
     return true;
 }
 #endif
@@ -1050,8 +1049,7 @@ static const Class NumberFormatClass = {
 static bool
 numberFormat_toSource(JSContext *cx, unsigned argc, Value *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-    args.rval().setString(cx->names().NumberFormat);
+    vp->setString(cx->names().NumberFormat);
     return true;
 }
 #endif
@@ -1509,8 +1507,7 @@ static const Class DateTimeFormatClass = {
 static bool
 dateTimeFormat_toSource(JSContext *cx, unsigned argc, Value *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-    args.rval().setString(cx->names().DateTimeFormat);
+    vp->setString(cx->names().DateTimeFormat);
     return true;
 }
 #endif
@@ -1993,8 +1990,7 @@ const Class js::IntlClass = {
 static bool
 intl_toSource(JSContext *cx, unsigned argc, Value *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-    args.rval().setString(cx->names().Intl);
+    vp->setString(cx->names().Intl);
     return true;
 }
 #endif

@@ -17,6 +17,7 @@ import org.mozilla.gecko.GeckoApplication;
 import org.mozilla.gecko.GeckoProfile;
 import org.mozilla.gecko.LightweightTheme;
 import org.mozilla.gecko.R;
+import org.mozilla.gecko.ReaderModeUtils;
 import org.mozilla.gecko.Tab;
 import org.mozilla.gecko.Tabs;
 import org.mozilla.gecko.animation.PropertyAnimator;
@@ -1351,10 +1352,7 @@ public class BrowserToolbar extends GeckoRelativeLayout
                 tab.toggleReaderMode();
             }
         } else if (event.equals("Reader:LongClick")) {
-            Tab tab = Tabs.getInstance().getSelectedTab();
-            if (tab != null) {
-                tab.addToReadingList();
-            }
+            ReaderModeUtils.addToReadingList(Tabs.getInstance().getSelectedTab());
         }
     }
 

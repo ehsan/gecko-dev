@@ -993,8 +993,7 @@ Declaration::GetValue(nsCSSProperty aProperty, nsAString& aValue,
         AppendValueToString(eCSSProperty_grid_auto_rows,
                             aValue, aSerialization);
         break;
-      } else if (!(autoFlowValue.GetUnit() == eCSSUnit_Enumerated &&
-                   autoFlowValue.GetIntValue() == NS_STYLE_GRID_AUTO_FLOW_NONE &&
+      } else if (!(autoFlowValue.GetUnit() == eCSSUnit_None &&
                    autoColumnsValue.GetUnit() == eCSSUnit_Auto &&
                    autoRowsValue.GetUnit() == eCSSUnit_Auto)) {
         // Not serializable, bail.

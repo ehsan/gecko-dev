@@ -53,21 +53,16 @@ nsMIMEInfoUnix::GetHasDefaultHandler(bool *_retval)
     return nsMIMEInfoImpl::GetHasDefaultHandler(_retval);
 
   *_retval = false;
-
-  if (mClass ==  eProtocolInfo) {
-    *_retval = nsGNOMERegistry::HandlerExists(mSchemeOrType.get());
-  } else {
-    nsRefPtr<nsMIMEInfoBase> mimeInfo = nsGNOMERegistry::GetFromType(mSchemeOrType);
-    if (!mimeInfo) {
-      nsAutoCString ext;
-      nsresult rv = GetPrimaryExtension(ext);
-      if (NS_SUCCEEDED(rv)) {
-        mimeInfo = nsGNOMERegistry::GetFromExtension(ext);
-      }
+  nsRefPtr<nsMIMEInfoBase> mimeInfo = nsGNOMERegistry::GetFromType(mSchemeOrType);
+  if (!mimeInfo) {
+    nsAutoCString ext;
+    nsresult rv = GetPrimaryExtension(ext);
+    if (NS_SUCCEEDED(rv)) {
+      mimeInfo = nsGNOMERegistry::GetFromExtension(ext);
     }
-    if (mimeInfo)
-      *_retval = true;
   }
+  if (mimeInfo)
+    *_retval = true;
 
   if (*_retval)
     return NS_OK;

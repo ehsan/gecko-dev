@@ -75,17 +75,16 @@ private:
 bool
 PostToNFC(JSContext* aCx,
           unsigned aArgc,
-          JS::Value* aVp)
+          JS::Value* aArgv)
 {
-    JS::CallArgs args = JS::CallArgsFromVp(aArgc, aVp);
     NS_ASSERTION(!NS_IsMainThread(), "Expecting to be on the worker thread");
 
-    if (args.length() != 1) {
+    if (aArgc != 1) {
         JS_ReportError(aCx, "Expecting one argument with the NFC message");
         return false;
     }
 
-    JS::Value v = args[0];
+    JS::Value v = JS_ARGV(aCx, aArgv)[0];
 
     JSAutoByteString abs;
     void* data;

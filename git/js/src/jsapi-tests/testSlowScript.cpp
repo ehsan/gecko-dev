@@ -15,10 +15,9 @@ static unsigned sRemain;
 static bool
 RequestInterruptCallback(JSContext *cx, unsigned argc, jsval *vp)
 {
-    JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
     if (!sRemain--)
         JS_RequestInterruptCallback(JS_GetRuntime(cx));
-    args.rval().setUndefined();
+    *vp = JSVAL_VOID;
     return true;
 }
 

@@ -115,7 +115,7 @@ FileRequest::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
   return FileRequestBinding::Wrap(aCx, aScope, this);
 }
 
-LockedFile*
+nsIDOMLockedFile*
 FileRequest::GetLockedFile() const
 {
   MOZ_ASSERT(NS_IsMainThread(), "Wrong thread!");

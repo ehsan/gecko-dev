@@ -98,6 +98,8 @@ DOMCI_CLASS(CSSPageRule)
 DOMCI_CLASS(MozIccManager)
 #endif
 
+DOMCI_CLASS(LockedFile)
+
 DOMCI_CLASS(CSSFontFeatureValuesRule)
 
 DOMCI_CLASS(UserDataHandler)

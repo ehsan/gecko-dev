@@ -205,13 +205,12 @@ GetMemberInfo(JSObject *obj, jsid memberId, const char **ifaceName)
 static void
 GetMethodInfo(JSContext *cx, jsval *vp, const char **ifaceNamep, jsid *memberIdp)
 {
-    CallReceiver call = CallReceiverFromVp(vp);
-    RootedObject funobj(cx, &call.callee());
+    RootedObject funobj(cx, JSVAL_TO_OBJECT(JS_CALLEE(cx, vp)));
     MOZ_ASSERT(JS_ObjectIsFunction(cx, funobj),
                "JSNative callee should be Function object");
     RootedString str(cx, JS_GetFunctionId(JS_GetObjectFunction(funobj)));
     RootedId methodId(cx, str ? INTERNED_STRING_TO_JSID(cx, str) : JSID_VOID);
-    GetMemberInfo(&call.thisv().toObject(), methodId, ifaceNamep);
+    GetMemberInfo(JSVAL_TO_OBJECT(vp[1]), methodId, ifaceNamep);
     *memberIdp = methodId;
 }
 

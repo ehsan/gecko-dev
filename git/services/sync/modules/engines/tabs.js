@@ -73,15 +73,19 @@ TabEngine.prototype = {
     this.service.resource(url).delete();
   },
 
-  /**
-   * Return a Set of open URLs.
+  /* The intent is not to show tabs in the menu if they're already
+   * open locally.  There are a couple ways to interpret this: for
+   * instance, we could do it by removing a tab from the list when
+   * you open it -- but then if you close it, you can't get back to
+   * it.  So the way I'm doing it here is to not show a tab in the menu
+   * if you have a tab open to the same URL, even though this means
+   * that as soon as you navigate anywhere, the original tab will
+   * reappear in the menu.
    */
-  getOpenURLs: function () {
-    let urls = new Set();
-    for (let entry of this._store.getAllTabs()) {
-      urls.add(entry.urlHistory[0]);
-    }
-    return urls;
+  locallyOpenTabMatchesURL: function TabEngine_localTabMatches(url) {
+    return this._store.getAllTabs().some(function (tab) {
+      return tab.urlHistory[0] == url;
+    });
   }
 };
 
@@ -96,60 +100,39 @@ TabStore.prototype = {
     return id == this.engine.service.clientsEngine.localID;
   },
 
-  getWindowEnumerator: function () {
-    return Services.wm.getEnumerator("navigator:browser");
-  },
-
-  shouldSkipWindow: function (win) {
-    return win.closed ||
-           PrivateBrowsingUtils.isWindowPrivate(win);
-  },
-
-  getTabState: function (tab) {
-    return JSON.parse(Svc.Session.getTabState(tab));
-  },
-
-  getAllTabs: function (filter) {
+  getAllTabs: function getAllTabs(filter) {
     let filteredUrls = new RegExp(Svc.Prefs.get("engine.tabs.filteredUrls"), "i");
 
     let allTabs = [];
 
-    let winEnum = this.getWindowEnumerator();
-    while (winEnum.hasMoreElements()) {
-      let win = winEnum.getNext();
-      if (this.shouldSkipWindow(win)) {
-        continue;
+    let currentState = JSON.parse(Svc.Session.getBrowserState());
+    currentState.windows.forEach(function (window) {
+      if (window.isPrivate) {
+        return;
       }
-
-      dump("WIN IS " + JSON.stringify(win)  + "\n");
-      for (let tab of win.gBrowser.tabs) {
-        tabState = this.getTabState(tab);
-
+      window.tabs.forEach(function (tab) {
         // Make sure there are history entries to look at.
-        if (!tabState || !tabState.entries.length) {
-          continue;
-        }
-
+        if (!tab.entries.length)
+          return;
         // Until we store full or partial history, just grab the current entry.
         // index is 1 based, so make sure we adjust.
-        let entry = tabState.entries[tabState.index - 1];
+        let entry = tab.entries[tab.index - 1];
 
         // Filter out some urls if necessary. SessionStore can return empty
         // tabs in some cases - easiest thing is to just ignore them for now.
-        if (!entry.url || filter && filteredUrls.test(entry.url)) {
-          continue;
-        }
+        if (!entry.url || filter && filteredUrls.test(entry.url))
+          return;
 
         // I think it's also possible that attributes[.image] might not be set
         // so handle that as well.
         allTabs.push({
           title: entry.title || "",
           urlHistory: [entry.url],
-          icon: tabState.attributes && tabState.attributes.image || "",
-          lastUsed: Math.floor((tabState.lastAccessed || 0) / 1000)
+          icon: tab.attributes && tab.attributes.image || "",
+          lastUsed: Math.floor((tab.lastAccessed || 0) / 1000)
         });
-      }
-    }
+      });
+    });
 
     return allTabs;
   },

@@ -98,7 +98,7 @@ function NetworkStats(aWindow, aStats) {
   this.start = aStats.start ? new aWindow.Date(aStats.start.getTime()) : null;
   this.end = aStats.end ? new aWindow.Date(aStats.end.getTime()) : null;
 
-  let samples = this.data = new aWindow.Array();
+  let samples = this.data = Cu.createArrayIn(aWindow);
   for (let i = 0; i < aStats.data.length; i++) {
     samples.push(new NetworkStatsData(aWindow, aStats.data[i]));
   }
@@ -342,7 +342,7 @@ NetworkStatsManager.prototype = {
           return;
         }
 
-        let networks = new this._window.Array();
+        let networks = Cu.createArrayIn(this._window);
         for (let i = 0; i < msg.result.length; i++) {
           networks.push(new NetworkStatsInterface(msg.result[i]));
         }
@@ -356,7 +356,7 @@ NetworkStatsManager.prototype = {
           return;
         }
 
-        let serviceTypes = new this._window.Array();
+        let serviceTypes = Cu.createArrayIn(this._window);
         for (let i = 0; i < msg.result.length; i++) {
           serviceTypes.push(msg.result[i]);
         }
@@ -390,7 +390,7 @@ NetworkStatsManager.prototype = {
           return;
         }
 
-        let alarms = new this._window.Array();
+        let alarms = Cu.createArrayIn(this._window);
         for (let i = 0; i < msg.result.length; i++) {
           alarms.push(new NetworkStatsAlarm(msg.result[i]));
         }

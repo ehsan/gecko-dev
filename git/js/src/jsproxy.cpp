@@ -3129,39 +3129,38 @@ proxy(JSContext *cx, unsigned argc, jsval *vp)
     if (!proxy)
         return false;
     proxy->setExtra(0, ObjectOrNullValue(handler));
-    args.rval().setObject(*proxy);
+    vp->setObject(*proxy);
     return true;
 }
 
 static bool
 proxy_create(JSContext *cx, unsigned argc, Value *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
-    if (args.length() < 1) {
+    if (argc < 1) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_MORE_ARGS_NEEDED,
                              "create", "0", "s");
         return false;
     }
-    JSObject *handler = NonNullObject(cx, args[0]);
+    JSObject *handler = NonNullObject(cx, vp[2]);
     if (!handler)
         return false;
     JSObject *proto, *parent = nullptr;
-    if (args.get(1).isObject()) {
-        proto = &args[1].toObject();
+    if (argc > 1 && vp[3].isObject()) {
+        proto = &vp[3].toObject();
         parent = proto->getParent();
     } else {
-        JS_ASSERT(IsFunctionObject(&args.callee()));
+        JS_ASSERT(IsFunctionObject(vp[0]));
         proto = nullptr;
     }
     if (!parent)
-        parent = args.callee().getParent();
+        parent = vp[0].toObject().getParent();
     RootedValue priv(cx, ObjectValue(*handler));
     JSObject *proxy = NewProxyObject(cx, &ScriptedIndirectProxyHandler::singleton,
                                      priv, proto, parent);
     if (!proxy)
         return false;
 
-    args.rval().setObject(*proxy);
+    vp->setObject(*proxy);
     return true;
 }
 
@@ -3215,7 +3214,7 @@ proxy_createFunction(JSContext *cx, unsigned argc, Value *vp)
         return false;
     proxy->as<ProxyObject>().setExtra(0, ObjectValue(*ccHolder));
 
-    args.rval().setObject(*proxy);
+    vp->setObject(*proxy);
     return true;
 }
 

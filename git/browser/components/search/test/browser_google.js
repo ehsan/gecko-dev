@@ -161,11 +161,6 @@ function test() {
             },
           },
         },
-        {
-          type: "text/html",
-          method: "GET",
-          template: "https://www.google.com/",
-        },
       ],
     },
   };
