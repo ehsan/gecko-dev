@@ -41,9 +41,7 @@
 
 #include "nsGenericDOMDataNode.h"
 #include "nsIDOMText.h"
-#include "nsContentUtils.h"
-#include "nsIDOMEventListener.h"
-#include "nsIDOMMutationEvent.h"
+
 #include "nsIAttribute.h"
 #include "nsIDocument.h"
 #include "nsThreadUtils.h"
@@ -84,6 +82,9 @@ public:
   nsresult UnbindFromAttribute();
 
   virtual nsXPCClassInfo* GetClassInfo();
+
+  nsresult AppendTextForNormalize(const PRUnichar* aBuffer, PRUint32 aLength,
+                                  PRBool aNotify, nsIContent* aNextSibling);
 
 #ifdef DEBUG
   virtual void List(FILE* out, PRInt32 aIndent) const;

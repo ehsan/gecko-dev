@@ -80,7 +80,7 @@ static fp_except_t oldmask = fpsetmask(~allmask);
 #include "nsINode.h"
 #include "nsHashtable.h"
 #include "nsIDOMNode.h"
-#include "nsAHtml5FragmentParser.h"
+#include "nsHtml5Parser.h"
 #include "nsIFragmentContentSink.h"
 #include "nsMathUtils.h"
 
@@ -1855,7 +1855,8 @@ private:
 #ifdef DEBUG
   static PRUint32 sDOMNodeRemovedSuppressCount;
 #endif
-  static nsCOMArray<nsIRunnable>* sBlockedScriptRunners;
+  // Not an nsCOMArray because removing elements from those is slower
+  static nsTArray< nsCOMPtr<nsIRunnable> >* sBlockedScriptRunners;
   static PRUint32 sRunnersCountAtFirstBlocker;
   static PRUint32 sScriptBlockerCountWhereRunnersPrevented;
 
@@ -1864,7 +1865,7 @@ private:
   static PRBool sIsHandlingKeyBoardEvent;
   static PRBool sAllowXULXBL_for_file;
 
-  static nsAHtml5FragmentParser* sHTMLFragmentParser;
+  static nsHtml5Parser* sHTMLFragmentParser;
   static nsIParser* sXMLFragmentParser;
   static nsIFragmentContentSink* sXMLFragmentSink;
 

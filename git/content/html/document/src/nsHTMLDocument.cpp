@@ -56,12 +56,7 @@
 #include "nsIDOMNode.h" // for Find
 #include "nsIDOMNodeList.h"
 #include "nsIDOMElement.h"
-#include "nsIDOMText.h"
-#include "nsIDOMComment.h"
-#include "nsIDOMDOMImplementation.h"
-#include "nsIDOMDocumentType.h"
 #include "nsPIDOMWindow.h"
-#include "nsIDOMHTMLFormElement.h"
 #include "nsDOMString.h"
 #include "nsIStreamListener.h"
 #include "nsIURI.h"
@@ -1497,6 +1492,7 @@ nsHTMLDocument::SetCookie(const nsAString& aCookie)
       window->GetPrompter(getter_AddRefs(prompt));
     }
 
+    // The for getting the URI matches nsNavigator::GetCookieEnabled
     nsCOMPtr<nsIURI> codebaseURI;
     NodePrincipal()->GetURI(getter_AddRefs(codebaseURI));
 
@@ -3398,9 +3394,9 @@ nsHTMLDocument::QueryCommandEnabled(const nsAString & commandID,
   if (!window)
     return NS_ERROR_FAILURE;
 
-  nsCAutoString cmdToDispatch, paramStr;
+  nsCAutoString cmdToDispatch;
   if (!ConvertToMidasInternalCommand(commandID, cmdToDispatch))
-    return NS_ERROR_NOT_IMPLEMENTED;
+    return NS_OK; // queryCommandEnabled returns false on unsupported commands
 
   return cmdMgr->IsCommandEnabled(cmdToDispatch.get(), window, _retval);
 }
@@ -3521,7 +3517,18 @@ nsHTMLDocument::QueryCommandSupported(const nsAString & commandID,
   if (!IsEditingOnAfterFlush())
     return NS_ERROR_FAILURE;
 
-  return NS_ERROR_NOT_IMPLEMENTED;
+  // get command manager
+  nsCOMPtr<nsICommandManager> cmdMgr;
+  GetMidasCommandManager(getter_AddRefs(cmdMgr));
+  if (!cmdMgr)
+    return NS_ERROR_FAILURE;
+
+  // commandID is supported if it can be converted to a Midas command
+  nsCAutoString cmdToDispatch;
+  if (ConvertToMidasInternalCommand(commandID, cmdToDispatch))
+    *_retval = PR_TRUE;
+
+  return NS_OK;
 }
 
 /* DOMString queryCommandText(in DOMString commandID); */

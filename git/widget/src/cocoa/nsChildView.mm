@@ -47,6 +47,7 @@
 #include "prlog.h"
 
 #include <unistd.h>
+#include <math.h>
  
 #include "nsChildView.h"
 #include "nsCocoaWindow.h"
@@ -112,14 +113,6 @@ extern "C" {
   CG_EXTERN void CGContextResetCTM(CGContextRef);
   CG_EXTERN void CGContextSetCTM(CGContextRef, CGAffineTransform);
   CG_EXTERN void CGContextResetClip(CGContextRef);
-
-  // CGSPrivate.h
-  typedef NSInteger CGSConnection;
-  typedef NSInteger CGSWindow;
-  extern CGSConnection _CGSDefaultConnection();
-  extern CGError CGSGetScreenRectForWindow(const CGSConnection cid, CGSWindow wid, CGRect *outRect);
-  extern CGError CGSGetWindowLevel(const CGSConnection cid, CGSWindow wid, CGWindowLevel *level);
-  extern CGError CGSGetWindowAlpha(const CGSConnection cid, const CGSWindow wid, float* alpha);
 }
 
 // defined in nsMenuBarX.mm
@@ -133,6 +126,9 @@ PRBool gChildViewMethodsSwizzled = PR_FALSE;
 extern nsISupportsArray *gDraggedTransferables;
 
 ChildView* ChildViewMouseTracker::sLastMouseEventView = nil;
+NSEvent* ChildViewMouseTracker::sLastMouseMoveEvent = nil;
+NSWindow* ChildViewMouseTracker::sWindowUnderMouse = nil;
+NSPoint ChildViewMouseTracker::sLastScrollEventScreenLocation = NSZeroPoint;
 
 #ifdef INVALIDATE_DEBUGGING
 static void blinkRect(Rect* r);
@@ -310,6 +306,15 @@ nsresult nsChildView::Create(nsIWidget *aParent,
   if (!gChildViewMethodsSwizzled) {
     nsToolkit::SwizzleMethods([NSView class], @selector(mouseDownCanMoveWindow),
                               @selector(nsChildView_NSView_mouseDownCanMoveWindow));
+#ifdef __LP64__
+    if (nsToolkit::OnLionOrLater()) {
+      nsToolkit::SwizzleMethods([NSEvent class], @selector(addLocalMonitorForEventsMatchingMask:handler:),
+                                @selector(nsChildView_NSEvent_addLocalMonitorForEventsMatchingMask:handler:),
+                                PR_TRUE);
+      nsToolkit::SwizzleMethods([NSEvent class], @selector(removeMonitor:),
+                                @selector(nsChildView_NSEvent_removeMonitor:), PR_TRUE);
+    }
+#endif
 #ifndef NP_NO_CARBON
     TextInputHandler::SwizzleMethods();
 #endif
@@ -1236,6 +1241,24 @@ nsresult nsChildView::SynthesizeNativeMouseEvent(nsIntPoint aPoint,
   if (!event)
     return NS_ERROR_FAILURE;
 
+  if ([[mView window] isKindOfClass:[BaseWindow class]]) {
+    // Tracking area events don't end up in their tracking areas when sent
+    // through [NSApp sendEvent:], so pass them directly to the right methods.
+    BaseWindow* window = (BaseWindow*)[mView window];
+    if (aNativeMessage == NSMouseEntered) {
+      [window mouseEntered:event];
+      return NS_OK;
+    }
+    if (aNativeMessage == NSMouseExited) {
+      [window mouseExited:event];
+      return NS_OK;
+    }
+    if (aNativeMessage == NSMouseMoved) {
+      [window mouseMoved:event];
+      return NS_OK;
+    }
+  }
+
   [NSApp sendEvent:event];
   return NS_OK;
 
@@ -2001,6 +2024,10 @@ NSEvent* gLastDragMouseDownEvent = nil;
     mDidForceRefreshOpenGL = NO;
 
     [self setFocusRingType:NSFocusRingTypeNone];
+
+#ifdef __LP64__
+    mSwipeAnimationCancelled = nil;
+#endif
   }
   
   // register for things we'll take from other applications
@@ -2976,6 +3003,137 @@ NSEvent* gLastDragMouseDownEvent = nil;
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
+// Support fluid swipe tracking on OS X 10.7 and higher.  We must be careful
+// to only invoke this support on a horizontal two-finger gesture that really
+// is a swipe (and not a scroll) -- in other words, the app is responsible
+// for deciding which is which.  But once the decision is made, the OS tracks
+// the swipe until it has finished, and decides whether or not it succeeded.
+// A swipe has the same functionality as the Back and Forward buttons.  For
+// now swipe animation is unsupported (e.g. no bounces).  This method is
+// partly based on Apple sample code available at
+// http://developer.apple.com/library/mac/#releasenotes/Cocoa/AppKit.html
+// (under Fluid Swipe Tracking API).
+#ifdef __LP64__
+- (void)maybeTrackScrollEventAsSwipe:(NSEvent *)anEvent
+                      scrollOverflow:(PRInt32)overflow
+{
+  if (!nsToolkit::OnLionOrLater()) {
+    return;
+  }
+  // This method checks whether the AppleEnableSwipeNavigateWithScrolls global
+  // preference is set.  If it isn't, fluid swipe tracking is disabled, and a
+  // horizontal two-finger gesture is always a scroll (even in Safari).  This
+  // preference can't (currently) be set from the Preferences UI -- only using
+  // 'defaults write'.
+  if (![NSEvent isSwipeTrackingFromScrollEventsEnabled]) {
+    return;
+  }
+  if ([anEvent type] != NSScrollWheel) {
+    return;
+  }
+
+  // If a swipe is currently being tracked kill it -- it's been interrupted by
+  // another gesture or legacy scroll wheel event.
+  if (mSwipeAnimationCancelled && (*mSwipeAnimationCancelled == NO)) {
+    *mSwipeAnimationCancelled = YES;
+    mSwipeAnimationCancelled = nil;
+  }
+
+  // Only initiate tracking if the user has tried to scroll past the edge of
+  // the current page (as indicated by 'overflow' being non-zero).  Gecko only
+  // sets nsMouseScrollEvent.scrollOverflow when it's processing
+  // NS_MOUSE_PIXEL_SCROLL events (not NS_MOUSE_SCROLL events).
+  // nsMouseScrollEvent.scrollOverflow only indicates left or right overflow
+  // for horizontal NS_MOUSE_PIXEL_SCROLL events.
+  if (!overflow) {
+    return;
+  }
+  // Only initiate tracking for gestures that have just begun -- otherwise a
+  // scroll to one side of the page can have a swipe tacked on to it.
+  if ([anEvent phase] != NSEventPhaseBegan) {
+    return;
+  }
+  CGFloat deltaX, deltaY;
+  if ([anEvent hasPreciseScrollingDeltas]) {
+    deltaX = [anEvent scrollingDeltaX];
+    deltaY = [anEvent scrollingDeltaY];
+  } else {
+    deltaX = [anEvent deltaX];
+    deltaY = [anEvent deltaY];
+  }
+  // Only initiate tracking for events whose horizontal element is at least
+  // eight times larger than its vertical element.  This minimizes performance
+  // problems with vertical scrolls (by minimizing the possibility that they'll
+  // be misinterpreted as horizontal swipes), while still tolerating a small
+  // vertical element to a true horizontal swipe.  The number '8' was arrived
+  // at by trial and error.
+  if ((deltaX == 0) || (fabs(deltaX) <= fabs(deltaY) * 8)) {
+    return;
+  }
+
+  // geckoEvent must be initialized now (while anEvent is still available),
+  // but we also need to access it (and modify it) in the following "block"
+  // (the trackingHandler passed to [NSEvent trackSwipeEventWithOptions:...]).
+  // Normally we'd give it the '__block' keyword, but this makes the compiler
+  // crash :-(  Without the '__block' keyword, it becomes immutable from
+  // trackingHandler.  So trackingHandler must make a copy of it and modify
+  // that.
+  nsSimpleGestureEvent geckoEvent(PR_TRUE, NS_SIMPLE_GESTURE_SWIPE, mGeckoChild, 0, 0.0);
+  [self convertCocoaMouseEvent:anEvent toGeckoEvent:&geckoEvent];
+
+  __block BOOL animationCancelled = NO;
+  // At this point, anEvent is the first scroll wheel event in a two-finger
+  // horizontal gesture that we've decided to treat as a swipe.  When we call
+  // [NSEvent trackSwipeEventWithOptions:...], the OS interprets all
+  // subsequent scroll wheel events that are part of this gesture as a swipe,
+  // and stops sending them to us.  The OS calls the trackingHandler "block"
+  // multiple times, asynchronously (sometimes after [NSEvent
+  // maybeTrackScrollEventAsSwipe:...] has returned).  The OS determines when
+  // the gesture has finished, and whether or not it was "successful" -- this
+  // information is passed to trackingHandler.  We must be careful to only
+  // call [NSEvent maybeTrackScrollEventAsSwipe:...] on a "real" swipe --
+  // otherwise two-finger scrolling performance will suffer significantly.
+  [anEvent trackSwipeEventWithOptions:0
+             dampenAmountThresholdMin:-1
+                                  max:1
+                         usingHandler:^(CGFloat gestureAmount, NSEventPhase phase, BOOL isComplete, BOOL *stop) {
+      if (animationCancelled) {
+        *stop = YES;
+        return;
+      }
+      // gestureAmount is documented to be '-1', '0' or '1' when isComplete
+      // is TRUE, but the docs don't say anything about its value at other
+      // times.  However, tests show that, when phase == NSEventPhaseEnded,
+      // gestureAmount is negative when it will be '-1' at isComplete, and
+      // positive when it will be '1'.  And phase is never equal to
+      // NSEventPhaseEnded when gestureAmount will be '0' at isComplete.
+      // Not waiting until isComplete is TRUE substantially reduces the
+      // time it takes to change pages after a swipe, and helps resolve
+      // bug 678891.
+      if (phase == NSEventPhaseEnded) {
+        if (gestureAmount) {
+          nsSimpleGestureEvent geckoEventCopy(geckoEvent);
+          if (gestureAmount > 0) {
+            geckoEventCopy.direction |= nsIDOMSimpleGestureEvent::DIRECTION_LEFT;
+          } else {
+            geckoEventCopy.direction |= nsIDOMSimpleGestureEvent::DIRECTION_RIGHT;
+          }
+          mGeckoChild->DispatchWindowEvent(geckoEventCopy);
+        }
+        mSwipeAnimationCancelled = nil;
+      } else if (phase == NSEventPhaseCancelled) {
+        mSwipeAnimationCancelled = nil;
+      }
+    }];
+
+  // We keep a pointer to the __block variable (animationCanceled) so we
+  // can cancel our block handler at any time.  Note: We must assign
+  // &animationCanceled after our block creation and copy -- its address
+  // isn't resolved until then!
+  mSwipeAnimationCancelled = &animationCancelled;
+}
+#endif // #ifdef __LP64__
+
 // Returning NO from this method only disallows ordering on mousedown - in order
 // to prevent it for mouseup too, we need to call [NSApp preventWindowOrdering]
 // when handling the mousedown event.
@@ -3232,11 +3390,6 @@ NSEvent* gLastDragMouseDownEvent = nil;
 
   nsEventStatus status; // ignored
   mGeckoChild->DispatchEvent(&event, status);
-}
-
-- (void)mouseMoved:(NSEvent*)aEvent
-{
-  ChildViewMouseTracker::MouseMoved(aEvent);
 }
 
 - (void)handleMouseMoved:(NSEvent*)theEvent
@@ -3559,8 +3712,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
     // No sense in firing off a Gecko event.
      return;
 
-  BOOL isMomentumScroll = [theEvent respondsToSelector:@selector(_scrollPhase)] &&
-                          [theEvent _scrollPhase] != 0;
+  BOOL isMomentumScroll = nsCocoaUtils::IsMomentumScrollEvent(theEvent);
 
   if (scrollDelta != 0) {
     // Send the line scroll event.
@@ -3664,6 +3816,17 @@ NSEvent* gLastDragMouseDownEvent = nil;
     geckoEvent.delta = NSToIntRound(scrollDeltaPixels);
     nsAutoRetainCocoaObject kungFuDeathGrip(self);
     mGeckoChild->DispatchWindowEvent(geckoEvent);
+#ifdef __LP64__
+    // scrollOverflow tells us when the user has tried to scroll past the edge
+    // of a page (in those cases it's non-zero).  Gecko only sets it when
+    // processing NS_MOUSE_PIXEL_SCROLL events (not MS_MOUSE_SCROLL events).
+    // It only means left/right overflow when Gecko is processing a horizontal
+    // event.
+    if (inAxis & nsMouseScrollEvent::kIsHorizontal) {
+      [self maybeTrackScrollEventAsSwipe:theEvent
+                          scrollOverflow:geckoEvent.scrollOverflow];
+    }
+#endif // #ifdef __LP64__
   }
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
@@ -3671,14 +3834,11 @@ NSEvent* gLastDragMouseDownEvent = nil;
 
 -(void)scrollWheel:(NSEvent*)theEvent
 {
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
-
   nsAutoRetainCocoaObject kungFuDeathGrip(self);
 
-  if ([self maybeRollup:theEvent])
-    return;
+  ChildViewMouseTracker::MouseScrolled(theEvent);
 
-  if (!mGeckoChild)
+  if ([self maybeRollup:theEvent])
     return;
 
   // It's possible for a single NSScrollWheel event to carry both useful
@@ -3686,11 +3846,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
   // NSMouseScrollEvent can only carry one axis at a time, so the system
   // event will be split into two Gecko events if necessary.
   [self scrollWheel:theEvent forAxis:nsMouseScrollEvent::kIsVertical];
-  if (!mGeckoChild)
-    return;
   [self scrollWheel:theEvent forAxis:nsMouseScrollEvent::kIsHorizontal];
-
-  NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
 -(NSMenu*)menuForEvent:(NSEvent*)theEvent
@@ -4756,8 +4912,35 @@ NSEvent* gLastDragMouseDownEvent = nil;
 void
 ChildViewMouseTracker::OnDestroyView(ChildView* aView)
 {
-  if (sLastMouseEventView == aView)
+  if (sLastMouseEventView == aView) {
     sLastMouseEventView = nil;
+    [sLastMouseMoveEvent release];
+    sLastMouseMoveEvent = nil;
+  }
+}
+
+void
+ChildViewMouseTracker::OnDestroyWindow(NSWindow* aWindow)
+{
+  if (sWindowUnderMouse == aWindow) {
+    sWindowUnderMouse = nil;
+  }
+}
+
+void
+ChildViewMouseTracker::MouseEnteredWindow(NSEvent* aEvent)
+{
+  sWindowUnderMouse = [aEvent window];
+  ReEvaluateMouseEnterState(aEvent);
+}
+
+void
+ChildViewMouseTracker::MouseExitedWindow(NSEvent* aEvent)
+{
+  if (sWindowUnderMouse == [aEvent window]) {
+    sWindowUnderMouse = nil;
+    ReEvaluateMouseEnterState(aEvent);
+  }
 }
 
 void
@@ -4779,22 +4962,42 @@ ChildViewMouseTracker::ReEvaluateMouseEnterState(NSEvent* aEvent)
 }
 
 void
+ChildViewMouseTracker::ResendLastMouseMoveEvent()
+{
+  if (sLastMouseMoveEvent) {
+    MouseMoved(sLastMouseMoveEvent);
+  }
+}
+
+void
 ChildViewMouseTracker::MouseMoved(NSEvent* aEvent)
 {
-  ReEvaluateMouseEnterState(aEvent);
+  MouseEnteredWindow(aEvent);
   [sLastMouseEventView handleMouseMoved:aEvent];
+  if (sLastMouseMoveEvent != aEvent) {
+    [sLastMouseMoveEvent release];
+    sLastMouseMoveEvent = [aEvent retain];
+  }
+}
+
+void
+ChildViewMouseTracker::MouseScrolled(NSEvent* aEvent)
+{
+  if (!nsCocoaUtils::IsMomentumScrollEvent(aEvent)) {
+    // Store the position so we can pin future momentum scroll events.
+    sLastScrollEventScreenLocation = nsCocoaUtils::ScreenLocationForEvent(aEvent);
+  }
 }
 
 ChildView*
 ChildViewMouseTracker::ViewForEvent(NSEvent* aEvent)
 {
-  NSWindow* window = WindowForEvent(aEvent);
+  NSWindow* window = sWindowUnderMouse;
   if (!window)
     return nil;
 
   NSPoint windowEventLocation = nsCocoaUtils::EventLocationForWindow(aEvent, window);
   NSView* view = [[[window contentView] superview] hitTest:windowEventLocation];
-  NS_ASSERTION(view, "How can the mouse be over a window but not over a view in that window?");
   if (![view isKindOfClass:[ChildView class]])
     return nil;
 
@@ -4803,102 +5006,6 @@ ChildViewMouseTracker::ViewForEvent(NSEvent* aEvent)
   if (![childView widget])
     return nil;
   return WindowAcceptsEvent(window, aEvent, childView) ? childView : nil;
-}
-
-static CGWindowLevel kDockWindowLevel = 0;
-static CGWindowLevel kPopupWindowLevel = 0;
-
-static BOOL WindowNumberIsUnderPoint(NSInteger aWindowNumber, NSPoint aPoint) {
-  NSWindow* window = [NSApp windowWithWindowNumber:aWindowNumber];
-  if (window) {
-    // This is one of our own windows.
-    return NSMouseInRect(aPoint, [window frame], NO);
-  }
-
-  CGSConnection cid = _CGSDefaultConnection();
-
-  if (!kDockWindowLevel) {
-    // These constants are in fact function calls, so cache them.
-    kDockWindowLevel = kCGDockWindowLevel;
-    kPopupWindowLevel = kCGPopUpMenuWindowLevel;
-  }
-
-  // Some things put transparent windows on top of everything. Ignore them.
-  CGWindowLevel level;
-  if ((kCGErrorSuccess == CGSGetWindowLevel(cid, aWindowNumber, &level)) &&
-      (level == kDockWindowLevel ||     // Transparent layer, spanning the whole screen
-       level > kPopupWindowLevel))      // Snapz Pro X while recording a screencast
-    return false;
-
-  // Ignore transparent windows.
-  float alpha;
-  if ((kCGErrorSuccess == CGSGetWindowAlpha(cid, aWindowNumber, &alpha)) &&
-      alpha < 0.1f)
-    return false;
-
-  CGRect rect;
-  if (kCGErrorSuccess != CGSGetScreenRectForWindow(cid, aWindowNumber, &rect))
-    return false;
-
-  CGPoint point = { aPoint.x, nsCocoaUtils::FlippedScreenY(aPoint.y) };
-  return CGRectContainsPoint(rect, point);
-}
-
-// Find the window number of the window under the given point, regardless of
-// which app the window belongs to. Returns 0 if no window was found.
-static NSInteger WindowNumberAtPoint(NSPoint aPoint) {
-  // We'd like to use the new windowNumberAtPoint API on 10.6 but we can't rely
-  // on it being up-to-date. For example, if we've just opened a window,
-  // windowNumberAtPoint might not know about it yet, so we'd send events to the
-  // wrong window. See bug 557986.
-  // So we'll have to find the right window manually by iterating over all
-  // windows on the screen and testing whether the mouse is inside the window's
-  // rect. We do this using private CGS functions.
-  // Another way of doing it would be to use tracking rects, but those are
-  // view-controlled, so they need to be reset whenever an NSView changes its
-  // size or position, which is expensive. See bug 300904 comment 20.
-  // A problem with using the CGS functions is that we only look at the windows'
-  // rects, not at the transparency of the actual pixel the mouse is over. This
-  // means that we won't treat transparent pixels as transparent to mouse
-  // events, which is a disadvantage over using tracking rects and leads to the
-  // crummy window level workarounds in WindowNumberIsUnderPoint.
-  // But speed is more important.
-
-  // Get the window list.
-  NSInteger windowCount;
-  NSCountWindows(&windowCount);
-  NSInteger* windowList = (NSInteger*)malloc(sizeof(NSInteger) * windowCount);
-  if (!windowList)
-    return nil;
-
-  // The list we get back here is in order from front to back.
-  NSWindowList(windowCount, windowList);
-  for (NSInteger i = 0; i < windowCount; i++) {
-    NSInteger windowNumber = windowList[i];
-    if (WindowNumberIsUnderPoint(windowNumber, aPoint)) {
-      free(windowList);
-      return windowNumber;
-    }
-  }
-
-  free(windowList);
-  return 0;
-}
-
-// Find Gecko window under the mouse. Returns nil if the mouse isn't over
-// any of our windows.
-NSWindow*
-ChildViewMouseTracker::WindowForEvent(NSEvent* anEvent)
-{
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
-
-  NSPoint screenPoint = nsCocoaUtils::ScreenLocationForEvent(anEvent);
-  NSInteger windowNumber = WindowNumberAtPoint(screenPoint);
-
-  // This will return nil if windowNumber belongs to a window that we don't own.
-  return [NSApp windowWithWindowNumber:windowNumber];
-
-  NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
 
 BOOL
@@ -4994,3 +5101,48 @@ ChildViewMouseTracker::WindowAcceptsEvent(NSWindow* aWindow, NSEvent* aEvent,
 }
 
 @end
+
+#ifdef __LP64__
+// When using blocks, at least on OS X 10.7, the OS sometimes calls
+// +[NSEvent removeMonitor:] more than once on a single event monitor, which
+// causes crashes.  See bug 678607.  We hook these methods to work around
+// the problem.
+@interface NSEvent (MethodSwizzling)
++ (id)nsChildView_NSEvent_addLocalMonitorForEventsMatchingMask:(unsigned long long)mask handler:(id)block;
++ (void)nsChildView_NSEvent_removeMonitor:(id)eventMonitor;
+@end
+
+// This is a local copy of the AppKit frameworks sEventObservers hashtable.
+// It only stores "local monitors".  We use it to ensure that +[NSEvent
+// removeMonitor:] is never called more than once on the same local monitor.
+static NSHashTable *sLocalEventObservers = nil;
+
+@implementation NSEvent (MethodSwizzling)
+
++ (id)nsChildView_NSEvent_addLocalMonitorForEventsMatchingMask:(unsigned long long)mask handler:(id)block
+{
+  if (!sLocalEventObservers) {
+    sLocalEventObservers = [[NSHashTable hashTableWithOptions:
+      NSHashTableStrongMemory | NSHashTableObjectPointerPersonality] retain];
+  }
+  id retval =
+    [self nsChildView_NSEvent_addLocalMonitorForEventsMatchingMask:mask handler:block];
+  if (sLocalEventObservers && retval && ![sLocalEventObservers containsObject:retval]) {
+    [sLocalEventObservers addObject:retval];
+  }
+  return retval;
+}
+
++ (void)nsChildView_NSEvent_removeMonitor:(id)eventMonitor
+{
+  if (sLocalEventObservers && [eventMonitor isKindOfClass: ::NSClassFromString(@"_NSLocalEventObserver")]) {
+    if (![sLocalEventObservers containsObject:eventMonitor]) {
+      return;
+    }
+    [sLocalEventObservers removeObject:eventMonitor];
+  }
+  [self nsChildView_NSEvent_removeMonitor:eventMonitor];
+}
+
+@end
+#endif // #ifdef __LP64__

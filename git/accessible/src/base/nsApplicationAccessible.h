@@ -93,17 +93,11 @@ public:
   NS_IMETHOD GetAttributes(nsIPersistentProperties **aAttributes);
   NS_IMETHOD GroupPosition(PRInt32 *aGroupLevel, PRInt32 *aSimilarItemsInGroup,
                            PRInt32 *aPositionInGroup);
-  NS_IMETHOD GetRelationByType(PRUint32 aRelationType,
-                               nsIAccessibleRelation **aRelation);
-  NS_IMETHOD GetRelationsCount(PRUint32 *aRelationsCount);
-  NS_IMETHOD GetRelation(PRUint32 aIndex, nsIAccessibleRelation **aRelation);
-  NS_IMETHOD GetRelations(nsIArray **aRelations);
   NS_IMETHOD GetBounds(PRInt32 *aX, PRInt32 *aY,
                        PRInt32 *aWidth, PRInt32 *aHeight);
   NS_IMETHOD SetSelected(PRBool aIsSelected);
   NS_IMETHOD TakeSelection();
   NS_IMETHOD TakeFocus();
-  NS_IMETHOD GetNumActions(PRUint8 *aNumActions);
   NS_IMETHOD GetActionName(PRUint8 aIndex, nsAString &aName);
   NS_IMETHOD GetActionDescription(PRUint8 aIndex, nsAString &aDescription);
   NS_IMETHOD DoAction(PRUint8 aIndex);
@@ -123,12 +117,16 @@ public:
   virtual PRUint32 NativeRole();
   virtual PRUint64 State();
   virtual PRUint64 NativeState();
+  virtual Relation RelationByType(PRUint32 aRelType);
+
   virtual nsAccessible* ChildAtPoint(PRInt32 aX, PRInt32 aY,
                                      EWhichChildAtPoint aWhichChild);
+  virtual nsAccessible* FocusedChild();
 
   virtual void InvalidateChildren();
 
   // ActionAccessible
+  virtual PRUint8 ActionCount();
   virtual KeyBinding AccessKey() const;
 
 protected:

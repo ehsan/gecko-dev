@@ -41,6 +41,7 @@
 
 #include "jsapi.h"
 #include "jscntxt.h"
+#include "jsexn.h"
 #include "jsgc.h"
 #include "jsgcmark.h"
 #include "jsiter.h"
@@ -71,6 +72,19 @@ bool
 JSObject::isWrapper() const
 {
     return isProxy() && getProxyHandler()->family() == &sWrapperFamily;
+}
+
+bool
+JSObject::isCrossCompartmentWrapper() const
+{
+    return isWrapper() && !!(getWrapperHandler()->flags() & JSWrapper::CROSS_COMPARTMENT);
+}
+
+JSWrapper *
+JSObject::getWrapperHandler() const
+{
+    JS_ASSERT(isWrapper());
+    return static_cast<JSWrapper *>(getProxyHandler());
 }
 
 JSObject *
@@ -460,6 +474,24 @@ AutoCompartment::leave()
         context->resetCompartment();
     }
     entered = false;
+}
+
+ErrorCopier::~ErrorCopier()
+{
+    JSContext *cx = ac.context;
+    if (cx->compartment == ac.destination &&
+        ac.origin != ac.destination &&
+        cx->isExceptionPending())
+    {
+        Value exc = cx->getPendingException();
+        if (exc.isObject() && exc.toObject().isError() && exc.toObject().getPrivate()) {
+            cx->clearPendingException();
+            ac.leave();
+            JSObject *copyobj = js_CopyErrorObject(cx, &exc.toObject(), scope);
+            if (copyobj)
+                cx->setPendingException(ObjectValue(*copyobj));
+        }
+    }
 }
 
 /* Cross compartment wrappers. */

@@ -247,7 +247,7 @@ nsresult nsLookAndFeel::NativeGetColor(const nsColorID aID, nscolor &aColor)
       break;
     case eColor__moz_mac_chrome_active:
     case eColor__moz_mac_chrome_inactive: {
-      int grey = NativeGreyColorAsInt(headerEndGrey, (aID == eColor__moz_mac_chrome_active));
+      int grey = NativeGreyColorAsInt(toolbarFillGrey, (aID == eColor__moz_mac_chrome_active));
       aColor = NS_RGB(grey, grey, grey);
     }
       break;
@@ -388,6 +388,9 @@ NS_IMETHODIMP nsLookAndFeel::GetMetric(const nsMetricID aID, PRInt32 & aMetric)
       break;
     case eMetric_MacGraphiteTheme:
       aMetric = [NSColor currentControlTint] == NSGraphiteControlTint;
+      break;
+    case eMetric_MacLionTheme:
+      aMetric = nsToolkit::OnLionOrLater();
       break;
     case eMetric_TabFocusModel:
     {

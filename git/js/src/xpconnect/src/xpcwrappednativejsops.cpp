@@ -812,9 +812,11 @@ XPC_WN_Equality(JSContext *cx, JSObject *obj, const jsval *valp, JSBool *bp)
     XPCNativeScriptableInfo* si = wrapper->GetScriptableInfo();
     if(si && si->GetFlags().WantEquality())
     {
-        nsresult rv = si->GetCallback()->Equality(wrapper, cx, obj, v, bp);
+        PRBool res;
+        nsresult rv = si->GetCallback()->Equality(wrapper, cx, obj, v, &res);
         if(NS_FAILED(rv))
             return Throw(rv, cx);
+        *bp = res;
     }
     else if(!JSVAL_IS_PRIMITIVE(v))
     {
@@ -1065,8 +1067,10 @@ static JSBool
 XPC_WN_Helper_HasInstance(JSContext *cx, JSObject *obj, const jsval *valp, JSBool *bp)
 {
     SLIM_LOG_WILL_MORPH(cx, obj);
+    PRBool retval2;
     PRE_HELPER_STUB_NO_SLIM
-    HasInstance(wrapper, cx, obj, *valp, bp, &retval);
+    HasInstance(wrapper, cx, obj, *valp, &retval2, &retval);
+    *bp = retval2;
     POST_HELPER_STUB
 }
 
@@ -1104,7 +1108,7 @@ XPC_WN_Helper_NewResolve(JSContext *cx, JSObject *obj, jsid id, uintN flags,
                          JSObject **objp)
 {
     nsresult rv = NS_OK;
-    JSBool retval = JS_TRUE;
+    PRBool retval = JS_TRUE;
     JSObject* obj2FromScriptable = nsnull;
     if(IS_SLIM_WRAPPER(obj))
     {
@@ -1572,7 +1576,7 @@ XPC_WN_CallMethod(JSContext *cx, uintN argc, jsval *vp)
 
 #ifdef DEBUG_slimwrappers
     {
-        JSFunction* fun = GET_FUNCTION_PRIVATE(cx, funobj);
+        JSFunction* fun = funobj->getFunctionPrivate();
         JSString *funid = JS_GetFunctionId(fun);
         JSAutoByteString bytes;
         const char *funname = !funid ? "" : bytes.encode(cx, funid) ? bytes.ptr() : "<error>";
@@ -1611,7 +1615,7 @@ XPC_WN_GetterSetter(JSContext *cx, uintN argc, jsval *vp)
         JSAutoByteString bytes;
         if(JS_TypeOfValue(cx, JS_CALLEE(cx, vp)) == JSTYPE_FUNCTION)
         {
-            JSString *funid = JS_GetFunctionId(GET_FUNCTION_PRIVATE(cx, funobj));
+            JSString *funid = JS_GetFunctionId(funobj->getFunctionPrivate());
             funname = !funid ? "" : bytes.encode(cx, funid) ? bytes.ptr() : "<error>";
         }
         SLIM_LOG_WILL_MORPH_FOR_PROP(cx, obj, funname);

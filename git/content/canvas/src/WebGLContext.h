@@ -472,6 +472,7 @@ protected:
         NS_ABORT_IF_FALSE(ext >= 0 && ext < WebGLExtensionID_Max, "bogus index!");
         return mEnabledExtensions[ext] != nsnull;
     }
+    bool IsExtensionSupported(WebGLExtensionID ei);
 
     PRBool InitAndValidateGL();
     PRBool ValidateBuffers(PRInt32* maxAllowedCount, const char *info);
@@ -2183,17 +2184,17 @@ class WebGLMemoryReporter
     typedef nsTArray<const WebGLContext*> ContextsArrayType;
     ContextsArrayType mContexts;
     
-    nsIMemoryReporter *mTextureMemoryUsageReporter;
-    nsIMemoryReporter *mTextureCountReporter;
-    nsIMemoryReporter *mBufferMemoryUsageReporter;
-    nsIMemoryReporter *mBufferCacheMemoryUsageReporter;
-    nsIMemoryReporter *mBufferCountReporter;
-    nsIMemoryReporter *mRenderbufferMemoryUsageReporter;
-    nsIMemoryReporter *mRenderbufferCountReporter;
-    nsIMemoryReporter *mShaderSourcesSizeReporter;
-    nsIMemoryReporter *mShaderTranslationLogsSizeReporter;
-    nsIMemoryReporter *mShaderCountReporter;
-    nsIMemoryReporter *mContextCountReporter;
+    nsCOMPtr<nsIMemoryReporter> mTextureMemoryUsageReporter;
+    nsCOMPtr<nsIMemoryReporter> mTextureCountReporter;
+    nsCOMPtr<nsIMemoryReporter> mBufferMemoryUsageReporter;
+    nsCOMPtr<nsIMemoryReporter> mBufferCacheMemoryUsageReporter;
+    nsCOMPtr<nsIMemoryReporter> mBufferCountReporter;
+    nsCOMPtr<nsIMemoryReporter> mRenderbufferMemoryUsageReporter;
+    nsCOMPtr<nsIMemoryReporter> mRenderbufferCountReporter;
+    nsCOMPtr<nsIMemoryReporter> mShaderSourcesSizeReporter;
+    nsCOMPtr<nsIMemoryReporter> mShaderTranslationLogsSizeReporter;
+    nsCOMPtr<nsIMemoryReporter> mShaderCountReporter;
+    nsCOMPtr<nsIMemoryReporter> mContextCountReporter;
 
     static WebGLMemoryReporter* UniqueInstance();
 

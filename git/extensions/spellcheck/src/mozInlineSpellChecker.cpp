@@ -70,6 +70,7 @@
 #include "nsCOMPtr.h"
 #include "nsCRT.h"
 #include "nsIDocument.h"
+#include "nsIDOMNode.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMEventTarget.h"
@@ -79,13 +80,12 @@
 #include "nsIDOMNodeList.h"
 #include "nsIDOMNSRange.h"
 #include "nsIDOMRange.h"
-#include "nsIDOMText.h"
 #include "nsIPlaintextEditor.h"
 #include "nsIPrefBranch.h"
 #include "nsIPrefService.h"
 #include "nsIRunnable.h"
 #include "nsISelection.h"
-#include "nsISelection2.h"
+#include "nsISelectionPrivate.h"
 #include "nsISelectionController.h"
 #include "nsIServiceManager.h"
 #include "nsITextServicesFilter.h"
@@ -1281,8 +1281,7 @@ nsresult mozInlineSpellChecker::DoSpellCheck(mozInlineSpellWordUtil& aWordUtil,
   if (iscollapsed)
     return NS_OK;
 
-  nsCOMPtr<nsISelection2> sel2 = do_QueryInterface(aSpellCheckSelection, &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
+  nsCOMPtr<nsISelectionPrivate> privSel = do_QueryInterface(aSpellCheckSelection);
 
   // see if the selection has any ranges, if not, then we can optimize checking
   // range inclusion later (we have no ranges when we are initially checking or
@@ -1347,9 +1346,9 @@ nsresult mozInlineSpellChecker::DoSpellCheck(mozInlineSpellWordUtil& aWordUtil,
         createdRange->IsPointInRange(beginNode, beginOffset, &inCreatedRange);
       if (! inCreatedRange) {
         nsCOMArray<nsIDOMRange> ranges;
-        rv = sel2->GetRangesForIntervalCOMArray(beginNode, beginOffset,
-                                                endNode, endOffset,
-                                                PR_TRUE, &ranges);
+        rv = privSel->GetRangesForIntervalCOMArray(beginNode, beginOffset,
+                                                   endNode, endOffset,
+                                                   PR_TRUE, &ranges);
         NS_ENSURE_SUCCESS(rv, rv);
         for (PRInt32 i = 0; i < ranges.Count(); i ++)
           RemoveRange(aSpellCheckSelection, ranges[i]);
@@ -1385,6 +1384,9 @@ nsresult mozInlineSpellChecker::DoSpellCheck(mozInlineSpellWordUtil& aWordUtil,
     PRBool isMisspelled;
     aWordUtil.NormalizeWord(wordText);
     rv = mSpellCheck->CheckCurrentWordNoSuggest(wordText.get(), &isMisspelled);
+    if (NS_FAILED(rv))
+      continue;
+
     if (isMisspelled) {
       // misspelled words count extra toward the max
       wordsSinceTimeCheck += MISSPELLED_WORD_COUNT_PENALTY;
@@ -1442,6 +1444,23 @@ mozInlineSpellChecker::ResumeCheck(mozInlineSpellStatus* aStatus)
   nsCOMPtr<nsISelection> spellCheckSelection;
   rv = GetSpellCheckSelection(getter_AddRefs(spellCheckSelection));
   NS_ENSURE_SUCCESS(rv, rv);
+
+  nsAutoString currentDictionary;
+  rv = mSpellCheck->GetCurrentDictionary(currentDictionary);
+  if (NS_FAILED(rv)) {
+    // no active dictionary
+    PRInt32 count;
+    spellCheckSelection->GetRangeCount(&count);
+    for (PRInt32 index = count - 1; index >= 0; index--) {
+      nsCOMPtr<nsIDOMRange> checkRange;
+      spellCheckSelection->GetRangeAt(index, getter_AddRefs(checkRange));
+      if (checkRange) {
+        RemoveRange(spellCheckSelection, checkRange);
+      }
+    }
+    return NS_OK; 
+  }
+ 
   CleanupRangesInSelection(spellCheckSelection);
 
   rv = aStatus->FinishInitOnEvent(wordUtil);
@@ -1478,13 +1497,11 @@ mozInlineSpellChecker::IsPointInSelection(nsISelection *aSelection,
 {
   *aRange = nsnull;
 
-  nsresult rv;
-  nsCOMPtr<nsISelection2> sel2 = do_QueryInterface(aSelection, &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
+  nsCOMPtr<nsISelectionPrivate> privSel(do_QueryInterface(aSelection));
 
   nsCOMArray<nsIDOMRange> ranges;
-  rv = sel2->GetRangesForIntervalCOMArray(aNode, aOffset, aNode, aOffset,
-                                          PR_TRUE, &ranges);
+  nsresult rv = privSel->GetRangesForIntervalCOMArray(aNode, aOffset, aNode, aOffset,
+                                                      PR_TRUE, &ranges);
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (ranges.Count() == 0)
@@ -1735,4 +1752,30 @@ nsresult mozInlineSpellChecker::KeyPress(nsIDOMEvent* aKeyEvent)
   }
 
   return NS_OK;
+}
+
+NS_IMETHODIMP mozInlineSpellChecker::UpdateCurrentDictionary()
+{
+  if (!mSpellCheck) {
+    return NS_OK;
+  }
+
+  nsAutoString previousDictionary;
+  if (NS_FAILED(mSpellCheck->GetCurrentDictionary(previousDictionary))) {
+    previousDictionary.Truncate();
+  }
+
+  nsCOMPtr<nsIEditor> editor (do_QueryReferent(mEditor));
+  nsresult rv = mSpellCheck->UpdateCurrentDictionary(editor);
+
+  nsAutoString currentDictionary;
+  if (NS_FAILED(mSpellCheck->GetCurrentDictionary(currentDictionary))) {
+    currentDictionary.Truncate();
+  }
+
+  if (!previousDictionary.Equals(currentDictionary)) {
+      rv = SpellCheckRange(nsnull);
+  }
+
+  return rv;
 }

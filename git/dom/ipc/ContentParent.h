@@ -168,6 +168,7 @@ private:
 
     virtual bool RecvGetSystemColors(const PRUint32& colorsCount, InfallibleTArray<PRUint32>* colors);
     virtual bool RecvGetIconForExtension(const nsCString& aFileExt, const PRUint32& aIconSize, InfallibleTArray<PRUint8>* bits);
+    virtual bool RecvGetShowPasswordSetting(PRBool* showPassword);
 
     virtual bool RecvStartVisitedQuery(const IPC::URI& uri);
 

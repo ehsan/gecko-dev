@@ -55,14 +55,14 @@ VertexDataManager::~VertexDataManager()
     }
 }
 
-UINT VertexDataManager::writeAttributeData(ArrayVertexBuffer *vertexBuffer, GLint start, GLsizei count, const VertexAttribute &attribute)
+std::size_t VertexDataManager::writeAttributeData(ArrayVertexBuffer *vertexBuffer, GLint start, GLsizei count, const VertexAttribute &attribute)
 {
     Buffer *buffer = attribute.mBoundBuffer.get();
 
     int inputStride = attribute.stride();
     int elementSize = attribute.typeSize();
     const FormatConverter &converter = formatConverter(attribute);
-    UINT streamOffset = 0;
+    std::size_t streamOffset = 0;
 
     void *output = NULL;
     
@@ -139,8 +139,6 @@ GLenum VertexDataManager::prepareVertexData(GLint start, GLsizei count, Translat
                 else if (staticBuffer->lookupAttribute(attribs[i]) == -1)
                 {
                     // This static buffer doesn't have matching attributes, so fall back to using the streaming buffer
-                    buffer->invalidateStaticData();
-
                     // Add the space of all previous attributes belonging to the invalidated static buffer to the streaming buffer
                     for (int previous = 0; previous < i; previous++)
                     {
@@ -157,6 +155,8 @@ GLenum VertexDataManager::prepareVertexData(GLint start, GLsizei count, Translat
                     }
 
                     mStreamingBuffer->addRequiredSpace(spaceRequired(attribs[i], count));
+
+                    buffer->invalidateStaticData();
                 }    
             }
             else
@@ -203,7 +203,7 @@ GLenum VertexDataManager::prepareVertexData(GLint start, GLsizei count, Translat
                 StaticVertexBuffer *staticBuffer = buffer ? buffer->getStaticVertexBuffer() : NULL;
                 ArrayVertexBuffer *vertexBuffer = staticBuffer ? staticBuffer : static_cast<ArrayVertexBuffer*>(mStreamingBuffer);
 
-                UINT streamOffset = -1;
+                std::size_t streamOffset = -1;
 
                 if (staticBuffer)
                 {
@@ -671,7 +671,7 @@ StaticVertexBuffer::~StaticVertexBuffer()
 {
 }
 
-void *StaticVertexBuffer::map(const VertexAttribute &attribute, std::size_t requiredSpace, UINT *streamOffset)
+void *StaticVertexBuffer::map(const VertexAttribute &attribute, std::size_t requiredSpace, std::size_t *streamOffset)
 {
     void *mapPtr = NULL;
 
@@ -719,7 +719,7 @@ void StaticVertexBuffer::reserveRequiredSpace()
     mRequiredSpace = 0;
 }
 
-UINT StaticVertexBuffer::lookupAttribute(const VertexAttribute &attribute)
+std::size_t StaticVertexBuffer::lookupAttribute(const VertexAttribute &attribute)
 {
     for (unsigned int element = 0; element < mCache.size(); element++)
     {

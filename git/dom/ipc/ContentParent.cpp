@@ -557,12 +557,14 @@ ContentParent::RecvGetClipboardText(const PRInt32& whichClipboard, nsString* tex
     clipboard->GetData(trans, whichClipboard);
     nsCOMPtr<nsISupports> tmp;
     PRUint32 len;
-    rv  = trans->GetTransferData(kUnicodeMime, getter_AddRefs(tmp), &len);
-    NS_ENSURE_SUCCESS(rv, rv);
+    rv = trans->GetTransferData(kUnicodeMime, getter_AddRefs(tmp), &len);
+    if (NS_FAILED(rv))
+        return false;
 
     nsCOMPtr<nsISupportsString> supportsString = do_QueryInterface(tmp);
     // No support for non-text data
-    NS_ENSURE_TRUE(supportsString, NS_ERROR_NOT_IMPLEMENTED);
+    if (!supportsString)
+        return false;
     supportsString->GetData(*text);
     return true;
 }
@@ -595,8 +597,11 @@ bool
 ContentParent::RecvGetSystemColors(const PRUint32& colorsCount, InfallibleTArray<PRUint32>* colors)
 {
 #ifdef ANDROID
-    if (!AndroidBridge::Bridge())
-        return false;
+    NS_ASSERTION(AndroidBridge::Bridge() != nsnull, "AndroidBridge is not available");
+    if (AndroidBridge::Bridge() == nsnull) {
+        // Do not fail - the colors won't be right, but it's not critical
+        return true;
+    }
 
     colors->AppendElements(colorsCount);
 
@@ -611,12 +616,28 @@ bool
 ContentParent::RecvGetIconForExtension(const nsCString& aFileExt, const PRUint32& aIconSize, InfallibleTArray<PRUint8>* bits)
 {
 #ifdef ANDROID
-    if (!AndroidBridge::Bridge())
-        return false;
+    NS_ASSERTION(AndroidBridge::Bridge() != nsnull, "AndroidBridge is not available");
+    if (AndroidBridge::Bridge() == nsnull) {
+        // Do not fail - just no icon will be shown
+        return true;
+    }
 
     bits->AppendElements(aIconSize * aIconSize * 4);
 
     AndroidBridge::Bridge()->GetIconForExtension(aFileExt, aIconSize, bits->Elements());
+#endif
+    return true;
+}
+
+bool
+ContentParent::RecvGetShowPasswordSetting(PRBool* showPassword)
+{
+    // default behavior is to show the last password character
+    *showPassword = PR_TRUE;
+#ifdef ANDROID
+    NS_ASSERTION(AndroidBridge::Bridge() != nsnull, "AndroidBridge is not available");
+    if (AndroidBridge::Bridge() != nsnull)
+        *showPassword = AndroidBridge::Bridge()->GetShowPasswordSetting();
 #endif
     return true;
 }

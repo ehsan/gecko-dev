@@ -178,6 +178,10 @@ include = """
 #endif
 """
 
+jspubtd_include = """
+#include "jspubtd.h"
+"""
+
 header_end = """/* For IDL files that don't want to include root IDL files. */
 #ifndef NS_NO_VTABLE
 #define NS_NO_VTABLE
@@ -206,6 +210,9 @@ def print_header(idl, fd, filename):
             foundinc = True
             fd.write('\n')
         fd.write(include % {'basename': idl_basename(inc.filename)})
+
+    if idl.needsJSTypes():
+        fd.write(jspubtd_include)
 
     fd.write('\n')
     fd.write(header_end)
@@ -476,6 +483,8 @@ if __name__ == '__main__':
                  help="Output file (default is stdout)")
     o.add_option('-d', dest='depfile', default=None,
                  help="Generate a make dependency file")
+    o.add_option('--regen', action='store_true', dest='regen', default=False,
+                 help="Regenerate IDL Parser cache")
     options, args = o.parse_args()
     file, = args
 
@@ -483,6 +492,14 @@ if __name__ == '__main__':
         if not os.path.isdir(options.cachedir):
             os.mkdir(options.cachedir)
         sys.path.append(options.cachedir)
+
+    if options.regen:
+        if options.cachedir is None:
+            print >>sys.stderr, "--regen requires --cachedir"
+            sys.exit(1)
+
+        p = xpidl.IDLParser(outputdir=options.cachedir, regen=True)
+        sys.exit(0)
 
     if options.depfile is not None and options.outfile is None:
         print >>sys.stderr, "-d requires -o"

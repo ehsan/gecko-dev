@@ -80,14 +80,17 @@
 #include "methodjit/MethodJIT-inl.h"
 #include "methodjit/Logging.h"
 #endif
+#include "vm/Debugger.h"
+
 #include "jsatominlines.h"
 #include "jsinterpinlines.h"
 #include "jsobjinlines.h"
+#include "jsopcodeinlines.h"
 #include "jsprobes.h"
 #include "jspropertycacheinlines.h"
 #include "jsscopeinlines.h"
 #include "jsscriptinlines.h"
-#include "jsopcodeinlines.h"
+#include "jstypedarrayinlines.h"
 
 #include "vm/Stack-inl.h"
 #include "vm/String-inl.h"
@@ -153,6 +156,19 @@ js::GetBlockChain(JSContext *cx, StackFrame *fp)
 
     JSScript *script = fp->script();
     jsbytecode *start = script->code;
+
+    /*
+     * If the debugger asks for the scope chain at a pc where we are about to
+     * fix it up, advance target past the fixup. See bug 672804.
+     */
+    JSOp op = js_GetOpcode(cx, script, target);
+    while (op == JSOP_NOP || op == JSOP_INDEXBASE || op == JSOP_INDEXBASE1 ||
+           op == JSOP_INDEXBASE2 || op == JSOP_INDEXBASE3 ||
+           op == JSOP_BLOCKCHAIN || op == JSOP_NULLBLOCKCHAIN)
+    {
+        target += js_CodeSpec[op].length;
+        op = js_GetOpcode(cx, script, target);
+    }
     JS_ASSERT(target >= start && target < start + script->length);
 
     JSObject *blockChain = NULL;
@@ -405,23 +421,10 @@ ReportIncompatibleMethod(JSContext *cx, Value *vp, Class *clasp)
 #endif
 
     if (JSFunction *fun = js_ValueToFunction(cx, &vp[0], 0)) {
-        const char *name = thisv.isObject()
-                           ? thisv.toObject().getClass()->name
-                           : thisv.isString()
-                           ? "string"
-                           : thisv.isNumber()
-                           ? "number"
-                           : thisv.isBoolean()
-                           ? "boolean"
-                           : thisv.isNull()
-                           ? js_null_str
-                           : thisv.isUndefined()
-                           ? js_undefined_str
-                           : "value";
         JSAutoByteString funNameBytes;
         if (const char *funName = GetFunctionNameBytes(cx, fun, &funNameBytes)) {
             JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_INCOMPATIBLE_PROTO,
-                                 clasp->name, funName, name);
+                                 clasp->name, funName, InformalValueTypeName(thisv));
         }
     }
 }
@@ -509,7 +512,7 @@ Class js_NoSuchMethodClass = {
  * the base object, we search for the __noSuchMethod__ method in the base.
  * If it exists, we store the method and the property's id into an object of
  * NoSuchMethod class and store this object into the callee's stack slot.
- * Later, js_Invoke will recognise such an object and transfer control to
+ * Later, Invoke will recognise such an object and transfer control to
  * NoSuchMethod that invokes the method like:
  *
  *   this.__noSuchMethod__(id, args)
@@ -535,9 +538,7 @@ js_OnUnknownMethod(JSContext *cx, Value *vp)
         /* Extract the function name from function::name qname. */
         if (vp[0].isObject()) {
             obj = &vp[0].toObject();
-            if (!js_IsFunctionQName(cx, obj, &id))
-                return false;
-            if (!JSID_IS_VOID(id))
+            if (js_GetLocalNameFromFunctionQName(obj, &id, cx))
                 vp[0] = IdToValue(id);
         }
 #endif
@@ -620,7 +621,7 @@ RunScript(JSContext *cx, JSScript *script, StackFrame *fp)
  * when done.  Then push the return value.
  */
 JS_REQUIRES_STACK bool
-Invoke(JSContext *cx, const CallArgs &argsRef, MaybeConstruct construct)
+InvokeKernel(JSContext *cx, const CallArgs &argsRef, MaybeConstruct construct)
 {
     /* N.B. Must be kept in sync with InvokeSessionGuard::start/invoke */
 
@@ -709,6 +710,9 @@ InvokeSessionGuard::start(JSContext *cx, const Value &calleev, const Value &this
     savedCallee_ = args_.calleev() = calleev;
     savedThis_ = args_.thisv() = thisv;
 
+    /* If anyone (through jsdbgapi) finds this frame, make it safe. */
+    MakeRangeGCSafe(args_.argv(), args_.argc());
+
     do {
         /* Hoist dynamic checks from scripted Invoke. */
         if (!calleev.isObject())
@@ -777,8 +781,8 @@ InvokeSessionGuard::start(JSContext *cx, const Value &calleev, const Value &this
 }
 
 bool
-ExternalInvoke(JSContext *cx, const Value &thisv, const Value &fval,
-               uintN argc, Value *argv, Value *rval)
+Invoke(JSContext *cx, const Value &thisv, const Value &fval, uintN argc, Value *argv,
+       Value *rval)
 {
     LeaveTrace(cx);
 
@@ -810,8 +814,7 @@ ExternalInvoke(JSContext *cx, const Value &thisv, const Value &fval,
 }
 
 bool
-ExternalInvokeConstructor(JSContext *cx, const Value &fval, uintN argc, Value *argv,
-                          Value *rval)
+InvokeConstructor(JSContext *cx, const Value &fval, uintN argc, Value *argv, Value *rval)
 {
     LeaveTrace(cx);
 
@@ -831,18 +834,18 @@ ExternalInvokeConstructor(JSContext *cx, const Value &fval, uintN argc, Value *a
 }
 
 bool
-ExternalGetOrSet(JSContext *cx, JSObject *obj, jsid id, const Value &fval,
-                 JSAccessMode mode, uintN argc, Value *argv, Value *rval)
+InvokeGetterOrSetter(JSContext *cx, JSObject *obj, const Value &fval, uintN argc, Value *argv,
+                     Value *rval)
 {
     LeaveTrace(cx);
 
     /*
-     * ExternalInvoke could result in another try to get or set the same id
-     * again, see bug 355497.
+     * Invoke could result in another try to get or set the same id again, see
+     * bug 355497.
      */
     JS_CHECK_RECURSION(cx, return false);
 
-    return ExternalInvoke(cx, ObjectValue(*obj), fval, argc, argv, rval);
+    return Invoke(cx, ObjectValue(*obj), fval, argc, argv, rval);
 }
 
 #if JS_HAS_SHARP_VARS
@@ -874,8 +877,8 @@ InitSharpSlots(JSContext *cx, StackFrame *fp)
 #endif
 
 bool
-Execute(JSContext *cx, JSScript *script, JSObject &scopeChain, const Value &thisv,
-        ExecuteType type, StackFrame *evalInFrame, Value *result)
+ExecuteKernel(JSContext *cx, JSScript *script, JSObject &scopeChain, const Value &thisv,
+              ExecuteType type, StackFrame *evalInFrame, Value *result)
 {
     JS_ASSERT_IF(evalInFrame, type == EXECUTE_DEBUG);
 
@@ -915,7 +918,7 @@ Execute(JSContext *cx, JSScript *script, JSObject &scopeChain, const Value &this
 }
 
 bool
-ExternalExecute(JSContext *cx, JSScript *script, JSObject &scopeChainArg, Value *rval)
+Execute(JSContext *cx, JSScript *script, JSObject &scopeChainArg, Value *rval)
 {
     /* The scope chain could be anything, so innerize just in case. */
     JSObject *scopeChain = &scopeChainArg;
@@ -940,8 +943,8 @@ ExternalExecute(JSContext *cx, JSScript *script, JSObject &scopeChainArg, Value 
         return false;
     Value thisv = ObjectValue(*thisObj);
 
-    return Execute(cx, script, *scopeChain, thisv, EXECUTE_GLOBAL,
-                   NULL /* evalInFrame */, rval);
+    return ExecuteKernel(cx, script, *scopeChain, thisv, EXECUTE_GLOBAL,
+                         NULL /* evalInFrame */, rval);
 }
 
 bool
@@ -1186,7 +1189,7 @@ TypeOfValue(JSContext *cx, const Value &vref)
 }
 
 JS_REQUIRES_STACK bool
-InvokeConstructor(JSContext *cx, const CallArgs &argsRef)
+InvokeConstructorKernel(JSContext *cx, const CallArgs &argsRef)
 {
     JS_ASSERT(!js_FunctionClass.construct);
     CallArgs args = argsRef;
@@ -1208,7 +1211,7 @@ InvokeConstructor(JSContext *cx, const CallArgs &argsRef)
             if (!fun->isInterpretedConstructor())
                 goto error;
 
-            if (!Invoke(cx, args, CONSTRUCT))
+            if (!InvokeKernel(cx, args, CONSTRUCT))
                 return false;
 
             JS_ASSERT(args.rval().isObject());
@@ -2359,15 +2362,19 @@ BEGIN_CASE(JSOP_STOP)
         argv = regs.fp()->maybeFormalArgs();
         atoms = FrameAtomBase(cx, regs.fp());
 
+        JS_ASSERT(*regs.pc == JSOP_TRAP || *regs.pc == JSOP_NEW || *regs.pc == JSOP_CALL ||
+                  *regs.pc == JSOP_FUNCALL || *regs.pc == JSOP_FUNAPPLY);
+
         /* Resume execution in the calling frame. */
         RESET_USE_METHODJIT();
         if (JS_LIKELY(interpReturnOK)) {
-            JS_ASSERT(js_CodeSpec[js_GetOpcode(cx, script, regs.pc)].length
-                      == JSOP_CALL_LENGTH);
             TRACE_0(LeaveFrame);
             len = JSOP_CALL_LENGTH;
             DO_NEXT_OP(len);
         }
+
+        /* Increment pc so that |sp - fp->slots == ReconstructStackDepth(pc)|. */
+        regs.pc += JSOP_CALL_LENGTH;
         goto error;
     } else {
         JS_ASSERT(regs.sp == regs.fp()->base());
@@ -3557,8 +3564,8 @@ BEGIN_CASE(JSOP_LENGTH)
             }
 
             if (js_IsTypedArray(obj)) {
-                TypedArray *tarray = TypedArray::fromJSObject(obj);
-                regs.sp[-1].setNumber(tarray->length);
+                JSObject *tarray = TypedArray::getTypedArray(obj);
+                regs.sp[-1].setInt32(TypedArray::getLength(tarray));
                 len = JSOP_LENGTH_LENGTH;
                 DO_NEXT_OP(len);
             }
@@ -3978,7 +3985,7 @@ BEGIN_CASE(JSOP_EVAL)
         if (!DirectEval(cx, args))
             goto error;
     } else {
-        if (!Invoke(cx, args))
+        if (!InvokeKernel(cx, args))
             goto error;
     }
     CHECK_INTERRUPT_HANDLER();
@@ -4002,10 +4009,10 @@ BEGIN_CASE(JSOP_FUNAPPLY)
     /* Don't bother trying to fast-path calls to scripted non-constructors. */
     if (!IsFunctionObject(args.calleev(), &callee, &fun) || !fun->isInterpretedConstructor()) {
         if (construct) {
-            if (!InvokeConstructor(cx, args))
+            if (!InvokeConstructorKernel(cx, args))
                 goto error;
         } else {
-            if (!Invoke(cx, args))
+            if (!InvokeKernel(cx, args))
                 goto error;
         }
         regs.sp = args.spAfterCall();
@@ -4403,7 +4410,7 @@ END_VARLEN_CASE
 BEGIN_CASE(JSOP_TRAP)
 {
     Value rval;
-    JSTrapStatus status = JS_HandleTrap(cx, script, regs.pc, Jsvalify(&rval));
+    JSTrapStatus status = Debugger::onTrap(cx, &rval);
     switch (status) {
       case JSTRAP_ERROR:
         goto error;
@@ -4582,10 +4589,10 @@ BEGIN_CASE(JSOP_DEFFUN)
      */
     JSFunction *fun;
     LOAD_FUNCTION(0);
-    JSObject *obj = FUN_OBJECT(fun);
+    JSObject *obj = fun;
 
     JSObject *obj2;
-    if (FUN_NULL_CLOSURE(fun)) {
+    if (fun->isNullClosure()) {
         /*
          * Even a null closure needs a parent for principals finding.
          * FIXME: bug 476950, although debugger users may also demand some kind
@@ -4722,10 +4729,10 @@ BEGIN_CASE(JSOP_DEFLOCALFUN)
     JSFunction *fun;
     LOAD_FUNCTION(SLOTNO_LEN);
     JS_ASSERT(fun->isInterpreted());
-    JS_ASSERT(!FUN_FLAT_CLOSURE(fun));
-    JSObject *obj = FUN_OBJECT(fun);
+    JS_ASSERT(!fun->isFlatClosure());
+    JSObject *obj = fun;
 
-    if (FUN_NULL_CLOSURE(fun)) {
+    if (fun->isNullClosure()) {
         obj = CloneFunctionObject(cx, fun, &regs.fp()->scopeChain());
         if (!obj)
             goto error;
@@ -4774,12 +4781,12 @@ BEGIN_CASE(JSOP_LAMBDA)
     /* Load the specified function object literal. */
     JSFunction *fun;
     LOAD_FUNCTION(0);
-    JSObject *obj = FUN_OBJECT(fun);
+    JSObject *obj = fun;
 
     /* do-while(0) so we can break instead of using a goto. */
     do {
         JSObject *parent;
-        if (FUN_NULL_CLOSURE(fun)) {
+        if (fun->isNullClosure()) {
             parent = &regs.fp()->scopeChain();
 
             if (obj->getParent() == parent) {
@@ -4837,7 +4844,7 @@ BEGIN_CASE(JSOP_LAMBDA)
                         JSObject *callee;
 
                         if (IsFunctionObject(cref, &callee)) {
-                            JSFunction *calleeFun = GET_FUNCTION_PRIVATE(cx, callee);
+                            JSFunction *calleeFun = callee->getFunctionPrivate();
                             if (Native native = calleeFun->maybeNative()) {
                                 if ((iargc == 1 && native == array_sort) ||
                                     (iargc == 2 && native == str_replace)) {
@@ -5396,25 +5403,27 @@ END_CASE(JSOP_INSTANCEOF)
 
 BEGIN_CASE(JSOP_DEBUGGER)
 {
-    JSDebuggerHandler handler = cx->debugHooks->debuggerHandler;
-    if (handler) {
-        Value rval;
-        switch (handler(cx, script, regs.pc, Jsvalify(&rval), cx->debugHooks->debuggerHandlerData)) {
-        case JSTRAP_ERROR:
-            goto error;
-        case JSTRAP_CONTINUE:
-            break;
-        case JSTRAP_RETURN:
-            regs.fp()->setReturnValue(rval);
-            interpReturnOK = JS_TRUE;
-            goto forced_return;
-        case JSTRAP_THROW:
-            cx->setPendingException(rval);
-            goto error;
-        default:;
-        }
-        CHECK_INTERRUPT_HANDLER();
+    JSTrapStatus st = JSTRAP_CONTINUE;
+    Value rval;
+    if (JSDebuggerHandler handler = cx->debugHooks->debuggerHandler)
+        st = handler(cx, script, regs.pc, Jsvalify(&rval), cx->debugHooks->debuggerHandlerData);
+    if (st == JSTRAP_CONTINUE)
+        st = Debugger::onDebuggerStatement(cx, &rval);
+    switch (st) {
+      case JSTRAP_ERROR:
+        goto error;
+      case JSTRAP_CONTINUE:
+        break;
+      case JSTRAP_RETURN:
+        regs.fp()->setReturnValue(rval);
+        interpReturnOK = JS_TRUE;
+        goto forced_return;
+      case JSTRAP_THROW:
+        cx->setPendingException(rval);
+        goto error;
+      default:;
     }
+    CHECK_INTERRUPT_HANDLER();
 }
 END_CASE(JSOP_DEBUGGER)
 
@@ -5926,11 +5935,16 @@ END_CASE(JSOP_ARRAYPUSH)
         atoms = script->atomMap.vector;
 
         /* Call debugger throw hook if set. */
-        handler = cx->debugHooks->throwHook;
-        if (handler) {
+        if (cx->debugHooks->throwHook || !cx->compartment->getDebuggees().empty()) {
             Value rval;
-            switch (handler(cx, script, regs.pc, Jsvalify(&rval),
-                            cx->debugHooks->throwHookData)) {
+            JSTrapStatus st = Debugger::onExceptionUnwind(cx, &rval);
+            if (st == JSTRAP_CONTINUE) {
+                handler = cx->debugHooks->throwHook;
+                if (handler)
+                    st = handler(cx, script, regs.pc, Jsvalify(&rval), cx->debugHooks->throwHookData);
+            }
+
+            switch (st) {
               case JSTRAP_ERROR:
                 cx->clearPendingException();
                 goto error;
@@ -6077,7 +6091,7 @@ END_CASE(JSOP_ARRAYPUSH)
     /*
      * At this point we are inevitably leaving an interpreted function or a
      * top-level script, and returning to one of:
-     * (a) an "out of line" call made through js_Invoke;
+     * (a) an "out of line" call made through Invoke;
      * (b) a js_Execute activation;
      * (c) a generator (SendToGenerator, jsiter.c).
      *

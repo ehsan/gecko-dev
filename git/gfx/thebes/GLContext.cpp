@@ -434,6 +434,8 @@ static const char *sExtensionNames[] = {
     "GL_ARB_texture_non_power_of_two",
     "GL_ARB_pixel_buffer_object",
     "GL_ARB_ES2_compatibility",
+    "GL_OES_texture_float",
+    "GL_ARB_texture_float",
     NULL
 };
 
@@ -861,7 +863,7 @@ nsIntRect TiledTextureImage::GetTileRect()
     nsIntRect rect = mImages[mCurrentImage]->GetTileRect();
     unsigned int xPos = (mCurrentImage % mColumns) * mTileSize;
     unsigned int yPos = (mCurrentImage / mColumns) * mTileSize;
-    rect.MoveTo(xPos, yPos);
+    rect.MoveBy(xPos, yPos);
     return rect;
 }
 

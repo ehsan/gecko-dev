@@ -29,6 +29,7 @@
  *   Ehsan Akhgari <ehsan.akhgari@gmail.com>
  *   Drew Willcoxon <adw@mozilla.com>
  *   Philipp von Weitershausen <philipp@weitershausen.de>
+ *   Paolo Amadini <http://www.amadzone.org/>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -170,6 +171,14 @@ static const PRInt64 USECS_PER_DAY = LL_INIT(20, 500654080);
 // Sync guid annotation
 #define SYNCGUID_ANNO NS_LITERAL_CSTRING("sync/guid")
 
+// Download destination file URI annotation
+#define DESTINATIONFILEURI_ANNO \
+  NS_LITERAL_CSTRING("downloads/destinationFileURI")
+
+// Download destination file name annotation
+#define DESTINATIONFILENAME_ANNO \
+  NS_LITERAL_CSTRING("downloads/destinationFileName")
+
 // These macros are used when splitting history by date.
 // These are the day containers and catch-all final container.
 #define HISTORY_ADDITIONAL_DATE_CONT_NUM 3
@@ -177,7 +186,7 @@ static const PRInt64 USECS_PER_DAY = LL_INIT(20, 500654080);
 // long, but we split only the last 6 months.
 #define HISTORY_DATE_CONT_NUM(_daysFromOldestVisit) \
   (HISTORY_ADDITIONAL_DATE_CONT_NUM + \
-   NS_MIN(6, (PRInt32)NS_ceilf((float)_daysFromOldestVisit/30)))
+   NS_MIN(6, (PRInt32)ceilf((float)_daysFromOldestVisit/30)))
 // Max number of containers, used to initialize the params hash.
 #define HISTORY_DATE_CONT_MAX 10
 
@@ -203,8 +212,7 @@ NS_IMPL_CLASSINFO(nsNavHistory, NULL, nsIClassInfo::SINGLETON,
                   NS_NAVHISTORYSERVICE_CID)
 NS_INTERFACE_MAP_BEGIN(nsNavHistory)
   NS_INTERFACE_MAP_ENTRY(nsINavHistoryService)
-  NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsIGlobalHistory2, nsIGlobalHistory3)
-  NS_INTERFACE_MAP_ENTRY(nsIGlobalHistory3)
+  NS_INTERFACE_MAP_ENTRY(nsIGlobalHistory2)
   NS_INTERFACE_MAP_ENTRY(nsIDownloadHistory)
   NS_INTERFACE_MAP_ENTRY(nsIBrowserHistory)
   NS_INTERFACE_MAP_ENTRY(nsIObserver)
@@ -218,10 +226,9 @@ NS_INTERFACE_MAP_BEGIN(nsNavHistory)
 NS_INTERFACE_MAP_END
 
 // We don't care about flattening everything
-NS_IMPL_CI_INTERFACE_GETTER5(
+NS_IMPL_CI_INTERFACE_GETTER4(
   nsNavHistory
 , nsINavHistoryService
-, nsIGlobalHistory3
 , nsIGlobalHistory2
 , nsIDownloadHistory
 , nsIBrowserHistory
@@ -462,8 +469,6 @@ nsNavHistory::Init()
                  NS_ERROR_OUT_OF_MEMORY);
   NS_ENSURE_TRUE(mRecentBookmark.Init(RECENT_EVENTS_INITIAL_CACHE_SIZE),
                  NS_ERROR_OUT_OF_MEMORY);
-  NS_ENSURE_TRUE(mRecentRedirects.Init(RECENT_EVENTS_INITIAL_CACHE_SIZE),
-                 NS_ERROR_OUT_OF_MEMORY);
 
   // Embed visits hash table.
   NS_ENSURE_TRUE(mEmbedVisits.Init(EMBED_VISITS_INITIAL_CACHE_SIZE),
@@ -491,28 +496,6 @@ nsNavHistory::Init()
 #ifdef MOZ_XUL
     (void)obsSvc->AddObserver(this, TOPIC_AUTOCOMPLETE_FEEDBACK_INCOMING, PR_FALSE);
 #endif
-  }
-
-  // In case we've either imported or done a migration from a pre-frecency
-  // build, we will calculate the first cutoff period's frecencies once the rest
-  // of the places infrastructure has been initialized.
-  if (mDatabaseStatus == DATABASE_STATUS_CREATE ||
-      mDatabaseStatus == DATABASE_STATUS_UPGRADED) {
-    if (mDatabaseStatus == DATABASE_STATUS_CREATE) {
-      // Check if we should import old history from history.dat
-      nsCOMPtr<nsIFile> historyFile;
-      rv = NS_GetSpecialDirectory(NS_APP_HISTORY_50_FILE,
-                                  getter_AddRefs(historyFile));
-      if (NS_SUCCEEDED(rv) && historyFile) {
-        (void)ImportHistory(historyFile);
-      }
-    }
-
-    // In case we've either imported or done a migration from a pre-frecency
-    // build, we will calculate the first cutoff period's frecencies once the
-    // rest of the places infrastructure has been initialized.
-    if (obsSvc)
-      (void)obsSvc->AddObserver(this, TOPIC_PLACES_INIT_COMPLETE, PR_FALSE);
   }
 
   // Don't add code that can fail here! Do it up above, before we add our
@@ -2739,9 +2722,8 @@ nsNavHistory::AddVisit(nsIURI* aURI, PRTime aTime, nsIURI* aReferringURI,
 
   // Normally docshell sends the link visited observer notification for us (this
   // will tell all the documents to update their visited link coloring).
-  // However, for redirects (since we implement nsIGlobalHistory3) and downloads
-  // (since we implement nsIDownloadHistory) this will not happen and we need to
-  // send it ourselves.
+  // However, for redirects and downloads (since we implement nsIDownloadHistory)
+  // this will not happen and we need to send it ourselves.
   if (newItem && (aIsRedirect || aTransitionType == TRANSITION_DOWNLOAD)) {
     nsCOMPtr<nsIObserverService> obsService =
       do_GetService(NS_OBSERVERSERVICE_CONTRACTID);
@@ -4612,18 +4594,6 @@ nsNavHistory::RemoveAllPages()
   NOTIFY_OBSERVERS(mCanNotify, mCacheObservers, mObservers,
                    nsINavHistoryObserver, OnClearHistory());
 
-  // privacy cleanup, if there's an old history.dat around, just delete it
-  nsCOMPtr<nsIFile> oldHistoryFile;
-  rv = NS_GetSpecialDirectory(NS_APP_HISTORY_50_FILE,
-                              getter_AddRefs(oldHistoryFile));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  PRBool fileExists;
-  if (NS_SUCCEEDED(oldHistoryFile->Exists(&fileExists)) && fileExists) {
-    rv = oldHistoryFile->Remove(PR_FALSE);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
   return NS_OK;
 }
 
@@ -4864,11 +4834,7 @@ nsNavHistory::AddURIInternal(nsIURI* aURI, PRTime aTime, PRBool aRedirect,
 //    (like referring visit ID and typed/bookmarked state).
 //
 //    This function walks up the referring chain and recursively calls itself,
-//    each time calling InternalAdd to create a new history entry. (When we
-//    get notified of redirects, we don't actually add any history entries, just
-//    save them in mRecentRedirects. This function will add all of them for a
-//    given destination page when that page is actually visited.)
-//    See GetRedirectFor for more information about how redirects work.
+//    each time calling InternalAdd to create a new history entry.
 
 nsresult
 nsNavHistory::AddVisitChain(nsIURI* aURI,
@@ -4894,52 +4860,10 @@ nsNavHistory::AddVisitChain(nsIURI* aURI,
   PRBool isEmbedVisit = !aToplevel &&
                         !CheckIsRecentEvent(&mRecentLink, spec);
 
-  // Check if this visit came from a redirect.
   PRUint32 transitionType = 0;
-  PRTime redirectTime = 0;
-  nsCAutoString redirectSourceUrl;
-  if (GetRedirectFor(spec, redirectSourceUrl, &redirectTime, &transitionType)) {
-    // redirectSourceUrl redirected to aURL, at redirectTime, with
-    // a transitionType redirect.
-    nsCOMPtr<nsIURI> redirectSourceURI;
-    rv = NS_NewURI(getter_AddRefs(redirectSourceURI), redirectSourceUrl);
-    NS_ENSURE_SUCCESS(rv, rv);
 
-    // Don't add a new visit if a page redirects to itself.
-    PRBool redirectIsSame;
-    if (NS_SUCCEEDED(aURI->Equals(redirectSourceURI, &redirectIsSame)) &&
-        redirectIsSame)
-      return NS_OK;
-
-    // Recusively call addVisitChain to walk up the chain till the first
-    // not-redirected URI.
-    // Ensure that the sources have a visit time smaller than aTime, otherwise
-    // visits would end up incorrectly ordered.
-    PRTime sourceTime = NS_MIN(redirectTime, aTime - 1);
-    PRInt64 sourceVisitId = 0;
-    rv = AddVisitChain(redirectSourceURI, sourceTime, aToplevel,
-                       PR_TRUE, // Is a redirect.
-                       aReferrerURI, // This one is the originating source.
-                       &sourceVisitId, // Get back the visit id of the source.
-                       aSessionID);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    // All the visits for preceding pages in the redirects chain have been
-    // added, now add the visit to aURI.
-    if (isEmbedVisit)
-      transitionType = nsINavHistoryService::TRANSITION_EMBED;
-    else if (!aToplevel)
-      transitionType = nsINavHistoryService::TRANSITION_FRAMED_LINK;
-
-    // This page is result of a redirect, save the source page in from_visit,
-    // to be able to walk up the chain.
-    // See bug 411966 and bug 428690 for details.
-    // TODO: Add a closure table with a chain id to easily reconstruct chains
-    // without having to recurse through the table.  See bug 468710.
-    fromVisitURI = redirectSourceURI;
-  }
-  else if (aReferrerURI) {
-    // This page does not come from a redirect and had a referrer.
+  if (aReferrerURI) {
+  // This page had a referrer.
 
     // Check if the referrer has a previous visit.
     PRTime lastVisitTime;
@@ -5107,107 +5031,6 @@ nsNavHistory::GetPageTitle(nsIURI* aURI, nsAString& aTitle)
   return NS_OK;
 }
 
-// nsNavHistory::GetURIGeckoFlags
-//
-//    FIXME: should we try to use annotations for this stuff?
-
-NS_IMETHODIMP
-nsNavHistory::GetURIGeckoFlags(nsIURI* aURI, PRUint32* aResult)
-{
-  NS_ASSERTION(NS_IsMainThread(), "This can only be called on the main thread");
-  NS_ENSURE_ARG(aURI);
-  NS_ENSURE_ARG_POINTER(aResult);
-
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-
-// nsNavHistory::SetURIGeckoFlags
-//
-//    FIXME: should we try to use annotations for this stuff?
-
-NS_IMETHODIMP
-nsNavHistory::SetURIGeckoFlags(nsIURI* aURI, PRUint32 aFlags)
-{
-  NS_ASSERTION(NS_IsMainThread(), "This can only be called on the main thread");
-  NS_ENSURE_ARG(aURI);
-
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-// nsIGlobalHistory3 ***********************************************************
-
-// nsNavHistory::AddDocumentRedirect
-//
-//    This adds a redirect mapping from the destination of the redirect to the
-//    source, time, and type. This mapping is used by GetRedirectFor when we
-//    get a page added to reconstruct the redirects that happened when a page
-//    is visited. See GetRedirectFor for more information
-
-// this is the expiration callback function that deletes stale entries
-PLDHashOperator nsNavHistory::ExpireNonrecentRedirects(
-    nsCStringHashKey::KeyType aKey, RedirectInfo& aData, void* aUserArg)
-{
-  PRInt64* threshold = reinterpret_cast<PRInt64*>(aUserArg);
-  if (aData.mTimeCreated < *threshold)
-    return PL_DHASH_REMOVE;
-  return PL_DHASH_NEXT;
-}
-
-NS_IMETHODIMP
-nsNavHistory::AddDocumentRedirect(nsIChannel *aOldChannel,
-                                  nsIChannel *aNewChannel,
-                                  PRInt32 aFlags,
-                                  PRBool aToplevel)
-{
-  NS_ASSERTION(NS_IsMainThread(), "This can only be called on the main thread");
-  NS_ENSURE_ARG(aOldChannel);
-  NS_ENSURE_ARG(aNewChannel);
-
-  // Ignore internal redirects.
-  // These redirects are not initiated by the remote server, but specific to the
-  // channel implementation, so they are ignored.
-  if (aFlags & nsIChannelEventSink::REDIRECT_INTERNAL)
-    return NS_OK;
-
-  nsresult rv;
-  nsCOMPtr<nsIURI> oldURI, newURI;
-  rv = aOldChannel->GetURI(getter_AddRefs(oldURI));
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = aNewChannel->GetURI(getter_AddRefs(newURI));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCString oldSpec, newSpec;
-  rv = oldURI->GetSpec(oldSpec);
-  NS_ENSURE_SUCCESS(rv, rv);
-  rv = newURI->GetSpec(newSpec);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (mRecentRedirects.Count() > RECENT_EVENT_QUEUE_MAX_LENGTH) {
-    // Expire outdated cached redirects.
-    PRInt64 threshold = PR_Now() - RECENT_EVENT_THRESHOLD;
-    mRecentRedirects.Enumerate(ExpireNonrecentRedirects,
-                               reinterpret_cast<void*>(&threshold));
-  }
-
-  RedirectInfo info;
-
-  // Remove any old entries for this redirect destination, since they are going
-  // to be replaced.
-  if (mRecentRedirects.Get(newSpec, &info))
-    mRecentRedirects.Remove(newSpec);
-  // Save the new redirect info.
-  info.mSourceURI = oldSpec;
-  info.mTimeCreated = PR_Now();
-  if (aFlags & nsIChannelEventSink::REDIRECT_TEMPORARY)
-    info.mType = TRANSITION_REDIRECT_TEMPORARY;
-  else
-    info.mType = TRANSITION_REDIRECT_PERMANENT;
-  mRecentRedirects.Put(newSpec, info);
-
-  return NS_OK;
-}
-
 
 ////////////////////////////////////////////////////////////////////////////////
 //// mozIStorageVacuumParticipant
@@ -5250,7 +5073,7 @@ nsNavHistory::OnEndVacuum(PRBool aSucceeded)
 
 NS_IMETHODIMP
 nsNavHistory::AddDownload(nsIURI* aSource, nsIURI* aReferrer,
-                          PRTime aStartTime)
+                          PRTime aStartTime, nsIURI* aDestination)
 {
   NS_ASSERTION(NS_IsMainThread(), "This can only be called on the main thread");
   NS_ENSURE_ARG(aSource);
@@ -5260,8 +5083,62 @@ nsNavHistory::AddDownload(nsIURI* aSource, nsIURI* aReferrer,
     return NS_OK;
 
   PRInt64 visitID;
-  return AddVisit(aSource, aStartTime, aReferrer, TRANSITION_DOWNLOAD, PR_FALSE,
-                  0, &visitID);
+  nsresult rv = AddVisit(aSource, aStartTime, aReferrer, TRANSITION_DOWNLOAD,
+                         PR_FALSE, 0, &visitID);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (!aDestination) {
+    return NS_OK;
+  }
+
+  // Exit silently if the download destination is not a local file.
+  nsCOMPtr<nsIFileURL> destinationFileURL = do_QueryInterface(aDestination);
+  if (!destinationFileURL) {
+    return NS_OK;
+  }
+
+  nsCOMPtr<nsIFile> destinationFile;
+  rv = destinationFileURL->GetFile(getter_AddRefs(destinationFile));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsAutoString destinationFileName;
+  rv = destinationFile->GetLeafName(destinationFileName);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsCAutoString destinationURISpec;
+  rv = destinationFileURL->GetSpec(destinationURISpec);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  // Use annotations for storing the additional download metadata.
+  nsAnnotationService* annosvc = nsAnnotationService::GetAnnotationService();
+  NS_ENSURE_TRUE(annosvc, NS_ERROR_OUT_OF_MEMORY);
+
+  (void)annosvc->SetPageAnnotationString(
+    aSource,
+    DESTINATIONFILEURI_ANNO,
+    NS_ConvertUTF8toUTF16(destinationURISpec),
+    0,
+    nsIAnnotationService::EXPIRE_WITH_HISTORY
+  );
+
+  (void)annosvc->SetPageAnnotationString(
+    aSource,
+    DESTINATIONFILENAME_ANNO,
+    destinationFileName,
+    0,
+    nsIAnnotationService::EXPIRE_WITH_HISTORY
+  );
+
+  // In case we are downloading a file that does not correspond to a web
+  // page for which the title is present, we populate the otherwise empty
+  // history title with the name of the destination file, to allow it to be
+  // visible and searchable in history results.
+  nsAutoString title;
+  if (NS_SUCCEEDED(GetPageTitle(aSource, title)) && title.IsEmpty()) {
+    (void)SetPageTitle(aSource, destinationFileName);
+  }
+
+  return NS_OK;
 }
 
 
@@ -5549,17 +5426,6 @@ nsNavHistory::Observe(nsISupports *aSubject, const char *aTopic,
     else if (NS_LITERAL_STRING(NS_PRIVATE_BROWSING_LEAVE).Equals(aData)) {
       mInPrivateBrowsing = PR_FALSE;
     }
-  }
-
-  else if (strcmp(aTopic, TOPIC_PLACES_INIT_COMPLETE) == 0) {
-    nsCOMPtr<nsIObserverService> os =
-      do_GetService(NS_OBSERVERSERVICE_CONTRACTID);
-    NS_ENSURE_TRUE(os, NS_ERROR_FAILURE);
-    (void)os->RemoveObserver(this, TOPIC_PLACES_INIT_COMPLETE);
-
-    // This code is only called if we've either imported or done a migration
-    // from a pre-frecency build, so we will calculate all their frecencies.
-    (void)FixInvalidFrecencies();
   }
 
   return NS_OK;
@@ -6315,77 +6181,6 @@ nsNavHistory::ExpireNonrecentEvents(RecentEventHash* hashTable)
 }
 
 
-// nsNavHistory::GetRedirectFor
-//
-//    Given a destination URI, this finds a recent redirect that resulted in
-//    this URI. If it finds one, it will put the redirect source info into
-//    the out params and return true. If there is no matching redirect, it will
-//    return false.
-//
-//    @param aDestination The destination URI spec of the redirect to look for.
-//    @param aSource      Will be filled with the redirect source URI when a
-//                        redirect is found.
-//    @param aTime        Will be filled with the time the redirect happened
-//                         when a redirect is found.
-//    @param aRedirectType Will be filled with the redirect type when a redirect
-//                         is found. Will be either
-//                         TRANSITION_REDIRECT_PERMANENT or
-//                         TRANSITION_REDIRECT_TEMPORARY
-//    @returns True if the redirect is found.
-//
-//    HOW REDIRECT TRACKING WORKS
-//    ---------------------------
-//    When we get an AddDocumentRedirect message, we store the redirect in
-//    our mRecentRedirects which maps the destination URI to a source,time pair.
-//    When we get a new URI, we see if there were any redirects to this page
-//    in the hash table. If found, we know that the page came through the given
-//    redirect and add it.
-//
-//    Example: Page S redirects throught R1, then R2, to give page D. Page S
-//    will have been already added to history.
-//    - AddDocumentRedirect(R1, R2)
-//    - AddDocumentRedirect(R2, D)
-//    - AddURI(uri=D, referrer=S)
-//
-//    When we get the AddURI(D), we see the hash table has a value for D from R2.
-//    We have to recursively check that source since there could be more than
-//    one redirect, as in this case. Here we see there was a redirect to R2 from
-//    R1. The referrer for D is S, so we know S->R1->R2->D.
-//
-//    Alternatively, the user could have typed or followed a bookmark from S.
-//    In this case, with two redirects we'll get:
-//    - MarkPageAsTyped(S)
-//    - AddDocumentRedirect(S, R)
-//    - AddDocumentRedirect(R, D)
-//    - AddURI(uri=D, referrer=null)
-//    We need to be careful to add a visit to S in this case with an incoming
-//    transition of typed and an outgoing transition of redirect.
-//
-//    Note that this can get confused in some cases where you have a page
-//    open in more than one window loading at the same time. This should be rare,
-//    however, and should not affect much.
-
-PRBool
-nsNavHistory::GetRedirectFor(const nsACString& aDestination,
-                             nsACString& aSource,
-                             PRTime* aTime,
-                             PRUint32* aRedirectType)
-{
-  RedirectInfo info;
-  if (mRecentRedirects.Get(aDestination, &info)) {
-    // Consume the redirect entry, it's no longer useful.
-    mRecentRedirects.Remove(aDestination);
-    if (info.mTimeCreated < GetNow() - RECENT_EVENT_THRESHOLD)
-      return PR_FALSE; // too long ago, probably invalid
-    aSource = info.mSourceURI;
-    *aTime = info.mTimeCreated;
-    *aRedirectType = info.mType;
-    return PR_TRUE;
-  }
-  return PR_FALSE;
-}
-
-
 // nsNavHistory::RowToResult
 //
 //    Here, we just have a generic row. It could be a query, URL, visit,
@@ -6845,92 +6640,6 @@ nsNavHistory::SetPageTitleInternal(nsIURI* aURI, const nsAString& aTitle)
   MOZ_ASSERT(!guid.IsEmpty());
   NOTIFY_OBSERVERS(mCanNotify, mCacheObservers, mObservers,
                    nsINavHistoryObserver, OnTitleChanged(aURI, aTitle, guid));
-
-  return NS_OK;
-}
-
-nsresult
-nsNavHistory::AddPageWithVisits(nsIURI *aURI,
-                                const nsString &aTitle,
-                                PRInt32 aVisitCount,
-                                PRInt32 aTransitionType,
-                                PRTime aFirstVisitDate,
-                                PRTime aLastVisitDate)
-{
-  PRBool canAdd = PR_FALSE;
-  nsresult rv = CanAddURI(aURI, &canAdd);
-  NS_ENSURE_SUCCESS(rv, rv);
-  if (!canAdd) {
-    return NS_OK;
-  }
-
-  // see if this is an update (revisit) or a new page
-  DECLARE_AND_ASSIGN_SCOPED_LAZY_STMT(stmt, mDBGetPageVisitStats);
-  rv = URIBinder::Bind(stmt, NS_LITERAL_CSTRING("page_url"), aURI);
-  NS_ENSURE_SUCCESS(rv, rv);
-  PRBool alreadyVisited = PR_FALSE;
-  rv = stmt->ExecuteStep(&alreadyVisited);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  PRInt64 placeId = 0;
-  PRInt32 typed = 0;
-  PRInt32 hidden = 0;
-
-  nsCAutoString guid;
-  if (alreadyVisited) {
-    // Update the existing entry
-    rv = stmt->GetInt64(0, &placeId);
-    NS_ENSURE_SUCCESS(rv, rv);
-    // We don't mind visit_count
-    rv = stmt->GetInt32(2, &typed);
-    NS_ENSURE_SUCCESS(rv, rv);
-    rv = stmt->GetInt32(3, &hidden);
-    NS_ENSURE_SUCCESS(rv, rv);
-    rv = stmt->GetUTF8String(4, guid);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    if (typed == 0 && aTransitionType == TRANSITION_TYPED) {
-      typed = 1;
-      // Update with new stats
-      DECLARE_AND_ASSIGN_SCOPED_LAZY_STMT(updateStmt, mDBUpdatePageVisitStats);
-      rv = updateStmt->BindInt64ByName(NS_LITERAL_CSTRING("page_id"), placeId);
-      NS_ENSURE_SUCCESS(rv, rv);
-      rv = updateStmt->BindInt32ByName(NS_LITERAL_CSTRING("hidden"), hidden);
-      NS_ENSURE_SUCCESS(rv, rv);
-      rv = updateStmt->BindInt32ByName(NS_LITERAL_CSTRING("typed"), typed);
-      NS_ENSURE_SUCCESS(rv, rv);
-
-      rv = updateStmt->Execute();
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
-  } else {
-    // Insert the new place entry
-    rv = InternalAddNewPage(aURI, aTitle, hidden == 1,
-                            aTransitionType == TRANSITION_TYPED, 0,
-                            PR_FALSE, &placeId, guid);
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
-  NS_ASSERTION(placeId != 0, "Cannot add a visit to a nonexistent page");
-
-  if (aFirstVisitDate != -1) {
-    // Add the first visit
-    PRInt64 visitId;
-    rv = InternalAddVisit(placeId, 0, 0,
-                          aFirstVisitDate, aTransitionType, &visitId);
-    aVisitCount--;
-    NS_ENSURE_SUCCESS(rv, rv);
-  }
-
-  if (aLastVisitDate != -1) {
-   // Add remaining visits starting from the last one
-   for (PRInt64 i = 0; i < aVisitCount; i++) {
-      PRInt64 visitId;
-      rv = InternalAddVisit(placeId, 0, 0,
-                            aLastVisitDate - i, aTransitionType, &visitId);
-      NS_ENSURE_SUCCESS(rv, rv);
-    }
-  }
 
   return NS_OK;
 }

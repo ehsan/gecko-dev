@@ -38,12 +38,13 @@
 
 #include "nsHTMLFormControlAccessible.h"
 
+#include "Relation.h"
 #include "States.h"
 #include "nsAccessibilityAtoms.h"
 #include "nsAccUtils.h"
-#include "nsRelUtils.h"
 #include "nsTextEquivUtils.h"
 
+#include "nsIAccessibleRelation.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMHTMLInputElement.h"
 #include "nsIDOMNSHTMLElement.h"
@@ -51,6 +52,7 @@
 #include "nsIDOMHTMLFormElement.h"
 #include "nsIDOMHTMLLegendElement.h"
 #include "nsIDOMHTMLTextAreaElement.h"
+#include "nsIDOMNodeList.h"
 #include "nsIEditor.h"
 #include "nsIFrame.h"
 #include "nsINameSpaceManager.h"
@@ -78,10 +80,10 @@ nsHTMLCheckboxAccessible::NativeRole()
   return nsIAccessibleRole::ROLE_CHECKBUTTON;
 }
 
-NS_IMETHODIMP nsHTMLCheckboxAccessible::GetNumActions(PRUint8 *_retval)
+PRUint8
+nsHTMLCheckboxAccessible::ActionCount()
 {
-  *_retval = 1;
-  return NS_OK;
+  return 1;
 }
 
 NS_IMETHODIMP nsHTMLCheckboxAccessible::GetActionName(PRUint8 aIndex, nsAString& aName)
@@ -237,10 +239,10 @@ nsHTMLButtonAccessible::
 {
 }
 
-NS_IMETHODIMP nsHTMLButtonAccessible::GetNumActions(PRUint8 *_retval)
+PRUint8
+nsHTMLButtonAccessible::ActionCount()
 {
-  *_retval = 1;
-  return NS_OK;
+  return 1;
 }
 
 NS_IMETHODIMP nsHTMLButtonAccessible::GetActionName(PRUint8 aIndex, nsAString& aName)
@@ -325,10 +327,10 @@ nsHTML4ButtonAccessible::
 {
 }
 
-NS_IMETHODIMP nsHTML4ButtonAccessible::GetNumActions(PRUint8 *_retval)
+PRUint8
+nsHTML4ButtonAccessible::ActionCount()
 {
-  *_retval = 1;
-  return NS_OK;;
+  return 1;
 }
 
 NS_IMETHODIMP nsHTML4ButtonAccessible::GetActionName(PRUint8 aIndex, nsAString& aName)
@@ -514,10 +516,10 @@ nsHTMLTextFieldAccessible::NativeState()
   return state;
 }
 
-NS_IMETHODIMP nsHTMLTextFieldAccessible::GetNumActions(PRUint8 *_retval)
+PRUint8
+nsHTMLTextFieldAccessible::ActionCount()
 {
-  *_retval = 1;
-  return NS_OK;;
+  return 1;
 }
 
 NS_IMETHODIMP nsHTMLTextFieldAccessible::GetActionName(PRUint8 aIndex, nsAString& aName)
@@ -615,23 +617,16 @@ nsHTMLGroupboxAccessible::GetNameInternal(nsAString& aName)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsHTMLGroupboxAccessible::GetRelationByType(PRUint32 aRelationType,
-                                            nsIAccessibleRelation **aRelation)
+Relation
+nsHTMLGroupboxAccessible::RelationByType(PRUint32 aType)
 {
-  nsresult rv = nsHyperTextAccessibleWrap::GetRelationByType(aRelationType,
-                                                             aRelation);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  if (aRelationType == nsIAccessibleRelation::RELATION_LABELLED_BY) {
+  Relation rel = nsHyperTextAccessibleWrap::RelationByType(aType);
     // No override for label, so use <legend> for this <fieldset>
-    return nsRelUtils::
-      AddTargetFromContent(aRelationType, aRelation, GetLegend());
-  }
+  if (aType == nsIAccessibleRelation::RELATION_LABELLED_BY)
+    rel.AppendTarget(GetLegend());
 
-  return NS_OK;
+  return rel;
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsHTMLLegendAccessible
@@ -643,35 +638,18 @@ nsHTMLLegendAccessible::
 {
 }
 
-NS_IMETHODIMP
-nsHTMLLegendAccessible::GetRelationByType(PRUint32 aRelationType,
-                                          nsIAccessibleRelation **aRelation)
+Relation
+nsHTMLLegendAccessible::RelationByType(PRUint32 aType)
 {
-  nsresult rv = nsHyperTextAccessibleWrap::
-    GetRelationByType(aRelationType, aRelation);
-  NS_ENSURE_SUCCESS(rv, rv);
+  Relation rel = nsHyperTextAccessibleWrap::RelationByType(aType);
+  if (aType != nsIAccessibleRelation::RELATION_LABEL_FOR)
+    return rel;
 
-  if (aRelationType == nsIAccessibleRelation::RELATION_LABEL_FOR) {
-    // Look for groupbox parent
-    nsAccessible* groupbox = Parent();
+  nsAccessible* groupbox = Parent();
+  if (groupbox && groupbox->Role() == nsIAccessibleRole::ROLE_GROUPING)
+    rel.AppendTarget(groupbox);
 
-    if (groupbox && groupbox->Role() == nsIAccessibleRole::ROLE_GROUPING) {
-      // XXX: if group box exposes more than one relation of the given type
-      // then we fail.
-      nsCOMPtr<nsIAccessible> testLabelAccessible =
-        nsRelUtils::GetRelatedAccessible(groupbox,
-                                         nsIAccessibleRelation::RELATION_LABELLED_BY);
-
-      if (testLabelAccessible == this) {
-        // We're the first child of the parent groupbox, see
-        // nsHTMLGroupboxAccessible::GetRelationByType().
-        return nsRelUtils::
-          AddTarget(aRelationType, aRelation, groupbox);
-      }
-    }
-  }
-
-  return NS_OK;
+  return rel;
 }
 
 PRUint32

@@ -43,18 +43,12 @@
 #include "nsHTMLEditUtils.h"
 #include "nsWSRunObject.h"
 
-#include "nsIDOMText.h"
-#include "nsIDOMNodeList.h"
+#include "nsIDOMNode.h"
 #include "nsIDOMDocument.h"
-#include "nsIDOMAttr.h"
-#include "nsIDocument.h"
-#include "nsIDOMEventTarget.h" 
-#include "nsIDOMNSEvent.h"
-#include "nsIDOMKeyEvent.h"
-#include "nsIDOMKeyListener.h" 
-#include "nsIDOMMouseListener.h"
-#include "nsIDOMMouseEvent.h"
 #include "nsIDOMComment.h"
+#include "nsIDOMNodeList.h"
+#include "nsIDocument.h"
+#include "nsIDOMMouseEvent.h"
 #include "nsISelection.h"
 #include "nsISelectionPrivate.h"
 #include "nsIDOMHTMLAnchorElement.h"
@@ -84,7 +78,6 @@
 #include "nsXPCOM.h"
 #include "nsISupportsPrimitives.h"
 #include "nsLinebreakConverter.h"
-#include "nsAHtml5FragmentParser.h"
 #include "nsHtml5Module.h"
 #include "nsTreeSanitizer.h"
 
@@ -120,7 +113,6 @@
 #include "nsIDOMHTMLBodyElement.h"
 
 // Misc
-#include "TextEditorTest.h"
 #include "nsEditorUtils.h"
 #include "nsIContentFilter.h"
 #include "nsEventDispatcher.h"
@@ -130,6 +122,7 @@
 #include "nsIPrincipal.h"
 #include "nsIDocShell.h"
 #include "nsIDocShellTreeItem.h"
+#include "nsContentUtils.h"
 #include "mozilla/Preferences.h"
 
 using namespace mozilla;

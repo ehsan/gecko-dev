@@ -1415,9 +1415,59 @@ EmitBackPatchOp(JSContext *cx, JSCodeGenerator *cg, JSOp op, ptrdiff_t *lastp)
     return EmitJump(cx, cg, op, delta);
 }
 
-static ptrdiff_t
-EmitTraceOp(JSContext *cx, JSCodeGenerator *cg)
+/* A macro for inlining at the top of js_EmitTree (whence it came). */
+#define UPDATE_LINE_NUMBER_NOTES(cx, cg, line)                                \
+    JS_BEGIN_MACRO                                                            \
+        uintN line_ = (line);                                                 \
+        uintN delta_ = line_ - CG_CURRENT_LINE(cg);                           \
+        if (delta_ != 0) {                                                    \
+            /*                                                                \
+             * Encode any change in the current source line number by using   \
+             * either several SRC_NEWLINE notes or just one SRC_SETLINE note, \
+             * whichever consumes less space.                                 \
+             *                                                                \
+             * NB: We handle backward line number deltas (possible with for   \
+             * loops where the update part is emitted after the body, but its \
+             * line number is <= any line number in the body) here by letting \
+             * unsigned delta_ wrap to a very large number, which triggers a  \
+             * SRC_SETLINE.                                                   \
+             */                                                               \
+            CG_CURRENT_LINE(cg) = line_;                                      \
+            if (delta_ >= (uintN)(2 + ((line_ > SN_3BYTE_OFFSET_MASK)<<1))) { \
+                if (js_NewSrcNote2(cx, cg, SRC_SETLINE, (ptrdiff_t)line_) < 0)\
+                    return JS_FALSE;                                          \
+            } else {                                                          \
+                do {                                                          \
+                    if (js_NewSrcNote(cx, cg, SRC_NEWLINE) < 0)               \
+                        return JS_FALSE;                                      \
+                } while (--delta_ != 0);                                      \
+            }                                                                 \
+        }                                                                     \
+    JS_END_MACRO
+
+/* A function, so that we avoid macro-bloating all the other callsites. */
+static JSBool
+UpdateLineNumberNotes(JSContext *cx, JSCodeGenerator *cg, uintN line)
 {
+    UPDATE_LINE_NUMBER_NOTES(cx, cg, line);
+    return JS_TRUE;
+}
+
+static ptrdiff_t
+EmitTraceOp(JSContext *cx, JSCodeGenerator *cg, JSParseNode *nextpn)
+{
+    if (nextpn) {
+        /*
+         * Try to give the JSOP_TRACE the same line number as the next
+         * instruction. nextpn is often a block, in which case the next
+         * instruction typically comes from the first statement inside.
+         */
+        if (nextpn->pn_type == TOK_LC && nextpn->pn_arity == PN_LIST && nextpn->pn_head)
+            nextpn = nextpn->pn_head;
+        if (!UpdateLineNumberNotes(cx, cg, nextpn->pn_pos.begin.lineno))
+            return -1;
+    }
+
     uint32 index = cg->traceIndex;
     if (index < UINT16_MAX)
         cg->traceIndex++;
@@ -3093,7 +3143,7 @@ AllocateSwitchConstant(JSContext *cx)
 /*
  * Sometimes, let-slots are pushed to the JS stack before we logically enter
  * the let scope. For example,
- *     for (let x = EXPR;;) BODY
+ *     let (x = EXPR) BODY
  * compiles to roughly {enterblock; EXPR; setlocal x; BODY; leaveblock} even
  * though EXPR is evaluated in the enclosing scope; it does not see x.
  *
@@ -3108,9 +3158,7 @@ class TempPopScope {
     JSObjectBox *savedBlockBox;
 
   public:
-#ifdef DEBUG
-    TempPopScope() : savedStmt(NULL) {}
-#endif
+    TempPopScope() : savedStmt(NULL), savedScopeStmt(NULL), savedBlockBox(NULL) {}
 
     bool popBlock(JSContext *cx, JSCodeGenerator *cg) {
         savedStmt = cg->topStmt;
@@ -3739,44 +3787,6 @@ js_EmitFunctionScript(JSContext *cx, JSCodeGenerator *cg, JSParseNode *body)
            JSScript::NewScriptFromCG(cx, cg);
 }
 
-/* A macro for inlining at the top of js_EmitTree (whence it came). */
-#define UPDATE_LINE_NUMBER_NOTES(cx, cg, line)                                \
-    JS_BEGIN_MACRO                                                            \
-        uintN line_ = (line);                                                 \
-        uintN delta_ = line_ - CG_CURRENT_LINE(cg);                           \
-        if (delta_ != 0) {                                                    \
-            /*                                                                \
-             * Encode any change in the current source line number by using   \
-             * either several SRC_NEWLINE notes or just one SRC_SETLINE note, \
-             * whichever consumes less space.                                 \
-             *                                                                \
-             * NB: We handle backward line number deltas (possible with for   \
-             * loops where the update part is emitted after the body, but its \
-             * line number is <= any line number in the body) here by letting \
-             * unsigned delta_ wrap to a very large number, which triggers a  \
-             * SRC_SETLINE.                                                   \
-             */                                                               \
-            CG_CURRENT_LINE(cg) = line_;                                      \
-            if (delta_ >= (uintN)(2 + ((line_ > SN_3BYTE_OFFSET_MASK)<<1))) { \
-                if (js_NewSrcNote2(cx, cg, SRC_SETLINE, (ptrdiff_t)line_) < 0)\
-                    return JS_FALSE;                                          \
-            } else {                                                          \
-                do {                                                          \
-                    if (js_NewSrcNote(cx, cg, SRC_NEWLINE) < 0)               \
-                        return JS_FALSE;                                      \
-                } while (--delta_ != 0);                                      \
-            }                                                                 \
-        }                                                                     \
-    JS_END_MACRO
-
-/* A function, so that we avoid macro-bloating all the other callsites. */
-static JSBool
-UpdateLineNumberNotes(JSContext *cx, JSCodeGenerator *cg, uintN line)
-{
-    UPDATE_LINE_NUMBER_NOTES(cx, cg, line);
-    return JS_TRUE;
-}
-
 static bool
 MaybeEmitVarDecl(JSContext *cx, JSCodeGenerator *cg, JSOp prologOp,
                  JSParseNode *pn, jsatomid *result)
@@ -4184,10 +4194,6 @@ EmitVariables(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn,
      */
     let = (pn->pn_op == JSOP_NOP);
     forInVar = (pn->pn_xflags & PNX_FORINVAR) != 0;
-#if JS_HAS_BLOCK_SCOPE
-    bool popScope = (inLetHead || (let && (cg->flags & TCF_IN_FOR_INIT)));
-    JS_ASSERT_IF(popScope, let);
-#endif
 
     off = noteIndex = -1;
     for (pn2 = pn->pn_head; ; pn2 = next) {
@@ -4320,23 +4326,11 @@ EmitVariables(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn,
                     return JS_FALSE;
                 }
 
-#if JS_HAS_BLOCK_SCOPE
-                /* Evaluate expr in the outer lexical scope if requested. */
-                TempPopScope tps;
-                if (popScope && !tps.popBlock(cx, cg))
-                    return JS_FALSE;
-#endif
-
                 oldflags = cg->flags;
                 cg->flags &= ~TCF_IN_FOR_INIT;
                 if (!js_EmitTree(cx, cg, pn3))
                     return JS_FALSE;
                 cg->flags |= oldflags & TCF_IN_FOR_INIT;
-
-#if JS_HAS_BLOCK_SCOPE
-                if (popScope && !tps.repushBlock(cx, cg))
-                    return JS_FALSE;
-#endif
             }
         }
 
@@ -4821,7 +4815,7 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
 #endif
 
         fun = pn->pn_funbox->function();
-        JS_ASSERT(FUN_INTERPRETED(fun));
+        JS_ASSERT(fun->isInterpreted());
         if (fun->script()) {
             /*
              * This second pass is needed to emit JSOP_NOP with a source note
@@ -4836,7 +4830,7 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
         }
 
         JS_ASSERT_IF(pn->pn_funbox->tcflags & TCF_FUN_HEAVYWEIGHT,
-                     FUN_KIND(fun) == JSFUN_INTERPRETED);
+                     fun->kind() == JSFUN_INTERPRETED);
 
         /* Generate code for the function's body. */
         void *cg2mark = JS_ARENA_MARK(cg->codePool);
@@ -4919,7 +4913,7 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
                 return false;
             if (pn->pn_cookie.isFree()) {
                 CG_SWITCH_TO_PROLOG(cg);
-                op = FUN_FLAT_CLOSURE(fun) ? JSOP_DEFFUN_FC : JSOP_DEFFUN;
+                op = fun->isFlatClosure() ? JSOP_DEFFUN_FC : JSOP_DEFFUN;
                 EMIT_INDEX_OP(op, index);
 
                 /* Make blockChain determination quicker. */
@@ -5097,7 +5091,7 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
         noteIndex2 = js_NewSrcNote(cx, cg, SRC_TRACE);
         if (noteIndex2 < 0)
             return JS_FALSE;
-        top = EmitTraceOp(cx, cg);
+        top = EmitTraceOp(cx, cg, pn->pn_right);
         if (top < 0)
             return JS_FALSE;
         if (!js_EmitTree(cx, cg, pn->pn_right))
@@ -5130,7 +5124,7 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
             return JS_FALSE;
 
         /* Compile the loop body. */
-        top = EmitTraceOp(cx, cg);
+        top = EmitTraceOp(cx, cg, pn->pn_left);
         if (top < 0)
             return JS_FALSE;
         js_PushStatement(cg, &stmtInfo, STMT_DO_LOOP, top);
@@ -5233,7 +5227,7 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
             
             top = CG_OFFSET(cg);
             SET_STATEMENT_TOP(&stmtInfo, top);
-            if (EmitTraceOp(cx, cg) < 0)
+            if (EmitTraceOp(cx, cg, NULL) < 0)
                 return JS_FALSE;
 
 #ifdef DEBUG
@@ -5249,10 +5243,10 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
             if (!EmitAssignment(cx, cg, pn2->pn_kid2, JSOP_NOP, NULL))
                 return false;
             tmp2 = CG_OFFSET(cg);
-            if (pn2->pn_kid1 && !js_NewSrcNote2(cx, cg, SRC_DECL,
-                                                (pn2->pn_kid1->pn_op == JSOP_DEFVAR)
-                                                ? SRC_DECL_VAR
-                                                : SRC_DECL_LET) < 0) {
+            if (pn2->pn_kid1 && js_NewSrcNote2(cx, cg, SRC_DECL,
+                                               (pn2->pn_kid1->pn_op == JSOP_DEFVAR)
+                                               ? SRC_DECL_VAR
+                                               : SRC_DECL_LET) < 0) {
                 return false;
             }
             if (js_Emit1(cx, cg, JSOP_POP) < 0)
@@ -5352,7 +5346,7 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
                 return JS_FALSE;
             
             /* Emit code for the loop body. */
-            if (EmitTraceOp(cx, cg) < 0)
+            if (EmitTraceOp(cx, cg, pn->pn_right) < 0)
                 return JS_FALSE;
             if (!js_EmitTree(cx, cg, pn->pn_right))
                 return JS_FALSE;
@@ -6497,7 +6491,7 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
         jmp = EmitJump(cx, cg, JSOP_FILTER, 0);
         if (jmp < 0)
             return JS_FALSE;
-        top = EmitTraceOp(cx, cg);
+        top = EmitTraceOp(cx, cg, pn->pn_right);
         if (top < 0)
             return JS_FALSE;
         if (!js_EmitTree(cx, cg, pn->pn_right))
@@ -6681,8 +6675,18 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
       }
 
 #if JS_HAS_BLOCK_SCOPE
-      case TOK_LET:
-        /* Let statements have their variable declarations on the left. */
+      case TOK_LET: {
+        /*
+         * pn represents one of these syntactic constructs:
+         *   let-expression:                        (let (x = y) EXPR)
+         *   let-statement:                         let (x = y) { ... }
+         *   let-declaration in statement context:  let x = y;
+         *   let-declaration in for-loop head:      for (let ...) ...
+         *
+         * Let-expressions and let-statements are represented as binary nodes
+         * with their variable declarations on the left and the body on the
+         * right.
+         */
         if (pn->pn_arity == PN_BINARY) {
             pn2 = pn->pn_right;
             pn = pn->pn_left;
@@ -6690,13 +6694,27 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
             pn2 = NULL;
         }
 
-        /* Non-null pn2 means that pn is the variable list from a let head. */
+        /*
+         * Non-null pn2 means that pn is the variable list from a let head.
+         *
+         * Use TempPopScope to evaluate the expressions in the enclosing scope.
+         * This also causes the initializing assignments to be emitted in the
+         * enclosing scope, but the assignment opcodes emitted here
+         * (essentially just setlocal, though destructuring assignment uses
+         * other additional opcodes) do not care about the block chain.
+         */
         JS_ASSERT(pn->pn_arity == PN_LIST);
+        TempPopScope tps;
+        bool popScope = pn2 || (cg->flags & TCF_IN_FOR_INIT);
+        if (popScope && !tps.popBlock(cx, cg))
+            return JS_FALSE;
         if (!EmitVariables(cx, cg, pn, pn2 != NULL, &noteIndex))
+            return JS_FALSE;
+        tmp = CG_OFFSET(cg);
+        if (popScope && !tps.repushBlock(cx, cg))
             return JS_FALSE;
 
         /* Thus non-null pn2 is the body of the let block or expression. */
-        tmp = CG_OFFSET(cg);
         if (pn2 && !js_EmitTree(cx, cg, pn2))
             return JS_FALSE;
 
@@ -6706,6 +6724,7 @@ js_EmitTree(JSContext *cx, JSCodeGenerator *cg, JSParseNode *pn)
             return JS_FALSE;
         }
         break;
+      }
 #endif /* JS_HAS_BLOCK_SCOPE */
 
 #if JS_HAS_GENERATORS

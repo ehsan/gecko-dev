@@ -44,7 +44,7 @@
   This file is designed to be used as inline input to nsGkAtoms.cpp and nsGkAtoms.h
   *only* through the magic of C preprocessing.
 
-  All entires must be enclosed in the macro GK_ATOM which will have cruel
+  All entries must be enclosed in the macro GK_ATOM which will have cruel
   and unusual things done to it
 
   The first argument to GK_ATOM is the C++ name of the atom
@@ -70,6 +70,7 @@ GK_ATOM(mozeditorbogusnode, "_moz_editor_bogus_node")
 GK_ATOM(mozgeneratedcontentbefore, "_moz_generated_content_before")
 GK_ATOM(mozgeneratedcontentafter, "_moz_generated_content_after")
 GK_ATOM(mozgeneratedcontentimage, "_moz_generated_content_image")
+GK_ATOM(_moz_original_size, "_moz_original_size")
 GK_ATOM(_moz_target, "_moz_target")
 GK_ATOM(_moz_type, "_moz-type")
 GK_ATOM(menuactive, "_moz-menuactive")
@@ -567,6 +568,7 @@ GK_ATOM(menuButton, "menu-button")
 GK_ATOM(menuitem, "menuitem")
 GK_ATOM(menulist, "menulist")
 GK_ATOM(menupopup, "menupopup")
+GK_ATOM(menuseparator, "menuseparator")
 GK_ATOM(message, "message")
 GK_ATOM(meta, "meta")
 GK_ATOM(meter, "meter")
@@ -723,6 +725,7 @@ GK_ATOM(onresize, "onresize")
 GK_ATOM(onscroll, "onscroll")
 GK_ATOM(onselect, "onselect")
 GK_ATOM(onset, "onset")
+GK_ATOM(onshow, "onshow")
 GK_ATOM(onsubmit, "onsubmit")
 GK_ATOM(ontext, "ontext")
 GK_ATOM(ontouchstart, "ontouchstart")
@@ -1792,7 +1795,6 @@ GK_ATOM(svgTextFrame, "SVGTextFrame")
 GK_ATOM(svgTextPathFrame, "SVGTextPathFrame")
 GK_ATOM(svgTSpanFrame, "SVGTSpanFrame")
 GK_ATOM(svgUseFrame, "SVGUseFrame")
-#ifdef MOZ_MEDIA
 GK_ATOM(HTMLVideoFrame, "VideoFrame")
 GK_ATOM(onloadstart, "onloadstart")
 GK_ATOM(onprogress, "onprogress")
@@ -1834,7 +1836,6 @@ GK_ATOM(canplaythrough, "canplaythrough")
 GK_ATOM(ratechange, "ratechange")
 GK_ATOM(durationchange, "durationchange")
 GK_ATOM(volumechange, "volumechange")
-#endif
 
 // Content property names
 GK_ATOM(animationsProperty, "AnimationsProperty")        // FrameAnimations*
@@ -1873,6 +1874,7 @@ GK_ATOM(images_in_menus, "images-in-menus")
 GK_ATOM(images_in_buttons, "images-in-buttons")
 GK_ATOM(windows_default_theme, "windows-default-theme")
 GK_ATOM(mac_graphite_theme, "mac-graphite-theme")
+GK_ATOM(mac_lion_theme, "mac-lion-theme")
 GK_ATOM(windows_compositor, "windows-compositor")
 GK_ATOM(touch_enabled, "touch-enabled")
 GK_ATOM(maemo_classic, "maemo-classic")
@@ -1898,6 +1900,7 @@ GK_ATOM(_moz_images_in_menus, "-moz-images-in-menus")
 GK_ATOM(_moz_images_in_buttons, "-moz-images-in-buttons")
 GK_ATOM(_moz_windows_default_theme, "-moz-windows-default-theme")
 GK_ATOM(_moz_mac_graphite_theme, "-moz-mac-graphite-theme")
+GK_ATOM(_moz_mac_lion_theme, "-moz-mac-lion-theme")
 GK_ATOM(_moz_windows_compositor, "-moz-windows-compositor")
 GK_ATOM(_moz_windows_classic, "-moz-windows-classic")
 GK_ATOM(_moz_windows_theme, "-moz-windows-theme")

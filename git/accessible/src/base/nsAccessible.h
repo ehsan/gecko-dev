@@ -62,6 +62,7 @@ class nsAccessible;
 class nsHyperTextAccessible;
 class nsHTMLLIAccessible;
 struct nsRoleMapEntry;
+class Relation;
 class nsTextAccessible;
 
 struct nsRect;
@@ -236,6 +237,11 @@ public:
    */
   virtual void GetPositionAndSizeInternal(PRInt32 *aPosInSet,
                                           PRInt32 *aSetSize);
+
+  /**
+   * Get the relation of the given type.
+   */
+  virtual Relation RelationByType(PRUint32 aType);
 
   //////////////////////////////////////////////////////////////////////////////
   // Initializing methods
@@ -417,6 +423,11 @@ public:
 
   //////////////////////////////////////////////////////////////////////////////
   // ActionAccessible
+
+  /**
+   * Return the number of actions that can be performed on this accessible.
+   */
+  virtual PRUint8 ActionCount();
 
   /**
    * Return access key, such as Alt+D.
@@ -662,7 +673,7 @@ protected:
    *  Get the container node for an atomic region, defined by aria-atomic="true"
    *  @return the container node
    */
-  nsIDOMNode* GetAtomicRegion();
+  nsIContent* GetAtomicRegion() const;
 
   /**
    * Get numeric value of the given ARIA attribute.
@@ -676,7 +687,7 @@ protected:
 
   /**
    * Return the action rule based on ARIA enum constants EActionRule
-   * (see nsARIAMap.h). Used by GetNumActions() and GetActionName().
+   * (see nsARIAMap.h). Used by ActionCount() and GetActionName().
    *
    * @param aStates  [in] states of the accessible
    */

@@ -109,8 +109,6 @@ pref("dom.enable_performance", true);
 // of content viewers to cache based on the amount of available memory.
 pref("browser.sessionhistory.max_total_viewers", -1);
 
-pref("browser.sessionhistory.optimize_eviction", true);
-
 pref("ui.use_native_colors", true);
 pref("ui.click_hold_context_menus", false);
 pref("browser.display.use_document_fonts",  1);  // 0 = never, 1 = quick, 2 = always
@@ -1353,20 +1351,6 @@ pref("layout.word_select.stop_at_punctuation", true);
 //     deletes the selection (Unix default)
 pref("layout.selection.caret_style", 0);
 
-// Prefs for auto scrolling by mouse drag.  When the mouse cursor is on edge of
-// scrollable frame which is a selection root or its descendant, the frame will
-// be scrolled.
-// |.edge_width| defines the edge width by device pixels.
-// |.edge_scroll_amount| defines the scrolling speed by device pixels.
-// The auto scroll implementation uses this value for scrolling-to computation.
-// When the mouse cursor is on the edge, it tries to scroll the frame to
-// this pixels away from the edge.
-// I.e., larger value makes faster scroll.
-// And also this value is used for the minimum scrolling speed when mouse cursor
-// is outside of the selection root element.
-pref("layout.selection.drag.autoscroll.edge_width", 32);
-pref("layout.selection.drag.autoscroll.edge_scroll_amount", 8);
-
 // pref to control whether or not to replace backslashes with Yen signs
 // in documents encoded in one of Japanese legacy encodings (EUC-JP, 
 // Shift_JIS, ISO-2022-JP)
@@ -1469,6 +1453,10 @@ pref("dom.max_script_run_time", 10);
 // How long a plugin is allowed to process a synchronous IPC message
 // before we consider it "hung".
 pref("dom.ipc.plugins.timeoutSecs", 45);
+// How long a plugin process will wait for a response from the parent
+// to a synchronous request before terminating itself. After this
+// point the child assumes the parent is hung.
+pref("dom.ipc.plugins.parentTimeoutSecs", 15);
 // How long a plugin launch is allowed to take before
 // we consider it failed.
 pref("dom.ipc.plugins.processLaunchTimeoutSecs", 45);
@@ -1476,6 +1464,7 @@ pref("dom.ipc.plugins.processLaunchTimeoutSecs", 45);
 // No timeout in DEBUG builds
 pref("dom.ipc.plugins.timeoutSecs", 0);
 pref("dom.ipc.plugins.processLaunchTimeoutSecs", 0);
+pref("dom.ipc.plugins.parentTimeoutSecs", 0);
 #endif
 
 // Disable oopp for standard java. They run their own process isolation (which
@@ -3341,3 +3330,6 @@ pref("network.buffer.cache.size",  32768);
 
 // Desktop Notification
 pref("notification.feature.enabled", false);
+
+//3D Transforms
+pref("layout.3d-transforms.enabled, false);

@@ -130,7 +130,6 @@ pref("browser.display.remotetabs.timeout", 10);
 /* session history */
 pref("browser.sessionhistory.max_total_viewers", 1);
 pref("browser.sessionhistory.max_entries", 50);
-pref("browser.sessionhistory.optimize_eviction", true);
 
 /* session store */
 pref("browser.sessionstore.resume_session_once", false);
@@ -163,6 +162,9 @@ pref("alerts.slideIncrement", 1);
 pref("alerts.slideIncrementTime", 10);
 pref("alerts.totalOpenTime", 6000);
 pref("alerts.height", 50);
+
+/* download helper */
+pref("browser.helperApps.deleteTempFileOnExit", false);
 
 /* password manager */
 pref("signon.rememberSignons", true);
@@ -370,7 +372,7 @@ pref("plugins.force.wmode", "opaque");
 pref("browser.geolocation.warning.infoURL", "http://www.mozilla.com/%LOCALE%/firefox/geolocation/");
 
 // base url for the wifi geolocation network provider
-pref("geo.wifi.uri", "https://www.google.com/loc/json");
+pref("geo.wifi.uri", "https://maps.googleapis.com/maps/api/browserlocation/json");
 
 // enable geo
 pref("geo.enabled", true);
@@ -393,6 +395,8 @@ pref("dom.max_script_run_time", 20);
 
 // JS error console
 pref("devtools.errorconsole.enabled", false);
+
+pref("browser.ui.layout.tablet", 0); // on: 1, off: 0, auto: -1
 
 // kinetic tweakables
 pref("browser.ui.kinetic.updateInterval", 16);
@@ -651,3 +655,13 @@ pref("browser.firstrun.show.localepicker", true);
 
 // initiated by a user
 pref("content.ime.strict_policy", true);
+
+// True if you always want dump() to work
+//
+// On Android, you also need to do the following for the output
+// to show up in logcat:
+//
+// $ adb shell stop
+// $ adb shell setprop log.redirect-stdio true
+// $ adb shell start
+pref("browser.dom.window.dump.enabled", false);

@@ -511,7 +511,8 @@ js_DestroyContext(JSContext *cx, JSDestroyContextMode mode)
             js_FinishCommonAtoms(cx);
 
             /* Clear debugging state to remove GC roots. */
-            JS_ClearAllTraps(cx);
+            for (JSCompartment **c = rt->compartments.begin(); c != rt->compartments.end(); c++)
+                (*c)->clearTraps(cx, NULL);
             JS_ClearAllWatchPoints(cx);
         }
 
@@ -1082,7 +1083,7 @@ js_ReportMissingArg(JSContext *cx, const Value &v, uintN arg)
     JS_snprintf(argbuf, sizeof argbuf, "%u", arg);
     bytes = NULL;
     if (IsFunctionObject(v)) {
-        atom = GET_FUNCTION_PRIVATE(cx, &v.toObject())->atom;
+        atom = v.toObject().getFunctionPrivate()->atom;
         bytes = DecompileValueGenerator(cx, JSDVG_SEARCH_STACK,
                                         v, atom);
         if (!bytes)
@@ -1432,6 +1433,12 @@ JSContext::generatorFor(StackFrame *fp) const
     }
     JS_NOT_REACHED("no matching generator");
     return NULL;
+}
+
+bool
+JSContext::runningWithTrustedPrincipals() const
+{
+    return !compartment || compartment->principals == runtime->trustedPrincipals();
 }
 
 JS_FRIEND_API(void)

@@ -298,7 +298,8 @@ class HashTable : private AllocPolicy
 
     static const unsigned sMinSizeLog2  = 4;
     static const unsigned sMinSize      = 1 << sMinSizeLog2;
-    static const unsigned sSizeLimit    = JS_BIT(24);
+    static const unsigned sMaxInit      = JS_BIT(23);
+    static const unsigned sMaxCapacity  = JS_BIT(24);
     static const unsigned sHashBits     = tl::BitSize<HashNumber>::result;
     static const uint8    sMinAlphaFrac = 64;  /* (0x100 * .25) taken from jsdhash.h */
     static const uint8    sMaxAlphaFrac = 192; /* (0x100 * .75) taken from jsdhash.h */
@@ -307,6 +308,14 @@ class HashTable : private AllocPolicy
     static const HashNumber sFreeKey = Entry::sFreeKey;
     static const HashNumber sRemovedKey = Entry::sRemovedKey;
     static const HashNumber sCollisionBit = Entry::sCollisionBit;
+
+    static void staticAsserts()
+    {
+        /* Rely on compiler "constant overflow warnings". */
+        JS_STATIC_ASSERT(((sMaxInit * sInvMaxAlpha) >> 7) < sMaxCapacity);
+        JS_STATIC_ASSERT((sMaxCapacity * sInvMaxAlpha) <= UINT32_MAX);
+        JS_STATIC_ASSERT((sMaxCapacity * sizeof(Entry)) <= UINT32_MAX);
+    }
 
     static bool isLiveHash(HashNumber hash)
     {
@@ -365,7 +374,10 @@ class HashTable : private AllocPolicy
          * Correct for sMaxAlphaFrac such that the table will not resize
          * when adding 'length' entries.
          */
-        JS_ASSERT(length < (uint32(1) << 23));
+        if (length > sMaxInit) {
+            this->reportAllocOverflow();
+            return false;
+        }
         uint32 capacity = (length * sInvMaxAlpha) >> 7;
 
         if (capacity < sMinSize)
@@ -379,10 +391,7 @@ class HashTable : private AllocPolicy
         }
 
         capacity = roundUp;
-        if (capacity >= sSizeLimit) {
-            this->reportAllocOverflow();
-            return false;
-        }
+        JS_ASSERT(capacity <= sMaxCapacity);
 
         table = createTable(*this, capacity);
         if (!table)
@@ -536,7 +545,7 @@ class HashTable : private AllocPolicy
         uint32 oldCap = tableCapacity;
         uint32 newLog2 = sHashBits - hashShift + deltaLog2;
         uint32 newCapacity = JS_BIT(newLog2);
-        if (newCapacity >= sSizeLimit) {
+        if (newCapacity > sMaxCapacity) {
             this->reportAllocOverflow();
             return false;
         }
@@ -628,12 +637,16 @@ class HashTable : private AllocPolicy
         return !entryCount;
     }
 
-    uint32 count() const{
+    uint32 count() const {
         return entryCount;
     }
 
     uint32 generation() const {
         return gen;
+    }
+
+    size_t tableSize() const {
+        return tableCapacity * sizeof(Entry);
     }
 
     Ptr lookup(const Lookup &l) const {
@@ -757,7 +770,9 @@ class TaggedPointerEntry
   public:
     TaggedPointerEntry() : bits(0) {}
     TaggedPointerEntry(const TaggedPointerEntry &other) : bits(other.bits) {}
-    TaggedPointerEntry(T *ptr, bool tagged) : bits(uintptr_t(ptr) | tagged) {
+    TaggedPointerEntry(T *ptr, bool tagged)
+      : bits(uintptr_t(ptr) | uintptr_t(tagged))
+    {
         JS_ASSERT((uintptr_t(ptr) & 0x1) == 0);
     }
 
@@ -770,7 +785,7 @@ class TaggedPointerEntry
      * the hash function doesn't consider the tag to be a portion of the key.
      */
     void setTagged(bool enabled) const {
-        const_cast<ThisT *>(this)->bits |= enabled;
+        const_cast<ThisT *>(this)->bits |= uintptr_t(enabled);
     }
 
     T *asPtr() const {
@@ -1062,6 +1077,7 @@ class HashMap
     typedef typename Impl::Range Range;
     Range all() const                                 { return impl.all(); }
     size_t count() const                              { return impl.count(); }
+    size_t tableSize() const                          { return impl.tableSize(); }
 
     /*
      * Typedef for the enumeration class. An Enum may be used to examine and
@@ -1260,6 +1276,7 @@ class HashSet
     typedef typename Impl::Range Range;
     Range all() const                                 { return impl.all(); }
     size_t count() const                              { return impl.count(); }
+    size_t tableSize() const                          { return impl.tableSize(); }
 
     /*
      * Typedef for the enumeration class. An Enum may be used to examine and

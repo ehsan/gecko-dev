@@ -40,11 +40,7 @@
 
 MAKEFILES_db="
   db/Makefile
-  db/mdb/Makefile
-  db/mdb/public/Makefile
-  db/mork/Makefile
-  db/mork/build/Makefile
-  db/mork/src/Makefile
+  db/sqlite3/src/Makefile
 "
 
 MAKEFILES_dom="
@@ -53,7 +49,6 @@ MAKEFILES_dom="
   ipc/glue/Makefile
   ipc/ipdl/Makefile
   dom/Makefile
-  dom/public/coreEvents/Makefile
   dom/interfaces/base/Makefile
   dom/interfaces/canvas/Makefile
   dom/interfaces/core/Makefile
@@ -327,7 +322,6 @@ MAKEFILES_libvorbis="
 MAKEFILES_libtremor="
   media/libtremor/Makefile
   media/libtremor/lib/Makefile
-  media/libtremor/include/Makefile
   media/libtremor/include/tremor/Makefile
 "
 
@@ -398,6 +392,14 @@ MAKEFILES_netwerk="
   netwerk/system/Makefile
   netwerk/system/mac/Makefile
   netwerk/system/win32/Makefile
+"
+
+MAKEFILES_storage="
+  storage/Makefile
+  storage/public/Makefile
+  storage/src/Makefile
+  storage/build/Makefile
+  storage/test/Makefile
 "
 
 MAKEFILES_uriloader="
@@ -758,6 +760,7 @@ add_makefiles "
   $MAKEFILES_mathml
   $MAKEFILES_plugin
   $MAKEFILES_netwerk
+  $MAKEFILES_storage
   $MAKEFILES_uriloader
   $MAKEFILES_profile
   $MAKEFILES_rdf
@@ -937,24 +940,6 @@ if [ "$MOZ_ZIPWRITER" ]; then
     modules/libjar/zipwriter/public/Makefile
     modules/libjar/zipwriter/src/Makefile
     modules/libjar/zipwriter/test/Makefile
-  "
-fi
-
-if [ "$MOZ_MORKREADER" ]; then
-  add_makefiles "
-    db/morkreader/Makefile
-    db/morkreader/external/Makefile
-  "
-fi
-
-if [ "$MOZ_STORAGE" ]; then
-  add_makefiles "
-    db/sqlite3/src/Makefile
-    storage/Makefile
-    storage/public/Makefile
-    storage/src/Makefile
-    storage/build/Makefile
-    storage/test/Makefile
   "
 fi
 

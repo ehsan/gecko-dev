@@ -44,13 +44,12 @@
 #define nsGenericDOMDataNode_h___
 
 #include "nsIContent.h"
-#include "nsIDOMCharacterData.h"
+
 #include "nsTextFragment.h"
 #include "nsDOMError.h"
 #include "nsEventListenerManager.h"
 #include "nsGenericElement.h"
 #include "nsCycleCollectionParticipant.h"
-#include "nsContentUtils.h"
 #include "nsDOMMemoryReporter.h"
 
 #ifdef MOZ_SMIL
@@ -348,7 +347,8 @@ protected:
 
   nsresult SetTextInternal(PRUint32 aOffset, PRUint32 aCount,
                            const PRUnichar* aBuffer, PRUint32 aLength,
-                           PRBool aNotify);
+                           PRBool aNotify,
+                           CharacterDataChangeInfo::Details* aDetails = nsnull);
 
   /**
    * Method to clone this node. This needs to be overriden by all derived

@@ -48,7 +48,6 @@
 #include "nsIDocument.h"
 #include "nsIDOMEventTarget.h" 
 #include "nsIDOMKeyEvent.h"
-#include "nsIDOMMouseListener.h"
 #include "nsISelection.h"
 #include "nsISelectionPrivate.h"
 #include "nsISelectionController.h"
@@ -1214,6 +1213,7 @@ nsPlaintextEditor::Undo(PRUint32 aCount)
     result = mRules->DidDoAction(selection, &ruleInfo, result);
   } 
    
+  NotifyEditorObservers();
   return result;
 }
 
@@ -1243,6 +1243,7 @@ nsPlaintextEditor::Redo(PRUint32 aCount)
     result = mRules->DidDoAction(selection, &ruleInfo, result);
   } 
    
+  NotifyEditorObservers();
   return result;
 }
 
