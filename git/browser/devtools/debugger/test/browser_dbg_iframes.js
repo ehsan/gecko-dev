@@ -16,22 +16,22 @@ function test() {
     gPane = aPane;
     let gDebugger = gPane.debuggerWindow;
 
-    is(gDebugger.DebuggerController.activeThread.paused, false,
+    is(gDebugger.StackFrames.activeThread.paused, false,
       "Should be running after debug_tab_pane.");
 
-    gDebugger.DebuggerController.activeThread.addOneTimeListener("framesadded", function() {
+    gPane.activeThread.addOneTimeListener("framesadded", function() {
       Services.tm.currentThread.dispatch({ run: function() {
 
-        let frames = gDebugger.DebuggerView.StackFrames._frames;
+        let frames = gDebugger.DebuggerView.Stackframes._frames;
         let childNodes = frames.childNodes;
 
-        is(gDebugger.DebuggerController.activeThread.paused, true,
+        is(gDebugger.StackFrames.activeThread.paused, true,
           "Should be paused after an interrupt request.");
 
         is(frames.querySelectorAll(".dbg-stackframe").length, 1,
           "Should have one frame in the stack.");
 
-        gDebugger.DebuggerController.activeThread.addOneTimeListener("resumed", function() {
+        gPane.activeThread.addOneTimeListener("resumed", function() {
           Services.tm.currentThread.dispatch({ run: function() {
             closeDebuggerAndFinish(gTab);
           }}, 0);

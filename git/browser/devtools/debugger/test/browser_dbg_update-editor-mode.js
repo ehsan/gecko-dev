@@ -29,7 +29,7 @@ function test()
     gPane = aPane;
     gDebugger = gPane.debuggerWindow;
 
-    gDebugger.DebuggerController.activeThread.addOneTimeListener("framesadded", function() {
+    gPane.activeThread.addOneTimeListener("framesadded", function() {
       framesAdded = true;
       runTest();
     });
@@ -56,7 +56,7 @@ function test()
 function testScriptsDisplay() {
   gScripts = gDebugger.DebuggerView.Scripts._scripts;
 
-  is(gDebugger.DebuggerController.activeThread.state, "paused",
+  is(gDebugger.StackFrames.activeThread.state, "paused",
     "Should only be getting stack frames while paused.");
 
   is(gScripts.itemCount, 2, "Found the expected number of scripts.");
@@ -90,7 +90,7 @@ function testSwitchPaused()
   is(gDebugger.editor.getMode(), SourceEditor.MODES.JAVASCRIPT,
      "Found the expected editor mode.");
 
-  gDebugger.DebuggerController.activeThread.resume(function() {
+  gDebugger.StackFrames.activeThread.resume(function() {
     closeDebuggerAndFinish(gTab);
   });
 }

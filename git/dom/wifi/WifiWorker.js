@@ -10,7 +10,7 @@ const {classes: Cc, interfaces: Ci, utils: Cu, results: Cr} = Components;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
-const DEBUG = false; // set to true to show debug messages
+const DEBUG = false; // set to false to suppress debug messages
 
 const WIFIWORKER_CONTRACTID = "@mozilla.org/wifi/worker;1";
 const WIFIWORKER_CID        = Components.ID("{a14e8977-d259-433a-a88d-58dd44657e5b}");
@@ -443,7 +443,8 @@ var WifiManager = (function() {
 
   function stopDhcp(ifname, callback) {
     controlMessage({ cmd: "dhcp_stop", ifname: ifname }, function(data) {
-      dhcpInfo = null;
+      if (!data.status)
+        dhcpInfo = null;
       notify("dhcplost");
       callback(!data.status);
     });
@@ -451,7 +452,8 @@ var WifiManager = (function() {
 
   function releaseDhcpLease(ifname, callback) {
     controlMessage({ cmd: "dhcp_release_lease", ifname: ifname }, function(data) {
-      dhcpInfo = null;
+      if (!data.status)
+        dhcpInfo = null;
       notify("dhcplost");
       callback(!data.status);
     });
@@ -496,6 +498,11 @@ var WifiManager = (function() {
   function notifyStateChange(fields) {
     fields.prevState = manager.state;
     manager.state = fields.state;
+
+    // If we got disconnected, kill the DHCP client in preparation for
+    // reconnection.
+    if (fields.state === "DISCONNECTED" && dhcpInfo)
+      stopDhcp(manager.ifname, function() {});
 
     notify("statechange", fields);
   }
@@ -571,16 +578,6 @@ var WifiManager = (function() {
 
     retryTimer = null;
     notify("supplicantlost");
-  }
-
-  manager.connectionDropped = function(callback) {
-    // If we got disconnected, kill the DHCP client in preparation for
-    // reconnection.
-    resetConnections(manager.ifname, function() {
-      stopDhcp(manager.ifname, function() {
-        callback();
-      });
-    });
   }
 
   manager.start = function() {
@@ -725,9 +722,9 @@ var WifiManager = (function() {
       return false;
     }
     if (eventData.indexOf("CTRL-EVENT-DISCONNECTED") === 0) {
+      notifyStateChange({ state: "DISCONNECTED" });
       manager.connectionInfo.bssid = null;
       manager.connectionInfo.ssid = null;
-      manager.connectionInfo.id = -1;
       return true;
     }
     if (eventData.indexOf("CTRL-EVENT-CONNECTED") === 0) {
@@ -872,13 +869,11 @@ var WifiManager = (function() {
       // supplicant gracefully, then we need to continue telling it to die
       // until it does.
       terminateSupplicant(function (ok) {
-        manager.connectionDropped(function () {
-          stopSupplicant(function (status) {
-            manager.state = "UNINITIALIZED";
-            closeSupplicantConnection(function () {
-              disableInterface(manager.ifname, function (ok) {
-                unloadDriver(callback);
-              });
+        stopSupplicant(function (status) {
+          manager.state = "UNINITIALIZED";
+          closeSupplicantConnection(function () {
+            disableInterface(manager.ifname, function (ok) {
+              unloadDriver(callback);
             });
           });
         });
@@ -1098,8 +1093,7 @@ function WifiWorker() {
 
   this._mm = Cc["@mozilla.org/parentprocessmessagemanager;1"].getService(Ci.nsIFrameMessageManager);
   const messages = ["WifiManager:setEnabled", "WifiManager:getNetworks",
-                    "WifiManager:associate", "WifiManager:forget",
-                    "WifiManager:getState"];
+                    "WifiManager:associate", "WifiManager:getState"];
 
   messages.forEach((function(msgName) {
     this._mm.addMessageListener(msgName, this);
@@ -1235,12 +1229,6 @@ function WifiWorker() {
         self._fireEvent("onconnecting", { network: netToDOM(self.currentNetwork) });
         break;
       case "ASSOCIATED":
-        if (!self.currentNetwork) {
-          self.currentNetwork =
-            { bssid: WifiManager.connectionInfo.bssid,
-              ssid: quote(WifiManager.connectionInfo.ssid) };
-        }
-
         self.currentNetwork.netId = this.id;
         WifiManager.getNetworkConfiguration(self.currentNetwork, function (){});
         break;
@@ -1262,7 +1250,7 @@ function WifiWorker() {
           // because of that we need to gather information about the current
           // network here.
           self.currentNetwork = { ssid: quote(WifiManager.connectionInfo.ssid),
-                                  netId: WifiManager.connectionInfo.id };
+                                  known: true }
           WifiManager.getNetworkConfiguration(self.currentNetwork, function(){});
         }
 
@@ -1275,14 +1263,12 @@ function WifiWorker() {
         self._fireEvent("ondisconnect", {});
         self.currentNetwork = null;
 
-        WifiManager.connectionDropped(function() {
-          // We've disconnected from a network because of a call to forgetNetwork.
-          // Reconnect to the next available network (if any).
-          if (self._reconnectOnDisconnect) {
-            self._reconnectOnDisconnect = false;
-            WifiManager.reconnect(function(){});
-          }
-        });
+        // We've disconnected from a network because of a call to forgetNetwork.
+        // Reconnect to the next available network (if any).
+        if (self._reconnectOnDisconnect) {
+          self._reconnectOnDisconnect = false;
+          WifiManager.reconnect(function(){});
+        }
 
         break;
     }
@@ -1303,13 +1289,6 @@ function WifiWorker() {
 
     debug("Scan results are available! Asking for them.");
     WifiManager.getScanResults(function(r) {
-      // Failure.
-      if (!r) {
-        self.wantScanResults.forEach(function(callback) { callback(null) });
-        self.wantScanResults = [];
-        return;
-      }
-
       // Now that we have scan results, there's no more need to continue
       // scanning. Ignore any errors from this command.
       WifiManager.setScanMode("inactive", function() {});
@@ -1589,14 +1568,9 @@ WifiWorker.prototype = {
   },
 
   getNetworks: function(rid, mid) {
-    const message = "WifiManager:getNetworks:Return";
-    if (WifiManager.state === "UNINITIALIZED") {
-      this._sendMessage(message, false, "Wifi is disabled", rid, mid);
-      return;
-    }
-
     this.waitForScan((function (networks) {
-      this._sendMessage(message, networks !== null, networks, rid, mid);
+      this._sendMessage("WifiManager:getNetworks:Return",
+                        networks !== null, networks, rid, mid);
     }).bind(this));
     WifiManager.scan(true, function() {});
   },
@@ -1613,11 +1587,6 @@ WifiWorker.prototype = {
   associate: function(network, rid, mid) {
     const MAX_PRIORITY = 9999;
     const message = "WifiManager:associate:Return";
-    if (WifiManager.state === "UNINITIALIZED") {
-      this._sendMessage(message, false, "Wifi is disabled", rid, mid);
-      return;
-    }
-
     let privnet = network;
     let self = this;
     function networkReady() {
@@ -1682,11 +1651,6 @@ WifiWorker.prototype = {
 
   forget: function(network, rid, mid) {
     const message = "WifiManager:forget:Return";
-    if (WifiManager.state === "UNINITIALIZED") {
-      this._sendMessage(message, false, "Wifi is disabled", rid, mid);
-      return;
-    }
-
     let ssid = network.ssid;
     if (!(ssid in this.configuredNetworks)) {
       this._sendMessage(message, false, "Trying to forget an unknown network", rid, mid);
@@ -1695,8 +1659,7 @@ WifiWorker.prototype = {
 
     let self = this;
     let configured = this.configuredNetworks[ssid];
-    this._reconnectOnDisconnect = (this.currentNetwork &&
-                                   (this.currentNetwork.ssid === ssid));
+    this._reconnectOnDisconnect = (this._currentNetwork.ssid === ssid);
     WifiManager.removeNetwork(configured.netId, function(ok) {
       if (!ok) {
         self._sendMessage(message, false, "Unable to remove the network", rid, mid);

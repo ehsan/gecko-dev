@@ -35,7 +35,7 @@ function testFrameParameters()
 
       dump("After currentThread.dispatch!\n");
 
-      var frames = gDebugger.DebuggerView.StackFrames._frames,
+      var frames = gDebugger.DebuggerView.Stackframes._frames,
           childNodes = frames.childNodes,
           localScope = gDebugger.DebuggerView.Properties.localScope,
           localNodes = localScope.querySelector(".details").childNodes;
@@ -46,7 +46,7 @@ function testFrameParameters()
       dump("localScope - " + localScope.constructor + "\n");
       dump("localNodes - " + localNodes.constructor + "\n");
 
-      is(gDebugger.DebuggerController.activeThread.state, "paused",
+      is(gDebugger.StackFrames.activeThread.state, "paused",
         "Should only be getting stack frames while paused.");
 
       is(frames.querySelectorAll(".dbg-stackframe").length, 3,
@@ -89,9 +89,9 @@ function testFrameParameters()
 }
 
 function resumeAndFinish() {
-  gDebugger.DebuggerController.activeThread.addOneTimeListener("framescleared", function() {
+  gPane.activeThread.addOneTimeListener("framescleared", function() {
     Services.tm.currentThread.dispatch({ run: function() {
-      var frames = gDebugger.DebuggerView.StackFrames._frames;
+      var frames = gDebugger.DebuggerView.Stackframes._frames;
 
       is(frames.querySelectorAll(".dbg-stackframe").length, 0,
         "Should have no frames.");
@@ -100,7 +100,7 @@ function resumeAndFinish() {
     }}, 0);
   });
 
-  gDebugger.DebuggerController.activeThread.resume();
+  gDebugger.StackFrames.activeThread.resume();
 }
 
 registerCleanupFunction(function() {
