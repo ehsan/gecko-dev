@@ -18,7 +18,6 @@
 
 #include "jsatominlines.h"
 #include "jscompartmentinlines.h"
-#include "jsgcinlines.h"
 #include "jsinferinlines.h"
 
 #include "vm/Shape-inl.h"

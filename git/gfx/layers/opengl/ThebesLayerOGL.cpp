@@ -355,16 +355,13 @@ public:
   }
 
   // ThebesLayerBuffer interface
-  void
-  CreateBuffer(ContentType aType, const nsIntRect& aRect, uint32_t aFlags,
-               gfxASurface** aBlackSurface, gfxASurface** aWhiteSurface,
-               RefPtr<gfx::DrawTarget>* aBlackDT, RefPtr<gfx::DrawTarget>* aWhiteDT) MOZ_OVERRIDE
+  virtual already_AddRefed<gfxASurface>
+  CreateBuffer(ContentType aType, const nsIntRect& aRect, uint32_t aFlags, gfxASurface**)
   {
     NS_ASSERTION(gfxASurface::CONTENT_ALPHA != aType,"ThebesBuffer has color");
 
     mTexImage = CreateClampOrRepeatTextureImage(gl(), aRect.Size(), aType, aFlags);
-    nsRefPtr<gfxASurface> ret = mTexImage ? mTexImage->GetBackingSurface() : nullptr;
-    *aBlackSurface = ret.forget().get();
+    return mTexImage ? mTexImage->GetBackingSurface() : nullptr;
   }
 
   virtual nsIntPoint GetOriginOffset() {

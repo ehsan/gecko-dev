@@ -261,7 +261,7 @@ public:
 
   void AddTextureHost(TextureHost* aTexture);
   virtual void UseTextureHost(TextureHost* aTexture) {}
-  virtual void RemoveTextureHost(uint64_t aTextureID);
+  void RemoveTextureHost(uint64_t aTextureID);
   TextureHost* GetTextureHost(uint64_t aTextureID);
 
 protected:

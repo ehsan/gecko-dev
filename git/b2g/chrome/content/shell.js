@@ -631,18 +631,9 @@ Services.obs.addObserver(function onSystemMessageOpenApp(subject, topic, data) {
   shell.openAppForSystemMessage(msg);
 }, 'system-messages-open-app', false);
 
-Services.obs.addObserver(function onInterAppCommConnect(subject, topic, data) {
-  data = JSON.parse(data);
-  shell.sendChromeEvent({ type: "inter-app-comm-permission",
-                          chromeEventID: data.callerID,
-                          manifestURL: data.manifestURL,
-                          keyword: data.keyword,
-                          peers: data.appsToSelect });
-}, 'inter-app-comm-select-app', false);
-
-Services.obs.addObserver(function onFullscreenOriginChange(subject, topic, data) {
+Services.obs.addObserver(function(aSubject, aTopic, aData) {
   shell.sendChromeEvent({ type: "fullscreenoriginchange",
-                          fullscreenorigin: data });
+                          fullscreenorigin: aData });
 }, "fullscreen-origin-change", false);
 
 Services.obs.addObserver(function onWebappsStart(subject, topic, data) {
@@ -708,13 +699,6 @@ var CustomEventManager = {
         break;
       case 'captive-portal-login-cancel':
         CaptivePortalLoginHelper.handleEvent(detail);
-        break;
-      case 'inter-app-comm-permission':
-        Services.obs.notifyObservers(null, 'inter-app-comm-select-app-result',
-          JSON.stringify({ callerID: detail.chromeEventID,
-                           keyword: detail.keyword,
-                           manifestURL: detail.manifestURL,
-                           selectedApps: detail.peers }));
         break;
     }
   }

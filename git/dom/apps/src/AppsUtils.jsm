@@ -551,10 +551,6 @@ ManifestHelper.prototype = {
     return this._localeProp("description");
   },
 
-  get type() {
-    return this._localeProp("type");
-  },
-
   get version() {
     return this._localeProp("version");
   },

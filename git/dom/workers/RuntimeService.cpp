@@ -674,10 +674,8 @@ public:
     if (csp) {
       NS_NAMED_LITERAL_STRING(scriptSample,
          "Call to eval() or related function blocked by CSP.");
-      if (mWorkerPrivate->GetReportCSPViolations()) {
-        csp->LogViolationDetails(nsIContentSecurityPolicy::VIOLATION_TYPE_EVAL,
-                                 mFileName, scriptSample, mLineNum);
-      }
+      csp->LogViolationDetails(nsIContentSecurityPolicy::VIOLATION_TYPE_EVAL,
+                               mFileName, scriptSample, mLineNum);
     }
 
     nsRefPtr<LogViolationDetailsResponseRunnable> response =

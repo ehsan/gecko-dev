@@ -124,9 +124,9 @@ RangeAnalysis::replaceDominatedUsesWith(MDefinition *orig, MDefinition *dom,
 }
 
 bool
-RangeAnalysis::addBetaNodes()
+RangeAnalysis::addBetaNobes()
 {
-    IonSpew(IonSpew_Range, "Adding beta nodes");
+    IonSpew(IonSpew_Range, "Adding beta nobes");
 
     for (PostorderIterator i(graph_.poBegin()); i != graph_.poEnd(); i++) {
         MBasicBlock *block = *i;
@@ -230,9 +230,9 @@ RangeAnalysis::addBetaNodes()
 }
 
 bool
-RangeAnalysis::removeBetaNodes()
+RangeAnalysis::removeBetaNobes()
 {
-    IonSpew(IonSpew_Range, "Removing beta nodes");
+    IonSpew(IonSpew_Range, "Removing beta nobes");
 
     for (PostorderIterator i(graph_.poBegin()); i != graph_.poEnd(); i++) {
         MBasicBlock *block = *i;

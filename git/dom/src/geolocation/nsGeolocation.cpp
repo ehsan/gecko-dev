@@ -369,14 +369,11 @@ nsGeolocationRequest::Notify(nsITimer* aTimer)
 {
   MOZ_ASSERT(!mShutdown, "timeout after shutdown");
 
+  NotifyError(nsIDOMGeoPositionError::TIMEOUT);
   if (!mIsWatchPositionRequest) {
     Shutdown();
     mLocator->RemoveRequest(this);
-  }
-
-  NotifyError(nsIDOMGeoPositionError::TIMEOUT);
-
-  if (!mShutdown) {
+  } else if (!mShutdown) {
     SetTimeoutTimer();
   }
 
@@ -537,11 +534,6 @@ nsGeolocationRequest::SendLocation(nsIDOMGeoPosition* aPosition)
   }
 
   mLocator->SetCachedPosition(wrapped);
-  if (!mIsWatchPositionRequest) {
-    // Cancel timer and position updates in case the position
-    // callback spins the event loop
-    Shutdown();
-  }
 
   // Ensure that the proper context is on the stack (bug 452762)
   nsCxPusher pusher;
@@ -560,10 +552,9 @@ nsGeolocationRequest::SendLocation(nsIDOMGeoPosition* aPosition)
     callback->HandleEvent(aPosition);
   }
 
-  if (!mShutdown) {
-    // For watch requests, the handler may have called clearWatch
-    MOZ_ASSERT(mIsWatchPositionRequest,
-               "non-shutdown getCurrentPosition request after callback!");
+  if (!mIsWatchPositionRequest) {
+    Shutdown();
+  } else if (!mShutdown) { // The handler may have called clearWatch
     SetTimeoutTimer();
   }
 }

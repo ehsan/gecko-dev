@@ -13,12 +13,16 @@ namespace mozilla {
 
 /**
  * This class is the observer that calls into the profiler whenever
- * main thread I/O occurs.
+ * main thread I/O occurs. It should only ever be called on the main thread.
  */
 class ProfilerIOInterposeObserver MOZ_FINAL : public IOInterposeObserver
 {
 public:
-  virtual void Observe(Observation& aObservation);
+  ProfilerIOInterposeObserver();
+  ~ProfilerIOInterposeObserver();
+
+  virtual void Observe(Operation aOp, double& aDuration,
+                       const char* aModuleInfo);
 };
 
 } // namespace mozilla
@@ -26,3 +30,4 @@ public:
 #endif // MOZ_ENABLE_PROFILER_SPS
 
 #endif // PROFILERIOINTERPOSEOBSERVER_H
+

@@ -10541,7 +10541,6 @@ struct PrototypeTraits;
                                             config)
         includes.add("mozilla/dom/OwningNonNull.h")
         includes.add("mozilla/dom/UnionMember.h")
-        includes.add("mozilla/dom/BindingDeclarations.h")
         implincludes.add("mozilla/dom/PrimitiveConversions.h")
 
         # Wrap all of that in our namespaces.
@@ -10744,15 +10743,12 @@ class CGEventMethod(CGNativeMember):
         self.args = list(self.originalArgs)
         members = ""
         holdJS = ""
-        iface = self.descriptorProvider.interface
-        while iface.identifier.name != "Event":
-            for m in self.descriptorProvider.getDescriptor(iface.identifier.name).interface.members:
-                if m.isAttr():
-                    name = CGDictionary.makeMemberName(m.identifier.name)
-                    members += "e->%s = %s.%s;\n" % (name, self.args[1].name, name)
-                    if m.type.isAny() or m.type.isObject() or m.type.isSpiderMonkeyInterface():
-                        holdJS = "mozilla::HoldJSObjects(e.get());\n"
-            iface = iface.parent
+        for m in self.descriptorProvider.interface.members:
+            if m.isAttr():
+                name = CGDictionary.makeMemberName(m.identifier.name)
+                members += "e->%s = %s.%s;\n" % (name, self.args[1].name, name)
+                if m.type.isAny() or m.type.isObject() or m.type.isSpiderMonkeyInterface():
+                    holdJS = "mozilla::HoldJSObjects(e.get());\n"
 
         self.body = (
             "nsRefPtr<${nativeType}> e = new ${nativeType}(aOwner);\n"
@@ -10828,24 +10824,21 @@ class CGEventClass(CGBindingImplClass):
                                visibility="private",
                                body="body"))
 
-        parent = self.descriptor.interface.parent
-        self.parentType = self.descriptor.getDescriptor(parent.identifier.name).nativeType.split('::')[-1]
         baseDeclarations=(
             "public:\n"
             "  NS_DECL_ISUPPORTS_INHERITED\n"
-            "  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_INHERITED(${nativeType}, ${parentType})\n"
+            "  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_INHERITED(${nativeType}, nsDOMEvent)\n"
             "  virtual ~${nativeType}();\n"
             "protected:\n"
             "  ${nativeType}(mozilla::dom::EventTarget* aOwner);\n\n")
 
         baseDeclarations = string.Template(baseDeclarations).substitute(
             {
-              "nativeType": self.descriptor.nativeType.split('::')[-1],
-              "parentType": self.parentType
+              "nativeType": self.descriptor.nativeType.split('::')[-1]
             })
 
         CGClass.__init__(self, descriptor.nativeType.split('::')[-1],
-                         bases=[ClassBase(self.parentType)],
+                         bases=[ClassBase("nsDOMEvent")],
                          methods=self.methodDecls,
                          members=members,
                          extradeclarations=baseDeclarations)
@@ -10898,29 +10891,26 @@ class CGEventClass(CGBindingImplClass):
         if dropJS != "":
             dropJS += "  mozilla::DropJSObjects(this);\n"
         # Just override CGClass and do our own thing
-        nativeType = self.descriptor.nativeType.split('::')[-1]
-        ctorParams = ("aOwner, nullptr, nullptr" if self.parentType == "nsDOMEvent"
-                 else "aOwner")
         classImpl = """
 NS_IMPL_CYCLE_COLLECTION_CLASS(${nativeType})
 
-NS_IMPL_ADDREF_INHERITED(${nativeType}, ${parentType})
-NS_IMPL_RELEASE_INHERITED(${nativeType}, ${parentType})
+NS_IMPL_ADDREF_INHERITED(${nativeType}, nsDOMEvent)
+NS_IMPL_RELEASE_INHERITED(${nativeType}, nsDOMEvent)
 
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(${nativeType}, ${parentType})
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(${nativeType}, nsDOMEvent)
 ${traverse}NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
-NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN_INHERITED(${nativeType}, ${parentType})
+NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN_INHERITED(${nativeType}, nsDOMEvent)
 ${trace}NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(${nativeType}, ${parentType})
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(${nativeType}, nsDOMEvent)
 ${unlink}NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(${nativeType})
-NS_INTERFACE_MAP_END_INHERITING(${parentType})
+NS_INTERFACE_MAP_END_INHERITING(nsDOMEvent)
 
 ${nativeType}::${nativeType}(mozilla::dom::EventTarget* aOwner)
-  : ${parentType}(${ctorParams})
+  : nsDOMEvent(aOwner, nullptr, nullptr)
 {
 }
 
@@ -10931,9 +10921,7 @@ ${dropJS}}
 """
         return string.Template(classImpl).substitute(
             { "ifaceName": self.descriptor.name,
-              "nativeType": nativeType,
-              "ctorParams": ctorParams,
-              "parentType": self.parentType,
+              "nativeType": self.descriptor.nativeType.split('::')[-1],
               "traverse": self.implTraverse(),
               "unlink": self.implUnlink(),
               "trace": self.implTrace(),
@@ -10954,11 +10942,9 @@ class CGEventRoot(CGThing):
         self.root = CGList([CGClassForwardDeclare("JSContext", isStruct=True),
                             self.root], "\n")
 
-        parent = descriptor.interface.parent.identifier.name
-
         # Throw in our #includes
         self.root = CGHeaders([descriptor], [], [], [],
-                              [ config.getDescriptor(parent, False).headerFile,
+                              [ "nsDOMEvent.h",
                                 "mozilla/Attributes.h",
                                 "mozilla/ErrorResult.h" ,
                                 "mozilla/dom/%sBinding.h" % interfaceName,

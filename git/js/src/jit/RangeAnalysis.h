@@ -80,10 +80,10 @@ class RangeAnalysis
   public:
     MOZ_CONSTEXPR RangeAnalysis(MIRGenerator *mir, MIRGraph &graph) :
         mir(mir), graph_(graph) {}
-    bool addBetaNodes();
+    bool addBetaNobes();
     bool analyze();
     bool addRangeAssertions();
-    bool removeBetaNodes();
+    bool removeBetaNobes();
     bool truncate();
 
   private:

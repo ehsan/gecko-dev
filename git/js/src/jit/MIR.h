@@ -2594,9 +2594,7 @@ class MReturnFromCtor
 //
 // Arguments are *not* simply pushed onto a call stack: they are evaluated
 // left-to-right, but stored in the arg vector in C-style, right-to-left.
-class MPassArg
-  : public MUnaryInstruction,
-    public NoFloatPolicy<0>
+class MPassArg : public MUnaryInstruction
 {
     int32_t argnum_;
 
@@ -2631,10 +2629,6 @@ class MPassArg
         return AliasSet::None();
     }
     void printOpcode(FILE *fp) const;
-
-    TypePolicy *typePolicy() {
-        return this;
-    }
 };
 
 // Converts a primitive (either typed or untyped) to a double. If the input is
@@ -3216,7 +3210,8 @@ class MBinaryArithInstruction
 
     virtual double getIdentity() = 0;
 
-    void infer(BaselineInspector *inspector, jsbytecode *pc);
+    void infer(BaselineInspector *inspector,
+               jsbytecode *pc, bool overflowed);
 
     void setInt32() {
         specialization_ = MIRType_Int32;

@@ -54,7 +54,7 @@ public class Tab {
     private boolean mExternal;
     private boolean mBookmark;
     private boolean mReadingListItem;
-    private int mFaviconLoadId;
+    private long mFaviconLoadId;
     private String mContentType;
     private boolean mHasTouchListeners;
     private ZoomConstraints mZoomConstraints;
@@ -351,11 +351,11 @@ public class Tab {
         return mHasTouchListeners;
     }
 
-    public void setFaviconLoadId(int faviconLoadId) {
+    public void setFaviconLoadId(long faviconLoadId) {
         mFaviconLoadId = faviconLoadId;
     }
 
-    public int getFaviconLoadId() {
+    public long getFaviconLoadId() {
         return mFaviconLoadId;
     }
 

@@ -293,12 +293,11 @@ function eventQueue(aEventType)
   {
     // Some scenario was matched, we wait on next invoker processing.
     if (this.mNextInvokerStatus == kInvokerCanceled) {
-      this.setInvokerStatus(kInvokerNotScheduled,
-                            "scenario was matched, wait for next invoker activation");
+      this.mNextInvokerStatus = kInvokerNotScheduled;
       return;
     }
 
-    this.setInvokerStatus(kInvokerNotScheduled, "the next invoker is processed now");
+    this.mNextInvokerStatus = kInvokerNotScheduled;
 
     // Finish processing of the current invoker if any.
     var testFailed = false;
@@ -434,7 +433,7 @@ function eventQueue(aEventType)
   this.processNextInvokerInTimeout =
     function eventQueue_processNextInvokerInTimeout(aUncondProcess)
   {
-    this.setInvokerStatus(kInvokerPending, "Process next invoker in timeout");
+    this.mNextInvokerStatus = kInvokerPending;
 
     // No need to wait extra timeout when a) we know we don't need to do that
     // and b) there's no any single unexpected event.
@@ -542,22 +541,15 @@ function eventQueue(aEventType)
     }
 
     // If we don't have more events to wait then schedule next invoker.
-    if (this.hasMatchedScenario()) {
-      if (this.mNextInvokerStatus == kInvokerNotScheduled) {
-        this.processNextInvokerInTimeout();
-
-      } else if (this.mNextInvokerStatus == kInvokerCanceled) {
-        this.setInvokerStatus(kInvokerPending,
-                              "Full match. Void the cancelation of next invoker processing");
-      }
+    if (this.hasMatchedScenario() &&
+        (this.mNextInvokerStatus == kInvokerNotScheduled)) {
+      this.processNextInvokerInTimeout();
       return;
     }
 
     // If we have scheduled a next invoker then cancel in case of match.
-    if ((this.mNextInvokerStatus == kInvokerPending) && hasMatchedCheckers) {
-      this.setInvokerStatus(kInvokerCanceled,
-                            "Cancel the scheduled invoker in case of match");
-    }
+    if ((this.mNextInvokerStatus == kInvokerPending) && hasMatchedCheckers)
+      this.mNextInvokerStatus = kInvokerCanceled;
   }
 
   // Helpers
@@ -630,17 +622,6 @@ function eventQueue(aEventType)
     return true;
   }
 
-  this.isUnexpectedEventScenario =
-    function eventQueue_isUnexpectedEventsScenario(aScenario)
-  {
-    for (var idx = 0; idx < aScenario.length; idx++) {
-      if (!aScenario[idx].unexpected)
-        break;
-    }
-
-    return idx == aScenario.length;
-  }
-
   this.hasUnexpectedEventsScenario =
     function eventQueue_hasUnexpectedEventsScenario()
   {
@@ -648,19 +629,23 @@ function eventQueue(aEventType)
       return true;
 
     for (var scnIdx = 0; scnIdx < this.mScenarios.length; scnIdx++) {
-      if (this.isUnexpectedEventScenario(this.mScenarios[scnIdx]))
+      var eventSeq = this.mScenarios[scnIdx];
+      for (var idx = 0; idx < eventSeq.length; idx++) {
+        if (!eventSeq[idx].unexpected)
+          break;
+      }
+      if (idx == eventSeq.length)
         return true;
     }
 
     return false;
   }
-
+  
   this.hasMatchedScenario =
     function eventQueue_hasMatchedScenario()
   {
     for (var scnIdx = 0; scnIdx < this.mScenarios.length; scnIdx++) {
-      var scn = this.mScenarios[scnIdx];
-      if (!this.isUnexpectedEventScenario(scn) && !this.areExpectedEventsLeft(scn))
+      if (!this.areExpectedEventsLeft(this.mScenarios[scnIdx]))
         return true;
     }
     return false;
@@ -790,14 +775,6 @@ function eventQueue(aEventType)
     return invoker.getID();
   }
 
-  this.setInvokerStatus = function eventQueue_setInvokerStatus(aStatus, aLogMsg)
-  {
-    this.mNextInvokerStatus = aStatus;
-
-    // Uncomment it to debug invoker processing logic.
-    //gLogger.log(eventQueue.invokerStatusToMsg(aStatus, aLogMsg));
-  }
-
   this.mDefEventType = aEventType;
 
   this.mInvokers = new Array();
@@ -895,10 +872,24 @@ eventQueue.isSameEvent = function eventQueue_isSameEvent(aChecker, aEvent)
     !(aEvent instanceof nsIAccessibleStateChangeEvent);
 }
 
-eventQueue.invokerStatusToMsg =
-  function eventQueue_invokerStatusToMsg(aInvokerStatus, aMsg)
+eventQueue.logEvent = function eventQueue_logEvent(aOrigEvent, aMatchedChecker,
+                                                   aScenarioIdx, aEventIdx,
+                                                   aAreExpectedEventsLeft,
+                                                   aInvokerStatus)
 {
-  var msg = "invoker status: ";
+  if (!gLogger.isEnabled()) // debug stuff
+    return;
+
+  // Dump DOM event information. Skip a11y event since it is dumped by
+  // gA11yEventObserver.
+  if (aOrigEvent instanceof nsIDOMEvent) {
+    var info = "Event type: " + eventQueue.getEventTypeAsString(aOrigEvent);
+    info += ". Target: " + eventQueue.getEventTargetDescr(aOrigEvent);
+    gLogger.logToDOM(info);
+  }
+
+  var msg = "unhandled expected events: " + aAreExpectedEventsLeft +
+    ", invoker status: ";
   switch (aInvokerStatus) {
     case kInvokerNotScheduled:
       msg += "not scheduled";
@@ -911,37 +902,23 @@ eventQueue.invokerStatusToMsg =
       break;
   }
 
-  if (aMsg)
-    msg += " (" + aMsg + ")";
+  gLogger.logToConsole(msg);
+  gLogger.logToDOM(msg);
 
-  return msg;
-}
+  if (!aMatchedChecker)
+    return;
 
-eventQueue.logEvent = function eventQueue_logEvent(aOrigEvent, aMatchedChecker,
-                                                   aScenarioIdx, aEventIdx,
-                                                   aAreExpectedEventsLeft,
-                                                   aInvokerStatus)
-{
-  // Dump DOM event information. Skip a11y event since it is dumped by
-  // gA11yEventObserver.
-  if (aOrigEvent instanceof nsIDOMEvent) {
-    var info = "Event type: " + eventQueue.getEventTypeAsString(aOrigEvent);
-    info += ". Target: " + eventQueue.getEventTargetDescr(aOrigEvent);
-    gLogger.logToDOM(info);
-  }
-
-  var infoMsg = "unhandled expected events: " + aAreExpectedEventsLeft +
-    ", "  + eventQueue.invokerStatusToMsg(aInvokerStatus);
+  var msg = "EQ: ";
+  var emphText = "matched ";
 
   var currType = eventQueue.getEventTypeAsString(aMatchedChecker);
   var currTargetDescr = eventQueue.getEventTargetDescr(aMatchedChecker);
   var consoleMsg = "*****\nScenario " + aScenarioIdx + 
-    ", event " + aEventIdx + " matched: " + currType + "\n" + infoMsg + "\n*****";
+    ", event " + aEventIdx + " matched: " + currType + "\n*****";
   gLogger.logToConsole(consoleMsg);
 
-  var emphText = "matched ";
-  var msg = "EQ event, type: " + currType + ", target: " + currTargetDescr +
-    ", " + infoMsg;
+  msg += " event, type: " + currType + ", target: " + currTargetDescr;
+
   gLogger.logToDOM(msg, true, emphText);
 }
 

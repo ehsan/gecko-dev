@@ -9,10 +9,11 @@
 
 #include "vm/ObjectImpl.h"
 
-#include "jscntxt.h"
 #include "jsproxy.h"
 
 #include "vm/ProxyObject.h"
+
+#include "gc/Barrier-inl.h"
 
 /* static */ inline bool
 js::ObjectImpl::isExtensible(ExclusiveContext *cx, js::Handle<ObjectImpl*> obj, bool *extensible)

@@ -9,6 +9,8 @@
 
 #include "jsapi-tests/tests.h"
 
+#include "vm/ObjectImpl-inl.h"
+
 const unsigned BufferSize = 20;
 static unsigned FinalizeCalls = 0;
 static JSFinalizeStatus StatusBuffer[BufferSize];

@@ -3556,7 +3556,7 @@ JSObject::makeLazyType(JSContext *cx, HandleObject obj)
     if (!type) {
         if (cx->typeInferenceEnabled())
             cx->compartment()->types.setPendingNukeTypes(cx);
-        return NULL;
+        return obj->type_;
     }
 
     if (!cx->typeInferenceEnabled()) {

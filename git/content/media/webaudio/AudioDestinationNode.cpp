@@ -125,13 +125,11 @@ public:
           AudioNode* node = mStream->Engine()->Node();
           if (node) {
             context = node->Context();
-            MOZ_ASSERT(context, "node hasn't kept context alive");
           }
         }
         if (!context) {
           return NS_OK;
         }
-        context->Shutdown(); // drops self reference
 
         AutoPushJSContext cx(context->GetJSContext());
         if (cx) {
@@ -237,19 +235,6 @@ AudioDestinationNode::AudioDestinationNode(AudioContext* aContext,
   mStream = graph->CreateAudioNodeStream(engine, MediaStreamGraph::EXTERNAL_STREAM);
 }
 
-void
-AudioDestinationNode::DestroyMediaStream()
-{
-  if (!mStream)
-    return;
-
-  MediaStreamGraph* graph = mStream->Graph();
-  if (graph->IsNonRealtime()) {
-    MediaStreamGraph::DestroyNonRealtimeInstance(graph);
-  }
-  AudioNode::DestroyMediaStream();
-}
-
 uint32_t
 AudioDestinationNode::MaxChannelCount() const
 {
@@ -282,13 +267,11 @@ AudioDestinationNode::Unmute()
 }
 
 void
-AudioDestinationNode::OfflineShutdown()
+AudioDestinationNode::DestroyGraph()
 {
   MOZ_ASSERT(Context() && Context()->IsOffline(),
              "Should only be called on a valid OfflineAudioContext");
-
   MediaStreamGraph::DestroyNonRealtimeInstance(mStream->Graph());
-  mOfflineRenderingRef.Drop(this);
 }
 
 JSObject*
@@ -300,7 +283,6 @@ AudioDestinationNode::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 void
 AudioDestinationNode::StartRendering()
 {
-  mOfflineRenderingRef.Take(this);
   mStream->Graph()->StartNonRealtimeProcessing(mFramesToProduce);
 }
 

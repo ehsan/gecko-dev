@@ -1465,26 +1465,22 @@ KnownNonStringPrimitive(MDefinition *op)
 }
 
 void
-MBinaryArithInstruction::infer(BaselineInspector *inspector, jsbytecode *pc)
+MBinaryArithInstruction::infer(BaselineInspector *inspector,
+                               jsbytecode *pc,
+                               bool overflowed)
 {
     JS_ASSERT(this->type() == MIRType_Value);
 
     specialization_ = MIRType_None;
 
-    // Don't specialize if one operand could be an object. If we specialize
-    // as int32 or double based on baseline feedback, we could DCE this
-    // instruction and fail to invoke any valueOf methods.
-    if (getOperand(0)->mightBeType(MIRType_Object) || getOperand(1)->mightBeType(MIRType_Object))
-        return;
+    // Retrieve type information of lhs and rhs.
+    MIRType lhs = getOperand(0)->type();
+    MIRType rhs = getOperand(1)->type();
 
     // Anything complex - strings and objects - are not specialized
     // unless baseline type hints suggest it might be profitable
     if (!KnownNonStringPrimitive(getOperand(0)) || !KnownNonStringPrimitive(getOperand(1)))
         return inferFallback(inspector, pc);
-
-    // Retrieve type information of lhs and rhs.
-    MIRType lhs = getOperand(0)->type();
-    MIRType rhs = getOperand(1)->type();
 
     // Guess a result type based on the inputs.
     // Don't specialize for neither-integer-nor-double results.

@@ -151,7 +151,6 @@ pref("browser.display.focus_ring_style", 1);
 pref("browser.helperApps.alwaysAsk.force",  false);
 pref("browser.helperApps.neverAsk.saveToDisk", "");
 pref("browser.helperApps.neverAsk.openFile", "");
-pref("browser.helperApps.deleteTempFileOnExit", false);
 
 #ifdef XP_WIN
 // By default, security zone information is stored in the Alternate Data Stream
@@ -206,7 +205,7 @@ pref("media.webm.enabled", true);
 pref("media.dash.enabled", false);
 #endif
 #ifdef MOZ_GSTREAMER
-pref("media.gstreamer.enabled", true);
+pref("media.gstreamer.enabled", false);
 #endif
 #ifdef MOZ_WEBRTC
 pref("media.navigator.enabled", true);
@@ -4396,6 +4395,3 @@ pref("dom.forms.inputmode", false);
 #else
 pref("dom.forms.inputmode", true);
 #endif
-
-// DOM Inter-App Communication API.
-pref("dom.inter-app-communication-api.enabled", false);

@@ -980,8 +980,7 @@ nsJSContext::EvaluateString(const nsAString& aScript,
                             JS::Handle<JSObject*> aScopeObject,
                             JS::CompileOptions& aCompileOptions,
                             bool aCoerceToString,
-                            JS::Value* aRetValue,
-                            void **aOffThreadToken)
+                            JS::Value* aRetValue)
 {
   NS_ENSURE_TRUE(mIsInitialized, NS_ERROR_NOT_INITIALIZED);
   if (!mScriptsEnabled) {
@@ -992,8 +991,7 @@ nsJSContext::EvaluateString(const nsAString& aScript,
   nsJSUtils::EvaluateOptions evalOptions;
   evalOptions.setCoerceToString(aCoerceToString);
   return nsJSUtils::EvaluateString(mContext, aScript, aScopeObject,
-                                   aCompileOptions, evalOptions, aRetValue,
-                                   aOffThreadToken);
+                                   aCompileOptions, evalOptions, aRetValue);
 }
 
 #ifdef DEBUG

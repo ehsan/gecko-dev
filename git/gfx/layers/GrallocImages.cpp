@@ -53,9 +53,7 @@ GrallocImage::GrallocImage()
 
 GrallocImage::~GrallocImage()
 {
-  // If we have a texture client, the latter takes over the responsibility to
-  // unlock the GraphicBufferLocked.
-  if (mGraphicBuffer.get() && !mTextureClient) {
+  if (mGraphicBuffer.get()) {
     mGraphicBuffer->Unlock();
     if (mBufferAllocated) {
       ImageBridgeChild *ibc = ImageBridgeChild::GetSingleton();
@@ -296,7 +294,6 @@ GrallocImage::GetTextureClient()
     mTextureClient = new GrallocTextureClientOGL(actor,
                                                  gfx::ToIntSize(mSize),
                                                  flags);
-    mTextureClient->SetGraphicBufferLocked(mGraphicBuffer);
   }
   return mTextureClient;
 }

@@ -330,8 +330,7 @@ class MarionetteTestRunner(object):
                                          bin=self.bin,
                                          profile=self.profile,
                                          baseurl=self.baseurl,
-                                         timeout=self.timeout,
-                                         device_serial=self.device_serial)
+                                         timeout=self.timeout)
         elif self.address:
             host, port = self.address.split(':')
             try:

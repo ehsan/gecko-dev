@@ -124,32 +124,10 @@ namespace gc {
 // Direct value access used by the write barriers and the jits.
 void
 MarkValueUnbarriered(JSTracer *trc, Value *v, const char *name);
-
-// These two declarations are also present in gc/Marking.h, via the DeclMarker
-// macro.  Not great, but hard to avoid.
-void
-MarkObjectUnbarriered(JSTracer *trc, JSObject **obj, const char *name);
-void
-MarkStringUnbarriered(JSTracer *trc, JSString **str, const char *name);
 }
-
-// Note: these functions must be equivalent to the zone() functions implemented
-// by all the subclasses of Cell.
 
 JS::Zone *
 ZoneOfObject(const JSObject &obj);
-
-static inline JS::shadow::Zone *
-ShadowZoneOfObject(JSObject *obj)
-{
-    return JS::shadow::Zone::asShadowZone(ZoneOfObject(*obj));
-}
-
-static inline JS::shadow::Zone *
-ShadowZoneOfString(JSString *str)
-{
-    return JS::shadow::Zone::asShadowZone(reinterpret_cast<const js::gc::Cell *>(str)->tenuredZone());
-}
 
 JS_ALWAYS_INLINE JS::Zone *
 ZoneOfValue(const JS::Value &value)
@@ -158,23 +136,6 @@ ZoneOfValue(const JS::Value &value)
     if (value.isObject())
         return ZoneOfObject(value.toObject());
     return static_cast<js::gc::Cell *>(value.toGCThing())->tenuredZone();
-}
-
-/*
- * This is a post barrier for HashTables whose key is a GC pointer. Any
- * insertion into a HashTable not marked as part of the runtime, with a GC
- * pointer as a key, must call this immediately after each insertion.
- */
-template <class Map, class Key>
-inline void
-HashTableWriteBarrierPost(JSRuntime *rt, Map *map, const Key &key)
-{
-#ifdef JSGC_GENERATIONAL
-    if (key && IsInsideNursery(rt, key)) {
-        JS::shadow::Runtime *shadowRuntime = JS::shadow::Runtime::asShadowRuntime(rt);
-        shadowRuntime->gcStoreBufferPtr()->putGeneric(gc::HashKeyRef<Map, Key>(map, key));
-    }
-#endif
 }
 
 template<class T, typename Unioned = uintptr_t>
@@ -862,15 +823,9 @@ class EncapsulatedId
   public:
     explicit EncapsulatedId() : value(JSID_VOID) {}
     explicit EncapsulatedId(jsid id) : value(id) {}
-    ~EncapsulatedId() { pre(); }
+    ~EncapsulatedId();
 
-    EncapsulatedId &operator=(const EncapsulatedId &v) {
-        if (v.value != value)
-            pre();
-        JS_ASSERT(!IsPoisonedId(v.value));
-        value = v.value;
-        return *this;
-    }
+    inline EncapsulatedId &operator=(const EncapsulatedId &v);
 
     bool operator==(jsid id) const { return value == id; }
     bool operator!=(jsid id) const { return value != id; }
@@ -881,25 +836,7 @@ class EncapsulatedId
     operator jsid() const { return value; }
 
   protected:
-    void pre() {
-#ifdef JSGC_INCREMENTAL
-        if (JSID_IS_OBJECT(value)) {
-            JSObject *obj = JSID_TO_OBJECT(value);
-            JS::shadow::Zone *shadowZone = ShadowZoneOfObject(obj);
-            if (shadowZone->needsBarrier()) {
-                js::gc::MarkObjectUnbarriered(shadowZone->barrierTracer(), &obj, "write barrier");
-                JS_ASSERT(obj == JSID_TO_OBJECT(value));
-            }
-        } else if (JSID_IS_STRING(value)) {
-            JSString *str = JSID_TO_STRING(value);
-            JS::shadow::Zone *shadowZone = ShadowZoneOfString(str);
-            if (shadowZone->needsBarrier()) {
-                js::gc::MarkStringUnbarriered(shadowZone->barrierTracer(), &str, "write barrier");
-                JS_ASSERT(str == JSID_TO_STRING(value));
-            }
-        }
-#endif
-    }
+    inline void pre();
 };
 
 class RelocatableId : public EncapsulatedId
@@ -907,65 +844,26 @@ class RelocatableId : public EncapsulatedId
   public:
     explicit RelocatableId() : EncapsulatedId() {}
     explicit inline RelocatableId(jsid id) : EncapsulatedId(id) {}
-    ~RelocatableId() { pre(); }
+    inline ~RelocatableId();
 
-    RelocatableId &operator=(jsid id) {
-        if (id != value)
-            pre();
-        JS_ASSERT(!IsPoisonedId(id));
-        value = id;
-        return *this;
-    }
-
-    RelocatableId &operator=(const RelocatableId &v) {
-        if (v.value != value)
-            pre();
-        JS_ASSERT(!IsPoisonedId(v.value));
-        value = v.value;
-        return *this;
-    }
+    inline RelocatableId &operator=(jsid id);
+    inline RelocatableId &operator=(const RelocatableId &v);
 };
 
 class HeapId : public EncapsulatedId
 {
   public:
     explicit HeapId() : EncapsulatedId() {}
+    explicit inline HeapId(jsid id);
+    inline ~HeapId();
 
-    explicit HeapId(jsid id)
-      : EncapsulatedId(id)
-    {
-        JS_ASSERT(!IsPoisonedId(id));
-        post();
-    }
+    inline void init(jsid id);
 
-    ~HeapId() { pre(); }
-
-    void init(jsid id) {
-        JS_ASSERT(!IsPoisonedId(id));
-        value = id;
-        post();
-    }
-
-    HeapId &operator=(jsid id) {
-        if (id != value)
-            pre();
-        JS_ASSERT(!IsPoisonedId(id));
-        value = id;
-        post();
-        return *this;
-    }
-
-    HeapId &operator=(const HeapId &v) {
-        if (v.value != value)
-            pre();
-        JS_ASSERT(!IsPoisonedId(v.value));
-        value = v.value;
-        post();
-        return *this;
-    }
+    inline HeapId &operator=(jsid id);
+    inline HeapId &operator=(const HeapId &v);
 
   private:
-    void post() {};
+    inline void post();
 
     HeapId(const HeapId &v) MOZ_DELETE;
 };

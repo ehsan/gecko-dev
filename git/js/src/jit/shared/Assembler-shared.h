@@ -95,48 +95,22 @@ struct Imm32
     }
 };
 
-// Pointer-sized integer to be embedded as an immediate in an instruction.
+// Pointer-sized immediate.
 struct ImmWord
 {
     uintptr_t value;
 
     explicit ImmWord(uintptr_t value) : value(value)
     { }
-};
-
-// Pointer to be embedded as an immediate in an instruction.
-struct ImmPtr
-{
-    void *value;
-
-    explicit ImmPtr(const void *value) : value(const_cast<void*>(value))
+    explicit ImmWord(const void *ptr) : value(reinterpret_cast<uintptr_t>(ptr))
     { }
 
-    template <class R>
-    explicit ImmPtr(R (*pf)())
-      : value(JS_FUNC_TO_DATA_PTR(void *, pf))
-    { }
+    // Note - this constructor is not implemented as it should not be used.
+    explicit ImmWord(gc::Cell *cell);
 
-    template <class R, class A1>
-    explicit ImmPtr(R (*pf)(A1))
-      : value(JS_FUNC_TO_DATA_PTR(void *, pf))
-    { }
-
-    template <class R, class A1, class A2>
-    explicit ImmPtr(R (*pf)(A1, A2))
-      : value(JS_FUNC_TO_DATA_PTR(void *, pf))
-    { }
-
-    template <class R, class A1, class A2, class A3>
-    explicit ImmPtr(R (*pf)(A1, A2, A3))
-      : value(JS_FUNC_TO_DATA_PTR(void *, pf))
-    { }
-
-    template <class R, class A1, class A2, class A3, class A4>
-    explicit ImmPtr(R (*pf)(A1, A2, A3, A4))
-      : value(JS_FUNC_TO_DATA_PTR(void *, pf))
-    { }
-
+    void *asPointer() {
+        return reinterpret_cast<void *>(value);
+    }
 };
 
 // Used for immediates which require relocation.
@@ -164,8 +138,7 @@ struct ImmMaybeNurseryPtr : public ImmGCPtr
     }
 };
 
-// Pointer to be embedded as an immediate that is loaded/stored from by an
-// instruction.
+// Specifies a hardcoded, absolute address.
 struct AbsoluteAddress {
     void *addr;
 
