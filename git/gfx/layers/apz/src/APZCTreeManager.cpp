@@ -26,8 +26,8 @@
 
 #include <algorithm>                    // for std::stable_sort
 
-#define APZCTM_LOG(...)
-// #define APZCTM_LOG(...) printf_stderr("APZCTM: " __VA_ARGS__)
+#define APZC_LOG(...)
+// #define APZC_LOG(...) printf_stderr("APZC: " __VA_ARGS__)
 
 namespace mozilla {
 namespace layers {
@@ -149,7 +149,7 @@ APZCTreeManager::UpdatePanZoomControllerTree(CompositorParent* aCompositor,
   }
 
   for (size_t i = 0; i < apzcsToDestroy.Length(); i++) {
-    APZCTM_LOG("Destroying APZC at %p\n", apzcsToDestroy[i].get());
+    APZC_LOG("Destroying APZC at %p\n", apzcsToDestroy[i].get());
     apzcsToDestroy[i]->Destroy();
   }
 }
@@ -227,7 +227,7 @@ APZCTreeManager::UpdatePanZoomControllerTree(CompositorParent* aCompositor,
           apzc->SetPrevSibling(nullptr);
           apzc->SetLastChild(nullptr);
         }
-        APZCTM_LOG("Using APZC %p for layer %p with identifiers %lld %lld\n", apzc, aLayer, aLayersId, container->GetFrameMetrics().GetScrollId());
+        APZC_LOG("Using APZC %p for layer %p with identifiers %lld %lld\n", apzc, aLayer, aLayersId, container->GetFrameMetrics().GetScrollId());
 
         apzc->NotifyLayersUpdated(metrics,
                                   aIsFirstPaint && (aLayersId == aOriginatingLayersId));
@@ -251,7 +251,7 @@ APZCTreeManager::UpdatePanZoomControllerTree(CompositorParent* aCompositor,
         gfx::To3DMatrix(aLayer->GetTransform(), transform);
 
         apzc->SetLayerHitTestData(visible, aTransform, transform);
-        APZCTM_LOG("Setting rect(%f %f %f %f) as visible region for APZC %p\n", visible.x, visible.y,
+        APZC_LOG("Setting rect(%f %f %f %f) as visible region for APZC %p\n", visible.x, visible.y,
                                                                               visible.width, visible.height,
                                                                               apzc);
 
@@ -394,11 +394,11 @@ APZCTreeManager::ReceiveInputEvent(const InputData& aEvent,
           nsRefPtr<AsyncPanZoomController> apzc2 = GetTargetAPZC(ScreenPoint(multiTouchInput.mTouches[i].mScreenPoint),
                                                                  &mInOverscrolledApzc);
           mApzcForInputBlock = CommonAncestor(mApzcForInputBlock.get(), apzc2.get());
-          APZCTM_LOG("Using APZC %p as the common ancestor\n", mApzcForInputBlock.get());
+          APZC_LOG("Using APZC %p as the common ancestor\n", mApzcForInputBlock.get());
           // For now, we only ever want to do pinching on the root APZC for a given layers id. So
           // when we find the common ancestor of multiple points, also walk up to the root APZC.
           mApzcForInputBlock = RootAPZCForLayersId(mApzcForInputBlock);
-          APZCTM_LOG("Using APZC %p as the root APZC for multi-touch\n", mApzcForInputBlock.get());
+          APZC_LOG("Using APZC %p as the root APZC for multi-touch\n", mApzcForInputBlock.get());
         }
 
         if (mApzcForInputBlock) {
@@ -410,7 +410,7 @@ APZCTreeManager::ReceiveInputEvent(const InputData& aEvent,
           mCachedTransformToApzcForInputBlock = gfx3DMatrix();
         }
       } else if (mApzcForInputBlock) {
-        APZCTM_LOG("Re-using APZC %p as continuation of event block\n", mApzcForInputBlock.get());
+        APZC_LOG("Re-using APZC %p as continuation of event block\n", mApzcForInputBlock.get());
       }
       if (mApzcForInputBlock) {
         mApzcForInputBlock->GetGuid(aOutTargetGuid);
@@ -498,11 +498,11 @@ APZCTreeManager::GetTouchInputBlockAPZC(const WidgetTouchEvent& aEvent,
     point = ScreenPoint(aEvent.touches[i]->mRefPoint.x, aEvent.touches[i]->mRefPoint.y);
     nsRefPtr<AsyncPanZoomController> apzc2 = GetTargetAPZC(point, aOutInOverscrolledApzc);
     apzc = CommonAncestor(apzc.get(), apzc2.get());
-    APZCTM_LOG("Using APZC %p as the common ancestor\n", apzc.get());
+    APZC_LOG("Using APZC %p as the common ancestor\n", apzc.get());
     // For now, we only ever want to do pinching on the root APZC for a given layers id. So
     // when we find the common ancestor of multiple points, also walk up to the root APZC.
     apzc = RootAPZCForLayersId(apzc);
-    APZCTM_LOG("Using APZC %p as the root APZC for multi-touch\n", apzc.get());
+    APZC_LOG("Using APZC %p as the root APZC for multi-touch\n", apzc.get());
   }
   return apzc.forget();
 }
@@ -1067,7 +1067,7 @@ APZCTreeManager::GetAPZCAtPoint(AsyncPanZoomController* aApzc,
   // since the composition bounds (used to initialize the visible rect against
   // which we hit test are in those coordinates).
   gfxPoint hitTestPointForThisLayer = ancestorUntransform.ProjectPoint(aHitTestPoint);
-  APZCTM_LOG("Untransformed %f %f to transient coordinates %f %f for hit-testing APZC %p\n",
+  APZC_LOG("Untransformed %f %f to transient coordinates %f %f for hit-testing APZC %p\n",
            aHitTestPoint.x, aHitTestPoint.y,
            hitTestPointForThisLayer.x, hitTestPointForThisLayer.y, aApzc);
 
@@ -1079,7 +1079,7 @@ APZCTreeManager::GetAPZCAtPoint(AsyncPanZoomController* aApzc,
                                * aApzc->GetCSSTransform().Inverse()
                                * gfx3DMatrix(aApzc->GetCurrentAsyncTransform()).Inverse();
   gfxPoint hitTestPointForChildLayers = childUntransform.ProjectPoint(aHitTestPoint);
-  APZCTM_LOG("Untransformed %f %f to layer coordinates %f %f for APZC %p\n",
+  APZC_LOG("Untransformed %f %f to layer coordinates %f %f for APZC %p\n",
            aHitTestPoint.x, aHitTestPoint.y,
            hitTestPointForChildLayers.x, hitTestPointForChildLayers.y, aApzc);
 
@@ -1094,7 +1094,7 @@ APZCTreeManager::GetAPZCAtPoint(AsyncPanZoomController* aApzc,
     }
   }
   if (!result && aApzc->VisibleRegionContains(ViewAs<ParentLayerPixel>(hitTestPointForThisLayer))) {
-    APZCTM_LOG("Successfully matched untransformed point %f %f to visible region for APZC %p\n",
+    APZC_LOG("Successfully matched untransformed point %f %f to visible region for APZC %p\n",
              hitTestPointForThisLayer.x, hitTestPointForThisLayer.y, aApzc);
     result = aApzc;
   }

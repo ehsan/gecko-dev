@@ -9023,17 +9023,15 @@ dnl ========================================================
 dnl ICU Support
 dnl ========================================================
 
-# Internationalization isn't built or exposed by default in non-desktop
-# builds.  Bugs to enable:
-#
-#   Android:  bug 864843
-#   B2G:      bug 866301
-
-if test "$MOZ_WIDGET_TOOLKIT" = "android" ||
-   test "$MOZ_BUILD_APP" = "b2g"; then
-    _INTL_API=no
-else
+if test "$MOZ_BUILD_APP" = "browser"; then
     _INTL_API=yes
+else
+    # Internationalization isn't built or exposed by default in non-desktop
+    # builds.  Bugs to enable:
+    #
+    #   Android:  bug 864843
+    #   B2G:      bug 866301
+    _INTL_API=no
 fi
 
 MOZ_CONFIG_ICU()

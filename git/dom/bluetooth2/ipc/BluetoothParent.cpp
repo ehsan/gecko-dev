@@ -24,7 +24,7 @@ USING_BLUETOOTH_NAMESPACE
  * BluetoothRequestParent::ReplyRunnable
  ******************************************************************************/
 
-class BluetoothRequestParent::ReplyRunnable MOZ_FINAL : public BluetoothReplyRunnable
+class BluetoothRequestParent::ReplyRunnable : public BluetoothReplyRunnable
 {
   BluetoothRequestParent* mRequest;
 
@@ -59,21 +59,14 @@ public:
   void
   Revoke()
   {
-    ReleaseMembers();
+    MOZ_ASSERT(NS_IsMainThread());
+    mRequest = nullptr;
   }
 
   virtual bool
   ParseSuccessfulReply(JS::MutableHandle<JS::Value> aValue) MOZ_OVERRIDE
   {
     MOZ_CRASH("This should never be called!");
-  }
-
-  virtual void
-  ReleaseMembers() MOZ_OVERRIDE
-  {
-    MOZ_ASSERT(NS_IsMainThread());
-    mRequest = nullptr;
-    BluetoothReplyRunnable::ReleaseMembers();
   }
 };
 
@@ -192,10 +185,6 @@ BluetoothParent::RecvPBluetoothRequestConstructor(
   switch (aRequest.type()) {
     case Request::TGetAdaptersRequest:
       return actor->DoRequest(aRequest.get_GetAdaptersRequest());
-    case Request::TStartBluetoothRequest:
-      return actor->DoRequest(aRequest.get_StartBluetoothRequest());
-    case Request::TStopBluetoothRequest:
-      return actor->DoRequest(aRequest.get_StopBluetoothRequest());
     case Request::TSetPropertyRequest:
       return actor->DoRequest(aRequest.get_SetPropertyRequest());
     case Request::TStartDiscoveryRequest:
@@ -320,30 +309,6 @@ BluetoothRequestParent::DoRequest(const GetAdaptersRequest& aRequest)
   MOZ_ASSERT(mRequestType == Request::TGetAdaptersRequest);
 
   nsresult rv = mService->GetAdaptersInternal(mReplyRunnable.get());
-  NS_ENSURE_SUCCESS(rv, false);
-
-  return true;
-}
-
-bool
-BluetoothRequestParent::DoRequest(const StartBluetoothRequest& aRequest)
-{
-  MOZ_ASSERT(mService);
-  MOZ_ASSERT(mRequestType == Request::TStartBluetoothRequest);
-
-  nsresult rv = mService->StartInternal(mReplyRunnable.get());
-  NS_ENSURE_SUCCESS(rv, false);
-
-  return true;
-}
-
-bool
-BluetoothRequestParent::DoRequest(const StopBluetoothRequest& aRequest)
-{
-  MOZ_ASSERT(mService);
-  MOZ_ASSERT(mRequestType == Request::TStopBluetoothRequest);
-
-  nsresult rv = mService->StopInternal(mReplyRunnable.get());
   NS_ENSURE_SUCCESS(rv, false);
 
   return true;

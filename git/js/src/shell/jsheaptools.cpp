@@ -66,7 +66,7 @@ class HeapReverser : public JSTracer, public JS::CustomAutoRooter
     class Node {
       public:
         Node() { }
-        explicit Node(JSGCTraceKind kind)
+        Node(JSGCTraceKind kind)
           : kind(kind), incoming(), marked(false) { }
 
         /*
@@ -153,7 +153,7 @@ class HeapReverser : public JSTracer, public JS::CustomAutoRooter
     Map map;
 
     /* Construct a HeapReverser for |context|'s heap. */
-    explicit HeapReverser(JSContext *cx)
+    HeapReverser(JSContext *cx)
       : JSTracer(cx->runtime(), traverseEdgeWithThis),
         JS::CustomAutoRooter(cx),
         noggc(JS_GetRuntime(cx)),
@@ -371,7 +371,7 @@ class ReferenceFinder {
     };
 
     struct AutoNodeMarker {
-        explicit AutoNodeMarker(HeapReverser::Node *node) : node(node) { node->marked = true; }
+        AutoNodeMarker(HeapReverser::Node *node) : node(node) { node->marked = true; }
         ~AutoNodeMarker() { node->marked = false; }
       private:
         HeapReverser::Node *node;

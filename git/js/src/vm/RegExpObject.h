@@ -315,7 +315,7 @@ class RegExpCompartment
         Key(JSAtom *atom, RegExpFlag flag)
           : atom(atom), flag(flag)
         { }
-        MOZ_IMPLICIT Key(RegExpShared *shared)
+        Key(RegExpShared *shared)
           : atom(shared->getSource()), flag(shared->getFlags())
         { }
 

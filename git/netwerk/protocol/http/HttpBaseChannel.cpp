@@ -51,7 +51,6 @@ HttpBaseChannel::HttpBaseChannel()
   , mRequestObserversCalled(false)
   , mResponseHeadersModified(false)
   , mAllowPipelining(true)
-  , mAllowSTS(true)
   , mForceAllowThirdPartyCookie(false)
   , mUploadStreamHasHeaders(false)
   , mInheritApplicationCache(true)
@@ -1196,23 +1195,6 @@ HttpBaseChannel::SetAllowPipelining(bool value)
 }
 
 NS_IMETHODIMP
-HttpBaseChannel::GetAllowSTS(bool *value)
-{
-  NS_ENSURE_ARG_POINTER(value);
-  *value = mAllowSTS;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-HttpBaseChannel::SetAllowSTS(bool value)
-{
-  ENSURE_CALLED_BEFORE_CONNECT();
-
-  mAllowSTS = value;
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 HttpBaseChannel::GetRedirectionLimit(uint32_t *value)
 {
   NS_ENSURE_ARG_POINTER(value);
@@ -1949,9 +1931,8 @@ HttpBaseChannel::SetupReplacementChannel(nsIURI       *newURI,
   // convey the referrer if one was used for this channel to the next one
   if (mReferrer)
     httpChannel->SetReferrer(mReferrer);
-  // convey the mAllowPipelining and mAllowSTS flags
+  // convey the mAllowPipelining flag
   httpChannel->SetAllowPipelining(mAllowPipelining);
-  httpChannel->SetAllowSTS(mAllowSTS);
   // convey the new redirection limit
   httpChannel->SetRedirectionLimit(mRedirectionLimit - 1);
 

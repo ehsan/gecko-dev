@@ -2567,7 +2567,8 @@ CSSParserImpl::ParseAtRule(RuleAppendFunc aAppendFunc,
     parseFunc = &CSSParserImpl::ParseKeyframesRule;
     newSection = eCSSSection_General;
 
-  } else if (mToken.mIdent.LowerCaseEqualsLiteral("supports")) {
+  } else if (mToken.mIdent.LowerCaseEqualsLiteral("supports") &&
+             CSSSupportsRule::PrefEnabled()) {
     parseFunc = &CSSParserImpl::ParseSupportsRule;
     newSection = eCSSSection_General;
 

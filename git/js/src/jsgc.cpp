@@ -3146,7 +3146,7 @@ GCRuntime::markAllGrayReferences()
 class js::gc::MarkingValidator
 {
   public:
-    explicit MarkingValidator(GCRuntime *gc);
+    MarkingValidator(GCRuntime *gc);
     ~MarkingValidator();
     void nonIncrementalMark();
     void validate();
