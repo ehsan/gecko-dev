@@ -368,7 +368,7 @@ js::RunScript(JSContext *cx, RunState &state)
 {
     JS_CHECK_RECURSION(cx, return false);
 
-    SPSEntryMarker marker(cx->runtime(), state.script());
+    SPSEntryMarker marker(cx->runtime());
 
     state.script()->ensureNonLazyCanonicalFunction(cx);
 

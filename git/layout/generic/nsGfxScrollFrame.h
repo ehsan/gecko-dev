@@ -279,7 +279,6 @@ public:
   void UpdateSticky();
 
   bool IsRectNearlyVisible(const nsRect& aRect) const;
-  nsRect ExpandRectToNearlyVisible(const nsRect& aRect) const;
 
   // adjust the scrollbar rectangle aRect to account for any visible resizer.
   // aHasResizer specifies if there is a content resizer, however this method
@@ -421,6 +420,7 @@ protected:
                           nsIAtom *aOrigin, // nullptr indicates "other" origin
                           const nsRect* aRange);
 
+  nsRect ExpandRect(const nsRect& aRect) const;
   static void EnsureImageVisPrefsCached();
   static bool sImageVisPrefsCached;
   // The number of scrollports wide/high to expand when looking for images.
@@ -670,9 +670,6 @@ public:
   }
   virtual bool IsRectNearlyVisible(const nsRect& aRect) MOZ_OVERRIDE {
     return mHelper.IsRectNearlyVisible(aRect);
-  }
-  virtual nsRect ExpandRectToNearlyVisible(const nsRect& aRect) const MOZ_OVERRIDE {
-    return mHelper.ExpandRectToNearlyVisible(aRect);
   }
   virtual nsIAtom* OriginOfLastScroll() MOZ_OVERRIDE {
     return mHelper.OriginOfLastScroll();
@@ -989,9 +986,6 @@ public:
   }
   virtual bool IsRectNearlyVisible(const nsRect& aRect) MOZ_OVERRIDE {
     return mHelper.IsRectNearlyVisible(aRect);
-  }
-  virtual nsRect ExpandRectToNearlyVisible(const nsRect& aRect) const MOZ_OVERRIDE {
-    return mHelper.ExpandRectToNearlyVisible(aRect);
   }
   virtual nsIAtom* OriginOfLastScroll() MOZ_OVERRIDE {
     return mHelper.OriginOfLastScroll();

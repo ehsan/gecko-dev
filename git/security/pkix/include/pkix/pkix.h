@@ -90,7 +90,7 @@ namespace mozilla { namespace pkix {
 // TODO(bug 968451): Document more of these.
 
 SECStatus BuildCertChain(TrustDomain& trustDomain,
-                         const CERTCertificate* cert,
+                         CERTCertificate* cert,
                          PRTime time,
                          EndEntityOrCA endEntityOrCA,
             /*optional*/ KeyUsages requiredKeyUsagesIfPresent,
@@ -99,9 +99,10 @@ SECStatus BuildCertChain(TrustDomain& trustDomain,
             /*optional*/ const SECItem* stapledOCSPResponse,
                  /*out*/ ScopedCERTCertList& results);
 
-// Verify the given signed data using the given public key.
+// Verify the given signed data using the public key of the given certificate.
+// (EC)DSA parameter inheritance is not supported.
 SECStatus VerifySignedData(const CERTSignedData* sd,
-                           const SECItem& subjectPublicKeyInfo,
+                           const CERTCertificate* cert,
                            void* pkcs11PinArg);
 
 // The return value, if non-null, is owned by the arena and MUST NOT be freed.

@@ -730,7 +730,6 @@ PeerConnectionImpl::Initialize(PeerConnectionObserver& aObserver,
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(aThread);
   mThread = do_QueryInterface(aThread);
-  CheckThread();
 
   mPCObserver = do_GetWeakReference(&aObserver);
 

@@ -265,9 +265,6 @@ const NOTIFICATIONS = {
  */
 DeveloperToolbar.prototype.NOTIFICATIONS = NOTIFICATIONS;
 
-/**
- * target is dynamic because the selectedTab changes
- */
 Object.defineProperty(DeveloperToolbar.prototype, "target", {
   get: function() {
     return TargetFactory.forTab(this._chromeWindow.getBrowser().selectedTab);

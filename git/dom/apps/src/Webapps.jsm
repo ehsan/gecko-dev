@@ -948,12 +948,9 @@ this.DOMApplicationRegistry = {
           delete this.webapps[aResult.id];
           return;
         }
-
-        let localeManifest = new ManifestHelper(manifest, app.origin);
-
-        app.name = localeManifest.name;
+        app.name = manifest.name;
         app.csp = manifest.csp || "";
-        app.role = localeManifest.role;
+        app.role = manifest.role || "";
         if (app.appStatus >= Ci.nsIPrincipal.APP_STATUS_PRIVILEGED) {
           app.redirects = this.sanitizeRedirects(manifest.redirects);
         }
@@ -1336,12 +1333,12 @@ this.DOMApplicationRegistry = {
     let app = this.webapps[id];
     if (!app) {
       debug("startDownload: No app found for " + aManifestURL);
-      throw new Error("NO_SUCH_APP");
+      return;
     }
 
     if (app.downloading) {
       debug("app is already downloading. Ignoring.");
-      throw new Error("APP_IS_DOWNLOADING");
+      return;
     }
 
     // If the caller is trying to start a download but we have nothing to
@@ -1355,7 +1352,7 @@ this.DOMApplicationRegistry = {
         eventType: "downloaderror",
         manifestURL: app.manifestURL
       });
-      throw new Error("NO_DOWNLOAD_AVAILABLE");
+      return;
     }
 
     // First of all, we check if the download is supposed to update an
@@ -1412,7 +1409,7 @@ this.DOMApplicationRegistry = {
     if (!json) {
       debug("startDownload: No update manifest found at " + file.path + " " +
             aManifestURL);
-      throw new Error("MISSING_UPDATE_MANIFEST");
+      return;
     }
 
     let manifest = new ManifestHelper(json, app.manifestURL);
@@ -1453,103 +1450,104 @@ this.DOMApplicationRegistry = {
     }
   }),
 
-  applyDownload: Task.async(function*(aManifestURL) {
+  applyDownload: function applyDownload(aManifestURL) {
     debug("applyDownload for " + aManifestURL);
     let id = this._appIdForManifestURL(aManifestURL);
     let app = this.webapps[id];
-    if (!app) {
-      throw new Error("NO_SUCH_APP");
-    }
-    if (!app.readyToApplyDownload) {
-      throw new Error("NOT_READY_TO_APPLY_DOWNLOAD");
+    if (!app || (app && !app.readyToApplyDownload)) {
+      return;
     }
 
     // We need to get the old manifest to unregister web activities.
-    let oldManifest = yield this.getManifestFor(aManifestURL);
-    // Move the application.zip and manifest.webapp files out of TmpD
-    let tmpDir = FileUtils.getDir("TmpD", ["webapps", id], true, true);
-    let manFile = tmpDir.clone();
-    manFile.append("manifest.webapp");
-    let appFile = tmpDir.clone();
-    appFile.append("application.zip");
+    this.getManifestFor(aManifestURL).then((aOldManifest) => {
+      // Move the application.zip and manifest.webapp files out of TmpD
+      let tmpDir = FileUtils.getDir("TmpD", ["webapps", id], true, true);
+      let manFile = tmpDir.clone();
+      manFile.append("manifest.webapp");
+      let appFile = tmpDir.clone();
+      appFile.append("application.zip");
 
-    let dir = FileUtils.getDir(DIRECTORY_NAME, ["webapps", id], true, true);
-    appFile.moveTo(dir, "application.zip");
-    manFile.moveTo(dir, "manifest.webapp");
+      let dir = FileUtils.getDir(DIRECTORY_NAME, ["webapps", id], true, true);
+      appFile.moveTo(dir, "application.zip");
+      manFile.moveTo(dir, "manifest.webapp");
 
-    // Move the staged update manifest to a non staged one.
-    let staged = dir.clone();
-    staged.append("staged-update.webapp");
+      // Move the staged update manifest to a non staged one.
+      let staged = dir.clone();
+      staged.append("staged-update.webapp");
 
-    // If we are applying after a restarted download, we have no
-    // staged update manifest.
-    if (staged.exists()) {
-      staged.moveTo(dir, "update.webapp");
-    }
-
-    try {
-      tmpDir.remove(true);
-    } catch(e) { }
-
-    // Clean up the deprecated manifest cache if needed.
-    if (id in this._manifestCache) {
-      delete this._manifestCache[id];
-    }
-
-    // Flush the zip reader cache to make sure we use the new application.zip
-    // when re-launching the application.
-    let zipFile = dir.clone();
-    zipFile.append("application.zip");
-    Services.obs.notifyObservers(zipFile, "flush-cache-entry", null);
-
-    // Get the manifest, and set properties.
-    let newManifest = yield this.getManifestFor(aManifestURL);
-    app.downloading = false;
-    app.downloadAvailable = false;
-    app.downloadSize = 0;
-    app.installState = "installed";
-    app.readyToApplyDownload = false;
-
-    // Update the staged properties.
-    if (app.staged) {
-      for (let prop in app.staged) {
-        app[prop] = app.staged[prop];
+      // If we are applying after a restarted download, we have no
+      // staged update manifest.
+      if (staged.exists()) {
+        staged.moveTo(dir, "update.webapp");
       }
-      delete app.staged;
-    }
 
-    delete app.retryingDownload;
+      try {
+        tmpDir.remove(true);
+      } catch(e) { }
 
-    // Update the asm.js scripts we need to compile.
-    yield ScriptPreloader.preload(app, newManifest);
-    yield this._saveApps();
-    // Update the handlers and permissions for this app.
-    this.updateAppHandlers(oldManifest, newManifest, app);
+      // Clean up the deprecated manifest cache if needed.
+      if (id in this._manifestCache) {
+        delete this._manifestCache[id];
+      }
 
-    let updateManifest = yield AppsUtils.loadJSONAsync(staged.path);
-    let appObject = AppsUtils.cloneAppObject(app);
-    appObject.updateManifest = updateManifest;
-    this.notifyUpdateHandlers(appObject, newManifest, appFile.path);
+      // Flush the zip reader cache to make sure we use the new application.zip
+      // when re-launching the application.
+      let zipFile = dir.clone();
+      zipFile.append("application.zip");
+      Services.obs.notifyObservers(zipFile, "flush-cache-entry", null);
 
-    if (supportUseCurrentProfile()) {
-      PermissionsInstaller.installPermissions(
-        { manifest: newManifest,
-          origin: app.origin,
-          manifestURL: app.manifestURL },
-        true);
-    }
-    this.updateDataStore(this.webapps[id].localId, app.origin,
-                         app.manifestURL, newManifest, app.appStatus);
-    this.broadcastMessage("Webapps:UpdateState", {
-      app: app,
-      manifest: newManifest,
-      manifestURL: app.manifestURL
+      // Get the manifest, and set properties.
+      this.getManifestFor(aManifestURL).then((aData) => {
+        app.downloading = false;
+        app.downloadAvailable = false;
+        app.downloadSize = 0;
+        app.installState = "installed";
+        app.readyToApplyDownload = false;
+
+        // Update the staged properties.
+        if (app.staged) {
+          for (let prop in app.staged) {
+            app[prop] = app.staged[prop];
+          }
+          delete app.staged;
+        }
+
+        delete app.retryingDownload;
+
+        // Update the asm.js scripts we need to compile.
+        ScriptPreloader.preload(app, aData)
+          .then(() => this._saveApps()).then(() => {
+          // Update the handlers and permissions for this app.
+          this.updateAppHandlers(aOldManifest, aData, app);
+
+          AppsUtils.loadJSONAsync(staged.path).then((aUpdateManifest) => {
+            let appObject = AppsUtils.cloneAppObject(app);
+            appObject.updateManifest = aUpdateManifest;
+            this.notifyUpdateHandlers(appObject, aData, appFile.path);
+          });
+
+          if (supportUseCurrentProfile()) {
+            PermissionsInstaller.installPermissions(
+              { manifest: aData,
+                origin: app.origin,
+                manifestURL: app.manifestURL },
+              true);
+          }
+          this.updateDataStore(this.webapps[id].localId, app.origin,
+                               app.manifestURL, aData, app.appStatus);
+          this.broadcastMessage("Webapps:UpdateState", {
+            app: app,
+            manifest: aData,
+            manifestURL: app.manifestURL
+          });
+          this.broadcastMessage("Webapps:FireEvent", {
+            eventType: "downloadapplied",
+            manifestURL: app.manifestURL
+          });
+        });
+      });
     });
-    this.broadcastMessage("Webapps:FireEvent", {
-      eventType: "downloadapplied",
-      manifestURL: app.manifestURL
-    });
-  }),
+  },
 
   startOfflineCacheDownload: function(aManifest, aApp, aProfileDir, aIsUpdate) {
     if (!aManifest.appcache_path) {
@@ -2775,11 +2773,9 @@ this.DOMApplicationRegistry = {
       if (oldPackage) {
         debug("package's etag or hash unchanged; sending 'applied' event");
         // The package's Etag or hash has not changed.
-        // We send an "applied" event right away so code awaiting that event
-        // can proceed to access the app.  We also throw an error to alert
-        // the caller that the package wasn't downloaded.
+        // We send a "applied" event right away.
         this._sendAppliedEvent(aNewApp, oldApp, id);
-        throw new Error("PACKAGE_UNCHANGED");
+        return;
       }
 
       let newManifest = yield this._openAndReadPackage(zipFile, oldApp, aNewApp,
@@ -3492,8 +3488,6 @@ this.DOMApplicationRegistry = {
       });
     });
     AppDownloadManager.remove(aNewApp.manifestURL);
-
-    throw aError;
   },
 
   doUninstall: function(aData, aMm) {

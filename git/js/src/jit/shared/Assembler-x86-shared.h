@@ -144,6 +144,7 @@ class AssemblerX86Shared : public AssemblerShared
     CompactBufferWriter jumpRelocations_;
     CompactBufferWriter dataRelocations_;
     CompactBufferWriter preBarriers_;
+    bool enoughMemory_;
 
     void writeDataRelocation(const Value &val) {
         if (val.isMarkable()) {
@@ -254,6 +255,11 @@ class AssemblerX86Shared : public AssemblerShared
                             BelowOrEqual | Parity | NoParity) & DoubleConditionBits));
     }
 
+    AssemblerX86Shared()
+      : enoughMemory_(true)
+    {
+    }
+
     static Condition InvertCondition(Condition cond);
 
     // Return the primary condition to test. Some primary conditions may not
@@ -269,8 +275,8 @@ class AssemblerX86Shared : public AssemblerShared
     void trace(JSTracer *trc);
 
     bool oom() const {
-        return AssemblerShared::oom() ||
-               masm.oom() ||
+        return masm.oom() ||
+               !enoughMemory_ ||
                jumpRelocations_.oom() ||
                dataRelocations_.oom() ||
                preBarriers_.oom();

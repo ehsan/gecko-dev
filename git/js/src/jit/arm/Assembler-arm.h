@@ -1265,6 +1265,8 @@ class Assembler : public AssemblerShared
     CompactBufferWriter relocations_;
     CompactBufferWriter preBarriers_;
 
+    bool enoughMemory_;
+
     //typedef JSC::AssemblerBufferWithConstantPool<1024, 4, 4, js::jit::Assembler> ARMBuffer;
     ARMBuffer m_buffer;
 
@@ -1284,7 +1286,8 @@ class Assembler : public AssemblerShared
 
   public:
     Assembler()
-      : m_buffer(4, 4, 0, &pools_[0], 8),
+      : enoughMemory_(true),
+        m_buffer(4, 4, 0, &pools_[0], 8),
         int32Pool(m_buffer.getPool(1)),
         doublePool(m_buffer.getPool(0)),
         isFinished(false),

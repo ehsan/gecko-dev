@@ -293,6 +293,7 @@ EVENT(mozpointerlockerror,
       NS_POINTERLOCKERROR,
       EventNameType_HTML,
       NS_EVENT)
+
 EVENT(pointerdown,
       NS_POINTER_DOWN,
       EventNameType_All,

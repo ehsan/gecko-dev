@@ -4938,16 +4938,12 @@ size_t
 js::PutEscapedStringImpl(char *buffer, size_t bufferSize, FILE *fp, JSLinearString *str,
                          uint32_t quote)
 {
-    size_t len = str->length();
-    AutoCheckCannotGC nogc;
-    return str->hasLatin1Chars()
-           ? PutEscapedStringImpl(buffer, bufferSize, fp, str->latin1Chars(nogc), len, quote)
-           : PutEscapedStringImpl(buffer, bufferSize, fp, str->twoByteChars(nogc), len, quote);
+    return PutEscapedStringImpl(buffer, bufferSize, fp, str->chars(),
+                                str->length(), quote);
 }
 
-template <typename CharT>
 size_t
-js::PutEscapedStringImpl(char *buffer, size_t bufferSize, FILE *fp, const CharT *chars,
+js::PutEscapedStringImpl(char *buffer, size_t bufferSize, FILE *fp, const jschar *chars,
                          size_t length, uint32_t quote)
 {
     enum {
@@ -4963,7 +4959,7 @@ js::PutEscapedStringImpl(char *buffer, size_t bufferSize, FILE *fp, const CharT 
     else
         bufferSize--;
 
-    const CharT *charsEnd = chars + length;
+    const jschar *charsEnd = chars + length;
     size_t n = 0;
     state = FIRST_QUOTE;
     unsigned shift = 0;
@@ -5056,11 +5052,3 @@ js::PutEscapedStringImpl(char *buffer, size_t bufferSize, FILE *fp, const CharT 
         buffer[n] = '\0';
     return n;
 }
-
-template size_t
-js::PutEscapedStringImpl(char *buffer, size_t bufferSize, FILE *fp, const Latin1Char *chars,
-                         size_t length, uint32_t quote);
-
-template size_t
-js::PutEscapedStringImpl(char *buffer, size_t bufferSize, FILE *fp, const jschar *chars,
-                         size_t length, uint32_t quote);

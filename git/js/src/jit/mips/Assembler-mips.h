@@ -724,11 +724,14 @@ class Assembler : public AssemblerShared
     CompactBufferWriter relocations_;
     CompactBufferWriter preBarriers_;
 
+    bool enoughMemory_;
+
     MIPSBuffer m_buffer;
 
   public:
     Assembler()
-      : m_buffer(),
+      : enoughMemory_(true),
+        m_buffer(),
         isFinished(false)
     { }
 

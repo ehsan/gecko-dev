@@ -340,6 +340,7 @@ class MacroAssemblerMIPSCompat : public MacroAssemblerMIPS
 
     bool dynamicAlignment_;
 
+    bool enoughMemory_;
     // Compute space needed for the function call and set the properties of the
     // callee.  It returns the space which has to be allocated for calling the
     // function.
@@ -362,8 +363,12 @@ class MacroAssemblerMIPSCompat : public MacroAssemblerMIPS
   public:
     MacroAssemblerMIPSCompat()
       : inCall_(false),
+        enoughMemory_(true),
         framePushed_(0)
     { }
+    bool oom() const {
+        return Assembler::oom();
+    }
 
   public:
     using MacroAssemblerMIPS::call;

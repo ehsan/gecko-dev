@@ -54,7 +54,6 @@ AudioOutputObserver::AudioOutputObserver()
   : mPlayoutFreq(0)
   , mPlayoutChannels(0)
   , mChunkSize(0)
-  , mSaved(nullptr)
   , mSamplesSaved(0)
 {
   // Buffers of 10ms chunks
@@ -70,9 +69,8 @@ void
 AudioOutputObserver::Clear()
 {
   while (mPlayoutFifo->size() > 0) {
-    moz_free(mPlayoutFifo->Pop());
+    (void) mPlayoutFifo->Pop();
   }
-  moz_free(mSaved);
   mSaved = nullptr;
 }
 
@@ -156,8 +154,7 @@ AudioOutputObserver::InsertFarEnd(const AudioDataValue *aBuffer, uint32_t aSampl
         // thread safety issues.
         break;
       } else {
-        mPlayoutFifo->Push((int8_t *) mSaved); // takes ownership
-        mSaved = nullptr;
+        mPlayoutFifo->Push((int8_t *) mSaved.forget()); // takes ownership
         mSamplesSaved = 0;
       }
     }
@@ -520,7 +517,8 @@ MediaEngineWebRTCAudioSource::Process(int channel,
   if (!mStarted) {
     mStarted  = true;
     while (gFarendObserver->Size() > 1) {
-      moz_free(gFarendObserver->Pop()); // only call if size() > 0
+      FarEndAudioChunk *buffer = gFarendObserver->Pop(); // only call if size() > 0
+      free(buffer);
     }
   }
 
@@ -528,16 +526,15 @@ MediaEngineWebRTCAudioSource::Process(int channel,
     FarEndAudioChunk *buffer = gFarendObserver->Pop(); // only call if size() > 0
     if (buffer) {
       int length = buffer->mSamples;
-      int res = mVoERender->ExternalPlayoutData(buffer->mData,
-                                                gFarendObserver->PlayoutFrequency(),
-                                                gFarendObserver->PlayoutChannels(),
-                                                mPlayoutDelay,
-                                                length);
-      moz_free(buffer);
-      if (res == -1) {
+      if (mVoERender->ExternalPlayoutData(buffer->mData,
+                                          gFarendObserver->PlayoutFrequency(),
+                                          gFarendObserver->PlayoutChannels(),
+                                          mPlayoutDelay,
+                                          length) == -1) {
         return;
       }
     }
+    free(buffer);
   }
 
 #ifdef PR_LOGGING

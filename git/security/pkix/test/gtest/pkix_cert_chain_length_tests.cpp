@@ -136,10 +136,9 @@ private:
   }
 
   SECStatus VerifySignedData(const CERTSignedData* signedData,
-                             const SECItem& subjectPublicKeyInfo)
+                             const CERTCertificate* cert)
   {
-    return ::mozilla::pkix::VerifySignedData(signedData, subjectPublicKeyInfo,
-                                             nullptr);
+    return ::mozilla::pkix::VerifySignedData(signedData, cert, nullptr);
   }
 
   SECStatus CheckRevocation(EndEntityOrCA, const CERTCertificate*,

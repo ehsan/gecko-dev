@@ -25,6 +25,7 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
     uint32_t passedArgs_;
     uint32_t stackForCall_;
     bool dynamicAlignment_;
+    bool enoughMemory_;
 
     struct Double {
         double value;
@@ -74,13 +75,18 @@ class MacroAssemblerX86 : public MacroAssemblerX86Shared
     using MacroAssemblerX86Shared::call;
 
     MacroAssemblerX86()
-      : inCall_(false)
+      : inCall_(false),
+        enoughMemory_(true)
     {
     }
 
     // The buffer is about to be linked, make sure any constant pools or excess
     // bookkeeping has been flushed to the instruction stream.
     void finish();
+
+    bool oom() const {
+        return MacroAssemblerX86Shared::oom() || !enoughMemory_;
+    }
 
     /////////////////////////////////////////////////////////////////
     // X86-specific interface.

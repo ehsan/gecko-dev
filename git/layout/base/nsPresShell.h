@@ -357,8 +357,7 @@ public:
 
   virtual void ScheduleImageVisibilityUpdate() MOZ_OVERRIDE;
 
-  virtual void RebuildImageVisibilityDisplayList(const nsDisplayList& aList) MOZ_OVERRIDE;
-  virtual void RebuildImageVisibility(nsRect* aRect = nullptr) MOZ_OVERRIDE;
+  virtual void RebuildImageVisibility(const nsDisplayList& aList) MOZ_OVERRIDE;
 
   virtual void EnsureImageInVisibleList(nsIImageLoadingContent* aImage) MOZ_OVERRIDE;
 
@@ -366,7 +365,7 @@ public:
 
   virtual bool AssumeAllImagesVisible() MOZ_OVERRIDE;
 
-  virtual void RecordShadowStyleChange(mozilla::dom::ShadowRoot* aShadowRoot);
+  virtual void RestyleShadowRoot(mozilla::dom::ShadowRoot* aShadowRoot);
 
   void SetNextPaintCompressed() { mNextPaintCompressed = true; }
 
@@ -724,7 +723,6 @@ protected:
   void ClearVisibleImagesList();
   static void ClearImageVisibilityVisited(nsView* aView, bool aClear);
   static void MarkImagesInListVisible(const nsDisplayList& aList);
-  void MarkImagesInSubtreeVisible(nsIFrame* aFrame, const nsRect& aRect);
 
   void EvictTouches();
 

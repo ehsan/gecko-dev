@@ -163,10 +163,9 @@ AppTrustDomain::GetCertTrust(EndEntityOrCA endEntityOrCA,
 
 SECStatus
 AppTrustDomain::VerifySignedData(const CERTSignedData* signedData,
-                                 const SECItem& subjectPublicKeyInfo)
+                                  const CERTCertificate* cert)
 {
-  return ::mozilla::pkix::VerifySignedData(signedData, subjectPublicKeyInfo,
-                                           mPinArg);
+  return ::mozilla::pkix::VerifySignedData(signedData, cert, mPinArg);
 }
 
 SECStatus

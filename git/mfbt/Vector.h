@@ -319,8 +319,8 @@ class VectorBase : private AllocPolicy
 
     typedef T ElementType;
 
-    explicit VectorBase(AllocPolicy = AllocPolicy());
-    explicit VectorBase(ThisVector&&); /* Move constructor. */
+    VectorBase(AllocPolicy = AllocPolicy());
+    VectorBase(ThisVector&&); /* Move constructor. */
     ThisVector& operator=(ThisVector&&); /* Move assignment. */
     ~VectorBase();
 
@@ -1209,7 +1209,7 @@ class Vector
     typedef VectorBase<T, MinInlineCapacity, AllocPolicy, Vector> Base;
 
   public:
-    explicit Vector(AllocPolicy alloc = AllocPolicy()) : Base(alloc) {}
+    Vector(AllocPolicy alloc = AllocPolicy()) : Base(alloc) {}
     Vector(Vector&& vec) : Base(Move(vec)) {}
     Vector& operator=(Vector&& vec) {
       return Base::operator=(Move(vec));
