@@ -259,8 +259,6 @@ class Sandbox(object):
             builtins=builtins)
         self._locals = LocalNamespace(self._globals)
         self._execution_stack = []
-        self.main_path = None
-        self.all_paths = set()
 
     def exec_file(self, path):
         """Execute code at a path in the sandbox.
@@ -291,11 +289,6 @@ class Sandbox(object):
         paths to behave weirdly.
         """
         self._execution_stack.append(path)
-
-        if self.main_path is None:
-            self.main_path = path
-
-        self.all_paths.add(path)
 
         # We don't have to worry about bytecode generation here because we are
         # too low-level for that. However, we could add bytecode generation via
