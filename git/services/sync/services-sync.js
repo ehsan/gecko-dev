@@ -16,7 +16,6 @@ pref("extensions.weave.engine.bookmarks", true);
 pref("extensions.weave.engine.history", true);
 pref("extensions.weave.engine.cookies", false );
 pref("extensions.weave.engine.passwords", false );
-pref("extensions.weave.engine.forms", false );
 
 pref("extensions.weave.log.appender.console", "Warn");
 pref("extensions.weave.log.appender.dump", "Error");
