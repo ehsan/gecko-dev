@@ -42,12 +42,6 @@
 <!ENTITY updates.viewUpdates.accesskey        "V">
 <!ENTITY updates.backgroudUpdateCheck.label   "Check for Updates Automatically">
 <!ENTITY updates.backgroudUpdateCheck.accesskey "C">
-<!ENTITY updates.updateAddonsAutomatically.label     "Update Add-ons Automatically">
-<!ENTITY updates.updateAddonsAutomatically.accesskey "A">
-<!ENTITY updates.resetUpdatesToAutomatic.label       "Reset All Add-ons to Update Automatically">
-<!ENTITY updates.resetUpdatesToAutomatic.accesskey   "R">
-<!ENTITY updates.resetUpdatesToManual.label          "Reset All Add-ons to Update Manually">
-<!ENTITY updates.resetUpdatesToManual.accesskey      "R">
 <!ENTITY updates.updating.label               "Updating add-ons">
 <!ENTITY updates.installed.label              "Your add-ons have been updated.">
 <!ENTITY updates.downloaded.label             "Your add-on updates have been downloaded.">
@@ -104,8 +98,6 @@
 <!ENTITY detail.contributions.description     "The developer of this add-on asks that you help support its continued development by making a small contribution.">
 
 <!ENTITY detail.updateType                    "Automatic Updates">
-<!ENTITY detail.updateDefault.label           "Default">
-<!ENTITY detail.updateDefault.tooltip         "Automatically install updates only if that's the default">
 <!ENTITY detail.updateAutomatic.label         "On">
 <!ENTITY detail.updateAutomatic.tooltip       "Automatically install updates">
 <!ENTITY detail.updateManual.label            "Off">
@@ -114,12 +106,12 @@
 <!ENTITY detail.repository                    "Add-on Profile">
 <!ENTITY detail.size                          "Size">
 
-<!ENTITY detail.checkForUpdates.label         "Check for Updates">
+<!ENTITY detail.checkForUpdates.label         "Check for updates">
 <!ENTITY detail.checkForUpdates.accesskey     "F">
 <!ENTITY detail.checkForUpdates.tooltip       "Check for updates for this add-on">
 <!ENTITY detail.showPreferencesWin.label      "Options">
 <!ENTITY detail.showPreferencesWin.accesskey  "O">
-<!ENTITY detail.showPreferencesWin.tooltip    "Change this add-on's options">
+<!ENTITY detail.showPreferencesWin.tooltip    "Change this add-on's Options">
 <!ENTITY detail.showPreferencesUnix.label     "Preferences">
 <!ENTITY detail.showPreferencesUnix.accesskey "P">
 <!ENTITY detail.showPreferencesUnix.tooltip   "Change this add-on's preferences">

@@ -260,8 +260,7 @@ SearchEventHandlerClass.prototype = {
   // the before-search mode. 
   switchToBeforeMode: function switchToBeforeMode() {
     var self = this;
-    if (this.currentHandler)
-      iQ(document).unbind("keydown", this.currentHandler);
+    iQ(document).unbind("keydown", this.currentHandler);
     this.currentHandler = function(event) self.beforeSearchKeyHandler(event);
     iQ(document).keydown(self.currentHandler);
   },
@@ -272,8 +271,7 @@ SearchEventHandlerClass.prototype = {
   // the in-search mode.   
   switchToInMode: function switchToInMode() {
     var self = this;
-    if (this.currentHandler)
-      iQ(document).unbind("keydown", this.currentHandler);
+    iQ(document).unbind("keydown", this.currentHandler);
     this.currentHandler = function(event) self.inSearchKeyHandler(event);
     iQ(document).keydown(self.currentHandler);
   }

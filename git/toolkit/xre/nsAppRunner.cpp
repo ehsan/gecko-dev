@@ -3272,7 +3272,7 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
       return 1;
     }
 
-#if defined(MOZ_UPDATER) && !defined(ANDROID)
+#if defined(MOZ_UPDATER)
   // Check for and process any available updates
   nsCOMPtr<nsIFile> updRoot;
   PRBool persistent;

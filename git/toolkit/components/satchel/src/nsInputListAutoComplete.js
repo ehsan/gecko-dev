@@ -87,28 +87,18 @@ InputListAutoComplete.prototype = {
     let labels = [];
 
     if (aField) {
-      let filter = !aField.hasAttribute("mozNoFilter");
-      let lowerFieldValue = aField.value.toLowerCase();
-
       if (aField.list) {
         let options = aField.list.options;
         let length = options.length;
         for (let i = 0; i < length; i++) {
           let item = options.item(i);
-          let label = "";
           if (item.label) {
-            label = item.label;
+            labels.push(item.label);
           } else if (item.text) {
-            label = item.text;
+            labels.push(item.text);
           } else {
-            label = item.value;
+            labels.push(item.value);
           }
-
-          if (filter && label.toLowerCase().indexOf(lowerFieldValue) == -1) {
-            continue;
-          }
-
-          labels.push(label);
           values.push(item.value);
         }
       }

@@ -3221,7 +3221,8 @@ void NS_JProfStartProfiling();
 void NS_JProfStopProfiling();
 
 static JSBool
-JProfStartProfilingJS(JSContext *cx, uintN argc, jsval *vp)
+JProfStartProfilingJS(JSContext *cx, JSObject *obj,
+                      uintN argc, jsval *argv, jsval *rval)
 {
   NS_JProfStartProfiling();
   return JS_TRUE;
@@ -3259,7 +3260,8 @@ void NS_JProfStartProfiling()
 }
 
 static JSBool
-JProfStopProfilingJS(JSContext *cx, uintN argc, jsval *vp)
+JProfStopProfilingJS(JSContext *cx, JSObject *obj,
+                     uintN argc, jsval *argv, jsval *rval)
 {
   NS_JProfStopProfiling();
   return JS_TRUE;
@@ -3273,9 +3275,9 @@ NS_JProfStopProfiling()
 }
 
 static JSFunctionSpec JProfFunctions[] = {
-    {"JProfStartProfiling",        JProfStartProfilingJS,      0, 0},
-    {"JProfStopProfiling",         JProfStopProfilingJS,       0, 0},
-    {nsnull,                       nsnull,                     0, 0}
+    {"JProfStartProfiling",        JProfStartProfilingJS,      0, 0, 0},
+    {"JProfStopProfiling",         JProfStopProfilingJS,       0, 0, 0},
+    {nsnull,                       nsnull,                     0, 0, 0}
 };
 
 #endif /* defined(MOZ_JPROF) */
@@ -3292,28 +3294,28 @@ static JSFunctionSpec SharkFunctions[] = {
 
 #ifdef MOZ_CALLGRIND
 static JSFunctionSpec CallgrindFunctions[] = {
-    {"startCallgrind",             js_StartCallgrind,          0, 0},
-    {"stopCallgrind",              js_StopCallgrind,           0, 0},
-    {"dumpCallgrind",              js_DumpCallgrind,           1, 0},
-    {nsnull,                       nsnull,                     0, 0}
+    {"startCallgrind",             js_StartCallgrind,          0, 0, 0},
+    {"stopCallgrind",              js_StopCallgrind,           0, 0, 0},
+    {"dumpCallgrind",              js_DumpCallgrind,           1, 0, 0},
+    {nsnull,                       nsnull,                     0, 0, 0}
 };
 #endif
 
 #ifdef MOZ_VTUNE
 static JSFunctionSpec VtuneFunctions[] = {
-    {"startVtune",                 js_StartVtune,              1, 0},
-    {"stopVtune",                  js_StopVtune,               0, 0},
-    {"pauseVtune",                 js_PauseVtune,              0, 0},
-    {"resumeVtune",                js_ResumeVtune,             0, 0},
-    {nsnull,                       nsnull,                     0, 0}
+    {"startVtune",                 js_StartVtune,              1, 0, 0},
+    {"stopVtune",                  js_StopVtune,               0, 0, 0},
+    {"pauseVtune",                 js_PauseVtune,              0, 0, 0},
+    {"resumeVtune",                js_ResumeVtune,             0, 0, 0},
+    {nsnull,                       nsnull,                     0, 0, 0}
 };
 #endif
 
 #ifdef MOZ_TRACEVIS
 static JSFunctionSpec EthogramFunctions[] = {
-    {"initEthogram",               js_InitEthogram,            0, 0},
-    {"shutdownEthogram",           js_ShutdownEthogram,        0, 0},
-    {nsnull,                       nsnull,                     0, 0}
+    {"initEthogram",               js_InitEthogram,            0, 0, 0},
+    {"shutdownEthogram",           js_ShutdownEthogram,        0, 0, 0},
+    {nsnull,                       nsnull,                     0, 0, 0}
 };
 #endif
 

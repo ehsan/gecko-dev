@@ -83,10 +83,6 @@ let UI = {
   // Keeps track of event listeners added to the AllTabs object.
   _eventListeners: {},
 
-  // Variable: _cleanupFunctions
-  // An array of functions to be called at uninit time
-  _cleanupFunctions: [],
-
   // ----------
   // Function: init
   // Must be called after the object is created.
@@ -110,9 +106,9 @@ let UI = {
 
       // ___ Dev Menu
       // This dev menu is not meant for shipping, nor is it of general
-      // interest, but we still need it for the time being. Change the
-      // false below to enable; just remember to change back before
-      // committing. Bug 586721 will track the ultimate removal.
+      // interest, but we still need it for the time being. Change the 
+      // false below to enable; just remember to change back before 
+      // committing. Bug 586721 will track the ultimate removal. 
       if (false)
         this._addDevMenu();
 
@@ -218,10 +214,8 @@ let UI = {
       var observer = {
         observe : function(subject, topic, data) {
           if (topic == "quit-application-requested") {
-            if (self._isTabViewVisible()) {
-              GroupItems.removeHiddenGroups();
+            if (self._isTabViewVisible())
               TabItems.saveAll(true);
-            }
             self._save();
           }
         }
@@ -237,14 +231,6 @@ let UI = {
   },
 
   uninit: function UI_uninit() {
-    // call our cleanup functions
-    this._cleanupFunctions.forEach(function(func) {
-      func();
-    });
-
-    this._cleanupFunctions = [];
-
-    // additional clean up
     TabItems.uninit();
     GroupItems.uninit();
     Storage.uninit();
@@ -367,7 +353,6 @@ let UI = {
     if (!this._isTabViewVisible())
       return;
 
-    GroupItems.removeHiddenGroups();
     TabItems.pausePainting();
 
     this._reorderTabsOnHide.forEach(function(groupItem) {
@@ -471,28 +456,6 @@ let UI = {
 
     for (let name in this._eventListeners)
       AllTabs.register(name, this._eventListeners[name]);
-
-    // Start watching for tab pin events, and set up our uninit for same.
-    function handleTabPin(event) {
-      TabItems.handleTabPin(event.originalTarget);
-      GroupItems.handleTabPin(event.originalTarget);
-    }
-
-    gBrowser.tabContainer.addEventListener("TabPinned", handleTabPin, false);
-    this._cleanupFunctions.push(function() {
-      gBrowser.tabContainer.removeEventListener("TabPinned", handleTabPin, false);
-    });
-
-    // Start watching for tab unpin events, and set up our uninit for same.
-    function handleTabUnpin(event) {
-      TabItems.handleTabUnpin(event.originalTarget);
-      GroupItems.handleTabUnpin(event.originalTarget);
-    }
-
-    gBrowser.tabContainer.addEventListener("TabUnpinned", handleTabUnpin, false);
-    this._cleanupFunctions.push(function() {
-      gBrowser.tabContainer.removeEventListener("TabUnpinned", handleTabUnpin, false);
-    });
   },
 
   // ----------
@@ -501,16 +464,6 @@ let UI = {
   _removeTabActionHandlers: function UI__removeTabActionHandlers() {
     for (let name in this._eventListeners)
       AllTabs.unregister(name, this._eventListeners[name]);
-  },
-
-  // ----------
-  // Selects the given xul:tab in the browser.
-  goToTab: function UI_goToTab(xulTab) {
-    // If it's not focused, the onFocus listener would handle it.
-    if (gBrowser.selectedTab == xulTab)
-      this.onTabSelect(xulTab);
-    else
-      gBrowser.selectedTab = xulTab;
   },
 
   // ----------
@@ -538,7 +491,7 @@ let UI = {
 
     let oldItem = null;
     let newItem = null;
-
+    
     if (currentTab && currentTab.tabItem)
       oldItem = currentTab.tabItem;
     if (tab && tab.tabItem) {
@@ -583,13 +536,6 @@ let UI = {
         this._reorderTabItemsOnShow.push(groupItem);
     }
   },
-  
-  // ----------
-  updateTabButton: function UI__updateTabButton(){
-    let groupsNumber = gWindow.document.getElementById("tabviewGroupsNumber");
-    let numberOfGroups = GroupItems.groupItems.length;
-    groupsNumber.setAttribute("groups", numberOfGroups);
-  },
 
   // ----------
   // Function: _setTabViewFrameKeyHandlers
@@ -616,8 +562,7 @@ let UI = {
 
       function getClosestTabBy(norm) {
         var centers =
-          [[item.bounds.center(), item]
-             for each(item in TabItems.getItems()) if (!item.parent || !item.parent.hidden)];
+          [[item.bounds.center(), item] for each(item in TabItems.getItems())];
         var myCenter = self.getActiveTab().bounds.center();
         var matches = centers
           .filter(function(item){return norm(item[0], myCenter)})
@@ -669,13 +614,13 @@ let UI = {
           event.stopPropagation();
           event.preventDefault();
         }
-      } else if (event.keyCode == KeyEvent.DOM_VK_ESCAPE ||
+      } else if (event.keyCode == KeyEvent.DOM_VK_ESCAPE || 
                  event.keyCode == KeyEvent.DOM_VK_RETURN ||
                  event.keyCode == KeyEvent.DOM_VK_ENTER) {
         let activeTab = self.getActiveTab();
         let activeGroupItem = GroupItems.getActiveGroupItem();
 
-        if (activeGroupItem && activeGroupItem.expanded &&
+        if (activeGroupItem && activeGroupItem.expanded && 
             event.keyCode == KeyEvent.DOM_VK_ESCAPE)
           activeGroupItem.collapse();
         else if (activeTab)
@@ -923,17 +868,6 @@ let UI = {
 
     this._pageBounds = Items.getPageBounds();
     this._save();
-  },
-
-  // ----------
-  // Function: onExitButtonPressed
-  // Exits TabView UI.
-  onExitButtonPressed: function() {
-    let activeTab = this.getActiveTab();
-    if (!activeTab)
-      activeTab = gBrowser.selectedTab.tabItem;
-    if (activeTab)
-      activeTab.zoomIn();
   },
 
   // ----------

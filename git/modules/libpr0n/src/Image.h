@@ -80,7 +80,6 @@ public:
    */
   virtual nsresult Init(imgIDecoderObserver* aObserver,
                         const char* aMimeType,
-                        const char* aURIString,
                         PRUint32 aFlags) = 0;
 
   /**

@@ -60,6 +60,11 @@ pref("general.warnOnAboutConfig", true);
 pref("browser.bookmarks.max_backups",       5);
 
 pref("browser.cache.disk.enable",           true);
+// Is this the first-time smartsizing has been introduced?
+pref("browser.cache.disk.smart_size.first_run", true);
+// Does the user want smart-sizing?
+pref("browser.cache.disk.smart_size.enabled", true);
+// Size explicitly set by the user. Used when smart_size.enabled == false
 #ifndef WINCE
 pref("browser.cache.disk.capacity",         256000);
 #else
@@ -3172,7 +3177,6 @@ pref("webgl.shader_validator", true);
 pref("webgl.force_osmesa", false);
 pref("webgl.mochitest_native_gl", false);
 pref("webgl.osmesalib", "");
-pref("webgl.verbose", false);
 
 #ifdef XP_WIN
 #ifndef WINCE
@@ -3234,7 +3238,6 @@ pref("browser.history.maxStateObjectSize", 655360);
 
 // XPInstall prefs
 pref("xpinstall.whitelist.required", true);
-pref("extensions.alwaysUnpack", false);
 
 pref("network.buffer.cache.count", 24);
 pref("network.buffer.cache.size",  32768);

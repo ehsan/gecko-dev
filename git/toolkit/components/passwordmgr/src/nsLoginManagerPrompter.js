@@ -817,25 +817,31 @@ LoginManagerPrompter.prototype = {
         // with some weird rules for handling access keys that do not occur
         // in the string, for L10N. See commonDialog.js's setLabelForNode().
         var neverButtonText =
-              this._getLocalizedString("notifyBarNeverRememberButtonText");
+              this._getLocalizedString("notifyBarNeverForSiteButtonText");
         var neverButtonAccessKey =
-              this._getLocalizedString("notifyBarNeverRememberButtonAccessKey");
+              this._getLocalizedString("notifyBarNeverForSiteButtonAccessKey");
         var rememberButtonText =
-              this._getLocalizedString("notifyBarRememberPasswordButtonText");
+              this._getLocalizedString("notifyBarRememberButtonText");
         var rememberButtonAccessKey =
-              this._getLocalizedString("notifyBarRememberPasswordButtonAccessKey");
+              this._getLocalizedString("notifyBarRememberButtonAccessKey");
+        var notNowButtonText =
+              this._getLocalizedString("notifyBarNotNowButtonText");
+        var notNowButtonAccessKey =
+              this._getLocalizedString("notifyBarNotNowButtonAccessKey");
 
+        var brandShortName =
+              this._brandBundle.GetStringFromName("brandShortName");
         var displayHost = this._getShortDisplayHost(aLogin.hostname);
         var notificationText;
         if (aLogin.username) {
             var displayUser = this._sanitizeUsername(aLogin.username);
             notificationText  = this._getLocalizedString(
-                                        "rememberPasswordText",
-                                        [displayUser, displayHost]);
+                                        "saveLoginText",
+                                        [brandShortName, displayUser, displayHost]);
         } else {
             notificationText  = this._getLocalizedString(
-                                        "rememberPasswordTextNoUsername",
-                                        [displayHost]);
+                                        "saveLoginTextNoUsername",
+                                        [brandShortName, displayHost]);
         }
 
         // The callbacks in |buttons| have a closure to access the variables
@@ -872,12 +878,8 @@ LoginManagerPrompter.prototype = {
     
             aNotifyObj.show(browser, "password-save", notificationText,
                             "password-notification-icon", mainAction,
-                            secondaryActions, { timeout: Date.now() + 20000 });
+                            secondaryActions, { timeout: Date.now() + 30000 });
         } else {
-            var notNowButtonText =
-                  this._getLocalizedString("notifyBarNotNowButtonText");
-            var notNowButtonAccessKey =
-                  this._getLocalizedString("notifyBarNotNowButtonAccessKey");
             var buttons = [
                 // "Remember" button
                 {
@@ -1033,16 +1035,20 @@ LoginManagerPrompter.prototype = {
         var notificationText;
         if (aOldLogin.username)
             notificationText  = this._getLocalizedString(
-                                          "updatePasswordText",
+                                          "passwordChangeText",
                                           [aOldLogin.username]);
         else
             notificationText  = this._getLocalizedString(
-                                          "updatePasswordTextNoUser");
+                                          "passwordChangeTextNoUser");
 
         var changeButtonText =
-              this._getLocalizedString("notifyBarUpdateButtonText");
+              this._getLocalizedString("notifyBarChangeButtonText");
         var changeButtonAccessKey =
-              this._getLocalizedString("notifyBarUpdateButtonAccessKey");
+              this._getLocalizedString("notifyBarChangeButtonAccessKey");
+        var dontChangeButtonText =
+              this._getLocalizedString("notifyBarDontChangeButtonText");
+        var dontChangeButtonAccessKey =
+              this._getLocalizedString("notifyBarDontChangeButtonAccessKey");
 
         // The callbacks in |buttons| have a closure to access the variables
         // in scope here; set one to |this._pwmgr| so we can get back to pwmgr
@@ -1068,12 +1074,8 @@ LoginManagerPrompter.prototype = {
     
             aNotifyObj.show(browser, "password-change", notificationText,
                             "password-notification-icon", mainAction,
-                            null, { timeout: Date.now() + 20000 });    
+                            null, { timeout: Date.now() + 30000 });    
         } else {
-            var dontChangeButtonText =
-                  this._getLocalizedString("notifyBarDontChangeButtonText");
-            var dontChangeButtonAccessKey =
-                  this._getLocalizedString("notifyBarDontChangeButtonAccessKey");
             var buttons = [
                 // "Yes" button
                 {

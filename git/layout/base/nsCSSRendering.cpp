@@ -1164,8 +1164,7 @@ nsCSSRendering::PaintBoxShadowOuter(nsPresContext* aPresContext,
     // for use in the even-odd rule below.
     nsRect shadowRectPlusBlur = shadowRect;
     nscoord blurRadius = shadowItem->mRadius;
-    shadowRectPlusBlur.Inflate(
-      nsContextBoxBlur::GetBlurRadiusMargin(blurRadius, twipsPerPixel));
+    shadowRectPlusBlur.Inflate(blurRadius, blurRadius);
 
     gfxRect shadowGfxRect =
       nsLayoutUtils::RectToGfxRect(shadowRect, twipsPerPixel);
@@ -1331,10 +1330,8 @@ nsCSSRendering::PaintBoxShadowInner(nsPresContext* aPresContext,
      *                 that we will NOT paint in
      */
     nscoord blurRadius = shadowItem->mRadius;
-    nsMargin blurMargin =
-      nsContextBoxBlur::GetBlurRadiusMargin(blurRadius, twipsPerPixel);
     nsRect shadowPaintRect = paddingRect;
-    shadowPaintRect.Inflate(blurMargin);
+    shadowPaintRect.Inflate(blurRadius, blurRadius);
 
     nsRect shadowClipRect = paddingRect;
     shadowClipRect.MoveBy(shadowItem->mXOffset, shadowItem->mYOffset);
@@ -1370,7 +1367,7 @@ nsCSSRendering::PaintBoxShadowInner(nsPresContext* aPresContext,
     // Set the "skip rect" to the area within the frame that we don't paint in,
     // including after blurring. We also use this for clipping later on.
     nsRect skipRect = shadowClipRect;
-    skipRect.Deflate(blurMargin);
+    skipRect.Deflate(blurRadius, blurRadius);
     gfxRect skipGfxRect = nsLayoutUtils::RectToGfxRect(skipRect, twipsPerPixel);
     if (hasBorderRadius) {
       skipGfxRect.Inset(PR_MAX(clipRectRadii[C_TL].height, clipRectRadii[C_TR].height), 0,
@@ -2616,14 +2613,8 @@ DrawBorderImage(nsPresContext*       aPresContext,
   req->GetImage(getter_AddRefs(imgContainer));
 
   nsIntSize imageSize;
-  if (NS_FAILED(imgContainer->GetWidth(&imageSize.width))) {
-    imageSize.width =
-      nsPresContext::AppUnitsToIntCSSPixels(aBorderArea.width);
-  }
-  if (NS_FAILED(imgContainer->GetHeight(&imageSize.height))) {
-    imageSize.height =
-      nsPresContext::AppUnitsToIntCSSPixels(aBorderArea.height);
-  }
+  imgContainer->GetWidth(&imageSize.width);
+  imgContainer->GetHeight(&imageSize.height);
 
   // Convert percentages and clamp values to the image size.
   nsIntMargin split;
@@ -3836,19 +3827,6 @@ ImageRenderer::Draw(nsPresContext*       aPresContext,
 #define MAX_BLUR_RADIUS 300
 #define MAX_SPREAD_RADIUS 50
 
-static inline gfxIntSize
-ComputeBlurRadius(nscoord aBlurRadius, PRInt32 aAppUnitsPerDevPixel)
-{
-  // http://dev.w3.org/csswg/css3-background/#box-shadow says that the
-  // standard deviation of the blur should be half the given blur value.
-  gfxFloat blurStdDev =
-    NS_MIN(gfxFloat(aBlurRadius) / gfxFloat(aAppUnitsPerDevPixel),
-           gfxFloat(MAX_BLUR_RADIUS))
-    / 2.0;
-  return
-    gfxAlphaBoxBlur::CalculateBlurRadius(gfxPoint(blurStdDev, blurStdDev));
-}
-
 // -----
 // nsContextBoxBlur
 // -----
@@ -3866,14 +3844,14 @@ nsContextBoxBlur::Init(const nsRect& aRect, nscoord aSpreadRadius,
     return nsnull;
   }
 
-  gfxIntSize blurRadius = ComputeBlurRadius(aBlurRadius, aAppUnitsPerDevPixel);
-  PRInt32 spreadRadius = NS_MIN(PRInt32(aSpreadRadius / aAppUnitsPerDevPixel),
-                                PRInt32(MAX_SPREAD_RADIUS));
+  PRInt32 blurRadius = static_cast<PRInt32>(aBlurRadius / aAppUnitsPerDevPixel);
+  blurRadius = PR_MIN(blurRadius, MAX_BLUR_RADIUS);
+  PRInt32 spreadRadius = static_cast<PRInt32>(aSpreadRadius / aAppUnitsPerDevPixel);
+  spreadRadius = PR_MIN(spreadRadius, MAX_BLUR_RADIUS);
   mDestinationCtx = aDestinationCtx;
 
   // If not blurring, draw directly onto the destination device
-  if (blurRadius.width <= 0 && blurRadius.height <= 0 && spreadRadius <= 0 &&
-      !(aFlags & FORCE_MASK)) {
+  if (blurRadius <= 0 && spreadRadius <= 0 && !(aFlags & FORCE_MASK)) {
     mContext = aDestinationCtx;
     return mContext;
   }
@@ -3887,7 +3865,8 @@ nsContextBoxBlur::Init(const nsRect& aRect, nscoord aSpreadRadius,
 
   // Create the temporary surface for blurring
   mContext = blur.Init(rect, gfxIntSize(spreadRadius, spreadRadius),
-                       blurRadius, &dirtyRect, aSkipRect);
+                       gfxIntSize(blurRadius, blurRadius),
+                       &dirtyRect, aSkipRect);
   return mContext;
 }
 
@@ -3906,16 +3885,3 @@ nsContextBoxBlur::GetContext()
   return mContext;
 }
 
-/* static */ nsMargin
-nsContextBoxBlur::GetBlurRadiusMargin(nscoord aBlurRadius,
-                                      PRInt32 aAppUnitsPerDevPixel)
-{
-  gfxIntSize blurRadius = ComputeBlurRadius(aBlurRadius, aAppUnitsPerDevPixel);
-
-  nsMargin result;
-  result.top    = blurRadius.height * aAppUnitsPerDevPixel;
-  result.right  = blurRadius.width  * aAppUnitsPerDevPixel;
-  result.bottom = blurRadius.height * aAppUnitsPerDevPixel;
-  result.left   = blurRadius.width  * aAppUnitsPerDevPixel;
-  return result;
-}

@@ -124,7 +124,6 @@ struct CallICInfo {
     /* Used for rooting and reification. */
     JSObject *fastGuardedObject;
     JSObject *fastGuardedNative;
-    Value constantThis;
 
     uint32 argc : 16;
     uint32 frameDepth : 16;
@@ -139,24 +138,23 @@ struct CallICInfo {
     JSC::CodeLocationJump funJump;
 
     /* Offset to inline scripted call, from funGuard. */
-    uint32 hotCallOffset   : 16;
-    uint32 joinPointOffset : 16;
+    uint32 hotCallOffset   : 8;
+    uint32 joinPointOffset : 8;
 
     /* Out of line slow call. */
-    uint32 oolCallOffset   : 16;
+    uint32 oolCallOffset   : 8;
 
     /* Jump to patch for out-of-line scripted calls. */
-    uint32 oolJumpOffset   : 16;
+    uint32 oolJumpOffset   : 8;
 
     /* Offset for deep-fun check to rejoin at. */
-    uint32 hotPathOffset   : 16;
+    uint32 hotPathOffset   : 8;
 
     /* Join point for all slow call paths. */
-    uint32 slowJoinOffset  : 16;
+    uint32 slowJoinOffset  : 9;
 
     RegisterID funObjReg : 5;
     RegisterID funPtrReg : 5;
-    bool isConstantThis : 1;
     bool hit : 1;
     bool hasJsFunCheck : 1;
 

@@ -595,27 +595,8 @@ toolbar[mode="full"] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
   list-style-image: url("moz-icon://stock/gtk-home?size=toolbar&state=disabled");
 }
 
-/* tabview button */
-
 #tabview-button {
   list-style-image: url(chrome://browser/skin/tabview/tabview.png);
-  -moz-image-region: rect(0, 80px, 16px, 64px);
-}
-
-#tabview-button[groups="0"] {
-  -moz-image-region: rect(0, 16px, 16px, 0);
-}
-
-#tabview-button[groups="1"] {
-  -moz-image-region: rect(0, 32px, 16px, 16px);
-}
-
-#tabview-button[groups="2"] {
-  -moz-image-region: rect(0, 48px, 16px, 32px);
-}
-
-#tabview-button[groups="3"] {
-  -moz-image-region: rect(0, 64px, 16px, 48px);
 }
 
 #downloads-button {
@@ -677,14 +658,6 @@ toolbar[mode="full"] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
 
 #fullscreen-button {
   list-style-image: url("moz-icon://stock/gtk-fullscreen?size=toolbar");
-}
-
-#zoom-out-button {
-  list-style-image: url("moz-icon://stock/gtk-zoom-out?size=toolbar");
-}
-
-#zoom-in-button {
-  list-style-image: url("moz-icon://stock/gtk-zoom-in?size=toolbar");
 }
 
 /* 16px primary toolbar buttons */
@@ -813,14 +786,6 @@ toolbar[iconsize="small"] #paste-button[disabled="true"] {
 
 toolbar[iconsize="small"] #fullscreen-button {
   list-style-image: url("moz-icon://stock/gtk-fullscreen?size=menu");
-}
-
-toolbar[iconsize="small"] #zoom-out-button {
-  list-style-image: url("moz-icon://stock/gtk-zoom-out?size=menu");
-}
-
-toolbar[iconsize="small"] #zoom-in-button {
-  list-style-image: url("moz-icon://stock/gtk-zoom-in?size=menu");
 }
 
 /* Fullscreen window controls */
@@ -1043,15 +1008,6 @@ toolbar[iconsize="small"] #zoom-in-button {
   padding: 10px;
 }
 
-/* Invalid form popup */
-#invalid-form-popup {
-  -moz-appearance: none;
-  background-color: #fffcd6;
-  border: 1px solid #dad8b6;
-  padding: 5px 5px 5px 5px;
-  font-weight: bold;
-}
-
 /* Notification popup */
 #notification-popup {
   margin: 4px 0;
@@ -1224,15 +1180,15 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
 #urlbar > toolbarbutton:active:hover {
   padding-left: 4px;
   border-left: none;
-  box-shadow: 0 0 6.5px rgba(0,0,0,.4) inset,
-              0 0 2px rgba(0,0,0,.4) inset;
+  -moz-box-shadow: 0 0 9px rgba(0,0,0,.4) inset,
+                   0 0 3px rgba(0,0,0,.4) inset;
 }
 
 #urlbar-go-button {
   -moz-image-region: rect(0px, 56px, 14px, 42px);
   background-image: -moz-linear-gradient(rgb(143,219,69), rgb(115,177,57));
-  box-shadow: 0 1px 0 rgba(0,0,0,.1) inset,
-              -1px -1px 0 rgba(255,255,255,.2) inset;
+  -moz-box-shadow: 0 1px 0 rgba(0,0,0,.1) inset,
+                   -1px -1px 0 rgba(255,255,255,.2) inset;
 }
 
 #urlbar-go-button:hover {
@@ -1246,15 +1202,15 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
 #urlbar-reload-button:hover {
   -moz-image-region: rect(0px, 28px, 14px, 14px);
   background-image: -moz-linear-gradient(rgb(137,183,233), rgb(79,130,195));
-  box-shadow: 0 1px 0 rgba(0,0,0,.1) inset,
-              -1px -1px 0 rgba(255,255,255,.2) inset;
+  -moz-box-shadow: 0 1px 0 rgba(0,0,0,.1) inset,
+                   -1px -1px 0 rgba(255,255,255,.2) inset;
 }
 
 #urlbar-stop-button {
   -moz-image-region: rect(0px, 42px, 14px, 28px);
   background-image: -moz-linear-gradient(rgb(226,99,99), rgb(199,68,68));
-  box-shadow: 0 1px 0 rgba(0,0,0,.1) inset,
-              -1px -1px 0 rgba(255,255,255,.2) inset;
+  -moz-box-shadow: 0 1px 0 rgba(0,0,0,.1) inset,
+                   -1px -1px 0 rgba(255,255,255,.2) inset;
 }
 
 #urlbar-stop-button:hover {
@@ -1545,6 +1501,17 @@ statusbarpanel#statusbar-display {
   -moz-image-region: auto;
 }
 
+#TabsToolbar > #new-tab-button,
+#TabsToolbar > #wrapper-new-tab-button > #new-tab-button {
+  margin-bottom: 1px;
+}
+
+#TabsToolbar > #new-tab-button > .toolbarbutton-icon,
+#TabsToolbar > #wrapper-new-tab-button > #new-tab-button > .toolbarbutton-icon {
+  margin-top: -2px;
+  margin-bottom: -2px;
+}
+
 /* Tabstrip close button */
 .tabs-closebutton {
   list-style-image: url("moz-icon://stock/gtk-close?size=menu");
@@ -1565,25 +1532,13 @@ statusbarpanel#statusbar-display {
 .tabbrowser-arrowscrollbox > .scrollbutton-down {
   -moz-appearance: tab-scroll-arrow-forward;
   margin: 0;
-  -moz-transition: 1s box-shadow ease-out;
+  -moz-transition: 1s -moz-box-shadow ease-out;
   border-radius: 4px;
 }
 
 .tabbrowser-arrowscrollbox > .scrollbutton-down[notifybgtab] {
-  box-shadow: 0 0 5px 5px Highlight inset;
+  -moz-box-shadow: 0 0 7px 5px Highlight inset;
   -moz-transition: none;
-}
-
-#TabsToolbar > toolbarbutton > .toolbarbutton-icon,
-#TabsToolbar > toolbarbutton > .toolbarbutton-menu-dropmarker,
-#TabsToolbar > toolbarpaletteitem > toolbarbutton > .toolbarbutton-icon,
-#TabsToolbar > toolbarpaletteitem > toolbarbutton > .toolbarbutton-menu-dropmarker,
-#TabsToolbar > #bookmarks-menu-button-container > #bookmarks-menu-button > .toolbarbutton-icon,
-#TabsToolbar > #bookmarks-menu-button-container > #bookmarks-menu-button > .toolbarbutton-menu-dropmarker,
-#TabsToolbar > toolbarpaletteitem > #bookmarks-menu-button-container > #bookmarks-menu-button > .toolbarbutton-icon,
-#TabsToolbar > toolbarpaletteitem > #bookmarks-menu-button-container > #bookmarks-menu-button > .toolbarbutton-menu-dropmarker {
-  margin-top: -2px;
-  margin-bottom: -2px;
 }
 
 #alltabs-button > .toolbarbutton-icon {
@@ -1650,6 +1605,10 @@ toolbar[mode="text"] toolbarbutton.chevron > .toolbarbutton-icon {
   visibility: collapse;
 }
 
+#checkForUpdates[loading="true"] {
+  list-style-image: url("chrome://global/skin/icons/loading_16.png");
+}
+
 #download-monitor {
   list-style-image: url("chrome://browser/skin/Toolbar-small.png");
   -moz-image-region: rect(0px 16px 16px 0px);
@@ -1674,14 +1633,14 @@ toolbar[mode="text"] toolbarbutton.chevron > .toolbarbutton-icon {
 }
 
 .tabPreview-canvas {
-  box-shadow: 0 0 5px ThreeDShadow;
+  -moz-box-shadow: 0 0 5px ThreeDShadow;
 }
 
 .ctrlTab-preview:focus .tabPreview-canvas,
 .ctrlTab-preview:hover .tabPreview-canvas,
 .allTabs-preview:focus .tabPreview-canvas,
 .allTabs-preview:hover .tabPreview-canvas {
-  box-shadow: none;
+  -moz-box-shadow: none;
 }
 
 .ctrlTab-favicon[src],

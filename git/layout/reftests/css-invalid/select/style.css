@@ -1,6 +1,6 @@
 /* Override default style */
 select:invalid {
-  box-shadow: none;
+  -moz-box-shadow: none;
 }
 
 select.notinvalid {

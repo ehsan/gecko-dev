@@ -16,16 +16,15 @@
 <script type="application/javascript"
         src="chrome://mochikit/content/tests/SimpleTest/SimpleTest.js"/>
 <script type="application/javascript"
-        src="utils.js"/>
+        src="chrome://mochikit/content/chrome/toolkit/mozapps/update/test/chrome/utils.js"/>
 
 <script type="application/javascript">
 <![CDATA[
 
 const TESTS = [ {
-  pageid: PAGEID_ERROR_EXTRA,
-  extraDelayedCheckFunction: checkErrorExtraPage,
+  pageid: PAGEID_ERROR_CERT_CHECK,
+  extraDelayedCheckFunction: checkCertErrorPage,
   shouldBeHidden: true,
-  displayedTextElem: "errorCertAttrHasUpdateLabel",
   buttonClick: "finish"
 } ];
 
@@ -41,8 +40,7 @@ function runTest() {
   gDefaultPrefBranch.setCharPref(PREF_APP_UPDATE_URL, url);
   debugDump("Default Update URL: " + url);
 
-  errorsPrefObserver.init(PREF_APP_UPDATE_CERT_ERRORS,
-                          PREF_APP_UPDATE_CERT_MAXERRORS);
+  certErrorsPrefObserver.init();
 
   gAUS.notify(null);
 }

@@ -341,11 +341,6 @@ nsWindow::Destroy(void)
         NS_IF_RELEASE(gMenuRollup);
     }
 
-    if (mLayerManager) {
-        mLayerManager->Destroy();
-    }
-    mLayerManager = nsnull;
-
     Show(PR_FALSE);
 
     // walk the list of children and call destroy on them.  Have to be
@@ -2450,6 +2445,23 @@ nsWindow::SetAcceleratedRendering(PRBool aEnabled)
     }
 
     return NS_OK;
+}
+
+
+mozilla::layers::LayerManager*
+nsWindow::GetLayerManager()
+{
+    nsWindow *topWindow = static_cast<nsWindow*>(GetTopLevelWidget());
+    if (!topWindow)
+        return nsBaseWidget::GetLayerManager();
+
+    if (mUseAcceleratedRendering != topWindow->GetAcceleratedRendering()
+        && IsAcceleratedQView(static_cast<QGraphicsView*>(GetViewWidget()))) {
+        mLayerManager = NULL;
+        mUseAcceleratedRendering = topWindow->GetAcceleratedRendering();
+    }
+
+    return nsBaseWidget::GetLayerManager();
 }
 
 // return the gfxASurface for rendering to this widget

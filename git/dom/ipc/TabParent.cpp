@@ -63,7 +63,7 @@
 #include "nsNetUtil.h"
 #include "jsarray.h"
 #include "nsContentUtils.h"
-#include "nsContentPermissionHelper.h"
+#include "nsGeolocationOOP.h"
 #include "nsIDOMNSHTMLFrameElement.h"
 #include "nsIDialogCreator.h"
 #include "nsThreadUtils.h"
@@ -527,7 +527,11 @@ TabParent::DeallocPDocumentRendererNativeID(PDocumentRendererNativeIDParent* act
 PContentPermissionRequestParent*
 TabParent::AllocPContentPermissionRequest(const nsCString& type, const IPC::URI& uri)
 {
-  return new ContentPermissionRequestParent(type, mFrameElement, uri);
+  if (type.Equals(NS_LITERAL_CSTRING("geolocation"))) {
+    return new GeolocationRequestParent(mFrameElement, uri);
+  }
+
+  return nsnull;
 }
   
 bool
@@ -811,13 +815,12 @@ TabParent::GetFrameLoader() const
 PExternalHelperAppParent*
 TabParent::AllocPExternalHelperApp(const IPC::URI& uri,
                                    const nsCString& aMimeContentType,
-                                   const nsCString& aContentDisposition,
                                    const bool& aForceSave,
                                    const PRInt64& aContentLength)
 {
   ExternalHelperAppParent *parent = new ExternalHelperAppParent(uri, aContentLength);
   parent->AddRef();
-  parent->Init(this, aMimeContentType, aContentDisposition, aForceSave);
+  parent->Init(this, aMimeContentType, aForceSave);
   return parent;
 }
 

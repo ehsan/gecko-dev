@@ -50,7 +50,10 @@ const REPOSITORY_UPDATEDATE = 9;
 function get_subfile_uri(aId, aFilename) {
   let file = gProfD.clone();
   file.append("extensions");
-  return do_get_addon_root_uri(file, aId) + aFilename;
+  file.append(aId);
+  if (aFilename)
+    file.append(aFilename);
+  return NetUtil.newURI(file).spec;
 }
 
 
@@ -177,10 +180,8 @@ const WITHOUT_CACHE = [{
   type:                   "theme",
   name:                   "XPI Add-on 3",
   version:                "1.3",
-  get iconURL () {
-    return get_subfile_uri(ADDON_IDS[2], "icon.png");
-  },
-  screenshots:            [{ get url () { return get_subfile_uri(ADDON_IDS[2], "preview.png"); } }],
+  iconURL:                get_subfile_uri(ADDON_IDS[2], "icon.png"),
+  screenshots:            [{ url: get_subfile_uri(ADDON_IDS[2], "preview.png") }],
   sourceURI:              NetUtil.newURI(ADDON_FILES[2]).spec
 }];
 
@@ -267,9 +268,7 @@ const WITH_CACHE = [{
   type:                   "theme",
   name:                   "XPI Add-on 3",
   version:                "1.3",
-  get iconURL () {
-    return get_subfile_uri(ADDON_IDS[2], "icon.png");
-  },
+  iconURL:                get_subfile_uri(ADDON_IDS[2], "icon.png"),
   screenshots:            [{
                             url:          BASE_URL + "/repo/3/firstFull.png",
                             thumbnailURL: BASE_URL + "/repo/3/firstThumbnail.png",

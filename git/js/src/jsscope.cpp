@@ -687,7 +687,30 @@ JSObject::checkShapeConsistency()
             }
             if (prev) {
                 JS_ASSERT(prev->slotSpan >= shape->slotSpan);
-                shape->kids.checkConsistency(prev);
+                if (shape->kids.isShape()) {
+                    JS_ASSERT(shape->kids.toShape() == prev);
+                } else if (shape->kids.isChunk()) {
+                    bool found = false;
+                    for (KidsChunk *chunk = shape->kids.toChunk(); chunk; chunk = chunk->next) {
+                        for (uintN i = 0; i < MAX_KIDS_PER_CHUNK; i++) {
+                            if (!chunk->kids[i]) {
+                                JS_ASSERT(!chunk->next);
+                                for (uintN j = i + 1; j < MAX_KIDS_PER_CHUNK; j++)
+                                    JS_ASSERT(!chunk->kids[j]);
+                                JS_ASSERT(found);
+                            }
+                            if (chunk->kids[i] == prev) {
+                                JS_ASSERT(!found);
+                                found = true;
+                            }
+                        }
+                    }
+                } else {
+                    JS_ASSERT(shape->kids.isHash());
+                    KidsHash *hash = shape->kids.toHash();
+                    KidsHash::Ptr ptr = hash->lookup(prev);
+                    JS_ASSERT(*ptr == prev);
+                }
             }
             prev = shape;
         }
@@ -1084,12 +1107,11 @@ JSObject::removeProperty(JSContext *cx, jsid id)
 
         /*
          * Remove shape from its non-circular doubly linked list, setting this
-         * object's shape first so the updateShape(cx) after this if-else will
-         * generate a fresh shape for this scope. We need a fresh shape for all
-         * deletions, even of lastProp. Otherwise, a shape number can replay
-         * and caches may return get deleted DictionaryShapes! See bug 595365.
+         * object's shape first if shape is not lastProp so the updateShape(cx)
+         * after this if-else will generate a fresh shape for this scope.
          */
-        setOwnShape(lastProp->shape);
+        if (shape != lastProp)
+            setOwnShape(lastProp->shape);
 
         Shape *oldLastProp = lastProp;
         shape->removeFromDictionary(this);

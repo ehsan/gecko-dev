@@ -20,7 +20,6 @@
  *
  * Contributor(s):
  *   Gavin Sharp <gavin@gavinsharp.com>
- *   Sylvain Pasche <sylvain.pasche@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -143,15 +142,6 @@ function basicNotification() {
       }
     }
   ];
-  this.options = {
-    dismissalCallback: function() {
-      self.dismissalCallbackTriggered = true;
-    }
-  };
-  this.addOptions = function(options) {
-    for (let [name, value] in Iterator(options))
-      self.options[name] = value;
-  }
 }
 
 var wrongBrowserNotificationObject = new basicNotification();
@@ -194,7 +184,6 @@ var tests = [
       dismissNotification(popup);
     },
     onHidden: function (popup) {
-      ok(this.notifyObj.dismissalCallbackTriggered, "dismissal handler triggered");
       this.notification.remove();
     }
   },
@@ -210,7 +199,6 @@ var tests = [
       is(PopupNotifications.isPanelOpen, false, "panel isn't open");
       ok(!wrongBrowserNotificationObject.mainActionClicked, "main action wasn't clicked");
       ok(!wrongBrowserNotificationObject.secondaryActionClicked, "secondary action wasn't clicked");
-      ok(!wrongBrowserNotificationObject.dismissalCallbackTriggered, "dismissal handler wasn't called");
     }
   },
   // now select that browser and test to see that the notification appeared
@@ -229,9 +217,7 @@ var tests = [
     },
     onHidden: function (popup) {
       // actually remove the notification to prevent it from reappearing
-      ok(!wrongBrowserNotificationObject.dismissalCallbackTriggered, "dismissal handler wasn't called");
       wrongBrowserNotification.remove();
-      ok(!wrongBrowserNotificationObject.dismissalCallbackTriggered, "dismissal handler wasn't called after remove()");
       wrongBrowserNotification = null;
     }
   },
@@ -284,11 +270,9 @@ var tests = [
     onHidden: function (popup) {
       ok(this.testNotif1.mainActionClicked, "main action #1 was clicked");
       ok(!this.testNotif1.secondaryActionClicked, "secondary action #1 wasn't clicked");
-      ok(!this.testNotif1.dismissalCallbackTriggered, "dismissal handler #1 wasn't called");
 
       ok(!this.testNotif2.mainActionClicked, "main action #2 wasn't clicked");
       ok(this.testNotif2.secondaryActionClicked, "secondary action #2 was clicked");
-      ok(!this.testNotif2.dismissalCallbackTriggered, "dismissal handler #2 wasn't called");
     }
   },
   // Test notification without mainAction
@@ -370,9 +354,9 @@ var tests = [
       let self = this;
       loadURI("http://example.com/", function() {
         self.notifyObj = new basicNotification();
-        self.notifyObj.addOptions({
+        self.notifyObj.options = {
           persistence: 2
-        });
+        };
         self.notification = showNotification(self.notifyObj);
       });
     },
@@ -407,9 +391,9 @@ var tests = [
       loadURI("http://example.com/", function() {
         self.notifyObj = new basicNotification();
         // Set a timeout of 10 minutes that should never be hit
-        self.notifyObj.addOptions({
+        self.notifyObj.options = {
           timeout: Date.now() + 600000
-        });
+        };
         self.notification = showNotification(self.notifyObj);
       });
     },
@@ -449,7 +433,7 @@ var tests = [
       // The notification should open up on the box
       this.notifyObj = new basicNotification();
       this.notifyObj.anchorID = this.box.id = "nested-box";
-      this.notifyObj.addOptions({dismissed: true});
+      this.notifyObj.options = {dismissed: true};
       this.notification = showNotification(this.notifyObj);
 
       EventUtils.synthesizeMouse(button, 1, 1, {});
@@ -468,7 +452,7 @@ var tests = [
     run: function() {
       let notifyObj = new basicNotification();
       notifyObj.anchorID = "geo-notification-icon";
-      notifyObj.addOptions({neverShow: true});
+      notifyObj.options = {neverShow: true};
       showNotification(notifyObj);
     },
     updateNotShowing: function() {

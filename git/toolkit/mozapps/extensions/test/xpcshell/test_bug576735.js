@@ -34,7 +34,9 @@ function run_test() {
   do_test_pending();
   createAppInfo("xpcshell@tests.mozilla.org", "XPCShell", "1", "2");
 
-  writeInstallRDFForExtension(addon1, profileDir);
+  var dest = profileDir.clone();
+  dest.append("addon1@tests.mozilla.org");
+  writeInstallRDFToDir(addon1, dest);
 
   startupManager();
 
@@ -44,10 +46,12 @@ function run_test() {
     shutdownManager();
 
     var dest = profileDir.clone();
-    dest.append(do_get_expected_addon_name("addon1@tests.mozilla.org"));
+    dest.append("addon1@tests.mozilla.org");
     dest.remove(true);
 
-    writeInstallRDFForExtension(addon2, profileDir);
+    dest = profileDir.clone();
+    dest.append("addon2@tests.mozilla.org");
+    writeInstallRDFToDir(addon2, dest);
 
     startupManager();
 

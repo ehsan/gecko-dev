@@ -268,9 +268,25 @@ nsPopupBoxObject::GetTriggerNode(nsIDOMNode** aTriggerNode)
 {
   *aTriggerNode = nsnull;
 
-  nsIContent* triggerContent = nsMenuPopupFrame::GetTriggerContent(GetMenuPopupFrame());
-  if (triggerContent)
-    CallQueryInterface(triggerContent, aTriggerNode);
+  nsMenuPopupFrame *menuPopupFrame = GetMenuPopupFrame();
+  while (menuPopupFrame) {
+    nsIContent* triggerContent = menuPopupFrame->GetTriggerContent();
+    if (triggerContent) {
+      CallQueryInterface(triggerContent, aTriggerNode);
+      break;
+    }
+
+    // check up the menu hierarchy until a popup with a trigger node is found
+    nsMenuFrame* menuFrame = menuPopupFrame->GetParentMenu();
+    if (!menuFrame)
+      break;
+
+    nsMenuParent* parentPopup = menuFrame->GetMenuParent();
+    if (!parentPopup || !parentPopup->IsMenu())
+      break;
+
+    menuPopupFrame = static_cast<nsMenuPopupFrame *>(parentPopup);
+  }
 
   return NS_OK;
 }
