@@ -63,8 +63,8 @@ using namespace mozilla::ipc;
 USING_BLUETOOTH_NAMESPACE
 
 namespace {
-  StaticRefPtr<BluetoothHfpManager> sBluetoothHfpManager;
-  bool sInShutdown = false;
+  StaticRefPtr<BluetoothHfpManager> gBluetoothHfpManager;
+  bool gInShutdown = false;
   static const char kHfpCrlf[] = "\xd\xa";
 
   // Sending ringtone related
@@ -232,11 +232,11 @@ class BluetoothHfpManager::RespondToBLDNTask : public Task
 private:
   void Run() MOZ_OVERRIDE
   {
-    MOZ_ASSERT(sBluetoothHfpManager);
+    MOZ_ASSERT(gBluetoothHfpManager);
 
-    if (!sBluetoothHfpManager->mDialingRequestProcessed) {
-      sBluetoothHfpManager->mDialingRequestProcessed = true;
-      sBluetoothHfpManager->SendLine("ERROR");
+    if (!gBluetoothHfpManager->mDialingRequestProcessed) {
+      gBluetoothHfpManager->mDialingRequestProcessed = true;
+      gBluetoothHfpManager->SendLine("ERROR");
     }
   }
 };
@@ -260,20 +260,20 @@ public:
       return;
     }
 
-    if (!sBluetoothHfpManager) {
+    if (!gBluetoothHfpManager) {
       NS_WARNING("BluetoothHfpManager no longer exists, cannot send ring!");
       return;
     }
 
     nsAutoCString ringMsg("RING");
-    sBluetoothHfpManager->SendLine(ringMsg.get());
+    gBluetoothHfpManager->SendLine(ringMsg.get());
 
     if (!mNumber.IsEmpty()) {
       nsAutoCString clipMsg("+CLIP: \"");
       clipMsg.Append(NS_ConvertUTF16toUTF8(mNumber).get());
       clipMsg.AppendLiteral("\",");
       clipMsg.AppendInt(mType);
-      sBluetoothHfpManager->SendLine(clipMsg.get());
+      gBluetoothHfpManager->SendLine(clipMsg.get());
     }
 
     MessageLoop::current()->
@@ -292,9 +292,9 @@ class BluetoothHfpManager::CloseScoTask : public Task
 private:
   void Run() MOZ_OVERRIDE
   {
-    MOZ_ASSERT(sBluetoothHfpManager);
+    MOZ_ASSERT(gBluetoothHfpManager);
 
-    sBluetoothHfpManager->DisconnectSco();
+    gBluetoothHfpManager->DisconnectSco();
   }
 };
 
@@ -434,23 +434,23 @@ BluetoothHfpManager::Get()
 {
   MOZ_ASSERT(NS_IsMainThread());
 
-  // If sBluetoothHfpManager already exists, exit early
-  if (sBluetoothHfpManager) {
-    return sBluetoothHfpManager;
+  // If we already exist, exit early
+  if (gBluetoothHfpManager) {
+    return gBluetoothHfpManager;
   }
 
   // If we're in shutdown, don't create a new instance
-  if (sInShutdown) {
+  if (gInShutdown) {
     NS_WARNING("BluetoothHfpManager can't be created during shutdown");
     return nullptr;
   }
 
-  // Create a new instance, register, and return
+  // Create new instance, register, return
   BluetoothHfpManager* manager = new BluetoothHfpManager();
   NS_ENSURE_TRUE(manager->Init(), nullptr);
 
-  sBluetoothHfpManager = manager;
-  return sBluetoothHfpManager;
+  gBluetoothHfpManager = manager;
+  return gBluetoothHfpManager;
 }
 
 void
@@ -650,10 +650,10 @@ void
 BluetoothHfpManager::HandleShutdown()
 {
   MOZ_ASSERT(NS_IsMainThread());
-  sInShutdown = true;
+  gInShutdown = true;
   Disconnect();
   DisconnectSco();
-  sBluetoothHfpManager = nullptr;
+  gBluetoothHfpManager = nullptr;
 }
 
 // Virtual function of class SocketConsumer
@@ -1000,7 +1000,7 @@ BluetoothHfpManager::Connect(const nsAString& aDeviceAddress,
   MOZ_ASSERT(NS_IsMainThread());
 
   BluetoothService* bs = BluetoothService::Get();
-  if (!bs || sInShutdown) {
+  if (!bs || gInShutdown) {
     DispatchBluetoothReply(aRunnable, BluetoothValue(),
                            NS_LITERAL_STRING(ERR_NO_AVAILABLE_RESOURCE));
     return;
@@ -1057,7 +1057,7 @@ BluetoothHfpManager::Listen()
 {
   MOZ_ASSERT(NS_IsMainThread());
 
-  if (sInShutdown) {
+  if (gInShutdown) {
     NS_WARNING("Listen called while in shutdown!");
     return false;
   }
@@ -1679,7 +1679,7 @@ BluetoothHfpManager::ConnectSco(BluetoothReplyRunnable* aRunnable)
 {
   MOZ_ASSERT(NS_IsMainThread());
 
-  if (sInShutdown) {
+  if (gInShutdown) {
     NS_WARNING("ConnecteSco called while in shutdown!");
     return false;
   }
@@ -1732,7 +1732,7 @@ BluetoothHfpManager::ListenSco()
 {
   MOZ_ASSERT(NS_IsMainThread());
 
-  if (sInShutdown) {
+  if (gInShutdown) {
     NS_WARNING("ListenSco called while in shutdown!");
     return false;
   }
