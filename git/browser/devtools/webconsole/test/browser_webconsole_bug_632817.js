@@ -177,7 +177,7 @@ function testLiveFilteringOnSearchStrings() {
 function countMessageNodes() {
   let messageNodes = hud.outputNode.querySelectorAll(".hud-msg-node");
   let displayedMessageNodes = 0;
-  let view = hud.iframeWindow;
+  let view = hud.chromeWindow;
   for (let i = 0; i < messageNodes.length; i++) {
     let computedStyle = view.getComputedStyle(messageNodes[i], null);
     if (computedStyle.display !== "none")
@@ -189,6 +189,6 @@ function countMessageNodes() {
 
 function setStringFilter(aValue)
 {
-  hud.ui.filterBox.value = aValue;
-  hud.ui.adjustVisibilityOnSearchStringChange();
+  hud.filterBox.value = aValue;
+  HUDService.adjustVisibilityOnSearchStringChange(hud.hudId, aValue);
 }

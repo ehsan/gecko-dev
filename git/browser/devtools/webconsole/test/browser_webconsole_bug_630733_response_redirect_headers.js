@@ -65,7 +65,7 @@ function test()
     browser.removeEventListener(aEvent.type, onLoad1, true);
 
     openConsole(null, function(hud) {
-      hud.ui.saveRequestAndResponseBodies = true;
+      hud.saveRequestAndResponseBodies = true;
       HUDService.lastFinishedRequestCallback = requestDoneCallback;
 
       browser.addEventListener("load", function onLoad2(aEvent) {

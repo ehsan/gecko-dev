@@ -61,8 +61,7 @@ function checkNodeKeyValue(aPanel, aId, aKey, aValue) {
 }
 
 function testGen() {
-  let hud = HUDService.getHudByWindow(content);
-  let filterBox = hud.ui.filterBox;
+  let filterBox = HUDService.getHudByWindow(content).filterBox;
 
   let tempScope  = {};
   Cu.import("resource:///modules/WebConsoleUtils.jsm", tempScope);
@@ -97,7 +96,7 @@ function testGen() {
 
   let entry = httpActivity.log.entries[0];
 
-  let networkPanel = hud.ui.openNetworkPanel(filterBox, httpActivity);
+  let networkPanel = HUDService.openNetworkPanel(filterBox, httpActivity);
 
   is(filterBox._netPanel, networkPanel,
      "Network panel stored on the anchor object");
@@ -216,7 +215,7 @@ function testGen() {
   );
   entry.response.content.text = "get out here";
 
-  networkPanel = hud.ui.openNetworkPanel(filterBox, httpActivity);
+  networkPanel = HUDService.openNetworkPanel(filterBox, httpActivity);
   is(filterBox._netPanel, networkPanel,
      "Network panel stored on httpActivity object");
 
@@ -251,7 +250,7 @@ function testGen() {
   entry.response.content.mimeType = "image/png";
   entry.request.url = TEST_IMG;
 
-  networkPanel = hud.ui.openNetworkPanel(filterBox, httpActivity);
+  networkPanel = HUDService.openNetworkPanel(filterBox, httpActivity);
   networkPanel.panel.addEventListener("load", function onLoad() {
     networkPanel.panel.removeEventListener("load", onLoad, true);
     testDriver.next();
@@ -300,7 +299,7 @@ function testGen() {
   entry.response.status = 304;
   entry.response.statusText = "Not Modified";
 
-  networkPanel = hud.ui.openNetworkPanel(filterBox, httpActivity);
+  networkPanel = HUDService.openNetworkPanel(filterBox, httpActivity);
   networkPanel.panel.addEventListener("load", function onLoad() {
     networkPanel.panel.removeEventListener("load", onLoad, true);
     testDriver.next();
@@ -332,7 +331,7 @@ function testGen() {
     "name=rob&age=20"
   ].join("\n");
 
-  networkPanel = hud.ui.openNetworkPanel(filterBox, httpActivity);
+  networkPanel = HUDService.openNetworkPanel(filterBox, httpActivity);
   networkPanel.panel.addEventListener("load", function onLoad() {
     networkPanel.panel.removeEventListener("load", onLoad, true);
     testDriver.next();
@@ -359,7 +358,7 @@ function testGen() {
   info("test 10: no space after Content-Type header in post data");
   entry.request.postData.text = "Content-Type:application/x-www-form-urlencoded\n";
 
-  networkPanel = hud.ui.openNetworkPanel(filterBox, httpActivity);
+  networkPanel = HUDService.openNetworkPanel(filterBox, httpActivity);
   networkPanel.panel.addEventListener("load", function onLoad() {
     networkPanel.panel.removeEventListener("load", onLoad, true);
     testDriver.next();
@@ -389,7 +388,7 @@ function testGen() {
   entry.response.content.mimeType = "application/json";
   entry.response.content.text = "my cached data is here!";
 
-  networkPanel = hud.ui.openNetworkPanel(filterBox, httpActivity);
+  networkPanel = HUDService.openNetworkPanel(filterBox, httpActivity);
   networkPanel.panel.addEventListener("load", function onLoad() {
     networkPanel.panel.removeEventListener("load", onLoad, true);
     testDriver.next();
@@ -420,7 +419,7 @@ function testGen() {
   entry.response.headers[1].value = "application/x-shockwave-flash";
   entry.response.content.mimeType = "application/x-shockwave-flash";
 
-  networkPanel = hud.ui.openNetworkPanel(filterBox, httpActivity);
+  networkPanel = HUDService.openNetworkPanel(filterBox, httpActivity);
   networkPanel.panel.addEventListener("load", function onLoad() {
     networkPanel.panel.removeEventListener("load", onLoad, true);
     testDriver.next();
@@ -456,7 +455,7 @@ function testGen() {
   delete httpActivity.response.header["Content-Type"];
   httpActivity.url = "http://www.test.com/someCrazyFile.swf?done=right&ending=txt";
 
-  networkPanel = hud.ui.openNetworkPanel(filterBox, httpActivity);
+  networkPanel = HUDService.openNetworkPanel(filterBox, httpActivity);
   networkPanel.isDoneCallback = function NP_doneCallback() {
     networkPanel.isDoneCallback = null;
     testDriver.next();

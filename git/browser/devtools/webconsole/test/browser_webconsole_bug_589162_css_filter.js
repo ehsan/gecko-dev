@@ -30,13 +30,13 @@ function onContentLoaded()
     },
     successFn: function()
     {
-      HUD.setFilterState("cssparser", false);
+      HUDService.setFilterState(hudId, "cssparser", false);
 
       let msg = "the unknown CSS property warning is not displayed, " +
                 "after filtering";
       testLogEntry(outputNode, "foobarCssParser", msg, true, true);
 
-      HUD.setFilterState("cssparser", true);
+      HUDService.setFilterState(hudId, "cssparser", true);
       finishTest();
     },
     failureFn: finishTest,
@@ -53,10 +53,9 @@ function test()
   browser.addEventListener("load", function onLoad() {
     browser.removeEventListener("load", onLoad, true);
 
-    openConsole(null, function() {
-      browser.addEventListener("load", onContentLoaded, true);
-      content.location.reload();
-    });
+    openConsole();
+    browser.addEventListener("load", onContentLoaded, true);
+    content.location.reload();
   }, true);
 }
 

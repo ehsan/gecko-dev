@@ -11,9 +11,14 @@
 let inputNode, values;
 
 function tabLoad(aEvent) {
-  browser.removeEventListener(aEvent.type, tabLoad, true);
+  browser.removeEventListener(aEvent.type, arguments.callee, true);
 
-  openConsole(null, function(HUD) {
+  waitForFocus(function() {
+    openConsole();
+
+    let hudId = HUDService.getHudIdByWindow(content);
+    let HUD = HUDService.hudReferences[hudId];
+
     inputNode = HUD.jsterm.inputNode;
 
     inputNode.focus();
@@ -30,7 +35,7 @@ function tabLoad(aEvent) {
     }
 
     performTests();
-  });
+  }, content);
 }
 
 function performTests() {
