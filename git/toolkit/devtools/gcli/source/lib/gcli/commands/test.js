@@ -21,7 +21,6 @@ require('../test/suite');
 var examiner = require('../testharness/examiner');
 var stati = require('../testharness/status').stati;
 var helpers = require('../test/helpers');
-var cli = require('../cli');
 var Requisition = require('../cli').Requisition;
 var createRequisitionAutomator = require('../test/automators/requisition').createRequisitionAutomator;
 
@@ -86,15 +85,7 @@ exports.items = [
 
       return args.suite.run(options).then(function() {
         requisition.canon.getCommand('mocks').off(requisition);
-        var output = context.typedData('examiner-output', examiner.toRemote());
-
-        if (output.data.summary.status === stati.pass) {
-          return output;
-        }
-        else {
-          cli.logErrors = false;
-          throw output;
-        }
+        return examiner.toRemote();
       });
     }
   },
@@ -103,8 +94,15 @@ exports.items = [
     from: 'examiner-output',
     to: 'string',
     exec: function(output, conversionContext) {
-      return '\n' + examiner.detailedResultLog('NodeJS/NoDom') +
-             '\n' + helpers.timingSummary;
+      var reply = '\n' + examiner.detailedResultLog('NodeJS/NoDom') +
+                  '\n' + helpers.timingSummary;
+
+      if (output.summary.status === stati.pass) {
+        return reply;
+      }
+      else {
+        throw reply;
+      }
     }
   },
   {

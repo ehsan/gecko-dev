@@ -53,12 +53,10 @@ const INTERESTING_CALLS = [
 
 exports.register = function(handle) {
   handle.addTabActor(CanvasActor, "canvasActor");
-  handle.addGlobalActor(CanvasActor, "canvasActor");
 };
 
 exports.unregister = function(handle) {
   handle.removeTabActor(CanvasActor);
-  handle.removeGlobalActor(CanvasActor);
 };
 
 /**

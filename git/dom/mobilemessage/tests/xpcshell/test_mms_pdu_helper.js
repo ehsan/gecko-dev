@@ -16,15 +16,15 @@ function run_test() {
 //// BooleanValue.decode ////
 
 add_test(function test_BooleanValue_decode() {
-  // Valid codes are 128 and 129. Check boundary conditions 0, 1, 127, 130 and
-  // 255 as well.
-  wsp_decode_test(MMS.BooleanValue, [0], null, "CodeError");
-  wsp_decode_test(MMS.BooleanValue, [1], null, "CodeError");
-  wsp_decode_test(MMS.BooleanValue, [127], null, "CodeError");
-  wsp_decode_test(MMS.BooleanValue, [128], true);
-  wsp_decode_test(MMS.BooleanValue, [129], false);
-  wsp_decode_test(MMS.BooleanValue, [130], null, "CodeError");
-  wsp_decode_test(MMS.BooleanValue, [255], null, "CodeError");
+  for (let i = 0; i < 256; i++) {
+    if (i == 128) {
+      wsp_decode_test(MMS.BooleanValue, [128], true);
+    } else if (i == 129) {
+      wsp_decode_test(MMS.BooleanValue, [129], false);
+    } else {
+      wsp_decode_test(MMS.BooleanValue, [i], null, "CodeError");
+    }
+  }
 
   run_next_test();
 });
@@ -461,15 +461,13 @@ add_test(function test_MmsHeader_encode() {
 //// CancelStatusValue.decode ////
 
 add_test(function test_CancelStatusValue_decode() {
-  // Valid codes are 128 and 129. Check boundary conditions 0, 1, 127, 130 and
-  // 255 as well.
-  wsp_decode_test(MMS.CancelStatusValue, [0], null, "CodeError");
-  wsp_decode_test(MMS.CancelStatusValue, [1], null, "CodeError");
-  wsp_decode_test(MMS.CancelStatusValue, [127], null, "CodeError");
-  wsp_decode_test(MMS.CancelStatusValue, [128], 128);
-  wsp_decode_test(MMS.CancelStatusValue, [129], 129);
-  wsp_decode_test(MMS.CancelStatusValue, [130], null, "CodeError");
-  wsp_decode_test(MMS.CancelStatusValue, [255], null, "CodeError");
+  for (let i = 0; i < 256; i++) {
+    if ((i >= 128) && (i <= 129)) {
+      wsp_decode_test(MMS.CancelStatusValue, [i], i);
+    } else {
+      wsp_decode_test(MMS.CancelStatusValue, [i], null, "CodeError");
+    }
+  }
 
   run_next_test();
 });
@@ -477,15 +475,13 @@ add_test(function test_CancelStatusValue_decode() {
 //// CancelStatusValue.encode ////
 
 add_test(function test_CancelStatusValue_encode() {
-  // Valid codes are 128 and 129. Check boundary conditions 0, 1, 127, 130 and
-  // 255 as well.
-  wsp_encode_test(MMS.CancelStatusValue, 0, null, "CodeError");
-  wsp_encode_test(MMS.CancelStatusValue, 1, null, "CodeError");
-  wsp_encode_test(MMS.CancelStatusValue, 127, null, "CodeError");
-  wsp_encode_test(MMS.CancelStatusValue, 128, [128]);
-  wsp_encode_test(MMS.CancelStatusValue, 129, [129]);
-  wsp_encode_test(MMS.CancelStatusValue, 130, null, "CodeError");
-  wsp_encode_test(MMS.CancelStatusValue, 255, null, "CodeError");
+  for (let i = 0; i < 256; i++) {
+    if ((i >= 128) && (i <= 129)) {
+      wsp_encode_test(MMS.CancelStatusValue, i, [i]);
+    } else {
+      wsp_encode_test(MMS.CancelStatusValue, i, null, "CodeError");
+    }
+  }
 
   run_next_test();
 });
@@ -497,16 +493,13 @@ add_test(function test_CancelStatusValue_encode() {
 //// ContentClassValue.decode ////
 
 add_test(function test_ContentClassValue_decode() {
-  // Valid codes are 128 - 135. Check boundary conditions 0, 1, 127, 136 and
-  // 255 as well.
-  wsp_decode_test(MMS.ContentClassValue, [0], null, "CodeError");
-  wsp_decode_test(MMS.ContentClassValue, [1], null, "CodeError");
-  wsp_decode_test(MMS.ContentClassValue, [127], null, "CodeError");
-  for (let i = 128; i <= 135; i++) {
-    wsp_decode_test(MMS.ContentClassValue, [i], i);
+  for (let i = 0; i < 256; i++) {
+    if ((i >= 128) && (i <= 135)) {
+      wsp_decode_test(MMS.ContentClassValue, [i], i);
+    } else {
+      wsp_decode_test(MMS.ContentClassValue, [i], null, "CodeError");
+    }
   }
-  wsp_decode_test(MMS.ContentClassValue, [136], null, "CodeError");
-  wsp_decode_test(MMS.ContentClassValue, [255], null, "CodeError");
 
   run_next_test();
 });
@@ -514,16 +507,13 @@ add_test(function test_ContentClassValue_decode() {
 //// ContentClassValue.encode ////
 
 add_test(function test_ContentClassValue_encode() {
-  // Valid codes are 128 - 135. Check boundary conditions 0, 1, 127, 136 and
-  // 255 as well.
-  wsp_encode_test(MMS.ContentClassValue, 0, null, "CodeError");
-  wsp_encode_test(MMS.ContentClassValue, 1, null, "CodeError");
-  wsp_encode_test(MMS.ContentClassValue, 127, null, "CodeError");
-  for (let i = 128; i <= 135; i++) {
-    wsp_encode_test(MMS.ContentClassValue, i, [i]);
+  for (let i = 0; i < 256; i++) {
+    if ((i >= 128) && (i <= 135)) {
+      wsp_encode_test(MMS.ContentClassValue, i, [i]);
+    } else {
+      wsp_encode_test(MMS.ContentClassValue, i, null, "CodeError");
+    }
   }
-  wsp_encode_test(MMS.ContentClassValue, 136, null, "CodeError");
-  wsp_encode_test(MMS.ContentClassValue, 255, null, "CodeError");
 
   run_next_test();
 });
@@ -819,25 +809,21 @@ add_test(function test_FromValue_encode() {
 //// MessageClassValue.decodeClassIdentifier ////
 
 add_test(function test_MessageClassValue_decodeClassIdentifier() {
-  const IDs = ["personal", "advertisement", "informational", "auto"];
-
-  function test(i, error) {
-    let id = IDs[i - 128];
-    wsp_decode_test_ex(function(data) {
-        return MMS.MessageClassValue.decodeClassIdentifier(data);
-      }, [i], (error ? null : id), error);
+  let (IDs = ["personal", "advertisement", "informational", "auto"]) {
+    for (let i = 0; i < 256; i++) {
+      if ((i >= 128) && (i <= 131)) {
+        wsp_decode_test_ex(function(data) {
+            return MMS.MessageClassValue.decodeClassIdentifier(data);
+          }, [i], IDs[i - 128]
+        );
+      } else {
+        wsp_decode_test_ex(function(data) {
+            return MMS.MessageClassValue.decodeClassIdentifier(data);
+          }, [i], null, "CodeError"
+        );
+      }
+    }
   }
-
-  // Valid codes are 128 - 131. Check boundary conditions 0, 1, 127, 132 and
-  // 255 as well.
-  test(0, "CodeError");
-  test(1, "CodeError");
-  test(127, "CodeError");
-  for (let i = 128; i <= 131; i++) {
-    test(i, null);
-  }
-  test(132, "CodeError");
-  test(255, "CodeError");
 
   run_next_test();
 });
@@ -870,16 +856,13 @@ add_test(function test_MessageClassValue_encode() {
 //// MessageTypeValue.decode ////
 
 add_test(function test_MessageTypeValue_decode() {
-  // Valid codes are 128 - 151. Check boundary conditions 0, 1, 127, 152 and
-  // 255 as well.
-  wsp_decode_test(MMS.MessageTypeValue, [0], null, "CodeError");
-  wsp_decode_test(MMS.MessageTypeValue, [1], null, "CodeError");
-  wsp_decode_test(MMS.MessageTypeValue, [127], null, "CodeError");
-  for (let i = 128; i <= 151; i++) {
-    wsp_decode_test(MMS.MessageTypeValue, [i], i);
+  for (let i = 0; i < 256; i++) {
+    if ((i >= 128) && (i <= 151)) {
+      wsp_decode_test(MMS.MessageTypeValue, [i], i);
+    } else {
+      wsp_decode_test(MMS.MessageTypeValue, [i], null, "CodeError");
+    }
   }
-  wsp_decode_test(MMS.MessageTypeValue, [152], null, "CodeError");
-  wsp_decode_test(MMS.MessageTypeValue, [255], null, "CodeError");
 
   run_next_test();
 });
@@ -887,16 +870,13 @@ add_test(function test_MessageTypeValue_decode() {
 //// MessageTypeValue.encode ////
 
 add_test(function test_MessageTypeValue_encode() {
-  // Valid codes are 128 - 151. Check boundary conditions 0, 1, 127, 152 and
-  // 255 as well.
-  wsp_encode_test(MMS.MessageTypeValue, 0, null, "CodeError");
-  wsp_encode_test(MMS.MessageTypeValue, 1, null, "CodeError");
-  wsp_encode_test(MMS.MessageTypeValue, 127, null, "CodeError");
-  for (let i = 128; i <= 151; i++) {
-    wsp_encode_test(MMS.MessageTypeValue, i, [i]);
+  for (let i = 0; i < 256; i++) {
+    if ((i >= 128) && (i <= 151)) {
+      wsp_encode_test(MMS.MessageTypeValue, i, [i]);
+    } else {
+      wsp_encode_test(MMS.MessageTypeValue, i, null, "CodeError");
+    }
   }
-  wsp_encode_test(MMS.MessageTypeValue, 152, null, "CodeError");
-  wsp_encode_test(MMS.MessageTypeValue, 255, null, "CodeError");
 
   run_next_test();
 });
@@ -908,16 +888,13 @@ add_test(function test_MessageTypeValue_encode() {
 //// MmFlagsValue.decode ////
 
 add_test(function test_MmFlagsValue_decode() {
-  // Valid codes are 128 - 130. Check boundary conditions 0, 1, 127, 131 and
-  // 255 as well.
-  wsp_decode_test(MMS.MmFlagsValue, [3, 0, 65, 0], null, "CodeError");
-  wsp_decode_test(MMS.MmFlagsValue, [3, 1, 65, 0], null, "CodeError");
-  wsp_decode_test(MMS.MmFlagsValue, [3, 127, 65, 0], null, "CodeError");
-  for (let i = 128; i <= 130; i++) {
-    wsp_decode_test(MMS.MmFlagsValue, [3, i, 65, 0], {type: i, text: "A"});
+  for (let i = 0; i < 256; i++) {
+    if ((i >= 128) && (i <= 130)) {
+      wsp_decode_test(MMS.MmFlagsValue, [3, i, 65, 0], {type: i, text: "A"});
+    } else {
+      wsp_decode_test(MMS.MmFlagsValue, [3, i, 65, 0], null, "CodeError");
+    }
   }
-  wsp_decode_test(MMS.MmFlagsValue, [3, 131, 65, 0], null, "CodeError");
-  wsp_decode_test(MMS.MmFlagsValue, [3, 255, 65, 0], null, "CodeError");
 
   run_next_test();
 });
@@ -925,16 +902,13 @@ add_test(function test_MmFlagsValue_decode() {
 //// MmFlagsValue.encode ////
 
 add_test(function test_MmFlagsValue_encode() {
-  // Valid codes are 128 - 130. Check boundary conditions 0, 1, 127, 131 and
-  // 255 as well.
-  wsp_encode_test(MMS.MmFlagsValue, {type: 0, text: "A"}, null, "CodeError");
-  wsp_encode_test(MMS.MmFlagsValue, {type: 1, text: "A"}, null, "CodeError");
-  wsp_encode_test(MMS.MmFlagsValue, {type: 127, text: "A"}, null, "CodeError");
-  for (let i = 128; i <= 130; i++) {
-    wsp_encode_test(MMS.MmFlagsValue, {type: i, text: "A"}, [3, i, 65, 0]);
+  for (let i = 0; i < 256; i++) {
+    if ((i >= 128) && (i <= 130)) {
+      wsp_encode_test(MMS.MmFlagsValue, {type: i, text: "A"}, [3, i, 65, 0]);
+    } else {
+      wsp_encode_test(MMS.MmFlagsValue, {type: i, text: "A"}, null, "CodeError");
+    }
   }
-  wsp_encode_test(MMS.MmFlagsValue, {type: 131, text: "A"}, null, "CodeError");
-  wsp_encode_test(MMS.MmFlagsValue, {type: 255, text: "A"}, null, "CodeError");
 
   run_next_test();
 });
@@ -946,16 +920,13 @@ add_test(function test_MmFlagsValue_encode() {
 //// MmStateValue.decode ////
 
 add_test(function test_MmStateValue_decode() {
-  // Valid codes are 128 - 132. Check boundary conditions 0, 1, 127, 133 and
-  // 255 as well.
-  wsp_decode_test(MMS.MmStateValue, [0], null, "CodeError");
-  wsp_decode_test(MMS.MmStateValue, [1], null, "CodeError");
-  wsp_decode_test(MMS.MmStateValue, [127], null, "CodeError");
-  for (let i = 128; i <= 132; i++) {
-    wsp_decode_test(MMS.MmStateValue, [i], i);
+  for (let i = 0; i < 256; i++) {
+    if ((i >= 128) && (i <= 132)) {
+      wsp_decode_test(MMS.MmStateValue, [i], i);
+    } else {
+      wsp_decode_test(MMS.MmStateValue, [i], null, "CodeError");
+    }
   }
-  wsp_decode_test(MMS.MmStateValue, [133], null, "CodeError");
-  wsp_decode_test(MMS.MmStateValue, [255], null, "CodeError");
 
   run_next_test();
 });
@@ -963,16 +934,13 @@ add_test(function test_MmStateValue_decode() {
 //// MmStateValue.encode ////
 
 add_test(function test_MmStateValue_encode() {
-  // Valid codes are 128 - 132. Check boundary conditions 0, 1, 127, 133 and
-  // 255 as well.
-  wsp_encode_test(MMS.MmStateValue, 0, null, "CodeError");
-  wsp_encode_test(MMS.MmStateValue, 1, null, "CodeError");
-  wsp_encode_test(MMS.MmStateValue, 127, null, "CodeError");
-  for (let i = 128; i <= 132; i++) {
-    wsp_encode_test(MMS.MmStateValue, i, [i]);
+  for (let i = 0; i < 256; i++) {
+    if ((i >= 128) && (i <= 132)) {
+      wsp_encode_test(MMS.MmStateValue, i, [i]);
+    } else {
+      wsp_encode_test(MMS.MmStateValue, i, null, "CodeError");
+    }
   }
-  wsp_encode_test(MMS.MmStateValue, 133, null, "CodeError");
-  wsp_encode_test(MMS.MmStateValue, 255, null, "CodeError");
 
   run_next_test();
 });
@@ -984,16 +952,13 @@ add_test(function test_MmStateValue_encode() {
 //// PriorityValue.decode ////
 
 add_test(function test_PriorityValue_decode() {
-  // Valid codes are 128 - 130. Check boundary conditions 0, 1, 127, 131 and
-  // 255 as well.
-  wsp_decode_test(MMS.PriorityValue, [0], null, "CodeError");
-  wsp_decode_test(MMS.PriorityValue, [1], null, "CodeError");
-  wsp_decode_test(MMS.PriorityValue, [127], null, "CodeError");
-  for (let i = 128; i <= 130; i++) {
-    wsp_decode_test(MMS.PriorityValue, [i], i);
+  for (let i = 0; i < 256; i++) {
+    if ((i >= 128) && (i <= 130)) {
+      wsp_decode_test(MMS.PriorityValue, [i], i);
+    } else {
+      wsp_decode_test(MMS.PriorityValue, [i], null, "CodeError");
+    }
   }
-  wsp_decode_test(MMS.PriorityValue, [131], null, "CodeError");
-  wsp_decode_test(MMS.PriorityValue, [255], null, "CodeError");
 
   run_next_test();
 });
@@ -1001,16 +966,13 @@ add_test(function test_PriorityValue_decode() {
 //// PriorityValue.encode ////
 
 add_test(function test_PriorityValue_encode() {
-  // Valid codes are 128 - 130. Check boundary conditions 0, 1, 127, 131 and
-  // 255 as well.
-  wsp_encode_test(MMS.PriorityValue, 0, null, "CodeError");
-  wsp_encode_test(MMS.PriorityValue, 1, null, "CodeError");
-  wsp_encode_test(MMS.PriorityValue, 127, null, "CodeError");
-  for (let i = 128; i <= 130; i++) {
-    wsp_encode_test(MMS.PriorityValue, i, [i]);
+  for (let i = 0; i < 256; i++) {
+    if ((i >= 128) && (i <= 130)) {
+      wsp_encode_test(MMS.PriorityValue, i, [i]);
+    } else {
+      wsp_encode_test(MMS.PriorityValue, i, null, "CodeError");
+    }
   }
-  wsp_encode_test(MMS.PriorityValue, 131, null, "CodeError");
-  wsp_encode_test(MMS.PriorityValue, 255, null, "CodeError");
 
   run_next_test();
 });
@@ -1022,15 +984,13 @@ add_test(function test_PriorityValue_encode() {
 //// ReadStatusValue.decode ////
 
 add_test(function test_ReadStatusValue_decode() {
-  // Valid codes are 128, 129. Check boundary conditions 0, 1, 127, 130 and
-  // 255 as well.
-  wsp_decode_test(MMS.ReadStatusValue, [0], null, "CodeError");
-  wsp_decode_test(MMS.ReadStatusValue, [1], null, "CodeError");
-  wsp_decode_test(MMS.ReadStatusValue, [127], null, "CodeError");
-  wsp_decode_test(MMS.ReadStatusValue, [128], 128);
-  wsp_decode_test(MMS.ReadStatusValue, [129], 129);
-  wsp_decode_test(MMS.ReadStatusValue, [130], null, "CodeError");
-  wsp_decode_test(MMS.ReadStatusValue, [255], null, "CodeError");
+  for (let i = 0; i < 256; i++) {
+    if ((i >= 128) && (i <= 129)) {
+      wsp_decode_test(MMS.ReadStatusValue, [i], i);
+    } else {
+      wsp_decode_test(MMS.ReadStatusValue, [i], null, "CodeError");
+    }
+  }
 
   run_next_test();
 });
@@ -1038,15 +998,13 @@ add_test(function test_ReadStatusValue_decode() {
 //// ReadStatusValue.encode ////
 
 add_test(function test_ReadStatusValue_encode() {
-  // Valid codes are 128, 129. Check boundary conditions 0, 1, 127, 130 and
-  // 255 as well.
-  wsp_encode_test(MMS.ReadStatusValue, 0, null, "CodeError");
-  wsp_encode_test(MMS.ReadStatusValue, 1, null, "CodeError");
-  wsp_encode_test(MMS.ReadStatusValue, 127, null, "CodeError");
-  wsp_encode_test(MMS.ReadStatusValue, 128, [128]);
-  wsp_encode_test(MMS.ReadStatusValue, 129, [129]);
-  wsp_encode_test(MMS.ReadStatusValue, 130, null, "CodeError");
-  wsp_encode_test(MMS.ReadStatusValue, 255, null, "CodeError");
+  for (let i = 0; i < 256; i++) {
+    if ((i >= 128) && (i <= 129)) {
+      wsp_encode_test(MMS.ReadStatusValue, i, [i]);
+    } else {
+      wsp_encode_test(MMS.ReadStatusValue, i, null, "CodeError");
+    }
+  }
 
   run_next_test();
 });
@@ -1058,14 +1016,13 @@ add_test(function test_ReadStatusValue_encode() {
 //// RecommendedRetrievalModeValue.decode ////
 
 add_test(function test_RecommendedRetrievalModeValue_decode() {
-  // Valid codes is 128. Check boundary conditions 0, 1, 127, 130 and 255 as
-  // well.
-  wsp_decode_test(MMS.RecommendedRetrievalModeValue, [0], null, "CodeError");
-  wsp_decode_test(MMS.RecommendedRetrievalModeValue, [1], null, "CodeError");
-  wsp_decode_test(MMS.RecommendedRetrievalModeValue, [127], null, "CodeError");
-  wsp_decode_test(MMS.RecommendedRetrievalModeValue, [128], 128);
-  wsp_decode_test(MMS.RecommendedRetrievalModeValue, [129], null, "CodeError");
-  wsp_decode_test(MMS.RecommendedRetrievalModeValue, [255], null, "CodeError");
+  for (let i = 0; i < 256; i++) {
+    if (i == 128) {
+      wsp_decode_test(MMS.RecommendedRetrievalModeValue, [i], i);
+    } else {
+      wsp_decode_test(MMS.RecommendedRetrievalModeValue, [i], null, "CodeError");
+    }
+  }
 
   run_next_test();
 });
@@ -1077,16 +1034,13 @@ add_test(function test_RecommendedRetrievalModeValue_decode() {
 //// ReplyChargingValue.decode ////
 
 add_test(function test_ReplyChargingValue_decode() {
-  // Valid codes are 128 - 131. Check boundary conditions 0, 1, 127, 132 and
-  // 255 as well.
-  wsp_decode_test(MMS.ReplyChargingValue, [0], null, "CodeError");
-  wsp_decode_test(MMS.ReplyChargingValue, [1], null, "CodeError");
-  wsp_decode_test(MMS.ReplyChargingValue, [127], null, "CodeError");
-  for (let i = 128; i <= 131; i++) {
-    wsp_decode_test(MMS.ReplyChargingValue, [i], i);
+  for (let i = 0; i < 256; i++) {
+    if ((i >= 128) && (i <= 131)) {
+      wsp_decode_test(MMS.ReplyChargingValue, [i], i);
+    } else {
+      wsp_decode_test(MMS.ReplyChargingValue, [i], null, "CodeError");
+    }
   }
-  wsp_decode_test(MMS.ReplyChargingValue, [132], null, "CodeError");
-  wsp_decode_test(MMS.ReplyChargingValue, [255], null, "CodeError");
 
   run_next_test();
 });
@@ -1094,16 +1048,13 @@ add_test(function test_ReplyChargingValue_decode() {
 //// ReplyChargingValue.encode ////
 
 add_test(function test_ReplyChargingValue_encode() {
-  // Valid codes are 128 - 131. Check boundary conditions 0, 1, 127, 132 and
-  // 255 as well.
-  wsp_encode_test(MMS.ReplyChargingValue, 0, null, "CodeError");
-  wsp_encode_test(MMS.ReplyChargingValue, 1, null, "CodeError");
-  wsp_encode_test(MMS.ReplyChargingValue, 127, null, "CodeError");
-  for (let i = 128; i <= 131; i++) {
-    wsp_encode_test(MMS.ReplyChargingValue, i, [i]);
+  for (let i = 0; i < 256; i++) {
+    if ((i >= 128) && (i <= 131)) {
+      wsp_encode_test(MMS.ReplyChargingValue, i, [i]);
+    } else {
+      wsp_encode_test(MMS.ReplyChargingValue, i, null, "CodeError");
+    }
   }
-  wsp_encode_test(MMS.ReplyChargingValue, 132, null, "CodeError");
-  wsp_encode_test(MMS.ReplyChargingValue, 255, null, "CodeError");
 
   run_next_test();
 });
@@ -1153,23 +1104,14 @@ add_test(function test_ResponseText_decode() {
 //// RetrieveStatusValue.decode ////
 
 add_test(function test_RetrieveStatusValue_decode() {
-  // Valid codes are 128, 192 - 255. Check boundary conditions 0, 1, 127, 129,
-  // and 191 as well.
-  wsp_decode_test(MMS.RetrieveStatusValue, [0],
-                  MMS_PDU_ERROR_PERMANENT_FAILURE);
-  wsp_decode_test(MMS.RetrieveStatusValue, [1],
-                  MMS_PDU_ERROR_PERMANENT_FAILURE);
-  wsp_decode_test(MMS.RetrieveStatusValue, [127],
-                  MMS_PDU_ERROR_PERMANENT_FAILURE);
-
-  wsp_decode_test(MMS.RetrieveStatusValue, [128], MMS_PDU_ERROR_OK);
-
-  wsp_decode_test(MMS.RetrieveStatusValue, [129],
-                  MMS_PDU_ERROR_PERMANENT_FAILURE);
-  wsp_decode_test(MMS.RetrieveStatusValue, [191],
-                  MMS_PDU_ERROR_PERMANENT_FAILURE);
-  for (let i = 192; i < 256; i++) {
-    wsp_decode_test(MMS.RetrieveStatusValue, [i], i);
+  for (let i = 0; i < 256; i++) {
+    if ((i == MMS_PDU_ERROR_OK)
+        || (i >= MMS_PDU_ERROR_TRANSIENT_FAILURE)) {
+      wsp_decode_test(MMS.RetrieveStatusValue, [i], i);
+    } else {
+      wsp_decode_test(MMS.RetrieveStatusValue, [i],
+                      MMS_PDU_ERROR_PERMANENT_FAILURE);
+    }
   }
 
   run_next_test();
@@ -1182,15 +1124,13 @@ add_test(function test_RetrieveStatusValue_decode() {
 //// SenderVisibilityValue.decode ////
 
 add_test(function test_SenderVisibilityValue_decode() {
-  // Valid codes are 128, 129. Check boundary conditions 0, 1, 127, 130 and
-  // 255 as well.
-  wsp_decode_test(MMS.SenderVisibilityValue, [0], null, "CodeError");
-  wsp_decode_test(MMS.SenderVisibilityValue, [1], null, "CodeError");
-  wsp_decode_test(MMS.SenderVisibilityValue, [127], null, "CodeError");
-  wsp_decode_test(MMS.SenderVisibilityValue, [128], 128);
-  wsp_decode_test(MMS.SenderVisibilityValue, [129], 129);
-  wsp_decode_test(MMS.SenderVisibilityValue, [130], null, "CodeError");
-  wsp_decode_test(MMS.SenderVisibilityValue, [255], null, "CodeError");
+  for (let i = 0; i < 256; i++) {
+    if ((i >= 128) && (i <= 129)) {
+      wsp_decode_test(MMS.SenderVisibilityValue, [i], i);
+    } else {
+      wsp_decode_test(MMS.SenderVisibilityValue, [i], null, "CodeError");
+    }
+  }
 
   run_next_test();
 });
@@ -1198,15 +1138,13 @@ add_test(function test_SenderVisibilityValue_decode() {
 //// SenderVisibilityValue.encode ////
 
 add_test(function test_SenderVisibilityValue_encode() {
-  // Valid codes are 128, 129. Check boundary conditions 0, 1, 127, 130 and
-  // 255 as well.
-  wsp_encode_test(MMS.SenderVisibilityValue, 0, null, "CodeError");
-  wsp_encode_test(MMS.SenderVisibilityValue, 1, null, "CodeError");
-  wsp_encode_test(MMS.SenderVisibilityValue, 127, null, "CodeError");
-  wsp_encode_test(MMS.SenderVisibilityValue, 128, [128]);
-  wsp_encode_test(MMS.SenderVisibilityValue, 129, [129]);
-  wsp_encode_test(MMS.SenderVisibilityValue, 130, null, "CodeError");
-  wsp_encode_test(MMS.SenderVisibilityValue, 255, null, "CodeError");
+  for (let i = 0; i < 256; i++) {
+    if ((i >= 128) && (i <= 129)) {
+      wsp_encode_test(MMS.SenderVisibilityValue, i, [i]);
+    } else {
+      wsp_encode_test(MMS.SenderVisibilityValue, i, null, "CodeError");
+    }
+  }
 
   run_next_test();
 });
@@ -1218,16 +1156,13 @@ add_test(function test_SenderVisibilityValue_encode() {
 //// StatusValue.decode ////
 
 add_test(function test_StatusValue_decode() {
-  // Valid codes are 128 - 135. Check boundary conditions 0, 1, 127, 136 and
-  // 255 as well.
-  wsp_decode_test(MMS.StatusValue, [0], null, "CodeError");
-  wsp_decode_test(MMS.StatusValue, [1], null, "CodeError");
-  wsp_decode_test(MMS.StatusValue, [127], null, "CodeError");
-  for (let i = 128; i <= 135; i++) {
-    wsp_decode_test(MMS.StatusValue, [i], i);
+  for (let i = 0; i < 256; i++) {
+    if ((i >= 128) && (i <= 135)) {
+      wsp_decode_test(MMS.StatusValue, [i], i);
+    } else {
+      wsp_decode_test(MMS.StatusValue, [i], null, "CodeError");
+    }
   }
-  wsp_decode_test(MMS.StatusValue, [136], null, "CodeError");
-  wsp_decode_test(MMS.StatusValue, [255], null, "CodeError");
 
   run_next_test();
 });
@@ -1235,16 +1170,13 @@ add_test(function test_StatusValue_decode() {
 //// StatusValue.encode ////
 
 add_test(function test_StatusValue_encode() {
-  // Valid codes are 128 - 135. Check boundary conditions 0, 1, 127, 136 and
-  // 255 as well.
-  wsp_encode_test(MMS.StatusValue, 0, null, "CodeError");
-  wsp_encode_test(MMS.StatusValue, 1, null, "CodeError");
-  wsp_encode_test(MMS.StatusValue, 127, null, "CodeError");
-  for (let i = 128; i <= 135; i++) {
-    wsp_encode_test(MMS.StatusValue, i, [i]);
+  for (let i = 0; i < 256; i++) {
+    if ((i >= 128) && (i <= 135)) {
+      wsp_encode_test(MMS.StatusValue, i, [i]);
+    } else {
+      wsp_encode_test(MMS.StatusValue, i, null, "CodeError");
+    }
   }
-  wsp_encode_test(MMS.StatusValue, 136, null, "CodeError");
-  wsp_encode_test(MMS.StatusValue, 255, null, "CodeError");
 
   run_next_test();
 });

@@ -19,8 +19,7 @@ var ImageEditor = Class({
   },
 
   load: function(resource) {
-    this.elt.innerHTML = "";
-    let image = this.image = this.doc.createElement("image");
+    let image = this.doc.createElement("image");
     image.className = "editor-image";
     image.setAttribute("src", resource.uri);
 
@@ -36,15 +35,7 @@ var ImageEditor = Class({
     this.appended.then(() => {
       this.emit("load");
     });
-  },
-
-  destroy: function() {
-    if (this.image) {
-      this.image.remove();
-      this.image = null;
-    }
   }
-
 });
 
 exports.ImageEditor = ImageEditor;

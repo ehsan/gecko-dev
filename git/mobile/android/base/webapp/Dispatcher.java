@@ -44,8 +44,8 @@ public class Dispatcher extends Activity {
         // Copy the intent, without interfering with it.
         Intent intent = new Intent(getIntent());
 
-        // Only change its destination.
-        intent.setClassName(getApplicationContext(), "org.mozilla.gecko.webapp.Webapps$Webapp" + index);
+        // Only change it's destination.
+        intent.setClassName(getApplicationContext(), getPackageName() + ".WebApps$WebApp" + index);
 
         // If and only if we haven't seen this before.
         intent.putExtra("isInstalled", isInstalled);

@@ -17,7 +17,6 @@ import org.mozilla.gecko.home.HomePager.OnUrlOpenListener;
 
 import android.app.Activity;
 import android.content.Context;
-import android.content.res.Resources;
 import android.content.res.Configuration;
 import android.database.Cursor;
 import android.os.Bundle;
@@ -189,11 +188,7 @@ public class BookmarksPanel extends HomeFragment {
         private final RefreshType mRefreshType;
 
         public BookmarksLoader(Context context) {
-            super(context);
-            final Resources res = context.getResources();
-            final String title = res.getString(R.string.bookmarks_title);
-            mFolderInfo = new FolderInfo(Bookmarks.FIXED_ROOT_ID, title);
-            mRefreshType = RefreshType.CHILD;
+            this(context, new FolderInfo(Bookmarks.FIXED_ROOT_ID), RefreshType.CHILD);
         }
 
         public BookmarksLoader(Context context, FolderInfo folderInfo, RefreshType refreshType) {

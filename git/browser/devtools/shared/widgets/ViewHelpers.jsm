@@ -365,21 +365,11 @@ ViewHelpers.L10N.prototype = {
     if (aNumber == (aNumber | 0)) {
       return aNumber;
     }
-    if (isNaN(aNumber) || aNumber == null) {
-      return "0";
-    }
     // Remove {n} trailing decimals. Can't use toFixed(n) because
     // toLocaleString converts the number to a string. Also can't use
     // toLocaleString(, { maximumFractionDigits: n }) because it's not
     // implemented on OS X (bug 368838). Gross.
     let localized = aNumber.toLocaleString(); // localize
-
-    // If no grouping or decimal separators are available, bail out, because
-    // padding with zeros at the end of the string won't make sense anymore.
-    if (!localized.match(/[^\d]/)) {
-      return localized;
-    }
-
     let padded = localized + new Array(aDecimals).join("0"); // pad with zeros
     let match = padded.match("([^]*?\\d{" + aDecimals + "})\\d*$");
     return match.pop();
@@ -404,8 +394,7 @@ ViewHelpers.L10N.prototype = {
  *        An object containing { accessorName: [prefType, prefName] } keys.
  */
 ViewHelpers.Prefs = function(aPrefsRoot = "", aPrefsObject = {}) {
-  this._root = aPrefsRoot;
-  this._cache = new Map();
+  this.root = aPrefsRoot;
 
   for (let accessorName in aPrefsObject) {
     let [prefType, prefName] = aPrefsObject[accessorName];
@@ -422,13 +411,10 @@ ViewHelpers.Prefs.prototype = {
    * @return any
    */
   _get: function(aType, aPrefName) {
-    let cachedPref = this._cache.get(aPrefName);
-    if (cachedPref !== undefined) {
-      return cachedPref;
+    if (this[aPrefName] === undefined) {
+      this[aPrefName] = Services.prefs["get" + aType + "Pref"](aPrefName);
     }
-    let value = Services.prefs["get" + aType + "Pref"](aPrefName);
-    this._cache.set(aPrefName, value);
-    return value;
+    return this[aPrefName];
   },
 
   /**
@@ -440,7 +426,7 @@ ViewHelpers.Prefs.prototype = {
    */
   _set: function(aType, aPrefName, aValue) {
     Services.prefs["set" + aType + "Pref"](aPrefName, aValue);
-    this._cache.set(aPrefName, aValue);
+    this[aPrefName] = aValue;
   },
 
   /**
@@ -460,16 +446,9 @@ ViewHelpers.Prefs.prototype = {
     }
 
     Object.defineProperty(this, aAccessorName, {
-      get: () => aSerializer.in(this._get(aType, [this._root, aPrefName].join("."))),
-      set: (e) => this._set(aType, [this._root, aPrefName].join("."), aSerializer.out(e))
+      get: () => aSerializer.in(this._get(aType, [this.root, aPrefName].join("."))),
+      set: (e) => this._set(aType, [this.root, aPrefName].join("."), aSerializer.out(e))
     });
-  },
-
-  /**
-   * Clears all the cached preferences' values.
-   */
-  refresh: function() {
-    this._cache.clear();
   }
 };
 
