@@ -15,6 +15,7 @@
 #include "MmsMessage.h"
 #include "nsIMobileMessageDatabaseService.h"
 #include "SmsFilter.h"
+#include "SmsSegmentInfo.h"
 #include "MobileMessageThread.h"
 #include "nsIDOMFile.h"
 #include "mozilla/dom/ipc/Blob.h"
@@ -711,13 +712,10 @@ SmsRequestParent::NotifyMarkMessageReadFailed(int32_t aError)
 }
 
 NS_IMETHODIMP
-SmsRequestParent::NotifySegmentInfoForTextGot(int32_t aSegments,
-                                              int32_t aCharsPerSegment,
-                                              int32_t aCharsAvailableInLastSegment)
+SmsRequestParent::NotifySegmentInfoForTextGot(nsIDOMMozSmsSegmentInfo *aInfo)
 {
-  return SendReply(ReplyGetSegmentInfoForText(aSegments,
-                                              aCharsPerSegment,
-                                              aCharsAvailableInLastSegment));
+  SmsSegmentInfo* info = static_cast<SmsSegmentInfo*>(aInfo);
+  return SendReply(ReplyGetSegmentInfoForText(info->GetData()));
 }
 
 NS_IMETHODIMP

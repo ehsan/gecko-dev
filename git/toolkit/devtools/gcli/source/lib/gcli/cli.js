@@ -2070,10 +2070,6 @@ Requisition.prototype.exec = function(options) {
       }
     }
 
-    if (data != null && typeof data === 'string') {
-      data = data.replace(/^Protocol error: /, ''); // Temp fix for bug 1035296
-    }
-
     data = (data != null && data.isTypedData) ? data : {
       isTypedData: true,
       data: data,

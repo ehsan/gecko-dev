@@ -363,7 +363,7 @@ var NodeActor = exports.NodeActor = protocol.ActorClass({
       }
 
       let global = Cu.getGlobalForObject(listener);
-      let globalDO = dbg.addDebuggee(global);
+      let globalDO = dbg.makeGlobalObjectReference(global);
       let listenerDO = globalDO.makeDebuggeeValue(listener);
 
       // If the listener is an object with a 'handleEvent' method, use that.
@@ -445,7 +445,6 @@ var NodeActor = exports.NodeActor = protocol.ActorClass({
         searchString: searchString
       });
     }
-    dbg.removeAllDebuggees();
     return events;
   },
 

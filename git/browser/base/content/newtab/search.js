@@ -30,9 +30,7 @@ let gSearch = {
   },
 
   search: function (event) {
-    if (event) {
-      event.preventDefault();
-    }
+    event.preventDefault();
     let searchStr = this._nodes.text.value;
     if (this.currentEngineName && searchStr.length) {
       this._send("Search", {
@@ -41,7 +39,6 @@ let gSearch = {
         whence: "newtab",
       });
     }
-    this._suggestionController.addInputValueToFormHistory();
   },
 
   manageEngines: function () {
@@ -50,10 +47,7 @@ let gSearch = {
   },
 
   handleEvent: function (event) {
-    let methodName = "on" + event.detail.type;
-    if (this.hasOwnProperty(methodName)) {
-      this[methodName](event.detail.data);
-    }
+    this["on" + event.detail.type](event.detail.data);
   },
 
   onState: function (data) {
@@ -189,14 +183,5 @@ let gSearch = {
       this._nodes.logo.hidden = true;
       this._nodes.text.placeholder = engine.name;
     }
-
-    // Set up the suggestion controller.
-    if (!this._suggestionController) {
-      let parent = document.getElementById("newtab-scrollbox");
-      this._suggestionController =
-        new SearchSuggestionUIController(this._nodes.text, parent,
-                                         () => this.search());
-    }
-    this._suggestionController.engineName = engine.name;
   },
 };

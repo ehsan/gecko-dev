@@ -18,9 +18,7 @@ import argparse
 class DMCli(object):
 
     def __init__(self):
-        self.commands = { 'deviceroot': { 'function': self.deviceroot,
-                                          'help': 'get device root directory for storing temporary files' },
-                          'install': { 'function': self.install,
+        self.commands = { 'install': { 'function': self.install,
                                        'args': [ { 'name': 'file' } ],
                                        'help': 'push this package file to the device and install it' },
                           'uninstall': { 'function': self.uninstall,
@@ -220,9 +218,6 @@ class DMCli(object):
                                       logLevel=logLevel)
         else:
             self.parser.error("Unknown device manager type: %s" % type)
-
-    def deviceroot(self, args):
-        return self.dm.deviceRoot
 
     def push(self, args):
         (src, dest) = (args.local_file, args.remote_file)

@@ -76,13 +76,13 @@ describe("loop.webapp", function() {
         sdk: {},
         pendingCallTimeout: 1000
       });
-      sandbox.stub(loop.webapp.WebappRouter.prototype, "loadReactComponent");
       router = new loop.webapp.WebappRouter({
         helper: {},
         conversation: conversation,
         notifier: notifier
       });
       sandbox.stub(router, "loadView");
+      sandbox.stub(router, "loadReactComponent");
       sandbox.stub(router, "navigate");
     });
 
@@ -149,7 +149,7 @@ describe("loop.webapp", function() {
           sinon.assert.calledOnce(router.loadReactComponent);
           sinon.assert.calledWith(router.loadReactComponent,
             sinon.match(function(value) {
-              return React.addons.TestUtils.isDescriptorOfType(
+              return React.addons.TestUtils.isComponentOfType(
                 value, loop.webapp.CallUrlExpiredView);
             }));
         });
@@ -165,12 +165,9 @@ describe("loop.webapp", function() {
         it("should load the ConversationFormView", function() {
           router.initiate("fakeToken");
 
-          sinon.assert.calledOnce(router.loadReactComponent);
-          sinon.assert.calledWithExactly(router.loadReactComponent,
-            sinon.match(function(value) {
-              return React.addons.TestUtils.isDescriptorOfType(
-                value, loop.webapp.ConversationFormView);
-            }));
+          sinon.assert.calledOnce(router.loadView);
+          sinon.assert.calledWith(router.loadView,
+            sinon.match.instanceOf(loop.webapp.ConversationFormView));
         });
 
         // https://bugzilla.mozilla.org/show_bug.cgi?id=991118
@@ -193,7 +190,7 @@ describe("loop.webapp", function() {
           sinon.assert.calledOnce(router.loadReactComponent);
           sinon.assert.calledWith(router.loadReactComponent,
             sinon.match(function(value) {
-              return React.addons.TestUtils.isDescriptorOfType(
+              return React.addons.TestUtils.isComponentOfType(
                 value, loop.shared.views.ConversationView);
             }));
         });
@@ -298,68 +295,47 @@ describe("loop.webapp", function() {
     });
 
     describe("#initiate", function() {
-      var conversation, initiate, view, fakeSubmitEvent, requestCallUrlInfo;
+      var conversation, initiate, view, fakeSubmitEvent;
 
       beforeEach(function() {
         conversation = new sharedModels.ConversationModel({}, {
           sdk: {},
           pendingCallTimeout: 1000
         });
-
+        view = new loop.webapp.ConversationFormView({
+          model: conversation,
+          notifier: notifier
+        });
         fakeSubmitEvent = {preventDefault: sinon.spy()};
         initiate = sinon.stub(conversation, "initiate");
-
-        var standaloneClientStub = {
-          requestCallUrlInfo: function(token, cb) {
-            cb(null, {urlCreationDate: 0});
-          },
-          settings: {baseServerUrl: loop.webapp.baseServerUrl}
-        }
-
-        view = React.addons.TestUtils.renderIntoDocument(
-            loop.webapp.ConversationFormView({
-              model: conversation,
-              notifier: notifier,
-              client: standaloneClientStub
-            })
-        );
       });
 
       it("should start the conversation establishment process", function() {
-        var button = view.getDOMNode().querySelector("button");
-        React.addons.TestUtils.Simulate.click(button);
+        conversation.set("loopToken", "fake");
 
+        view.initiate(fakeSubmitEvent);
+
+        sinon.assert.calledOnce(fakeSubmitEvent.preventDefault);
         sinon.assert.calledOnce(initiate);
         sinon.assert.calledWith(initiate, sinon.match(function (value) {
           return !!value.outgoing &&
-            (value.client.settings.baseServerUrl === loop.webapp.baseServerUrl)
-        }, "outgoing: true && correct baseServerUrl"));
+            (value.client instanceof loop.StandaloneClient) &&
+            value.client.settings.baseServerUrl === loop.webapp.baseServerUrl;
+        }, "{client: <properly constructed client>, outgoing: true}"));
       });
 
       it("should disable current form once session is initiated", function() {
+        sandbox.stub(view, "disableForm");
         conversation.set("loopToken", "fake");
 
-        var button = view.getDOMNode().querySelector("button");
-        React.addons.TestUtils.Simulate.click(button);
+        view.initiate(fakeSubmitEvent);
 
-        expect(button.disabled).to.eql(true);
+        sinon.assert.calledOnce(view.disableForm);
       });
-
-      it("should set state.urlCreationDateString to a locale date string",
-         function() {
-        // wrap in a jquery object because text is broken up
-        // into several span elements
-        var date = new Date(0);
-        var options = {year: "numeric", month: "long", day: "numeric"};
-        var timestamp = date.toLocaleDateString(navigator.language, options);
-
-        expect(view.state.urlCreationDateString).to.eql(timestamp);
-      });
-
     });
 
     describe("Events", function() {
-      var conversation, view, StandaloneClient, requestCallUrlInfo;
+      var conversation, view;
 
       beforeEach(function() {
         conversation = new sharedModels.ConversationModel({
@@ -368,30 +344,10 @@ describe("loop.webapp", function() {
           sdk: {},
           pendingCallTimeout: 1000
         });
-
-        sandbox.spy(conversation, "listenTo");
-        requestCallUrlInfo = sandbox.stub();
-
-        view = React.addons.TestUtils.renderIntoDocument(
-            loop.webapp.ConversationFormView({
-              model: conversation,
-              notifier: notifier,
-              client: {requestCallUrlInfo: requestCallUrlInfo}
-            })
-          );
-      });
-
-      it("should call requestCallUrlInfo", function() {
-        sinon.assert.calledOnce(requestCallUrlInfo);
-        sinon.assert.calledWithExactly(requestCallUrlInfo,
-                                       sinon.match.string,
-                                       sinon.match.func);
-      });
-
-      it("should listen for session:error events", function() {
-        sinon.assert.calledOnce(conversation.listenTo);
-        sinon.assert.calledWithExactly(conversation.listenTo, conversation,
-                                       "session:error", sinon.match.func);
+        view = new loop.webapp.ConversationFormView({
+          model: conversation,
+          notifier: notifier
+        });
       });
 
       it("should trigger a notication when a session:error model event is " +

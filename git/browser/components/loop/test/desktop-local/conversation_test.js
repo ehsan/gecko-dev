@@ -47,7 +47,7 @@ describe("loop.conversation", function() {
   });
 
   afterEach(function() {
-    delete navigator.mozLoop;
+    delete window.navigator.mozLoop;
     sandbox.restore();
   });
 
@@ -79,7 +79,7 @@ describe("loop.conversation", function() {
 
       sinon.assert.calledOnce(document.mozL10n.initialize);
       sinon.assert.calledWithExactly(document.mozL10n.initialize,
-        navigator.mozLoop);
+        window.navigator.mozLoop);
     });
 
     it("should set the document title", function() {
@@ -159,16 +159,16 @@ describe("loop.conversation", function() {
             sinon.assert.calledOnce(router.loadReactComponent);
             sinon.assert.calledWith(router.loadReactComponent,
               sinon.match(function(value) {
-                return TestUtils.isDescriptorOfType(value,
+                return TestUtils.isComponentOfType(value,
                   loop.conversation.IncomingCallView);
               }));
         });
 
         it("should start alerting", function() {
-          sandbox.stub(navigator.mozLoop, "startAlerting");
+          sandbox.stub(window.navigator.mozLoop, "startAlerting");
           router.incoming("fakeVersion");
 
-          sinon.assert.calledOnce(navigator.mozLoop.startAlerting);
+          sinon.assert.calledOnce(window.navigator.mozLoop.startAlerting);
         });
       });
 
@@ -187,10 +187,10 @@ describe("loop.conversation", function() {
         });
 
         it("should stop alerting", function() {
-          sandbox.stub(navigator.mozLoop, "stopAlerting");
+          sandbox.stub(window.navigator.mozLoop, "stopAlerting");
           router.accept();
 
-          sinon.assert.calledOnce(navigator.mozLoop.stopAlerting);
+          sinon.assert.calledOnce(window.navigator.mozLoop.stopAlerting);
         });
       });
 
@@ -207,7 +207,7 @@ describe("loop.conversation", function() {
           sinon.assert.calledOnce(router.loadReactComponent);
           sinon.assert.calledWith(router.loadReactComponent,
             sinon.match(function(value) {
-              return TestUtils.isDescriptorOfType(value,
+              return TestUtils.isComponentOfType(value,
                 loop.shared.views.ConversationView);
             }));
         });
@@ -241,56 +241,25 @@ describe("loop.conversation", function() {
         });
 
         it("should stop alerting", function() {
-          sandbox.stub(navigator.mozLoop, "stopAlerting");
+          sandbox.stub(window.navigator.mozLoop, "stopAlerting");
           router.decline();
 
-          sinon.assert.calledOnce(navigator.mozLoop.stopAlerting);
+          sinon.assert.calledOnce(window.navigator.mozLoop.stopAlerting);
         });
       });
 
-      describe("#feedback", function() {
-        var oldTitle;
-
-        beforeEach(function() {
-          oldTitle = document.title;
-          sandbox.stub(document.mozL10n, "get").returns("Call ended");
-        });
-
-        beforeEach(function() {
-          sandbox.stub(loop, "FeedbackAPIClient");
-          sandbox.stub(router, "loadReactComponent");
-        });
-
-        afterEach(function() {
-          document.title = oldTitle;
-        });
-
+      describe("#ended", function() {
         // XXX When the call is ended gracefully, we should check that we
-        // close connections nicely (see bug 1046744)
-        it("should display a feedback form view", function() {
-          router.feedback();
-
-          sinon.assert.calledOnce(router.loadReactComponent);
-          sinon.assert.calledWith(router.loadReactComponent,
-            sinon.match(function(value) {
-              return TestUtils.isDescriptorOfType(value,
-                loop.shared.views.FeedbackView);
-            }));
-        });
-
-        it("should update the conversation window title", function() {
-          router.feedback();
-
-          expect(document.title).eql("Call ended");
-        });
+        // close connections nicely
+        it("should close the window");
       });
 
       describe("#blocked", function() {
         it("should call mozLoop.stopAlerting", function() {
-          sandbox.stub(navigator.mozLoop, "stopAlerting");
+          sandbox.stub(window.navigator.mozLoop, "stopAlerting");
           router.declineAndBlock();
 
-          sinon.assert.calledOnce(navigator.mozLoop.stopAlerting);
+          sinon.assert.calledOnce(window.navigator.mozLoop.stopAlerting);
         });
 
         it("should call delete call", function() {
@@ -350,28 +319,41 @@ describe("loop.conversation", function() {
           sinon.assert.calledWith(router.navigate, "call/ongoing");
         });
 
-      it("should navigate to call/feedback when the call session ends",
+      it("should navigate to call/ended when the call session ends",
         function() {
           conversation.trigger("session:ended");
 
           sinon.assert.calledOnce(router.navigate);
-          sinon.assert.calledWith(router.navigate, "call/feedback");
+          sinon.assert.calledWith(router.navigate, "call/ended");
         });
 
-      it("should navigate to call/feedback when peer hangs up", function() {
+      it("should navigate to call/ended when peer hangs up", function() {
         conversation.trigger("session:peer-hungup");
 
         sinon.assert.calledOnce(router.navigate);
-        sinon.assert.calledWith(router.navigate, "call/feedback");
+        sinon.assert.calledWith(router.navigate, "call/ended");
       });
 
-      it("should navigate to call/feedback when network disconnects",
+      it("should navigate to call/{token} when network disconnects",
         function() {
           conversation.trigger("session:network-disconnected");
 
           sinon.assert.calledOnce(router.navigate);
-          sinon.assert.calledWith(router.navigate, "call/feedback");
+          sinon.assert.calledWith(router.navigate, "call/ended");
         });
+    });
+  });
+
+  describe("EndedCallView", function() {
+    describe("#closeWindow", function() {
+      it("should close the conversation window", function() {
+        sandbox.stub(window, "close");
+        var view = new loop.conversation.EndedCallView();
+
+        view.closeWindow({preventDefault: sandbox.spy()});
+
+        sinon.assert.calledOnce(window.close);
+      });
     });
   });
 

@@ -122,7 +122,7 @@ if (onDevice) {
             manager.forget(network);
           }
         }
-        manager.associate(new window.MozWifiNetwork(wifiSettings));
+        manager.associate(wifiSettings);
       };
     }
   };

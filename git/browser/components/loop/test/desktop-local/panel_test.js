@@ -110,7 +110,7 @@ describe("loop.panel", function() {
           sinon.assert.calledOnce(router.loadReactComponent);
           sinon.assert.calledWithExactly(router.loadReactComponent,
             sinon.match(function(value) {
-              return React.addons.TestUtils.isDescriptorOfType(
+              return React.addons.TestUtils.isComponentOfType(
                 value, loop.panel.PanelView);
             }));
         });

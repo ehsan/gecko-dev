@@ -13,9 +13,7 @@ enum SupportedVideoConstraints {
     "width",
     "height",
     "frameRate",
-    "mediaSource",
-    "browserWindow",
-    "scrollWithPage"
+    "mediaSource"
 };
 
 enum SupportedAudioConstraints {
@@ -29,8 +27,6 @@ dictionary MediaTrackConstraintSet {
     ConstrainDoubleRange frameRate;
     ConstrainVideoFacingMode facingMode;
     ConstrainMediaSource mediaSource = "camera";
-    long long browserWindow;
-    boolean scrollWithPage;
 };
 
 // TODO: Bug 995352 can't nest unions

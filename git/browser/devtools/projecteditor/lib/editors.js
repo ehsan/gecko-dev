@@ -51,7 +51,6 @@ var ItchEditor = Class({
    * ItchEditor.prototype.initialize.apply(this, arguments)
    */
   initialize: function(host) {
-    this.host = host;
     this.doc = host.document;
     this.label = "";
     this.elt = this.doc.createElement("vbox");
@@ -166,8 +165,7 @@ var TextEditor = Class({
       lineNumbers: true,
       extraKeys: this.extraKeys,
       themeSwitching: false,
-      autocomplete: true,
-      contextMenu:  this.host.textEditorContextMenuPopup
+      autocomplete: true
     });
 
     // Trigger a few editor specific events on `this`.

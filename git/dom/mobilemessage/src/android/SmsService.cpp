@@ -5,6 +5,7 @@
 
 #include "SmsMessage.h"
 #include "SmsService.h"
+#include "SmsSegmentInfo.h"
 #include "AndroidBridge.h"
 
 namespace mozilla {

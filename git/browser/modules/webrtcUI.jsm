@@ -513,11 +513,8 @@ function getGlobalIndicator() {
       let field = "_" + aName.toLowerCase();
       if (aState && !this[field]) {
         let menu = this._hiddenDoc.createElement("menu");
-        menu.setAttribute("id", "webRTC-sharing" + aName + "-menu");
-
-        // The CSS will only be applied if the menu is actually inserted in the DOM.
-        this._hiddenDoc.documentElement.appendChild(menu);
-
+        let uri = "chrome://browser/skin/webRTC-" + aName.toLowerCase() + "-black-16.png";
+        menu.setAttribute("image", uri);
         this._statusBar.addItem(menu);
 
         let menupopup = this._hiddenDoc.createElement("menupopup");
@@ -531,7 +528,6 @@ function getGlobalIndicator() {
       }
       else if (this[field] && !aState) {
         this._statusBar.removeItem(this[field]);
-        this[field].remove();
         this[field] = null
       }
     },
