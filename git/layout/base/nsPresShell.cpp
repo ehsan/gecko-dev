@@ -6942,10 +6942,6 @@ PresShell::HandleEvent(nsIFrame* aFrame,
 
   if (!nsContentUtils::IsSafeToRunScript() &&
       aEvent->IsAllowedToDispatchDOMEvent()) {
-    if (aEvent->mClass == eCompositionEventClass ||
-        aEvent->mClass == eTextEventClass) {
-      IMEStateManager::OnCompositionEventDiscarded(aEvent);
-    }
 #ifdef DEBUG
     if (aEvent->IsIMERelatedEvent()) {
       nsPrintfCString warning("%d event is discarded", aEvent->message);

@@ -2002,7 +2002,7 @@ Parser<ParseHandler>::templateLiteral()
 
 template <typename ParseHandler>
 typename ParseHandler::Node
-Parser<ParseHandler>::functionDef(HandlePropertyName funName,
+Parser<ParseHandler>::functionDef(HandlePropertyName funName, const TokenStream::Position &start,
                                   FunctionType type, FunctionSyntaxKind kind,
                                   GeneratorKind generatorKind)
 {
@@ -2042,9 +2042,6 @@ Parser<ParseHandler>::functionDef(HandlePropertyName funName,
     Directives directives(pc);
     Directives newDirectives = directives;
 
-    TokenStream::Position start(keepAtoms);
-    tokenStream.tell(&start);
-
     while (true) {
         if (functionArgsAndBody(pn, fun, type, kind, generatorKind, directives, &newDirectives,
                                 bodyLevelHoistedUse))
@@ -2058,6 +2055,8 @@ Parser<ParseHandler>::functionDef(HandlePropertyName funName,
         directives = newDirectives;
 
         tokenStream.seek(start);
+        if (funName && tokenStream.getToken() == TOK_ERROR)
+            return null();
 
         // functionArgsAndBody may have already set pn->pn_body before failing.
         handler.setFunctionBody(pn, null());
@@ -2445,13 +2444,17 @@ Parser<ParseHandler>::functionStmt()
 {
     JS_ASSERT(tokenStream.isCurrentTokenType(TOK_FUNCTION));
 
+    TokenStream::Position start(keepAtoms);
+    tokenStream.tell(&start);
+
     RootedPropertyName name(context);
     GeneratorKind generatorKind = NotGenerator;
     TokenKind tt = tokenStream.getToken();
 
     if (tt == TOK_MUL) {
-        generatorKind = StarGenerator;
+        tokenStream.tell(&start);
         tt = tokenStream.getToken();
+        generatorKind = StarGenerator;
     }
 
     if (tt == TOK_NAME) {
@@ -2460,8 +2463,6 @@ Parser<ParseHandler>::functionStmt()
         if (!checkYieldNameValidity())
             return null();
         name = tokenStream.currentName();
-    } else if (tt == TOK_ERROR) {
-        return null();
     } else {
         /* Unnamed function expressions are forbidden in statement context. */
         report(ParseError, false, null(), JSMSG_UNNAMED_FUNCTION_STMT);
@@ -2473,7 +2474,7 @@ Parser<ParseHandler>::functionStmt()
         !report(ParseStrictError, pc->sc->strict, null(), JSMSG_STRICT_FUNCTION_STATEMENT))
         return null();
 
-    return functionDef(name, Normal, Statement, generatorKind);
+    return functionDef(name, start, Normal, Statement, generatorKind);
 }
 
 template <typename ParseHandler>
@@ -2482,12 +2483,16 @@ Parser<ParseHandler>::functionExpr()
 {
     JS_ASSERT(tokenStream.isCurrentTokenType(TOK_FUNCTION));
 
+    TokenStream::Position start(keepAtoms);
+    tokenStream.tell(&start);
+
     GeneratorKind generatorKind = NotGenerator;
     TokenKind tt = tokenStream.getToken();
 
     if (tt == TOK_MUL) {
-        generatorKind = StarGenerator;
+        tokenStream.tell(&start);
         tt = tokenStream.getToken();
+        generatorKind = StarGenerator;
     }
 
     RootedPropertyName name(context);
@@ -2497,13 +2502,11 @@ Parser<ParseHandler>::functionExpr()
         if (!checkYieldNameValidity())
             return null();
         name = tokenStream.currentName();
-    } else if (tt == TOK_ERROR) {
-        return null();
     } else {
         tokenStream.ungetToken();
     }
 
-    return functionDef(name, Normal, Expression, generatorKind);
+    return functionDef(name, start, Normal, Expression, generatorKind);
 }
 
 /*
@@ -5851,7 +5854,7 @@ Parser<ParseHandler>::assignExpr()
             return null();
         tokenStream.ungetToken();
 
-        return functionDef(NullPtr(), Normal, Arrow, NotGenerator);
+        return functionDef(NullPtr(), start, Normal, Arrow, NotGenerator);
       }
 
       default:
@@ -7584,7 +7587,9 @@ Parser<ParseHandler>::methodDefinition(Node literal, Node propname, FunctionType
     else
         funName = nullptr;
 
-    Node fn = functionDef(funName, type, kind, generatorKind);
+    TokenStream::Position start(keepAtoms);
+    tokenStream.tell(&start);
+    Node fn = functionDef(funName, start, type, kind, generatorKind);
     if (!fn)
         return false;
     if (!handler.addMethodDefinition(literal, propname, fn, op))

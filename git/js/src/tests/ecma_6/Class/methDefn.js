@@ -161,11 +161,6 @@ var obj = {
 assertEq(obj.meth, 3);
 assertThrowsInstanceOf(function() {obj.meth();}, TypeError);
 
-// Strict mode
-a = {b(c){"use strict";return c;}};
-assertEq(a.b(1), 1);
-a = {["b"](c){"use strict";return c;}};
-assertEq(a.b(1), 1);
 
 // Tests provided by benvie in the bug to distinguish from ES5 desugar.
 assertEq(({ method() {} }).method.name, "method");

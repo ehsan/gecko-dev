@@ -757,9 +757,10 @@ class IonBuilder
     InliningStatus inlineToInteger(CallInfo &callInfo);
     InliningStatus inlineToString(CallInfo &callInfo);
     InliningStatus inlineDump(CallInfo &callInfo);
-    InliningStatus inlineHasClass(CallInfo &callInfo, const Class *clasp,
-                                  const Class *clasp2 = nullptr,
-                                  const Class *clasp3 = nullptr);
+    InliningStatus inlineHasClass(CallInfo &callInfo, const Class *clasp) {
+        return inlineHasClasses(callInfo, clasp, nullptr);
+    }
+    InliningStatus inlineHasClasses(CallInfo &callInfo, const Class *clasp1, const Class *clasp2);
     InliningStatus inlineIsConstructing(CallInfo &callInfo);
 
     // Testing functions.

@@ -49,41 +49,21 @@ input[type=button] {
   right: auto;
 }
 
-#newtab-intro-what {
-  cursor: pointer;
-  position: absolute;
-  right: 55px;
-  top: 15px;
-}
-
-#newtab-intro-what:-moz-locale-dir(rtl) {
-  left: 55px;
-  right: auto;
-}
-
 #newtab-intro-panel {
-  color: #6a7b86;
+  color: #737373;
   font-size: 15px;
-  line-height: 19px;
-  width: 520px;
+  line-height: 20px;
+  margin-top: -32px;
+  padding: 10px;
+  width: 500px;
 }
 
 #newtab-intro-panel h1 {
   color: #343f48;
   font-family: Open Sans, sans-serif;
   font-size: 30px;
-  margin: 20px;
 }
 
-#newtab-intro-panel p {
-  margin: 10px 20px;
-}
-
-#newtab-intro-panel p:last-child {
-  margin-bottom: 30px;
-}
-
-#newtab-intro-what:hover,
 #newtab-intro-panel a {
   color: #4a90e2;
 }
@@ -251,12 +231,12 @@ input[type=button] {
 
 #newtab-intro-panel input,
 .sponsored-explain input {
-  background-size: 18px;
-  height: 18px;
+  background-size: 20px;
+  height: 20px;
   opacity: 1;
   pointer-events: none;
   position: static;
-  width: 18px;
+  width: 20px;
 }
 
 /* CONTROLS */

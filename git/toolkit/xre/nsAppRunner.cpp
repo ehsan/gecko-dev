@@ -2926,7 +2926,7 @@ class XREMain
 {
 public:
   XREMain() :
-    mScopedXPCOM(nullptr)
+    mScopedXPCom(nullptr)
     , mAppData(nullptr)
     , mStartOffline(false)
     , mShuttingDown(false)
@@ -2942,9 +2942,9 @@ public:
     if (mAppData) {
       delete mAppData;
     }
-    if (mScopedXPCOM) {
+    if (mScopedXPCom) {
       NS_WARNING("Scoped xpcom should have been deleted!");
-      delete mScopedXPCOM;
+      delete mScopedXPCom;
     }
   }
 
@@ -2962,7 +2962,7 @@ public:
   nsCOMPtr<nsIRemoteService> mRemoteService;
 #endif
 
-  ScopedXPCOMStartup* mScopedXPCOM;
+  ScopedXPCOMStartup* mScopedXPCom;
   ScopedAppData* mAppData;
   nsXREDirProvider mDirProvider;
   nsAutoCString mProfileName;
@@ -3917,7 +3917,7 @@ nsresult
 XREMain::XRE_mainRun()
 {
   nsresult rv = NS_OK;
-  NS_ASSERTION(mScopedXPCOM, "Scoped xpcom not initialized.");
+  NS_ASSERTION(mScopedXPCom, "Scoped xpcom not initialized.");
 
 #ifdef MOZ_B2G_LOADER
   mozilla::ipc::ProcLoaderClientGeckoInit();
@@ -3943,7 +3943,7 @@ XREMain::XRE_mainRun()
   }
 #endif
 
-  rv = mScopedXPCOM->SetWindowCreator(mNativeApp);
+  rv = mScopedXPCom->SetWindowCreator(mNativeApp);
   NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
 
 #ifdef MOZ_CRASHREPORTER
@@ -4224,11 +4224,11 @@ XREMain::XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
   bool appInitiatedRestart = false;
 
   // Start the real application
-  mScopedXPCOM = new ScopedXPCOMStartup();
-  if (!mScopedXPCOM)
+  mScopedXPCom = new ScopedXPCOMStartup();
+  if (!mScopedXPCom)
     return 1;
 
-  rv = mScopedXPCOM->Initialize();
+  rv = mScopedXPCom->Initialize();
   NS_ENSURE_SUCCESS(rv, 1);
 
   // run!
@@ -4257,8 +4257,8 @@ XREMain::XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 #endif /* MOZ_ENABLE_XREMOTE */
   }
 
-  delete mScopedXPCOM;
-  mScopedXPCOM = nullptr;
+  delete mScopedXPCom;
+  mScopedXPCom = nullptr;
 
   // unlock the profile after ScopedXPCOMStartup object (xpcom) 
   // has gone out of scope.  see bug #386739 for more details
@@ -4330,11 +4330,11 @@ XRE_metroStartup(bool runXREMain)
     return NS_ERROR_FAILURE;
 
   // Start the real application
-  xreMainPtr->mScopedXPCOM = new ScopedXPCOMStartup();
-  if (!xreMainPtr->mScopedXPCOM)
+  xreMainPtr->mScopedXPCom = new ScopedXPCOMStartup();
+  if (!xreMainPtr->mScopedXPCom)
     return NS_ERROR_FAILURE;
 
-  rv = xreMainPtr->mScopedXPCOM->Initialize();
+  rv = xreMainPtr->mScopedXPCom->Initialize();
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (runXREMain) {
@@ -4347,8 +4347,8 @@ XRE_metroStartup(bool runXREMain)
 void
 XRE_metroShutdown()
 {
-  delete xreMainPtr->mScopedXPCOM;
-  xreMainPtr->mScopedXPCOM = nullptr;
+  delete xreMainPtr->mScopedXPCom;
+  xreMainPtr->mScopedXPCom = nullptr;
 
 #ifdef MOZ_INSTRUMENT_EVENT_LOOP
   mozilla::ShutdownEventTracing();
@@ -4428,7 +4428,7 @@ XRE_mainMetro(int argc, char* argv[], const nsXREAppData* aAppData)
 
   // XRE_metroShutdown should have already been called on the worker
   // thread that called XRE_metroStartup.
-  NS_ASSERTION(!xreMainPtr->mScopedXPCOM,
+  NS_ASSERTION(!xreMainPtr->mScopedXPCom,
                "XPCOM Shutdown hasn't occured, and we are exiting.");
   return 0;
 }
