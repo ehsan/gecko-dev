@@ -1116,7 +1116,7 @@ UseNewTypeForClone(JSFunction *fun);
  * indexed property.
  */
 bool
-ArrayPrototypeHasIndexedProperty(CompilerConstraintList *constraints, JSScript *script);
+ArrayPrototypeHasIndexedProperty(CompilerConstraintList *constraints, HandleScript script);
 
 /* Whether obj or any of its prototypes have an indexed property. */
 bool

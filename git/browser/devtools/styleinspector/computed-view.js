@@ -1217,11 +1217,9 @@ SelectorView.prototype = {
     }
 
     let contentDoc = null;
-    if (this.tree.viewedElement.isLocal_toBeDeprecated()) {
-      let rawNode = this.tree.viewedElement.rawNode();
-      if (rawNode) {
-        contentDoc = rawNode.ownerDocument;
-      }
+    let rawNode = this.tree.viewedElement.rawNode();
+    if (rawNode) {
+      contentDoc = rawNode.ownerDocument;
     }
 
     let viewSourceUtils = inspector.viewSourceUtils;

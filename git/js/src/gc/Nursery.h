@@ -117,10 +117,7 @@ class Nursery
     static const uint8_t FreshNursery = 0x2a;
     static const uint8_t SweptNursery = 0x2b;
     static const uint8_t AllocatedThing = 0x2c;
-    void enterZealMode() {
-        if (isEnabled())
-            numActiveChunks_ = NumNurseryChunks;
-    }
+    void enterZealMode() { numActiveChunks_ = NumNurseryChunks; }
 #endif
 
   private:

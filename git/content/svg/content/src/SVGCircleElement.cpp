@@ -96,16 +96,14 @@ SVGCircleElement::ConstructPath(gfxContext *aCtx)
 TemporaryRef<Path>
 SVGCircleElement::BuildPath()
 {
+  RefPtr<PathBuilder> pathBuilder = CreatePathBuilder();
+
   float x, y, r;
   GetAnimatedLengthValues(&x, &y, &r, nullptr);
 
-  if (r <= 0.0f) {
-    return nullptr;
+  if (r > 0.0f) {
+    pathBuilder->Arc(Point(x, y), r, 0, Float(2*M_PI));
   }
-
-  RefPtr<PathBuilder> pathBuilder = CreatePathBuilder();
-
-  pathBuilder->Arc(Point(x, y), r, 0, Float(2*M_PI));
 
   return pathBuilder->Finish();
 }

@@ -72,8 +72,6 @@
 #include "nsPermissionManager.h"
 #endif
 
-#include "PermissionMessageUtils.h"
-
 #if defined(MOZ_WIDGET_ANDROID)
 #include "APKOpen.h"
 #endif
@@ -1174,15 +1172,14 @@ ContentChild::RecvNotifyVisited(const URIParams& aURI)
 bool
 ContentChild::RecvAsyncMessage(const nsString& aMsg,
                                const ClonedMessageData& aData,
-                               const InfallibleTArray<CpowEntry>& aCpows,
-                               const IPC::Principal& aPrincipal)
+                               const InfallibleTArray<CpowEntry>& aCpows)
 {
   nsRefPtr<nsFrameMessageManager> cpm = nsFrameMessageManager::sChildProcessManager;
   if (cpm) {
     StructuredCloneData cloneData = ipc::UnpackClonedMessageDataForChild(aData);
     CpowIdHolder cpows(GetCPOWManager(), aCpows);
     cpm->ReceiveMessage(static_cast<nsIContentFrameMessageManager*>(cpm.get()),
-                        aMsg, false, &cloneData, &cpows, aPrincipal, nullptr);
+                        aMsg, false, &cloneData, &cpows, nullptr);
   }
   return true;
 }

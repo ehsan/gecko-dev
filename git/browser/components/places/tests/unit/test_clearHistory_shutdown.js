@@ -139,7 +139,7 @@ function storeCache(aURL, aContent) {
 
   var storeCacheListener = {
     onCacheEntryCheck: function (entry, appcache) {
-      return Ci.nsICacheEntryOpenCallback.ENTRY_WANTED;
+      return nsICacheEntryOpenCallback.ENTRY_VALID;
     },
 
     onCacheEntryAvailable: function (entry, isnew, appcache, status) {

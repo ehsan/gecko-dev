@@ -491,8 +491,8 @@ MetroInput::OnPointerPressed(UI::Core::ICoreWindow* aSender,
     // If this is the first touchstart of a touch session reset some
     // tracking flags.
     mContentConsumingTouch = false;
-    mApzConsumingTouch = false;
     mRecognizerWantsEvents = true;
+    mIsFirstTouchMove = true;
     mCancelable = true;
     mCanceledIds.Clear();
   }
@@ -560,13 +560,22 @@ MetroInput::OnPointerMoved(UI::Core::ICoreWindow* aSender,
     return S_OK;
   }
 
-  AddPointerMoveDataToRecognizer(aArgs);
-
   // If the point hasn't moved, filter it out per the spec. Pres shell does
   // this as well, but we need to know when our first touchmove is going to
   // get delivered so we can check the result.
   if (!HasPointMoved(touch, currentPoint.Get())) {
+    // The recognizer needs the intermediate data otherwise it acts flaky
+    AddPointerMoveDataToRecognizer(aArgs);
     return S_OK;
+  }
+
+  // If we've accumulated a batch of pointer moves and we're now on a new batch
+  // at a new position send the previous batch. (perf opt)
+  if (!mIsFirstTouchMove && touch->mChanged) {
+    WidgetTouchEvent* touchEvent =
+      new WidgetTouchEvent(true, NS_TOUCH_MOVE, mWidget.Get());
+    InitTouchEventTouchList(touchEvent);
+    DispatchAsyncTouchEvent(touchEvent);
   }
 
   touch = CreateDOMTouch(currentPoint.Get());
@@ -576,8 +585,15 @@ MetroInput::OnPointerMoved(UI::Core::ICoreWindow* aSender,
 
   WidgetTouchEvent* touchEvent =
     new WidgetTouchEvent(true, NS_TOUCH_MOVE, mWidget.Get());
-  InitTouchEventTouchList(touchEvent);
-  DispatchAsyncTouchEvent(touchEvent);
+
+  // If this is the first touch move of our session, dispatch it now.
+  if (mIsFirstTouchMove) {
+    InitTouchEventTouchList(touchEvent);
+    DispatchAsyncTouchEvent(touchEvent);
+    mIsFirstTouchMove = false;
+  }
+
+  AddPointerMoveDataToRecognizer(aArgs);
 
   return S_OK;
 }
@@ -1097,9 +1113,7 @@ MetroInput::DeliverNextQueuedTouchEvent()
    * 3) If mContentConsumingTouch is true: deliver touch to content after
    *  transforming through the apz. Also let the apz know content is
    *  consuming touch.
-   * 4) If mContentConsumingTouch is false: check the result from the apz and
-   *  set mApzConsumingTouch appropriately.
-   * 5) If mApzConsumingTouch is true: send a touchcancel to content
+   * 4) If mContentConsumingTouch is false: send a touchcancel to content
    *  and deliver all events to the apz. If the apz is doing something with
    *  the events we can save ourselves the overhead of delivering dom events.
    *
@@ -1152,6 +1166,7 @@ MetroInput::DeliverNextQueuedTouchEvent()
         mWidget->ApzContentConsumingTouch();
       } else {
         mWidget->ApzContentIgnoringTouch();
+        DispatchTouchCancel(&transformedEvent);
       }
     }
     // If content is consuming touch don't generate any gesture based
@@ -1162,30 +1177,22 @@ MetroInput::DeliverNextQueuedTouchEvent()
     return;
   }
 
-  // Forward event data to apz.  Even if content is consuming input, we still
-  // need APZC to transform the coordinates.  It won't actually react to the
-  // event if ContentReceivedTouch was called previously.
-  DUMP_TOUCH_IDS("APZC(2)", event);
-  status = mWidget->ApzReceiveInputEvent(event);
-
   // If content called preventDefault on touchstart or first touchmove send
-  // the event to content only.
+  // the event to content.
   if (mContentConsumingTouch) {
+    // ContentReceivedTouch has already been called in the mCancelable block
+    // above so this shouldn't cause the apz to react. We still need to
+    // transform our coordinates though.
+    DUMP_TOUCH_IDS("APZC(2)", event);
+    mWidget->ApzReceiveInputEvent(event);
     DUMP_TOUCH_IDS("DOM(3)", event);
     mWidget->DispatchEvent(event, status);
     return;
   }
 
-  // Send the event to content unless APZC is consuming it.
-  if (!mApzConsumingTouch) {
-    if (status == nsEventStatus_eConsumeNoDefault) {
-      mApzConsumingTouch = true;
-      DispatchTouchCancel(event);
-      return;
-    }
-    DUMP_TOUCH_IDS("DOM(4)", event);
-    mWidget->DispatchEvent(event, status);
-  }
+  // Forward event data to apz.
+  DUMP_TOUCH_IDS("APZC(3)", event);
+  mWidget->ApzReceiveInputEvent(event);
 }
 
 void
