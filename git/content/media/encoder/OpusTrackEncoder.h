@@ -32,7 +32,7 @@ public:
   OpusTrackEncoder();
   virtual ~OpusTrackEncoder();
 
-  already_AddRefed<TrackMetadataBase> GetMetadata() MOZ_OVERRIDE;
+  nsRefPtr<TrackMetadataBase> GetMetadata() MOZ_OVERRIDE;
 
   nsresult GetEncodedTrack(EncodedFrameContainer& aData) MOZ_OVERRIDE;
 

@@ -235,13 +235,12 @@ MediaEngineTabVideoSource::Draw() {
            nsPresContext::CSSPixelsToAppUnits(srcW / scale),
            nsPresContext::CSSPixelsToAppUnits(srcH / scale));
 
-  gfxImageFormat format = gfxImageFormatRGB24;
-  uint32_t stride = gfxASurface::FormatStrideForWidth(format, size.width);
+  uint32_t stride = size.width * 4;
 
   nsRefPtr<layers::ImageContainer> container = layers::LayerManager::CreateImageContainer();
   nsRefPtr<gfxASurface> surf;
   surf = new gfxImageSurface(static_cast<unsigned char*>(mData), size,
-                             stride, format);
+                             stride, gfxImageFormatRGB24);
   if (surf->CairoStatus() != 0) {
     return;
   }

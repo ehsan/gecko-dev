@@ -170,9 +170,7 @@ enum {
 };
 
 // Make sure we have space for our bits
-#define ASSERT_NODE_FLAGS_SPACE(n) \
-  static_assert(WRAPPER_CACHE_FLAGS_BITS_USED + (n) <= 32, \
-                "Not enough space for our bits")
+#define ASSERT_NODE_FLAGS_SPACE(n) PR_STATIC_ASSERT(WRAPPER_CACHE_FLAGS_BITS_USED + (n) <= 32)
 ASSERT_NODE_FLAGS_SPACE(NODE_TYPE_SPECIFIC_BITS_OFFSET);
 
 /**
@@ -1311,26 +1309,22 @@ private:
   };
 
   void SetBoolFlag(BooleanFlag name, bool value) {
-    static_assert(BooleanFlagCount <= 8*sizeof(mBoolFlags),
-                  "Too many boolean flags");
+    PR_STATIC_ASSERT(BooleanFlagCount <= 8*sizeof(mBoolFlags));
     mBoolFlags = (mBoolFlags & ~(1 << name)) | (value << name);
   }
 
   void SetBoolFlag(BooleanFlag name) {
-    static_assert(BooleanFlagCount <= 8*sizeof(mBoolFlags),
-                  "Too many boolean flags");
+    PR_STATIC_ASSERT(BooleanFlagCount <= 8*sizeof(mBoolFlags));
     mBoolFlags |= (1 << name);
   }
 
   void ClearBoolFlag(BooleanFlag name) {
-    static_assert(BooleanFlagCount <= 8*sizeof(mBoolFlags),
-                  "Too many boolean flags");
+    PR_STATIC_ASSERT(BooleanFlagCount <= 8*sizeof(mBoolFlags));
     mBoolFlags &= ~(1 << name);
   }
 
   bool GetBoolFlag(BooleanFlag name) const {
-    static_assert(BooleanFlagCount <= 8*sizeof(mBoolFlags),
-                  "Too many boolean flags");
+    PR_STATIC_ASSERT(BooleanFlagCount <= 8*sizeof(mBoolFlags));
     return mBoolFlags & (1 << name);
   }
 

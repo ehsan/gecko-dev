@@ -343,24 +343,22 @@ HTMLFormControlsCollection::GetParentObject()
   return mForm;
 }
 
-/* virtual */ Element*
-HTMLFormControlsCollection::GetFirstNamedElement(const nsAString& aName, bool& aFound)
+JSObject*
+HTMLFormControlsCollection::NamedItem(JSContext* aCx, const nsAString& aName,
+                                      ErrorResult& aError)
 {
-  Nullable<OwningNodeListOrElement> maybeResult;
-  NamedGetter(aName, aFound, maybeResult);
-  if (!aFound) {
+  nsISupports* item = NamedItemInternal(aName, true);
+  if (!item) {
     return nullptr;
   }
-  MOZ_ASSERT(!maybeResult.IsNull());
-  const OwningNodeListOrElement& result = maybeResult.Value();
-  if (result.IsElement()) {
-    return result.GetAsElement().get();
+  JS::Rooted<JSObject*> wrapper(aCx, nsWrapperCache::GetWrapper());
+  JSAutoCompartment ac(aCx, wrapper);
+  JS::Rooted<JS::Value> v(aCx);
+  if (!dom::WrapObject(aCx, wrapper, item, &v)) {
+    aError.Throw(NS_ERROR_FAILURE);
+    return nullptr;
   }
-  if (result.IsNodeList()) {
-    nsINodeList& nodelist = result.GetAsNodeList();
-    return nodelist.Item(0)->AsElement();
-  }
-  MOZ_ASSUME_UNREACHABLE("Should only have Elements and NodeLists here.");
+  return &v.toObject();
 }
 
 void

@@ -6,7 +6,6 @@
 #include "SVGPathSegUtils.h"
 
 #include "gfx2DGlue.h"
-#include "mozilla/Util.h" // MOZ_ARRAY_LENGTH
 #include "nsSVGPathDataParser.h"
 #include "nsTextFormatter.h"
 
@@ -21,11 +20,9 @@ static const uint32_t MAX_RECURSION = 10;
 SVGPathSegUtils::GetValueAsString(const float* aSeg, nsAString& aValue)
 {
   // Adding new seg type? Is the formatting below acceptable for the new types?
-  static_assert(NS_SVG_PATH_SEG_LAST_VALID_TYPE ==
-                PATHSEG_CURVETO_QUADRATIC_SMOOTH_REL,
-                "Update GetValueAsString for the new value.");
-  static_assert(NS_SVG_PATH_SEG_MAX_ARGS == 7,
-                "Add another case to the switch below.");
+  PR_STATIC_ASSERT(NS_SVG_PATH_SEG_LAST_VALID_TYPE ==
+                     PATHSEG_CURVETO_QUADRATIC_SMOOTH_REL);
+  PR_STATIC_ASSERT(NS_SVG_PATH_SEG_MAX_ARGS == 7);
 
   uint32_t type = DecodeType(aSeg[0]);
   PRUnichar typeAsChar = GetPathSegTypeAsLetter(type);
@@ -442,9 +439,8 @@ static TraverseFunc gTraverseFuncTable[NS_SVG_PATH_SEG_TYPE_COUNT] = {
 SVGPathSegUtils::TraversePathSegment(const float* aData,
                                      SVGPathTraversalState& aState)
 {
-  static_assert(MOZ_ARRAY_LENGTH(gTraverseFuncTable) ==
-                NS_SVG_PATH_SEG_TYPE_COUNT,
-                "gTraverseFuncTable is out of date");
+  PR_STATIC_ASSERT(NS_ARRAY_LENGTH(gTraverseFuncTable) ==
+                     NS_SVG_PATH_SEG_TYPE_COUNT);
   uint32_t type = DecodeType(aData[0]);
   gTraverseFuncTable[type](aData + 1, aState);
 }

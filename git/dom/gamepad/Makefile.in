@@ -2,5 +2,8 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-toolkit.jar:
-  content/global/forms.js                      (forms.js)
+LOCAL_INCLUDES += \
+  -I$(topsrcdir)/dom/base \
+  $(NULL)
+
+include $(topsrcdir)/config/rules.mk

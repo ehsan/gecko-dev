@@ -219,12 +219,15 @@ public:
     eUniqueInner_AlreadyUnique,
     // A clone was done to ensure a unique inner (which means the style
     // rules in this sheet have changed).
-    eUniqueInner_ClonedInner
+    eUniqueInner_ClonedInner,
+    // A clone was attempted, but it failed.
+    eUniqueInner_CloneFailed
   };
   EnsureUniqueInnerResult EnsureUniqueInner();
 
-  // Append all of this sheet's child sheets to aArray.
-  void AppendAllChildSheets(nsTArray<nsCSSStyleSheet*>& aArray);
+  // Append all of this sheet's child sheets to aArray.  Return true
+  // on success and false on allocation failure.
+  bool AppendAllChildSheets(nsTArray<nsCSSStyleSheet*>& aArray);
 
   bool UseForPresentation(nsPresContext* aPresContext,
                             nsMediaQueryResultCacheKey& aKey) const;
@@ -266,7 +269,7 @@ public:
   void GetTitle(nsString& aTitle) {
     const_cast<const nsCSSStyleSheet*>(this)->GetTitle(aTitle);
   }
-  nsMediaList* Media();
+  nsIDOMMediaList* Media();
   bool Disabled() const { return mDisabled; }
   // The XPCOM SetDisabled is fine for WebIDL
 
@@ -313,7 +316,7 @@ protected:
 
   void ClearRuleCascades();
 
-  void     WillDirty();
+  nsresult WillDirty();
   void     DidDirty();
 
   // Return success if the subject principal subsumes the principal of our

@@ -6,7 +6,6 @@
 
 let Ci = Components.interfaces;
 let Cu = Components.utils;
-let Cr = Components.results;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
@@ -89,13 +88,7 @@ this.ThirdPartyCookieProbe.prototype = {
         data.addRejected(firstParty);
       }
     } catch (ex) {
-      if (ex instanceof Ci.nsIXPCException) {
-        if (ex.result == Cr.NS_ERROR_HOST_IS_IP_ADDRESS ||
-            ex.result == Cr.NS_ERROR_INSUFFICIENT_DOMAIN_LEVELS) {
-          return;
-        }
-      }
-      // Other errors should not remain silent.
+      // Errors should not remain silent
       Services.console.logStringMessage("ThirdPartyCookieProbe: Uncaught error " + ex + "\n" + ex.stack);
     }
   },

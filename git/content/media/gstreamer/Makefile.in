@@ -8,3 +8,7 @@ CFLAGS		+= $(GSTREAMER_CFLAGS)
 CXXFLAGS	+= $(GSTREAMER_CFLAGS)
 
 
+INCLUDES	+= \
+		-I$(srcdir)/../../base/src \
+		-I$(srcdir)/../../html/content/src \
+		$(NULL)
