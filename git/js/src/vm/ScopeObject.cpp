@@ -1167,31 +1167,29 @@ ScopeIter::ScopeIter(JSContext *cx, AbstractFramePtr frame, jsbytecode *pc
 }
 
 void
-ScopeIter::incrementStaticScopeIter()
+ScopeIter::settle()
 {
-    ssi_++;
-
     // For named lambdas, DeclEnvObject scopes are always attached to their
     // CallObjects. Skip it here, as they are special cased in users of
     // ScopeIter.
     if (!ssi_.done() && ssi_.type() == StaticScopeIter<CanGC>::NamedLambda)
         ssi_++;
-}
 
-void
-ScopeIter::settle()
-{
     // Check for trying to iterate a heavyweight function frame before
     // the prologue has created the CallObject, in which case we have to skip.
     if (frame_ && frame_.isNonEvalFunctionFrame() &&
         frame_.fun()->isHeavyweight() && !frame_.hasCallObj())
     {
         MOZ_ASSERT(ssi_.type() == StaticScopeIter<CanGC>::Function);
-        incrementStaticScopeIter();
+        ssi_++;
     }
 
-    // Check if we have left the extent of the initial frame after we've
-    // settled on a static scope.
+    // Check if we have left the extent of the initial frame. This check must
+    // come between the named lambda check above and the direct eval check
+    // below. We must check the static scope after skipping the named lambda,
+    // as an SSI settled on a named lambda scope has no static scope. We must
+    // check the static scope before skipping the direct eval, as by then we
+    // would have already left the frame.
     if (frame_ && (ssi_.done() || maybeStaticScope() == frame_.script()->enclosingStaticScope()))
         frame_ = NullFramePtr();
 
@@ -1226,7 +1224,7 @@ ScopeIter::operator++()
             scope_ = &scope_->as<DeclEnvObject>().enclosingScope();
     }
 
-    incrementStaticScopeIter();
+    ssi_++;
     settle();
 
     return *this;

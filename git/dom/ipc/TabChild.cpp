@@ -495,7 +495,7 @@ TabChildBase::GetDOMWindowUtils()
 }
 
 already_AddRefed<nsIDocument>
-TabChildBase::GetDocument() const
+TabChildBase::GetDocument()
 {
   nsCOMPtr<nsIDOMDocument> domDoc;
   WebNavigation()->GetDocument(getter_AddRefs(domDoc));
@@ -2114,8 +2114,7 @@ TabChild::RecvHandleDoubleTap(const CSSPoint& aPoint, const ScrollableLayerGuid&
         return true;
     }
 
-    CSSPoint point = APZCCallbackHelper::ApplyCallbackTransform(aPoint, aGuid,
-        GetPresShellResolution());
+    CSSPoint point = APZCCallbackHelper::ApplyCallbackTransform(aPoint, aGuid);
     nsString data;
     data.AppendLiteral("{ \"x\" : ");
     data.AppendFloat(point.x);
@@ -2143,9 +2142,7 @@ TabChild::RecvHandleSingleTap(const CSSPoint& aPoint, const ScrollableLayerGuid&
     return true;
   }
 
-  LayoutDevicePoint currentPoint =
-      APZCCallbackHelper::ApplyCallbackTransform(aPoint, aGuid, GetPresShellResolution())
-    * mWidget->GetDefaultScale();;
+  LayoutDevicePoint currentPoint = APZCCallbackHelper::ApplyCallbackTransform(aPoint, aGuid) * mWidget->GetDefaultScale();;
   if (!mActiveElementManager->ActiveElementUsesStyle()) {
     // If the active element isn't visually affected by the :active style, we
     // have no need to wait the extra sActiveDurationMs to make the activation
@@ -2197,7 +2194,7 @@ TabChild::RecvHandleLongTap(const CSSPoint& aPoint, const ScrollableLayerGuid& a
 
   bool eventHandled =
       DispatchMouseEvent(NS_LITERAL_STRING("contextmenu"),
-                         APZCCallbackHelper::ApplyCallbackTransform(aPoint, aGuid, GetPresShellResolution()),
+                         APZCCallbackHelper::ApplyCallbackTransform(aPoint, aGuid),
                          2, 1, 0, true,
                          nsIDOMMouseEvent::MOZ_SOURCE_TOUCH);
 
@@ -2206,8 +2203,7 @@ TabChild::RecvHandleLongTap(const CSSPoint& aPoint, const ScrollableLayerGuid& a
   // If no one handle context menu, fire MOZLONGTAP event
   if (!eventHandled) {
     LayoutDevicePoint currentPoint =
-        APZCCallbackHelper::ApplyCallbackTransform(aPoint, aGuid, GetPresShellResolution())
-      * mWidget->GetDefaultScale();
+      APZCCallbackHelper::ApplyCallbackTransform(aPoint, aGuid) * mWidget->GetDefaultScale();
     int time = 0;
     nsEventStatus status =
       DispatchSynthesizedMouseEvent(NS_MOUSE_MOZLONGTAP, time, currentPoint, mWidget);
@@ -2666,17 +2662,6 @@ TabChild::SendSetTargetAPZCNotification(const WidgetTouchEvent& aEvent,
   SendSetTargetAPZCNotification(shell, aInputBlockId, targets, waitForRefresh);
 }
 
-float
-TabChild::GetPresShellResolution() const
-{
-  nsCOMPtr<nsIDocument> document(GetDocument());
-  nsIPresShell* shell = document->GetShell();
-  if (!shell) {
-    return 1.0f;
-  }
-  return shell->GetXResolution();
-}
-
 bool
 TabChild::RecvRealTouchEvent(const WidgetTouchEvent& aEvent,
                              const ScrollableLayerGuid& aGuid,
@@ -2685,9 +2670,7 @@ TabChild::RecvRealTouchEvent(const WidgetTouchEvent& aEvent,
   TABC_LOG("Receiving touch event of type %d\n", aEvent.message);
 
   for (size_t i = 0; i < aEvent.touches.Length(); i++) {
-    aEvent.touches[i]->mRefPoint = APZCCallbackHelper::ApplyCallbackTransform(
-        aEvent.touches[i]->mRefPoint, aGuid, mWidget->GetDefaultScale(),
-        GetPresShellResolution());
+    aEvent.touches[i]->mRefPoint = APZCCallbackHelper::ApplyCallbackTransform(aEvent.touches[i]->mRefPoint, aGuid, mWidget->GetDefaultScale());
   }
 
   if (aEvent.message == NS_TOUCH_START && IsAsyncPanZoomEnabled()) {

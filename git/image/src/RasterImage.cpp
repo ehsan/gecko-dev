@@ -297,6 +297,14 @@ RasterImage::~RasterImage()
   SurfaceCache::RemoveImage(ImageKey(this));
 }
 
+/* static */ void
+RasterImage::Initialize()
+{
+  // Create our singletons now, so we don't have to worry about what thread
+  // they're created on.
+  DecodePool::Singleton();
+}
+
 nsresult
 RasterImage::Init(const char* aMimeType,
                   uint32_t aFlags)
@@ -1168,6 +1176,12 @@ RasterImage::OnImageDataAvailable(nsIRequest*,
     "the image must be in error!");
 
   return rv;
+}
+
+/* static */ already_AddRefed<nsIEventTarget>
+RasterImage::GetEventTarget()
+{
+  return DecodePool::Singleton()->GetEventTarget();
 }
 
 nsresult

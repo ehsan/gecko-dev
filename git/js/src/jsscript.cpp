@@ -3789,7 +3789,6 @@ LazyScript::CreateRaw(ExclusiveContext *cx, HandleFunction fun,
     p.strict = false;
     p.bindingsAccessedDynamically = false;
     p.hasDebuggerStatement = false;
-    p.hasDirectEval = false;
     p.directlyInsideEval = false;
     p.usesArgumentsApplyAndThis = false;
 

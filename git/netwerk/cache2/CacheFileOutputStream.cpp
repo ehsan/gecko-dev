@@ -344,7 +344,7 @@ CacheFileOutputStream::ReleaseChunk()
   LOG(("CacheFileOutputStream::ReleaseChunk() [this=%p, idx=%d]",
        this, mChunk->Index()));
 
-  mFile->ReleaseOutsideLock(mChunk.forget());
+  mFile->ReleaseOutsideLock(mChunk.forget().take());
 }
 
 void

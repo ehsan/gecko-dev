@@ -312,18 +312,8 @@ APZCCallbackHelper::UpdateCallbackTransform(const FrameMetrics& aApzcMetrics, co
 }
 
 CSSPoint
-APZCCallbackHelper::ApplyCallbackTransform(const CSSPoint& aInput,
-                                           const ScrollableLayerGuid& aGuid,
-                                           float aPresShellResolution)
+APZCCallbackHelper::ApplyCallbackTransform(const CSSPoint& aInput, const ScrollableLayerGuid& aGuid)
 {
-    // First, scale inversely by the pres shell resolution to cancel the
-    // scale-to-resolution transform that the compositor adds to the layer with
-    // the pres shell resolution. The points sent to Gecko by APZ don't have
-    // this transform unapplied (unlike other compositor-side transforms)
-    // because APZ doesn't know about it.
-    CSSPoint input = aInput / aPresShellResolution;
-
-    // Now apply the callback-transform.
     // XXX: technically we need to walk all the way up the layer tree from the layer
     // represented by |aGuid.mScrollId| up to the root of the layer tree and apply
     // the input transforms at each level in turn. However, it is quite difficult
@@ -341,21 +331,20 @@ APZCCallbackHelper::ApplyCallbackTransform(const CSSPoint& aInput,
             void* property = content->GetProperty(nsGkAtoms::apzCallbackTransform);
             if (property) {
                 CSSPoint delta = (*static_cast<CSSPoint*>(property));
-                return input + delta;
+                return aInput + delta;
             }
         }
     }
-    return input;
+    return aInput;
 }
 
 nsIntPoint
 APZCCallbackHelper::ApplyCallbackTransform(const nsIntPoint& aPoint,
-                                           const ScrollableLayerGuid& aGuid,
-                                           const CSSToLayoutDeviceScale& aScale,
-                                           float aPresShellResolution)
+                                        const ScrollableLayerGuid& aGuid,
+                                        const CSSToLayoutDeviceScale& aScale)
 {
     LayoutDevicePoint point = LayoutDevicePoint(aPoint.x, aPoint.y);
-    point = ApplyCallbackTransform(point / aScale, aGuid, aPresShellResolution) * aScale;
+    point = ApplyCallbackTransform(point / aScale, aGuid) * aScale;
     LayoutDeviceIntPoint ret = gfx::RoundedToInt(point);
     return nsIntPoint(ret.x, ret.y);
 }

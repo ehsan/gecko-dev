@@ -242,6 +242,8 @@ public:
                                        nsresult aStatus,
                                        bool aLastPart) MOZ_OVERRIDE;
 
+  static already_AddRefed<nsIEventTarget> GetEventTarget();
+
   /**
    * A hint of the number of bytes of source data that the image contains. If
    * called early on, this can help reduce copying and reallocations by
@@ -279,6 +281,8 @@ public:
     }
     return spec;
   }
+
+  static void Initialize();
 
 private:
   void DrawWithPreDownscaleIfNeeded(DrawableFrameRef&& aFrameRef,

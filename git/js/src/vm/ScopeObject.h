@@ -724,7 +724,6 @@ class ScopeIter
     RootedObject scope_;
     AbstractFramePtr frame_;
 
-    void incrementStaticScopeIter();
     void settle();
 
     // No value semantics.

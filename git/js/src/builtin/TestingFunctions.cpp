@@ -340,30 +340,6 @@ GCParameter(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
-static void
-SetAllowRelazification(JSContext *cx, bool allow)
-{
-    JSRuntime *rt = cx->runtime();
-    MOZ_ASSERT(rt->allowRelazificationForTesting != allow);
-    rt->allowRelazificationForTesting = allow;
-
-    for (AllFramesIter i(cx); !i.done(); ++i)
-        i.script()->setDoNotRelazify(allow);
-}
-
-static bool
-RelazifyFunctions(JSContext *cx, unsigned argc, Value *vp)
-{
-    // Relazifying functions on GC is usually only done for compartments that are
-    // not active. To aid fuzzing, this testing function allows us to relazify
-    // even if the compartment is active.
-
-    SetAllowRelazification(cx, true);
-    bool res = GC(cx, argc, vp);
-    SetAllowRelazification(cx, false);
-    return res;
-}
-
 static bool
 IsProxy(JSContext *cx, unsigned argc, Value *vp)
 {
@@ -2259,11 +2235,6 @@ static const JSFunctionSpecWithHelp TestingFunctions[] = {
     JS_FN_HELP("gcparam", GCParameter, 2, 0,
 "gcparam(name [, value])",
 "  Wrapper for JS_[GS]etGCParameter. The name is one of " GC_PARAMETER_ARGS_LIST),
-
-    JS_FN_HELP("relazifyFunctions", RelazifyFunctions, 0, 0,
-"relazifyFunctions(...)",
-"  Perform a GC and allow relazification of functions. Accepts the same\n"
-"  arguments as gc()."),
 
     JS_FN_HELP("getBuildConfiguration", GetBuildConfiguration, 0, 0,
 "getBuildConfiguration()",

@@ -183,7 +183,6 @@ JSRuntime::JSRuntime(JSRuntime *parentRuntime)
     suppressProfilerSampling(false),
     hadOutOfMemory(false),
     haveCreatedContext(false),
-    allowRelazificationForTesting(false),
     data(nullptr),
     signalHandlersInstalled_(false),
     canUseSignalHandlers_(false),
