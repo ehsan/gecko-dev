@@ -281,6 +281,8 @@
 }
 
 .category[disabled] {
+  border-top: 0;
+  border-bottom: 0;
   height: 0;
   opacity: 0;
   -moz-transition-property: height, opacity;
@@ -296,7 +298,6 @@
 .category[selected] {
   background-color: rgba(255, 255, 255, 0.4);
   color: #252F3B;
-  font-weight: bold;
   border-color: #C3CEDF;
   -moz-border-end-color: #E2E9F2;
 }
@@ -518,8 +519,7 @@
 
 .icon-container {
   width: 48px;
-  height: 48px;
-  margin: 22px 7px 7px 7px;
+  margin: 15px 7px 7px 7px;
 }
 
 .icon {
@@ -802,13 +802,17 @@
   margin-bottom: 2em;
 }
 
-#detail-desc {
+#detail-desc, #detail-fulldesc {
   -moz-margin-start: 6px;
   /* This is necessary to fix layout issues with multi-line descriptions, see
      bug 592712*/
   outline: solid transparent;
   white-space: pre-wrap;
   min-width: 10em;
+}
+
+#detail-fulldesc {
+  margin-top: 1em;
 }
 
 #detail-contributions {

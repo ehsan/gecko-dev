@@ -638,7 +638,7 @@ JSRuntime::init(uint32 maxbytes)
     }
 #endif
 
-    if (!(atomsCompartment = new JSCompartment(this)) ||
+    if (!(atomsCompartment = js_new<JSCompartment>(this)) ||
         !atomsCompartment->init() ||
         !compartments.append(atomsCompartment)) {
         return false;
@@ -1161,11 +1161,11 @@ JS_EnterCrossCompartmentCall(JSContext *cx, JSObject *target)
     CHECK_REQUEST(cx);
 
     JS_ASSERT(target);
-    AutoCompartment *call = new AutoCompartment(cx, target);
+    AutoCompartment *call = js_new<AutoCompartment>(cx, target);
     if (!call)
         return NULL;
     if (!call->enter()) {
-        delete call;
+        js_delete(call);
         return NULL;
     }
     return reinterpret_cast<JSCrossCompartmentCall *>(call);
@@ -1193,7 +1193,7 @@ JS_LeaveCrossCompartmentCall(JSCrossCompartmentCall *call)
     AutoCompartment *realcall = reinterpret_cast<AutoCompartment *>(call);
     CHECK_REQUEST(realcall->context);
     realcall->leave();
-    delete realcall;
+    js_delete(realcall);
 }
 
 bool
@@ -3820,6 +3820,9 @@ JS_ClearScope(JSContext *cx, JSObject *obj)
     if (obj->isGlobal()) {
         for (int key = JSProto_Null; key < JSProto_LIMIT * 3; key++)
             JS_SetReservedSlot(cx, obj, key, JSVAL_VOID);
+
+        /* Clear the CSP eval-is-allowed cache. */
+        JS_SetReservedSlot(cx, obj, JSRESERVED_GLOBAL_EVAL_ALLOWED, JSVAL_VOID);
     }
 
     js_InitRandom(cx);
@@ -5702,6 +5705,32 @@ JS_SetErrorReporter(JSContext *cx, JSErrorReporter er)
     older = cx->errorReporter;
     cx->errorReporter = er;
     return older;
+}
+
+/************************************************************************/
+
+/*
+ * Dates.
+ */
+JS_PUBLIC_API(JSObject *)
+JS_NewDateObject(JSContext *cx, int year, int mon, int mday, int hour, int min, int sec)
+{
+    CHECK_REQUEST(cx);
+    return js_NewDateObject(cx, year, mon, mday, hour, min, sec);
+}
+
+JS_PUBLIC_API(JSObject *)
+JS_NewDateObjectMsec(JSContext *cx, jsdouble msec)
+{
+    CHECK_REQUEST(cx);
+    return js_NewDateObjectMsec(cx, msec);
+}
+
+JS_PUBLIC_API(JSBool)
+JS_ObjectIsDate(JSContext *cx, JSObject *obj)
+{
+    JS_ASSERT(obj);
+    return obj->isDate();
 }
 
 /************************************************************************/

@@ -409,9 +409,8 @@ AsyncClickHandler::Run()
         }
         if (!prefSaved) {
           // Store the last used directory using the content pref service
-          rv = nsHTMLInputElement::gUploadLastDir->StoreLastUsedDirectory(doc->GetDocumentURI(), 
-                                                                          localFile);
-          NS_ENSURE_SUCCESS(rv, rv);
+          nsHTMLInputElement::gUploadLastDir->StoreLastUsedDirectory(doc->GetDocumentURI(),
+                                                                     localFile);
           prefSaved = PR_TRUE;
         }
       }
@@ -429,9 +428,8 @@ AsyncClickHandler::Run()
         newFiles.AppendObject(domFile);
       }
       // Store the last used directory using the content pref service
-      rv = nsHTMLInputElement::gUploadLastDir->StoreLastUsedDirectory(doc->GetDocumentURI(),
-                                                                      localFile);
-      NS_ENSURE_SUCCESS(rv, rv);
+      nsHTMLInputElement::gUploadLastDir->StoreLastUsedDirectory(doc->GetDocumentURI(),
+                                                                 localFile);
     }
   }
 
@@ -1202,7 +1200,11 @@ nsHTMLInputElement::SetUserInput(const nsAString& aValue)
   } else {
     SetValueInternal(aValue, PR_TRUE, PR_TRUE);
   }
-  return NS_OK;
+
+  return nsContentUtils::DispatchTrustedEvent(GetOwnerDoc(),
+                                              static_cast<nsIDOMHTMLInputElement*>(this),
+                                              NS_LITERAL_STRING("input"), PR_TRUE,
+                                              PR_TRUE);
 }
 
 NS_IMETHODIMP_(nsIEditor*)
@@ -2098,20 +2100,12 @@ nsHTMLInputElement::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
     nsEventStates states;
 
     if (aVisitor.mEvent->message == NS_FOCUS_CONTENT) {
-      // If the invalid UI is shown, we should show it while focusing (and
-      // update). Otherwise, we should not.
-      SET_BOOLBIT(mBitField, BF_CAN_SHOW_INVALID_UI,
-                  !IsValid() && ShouldShowInvalidUI());
-
-      // If neither invalid UI nor valid UI is shown, we shouldn't show the valid
-      // UI while typing.
-      SET_BOOLBIT(mBitField, BF_CAN_SHOW_VALID_UI, ShouldShowValidUI());
+      UpdateValidityUIBits(true);
 
       // We don't have to update NS_EVENT_STATE_MOZ_UI_INVALID nor
       // NS_EVENT_STATE_MOZ_UI_VALID given that the states should not change.
     } else { // NS_BLUR_CONTENT
-      SET_BOOLBIT(mBitField, BF_CAN_SHOW_INVALID_UI, PR_TRUE);
-      SET_BOOLBIT(mBitField, BF_CAN_SHOW_VALID_UI, PR_TRUE);
+      UpdateValidityUIBits(false);
       states |= NS_EVENT_STATE_MOZ_UI_VALID | NS_EVENT_STATE_MOZ_UI_INVALID;
     }
 
@@ -3320,8 +3314,9 @@ nsHTMLInputElement::IntrinsicState() const
     } else {
       state |= NS_EVENT_STATE_INVALID;
 
-      if (GET_BOOLBIT(mBitField, BF_CAN_SHOW_INVALID_UI) &&
-          ShouldShowInvalidUI()) {
+      if (GetValidityState(VALIDITY_STATE_CUSTOM_ERROR) ||
+          (GET_BOOLBIT(mBitField, BF_CAN_SHOW_INVALID_UI) &&
+           ShouldShowValidityUI())) {
         state |= NS_EVENT_STATE_MOZ_UI_INVALID;
       }
     }
@@ -3332,10 +3327,10 @@ nsHTMLInputElement::IntrinsicState() const
     // 2. The element is either valid or isn't allowed to have
     //    :-moz-ui-invalid applying ;
     // 3. The rules to have :-moz-ui-valid applying are fulfilled
-    //    (see ShouldShowValidUI()).
-    if (GET_BOOLBIT(mBitField, BF_CAN_SHOW_VALID_UI) &&
-        (IsValid() || !GET_BOOLBIT(mBitField, BF_CAN_SHOW_INVALID_UI)) &&
-        ShouldShowValidUI()) {
+    //    (see ShouldShowValidityUI()).
+    if (GET_BOOLBIT(mBitField, BF_CAN_SHOW_VALID_UI) && ShouldShowValidityUI() &&
+        (IsValid() || (!state.HasState(NS_EVENT_STATE_MOZ_UI_INVALID) &&
+                       !GET_BOOLBIT(mBitField, BF_CAN_SHOW_INVALID_UI)))) {
       state |= NS_EVENT_STATE_MOZ_UI_VALID;
     }
   }
@@ -3966,6 +3961,8 @@ nsHTMLInputElement::UpdateBarredFromConstraintValidation()
   SetBarredFromConstraintValidation(mType == NS_FORM_INPUT_HIDDEN ||
                                     mType == NS_FORM_INPUT_BUTTON ||
                                     mType == NS_FORM_INPUT_RESET ||
+                                    mType == NS_FORM_INPUT_SUBMIT ||
+                                    mType == NS_FORM_INPUT_IMAGE ||
                                     HasAttr(kNameSpaceID_None, nsGkAtoms::readonly) ||
                                     IsDisabled());
 }
@@ -4120,16 +4117,11 @@ nsHTMLInputElement::IsValidEmailAddress(const nsAString& aValue)
     return PR_FALSE;
   }
 
-  // The domain name must have at least one dot which can't follow another dot,
-  // can't be the first nor the last domain name character.
-  PRBool dotFound = PR_FALSE;
-
   // Parsing the domain name.
   for (; i < length; ++i) {
     PRUnichar c = aValue[i];
 
     if (c == '.') {
-      dotFound = PR_TRUE;
       // A dot can't follow a dot.
       if (aValue[i-1] == '.') {
         return PR_FALSE;
@@ -4141,7 +4133,7 @@ nsHTMLInputElement::IsValidEmailAddress(const nsAString& aValue)
     }
   }
 
-  return dotFound;
+  return PR_TRUE;
 }
 
 //static
@@ -4586,5 +4578,23 @@ nsHTMLInputElement::GetFilterFromAccept()
   }
 
   return filter;
+}
+
+void
+nsHTMLInputElement::UpdateValidityUIBits(bool aIsFocused)
+{
+  if (aIsFocused) {
+    // If the invalid UI is shown, we should show it while focusing (and
+    // update). Otherwise, we should not.
+    SET_BOOLBIT(mBitField, BF_CAN_SHOW_INVALID_UI,
+                !IsValid() && ShouldShowValidityUI());
+
+    // If neither invalid UI nor valid UI is shown, we shouldn't show the valid
+    // UI while typing.
+    SET_BOOLBIT(mBitField, BF_CAN_SHOW_VALID_UI, ShouldShowValidityUI());
+  } else {
+    SET_BOOLBIT(mBitField, BF_CAN_SHOW_INVALID_UI, PR_TRUE);
+    SET_BOOLBIT(mBitField, BF_CAN_SHOW_VALID_UI, PR_TRUE);
+  }
 }
 

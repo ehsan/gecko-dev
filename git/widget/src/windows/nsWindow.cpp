@@ -181,6 +181,7 @@
 #include "LayerManagerD3D10.h"
 #endif
 #include "LayerManagerOGL.h"
+#include "nsIGfxInfo.h"
 #endif
 #include "BasicLayers.h"
 
@@ -261,6 +262,7 @@ imgIContainer*  nsWindow::sCursorImgContainer     = nsnull;
 nsWindow*       nsWindow::sCurrentWindow          = nsnull;
 PRBool          nsWindow::sJustGotDeactivate      = PR_FALSE;
 PRBool          nsWindow::sJustGotActivate        = PR_FALSE;
+PRBool          nsWindow::sIsInMouseCapture       = PR_FALSE;
 
 // imported in nsWidgetFactory.cpp
 TriStateBool    nsWindow::sCanQuit                = TRI_UNKNOWN;
@@ -363,6 +365,17 @@ static NS_DEFINE_CID(kRegionCID, NS_REGION_CID);
 // General purpose user32.dll hook object
 static WindowsDllInterceptor sUser32Intercept;
 
+// A glass window's opaque rectangle must be at least this height
+// before we use glass margins. Shorter opaque rectangles lead to
+// stupid-looking visual effects because Windows (foolishly) makes the
+// window edge rendering dependent on the opaque rect height.
+static const int MIN_OPAQUE_RECT_HEIGHT_FOR_GLASS_MARGINS = 50;
+
+// Maximum number of pixels for the left and right horizontal glass margins.
+// If the margins are bigger than this, we won't use margins at all because
+// Windows' glaze effect will start to look stupid.
+static const int MAX_HORIZONTAL_GLASS_MARGIN = 5;
+
 /**************************************************************
  **************************************************************
  **
@@ -394,7 +407,6 @@ nsWindow::nsWindow() : nsBaseWidget()
   mNativeDragTarget     = nsnull;
   mInDtor               = PR_FALSE;
   mIsVisible            = PR_FALSE;
-  mIsInMouseCapture     = PR_FALSE;
   mIsTopWidgetWindow    = PR_FALSE;
   mUnicodeWidget        = PR_TRUE;
   mDisplayPanFeedback   = PR_FALSE;
@@ -414,7 +426,6 @@ nsWindow::nsWindow() : nsBaseWidget()
   mOldStyle             = 0;
   mOldExStyle           = 0;
   mPainting             = 0;
-  mExitToNonClientArea  = 0;
   mLastKeyboardLayout   = 0;
   mBlurSuppressLevel    = 0;
   mIMEContext.mStatus   = nsIWidget::IME_STATUS_ENABLED;
@@ -2573,11 +2584,11 @@ void nsWindow::UpdatePossiblyTransparentRegion(const nsIntRegion &aDirtyRegion,
 
   // If there is no opaque region or hidechrome=true, set margins
   // to support a full sheet of glass.
-  if (opaqueRegion.IsEmpty() || mHideChrome) {
-    // Comments in MSDN indicate all values must be set to -1
-    margins.cxLeftWidth = margins.cxRightWidth = 
-      margins.cyTopHeight = margins.cyBottomHeight = -1;
-  } else {
+  // Comments in MSDN indicate all values must be set to -1 to get a full
+  // sheet of glass.
+  margins.cxLeftWidth = margins.cxRightWidth =
+    margins.cyTopHeight = margins.cyBottomHeight = -1;
+  if (!opaqueRegion.IsEmpty() && !mHideChrome) {
     nsIntRect pluginBounds;
     for (nsIWidget* child = GetFirstChild(); child; child = child->GetNextSibling()) {
       nsWindowType type;
@@ -2600,17 +2611,21 @@ void nsWindow::UpdatePossiblyTransparentRegion(const nsIntRegion &aDirtyRegion,
     // Find the largest rectangle and use that to calculate the inset. Our top
     // priority is to include the bounds of all plugins.
     nsIntRect largest = opaqueRegion.GetLargestRectangle(pluginBounds);
-    margins.cxLeftWidth = largest.x;
-    margins.cxRightWidth = clientBounds.width - largest.XMost();
-    margins.cyBottomHeight = clientBounds.height - largest.YMost();
+    if (largest.x <= MAX_HORIZONTAL_GLASS_MARGIN &&
+        clientBounds.width - largest.XMost() <= MAX_HORIZONTAL_GLASS_MARGIN &&
+        largest.height >= MIN_OPAQUE_RECT_HEIGHT_FOR_GLASS_MARGINS) {
+      margins.cxLeftWidth = largest.x;
+      margins.cxRightWidth = clientBounds.width - largest.XMost();
+      margins.cyBottomHeight = clientBounds.height - largest.YMost();
 
-    if (mCustomNonClient) {
-      // The minimum glass height must be the caption buttons height,
-      // otherwise the buttons are drawn incorrectly.
-      largest.y = PR_MAX(largest.y, 
-                         nsUXThemeData::sCommandButtons[CMDBUTTONIDX_BUTTONBOX].cy);
+      if (mCustomNonClient) {
+        // The minimum glass height must be the caption buttons height,
+        // otherwise the buttons are drawn incorrectly.
+        largest.y = PR_MAX(largest.y,
+                           nsUXThemeData::sCommandButtons[CMDBUTTONIDX_BUTTONBOX].cy);
+      }
+      margins.cyTopHeight = largest.y;
     }
-    margins.cyTopHeight = largest.y;
   }
 
   // Only update glass area if there are changes
@@ -3127,7 +3142,7 @@ NS_METHOD nsWindow::CaptureMouse(PRBool aCapture)
     nsToolkit::gMouseTrailer->SetCaptureWindow(NULL);
     ::ReleaseCapture();
   }
-  mIsInMouseCapture = aCapture;
+  sIsInMouseCapture = aCapture;
   return NS_OK;
 }
 
@@ -3284,6 +3299,7 @@ struct LayerManagerPrefs {
   {}
   PRBool mAccelerateByDefault;
   PRBool mDisableAcceleration;
+  PRBool mForceAcceleration;
   PRBool mPreferOpenGL;
   PRBool mPreferD3D9;
 };
@@ -3295,6 +3311,8 @@ GetLayerManagerPrefs(LayerManagerPrefs* aManagerPrefs)
   if (prefs) {
     prefs->GetBoolPref("layers.acceleration.disabled",
                        &aManagerPrefs->mDisableAcceleration);
+    prefs->GetBoolPref("layers.acceleration.force-enabled",
+                       &aManagerPrefs->mForceAcceleration);
     prefs->GetBoolPref("layers.prefer-opengl",
                        &aManagerPrefs->mPreferOpenGL);
     prefs->GetBoolPref("layers.prefer-d3d9",
@@ -3383,10 +3401,22 @@ nsWindow::GetLayerManager(LayerManagerPersistence aPersistence, bool* aAllowReta
       }
 #endif
       if (!mLayerManager && prefs.mPreferOpenGL) {
-        nsRefPtr<mozilla::layers::LayerManagerOGL> layerManager =
-          new mozilla::layers::LayerManagerOGL(this);
-        if (layerManager->Initialize()) {
-          mLayerManager = layerManager;
+        nsCOMPtr<nsIGfxInfo> gfxInfo = do_GetService("@mozilla.org/gfx/info;1");
+        PRInt32 status = nsIGfxInfo::FEATURE_NO_INFO;
+
+        if (gfxInfo && !prefs.mForceAcceleration) {
+          gfxInfo->GetFeatureStatus(nsIGfxInfo::FEATURE_OPENGL_LAYERS, &status);
+        }
+
+        if (status == nsIGfxInfo::FEATURE_NO_INFO) {
+          nsRefPtr<mozilla::layers::LayerManagerOGL> layerManager =
+            new mozilla::layers::LayerManagerOGL(this);
+          if (layerManager->Initialize()) {
+            mLayerManager = layerManager;
+          }
+
+        } else {
+          NS_WARNING("OpenGL accelerated layers are not supported on this system.");
         }
       }
     }
@@ -3856,9 +3886,12 @@ void nsWindow::DispatchPendingEvents()
     --recursionBlocker;
   }
 
-  // Quickly check to see if there are any
-  // paint events pending.
-  if (::GetQueueStatus(QS_PAINT)) {
+  // Quickly check to see if there are any paint events pending,
+  // but only dispatch them if it has been long enough since the
+  // last paint completed.
+  if (::GetQueueStatus(QS_PAINT) && 
+      (mLastPaintEndTime.IsNull() ||
+       (TimeStamp::Now() - mLastPaintEndTime).ToMilliseconds() >= 50)) {
     // Find the top level window.
     HWND topWnd = GetTopLevelHWND(mWnd);
 
@@ -3934,7 +3967,7 @@ PRBool nsWindow::DispatchMouseEvent(PRUint32 aEventType, WPARAM wParam,
     case NS_MOUSE_BUTTON_UP:
     case NS_MOUSE_MOVE:
     case NS_MOUSE_EXIT:
-      if (!(wParam & (MK_LBUTTON | MK_MBUTTON | MK_RBUTTON)) && mIsInMouseCapture)
+      if (!(wParam & (MK_LBUTTON | MK_MBUTTON | MK_RBUTTON)) && sIsInMouseCapture)
         CaptureMouse(PR_FALSE);
       break;
 
@@ -4112,7 +4145,7 @@ PRBool nsWindow::DispatchMouseEvent(PRUint32 aEventType, WPARAM wParam,
     if (nsToolkit::gMouseTrailer)
       nsToolkit::gMouseTrailer->Disable();
     if (aEventType == NS_MOUSE_MOVE) {
-      if (nsToolkit::gMouseTrailer && !mIsInMouseCapture) {
+      if (nsToolkit::gMouseTrailer && !sIsInMouseCapture) {
         nsToolkit::gMouseTrailer->SetMouseTrailerWindow(mWnd);
       }
       nsIntRect rect;
@@ -5024,7 +5057,6 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
       if ((sLastMouseMovePoint.x != mp.x) || (sLastMouseMovePoint.y != mp.y)) {
         userMovedMouse = PR_TRUE;
       }
-      mExitToNonClientArea = PR_FALSE;
 
       result = DispatchMouseEvent(NS_MOUSE_MOVE, wParam, lParam,
                                   PR_FALSE, nsMouseEvent::eLeftButton, MOUSE_INPUT_SOURCE());
@@ -5037,7 +5069,7 @@ PRBool nsWindow::ProcessMessage(UINT msg, WPARAM &wParam, LPARAM &lParam,
     case WM_NCMOUSEMOVE:
       // If we receive a mouse move event on non-client chrome, make sure and
       // send an NS_MOUSE_EXIT event as well.
-      if (mMousePresent && !mIsInMouseCapture)
+      if (mMousePresent && !sIsInMouseCapture)
         SendMessage(mWnd, WM_MOUSELEAVE, 0, 0);
     break;
 
@@ -5806,9 +5838,11 @@ nsWindow::ClientMarginHitTestPoint(PRInt32 mx, PRInt32 my)
   else if (my < winRect.bottom && my >= (winRect.bottom - mVertResizeMargin))
     bottom = PR_TRUE;
 
-  if (mx >= winRect.left && mx < (winRect.left + mHorResizeMargin))
+  if (mx >= winRect.left && mx < (winRect.left +
+                                  (bottom ? (2*mHorResizeMargin) : mHorResizeMargin)))
     left = PR_TRUE;
-  else if (mx < winRect.right && mx >= (winRect.right - mHorResizeMargin))
+  else if (mx < winRect.right && mx >= (winRect.right -
+                                        (bottom ? (2*mHorResizeMargin) : mHorResizeMargin)))
     right = PR_TRUE;
 
   if (top) {
@@ -5849,7 +5883,7 @@ nsWindow::ClientMarginHitTestPoint(PRInt32 mx, PRInt32 my)
                      my <= winRect.bottom - bottomMargin;
   }
 
-  if (!mIsInMouseCapture && 
+  if (!sIsInMouseCapture &&
       contentOverlap &&
       (testResult == HTCLIENT ||
        testResult == HTTOP ||
@@ -5863,12 +5897,6 @@ nsWindow::ClientMarginHitTestPoint(PRInt32 mx, PRInt32 my)
       // The mouse is over a blank area
       testResult = testResult == HTCLIENT ? HTCAPTION : testResult;
 
-      if (!mExitToNonClientArea) {
-        // The first time the mouse pointer goes from client area to non-client area,
-        // we don't want to miss that movement so we can interpret mouseout input.
-        ::SendMessage(mWnd, WM_MOUSEMOVE, 0, lParamClient);
-        mExitToNonClientArea = PR_TRUE;
-      }
     } else {
       // There's content over the mouse pointer. Set HTCLIENT
       // to possibly override a resizer border.

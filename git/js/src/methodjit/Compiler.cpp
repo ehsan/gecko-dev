@@ -71,10 +71,8 @@ using namespace js::mjit::ic;
 
 #define RETURN_IF_OOM(retval)                                   \
     JS_BEGIN_MACRO                                              \
-        if (oomInVector || masm.oom() || stubcc.masm.oom()) {   \
-            js_ReportOutOfMemory(cx);                           \
+        if (oomInVector || masm.oom() || stubcc.masm.oom())     \
             return retval;                                      \
-        }                                                       \
     JS_END_MACRO
 
 #if defined(JS_METHODJIT_SPEW)
@@ -151,11 +149,14 @@ mjit::Compiler::compile()
     return status;
 }
 
-#define CHECK_STATUS(expr)              \
-    JS_BEGIN_MACRO                      \
-        CompileStatus status_ = (expr); \
-        if (status_ != Compile_Okay)    \
-            return status_;             \
+#define CHECK_STATUS(expr)                                           \
+    JS_BEGIN_MACRO                                                   \
+        CompileStatus status_ = (expr);                              \
+        if (status_ != Compile_Okay) {                               \
+            if (oomInVector || masm.oom() || stubcc.masm.oom())      \
+                js_ReportOutOfMemory(cx);                            \
+            return status_;                                          \
+        }                                                            \
     JS_END_MACRO
 
 CompileStatus
@@ -169,8 +170,10 @@ mjit::Compiler::performCompilation(JITScript **jitp)
 
     analysis.analyze(cx, script);
 
-    if (analysis.OOM())
+    if (analysis.OOM()) {
+        js_ReportOutOfMemory(cx);
         return Compile_Error;
+    }
     if (analysis.failed()) {
         JaegerSpew(JSpew_Abort, "couldn't analyze bytecode; probably switchX or OOM\n");
         return Compile_Abort;
@@ -178,12 +181,16 @@ mjit::Compiler::performCompilation(JITScript **jitp)
 
     this->analysis = &analysis;
 
-    if (!frame.init())
-        return Compile_Abort;
+    if (!frame.init()) {
+        js_ReportOutOfMemory(cx);
+        return Compile_Error;
+    }
 
     jumpMap = (Label *)cx->malloc(sizeof(Label) * script->length);
-    if (!jumpMap)
+    if (!jumpMap) {
+        js_ReportOutOfMemory(cx);
         return Compile_Error;
+    }
 #ifdef DEBUG
     for (uint32 i = 0; i < script->length; i++)
         jumpMap[i] = Label();
@@ -401,10 +408,17 @@ mjit::Compiler::finishThisUp(JITScript **jitp)
                        jumpTableOffsets.length() * sizeof(void *);
 
     JSC::ExecutablePool *execPool = getExecPool(script, totalSize);
-    if (!execPool)
-        return Compile_Abort;
+    if (!execPool) {
+        js_ReportOutOfMemory(cx);
+        return Compile_Error;
+    }
 
     uint8 *result = (uint8 *)execPool->alloc(totalSize);
+    if (!result) {
+        execPool->release();
+        js_ReportOutOfMemory(cx);
+        return Compile_Error;
+    }
     JSC::ExecutableAllocator::makeWritable(result, totalSize);
     masm.executableCopy(result);
     stubcc.masm.executableCopy(result + masm.size());
@@ -438,6 +452,7 @@ mjit::Compiler::finishThisUp(JITScript **jitp)
     uint8 *cursor = (uint8 *)cx->calloc(totalBytes);
     if (!cursor) {
         execPool->release();
+        js_ReportOutOfMemory(cx);
         return Compile_Error;
     }
 
@@ -1471,7 +1486,8 @@ mjit::Compiler::generateMethod()
 
             masm.jump(Registers::ReturnReg);
 #else
-            jsop_tableswitch(PC);
+            if (!jsop_tableswitch(PC))
+                return Compile_Error;
 #endif
             PC += js_GetVariableBytecodeLength(PC);
             break;
@@ -1499,31 +1515,19 @@ mjit::Compiler::generateMethod()
           END_CASE(JSOP_STRICTNE)
 
           BEGIN_CASE(JSOP_ITER)
-# if defined JS_CPU_X64
-            prepareStubCall(Uses(1));
-            masm.move(Imm32(PC[1]), Registers::ArgReg1);
-            INLINE_STUBCALL(stubs::Iter);
-            frame.pop();
-            frame.pushSynced();
-#else
-            iter(PC[1]);
-#endif
+            if (!iter(PC[1]))
+                return Compile_Error;
           END_CASE(JSOP_ITER)
 
           BEGIN_CASE(JSOP_MOREITER)
-            /* This MUST be fused with IFNE or IFNEX. */
-            iterMore();
+            /* At the byte level, this is always fused with IFNE or IFNEX. */
+            if (!iterMore())
+                return Compile_Error;
             break;
           END_CASE(JSOP_MOREITER)
 
           BEGIN_CASE(JSOP_ENDITER)
-# if defined JS_CPU_X64
-            prepareStubCall(Uses(1));
-            INLINE_STUBCALL(stubs::EndIter);
-            frame.pop();
-#else
             iterEnd();
-#endif
           END_CASE(JSOP_ENDITER)
 
           BEGIN_CASE(JSOP_POP)
@@ -2427,7 +2431,7 @@ mjit::Compiler::checkCallApplySpeculation(uint32 callImmArgc, uint32 speculatedA
     if (origCalleeType.isSet())
         isObj = masm.testObject(Assembler::NotEqual, origCalleeType.reg());
     Jump isFun = masm.testFunction(Assembler::NotEqual, origCalleeData);
-    masm.loadFunctionPrivate(origCalleeData, origCalleeData);
+    masm.loadObjPrivate(origCalleeData, origCalleeData);
     Native native = *PC == JSOP_FUNCALL ? js_fun_call : js_fun_apply;
     Jump isNative = masm.branchPtr(Assembler::NotEqual,
                                    Address(origCalleeData, JSFunction::offsetOfNativeOrScript()),
@@ -2660,7 +2664,7 @@ mjit::Compiler::inlineCallHelper(uint32 callImmArgc, bool callingNew)
 
         /* Test if the function is scripted. */
         RegisterID tmp = tempRegs.takeAnyReg();
-        stubcc.masm.loadFunctionPrivate(icCalleeData, funPtrReg);
+        stubcc.masm.loadObjPrivate(icCalleeData, funPtrReg);
         stubcc.masm.load16(Address(funPtrReg, offsetof(JSFunction, flags)), tmp);
         stubcc.masm.and32(Imm32(JSFUN_KINDMASK), tmp);
         Jump isNative = stubcc.masm.branch32(Assembler::Below, tmp, Imm32(JSFUN_INTERPRETED));
@@ -3978,7 +3982,7 @@ mjit::Compiler::jsop_propinc(JSOp op, VoidStubAtom stub, uint32 index)
     return true;
 }
 
-void
+bool
 mjit::Compiler::iter(uintN flags)
 {
     FrameEntry *fe = frame.peek(-1);
@@ -3993,7 +3997,7 @@ mjit::Compiler::iter(uintN flags)
         INLINE_STUBCALL(stubs::Iter);
         frame.pop();
         frame.pushSynced();
-        return;
+        return true;
     }
 
     if (!fe->isTypeKnown()) {
@@ -4017,8 +4021,8 @@ mjit::Compiler::iter(uintN flags)
     Jump nullIterator = masm.branchTest32(Assembler::Zero, ioreg, ioreg);
     stubcc.linkExit(nullIterator, Uses(1));
 
-    /* Get NativeIterator from iter obj. :FIXME: X64, also most of this function */
-    masm.loadPtr(Address(ioreg, offsetof(JSObject, privateData)), nireg);
+    /* Get NativeIterator from iter obj. */
+    masm.loadObjPrivate(ioreg, nireg);
 
     /* Test for active iterator. */
     Address flagsAddr(nireg, offsetof(NativeIterator, flags));
@@ -4055,6 +4059,7 @@ mjit::Compiler::iter(uintN flags)
     /* Found a match with the most recent iterator. Hooray! */
 
     /* Mark iterator as active. */
+    masm.storePtr(reg, Address(nireg, offsetof(NativeIterator, obj)));
     masm.load32(flagsAddr, T1);
     masm.or32(Imm32(JSITER_ACTIVE), T1);
     masm.store32(T1, flagsAddr);
@@ -4078,6 +4083,8 @@ mjit::Compiler::iter(uintN flags)
     frame.pushTypedPayload(JSVAL_TYPE_OBJECT, ioreg);
 
     stubcc.rejoin(Changes(1));
+
+    return true;
 }
 
 /*
@@ -4100,12 +4107,12 @@ mjit::Compiler::iterNext()
     stubcc.linkExit(notFast, Uses(1));
 
     /* Get private from iter obj. */
-    masm.loadFunctionPrivate(reg, T1);
+    masm.loadObjPrivate(reg, T1);
 
     RegisterID T3 = frame.allocReg();
     RegisterID T4 = frame.allocReg();
 
-    /* Test if for-each. */
+    /* Test for a value iterator, which could come through an Iterator object. */
     masm.load32(Address(T1, offsetof(NativeIterator, flags)), T3);
     notFast = masm.branchTest32(Assembler::NonZero, T3, Imm32(JSITER_FOREACH));
     stubcc.linkExit(notFast, Uses(1));
@@ -4142,7 +4149,7 @@ mjit::Compiler::iterNext()
 bool
 mjit::Compiler::iterMore()
 {
-    FrameEntry *fe= frame.peek(-1);
+    FrameEntry *fe = frame.peek(-1);
     RegisterID reg = frame.tempRegForData(fe);
 
     frame.pinReg(reg);
@@ -4154,7 +4161,12 @@ mjit::Compiler::iterMore()
     stubcc.linkExitForBranch(notFast);
 
     /* Get private from iter obj. */
-    masm.loadFunctionPrivate(reg, T1);
+    masm.loadObjPrivate(reg, T1);
+
+    /* Test that the iterator supports fast iteration. */
+    notFast = masm.branchTest32(Assembler::NonZero, Address(T1, offsetof(NativeIterator, flags)),
+                                Imm32(JSITER_FOREACH));
+    stubcc.linkExitForBranch(notFast);
 
     /* Get props_cursor, test */
     RegisterID T2 = frame.allocReg();
@@ -4198,8 +4210,8 @@ mjit::Compiler::iterEnd()
     Jump notIterator = masm.testObjClass(Assembler::NotEqual, reg, &js_IteratorClass);
     stubcc.linkExit(notIterator, Uses(1));
 
-    /* Get private from iter obj. :FIXME: X64 */
-    masm.loadPtr(Address(reg, offsetof(JSObject, privateData)), T1);
+    /* Get private from iter obj. */
+    masm.loadObjPrivate(reg, T1);
 
     RegisterID T2 = frame.allocReg();
 
@@ -4812,11 +4824,12 @@ mjit::Compiler::constructThis()
     return true;
 }
 
-void
+bool
 mjit::Compiler::jsop_tableswitch(jsbytecode *pc)
 {
 #if defined JS_CPU_ARM
     JS_NOT_REACHED("Implement jump(BaseIndex) for ARM");
+    return true;
 #else
     jsbytecode *originalPC = pc;
 
@@ -4836,7 +4849,7 @@ mjit::Compiler::jsop_tableswitch(jsbytecode *pc)
      */
     if (numJumps == 0) {
         frame.pop();
-        return;
+        return true;
     }
 
     FrameEntry *fe = frame.peek(-1);
@@ -4848,7 +4861,7 @@ mjit::Compiler::jsop_tableswitch(jsbytecode *pc)
         INLINE_STUBCALL(stubs::TableSwitch);
         frame.pop();
         masm.jump(Registers::ReturnReg);
-        return;
+        return true;
     }
 
     RegisterID dataReg;
@@ -4894,7 +4907,7 @@ mjit::Compiler::jsop_tableswitch(jsbytecode *pc)
         stubcc.masm.jump(Registers::ReturnReg);
     }
     frame.pop();
-    jumpAndTrace(defaultCase, originalPC + defaultTarget);
+    return jumpAndTrace(defaultCase, originalPC + defaultTarget);
 #endif
 }
 

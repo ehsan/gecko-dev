@@ -1228,18 +1228,6 @@ static inline PRBool ApplyOverflowHiddenClipping(nsIFrame* aFrame,
        type == nsGkAtoms::bcTableCellFrame;
 }
 
-static inline PRBool ApplyPaginatedOverflowClipping(nsIFrame* aFrame,
-                                                    const nsStyleDisplay* aDisp)
-{
-  // If we're paginated and aFrame is a block, and it has
-  // NS_BLOCK_CLIP_PAGINATED_OVERFLOW set, then we want to clip our
-  // overflow.
-  return
-    aFrame->PresContext()->IsPaginated() &&
-    aFrame->GetType() == nsGkAtoms::blockFrame &&
-    (aFrame->GetStateBits() & NS_BLOCK_CLIP_PAGINATED_OVERFLOW) != 0;
-}
-
 static PRBool ApplyOverflowClipping(nsDisplayListBuilder* aBuilder,
                                     nsIFrame* aFrame,
                                     const nsStyleDisplay* aDisp, nsRect* aRect) {
@@ -1252,7 +1240,7 @@ static PRBool ApplyOverflowClipping(nsDisplayListBuilder* aBuilder,
   // frames, and any non-visible value for blocks in a paginated context).
   // Other overflow clipping is applied by nsHTML/XULScrollFrame.
   if (!ApplyOverflowHiddenClipping(aFrame, aDisp) &&
-      !ApplyPaginatedOverflowClipping(aFrame, aDisp)) {
+      !nsFrame::ApplyPaginatedOverflowClipping(aFrame)) {
     PRBool clip = aDisp->mOverflowX == NS_STYLE_OVERFLOW_CLIP;
     if (!clip)
       return PR_FALSE;
@@ -3959,6 +3947,24 @@ nsIFrame::InvalidateLayer(const nsRect& aDamageRect, PRUint32 aDisplayItemKey)
   InvalidateWithFlags(aDamageRect, flags);
 }
 
+void
+nsIFrame::InvalidateTransformLayer()
+{
+  NS_ASSERTION(mParent, "How can a viewport frame have a transform?");
+
+  PRBool hasLayer =
+      FrameLayerBuilder::HasDedicatedLayer(this, nsDisplayItem::TYPE_TRANSFORM);
+  // Invalidate post-transform area in the parent. We have to invalidate
+  // in the parent because our transform style may have changed from what was
+  // used to paint this frame.
+  // It's OK to bypass the SVG effects processing and other processing
+  // performed if we called this->InvalidateWithFlags, because those effects
+  // are performed before applying transforms.
+  mParent->InvalidateInternal(GetVisualOverflowRect() + GetPosition(),
+                              0, 0, this,
+                              hasLayer ? INVALIDATE_NO_THEBES_LAYERS : 0);
+}
+
 class LayerActivity {
 public:
   LayerActivity(nsIFrame* aFrame) : mFrame(aFrame) {}
@@ -6129,7 +6135,8 @@ nsIFrame::FinishAndStoreOverflow(nsOverflowAreas& aOverflowAreas,
   NS_ASSERTION((disp->mOverflowY == NS_STYLE_OVERFLOW_CLIP) ==
                (disp->mOverflowX == NS_STYLE_OVERFLOW_CLIP),
                "If one overflow is clip, the other should be too");
-  if (disp->mOverflowX == NS_STYLE_OVERFLOW_CLIP) {
+  if (disp->mOverflowX == NS_STYLE_OVERFLOW_CLIP ||
+      nsFrame::ApplyPaginatedOverflowClipping(this)) {
     // The contents are actually clipped to the padding area 
     aOverflowAreas.SetAllTo(bounds);
   }

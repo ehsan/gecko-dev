@@ -26,7 +26,7 @@
  *   Dan Rosen <dr@netscape.com>
  *   Daniel Glazman <glazman@netscape.com>
  *   Mats Palmgren <matspal@gmail.com>
- *   Mihai Șucan <mihai.sucan@gmail.com>
+ *   Mihai Sucan <mihai.sucan@gmail.com>
  *
  * Alternatively, the contents of this file may be used under the terms of
  * either of the GNU General Public License Version 2 or later (the "GPL"),
@@ -700,7 +700,8 @@ class PresShell : public nsIPresShell, public nsIViewObserver,
                   public nsStubDocumentObserver,
                   public nsISelectionController, public nsIObserver,
                   public nsSupportsWeakReference,
-                  public nsIPresShell_MOZILLA_2_0_BRANCH
+                  public nsIPresShell_MOZILLA_2_0_BRANCH,
+                  public nsIPresShell_MOZILLA_2_0_BRANCH2
 {
 public:
   PresShell();
@@ -970,6 +971,12 @@ public:
   virtual NS_HIDDEN_(nsresult) SetIsActive(PRBool aIsActive);
 
   virtual PRBool GetIsViewportOverridden() { return mViewportOverridden; }
+
+  virtual PRBool IsLayoutFlushObserver()
+  {
+    return GetPresContext()->RefreshDriver()->
+      IsLayoutFlushObserver(this);
+  }
 
 protected:
   virtual ~PresShell();
@@ -1673,10 +1680,11 @@ PresShell::PresShell()
   sLiveShells->PutEntry(this);
 }
 
-NS_IMPL_ISUPPORTS9(PresShell, nsIPresShell, nsIDocumentObserver,
+NS_IMPL_ISUPPORTS10(PresShell, nsIPresShell, nsIDocumentObserver,
                    nsIViewObserver, nsISelectionController,
                    nsISelectionDisplay, nsIObserver, nsISupportsWeakReference,
-                   nsIMutationObserver, nsIPresShell_MOZILLA_2_0_BRANCH)
+                   nsIMutationObserver, nsIPresShell_MOZILLA_2_0_BRANCH,
+                   nsIPresShell_MOZILLA_2_0_BRANCH2)
 
 PresShell::~PresShell()
 {
@@ -6108,10 +6116,11 @@ PresShell::Paint(nsIView*           aDisplayRoot,
 
   LayerManager* layerManager = aWidgetToPaint->GetLayerManager();
   NS_ASSERTION(layerManager, "Must be in paint event");
+  layerManager->BeginTransaction();
 
   if (frame) {
     if (!(frame->GetStateBits() & NS_FRAME_UPDATE_LAYER_TREE)) {
-      if (layerManager->DoEmptyTransaction())
+      if (layerManager->EndEmptyTransaction())
         return NS_OK;
     }
     frame->RemoveStateBits(NS_FRAME_UPDATE_LAYER_TREE);
@@ -6131,7 +6140,8 @@ PresShell::Paint(nsIView*           aDisplayRoot,
     // need. (aPaintDefaultBackground will never be needed since the
     // chrome can always paint a default background.)
     nsLayoutUtils::PaintFrame(nsnull, frame, aDirtyRegion, bgcolor,
-                              nsLayoutUtils::PAINT_WIDGET_LAYERS);
+                              nsLayoutUtils::PAINT_WIDGET_LAYERS |
+                              nsLayoutUtils::PAINT_EXISTING_TRANSACTION);
 
     frame->EndDeferringInvalidatesForDisplayRoot();
     presContext->NotifyDidPaintForSubtree();
@@ -6144,7 +6154,6 @@ PresShell::Paint(nsIView*           aDisplayRoot,
     frame->BeginDeferringInvalidatesForDisplayRoot(aDirtyRegion);
   }
 
-  layerManager->BeginTransaction();
   nsRefPtr<ThebesLayer> root = layerManager->CreateThebesLayer();
   if (root) {
     root->SetVisibleRegion(aIntDirtyRegion);

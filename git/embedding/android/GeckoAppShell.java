@@ -59,6 +59,8 @@ import android.location.*;
 
 import android.util.*;
 import android.net.Uri;
+import android.net.ConnectivityManager;
+import android.net.NetworkInfo;
 
 class GeckoAppShell
 {
@@ -79,8 +81,10 @@ class GeckoAppShell
     static private final int NOTIFY_IME_CANCELCOMPOSITION = 2;
     static private final int NOTIFY_IME_FOCUSCHANGE = 3;
 
-    static private final long kFreeSpaceThreshold = 157286400L; // 150MB
+    static public final long kFreeSpaceThreshold = 157286400L; // 150MB
     static private final long kLibFreeSpaceBuffer = 20971520L; // 29MB
+    static private File sCacheFile = null;
+    static private int sFreeSpace = -1;
 
     /* The Android-side API: API methods that Android calls */
 
@@ -93,9 +97,26 @@ class GeckoAppShell
     public static native void putenv(String map);
     public static native void onResume();
     public static native void onLowMemory();
+    public static native void onCriticalOOM();
     public static native void callObserver(String observerKey, String topic, String data);
     public static native void removeObserver(String observerKey);
     public static native void loadLibs(String apkName, boolean shouldExtract);
+    public static native void onChangeNetworkLinkStatus(String status);
+
+    public static File getCacheDir() {
+        if (sCacheFile == null)
+            sCacheFile = GeckoApp.mAppContext.getCacheDir();
+        return sCacheFile;
+    }
+
+    public static long getFreeSpace() {
+        if (sFreeSpace == -1) {
+            StatFs cacheStats = new StatFs(getCacheDir().getPath());
+            sFreeSpace = cacheStats.getFreeBlocks() * 
+                cacheStats.getBlockSize();
+        }
+        return sFreeSpace;
+    }
 
     // java-side stuff
     public static void loadGeckoLibs(String apkName) {
@@ -123,13 +144,12 @@ class GeckoAppShell
 
         f = Environment.getDownloadCacheDirectory();
         GeckoAppShell.putenv("EXTERNAL_STORAGE=" + f.getPath());
-        File cacheFile = GeckoApp.mAppContext.getCacheDir();
+
+        File cacheFile = getCacheDir();
         GeckoAppShell.putenv("CACHE_PATH=" + cacheFile.getPath());
 
         // gingerbread introduces File.getUsableSpace(). We should use that.
-        StatFs cacheStats = new StatFs(cacheFile.getPath());
-        long freeSpace = cacheStats.getFreeBlocks() * cacheStats.getBlockSize();
-
+        long freeSpace = getFreeSpace();
         try {
             File downloadDir = null;
             if (Build.VERSION.SDK_INT >= 8)
@@ -146,11 +166,14 @@ class GeckoAppShell
 
         if (freeSpace + kLibFreeSpaceBuffer < kFreeSpaceThreshold) {
             // remove any previously extracted libs since we're apparently low
-            Iterator cacheFiles = Arrays.asList(cacheFile.listFiles()).iterator();
-            while (cacheFiles.hasNext()) {
-                File libFile = (File)cacheFiles.next();
-                if (libFile.getName().endsWith(".so"))
-                    libFile.delete();
+            File[] files = cacheFile.listFiles();
+            if (files != null) {
+                Iterator cacheFiles = Arrays.asList(files).iterator();
+                while (cacheFiles.hasNext()) {
+                    File libFile = (File)cacheFiles.next();
+                    if (libFile.getName().endsWith(".so"))
+                        libFile.delete();
+                }
             }
         }
         loadLibs(apkName, freeSpace > kFreeSpaceThreshold);
@@ -689,5 +712,22 @@ class GeckoAppShell
                 GeckoApp.surfaceView.setKeepScreenOn(on);
             }
         });
+    }
+
+    public static boolean isNetworkLinkUp() {
+        ConnectivityManager cm = (ConnectivityManager)
+            GeckoApp.mAppContext.getSystemService(Context.CONNECTIVITY_SERVICE);
+        NetworkInfo info = cm.getActiveNetworkInfo();
+        if (info == null || !info.isConnected())
+            return false;
+        return true;
+    }
+
+    public static boolean isNetworkLinkKnown() {
+        ConnectivityManager cm = (ConnectivityManager)
+            GeckoApp.mAppContext.getSystemService(Context.CONNECTIVITY_SERVICE);
+        if (cm.getActiveNetworkInfo() == null)
+            return false;
+        return true;
     }
 }

@@ -160,7 +160,8 @@ ic::SetGlobalName(VMFrame &f, ic::MICInfo *ic)
 
     const Shape *shape = obj->nativeLookup(id);
     if (!shape ||
-        !shape->hasDefaultGetterOrIsMethod() ||
+        shape->isMethod() ||
+        !shape->hasDefaultSetter() ||
         !shape->writable() ||
         !shape->hasSlot())
     {
@@ -600,7 +601,7 @@ class CallCompiler : public BaseCompiler
 
         /* Guard that it's the same function. */
         JSFunction *fun = obj->getFunctionPrivate();
-        masm.loadFunctionPrivate(ic.funObjReg, t0);
+        masm.loadObjPrivate(ic.funObjReg, t0);
         Jump funGuard = masm.branchPtr(Assembler::NotEqual, t0, ImmPtr(fun));
         Jump done = masm.jump();
 

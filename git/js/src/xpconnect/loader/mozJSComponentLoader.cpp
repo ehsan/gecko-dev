@@ -93,9 +93,7 @@
 #endif
 #include "mozilla/Omnijar.h"
 
-#if defined(MOZ_SHARK) || defined(MOZ_CALLGRIND) || defined(MOZ_VTUNE) || defined(MOZ_TRACEVIS)
 #include "jsdbgapi.h"
-#endif
 
 #include "mozilla/FunctionTimer.h"
 
@@ -242,12 +240,6 @@ static JSFunctionSpec gGlobalFun[] = {
     {"debug",   Debug,  1,0},
     {"atob",    Atob,   1,0},
     {"btoa",    Btoa,   1,0},
-#ifdef MOZ_SHARK
-    {"startShark",      js_StartShark,     0,0},
-    {"stopShark",       js_StopShark,      0,0},
-    {"connectShark",    js_ConnectShark,   0,0},
-    {"disconnectShark", js_DisconnectShark,0,0},
-#endif
 #ifdef MOZ_CALLGRIND
     {"startCallgrind",  js_StartCallgrind, 0,0},
     {"stopCallgrind",   js_StopCallgrind,  0,0},
@@ -1004,7 +996,8 @@ mozJSComponentLoader::GlobalForLocation(nsILocalFile *aComponentFile,
     if (!ac.enter(cx, global))
         return NS_ERROR_FAILURE;
 
-    if (!JS_DefineFunctions(cx, global, gGlobalFun)) {
+    if (!JS_DefineFunctions(cx, global, gGlobalFun) ||
+        !JS_DefineProfilingFunctions(cx, global)) {
         return NS_ERROR_FAILURE;
     }
 
@@ -1507,7 +1500,7 @@ mozJSComponentLoader::ImportInto(const nsACString & aLocation,
 
         JSAutoEnterCompartment ac;
         if (!ac.enter(mContext, mod->global))
-            return NULL;
+            return NS_ERROR_FAILURE;
 
         if (!JS_GetProperty(mContext, mod->global,
                             "EXPORTED_SYMBOLS", &symbols)) {

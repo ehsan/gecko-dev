@@ -80,6 +80,11 @@ public:
     mIndexUpdateInfo.SwapElements(aIndexUpdateInfo);
   }
 
+  ~AddHelper()
+  {
+    IDBObjectStore::ClearStructuredCloneBuffer(mCloneBuffer);
+  }
+
   nsresult DoDatabaseWork(mozIStorageConnection* aConnection);
   nsresult GetSuccessResult(JSContext* aCx,
                             jsval* aVal);
@@ -117,6 +122,11 @@ public:
     mKey(aKey)
   { }
 
+  ~GetHelper()
+  {
+    IDBObjectStore::ClearStructuredCloneBuffer(mCloneBuffer);
+  }
+
   nsresult DoDatabaseWork(mozIStorageConnection* aConnection);
   nsresult GetSuccessResult(JSContext* aCx,
                             jsval* aVal);
@@ -149,7 +159,6 @@ public:
   { }
 
   nsresult DoDatabaseWork(mozIStorageConnection* aConnection);
-  nsresult OnSuccess();
   nsresult GetSuccessResult(JSContext* aCx,
                             jsval* aVal);
 };
@@ -191,6 +200,11 @@ public:
     mLowerKey(aLowerKey), mUpperKey(aUpperKey), mLowerOpen(aLowerOpen),
     mUpperOpen(aUpperOpen), mDirection(aDirection)
   { }
+
+  ~OpenCursorHelper()
+  {
+    IDBObjectStore::ClearStructuredCloneBuffer(mCloneBuffer);
+  }
 
   nsresult DoDatabaseWork(mozIStorageConnection* aConnection);
   nsresult GetSuccessResult(JSContext* aCx,
@@ -251,9 +265,6 @@ private:
 
   // In-params.
   nsRefPtr<IDBIndex> mIndex;
-
-  // Out-params.
-  PRInt64 mId;
 };
 
 class DeleteIndexHelper : public AsyncConnectionHelper
@@ -305,6 +316,13 @@ public:
     mLowerKey(aLowerKey), mUpperKey(aUpperKey), mLowerOpen(aLowerOpen),
     mUpperOpen(aUpperOpen), mLimit(aLimit)
   { }
+
+  ~GetAllHelper()
+  {
+    for (PRUint32 index = 0; index < mCloneBuffers.Length(); index++) {
+      IDBObjectStore::ClearStructuredCloneBuffer(mCloneBuffers[index]);
+    }
+  }
 
   nsresult DoDatabaseWork(mozIStorageConnection* aConnection);
   nsresult GetSuccessResult(JSContext* aCx,
@@ -1713,6 +1731,9 @@ AddHelper::GetSuccessResult(JSContext* aCx,
                             jsval* aVal)
 {
   NS_ASSERTION(!mKey.IsUnset(), "Badness!");
+
+  mCloneBuffer.clear(aCx);
+
   return IDBObjectStore::GetJSValFromKey(mKey, aCx, aVal);
 }
 
@@ -1816,7 +1837,12 @@ nsresult
 GetHelper::GetSuccessResult(JSContext* aCx,
                             jsval* aVal)
 {
-  return ConvertCloneBufferToJSVal(aCx, mCloneBuffer, aVal);
+  nsresult rv = ConvertCloneBufferToJSVal(aCx, mCloneBuffer, aVal);
+
+  mCloneBuffer.clear(aCx);
+
+  NS_ENSURE_SUCCESS(rv, rv);
+  return NS_OK;
 }
 
 nsresult
@@ -1849,17 +1875,10 @@ DeleteHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
   }
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
-  // Search for it!
   rv = stmt->Execute();
   NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   return NS_OK;
-}
-
-nsresult
-DeleteHelper::OnSuccess()
-{
-  return AsyncConnectionHelper::OnSuccess();
 }
 
 nsresult
@@ -2085,6 +2104,8 @@ OpenCursorHelper::GetSuccessResult(JSContext* aCx,
                       mCloneBuffer);
   NS_ENSURE_TRUE(cursor, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
+  NS_ASSERTION(!mCloneBuffer.data(), "Should have swapped!");
+
   return WrapNative(aCx, cursor, aVal);
 }
 
@@ -2129,8 +2150,13 @@ CreateIndexHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
     return NS_ERROR_DOM_INDEXEDDB_CONSTRAINT_ERR;
   }
 
-  // Get the id of this object store, and store it for future use.
-  (void)aConnection->GetLastInsertRowID(&mId);
+#ifdef DEBUG
+  {
+    PRInt64 id;
+    aConnection->GetLastInsertRowID(&id);
+    NS_ASSERTION(mIndex->Id() == id, "Bad index id!");
+  }
+#endif
 
   // Now we need to populate the index with data from the object store.
   rv = InsertDataFromObjectStore(aConnection);
@@ -2144,11 +2170,9 @@ CreateIndexHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
 nsresult
 CreateIndexHelper::InsertDataFromObjectStore(mozIStorageConnection* aConnection)
 {
-  bool autoIncrement = mIndex->IsAutoIncrement();
-
   nsCAutoString table;
   nsCAutoString columns;
-  if (autoIncrement) {
+  if (mIndex->IsAutoIncrement()) {
     table.AssignLiteral("ai_object_data");
     columns.AssignLiteral("id, data");
   }
@@ -2173,27 +2197,40 @@ CreateIndexHelper::InsertDataFromObjectStore(mozIStorageConnection* aConnection)
   PRBool hasResult;
   while (NS_SUCCEEDED(stmt->ExecuteStep(&hasResult)) && hasResult) {
     nsCOMPtr<mozIStorageStatement> insertStmt =
-      mTransaction->IndexUpdateStatement(autoIncrement, mIndex->IsUnique(),
-                                         false);
+      mTransaction->IndexUpdateStatement(mIndex->IsAutoIncrement(),
+                                         mIndex->IsUnique(), false);
     NS_ENSURE_TRUE(insertStmt, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
     mozStorageStatementScoper scoper2(insertStmt);
 
-    rv = insertStmt->BindInt64ByName(NS_LITERAL_CSTRING("index_id"), mId);
+    rv = insertStmt->BindInt64ByName(NS_LITERAL_CSTRING("index_id"),
+                                     mIndex->Id());
     NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
     rv = insertStmt->BindInt64ByName(NS_LITERAL_CSTRING("object_data_id"),
                                      stmt->AsInt64(0));
     NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
-    if (!autoIncrement) {
-      // XXX does this cause problems with the affinity?
-      nsString key;
-      rv = stmt->GetString(2, key);
+    if (!mIndex->IsAutoIncrement()) {
+      NS_NAMED_LITERAL_CSTRING(objectDataKey, "object_data_key");
+
+      PRInt32 keyType;
+      rv = stmt->GetTypeOfIndex(2, &keyType);
       NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
-      rv = insertStmt->BindStringByName(NS_LITERAL_CSTRING("object_data_key"),
-                                        key);
+      if (keyType == mozIStorageStatement::VALUE_TYPE_INTEGER) {
+        rv = insertStmt->BindInt64ByName(objectDataKey, stmt->AsInt64(2));
+      }
+      else if (keyType == mozIStorageStatement::VALUE_TYPE_TEXT) {
+        nsString stringKey;
+        rv = stmt->GetString(2, stringKey);
+        NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+
+        rv = insertStmt->BindStringByName(objectDataKey, stringKey);
+      }
+      else {
+        NS_NOTREACHED("Bad SQLite type!");
+      }
       NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
     }
 
@@ -2209,12 +2246,11 @@ CreateIndexHelper::InsertDataFromObjectStore(mozIStorageConnection* aConnection)
                                                            &cx, key);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    NS_NAMED_LITERAL_CSTRING(value, "value");
-
     if (key.IsUnset()) {
       continue;
     }
 
+    NS_NAMED_LITERAL_CSTRING(value, "value");
     if (key.IsInt()) {
       rv = insertStmt->BindInt64ByName(value, key.IntValue());
     }
@@ -2374,5 +2410,13 @@ GetAllHelper::GetSuccessResult(JSContext* aCx,
                                jsval* aVal)
 {
   NS_ASSERTION(mCloneBuffers.Length() <= mLimit, "Too many results!");
-  return ConvertCloneBuffersToArray(aCx, mCloneBuffers, aVal);
+
+  nsresult rv = ConvertCloneBuffersToArray(aCx, mCloneBuffers, aVal);
+
+  for (PRUint32 index = 0; index < mCloneBuffers.Length(); index++) {
+    mCloneBuffers[index].clear(aCx);
+  }
+
+  NS_ENSURE_SUCCESS(rv, rv);
+  return NS_OK;
 }

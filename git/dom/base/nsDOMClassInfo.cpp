@@ -5766,11 +5766,12 @@ public:
 
   nsresult Install(JSContext *cx, JSObject *target, jsval thisAsVal)
   {
+    // The 'attrs' argument used to be JSPROP_PERMANENT. See bug 628612.
     JSBool ok = JS_WrapValue(cx, &thisAsVal) &&
       ::JS_DefineUCProperty(cx, target,
                             reinterpret_cast<const jschar *>(mClassName),
                             nsCRT::strlen(mClassName), thisAsVal, nsnull,
-                            nsnull, JSPROP_PERMANENT);
+                            nsnull, 0);
 
     return ok ? NS_OK : NS_ERROR_UNEXPECTED;
   }
@@ -8928,21 +8929,16 @@ nsHTMLDocumentSH::CallToGetPropMapper(JSContext *cx, uintN argc, jsval *vp)
     return JS_FALSE;
   }
 
+  // If we are called via document.all(id) instead of document.all.item(i) or
+  // another method, use the document.all callee object as self.
   JSObject *self;
-
-  if (::JS_TypeOfValue(cx, JS_CALLEE(cx, vp)) == JSTYPE_FUNCTION) {
-    // If the callee is a function, we're called through
-    // document.all.item() or something similar. In such a case, self
-    // is passed as obj.
-
+  if (JSVAL_IS_OBJECT(JS_CALLEE(cx, vp)) &&
+      ::JS_GetClass(cx, JSVAL_TO_OBJECT(JS_CALLEE(cx, vp))) == &sHTMLDocumentAllClass) {
+    self = JSVAL_TO_OBJECT(JS_CALLEE(cx, vp));
+  } else {
     self = JS_THIS_OBJECT(cx, vp);
     if (!self)
       return JS_FALSE;
-  } else {
-    // In other cases (i.e. document.all("foo")), self is passed as
-    // the callee
-
-    self = JSVAL_TO_OBJECT(JS_CALLEE(cx, vp));
   }
 
   size_t length;
@@ -9616,6 +9612,13 @@ nsHTMLPluginObjElementSH::SetupProtoChain(nsIXPConnectWrappedNative *wrapper,
     return NS_OK;
   }
 
+  JSAutoRequest ar(cx);
+
+  JSAutoEnterCompartment ac;
+  if (!ac.enter(cx, obj)) {
+    return NS_ERROR_UNEXPECTED;
+  }
+
   nsCOMPtr<nsIPluginInstance> pi;
   nsresult rv = GetPluginInstanceIfSafe(wrapper, obj, getter_AddRefs(pi));
   NS_ENSURE_SUCCESS(rv, rv);
@@ -9656,8 +9659,6 @@ nsHTMLPluginObjElementSH::SetupProtoChain(nsIXPConnectWrappedNative *wrapper,
   // Get 'this.__proto__'
   rv = wrapper->GetJSObjectPrototype(&my_proto);
   NS_ENSURE_SUCCESS(rv, rv);
-
-  JSAutoRequest ar(cx);
 
   // Set 'this.__proto__' to pi
   if (!::JS_SetPrototype(cx, obj, pi_obj)) {

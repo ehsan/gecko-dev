@@ -128,9 +128,8 @@ const CATEGORY_NETWORK = 0;
 const CATEGORY_CSS = 1;
 const CATEGORY_JS = 2;
 const CATEGORY_WEBDEV = 3;
-const CATEGORY_MISC = 4;    // always on
-const CATEGORY_INPUT = 5;   // always on
-const CATEGORY_OUTPUT = 6;  // always on
+const CATEGORY_INPUT = 4;   // always on
+const CATEGORY_OUTPUT = 5;  // always on
 
 // The possible message severities. As before, we start at zero so we can use
 // these as indexes into MESSAGE_PREFERENCE_KEYS.
@@ -165,7 +164,6 @@ const CATEGORY_CLASS_FRAGMENTS = [
   "cssparser",
   "exception",
   "console",
-  "misc",
   "input",
   "output",
 ];
@@ -189,7 +187,6 @@ const MESSAGE_PREFERENCE_KEYS = [
   [ "csserror",   "cssparser",  null,   null,          ],  // CSS
   [ "exception",  "jswarn",     null,   null,          ],  // JS
   [ "error",      "warn",       "info", "log",         ],  // Web Developer
-  [ null,         null,         null,   null,          ],  // Misc.
   [ null,         null,         null,   null,          ],  // Input
   [ null,         null,         null,   null,          ],  // Output
 ];
@@ -203,7 +200,10 @@ const HISTORY_BACK = -1;
 const HISTORY_FORWARD = 1;
 
 // The maximum number of bytes a Network ResponseListener can hold.
-const RESPONSE_BODY_LIMIT = 1048576; // 1 MB
+const RESPONSE_BODY_LIMIT = 1024*1024; // 1 MB
+
+// The maximum uint32 value.
+const PR_UINT32_MAX = 4294967295;
 
 // Minimum console height, in pixels.
 const MINIMUM_CONSOLE_HEIGHT = 150;
@@ -248,9 +248,10 @@ function ResponseListener(aHttpActivity) {
 ResponseListener.prototype =
 {
   /**
-   * The original listener for this request.
+   * The response will be written into the outputStream of this nsIPipe.
+   * Both ends of the pipe must be blocking.
    */
-  originalListener: null,
+  sink: null,
 
   /**
    * The HttpActivity object associated with this response.
@@ -261,6 +262,11 @@ ResponseListener.prototype =
    * Stores the received data as a string.
    */
   receivedData: null,
+
+  /**
+   * The nsIRequest we are started for.
+   */
+  request: null,
 
   /**
    * Sets the httpActivity object's response header if it isn't set already.
@@ -293,10 +299,32 @@ ResponseListener.prototype =
   },
 
   /**
-   * See documention at
-   * https://developer.mozilla.org/en/XPCOM_Interface_Reference/nsIStreamListener
+   * Set the async listener for the given nsIAsyncInputStream. This allows us to
+   * wait asynchronously for any data coming from the stream.
    *
-   * Grabs a copy of the original data and passes it on to the original listener.
+   * @param nsIAsyncInputStream aStream
+   *        The input stream from where we are waiting for data to come in.
+   *
+   * @param nsIInputStreamCallback aListener
+   *        The input stream callback you want. This is an object that must have
+   *        the onInputStreamReady() method. If the argument is null, then the
+   *        current callback is removed.
+   *
+   * @returns void
+   */
+  setAsyncListener: function RL_setAsyncListener(aStream, aListener)
+  {
+    // Asynchronously wait for the stream to be readable or closed.
+    aStream.asyncWait(aListener, 0, 0, Services.tm.mainThread);
+  },
+
+  /**
+   * Stores the received data, if request/response body logging is enabled. It
+   * also does limit the number of stored bytes, based on the
+   * RESPONSE_BODY_LIMIT constant.
+   *
+   * Learn more about nsIStreamListener at:
+   * https://developer.mozilla.org/en/XPCOM_Interface_Reference/nsIStreamListener
    *
    * @param nsIRequest aRequest
    * @param nsISupports aContext
@@ -305,19 +333,9 @@ ResponseListener.prototype =
    * @param unsigned long aCount
    */
   onDataAvailable: function RL_onDataAvailable(aRequest, aContext, aInputStream,
-                                                aOffset, aCount)
+                                               aOffset, aCount)
   {
     this.setResponseHeader(aRequest);
-
-    let StorageStream = Components.Constructor("@mozilla.org/storagestream;1",
-                                                "nsIStorageStream",
-                                                "init");
-    let BinaryOutputStream = Components.Constructor("@mozilla.org/binaryoutputstream;1",
-                                                      "nsIBinaryOutputStream",
-                                                      "setOutputStream");
-
-    storageStream = new StorageStream(8192, aCount, null);
-    binaryOutputStream = new BinaryOutputStream(storageStream.getOutputStream(0));
 
     let data = NetUtil.readInputStreamToString(aInputStream, aCount);
 
@@ -325,17 +343,6 @@ ResponseListener.prototype =
         this.receivedData.length < RESPONSE_BODY_LIMIT) {
       this.receivedData += NetworkHelper.
                            convertToUnicode(data, aRequest.contentCharset);
-    }
-
-    binaryOutputStream.writeBytes(data, aCount);
-
-    let newInputStream = storageStream.newInputStream(0);
-    try {
-    this.originalListener.onDataAvailable(aRequest, aContext,
-        newInputStream, aOffset, aCount);
-    }
-    catch(ex) {
-      aRequest.cancel(ex);
     }
   },
 
@@ -348,41 +355,25 @@ ResponseListener.prototype =
    */
   onStartRequest: function RL_onStartRequest(aRequest, aContext)
   {
-    try {
-    this.originalListener.onStartRequest(aRequest, aContext);
-    }
-    catch(ex) {
-      aRequest.cancel(ex);
-    }
+    this.request = aRequest;
+    // Asynchronously wait for the data coming from the request.
+    this.setAsyncListener(this.sink.inputStream, this);
   },
 
   /**
-   * See documentation at
+   * Handle the onStopRequest by storing the response header is stored on the
+   * httpActivity object. The sink output stream is also closed.
+   *
+   * For more documentation about nsIRequestObserver go to:
    * https://developer.mozilla.org/En/NsIRequestObserver
    *
-   * If aRequest is an nsIHttpChannel then the response header is stored on the
-   * httpActivity object. Also, the response body is set on the httpActivity
-   * object (if the user has turned on response content logging) and the
-   * HUDService.lastFinishedRequestCallback is called if there is one.
-   *
    * @param nsIRequest aRequest
+   *        The request we are observing.
    * @param nsISupports aContext
    * @param nsresult aStatusCode
    */
   onStopRequest: function RL_onStopRequest(aRequest, aContext, aStatusCode)
   {
-    try {
-    this.originalListener.onStopRequest(aRequest, aContext, aStatusCode);
-    }
-    catch (ex) { }
-
-    if (HUDService.saveRequestAndResponseBodies) {
-      this.httpActivity.response.body = this.receivedData;
-    }
-    else {
-      this.httpActivity.response.bodyDiscarded = true;
-    }
-
     // Retrieve the response headers, as they are, from the server.
     let response = null;
     for each (let item in HUDService.openResponseHeaders) {
@@ -400,6 +391,32 @@ ResponseListener.prototype =
       this.setResponseHeader(aRequest);
     }
 
+    this.sink.outputStream.close();
+  },
+
+  /**
+   * Clean up the response listener once the response input stream is closed.
+   * This is called from onStopRequest() or from onInputStreamReady() when the
+   * stream is closed.
+   *
+   * @returns void
+   */
+  onStreamClose: function RL_onStreamClose()
+  {
+    if (!this.httpActivity) {
+      return;
+    }
+
+    // Remove our listener from the request input stream.
+    this.setAsyncListener(this.sink.inputStream, null);
+
+    if (HUDService.saveRequestAndResponseBodies) {
+      this.httpActivity.response.body = this.receivedData;
+    }
+    else {
+      this.httpActivity.response.bodyDiscarded = true;
+    }
+
     if (HUDService.lastFinishedRequestCallback) {
       HUDService.lastFinishedRequestCallback(this.httpActivity);
     }
@@ -415,11 +432,52 @@ ResponseListener.prototype =
     this.httpActivity.response.listener = null;
     this.httpActivity = null;
     this.receivedData = "";
+    this.request = null;
+    this.sink = null;
+    this.inputStream = null;
+  },
+
+  /**
+   * The nsIInputStreamCallback for when the request input stream is ready -
+   * either it has more data or it is closed.
+   *
+   * @param nsIAsyncInputStream aStream
+   *        The sink input stream from which data is coming.
+   *
+   * @returns void
+   */
+  onInputStreamReady: function RL_onInputStreamReady(aStream)
+  {
+    if (!(aStream instanceof Ci.nsIAsyncInputStream) || !this.httpActivity) {
+      return;
+    }
+
+    let available = -1;
+    try {
+      // This may throw if the stream is closed normally or due to an error.
+      available = aStream.available();
+    }
+    catch (ex) { }
+
+    if (available != -1) {
+      if (available != 0) {
+        // Note that passing 0 as the offset here is wrong, but the
+        // onDataAvailable() method does not use the offset, so it does not
+        // matter.
+        this.onDataAvailable(this.request, null, aStream, 0, available);
+      }
+      this.setAsyncListener(aStream, this);
+    }
+    else {
+      this.onStreamClose();
+    }
   },
 
   QueryInterface: XPCOMUtils.generateQI([
     Ci.nsIStreamListener,
-    Ci.nsISupports
+    Ci.nsIInputStreamCallback,
+    Ci.nsIRequestObserver,
+    Ci.nsISupports,
   ])
 }
 
@@ -1158,6 +1216,11 @@ function HUD_SERVICE()
 
   // Remembers the last console height, in pixels.
   this.lastConsoleHeight = Services.prefs.getIntPref("devtools.hud.height");
+
+  // Network response bodies are piped through a buffer of the given size (in
+  // bytes).
+  this.responsePipeSegmentSize =
+    Services.prefs.getIntPref("network.buffer.cache.size");
 };
 
 HUD_SERVICE.prototype =
@@ -1882,7 +1945,7 @@ HUD_SERVICE.prototype =
     let hud = this.hudReferences[aHUDId];
     let chromeDocument = hud.HUDBox.ownerDocument;
     let message = stringBundle.GetStringFromName("ConsoleAPIDisabled");
-    let node = ConsoleUtils.createMessageNode(chromeDocument, CATEGORY_MISC,
+    let node = ConsoleUtils.createMessageNode(chromeDocument, CATEGORY_JS,
                                               SEVERITY_WARNING, message);
     ConsoleUtils.outputMessageNode(node, aHUDId);
   },
@@ -2089,8 +2152,30 @@ HUD_SERVICE.prototype =
             // Add listener for the response body.
             let newListener = new ResponseListener(httpActivity);
             aChannel.QueryInterface(Ci.nsITraceableChannel);
-            newListener.originalListener = aChannel.setNewListener(newListener);
+
             httpActivity.response.listener = newListener;
+
+            let tee = Cc["@mozilla.org/network/stream-listener-tee;1"].
+                      createInstance(Ci.nsIStreamListenerTee);
+
+            // The response will be written into the outputStream of this pipe.
+            // This allows us to buffer the data we are receiving and read it
+            // asynchronously.
+            // Both ends of the pipe must be blocking.
+            let sink = Cc["@mozilla.org/pipe;1"].createInstance(Ci.nsIPipe);
+
+            // The streams need to be blocking because this is required by the
+            // stream tee.
+            sink.init(false, false, HUDService.responsePipeSegmentSize,
+                      PR_UINT32_MAX, null);
+
+            // Remember the input stream, so it isn't released by GC.
+            newListener.inputStream = sink.inputStream;
+
+            let originalListener = aChannel.setNewListener(tee);
+            newListener.sink = sink;
+
+            tee.init(originalListener, sink.outputStream, newListener);
 
             // Copy the request header data.
             aChannel.visitRequestHeaders({
@@ -2100,7 +2185,7 @@ HUD_SERVICE.prototype =
             });
 
             // Store the loggedNode and the httpActivity object for later reuse.
-            let linkNode = loggedNode.querySelector(".webconsole-msg-url");
+            let linkNode = loggedNode.querySelector(".webconsole-msg-link");
 
             httpActivity.messageObject = {
               messageNode: loggedNode,
@@ -2148,7 +2233,7 @@ HUD_SERVICE.prototype =
             let msgObject = httpActivity.messageObject;
 
             let updatePanel = false;
-            let data, textNode;
+            let data;
             // Store the time information for this activity subtype.
             httpActivity.timing[transCodes[aActivitySubtype]] = aTimestamp;
 
@@ -2198,25 +2283,17 @@ HUD_SERVICE.prototype =
                 httpActivity.response.status =
                   aExtraStringData.split(/\r\n|\n|\r/)[0];
 
-                // Remove the text node from the URL node and add a new one that
-                // contains the response status.
-                textNode = msgObject.linkNode.firstChild;
-                textNode.parentNode.removeChild(textNode);
+                // Add the response status.
+                let linkNode = msgObject.linkNode;
+                let statusNode = linkNode.
+                  querySelector(".webconsole-msg-status");
+                let statusText = "[" + httpActivity.response.status + "]";
+                statusNode.setAttribute("value", statusText);
 
-                data = [ httpActivity.url,
-                         httpActivity.response.status ];
-
-                // Format the pieces of data. The result will be something like
-                // "http://example.com/ [HTTP/1.0 200 OK]".
-                let text = self.getFormatStr("networkUrlWithStatus", data);
-
-                // Replace the displayed text and the clipboard text with the
-                // new data.
-                let chromeDocument = msgObject.messageNode.ownerDocument;
-                msgObject.linkNode.appendChild(
-                  chromeDocument.createTextNode(text));
+                let clipboardTextPieces =
+                  [ httpActivity.method, httpActivity.url, statusText ];
                 msgObject.messageNode.clipboardText =
-                  msgObject.messageNode.textContent;
+                  clipboardTextPieces.join(" ");
 
                 let status = parseInt(httpActivity.response.status.
                   replace(/^HTTP\/\d\.\d (\d+).+$/, "$1"));
@@ -2237,27 +2314,21 @@ HUD_SERVICE.prototype =
                   Math.round((timing.RESPONSE_COMPLETE -
                                 timing.REQUEST_HEADER) / 1000);
 
-                // Remove the text node from the link node and add a new one
-                // that contains the request duration.
-                textNode = msgObject.linkNode.firstChild;
-                textNode.parentNode.removeChild(textNode);
+                // Add the request duration.
+                let linkNode = msgObject.linkNode;
+                let statusNode = linkNode.
+                  querySelector(".webconsole-msg-status");
 
-                data = [ httpActivity.url,
-                         httpActivity.response.status,
-                         requestDuration ];
+                let statusText = httpActivity.response.status;
+                let timeText = self.getFormatStr("NetworkPanel.durationMS",
+                                                 [ requestDuration ]);
+                let fullStatusText = "[" + statusText + " " + timeText + "]";
+                statusNode.setAttribute("value", fullStatusText);
 
-                // Format the pieces of data. The result will be something like
-                // "http://example.com/ [HTTP/1.0 200 OK 200 ms]".
-                let text = self.getFormatStr("networkUrlWithStatusAndDuration",
-                                             data);
-
-                // Replace the displayed text and the clipboard text with the
-                // new data.
-                let chromeDocument = msgObject.messageNode.ownerDocument;
-                msgObject.linkNode.appendChild(
-                  chromeDocument.createTextNode(text));
+                let clipboardTextPieces =
+                  [ httpActivity.method, httpActivity.url, fullStatusText ];
                 msgObject.messageNode.clipboardText =
-                  msgObject.messageNode.textContent;
+                  clipboardTextPieces.join(" ");
 
                 delete self.openRequests[item.id];
                 updatePanel = true;
@@ -2364,18 +2435,35 @@ HUD_SERVICE.prototype =
     let outputNode = this.hudReferences[hudId].outputNode;
 
     let chromeDocument = outputNode.ownerDocument;
-    let msgNode = chromeDocument.createElementNS(HTML_NS, "html:span");
+    let msgNode = chromeDocument.createElementNS(XUL_NS, "xul:hbox");
 
-    // Create the method part of the message (e.g. "GET").
-    let method = chromeDocument.createTextNode(aActivityObject.method + " ");
-    msgNode.appendChild(method);
+    let methodNode = chromeDocument.createElementNS(XUL_NS, "xul:label");
+    methodNode.setAttribute("value", aActivityObject.method);
+    methodNode.classList.add("webconsole-msg-body-piece");
+    msgNode.appendChild(methodNode);
 
-    // Create the clickable URL part of the message.
-    let linkNode = chromeDocument.createElementNS(HTML_NS, "html:span");
-    linkNode.appendChild(chromeDocument.createTextNode(aActivityObject.url));
-    linkNode.classList.add("hud-clickable");
-    linkNode.classList.add("webconsole-msg-url");
+    let linkNode = chromeDocument.createElementNS(XUL_NS, "xul:hbox");
+    linkNode.setAttribute("flex", "1");
+    linkNode.classList.add("webconsole-msg-body-piece");
+    linkNode.classList.add("webconsole-msg-link");
     msgNode.appendChild(linkNode);
+
+    let urlNode = chromeDocument.createElementNS(XUL_NS, "xul:label");
+    urlNode.setAttribute("crop", "center");
+    urlNode.setAttribute("flex", "1");
+    urlNode.setAttribute("title", aActivityObject.url);
+    urlNode.setAttribute("value", aActivityObject.url);
+    urlNode.classList.add("hud-clickable");
+    urlNode.classList.add("webconsole-msg-body-piece");
+    urlNode.classList.add("webconsole-msg-url");
+    linkNode.appendChild(urlNode);
+
+    let statusNode = chromeDocument.createElementNS(XUL_NS, "xul:label");
+    statusNode.setAttribute("value", "");
+    statusNode.classList.add("hud-clickable");
+    statusNode.classList.add("webconsole-msg-body-piece");
+    statusNode.classList.add("webconsole-msg-status");
+    linkNode.appendChild(statusNode);
 
     let clipboardText = aActivityObject.method + " " + aActivityObject.url;
 
@@ -4804,10 +4892,6 @@ ConsoleUtils = {
                       "without any clipboard text");
     }
 
-    // Make the marker (the colored part of the timeline).
-    let markerNode = aDocument.createElementNS(XUL_NS, "xul:vbox");
-    markerNode.classList.add("webconsole-marker");
-
     // Make the icon container, which is a vertical box. Its purpose is to
     // ensure that the icon stays anchored at the top of the message even for
     // long multi-line messages.
@@ -4864,7 +4948,6 @@ ConsoleUtils = {
     ConsoleUtils.setMessageType(node, aCategory, aSeverity);
 
     node.appendChild(timestampNode);
-    node.appendChild(markerNode);
     node.appendChild(iconContainer);
     node.appendChild(bodyNode);
     if (locationNode) {

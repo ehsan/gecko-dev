@@ -126,6 +126,8 @@ using namespace mozilla::places;
 
 #define PREF_CACHE_TO_MEMORY_PERCENTAGE         "database.cache_to_memory_percentage"
 
+#define PREF_FORCE_DATABASE_REPLACEMENT         "database.replaceOnStartup"
+
 // Default integer value for PREF_CACHE_TO_MEMORY_PERCENTAGE.
 // This is 6% of machine memory, giving 15MB for a user with 256MB of memory.
 // Out of this cache, SQLite will use at most the size of the database file.
@@ -574,11 +576,9 @@ nsNavHistory::Init()
 nsresult
 nsNavHistory::InitDBFile(PRBool aForceInit)
 {
-  if (aForceInit) {
-    NS_ASSERTION(mDBConn,
-                 "When forcing initialization, a database connection must exist!");
-    NS_ASSERTION(mDBService,
-                 "When forcing initialization, the database service must exist!");
+  if (!mDBService) {
+    mDBService = do_GetService(MOZ_STORAGE_SERVICE_CONTRACTID);
+    NS_ENSURE_STATE(mDBService);
   }
 
   // Get database file handle.
@@ -606,10 +606,12 @@ nsNavHistory::InitDBFile(PRBool aForceInit)
     }
 
     // Close database connection if open.
-    // If there's any not finalized statement or this fails for any reason
-    // we won't be able to remove the database.
-    rv = mDBConn->Close();
-    NS_ENSURE_SUCCESS(rv, rv);
+    if (mDBConn) {
+      // If there's any not finalized statement or this fails for any reason
+      // we won't be able to remove the database.
+      rv = mDBConn->Close();
+      NS_ENSURE_SUCCESS(rv, rv);
+    }
 
     // Remove the broken database.
     rv = mDBFile->Remove(PR_FALSE);
@@ -636,14 +638,28 @@ nsNavHistory::InitDBFile(PRBool aForceInit)
     rv = mDBFile->Exists(&dbExists);
     NS_ENSURE_SUCCESS(rv, rv);
     // If the database didn't previously exist, we create it.
-    if (!dbExists)
+    if (!dbExists) {
       mDatabaseStatus = DATABASE_STATUS_CREATE;
+    }
+    else {
+      // Check if maintenance required a database replacement.
+      PRBool forceDatabaseReplacement;
+      if (NS_SUCCEEDED(mPrefBranch->GetBoolPref(PREF_FORCE_DATABASE_REPLACEMENT,
+                                                &forceDatabaseReplacement)) &&
+          forceDatabaseReplacement) {
+        // Be sure to clear the pref to avoid handling it more than once.
+        rv = mPrefBranch->ClearUserPref(PREF_FORCE_DATABASE_REPLACEMENT);
+        NS_ENSURE_SUCCESS(rv, rv);
+        // Re-enter this same method, forcing the replacement.
+        rv = InitDBFile(PR_TRUE);
+        NS_ENSURE_SUCCESS(rv, rv);
+        return NS_OK;
+      }
+    }
   }
 
   // Open the database file.  If it does not exist a new one will be created.
-  mDBService = do_GetService(MOZ_STORAGE_SERVICE_CONTRACTID, &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
-  // Open un unshared connection, both for safety and speed.
+  // Use a unshared connection, both for safety and performance.
   rv = mDBService->OpenUnsharedDatabase(mDBFile, getter_AddRefs(mDBConn));
   if (rv == NS_ERROR_FILE_CORRUPTED) {
     // The database is corrupt, try to create a new one.
@@ -1406,7 +1422,7 @@ nsNavHistory::GetStatement(const nsCOMPtr<mozIStorageStatement>& aStmt)
   // Should match kGetInfoIndex_* (see GetQueryResults)
   RETURN_IF_STMT(mDBVisitToVisitResult, NS_LITERAL_CSTRING(
     "SELECT h.id, h.url, h.title, h.rev_host, h.visit_count, "
-           "v.visit_date, f.url, v.session, null, null, null, null "
+           "v.visit_date, f.url, v.session, null, null, null, null, null "
     "FROM moz_places h "
     "JOIN moz_historyvisits v ON h.id = v.place_id "
     "LEFT JOIN moz_favicons f ON h.favicon_id = f.id "
@@ -1871,7 +1887,7 @@ nsNavHistory::InternalAddNewPage(nsIURI* aURI,
   rv = stmt->Execute();
   NS_ENSURE_SUCCESS(rv, rv);
 
-  PRInt64 pageId;
+  PRInt64 pageId = 0;
   {
     DECLARE_AND_ASSIGN_SCOPED_LAZY_STMT(getIdStmt, mDBGetURLPageInfo);
     rv = URIBinder::Bind(getIdStmt, NS_LITERAL_CSTRING("page_url"), aURI);
@@ -2710,24 +2726,16 @@ nsNavHistory::AddVisit(nsIURI* aURI, PRTime aTime, nsIURI* aReferringURI,
     stmt->Reset();
     scoper.Abandon();
 
-    // embedded links and redirects will be hidden, but don't hide pages that
-    // are already unhidden.
-    //
-    // Note that we test the redirect flag and not for the redirect transition
-    // type. The transition type refers to how we got here, and whether a page
-    // is shown does not depend on whether you got to it through a redirect.
-    // Rather, we want to hide pages that redirect themselves somewhere
-    // else, which is what the redirect flag means.
-    //
-    // note, we want to unhide any hidden pages that the user explicitly types
-    // (aTransitionType == TRANSITION_TYPED) so that they will appear in
-    // the history UI (sidebar, history menu, url bar autocomplete, etc)
+    // Note that we want to unhide any hidden pages that the user explicitly
+    // types (aTransitionType == TRANSITION_TYPED) so that they will appear in
+    // the history UI (sidebar, history menu, url bar autocomplete, etc).
+    // Additionally, we don't want to hide any pages that are already unhidden.
     hidden = oldHiddenState;
     if (hidden == 1 &&
-        (!aIsRedirect || aTransitionType == TRANSITION_TYPED) &&
-        aTransitionType != TRANSITION_EMBED &&
-        aTransitionType != TRANSITION_FRAMED_LINK)
+        (!GetHiddenState(aIsRedirect, aTransitionType) ||
+         aTransitionType == TRANSITION_TYPED)) {
       hidden = 0; // unhide
+    }
 
     typed = (PRInt32)(oldTypedState == 1 || (aTransitionType == TRANSITION_TYPED));
 
