@@ -604,10 +604,6 @@ public:
   bool ContainsIdleObserver(nsIIdleObserver* aIdleObserver, uint32_t timeInS);
   void HandleIdleObserverCallback();
 
-  void AllowScriptsToClose()
-  {
-    mAllowScriptsToClose = true;
-  }
 protected:
   // Array of idle observers that are notified of idle events.
   nsTObserverArray<IdleObserverHolder> mIdleObservers;
@@ -1000,9 +996,6 @@ protected:
 
   // whether we've sent the destroy notification for our window id
   bool                   mNotifiedIDDestroyed : 1;
-  // whether scripts may close the window,
-  // even if "dom.allow_scripts_to_close_windows" is false.
-  bool                   mAllowScriptsToClose : 1;
 
   nsCOMPtr<nsIScriptContext>    mContext;
   nsWeakPtr                     mOpener;

@@ -1762,14 +1762,8 @@ Debugger::getNewestFrame(JSContext *cx, unsigned argc, Value *vp)
      * Since there may be multiple contexts, use AllFramesIter instead.
      */
     for (AllFramesIter i(cx->stack.space()); !i.done(); ++i) {
-        /*
-         * Debug-mode currently disables Ion compilation in the compartment of
-         * the debuggee.
-         */
-        if (i.isIon())
-            continue;
-        if (dbg->observesFrame(i.interpFrame()))
-            return dbg->getScriptFrame(cx, i.interpFrame(), vp);
+        if (dbg->observesFrame(i.fp()))
+            return dbg->getScriptFrame(cx, i.fp(), vp);
     }
     args.rval().setNull();
     return true;
@@ -2119,7 +2113,7 @@ class Debugger::ScriptQuery {
                  */
                 JS_ASSERT(script->isForEval());
 
-                GlobalObject *global = &fri.interpFrame()->global();
+                GlobalObject *global = &fri.fp()->global();
                 if (!consider(script, global, vector))
                     return false;
             }
@@ -3408,13 +3402,14 @@ DebuggerFrame_setOnPop(JSContext *cx, unsigned argc, Value *vp)
  */
 JSBool
 js::EvaluateInEnv(JSContext *cx, Handle<Env*> env, HandleValue thisv, StackFrame *fp,
-                  StableCharPtr chars, unsigned length, const char *filename, unsigned lineno,
+                  const jschar *chars, unsigned length, const char *filename, unsigned lineno,
                   Value *rval)
 {
     assertSameCompartment(cx, env, fp);
     JS_ASSERT_IF(fp, thisv.get() == fp->thisValue());
 
-    JS_ASSERT(!IsPoisonedPtr(chars.get()));
+    JS_ASSERT(!IsPoisonedPtr(chars));
+    SkipRoot skip(cx, &chars);
 
     /*
      * NB: This function breaks the assumption that the compiler can see all

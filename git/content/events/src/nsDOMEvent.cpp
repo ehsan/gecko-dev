@@ -19,6 +19,7 @@
 #include "nsIDocument.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsIInterfaceRequestorUtils.h"
+#include "prmem.h"
 #include "nsGkAtoms.h"
 #include "nsMutationEvent.h"
 #include "nsContentUtils.h"

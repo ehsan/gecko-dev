@@ -29,8 +29,7 @@ public:
 
   ~BluetoothOppManager();
   static BluetoothOppManager* Get();
-  void ReceiveSocketData(mozilla::ipc::UnixSocketRawData* aMessage)
-    MOZ_OVERRIDE;
+  void ReceiveSocketData(mozilla::ipc::UnixSocketRawData* aMessage);
 
   /*
    * If a application wnats to send a file, first, it needs to
@@ -60,26 +59,12 @@ public:
 
 private:
   BluetoothOppManager();
-  void StartFileTransfer(const nsString& aDeviceAddress,
-                         bool aReceived,
-                         const nsString& aFileName,
-                         uint32_t aFileLength,
-                         const nsString& aContentType);
-  void FileTransferComplete(const nsString& aDeviceAddress,
-                            bool aSuccess,
-                            bool aReceived,
-                            const nsString& aFileName,
-                            uint32_t aFileLength,
-                            const nsString& aContentType);
-  void UpdateProgress(const nsString& aDeviceAddress,
-                      bool aReceived,
-                      uint32_t aProcessedLength,
-                      uint32_t aFileLength);
+  void FileTransferComplete(bool aSuccess, bool aReceived,
+                            const nsString& aFileName, uint32_t aFileLength);
+  void UpdateProgress(uint32_t aProcessed, uint32_t aFileLength);
   void ReplyToConnect();
   void ReplyToDisconnect();
   void ReplyToPut(bool aFinal);
-  virtual void OnConnectSuccess() MOZ_OVERRIDE;
-  virtual void OnConnectError() MOZ_OVERRIDE;
 
   bool mConnected;
   int mConnectionId;
@@ -89,7 +74,6 @@ private:
   int mRemoteMaxPacketLength;
   bool mAbortFlag;
   int mPacketLeftLength;
-  nsString mConnectedDeviceAddress;
 
   nsCOMPtr<nsIDOMBlob> mBlob;
   nsCOMPtr<nsIThread> mReadFileThread;

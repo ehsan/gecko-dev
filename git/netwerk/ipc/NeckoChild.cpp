@@ -59,14 +59,18 @@ void NeckoChild::DestroyNeckoChild()
   }
 }
 
-PHttpChannelChild*
-NeckoChild::AllocPHttpChannel(PBrowserChild* browser,
-                              const SerializedLoadContext& loadContext)
+PHttpChannelChild* 
+NeckoChild::AllocPHttpChannel(PBrowserChild* browser)
 {
-  // We don't allocate here: instead we always use IPDL constructor that takes
-  // an existing HttpChildChannel
-  NS_NOTREACHED("AllocPHttpChannel should not be called on child");
-  return nullptr;
+  // This constructor is only used when PHttpChannel is constructed by
+  // the parent process, e.g. during a redirect.  (Normally HttpChannelChild is
+  // created by nsHttpHandler::NewProxiedChannel(), and then creates the
+  // PHttpChannel in HttpChannelChild::AsyncOpen().)
+
+  // No need to store PBrowser. It is only needed by the parent.
+  HttpChannelChild* httpChannel = new HttpChannelChild();
+  httpChannel->AddIPDLReference();
+  return httpChannel;
 }
 
 bool 

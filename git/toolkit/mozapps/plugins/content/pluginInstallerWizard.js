@@ -5,7 +5,9 @@
 function nsPluginInstallerWizard(){
 
   // create the request array
-  this.mPluginRequests = new Map();
+  this.mPluginRequestArray = new Object();
+  // since the array is a hash, store the length
+  this.mPluginRequestArrayLength = 0;
 
   // create the plugin info array.
   // a hash indexed by plugin id so we don't install 
@@ -27,14 +29,17 @@ function nsPluginInstallerWizard(){
   this.mSuccessfullPluginInstallation = 0;
   this.mNeedsRestart = false;
 
-  // arguments[0] is an object that contains two items:
-  //     a mimetype->pluginInfo map of missing plugins,
+  // arguments[0] is an array that contains two items:
+  //     an array of mimetypes that are missing
   //     a reference to the browser that needs them, 
   //        so we can notify which browser can be reloaded.
 
   if ("arguments" in window) {
-    for (let [mimetype, pluginInfo] of window.arguments[0].plugins){
-      this.mPluginRequests.set(mimetype, new nsPluginRequest(pluginInfo));
+    for (var item in window.arguments[0].plugins){
+      this.mPluginRequestArray[window.arguments[0].plugins[item].mimetype] =
+        new nsPluginRequest(window.arguments[0].plugins[item]);
+
+      this.mPluginRequestArrayLength++;
     }
 
     this.mBrowser = window.arguments[0].browser;
@@ -47,14 +52,14 @@ function nsPluginInstallerWizard(){
 }
 
 nsPluginInstallerWizard.prototype.getPluginData = function (){
-  // for each mPluginRequests item, call the datasource
+  // for each mPluginRequestArray item, call the datasource
   this.WSPluginCounter = 0;
 
   // initiate the datasource call
   var rdfUpdater = new nsRDFItemUpdater(this.getOS(), this.getChromeLocale());
 
-  for (let [mimetype, pluginRequest] of this.mPluginRequests) {
-    rdfUpdater.checkForPlugin(pluginRequest);
+  for (var item in this.mPluginRequestArray) {
+    rdfUpdater.checkForPlugin(this.mPluginRequestArray[item]);
   }
 }
 
@@ -78,9 +83,9 @@ nsPluginInstallerWizard.prototype.pluginInfoReceived = function (aPluginRequestI
     progressMeter.setAttribute("mode", "determined");
 
   progressMeter.setAttribute("value",
-      ((this.WSPluginCounter / this.mPluginRequests.size()) * 100) + "%");
+      ((this.WSPluginCounter / this.mPluginRequestArrayLength) * 100) + "%");
 
-  if (this.WSPluginCounter == this.mPluginRequests.size()) {
+  if (this.WSPluginCounter == this.mPluginRequestArrayLength) {
     // check if no plugins were found
     if (this.mPluginInfoArrayLength == 0) {
       this.advancePage("lastpage");
@@ -460,8 +465,8 @@ nsPluginInstallerWizard.prototype.showPluginResults = function (){
       // manual url - either returned from the webservice or the pluginspage attribute
       var manualUrl;
       if ((myPluginItem.error || (!myPluginItem.XPILocation && !myPluginItem.InstallerLocation)) &&
-          (myPluginItem.manualInstallationURL || this.mPluginRequests.get(myPluginItem.requestedMimetype).pluginsPage)){
-        manualUrl = myPluginItem.manualInstallationURL ? myPluginItem.manualInstallationURL : this.mPluginRequests.get(myPluginItem.requestedMimetype).pluginsPage;
+          (myPluginItem.manualInstallationURL || this.mPluginRequestArray[myPluginItem.requestedMimetype].pluginsPage)){
+        manualUrl = myPluginItem.manualInstallationURL ? myPluginItem.manualInstallationURL : this.mPluginRequestArray[myPluginItem.requestedMimetype].pluginsPage;
       }
 
       this.addPluginResultRow(

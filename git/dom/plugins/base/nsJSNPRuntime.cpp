@@ -1951,10 +1951,6 @@ NPObjWrapperPluginDestroyedCallback(PLDHashTable *table, PLDHashEntryHdr *hdr,
 
     table->ops = ops;    
 
-    if (sDelayedReleases && sDelayedReleases->RemoveElement(npobj)) {
-      OnWrapperDestroyed();
-    }
-
     return PL_DHASH_REMOVE;
   }
 

@@ -725,10 +725,6 @@ WrapObject<JSObject>(JSContext* cx, JSObject* scope, JSObject* p, JS::Value* vp)
   return true;
 }
 
-bool
-WrapCallbackInterface(JSContext *cx, JSObject *scope, nsISupports* callback,
-                      JS::Value* vp);
-
 template<typename T>
 static inline JSObject*
 WrapNativeParent(JSContext* cx, JSObject* scope, const T& p)

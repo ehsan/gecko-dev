@@ -243,8 +243,8 @@ NotificationController::WillRefresh(mozilla::TimeStamp aTime)
     if (childDoc->IsDefunct())
       continue;
 
-    nsIContent* ownerContent = mDocument->DocumentNode()->
-      FindContentForSubDocument(childDoc->DocumentNode());
+    nsIContent* ownerContent = mDocument->GetDocumentNode()->
+      FindContentForSubDocument(childDoc->GetDocumentNode());
     if (ownerContent) {
       Accessible* outerDocAcc = mDocument->GetAccessible(ownerContent);
       if (outerDocAcc && outerDocAcc->AppendChild(childDoc)) {

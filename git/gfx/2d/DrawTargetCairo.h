@@ -20,9 +20,7 @@ class SourceSurfaceCairo;
 class GradientStopsCairo : public GradientStops
 {
   public:
-    GradientStopsCairo(GradientStop* aStops, uint32_t aNumStops,
-                       ExtendMode aExtendMode)
-     : mExtendMode(aExtendMode)
+    GradientStopsCairo(GradientStop* aStops, uint32_t aNumStops)
     {
       for (uint32_t i = 0; i < aNumStops; ++i) {
         mStops.push_back(aStops[i]);
@@ -36,16 +34,10 @@ class GradientStopsCairo : public GradientStops
       return mStops;
     }
 
-    ExtendMode GetExtendMode() const
-    {
-      return mExtendMode;
-    }
-
     virtual BackendType GetBackendType() const { return BACKEND_CAIRO; }
 
   private:
     std::vector<GradientStop> mStops;
-    ExtendMode mExtendMode;
 };
 
 class DrawTargetCairo : public DrawTarget

@@ -468,8 +468,6 @@ public:
 
   void PostPresent();
 
-  void BeginTabSwitch();
-
   static bool IsLogEnabled();
   static PRLogModuleInfo* GetLog() { return sLog; }
 
@@ -497,7 +495,6 @@ protected:
 private:
   TimeStamp mLastFrameTime;
   nsTArray<float> mFrameTimes;
-  TimeStamp mTabSwitchStart;
 };
 
 class ThebesLayer;

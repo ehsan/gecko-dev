@@ -33,7 +33,6 @@
 #include "nsISmsService.h"
 #include "mozilla/Hal.h"
 #include "nsIWebNavigation.h"
-#include "nsISiteSpecificUserAgent.h"
 #include "mozilla/ClearOnShutdown.h"
 #include "mozilla/StaticPtr.h"
 #include "Connection.h"
@@ -235,30 +234,7 @@ Navigator::GetWindow()
 NS_IMETHODIMP
 Navigator::GetUserAgent(nsAString& aUserAgent)
 {
-  nsresult rv = NS_GetNavigatorUserAgent(aUserAgent);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCOMPtr<nsPIDOMWindow> win(do_QueryReferent(mWindow));
-  if (!win || !win->GetDocShell()) {
-    return NS_OK;
-  }
-
-  nsIDocument* doc = win->GetExtantDoc();
-  if (!doc) {
-    return NS_OK;
-  }
-
-  nsCOMPtr<nsIURI> codebaseURI;
-  doc->NodePrincipal()->GetURI(getter_AddRefs(codebaseURI));
-  if (!codebaseURI) {
-    return NS_OK;
-  }
-
-  nsCOMPtr<nsISiteSpecificUserAgent> siteSpecificUA =
-    do_GetService("@mozilla.org/dom/site-specific-user-agent;1");
-  NS_ENSURE_TRUE(siteSpecificUA, NS_OK);
-
-  return siteSpecificUA->GetUserAgentForURI(codebaseURI, aUserAgent);
+  return NS_GetNavigatorUserAgent(aUserAgent);
 }
 
 NS_IMETHODIMP

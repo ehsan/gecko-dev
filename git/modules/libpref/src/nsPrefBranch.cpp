@@ -17,8 +17,10 @@
 #include "nsXPIDLString.h"
 #include "nsIStringBundle.h"
 #include "prefapi.h"
+#include "prmem.h"
 #include "pldhash.h"
 
+#include "plstr.h"
 #include "nsCRT.h"
 #include "mozilla/Services.h"
 

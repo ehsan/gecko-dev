@@ -9,6 +9,7 @@
 
 #include "nspr.h"
 #include "prlog.h"
+#include "prmem.h"
 
 #include "nsISecureBrowserUI.h"
 #include "nsSecureBrowserUIImpl.h"
@@ -70,7 +71,7 @@ struct RequestHashEntry : PLDHashEntryHdr {
     void *r;
 };
 
-static bool
+PR_STATIC_CALLBACK(bool)
 RequestMapMatchEntry(PLDHashTable *table, const PLDHashEntryHdr *hdr,
                          const void *key)
 {
@@ -78,7 +79,7 @@ RequestMapMatchEntry(PLDHashTable *table, const PLDHashEntryHdr *hdr,
   return entry->r == key;
 }
 
-static bool
+PR_STATIC_CALLBACK(bool)
 RequestMapInitEntry(PLDHashTable *table, PLDHashEntryHdr *hdr,
                      const void *key)
 {

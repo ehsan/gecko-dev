@@ -17,6 +17,9 @@
 #include "nsIIOService.h"
 #include "nsIServiceManager.h"
 #include "nsNetUtil.h"
+#include "plstr.h"
+#include "prprf.h"
+#include "prmem.h"
 #include "nsCOMPtr.h"
 #include "nsEscape.h"
 #include "nsIDOMWindow.h"
@@ -135,14 +138,14 @@ nsLocation::GetDocShell()
   return docshell;
 }
 
-// Try to get the the document corresponding to the given JSScript.
+// Try to get the the document corresponding to the given JSStackFrame.
 static already_AddRefed<nsIDocument>
-GetScriptDocument(JSContext *cx, JSScript *script)
+GetFrameDocument(JSContext *cx, JSStackFrame *fp)
 {
-  if (!cx || !script)
+  if (!cx || !fp)
     return nullptr;
 
-  JSObject* scope = JS_GetGlobalFromScript(script);
+  JSObject* scope = JS_GetGlobalForFrame(fp);
   if (!scope)
     return nullptr;
 
@@ -203,6 +206,15 @@ nsLocation::CheckURL(nsIURI* aURI, nsIDocShellLoadInfo** aLoadInfo)
     rv = secMan->CheckLoadURIFromScript(cx, aURI);
     NS_ENSURE_SUCCESS(rv, rv);
 
+    // Now get the principal to use when loading the URI
+    // First, get the principal and frame.
+    JSStackFrame *fp;
+    nsIPrincipal* principal = secMan->GetCxSubjectPrincipalAndFrame(cx, &fp);
+    NS_ENSURE_TRUE(principal, NS_ERROR_FAILURE);
+
+    nsCOMPtr<nsIURI> principalURI;
+    principal->GetURI(getter_AddRefs(principalURI));
+
     // Make the load's referrer reflect changes to the document's URI caused by
     // push/replaceState, if possible.  First, get the document corresponding to
     // fp.  If the document's original URI (i.e. its URI before
@@ -210,16 +222,11 @@ nsLocation::CheckURL(nsIURI* aURI, nsIDocShellLoadInfo** aLoadInfo)
     // current URI as the referrer.  If they don't match, use the principal's
     // URI.
 
-    JSScript* script = nullptr;
-    if (!JS_DescribeScriptedCaller(cx, &script, nullptr))
-      return NS_ERROR_FAILURE;
-    nsCOMPtr<nsIDocument> doc = GetScriptDocument(cx, script);
-    nsCOMPtr<nsIURI> docOriginalURI, docCurrentURI, principalURI;
-    if (doc) {
-      docOriginalURI = doc->GetOriginalURI();
-      docCurrentURI = doc->GetDocumentURI();
-      rv = doc->NodePrincipal()->GetURI(getter_AddRefs(principalURI));
-      NS_ENSURE_SUCCESS(rv, rv);
+    nsCOMPtr<nsIDocument> frameDoc = GetFrameDocument(cx, fp);
+    nsCOMPtr<nsIURI> docOriginalURI, docCurrentURI;
+    if (frameDoc) {
+      docOriginalURI = frameDoc->GetOriginalURI();
+      docCurrentURI = frameDoc->GetDocumentURI();
     }
 
     bool urisEqual = false;
@@ -234,7 +241,7 @@ nsLocation::CheckURL(nsIURI* aURI, nsIDocShellLoadInfo** aLoadInfo)
       sourceURI = principalURI;
     }
 
-    owner = do_QueryInterface(doc ? doc->NodePrincipal() : secMan->GetCxSubjectPrincipal(cx));
+    owner = do_QueryInterface(principal);
   }
 
   // Create load info

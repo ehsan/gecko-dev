@@ -25,7 +25,7 @@ using namespace js::gc;
 static void
 CopyStackFrameArguments(const StackFrame *fp, HeapValue *dst)
 {
-    JS_ASSERT(!fp->runningInIon());
+    JS_ASSERT(!fp->beginsIonActivation());
 
     unsigned numActuals = fp->numActualArgs();
     unsigned numFormals = fp->callee().nargs;
@@ -87,7 +87,7 @@ struct CopyStackIterArgs
 
     void copyArgs(HeapValue *dstBase) const {
         if (!iter_.isIon()) {
-            CopyStackFrameArguments(iter_.interpFrame(), dstBase);
+            CopyStackFrameArguments(iter_.fp(), dstBase);
             return;
         }
 
@@ -110,7 +110,7 @@ struct CopyStackIterArgs
      */
     void maybeForwardToCallObject(JSObject *obj, ArgumentsData *data) {
         if (!iter_.isIon())
-            ArgumentsObject::MaybeForwardToCallObject(iter_.interpFrame(), obj, data);
+            ArgumentsObject::MaybeForwardToCallObject(iter_.fp(), obj, data);
     }
 };
 

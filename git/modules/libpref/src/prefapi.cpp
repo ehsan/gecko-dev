@@ -25,6 +25,7 @@
 #include "pldhash.h"
 #include "plbase64.h"
 #include "prlog.h"
+#include "prmem.h"
 #include "prprf.h"
 #include "mozilla/dom/PContent.h"
 #include "nsQuickSort.h"

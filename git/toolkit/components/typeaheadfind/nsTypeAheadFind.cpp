@@ -388,8 +388,10 @@ nsTypeAheadFind::FindItNow(nsIPresShell *aPresShell, bool aIsLinksOnly,
           (aIsLinksOnly && !isInsideLink) ||
           (mStartLinksOnlyPref && aIsLinksOnly && !isStartingLink)) {
         // ------ Failure ------
-        // mStartPointRange got updated to the right thing already,
-        // but we stil need to collapse it to the right end.
+        // Start find again from here
+        returnRange->CloneRange(getter_AddRefs(mStartPointRange));
+
+        // Collapse to end
         mStartPointRange->Collapse(aFindPrev);
 
         continue;
@@ -1136,6 +1138,7 @@ nsTypeAheadFind::IsRangeVisible(nsIPresShell *aPresShell,
       (*aFirstVisibleRange)->SelectNode(firstVisibleNode);
       frame->GetOffsets(startFrameOffset, endFrameOffset);
       (*aFirstVisibleRange)->SetStart(firstVisibleNode, startFrameOffset);
+      (*aFirstVisibleRange)->Collapse(true);  // Collapse to start
     }
   }
 

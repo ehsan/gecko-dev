@@ -20,6 +20,7 @@
 #include "nsPluginHost.h"
 #include "nsString.h"
 #include "nsReadableUtils.h"
+#include "prmem.h"
 #include "nsGkAtoms.h"
 #include "nsIAppShell.h"
 #include "nsIDocument.h"
@@ -1260,8 +1261,8 @@ nsObjectFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
     }
 
     nsRefPtr<ImageContainer> container = GetImageContainer();
-    if (container && (container->HasCurrentImage() || !isVisible ||
-        container->GetCurrentSize() != gfxIntSize(window->width, window->height))) {
+    if (container && container->HasCurrentImage() || !isVisible ||
+        container->GetCurrentSize() != gfxIntSize(window->width, window->height)) {
       mInstanceOwner->NotifyPaintWaiter(aBuilder);
     }
   }

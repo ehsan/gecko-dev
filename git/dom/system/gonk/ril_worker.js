@@ -3786,8 +3786,11 @@ let RIL = {
       return PDU_FCS_OK;
     }
 
-    if ((options.segmentMaxSeq == 1)
-        && (options.segmentSeq == options.segmentMaxSeq)) {
+    if ((options.segmentMaxSeq > 1)
+        && (options.segmentSeq < options.segmentMaxSeq)) {
+      // Not last segment. Send next segment here.
+      this._processSentSmsSegment(options);
+    } else {
       // Last segment delivered with success. Report it.
       this.sendDOMMessage({
         rilMessageType: "sms-delivered",
@@ -4282,7 +4285,6 @@ RIL[REQUEST_RADIO_POWER] = null;
 RIL[REQUEST_DTMF] = null;
 RIL[REQUEST_SEND_SMS] = function REQUEST_SEND_SMS(length, options) {
   if (options.rilRequestError) {
-    if (DEBUG) debug("REQUEST_SEND_SMS: rilRequestError = " + options.rilRequestError);
     switch (options.rilRequestError) {
       case ERROR_SMS_SEND_FAIL_RETRY:
         if (options.retryCount < SMS_RETRY_MAX) {
@@ -4316,7 +4318,10 @@ RIL[REQUEST_SEND_SMS] = function REQUEST_SEND_SMS(length, options) {
   if ((options.segmentMaxSeq > 1)
       && (options.segmentSeq < options.segmentMaxSeq)) {
     // Not last segment
-    this._processSentSmsSegment(options);
+    if (!options.requestStatusReport) {
+      // Status-Report not requested, send next segment here.
+      this._processSentSmsSegment(options);
+    }
   } else {
     // Last segment sent with success. Report it.
     this.sendDOMMessage({

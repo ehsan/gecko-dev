@@ -6,6 +6,7 @@
 #include "mozilla/Util.h"
 
 #include "nsAlgorithm.h"
+#include "prmem.h"
 #include "nsString.h"
 #include "nsBidiUtils.h"
 

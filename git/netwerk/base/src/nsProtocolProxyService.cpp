@@ -782,10 +782,15 @@ nsProtocolProxyService::SecondsSinceSessionStart()
     int64_t diff = now - mSessionStart;
 
     // convert microseconds to seconds
-    diff /= PR_USEC_PER_SEC;
+    PRTime ups;
+    LL_I2L(ups, PR_USEC_PER_SEC);
+    diff /= ups;
 
-    // return converted 32 bit value
-    return uint32_t(diff);
+    // convert to 32 bit value
+    uint32_t dsec;
+    LL_L2UI(dsec, diff);
+
+    return dsec;
 }
 
 void

@@ -111,6 +111,12 @@ nsAccessNode::GetNode() const
   return mContent;
 }
 
+nsIDocument*
+nsAccessNode::GetDocumentNode() const
+{
+  return mContent ? mContent->OwnerDoc() : nullptr;
+}
+
 void
 nsAccessNode::Language(nsAString& aLanguage)
 {

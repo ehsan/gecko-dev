@@ -7,6 +7,7 @@
 #include "nsBMPEncoder.h"
 #include "nsPNGEncoder.h"
 #include "nsICOEncoder.h"
+#include "prmem.h"
 #include "prprf.h"
 #include "nsString.h"
 #include "nsStreamUtils.h"
@@ -278,7 +279,7 @@ nsICOEncoder::ParseOptions(const nsAString& aOptions, uint32_t* bpp,
   }
 
   // For each name/value pair in the set
-  for (unsigned i = 0; i < nameValuePairs.Length(); ++i) {
+  for (int i = 0; i < nameValuePairs.Length(); ++i) {
 
     // Split the name value pair [0] = name, [1] = value
     nsTArray<nsCString> nameValuePair;

@@ -20,11 +20,6 @@ DIRS = \
   test \
   $(NULL)
 
-EXTRA_COMPONENTS = \
-  SiteSpecificUserAgent.js \
-  SiteSpecificUserAgent.manifest \
-  $(NULL)
-
 EXTRA_PP_COMPONENTS = \
   ConsoleAPI.js \
   ConsoleAPI.manifest \
@@ -44,7 +39,6 @@ XPIDLSRCS = \
   nsIDOMDOMRequest.idl \
   nsIEntropyCollector.idl \
   nsIScriptChannel.idl \
-  nsISiteSpecificUserAgent.idl \
   $(NULL)
 
 EXPORTS = \

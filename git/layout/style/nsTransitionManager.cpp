@@ -610,7 +610,7 @@ nsTransitionManager::GetElementTransitions(dom::Element *aElement,
     // FIXME: Consider arena-allocating?
     et = new ElementTransitions(aElement, propName, this);
     nsresult rv = aElement->SetProperty(propName, et,
-                                        ElementTransitionsPropertyDtor, false);
+                                        ElementTransitionsPropertyDtor, nullptr);
     if (NS_FAILED(rv)) {
       NS_WARNING("SetProperty failed");
       delete et;

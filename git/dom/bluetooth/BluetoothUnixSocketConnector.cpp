@@ -72,7 +72,7 @@ BluetoothUnixSocketConnector::BluetoothUnixSocketConnector(
 }
 
 bool
-BluetoothUnixSocketConnector::SetUp(int aFd)
+BluetoothUnixSocketConnector::Setup(int aFd)
 {
   int lm = 0;
   int sndbuf;
@@ -133,7 +133,7 @@ BluetoothUnixSocketConnector::Create()
     return -1;
   }
 
-  if (!SetUp(fd)) {
+  if (!Setup(fd)) {
     NS_WARNING("Could not set up socket!");
   }
   return fd;

@@ -13,6 +13,7 @@
 #include "nsString.h"
 #include "nsReadableUtils.h"
 #include "nsCRT.h"
+#include "prmem.h"
 #include "nsPrintfCString.h"
 #include "nsIDateTimeFormat.h"
 #include "nsDateTimeFormatCID.h"

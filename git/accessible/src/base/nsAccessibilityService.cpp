@@ -896,7 +896,7 @@ nsAccessibilityService::GetOrCreateAccessible(nsINode* aNode,
     return nullptr;
   }
 
-  if (aNode->OwnerDoc() != aDoc->DocumentNode()) {
+  if (aNode->OwnerDoc() != aDoc->GetDocumentNode()) {
     NS_ERROR("Creating accessible for wrong document");
     return nullptr;
   }

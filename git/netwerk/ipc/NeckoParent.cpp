@@ -33,16 +33,15 @@ NeckoParent::~NeckoParent()
 {
 }
 
-PHttpChannelParent*
-NeckoParent::AllocPHttpChannel(PBrowserParent* browser,
-                               const SerializedLoadContext& loadContext)
+PHttpChannelParent* 
+NeckoParent::AllocPHttpChannel(PBrowserParent* browser)
 {
-  HttpChannelParent *p = new HttpChannelParent(browser, loadContext);
+  HttpChannelParent *p = new HttpChannelParent(browser);
   p->AddRef();
   return p;
 }
 
-bool
+bool 
 NeckoParent::DeallocPHttpChannel(PHttpChannelParent* channel)
 {
   HttpChannelParent *p = static_cast<HttpChannelParent *>(channel);

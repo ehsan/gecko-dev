@@ -4,6 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsJPEGEncoder.h"
+#include "prmem.h"
 #include "prprf.h"
 #include "nsString.h"
 #include "nsStreamUtils.h"
@@ -34,7 +35,7 @@ nsJPEGEncoder::nsJPEGEncoder() : mFinished(false),
 nsJPEGEncoder::~nsJPEGEncoder()
 {
   if (mImageBuffer) {
-    moz_free(mImageBuffer);
+    PR_Free(mImageBuffer);
     mImageBuffer = nullptr;
   }
 }
@@ -225,7 +226,7 @@ NS_IMETHODIMP nsJPEGEncoder::EndImageEncode()
 NS_IMETHODIMP nsJPEGEncoder::Close()
 {
   if (mImageBuffer != nullptr) {
-    moz_free(mImageBuffer);
+    PR_Free(mImageBuffer);
     mImageBuffer = nullptr;
     mImageBufferSize = 0;
     mImageBufferUsed = 0;
@@ -372,7 +373,7 @@ nsJPEGEncoder::initDestination(jpeg_compress_struct* cinfo)
   NS_ASSERTION(! that->mImageBuffer, "Image buffer already initialized");
 
   that->mImageBufferSize = 8192;
-  that->mImageBuffer = (uint8_t*)moz_malloc(that->mImageBufferSize);
+  that->mImageBuffer = (uint8_t*)PR_Malloc(that->mImageBufferSize);
   that->mImageBufferUsed = 0;
 
   cinfo->dest->next_output_byte = that->mImageBuffer;
@@ -406,11 +407,11 @@ nsJPEGEncoder::emptyOutputBuffer(jpeg_compress_struct* cinfo)
   // expand buffer, just double size each time
   that->mImageBufferSize *= 2;
 
-  uint8_t* newBuf = (uint8_t*)moz_realloc(that->mImageBuffer,
-                                          that->mImageBufferSize);
+  uint8_t* newBuf = (uint8_t*)PR_Realloc(that->mImageBuffer,
+                                         that->mImageBufferSize);
   if (! newBuf) {
     // can't resize, just zero (this will keep us from writing more)
-    moz_free(that->mImageBuffer);
+    PR_Free(that->mImageBuffer);
     that->mImageBuffer = nullptr;
     that->mImageBufferSize = 0;
     that->mImageBufferUsed = 0;

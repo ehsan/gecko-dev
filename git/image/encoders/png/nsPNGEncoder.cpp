@@ -5,6 +5,7 @@
 
 #include "nsCRT.h"
 #include "nsPNGEncoder.h"
+#include "prmem.h"
 #include "prprf.h"
 #include "nsString.h"
 #include "nsStreamUtils.h"
@@ -27,7 +28,7 @@ nsPNGEncoder::nsPNGEncoder() : mPNG(nullptr), mPNGinfo(nullptr),
 nsPNGEncoder::~nsPNGEncoder()
 {
   if (mImageBuffer) {
-    moz_free(mImageBuffer);
+    PR_Free(mImageBuffer);
     mImageBuffer = nullptr;
   }
   // don't leak if EndImageEncode wasn't called
@@ -132,7 +133,7 @@ NS_IMETHODIMP nsPNGEncoder::StartImageEncode(uint32_t aWidth,
   // estimated size. Note: we don't have to worry about freeing this data
   // in this function. It will be freed on object destruction.
   mImageBufferSize = 8192;
-  mImageBuffer = (uint8_t*)moz_malloc(mImageBufferSize);
+  mImageBuffer = (uint8_t*)PR_Malloc(mImageBufferSize);
   if (!mImageBuffer) {
     png_destroy_write_struct(&mPNG, &mPNGinfo);
     return NS_ERROR_OUT_OF_MEMORY;
@@ -481,7 +482,7 @@ nsPNGEncoder::ParseOptions(const nsAString& aOptions,
 NS_IMETHODIMP nsPNGEncoder::Close()
 {
   if (mImageBuffer != nullptr) {
-    moz_free(mImageBuffer);
+    PR_Free(mImageBuffer);
     mImageBuffer = nullptr;
     mImageBufferSize = 0;
     mImageBufferUsed = 0;
@@ -678,11 +679,11 @@ nsPNGEncoder::WriteCallback(png_structp png, png_bytep data,
 
     // expand buffer, just double each time
     that->mImageBufferSize *= 2;
-    uint8_t* newBuf = (uint8_t*)moz_realloc(that->mImageBuffer,
-                                            that->mImageBufferSize);
+    uint8_t* newBuf = (uint8_t*)PR_Realloc(that->mImageBuffer,
+                                           that->mImageBufferSize);
     if (! newBuf) {
       // can't resize, just zero (this will keep us from writing more)
-      moz_free(that->mImageBuffer);
+      PR_Free(that->mImageBuffer);
       that->mImageBuffer = nullptr;
       that->mImageBufferSize = 0;
       that->mImageBufferUsed = 0;

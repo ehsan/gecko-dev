@@ -9,12 +9,10 @@ import unittest
 
 from tempfile import NamedTemporaryFile
 
-from mach.logging import LoggingManager
-
-from mozbuild.base import (
-    BuildConfig,
-    MozbuildObject,
-)
+from mozbuild.base import BuildConfig
+from mozbuild.base import MozbuildObject
+from mozbuild.config import ConfigSettings
+from mozbuild.logger import LoggingManager
 
 
 curdir = os.path.dirname(__file__)
@@ -22,9 +20,20 @@ topsrcdir = os.path.normpath(os.path.join(curdir, '..', '..', '..', '..'))
 log_manager = LoggingManager()
 
 
+class TestBuildConfig(unittest.TestCase):
+    def test_basic(self):
+        c = ConfigSettings()
+        c.register_provider(BuildConfig)
+
+        c.build.threads = 6
+
+
 class TestMozbuildObject(unittest.TestCase):
     def get_base(self):
-        return MozbuildObject(topsrcdir, None, log_manager)
+        settings = ConfigSettings()
+        settings.register_provider(BuildConfig)
+
+        return MozbuildObject(topsrcdir, settings, log_manager)
 
     def test_mozconfig_parsing(self):
         with NamedTemporaryFile(mode='wt') as mozconfig:

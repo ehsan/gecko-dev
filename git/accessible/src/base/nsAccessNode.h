@@ -64,6 +64,7 @@ public:
    */
   virtual nsINode* GetNode() const;
   nsIContent* GetContent() const { return mContent; }
+  virtual nsIDocument* GetDocumentNode() const;
 
   /**
    * Return node type information of DOM node associated with the accessible.

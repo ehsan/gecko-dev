@@ -609,7 +609,8 @@ ion::ThunkToInterpreter(Value *vp)
         StackFrame *fp = NULL;
         Rooted<JSScript*> script(cx, NULL);
         do {
-            fp = iter.interpFrame();
+            JS_ASSERT(!iter.isIon());
+            fp = iter.fp();
             script = iter.script();
             if (script->needsArgsObj()) {
                 // Currently IonMonkey does not compile if the script needs an

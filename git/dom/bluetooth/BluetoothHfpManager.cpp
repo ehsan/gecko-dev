@@ -540,8 +540,6 @@ BluetoothHfpManager::Connect(const nsAString& aDeviceObjectPath,
     return false;
   }
 
-  CloseSocket();
-
   BluetoothService* bs = BluetoothService::Get();
   if (!bs) {
     NS_WARNING("BluetoothService not available!");
@@ -585,8 +583,6 @@ BluetoothHfpManager::Listen()
     return false;
   }
 
-  CloseSocket();
-
   BluetoothService* bs = BluetoothService::Get();
   if (!bs) {
     NS_WARNING("BluetoothService not available!");
@@ -609,7 +605,6 @@ BluetoothHfpManager::Disconnect()
   mCall = 0;
   mCallSetup = 0;
   mCallHeld = 0;
-  Listen();
 }
 
 bool
@@ -769,17 +764,4 @@ BluetoothHfpManager::CallStateChanged(int aCallIndex, int aCallState,
 
   mCurrentCallIndex = aCallIndex;
   mCurrentCallState = aCallState;
-}
-
-void
-BluetoothHfpManager::OnConnectSuccess()
-{
-}
-
-void
-BluetoothHfpManager::OnConnectError()
-{
-  CloseSocket();
-  // If connecting for some reason didn't work, restart listening
-  Listen();
 }

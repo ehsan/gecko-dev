@@ -375,10 +375,6 @@ StyleEditor.prototype = {
       this._friendlyName = (sheetURI.indexOf(contentURI) == 0)
                            ? sheetURI.substring(contentURI.length)
                            : sheetURI;
-      try {
-        this._friendlyName = decodeURI(this._friendlyName);
-      } catch (ex) {
-      }
     }
     return this._friendlyName;
   },
@@ -1315,12 +1311,11 @@ StyleEditorManager.prototype = {
    * Open a new editor.
    *
    * @param {Window} content window.
-   * @param {Window} chrome window.
    * @param {CSSStyleSheet} [aSelectedStyleSheet] default Stylesheet.
    * @param {Number} [aLine] Line to which the caret should be moved (one-indexed).
    * @param {Number} [aCol] Column to which the caret should be moved (one-indexed).
    */
-  newEditor: function SEM_newEditor(aContentWindow, aChromeWindow, aSelectedStyleSheet, aLine, aCol) {
+  newEditor: function SEM_newEditor(aContentWindow, aSelectedStyleSheet, aLine, aCol) {
     const CHROME_URL = "chrome://browser/content/styleeditor.xul";
     const CHROME_WINDOW_FLAGS = "chrome,centerscreen,resizable,dialog=no";
 
@@ -1331,7 +1326,7 @@ StyleEditorManager.prototype = {
       col: aCol
     };
     args.wrappedJSObject = args;
-    let chromeWindow = Services.ww.openWindow(aChromeWindow, CHROME_URL, "_blank",
+    let chromeWindow = Services.ww.openWindow(null, CHROME_URL, "_blank",
                                               CHROME_WINDOW_FLAGS, args);
 
     chromeWindow.onunload = function() {
@@ -1354,12 +1349,12 @@ StyleEditorManager.prototype = {
    *
    * @param {Window} associated content window.
    */
-  toggleEditor: function SEM_toggleEditor(aContentWindow, aChromeWindow) {
+  toggleEditor: function SEM_toggleEditor(aContentWindow) {
     let editor = this.getEditorForWindow(aContentWindow);
     if (editor) {
       editor.close();
     } else {
-      this.newEditor(aContentWindow, aChromeWindow);
+      this.newEditor(aContentWindow);
     }
   },
 

@@ -319,41 +319,6 @@ IsWin8OrLater()
          osInfo.dwMajorVersion >= 6 && osInfo.dwMinorVersion >= 2;
 }
 
-static bool
-IsAARDefaultHTTP(IApplicationAssociationRegistration* pAAR,
-                 bool* aIsDefaultBrowser)
-{
-  // Make sure the Prog ID matches what we have
-  LPWSTR registeredApp;
-  HRESULT hr = pAAR->QueryCurrentDefault(L"http", AT_URLPROTOCOL, AL_EFFECTIVE,
-                                         &registeredApp);
-  if (SUCCEEDED(hr)) {
-    LPCWSTR firefoxHTTPProgID = L"FirefoxURL";
-    *aIsDefaultBrowser = !wcsicmp(registeredApp, firefoxHTTPProgID);
-    CoTaskMemFree(registeredApp);
-  } else {
-    *aIsDefaultBrowser = false;
-  }
-  return SUCCEEDED(hr);
-}
-
-static bool
-IsAARDefaultHTML(IApplicationAssociationRegistration* pAAR,
-                 bool* aIsDefaultBrowser)
-{
-  LPWSTR registeredApp;
-  HRESULT hr = pAAR->QueryCurrentDefault(L".html", AT_FILEEXTENSION, AL_EFFECTIVE,
-                                         &registeredApp);
-  if (SUCCEEDED(hr)) {
-    LPCWSTR firefoxHTMLProgID = L"FirefoxHTML";
-    *aIsDefaultBrowser = !wcsicmp(registeredApp, firefoxHTMLProgID);
-    CoTaskMemFree(registeredApp);
-  } else {
-    *aIsDefaultBrowser = false;
-  }
-  return SUCCEEDED(hr);
-}
-
 bool
 nsWindowsShellService::IsDefaultBrowserVista(bool aCheckAllTypes,
                                              bool* aIsDefaultBrowser)
@@ -366,23 +331,40 @@ nsWindowsShellService::IsDefaultBrowserVista(bool aCheckAllTypes,
                                 (void**)&pAAR);
 
   if (SUCCEEDED(hr)) {
-    if (aCheckAllTypes) {
-      BOOL res;
-      hr = pAAR->QueryAppIsDefaultAll(AL_EFFECTIVE,
-                                      APP_REG_NAME,
-                                      &res);
-      *aIsDefaultBrowser = res;
+    BOOL res;
+    hr = pAAR->QueryAppIsDefaultAll(AL_EFFECTIVE,
+                                    APP_REG_NAME,
+                                    &res);
+    *aIsDefaultBrowser = res;
 
-      // If we have all defaults, let's make sure that our ProgID
-      // is explicitly returned as well. Needed only for Windows 8.
-      if (*aIsDefaultBrowser && IsWin8OrLater()) {
-        IsAARDefaultHTTP(pAAR, aIsDefaultBrowser);
-        if (*aIsDefaultBrowser) {
-          IsAARDefaultHTML(pAAR, aIsDefaultBrowser);
+    if (*aIsDefaultBrowser && IsWin8OrLater()) {
+      // Make sure the Prog ID matches what we have
+      LPWSTR registeredApp;
+      hr = pAAR->QueryCurrentDefault(L"http", AT_URLPROTOCOL, AL_EFFECTIVE,
+                                     &registeredApp);
+      if (SUCCEEDED(hr)) {
+        LPCWSTR firefoxHTTPProgID = L"FirefoxURL";
+        *aIsDefaultBrowser = !wcsicmp(registeredApp, firefoxHTTPProgID);
+        CoTaskMemFree(registeredApp);
+      } else {
+        *aIsDefaultBrowser = false;
+      }
+      // If this is a startup check, then we don't check file type
+      // associations. This is because the win8 UI for file type
+      // association has to be done through the control panel.  If this
+      // is not a startup check, then we're checking through the control
+      // panel and we should also check for file type association.
+      if (aCheckAllTypes && *aIsDefaultBrowser) {
+        hr = pAAR->QueryCurrentDefault(L".html", AT_FILEEXTENSION, AL_EFFECTIVE,
+                                       &registeredApp);
+        if (SUCCEEDED(hr)) {
+          LPCWSTR firefoxHTMLProgID = L"FirefoxHTML";
+          *aIsDefaultBrowser = !wcsicmp(registeredApp, firefoxHTMLProgID);
+          CoTaskMemFree(registeredApp);
+        } else {
+          *aIsDefaultBrowser = false;
         }
       }
-    } else {
-      IsAARDefaultHTTP(pAAR, aIsDefaultBrowser);
     }
 
     pAAR->Release();
@@ -401,13 +383,6 @@ nsWindowsShellService::IsDefaultBrowser(bool aStartupCheck,
   // default browser dialog).
   if (aStartupCheck)
     mCheckedThisSession = true;
-
-  // Check if we only care about a lightweight check, and make sure this
-  // only has an effect on Win8 and later.
-  if (!aForAllTypes && IsWin8OrLater()) {
-    return IsDefaultBrowserVista(false,
-                                 aIsDefaultBrowser) ? NS_OK : NS_ERROR_FAILURE;
-  }
 
   // Assume we're the default unless one of the several checks below tell us
   // otherwise.
@@ -488,7 +463,7 @@ nsWindowsShellService::IsDefaultBrowser(bool aStartupCheck,
   // Only check if Firefox is the default browser on Vista and above if the
   // previous checks show that Firefox is the default browser.
   if (*aIsDefaultBrowser) {
-    IsDefaultBrowserVista(true, aIsDefaultBrowser);
+    IsDefaultBrowserVista(aForAllTypes, aIsDefaultBrowser);
   }
 
   // To handle the case where DDE isn't disabled due for a user because there

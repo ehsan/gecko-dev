@@ -2859,8 +2859,8 @@ nsDocument::GetActiveElement(nsIDOMElement **aElement)
                                            getter_AddRefs(focusedWindow));
     // be safe and make sure the element is from this document
     if (focusedContent && focusedContent->OwnerDoc() == this) {
-      if (focusedContent->ChromeOnlyAccess()) {
-        focusedContent = focusedContent->FindFirstNonChromeOnlyAccessContent();
+      if (focusedContent->IsInNativeAnonymousSubtree()) {
+        focusedContent = focusedContent->FindFirstNonNativeAnonymous();
       }
       if (focusedContent) {
         CallQueryInterface(focusedContent, aElement);
@@ -6874,7 +6874,9 @@ nsDocument::RetrieveRelevantHeaders(nsIChannel *aChannel)
         rv = file->GetLastModifiedTime(&msecs);
 
         if (NS_SUCCEEDED(rv)) {
-          modDate = msecs * int64_t(PR_USEC_PER_MSEC);
+          int64_t intermediateValue;
+          LL_I2L(intermediateValue, PR_USEC_PER_MSEC);
+          modDate = msecs * intermediateValue;
         }
       }
     } else {
@@ -7581,7 +7583,7 @@ nsDocument::MutationEventDispatched(nsINode* aTarget)
     for (int32_t i = 0; i < count; ++i) {
       nsINode* possibleTarget = mSubtreeModifiedTargets[i];
       nsCOMPtr<nsIContent> content = do_QueryInterface(possibleTarget);
-      if (content && content->ChromeOnlyAccess()) {
+      if (content && content->IsInNativeAnonymousSubtree()) {
         continue;
       }
 

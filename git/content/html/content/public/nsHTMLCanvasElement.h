@@ -168,6 +168,7 @@ protected:
                             const nsAString& aType,
                             nsIDOMFile** aResult);
   nsresult GetContextHelper(const nsAString& aContextId,
+                            bool aForceThebes,
                             nsICanvasRenderingContextInternal **aContext);
   void CallPrintCallback();
 

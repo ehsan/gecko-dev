@@ -436,7 +436,8 @@ nsHTTPIndex::OnIndexAvailable(nsIRequest* aRequest, nsISupports *aContext,
       if (NS_FAILED(rv)) return rv;
       int64_t minus1 = UINT64_MAX;
       if (size != minus1) {
-        int32_t intSize = int32_t(size);
+        int32_t intSize;
+        LL_L2I(intSize, size);
         // XXX RDF should support 64 bit integers (bug 240160)
         nsCOMPtr<nsIRDFInt> val;
         rv = mDirRDF->GetIntLiteral(intSize, getter_AddRefs(val));

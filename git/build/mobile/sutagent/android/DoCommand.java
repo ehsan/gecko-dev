@@ -1314,33 +1314,23 @@ private void CancelNotification()
 
     public String GetTestRoot()
         {
+        String    sRet = null;
 
-        // According to all the docs this should work, but I keep getting an
-        // exception when I attempt to create the file because I don't have
-        // permission, although /data/local/tmp is supposed to be world
-        // writeable/readable
-        File tmpFile = new java.io.File("/data/local/tmp/tests");
-        try{
-            tmpFile.createNewFile();
-        } catch (IOException e){
-            Log.i("SUTAgentAndroid", "Caught exception creating file in /data/local/tmp: " + e.getMessage());
-        }
-   
-        String state = Environment.getExternalStorageState();
-        // Ensure sdcard is mounted and NOT read only
-        if (state.equalsIgnoreCase(Environment.MEDIA_MOUNTED) &&
-            (Environment.MEDIA_MOUNTED_READ_ONLY.compareTo(state) != 0))
+        File tmpFile = new java.io.File("/data/local/tests");
+        if (tmpFile.exists() && tmpFile.isDirectory()) 
             {
-            return(Environment.getExternalStorageDirectory().getAbsolutePath());
-            }
-        if (tmpFile.exists()) 
-            {
-            Log.i("CLINT", "tmpfile exists");
             return("/data/local");
             }
-        Log.e("SUTAgentAndroid", "ERROR: Cannot access world writeable test root");
+        if (Environment.getExternalStorageState().equalsIgnoreCase(Environment.MEDIA_MOUNTED))
+            {
+            sRet = Environment.getExternalStorageDirectory().getAbsolutePath();
+            }
+        else
+            {
+            sRet = GetTmpDir();
+            }
 
-        return(null);
+        return(sRet);
         }
 
     public String GetAppRoot(String AppName)

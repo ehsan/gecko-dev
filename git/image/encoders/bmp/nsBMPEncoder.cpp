@@ -5,6 +5,7 @@
 #include "nsCRT.h"
 #include "EndianMacros.h"
 #include "nsBMPEncoder.h"
+#include "prmem.h"
 #include "prprf.h"
 #include "nsString.h"
 #include "nsStreamUtils.h"

@@ -184,6 +184,7 @@
           ],
           
           'cflags_mozilla': [
+            '-Werror',
           ],
         }],
         ['OS=="win"', {
@@ -211,6 +212,8 @@
           ],
           
           'cflags_mozilla': [
+            '-Werror',
+            '-Wno-error=conversion'
           ],
         }],
       ],
@@ -630,6 +633,7 @@
           ],
 
           'cflags_mozilla': [
+            '-Werror',
           ],
         }],
         ['OS=="win"', {
@@ -748,6 +752,8 @@
           ],
           
           'cflags_mozilla': [
+            '-Werror',
+            '-Wno-error=conversion'
           ],
         }],
       ],

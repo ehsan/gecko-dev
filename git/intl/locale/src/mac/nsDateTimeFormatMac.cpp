@@ -12,6 +12,7 @@
 #include "nsILocaleService.h"
 #include "nsCRT.h"
 #include "plstr.h"
+#include "prmem.h"
 #include "nsUnicharUtils.h"
 #include "nsTArray.h"
 

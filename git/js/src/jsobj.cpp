@@ -4449,12 +4449,12 @@ js::GetMethod(JSContext *cx, HandleObject obj, HandleId id, unsigned getHow, Mut
 JS_FRIEND_API(bool)
 js::CheckUndeclaredVarAssignment(JSContext *cx, JSString *propname)
 {
-    JSScript *script = cx->stack.currentScript(NULL, ContextStack::ALLOW_CROSS_COMPARTMENT);
-    if (!script)
+    StackFrame *const fp = js_GetTopStackFrame(cx, FRAME_EXPAND_ALL);
+    if (!fp)
         return true;
 
     /* If neither cx nor the code is strict, then no check is needed. */
-    if (!script->strictModeCode && !cx->hasStrictOption())
+    if (!fp->script()->strictModeCode && !cx->hasStrictOption())
         return true;
 
     JSAutoByteString bytes(cx, propname);
@@ -5468,7 +5468,7 @@ js_DumpStackFrame(JSContext *cx, StackFrame *start)
             return;
         }
     } else {
-        while (!i.done() && !i.isIon() && i.interpFrame() != start)
+        while (!i.done() && i.fp() != start)
             ++i;
 
         if (i.done()) {
@@ -5479,49 +5479,44 @@ js_DumpStackFrame(JSContext *cx, StackFrame *start)
     }
 
     for (; !i.done(); ++i) {
-        if (i.isIon())
-            fprintf(stderr, "IonFrame\n");
-        else
-            fprintf(stderr, "StackFrame at %p\n", (void *) i.interpFrame());
+        StackFrame *const fp = i.fp();
 
-        if (i.isFunctionFrame()) {
+        fprintf(stderr, "StackFrame at %p\n", (void *) fp);
+        if (fp->isFunctionFrame()) {
             fprintf(stderr, "callee fun: ");
-            dumpValue(i.calleev());
+            dumpValue(ObjectValue(fp->callee()));
         } else {
             fprintf(stderr, "global frame, no callee");
         }
         fputc('\n', stderr);
 
         fprintf(stderr, "file %s line %u\n",
-                i.script()->filename, (unsigned) i.script()->lineno);
+                fp->script()->filename, (unsigned) fp->script()->lineno);
 
         if (jsbytecode *pc = i.pc()) {
             fprintf(stderr, "  pc = %p\n", pc);
             fprintf(stderr, "  current op: %s\n", js_CodeName[*pc]);
         }
-        if (!i.isIon())
-            MaybeDumpObject("blockChain", i.interpFrame()->maybeBlockChain());
-        MaybeDumpValue("this", i.thisv());
-        if (!i.isIon()) {
-            fprintf(stderr, "  rval: ");
-            dumpValue(i.interpFrame()->returnValue());
-            fputc('\n', stderr);
-        }
+        MaybeDumpObject("blockChain", fp->maybeBlockChain());
+        MaybeDumpValue("this", fp->thisValue());
+        fprintf(stderr, "  rval: ");
+        dumpValue(fp->returnValue());
+        fputc('\n', stderr);
 
         fprintf(stderr, "  flags:");
-        if (i.isConstructing())
+        if (fp->isConstructing())
             fprintf(stderr, " constructing");
-        if (!i.isIon() && i.interpFrame()->isDebuggerFrame())
+        if (fp->isDebuggerFrame())
             fprintf(stderr, " debugger");
-        if (i.isEvalFrame())
+        if (fp->isEvalFrame())
             fprintf(stderr, " eval");
-        if (!i.isIon() && i.interpFrame()->isYielding())
+        if (fp->isYielding())
             fprintf(stderr, " yielding");
-        if (!i.isIon() && i.interpFrame()->isGeneratorFrame())
+        if (fp->isGeneratorFrame())
             fprintf(stderr, " generator");
         fputc('\n', stderr);
 
-        fprintf(stderr, "  scopeChain: (JSObject *) %p\n", (void *) i.scopeChain());
+        fprintf(stderr, "  scopeChain: (JSObject *) %p\n", (void *) fp->scopeChain());
 
         fputc('\n', stderr);
     }
@@ -5540,8 +5535,7 @@ js_DumpBacktrace(JSContext *cx)
             const char *filename = JS_GetScriptFilename(cx, i.script());
             unsigned line = JS_PCToLineNumber(cx, i.script(), i.pc());
             sprinter.printf("#%d %14p   %s:%d (%p @ %d)\n",
-                            depth, (i.isIon() ? 0 : i.interpFrame()),
-                            filename, line,
+                            depth, (i.isIon() ? 0 : i.fp()), filename, line,
                             i.script(), i.pc() - i.script()->code);
         } else {
             sprinter.printf("#%d ???\n", depth);

@@ -9,6 +9,7 @@
 #include "nsCOMPtr.h"
 #include "nsPrimitiveHelpers.h"
 #include "nsXPIDLString.h"
+#include "prmem.h"
 #include "nsOS2Uni.h"
 #include "nsClipboard.h"
 

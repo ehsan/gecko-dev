@@ -271,7 +271,7 @@ nsXFormsEditableAccessible::GetEditor() const
 
 nsXFormsSelectableAccessible::
   nsXFormsSelectableAccessible(nsIContent* aContent, DocAccessible* aDoc) :
-  nsXFormsEditableAccessible(aContent, aDoc), mIsSelect1Element(false)
+  nsXFormsEditableAccessible(aContent, aDoc), mIsSelect1Element(nullptr)
 {
   mIsSelect1Element =
     mContent->NodeInfo()->Equals(nsGkAtoms::select1);

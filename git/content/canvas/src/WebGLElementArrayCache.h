@@ -65,7 +65,7 @@ private:
   void InvalidateTrees(size_t firstByte, size_t lastByte);
 
   template<typename T>
-  friend struct WebGLElementArrayCacheTree;
+  friend class WebGLElementArrayCacheTree;
   template<typename T>
   friend struct TreeForType;
 

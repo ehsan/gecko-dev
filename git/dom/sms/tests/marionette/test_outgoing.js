@@ -10,23 +10,9 @@ SpecialPowers.addPermission("mobileconnection", true, document);
 
 let sms = window.navigator.mozSms;
 let receiver = "5555552368";
-const SHORT_BODY = "Hello SMS world!";
-const LONG_BODY = "Let me not to the marriage of true minds\n"
-                + "Admit impediments. Love is not love\n"
-                + "Which alters when it alteration finds,\n"
-                + "Or bends with the remover to remove:\n\n"
-                + "O, no! it is an ever-fix`ed mark,\n"
-                + "That looks on tempests and is never shaken;\n"
-                + "It is the star to every wand'ring bark,\n"
-                + "Whose worth's unknown, although his heighth be taken.\n\n"
-                + "Love's not Time's fool, though rosy lips and cheeks\n"
-                + "Within his bending sickle's compass come;\n"
-                + "Love alters not with his brief hours and weeks,\n"
-                + "But bears it out even to the edge of doom:\n\n"
-                + "If this be error and upon me proved,\n"
-                + "I never writ, nor no man ever loved. ";
+let body = "Hello SMS world!";
 
-function checkSentMessage(message, body, sentDate) {
+function checkSentMessage(message, sentDate) {
   ok(message, "message is valid");
   ok(message instanceof MozSmsMessage,
      "message is instanceof " + message.constructor);
@@ -45,8 +31,8 @@ function checkSentMessage(message, body, sentDate) {
 }
 
 let sentMessages = null;
-function checkSameSentMessage(message, body, now) {
-  checkSentMessage(message, body, now);
+function checkSameSentMessage(message, now) {
+  checkSentMessage(message, now);
 
   let sentMessage = sentMessages[message.id];
   if (!sentMessage) {
@@ -61,7 +47,7 @@ function checkSameSentMessage(message, body, now) {
      "the messages got from onsent event and request result must be the same");
 }
 
-function doSendMessageAndCheckSuccess(receivers, body, callback) {
+function doSendMessageAndCheckSuccess(receivers, callback) {
   sentMessages = [];
 
   let now = Date.now();
@@ -83,7 +69,7 @@ function doSendMessageAndCheckSuccess(receivers, body, callback) {
        "event is instanceof " + event.constructor);
     // Event listener is removed in done().
 
-    checkSameSentMessage(event.message, body, now);
+    checkSameSentMessage(event.message, now);
 
     done();
   }
@@ -95,7 +81,7 @@ function doSendMessageAndCheckSuccess(receivers, body, callback) {
        "event.target is instanceof " + event.target.constructor);
     event.target.removeEventListener("success", onRequestSuccess);
 
-    checkSameSentMessage(event.target.result, body, now);
+    checkSameSentMessage(event.target.result, now);
 
     done();
   }
@@ -133,19 +119,13 @@ function doSendMessageAndCheckSuccess(receivers, body, callback) {
 
 function testSendMessage() {
   log("Testing sending message to one receiver:");
-  doSendMessageAndCheckSuccess(receiver, SHORT_BODY, testSendMultipartMessage);
-}
-
-function testSendMultipartMessage() {
-  log("Testing sending message to one receiver:");
-  doSendMessageAndCheckSuccess(receiver, LONG_BODY,
-                               testSendMessageToMultipleRecipients);
+  doSendMessageAndCheckSuccess(receiver, testSendMessageToMultipleRecipients);
 }
 
 function testSendMessageToMultipleRecipients() {
   log("Testing sending message to multiple receivers:");
   // TODO: bug 788928 - add test cases for nsIDOMSmsManager.ondelivered event
-  doSendMessageAndCheckSuccess([receiver, receiver], SHORT_BODY, cleanUp);
+  doSendMessageAndCheckSuccess([receiver, receiver], cleanUp);
 }
 
 function cleanUp() {

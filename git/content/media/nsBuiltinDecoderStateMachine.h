@@ -76,6 +76,7 @@ hardware (via nsAudioStream and libsydneyaudio).
 #if !defined(nsBuiltinDecoderStateMachine_h__)
 #define nsBuiltinDecoderStateMachine_h__
 
+#include "prmem.h"
 #include "nsThreadUtils.h"
 #include "nsBuiltinDecoder.h"
 #include "nsBuiltinDecoderReader.h"

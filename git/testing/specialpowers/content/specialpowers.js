@@ -11,11 +11,7 @@ function SpecialPowers(window) {
   this._unexpectedCrashDumpFiles = { };
   this._crashDumpDir = null;
   this.DOMWindowUtils = bindDOMWindowUtils(window);
-  Object.defineProperty(this, 'Components', { configurable: true, enumerable: true,
-                                              get: function() { var win = this.window.get();
-                                                                if (!win)
-                                                                  return null;
-                                                                return getRawComponents(win); } });
+  this.Components = getRawComponents(window);
   this._pongHandlers = [];
   this._messageListener = this._messageReceived.bind(this);
   addMessageListener("SPPingService", this._messageListener);

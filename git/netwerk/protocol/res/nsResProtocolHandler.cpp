@@ -10,6 +10,7 @@
 #include "nsIIOService.h"
 #include "nsIServiceManager.h"
 #include "prenv.h"
+#include "prmem.h"
 #include "prprf.h"
 #include "nsXPIDLString.h"
 #include "nsIFile.h"

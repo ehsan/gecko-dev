@@ -26,8 +26,7 @@ public:
   static void DestroyNeckoChild();
 
 protected:
-  virtual PHttpChannelChild* AllocPHttpChannel(PBrowserChild*,
-                                              const SerializedLoadContext&);
+  virtual PHttpChannelChild* AllocPHttpChannel(PBrowserChild* iframeEmbedding);
   virtual bool DeallocPHttpChannel(PHttpChannelChild*);
   virtual PCookieServiceChild* AllocPCookieService();
   virtual bool DeallocPCookieService(PCookieServiceChild*);

@@ -647,16 +647,12 @@ private:
   class Unit
   {
   public:
-    Unit() : mAtom(nullptr), mType(eUnknown), mLength(0)
-    {
-      MOZ_COUNT_CTOR(StringBuilder::Unit);
-    }
+    Unit() : mType(eUnknown), mLength(0) {}
     ~Unit()
     {
       if (mType == eString || mType == eStringWithEncode) {
         delete mString;
       }
-      MOZ_COUNT_DTOR(StringBuilder::Unit);
     }
 
     enum Type
@@ -681,15 +677,7 @@ private:
     uint32_t mLength;
   };
 public:
-  StringBuilder() : mLast(this), mLength(0)
-  {
-    MOZ_COUNT_CTOR(StringBuilder);
-  }
-
-  ~StringBuilder()
-  {
-    MOZ_COUNT_DTOR(StringBuilder);
-  }
+  StringBuilder() : mLast(this), mLength(0) {}
 
   void Append(nsIAtom* aAtom)
   {
@@ -819,7 +807,6 @@ private:
   StringBuilder(StringBuilder* aFirst)
   : mLast(nullptr), mLength(0)
   {
-    MOZ_COUNT_CTOR(StringBuilder);
     aFirst->mLast->mNext = this;
     aFirst->mLast = this;
   }

@@ -177,25 +177,15 @@ const DownloadsButton = {
   },
 
   /**
-   * Checks whether the indicator is, or will soon be visible in the browser
-   * window.
-   *
-   * @param aCallback
-   *        Called once the indicator overlay has loaded. Gets a boolean
-   *        argument representing the indicator visibility.
+   * Indicates whether the indicator is visible in the browser window.
    */
-  checkIsVisible: function DB_checkIsVisible(aCallback)
+  get isVisible()
   {
-    function DB_CEV_callback() {
-      if (!this._placeholder) {
-        aCallback(false);
-      } else {
-        let element = DownloadsIndicatorView.indicator || this._placeholder;
-        aCallback(isElementVisible(element.parentNode));
-      }
+    if (!this._placeholder) {
+      return false;
     }
-    DownloadsOverlayLoader.ensureOverlayLoaded(this.kIndicatorOverlay,
-                                               DB_CEV_callback.bind(this));
+    let element = DownloadsIndicatorView.indicator || this._placeholder;
+    return isElementVisible(element.parentNode);
   },
 
   /**

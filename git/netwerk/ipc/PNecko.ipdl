@@ -14,10 +14,6 @@ include protocol PFTPChannel;
 include protocol PWebSocket;
 include protocol PTCPSocket;
 
-include "SerializedLoadContext.h";
-
-using IPC::SerializedLoadContext;
-
 namespace mozilla {
 namespace net {
 
@@ -37,8 +33,6 @@ parent:
   __delete__();
 
   PCookieService();
-  PHttpChannel(nullable PBrowser browser,
-               SerializedLoadContext loadContext);
   PWyciwygChannel();
   PFTPChannel();
   PWebSocket(PBrowser browser);
@@ -48,6 +42,8 @@ parent:
   HTMLDNSPrefetch(nsString hostname, uint16_t flags);
   CancelHTMLDNSPrefetch(nsString hostname, uint16_t flags, nsresult reason);
 
+both:
+  PHttpChannel(nullable PBrowser browser);
 };
 
 

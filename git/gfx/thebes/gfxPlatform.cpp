@@ -706,6 +706,10 @@ gfxPlatform::GetThebesSurfaceForDrawTarget(DrawTarget *aTarget)
 RefPtr<DrawTarget>
 gfxPlatform::CreateDrawTargetForBackend(BackendType aBackend, const IntSize& aSize, SurfaceFormat aFormat)
 {
+  if (!SupportsAzureCanvas()) {
+    return NULL;
+  }
+
   // There is a bunch of knowledge in the gfxPlatform heirarchy about how to
   // create the best offscreen surface for the current system and situation. We
   // can easily take advantage of this for the Cairo backend, so that's what we
@@ -730,7 +734,10 @@ gfxPlatform::CreateDrawTargetForBackend(BackendType aBackend, const IntSize& aSi
 RefPtr<DrawTarget>
 gfxPlatform::CreateOffscreenDrawTarget(const IntSize& aSize, SurfaceFormat aFormat)
 {
-  NS_ASSERTION(mPreferredCanvasBackend, "No backend.");
+  if (!SupportsAzureCanvas()) {
+    return NULL;
+  }
+
   RefPtr<DrawTarget> target = CreateDrawTargetForBackend(mPreferredCanvasBackend, aSize, aFormat);
   if (target ||
       mFallbackCanvasBackend == BACKEND_NONE) {
@@ -744,8 +751,18 @@ gfxPlatform::CreateOffscreenDrawTarget(const IntSize& aSize, SurfaceFormat aForm
 RefPtr<DrawTarget>
 gfxPlatform::CreateDrawTargetForData(unsigned char* aData, const IntSize& aSize, int32_t aStride, SurfaceFormat aFormat)
 {
-  NS_ASSERTION(mPreferredCanvasBackend, "No backend.");
+  if (!SupportsAzureCanvas()) {
+    return NULL;
+  }
   return Factory::CreateDrawTargetForData(mPreferredCanvasBackend, aData, aSize, aStride, aFormat);
+}
+
+bool
+gfxPlatform::SupportsAzureCanvas()
+{
+  NS_ASSERTION(mFallbackCanvasBackend == BACKEND_NONE || mPreferredCanvasBackend != BACKEND_NONE,
+               "fallback backend with no preferred backend");
+  return mPreferredCanvasBackend != BACKEND_NONE;
 }
 
 /* static */ BackendType
@@ -1186,9 +1203,6 @@ void
 gfxPlatform::InitBackendPrefs(uint32_t aCanvasBitmask, uint32_t aContentBitmask)
 {
     mPreferredCanvasBackend = GetCanvasBackendPref(aCanvasBitmask);
-    if (!mPreferredCanvasBackend) {
-      mPreferredCanvasBackend = BACKEND_CAIRO;
-    }
     mFallbackCanvasBackend = GetCanvasBackendPref(aCanvasBitmask & ~(1 << mPreferredCanvasBackend));
     mContentBackend = GetContentBackendPref(aContentBitmask);
 }
@@ -1196,7 +1210,7 @@ gfxPlatform::InitBackendPrefs(uint32_t aCanvasBitmask, uint32_t aContentBitmask)
 /* static */ BackendType
 gfxPlatform::GetCanvasBackendPref(uint32_t aBackendBitmask)
 {
-    return GetBackendPref(nullptr, "gfx.canvas.azure.backends", aBackendBitmask);
+    return GetBackendPref("gfx.canvas.azure.enabled", "gfx.canvas.azure.backends", aBackendBitmask);
 }
 
 /* static */ BackendType
@@ -1208,8 +1222,7 @@ gfxPlatform::GetContentBackendPref(uint32_t aBackendBitmask)
 /* static */ BackendType
 gfxPlatform::GetBackendPref(const char* aEnabledPrefName, const char* aBackendPrefName, uint32_t aBackendBitmask)
 {
-    if (aEnabledPrefName &&
-        !Preferences::GetBool(aEnabledPrefName, false)) {
+    if (!Preferences::GetBool(aEnabledPrefName, false)) {
         return BACKEND_NONE;
     }
 

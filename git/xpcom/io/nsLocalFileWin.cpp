@@ -2266,7 +2266,9 @@ nsLocalFile::GetLastModifiedTime(PRTime *aLastModifiedTime)
         return rv;
 
     // microseconds -> milliseconds
-    *aLastModifiedTime = mFileInfo64.modifyTime / PR_USEC_PER_MSEC;
+    int64_t usecPerMsec;
+    LL_I2L(usecPerMsec, PR_USEC_PER_MSEC);
+    *aLastModifiedTime = mFileInfo64.modifyTime / usecPerMsec;
     return NS_OK;
 }
 
@@ -2288,7 +2290,9 @@ nsLocalFile::GetLastModifiedTimeOfLink(PRTime *aLastModifiedTime)
         return rv;
 
     // microseconds -> milliseconds
-    *aLastModifiedTime = info.modifyTime / PR_USEC_PER_MSEC;
+    int64_t usecPerMsec;
+    LL_I2L(usecPerMsec, PR_USEC_PER_MSEC);
+    *aLastModifiedTime = info.modifyTime / usecPerMsec;
     return NS_OK;
 }
 

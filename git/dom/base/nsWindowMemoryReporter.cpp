@@ -68,15 +68,10 @@ GetWindowURI(nsIDOMWindow *aWindow)
       do_QueryInterface(aWindow);
     NS_ENSURE_TRUE(scriptObjPrincipal, NULL);
 
-    // GetPrincipal() will print a warning if the window does not have an outer
-    // window, so check here for an outer window first.  This code is
-    // functionally correct if we leave out the GetOuterWindow() check, but we
-    // end up printing a lot of warnings during debug mochitests.
-    if (pWindow->GetOuterWindow()) {
-      nsIPrincipal* principal = scriptObjPrincipal->GetPrincipal();
-      if (principal) {
-        principal->GetURI(getter_AddRefs(uri));
-      }
+    nsIPrincipal *principal = scriptObjPrincipal->GetPrincipal();
+
+    if (principal) {
+      principal->GetURI(getter_AddRefs(uri));
     }
   }
 

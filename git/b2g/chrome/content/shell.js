@@ -80,12 +80,11 @@ var shell = {
     return this.CrashSubmit;
   },
 
-  reportCrash: function shell_reportCrash(aCrashID) {
-    let crashID = aCrashID;
+  reportCrash: function shell_reportCrash() {
+    let crashID;
     try {
-      if (crashID == undefined || crashID == "")
-        crashID = Cc["@mozilla.org/xre/app-info;1"]
-                    .getService(Ci.nsIXULRuntime).lastRunCrashID;
+      crashID = Cc["@mozilla.org/xre/app-info;1"]
+                .getService(Ci.nsIXULRuntime).lastRunCrashID;
     } catch(e) { }
     if (Services.prefs.getBoolPref('app.reportCrashes') &&
         crashID) {
@@ -775,18 +774,6 @@ window.addEventListener('ContentStart', function ss_onContentStart() {
     }
   });
 });
-
-(function contentCrashTracker() {
-  Services.obs.addObserver(function(aSubject, aTopic, aData) {
-      let cs = Cc["@mozilla.org/consoleservice;1"]
-                 .getService(Ci.nsIConsoleService);
-      let props = aSubject.QueryInterface(Ci.nsIPropertyBag2);
-      if (props.hasKey("abnormal") && props.hasKey("dumpID")) {
-        shell.reportCrash(props.getProperty("dumpID"));
-      }
-    },
-    "ipc:content-shutdown", false);
-})();
 
 (function geolocationStatusTracker() {
   let gGeolocationActiveCount = 0;

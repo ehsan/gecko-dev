@@ -626,9 +626,6 @@ IonBuilder::inlineMathRandom(uint32 argc, bool constructing)
     if (constructing)
         return InliningStatus_NotInlined;
 
-    if (getInlineReturnType() != MIRType_Double)
-        return InliningStatus_NotInlined;
-
     MDefinitionVector argv;
     if (!discardCall(argc, argv, current))
         return InliningStatus_Error;

@@ -482,9 +482,7 @@ MPhi::recomputeRange()
     if (type() != MIRType_Int32)
         return false;
 
-    // Use RangeUpdater rather than Range because it needs to
-    // track if it has been updated yet.
-    RangeUpdater r;
+    Range r;
     JS_ASSERT(getOperand(0)->op() != MDefinition::Op_OsrValue);
     bool updated = false;
     for (size_t i = 0; i < numOperands(); i++) {
@@ -494,14 +492,17 @@ MPhi::recomputeRange()
         }
 
         if (!isOSRLikeValue(getOperand(i))) {
-            if (block()->isLoopHeader()) {
-                IonSpew(IonSpew_Range, "    Updating input #%d (inst %d)", i, getOperand(i)->id());
+            if (block()->isLoopHeader())
                 changeCounts_[i].updateRange(getOperand(i)->range());
-                r.unionWith(&changeCounts_[i]);
+            if (updated) {
+                if (block()->isLoopHeader())
+                    r.unionWith(&changeCounts_[i]);
+                else
+                    r.unionWith(getOperand(i)->range());
             } else {
-                r.unionWith(getOperand(i)->range());
+                r.update(getOperand(0)->range());
+                updated = true;
             }
-
 #ifdef DEBUG
             if (IonSpewEnabled(IonSpew_Range)) {
                 fprintf(IonSpewFile, "    %d:", getOperand(i)->id());
@@ -520,7 +521,8 @@ MPhi::recomputeRange()
          block()->setEarlyAbort();
          return false;
      }
-     return range()->update(r.getRange());
+
+     return range()->update(&r);
 }
 
 uint32

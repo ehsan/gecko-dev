@@ -35,7 +35,7 @@ void
 RootAccessibleWrap::DocumentActivated(DocAccessible* aDocument)
 {
   if (Compatibility::IsDolphin() &&
-      nsCoreUtils::IsTabDocument(aDocument->DocumentNode())) {
+      nsCoreUtils::IsTabDocument(aDocument->GetDocumentNode())) {
     uint32_t count = mChildDocuments.Length();
     for (uint32_t idx = 0; idx < count; idx++) {
       DocAccessible* childDoc = mChildDocuments[idx];

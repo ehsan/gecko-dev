@@ -11,6 +11,7 @@
 #include "nsISupports.h"
 #include "nsICharsetConverterManager.h"
 #include "nsIPlatformCharset.h"
+#include "prmem.h"
 #include "nsReadableUtils.h"
 
 

@@ -22,7 +22,8 @@
   //gA11yEventDumpToConsole = true;
   function doPreTest()
   {
-    waitForImageMap("imagemap", doTest);
+    var imgMap = document.getElementById("imagemap");
+    waitForImageMap(imgMap, doTest);
   }
 
   function doTest()

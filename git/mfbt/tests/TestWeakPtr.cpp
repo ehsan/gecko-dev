@@ -16,7 +16,7 @@ class C : public SupportsWeakPtr<C>
 };
 
 static void
-Example()
+example()
 {
 
   C* ptr =  new C();
@@ -47,8 +47,7 @@ struct A : public SupportsWeakPtr<A>
 };
 
 
-int
-main()
+int main()
 {
 
   A* a = new A;
@@ -71,7 +70,7 @@ main()
 
   delete a2;
 
-  Example();
+  example();
 
   return 0;
 }

@@ -10,6 +10,7 @@
 #include "nsTArray.h"
 #include "nsReadableUtils.h"
 #include "plbase64.h"
+#include "prmem.h"
 #include "prprf.h"
 
 static char int_to_hex_digit(int32_t i)

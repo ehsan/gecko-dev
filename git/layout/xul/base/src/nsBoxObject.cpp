@@ -47,7 +47,7 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsBoxObject)
   NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(BoxObject)
 NS_INTERFACE_MAP_END
 
-static PLDHashOperator
+PR_STATIC_CALLBACK(PLDHashOperator)
 PropertyTraverser(const nsAString& aKey, nsISupports* aProperty, void* userArg)
 {
   nsCycleCollectionTraversalCallback *cb = 

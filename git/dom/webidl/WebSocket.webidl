@@ -32,14 +32,14 @@ interface WebSocket : EventTarget {
 
   // networking
 
-  [SetterThrows]
-  attribute EventHandler onopen;
+  [TreatNonCallableAsNull, SetterThrows]
+  attribute Function? onopen;
 
-  [SetterThrows]
-  attribute EventHandler onerror;
+  [TreatNonCallableAsNull, SetterThrows]
+  attribute Function? onerror;
 
-  [SetterThrows]
-  attribute EventHandler onclose;
+  [TreatNonCallableAsNull, SetterThrows]
+  attribute Function? onclose;
 
   readonly attribute DOMString extensions;
 
@@ -50,8 +50,8 @@ interface WebSocket : EventTarget {
 
   // messaging
 
-  [SetterThrows]
-  attribute EventHandler onmessage;
+  [TreatNonCallableAsNull, SetterThrows]
+  attribute Function? onmessage;
 
   attribute BinaryType binaryType;
 

@@ -8,6 +8,7 @@
 /* This must occur *after* layers/PLayers.h to avoid typedefs conflicts. */
 #include "mozilla/Util.h"
 
+#include "prtypes.h"
 #include "prmem.h"
 #include "prenv.h"
 #include "prclist.h"

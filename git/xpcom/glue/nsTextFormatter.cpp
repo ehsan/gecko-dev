@@ -287,13 +287,14 @@ static int cvt_ll(SprintfState *ss, int64_t num, int width, int prec,
     ** need to stop when we hit 10 digits. In the signed case, we can
     ** stop when the number is zero.
     */
-    rad = radix;
+    LL_I2L(rad, radix);
     cvt = &cvtbuf[0] + ELEMENTS_OF(cvtbuf);
     digits = 0;
     while (num != 0) {
+	int32_t digit;
 	int64_t quot, rem;
 	LL_UDIVMOD(&quot, &rem, num, rad);
-	int32_t digit = int32_t(rem);
+	LL_L2I(digit, rem);
 	*--cvt = hexp[digit & 0xf];
 	digits++;
 	num = quot;

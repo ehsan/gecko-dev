@@ -9,6 +9,7 @@
 
 #include <limits.h>
 
+#include "prmem.h"
 #include "prenv.h"
 
 #include "gfxPlatform.h"
@@ -131,8 +132,7 @@ imgFrame::imgFrame() :
 
 imgFrame::~imgFrame()
 {
-  moz_free(mPalettedImageData);
-  mPalettedImageData = nullptr;
+  PR_FREEIF(mPalettedImageData);
 #ifdef USE_WIN_SURFACE
   if (mIsDDBSurface) {
       gTotalDDBs--;

@@ -590,7 +590,6 @@ BasicLayerManager::EndTransactionInternal(DrawThebesLayerCallback aCallback,
       if (mWidget) {
         FlashWidgetUpdateArea(mTarget);
       }
-      LayerManager::PostPresent();
     }
 
     if (!mTransactionIncomplete) {

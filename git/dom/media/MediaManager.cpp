@@ -554,7 +554,7 @@ public:
 
     nsTArray<nsRefPtr<MediaEngineAudioSource> > audioSources;
     manager->GetBackend()->EnumerateAudioDevices(&audioSources);
-    audioCount = audioSources.Length();
+    audioCount = videoSources.Length();
 
     nsTArray<nsCOMPtr<nsIMediaDevice> > *devices =
       new nsTArray<nsCOMPtr<nsIMediaDevice> >;

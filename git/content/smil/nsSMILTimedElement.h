@@ -529,7 +529,7 @@ protected:
   }
 
   // Hashtable callback methods
-  static PLDHashOperator NotifyNewIntervalCallback(
+  PR_STATIC_CALLBACK(PLDHashOperator) NotifyNewIntervalCallback(
       TimeValueSpecPtrKey* aKey, void* aData);
 
   //

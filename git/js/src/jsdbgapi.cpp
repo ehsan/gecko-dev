@@ -477,21 +477,7 @@ JS_PUBLIC_API(JSStackFrame *)
 JS_BrokenFrameIterator(JSContext *cx, JSStackFrame **iteratorp)
 {
     StackFrame *fp = Valueify(*iteratorp);
-    if (!fp) {
-#ifdef JS_METHODJIT
-        js::mjit::ExpandInlineFrames(cx->compartment);
-#endif
-        fp = cx->maybefp();
-    } else {
-        fp = fp->prev();
-    }
-
-    // settle on the next non-ion frame as it is not considered safe to inspect
-    // Ion's activation StackFrame.
-    while (fp && fp->runningInIon())
-        fp = fp->prev();
-
-    *iteratorp = Jsvalify(fp);
+    *iteratorp = Jsvalify((fp == NULL) ? js_GetTopStackFrame(cx, FRAME_EXPAND_ALL) : fp->prev());
     return *iteratorp;
 }
 
@@ -753,6 +739,8 @@ JS_EvaluateUCInStackFrame(JSContext *cx, JSStackFrame *fpArg,
     if (!CheckDebugMode(cx))
         return false;
 
+    SkipRoot skip(cx, &chars);
+
     Rooted<Env*> env(cx, JS_GetFrameScopeChain(cx, fpArg));
     if (!env)
         return false;
@@ -764,8 +752,7 @@ JS_EvaluateUCInStackFrame(JSContext *cx, JSStackFrame *fpArg,
     RootedValue thisv(cx, fp->thisValue());
 
     js::AutoCompartment ac(cx, env);
-    return EvaluateInEnv(cx, env, thisv, fp, StableCharPtr(chars, length), length,
-                         filename, lineno, rval);
+    return EvaluateInEnv(cx, env, thisv, fp, chars, length, filename, lineno, rval);
 }
 
 JS_PUBLIC_API(JSBool)
@@ -1202,7 +1189,7 @@ JS::DescribeStack(JSContext *cx, unsigned maxFrames)
         FrameDescription desc;
         desc.script = i.script();
         desc.lineno = PCToLineNumber(i.script(), i.pc());
-        desc.fun = i.maybeCallee();
+        desc.fun = i.fp()->maybeFun();
         if (!frames.append(desc))
             return NULL;
         if (frames.length() == maxFrames)
@@ -1275,12 +1262,11 @@ FormatFrame(JSContext *cx, const ScriptFrameIter &iter, char *buf, int num,
     JSScript* script = iter.script();
     jsbytecode* pc = iter.pc();
 
-    RootedObject scopeChain(cx, iter.scopeChain());
-    JSAutoCompartment ac(cx, scopeChain);
+    JSAutoCompartment ac(cx, iter.fp()->scopeChain());
 
     const char *filename = script->filename;
     unsigned lineno = PCToLineNumber(script, pc);
-    JSFunction *fun = iter.maybeCallee();
+    JSFunction *fun = iter.fp()->maybeFun();
     JSString *funname = NULL;
     if (fun)
         funname = fun->atom();
@@ -1288,16 +1274,16 @@ FormatFrame(JSContext *cx, const ScriptFrameIter &iter, char *buf, int num,
     JSObject *callObj = NULL;
     AutoPropertyDescArray callProps(cx);
 
-    if (!iter.isIon() && (showArgs || showLocals)) {
-        callObj = JS_GetFrameCallObject(cx, Jsvalify(iter.interpFrame()));
+    if (showArgs || showLocals) {
+        callObj = JS_GetFrameCallObject(cx, Jsvalify(iter.fp()));
         if (callObj)
             callProps.fetch(callObj);
     }
 
     Value thisVal = UndefinedValue();
     AutoPropertyDescArray thisProps(cx);
-    if (iter.computeThis()) {
-        thisVal = iter.thisv();
+    if (ComputeThis(cx, iter.fp())) {
+        thisVal = iter.fp()->thisValue();
         if (showThisProps && !thisVal.isPrimitive())
             thisProps.fetch(&thisVal.toObject());
     }

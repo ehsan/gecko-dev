@@ -20,6 +20,9 @@
 #include "nsReadableUtils.h"
 #include "mozcontainer.h"
 
+#include "prmem.h"
+#include "prlink.h"
+
 #include "nsFilePicker.h"
 
 #if (MOZ_PLATFORM_MAEMO == 5)

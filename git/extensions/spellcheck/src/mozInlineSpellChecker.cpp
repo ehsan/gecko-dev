@@ -1780,12 +1780,10 @@ NS_IMETHODIMP mozInlineSpellChecker::UpdateCurrentDictionary()
     previousDictionary.Truncate();
   }
 
-  // This might set mSpellCheck to null (bug 793866)
   nsresult rv = mSpellCheck->UpdateCurrentDictionary();
 
   nsAutoString currentDictionary;
-  if (!mSpellCheck ||
-      NS_FAILED(mSpellCheck->GetCurrentDictionary(currentDictionary))) {
+  if (NS_FAILED(mSpellCheck->GetCurrentDictionary(currentDictionary))) {
     currentDictionary.Truncate();
   }
 

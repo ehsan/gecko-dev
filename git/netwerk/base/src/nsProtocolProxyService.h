@@ -20,6 +20,7 @@
 #include "nsHashKeys.h"
 #include "nsPACMan.h"
 #include "prtime.h"
+#include "prmem.h"
 #include "prio.h"
 #include "mozilla/Attributes.h"
 

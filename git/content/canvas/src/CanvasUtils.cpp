@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <stdarg.h>
 
+#include "prmem.h"
 #include "prprf.h"
 
 #include "nsIServiceManager.h"

@@ -26,13 +26,9 @@
   -moz-box-align: start !important;
 }
 
-.console-row-msg > label:first-child,
+.console-row-msg > label,
 .console-row-file > label:first-child {
   display: none;
-}
-
-.console-time {
-  font-weight: normal !important;
 }
 
 .console-icon {

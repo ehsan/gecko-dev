@@ -18,6 +18,7 @@
 #include "nsAlgorithm.h"
 #include "nsCRT.h"
 #include "prprf.h"
+#include "prmem.h"
 #include "nsDOMCID.h"
 #include "nsIDOMWindow.h"
 #include "nsIDOMClassInfo.h"

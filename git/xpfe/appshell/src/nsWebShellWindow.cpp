@@ -38,6 +38,7 @@
 #include "nsITimer.h"
 #include "nsXULPopupManager.h"
 
+#include "prmem.h"
 
 #include "nsIDOMXULDocument.h"
 

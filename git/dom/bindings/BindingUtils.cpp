@@ -11,7 +11,6 @@
 #include "WrapperFactory.h"
 #include "xpcprivate.h"
 #include "XPCQuickStubs.h"
-#include "nsIXPConnect.h"
 
 namespace mozilla {
 namespace dom {
@@ -628,19 +627,6 @@ HasPropertyOnPrototype(JSContext* cx, JSObject* proxy, DOMProxyHandler* handler,
   bool found;
   // We ignore an error from GetPropertyOnPrototype.
   return !GetPropertyOnPrototype(cx, proxy, id, &found, NULL) || found;
-}
-
-bool
-WrapCallbackInterface(JSContext *cx, JSObject *scope, nsISupports* callback,
-                      JS::Value* vp)
-{
-  nsCOMPtr<nsIXPConnectWrappedJS> wrappedJS = do_QueryInterface(callback);
-  MOZ_ASSERT(wrappedJS, "How can we not have an XPCWrappedJS here?");
-  JSObject* obj;
-  DebugOnly<nsresult> rv = wrappedJS->GetJSObject(&obj);
-  MOZ_ASSERT(NS_SUCCEEDED(rv) && obj, "What are we wrapping?");
-  *vp = JS::ObjectValue(*obj);
-  return JS_WrapValue(cx, vp);
 }
 
 JSObject*

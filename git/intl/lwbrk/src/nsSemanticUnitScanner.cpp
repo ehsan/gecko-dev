@@ -4,6 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsSemanticUnitScanner.h"
+#include "prmem.h"
 
 NS_IMPL_ISUPPORTS1(nsSemanticUnitScanner, nsISemanticUnitScanner)
 

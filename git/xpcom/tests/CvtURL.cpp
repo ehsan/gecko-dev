@@ -76,7 +76,9 @@ int main(int argc, char** argv)
     count += nb;
   }
   PRTime end = PR_Now();
-  PRTime conversion = (end - start) / 1000;
+  PRTime conversion, ustoms;
+  LL_I2L(ustoms, 1000);
+  conversion = (end - start) / ustoms;
   char buf[500];
   PR_snprintf(buf, sizeof(buf),
               "converting and discarding %d bytes took %lldms",

@@ -39,6 +39,7 @@ mailing address.
 */
 
 #include <stddef.h>
+#include "prmem.h"
 
 #include "nsGIFDecoder2.h"
 #include "nsIInputStream.h"

@@ -322,16 +322,6 @@ const SNAPSHOT_SCHEMA = {
         },
       },
     },
-    userJS: {
-      required: true,
-      type: "object",
-      properties: {
-        exists: {
-          required: true,
-          type: "boolean",
-        },
-      },
-    },
   },
 };
 

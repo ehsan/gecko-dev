@@ -19,6 +19,7 @@
 #include "nsGkAtoms.h"
 #include "nsPIDOMWindow.h"
 #include "nsIJSEventListener.h"
+#include "prmem.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsIScriptRuntime.h"
 #include "nsLayoutUtils.h"
