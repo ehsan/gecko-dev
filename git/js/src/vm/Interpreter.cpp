@@ -1881,12 +1881,15 @@ CASE(JSOP_IN)
     obj = &rref.toObject();
     RootedId &id = rootId0;
     FETCH_ELEMENT_ID(-2, id);
-    bool found;
-    if (!HasProperty(cx, obj, id, &found))
+    RootedObject &obj2 = rootObject1;
+    RootedShape &prop = rootShape0;
+    if (!LookupProperty(cx, obj, id, &obj2, &prop))
         goto error;
-    TRY_BRANCH_AFTER_COND(found, 2);
+    bool cond = prop != nullptr;
+    prop = nullptr;
+    TRY_BRANCH_AFTER_COND(cond, 2);
     REGS.sp--;
-    REGS.sp[-1].setBoolean(found);
+    REGS.sp[-1].setBoolean(cond);
 }
 END_CASE(JSOP_IN)
 

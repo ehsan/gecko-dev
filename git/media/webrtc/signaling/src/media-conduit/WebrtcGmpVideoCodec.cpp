@@ -506,8 +506,7 @@ WebrtcGmpVideoDecoder::WebrtcGmpVideoDecoder() :
   mGMP(nullptr),
   mHost(nullptr),
   mCallback(nullptr),
-  mCachedPluginId(0),
-  mDecoderStatus(GMPNoErr){}
+  mCachedPluginId(0) {}
 
 static void
 Decoder_Close_g(GMPVideoDecoderProxy* aGMP)
@@ -677,10 +676,7 @@ WebrtcGmpVideoDecoder::Decode_g(const webrtc::EncodedImage& aInputImage,
   if (NS_FAILED(rv)) {
     return WEBRTC_VIDEO_CODEC_ERROR;
   }
-  if(mDecoderStatus != GMPNoErr){
-    mDecoderStatus = GMPNoErr;
-    return WEBRTC_VIDEO_CODEC_ERROR;
-  }
+
   return WEBRTC_VIDEO_CODEC_OK;
 }
 

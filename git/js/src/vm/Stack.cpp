@@ -405,9 +405,9 @@ MarkInterpreterActivation(JSTracer *trc, InterpreterActivation *act)
 }
 
 void
-js::MarkInterpreterActivations(JSRuntime *rt, JSTracer *trc)
+js::MarkInterpreterActivations(PerThreadData *ptd, JSTracer *trc)
 {
-    for (ActivationIterator iter(rt); !iter.done(); ++iter) {
+    for (ActivationIterator iter(ptd); !iter.done(); ++iter) {
         Activation *act = iter.activation();
         if (act->isInterpreter())
             MarkInterpreterActivation(trc, act->asInterpreter());
@@ -589,7 +589,7 @@ FrameIter::Data::Data(JSContext *cx, SavedOption savedOption,
     principals_(principals),
     pc_(nullptr),
     interpFrames_(nullptr),
-    activations_(cx->runtime()),
+    activations_(cx->perThreadData),
     jitFrames_(),
     ionInlineFrameNo_(0),
     asmJSFrames_()
@@ -1040,7 +1040,7 @@ FrameIter::updatePcQuadratic()
 
             // ActivationIterator::jitTop_ may be invalid, so create a new
             // activation iterator.
-            data_.activations_ = ActivationIterator(data_.cx_->runtime());
+            data_.activations_ = ActivationIterator(data_.cx_->perThreadData);
             while (data_.activations_.activation() != activation)
                 ++data_.activations_;
 
@@ -1388,11 +1388,11 @@ jit::JitActivation::JitActivation(JSContext *cx, bool active)
     lastProfilingCallSite_(nullptr)
 {
     if (active) {
-        prevJitTop_ = cx->runtime()->jitTop;
-        prevJitJSContext_ = cx->runtime()->jitJSContext;
-        prevJitActivation_ = cx->runtime()->jitActivation;
-        cx->runtime()->jitJSContext = cx;
-        cx->runtime()->jitActivation = this;
+        prevJitTop_ = cx->mainThread().jitTop;
+        prevJitJSContext_ = cx->mainThread().jitJSContext;
+        prevJitActivation_ = cx->mainThread().jitActivation;
+        cx->mainThread().jitJSContext = cx;
+        cx->mainThread().jitActivation = this;
 
         registerProfiling();
     } else {
@@ -1408,9 +1408,9 @@ jit::JitActivation::~JitActivation()
         if (isProfiling())
             unregisterProfiling();
 
-        cx_->runtime()->jitTop = prevJitTop_;
-        cx_->runtime()->jitJSContext = prevJitJSContext_;
-        cx_->runtime()->jitActivation = prevJitActivation_;
+        cx_->perThreadData->jitTop = prevJitTop_;
+        cx_->perThreadData->jitJSContext = prevJitJSContext_;
+        cx_->perThreadData->jitActivation = prevJitActivation_;
     }
 
     // All reocvered value are taken from activation during the bailout.
@@ -1453,25 +1453,25 @@ jit::JitActivation::setActive(JSContext *cx, bool active)
 {
     // Only allowed to deactivate/activate if activation is top.
     // (Not tested and will probably fail in other situations.)
-    MOZ_ASSERT(cx->runtime()->activation_ == this);
+    MOZ_ASSERT(cx->mainThread().activation_ == this);
     MOZ_ASSERT(active != active_);
 
     if (active) {
         *((volatile bool *) active_) = true;
-        prevJitTop_ = cx->runtime()->jitTop;
-        prevJitJSContext_ = cx->runtime()->jitJSContext;
-        prevJitActivation_ = cx->runtime()->jitActivation;
-        cx->runtime()->jitJSContext = cx;
-        cx->runtime()->jitActivation = this;
+        prevJitTop_ = cx->mainThread().jitTop;
+        prevJitJSContext_ = cx->mainThread().jitJSContext;
+        prevJitActivation_ = cx->mainThread().jitActivation;
+        cx->mainThread().jitJSContext = cx;
+        cx->mainThread().jitActivation = this;
 
         registerProfiling();
 
     } else {
         unregisterProfiling();
 
-        cx->runtime()->jitTop = prevJitTop_;
-        cx->runtime()->jitJSContext = prevJitJSContext_;
-        cx->runtime()->jitActivation = prevJitActivation_;
+        cx->mainThread().jitTop = prevJitTop_;
+        cx->mainThread().jitJSContext = prevJitJSContext_;
+        cx->mainThread().jitActivation = prevJitActivation_;
 
         *((volatile bool *) active_) = false;
     }
@@ -1626,8 +1626,8 @@ AsmJSActivation::AsmJSActivation(JSContext *cx, AsmJSModule &module)
     prevAsmJSForModule_ = module.activation();
     module.activation() = this;
 
-    prevAsmJS_ = cx->runtime()->asmJSActivationStack_;
-    cx->runtime()->asmJSActivationStack_ = this;
+    prevAsmJS_ = cx->mainThread().asmJSActivationStack_;
+    cx->mainThread().asmJSActivationStack_ = this;
 
     // Now that the AsmJSActivation is fully initialized, make it visible to
     // asynchronous profiling.
@@ -1645,9 +1645,9 @@ AsmJSActivation::~AsmJSActivation()
     module_.activation() = prevAsmJSForModule_;
 
     JSContext *cx = cx_->asJSContext();
-    MOZ_ASSERT(cx->runtime()->asmJSActivationStack_ == this);
+    MOZ_ASSERT(cx->mainThread().asmJSActivationStack_ == this);
 
-    cx->runtime()->asmJSActivationStack_ = prevAsmJS_;
+    cx->mainThread().asmJSActivationStack_ = prevAsmJS_;
 }
 
 InterpreterFrameIterator &
@@ -1670,26 +1670,33 @@ void
 Activation::registerProfiling()
 {
     MOZ_ASSERT(isProfiling());
-    cx_->runtime()->profilingActivation_ = this;
+    cx_->perThreadData->profilingActivation_ = this;
 }
 
 void
 Activation::unregisterProfiling()
 {
     MOZ_ASSERT(isProfiling());
-    MOZ_ASSERT(cx_->runtime()->profilingActivation_ == this);
+    MOZ_ASSERT(cx_->perThreadData->profilingActivation_ == this);
 
     // There may be a non-active jit activation in the linked list.  Skip past it.
     Activation *prevProfiling = prevProfiling_;
     while (prevProfiling && prevProfiling->isJit() && !prevProfiling->asJit()->isActive())
         prevProfiling = prevProfiling->prevProfiling_;
 
-    cx_->runtime()->profilingActivation_ = prevProfiling;
+    cx_->perThreadData->profilingActivation_ = prevProfiling;
 }
 
 ActivationIterator::ActivationIterator(JSRuntime *rt)
-  : jitTop_(rt->jitTop),
-    activation_(rt->activation_)
+  : jitTop_(rt->mainThread.jitTop),
+    activation_(rt->mainThread.activation_)
+{
+    settle();
+}
+
+ActivationIterator::ActivationIterator(PerThreadData *perThreadData)
+  : jitTop_(perThreadData->jitTop),
+    activation_(perThreadData->activation_)
 {
     settle();
 }
@@ -1716,7 +1723,7 @@ ActivationIterator::settle()
 
 JS::ProfilingFrameIterator::ProfilingFrameIterator(JSRuntime *rt, const RegisterState &state)
   : rt_(rt),
-    activation_(rt->profilingActivation()),
+    activation_(rt->mainThread.profilingActivation()),
     savedPrevJitTop_(nullptr)
 {
     if (!activation_)
@@ -1788,7 +1795,7 @@ JS::ProfilingFrameIterator::iteratorConstruct(const RegisterState &state)
     if (activation_->isAsmJS()) {
         new (storage_.addr()) AsmJSProfilingFrameIterator(*activation_->asAsmJS(), state);
         // Set savedPrevJitTop_ to the actual jitTop_ from the runtime.
-        savedPrevJitTop_ = activation_->cx()->runtime()->jitTop;
+        savedPrevJitTop_ = activation_->cx()->perThreadData->jitTop;
         return;
     }
 

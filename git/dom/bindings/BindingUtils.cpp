@@ -9,6 +9,8 @@
 #include <algorithm>
 #include <stdarg.h>
 
+#include "JavaScriptParent.h"
+
 #include "mozilla/DebugOnly.h"
 #include "mozilla/FloatingPoint.h"
 #include "mozilla/Assertions.h"
@@ -18,7 +20,6 @@
 #include "jsfriendapi.h"
 #include "nsContentUtils.h"
 #include "nsGlobalWindow.h"
-#include "nsIDocShell.h"
 #include "nsIDOMGlobalPropertyInitializer.h"
 #include "nsIPermissionManager.h"
 #include "nsIPrincipal.h"
@@ -42,7 +43,6 @@
 #include "mozilla/dom/HTMLEmbedElementBinding.h"
 #include "mozilla/dom/HTMLAppletElementBinding.h"
 #include "mozilla/dom/Promise.h"
-#include "mozilla/jsipc/CrossProcessObjectWrappers.h"
 #include "WorkerPrivate.h"
 #include "nsDOMClassInfo.h"
 
@@ -2381,47 +2381,12 @@ CheckPermissions(JSContext* aCx, JSObject* aObj, const char* const aPermissions[
   return false;
 }
 
-void
-HandlePrerenderingViolation(nsPIDOMWindow* aWindow)
-{
-  // Suspend the window and its workers, and its children too.
-  aWindow->SuspendTimeouts();
-
-  // Suspend event handling on the document
-  nsCOMPtr<nsIDocument> doc = aWindow->GetExtantDoc();
-  if (doc) {
-    doc->SuppressEventHandling(nsIDocument::eEvents);
-  }
-}
-
 bool
-EnforceNotInPrerendering(JSContext* aCx, JSObject* aObj)
+CheckSafetyInPrerendering(JSContext* aCx, JSObject* aObj)
 {
-  JS::Rooted<JSObject*> thisObj(aCx, js::CheckedUnwrap(aObj));
-  if (!thisObj) {
-    // Without a this object, we cannot check the safety.
-    return true;
-  }
-  nsGlobalWindow* window = xpc::WindowGlobalOrNull(thisObj);
-  if (!window) {
-    // Without a window, we cannot check the safety.
-    return true;
-  }
-
-  nsIDocShell* docShell = window->GetDocShell();
-  if (!docShell) {
-    // Without a docshell, we cannot check the safety.
-    return true;
-  }
-
-  if (docShell->GetIsPrerendered()) {
-    HandlePrerenderingViolation(window);
-    // When the bindings layer sees a false return value, it returns false form
-    // the JSNative in order to trigger an uncatchable exception.
-    return false;
-  }
-
-  return true;
+  //TODO: Check if page is being prerendered.
+  //Returning false for now.
+  return false;
 }
 
 bool

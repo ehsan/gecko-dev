@@ -109,7 +109,6 @@ Accessible::Accessible(nsIContent* aContent, DocAccessible* aDoc) :
   mStateFlags(0), mContextFlags(0), mType(0), mGenericTypes(0),
   mIndexOfEmbeddedChild(-1), mRoleMapEntry(nullptr)
 {
-  mBits.groupInfo = nullptr;
 #ifdef NS_DEBUG_X
    {
      nsCOMPtr<nsIPresShell> shell(do_QueryReferent(aShell));
@@ -526,8 +525,11 @@ Accessible::ChildAtPoint(int32_t aX, int32_t aY,
 {
   // If we can't find the point in a child, we will return the fallback answer:
   // we return |this| if the point is within it, otherwise nullptr.
-  Accessible* fallbackAnswer = nullptr;
   nsIntRect rect = Bounds();
+  if (rect.IsEmpty())
+   return nullptr;
+
+  Accessible* fallbackAnswer = nullptr;
   if (aX >= rect.x && aX < rect.x + rect.width &&
       aY >= rect.y && aY < rect.y + rect.height)
     fallbackAnswer = this;
@@ -1950,11 +1952,7 @@ Accessible::UnbindFromParent()
   mParent = nullptr;
   mIndexInParent = -1;
   mIndexOfEmbeddedChild = -1;
-  if (IsProxy())
-    MOZ_CRASH("this should never be called on proxy wrappers");
-
-  delete mBits.groupInfo;
-  mBits.groupInfo = nullptr;
+  mGroupInfo = nullptr;
   mContextFlags &= ~eHasNameDependentParent;
 }
 
@@ -2530,20 +2528,17 @@ Accessible::GetActionRule() const
 AccGroupInfo*
 Accessible::GetGroupInfo()
 {
-  if (IsProxy())
-    MOZ_CRASH("This should never be called on proxy wrappers");
-
-  if (mBits.groupInfo){
+  if (mGroupInfo){
     if (HasDirtyGroupInfo()) {
-      mBits.groupInfo->Update();
+      mGroupInfo->Update();
       SetDirtyGroupInfo(false);
     }
 
-    return mBits.groupInfo;
+    return mGroupInfo;
   }
 
-  mBits.groupInfo = AccGroupInfo::CreateGroupInfo(this);
-  return mBits.groupInfo;
+  mGroupInfo = AccGroupInfo::CreateGroupInfo(this);
+  return mGroupInfo;
 }
 
 void

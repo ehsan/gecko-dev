@@ -47,7 +47,7 @@ public:
     return Success;
   }
 
-  Result FindIssuer(Input, IssuerChecker&, Time) final override
+  Result FindIssuer(Input, IssuerChecker&, Time)
   {
     ADD_FAILURE();
     return Result::FATAL_ERROR_LIBRARY_FAILURE;

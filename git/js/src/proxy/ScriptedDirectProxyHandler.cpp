@@ -1157,12 +1157,13 @@ ScriptedDirectProxyHandler::isConstructor(JSObject *obj) const
 const char ScriptedDirectProxyHandler::family = 0;
 const ScriptedDirectProxyHandler ScriptedDirectProxyHandler::singleton;
 
-static bool
-NewScriptedProxy(JSContext *cx, CallArgs &args, const char *callerName)
+bool
+js::proxy(JSContext *cx, unsigned argc, jsval *vp)
 {
+    CallArgs args = CallArgsFromVp(argc, vp);
     if (args.length() < 2) {
         JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_MORE_ARGS_NEEDED,
-                             callerName, "1", "s");
+                             "Proxy", "1", "s");
         return false;
     }
     RootedObject target(cx, NonNullObject(cx, args[0]));
@@ -1189,19 +1190,6 @@ NewScriptedProxy(JSContext *cx, CallArgs &args, const char *callerName)
     return true;
 }
 
-bool
-js::proxy(JSContext *cx, unsigned argc, Value *vp)
-{
-    CallArgs args = CallArgsFromVp(argc, vp);
-
-    if (!args.isConstructing()) {
-        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_NOT_FUNCTION, "Proxy");
-        return false;
-    }
-
-    return NewScriptedProxy(cx, args, "Proxy");
-}
-
 static bool
 RevokeProxy(JSContext *cx, unsigned argc, Value *vp)
 {
@@ -1226,9 +1214,9 @@ RevokeProxy(JSContext *cx, unsigned argc, Value *vp)
 bool
 js::proxy_revocable(JSContext *cx, unsigned argc, Value *vp)
 {
-    CallArgs args = CallArgsFromVp(argc, vp);
+    CallReceiver args = CallReceiverFromVp(vp);
 
-    if (!NewScriptedProxy(cx, args, "Proxy.revocable"))
+    if (!proxy(cx, argc, vp))
         return false;
 
     RootedValue proxyVal(cx, args.rval());

@@ -172,7 +172,7 @@ SandboxBroker::SetSecurityLevelForGMPlugin()
   bool ret = (sandbox::SBOX_ALL_OK == result);
   result =
     mPolicy->SetTokenLevel(sandbox::USER_RESTRICTED_SAME_ACCESS,
-                           sandbox::USER_LOCKDOWN);
+                           sandbox::USER_RESTRICTED);
   ret = ret && (sandbox::SBOX_ALL_OK == result);
 
   result = mPolicy->SetAlternateDesktop(true);

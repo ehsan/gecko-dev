@@ -149,7 +149,10 @@ SVGIFrameElement::Height()
 already_AddRefed<DOMSVGAnimatedPreserveAspectRatio>
 SVGIFrameElement::PreserveAspectRatio()
 {
-  return mPreserveAspectRatio.ToDOMAnimatedPreserveAspectRatio(this);
+  nsRefPtr<DOMSVGAnimatedPreserveAspectRatio> ratio;
+  mPreserveAspectRatio.ToDOMAnimatedPreserveAspectRatio(getter_AddRefs(ratio),
+                                                        this);
+  return ratio.forget();
 }
 
 void

@@ -241,7 +241,6 @@ class ExclusiveContext : public ContextFriendFields,
     void *runtimeAddressOfInterruptUint32() { return runtime_->addressOfInterruptUint32(); }
     void *stackLimitAddress(StackKind kind) { return &runtime_->mainThread.nativeStackLimit[kind]; }
     void *stackLimitAddressForJitCode(StackKind kind);
-    uintptr_t stackLimit(StackKind kind) { return runtime_->mainThread.nativeStackLimit[kind]; }
     size_t gcSystemPageSize() { return gc::SystemPageSize(); }
     bool canUseSignalHandlers() const { return runtime_->canUseSignalHandlers(); }
     bool jitSupportsFloatingPoint() const { return runtime_->jitSupportsFloatingPoint; }
@@ -436,16 +435,16 @@ struct JSContext : public js::ExclusiveContext,
     bool currentlyRunning() const;
 
     bool currentlyRunningInInterpreter() const {
-        return runtime_->activation()->isInterpreter();
+        return mainThread().activation()->isInterpreter();
     }
     bool currentlyRunningInJit() const {
-        return runtime_->activation()->isJit();
+        return mainThread().activation()->isJit();
     }
     js::InterpreterFrame *interpreterFrame() const {
-        return runtime_->activation()->asInterpreter()->current();
+        return mainThread().activation()->asInterpreter()->current();
     }
     js::InterpreterRegs &interpreterRegs() const {
-        return runtime_->activation()->asInterpreter()->regs();
+        return mainThread().activation()->asInterpreter()->regs();
     }
 
     /*

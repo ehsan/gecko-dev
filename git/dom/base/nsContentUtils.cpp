@@ -397,10 +397,10 @@ EventListenerManagerHashClearEntry(PLDHashTable *table, PLDHashEntryHdr *entry)
   lm->~EventListenerManagerMapEntry();
 }
 
-class SameOriginCheckerImpl MOZ_FINAL : public nsIChannelEventSink,
-                                        public nsIInterfaceRequestor
+class SameOriginChecker MOZ_FINAL : public nsIChannelEventSink,
+                                    public nsIInterfaceRequestor
 {
-  ~SameOriginCheckerImpl() {}
+  ~SameOriginChecker() {}
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSICHANNELEVENTSINK
@@ -5648,11 +5648,11 @@ nsContentUtils::StringContainsASCIIUpper(const nsAString& aStr)
 
 /* static */
 nsIInterfaceRequestor*
-nsContentUtils::SameOriginChecker()
+nsContentUtils::GetSameOriginChecker()
 {
   if (!sSameOriginChecker) {
-    sSameOriginChecker = new SameOriginCheckerImpl();
-    NS_ADDREF(sSameOriginChecker);
+    sSameOriginChecker = new SameOriginChecker();
+    NS_IF_ADDREF(sSameOriginChecker);
   }
   return sSameOriginChecker;
 }
@@ -5683,15 +5683,15 @@ nsContentUtils::CheckSameOrigin(nsIChannel *aOldChannel, nsIChannel *aNewChannel
   return rv;
 }
 
-NS_IMPL_ISUPPORTS(SameOriginCheckerImpl,
+NS_IMPL_ISUPPORTS(SameOriginChecker,
                   nsIChannelEventSink,
                   nsIInterfaceRequestor)
 
 NS_IMETHODIMP
-SameOriginCheckerImpl::AsyncOnChannelRedirect(nsIChannel* aOldChannel,
-                                              nsIChannel* aNewChannel,
-                                              uint32_t aFlags,
-                                              nsIAsyncVerifyRedirectCallback* cb)
+SameOriginChecker::AsyncOnChannelRedirect(nsIChannel *aOldChannel,
+                                          nsIChannel *aNewChannel,
+                                          uint32_t aFlags,
+                                          nsIAsyncVerifyRedirectCallback *cb)
 {
   NS_PRECONDITION(aNewChannel, "Redirecting to null channel?");
 
@@ -5704,7 +5704,7 @@ SameOriginCheckerImpl::AsyncOnChannelRedirect(nsIChannel* aOldChannel,
 }
 
 NS_IMETHODIMP
-SameOriginCheckerImpl::GetInterface(const nsIID& aIID, void** aResult)
+SameOriginChecker::GetInterface(const nsIID & aIID, void **aResult)
 {
   return QueryInterface(aIID, aResult);
 }

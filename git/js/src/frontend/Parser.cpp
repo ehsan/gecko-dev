@@ -828,9 +828,11 @@ Parser<FullParseHandler>::standaloneFunctionBody(HandleFunction fun, const AutoN
     if (!fn)
         return null();
 
-    ParseNode *argsbody = handler.newList(PNK_ARGSBODY);
+    ParseNode *argsbody = ListNode::create(PNK_ARGSBODY, &handler);
     if (!argsbody)
         return null();
+    argsbody->setOp(JSOP_NOP);
+    argsbody->makeEmpty();
     fn->pn_body = argsbody;
 
     FunctionBox *funbox = newFunctionBox(fn, fun, /* outerpc = */ nullptr, inheritedDirectives,
@@ -2241,18 +2243,21 @@ Parser<FullParseHandler>::finishFunctionDefinition(ParseNode *pn, FunctionBox *f
         if (!body->isArity(PN_LIST)) {
             ParseNode *block;
 
-            block = handler.newList(PNK_SEQ, body);
+            block = ListNode::create(PNK_SEQ, &handler);
             if (!block)
                 return false;
+            block->pn_pos = body->pn_pos;
+            block->initList(body);
+
             body = block;
         }
 
-        ParseNode *item = handler.new_<UnaryNode>(PNK_SEMI, JSOP_NOP,
-                                                  TokenPos(body->pn_pos.begin, body->pn_pos.begin),
-                                                  prelude);
+        ParseNode *item = UnaryNode::create(PNK_SEMI, &handler);
         if (!item)
             return false;
 
+        item->pn_pos.begin = item->pn_pos.end = body->pn_pos.begin;
+        item->pn_kid = prelude;
         item->pn_next = body->pn_head;
         body->pn_head = item;
         if (body->pn_tail == &body->pn_head)
@@ -2264,6 +2269,7 @@ Parser<FullParseHandler>::finishFunctionDefinition(ParseNode *pn, FunctionBox *f
     MOZ_ASSERT(pn->pn_funbox == funbox);
     MOZ_ASSERT(pn->pn_body->isKind(PNK_ARGSBODY));
     pn->pn_body->append(body);
+    pn->pn_body->pn_pos = body->pn_pos;
 
     return true;
 }
@@ -3819,7 +3825,7 @@ Parser<ParseHandler>::variables(ParseNodeKind kind, bool *psimple,
     else if (kind == PNK_GLOBALCONST)
         op = JSOP_DEFCONST;
 
-    Node pn = handler.newList(kind, op);
+    Node pn = handler.newList(kind, null(), op);
     if (!pn)
         return null();
 
@@ -4080,9 +4086,14 @@ Parser<FullParseHandler>::lexicalDeclaration(bool isConst)
 #endif
 
             /* Create a new lexical scope node for these statements. */
-            ParseNode *pn1 = handler.new_<LexicalScopeNode>(blockbox, pc->blockNode);
+            ParseNode *pn1 = LexicalScopeNode::create(PNK_LEXICALSCOPE, &handler);
             if (!pn1)
                 return null();
+
+            pn1->pn_pos = pc->blockNode->pn_pos;
+            pn1->pn_objbox = blockbox;
+            pn1->pn_expr = pc->blockNode;
+            pn1->pn_blockid = pc->blockNode->pn_blockid;
             pc->blockNode = pn1;
         }
 
@@ -6733,7 +6744,7 @@ Parser<FullParseHandler>::legacyComprehensionTail(ParseNode *bodyExpr, unsigned 
     }
 
     unsigned adjust;
-    ParseNode *pn, *pn3, **pnp;
+    ParseNode *pn, *pn2, *pn3, **pnp;
     StmtInfoPC stmtInfo(context);
     BindData<FullParseHandler> data(context);
     TokenKind tt;
@@ -6800,11 +6811,11 @@ Parser<FullParseHandler>::legacyComprehensionTail(ParseNode *bodyExpr, unsigned 
          * index to count each block-local let-variable on the left-hand side
          * of the in/of.
          */
-        ParseNode *pn2 = handler.new_<BinaryNode>(PNK_FOR, JSOP_ITER, pos(),
-                                                  nullptr, nullptr);
+        pn2 = BinaryNode::create(PNK_FOR, &handler);
         if (!pn2)
             return null();
 
+        pn2->setOp(JSOP_ITER);
         pn2->pn_iflags = JSITER_ENUMERATE;
         if (allowsForEachIn()) {
             bool matched;
@@ -6924,9 +6935,13 @@ Parser<FullParseHandler>::legacyComprehensionTail(ParseNode *bodyExpr, unsigned 
          * These are lets to tell the bytecode emitter to emit initialization
          * code for the temporal dead zone.
          */
-        ParseNode *lets = handler.newList(PNK_LET, pn3);
+        ParseNode *lets = ListNode::create(PNK_LET, &handler);
         if (!lets)
             return null();
+        lets->setOp(JSOP_NOP);
+        lets->pn_pos = pn3->pn_pos;
+        lets->makeEmpty();
+        lets->append(pn3);
         lets->pn_xflags |= PNX_POPVAR;
 
         /* Definitions can't be passed directly to EmitAssignment as lhs. */
@@ -6951,15 +6966,14 @@ Parser<FullParseHandler>::legacyComprehensionTail(ParseNode *bodyExpr, unsigned 
     if (!tokenStream.matchToken(&matched, TOK_IF))
         return null();
     if (matched) {
-        ParseNode *cond = condition();
-        if (!cond)
+        pn2 = TernaryNode::create(PNK_IF, &handler);
+        if (!pn2)
             return null();
-        ParseNode *ifNode = handler.new_<TernaryNode>(PNK_IF, JSOP_NOP, cond, nullptr, nullptr,
-                                                      cond->pn_pos);
-        if (!ifNode)
+        pn2->pn_kid1 = condition();
+        if (!pn2->pn_kid1)
             return null();
-        *pnp = ifNode;
-        pnp = &ifNode->pn_kid2;
+        *pnp = pn2;
+        pnp = &pn2->pn_kid2;
     }
 
     ParseNode *bodyStmt;
@@ -7169,14 +7183,22 @@ Parser<FullParseHandler>::legacyGeneratorExpr(ParseNode *expr)
 {
     MOZ_ASSERT(tokenStream.isCurrentTokenType(TOK_FOR));
 
-    // Make a new node for the desugared generator function.
+    /* Make a new node for the desugared generator function. */
     ParseNode *genfn = generatorComprehensionLambda(LegacyGenerator, expr->pn_pos.begin, expr);
     if (!genfn)
         return null();
 
-    // Our result is a call expression that invokes the anonymous generator
-    // function object.
-    return handler.newList(PNK_GENEXP, genfn, JSOP_CALL);
+    /*
+     * Our result is a call expression that invokes the anonymous generator
+     * function object.
+     */
+    ParseNode *result = ListNode::create(PNK_GENEXP, &handler);
+    if (!result)
+        return null();
+    result->setOp(JSOP_CALL);
+    result->pn_pos.begin = genfn->pn_pos.begin;
+    result->initList(genfn);
+    return result;
 }
 
 template <>
@@ -7234,7 +7256,7 @@ Parser<ParseHandler>::comprehensionFor(GeneratorKind comprehensionKind)
     Node lhs = newName(name);
     if (!lhs)
         return null();
-    Node decls = handler.newList(PNK_LET, lhs);
+    Node decls = handler.newList(PNK_LET, lhs, JSOP_NOP);
     if (!decls)
         return null();
     data.pn = lhs;
@@ -7516,7 +7538,7 @@ Parser<ParseHandler>::memberExpr(TokenKind tt, bool allowCallSyntax, InvokedPred
 
     /* Check for new expression first. */
     if (tt == TOK_NEW) {
-        lhs = handler.newList(PNK_NEW, JSOP_NEW);
+        lhs = handler.newList(PNK_NEW, null(), JSOP_NEW);
         if (!lhs)
             return null();
 
@@ -7578,7 +7600,11 @@ Parser<ParseHandler>::memberExpr(TokenKind tt, bool allowCallSyntax, InvokedPred
                    tt == TOK_NO_SUBS_TEMPLATE)
         {
             JSOp op = JSOP_CALL;
-            nextMember = handler.newList(tt == TOK_LP ? PNK_CALL : PNK_TAGGED_TEMPLATE, JSOP_CALL);
+            if (tt == TOK_LP)
+                nextMember = handler.newList(PNK_CALL, null(), JSOP_CALL);
+            else
+                nextMember = handler.newList(PNK_TAGGED_TEMPLATE, null(), JSOP_CALL);
+
             if (!nextMember)
                 return null();
 
@@ -7922,13 +7948,18 @@ Parser<ParseHandler>::objectLiteral()
 
           case TOK_NAME: {
             atom = tokenStream.currentName();
-            // Do not look for accessor syntax on generators
-            if (!isGenerator &&
-                (atom == context->names().get ||
-                 atom == context->names().set))
-            {
-                op = atom == context->names().get ? JSOP_INITPROP_GETTER
-                                                  : JSOP_INITPROP_SETTER;
+            if (atom == context->names().get) {
+                if (isGenerator) {
+                    report(ParseError, false, null(), JSMSG_BAD_PROP_ID);
+                    return null();
+                }
+                op = JSOP_INITPROP_GETTER;
+            } else if (atom == context->names().set) {
+                if (isGenerator) {
+                    report(ParseError, false, null(), JSMSG_BAD_PROP_ID);
+                    return null();
+                }
+                op = JSOP_INITPROP_SETTER;
             } else {
                 propname = handler.newIdentifier(atom, pos());
                 if (!propname)

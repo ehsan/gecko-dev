@@ -31,22 +31,22 @@ class CompileRuntime
 
     js::PerThreadData *mainThread();
 
-    // &runtime()->jitTop
+    // &mainThread.jitTop
     const void *addressOfJitTop();
 
-    // &runtime()->jitActivation
+    // &mainThread.jitActivation
     const void *addressOfJitActivation();
 
-    // &runtime()->profilingActivation
+    // &mainThread.profilingActivation
     const void *addressOfProfilingActivation();
 
-    // rt->runtime()->jitStackLimit;
+    // rt->mainThread.jitStackLimit;
     const void *addressOfJitStackLimit();
 
-    // &runtime()->jitJSContext
+    // &mainThread.jitJSContext
     const void *addressOfJSContext();
 
-    // &runtime()->activation_
+    // &mainThread.activation_
     const void *addressOfActivation();
 
     // &GetJitContext()->runtime->nativeIterCache.last
