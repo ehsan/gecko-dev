@@ -13,7 +13,6 @@
 
 #include "jsobjinlines.h"
 
-#include "vm/RegExpObject-inl.h"
 #include "vm/RegExpStatics-inl.h"
 
 using namespace js;
@@ -269,11 +268,7 @@ CompileRegExpObject(JSContext *cx, RegExpObjectBuilder &builder, CallArgs args)
         source = cx->runtime()->emptyString;
     } else {
         /* Coerce to string and compile. */
-        JSString *str = ToString<CanGC>(cx, sourceValue);
-        if (!str)
-            return false;
-
-        source = AtomizeString<CanGC>(cx, str);
+        source = ToAtom<CanGC>(cx, sourceValue);
         if (!source)
             return false;
     }
