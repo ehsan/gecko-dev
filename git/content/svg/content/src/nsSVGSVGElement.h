@@ -137,6 +137,7 @@ public:
 
 #ifdef MOZ_SMIL
   nsSMILTimeContainer* GetTimedDocumentRoot();
+  void RequestSample();
 #endif // MOZ_SMIL
 
   // nsIContent interface

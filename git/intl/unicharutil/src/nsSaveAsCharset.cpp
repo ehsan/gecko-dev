@@ -46,8 +46,6 @@
 #include "nsCRT.h"
 #include "nsUnicharUtils.h"
 #include "nsCompressedCharMap.h"
-#include "nsReadableUtils.h"
-#include "nsWhitespaceTokenizer.h"
 
 //
 // nsISupports methods
@@ -150,7 +148,7 @@ nsSaveAsCharset::GetCharset(char * *aCharset)
   NS_ASSERTION(mCharsetListIndex >= 0, "need to call Init() first");
   NS_ENSURE_TRUE(mCharsetListIndex >= 0, NS_ERROR_FAILURE);
 
-  const char* charset = mCharsetList[mCharsetListIndex].get();
+  const char *charset = mCharsetList[mCharsetListIndex]->get();
   if (!charset) {
     *aCharset = nsnull;
     NS_ASSERTION(charset, "make sure to call Init() with non empty charset list");
@@ -380,21 +378,18 @@ nsresult nsSaveAsCharset::SetupCharsetList(const char *charsetList)
     mCharsetListIndex = -1;
   }
 
-  nsCWhitespaceTokenizer tokenizer = nsDependentCString(charsetList);
-  while (tokenizer.hasMoreTokens()) {
-    ParseString(tokenizer.nextToken(), ',', mCharsetList);
-  }
+  mCharsetList.ParseString(charsetList, ", ");
 
   return NS_OK;
 }
 
 const char * nsSaveAsCharset::GetNextCharset()
 {
-  if ((mCharsetListIndex + 1) >= PRInt32(mCharsetList.Length()))
+  if ((mCharsetListIndex + 1) >= mCharsetList.Count())
     return nsnull;
 
   // bump the index and return the next charset
-  return mCharsetList[++mCharsetListIndex].get();
+  return mCharsetList[++mCharsetListIndex]->get();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////

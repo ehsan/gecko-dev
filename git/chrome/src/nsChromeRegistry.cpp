@@ -337,12 +337,12 @@ nsChromeRegistry::nsProviderArray::SetBase(const nsACString& aProvider, nsIURI* 
 }
 
 void
-nsChromeRegistry::nsProviderArray::EnumerateToArray(nsTArray<nsCString> *a)
+nsChromeRegistry::nsProviderArray::EnumerateToArray(nsCStringArray *a)
 {
   PRInt32 i = mArray.Count();
   while (i--) {
     ProviderEntry *entry = reinterpret_cast<ProviderEntry*>(mArray[i]);
-    a->AppendElement(entry->provider);
+    a->AppendCString(entry->provider);
   }
 }
 
@@ -826,7 +826,7 @@ NS_IMETHODIMP
 nsChromeRegistry::GetLocalesForPackage(const nsACString& aPackage,
                                        nsIUTF8StringEnumerator* *aResult)
 {
-  nsTArray<nsCString> *a = new nsTArray<nsCString>;
+  nsCStringArray *a = new nsCStringArray;
   if (!a)
     return NS_ERROR_OUT_OF_MEMORY;
 

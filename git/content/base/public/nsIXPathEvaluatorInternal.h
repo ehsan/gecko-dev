@@ -64,7 +64,7 @@ public:
   NS_IMETHOD CreateExpression(const nsAString &aExpression,
                               nsIDOMXPathNSResolver *aResolver,
                               nsTArray<nsString> *aNamespaceURIs,
-                              nsTArray<nsCString> *aContractIDs,
+                              nsCStringArray *aContractIDs,
                               nsCOMArray<nsISupports> *aState,
                               nsIDOMXPathExpression **aResult) = 0;
 };

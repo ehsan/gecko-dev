@@ -70,19 +70,6 @@ public:
     static void Release(FcCharSet *ptr) { FcCharSetDestroy(ptr); }
 };
 
-class gfxIgnoreCaseCStringComparator
-{
-  public:
-    PRBool Equals(const nsACString& a, const nsACString& b) const
-    {
-      return nsCString(a).Equals(b, nsCaseInsensitiveCStringComparator());
-    }
-
-    PRBool LessThan(const nsACString& a, const nsACString& b) const
-    { 
-      return a < b;
-    }
-};
 
 class gfxFontNameList : public nsTArray<nsString>
 {
@@ -321,7 +308,7 @@ protected:
 
     PRBool IsExistingFamily(const nsCString& aFamilyName);
 
-    nsresult GetFontListInternal(nsTArray<nsCString>& aListOfFonts,
+    nsresult GetFontListInternal(nsCStringArray& aListOfFonts,
                                  const nsACString& aLangGroup);
     nsresult UpdateFontListInternal(PRBool aForce = PR_FALSE);
 
@@ -340,7 +327,7 @@ protected:
     nsTHashtable<LangSupportEntry> mLangSupportTable;
     const nsTArray< nsCountedRef<FcPattern> > mEmptyPatternArray;
 
-    nsTArray<nsCString> mAliasForMultiFonts;
+    nsCStringArray mAliasForMultiFonts;
 
     FcConfig *mLastConfig;
 };

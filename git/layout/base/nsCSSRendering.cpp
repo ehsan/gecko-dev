@@ -889,8 +889,9 @@ nsCSSRendering::FindNonTransparentBackground(nsStyleContext* aContext,
  * |FindBackground| returns true if a background should be painted, and
  * the resulting style context to use for the background information
  * will be filled in to |aBackground|.  It fills in a boolean indicating
- * whether the frame is the canvas frame, because PaintBackground must
- * propagate that frame's background color to the view manager.
+ * whether the frame is the canvas frame to allow PaintBackground to
+ * ensure that it always paints something non-transparent for the
+ * canvas.
  */
 
 // Returns true if aFrame is a canvas frame.
@@ -1177,7 +1178,7 @@ nsCSSRendering::PaintBackground(nsPresContext* aPresContext,
     color = aForFrame->GetStyleBackground();
   }
 
-  if (isCanvas) {
+  if (isCanvas && NS_GET_A(color->mBackgroundColor) == 255) {
     nsIViewManager* vm = aPresContext->GetViewManager();
     vm->SetDefaultBackgroundColor(color->mBackgroundColor);
   }
