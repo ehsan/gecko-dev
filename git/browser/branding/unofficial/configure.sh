@@ -1,1 +1,1 @@
-MOZ_APP_DISPLAYNAME=Tumucumaque
+MOZ_APP_DISPLAYNAME=MozillaDeveloperPreview

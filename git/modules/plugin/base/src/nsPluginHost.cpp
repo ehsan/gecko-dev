@@ -133,7 +133,6 @@
 #include "nsAppDirectoryServiceDefs.h"
 #include "nsIFile.h"
 #include "nsPluginDirServiceProvider.h"
-#include "nsInt64.h"
 #include "nsPluginError.h"
 
 #include "nsUnicharUtils.h"
@@ -432,9 +431,8 @@ nsPluginHost::~nsPluginHost()
   sInst = nsnull;
 }
 
-NS_IMPL_ISUPPORTS5(nsPluginHost,
+NS_IMPL_ISUPPORTS4(nsPluginHost,
                    nsIPluginHost,
-                   nsIPluginHost_MOZILLA_2_0_BRANCH,
                    nsIObserver,
                    nsITimerCallback,
                    nsISupportsWeakReference)
@@ -1109,9 +1107,7 @@ nsPluginHost::DoInstantiateEmbeddedPlugin(const char *aMimeType, nsIURI* aURL,
     aOwner->CreateWidget();
 
     // If we've got a native window, the let the plugin know about it.
-    nsCOMPtr<nsIPluginInstanceOwner_MOZILLA_2_0_BRANCH> owner = do_QueryInterface(aOwner);
-    if (owner)
-      owner->SetWindow();
+    aOwner->SetWindow();
 
     // create an initial stream with data
     // don't make the stream if it's a java applet or we don't have SRC or DATA attribute
@@ -1186,15 +1182,12 @@ NS_IMETHODIMP nsPluginHost::InstantiateFullPagePlugin(const char *aMimeType,
       aOwner->CreateWidget();
 
       // If we've got a native window, the let the plugin know about it.
-      nsCOMPtr<nsIPluginInstanceOwner_MOZILLA_2_0_BRANCH> owner = do_QueryInterface(aOwner);
-      if (owner)
-        owner->SetWindow();
+      aOwner->SetWindow();
 
       rv = NewFullPagePluginStream(aURI, instance, aStreamListener);
 
       // If we've got a native window, the let the plugin know about it.
-      if (owner)
-        owner->SetWindow();
+      aOwner->SetWindow();
     }
   }
 
@@ -1249,9 +1242,7 @@ nsresult nsPluginHost::FindStoppedPluginForURL(nsIURI* aURL,
     aOwner->CreateWidget();
 
     // If we've got a native window, the let the plugin know about it.
-    nsCOMPtr<nsIPluginInstanceOwner_MOZILLA_2_0_BRANCH> owner = do_QueryInterface(aOwner);
-    if (owner)
-      owner->SetWindow();
+    aOwner->SetWindow();
 
     return NS_OK;
   }
@@ -1741,11 +1732,7 @@ static nsresult CreateNPAPIPlugin(nsPluginTag *aPluginTag,
                                   nsNPAPIPlugin **aOutNPAPIPlugin)
 {
   // If this is an in-process plugin we'll need to load it here if we haven't already.
-#ifdef MOZ_IPC
   if (!nsNPAPIPlugin::RunPluginOOP(aPluginTag)) {
-#else
-  if (!aPluginTag->mLibrary) {
-#endif
     if (aPluginTag->mFullPath.IsEmpty())
       return NS_ERROR_FAILURE;
     nsCOMPtr<nsILocalFile> file = do_CreateInstance("@mozilla.org/file/local;1");
@@ -2059,33 +2046,6 @@ nsPluginHost::SiteHasData(nsIPluginTag* plugin, const nsACString& domain,
   return NS_OK;
 }
 
-// XXX called from ScanPluginsDirectory only when told to filter
-// currently 'unwanted' plugins are Java, and all other plugins except
-// Acrobat, Flash, Quicktime and Shockwave
-static PRBool isUnwantedPlugin(nsPluginTag * tag)
-{
-  if (tag->mFileName.IsEmpty())
-    return PR_TRUE;
-
-  for (PRInt32 i = 0; i < tag->mVariants; ++i) {
-    if (!PL_strcasecmp(tag->mMimeTypeArray[i], "application/pdf"))
-      return PR_FALSE;
-
-    if (tag->mIsFlashPlugin)
-      return PR_FALSE;
-
-    if (!PL_strcasecmp(tag->mMimeTypeArray[i], "application/x-director"))
-      return PR_FALSE;
-  }
-
-  // On Windows, we also want to include the Quicktime plugin from the 4.x directory
-  // But because it spans several DLL's, the best check for now is by filename
-  if (tag->mFileName.Find("npqtplugin", PR_TRUE, 0, -1) != kNotFound)
-    return PR_FALSE;
-
-  return PR_TRUE;
-}
-
 PRBool nsPluginHost::IsJavaMIMEType(const char* aType)
 {
   return aType &&
@@ -2183,11 +2143,9 @@ class nsDefaultComparator<pluginFileinDirectory, pluginFileinDirectory>
 
 typedef NS_NPAPIPLUGIN_CALLBACK(char *, NP_GETMIMEDESCRIPTION)(void);
 
-nsresult nsPluginHost::ScanPluginsDirectory(nsIFile * pluginsDir,
-                                            nsIComponentManager * compManager,
+nsresult nsPluginHost::ScanPluginsDirectory(nsIFile *pluginsDir,
                                             PRBool aCreatePluginList,
-                                            PRBool * aPluginsChanged,
-                                            PRBool checkForUnwantedPlugins)
+                                            PRBool *aPluginsChanged)
 {
   NS_ENSURE_ARG_POINTER(aPluginsChanged);
   nsresult rv;
@@ -2278,8 +2236,7 @@ nsresult nsPluginHost::ScanPluginsDirectory(nsIFile * pluginsDir,
       else {
         // if it is unwanted plugin we are checking for, get it back to the cache info list
         // if this is a duplicate plugin, too place it back in the cache info list marking unwantedness
-        if ((checkForUnwantedPlugins && isUnwantedPlugin(pluginTag)) ||
-           IsDuplicatePlugin(pluginTag)) {
+        if (IsDuplicatePlugin(pluginTag)) {
           if (!pluginTag->HasFlag(NS_PLUGIN_FLAG_UNWANTED)) {
             // Plugin switched from wanted to unwanted
             *aPluginsChanged = PR_TRUE;
@@ -2384,8 +2341,7 @@ nsresult nsPluginHost::ScanPluginsDirectory(nsIFile * pluginsDir,
       // when we sync cached plugins to registry
       NS_ASSERTION(!pluginTag->HasFlag(NS_PLUGIN_FLAG_UNWANTED),
                    "Brand-new tags should not be unwanted");
-      if ((checkForUnwantedPlugins && isUnwantedPlugin(pluginTag)) ||
-         IsDuplicatePlugin(pluginTag)) {
+      if (IsDuplicatePlugin(pluginTag)) {
         pluginTag->Mark(NS_PLUGIN_FLAG_UNWANTED);
         pluginTag->mNext = mCachedPlugins;
         mCachedPlugins = pluginTag;
@@ -2402,20 +2358,12 @@ nsresult nsPluginHost::ScanPluginsDirectory(nsIFile * pluginsDir,
     // set the flag that we want to add this plugin to the list for now
     // and see if it remains after we check several reasons not to do so
     PRBool bAddIt = PR_TRUE;
-
-    // check if this is a specific plugin we don't want
-    if (checkForUnwantedPlugins && isUnwantedPlugin(pluginTag))
+    
+    if (HaveSamePlugin(pluginTag)) {
+      // we cannot get here if the plugin has just been added
+      // and thus |pluginTag| is not from cache, because otherwise
+      // it would not be present in the list;
       bAddIt = PR_FALSE;
-
-    // check if we already have this plugin in the list which
-    // is possible if we do refresh
-    if (bAddIt) {
-      if (HaveSamePlugin(pluginTag)) {
-        // we cannot get here if the plugin has just been added
-        // and thus |pluginTag| is not from cache, because otherwise
-        // it would not be present in the list;
-        bAddIt = PR_FALSE;
-      }
     }
 
     // do it if we still want it
@@ -2446,11 +2394,9 @@ nsresult nsPluginHost::ScanPluginsDirectory(nsIFile * pluginsDir,
   return NS_OK;
 }
 
-nsresult nsPluginHost::ScanPluginsDirectoryList(nsISimpleEnumerator * dirEnum,
-                                                nsIComponentManager * compManager,
+nsresult nsPluginHost::ScanPluginsDirectoryList(nsISimpleEnumerator *dirEnum,
                                                 PRBool aCreatePluginList,
-                                                PRBool * aPluginsChanged,
-                                                PRBool checkForUnwantedPlugins)
+                                                PRBool *aPluginsChanged)
 {
     PRBool hasMore;
     while (NS_SUCCEEDED(dirEnum->HasMoreElements(&hasMore)) && hasMore) {
@@ -2464,7 +2410,7 @@ nsresult nsPluginHost::ScanPluginsDirectoryList(nsISimpleEnumerator * dirEnum,
 
       // don't pass aPluginsChanged directly to prevent it from been reset
       PRBool pluginschanged = PR_FALSE;
-      ScanPluginsDirectory(nextDir, compManager, aCreatePluginList, &pluginschanged, checkForUnwantedPlugins);
+      ScanPluginsDirectory(nextDir, aCreatePluginList, &pluginschanged);
 
       if (pluginschanged)
         *aPluginsChanged = PR_TRUE;
@@ -2529,9 +2475,6 @@ nsresult nsPluginHost::FindPlugins(PRBool aCreatePluginList, PRBool * aPluginsCh
   if (ReadPluginInfo() == NS_ERROR_NOT_AVAILABLE)
     return NS_OK;
 
-  nsCOMPtr<nsIComponentManager> compManager;
-  NS_GetComponentManager(getter_AddRefs(compManager));
-
 #ifdef XP_WIN
   // Failure here is not a show-stopper so just warn.
   rv = EnsurePrivateDirServiceProvider();
@@ -2552,7 +2495,7 @@ nsresult nsPluginHost::FindPlugins(PRBool aCreatePluginList, PRBool * aPluginsCh
   // Scan the app-defined list of plugin dirs.
   rv = dirService->Get(NS_APP_PLUGINS_DIR_LIST, NS_GET_IID(nsISimpleEnumerator), getter_AddRefs(dirList));
   if (NS_SUCCEEDED(rv)) {
-    ScanPluginsDirectoryList(dirList, compManager, aCreatePluginList, &pluginschanged);
+    ScanPluginsDirectoryList(dirList, aCreatePluginList, &pluginschanged);
 
     if (pluginschanged)
       *aPluginsChanged = PR_TRUE;
@@ -2579,7 +2522,7 @@ nsresult nsPluginHost::FindPlugins(PRBool aCreatePluginList, PRBool * aPluginsCh
   if (bScanPLIDs && mPrivateDirServiceProvider) {
     rv = mPrivateDirServiceProvider->GetPLIDDirectories(getter_AddRefs(dirList));
     if (NS_SUCCEEDED(rv)) {
-      ScanPluginsDirectoryList(dirList, compManager, aCreatePluginList, &pluginschanged);
+      ScanPluginsDirectoryList(dirList, aCreatePluginList, &pluginschanged);
 
       if (pluginschanged)
         *aPluginsChanged = PR_TRUE;
@@ -2598,37 +2541,22 @@ nsresult nsPluginHost::FindPlugins(PRBool aCreatePluginList, PRBool * aPluginsCh
   // Scan the installation paths of our popular plugins if the prefs are enabled
 
   // This table controls the order of scanning
-  const char* const prefs[] = {NS_WIN_JRE_SCAN_KEY,         nsnull,
-                               NS_WIN_ACROBAT_SCAN_KEY,     nsnull,
-                               NS_WIN_QUICKTIME_SCAN_KEY,   nsnull,
-                               NS_WIN_WMP_SCAN_KEY,         nsnull,
-                               NS_WIN_4DOTX_SCAN_KEY,       "1"  /*  second column is flag for 4.x folder */ };
+  const char* const prefs[] = {NS_WIN_JRE_SCAN_KEY,
+                               NS_WIN_ACROBAT_SCAN_KEY,
+                               NS_WIN_QUICKTIME_SCAN_KEY,
+                               NS_WIN_WMP_SCAN_KEY};
 
   PRUint32 size = sizeof(prefs) / sizeof(prefs[0]);
 
-  for (PRUint32 i = 0; i < size; i+=2) {
+  for (PRUint32 i = 0; i < size; i+=1) {
     nsCOMPtr<nsIFile> dirToScan;
     PRBool bExists;
     if (NS_SUCCEEDED(dirService->Get(prefs[i], NS_GET_IID(nsIFile), getter_AddRefs(dirToScan))) &&
         dirToScan &&
         NS_SUCCEEDED(dirToScan->Exists(&bExists)) &&
         bExists) {
-
-      PRBool bFilterUnwanted = PR_FALSE;
-
-      // 4.x plugins folder stuff:
-      // Normally we "filter" the 4.x folder through |IsUnwantedPlugin|
-      // Check for a pref to see if we want to scan the entire 4.x plugins folder
-      if (prefs[i+1]) {
-        PRBool bScanEverything;
-        bFilterUnwanted = PR_TRUE;  // default to filter 4.x folder
-        if (mPrefService &&
-            NS_SUCCEEDED(mPrefService->GetBoolPref(prefs[i], &bScanEverything)) &&
-            bScanEverything)
-          bFilterUnwanted = PR_FALSE;
-
-      }
-      ScanPluginsDirectory(dirToScan, compManager, aCreatePluginList, &pluginschanged, bFilterUnwanted);
+      
+      ScanPluginsDirectory(dirToScan, aCreatePluginList, &pluginschanged);
 
       if (pluginschanged)
         *aPluginsChanged = PR_TRUE;
@@ -2770,7 +2698,9 @@ nsPluginHost::WritePluginInfo()
   if (NS_FAILED(rv))
     return rv;
 
-  rv = pluginReg->AppendNative(kPluginRegistryFilename);
+  nsCAutoString filename(kPluginRegistryFilename);
+  filename.Append(".tmp");
+  rv = pluginReg->AppendNative(filename);
   if (NS_FAILED(rv))
     return rv;
 
@@ -2894,11 +2824,12 @@ nsPluginHost::WritePluginInfo()
     invalidPlugins = invalidPlugins->mNext;
   }
 
-  if (fd) {
-    PR_Sync(fd);
-    PR_Close(fd);
-  }
-  return NS_OK;
+  PR_Close(fd);
+  nsCOMPtr<nsIFile> parent;
+  rv = localFile->GetParent(getter_AddRefs(parent));
+  NS_ENSURE_SUCCESS(rv, rv);
+  rv = localFile->MoveToNative(parent, kPluginRegistryFilename);
+  return rv;
 }
 
 #define PLUGIN_REG_MIMETYPES_ARRAY_SIZE 12
@@ -2946,7 +2877,7 @@ nsPluginHost::ReadPluginInfo()
   if (NS_FAILED(rv))
     return rv;
 
-  PRInt32 flen = nsInt64(fileSize);
+  PRInt32 flen = PRInt64(fileSize);
   if (flen == 0) {
     NS_WARNING("Plugins Registry Empty!");
     return NS_OK; // ERROR CONDITION
@@ -4084,7 +4015,6 @@ NS_IMETHODIMP nsPluginHost::Notify(nsITimer* timer)
   return NS_ERROR_FAILURE;
 }
 
-#ifdef MOZ_IPC
 #ifdef XP_WIN
 // Re-enable any top level browser windows that were disabled by modal dialogs
 // displayed by the crashed plugin.
@@ -4194,7 +4124,6 @@ nsPluginHost::PluginCrashed(nsNPAPIPlugin* aPlugin,
   CheckForDisabledWindows();
 #endif
 }
-#endif
 
 nsNPAPIPluginInstance*
 nsPluginHost::FindInstance(const char *mimetype)
