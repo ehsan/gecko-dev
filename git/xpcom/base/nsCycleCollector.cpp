@@ -837,8 +837,7 @@ public:
 
     // RemoveSkippable removes entries from the purple buffer if
     // nsPurpleBufferEntry::mObject is null or if the object's
-    // nsXPCOMCycleCollectionParticipant::CanSkip() returns true or
-    // if nsPurpleBufferEntry::mNotPurple is true.
+    // nsXPCOMCycleCollectionParticipant::CanSkip() returns true.
     // If removeChildlessNodes is true, then any nodes in the purple buffer
     // that will have no children in the cycle collector graph will also be
     // removed. CanSkip() may be run on these children.
@@ -883,7 +882,10 @@ public:
 
         e->mObject = p;
         e->mParticipant = cp;
-        e->mNotPurple = false;
+
+#ifdef DEBUG_CC
+        mNormalObjects.PutEntry(p);
+#endif
 
         // Caller is responsible for filling in result's mRefCnt.
         return e;
@@ -930,7 +932,7 @@ nsPurpleBuffer::SelectPointers(GCGraphBuilder &aBuilder)
                               *eEnd = ArrayEnd(b->mEntries);
             e != eEnd; ++e) {
             if (!(uintptr_t(e->mObject) & uintptr_t(1))) {
-                if (e->mObject && !e->mNotPurple) {
+                if (e->mObject) {
                     ++realCount;
                 }
             }
@@ -949,14 +951,8 @@ nsPurpleBuffer::SelectPointers(GCGraphBuilder &aBuilder)
             if (!(uintptr_t(e->mObject) & uintptr_t(1))) {
                 // This is a real entry (rather than something on the
                 // free list).
-                if (e->mObject && e->mNotPurple) {
-                    void* o = e->mObject;
-                    nsCycleCollectionParticipant* cp = e->mParticipant;
-                    CanonicalizeParticipant(&o, &cp);
-                    cp->UnmarkIfPurple(o);
-                    Remove(e);
-                } else if (!e->mObject || AddPurpleRoot(aBuilder, e->mObject,
-                                                        e->mParticipant)) {
+                if (!e->mObject || AddPurpleRoot(aBuilder, e->mObject,
+                                                 e->mParticipant)) {
                     Remove(e);
                 }
             }
@@ -1052,7 +1048,6 @@ struct nsCycleCollector
     FILE *mPtrLog;
     PointerSet mExpectedGarbage;
 
-    bool LogPurpleAddition(void* aObject, nsCycleCollectionParticipant *cp);
     void LogPurpleRemoval(void* aObject);
 
     void ShouldBeFreed(nsISupports *n);
@@ -1998,7 +1993,7 @@ nsPurpleBuffer::RemoveSkippable(bool removeChildlessNodes)
                     void *o = e->mObject;
                     nsCycleCollectionParticipant *cp = e->mParticipant;
                     CanonicalizeParticipant(&o, &cp);
-                    if (!e->mNotPurple && !cp->CanSkip(o, false) &&
+                    if (!cp->CanSkip(o, false) &&
                         (!removeChildlessNodes || MayHaveChild(o, cp))) {
                         continue;
                     }
@@ -2440,8 +2435,16 @@ nsCycleCollector::Suspect2(void *n, nsCycleCollectionParticipant *cp)
         return nullptr;
 
 #ifdef DEBUG_CC
-    if (!LogPurpleAddition(n, cp))
+    mStats.mSuspectNode++;
+
+    if (!cp && nsCycleCollector_shouldSuppress(static_cast<nsISupports *>(n)))
         return nullptr;
+
+    if (mParams.mLogPointers) {
+        if (!mPtrLog)
+            mPtrLog = fopen("pointer_log", "w");
+        fprintf(mPtrLog, "S %p\n", static_cast<void*>(n));
+    }
 #endif
 
     // Caller is responsible for filling in result's mRefCnt.
@@ -2470,42 +2473,6 @@ nsCycleCollector::Forget2(nsPurpleBufferEntry *e)
 }
 
 #ifdef DEBUG_CC
-void
-nsCycleCollector_logPurpleAddition(void* aObject,
-                                   nsCycleCollectionParticipant *cp)
-{
-    if (sCollector) {
-        sCollector->LogPurpleAddition(aObject, cp);
-    }
-}
-
-bool
-nsCycleCollector::LogPurpleAddition(void* aObject,
-                                    nsCycleCollectionParticipant *cp)
-{
-
-    if (mScanInProgress)
-        return false;
-
-    if (mParams.mDoNothing)
-        return false;
-
-    mStats.mSuspectNode++;
-
-    if (!cp &&
-        nsCycleCollector_shouldSuppress(static_cast<nsISupports *>(aObject)))
-        return false;
-
-    if (mParams.mLogPointers) {
-        if (!mPtrLog)
-            mPtrLog = fopen("pointer_log", "w");
-        fprintf(mPtrLog, "S %p\n", static_cast<void*>(aObject));
-    }
-
-    mPurpleBuf.mNormalObjects.PutEntry(aObject);
-    return true;
-}
-
 void
 nsCycleCollector_logPurpleRemoval(void* aObject)
 {
