@@ -211,8 +211,7 @@ class MarionetteTestRunner(object):
                  revision=None, logger=None, testgroup="marionette", noWindow=False,
                  logcat_dir=None, xml_output=None, repeat=0, gecko_path=None,
                  testvars=None, tree=None, type=None, device_serial=None,
-                 symbols_path=None, timeout=None, es_servers=None, shuffle=False,
-                 sdcard=None, **kwargs):
+                 symbols_path=None, timeout=None, es_servers=None, shuffle=False, **kwargs):
         self.address = address
         self.emulator = emulator
         self.emulatorBinary = emulatorBinary
@@ -247,7 +246,6 @@ class MarionetteTestRunner(object):
         self._appName = None
         self.es_servers = es_servers
         self.shuffle = shuffle
-        self.sdcard = sdcard
 
         if testvars:
             if not os.path.exists(testvars):
@@ -332,8 +330,7 @@ class MarionetteTestRunner(object):
                                          bin=self.bin,
                                          profile=self.profile,
                                          baseurl=self.baseurl,
-                                         timeout=self.timeout,
-                                         device_serial=self.device_serial)
+                                         timeout=self.timeout)
         elif self.address:
             host, port = self.address.split(':')
             try:
@@ -370,8 +367,7 @@ class MarionetteTestRunner(object):
                                          logcat_dir=self.logcat_dir,
                                          gecko_path=self.gecko_path,
                                          symbols_path=self.symbols_path,
-                                         timeout=self.timeout,
-                                         sdcard=self.sdcard)
+                                         timeout=self.timeout)
         else:
             raise Exception("must specify binary, address or emulator")
 
@@ -674,10 +670,6 @@ class MarionetteTestOptions(OptionParser):
                         type='str',
                         help='set a custom resolution for the emulator'
                              'Example: "480x800"')
-        self.add_option('--sdcard',
-                        action='store',
-                        dest='sdcard',
-                        help='size of sdcard to create for the emulator')
         self.add_option('--no-window',
                         action='store_true',
                         dest='noWindow',

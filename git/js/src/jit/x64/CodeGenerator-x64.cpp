@@ -241,7 +241,7 @@ CodeGeneratorX64::visitLoadElementT(LLoadElementT *load)
 
     if (load->mir()->loadDoubles()) {
         FloatRegister fpreg = ToFloatRegister(load->output());
-        if (source.kind() == Operand::MEM_REG_DISP)
+        if (source.kind() == Operand::REG_DISP)
             masm.loadDouble(source.toAddress(), fpreg);
         else
             masm.loadDouble(source.toBaseIndex(), fpreg);
@@ -287,7 +287,8 @@ CodeGeneratorX64::visitInterruptCheck(LInterruptCheck *lir)
     if (!ool)
         return false;
 
-    masm.movq(ImmPtr(&GetIonContext()->runtime->interrupt), ScratchReg);
+    void *interrupt = (void*)&GetIonContext()->runtime->interrupt;
+    masm.movq(ImmWord(interrupt), ScratchReg);
     masm.cmpl(Operand(ScratchReg, 0), Imm32(0));
     masm.j(Assembler::NonZero, ool->entry());
     masm.bind(ool->rejoin());

@@ -11,7 +11,6 @@ XPIDL_SOURCES += [
     'nsIDOMApplicationRegistry.idl',
     'nsIDOMApplicationRegistry2.idl',
     'nsIDOMMozApplicationEvent.idl',
-    'nsIInterAppCommService.idl',
 ]
 
 XPIDL_MODULE = 'dom_apps'

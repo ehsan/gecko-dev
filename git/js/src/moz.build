@@ -349,7 +349,3 @@ else:
 
 MSVC_ENABLE_PGO = True
 
-HOST_CPPSRCS += [
-    'jskwgen.cpp',
-    'jsoplengen.cpp',
-]

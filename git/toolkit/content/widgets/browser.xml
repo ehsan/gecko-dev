@@ -840,6 +840,8 @@
               // Elements or non-html elements such as svg or Document nodes
               // also make sure to skip select elements that are not multiline
               if (!(this._scrollable instanceof HTMLElement) ||
+                  (this._scrollable instanceof HTMLHtmlElement) ||
+                  (this._scrollable instanceof HTMLBodyElement) ||
                   ((this._scrollable instanceof HTMLSelectElement) && !this._scrollable.multiple)) {
                 continue;
               }
@@ -853,14 +855,16 @@
               // we already discarded non-multiline selects so allow vertical
               // scroll for multiline ones directly without checking for a
               // overflow property
-              var scrollVert = this._scrollable.scrollTopMax &&
+              var scrollVert = this._scrollable.clientHeight > 0 &&
+                               this._scrollable.scrollHeight > this._scrollable.clientHeight &&
                                (this._scrollable instanceof HTMLSelectElement ||
                                 scrollingAllowed.indexOf(overflowy) >= 0);
 
               // do not allow horizontal scrolling for select elements, it leads
               // to visual artifacts and is not the expected behavior anyway
               if (!(this._scrollable instanceof HTMLSelectElement) &&
-                  this._scrollable.scrollLeftMax &&
+                  this._scrollable.clientWidth > 0 &&
+                  this._scrollable.scrollWidth > this._scrollable.clientWidth &&
                   scrollingAllowed.indexOf(overflowx) >= 0) {
                 this._autoScrollPopup.setAttribute("scrolldir", scrollVert ? "NSEW" : "EW");
                 break;

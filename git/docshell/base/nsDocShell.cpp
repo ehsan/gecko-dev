@@ -9214,23 +9214,18 @@ nsDocShell::InternalLoad(nsIURI * aURI,
             SetDocCurrentStateObj(mOSHE);
 
             // Dispatch the popstate and hashchange events, as appropriate.
-            //
-            // The event dispatch below can cause us to re-enter script and
-            // destroy the docshell, nulling out mScriptGlobal. Hold a stack
-            // reference to avoid null derefs. See bug 914521.
-            nsRefPtr<nsGlobalWindow> win = mScriptGlobal;
-            if (win) {
+            if (mScriptGlobal) {
                 // Fire a hashchange event URIs differ, and only in their hashes.
                 bool doHashchange = sameExceptHashes && !curHash.Equals(newHash);
 
                 if (historyNavBetweenSameDoc || doHashchange) {
-                    win->DispatchSyncPopState();
+                    mScriptGlobal->DispatchSyncPopState();
                 }
 
                 if (doHashchange) {
                     // Make sure to use oldURI here, not mCurrentURI, because by
                     // now, mCurrentURI has changed!
-                    win->DispatchAsyncHashchange(oldURI, aURI);
+                    mScriptGlobal->DispatchAsyncHashchange(oldURI, aURI);
                 }
             }
 
@@ -12731,7 +12726,7 @@ nsDocShell::GetAppId(uint32_t* aAppId)
 NS_IMETHODIMP
 nsDocShell::GetAsyncPanZoomEnabled(bool* aOut)
 {
-    if (TabChild* tabChild = TabChild::GetFrom(this)) {
+    if (TabChild* tabChild = GetTabChildFrom(this)) {
         *aOut = tabChild->IsAsyncPanZoomEnabled();
         return NS_OK;
     }

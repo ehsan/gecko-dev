@@ -11,8 +11,6 @@
 
 BEGIN_BLUETOOTH_NAMESPACE
 
-class BluetoothProfileManagerBase;
-
 /*
  * Service classes and Profile Identifiers
  *
@@ -57,10 +55,7 @@ public:
   GetBluetoothServiceClass(const nsAString& aUuidStr);
 
   static BluetoothServiceClass
-  GetBluetoothServiceClass(uint16_t aServiceUuid);
-
-  static BluetoothProfileManagerBase*
-  GetBluetoothProfileManager(uint16_t aServiceUuid);
+  GetBluetoothServiceClass(uint16_t aProfileId);
 };
 
 // TODO/qdot: Move these back into gonk and make the service handler deal with

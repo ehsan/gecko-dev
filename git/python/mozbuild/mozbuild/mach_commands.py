@@ -4,7 +4,6 @@
 
 from __future__ import print_function, unicode_literals
 
-import itertools
 import logging
 import operator
 import os
@@ -161,12 +160,11 @@ class BuildProgressFooter(object):
                     ' ',
                     '(',
                 ])
-                if active_dirs:
-                    commas = [', '] * (len(active_dirs) - 1)
-                    magenta_dirs = [('magenta', d) for d in active_dirs]
-                    parts.extend(i.next() for i in itertools.cycle((iter(magenta_dirs),
-                                                                    iter(commas))))
-                parts.append(')')
+                for d in active_dirs:
+                    parts.extend([
+                        ('magenta', d), ' ,'
+                    ])
+                parts[-1] = ')'
 
             if not have_dirs:
                 parts = parts[0:-2]

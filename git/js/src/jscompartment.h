@@ -185,6 +185,11 @@ struct JSCompartment
 
 
     int64_t                      lastCodeRelease;
+
+    /* Pools for analysis and type information in this compartment. */
+    static const size_t ANALYSIS_LIFO_ALLOC_PRIMARY_CHUNK_SIZE = 32 * 1024;
+    js::LifoAlloc                analysisLifoAlloc;
+
     bool                         activeAnalysis;
 
     /* Type information about the scripts and objects in this compartment. */

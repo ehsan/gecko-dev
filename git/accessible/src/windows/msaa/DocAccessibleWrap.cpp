@@ -279,7 +279,7 @@ DocAccessibleWrap::DoInitialUpdate()
     // Create window for tab document.
     if (mDocFlags & eTabDocument) {
       mozilla::dom::TabChild* tabChild =
-        mozilla::dom::TabChild::GetFrom(mDocumentNode->GetShell());
+        mozilla::dom::GetTabChildFrom(mDocumentNode->GetShell());
 
       a11y::RootAccessible* rootDocument = RootAccessible();
 

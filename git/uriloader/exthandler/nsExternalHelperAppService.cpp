@@ -15,7 +15,6 @@
 #include "mozilla/Util.h"
 
 #include "mozilla/dom/ContentChild.h"
-#include "mozilla/dom/TabChild.h"
 #include "nsXULAppAPI.h"
 
 #include "nsExternalHelperAppService.h"
@@ -580,9 +579,6 @@ NS_IMETHODIMP nsExternalHelperAppService::DoContent(const nsACString& aMimeConte
     channel->GetContentLength(&contentLength);
   }
   if (XRE_GetProcessType() == GeckoProcessType_Content) {
-    nsCOMPtr<nsIDOMWindow> window = do_GetInterface(aWindowContext);
-    NS_ENSURE_STATE(window);
-
     // We need to get a hold of a ContentChild so that we can begin forwarding
     // this data to the parent.  In the HTTP case, this is unfortunate, since
     // we're actually passing data from parent->child->parent wastefully, but
@@ -624,8 +620,9 @@ NS_IMETHODIMP nsExternalHelperAppService::DoContent(const nsACString& aMimeConte
                                reason, aForceSave);
     if (!handler)
       return NS_ERROR_OUT_OF_MEMORY;
-
+    
     childListener->SetHandler(handler);
+
     return NS_OK;
   }
 

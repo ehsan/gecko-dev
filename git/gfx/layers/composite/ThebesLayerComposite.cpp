@@ -158,7 +158,7 @@ ThebesLayerComposite::RenderLayer(const nsIntPoint& aOffset,
 CompositableHost*
 ThebesLayerComposite::GetCompositableHost()
 {
-  if ( mBuffer && mBuffer->IsAttached()) {
+  if (mBuffer->IsAttached()) {
     return mBuffer.get();
   }
 

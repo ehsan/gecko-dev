@@ -38,8 +38,6 @@ class Shmem;
 namespace layers {
 
 class Compositor;
-class CompositableHost;
-class CompositableQuirks;
 class SurfaceDescriptor;
 class ISurfaceAllocator;
 class TextureSourceOGL;
@@ -79,8 +77,14 @@ public:
 class TextureSource : public RefCounted<TextureSource>
 {
 public:
-  TextureSource();
-  virtual ~TextureSource();
+  TextureSource()
+  {
+    MOZ_COUNT_CTOR(TextureSource);
+  }
+  virtual ~TextureSource()
+  {
+    MOZ_COUNT_DTOR(TextureSource);
+  }
 
   /**
    * Return the size of the texture in texels.
@@ -118,14 +122,9 @@ public:
    */
   virtual TileIterator* AsTileIterator() { return nullptr; }
 
-  virtual void SetCompositableQuirks(CompositableQuirks* aQuirks);
-
 #ifdef MOZ_LAYERS_HAVE_LOG
   virtual void PrintInfo(nsACString& aTo, const char* aPrefix);
 #endif
-
-protected:
-  RefPtr<CompositableQuirks> mQuirks;
 };
 
 
@@ -265,9 +264,13 @@ class TextureHost : public RefCounted<TextureHost>
 {
 public:
   TextureHost(uint64_t aID,
-              TextureFlags aFlags);
+              TextureFlags aFlags)
+    : mID(aID)
+    , mNextTexture(nullptr)
+    , mFlags(aFlags)
+  {}
 
-  virtual ~TextureHost();
+  virtual ~TextureHost() {}
 
   /**
    * Factory method.
@@ -386,8 +389,6 @@ public:
     return LayerRenderState();
   }
 
-  virtual void SetCompositableQuirks(CompositableQuirks* aQuirks);
-
 #ifdef MOZ_LAYERS_HAVE_LOG
   virtual void PrintInfo(nsACString& aTo, const char* aPrefix)
   {
@@ -402,7 +403,6 @@ protected:
   uint64_t mID;
   RefPtr<TextureHost> mNextTexture;
   TextureFlags mFlags;
-  RefPtr<CompositableQuirks> mQuirks;
 };
 
 /**
@@ -582,8 +582,7 @@ public:
    */
   static TemporaryRef<DeprecatedTextureHost> CreateDeprecatedTextureHost(SurfaceDescriptorType aDescriptorType,
                                                      uint32_t aDeprecatedTextureHostFlags,
-                                                     uint32_t aTextureFlags,
-                                                     CompositableHost* aCompositableHost);
+                                                     uint32_t aTextureFlags);
 
   DeprecatedTextureHost();
   virtual ~DeprecatedTextureHost();

@@ -1069,14 +1069,10 @@ let CompositionManager =  {
   _isStarted: false,
   _text: '',
   _clauseAttrMap: {
-    'raw-input':
-      Ci.nsICompositionStringSynthesizer.ATTR_RAWINPUT,
-    'selected-raw-text':
-      Ci.nsICompositionStringSynthesizer.ATTR_SELECTEDRAWTEXT,
-    'converted-text':
-      Ci.nsICompositionStringSynthesizer.ATTR_CONVERTEDTEXT,
-    'selected-converted-text':
-      Ci.nsICompositionStringSynthesizer.ATTR_SELECTEDCONVERTEDTEXT
+    'raw-input': domWindowUtils.COMPOSITION_ATTR_RAWINPUT,
+    'selected-raw-text': domWindowUtils.COMPOSITION_ATTR_SELECTEDRAWTEXT,
+    'converted-text': domWindowUtils.COMPOSITION_ATTR_CONVERTEDTEXT,
+    'selected-converted-text': domWindowUtils.COMPOSITION_ATTR_SELECTEDCONVERTEDTEXT
   },
 
   setComposition: function cm_setComposition(element, text, cursor, clauses) {
@@ -1085,14 +1081,20 @@ let CompositionManager =  {
       return;
     }
     let len = text.length;
-    if (cursor > len) {
+    if (cursor < 0) {
+      cursor = 0;
+    } else if (cursor > len) {
       cursor = len;
     }
-    let clauseLens = [];
-    let clauseAttrs = [];
+    let clauseLens = [len, 0, 0];
+    let clauseAttrs = [domWindowUtils.COMPOSITION_ATTR_RAWINPUT,
+                       domWindowUtils.COMPOSITION_ATTR_RAWINPUT,
+                       domWindowUtils.COMPOSITION_ATTR_RAWINPUT];
     if (clauses) {
       let remainingLength = len;
-      for (let i = 0; i < clauses.length; i++) {
+      // Currently we don't support 4 or more clauses composition string.
+      let clauseNum = Math.min(3, clauses.length);
+      for (let i = 0; i < clauseNum; i++) {
         if (clauses[i]) {
           let clauseLength = clauses[i].length || 0;
           // Make sure the total clauses length is not bigger than that of the
@@ -1101,19 +1103,16 @@ let CompositionManager =  {
             clauseLength = remainingLength;
           }
           remainingLength -= clauseLength;
-          clauseLens.push(clauseLength);
-          clauseAttrs.push(this._clauseAttrMap[clauses[i].selectionType] ||
-                           Ci.nsICompositionStringSynthesizer.ATTR_RAWINPUT);
+          clauseLens[i] = clauseLength;
+          clauseAttrs[i] = this._clauseAttrMap[clauses[i].selectionType] ||
+                           domWindowUtils.COMPOSITION_ATTR_RAWINPUT;
         }
       }
       // If the total clauses length is less than that of the composition
       // string, extend the last clause to the end of the composition string.
       if (remainingLength > 0) {
-        clauseLens[clauseLens.length - 1] += remainingLength;
+        clauseLens[2] += remainingLength;
       }
-    } else {
-      clauseLens.push(len);
-      clauseAttrs.push(Ci.nsICompositionStringSynthesizer.ATTR_RAWINPUT);
     }
 
     // Start composition if need to.
@@ -1128,15 +1127,11 @@ let CompositionManager =  {
       this._text = text;
       domWindowUtils.sendCompositionEvent('compositionupdate', text, '');
     }
-    let compositionString = domWindowUtils.createCompositionStringSynthesizer();
-    compositionString.setString(text);
-    for (var i = 0; i < clauseLens.length; i++) {
-      compositionString.appendClause(clauseLens[i], clauseAttrs[i]);
-    }
-    if (cursor >= 0) {
-      compositionString.setCaret(cursor, 0);
-    }
-    compositionString.dispatchEvent();
+    domWindowUtils.sendTextEvent(text,
+                                 clauseLens[0], clauseAttrs[0],
+                                 clauseLens[1], clauseAttrs[1],
+                                 clauseLens[2], clauseAttrs[2],
+                                 cursor, 0);
   },
 
   endComposition: function cm_endComposition(text) {
@@ -1147,12 +1142,9 @@ let CompositionManager =  {
     if (this._text !== text) {
       domWindowUtils.sendCompositionEvent('compositionupdate', text, '');
     }
-    let compositionString = domWindowUtils.createCompositionStringSynthesizer();
-    compositionString.setString(text);
     // Set the cursor position to |text.length| so that the text will be
     // committed before the cursor position.
-    compositionString.setCaret(text.length, 0);
-    compositionString.dispatchEvent();
+    domWindowUtils.sendTextEvent(text, 0, 0, 0, 0, 0, 0, text.length, 0);
     domWindowUtils.sendCompositionEvent('compositionend', text, '');
     this._text = '';
     this._isStarted = false;

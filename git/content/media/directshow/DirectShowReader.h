@@ -77,9 +77,10 @@ public:
 
 private:
 
-  // Notifies the filter graph that playback is complete. aStatus is
-  // the code to send to the filter graph. Always returns false, so
-  // that we can just "return Finish()" from DecodeAudioData().
+  // Calls mAudioQueue.Finish(), and notifies the filter graph that playback
+  // is complete. aStatus is the code to send to the filter graph.
+  // Always returns false, so that we can just "return Finish()" from
+  // DecodeAudioData().
   bool Finish(HRESULT aStatus);
 
   // DirectShow filter graph, and associated playback and seeking

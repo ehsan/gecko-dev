@@ -48,7 +48,7 @@ public:
                                          AudioChannelType aType);
 
   /**
-   * Any audio channel agent that stops playing should unregister itself to
+   * Any  audio channel agent that stops playing should unregister itself to
    * this service.
    */
   virtual void UnregisterAudioChannelAgent(AudioChannelAgent* aAgent);
@@ -69,13 +69,6 @@ public:
    * ID.
    */
   virtual bool ProcessContentOrNormalChannelIsActive(uint64_t aChildID);
-
-  /***
-   * AudioChannelManager calls this function to notify the default channel used
-   * to adjust volume when there is no any active channel.
-   */
-  virtual void SetDefaultVolumeControlChannel(AudioChannelType aType,
-                                              bool aHidden);
 
 protected:
   void Notify();
@@ -99,10 +92,6 @@ protected:
   /* Update the internal type value following the visibility changes */
   void UpdateChannelType(AudioChannelType aType, uint64_t aChildID,
                          bool aElementHidden, bool aElementWasHidden);
-
-  /* Send the default-volume-channel-changed notification */
-  void SetDefaultVolumeControlChannelInternal(AudioChannelType aType,
-                                              bool aHidden, uint64_t aChildID);
 
   AudioChannelService();
   virtual ~AudioChannelService();
@@ -164,8 +153,6 @@ protected:
   nsCOMPtr<nsITimer> mDeferTelChannelTimer;
   bool mTimerElementHidden;
   uint64_t mTimerChildID;
-
-  uint64_t mDefChannelChildID;
 
   // This is needed for IPC comunication between
   // AudioChannelServiceChild and this class.

@@ -204,7 +204,7 @@ MaybeEmulatesUndefined(JSContext *cx, MDefinition *op)
     if (!op->mightBeType(MIRType_Object))
         return false;
 
-    types::TemporaryTypeSet *types = op->resultTypeSet();
+    types::StackTypeSet *types = op->resultTypeSet();
     if (!types)
         return true;
 
@@ -219,7 +219,7 @@ MaybeCallable(JSContext *cx, MDefinition *op)
     if (!op->mightBeType(MIRType_Object))
         return false;
 
-    types::TemporaryTypeSet *types = op->resultTypeSet();
+    types::StackTypeSet *types = op->resultTypeSet();
     if (!types)
         return true;
 
@@ -402,11 +402,16 @@ MConstant::New(const Value &v)
     return new MConstant(v);
 }
 
-types::TemporaryTypeSet *
+types::StackTypeSet *
 jit::MakeSingletonTypeSet(JSObject *obj)
 {
     LifoAlloc *alloc = GetIonContext()->temp->lifoAlloc();
-    return alloc->new_<types::TemporaryTypeSet>(types::Type::ObjectType(obj));
+    types::StackTypeSet *types = alloc->new_<types::StackTypeSet>();
+    if (!types)
+        return NULL;
+    types::Type objectType = types::Type::ObjectType(obj);
+    types->addObject(objectType.objectKey(), alloc);
+    return types;
 }
 
 MConstant::MConstant(const js::Value &vp)
@@ -540,7 +545,7 @@ MConstantElements::printOpcode(FILE *fp) const
 }
 
 MParameter *
-MParameter::New(int32_t index, types::TemporaryTypeSet *types)
+MParameter::New(int32_t index, types::StackTypeSet *types)
 {
     return new MParameter(index, types);
 }
@@ -763,19 +768,19 @@ MPhi::reserveLength(size_t length)
     return inputs_.reserve(length);
 }
 
-static inline types::TemporaryTypeSet *
+static inline types::StackTypeSet *
 MakeMIRTypeSet(MIRType type)
 {
     JS_ASSERT(type != MIRType_Value);
     types::Type ntype = type == MIRType_Object
                         ? types::Type::AnyObjectType()
                         : types::Type::PrimitiveType(ValueTypeFromMIRType(type));
-    return GetIonContext()->temp->lifoAlloc()->new_<types::TemporaryTypeSet>(ntype);
+    return GetIonContext()->temp->lifoAlloc()->new_<types::StackTypeSet>(ntype);
 }
 
 void
-jit::MergeTypes(MIRType *ptype, types::TemporaryTypeSet **ptypeSet,
-                MIRType newType, types::TemporaryTypeSet *newTypeSet)
+jit::MergeTypes(MIRType *ptype, types::StackTypeSet **ptypeSet,
+                MIRType newType, types::StackTypeSet *newTypeSet)
 {
     if (newTypeSet && newTypeSet->empty())
         return;
@@ -827,7 +832,7 @@ MPhi::specializeType()
     }
 
     MIRType resultType = this->type();
-    types::TemporaryTypeSet *resultTypeSet = this->resultTypeSet();
+    types::StackTypeSet *resultTypeSet = this->resultTypeSet();
 
     for (size_t i = start; i < inputs_.length(); i++) {
         MDefinition *def = getOperand(i);
@@ -839,13 +844,13 @@ MPhi::specializeType()
 }
 
 void
-MPhi::addBackedgeType(MIRType type, types::TemporaryTypeSet *typeSet)
+MPhi::addBackedgeType(MIRType type, types::StackTypeSet *typeSet)
 {
     JS_ASSERT(!specialized_);
 
     if (hasBackedgeType_) {
         MIRType resultType = this->type();
-        types::TemporaryTypeSet *resultTypeSet = this->resultTypeSet();
+        types::StackTypeSet *resultTypeSet = this->resultTypeSet();
 
         MergeTypes(&resultType, &resultTypeSet, type, typeSet);
 
@@ -864,7 +869,7 @@ MPhi::typeIncludes(MDefinition *def)
     if (def->type() == MIRType_Int32 && this->type() == MIRType_Double)
         return true;
 
-    if (types::TemporaryTypeSet *types = def->resultTypeSet()) {
+    if (types::StackTypeSet *types = def->resultTypeSet()) {
         if (this->resultTypeSet())
             return types->isSubset(this->resultTypeSet());
         if (this->type() == MIRType_Value || types->empty())
@@ -921,7 +926,7 @@ MPhi::addInputSlow(MDefinition *ins, bool *ptypeChange)
 
     if (ptypeChange) {
         MIRType resultType = this->type();
-        types::TemporaryTypeSet *resultTypeSet = this->resultTypeSet();
+        types::StackTypeSet *resultTypeSet = this->resultTypeSet();
 
         MergeTypes(&resultType, &resultTypeSet, ins->type(), ins->resultTypeSet());
 
@@ -1460,26 +1465,22 @@ KnownNonStringPrimitive(MDefinition *op)
 }
 
 void
-MBinaryArithInstruction::infer(BaselineInspector *inspector, jsbytecode *pc)
+MBinaryArithInstruction::infer(BaselineInspector *inspector,
+                               jsbytecode *pc,
+                               bool overflowed)
 {
     JS_ASSERT(this->type() == MIRType_Value);
 
     specialization_ = MIRType_None;
 
-    // Don't specialize if one operand could be an object. If we specialize
-    // as int32 or double based on baseline feedback, we could DCE this
-    // instruction and fail to invoke any valueOf methods.
-    if (getOperand(0)->mightBeType(MIRType_Object) || getOperand(1)->mightBeType(MIRType_Object))
-        return;
+    // Retrieve type information of lhs and rhs.
+    MIRType lhs = getOperand(0)->type();
+    MIRType rhs = getOperand(1)->type();
 
     // Anything complex - strings and objects - are not specialized
     // unless baseline type hints suggest it might be profitable
     if (!KnownNonStringPrimitive(getOperand(0)) || !KnownNonStringPrimitive(getOperand(1)))
         return inferFallback(inspector, pc);
-
-    // Retrieve type information of lhs and rhs.
-    MIRType lhs = getOperand(0)->type();
-    MIRType rhs = getOperand(1)->type();
 
     // Guess a result type based on the inputs.
     // Don't specialize for neither-integer-nor-double results.
@@ -1559,7 +1560,7 @@ MBinaryArithInstruction::inferFallback(BaselineInspector *inspector,
     // either to avoid degrading subsequent analysis.
     if (getOperand(0)->emptyResultTypeSet() || getOperand(1)->emptyResultTypeSet()) {
         LifoAlloc *alloc = GetIonContext()->temp->lifoAlloc();
-        types::TemporaryTypeSet *types = alloc->new_<types::TemporaryTypeSet>();
+        types::StackTypeSet *types = alloc->new_<types::StackTypeSet>();
         if (types)
             setResultTypeSet(types);
     }
@@ -2496,11 +2497,11 @@ InlinePropertyTable::hasFunction(JSFunction *func) const
     return false;
 }
 
-types::TemporaryTypeSet *
+types::StackTypeSet *
 InlinePropertyTable::buildTypeSetForFunction(JSFunction *func) const
 {
     LifoAlloc *alloc = GetIonContext()->temp->lifoAlloc();
-    types::TemporaryTypeSet *types = alloc->new_<types::TemporaryTypeSet>();
+    types::StackTypeSet *types = alloc->new_<types::StackTypeSet>();
     if (!types)
         return NULL;
     for (size_t i = 0; i < numEntries(); i++) {
@@ -2635,7 +2636,7 @@ jit::ElementAccessIsDenseNative(MDefinition *obj, MDefinition *id)
     if (id->type() != MIRType_Int32 && id->type() != MIRType_Double)
         return false;
 
-    types::TemporaryTypeSet *types = obj->resultTypeSet();
+    types::StackTypeSet *types = obj->resultTypeSet();
     if (!types)
         return false;
 
@@ -2653,7 +2654,7 @@ jit::ElementAccessIsTypedArray(MDefinition *obj, MDefinition *id,
     if (id->type() != MIRType_Int32 && id->type() != MIRType_Double)
         return false;
 
-    types::TemporaryTypeSet *types = obj->resultTypeSet();
+    types::StackTypeSet *types = obj->resultTypeSet();
     if (!types)
         return false;
 
@@ -2664,14 +2665,14 @@ jit::ElementAccessIsTypedArray(MDefinition *obj, MDefinition *id,
 bool
 jit::ElementAccessIsPacked(JSContext *cx, MDefinition *obj)
 {
-    types::TemporaryTypeSet *types = obj->resultTypeSet();
+    types::StackTypeSet *types = obj->resultTypeSet();
     return types && !types->hasObjectFlags(cx, types::OBJECT_FLAG_NON_PACKED);
 }
 
 bool
 jit::ElementAccessHasExtraIndexedProperty(JSContext *cx, MDefinition *obj)
 {
-    types::TemporaryTypeSet *types = obj->resultTypeSet();
+    types::StackTypeSet *types = obj->resultTypeSet();
 
     if (!types || types->hasObjectFlags(cx, types::OBJECT_FLAG_LENGTH_OVERFLOW))
         return true;
@@ -2685,7 +2686,7 @@ jit::DenseNativeElementType(JSContext *cx, MDefinition *obj, MIRType *result)
     JS_ASSERT(result);
     *result = MIRType_None;
 
-    types::TemporaryTypeSet *types = obj->resultTypeSet();
+    types::StackTypeSet *types = obj->resultTypeSet();
     MIRType elementType = MIRType_None;
     unsigned count = types->getObjectCount();
 
@@ -2872,7 +2873,7 @@ jit::AddObjectsForPropertyRead(JSContext *cx, MDefinition *obj, PropertyName *na
 
     JS_ASSERT(observed->noConstraints());
 
-    types::TemporaryTypeSet *types = obj->resultTypeSet();
+    types::StackTypeSet *types = obj->resultTypeSet();
     if (!types || types->unknownObject()) {
         observed->addType(cx, types::Type::AnyObjectType());
         return true;
@@ -2911,7 +2912,7 @@ jit::AddObjectsForPropertyRead(JSContext *cx, MDefinition *obj, PropertyName *na
 }
 
 static bool
-TryAddTypeBarrierForWrite(JSContext *cx, MBasicBlock *current, types::TemporaryTypeSet *objTypes,
+TryAddTypeBarrierForWrite(JSContext *cx, MBasicBlock *current, types::StackTypeSet *objTypes,
                           jsid id, MDefinition **pvalue)
 {
     // Return whether pvalue was modified to include a type barrier ensuring
@@ -2981,7 +2982,7 @@ TryAddTypeBarrierForWrite(JSContext *cx, MBasicBlock *current, types::TemporaryT
     if ((*pvalue)->type() != MIRType_Value)
         return false;
 
-    types::TemporaryTypeSet *types = aggregateProperty->clone(GetIonContext()->temp->lifoAlloc());
+    types::StackTypeSet *types = aggregateProperty->clone(GetIonContext()->temp->lifoAlloc());
     if (!types)
         return false;
 
@@ -3017,7 +3018,7 @@ jit::PropertyWriteNeedsTypeBarrier(JSContext *cx, MBasicBlock *current, MDefinit
     // properties that are accounted for by type information, i.e. normal data
     // properties and elements.
 
-    types::TemporaryTypeSet *types = (*pobj)->resultTypeSet();
+    types::StackTypeSet *types = (*pobj)->resultTypeSet();
     if (!types || types->unknownObject()) {
         *result = true;
         return true;

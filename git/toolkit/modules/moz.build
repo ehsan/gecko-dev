@@ -29,7 +29,6 @@ EXTRA_JS_MODULES += [
     'RemoteWebProgress.jsm',
     'SelectContentHelper.jsm',
     'SelectParentHelper.jsm',
-    'Sntp.jsm',
     'Sqlite.jsm',
     'Task.jsm',
     'TelemetryTimestamps.jsm',

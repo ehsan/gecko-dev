@@ -73,7 +73,6 @@ AudioChannelService::AudioChannelService()
 : mCurrentHigherChannel(AUDIO_CHANNEL_LAST)
 , mCurrentVisibleHigherChannel(AUDIO_CHANNEL_LAST)
 , mActiveContentChildIDsFrozen(false)
-, mDefChannelChildID(CONTENT_PROCESS_ID_UNKNOWN)
 {
   if (XRE_GetProcessType() == GeckoProcessType_Default) {
     nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
@@ -95,8 +94,6 @@ void
 AudioChannelService::RegisterAudioChannelAgent(AudioChannelAgent* aAgent,
                                                AudioChannelType aType)
 {
-  MOZ_ASSERT(aType != AUDIO_CHANNEL_DEFAULT);
-
   AudioChannelAgentData* data = new AudioChannelAgentData(aType,
                                                           true /* mElementHidden */,
                                                           true /* mMuted */);
@@ -303,36 +300,6 @@ AudioChannelService::ProcessContentOrNormalChannelIsActive(uint64_t aChildID)
   return mChannelCounters[AUDIO_CHANNEL_INT_CONTENT].Contains(aChildID) ||
          mChannelCounters[AUDIO_CHANNEL_INT_CONTENT_HIDDEN].Contains(aChildID) ||
          mChannelCounters[AUDIO_CHANNEL_INT_NORMAL].Contains(aChildID);
-}
-
-void
-AudioChannelService::SetDefaultVolumeControlChannel(AudioChannelType aType,
-                                                    bool aHidden)
-{
-  SetDefaultVolumeControlChannelInternal(aType, aHidden, CONTENT_PROCESS_ID_MAIN);
-}
-
-void
-AudioChannelService::SetDefaultVolumeControlChannelInternal(
-  AudioChannelType aType, bool aHidden, uint64_t aChildID)
-{
-  if (XRE_GetProcessType() != GeckoProcessType_Default) {
-    return;
-  }
-
-  // If this child is in the background and mDefChannelChildID is set to
-  // others then it means other child in the foreground already set it's
-  // own default channel already.
-  if (!aHidden && mDefChannelChildID != aChildID) {
-    return;
-  }
-
-  mDefChannelChildID = aChildID;
-  nsString channelName;
-  channelName.AssignASCII(ChannelName(aType));
-  nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
-  obs->NotifyObservers(nullptr, "default-volume-channel-changed",
-                       channelName.get());
 }
 
 void
@@ -552,12 +519,6 @@ AudioChannelService::Observe(nsISupports* aSubject, const char* aTopic, const PR
 
       SendAudioChannelChangedNotification(childID);
       Notify();
-
-      if (mDefChannelChildID == childID) {
-        SetDefaultVolumeControlChannelInternal(AUDIO_CHANNEL_DEFAULT,
-                                               false, childID);
-        mDefChannelChildID = CONTENT_PROCESS_ID_UNKNOWN;
-      }
     } else {
       NS_WARNING("ipc:content-shutdown message without childID property");
     }

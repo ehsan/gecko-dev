@@ -55,7 +55,6 @@ this.SystemMessagePermissionsTable = {
   "bluetooth-opp-transfer-start": {
     "bluetooth": []
   },
-  "connection": { },
   "headset-button": { },
   "icc-stkcommand": {
     "settings": ["read", "write"]

@@ -171,6 +171,7 @@ bool MediaOmxReader::DecodeVideoFrame(bool &aKeyframeSkip,
     frame.mGraphicBuffer = nullptr;
     frame.mShouldSkip = false;
     if (!mOmxDecoder->ReadVideo(&frame, aTimeThreshold, aKeyframeSkip, doSeek)) {
+      mVideoQueue.Finish();
       return false;
     }
     doSeek = false;
@@ -288,6 +289,7 @@ bool MediaOmxReader::DecodeAudioData()
   // Read next frame
   MPAPI::AudioFrame frame;
   if (!mOmxDecoder->ReadAudio(&frame, mAudioSeekTimeUs)) {
+    mAudioQueue.Finish();
     return false;
   }
   mAudioSeekTimeUs = -1;

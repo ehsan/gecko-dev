@@ -242,15 +242,17 @@ class AssemblerX86Shared
           case Operand::REG:
             masm.movl_rr(src.reg(), dest.code());
             break;
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.movl_mr(src.disp(), src.base(), dest.code());
             break;
-          case Operand::MEM_SCALE:
+          case Operand::SCALE:
             masm.movl_mr(src.disp(), src.base(), src.index(), src.scale(), dest.code());
             break;
-          case Operand::MEM_ADDRESS32:
+#ifdef JS_CPU_X86
+          case Operand::ADDRESS:
             masm.movl_mr(src.address(), dest.code());
             break;
+#endif
           default:
             MOZ_ASSUME_UNREACHABLE("unexpected operand kind");
         }
@@ -260,15 +262,17 @@ class AssemblerX86Shared
           case Operand::REG:
             masm.movl_rr(src.code(), dest.reg());
             break;
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.movl_rm(src.code(), dest.disp(), dest.base());
             break;
-          case Operand::MEM_SCALE:
+          case Operand::SCALE:
             masm.movl_rm(src.code(), dest.disp(), dest.base(), dest.index(), dest.scale());
             break;
-          case Operand::MEM_ADDRESS32:
+#ifdef JS_CPU_X86
+          case Operand::ADDRESS:
             masm.movl_rm(src.code(), dest.address());
             break;
+#endif
           default:
             MOZ_ASSUME_UNREACHABLE("unexpected operand kind");
         }
@@ -278,10 +282,10 @@ class AssemblerX86Shared
           case Operand::REG:
             masm.movl_i32r(imm32.value, dest.reg());
             break;
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.movl_i32m(imm32.value, dest.disp(), dest.base());
             break;
-          case Operand::MEM_SCALE:
+          case Operand::SCALE:
             masm.movl_i32m(imm32.value, dest.disp(), dest.base(), dest.index(), dest.scale());
             break;
           default:
@@ -303,10 +307,10 @@ class AssemblerX86Shared
           case Operand::FPREG:
             masm.movsd_rr(src.fpu(), dest.code());
             break;
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.movsd_mr(src.disp(), src.base(), dest.code());
             break;
-          case Operand::MEM_SCALE:
+          case Operand::SCALE:
             masm.movsd_mr(src.disp(), src.base(), src.index(), src.scale(), dest.code());
             break;
           default:
@@ -319,10 +323,10 @@ class AssemblerX86Shared
           case Operand::FPREG:
             masm.movsd_rr(src.code(), dest.fpu());
             break;
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.movsd_rm(src.code(), dest.disp(), dest.base());
             break;
-          case Operand::MEM_SCALE:
+          case Operand::SCALE:
             masm.movsd_rm(src.code(), dest.disp(), dest.base(), dest.index(), dest.scale());
             break;
           default:
@@ -335,10 +339,10 @@ class AssemblerX86Shared
           case Operand::FPREG:
             masm.movss_rr(src.fpu(), dest.code());
             break;
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.movss_mr(src.disp(), src.base(), dest.code());
             break;
-          case Operand::MEM_SCALE:
+          case Operand::SCALE:
             masm.movss_mr(src.disp(), src.base(), src.index(), src.scale(), dest.code());
             break;
           default:
@@ -351,10 +355,10 @@ class AssemblerX86Shared
           case Operand::FPREG:
             masm.movss_rr(src.code(), dest.fpu());
             break;
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.movss_rm(src.code(), dest.disp(), dest.base());
             break;
-          case Operand::MEM_SCALE:
+          case Operand::SCALE:
             masm.movss_rm(src.code(), dest.disp(), dest.base(), dest.index(), dest.scale());
             break;
           default:
@@ -364,10 +368,10 @@ class AssemblerX86Shared
     void movdqa(const Operand &src, const FloatRegister &dest) {
         JS_ASSERT(HasSSE2());
         switch (src.kind()) {
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.movdqa_mr(src.disp(), src.base(), dest.code());
             break;
-          case Operand::MEM_SCALE:
+          case Operand::SCALE:
             masm.movdqa_mr(src.disp(), src.base(), src.index(), src.scale(), dest.code());
             break;
           default:
@@ -377,10 +381,10 @@ class AssemblerX86Shared
     void movdqa(const FloatRegister &src, const Operand &dest) {
         JS_ASSERT(HasSSE2());
         switch (dest.kind()) {
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.movdqa_rm(src.code(), dest.disp(), dest.base());
             break;
-          case Operand::MEM_SCALE:
+          case Operand::SCALE:
             masm.movdqa_rm(src.code(), dest.disp(), dest.base(), dest.index(), dest.scale());
             break;
           default:
@@ -397,10 +401,10 @@ class AssemblerX86Shared
     }
     void movzbl(const Operand &src, const Register &dest) {
         switch (src.kind()) {
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.movzbl_mr(src.disp(), src.base(), dest.code());
             break;
-          case Operand::MEM_SCALE:
+          case Operand::SCALE:
             masm.movzbl_mr(src.disp(), src.base(), src.index(), src.scale(), dest.code());
             break;
           default:
@@ -409,10 +413,10 @@ class AssemblerX86Shared
     }
     void movsbl(const Operand &src, const Register &dest) {
         switch (src.kind()) {
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.movsbl_mr(src.disp(), src.base(), dest.code());
             break;
-          case Operand::MEM_SCALE:
+          case Operand::SCALE:
             masm.movsbl_mr(src.disp(), src.base(), src.index(), src.scale(), dest.code());
             break;
           default:
@@ -421,10 +425,10 @@ class AssemblerX86Shared
     }
     void movb(const Register &src, const Operand &dest) {
         switch (dest.kind()) {
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.movb_rm(src.code(), dest.disp(), dest.base());
             break;
-          case Operand::MEM_SCALE:
+          case Operand::SCALE:
             masm.movb_rm(src.code(), dest.disp(), dest.base(), dest.index(), dest.scale());
             break;
           default:
@@ -433,10 +437,10 @@ class AssemblerX86Shared
     }
     void movb(const Imm32 &src, const Operand &dest) {
         switch (dest.kind()) {
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.movb_i8m(src.value, dest.disp(), dest.base());
             break;
-          case Operand::MEM_SCALE:
+          case Operand::SCALE:
             masm.movb_i8m(src.value, dest.disp(), dest.base(), dest.index(), dest.scale());
             break;
           default:
@@ -445,10 +449,10 @@ class AssemblerX86Shared
     }
     void movzwl(const Operand &src, const Register &dest) {
         switch (src.kind()) {
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.movzwl_mr(src.disp(), src.base(), dest.code());
             break;
-          case Operand::MEM_SCALE:
+          case Operand::SCALE:
             masm.movzwl_mr(src.disp(), src.base(), src.index(), src.scale(), dest.code());
             break;
           default:
@@ -458,10 +462,10 @@ class AssemblerX86Shared
 
     void movw(const Register &src, const Operand &dest) {
         switch (dest.kind()) {
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.movw_rm(src.code(), dest.disp(), dest.base());
             break;
-          case Operand::MEM_SCALE:
+          case Operand::SCALE:
             masm.movw_rm(src.code(), dest.disp(), dest.base(), dest.index(), dest.scale());
             break;
           default:
@@ -470,10 +474,10 @@ class AssemblerX86Shared
     }
     void movw(const Imm32 &src, const Operand &dest) {
         switch (dest.kind()) {
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.movw_i16m(src.value, dest.disp(), dest.base());
             break;
-          case Operand::MEM_SCALE:
+          case Operand::SCALE:
             masm.movw_i16m(src.value, dest.disp(), dest.base(), dest.index(), dest.scale());
             break;
           default:
@@ -482,10 +486,10 @@ class AssemblerX86Shared
     }
     void movswl(const Operand &src, const Register &dest) {
         switch (src.kind()) {
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.movswl_mr(src.disp(), src.base(), dest.code());
             break;
-          case Operand::MEM_SCALE:
+          case Operand::SCALE:
             masm.movswl_mr(src.disp(), src.base(), src.index(), src.scale(), dest.code());
             break;
           default:
@@ -494,10 +498,10 @@ class AssemblerX86Shared
     }
     void leal(const Operand &src, const Register &dest) {
         switch (src.kind()) {
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.leal_mr(src.disp(), src.base(), dest.code());
             break;
-          case Operand::MEM_SCALE:
+          case Operand::SCALE:
             masm.leal_mr(src.disp(), src.base(), src.index(), src.scale(), dest.code());
             break;
           default:
@@ -576,10 +580,10 @@ class AssemblerX86Shared
 
     void jmp(const Operand &op){
         switch (op.kind()) {
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.jmp_m(op.disp(), op.base());
             break;
-          case Operand::MEM_SCALE:
+          case Operand::SCALE:
             masm.jmp_m(op.disp(), op.base(), op.index(), op.scale());
             break;
           case Operand::REG:
@@ -679,7 +683,7 @@ class AssemblerX86Shared
           case Operand::REG:
             masm.call(op.reg());
             break;
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.call_m(op.disp(), op.base());
             break;
           default:
@@ -712,7 +716,7 @@ class AssemblerX86Shared
           case Operand::REG:
             masm.cmpl_rr(rhs.reg(), lhs.code());
             break;
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.cmpl_mr(rhs.disp(), rhs.base(), lhs.code());
             break;
           default:
@@ -727,15 +731,17 @@ class AssemblerX86Shared
           case Operand::REG:
             masm.cmpl_ir(imm.value, op.reg());
             break;
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.cmpl_im(imm.value, op.disp(), op.base());
             break;
-          case Operand::MEM_SCALE:
+          case Operand::SCALE:
             masm.cmpl_im(imm.value, op.disp(), op.base(), op.index(), op.scale());
             break;
-          case Operand::MEM_ADDRESS32:
+#ifdef JS_CPU_X86
+          case Operand::ADDRESS:
             masm.cmpl_im(imm.value, op.address());
             break;
+#endif
           default:
             MOZ_ASSUME_UNREACHABLE("unexpected operand kind");
         }
@@ -745,12 +751,14 @@ class AssemblerX86Shared
           case Operand::REG:
             masm.cmpl_rr(rhs.code(), lhs.reg());
             break;
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.cmpl_rm(rhs.code(), lhs.disp(), lhs.base());
             break;
-          case Operand::MEM_ADDRESS32:
+#ifdef JS_CPU_X86
+          case Operand::ADDRESS:
             masm.cmpl_rm(rhs.code(), lhs.address());
             break;
+#endif
           default:
             MOZ_ASSUME_UNREACHABLE("unexpected operand kind");
         }
@@ -760,18 +768,17 @@ class AssemblerX86Shared
           case Operand::REG:
             masm.cmpl_ir(imm.value, op.reg());
             break;
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.cmpl_im(imm.value, op.disp(), op.base());
             break;
-          case Operand::MEM_ADDRESS32:
+#ifdef JS_CPU_X86
+          case Operand::ADDRESS:
             masm.cmpl_im(imm.value, op.address());
             break;
+#endif
           default:
             MOZ_ASSUME_UNREACHABLE("unexpected operand kind");
         }
-    }
-    void cmpl(const Operand &op, ImmPtr imm) {
-        cmpl(op, ImmWord(uintptr_t(imm.value)));
     }
     void setCC(Condition cond, const Register &r) {
         masm.setCC_r(static_cast<JSC::X86Assembler::Condition>(cond), r.code());
@@ -792,7 +799,7 @@ class AssemblerX86Shared
           case Operand::REG:
             masm.testl_i32r(rhs.value, lhs.reg());
             break;
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.testl_i32m(rhs.value, lhs.disp(), lhs.base());
             break;
           default:
@@ -809,12 +816,14 @@ class AssemblerX86Shared
           case Operand::REG:
             masm.addl_ir(imm.value, op.reg());
             break;
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.addl_im(imm.value, op.disp(), op.base());
             break;
-          case Operand::MEM_ADDRESS32:
+#ifdef JS_CPU_X86
+          case Operand::ADDRESS:
             masm.addl_im(imm.value, op.address());
             break;
+#endif
           default:
             MOZ_ASSUME_UNREACHABLE("unexpected operand kind");
         }
@@ -827,7 +836,7 @@ class AssemblerX86Shared
           case Operand::REG:
             masm.subl_ir(imm.value, op.reg());
             break;
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.subl_im(imm.value, op.disp(), op.base());
             break;
           default:
@@ -845,7 +854,7 @@ class AssemblerX86Shared
           case Operand::REG:
             masm.subl_rr(src.reg(), dest.code());
             break;
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.subl_mr(src.disp(), src.base(), dest.code());
             break;
           default:
@@ -863,7 +872,7 @@ class AssemblerX86Shared
           case Operand::REG:
             masm.orl_ir(imm.value, op.reg());
             break;
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.orl_im(imm.value, op.disp(), op.base());
             break;
           default:
@@ -881,7 +890,7 @@ class AssemblerX86Shared
           case Operand::REG:
             masm.xorl_ir(imm.value, op.reg());
             break;
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.xorl_im(imm.value, op.disp(), op.base());
             break;
           default:
@@ -899,7 +908,7 @@ class AssemblerX86Shared
           case Operand::REG:
             masm.andl_ir(imm.value, op.reg());
             break;
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.andl_im(imm.value, op.disp(), op.base());
             break;
           default:
@@ -911,7 +920,7 @@ class AssemblerX86Shared
           case Operand::REG:
             masm.addl_rr(src.reg(), dest.code());
             break;
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.addl_mr(src.disp(), src.base(), dest.code());
             break;
           default:
@@ -923,7 +932,7 @@ class AssemblerX86Shared
           case Operand::REG:
             masm.orl_rr(src.reg(), dest.code());
             break;
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.orl_mr(src.disp(), src.base(), dest.code());
             break;
           default:
@@ -935,7 +944,7 @@ class AssemblerX86Shared
           case Operand::REG:
             masm.xorl_rr(src.reg(), dest.code());
             break;
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.xorl_mr(src.disp(), src.base(), dest.code());
             break;
           default:
@@ -947,7 +956,7 @@ class AssemblerX86Shared
           case Operand::REG:
             masm.andl_rr(src.reg(), dest.code());
             break;
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.andl_mr(src.disp(), src.base(), dest.code());
             break;
           default:
@@ -965,7 +974,7 @@ class AssemblerX86Shared
           case Operand::REG:
             masm.imull_rr(src.reg(), dest.code());
             break;
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.imull_mr(src.disp(), src.base(), dest.code());
             break;
           default:
@@ -977,7 +986,7 @@ class AssemblerX86Shared
           case Operand::REG:
             masm.negl_r(src.reg());
             break;
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.negl_m(src.disp(), src.base());
             break;
           default:
@@ -992,7 +1001,7 @@ class AssemblerX86Shared
           case Operand::REG:
             masm.notl_r(src.reg());
             break;
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.notl_m(src.disp(), src.base());
             break;
           default:
@@ -1030,7 +1039,7 @@ class AssemblerX86Shared
           case Operand::REG:
             masm.push_r(src.reg());
             break;
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.push_m(src.disp(), src.base());
             break;
           default:
@@ -1046,7 +1055,7 @@ class AssemblerX86Shared
           case Operand::REG:
             masm.pop_r(src.reg());
             break;
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.pop_m(src.disp(), src.base());
             break;
           default:
@@ -1102,7 +1111,7 @@ class AssemblerX86Shared
           case Operand::REG:
             masm.pinsrd_rr(src.reg(), dest.code());
             break;
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.pinsrd_mr(src.disp(), src.base(), dest.code());
             break;
           default:
@@ -1128,10 +1137,10 @@ class AssemblerX86Shared
           case Operand::REG:
             masm.cvtsi2sd_rr(src.reg(), dest.code());
             break;
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.cvtsi2sd_mr(src.disp(), src.base(), dest.code());
             break;
-          case Operand::MEM_SCALE:
+          case Operand::SCALE:
             masm.cvtsi2sd_mr(src.disp(), src.base(), src.index(), src.scale(), dest.code());
             break;
           default:
@@ -1152,10 +1161,10 @@ class AssemblerX86Shared
           case Operand::REG:
             masm.cvtsi2ss_rr(src.reg(), dest.code());
             break;
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.cvtsi2ss_mr(src.disp(), src.base(), dest.code());
             break;
-          case Operand::MEM_SCALE:
+          case Operand::SCALE:
             masm.cvtsi2ss_mr(src.disp(), src.base(), src.index(), src.scale(), dest.code());
             break;
           default:
@@ -1212,12 +1221,14 @@ class AssemblerX86Shared
           case Operand::FPREG:
             masm.addsd_rr(src.fpu(), dest.code());
             break;
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.addsd_mr(src.disp(), src.base(), dest.code());
             break;
-          case Operand::MEM_ADDRESS32:
+#ifdef JS_CPU_X86
+          case Operand::ADDRESS:
             masm.addsd_mr(src.address(), dest.code());
             break;
+#endif
           default:
             MOZ_ASSUME_UNREACHABLE("unexpected operand kind");
         }
@@ -1228,12 +1239,14 @@ class AssemblerX86Shared
           case Operand::FPREG:
             masm.addss_rr(src.fpu(), dest.code());
             break;
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.addss_mr(src.disp(), src.base(), dest.code());
             break;
-          case Operand::MEM_ADDRESS32:
+#ifdef JS_CPU_X86
+          case Operand::ADDRESS:
             masm.addss_mr(src.address(), dest.code());
             break;
+#endif
           default:
             MOZ_ASSUME_UNREACHABLE("unexpected operand kind");
         }
@@ -1252,7 +1265,7 @@ class AssemblerX86Shared
           case Operand::FPREG:
             masm.subsd_rr(src.fpu(), dest.code());
             break;
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.subsd_mr(src.disp(), src.base(), dest.code());
             break;
           default:
@@ -1265,7 +1278,7 @@ class AssemblerX86Shared
           case Operand::FPREG:
             masm.subss_rr(src.fpu(), dest.code());
             break;
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.subss_mr(src.disp(), src.base(), dest.code());
             break;
           default:
@@ -1282,7 +1295,7 @@ class AssemblerX86Shared
           case Operand::FPREG:
             masm.mulsd_rr(src.fpu(), dest.code());
             break;
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.mulsd_mr(src.disp(), src.base(), dest.code());
             break;
           default:
@@ -1295,7 +1308,7 @@ class AssemblerX86Shared
           case Operand::FPREG:
             masm.mulss_rr(src.fpu(), dest.code());
             break;
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.mulss_mr(src.disp(), src.base(), dest.code());
             break;
           default:
@@ -1320,7 +1333,7 @@ class AssemblerX86Shared
           case Operand::FPREG:
             masm.divsd_rr(src.fpu(), dest.code());
             break;
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.divsd_mr(src.disp(), src.base(), dest.code());
             break;
           default:
@@ -1333,7 +1346,7 @@ class AssemblerX86Shared
           case Operand::FPREG:
             masm.divss_rr(src.fpu(), dest.code());
             break;
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.divss_mr(src.disp(), src.base(), dest.code());
             break;
           default:
@@ -1376,7 +1389,7 @@ class AssemblerX86Shared
           case Operand::FPREG:
             masm.minsd_rr(src.fpu(), dest.code());
             break;
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.minsd_mr(src.disp(), src.base(), dest.code());
             break;
           default:
@@ -1393,7 +1406,7 @@ class AssemblerX86Shared
           case Operand::FPREG:
             masm.maxsd_rr(src.fpu(), dest.code());
             break;
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.maxsd_mr(src.disp(), src.base(), dest.code());
             break;
           default:
@@ -1403,7 +1416,7 @@ class AssemblerX86Shared
     void fisttp(const Operand &dest) {
         JS_ASSERT(HasSSE3());
         switch (dest.kind()) {
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.fisttp_m(dest.disp(), dest.base());
             break;
           default:
@@ -1412,7 +1425,7 @@ class AssemblerX86Shared
     }
     void fld(const Operand &dest) {
         switch (dest.kind()) {
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.fld_m(dest.disp(), dest.base());
             break;
           default:
@@ -1421,7 +1434,7 @@ class AssemblerX86Shared
     }
     void fstp(const Operand &src) {
         switch (src.kind()) {
-          case Operand::MEM_REG_DISP:
+          case Operand::REG_DISP:
             masm.fstp_m(src.disp(), src.base());
             break;
           default:
@@ -1464,12 +1477,12 @@ class AssemblerX86Shared
         *((int32_t *) dataLabel.raw() - 1) = toWrite.value;
     }
 
-    static void patchDataWithValueCheck(CodeLocationLabel data, ImmPtr newData,
-                                        ImmPtr expectedData) {
+    static void patchDataWithValueCheck(CodeLocationLabel data, ImmWord newData,
+                                        ImmWord expectedData) {
         // The pointer given is a pointer to *after* the data.
         uintptr_t *ptr = ((uintptr_t *) data.raw()) - 1;
-        JS_ASSERT(*ptr == (uintptr_t)expectedData.value);
-        *ptr = (uintptr_t)newData.value;
+        JS_ASSERT(*ptr == expectedData.value);
+        *ptr = newData.value;
     }
     static uint32_t nopSize() {
         return 1;
