@@ -82,53 +82,53 @@ nsPopupSetFrame::GetType() const
 }
 
 NS_IMETHODIMP
-nsPopupSetFrame::AppendFrames(ChildListID     aListID,
+nsPopupSetFrame::AppendFrames(nsIAtom*        aListName,
                               nsFrameList&    aFrameList)
 {
-  if (aListID == kPopupList) {
+  if (aListName == nsGkAtoms::popupList) {
     AddPopupFrameList(aFrameList);
     return NS_OK;
   }
-  return nsBoxFrame::AppendFrames(aListID, aFrameList);
+  return nsBoxFrame::AppendFrames(aListName, aFrameList);
 }
 
 NS_IMETHODIMP
-nsPopupSetFrame::RemoveFrame(ChildListID     aListID,
+nsPopupSetFrame::RemoveFrame(nsIAtom*        aListName,
                              nsIFrame*       aOldFrame)
 {
-  if (aListID == kPopupList) {
+  if (aListName == nsGkAtoms::popupList) {
     RemovePopupFrame(aOldFrame);
     return NS_OK;
   }
-  return nsBoxFrame::RemoveFrame(aListID, aOldFrame);
+  return nsBoxFrame::RemoveFrame(aListName, aOldFrame);
 }
 
 NS_IMETHODIMP
-nsPopupSetFrame::InsertFrames(ChildListID     aListID,
+nsPopupSetFrame::InsertFrames(nsIAtom*        aListName,
                               nsIFrame*       aPrevFrame,
                               nsFrameList&    aFrameList)
 {
-  if (aListID == kPopupList) {
+  if (aListName == nsGkAtoms::popupList) {
     AddPopupFrameList(aFrameList);
     return NS_OK;
   }
-  return nsBoxFrame::InsertFrames(aListID, aPrevFrame, aFrameList);
+  return nsBoxFrame::InsertFrames(aListName, aPrevFrame, aFrameList);
 }
 
 NS_IMETHODIMP
-nsPopupSetFrame::SetInitialChildList(ChildListID     aListID,
+nsPopupSetFrame::SetInitialChildList(nsIAtom*        aListName,
                                      nsFrameList&    aChildList)
 {
-  if (aListID == kPopupList) {
+  if (aListName == nsGkAtoms::popupList) {
     // XXXmats this asserts because we don't implement
-    // GetChildList(kPopupList) so nsCSSFrameConstructor
+    // GetChildList(nsGkAtoms::popupList) so nsCSSFrameConstructor
     // believes it's empty and calls us multiple times.
     //NS_ASSERTION(mPopupList.IsEmpty(),
     //             "SetInitialChildList on non-empty child list");
     AddPopupFrameList(aChildList);
     return NS_OK;
   }
-  return nsBoxFrame::SetInitialChildList(aListID, aChildList);
+  return nsBoxFrame::SetInitialChildList(aListName, aChildList);
 }
 
 void
@@ -231,26 +231,35 @@ nsPopupSetFrame::List(FILE* out, PRInt32 aIndent) const
   }
 
   // Output the children
+  nsIAtom* listName = nsnull;
+  PRInt32 listIndex = 0;
   PRBool outputOneList = PR_FALSE;
-  ChildListIterator lists(this);
-  for (; !lists.IsDone(); lists.Next()) {
-    if (outputOneList) {
-      IndentBy(out, aIndent);
-    }
-    outputOneList = PR_TRUE;
-    fprintf(out, "%s<\n", mozilla::layout::ChildListName(lists.CurrentID()));
-    nsFrameList::Enumerator childFrames(lists.CurrentList());
-    for (; !childFrames.AtEnd(); childFrames.Next()) {
-      nsIFrame* kid = childFrames.get();
-      // Verify the child frame's parent frame pointer is correct
-      NS_ASSERTION(kid->GetParent() == this, "bad parent frame pointer");
+  do {
+    nsIFrame* kid = GetFirstChild(listName);
+    if (nsnull != kid) {
+      if (outputOneList) {
+        IndentBy(out, aIndent);
+      }
+      outputOneList = PR_TRUE;
+      nsAutoString tmp;
+      if (nsnull != listName) {
+        listName->ToString(tmp);
+        fputs(NS_LossyConvertUTF16toASCII(tmp).get(), out);
+      }
+      fputs("<\n", out);
+      while (nsnull != kid) {
+        // Verify the child frame's parent frame pointer is correct
+        NS_ASSERTION(kid->GetParent() == (nsIFrame*)this, "bad parent frame pointer");
 
-      // Have the child frame list
-      kid->List(out, aIndent + 1);
+        // Have the child frame list
+        kid->List(out, aIndent + 1);
+        kid = kid->GetNextSibling();
+      }
+      IndentBy(out, aIndent);
+      fputs(">\n", out);
     }
-    IndentBy(out, aIndent);
-    fputs(">\n", out);
-  }
+    listName = GetAdditionalChildListName(listIndex++);
+  } while(nsnull != listName);
 
   // XXXmats the above is copy-pasted from nsContainerFrame::List which is lame,
   // clean this up after bug 399111 is implemented.
@@ -259,7 +268,9 @@ nsPopupSetFrame::List(FILE* out, PRInt32 aIndent) const
     fputs("<\n", out);
     ++aIndent;
     IndentBy(out, aIndent);
-    fputs(mozilla::layout::ChildListName(kPopupList), out);
+    nsAutoString tmp;
+    nsGkAtoms::popupList->ToString(tmp);
+    fputs(NS_LossyConvertUTF16toASCII(tmp).get(), out);
     fputs(" for ", out);
     ListTag(out);
     fputs(" <\n", out);

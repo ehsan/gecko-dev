@@ -128,7 +128,6 @@ static nsTArray<nsWindow*> gTopLevelWindows;
 static nsRefPtr<gl::GLContext> sGLContext;
 static bool sFailedToCreateGLContext = false;
 static bool sValidSurface;
-static bool sSurfaceExists = false;
 
 // Multitouch swipe thresholds in inches
 static const double SWIPE_MAX_PINCH_DELTA_INCHES = 0.4;
@@ -845,14 +844,9 @@ nsWindow::OnGlobalAndroidEvent(AndroidGeckoEvent *ae)
             break;
 
         case AndroidGeckoEvent::SURFACE_CREATED:
-            sSurfaceExists = true;
             break;
 
         case AndroidGeckoEvent::SURFACE_DESTROYED:
-            if (sGLContext && sValidSurface) {
-                sGLContext->ReleaseSurface();
-            }
-            sSurfaceExists = false;
             sValidSurface = false;
             break;
 
@@ -976,11 +970,6 @@ nsWindow::DrawTo(gfxASurface *targetSurface)
 void
 nsWindow::OnDraw(AndroidGeckoEvent *ae)
 {
-  
-    if (!sSurfaceExists) {
-        return;
-    }
-
     if (!IsTopLevel()) {
         ALOG("##### redraw for window %p, which is not a toplevel window -- sending to toplevel!", (void*) this);
         DumpWindows();
@@ -1060,10 +1049,6 @@ nsWindow::OnDraw(AndroidGeckoEvent *ae)
         }
     } else {
         int drawType = sview.BeginDrawing();
-
-        if (drawType == AndroidGeckoSurfaceView::DRAW_DISABLED) {
-            return;
-        }
 
         if (drawType == AndroidGeckoSurfaceView::DRAW_ERROR) {
             ALOG("##### BeginDrawing failed!");

@@ -106,7 +106,6 @@
 #include "nsAutoPtr.h"
 
 #include "nsBidiUtils.h"
-#include "nsPrintfCString.h"
 
 #include "gfxFont.h"
 #include "gfxContext.h"
@@ -1068,9 +1067,8 @@ CanTextCrossFrameBoundary(nsIFrame* aFrame, nsIAtom* aType)
     }
   } else {
     if (continuesTextRun) {
-      result.mFrameToScan = aFrame->GetFirstPrincipalChild();
-      result.mOverflowFrameToScan =
-        aFrame->GetFirstChild(nsIFrame::kOverflowList);
+      result.mFrameToScan = aFrame->GetFirstChild(nsnull);
+      result.mOverflowFrameToScan = aFrame->GetFirstChild(nsGkAtoms::overflowList);
       NS_WARN_IF_FALSE(!result.mOverflowFrameToScan,
                        "Scanning overflow inline frames is something we should avoid");
       result.mScanSiblings = PR_TRUE;
@@ -1196,7 +1194,7 @@ BuildTextRuns(gfxContext* aContext, nsTextFrame* aForFrame,
     // just one line
     scanner.SetAtStartOfLine();
     scanner.SetCommonAncestorWithLastFrame(nsnull);
-    nsIFrame* child = aLineContainer->GetFirstPrincipalChild();
+    nsIFrame* child = aLineContainer->GetFirstChild(nsnull);
     while (child) {
       scanner.ScanFrame(child);
       child = child->GetNextSibling();
@@ -6630,7 +6628,8 @@ RoundOut(const gfxRect& aRect)
 nsRect
 nsTextFrame::ComputeTightBounds(gfxContext* aContext) const
 {
-  if (GetStyleContext()->HasTextDecorationLines() ||
+  if ((GetStyleContext()->HasTextDecorationLines() &&
+       eCompatibility_NavQuirks == PresContext()->CompatibilityMode()) ||
       (GetStateBits() & TEXT_HYPHEN_BREAK)) {
     // This is conservative, but OK.
     return GetVisualOverflowRect();
@@ -6721,7 +6720,7 @@ nsTextFrame::SetLength(PRInt32 aLength, nsLineLayout* aLineLayout,
       if (NS_SUCCEEDED(rv)) {
         nsTextFrame* next = static_cast<nsTextFrame*>(newFrame);
         nsFrameList temp(next, next);
-        GetParent()->InsertFrames(kNoReflowPrincipalList, this, temp);
+        GetParent()->InsertFrames(nsGkAtoms::nextBidi, this, temp);
         f = next;
       }
     }
@@ -6763,7 +6762,7 @@ nsTextFrame::SetLength(PRInt32 aLength, nsLineLayout* aLineLayout,
       // since the bidi resolver may try to handle the destroyed frame later
       // and crash
       nsSplittableFrame::RemoveFromFlow(f);
-      f->GetParent()->RemoveFrame(kNoReflowPrincipalList, f);
+      f->GetParent()->RemoveFrame(nsGkAtoms::nextBidi, f);
     }
     f = next;
   }

@@ -202,7 +202,7 @@ nsSVGForeignObjectFrame::PaintSVG(nsSVGRenderState *aContext,
   if (IsDisabled())
     return NS_OK;
 
-  nsIFrame* kid = GetFirstPrincipalChild();
+  nsIFrame* kid = GetFirstChild(nsnull);
   if (!kid)
     return NS_OK;
 
@@ -287,7 +287,7 @@ nsSVGForeignObjectFrame::GetFrameForPoint(const nsPoint &aPoint)
   if (IsDisabled() || (GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD))
     return nsnull;
 
-  nsIFrame* kid = GetFirstPrincipalChild();
+  nsIFrame* kid = GetFirstChild(nsnull);
   if (!kid)
     return nsnull;
 
@@ -490,7 +490,7 @@ void nsSVGForeignObjectFrame::RequestReflow(nsIPresShell::IntrinsicDirty aType)
     // If we haven't had an InitialUpdate yet, nothing to do.
     return;
 
-  nsIFrame* kid = GetFirstPrincipalChild();
+  nsIFrame* kid = GetFirstChild(nsnull);
   if (!kid)
     return;
 
@@ -519,7 +519,7 @@ nsSVGForeignObjectFrame::MaybeReflowFromOuterSVGFrame()
     return;
   }
 
-  nsIFrame* kid = GetFirstPrincipalChild();
+  nsIFrame* kid = GetFirstChild(nsnull);
 
   // If we're already scheduled to reflow (if we or our kid is dirty) we don't
   // want to reflow now or else our presShell will do extra work trying to
@@ -555,7 +555,7 @@ nsSVGForeignObjectFrame::DoReflow()
     return;
 
   nsPresContext *presContext = PresContext();
-  nsIFrame* kid = GetFirstPrincipalChild();
+  nsIFrame* kid = GetFirstChild(nsnull);
   if (!kid)
     return;
 

@@ -59,6 +59,9 @@ function getBrowser() {
 
 const kBrowserViewZoomLevelPrecision = 10000;
 
+const kDefaultBrowserWidth = 800;
+const kFallbackBrowserWidth = 980;
+
 // allow panning after this timeout on pages with registered touch listeners
 const kTouchTimeout = 300;
 
@@ -154,13 +157,6 @@ var Browser = {
   pageScrollbox: null,
   pageScrollboxScroller: null,
   styles: {},
-
-  get defaultBrowserWidth() {
-    delete this.defaultBrowserWidth;
-    var width = Services.prefs.getIntPref("browser.viewport.desktopWidth");
-    this.defaultBrowserWidth = width;
-    return width;
-  },
 
   startup: function startup() {
     var self = this;
@@ -326,12 +322,6 @@ var Browser = {
     os.addObserver(SessionHistoryObserver, "browser:purge-session-history", false);
     os.addObserver(ContentCrashObserver, "ipc:content-shutdown", false);
     os.addObserver(MemoryObserver, "memory-pressure", false);
-    os.addObserver(ActivityObserver, "application-background", false);
-    os.addObserver(ActivityObserver, "application-foreground", false);
-    os.addObserver(ActivityObserver, "system-active", false);
-    os.addObserver(ActivityObserver, "system-idle", false);
-    os.addObserver(ActivityObserver, "system-display-on", false);
-    os.addObserver(ActivityObserver, "system-display-off", false);
 
     // Listens for change in the viewable area
 #if MOZ_PLATFORM_MAEMO == 6
@@ -382,7 +372,6 @@ var Browser = {
       this.addTab(commandURL || this.getHomePage(), true);
     }
 
-    messageManager.addMessageListener("MozScrolledAreaChanged", this);
     messageManager.addMessageListener("Browser:ViewportMetadata", this);
     messageManager.addMessageListener("Browser:CanCaptureMouse:Return", this);
     messageManager.addMessageListener("Browser:FormSubmit", this);
@@ -482,7 +471,6 @@ var Browser = {
   shutdown: function shutdown() {
     BrowserUI.uninit();
 
-    messageManager.removeMessageListener("MozScrolledAreaChanged", this);
     messageManager.removeMessageListener("Browser:ViewportMetadata", this);
     messageManager.removeMessageListener("Browser:FormSubmit", this);
     messageManager.removeMessageListener("Browser:KeyPress", this);
@@ -498,12 +486,6 @@ var Browser = {
     os.removeObserver(SessionHistoryObserver, "browser:purge-session-history");
     os.removeObserver(ContentCrashObserver, "ipc:content-shutdown");
     os.removeObserver(MemoryObserver, "memory-pressure");
-    os.removeObserver(ActivityObserver, "application-background", false);
-    os.removeObserver(ActivityObserver, "application-foreground", false);
-    os.removeObserver(ActivityObserver, "system-active", false);
-    os.removeObserver(ActivityObserver, "system-idle", false);
-    os.removeObserver(ActivityObserver, "system-display-on", false);
-    os.removeObserver(ActivityObserver, "system-display-off", false);
 
     window.controllers.removeController(this);
     window.controllers.removeController(BrowserUI);
@@ -1185,12 +1167,6 @@ var Browser = {
     let browser = aMessage.target;
 
     switch (aMessage.name) {
-      case "MozScrolledAreaChanged": {
-        let tab = this.getTabForBrowser(browser);
-        if (tab)
-          tab.scrolledAreaChanged();
-        break;
-      }
       case "Browser:ViewportMetadata": {
         let tab = this.getTabForBrowser(browser);
         // Some browser such as iframes loaded dynamically into the chrome UI
@@ -1541,6 +1517,7 @@ Browser.WebProgress.prototype = {
             CrashReporter.annotateCrashReport("URL", spec);
 #endif
           this._waitForLoad(tab);
+          tab.useFallbackWidth = false;
         }
 
         let event = document.createEvent("UIEvents");
@@ -1592,12 +1569,10 @@ Browser.WebProgress.prototype = {
 
   _waitForLoad: function _waitForLoad(aTab) {
     let browser = aTab.browser;
-
-    aTab._firstPaint = false;
+    browser.messageManager.removeMessageListener("MozScrolledAreaChanged", aTab.scrolledAreaChanged);
 
     browser.messageManager.addMessageListener("Browser:FirstPaint", function firstPaintListener(aMessage) {
       browser.messageManager.removeMessageListener(aMessage.name, arguments.callee);
-      aTab._firstPaint = true;
 
       // We're about to have new page content, so scroll the content area
       // so the new paints will draw correctly.
@@ -1608,13 +1583,12 @@ Browser.WebProgress.prototype = {
                                        Math.floor(json.y * browser.scale));
         if (json.x == 0 && json.y == 0)
           Browser.pageScrollboxScroller.scrollTo(0, 0);
-        else
-          Browser.pageScrollboxScroller.scrollTo(0, Number.MAX_VALUE);
       }
 
-      aTab.scrolledAreaChanged(true);
+      aTab.scrolledAreaChanged();
       aTab.updateThumbnail();
 
+      browser.messageManager.addMessageListener("MozScrolledAreaChanged", aTab.scrolledAreaChanged);
       aTab.updateContentCapture();
     });
   }
@@ -2611,34 +2585,6 @@ var MemoryObserver = {
   }
 };
 
-var ActivityObserver = {
-  _inBackground : false,
-  _notActive : false,
-  _isDisplayOff : false,
-  observe: function ao_observe(aSubject, aTopic, aData) {
-    if (aTopic == "application-background") {
-      this._inBackground = true;
-    } else if (aTopic == "application-foreground") {
-      this._inBackground = false;
-    } else if (aTopic == "system-idle") {
-      this._notActive = true;
-    } else if (aTopic == "system-active") {
-      this._notActive = false;
-    } else if (aTopic == "system-display-on") {
-      this._isDisplayOff = false;
-    } else if (aTopic == "system-display-off") {
-      this._isDisplayOff = true;
-    }
-    let activeTabState = !this._inBackground && !this._notActive && !this._isDisplayOff;
-    if (Browser.selectedTab.active != activeTabState) {
-      // On Maemo all backgrounded applications getting portrait orientation
-      // so if browser had landscape mode then we need timeout in order
-      // to finish last rotate/paint operation and have nice lookine browser in TS
-      setTimeout(function() { Browser.selectedTab.active = activeTabState; }, 0);
-    }
-  }
-};
-
 function getNotificationBox(aBrowser) {
   return Browser.getNotificationBox(aBrowser);
 }
@@ -2700,6 +2646,7 @@ function Tab(aURI, aParams) {
   this._metadata = null;
 
   this.contentMightCaptureMouse = false;
+  this.useFallbackWidth = false;
   this.owner = null;
 
   this.hostChanged = false;
@@ -2715,6 +2662,8 @@ function Tab(aURI, aParams) {
 
   // default tabs to inactive (i.e. no display port)
   this.active = false;
+
+  this.scrolledAreaChanged = this.scrolledAreaChanged.bind(this);
 }
 
 Tab.prototype = {
@@ -2794,8 +2743,8 @@ Tab.prototype = {
       } else if (!validW && validH) {
         viewportW = viewportH * (screenW / screenH);
       } else if (!validW && !validH) {
-        viewportW = Browser.defaultBrowserWidth;
-        viewportH = Browser.defaultBrowserWidth * (screenH / screenW);
+        viewportW = this.useFallbackWidth ? kFallbackBrowserWidth : kDefaultBrowserWidth;
+        viewportH = kDefaultBrowserWidth * (screenH / screenW);
       }
     }
 
@@ -2955,16 +2904,16 @@ Tab.prototype = {
     this._defaultZoomLevel = this._browser.scale;
   },
 
-  scrolledAreaChanged: function scrolledAreaChanged(firstPaint) {
+  scrolledAreaChanged: function scrolledAreaChanged() {
     if (!this._browser)
       return;
 
-    if (firstPaint) {
-      // You only get one shot, do not miss your chance to reflow.
-      this.updateViewportSize();
-    }
-
     this.updateDefaultZoomLevel();
+
+    if (!this.useFallbackWidth && this._browser.contentDocumentWidth > kDefaultBrowserWidth)
+      this.useFallbackWidth = true;
+
+    this.updateViewportSize();
   },
 
   /**
@@ -2973,7 +2922,7 @@ Tab.prototype = {
    */
   updateDefaultZoomLevel: function updateDefaultZoomLevel() {
     let browser = this._browser;
-    if (!browser || !this._firstPaint)
+    if (!browser)
       return;
 
     let isDefault = this.isDefaultZoomLevel();
@@ -2981,7 +2930,8 @@ Tab.prototype = {
     if (isDefault) {
       if (browser.scale != this._defaultZoomLevel) {
         browser.scale = this._defaultZoomLevel;
-      } else {
+      }
+      else {
         // If the scale level has not changed we want to be sure the content
         // render correctly since the page refresh process could have been
         // stalled during page load. In this case if the page has the exact
@@ -3205,6 +3155,7 @@ var ViewableAreaObserver = {
       return;
 
     // Guess if the window has been resize to handle a virtual keyboard
+    let isDueToKeyboard = (newHeight != oldHeight && newWidth == oldWidth);
     this.isKeyboardOpened = (newHeight < oldHeight && newWidth == oldWidth);
 
     Browser.styles["viewable-height"].height = newHeight + "px";
@@ -3213,23 +3164,20 @@ var ViewableAreaObserver = {
     Browser.styles["viewable-width"].width = newWidth + "px";
     Browser.styles["viewable-width"].maxWidth = newWidth + "px";
 
-    // Don't update the viewport if screen height is shrinking, which typically
-    // means the keyboard appeared. This helps smooth out the experience of our
-    // form filler.
-    if (newHeight > oldHeight || newWidth != oldWidth) {
-      let startup = !oldHeight && !oldWidth;
+    let startup = !oldHeight && !oldWidth;
+    if (!isDueToKeyboard) {
       for (let i = Browser.tabs.length - 1; i >= 0; i--) {
         let tab = Browser.tabs[i];
         let oldContentWindowWidth = tab.browser.contentWindowWidth;
         tab.updateViewportSize(); // contentWindowWidth may change here.
-
+  
         // Don't bother updating the zoom level on startup
         if (!startup) {
           // If the viewport width is still the same, the page layout has not
           // changed, so we can keep keep the same content on-screen.
           if (tab.browser.contentWindowWidth == oldContentWindowWidth)
             tab.restoreViewportPosition(oldWidth, newWidth);
-
+  
           tab.updateDefaultZoomLevel();
         }
       }

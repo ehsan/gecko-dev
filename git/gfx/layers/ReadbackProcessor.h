@@ -40,7 +40,6 @@
 
 #include "ReadbackLayer.h"
 #include "ThebesLayerBuffer.h"
-#include "nsTArray.h"
 
 namespace mozilla {
 namespace layers {

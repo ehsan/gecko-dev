@@ -51,11 +51,18 @@
 #define MULTIACCESS "multiaccess:"
 
 
-/* path stuff (was machine dependent) used by dbinit.c and pk11db.c */
+/* machine dependent path stuff used by dbinit.c and pk11db.c */
+#ifdef macintosh
+#define PATH_SEPARATOR ":"
+#define SECMOD_DB "Security Modules"
+#define CERT_DB_FMT "%sCertificates%s"
+#define KEY_DB_FMT "%sKey Database%s"
+#else
 #define PATH_SEPARATOR "/"
 #define SECMOD_DB "secmod.db"
 #define CERT_DB_FMT "%scert%s.db"
 #define KEY_DB_FMT "%skey%s.db"
+#endif
 
 SEC_BEGIN_PROTOS
 
@@ -190,20 +197,20 @@ SEC_END_PROTOS
 
 #ifndef XP_UNIX
 
-#define NO_FORK_CHECK
+#define NO_CHECK_FORK
 
 #endif
 
-#ifndef NO_FORK_CHECK
+#ifndef NO_CHECK_FORK
 
-extern PRBool lg_parentForkedAfterC_Initialize;
-#define SKIP_AFTER_FORK(x) if (!lg_parentForkedAfterC_Initialize) x
+extern PRBool parentForkedAfterC_Initialize;
+#define SKIP_AFTER_FORK(x) if (!parentForkedAfterC_Initialize) x
 
 #else
 
 #define SKIP_AFTER_FORK(x) x
 
-#endif /* NO_FORK_CHECK */
+#endif /* NO_CHECK_FORK */
 
 #endif /* _LGDB_H_ */
 

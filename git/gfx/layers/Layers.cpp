@@ -46,7 +46,6 @@
 #include "gfxPlatform.h"
 #include "ReadbackLayer.h"
 #include "gfxUtils.h"
-#include "nsPrintfCString.h"
 #include "mozilla/Util.h"
 
 using namespace mozilla::layers;

@@ -60,7 +60,6 @@
 #include "gfxMatrix.h"
 #include "nsFrameList.h"
 #include "nsAlgorithm.h"
-#include "mozilla/layout/FrameChildList.h"
 #include "FramePropertyTable.h"
 
 /**
@@ -503,7 +502,7 @@ typedef PRBool nsDidReflowStatus;
  * A frame in the layout model. This interface is supported by all frame
  * objects.
  *
- * Frames can have multiple child lists: the default child list
+ * Frames can have multiple child lists: the default unnamed child list
  * (referred to as the <i>principal</i> child list, and additional named
  * child lists. There is an ordering of frames within a child list, but
  * there is no order defined between frames in different child lists of
@@ -526,11 +525,6 @@ public:
   typedef mozilla::FramePropertyDescriptor FramePropertyDescriptor;
   typedef mozilla::FrameProperties FrameProperties;
   typedef mozilla::layers::Layer Layer;
-  typedef mozilla::layout::FrameChildList ChildList;
-  typedef mozilla::layout::FrameChildListID ChildListID;
-  typedef mozilla::layout::FrameChildListIDs ChildListIDs;
-  typedef mozilla::layout::FrameChildListIterator ChildListIterator;
-  typedef mozilla::layout::FrameChildListArrayIterator ChildListArrayIterator;
 
   NS_DECL_QUERYFRAME_TARGET(nsIFrame)
 
@@ -586,7 +580,8 @@ public:
    * This is only called once for a given child list, and won't be called
    * at all for child lists with no initial list of frames.
    *
-   * @param   aListID the child list identifier.
+   * @param   aListName the name of the child list. A NULL pointer for the atom
+   *            name means the unnamed principal child list
    * @param   aChildList list of child frames. Each of the frames has its
    *            NS_FRAME_IS_DIRTY bit set.  Must not be empty.
    * @return  NS_ERROR_INVALID_ARG if there is no child list with the specified
@@ -598,7 +593,7 @@ public:
    *            child list.
    * @see     #Init()
    */
-  NS_IMETHOD  SetInitialChildList(ChildListID     aListID,
+  NS_IMETHOD  SetInitialChildList(nsIAtom*        aListName,
                                   nsFrameList&    aChildList) = 0;
 
   /**
@@ -606,7 +601,8 @@ public:
    * list.  The implementation should append the frames to the specified
    * child list and then generate a reflow command.
    *
-   * @param   aListID the child list identifier.
+   * @param   aListName the name of the child list. A NULL pointer for the atom
+   *            name means the unnamed principal child list
    * @param   aFrameList list of child frames to append. Each of the frames has
    *            its NS_FRAME_IS_DIRTY bit set.  Must not be empty.
    * @return  NS_ERROR_INVALID_ARG if there is no child list with the specified
@@ -616,7 +612,7 @@ public:
    *            aChildList in the process of moving the frames over to its own
    *            child list.
    */
-  NS_IMETHOD AppendFrames(ChildListID     aListID,
+  NS_IMETHOD AppendFrames(nsIAtom*        aListName,
                           nsFrameList&    aFrameList) = 0;
 
   /**
@@ -624,7 +620,8 @@ public:
    * list.  The implementation should insert the new frames into the specified
    * child list and then generate a reflow command.
    *
-   * @param   aListID the child list identifier.
+   * @param   aListName the name of the child list. A NULL pointer for the atom
+   *            name means the unnamed principal child list
    * @param   aPrevFrame the frame to insert frames <b>after</b>
    * @param   aFrameList list of child frames to insert <b>after</b> aPrevFrame.
    *            Each of the frames has its NS_FRAME_IS_DIRTY bit set
@@ -635,7 +632,7 @@ public:
    *            aChildList in the process of moving the frames over to its own
    *            child list.
    */
-  NS_IMETHOD InsertFrames(ChildListID     aListID,
+  NS_IMETHOD InsertFrames(nsIAtom*        aListName,
                           nsIFrame*       aPrevFrame,
                           nsFrameList&    aFrameList) = 0;
 
@@ -645,7 +642,8 @@ public:
    * and then generate a reflow command. The implementation is responsible
    * for destroying aOldFrame (the caller mustn't destroy aOldFrame).
    *
-   * @param   aListID the child list identifier.
+   * @param   aListName the name of the child list. A NULL pointer for the atom
+   *            name means the unnamed principal child list
    * @param   aOldFrame the frame to remove
    * @return  NS_ERROR_INVALID_ARG if there is no child list with the specified
    *            name,
@@ -654,7 +652,7 @@ public:
    *          NS_ERROR_UNEXPECTED if the frame is an atomic frame,
    *          NS_OK otherwise
    */
-  NS_IMETHOD RemoveFrame(ChildListID     aListID,
+  NS_IMETHOD RemoveFrame(nsIAtom*        aListName,
                          nsIFrame*       aOldFrame) = 0;
 
   /**
@@ -1020,48 +1018,37 @@ public:
   }
 
   /**
+   * Used to iterate the list of additional child list names. Returns the atom
+   * name for the additional child list at the specified 0-based index, or a
+   * NULL pointer if there are no more named child lists.
+   *
+   * Note that the list is only the additional named child lists and does not
+   * include the unnamed principal child list.
+   */
+  virtual nsIAtom* GetAdditionalChildListName(PRInt32 aIndex) const = 0;
+
+  /**
    * Get the specified child list.
    *
-   * @param   aListID identifies the requested child list.
-   * @return  the child list.  If the requested list is unsupported by this
-   *          frame type, an empty list will be returned.
+   * @param   aListName the name of the child list. A NULL pointer for the atom
+   *            name means the unnamed principal child list
+   * @return  the child list.  If this is an unknown list name, an empty list
+   *            will be returned.
+   * @see     #GetAdditionalListName()
    */
   // XXXbz if all our frame storage were actually backed by nsFrameList, we
   // could make this return a const reference...  nsBlockFrame is the only real
   // culprit here.  Make sure to assign the return value of this function into
   // a |const nsFrameList&|, not an nsFrameList.
-  virtual nsFrameList GetChildList(ChildListID aListID) const = 0;
-  nsFrameList PrincipalChildList() { return GetChildList(kPrincipalList); }
-  virtual void GetChildLists(nsTArray<ChildList>* aLists) const = 0;
+  virtual nsFrameList GetChildList(nsIAtom* aListName) const = 0;
   // XXXbz this method should go away
-  nsIFrame* GetFirstChild(ChildListID aListID) const {
-    return GetChildList(aListID).FirstChild();
+  nsIFrame* GetFirstChild(nsIAtom* aListName) const {
+    return GetChildList(aListName).FirstChild();
   }
   // XXXmats this method should also go away then
-  nsIFrame* GetLastChild(ChildListID aListID) const {
-    return GetChildList(aListID).LastChild();
+  nsIFrame* GetLastChild(nsIAtom* aListName) const {
+    return GetChildList(aListName).LastChild();
   }
-  nsIFrame* GetFirstPrincipalChild() const {
-    return GetFirstChild(kPrincipalList);
-  }
-
-  // The individual concrete child lists.
-  static const ChildListID kPrincipalList = mozilla::layout::kPrincipalList;
-  static const ChildListID kAbsoluteList = mozilla::layout::kAbsoluteList;
-  static const ChildListID kBulletList = mozilla::layout::kBulletList;
-  static const ChildListID kCaptionList = mozilla::layout::kCaptionList;
-  static const ChildListID kColGroupList = mozilla::layout::kColGroupList;
-  static const ChildListID kExcessOverflowContainersList = mozilla::layout::kExcessOverflowContainersList;
-  static const ChildListID kFixedList = mozilla::layout::kFixedList;
-  static const ChildListID kFloatList = mozilla::layout::kFloatList;
-  static const ChildListID kOverflowContainersList = mozilla::layout::kOverflowContainersList;
-  static const ChildListID kOverflowList = mozilla::layout::kOverflowList;
-  static const ChildListID kOverflowOutOfFlowList = mozilla::layout::kOverflowOutOfFlowList;
-  static const ChildListID kPopupList = mozilla::layout::kPopupList;
-  static const ChildListID kPushedFloatsList = mozilla::layout::kPushedFloatsList;
-  static const ChildListID kSelectPopupList = mozilla::layout::kSelectPopupList;
-  // A special alias for kPrincipalList that do not request reflow.
-  static const ChildListID kNoReflowPrincipalList = mozilla::layout::kNoReflowPrincipalList;
 
   /**
    * Child frames are linked together in a doubly-linked list
@@ -2593,7 +2580,7 @@ NS_PTR_TO_INT32(frame->Properties().Get(nsIFrame::EmbeddingLevelProperty()))
   {
     // box layout ends at box-wrapped frames, so don't allow these frames
     // to report child boxes.
-    return IsBoxFrame() ? GetFirstPrincipalChild() : nsnull;
+    return IsBoxFrame() ? GetFirstChild(nsnull) : nsnull;
   }
   nsIBox* GetNextBox() const
   {

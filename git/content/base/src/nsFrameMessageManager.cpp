@@ -177,13 +177,6 @@ nsFrameMessageManager::LoadFrameScript(const nsAString& aURL,
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsFrameMessageManager::RemoveDelayedFrameScript(const nsAString& aURL)
-{
-  mPendingScripts.RemoveElement(aURL);
-  return NS_OK;
-}
-
 static JSBool
 JSONCreator(const jschar* aBuf, uint32 aLen, void* aData)
 {

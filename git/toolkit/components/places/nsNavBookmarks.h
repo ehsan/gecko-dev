@@ -228,9 +228,12 @@ public:
    *        Id of the item to fetch information for.
    * @param aBookmark
    *        BookmarkData to store the information.
+   * @param aInvalidateCache
+   *        True if the cache should discard its entry after the fetching.
    */
   nsresult FetchItemInfo(PRInt64 aItemId,
-                         BookmarkData& _bookmark);
+                         BookmarkData& _bookmark,
+                         bool aInvalidateCache);
 
   /**
    * Finalize all internal statements.
@@ -518,7 +521,7 @@ private:
       nsNavBookmarks* bookmarks = nsNavBookmarks::GetBookmarksService();
       NS_ENSURE_TRUE(bookmarks, NS_ERROR_OUT_OF_MEMORY);
       BookmarkData folder;
-      nsresult rv = bookmarks->FetchItemInfo(mID, folder);
+      nsresult rv = bookmarks->FetchItemInfo(mID, folder, true);
       // TODO (Bug 656935): store the BookmarkData struct instead.
       mParent = folder.parentId;
       mIndex = folder.position;

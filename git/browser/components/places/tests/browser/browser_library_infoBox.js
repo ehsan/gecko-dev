@@ -146,7 +146,8 @@ gTests.push({
 
     menuNode.containerOpen = false;
 
-    waitForClearHistory(nextTest);
+    bhist.removeAllPages();
+    nextTest();
   }
 });
 

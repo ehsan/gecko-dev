@@ -1,7 +1,9 @@
+dump("======================== Remote Head loaded ========================\n");
+
 // XXX Those constants are here because EventUtils.js need them
-window = content.document.defaultView.wrappedJSObject;
-Element = Components.interfaces.nsIDOMElement;
-netscape = window.netscape;
+const window = content.document.defaultView.wrappedJSObject;
+const Element = Components.interfaces.nsIDOMElement;
+const netscape = window.netscape;
 
 let AsyncTests = {
   _tests: [],

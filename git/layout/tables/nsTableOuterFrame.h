@@ -104,24 +104,25 @@ public:
   
   virtual PRBool IsContainingBlock() const;
 
-  NS_IMETHOD SetInitialChildList(ChildListID     aListID,
+  NS_IMETHOD SetInitialChildList(nsIAtom*        aListName,
                                  nsFrameList&    aChildList);
  
-  virtual nsFrameList GetChildList(ChildListID aListID) const;
-  virtual void GetChildLists(nsTArray<ChildList>* aLists) const;
+  virtual nsFrameList GetChildList(nsIAtom* aListName) const;
 
-  NS_IMETHOD AppendFrames(ChildListID     aListID,
+  virtual nsIAtom* GetAdditionalChildListName(PRInt32 aIndex) const;
+
+  NS_IMETHOD AppendFrames(nsIAtom*        aListName,
                           nsFrameList&    aFrameList);
 
-  NS_IMETHOD InsertFrames(ChildListID     aListID,
+  NS_IMETHOD InsertFrames(nsIAtom*        aListName,
                           nsIFrame*       aPrevFrame,
                           nsFrameList&    aFrameList);
 
-  NS_IMETHOD RemoveFrame(ChildListID     aListID,
+  NS_IMETHOD RemoveFrame(nsIAtom*        aListName,
                          nsIFrame*       aOldFrame);
 
   virtual nsIFrame* GetContentInsertionFrame() {
-    return GetFirstPrincipalChild()->GetContentInsertionFrame();
+    return GetFirstChild(nsnull)->GetContentInsertionFrame();
   }
 
 #ifdef ACCESSIBILITY

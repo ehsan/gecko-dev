@@ -1345,7 +1345,6 @@ var SelectionHelper = {
     switch (aEvent.type) {
       case "PanBegin":
         window.removeEventListener("PanBegin", this, true);
-        window.removeEventListener("TapUp", this, true);
         window.addEventListener("PanFinished", this, true);
         this._start.hidden = true;
         this._end.hidden = true;
@@ -1366,7 +1365,6 @@ var SelectionHelper = {
           window.addEventListener("TapMove", this, true);
         } else {
           window.addEventListener("PanBegin", this, true);
-          window.addEventListener("TapUp", this, true);
           this.target = null;
         }
         break;
@@ -1377,9 +1375,8 @@ var SelectionHelper = {
           this.deltaX = -1;
           this.deltaY = -1;
         } else {
-          window.removeEventListener("PanBegin", this, true);
-          window.removeEventListener("TapUp", this, true);
-          this.hide(aEvent);
+          window.removeEventListener("PanBegin", self, true);
+          self.hide(aEvent);
         }
         break;
       case "TapMove":
@@ -1490,16 +1487,7 @@ var BadgeHandlers = {
       aPopup.registerBadgeHandler(handlers[i].url, handlers[i]);
   },
 
-  get _pk11DB() {
-    delete this._pk11DB;
-    return this._pk11DB = Cc["@mozilla.org/security/pk11tokendb;1"].getService(Ci.nsIPK11TokenDB);
-  },
-
   getLogin: function(aURL) {
-    let token = this._pk11DB.getInternalKeyToken();
-    if (!token.isLoggedIn())
-      return {username: "", password: ""};
-
     let lm = Cc["@mozilla.org/login-manager;1"].getService(Ci.nsILoginManager);
     let logins = lm.findLogins({}, aURL, aURL, null);
     let username = logins.length > 0 ? logins[0].username : "";

@@ -491,7 +491,7 @@ nsComputedDOMStyle::GetPropertyCSSValue(const nsAString& aPropertyName,
       if (type == nsGkAtoms::tableOuterFrame) {
         // If the frame is an outer table frame then we should get the style
         // from the inner table frame.
-        mInnerFrame = mOuterFrame->GetFirstPrincipalChild();
+        mInnerFrame = mOuterFrame->GetFirstChild(nsnull);
         NS_ASSERTION(mInnerFrame, "Outer table must have an inner");
         NS_ASSERTION(!mInnerFrame->GetNextSibling(),
                      "Outer table frames should have just one child, "
@@ -2449,35 +2449,19 @@ nsComputedDOMStyle::DoGetTextIndent()
 nsIDOMCSSValue*
 nsComputedDOMStyle::DoGetTextOverflow()
 {
+  nsROCSSPrimitiveValue *val = GetROCSSPrimitiveValue();
   const nsStyleTextReset *style = GetStyleTextReset();
-  nsROCSSPrimitiveValue *left = GetROCSSPrimitiveValue();
-  if (style->mTextOverflow.mLeft.mType == NS_STYLE_TEXT_OVERFLOW_STRING) {
-    nsString str;
-    nsStyleUtil::AppendEscapedCSSString(style->mTextOverflow.mLeft.mString, str);
-    left->SetString(str);
-  } else {
-    left->SetIdent(
-      nsCSSProps::ValueToKeywordEnum(style->mTextOverflow.mLeft.mType,
-                                     nsCSSProps::kTextOverflowKTable));
-  }
-  if (style->mTextOverflow.mLeft == style->mTextOverflow.mRight) {
-    return left;
-  }
-  nsROCSSPrimitiveValue *right = GetROCSSPrimitiveValue();
-  if (style->mTextOverflow.mRight.mType == NS_STYLE_TEXT_OVERFLOW_STRING) {
-    nsString str;
-    nsStyleUtil::AppendEscapedCSSString(style->mTextOverflow.mRight.mString, str);
-    right->SetString(str);
-  } else {
-    right->SetIdent(
-      nsCSSProps::ValueToKeywordEnum(style->mTextOverflow.mRight.mType,
-                                     nsCSSProps::kTextOverflowKTable));
-  }
 
-  nsDOMCSSValueList *valueList = GetROCSSValueList(PR_FALSE);
-  valueList->AppendCSSValue(left);
-  valueList->AppendCSSValue(right);
-  return valueList;
+  if (style->mTextOverflow.mType == NS_STYLE_TEXT_OVERFLOW_STRING) {
+    nsString str;
+    nsStyleUtil::AppendEscapedCSSString(style->mTextOverflow.mString, str);
+    val->SetString(str);
+  } else {
+    val->SetIdent(
+      nsCSSProps::ValueToKeywordEnum(style->mTextOverflow.mType,
+                                     nsCSSProps::kTextOverflowKTable));
+  }
+  return val;
 }
 
 nsIDOMCSSValue*
@@ -3188,7 +3172,7 @@ nsComputedDOMStyle::GetAbsoluteOffset(mozilla::css::Side aSide)
       // the containing block is the viewport, which _does_ include
       // scrollbars.  We have to do some extra work.
       // the first child in the default frame list is what we want
-      nsIFrame* scrollingChild = container->GetFirstPrincipalChild();
+      nsIFrame* scrollingChild = container->GetFirstChild(nsnull);
       nsIScrollableFrame *scrollFrame = do_QueryFrame(scrollingChild);
       if (scrollFrame) {
         scrollbarSizes = scrollFrame->GetActualScrollbarSizes();

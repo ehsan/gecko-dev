@@ -467,23 +467,32 @@ nsBlockFrame::List(FILE* out, PRInt32 aIndent) const
     fputs(">\n", out);
   }
 
-  // skip the principal list - we printed the lines above
-  // skip the overflow list - we printed the overflow lines above
-  ChildListIterator lists(this);
-  ChildListIDs skip(kPrincipalList | kOverflowList);
-  for (; !lists.IsDone(); lists.Next()) {
-    if (skip.Contains(lists.CurrentID())) {
-      continue;
+  nsIAtom* listName = nsnull;
+  PRInt32 listIndex = 0;
+  for (;;) {
+    listName = GetAdditionalChildListName(listIndex++);
+    if (nsGkAtoms::overflowList == listName) {
+      continue; // skip the overflow list - we printed the overflow lines above
     }
-    IndentBy(out, aIndent);
-    fprintf(out, "%s<\n", mozilla::layout::ChildListName(lists.CurrentID()));
-    nsFrameList::Enumerator childFrames(lists.CurrentList());
-    for (; !childFrames.AtEnd(); childFrames.Next()) {
-      nsIFrame* kid = childFrames.get();
-      kid->List(out, aIndent + 1);
+    if (nsnull == listName) {
+      break;
     }
-    IndentBy(out, aIndent);
-    fputs(">\n", out);
+    nsIFrame* kid = GetFirstChild(listName);
+    if (kid) {
+      IndentBy(out, aIndent);
+      nsAutoString tmp;
+      if (nsnull != listName) {
+        listName->ToString(tmp);
+        fputs(NS_LossyConvertUTF16toASCII(tmp).get(), out);
+      }
+      fputs("<\n", out);
+      while (kid) {
+        kid->List(out, aIndent + 1);
+        kid = kid->GetNextSibling();
+      }
+      IndentBy(out, aIndent);
+      fputs(">\n", out);
+    }
   }
 
   aIndent--;
@@ -573,62 +582,66 @@ nsBlockFrame::GetCaretBaseline() const
 // Child frame enumeration
 
 nsFrameList
-nsBlockFrame::GetChildList(ChildListID aListID) const
+nsBlockFrame::GetChildList(nsIAtom* aListName) const
 {
-  switch (aListID) {
-    case kPrincipalList:
-      return mFrames;
-    case kOverflowList: {
-      // XXXbz once we start using nsFrameList for our overflow list, we
-      // could switch GetChildList to returning a |const nsFrameList&|.
-      nsLineList* overflowLines = GetOverflowLines();
-      return overflowLines ? nsFrameList(overflowLines->front()->mFirstChild,
-                                         overflowLines->back()->LastChild())
-                           : nsFrameList::EmptyList();
-    }
-    case kAbsoluteList:
-      return mAbsoluteContainer.GetChildList();
-    case kFloatList:
-      return mFloats;
-    case kOverflowOutOfFlowList: {
-      const nsFrameList* list = GetOverflowOutOfFlows();
-      return list ? *list : nsFrameList::EmptyList();
-    }
-    case kPushedFloatsList: {
-      const nsFrameList* list = GetPushedFloats();
-      return list ? *list : nsFrameList::EmptyList();
-    }
-    case kBulletList:
-      return HaveOutsideBullet() ? nsFrameList(mBullet, mBullet)
-                                 : nsFrameList::EmptyList();
-    default:
-      return nsContainerFrame::GetChildList(aListID);
+  if (nsGkAtoms::absoluteList == aListName) {
+    return mAbsoluteContainer.GetChildList();
   }
+  else if (nsnull == aListName) {
+    return mFrames;
+  }
+  else if (aListName == nsGkAtoms::overflowList) {
+    // XXXbz once we start using nsFrameList for our overflow list, we
+    // could switch GetChildList to returning a |const nsFrameList&|.
+    nsLineList* overflowLines = GetOverflowLines();
+    return overflowLines ? nsFrameList(overflowLines->front()->mFirstChild,
+                                       overflowLines->back()->LastChild())
+                         : nsFrameList::EmptyList();
+  }
+  else if (aListName == nsGkAtoms::overflowOutOfFlowList) {
+    const nsFrameList* list = GetOverflowOutOfFlows();
+    return list ? *list : nsFrameList::EmptyList();
+  }
+  else if (aListName == nsGkAtoms::pushedFloatsList) {
+    const nsFrameList* list = GetPushedFloats();
+    return list ? *list : nsFrameList::EmptyList();
+  }
+  else if (aListName == nsGkAtoms::floatList) {
+    return mFloats;
+  }
+  else if (aListName == nsGkAtoms::bulletList) {
+    return HaveOutsideBullet() ? nsFrameList(mBullet, mBullet)
+                               : nsFrameList::EmptyList();
+  }
+  return nsContainerFrame::GetChildList(aListName);
 }
 
-void
-nsBlockFrame::GetChildLists(nsTArray<ChildList>* aLists) const
+#define NS_BLOCK_FRAME_OVERFLOW_OOF_LIST_INDEX  (NS_CONTAINER_LIST_COUNT_INCL_OC + 0)
+#define NS_BLOCK_FRAME_FLOAT_LIST_INDEX         (NS_CONTAINER_LIST_COUNT_INCL_OC + 1)
+#define NS_BLOCK_FRAME_BULLET_LIST_INDEX        (NS_CONTAINER_LIST_COUNT_INCL_OC + 2)
+#define NS_BLOCK_FRAME_ABSOLUTE_LIST_INDEX      (NS_CONTAINER_LIST_COUNT_INCL_OC + 3)
+#define NS_BLOCK_FRAME_PUSHED_FLOATS_LIST_INDEX (NS_CONTAINER_LIST_COUNT_INCL_OC + 4)
+// If adding/removing lists, don't forget to update the count in nsBlockFrame.h
+
+nsIAtom*
+nsBlockFrame::GetAdditionalChildListName(PRInt32 aIndex) const
 {
-  nsContainerFrame::GetChildLists(aLists);
-  nsLineList* overflowLines = GetOverflowLines();
-  if (overflowLines && overflowLines->front()->mFirstChild) {
-    nsFrameList overflowList(overflowLines->front()->mFirstChild,
-                             overflowLines->back()->LastChild());
-    overflowList.AppendIfNonempty(aLists, kOverflowList);
-  }
-  const nsFrameList* list = GetOverflowOutOfFlows();
-  if (list) {
-    list->AppendIfNonempty(aLists, kOverflowOutOfFlowList);
-  }
-  mFloats.AppendIfNonempty(aLists, kFloatList);
-  if (HaveOutsideBullet()) {
-    nsFrameList bullet(mBullet, mBullet);
-    bullet.AppendIfNonempty(aLists, kBulletList);
-  }
-  mAbsoluteContainer.AppendChildList(aLists, kAbsoluteList);
-  list = GetPushedFloats();
-  if (list) {
-    list->AppendIfNonempty(aLists, kPushedFloatsList);
+  if (aIndex < NS_CONTAINER_LIST_COUNT_INCL_OC)
+    return nsContainerFrame::GetAdditionalChildListName(aIndex);
+
+  switch (aIndex) {
+  case NS_BLOCK_FRAME_FLOAT_LIST_INDEX:
+    return nsGkAtoms::floatList;
+  case NS_BLOCK_FRAME_BULLET_LIST_INDEX:
+    return nsGkAtoms::bulletList;
+  case NS_BLOCK_FRAME_OVERFLOW_OOF_LIST_INDEX:
+    return nsGkAtoms::overflowOutOfFlowList;
+  case NS_BLOCK_FRAME_ABSOLUTE_LIST_INDEX:
+    return nsGkAtoms::absoluteList;
+  case NS_BLOCK_FRAME_PUSHED_FLOATS_LIST_INDEX:
+    return nsGkAtoms::pushedFloatsList;
+  default:
+    return nsnull;
   }
 }
 
@@ -1479,9 +1492,18 @@ nsBlockFrame::ComputeOverflowAreas(const nsHTMLReflowState& aReflowState,
   nsOverflowAreas areas(bounds, bounds);
 
   if (!IsClippingChildren(this, aReflowState)) {
+    PRBool inQuirks = (PresContext()->CompatibilityMode() == eCompatibility_NavQuirks);
     for (line_iterator line = begin_lines(), line_end = end_lines();
          line != line_end;
          ++line) {
+
+      // Text-shadow overflows
+      if (!inQuirks && line->IsInline()) {
+        nsRect shadowRect = nsLayoutUtils::GetTextShadowRectsUnion(
+                              line->GetVisualOverflowArea(), this);
+        areas.VisualOverflow().UnionRect(areas.VisualOverflow(), shadowRect);
+      }
+
       areas.UnionWith(line->GetOverflowAreas());
     }
 
@@ -2094,7 +2116,7 @@ nsBlockFrame::ReflowDirtyLines(nsBlockReflowState& aState)
           aState.mPresContext->HasPendingInterrupt()) {
         // Need to make sure to pull overflows from any prev-in-flows
         for (nsIFrame* inlineKid = line->mFirstChild; inlineKid;
-             inlineKid = inlineKid->GetFirstPrincipalChild()) {
+             inlineKid = inlineKid->GetFirstChild(nsnull)) {
           inlineKid->PullOverflowsFromPrevInFlow();
         }
       }
@@ -4674,17 +4696,17 @@ nsBlockFrame::RemovePushedFloats()
 // Frame list manipulation routines
 
 NS_IMETHODIMP
-nsBlockFrame::AppendFrames(ChildListID  aListID,
+nsBlockFrame::AppendFrames(nsIAtom*  aListName,
                            nsFrameList& aFrameList)
 {
   if (aFrameList.IsEmpty()) {
     return NS_OK;
   }
-  if (aListID != kPrincipalList) {
-    if (kAbsoluteList == aListID) {
-      return mAbsoluteContainer.AppendFrames(this, aListID, aFrameList);
+  if (aListName) {
+    if (nsGkAtoms::absoluteList == aListName) {
+      return mAbsoluteContainer.AppendFrames(this, aListName, aFrameList);
     }
-    else if (kFloatList == aListID) {
+    else if (nsGkAtoms::floatList == aListName) {
       mFloats.AppendFrames(nsnull, aFrameList);
       return NS_OK;
     }
@@ -4721,24 +4743,24 @@ nsBlockFrame::AppendFrames(ChildListID  aListID,
 }
 
 NS_IMETHODIMP
-nsBlockFrame::InsertFrames(ChildListID aListID,
+nsBlockFrame::InsertFrames(nsIAtom*  aListName,
                            nsIFrame* aPrevFrame,
                            nsFrameList& aFrameList)
 {
   NS_ASSERTION(!aPrevFrame || aPrevFrame->GetParent() == this,
                "inserting after sibling frame with different parent");
 
-  if (aListID != kPrincipalList) {
-    if (kAbsoluteList == aListID) {
-      return mAbsoluteContainer.InsertFrames(this, aListID, aPrevFrame,
+  if (aListName) {
+    if (nsGkAtoms::absoluteList == aListName) {
+      return mAbsoluteContainer.InsertFrames(this, aListName, aPrevFrame,
                                              aFrameList);
     }
-    else if (kFloatList == aListID) {
+    else if (nsGkAtoms::floatList == aListName) {
       mFloats.InsertFrames(this, aPrevFrame, aFrameList);
       return NS_OK;
     }
 #ifdef IBMBIDI
-    else if (kNoReflowPrincipalList == aListID) {}
+    else if (nsGkAtoms::nextBidi == aListName) {}
 #endif // IBMBIDI
     else {
       NS_ERROR("unexpected child list");
@@ -4761,7 +4783,7 @@ nsBlockFrame::InsertFrames(ChildListID aListID,
     return rv;
   }
 #ifdef IBMBIDI
-  if (aListID != kNoReflowPrincipalList)
+  if (aListName != nsGkAtoms::nextBidi)
 #endif // IBMBIDI
     PresContext()->PresShell()->
       FrameNeedsReflow(this, nsIPresShell::eTreeChange,
@@ -4980,7 +5002,7 @@ static PRBool BlockHasAnyFloats(nsIFrame* aFrame)
   nsBlockFrame* block = nsLayoutUtils::GetAsBlock(aFrame);
   if (!block)
     return PR_FALSE;
-  if (block->GetFirstChild(nsIFrame::kFloatList))
+  if (block->GetFirstChild(nsGkAtoms::floatList))
     return PR_TRUE;
     
   nsLineList::iterator line = block->begin_lines();
@@ -4994,7 +5016,7 @@ static PRBool BlockHasAnyFloats(nsIFrame* aFrame)
 }
 
 NS_IMETHODIMP
-nsBlockFrame::RemoveFrame(ChildListID aListID,
+nsBlockFrame::RemoveFrame(nsIAtom*  aListName,
                           nsIFrame* aOldFrame)
 {
   nsresult rv = NS_OK;
@@ -5006,18 +5028,18 @@ nsBlockFrame::RemoveFrame(ChildListID aListID,
   printf("\n");
 #endif
 
-  if (aListID == kPrincipalList) {
+  if (nsnull == aListName) {
     PRBool hasFloats = BlockHasAnyFloats(aOldFrame);
     rv = DoRemoveFrame(aOldFrame, REMOVE_FIXED_CONTINUATIONS);
     if (hasFloats) {
       MarkSameFloatManagerLinesDirty(this);
     }
   }
-  else if (kAbsoluteList == aListID) {
-    mAbsoluteContainer.RemoveFrame(this, aListID, aOldFrame);
+  else if (nsGkAtoms::absoluteList == aListName) {
+    mAbsoluteContainer.RemoveFrame(this, aListName, aOldFrame);
     return NS_OK;
   }
-  else if (kFloatList == aListID) {
+  else if (nsGkAtoms::floatList == aListName) {
     // Make sure to mark affected lines dirty for the float frame
     // we are removing; this way is a bit messy, but so is the rest of the code.
     // See bug 390762.
@@ -5031,7 +5053,7 @@ nsBlockFrame::RemoveFrame(ChildListID aListID,
     DoRemoveOutOfFlowFrame(aOldFrame);
   }
 #ifdef IBMBIDI
-  else if (kNoReflowPrincipalList == aListID) {
+  else if (nsGkAtoms::nextBidi == aListName) {
     // Skip the call to |FrameNeedsReflow| below by returning now.
     return DoRemoveFrame(aOldFrame, REMOVE_FIXED_CONTINUATIONS);
   }
@@ -5060,7 +5082,7 @@ nsBlockFrame::DoRemoveOutOfFlowFrame(nsIFrame* aFrame)
   if (display->IsAbsolutelyPositioned()) {
     // This also deletes the next-in-flows
     block->mAbsoluteContainer.RemoveFrame(block,
-                                          kAbsoluteList,
+                                          nsGkAtoms::absoluteList,
                                           aFrame);
   }
   else {
@@ -5976,7 +5998,7 @@ nsBlockFrame::RecoverFloats(nsFloatManager& aFloatManager)
   }
 
   // Recurse into our overflow container children
-  for (nsIFrame* oc = GetFirstChild(kOverflowContainersList);
+  for (nsIFrame* oc = GetFirstChild(nsGkAtoms::overflowContainersList);
        oc; oc = oc->GetNextSibling()) {
     RecoverFloatsFor(oc, aFloatManager);
   }
@@ -6449,15 +6471,15 @@ nsBlockFrame::Init(nsIContent*      aContent,
 }
 
 NS_IMETHODIMP
-nsBlockFrame::SetInitialChildList(ChildListID     aListID,
+nsBlockFrame::SetInitialChildList(nsIAtom*        aListName,
                                   nsFrameList&    aChildList)
 {
   nsresult rv = NS_OK;
 
-  if (kAbsoluteList == aListID) {
-    mAbsoluteContainer.SetInitialChildList(this, aListID, aChildList);
+  if (nsGkAtoms::absoluteList == aListName) {
+    mAbsoluteContainer.SetInitialChildList(this, aListName, aChildList);
   }
-  else if (kFloatList == aListID) {
+  else if (nsGkAtoms::floatList == aListName) {
     mFloats.SetFrames(aChildList);
   }
   else {
@@ -6866,12 +6888,12 @@ void nsBlockFrame::CollectFloats(nsIFrame* aFrame, nsFrameList& aList,
         }
       }
 
-      CollectFloats(aFrame->GetFirstPrincipalChild(), 
+      CollectFloats(aFrame->GetFirstChild(nsnull), 
                     aList, aFromOverflow, PR_TRUE);
       // Note: Even though we're calling CollectFloats on aFrame's overflow
       // list, we'll pass down aFromOverflow unchanged because we're still
       // traversing the regular-children subtree of the 'this' frame.
-      CollectFloats(aFrame->GetFirstChild(kOverflowList), 
+      CollectFloats(aFrame->GetFirstChild(nsGkAtoms::overflowList), 
                     aList, aFromOverflow, PR_TRUE);
     }
     if (!aCollectSiblings)
@@ -7000,8 +7022,8 @@ nsBlockFrame::WidthToClearPastFloats(nsBlockReflowState& aState,
   // A table outer frame is an exception in that it is a block child
   // that is not a containing block for its children.
   if (aFrame->GetType() == nsGkAtoms::tableOuterFrame) {
-    nsIFrame *innerTable = aFrame->GetFirstPrincipalChild();
-    nsIFrame *caption = aFrame->GetFirstChild(kCaptionList);
+    nsIFrame *innerTable = aFrame->GetFirstChild(nsnull);
+    nsIFrame *caption = aFrame->GetFirstChild(nsGkAtoms::captionList);
 
     nsMargin tableMargin, captionMargin;
     {

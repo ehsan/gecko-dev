@@ -45,8 +45,6 @@
 class nsFrameIterator : public nsIFrameEnumerator
 {
 public:
-  typedef nsIFrame::ChildListID ChildListID;
-
   NS_DECL_ISUPPORTS
 
   virtual void First();
@@ -486,12 +484,12 @@ nsFrameIterator::GetPrevSibling(nsIFrame* aFrame)
 
 nsIFrame*
 nsFrameIterator::GetFirstChildInner(nsIFrame* aFrame) {
-  return aFrame->GetFirstPrincipalChild();
+  return aFrame->GetFirstChild(nsnull);
 }
 
 nsIFrame*
 nsFrameIterator::GetLastChildInner(nsIFrame* aFrame) {
-  return aFrame->PrincipalChildList().LastChild();
+  return aFrame->GetChildList(nsnull).LastChild();
 }
 
 nsIFrame*
@@ -533,12 +531,12 @@ nsFrameIterator::IsPopupFrame(nsIFrame* aFrame)
 
 nsIFrame*
 nsVisualIterator::GetFirstChildInner(nsIFrame* aFrame) {
-  return aFrame->PrincipalChildList().GetNextVisualFor(nsnull);
+  return aFrame->GetChildList(nsnull).GetNextVisualFor(nsnull);
 }
 
 nsIFrame*
 nsVisualIterator::GetLastChildInner(nsIFrame* aFrame) {
-  return aFrame->PrincipalChildList().GetPrevVisualFor(nsnull);
+  return aFrame->GetChildList(nsnull).GetPrevVisualFor(nsnull);
 }
 
 nsIFrame*
@@ -546,7 +544,7 @@ nsVisualIterator::GetNextSiblingInner(nsIFrame* aFrame) {
   nsIFrame* parent = GetParentFrame(aFrame);
   if (!parent)
     return nsnull;
-  return parent->PrincipalChildList().GetNextVisualFor(aFrame);
+  return parent->GetChildList(nsnull).GetNextVisualFor(aFrame);
 }
 
 nsIFrame*
@@ -554,5 +552,5 @@ nsVisualIterator::GetPrevSiblingInner(nsIFrame* aFrame) {
   nsIFrame* parent = GetParentFrame(aFrame);
   if (!parent)
     return nsnull;
-  return parent->PrincipalChildList().GetPrevVisualFor(aFrame);
+  return parent->GetChildList(nsnull).GetPrevVisualFor(aFrame);
 }

@@ -61,7 +61,6 @@ CPPSRCS = \
   nsUrlClassifierDBService.cpp \
   nsUrlClassifierStreamUpdater.cpp \
   nsUrlClassifierUtils.cpp \
-  nsUrlClassifierProxies.cpp \
   $(NULL)
 
 LOCAL_INCLUDES = \

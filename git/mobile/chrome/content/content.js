@@ -1005,6 +1005,11 @@ ContextHandler.registerType("callto", function(aState, aElement) {
   return protocol == "tel" || protocol == "callto" || protocol == "sip" || protocol == "voipto";
 });
 
+ContextHandler.registerType("link-saveable", function(aState, aElement) {
+  let protocol = aState.linkProtocol;
+  return (protocol && protocol != "mailto" && protocol != "javascript" && protocol != "news" && protocol != "snews");
+});
+
 ContextHandler.registerType("link-openable", function(aState, aElement) {
   return Util.isOpenableScheme(aState.linkProtocol);
 });
@@ -1365,7 +1370,7 @@ var SelectionHandler = {
       elem = utils.elementFromPoint(x, y, true, false);
     }
     if (!elem)
-      return {};
+      return;
     
     return { contentWindow: elem.ownerDocument.defaultView, offset: offset };
   },
@@ -1384,9 +1389,6 @@ var SelectionHandler = {
         let x = json.x - scrollOffset.x;
         let y = json.y - scrollOffset.y;
         let { contentWindow: contentWindow, offset: offset } = this.getCurrentWindowAndOffset(x, y, scrollOffset);
-        if (!contentWindow)
-          return;
-
         let currentDocShell = contentWindow.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIWebNavigation).QueryInterface(Ci.nsIDocShell);
 
         // Remove any previous selected or created ranges. Tapping anywhere on a
@@ -1501,9 +1503,6 @@ var SelectionHandler = {
         this.cache.rect = this._extractFromRange(range, this.cache.offset).rect;
         break;
       case "Browser:SelectionMeasure": {
-        if (!this.contentWindow)
-          return;
-
         let selection = this.contentWindow.getSelection();
         let range = selection.getRangeAt(0).QueryInterface(Ci.nsIDOMNSRange);
         if (!range)

@@ -112,9 +112,8 @@ nsEventListenerInfo::GetJSVal(jsval* aJSVal)
 
   nsCOMPtr<nsIJSEventListener> jsl = do_QueryInterface(mListener);
   if (jsl) {
-    void *handler = jsl->GetHandler();
-    if (handler) {
-      *aJSVal = OBJECT_TO_JSVAL(static_cast<JSObject*>(handler));
+    nsresult rv = jsl->GetJSVal(mType, aJSVal);
+    if (NS_SUCCEEDED(rv)) {
       return PR_TRUE;
     }
   }

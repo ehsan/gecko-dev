@@ -83,9 +83,7 @@ class gfxXlibSurface;
 #endif
 
 #ifdef MOZ_WIDGET_QT
-#ifdef MOZ_X11
 #include "gfxQtNativeRenderer.h"
-#endif
 #endif
 
 #ifdef XP_OS2

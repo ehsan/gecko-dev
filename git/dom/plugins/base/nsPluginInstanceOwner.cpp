@@ -1877,12 +1877,17 @@ nsPluginInstanceOwner::HandleEvent(nsIDOMEvent* aEvent)
     nsCOMPtr<nsIPrivateDOMEvent> privateEvent(do_QueryInterface(aEvent));
     if (privateEvent) {
       nsEvent* ievent = privateEvent->GetInternalNSEvent();
-      if ((ievent && NS_IS_TRUSTED_EVENT(ievent)) &&
-           ievent->message != NS_DRAGDROP_ENTER && ievent->message != NS_DRAGDROP_OVER) {
-        aEvent->PreventDefault();
+      if (ievent && NS_IS_TRUSTED_EVENT(ievent) &&
+          (ievent->message == NS_DRAGDROP_ENTER || ievent->message == NS_DRAGDROP_OVER)) {
+        // set the allowed effect to none here. The plugin should set it if necessary
+        nsCOMPtr<nsIDOMDataTransfer> dataTransfer;
+        dragEvent->GetDataTransfer(getter_AddRefs(dataTransfer));
+        if (dataTransfer)
+          dataTransfer->SetEffectAllowed(NS_LITERAL_STRING("none"));
       }
 
       // Let the plugin handle drag events.
+      aEvent->PreventDefault();
       aEvent->StopPropagation();
     }
   }

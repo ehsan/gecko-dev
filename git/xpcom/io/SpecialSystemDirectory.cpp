@@ -563,7 +563,7 @@ GetSpecialSystemDirectory(SystemDirectories aSystemSystemDirectory,
             }
             return NS_NewNativeLocalFile(tString, PR_TRUE, aFile);
         }
-#elif defined(MOZ_WIDGET_COCOA)
+#elif defined(XP_MACOSX)
         {
             return GetOSXFolderType(kUserDomain, kTemporaryFolderType, aFile);
         }
@@ -897,7 +897,7 @@ GetSpecialSystemDirectory(SystemDirectories aSystemSystemDirectory,
     return NS_ERROR_NOT_AVAILABLE;
 }
 
-#if defined (MOZ_WIDGET_COCOA)
+#if defined (XP_MACOSX)
 nsresult
 GetOSXFolderType(short aDomain, OSType aFolderType, nsILocalFile **localFile)
 {

@@ -81,6 +81,9 @@
 
 #include "jsautooplen.h"
 
+#include "methodjit/MethodJIT.h"
+#include "methodjit/Retcon.h"
+
 #ifdef __APPLE__
 #include "sharkctl.h"
 #endif
@@ -151,6 +154,34 @@ JS_SetDebugModeForCompartment(JSContext *cx, JSCompartment *comp, JSBool debug)
     return comp->setDebugModeFromC(cx, !!debug);
 }
 
+JS_FRIEND_API(JSBool)
+js_SetSingleStepMode(JSContext *cx, JSScript *script, JSBool singleStep)
+{
+    assertSameCompartment(cx, script);
+
+#ifdef JS_METHODJIT
+    if (!script->singleStepMode == !singleStep)
+        return JS_TRUE;
+#endif
+
+    JS_ASSERT_IF(singleStep, cx->compartment->debugMode());
+
+#ifdef JS_METHODJIT
+    /* request the next recompile to inject single step interrupts */
+    script->singleStepMode = !!singleStep;
+
+    js::mjit::JITScript *jit = script->jitNormal ? script->jitNormal : script->jitCtor;
+    if (jit && script->singleStepMode != jit->singleStepMode) {
+        js::mjit::Recompiler recompiler(cx, script);
+        if (!recompiler.recompile()) {
+            script->singleStepMode = !singleStep;
+            return JS_FALSE;
+        }
+    }
+#endif
+    return JS_TRUE;
+}
+
 static JSBool
 CheckDebugMode(JSContext *cx)
 {
@@ -174,7 +205,7 @@ JS_SetSingleStepMode(JSContext *cx, JSScript *script, JSBool singleStep)
     if (!CheckDebugMode(cx))
         return JS_FALSE;
 
-    return script->setStepModeFlag(cx, singleStep);
+    return js_SetSingleStepMode(cx, script, singleStep);
 }
 
 jsbytecode *
@@ -258,11 +289,11 @@ JITInhibitingHookChange(JSRuntime *rt, bool wasInhibited)
     if (wasInhibited) {
         if (!rt->debuggerInhibitsJIT()) {
             for (JSCList *cl = rt->contextList.next; cl != &rt->contextList; cl = cl->next)
-                JSContext::fromLinkField(cl)->updateJITEnabled();
+                js_ContextFromLinkField(cl)->updateJITEnabled();
         }
     } else if (rt->debuggerInhibitsJIT()) {
         for (JSCList *cl = rt->contextList.next; cl != &rt->contextList; cl = cl->next)
-            JSContext::fromLinkField(cl)->traceJitEnabled = false;
+            js_ContextFromLinkField(cl)->traceJitEnabled = false;
     }
 }
 #endif
@@ -2171,7 +2202,7 @@ JS_DumpBytecode(JSContext *cx, JSScript *script)
 
     fprintf(stdout, "--- SCRIPT %s:%d ---\n", script->filename, script->lineno);
     js_Disassemble(cx, script, true, &sprinter);
-    fputs(sprinter.base, stdout);
+    fprintf(stdout, "%s\n", sprinter.base);
     fprintf(stdout, "--- END SCRIPT %s:%d ---\n", script->filename, script->lineno);
 #endif
 }
