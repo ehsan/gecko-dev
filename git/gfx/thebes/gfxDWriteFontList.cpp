@@ -290,13 +290,10 @@ gfxDWriteFontEntry::GetFontTable(uint32_t aTableTag,
         AutoSelectFont font(dc.GetDC(), &logfont);
         if (font.IsValid()) {
             uint32_t tableSize =
-                ::GetFontData(dc.GetDC(),
-                              NativeEndian::swapToBigEndian(aTableTag), 0,
-                              NULL, 0);
+                ::GetFontData(dc.GetDC(), NS_SWAP32(aTableTag), 0, NULL, 0);
             if (tableSize != GDI_ERROR) {
                 if (aBuffer.SetLength(tableSize)) {
-                    ::GetFontData(dc.GetDC(),
-                                  NativeEndian::swapToBigEndian(aTableTag), 0,
+                    ::GetFontData(dc.GetDC(), NS_SWAP32(aTableTag), 0,
                                   aBuffer.Elements(), aBuffer.Length());
                     return NS_OK;
                 }
@@ -320,7 +317,7 @@ gfxDWriteFontEntry::GetFontTable(uint32_t aTableTag,
     uint32_t len;
     void *tableContext = NULL;
     BOOL exists;
-    hr = fontFace->TryGetFontTable(NativeEndian::swapToBigEndian(aTableTag),
+    hr = fontFace->TryGetFontTable(NS_SWAP32(aTableTag),
                                    (const void**)&tableData,
                                    &len,
                                    &tableContext,

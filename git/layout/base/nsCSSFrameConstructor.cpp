@@ -1597,7 +1597,7 @@ nsCSSFrameConstructor::CreateGeneratedContent(nsFrameConstructorState& aState,
         nsAutoString  nameSpaceVal;
         contentString.Left(nameSpaceVal, barIndex);
         nsresult error;
-        attrNameSpace = nameSpaceVal.ToInteger(&error);
+        attrNameSpace = nameSpaceVal.ToInteger(&error, 10);
         contentString.Cut(0, barIndex + 1);
         if (contentString.Length()) {
           if (mDocument->IsHTML() && aParentContent->IsHTML()) {
@@ -7733,8 +7733,7 @@ DoApplyRenderingChangeToTree(nsIFrame* aFrame,
         } else {
           needInvalidatingPaint = true;
           // Just invalidate our area:
-          nsSVGEffects::InvalidateRenderingObservers(aFrame);
-          aFrame->InvalidateFrameSubtree();
+          nsSVGUtils::InvalidateBounds(aFrame);
         }
       } else {
         needInvalidatingPaint = true;
