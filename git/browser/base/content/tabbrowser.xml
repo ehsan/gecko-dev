@@ -1244,6 +1244,7 @@
             var aFromExternal;
             var aRelatedToCurrent;
             var aIsUTF8;
+            var aDisableMCB;
             if (arguments.length == 2 &&
                 typeof arguments[1] == "object" &&
                 !(arguments[1] instanceof Ci.nsIURI)) {
@@ -1256,6 +1257,7 @@
               aFromExternal         = params.fromExternal;
               aRelatedToCurrent     = params.relatedToCurrent;
               aIsUTF8               = params.isUTF8;
+              aDisableMCB           = params.disableMCB;
             }
 
             var bgLoad = (aLoadInBackground != null) ? aLoadInBackground :
@@ -1269,7 +1271,8 @@
                                   allowThirdPartyFixup: aAllowThirdPartyFixup,
                                   fromExternal: aFromExternal,
                                   relatedToCurrent: aRelatedToCurrent,
-                                  isUTF8: aIsUTF8});
+                                  isUTF8: aIsUTF8,
+                                  disableMCB: aDisableMCB});
             if (!bgLoad)
               this.selectedTab = tab;
 
@@ -1418,6 +1421,7 @@
             var aRelatedToCurrent;
             var aSkipAnimation;
             var aIsUTF8;
+            var aDisableMCB;
             if (arguments.length == 2 &&
                 typeof arguments[1] == "object" &&
                 !(arguments[1] instanceof Ci.nsIURI)) {
@@ -1431,6 +1435,7 @@
               aRelatedToCurrent     = params.relatedToCurrent;
               aSkipAnimation        = params.skipAnimation;
               aIsUTF8               = params.isUTF8;
+              aDisableMCB           = params.disableMCB;
             }
 
             // if we're adding tabs, we're past interrupt mode, ditch the owner
@@ -1597,6 +1602,8 @@
                 flags |= Ci.nsIWebNavigation.LOAD_FLAGS_FROM_EXTERNAL;
               if (aIsUTF8)
                 flags |= Ci.nsIWebNavigation.LOAD_FLAGS_URI_IS_UTF8;
+              if (aDisableMCB)
+                flags |= Ci.nsIWebNavigation.LOAD_FLAGS_ALLOW_MIXED_CONTENT;
               try {
                 b.loadURIWithFlags(aURI, flags, aReferrerURI, aCharset, aPostData);
               } catch (ex) {
