@@ -756,7 +756,7 @@ nsThebesDeviceContext::SetDPI()
 }
 
 NS_IMETHODIMP
-nsThebesDeviceContext::Init(nsIWidget *aWidget)
+nsThebesDeviceContext::Init(nsNativeWidget aWidget)
 {
     mWidget = aWidget;
 
@@ -1185,9 +1185,8 @@ nsThebesDeviceContext::ComputeFullAreaUsingScreen(nsRect* outRect)
 void
 nsThebesDeviceContext::FindScreen(nsIScreen** outScreen)
 {
-    if (mWidget && mWidget->GetNativeData(NS_NATIVE_WINDOW))
-        mScreenManager->ScreenForNativeWidget(mWidget->GetNativeData(NS_NATIVE_WINDOW),
-                                              outScreen);
+    if (mWidget)
+        mScreenManager->ScreenForNativeWidget(mWidget, outScreen);
     else
         mScreenManager->GetPrimaryScreen(outScreen);
 }
@@ -1235,12 +1234,12 @@ nsThebesDeviceContext::CalcPrintingSize()
         inPoints = PR_FALSE;
         HDC dc =  GetPrintHDC();
         if (!dc)
-            dc = GetDC((HWND)mWidget->GetNativeData(NS_NATIVE_WIDGET));
+            dc = GetDC((HWND)mWidget);
         size.width = NSFloatPixelsToAppUnits(::GetDeviceCaps(dc, HORZRES)/mPrintingScale, AppUnitsPerDevPixel());
         size.height = NSFloatPixelsToAppUnits(::GetDeviceCaps(dc, VERTRES)/mPrintingScale, AppUnitsPerDevPixel());
         mDepth = (PRUint32)::GetDeviceCaps(dc, BITSPIXEL);
         if (dc != (HDC)GetPrintHDC())
-            ReleaseDC((HWND)mWidget->GetNativeData(NS_NATIVE_WIDGET), dc);
+            ReleaseDC((HWND)mWidget, dc);
         break;
     }
 #endif
