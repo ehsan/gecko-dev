@@ -200,7 +200,7 @@ nsDirectoryService::GetCurrentProcessDirectory(nsIFile** aFile)
 nsDirectoryService* nsDirectoryService::gService = nullptr;
 
 nsDirectoryService::nsDirectoryService()
-  : mHashtable(128)
+  : mHashtable(256)
 {
 }
 

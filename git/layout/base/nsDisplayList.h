@@ -533,10 +533,6 @@ public:
     void SetDirtyRect(const nsRect& aRect) {
       mBuilder->mDirtyRect = aRect;
     }
-    void SetReferenceFrameAndCurrentOffset(const nsIFrame* aFrame, const nsPoint& aOffset) {
-      mBuilder->mCurrentReferenceFrame = aFrame;
-      mBuilder->mCurrentOffsetToReferenceFrame = aOffset;
-    }
     ~AutoBuildingDisplayList() {
       mBuilder->mCurrentFrame = mPrevFrame;
       mBuilder->mCurrentReferenceFrame = mPrevReferenceFrame;
@@ -628,7 +624,7 @@ public:
       : mContainingBlockClip(aContainingBlockClip)
       , mDirtyRect(aDirtyRect)
     {}
-    explicit OutOfFlowDisplayData(const nsRect &aDirtyRect)
+    OutOfFlowDisplayData(const nsRect &aDirtyRect)
       : mDirtyRect(aDirtyRect)
     {}
     DisplayItemClip mContainingBlockClip;
@@ -812,7 +808,7 @@ public:
    * This constructor is only used in rare cases when we need to construct
    * temporary items.
    */
-  explicit nsDisplayItem(nsIFrame* aFrame)
+  nsDisplayItem(nsIFrame* aFrame)
     : mFrame(aFrame)
     , mClip(nullptr)
     , mReferenceFrame(nullptr)
@@ -834,7 +830,7 @@ public:
   struct HitTestState {
     typedef nsTArray<ViewID> ShadowArray;
 
-    explicit HitTestState(ShadowArray* aShadows = nullptr)
+    HitTestState(ShadowArray* aShadows = nullptr)
       : mShadows(aShadows) {
     }
 
@@ -1748,7 +1744,7 @@ struct nsDisplayListCollection : public nsDisplayListSet {
   nsDisplayListCollection() :
     nsDisplayListSet(&mLists[0], &mLists[1], &mLists[2], &mLists[3], &mLists[4],
                      &mLists[5]) {}
-  explicit nsDisplayListCollection(nsDisplayList* aBorderBackground) :
+  nsDisplayListCollection(nsDisplayList* aBorderBackground) :
     nsDisplayListSet(aBorderBackground, &mLists[1], &mLists[2], &mLists[3], &mLists[4],
                      &mLists[5]) {}
 
@@ -3416,7 +3412,7 @@ public:
   nsCharClipDisplayItem(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame)
     : nsDisplayItem(aBuilder, aFrame), mLeftEdge(0), mRightEdge(0) {}
 
-  explicit nsCharClipDisplayItem(nsIFrame* aFrame)
+  nsCharClipDisplayItem(nsIFrame* aFrame)
     : nsDisplayItem(aFrame) {}
 
   struct ClipEdges {

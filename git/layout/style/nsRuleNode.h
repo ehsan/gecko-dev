@@ -373,7 +373,7 @@ private:
                  "pointer not 2-byte aligned");
     mChildren.asHash = (PLDHashTable*)(intptr_t(aHashtable) | kHashType);
   }
-  void ConvertChildrenToHash(int32_t aNumKids);
+  void ConvertChildrenToHash();
 
   nsCachedStyleData mStyleData;   // Any data we cached on the rule node.
 

@@ -56,7 +56,7 @@ public:
 protected:
   virtual ~BindingParams() {}
 
-  explicit BindingParams(mozIStorageBindingParamsArray *aOwningArray);
+  BindingParams(mozIStorageBindingParamsArray *aOwningArray);
   nsCOMArray<nsIVariant> mParameters;
   bool mLocked;
 
@@ -97,7 +97,7 @@ public:
 
   virtual already_AddRefed<mozIStorageError> bind(sqlite3_stmt * aStatement);
 
-  explicit AsyncBindingParams(mozIStorageBindingParamsArray *aOwningArray);
+  AsyncBindingParams(mozIStorageBindingParamsArray *aOwningArray);
   virtual ~AsyncBindingParams() {}
 
 private:

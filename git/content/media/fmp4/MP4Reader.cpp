@@ -15,10 +15,6 @@
 #include "mozilla/Preferences.h"
 #include "mozilla/dom/TimeRanges.h"
 
-#ifdef MOZ_EME
-#include "mozilla/CDMProxy.h"
-#endif
-
 using mozilla::layers::Image;
 using mozilla::layers::LayerManager;
 using mozilla::layers::LayersBackend;
@@ -208,7 +204,6 @@ MP4Reader::Init(MediaDecoderReader* aCloneDonor)
   return NS_OK;
 }
 
-#ifdef MOZ_EME
 class DispatchKeyNeededEvent : public nsRunnable {
 public:
   DispatchKeyNeededEvent(AbstractMediaDecoder* aDecoder,
@@ -234,11 +229,9 @@ private:
   nsTArray<uint8_t> mInitData;
   nsString mInitDataType;
 };
-#endif
 
 bool MP4Reader::IsWaitingMediaResources()
 {
-#ifdef MOZ_EME
   nsRefPtr<CDMProxy> proxy;
   {
     ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
@@ -258,9 +251,6 @@ bool MP4Reader::IsWaitingMediaResources()
     LOG("MP4Reader::IsWaitingMediaResources() capsKnown=%d", caps.AreCapsKnown());
     return !caps.AreCapsKnown();
   }
-#else
-  return false;
-#endif
 }
 
 void
@@ -306,7 +296,6 @@ MP4Reader::ReadMetadata(MediaInfo* aInfo,
     mDemuxerInitialized = true;
   }
   if (mDemuxer->Crypto().valid) {
-#ifdef MOZ_EME
     if (!sIsEMEEnabled) {
       // TODO: Need to signal DRM/EME required somehow...
       return NS_ERROR_FAILURE;
@@ -341,10 +330,6 @@ MP4Reader::ReadMetadata(MediaInfo* aInfo,
                                                         HasVideo(),
                                                         GetTaskQueue());
     NS_ENSURE_TRUE(mPlatform, NS_ERROR_FAILURE);
-#else
-    // EME not supported.
-    return NS_ERROR_FAILURE;
-#endif
   } else {
     mPlatform = PlatformDecoderModule::Create();
     NS_ENSURE_TRUE(mPlatform, NS_ERROR_FAILURE);

@@ -74,7 +74,7 @@ public:
   static void RemoveFromFlow(nsIFrame* aFrame);
 
 protected:
-  explicit nsSplittableFrame(nsStyleContext* aContext) : nsFrame(aContext) {}
+  nsSplittableFrame(nsStyleContext* aContext) : nsFrame(aContext) {}
 
   /**
    * Determine the height consumed by our previous-in-flows.

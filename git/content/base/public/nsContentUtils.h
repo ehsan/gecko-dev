@@ -172,6 +172,11 @@ class nsContentUtils
 public:
   static nsresult Init();
 
+  /**
+   * Get a JSContext from the document's scope object.
+   */
+  static JSContext* GetContextFromDocument(nsIDocument *aDocument);
+
   static bool     IsCallerChrome();
   static bool     ThreadsafeIsCallerChrome();
   static bool     IsCallerContentXBL();

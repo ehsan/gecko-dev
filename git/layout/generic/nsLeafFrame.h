@@ -72,7 +72,7 @@ public:
   }
 
 protected:
-  explicit nsLeafFrame(nsStyleContext* aContext) : nsFrame(aContext) {}
+  nsLeafFrame(nsStyleContext* aContext) : nsFrame(aContext) {}
   virtual ~nsLeafFrame();
 
   /**

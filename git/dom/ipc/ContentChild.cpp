@@ -1650,8 +1650,8 @@ ContentChild::RecvActivateA11y()
 #ifdef ACCESSIBILITY
     // Start accessibility in content process if it's running in chrome
     // process.
-	nsCOMPtr<nsIAccessibilityService> accService =
-        services::GetAccessibilityService();
+    nsCOMPtr<nsIAccessibilityService> accService =
+        do_GetService("@mozilla.org/accessibilityService;1");
 #endif
     return true;
 }

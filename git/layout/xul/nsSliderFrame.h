@@ -97,7 +97,6 @@ public:
                            nsIFrame*       aOldFrame) MOZ_OVERRIDE;
 
   nsresult StartDrag(nsIDOMEvent* aEvent);
-  nsresult StopDrag();
 
   static int32_t GetCurrentPosition(nsIContent* content);
   static int32_t GetMinPosition(nsIContent* content);
@@ -173,8 +172,6 @@ private:
   int32_t mCurPos;
 
   nscoord mChange;
-
-  bool mDragFinished;
 
   // true if an attribute change has been caused by the user manipulating the
   // slider. This allows notifications to tell how a slider's current position

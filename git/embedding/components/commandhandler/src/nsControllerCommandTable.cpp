@@ -13,11 +13,11 @@ NS_NewControllerCommandTable(nsIControllerCommandTable** aResult);
 
 
 // this value is used to size the hash table. Just a sensible upper bound
-#define NUM_COMMANDS_LENGTH       32
+#define NUM_COMMANDS_BOUNDS       64
 
 
 nsControllerCommandTable::nsControllerCommandTable()
-: mCommandsTable(NUM_COMMANDS_LENGTH)
+: mCommandsTable(NUM_COMMANDS_BOUNDS)
 , mMutable(true)
 {
 }

@@ -38,10 +38,10 @@
 #include "jsapi.h"
 
 // Initial size for the cache holding visited status observers.
-#define VISIT_OBSERVERS_INITIAL_CACHE_LENGTH 64
+#define VISIT_OBSERVERS_INITIAL_CACHE_SIZE 128
 
-// Initial length for the visits removal hash.
-#define VISITS_REMOVAL_INITIAL_HASH_LENGTH 64
+// Initial size for the visits removal hash.
+#define VISITS_REMOVAL_INITIAL_HASH_SIZE 128
 
 using namespace mozilla::dom;
 using namespace mozilla::ipc;
@@ -1586,7 +1586,7 @@ class NotifyRemoveVisits : public nsRunnable
 public:
 
   NotifyRemoveVisits(nsTHashtable<PlaceHashKey>& aPlaces)
-    : mPlaces(VISITS_REMOVAL_INITIAL_HASH_LENGTH)
+    : mPlaces(VISITS_REMOVAL_INITIAL_HASH_SIZE)
     , mHistory(History::GetService())
   {
     MOZ_ASSERT(!NS_IsMainThread(),
@@ -1693,7 +1693,7 @@ public:
 
     // Find all the visits relative to the current filters and whether their
     // pages will be removed or not.
-    nsTHashtable<PlaceHashKey> places(VISITS_REMOVAL_INITIAL_HASH_LENGTH);
+    nsTHashtable<PlaceHashKey> places(VISITS_REMOVAL_INITIAL_HASH_SIZE);
     nsresult rv = FindRemovableVisits(places);
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -1925,7 +1925,7 @@ History* History::gService = nullptr;
 History::History()
   : mShuttingDown(false)
   , mShutdownMutex("History::mShutdownMutex")
-  , mObservers(VISIT_OBSERVERS_INITIAL_CACHE_LENGTH)
+  , mObservers(VISIT_OBSERVERS_INITIAL_CACHE_SIZE)
   , mRecentlyVisitedURIsNextIndex(0)
 {
   NS_ASSERTION(!gService, "Ruh-roh!  This service has already been created!");

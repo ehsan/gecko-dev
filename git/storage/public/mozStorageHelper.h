@@ -150,7 +150,7 @@ mozStorageTransaction;
 class MOZ_STACK_CLASS mozStorageStatementScoper
 {
 public:
-  explicit mozStorageStatementScoper(mozIStorageStatement* aStatement)
+  mozStorageStatementScoper(mozIStorageStatement* aStatement)
       : mStatement(aStatement)
   {
   }

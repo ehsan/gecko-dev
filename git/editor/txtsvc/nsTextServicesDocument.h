@@ -224,6 +224,11 @@ private:
                                  int32_t *aWordStartOffset,
                                  nsIDOMNode **aWordEndNode,
                                  int32_t *aWordEndOffset);
+
+#ifdef DEBUG_kin
+  void PrintOffsetTable();
+  void PrintContentNode(nsIContent *aContent);
+#endif
 };
 
 #endif // nsTextServicesDocument_h__

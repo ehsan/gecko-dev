@@ -171,7 +171,7 @@ nsFrameManager::RegisterPlaceholderFrame(nsPlaceholderFrame* aPlaceholderFrame)
                   "unexpected frame type");
   if (!mPlaceholderMap.ops) {
     PL_DHashTableInit(&mPlaceholderMap, &PlaceholderMapOps, nullptr,
-                      sizeof(PlaceholderMapEntry));
+                      sizeof(PlaceholderMapEntry), 16);
   }
   PlaceholderMapEntry *entry = static_cast<PlaceholderMapEntry*>(PL_DHashTableOperate(&mPlaceholderMap,
                               aPlaceholderFrame->GetOutOfFlowFrame(),

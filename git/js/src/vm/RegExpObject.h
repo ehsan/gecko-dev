@@ -361,10 +361,6 @@ class RegExpObject : public JSObject
         return RegExpFlag(flags);
     }
 
-    bool needUpdateLastIndex() const {
-        return sticky() || global();
-    }
-
     /* Flags. */
 
     void setIgnoreCase(bool enabled) {

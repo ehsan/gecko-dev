@@ -77,8 +77,8 @@ RemoteXULForbidsXBLScope(nsIPrincipal *aPrincipal, HandleObject aGlobal)
 
 XPCWrappedNativeScope::XPCWrappedNativeScope(JSContext *cx,
                                              JS::HandleObject aGlobal)
-      : mWrappedNativeMap(Native2WrappedNativeMap::newMap(XPC_NATIVE_MAP_LENGTH)),
-        mWrappedNativeProtoMap(ClassInfo2WrappedNativeProtoMap::newMap(XPC_NATIVE_PROTO_MAP_LENGTH)),
+      : mWrappedNativeMap(Native2WrappedNativeMap::newMap(XPC_NATIVE_MAP_SIZE)),
+        mWrappedNativeProtoMap(ClassInfo2WrappedNativeProtoMap::newMap(XPC_NATIVE_PROTO_MAP_SIZE)),
         mComponents(nullptr),
         mNext(nullptr),
         mGlobalJSObject(aGlobal),

@@ -208,7 +208,7 @@ public:
         MOZ_COUNT_CTOR(FontFamilyListRefCnt);
     }
 
-    explicit FontFamilyListRefCnt(FontFamilyType aGenericType)
+    FontFamilyListRefCnt(FontFamilyType aGenericType)
         : FontFamilyList(aGenericType)
     {
         MOZ_COUNT_CTOR(FontFamilyListRefCnt);
@@ -823,7 +823,7 @@ private:
   for (nsCSSValue *var = First() + 1, *var##_end = First() + mCount;          \
        var != var##_end; ++var)
 
-  explicit Array(size_t aItemCount)
+  Array(size_t aItemCount)
     : mRefCnt(0)
     , mCount(aItemCount)
   {
@@ -904,7 +904,7 @@ struct nsCSSValueSharedList MOZ_FINAL {
   }
 
   // Takes ownership of aList.
-  explicit nsCSSValueSharedList(nsCSSValueList* aList)
+  nsCSSValueSharedList(nsCSSValueList* aList)
     : mHead(aList)
   {
     MOZ_COUNT_CTOR(nsCSSValueSharedList);
@@ -1044,7 +1044,7 @@ struct nsCSSValuePair {
   {
     MOZ_COUNT_CTOR(nsCSSValuePair);
   }
-  explicit nsCSSValuePair(nsCSSUnit aUnit)
+  nsCSSValuePair(nsCSSUnit aUnit)
     : mXValue(aUnit), mYValue(aUnit)
   {
     MOZ_COUNT_CTOR(nsCSSValuePair);
@@ -1128,7 +1128,7 @@ struct nsCSSValueTriplet {
     {
         MOZ_COUNT_CTOR(nsCSSValueTriplet);
     }
-    explicit nsCSSValueTriplet(nsCSSUnit aUnit)
+    nsCSSValueTriplet(nsCSSUnit aUnit)
         : mXValue(aUnit), mYValue(aUnit), mZValue(aUnit)
     {
         MOZ_COUNT_CTOR(nsCSSValueTriplet);

@@ -37,7 +37,7 @@ using namespace mozilla::dom;
 ////////////////////////////////////////////////////////////////////////////////
 
 DocManager::DocManager()
-  : mDocAccessibleCache(2)
+  : mDocAccessibleCache(4)
 {
 }
 

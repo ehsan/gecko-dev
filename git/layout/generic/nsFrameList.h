@@ -299,7 +299,7 @@ public:
   public:
     // Implicit on purpose, so that we can easily create enumerators from
     // nsFrameList via this impicit constructor.
-    MOZ_IMPLICIT Slice(const nsFrameList& aList) :
+    Slice(const nsFrameList& aList) :
 #ifdef DEBUG
       mList(aList),
 #endif
@@ -334,7 +334,7 @@ public:
 
   class Enumerator {
   public:
-    explicit Enumerator(const Slice& aSlice) :
+    Enumerator(const Slice& aSlice) :
 #ifdef DEBUG
       mSlice(aSlice),
 #endif
@@ -415,7 +415,7 @@ public:
   public:
     friend class nsFrameList;
 
-    explicit FrameLinkEnumerator(const nsFrameList& aList) :
+    FrameLinkEnumerator(const nsFrameList& aList) :
       Enumerator(aList),
       mPrev(nullptr)
     {}

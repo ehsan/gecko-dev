@@ -406,7 +406,7 @@ SpdyStream31::ParseHttpRequestHeaders(const char *buf,
   // even though we are parsing the actual text stream because
   // it is legit to append headers.
   nsClassHashtable<nsCStringHashKey, nsCString>
-    hdrHash(mTransaction->RequestHead()->Headers().Count());
+    hdrHash(1 + (mTransaction->RequestHead()->Headers().Count() * 2));
 
   const char *beginBuffer = mFlatHttpRequestHeaders.BeginReading();
 

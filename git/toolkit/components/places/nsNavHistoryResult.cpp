@@ -4019,7 +4019,7 @@ nsNavHistoryResult::nsNavHistoryResult(nsNavHistoryContainerResultNode* aRoot)
   , mIsHistoryObserver(false)
   , mIsBookmarkFolderObserver(false)
   , mIsAllBookmarksObserver(false)
-  , mBookmarkFolderObservers(64)
+  , mBookmarkFolderObservers(128)
   , mBatchInProgress(false)
   , mSuppressNotifications(false)
 {

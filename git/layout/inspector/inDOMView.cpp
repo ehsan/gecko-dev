@@ -330,8 +330,8 @@ inDOMView::GetCellProperties(int32_t row, nsITreeColumn* col,
 
 #ifdef ACCESSIBILITY
   if (mShowAccessibleNodes) {
-	  nsCOMPtr<nsIAccessibilityService> accService =
-        services::GetAccessibilityService();
+    nsCOMPtr<nsIAccessibilityService> accService(
+      do_GetService("@mozilla.org/accessibilityService;1"));
     NS_ENSURE_TRUE(accService, NS_ERROR_FAILURE);
 
     nsCOMPtr<nsIAccessible> accessible;

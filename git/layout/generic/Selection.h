@@ -30,7 +30,7 @@ class ErrorResult;
 
 struct RangeData
 {
-  explicit RangeData(nsRange* aRange)
+  RangeData(nsRange* aRange)
     : mRange(aRange)
   {}
 
@@ -55,7 +55,7 @@ protected:
 
 public:
   Selection();
-  explicit Selection(nsFrameSelection *aList);
+  Selection(nsFrameSelection *aList);
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_AMBIGUOUS(Selection, nsISelectionPrivate)
