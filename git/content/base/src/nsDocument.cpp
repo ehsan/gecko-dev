@@ -3197,9 +3197,9 @@ nsDocument::GetChildCount() const
 }
 
 nsIContent * const *
-nsDocument::GetChildArray() const
+nsDocument::GetChildArray(PRUint32* aChildCount) const
 {
-  return mChildren.GetChildArray();
+  return mChildren.GetChildArray(aChildCount);
 }
   
 
@@ -3604,6 +3604,10 @@ nsDocument::GetWindow()
 nsPIDOMWindow *
 nsDocument::GetInnerWindow()
 {
+  if (!mRemovedFromDocShell) {
+    return mWindow;
+  }
+
   nsCOMPtr<nsPIDOMWindow> win(do_QueryInterface(GetScriptGlobalObject()));
 
   return win;
