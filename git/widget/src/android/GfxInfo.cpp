@@ -51,10 +51,6 @@
 
 using namespace mozilla::widget;
 
-#ifdef DEBUG
-NS_IMPL_ISUPPORTS_INHERITED1(GfxInfo, GfxInfoBase, nsIGfxInfoDebug)
-#endif
-
 /* GetD2DEnabled and GetDwriteEnabled shouldn't be called until after gfxPlatform initialization
  * has occurred because they depend on it for information. (See bug 591561) */
 nsresult
@@ -92,42 +88,7 @@ GfxInfo::GetCleartypeParameters(nsAString & aCleartypeParams)
 nsresult
 GfxInfo::Init()
 {
-  mAdapterDescription.AssignASCII(mozilla::gl::GetVendor());
-  if (mozilla::AndroidBridge::Bridge()) {
-    nsAutoString str;
-
-    mAdapterDescription.Append(NS_LITERAL_STRING(", Model: '"));
-    if (mozilla::AndroidBridge::Bridge()->GetStaticStringField("android/os/Build", "MODEL", str)) {
-      mAdapterDeviceID = str;
-      mAdapterDescription.Append(str);
-    }
-
-    mAdapterDescription.Append(NS_LITERAL_STRING("', Product: '"));
-    if (mozilla::AndroidBridge::Bridge()->GetStaticStringField("android/os/Build", "PRODUCT", str))
-      mAdapterDescription.Append(str);
-
-    mAdapterDescription.Append(NS_LITERAL_STRING("', Manufacturer: '"));
-    if (mozilla::AndroidBridge::Bridge()->GetStaticStringField("android/os/Build", "MANUFACTURER", str))
-      mAdapterDescription.Append(str);
-
-    mAdapterDescription.Append(NS_LITERAL_STRING("', Hardware: '"));
-    PRInt32 version; // the HARDWARE field isn't available on Android SDK < 8
-    if (!mozilla::AndroidBridge::Bridge()->GetStaticIntField("android/os/Build$VERSION", "SDK_INT", &version))
-      version = 0;
-
-    if (version >= 8 && mozilla::AndroidBridge::Bridge()->GetStaticStringField("android/os/Build", "HARDWARE", str)) {
-      if (mozilla::AndroidBridge::Bridge()->GetStaticStringField("android/os/Build", "HARDWARE", str)) {
-        mAdapterVendorID = str;
-        mAdapterDescription.Append(str);
-      }
-    }
-
-    mAdapterDescription.Append(NS_LITERAL_STRING("'"));
-    mAndroidSDKVersion = version;
-  }
-
-  AddOpenGLCrashReportAnnotations();
-
+  mSetCrashReportAnnotations = false;
   return GfxInfoBase::Init();
 }
 
@@ -135,7 +96,28 @@ GfxInfo::Init()
 NS_IMETHODIMP
 GfxInfo::GetAdapterDescription(nsAString & aAdapterDescription)
 {
-  aAdapterDescription = mAdapterDescription;
+  aAdapterDescription.AssignASCII(mozilla::gl::GetVendor());
+  if (mozilla::AndroidBridge::Bridge()) {
+      nsAutoString str;
+      aAdapterDescription.Append(NS_LITERAL_STRING(", Model: '"));
+      if (mozilla::AndroidBridge::Bridge()->GetStaticStringField("android/os/Build", "MODEL", str))
+        aAdapterDescription.Append(str);
+      aAdapterDescription.Append(NS_LITERAL_STRING("', Product: '"));
+      if (mozilla::AndroidBridge::Bridge()->GetStaticStringField("android/os/Build", "PRODUCT", str))
+        aAdapterDescription.Append(str);
+      aAdapterDescription.Append(NS_LITERAL_STRING("', Manufacturer: '"));
+      if (mozilla::AndroidBridge::Bridge()->GetStaticStringField("android/os/Build", "MANUFACTURER", str))
+        aAdapterDescription.Append(str);
+      aAdapterDescription.Append(NS_LITERAL_STRING("', Hardware: '"));
+      PRInt32 version; // the HARDWARE field isn't available on Android SDK < 8
+      if (!mozilla::AndroidBridge::Bridge()->GetStaticIntField("android/os/Build$VERSION", "SDK_INT", &version))
+        version = 0;
+      if (version >= 8 && mozilla::AndroidBridge::Bridge()->GetStaticStringField("android/os/Build", "HARDWARE", str))
+      if (mozilla::AndroidBridge::Bridge()->GetStaticStringField("android/os/Build", "HARDWARE", str))
+        aAdapterDescription.Append(str);
+      aAdapterDescription.Append(NS_LITERAL_STRING("'"));
+  }
+
   return NS_OK;
 }
 
@@ -180,8 +162,7 @@ GfxInfo::GetAdapterDriver2(nsAString & aAdapterDriver)
 NS_IMETHODIMP
 GfxInfo::GetAdapterDriverVersion(nsAString & aAdapterDriverVersion)
 {
-  aAdapterDriverVersion.Truncate(0);
-  aAdapterDriverVersion.AppendInt(mAndroidSDKVersion);
+  aAdapterDriverVersion.AssignLiteral("");
   return NS_OK;
 }
 
@@ -207,32 +188,47 @@ GfxInfo::GetAdapterDriverDate2(nsAString & aAdapterDriverDate)
   return NS_ERROR_FAILURE;
 }
 
-/* readonly attribute DOMString adapterVendorID; */
+/* readonly attribute unsigned long adapterVendorID; */
 NS_IMETHODIMP
-GfxInfo::GetAdapterVendorID(nsAString & aAdapterVendorID)
+GfxInfo::GetAdapterVendorID(PRUint32 *aAdapterVendorID)
 {
-  aAdapterVendorID = mAdapterVendorID;
+  nsAutoString str;
+  PRInt32 version; // the HARDWARE field isn't available on Android SDK < 8
+  if (!mozilla::AndroidBridge::Bridge()->GetStaticIntField("android/os/Build$VERSION", "SDK_INT", &version))
+    version = 0;
+  if (version >= 8 && mozilla::AndroidBridge::Bridge()->GetStaticStringField("android/os/Build", "HARDWARE", str)) {
+    *aAdapterVendorID = HashString(str);
+    return NS_OK;
+  }
+
+  *aAdapterVendorID = 0;
   return NS_OK;
 }
 
-/* readonly attribute DOMString adapterVendorID2; */
+/* readonly attribute unsigned long adapterVendorID2; */
 NS_IMETHODIMP
-GfxInfo::GetAdapterVendorID2(nsAString & aAdapterVendorID)
+GfxInfo::GetAdapterVendorID2(PRUint32 *aAdapterVendorID)
 {
   return NS_ERROR_FAILURE;
 }
 
-/* readonly attribute DOMString adapterDeviceID; */
+/* readonly attribute unsigned long adapterDeviceID; */
 NS_IMETHODIMP
-GfxInfo::GetAdapterDeviceID(nsAString & aAdapterDeviceID)
+GfxInfo::GetAdapterDeviceID(PRUint32 *aAdapterDeviceID)
 {
-  aAdapterDeviceID = mAdapterDeviceID;
+  nsAutoString str;
+  if (mozilla::AndroidBridge::Bridge()->GetStaticStringField("android/os/Build", "MODEL", str)) {
+    *aAdapterDeviceID = HashString(str);
+    return NS_OK;
+  }
+
+  *aAdapterDeviceID = 0;
   return NS_OK;
 }
 
-/* readonly attribute DOMString adapterDeviceID2; */
+/* readonly attribute unsigned long adapterDeviceID2; */
 NS_IMETHODIMP
-GfxInfo::GetAdapterDeviceID2(nsAString & aAdapterDeviceID)
+GfxInfo::GetAdapterDeviceID2(PRUint32 *aAdapterDeviceID)
 {
   return NS_ERROR_FAILURE;
 }
@@ -248,30 +244,29 @@ void
 GfxInfo::AddOpenGLCrashReportAnnotations()
 {
 #if defined(MOZ_CRASHREPORTER)
-  nsAutoString adapterDescriptionString, deviceID, vendorID;
-  nsCAutoString narrowDeviceID, narrowVendorID;
+  nsCAutoString deviceIDString, vendorIDString;
+  nsAutoString adapterDescriptionString;
+  PRUint32 deviceID, vendorID;
 
-  GetAdapterDeviceID(deviceID);
-  GetAdapterVendorID(vendorID);
+  GetAdapterDeviceID(&deviceID);
+  GetAdapterVendorID(&vendorID);
   GetAdapterDescription(adapterDescriptionString);
 
-  narrowDeviceID = NS_ConvertUTF16toUTF8(deviceID);
-  narrowVendorID = NS_ConvertUTF16toUTF8(vendorID);
+  deviceIDString.AppendPrintf("%04x", deviceID);
+  vendorIDString.AppendPrintf("%04x", vendorID);
 
   CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("AdapterVendorID"),
-                                     narrowVendorID);
+      vendorIDString);
   CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("AdapterDeviceID"),
-                                     narrowDeviceID);
+      deviceIDString);
 
   /* Add an App Note for now so that we get the data immediately. These
    * can go away after we store the above in the socorro db */
   nsCAutoString note;
   /* AppendPrintf only supports 32 character strings, mrghh. */
-  note.Append("AdapterVendorID: ");
-  note.Append(narrowVendorID);
-  note.Append(", AdapterDeviceID: ");
-  note.Append(narrowDeviceID);
-  note.Append(".\n");
+  note.AppendPrintf("AdapterVendorID: %04x, ", vendorID);
+  note.AppendPrintf("AdapterDeviceID: %04x.", deviceID);
+  note.Append("\n");
   note.AppendPrintf("AdapterDescription: '%s'.", NS_ConvertUTF16toUTF8(adapterDescriptionString).get());
   note.Append("\n");
 
@@ -279,90 +274,58 @@ GfxInfo::AddOpenGLCrashReportAnnotations()
 #endif
 }
 
-const nsTArray<GfxDriverInfo>&
+static GfxDriverInfo gDriverInfo[] = {
+  GfxDriverInfo()
+};
+
+const GfxDriverInfo*
 GfxInfo::GetGfxDriverInfo()
 {
-  if (!mDriverInfo->Length()) {
-    /* The following entry, when uncommented, will allow us to whitelist a
-     * specific device. See the long comment in GetFeatureStatusImpl for more
-     * info. */
- // APPEND_TO_DRIVER_BLOCKLIST( DRIVER_OS_ALL,
- //   my_vendor_id, my_device_id,
- //   nsIGfxInfo::FEATURE_OPENGL_LAYERS, nsIGfxInfo::FEATURE_NO_INFO,
- //   DRIVER_LESS_THAN, GfxDriverInfo::allDevices );
-    APPEND_TO_DRIVER_BLOCKLIST2( DRIVER_OS_ALL,
-      (nsAString&) GfxDriverInfo::GetDeviceVendor(VendorAll), GfxDriverInfo::allDevices,
-      nsIGfxInfo::FEATURE_OPENGL_LAYERS, nsIGfxInfo::FEATURE_BLOCKED_DEVICE,
-      DRIVER_LESS_THAN, GfxDriverInfo::allDriverVersions );
-  }
-  return *mDriverInfo;
+  return &gDriverInfo[0];
 }
 
 nsresult
 GfxInfo::GetFeatureStatusImpl(PRInt32 aFeature, 
                               PRInt32 *aStatus, 
                               nsAString & aSuggestedDriverVersion,
-                              const nsTArray<GfxDriverInfo>& aDriverInfo, 
+                              GfxDriverInfo* aDriverInfo /* = nsnull */, 
                               OperatingSystem* aOS /* = nsnull */)
 {
-  NS_ENSURE_ARG_POINTER(aStatus);
+  PRInt32 status = nsIGfxInfo::FEATURE_NO_INFO;
+
   aSuggestedDriverVersion.SetIsVoid(true);
-  *aStatus = nsIGfxInfo::FEATURE_STATUS_UNKNOWN;
+
+  // For now, we don't implement the downloaded blacklist.
+  if (aDriverInfo) {
+    *aStatus = status;
+    return NS_OK;
+  }
+
   OperatingSystem os = DRIVER_OS_ANDROID;
+
+  if (aFeature == FEATURE_OPENGL_LAYERS) {
+    if (!mSetCrashReportAnnotations) {
+      AddOpenGLCrashReportAnnotations();
+      mSetCrashReportAnnotations = true;
+    }
+
+    /* XXX: Use this code when we're ready to whitelist devices. */
+    // nsAutoString str;
+    // /* Whitelist Galaxy S phones */
+    // if (mozilla::AndroidBridge::Bridge()->GetStaticStringField("android/os/Build", "HARDWARE", str)) {
+    //   if (str != NS_LITERAL_STRING("smdkc110")) {
+    //     status = FEATURE_BLOCKED_DEVICE;
+    //   }
+    // }
+
+    status = FEATURE_BLOCKED_DEVICE;
+  }
+
+  *aStatus = status;
   if (aOS)
     *aOS = os;
 
-  // Don't evaluate special cases when evaluating the downlaoded blocklist.
-  if (!aDriverInfo.Length()) {
-    if (aFeature == FEATURE_OPENGL_LAYERS) {
-      /* The following code is an old way to whitelist devices when we're ready.
-       * It is staying here for reference. The best way to do this now is to add
-       * an entry in the list above. There is a dummy entry which will whitelist a
-       * device when uncommented and device/vendor IDs are inserted. It is
-       * preferred that we stop whitelisting and instead go to blocklisting, where
-       * everything is assumed to be okay as long as it's not in the blocklist. */
-      // nsAutoString str;
-      // /* Whitelist Galaxy S phones */
-      // if (mozilla::AndroidBridge::Bridge()->GetStaticStringField("android/os/Build", "HARDWARE", str)) {
-      //   if (str != NS_LITERAL_STRING("smdkc110")) {
-      //     status = FEATURE_BLOCKED_DEVICE;
-      //   }
-      // }
-    }
-  }
-
-  return GfxInfoBase::GetFeatureStatusImpl(aFeature, aStatus, aSuggestedDriverVersion, aDriverInfo, &os);
-}
-
-#ifdef DEBUG
-
-// Implement nsIGfxInfoDebug
-
-/* void spoofVendorID (in DOMString aVendorID); */
-NS_IMETHODIMP GfxInfo::SpoofVendorID(const nsAString & aVendorID)
-{
-  mAdapterVendorID = aVendorID;
+  // XXX disabled for now as this calls GetAdapterVendorID and friends, which currently crash on Android, see bug 700124
+  // return GfxInfoBase::GetFeatureStatusImpl(aFeature, aStatus, aSuggestedDriverVersion, aDriverInfo, &os);
   return NS_OK;
 }
-
-/* void spoofDeviceID (in unsigned long aDeviceID); */
-NS_IMETHODIMP GfxInfo::SpoofDeviceID(const nsAString & aDeviceID)
-{
-  mAdapterDeviceID = aDeviceID;
-  return NS_OK;
-}
-
-/* void spoofDriverVersion (in DOMString aDriverVersion); */
-NS_IMETHODIMP GfxInfo::SpoofDriverVersion(const nsAString & aDriverVersion)
-{
-  mDriverVersion = aDriverVersion;
-  return NS_OK;
-}
-
-/* void spoofOSVersion (in unsigned long aVersion); */
-NS_IMETHODIMP GfxInfo::SpoofOSVersion(PRUint32 aVersion)
-{
-  return NS_OK;
-}
-
-#endif

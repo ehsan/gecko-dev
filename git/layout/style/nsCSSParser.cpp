@@ -335,23 +335,22 @@ protected:
   void PopGroup();
 
   bool ParseRuleSet(RuleAppendFunc aAppendFunc, void* aProcessData,
-                    bool aInsideBraces = false);
-  bool ParseAtRule(RuleAppendFunc aAppendFunc, void* aProcessData,
-                   bool aInAtRule);
+                      bool aInsideBraces = false);
+  bool ParseAtRule(RuleAppendFunc aAppendFunc, void* aProcessData);
   bool ParseCharsetRule(RuleAppendFunc aAppendFunc, void* aProcessData);
   bool ParseImportRule(RuleAppendFunc aAppendFunc, void* aProcessData);
   bool ParseURLOrString(nsString& aURL);
   bool GatherMedia(nsMediaList* aMedia,
-                   bool aInAtRule);
+                     bool aInAtRule);
   bool ParseMediaQuery(bool aInAtRule, nsMediaQuery **aQuery,
-                       bool *aHitStop);
+                         bool *aHitStop);
   bool ParseMediaQueryExpression(nsMediaQuery* aQuery);
   void ProcessImport(const nsString& aURLSpec,
                      nsMediaList* aMedia,
                      RuleAppendFunc aAppendFunc,
                      void* aProcessData);
   bool ParseGroupRule(css::GroupRule* aRule, RuleAppendFunc aAppendFunc,
-                      void* aProcessData);
+                        void* aProcessData);
   bool ParseMediaRule(RuleAppendFunc aAppendFunc, void* aProcessData);
   bool ParseMozDocumentRule(RuleAppendFunc aAppendFunc, void* aProcessData);
   bool ParseNameSpaceRule(RuleAppendFunc aAppendFunc, void* aProcessData);
@@ -362,7 +361,7 @@ protected:
   bool ParseFontFaceRule(RuleAppendFunc aAppendFunc, void* aProcessData);
   bool ParseFontDescriptor(nsCSSFontFaceRule* aRule);
   bool ParseFontDescriptorValue(nsCSSFontDesc aDescID,
-                                nsCSSValue& aValue);
+                                  nsCSSValue& aValue);
 
   bool ParsePageRule(RuleAppendFunc aAppendFunc, void* aProcessData);
   bool ParseKeyframesRule(RuleAppendFunc aAppendFunc, void* aProcessData);
@@ -920,7 +919,7 @@ CSSParserImpl::ParseSheet(const nsAString& aInput,
       continue; // legal here only
     }
     if (eCSSToken_AtKeyword == tk->mType) {
-      ParseAtRule(AppendRuleToSheet, this, false);
+      ParseAtRule(AppendRuleToSheet, this);
       continue;
     }
     UngetToken();
@@ -1051,7 +1050,7 @@ CSSParserImpl::ParseRule(const nsAString&        aRule,
     REPORT_UNEXPECTED(PEParseRuleWSOnly);
     OUTPUT_ERROR();
   } else if (eCSSToken_AtKeyword == tk->mType) {
-    ParseAtRule(AppendRuleToArray, &aResult, false);
+    ParseAtRule(AppendRuleToArray, &aResult);
   }
   else {
     UngetToken();
@@ -1509,10 +1508,14 @@ CSSParserImpl::SkipAtRule(bool aInsideBlock)
 
 bool
 CSSParserImpl::ParseAtRule(RuleAppendFunc aAppendFunc,
-                           void* aData,
-                           bool aInAtRule)
+                           void* aData)
 {
-
+  // If we ever allow nested at-rules, we need to be very careful about
+  // the error handling rules in the CSS spec.  In particular, we need
+  // to pass in to ParseAtRule whether we're inside a block, we need to
+  // ensure that all the individual at-rule parsing functions terminate
+  // immediately when they hit a '}', and then we need to pass whether
+  // we're inside a block to SkipAtRule below.
   nsCSSSection newSection;
   bool (CSSParserImpl::*parseFunc)(RuleAppendFunc, void*);
 
@@ -1557,27 +1560,16 @@ CSSParserImpl::ParseAtRule(RuleAppendFunc aAppendFunc,
       OUTPUT_ERROR();
     }
     // Skip over unsupported at rule, don't advance section
-    return SkipAtRule(aInAtRule);
+    return SkipAtRule(false);
   }
 
-  // Inside of @-rules, only the rules that can occur anywhere
-  // are allowed.
-  bool unnestable = aInAtRule && newSection != eCSSSection_General;
-  if (unnestable) {
-    REPORT_UNEXPECTED_TOKEN(PEGroupRuleNestedAtRule);
-  }
-  
-  if (unnestable || !(this->*parseFunc)(aAppendFunc, aData)) {
+  if (!(this->*parseFunc)(aAppendFunc, aData)) {
     // Skip over invalid at rule, don't advance section
     OUTPUT_ERROR();
-    return SkipAtRule(aInAtRule);
+    return SkipAtRule(false);
   }
 
-  // Nested @-rules don't affect the top-level rule chain requirement
-  if (!aInAtRule) {
-    mSection = newSection;
-  }
-  
+  mSection = newSection;
   return true;
 }
 
@@ -1645,7 +1637,7 @@ CSSParserImpl::ParseMediaQuery(bool aInAtRule,
   }
 
   if (eCSSToken_Symbol == mToken.mType && aInAtRule &&
-      (mToken.mSymbol == ';' || mToken.mSymbol == '{' || mToken.mSymbol == '}' )) {
+      (mToken.mSymbol == ';' || mToken.mSymbol == '{')) {
     *aHitStop = true;
     UngetToken();
     return true;
@@ -1709,7 +1701,7 @@ CSSParserImpl::ParseMediaQuery(bool aInAtRule,
     }
 
     if (eCSSToken_Symbol == mToken.mType && aInAtRule &&
-        (mToken.mSymbol == ';' || mToken.mSymbol == '{' || mToken.mSymbol == '}')) {
+        (mToken.mSymbol == ';' || mToken.mSymbol == '{')) {
       *aHitStop = true;
       UngetToken();
       break;
@@ -1750,14 +1742,14 @@ CSSParserImpl::GatherMedia(nsMediaList* aMedia,
       }
       if (aInAtRule) {
         const PRUnichar stopChars[] =
-          { PRUnichar(','), PRUnichar('{'), PRUnichar(';'), PRUnichar('}'), PRUnichar(0) };
+          { PRUnichar(','), PRUnichar('{'), PRUnichar(';'), PRUnichar(0) };
         SkipUntilOneOf(stopChars);
       } else {
         SkipUntil(',');
       }
       // Rely on SkipUntilOneOf leaving mToken around as the last token read.
       if (mToken.mType == eCSSToken_Symbol && aInAtRule &&
-          (mToken.mSymbol == '{' || mToken.mSymbol == ';'  || mToken.mSymbol == '}')) {
+          (mToken.mSymbol == '{' || mToken.mSymbol == ';')) {
         UngetToken();
         hitStop = true;
       }
@@ -2001,8 +1993,9 @@ CSSParserImpl::ParseGroupRule(css::GroupRule* aRule,
       break;
     }
     if (eCSSToken_AtKeyword == mToken.mType) {
-      // Parse for nested rules
-      ParseAtRule(aAppendFunc, aData, true);
+      REPORT_UNEXPECTED_TOKEN(PEGroupRuleNestedAtRule);
+      OUTPUT_ERROR();
+      SkipAtRule(true); // group rules cannot contain @rules
       continue;
     }
     UngetToken();
@@ -2047,19 +2040,13 @@ CSSParserImpl::ParseMozDocumentRule(RuleAppendFunc aAppendFunc, void* aData)
   css::DocumentRule::URL *urls = nsnull;
   css::DocumentRule::URL **next = &urls;
   do {
-    if (!GetToken(true)) {
-      REPORT_UNEXPECTED_EOF(PEMozDocRuleEOF);
-      delete urls;
-      return false;
-    }
-        
-    if (!(eCSSToken_URL == mToken.mType ||
+    if (!GetToken(true) ||
+        !(eCSSToken_URL == mToken.mType ||
           (eCSSToken_Function == mToken.mType &&
            (mToken.mIdent.LowerCaseEqualsLiteral("url-prefix") ||
             mToken.mIdent.LowerCaseEqualsLiteral("domain") ||
             mToken.mIdent.LowerCaseEqualsLiteral("regexp"))))) {
       REPORT_UNEXPECTED_TOKEN(PEMozDocRuleBadFunc);
-      UngetToken();
       delete urls;
       return false;
     }

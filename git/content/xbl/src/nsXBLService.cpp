@@ -126,11 +126,13 @@ IsAncestorBinding(nsIDocument* aDocument,
       aChildBindingURI->GetSpec(spec);
       NS_ConvertUTF8toUTF16 bindingURI(spec);
       const PRUnichar* params[] = { bindingURI.get() };
-      nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
-                                      "XBL", aDocument,
-                                      nsContentUtils::eXBL_PROPERTIES,
+      nsContentUtils::ReportToConsole(nsContentUtils::eXBL_PROPERTIES,
                                       "TooDeepBindingRecursion",
-                                      params, ArrayLength(params));
+                                      params, ArrayLength(params),
+                                      nsnull,
+                                      EmptyString(), 0, 0,
+                                      nsIScriptError::warningFlag,
+                                      "XBL", aDocument);
       return true;
     }
   }
@@ -417,11 +419,12 @@ nsXBLStreamListener::HandleEvent(nsIDOMEvent* aEvent)
       if (nsXBLService::IsChromeOrResourceURI(documentURI)) {
         NS_WARNING("An XBL file is malformed. Did you forget the XBL namespace on the bindings tag?");
       }
-      nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
-                                      "XBL", nsnull,
-                                      nsContentUtils::eXBL_PROPERTIES,
+      nsContentUtils::ReportToConsole(nsContentUtils::eXBL_PROPERTIES,
                                       "MalformedXBL",
-                                      nsnull, 0, documentURI);
+                                      nsnull, 0, documentURI,
+                                      EmptyString(), 0, 0,
+                                      nsIScriptError::warningFlag,
+                                      "XBL");
       return NS_ERROR_FAILURE;
     }
 
@@ -884,12 +887,13 @@ nsXBLService::GetBinding(nsIContent* aBoundElement, nsIURI* aURI,
           baseBindingURI->GetSpec(basespec);
           NS_ConvertUTF8toUTF16 baseSpecUTF16(basespec);
           const PRUnichar* params[] = { protoSpec.get(), baseSpecUTF16.get() };
-          nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
-                                          "XBL", nsnull,
-                                          nsContentUtils::eXBL_PROPERTIES,
+          nsContentUtils::ReportToConsole(nsContentUtils::eXBL_PROPERTIES,
                                           "CircularExtendsBinding",
-                                          params, ArrayLength(params),
-                                          boundDocument->GetDocumentURI());
+                                          params, NS_ARRAY_LENGTH(params),
+                                          boundDocument->GetDocumentURI(),
+                                          EmptyString(), 0, 0,
+                                          nsIScriptError::warningFlag,
+                                          "XBL");
           return NS_ERROR_ILLEGAL_VALUE;
         }
       }

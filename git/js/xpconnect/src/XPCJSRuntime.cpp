@@ -58,8 +58,6 @@
 #include "mozilla/Preferences.h"
 #include "mozilla/Telemetry.h"
 
-#include "nsContentUtils.h"
-
 #ifdef MOZ_CRASHREPORTER
 #include "nsExceptionHandler.h"
 #endif
@@ -104,7 +102,7 @@ struct JSDyingJSObjectData
 
 static JSDHashOperator
 WrappedJSDyingJSObjectFinder(JSDHashTable *table, JSDHashEntryHdr *hdr,
-                             uint32_t number, void *arg)
+                             uint32 number, void *arg)
 {
     JSDyingJSObjectData* data = (JSDyingJSObjectData*) arg;
     nsXPCWrappedJS* wrapper = ((JSObject2WrappedJSMap::Entry*)hdr)->value;
@@ -132,7 +130,7 @@ struct CX_AND_XPCRT_Data
 
 static JSDHashOperator
 NativeInterfaceSweeper(JSDHashTable *table, JSDHashEntryHdr *hdr,
-                       uint32_t number, void *arg)
+                       uint32 number, void *arg)
 {
     XPCNativeInterface* iface = ((IID2NativeInterfaceMap::Entry*)hdr)->value;
     if (iface->IsMarked()) {
@@ -157,7 +155,7 @@ NativeInterfaceSweeper(JSDHashTable *table, JSDHashEntryHdr *hdr,
 
 static JSDHashOperator
 NativeUnMarkedSetRemover(JSDHashTable *table, JSDHashEntryHdr *hdr,
-                         uint32_t number, void *arg)
+                         uint32 number, void *arg)
 {
     XPCNativeSet* set = ((ClassInfo2NativeSetMap::Entry*)hdr)->value;
     if (set->IsMarked())
@@ -167,7 +165,7 @@ NativeUnMarkedSetRemover(JSDHashTable *table, JSDHashEntryHdr *hdr,
 
 static JSDHashOperator
 NativeSetSweeper(JSDHashTable *table, JSDHashEntryHdr *hdr,
-                 uint32_t number, void *arg)
+                 uint32 number, void *arg)
 {
     XPCNativeSet* set = ((NativeSetMap::Entry*)hdr)->key_value;
     if (set->IsMarked()) {
@@ -192,7 +190,7 @@ NativeSetSweeper(JSDHashTable *table, JSDHashEntryHdr *hdr,
 
 static JSDHashOperator
 JSClassSweeper(JSDHashTable *table, JSDHashEntryHdr *hdr,
-               uint32_t number, void *arg)
+               uint32 number, void *arg)
 {
     XPCNativeScriptableShared* shared =
         ((XPCNativeScriptableSharedMap::Entry*) hdr)->key;
@@ -218,7 +216,7 @@ JSClassSweeper(JSDHashTable *table, JSDHashEntryHdr *hdr,
 
 static JSDHashOperator
 DyingProtoKiller(JSDHashTable *table, JSDHashEntryHdr *hdr,
-                 uint32_t number, void *arg)
+                 uint32 number, void *arg)
 {
     XPCWrappedNativeProto* proto =
         (XPCWrappedNativeProto*)((JSDHashEntryStub*)hdr)->key;
@@ -228,7 +226,7 @@ DyingProtoKiller(JSDHashTable *table, JSDHashEntryHdr *hdr,
 
 static JSDHashOperator
 DetachedWrappedNativeProtoMarker(JSDHashTable *table, JSDHashEntryHdr *hdr,
-                                 uint32_t number, void *arg)
+                                 uint32 number, void *arg)
 {
     XPCWrappedNativeProto* proto =
         (XPCWrappedNativeProto*)((JSDHashEntryStub*)hdr)->key;
@@ -388,7 +386,7 @@ TraceJSObject(PRUint32 aLangID, void *aScriptThing, const char *name,
 }
 
 static JSDHashOperator
-TraceJSHolder(JSDHashTable *table, JSDHashEntryHdr *hdr, uint32_t number,
+TraceJSHolder(JSDHashTable *table, JSDHashEntryHdr *hdr, uint32 number,
               void *arg)
 {
     ObjectHolder* entry = reinterpret_cast<ObjectHolder*>(hdr);
@@ -480,7 +478,7 @@ CheckParticipatesInCycleCollection(PRUint32 aLangID, void *aThing,
 }
 
 static JSDHashOperator
-NoteJSHolder(JSDHashTable *table, JSDHashEntryHdr *hdr, uint32_t number,
+NoteJSHolder(JSDHashTable *table, JSDHashEntryHdr *hdr, uint32 number,
              void *arg)
 {
     ObjectHolder* entry = reinterpret_cast<ObjectHolder*>(hdr);
@@ -620,7 +618,7 @@ DoDeferredRelease(nsTArray<T> &array)
 
 static JSDHashOperator
 SweepWaiverWrappers(JSDHashTable *table, JSDHashEntryHdr *hdr,
-                    uint32_t number, void *arg)
+                    uint32 number, void *arg)
 {
     JSContext *cx = (JSContext *)arg;
     JSObject *key = ((JSObject2JSObjectMap::Entry *)hdr)->key;
@@ -1019,7 +1017,7 @@ XPCJSRuntime::SizeOfIncludingThis(nsMallocSizeOfFun mallocSizeOf)
 #ifdef XPC_CHECK_WRAPPERS_AT_SHUTDOWN
 static JSDHashOperator
 DEBUG_WrapperChecker(JSDHashTable *table, JSDHashEntryHdr *hdr,
-                     uint32_t number, void *arg)
+                     uint32 number, void *arg)
 {
     XPCWrappedNative* wrapper = (XPCWrappedNative*)((JSDHashEntryStub*)hdr)->key;
     NS_ASSERTION(!wrapper->IsValid(), "found a 'valid' wrapper!");
@@ -1030,7 +1028,7 @@ DEBUG_WrapperChecker(JSDHashTable *table, JSDHashEntryHdr *hdr,
 
 static JSDHashOperator
 WrappedJSShutdownMarker(JSDHashTable *table, JSDHashEntryHdr *hdr,
-                        uint32_t number, void *arg)
+                        uint32 number, void *arg)
 {
     JSRuntime* rt = (JSRuntime*) arg;
     nsXPCWrappedJS* wrapper = ((JSObject2WrappedJSMap::Entry*)hdr)->value;
@@ -1042,7 +1040,7 @@ WrappedJSShutdownMarker(JSDHashTable *table, JSDHashEntryHdr *hdr,
 
 static JSDHashOperator
 DetachedWrappedNativeProtoShutdownMarker(JSDHashTable *table, JSDHashEntryHdr *hdr,
-                                         uint32_t number, void *arg)
+                                         uint32 number, void *arg)
 {
     XPCWrappedNativeProto* proto =
         (XPCWrappedNativeProto*)((JSDHashEntryStub*)hdr)->key;
@@ -2104,7 +2102,7 @@ DiagnosticMemoryCallback(void *ptr, size_t size)
 #endif
 
 static void
-AccumulateTelemetryCallback(int id, uint32_t sample)
+AccumulateTelemetryCallback(int id, JSUint32 sample)
 {
     switch (id) {
       case JS_TELEMETRY_GC_REASON:
@@ -2129,20 +2127,6 @@ AccumulateTelemetryCallback(int id, uint32_t sample)
 }
 
 bool XPCJSRuntime::gNewDOMBindingsEnabled;
-
-bool PreserveWrapper(JSContext *cx, JSObject *obj)
-{
-    JS_ASSERT(obj->getClass()->ext.isWrappedNative);
-    nsISupports *native = nsXPConnect::GetXPConnect()->GetNativeOfWrapper(cx, obj);
-    if (!native)
-        return false;
-    nsWrapperCache *wc;
-    nsresult rv = CallQueryInterface(native, &wc);
-    if (NS_FAILED(rv))
-        return false;
-    nsContentUtils::PreserveWrapper(native, wc);
-    return true;
-}
 
 XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
  : mXPConnect(aXPConnect),
@@ -2193,7 +2177,7 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
     {
         // Unconstrain the runtime's threshold on nominal heap size, to avoid
         // triggering GC too often if operating continuously near an arbitrary
-        // finite threshold (0xffffffff is infinity for uint32_t parameters).
+        // finite threshold (0xffffffff is infinity for uint32 parameters).
         // This leaves the maximum-JS_malloc-bytes threshold still in effect
         // to cause period, and we hope hygienic, last-ditch GCs from within
         // the GC's allocator.
@@ -2206,8 +2190,6 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
         JS_SetWrapObjectCallbacks(mJSRuntime,
                                   xpc::WrapperFactory::Rewrap,
                                   xpc::WrapperFactory::PrepareForWrapping);
-        js::SetPreserveWrapperCallback(mJSRuntime, PreserveWrapper);
-
 #ifdef MOZ_CRASHREPORTER
         JS_EnumerateDiagnosticMemoryRegions(DiagnosticMemoryCallback);
 #endif
@@ -2342,21 +2324,21 @@ XPCJSRuntime::DeferredRelease(nsISupports* obj)
 #ifdef DEBUG
 static JSDHashOperator
 WrappedJSClassMapDumpEnumerator(JSDHashTable *table, JSDHashEntryHdr *hdr,
-                                uint32_t number, void *arg)
+                                uint32 number, void *arg)
 {
     ((IID2WrappedJSClassMap::Entry*)hdr)->value->DebugDump(*(PRInt16*)arg);
     return JS_DHASH_NEXT;
 }
 static JSDHashOperator
 WrappedJSMapDumpEnumerator(JSDHashTable *table, JSDHashEntryHdr *hdr,
-                           uint32_t number, void *arg)
+                           uint32 number, void *arg)
 {
     ((JSObject2WrappedJSMap::Entry*)hdr)->value->DebugDump(*(PRInt16*)arg);
     return JS_DHASH_NEXT;
 }
 static JSDHashOperator
 NativeSetDumpEnumerator(JSDHashTable *table, JSDHashEntryHdr *hdr,
-                        uint32_t number, void *arg)
+                        uint32 number, void *arg)
 {
     ((NativeSetMap::Entry*)hdr)->key_value->DebugDump(*(PRInt16*)arg);
     return JS_DHASH_NEXT;

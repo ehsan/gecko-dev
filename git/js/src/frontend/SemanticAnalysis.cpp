@@ -257,7 +257,7 @@ FindFunArgs(FunctionBox *funbox, int level, FunctionBoxQueue *queue)
 }
 
 static bool
-MarkFunArgs(JSContext *cx, FunctionBox *funbox, uint32_t functionCount)
+MarkFunArgs(JSContext *cx, FunctionBox *funbox, uint32 functionCount)
 {
     FunctionBoxQueue queue;
     if (!queue.init(functionCount)) {
@@ -331,8 +331,8 @@ MarkFunArgs(JSContext *cx, FunctionBox *funbox, uint32_t functionCount)
     return true;
 }
 
-static uint32_t
-MinBlockId(ParseNode *fn, uint32_t id)
+static uint32
+MinBlockId(ParseNode *fn, uint32 id)
 {
     if (fn->pn_blockid < id)
         return false;
@@ -346,7 +346,7 @@ MinBlockId(ParseNode *fn, uint32_t id)
 }
 
 static inline bool
-CanFlattenUpvar(Definition *dn, FunctionBox *funbox, uint32_t tcflags)
+CanFlattenUpvar(Definition *dn, FunctionBox *funbox, uint32 tcflags)
 {
     /*
      * Consider the current function (the lambda, innermost below) using a var
@@ -487,7 +487,7 @@ CanFlattenUpvar(Definition *dn, FunctionBox *funbox, uint32_t tcflags)
 }
 
 static void
-FlagHeavyweights(Definition *dn, FunctionBox *funbox, uint32_t *tcflags)
+FlagHeavyweights(Definition *dn, FunctionBox *funbox, uint32 *tcflags)
 {
     uintN dnLevel = dn->frameLevel();
 
@@ -510,7 +510,7 @@ FlagHeavyweights(Definition *dn, FunctionBox *funbox, uint32_t *tcflags)
 }
 
 static void
-SetFunctionKinds(FunctionBox *funbox, uint32_t *tcflags, bool isDirectEval)
+SetFunctionKinds(FunctionBox *funbox, uint32 *tcflags, bool isDirectEval)
 {
     for (; funbox; funbox = funbox->siblings) {
         ParseNode *fn = funbox->node;

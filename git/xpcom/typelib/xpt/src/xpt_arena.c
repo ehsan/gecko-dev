@@ -338,14 +338,9 @@ XPT_AssertFailed(const char *s, const char *file, PRUint32 lineno)
 #endif
 
 XPT_PUBLIC_API(size_t)
-XPT_SizeOfArena(XPTArena *arena, xptMallocSizeOfFun mallocSizeOf)
+XPT_SizeOfArena(XPTArena *arena)
 {
-    size_t n = mallocSizeOf(arena, sizeof(XPTArena));
-
-    /*
-     * We don't measure arena->name separately because it's allocated out of
-     * the arena itself.
-     */
+    size_t n = sizeof(XPTArena);
 
     BLK_HDR* cur;
     BLK_HDR* next;
@@ -353,7 +348,7 @@ XPT_SizeOfArena(XPTArena *arena, xptMallocSizeOfFun mallocSizeOf)
     cur = arena->first;
     while (cur) {
         next = cur->next;
-        n += mallocSizeOf(cur, cur->size);
+        n += cur->size;
         cur = next;
     }
 

@@ -298,10 +298,12 @@ nsHTMLSharedObjectElement::BindToTree(nsIDocument *aDocument,
     // event dispatch, and we're in full-screen mode. Exit full-screen mode
     // to prevent phishing attacks.
     nsIDocument::ExitFullScreen(true);
-    nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
-                                    "DOM", aDocument,
-                                    nsContentUtils::eDOM_PROPERTIES,
-                                    "AddedWindowedPluginWhileFullScreen");
+    nsContentUtils::ReportToConsole(nsContentUtils::eDOM_PROPERTIES,
+                                    "AddedWindowedPluginWhileFullScreen",
+                                    nsnull, 0, nsnull,
+                                    EmptyString(), 0, 0,
+                                    nsIScriptError::warningFlag,
+                                    "DOM", aDocument);           
   }
 #endif
   return NS_OK;

@@ -185,18 +185,16 @@ PropertyCache::fullTest(JSContext *cx, jsbytecode *pc, JSObject **objp, JSObject
                         PropertyCacheEntry *entry)
 {
     JSObject *obj, *pobj, *tmp;
-#ifdef DEBUG
     JSScript *script = cx->stack.currentScript();
-#endif
 
     JS_ASSERT(this == &JS_PROPERTY_CACHE(cx));
-    JS_ASSERT(uint32_t(pc - script->code) < script->length);
+    JS_ASSERT(uint32(pc - script->code) < script->length);
 
     JSOp op = JSOp(*pc);
     const JSCodeSpec &cs = js_CodeSpec[op];
 
     obj = *objp;
-    uint32_t vindex = entry->vindex;
+    uint32 vindex = entry->vindex;
 
     if (entry->kpc != pc) {
         PCMETER(kpcmisses++);

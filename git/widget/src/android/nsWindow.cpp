@@ -79,13 +79,17 @@ using mozilla::unused;
 
 #include "nsStringGlue.h"
 
+// NB: Keep these in sync with LayerController.java in mobile/android/base and embedding/android/.
+#define TILE_WIDTH      1024
+#define TILE_HEIGHT     2048
+
 using namespace mozilla;
 using namespace mozilla::widget;
 
 NS_IMPL_ISUPPORTS_INHERITED0(nsWindow, nsBaseWidget)
 
 // The dimensions of the current android view
-static gfxIntSize gAndroidBounds = gfxIntSize(0, 0);
+static gfxIntSize gAndroidBounds;
 static gfxIntSize gAndroidScreenBounds;
 
 #ifdef ACCESSIBILITY
@@ -306,7 +310,7 @@ nsWindow::ConfigureChildren(const nsTArray<nsIWidget::Configuration>& config)
 void
 nsWindow::RedrawAll()
 {
-    nsIntRect entireRect(0, 0, gAndroidBounds.width, gAndroidBounds.height);
+    nsIntRect entireRect(0, 0, TILE_WIDTH, TILE_HEIGHT);
     AndroidGeckoEvent *event = new AndroidGeckoEvent(AndroidGeckoEvent::DRAW, entireRect);
     nsAppShell::gAppShell->PostEvent(event);
 }
@@ -1014,7 +1018,7 @@ nsWindow::DrawTo(gfxASurface *targetSurface, const nsIntRect &invalidRect)
     if (coveringChildIndex == -1) {
         nsPaintEvent event(true, NS_PAINT, this);
 
-        nsIntRect tileRect(0, 0, gAndroidBounds.width, gAndroidBounds.height);
+        nsIntRect tileRect(0, 0, TILE_WIDTH, TILE_HEIGHT);
         event.region = boundsRect.Intersect(invalidRect).Intersect(tileRect);
 
         switch (GetLayerManager(nsnull)->GetBackendType()) {
@@ -1102,37 +1106,30 @@ nsWindow::OnDraw(AndroidGeckoEvent *ae)
 
     AndroidBridge::AutoLocalJNIFrame jniFrame;
 #ifdef MOZ_JAVA_COMPOSITOR
-    // We haven't been given a window-size yet, so do nothing
-    if (gAndroidBounds.width <= 0 || gAndroidBounds.height <= 0)
-        return;
-
     AndroidGeckoSoftwareLayerClient &client =
         AndroidBridge::Bridge()->GetSoftwareLayerClient();
     client.BeginDrawing();
 
-    nsAutoString metadata;
     unsigned char *bits = client.LockBufferBits();
-    if (!bits) {
-        ALOG("### Failed to lock buffer");
+    nsRefPtr<gfxImageSurface> targetSurface =
+        new gfxImageSurface(bits, gfxIntSize(TILE_WIDTH, TILE_HEIGHT), TILE_WIDTH * 2,
+                            gfxASurface::ImageFormatRGB16_565);
+    if (targetSurface->CairoStatus()) {
+        ALOG("### Failed to create a valid surface from the bitmap");
     } else {
-        nsRefPtr<gfxImageSurface> targetSurface =
-            new gfxImageSurface(bits, gfxIntSize(gAndroidBounds.width, gAndroidBounds.height), gAndroidBounds.width * 2,
-                                gfxASurface::ImageFormatRGB16_565);
-        if (targetSurface->CairoStatus()) {
-            ALOG("### Failed to create a valid surface from the bitmap");
-        } else {
-            DrawTo(targetSurface, ae->Rect());
+        DrawTo(targetSurface, ae->Rect());
 
-            {
-                nsCOMPtr<nsIAndroidDrawMetadataProvider> metadataProvider =
-                    AndroidBridge::Bridge()->GetDrawMetadataProvider();
-                if (metadataProvider)
-                    metadataProvider->GetDrawMetadata(metadata);
-            }
+        nsAutoString metadata;
+        {
+            nsCOMPtr<nsIAndroidDrawMetadataProvider> metadataProvider =
+                AndroidBridge::Bridge()->GetDrawMetadataProvider();
+            if (metadataProvider)
+                metadataProvider->GetDrawMetadata(metadata);
         }
+
         client.UnlockBuffer();
+        client.EndDrawing(ae->Rect(), metadata);
     }
-    client.EndDrawing(ae->Rect(), metadata);
     return;
 #endif
 
@@ -1994,11 +1991,6 @@ nsWindow::ResetInputState()
     }
 
     AndroidBridge::NotifyIME(AndroidBridge::NOTIFY_IME_RESETINPUTSTATE, 0);
-
-    // Send IME text/selection change notifications
-    OnIMETextChange(0, 0, 0);
-    OnIMESelectionChange();
-
     return NS_OK;
 }
 

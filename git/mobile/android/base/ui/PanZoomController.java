@@ -74,17 +74,10 @@ public class PanZoomController
 
     private LayerController mController;
 
-    // This fraction of velocity remains after every animation frame when the velocity is low.
-    private static final float FRICTION_SLOW = 0.85f;
-    // This fraction of velocity remains after every animation frame when the velocity is high.
-    private static final float FRICTION_FAST = 0.97f;
-    // Below this velocity (in pixels per frame), the friction starts increasing from FRICTION_FAST
-    // to FRICTION_SLOW.
-    private static final float VELOCITY_THRESHOLD = 10.0f;
-    // Animation stops if the velocity is below this value when overscrolled or panning.
+    private static final float FRICTION = 0.85f;
+    private static final float FRICTION_FACTOR = 6.0f;
+    // Animation stops if the velocity is below this value.
     private static final float STOPPED_THRESHOLD = 4.0f;
-    // Animation stops is the velocity is below this threshold when flinging.
-    private static final float FLING_STOPPED_THRESHOLD = 0.1f;
     // The percentage of the surface which can be overscrolled before it must snap back.
     private static final float SNAP_LIMIT = 0.75f;
     // The rate of deceleration when the surface has overscrolled.
@@ -318,14 +311,12 @@ public class PanZoomController
             cancelTouch();
             // fall through
         case PANNING_HOLD_LOCKED:
-            GeckoApp.mAppContext.mAutoCompletePopup.hide();
             mState = PanZoomState.PANNING_LOCKED;
             // fall through
         case PANNING_LOCKED:
             track(event);
             return true;
         case PANNING_HOLD:
-            GeckoApp.mAppContext.mAutoCompletePopup.hide();
             mState = PanZoomState.PANNING;
             // fall through
         case PANNING:
@@ -649,15 +640,9 @@ public class PanZoomController
                 updatePosition();
             }
 
-            /*
-             * If we're still flinging with an appreciable velocity, stop here. The threshold is
-             * higher in the case of overscroll, so we bounce back eagerly when overscrolling but
-             * coast smoothly to a stop when not.
-             */
-            float excess = PointUtils.distance(new PointF(mX.getExcess(), mY.getExcess()));
+            /* If we're still flinging with an appreciable velocity, stop here. */
             PointF velocityVector = new PointF(mX.getRealVelocity(), mY.getRealVelocity());
-            float threshold = (excess >= 1.0f) ? STOPPED_THRESHOLD : FLING_STOPPED_THRESHOLD;
-            if (PointUtils.distance(velocityVector) >= threshold)
+            if (PointUtils.distance(velocityVector) >= STOPPED_THRESHOLD)
                 return;
 
             /*
@@ -746,7 +731,7 @@ public class PanZoomController
 
         // Returns the amount that the page has been overscrolled. If the page hasn't been
         // overscrolled on this axis, returns 0.
-        public float getExcess() {
+        private float getExcess() {
             switch (getOverscroll()) {
             case MINUS:     return -getOrigin();
             case PLUS:      return getViewportEnd() - getPageLength();
@@ -794,14 +779,12 @@ public class PanZoomController
             // If we aren't overscrolled, just apply friction.
             float excess = getExcess();
             if (disableSnap || FloatUtils.fuzzyEquals(excess, 0.0f)) {
-                if (Math.abs(velocity) >= VELOCITY_THRESHOLD) {
-                    velocity *= FRICTION_FAST;
-                } else {
-                    float t = velocity / VELOCITY_THRESHOLD;
-                    velocity *= FloatUtils.interpolate(FRICTION_SLOW, FRICTION_FAST, t);
-                }
+                float absvelocity = (float)
+                    Math.pow(Math.pow(velocity, FRICTION_FACTOR) * FRICTION,
+                             1 / FRICTION_FACTOR);
+                velocity = Math.copySign(absvelocity, velocity);
 
-                if (Math.abs(velocity) < FLING_STOPPED_THRESHOLD) {
+                if (Math.abs(velocity) < 0.1f) {
                     velocity = 0.0f;
                     setFlingState(FlingStates.STOPPED);
                 }
@@ -951,10 +934,8 @@ public class PanZoomController
         mController.notifyLayerClientOfGeometryChange();
         GeckoApp.mAppContext.showPluginViews();
 
-        mState = PanZoomState.TOUCHING;
-        mX.velocity = mY.velocity = 0.0f;
-        mX.locked = mY.locked = false;
-        mLastEventTime = detector.getEventTime();
+        /* Bounce back if overscrolled. */
+        bounce();
     }
 
     @Override
@@ -1008,8 +989,6 @@ public class PanZoomController
         } catch(Exception ex) {
             throw new RuntimeException(ex);
         }
-
-        GeckoApp.mAppContext.mAutoCompletePopup.hide();
 
         GeckoEvent e = new GeckoEvent("Gesture:SingleTap", ret.toString());
         GeckoAppShell.sendEventToGecko(e);

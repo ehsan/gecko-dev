@@ -82,12 +82,15 @@ enum DeprecationWarning { EncodeWarning, DecodeWarning };
 static nsresult
 WarnDeprecatedMethod(DeprecationWarning warning)
 {
-  return nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
-                                         "DOM Core", nsnull,
-                                         nsContentUtils::eDOM_PROPERTIES,
+  return nsContentUtils::ReportToConsole(nsContentUtils::eDOM_PROPERTIES,
                                          warning == EncodeWarning
                                          ? "nsIJSONEncodeDeprecatedWarning"
-                                         : "nsIJSONDecodeDeprecatedWarning");
+                                         : "nsIJSONDecodeDeprecatedWarning",
+                                         nsnull, 0,
+                                         nsnull,
+                                         EmptyString(), 0, 0,
+                                         nsIScriptError::warningFlag,
+                                         "DOM Core");
 }
 
 NS_IMETHODIMP
@@ -193,7 +196,7 @@ nsJSON::EncodeToStream(nsIOutputStream *aStream,
 }
 
 static JSBool
-WriteCallback(const jschar *buf, uint32_t len, void *data)
+WriteCallback(const jschar *buf, uint32 len, void *data)
 {
   nsJSONWriter *writer = static_cast<nsJSONWriter*>(data);
   nsresult rv =  writer->Write((const PRUnichar*)buf, (PRUint32)len);

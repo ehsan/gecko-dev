@@ -196,9 +196,6 @@ public class GeckoPreferences
 
     // send the Preferences:Set message to Gecko
     public static void setPreference(String pref, Object value) {
-        if (pref == null || pref.length() == 0)
-            return;
-
         try {
             JSONObject jsonPref = new JSONObject();
             jsonPref.put("name", pref);

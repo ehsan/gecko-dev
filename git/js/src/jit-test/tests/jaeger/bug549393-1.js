@@ -12,7 +12,7 @@ function MersenneTwister19937() {
       Array[mti] = 1
     }
   };
-  this.genrand_int32_t = function() {
+  this.genrand_int32 = function() {
     if (mti > 4) {
       mti = 0
     }

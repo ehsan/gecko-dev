@@ -1096,11 +1096,14 @@ nsCanvasRenderingContext2DAzure::SetStyleFromStringOrInterface(const nsAString& 
   }
 
   nsContentUtils::ReportToConsole(
+    nsContentUtils::eDOM_PROPERTIES,
+    "UnexpectedCanvasVariantStyle",
+    nsnull, 0,
+    nsnull,
+    EmptyString(), 0, 0,
     nsIScriptError::warningFlag,
     "Canvas",
-    mCanvasElement ? HTMLCanvasElement()->OwnerDoc() : nsnull,
-    nsContentUtils::eDOM_PROPERTIES,
-    "UnexpectedCanvasVariantStyle");
+    mCanvasElement ? HTMLCanvasElement()->OwnerDoc() : nsnull);
 
   return NS_OK;
 }

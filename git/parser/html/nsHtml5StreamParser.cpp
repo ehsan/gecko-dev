@@ -1440,15 +1440,16 @@ nsHtml5StreamParser::ContinueAfterScripts(nsHtml5Tokenizer* aTokenizer,
       mFirstBuffer->setStart(speculation->GetStart());
       mTokenizer->setLineNumber(speculation->GetStartLineNumber());
 
-      nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
-                                      "DOM Events",
-                                      mExecutor->GetDocument(),
-                                      nsContentUtils::eDOM_PROPERTIES,
+      nsContentUtils::ReportToConsole(nsContentUtils::eDOM_PROPERTIES,
                                       "SpeculationFailed",
                                       nsnull, 0,
                                       nsnull,
                                       EmptyString(),
-                                      speculation->GetStartLineNumber());
+                                      speculation->GetStartLineNumber(),
+                                      0,
+                                      nsIScriptError::warningFlag,
+                                      "DOM Events",
+                                      mExecutor->GetDocument());
 
       nsHtml5OwningUTF16Buffer* buffer = mFirstBuffer->next;
       while (buffer) {

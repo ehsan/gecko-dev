@@ -310,7 +310,6 @@ public:
   void                    PickerOpen();
   void                    PickerClosed();
 
-  bool                    const DestroyCalled() { return mDestroyCalled; }
 protected:
 
   // A magic number to identify the FAKETRACKPOINTSCROLLABLE window created

@@ -171,10 +171,10 @@ js_AtomToPrintableString(JSContext *cx, JSAtom *atom, JSAutoByteString *bytes);
 namespace js {
 
 /* Compute a hash function from chars/length. */
-inline uint32_t
+inline uint32
 HashChars(const jschar *chars, size_t length)
 {
-    uint32_t h = 0;
+    uint32 h = 0;
     for (; length; chars++, length--)
         h = JS_ROTATE_LEFT32(h, 4) ^ *chars;
     return h;

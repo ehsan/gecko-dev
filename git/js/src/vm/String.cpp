@@ -187,7 +187,7 @@ JSRope::flattenInternal(JSContext *maybecx)
         JSExtensibleString &left = this->leftChild()->asExtensible();
         size_t capacity = left.capacity();
         if (capacity >= wholeLength) {
-            if (b == WithIncrementalBarrier) {
+            if (b == WithBarrier) {
                 JSString::writeBarrierPre(d.u1.left);
                 JSString::writeBarrierPre(d.s.u2.right);
             }
@@ -198,7 +198,8 @@ JSRope::flattenInternal(JSContext *maybecx)
             pos = wholeChars + (bits >> LENGTH_SHIFT);
             left.d.lengthAndFlags = bits ^ (EXTENSIBLE_FLAGS | DEPENDENT_BIT);
             left.d.s.u2.base = (JSLinearString *)this;  /* will be true on exit */
-            JSString::writeBarrierPost(left.d.s.u2.base, &left.d.s.u2.base);
+            if (b == WithBarrier)
+                JSString::writeBarrierPost(this, &left.d.s.u2.base);
             goto visit_right_child;
         }
     }
@@ -208,7 +209,7 @@ JSRope::flattenInternal(JSContext *maybecx)
 
     pos = wholeChars;
     first_visit_node: {
-        if (b == WithIncrementalBarrier) {
+        if (b == WithBarrier) {
             JSString::writeBarrierPre(str->d.u1.left);
             JSString::writeBarrierPre(str->d.s.u2.right);
         }
@@ -249,7 +250,8 @@ JSRope::flattenInternal(JSContext *maybecx)
         size_t progress = str->d.lengthAndFlags;
         str->d.lengthAndFlags = buildLengthAndFlags(pos - str->d.u1.chars, DEPENDENT_BIT);
         str->d.s.u2.base = (JSLinearString *)this;       /* will be true on exit */
-        JSString::writeBarrierPost(str->d.s.u2.base, &str->d.s.u2.base);
+        if (b == WithBarrier)
+            JSString::writeBarrierPost(this, &str->d.s.u2.base);
         str = str->d.s.u3.parent;
         if (progress == 0x200)
             goto visit_right_child;
@@ -263,7 +265,7 @@ JSRope::flatten(JSContext *maybecx)
 {
 #if JSGC_INCREMENTAL
     if (compartment()->needsBarrier())
-        return flattenInternal<WithIncrementalBarrier>(maybecx);
+        return flattenInternal<WithBarrier>(maybecx);
     else
         return flattenInternal<NoBarrier>(maybecx);
 #else
@@ -342,7 +344,7 @@ JSStringFinalizeOp JSExternalString::str_finalizers[JSExternalString::TYPE_LIMIT
 };
 
 bool
-JSFlatString::isIndex(uint32_t *indexp) const
+JSFlatString::isIndex(uint32 *indexp) const
 {
     const jschar *s = charsZ();
     jschar ch = *s;
@@ -361,9 +363,9 @@ JSFlatString::isIndex(uint32_t *indexp) const
     RangedPtr<const jschar> cp(s, n + 1);
     const RangedPtr<const jschar> end(s + n, s, n + 1);
 
-    uint32_t index = JS7_UNDEC(*cp++);
-    uint32_t oldIndex = 0;
-    uint32_t c = 0;
+    uint32 index = JS7_UNDEC(*cp++);
+    uint32 oldIndex = 0;
+    uint32 c = 0;
 
     if (index != 0) {
         while (JS7_ISDEC(*cp)) {
@@ -429,7 +431,7 @@ StaticStrings::init(JSContext *cx)
 {
     SwitchToCompartment sc(cx, cx->runtime->atomsCompartment);
 
-    for (uint32_t i = 0; i < UNIT_STATIC_LIMIT; i++) {
+    for (uint32 i = 0; i < UNIT_STATIC_LIMIT; i++) {
         jschar buffer[] = { i, 0x00 };
         JSFixedString *s = js_NewStringCopyN(cx, buffer, 1);
         if (!s)
@@ -437,7 +439,7 @@ StaticStrings::init(JSContext *cx)
         unitStaticTable[i] = s->morphAtomizedStringIntoAtom();
     }
 
-    for (uint32_t i = 0; i < NUM_SMALL_CHARS * NUM_SMALL_CHARS; i++) {
+    for (uint32 i = 0; i < NUM_SMALL_CHARS * NUM_SMALL_CHARS; i++) {
         jschar buffer[] = { FROM_SMALL_CHAR(i >> 6), FROM_SMALL_CHAR(i & 0x3F), 0x00 };
         JSFixedString *s = js_NewStringCopyN(cx, buffer, 2);
         if (!s)
@@ -445,7 +447,7 @@ StaticStrings::init(JSContext *cx)
         length2StaticTable[i] = s->morphAtomizedStringIntoAtom();
     }
 
-    for (uint32_t i = 0; i < INT_STATIC_LIMIT; i++) {
+    for (uint32 i = 0; i < INT_STATIC_LIMIT; i++) {
         if (i < 10) {
             intStaticTable[i] = unitStaticTable[i + '0'];
         } else if (i < 100) {
@@ -473,14 +475,14 @@ StaticStrings::trace(JSTracer *trc)
 
     /* These strings never change, so barriers are not needed. */
 
-    for (uint32_t i = 0; i < UNIT_STATIC_LIMIT; i++)
+    for (uint32 i = 0; i < UNIT_STATIC_LIMIT; i++)
         MarkStringUnbarriered(trc, unitStaticTable[i], "unit-static-string");
 
-    for (uint32_t i = 0; i < NUM_SMALL_CHARS * NUM_SMALL_CHARS; i++)
+    for (uint32 i = 0; i < NUM_SMALL_CHARS * NUM_SMALL_CHARS; i++)
         MarkStringUnbarriered(trc, length2StaticTable[i], "length2-static-string");
 
     /* This may mark some strings more than once, but so be it. */
-    for (uint32_t i = 0; i < INT_STATIC_LIMIT; i++)
+    for (uint32 i = 0; i < INT_STATIC_LIMIT; i++)
         MarkStringUnbarriered(trc, intStaticTable[i], "int-static-string");
 }
 

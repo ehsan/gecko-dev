@@ -50,3 +50,18 @@ nsDocAccessibleWrap::~nsDocAccessibleWrap()
 {
 }
 
+bool
+nsDocAccessibleWrap::Init () 
+{
+  if (!nsDocAccessible::Init())
+    return false;
+
+  if (!mNativeObject) {
+    // Create our native object using the class type specified in GetNativeType().
+    mNativeObject = [[GetNativeType() alloc] initWithAccessible:this];
+    if (!mNativeObject)
+      return false;
+  }
+
+  return true;
+}

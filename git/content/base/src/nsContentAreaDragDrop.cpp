@@ -215,8 +215,6 @@ nsContentAreaDragDropDataProvider::SaveURIToFile(nsAString& inSourceURIString,
                       &rv);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  persist->SetPersistFlags(nsIWebBrowserPersist::PERSIST_FLAGS_AUTODETECT_APPLY_CONVERSION);
-
   return persist->SaveURI(sourceURI, nsnull, nsnull, nsnull, nsnull, inDestFile);
 }
 

@@ -488,12 +488,6 @@ JS_GetScriptPrincipals(JSContext *cx, JSScript *script)
     return script->principals;
 }
 
-JS_PUBLIC_API(JSPrincipals *)
-JS_GetScriptOriginPrincipals(JSContext *cx, JSScript *script)
-{
-    return script->originPrincipals;
-}
-
 /************************************************************************/
 
 /*
@@ -670,6 +664,7 @@ JS_GetValidFrameCalleeObject(JSContext *cx, JSStackFrame *fp, jsval *vp)
     if (!Valueify(fp)->getValidCalleeObject(cx, &v))
         return false;
     *vp = v.isObject() ? v : JSVAL_VOID;
+    *vp = v;
     return true;
 }
 
@@ -898,11 +893,11 @@ JS_GetPropertyDescArray(JSContext *cx, JSObject *obj, JSPropertyDescArray *pda)
         return JS_TRUE;
     }
 
-    uint32_t n = obj->propertyCount();
+    uint32 n = obj->propertyCount();
     JSPropertyDesc *pd = (JSPropertyDesc *) cx->malloc_(size_t(n) * sizeof(JSPropertyDesc));
     if (!pd)
         return JS_FALSE;
-    uint32_t i = 0;
+    uint32 i = 0;
     for (Shape::Range r = obj->lastProperty()->all(); !r.empty(); r.popFront()) {
         if (!js_AddRoot(cx, &pd[i].id, NULL))
             goto bad;
@@ -931,7 +926,7 @@ JS_PUBLIC_API(void)
 JS_PutPropertyDescArray(JSContext *cx, JSPropertyDescArray *pda)
 {
     JSPropertyDesc *pd;
-    uint32_t i;
+    uint32 i;
 
     pd = pda->array;
     for (i = 0; i < pda->length; i++) {
@@ -1495,18 +1490,36 @@ JS_DefineProfilingFunctions(JSContext *cx, JSObject *obj)
 
 #include <valgrind/callgrind.h>
 
+/*
+ * Wrapper for callgrind macros to stop warnings coming from their expansions.
+ */ 
+#if (__GNUC__ >= 5) || (__GNUC__ == 4 && __GNUC_MINOR__ >= 6)
+# define WRAP_CALLGRIND(call)                                                 \
+    JS_BEGIN_MACRO                                                            \
+        _Pragma("GCC diagnostic push")                                        \
+        _Pragma("GCC diagnostic ignored \"-Wunused-but-set-variable\"")       \
+        call;                                                                 \
+        _Pragma("GCC diagnostic pop")                                         \
+    JS_END_MACRO
+#else
+# define WRAP_CALLGRIND(call)                                                 \
+    JS_BEGIN_MACRO                                                            \
+        call;                                                                 \
+    JS_END_MACRO
+#endif
+
 JS_FRIEND_API(JSBool)
 js_StartCallgrind()
 {
-    JS_SILENCE_UNUSED_VALUE_IN_EXPR(CALLGRIND_START_INSTRUMENTATION);
-    JS_SILENCE_UNUSED_VALUE_IN_EXPR(CALLGRIND_ZERO_STATS);
+    WRAP_CALLGRIND(CALLGRIND_START_INSTRUMENTATION);
+    WRAP_CALLGRIND(CALLGRIND_ZERO_STATS);
     return true;
 }
 
 JS_FRIEND_API(JSBool)
 js_StopCallgrind()
 {
-    JS_SILENCE_UNUSED_VALUE_IN_EXPR(CALLGRIND_STOP_INSTRUMENTATION);
+    WRAP_CALLGRIND(CALLGRIND_STOP_INSTRUMENTATION);
     return true;
 }
 
@@ -1514,9 +1527,9 @@ JS_FRIEND_API(JSBool)
 js_DumpCallgrind(const char *outfile)
 {
     if (outfile) {
-        JS_SILENCE_UNUSED_VALUE_IN_EXPR(CALLGRIND_DUMP_STATS_AT(outfile));
+        WRAP_CALLGRIND(CALLGRIND_DUMP_STATS_AT(outfile));
     } else {
-        JS_SILENCE_UNUSED_VALUE_IN_EXPR(CALLGRIND_DUMP_STATS);
+        WRAP_CALLGRIND(CALLGRIND_DUMP_STATS);
     }
 
     return true;

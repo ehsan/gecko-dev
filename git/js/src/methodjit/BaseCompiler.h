@@ -210,7 +210,7 @@ class NativeStubLinker : public LinkerHelper
 
 bool
 NativeStubEpilogue(VMFrame &f, Assembler &masm, NativeStubLinker::FinalJump *result,
-                   int32_t initialFrameDepth, int32_t vpOffset,
+                   int32 initialFrameDepth, int32 vpOffset,
                    MaybeRegisterID typeReg, MaybeRegisterID dataReg);
 
 /*

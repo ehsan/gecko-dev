@@ -153,7 +153,7 @@ js_AtomizeString(JSContext *cx, JSString *str, js::InternBehavior ib = js::DoNot
  *  |       \      |
  *  |       JSShortAtom         - / atomized JSShortString
  *  |
- * js::PropertyName             - / chars don't contain an index (uint32_t)
+ * js::PropertyName             - / chars don't contain an index (uint32)
  *
  * Classes marked with (abstract) above are not literally C++ Abstract Base
  * Classes (since there are no virtual functions, pure or not, in this
@@ -426,7 +426,7 @@ class JSString : public js::gc::Cell
 
 class JSRope : public JSString
 {
-    enum UsingBarrier { WithIncrementalBarrier, NoBarrier };
+    enum UsingBarrier { WithBarrier, NoBarrier };
     template<UsingBarrier b>
     JSFlatString *flattenInternal(JSContext *cx);
 
@@ -520,7 +520,7 @@ class JSFlatString : public JSLinearString
      * calling isIndex returns true, js::IndexToString(cx, *indexp) will be a
      * string equal to this string.)
      */
-    bool isIndex(uint32_t *indexp) const;
+    bool isIndex(uint32 *indexp) const;
 
     /*
      * Returns a property name represented by this string, or null on failure.
@@ -745,10 +745,10 @@ class StaticStrings
     bool init(JSContext *cx);
     void trace(JSTracer *trc);
 
-    static inline bool hasUint(uint32_t u);
-    inline JSAtom *getUint(uint32_t u);
+    static inline bool hasUint(uint32 u);
+    inline JSAtom *getUint(uint32 u);
 
-    static inline bool hasInt(int32_t i);
+    static inline bool hasInt(int32 i);
     inline JSAtom *getInt(jsint i);
 
     static inline bool hasUnit(jschar c);
@@ -763,7 +763,7 @@ class StaticStrings
     inline JSAtom *lookup(const jschar *chars, size_t length);
 
   private:
-    typedef uint8_t SmallChar;
+    typedef uint8 SmallChar;
     static const SmallChar INVALID_SMALL_CHAR = -1;
 
     static inline bool fitsInSmallChar(jschar c);
@@ -771,7 +771,7 @@ class StaticStrings
     static const SmallChar toSmallChar[];
 
     JSAtom *getLength2(jschar c1, jschar c2);
-    JSAtom *getLength2(uint32_t u);
+    JSAtom *getLength2(uint32 i);
 };
 
 /*
@@ -783,8 +783,8 @@ class StaticStrings
  * is used to partition, in a type-safe manner, the ways to refer to a
  * property, as follows:
  *
- *   - uint32_t indexes,
- *   - PropertyName strings which don't encode uint32_t indexes, and
+ *   - uint32 indexes,
+ *   - PropertyName strings which don't encode uint32 indexes, and
  *   - jsspecial special properties (non-ES5 properties like object-valued
  *     jsids, JSID_EMPTY, JSID_VOID, E4X's default XML namespace, and maybe in
  *     the future Harmony-proposed private names).
@@ -850,7 +850,7 @@ inline js::PropertyName *
 JSAtom::asPropertyName()
 {
 #ifdef DEBUG
-    uint32_t dummy;
+    uint32 dummy;
     JS_ASSERT(!isIndex(&dummy));
 #endif
     return static_cast<js::PropertyName *>(this);

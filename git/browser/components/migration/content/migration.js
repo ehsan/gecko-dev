@@ -333,6 +333,9 @@ var MigrationWizard = {
       case "ie":
         source = "sourceNameIE";
         break;
+      case "opera":
+        source = "sourceNameOpera";
+        break;
       case "safari":
         source = "sourceNameSafari";
         break;

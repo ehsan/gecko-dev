@@ -1913,7 +1913,7 @@ nsMediaCacheStream::AreAllStreamsForResourceSuspended(nsMediaStream** aActiveStr
   ReentrantMonitorAutoEnter mon(gMediaCache->GetReentrantMonitor());
   nsMediaCache::ResourceStreamIterator iter(mResourceID);
   while (nsMediaCacheStream* stream = iter.Next()) {
-    if (!stream->mCacheSuspended && !stream->mChannelEnded && !stream->mClosed) {
+    if (!stream->mCacheSuspended && !stream->mChannelEnded) {
       if (aActiveStream) {
         *aActiveStream = stream->mClient;
       }

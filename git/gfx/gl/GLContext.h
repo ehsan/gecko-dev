@@ -527,7 +527,7 @@ struct THEBES_API ContextFormat
 class GLContext
     : public LibrarySymbolLoader
 {
-    NS_INLINE_DECL_THREADSAFE_REFCOUNTING(GLContext)
+    THEBES_INLINE_DECL_THREADSAFE_REFCOUNTING(GLContext)
 public:
     GLContext(const ContextFormat& aFormat,
               bool aIsOffscreen = false,
@@ -663,14 +663,6 @@ public:
      */
     bool HasES2Compatibility() {
         return mIsGLES2 || IsExtensionSupported(ARB_ES2_compatibility);
-    }
-
-    /**
-     * Returns true if the context is using ANGLE. This should only be overridden for an ANGLE
-     * implementation.
-     */
-    virtual bool IsANGLE() {
-        return false;
     }
 
     /**
@@ -1278,7 +1270,6 @@ public:
         ANGLE_framebuffer_multisample,
         OES_rgb8_rgba8,
         ARB_robustness,
-        EXT_robustness,
         Extensions_Max
     };
 

@@ -76,7 +76,7 @@ JS_END_EXTERN_C
 
 struct JSSharpObjectMap {
     jsrefcount  depth;
-    uint32_t    sharpgen;
+    uint32      sharpgen;
     JSHashTable *table;
 };
 
@@ -125,7 +125,7 @@ struct ThreadData {
      * as possible.  If the thread has an active request, this contributes
      * towards rt->interruptCounter.
      */
-    volatile int32_t    interruptFlags;
+    volatile int32      interruptFlags;
 
 #ifdef JS_THREADSAFE
     /* The request depth for this thread. */
@@ -414,20 +414,20 @@ struct JSRuntime
     js::RootedValueMap  gcRootsHash;
     js::GCLocks         gcLocksHash;
     jsrefcount          gcKeepAtoms;
-    uint32_t            gcBytes;
-    uint32_t            gcTriggerBytes;
+    uint32              gcBytes;
+    uint32              gcTriggerBytes;
     size_t              gcLastBytes;
     size_t              gcMaxBytes;
     size_t              gcMaxMallocBytes;
-    uint32_t            gcEmptyArenaPoolLifespan;
+    uint32              gcEmptyArenaPoolLifespan;
     /* We access this without the GC lock, however a race will not affect correctness */
-    volatile uint32_t   gcNumFreeArenas;
-    uint32_t            gcNumber;
+    volatile uint32     gcNumFreeArenas;
+    uint32              gcNumber;
     js::GCMarker        *gcIncrementalTracer;
     void                *gcVerifyData;
     bool                gcChunkAllocationSinceLastGC;
-    int64_t             gcNextFullGCTime;
-    int64_t             gcJitReleaseTime;
+    int64               gcNextFullGCTime;
+    int64               gcJitReleaseTime;
     JSGCMode            gcMode;
     volatile jsuword    gcBarrierFailed;
     volatile jsuword    gcIsNeeded;
@@ -562,7 +562,7 @@ struct JSRuntime
     PRLock              *gcLock;
     PRCondVar           *gcDone;
     PRCondVar           *requestDone;
-    uint32_t            requestCount;
+    uint32              requestCount;
     JSThread            *gcThread;
 
     js::GCHelperThread  gcHelperThread;
@@ -585,7 +585,7 @@ struct JSRuntime
     JSThread::Map       threads;
 #endif /* JS_THREADSAFE */
 
-    uint32_t            debuggerMutations;
+    uint32              debuggerMutations;
 
     /*
      * Security callbacks set on the runtime are used by each context unless
@@ -604,7 +604,7 @@ struct JSRuntime
      * and for each JSObject::remove method call that frees a slot in the given
      * object. See js_NativeGet and js_NativeSet in jsobj.cpp.
      */
-    int32_t             propertyRemovals;
+    int32               propertyRemovals;
 
     /* Script filename table. */
     struct JSHashTable  *scriptFilenameTable;
@@ -629,7 +629,7 @@ struct JSRuntime
 
 #ifdef JS_THREADSAFE
     /* Number of threads with active requests and unhandled interrupts. */
-    volatile int32_t    interruptCounter;
+    volatile int32      interruptCounter;
 #else
     js::ThreadData      threadData;
 
@@ -650,24 +650,23 @@ struct JSRuntime
 
     JSWrapObjectCallback wrapObjectCallback;
     JSPreWrapCallback    preWrapObjectCallback;
-    js::PreserveWrapperCallback preserveWrapperCallback;
 
     /*
      * To ensure that cx->malloc does not cause a GC, we set this flag during
      * OOM reporting (in js_ReportOutOfMemory). If a GC is requested while
      * reporting the OOM, we ignore it.
      */
-    int32_t             inOOMReport;
+    int32               inOOMReport;
 
     JSRuntime();
     ~JSRuntime();
 
-    bool init(uint32_t maxbytes);
+    bool init(uint32 maxbytes);
 
     JSRuntime *thisFromCtor() { return this; }
 
     void setGCLastBytes(size_t lastBytes, JSGCInvocationKind gckind);
-    void reduceGCTriggerBytes(uint32_t amount);
+    void reduceGCTriggerBytes(uint32 amount);
 
     /*
      * Call the system malloc while checking for GC memory pressure and
@@ -788,15 +787,15 @@ class AutoGCRooter;
 struct AutoResolving;
 
 static inline bool
-OptionsHasXML(uint32_t options)
+OptionsHasXML(uint32 options)
 {
     return !!(options & JSOPTION_XML);
 }
 
 static inline bool
-OptionsSameVersionFlags(uint32_t self, uint32_t other)
+OptionsSameVersionFlags(uint32 self, uint32 other)
 {
-    static const uint32_t mask = JSOPTION_XML;
+    static const uint32 mask = JSOPTION_XML;
     return !((self & mask) ^ (other & mask));
 }
 
@@ -817,7 +816,7 @@ static const uintN FULL_MASK    = 0x3FFF;
 static inline JSVersion
 VersionNumber(JSVersion version)
 {
-    return JSVersion(uint32_t(version) & VersionFlags::MASK);
+    return JSVersion(uint32(version) & VersionFlags::MASK);
 }
 
 static inline bool
@@ -837,15 +836,15 @@ static inline void
 VersionSetXML(JSVersion *version, bool enable)
 {
     if (enable)
-        *version = JSVersion(uint32_t(*version) | VersionFlags::HAS_XML);
+        *version = JSVersion(uint32(*version) | VersionFlags::HAS_XML);
     else
-        *version = JSVersion(uint32_t(*version) & ~VersionFlags::HAS_XML);
+        *version = JSVersion(uint32(*version) & ~VersionFlags::HAS_XML);
 }
 
 static inline JSVersion
 VersionExtractFlags(JSVersion version)
 {
-    return JSVersion(uint32_t(version) & ~VersionFlags::MASK);
+    return JSVersion(uint32(version) & ~VersionFlags::MASK);
 }
 
 static inline void
@@ -910,7 +909,7 @@ struct JSContext
     uintN               runOptions;            /* see jsapi.h for JSOPTION_* */
 
   public:
-    int32_t             reportGranularity;  /* see jsprobes.h */
+    int32               reportGranularity;  /* see jsprobes.h */
 
     /* Locale specific callbacks for string conversion. */
     JSLocaleCallbacks   *localeCallbacks;
@@ -1101,7 +1100,7 @@ struct JSContext
     uintN               resolveFlags;
 
     /* Random number generator state, used by jsmath.cpp. */
-    int64_t             rngSeed;
+    int64               rngSeed;
 
     /* Location to stash the iteration value between JSOP_MOREITER and JSOP_ITERNEXT. */
     js::Value           iterValue;

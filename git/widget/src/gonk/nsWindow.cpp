@@ -55,7 +55,6 @@
 
 using namespace mozilla::gl;
 using namespace mozilla::layers;
-using namespace mozilla::widget;
 
 nsIntRect gScreenBounds;
 
@@ -290,21 +289,7 @@ nsWindow::GetNativeData(PRUint32 aDataType)
 NS_IMETHODIMP
 nsWindow::DispatchEvent(nsGUIEvent *aEvent, nsEventStatus &aStatus)
 {
-    aStatus = (*mEventCallback)(aEvent);
     return NS_OK;
-}
-
-NS_IMETHODIMP_(void)
-nsWindow::SetInputContext(const InputContext& aContext,
-                          const InputContextAction& aAction)
-{
-  mInputContext = aContext;
-}
-
-NS_IMETHODIMP_(InputContext)
-nsWindow::GetInputContext()
-{
-  return mInputContext;
 }
 
 NS_IMETHODIMP

@@ -56,6 +56,8 @@ EXTRA_PP_JS_MODULES = \
 		HUDService.jsm \
 		$(NULL)
 
-TEST_DIRS = test
+ifdef ENABLE_TESTS
+DIRS += test/browser
+endif
 
 include $(topsrcdir)/config/rules.mk

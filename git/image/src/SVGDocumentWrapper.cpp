@@ -457,7 +457,9 @@ SVGDocumentWrapper::GetRootSVGElem()
     return nsnull; // Can happen during destruction
 
   Element* rootElem = mViewer->GetDocument()->GetRootElement();
-  if (!rootElem || !rootElem->IsSVG(nsGkAtoms::svg)) {
+  if (!rootElem ||
+      rootElem->GetNameSpaceID() != kNameSpaceID_SVG ||
+      rootElem->Tag() != nsGkAtoms::svg) {
     return nsnull;
   }
 

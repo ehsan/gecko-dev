@@ -93,8 +93,6 @@ JSRope::init(JSString *left, JSString *right, size_t length)
     d.lengthAndFlags = buildLengthAndFlags(length, ROPE_BIT);
     d.u1.left = left;
     d.s.u2.right = right;
-    JSString::writeBarrierPost(d.u1.left, &d.u1.left);
-    JSString::writeBarrierPost(d.s.u2.right, &d.s.u2.right);
 }
 
 JS_ALWAYS_INLINE JSRope *
@@ -115,7 +113,6 @@ JSDependentString::init(JSLinearString *base, const jschar *chars, size_t length
     d.lengthAndFlags = buildLengthAndFlags(length, DEPENDENT_BIT);
     d.u1.chars = chars;
     d.s.u2.base = base;
-    JSString::writeBarrierPost(d.s.u2.base, &d.s.u2.base);
 }
 
 JS_ALWAYS_INLINE JSDependentString *
@@ -140,7 +137,7 @@ inline js::PropertyName *
 JSFlatString::toPropertyName(JSContext *cx)
 {
 #ifdef DEBUG
-    uint32_t dummy;
+    uint32 dummy;
     JS_ASSERT(!isIndex(&dummy));
 #endif
     if (isAtom())
@@ -263,29 +260,29 @@ js::StaticStrings::getUnit(jschar c)
 }
 
 inline bool
-js::StaticStrings::hasUint(uint32_t u)
+js::StaticStrings::hasUint(uint32 u)
 {
     return u < INT_STATIC_LIMIT;
 }
 
 inline JSAtom *
-js::StaticStrings::getUint(uint32_t u)
+js::StaticStrings::getUint(uint32 u)
 {
     JS_ASSERT(hasUint(u));
     return intStaticTable[u];
 }
 
 inline bool
-js::StaticStrings::hasInt(int32_t i)
+js::StaticStrings::hasInt(int32 i)
 {
-    return uint32_t(i) < INT_STATIC_LIMIT;
+    return uint32(i) < INT_STATIC_LIMIT;
 }
 
 inline JSAtom *
 js::StaticStrings::getInt(jsint i)
 {
     JS_ASSERT(hasInt(i));
-    return getUint(uint32_t(i));
+    return getUint(uint32(i));
 }
 
 inline JSLinearString *
@@ -311,7 +308,7 @@ js::StaticStrings::getLength2(jschar c1, jschar c2)
 }
 
 inline JSAtom *
-js::StaticStrings::getLength2(uint32_t i)
+js::StaticStrings::getLength2(uint32 i)
 {
     JS_ASSERT(i < 100);
     return getLength2('0' + i / 10, '0' + i % 10);

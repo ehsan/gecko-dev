@@ -55,21 +55,14 @@ inline JSObject *
 JSFunction::environment() const
 {
     JS_ASSERT(isInterpreted());
-    return u.i.env_;
+    return u.i.env;
 }
 
 inline void
 JSFunction::setEnvironment(JSObject *obj)
 {
     JS_ASSERT(isInterpreted());
-    *(js::HeapPtrObject *)&u.i.env_ = obj;
-}
-
-inline void
-JSFunction::initEnvironment(JSObject *obj)
-{
-    JS_ASSERT(isInterpreted());
-    ((js::HeapPtrObject *)&u.i.env_)->init(obj);
+    u.i.env = obj;
 }
 
 inline void
@@ -174,7 +167,7 @@ JSFunction::finalizeUpvars()
 }
 
 inline js::Value
-JSFunction::getFlatClosureUpvar(uint32_t i) const
+JSFunction::getFlatClosureUpvar(uint32 i) const
 {
     JS_ASSERT(hasFlatClosureUpvars());
     JS_ASSERT(script()->bindings.countUpvars() == script()->upvars()->length);
@@ -183,7 +176,7 @@ JSFunction::getFlatClosureUpvar(uint32_t i) const
 }
 
 inline void
-JSFunction::setFlatClosureUpvar(uint32_t i, const js::Value &v)
+JSFunction::setFlatClosureUpvar(uint32 i, const js::Value &v)
 {
     JS_ASSERT(isFlatClosure());
     JS_ASSERT(script()->bindings.countUpvars() == script()->upvars()->length);
@@ -192,7 +185,7 @@ JSFunction::setFlatClosureUpvar(uint32_t i, const js::Value &v)
 }
 
 inline void
-JSFunction::initFlatClosureUpvar(uint32_t i, const js::Value &v)
+JSFunction::initFlatClosureUpvar(uint32 i, const js::Value &v)
 {
     JS_ASSERT(isFlatClosure());
     JS_ASSERT(script()->bindings.countUpvars() == script()->upvars()->length);

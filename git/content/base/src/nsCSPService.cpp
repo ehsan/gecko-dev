@@ -301,11 +301,11 @@ CSPService::AsyncOnChannelRedirect(nsIChannel *oldChannel,
   newUri->GetSpec(newUriSpec);
   const PRUnichar *formatParams[] = { NS_ConvertUTF8toUTF16(newUriSpec).get() };
   if (NS_SUCCEEDED(rv)) {
-    nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
-                                    "Redirect Error", nsnull,
-                                    nsContentUtils::eDOM_PROPERTIES,
-                                    "InvalidRedirectChannelWarning",
-                                    formatParams, 1);
+    nsContentUtils::ReportToConsole(nsContentUtils::eDOM_PROPERTIES,
+                                   "InvalidRedirectChannelWarning",
+                                    formatParams, 1, nsnull, EmptyString(),
+                                    0, 0, nsIScriptError::warningFlag,
+                                    "Redirect Error");
   }
 
   return NS_BINDING_FAILED;

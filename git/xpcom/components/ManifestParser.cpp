@@ -434,9 +434,6 @@ ParseManifest(NSLocationType type, FileLocation &file, char* buf, bool aChromeOn
   NS_NAMED_LITERAL_STRING(kOs, "os");
   NS_NAMED_LITERAL_STRING(kOsVersion, "osversion");
   NS_NAMED_LITERAL_STRING(kABI, "abi");
-#if defined(MOZ_WIDGET_ANDROID)
-  NS_NAMED_LITERAL_STRING(kTablet, "tablet");
-#endif
 
   // Obsolete
   NS_NAMED_LITERAL_STRING(kXPCNativeWrappers, "xpcnativewrappers");
@@ -501,10 +498,8 @@ ParseManifest(NSLocationType type, FileLocation &file, char* buf, bool aChromeOn
                                        gtk_major_version,
                                        gtk_minor_version);
 #elif defined(MOZ_WIDGET_ANDROID)
-  bool isTablet = false;
   if (mozilla::AndroidBridge::Bridge()) {
     mozilla::AndroidBridge::Bridge()->GetStaticStringField("android/os/Build$VERSION", "RELEASE", osVersion);
-    isTablet = mozilla::AndroidBridge::Bridge()->IsTablet();
   }
 #endif
 
@@ -592,9 +587,6 @@ ParseManifest(NSLocationType type, FileLocation &file, char* buf, bool aChromeOn
     TriState stOsVersion = eUnspecified;
     TriState stOs = eUnspecified;
     TriState stABI = eUnspecified;
-#if defined(MOZ_WIDGET_ANDROID)
-    TriState stTablet = eUnspecified;
-#endif
     bool platform = false;
     bool contentAccessible = false;
 
@@ -609,14 +601,6 @@ ParseManifest(NSLocationType type, FileLocation &file, char* buf, bool aChromeOn
           CheckVersionFlag(kAppVersion, wtoken, appVersion, stAppVersion) ||
           CheckVersionFlag(kGeckoVersion, wtoken, geckoVersion, stGeckoVersion))
         continue;
-
-#if defined(MOZ_WIDGET_ANDROID)
-      bool tablet = false;
-      if (CheckFlag(kTablet, wtoken, tablet)) {
-        stTablet = (tablet == isTablet) ? eOK : eBad;
-        continue;
-      }
-#endif
 
       if (directive->contentflags &&
           (CheckFlag(kPlatform, wtoken, platform) ||
@@ -643,9 +627,6 @@ ParseManifest(NSLocationType type, FileLocation &file, char* buf, bool aChromeOn
         stGeckoVersion == eBad ||
         stOs == eBad ||
         stOsVersion == eBad ||
-#ifdef MOZ_WIDGET_ANDROID
-        stTablet == eBad ||
-#endif
         stABI == eBad)
       continue;
 

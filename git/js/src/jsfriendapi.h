@@ -67,7 +67,7 @@ JS_SplicePrototype(JSContext *cx, JSObject *obj, JSObject *proto);
 extern JS_FRIEND_API(JSObject *)
 JS_NewObjectWithUniqueType(JSContext *cx, JSClass *clasp, JSObject *proto, JSObject *parent);
 
-extern JS_FRIEND_API(uint32_t)
+extern JS_FRIEND_API(uint32)
 JS_ObjectCountDynamicSlots(JSObject *obj);
 
 extern JS_FRIEND_API(void)
@@ -102,7 +102,7 @@ enum {
 };
 
 typedef void
-(* JSAccumulateTelemetryDataCallback)(int id, uint32_t sample);
+(* JSAccumulateTelemetryDataCallback)(int id, JSUint32 sample);
 
 extern JS_FRIEND_API(void)
 JS_SetAccumulateTelemetryCallback(JSRuntime *rt, JSAccumulateTelemetryDataCallback callback);
@@ -116,10 +116,10 @@ JS_SetGCFinishedCallback(JSRuntime *rt, JSGCFinishedCallback callback);
 /* Data for tracking analysis/inference memory usage. */
 typedef struct TypeInferenceMemoryStats
 {
-    int64_t scripts;
-    int64_t objects;
-    int64_t tables;
-    int64_t temporary;
+    int64 scripts;
+    int64 objects;
+    int64 tables;
+    int64 temporary;
 } TypeInferenceMemoryStats;
 
 extern JS_FRIEND_API(void)
@@ -167,9 +167,6 @@ JS_END_EXTERN_C
 #ifdef __cplusplus
 
 namespace js {
-
-typedef bool
-(* PreserveWrapperCallback)(JSContext *cx, JSObject *obj);
 
 #ifdef DEBUG
  /*
@@ -267,9 +264,9 @@ struct BaseShape {
 struct Shape {
     BaseShape   *base;
     jsid        _1;
-    uint32_t    slotInfo;
+    uint32      slotInfo;
 
-    static const uint32_t FIXED_SLOTS_SHIFT = 27;
+    static const uint32 FIXED_SLOTS_SHIFT = 27;
 };
 
 struct Object {
@@ -393,7 +390,7 @@ SetReservedSlot(JSObject *obj, size_t slot, const Value &value)
     reinterpret_cast<shadow::Object *>(obj)->slotRef(slot) = value;
 }
 
-JS_FRIEND_API(uint32_t)
+JS_FRIEND_API(uint32)
 GetObjectSlotSpan(const JSObject *obj);
 
 inline const Value &
@@ -427,9 +424,6 @@ GetPropertyNames(JSContext *cx, JSObject *obj, uintN flags, js::AutoIdVector *pr
 
 JS_FRIEND_API(bool)
 StringIsArrayIndex(JSLinearString *str, jsuint *indexp);
-
-JS_FRIEND_API(void)
-SetPreserveWrapperCallback(JSRuntime *rt, PreserveWrapperCallback callback);
 
 /*
  * NB: these flag bits are encoded into the bytecode stream in the immediate

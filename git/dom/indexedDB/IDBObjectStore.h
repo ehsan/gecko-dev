@@ -59,8 +59,6 @@ class Key;
 struct ObjectStoreInfo;
 struct IndexInfo;
 struct IndexUpdateInfo;
-struct StructuredCloneReadInfo;
-struct StructuredCloneWriteInfo;
 
 class IDBObjectStore : public nsIIDBObjectStore
 {
@@ -96,40 +94,26 @@ public:
                 const nsTArray<IndexUpdateInfo>& aUpdateInfoArray);
 
   static nsresult
-  GetStructuredCloneReadInfoFromStatement(mozIStorageStatement* aStatement,
-                                          PRUint32 aDataIndex,
-                                          PRUint32 aFileIdsIndex,
-                                          FileManager* aFileManager,
-                                          StructuredCloneReadInfo& aInfo);
+  GetStructuredCloneDataFromStatement(mozIStorageStatement* aStatement,
+                                      PRUint32 aIndex,
+                                      JSAutoStructuredCloneBuffer& aBuffer);
 
   static void
   ClearStructuredCloneBuffer(JSAutoStructuredCloneBuffer& aBuffer);
 
   static bool
   DeserializeValue(JSContext* aCx,
-                   StructuredCloneReadInfo& aCloneReadInfo,
-                   jsval* aValue);
+                   JSAutoStructuredCloneBuffer& aBuffer,
+                   jsval* aValue,
+                   JSStructuredCloneCallbacks* aCallbacks = nsnull,
+                   void* aClosure = nsnull);
 
   static bool
   SerializeValue(JSContext* aCx,
-                 StructuredCloneWriteInfo& aCloneWriteInfo,
-                 jsval aValue);
-
-  static JSObject*
-  StructuredCloneReadCallback(JSContext* aCx,
-                              JSStructuredCloneReader* aReader,
-                              uint32_t aTag,
-                              uint32_t aData,
-                              void* aClosure);
-  static JSBool
-  StructuredCloneWriteCallback(JSContext* aCx,
-                               JSStructuredCloneWriter* aWriter,
-                               JSObject* aObj,
-                               void* aClosure);
-
-  static nsresult
-  ConvertFileIdsToArray(const nsAString& aFileIds,
-                        nsTArray<PRInt64>& aResult);
+                 JSAutoStructuredCloneBuffer& aBuffer,
+                 jsval aValue,
+                 JSStructuredCloneCallbacks* aCallbacks = nsnull,
+                 void* aClosure = nsnull);
 
   const nsString& Name() const
   {
@@ -167,8 +151,9 @@ public:
     return mTransaction;
   }
 
-  nsresult ModifyValueForNewKey(StructuredCloneWriteInfo& aCloneWriteInfo,
-                                Key& aKey);
+  nsresult ModifyValueForNewKey(JSAutoStructuredCloneBuffer& aBuffer,
+                                Key& aKey,
+                                PRUint64 aOffsetToKeyProp);
 
 protected:
   IDBObjectStore();
@@ -177,9 +162,10 @@ protected:
   nsresult GetAddInfo(JSContext* aCx,
                       jsval aValue,
                       jsval aKeyVal,
-                      StructuredCloneWriteInfo& aCloneWriteInfo,
+                      JSAutoStructuredCloneBuffer& aCloneBuffer,
                       Key& aKey,
-                      nsTArray<IndexUpdateInfo>& aUpdateInfoArray);
+                      nsTArray<IndexUpdateInfo>& aUpdateInfoArray,
+                      PRUint64* aOffsetToKeyProp);
 
   nsresult AddOrPut(const jsval& aValue,
                     const jsval& aKey,

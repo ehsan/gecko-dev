@@ -112,33 +112,23 @@ Bindings::extensibleParents()
     return lastBinding && lastBinding->extensibleParents();
 }
 
-extern void
-CurrentScriptFileLineOriginSlow(JSContext *cx, const char **file, uintN *linenop, JSPrincipals **origin);
+extern const char *
+CurrentScriptFileAndLineSlow(JSContext *cx, uintN *linenop);
 
-inline void
-CurrentScriptFileLineOrigin(JSContext *cx, const char **file, uintN *linenop, JSPrincipals **origin,
-                            LineOption opt = NOT_CALLED_FROM_JSOP_EVAL)
+inline const char *
+CurrentScriptFileAndLine(JSContext *cx, uintN *linenop, LineOption opt)
 {
     if (opt == CALLED_FROM_JSOP_EVAL) {
         JS_ASSERT(JSOp(*cx->regs().pc) == JSOP_EVAL);
         JS_ASSERT(*(cx->regs().pc + JSOP_EVAL_LENGTH) == JSOP_LINENO);
-        JSScript *script = cx->fp()->script();
-        *file = script->filename;
         *linenop = GET_UINT16(cx->regs().pc + JSOP_EVAL_LENGTH);
-        *origin = script->originPrincipals;
-        return;
+        return cx->fp()->script()->filename;
     }
 
-    CurrentScriptFileLineOriginSlow(cx, file, linenop, origin);
+    return CurrentScriptFileAndLineSlow(cx, linenop);
 }
 
 } // namespace js
-
-inline void
-JSScript::setFunction(JSFunction *fun)
-{
-    function_ = fun;
-}
 
 inline JSFunction *
 JSScript::getFunction(size_t index)
@@ -159,7 +149,7 @@ inline JSObject *
 JSScript::getRegExp(size_t index)
 {
     JSObjectArray *arr = regexps();
-    JS_ASSERT(uint32_t(index) < arr->length);
+    JS_ASSERT((uint32) index < arr->length);
     JSObject *obj = arr->vector[index];
     JS_ASSERT(obj->isRegExp());
     return obj;

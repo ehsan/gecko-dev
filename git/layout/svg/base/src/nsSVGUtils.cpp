@@ -199,7 +199,7 @@ nsSVGUtils::GetOuterSVGElement(nsSVGElement *aSVGElement)
   nsIContent *element = nsnull;
   nsIContent *ancestor = aSVGElement->GetFlattenedTreeParent();
 
-  while (ancestor && ancestor->IsSVG() &&
+  while (ancestor && ancestor->GetNameSpaceID() == kNameSpaceID_SVG &&
                      ancestor->Tag() != nsGkAtoms::foreignObject) {
     element = ancestor;
     ancestor = element->GetFlattenedTreeParent();
@@ -390,11 +390,13 @@ nsSVGUtils::ReportToConsole(nsIDocument* doc,
                             const PRUnichar **aParams,
                             PRUint32 aParamsLength)
 {
-  return nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
-                                         "SVG", doc,
-                                         nsContentUtils::eSVG_PROPERTIES,
+  return nsContentUtils::ReportToConsole(nsContentUtils::eSVG_PROPERTIES,
                                          aWarning,
-                                         aParams, aParamsLength);
+                                         aParams, aParamsLength,
+                                         nsnull,
+                                         EmptyString(), 0, 0,
+                                         nsIScriptError::warningFlag,
+                                         "SVG", doc);
 }
 
 float
@@ -422,7 +424,7 @@ nsSVGUtils::CoordToFloat(nsPresContext *aPresContext,
 bool
 nsSVGUtils::EstablishesViewport(nsIContent *aContent)
 {
-  return aContent && aContent->IsSVG() &&
+  return aContent && aContent->GetNameSpaceID() == kNameSpaceID_SVG &&
            (aContent->Tag() == nsGkAtoms::svg ||
             aContent->Tag() == nsGkAtoms::image ||
             aContent->Tag() == nsGkAtoms::foreignObject ||
@@ -434,7 +436,7 @@ nsSVGUtils::GetNearestViewportElement(nsIContent *aContent)
 {
   nsIContent *element = aContent->GetFlattenedTreeParent();
 
-  while (element && element->IsSVG()) {
+  while (element && element->GetNameSpaceID() == kNameSpaceID_SVG) {
     if (EstablishesViewport(element)) {
       if (element->Tag() == nsGkAtoms::foreignObject) {
         return nsnull;
@@ -481,7 +483,7 @@ nsSVGUtils::GetCTM(nsSVGElement *aElement, bool aScreenCTM)
   if (!ancestor || !ancestor->IsElement()) {
     return matrix;
   }
-  if (ancestor->IsSVG()) {
+  if (ancestor->GetNameSpaceID() == kNameSpaceID_SVG) {
     if (element->Tag() != nsGkAtoms::svg) {
       return gfxMatrix(0.0, 0.0, 0.0, 0.0, 0.0, 0.0); // singular
     }
@@ -1489,7 +1491,8 @@ nsSVGRenderState::GetRenderingContext(nsIFrame *aFrame)
 /* static */ bool
 nsSVGUtils::RootSVGElementHasViewbox(const nsIContent *aRootSVGElem)
 {
-  if (!aRootSVGElem->IsSVG(nsGkAtoms::svg)) {
+  if (aRootSVGElem->GetNameSpaceID() != kNameSpaceID_SVG ||
+      aRootSVGElem->Tag() != nsGkAtoms::svg) {
     NS_ABORT_IF_FALSE(false, "Expecting an SVG <svg> node");
     return false;
   }

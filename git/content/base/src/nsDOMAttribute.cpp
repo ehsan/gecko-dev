@@ -700,7 +700,13 @@ nsDOMAttribute::RemoveChildAt(PRUint32 aIndex, bool aNotify)
     return NS_OK;
   }
 
-  doRemoveChild(aNotify);
+  {
+    nsCOMPtr<nsIContent> child = mChild;
+    nsMutationGuard::DidMutate();
+    mozAutoDocUpdate updateBatch(OwnerDoc(), UPDATE_CONTENT_MODEL, aNotify);
+
+    doRemoveChild(aNotify);
+  }
 
   nsString nullString;
   SetDOMStringToNull(nullString);
@@ -778,20 +784,12 @@ nsDOMAttribute::Shutdown()
 void
 nsDOMAttribute::doRemoveChild(bool aNotify)
 {
-  NS_ASSERTION(mChild && mFirstChild, "Why are we here?");
-  NS_ASSERTION(mChild == mFirstChild, "Something got out of sync!");
-
-  nsRefPtr<nsTextNode> child = static_cast<nsTextNode*>(mChild);
-  nsMutationGuard::DidMutate();
-  mozAutoDocUpdate updateBatch(OwnerDoc(), UPDATE_CONTENT_MODEL, aNotify);
-
-  NS_RELEASE(mChild);
-  mFirstChild = nsnull;
-
   if (aNotify) {
-    nsNodeUtils::AttributeChildRemoved(this, child);
+    nsNodeUtils::AttributeChildRemoved(this, mChild);
   }
 
-  child->UnbindFromAttribute();
+  static_cast<nsTextNode*>(mChild)->UnbindFromAttribute();
+  NS_RELEASE(mChild);
+  mFirstChild = nsnull;
 }
 

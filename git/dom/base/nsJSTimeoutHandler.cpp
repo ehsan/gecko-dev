@@ -67,7 +67,7 @@ public:
   ~nsJSScriptTimeoutHandler();
 
   virtual const PRUnichar *GetHandlerText();
-  virtual JSObject *GetScriptObject() {
+  virtual void *GetScriptObject() {
     return mFunObj;
   }
   virtual void GetLocation(const char **aFileName, PRUint32 *aLineNo) {
@@ -230,6 +230,7 @@ nsJSScriptTimeoutHandler::Init(nsGlobalWindow *aWindow, bool *aIsInterval,
 
   JSFlatString *expr = nsnull;
   JSObject *funobj = nsnull;
+  int32 interval = 0;
 
   JSAutoRequest ar(cx);
 
@@ -239,7 +240,6 @@ nsJSScriptTimeoutHandler::Init(nsGlobalWindow *aWindow, bool *aIsInterval,
     return NS_ERROR_DOM_TYPE_ERR;
   }
 
-  int32_t interval = 0;
   if (argc > 1 && !::JS_ValueToECMAInt32(cx, argv[1], &interval)) {
     ::JS_ReportError(cx,
                      "Second argument to %s must be a millisecond interval",

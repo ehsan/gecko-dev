@@ -44,13 +44,13 @@
 namespace js {
 
 inline void
-GlobalObject::setFlags(int32_t flags)
+GlobalObject::setFlags(int32 flags)
 {
     setSlot(FLAGS, Int32Value(flags));
 }
 
 inline void
-GlobalObject::initFlags(int32_t flags)
+GlobalObject::initFlags(int32 flags)
 {
     initSlot(FLAGS, Int32Value(flags));
 }

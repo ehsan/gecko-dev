@@ -80,11 +80,13 @@ SendJSWarning(nsIDocument* aDocument,
               const char* aWarningName,
               const PRUnichar** aWarningArgs, PRUint32 aWarningArgsLen)
 {
-  nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
-                                  "HTML", aDocument,
-                                  nsContentUtils::eFORMS_PROPERTIES,
+  nsContentUtils::ReportToConsole(nsContentUtils::eFORMS_PROPERTIES,
                                   aWarningName,
-                                  aWarningArgs, aWarningArgsLen);
+                                  aWarningArgs, aWarningArgsLen,
+                                  nsnull,
+                                  EmptyString(), 0, 0,
+                                  nsIScriptError::warningFlag,
+                                  "HTML", aDocument);
 }
 
 // --------------------------------------------------------------------------
