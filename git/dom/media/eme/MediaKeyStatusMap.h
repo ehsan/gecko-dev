@@ -30,9 +30,7 @@ public:
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(MediaKeyStatusMap)
 
 public:
-  explicit MediaKeyStatusMap(JSContext* aCx,
-                             nsPIDOMWindow* aParent,
-                             ErrorResult& aRv);
+  explicit MediaKeyStatusMap(nsPIDOMWindow* aParent);
 
 protected:
   ~MediaKeyStatusMap();

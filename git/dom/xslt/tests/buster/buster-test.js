@@ -312,14 +312,7 @@ runItem.prototype =
         if (!serv) {
             throw Components.results.ERR_FAILURE;
         }
-        var chan = serv.newChannel2(url,
-                                    null,
-                                    null,
-                                    null,      // aLoadingNode
-                                    Services.scriptSecurityManager.getSystemPrincipal(),
-                                    null,      // aTriggeringPrincipal
-                                    Ci.nsILoadInfo.SEC_NORMAL,
-                                    Ci.nsIContentPolicy.TYPE_OTHER);
+        var chan = serv.newChannel(url, null, null);
         var instream = doCreate(SIS_CTRID, nsISIS);
         instream.init(chan.open());
 

@@ -43,11 +43,6 @@
     margin-right: 16px;
   }
 
-.btn-screen-share-entry {
-  float: right !important;
-  border-left: 1px solid #5a5a5a;
-}
-
 .conversation-toolbar-btn-box {
   border-right: 1px solid #5a5a5a;
 }
@@ -152,11 +147,11 @@
 }
 
 /* Common media control buttons behavior */
-.conversation-toolbar .transparent-button {
+.conversation-toolbar .media-control {
   background-color: transparent;
   opacity: 1;
 }
-.conversation-toolbar .transparent-button:hover {
+.conversation-toolbar .media-control:hover {
   background-color: rgba(255,255,255,.35);
   opacity: 1;
 }
@@ -197,21 +192,6 @@
   }
 }
 
-/* Screen share button */
-.btn-screen-share {
-  /* XXX Replace this with the real button: bug 1126286 */
-  background-image: url(../img/video-inverse-14x14.png);
-}
-
-.btn-screen-share.active {
-  background-color: #6CB23E;
-  opacity: 1;
-}
-
-.btn-screen-share.disabled {
-  /* XXX Add css here for disabled state: bug 1126286 */
-}
-
 .fx-embedded .remote_wrapper {
   position: absolute;
   top: 0px;
@@ -231,7 +211,7 @@
 
 /* Side by side video elements */
 
-.conversation .media.side-by-side .remote-stream {
+.conversation .media.side-by-side .remote {
   width: 50%;
   float: left;
 }
@@ -509,7 +489,7 @@
   max-height: none;
 }
 
-.conversation .media.nested .remote-stream {
+.conversation .media.nested .remote {
   display: inline-block;
   position: absolute; /* workaround for lack of object-fit; see bug 1020445 */
   width: 100%;

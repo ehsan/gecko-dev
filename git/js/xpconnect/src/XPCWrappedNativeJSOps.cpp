@@ -681,13 +681,21 @@ const XPCWrappedNativeJSClass XPC_WN_NoHelper_JSClass = {
 
     // ObjectOps
     {
+        nullptr, // lookupGeneric
         nullptr, // lookupProperty
+        nullptr, // lookupElement
+        nullptr, // defineGeneric
         nullptr, // defineProperty
+        nullptr, // defineElement
+        nullptr, // getGeneric
         nullptr, // getProperty
+        nullptr, // getElement
+        nullptr, // setGeneric
         nullptr, // setProperty
+        nullptr, // setElement
         nullptr, // getOwnPropertyDescriptor
-        nullptr, // setPropertyAttributes
-        nullptr, // deleteProperty
+        nullptr, // setGenericAttributes
+        nullptr, // deleteGeneric
         nullptr, nullptr, // watch/unwatch
         nullptr, // getElements
         nullptr, // enumerate

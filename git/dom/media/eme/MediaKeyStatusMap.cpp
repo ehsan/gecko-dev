@@ -37,15 +37,20 @@ NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(MediaKeyStatusMap)
   NS_IMPL_CYCLE_COLLECTION_TRACE_JS_MEMBER_CALLBACK(mMap)
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
-MediaKeyStatusMap::MediaKeyStatusMap(JSContext* aCx,
-                                     nsPIDOMWindow* aParent,
-                                     ErrorResult& aRv)
+MediaKeyStatusMap::MediaKeyStatusMap(nsPIDOMWindow* aParent)
   : mParent(aParent)
   , mUpdateError(NS_OK)
 {
-  mMap = JS::NewMapObject(aCx);
+  AutoJSAPI jsapi;
+  if (NS_WARN_IF(!jsapi.Init(aParent))) {
+    mUpdateError = NS_ERROR_FAILURE;
+    return;
+  }
+
+  JSContext* cx = jsapi.cx();
+  mMap = JS::NewMapObject(cx);
   if (NS_WARN_IF(!mMap)) {
-    aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
+    mUpdateError = NS_ERROR_FAILURE;
   }
 }
 
@@ -204,7 +209,7 @@ nsresult
 MediaKeyStatusMap::UpdateInternal(const nsTArray<CDMCaps::KeyStatus>& keys)
 {
   AutoJSAPI jsapi;
-  if (NS_WARN_IF(!jsapi.Init(mParent))) {
+  if (!mMap || NS_WARN_IF(!jsapi.Init(mParent))) {
     return NS_ERROR_FAILURE;
   }
 

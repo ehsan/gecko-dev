@@ -2432,8 +2432,8 @@ static inline bool
 ClassCanHaveExtraProperties(const Class *clasp)
 {
     return clasp->resolve
-        || clasp->ops.lookupProperty
-        || clasp->ops.getProperty
+        || clasp->ops.lookupGeneric
+        || clasp->ops.getGeneric
         || IsAnyTypedArrayClass(clasp);
 }
 

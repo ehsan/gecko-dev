@@ -7,7 +7,6 @@ package org.mozilla.gecko.db;
 import java.io.File;
 import java.util.HashMap;
 
-import org.mozilla.gecko.AppConstants;
 import org.mozilla.gecko.GeckoProfile;
 import org.mozilla.gecko.GeckoThread;
 import org.mozilla.gecko.Telemetry;
@@ -97,10 +96,6 @@ public abstract class SQLiteBridgeContentProvider extends ContentProvider {
                 }
             }
             mDatabasePerProfile = null;
-        }
-
-        if (AppConstants.Versions.feature11Plus) {
-            super.shutdown();
         }
     }
 

@@ -22,14 +22,7 @@ function loadFile(aUriSpec)
     if (!serv) {
         throw Components.results.ERR_FAILURE;
     }
-    var chan = serv.newChannel2(aUriSpec,
-                                null,
-                                null,
-                                null,      // aLoadingNode
-                                Services.scriptSecurityManager.getSystemPrincipal(),
-                                null,      // aTriggeringPrincipal
-                                Ci.nsILoadInfo.SEC_NORMAL,
-                                Ci.nsIContentPolicy.TYPE_OTHER);
+    var chan = serv.newChannel(aUriSpec, null, null);
     var instream = 
         Components.classes[SIS_CTRID].createInstance(nsISIS);
     instream.init(chan.open());
