@@ -43,8 +43,6 @@
 #include "nsIObserver.h"
 #include "nsIURI.h"
 
-#include "nsCycleCollectionParticipant.h"
-
 #include "nsIDOMGeoGeolocation.h"
 #include "nsIDOMGeoPosition.h"
 #include "nsIDOMGeoPositionError.h"
@@ -63,12 +61,10 @@ class nsGeolocation;
 class nsGeolocationRequest : public nsIGeolocationRequest, public nsITimerCallback
 {
  public:
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIGEOLOCATIONREQUEST
   NS_DECL_NSITIMERCALLBACK
-
-  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsGeolocationRequest, nsIGeolocationRequest)
-
+ 
   nsGeolocationRequest(nsGeolocation* locator,
                        nsIDOMGeoPositionCallback* callback,
                        nsIDOMGeoPositionErrorCallback* errorCallback,
@@ -168,10 +164,8 @@ class nsGeolocation : public nsIDOMGeoGeolocation
 {
 public:
 
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
+  NS_DECL_ISUPPORTS
   NS_DECL_NSIDOMGEOGEOLOCATION
-
-  NS_DECL_CYCLE_COLLECTION_CLASS(nsGeolocation)
 
   nsGeolocation(nsIDOMWindow* contentDom);
 

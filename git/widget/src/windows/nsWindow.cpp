@@ -74,8 +74,6 @@
 #include "prlog.h"
 #include "nsISupportsPrimitives.h"
 
-#include "gfxImageSurface.h"
-
 #ifdef WINCE
 #include "aygshell.h"
 #include "imm.h"
@@ -6030,7 +6028,6 @@ PRBool nsWindow::OnPaint(HDC aDC)
                            (PRInt32) mWnd);
 #endif // NS_DEBUG
 
-#ifndef WINCE
 #ifdef MOZ_XUL
       nsRefPtr<gfxASurface> targetSurface;
       if (eTransparencyTransparent == mTransparencyMode) {
@@ -6043,21 +6040,11 @@ PRBool nsWindow::OnPaint(HDC aDC)
 #else
       nsRefPtr<gfxASurface> targetSurface = new gfxWindowsSurface(hDC);
 #endif
-#else
-      nsRefPtr<gfxImageSurface> targetSurface = new gfxImageSurface(gfxIntSize(ps.rcPaint.right - ps.rcPaint.left,
-                                                                               ps.rcPaint.bottom - ps.rcPaint.top),
-                                                                    gfxASurface::ImageFormatRGB24);
-      if (targetSurface && !targetSurface->CairoStatus()) {
-        targetSurface->SetDeviceOffset(gfxPoint(-ps.rcPaint.left, -ps.rcPaint.top));
-      }
-#endif
-
 
       nsRefPtr<gfxContext> thebesContext = new gfxContext(targetSurface);
       thebesContext->SetFlag(gfxContext::FLAG_DESTINED_FOR_SCREEN);
 
-#ifndef WINCE
-#if defined(MOZ_XUL)
+#if defined(MOZ_XUL) && !defined(WINCE)
       if (eTransparencyGlass == mTransparencyMode && nsUXThemeData::sHaveCompositor) {
         thebesContext->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
       } else if (eTransparencyTransparent == mTransparencyMode) {
@@ -6074,7 +6061,6 @@ PRBool nsWindow::OnPaint(HDC aDC)
       // If we're not doing translucency, then double buffer
       thebesContext->PushGroup(gfxASurface::CONTENT_COLOR);
 #endif
-#endif /* ifndef WINCE */
 
       nsCOMPtr<nsIRenderingContext> rc;
       nsresult rv = mContext->CreateRenderingContextInstance (*getter_AddRefs(rc));
@@ -6100,21 +6086,11 @@ PRBool nsWindow::OnPaint(HDC aDC)
         // that displayed on the screen.
         UpdateTranslucentWindow();
       } else if (result) {
-
-#ifndef WINCE
         // Only update if DispatchWindowEvent returned TRUE; otherwise, nothing handled
         // this, and we'll just end up painting with black.
         thebesContext->PopGroupToSource();
         thebesContext->SetOperator(gfxContext::OPERATOR_SOURCE);
         thebesContext->Paint();
-#else
-        nsRefPtr<gfxASurface> winSurface = new gfxWindowsSurface(hDC);
-        nsRefPtr<gfxContext> winCtx = new gfxContext(winSurface);
-
-        winCtx->SetOperator(gfxContext::OPERATOR_SOURCE);
-        winCtx->SetSource(targetSurface);
-        winCtx->Paint();
-#endif
       }
 #endif
     }
