@@ -235,10 +235,19 @@ ClippedImage::GetFrameInternal(const nsIntSize& aViewportSize,
     mozilla::RefPtr<mozilla::gfx::DrawTarget> target;
     nsRefPtr<gfxContext> ctx;
 
-    target = gfxPlatform::GetPlatform()->
-      CreateOffscreenContentDrawTarget(gfx::IntSize(mClip.width, mClip.height),
-                                       gfx::SurfaceFormat::B8G8R8A8);
-    ctx = new gfxContext(target);
+    if (gfxPlatform::GetPlatform()->SupportsAzureContent()) {
+      target = gfxPlatform::GetPlatform()->
+        CreateOffscreenContentDrawTarget(gfx::IntSize(mClip.width, mClip.height),
+                                        gfx::SurfaceFormat::B8G8R8A8);
+      ctx = new gfxContext(target);
+    } else {
+      target = gfxPlatform::GetPlatform()->
+        CreateOffscreenCanvasDrawTarget(gfx::IntSize(mClip.width, mClip.height),
+                                        gfx::SurfaceFormat::B8G8R8A8);
+      nsRefPtr<gfxASurface> surface = gfxPlatform::GetPlatform()->
+        GetThebesSurfaceForDrawTarget(target);
+      ctx = new gfxContext(surface);
+    }
 
     // Create our callback.
     nsRefPtr<gfxDrawingCallback> drawTileCallback =

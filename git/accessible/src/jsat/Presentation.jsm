@@ -569,13 +569,15 @@ BraillePresenter.prototype = {
 this.Presentation = {
   get presenters() {
     delete this.presenters;
-    let presenterMap = {
-      'mobile/android': [VisualPresenter, AndroidPresenter],
-      'b2g': [VisualPresenter, SpeechPresenter, HapticPresenter],
-      'browser': [VisualPresenter, SpeechPresenter, HapticPresenter,
-                  AndroidPresenter]
-    };
-    this.presenters = [new P() for (P of presenterMap[Utils.MozBuildApp])];
+    this.presenters = [new VisualPresenter()];
+
+    if (Utils.MozBuildApp == 'mobile/android') {
+      this.presenters.push(new AndroidPresenter());
+    } else {
+      this.presenters.push(new SpeechPresenter());
+      this.presenters.push(new HapticPresenter());
+    }
+
     return this.presenters;
   },
 

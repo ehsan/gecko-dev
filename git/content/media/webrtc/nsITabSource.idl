@@ -10,8 +10,6 @@
 interface nsITabSource : nsISupports
 {
   nsIDOMWindow getTabToStream();
-  void notifyStreamStart(in nsIDOMWindow window);
-  void notifyStreamStop(in nsIDOMWindow window);
 };
 
 %{C++

@@ -37,7 +37,7 @@ IsCacheableNonGlobalScope(JSObject *obj)
 }
 
 inline HandleObject
-InterpreterFrame::scopeChain() const
+StackFrame::scopeChain() const
 {
     JS_ASSERT_IF(!(flags_ & HAS_SCOPECHAIN), isFunctionFrame());
     if (!(flags_ & HAS_SCOPECHAIN)) {
@@ -48,13 +48,13 @@ InterpreterFrame::scopeChain() const
 }
 
 inline GlobalObject &
-InterpreterFrame::global() const
+StackFrame::global() const
 {
     return scopeChain()->global();
 }
 
 inline JSObject &
-InterpreterFrame::varObj()
+StackFrame::varObj()
 {
     JSObject *obj = scopeChain();
     while (!obj->isVarObj())
@@ -63,16 +63,15 @@ InterpreterFrame::varObj()
 }
 
 inline JSCompartment *
-InterpreterFrame::compartment() const
+StackFrame::compartment() const
 {
     JS_ASSERT(scopeChain()->compartment() == script()->compartment());
     return scopeChain()->compartment();
 }
 
 inline void
-InterpreterFrame::initCallFrame(JSContext *cx, InterpreterFrame *prev, jsbytecode *prevpc,
-                                Value *prevsp, JSFunction &callee, JSScript *script, Value *argv,
-                                uint32_t nactual, InterpreterFrame::Flags flagsArg)
+StackFrame::initCallFrame(JSContext *cx, StackFrame *prev, jsbytecode *prevpc, Value *prevsp, JSFunction &callee,
+                          JSScript *script, Value *argv, uint32_t nactual, StackFrame::Flags flagsArg)
 {
     JS_ASSERT((flagsArg & ~CONSTRUCTING) == 0);
     JS_ASSERT(callee.nonLazyScript() == script);
@@ -92,13 +91,13 @@ InterpreterFrame::initCallFrame(JSContext *cx, InterpreterFrame *prev, jsbytecod
 }
 
 inline void
-InterpreterFrame::initVarsToUndefined()
+StackFrame::initVarsToUndefined()
 {
     SetValueRangeToUndefined(slots(), script()->nfixed());
 }
 
 inline Value &
-InterpreterFrame::unaliasedVar(uint32_t i, MaybeCheckAliasing checkAliasing)
+StackFrame::unaliasedVar(uint32_t i, MaybeCheckAliasing checkAliasing)
 {
     JS_ASSERT_IF(checkAliasing, !script()->varIsAliased(i));
     JS_ASSERT(i < script()->nfixedvars());
@@ -106,7 +105,7 @@ InterpreterFrame::unaliasedVar(uint32_t i, MaybeCheckAliasing checkAliasing)
 }
 
 inline Value &
-InterpreterFrame::unaliasedLocal(uint32_t i, MaybeCheckAliasing checkAliasing)
+StackFrame::unaliasedLocal(uint32_t i, MaybeCheckAliasing checkAliasing)
 {
     JS_ASSERT(i < script()->nfixed());
 #ifdef DEBUG
@@ -116,7 +115,7 @@ InterpreterFrame::unaliasedLocal(uint32_t i, MaybeCheckAliasing checkAliasing)
 }
 
 inline Value &
-InterpreterFrame::unaliasedFormal(unsigned i, MaybeCheckAliasing checkAliasing)
+StackFrame::unaliasedFormal(unsigned i, MaybeCheckAliasing checkAliasing)
 {
     JS_ASSERT(i < numFormalArgs());
     JS_ASSERT_IF(checkAliasing, !script()->argsObjAliasesFormals());
@@ -125,7 +124,7 @@ InterpreterFrame::unaliasedFormal(unsigned i, MaybeCheckAliasing checkAliasing)
 }
 
 inline Value &
-InterpreterFrame::unaliasedActual(unsigned i, MaybeCheckAliasing checkAliasing)
+StackFrame::unaliasedActual(unsigned i, MaybeCheckAliasing checkAliasing)
 {
     JS_ASSERT(i < numActualArgs());
     JS_ASSERT_IF(checkAliasing, !script()->argsObjAliasesFormals());
@@ -135,7 +134,7 @@ InterpreterFrame::unaliasedActual(unsigned i, MaybeCheckAliasing checkAliasing)
 
 template <class Op>
 inline void
-InterpreterFrame::unaliasedForEachActual(Op op)
+StackFrame::unaliasedForEachActual(Op op)
 {
     // Don't assert !script()->funHasAnyAliasedFormal() since this function is
     // called from ArgumentsObject::createUnexpected() which can access aliased
@@ -161,7 +160,7 @@ struct CopyToHeap
 };
 
 inline ArgumentsObject &
-InterpreterFrame::argsObj() const
+StackFrame::argsObj() const
 {
     JS_ASSERT(script()->needsArgsObj());
     JS_ASSERT(flags_ & HAS_ARGS_OBJ);
@@ -169,7 +168,7 @@ InterpreterFrame::argsObj() const
 }
 
 inline void
-InterpreterFrame::initArgsObj(ArgumentsObject &argsobj)
+StackFrame::initArgsObj(ArgumentsObject &argsobj)
 {
     JS_ASSERT(script()->needsArgsObj());
     flags_ |= HAS_ARGS_OBJ;
@@ -177,7 +176,7 @@ InterpreterFrame::initArgsObj(ArgumentsObject &argsobj)
 }
 
 inline ScopeObject &
-InterpreterFrame::aliasedVarScope(ScopeCoordinate sc) const
+StackFrame::aliasedVarScope(ScopeCoordinate sc) const
 {
     JSObject *scope = &scopeChain()->as<ScopeObject>();
     for (unsigned i = sc.hops(); i; i--)
@@ -186,7 +185,7 @@ InterpreterFrame::aliasedVarScope(ScopeCoordinate sc) const
 }
 
 inline void
-InterpreterFrame::pushOnScopeChain(ScopeObject &scope)
+StackFrame::pushOnScopeChain(ScopeObject &scope)
 {
     JS_ASSERT(*scopeChain() == scope.enclosingScope() ||
               *scopeChain() == scope.as<CallObject>().enclosingScope().as<DeclEnvObject>().enclosingScope());
@@ -195,21 +194,21 @@ InterpreterFrame::pushOnScopeChain(ScopeObject &scope)
 }
 
 inline void
-InterpreterFrame::popOffScopeChain()
+StackFrame::popOffScopeChain()
 {
     JS_ASSERT(flags_ & HAS_SCOPECHAIN);
     scopeChain_ = &scopeChain_->as<ScopeObject>().enclosingScope();
 }
 
 bool
-InterpreterFrame::hasCallObj() const
+StackFrame::hasCallObj() const
 {
     JS_ASSERT(isStrictEvalFrame() || fun()->isHeavyweight());
     return flags_ & HAS_CALL_OBJ;
 }
 
 inline CallObject &
-InterpreterFrame::callObj() const
+StackFrame::callObj() const
 {
     JS_ASSERT(fun()->isHeavyweight());
 
@@ -249,9 +248,9 @@ InterpreterStack::allocateFrame(JSContext *cx, size_t size)
     return buffer;
 }
 
-MOZ_ALWAYS_INLINE InterpreterFrame *
+MOZ_ALWAYS_INLINE StackFrame *
 InterpreterStack::getCallFrame(JSContext *cx, const CallArgs &args, HandleScript script,
-                               InterpreterFrame::Flags *flags, Value **pargv)
+                               StackFrame::Flags *flags, Value **pargv)
 {
     JSFunction *fun = &args.callee().as<JSFunction>();
 
@@ -261,15 +260,15 @@ InterpreterStack::getCallFrame(JSContext *cx, const CallArgs &args, HandleScript
 
     if (args.length() >= nformal) {
         *pargv = args.array();
-        uint8_t *buffer = allocateFrame(cx, sizeof(InterpreterFrame) + nvals * sizeof(Value));
-        return reinterpret_cast<InterpreterFrame *>(buffer);
+        uint8_t *buffer = allocateFrame(cx, sizeof(StackFrame) + nvals * sizeof(Value));
+        return reinterpret_cast<StackFrame *>(buffer);
     }
 
     // Pad any missing arguments with |undefined|.
     JS_ASSERT(args.length() < nformal);
 
     nvals += nformal + 2; // Include callee, |this|.
-    uint8_t *buffer = allocateFrame(cx, sizeof(InterpreterFrame) + nvals * sizeof(Value));
+    uint8_t *buffer = allocateFrame(cx, sizeof(StackFrame) + nvals * sizeof(Value));
     if (!buffer)
         return nullptr;
 
@@ -280,7 +279,7 @@ InterpreterStack::getCallFrame(JSContext *cx, const CallArgs &args, HandleScript
     SetValueRangeToUndefined(argv + 2 + args.length(), nmissing);
 
     *pargv = argv + 2;
-    return reinterpret_cast<InterpreterFrame *>(argv + 2 + nformal);
+    return reinterpret_cast<StackFrame *>(argv + 2 + nformal);
 }
 
 MOZ_ALWAYS_INLINE bool
@@ -293,16 +292,16 @@ InterpreterStack::pushInlineFrame(JSContext *cx, InterpreterRegs &regs, const Ca
 
     script->ensureNonLazyCanonicalFunction(cx);
 
-    InterpreterFrame *prev = regs.fp();
+    StackFrame *prev = regs.fp();
     jsbytecode *prevpc = regs.pc;
     Value *prevsp = regs.sp;
     JS_ASSERT(prev);
 
     LifoAlloc::Mark mark = allocator_.mark();
 
-    InterpreterFrame::Flags flags = ToFrameFlags(initial);
+    StackFrame::Flags flags = ToFrameFlags(initial);
     Value *argv;
-    InterpreterFrame *fp = getCallFrame(cx, args, script, &flags, &argv);
+    StackFrame *fp = getCallFrame(cx, args, script, &flags, &argv);
     if (!fp)
         return false;
 
@@ -318,7 +317,7 @@ InterpreterStack::pushInlineFrame(JSContext *cx, InterpreterRegs &regs, const Ca
 MOZ_ALWAYS_INLINE void
 InterpreterStack::popInlineFrame(InterpreterRegs &regs)
 {
-    InterpreterFrame *fp = regs.fp();
+    StackFrame *fp = regs.fp();
     regs.popInlineFrame();
     regs.sp[-1] = fp->returnValue();
     releaseFrame(fp);
@@ -355,8 +354,8 @@ FrameIter::unaliasedForEachActual(JSContext *cx, Op op)
 inline void *
 AbstractFramePtr::maybeHookData() const
 {
-    if (isInterpreterFrame())
-        return asInterpreterFrame()->maybeHookData();
+    if (isStackFrame())
+        return asStackFrame()->maybeHookData();
 #ifdef JS_ION
     return asBaselineFrame()->maybeHookData();
 #else
@@ -367,8 +366,8 @@ AbstractFramePtr::maybeHookData() const
 inline void
 AbstractFramePtr::setHookData(void *data) const
 {
-    if (isInterpreterFrame()) {
-        asInterpreterFrame()->setHookData(data);
+    if (isStackFrame()) {
+        asStackFrame()->setHookData(data);
         return;
     }
 #ifdef JS_ION
@@ -381,8 +380,8 @@ AbstractFramePtr::setHookData(void *data) const
 inline HandleValue
 AbstractFramePtr::returnValue() const
 {
-    if (isInterpreterFrame())
-        return asInterpreterFrame()->returnValue();
+    if (isStackFrame())
+        return asStackFrame()->returnValue();
 #ifdef JS_ION
     return asBaselineFrame()->returnValue();
 #else
@@ -393,8 +392,8 @@ AbstractFramePtr::returnValue() const
 inline void
 AbstractFramePtr::setReturnValue(const Value &rval) const
 {
-    if (isInterpreterFrame()) {
-        asInterpreterFrame()->setReturnValue(rval);
+    if (isStackFrame()) {
+        asStackFrame()->setReturnValue(rval);
         return;
     }
 #ifdef JS_ION
@@ -407,8 +406,8 @@ AbstractFramePtr::setReturnValue(const Value &rval) const
 inline JSObject *
 AbstractFramePtr::scopeChain() const
 {
-    if (isInterpreterFrame())
-        return asInterpreterFrame()->scopeChain();
+    if (isStackFrame())
+        return asStackFrame()->scopeChain();
 #ifdef JS_ION
     return asBaselineFrame()->scopeChain();
 #else
@@ -419,8 +418,8 @@ AbstractFramePtr::scopeChain() const
 inline void
 AbstractFramePtr::pushOnScopeChain(ScopeObject &scope)
 {
-    if (isInterpreterFrame()) {
-        asInterpreterFrame()->pushOnScopeChain(scope);
+    if (isStackFrame()) {
+        asStackFrame()->pushOnScopeChain(scope);
         return;
     }
 #ifdef JS_ION
@@ -433,8 +432,8 @@ AbstractFramePtr::pushOnScopeChain(ScopeObject &scope)
 inline CallObject &
 AbstractFramePtr::callObj() const
 {
-    if (isInterpreterFrame())
-        return asInterpreterFrame()->callObj();
+    if (isStackFrame())
+        return asStackFrame()->callObj();
 #ifdef JS_ION
     return asBaselineFrame()->callObj();
 #else
@@ -445,8 +444,8 @@ AbstractFramePtr::callObj() const
 inline bool
 AbstractFramePtr::initFunctionScopeObjects(JSContext *cx)
 {
-    if (isInterpreterFrame())
-        return asInterpreterFrame()->initFunctionScopeObjects(cx);
+    if (isStackFrame())
+        return asStackFrame()->initFunctionScopeObjects(cx);
 #ifdef JS_ION
     return asBaselineFrame()->initFunctionScopeObjects(cx);
 #else
@@ -463,8 +462,8 @@ AbstractFramePtr::compartment() const
 inline unsigned
 AbstractFramePtr::numActualArgs() const
 {
-    if (isInterpreterFrame())
-        return asInterpreterFrame()->numActualArgs();
+    if (isStackFrame())
+        return asStackFrame()->numActualArgs();
 #ifdef JS_ION
     return asBaselineFrame()->numActualArgs();
 #else
@@ -474,8 +473,8 @@ AbstractFramePtr::numActualArgs() const
 inline unsigned
 AbstractFramePtr::numFormalArgs() const
 {
-    if (isInterpreterFrame())
-        return asInterpreterFrame()->numFormalArgs();
+    if (isStackFrame())
+        return asStackFrame()->numFormalArgs();
 #ifdef JS_ION
     return asBaselineFrame()->numFormalArgs();
 #else
@@ -486,8 +485,8 @@ AbstractFramePtr::numFormalArgs() const
 inline Value &
 AbstractFramePtr::unaliasedVar(uint32_t i, MaybeCheckAliasing checkAliasing)
 {
-    if (isInterpreterFrame())
-        return asInterpreterFrame()->unaliasedVar(i, checkAliasing);
+    if (isStackFrame())
+        return asStackFrame()->unaliasedVar(i, checkAliasing);
 #ifdef JS_ION
     return asBaselineFrame()->unaliasedVar(i, checkAliasing);
 #else
@@ -498,8 +497,8 @@ AbstractFramePtr::unaliasedVar(uint32_t i, MaybeCheckAliasing checkAliasing)
 inline Value &
 AbstractFramePtr::unaliasedLocal(uint32_t i, MaybeCheckAliasing checkAliasing)
 {
-    if (isInterpreterFrame())
-        return asInterpreterFrame()->unaliasedLocal(i, checkAliasing);
+    if (isStackFrame())
+        return asStackFrame()->unaliasedLocal(i, checkAliasing);
 #ifdef JS_ION
     return asBaselineFrame()->unaliasedLocal(i, checkAliasing);
 #else
@@ -510,8 +509,8 @@ AbstractFramePtr::unaliasedLocal(uint32_t i, MaybeCheckAliasing checkAliasing)
 inline Value &
 AbstractFramePtr::unaliasedFormal(unsigned i, MaybeCheckAliasing checkAliasing)
 {
-    if (isInterpreterFrame())
-        return asInterpreterFrame()->unaliasedFormal(i, checkAliasing);
+    if (isStackFrame())
+        return asStackFrame()->unaliasedFormal(i, checkAliasing);
 #ifdef JS_ION
     return asBaselineFrame()->unaliasedFormal(i, checkAliasing);
 #else
@@ -522,8 +521,8 @@ AbstractFramePtr::unaliasedFormal(unsigned i, MaybeCheckAliasing checkAliasing)
 inline Value &
 AbstractFramePtr::unaliasedActual(unsigned i, MaybeCheckAliasing checkAliasing)
 {
-    if (isInterpreterFrame())
-        return asInterpreterFrame()->unaliasedActual(i, checkAliasing);
+    if (isStackFrame())
+        return asStackFrame()->unaliasedActual(i, checkAliasing);
 #ifdef JS_ION
     return asBaselineFrame()->unaliasedActual(i, checkAliasing);
 #else
@@ -534,8 +533,8 @@ AbstractFramePtr::unaliasedActual(unsigned i, MaybeCheckAliasing checkAliasing)
 inline bool
 AbstractFramePtr::hasCallObj() const
 {
-    if (isInterpreterFrame())
-        return asInterpreterFrame()->hasCallObj();
+    if (isStackFrame())
+        return asStackFrame()->hasCallObj();
 #ifdef JS_ION
     return asBaselineFrame()->hasCallObj();
 #else
@@ -545,29 +544,29 @@ AbstractFramePtr::hasCallObj() const
 inline bool
 AbstractFramePtr::useNewType() const
 {
-    if (isInterpreterFrame())
-        return asInterpreterFrame()->useNewType();
+    if (isStackFrame())
+        return asStackFrame()->useNewType();
     return false;
 }
 inline bool
 AbstractFramePtr::isGeneratorFrame() const
 {
-    if (isInterpreterFrame())
-        return asInterpreterFrame()->isGeneratorFrame();
+    if (isStackFrame())
+        return asStackFrame()->isGeneratorFrame();
     return false;
 }
 inline bool
 AbstractFramePtr::isYielding() const
 {
-    if (isInterpreterFrame())
-        return asInterpreterFrame()->isYielding();
+    if (isStackFrame())
+        return asStackFrame()->isYielding();
     return false;
 }
 inline bool
 AbstractFramePtr::isFunctionFrame() const
 {
-    if (isInterpreterFrame())
-        return asInterpreterFrame()->isFunctionFrame();
+    if (isStackFrame())
+        return asStackFrame()->isFunctionFrame();
 #ifdef JS_ION
     return asBaselineFrame()->isFunctionFrame();
 #else
@@ -577,8 +576,8 @@ AbstractFramePtr::isFunctionFrame() const
 inline bool
 AbstractFramePtr::isGlobalFrame() const
 {
-    if (isInterpreterFrame())
-        return asInterpreterFrame()->isGlobalFrame();
+    if (isStackFrame())
+        return asStackFrame()->isGlobalFrame();
 #ifdef JS_ION
     return asBaselineFrame()->isGlobalFrame();
 #else
@@ -588,8 +587,8 @@ AbstractFramePtr::isGlobalFrame() const
 inline bool
 AbstractFramePtr::isEvalFrame() const
 {
-    if (isInterpreterFrame())
-        return asInterpreterFrame()->isEvalFrame();
+    if (isStackFrame())
+        return asStackFrame()->isEvalFrame();
 #ifdef JS_ION
     return asBaselineFrame()->isEvalFrame();
 #else
@@ -604,8 +603,8 @@ AbstractFramePtr::isFramePushedByExecute() const
 inline bool
 AbstractFramePtr::isDebuggerFrame() const
 {
-    if (isInterpreterFrame())
-        return asInterpreterFrame()->isDebuggerFrame();
+    if (isStackFrame())
+        return asStackFrame()->isDebuggerFrame();
 #ifdef JS_ION
     return asBaselineFrame()->isDebuggerFrame();
 #else
@@ -619,8 +618,8 @@ AbstractFramePtr::hasArgs() const {
 inline JSScript *
 AbstractFramePtr::script() const
 {
-    if (isInterpreterFrame())
-        return asInterpreterFrame()->script();
+    if (isStackFrame())
+        return asStackFrame()->script();
 #ifdef JS_ION
     return asBaselineFrame()->script();
 #else
@@ -630,8 +629,8 @@ AbstractFramePtr::script() const
 inline JSFunction *
 AbstractFramePtr::fun() const
 {
-    if (isInterpreterFrame())
-        return asInterpreterFrame()->fun();
+    if (isStackFrame())
+        return asStackFrame()->fun();
 #ifdef JS_ION
     return asBaselineFrame()->fun();
 #else
@@ -641,8 +640,8 @@ AbstractFramePtr::fun() const
 inline JSFunction *
 AbstractFramePtr::maybeFun() const
 {
-    if (isInterpreterFrame())
-        return asInterpreterFrame()->maybeFun();
+    if (isStackFrame())
+        return asStackFrame()->maybeFun();
 #ifdef JS_ION
     return asBaselineFrame()->maybeFun();
 #else
@@ -652,8 +651,8 @@ AbstractFramePtr::maybeFun() const
 inline JSFunction *
 AbstractFramePtr::callee() const
 {
-    if (isInterpreterFrame())
-        return &asInterpreterFrame()->callee();
+    if (isStackFrame())
+        return &asStackFrame()->callee();
 #ifdef JS_ION
     return asBaselineFrame()->callee();
 #else
@@ -663,8 +662,8 @@ AbstractFramePtr::callee() const
 inline Value
 AbstractFramePtr::calleev() const
 {
-    if (isInterpreterFrame())
-        return asInterpreterFrame()->calleev();
+    if (isStackFrame())
+        return asStackFrame()->calleev();
 #ifdef JS_ION
     return asBaselineFrame()->calleev();
 #else
@@ -674,8 +673,8 @@ AbstractFramePtr::calleev() const
 inline bool
 AbstractFramePtr::isNonEvalFunctionFrame() const
 {
-    if (isInterpreterFrame())
-        return asInterpreterFrame()->isNonEvalFunctionFrame();
+    if (isStackFrame())
+        return asStackFrame()->isNonEvalFunctionFrame();
 #ifdef JS_ION
     return asBaselineFrame()->isNonEvalFunctionFrame();
 #else
@@ -685,8 +684,8 @@ AbstractFramePtr::isNonEvalFunctionFrame() const
 inline bool
 AbstractFramePtr::isNonStrictDirectEvalFrame() const
 {
-    if (isInterpreterFrame())
-        return asInterpreterFrame()->isNonStrictDirectEvalFrame();
+    if (isStackFrame())
+        return asStackFrame()->isNonStrictDirectEvalFrame();
 #ifdef JS_ION
     return asBaselineFrame()->isNonStrictDirectEvalFrame();
 #else
@@ -696,8 +695,8 @@ AbstractFramePtr::isNonStrictDirectEvalFrame() const
 inline bool
 AbstractFramePtr::isStrictEvalFrame() const
 {
-    if (isInterpreterFrame())
-        return asInterpreterFrame()->isStrictEvalFrame();
+    if (isStackFrame())
+        return asStackFrame()->isStrictEvalFrame();
 #ifdef JS_ION
     return asBaselineFrame()->isStrictEvalFrame();
 #else
@@ -708,8 +707,8 @@ AbstractFramePtr::isStrictEvalFrame() const
 inline Value *
 AbstractFramePtr::argv() const
 {
-    if (isInterpreterFrame())
-        return asInterpreterFrame()->argv();
+    if (isStackFrame())
+        return asStackFrame()->argv();
 #ifdef JS_ION
     return asBaselineFrame()->argv();
 #else
@@ -720,8 +719,8 @@ AbstractFramePtr::argv() const
 inline bool
 AbstractFramePtr::hasArgsObj() const
 {
-    if (isInterpreterFrame())
-        return asInterpreterFrame()->hasArgsObj();
+    if (isStackFrame())
+        return asStackFrame()->hasArgsObj();
 #ifdef JS_ION
     return asBaselineFrame()->hasArgsObj();
 #else
@@ -731,8 +730,8 @@ AbstractFramePtr::hasArgsObj() const
 inline ArgumentsObject &
 AbstractFramePtr::argsObj() const
 {
-    if (isInterpreterFrame())
-        return asInterpreterFrame()->argsObj();
+    if (isStackFrame())
+        return asStackFrame()->argsObj();
 #ifdef JS_ION
     return asBaselineFrame()->argsObj();
 #else
@@ -742,8 +741,8 @@ AbstractFramePtr::argsObj() const
 inline void
 AbstractFramePtr::initArgsObj(ArgumentsObject &argsobj) const
 {
-    if (isInterpreterFrame()) {
-        asInterpreterFrame()->initArgsObj(argsobj);
+    if (isStackFrame()) {
+        asStackFrame()->initArgsObj(argsobj);
         return;
     }
 #ifdef JS_ION
@@ -755,8 +754,8 @@ AbstractFramePtr::initArgsObj(ArgumentsObject &argsobj) const
 inline bool
 AbstractFramePtr::copyRawFrameSlots(AutoValueVector *vec) const
 {
-    if (isInterpreterFrame())
-        return asInterpreterFrame()->copyRawFrameSlots(vec);
+    if (isStackFrame())
+        return asStackFrame()->copyRawFrameSlots(vec);
 #ifdef JS_ION
     return asBaselineFrame()->copyRawFrameSlots(vec);
 #else
@@ -767,8 +766,8 @@ AbstractFramePtr::copyRawFrameSlots(AutoValueVector *vec) const
 inline bool
 AbstractFramePtr::prevUpToDate() const
 {
-    if (isInterpreterFrame())
-        return asInterpreterFrame()->prevUpToDate();
+    if (isStackFrame())
+        return asStackFrame()->prevUpToDate();
 #ifdef JS_ION
     return asBaselineFrame()->prevUpToDate();
 #else
@@ -778,8 +777,8 @@ AbstractFramePtr::prevUpToDate() const
 inline void
 AbstractFramePtr::setPrevUpToDate() const
 {
-    if (isInterpreterFrame()) {
-        asInterpreterFrame()->setPrevUpToDate();
+    if (isStackFrame()) {
+        asStackFrame()->setPrevUpToDate();
         return;
     }
 #ifdef JS_ION
@@ -792,8 +791,8 @@ AbstractFramePtr::setPrevUpToDate() const
 inline Value &
 AbstractFramePtr::thisValue() const
 {
-    if (isInterpreterFrame())
-        return asInterpreterFrame()->thisValue();
+    if (isStackFrame())
+        return asStackFrame()->thisValue();
 #ifdef JS_ION
     return asBaselineFrame()->thisValue();
 #else
@@ -804,8 +803,8 @@ AbstractFramePtr::thisValue() const
 inline void
 AbstractFramePtr::popBlock(JSContext *cx) const
 {
-    if (isInterpreterFrame()) {
-        asInterpreterFrame()->popBlock(cx);
+    if (isStackFrame()) {
+        asStackFrame()->popBlock(cx);
         return;
     }
 #ifdef JS_ION
@@ -818,8 +817,8 @@ AbstractFramePtr::popBlock(JSContext *cx) const
 inline void
 AbstractFramePtr::popWith(JSContext *cx) const
 {
-    if (isInterpreterFrame()) {
-        asInterpreterFrame()->popWith(cx);
+    if (isStackFrame()) {
+        asStackFrame()->popWith(cx);
         return;
     }
 #ifdef JS_ION
@@ -847,8 +846,7 @@ Activation::~Activation()
     cx_->mainThread().activation_ = prev_;
 }
 
-InterpreterActivation::InterpreterActivation(RunState &state, JSContext *cx,
-                                             InterpreterFrame *entryFrame)
+InterpreterActivation::InterpreterActivation(RunState &state, JSContext *cx, StackFrame *entryFrame)
   : Activation(cx, Interpreter),
     state_(state),
     entryFrame_(entryFrame),
@@ -898,7 +896,7 @@ InterpreterActivation::pushInlineFrame(const CallArgs &args, HandleScript script
 }
 
 inline void
-InterpreterActivation::popInlineFrame(InterpreterFrame *frame)
+InterpreterActivation::popInlineFrame(StackFrame *frame)
 {
     (void)frame; // Quell compiler warning.
     JS_ASSERT(regs_.fp() == frame);

@@ -3,13 +3,13 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 "use strict";
 
-this.EXPORTED_SYMBOLS = ["gDevToolsExtensions"];
+var EXPORTED_SYMBOLS = ["gDevToolsExtensions"];
 
 Components.utils.import("resource://gre/modules/Services.jsm");
 
 let globalsCache = {};
 
-this.gDevToolsExtensions = {
+const gDevToolsExtensions = {
   addContentGlobal: function(options) {
     if (!options || !options.global || !options['inner-window-id']) {
       throw Error('Invalid arguments');

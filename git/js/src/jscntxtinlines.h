@@ -142,7 +142,7 @@ class CompartmentChecker
             check(script->compartment());
     }
 
-    void check(InterpreterFrame *fp);
+    void check(StackFrame *fp);
     void check(AbstractFramePtr frame);
 };
 #endif /* JS_CRASH_DIAGNOSTICS */
@@ -480,7 +480,7 @@ JSContext::currentScript(jsbytecode **ppc,
 
     JS_ASSERT(act->isInterpreter());
 
-    js::InterpreterFrame *fp = act->asInterpreter()->current();
+    js::StackFrame *fp = act->asInterpreter()->current();
     JS_ASSERT(!fp->runningInJit());
 
     JSScript *script = fp->script();

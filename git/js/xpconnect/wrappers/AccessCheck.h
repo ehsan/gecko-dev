@@ -34,28 +34,16 @@ class AccessCheck {
 struct Policy {
 };
 
-// This policy allows no interaction with the underlying callable. Everything throws.
+// This policy only allows calling the underlying callable. All other operations throw.
 struct Opaque : public Policy {
-    static bool check(JSContext *cx, JSObject *wrapper, jsid id, js::Wrapper::Action act) {
-        return false;
-    }
-    static bool deny(js::Wrapper::Action act, JS::HandleId id) {
-        return false;
-    }
-    static bool allowNativeCall(JSContext *cx, JS::IsAcceptableThis test, JS::NativeImpl impl) {
-        return false;
-    }
-};
-
-// Like the above, but allows CALL.
-struct OpaqueWithCall : public Policy {
     static bool check(JSContext *cx, JSObject *wrapper, jsid id, js::Wrapper::Action act) {
         return act == js::Wrapper::CALL;
     }
     static bool deny(js::Wrapper::Action act, JS::HandleId id) {
         return false;
     }
-    static bool allowNativeCall(JSContext *cx, JS::IsAcceptableThis test, JS::NativeImpl impl) {
+    static bool allowNativeCall(JSContext *cx, JS::IsAcceptableThis test, JS::NativeImpl impl)
+    {
         return false;
     }
 };
@@ -69,7 +57,8 @@ struct GentlyOpaque : public Policy {
     static bool deny(js::Wrapper::Action act, JS::HandleId id) {
         return true;
     }
-    static bool allowNativeCall(JSContext *cx, JS::IsAcceptableThis test, JS::NativeImpl impl) {
+    static bool allowNativeCall(JSContext *cx, JS::IsAcceptableThis test, JS::NativeImpl impl)
+    {
         // We allow nativeCall here because the alternative is throwing (which
         // happens in SecurityWrapper::nativeCall), which we don't want. There's
         // unlikely to be too much harm to letting this through, because this
@@ -91,7 +80,8 @@ struct CrossOriginAccessiblePropertiesOnly : public Policy {
             return true;
         return false;
     }
-    static bool allowNativeCall(JSContext *cx, JS::IsAcceptableThis test, JS::NativeImpl impl) {
+    static bool allowNativeCall(JSContext *cx, JS::IsAcceptableThis test, JS::NativeImpl impl)
+    {
         return false;
     }
 };

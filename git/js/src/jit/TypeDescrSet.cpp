@@ -164,7 +164,7 @@ TypeDescrSet::TypeDescrSet()
 {}
 
 bool
-TypeDescrSet::empty() const
+TypeDescrSet::empty()
 {
     return length_ == 0;
 }
@@ -215,15 +215,6 @@ TypeDescrSet::allHaveSameSize(size_t *out)
 
     *out = size;
     return true;
-}
-
-JSObject *
-TypeDescrSet::knownPrototype() const
-{
-    JS_ASSERT(!empty());
-    if (length() > 1 || !get(0)->is<ComplexTypeDescr>())
-        return nullptr;
-    return &get(0)->as<ComplexTypeDescr>().instancePrototype();
 }
 
 TypeDescr::Kind
