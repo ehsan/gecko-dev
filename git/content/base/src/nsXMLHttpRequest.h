@@ -69,7 +69,6 @@
 #include "nsIPrivateDOMEvent.h"
 #include "nsDOMProgressEvent.h"
 #include "nsDOMEventTargetWrapperCache.h"
-#include "nsContentUtils.h"
 
 class nsILoadGroup;
 class AsyncVerifyRedirectCallbackForwarder;
@@ -333,10 +332,6 @@ protected:
                                  nsIDOMEventListener** aListener);
 
   already_AddRefed<nsIHttpChannel> GetCurrentHttpChannel();
-
-  bool IsSystemXHR() {
-    return !!nsContentUtils::IsSystemPrincipal(mPrincipal);
-  }
 
   /**
    * Check if aChannel is ok for a cross-site request by making sure no
