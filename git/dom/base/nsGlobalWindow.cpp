@@ -459,7 +459,7 @@ public:
   NS_DECL_CYCLE_COLLECTION_CLASS(nsDummyJavaPluginOwner)
 
 private:
-  nsCOMPtr<nsIPluginInstance> mInstance;
+  nsRefPtr<nsNPAPIPluginInstance> mInstance;
   nsCOMPtr<nsIDocument> mDocument;
 };
 
@@ -489,7 +489,7 @@ nsDummyJavaPluginOwner::Destroy()
 }
 
 NS_IMETHODIMP
-nsDummyJavaPluginOwner::SetInstance(nsIPluginInstance *aInstance)
+nsDummyJavaPluginOwner::SetInstance(nsNPAPIPluginInstance *aInstance)
 {
   // If we're going to null out mInstance after use, be sure to call
   // mInstance->InvalidateOwner() here, since it now won't be called
@@ -503,9 +503,10 @@ nsDummyJavaPluginOwner::SetInstance(nsIPluginInstance *aInstance)
 }
 
 NS_IMETHODIMP
-nsDummyJavaPluginOwner::GetInstance(nsIPluginInstance *&aInstance)
+nsDummyJavaPluginOwner::GetInstance(nsNPAPIPluginInstance **aInstance)
 {
-  NS_IF_ADDREF(aInstance = mInstance);
+  NS_IF_ADDREF(mInstance);
+  *aInstance = mInstance;
 
   return NS_OK;
 }
@@ -818,7 +819,7 @@ nsGlobalWindow::nsGlobalWindow(nsGlobalWindow *aOuterWindow)
     mCleanMessageManager(PR_FALSE),
     mNeedsFocus(PR_TRUE),
     mHasFocus(PR_FALSE),
-#if defined(XP_MAC) || defined(XP_MACOSX)
+#if defined(XP_MACOSX)
     mShowAccelerators(PR_FALSE),
     mShowFocusRings(PR_FALSE),
 #else
@@ -4091,7 +4092,7 @@ nsGlobalWindow::CheckSecurityLeftAndTop(PRInt32* aLeft, PRInt32* aTop)
       screen->GetAvailLeft(&screenLeft);
       screen->GetAvailWidth(&screenWidth);
       screen->GetAvailHeight(&screenHeight);
-#if defined(XP_MAC) || defined(XP_MACOSX)
+#if defined(XP_MACOSX)
       /* The mac's coordinate system is different from the assumed Windows'
          system. It offsets by the height of the menubar so that a window
          placed at (0,0) will be entirely visible. Unfortunately that
@@ -4431,7 +4432,7 @@ nsGlobalWindow::Dump(const nsAString& aStr)
 
   char *cstr = ToNewUTF8String(aStr);
 
-#if defined(XP_MAC) || defined(XP_MACOSX)
+#if defined(XP_MACOSX)
   // have to convert \r to \n so that printing to the console works
   char *c = cstr, *cEnd = cstr + strlen(cstr);
   while (c < cEnd) {
@@ -6326,7 +6327,7 @@ nsGlobalWindow::EnterModalState()
       activeShell->SetCapturingContent(nsnull, 0);
 
       if (activeShell) {
-        nsCOMPtr<nsFrameSelection> frameSelection = activeShell->FrameSelection();
+        nsRefPtr<nsFrameSelection> frameSelection = activeShell->FrameSelection();
         frameSelection->SetMouseDownState(PR_FALSE);
       }
     }
@@ -6570,8 +6571,8 @@ nsGlobalWindow::InitJavaProperties()
     return;
   }
 
-  nsCOMPtr<nsIPluginInstance> dummyPlugin;
-  mDummyJavaPluginOwner->GetInstance(*getter_AddRefs(dummyPlugin));
+  nsRefPtr<nsNPAPIPluginInstance> dummyPlugin;
+  mDummyJavaPluginOwner->GetInstance(getter_AddRefs(dummyPlugin));
 
   if (dummyPlugin) {
     // A dummy plugin was instantiated. This means we have a Java
@@ -7772,10 +7773,10 @@ nsGlobalWindow::DispatchSyncPopState()
   }
 
   // Get the document's pending state object -- it contains the data we're
-  // going to send along with the popstate event.  The object is serialized as
-  // JSON.
+  // going to send along with the popstate event.  The object is serialized
+  // using structured clone.
   nsCOMPtr<nsIVariant> stateObj;
-  rv = mDoc->GetMozCurrentStateObject(getter_AddRefs(stateObj));
+  rv = mDoc->GetStateObject(getter_AddRefs(stateObj));
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Obtain a presentation shell for use in creating a popstate event.
@@ -8447,8 +8448,6 @@ nsGlobalWindow::FireDelayedDOMEvents()
   if (mPendingStorageEventsObsolete) {
     // Fire pending storage events.
     mPendingStorageEventsObsolete->EnumerateRead(FirePendingStorageEvents, this);
-
-    delete mPendingStorageEventsObsolete;
     mPendingStorageEventsObsolete = nsnull;
   }
 

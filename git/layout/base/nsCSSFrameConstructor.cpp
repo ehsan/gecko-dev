@@ -2346,7 +2346,7 @@ nsCSSFrameConstructor::ConstructDocElementFrame(Element*                 aDocEle
       return NS_ERROR_FAILURE;
 
     nsRefPtr<nsXBLBinding> binding;
-    rv = xblService->LoadBindings(aDocElement, display->mBinding->mURI,
+    rv = xblService->LoadBindings(aDocElement, display->mBinding->GetURI(),
                                   display->mBinding->mOriginPrincipal,
                                   PR_FALSE, getter_AddRefs(binding),
                                   &resolveStyle);
@@ -3548,7 +3548,8 @@ nsCSSFrameConstructor::FindHTMLData(Element* aElement,
     SIMPLE_TAG_CREATE(video, NS_NewHTMLVideoFrame),
     SIMPLE_TAG_CREATE(audio, NS_NewHTMLVideoFrame),
 #endif
-    SIMPLE_TAG_CREATE(isindex, NS_NewIsIndexFrame)
+    SIMPLE_TAG_CREATE(isindex, NS_NewIsIndexFrame),
+    SIMPLE_TAG_CREATE(progress, NS_NewProgressFrame)
   };
 
   return FindDataByTag(aTag, aElement, aStyleContext, sHTMLData,
@@ -3866,7 +3867,7 @@ nsCSSFrameConstructor::CreateAnonymousFrames(nsFrameConstructorState& aState,
                                              PendingBinding*          aPendingBinding,
                                              nsFrameItems&            aChildItems)
 {
-  nsAutoTArray<nsIContent*, 4> newAnonymousItems;
+  nsAutoTArray<nsIAnonymousContentCreator::ContentInfo, 4> newAnonymousItems;
   nsresult rv = GetAnonymousContent(aParent, aParentFrame, newAnonymousItems);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -3883,8 +3884,9 @@ nsCSSFrameConstructor::CreateAnonymousFrames(nsFrameConstructorState& aState,
                "How can that happen if we have nodes to construct frames for?");
 
   for (PRUint32 i=0; i < count; i++) {
-    nsIContent* content = newAnonymousItems[i];
+    nsIContent* content = newAnonymousItems[i].mContent;
     NS_ASSERTION(content, "null anonymous content?");
+    NS_ASSERTION(!newAnonymousItems[i].mStyleContext, "Unexpected style context");
 
     nsIFrame* newFrame = creator->CreateFrameFor(content);
     if (newFrame) {
@@ -3904,7 +3906,7 @@ nsCSSFrameConstructor::CreateAnonymousFrames(nsFrameConstructorState& aState,
 nsresult
 nsCSSFrameConstructor::GetAnonymousContent(nsIContent* aParent,
                                            nsIFrame* aParentFrame,
-                                           nsTArray<nsIContent*>& aContent)
+                                           nsTArray<nsIAnonymousContentCreator::ContentInfo>& aContent)
 {
   nsIAnonymousContentCreator* creator = do_QueryFrame(aParentFrame);
   if (!creator)
@@ -3916,7 +3918,7 @@ nsCSSFrameConstructor::GetAnonymousContent(nsIContent* aParent,
   PRUint32 count = aContent.Length();
   for (PRUint32 i=0; i < count; i++) {
     // get our child's content and set its parent to our content
-    nsIContent* content = aContent[i];
+    nsIContent* content = aContent[i].mContent;
     NS_ASSERTION(content, "null anonymous content?");
 
     // least-surprise CSS binding until we do the SVG specified
@@ -5091,7 +5093,7 @@ nsCSSFrameConstructor::AddFrameConstructionItemsInternal(nsFrameConstructorState
     if (!newPendingBinding) {
       return;
     }
-    nsresult rv = xblService->LoadBindings(aContent, display->mBinding->mURI,
+    nsresult rv = xblService->LoadBindings(aContent, display->mBinding->GetURI(),
                                            display->mBinding->mOriginPrincipal,
                                            PR_FALSE,
                                            getter_AddRefs(newPendingBinding->mBinding),
@@ -8282,10 +8284,8 @@ nsCSSFrameConstructor::EndUpdate()
     RecalcQuotesAndCounters();
     NS_ASSERTION(mUpdateCount == 1, "Odd update count");
   }
-  // Negative update counts don't make sense
-  if (mUpdateCount > 0) {
-    --mUpdateCount;
-  }
+  NS_ASSERTION(mUpdateCount, "Negative mUpdateCount!");
+  --mUpdateCount;
 }
 
 void
@@ -9542,18 +9542,42 @@ nsCSSFrameConstructor::ProcessChildren(nsFrameConstructorState& aState,
   // Create any anonymous frames we need here.  This must happen before the
   // non-anonymous children are processed to ensure that popups are never
   // constructed before the popupset.
-  nsAutoTArray<nsIContent*, 4> anonymousItems;
+  nsAutoTArray<nsIAnonymousContentCreator::ContentInfo, 4> anonymousItems;
   GetAnonymousContent(aContent, aFrame, anonymousItems);
   for (PRUint32 i = 0; i < anonymousItems.Length(); ++i) {
+    nsIContent* content = anonymousItems[i].mContent;
 #ifdef DEBUG
     nsIAnonymousContentCreator* creator = do_QueryFrame(aFrame);
-    NS_ASSERTION(!creator || !creator->CreateFrameFor(anonymousItems[i]),
+    NS_ASSERTION(!creator || !creator->CreateFrameFor(content),
                  "If you need to use CreateFrameFor, you need to call "
                  "CreateAnonymousFrames manually and not follow the standard "
                  "ProcessChildren() codepath for this frame");
 #endif
-    AddFrameConstructionItems(aState, anonymousItems[i], PR_TRUE, aFrame,
-                              itemsToConstruct);
+    // Assert some things about this content
+    NS_ABORT_IF_FALSE(!(content->GetFlags() &
+                        (NODE_DESCENDANTS_NEED_FRAMES | NODE_NEEDS_FRAME)),
+                      "Should not be marked as needing frames");
+    NS_ABORT_IF_FALSE(!content->IsElement() ||
+                      !(content->GetFlags() & ELEMENT_ALL_RESTYLE_FLAGS),
+                      "Should have no pending restyle flags");
+    NS_ABORT_IF_FALSE(!content->GetPrimaryFrame(),
+                      "Should have no existing frame");
+    NS_ABORT_IF_FALSE(!content->IsNodeOfType(nsINode::eCOMMENT) &&
+                      !content->IsNodeOfType(nsINode::ePROCESSING_INSTRUCTION),
+                      "Why is someone creating garbage anonymous content");
+
+    nsRefPtr<nsStyleContext> styleContext;
+    if (anonymousItems[i].mStyleContext) {
+      styleContext = anonymousItems[i].mStyleContext.forget();
+    } else {
+      styleContext = ResolveStyleContext(aFrame, content, &aState);
+    }
+
+    AddFrameConstructionItemsInternal(aState, content, aFrame,
+                                      content->Tag(), content->GetNameSpaceID(),
+                                      PR_TRUE, styleContext,
+                                      ITEM_ALLOW_XBL_BASE | ITEM_ALLOW_PAGE_BREAK,
+                                      itemsToConstruct);
   }
 
   if (!aFrame->IsLeaf()) {

@@ -1497,7 +1497,7 @@ struct nsStyleDisplay {
 #endif
   static PRBool ForceCompare() { return PR_TRUE; }
 
-  // We guarantee that if mBinding is non-null, so are mBinding->mURI and
+  // We guarantee that if mBinding is non-null, so are mBinding->GetURI() and
   // mBinding->mOriginPrincipal.
   nsRefPtr<nsCSSValue::URL> mBinding;    // [reset]
   nsRect    mClip;              // [reset] offsets from upper-left border edge
@@ -1514,6 +1514,7 @@ struct nsStyleDisplay {
   PRUint8 mOverflowY;           // [reset] see nsStyleConsts.h
   PRUint8 mResize;              // [reset] see nsStyleConsts.h
   PRUint8   mClipFlags;         // [reset] see nsStyleConsts.h
+  PRUint8 mOrient;              // [reset] see nsStyleConsts.h
 
   // mSpecifiedTransform is the list of transform functions as
   // specified, or null to indicate there is no transform.  (inherit or

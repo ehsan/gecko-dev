@@ -169,6 +169,9 @@ pref("media.enforce_same_site_origin", false);
 // Media cache size in kilobytes
 pref("media.cache_size", 512000);
 
+// Master HTML5 media volume scale.
+pref("media.volume_scale", "1.0");
+
 #ifdef MOZ_RAW
 pref("media.raw.enabled", true);
 #endif
@@ -256,7 +259,7 @@ pref("accessibility.typeaheadfind.startlinksonly", false);
 pref("accessibility.typeaheadfind.timeout", 4000);
 pref("accessibility.typeaheadfind.enabletimeout", true);
 pref("accessibility.typeaheadfind.soundURL", "beep");
-pref("accessibility.typeaheadfind.enablesound", true);
+pref("accessibility.typeaheadfind.enablesound", false);
 pref("accessibility.typeaheadfind.prefillwithselection", true);
 
 // use Mac OS X Appearance panel text smoothing setting when rendering text, disabled by default
@@ -271,6 +274,11 @@ pref("toolkit.autocomplete.richBoundaryCutoff", 200);
 pref("toolkit.scrollbox.smoothScroll", true);
 pref("toolkit.scrollbox.scrollIncrement", 20);
 pref("toolkit.scrollbox.clickToScroll.scrollDelay", 150);
+
+// Telemetry
+pref("toolkit.telemetry.enabled", false);
+// Telemetry test server to be used until the official one is public
+pref("toolkit.telemetry.server", "http://telemetry.allizom.org");
 
 // view source
 pref("view_source.syntax_highlight", true);
@@ -1018,7 +1026,6 @@ pref("converter.html2txt.structs",          true); // Output structured phrases 
 pref("converter.html2txt.header_strategy",  1); // 0 = no indention; 1 = indention, increased with header level; 2 = numbering and slight indention
 
 pref("intl.accept_languages",               "chrome://global/locale/intl.properties");
-pref("intl.accept_charsets",                "iso-8859-1,*,utf-8");
 pref("intl.menuitems.alwaysappendaccesskeys","chrome://global/locale/intl.properties");
 pref("intl.menuitems.insertseparatorbeforeaccesskeys","chrome://global/locale/intl.properties");
 pref("intl.charsetmenu.browser.static",     "chrome://global/locale/intl.properties");
@@ -1103,9 +1110,6 @@ pref("clipboard.autocopy", false);
 pref("mousewheel.transaction.timeout", 1500);
 // mouse wheel scroll transaction is held even if the mouse cursor is moved.
 pref("mousewheel.transaction.ignoremovedelay", 100);
-
-// Macbook touchpad two finger pixel scrolling
-pref("mousewheel.enable_pixel_scrolling", true);
 
 // prefs for app level mouse wheel scrolling acceleration.
 // number of mousewheel clicks when acceleration starts
@@ -1217,12 +1221,6 @@ pref("bidi.numeral", 0);
 // 2 = OsBidisupport
 // 3 = disableBidisupport
 pref("bidi.support", 1);
-// ------------------
-//  Charset Mode
-// ------------------
-// 1 = doccharactersetBidi *
-// 2 = defaultcharactersetBidi
-pref("bidi.characterset", 1);
 // Whether delete and backspace should immediately delete characters not
 // visually adjacent to the caret, or adjust the visual position of the caret
 // on the first keypress and delete the character on a second keypress
@@ -1434,22 +1432,22 @@ pref("font.name-list.serif.he", "Narkisim, David");
 pref("font.name-list.monospace.he", "Fixed Miriam Transparent, Miriam Fixed, Rod, Courier New");
 pref("font.name-list.cursive.he", "Guttman Yad, Ktav, Arial");
 
-pref("font.name.serif.ja", "ＭＳ Ｐ明朝"); // "MS PMincho"
-pref("font.name.sans-serif.ja", "ＭＳ Ｐゴシック"); // "MS PGothic"
-pref("font.name.monospace.ja", "ＭＳ ゴシック"); // "MS Gothic"
+pref("font.name.serif.ja", "MS PMincho");
+pref("font.name.sans-serif.ja", "MS PGothic");
+pref("font.name.monospace.ja", "MS Gothic");
 pref("font.name-list.serif.ja", "MS PMincho, MS Mincho, MS PGothic, MS Gothic");
 pref("font.name-list.sans-serif.ja", "MS PGothic, MS Gothic, MS PMincho, MS Mincho");
 pref("font.name-list.monospace.ja", "MS Gothic, MS Mincho, MS PGothic, MS PMincho");
 
-pref("font.name.serif.ko", "바탕"); // "Batang" 
-pref("font.name.sans-serif.ko", "굴림"); // "Gulim" 
-pref("font.name.monospace.ko", "굴림체"); // "GulimChe" 
-pref("font.name.cursive.ko", "궁서"); // "Gungseo"
+pref("font.name.serif.ko", "Batang");
+pref("font.name.sans-serif.ko", "Gulim");
+pref("font.name.monospace.ko", "GulimChe");
+pref("font.name.cursive.ko", "Gungsuh");
 
-pref("font.name-list.serif.ko", "Batang, Gulim"); 
-pref("font.name-list.sans-serif.ko", "Gulim"); 
-pref("font.name-list.monospace.ko", "GulimChe"); 
-pref("font.name-list.cursive.ko", "Gungseo"); 
+pref("font.name-list.serif.ko", "Batang, Gulim");
+pref("font.name-list.sans-serif.ko", "Gulim");
+pref("font.name-list.monospace.ko", "GulimChe");
+pref("font.name-list.cursive.ko", "Gungsuh");
 
 pref("font.name.serif.th", "Tahoma");
 pref("font.name.sans-serif.th", "Tahoma");
@@ -1486,9 +1484,9 @@ pref("font.name.sans-serif.x-western", "Arial");
 pref("font.name.monospace.x-western", "Courier New");
 pref("font.name.cursive.x-western", "Comic Sans MS");
 
-pref("font.name.serif.zh-CN", "宋体"); //MS Song
-pref("font.name.sans-serif.zh-CN", "宋体"); //MS Song
-pref("font.name.monospace.zh-CN", "宋体"); //MS Song
+pref("font.name.serif.zh-CN", "SimSun");
+pref("font.name.sans-serif.zh-CN", "SimSun");
+pref("font.name.monospace.zh-CN", "SimSun");
 pref("font.name-list.serif.zh-CN", "MS Song, SimSun");
 pref("font.name-list.sans-serif.zh-CN", "MS Song, SimSun");
 pref("font.name-list.monospace.zh-CN", "MS Song, SimSun");
@@ -1497,18 +1495,18 @@ pref("font.name-list.monospace.zh-CN", "MS Song, SimSun");
 // rendering Latin letters. (bug 88579)
 pref("font.name.serif.zh-TW", "Times New Roman"); 
 pref("font.name.sans-serif.zh-TW", "Arial");
-pref("font.name.monospace.zh-TW", "細明體");  // MingLiU
+pref("font.name.monospace.zh-TW", "MingLiU");
 pref("font.name-list.serif.zh-TW", "PMingLiu, MingLiU"); 
 pref("font.name-list.sans-serif.zh-TW", "PMingLiU, MingLiU");
 pref("font.name-list.monospace.zh-TW", "MingLiU");
 
-// hkscsm3u.ttf (HKSCS-2001) :  http://www.microsoft.com/hk/hkscs 
-// Hong Kong users have the same demand about glyphs for Latin letters (bug 88579) 
-pref("font.name.serif.zh-HK", "Times New Roman"); 
+// hkscsm3u.ttf (HKSCS-2001) :  http://www.microsoft.com/hk/hkscs
+// Hong Kong users have the same demand about glyphs for Latin letters (bug 88579)
+pref("font.name.serif.zh-HK", "Times New Roman");
 pref("font.name.sans-serif.zh-HK", "Arial");
-pref("font.name.monospace.zh-HK", "細明體_HKSCS"); 
-pref("font.name-list.serif.zh-HK", "MingLiu_HKSCS, Ming(for ISO10646), MingLiU"); 
-pref("font.name-list.sans-serif.zh-HK", "MingLiU_HKSCS, Ming(for ISO10646), MingLiU");  
+pref("font.name.monospace.zh-HK", "MingLiu_HKSCS");
+pref("font.name-list.serif.zh-HK", "MingLiu_HKSCS, Ming(for ISO10646), MingLiU");
+pref("font.name-list.sans-serif.zh-HK", "MingLiU_HKSCS, Ming(for ISO10646), MingLiU");
 pref("font.name-list.monospace.zh-HK", "MingLiU_HKSCS, Ming(for ISO10646), MingLiU");
 
 pref("font.name.serif.x-devanagari", "Mangal");
@@ -1554,19 +1552,19 @@ pref("font.name-list.monospace.x-ethi", "Ethiopia Jiret, Code2000");
 pref("font.name.serif.x-geor", "Sylfaen");
 pref("font.name.sans-serif.x-geor", "BPG Classic 99U");
 pref("font.name.monospace.x-geor", "Code2000");
-pref("font.name-list.serif.x-geor", "Sylfaen, BPG Paata Khutsuri U, TITUS Cyberbit Basic"); 
+pref("font.name-list.serif.x-geor", "Sylfaen, BPG Paata Khutsuri U, TITUS Cyberbit Basic");
 pref("font.name-list.monospace.x-geor", "BPG Classic 99U, Code2000, Arial Unicode MS");
 
 pref("font.name.serif.x-gujr", "Shruti");
 pref("font.name.sans-serif.x-gujr", "Shruti");
 pref("font.name.monospace.x-gujr", "Code2000");
-pref("font.name-list.serif.x-gujr", "Shruti, Code2000, Arial Unicode MS"); 
+pref("font.name-list.serif.x-gujr", "Shruti, Code2000, Arial Unicode MS");
 pref("font.name-list.monospace.x-gujr", "Code2000, Shruti, Arial Unicode MS");
 
 pref("font.name.serif.x-guru", "Raavi");
 pref("font.name.sans-serif.x-guru", "Code2000");
 pref("font.name.monospace.x-guru", "Code2000");
-pref("font.name-list.serif.x-guru", "Raavi, Saab, Code2000, Arial Unicode MS"); 
+pref("font.name-list.serif.x-guru", "Raavi, Saab, Code2000, Arial Unicode MS");
 pref("font.name-list.monospace.x-guru", "Code2000, Raavi, Saab, Arial Unicode MS");
 
 pref("font.name.serif.x-khmr", "PhnomPenh OT");
@@ -1850,6 +1848,9 @@ pref("ui.panel.default_level_parent", false);
 #endif
 
 pref("mousewheel.system_scroll_override_on_root_content.enabled", true);
+
+// High resolution scrolling with supported mouse drivers on Vista or later.
+pref("mousewheel.enable_pixel_scrolling", false);
 
 // If your mouse drive sends WM_*SCROLL messages when you turn your mouse wheel,
 // set this to true.  Then, gecko processes them as mouse wheel messages.
@@ -2295,7 +2296,12 @@ pref("print.print_extra_margin", 90); // twips (90 twips is an eigth of an inch)
 // See bug 404131, topmost <panel> element wins to Dashboard on MacOSX.
 pref("ui.panel.default_level_parent", false);
 
+pref("ui.plugin.cancel_composition_at_input_source_changed", false);
+
 pref("mousewheel.system_scroll_override_on_root_content.enabled", false);
+
+// Macbook touchpad two finger pixel scrolling
+pref("mousewheel.enable_pixel_scrolling", true);
 
 # XP_MACOSX
 #endif

@@ -54,6 +54,7 @@
 #   Rob Campbell <rcampbell@mozilla.com>
 #   David Dahl <ddahl@mozilla.com>
 #   Patrick Walton <pcwalton@mozilla.com>
+#   Mihai Sucan <mihai.sucan@gmail.com>
 #
 # Alternatively, the contents of this file may be used under the terms of
 # either the GNU General Public License Version 2 or later (the "GPL"), or
@@ -305,22 +306,28 @@ function SetClickAndHoldHandlers() {
     aElm.addEventListener("click", clickHandler, true);
   }
 
-  // Bug 414797: Clone the dropmarker's menu into both the back and
-  // the forward buttons.
+  // Bug 414797: Clone unified-back-forward-button's context menu into both the
+  // back and the forward buttons.
   var unifiedButton = document.getElementById("unified-back-forward-button");
   if (unifiedButton && !unifiedButton._clickHandlersAttached) {
-    var popup = document.getElementById("backForwardMenu").cloneNode(true);
+    unifiedButton._clickHandlersAttached = true;
+
+    let popup = document.getElementById("backForwardMenu").cloneNode(true);
     popup.removeAttribute("id");
-    var backButton = document.getElementById("back-button");
+    // Prevent the context attribute on unified-back-forward-button from being
+    // inherited.
+    popup.setAttribute("context", "");
+
+    let backButton = document.getElementById("back-button");
     backButton.setAttribute("type", "menu");
     backButton.appendChild(popup);
     _addClickAndHoldListenersOnElement(backButton);
-    var forwardButton = document.getElementById("forward-button");
+
+    let forwardButton = document.getElementById("forward-button");
     popup = popup.cloneNode(true);
     forwardButton.setAttribute("type", "menu");
     forwardButton.appendChild(popup);
     _addClickAndHoldListenersOnElement(forwardButton);
-    unifiedButton._clickHandlersAttached = true;
   }
 }
 
@@ -1650,6 +1657,16 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
     document.getElementById("key_errorConsole").removeAttribute("disabled");
 #ifdef MENUBAR_CAN_AUTOHIDE
     document.getElementById("appmenu_errorConsole").hidden = false;
+#endif
+  }
+
+  // Enable Scratchpad in the UI, if the preference allows this.
+  let scratchpadEnabled = gPrefService.getBoolPref(Scratchpad.prefEnabledName);
+  if (scratchpadEnabled) {
+    document.getElementById("menu_scratchpad").hidden = false;
+    document.getElementById("Tools:Scratchpad").removeAttribute("disabled");
+#ifdef MENUBAR_CAN_AUTOHIDE
+    document.getElementById("appmenu_scratchpad").hidden = false;
 #endif
   }
 
@@ -4107,7 +4124,7 @@ var XULBrowserWindow = {
   startTime: 0,
   statusText: "",
   isBusy: false,
-  inContentWhitelist: ["about:addons"],
+  inContentWhitelist: ["about:addons", "about:permissions"],
 
   QueryInterface: function (aIID) {
     if (aIID.equals(Ci.nsIWebProgressListener) ||
@@ -6881,7 +6898,7 @@ var gPluginHandler = {
       "npapi-carbon-event-model-failure" : {
                                              barID    : "carbon-failure-plugins",
                                              iconURL  : "chrome://mozapps/skin/plugins/notifyPluginGeneric.png",
-                                             message  : gNavigatorBundle.getString("carbonFailurePluginsMessage.title"),
+                                             message  : gNavigatorBundle.getString("carbonFailurePluginsMessage.message"),
                                              buttons: [{
                                                          label     : gNavigatorBundle.getString("carbonFailurePluginsMessage.restartButton.label"),
                                                          accessKey : gNavigatorBundle.getString("carbonFailurePluginsMessage.restartButton.accesskey"),
@@ -8477,13 +8494,18 @@ var TabContextMenu = {
   updateContextMenu: function updateContextMenu(aPopupMenu) {
     this.contextTab = document.popupNode.localName == "tab" ?
                       document.popupNode : gBrowser.selectedTab;
-    let disabled = gBrowser.visibleTabs.length == 1;
+    let disabled = gBrowser.tabs.length == 1;
 
     // Enable the "Close Tab" menuitem when the window doesn't close with the last tab.
     document.getElementById("context_closeTab").disabled =
       disabled && gBrowser.tabContainer._closeWindowWithLastTab;
 
     var menuItems = aPopupMenu.getElementsByAttribute("tbattr", "tabbrowser-multiple");
+    for (var i = 0; i < menuItems.length; i++)
+      menuItems[i].disabled = disabled;
+
+    disabled = gBrowser.visibleTabs.length == 1;
+    menuItems = aPopupMenu.getElementsByAttribute("tbattr", "tabbrowser-multiple-visible");
     for (var i = 0; i < menuItems.length; i++)
       menuItems[i].disabled = disabled;
 
@@ -8630,6 +8652,19 @@ function toggleAddonBar() {
   let addonBar = document.getElementById("addon-bar");
   setToolbarVisibility(addonBar, addonBar.collapsed);
 }
+
+var Scratchpad = {
+  prefEnabledName: "devtools.scratchpad.enabled",
+
+  openScratchpad: function SP_openScratchpad() {
+    const SCRATCHPAD_WINDOW_URL = "chrome://browser/content/scratchpad.xul";
+    const SCRATCHPAD_WINDOW_FEATURES = "chrome,titlebar,toolbar,centerscreen,resizable,dialog=no";
+
+    return Services.ww.openWindow(null, SCRATCHPAD_WINDOW_URL, "_blank",
+                                  SCRATCHPAD_WINDOW_FEATURES, null);
+  },
+};
+
 
 XPCOMUtils.defineLazyGetter(window, "gShowPageResizers", function () {
 #ifdef XP_WIN

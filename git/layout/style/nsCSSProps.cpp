@@ -579,6 +579,7 @@ const PRInt32 nsCSSProps::kAppearanceKTable[] = {
   eCSSKeyword__moz_window_button_restore,     NS_THEME_WINDOW_BUTTON_RESTORE,
   eCSSKeyword__moz_window_button_box,         NS_THEME_WINDOW_BUTTON_BOX,
   eCSSKeyword__moz_window_button_box_maximized, NS_THEME_WINDOW_BUTTON_BOX_MAXIMIZED,
+  eCSSKeyword__moz_win_exclude_glass,         NS_THEME_WIN_EXCLUDE_GLASS,
   eCSSKeyword_UNKNOWN,-1
 };
 
@@ -1037,6 +1038,12 @@ const PRInt32 nsCSSProps::kListStyleKTable[] = {
   eCSSKeyword_UNKNOWN,-1
 };
 
+const PRInt32 nsCSSProps::kOrientKTable[] = {
+  eCSSKeyword_horizontal, NS_STYLE_ORIENT_HORIZONTAL,
+  eCSSKeyword_vertical,   NS_STYLE_ORIENT_VERTICAL,
+  eCSSKeyword_UNKNOWN,    -1
+};
+
 // Same as kBorderStyleKTable except 'hidden'.
 const PRInt32 nsCSSProps::kOutlineStyleKTable[] = {
   eCSSKeyword_none,   NS_STYLE_BORDER_STYLE_NONE,
@@ -1332,7 +1339,6 @@ const PRInt32 nsCSSProps::kHyphensKTable[] = {
   eCSSKeyword_none, NS_STYLE_HYPHENS_NONE,
   eCSSKeyword_manual, NS_STYLE_HYPHENS_MANUAL,
   eCSSKeyword_auto, NS_STYLE_HYPHENS_AUTO,
-  eCSSKeyword_all, NS_STYLE_HYPHENS_ALL,
   eCSSKeyword_UNKNOWN,-1
 };
 
@@ -1579,7 +1585,6 @@ static const nsCSSProperty gAnimationSubpropTable[] = {
   eCSSProperty_animation_direction,
   eCSSProperty_animation_fill_mode,
   eCSSProperty_animation_iteration_count,
-  eCSSProperty_animation_play_state,
   // List animation-name last so we serialize it last, in case it has
   // a value that conflicts with one of the other properties.  (See
   // how Declaration::GetValue serializes 'animation'.

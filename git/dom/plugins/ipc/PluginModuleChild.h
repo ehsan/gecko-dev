@@ -157,6 +157,9 @@ protected:
 
     NS_NORETURN void QuickExit();
 
+    NS_OVERRIDE virtual bool
+    RecvProcessNativeEventsInRPCCall();
+
 public:
     PluginModuleChild();
     virtual ~PluginModuleChild();
@@ -256,13 +259,13 @@ public:
     };
 
     int GetQuirks() { return mQuirks; }
+
+private:
     void AddQuirk(PluginQuirks quirk) {
       if (mQuirks == QUIRKS_NOT_INITIALIZED)
         mQuirks = 0;
       mQuirks |= quirk;
     }
-
-private:
     void InitQuirksModes(const nsCString& aMimeType);
     bool InitGraphics();
     void DeinitGraphics();

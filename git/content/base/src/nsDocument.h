@@ -55,8 +55,6 @@
 #include "nsIDOMDocumentXBL.h"
 #include "nsIDOMNSDocument.h"
 #include "nsIDOMNSDocumentStyle.h"
-#include "nsIDOMDocumentRange.h"
-#include "nsIDOMDocumentTraversal.h"
 #include "nsStubDocumentObserver.h"
 #include "nsIDOM3EventTarget.h"
 #include "nsIDOMNSEventTarget.h"
@@ -498,8 +496,6 @@ class nsDocument : public nsIDocument,
                    public nsIDOMDocumentEvent,
                    public nsIDOM3DocumentEvent,
                    public nsIDOMNSDocumentStyle,
-                   public nsIDOMDocumentRange,
-                   public nsIDOMDocumentTraversal,
                    public nsIDOMDocumentXBL,
                    public nsSupportsWeakReference,
                    public nsIDOMEventTarget,
@@ -814,12 +810,6 @@ public:
   // nsIDOMNSDocumentStyle
   NS_DECL_NSIDOMNSDOCUMENTSTYLE
 
-  // nsIDOMDocumentRange
-  NS_DECL_NSIDOMDOCUMENTRANGE
-
-  // nsIDOMDocumentTraversal
-  NS_DECL_NSIDOMDOCUMENTTRAVERSAL
-
   // nsIDOMDocumentXBL
   NS_DECL_NSIDOMDOCUMENTXBL
 
@@ -979,7 +969,7 @@ public:
   virtual NS_HIDDEN_(nsresult) RemoveImage(imgIRequest* aImage);
   virtual NS_HIDDEN_(nsresult) SetImageLockingState(PRBool aLocked);
 
-  virtual nsresult GetMozCurrentStateObject(nsIVariant** aResult);
+  virtual nsresult GetStateObject(nsIVariant** aResult);
 
 protected:
   friend class nsNodeUtils;
@@ -1263,8 +1253,6 @@ protected:
   NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMDocument, nsDocument)      \
   NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMNSDocument, nsDocument)    \
   NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMDocumentEvent, nsDocument) \
-  NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMDocumentTraversal,         \
-                                     nsDocument)                              \
   NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMEventTarget, nsDocument)   \
   NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMNode, nsDocument)
 

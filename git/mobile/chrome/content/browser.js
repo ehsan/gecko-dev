@@ -321,6 +321,7 @@ var Browser = {
 #if MOZ_PLATFORM_MAEMO == 6
     os.addObserver(ViewableAreaObserver, "softkb-change", false);
 #endif
+   messageManager.addMessageListener("Content:IsKeyboardOpened", ViewableAreaObserver);
 
     window.QueryInterface(Ci.nsIDOMChromeWindow).browserDOMWindow = new nsBrowserAccess();
 
@@ -339,24 +340,26 @@ var Browser = {
     // Should we restore the previous session (crash or some other event)
     let ss = Cc["@mozilla.org/browser/sessionstore;1"].getService(Ci.nsISessionStore);
     if (ss.shouldRestore()) {
-      // Initial window resizes call functions that assume a tab is in the tab list
-      // and restored tabs are added too late. We add a dummy to to satisfy the resize
-      // code and then remove the dummy after the session has been restored.
-      let dummy = this.addTab("about:blank");
-      let dummyCleanup = {
-        observe: function() {
-          Services.obs.removeObserver(dummyCleanup, "sessionstore-windows-restored");
-          dummy.chromeTab.ignoreUndo = true;
-          Browser.closeTab(dummy, { forceClose: true });
-        }
-      };
-      Services.obs.addObserver(dummyCleanup, "sessionstore-windows-restored", false);
-
-      ss.restoreLastSession();
-
-      // Also open any commandline URLs, except the homepage
-      if (commandURL && commandURL != this.getHomePage())
+      let bringFront = false;
+      // First open any commandline URLs, except the homepage
+      if (commandURL && commandURL != this.getHomePage()) {
         this.addTab(commandURL, true);
+      } else {
+        bringFront = true;
+        // Initial window resizes call functions that assume a tab is in the tab list
+        // and restored tabs are added too late. We add a dummy to to satisfy the resize
+        // code and then remove the dummy after the session has been restored.
+        let dummy = this.addTab("about:blank");
+        let dummyCleanup = {
+          observe: function() {
+            Services.obs.removeObserver(dummyCleanup, "sessionstore-windows-restored");
+            dummy.chromeTab.ignoreUndo = true;
+            Browser.closeTab(dummy, { forceClose: true });
+          }
+        };
+        Services.obs.addObserver(dummyCleanup, "sessionstore-windows-restored", false);
+      }
+      ss.restoreLastSession(bringFront);
     } else {
       this.addTab(commandURL || this.getHomePage(), true);
     }
@@ -409,6 +412,9 @@ var Browser = {
                       (prompt.BUTTON_TITLE_CANCEL * prompt.BUTTON_POS_1);
 
         this._waitingToClose = true;
+#ifdef MOZ_PLATFORM_MAEMO
+        window.QueryInterface(Ci.nsIDOMChromeWindow).restore();
+#endif
         let pressed = prompt.confirmEx(window, title, message, buttons, closeText, null, null, checkText, warnOnClose);
         this._waitingToClose = false;
 
@@ -917,7 +923,7 @@ var Browser = {
     function visibility(aSidebarRect, aVisibleRect) {
       let width = aSidebarRect.width;
       aSidebarRect.restrictTo(aVisibleRect);
-      return aSidebarRect.width / width;
+      return (aSidebarRect.width ? aSidebarRect.width / width : 0);
     }
 
     if (!dx) dx = 0;
@@ -1224,7 +1230,6 @@ Browser.MainDragger.prototype = {
     let bcr = browser.getBoundingClientRect();
     this._contentView = browser.getViewAt(clientX - bcr.left, clientY - bcr.top);
     this._stopAtSidebar = 0;
-    this._hitSidebar = false;
     if (this._sidebarTimeout) {
       clearTimeout(this._sidebarTimeout);
       this._sidebarTimeout = null;
@@ -1244,7 +1249,7 @@ Browser.MainDragger.prototype = {
 
     // If the sidebars are showing, we pan them out of the way before panning the content.
     // The panning distance that should be used for the sidebars in is stored in sidebarOffset,
-    // and subtracted from doffset
+    // and subtracted from doffset.
     let sidebarOffset = this._getSidebarOffset(doffset);
 
     // If we started with one sidebar open, stop when we get to the other.
@@ -1254,13 +1259,10 @@ Browser.MainDragger.prototype = {
     if (!this.contentMouseCapture)
       this._panContent(doffset);
 
-    if (this._hitSidebar && aIsKinetic)
-      return false; // No kinetic panning after we've stopped at the sidebar.
+    if (aIsKinetic && doffset.x != 0)
+      return false;
 
-    // allow panning the sidebars if the page hasn't prevented it, or if any of the sidebars are showing
-    // (i.e. we always allow panning sidebars off screen but not necessarily panning them back on)
-    if (!this.contentMouseCapture || sidebarOffset.x != 0 || sidebarOffset.y > 0)
-      this._panChrome(doffset, sidebarOffset);
+    this._panChrome(doffset, sidebarOffset);
 
     this._updateScrollbars();
 
@@ -1318,17 +1320,21 @@ Browser.MainDragger.prototype = {
     this._panContentView(getBrowser().getRootView(), aOffset);
   },
 
-  _panChrome: function md_panSidebars(aOffset, aSidebarOffset) {
-    // Any panning aOffset would bring controls into view. Add to aSidebarOffset
+  _panChrome: function md_panChrome(aOffset, aSidebarOffset) {
+    // In order to prevent users from hiding one sidebar and followed by immediately bringing
+    // out the other one, we absorb sidebar pans here for a fixed time.
+    //
+    // Also, if users are panning a website then we allow them to pan away sidebars, but
+    // nothing more.
+    //
     let offsetX = aOffset.x;
-    if ((this._stopAtSidebar > 0 && offsetX > 0) ||
-        (this._stopAtSidebar < 0 && offsetX < 0)) {
-      if (offsetX != aSidebarOffset.x)
-        this._hitSidebar = true;
+    if (this.contentMouseCapture)
+      aOffset.set(aSidebarOffset);
+    else if ((this._stopAtSidebar > 0 && offsetX > 0) ||
+             (this._stopAtSidebar < 0 && offsetX < 0))
       aOffset.x = aSidebarOffset.x;
-    } else {
+    else
       aOffset.add(aSidebarOffset);
-    }
 
     Browser.tryFloatToolbar(aOffset.x, 0);
 
@@ -1391,13 +1397,12 @@ Browser.MainDragger.prototype = {
       // the 'solution' for now is to reposition it if needed
       let x = 0;
       if (Browser.floatedWhileDragging) {
+        let [tabsVis, controlsVis, tabsW, controlsW] = Browser.computeSidebarVisibility();
+        let [tabsSidebar, controlsSidebar] = [Elements.tabs.getBoundingClientRect(), Elements.controls.getBoundingClientRect()];
+
         // Check if the sidebars are inverted (rtl)
-        let [leftVis, rightVis, leftW, rightW] = Browser.computeSidebarVisibility();
-        let [leftSidebar, rightSidebar] = [Elements.tabs.getBoundingClientRect(), Elements.controls.getBoundingClientRect()];
-        if (leftSidebar.left > rightSidebar.left)
-          x = Math.round(Math.max(0, rightW * rightVis));
-        else
-          x = Math.round(Math.max(0, leftW * leftVis)) * -1.0;
+        let direction = (tabsSidebar.left > controlsSidebar.left) ? 1 : -1;
+        x = Math.round(tabsW * tabsVis) * direction
       }
 
       this._verticalScrollbar.style.MozTransform = "translate(" + x + "px," + y + "px)";
@@ -2329,7 +2334,7 @@ var XPInstallObserver = {
             buttons = [];
           }
           else {
-            messageString = strings.formatStringFromName("xpinstallDisabledMessage", [brandShortName, host], 2);
+            messageString = strings.formatStringFromName("xpinstallDisabledMessage2", [brandShortName, host], 2);
             buttons = [{
               label: strings.GetStringFromName("xpinstallDisabledButton"),
               accessKey: null,
@@ -2343,7 +2348,7 @@ var XPInstallObserver = {
         }
         else {
           notificationName = "xpinstall";
-          messageString = strings.formatStringFromName("xpinstallPromptWarning", [brandShortName, host], 2);
+          messageString = strings.formatStringFromName("xpinstallPromptWarning2", [brandShortName, host], 2);
 
           buttons = [{
             label: strings.GetStringFromName("xpinstallPromptAllowButton"),
@@ -2677,7 +2682,8 @@ Tab.prototype = {
 
     // Make sure the viewport height is not shorter than the window when
     // the page is zoomed out to show its full width.
-    viewportH = Math.max(viewportH, screenH * (browser.contentDocumentWidth / screenW));
+    if (viewportH * this.clampZoomLevel(this.getPageZoomLevel()) < screenH)
+      viewportH = Math.max(viewportH, screenH * (browser.contentDocumentWidth / screenW));
 
     if (browser.contentWindowWidth != viewportW || browser.contentWindowHeight != viewportH)
       browser.setWindowSize(viewportW, viewportH);
@@ -3014,6 +3020,23 @@ var ViewableAreaObserver = {
     return (this._height || window.innerHeight);
   },
 
+  _isKeyboardOpened: false,
+  get isKeyboardOpened() {
+    return this._isKeyboardOpened;
+  },
+
+  set isKeyboardOpened(aValue) {
+    let oldValue = this._isKeyboardOpened;
+
+    if (oldValue != aValue) {
+      this._isKeyboardOpened = aValue;
+
+      let event = document.createEvent("UIEvents");
+      event.initUIEvent("KeyboardChanged", true, false, window, aValue);
+      window.dispatchEvent(event);
+    }
+  },
+
   observe: function va_observe(aSubject, aTopic, aData) {
 #if MOZ_PLATFORM_MAEMO == 6
     let rect = Rect.fromRect(JSON.parse(aData));
@@ -3031,6 +3054,10 @@ var ViewableAreaObserver = {
 #endif
   },
 
+  receiveMessage: function receiveMessage(aMessage) {
+    return this.isKeyboardOpened;
+  },
+
   update: function va_update() {
     let oldHeight = parseInt(Browser.styles["viewable-height"].height);
     let oldWidth = parseInt(Browser.styles["viewable-width"].width);
@@ -3039,6 +3066,9 @@ var ViewableAreaObserver = {
     let newHeight = this.height;
     if (newHeight == oldHeight && newWidth == oldWidth)
       return;
+
+    // Guess if the window has been resize to handle a virtual keyboard
+    this.isKeyboardOpened = (newHeight < oldHeight && newWidth == oldWidth);
 
     Browser.styles["viewable-height"].height = newHeight + "px";
     Browser.styles["viewable-height"].maxHeight = newHeight + "px";
@@ -3071,3 +3101,4 @@ var ViewableAreaObserver = {
     }, 0);
   }
 };
+

@@ -46,7 +46,6 @@
 #include "prclist.h"
 #include "npapi.h"
 #include "nsNPAPIPluginInstance.h"
-#include "nsIPlugin.h"
 #include "nsIPluginTag.h"
 #include "nsPluginsDir.h"
 #include "nsPluginDirServiceProvider.h"
@@ -106,6 +105,11 @@ public:
   NS_DECL_NSIPLUGINHOST
   NS_DECL_NSIOBSERVER
   NS_DECL_NSITIMERCALLBACK
+
+  nsresult GetPluginName(nsNPAPIPluginInstance *aPluginInstance, const char** aPluginName);
+  nsresult StopPluginInstance(nsNPAPIPluginInstance* aInstance);
+  nsresult HandleBadPlugin(PRLibrary* aLibrary, nsNPAPIPluginInstance *aInstance);
+  nsresult GetPluginTagForInstance(nsNPAPIPluginInstance *aPluginInstance, nsIPluginTag **aPluginTag);
 
   nsresult
   NewPluginURLStream(const nsString& aURL, 
@@ -177,6 +181,8 @@ public:
 
   // Does not accept NULL and should never fail.
   nsPluginTag* TagForPlugin(nsNPAPIPlugin* aPlugin);
+
+  nsresult GetPlugin(const char *aMimeType, nsNPAPIPlugin** aPlugin);
 
 private:
   nsresult
@@ -300,7 +306,7 @@ private:
 class NS_STACK_CLASS PluginDestructionGuard : protected PRCList
 {
 public:
-  PluginDestructionGuard(nsIPluginInstance *aInstance)
+  PluginDestructionGuard(nsNPAPIPluginInstance *aInstance)
     : mInstance(aInstance)
   {
     Init();
@@ -314,7 +320,7 @@ public:
 
   ~PluginDestructionGuard();
 
-  static PRBool DelayDestroy(nsIPluginInstance *aInstance);
+  static PRBool DelayDestroy(nsNPAPIPluginInstance *aInstance);
 
 protected:
   void Init()
@@ -327,7 +333,7 @@ protected:
     PR_INSERT_BEFORE(this, &sListHead);
   }
 
-  nsCOMPtr<nsIPluginInstance> mInstance;
+  nsRefPtr<nsNPAPIPluginInstance> mInstance;
   PRBool mDelayedDestroy;
 
   static PRCList sListHead;

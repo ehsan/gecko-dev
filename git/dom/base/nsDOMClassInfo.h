@@ -72,7 +72,7 @@ class nsIDOMSVGTransformList;
 class nsIDOMWindow;
 class nsIForm;
 class nsIHTMLDocument;
-class nsIPluginInstance;
+class nsNPAPIPluginInstance;
 class nsSVGTransformList;
 
 struct nsDOMClassInfoData;
@@ -202,8 +202,7 @@ protected:
 
   static inline PRBool IsReadonlyReplaceable(jsid id)
   {
-    return (id == sTop_id          ||
-            id == sParent_id       ||
+    return (id == sParent_id       ||
             id == sScrollbars_id   ||
             id == sContent_id      ||
             id == sMenubar_id      ||
@@ -246,7 +245,6 @@ protected:
   static PRBool sDisableGlobalScopePollutionSupport;
 
 public:
-  static jsid sTop_id;
   static jsid sParent_id;
   static jsid sScrollbars_id;
   static jsid sLocation_id;
@@ -367,6 +365,8 @@ public:
   static jsid sOntouchenter_id;
   static jsid sOntouchleave_id;
   static jsid sOntouchcancel_id;
+  static jsid sOnbeforeprint_id;
+  static jsid sOnafterprint_id;
 
 protected:
   static JSPropertyOp sXPCNativeWrapperGetPropertyOp;
@@ -1093,10 +1093,10 @@ protected:
 
   static nsresult GetPluginInstanceIfSafe(nsIXPConnectWrappedNative *aWrapper,
                                           JSObject *obj,
-                                          nsIPluginInstance **aResult);
+                                          nsNPAPIPluginInstance **aResult);
 
   static nsresult GetPluginJSObject(JSContext *cx, JSObject *obj,
-                                    nsIPluginInstance *plugin_inst,
+                                    nsNPAPIPluginInstance *plugin_inst,
                                     JSObject **plugin_obj,
                                     JSObject **plugin_proto);
 
