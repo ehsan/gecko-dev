@@ -731,6 +731,12 @@ nsresult nsWindowGfx::CreateIcon(imgIContainer *aContainer,
                                   HICON *aIcon) {
 
   nsresult rv;
+  PRInt32 maxWidth = GetSystemMetrics(SM_CXICON);
+  PRInt32 maxHeight = GetSystemMetrics(SM_CYICON);
+
+  if (!maxWidth || !maxHeight)
+    return NS_ERROR_UNEXPECTED;
+
   PRUint32 nFrames;
   rv = aContainer->GetNumFrames(&nFrames);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -751,6 +757,9 @@ nsresult nsWindowGfx::CreateIcon(imgIContainer *aContainer,
   PRInt32 width = frame->Width();
   PRInt32 height = frame->Height();
 
+  if (width > maxWidth || height > maxHeight)
+    return NS_ERROR_INVALID_ARG;
+
   HBITMAP bmp = DataToBitmap(data, width, -height, 32);
   PRUint8* a1data = Data32BitTo1Bit(data, width, height);
   if (!a1data) {
@@ -766,7 +775,7 @@ nsresult nsWindowGfx::CreateIcon(imgIContainer *aContainer,
   info.yHotspot = aHotspotY;
   info.hbmMask = mbmp;
   info.hbmColor = bmp;
-
+  
   HCURSOR icon = ::CreateIconIndirect(&info);
   ::DeleteObject(mbmp);
   ::DeleteObject(bmp);
