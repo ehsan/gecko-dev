@@ -241,10 +241,7 @@ StyleSheetEditor.prototype = {
     return this.styleSheet.getText().then((longStr) => {
       longStr.string().then((source) => {
         let ruleCount = this.styleSheet.ruleCount;
-        if (!this.styleSheet.isOriginalSource) {
-          source = CssLogic.prettifyCSS(source, ruleCount);
-        }
-        this._state.text = source;
+        this._state.text = CssLogic.prettifyCSS(source, ruleCount);
         this.sourceLoaded = true;
 
         if (callback) {

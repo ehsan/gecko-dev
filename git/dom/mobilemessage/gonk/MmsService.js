@@ -339,10 +339,10 @@ MmsConnection.prototype = {
    * Get phone number from iccInfo.
    *
    * If the icc card is gsm card, the phone number is in msisdn.
-   * @see nsIGsmIccInfo
+   * @see nsIDOMMozGsmIccInfo
    *
    * Otherwise, the phone number is in mdn.
-   * @see nsICdmaIccInfo
+   * @see nsIDOMMozCdmaIccInfo
    */
   getPhoneNumber: function() {
     let number;
@@ -351,10 +351,10 @@ MmsConnection.prototype = {
       let iccInfo = null;
       let baseIccInfo = this.radioInterface.rilContext.iccInfo;
       if (baseIccInfo.iccType === 'ruim' || baseIccInfo.iccType === 'csim') {
-        iccInfo = baseIccInfo.QueryInterface(Ci.nsICdmaIccInfo);
+        iccInfo = baseIccInfo.QueryInterface(Ci.nsIDOMMozCdmaIccInfo);
         number = iccInfo.mdn;
       } else {
-        iccInfo = baseIccInfo.QueryInterface(Ci.nsIGsmIccInfo);
+        iccInfo = baseIccInfo.QueryInterface(Ci.nsIDOMMozGsmIccInfo);
         number = iccInfo.msisdn;
       }
     } catch (e) {

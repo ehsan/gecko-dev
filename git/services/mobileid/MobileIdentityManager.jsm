@@ -280,7 +280,8 @@ this.MobileIdentityManager = {
     .then(
       (creds) => {
         if (creds) {
-          return creds;
+          this.iccInfo[aServiceId].credentials = creds;
+          return;
         }
         return this.credStore.getByMsisdn(this.iccInfo[aServiceId].msisdn);
       }
@@ -305,12 +306,10 @@ this.MobileIdentityManager = {
     )
     .then(
       (result) => {
-        // If we already have credentials for this ICC and no discover request
-        // is done, we just bail out.
+        log.debug("Discover result ${}", result);
         if (!result || !result.verificationMethods) {
           return;
         }
-        log.debug("Discover result ${}", result);
         this.iccInfo[aServiceId].verificationMethods = result.verificationMethods;
         this.iccInfo[aServiceId].verificationDetails = result.verificationDetails;
         this.iccInfo[aServiceId].canDoSilentVerification =
@@ -676,16 +675,14 @@ this.MobileIdentityManager = {
         let mcc;
 
         // If the user selected one of the existing SIM cards we have to check
-        // that we either have the MSISDN for that SIM, we have already existing
-        // credentials or we can do a silent verification that does not require
-        // us to have the MSISDN in advance.
+        // that we either have the MSISDN for that SIM or we can do a silent
+        // verification that does not require us to have the MSISDN in advance.
         // result.serviceId can be "0".
         if (result.serviceId !== undefined &&
             result.serviceId !== null) {
           let icc = this.iccInfo[result.serviceId];
           log.debug("icc ${}", icc);
-          if (!icc || !icc.msisdn && !icc.canDoSilentVerification &&
-              !icc.credentials) {
+          if (!icc || !icc.msisdn && !icc.canDoSilentVerification) {
             return Promise.reject(ERROR_INTERNAL_CANNOT_VERIFY_SELECTION);
           }
           msisdn = icc.msisdn;
@@ -975,12 +972,7 @@ this.MobileIdentityManager = {
         // before generating and sharing the assertion.
         // If we've just prompted the user in the previous step, the permission
         // is already granted and stored so we just progress the credentials.
-        // But we have to refresh the cached permission before checking.
         if (creds) {
-          permission = permissionManager.testPermissionFromPrincipal(
-            principal,
-            MOBILEID_PERM
-          );
           if (permission == Ci.nsIPermissionManager.ALLOW_ACTION) {
             return creds;
           }

@@ -53,6 +53,12 @@ const RADIOINTERFACE_CID =
   Components.ID("{6a7c91f0-a2b3-4193-8562-8969296c0b54}");
 const RILNETWORKINTERFACE_CID =
   Components.ID("{3bdd52a9-3965-4130-b569-0ac5afed045e}");
+const ICCINFO_CID =
+  Components.ID("{52eec7f0-26a4-11e4-8c21-0800200c9a66}");
+const GSMICCINFO_CID =
+  Components.ID("{d90c4261-a99d-47bc-8b05-b057bb7e8f8a}");
+const CDMAICCINFO_CID =
+  Components.ID("{39ba3c08-aacc-46d0-8c04-9b619c387061}");
 const NEIGHBORINGCELLINFO_CID =
   Components.ID("{f9dfe26a-851e-4a8b-a769-cbb1baae7ded}");
 const GSMCELLINFO_CID =
@@ -935,9 +941,16 @@ try {
 
 function IccInfo() {}
 IccInfo.prototype = {
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIIccInfo]),
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIDOMMozIccInfo]),
+  classID: ICCINFO_CID,
+  classInfo: XPCOMUtils.generateCI({
+    classID:          ICCINFO_CID,
+    classDescription: "MozIccInfo",
+    flags:            Ci.nsIClassInfo.DOM_OBJECT,
+    interfaces:       [Ci.nsIDOMMozIccInfo]
+  }),
 
-  // nsIIccInfo
+  // nsIDOMMozIccInfo
 
   iccType: null,
   iccid: null,
@@ -951,10 +964,16 @@ IccInfo.prototype = {
 function GsmIccInfo() {}
 GsmIccInfo.prototype = {
   __proto__: IccInfo.prototype,
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIGsmIccInfo,
-                                         Ci.nsIIccInfo]),
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIDOMMozGsmIccInfo]),
+  classID: GSMICCINFO_CID,
+  classInfo: XPCOMUtils.generateCI({
+    classID:          GSMICCINFO_CID,
+    classDescription: "MozGsmIccInfo",
+    flags:            Ci.nsIClassInfo.DOM_OBJECT,
+    interfaces:       [Ci.nsIDOMMozGsmIccInfo]
+  }),
 
-  // nsIGsmIccInfo
+  // nsIDOMMozGsmIccInfo
 
   msisdn: null
 };
@@ -962,10 +981,16 @@ GsmIccInfo.prototype = {
 function CdmaIccInfo() {}
 CdmaIccInfo.prototype = {
   __proto__: IccInfo.prototype,
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsICdmaIccInfo,
-                                         Ci.nsIIccInfo]),
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIDOMMozCdmaIccInfo]),
+  classID: CDMAICCINFO_CID,
+  classInfo: XPCOMUtils.generateCI({
+    classID:          CDMAICCINFO_CID,
+    classDescription: "MozCdmaIccInfo",
+    flags:            Ci.nsIClassInfo.DOM_OBJECT,
+    interfaces:       [Ci.nsIDOMMozCdmaIccInfo]
+  }),
 
-  // nsICdmaIccInfo
+  // nsIDOMMozCdmaIccInfo
 
   mdn: null,
   prlVersion: 0
@@ -2116,10 +2141,10 @@ RadioInterface.prototype = {
    * Get phone number from iccInfo.
    *
    * If the icc card is gsm card, the phone number is in msisdn.
-   * @see nsIGsmIccInfo
+   * @see nsIDOMMozGsmIccInfo
    *
    * Otherwise, the phone number is in mdn.
-   * @see nsICdmaIccInfo
+   * @see nsIDOMMozCdmaIccInfo
    */
   getPhoneNumber: function() {
     let iccInfo = this.rilContext.iccInfo;
@@ -2129,7 +2154,7 @@ RadioInterface.prototype = {
     }
 
     // After moving SMS code out of RadioInterfaceLayer, we could use
-    // |iccInfo instanceof Ci.nsIGsmIccInfo| here.
+    // |iccInfo instanceof Ci.nsIDOMMozGsmIccInfo| here.
     // TODO: Bug 873351 - B2G SMS: move SMS code out of RadioInterfaceLayer to
     //                    SmsService
     let number = (iccInfo instanceof GsmIccInfo) ? iccInfo.msisdn : iccInfo.mdn;

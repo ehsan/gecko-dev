@@ -2725,13 +2725,6 @@ RilObject.prototype = {
   queryCallBarringStatus: function(options) {
     options.facility = CALL_BARRING_PROGRAM_TO_FACILITY[options.program];
     options.password = ""; // For query no need to provide it.
-
-    // For some operators, querying specific serviceClass doesn't work. We use
-    // serviceClass 0 instead, and then process the response to extract the
-    // answer for queryServiceClass.
-    options.queryServiceClass = options.serviceClass;
-    options.serviceClass = 0;
-
     this.queryICCFacilityLock(options);
   },
 
@@ -5937,23 +5930,20 @@ RilObject.prototype[REQUEST_QUERY_FACILITY_LOCK] = function REQUEST_QUERY_FACILI
     return;
   }
 
-  if (!length) {
+  let services;
+  if (length) {
+    // Buf.readInt32List()[0] for Call Barring is a bit vector of services.
+    services = this.context.Buf.readInt32List()[0];
+  } else {
     options.success = false;
     options.errorMsg = GECKO_ERROR_GENERIC_FAILURE;
     this.sendChromeMessage(options);
     return;
   }
 
-  // Buf.readInt32List()[0] for Call Barring is a bit vector of services.
-  let services = this.context.Buf.readInt32List()[0];
+  options.enabled = services === 0 ? false : true;
 
-  if (options.queryServiceClass) {
-    options.enabled = (services & options.queryServiceClass) ? true : false;
-  } else {
-    options.enabled = services ? true : false;
-  }
-
-  if (options.rilMessageType === "sendMMI") {
+  if (options.success && (options.rilMessageType === "sendMMI")) {
     if (!options.enabled) {
       options.statusMessage = MMI_SM_KS_SERVICE_DISABLED;
     } else {
