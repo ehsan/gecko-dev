@@ -48,8 +48,6 @@
 #include "jsregexp.h"
 #include "jsgc.h"
 
-#include "frontend/ParseMaps.h"
-
 namespace js {
 
 static inline GlobalObject *
@@ -393,7 +391,7 @@ LeaveTraceIfArgumentsObject(JSContext *cx, JSObject *obj)
 #ifdef JS_METHODJIT
 inline js::mjit::JaegerCompartment *JSContext::jaegerCompartment()
 {
-    return compartment->jaegerCompartment();
+    return compartment->jaegerCompartment;
 }
 #endif
 
@@ -417,15 +415,6 @@ JSContext::setPendingException(js::Value v) {
     this->throwing = true;
     this->exception = v;
     assertSameCompartment(this, v);
-}
-
-inline bool
-JSContext::ensureParseMapPool()
-{
-    if (parseMapPool_)
-        return true;
-    parseMapPool_ = js::OffTheBooks::new_<js::ParseMapPool>(this);
-    return parseMapPool_;
 }
 
 #endif /* jscntxtinlines_h___ */
