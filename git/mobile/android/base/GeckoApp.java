@@ -499,7 +499,7 @@ public abstract class GeckoApp
         (new UiAsyncTask<Void, Void, String>(ThreadUtils.getBackgroundHandler()) {
             @Override
             public String doInBackground(Void... params) {
-                return Favicons.getFaviconURLForPageURL(url);
+                return Favicons.getFaviconUrlForPageUrl(url);
             }
 
             @Override
@@ -1180,7 +1180,7 @@ public abstract class GeckoApp
                     if (profileName == null) {
                         profileName = getDefaultProfileName();
                         if (profileName == null)
-                            profileName = GeckoProfile.DEFAULT_PROFILE;
+                            profileName = "default";
                     }
                     GeckoProfile.sIsUsingCustomProfile = true;
                 }

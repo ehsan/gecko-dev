@@ -179,11 +179,6 @@ public:
     return mEvent->mFlags.mIsTrusted;
   }
 
-  bool IsSynthesized() const
-  {
-    return mEvent->mFlags.mIsSynthesizedForTests;
-  }
-
   uint64_t TimeStamp() const
   {
     return mEvent->time;

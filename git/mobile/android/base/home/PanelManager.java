@@ -6,9 +6,7 @@
 package org.mozilla.gecko.home;
 
 import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.GeckoEvent;
 import org.mozilla.gecko.util.GeckoEventListener;
-import org.mozilla.gecko.util.ThreadUtils;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -21,11 +19,7 @@ import android.text.TextUtils;
 import android.util.Log;
 
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public class PanelManager implements GeckoEventListener {
     private static final String LOGTAG = "GeckoPanelManager";
@@ -40,73 +34,54 @@ public class PanelManager implements GeckoEventListener {
         }
     }
 
-    public interface RequestCallback {
-        public void onComplete(List<PanelInfo> panelInfos);
+    private final Context mContext;
+
+    public PanelManager(Context context) {
+        mContext = context;
+
+        // Add a listener to handle any new panels that are added after the panels have been loaded.
+        GeckoAppShell.getEventDispatcher().registerEventListener("HomePanels:Added", this);
     }
 
-    private static AtomicInteger sRequestId = new AtomicInteger(0);
-
-    // Stores set of pending request callbacks.
-    private static final Map<Integer, RequestCallback> sCallbacks = Collections.synchronizedMap(new HashMap<Integer, RequestCallback>());
-
     /**
-     * Asynchronously fetches list of available panels from Gecko.
+     * Reads list info from SharedPreferences. Don't call this on the main thread!
      *
-     * @param callback onComplete will be called on the UI thread.
+     * @return List<PanelInfo> A list of PanelInfos for each registered list.
      */
-    public void requestAvailablePanels(RequestCallback callback) {
-        final int requestId = sRequestId.getAndIncrement();
+    public List<PanelInfo> getPanelInfos() {
+        final ArrayList<PanelInfo> panelInfos = new ArrayList<PanelInfo>();
 
-        synchronized(sCallbacks) {
-            // If there are no pending callbacks, register the event listener.
-            if (sCallbacks.isEmpty()) {
-                GeckoAppShell.getEventDispatcher().registerEventListener("HomePanels:Data", this);
+        // XXX: We need to use PreferenceManager right now because that's what SharedPreferences.jsm uses (see bug 940575)
+        final SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(mContext);
+        final String prefValue = prefs.getString("home_lists", "");
+
+        if (!TextUtils.isEmpty(prefValue)) {
+            try {
+                final JSONArray lists = new JSONArray(prefValue);
+                for (int i = 0; i < lists.length(); i++) {
+                    final JSONObject list = lists.getJSONObject(i);
+                    final PanelInfo info = new PanelInfo(list.getString("id"), list.getString("title"));
+                    panelInfos.add(info);
+                }
+            } catch (JSONException e) {
+                Log.e(LOGTAG, "Exception getting list info", e);
             }
-            sCallbacks.put(requestId, callback);
         }
-
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("HomePanels:Get", Integer.toString(requestId)));
+        return panelInfos;
     }
 
     /**
-     * Handles "HomePanels:Data" events.
+     * Listens for "HomePanels:Added"
      */
     @Override
     public void handleMessage(String event, JSONObject message) {
-        final ArrayList<PanelInfo> panelInfos = new ArrayList<PanelInfo>();
-
         try {
-            final JSONArray panels = message.getJSONArray("panels");
-            final int count = panels.length();
-            for (int i = 0; i < count; i++) {
-                final PanelInfo panelInfo = getPanelInfoFromJSON(panels.getJSONObject(i));
-                panelInfos.add(panelInfo);
-            }
+            final PanelInfo info = new PanelInfo(message.getString("id"), message.getString("title"));
 
-            final RequestCallback callback;
-            final int requestId = message.getInt("requestId");
+            // Do something to update the set of list pages.
 
-            synchronized(sCallbacks) {
-                callback = sCallbacks.remove(requestId);
-
-                // Unregister the event listener if there are no more pending callbacks.
-                if (sCallbacks.isEmpty()) {
-                    GeckoAppShell.getEventDispatcher().unregisterEventListener("HomePanels:Data", this);
-                }
-            }
-
-            ThreadUtils.postToUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    callback.onComplete(panelInfos);
-                }
-            });
         } catch (JSONException e) {
             Log.e(LOGTAG, "Exception handling " + event + " message", e);
         }
-    }
-
-    private PanelInfo getPanelInfoFromJSON(JSONObject jsonPanelInfo) throws JSONException {
-        return new PanelInfo(jsonPanelInfo.getString("id"), jsonPanelInfo.getString("title"));
     }
 }

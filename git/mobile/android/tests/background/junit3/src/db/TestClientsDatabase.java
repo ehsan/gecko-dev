@@ -12,7 +12,6 @@ import org.mozilla.gecko.sync.repositories.android.ClientsDatabase;
 import org.mozilla.gecko.sync.repositories.android.ClientsDatabaseAccessor;
 import org.mozilla.gecko.sync.repositories.android.RepoUtils;
 import org.mozilla.gecko.sync.repositories.domain.ClientRecord;
-import org.mozilla.gecko.sync.setup.Constants;
 
 import android.database.Cursor;
 import android.test.AndroidTestCase;
@@ -28,7 +27,7 @@ public class TestClientsDatabase extends AndroidTestCase {
 
   public void testStoreAndFetch() {
     ClientRecord record = new ClientRecord();
-    String profileConst = Constants.DEFAULT_PROFILE;
+    String profileConst = ClientsDatabaseAccessor.PROFILE_ID;
     db.store(profileConst, record);
 
     Cursor cur = null;
@@ -125,7 +124,7 @@ public class TestClientsDatabase extends AndroidTestCase {
   public void testDelete() {
     ClientRecord record1 = new ClientRecord();
     ClientRecord record2 = new ClientRecord();
-    String profileConst = Constants.DEFAULT_PROFILE;
+    String profileConst = ClientsDatabaseAccessor.PROFILE_ID;
 
     db.store(profileConst, record1);
     db.store(profileConst, record2);
@@ -164,7 +163,7 @@ public class TestClientsDatabase extends AndroidTestCase {
   public void testWipe() {
     ClientRecord record1 = new ClientRecord();
     ClientRecord record2 = new ClientRecord();
-    String profileConst = Constants.DEFAULT_PROFILE;
+    String profileConst = ClientsDatabaseAccessor.PROFILE_ID;
 
     db.store(profileConst, record1);
     db.store(profileConst, record2);

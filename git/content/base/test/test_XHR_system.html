@@ -82,7 +82,6 @@ tests.push(function test_redirect_to_file_uri() {
 
 function runNextTest() {
   if (!tests.length) {
-    SimpleTest.finish();
     return;
   }
   tests.shift()();
@@ -90,8 +89,14 @@ function runNextTest() {
 
 function runTests() {
   SimpleTest.waitForExplicitFinish();
+  SpecialPowers.addPermission("systemXHR", true, document);
 
-  SpecialPowers.pushPermissions([{'type': 'systemXHR', 'allow': true, 'context': document}], runNextTest);
+  tests.push(function tearDown() {
+    SpecialPowers.removePermission("systemXHR", document);
+    SimpleTest.finish();
+  });
+
+  runNextTest();
 }
 
 </script>

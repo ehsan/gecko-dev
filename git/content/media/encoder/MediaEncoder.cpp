@@ -7,7 +7,6 @@
 #include "nsIPrincipal.h"
 #include "nsMimeTypes.h"
 #include "prlog.h"
-#include "mozilla/Preferences.h"
 
 #ifdef MOZ_OGG
 #include "OggWriter.h"
@@ -93,7 +92,7 @@ MediaEncoder::CreateEncoder(const nsAString& aMIMEType, uint8_t aTrackTypes)
     return nullptr;
   }
 #ifdef MOZ_WEBM_ENCODER
-  else if (MediaEncoder::IsWebMEncoderEnabled() &&
+  else if (MediaDecoder::IsWebMEnabled() &&
           (aMIMEType.EqualsLiteral(VIDEO_WEBM) ||
           (aTrackTypes & ContainerWriter::HAS_VIDEO))) {
     if (aTrackTypes & ContainerWriter::HAS_AUDIO) {
@@ -108,9 +107,8 @@ MediaEncoder::CreateEncoder(const nsAString& aMIMEType, uint8_t aTrackTypes)
   }
 #endif //MOZ_WEBM_ENCODER
 #ifdef MOZ_OMX_ENCODER
-  else if (MediaEncoder::IsOMXEncoderEnabled() &&
-          (aMIMEType.EqualsLiteral(VIDEO_MP4) ||
-          (aTrackTypes & ContainerWriter::HAS_VIDEO))) {
+  else if (aMIMEType.EqualsLiteral(VIDEO_MP4) ||
+          (aTrackTypes & ContainerWriter::HAS_VIDEO)) {
     if (aTrackTypes & ContainerWriter::HAS_AUDIO) {
       audioEncoder = new OmxAudioTrackEncoder();
       NS_ENSURE_TRUE(audioEncoder, nullptr);
@@ -297,21 +295,5 @@ MediaEncoder::CopyMetadataToMuxer(TrackEncoder *aTrackEncoder)
   }
   return rv;
 }
-
-#ifdef MOZ_WEBM_ENCODER
-bool
-MediaEncoder::IsWebMEncoderEnabled()
-{
-  return Preferences::GetBool("media.encoder.webm.enabled");
-}
-#endif
-
-#ifdef MOZ_OMX_ENCODER
-bool
-MediaEncoder::IsOMXEncoderEnabled()
-{
-  return Preferences::GetBool("media.encoder.omx.enabled");
-}
-#endif
 
 }

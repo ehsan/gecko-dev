@@ -111,7 +111,7 @@ InternalMethods.prototype = {
     this.abortExistingFlow();
     this.signedInUser = null; // clear in-memory cache
     return this.signedInUserStorage.set(null).then(() => {
-      this.notifyObservers(ONLOGOUT_NOTIFICATION);
+      this.notifyObservers("fxaccounts:onlogout");
     });
   },
 
@@ -198,7 +198,7 @@ InternalMethods.prototype = {
       // We are now ready for business. This should only be invoked once
       // per setSignedInUser(), regardless of whether we've rebooted since
       // setSignedInUser() was called.
-      internal.notifyObservers(ONLOGIN_NOTIFICATION);
+      internal.notifyObservers("fxaccounts:onlogin");
       return data;
     }.bind(this));
   },
@@ -347,7 +347,7 @@ InternalMethods.prototype = {
   },
 
   notifyObservers: function(topic) {
-    log.debug("Notifying observers of " + topic);
+    log.debug("Notifying observers of user login");
     Services.obs.notifyObservers(null, topic, null);
   },
 
