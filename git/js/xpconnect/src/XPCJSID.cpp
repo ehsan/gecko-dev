@@ -240,7 +240,7 @@ static void EnsureClassObjectsInitialized()
     }
 }
 
-NS_METHOD GetSharedScriptableHelperForJSIID(PRUint32 language,
+NS_METHOD GetSharedScriptableHelperForJSIID(uint32_t language,
                                             nsISupports **helper)
 {
     EnsureClassObjectsInitialized();
@@ -386,7 +386,7 @@ nsJSIID::NewID(nsIInterfaceInfo* aInfo)
 NS_IMETHODIMP
 nsJSIID::NewResolve(nsIXPConnectWrappedNative *wrapper,
                     JSContext * cx, JSObject * obj,
-                    jsid id, PRUint32 flags,
+                    jsid id, uint32_t flags,
                     JSObject * *objp, bool *_retval)
 {
     XPCCallContext ccx(JS_CALLER, cx);
@@ -435,8 +435,8 @@ nsJSIID::Enumerate(nsIXPConnectWrappedNative *wrapper,
     if (!iface)
         return NS_OK;
 
-    PRUint16 count = iface->GetMemberCount();
-    for (PRUint16 i = 0; i < count; i++) {
+    uint16_t count = iface->GetMemberCount();
+    for (uint16_t i = 0; i < count; i++) {
         XPCNativeMember* member = iface->GetMemberAt(i);
         if (member && member->IsConstant() &&
             !xpc_ForcePropertyResolve(cx, obj, member->GetName())) {
@@ -482,16 +482,10 @@ nsJSIID::HasInstance(nsIXPConnectWrappedNative *wrapper,
         }
 
         nsISupports *identity;
-        if (mozilla::dom::binding::instanceIsProxy(obj)) {
+        if (mozilla::dom::oldproxybindings::instanceIsProxy(obj)) {
             identity =
                 static_cast<nsISupports*>(js::GetProxyPrivate(obj).toPrivate());
-        } else if (mozilla::dom::IsDOMClass(js::GetObjectJSClass(obj))) {
-            NS_ASSERTION(mozilla::dom::DOMJSClass::FromJSClass(
-                              js::GetObjectJSClass(obj))->mDOMObjectIsISupports,
-                         "This only works on nsISupports classes!");
-            identity =
-                mozilla::dom::UnwrapDOMObject<nsISupports>(obj);
-        } else {
+        } else if (!mozilla::dom::UnwrapDOMObjectToISupports(obj, identity)) {
             identity = nullptr;
         }
 
@@ -662,7 +656,7 @@ nsJSCID::NewID(const char* str)
 }
 
 static const nsID*
-GetIIDArg(PRUint32 argc, const JS::Value& val, JSContext* cx)
+GetIIDArg(uint32_t argc, const JS::Value& val, JSContext* cx)
 {
     const nsID* iid;
 
@@ -702,7 +696,7 @@ GetWrapperObject()
 /* nsISupports createInstance (); */
 NS_IMETHODIMP
 nsJSCID::CreateInstance(const JS::Value& iidval, JSContext* cx,
-                        PRUint8 optionalArgc, JS::Value* retval)
+                        uint8_t optionalArgc, JS::Value* retval)
 {
     if (!mDetails.IsValid())
         return NS_ERROR_XPC_BAD_CID;
@@ -748,7 +742,7 @@ nsJSCID::CreateInstance(const JS::Value& iidval, JSContext* cx,
 /* nsISupports getService (); */
 NS_IMETHODIMP
 nsJSCID::GetService(const JS::Value& iidval, JSContext* cx,
-                    PRUint8 optionalArgc, JS::Value* retval)
+                    uint8_t optionalArgc, JS::Value* retval)
 {
     if (!mDetails.IsValid())
         return NS_ERROR_XPC_BAD_CID;
@@ -795,11 +789,11 @@ nsJSCID::GetService(const JS::Value& iidval, JSContext* cx,
     return NS_OK;
 }
 
-/* bool construct (in nsIXPConnectWrappedNative wrapper, in JSContextPtr cx, in JSObjectPtr obj, in PRUint32 argc, in JSValPtr argv, in JSValPtr vp); */
+/* bool construct (in nsIXPConnectWrappedNative wrapper, in JSContextPtr cx, in JSObjectPtr obj, in uint32_t argc, in JSValPtr argv, in JSValPtr vp); */
 NS_IMETHODIMP
 nsJSCID::Construct(nsIXPConnectWrappedNative *wrapper,
                    JSContext * cx, JSObject * obj,
-                   PRUint32 argc, jsval * argv, jsval * vp,
+                   uint32_t argc, jsval * argv, jsval * vp,
                    bool *_retval)
 {
     XPCJSRuntime* rt = nsXPConnect::GetRuntimeInstance();
