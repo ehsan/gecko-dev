@@ -116,9 +116,6 @@ protected:
 
 private:
   nsresult SelectLocaleFromPref(nsIPrefBranch* prefs);
-#ifdef MOZ_OMNIJAR
-  nsresult CheckOmnijarChrome();
-#endif
 
   static nsresult RefreshWindow(nsIDOMWindowInternal* aWindow);
   static nsresult GetProviderAndPath(nsIURL* aChromeURL,
@@ -134,7 +131,7 @@ private:
 #endif
 
   NS_HIDDEN_(nsresult) ProcessManifest(nsILocalFile* aManifest, PRBool aSkinOnly);
-  NS_HIDDEN_(nsresult) ProcessManifestBuffer(char *aBuffer, PRInt32 aLength, nsIURI* aManifest, PRBool aSkinOnly);
+  NS_HIDDEN_(nsresult) ProcessManifestBuffer(char *aBuffer, PRInt32 aLength, nsILocalFile* aManifest, PRBool aSkinOnly);
   NS_HIDDEN_(nsresult) ProcessNewChromeFile(nsILocalFile *aListFile, nsIURI* aManifest);
   NS_HIDDEN_(nsresult) ProcessNewChromeBuffer(char *aBuffer, PRInt32 aLength, nsIURI* aManifest);
 

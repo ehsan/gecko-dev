@@ -2337,8 +2337,7 @@ nsDocument::AddToNameTable(Element *aElement, nsIAtom* aName)
   if (!mIsRegularHTML)
     return;
 
-  nsIdentifierMapEntry *entry =
-    mIdentifierMap.GetEntry(nsDependentAtomString(aName));
+  nsIdentifierMapEntry *entry = mIdentifierMap.GetEntry(aName);
 
   // entry is null if we're not tracking the elements with this name
 
@@ -2354,8 +2353,7 @@ nsDocument::RemoveFromNameTable(Element *aElement, nsIAtom* aName)
   if (!mIsRegularHTML || mIdentifierMap.Count() == 0)
     return;
 
-  nsIdentifierMapEntry *entry =
-    mIdentifierMap.GetEntry(nsDependentAtomString(aName));
+  nsIdentifierMapEntry *entry = mIdentifierMap.GetEntry(aName);
   if (!entry) // Should never be false unless we had OOM when adding the entry
     return;
 
@@ -2365,8 +2363,7 @@ nsDocument::RemoveFromNameTable(Element *aElement, nsIAtom* aName)
 void
 nsDocument::AddToIdTable(Element *aElement, nsIAtom* aId)
 {
-  nsIdentifierMapEntry *entry =
-    mIdentifierMap.PutEntry(nsDependentAtomString(aId));
+  nsIdentifierMapEntry *entry = mIdentifierMap.PutEntry(aId);
 
   if (entry) { /* True except on OOM */
     entry->AddIdElement(aElement);
@@ -2383,13 +2380,12 @@ nsDocument::RemoveFromIdTable(Element *aElement, nsIAtom* aId)
     return;
   }
 
-  nsIdentifierMapEntry *entry =
-    mIdentifierMap.GetEntry(nsDependentAtomString(aId));
+  nsIdentifierMapEntry *entry = mIdentifierMap.GetEntry(aId);
   if (!entry) // Can be null for XML elements with changing ids.
     return;
 
   if (entry->RemoveIdElement(aElement)) {
-    mIdentifierMap.RawRemoveEntry(entry);
+    mIdentifierMap.RemoveEntry(aId);
   }
 }
 
@@ -3725,27 +3721,38 @@ nsDocument::BeginLoad()
   NS_DOCUMENT_NOTIFY_OBSERVERS(BeginLoad, (this));
 }
 
-// static
-void
-nsDocument::ReportEmptyGetElementByIdArg()
+PRBool
+nsDocument::CheckGetElementByIdArg(const nsIAtom* aId)
 {
-  nsContentUtils::ReportToConsole(nsContentUtils::eDOM_PROPERTIES,
-                                  "EmptyGetElementByIdParam",
-                                  nsnull, 0,
-                                  nsnull,
-                                  EmptyString(), 0, 0,
-                                  nsIScriptError::warningFlag,
-                                  "DOM");
+  if (aId == nsGkAtoms::_empty) {
+    nsContentUtils::ReportToConsole(
+        nsContentUtils::eDOM_PROPERTIES,
+        "EmptyGetElementByIdParam",
+        nsnull, 0,
+        nsnull,
+        EmptyString(), 0, 0,
+        nsIScriptError::warningFlag,
+        "DOM");
+    return PR_FALSE;
+  }
+  return PR_TRUE;
 }
 
 Element*
 nsDocument::GetElementById(const nsAString& aElementId)
 {
-  if (!CheckGetElementByIdArg(aElementId)) {
+  nsCOMPtr<nsIAtom> idAtom(do_GetAtom(aElementId));
+  if (!idAtom) {
+    // This can only fail due to OOM when the atom doesn't exist, in which
+    // case there can't be an entry for it.
     return nsnull;
   }
 
-  nsIdentifierMapEntry *entry = mIdentifierMap.GetEntry(aElementId);
+  if (!CheckGetElementByIdArg(idAtom)) {
+    return nsnull;
+  }
+
+  nsIdentifierMapEntry *entry = mIdentifierMap.PutEntry(idAtom);
   return entry ? entry->GetIdElement() : nsnull;
 }
 
@@ -3766,12 +3773,10 @@ Element*
 nsDocument::AddIDTargetObserver(nsIAtom* aID, IDTargetObserver aObserver,
                                 void* aData)
 {
-  nsDependentAtomString id(aID);
-
-  if (!CheckGetElementByIdArg(id))
+  if (!CheckGetElementByIdArg(aID))
     return nsnull;
 
-  nsIdentifierMapEntry *entry = mIdentifierMap.PutEntry(id);
+  nsIdentifierMapEntry *entry = mIdentifierMap.PutEntry(aID);
   NS_ENSURE_TRUE(entry, nsnull);
 
   entry->AddContentChangeCallback(aObserver, aData);
@@ -3782,12 +3787,10 @@ void
 nsDocument::RemoveIDTargetObserver(nsIAtom* aID,
                                    IDTargetObserver aObserver, void* aData)
 {
-  nsDependentAtomString id(aID);
-
-  if (!CheckGetElementByIdArg(id))
+  if (!CheckGetElementByIdArg(aID))
     return;
 
-  nsIdentifierMapEntry *entry = mIdentifierMap.GetEntry(id);
+  nsIdentifierMapEntry *entry = mIdentifierMap.GetEntry(aID);
   if (!entry) {
     return;
   }

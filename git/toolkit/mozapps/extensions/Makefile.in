@@ -53,6 +53,7 @@ XPIDLSRCS = \
   amIInstallTrigger.idl \
   amIWebInstallListener.idl \
   amIWebInstaller.idl \
+  nsIAddonRepository.idl \
   $(NULL)
 
 CPPSRCS		= \
@@ -60,6 +61,7 @@ CPPSRCS		= \
   $(NULL)
 
 EXTRA_PP_COMPONENTS = \
+  nsAddonRepository.js \
   nsBlocklistService.js \
   addonManager.js \
   amContentHandler.js \
@@ -68,7 +70,6 @@ EXTRA_PP_COMPONENTS = \
 
 EXTRA_PP_JS_MODULES = \
   AddonManager.jsm \
-  AddonRepository.jsm \
   XPIProvider.jsm \
   PluginProvider.jsm \
   AddonUpdateChecker.jsm \

@@ -101,7 +101,6 @@ font_properties = \
 	mathfontUnicode.properties \
 	mathfontSTIXNonUnicode.properties \
 	mathfontSTIXSize1.properties \
-	mathfontSTIXSizeOneSym.properties \
 	mathfontStandardSymbolsL.properties \
 	$(NULL)
 

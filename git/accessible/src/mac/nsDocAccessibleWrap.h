@@ -44,16 +44,15 @@
 class nsDocAccessibleWrap: public nsDocAccessible
 {
 public:
-  nsDocAccessibleWrap(nsIDocument *aDocument, nsIContent *aRootContent,
-                      nsIWeakReference *aShell);
-  virtual ~nsDocAccessibleWrap();
+    nsDocAccessibleWrap(nsIDOMNode *aNode, nsIWeakReference *aShell);
+    virtual ~nsDocAccessibleWrap();
 
-  // nsIAccessNode
+    // nsIAccessNode
 
-  /**
-   * Creates the native accessible connected to this one.
-   */
-  virtual PRBool Init();
+    /**
+     * Creates the native accessible connected to this one.
+     */
+    virtual nsresult Init ();
 };
 
 #endif

@@ -72,7 +72,6 @@
 #include "nsIPrivateBrowsingService.h"
 #include "nsNetCID.h"
 #include "mozilla/storage.h"
-#include "mozIStorageCompletionCallback.h"
 #include "mozilla/FunctionTimer.h"
 
 /******************************************************************************
@@ -378,8 +377,9 @@ public:
     return NS_OK;
   }
 };
-
-NS_IMPL_ISUPPORTS1(DBListenerErrorHandler, mozIStorageStatementCallback)
+NS_IMETHODIMP_(nsrefcnt) DBListenerErrorHandler::AddRef() { return 2; }
+NS_IMETHODIMP_(nsrefcnt) DBListenerErrorHandler::Release() { return 1; }
+NS_IMPL_QUERY_INTERFACE1(DBListenerErrorHandler, mozIStorageStatementCallback)
 
 /******************************************************************************
  * InsertCookieDBListener imp:
@@ -403,6 +403,8 @@ public:
   }
 };
 
+static InsertCookieDBListener sInsertCookieDBListener;
+
 /******************************************************************************
  * UpdateCookieDBListener imp:
  * Static mozIStorageStatementCallback used to track asynchronous update
@@ -424,6 +426,8 @@ public:
     return NS_OK;
   }
 };
+
+static UpdateCookieDBListener sUpdateCookieDBListener;
 
 /******************************************************************************
  * RemoveCookieDBListener imp:
@@ -447,29 +451,7 @@ public:
   }
 };
 
-/******************************************************************************
- * CloseCookieDBListener imp:
- * Static mozIStorageCompletionCallback used to notify when the database is
- * successfully closed.
- ******************************************************************************/
-class CloseCookieDBListener :  public mozIStorageCompletionCallback
-{
-public:
-  NS_DECL_ISUPPORTS
-
-  NS_IMETHOD Complete()
-  {
-    COOKIE_LOGSTRING(PR_LOG_DEBUG, ("Database closed"));
-
-    nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
-    if (obs)
-      obs->NotifyObservers(nsnull, "cookie-db-closed", nsnull);
-
-    return NS_OK;
-  }
-};
-
-NS_IMPL_ISUPPORTS1(CloseCookieDBListener, mozIStorageCompletionCallback)
+static RemoveCookieDBListener sRemoveCookieDBListener;
 
 } // anonymous namespace
 
@@ -583,11 +565,6 @@ nsCookieService::Init()
     NS_WARNING("nsICookiePermission implementation not available - some features won't work!");
     COOKIE_LOGSTRING(PR_LOG_WARNING, ("Init(): nsICookiePermission implementation not available"));
   }
-
-  mInsertListener = new InsertCookieDBListener;
-  mUpdateListener = new InsertCookieDBListener;
-  mRemoveListener = new InsertCookieDBListener;
-  mCloseListener = new CloseCookieDBListener;
 
   return NS_OK;
 }
@@ -814,7 +791,7 @@ nsCookieService::CloseDB()
   mDefaultDBState.stmtDelete = nsnull;
   mDefaultDBState.stmtUpdate = nsnull;
   if (mDefaultDBState.dbConn) {
-    mDefaultDBState.dbConn->AsyncClose(mCloseListener);
+    mDefaultDBState.dbConn->AsyncClose(NULL);
     mDefaultDBState.dbConn = nsnull;
   }
 }
@@ -1442,7 +1419,7 @@ nsCookieService::ImportCookies(nsIFile *aCookieFile)
       rv = mDBState->stmtInsert->BindParameters(paramsArray);
       NS_ASSERT_SUCCESS(rv);
       nsCOMPtr<mozIStoragePendingStatement> handle;
-      rv = mDBState->stmtInsert->ExecuteAsync(mInsertListener,
+      rv = mDBState->stmtInsert->ExecuteAsync(&sInsertCookieDBListener,
                                               getter_AddRefs(handle));
       NS_ASSERT_SUCCESS(rv);
     }
@@ -1636,7 +1613,8 @@ nsCookieService::GetCookieInternal(nsIURI      *aHostURI,
         nsresult rv = stmt->BindParameters(paramsArray);
         NS_ASSERT_SUCCESS(rv);
         nsCOMPtr<mozIStoragePendingStatement> handle;
-        rv = stmt->ExecuteAsync(mUpdateListener, getter_AddRefs(handle));
+        rv = stmt->ExecuteAsync(&sUpdateCookieDBListener,
+                                getter_AddRefs(handle));
         NS_ASSERT_SUCCESS(rv);
       }
     }
@@ -2642,7 +2620,7 @@ nsCookieService::PurgeCookies(PRInt64 aCurrentTimeInUsec)
       nsresult rv = stmt->BindParameters(paramsArray);
       NS_ASSERT_SUCCESS(rv);
       nsCOMPtr<mozIStoragePendingStatement> handle;
-      rv = stmt->ExecuteAsync(mRemoveListener, getter_AddRefs(handle));
+      rv = stmt->ExecuteAsync(&sRemoveCookieDBListener, getter_AddRefs(handle));
       NS_ASSERT_SUCCESS(rv);
     }
   }
@@ -2830,7 +2808,8 @@ nsCookieService::RemoveCookieFromList(const nsListIter              &aIter,
       rv = stmt->BindParameters(paramsArray);
       NS_ASSERT_SUCCESS(rv);
       nsCOMPtr<mozIStoragePendingStatement> handle;
-      rv = stmt->ExecuteAsync(mRemoveListener, getter_AddRefs(handle));
+      rv = stmt->ExecuteAsync(&sRemoveCookieDBListener,
+                              getter_AddRefs(handle));
       NS_ASSERT_SUCCESS(rv);
     }
   }
@@ -2935,7 +2914,8 @@ nsCookieService::AddCookieToList(const nsCString               &aBaseDomain,
       nsresult rv = stmt->BindParameters(paramsArray);
       NS_ASSERT_SUCCESS(rv);
       nsCOMPtr<mozIStoragePendingStatement> handle;
-      rv = stmt->ExecuteAsync(mInsertListener, getter_AddRefs(handle));
+      rv = stmt->ExecuteAsync(&sInsertCookieDBListener,
+                              getter_AddRefs(handle));
       NS_ASSERT_SUCCESS(rv);
     }
   }

@@ -226,8 +226,6 @@ LayerManagerOGL::Initialize()
     return false;
   }
 
-  mGLContext->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, 0);
-
   if (mFBOTextureTarget == LOCAL_GL_TEXTURE_RECTANGLE_ARB) {
     /* If we're using TEXTURE_RECTANGLE, then we must have the ARB
      * extension -- the EXT variant does not provide support for
@@ -297,6 +295,7 @@ LayerManagerOGL::SetClippingRegion(const nsIntRegion& aClippingRegion)
 void
 LayerManagerOGL::BeginTransaction()
 {
+  NS_ASSERTION(mRootLayer, "Root not set");
 }
 
 void
@@ -377,6 +376,10 @@ LayerManagerOGL::MakeCurrent()
 void
 LayerManagerOGL::Render()
 {
+  static int rcount = 0;
+
+  //DumpLayerAndChildren(mRootLayer);
+
   nsIntRect rect;
   mWidget->GetBounds(rect);
   GLint width = rect.width;
@@ -631,8 +634,8 @@ LayerManagerOGL::ProgramType LayerManagerOGL::sLayerProgramTypes[] = {
 };
 
 #define FOR_EACH_LAYER_PROGRAM(vname)                       \
-  for (size_t lpindex = 0;                                  \
-       lpindex < NS_ARRAY_LENGTH(sLayerProgramTypes);       \
+  for (int lpindex = 0;                                     \
+       lpindex < sizeof(sLayerProgramTypes)/sizeof(int);    \
        ++lpindex)                                           \
   {                                                         \
     LayerProgram *vname = static_cast<LayerProgram*>        \

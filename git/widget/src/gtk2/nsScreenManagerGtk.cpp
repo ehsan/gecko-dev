@@ -264,7 +264,7 @@ nsScreenManagerGtk :: ScreenForRect ( PRInt32 aX, PRInt32 aY,
   nsresult rv;
   rv = EnsureInit();
   if (NS_FAILED(rv)) {
-    NS_ERROR("nsScreenManagerGtk::EnsureInit() failed from ScreenForRect");
+    NS_ERROR("nsScreenManagerGtk::EnsureInit() failed from ScreenForRect\n");
     return rv;
   }
   // which screen ( index from zero ) should we return?
@@ -310,7 +310,7 @@ nsScreenManagerGtk :: GetPrimaryScreen(nsIScreen * *aPrimaryScreen)
   nsresult rv;
   rv =  EnsureInit();
   if (NS_FAILED(rv)) {
-    NS_ERROR("nsScreenManagerGtk::EnsureInit() failed from GetPrimaryScreen");
+    NS_ERROR("nsScreenManagerGtk::EnsureInit() failed from GetPrimaryScreen\n");
     return rv;
   }
   *aPrimaryScreen = mCachedScreenArray.SafeObjectAt(0);
@@ -331,7 +331,7 @@ nsScreenManagerGtk :: GetNumberOfScreens(PRUint32 *aNumberOfScreens)
   nsresult rv;
   rv = EnsureInit();
   if (NS_FAILED(rv)) {
-    NS_ERROR("nsScreenManagerGtk::EnsureInit() failed from GetNumberOfScreens");
+    NS_ERROR("nsScreenManagerGtk::EnsureInit() failed from GetNumberOfScreens\n");
     return rv;
   }
   *aNumberOfScreens = mCachedScreenArray.Count();
@@ -345,7 +345,7 @@ nsScreenManagerGtk :: ScreenForNativeWidget (void *aWidget, nsIScreen **outScree
   nsresult rv;
   rv = EnsureInit();
   if (NS_FAILED(rv)) {
-    NS_ERROR("nsScreenManagerGtk::EnsureInit() failed from ScreenForNativeWidget");
+    NS_ERROR("nsScreenManagerGtk::EnsureInit() failed from ScreenForNativeWidget\n");
     return rv;
   }
 

@@ -109,6 +109,8 @@ GeckoStart(void *data)
 
     appData->xreDirectory = xreDir.get();
 
+    // SpecialSystemDirectory.cpp sets its TMPDIR from this env var
+    setenv("TMPDIR", "/data/data/org.mozilla." MOZ_APP_NAME, 1);
 
     nsTArray<char *> targs;
     char *arg = strtok(static_cast<char *>(data), " ");

@@ -536,10 +536,8 @@ def writeArgumentUnboxing(f, i, name, type, haveCcx, optional, rvdeclared,
             template = (
                 "    nsCOMPtr<nsIVariant> ${name}(already_AddRefed<nsIVariant>("
                 "XPCVariant::newVariant(ccx, ${argVal})));\n"
-                "    if (!${name}) {\n"
-                "        xpc_qsThrowBadArgWithCcx(ccx, NS_ERROR_XPC_BAD_CONVERT_JS, %d);\n"
-                "        return JS_FALSE;\n"
-                "    }") % i
+                "    if (!${name})\n"
+                "        return JS_FALSE;\n")
             f.write(substitute(template, params))
             return rvdeclared
         elif type.name == 'nsIAtom':

@@ -70,13 +70,11 @@ glErrorShouldBe(context, context.INVALID_VALUE);
 shouldBe("context.getActiveAttrib(null, 0)", "null");
 glErrorShouldBe(context, context.INVALID_VALUE);
 
-debug("Check trying to get attribs from different context");
 shouldBe("context2.getActiveAttrib(program, 0)", "null");
-glErrorShouldBe(context2, context2.INVALID_OPERATION);
+glErrorShouldBe(context2, context2.INVALID_VALUE);
 shouldBe("context2.getActiveUniform(program, 0)", "null");
-glErrorShouldBe(context2, context2.INVALID_OPERATION);
+glErrorShouldBe(context2, context2.INVALID_VALUE);
 
-debug("Check trying to get attribs from deleted program");
 context.deleteProgram(program);
 shouldBe("context.getActiveUniform(program, 0)", "null");
 glErrorShouldBe(context, context.INVALID_VALUE);

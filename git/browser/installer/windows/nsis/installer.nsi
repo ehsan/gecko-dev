@@ -65,6 +65,10 @@ Var PageName
 ; are a member of the Administrators group.
 !define NONADMIN_ELEVATE
 
+; Don't use the PreDirectoryCommon macro's code for finding a pre-existing
+; installation directory.
+!define NO_INSTDIR_PREDIRCOMMON
+
 !define AbortSurveyURL "http://www.kampyle.com/feedback_form/ff-feedback-form.php?site_code=8166124&form_id=12116&url="
 
 ; Other included files may depend upon these includes!
@@ -100,6 +104,7 @@ VIAddVersionKey "OriginalFilename" "setup.exe"
 !insertmacro _LoggingShortcutsCommon
 
 !insertmacro AddDDEHandlerValues
+!insertmacro CanWriteToInstallDir
 !insertmacro ChangeMUIHeaderImage
 !insertmacro CheckForFilesInUse
 !insertmacro CleanUpdatesDir
@@ -127,7 +132,6 @@ VIAddVersionKey "OriginalFilename" "setup.exe"
 !insertmacro InstallOnInitCommon
 !insertmacro InstallStartCleanupCommon
 !insertmacro LeaveDirectoryCommon
-!insertmacro LeaveOptionsCommon
 !insertmacro OnEndCommon
 !insertmacro PreDirectoryCommon
 
@@ -276,6 +280,7 @@ Section "-Application" APP_IDX
                       "$(ERROR_CREATE_DIRECTORY_PREFIX)" \
                       "$(ERROR_CREATE_DIRECTORY_SUFFIX)"
 
+  ${LogHeader} "Adding Additional Files"
   ; Check if QuickTime is installed and copy the nsIQTScriptablePlugin.xpt from
   ; its plugins directory into the app's components directory.
   ClearErrors
@@ -479,6 +484,8 @@ Section "-InstallEndCleanup"
       ${EndIf}
     ${EndIf}
   ${EndUnless}
+
+  ${LogHeader} "Updating Uninstall Log With Previous Uninstall Log"
 
   ; Win7 taskbar and start menu link maintenance
   ${UpdateShortcutAppModelIDs} "$INSTDIR\${FileMainEXE}" "${AppUserModelID}"
@@ -714,10 +721,37 @@ Function leaveOptions
   StrCmp $R0 "1" +1 +2
   StrCpy $InstallType ${INSTALLTYPE_CUSTOM}
 
-  ${LeaveOptionsCommon}
+!ifndef NO_INSTDIR_FROM_REG
+  SetShellVarContext all      ; Set SHCTX to HKLM
+  ${GetSingleInstallPath} "Software\Mozilla\${BrandFullNameInternal}" $R9
 
-  ${If} $InstallType == ${INSTALLTYPE_BASIC}
-    Call CheckExistingInstall
+  StrCmp "$R9" "false" +1 fix_install_dir
+
+  SetShellVarContext current  ; Set SHCTX to HKCU
+  ${GetSingleInstallPath} "Software\Mozilla\${BrandFullNameInternal}" $R9
+
+  fix_install_dir:
+  StrCmp "$R9" "false" +2 +1
+  StrCpy $INSTDIR "$R9"
+!endif
+
+  ; If the user doesn't have write access to the installation directory set
+  ; the installation directory to a subdirectory of the All Users application
+  ; directory and if the user can't write to that location set the installation
+  ; directory to a subdirectory of the users local application directory
+  ; (e.g. non-roaming).
+  ${CanWriteToInstallDir} $R8
+  ${If} "$R8" == "false"
+    SetShellVarContext all      ; Set SHCTX to All Users
+    StrCpy $INSTDIR "$APPDATA\${BrandFullName}\"
+    ${If} ${FileExists} "$INSTDIR"
+      ; Always display the long path if the path already exists.
+      ${GetLongPath} "$INSTDIR" $INSTDIR
+    ${EndIf}
+    ${CanWriteToInstallDir} $R8
+    ${If} "$R8" == "false"
+      StrCpy $INSTDIR "$LOCALAPPDATA\${BrandFullName}\"
+    ${EndIf}
   ${EndIf}
 FunctionEnd
 
@@ -727,10 +761,10 @@ Function preDirectory
 FunctionEnd
 
 Function leaveDirectory
-  ${If} $InstallType == ${INSTALLTYPE_BASIC}
+  ${LeaveDirectoryCommon} "$(WARN_DISK_SPACE)" "$(WARN_WRITE_ACCESS)"
+  ${If} $InstallType != ${INSTALLTYPE_CUSTOM}
     Call CheckExistingInstall
   ${EndIf}
-  ${LeaveDirectoryCommon} "$(WARN_DISK_SPACE)" "$(WARN_WRITE_ACCESS)"
 FunctionEnd
 
 Function preShortcuts
@@ -748,13 +782,6 @@ Function leaveShortcuts
   ${MUI_INSTALLOPTIONS_READ} $AddDesktopSC "shortcuts.ini" "Field 2" "State"
   ${MUI_INSTALLOPTIONS_READ} $AddStartMenuSC "shortcuts.ini" "Field 3" "State"
   ${MUI_INSTALLOPTIONS_READ} $AddQuickLaunchSC "shortcuts.ini" "Field 4" "State"
-
-  ; If Start Menu shortcuts won't be created call CheckExistingInstall here
-  ; since leaveStartMenu will not be called.
-  ${If} $AddStartMenuSC != 1
-  ${AndIf} $InstallType == ${INSTALLTYPE_CUSTOM}
-    Call CheckExistingInstall
-  ${EndIf}
 FunctionEnd
 
 Function preStartMenu

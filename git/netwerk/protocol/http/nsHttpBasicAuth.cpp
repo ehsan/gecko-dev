@@ -70,7 +70,7 @@ NS_IMPL_ISUPPORTS1(nsHttpBasicAuth, nsIHttpAuthenticator)
 //-----------------------------------------------------------------------------
 
 NS_IMETHODIMP
-nsHttpBasicAuth::ChallengeReceived(nsIHttpAuthenticableChannel *authChannel,
+nsHttpBasicAuth::ChallengeReceived(nsIHttpChannel *httpChannel,
                                    const char *challenge,
                                    PRBool isProxyAuth,
                                    nsISupports **sessionState,
@@ -84,7 +84,7 @@ nsHttpBasicAuth::ChallengeReceived(nsIHttpAuthenticableChannel *authChannel,
 }
 
 NS_IMETHODIMP
-nsHttpBasicAuth::GenerateCredentials(nsIHttpAuthenticableChannel *authChannel,
+nsHttpBasicAuth::GenerateCredentials(nsIHttpChannel *httpChannel,
                                      const char *challenge,
                                      PRBool isProxyAuth,
                                      const PRUnichar *domain,

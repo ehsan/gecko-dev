@@ -2882,9 +2882,7 @@ nsGenericElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
     // Unset this flag since we now really are in a document.
     UnsetFlags(NODE_FORCE_XBL_BINDINGS |
                // And clear the lazy frame construction bits.
-               NODE_NEEDS_FRAME | NODE_DESCENDANTS_NEED_FRAMES |
-               // And the restyle bits
-               ELEMENT_ALL_RESTYLE_FLAGS);
+               NODE_NEEDS_FRAME | NODE_DESCENDANTS_NEED_FRAMES);
   }
 
   // If NODE_FORCE_XBL_BINDINGS was set we might have anonymous children
@@ -3483,13 +3481,14 @@ nsGenericElement::GetScriptTypeID() const
 {
     PtrBits flags = GetFlags();
 
-    return (flags >> NODE_SCRIPT_TYPE_OFFSET) & NODE_SCRIPT_TYPE_MASK;
+    /* 4 bits reserved for script-type ID. */
+    return (flags >> NODE_SCRIPT_TYPE_OFFSET) & 0x000F;
 }
 
 NS_IMETHODIMP
 nsGenericElement::SetScriptTypeID(PRUint32 aLang)
 {
-    if ((aLang & NODE_SCRIPT_TYPE_MASK) != aLang) {
+    if ((aLang & 0x000F) != aLang) {
         NS_ERROR("script ID too large!");
         return NS_ERROR_FAILURE;
     }

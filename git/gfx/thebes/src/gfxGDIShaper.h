@@ -58,8 +58,7 @@ public:
                                gfxTextRun *aTextRun,
                                const PRUnichar *aString,
                                PRUint32 aRunStart,
-                               PRUint32 aRunLength,
-                               PRInt32 aRunScript);
+                               PRUint32 aRunLength);
 };
 
 #endif /* GFX_GDISHAPER_H */

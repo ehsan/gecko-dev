@@ -89,8 +89,6 @@ convertResultCode(int aSQLiteResultCode)
     case SQLITE_ABORT:
     case SQLITE_INTERRUPT:
       return NS_ERROR_ABORT;
-    case SQLITE_CONSTRAINT:
-      return NS_ERROR_STORAGE_CONSTRAINT;
   }
 
   // generic error

@@ -196,15 +196,14 @@ enum { XKeyPress = KeyPress };
 
 #ifdef MOZ_WIDGET_GTK2
 #include "gfxGdkNativeRenderer.h"
+#define DISPLAY GDK_DISPLAY
 #endif
 
 #ifdef MOZ_WIDGET_QT
 #include "gfxQtNativeRenderer.h"
-#endif
-
 #ifdef MOZ_X11
-#include "mozilla/X11Util.h"
-using mozilla::DefaultXDisplay;
+#define DISPLAY QX11Info::display
+#endif
 #endif
 
 #ifdef XP_WIN
@@ -446,9 +445,7 @@ private:
 
 #ifdef XP_MACOSX
   NP_CGContext                              mCGPluginPortCopy;
-#ifndef NP_NO_QUICKDRAW
   NP_Port                                   mQDPluginPortCopy;
-#endif
   PRInt32                                   mInCGPaintLevel;
   nsIOSurface                              *mIOSurface;
   nsCARenderer                              mCARenderer;
@@ -1793,7 +1790,7 @@ nsObjectFrame::PaintPlugin(nsIRenderingContext& aRenderingContext,
             NPEvent pluginEvent;
             pluginEvent.event = WM_WINDOWPOSCHANGED;
             pluginEvent.wParam = 0;
-            pluginEvent.lParam = (LPARAM)&winpos;
+            pluginEvent.lParam = (uint32)&winpos;
             inst->HandleEvent(&pluginEvent, nsnull);
           }
 
@@ -2482,9 +2479,7 @@ nsPluginInstanceOwner::nsPluginInstanceOwner()
   mTagText = nsnull;
 #ifdef XP_MACOSX
   memset(&mCGPluginPortCopy, 0, sizeof(NP_CGContext));
-#ifndef NP_NO_QUICKDRAW
   memset(&mQDPluginPortCopy, 0, sizeof(NP_Port));
-#endif
   mInCGPaintLevel = 0;
   mSentInitialTopLevelWindowEvent = PR_FALSE;
   mIOSurface = nsnull;
@@ -4134,7 +4129,7 @@ static void find_dest_id(XID top, XID *root, XID *dest, int target_x, int target
   XID *children;
   unsigned int nchildren;
 
-  Display *display = DefaultXDisplay();
+  Display *display = DISPLAY();
 
   while (1) {
 loop:
@@ -4303,10 +4298,10 @@ nsEventStatus nsPluginInstanceOwner::ProcessEventX11Composited(const nsGUIEvent&
 
               //printf("xbutton: %d %d %d\n", anEvent.message, be.xbutton.x, be.xbutton.y);
               XID w = (XID)mPluginWindow->window;
-              XGetGeometry(DefaultXDisplay(), w, &root, &wx, &wy, &width, &height, &border_width, &depth);
+              XGetGeometry(DISPLAY(), w, &root, &wx, &wy, &width, &height, &border_width, &depth);
               find_dest_id(w, &root, &target, pluginPoint.x + wx, pluginPoint.y + wy);
               be.xbutton.window = target;
-              XSendEvent (DefaultXDisplay(), target,
+              XSendEvent (DISPLAY(), target,
                   FALSE, event.type == ButtonPress ? ButtonPressMask : ButtonReleaseMask, &be);
 
             }
@@ -4361,10 +4356,10 @@ nsEventStatus nsPluginInstanceOwner::ProcessEventX11Composited(const nsGUIEvent&
 
           //printf("xkey: %d %d %d\n", anEvent.message, be.xkey.keycode, be.xkey.state);
           XID w = (XID)mPluginWindow->window;
-          XGetGeometry(DefaultXDisplay(), w, &root, &wx, &wy, &width, &height, &border_width, &depth);
+          XGetGeometry(DISPLAY(), w, &root, &wx, &wy, &width, &height, &border_width, &depth);
           find_dest_id(w, &root, &target, mLastPoint.x + wx, mLastPoint.y + wy);
           be.xkey.window = target;
-          XSendEvent (DefaultXDisplay(), target,
+          XSendEvent (DISPLAY(), target,
               FALSE, event.type == XKeyPress ? KeyPressMask : KeyReleaseMask, &be);
 
 
@@ -4705,7 +4700,7 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
 #ifdef MOZ_X11
   // this code supports windowless plugins
   nsIWidget* widget = anEvent.widget;
-  XEvent pluginEvent = XEvent();
+  XEvent pluginEvent;
   pluginEvent.type = 0;
 
   switch(anEvent.eventStructType)
@@ -5575,7 +5570,7 @@ nsPluginInstanceOwner::Renderer::NativeDraw(gfxXlibSurface * xsurface,
 #ifdef MOZ_COMPOSITED_PLUGINS
   if (mWindow->type == NPWindowTypeDrawable) {
 #endif
-    XEvent pluginEvent = XEvent();
+    XEvent pluginEvent;
     XGraphicsExposeEvent& exposeEvent = pluginEvent.xgraphicsexpose;
     // set the drawing info
     exposeEvent.type = GraphicsExpose;
@@ -5610,10 +5605,10 @@ nsPluginInstanceOwner::Renderer::NativeDraw(gfxXlibSurface * xsurface,
     XGCValues gcv;
     gcv.subwindow_mode = IncludeInferiors;
     gcv.graphics_exposures = False;
-    GC gc = XCreateGC(DefaultXDisplay(), gdk_x11_drawable_get_xid(drawable), GCGraphicsExposures | GCSubwindowMode, &gcv);
+    GC gc = XCreateGC(GDK_DISPLAY(), gdk_x11_drawable_get_xid(drawable), GCGraphicsExposures | GCSubwindowMode, &gcv);
     /* The source and destination appear to always line up, so src and dest
      * coords should be the same */
-    XCopyArea(DefaultXDisplay(), gdk_x11_drawable_get_xid(plug->window),
+    XCopyArea(GDK_DISPLAY(), gdk_x11_drawable_get_xid(plug->window),
               gdk_x11_drawable_get_xid(drawable),
               gc,
               mDirtyRect.x,
@@ -5622,7 +5617,7 @@ nsPluginInstanceOwner::Renderer::NativeDraw(gfxXlibSurface * xsurface,
               mDirtyRect.height,
               mDirtyRect.x,
               mDirtyRect.y);
-    XFreeGC(DefaultXDisplay(), gc);
+    XFreeGC(GDK_DISPLAY(), gc);
   }
 #endif
 #endif
@@ -5830,7 +5825,7 @@ NS_IMETHODIMP nsPluginInstanceOwner::CreateWidget(void)
               static_cast<Display*>(win->GetNativeData(NS_NATIVE_DISPLAY));
           }
           else {
-            ws_info->display = DefaultXDisplay();
+            ws_info->display = DISPLAY();
           }
 #endif
         } else if (mWidget) {

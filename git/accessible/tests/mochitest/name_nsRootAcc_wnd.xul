@@ -56,11 +56,11 @@
       this.getID = function() { return "switch tab, focus event"; }
     }
 
-    function switchTabInvoker(aTabBrowser, aWindow)
+    function switchTabInvoker(aTabBrowser)
     {
       this.invoke = function switchTabInvoker_invoke()
       {
-        gOpenerWnd.synthesizeKey("VK_TAB", { ctrlKey: true }, aWindow);
+        gOpenerWnd.synthesizeKey("VK_TAB", { ctrlKey: true });
       }
 
       this.eventSeq = [
@@ -92,7 +92,7 @@
       tabBrowser.addTab("about:mozilla");
 
       gQueue = new gOpenerWnd.eventQueue();
-      gQueue.push(new switchTabInvoker(tabBrowser, window));
+      gQueue.push(new switchTabInvoker(tabBrowser));
       gQueue.onFinish = function() { window.close(); }
       gQueue.invoke();
     }

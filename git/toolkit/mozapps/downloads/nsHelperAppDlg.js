@@ -705,7 +705,12 @@ nsUnknownContentTypeDialog.prototype = {
       otherHandler.setAttribute("path",
                                 this.getPath(this.chosenApp.executable));
 
-      otherHandler.label = this.getFileDisplayName(this.chosenApp.executable);
+#if XP_MACOSX
+      this.chosenApp.executable.QueryInterface(Components.interfaces.nsILocalFileMac);
+      otherHandler.label = this.chosenApp.executable.bundleDisplayName;
+#else
+      otherHandler.label = this.chosenApp.executable.leafName;
+#endif
       otherHandler.hidden = false;
     }
 
@@ -965,14 +970,8 @@ nsUnknownContentTypeDialog.prototype = {
     if (file instanceof Components.interfaces.nsILocalFileWin) {
       try {
         return file.getVersionInfoField("FileDescription");
-      } catch (e) {}
-    }
-#endif
-#ifdef XP_MACOSX
-    if (file instanceof Components.interfaces.nsILocalFileMac) {
-      try {
-        return file.bundleDisplayName;
-      } catch (e) {}
+      } catch (ex) {
+      }
     }
 #endif
     return file.leafName;
@@ -1019,8 +1018,31 @@ nsUnknownContentTypeDialog.prototype = {
     if (params.handlerApp &&
         params.handlerApp.executable &&
         params.handlerApp.executable.isFile()) {
+      // Show the "handler" menulist since we have a (user-specified)
+      // application now.
+      this.dialogElement("modeDeck").setAttribute("selectedIndex", "0");
+
       // Remember the file they chose to run.
       this.chosenApp = params.handlerApp;
+
+      // Update dialog
+      var otherHandler = this.dialogElement("otherHandler");
+      otherHandler.removeAttribute("hidden");
+      otherHandler.setAttribute("path",
+                                this.getPath(this.chosenApp.executable));
+      otherHandler.label =
+        this.getFileDisplayName(this.chosenApp.executable);
+      this.dialogElement("openHandler").selectedIndex = 1;
+      this.dialogElement("openHandler").setAttribute("lastSelectedItemID",
+                                                     "otherHandler");
+      this.dialogElement("mode").selectedItem = this.dialogElement("open");
+    } else {
+      var openHandler = this.dialogElement("openHandler");
+      var lastSelectedID = openHandler.getAttribute("lastSelectedItemID");
+      if (!lastSelectedID)
+        lastSelectedID = "defaultHandler";
+      openHandler.selectedItem = this.dialogElement(lastSelectedID);
+    }
 
 #else
     var nsIFilePicker = Components.interfaces.nsIFilePicker;
@@ -1033,23 +1055,28 @@ nsUnknownContentTypeDialog.prototype = {
     fp.appendFilters(nsIFilePicker.filterApps);
 
     if (fp.show() == nsIFilePicker.returnOK && fp.file) {
+      // Show the "handler" menulist since we have a (user-specified)
+      // application now.
+      this.dialogElement("modeDeck").setAttribute("selectedIndex", "0");
+
       // Remember the file they chose to run.
       var localHandlerApp =
         Components.classes["@mozilla.org/uriloader/local-handler-app;1"].
                    createInstance(Components.interfaces.nsILocalHandlerApp);
       localHandlerApp.executable = fp.file;
       this.chosenApp = localHandlerApp;
-#endif
-
-      // Show the "handler" menulist since we have a (user-specified)
-      // application now.
-      this.dialogElement("modeDeck").setAttribute("selectedIndex", "0");
 
       // Update dialog.
       var otherHandler = this.dialogElement("otherHandler");
       otherHandler.removeAttribute("hidden");
       otherHandler.setAttribute("path", this.getPath(this.chosenApp.executable));
-      otherHandler.label = this.getFileDisplayName(this.chosenApp.executable);
+#ifdef XP_MACOSX
+      this.chosenApp.executable
+                    .QueryInterface(Components.interfaces.nsILocalFileMac);
+      otherHandler.label = this.chosenApp.executable.bundleDisplayName;
+#else
+      otherHandler.label = this.chosenApp.executable.leafName;
+#endif
       this.dialogElement("openHandler").selectedIndex = 1;
       this.dialogElement("openHandler").setAttribute("lastSelectedItemID", "otherHandler");
 
@@ -1062,6 +1089,7 @@ nsUnknownContentTypeDialog.prototype = {
         lastSelectedID = "defaultHandler";
       openHandler.selectedItem = this.dialogElement(lastSelectedID);
     }
+#endif
   },
 
   // Turn this on to get debugging messages.

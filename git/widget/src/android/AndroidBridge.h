@@ -46,8 +46,6 @@
 
 #include "AndroidJavaWrappers.h"
 
-#include "nsVoidArray.h"
-
 // Some debug #defines
 // #define ANDROID_DEBUG_EVENTS
 // #define ANDROID_DEBUG_WIDGET
@@ -104,14 +102,6 @@ public:
     void SetSurfaceView(jobject jobj);
     AndroidGeckoSurfaceView& SurfaceView() { return mSurfaceView; }
 
-    void GetHandlersForMimeType(const char *aMimeType, nsStringArray* aStringArray);
-
-    PRBool OpenUriExternal(nsCString& aUriSpec, nsCString& aMimeType);
-
-    void GetMimeTypeFromExtension(const nsCString& aFileExt, nsCString& aMimeType);
-
-    void MoveTaskToBack();
-
     struct AutoLocalJNIFrame {
         AutoLocalJNIFrame(int nEntries = 128) : mEntries(nEntries) {
             AndroidBridge::Bridge()->JNI()->PushLocalFrame(mEntries);
@@ -158,10 +148,6 @@ protected:
     jmethodID jNotifyXreExit;
     jmethodID jScheduleRestart;
     jmethodID jGetOutstandingDrawEvents;
-    jmethodID jGetHandlersForMimeType;
-    jmethodID jOpenUriExternal;
-    jmethodID jGetMimeTypeFromExtension;
-    jmethodID jMoveTaskToBack;
 };
 
 }

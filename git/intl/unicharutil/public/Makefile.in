@@ -49,6 +49,7 @@ EXPORTS		= \
 		nsITextTransform.h \
 		nsIUGenCategory.h \
 		nsUnicharUtilCIID.h \
+		nsHankakuToZenkakuCID.h \
 		$(NULL)
 
 include $(topsrcdir)/config/rules.mk

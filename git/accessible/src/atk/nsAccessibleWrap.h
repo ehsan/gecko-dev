@@ -85,12 +85,12 @@ class MaiHyperlink;
 class nsAccessibleWrap: public nsAccessible
 {
 public:
-    nsAccessibleWrap(nsIContent *aContent, nsIWeakReference *aShell);
+    nsAccessibleWrap(nsIDOMNode*, nsIWeakReference *aShell);
     virtual ~nsAccessibleWrap();
     void ShutdownAtkObject();
 
     // nsAccessNode
-    virtual void Shutdown();
+    virtual nsresult Shutdown();
 
 #ifdef MAI_LOGGING
     virtual void DumpnsAccessibleWrapInfo(int aDepth) {}

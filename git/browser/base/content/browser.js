@@ -139,14 +139,6 @@ __defineSetter__("PluralForm", function (val) {
   return this.PluralForm = val;
 });
 
-XPCOMUtils.defineLazyGetter(this, "PopupNotifications", function () {
-  let tmp = {};
-  Cu.import("resource://gre/modules/PopupNotifications.jsm", tmp);
-  return new tmp.PopupNotifications(gBrowser,
-                                    document.getElementById("notification-popup"),
-                                    document.getElementById("notification-popup-box"));
-});
-
 let gInitialPages = [
   "about:blank",
   "about:privatebrowsing",
@@ -1096,15 +1088,9 @@ function BrowserStartup() {
     goSetCommandEnabled("cmd_newNavigatorTab", false);
   }
 
-#ifdef MENUBAR_CAN_AUTOHIDE
-  updateAppButtonDisplay();
-#endif
-
   CombinedStopReload.init();
 
   allTabs.readPref();
-
-  TabsOnTop.syncCommand();
 
   setTimeout(delayedStartup, 0, isLoadingBlank, mustLoadSidebar);
 }
@@ -1415,6 +1401,8 @@ function delayedStartup(isLoadingBlank, mustLoadSidebar) {
 
   if (Win7Features)
     Win7Features.onOpenWindow();
+
+  TabsOnTop.syncCommand();
 
   Services.obs.notifyObservers(window, "browser-delayed-startup-finished", "");
 }
@@ -1976,7 +1964,7 @@ function getShortcutOrURI(aURL, aPostDataRef) {
 
   var engine = Services.search.getEngineByAlias(keyword);
   if (engine) {
-    var submission = engine.getSubmission(param);
+    var submission = engine.getSubmission(param, null);
     aPostDataRef.value = submission.postData;
     return submission.uri.spec;
   }
@@ -2199,7 +2187,7 @@ function traceVerbose(verbose)
 }
 #endif
 
-function URLBarSetURI(aURI) {
+function URLBarSetURI(aURI, aValid) {
   var value = gBrowser.userTypedValue;
   var valid = false;
 
@@ -2213,7 +2201,8 @@ function URLBarSetURI(aURI) {
     else
       value = losslessDecodeURI(uri);
 
-    valid = (uri.spec != "about:blank");
+    let isBlank = (uri.spec == "about:blank");
+    valid = !isBlank && (!aURI || aValid);
   }
 
   gURLBar.value = value;
@@ -2687,11 +2676,8 @@ function FillInHTMLTooltip(tipElement)
       titleText = tipElement.getAttribute("title");
       if ((tipElement instanceof HTMLAnchorElement && tipElement.href) ||
           (tipElement instanceof HTMLAreaElement && tipElement.href) ||
-          (tipElement instanceof HTMLLinkElement && tipElement.href)
-#ifdef MOZ_SVG
-          || (tipElement instanceof SVGAElement && tipElement.hasAttributeNS(XLinkNS, "href"))
-#endif // MOZ_SVG
-          ) {
+          (tipElement instanceof HTMLLinkElement && tipElement.href) ||
+          (tipElement instanceof SVGAElement && tipElement.hasAttributeNS(XLinkNS, "href"))) {
         XLinkTitleText = tipElement.getAttributeNS(XLinkNS, "title");
       }
       if (lookingForSVGTitle &&
@@ -3154,7 +3140,7 @@ const BrowserSearch = {
     else
       engine = Services.search.defaultEngine;
 
-    var submission = engine.getSubmission(searchText); // HTML response
+    var submission = engine.getSubmission(searchText, null); // HTML response
 
     // getSubmission can return null if the engine doesn't have a URL
     // with a text/html response type.  This is unlikely (since
@@ -4106,8 +4092,6 @@ var XULBrowserWindow = {
         // persist across the first location change.
         let nBox = gBrowser.getNotificationBox(selectedBrowser);
         nBox.removeTransientNotifications();
-
-        PopupNotifications.locationChange();
       }
     }
 
@@ -4143,7 +4127,7 @@ var XULBrowserWindow = {
         try {
           uri = this._uriFixup.createExposableURI(uri);
         } catch (e) {}
-        URLBarSetURI(uri);
+        URLBarSetURI(uri, true);
 
         // Update starring UI
         PlacesStarButton.updateState();
@@ -4562,11 +4546,9 @@ nsBrowserAccess.prototype = {
   }
 }
 
-function onViewToolbarsPopupShowing(aEvent) {
+function onViewToolbarsPopupShowing(aEvent)
+{
   var popup = aEvent.target;
-  if (popup != aEvent.currentTarget)
-    return;
-
   var i;
 
   // Empty the menu
@@ -4588,9 +4570,8 @@ function onViewToolbarsPopupShowing(aEvent) {
       menuItem.setAttribute("toolbarindex", i);
       menuItem.setAttribute("type", "checkbox");
       menuItem.setAttribute("label", toolbarName);
+      menuItem.setAttribute("accesskey", toolbar.getAttribute("accesskey"));
       menuItem.setAttribute("checked", toolbar.getAttribute(hidingAttribute) != "true");
-      if (popup.id != "appmenu_customizeMenu")
-        menuItem.setAttribute("accesskey", toolbar.getAttribute("accesskey"));
       popup.insertBefore(menuItem, firstMenuItem);
 
       menuItem.addEventListener("command", onViewToolbarCommand, false);
@@ -4599,7 +4580,8 @@ function onViewToolbarsPopupShowing(aEvent) {
   }
 }
 
-function onViewToolbarCommand(aEvent) {
+function onViewToolbarCommand(aEvent)
+{
   var index = aEvent.originalTarget.getAttribute("toolbarindex");
   var toolbar = gNavToolbox.childNodes[index];
   var hidingAttribute = toolbar.getAttribute("type") == "menubar" ?
@@ -4608,10 +4590,6 @@ function onViewToolbarCommand(aEvent) {
   toolbar.setAttribute(hidingAttribute,
                        aEvent.originalTarget.getAttribute("checked") != "true");
   document.persist(toolbar.id, hidingAttribute);
-
-#ifdef MENUBAR_CAN_AUTOHIDE
-  updateAppButtonDisplay();
-#endif
 }
 
 var TabsOnTop = {
@@ -4619,10 +4597,8 @@ var TabsOnTop = {
     this.enabled = !this.enabled;
   },
   syncCommand: function () {
-    let enabled = this.enabled;
     document.getElementById("cmd_ToggleTabsOnTop")
-            .setAttribute("checked", enabled);
-    document.documentElement.setAttribute("tabsontop", enabled);
+            .setAttribute("checked", this.enabled);
   },
   get enabled () {
     return gNavToolbox.getAttribute("tabsontop") == "true";
@@ -4638,13 +4614,6 @@ var TabsOnTop = {
     return val;
   }
 }
-
-#ifdef MENUBAR_CAN_AUTOHIDE
-function updateAppButtonDisplay() {
-  document.getElementById("appmenu-button-container").hidden =
-    document.getElementById("toolbar-menubar").getAttribute("autohide") != "true";
-}
-#endif
 
 function displaySecurityInfo()
 {
@@ -5780,11 +5749,9 @@ var MailIntegration = {
   }
 };
 
-function BrowserOpenAddonsMgr(aView) {
-  switchToTabHavingURI("about:addons", true, function(browser) {
-    if (aView)
-      browser.contentWindow.wrappedJSObject.loadView(aView);
-  });
+function BrowserOpenAddonsMgr(aPane) {
+  // TODO need to implement switching to the relevant view - see bug 560449
+  switchToTabHavingURI("about:addons", true);
 }
 
 function AddKeywordForSearchField() {
@@ -6033,7 +6000,7 @@ var gPluginHandler = {
 
   // Callback for user clicking on a disabled plugin
   managePlugins: function (aEvent) {
-    BrowserOpenAddonsMgr("addons://list/plugin");
+    BrowserOpenAddonsMgr("plugins");
   },
 
   // Callback for user clicking "submit a report" link
@@ -6574,7 +6541,10 @@ function undoCloseTab(aIndex) {
   var blankTabToRemove = null;
   if (gBrowser.tabs.length == 1 &&
       !gPrefService.getBoolPref("browser.tabs.autoHide") &&
-      isTabEmpty(gBrowser.selectedTab))
+      gBrowser.sessionHistory.count < 2 &&
+      gBrowser.currentURI.spec == "about:blank" &&
+      !gBrowser.contentDocument.body.hasChildNodes() &&
+      !gBrowser.selectedTab.hasAttribute("busy"))
     blankTabToRemove = gBrowser.selectedTab;
 
   var tab = null;
@@ -6604,18 +6574,6 @@ function undoCloseWindow(aIndex) {
     window = ss.undoCloseWindow(aIndex || 0);
 
   return window;
-}
-
-/*
- * Determines if a tab is "empty", usually used in the context of determining
- * if it's ok to close the tab.
- */
-function isTabEmpty(aTab) {
-  let browser = aTab.linkedBrowser;
-  return browser.sessionHistory.count < 2 &&
-         browser.currentURI.spec == "about:blank" &&
-         !browser.contentDocument.body.hasChildNodes() &&
-         !aTab.hasAttribute("busy");
 }
 
 /**
@@ -7517,7 +7475,7 @@ var LightWeightThemeWebInstaller = {
       label: text("manageButton"),
       accessKey: text("manageButton.accesskey"),
       callback: function () {
-        BrowserOpenAddonsMgr("addons://list/theme");
+        BrowserOpenAddonsMgr("themes");
       }
     }];
 
@@ -7596,11 +7554,9 @@ var LightWeightThemeWebInstaller = {
  *        URI to search for
  * @param aOpenNew
  *        True to open a new tab and switch to it, if no existing tab is found
- * @param A callback to call when the tab is open, the tab's browser will be
- *        passed as an argument
  * @return True if a tab was switched to (or opened), false otherwise
  */
-function switchToTabHavingURI(aURI, aOpenNew, aCallback) {
+function switchToTabHavingURI(aURI, aOpenNew) {
   function switchIfURIInWindow(aWindow) {
     if (!("gBrowser" in aWindow))
       return false;
@@ -7609,16 +7565,8 @@ function switchToTabHavingURI(aURI, aOpenNew, aCallback) {
       let browser = browsers[i];
       if (browser.currentURI.equals(aURI)) {
         gURLBar.handleRevert();
-        // We need the current tab so we can check if we should close it
-        let prevTab = gBrowser.selectedTab;
-        // Focus the matching window & tab
         aWindow.focus();
         aWindow.gBrowser.tabContainer.selectedIndex = i;
-        if (aCallback)
-          aCallback(browser);
-        // Close the previously selected tab if it was empty
-        if (isTabEmpty(prevTab))
-          gBrowser.removeTab(prevTab);
         return true;
       }
     }
@@ -7647,15 +7595,6 @@ function switchToTabHavingURI(aURI, aOpenNew, aCallback) {
   // No opened tab has that url.
   if (aOpenNew) {
     gBrowser.selectedTab = gBrowser.addTab(aURI.spec);
-    if (aCallback) {
-      let browser = gBrowser.selectedBrowser;
-      browser.addEventListener("pageshow", function(event) {
-        if (event.target.location.href != aURI.spec)
-          return;
-        browser.removeEventListener("pageshow", arguments.callee, true);
-        aCallback(browser);
-      }, true);
-    }
     return true;
   }
 

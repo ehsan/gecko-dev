@@ -147,16 +147,6 @@ static PRBool IsChromeURI(nsIURI* aURI)
     return PR_FALSE;
 }
 
-static PRBool IsOverlayAllowed(nsIURI* aURI)
-{
-    PRBool canOverlay = PR_FALSE;
-    if (NS_SUCCEEDED(aURI->SchemeIs("about", &canOverlay)) && canOverlay)
-        return PR_TRUE;
-    if (NS_SUCCEEDED(aURI->SchemeIs("chrome", &canOverlay)) && canOverlay)
-        return PR_TRUE;
-    return PR_FALSE;
-}
-
 //----------------------------------------------------------------------
 //
 // Miscellaneous Constants
@@ -589,7 +579,7 @@ nsXULDocument::EndLoad()
         nsXULPrototypeCache::GetInstance()->WritePrototype(mCurrentPrototype);
     }
 
-    if (IsOverlayAllowed(uri)) {
+    if (isChrome) {
         nsCOMPtr<nsIXULOverlayProvider> reg =
             mozilla::services::GetXULOverlayProviderService();
 
@@ -618,7 +608,7 @@ nsXULDocument::EndLoad()
             }
         }
 
-        if (isChrome && useXULCache) {
+        if (useXULCache) {
             // If it's a chrome prototype document, then notify any
             // documents that raced to load the prototype, and awaited
             // its load completion via proto->AwaitLoadDone().
@@ -1133,20 +1123,24 @@ nsXULDocument::ContentRemoved(nsIDocument* aDocument,
 // nsIXULDocument interface
 //
 
-void
+NS_IMETHODIMP
 nsXULDocument::GetElementsForID(const nsAString& aID,
                                 nsCOMArray<nsIContent>& aElements)
 {
     aElements.Clear();
 
-    nsIdentifierMapEntry *entry = mIdentifierMap.GetEntry(aID);
+    nsCOMPtr<nsIAtom> atom = do_GetAtom(aID);
+    if (!atom)
+        return NS_ERROR_OUT_OF_MEMORY;
+    nsIdentifierMapEntry *entry = mIdentifierMap.GetEntry(atom);
     if (entry) {
         entry->AppendAllIdContent(&aElements);
     }
-    nsRefMapEntry *refEntry = mRefMap.GetEntry(aID);
+    nsRefMapEntry *refEntry = mRefMap.GetEntry(atom);
     if (refEntry) {
         refEntry->AppendAll(&aElements);
     }
+    return NS_OK;
 }
 
 nsresult
@@ -1643,17 +1637,23 @@ nsXULDocument::GetCommandDispatcher(nsIDOMXULCommandDispatcher** aTracker)
 Element*
 nsXULDocument::GetElementById(const nsAString& aId)
 {
-    if (!CheckGetElementByIdArg(aId))
+    nsCOMPtr<nsIAtom> atom(do_GetAtom(aId));
+    if (!atom) {
+        // This can only fail due OOM if the atom doesn't exist, in which
+        // case there couldn't possibly exist an entry for it.
+        return nsnull;
+    }
+
+    if (!CheckGetElementByIdArg(atom))
         return nsnull;
 
-    nsIdentifierMapEntry *entry = mIdentifierMap.GetEntry(aId);
+    nsIdentifierMapEntry *entry = mIdentifierMap.GetEntry(atom);
     if (entry) {
         Element* element = entry->GetIdElement();
         if (element)
             return element;
     }
-
-    nsRefMapEntry* refEntry = mRefMap.GetEntry(aId);
+    nsRefMapEntry* refEntry = mRefMap.GetEntry(atom);
     if (refEntry) {
         NS_ASSERTION(refEntry->GetFirstElement(),
                      "nsRefMapEntries should have nonempty content lists");
@@ -1893,7 +1893,10 @@ nsXULDocument::AddElementToRefMap(Element* aElement)
     nsAutoString value;
     GetRefMapAttribute(aElement, &value);
     if (!value.IsEmpty()) {
-        nsRefMapEntry *entry = mRefMap.PutEntry(value);
+        nsCOMPtr<nsIAtom> atom = do_GetAtom(value);
+        if (!atom)
+            return NS_ERROR_OUT_OF_MEMORY;
+        nsRefMapEntry *entry = mRefMap.PutEntry(atom);
         if (!entry)
             return NS_ERROR_OUT_OF_MEMORY;
         if (!entry->AddElement(aElement))
@@ -1910,11 +1913,14 @@ nsXULDocument::RemoveElementFromRefMap(Element* aElement)
     nsAutoString value;
     GetRefMapAttribute(aElement, &value);
     if (!value.IsEmpty()) {
-        nsRefMapEntry *entry = mRefMap.GetEntry(value);
+        nsCOMPtr<nsIAtom> atom = do_GetAtom(value);
+        if (!atom)
+            return;
+        nsRefMapEntry *entry = mRefMap.GetEntry(atom);
         if (!entry)
             return;
         if (entry->RemoveElement(aElement)) {
-            mRefMap.RawRemoveEntry(entry);
+            mRefMap.RemoveEntry(atom);
         }
     }
 }
@@ -2594,8 +2600,8 @@ nsXULDocument::AddChromeOverlays()
 
     nsCOMPtr<nsIURI> docUri = mCurrentPrototype->GetURI();
 
-    /* overlays only apply to chrome or about URIs */
-    if (!IsOverlayAllowed(docUri)) return NS_OK;
+    /* overlays only apply to chrome, skip all content URIs */
+    if (!IsChromeURI(docUri)) return NS_OK;
 
     nsCOMPtr<nsIXULOverlayProvider> chromeReg =
         mozilla::services::GetXULOverlayProviderService();
@@ -2688,8 +2694,7 @@ nsXULDocument::LoadOverlayInternal(nsIURI* aURI, PRBool aIsDynamic,
     // In all other cases, the overlay is only allowed to load if
     // the master document and prototype document have the same origin.
 
-    PRBool documentIsChrome = IsChromeURI(mDocumentURI);
-    if (!documentIsChrome) {
+    if (!IsChromeURI(mDocumentURI)) {
         // Make sure we're allowed to load this overlay.
         rv = NodePrincipal()->CheckMayLoad(aURI, PR_TRUE);
         if (NS_FAILED(rv)) {
@@ -2699,11 +2704,9 @@ nsXULDocument::LoadOverlayInternal(nsIURI* aURI, PRBool aIsDynamic,
     }
 
     // Look in the prototype cache for the prototype document with
-    // the specified overlay URI. Only use the cache if the containing
-    // document is chrome otherwise it may not have a system principal and
-    // the cached document will, see bug 565610.
+    // the specified overlay URI.
     PRBool overlayIsChrome = IsChromeURI(aURI);
-    mCurrentPrototype = overlayIsChrome && documentIsChrome ?
+    mCurrentPrototype = overlayIsChrome ?
         nsXULPrototypeCache::GetInstance()->GetPrototype(aURI) : nsnull;
 
     // Same comment as nsChromeProtocolHandler::NewChannel and
@@ -2803,10 +2806,8 @@ nsXULDocument::LoadOverlayInternal(nsIURI* aURI, PRBool aIsDynamic,
         // the prototype cache; other XUL documents will be reloaded
         // each time.  We must do this after NS_OpenURI and AsyncOpen,
         // or chrome code will wrongly create a cached chrome channel
-        // instead of a real one. Prototypes are only cached when the
-        // document to be overlayed is chrome to avoid caching overlay
-        // scripts with incorrect principals, see bug 565610.
-        if (useXULCache && overlayIsChrome && documentIsChrome) {
+        // instead of a real one.
+        if (useXULCache && overlayIsChrome) {
             nsXULPrototypeCache::GetInstance()->PutPrototype(mCurrentPrototype);
         }
 

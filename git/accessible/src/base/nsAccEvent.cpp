@@ -49,10 +49,14 @@
 
 #include "nsIDOMDocument.h"
 #include "nsIEventStateManager.h"
+#include "nsIPersistentProperties2.h"
 #include "nsIServiceManager.h"
 #ifdef MOZ_XUL
 #include "nsIDOMXULMultSelectCntrlEl.h"
 #endif
+#include "nsIContent.h"
+#include "nsIPresShell.h"
+#include "nsPresContext.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccEvent
@@ -61,17 +65,11 @@
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccEvent. nsISupports
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsAccEvent)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsAccEvent)
-  NS_IMPL_CYCLE_COLLECTION_UNLINK_NSCOMPTR(mAccessible)
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsAccEvent)
-  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mAccessible");
-  cb.NoteXPCOMChild(static_cast<nsIAccessible*>(tmp->mAccessible));
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+NS_IMPL_CYCLE_COLLECTION_1(nsAccEvent, mAccessible)
 
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(nsAccEvent)
   NS_INTERFACE_MAP_ENTRY(nsIAccessibleEvent)
+  NS_INTERFACE_MAP_ENTRY(nsAccEvent)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
 NS_INTERFACE_MAP_END
 
@@ -81,7 +79,7 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(nsAccEvent)
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccEvent. Constructors
 
-nsAccEvent::nsAccEvent(PRUint32 aEventType, nsAccessible *aAccessible,
+nsAccEvent::nsAccEvent(PRUint32 aEventType, nsIAccessible *aAccessible,
                        PRBool aIsAsync, EIsFromUserInput aIsFromUserInput,
                        EEventRule aEventRule) :
   mEventType(aEventType), mEventRule(aEventRule), mIsAsync(aIsAsync),
@@ -90,11 +88,11 @@ nsAccEvent::nsAccEvent(PRUint32 aEventType, nsAccessible *aAccessible,
   CaptureIsFromUserInput(aIsFromUserInput);
 }
 
-nsAccEvent::nsAccEvent(PRUint32 aEventType, nsINode *aNode,
+nsAccEvent::nsAccEvent(PRUint32 aEventType, nsIDOMNode *aDOMNode,
                        PRBool aIsAsync, EIsFromUserInput aIsFromUserInput,
                        EEventRule aEventRule) :
   mEventType(aEventType), mEventRule(aEventRule), mIsAsync(aIsAsync),
-  mNode(aNode)
+  mNode(do_QueryInterface(aDOMNode))
 {
   CaptureIsFromUserInput(aIsFromUserInput);
 }
@@ -129,7 +127,10 @@ nsAccEvent::GetAccessible(nsIAccessible **aAccessible)
   NS_ENSURE_ARG_POINTER(aAccessible);
   *aAccessible = nsnull;
 
-  NS_IF_ADDREF(*aAccessible = GetAccessible());
+  if (!mAccessible)
+    mAccessible = GetAccessibleByNode();
+
+  NS_IF_ADDREF(*aAccessible = mAccessible);
   return NS_OK;
 }
 
@@ -160,20 +161,19 @@ nsAccEvent::GetAccessibleDocument(nsIAccessibleDocument **aDocAccessible)
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccEvent: public methods
 
-nsAccessible *
-nsAccEvent::GetAccessible()
-{
-  if (!mAccessible)
-    mAccessible = GetAccessibleForNode();
-
-  return mAccessible;
-}
-
 nsINode*
 nsAccEvent::GetNode()
 {
-  if (!mNode && mAccessible)
-    mNode = mAccessible->GetNode();
+  if (!mNode) {
+    nsCOMPtr<nsIAccessNode> accessNode(do_QueryInterface(mAccessible));
+    if (!accessNode)
+      return nsnull;
+
+    nsCOMPtr<nsIDOMNode> DOMNode;
+    accessNode->GetDOMNode(getter_AddRefs(DOMNode));
+
+    mNode = do_QueryInterface(DOMNode);
+  }
 
   return mNode;
 }
@@ -191,13 +191,16 @@ nsAccEvent::GetDocAccessible()
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccEvent: protected methods
 
-nsAccessible *
-nsAccEvent::GetAccessibleForNode() const
+already_AddRefed<nsIAccessible>
+nsAccEvent::GetAccessibleByNode()
 {
   if (!mNode)
     return nsnull;
 
-  nsAccessible *accessible = GetAccService()->GetAccessible(mNode);
+  nsCOMPtr<nsIDOMNode> DOMNode(do_QueryInterface(mNode));
+
+  nsCOMPtr<nsIAccessible> accessible;
+  GetAccService()->GetAccessibleFor(DOMNode, getter_AddRefs(accessible));
 
 #ifdef MOZ_XUL
   // hack for xul tree table. We need a better way for firing delayed event
@@ -217,19 +220,20 @@ nsAccEvent::GetAccessibleForNode() const
       if (treeIndex >= 0) {
         nsRefPtr<nsXULTreeAccessible> treeAcc = do_QueryObject(accessible);
         if (treeAcc)
-          return treeAcc->GetTreeItemAccessible(treeIndex);
+          accessible = treeAcc->GetTreeItemAccessible(treeIndex);
       }
     }
   }
 #endif
 
-  return accessible;
+  return accessible.forget();
 }
 
 void
 nsAccEvent::CaptureIsFromUserInput(EIsFromUserInput aIsFromUserInput)
 {
-  nsINode *targetNode = GetNode();
+  nsCOMPtr<nsIDOMNode> targetNode;
+  GetDOMNode(getter_AddRefs(targetNode));
 
 #ifdef DEBUG
   if (!targetNode) {
@@ -272,12 +276,13 @@ nsAccEvent::CaptureIsFromUserInput(EIsFromUserInput aIsFromUserInput)
 // nsAccReorderEvent
 ////////////////////////////////////////////////////////////////////////////////
 
-NS_IMPL_ISUPPORTS_INHERITED0(nsAccReorderEvent, nsAccEvent)
+NS_IMPL_ISUPPORTS_INHERITED1(nsAccReorderEvent, nsAccEvent,
+                             nsAccReorderEvent)
 
-nsAccReorderEvent::nsAccReorderEvent(nsAccessible *aAccTarget,
+nsAccReorderEvent::nsAccReorderEvent(nsIAccessible *aAccTarget,
                                      PRBool aIsAsynch,
                                      PRBool aIsUnconditional,
-                                     nsINode *aReasonNode) :
+                                     nsIDOMNode *aReasonNode) :
   nsAccEvent(::nsIAccessibleEvent::EVENT_REORDER, aAccTarget,
              aIsAsynch, eAutoDetect, nsAccEvent::eCoalesceFromSameSubtree),
   mUnconditionalEvent(aIsUnconditional), mReasonNode(aReasonNode)
@@ -296,7 +301,9 @@ nsAccReorderEvent::HasAccessibleInReasonSubtree()
   if (!mReasonNode)
     return PR_FALSE;
 
-  nsAccessible *accessible = GetAccService()->GetAccessible(mReasonNode);
+  nsCOMPtr<nsIAccessible> accessible;
+  GetAccService()->GetAccessibleFor(mReasonNode, getter_AddRefs(accessible));
+
   return accessible || nsAccUtils::HasAccessibleChildren(mReasonNode);
 }
 
@@ -311,7 +318,7 @@ NS_IMPL_ISUPPORTS_INHERITED1(nsAccStateChangeEvent, nsAccEvent,
 // support correct state change coalescence (XXX Bug 569356). Also we need to
 // decide how to coalesce events created via accessible (instead of node).
 nsAccStateChangeEvent::
-  nsAccStateChangeEvent(nsAccessible *aAccessible,
+  nsAccStateChangeEvent(nsIAccessible *aAccessible,
                         PRUint32 aState, PRBool aIsExtraState,
                         PRBool aIsEnabled, PRBool aIsAsynch,
                         EIsFromUserInput aIsFromUserInput):
@@ -322,7 +329,8 @@ nsAccStateChangeEvent::
 }
 
 nsAccStateChangeEvent::
-  nsAccStateChangeEvent(nsINode *aNode, PRUint32 aState, PRBool aIsExtraState,
+  nsAccStateChangeEvent(nsIDOMNode *aNode,
+                        PRUint32 aState, PRBool aIsExtraState,
                         PRBool aIsEnabled):
   nsAccEvent(::nsIAccessibleEvent::EVENT_STATE_CHANGE, aNode),
   mState(aState), mIsExtraState(aIsExtraState), mIsEnabled(aIsEnabled)
@@ -330,14 +338,15 @@ nsAccStateChangeEvent::
 }
 
 nsAccStateChangeEvent::
-  nsAccStateChangeEvent(nsINode *aNode, PRUint32 aState, PRBool aIsExtraState) :
+  nsAccStateChangeEvent(nsIDOMNode *aNode,
+                        PRUint32 aState, PRBool aIsExtraState):
   nsAccEvent(::nsIAccessibleEvent::EVENT_STATE_CHANGE, aNode),
   mState(aState), mIsExtraState(aIsExtraState)
 {
-  // Use GetAccessibleForNode() because we do not want to store an accessible
+  // Use GetAccessibleByNode() because we do not want to store an accessible
   // since it leads to problems with delayed events in the case when
   // an accessible gets reorder event before delayed event is processed.
-  nsAccessible *accessible = GetAccessibleForNode();
+  nsCOMPtr<nsIAccessible> accessible(GetAccessibleByNode());
   if (accessible) {
     PRUint32 state = 0, extraState = 0;
     accessible->GetState(&state, mIsExtraState ? &extraState : nsnull);
@@ -350,7 +359,6 @@ nsAccStateChangeEvent::
 NS_IMETHODIMP
 nsAccStateChangeEvent::GetState(PRUint32 *aState)
 {
-  NS_ENSURE_ARG_POINTER(aState);
   *aState = mState;
   return NS_OK;
 }
@@ -358,7 +366,6 @@ nsAccStateChangeEvent::GetState(PRUint32 *aState)
 NS_IMETHODIMP
 nsAccStateChangeEvent::IsExtraState(PRBool *aIsExtraState)
 {
-  NS_ENSURE_ARG_POINTER(aIsExtraState);
   *aIsExtraState = mIsExtraState;
   return NS_OK;
 }
@@ -366,7 +373,6 @@ nsAccStateChangeEvent::IsExtraState(PRBool *aIsExtraState)
 NS_IMETHODIMP
 nsAccStateChangeEvent::IsEnabled(PRBool *aIsEnabled)
 {
-  NS_ENSURE_ARG_POINTER(aIsEnabled);
   *aIsEnabled = mIsEnabled;
   return NS_OK;
 }
@@ -387,7 +393,7 @@ NS_IMPL_ISUPPORTS_INHERITED1(nsAccTextChangeEvent, nsAccEvent,
 // a defunct accessible so the behaviour should be equivalent.
 // XXX revisit this when coalescence is faster (eCoalesceFromSameSubtree)
 nsAccTextChangeEvent::
-  nsAccTextChangeEvent(nsAccessible *aAccessible,
+  nsAccTextChangeEvent(nsIAccessible *aAccessible,
                        PRInt32 aStart, PRUint32 aLength,
                        nsAString& aModifiedText, PRBool aIsInserted,
                        PRBool aIsAsynch, EIsFromUserInput aIsFromUserInput) :
@@ -401,7 +407,6 @@ nsAccTextChangeEvent::
 NS_IMETHODIMP
 nsAccTextChangeEvent::GetStart(PRInt32 *aStart)
 {
-  NS_ENSURE_ARG_POINTER(aStart);
   *aStart = mStart;
   return NS_OK;
 }
@@ -409,7 +414,6 @@ nsAccTextChangeEvent::GetStart(PRInt32 *aStart)
 NS_IMETHODIMP
 nsAccTextChangeEvent::GetLength(PRUint32 *aLength)
 {
-  NS_ENSURE_ARG_POINTER(aLength);
   *aLength = mLength;
   return NS_OK;
 }
@@ -417,7 +421,6 @@ nsAccTextChangeEvent::GetLength(PRUint32 *aLength)
 NS_IMETHODIMP
 nsAccTextChangeEvent::IsInserted(PRBool *aIsInserted)
 {
-  NS_ENSURE_ARG_POINTER(aIsInserted);
   *aIsInserted = mIsInserted;
   return NS_OK;
 }
@@ -437,14 +440,14 @@ NS_IMPL_ISUPPORTS_INHERITED1(nsAccCaretMoveEvent, nsAccEvent,
                              nsIAccessibleCaretMoveEvent)
 
 nsAccCaretMoveEvent::
-  nsAccCaretMoveEvent(nsAccessible *aAccessible, PRInt32 aCaretOffset) :
+  nsAccCaretMoveEvent(nsIAccessible *aAccessible, PRInt32 aCaretOffset) :
   nsAccEvent(::nsIAccessibleEvent::EVENT_TEXT_CARET_MOVED, aAccessible, PR_TRUE), // Currently always asynch
   mCaretOffset(aCaretOffset)
 {
 }
 
 nsAccCaretMoveEvent::
-  nsAccCaretMoveEvent(nsINode *aNode) :
+  nsAccCaretMoveEvent(nsIDOMNode *aNode) :
   nsAccEvent(::nsIAccessibleEvent::EVENT_TEXT_CARET_MOVED, aNode, PR_TRUE), // Currently always asynch
   mCaretOffset(-1)
 {
@@ -467,7 +470,7 @@ NS_IMPL_ISUPPORTS_INHERITED1(nsAccTableChangeEvent, nsAccEvent,
                              nsIAccessibleTableChangeEvent)
 
 nsAccTableChangeEvent::
-  nsAccTableChangeEvent(nsAccessible *aAccessible, PRUint32 aEventType,
+  nsAccTableChangeEvent(nsIAccessible *aAccessible, PRUint32 aEventType,
                         PRInt32 aRowOrColIndex, PRInt32 aNumRowsOrCols, PRBool aIsAsynch):
   nsAccEvent(aEventType, aAccessible, aIsAsynch), 
   mRowOrColIndex(aRowOrColIndex), mNumRowsOrCols(aNumRowsOrCols)

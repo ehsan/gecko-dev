@@ -99,7 +99,8 @@ class nsKeyEvent;
 class nsEditor : public nsIEditor,
                  public nsIEditorIMESupport,
                  public nsSupportsWeakReference,
-                 public nsIPhonetic
+                 public nsIPhonetic,
+                 public nsStubMutationObserver
 {
 public:
 
@@ -154,6 +155,10 @@ public:
   
   // nsIPhonetic
   NS_DECL_NSIPHONETIC
+
+  NS_DECL_NSIMUTATIONOBSERVER_CONTENTAPPENDED
+  NS_DECL_NSIMUTATIONOBSERVER_CONTENTINSERTED
+  NS_DECL_NSIMUTATIONOBSERVER_CONTENTREMOVED
 
 public:
 
@@ -530,8 +535,8 @@ public:
   static PRInt32 GetIndexOf(nsIDOMNode *aParent, nsIDOMNode *aChild);
   static nsCOMPtr<nsIDOMNode> GetChildAt(nsIDOMNode *aParent, PRInt32 aOffset);
   
-  static nsresult GetStartNodeAndOffset(nsISelection *aSelection, nsIDOMNode **outStartNode, PRInt32 *outStartOffset);
-  static nsresult GetEndNodeAndOffset(nsISelection *aSelection, nsIDOMNode **outEndNode, PRInt32 *outEndOffset);
+  static nsresult GetStartNodeAndOffset(nsISelection *aSelection, nsCOMPtr<nsIDOMNode> *outStartNode, PRInt32 *outStartOffset);
+  static nsresult GetEndNodeAndOffset(nsISelection *aSelection, nsCOMPtr<nsIDOMNode> *outEndNode, PRInt32 *outEndOffset);
 #if DEBUG_JOE
   static void DumpNode(nsIDOMNode *aNode, PRInt32 indent=0);
 #endif
@@ -576,7 +581,7 @@ public:
                                     nsIDOMNode *aEndNode,
                                     PRInt32 aEndOffset);
 
-  virtual already_AddRefed<nsPIDOMEventTarget> GetPIDOMEventTarget() = 0;
+  already_AddRefed<nsPIDOMEventTarget> GetPIDOMEventTarget();
 
   // Fast non-refcounting editor root element accessor
   nsIDOMElement *GetRoot();
@@ -655,18 +660,6 @@ public:
 
   // Whether the editor has focus or not.
   virtual PRBool HasFocus();
-
-  // FindSelectionRoot() returns a selection root of this editor when aNode
-  // gets focus.  aNode must be a content node or a document node.  When the
-  // target isn't a part of this editor, returns NULL.  If this is for
-  // designMode, you should set the document node to aNode except that an
-  // element in the document has focus.
-  virtual already_AddRefed<nsIContent> FindSelectionRoot(nsINode* aNode);
-
-  // Initializes selection and caret for the editor.  If aEventTarget isn't
-  // a host of the editor, i.e., the editor doesn't get focus, this does
-  // nothing.
-  nsresult InitializeSelection(nsIDOMEventTarget* aFocusEventTarget);
 
 protected:
 

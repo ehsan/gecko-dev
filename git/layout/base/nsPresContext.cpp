@@ -2062,34 +2062,37 @@ MayHavePaintEventListener(nsPIDOMWindow* aInnerWindow)
   if (aInnerWindow->HasPaintEventListeners())
     return PR_TRUE;
 
-  nsPIDOMEventTarget* parentTarget = aInnerWindow->GetParentTarget();
-  if (!parentTarget)
+  nsPIDOMEventTarget* chromeEventHandler = aInnerWindow->GetChromeEventHandler();
+  if (!chromeEventHandler)
     return PR_FALSE;
 
   nsIEventListenerManager* manager = nsnull;
-  if ((manager = parentTarget->GetListenerManager(PR_FALSE)) &&
-      manager->MayHavePaintEventListener()) {
-    return PR_TRUE;
-  }
-
   nsCOMPtr<nsINode> node;
-  if (parentTarget != aInnerWindow->GetChromeEventHandler()) {
-    nsCOMPtr<nsIInProcessContentFrameMessageManager> mm =
-      do_QueryInterface(parentTarget);
-    if (mm) {
-      node = mm->GetOwnerContent();
+  nsCOMPtr<nsIInProcessContentFrameMessageManager> mm =
+    do_QueryInterface(chromeEventHandler);
+  if (mm) {
+    nsCOMPtr<nsPIDOMEventTarget> target = do_QueryInterface(mm);
+    if (target && (manager = target->GetListenerManager(PR_FALSE)) &&
+        manager->MayHavePaintEventListener()) {
+      return PR_TRUE;
     }
+    node = mm->GetOwnerContent();
   }
 
   if (!node) {
-    node = do_QueryInterface(parentTarget);
+    node = do_QueryInterface(chromeEventHandler);
   }
   if (node)
     return MayHavePaintEventListener(node->GetOwnerDoc()->GetInnerWindow());
 
-  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(parentTarget);
+  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(chromeEventHandler);
   if (window)
     return MayHavePaintEventListener(window);
+
+  manager =
+    chromeEventHandler->GetListenerManager(PR_FALSE);
+  if (manager && manager->MayHavePaintEventListener())
+    return PR_TRUE;
 
   return PR_FALSE;
 }

@@ -129,7 +129,6 @@ class nsIBidiKeyboard;
 class nsIMIMEHeaderParam;
 class nsIObserver;
 class nsPresContext;
-class nsIChannel;
 
 #ifndef have_PrefChangedFunc_typedef
 typedef int (*PR_CALLBACK PrefChangedFunc)(const char *, void *);
@@ -1524,8 +1523,6 @@ public:
    */
   static already_AddRefed<nsIDocument>
   GetDocumentFromScriptContext(nsIScriptContext *aScriptContext);
-
-  static PRBool CheckMayLoad(nsIPrincipal* aPrincipal, nsIChannel* aChannel);
 
   /**
    * The method checks whether the caller can access native anonymous content.

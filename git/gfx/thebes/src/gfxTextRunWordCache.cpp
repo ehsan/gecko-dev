@@ -122,9 +122,6 @@ public:
      */
     void RemoveTextRun(gfxTextRun *aTextRun);
 
-    /**
-     * Flush all cached runs. Use when a setting change makes them obsolete.
-     */
     void Flush() {
         mCache.Clear(); 
 #ifdef DEBUG

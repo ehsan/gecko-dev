@@ -749,6 +749,11 @@ HistoryMenu.prototype = {
     if (aEvent.target != aEvent.currentTarget)
       return;
 
+    let resultNode = this.result.root;
+    resultNode.containerOpen = true;
+    document.getElementById("endHistorySeparator").hidden =
+      resultNode.childCount == 0;
+
     this.toggleRecentlyClosedTabs();
     this.toggleRecentlyClosedWindows();
   },

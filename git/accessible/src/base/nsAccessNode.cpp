@@ -80,7 +80,7 @@
 
 nsIStringBundle *nsAccessNode::gStringBundle = 0;
 nsIStringBundle *nsAccessNode::gKeyStringBundle = 0;
-nsINode *nsAccessNode::gLastFocusedNode = nsnull;
+nsIDOMNode *nsAccessNode::gLastFocusedNode = 0;
 
 PRBool nsAccessNode::gIsCacheDisabled = PR_FALSE;
 PRBool nsAccessNode::gIsFormFillEnabled = PR_FALSE;
@@ -109,9 +109,8 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE_FULL(nsAccessNode, nsIAccessNode,
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccessNode construction/desctruction
 
-nsAccessNode::
-  nsAccessNode(nsIContent *aContent, nsIWeakReference *aShell) :
-  mContent(aContent), mWeakShell(aShell)
+nsAccessNode::nsAccessNode(nsIDOMNode *aNode, nsIWeakReference* aShell): 
+  mDOMNode(aNode), mWeakShell(aShell)
 {
 #ifdef DEBUG_A11Y
   mIsInitialized = PR_FALSE;
@@ -137,38 +136,79 @@ void nsAccessNode::LastRelease()
 ////////////////////////////////////////////////////////////////////////////////
 // nsAccessNode public
 
-PRBool
+nsresult
 nsAccessNode::Init()
 {
-  return PR_TRUE;
+  // We have to put this here, instead of constructor, otherwise
+  // we don't have the virtual GetUniqueID() method for the hash key.
+  // We need that for accessibles that don't have DOM nodes
+
+#ifdef DEBUG_A11Y
+  NS_ASSERTION(!mIsInitialized, "Initialized twice!");
+#endif
+  nsDocAccessible *docAcc = nsnull;
+  nsCOMPtr<nsIPresShell> presShell(do_QueryReferent(mWeakShell));
+  if (presShell)
+    docAcc = GetAccService()->GetDocAccessible(presShell->GetDocument());
+
+  NS_ASSERTION(docAcc, "Cannot cache new nsAccessNode");
+  if (!docAcc) {
+#ifdef DEBUG
+    docAcc = GetAccService()->GetDocAccessible(presShell->GetDocument());
+#endif
+    return NS_ERROR_FAILURE;
+  }
+
+  void* uniqueID;
+  GetUniqueID(&uniqueID);
+
+  if (!docAcc->CacheAccessNode(uniqueID, this))
+    return NS_ERROR_OUT_OF_MEMORY;
+
+  // Make sure an ancestor in real content is cached
+  // so that nsDocAccessible::RefreshNodes() can find the anonymous subtree to release when
+  // the root node goes away
+  nsCOMPtr<nsIContent> content = do_QueryInterface(mDOMNode);
+  if (content && content->IsInAnonymousSubtree()) {
+    // Specific examples of where this is used: <input type="file"> and <xul:findbar>
+    nsAccessible *parent = GetAccService()->GetContainerAccessible(mDOMNode,
+                                                                   PR_TRUE);
+    if (parent)
+      parent->EnsureChildren();
+  }
+
+#ifdef DEBUG_A11Y
+  mIsInitialized = PR_TRUE;
+#endif
+
+  return NS_OK;
 }
 
 
-void
+nsresult
 nsAccessNode::Shutdown()
 {
-  mContent = nsnull;
+  mDOMNode = nsnull;
   mWeakShell = nsnull;
+
+  return NS_OK;
 }
 
 // nsIAccessNode
 NS_IMETHODIMP nsAccessNode::GetUniqueID(void **aUniqueID)
 {
-  *aUniqueID = static_cast<void*>(GetNode());
+  *aUniqueID = static_cast<void*>(mDOMNode);
   return NS_OK;
 }
 
 // nsIAccessNode
-NS_IMETHODIMP
-nsAccessNode::GetOwnerWindow(void **aWindow)
+NS_IMETHODIMP nsAccessNode::GetOwnerWindow(void **aWindow)
 {
-  NS_ENSURE_ARG_POINTER(aWindow);
   *aWindow = nsnull;
-
-  if (IsDefunct())
-    return NS_ERROR_FAILURE;
-
-  return GetDocAccessible()->GetWindowHandle(aWindow);
+  nsCOMPtr<nsIAccessibleDocument> docAccessible(GetDocAccessible());
+  if (!docAccessible)
+    return NS_ERROR_FAILURE; // This node or doc accessible is shut down
+  return docAccessible->GetWindowHandle(aWindow);
 }
 
 nsApplicationAccessible*
@@ -260,7 +300,7 @@ void nsAccessNode::ShutdownXPAccessibility()
 PRBool
 nsAccessNode::IsDefunct()
 {
-  if (!mContent)
+  if (!mDOMNode)
     return PR_TRUE;
 
   // Call GetPresShell() since the accessible may be shut down in it.
@@ -295,18 +335,11 @@ nsPresContext* nsAccessNode::GetPresContext()
   return presShell->GetPresContext();
 }
 
-nsDocAccessible *
-nsAccessNode::GetDocAccessible() const
-{
-  return mContent ?
-    GetAccService()->GetDocAccessible(mContent->GetOwnerDoc()) : nsnull;
-}
-
 already_AddRefed<nsRootAccessible> nsAccessNode::GetRootAccessible()
 {
   nsCOMPtr<nsIDocShellTreeItem> docShellTreeItem =
-    nsCoreUtils::GetDocShellTreeItemFor(mContent);
-  NS_ASSERTION(docShellTreeItem, "No docshell tree item for mContent");
+    nsCoreUtils::GetDocShellTreeItemFor(mDOMNode);
+  NS_ASSERTION(docShellTreeItem, "No docshell tree item for mDOMNode");
   if (!docShellTreeItem) {
     return nsnull;
   }
@@ -325,21 +358,47 @@ already_AddRefed<nsRootAccessible> nsAccessNode::GetRootAccessible()
 nsIFrame*
 nsAccessNode::GetFrame()
 {
-  return mContent ? mContent->GetPrimaryFrame() : nsnull;
+  nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
+  return content ? content->GetPrimaryFrame() : nsnull;
 }
+
+#ifdef DEBUG
+PRBool
+nsAccessNode::IsInCache()
+{
+  nsDocAccessible *docAccessible = nsAccUtils::GetDocAccessibleFor(mWeakShell);
+  if (!docAccessible)
+    return nsnull;
+
+  void* uniqueID = nsnull;
+  GetUniqueID(&uniqueID);
+
+  return docAccessible->GetCachedAccessNode(uniqueID) ? PR_TRUE : PR_FALSE;
+}
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsIAccessNode
 
 NS_IMETHODIMP
-nsAccessNode::GetDOMNode(nsIDOMNode **aDOMNode)
+nsAccessNode::GetDOMNode(nsIDOMNode **aNode)
 {
-  NS_ENSURE_ARG_POINTER(aDOMNode);
-  *aDOMNode = nsnull;
+  NS_IF_ADDREF(*aNode = mDOMNode);
+  return NS_OK;
+}
 
-  nsINode *node = GetNode();
-  if (node)
-    CallQueryInterface(node, aDOMNode);
+NS_IMETHODIMP
+nsAccessNode::GetNumChildren(PRInt32 *aNumChildren)
+{
+  nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
+
+  if (!content) {
+    *aNumChildren = 0;
+
+    return NS_ERROR_NULL_POINTER;
+  }
+
+  *aNumChildren = content->GetChildCount();
 
   return NS_OK;
 }
@@ -349,7 +408,7 @@ nsAccessNode::GetDocument(nsIAccessibleDocument **aDocument)
 {
   NS_ENSURE_ARG_POINTER(aDocument);
 
-  NS_IF_ADDREF(*aDocument = GetDocAccessible());
+  NS_IF_ADDREF(*aDocument = nsAccUtils::GetDocAccessibleFor(mWeakShell));
   return NS_OK;
 }
 
@@ -368,7 +427,7 @@ nsAccessNode::GetInnerHTML(nsAString& aInnerHTML)
 {
   aInnerHTML.Truncate();
 
-  nsCOMPtr<nsIDOMNSHTMLElement> domNSElement(do_QueryInterface(mContent));
+  nsCOMPtr<nsIDOMNSHTMLElement> domNSElement(do_QueryInterface(mDOMNode));
   NS_ENSURE_TRUE(domNSElement, NS_ERROR_NULL_POINTER);
 
   return domNSElement->GetInnerHTML(aInnerHTML);
@@ -413,6 +472,114 @@ nsAccessNode::ScrollToPoint(PRUint32 aCoordinateType, PRInt32 aX, PRInt32 aY)
   return NS_OK;
 }
 
+// nsAccessNode protected
+nsresult
+nsAccessNode::MakeAccessNode(nsIDOMNode *aNode, nsIAccessNode **aAccessNode)
+{
+  *aAccessNode = nsnull;
+  
+  nsCOMPtr<nsIAccessNode> accessNode =
+    GetAccService()->GetCachedAccessNode(aNode, mWeakShell);
+
+  if (!accessNode)
+    accessNode = GetAccService()->GetAccessibleInWeakShell(aNode, mWeakShell);
+
+  if (accessNode) {
+    NS_ADDREF(*aAccessNode = accessNode);
+    return NS_OK;
+  }
+
+  nsAccessNode *newAccessNode = new nsAccessNode(aNode, mWeakShell);
+  if (!newAccessNode) {
+    return NS_ERROR_OUT_OF_MEMORY;
+  }
+
+  NS_ADDREF(*aAccessNode = newAccessNode);
+  newAccessNode->Init();
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsAccessNode::GetFirstChildNode(nsIAccessNode **aAccessNode)
+{
+  NS_ENSURE_ARG_POINTER(aAccessNode);
+  *aAccessNode = nsnull;
+  NS_ENSURE_TRUE(mDOMNode, NS_ERROR_NULL_POINTER);
+
+  nsCOMPtr<nsIDOMNode> domNode;
+  mDOMNode->GetFirstChild(getter_AddRefs(domNode));
+
+  return domNode ? MakeAccessNode(domNode, aAccessNode) : NS_OK;
+}
+
+NS_IMETHODIMP
+nsAccessNode::GetLastChildNode(nsIAccessNode **aAccessNode)
+{
+  NS_ENSURE_ARG_POINTER(aAccessNode);
+  *aAccessNode = nsnull;
+  NS_ENSURE_TRUE(mDOMNode, NS_ERROR_NULL_POINTER);
+
+  nsCOMPtr<nsIDOMNode> domNode;
+  mDOMNode->GetLastChild(getter_AddRefs(domNode));
+
+  return domNode ? MakeAccessNode(domNode, aAccessNode) : NS_OK;
+}
+
+NS_IMETHODIMP
+nsAccessNode::GetParentNode(nsIAccessNode **aAccessNode)
+{
+  NS_ENSURE_ARG_POINTER(aAccessNode);
+  *aAccessNode = nsnull;
+  NS_ENSURE_TRUE(mDOMNode, NS_ERROR_NULL_POINTER);
+
+  nsCOMPtr<nsIDOMNode> domNode;
+  mDOMNode->GetParentNode(getter_AddRefs(domNode));
+
+  return domNode ? MakeAccessNode(domNode, aAccessNode) : NS_OK;
+}
+
+NS_IMETHODIMP
+nsAccessNode::GetPreviousSiblingNode(nsIAccessNode **aAccessNode)
+{
+  NS_ENSURE_ARG_POINTER(aAccessNode);
+  *aAccessNode = nsnull;
+  NS_ENSURE_TRUE(mDOMNode, NS_ERROR_NULL_POINTER);
+
+  nsCOMPtr<nsIDOMNode> domNode;
+  mDOMNode->GetPreviousSibling(getter_AddRefs(domNode));
+
+  return domNode ? MakeAccessNode(domNode, aAccessNode) : NS_OK;
+}
+
+NS_IMETHODIMP
+nsAccessNode::GetNextSiblingNode(nsIAccessNode **aAccessNode)
+{
+  NS_ENSURE_ARG_POINTER(aAccessNode);
+  *aAccessNode = nsnull;
+  NS_ENSURE_TRUE(mDOMNode, NS_ERROR_NULL_POINTER);
+
+  nsCOMPtr<nsIDOMNode> domNode;
+  mDOMNode->GetNextSibling(getter_AddRefs(domNode));
+
+  return domNode ? MakeAccessNode(domNode, aAccessNode) : NS_OK;
+}
+
+NS_IMETHODIMP
+nsAccessNode::GetChildNodeAt(PRInt32 aChildNum, nsIAccessNode **aAccessNode)
+{
+  NS_ENSURE_ARG_POINTER(aAccessNode);
+  *aAccessNode = nsnull;
+
+  nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
+  NS_ENSURE_TRUE(content, NS_ERROR_NULL_POINTER);
+
+  nsCOMPtr<nsIDOMNode> domNode =
+    do_QueryInterface(content->GetChildAt(aChildNum));
+
+  return domNode ? MakeAccessNode(domNode, aAccessNode) : NS_OK;
+}
+
 NS_IMETHODIMP
 nsAccessNode::GetComputedStyleValue(const nsAString& aPseudoElt,
                                     const nsAString& aPropertyName,
@@ -421,8 +588,9 @@ nsAccessNode::GetComputedStyleValue(const nsAString& aPseudoElt,
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  nsCOMPtr<nsIDOMCSSStyleDeclaration> styleDecl =
-    nsCoreUtils::GetComputedStyleDeclaration(aPseudoElt, mContent);
+  nsCOMPtr<nsIDOMCSSStyleDeclaration> styleDecl;
+  nsCoreUtils::GetComputedStyleDeclaration(aPseudoElt, mDOMNode,
+                                           getter_AddRefs(styleDecl));
   NS_ENSURE_TRUE(styleDecl, NS_ERROR_FAILURE);
 
   return styleDecl->GetPropertyValue(aPropertyName, aValue);
@@ -439,8 +607,9 @@ nsAccessNode::GetComputedStyleCSSValue(const nsAString& aPseudoElt,
   if (IsDefunct())
     return NS_ERROR_FAILURE;
 
-  nsCOMPtr<nsIDOMCSSStyleDeclaration> styleDecl =
-    nsCoreUtils::GetComputedStyleDeclaration(aPseudoElt, mContent);
+  nsCOMPtr<nsIDOMCSSStyleDeclaration> styleDecl;
+  nsCoreUtils::GetComputedStyleDeclaration(aPseudoElt, mDOMNode,
+                                           getter_AddRefs(styleDecl));
   NS_ENSURE_STATE(styleDecl);
 
   nsCOMPtr<nsIDOMCSSValue> cssValue;
@@ -451,14 +620,11 @@ nsAccessNode::GetComputedStyleCSSValue(const nsAString& aPseudoElt,
 }
 
 // nsAccessNode public
-already_AddRefed<nsINode>
-nsAccessNode::GetCurrentFocus()
+already_AddRefed<nsIDOMNode> nsAccessNode::GetCurrentFocus()
 {
-  // XXX: consider to use nsFocusManager directly, it allows us to avoid
-  // unnecessary query interface calls.
-  nsCOMPtr<nsIPresShell> shell = GetPresShell();
+  nsIPresShell *shell = nsCoreUtils::GetPresShellFor(mDOMNode);
   NS_ENSURE_TRUE(shell, nsnull);
-  nsIDocument *doc = shell->GetDocument();
+  nsCOMPtr<nsIDocument> doc = shell->GetDocument();
   NS_ENSURE_TRUE(doc, nsnull);
 
   nsIDOMWindow* win = doc->GetWindow();
@@ -470,7 +636,7 @@ nsAccessNode::GetCurrentFocus()
     fm->GetFocusedElementForWindow(win, PR_TRUE, getter_AddRefs(focusedWindow),
                                    getter_AddRefs(focusedElement));
 
-  nsINode *focusedNode = nsnull;
+  nsIDOMNode *focusedNode = nsnull;
   if (focusedElement) {
     CallQueryInterface(focusedElement, &focusedNode);
   }
@@ -488,18 +654,47 @@ NS_IMETHODIMP
 nsAccessNode::GetLanguage(nsAString& aLanguage)
 {
   aLanguage.Truncate();
+  nsCOMPtr<nsIContent> content(do_QueryInterface(mDOMNode));
+  if (!content) {
+    // For documents make sure we look for lang attribute on
+    // document element
+    nsCOMPtr<nsIDOMDocument> domDoc(do_QueryInterface(mDOMNode));
+    if (domDoc) {
+      nsCOMPtr<nsIDOMHTMLDocument> htmlDoc(do_QueryInterface(mDOMNode));
+      if (htmlDoc) {
+        // Make sure we look for lang attribute on HTML <body>
+        nsCOMPtr<nsIDOMHTMLElement> bodyElement;
+        htmlDoc->GetBody(getter_AddRefs(bodyElement));
+        content = do_QueryInterface(bodyElement);
+      }
+      if (!content) {
+        nsCOMPtr<nsIDOMElement> docElement;
+        domDoc->GetDocumentElement(getter_AddRefs(docElement));
+        content = do_QueryInterface(docElement);
+      }
+    }
+    if (!content) {
+      return NS_ERROR_FAILURE;
+    }
+  }
 
-  if (IsDefunct())
-    return NS_ERROR_FAILURE;
-
-  nsCoreUtils::GetLanguageFor(mContent, nsnull, aLanguage);
+  nsCoreUtils::GetLanguageFor(content, nsnull, aLanguage);
 
   if (aLanguage.IsEmpty()) { // Nothing found, so use document's language
-    nsIDocument *doc = mContent->GetOwnerDoc();
+    nsIDocument *doc = content->GetOwnerDoc();
     if (doc) {
       doc->GetHeaderData(nsAccessibilityAtoms::headerContentLanguage, aLanguage);
     }
   }
  
   return NS_OK;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// nsAccessNode protected
+
+nsDocAccessible*
+nsAccessNode::GetDocAccessible() const
+{
+  return nsAccUtils::GetDocAccessibleFor(mWeakShell);
 }

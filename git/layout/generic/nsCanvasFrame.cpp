@@ -292,10 +292,6 @@ public:
   nsDisplayCanvasFocus(nsCanvasFrame *aFrame)
     : nsDisplayItem(aFrame)
   {
-    MOZ_COUNT_CTOR(nsDisplayCanvasFocus);
-  }
-  virtual ~nsDisplayCanvasFocus() {
-    MOZ_COUNT_DTOR(nsDisplayCanvasFocus);
   }
 
   virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder)

@@ -1,8 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" version="1.1"
      xmlns:xlink="http://www.w3.org/1999/xlink"
      onload="document.getElementById('link1').removeAttribute('xlink:href');
-             document.getElementById('link2').setAttributeNS('http://www.w3.org/1999/xlink', 'href', 'http://example.com/1');
-             document.getElementById('link3').setAttributeNS('http://www.w3.org/1999/xlink', 'href', '');">
+             document.getElementById('link2').setAttributeNS('http://www.w3.org/1999/xlink', 'href', 'http://example.com/1');">
 
   <title>Test for bug 549797 - Removing href attribute doesn't remove link styling</title>
 
@@ -11,7 +10,7 @@
 a {
   fill: blue;
 }
-a:link, a:visited {
+a:link {
   fill: red;
 }
   ]]>
@@ -22,11 +21,7 @@ a:link, a:visited {
   </a>
 
   <a id="link2">
-    <text x="10" y="200">Test anchor 2</text>
-  </a>
-
-  <a id="link3">
-    <text x="10" y="300">Test anchor 3</text>
+    <text x="10" y="100">Test anchor 2</text>
   </a>
 
 </svg>

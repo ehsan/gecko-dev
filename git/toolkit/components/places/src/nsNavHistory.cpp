@@ -5724,18 +5724,19 @@ nsNavHistory::Observe(nsISupports *aSubject, const char *aTopic,
   NS_ASSERTION(NS_IsMainThread(), "This can only be called on the main thread");
 
   if (strcmp(aTopic, TOPIC_GLOBAL_SHUTDOWN) == 0) {
-    nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
-    if (!os) {
-      NS_WARNING("Unable to shutdown Places: Observer Service unavailable.");
-      return NS_OK;
-    }
-
-    (void)os->RemoveObserver(this, TOPIC_GLOBAL_SHUTDOWN);
-    (void)os->RemoveObserver(this, NS_PRIVATE_BROWSING_SWITCH_TOPIC);
-    (void)os->RemoveObserver(this, TOPIC_IDLE_DAILY);
+    nsCOMPtr<nsIObserverService> os =
+      do_GetService(NS_OBSERVERSERVICE_CONTRACTID);
+    if (os) {
+      os->RemoveObserver(this, NS_PRIVATE_BROWSING_SWITCH_TOPIC);
+      os->RemoveObserver(this, TOPIC_IDLE_DAILY);
+      os->RemoveObserver(this, TOPIC_GLOBAL_SHUTDOWN);
 #ifdef MOZ_XUL
-    (void)os->RemoveObserver(this, TOPIC_AUTOCOMPLETE_FEEDBACK_INCOMING);
+      os->RemoveObserver(this, TOPIC_AUTOCOMPLETE_FEEDBACK_INCOMING);
 #endif
+
+      // Notify that Places is shutting down.
+      os->NotifyObservers(nsnull, TOPIC_PLACES_SHUTDOWN, nsnull);
+    }
 
     // If shutdown happens in the same scope as the service init, we should
     // immediately serve the places-init topic, this way topic observers
@@ -5752,37 +5753,14 @@ nsNavHistory::Observe(nsISupports *aSubject, const char *aTopic,
 
       nsCOMPtr<nsIObserver> observer;
       PRBool loop = PR_TRUE;
-      while(NS_SUCCEEDED(e->HasMoreElements(&loop)) && loop) {
+      while(NS_SUCCEEDED(e->HasMoreElements(&loop)) && loop)
+      {
         e->GetNext(getter_AddRefs(observer));
-        (void)observer->Observe(observer, TOPIC_PLACES_INIT_COMPLETE, nsnull);
+        rv = observer->Observe(observer,
+                               TOPIC_PLACES_INIT_COMPLETE,
+                               nsnull);
       }
     }
-
-    // Notify all Places users that we are about to shutdown.  The notification
-    // is enqueued because there is network work on profile-before-change that
-    // should run before us.
-    nsRefPtr<PlacesEvent> shutdownEvent =
-      new PlacesEvent(TOPIC_PLACES_SHUTDOWN);
-    rv = NS_DispatchToMainThread(shutdownEvent);
-    NS_WARN_IF_FALSE(NS_SUCCEEDED(rv),
-                     "Unable to shutdown Places: message dispatch failed.");
-
-    // Once everybody has been notified, proceed with the real shutdown.
-    (void)os->AddObserver(this, TOPIC_PLACES_TEARDOWN, PR_FALSE);
-    nsRefPtr<PlacesEvent> teardownEvent =
-      new PlacesEvent(TOPIC_PLACES_TEARDOWN);
-    rv = NS_DispatchToMainThread(teardownEvent);
-    NS_WARN_IF_FALSE(NS_SUCCEEDED(rv),
-                     "Unable to shutdown Places: message dispatch failed.");
-  }
-
-  else if (strcmp(aTopic, TOPIC_PLACES_TEARDOWN) == 0) {
-    // Operations that are unlikely to create issues to implementers should go
-    // in global shutdown.  Any other thing that must run really late must be
-    // here instead.
-    nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
-    if (os)
-      (void)os->RemoveObserver(this, TOPIC_PLACES_TEARDOWN);
 
     // Stop observing preferences changes.
     if (mPrefBranch)
@@ -5806,13 +5784,12 @@ nsNavHistory::Observe(nsISupports *aSubject, const char *aTopic,
 #endif
 
     // Finalize all statements.
-    nsresult rv = FinalizeInternalStatements();
+    rv = FinalizeInternalStatements();
     NS_ENSURE_SUCCESS(rv, rv);
 
     // NOTE: We don't close the connection because the sync service could still
     // need it for a final flush.
   }
-
 #ifdef MOZ_XUL
   else if (strcmp(aTopic, TOPIC_AUTOCOMPLETE_FEEDBACK_INCOMING) == 0) {
     nsCOMPtr<nsIAutoCompleteInput> input = do_QueryInterface(aSubject);
@@ -5846,12 +5823,10 @@ nsNavHistory::Observe(nsISupports *aSubject, const char *aTopic,
     rv = AutoCompleteFeedback(selectedIndex, controller);
     NS_ENSURE_SUCCESS(rv, rv);
   }
-
 #endif
   else if (strcmp(aTopic, TOPIC_PREF_CHANGED) == 0) {
     LoadPrefs();
   }
-
   else if (strcmp(aTopic, TOPIC_IDLE_DAILY) == 0) {
     // Ensure our connection is still alive.  The idle-daily observer is removed
     // on shutdown, but we could have closed the connection earlier due
@@ -5861,7 +5836,6 @@ nsNavHistory::Observe(nsISupports *aSubject, const char *aTopic,
     (void)DecayFrecency();
     (void)VacuumDatabase();
   }
-
   else if (strcmp(aTopic, NS_PRIVATE_BROWSING_SWITCH_TOPIC) == 0) {
     if (NS_LITERAL_STRING(NS_PRIVATE_BROWSING_ENTER).Equals(aData)) {
 #ifdef LAZY_ADD
@@ -5886,7 +5860,6 @@ nsNavHistory::Observe(nsISupports *aSubject, const char *aTopic,
       mInPrivateBrowsing = PR_FALSE;
     }
   }
-
   else if (strcmp(aTopic, TOPIC_PLACES_INIT_COMPLETE) == 0) {
     nsCOMPtr<nsIObserverService> os =
       do_GetService(NS_OBSERVERSERVICE_CONTRACTID);

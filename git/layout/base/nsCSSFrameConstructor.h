@@ -48,12 +48,12 @@
 #include "nsIXBLService.h"
 #include "nsQuoteList.h"
 #include "nsCounterManager.h"
+#include "nsDataHashtable.h"
 #include "nsHashKeys.h"
 #include "nsThreadUtils.h"
 #include "nsPageContentFrame.h"
 #include "nsCSSPseudoElements.h"
 #include "nsRefreshDriver.h"
-#include "RestyleTracker.h"
 
 class nsIDocument;
 struct nsFrameItems;
@@ -83,7 +83,6 @@ class nsCSSFrameConstructor : public nsARefreshObserver
 {
 public:
   typedef mozilla::dom::Element Element;
-  typedef mozilla::css::RestyleTracker RestyleTracker;
 
   nsCSSFrameConstructor(nsIDocument *aDocument, nsIPresShell* aPresShell);
   ~nsCSSFrameConstructor(void) {
@@ -303,7 +302,17 @@ public:
 
 private:
 
-  friend class mozilla::css::RestyleTracker;
+  // Note: It's the caller's responsibility to make sure to wrap a
+  // ProcessOneRestyle call in a view update batch.
+  // This function does not call ProcessAttachedQueue() on the binding manager.
+  // If the caller wants that to happen synchronously, it needs to handle that
+  // itself.
+  void ProcessOneRestyle(Element* aElement,
+                         nsRestyleHint aRestyleHint,
+                         nsChangeHint aChangeHint);
+
+  void ProcessPendingRestyleTable(
+           nsDataHashtable<nsISupportsHashKey, RestyleData>& aRestyles);
 
   void RestyleForEmptyChange(Element* aContainer);
 
@@ -452,9 +461,9 @@ private:
   // XXXbz do we really need the aPrimaryFrame argument here?
   void RestyleElement(Element* aElement,
                       nsIFrame*       aPrimaryFrame,
-                      nsChangeHint    aMinHint,
-                      RestyleTracker& aRestyleTracker,
-                      PRBool          aRestyleDescendants);
+                      nsChangeHint    aMinHint);
+
+  void RestyleLaterSiblings(Element* aElement);
 
   nsresult InitAndRestoreFrame (const nsFrameConstructorState& aState,
                                 nsIContent*                    aContent,
@@ -1828,6 +1837,15 @@ private:
 
 public:
 
+  struct RestyleData {
+    nsRestyleHint mRestyleHint;  // What we want to restyle
+    nsChangeHint  mChangeHint;   // The minimal change hint for "self"
+  };
+
+  struct RestyleEnumerateData : public RestyleData {
+    nsCOMPtr<Element> mElement;
+  };
+
   friend class nsFrameConstructorState;
 
 private:
@@ -1892,8 +1910,8 @@ private:
 
   nsCOMPtr<nsILayoutHistoryState> mTempFrameTreeState;
 
-  RestyleTracker mPendingRestyles;
-  RestyleTracker mPendingAnimationRestyles;
+  nsDataHashtable<nsISupportsHashKey, RestyleData> mPendingRestyles;
+  nsDataHashtable<nsISupportsHashKey, RestyleData> mPendingAnimationRestyles;
 
   static nsIXBLService * gXBLService;
 };

@@ -48,8 +48,6 @@
 
 class nsDocAccessible;
 
-//#define DEBUG_ACCDOCMGR
-
 /**
  * Manage the document accessible life cycle.
  */
@@ -82,14 +80,6 @@ public:
    */
   void ShutdownDocAccessiblesInTree(nsIDocument *aDocument);
 
-  /**
-   * Return document accessible from the cache. Convenient method for testing.
-   */
-  inline nsDocAccessible* GetDocAccessibleFromCache(nsIDocument* aDocument) const
-  {
-    return mDocAccessibleCache.GetWeak(static_cast<void*>(aDocument));
-  }
-
 protected:
   nsAccDocManager() { };
 
@@ -102,11 +92,6 @@ protected:
    * Shutdown the manager.
    */
   void Shutdown();
-
-  /**
-   * Shutdown the document accessible.
-   */
-  void ShutdownDocAccessible(nsIDocument* aDocument);
 
 private:
   nsAccDocManager(const nsAccDocManager&);
@@ -147,9 +132,10 @@ private:
   PRBool IsEventTargetDocument(nsIDocument *aDocument) const;
 
   /**
-   * Add 'pagehide' and 'DOMContentLoaded' event listeners.
+   * Add/remove 'pagehide' and 'DOMContentLoaded' event listeners.
    */
   void AddListeners(nsIDocument *aDocument, PRBool aAddPageShowListener);
+  void RemoveListeners(nsIDocument *aDocument);
 
   /**
    * Create document or root accessible.
@@ -161,6 +147,11 @@ private:
    */
   void ShutdownDocAccessiblesInTree(nsIDocShellTreeItem *aTreeItem,
                                     nsIDocument *aDocument);
+
+  /**
+   * Shutdown the document accessible.
+   */
+  void ShutdownDocAccessible(nsIDocument *aDocument);
 
   typedef nsRefPtrHashtable<nsVoidPtrHashKey, nsDocAccessible>
     nsDocAccessibleHashtable;
@@ -183,7 +174,7 @@ private:
 
   struct nsSearchAccessibleInCacheArg
   {
-    nsAccessible *mAccessible;
+    nsRefPtr<nsAccessible> mAccessible;
     void *mUniqueID;
   };
 
@@ -198,6 +189,8 @@ private:
 /**
  * nsAccDocManager debugging macros.
  */
+//#define DEBUG_ACCDOCMGR
+
 #ifdef DEBUG_ACCDOCMGR
 
 // Enable these to log accessible document loading, creation or destruction.
@@ -207,7 +200,9 @@ private:
 
 // Common macros, do not use directly.
 #define NS_LOG_ACCDOC_ADDRESS(aDocument, aDocAcc)                              \
-  printf("DOM id: %p, acc id: %p", aDocument, aDocAcc);
+  printf("DOM id: 0x%x, acc id: 0x%x",                                         \
+         reinterpret_cast<PRInt32>(static_cast<void*>(aDocument)),             \
+         reinterpret_cast<PRInt32>(aDocAcc));
 
 #define NS_LOG_ACCDOC_URI(aDocument)                                           \
   nsIURI *uri = aDocument->GetDocumentURI();                                   \
@@ -260,18 +255,19 @@ private:
 
 #define NS_LOG_ACCDOC_DOCPRESSHELL(aDocument)                                  \
   nsIPresShell *ps = aDocument->GetPrimaryShell();                             \
-  printf("presshell: %p", ps);                                                 \
+  printf("presshell: 0x%x", reinterpret_cast<PRInt32>(ps));                    \
   nsIScrollableFrame *sf = ps ?                                                \
     ps->GetRootScrollFrameAsScrollableExternal() : nsnull;                     \
-  printf(", root scroll frame: %p", sf);
+  printf(", root scroll frame: 0x%x", reinterpret_cast<PRInt32>(sf));
 
 #define NS_LOG_ACCDOC_DOCLOADGROUP(aDocument)                                  \
   nsCOMPtr<nsILoadGroup> loadGroup = aDocument->GetDocumentLoadGroup();        \
-  printf("load group: %p", loadGroup);
+  printf("load group: 0x%x", reinterpret_cast<PRInt32>(loadGroup.get()));
 
 #define NS_LOG_ACCDOC_DOCPARENT(aDocument)                                     \
   nsIDocument *parentDoc = aDocument->GetParentDocument();                     \
-  printf("parent id: %p", parentDoc);                                          \
+  printf("parent id: 0x%x",                                                    \
+         reinterpret_cast<PRInt32>(parentDoc));                                \
   if (parentDoc) {                                                             \
     printf("\n    parent ");                                                   \
     NS_LOG_ACCDOC_URI(parentDoc)                                               \
@@ -386,30 +382,19 @@ private:
   } else if (type == nsIAccessibleEvent::EVENT_DOCUMENT_RELOAD) {              \
       strEventType.AssignLiteral("reload");                                    \
   } else if (type == nsIAccessibleEvent::EVENT_STATE_CHANGE) {                 \
-    nsAccStateChangeEvent *event = downcast_accEvent(aEvent);                  \
-    if (event->GetState() == nsIAccessibleStates::STATE_BUSY) {                \
+    nsCOMPtr<nsIAccessibleStateChangeEvent> event(do_QueryObject(aEvent));     \
+    PRUint32 state = 0;                                                        \
+    event->GetState(&state);                                                   \
+    if (state == nsIAccessibleStates::STATE_BUSY) {                            \
+      PRBool isEnabled;                                                        \
+      event->IsEnabled(&isEnabled);                                            \
       strEventType.AssignLiteral("busy ");                                     \
-      if (event->IsStateEnabled())                                             \
+      if (isEnabled)                                                           \
         strEventType.AppendLiteral("true");                                    \
       else                                                                     \
         strEventType.AppendLiteral("false");                                   \
     }                                                                          \
   }
-
-#define NS_LOG_ACCDOC_ACCADDRESS(aName, aAcc)                                  \
-  {                                                                            \
-    nsINode* node = aAcc->GetNode();                                           \
-    nsIDocument* doc = aAcc->GetDocumentNode();                                \
-    nsDocAccessible *docacc = GetAccService()->GetDocAccessibleFromCache(doc); \
-    printf("  " aName " accessible: %p, node: %p\n", aAcc, node);              \
-    printf("  docacc for " aName " accessible: %p, node: %p\n", docacc, doc);  \
-    printf("  ");                                                              \
-    NS_LOG_ACCDOC_URI(doc)                                                     \
-    printf("\n");                                                              \
-  }
-
-#define NS_LOG_ACCDOC_MSG(aMsg)                                                \
-  printf("\n" aMsg "\n");                                                      \
 
 #define NS_LOG_ACCDOC_TEXT(aMsg)                                               \
   printf("  " aMsg "\n");
@@ -445,7 +430,7 @@ private:
 
 #define NS_LOG_ACCDOCLOAD(aMsg, aWebProgress, aRequest, aStateFlags)           \
   {                                                                            \
-    NS_LOG_ACCDOC_MSG("A11Y DOCLOAD: " aMsg);                                  \
+    printf("\nA11Y DOCLOAD: " aMsg "\n");                                      \
                                                                                \
     nsCOMPtr<nsIDOMWindow> DOMWindow;                                          \
     aWebProgress->GetDOMWindow(getter_AddRefs(DOMWindow));                     \
@@ -455,7 +440,7 @@ private:
       if (DOMDocument) {                                                       \
         nsCOMPtr<nsIDocument> document(do_QueryInterface(DOMDocument));        \
         nsDocAccessible *docAcc =                                              \
-          GetAccService()->GetDocAccessibleFromCache(document);                \
+          mDocAccessibleCache.GetWeak(static_cast<void*>(document));           \
         NS_LOG_ACCDOC_DOCINFO(document, docAcc)                                \
                                                                                \
         printf("  {\n");                                                       \
@@ -477,9 +462,9 @@ private:
 
 #define NS_LOG_ACCDOCLOAD2(aMsg, aDocument)                                    \
   {                                                                            \
-    NS_LOG_ACCDOC_MSG("A11Y DOCLOAD: " aMsg);                                  \
+    printf("\nA11Y DOCLOAD: " aMsg "\n");                                      \
     nsDocAccessible *docAcc =                                                  \
-      GetAccService()->GetDocAccessibleFromCache(aDocument);                   \
+      mDocAccessibleCache.GetWeak(static_cast<void*>(aDocument));              \
     NS_LOG_ACCDOC_DOCINFO(aDocument, docAcc)                                   \
   }
 
@@ -510,18 +495,15 @@ private:
 // Accessible document creation macros.
 #ifdef DEBUG_ACCDOCMGR_DOCCREATE
 #define NS_LOG_ACCDOCCREATE_FOR(aMsg, aDocument, aDocAcc)                      \
-  NS_LOG_ACCDOC_MSG("A11Y DOCCREATE: " aMsg);                                  \
+  printf("\nA11Y DOCCREATE: " aMsg "\n");                                      \
   NS_LOG_ACCDOC_DOCINFO(aDocument, aDocAcc)
 
 #define NS_LOG_ACCDOCCREATE(aMsg, aDocument)                                   \
   {                                                                            \
     nsDocAccessible *docAcc =                                                  \
-      GetAccService()->GetDocAccessibleFromCache(aDocument);                   \
+      mDocAccessibleCache.GetWeak(static_cast<void*>(aDocument));              \
     NS_LOG_ACCDOCCREATE_FOR(aMsg, aDocument, docAcc)                           \
   }
-
-#define NS_LOG_ACCDOCCREATE_ACCADDRESS(aName, aAcc)                            \
-  NS_LOG_ACCDOC_ACCADDRESS(aName, aAcc)
 
 #define NS_LOG_ACCDOCCREATE_TEXT(aMsg)                                         \
     NS_LOG_ACCDOC_TEXT(aMsg)
@@ -531,24 +513,16 @@ private:
 // Accessible document destruction macros.
 #ifdef DEBUG_ACCDOCMGR_DOCDESTROY
 #define NS_LOG_ACCDOCDESTROY_FOR(aMsg, aDocument, aDocAcc)                     \
-  NS_LOG_ACCDOC_MSG("A11Y DOCDESTROY: " aMsg);                                 \
+  printf("\nA11Y DOCDESTROY: " aMsg "\n");                                     \
   NS_LOG_ACCDOC_DOCINFO(aDocument, aDocAcc)
 
 #define NS_LOG_ACCDOCDESTROY(aMsg, aDocument)                                  \
-  {                                                                            \
-    nsDocAccessible* docAcc =                                                  \
-      GetAccService()->GetDocAccessibleFromCache(aDocument);                   \
-    NS_LOG_ACCDOCDESTROY_FOR(aMsg, aDocument, docAcc)                          \
-  }
+  nsDocAccessible *docAcc =                                                    \
+    mDocAccessibleCache.GetWeak(static_cast<void*>(aDocument));                \
+  NS_LOG_ACCDOCDESTROY_FOR(aMsg, aDocument, docAcc)
 
-#define NS_LOG_ACCDOCDESTROY_ACCADDRESS(aName, aAcc)                           \
-  NS_LOG_ACCDOC_ACCADDRESS(aName, aAcc)
-
-#define NS_LOG_ACCDOCDESTROY_MSG(aMsg)                                         \
-  NS_LOG_ACCDOC_MSG(aMsg)
-
-#define NS_LOG_ACCDOCDESTROY_TEXT(aMsg)                                        \
-  NS_LOG_ACCDOC_TEXT(aMsg)
+#define NS_LOG_ACCDOCDESTROY_TEXT(aMsg)                                       \
+    NS_LOG_ACCDOC_TEXT(aMsg)
 
 #endif // DEBUG_ACCDOCMGR_DOCDESTROY
 
@@ -566,15 +540,12 @@ private:
 #ifndef DEBUG_ACCDOCMGR_DOCCREATE
 #define NS_LOG_ACCDOCCREATE_FOR(aMsg, aDocument, aDocAcc)
 #define NS_LOG_ACCDOCCREATE(aMsg, aDocument)
-#define NS_LOG_ACCDOCCREATE_ACCADDRESS(aName, aAcc)
 #define NS_LOG_ACCDOCCREATE_TEXT(aMsg)
 #endif
 
 #ifndef DEBUG_ACCDOCMGR_DOCDESTROY
 #define NS_LOG_ACCDOCDESTROY_FOR(aMsg, aDocument, aDocAcc)
 #define NS_LOG_ACCDOCDESTROY(aMsg, aDocument)
-#define NS_LOG_ACCDOCDESTROY_MSG(aMsg)
-#define NS_LOG_ACCDOCDESTROY_ACCADDRESS(aName, aAcc)
 #define NS_LOG_ACCDOCDESTROY_TEXT(aMsg)
 #endif
 

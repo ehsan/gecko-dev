@@ -3299,6 +3299,17 @@ nsGfxScrollFrameInner::GetCoordAttribute(nsIBox* aBox, nsIAtom* atom, PRInt32 de
   return defaultValue;
 }
 
+static nsIURI* GetDocURI(nsIFrame* aFrame)
+{
+  nsIPresShell* shell = aFrame->PresContext()->GetPresShell();
+  if (!shell)
+    return nsnull;
+  nsIDocument* doc = shell->GetDocument();
+  if (!doc)
+    return nsnull;
+  return doc->GetDocumentURI();
+}
+
 nsPresState*
 nsGfxScrollFrameInner::SaveState(nsIStatefulFrame::SpecialStateID aStateID)
 {

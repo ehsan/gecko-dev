@@ -80,30 +80,6 @@ nsPlaceholderFrame::GetPrefWidth(nsIRenderingContext *aRenderingContext)
   return result;
 }
 
-/* virtual */ nsSize
-nsPlaceholderFrame::GetMinSize(nsBoxLayoutState& aBoxLayoutState)
-{
-  nsSize size(0, 0);
-  DISPLAY_MIN_SIZE(this, size);
-  return size;
-}
-
-/* virtual */ nsSize
-nsPlaceholderFrame::GetPrefSize(nsBoxLayoutState& aBoxLayoutState)
-{
-  nsSize size(0, 0);
-  DISPLAY_PREF_SIZE(this, size);
-  return size;
-}
-
-/* virtual */ nsSize
-nsPlaceholderFrame::GetMaxSize(nsBoxLayoutState& aBoxLayoutState)
-{
-  nsSize size(NS_INTRINSICSIZE, NS_INTRINSICSIZE);
-  DISPLAY_MAX_SIZE(this, size);
-  return size;
-}
-
 /* virtual */ void
 nsPlaceholderFrame::AddInlineMinWidth(nsIRenderingContext *aRenderingContext,
                                       nsIFrame::InlineMinWidthData *aData)
@@ -264,7 +240,7 @@ nsPlaceholderFrame::List(FILE* out, PRInt32 aIndent) const
   }
   fprintf(out, " {%d,%d,%d,%d}", mRect.x, mRect.y, mRect.width, mRect.height);
   if (0 != mState) {
-    fprintf(out, " [state=%016llx]", mState);
+    fprintf(out, " [state=%08x]", mState);
   }
   nsIFrame* prevInFlow = GetPrevInFlow();
   nsIFrame* nextInFlow = GetNextInFlow();

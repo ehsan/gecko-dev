@@ -42,7 +42,6 @@
 #include "nsIWidget.h"
 #include "nsDirectoryServiceUtils.h"
 #include "nsAppDirectoryServiceDefs.h"
-#include "nsIConsoleService.h"
 #include "nsIPrefService.h"
 #include "gfxASurface.h"
 #include "gfxImageSurface.h"
@@ -58,15 +57,6 @@
 
 namespace mozilla {
 namespace gl {
-
-static void LogMessage(const char *msg)
-{
-  nsCOMPtr<nsIConsoleService> console(do_GetService(NS_CONSOLESERVICE_CONTRACTID));
-  if (console) {
-    console->LogStringMessage(NS_ConvertUTF8toUTF16(nsDependentCString(msg)).get());
-    fprintf(stderr, "%s\n", msg);
-  }
-}
 
 typedef void* PrivateOSMesaContext;
 
@@ -126,7 +116,7 @@ OSMesaLibrary::EnsureInitialized()
     mOSMesaLibrary = PR_LoadLibrary(osmesalib.get());
 
     if (!mOSMesaLibrary) {
-        LogMessage("Couldn't open OSMesa lib for software rendering -- webgl.osmesalib path is incorrect, or not a valid shared library");
+        NS_WARNING("Canvas 3D: Couldn't open OSMesa lib -- webgl.osmesalib path is incorrect, or not a valid shared library");
         return PR_FALSE;
     }
 
@@ -142,7 +132,7 @@ OSMesaLibrary::EnsureInitialized()
     };
 
     if (!LibrarySymbolLoader::LoadSymbols(mOSMesaLibrary, &symbols[0])) {
-        LogMessage("Couldn't find required entry points in OSMesa libary");
+        NS_WARNING("Couldn't find required entry points in OSMesa libary");
         return PR_FALSE;
     }
 

@@ -130,28 +130,45 @@ const APP_ICON_ATTR_NAME = "appHandlerIcon";
 //****************************************************************************//
 // Utilities
 
-function getFileDisplayName(file) {
+function getDisplayNameForFile(aFile) {
+/*
 #ifdef XP_WIN
-  if (file instanceof Ci.nsILocalFileWin) {
+*/
+  if (aFile instanceof Ci.nsILocalFileWin) {
     try {
-      return file.getVersionInfoField("FileDescription");
-    } catch (e) {}
+      return aFile.getVersionInfoField("FileDescription"); 
+    }
+    catch(ex) {
+      // fall through to the file name
+    }
   }
+/*
 #endif
 #ifdef XP_MACOSX
-  if (file instanceof Ci.nsILocalFileMac) {
+*/
+  if (aFile instanceof Ci.nsILocalFileMac) {
     try {
-      return file.bundleDisplayName;
-    } catch (e) {}
+      return aFile.bundleDisplayName;
+    }
+    catch(ex) {
+      // fall through to the file name
+    }
   }
+/*
 #endif
-  return file.leafName;
+*/
+
+  return Cc["@mozilla.org/network/io-service;1"].
+         getService(Ci.nsIIOService).
+         newFileURI(aFile).
+         QueryInterface(Ci.nsIURL).
+         fileName;
 }
 
 function getLocalHandlerApp(aFile) {
   var localHandlerApp = Cc["@mozilla.org/uriloader/local-handler-app;1"].
                         createInstance(Ci.nsILocalHandlerApp);
-  localHandlerApp.name = getFileDisplayName(aFile);
+  localHandlerApp.name = getDisplayNameForFile(aFile);
   localHandlerApp.executable = aFile;
 
   return localHandlerApp;
@@ -438,6 +455,11 @@ HandlerInfoWrapper.prototype = {
 
     this._prefSvc.setCharPref(PREF_DISABLED_PLUGIN_TYPES,
                               disabledPluginTypes.join(","));
+
+    // Update the category manager so existing browser windows update.
+    this._categoryMgr.deleteCategoryEntry("Gecko-Content-Viewers",
+                                          this.type,
+                                          false);
   },
 
   enablePluginType: function() {
@@ -448,6 +470,14 @@ HandlerInfoWrapper.prototype = {
 
     this._prefSvc.setCharPref(PREF_DISABLED_PLUGIN_TYPES,
                               disabledPluginTypes.join(","));
+
+    // Update the category manager so existing browser windows update.
+    this._categoryMgr.
+      addCategoryEntry("Gecko-Content-Viewers",
+                       this.type,
+                       "@mozilla.org/content/plugin/document-loader-factory;1",
+                       false,
+                       true);
   },
 
 
@@ -656,7 +686,7 @@ FeedHandlerInfo.prototype = {
     if (defaultFeedReader) {
       let handlerApp = Cc["@mozilla.org/uriloader/local-handler-app;1"].
                        createInstance(Ci.nsIHandlerApp);
-      handlerApp.name = getFileDisplayName(defaultFeedReader);
+      handlerApp.name = getDisplayNameForFile(defaultFeedReader);
       handlerApp.QueryInterface(Ci.nsILocalHandlerApp);
       handlerApp.executable = defaultFeedReader;
 
@@ -1251,7 +1281,7 @@ var gApplicationsPane = {
         var preferredApp = aHandlerInfo.preferredApplicationHandler;
         var name;
         if (preferredApp instanceof Ci.nsILocalHandlerApp)
-          name = getFileDisplayName(preferredApp.executable);
+          name = getDisplayNameForFile(preferredApp.executable);
         else
           name = preferredApp.name;
         return this._prefsBundle.getFormattedString("useApp", [name]);
@@ -1434,7 +1464,7 @@ var gApplicationsPane = {
       menuItem.setAttribute("action", Ci.nsIHandlerInfo.useHelperApp);
       let label;
       if (possibleApp instanceof Ci.nsILocalHandlerApp)
-        label = getFileDisplayName(possibleApp.executable);
+        label = getDisplayNameForFile(possibleApp.executable);
       else
         label = possibleApp.name;
       label = this._prefsBundle.getFormattedString("useApp", [label]);
@@ -1722,7 +1752,7 @@ var gApplicationsPane = {
         this._isValidHandlerExecutable(fp.file)) {
       handlerApp = Cc["@mozilla.org/uriloader/local-handler-app;1"].
                    createInstance(Ci.nsILocalHandlerApp);
-      handlerApp.name = getFileDisplayName(fp.file);
+      handlerApp.name = getDisplayNameForFile(fp.file);
       handlerApp.executable = fp.file;
 
       // Add the app to the type's list of possible handlers.

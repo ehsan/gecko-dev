@@ -50,7 +50,7 @@
 #include "nsIPrefBranch.h"
 #include "nsIPrefService.h"
 #include "nsIServiceManager.h"
-#include "nsIHttpAuthenticableChannel.h"
+#include "nsIHttpChannel.h"
 #include "nsIURI.h"
 
 static const char kAllowProxies[] = "network.automatic-ntlm-auth.allow-proxies";
@@ -189,8 +189,7 @@ ForceGenericNTLM()
 
 // Check to see if we should use default credentials for this host or proxy.
 static PRBool
-CanUseDefaultCredentials(nsIHttpAuthenticableChannel *channel,
-                         PRBool isProxyAuth)
+CanUseDefaultCredentials(nsIHttpChannel *channel, PRBool isProxyAuth)
 {
     nsCOMPtr<nsIPrefBranch> prefs = do_GetService(NS_PREFSERVICE_CONTRACTID);
     if (!prefs)
@@ -225,7 +224,7 @@ NS_IMPL_ISUPPORTS0(nsNTLMSessionState)
 NS_IMPL_ISUPPORTS1(nsHttpNTLMAuth, nsIHttpAuthenticator)
 
 NS_IMETHODIMP
-nsHttpNTLMAuth::ChallengeReceived(nsIHttpAuthenticableChannel *channel,
+nsHttpNTLMAuth::ChallengeReceived(nsIHttpChannel *channel,
                                   const char     *challenge,
                                   PRBool          isProxyAuth,
                                   nsISupports   **sessionState,
@@ -317,7 +316,7 @@ nsHttpNTLMAuth::ChallengeReceived(nsIHttpAuthenticableChannel *channel,
 }
 
 NS_IMETHODIMP
-nsHttpNTLMAuth::GenerateCredentials(nsIHttpAuthenticableChannel *authChannel,
+nsHttpNTLMAuth::GenerateCredentials(nsIHttpChannel  *httpChannel,
                                     const char      *challenge,
                                     PRBool           isProxyAuth,
                                     const PRUnichar *domain,
@@ -352,7 +351,7 @@ nsHttpNTLMAuth::GenerateCredentials(nsIHttpAuthenticableChannel *authChannel,
     if (PL_strcasecmp(challenge, "NTLM") == 0) {
         // NTLM service name format is 'HTTP@host' for both http and https
         nsCOMPtr<nsIURI> uri;
-        rv = authChannel->GetURI(getter_AddRefs(uri));
+        rv = httpChannel->GetURI(getter_AddRefs(uri));
         if (NS_FAILED(rv))
             return rv;
         nsCAutoString serviceName, host;

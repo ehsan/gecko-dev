@@ -49,7 +49,6 @@ MODULES_LIBJAR_LCPPSRCS = \
 MODULES_LIBJAR_LEXPORTS = \
 		zipstruct.h \
 		nsZipArchive.h \
-		nsXPTZipLoader.h \
 		$(NULL)
 
 MODULES_LIBJAR_LXPIDLSRCS = \

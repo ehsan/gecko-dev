@@ -94,7 +94,8 @@ NS_INTERFACE_MAP_END_INHERITING(EditTxn)
 NS_IMETHODIMP
 AddStyleSheetTxn::Init(nsIEditor *aEditor, nsCSSStyleSheet *aSheet)
 {
-  NS_ENSURE_TRUE(aEditor && aSheet, NS_ERROR_INVALID_ARG);
+  if (!aEditor || !aSheet)
+    return NS_ERROR_INVALID_ARG;
 
   mEditor = aEditor;
   mSheet = aSheet;
@@ -106,7 +107,8 @@ AddStyleSheetTxn::Init(nsIEditor *aEditor, nsCSSStyleSheet *aSheet)
 NS_IMETHODIMP
 AddStyleSheetTxn::DoTransaction()
 {
-  NS_ENSURE_TRUE(mEditor && mSheet, NS_ERROR_NOT_INITIALIZED);
+  if (!mEditor || !mSheet)
+    return NS_ERROR_NOT_INITIALIZED;
   
   AddStyleSheet(mEditor, mSheet);
   return NS_OK;
@@ -115,7 +117,8 @@ AddStyleSheetTxn::DoTransaction()
 NS_IMETHODIMP
 AddStyleSheetTxn::UndoTransaction()
 {
-  NS_ENSURE_TRUE(mEditor && mSheet, NS_ERROR_NOT_INITIALIZED);
+  if (!mEditor || !mSheet)
+    return NS_ERROR_NOT_INITIALIZED;
   
   RemoveStyleSheet(mEditor, mSheet);
   return NS_OK;
@@ -155,7 +158,8 @@ NS_INTERFACE_MAP_END_INHERITING(EditTxn)
 NS_IMETHODIMP
 RemoveStyleSheetTxn::Init(nsIEditor *aEditor, nsCSSStyleSheet *aSheet)
 {
-  NS_ENSURE_TRUE(aEditor && aSheet, NS_ERROR_INVALID_ARG);
+  if (!aEditor || !aSheet)
+    return NS_ERROR_INVALID_ARG;
 
   mEditor = aEditor;
   mSheet = aSheet;
@@ -167,7 +171,8 @@ RemoveStyleSheetTxn::Init(nsIEditor *aEditor, nsCSSStyleSheet *aSheet)
 NS_IMETHODIMP
 RemoveStyleSheetTxn::DoTransaction()
 {
-  NS_ENSURE_TRUE(mEditor && mSheet, NS_ERROR_NOT_INITIALIZED);
+  if (!mEditor || !mSheet)
+    return NS_ERROR_NOT_INITIALIZED;
 
   RemoveStyleSheet(mEditor, mSheet);
   return NS_OK;
@@ -176,7 +181,8 @@ RemoveStyleSheetTxn::DoTransaction()
 NS_IMETHODIMP
 RemoveStyleSheetTxn::UndoTransaction()
 {
-  NS_ENSURE_TRUE(mEditor && mSheet, NS_ERROR_NOT_INITIALIZED);
+  if (!mEditor || !mSheet)
+    return NS_ERROR_NOT_INITIALIZED;
 
   AddStyleSheet(mEditor, mSheet);
   return NS_OK;

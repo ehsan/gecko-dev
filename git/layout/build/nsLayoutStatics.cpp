@@ -80,7 +80,6 @@
 #include "nsTextFragment.h"
 #include "nsCSSRuleProcessor.h"
 #include "nsXMLHttpRequest.h"
-#include "nsWebSocket.h"
 #include "nsDOMThreadService.h"
 #include "nsHTMLDNSPrefetch.h"
 #include "nsHtml5Module.h"
@@ -89,9 +88,6 @@
 #include "nsFrameList.h"
 #include "nsListControlFrame.h"
 #include "nsFileControlFrame.h"
-#ifdef MOZ_SVG
-#include "nsSVGUtils.h"
-#endif
 
 #ifdef MOZ_XUL
 #include "nsXULPopupManager.h"
@@ -326,10 +322,6 @@ nsLayoutStatics::Shutdown()
 #endif
   nsCellMap::Shutdown();
 
-#ifdef MOZ_SVG
-  nsSVGUtils::Shutdown();
-#endif
-
   // Release all of our atoms
   nsColorNames::ReleaseTable();
   nsCSSProps::ReleaseTable();
@@ -387,8 +379,6 @@ nsLayoutStatics::Shutdown()
 #endif
 
   nsXMLHttpRequest::ShutdownACCache();
-  
-  nsWebSocket::ReleaseGlobals();
   
   nsIPresShell::ReleaseStatics();
 

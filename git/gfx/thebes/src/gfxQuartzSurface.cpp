@@ -98,9 +98,7 @@ gfxQuartzSurface::CreateSimilarSurface(gfxContentType aType,
         return nsnull;
     }
 
-    nsRefPtr<gfxASurface> result = Wrap(surface);
-    cairo_surface_destroy(surface);
-    return result.forget();
+    return Wrap(surface);
 }
 
 CGContextRef

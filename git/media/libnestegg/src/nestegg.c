@@ -494,25 +494,6 @@ io_seek(nestegg_io * io, int64_t offset, int whence)
   return io->seek(offset, whence, io->userdata);
 }
 
-static int
-io_read_skip(nestegg_io * io, size_t length)
-{
-  size_t get;
-  unsigned char buf[8192];
-  int r = 1;
-
-  while (length > 0) {
-    get = length < sizeof(buf) ? length : sizeof(buf);
-    r = io_read(io, buf, get);
-    if (r != 1) {
-      break;
-    }
-    length -= get;
-  }
-
-  return r;
-}
-
 static int64_t
 io_tell(nestegg_io * io)
 {
@@ -859,7 +840,7 @@ read_element(nestegg * ctx, uint64_t * id, uint64_t * size)
   return 1;
 }
 
-static void
+static int
 read_master(nestegg * ctx, struct ebml_element_desc * desc)
 {
   struct ebml_list * list;
@@ -886,9 +867,11 @@ read_master(nestegg * ctx, struct ebml_element_desc * desc)
   ctx->log(ctx, NESTEGG_LOG_DEBUG, " -> using data %p", node->data);
 
   ctx_push(ctx, desc->children, node->data);
+
+  return 1;
 }
 
-static void
+static int
 read_single_master(nestegg * ctx, struct ebml_element_desc * desc)
 {
   assert(desc->type == TYPE_MASTER && !(desc->flags & DESC_FLAG_MULTI));
@@ -899,6 +882,8 @@ read_single_master(nestegg * ctx, struct ebml_element_desc * desc)
            ctx->ancestor->data + desc->offset, desc->offset);
 
   ctx_push(ctx, desc->children, ctx->ancestor->data + desc->offset);
+
+  return 1;
 }
 
 static int
@@ -909,11 +894,8 @@ read_simple(nestegg * ctx, struct ebml_element_desc * desc, size_t length)
 
   storage = (struct ebml_type *) (ctx->ancestor->data + desc->offset);
 
-  if (storage->read) {
-    ctx->log(ctx, NESTEGG_LOG_DEBUG, "element %llx (%s) already read, skipping",
-             desc->id, desc->name);
-    return 0;
-  }
+  if (storage->read)
+    return -1;
 
   storage->type = desc->type;
 
@@ -988,23 +970,19 @@ parse(nestegg * ctx, struct ebml_element_desc * top_level)
       if (element->flags & DESC_FLAG_OFFSET) {
         data_offset = (int64_t *) (ctx->ancestor->data + element->data_offset);
         *data_offset = io_tell(ctx->io);
-        if (*data_offset < 0) {
-          r = -1;
-          break;
-        }
+        if (*data_offset < 0)
+          return -1;
       }
 
       if (element->type == TYPE_MASTER) {
         if (element->flags & DESC_FLAG_MULTI) {
-          read_master(ctx, element);
+          r = read_master(ctx, element);
         } else {
-          read_single_master(ctx, element);
+          r = read_single_master(ctx, element);
         }
         continue;
       } else {
         r = read_simple(ctx, element, size);
-        if (r < 0)
-          break;
       }
     } else if (is_ancestor_element(id, ctx->ancestor->previous)) {
       ctx->log(ctx, NESTEGG_LOG_DEBUG, "parent element %llx", id);
@@ -1021,9 +999,9 @@ parse(nestegg * ctx, struct ebml_element_desc * top_level)
 
       if (id != ID_VOID && id != ID_CRC32)
         ctx->log(ctx, NESTEGG_LOG_DEBUG, "unknown element %llx", id);
-      r = io_read_skip(ctx->io, size);
-      if (r != 1)
-        break;
+      r = io_seek(ctx->io, size, NESTEGG_SEEK_CUR);
+      if (r != 0)
+        return -1;
     }
   }
 
@@ -1553,10 +1531,8 @@ nestegg_track_seek(nestegg * ctx, unsigned int track, uint64_t tstamp)
       ctx_pop(ctx);
 
     /* Reset parser state to original state and seek back to old position. */
-    if (ctx_restore(ctx, &state) != 0)
-      return -1;
-
-    if (r < 0)
+    r = ctx_restore(ctx, &state);
+    if (r != 0)
       return -1;
   }
 

@@ -165,8 +165,6 @@ protected:
 
     PRBool InitWithPrefix(const char *prefix, PRBool trygl);
 
-    PRBool IsExtensionSupported(const char *extension);
-
     //
     // the wrapped functions
     //

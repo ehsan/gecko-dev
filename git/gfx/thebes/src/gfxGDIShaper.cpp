@@ -54,8 +54,7 @@ gfxGDIShaper::InitTextRun(gfxContext *aContext,
                           gfxTextRun *aTextRun,
                           const PRUnichar *aString,
                           PRUint32 aRunStart,
-                          PRUint32 aRunLength,
-                          PRInt32 aRunScript)
+                          PRUint32 aRunLength)
 {
     gfxGDIFont *f = static_cast<gfxGDIFont*>(mFont);
     DCFromContext dc(aContext);

@@ -72,7 +72,6 @@
 #include "nsXPIDLString.h"
 #include "nsXULAppAPI.h"
 #include "nsTextFormatter.h"
-#include "nsZipArchive.h"
 
 #include "nsIAtom.h"
 #include "nsICommandLine.h"
@@ -112,8 +111,6 @@
 #include "nsIXPConnect.h"
 #include "nsIXULAppInfo.h"
 #include "nsIXULRuntime.h"
-
-#include "mozilla/Omnijar.h"
 
 #define UILOCALE_CMD_LINE_ARG "UILocale"
 
@@ -1147,48 +1144,6 @@ RemoveAll(PLDHashTable *table, PLDHashEntryHdr *entry, PRUint32 number, void *ar
   return (PLDHashOperator) (PL_DHASH_NEXT | PL_DHASH_REMOVE);
 }
 
-#ifdef MOZ_OMNIJAR
-nsresult
-nsChromeRegistry::CheckOmnijarChrome()
-{
-  nsresult rv;
-
-  nsZipArchive* jarReader = mozilla::OmnijarReader();
-  // just proceed normally if there is no omnijar
-  if (!jarReader)
-    return NS_OK;
-
-  nsZipItem* manifest = jarReader->GetItem("chrome/chrome.manifest");
-  NS_ENSURE_TRUE(manifest, NS_ERROR_NOT_AVAILABLE);
-
-  nsCAutoString omniJarSpec;
-  rv = NS_GetURLSpecFromActualFile(mozilla::OmnijarPath(), omniJarSpec);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  PRUint32 len = manifest->RealSize();
-  nsAutoArrayPtr<PRUint8> outbuf(new PRUint8[len]);
-  NS_ENSURE_TRUE(outbuf, NS_ERROR_OUT_OF_MEMORY);
-
-  nsZipCursor cursor(manifest, jarReader, outbuf, len);
-  PRUint32 readlen;
-  PRUint8* buf = cursor.Read(&readlen);
-  NS_ENSURE_TRUE(buf, NS_ERROR_FILE_CORRUPTED);
-
-  nsAutoString jarString(NS_LITERAL_STRING("jar:"));
-  AppendUTF8toUTF16(omniJarSpec, jarString);
-  jarString += NS_LITERAL_STRING("!/chrome/chrome.manifest"); 
-
-  nsCOMPtr<nsIURI> manifestURI;
-  rv = NS_NewURI(getter_AddRefs(manifestURI), jarString);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  rv = ProcessManifestBuffer((char *)buf, readlen, manifestURI, PR_FALSE);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return rv;
-}
-#endif /* MOZ_OMNIJAR */
-
 NS_IMETHODIMP
 nsChromeRegistry::CheckForNewChrome()
 {
@@ -1201,11 +1156,6 @@ nsChromeRegistry::CheckForNewChrome()
 
   nsCOMPtr<nsIProperties> dirSvc (do_GetService(NS_DIRECTORY_SERVICE_CONTRACTID));
   NS_ENSURE_TRUE(dirSvc, NS_ERROR_FAILURE);
-
-#ifdef MOZ_OMNIJAR
-  rv = CheckOmnijarChrome();
-  NS_ENSURE_SUCCESS(rv, rv);
-#endif
 
   // check the extra chrome directories
   nsCOMPtr<nsISimpleEnumerator> chromeML;
@@ -1428,10 +1378,7 @@ nsChromeRegistry::ProcessManifest(nsILocalFile* aManifest, PRBool aSkinOnly)
   n = PR_Read(fd, buf, size);
   if (n > 0) {
     buf[size] = '\0';
-    nsCOMPtr<nsIURI> manifestURI;
-    rv = NS_NewFileURI(getter_AddRefs(manifestURI), aManifest);
-    if (NS_SUCCEEDED(rv))
-      rv = ProcessManifestBuffer(buf, size, manifestURI, aSkinOnly);
+    rv = ProcessManifestBuffer(buf, size, aManifest, aSkinOnly);
   }
   free(buf);
 
@@ -1657,7 +1604,7 @@ EnsureLowerCase(char *aBuf)
 
 nsresult
 nsChromeRegistry::ProcessManifestBuffer(char *buf, PRInt32 length,
-                                        nsIURI* aManifest,
+                                        nsILocalFile* aManifest,
                                         PRBool aSkinOnly)
 {
   nsresult rv;
@@ -1678,6 +1625,10 @@ nsChromeRegistry::ProcessManifestBuffer(char *buf, PRInt32 length,
   
   nsCOMPtr<nsIResProtocolHandler> rph (do_QueryInterface(ph));
   if (!rph) return NS_ERROR_FAILURE;
+
+  nsCOMPtr<nsIURI> manifestURI;
+  rv = io->NewFileURI(aManifest, getter_AddRefs(manifestURI));
+  NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<nsIXPConnect> xpc (do_GetService("@mozilla.org/js/xpc/XPConnect;1"));
   nsCOMPtr<nsIVersionComparator> vc (do_GetService("@mozilla.org/xpcom/version-comparator;1"));
@@ -1745,14 +1696,14 @@ nsChromeRegistry::ProcessManifestBuffer(char *buf, PRInt32 length,
 
     if (!strcmp(token, "content")) {
       if (aSkinOnly) {
-        LogMessageWithContext(aManifest, line, nsIScriptError::warningFlag,
+        LogMessageWithContext(manifestURI, line, nsIScriptError::warningFlag,
                               "Warning: Ignoring content registration in skin-only manifest.");
         continue;
       }
       char *package = nsCRT::strtok(whitespace, kWhitespace, &whitespace);
       char *uri     = nsCRT::strtok(whitespace, kWhitespace, &whitespace);
       if (!package || !uri) {
-        LogMessageWithContext(aManifest, line, nsIScriptError::warningFlag,
+        LogMessageWithContext(manifestURI, line, nsIScriptError::warningFlag,
                               "Warning: Malformed content registration.");
         continue;
       }
@@ -1784,7 +1735,7 @@ nsChromeRegistry::ProcessManifestBuffer(char *buf, PRInt32 length,
             CheckVersionFlag(kAppVersion, wtoken, appVersion, vc, stAppVersion))
           continue;
 
-        LogMessageWithContext(aManifest, line, nsIScriptError::warningFlag,
+        LogMessageWithContext(manifestURI, line, nsIScriptError::warningFlag,
                               "Warning: Unrecognized chrome registration modifier '%s'.",
                               token);
         badFlag = PR_TRUE;
@@ -1795,7 +1746,7 @@ nsChromeRegistry::ProcessManifestBuffer(char *buf, PRInt32 length,
         continue;
 
       nsCOMPtr<nsIURI> resolved;
-      rv = io->NewURI(nsDependentCString(uri), nsnull, aManifest,
+      rv = io->NewURI(nsDependentCString(uri), nsnull, manifestURI,
                       getter_AddRefs(resolved));
       if (NS_FAILED(rv))
         continue;
@@ -1831,7 +1782,7 @@ nsChromeRegistry::ProcessManifestBuffer(char *buf, PRInt32 length,
     }
     else if (!strcmp(token, "locale")) {
       if (aSkinOnly) {
-        LogMessageWithContext(aManifest, line, nsIScriptError::warningFlag,
+        LogMessageWithContext(manifestURI, line, nsIScriptError::warningFlag,
                               "Warning: Ignoring locale registration in skin-only manifest.");
         continue;
       }
@@ -1839,7 +1790,7 @@ nsChromeRegistry::ProcessManifestBuffer(char *buf, PRInt32 length,
       char *provider = nsCRT::strtok(whitespace, kWhitespace, &whitespace);
       char *uri      = nsCRT::strtok(whitespace, kWhitespace, &whitespace);
       if (!package || !provider || !uri) {
-        LogMessageWithContext(aManifest, line, nsIScriptError::warningFlag,
+        LogMessageWithContext(manifestURI, line, nsIScriptError::warningFlag,
                               "Warning: Malformed locale registration.");
         continue;
       }
@@ -1864,7 +1815,7 @@ nsChromeRegistry::ProcessManifestBuffer(char *buf, PRInt32 length,
             CheckVersionFlag(kAppVersion, wtoken, appVersion, vc, stAppVersion))
           continue;
 
-        LogMessageWithContext(aManifest, line, nsIScriptError::warningFlag,
+        LogMessageWithContext(manifestURI, line, nsIScriptError::warningFlag,
                               "Warning: Unrecognized chrome registration modifier '%s'.",
                               token);
         badFlag = PR_TRUE;
@@ -1875,7 +1826,7 @@ nsChromeRegistry::ProcessManifestBuffer(char *buf, PRInt32 length,
         continue;
 
       nsCOMPtr<nsIURI> resolved;
-      rv = io->NewURI(nsDependentCString(uri), nsnull, aManifest,
+      rv = io->NewURI(nsDependentCString(uri), nsnull, manifestURI,
                       getter_AddRefs(resolved));
       if (NS_FAILED(rv))
         continue;
@@ -1901,7 +1852,7 @@ nsChromeRegistry::ProcessManifestBuffer(char *buf, PRInt32 length,
       char *provider = nsCRT::strtok(whitespace, kWhitespace, &whitespace);
       char *uri      = nsCRT::strtok(whitespace, kWhitespace, &whitespace);
       if (!package || !provider || !uri) {
-        LogMessageWithContext(aManifest, line, nsIScriptError::warningFlag,
+        LogMessageWithContext(manifestURI, line, nsIScriptError::warningFlag,
                               "Warning: Malformed skin registration.");
         continue;
       }
@@ -1926,7 +1877,7 @@ nsChromeRegistry::ProcessManifestBuffer(char *buf, PRInt32 length,
             CheckVersionFlag(kAppVersion, wtoken, appVersion, vc, stAppVersion))
           continue;
 
-        LogMessageWithContext(aManifest, line, nsIScriptError::warningFlag,
+        LogMessageWithContext(manifestURI, line, nsIScriptError::warningFlag,
                               "Warning: Unrecognized chrome registration modifier '%s'.",
                               token);
         badFlag = PR_TRUE;
@@ -1937,7 +1888,7 @@ nsChromeRegistry::ProcessManifestBuffer(char *buf, PRInt32 length,
         continue;
 
       nsCOMPtr<nsIURI> resolved;
-      rv = io->NewURI(nsDependentCString(uri), nsnull, aManifest,
+      rv = io->NewURI(nsDependentCString(uri), nsnull, manifestURI,
                       getter_AddRefs(resolved));
       if (NS_FAILED(rv))
         continue;
@@ -1960,14 +1911,14 @@ nsChromeRegistry::ProcessManifestBuffer(char *buf, PRInt32 length,
     }
     else if (!strcmp(token, "overlay")) {
       if (aSkinOnly) {
-        LogMessageWithContext(aManifest, line, nsIScriptError::warningFlag,
+        LogMessageWithContext(manifestURI, line, nsIScriptError::warningFlag,
                               "Warning: Ignoring overlay registration in skin-only manifest.");
         continue;
       }
       char *base    = nsCRT::strtok(whitespace, kWhitespace, &whitespace);
       char *overlay = nsCRT::strtok(whitespace, kWhitespace, &whitespace);
       if (!base || !overlay) {
-        LogMessageWithContext(aManifest, line, nsIScriptError::warningFlag,
+        LogMessageWithContext(manifestURI, line, nsIScriptError::warningFlag,
                               "Warning: malformed chrome overlay instruction.");
         continue;
       }
@@ -1990,7 +1941,7 @@ nsChromeRegistry::ProcessManifestBuffer(char *buf, PRInt32 length,
             CheckVersionFlag(kAppVersion, wtoken, appVersion, vc, stAppVersion))
           continue;
 
-        LogMessageWithContext(aManifest, line, nsIScriptError::warningFlag,
+        LogMessageWithContext(manifestURI, line, nsIScriptError::warningFlag,
                               "Warning: Unrecognized chrome registration modifier '%s'.",
                               token);
         badFlag = PR_TRUE;
@@ -2023,7 +1974,7 @@ nsChromeRegistry::ProcessManifestBuffer(char *buf, PRInt32 length,
       char *base    = nsCRT::strtok(whitespace, kWhitespace, &whitespace);
       char *overlay = nsCRT::strtok(whitespace, kWhitespace, &whitespace);
       if (!base || !overlay) {
-        LogMessageWithContext(aManifest, line, nsIScriptError::warningFlag,
+        LogMessageWithContext(manifestURI, line, nsIScriptError::warningFlag,
                               "Warning: malformed chrome style instruction.");
         continue;
       }
@@ -2046,7 +1997,7 @@ nsChromeRegistry::ProcessManifestBuffer(char *buf, PRInt32 length,
             CheckVersionFlag(kAppVersion, wtoken, appVersion, vc, stAppVersion))
           continue;
 
-        LogMessageWithContext(aManifest, line, nsIScriptError::warningFlag,
+        LogMessageWithContext(manifestURI, line, nsIScriptError::warningFlag,
                               "Warning: Unrecognized chrome registration modifier '%s'.",
                               token);
         badFlag = PR_TRUE;
@@ -2075,7 +2026,7 @@ nsChromeRegistry::ProcessManifestBuffer(char *buf, PRInt32 length,
     }
     else if (!strcmp(token, "override")) {
       if (aSkinOnly) {
-        LogMessageWithContext(aManifest, line, nsIScriptError::warningFlag,
+        LogMessageWithContext(manifestURI, line, nsIScriptError::warningFlag,
                               "Warning: Ignoring override registration in skin-only manifest.");
         continue;
       }
@@ -2083,7 +2034,7 @@ nsChromeRegistry::ProcessManifestBuffer(char *buf, PRInt32 length,
       char *chrome    = nsCRT::strtok(whitespace, kWhitespace, &whitespace);
       char *resolved  = nsCRT::strtok(whitespace, kWhitespace, &whitespace);
       if (!chrome || !resolved) {
-        LogMessageWithContext(aManifest, line, nsIScriptError::warningFlag,
+        LogMessageWithContext(manifestURI, line, nsIScriptError::warningFlag,
                               "Warning: malformed chrome override instruction.");
         continue;
       }
@@ -2106,7 +2057,7 @@ nsChromeRegistry::ProcessManifestBuffer(char *buf, PRInt32 length,
             CheckVersionFlag(kAppVersion, wtoken, appVersion, vc, stAppVersion))
           continue;
 
-        LogMessageWithContext(aManifest, line, nsIScriptError::warningFlag,
+        LogMessageWithContext(manifestURI, line, nsIScriptError::warningFlag,
                               "Warning: Unrecognized chrome registration modifier '%s'.",
                               token);
         badFlag = PR_TRUE;
@@ -2119,7 +2070,7 @@ nsChromeRegistry::ProcessManifestBuffer(char *buf, PRInt32 length,
       nsCOMPtr<nsIURI> chromeuri, resolveduri;
       rv  = io->NewURI(nsDependentCString(chrome), nsnull, nsnull,
                       getter_AddRefs(chromeuri));
-      rv |= io->NewURI(nsDependentCString(resolved), nsnull, aManifest,
+      rv |= io->NewURI(nsDependentCString(resolved), nsnull, manifestURI,
                        getter_AddRefs(resolveduri));
       if (NS_FAILED(rv))
         continue;
@@ -2135,7 +2086,7 @@ nsChromeRegistry::ProcessManifestBuffer(char *buf, PRInt32 length,
     }
     else if (!strcmp(token, "resource")) {
       if (aSkinOnly) {
-        LogMessageWithContext(aManifest, line, nsIScriptError::warningFlag,
+        LogMessageWithContext(manifestURI, line, nsIScriptError::warningFlag,
                               "Warning: Ignoring resource registration in skin-only manifest.");
         continue;
       }
@@ -2143,7 +2094,7 @@ nsChromeRegistry::ProcessManifestBuffer(char *buf, PRInt32 length,
       char *package = nsCRT::strtok(whitespace, kWhitespace, &whitespace);
       char *uri     = nsCRT::strtok(whitespace, kWhitespace, &whitespace);
       if (!package || !uri) {
-        LogMessageWithContext(aManifest, line, nsIScriptError::warningFlag,
+        LogMessageWithContext(manifestURI, line, nsIScriptError::warningFlag,
                               "Warning: Malformed resource registration.");
         continue;
       }
@@ -2168,7 +2119,7 @@ nsChromeRegistry::ProcessManifestBuffer(char *buf, PRInt32 length,
             CheckVersionFlag(kAppVersion, wtoken, appVersion, vc, stAppVersion))
           continue;
 
-        LogMessageWithContext(aManifest, line, nsIScriptError::warningFlag,
+        LogMessageWithContext(manifestURI, line, nsIScriptError::warningFlag,
                               "Warning: Unrecognized chrome registration modifier '%s'.",
                               token);
         badFlag = PR_TRUE;
@@ -2184,14 +2135,14 @@ nsChromeRegistry::ProcessManifestBuffer(char *buf, PRInt32 length,
       rv = rph->HasSubstitution(host, &exists);
       NS_ENSURE_SUCCESS(rv, rv);
       if (exists) {
-        LogMessageWithContext(aManifest, line, nsIScriptError::warningFlag,
+        LogMessageWithContext(manifestURI, line, nsIScriptError::warningFlag,
                               "Warning: Duplicate resource declaration for '%s' ignored.",
                               package);
         continue;
       }
 
       nsCOMPtr<nsIURI> resolved;
-      rv = io->NewURI(nsDependentCString(uri), nsnull, aManifest,
+      rv = io->NewURI(nsDependentCString(uri), nsnull, manifestURI,
                       getter_AddRefs(resolved));
       if (NS_FAILED(rv))
         continue;
@@ -2207,7 +2158,7 @@ nsChromeRegistry::ProcessManifestBuffer(char *buf, PRInt32 length,
       NS_ENSURE_SUCCESS(rv, rv);
     }
     else {
-      LogMessageWithContext(aManifest, line, nsIScriptError::warningFlag,
+      LogMessageWithContext(manifestURI, line, nsIScriptError::warningFlag,
                             "Warning: Ignoring unrecognized chrome manifest instruction.");
     }
   }

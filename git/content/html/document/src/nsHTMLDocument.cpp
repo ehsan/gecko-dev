@@ -1939,15 +1939,6 @@ nsHTMLDocument::OpenCommon(const nsACString& aContentType, PRBool aReplace)
       }
     }
 
-    // Flag us as not being able to start layout until we hit <body>
-    // or scripts that require layout, so that we won't run into FOUC
-    // issues.  We need to do that before making the Stop() call,
-    // since if we have no frame yet the flush Stop() triggers might
-    // try to create one for us, and we don't want our presshell
-    // starting layout if that happens.  But we don't want to do this
-    // before the PermitUnload call above.
-    mMayStartLayout = PR_FALSE;
-
     nsCOMPtr<nsIWebNavigation> webnav(do_QueryInterface(shell));
     webnav->Stop(nsIWebNavigation::STOP_NETWORK);
 
@@ -1956,10 +1947,6 @@ nsHTMLDocument::OpenCommon(const nsACString& aContentType, PRBool aReplace)
     // document again otherwise the document could have a non-zero onload block
     // count without the onload blocker request being in the loadgroup.
     EnsureOnloadBlocker();
-  } else {
-    // See comment before the mMayStartLayout set in the other branch
-    // of this if.
-    mMayStartLayout = PR_FALSE;
   }
 
   // The open occurred after the document finished loading.
@@ -2677,9 +2664,11 @@ nsHTMLDocument::ResolveName(const nsAString& aName,
 {
   *aResult = nsnull;
 
+  nsCOMPtr<nsIAtom> name(do_GetAtom(aName));
+
   // We have built a table and cache the named items. The table will
   // be updated as content is added and removed.
-  nsIdentifierMapEntry *entry = mIdentifierMap.PutEntry(aName);
+  nsIdentifierMapEntry *entry = mIdentifierMap.PutEntry(name);
   NS_ENSURE_TRUE(entry, NS_ERROR_OUT_OF_MEMORY);
 
   if (entry->IsInvalidName()) {
@@ -2703,14 +2692,7 @@ nsHTMLDocument::ResolveName(const nsAString& aName,
 
     Element* root = GetRootElement();
     if (root && !aName.IsEmpty()) {
-      // do_GetAtom() can fail on OOM, but it'll only do that if the
-      // atom doesn't already exist, which means the named item
-      // doesn't exist either.
-      nsCOMPtr<nsIAtom> name(do_GetAtom(aName));
-
-      if (name) {
-        FindNamedItems(name, root, entry);
-      }
+      FindNamedItems(name, root, entry);
     }
   }
 
@@ -2815,8 +2797,7 @@ nsHTMLDocument::PrePopulateIdentifierMap()
     nsCOMPtr<nsIAtom> atom(do_GetAtom(names[i]));
     NS_ENSURE_TRUE(atom, NS_ERROR_OUT_OF_MEMORY);
   
-    nsIdentifierMapEntry* entry =
-      mIdentifierMap.PutEntry(nsDependentAtomString(atom));
+    nsIdentifierMapEntry* entry = mIdentifierMap.PutEntry(atom);
     NS_ENSURE_TRUE(entry, NS_ERROR_OUT_OF_MEMORY);
 
     entry->SetInvalidName();
@@ -3141,7 +3122,8 @@ nsHTMLDocument::GetDocumentAllResult(const nsAString& aID, nsISupports** aResult
 {
   *aResult = nsnull;
 
-  nsIdentifierMapEntry *entry = mIdentifierMap.PutEntry(aID);
+  nsCOMPtr<nsIAtom> id = do_GetAtom(aID);
+  nsIdentifierMapEntry *entry = mIdentifierMap.PutEntry(id);
   NS_ENSURE_TRUE(entry, NS_ERROR_OUT_OF_MEMORY);
 
   Element* root = GetRootElement();
@@ -3151,8 +3133,6 @@ nsHTMLDocument::GetDocumentAllResult(const nsAString& aID, nsISupports** aResult
 
   nsRefPtr<nsContentList> docAllList = entry->GetDocAllList();
   if (!docAllList) {
-    nsCOMPtr<nsIAtom> id = do_GetAtom(aID);
-
     docAllList = new nsContentList(root, DocAllResultMatch,
                                    nsnull, nsnull, PR_TRUE, id);
     NS_ENSURE_TRUE(docAllList, NS_ERROR_OUT_OF_MEMORY);
