@@ -134,9 +134,9 @@ WebappsRegistry.prototype = {
                                                             etag: etag,
                                                             receipts: receipts,
                                                             categories: categories },
-                                                            from: installURL,
-                                                            oid: this._id,
-                                                            requestID: requestID });
+                                                     from: installURL,
+                                                     oid: this._id,
+                                                     requestID: requestID });
         }
       } else {
         Services.DOMRequest.fireError(request, "MANIFEST_URL_ERROR");
@@ -573,9 +573,13 @@ WebappsApplication.prototype = {
           switch(msg.type) {
             case "error":
               this._downloadError = msg.error;
+              this.downloading = msg.app.downloading;
+              this.installState = msg.app.installState;
               this._fireEvent("downloaderror", this._ondownloaderror);
               break;
             case "progress":
+              this.downloading = msg.app.downloading;
+              this.installState = msg.app.installState;
               this.progress = msg.progress;
               this._fireEvent("downloadprogress", this._onprogress);
               break;
