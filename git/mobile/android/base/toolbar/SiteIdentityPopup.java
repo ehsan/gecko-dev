@@ -102,7 +102,7 @@ public class SiteIdentityPopup extends ArrowPopup {
     }
 
     private void addMixedContentNotification(boolean blocked) {
-        // Remove any existing mixed content notification.
+        // Remove any exixting mixed content notification.
         removeMixedContentNotification();
         mMixedContentNotification = new DoorHanger(mContext, DoorHanger.Theme.DARK);
 

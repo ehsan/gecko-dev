@@ -19,7 +19,7 @@ public class GeckoViewContent implements GeckoView.ContentDelegate {
     * A Browser has finished loading content from the network.
     * @param view The GeckoView that initiated the callback.
     * @param browser The Browser that was loading the content.
-    * @param success Whether the page loaded successfully or an error occurred.
+    * @param success Whether the page loaded successfully or an error occured.
     */
     @Override
     public void onPageStop(GeckoView view, GeckoView.Browser browser, boolean success) {}

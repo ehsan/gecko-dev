@@ -8,10 +8,13 @@ package org.mozilla.gecko.overlays.service;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.os.Bundle;
 import android.os.IBinder;
+import android.os.Parcelable;
 import android.util.Log;
 import android.view.View;
 import org.mozilla.gecko.Assert;
+import org.mozilla.gecko.overlays.OverlayConstants;
 import org.mozilla.gecko.overlays.service.sharemethods.AddBookmark;
 import org.mozilla.gecko.overlays.service.sharemethods.AddToReadingList;
 import org.mozilla.gecko.overlays.service.sharemethods.SendTab;
@@ -24,6 +27,7 @@ import java.util.Map;
 
 import static org.mozilla.gecko.overlays.OverlayConstants.ACTION_PREPARE_SHARE;
 import static org.mozilla.gecko.overlays.OverlayConstants.ACTION_SHARE;
+import static org.mozilla.gecko.overlays.OverlayConstants.EXTRA_SHARE_METHOD;
 
 /**
  * A service to receive requests from overlays to perform actions.
@@ -116,7 +120,7 @@ public class OverlayActionService extends Service {
                 switch (result) {
                     case SUCCESS:
                         // \o/
-                        OverlayToastHelper.showSuccessToast(getApplicationContext(), shareMethod.getSuccessMessage());
+                        OverlayToastHelper.showSuccessToast(getApplicationContext(), shareMethod.getSuccessMesssage());
                         break;
                     case TRANSIENT_FAILURE:
                         // An OnClickListener to do this share again.
