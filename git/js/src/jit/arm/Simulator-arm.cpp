@@ -4186,8 +4186,6 @@ Simulator::enable_single_stepping(SingleStepCallback cb, void *arg)
 void
 Simulator::disable_single_stepping()
 {
-    if (!single_stepping_)
-        return;
     single_step_callback_(single_step_callback_arg_, this, (void*)get_pc());
     single_stepping_ = false;
     single_step_callback_ = nullptr;

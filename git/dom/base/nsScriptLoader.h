@@ -17,7 +17,6 @@
 #include "nsAutoPtr.h"
 #include "nsIDocument.h"
 #include "nsIStreamLoader.h"
-#include "mozilla/net/ReferrerPolicy.h"
 
 class nsScriptLoadRequest;
 class nsIURI;
@@ -241,8 +240,7 @@ public:
   virtual void PreloadURI(nsIURI *aURI, const nsAString &aCharset,
                           const nsAString &aType,
                           const nsAString &aCrossOrigin,
-                          bool aScriptFromHead,
-                          const mozilla::net::ReferrerPolicy aReferrerPolicy);
+                          bool aScriptFromHead);
 
   /**
    * Process a request that was deferred so that the script could be compiled

@@ -16,7 +16,6 @@ using namespace mozilla::gl;
 
 CompositingRenderTargetOGL::~CompositingRenderTargetOGL()
 {
-  mGL->MakeCurrent();
   mGL->fDeleteTextures(1, &mTextureHandle);
   mGL->fDeleteFramebuffers(1, &mFBO);
 }
@@ -59,12 +58,6 @@ CompositingRenderTargetOGL::BindRenderTarget()
 
     mCompositor->PrepareViewport(mInitParams.mSize);
   }
-
-  if (mClearOnBind) {
-    mGL->fClearColor(0.0, 0.0, 0.0, 0.0);
-    mGL->fClear(LOCAL_GL_COLOR_BUFFER_BIT);
-    mClearOnBind = false;
-  }
 }
 
 #ifdef MOZ_DUMP_PAINTING
@@ -106,7 +99,6 @@ CompositingRenderTargetOGL::InitializeImpl()
   if (mInitParams.mInit == INIT_MODE_CLEAR) {
     mGL->fClearColor(0.0, 0.0, 0.0, 0.0);
     mGL->fClear(LOCAL_GL_COLOR_BUFFER_BIT);
-    mClearOnBind = false;
   }
 
 }

@@ -90,7 +90,6 @@ protected:
                    const OptionalURIParams&   originalUri,
                    const OptionalURIParams&   docUri,
                    const OptionalURIParams&   referrerUri,
-                   const uint32_t&            referrerPolicy,
                    const OptionalURIParams&   internalRedirectUri,
                    const OptionalURIParams&   topWindowUri,
                    const uint32_t&            loadFlags,

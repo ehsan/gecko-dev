@@ -308,7 +308,7 @@ const CustomizableWidgets = [
                 aEvent.target.ownerDocument &&
                 aEvent.target.ownerDocument.defaultView;
       if (win && typeof win.saveDocument == "function") {
-        win.saveDocument(win.gBrowser.selectedBrowser.contentDocumentAsCPOW);
+        win.saveDocument(win.content.document);
       }
     }
   }, {

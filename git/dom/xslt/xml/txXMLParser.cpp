@@ -36,9 +36,7 @@ txParseDocumentFromURI(const nsAString& aHref, const txXPathNode& aLoader,
     nsAutoSyncOperation sync(loaderDocument);
     rv = nsSyncLoadService::LoadDocument(documentURI,
                                          loaderDocument->NodePrincipal(),
-                                         loadGroup, true,
-                                         loaderDocument->GetReferrerPolicy(),
-                                         &theDocument);
+                                         loadGroup, true, &theDocument);
 
     if (NS_FAILED(rv)) {
         aErrMsg.AppendLiteral("Document load of ");

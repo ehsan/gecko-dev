@@ -175,7 +175,6 @@ class MIRGenerator
     uint32_t nslots_;
     MIRGraph *graph_;
     AbortReason abortReason_;
-    bool shouldForceAbort_; // Force AbortReason_Disable
     TypeObjectVector abortedNewScriptPropertiesTypes_;
     bool error_;
     mozilla::Atomic<bool, mozilla::Relaxed> *pauseBuild_;
@@ -196,12 +195,6 @@ class MIRGenerator
     bool instrumentedProfilingIsCached_;
 
     void addAbortedNewScriptPropertiesType(types::TypeObject *type);
-    void setForceAbort() {
-        shouldForceAbort_ = true;
-    }
-    bool shouldForceAbort() {
-        return shouldForceAbort_;
-    }
 
 #if defined(JS_ION_PERF)
     AsmJSPerfSpewer asmJSPerfSpewer_;

@@ -18,7 +18,6 @@ import android.view.ViewTreeObserver;
 import android.view.ViewTreeObserver.OnPreDrawListener;
 
 import com.nineoldandroids.animation.Animator;
-import com.nineoldandroids.animation.Animator.AnimatorListener;
 import com.nineoldandroids.animation.AnimatorSet;
 import com.nineoldandroids.animation.ObjectAnimator;
 
@@ -39,8 +38,6 @@ public class TabStripView extends TwoWayView {
 
     private final TabStripAdapter adapter;
     private final Drawable divider;
-
-    private final TabAnimatorListener animatorListener;
 
     // Filled by calls to ShapeDrawable.getPadding();
     // saved to prevent allocation in draw().
@@ -65,8 +62,6 @@ public class TabStripView extends TwoWayView {
         final int itemMargin =
                 resources.getDimensionPixelSize(R.dimen.new_tablet_tab_strip_item_margin);
         setItemMargin(itemMargin);
-
-        animatorListener = new TabAnimatorListener();
 
         adapter = new TabStripAdapter(context);
         setAdapter(adapter);
@@ -124,6 +119,7 @@ public class TabStripView extends TwoWayView {
                 for (int i = removedPosition - firstPosition; i < childCount; i++) {
                     final View child = getChildAt(i);
 
+                    // TODO: optimize with Valueresolver
                     final ObjectAnimator animator =
                             ObjectAnimator.ofFloat(child, "translationX", removedSize, 0);
                     childAnimators.add(animator);
@@ -133,7 +129,6 @@ public class TabStripView extends TwoWayView {
                 animatorSet.playTogether(childAnimators);
                 animatorSet.setDuration(ANIM_TIME_MS);
                 animatorSet.setInterpolator(ANIM_INTERPOLATOR);
-                animatorSet.addListener(animatorListener);
                 animatorSet.start();
 
                 return true;
@@ -182,7 +177,6 @@ public class TabStripView extends TwoWayView {
                 animatorSet.playTogether(childAnimators);
                 animatorSet.setDuration(ANIM_TIME_MS);
                 animatorSet.setInterpolator(ANIM_INTERPOLATOR);
-                animatorSet.addListener(animatorListener);
                 animatorSet.start();
 
                 return true;
@@ -307,34 +301,5 @@ public class TabStripView extends TwoWayView {
             divider.setBounds(left, top, right, bottom);
             divider.draw(canvas);
         }
-    }
-
-    private class TabAnimatorListener implements AnimatorListener {
-        private void setLayerType(int layerType) {
-            final int childCount = getChildCount();
-            for (int i = 0; i < childCount; i++) {
-                getChildAt(i).setLayerType(layerType, null);
-            }
-        }
-
-        @Override
-        public void onAnimationStart(Animator animation) {
-            setLayerType(View.LAYER_TYPE_HARDWARE);
-        }
-
-        @Override
-        public void onAnimationEnd(Animator animation) {
-            // This method is called even if the animator is canceled.
-            setLayerType(View.LAYER_TYPE_NONE);
-        }
-
-        @Override
-        public void onAnimationRepeat(Animator animation) {
-        }
-
-        @Override
-        public void onAnimationCancel(Animator animation) {
-        }
-
     }
 }

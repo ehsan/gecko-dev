@@ -26,8 +26,6 @@
 #include "nsCrossSiteListenerProxy.h"
 #include <algorithm>
 
-using mozilla::net::ReferrerPolicy;
-
 /**
  * This class manages loading a single XML document
  */
@@ -44,7 +42,6 @@ public:
 
     nsresult LoadDocument(nsIChannel* aChannel, nsIPrincipal *aLoaderPrincipal,
                           bool aChannelIsSync, bool aForceToXML,
-                          ReferrerPolicy aReferrerPolicy,
                           nsIDOMDocument** aResult);
 
     NS_FORWARD_NSISTREAMLISTENER(mListener->)
@@ -133,7 +130,6 @@ nsSyncLoader::LoadDocument(nsIChannel* aChannel,
                            nsIPrincipal *aLoaderPrincipal,
                            bool aChannelIsSync,
                            bool aForceToXML,
-                           ReferrerPolicy aReferrerPolicy,
                            nsIDOMDocument **aResult)
 {
     NS_ENSURE_ARG_POINTER(aResult);
@@ -148,11 +144,11 @@ nsSyncLoader::LoadDocument(nsIChannel* aChannel,
     mChannel = aChannel;
     nsCOMPtr<nsIHttpChannel> http = do_QueryInterface(mChannel);
     if (http) {
-        http->SetRequestHeader(NS_LITERAL_CSTRING("Accept"),
+        http->SetRequestHeader(NS_LITERAL_CSTRING("Accept"),     
                                NS_LITERAL_CSTRING("text/xml,application/xml,application/xhtml+xml,*/*;q=0.1"),
                                false);
         if (loaderUri) {
-            http->SetReferrerWithPolicy(loaderUri, aReferrerPolicy);
+            http->SetReferrer(loaderUri);
         }
     }
 
@@ -311,7 +307,6 @@ nsSyncLoader::GetInterface(const nsIID & aIID,
 nsresult
 nsSyncLoadService::LoadDocument(nsIURI *aURI, nsIPrincipal *aLoaderPrincipal,
                                 nsILoadGroup *aLoadGroup, bool aForceToXML,
-                                ReferrerPolicy aReferrerPolicy,
                                 nsIDOMDocument** aResult)
 {
     nsCOMPtr<nsIChannel> channel;
@@ -335,7 +330,7 @@ nsSyncLoadService::LoadDocument(nsIURI *aURI, nsIPrincipal *aLoaderPrincipal,
 
     nsRefPtr<nsSyncLoader> loader = new nsSyncLoader();
     return loader->LoadDocument(channel, aLoaderPrincipal, isSync,
-                                aForceToXML, aReferrerPolicy, aResult);
+                                aForceToXML, aResult);
 
 }
 

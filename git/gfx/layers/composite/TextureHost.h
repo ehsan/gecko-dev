@@ -755,8 +755,7 @@ class CompositingRenderTarget: public TextureSource
 public:
 
   explicit CompositingRenderTarget(const gfx::IntPoint& aOrigin)
-    : mClearOnBind(false)
-    , mOrigin(aOrigin)
+    : mOrigin(aOrigin)
   {}
   virtual ~CompositingRenderTarget() {}
 
@@ -764,19 +763,7 @@ public:
   virtual TemporaryRef<gfx::DataSourceSurface> Dump(Compositor* aCompositor) { return nullptr; }
 #endif
 
-  /**
-   * Perform a clear when recycling a non opaque surface.
-   * The clear is deferred to when the render target is bound.
-   */
-  void ClearOnBind() {
-    mClearOnBind = true;
-  }
-
   const gfx::IntPoint& GetOrigin() { return mOrigin; }
-  gfx::IntRect GetRect() { return gfx::IntRect(GetOrigin(), GetSize()); }
-
-protected:
-  bool mClearOnBind;
 
 private:
   gfx::IntPoint mOrigin;

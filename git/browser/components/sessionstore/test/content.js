@@ -82,7 +82,7 @@ addEventListener("MozStorageChanged", function () {
   // content-sessionStore.js. We run ours a little later to make sure
   // that the session store code has seen the event before we allow
   // the test to proceed.
-  executeSoon(() => sendAsyncMessage("ss-test:MozStorageChanged"));
+  executeSoon(() => sendSyncMessage("ss-test:MozStorageChanged"));
 }, true);
 
 addMessageListener("ss-test:modifySessionStorage", function (msg) {

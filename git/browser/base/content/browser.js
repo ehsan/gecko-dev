@@ -1743,7 +1743,7 @@ function HandleAppCommandEvent(evt) {
                      gBrowser.selectedBrowser);
     break;
   case "Save":
-    saveDocument(gBrowser.selectedBrowser.contentDocumentAsCPOW);
+    saveDocument(window.content.document);
     break;
   case "SendMail":
     MailIntegration.sendLinkForWindow(window.content);

@@ -791,7 +791,7 @@ function BuildTypedSeqImpl(arrayType, len, depth, func) {
   // and a depth of 2, we get
   //    grainType = T
   //    iterationSpace = [5, 4]
-  var {iterationSpace, grainType, totalLength} =
+  var [iterationSpace, grainType, totalLength] =
     ComputeIterationSpace(arrayType, depth, len);
 
   // Create a zeroed instance with no data
@@ -845,9 +845,7 @@ function ComputeIterationSpace(arrayType, depth, len) {
       ThrowError(JSMSG_TYPEDOBJECT_ARRAYTYPE_BAD_ARGS);
     }
   }
-  return { iterationSpace: iterationSpace,
-           grainType: grainType,
-           totalLength: totalLength };
+  return [iterationSpace, grainType, totalLength];
 }
 
 function IncrementIterationSpace(indices, iterationSpace) {
@@ -939,11 +937,11 @@ function MapTypedSeqImpl(inArray, depth, outputType, func) {
 
   // Compute iteration space for input and output and check for compatibility.
   var inputType = TypeOfTypedObject(inArray);
-  var {iterationSpace:inIterationSpace, grainType:inGrainType} =
+  var [inIterationSpace, inGrainType, _] =
     ComputeIterationSpace(inputType, depth, inArray.length);
   if (!IsObject(inGrainType) || !ObjectIsTypeDescr(inGrainType))
     ThrowError(JSMSG_TYPEDOBJECT_BAD_ARGS);
-  var {iterationSpace, grainType:outGrainType, totalLength} =
+  var [iterationSpace, outGrainType, totalLength] =
     ComputeIterationSpace(outputType, depth, outputType.length);
   for (var i = 0; i < depth; i++)
     if (inIterationSpace[i] !== iterationSpace[i])
