@@ -17,7 +17,6 @@
 
 class nsIOutputStream;
 class nsIInputStream;
-class nsIVolumeMountLock;
 
 BEGIN_BLUETOOTH_NAMESPACE
 
@@ -112,7 +111,7 @@ private:
   void ClearQueue();
   void RetrieveSentFileName();
   void NotifyAboutFileChange();
-  bool AcquireSdcardMountLock();
+
   /**
    * OBEX session status.
    * Set when OBEX session is established.
@@ -198,7 +197,7 @@ private:
   nsCOMPtr<nsIThread> mReadFileThread;
   nsCOMPtr<nsIOutputStream> mOutputStream;
   nsCOMPtr<nsIInputStream> mInputStream;
-  nsCOMPtr<nsIVolumeMountLock> mMountLock;
+
   nsRefPtr<BluetoothReplyRunnable> mRunnable;
   nsRefPtr<DeviceStorageFile> mDsFile;
 

@@ -342,24 +342,6 @@ WebConsoleActor.prototype =
   },
 
   /**
-   * Create a long string grip if needed for the given string.
-   *
-   * @private
-   * @param string aString
-   *        The string you want to create a long string grip for.
-   * @return string|object
-   *         A string is returned if |aString| is not a long string.
-   *         A LongStringActor grip is returned if |aString| is a long string.
-   */
-  _createStringGrip: function NEA__createStringGrip(aString)
-  {
-    if (aString && this._stringIsLong(aString)) {
-      return this.longStringGrip(aString, this._actorPool);
-    }
-    return aString;
-  },
-
-  /**
    * Get an object actor by its ID.
    *
    * @param string aActorID
@@ -931,7 +913,7 @@ WebConsoleActor.prototype =
       packet = {
         from: this.actorID,
         type: "logMessage",
-        message: this._createStringGrip(aMessage.message),
+        message: aMessage.message,
         timeStamp: aMessage.timeStamp,
       };
     }
@@ -949,9 +931,10 @@ WebConsoleActor.prototype =
   preparePageErrorForRemote: function WCA_preparePageErrorForRemote(aPageError)
   {
     return {
-      errorMessage: this._createStringGrip(aPageError.errorMessage),
+      message: aPageError.message,
+      errorMessage: aPageError.errorMessage,
       sourceName: aPageError.sourceName,
-      lineText: this._createStringGrip(aPageError.sourceLine),
+      lineText: aPageError.sourceLine,
       lineNumber: aPageError.lineNumber,
       columnNumber: aPageError.columnNumber,
       category: aPageError.category,
@@ -1156,8 +1139,6 @@ function NetworkEventActor(aNetworkEvent, aWebConsoleActor)
   };
 
   this._timings = {};
-
-  // Keep track of LongStringActors owned by this NetworkEventActor.
   this._longStringActors = new Set();
 
   this._discardRequestBody = aNetworkEvent.discardRequestBody;
@@ -1372,7 +1353,7 @@ NetworkEventActor.prototype =
   addRequestPostData: function NEA_addRequestPostData(aPostData)
   {
     this._request.postData = aPostData;
-    aPostData.text = this.parent._createStringGrip(aPostData.text);
+    aPostData.text = this._createStringGrip(aPostData.text);
     if (typeof aPostData.text == "object") {
       this._longStringActors.add(aPostData.text);
     }
@@ -1467,7 +1448,7 @@ NetworkEventActor.prototype =
   function NEA_addResponseContent(aContent, aDiscardedResponseBody)
   {
     this._response.content = aContent;
-    aContent.text = this.parent._createStringGrip(aContent.text);
+    aContent.text = this._createStringGrip(aContent.text);
     if (typeof aContent.text == "object") {
       this._longStringActors.add(aContent.text);
     }
@@ -1517,11 +1498,29 @@ NetworkEventActor.prototype =
   _prepareHeaders: function NEA__prepareHeaders(aHeaders)
   {
     for (let header of aHeaders) {
-      header.value = this.parent._createStringGrip(header.value);
+      header.value = this._createStringGrip(header.value);
       if (typeof header.value == "object") {
         this._longStringActors.add(header.value);
       }
     }
+  },
+
+  /**
+   * Create a long string grip if needed for the given string.
+   *
+   * @private
+   * @param string aString
+   *        The string you want to create a long string grip for.
+   * @return string|object
+   *         A string is returned if |aString| is not a long string.
+   *         A LongStringActor grip is returned if |aString| is a long string.
+   */
+  _createStringGrip: function NEA__createStringGrip(aString)
+  {
+    if (this.parent._stringIsLong(aString)) {
+      return this.parent.longStringGrip(aString, this.parent._actorPool);
+    }
+    return aString;
   },
 };
 
