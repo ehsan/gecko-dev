@@ -471,4 +471,3 @@ let FullZoomHelper = {
     };
   },
 };
-

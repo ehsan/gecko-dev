@@ -6,8 +6,6 @@
 
 #include "gc/Memory.h"
 
-#include "mozilla/TaggedAnonymousMemory.h"
-
 #include "js/HeapAPI.h"
 #include "vm/Runtime.h"
 
@@ -380,7 +378,7 @@ MapMemory(size_t length, int prot = PROT_READ | PROT_WRITE,
     }
     return region;
 #else
-    void *region = MozTaggedAnonymousMmap(nullptr, length, prot, flags, fd, offset, "js-gc-heap");
+    void *region = mmap(nullptr, length, prot, flags, fd, offset);
     if (region == MAP_FAILED)
         return nullptr;
     return region;

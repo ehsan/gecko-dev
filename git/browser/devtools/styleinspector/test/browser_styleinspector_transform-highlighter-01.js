@@ -15,28 +15,24 @@ const PAGE_CONTENT = [
   'Test the css transform highlighter'
 ].join("\n");
 
-const TYPE = "CssTransformHighlighter";
-
 let test = asyncTest(function*() {
   yield addTab("data:text/html," + PAGE_CONTENT);
 
   let {view: rView} = yield openRuleView();
-  let overlay = rView.highlighters;
 
-  ok(!overlay.highlighters[TYPE], "No highlighter exists in the rule-view");
-  let h = yield overlay._getHighlighter(TYPE);
-  ok(overlay.highlighters[TYPE], "The highlighter has been created in the rule-view");
-  is(h, overlay.highlighters[TYPE], "The right highlighter has been created");
-  let h2 = yield overlay._getHighlighter(TYPE);
+  ok(!rView.transformHighlighter, "No highlighter exists in the rule-view");
+  let h = yield rView.getTransformHighlighter();
+  ok(rView.transformHighlighter, "The highlighter has been created in the rule-view");
+  is(h, rView.transformHighlighter, "The right highlighter has been created");
+  let h2 = yield rView.getTransformHighlighter();
   is(h, h2, "The same instance of highlighter is returned everytime in the rule-view");
 
   let {view: cView} = yield openComputedView();
-  let overlay = cView.highlighters;
 
-  ok(!overlay.highlighters[TYPE], "No highlighter exists in the computed-view");
-  let h = yield overlay._getHighlighter(TYPE);
-  ok(overlay.highlighters[TYPE], "The highlighter has been created in the computed-view");
-  is(h, overlay.highlighters[TYPE], "The right highlighter has been created");
-  let h2 = yield overlay._getHighlighter(TYPE);
+  ok(!cView.transformHighlighter, "No highlighter exists in the computed-view");
+  let h = yield cView.getTransformHighlighter();
+  ok(cView.transformHighlighter, "The highlighter has been created in the computed-view");
+  is(h, cView.transformHighlighter, "The right highlighter has been created");
+  let h2 = yield cView.getTransformHighlighter();
   is(h, h2, "The same instance of highlighter is returned everytime in the computed-view");
 });

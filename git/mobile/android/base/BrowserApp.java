@@ -1991,7 +1991,6 @@ abstract public class BrowserApp extends GeckoApp
      */
     private class HideOnTouchListener implements TouchEventInterceptor {
         private boolean mIsHidingTabs = false;
-        private final Rect mTempRect = new Rect();
 
         @Override
         public boolean onInterceptTouchEvent(View view, MotionEvent event) {
@@ -2004,8 +2003,9 @@ abstract public class BrowserApp extends GeckoApp
             // tapping on an "empty" part of the view will still be considered a
             // valid touch event.
             if (view.getScrollX() != 0 || view.getScrollY() != 0) {
-                view.getHitRect(mTempRect);
-                mTempRect.offset(-view.getScrollX(), -view.getScrollY());
+                Rect rect = new Rect();
+                view.getHitRect(rect);
+                rect.offset(-view.getScrollX(), -view.getScrollY());
 
                 int[] viewCoords = new int[2];
                 view.getLocationOnScreen(viewCoords);
@@ -2013,7 +2013,7 @@ abstract public class BrowserApp extends GeckoApp
                 int x = (int) event.getRawX() - viewCoords[0];
                 int y = (int) event.getRawY() - viewCoords[1];
 
-                if (!mTempRect.contains(x, y))
+                if (!rect.contains(x, y))
                     return false;
             }
 

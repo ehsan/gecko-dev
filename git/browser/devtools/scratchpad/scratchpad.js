@@ -1958,7 +1958,7 @@ ScratchpadTab.consoleFor = function consoleFor(aSubject)
   if (!scratchpadTargets.has(aSubject)) {
     scratchpadTargets.set(aSubject, new this(aSubject));
   }
-  return scratchpadTargets.get(aSubject).connect(aSubject);
+  return scratchpadTargets.get(aSubject).connect();
 };
 
 
@@ -1971,12 +1971,10 @@ ScratchpadTab.prototype = {
   /**
    * Initialize a debugger client and connect it to the debugger server.
    *
- * @param object aSubject
- *        The tab or window to obtain the connection for.
    * @return Promise
    *         The promise for the result of connecting to this tab or window.
    */
-  connect: function ST_connect(aSubject)
+  connect: function ST_connect()
   {
     if (this._connector) {
       return this._connector;
@@ -1994,7 +1992,7 @@ ScratchpadTab.prototype = {
 
     deferred.promise.then(() => clearTimeout(connectTimer));
 
-    this._attach(aSubject).then(aTarget => {
+    this._attach().then(aTarget => {
       let consoleActor = aTarget.form.consoleActor;
       let client = aTarget.client;
       client.attachConsole(consoleActor, [], (aResponse, aWebConsoleClient) => {
@@ -2017,19 +2015,12 @@ ScratchpadTab.prototype = {
   /**
    * Attach to this tab.
    *
- * @param object aSubject
- *        The tab or window to obtain the connection for.
    * @return Promise
    *         The promise for the TabTarget for this tab.
    */
-  _attach: function ST__attach(aSubject)
+  _attach: function ST__attach()
   {
     let target = TargetFactory.forTab(this._tab);
-    target.once("close", () => {
-      if (scratchpadTargets) {
-        scratchpadTargets.delete(aSubject);
-      }
-    });
     return target.makeRemote().then(() => target);
   },
 };

@@ -24,10 +24,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "CommonUtils",
 XPCOMUtils.defineLazyModuleGetter(this, "CryptoUtils",
                                   "resource://services-crypto/utils.js");
 
-XPCOMUtils.defineLazyModuleGetter(this, "HawkClient",
-                                  "resource://services-common/hawkclient.js");
-
-XPCOMUtils.defineLazyModuleGetter(this, "deriveHawkCredentials",
+XPCOMUtils.defineLazyModuleGetter(this, "HAWKAuthenticatedRESTRequest",
                                   "resource://services-common/hawkrequest.js");
 
 XPCOMUtils.defineLazyModuleGetter(this, "MozLoopPushHandler",
@@ -141,55 +138,27 @@ let MozLoopServiceInternal = {
   },
 
   /**
-   * Performs a hawk based request to the loop server.
+   * Derives hawk credentials for the given token and context.
    *
-   * @param {String} path The path to make the request to.
-   * @param {String} method The request method, e.g. 'POST', 'GET'.
-   * @param {Object} payloadObj An object which is converted to JSON and
-   *                            transmitted with the request.
+   * @param {String} tokenHex The token value in hex.
+   * @param {String} context  The context for the token.
    */
-  hawkRequest: function(path, method, payloadObj) {
-    if (!this._hawkClient) {
-      this._hawkClient = new HawkClient(this.loopServerUri);
-    }
+  deriveHawkCredentials: function(tokenHex, context) {
+    const PREFIX_NAME = "identity.mozilla.com/picl/v1/";
 
-    let sessionToken;
-    try {
-      sessionToken = Services.prefs.getCharPref("loop.hawk-session-token");
-    } catch (x) {
-      // It is ok for this not to exist, we'll default to sending no-creds
-    }
+    let token = CommonUtils.hexToBytes(tokenHex);
+    let keyWord = CommonUtils.stringToBytes(PREFIX_NAME + context);
 
-    let credentials;
-    if (sessionToken) {
-      credentials = deriveHawkCredentials(sessionToken, "sessionToken", 2 * 32);
-    }
+    // XXX Using 2 * 32 for now to be in sync with client.js, but we might
+    // want to make this 3 * 32 to allow for extra, if we start using the extra
+    // field.
+    let out = CryptoUtils.hkdf(token, undefined, keyWord, 2 * 32);
 
-    return this._hawkClient.request(path, method, credentials, payloadObj);
-  },
-
-  /**
-   * Used to store a session token from a request if it exists in the headers.
-   *
-   * @param {Object} headers The request headers, which may include a
-   *                         "hawk-session-token" to be saved.
-   * @return true on success or no token, false on failure.
-   */
-  storeSessionToken: function(headers) {
-    let sessionToken = headers["hawk-session-token"];
-    if (sessionToken) {
-      // XXX should do more validation here
-      if (sessionToken.length === 64) {
-        Services.prefs.setCharPref("loop.hawk-session-token", sessionToken);
-      } else {
-        // XXX Bubble the precise details up to the UI somehow (bug 1013248).
-        console.warn("Loop server sent an invalid session token");
-        this._registeredDeferred.reject("session-token-wrong-size");
-        this._registeredDeferred = null;
-        return false;
-      }
-    }
-    return true;
+    return {
+      algorithm: "sha256",
+      key: out.slice(32, 64),
+      id: CommonUtils.bytesAsHex(out.slice(0, 32))
+    };
   },
 
   /**
@@ -215,38 +184,39 @@ let MozLoopServiceInternal = {
    * @param {Boolean} noRetry Optional, don't retry if authentication fails.
    */
   registerWithLoopServer: function(pushUrl, noRetry) {
-    this.hawkRequest("/registration", "POST", { simple_push_url: pushUrl})
-      .then((response) => {
-        // If this failed we got an invalid token. storeSessionToken rejects
-        // the _registeredDeferred promise for us, so here we just need to
-        // early return.
-        if (!this.storeSessionToken(response.headers))
-          return;
+    let sessionToken;
+    try {
+      sessionToken = Services.prefs.getCharPref("loop.hawk-session-token");
+    } catch (x) {
+      // It is ok for this not to exist, we'll default to sending no-creds
+    }
 
-        this.registeredLoopServer = true;
-        this._registeredDeferred.resolve();
-        // No need to clear the promise here, everything was good, so we don't need
-        // to re-register.
-      }, (error) => {
-        if (error.errno == 401) {
-          if (this.urlExpiryTimeIsInFuture()) {
-            // XXX Should this be reported to the user is a visible manner?
-            Cu.reportError("Loop session token is invalid, all previously "
-                           + "generated urls will no longer work.");
-          }
+    let credentials;
+    if (sessionToken) {
+      credentials = this.deriveHawkCredentials(sessionToken, "sessionToken");
+    }
 
-          // Authorization failed, invalid token, we need to try again with a new token.
-          Services.prefs.clearUserPref("loop.hawk-session-token");
-          this.registerWithLoopServer(pushUrl, true);
-          return;
+    let uri = Services.io.newURI(this.loopServerUri, null, null).resolve("/registration");
+    this.loopXhr = new HAWKAuthenticatedRESTRequest(uri, credentials);
+
+    this.loopXhr.dispatch('POST', { simple_push_url: pushUrl }, (error) => {
+      if (this.loopXhr.response.status == 401) {
+        if (this.urlExpiryTimeIsInFuture()) {
+          // XXX Should this be reported to the user is a visible manner?
+          Cu.reportError("Loop session token is invalid, all previously "
+                         + "generated urls will no longer work.");
         }
 
-        // XXX Bubble the precise details up to the UI somehow (bug 1013248).
-        Cu.reportError("Failed to register with the loop server. error: " + error);
-        this._registeredDeferred.reject(error.errno);
-        this._registeredDeferred = null;
+        // Authorization failed, invalid token, we need to try again with a new token.
+        Services.prefs.clearUserPref("loop.hawk-session-token");
+        this.registerWithLoopServer(pushUrl, true);
+
+        return;
       }
-    );
+
+      // No authorization issues, so complete registration.
+      this.onLoopRegistered(error);
+    });
   },
 
   /**
@@ -261,6 +231,43 @@ let MozLoopServiceInternal = {
     }
 
     this.openChatWindow(null, "LooP", "about:loopconversation#incoming/" + version);
+  },
+
+  /**
+   * Callback from the loopXhr. Checks the registration result.
+   */
+  onLoopRegistered: function(error) {
+    let status = this.loopXhr.response.status;
+    if (status != 200) {
+      // XXX Bubble the precise details up to the UI somehow (bug 1013248).
+      Cu.reportError("Failed to register with the loop server. Code: " +
+        status + " Text: " + this.loopXhr.response.statusText);
+      this._registeredDeferred.reject(status);
+      this._registeredDeferred = null;
+      return;
+    }
+
+    let sessionToken = this.loopXhr.response.headers["hawk-session-token"];
+    if (sessionToken) {
+
+      // XXX should do more validation here
+      if (sessionToken.length === 64) {
+
+        Services.prefs.setCharPref("loop.hawk-session-token", sessionToken);
+      } else {
+        // XXX Bubble the precise details up to the UI somehow (bug 1013248).
+        console.warn("Loop server sent an invalid session token");
+        this._registeredDeferred.reject("session-token-wrong-size");
+        this._registeredDeferred = null;
+        return;
+      }
+    }
+
+    // If we made it this far, we registered just fine.
+    this.registeredLoopServer = true;
+    this._registeredDeferred.resolve();
+    // No need to clear the promise here, everything was good, so we don't need
+    // to re-register.
   },
 
   /**
