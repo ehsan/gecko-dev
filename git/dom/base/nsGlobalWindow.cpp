@@ -6456,12 +6456,13 @@ nsGlobalWindow::GetSystemEventGroup(nsIDOMEventGroup **aGroup)
   return NS_ERROR_FAILURE;
 }
 
-nsIScriptContext*
-nsGlobalWindow::GetContextForEventHandlers(nsresult* aRv)
+nsresult
+nsGlobalWindow::GetContextForEventHandlers(nsIScriptContext** aContext)
 {
-  nsIScriptContext* scx = GetContext();
-  *aRv = scx ? NS_OK : NS_ERROR_UNEXPECTED;
-  return scx;
+  NS_IF_ADDREF(*aContext = GetContext());
+  // Bad, no context from script global object!
+  NS_ENSURE_STATE(*aContext);
+  return NS_OK;
 }
 
 //*****************************************************************************

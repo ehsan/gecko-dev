@@ -83,10 +83,10 @@ public:
   virtual nsresult RemoveEventListenerByIID(nsIDOMEventListener *aListener,
                                             const nsIID& aIID);
   virtual nsresult GetSystemEventGroup(nsIDOMEventGroup** aGroup);
-  virtual nsIScriptContext* GetContextForEventHandlers(nsresult* aRv)
+  virtual nsresult GetContextForEventHandlers(nsIScriptContext** aContext)
   {
-    *aRv = NS_OK;
-    return nsnull;
+    *aContext = nsnull;
+    return NS_OK;
   }
 
   // nsPIWindowRoot
