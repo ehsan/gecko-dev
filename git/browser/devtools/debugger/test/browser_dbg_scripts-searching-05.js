@@ -109,30 +109,37 @@ function doSearch() {
 
 function testLocationChange()
 {
-  gDebugger.DebuggerController.client.addListener("tabNavigated", function onTabNavigated(aEvent, aPacket) {
-    dump("tabNavigated state " + aPacket.state + "\n");
-    if (aPacket.state == "start") {
-      return;
-    }
+  let viewCleared = false;
+  let cacheCleared = false;
 
-    gDebugger.DebuggerController.client.removeListener("tabNavigated", onTabNavigated);
-
-    ok(true, "tabNavigated event was fired after location change.");
-    info("Still attached to the tab.");
-
-    executeSoon(function() {
-      is(gSearchView._container._list.childNodes.length, 0,
-        "The global search pane shouldn't have any child nodes after a page navigation.");
-      is(gSearchView._container._parent.hidden, true,
-        "The global search pane shouldn't be visible after a page navigation.");
-      is(gSearchView._splitter.hidden, true,
-        "The global search pane splitter shouldn't be visible after a page navigation.");
-
-      is(gDebugger.DebuggerController.SourceScripts.getCache().length, 0,
-        "The scripts sources cache for global searching should be cleared after a page navigation.")
-
+  function _maybeFinish() {
+    if (viewCleared && cacheCleared) {
       closeDebuggerAndFinish();
-    });
+    }
+  }
+
+  gDebugger.addEventListener("Debugger:GlobalSearch:ViewCleared", function _onViewCleared(aEvent) {
+    gDebugger.removeEventListener(aEvent.type, _onViewCleared);
+
+    is(gSearchView._container._list.childNodes.length, 0,
+      "The global search pane shouldn't have any child nodes after a page navigation.");
+    is(gSearchView._container._parent.hidden, true,
+      "The global search pane shouldn't be visible after a page navigation.");
+    is(gSearchView._splitter.hidden, true,
+      "The global search pane splitter shouldn't be visible after a page navigation.");
+
+    viewCleared = true;
+    _maybeFinish();
+  });
+
+  gDebugger.addEventListener("Debugger:GlobalSearch:CacheCleared", function _onCacheCleared(aEvent) {
+    gDebugger.removeEventListener(aEvent.type, _onCacheCleared);
+
+    is(gSearchView._cache.size, 0,
+      "The scripts sources cache for global searching should be cleared after a page navigation.")
+
+    cacheCleared = true;
+    _maybeFinish();
   });
 
   content.location = TAB1_URL;
