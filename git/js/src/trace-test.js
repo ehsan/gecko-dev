@@ -758,15 +758,18 @@ function parsingNumbers() {
 parsingNumbers.expected = "ok";
 test(parsingNumbers);
 
-function matchInLoop() {
-    var k = "hi";
-    for (var i = 0; i < 10; i++) {
-        var result = k.match(/hi/) != null;
-    }
-    return result;
+function deep1(x) {
+    if (x > 90) 
+	return 1;
+    return 2;
 }
-matchInLoop.expected = true;
-test(matchInLoop);
+function deep2() {
+    for (var i = 0; i < 100; ++i)
+	deep1(i);
+    return "ok";
+}
+deep2.expected = "ok";
+test(deep2)
 
 /* Keep these at the end so that we can see the summary after the trace-debug spew. */
 print("\npassed:", passes.length && passes.join(","));

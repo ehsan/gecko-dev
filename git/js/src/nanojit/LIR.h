@@ -276,11 +276,12 @@ namespace nanojit
 		#ifdef AVMPLUS_UNALIGNED_ACCESS
 			return *(const uint64_t*)(this-2);
 		#else
-			union { uint64_t tmp; int32_t dst[2]; } u;
+			uint64_t tmp;
 			const int32_t* src = (const int32_t*)(this-2);
-			u.dst[0] = src[0];
-			u.dst[1] = src[1];
-			return u.tmp;
+			int32_t* dst = (int32_t*)&tmp;
+			dst[0] = src[0];
+			dst[1] = src[1];
+			return tmp;
 		#endif
 		}
 		
@@ -299,10 +300,11 @@ namespace nanojit
 		#ifdef AVMPLUS_UNALIGNED_ACCESS
 			return *(const double*)(this-2);
 		#else
-			union { uint32_t dst[2]; double tmpf; } u;
+			union { uint64_t tmp; double tmpf; } u;
 			const int32_t* src = (const int32_t*)(this-2);
-			u.dst[0] = src[0];
-			u.dst[1] = src[1];
+			int32_t* dst = (int32_t*)&u;
+			dst[0] = src[0];
+			dst[1] = src[1];
 			return u.tmpf;
 		#endif
 		}
