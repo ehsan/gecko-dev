@@ -672,6 +672,8 @@ public:
     void SetPendingResult(nsresult rc) {mPendingResult = rc;}
 
     void DebugDump(int16_t depth);
+    void AddScope(PRCList *scope) { PR_INSERT_AFTER(scope, &mScopes); }
+    void RemoveScope(PRCList *scope) { PR_REMOVE_LINK(scope); }
 
     void MarkErrorUnreported() { mErrorUnreported = true; }
     void ClearUnreportedError() { mErrorUnreported = false; }
@@ -693,6 +695,9 @@ private:
     nsCOMPtr<nsIException> mException;
     LangType mCallingLangType;
     bool mErrorUnreported;
+
+    // A linked list of scopes to notify when we are destroyed.
+    PRCList mScopes;
 };
 
 /***************************************************************************/
@@ -1075,6 +1080,9 @@ public:
     static bool
     IsDyingScope(XPCWrappedNativeScope *scope);
 
+    XPCContext *GetContext() { return mContext; }
+    void ClearContext() { mContext = nullptr; }
+
     typedef js::HashSet<JSObject *,
                         js::PointerHasher<JSObject *, 3>,
                         js::SystemAllocPolicy> DOMExpandoSet;
@@ -1132,6 +1140,8 @@ private:
     // EnsureXBLScope() decides whether it needs to be created or not.
     // This reference is wrapped into the compartment of mGlobalJSObject.
     JS::ObjectPtr                    mXBLScope;
+
+    XPCContext*                      mContext;
 
     nsAutoPtr<DOMExpandoSet> mDOMExpandoSet;
 

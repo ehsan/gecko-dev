@@ -9,7 +9,6 @@ from mozlog.structured import (
     commandline,
     reader,
     structuredlog,
-    stdadapter,
 )
 
 
@@ -125,7 +124,7 @@ class TestStructuredLog(BaseStructuredTest):
         std_logger = logging.getLogger("test")
         std_logger.setLevel("DEBUG")
 
-        logger = stdadapter.std_logging_adapter(std_logger)
+        logger = structuredlog.std_logging_adapter(std_logger)
 
         try:
             for level in ["critical", "error", "warning", "info", "debug"]:

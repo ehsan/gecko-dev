@@ -1142,14 +1142,17 @@ Http2Session::ResponseHeadersComplete()
   // only do this once, afterwards ignore trailers
   if (mInputFrameDataStream->AllHeadersReceived())
     return NS_OK;
-  mInputFrameDataStream->SetAllHeadersReceived();
+  nsresult rv = mInputFrameDataStream->SetAllHeadersReceived(true);
+
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
 
   // The stream needs to see flattened http headers
   // Uncompressed http/2 format headers currently live in
   // Http2Stream::mDecompressBuffer - convert that to HTTP format in
   // mFlatHTTPResponseHeaders via ConvertHeaders()
 
-  nsresult rv;
   mFlatHTTPResponseHeadersOut = 0;
   rv = mInputFrameDataStream->ConvertResponseHeaders(&mDecompressor,
                                                      mDecompressBuffer,
@@ -1164,7 +1167,8 @@ Http2Session::ResponseHeadersComplete()
     CleanupStream(mInputFrameDataStream, rv, CANCEL_ERROR);
     ResetDownstreamState();
     return NS_OK;
-  } else if (NS_FAILED(rv)) {
+  }
+  else if (NS_FAILED(rv)) {
     return rv;
   }
 

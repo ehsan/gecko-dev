@@ -218,9 +218,6 @@ public:
     // auto remove when alertfinished is received.
     nsresult AddRemoteAlertObserver(const nsString& aData, nsIObserver* aObserver);
 
-    virtual bool RecvSystemMemoryAvailable(const uint64_t& aGetterId,
-                                           const uint32_t& aMemoryAvailable) MOZ_OVERRIDE;
-
     virtual bool RecvPreferenceUpdate(const PrefSetting& aPref) MOZ_OVERRIDE;
 
     virtual bool RecvNotifyAlertsObserver(const nsCString& aType,

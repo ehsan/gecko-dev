@@ -55,8 +55,8 @@ function init(aEvent)
   let defaults = Services.prefs.getDefaultBranch("");
   let channelLabel = document.getElementById("currentChannel");
   let currentChannelText = document.getElementById("currentChannelText");
-  channelLabel.value = UpdateChannel.get();
-  if (/^release($|\-)/.test(channelLabel.value))
+  channelLabel.value = defaults.getCharPref("app.update.channel");
+  if (channelLabel.value == "release")
       currentChannelText.hidden = true;
 #endif
 
@@ -71,9 +71,6 @@ function init(aEvent)
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/DownloadUtils.jsm");
 Components.utils.import("resource://gre/modules/AddonManager.jsm");
-
-XPCOMUtils.defineLazyModuleGetter(this, "UpdateChannel",
-                                  "resource://gre/modules/UpdateChannel.jsm");
 
 var gAppUpdater;
 

@@ -208,10 +208,11 @@ UnreachableCodeElimination::checkDependencyAndRemoveUsesFromUnmarkedBlocks(MDefi
         rerunAliasAnalysis_ = true;
 
     for (MUseIterator iter(instr->usesBegin()); iter != instr->usesEnd(); ) {
-        MUse *use = *iter++;
-        if (!use->consumer()->block()->isMarked()) {
+        if (!iter->consumer()->block()->isMarked()) {
             instr->setUseRemovedUnchecked();
-            use->discardProducer();
+            iter = instr->removeUse(iter);
+        } else {
+            iter++;
         }
     }
 }

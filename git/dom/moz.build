@@ -44,7 +44,6 @@ PARALLEL_DIRS += [
     'battery',
     'browser-element',
     'contacts',
-    'crypto',
     'phonenumberutils',
     'alarm',
     'datastore',

@@ -121,13 +121,6 @@ pref("dom.gamepad.non_standard_events.enabled", false);
 pref("dom.gamepad.non_standard_events.enabled", true);
 #endif
 
-// Whether the WebCrypto API is enabled
-#ifdef RELEASE_BUILD
-pref("dom.webcrypto.enabled", false);
-#else
-pref("dom.webcrypto.enabled", true);
-#endif
-
 // Whether the UndoManager API is enabled
 pref("dom.undo_manager.enabled", false);
 
@@ -1427,7 +1420,6 @@ pref("network.proxy.socks",                 "");
 pref("network.proxy.socks_port",            0);
 pref("network.proxy.socks_version",         5);
 pref("network.proxy.socks_remote_dns",      false);
-pref("network.proxy.proxy_over_tls",        true);
 pref("network.proxy.no_proxies_on",         "localhost, 127.0.0.1");
 pref("network.proxy.failover_timeout",      1800); // 30 minutes
 pref("network.online",                      true); //online/offline
@@ -2095,13 +2087,6 @@ pref("svg.svg-iframe.enabled", false);
 pref("svg.svg-iframe.enabled", false);
 #endif
 
-// Is support for the new getBBox method from SVG 2 enabled?  
-// See https://svgwg.org/svg2-draft/single-page.html#types-SVGBoundingBoxOptions
-#ifdef RELEASE_BUILD
-pref("svg.new-getBBox.enabled", false);
-#else
-pref("svg.new-getBBox.enabled", true);
-#endif
 
 // Default font types and sizes by locale
 pref("font.default.ar", "sans-serif");
@@ -3732,8 +3717,6 @@ pref("layers.draw-tile-borders", false);
 pref("layers.draw-bigimage-borders", false);
 pref("layers.frame-counter", false);
 pref("layers.enable-tiles", false);
-pref("layers.tile-width", 256);
-pref("layers.tile-height", 256);
 // Max number of layers per container. See Overwrite in mobile prefs.
 pref("layers.max-active", -1);
 // When a layer is moving it will add a scroll graph to measure the smoothness

@@ -383,10 +383,6 @@ OnSharedPreferenceChangeListener
         intent.putExtra(PreferenceActivity.EXTRA_SHOW_FRAGMENT_ARGUMENTS, fragmentArgs);
     }
 
-    public boolean isValidFragment(String fragmentName) {
-        return GeckoPreferenceFragment.class.getName().equals(fragmentName);
-    }
-
     @Override
     public void onBuildHeaders(List<Header> target) {
         if (onIsMultiPane()) {

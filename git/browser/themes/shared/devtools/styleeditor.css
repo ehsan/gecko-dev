@@ -75,13 +75,12 @@
   height: 40px;
 }
 
-.disabled > .stylesheet-enabled {
-  background-position: -24px 8px;
+.theme-light .stylesheet-enabled {
+  background-image: url(itemToggle-light.png);
 }
 
-/* Invert all toggle icons but the one in the active row for light theme */
-.theme-light .splitview-nav > li:not(.splitview-active) .stylesheet-enabled {
-  filter: url(filters.svg#invert);
+.disabled > .stylesheet-enabled {
+  background-position: -24px 8px;
 }
 
 .splitview-nav > li > .stylesheet-enabled:focus,

@@ -93,7 +93,7 @@ TiledContentClient::TiledContentClient(ClientTiledThebesLayer* aThebesLayer,
   mLowPrecisionTiledBuffer = ClientTiledLayerBuffer(aThebesLayer, this, aManager,
                                                     &mSharedFrameMetricsHelper);
 
-  mLowPrecisionTiledBuffer.SetResolution(gfxPrefs::LowPrecisionResolution());
+  mLowPrecisionTiledBuffer.SetResolution(gfxPrefs::LowPrecisionResolution()/1000.f);
 }
 
 void

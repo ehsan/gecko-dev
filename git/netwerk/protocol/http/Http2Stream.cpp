@@ -933,19 +933,11 @@ Http2Stream::Close(nsresult reason)
   mTransaction->Close(reason);
 }
 
-void
-Http2Stream::SetAllHeadersReceived()
+nsresult
+Http2Stream::SetAllHeadersReceived(bool aStatus)
 {
-  if (mAllHeadersReceived) {
-    return;
-  }
-
-  mAllHeadersReceived = 1;
-  if (mIsTunnel) {
-    MapStreamToHttpConnection();
-    ClearTransactionsBlockedOnTunnel();
-  }
-  return;
+  mAllHeadersReceived = aStatus ? 1 : 0;
+  return NS_OK;
 }
 
 bool

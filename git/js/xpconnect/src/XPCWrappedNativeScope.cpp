@@ -89,6 +89,10 @@ XPCWrappedNativeScope::XPCWrappedNativeScope(JSContext *cx,
 
         mNext = gScopes;
         gScopes = this;
+
+        // Grab the XPCContext associated with our context.
+        mContext = XPCContext::GetXPCContext(cx);
+        mContext->AddScope(this);
     }
 
     MOZ_COUNT_CTOR(XPCWrappedNativeScope);
@@ -287,6 +291,9 @@ XPCWrappedNativeScope::~XPCWrappedNativeScope()
         MOZ_ASSERT(0 == mWrappedNativeProtoMap->Count(), "scope has non-empty map");
         delete mWrappedNativeProtoMap;
     }
+
+    if (mContext)
+        mContext->RemoveScope(this);
 
     // This should not be necessary, since the Components object should die
     // with the scope but just in case.

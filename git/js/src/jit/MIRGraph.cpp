@@ -397,7 +397,7 @@ MBasicBlock::inherit(TempAllocator &alloc, BytecodeAnalysis *analysis, MBasicBlo
                     return false;
                 addPhi(phi);
                 setSlot(i, phi);
-                entryResumePoint()->initOperand(i, phi);
+                entryResumePoint()->setOperand(i, phi);
             }
 
             JS_ASSERT(stackPhiCount <= stackDepth());
@@ -409,7 +409,7 @@ MBasicBlock::inherit(TempAllocator &alloc, BytecodeAnalysis *analysis, MBasicBlo
             for (; i < stackDepth() - stackPhiCount; i++) {
                 MDefinition *val = pred->getSlot(i);
                 setSlot(i, val);
-                entryResumePoint()->initOperand(i, val);
+                entryResumePoint()->setOperand(i, val);
             }
 
             for (; i < stackDepth(); i++) {
@@ -418,11 +418,11 @@ MBasicBlock::inherit(TempAllocator &alloc, BytecodeAnalysis *analysis, MBasicBlo
                     return false;
                 addPhi(phi);
                 setSlot(i, phi);
-                entryResumePoint()->initOperand(i, phi);
+                entryResumePoint()->setOperand(i, phi);
             }
         } else {
             for (size_t i = 0; i < stackDepth(); i++)
-                entryResumePoint()->initOperand(i, getSlot(i));
+                entryResumePoint()->setOperand(i, getSlot(i));
         }
     } else {
         /*
@@ -484,7 +484,7 @@ MBasicBlock::initSlot(uint32_t slot, MDefinition *ins)
 {
     slots_[slot] = ins;
     if (entryResumePoint())
-        entryResumePoint()->initOperand(slot, ins);
+        entryResumePoint()->setOperand(slot, ins);
 }
 
 void
@@ -785,8 +785,11 @@ MBasicBlock::discardAllInstructions()
 void
 MBasicBlock::discardAllPhiOperands()
 {
-    for (MPhiIterator iter = phisBegin(); iter != phisEnd(); iter++)
-        iter->removeAllOperands();
+    for (MPhiIterator iter = phisBegin(); iter != phisEnd(); iter++) {
+        MPhi *phi = *iter;
+        for (size_t i = 0, e = phi->numOperands(); i < e; i++)
+            phi->discardOperand(i);
+    }
 
     for (MBasicBlock **pred = predecessors_.begin(); pred != predecessors_.end(); pred++)
         (*pred)->setSuccessorWithPhis(nullptr, 0);
@@ -865,7 +868,8 @@ MBasicBlock::discardPhiAt(MPhiIterator &at)
 {
     JS_ASSERT(!phis_.empty());
 
-    at->removeAllOperands();
+    for (size_t i = 0, e = at->numOperands(); i < e; i++)
+        at->discardOperand(i);
 
     MPhiIterator result = phis_.removeAt(at);
 
@@ -1297,6 +1301,7 @@ MIRGraph::dump(FILE *fp)
 {
 #ifdef DEBUG
     for (MBasicBlockIterator iter(begin()); iter != end(); iter++) {
+        fprintf(fp, "block%d:\n", iter->id());
         iter->dump(fp);
         fprintf(fp, "\n");
     }
@@ -1313,7 +1318,6 @@ void
 MBasicBlock::dump(FILE *fp)
 {
 #ifdef DEBUG
-    fprintf(fp, "block%u:\n", id());
     if (MResumePoint *resume = entryResumePoint()) {
         resume->dump();
     }

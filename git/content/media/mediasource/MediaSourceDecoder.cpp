@@ -147,6 +147,7 @@ private:
         mActiveVideoDecoder = i;
         MSE_DEBUG("%p MSR::DecodeVF switching to %d", this, mActiveVideoDecoder);
 
+        GetVideoReader()->SetActive();
         return true;
       }
     }
@@ -325,6 +326,7 @@ MediaSourceReader::CallDecoderInitialization()
     MediaDecoderReader* reader = decoder->GetReader();
     MSE_DEBUG("%p: Initializating subdecoder %p reader %p", this, decoder.get(), reader);
 
+    reader->SetActive();
     MediaInfo mi;
     nsAutoPtr<MetadataTags> tags; // TODO: Handle metadata.
     nsresult rv;
@@ -453,6 +455,8 @@ MediaSourceReader::ReadMetadata(MediaInfo* aInfo, MetadataTags** aTags)
   int64_t maxDuration = -1;
   for (uint32_t i = 0; i < mDecoders.Length(); ++i) {
     MediaDecoderReader* reader = mDecoders[i]->GetReader();
+
+    reader->SetActive(); // XXX check where this should be called
 
     MediaInfo mi = reader->GetMediaInfo();
 

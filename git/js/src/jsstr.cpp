@@ -2250,13 +2250,9 @@ struct ReplaceData
         elembase = nullptr;
         repstr = string;
 
-        const jschar *chars = repstr->chars();
-        if (const jschar *p = js_strchr_limit(chars, '$', chars + repstr->length())) {
-            dollarIndex = p - chars;
-            MOZ_ASSERT(dollarIndex < repstr->length());
-        } else {
-            dollarIndex = UINT32_MAX;
-        }
+        /* We're about to store pointers into the middle of our string. */
+        dollarEnd = repstr->chars() + repstr->length();
+        dollar = js_strchr_limit(repstr->chars(), '$', dollarEnd);
     }
 
     inline void setReplacementFunction(JSObject *func) {
@@ -2264,15 +2260,16 @@ struct ReplaceData
         lambda = func;
         elembase = nullptr;
         repstr = nullptr;
-        dollarIndex = UINT32_MAX;
+        dollar = dollarEnd = nullptr;
     }
 
     RootedString       str;            /* 'this' parameter object as a string */
     StringRegExpGuard  g;              /* regexp parameter object and private data */
     RootedObject       lambda;         /* replacement function object or null */
     RootedObject       elembase;       /* object for function(a){return b[a]} replace */
-    Rooted<JSLinearString*> repstr;    /* replacement string */
-    uint32_t           dollarIndex;    /* index of first $ in repstr, or UINT32_MAX */
+    Rooted<JSLinearString*> repstr; /* replacement string */
+    const jschar       *dollar;        /* null or pointer to first $ in repstr */
+    const jschar       *dollarEnd;     /* limit pointer for js_strchr_limit */
     int                leftIndex;      /* left context index in str->chars */
     JSSubString        dollarStr;      /* for "$$" InterpretDollar result */
     bool               calledBack;     /* record whether callback has been called */
@@ -2487,27 +2484,21 @@ FindReplaceLength(JSContext *cx, RegExpStatics *res, ReplaceData &rdata, size_t 
         return true;
     }
 
-    JSLinearString *repstr = rdata.repstr;
+    JSString *repstr = rdata.repstr;
     CheckedInt<uint32_t> replen = repstr->length();
-    if (rdata.dollarIndex != UINT32_MAX) {
-        MOZ_ASSERT(rdata.dollarIndex < repstr->length());
-        const jschar *dp = repstr->chars() + rdata.dollarIndex;
-        const jschar *ep = repstr->chars() + repstr->length();
-        do {
-            JSSubString sub;
-            size_t skip;
-            if (InterpretDollar(res, dp, ep, rdata, &sub, &skip)) {
-                if (sub.length > skip)
-                    replen += sub.length - skip;
-                else
-                    replen -= skip - sub.length;
-                dp += skip;
-            } else {
-                dp++;
-            }
-
-            dp = js_strchr_limit(dp, '$', ep);
-        } while (dp);
+    for (const jschar *dp = rdata.dollar, *ep = rdata.dollarEnd; dp;
+         dp = js_strchr_limit(dp, '$', ep)) {
+        JSSubString sub;
+        size_t skip;
+        if (InterpretDollar(res, dp, ep, rdata, &sub, &skip)) {
+            if (sub.length > skip)
+                replen += sub.length - skip;
+            else
+                replen -= skip - sub.length;
+            dp += skip;
+        } else {
+            dp++;
+        }
     }
 
     if (!replen.isValid()) {
@@ -2527,32 +2518,27 @@ static void
 DoReplace(RegExpStatics *res, ReplaceData &rdata)
 {
     JSLinearString *repstr = rdata.repstr;
-    const jschar *bp = repstr->chars();
-    const jschar *cp = bp;
+    const jschar *cp;
+    const jschar *bp = cp = repstr->chars();
 
-    if (rdata.dollarIndex != UINT32_MAX) {
-        MOZ_ASSERT(rdata.dollarIndex < repstr->length());
-        const jschar *dp = bp + rdata.dollarIndex;
-        const jschar *ep = bp + repstr->length();
-        do {
-            /* Move one of the constant portions of the replacement value. */
-            size_t len = dp - cp;
-            rdata.sb.infallibleAppend(cp, len);
-            cp = dp;
+    const jschar *dp = rdata.dollar;
+    const jschar *ep = rdata.dollarEnd;
+    for (; dp; dp = js_strchr_limit(dp, '$', ep)) {
+        /* Move one of the constant portions of the replacement value. */
+        size_t len = dp - cp;
+        rdata.sb.infallibleAppend(cp, len);
+        cp = dp;
 
-            JSSubString sub;
-            size_t skip;
-            if (InterpretDollar(res, dp, ep, rdata, &sub, &skip)) {
-                len = sub.length;
-                rdata.sb.infallibleAppend(sub.chars, len);
-                cp += skip;
-                dp += skip;
-            } else {
-                dp++;
-            }
-
-            dp = js_strchr_limit(dp, '$', ep);
-        } while (dp);
+        JSSubString sub;
+        size_t skip;
+        if (InterpretDollar(res, dp, ep, rdata, &sub, &skip)) {
+            len = sub.length;
+            rdata.sb.infallibleAppend(sub.chars, len);
+            cp += skip;
+            dp += skip;
+        } else {
+            dp++;
+        }
     }
     rdata.sb.infallibleAppend(cp, repstr->length() - (cp - bp));
 }
@@ -2678,12 +2664,13 @@ BuildFlatReplacement(JSContext *cx, HandleString textstr, HandleString repstr,
  */
 static inline bool
 BuildDollarReplacement(JSContext *cx, JSString *textstrArg, JSLinearString *repstr,
-                       uint32_t firstDollarIndex, const FlatMatch &fm, MutableHandleValue rval)
+                       const jschar *firstDollar, const FlatMatch &fm, MutableHandleValue rval)
 {
     Rooted<JSLinearString*> textstr(cx, textstrArg->ensureLinear(cx));
     if (!textstr)
         return false;
 
+    JS_ASSERT(repstr->chars() <= firstDollar && firstDollar < repstr->chars() + repstr->length());
     size_t matchStart = fm.match();
     size_t matchLimit = matchStart + fm.patternLength();
 
@@ -2698,64 +2685,56 @@ BuildDollarReplacement(JSContext *cx, JSString *textstrArg, JSLinearString *reps
     if (!newReplaceChars.reserve(textstr->length() - fm.patternLength() + repstr->length()))
         return false;
 
-    JS_ASSERT(firstDollarIndex < repstr->length());
-    const jschar *firstDollar = repstr->chars() + firstDollarIndex;
-
     /* Move the pre-dollar chunk in bulk. */
     newReplaceChars.infallibleAppend(repstr->chars(), firstDollar);
 
     /* Move the rest char-by-char, interpreting dollars as we encounter them. */
-    const jschar *textchars = textstr->chars();
+#define ENSURE(__cond) if (!(__cond)) return false;
     const jschar *repstrLimit = repstr->chars() + repstr->length();
     for (const jschar *it = firstDollar; it < repstrLimit; ++it) {
         if (*it != '$' || it == repstrLimit - 1) {
-            if (!newReplaceChars.append(*it))
-                return false;
+            ENSURE(newReplaceChars.append(*it));
             continue;
         }
 
         switch (*(it + 1)) {
           case '$': /* Eat one of the dollars. */
-            if (!newReplaceChars.append(*it))
-                return false;
+            ENSURE(newReplaceChars.append(*it));
             break;
           case '&':
-            if (!newReplaceChars.append(textchars + matchStart, textchars + matchLimit))
-                return false;
+            ENSURE(newReplaceChars.append(textstr->chars() + matchStart,
+                                          textstr->chars() + matchLimit));
             break;
           case '`':
-            if (!newReplaceChars.append(textchars, textchars + matchStart))
-                return false;
+            ENSURE(newReplaceChars.append(textstr->chars(), textstr->chars() + matchStart));
             break;
           case '\'':
-            if (!newReplaceChars.append(textchars + matchLimit, textchars + textstr->length()))
-                return false;
+            ENSURE(newReplaceChars.append(textstr->chars() + matchLimit,
+                                          textstr->chars() + textstr->length()));
             break;
           default: /* The dollar we saw was not special (no matter what its mother told it). */
-            if (!newReplaceChars.append(*it))
-                return false;
+            ENSURE(newReplaceChars.append(*it));
             continue;
         }
         ++it; /* We always eat an extra char in the above switch. */
     }
 
     RootedString leftSide(cx, js_NewDependentString(cx, textstr, 0, matchStart));
-    if (!leftSide)
-        return false;
+    ENSURE(leftSide);
 
     RootedString newReplace(cx, newReplaceChars.finishString());
-    if (!newReplace)
-        return false;
+    ENSURE(newReplace);
 
     JS_ASSERT(textstr->length() >= matchLimit);
     RootedString rightSide(cx, js_NewDependentString(cx, textstr, matchLimit,
-                                                     textstr->length() - matchLimit));
-    if (!rightSide)
-        return false;
+                                                        textstr->length() - matchLimit));
+    ENSURE(rightSide);
 
     RopeBuilder builder(cx);
-    if (!builder.append(leftSide) || !builder.append(newReplace) || !builder.append(rightSide))
-        return false;
+    ENSURE(builder.append(leftSide) &&
+           builder.append(newReplace) &&
+           builder.append(rightSide));
+#undef ENSURE
 
     rval.setString(builder.result());
     return true;
@@ -2963,7 +2942,7 @@ StrReplaceRegExp(JSContext *cx, ReplaceData &rdata, MutableHandleValue rval)
 
     /* Optimize removal. */
     if (rdata.repstr && rdata.repstr->length() == 0) {
-        JS_ASSERT(!rdata.lambda && !rdata.elembase && rdata.dollarIndex == UINT32_MAX);
+        JS_ASSERT(!rdata.lambda && !rdata.elembase && !rdata.dollar);
         return StrReplaceRegexpRemove(cx, rdata.str, re, rval);
     }
 
@@ -3043,8 +3022,8 @@ StrReplaceString(JSContext *cx, ReplaceData &rdata, const FlatMatch &fm, Mutable
      * Note: we could optimize the text.length == pattern.length case if we wanted,
      * even in the presence of dollar metachars.
      */
-    if (rdata.dollarIndex != UINT32_MAX)
-        return BuildDollarReplacement(cx, rdata.str, rdata.repstr, rdata.dollarIndex, fm, rval);
+    if (rdata.dollar)
+        return BuildDollarReplacement(cx, rdata.str, rdata.repstr, rdata.dollar, fm, rval);
     return BuildFlatReplacement(cx, rdata.str, rdata.repstr, fm, rval);
 }
 

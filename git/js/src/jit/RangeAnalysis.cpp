@@ -98,10 +98,8 @@ IsDominatedUse(MBasicBlock *block, MUse *use)
     MNode *n = use->consumer();
     bool isPhi = n->isDefinition() && n->toDefinition()->isPhi();
 
-    if (isPhi) {
-        MPhi *phi = n->toDefinition()->toPhi();
-        return block->dominates(phi->block()->getPredecessor(phi->indexOf(use)));
-    }
+    if (isPhi)
+        return block->dominates(n->block()->getPredecessor(use->index()));
 
     return block->dominates(n->block());
 }
@@ -130,9 +128,10 @@ RangeAnalysis::replaceDominatedUsesWith(MDefinition *orig, MDefinition *dom,
                                             MBasicBlock *block)
 {
     for (MUseIterator i(orig->usesBegin()); i != orig->usesEnd(); ) {
-        MUse *use = *i++;
-        if (use->consumer() != dom && IsDominatedUse(block, use))
-            use->replaceProducer(dom);
+        if (i->consumer() != dom && IsDominatedUse(block, *i))
+            i = i->consumer()->replaceOperand(i, dom);
+        else
+            i++;
     }
 }
 
@@ -1384,13 +1383,6 @@ MToInt32::computeRange(TempAllocator &alloc)
     setRange(output);
 }
 
-void
-MLimitedTruncate::computeRange(TempAllocator &alloc)
-{
-    Range *output = new(alloc) Range(input());
-    setRange(output);
-}
-
 static Range *GetTypedArrayRange(TempAllocator &alloc, int type)
 {
     switch (type) {
@@ -2290,16 +2282,6 @@ MLoadTypedArrayElementStatic::truncate(TruncateKind kind)
     return false;
 }
 
-bool
-MLimitedTruncate::truncate(TruncateKind kind)
-{
-    setTruncateKind(kind);
-    setResultType(MIRType_Int32);
-    if (kind >= IndirectTruncate && range())
-        range()->wrapAroundToInt32();
-    return false;
-}
-
 MDefinition::TruncateKind
 MDefinition::operandTruncateKind(size_t index) const
 {
@@ -2319,12 +2301,6 @@ MBinaryBitwiseInstruction::operandTruncateKind(size_t index) const
 {
     // The bitwise operators truncate to int32.
     return Truncate;
-}
-
-MDefinition::TruncateKind
-MLimitedTruncate::operandTruncateKind(size_t index) const
-{
-    return Min(truncateKind(), truncateLimit_);
 }
 
 MDefinition::TruncateKind
@@ -2450,7 +2426,7 @@ ComputeRequestedTruncateKind(MInstruction *candidate)
         }
 
         MDefinition *consumer = use->consumer()->toDefinition();
-        MDefinition::TruncateKind consumerKind = consumer->operandTruncateKind(consumer->indexOf(*use));
+        MDefinition::TruncateKind consumerKind = consumer->operandTruncateKind(use->index());
         kind = Min(kind, consumerKind);
         if (kind == MDefinition::NoTruncate)
             break;

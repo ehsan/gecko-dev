@@ -644,9 +644,6 @@ CodeGenerator::testValueTruthy(const ValueOperand &value,
 Label *
 CodeGenerator::getJumpLabelForBranch(MBasicBlock *block)
 {
-    // Skip past trivial blocks.
-    block = skipTrivialBlocks(block);
-
     if (!labelForBackedgeWithImplicitCheck(block))
         return block->lir()->label();
 
@@ -720,17 +717,17 @@ CodeGenerator::visitFunctionDispatch(LFunctionDispatch *lir)
     if (!mir->hasFallback()) {
         JS_ASSERT(mir->numCases() > 0);
         casesWithFallback = mir->numCases();
-        lastLabel = skipTrivialBlocks(mir->getCaseBlock(mir->numCases() - 1))->lir()->label();
+        lastLabel = mir->getCaseBlock(mir->numCases() - 1)->lir()->label();
     } else {
         casesWithFallback = mir->numCases() + 1;
-        lastLabel = skipTrivialBlocks(mir->getFallback())->lir()->label();
+        lastLabel = mir->getFallback()->lir()->label();
     }
 
     // Compare function pointers, except for the last case.
     for (size_t i = 0; i < casesWithFallback - 1; i++) {
         JS_ASSERT(i < mir->numCases());
         JSFunction *func = mir->getCase(i);
-        LBlock *target = skipTrivialBlocks(mir->getCaseBlock(i))->lir();
+        LBlock *target = mir->getCaseBlock(i)->lir();
         masm.branchPtr(Assembler::Equal, input, ImmGCPtr(func), target->label());
     }
 
@@ -754,7 +751,7 @@ CodeGenerator::visitTypeObjectDispatch(LTypeObjectDispatch *lir)
     InlinePropertyTable *propTable = mir->propTable();
     for (size_t i = 0; i < mir->numCases(); i++) {
         JSFunction *func = mir->getCase(i);
-        LBlock *target = skipTrivialBlocks(mir->getCaseBlock(i))->lir();
+        LBlock *target = mir->getCaseBlock(i)->lir();
 
         DebugOnly<bool> found = false;
         for (size_t j = 0; j < propTable->numEntries(); j++) {
@@ -768,7 +765,7 @@ CodeGenerator::visitTypeObjectDispatch(LTypeObjectDispatch *lir)
     }
 
     // Unknown function: jump to fallback block.
-    LBlock *fallback = skipTrivialBlocks(mir->getFallback())->lir();
+    LBlock *fallback = mir->getFallback()->lir();
     masm.jump(fallback->label());
     return true;
 }
@@ -1266,7 +1263,7 @@ bool
 CodeGenerator::visitTableSwitch(LTableSwitch *ins)
 {
     MTableSwitch *mir = ins->mir();
-    Label *defaultcase = skipTrivialBlocks(mir->getDefault())->lir()->label();
+    Label *defaultcase = mir->getDefault()->lir()->label();
     const LAllocation *temp;
 
     if (mir->getOperand(0)->type() != MIRType_Int32) {
@@ -1286,7 +1283,7 @@ bool
 CodeGenerator::visitTableSwitchV(LTableSwitchV *ins)
 {
     MTableSwitch *mir = ins->mir();
-    Label *defaultcase = skipTrivialBlocks(mir->getDefault())->lir()->label();
+    Label *defaultcase = mir->getDefault()->lir()->label();
 
     Register index = ToRegister(ins->tempInt());
     ValueOperand value = ToValue(ins, LTableSwitchV::InputValue);
@@ -1949,7 +1946,8 @@ CodeGenerator::visitPostWriteBarrierO(LPostWriteBarrierO *lir)
 
     if (lir->object()->isConstant()) {
 #ifdef DEBUG
-        JS_ASSERT(!IsInsideNursery(&lir->object()->toConstant()->toObject()));
+        const Nursery &nursery = GetIonContext()->runtime->gcNursery();
+        JS_ASSERT(!nursery.isInside(&lir->object()->toConstant()->toObject()));
 #endif
     } else {
         masm.branchPtrInNurseryRange(Assembler::Equal, ToRegister(lir->object()), temp,
@@ -1975,7 +1973,8 @@ CodeGenerator::visitPostWriteBarrierV(LPostWriteBarrierV *lir)
 
     if (lir->object()->isConstant()) {
 #ifdef DEBUG
-        JS_ASSERT(!IsInsideNursery(&lir->object()->toConstant()->toObject()));
+        const Nursery &nursery = GetIonContext()->runtime->gcNursery();
+        JS_ASSERT(!nursery.isInside(&lir->object()->toConstant()->toObject()));
 #endif
     } else {
         masm.branchPtrInNurseryRange(Assembler::Equal, ToRegister(lir->object()), temp,
@@ -2807,19 +2806,7 @@ CodeGenerator::generateArgumentsChecks(bool bailout)
     // Reserve the amount of stack the actual frame will use. We have to undo
     // this before falling through to the method proper though, because the
     // monomorphic call case will bypass this entire path.
-
-    // On windows, we cannot skip very far down the stack without touching the
-    // memory pages in-between.  This is a corner-case code for situations where the
-    // Ion frame data for a piece of code is very large.  To handle this special case,
-    // for frames over 1k in size we allocate memory on the stack incrementally, touching
-    // it as we go.
-    uint32_t frameSizeLeft = frameSize();
-    while (frameSizeLeft > 4096) {
-        masm.reserveStack(4096);
-        masm.store32(Imm32(0), Address(StackPointer, 0));
-        frameSizeLeft -= 4096;
-    }
-    masm.reserveStack(frameSizeLeft);
+    masm.reserveStack(frameSize());
 
     // No registers are allocated yet, so it's safe to grab anything.
     Register temp = GeneralRegisterSet(EntryTempMask).getAny();
@@ -3380,13 +3367,6 @@ CodeGenerator::generateBody()
 
     for (size_t i = 0; i < graph.numBlocks(); i++) {
         current = graph.getBlock(i);
-
-        // Don't emit any code for trivial blocks, containing just a goto. Such
-        // blocks are created to split critical edges, and if we didn't end up
-        // putting any instructions in them, we can skip them.
-        if (current->isTrivial())
-            continue; 
-
         masm.bind(current->label());
 
         mozilla::Maybe<ScriptCountBlockState> blockCounts;

@@ -24,7 +24,6 @@
 using namespace xpc;
 using namespace JS;
 using namespace mozilla;
-using namespace mozilla::dom;
 
 NS_IMPL_ISUPPORTS(nsXPCWrappedJSClass, nsIXPCWrappedJSClass)
 
@@ -233,6 +232,7 @@ nsXPCWrappedJSClass::CallQueryInterfaceOnJSObject(JSContext* cx,
                 if (jsexception.isObject()) {
                     // XPConnect may have constructed an object to represent a
                     // C++ QI failure. See if that is the case.
+                    using namespace mozilla::dom;
                     Exception *e = nullptr;
                     UNWRAP_OBJECT(Exception, &jsexception.toObject(), e);
 
@@ -450,6 +450,29 @@ nsXPCWrappedJSClass::IsWrappedJS(nsISupports* aPtr)
            result == WrappedJSIdentity::GetSingleton();
 }
 
+// NB: This will return the top JSContext on the JSContext stack if there is one,
+// before attempting to get the context from the wrapped JS object.
+static JSContext *
+GetContextFromObjectOrDefault(nsXPCWrappedJS* wrapper)
+{
+    // First, try the cx stack.
+    XPCJSContextStack* stack = XPCJSRuntime::Get()->GetJSContextStack();
+    if (stack->Peek())
+        return stack->Peek();
+
+    // If the cx stack is empty, try the wrapper's JSObject.
+    JSCompartment *c = js::GetObjectCompartment(wrapper->GetJSObject());
+    XPCContext *xpcc = EnsureCompartmentPrivate(c)->scope->GetContext();
+    if (xpcc) {
+        JSContext *cx = xpcc->GetJSContext();
+        JS_AbortIfWrongThread(JS_GetRuntime(cx));
+        return cx;
+    }
+
+    // Fall back to the safe JSContext.
+    return stack->GetSafeJSContext();
+}
+
 NS_IMETHODIMP
 nsXPCWrappedJSClass::DelegatedQueryInterface(nsXPCWrappedJS* self,
                                              REFNSIID aIID,
@@ -489,12 +512,8 @@ nsXPCWrappedJSClass::DelegatedQueryInterface(nsXPCWrappedJS* self,
         return NS_NOINTERFACE;
     }
 
-    // QI on an XPCWrappedJS can run script, so we need an AutoEntryScript.
-    // This is inherently Gecko-specific.
-    nsIGlobalObject* nativeGlobal =
-      GetNativeForGlobal(js::GetGlobalForObjectCrossCompartment(self->GetJSObject()));
-    AutoEntryScript aes(nativeGlobal, /* aIsMainThread = */ true);
-    XPCCallContext ccx(NATIVE_CALLER, aes.cx());
+    AutoPushJSContext context(GetContextFromObjectOrDefault(self));
+    XPCCallContext ccx(NATIVE_CALLER, context);
     if (!ccx.IsValid()) {
         *aInstancePtr = nullptr;
         return NS_NOINTERFACE;
@@ -957,14 +976,8 @@ nsXPCWrappedJSClass::CallMethod(nsXPCWrappedJS* wrapper, uint16_t methodIndex,
     // the whole nsIXPCFunctionThisTranslator bit.  That code uses ccx to
     // convert natives to JSObjects, but we do NOT plan to pass those JSObjects
     // to our real callee.
-    //
-    // We're about to call into script via an XPCWrappedJS, so we need an
-    // AutoEntryScript. This is probably Gecko-specific at this point, and
-    // definitely will be when we turn off XPConnect for the web.
-    nsIGlobalObject* nativeGlobal =
-      GetNativeForGlobal(js::GetGlobalForObjectCrossCompartment(wrapper->GetJSObject()));
-    AutoEntryScript aes(nativeGlobal, /* aIsMainThread = */ true);
-    XPCCallContext ccx(NATIVE_CALLER, aes.cx());
+    AutoPushJSContext context(GetContextFromObjectOrDefault(wrapper));
+    XPCCallContext ccx(NATIVE_CALLER, context);
     if (!ccx.IsValid())
         return retval;
 

@@ -120,10 +120,6 @@ ToolbarView.prototype = {
    * Listener handling the pause/resume button click event.
    */
   _onResumePressed: function() {
-    if (DebuggerController.StackFrames._currentFrameDescription != FRAME_TYPE.NORMAL) {
-      return;
-    }
-
     if (DebuggerController.activeThread.paused) {
       let warn = DebuggerController._ensureResumptionOrder;
       DebuggerController.StackFrames.currentFrameDepth = -1;
@@ -148,10 +144,6 @@ ToolbarView.prototype = {
    * Listener handling the step in button click event.
    */
   _onStepInPressed: function() {
-    if (DebuggerController.StackFrames._currentFrameDescription != FRAME_TYPE.NORMAL) {
-      return;
-    }
-
     if (DebuggerController.activeThread.paused) {
       DebuggerController.StackFrames.currentFrameDepth = -1;
       let warn = DebuggerController._ensureResumptionOrder;
@@ -323,7 +315,7 @@ OptionsView.prototype = {
       window.setTimeout(() => {
         DebuggerController.reconfigureThread(pref);
       }, POPUP_HIDDEN_DELAY);
-    });
+    }, false);
   },
 
   _button: null,

@@ -34,7 +34,7 @@ exports.AppManager = AppManager = {
     this.connection.on(Connection.Events.STATUS_CHANGED, this.onConnectionChanged);
     this.webAppsStore = new WebappsStore(this.connection);
 
-    this.runtimeList = {usb: [], simulator: []};
+    this.runtimeList = {usb:[], simulators:[]};
     this.trackUSBRuntimes();
     this.trackSimulatorRuntimes();
   },
@@ -49,7 +49,6 @@ exports.AppManager = AppManager = {
     this.runtimeList = null;
     this.connection.off(Connection.Events.STATUS_CHANGED, this.onConnectionChanged);
     this.webAppsStore.destroy();
-    this.webAppsStore = null;
     this._listTabsResponse = null;
     this.connection.disconnect();
     this.connection = null;
@@ -92,9 +91,6 @@ exports.AppManager = AppManager = {
   _runningApps: new Set(),
   _getRunningApps: function() {
     let client = this.connection.client;
-    if (!this._listTabsResponse.webappsActor) {
-      return;
-    }
     let request = {
       to: this._listTabsResponse.webappsActor,
       type: "listRunningApps"
@@ -218,7 +214,7 @@ exports.AppManager = AppManager = {
   removeSelectedProject: function() {
     let location = this.selectedProject.location;
     AppManager.selectedProject = null;
-    return AppProjects.remove(location);
+    AppProjects.remove(location);
   },
 
   _selectedRuntime: null,
@@ -292,13 +288,10 @@ exports.AppManager = AppManager = {
   installAndRunProject: function() {
     let project = this.selectedProject;
 
-    if (!project || (project.type != "packaged" && project.type != "hosted")) {
+    if (!project ||
+        !this._listTabsResponse ||
+        (project.type != "packaged" && project.type != "hosted")) {
       AppManager.console.error("Can't install project. Unknown type of project.");
-      return promise.reject("Can't install");
-    }
-
-    if (!this._listTabsResponse) {
-      AppManager.console.error("Can't install project. Not fully connected.");
       return promise.reject("Can't install");
     }
 
@@ -478,9 +471,9 @@ exports.AppManager = AppManager = {
     Simulator.off("unregister", this._updateSimulatorRuntimes);
   },
   _updateSimulatorRuntimes: function() {
-    this.runtimeList.simulator = [];
+    this.runtimeList.simulators = [];
     for (let version of Simulator.availableVersions()) {
-      this.runtimeList.simulator.push(new SimulatorRuntime(version));
+      this.runtimeList.simulators.push(new SimulatorRuntime(version));
     }
     this.update("runtimelist");
   },
@@ -524,9 +517,6 @@ USBRuntime.prototype = {
       connection.connect();
     });
   },
-  getID: function() {
-    return this.id;
-  },
   getName: function() {
     return this.id;
   },
@@ -549,9 +539,6 @@ SimulatorRuntime.prototype = {
       connection.keepConnecting = true;
       connection.connect();
     });
-  },
-  getID: function() {
-    return this.version;
   },
   getName: function() {
     return this.version;

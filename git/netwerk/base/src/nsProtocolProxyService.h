@@ -355,7 +355,6 @@ protected:
     int32_t                      mSOCKSProxyPort;
     int32_t                      mSOCKSProxyVersion;
     bool                         mSOCKSProxyRemoteDNS;
-    bool                         mProxyOverTLS;
 
     nsRefPtr<nsPACMan>           mPACMan;  // non-null if we are using PAC
     nsCOMPtr<nsISystemProxySettings> mSystemProxySettings;
