@@ -229,13 +229,13 @@ nsLayoutUtils::GetClosestFrameOfType(nsIFrame* aFrame, nsIAtom* aFrameType)
 
 nsIFrame*
 nsLayoutUtils::GetFloatFromPlaceholder(nsIFrame* aFrame) {
-  NS_ASSERTION(nsGkAtoms::placeholderFrame == aFrame->GetType(),
-               "Must have a placeholder here");
-  if (aFrame->GetStateBits() & PLACEHOLDER_FOR_FLOAT) {
-    nsIFrame *outOfFlowFrame =
-      nsPlaceholderFrame::GetRealFrameForPlaceholder(aFrame);
-    NS_ASSERTION(outOfFlowFrame->GetStyleDisplay()->IsFloating(),
-                 "How did that happen?");
+  if (nsGkAtoms::placeholderFrame != aFrame->GetType()) {
+    return nsnull;
+  }
+
+  nsIFrame *outOfFlowFrame =
+    nsPlaceholderFrame::GetRealFrameForPlaceholder(aFrame);
+  if (outOfFlowFrame->GetStyleDisplay()->IsFloating()) {
     return outOfFlowFrame;
   }
 

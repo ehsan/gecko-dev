@@ -125,7 +125,7 @@ nsDOMFile::GetSize(PRUint64 *aFileSize)
 }
 
 NS_IMETHODIMP
-nsDOMFile::GetType(nsAString &aType)
+nsDOMFile::GetMediaType(nsAString &aMediaType)
 {
   if (!mContentType.Length()) {
     nsresult rv;
@@ -133,17 +133,17 @@ nsDOMFile::GetType(nsAString &aType)
       do_GetService(NS_MIMESERVICE_CONTRACTID, &rv);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsCAutoString mimeType;
-    rv = mimeService->GetTypeFromFile(mFile, mimeType);
+    nsCAutoString mediaType;
+    rv = mimeService->GetTypeFromFile(mFile, mediaType);
     if (NS_FAILED(rv)) {
-      aType.Truncate();
+      SetDOMStringToNull(aMediaType);
       return NS_OK;
     }
 
-    AppendUTF8toUTF16(mimeType, mContentType);
+    AppendUTF8toUTF16(mediaType, mContentType);
   }
 
-  aType = mContentType;
+  aMediaType = mContentType;
 
   return NS_OK;
 }

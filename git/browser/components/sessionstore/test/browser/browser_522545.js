@@ -300,8 +300,6 @@ function test() {
                test_getBrowserState_lotsOfTabsOpening,
                test_getBrowserState_userTypedValue, test_userTypedClearLoadURI];
   let originalState = ss.getBrowserState();
-  info(JSON.parse(originalState).windows.length);
-  info(originalState);
   function runNextTest() {
     if (tests.length) {
       tests.shift().call();

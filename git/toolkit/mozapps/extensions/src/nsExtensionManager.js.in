@@ -2538,8 +2538,6 @@ ExtensionManager.prototype = {
                             Ci.nsIExtensionManager.UPDATE_CHECK_NEWVERSION,
                             new BackgroundUpdateCheckListener(this.datasource),
                             UPDATE_WHEN_PERIODIC_UPDATE);
-
-    LightweightThemeManager.updateCurrentTheme();
   },
 
   /**
