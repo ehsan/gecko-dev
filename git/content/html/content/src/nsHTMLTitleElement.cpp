@@ -39,6 +39,7 @@
 #include "nsIDOMEventTarget.h"
 #include "nsGenericHTMLElement.h"
 #include "nsStyleConsts.h"
+#include "nsPresContext.h"
 #include "nsIDOMText.h"
 #include "nsIDocument.h"
 #include "nsIDOMHTMLDocument.h"

@@ -41,6 +41,7 @@
 #include "nsGenericHTMLElement.h"
 #include "nsGkAtoms.h"
 #include "nsStyleConsts.h"
+#include "nsPresContext.h"
 #include "nsIDOMStyleSheet.h"
 #include "nsIStyleSheet.h"
 #include "nsStyleLinkElement.h"
@@ -48,7 +49,6 @@
 #include "nsIDocument.h"
 #include "nsUnicharUtils.h"
 #include "nsParserUtils.h"
-#include "nsThreadUtils.h"
 
 
 class nsHTMLStyleElement : public nsGenericHTMLElement,

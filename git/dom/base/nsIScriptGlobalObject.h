@@ -46,6 +46,7 @@
 class nsIScriptContext;
 class nsIDOMDocument;
 class nsIDOMEvent;
+class nsPresContext;
 class nsIScriptGlobalObjectOwner;
 class nsIArray;
 class nsScriptErrorEvent;

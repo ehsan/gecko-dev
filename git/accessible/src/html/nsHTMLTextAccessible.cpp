@@ -43,6 +43,7 @@
 
 #include "nsIFrame.h"
 #include "nsPresContext.h"
+#include "nsIPresShell.h"
 #include "nsISelection.h"
 #include "nsISelectionController.h"
 #include "nsComponentManagerUtils.h"

@@ -41,6 +41,7 @@
 #include "nsParserCIID.h"
 #include "nsIParser.h"
 #include "nsIXMLContentSink.h"
+#include "nsIPresShell.h"
 #include "nsPresContext.h" 
 #include "nsIContent.h"
 #include "nsIContentViewerContainer.h"
