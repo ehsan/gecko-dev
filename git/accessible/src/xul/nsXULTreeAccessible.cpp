@@ -174,7 +174,9 @@ nsXULTreeAccessible::GetStateInternal(PRUint32 *aState, PRUint32 *aExtraState)
 {
   // Get focus status from base class
   nsresult rv = nsAccessible::GetStateInternal(aState, aExtraState);
-  NS_ENSURE_A11Y_SUCCESS(rv, rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+  if (!mDOMNode)
+    return NS_OK;
   
   // see if we are multiple select if so set ourselves as such
   nsCOMPtr<nsIDOMElement> element (do_QueryInterface(mDOMNode));
@@ -859,7 +861,7 @@ nsXULTreeitemAccessible::GetStateInternal(PRUint32 *aState,
   if (IsDefunct()) {
     if (aExtraState)
       *aExtraState = nsIAccessibleStates::EXT_STATE_DEFUNCT;
-    return NS_OK_DEFUNCT_OBJECT;
+    return NS_OK;
   }
 
   *aState = nsIAccessibleStates::STATE_FOCUSABLE |
