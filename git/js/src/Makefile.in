@@ -58,10 +58,6 @@ ifndef JS_DISABLE_SHELL
 DIRS += shell
 endif
 
-ifdef ENABLE_LIRASM
-DIRS += lirasm
-endif
-
 MODULE		    = js
 LIBRARY_NAME	    = mozjs
 STATIC_LIBRARY_NAME = js_static
@@ -148,6 +144,7 @@ CPPSRCS		= \
 		jsscope.cpp \
 		jsscript.cpp \
 		jsstr.cpp \
+		jstask.cpp \
 		jsutil.cpp \
 		jsxdrapi.cpp \
 		jsxml.cpp \
@@ -204,6 +201,7 @@ INSTALLED_HEADERS = \
 		jsscript.h \
 		jsstaticcheck.h \
 		jsstr.h \
+		jstask.h \
 		jstracer.h \
 		jstypes.h \
 		jsutil.h \
