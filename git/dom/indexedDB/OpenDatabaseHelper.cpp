@@ -1548,7 +1548,6 @@ OpenDatabaseHelper::ReleaseMainThreadObjects()
 
   mOpenDBRequest = nsnull;
   mDatabase = nsnull;
-  mDatabaseId = nsnull;
 
   HelperBase::ReleaseMainThreadObjects();
 }

@@ -1091,8 +1091,8 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
   //   immediately - don't animate
   remove: function GroupItem_remove(a, options) {
     try {
-      let $el;
-      let item;
+      var $el;
+      var item;
 
       if (a.isAnItem) {
         item = a;
@@ -1105,7 +1105,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
       if (!options)
         options = {};
 
-      let index = this._children.indexOf(item);
+      var index = this._children.indexOf(item);
       if (index != -1)
         this._children.splice(index, 1);
 
@@ -1142,9 +1142,7 @@ GroupItem.prototype = Utils.extend(new Item(), new Subscribable(), {
         options.dontClose = true;
 
       let closed = options.dontClose ? false : this.closeIfEmpty();
-      if (closed ||
-          (this._children.length == 0 && !gBrowser.selectedTab.pinned &&
-           !item.isDragging)) {
+      if (closed) {
         this._makeLastActiveGroupItemActive();
       } else if (!options.dontArrange) {
         this.arrange({animate: !options.immediately});
