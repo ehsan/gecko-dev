@@ -182,7 +182,7 @@ let dataProviders = {
       // include the suggested version, which the consumer likely needs to plug
       // into a format string from a localization file.  Rather than returning
       // a string in some cases and an array in others, return an array always.
-      let msg = [""];
+      let msg = ["no information"];
       try {
         var status = gfxInfo.getFeatureStatus(feature);
       }
@@ -289,25 +289,11 @@ let dataProviders = {
       data.direct2DEnabledMessage =
         statusMsgForFeature(Ci.nsIGfxInfo.FEATURE_DIRECT2D);
 
-    let doc =
-      Cc["@mozilla.org/xmlextras/domparser;1"]
-      .createInstance(Ci.nsIDOMParser)
-      .parseFromString("<html/>", "text/html");
-
-    let canvas = doc.createElement("canvas");
-
-    let gl;
     try {
-      gl = canvas.getContext("experimental-webgl");
-    } catch(e) {}
-
-    if (gl) {
-      let ext = gl.getExtension("WEBGL_debug_renderer_info");
-      // this extension is unconditionally available to chrome. No need to check.
-      data.webglRenderer = gl.getParameter(ext.UNMASKED_VENDOR_WEBGL)
-                           + " -- "
-                           + gl.getParameter(ext.UNMASKED_RENDERER_WEBGL);
-    } else {
+      data.webglRenderer = gfxInfo.getWebGLParameter("full-renderer");
+    }
+    catch (e) {}
+    if (!("webglRenderer" in data)) {
       let feature =
 #ifdef XP_WIN
         // If ANGLE is not available but OpenGL is, we want to report on the

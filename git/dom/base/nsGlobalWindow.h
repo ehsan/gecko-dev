@@ -270,8 +270,7 @@ class nsGlobalWindow : public nsPIDOMWindow,
                        public PRCListStr,
                        public nsIDOMWindowPerformance,
                        public nsITouchEventReceiver,
-                       public nsIInlineEventHandlers,
-                       public nsIWindowCrypto
+                       public nsIInlineEventHandlers
 {
 public:
   friend class nsDOMMozURLProperty;
@@ -335,9 +334,6 @@ public:
 
   // nsIInlineEventHandlers
   NS_DECL_NSIINLINEEVENTHANDLERS
-
-  // nsIWindowCrypto
-  NS_DECL_NSIWINDOWCRYPTO
 
   // nsPIDOMWindow
   virtual NS_HIDDEN_(nsPIDOMWindow*) GetPrivateRoot();

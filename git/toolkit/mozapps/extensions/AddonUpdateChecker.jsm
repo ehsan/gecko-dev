@@ -35,7 +35,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "AddonRepository",
                                   "resource://gre/modules/AddonRepository.jsm");
 
 // Shared code for suppressing bad cert dialogs.
-XPCOMUtils.defineLazyGetter(this, "CertUtils", function certUtilsLazyGetter() {
+XPCOMUtils.defineLazyGetter(this, "CertUtils", function() {
   let certUtils = {};
   Components.utils.import("resource://gre/modules/CertUtils.jsm", certUtils);
   return certUtils;
@@ -45,7 +45,7 @@ var gRDF = Cc["@mozilla.org/rdf/rdf-service;1"].
            getService(Ci.nsIRDFService);
 
 ["LOG", "WARN", "ERROR"].forEach(function(aName) {
-  this.__defineGetter__(aName, function logFuncGetter() {
+  this.__defineGetter__(aName, function() {
     Components.utils.import("resource://gre/modules/AddonLogging.jsm");
 
     LogManager.getLogger("addons.updates", this);
@@ -225,6 +225,8 @@ RDFSerializer.prototype = {
  *
  * @param  aId
  *         The ID of the add-on being checked for updates
+ * @param  aType
+ *         The type of the add-on being checked for updates
  * @param  aUpdateKey
  *         An optional update key for the add-on
  * @param  aRequest
@@ -232,7 +234,7 @@ RDFSerializer.prototype = {
  * @return an array of update objects
  * @throws if the update manifest is invalid in any way
  */
-function parseRDFManifest(aId, aUpdateKey, aRequest) {
+function parseRDFManifest(aId, aType, aUpdateKey, aRequest) {
   function EM_R(aProp) {
     return gRDF.GetResource(PREFIX_NS_EM + aProp);
   }
@@ -381,6 +383,8 @@ function parseRDFManifest(aId, aUpdateKey, aRequest) {
  *
  * @param  aId
  *         The ID of the add-on being checked for updates
+ * @param  aType
+ *         The type of add-on being checked for updates
  * @param  aUpdateKey
  *         An optional update key for the add-on
  * @param  aUrl
@@ -388,8 +392,9 @@ function parseRDFManifest(aId, aUpdateKey, aRequest) {
  * @param  aObserver
  *         An observer to pass results to
  */
-function UpdateParser(aId, aUpdateKey, aUrl, aObserver) {
+function UpdateParser(aId, aType, aUpdateKey, aUrl, aObserver) {
   this.id = aId;
+  this.type = aType;
   this.updateKey = aUpdateKey;
   this.observer = aObserver;
 
@@ -413,8 +418,8 @@ function UpdateParser(aId, aUpdateKey, aUrl, aObserver) {
     this.request.channel.loadFlags |= Ci.nsIRequest.LOAD_BYPASS_CACHE;
     this.request.overrideMimeType("text/xml");
     var self = this;
-    this.request.addEventListener("load", function loadEventListener(event) { self.onLoad() }, false);
-    this.request.addEventListener("error", function errorEventListener(event) { self.onError() }, false);
+    this.request.addEventListener("load", function(event) { self.onLoad() }, false);
+    this.request.addEventListener("error", function(event) { self.onError() }, false);
     this.request.send(null);
   }
   catch (e) {
@@ -424,6 +429,7 @@ function UpdateParser(aId, aUpdateKey, aUrl, aObserver) {
 
 UpdateParser.prototype = {
   id: null,
+  type: null,
   updateKey: null,
   observer: null,
   request: null,
@@ -478,7 +484,7 @@ UpdateParser.prototype = {
       let results = null;
 
       try {
-        results = parseRDFManifest(this.id, this.updateKey, request);
+        results = parseRDFManifest(this.id, this.type, this.updateKey, request);
       }
       catch (e) {
         WARN(e);
@@ -709,6 +715,8 @@ var AddonUpdateChecker = {
    *
    * @param  aId
    *         The ID of the add-on being checked for updates
+   * @param  aType
+   *         The type of add-on being checked for updates
    * @param  aUpdateKey
    *         An optional update key for the add-on
    * @param  aUrl
@@ -716,8 +724,8 @@ var AddonUpdateChecker = {
    * @param  aObserver
    *         An observer to notify of results
    */
-  checkForUpdates: function AUC_checkForUpdates(aId, aUpdateKey, aUrl,
+  checkForUpdates: function AUC_checkForUpdates(aId, aType, aUpdateKey, aUrl,
                                                 aObserver) {
-    new UpdateParser(aId, aUpdateKey, aUrl, aObserver);
+    new UpdateParser(aId, aType, aUpdateKey, aUrl, aObserver);
   }
 };

@@ -69,7 +69,6 @@ function onFileActivity(aType, aPacket)
 
   gState.dbgClient.removeListener("fileActivity", onFileActivity);
 
-  info("aPacket.uri: " + aPacket.uri);
   ok(/bug798764\.html$/.test(aPacket.uri), "file URI match");
 
   testEnd();
@@ -78,10 +77,8 @@ function onFileActivity(aType, aPacket)
 function testEnd()
 {
   if (gTmpFile) {
-    SimpleTest.executeSoon(function() {
-      gTmpFile.remove(false);
-      gTmpFile = null;
-    });
+    gTmpFile.remove(false);
+    gTmpFile = null;
   }
 
   if (gState) {

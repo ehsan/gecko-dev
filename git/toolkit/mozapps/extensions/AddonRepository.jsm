@@ -1869,7 +1869,7 @@ var AddonDatabase = {
 
     function getAllIcons() {
       self.getAsyncStatement("getAllIcons").executeAsync({
-        handleResult: function getAllIcons_handleResult(aResults) {
+        handleResult: function(aResults) {
           let row = null;
           while (row = aResults.getNextRow()) {
             let addon_internal_id = row.getResultByName("addon_internal_id");
@@ -1888,7 +1888,7 @@ var AddonDatabase = {
 
         handleError: self.asyncErrorLogger,
 
-        handleCompletion: function getAllIcons_handleCompletion(aReason) {
+        handleCompletion: function(aReason) {
           if (aReason != Ci.mozIStorageStatementCallback.REASON_FINISHED) {
             ERROR("Error retrieving icons from database. Returning empty results");
             aCallback({});

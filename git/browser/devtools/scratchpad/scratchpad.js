@@ -130,13 +130,12 @@ var Scratchpad = {
    */
   _updateTitle: function SP__updateTitle()
   {
-    let title = this.filename || this._initialWindowTitle;
-
-    if (this.editor && this.editor.dirty) {
-      title = "*" + title;
+    if (this.filename) {
+      document.title = (this.editor && this.editor.dirty ? "*" : "") +
+                       this.filename;
+    } else {
+      document.title = this._initialWindowTitle;
     }
-
-    document.title = title;
   },
 
   /**
@@ -1268,7 +1267,7 @@ var Scratchpad = {
    */
   promptSave: function SP_promptSave(aCallback)
   {
-    if (this.editor.dirty) {
+    if (this.filename && this.editor.dirty) {
       let ps = Services.prompt;
       let flags = ps.BUTTON_POS_0 * ps.BUTTON_TITLE_SAVE +
                   ps.BUTTON_POS_1 * ps.BUTTON_TITLE_CANCEL +

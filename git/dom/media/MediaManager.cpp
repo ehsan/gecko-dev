@@ -62,12 +62,13 @@ public:
     nsCOMPtr<nsIDOMGetUserMediaSuccessCallback> success(mSuccess);
     nsCOMPtr<nsIDOMGetUserMediaErrorCallback> error(mError);
 
-    if (!(MediaManager::Get()->IsWindowStillActive(mWindowID))) {
-      return NS_OK;
+    {
+      MutexAutoLock lock(MediaManager::Get()->GetMutex());
+      WindowTable* activeWindows = MediaManager::Get()->GetActiveWindows();
+      if (activeWindows->Get(mWindowID)) {
+        error->OnError(mErrorMsg);
+      }
     }
-    // This is safe since we're on main-thread, and the windowlist can only
-    // be invalidated from the main-thread (see OnNavigation)
-    error->OnError(mErrorMsg);
     return NS_OK;
   }
 
@@ -105,12 +106,14 @@ public:
     nsCOMPtr<nsIDOMGetUserMediaSuccessCallback> success(mSuccess);
     nsCOMPtr<nsIDOMGetUserMediaErrorCallback> error(mError);
 
-    if (!(MediaManager::Get()->IsWindowStillActive(mWindowID))) {
-      return NS_OK;
+    {
+      MutexAutoLock lock(MediaManager::Get()->GetMutex());
+      WindowTable* activeWindows = MediaManager::Get()->GetActiveWindows();
+      if (activeWindows->Get(mWindowID)) {
+        // XPConnect is a magical unicorn.
+        success->OnSuccess(mFile);
+      }
     }
-    // This is safe since we're on main-thread, and the windowlist can only
-    // be invalidated from the main-thread (see OnNavigation)
-    success->OnSuccess(mFile);
     return NS_OK;
   }
 
@@ -249,20 +252,19 @@ public:
 
     nsPIDOMWindow *window = static_cast<nsPIDOMWindow*>
       (nsGlobalWindow::GetInnerWindowWithId(mWindowID));
+    WindowTable* activeWindows = MediaManager::Get()->GetActiveWindows();
     {
+      MutexAutoLock lock(MediaManager::Get()->GetMutex());
+
       if (!stream) {
-        if (!(MediaManager::Get()->IsWindowStillActive(mWindowID))) {
-          return NS_OK;
+        if (activeWindows->Get(mWindowID)) {
+          nsCOMPtr<nsIDOMGetUserMediaErrorCallback> error(mError);
+          LOG(("Returning error for getUserMedia() - no stream"));
+          error->OnError(NS_LITERAL_STRING("NO_STREAM"));
         }
-        // This is safe since we're on main-thread, and the windowlist can only
-        // be invalidated from the main-thread (see OnNavigation)
-        nsCOMPtr<nsIDOMGetUserMediaErrorCallback> error(mError);
-        LOG(("Returning error for getUserMedia() - no stream"));
-        error->OnError(NS_LITERAL_STRING("NO_STREAM"));
         return NS_OK;
       }
     }
-
     if (window && window->GetExtantDoc()) {
       stream->CombineWithPrincipal(window->GetExtantDoc()->NodePrincipal());
     }
@@ -293,13 +295,13 @@ public:
     nsCOMPtr<nsIDOMGetUserMediaSuccessCallback> success(mSuccess);
     nsCOMPtr<nsIDOMGetUserMediaErrorCallback> error(mError);
 
-    if (!(MediaManager::Get()->IsWindowStillActive(mWindowID))) {
-      return NS_OK;
+    {
+      MutexAutoLock lock(MediaManager::Get()->GetMutex());
+      if (activeWindows->Get(mWindowID)) {
+        LOG(("Returning success for getUserMedia()"));
+        success->OnSuccess(static_cast<nsIDOMLocalMediaStream*>(stream));
+      }
     }
-    // This is safe since we're on main-thread, and the windowlist can only
-    // be invalidated from the main-thread (see OnNavigation)
-    LOG(("Returning success for getUserMedia()"));
-    success->OnSuccess(static_cast<nsIDOMLocalMediaStream*>(stream));
 
     return NS_OK;
   }
@@ -433,12 +435,9 @@ public:
   Denied()
   {
     if (NS_IsMainThread()) {
-      // This is safe since we're on main-thread, and the window can only
-      // be invalidated from the main-thread (see OnNavigation)
       nsCOMPtr<nsIDOMGetUserMediaErrorCallback> error(mError);
       error->OnError(NS_LITERAL_STRING("PERMISSION_DENIED"));
     } else {
-      // This will re-check the window being alive on main-thread
       NS_DispatchToMainThread(new ErrorCallbackRunnable(
         mSuccess, mError, NS_LITERAL_STRING("PERMISSION_DENIED"), mWindowID
       ));
@@ -790,49 +789,51 @@ MediaManager::GetUserMedia(bool aPrivileged, nsPIDOMWindow* aWindow,
   // when this window is closed or navigated away from.
   uint64_t windowID = aWindow->WindowID();
   nsRefPtr<GetUserMediaRunnable> gUMRunnable;
-  // This is safe since we're on main-thread, and the windowlist can only
-  // be invalidated from the main-thread (see OnNavigation)
-  StreamListeners* listeners = GetActiveWindows()->Get(windowID);
-  if (!listeners) {
-    listeners = new StreamListeners;
-    GetActiveWindows()->Put(windowID, listeners);
+  {
+    MutexAutoLock lock(mMutex);
+    StreamListeners* listeners = mActiveWindows.Get(windowID);
+    if (!listeners) {
+      listeners = new StreamListeners;
+      mActiveWindows.Put(windowID, listeners);
+    }
+
+    // Developer preference for turning off permission check.
+    if (Preferences::GetBool("media.navigator.permission.disabled", false)) {
+      aPrivileged = true;
+    }
+
+    /**
+     * Pass runnables along to GetUserMediaRunnable so it can add the
+     * MediaStreamListener to the runnable list. The last argument can
+     * optionally be a MediaDevice object, which should provided if one was
+     * selected by the user via the UI, or was provided by privileged code
+     * via the device: attribute via nsIMediaStreamOptions.
+     *
+     * If a fake stream was requested, we force the use of the default backend.
+     */
+    if (fake) {
+      // Fake stream from default backend.
+      gUMRunnable = new GetUserMediaRunnable(
+        audio, video, onSuccess.forget(), onError.forget(), listeners,
+        windowID, new MediaEngineDefault()
+                                             );
+    } else if (audiodevice || videodevice) {
+      // Stream from provided device.
+      gUMRunnable = new GetUserMediaRunnable(
+        audio, video, picture, onSuccess.forget(), onError.forget(), listeners,
+        windowID,
+        static_cast<MediaDevice*>(audiodevice.get()),
+        static_cast<MediaDevice*>(videodevice.get())
+                                             );
+    } else {
+      // Stream from default device from WebRTC backend.
+      gUMRunnable = new GetUserMediaRunnable(
+        audio, video, picture, onSuccess.forget(), onError.forget(), listeners,
+        windowID
+                                             );
+    }
   }
 
-  // Developer preference for turning off permission check.
-  if (Preferences::GetBool("media.navigator.permission.disabled", false)) {
-    aPrivileged = true;
-  }
-
-  /**
-   * Pass runnables along to GetUserMediaRunnable so it can add the
-   * MediaStreamListener to the runnable list. The last argument can
-   * optionally be a MediaDevice object, which should provided if one was
-   * selected by the user via the UI, or was provided by privileged code
-   * via the device: attribute via nsIMediaStreamOptions.
-   *
-   * If a fake stream was requested, we force the use of the default backend.
-   */
-  if (fake) {
-    // Fake stream from default backend.
-    gUMRunnable = new GetUserMediaRunnable(
-      audio, video, onSuccess.forget(), onError.forget(), listeners,
-      windowID, new MediaEngineDefault()
-                                           );
-  } else if (audiodevice || videodevice) {
-    // Stream from provided device.
-    gUMRunnable = new GetUserMediaRunnable(
-      audio, video, picture, onSuccess.forget(), onError.forget(), listeners,
-      windowID,
-      static_cast<MediaDevice*>(audiodevice.get()),
-      static_cast<MediaDevice*>(videodevice.get())
-                                           );
-  } else {
-    // Stream from default device from WebRTC backend.
-    gUMRunnable = new GetUserMediaRunnable(
-      audio, video, picture, onSuccess.forget(), onError.forget(), listeners,
-      windowID
-                                           );
-  }
 
 #ifdef ANDROID
   if (picture) {
@@ -843,6 +844,7 @@ MediaManager::GetUserMedia(bool aPrivileged, nsPIDOMWindow* aWindow,
 #else
   // XXX No full support for picture in Desktop yet (needs proper UI)
   if (aPrivileged || fake) {
+    (void) MediaManager::GetThread();
     mMediaThread->Dispatch(gUMRunnable, NS_DISPATCH_NORMAL);
   } else {
     // Ask for user permission, and dispatch runnable (or not) when a response
@@ -863,7 +865,10 @@ MediaManager::GetUserMedia(bool aPrivileged, nsPIDOMWindow* aWindow,
     NS_ConvertUTF8toUTF16 callID(buffer);
 
     // Store the current callback.
-    mActiveCallbacks.Put(callID, gUMRunnable);
+    {
+      MutexAutoLock lock(mMutex);
+      mActiveCallbacks.Put(callID, gUMRunnable);
+    }
 
     // Construct JSON structure with both the windowID and the callID.
     nsAutoString data;
@@ -917,8 +922,6 @@ MediaManager::GetBackend()
 {
   // Plugin backends as appropriate. The default engine also currently
   // includes picture support for Android.
-  // This IS called off main-thread.
-  MutexAutoLock lock(mMutex);
   if (!mBackend) {
 #if defined(MOZ_WEBRTC)
     mBackend = new MediaEngineWebRTC();
@@ -926,33 +929,39 @@ MediaManager::GetBackend()
     mBackend = new MediaEngineDefault();
 #endif
   }
+
   return mBackend;
+}
+
+WindowTable*
+MediaManager::GetActiveWindows()
+{
+  return &mActiveWindows;
 }
 
 void
 MediaManager::OnNavigation(uint64_t aWindowID)
 {
-  NS_ASSERTION(NS_IsMainThread(), "OnNavigation called off main thread");
-
   // Invalidate this window. The runnables check this value before making
   // a call to content.
+  {
+    MutexAutoLock lock(mMutex);
+    StreamListeners* listeners = mActiveWindows.Get(aWindowID);
+    if (!listeners) {
+      return;
+    }
 
-  // This is safe since we're on main-thread, and the windowlist can only
-  // be added to from the main-thread (see OnNavigation)
-  StreamListeners* listeners = GetActiveWindows()->Get(aWindowID);
-  if (!listeners) {
-    return;
+    uint32_t length = listeners->Length();
+    for (uint32_t i = 0; i < length; i++) {
+      nsRefPtr<GetUserMediaCallbackMediaStreamListener> listener =
+        listeners->ElementAt(i);
+      listener->Invalidate();
+      listener = nullptr;
+    }
+    listeners->Clear();
+
+    mActiveWindows.Remove(aWindowID);
   }
-
-  uint32_t length = listeners->Length();
-  for (uint32_t i = 0; i < length; i++) {
-    nsRefPtr<GetUserMediaCallbackMediaStreamListener> listener =
-      listeners->ElementAt(i);
-    listener->Invalidate();
-  }
-  listeners->Clear();
-
-  GetActiveWindows()->Remove(aWindowID);
 }
 
 nsresult
@@ -970,7 +979,7 @@ MediaManager::Observe(nsISupports* aSubject, const char* aTopic,
     // Close off any remaining active windows.
     {
       MutexAutoLock lock(mMutex);
-      GetActiveWindows()->Clear();
+      mActiveWindows.Clear();
       mActiveCallbacks.Clear();
       sSingleton = nullptr;
     }
@@ -981,10 +990,15 @@ MediaManager::Observe(nsISupports* aSubject, const char* aTopic,
   if (!strcmp(aTopic, "getUserMedia:response:allow")) {
     nsString key(aData);
     nsRefPtr<nsRunnable> runnable;
-    if (!mActiveCallbacks.Get(key, getter_AddRefs(runnable))) {
-      return NS_OK;
+    {
+      MutexAutoLock lock(mMutex);
+      if (!mActiveCallbacks.Get(key, getter_AddRefs(runnable))) {
+        return NS_OK;
+      }
     }
-    mActiveCallbacks.Remove(key);
+
+    // Reuse the same thread to save memory.
+    (void) MediaManager::GetThread();
 
     if (aSubject) {
       // A particular device was chosen by the user.
@@ -1005,22 +1019,26 @@ MediaManager::Observe(nsISupports* aSubject, const char* aTopic,
       }
     }
 
-    // Reuse the same thread to save memory.
     mMediaThread->Dispatch(runnable, NS_DISPATCH_NORMAL);
+    {
+      MutexAutoLock lock(mMutex);
+      mActiveCallbacks.Remove(key);
+    }
     return NS_OK;
   }
 
   if (!strcmp(aTopic, "getUserMedia:response:deny")) {
     nsString key(aData);
     nsRefPtr<nsRunnable> runnable;
-    if (!mActiveCallbacks.Get(key, getter_AddRefs(runnable))) {
-      return NS_OK;
+    {
+      MutexAutoLock lock(mMutex);
+      if (mActiveCallbacks.Get(key, getter_AddRefs(runnable))) {
+        GetUserMediaRunnable* gUMRunnable =
+          static_cast<GetUserMediaRunnable*>(runnable.get());
+        gUMRunnable->Denied();
+        mActiveCallbacks.Remove(key);
+      }
     }
-    mActiveCallbacks.Remove(key);
-
-    GetUserMediaRunnable* gUMRunnable =
-      static_cast<GetUserMediaRunnable*>(runnable.get());
-    gUMRunnable->Denied();
     return NS_OK;
   }
 
