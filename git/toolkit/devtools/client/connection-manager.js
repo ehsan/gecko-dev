@@ -9,13 +9,10 @@
 const {Cc, Ci, Cu} = require("chrome");
 const {setTimeout, clearTimeout} = require('sdk/timers');
 const EventEmitter = require("devtools/toolkit/event-emitter");
-const DevToolsUtils = require("devtools/toolkit/DevToolsUtils");
 
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/devtools/dbg-client.jsm");
 Cu.import("resource://gre/modules/devtools/dbg-server.jsm");
-DevToolsUtils.defineLazyModuleGetter(this, "Task",
-  "resource://gre/modules/Task.jsm");
 
 /**
  * Connection Manager.
@@ -51,8 +48,7 @@ DevToolsUtils.defineLazyModuleGetter(this, "Task",
  *  . port                  Port
  *  . logs                  Current logs. "newlog" event notifies new available logs
  *  . store                 Reference to a local data store (see below)
- *  . keepConnecting        Should the connection keep trying to connect?
- *  . encryption            Should the connection be encrypted?
+ *  . keepConnecting        Should the connection keep trying connecting
  *  . status                Connection status:
  *                            Connection.Status.CONNECTED
  *                            Connection.Status.DISCONNECTED
@@ -116,7 +112,7 @@ function Connection(host, port) {
   this._onDisconnected = this._onDisconnected.bind(this);
   this._onConnected = this._onConnected.bind(this);
   this._onTimeout = this._onTimeout.bind(this);
-  this.resetOptions();
+  this.keepConnecting = false;
 }
 
 Connection.Status = {
@@ -179,11 +175,6 @@ Connection.prototype = {
     this.emit(Connection.Events.PORT_CHANGED);
   },
 
-  resetOptions() {
-    this.keepConnecting = false;
-    this.encryption = false;
-  },
-
   disconnect: function(force) {
     if (this.status == Connection.Status.DESTROYED) {
       return;
@@ -231,38 +222,30 @@ Connection.prototype = {
     this._setStatus(Connection.Status.DESTROYED);
   },
 
-  _getTransport: Task.async(function*() {
-    if (this._customTransport) {
-      return this._customTransport;
-    }
-    if (!this.host) {
-      return DebuggerServer.connectPipe();
-    }
-    let transport = yield DebuggerClient.socketConnect({
-      host: this.host,
-      port: this.port,
-      encryption: this.encryption
-    });
-    return transport;
-  }),
-
   _clientConnect: function () {
-    this._getTransport().then(transport => {
-      if (!transport) {
-        return;
+    let transport;
+    if (this._customTransport) {
+      transport = this._customTransport;
+    } else {
+      if (!this.host) {
+        transport = DebuggerServer.connectPipe();
+      } else {
+        try {
+          transport = DebuggerClient.socketConnect(this.host, this.port);
+        } catch (e) {
+          // In some cases, especially on Mac, the openOutputStream call in
+          // DebuggerClient.socketConnect may throw NS_ERROR_NOT_INITIALIZED.
+          // It occurs when we connect agressively to the simulator,
+          // and keep trying to open a socket to the server being started in
+          // the simulator.
+          this._onDisconnected();
+          return;
+        }
       }
-      this._client = new DebuggerClient(transport);
-      this._client.addOneTimeListener("closed", this._onDisconnected);
-      this._client.connect(this._onConnected);
-    }, e => {
-      console.error(e);
-      // In some cases, especially on Mac, the openOutputStream call in
-      // DebuggerClient.socketConnect may throw NS_ERROR_NOT_INITIALIZED.
-      // It occurs when we connect agressively to the simulator,
-      // and keep trying to open a socket to the server being started in
-      // the simulator.
-      this._onDisconnected();
-    });
+    }
+    this._client = new DebuggerClient(transport);
+    this._client.addOneTimeListener("closed", this._onDisconnected);
+    this._client.connect(this._onConnected);
   },
 
   get status() {

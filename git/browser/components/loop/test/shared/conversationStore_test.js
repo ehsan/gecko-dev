@@ -42,9 +42,6 @@ describe("loop.store.ConversationStore", function () {
       calls: {
         setCallInProgress: sandbox.stub(),
         clearCallInProgress: sandbox.stub()
-      },
-      rooms: {
-        create: sandbox.stub()
       }
     };
 
@@ -704,29 +701,20 @@ describe("loop.store.ConversationStore", function () {
     });
   });
 
-  describe("#fetchRoomEmailLink", function() {
+  describe("#fetchEmailLink", function() {
     it("should request a new call url to the server", function() {
-      store.fetchRoomEmailLink(new sharedActions.FetchRoomEmailLink({
-        roomOwner: "bob@invalid.tld",
-        roomName: "FakeRoomName"
-      }));
+      store.fetchEmailLink(new sharedActions.FetchEmailLink());
 
-      sinon.assert.calledOnce(fakeMozLoop.rooms.create);
-      sinon.assert.calledWithMatch(fakeMozLoop.rooms.create, {
-        roomOwner: "bob@invalid.tld",
-        roomName: "FakeRoomName"
-      });
+      sinon.assert.calledOnce(client.requestCallUrl);
+      sinon.assert.calledWith(client.requestCallUrl, "");
     });
 
-    it("should update the emailLink attribute when the new room url is received",
+    it("should update the emailLink attribute when the new call url is received",
       function() {
-        fakeMozLoop.rooms.create = function(roomData, cb) {
-          cb(null, {roomUrl: "http://fake.invalid/"});
+        client.requestCallUrl = function(callId, cb) {
+          cb(null, {callUrl: "http://fake.invalid/"});
         };
-        store.fetchRoomEmailLink(new sharedActions.FetchRoomEmailLink({
-          roomOwner: "bob@invalid.tld",
-          roomName: "FakeRoomName"
-        }));
+        store.fetchEmailLink(new sharedActions.FetchEmailLink());
 
         expect(store.getStoreState("emailLink")).eql("http://fake.invalid/");
       });
@@ -734,13 +722,10 @@ describe("loop.store.ConversationStore", function () {
     it("should trigger an error:emailLink event in case of failure",
       function() {
         var trigger = sandbox.stub(store, "trigger");
-        fakeMozLoop.rooms.create = function(roomData, cb) {
-          cb(new Error("error"));
+        client.requestCallUrl = function(callId, cb) {
+          cb("error");
         };
-        store.fetchRoomEmailLink(new sharedActions.FetchRoomEmailLink({
-          roomOwner: "bob@invalid.tld",
-          roomName: "FakeRoomName"
-        }));
+        store.fetchEmailLink(new sharedActions.FetchEmailLink());
 
         sinon.assert.calledOnce(trigger);
         sinon.assert.calledWithExactly(trigger, "error:emailLink");

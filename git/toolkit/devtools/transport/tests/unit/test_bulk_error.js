@@ -51,9 +51,9 @@ function add_test_bulk_actor() {
 
 /*** Tests ***/
 
-let test_string_error = Task.async(function*(transportFactory, onReady) {
+function test_string_error(transportFactory, onReady) {
   let deferred = promise.defer();
-  let transport = yield transportFactory();
+  let transport = transportFactory();
 
   let client = new DebuggerClient(transport);
   client.connect((app, traits) => {
@@ -67,7 +67,7 @@ let test_string_error = Task.async(function*(transportFactory, onReady) {
   });
 
   return deferred.promise;
-});
+}
 
 /*** Reply Types ***/
 

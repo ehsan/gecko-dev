@@ -372,9 +372,9 @@ DebuggerClient.Argument.prototype.getArgument = function (aParams) {
 };
 
 // Expose this to save callers the trouble of importing DebuggerSocket
-DebuggerClient.socketConnect = function(options) {
+DebuggerClient.socketConnect = function(host, port) {
   // Defined here instead of just copying the function to allow lazy-load
-  return DebuggerSocket.connect(options);
+  return DebuggerSocket.connect(host, port);
 };
 
 DebuggerClient.prototype = {
