@@ -51,9 +51,8 @@ function test() {
 
 function toggleTabView() {
   let button = document.getElementById("tabview-button");
-  ok(!button, "Tab View button not exist by default");
-  let tabViewCommand = document.getElementById("Browser:ToggleTabView");
-  tabViewCommand.doCommand();
+  ok(button, "Tab View button exists");
+  button.doCommand();
 }
 
 // ----------
