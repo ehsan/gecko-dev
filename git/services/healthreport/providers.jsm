@@ -54,13 +54,6 @@ const DAILY_DISCRETE_NUMERIC_FIELD = {type: Metrics.Storage.FIELD_DAILY_DISCRETE
 const DAILY_LAST_NUMERIC_FIELD = {type: Metrics.Storage.FIELD_DAILY_LAST_NUMERIC};
 const DAILY_COUNTER_FIELD = {type: Metrics.Storage.FIELD_DAILY_COUNTER};
 
-// Preprocess to use the correct telemetry pref.
-#ifdef MOZ_TELEMETRY_ON_BY_DEFAULT
-const TELEMETRY_PREF = "toolkit.telemetry.enabledPreRelease";
-#else
-const TELEMETRY_PREF = "toolkit.telemetry.enabled";
-#endif
-
 /**
  * Represents basic application state.
  *
@@ -75,7 +68,7 @@ AppInfoMeasurement.prototype = Object.freeze({
   __proto__: Metrics.Measurement.prototype,
 
   name: "appinfo",
-  version: 2,
+  version: 1,
 
   fields: {
     vendor: LAST_TEXT_FIELD,
@@ -93,38 +86,15 @@ AppInfoMeasurement.prototype = Object.freeze({
     hotfixVersion: LAST_TEXT_FIELD,
     locale: LAST_TEXT_FIELD,
     isDefaultBrowser: {type: Metrics.Storage.FIELD_DAILY_LAST_NUMERIC},
-    isTelemetryEnabled: {type: Metrics.Storage.FIELD_DAILY_LAST_NUMERIC},
-    isBlocklistEnabled: {type: Metrics.Storage.FIELD_DAILY_LAST_NUMERIC},
-  },
-});
-
-/**
- * Legacy version of app info before Telemetry was added.
- *
- * The "last" fields have all been removed. We only report the longitudinal
- * field.
- */
-function AppInfoMeasurement1() {
-  Metrics.Measurement.call(this);
-}
-
-AppInfoMeasurement1.prototype = Object.freeze({
-  __proto__: Metrics.Measurement.prototype,
-
-  name: "appinfo",
-  version: 1,
-
-  fields: {
-    isDefaultBrowser: {type: Metrics.Storage.FIELD_DAILY_LAST_NUMERIC},
   },
 });
 
 
-function AppVersionMeasurement1() {
+function AppVersionMeasurement() {
   Metrics.Measurement.call(this);
 }
 
-AppVersionMeasurement1.prototype = Object.freeze({
+AppVersionMeasurement.prototype = Object.freeze({
   __proto__: Metrics.Measurement.prototype,
 
   name: "versions",
@@ -135,24 +105,6 @@ AppVersionMeasurement1.prototype = Object.freeze({
   },
 });
 
-// Version 2 added the build ID.
-function AppVersionMeasurement2() {
-  Metrics.Measurement.call(this);
-}
-
-AppVersionMeasurement2.prototype = Object.freeze({
-  __proto__: Metrics.Measurement.prototype,
-
-  name: "versions",
-  version: 2,
-
-  fields: {
-    appVersion: {type: Metrics.Storage.FIELD_DAILY_DISCRETE_TEXT},
-    platformVersion: {type: Metrics.Storage.FIELD_DAILY_DISCRETE_TEXT},
-    appBuildID: {type: Metrics.Storage.FIELD_DAILY_DISCRETE_TEXT},
-    platformBuildID: {type: Metrics.Storage.FIELD_DAILY_DISCRETE_TEXT},
-  },
-});
 
 
 this.AppInfoProvider = function AppInfoProvider() {
@@ -165,12 +117,7 @@ AppInfoProvider.prototype = Object.freeze({
 
   name: "org.mozilla.appInfo",
 
-  measurementTypes: [
-    AppInfoMeasurement,
-    AppInfoMeasurement1,
-    AppVersionMeasurement1,
-    AppVersionMeasurement2,
-  ],
+  measurementTypes: [AppInfoMeasurement, AppVersionMeasurement],
 
   pullOnly: true,
 
@@ -194,13 +141,6 @@ AppInfoProvider.prototype = Object.freeze({
   },
 
   _onInit: function () {
-    let recordEmptyAppInfo = function () {
-      this._setCurrentAppVersion("");
-      this._setCurrentPlatformVersion("");
-      this._setCurrentAppBuildID("");
-      return this._setCurrentPlatformBuildID("");
-    }.bind(this);
-
     // Services.appInfo should always be defined for any reasonably behaving
     // Gecko app. If it isn't, we insert a empty string sentinel value.
     let ai;
@@ -209,74 +149,32 @@ AppInfoProvider.prototype = Object.freeze({
     } catch (ex) {
       this._log.error("Could not obtain Services.appinfo: " +
                      CommonUtils.exceptionStr(ex));
-      yield recordEmptyAppInfo();
+      yield this._setCurrentVersion("");
       return;
     }
 
     if (!ai) {
       this._log.error("Services.appinfo is unavailable.");
-      yield recordEmptyAppInfo();
+      yield this._setCurrentVersion("");
       return;
     }
 
-    let currentAppVersion = ai.version;
-    let currentPlatformVersion = ai.platformVersion;
-    let currentAppBuildID = ai.appBuildID;
-    let currentPlatformBuildID = ai.platformBuildID;
+    let currentVersion = ai.version;
+    let lastVersion = yield this.getState("lastVersion");
 
-    // State's name doesn't contain "app" for historical compatibility.
-    let lastAppVersion = yield this.getState("lastVersion");
-    let lastPlatformVersion = yield this.getState("lastPlatformVersion");
-    let lastAppBuildID = yield this.getState("lastAppBuildID");
-    let lastPlatformBuildID = yield this.getState("lastPlatformBuildID");
-
-    if (currentAppVersion != lastAppVersion) {
-      yield this._setCurrentAppVersion(currentAppVersion);
+    if (currentVersion == lastVersion) {
+      return;
     }
 
-    if (currentPlatformVersion != lastPlatformVersion) {
-      yield this._setCurrentPlatformVersion(currentPlatformVersion);
-    }
-
-    if (currentAppBuildID != lastAppBuildID) {
-      yield this._setCurrentAppBuildID(currentAppBuildID);
-    }
-
-    if (currentPlatformBuildID != lastPlatformBuildID) {
-      yield this._setCurrentPlatformBuildID(currentPlatformBuildID);
-    }
+    yield this._setCurrentVersion(currentVersion);
   },
 
-  _setCurrentAppVersion: function (version) {
+  _setCurrentVersion: function (version) {
     this._log.info("Recording new application version: " + version);
-    let m = this.getMeasurement("versions", 2);
-    m.addDailyDiscreteText("appVersion", version);
-
-    // "app" not encoded in key for historical compatibility.
+    let m = this.getMeasurement("versions", 1);
+    m.addDailyDiscreteText("version", version);
     return this.setState("lastVersion", version);
   },
-
-  _setCurrentPlatformVersion: function (version) {
-    this._log.info("Recording new platform version: " + version);
-    let m = this.getMeasurement("versions", 2);
-    m.addDailyDiscreteText("platformVersion", version);
-    return this.setState("lastPlatformVersion", version);
-  },
-
-  _setCurrentAppBuildID: function (build) {
-    this._log.info("Recording new application build ID: " + build);
-    let m = this.getMeasurement("versions", 2);
-    m.addDailyDiscreteText("appBuildID", build);
-    return this.setState("lastAppBuildID", build);
-  },
-
-  _setCurrentPlatformBuildID: function (build) {
-    this._log.info("Recording new platform build ID: " + build);
-    let m = this.getMeasurement("versions", 2);
-    m.addDailyDiscreteText("platformBuildID", build);
-    return this.setState("lastPlatformBuildID", build);
-  },
-
 
   collectConstantData: function () {
     return this.enqueueStorageOperation(function collect() {
@@ -332,21 +230,7 @@ AppInfoProvider.prototype = Object.freeze({
     }
 
     // FUTURE this should be retrieved periodically or at upload time.
-    yield this._recordIsTelemetryEnabled(m);
-    yield this._recordIsBlocklistEnabled(m);
     yield this._recordDefaultBrowser(m);
-  },
-
-  _recordIsTelemetryEnabled: function (m) {
-    let enabled = TELEMETRY_PREF && this._prefs.get(TELEMETRY_PREF, false);
-    this._log.debug("Recording telemetry enabled (" + TELEMETRY_PREF + "): " + enabled);
-    yield m.setDailyLastNumeric("isTelemetryEnabled", enabled ? 1 : 0);
-  },
-
-  _recordIsBlocklistEnabled: function (m) {
-    let enabled = this._prefs.get("extensions.blocklist.enabled", false);
-    this._log.debug("Recording blocklist enabled: " + enabled);
-    yield m.setDailyLastNumeric("isBlocklistEnabled", enabled ? 1 : 0);
   },
 
   _recordDefaultBrowser: function (m) {
