@@ -80,7 +80,7 @@ void
 CompositorParent::Composite()
 {
   CancelableTask *composeTask = NewRunnableMethod(this, &CompositorParent::Composite);
-  MessageLoop::current()->PostDelayedTask(FROM_HERE, composeTask, 100);
+  MessageLoop::current()->PostDelayedTask(FROM_HERE, composeTask, 10);
 
   if (!mLayerManager)
     return;
