@@ -28,9 +28,7 @@ class TimeStampValue
   uint64_t CheckQPC(const TimeStampValue &aOther) const;
 
   struct _SomethingVeryRandomHere;
-  MOZ_CONSTEXPR TimeStampValue(_SomethingVeryRandomHere* nullValue)
-    : mGTC(0), mQPC(0), mHasQPC(false), mIsNull(true) {}
-
+  MOZ_CONSTEXPR TimeStampValue(_SomethingVeryRandomHere* nullValue);
 
 public:
   uint64_t operator-(const TimeStampValue &aOther) const;

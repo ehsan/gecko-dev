@@ -1466,4 +1466,10 @@ private:
   nsDocument* mDoc;
 };
 
+#define NS_DOCUMENT_INTERFACE_TABLE_BEGIN(_class)                             \
+  NS_NODE_OFFSET_AND_INTERFACE_TABLE_BEGIN(_class)                            \
+  NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMDocument, nsDocument)      \
+  NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMEventTarget, nsDocument)   \
+  NS_INTERFACE_TABLE_ENTRY_AMBIGUOUS(_class, nsIDOMNode, nsDocument)
+
 #endif /* nsDocument_h___ */

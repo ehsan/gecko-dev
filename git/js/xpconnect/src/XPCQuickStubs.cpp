@@ -18,6 +18,25 @@ using namespace JS;
 
 extern const char* xpc_qsStringTable;
 
+static inline QITableEntry *
+GetOffsets(nsISupports *identity, XPCWrappedNativeProto* proto)
+{
+    QITableEntry* offsets = proto ? proto->GetOffsets() : nullptr;
+    if (!offsets) {
+        static NS_DEFINE_IID(kThisPtrOffsetsSID, NS_THISPTROFFSETS_SID);
+        identity->QueryInterface(kThisPtrOffsetsSID, (void**)&offsets);
+    }
+    return offsets;
+}
+
+static inline QITableEntry *
+GetOffsetsFromSlimWrapper(JSObject *obj)
+{
+    NS_ASSERTION(IS_SLIM_WRAPPER(obj), "What kind of object is this?");
+    return GetOffsets(static_cast<nsISupports*>(xpc_GetJSPrivate(obj)),
+                      GetSlimWrapperProto(obj));
+}
+
 static const xpc_qsHashEntry *
 LookupEntry(uint32_t tableSize, const xpc_qsHashEntry *table, const nsID &iid)
 {
@@ -490,12 +509,25 @@ xpc_qsAUTF8String::xpc_qsAUTF8String(JSContext *cx, jsval v, jsval *pval)
 
 static nsresult
 getNative(nsISupports *idobj,
+          QITableEntry* entries,
           HandleObject obj,
           const nsIID &iid,
           void **ppThis,
           nsISupports **pThisRef,
           jsval *vp)
 {
+    // Try using the QITableEntry to avoid the extra AddRef and Release.
+    if (entries) {
+        for (QITableEntry* e = entries; e->iid; e++) {
+            if (e->iid->Equals(iid)) {
+                *ppThis = (char*) idobj + e->offset - entries[0].offset;
+                *vp = OBJECT_TO_JSVAL(obj);
+                *pThisRef = nullptr;
+                return NS_OK;
+            }
+        }
+    }
+
     nsresult rv = idobj->QueryInterface(iid, ppThis);
     *pThisRef = static_cast<nsISupports*>(*ppThis);
     if (NS_SUCCEEDED(rv))
@@ -512,8 +544,8 @@ getNativeFromWrapper(JSContext *cx,
                      jsval *vp)
 {
     RootedObject obj(cx, wrapper->GetFlatJSObject());
-    return getNative(wrapper->GetIdentityObject(), obj, iid, ppThis, pThisRef,
-                     vp);
+    return getNative(wrapper->GetIdentityObject(), wrapper->GetOffsets(),
+                     obj, iid, ppThis, pThisRef, vp);
 }
 
 
@@ -596,16 +628,18 @@ castNative(JSContext *cx,
             return rv;
     } else if (cur) {
         nsISupports *native;
-        if (!(native = mozilla::dom::UnwrapDOMObjectToISupports(cur))) {
-            if (IS_SLIM_WRAPPER(cur)) {
-                native = static_cast<nsISupports*>(xpc_GetJSPrivate(cur));
-            } else {
-                *pThisRef = nullptr;
-                return NS_ERROR_ILLEGAL_VALUE;
-            }
+        QITableEntry *entries;
+        if ((native = mozilla::dom::UnwrapDOMObjectToISupports(cur))) {
+            entries = nullptr;
+        } else if (IS_SLIM_WRAPPER(cur)) {
+            native = static_cast<nsISupports*>(xpc_GetJSPrivate(cur));
+            entries = GetOffsetsFromSlimWrapper(cur);
+        } else {
+            *pThisRef = nullptr;
+            return NS_ERROR_ILLEGAL_VALUE;
         }
 
-        if (NS_SUCCEEDED(getNative(native, cur, iid, ppThis, pThisRef, vp))) {
+        if (NS_SUCCEEDED(getNative(native, entries, cur, iid, ppThis, pThisRef, vp))) {
             return NS_OK;
         }
     }
@@ -687,7 +721,8 @@ xpc_qsUnwrapThisFromCcxImpl(XPCCallContext &ccx,
         return xpc_qsThrow(ccx.GetJSContext(), NS_ERROR_XPC_HAS_BEEN_SHUTDOWN);
 
     RootedObject obj(ccx, ccx.GetFlattenedJSObject());
-    nsresult rv = getNative(native, obj, iid, ppThis, pThisRef, vp);
+    nsresult rv = getNative(native, GetOffsets(native, ccx.GetProto()),
+                            obj, iid, ppThis, pThisRef, vp);
     if (NS_FAILED(rv))
         return xpc_qsThrow(ccx.GetJSContext(), rv);
     return true;

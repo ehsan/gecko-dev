@@ -322,6 +322,14 @@ InitResolution()
 // TimeStampValue implementation
 // ----------------------------------------------------------------------------
 
+MOZ_CONSTEXPR TimeStampValue::TimeStampValue(_SomethingVeryRandomHere* nullValue)
+  : mGTC(0)
+  , mQPC(0)
+  , mHasQPC(false)
+  , mIsNull(true)
+{
+}
+
 TimeStampValue::TimeStampValue(ULONGLONG aGTC, ULONGLONG aQPC, bool aHasQPC)
   : mGTC(aGTC)
   , mQPC(aQPC)

@@ -42,6 +42,8 @@ function search_observer(aSubject, aTopic, aData) {
 };
 
 add_task(function test_default() {
+  let search = Services.search; // Cause service initialization
+
   do_register_cleanup(function cleanup() {
     Services.obs.removeObserver(search_observer, "browser-search-engine-modified");
   });
@@ -50,7 +52,7 @@ add_task(function test_default() {
   Services.obs.addObserver(search_observer, "browser-search-engine-modified", false);
 
   do_print("Loading search engine");
-  Services.search.addEngine("http://mochi.test:8888/tests/robocop/devicesearch.xml", Ci.nsISearchEngine.DATA_XML, null, false);
+  search.addEngine("http://mochi.test:8888/tests/robocop/devicesearch.xml", Ci.nsISearchEngine.DATA_XML, null, false);
 });
 
 run_next_test();

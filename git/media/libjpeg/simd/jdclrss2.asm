@@ -2,7 +2,6 @@
 ; jdclrss2.asm - colorspace conversion (SSE2)
 ;
 ; Copyright 2009, 2012 Pierre Ossman <ossman@cendio.se> for Cendio AB
-; Copyright 2012 D. R. Commander
 ;
 ; Based on
 ; x86 SIMD extension for IJG JPEG library
@@ -301,7 +300,7 @@ EXTN(jsimd_ycc_rgb_convert_sse2):
 	; space.
 	cmp	ecx, byte SIZEOF_MMWORD
 	jb	short .column_st7
-	movq	XMM_MMWORD [edi], xmmA
+	movq	MMWORD [edi], xmmA
 	add	edi, byte SIZEOF_MMWORD
 	sub	ecx, byte SIZEOF_MMWORD
 	psrldq	xmmA, SIZEOF_MMWORD
@@ -310,7 +309,7 @@ EXTN(jsimd_ycc_rgb_convert_sse2):
 	; space.
 	cmp	ecx, byte SIZEOF_DWORD
 	jb	short .column_st3
-	movd	XMM_DWORD [edi], xmmA
+	movd	DWORD [edi], xmmA
 	add	edi, byte SIZEOF_DWORD
 	sub	ecx, byte SIZEOF_DWORD
 	psrldq	xmmA, SIZEOF_DWORD
@@ -412,7 +411,7 @@ EXTN(jsimd_ycc_rgb_convert_sse2):
 	; space.
 	cmp	ecx, byte SIZEOF_XMMWORD/8
 	jb	short .column_st7
-	movq	XMM_MMWORD [edi], xmmA
+	movq	MMWORD [edi], xmmA
 	add	edi, byte SIZEOF_XMMWORD/8*4
 	sub	ecx, byte SIZEOF_XMMWORD/8
 	psrldq	xmmA, SIZEOF_XMMWORD/8*4
@@ -421,7 +420,7 @@ EXTN(jsimd_ycc_rgb_convert_sse2):
 	; space.
 	test	ecx, ecx
 	jz	short .nextrow
-	movd	XMM_DWORD [edi], xmmA
+	movd	DWORD [edi], xmmA
 
 %endif ; RGB_PIXELSIZE ; ---------------
 
