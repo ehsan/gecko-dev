@@ -215,7 +215,7 @@ public:
   // that menu, or null if no menu should be opened. Also, calling Enter will
   // reset the current incremental search string, calculated in
   // FindMenuWithShortcut.
-  nsMenuFrame* Enter(mozilla::WidgetGUIEvent* aEvent);
+  nsMenuFrame* Enter(nsGUIEvent* aEvent);
 
   nsPopupType PopupType() const { return mPopupType; }
   bool IsMenu() MOZ_OVERRIDE { return mPopupType == ePopupTypeMenu; }

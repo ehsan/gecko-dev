@@ -7,7 +7,6 @@ package org.mozilla.gecko;
 
 import org.mozilla.gecko.util.HardwareUtils;
 import org.mozilla.gecko.util.ThreadUtils;
-import org.mozilla.gecko.prompts.PromptService;
 
 import android.app.Activity;
 import android.content.Context;

@@ -18,5 +18,3 @@ LIBXUL_LIBRARY = True
 
 LIBRARY_NAME = 'moznetd_s'
 
-EXPORT_LIBRARY = True
-

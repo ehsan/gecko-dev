@@ -33,7 +33,6 @@
 #include "nsXULTemplateResultSetRDF.h"
 #include "nsXULTemplateQueryProcessorRDF.h"
 #include "nsXULSortService.h"
-#include "nsIDocument.h"
 
 //----------------------------------------------------------------------
 

@@ -15,7 +15,6 @@
 #include "nsRuleData.h"
 #include "nsStyleSet.h"
 #include "nsStyleContext.h"
-#include "nsIDocument.h"
 
 namespace css = mozilla::css;
 

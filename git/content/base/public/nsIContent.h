@@ -7,7 +7,7 @@
 
 #include "mozilla/Attributes.h"
 #include "nsCaseTreatment.h" // for enum, cannot be forward-declared
-#include "nsINode.h"
+#include "nsIDocument.h"
 
 // Forward declarations
 class nsAString;
@@ -243,7 +243,10 @@ public:
    * Return true iff this node is in an HTML document (in the HTML5 sense of
    * the term, i.e. not in an XHTML/XML document).
    */
-  inline bool IsInHTMLDocument() const;
+  inline bool IsInHTMLDocument() const
+  {
+    return OwnerDoc()->IsHTML();
+  }
 
   /**
    * Get the namespace that this element's tag is defined in

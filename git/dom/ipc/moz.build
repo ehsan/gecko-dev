@@ -77,5 +77,3 @@ LIBXUL_LIBRARY = True
 
 LIBRARY_NAME = 'domipc_s'
 
-EXPORT_LIBRARY = True
-

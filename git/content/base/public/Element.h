@@ -32,7 +32,7 @@
 #include "nsIScrollableFrame.h"
 #include "mozilla/dom/Attr.h"
 #include "nsISMILAttr.h"
-#include "mozilla/dom/DOMRect.h"
+#include "nsClientRect.h"
 #include "nsAttrValue.h"
 #include "mozilla/EventForwards.h"
 #include "mozilla/dom/BindingDeclarations.h"
@@ -50,6 +50,8 @@ class nsEventListenerManager;
 class nsIScrollableFrame;
 class nsAttrValueOrString;
 class ContentUnbinder;
+class nsClientRect;
+class nsClientRectList;
 class nsContentList;
 class nsDOMTokenList;
 struct nsRect;
@@ -108,8 +110,6 @@ namespace dom {
 
 class Link;
 class UndoManager;
-class DOMRect;
-class DOMRectList;
 
 // IID for the dom::Element interface
 #define NS_ELEMENT_IID \
@@ -633,7 +633,10 @@ public:
     }
   }
   void MozRequestFullScreen();
-  inline void MozRequestPointerLock();
+  void MozRequestPointerLock()
+  {
+    OwnerDoc()->RequestPointerLock(this);
+  }
   Attr* GetAttributeNode(const nsAString& aName);
   already_AddRefed<Attr> SetAttributeNode(Attr& aNewAttr,
                                           ErrorResult& aError);
@@ -644,8 +647,8 @@ public:
   already_AddRefed<Attr> SetAttributeNodeNS(Attr& aNewAttr,
                                             ErrorResult& aError);
 
-  already_AddRefed<DOMRectList> GetClientRects();
-  already_AddRefed<DOMRect> GetBoundingClientRect();
+  already_AddRefed<nsClientRectList> GetClientRects();
+  already_AddRefed<nsClientRect> GetBoundingClientRect();
   void ScrollIntoView(bool aTop);
   int32_t ScrollTop()
   {
@@ -778,7 +781,7 @@ public:
    */
   using nsIContent::DispatchEvent;
   static nsresult DispatchEvent(nsPresContext* aPresContext,
-                                WidgetEvent* aEvent,
+                                nsEvent* aEvent,
                                 nsIContent* aTarget,
                                 bool aFullDispatch,
                                 nsEventStatus* aStatus);
@@ -1067,14 +1070,37 @@ protected:
   Attr* GetAttributeNodeNSInternal(const nsAString& aNamespaceURI,
                                    const nsAString& aLocalName);
 
-  inline void RegisterFreezableElement();
-  inline void UnregisterFreezableElement();
+  void RegisterFreezableElement() {
+    OwnerDoc()->RegisterFreezableElement(this);
+  }
+  void UnregisterFreezableElement() {
+    OwnerDoc()->UnregisterFreezableElement(this);
+  }
 
   /**
    * Add/remove this element to the documents id cache
    */
-  inline void AddToIdTable(nsIAtom* aId);
-  inline void RemoveFromIdTable();
+  void AddToIdTable(nsIAtom* aId) {
+    NS_ASSERTION(HasID(), "Node doesn't have an ID?");
+    nsIDocument* doc = GetCurrentDoc();
+    if (doc && (!IsInAnonymousSubtree() || doc->IsXUL())) {
+      doc->AddToIdTable(this, aId);
+    }
+  }
+  void RemoveFromIdTable() {
+    if (HasID()) {
+      nsIDocument* doc = GetCurrentDoc();
+      if (doc) {
+        nsIAtom* id = DoGetID();
+        // id can be null during mutation events evilness. Also, XUL elements
+        // loose their proto attributes during cc-unlink, so this can happen
+        // during cc-unlink too.
+        if (id) {
+          doc->RemoveFromIdTable(this, DoGetID());
+        }
+      }
+    }
+  }
 
   /**
    * Functions to carry out event default actions for links of all types

@@ -91,7 +91,6 @@ gTests.push({
   tearDown: setUpAndTearDown,
   run: function test() {
     gInput.selectionStart = gInput.selectionEnd = gInput.value.length;
-    yield waitForEvent(window, "scroll");
 
     let promise = waitForEvent(document, "popupshown");
     sendContextMenuClick(190, 17);
@@ -138,7 +137,6 @@ gTests.push({
   tearDown: setUpAndTearDown,
   run: function test() {
     gInput.selectionStart = gInput.selectionEnd = 0;
-    yield waitForEvent(window, "scroll");
 
     let promise = waitForEvent(document, "popupshown");
     sendContextMenuClick(230, 17);

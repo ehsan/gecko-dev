@@ -55,5 +55,3 @@ LIBXUL_LIBRARY = True
 
 LIBRARY_NAME = 'widget_qt'
 
-EXPORT_LIBRARY = True
-

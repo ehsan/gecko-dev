@@ -328,6 +328,12 @@ function performTest() {
     is(gVariablesView.getFocusedItem().name, "prop1",
       "The 'prop1' item should be focused.");
 
+    if (gVariablesView.getFocusedItem().name != "prop1") {
+      gDebugger.DebuggerView.toggleInstrumentsPane({ visible: true, animated: false })
+      yield promise.defer().promise;
+      yield closeDebuggerAndFinish(gPanel);
+    }
+
     EventUtils.sendKey("RIGHT", gDebugger);
     is(gVariablesView.getFocusedItem().name, "prop1",
       "The 'prop1' item should still be focused.");

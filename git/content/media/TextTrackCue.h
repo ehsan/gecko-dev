@@ -13,7 +13,6 @@
 #include "nsDOMEventTargetHelper.h"
 #include "nsIWebVTTParserWrapper.h"
 #include "mozilla/StaticPtr.h"
-#include "nsIDocument.h"
 
 namespace mozilla {
 namespace dom {

@@ -31,5 +31,3 @@ LIBRARY_NAME = 'wdgtos2'
 
 LIBXUL_LIBRARY = True
 
-EXPORT_LIBRARY = True
-

@@ -36,5 +36,3 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] != 'windows':
 
 LIBXUL_LIBRARY = True
 
-EXPORT_LIBRARY = True
-

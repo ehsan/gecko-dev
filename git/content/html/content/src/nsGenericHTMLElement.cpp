@@ -13,7 +13,6 @@
 #include "nsAttrValueInlines.h"
 #include "nsCOMPtr.h"
 #include "nsIAtom.h"
-#include "nsIContentInlines.h"
 #include "nsIContentViewer.h"
 #include "mozilla/css/StyleRule.h"
 #include "nsIDocument.h"
@@ -2732,8 +2731,8 @@ nsGenericHTMLElement::Click()
   // Click() is never called from native code, but it may be
   // called from chrome JS. Mark this event trusted if Click()
   // is called from chrome code.
-  WidgetMouseEvent event(nsContentUtils::IsCallerChrome(),
-                         NS_MOUSE_CLICK, nullptr, WidgetMouseEvent::eReal);
+  nsMouseEvent event(nsContentUtils::IsCallerChrome(),
+                     NS_MOUSE_CLICK, nullptr, nsMouseEvent::eReal);
   event.inputSource = nsIDOMMouseEvent::MOZ_SOURCE_UNKNOWN;
 
   nsEventDispatcher::Dispatch(static_cast<nsIContent*>(this), context, &event);
@@ -2835,8 +2834,8 @@ nsGenericHTMLElement::PerformAccesskey(bool aKeyCausesActivation,
 
   if (aKeyCausesActivation) {
     // Click on it if the users prefs indicate to do so.
-    WidgetMouseEvent event(aIsTrustedEvent, NS_MOUSE_CLICK, nullptr,
-                           WidgetMouseEvent::eReal);
+    nsMouseEvent event(aIsTrustedEvent, NS_MOUSE_CLICK,
+                       nullptr, nsMouseEvent::eReal);
     event.inputSource = nsIDOMMouseEvent::MOZ_SOURCE_KEYBOARD;
 
     nsAutoPopupStatePusher popupStatePusher(aIsTrustedEvent ?

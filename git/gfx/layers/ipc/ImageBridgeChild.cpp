@@ -122,16 +122,16 @@ ImageBridgeChild::RemoveTexture(CompositableClient* aCompositable,
                                 uint64_t aTexture,
                                 TextureFlags aFlags)
 {
-  if (aFlags & TEXTURE_DEALLOCATE_CLIENT) {
-    // if deallocation happens on the host side, we need the transaction
+  if (aFlags & TEXTURE_DEALLOCATE_HOST) {
+    // if deallocation happens on the host side, we don't need the transaction
     // to be synchronous.
-    mTxn->AddEdit(OpRemoveTexture(nullptr, aCompositable->GetIPDLActor(),
-                                  aTexture,
-                                  aFlags));
-  } else {
     mTxn->AddNoSwapEdit(OpRemoveTexture(nullptr, aCompositable->GetIPDLActor(),
                                         aTexture,
                                         aFlags));
+  } else {
+    mTxn->AddEdit(OpRemoveTexture(nullptr, aCompositable->GetIPDLActor(),
+                                  aTexture,
+                                  aFlags));
   }
 }
 
@@ -198,7 +198,6 @@ ImageBridgeChild::UpdatePictureRect(CompositableClient* aCompositable,
 
 // Singleton
 static ImageBridgeChild *sImageBridgeChildSingleton = nullptr;
-static nsRefPtr<ImageBridgeParent> sImageBridgeParentSingleton;
 static Thread *sImageBridgeChildThread = nullptr;
 
 // dispatched function
@@ -225,7 +224,6 @@ static void DeleteImageBridgeSync(ReentrantMonitor *aBarrier, bool *aDone)
                     "Should be in ImageBridgeChild thread.");
   delete sImageBridgeChildSingleton;
   sImageBridgeChildSingleton = nullptr;
-  sImageBridgeParentSingleton = nullptr;
   *aDone = true;
   aBarrier->NotifyAll();
 }
@@ -379,20 +377,6 @@ void ImageBridgeChild::DispatchReleaseImageClient(ImageClient* aClient)
   sImageBridgeChildSingleton->GetMessageLoop()->PostTask(
     FROM_HERE,
     NewRunnableFunction(&ReleaseImageClientNow, aClient));
-}
-
-static void ReleaseTextureClientNow(TextureClient* aClient)
-{
-  MOZ_ASSERT(InImageBridgeChildThread());
-  aClient->Release();
-}
-
-// static
-void ImageBridgeChild::DispatchReleaseTextureClient(TextureClient* aClient)
-{
-  sImageBridgeChildSingleton->GetMessageLoop()->PostTask(
-    FROM_HERE,
-    NewRunnableFunction(&ReleaseTextureClientNow, aClient));
 }
 
 static void UpdateImageClientNow(ImageClient* aClient, ImageContainer* aContainer)
@@ -595,9 +579,9 @@ bool ImageBridgeChild::StartUpOnThread(Thread* aThread)
       aThread->Start();
     }
     sImageBridgeChildSingleton = new ImageBridgeChild();
-    sImageBridgeParentSingleton = new ImageBridgeParent(
+    ImageBridgeParent* imageBridgeParent = new ImageBridgeParent(
       CompositorParent::CompositorLoop(), nullptr);
-    sImageBridgeChildSingleton->ConnectAsync(sImageBridgeParentSingleton);
+    sImageBridgeChildSingleton->ConnectAsync(imageBridgeParent);
     return true;
   } else {
     return false;

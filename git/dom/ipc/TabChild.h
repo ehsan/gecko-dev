@@ -23,6 +23,7 @@
 #include "nsIWindowProvider.h"
 #include "nsIDOMWindow.h"
 #include "nsIDocShell.h"
+#include "nsIDocument.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsFrameMessageManager.h"
 #include "nsIWebProgressListener.h"
@@ -226,7 +227,7 @@ public:
                                 const int32_t&  aClickCount,
                                 const int32_t&  aModifiers,
                                 const bool&     aIgnoreRootScrollFrame);
-    virtual bool RecvRealMouseEvent(const mozilla::WidgetMouseEvent& event);
+    virtual bool RecvRealMouseEvent(const nsMouseEvent& event);
     virtual bool RecvRealKeyEvent(const mozilla::WidgetKeyboardEvent& event);
     virtual bool RecvMouseWheelEvent(const mozilla::WheelEvent& event);
     virtual bool RecvRealTouchEvent(const WidgetTouchEvent& event);
@@ -353,7 +354,17 @@ public:
       return static_cast<TabChild*>(tc.get());
     }
 
-    static TabChild* GetFrom(nsIPresShell* aPresShell);
+    static inline TabChild*
+    GetFrom(nsIPresShell* aPresShell)
+    {
+      nsIDocument* doc = aPresShell->GetDocument();
+      if (!doc) {
+          return nullptr;
+      }
+      nsCOMPtr<nsISupports> container = doc->GetContainer();
+      nsCOMPtr<nsIDocShell> docShell(do_QueryInterface(container));
+      return GetFrom(docShell);
+    }
 
     static inline TabChild*
     GetFrom(nsIDOMWindow* aWindow)
@@ -371,7 +382,7 @@ protected:
     virtual bool RecvDestroy() MOZ_OVERRIDE;
     virtual bool RecvSetUpdateHitRegion(const bool& aEnabled) MOZ_OVERRIDE;
 
-    nsEventStatus DispatchWidgetEvent(WidgetGUIEvent& event);
+    nsEventStatus DispatchWidgetEvent(nsGUIEvent& event);
 
     virtual PIndexedDBChild* AllocPIndexedDBChild(const nsCString& aGroup,
                                                   const nsCString& aASCIIOrigin,

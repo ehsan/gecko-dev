@@ -156,7 +156,7 @@ static void AllocateTexturesYCbCr(PlanarYCbCrImage *aImage,
   nsAutoPtr<PlanarYCbCrD3D9BackendData> backendData(
     new PlanarYCbCrD3D9BackendData);
 
-  const PlanarYCbCrData *data = aImage->GetData();
+  const PlanarYCbCrImage::Data *data = aImage->GetData();
 
   D3DLOCKED_RECT lockrectY;
   D3DLOCKED_RECT lockrectCb;

@@ -564,13 +564,13 @@ KeymapWrapper::InitInputEvent(WidgetInputEvent& aInputEvent,
       static_cast<WidgetMouseEventBase&>(aInputEvent);
     mouseEvent.buttons = 0;
     if (aModifierState & GDK_BUTTON1_MASK) {
-        mouseEvent.buttons |= WidgetMouseEvent::eLeftButtonFlag;
+        mouseEvent.buttons |= nsMouseEvent::eLeftButtonFlag;
     }
     if (aModifierState & GDK_BUTTON3_MASK) {
-        mouseEvent.buttons |= WidgetMouseEvent::eRightButtonFlag;
+        mouseEvent.buttons |= nsMouseEvent::eRightButtonFlag;
     }
     if (aModifierState & GDK_BUTTON2_MASK) {
-        mouseEvent.buttons |= WidgetMouseEvent::eMiddleButtonFlag;
+        mouseEvent.buttons |= nsMouseEvent::eMiddleButtonFlag;
     }
 
     PR_LOG(gKeymapWrapperLog, PR_LOG_DEBUG,
@@ -578,11 +578,11 @@ KeymapWrapper::InitInputEvent(WidgetInputEvent& aInputEvent,
          "aInputEvent.buttons=0x%04X (Left: %s, Right: %s, Middle: %s, "
          "4th (BACK): %s, 5th (FORWARD): %s)",
          keymapWrapper, mouseEvent.buttons,
-         GetBoolName(mouseEvent.buttons & WidgetMouseEvent::eLeftButtonFlag),
-         GetBoolName(mouseEvent.buttons & WidgetMouseEvent::eRightButtonFlag),
-         GetBoolName(mouseEvent.buttons & WidgetMouseEvent::eMiddleButtonFlag),
-         GetBoolName(mouseEvent.buttons & WidgetMouseEvent::e4thButtonFlag),
-         GetBoolName(mouseEvent.buttons & WidgetMouseEvent::e5thButtonFlag)));
+         GetBoolName(mouseEvent.buttons & nsMouseEvent::eLeftButtonFlag),
+         GetBoolName(mouseEvent.buttons & nsMouseEvent::eRightButtonFlag),
+         GetBoolName(mouseEvent.buttons & nsMouseEvent::eMiddleButtonFlag),
+         GetBoolName(mouseEvent.buttons & nsMouseEvent::e4thButtonFlag),
+         GetBoolName(mouseEvent.buttons & nsMouseEvent::e5thButtonFlag)));
 }
 
 /* static */ uint32_t

@@ -8,8 +8,7 @@
 
 #include "mozilla/Attributes.h"
 #include "nsIDOMElement.h"
-#include "mozilla/dom/ElementInlines.h"
-#include "mozilla/dom/DOMRect.h"
+#include "mozilla/dom/Element.h"
 
 class nsXMLElement : public mozilla::dom::Element,
                      public nsIDOMElement

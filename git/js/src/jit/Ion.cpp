@@ -1617,10 +1617,7 @@ IonCompile(JSContext *cx, JSScript *script,
     RootedScript builderScript(cx, builder->script());
     IonSpewNewFunction(graph, builderScript);
 
-    bool succeeded = builder->build();
-    builder->clearForBackEnd();
-
-    if (!succeeded) {
+    if (!builder->build()) {
         if (cx->isExceptionPending()) {
             IonSpew(IonSpew_Abort, "Builder raised exception.");
             return AbortReason_Error;
@@ -1629,6 +1626,7 @@ IonCompile(JSContext *cx, JSScript *script,
         IonSpew(IonSpew_Abort, "Builder failed to build.");
         return builder->abortReason();
     }
+    builder->clearForBackEnd();
 
     // If possible, compile the script off thread.
     if (OffThreadCompilationAvailable(cx)) {

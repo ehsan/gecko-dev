@@ -24,7 +24,6 @@
 #include "mozilla/Likely.h"
 #include "gfxMatrix.h"
 #include "gfxQuaternion.h"
-#include "nsIDocument.h"
 
 using namespace mozilla;
 

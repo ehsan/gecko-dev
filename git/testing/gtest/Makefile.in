@@ -12,6 +12,7 @@ VPATH = \
   $(srcdir)/gmock/src \
   $(NULL)
 
+EXPORT_LIBRARY = 1
 LOCAL_INCLUDES += \
   -I$(srcdir)/gtest \
   -I$(srcdir)/gtest/include \

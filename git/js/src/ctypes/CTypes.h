@@ -305,7 +305,6 @@ struct ClosureInfo
   }
 };
 
-bool IsCTypesGlobal(HandleValue v);
 bool IsCTypesGlobal(JSObject* obj);
 
 JSCTypesCallbacks* GetCallbacks(JSObject* obj);
@@ -477,7 +476,6 @@ namespace CData {
   JSObject* GetCType(JSObject* dataObj);
   void* GetData(JSObject* dataObj);
   bool IsCData(JSObject* obj);
-  bool IsCData(HandleValue v);
   bool IsCDataProto(JSObject* obj);
 
   // Attached by JSAPI as the function 'ctypes.cast'

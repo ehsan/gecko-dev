@@ -12,7 +12,6 @@
 #include "nsIWeakReferenceUtils.h"
 #include "mozilla/dom/Element.h"
 #include "nsIInterfaceRequestor.h"
-#include "nsILoadContext.h"
 
 class mozIApplication;
 

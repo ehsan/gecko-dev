@@ -236,9 +236,4 @@ this.UserAgentUpdates = {
         break;
     }
   },
-
-  QueryInterface: XPCOMUtils.generateQI([
-    Ci.nsIObserver,
-    Ci.nsITimerCallback,
-  ]),
 };

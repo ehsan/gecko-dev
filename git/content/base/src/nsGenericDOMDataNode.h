@@ -21,7 +21,6 @@
 #include "nsCycleCollectionParticipant.h"
 
 #include "nsISMILAttr.h"
-#include "nsIDocument.h"
 
 class nsIDOMAttr;
 class nsIDOMEventListener;

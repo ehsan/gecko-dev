@@ -7,11 +7,9 @@
 #define nsMathMLElement_h
 
 #include "mozilla/Attributes.h"
-#include "mozilla/dom/ElementInlines.h"
 #include "nsMappedAttributeElement.h"
 #include "nsIDOMElement.h"
 #include "Link.h"
-#include "mozilla/dom/DOMRect.h"
 
 class nsCSSValue;
 

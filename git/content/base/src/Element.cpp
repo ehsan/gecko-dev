@@ -10,13 +10,12 @@
  * utility methods for subclasses, and so forth.
  */
 
-#include "mozilla/dom/ElementInlines.h"
+#include "mozilla/dom/Element.h"
 
 #include "mozilla/DebugOnly.h"
 #include "mozilla/dom/Attr.h"
 #include "nsDOMAttributeMap.h"
 #include "nsIAtom.h"
-#include "nsIContentInlines.h"
 #include "nsINodeInfo.h"
 #include "nsIDocumentInlines.h"
 #include "nsIDOMNodeList.h"
@@ -71,7 +70,7 @@
 #include "nsXBLBinding.h"
 #include "nsPIDOMWindow.h"
 #include "nsPIBoxObject.h"
-#include "mozilla/dom/DOMRect.h"
+#include "nsClientRect.h"
 #include "nsSVGUtils.h"
 #include "nsLayoutUtils.h"
 #include "nsGkAtoms.h"
@@ -648,10 +647,10 @@ Element::GetClientAreaRect()
   return nsRect(0, 0, 0, 0);
 }
 
-already_AddRefed<DOMRect>
+already_AddRefed<nsClientRect>
 Element::GetBoundingClientRect()
 {
-  nsRefPtr<DOMRect> rect = new DOMRect(this);
+  nsRefPtr<nsClientRect> rect = new nsClientRect(this);
   
   nsIFrame* frame = GetPrimaryFrame(Flush_Layout);
   if (!frame) {
@@ -666,10 +665,10 @@ Element::GetBoundingClientRect()
   return rect.forget();
 }
 
-already_AddRefed<DOMRectList>
+already_AddRefed<nsClientRectList>
 Element::GetClientRects()
 {
-  nsRefPtr<DOMRectList> rectList = new DOMRectList(this);
+  nsRefPtr<nsClientRectList> rectList = new nsClientRectList(this);
 
   nsIFrame* frame = GetPrimaryFrame(Flush_Layout);
   if (!frame) {
@@ -1404,7 +1403,7 @@ Element::IsNodeOfType(uint32_t aFlags) const
 /* static */
 nsresult
 Element::DispatchEvent(nsPresContext* aPresContext,
-                       WidgetEvent* aEvent,
+                       nsEvent* aEvent,
                        nsIContent* aTarget,
                        bool aFullDispatch,
                        nsEventStatus* aStatus)
@@ -1442,16 +1441,16 @@ Element::DispatchClickEvent(nsPresContext* aPresContext,
   NS_PRECONDITION(aSourceEvent, "Must have source event");
   NS_PRECONDITION(aStatus, "Null out param?");
 
-  WidgetMouseEvent event(aSourceEvent->mFlags.mIsTrusted, NS_MOUSE_CLICK,
-                         aSourceEvent->widget, WidgetMouseEvent::eReal);
+  nsMouseEvent event(aSourceEvent->mFlags.mIsTrusted, NS_MOUSE_CLICK,
+                     aSourceEvent->widget, nsMouseEvent::eReal);
   event.refPoint = aSourceEvent->refPoint;
   uint32_t clickCount = 1;
   float pressure = 0;
   uint16_t inputSource = 0;
   if (aSourceEvent->eventStructType == NS_MOUSE_EVENT) {
-    clickCount = static_cast<WidgetMouseEvent*>(aSourceEvent)->clickCount;
-    pressure = static_cast<WidgetMouseEvent*>(aSourceEvent)->pressure;
-    inputSource = static_cast<WidgetMouseEvent*>(aSourceEvent)->inputSource;
+    clickCount = static_cast<nsMouseEvent*>(aSourceEvent)->clickCount;
+    pressure = static_cast<nsMouseEvent*>(aSourceEvent)->pressure;
+    inputSource = static_cast<nsMouseEvent*>(aSourceEvent)->inputSource;
   } else if (aSourceEvent->eventStructType == NS_KEY_EVENT) {
     inputSource = nsIDOMMouseEvent::MOZ_SOURCE_KEYBOARD;
   }
@@ -2223,8 +2222,8 @@ Element::PostHandleEventForLinks(nsEventChainPostVisitor& aVisitor)
   case NS_MOUSE_BUTTON_DOWN:
     {
       if (aVisitor.mEvent->eventStructType == NS_MOUSE_EVENT &&
-          static_cast<WidgetMouseEvent*>(aVisitor.mEvent)->button ==
-            WidgetMouseEvent::eLeftButton) {
+          static_cast<nsMouseEvent*>(aVisitor.mEvent)->button ==
+          nsMouseEvent::eLeftButton) {
         // don't make the link grab the focus if there is no link handler
         nsILinkHandler *handler = aVisitor.mPresContext->GetLinkHandler();
         nsIDocument *document = GetCurrentDoc();

@@ -28,7 +28,6 @@ class Element;
 }
 }
 
-struct nsComputedStyleMap;
 class nsIFrame;
 class nsIPresShell;
 class nsDOMCSSValueList;
@@ -128,9 +127,6 @@ public:
   virtual void GetCSSParsingEnvironment(CSSParsingEnvironment& aCSSParseEnv) MOZ_OVERRIDE;
 
   static nsROCSSPrimitiveValue* MatrixToCSSValue(gfx3DMatrix& aMatrix);
-
-  static void RegisterPrefChangeCallbacks();
-  static void UnregisterPrefChangeCallbacks();
 
 private:
   void AssertFlushedPendingReflows() {
@@ -541,7 +537,22 @@ private:
   mozilla::dom::CSSValue* CreatePrimitiveValueForStyleFilter(
     const nsStyleFilter& aStyleFilter);
 
-  static nsComputedStyleMap* GetComputedStyleMap();
+  struct ComputedStyleMapEntry
+  {
+    // Create a pointer-to-member-function type.
+    typedef mozilla::dom::CSSValue* (nsComputedDOMStyle::*ComputeMethod)();
+
+    nsCSSProperty mProperty;
+    ComputeMethod mGetter;
+
+    bool IsLayoutFlushNeeded() const
+    {
+      return nsCSSProps::PropHasFlags(mProperty,
+                                      CSS_PROPERTY_GETCS_NEEDS_LAYOUT_FLUSH);
+    }
+  };
+
+  static const ComputedStyleMapEntry* GetQueryablePropertyMap(uint32_t* aLength);
 
   // We don't really have a good immutable representation of "presentation".
   // Given the way GetComputedStyle is currently used, we should just grab the

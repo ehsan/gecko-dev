@@ -78,8 +78,8 @@ nsHTMLButtonControlFrame::SetFocus(bool aOn, bool aRepaint)
 
 NS_IMETHODIMP
 nsHTMLButtonControlFrame::HandleEvent(nsPresContext* aPresContext, 
-                                      WidgetGUIEvent* aEvent,
-                                      nsEventStatus* aEventStatus)
+                                      nsGUIEvent*     aEvent,
+                                      nsEventStatus*  aEventStatus)
 {
   // if disabled do nothing
   if (mRenderer.isDisabled()) {

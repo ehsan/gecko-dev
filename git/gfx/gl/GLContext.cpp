@@ -459,8 +459,7 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
         if (version >= mVersion) {
             mVersion = version;
         } else if (parseSuccess) {
-            NS_WARNING("Parsed version less than expected.");
-            mInitialized = false;
+            MOZ_ASSERT(false, "Parsed version less than expected.");
         }
     }
 

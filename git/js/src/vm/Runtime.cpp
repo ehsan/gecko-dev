@@ -139,6 +139,7 @@ JSRuntime::JSRuntime(JSUseHelperThreads useHelperThreads)
     bumpAlloc_(nullptr),
     ionRuntime_(nullptr),
     selfHostingGlobal_(nullptr),
+    selfHostedClasses_(nullptr),
     nativeStackBase(0),
     cxCallback(nullptr),
     destroyCompartmentCallback(nullptr),

@@ -22,7 +22,7 @@ class SVGZoomEvent MOZ_FINAL : public nsDOMUIEvent
 {
 public:
   SVGZoomEvent(EventTarget* aOwner, nsPresContext* aPresContext,
-               WidgetGUIEvent* aEvent);
+               nsGUIEvent* aEvent);
 
   // Forward to base class
   NS_FORWARD_TO_NSDOMUIEVENT

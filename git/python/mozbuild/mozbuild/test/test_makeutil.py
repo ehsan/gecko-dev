@@ -4,7 +4,6 @@
 
 from mozbuild.makeutil import (
     Makefile,
-    read_dep_makefile,
     Rule,
 )
 from mozunit import main
@@ -42,47 +41,6 @@ class TestMakefile(unittest.TestCase):
             '\techo $@\n' +
             '\t$(BAZ) -o $@ $<\n' +
             '\t$(TOUCH) $@\n')
-        out.truncate(0)
-
-        rule = Rule(['foo'])
-        rule.add_dependencies(['bar', 'foo', 'baz'])
-        rule.dump(out)
-        self.assertEqual(out.getvalue(), 'foo: bar baz\n')
-        out.truncate(0)
-
-        rule.add_targets(['bar'])
-        rule.dump(out)
-        self.assertEqual(out.getvalue(), 'foo bar: baz\n')
-        out.truncate(0)
-
-        rule.add_targets(['bar'])
-        rule.dump(out)
-        self.assertEqual(out.getvalue(), 'foo bar: baz\n')
-        out.truncate(0)
-
-        rule.add_dependencies(['bar'])
-        rule.dump(out)
-        self.assertEqual(out.getvalue(), 'foo bar: baz\n')
-        out.truncate(0)
-
-        rule.add_dependencies(['qux'])
-        rule.dump(out)
-        self.assertEqual(out.getvalue(), 'foo bar: baz qux\n')
-        out.truncate(0)
-
-        rule.add_dependencies(['qux'])
-        rule.dump(out)
-        self.assertEqual(out.getvalue(), 'foo bar: baz qux\n')
-        out.truncate(0)
-
-        rule.add_dependencies(['hoge', 'hoge'])
-        rule.dump(out)
-        self.assertEqual(out.getvalue(), 'foo bar: baz qux hoge\n')
-        out.truncate(0)
-
-        rule.add_targets(['fuga', 'fuga'])
-        rule.dump(out)
-        self.assertEqual(out.getvalue(), 'foo bar fuga: baz qux hoge\n')
 
     def test_makefile(self):
         out = StringIO()
@@ -136,22 +94,6 @@ class TestMakefile(unittest.TestCase):
             'c:/foo: c:/bar c:/baz/qux\n' +
             '\techo c:\\foo\n' +
             'c:/bar c:/baz/qux:\n')
-
-    def test_read_dep_makefile(self):
-        input = StringIO(
-            os.path.abspath('foo') + ': bar\n' +
-            'baz qux: \\ \n' +
-            'hoge \\\n' +
-            'piyo \\\n' +
-            'fuga\n' +
-            'fuga:\n'
-        )
-        result = list(read_dep_makefile(input))
-        self.assertEqual(len(result), 2)
-        self.assertEqual(list(result[0].targets()), [os.path.abspath('foo').replace(os.sep, '/')])
-        self.assertEqual(list(result[0].dependencies()), ['bar'])
-        self.assertEqual(list(result[1].targets()), ['baz', 'qux'])
-        self.assertEqual(list(result[1].dependencies()), ['hoge', 'piyo', 'fuga'])
 
 if __name__ == '__main__':
     main()

@@ -43,7 +43,7 @@ public:
 private:
   CallEvent(EventTarget* aOwner,
             nsPresContext* aPresContext,
-            WidgetEvent* aEvent)
+            nsEvent* aEvent)
   : nsDOMEvent(aOwner, aPresContext, aEvent)
   {
     SetIsDOMBinding();

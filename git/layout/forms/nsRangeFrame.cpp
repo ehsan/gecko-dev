@@ -455,7 +455,7 @@ nsRangeFrame::GetValueAsFractionOfRange()
 }
 
 Decimal
-nsRangeFrame::GetValueAtEventPoint(WidgetGUIEvent* aEvent)
+nsRangeFrame::GetValueAtEventPoint(nsGUIEvent* aEvent)
 {
   MOZ_ASSERT(aEvent->eventStructType == NS_MOUSE_EVENT ||
              aEvent->eventStructType == NS_TOUCH_EVENT,

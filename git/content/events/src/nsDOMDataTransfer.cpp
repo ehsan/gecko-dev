@@ -22,8 +22,6 @@
 #include "nsCRT.h"
 #include "nsIScriptObjectPrincipal.h"
 #include "nsIScriptContext.h"
-#include "nsIDocument.h"
-#include "nsIScriptGlobalObject.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;

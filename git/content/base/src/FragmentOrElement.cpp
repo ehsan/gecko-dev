@@ -69,6 +69,7 @@
 #include "nsXBLBinding.h"
 #include "nsPIDOMWindow.h"
 #include "nsPIBoxObject.h"
+#include "nsClientRect.h"
 #include "nsSVGUtils.h"
 #include "nsLayoutUtils.h"
 #include "nsGkAtoms.h"
@@ -694,8 +695,8 @@ nsIContent::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
       ((this == aVisitor.mEvent->originalTarget &&
         !ChromeOnlyAccess()) || isAnonForEvents)) {
      nsCOMPtr<nsIContent> relatedTarget =
-       do_QueryInterface(
-         static_cast<WidgetMouseEvent*>(aVisitor.mEvent)->relatedTarget);
+       do_QueryInterface(static_cast<nsMouseEvent*>
+                                    (aVisitor.mEvent)->relatedTarget);
     if (relatedTarget &&
         relatedTarget->OwnerDoc() == OwnerDoc()) {
 

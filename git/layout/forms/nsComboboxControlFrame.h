@@ -75,7 +75,7 @@ public:
                     nsReflowStatus&          aStatus) MOZ_OVERRIDE;
 
   NS_IMETHOD HandleEvent(nsPresContext* aPresContext,
-                         mozilla::WidgetGUIEvent* aEvent,
+                         nsGUIEvent* aEvent,
                          nsEventStatus* aEventStatus);
 
   virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,

@@ -11,6 +11,9 @@ STL_FLAGS =
 # must link statically with the CRT; nptest isn't Gecko code
 USE_STATIC_LIBS = 1
 
+# Need to custom install plugins
+NO_INSTALL = 1
+
 VPATH += $(topsrcdir)/build
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),qt)

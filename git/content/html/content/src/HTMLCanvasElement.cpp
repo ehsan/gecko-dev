@@ -9,7 +9,6 @@
 #include "imgIEncoder.h"
 #include "jsapi.h"
 #include "jsfriendapi.h"
-#include "gfxImageSurface.h"
 #include "mozilla/Base64.h"
 #include "mozilla/CheckedInt.h"
 #include "mozilla/dom/CanvasRenderingContext2D.h"

@@ -155,19 +155,19 @@ ModifierKeyState::InitMouseEvent(WidgetInputEvent& aMouseEvent) const
     static_cast<WidgetMouseEventBase&>(aMouseEvent);
   mouseEvent.buttons = 0;
   if (::GetKeyState(VK_LBUTTON) < 0) {
-    mouseEvent.buttons |= WidgetMouseEvent::eLeftButtonFlag;
+    mouseEvent.buttons |= nsMouseEvent::eLeftButtonFlag;
   }
   if (::GetKeyState(VK_RBUTTON) < 0) {
-    mouseEvent.buttons |= WidgetMouseEvent::eRightButtonFlag;
+    mouseEvent.buttons |= nsMouseEvent::eRightButtonFlag;
   }
   if (::GetKeyState(VK_MBUTTON) < 0) {
-    mouseEvent.buttons |= WidgetMouseEvent::eMiddleButtonFlag;
+    mouseEvent.buttons |= nsMouseEvent::eMiddleButtonFlag;
   }
   if (::GetKeyState(VK_XBUTTON1) < 0) {
-    mouseEvent.buttons |= WidgetMouseEvent::e4thButtonFlag;
+    mouseEvent.buttons |= nsMouseEvent::e4thButtonFlag;
   }
   if (::GetKeyState(VK_XBUTTON2) < 0) {
-    mouseEvent.buttons |= WidgetMouseEvent::e5thButtonFlag;
+    mouseEvent.buttons |= nsMouseEvent::e5thButtonFlag;
   }
 }
 

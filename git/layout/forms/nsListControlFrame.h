@@ -54,7 +54,7 @@ public:
 
     // nsIFrame
   NS_IMETHOD HandleEvent(nsPresContext* aPresContext,
-                         mozilla::WidgetGUIEvent* aEvent,
+                         nsGUIEvent* aEvent,
                          nsEventStatus* aEventStatus) MOZ_OVERRIDE;
   
   NS_IMETHOD SetInitialChildList(ChildListID     aListID,

@@ -55,12 +55,7 @@ public:
   // but was actually painted at t+n, this returns n in seconds. Threadsafe.
   double GetFrameDelay();
   // Call on main thread
-  enum {
-    INVALIDATE_DEFAULT,
-    INVALIDATE_FORCE
-  };
-  void Invalidate() { InvalidateWithFlags(INVALIDATE_DEFAULT); }
-  void InvalidateWithFlags(uint32_t aFlags);
+  void Invalidate();
   ImageContainer* GetImageContainer();
   void ForgetElement() { mElement = nullptr; }
 
@@ -96,6 +91,8 @@ protected:
   // frame is fully invalidated instead of just invalidating for the image change
   // in the ImageLayer.
   bool mImageSizeChanged;
+
+  bool mNeedInvalidation;
 };
 
 }

@@ -269,7 +269,7 @@ MSG_DEF(JSMSG_BAD_GENERATOR_SYNTAX,   215, 1, JSEXN_SYNTAXERR, "{0} expression m
 MSG_DEF(JSMSG_ARRAY_COMP_LEFTSIDE,    216, 0, JSEXN_SYNTAXERR, "invalid array comprehension left-hand side")
 MSG_DEF(JSMSG_UNUSED217,              217, 0, JSEXN_NONE, "")
 MSG_DEF(JSMSG_EMPTY_ARRAY_REDUCE,     218, 0, JSEXN_TYPEERR, "reduce of empty array with no initial value")
-MSG_DEF(JSMSG_BAD_SYMBOL,             219, 1, JSEXN_TYPEERR, "{0} is not a well-known @@-symbol")
+MSG_DEF(JSMSG_UNUSED219,              219, 0, JSEXN_NONE, "")
 MSG_DEF(JSMSG_BAD_DELETE_OPERAND,     220, 0, JSEXN_REFERENCEERR, "invalid delete operand")
 MSG_DEF(JSMSG_BAD_INCOP_OPERAND,      221, 0, JSEXN_REFERENCEERR, "invalid increment/decrement operand")
 MSG_DEF(JSMSG_UNEXPECTED_TYPE,        222, 2, JSEXN_TYPEERR, "{0} is {1}")
@@ -414,4 +414,3 @@ MSG_DEF(JSMSG_TYPEDOBJECT_TOO_BIG, 360, 0, JSEXN_ERR, "Type is too large to allo
 MSG_DEF(JSMSG_TYPEDOBJECT_NOT_TYPE_OBJECT, 361, 0, JSEXN_ERR, "Expected a type object")
 MSG_DEF(JSMSG_TOO_MANY_CON_SPREADARGS, 362, 0, JSEXN_RANGEERR, "too many constructor arguments")
 MSG_DEF(JSMSG_TOO_MANY_FUN_SPREADARGS, 363, 0, JSEXN_RANGEERR, "too many function arguments")
-MSG_DEF(JSMSG_DEBUG_NOT_DEBUGGEE,     364, 2, JSEXN_ERR, "{0} is not a debuggee {1}")

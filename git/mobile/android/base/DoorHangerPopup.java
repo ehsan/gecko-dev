@@ -7,7 +7,6 @@ package org.mozilla.gecko;
 
 import org.mozilla.gecko.util.GeckoEventListener;
 import org.mozilla.gecko.widget.ArrowPopup;
-import org.mozilla.gecko.prompts.PromptInput;
 
 import org.json.JSONArray;
 import org.json.JSONException;

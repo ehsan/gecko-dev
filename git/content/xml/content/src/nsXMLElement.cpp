@@ -5,7 +5,6 @@
 
 #include "nsXMLElement.h"
 #include "mozilla/dom/ElementBinding.h"
-#include "mozilla/dom/ElementInlines.h"
 #include "nsContentUtils.h" // nsAutoScriptBlocker
 
 using namespace mozilla::dom;

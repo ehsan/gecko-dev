@@ -55,5 +55,3 @@ LIBXUL_LIBRARY = True
 
 LIBRARY_NAME = 'domsystem_s'
 
-EXPORT_LIBRARY = True
-

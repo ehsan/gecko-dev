@@ -1960,8 +1960,8 @@ nsObjectFrame::PaintPlugin(nsDisplayListBuilder* aBuilder,
 
 NS_IMETHODIMP
 nsObjectFrame::HandleEvent(nsPresContext* aPresContext,
-                           WidgetGUIEvent* anEvent,
-                           nsEventStatus* anEventStatus)
+                           nsGUIEvent*     anEvent,
+                           nsEventStatus*  anEventStatus)
 {
   NS_ENSURE_ARG_POINTER(anEvent);
   NS_ENSURE_ARG_POINTER(anEventStatus);

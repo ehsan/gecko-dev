@@ -1666,9 +1666,9 @@ TabChild::RecvMouseEvent(const nsString& aType,
 }
 
 bool
-TabChild::RecvRealMouseEvent(const WidgetMouseEvent& event)
+TabChild::RecvRealMouseEvent(const nsMouseEvent& event)
 {
-  WidgetMouseEvent localEvent(event);
+  nsMouseEvent localEvent(event);
   DispatchWidgetEvent(localEvent);
   return true;
 }
@@ -1688,11 +1688,11 @@ TabChild::DispatchSynthesizedMouseEvent(uint32_t aMsg, uint64_t aTime,
   MOZ_ASSERT(aMsg == NS_MOUSE_MOVE || aMsg == NS_MOUSE_BUTTON_DOWN ||
              aMsg == NS_MOUSE_BUTTON_UP);
 
-  WidgetMouseEvent event(true, aMsg, NULL,
-                         WidgetMouseEvent::eReal, WidgetMouseEvent::eNormal);
+  nsMouseEvent event(true, aMsg, NULL,
+      nsMouseEvent::eReal, nsMouseEvent::eNormal);
   event.refPoint = LayoutDeviceIntPoint(aRefPoint.x, aRefPoint.y);
   event.time = aTime;
-  event.button = WidgetMouseEvent::eLeftButton;
+  event.button = nsMouseEvent::eLeftButton;
   event.inputSource = nsIDOMMouseEvent::MOZ_SOURCE_TOUCH;
   if (aMsg != NS_MOUSE_MOVE) {
     event.clickCount = 1;
@@ -1907,7 +1907,7 @@ TabChild::RecvSelectionEvent(const WidgetSelectionEvent& event)
 }
 
 nsEventStatus
-TabChild::DispatchWidgetEvent(WidgetGUIEvent& event)
+TabChild::DispatchWidgetEvent(nsGUIEvent& event)
 {
   if (!mWidget)
     return nsEventStatus_eConsumeNoDefault;
@@ -2423,18 +2423,6 @@ TabChild::DoSendAsyncMessage(JSContext* aCx,
     }
   }
   return SendAsyncMessage(nsString(aMessage), data, cpows);
-}
-
-TabChild*
-TabChild::GetFrom(nsIPresShell* aPresShell)
-{
-  nsIDocument* doc = aPresShell->GetDocument();
-  if (!doc) {
-      return nullptr;
-  }
-  nsCOMPtr<nsISupports> container = doc->GetContainer();
-  nsCOMPtr<nsIDocShell> docShell(do_QueryInterface(container));
-  return GetFrom(docShell);
 }
 
 

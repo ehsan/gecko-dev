@@ -261,7 +261,6 @@ OmxDecoder::OmxDecoder(MediaResource *aResource,
   mAudioSampleRate(-1),
   mDurationUs(-1),
   mMP3FrameParser(aResource->GetLength()),
-  mIsMp3(false),
   mVideoBuffer(nullptr),
   mAudioBuffer(nullptr),
   mIsVideoSeeking(false),
@@ -328,12 +327,6 @@ bool OmxDecoder::Init() {
   if (extractor == nullptr) {
     NS_WARNING("Could not create MediaExtractor");
     return false;
-  }
-
-  const char* extractorMime;
-  sp<MetaData> meta = extractor->getMetaData();
-  if (meta->findCString(kKeyMIMEType, &extractorMime) && !strcasecmp(extractorMime, AUDIO_MP3)) {
-    mIsMp3 = true;
   }
 
   ssize_t audioTrackIndex = -1;
@@ -630,7 +623,7 @@ bool OmxDecoder::SetAudioFormat() {
 
 void OmxDecoder::NotifyDataArrived(const char* aBuffer, uint32_t aLength, int64_t aOffset)
 {
-  if (!mAudioTrack.get() || !mIsMp3 || !mMP3FrameParser.IsMP3()) {
+  if (!mMP3FrameParser.IsMP3()) {
     return;
   }
 

@@ -168,7 +168,7 @@ private:
                          LayoutDeviceIntPoint& aRefPointOut);
   void OnPointerNonTouch(IPointerPoint* aPoint);
   void AddPointerMoveDataToRecognizer(IPointerEventArgs* aArgs);
-  void InitGeckoMouseEventFromPointerPoint(WidgetMouseEvent* aEvent,
+  void InitGeckoMouseEventFromPointerPoint(nsMouseEvent* aEvent,
                                            IPointerPoint* aPoint);
   void ProcessManipulationDelta(ManipulationDelta const& aDelta,
                                 Point const& aPosition,
@@ -277,7 +277,7 @@ private:
   void OnFirstPointerMoveCallback();
 
   // Sync event dispatching
-  void DispatchEventIgnoreStatus(WidgetGUIEvent* aEvent);
+  void DispatchEventIgnoreStatus(nsGUIEvent *aEvent);
   void DispatchTouchCancel();
 
   nsDeque mInputEventQueue;

@@ -1372,7 +1372,7 @@ public:
    * aDOMEvent->GetInternalNSEvent().
    * XXX Is this necessary?
    */
-  static mozilla::WidgetEvent* GetNativeEvent(nsIDOMEvent* aDOMEvent);
+  static nsEvent* GetNativeEvent(nsIDOMEvent* aDOMEvent);
 
   /**
    * Get the candidates for accelkeys for aDOMKeyEvent.

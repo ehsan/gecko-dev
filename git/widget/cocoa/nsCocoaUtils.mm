@@ -16,7 +16,6 @@
 #include "nsIServiceManager.h"
 #include "nsMenuUtilsX.h"
 #include "nsToolkit.h"
-#include "nsCRT.h"
 #include "mozilla/MiscEvents.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/TextEvents.h"

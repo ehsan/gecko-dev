@@ -20,7 +20,7 @@ EXPORTS.angle += [
 
 # Target: 'preprocessor'
 # src/compiler/preprocessor:
-CPP_SOURCES += ['src/compiler/preprocessor/' + src for src in [
+CPP_SOURCES += [
     'DiagnosticsBase.cpp',
     'DirectiveHandlerBase.cpp',
     'DirectiveParser.cpp',
@@ -32,13 +32,13 @@ CPP_SOURCES += ['src/compiler/preprocessor/' + src for src in [
     'Preprocessor.cpp',
     'Token.cpp',
     'Tokenizer.cpp',
-]]
+]
 
 
 # Target: 'translator_common'
 #   Requires: 'preprocessor'
 # src/compiler:
-CPP_SOURCES += ['src/compiler/' + src for src in [
+CPP_SOURCES += [
     'BuiltInFunctionEmulator.cpp',
     'Compiler.cpp',
     'compiler_debug.cpp',
@@ -67,46 +67,46 @@ CPP_SOURCES += ['src/compiler/' + src for src in [
     'ValidateLimitations.cpp',
     'VariableInfo.cpp',
     'VariablePacker.cpp',
-]]
+]
 
 # src/compiler/depgraph:
-CPP_SOURCES += ['src/compiler/depgraph/' + src for src in [
+CPP_SOURCES += [
     'DependencyGraph.cpp',
     'DependencyGraphBuilder.cpp',
     'DependencyGraphOutput.cpp',
     'DependencyGraphTraverse.cpp',
-]]
+]
 
 # src/compiler/timing:
-CPP_SOURCES += ['src/compiler/timing/' + src for src in [
+CPP_SOURCES += [
     'RestrictFragmentShaderTiming.cpp',
     'RestrictVertexShaderTiming.cpp',
-]]
+]
 
 # src/third_party/compiler:
-CPP_SOURCES += ['src/third_party/compiler/' + src for src in [
+CPP_SOURCES += [
     'ArrayBoundsClamper.cpp',
-]]
+]
 
 # src/third_party/murmurhash:
-CPP_SOURCES += ['src/third_party/murmurhash/' + src for src in [
+CPP_SOURCES += [
     'MurmurHash3.cpp',
-]]
+]
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'windows':
     CPP_SOURCES += [
-        'src/compiler/ossource_win.cpp',
+        'ossource_win.cpp',
     ]
 else:
     CPP_SOURCES += [
-        'src/compiler/ossource_posix.cpp',
+        'ossource_posix.cpp',
     ]
 
 
 # Target: 'translator_glsl'
 #   Requires: 'translator_common'
 # src/compiler:
-CPP_SOURCES += ['src/compiler/' + src for src in [
+CPP_SOURCES += [
     'CodeGenGLSL.cpp',
     'OutputESSL.cpp',
     'OutputGLSLBase.cpp',
@@ -115,7 +115,7 @@ CPP_SOURCES += ['src/compiler/' + src for src in [
     'TranslatorESSL.cpp',
     'TranslatorGLSL.cpp',
     'VersionGLSL.cpp',
-]]
+]
 
 LIBRARY_NAME = 'angle'
 LIBXUL_LIBRARY = True
