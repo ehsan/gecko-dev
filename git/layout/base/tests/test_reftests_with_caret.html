@@ -14,7 +14,7 @@
   </style>
 <script type="text/javascript">
 
-if (!navigator.platform.startsWith("Win")) {
+if (navigator.platform.indexOf("Win") != 0) {
   SimpleTest.expectAssertions(0, 2);
 }
 

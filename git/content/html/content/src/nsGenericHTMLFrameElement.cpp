@@ -9,7 +9,6 @@
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsContentUtils.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/ErrorResult.h"
 #include "nsIAppsService.h"
 #include "nsServiceManagerUtils.h"
 #include "nsIDOMApplicationRegistry.h"
@@ -395,11 +394,3 @@ nsGenericHTMLFrameElement::AllowCreateFrameLoader()
   mFrameLoaderCreationDisallowed = false;
   return NS_OK;
 }
-
-void
-nsGenericHTMLFrameElement::SwapFrameLoaders(nsXULElement& aOtherOwner,
-                                            ErrorResult& aError)
-{
-  aError.Throw(NS_ERROR_NOT_IMPLEMENTED);
-}
-

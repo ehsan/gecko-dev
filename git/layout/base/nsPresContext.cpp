@@ -1152,21 +1152,11 @@ nsPresContext::GetParentPresContext()
 {
   nsIPresShell* shell = GetPresShell();
   if (shell) {
-    nsViewManager* viewManager = shell->GetViewManager();
-    if (viewManager) {
-      nsView* view = viewManager->GetRootView();
-      if (view) {
-        view = view->GetParent(); // anonymous inner view
-        if (view) {
-          view = view->GetParent(); // subdocumentframe's view
-          if (view) {
-            nsIFrame* f = view->GetFrame();
-            if (f) {
-              return f->PresContext();
-            }
-          }
-        }
-      }
+    nsIFrame* rootFrame = shell->FrameManager()->GetRootFrame();
+    if (rootFrame) {
+      nsIFrame* f = nsLayoutUtils::GetCrossDocParentFrame(rootFrame);
+      if (f)
+        return f->PresContext();
     }
   }
   return nullptr;

@@ -881,7 +881,7 @@ WebSocket::CreateAndDispatchMessageEvent(const nsACString& aData,
   nsIScriptContext* scriptContext = sgo->GetContext();
   NS_ENSURE_TRUE(scriptContext, NS_ERROR_FAILURE);
 
-  AutoPushJSContext cx(scriptContext->GetNativeContext());
+  JSContext* cx = scriptContext->GetNativeContext();
   NS_ENSURE_TRUE(cx, NS_ERROR_FAILURE);
 
   // Create appropriate JS object for message

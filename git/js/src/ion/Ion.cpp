@@ -290,7 +290,7 @@ IonCompartment::getVMWrapper(const VMFunction &f)
 
     JS_ASSERT(rt->functionWrappers_);
     JS_ASSERT(rt->functionWrappers_->initialized());
-    IonRuntime::VMWrapperMap::Ptr p = rt->functionWrappers_->readonlyThreadsafeLookup(&f);
+    IonRuntime::VMWrapperMap::Ptr p = rt->functionWrappers_->lookup(&f);
     JS_ASSERT(p);
 
     return p->value;
@@ -937,14 +937,6 @@ OptimizeMIR(MIRGenerator *mir)
         AssertExtendedGraphCoherency(graph);
 
         if (mir->shouldCancel("RA De-Beta"))
-            return false;
-
-        if (!r.truncate())
-            return false;
-        IonSpewPass("Truncate Doubles");
-        AssertExtendedGraphCoherency(graph);
-
-        if (mir->shouldCancel("Truncate Doubles"))
             return false;
     }
 

@@ -216,7 +216,6 @@ SharedSurface_ANGLEShareHandle::Create(GLContext* gl, ID3D10Device1* d3d,
     // On failure, goto CleanUpIfFailed.
     // If |failed|, CleanUpIfFailed will clean up and return null.
     bool failed = true;
-    HRESULT hr;
 
     // Off to the races!
     if (!egl->fQuerySurfacePointerANGLE(
@@ -231,7 +230,7 @@ SharedSurface_ANGLEShareHandle::Create(GLContext* gl, ID3D10Device1* d3d,
 
     // Ok, we have a valid PBuffer with ShareHandle.
     // Let's attach it to D3D.
-    hr = d3d->OpenSharedResource(shareHandle,
+    HRESULT hr = d3d->OpenSharedResource(shareHandle,
                                          __uuidof(ID3D10Texture2D),
                                          getter_AddRefs(texture));
     if (FAILED(hr))

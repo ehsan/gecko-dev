@@ -399,7 +399,8 @@ this.PlacesUIUtils = {
    * TRANSITION_LINK.
    */
   markPageAsTyped: function PUIU_markPageAsTyped(aURL) {
-    PlacesUtils.history.markPageAsTyped(this.createFixedURI(aURL));
+    PlacesUtils.history.QueryInterface(Ci.nsIBrowserHistory)
+               .markPageAsTyped(this.createFixedURI(aURL));
   },
 
   /**
@@ -420,7 +421,8 @@ this.PlacesUIUtils = {
    * so automatic visits can be correctly ignored.
    */
   markPageAsFollowedLink: function PUIU_markPageAsFollowedLink(aURL) {
-    PlacesUtils.history.markPageAsFollowedLink(this.createFixedURI(aURL));
+    PlacesUtils.history.QueryInterface(Ci.nsIBrowserHistory)
+               .markPageAsFollowedLink(this.createFixedURI(aURL));
   },
 
   /**

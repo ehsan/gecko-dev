@@ -28,8 +28,8 @@ class AssemblerX86Shared
         { }
     };
 
-    Vector<CodeLabel, 0, SystemAllocPolicy> codeLabels_;
-    Vector<RelativePatch, 8, SystemAllocPolicy> jumps_;
+    js::Vector<CodeLabel, 0, SystemAllocPolicy> codeLabels_;
+    js::Vector<RelativePatch, 8, SystemAllocPolicy> jumps_;
     CompactBufferWriter jumpRelocations_;
     CompactBufferWriter dataRelocations_;
     CompactBufferWriter preBarriers_;
@@ -206,10 +206,6 @@ class AssemblerX86Shared
         // instruction stream.
         masm.jumpTablePointer(label->prev());
         label->setPrev(masm.size());
-    }
-    void writeDoubleConstant(double d, Label *label) {
-        label->bind(masm.size());
-        masm.doubleConstant(d);
     }
     void movl(const Imm32 &imm32, const Register &dest) {
         masm.movl_i32r(imm32.value, dest.code());

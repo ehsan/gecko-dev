@@ -11,7 +11,7 @@
 
 <script>
 <![CDATA[
-if (navigator.platform.startsWith("Linux")) {
+if (navigator.platform.indexOf("Linux") == 0) {
   SimpleTest.expectAssertions(0, 2);
 }
 

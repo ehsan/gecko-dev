@@ -12,7 +12,7 @@
           src="chrome://mochikit/content/tests/SimpleTest/EventUtils.js"/>
 
 <script>
-if (navigator.platform.startsWith("Mac")) {
+if (navigator.platform.indexOf("Mac") == 0) {
   SimpleTest.expectAssertions(0, 2);
 }
 

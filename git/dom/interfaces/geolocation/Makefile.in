@@ -22,7 +22,6 @@ XPIDLSRCS =                                    \
             nsIDOMGeoPositionError.idl         \
             nsIDOMGeoPositionErrorCallback.idl \
             nsIDOMNavigatorGeolocation.idl     \
-            nsIGeolocation.idl \
             $(NULL)
 
 include $(topsrcdir)/config/rules.mk

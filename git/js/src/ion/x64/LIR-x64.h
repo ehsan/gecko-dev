@@ -66,6 +66,23 @@ class LUnboxDouble : public LUnboxBase {
     { }
 };
 
+// Constant double.
+class LDouble : public LInstructionHelper<1, 0, 0>
+{
+    double d_;
+
+  public:
+    LIR_HEADER(Double)
+
+    LDouble(double d)
+      : d_(d)
+    { }
+
+    double getDouble() const {
+        return d_;
+    }
+};
+
 } // namespace ion
 } // namespace js
 

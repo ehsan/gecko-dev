@@ -20,8 +20,6 @@
 #include "xpcpublic.h"
 #include "nsXBLPrototypeBinding.h"
 
-using namespace mozilla;
-
 nsXBLProtoImplMethod::nsXBLProtoImplMethod(const PRUnichar* aName) :
   nsXBLProtoImplMember(aName), 
   mUncompiledMethod(BIT_UNCOMPILED)
@@ -194,7 +192,7 @@ nsXBLProtoImplMethod::CompileMember(nsIScriptContext* aContext, const nsCString&
   }
 
   JSObject* methodObject = nullptr;
-  AutoPushJSContext cx(aContext->GetNativeContext());
+  JSContext* cx = aContext->GetNativeContext();
   JSAutoRequest ar(cx);
   JSAutoCompartment ac(cx, aClassObject);
   JS::CompileOptions options(cx);
@@ -289,7 +287,7 @@ nsXBLProtoImplAnonymousMethod::Execute(nsIContent* aBoundElement)
 
   nsAutoMicroTask mt;
 
-  AutoPushJSContext cx(context->GetNativeContext());
+  JSContext* cx = context->GetNativeContext();
 
   JSObject* globalObject = global->GetGlobalJSObject();
 

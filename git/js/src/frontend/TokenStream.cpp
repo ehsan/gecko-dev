@@ -421,7 +421,7 @@ TokenStream::positionAfterLastFunctionKeyword(Position &pos)
 }
 
 bool
-TokenStream::reportStrictModeErrorNumberVA(const TokenPos &pos, bool strictMode, unsigned errorNumber,
+TokenStream::reportStrictModeErrorNumberVA(ParseNode *pn, bool strictMode, unsigned errorNumber,
                                            va_list args)
 {
     /* In strict mode code, this is an error, not merely a warning. */
@@ -433,7 +433,7 @@ TokenStream::reportStrictModeErrorNumberVA(const TokenPos &pos, bool strictMode,
     else
         return true;
  
-    return reportCompileErrorNumberVA(pos, flags, errorNumber, args);
+    return reportCompileErrorNumberVA(pn, flags, errorNumber, args);
 }
 
 void
@@ -489,7 +489,7 @@ CompileError::~CompileError()
 }
 
 bool
-TokenStream::reportCompileErrorNumberVA(const TokenPos &pos, unsigned flags, unsigned errorNumber,
+TokenStream::reportCompileErrorNumberVA(ParseNode *pn, unsigned flags, unsigned errorNumber,
                                         va_list args)
 {
     bool warning = JSREPORT_IS_WARNING(flags);
@@ -501,11 +501,13 @@ TokenStream::reportCompileErrorNumberVA(const TokenPos &pos, unsigned flags, uns
 
     CompileError err(cx);
 
+    const TokenPos *const tp = pn ? &pn->pn_pos : &currentToken().pos;
+
     err.report.flags = flags;
     err.report.errorNumber = errorNumber;
     err.report.filename = filename;
     err.report.originPrincipals = originPrincipals;
-    err.report.lineno = pos.begin.lineno;
+    err.report.lineno = tp->begin.lineno;
 
     err.argumentsType = (flags & JSREPORT_UC) ? ArgumentsAreUnicode : ArgumentsAreASCII;
 
@@ -526,7 +528,7 @@ TokenStream::reportCompileErrorNumberVA(const TokenPos &pos, unsigned flags, uns
      * multi-line string literal) won't have a context printed.
      */
     if (err.report.lineno == lineno) {
-        const jschar *tokptr = linebase + pos.begin.index;
+        const jschar *tokptr = linebase + tp->begin.index;
 
         // We show only a portion (a "window") of the line around the erroneous
         // token -- the first char in the token, plus |windowRadius| chars
@@ -540,7 +542,7 @@ TokenStream::reportCompileErrorNumberVA(const TokenPos &pos, unsigned flags, uns
                                  ? tokptr - windowRadius
                                  : linebase;
         size_t nTrunc = windowBase - linebase;
-        uint32_t windowIndex = pos.begin.index - nTrunc;
+        uint32_t windowIndex = tp->begin.index - nTrunc;
 
         // Find EOL, or truncate at the back if necessary.
         const jschar *windowLimit = userbuf.findEOLMax(tokptr, windowRadius);
@@ -563,7 +565,7 @@ TokenStream::reportCompileErrorNumberVA(const TokenPos &pos, unsigned flags, uns
             return false;
 
         // The lineno check above means we should only see single-line tokens here.
-        JS_ASSERT(pos.begin.lineno == pos.end.lineno);
+        JS_ASSERT(tp->begin.lineno == tp->end.lineno);
         err.report.tokenptr = err.report.linebuf + windowIndex;
         err.report.uctokenptr = err.report.uclinebuf + windowIndex;
     }
@@ -578,7 +580,7 @@ TokenStream::reportStrictModeError(unsigned errorNumber, ...)
 {
     va_list args;
     va_start(args, errorNumber);
-    bool result = reportStrictModeErrorNumberVA(currentToken().pos, strictMode(), errorNumber, args);
+    bool result = reportStrictModeErrorNumberVA(NULL, strictMode(), errorNumber, args);
     va_end(args);
     return result;
 }
@@ -588,7 +590,7 @@ TokenStream::reportError(unsigned errorNumber, ...)
 {
     va_list args;
     va_start(args, errorNumber);
-    bool result = reportCompileErrorNumberVA(currentToken().pos, JSREPORT_ERROR, errorNumber, args);
+    bool result = reportCompileErrorNumberVA(NULL, JSREPORT_ERROR, errorNumber, args);
     va_end(args);
     return result;
 }
@@ -598,18 +600,18 @@ TokenStream::reportWarning(unsigned errorNumber, ...)
 {
     va_list args;
     va_start(args, errorNumber);
-    bool result = reportCompileErrorNumberVA(currentToken().pos, JSREPORT_WARNING, errorNumber, args);
+    bool result = reportCompileErrorNumberVA(NULL, JSREPORT_WARNING, errorNumber, args);
     va_end(args);
     return result;
 }
 
 bool
-TokenStream::reportStrictWarningErrorNumberVA(const TokenPos &pos, unsigned errorNumber, va_list args)
+TokenStream::reportStrictWarningErrorNumberVA(ParseNode *pn, unsigned errorNumber, va_list args)
 {
     if (!cx->hasStrictOption())
         return true;
 
-    return reportCompileErrorNumberVA(pos, JSREPORT_STRICT | JSREPORT_WARNING, errorNumber, args);
+    return reportCompileErrorNumberVA(NULL, JSREPORT_STRICT | JSREPORT_WARNING, errorNumber, args);
 }
 
 /*

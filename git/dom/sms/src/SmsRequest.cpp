@@ -190,7 +190,7 @@ SmsRequest::SetSuccessInternal(nsISupports* aObject)
     return false;
   }
 
-  AutoPushJSContext cx(sc->GetNativeContext());
+  JSContext* cx = sc->GetNativeContext();    
   NS_ASSERTION(cx, "Failed to get a context!");
 
   JSObject* global = sc->GetNativeGlobal();
@@ -514,7 +514,7 @@ SmsRequest::NotifyThreadList(const InfallibleTArray<ThreadListItem>& aItems)
   NS_ENSURE_SUCCESS_VOID(rv);
   NS_ENSURE_TRUE_VOID(sc);
 
-  AutoPushJSContext cx(sc->GetNativeContext());
+  JSContext* cx = sc->GetNativeContext();
   MOZ_ASSERT(cx);
 
   nsCOMPtr<nsIScriptGlobalObject> sgo = do_QueryInterface(GetOwner());
@@ -523,7 +523,7 @@ SmsRequest::NotifyThreadList(const InfallibleTArray<ThreadListItem>& aItems)
   NS_ENSURE_TRUE_VOID(ownerObj);
 
   nsCxPusher pusher;
-  pusher.Push(cx);
+  NS_ENSURE_TRUE_VOID(pusher.Push(cx, false));
 
   JSAutoRequest ar(cx);
   JSAutoCompartment ac(cx, ownerObj);

@@ -20,8 +20,8 @@
         return;
       }
       else {
-        if (navigator.platform.startsWith("Win")) {
-          SimpleTest.expectAssertions(0, 250);
+        if (navigator.platform.indexOf("Win") == 0) {
+          SimpleTest.expectAssertions(0, 66);
         } else {
           SimpleTest.expectAssertions(0, 1);
         }

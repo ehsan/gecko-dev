@@ -331,9 +331,6 @@ class CodeLabel
   public:
     CodeLabel()
     { }
-    CodeLabel(const AbsoluteLabel &dest)
-       : dest_(dest)
-    { }
     AbsoluteLabel *dest() {
         return &dest_;
     }

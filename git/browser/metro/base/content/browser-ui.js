@@ -46,8 +46,7 @@ let Elements = {};
   ["progress",           "progress-control"],
   ["contentNavigator",   "content-navigator"],
   ["aboutFlyout",        "about-flyoutpanel"],
-  ["prefsFlyout",        "prefs-flyoutpanel"],
-  ["syncFlyout",         "sync-flyoutpanel"]
+  ["prefsFlyout",        "prefs-flyoutpanel"]
 ].forEach(function (aElementGlobal) {
   let [name, id] = aElementGlobal;
   XPCOMUtils.defineLazyGetter(Elements, name, function() {
@@ -1307,18 +1306,6 @@ var StartUI = {
   }
 };
 
-var SyncPanelUI = {
-  init: function() {
-    // Run some setup code the first time the panel is shown.
-    Elements.syncFlyout.addEventListener("PopupChanged", function onShow(aEvent) {
-      if (aEvent.detail && aEvent.popup === Elements.syncFlyout) {
-        Elements.syncFlyout.removeEventListener("PopupChanged", onShow, false);
-        WeaveGlue.init();
-      }
-    }, false);
-  }
-};
-
 var FlyoutPanelsUI = {
   get _aboutVersionLabel() {
     return document.getElementById('about-version-label');
@@ -1338,13 +1325,11 @@ var FlyoutPanelsUI = {
   init: function() {
     this._initAboutPanel();
     PreferencesPanelView.init();
-    SyncPanelUI.init();
   },
 
   hide: function() {
     Elements.aboutFlyout.hide();
     Elements.prefsFlyout.hide();
-    Elements.syncFlyout.hide();
   }
 };
 
@@ -1623,11 +1608,6 @@ var SettingsCharm = {
     this.addEntry({
         label: Strings.browser.GetStringFromName("optionsCharm"),
         onselected: function() Elements.prefsFlyout.show()
-    });
-    // Sync 
-    this.addEntry({
-        label: Strings.browser.GetStringFromName("syncCharm"),
-        onselected: function() Elements.syncFlyout.show()
     });
     // About
     this.addEntry({

@@ -3011,9 +3011,8 @@ nsDOMWindowUtils::SelectAtPoint(float aX, float aY, uint32_t aSelectBehavior,
   }
 
   // Get the target frame at the client coordinates passed to us
-  nsPoint offset;
-  nsCOMPtr<nsIWidget> widget = GetWidget(&offset);
-  nsIntPoint pt = ToWidgetPoint(aX, aY, offset, GetPresContext());
+  nsCOMPtr<nsIWidget> widget = GetWidget();
+  nsIntPoint pt(aX, aY);
   nsPoint ptInRoot =
     nsLayoutUtils::GetEventCoordinatesRelativeTo(widget, pt, rootFrame);
   nsIFrame* targetFrame = nsLayoutUtils::GetFrameForPoint(rootFrame, ptInRoot);

@@ -43,8 +43,28 @@ ParseNode::atom() const
     return isKind(PNK_MODULE) ? pn_modulebox->module()->atom() : pn_atom;
 }
 
+inline bool
+ParseNode::isConstant()
+{
+    switch (pn_type) {
+      case PNK_NUMBER:
+      case PNK_STRING:
+      case PNK_NULL:
+      case PNK_FALSE:
+      case PNK_TRUE:
+        return true;
+      case PNK_ARRAY:
+      case PNK_OBJECT:
+        return isOp(JSOP_NEWINIT) && !(pn_xflags & PNX_NONCONST);
+      default:
+        return false;
+    }
+}
+
+struct ParseContext;
+
 inline void
-NameNode::initCommon(ParseContext<FullParseHandler> *pc)
+NameNode::initCommon(ParseContext *pc)
 {
     pn_expr = NULL;
     pn_cookie.makeFree();

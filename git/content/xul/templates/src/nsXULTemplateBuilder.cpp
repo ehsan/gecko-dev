@@ -71,7 +71,6 @@
 #include "nsContentUtils.h"
 
 using namespace mozilla::dom;
-using namespace mozilla;
 
 //----------------------------------------------------------------------
 
@@ -1388,7 +1387,7 @@ nsXULTemplateBuilder::InitHTMLTemplateRoot()
     if (! context)
         return NS_ERROR_UNEXPECTED;
 
-    AutoPushJSContext jscontext(context->GetNativeContext());
+    JSContext* jscontext = context->GetNativeContext();
     NS_ASSERTION(context != nullptr, "no jscontext");
     if (! jscontext)
         return NS_ERROR_UNEXPECTED;

@@ -21,6 +21,7 @@ import android.graphics.Color;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.view.animation.AnimationUtils;
+import android.view.animation.AnimationUtils;
 import android.view.animation.Animation;
 import android.widget.ImageView;
 import android.view.Display;
@@ -149,17 +150,14 @@ public class WebApp extends GeckoApp {
         }
     }
 
-    @Override
     public String getPackageName() {
         return "@ANDROID_PACKAGE_NAME@";
     }
 
-    @Override
     public String getContentProcessName() {
         return "@MOZ_CHILD_PROCESS_NAME@";
     }
 
-    @Override
     public String getDefaultUAString() {
         String deviceType = "Mobile";
         if (GeckoAppShell.isTablet())
@@ -167,7 +165,6 @@ public class WebApp extends GeckoApp {
         return "Mozilla/5.0 (Android; " + deviceType + "; rv:@MOZ_APP_VERSION@) Gecko/@MOZ_APP_VERSION@ Firefox/@MOZ_APP_VERSION@";
     }
 
-    @Override
     public String getUAStringForHost(String host) {
         // With our standard UA String, we get a 200 response code and 
         // client-side redirect from t.co. This bot-like UA gives us a 
@@ -235,13 +232,10 @@ public class WebApp extends GeckoApp {
                 if (mSplashscreen.getVisibility() == View.VISIBLE) {
                     Animation fadeout = AnimationUtils.loadAnimation(this, android.R.anim.fade_out);
                     fadeout.setAnimationListener(new Animation.AnimationListener() {
-                        @Override
                         public void onAnimationEnd(Animation animation) {
                           mSplashscreen.setVisibility(View.GONE);
                         }
-                        @Override
                         public void onAnimationRepeat(Animation animation) { }
-                        @Override
                         public void onAnimationStart(Animation animation) { }
                     });
                     mSplashscreen.startAnimation(fadeout);
@@ -260,7 +254,6 @@ public class WebApp extends GeckoApp {
         super.onTabChanged(tab, msg, data);
     }
 
-    @Override
     protected void connectGeckoLayerClient() {
         super.connectGeckoLayerClient();
         getLayerView().setOverScrollMode(View.OVER_SCROLL_NEVER);

@@ -184,7 +184,6 @@
 #include "mozilla/dom/BindingUtils.h"
 #include "mozilla/dom/DocumentFragment.h"
 #include "mozilla/dom/HTMLBodyElement.h"
-#include "mozilla/dom/NodeFilterBinding.h"
 #include "mozilla/dom/UndoManager.h"
 #include "nsFrame.h"
 #include "nsDOMCaretPosition.h"
@@ -3984,8 +3983,19 @@ nsDocument::SetScriptGlobalObject(nsIScriptGlobalObject *aScriptGlobalObject)
       JSObject *obj = GetWrapperPreserveColor();
       if (obj) {
         JSObject *newScope = aScriptGlobalObject->GetGlobalJSObject();
-        NS_ASSERTION(js::GetGlobalForObjectCrossCompartment(obj) == newScope,
-                     "Wrong scope, this is really bad!");
+        nsIScriptContext *scx = aScriptGlobalObject->GetContext();
+        JSContext *cx = scx ? scx->GetNativeContext() : nullptr;
+        if (!cx) {
+          nsContentUtils::ThreadJSContextStack()->Peek(&cx);
+          if (!cx) {
+            cx = nsContentUtils::ThreadJSContextStack()->GetSafeJSContext();
+            NS_ASSERTION(cx, "Uhoh, no context, this is bad!");
+          }
+        }
+        if (cx) {
+          NS_ASSERTION(JS_GetGlobalForObject(cx, obj) == newScope,
+                       "Wrong scope, this is really bad!");
+        }
       }
     }
 #endif
@@ -5355,28 +5365,14 @@ nsDocument::CreateNodeIterator(nsIDOMNode *aRoot,
   NS_ENSURE_TRUE(root, NS_ERROR_UNEXPECTED);
 
   ErrorResult rv;
-  NodeFilterHolder holder(aFilter);
-  *_retval = nsIDocument::CreateNodeIterator(*root, aWhatToShow, holder,
+  *_retval = nsIDocument::CreateNodeIterator(*root, aWhatToShow, aFilter,
                                              rv).get();
   return rv.ErrorCode();
 }
 
 already_AddRefed<nsIDOMNodeIterator>
 nsIDocument::CreateNodeIterator(nsINode& aRoot, uint32_t aWhatToShow,
-                                NodeFilter* aFilter,
-                                mozilla::ErrorResult& rv) const
-{
-  NodeFilterHolder holder(aFilter);
-  // We don't really know how to handle WebIDL callbacks yet, in
-  // nsTraversal, so just go ahead and convert to an XPCOM callback.
-  nsCOMPtr<nsIDOMNodeFilter> filter = holder.ToXPCOMCallback();
-  NodeFilterHolder holder2(filter);
-  return CreateNodeIterator(aRoot, aWhatToShow, holder2, rv);
-}
-
-already_AddRefed<nsIDOMNodeIterator>
-nsIDocument::CreateNodeIterator(nsINode& aRoot, uint32_t aWhatToShow,
-                                const NodeFilterHolder& aFilter,
+                                nsIDOMNodeFilter* aFilter,
                                 mozilla::ErrorResult& rv) const
 {
   nsINode* root = &aRoot;
@@ -5408,28 +5404,14 @@ nsDocument::CreateTreeWalker(nsIDOMNode *aRoot,
   NS_ENSURE_TRUE(root, NS_ERROR_DOM_NOT_SUPPORTED_ERR);
 
   ErrorResult rv;
-  NodeFilterHolder holder(aFilter);
-  *_retval = nsIDocument::CreateTreeWalker(*root, aWhatToShow, holder,
+  *_retval = nsIDocument::CreateTreeWalker(*root, aWhatToShow, aFilter,
                                            rv).get();
   return rv.ErrorCode();
 }
 
 already_AddRefed<nsIDOMTreeWalker>
 nsIDocument::CreateTreeWalker(nsINode& aRoot, uint32_t aWhatToShow,
-                              NodeFilter* aFilter,
-                              mozilla::ErrorResult& rv) const
-{
-  NodeFilterHolder holder(aFilter);
-  // We don't really know how to handle WebIDL callbacks yet, in
-  // nsTraversal, so just go ahead and convert to an XPCOM callback.
-  nsCOMPtr<nsIDOMNodeFilter> filter = holder.ToXPCOMCallback();
-  NodeFilterHolder holder2(filter);
-  return CreateTreeWalker(aRoot, aWhatToShow, holder2, rv);
-}
-
-already_AddRefed<nsIDOMTreeWalker>
-nsIDocument::CreateTreeWalker(nsINode& aRoot, uint32_t aWhatToShow,
-                              const NodeFilterHolder& aFilter,
+                              nsIDOMNodeFilter* aFilter,
                               mozilla::ErrorResult& rv) const
 {
   nsINode* root = &aRoot;
@@ -6192,7 +6174,6 @@ private:
  */
 static nsresult
 GetContextAndScope(nsIDocument* aOldDocument, nsIDocument* aNewDocument,
-                   nsCxPusher& aPusher,
                    JSContext** aCx, JSObject** aNewScope)
 {
   MOZ_ASSERT(aOldDocument);
@@ -6235,9 +6216,6 @@ GetContextAndScope(nsIDocument* aOldDocument, nsIDocument* aNewDocument,
     }
   }
 
-  if (cx) {
-    aPusher.Push(cx);
-  }
   if (!newScope && cx) {
     JS::Value v;
     nsresult rv = nsContentUtils::WrapNative(cx, global, aNewDocument,
@@ -6371,9 +6349,8 @@ nsIDocument::AdoptNode(nsINode& aAdoptedNode, ErrorResult& rv)
 
   JSContext *cx = nullptr;
   JSObject *newScope = nullptr;
-  nsCxPusher pusher;
   if (!sameDocument) {
-    rv = GetContextAndScope(oldDocument, this, pusher, &cx, &newScope);
+    rv = GetContextAndScope(oldDocument, this, &cx, &newScope);
     if (rv.Failed()) {
       return nullptr;
     }
@@ -6847,7 +6824,7 @@ nsDocument::IsScriptEnabled()
   nsIScriptContext *scriptContext = globalObject->GetContext();
   NS_ENSURE_TRUE(scriptContext, false);
 
-  AutoPushJSContext cx(scriptContext->GetNativeContext());
+  JSContext* cx = scriptContext->GetNativeContext();
   NS_ENSURE_TRUE(cx, false);
 
   bool enabled;
@@ -8565,7 +8542,7 @@ nsDocument::GetStateObject(nsIVariant** aState)
 
   nsCOMPtr<nsIVariant> stateObj;
   if (!mStateObjectCached && mStateObjectContainer) {
-    AutoPushJSContext cx(nsContentUtils::GetContextFromDocument(this));
+    JSContext *cx = nsContentUtils::GetContextFromDocument(this);
     mStateObjectContainer->
       DeserializeToVariant(cx, getter_AddRefs(mStateObjectCached));
   }

@@ -35,9 +35,9 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=570192
   <script type="application/javascript">
     <![CDATA[
 
-    if (navigator.platform.startsWith("Mac")) {
+    if (navigator.platform.indexOf("Mac") == 0) {
       SimpleTest.expectAssertions(0, 2);
-    } else if (navigator.platform.startsWith("Linux")) {
+    } else if (navigator.platform.indexOf("Linux") == 0) {
       SimpleTest.expectAssertions(0, 5);
     }
 

@@ -22,7 +22,7 @@ function runTest() {
   browserElementTestHelpers.addPermission();
 
   iframe = document.createElement('iframe');
-  SpecialPowers.wrap(iframe).mozbrowser = true;
+  iframe.mozbrowser = true;
 
   addOneShotIframeEventListener('mozbrowserloadend', function() {
     SimpleTest.executeSoon(test2);

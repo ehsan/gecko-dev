@@ -122,7 +122,6 @@ class JavaPanZoomController
         Axis.initPrefs();
     }
 
-    @Override
     public void destroy() {
         unregisterEventListener(MESSAGE_ZOOM_RECT);
         unregisterEventListener(MESSAGE_ZOOM_PAGE);
@@ -165,7 +164,6 @@ class JavaPanZoomController
         }
     }
 
-    @Override
     public void handleMessage(String event, JSONObject message) {
         try {
             if (MESSAGE_ZOOM_RECT.equals(event)) {
@@ -175,7 +173,6 @@ class JavaPanZoomController
                                      x + (float)message.getDouble("w"),
                                      y + (float)message.getDouble("h"));
                 mTarget.post(new Runnable() {
-                    @Override
                     public void run() {
                         animatedZoomTo(zoomRect);
                     }
@@ -194,7 +191,6 @@ class JavaPanZoomController
                                     cssPageRect.width(),
                                     y + dh/2 + newHeight);
                 mTarget.post(new Runnable() {
-                    @Override
                     public void run() {
                         animatedZoomTo(r);
                     }
@@ -204,7 +200,6 @@ class JavaPanZoomController
                 final Tab tab = Tabs.getInstance().getTab(tabId);
                 tab.setHasTouchListeners(true);
                 mTarget.post(new Runnable() {
-                    @Override
                     public void run() {
                         if (Tabs.getInstance().isSelectedTab(tab))
                             mTouchEventHandler.setWaitForTouchListeners(true);
@@ -217,7 +212,6 @@ class JavaPanZoomController
     }
 
     /** This function MUST be called on the UI thread */
-    @Override
     public boolean onMotionEvent(MotionEvent event) {
         if (Build.VERSION.SDK_INT <= 11) {
             return false;
@@ -234,7 +228,6 @@ class JavaPanZoomController
     }
 
     /** This function MUST be called on the UI thread */
-    @Override
     public boolean onTouchEvent(MotionEvent event) {
         return mTouchEventHandler.handleEvent(event);
     }
@@ -250,13 +243,11 @@ class JavaPanZoomController
     }
 
     /** This function MUST be called on the UI thread */
-    @Override
     public void notifyDefaultActionPrevented(boolean prevented) {
         mTouchEventHandler.handleEventListenerAction(!prevented);
     }
 
     /** This function must be called from the UI thread. */
-    @Override
     public void abortAnimation() {
         checkMainThread();
         // this happens when gecko changes the viewport on us or if the device is rotated.
@@ -309,7 +300,6 @@ class JavaPanZoomController
     }
 
     /** This must be called on the UI thread. */
-    @Override
     public void pageRectUpdated() {
         if (mState == PanZoomState.NOTHING) {
             synchronized (mTarget.getLock()) {
@@ -627,7 +617,6 @@ class JavaPanZoomController
         return FloatMath.sqrt(xvel * xvel + yvel * yvel);
     }
 
-    @Override
     public PointF getVelocityVector() {
         return new PointF(mX.getRealVelocity(), mY.getRealVelocity());
     }
@@ -658,7 +647,6 @@ class JavaPanZoomController
         private boolean mAnimationTerminated;
 
         /* This should always run on the UI thread */
-        @Override
         public final void run() {
             /*
              * Since the animation timer queues this runnable on the UI thread, it
@@ -696,7 +684,6 @@ class JavaPanZoomController
             mBounceEndMetrics = endMetrics;
         }
 
-        @Override
         protected void animateFrame() {
             /*
              * The pan/zoom controller might have signaled to us that it wants to abort the
@@ -741,7 +728,6 @@ class JavaPanZoomController
 
     // The callback that performs the fling animation.
     private class FlingRunnable extends AnimationRunnable {
-        @Override
         protected void animateFrame() {
             /*
              * The pan/zoom controller might have signaled to us that it wants to abort the
@@ -1008,7 +994,6 @@ class JavaPanZoomController
         mTarget.setViewportMetrics(viewportMetrics);
     }
 
-    @Override
     public boolean getRedrawHint() {
         switch (mState) {
             case PINCHING:
@@ -1125,19 +1110,16 @@ class JavaPanZoomController
     }
 
     /** This function must be called from the UI thread. */
-    @Override
     public void abortPanning() {
         checkMainThread();
         bounce();
     }
 
-    @Override
     public void setOverScrollMode(int overscrollMode) {
         mX.setOverScrollMode(overscrollMode);
         mY.setOverScrollMode(overscrollMode);
     }
 
-    @Override
     public int getOverScrollMode() {
         return mX.getOverScrollMode();
     }

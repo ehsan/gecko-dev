@@ -2950,7 +2950,7 @@ Tab.prototype = {
       sendMessageToJava({
         type: "DesktopMode:Changed",
         desktopMode: aDesktopMode,
-        tabID: this.id
+        tabId: this.id
       });
     }
 

@@ -81,7 +81,6 @@ class JavaAddonManager implements GeckoEventListener {
         mDispatcher.registerEventListener("Dex:Unload", this);
     }
 
-    @Override
     public void handleMessage(String event, JSONObject message) {
         try {
             if (event.equals("Dex:Load")) {
@@ -174,7 +173,6 @@ class JavaAddonManager implements GeckoEventListener {
             return b;
         }
 
-        @Override
         public void handleMessage(String event, JSONObject json) {
             try {
                 if (mBundle != null) {
@@ -189,7 +187,6 @@ class JavaAddonManager implements GeckoEventListener {
             }
         }
 
-        @Override
         public String getResponse() {
             String response = mBundle.getString("response");
             mBundle = null;

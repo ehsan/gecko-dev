@@ -43,7 +43,6 @@ public class GeckoAccessibility {
 
     public static void updateAccessibilitySettings () {
         GeckoAppShell.getHandler().post(new Runnable() {
-                @Override
                 public void run() {
                     JSONObject ret = new JSONObject();
                     sEnabled = false;
@@ -130,7 +129,6 @@ public class GeckoAccessibility {
             // Before Jelly Bean we send events directly from here while spoofing the source by setting
             // the package and class name manually.
             GeckoAppShell.getHandler().post(new Runnable() {
-                    @Override
                     public void run() {
                         sendDirectAccessibilityEvent(eventType, message);
                 }
@@ -162,7 +160,6 @@ public class GeckoAccessibility {
             // Store the JSON message and use it to populate the event later in the code path.
             sEventMessage = message;
             GeckoApp.mAppContext.mMainHandler.post(new Runnable() {
-                    @Override
                     public void run() {
                         // If this is an accessibility focus, a lot of internal voodoo happens so we perform an
                         // accessibility focus action on the view, and it in turn sends the right events.

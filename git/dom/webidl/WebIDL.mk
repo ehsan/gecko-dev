@@ -63,7 +63,6 @@ webidl_files = \
   HTMLBRElement.webidl \
   HTMLButtonElement.webidl \
   HTMLCollection.webidl \
-  HTMLDataElement.webidl \
   HTMLDataListElement.webidl \
   HTMLDirectoryElement.webidl \
   HTMLDivElement.webidl \
@@ -215,7 +214,6 @@ webidl_files = \
   ValidityState.webidl \
   WebSocket.webidl \
   UndoManager.webidl \
-  URLUtils.webidl \
   USSDReceivedEvent.webidl \
   XMLHttpRequest.webidl \
   XMLHttpRequestEventTarget.webidl \

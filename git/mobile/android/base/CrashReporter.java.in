@@ -84,7 +84,6 @@ public class CrashReporter extends Activity
     private void doFinish() {
         if (mHandler != null) {
             mHandler.post(new Runnable() {
-                @Override
                 public void run() {
                     finish();
                 }
@@ -148,7 +147,6 @@ public class CrashReporter extends Activity
 
         mProgressDialog.show();
         new Thread(new Runnable() {
-            @Override
             public void run() {
                 sendReport(mPendingMinidumpFile, mExtrasStringMap, mPendingExtrasFile);
             }

@@ -466,23 +466,15 @@ IonBuilder::inlineMathAbs(CallInfo &callInfo)
     MIRType argType = getInlineArgType(callInfo, 0);
     if (argType != MIRType_Int32 && argType != MIRType_Double)
         return InliningStatus_NotInlined;
-
-    if (argType != returnType && returnType != MIRType_Int32)
+    if (argType != returnType)
         return InliningStatus_NotInlined;
 
     callInfo.unwrapArgs();
 
-    MInstruction *ins = MAbs::New(callInfo.getArg(0), argType);
+    MAbs *ins = MAbs::New(callInfo.getArg(0), returnType);
     current->add(ins);
-
-    if (argType != returnType) {
-        MToInt32 *toInt = MToInt32::New(ins);
-        toInt->setCanBeNegativeZero(false);
-        current->add(toInt);
-        ins = toInt;
-    }
-
     current->push(ins);
+
     return InliningStatus_Inlined;
 }
 

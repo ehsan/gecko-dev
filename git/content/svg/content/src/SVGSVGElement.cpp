@@ -847,12 +847,12 @@ nsSVGViewBoxRect
 SVGSVGElement::GetViewBoxWithSynthesis(
   float aViewportWidth, float aViewportHeight) const
 {
-  // The logic here should match HasViewBoxRect().
+  // The logic here should match HasViewBox().
   SVGViewElement* viewElement = GetCurrentViewElement();
-  if (viewElement && viewElement->mViewBox.HasRect()) {
+  if (viewElement && viewElement->mViewBox.IsExplicitlySet()) {
     return viewElement->mViewBox.GetAnimValue();
   }
-  if (mViewBox.HasRect()) {
+  if (mViewBox.IsExplicitlySet()) {
     return mViewBox.GetAnimValue();
   }
 
@@ -885,11 +885,11 @@ SVGSVGElement::GetPreserveAspectRatioWithOverride() const
 
   SVGViewElement* viewElement = GetCurrentViewElement();
 
-  // This check is equivalent to "!HasViewBoxRect() && ShouldSynthesizeViewBox()".
-  // We're just holding onto the viewElement that HasViewBoxRect() would look up,
+  // This check is equivalent to "!HasViewBox() && ShouldSynthesizeViewBox()".
+  // We're just holding onto the viewElement that HasViewBox() would look up,
   // so that we don't have to look it up again later.
-  if (!((viewElement && viewElement->mViewBox.HasRect()) ||
-        mViewBox.HasRect()) &&
+  if (!((viewElement && viewElement->mViewBox.IsExplicitlySet()) ||
+        mViewBox.IsExplicitlySet()) &&
       ShouldSynthesizeViewBox()) {
     // If we're synthesizing a viewBox, use preserveAspectRatio="none";
     return SVGPreserveAspectRatio(SVG_PRESERVEASPECTRATIO_NONE, SVG_MEETORSLICE_SLICE);
@@ -912,10 +912,10 @@ SVGSVGElement::GetLength(uint8_t aCtxType)
   SVGViewElement* viewElement = GetCurrentViewElement();
   const nsSVGViewBoxRect* viewbox = nullptr;
 
-  // The logic here should match HasViewBoxRect().
-  if (viewElement && viewElement->mViewBox.HasRect()) {
+  // The logic here should match HasViewBox().
+  if (viewElement && viewElement->mViewBox.IsExplicitlySet()) {
     viewbox = &viewElement->mViewBox.GetAnimValue();
-  } else if (mViewBox.HasRect()) {
+  } else if (mViewBox.IsExplicitlySet()) {
     viewbox = &mViewBox.GetAnimValue();
   }
 
@@ -1029,19 +1029,19 @@ SVGSVGElement::GetPreserveAspectRatio()
 }
 
 bool
-SVGSVGElement::HasViewBoxRect() const
+SVGSVGElement::HasViewBox() const
 {
   SVGViewElement* viewElement = GetCurrentViewElement();
-  if (viewElement && viewElement->mViewBox.HasRect()) {
+  if (viewElement && viewElement->mViewBox.IsExplicitlySet()) {
     return true;
   }
-  return mViewBox.HasRect();
+  return mViewBox.IsExplicitlySet();
 }
 
 bool
 SVGSVGElement::ShouldSynthesizeViewBox() const
 {
-  NS_ABORT_IF_FALSE(!HasViewBoxRect(),
+  NS_ABORT_IF_FALSE(!HasViewBox(),
                     "Should only be called if we lack a viewBox");
 
   nsIDocument* doc = GetCurrentDoc();
@@ -1110,8 +1110,8 @@ SVGSVGElement::
                     "should only override preserveAspectRatio in images");
 #endif
 
-  bool hasViewBoxRect = HasViewBoxRect();
-  if (!hasViewBoxRect && ShouldSynthesizeViewBox()) {
+  bool hasViewBox = HasViewBox();
+  if (!hasViewBox && ShouldSynthesizeViewBox()) {
     // My non-<svg:image> clients will have been painting me with a synthesized
     // viewBox, but my <svg:image> client that's about to paint me now does NOT
     // want that.  Need to tell ourselves to flush our transform.
@@ -1119,7 +1119,7 @@ SVGSVGElement::
   }
   mIsPaintingSVGImageElement = true;
 
-  if (!hasViewBoxRect) {
+  if (!hasViewBox) {
     return; // preserveAspectRatio irrelevant (only matters if we have viewBox)
   }
 
@@ -1141,7 +1141,7 @@ SVGSVGElement::ClearImageOverridePreserveAspectRatio()
 #endif
 
   mIsPaintingSVGImageElement = false;
-  if (!HasViewBoxRect() && ShouldSynthesizeViewBox()) {
+  if (!HasViewBox() && ShouldSynthesizeViewBox()) {
     // My non-<svg:image> clients will want to paint me with a synthesized
     // viewBox, but my <svg:image> client that just painted me did NOT
     // use that.  Need to tell ourselves to flush our transform.

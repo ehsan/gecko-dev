@@ -37,11 +37,10 @@
   </ListView>
 
   <LinearLayout
-    style="@style/SyncBottomContainer" >
-
+    style="@style/SyncBottomContainer">
     <LinearLayout
       style="@style/SyncBottom" >
-
+  
       <Button
         style="@style/SyncButton"
         android:id="@+id/send_button"

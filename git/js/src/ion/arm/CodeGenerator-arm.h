@@ -117,6 +117,9 @@ class CodeGeneratorARM : public CodeGeneratorShared
     void storeElementTyped(const LAllocation *value, MIRType valueType, MIRType elementType,
                            const Register &elements, const LAllocation *index);
 
+  protected:
+    void linkAbsoluteLabels();
+
   public:
     CodeGeneratorARM(MIRGenerator *gen, LIRGraph *graph);
 

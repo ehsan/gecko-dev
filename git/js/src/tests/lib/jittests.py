@@ -104,17 +104,15 @@ class Test:
                     elif name == 'tz-pacific':
                         test.tz_pacific = True
                     elif name == 'mjitalways':
-                        test.jitflags.append('--always-mjit')
+                        test.jitflags.append('-a')
                     elif name == 'debug':
-                        test.jitflags.append('--debugjit')
+                        test.jitflags.append('-d')
                     elif name == 'mjit':
-                        test.jitflags.append('--jm')
-                    elif name == 'no-jm':
-                        test.jitflags.append('--no-jm')
+                        test.jitflags.append('-m')
                     elif name == 'ion-eager':
                         test.jitflags.append('--ion-eager')
                     elif name == 'dump-bytecode':
-                        test.jitflags.append('--dump-bytecode')
+                        test.jitflags.append('-D')
                     else:
                         print('warning: unrecognized |jit-test| attribute %s' % part)
 

@@ -11,6 +11,8 @@ import android.database.sqlite.SQLiteOpenHelper;
 import android.text.TextUtils;
 import android.util.Log;
 
+import java.io.IOException;
+
 public class DBUtils {
     private static final String LOGTAG = "GeckoDBUtils";
 

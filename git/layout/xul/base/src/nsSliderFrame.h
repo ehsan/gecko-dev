@@ -130,11 +130,13 @@ private:
 
   void PageUpDown(nscoord change);
   void SetCurrentThumbPosition(nsIContent* aScrollbar, nscoord aNewPos, bool aIsSmooth,
-                               bool aMaySnap);
-  void SetCurrentPosition(nsIContent* aScrollbar, int32_t aNewPos, bool aIsSmooth);
+                               bool aImmediateRedraw, bool aMaySnap);
+  void SetCurrentPosition(nsIContent* aScrollbar, int32_t aNewPos, bool aIsSmooth,
+                          bool aImmediateRedraw);
   void SetCurrentPositionInternal(nsIContent* aScrollbar, int32_t pos,
-                                  bool aIsSmooth);
-  void CurrentPositionChanged();
+                                  bool aIsSmooth, bool aImmediateRedraw);
+  nsresult CurrentPositionChanged(nsPresContext* aPresContext,
+                                  bool aImmediateRedraw);
 
   void DragThumb(bool aGrabMouseEvents);
   void AddListener();

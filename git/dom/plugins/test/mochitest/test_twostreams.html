@@ -10,7 +10,11 @@
   <p id="display"></p>
 
   <script type="text/javascript">
-  SimpleTest.expectAssertions(1, 2);
+  if (navigator.platform.indexOf("Win") == 0) {
+    SimpleTest.expectAssertions(1, 2);
+  } else {
+    SimpleTest.expectAssertions(1);
+  }
 
   SimpleTest.waitForExplicitFinish();
 

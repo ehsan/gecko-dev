@@ -85,10 +85,6 @@ class HashMap
     typedef typename Impl::Ptr Ptr;
     Ptr lookup(const Lookup &l) const                 { return impl.lookup(l); }
 
-    // Like lookup, but does not assert if two threads call lookup at the same
-    // time. Only use this method when none of the threads will modify the map.
-    Ptr readonlyThreadsafeLookup(const Lookup &l) const { return impl.readonlyThreadsafeLookup(l); }
-
     // Assuming |p.found()|, remove |*p|.
     void remove(Ptr p)                                { impl.remove(p); }
 
@@ -526,28 +522,6 @@ struct DefaultHasher
 template <class T>
 struct DefaultHasher<T *> : PointerHasher<T *, tl::FloorLog2<sizeof(void *)>::result>
 {};
-
-// For doubles, we can xor the two uint32s.
-template <>
-struct DefaultHasher<double>
-{
-    typedef double Lookup;
-    static HashNumber hash(double d) {
-        JS_STATIC_ASSERT(sizeof(HashNumber) == 4);
-        union {
-            struct {
-                uint32_t lo;
-                uint32_t hi;
-            } s;
-            double d;
-        } u;
-        u.d = d;
-        return u.s.lo ^ u.s.hi;
-    }
-    static bool match(double lhs, double rhs) {
-        return lhs == rhs;
-    }
-};
 
 /*****************************************************************************/
 
@@ -1365,12 +1339,6 @@ class HashTable : private AllocPolicy
     Ptr lookup(const Lookup &l) const
     {
         ReentrancyGuard g(*this);
-        HashNumber keyHash = prepareHash(l);
-        return Ptr(lookup(l, keyHash, 0));
-    }
-
-    Ptr readonlyThreadsafeLookup(const Lookup &l) const
-    {
         HashNumber keyHash = prepareHash(l);
         return Ptr(lookup(l, keyHash, 0));
     }

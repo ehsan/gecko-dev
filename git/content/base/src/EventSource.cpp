@@ -1227,7 +1227,7 @@ EventSource::DispatchAllMessageEvents()
   nsIScriptContext* scriptContext = sgo->GetContext();
   NS_ENSURE_TRUE_VOID(scriptContext);
 
-  AutoPushJSContext cx(scriptContext->GetNativeContext());
+  JSContext* cx = scriptContext->GetNativeContext();
   NS_ENSURE_TRUE_VOID(cx);
 
   while (mMessagesToDispatch.GetSize() > 0) {
