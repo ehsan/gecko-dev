@@ -128,8 +128,12 @@ DiscardTracker::InformAllocation(PRInt64 bytes)
 {
   // This function is called back e.g. from RasterImage::Discard(); be careful!
 
-  // This function was made into a nop for the FF14 branch.  See bug 745141
-  // comments 54-56.
+  sCurrentDecodedImageBytes += bytes;
+  MOZ_ASSERT(sCurrentDecodedImageBytes >= 0);
+
+  // If we're using too much memory for decoded images, MaybeDiscardSoon will
+  // enqueue a callback to discard some images.
+  MaybeDiscardSoon();
 }
 
 /**
